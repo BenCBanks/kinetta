@@ -60,13 +60,13 @@ const MeCard=(()=>{
   const short=d=>fdate(d+'T12:00',{month:'short',day:'numeric'});
   // The card itself, shared by Me and every profile page (Ben, 30 Oct 2026: the full profile is this card at full size,
   // then the shared activities). Friends shares the handle row without changing its audience or destination.
-  function card(p,{mine=false,pills='',friends='',link=false}={}){
+  function card(p,{mine=false,pills='',friends='',link=false,milestones=false}={}){
     const bio=(p.bio||'').trim(),photo=avatar(p,'lg');
     return `<section class="me-card" aria-label="${mine?'Your profile card':esc(p.name||p.login)+'’s profile card'}"><div class="me-card-banner">${pills}</div>
       <div class="me-card-body"><div class="me-card-id">${link?`<a class="me-card-avatar" href="${profileHref(p)}" aria-label="View your shared profile">${photo}</a>`:`<span class="me-card-avatar">${photo}</span>`}<div class="me-card-name"><h2>${esc(p.name||p.login)}</h2><div class="me-card-meta"><span data-type="secondary">@${esc(p.login)}</span>${friends}</div></div></div>
         ${bio?bio.length>140?`<details class="me-about"><summary>About me</summary><p>${esc(bio)}</p></details>`:`<p class="me-profile-bio">${esc(bio)}</p>`:''}
         <div class="me-card-sections" aria-busy="true">${skel(1)}</div>
-        ${mine?`<p class="me-card-note">${svg('lock')}<span>Friends see this card. Private workouts count in totals, never in detail.</span></p>`:''}</div></section>`;
+        ${mine?`<p class="me-card-note">${svg('lock')}<span>Friends see this card. Private workouts count in totals, never in detail.</span></p>`:''}${milestones?'<div data-me-milestones hidden></div>':''}</div></section>`;
   }
   const ownPills=()=>`<button type="button" class="me-card-pill" data-card-edit>${svg('edit')}Edit</button><button type="button" class="me-card-pill" data-card-share aria-label="Share your profile">${svg('share')}</button>`;
   function ownFriends(count){
@@ -75,7 +75,7 @@ const MeCard=(()=>{
   }
   function header(me){
     return `<header class="me-top"><h1>Hi, ${esc(firstName(me))}</h1><div class="me-profile-tools">${bellBtn()}<a class="icon-btn" href="/me/settings" aria-label="Settings">${svg('settings')}</a></div></header>
-    ${card(me,{mine:true,link:true,pills:ownPills(),friends:ownFriends(me.friend_count)})}
+    ${card(me,{mine:true,link:true,pills:ownPills(),friends:ownFriends(me.friend_count),milestones:true})}
     <div class="me-divider"><span>${svg('lock')}Only you below this line</span></div>`;
   }
   // One distance chart, on the card, with a tiny Days / Weeks switch (Ben, 30 Oct 2026: no second chart below it).
@@ -92,17 +92,19 @@ const MeCard=(()=>{
       <div class="me-chart-scroll"><div class="me-card-bars" role="group" aria-label="${weekly?'Weekly distance, last 7 weeks':'Daily distance this week'}">${rows.map(w=>`<button type="button" class="me-week${w.today?' now':''}${w.future?' future':''}" aria-pressed="false" data-range="${esc(when(w))}" data-dist="${esc(value(w))}" aria-label="${esc((w.today?(weekly?'This week, ':'Today, '):'')+when(w)+': '+value(w))}"><span data-h="${top?Math.max(2,Math.round((w.distance_m||0)/top*10)):2}"></span>${weekly?'':`<i aria-hidden="true">${esc(letter(w))}</i>`}</button>`).join('')}</div></div></div>`;
   }
   function sections(r,layout,full){
-    if(!r.overview?.activities&&!r.shared_count)return `<p class="small muted me-card-empty">${r.mine===false?'No workouts to show yet.':'Your totals appear here once you have workouts.'}</p>`;
+    if(!r.overview?.activities&&!r.shared_count)return `<div class="me-card-empty"><p>${r.mine===false?'No workouts to show yet.':'Your totals appear here once you have workouts.'}</p>${r.mine===false||full?'':'<a class="ghost wide" href="/me/goals?new=1">Set a goal</a>'}</div>`;
     const periods=layout.sections.filter(k=>k==='totals'||k==='recent'&&r.recent),order=ProfileLayout.defaults().sections;
     // Combine the default presentation or adjacent periods; keep custom nonadjacent section ordering intact.
     const combined=periods.length===2&&(Math.abs(layout.sections.indexOf('recent')-layout.sections.indexOf('totals'))===1||layout.sections.every((k,i,a)=>!i||order.indexOf(k)>order.indexOf(a[i-1])));
-    const figures=keys=>`<div class="me-card-sec me-summary-scroll"><div class="me-stats-scroll" role="region" aria-label="Workout totals"><table class="me-stats"><thead data-type="secondary"><tr><th scope="col" aria-label="Period"></th>${layout.stats.map(k=>`<th scope="col">${ProfileLayout.labels.stats[k]}</th>`).join('')}</tr></thead><tbody>${keys.map(k=>{
-      const row=k==='recent'?r.recent.current:r.overview,label=k==='recent'?'Last 30 days':'All time',range=k==='recent'?`${label}, ${short(r.recent.start)} – ${short(r.recent.end)}`:label;
-      return `<tr data-card-period="${k}"><th scope="row" data-type="secondary" aria-label="${esc(range)}">${k==='recent'?'Last <span>30 days</span>':'<span>All time</span>'}</th>${layout.stats.map(stat=>{
-        const field={activities:'activities',distance:'distance_m',time:'time_s',active_days:'active_days'}[stat],n=row[field],value=n==null?'—':stat==='distance'?ProfileLayout.distance(n):stat==='time'?ProfileLayout.hours(n).replace(/\s+/g,''):Number(n).toLocaleString();
-        return `<td><b class="me-metric-value" data-type="stat">${esc(value)}</b>${stat==='distance'&&n!=null?`<small>${esc(U.du())}</small>`:''}</td>`;
-      }).join('')}</tr>`;
-    }).join('')}</tbody></table></div></div>`;
+    const periodName=k=>k==='recent'?'Last <span>30 days</span>':'<span>All time</span>',periodRange=k=>k==='recent'?`Last 30 days, ${short(r.recent.start)} – ${short(r.recent.end)}`:'All time';
+    const heading=stat=>ProfileLayout.labels.stats[stat]+(stat==='distance'?`<small> (${esc(U.du())})</small>`:'');
+    const number=(k,stat)=>{const row=k==='recent'?r.recent.current:r.overview,field={activities:'activities',distance:'distance_m',time:'time_s',active_days:'active_days'}[stat],n=row[field],value=n==null?'—':stat==='distance'?ProfileLayout.distance(n):stat==='time'?ProfileLayout.hours(n).replace(/\s+/g,''):Number(n).toLocaleString();return `<b class="me-metric-value" data-type="stat">${esc(value)}</b>`;};
+    const figures=keys=>{
+      const id='me-stats-'+keys.join('-');
+      // Narrow cards pair the two periods for each metric: every value stays visible, with one set of labels.
+      return `<div class="me-card-sec me-stat-group"><div class="me-summary-scroll me-stat-wide"><div class="me-stats-scroll" role="region" aria-label="Workout totals"><table class="me-stats" aria-label="Workout totals"><thead data-type="secondary"><tr><th scope="col" aria-label="Period"></th>${layout.stats.map(k=>`<th scope="col">${heading(k)}</th>`).join('')}</tr></thead><tbody>${keys.map(k=>`<tr data-card-period="${k}"><th scope="row" data-type="secondary" aria-label="${esc(periodRange(k))}">${periodName(k)}</th>${layout.stats.map(stat=>`<td>${number(k,stat)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>
+      <table class="me-stat-pairs" aria-label="Workout totals"><thead data-type="secondary"><tr>${keys.map(k=>`<th scope="col" id="${id}-${k}" data-card-pair-period="${k}" aria-label="${esc(periodRange(k))}">${periodName(k)}</th>`).join('')}</tr></thead>${layout.stats.map(stat=>`<tbody data-card-pair-metric="${stat}"><tr><th scope="rowgroup" id="${id}-${stat}" colspan="${keys.length}" data-type="secondary">${heading(stat)}</th></tr><tr>${keys.map(k=>`<td headers="${id}-${stat} ${id}-${k}" data-card-value-period="${k}">${number(k,stat)}</td>`).join('')}</tr></tbody>`).join('')}</table></div>`;
+    };
     return layout.sections.map(key=>{
       if(key==='recent'||key==='totals')return !periods.includes(key)||combined&&key!==periods[0]?'':figures(combined?periods:[key]);
       if(key==='mileage')return distance(r);

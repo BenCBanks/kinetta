@@ -4,23 +4,30 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
+const milestoneOffers=[{id:'22222222-2222-4222-8222-222222222222',kind:'year_distance',title:'100 miles this year',day:'2026-10-31',occurred:'2026-10-31T12:00:00Z',rank:500,private_activity:false,details:{amount:100,unit:'mi',garmin_sources:[]}},{id:'11111111-1111-4111-8111-111111111111',kind:'first_distance',title:'First 5K',day:'2026-11-01',occurred:'2026-11-01T12:00:00Z',rank:10,private_activity:true,details:{distance_m:5000,seconds:1800,sport:'run',garmin_sources:[]}}];
 // Poll with page.evaluate: the app's Content Security Policy forbids the string evaluation waitForFunction uses.
 async function until(page,fn,label,arg){for(let i=0;i<150;i++){if(await page.evaluate(fn,arg))return;await page.waitForTimeout(100);}throw Error('Timed out: '+label);}
 async function cardChecks(p,size){
- const card=p.locator('.me-card'),table=card.locator('.me-stats');assert.equal(await table.count(),1,'one default stats block');
- assert.deepEqual(await table.locator('thead th:not(:first-child)').allTextContents(),['Activities','Distance','Time'],'metric labels appear once');
- assert.deepEqual(await table.locator('tbody tr').evaluateAll(rows=>rows.map(n=>n.dataset.cardPeriod)),['recent','totals']);
- assert.match(await table.locator('[data-card-period=recent] th').getAttribute('aria-label'),/Last 30 days, .+ – .+/,'date range retained');
- const grid=await table.evaluate(n=>{const headers=[...n.querySelectorAll('thead th')].slice(1).map(x=>x.getBoundingClientRect());return [...n.querySelectorAll('tbody tr')].map(row=>[...row.querySelectorAll('td')].map((td,i)=>{const r=td.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(td.querySelector('b'));const text=range.getBoundingClientRect();return {aligned:Math.abs(r.left-headers[i].left)<.1&&Math.abs(r.right-headers[i].right)<.1,lines:range.getClientRects().length,contained:text.left>=r.left-.1&&text.right<=r.right+.1};}));});
+ const card=p.locator('.me-card'),narrow=await card.locator('.me-stat-pairs').isVisible(),table=card.locator(narrow?'.me-stat-pairs:visible':'.me-stats:visible');assert.equal(await table.count(),1,'one visible default stats block');
+ const labels=table.locator(narrow?'tbody > tr:first-child > th':'thead th:not(:first-child)');assert.deepEqual((await labels.allTextContents()).map(s=>s.replace(/ \((mi|km)\)$/,'')),['Activities','Distance','Time'],'metric labels appear once');assert.match(await table.locator('small').innerText(),/\((mi|km)\)/,'shared distance unit is explicit');
+ assert.deepEqual(await table.locator(narrow?'thead th':'tbody tr').evaluateAll(nodes=>nodes.map(n=>n.dataset.cardPairPeriod||n.dataset.cardPeriod)),['recent','totals']);
+ assert.match(await table.locator(narrow?'thead th:first-child':'[data-card-period=recent] th').getAttribute('aria-label'),/Last 30 days, .+ – .+/,'date range retained');
+ assert(await labels.evaluateAll(nodes=>nodes.every(n=>{const r=document.createRange();r.selectNodeContents(n.firstChild);return r.getClientRects().length===1})),'labels never break inside a word');
+ const grid=await table.evaluate(n=>{const paired=n.classList.contains('me-stat-pairs'),headers=[...n.querySelectorAll('thead th')].slice(paired?0:1).map(x=>x.getBoundingClientRect());return [...n.querySelectorAll('tbody tr')].filter(row=>row.querySelector('td')).map(row=>[...row.querySelectorAll('td')].map((td,i)=>{const r=td.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(td.querySelector('b'));const text=range.getBoundingClientRect();return {aligned:Math.abs(r.left-headers[i].left)<.1&&Math.abs(r.right-headers[i].right)<.1,lines:range.getClientRects().length,contained:text.left>=r.left-.1&&text.right<=r.right+.1};}));});
  assert(grid.flat().every(x=>x.aligned&&x.lines===1&&x.contained),'both periods align; large values never wrap or overlap');
- const rail=card.locator('.me-stats-scroll');if(size.root===16)assert(await rail.evaluate(n=>n.scrollWidth<=n.clientWidth+1),'normal-width totals fit');
- else{assert.equal(await rail.getAttribute('tabindex'),'0','overflow region is keyboard reachable');await rail.scrollIntoViewIfNeeded();await rail.focus();await p.keyboard.press('ArrowRight');await until(p,()=>document.querySelector('.me-stats-scroll').scrollLeft>0,'keyboard reveals later totals');await rail.evaluate(n=>{n.scrollLeft=0;n.dispatchEvent(new Event('scroll'));});}
+ assert(await table.evaluate(n=>n.scrollWidth<=n.clientWidth+1),'every metric fits without horizontal scrolling');if(narrow)assert.equal(await table.locator('[data-card-pair-metric=time] td').count(),2,'both periods retain their Time value');
  const friends=card.locator('a.me-friends-link'),target=await friends.boundingBox();assert(target.width>=44&&target.height>=44);assert.equal(await friends.evaluate(n=>getComputedStyle(n).pointerEvents),'auto','inline friends remains tappable');
  if(size.root===16){const meta=await card.locator('.me-card-meta').evaluate(n=>[...n.children].map(x=>{const r=x.getBoundingClientRect();return [r.top,r.bottom]}));assert(Math.max(...meta.map(x=>x[0]))<Math.min(...meta.map(x=>x[1])),'friends and handle share a line');}
- const bars=await card.locator('.me-week').evaluateAll(nodes=>nodes.map(n=>({width:n.getBoundingClientRect().width,height:n.getBoundingClientRect().height})));assert.equal(bars.length,7);assert(bars.every(r=>r.width>=44&&r.height>=44));
+ const bars=await card.locator('.me-week').evaluateAll(nodes=>nodes.map(n=>({width:n.getBoundingClientRect().width,height:n.getBoundingClientRect().height})));assert.equal(bars.length,7);assert(bars.every(r=>r.width>=44&&r.height>=44));assert.equal(await card.locator('.me-chart-scroll').evaluate(n=>getComputedStyle(n,'::before').backgroundImage),'none','scroll cue does not fade a bar');
  const padding=await card.evaluate(n=>{const b=n.querySelector('.me-card-body'),r=b.getBoundingClientRect(),s=getComputedStyle(b),rail=n.querySelector('.me-card-bars').getBoundingClientRect();return rail.left>=r.left+parseFloat(s.paddingLeft)-.1&&rail.right<=r.right-parseFloat(s.paddingRight)+.1});assert(padding,'chart rail remains inside card padding');
  const note=card.locator('.me-card-note');assert.match(await note.innerText(),/Friends see this card\. Private workouts count in totals, never in detail\./);await p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));await note.evaluate(n=>{n.scrollIntoView({block:'end',behavior:'instant'});scrollBy({top:n.getBoundingClientRect().bottom-document.querySelector('nav.tabs').getBoundingClientRect().top+8,behavior:'instant'})});
  const clearance=await note.evaluate(n=>{const r=n.getBoundingClientRect(),nav=document.querySelector('nav.tabs').getBoundingClientRect();return {top:r.top,bottom:r.bottom,navTop:nav.top}});assert(clearance.top>=0&&clearance.bottom<=clearance.navTop-7,'complete privacy note clears the tab bar '+JSON.stringify(clearance));
+}
+async function milestoneChecks(p){
+ const row=p.locator('.me-card .me-milestone-row');await row.waitFor();assert.equal(await row.count(),1,'one compact milestone row');assert.match(await row.locator('.me-milestone-latest').innerText(),/Only you[\s\S]*First 5K/,'latest occurrence leads, independently of rank');
+ await row.locator('.me-milestone-latest').click();await p.locator('#milestone-picture').waitFor();await until(p,()=>document.querySelector('#milestone-picture')?.naturalWidth>0,'milestone share picture');assert(!(await p.locator('#milestone-identity').isChecked()),'identity remains off');assert(await p.locator('.milestone-private').isVisible(),'Only-me sharing reminder retained');await p.keyboard.press('Escape');
+ await row.locator('.me-milestone-all').click();await p.locator('.sheet').getByRole('heading',{name:'Recent milestones',exact:true}).waitFor();assert.equal(await p.locator('[data-milestone]').count(),2,'See all uses a sheet');await p.locator('[data-milestone]').last().click();await until(p,()=>document.querySelector('#milestone-picture')?.naturalWidth>0,'another offer share picture');await p.keyboard.press('Escape');
+ await p.goto(base+'/me/milestones');await p.waitForURL('**/me');await until(p,()=>App.pageReady,'legacy milestone link returns ready Me');await p.locator('.me-card-sections[aria-busy=false]').waitFor();
 }
 (async()=>{const b=await chromium.launch();const l=await b.newContext();await l.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});const st=await l.storageState();
 for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){
@@ -29,7 +36,10 @@ for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}
  p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.text()==='Service Worker registration blocked by Playwright'||m.text()==='Failed to load resource: net::ERR_FAILED'&&blocked.has(m.location().url))return;if(['error','warning'].includes(m.type()))errors.push(m.text()+' ('+m.location().url+')')});
  await c.addInitScript(r=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=r+'px'),size.root);
  await c.route('**/*',async r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base){blocked.add(q.url());return r.abort();}if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);return r.fulfill({json:{}});}
-  if(u.pathname==='/api/me'&&cardLayout){const response=await r.fetch(),j=await response.json();j.profile_layout=cardLayout;return r.fulfill({response,json:j});}
+  if(u.pathname==='/api/me'&&(cardLayout||cardState==='new')){const response=await r.fetch(),j=await response.json();if(cardLayout)j.profile_layout=cardLayout;if(cardState==='new'){j.friend_count=0;j.friend_requests=0;j.notifications=0;}return r.fulfill({response,json:j});}
+  if(cardState==='new'&&u.pathname==='/api/notifications/count')return r.fulfill({json:{unread:0,friend_requests:0,friend_count:0}});
+  if(cardState==='new'&&u.pathname==='/api/goals')return r.fulfill({json:[]});
+  if(u.pathname==='/api/milestones'){const items=cardState==='heavy'?milestoneOffers:[],id=u.searchParams.get('milestone_id');return r.fulfill({json:{pending:false,items:id?items.filter(m=>m.id===id):items}});}
   if(u.pathname==='/api/people/alex/profile'){
    const response=await r.fetch(),j=await response.json(),empty=cardState==='new';j.overview={...j.overview,activities:empty?0:3045,distance_m:empty?0:18968840,time_s:empty?0:5569200,active_days:empty?0:468};j.recent.current={activities:empty?0:32,distance_m:empty?0:259102,time_s:empty?0:78360,active_days:empty?0:18};j.sports=empty?[]:[{sport:'run',activities:2939},{sport:'walk',activities:70},{sport:'ride',activities:19},{sport:'hike',activities:9}];if(cardState!=='heavy'){j.items=[];j.shared_count=0;}if(empty)j.mileage.weeks=[];if(cardLayout)j.layout=cardLayout;return r.fulfill({response,json:j});
   }return r.continue();});
@@ -40,6 +50,7 @@ for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}
  // Me: one distance chart (on the card), private insights below the line.
  await p.goto(base+'/me');await until(p,()=>App.pageReady,'1');await settled();
  await cardChecks(p,size);
+ await milestoneChecks(p);
  await p.waitForSelector('.me-insights',{timeout:15000});
  assert.equal(await p.locator('#me-distance, .mileage-heading').count(),0,'no second distance chart on Me');
  assert.match(await p.locator('.me-insights').innerText(),/This week so far[\s\S]*of your usual/);
@@ -58,11 +69,19 @@ for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}
  await p.locator('.me-card a.me-friends-link').click();await p.waitForURL('**/me/friends');await until(p,()=>App.pageReady,'inline friends destination');await p.goto(base+'/me');await until(p,()=>App.pageReady,'Me return');await settled();
  if(size.root===24){
   // Each fictional server-state change starts without a stale offline copy; real save/reload is covered below.
-  for(const state of ['new','private']){cardState=state;await p.evaluate(()=>{for(const k of Object.keys(localStorage))if(k.startsWith('fit.c:'))localStorage.removeItem(k)});await p.reload();await until(p,()=>App.pageReady,'card state');await settled();assert.equal(await p.locator('.me-card .post').count(),0,'no individual activity details on the card');if(state==='new'){assert.match(await p.locator('.me-card-empty').innerText(),/totals appear here/);assert.equal(await p.locator('.me-stats').count(),0);}else{assert.match(await p.locator('[data-card-period=totals]').innerText(),/3,045/);assert.match(await p.locator('.me-card-row').innerText(),/0 shared activities/);}await noOverflow(state);}
+  for(const state of ['new','private']){
+   cardState=state;await p.evaluate(()=>{for(const k of Object.keys(localStorage))if(k.startsWith('fit.c:'))localStorage.removeItem(k)});await p.reload();await until(p,()=>App.pageReady,'card state');await settled();assert.equal(await p.locator('.me-card .post').count(),0,'no individual activity details on the card');
+   if(state==='new'){
+    assert.match(await p.locator('.me-card-empty').innerText(),/totals appear here/);assert.equal(await p.locator('.me-stats').count(),0);assert.equal(await p.locator('[data-friend-count]').innerText(),'No friends yet');
+    const goal=p.locator('.me-card-empty a[href="/me/goals?new=1"]');assert((await goal.boundingBox()).height>=44);await goal.click();await p.locator('.sheet').getByRole('heading',{name:'New goal',exact:true}).waitFor();await until(p,()=>App.pageReady,'one-tap Goal ready');assert.equal(new URL(p.url()).searchParams.has('new'),false,'auto-open flag consumed');assert(!writes.includes('/api/goals'),'opening does not save a goal');
+    await p.locator('.sheet').getByRole('button',{name:'Cancel',exact:true}).click();await p.reload();await until(p,()=>App.pageReady,'Goals reload');assert.equal(await p.locator('.sheet').count(),0,'reload does not reopen Goal add');await p.locator('[data-back]').click();await p.waitForURL('**/me');await until(p,()=>App.pageReady,'Goal returns to Me');await settled();
+   }else{assert.match((await p.locator('.me-stat-pairs:visible [data-card-value-period=totals]').allTextContents()).join(' '),/3,045/);assert.match(await p.locator('.me-card-row').innerText(),/0 shared activities/);}
+   assert(await p.locator('[data-me-milestones]').isHidden(),'no empty milestone box');await noOverflow(state);
+  }
   cardState='heavy';cardLayout={sections:['totals','sports','recent'],stats:['time','active_days'],sports:['hike','run']};await p.evaluate(()=>{for(const k of Object.keys(localStorage))if(k.startsWith('fit.c:'))localStorage.removeItem(k)});await p.reload();await until(p,()=>App.pageReady,'custom card');await settled();
   assert.deepEqual(await p.locator('.me-card-sections > .me-card-sec').evaluateAll(nodes=>nodes.map(n=>n.querySelector('[data-card-period]')?.dataset.cardPeriod||'sports')),['totals','sports','recent'],'custom nonadjacent order stays intact');
-  assert.deepEqual(await p.locator('.me-stats').first().locator('thead th:not(:first-child)').allTextContents(),['Time','Active days']);assert.deepEqual(await p.locator('.me-sport-ico').evaluateAll(nodes=>nodes.map(n=>n.dataset.sport)),['hike','run']);assert.equal(await p.locator('.me-distance,.me-card-row').count(),0,'hidden sections stay hidden');
-  cardLayout={sections:['totals','recent'],stats:['active_days'],sports:[]};await p.evaluate(()=>{for(const k of Object.keys(localStorage))if(k.startsWith('fit.c:'))localStorage.removeItem(k)});await p.reload();await until(p,()=>App.pageReady,'adjacent periods');await settled();assert.equal(await p.locator('.me-stats').count(),1);assert.deepEqual(await p.locator('[data-card-period]').evaluateAll(nodes=>nodes.map(n=>n.dataset.cardPeriod)),['totals','recent'],'adjacent periods retain chosen order');assert.equal((await p.locator('.me-stats thead').innerText()).trim(),'Active days');
+  assert.deepEqual(await p.locator('.me-stat-pairs:visible').first().locator('tbody > tr:first-child > th').allTextContents(),['Time','Active days']);assert.deepEqual(await p.locator('.me-sport-ico').evaluateAll(nodes=>nodes.map(n=>n.dataset.sport)),['hike','run']);assert.equal(await p.locator('.me-distance,.me-card-row').count(),0,'hidden sections stay hidden');
+  cardLayout={sections:['totals','recent'],stats:['active_days'],sports:[]};await p.evaluate(()=>{for(const k of Object.keys(localStorage))if(k.startsWith('fit.c:'))localStorage.removeItem(k)});await p.reload();await until(p,()=>App.pageReady,'adjacent periods');await settled();assert.equal(await p.locator('.me-stat-pairs:visible').count(),1);assert.deepEqual(await p.locator('.me-stat-pairs:visible [data-card-pair-period]').evaluateAll(nodes=>nodes.map(n=>n.dataset.cardPairPeriod)),['totals','recent'],'adjacent periods retain chosen order');assert.equal(await p.locator('.me-stat-pairs:visible tbody th').innerText(),'Active days');
   cardLayout={sections:[],stats:['time'],sports:[]};await p.evaluate(()=>{for(const k of Object.keys(localStorage))if(k.startsWith('fit.c:'))localStorage.removeItem(k)});await p.reload();await until(p,()=>App.pageReady,'identity-only card');await settled();assert.equal(await p.locator('.me-card-sec,.me-card-row').count(),0,'identity-only choice retained');await noOverflow('saved choices');cardLayout=null;await p.evaluate(()=>{for(const k of Object.keys(localStorage))if(k.startsWith('fit.c:'))localStorage.removeItem(k)});
  }
  await noOverflow('Me');
@@ -71,6 +90,7 @@ for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}
  // Public card link; the card stays one tap inside Share.
  await p.goto(base+'/people/alex');await until(p,()=>App.pageReady,'3');await settled();
  await cardChecks(p,size);
+ assert.equal(await p.locator('[data-me-milestones]').count(),0,'private milestone row is absent from full profiles');
  assert.equal(await p.locator('.profile-page-title').innerText(),'Your profile');
  assert.equal(await p.locator('#person-profile .me-card [data-card-edit]').count(),1);assert.equal(await p.locator('#person-profile .me-card [data-card-share]').count(),1);
  assert.equal(await p.locator('#pf-card, #pf-edit-profile, #pf-share, .profile-progress, .profile-mileage').count(),0,'old profile parts are gone');
@@ -95,8 +115,10 @@ for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}
  assert.equal(await p.locator('.profile-page-title').innerText(),'Profile');
  assert.equal(await p.locator('.me-card-banner [data-person-manage]').count(),1);assert.equal(await p.locator('.me-card-banner [data-person-report]').count(),1);
  assert.equal(await p.locator('.me-card [data-card-edit], .me-card-note').count(),0,'no owner controls or owner note');
+ assert.equal(await p.locator('[data-me-milestones]').count(),0,'other people never receive the private row');
  await shot('profile-friend');
  await p.goto(base+'/people/sam');await until(p,()=>App.pageReady,'7');await settled();
+ assert.equal(await p.locator('.me-card-empty a[href^="/me/goals"]').count(),0,'private setup is absent from other people’s cards');
  const approve=p.locator('.me-card-banner [data-person-action="accept"]');assert.equal(await approve.count(),1);assert((await approve.boundingBox()).height>=44);
  await noOverflow('request profile');
  assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[]);

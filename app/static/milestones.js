@@ -31,8 +31,14 @@ const Milestones=(()=>{
   }
   function paint(node,data,{row=false,onChange,params={}}={}){
     if(!node?.isConnected)return;const owner=readOwner(),items=data.items||[];node.innerHTML='';
+    if(row)node.hidden=!items.length;
     if(!items.length)return;const first=items[0],refresh=()=>{if(node.isConnected&&owner===readOwner())mount(node,{params,row,onChange});onChange?.();};
-    if(row){node.innerHTML=`<div class="card list"><a class="row-link" href="/me/milestones">${svg('trophy')}<span class="grow"><b>Recent milestones</b><small>${esc(first.title)}${items.length>1?` · +${items.length-1} more`:''}</small></span>${svg('chev')}</a></div>`;return;}
+    if(row){
+      const latest=[...items].sort((a,b)=>(Date.parse(b.occurred||b.day)||0)-(Date.parse(a.occurred||a.day)||0)),item=latest[0];
+      node.innerHTML=`<div class="me-milestone-row"><button type="button" class="me-milestone-latest" aria-label="Only you: ${esc(item.title)}. Review share picture">${svg('trophy')}<span class="grow"><small>Only you</small><span>${esc(item.title)}</span></span></button>${items.length>1?'<button type="button" class="me-milestone-all">See all</button>':''}</div>`;
+      $('.me-milestone-latest',node).onclick=()=>{if(owner===readOwner())open(item,refresh);};
+      const all=$('.me-milestone-all',node);if(all)all.onclick=()=>{if(owner===readOwner())more(latest,refresh);};return;
+    }
     node.innerHTML=`<section class="card milestone-banner" aria-label="Milestone"><div class="milestone-copy"><b>${esc(first.title)}</b>${items.length>1?`<button type="button" class="linkbtn milestone-more">+${items.length-1} more</button>`:''}</div><div class="milestone-actions"><button type="button" class="ghost milestone-share">Share</button><button type="button" class="icon-btn milestone-dismiss" aria-label="Dismiss milestone">${svg('close')}</button></div><p role="status" class="small milestone-error" hidden></p></section>`;
     $('.milestone-share',node).onclick=()=>open(first,refresh);
     const extra=$('.milestone-more',node);if(extra)extra.onclick=()=>more(items,refresh);
@@ -71,8 +77,4 @@ const Milestones=(()=>{
   }
   return{read,mount,paint,open,picture,values};
 })();
-route(/^\/me\/milestones$/,'me',async el=>{
-  const owner=readOwner();el.innerHTML=`<div class="top">${backBtn('Me')}</div><h1>Recent milestones</h1><div id="milestones-page">${skel(1)}</div>`;wireBack(el,'/me');
-  try{const data=await Milestones.read({},5000);if(!el.isConnected||owner!==readOwner())return;const node=$('#milestones-page',el);node.innerHTML='';if(data.items.length)Milestones.paint(node,data,{onChange:()=>render()});else node.innerHTML='<p class="muted">No new milestones to review. New achievements appear here for seven days.</p>';}
-  catch(e){if(el.isConnected&&owner===readOwner())showError($('#milestones-page',el),e);}
-});
+route(/^\/me\/milestones$/,'me',()=>go('/me',{replace:true}));

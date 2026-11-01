@@ -9,8 +9,8 @@ await c.route('**/api/**',async r=>{const q=r.request(),u=new URL(q.url());if(![
  // Lifetime numbers at Ben's scale (fictional values) so separators and aligned period totals are exercised
  if(u.pathname.endsWith('/profile')){const resp=await r.fetch();const j=await resp.json();j.overview={...j.overview,activities:3044,distance_m:18964000,time_s:5568300};j.sports=[{sport:'run',activities:2938},{sport:'walk',activities:70},{sport:'ride',activities:19},{sport:'hike',activities:9}];return r.fulfill({response:resp,json:j});}
  return r.continue();});
-await p.goto(base+'/me');for(let attempt=0;attempt<150;attempt++){if(await p.evaluate(()=>App.pageReady))break;await p.waitForTimeout(100);}assert(await p.evaluate(()=>App.pageReady),'Me route initialized');await p.locator('.me-card-sections[aria-busy=false]').waitFor();await p.waitForSelector('[data-card-period=totals]');
-const total=await p.locator('[data-card-period=totals]').innerText();assert.match(total,/3,044/);assert.match(total,/11,784/);assert.match(total,/1,546h|1,547h/);
+await p.goto(base+'/me');for(let attempt=0;attempt<150;attempt++){if(await p.evaluate(()=>App.pageReady))break;await p.waitForTimeout(100);}assert(await p.evaluate(()=>App.pageReady),'Me route initialized');await p.locator('.me-card-sections[aria-busy=false]').waitFor();await p.locator('.me-stats:visible [data-card-period=totals],.me-stat-pairs:visible [data-card-value-period=totals]').first().waitFor();
+const total=(await p.locator('.me-stats:visible [data-card-period=totals],.me-stat-pairs:visible [data-card-value-period=totals]').allTextContents()).join(' ');assert.match(total,/3,044/);assert.match(total,/11,784/);assert.match(total,/1,546h|1,547h/);
 assert.match(await p.locator('.me-sport-chips').innerText(),/2,938/);assert.equal(await p.locator('.me-sport-chip .me-sport-ico svg').count(),4,'each sport chip has its icon');assert.equal(await p.locator('.me-sport-chip i').count(),0,'no coloured dots');
 const label=p.locator('[data-week-label]'),before=await label.innerText(),weeks=p.locator('.me-week');assert.equal(await weeks.count(),7);
 const chart=p.locator('.me-card-bars');
