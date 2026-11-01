@@ -234,8 +234,9 @@ const Track = (() => {
   function refreshMap() {
     if (mapTimer) return;
     mapTimer = setTimeout(async () => {
+      const el=$('#track-map'),recording=session?.id,expected=owner;
       try {
-        const el = $('#track-map'); if (!el || !session) return;const recording=session.id,expected=owner;
+        if (!el || !session) return;
         const ln = lines(); el.hidden = false;
         if (!mapView || mapView.el !== el) {
           const view = await mapInto(el, ln, {sport: session.sport, still: false, ends: false});
@@ -252,7 +253,12 @@ const Track = (() => {
         const chip = $('#track-gps-live'); if (chip) { chip.textContent = last ? gpsText(last.accuracy) : 'Finding GPS…'; chip.hidden = false; }
         followButton();
       } catch (_) { message = 'Map unavailable. Your timer and GPS recording continue.'; update(); }
-      finally { mapTimer = null; }
+      finally {
+        mapTimer = null;
+        // Resume, Pause or Finish can replace the map while its renderer is still loading.
+        const current=$('#track-map');
+        if(recording&&session?.id===recording&&session.gps&&owner===expected&&readOwner()===expected&&current?.isConnected&&current!==el&&mapView?.el!==current)refreshMap();
+      }
     }, mapView?.el===$('#track-map')?1200:0);
   }
   function followButton() { const b = $('#track-follow'); if (b) { const label=follow?'Whole route':'Follow me';b.innerHTML = `${svg('track')}<span>${label}</span>`;b.setAttribute('aria-label',label);b.setAttribute('title',label);b.setAttribute('aria-pressed', String(!follow)); } }
