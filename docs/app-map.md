@@ -5,7 +5,7 @@ The pre-launch walkthrough (#472) builds this map one tab at a time. The Me slic
 Depth counts taps after selecting the tab. Opening a disclosure and then its Open link counts as two taps. Sheet depth is included. Scrolling does not add taps. A node can have several entrances; depths below use the shortest entrance available in the inspected state.
 
 ```mermaid
-flowchart TD
+flowchart LR
   Tabs["Five tabs"] --> Me["Me · 0 taps"]
   Tabs --> Activity["Activity · future slice"]
   Tabs --> Track["Track · future slice"]
