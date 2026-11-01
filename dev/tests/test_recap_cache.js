@@ -12,7 +12,8 @@ function fixture(zone='UTC'){
 }
 const facts=(extra={})=>({period:'this_month',start:'2026-11-01',tz:'UTC',...extra});
 (async()=>{
- let f=fixture();f.time('2026-10-31T23:59:59Z');f.c.api=async()=>{f.time('2026-11-01T00:00:01Z');return facts();};await f.c.recaps.read('this_month');f.c.api=async()=>{throw Error('Offline');};assert.equal((await f.c.recaps.read('this_month')).from_cache,true,'Response after midnight is saved under its returned period');
+ let f=fixture();delete f.c.App.me.tz;await assert.doesNotReject(f.c.recaps.offer({isConnected:true}),'Optional offer stays quiet until profile timezone is known');
+ f=fixture();f.time('2026-10-31T23:59:59Z');f.c.api=async()=>{f.time('2026-11-01T00:00:01Z');return facts();};await f.c.recaps.read('this_month');f.c.api=async()=>{throw Error('Offline');};assert.equal((await f.c.recaps.read('this_month')).from_cache,true,'Response after midnight is saved under its returned period');
  assert([...f.saved.keys()].some(k=>k.includes('start=2026-11-01&tz=UTC')));
  f=fixture(undefined);delete f.c.App.me.tz;f.c.api=async()=>facts({tz:'Pacific/Kiritimati'});await f.c.recaps.read('this_month');f.c.api=async()=>{throw Error('Offline');};assert.equal((await f.c.recaps.read('this_month')).tz,'Pacific/Kiritimati','Unknown profile learns the owner-scoped server timezone');
  f=fixture();f.c.keep('/api/recaps?period=this_month&start=2026-11-01',facts());assert.equal((await f.c.recaps.read('this_month')).from_cache,true,'Compatible old cache remains usable');

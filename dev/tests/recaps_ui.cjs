@@ -57,7 +57,12 @@ const pictureReady=p=>until(p,()=>{const n=document.querySelector('#recap-previe
    const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));await page.clock.setFixedTime(new Date(boundary.now));await page.goto(base+'/progress');await until(page,()=>App.pageReady,'fixed boundary Progress');
    assert.equal(await page.evaluate(()=>Recaps.today()),boundary.facts.this_month.today,boundary.name+' profile-local day');
    await page.locator('#recap-entry').click();await pictureReady(page);await page.locator('[data-recap-period=this_month]').click();await pictureReady(page);await page.locator('[data-recap-period=this_week]').click();await pictureReady(page);
-   offline=true;await page.locator('[data-recap-period=this_month]').click();await pictureReady(page);assert.match(await page.locator('#recap-status').innerText(),/last data loaded/);assert.match(await page.locator('#recap-status').innerText(),/No activities/);assert(await page.locator('#recap-share').isDisabled());
+   offline=true;
+   for(const period of ['this_month','this_week']){
+    await page.locator(`[data-recap-period=${period}]`).click();await pictureReady(page);
+    assert.match(await page.locator('#recap-status').innerText(),/last data loaded/);assert.match(await page.locator('#recap-status').innerText(),/No activities/);assert(await page.locator('#recap-share').isDisabled());
+    const expected=boundary.facts[period];assert.equal(await page.locator('#recap-preview').getAttribute('alt'),await page.evaluate(d=>Recaps.summary(d,{totals:true,calendar:true,highlights:true,streak:true,food:false,identity:false}).alt,expected),'Offline '+period+' uses exact server range '+expected.start);
+   }
    assert.deepEqual(errors,[]);console.log('Recap fixed window '+boundary.name+' '+theme+' profile '+boundary.tz+' / browser '+boundary.browser_tz+' cache PASS');await context.close();contexts.splice(contexts.indexOf(context),1);
   }
   const {c,p,errors}=await open('heavy','light',{width:390,height:844,root:16});

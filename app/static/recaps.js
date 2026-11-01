@@ -265,9 +265,9 @@ const Recaps=(()=>{
   }
   function entry(el){const acts=$('.progress-heading .acts',el);if(!acts||$('#recap-entry',el))return;const b=document.createElement('button');b.id='recap-entry';b.type='button';b.className='linkbtn';b.textContent='Share';b.setAttribute('aria-label','Share a progress picture');b.onclick=()=>{const p=$('#m-body',el)?new URLSearchParams(location.search).get('period')||'week':null;open(p==='week'?'this_week':p==='year'?'this_year':'this_month');};acts.prepend(b);}
   async function offer(box){
-    if(!box||+today().slice(-2)>7)return;const owner=readOwner(),start=startFor('last_month'),key='fit.recap.offer:'+scope()+':'+start;
-    if(store.get(key))return;
-    try{const d=await read('last_month');if(owner!==readOwner()||!box.isConnected||!d.monthly_offer||store.get(key))return;
+    if(!box)return;
+    try{if(+today().slice(-2)>7)return;const owner=readOwner(),start=startFor('last_month'),key='fit.recap.offer:'+scope()+':'+start;
+      if(store.get(key))return;const d=await read('last_month');if(owner!==readOwner()||!box.isConnected||!d.monthly_offer||store.get(key))return;
       box.innerHTML=`<section class="card recap-offer"><div><h2>Your ${esc(new Date(d.start+'T12:00:00Z').toLocaleDateString(undefined,{timeZone:'UTC',month:'long'}))} is ready</h2><p class="small muted">Make a picture of your month.</p></div><div class="acts"><button type="button" class="ghost" data-recap-month>Share</button><button type="button" class="icon-btn" data-recap-dismiss aria-label="Dismiss monthly recap">${svg('close')}</button></div></section>`;
       const dismiss=reason=>{if(owner!==readOwner())return;store.set(key,reason);if(box.isConnected)box.innerHTML='';};$('[data-recap-dismiss]',box).onclick=()=>dismiss('dismissed');$('[data-recap-month]',box).onclick=()=>open('last_month',shared=>{if(shared.period==='last_month'&&shared.start===d.start)dismiss('shared');});
     }catch(_){/* A quiet optional offer must not replace the person's useful day. */}
