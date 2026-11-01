@@ -20,6 +20,7 @@ class Guard(unittest.TestCase):
     def tearDown(self):
         with db.connect() as c:
             c.execute('DELETE FROM zz_test_food_eval_attempts WHERE run_id=%s',(self.meta['run_id'],))
+            c.execute('DELETE FROM zz_test_food_eval_captures WHERE run_id=%s',(self.meta['run_id'],))
             c.execute('DELETE FROM zz_test_food_eval_provenance WHERE run_id=%s',(self.meta['run_id'],))
             c.execute('DELETE FROM zz_test_food_eval_runs WHERE id=%s',(self.meta['run_id'],))
             if self.attempts:c.execute('DELETE FROM ai_food_attempts WHERE id=ANY(%s)',(self.attempts,))
@@ -45,6 +46,18 @@ class Guard(unittest.TestCase):
         with self.assertRaises(RuntimeError):reserve(self.meta,self.attempt('reserved',200000))
         self.assertEqual(spending(self.meta)['charged_micros'],2100000)
         with self.assertRaises(RuntimeError):setup({**self.meta,'dataset_digest':'changed'})
+
+    def test_new_revision_retains_the_same_allowance_and_original_provenance(self):
+        reserve(self.meta,self.attempt('measured',1900000))
+        changed={**self.meta,'source_commit':'next-fictional-revision','allowance_continuation':True}
+        setup(changed)
+        with db.connect() as c:
+            self.assertEqual(c.execute('SELECT metadata FROM zz_test_food_eval_provenance WHERE run_id=%s',
+                (self.meta['run_id'],)).fetchone()['metadata'],self.meta)
+            self.assertEqual(c.execute('SELECT count(*) AS n FROM zz_test_food_eval_captures WHERE run_id=%s',
+                (self.meta['run_id'],)).fetchone()['n'],2)
+        with self.assertRaises(RuntimeError):reserve(changed,self.attempt('reserved',200000))
+        with self.assertRaises(RuntimeError):setup({**changed,'dataset_digest':'different-benchmark'})
 
     def test_output_resumes_and_never_overwrites_or_mixes_captures(self):
         with tempfile.TemporaryDirectory() as folder:

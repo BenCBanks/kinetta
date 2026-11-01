@@ -48,7 +48,11 @@ def estimate(body, user=None, strict=False):
     return {'items': items, 'notes': 'stand-in', 'model': 'stand-in'}
 
 
-def words(text): return {w.rstrip('s') for w in meal_chat.name_words(text or '')} | set(meal_chat.name_words(text or ''))
+def words(text):
+    # Keep raw plural forms too: the app stemmer's berries rule turns cookies into cooky.
+    raw=re.findall(r'[^\W\d_]+',str(text or '').lower())
+    parsed=meal_chat.name_words(text or '')
+    return set(parsed)|{w.rstrip('s') for w in parsed+raw}|set(raw)
 
 
 def account():

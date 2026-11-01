@@ -36,6 +36,7 @@ def provenance():
     return {'mode':mode,'dry_run':dry,'source_commit':revision,'app_digest':actual,
         'dataset_digest':dataset,'collector_digest':collectors,
         'run_id':str(uuid.UUID(os.environ['FOOD_MEMORY_EVAL_RUN_ID'])),
+        'allowance_continuation':os.environ.get('FOOD_MEMORY_EVAL_CONTINUE_ALLOWANCE')=='1',
         'models':{gate:ai_release.models(gate) for gate in gates},
         'fingerprints':{gate:ai_release.gate_fingerprint(gate) for gate in gates},
         'ai_text':{gate:ai_release.ai_text(gate) for gate in gates},
@@ -52,7 +53,10 @@ def setup(meta):
             run_id uuid REFERENCES zz_test_food_eval_runs(id),attempt_id uuid PRIMARY KEY REFERENCES ai_food_attempts(id))''')
         c.execute('''CREATE TABLE IF NOT EXISTS zz_test_food_eval_provenance(
             run_id uuid PRIMARY KEY REFERENCES zz_test_food_eval_runs(id),metadata jsonb NOT NULL)''')
-        for table in ('zz_test_food_eval_runs','zz_test_food_eval_attempts','zz_test_food_eval_provenance'):
+        c.execute('''CREATE TABLE IF NOT EXISTS zz_test_food_eval_captures(
+            run_id uuid REFERENCES zz_test_food_eval_runs(id),digest text NOT NULL,metadata jsonb NOT NULL,
+            PRIMARY KEY(run_id,digest))''')
+        for table in ('zz_test_food_eval_runs','zz_test_food_eval_attempts','zz_test_food_eval_provenance','zz_test_food_eval_captures'):
             c.execute('ALTER TABLE '+table+' ENABLE ROW LEVEL SECURITY')
             c.execute('REVOKE ALL ON '+table+' FROM PUBLIC')
         # One paid allowance per disposable database, even if a caller accidentally changes the UUID.
@@ -66,7 +70,15 @@ def setup(meta):
             raise RuntimeError('Run allowance identity changed')
         c.execute('INSERT INTO zz_test_food_eval_provenance VALUES(%s,%s) ON CONFLICT DO NOTHING',(meta['run_id'],json.dumps(meta)))
         saved=c.execute('SELECT metadata FROM zz_test_food_eval_provenance WHERE run_id=%s',(meta['run_id'],)).fetchone()['metadata']
-        if saved!=meta:raise RuntimeError('Comparison provenance changed; preserve the original run and report partial results')
+        if saved!=meta:
+            if not meta.get('allowance_continuation') or saved.get('dry_run')!=meta['dry_run']:
+                raise RuntimeError('Comparison provenance changed; preserve the original run and report partial results')
+            # A new revision can be evaluated under the SAME remaining allowance. The first capture,
+            # previous failures and every charged attempt remain immutable and counted.
+        for capture in (saved,meta):
+            encoded=json.dumps(capture,sort_keys=True)
+            c.execute('INSERT INTO zz_test_food_eval_captures VALUES(%s,%s,%s) ON CONFLICT DO NOTHING',
+                (meta['run_id'],hashlib.sha256(encoded.encode()).hexdigest(),encoded))
 
 
 def reserve(meta,attempt_id):

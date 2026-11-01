@@ -13,6 +13,32 @@ def positive_phrase(text,phrase):
     return False
 
 
+def group_components(foods,text):
+    """One described drink may retain separate estimator rows for its explicit milk/sugar.
+
+    Do not hide another food, duplicate additions, or a sweetened whole drink plus sugar.
+    The original component rows remain in the capture for review.
+    """
+    if len(foods)<2 or any(f.get('source') or f.get('analogue') for f in foods):return foods
+    drinks=[f for f in foods if words(f['name'])&{'tea','coffee','latte'}]
+    if len(drinks)!=1:return foods
+    drink=drinks[0];categories=[];said=words(text)
+    allowed={'white','granulated','cane','brown','sugar','milk','whole','skim','oat','almond','soy','cream',
+        'dairy','nonfat','low','fat','unsweetened','sweetened'}
+    for food in foods:
+        if food is drink:continue
+        name=words(food['name']);kinds=name&{'sugar','milk','cream'}
+        if len(kinds)!=1 or name-allowed:return foods
+        kind=next(iter(kinds))
+        if kind not in said or kind in categories or kind in words(drink['name']):return foods
+        if kind=='sugar' and 'sweetened' in words(drink['name']):return foods
+        categories.append(kind)
+    keys={key for food in foods for key in food['nutrition']}
+    nutrition={key:sum(food['nutrition'][key] for food in foods)
+        if all(food['nutrition'].get(key) is not None for food in foods) else None for key in keys}
+    return [{**drink,'nutrition':nutrition,'components':foods}]
+
+
 def evaluate(case,frame,fixtures):
     failures=[];observed=frame['foods'];raw=frame.get('raw_foods') or []
     allowed=case['intents']+(['unclear'] if case['needs_question'] else [])

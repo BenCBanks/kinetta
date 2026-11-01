@@ -105,14 +105,16 @@ def ask(parts, schema, label, timeout=45, *, model_policy=None, before_attempt=N
     import time
     parts = [*parts, {'text': ROUNDING}]
     main = os.environ.get('GEMINI_FOOD_MODEL', 'gemini-3.1-flash-lite')
-    body = json.dumps({'contents': [{'parts': parts}],
-                       'generationConfig': {'responseMimeType': 'application/json', 'responseSchema': _ordered(schema), 'temperature': 0.2,
-                                            'maxOutputTokens': MAX_OUTPUT_TOKENS}}).encode()
+    config={'responseMimeType':'application/json','responseSchema':_ordered(schema),'temperature':0.2,
+            'maxOutputTokens':MAX_OUTPUT_TOKENS}
     tries = [main, main, os.environ.get('GEMINI_FOOD_FALLBACK_MODEL', 'gemini-3.8-flash')]
     if model_policy is not None:
         if model_policy!='context':raise ValueError('Unknown food model policy')
         from . import ai_release
-        stronger=ai_release.models('food_memory')['context_model'];tries=[stronger,stronger]
+        policy=ai_release.models('food_memory');stronger=policy['context_model'];tries=[stronger,stronger]
+        # Leave room for the JSON after reasoning; a small shared token cap can truncate it.
+        config.update(thinkingConfig={'thinkingLevel':policy['context_thinking']},maxOutputTokens=policy['context_output_tokens'])
+    body=json.dumps({'contents':[{'parts':parts}],'generationConfig':config}).encode()
     for n, model in enumerate(tries):
         attempt = ai_budget.reserve(model,label,payload=body)
         last = n == len(tries) - 1

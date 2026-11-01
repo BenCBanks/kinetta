@@ -24,7 +24,7 @@ from fastapi.testclient import TestClient
 from app import ai_budget,ai_release,auth,db,food_photo,food_thread as T,food_thread_understand as U,nutrients as N
 from app.main import app
 from food_memory_cases import CASES,FIXTURES,PREFERENCES
-from food_memory_score import evaluate
+from food_memory_score import evaluate,group_components
 
 from food_eval_guard import provenance,setup as budget_setup,reserve as budget_attempt,spending,output as capture_output
 META=provenance()
@@ -139,13 +139,15 @@ def snapshot(c,ids,mid=None):
 def score(case,parts,aliases,captures,preference_aliases,reply,rows_unchanged,old_cards_unchanged,revocation_failed):
     findings=[];observed=[]
     for part in parts:
+        part_foods=[]
         entries=part.get('entries') or []
         if source_alias(part,aliases)=='M1' and entries:
             entries=[{'name':part.get('display_name') or (part.get('item') or {}).get('name') or 'Usual breakfast',
                 'amount':1,'unit':'combination','source':'recent',**{k:sum(e[k] for e in entries) if all(N.known(e,k) for e in entries) else None for k in N.ALL}}]
         for entry in entries:
-            observed.append({'name':entry['name'],'source':source_alias(part,aliases),'analogue':(part.get('analogue') or {}).get('base'),
+            part_foods.append({'name':entry['name'],'source':source_alias(part,aliases),'analogue':(part.get('analogue') or {}).get('base'),
                 'amount':entry['amount'],'unit':entry['unit'],'catalogue_source':entry.get('source'),'text':part.get('text',''),'nutrition':{k:entry.get(k) if N.known(entry,k) else None for k in N.ALL}})
+        observed.extend(group_components(part_foods,part.get('text','')))
     interpretations=[call['answer'] for call in captures if call['kind'] in ('food chat','food chat context')]
     intent=interpretations[-1].get('intent') if interpretations else ('chat' if reply.get('intent')=='small_talk' else 'unclear' if reply.get('intent') in ('clarify','clarification_help') else 'log' if parts else 'ask_log')
     questions=[p.get('question') or (p.get('item') or {}).get('message') or '' for p in parts if p.get('status')!='ready']
@@ -155,9 +157,11 @@ def score(case,parts,aliases,captures,preference_aliases,reply,rows_unchanged,ol
         'rows_unchanged':rows_unchanged,'old_cards_unchanged':old_cards_unchanged,
         'foreign_disclosure':'FOREIGN_ONLY_NEVER_SHARE_73c2' in json.dumps(reply),
         'revocation_failed':revocation_failed,
-        'raw_foods':[f for reading in interpretations for f in reading.get('foods',[])],
+        'raw_foods':interpretations[-1].get('foods',[]) if interpretations else [],
         'preference_aliases':preference_aliases}
-    return evaluate(case,frame,FIXTURES)
+    result=evaluate(case,frame,FIXTURES)
+    result['scoring_frame']=frame
+    return result
 
 
 def main():

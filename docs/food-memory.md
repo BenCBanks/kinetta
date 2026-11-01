@@ -32,7 +32,10 @@ attempt and before retaining a result. Deletion and revocation discard late resu
 
 References, analogues and messages with more than two items use the configured stronger model first. The
 internal `GEMINI_FOOD_CONTEXT_MODEL` defaults to `GEMINI_FOOD_FALLBACK_MODEL`; no client chooses a model. Ordinary
-food calls keep their existing policy. Instructions and a stable, compact own-food/preferences prefix precede
+food calls keep their existing policy. Context calls use the configured LOW thinking level and a 4,096-token
+output ceiling, both recorded in the food-memory model fingerprint. Google's
+[API configuration](https://ai.google.dev/api/generate-content#ThinkingConfig) supports this control; LOW leaves
+more of the bounded response for complete structured food fields. Reservations still cover the full ceiling. Instructions and a stable, compact own-food/preferences prefix precede
 dynamic context. Google's [implicit caching](https://ai.google.dev/gemini-api/docs/caching) may reuse an eligible
 prefix; no padding, cache hit or discount is assumed. Existing reservations conservatively charge full input.
 

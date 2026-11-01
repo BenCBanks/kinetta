@@ -80,6 +80,12 @@ real. Then run the 51 contextual journeys with `FOOD_MEMORY_EVAL_OUTPUT` set. Th
 replies while both interpretation and any needed estimator calls are real. Contextual gates are overridden only
 inside these disposable collectors, and that override is recorded. Neither collector approves rollout.
 
+For a revised candidate, keep the same database and allowance UUID and explicitly set
+`FOOD_MEMORY_EVAL_CONTINUE_ALLOWANCE=1`, with a new output path. The original provenance, failures and all charges
+remain counted; continuation never replenishes the allowance. Each revision gets its own immutable capture
+metadata. Changing the dataset is rejected. If the scorer is corrected, apply the same documented correction to
+both saved captures and retain the original scores alongside the rescored comparison.
+
 Outputs append and resume completed cases, retaining failures. Sidecars bind app source, both datasets, collectors,
 scorer, models, fingerprints and rates; a mismatched capture is rejected. Summaries include cumulative ledger
 spending even when an earlier process stopped before writing its case. Keep partial captures explicit; compare

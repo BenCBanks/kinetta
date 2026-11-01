@@ -369,4 +369,38 @@ class FoodMemory(unittest.TestCase):
             row=c.execute('SELECT state,result FROM food_chat_messages WHERE user_id=%s AND id=%s',(self.ids[0],m['id'])).fetchone()
             self.assertNotEqual(row['state'],'pending')
 
+
+    def test_generic_latte_keeps_habit_details_instead_of_asking_between_saved_variants(self):
+        m=self.message('A latte and a banana');self.food();self.food('Maple cloud latte')
+        def ask(uid,message,ctx,card):return self.reading([{'name':'Latte','quantity':1,'details':'whole milk'},{'name':'Banana','quantity':1}]),{},'stand-in'
+        with self.context_patches(ask):data=self.post(f"/api/food/thread/messages/{m['id']}/process",{})
+        result=next(x['result'] for x in data['messages'] if x.get('reply_to')==m['id'])
+        part=result['parts'][0];self.assertEqual(part['status'],'unknown');self.assertIn('whole milk',part['text'])
+        self.assertNotIn('entries',part);self.assertTrue(result['can_resolve'])
+
+    def test_an_explicit_ambiguous_reference_still_asks_before_estimation(self):
+        m=self.message('My usual latte again');self.food();self.food('Maple cloud latte')
+        def ask(uid,message,ctx,card):
+            out=self.reading([{'name':'Latte','reference_question':True}]);out['reply']='Which of your saved lattes?'
+            return out,{},'stand-in'
+        with self.context_patches(ask):data=self.post(f"/api/food/thread/messages/{m['id']}/process",{})
+        result=next(x['result'] for x in data['messages'] if x.get('reply_to')==m['id'])
+        self.assertEqual(result['parts'][0]['status'],'description');self.assertFalse(result['can_resolve'])
+
+    def test_context_transport_uses_low_thinking_and_leaves_default_policy_unchanged(self):
+        from contextlib import nullcontext
+        from app import food_photo
+        class Response:
+            def __enter__(self):return self
+            def __exit__(self,*args):pass
+            def read(self):return json.dumps({'candidates':[{'content':{'parts':[{'text':'{}'}]}}]}).encode()
+        with patch('app.ai_budget.reserve',return_value='stand-in'),patch('app.ai_budget.lease',side_effect=lambda _:nullcontext()),\
+             patch('app.ai_budget.settle'),patch('app.ai_budget.finish'),patch('urllib.request.urlopen',return_value=Response()) as send:
+            food_photo.ask([{'text':'Fictional message'}],{'type':'object'},'fictional',model_policy='context')
+            config=json.loads(send.call_args.args[0].data)['generationConfig']
+            self.assertEqual(config['thinkingConfig'],{'thinkingLevel':'LOW'});self.assertEqual(config['maxOutputTokens'],4096)
+            food_photo.ask([{'text':'Fictional message'}],{'type':'object'},'fictional')
+            config=json.loads(send.call_args.args[0].data)['generationConfig']
+            self.assertNotIn('thinkingConfig',config);self.assertEqual(config['maxOutputTokens'],2048)
+
 if __name__=='__main__':unittest.main(verbosity=2)

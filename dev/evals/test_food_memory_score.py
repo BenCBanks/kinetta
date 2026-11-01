@@ -27,3 +27,19 @@ changed=copy.deepcopy(good);changed['day']=None;assert not evaluate(case,changed
 changed=copy.deepcopy(good);changed['foods'][0].update(source=None,amount=1,unit='serving');changed['raw_foods']=[{'name':'Latte','quantity':2}]
 assert not evaluate(portion,changed,fixtures)['passed']
 assert not evaluate(question,{**good,'intent':'unclear','question':True,'question_text':'Which saved latte?'},fixtures)['passed']
+from food_memory_score import group_components
+tea={'name':'Black tea','source':None,'analogue':None,'amount':1,'unit':'serving','text':'Tea with two sugars','nutrition':{'kcal':2}}
+sugar={**tea,'name':'White sugar','amount':2,'nutrition':{'kcal':32}}
+grouped=group_components([tea,sugar],'Tea with two sugars')
+assert len(grouped)==1 and grouped[0]['nutrition']['kcal']==34 and len(grouped[0]['components'])==2
+assert len(group_components([tea,sugar,sugar],'Tea with two sugars'))==3
+assert len(group_components([{**tea,'name':'Sweetened tea'},sugar],'Tea with two sugars'))==2
+assert len(group_components([tea,sugar,{**tea,'name':'Banana'}],'Tea with two sugars'))==3
+assert len(group_components([tea,sugar],'Plain tea'))==2
+print('Food grouping: explicit drink components preserved; duplicate sugar, double-counted sweetened drink and unrelated foods rejected PASS')
+
+drink_case={'intents':['log'],'needs_question':False,'foods':[{'words':['tea'],'reference':None,'quantity':None,'analogue':None}]}
+drink_frame={**good,'foods':grouped,'raw_foods':[{'name':'Tea with two sugars','habit_ids':[]}]}
+assert evaluate(drink_case,drink_frame,fixtures)['passed']
+for invalid in [group_components([tea,sugar,sugar],'Tea with two sugars'),group_components([tea,sugar,{**tea,'name':'Banana'}],'Tea with two sugars')]:
+    assert not evaluate(drink_case,{**drink_frame,'foods':invalid},fixtures)['passed']
