@@ -2,6 +2,7 @@
 import argparse,json,os,platform,re,subprocess,time,uuid
 from pathlib import Path
 from lifecycle import stop_for_fixture
+from header_geometry import check_headers
 p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--device',choices=['compact','pro','all'],default='all');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
 def run(*args,check=True,timeout=180):
  try:result=subprocess.run(args,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=timeout)
@@ -92,9 +93,10 @@ for device in preferred:
       assert target['width']>=44 and target['height']>=44,metrics
       assert label['x']>=target['x']-1 and label['x']+label['width']<=target['x']+target['width']+1,metrics
       assert label['y']>=target['y'] and label['bottom']<=target['bottom'],metrics
-    if not stage.startswith(('track-','activity','header-')):assert metrics['back'] and abs(metrics['back']['y']-metrics['safeTop']-10)<=4,metrics
+    if not stage.startswith(('track-','activity','header-')):assert metrics['back'] and abs(metrics['back']['y']-metrics['safeTop'])<=4,metrics
     if stage.startswith('header-'):
      assert metrics['topBand']['page']==stage.removeprefix('header-') and metrics['topBand']['title']['height']>0,metrics
+     if stage=='header-food':check_headers([*results,metrics][-5:])
     if stage.startswith('friends-'):
      friends=metrics['friends'];assert friends['title']=='Friends' and friends['backLabel']=='Back to Me',metrics
      assert friends['counts']==[40 if stage=='friends-heavy' else 1 if stage=='friends-typical' else 0,3 if stage=='friends-heavy' else 1 if stage=='friends-typical' else 0,3],metrics
