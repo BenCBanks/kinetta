@@ -10,8 +10,9 @@ const fixtureVersion='fixture-approved-v1';
   for(const theme of ['light','dark'])for(const width of [390,330]){
    if(process.env.THEME&&process.env.THEME!==theme||process.env.WIDTH&&Number(process.env.WIDTH)!==width)continue;
    const context=await browser.newContext({viewport:{width,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true});
+   let p;const errors=[];
    try{
-    const p=await context.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));
+    p=await context.newPage();p.on('pageerror',e=>errors.push(e.message));
     let version=fixtureVersion,required=false,accepted=false,acceptCalls=0,acceptFail=true,acceptWait=null,signupCalls=[],reportCalls=[],reportWait=null;
     await context.route('**/*',async route=>{
      const request=route.request(),u=new URL(request.url());if(u.origin!==base)return route.abort();
@@ -54,7 +55,7 @@ const fixtureVersion='fixture-approved-v1';
     assert(await p.locator('#terms-accept').isDisabled());await p.keyboard.press('Escape');assert.equal(await p.locator('#terms-accept').count(),1);
     await shot('terms-sheet');await fit();await p.locator('#terms-agree').check();await p.locator('#terms-accept').click();await until(p,()=>document.querySelector('.scrim .err')?.textContent.includes('Fictional acceptance failure'),'Acceptance failure visible');assert(await p.locator('#terms-agree').isChecked());
     await p.locator('#terms-accept').click();await until(p,()=>!document.querySelector('#terms-accept'),'Accepted dialog closes');assert.equal(acceptCalls,2);await p.reload();await until(p,()=>App.pageReady,'Reload ready');assert.equal(await p.locator('#terms-accept').count(),0,'Shown once for accepted version');cases+=3;
-    accepted=false;await p.evaluate(version=>{App.me.terms={version,required:true};CommunityTerms.check();},version);await p.locator('#terms-data').click();await until(p,()=>App.pageReady&&location.pathname==='/me/settings','Your data remains reachable');assert.equal(await p.locator('#terms-accept').count(),0);assert.equal(await p.locator('#m-export').count(),1);assert.equal(await p.locator('#m-del').count(),1);
+    accepted=false;await p.evaluate(version=>{App.me.terms={version,required:true};CommunityTerms.check();},version);await p.locator('#terms-data').click();await until(p,()=>App.pageReady&&location.pathname==='/me/settings','Your data remains reachable');assert.equal(await p.locator('#terms-accept').count(),0);assert.equal(await p.locator('#m-export').count(),1);assert.equal(await p.locator('#m-del').count(),1);if(width===390&&theme==='light'){const download=p.waitForEvent('download');await p.locator('#m-export').click();assert.match((await download).suggestedFilename(),/\.zip$/);assert.equal(new URL(p.url()).pathname,'/me/settings');}
     await p.locator('#m-del').click();await p.getByRole('dialog').waitFor();assert(await p.getByRole('dialog').getByText('Delete my account',{exact:true}).count());await p.getByRole('dialog').locator('[data-close]').first().click();
     await p.evaluate(()=>go('/progress'));await p.locator('#terms-accept').waitFor();cases++;
     // An older same-account response cannot clear the replacement prompt for a newer version.
@@ -79,7 +80,7 @@ const fixtureVersion='fixture-approved-v1';
     await p.evaluate(owner=>{const box=document.querySelector('#page');box.innerHTML='<div id="community-comments"><div class="social-reactions"></div><div class="comments"></div></div>';const target=document.querySelector('#community-comments');target._owner=readOwner();drawComments(target,999999,{comments:[{id:999998,login:owner.login,name:owner.name,text:'Fictional friendly comment',created:'2026-10-31T12:00:00Z'}],cheers:[],reactions:{},my_reaction:null});},activity.owner);
     await p.locator('[data-rep="999998"]').click();await p.locator('#rp-form').waitFor();await shot('report-comment');assert.equal(await p.locator('#rp-block').count(),1);await p.getByRole('dialog').locator('[data-close]').first().click();cases++;
     await fit();assert.deepEqual(errors,[]);console.log(`Community ${width}px ${theme}: signup/version retry/invite, accept/failure/data escape/stale/session, five report surfaces PASS`);
-   }finally{await context.close();}
+   }catch(error){if(out){fs.mkdirSync(out,{recursive:true});fs.writeFileSync(path.join(out,`failure-${theme}-${width}.json`),JSON.stringify({error:error.message,errors,state:await p.evaluate(()=>({url:location.pathname,text:document.querySelector('#app')?.innerText.slice(0,1600),ready:document.readyState})).catch(()=>null)}));await p.screenshot({path:path.join(out,`failure-${theme}-${width}.png`)}).catch(()=>{});}throw error;}finally{await context.close();}
   }
   console.log(`Community terms: ${cases} rendered journey checks passed`);
  }finally{await browser.close();}
