@@ -61,7 +61,7 @@ const pictureReady=p=>until(p,()=>{const n=document.querySelector('#recap-previe
    for(const period of ['this_month','this_week']){
     await page.locator(`[data-recap-period=${period}]`).click();await pictureReady(page);
     assert.match(await page.locator('#recap-status').innerText(),/last data loaded/);assert.match(await page.locator('#recap-status').innerText(),/No activities/);assert(await page.locator('#recap-share').isDisabled());
-    const expected=boundary.facts[period];assert.equal(await page.locator('#recap-preview').getAttribute('alt'),await page.evaluate(d=>Recaps.summary(d,{totals:true,calendar:true,highlights:true,streak:true,food:false,identity:false}).alt,expected),'Offline '+period+' uses exact server range '+expected.start);
+    const expected=boundary.facts[period];assert.equal(await page.locator('#recap-preview').getAttribute('alt'),await page.evaluate(async d=>(await Recaps.draw(d,{totals:true,calendar:true,highlights:true,streak:true,food:false,identity:false})).alt,expected),'Offline '+period+' uses exact server range '+expected.start);
    }
    assert.deepEqual(errors,[]);console.log('Recap fixed window '+boundary.name+' '+theme+' profile '+boundary.tz+' / browser '+boundary.browser_tz+' cache PASS');await context.close();contexts.splice(contexts.indexOf(context),1);
   }
