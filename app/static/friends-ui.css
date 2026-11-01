@@ -34,7 +34,7 @@
 .friends-page .pym-track { margin-top:4px;gap:8px; }
 .friends-page .pym-tile { flex-basis:152px;padding:10px;gap:8px;justify-items:stretch; }
 .friends-page .pym-who { justify-items:start;text-align:left; }
-.friends-page .pym-who .av { width:30px;height:30px;font-size:.8125rem; }
+.friends-page .pym-who .av { width:44px;height:44px;font-size:.8125rem; }
 .friends-page .pym-who b { font-size:.9375rem;white-space:normal;overflow-wrap:anywhere; }
 .friends-page .pym-who small { font-size:.8125rem;max-width:100%;white-space:normal;overflow-wrap:anywhere; }
 .friends-page .pym-tile .primary.sm { min-height:44px;font-size:max(15px,.9375rem); }
@@ -46,5 +46,5 @@
 .friends-page [hidden] { display:none!important; }
 @media(max-width:360px) { .friends-page .fr-request .btnrow { flex-wrap:wrap; } }
 
-/* Dismiss has its own row, so it never covers the suggested profile link. */
-.friends-page .pym-x { position:static; justify-self:end; }
+/* The44px avatar leaves the dismiss corner and the name below it clear. */
+.friends-page .pym-x { position:absolute; }

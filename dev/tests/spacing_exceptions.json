@@ -65,5 +65,15 @@
     "kind": "intentional-overlay",
     "maximum": 44,
     "reason": "The detail Back and action toolbar deliberately floats over its own tappable hero photo. Only that image/tool pairing is excepted, with both hit areas exposed; toolbar-to-arrow collisions still fail."
+  },
+  {
+    "id": "suggestion-dismiss-corner",
+    "selector": ".friends-page .pym-x",
+    "withSelector": ".friends-page .pym-who",
+    "within": ".pym-tile",
+    "metric": "overlap",
+    "kind": "intentional-overlay",
+    "maximum": 44,
+    "reason": "Dismiss floats in its own empty corner beside the44px avatar, above the profile name. Only this card/profile pairing is excepted and both hit areas must be exposed; other controls and text clipping remain checked."
   }
 ]

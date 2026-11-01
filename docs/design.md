@@ -1806,3 +1806,5 @@ when both controls have exposed hit areas. Exceptions never disable clipping, un
 other controls. Existing violations may only be temporarily listed with a specific selector and linked issue.
 See `dev/tests/README.md` for local use and deliberate-regression checks. Browser geometry is separate
 from signed iPhone/device acceptance.
+
+Route/record annotations and Last-set history are secondary data inside their full44px hit areas. Plain action labels retain15–16px type. App title tokens use28px at the default root, within the28–32px range, to preserve compact phone headers.

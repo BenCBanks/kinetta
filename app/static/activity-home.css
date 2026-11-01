@@ -37,3 +37,7 @@
 
 .post-private { display:inline-flex; align-items:center; vertical-align:middle; color:var(--tx3); }
 .post-private svg { width:14px; height:14px; }
+
+/* Keep room for the next header while names retain their44px profile targets. */
+.activity-home .feed-list .post-link { padding-top:0; padding-bottom:6px; }
+@media(max-width:899px) { .activity-home .feed-list .activity-media { --media-height:190px; margin-top:8px; } }

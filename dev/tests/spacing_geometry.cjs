@@ -40,6 +40,7 @@ function audit(snapshot,rules=[]){
   if(exception)exceptionsUsed.push({...row,exception:exception.id,reason:exception.reason,followup:exception.followup});else violations.push(row);
  };
  if(snapshot.overflow)issue({key:'document',selector:'html',exceptions:snapshot.exceptions},'overflow',snapshot.documentWidth,snapshot.viewportWidth);
+ for(const c of snapshot.containers||[])if(c.clipped)issue(c,'clipped',c.clipped,'Text fits its container');
  for(const t of snapshot.targets||[]){
   if(t.unreachable&&!t.disabled&&!t.inlineLink)issue(t,'blocked',t.hitOwner,'An exposed hit area in at least one scroll position');
   if(!t.inlineLink&&(t.rect.width<43.98||t.rect.height<43.98))issue(t,'target',{width:t.rect.width,height:t.rect.height},'44 × 44px');

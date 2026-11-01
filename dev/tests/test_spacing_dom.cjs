@@ -26,7 +26,8 @@ const {collectSpacing}=require('./spacing_dom.cjs'),{audit}=require('./spacing_g
   <div style="height:20px;overflow:hidden"><button id="clipped-icon" aria-label="A clipped icon"><svg width="16" height="16"></svg></button></div>
   <div class="photo-case"><button class="photo" id="photo-one">Photo one</button><button class="corner" id="corner-one">Next</button></div>
   <div class="photo-case"><button class="photo" id="photo-two">Photo two</button><button class="corner" id="corner-two">Next</button></div>
-  <div id="fake-scroll"><div class="me-chart-scroll has-before"><button class="me-week">Week</button></div></div>`);
+  <div id="fake-scroll"><div class="me-chart-scroll has-before"><button class="me-week">Week</button></div></div>
+  <span id="nested-title" style="display:block;width:40px"><b style="white-space:nowrap">Overflowing title</b></span>`);
   const snapshot=(rules=[])=>page.evaluate(collectSpacing,{screen:'collector fixture',rules});
   let s=await snapshot();
   assert(s.targets.some(t=>t.key==='#outer-summary'));
@@ -52,6 +53,7 @@ const {collectSpacing}=require('./spacing_dom.cjs'),{audit}=require('./spacing_g
   assert(!s.targets.some(t=>t.key==='#hidden-button'),'Its own closed details still hides the button');
   await page.locator('#inner-summary').click();s=await snapshot();assert(s.targets.some(t=>t.key==='#hidden-button'));
   assert(audit(s).violations.some(v=>v.metric==='clipped'),'The complete audit reports deliberate clipping');
+  assert(audit(s).violations.some(v=>v.metric==='clipped'&&v.element==='#nested-title'),'A nested inline title cannot escape its text-container width check');
   await page.setViewportSize({width:330,height:667});
   await page.setContent(`<style>button{border:0;padding:0}#photo-background{position:fixed;left:33px;top:529px;width:264px;height:210px}
    .arrow{position:fixed;top:537px;width:44px;height:44px}#left-arrow{left:41px}#right-arrow{left:245px}

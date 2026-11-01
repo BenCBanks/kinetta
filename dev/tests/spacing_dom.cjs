@@ -1,7 +1,7 @@
 // Serialized into the browser by Playwright; keep this function independent of Node globals.
 'use strict';
 function collectSpacing({screen,rules=[]}){
- const rootFont=parseFloat(getComputedStyle(document.documentElement).fontSize),targets=[],texts=[];
+ const rootFont=parseFloat(getComputedStyle(document.documentElement).fontSize),targets=[],texts=[],containers=[];
  const selector=el=>{
   if(el.id)return '#'+CSS.escape(el.id);
   const parts=[];for(let n=el;n&&n!==document.body&&parts.length<5;n=n.parentElement){if(n.id){parts.unshift('#'+CSS.escape(n.id));break;}let p=n.tagName.toLowerCase();const classes=[...n.classList].filter(c=>!['on','active','selected','ready','has-before','has-after','picked'].includes(c)).slice(0,2);if(classes.length)p+='.'+classes.map(CSS.escape).join('.');const siblings=n.parentElement?[...n.parentElement.children].filter(s=>s.tagName===n.tagName):[];if(siblings.length>1)p+=`:nth-of-type(${siblings.indexOf(n)+1})`;parts.unshift(p);}return parts.join(' > ');
@@ -38,7 +38,11 @@ function collectSpacing({screen,rules=[]}){
  for(let el=walker.nextNode();el;el=walker.nextNode()){
   if(!visible(el)||el.matches('script,style,option,title'))continue;
   const direct=[...el.childNodes].filter(n=>n.nodeType===Node.TEXT_NODE&&n.textContent.trim()),input=el.matches('input:not([type=checkbox]):not([type=radio]),textarea');
-  if(!direct.length&&!(input&&(el.value||el.placeholder)))continue;
+  if(!direct.length&&!(input&&(el.value||el.placeholder))){
+   // A label may contain only nested spans/bold text. Its inline child has no clientWidth of its own.
+   if(el.matches('h1,h2,h3,h4,p,span,label,b,strong,small,time')&&el.textContent.trim()&&el.clientWidth>0&&el.scrollWidth>el.clientWidth+1&&!/auto|scroll/.test(getComputedStyle(el).overflowX))containers.push({key:selector(el),selector:selector(el),rect:rect(el),clipped:'Text container scrollWidth exceeds clientWidth',exceptions:exceptions(el)});
+   continue;
+  }
   const s=getComputedStyle(el),key=selector(el),content=(input?(el.value||el.placeholder):direct.map(n=>n.textContent).join(' ')).trim(),font=parseFloat(s.fontSize);
   let role=/[a-z0-9]/i.test(content)?'body':'text';
   const explicit=el.closest('[data-type]')?.dataset.type;
@@ -48,7 +52,7 @@ function collectSpacing({screen,rules=[]}){
   else if(el.matches('.chartbox > svg > text.yl'))role='chart';
   else if(el.closest('nav.tabs'))role='secondary';
   else if(el.matches('button,a.more,[role=button],[role=tab],[role=switch]'))role='body';
-  else if(el.matches('small,time,.small,.badge,.bell-dot,.achievement,.me-card-name > span,.me-card-label > span,.me-card-note > span,.me-divider > span,.me-sport-chip,.gps-chip,.detail-date,.zone-name,.chartbox .lbl > span:last-child:not(:first-child),.chartbox .readout > span,.lift-row.lh > span,.lift-pr,.insights-chart-heading > span,.insights-chart-note,.insights-figure > span,.insights-coverage p,.insights-coverage p > b,.insights-coverage p > span,.zone > .num,.library-recipe > span.num,.macro-line > span.num')||el.closest('.readout,.chartbox .lbl > span:last-child:not(:first-child),small,.small,.meta,.card-meta,.stat i,.hero-number i,.hero-num i,.today-macro i,.day-balance-detail i'))role='secondary';
+  else if(el.matches('small,time,.small,.badge,.bell-dot,.achievement,.me-card-name > span,.me-card-label > span,.me-card-note > span,.me-divider > span,.me-sport-chip,.lift-prev > span,.gps-chip,.detail-date,.zone-name,.chartbox .lbl > span:last-child:not(:first-child),.chartbox .readout > span,.lift-row.lh > span,.lift-pr,.insights-chart-heading > span,.insights-chart-note,.insights-figure > span,.insights-coverage p,.insights-coverage p > b,.insights-coverage p > span,.zone > .num,.library-recipe > span.num,.macro-line > span.num')||el.closest('.readout,.chartbox .lbl > span:last-child:not(:first-child),small,.small,.meta,.card-meta,.stat i,.hero-number i,.hero-num i,.today-macro i,.day-balance-detail i'))role='secondary';
   else if(el.matches('.chartbox .lbl > span:first-child'))role='card';
   else if(el.matches('.count'))role='body';
   else if(el.closest('button,[role=button],[role=tab],[role=switch]'))role='body';
@@ -67,6 +71,6 @@ function collectSpacing({screen,rules=[]}){
   if(!input){for(const text of direct){const range=document.createRange();range.selectNodeContents(text);for(const r of range.getClientRects()){let left=r.left,right=r.right,top=r.top,bottom=r.bottom;for(let p=el;p&&p!==document.body;p=p.parentElement){const c=getComputedStyle(p),b=p.getBoundingClientRect();if(/hidden|clip/.test(c.overflowX)&&(left<b.left-1||right>b.right+1))clipped='Text extends through '+selector(p);if(/hidden|clip/.test(c.overflowY)&&(top<b.top-1||bottom>b.bottom+1))clipped='Text extends through '+selector(p);if(/auto|scroll/.test(c.overflowX)){left=Math.max(left,b.left);right=Math.min(right,b.right);}if(/auto|scroll/.test(c.overflowY)){top=Math.max(top,b.top);bottom=Math.min(bottom,b.bottom);}}}}}
   texts.push({key,selector:key,rect:rect(el),font,role,numeric,hero,heroKey:hero?selector(heroNode):null,group:group?selector(group):null,groupExceptions:group?exceptions(group):[],exceptions:exceptions(el),clipped,text:content.slice(0,90)});
  }
- return {screen,rootFont,viewportWidth:innerWidth,documentWidth:document.documentElement.scrollWidth,overflow:document.documentElement.scrollWidth>innerWidth+1,targets,texts,exceptions:exceptions(document.documentElement)};
+ return {screen,rootFont,viewportWidth:innerWidth,documentWidth:document.documentElement.scrollWidth,overflow:document.documentElement.scrollWidth>innerWidth+1,targets,texts,containers,exceptions:exceptions(document.documentElement)};
 }
 module.exports={collectSpacing};

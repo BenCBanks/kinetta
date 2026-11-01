@@ -641,7 +641,7 @@ tr.muted td { color: var(--tx3); }
 .prediction-method p{margin:8px 0 12px;line-height:1.6;}
 /* One shared effort source leaves room for the fitness chart, with full-size source/help targets. */
 #fi-pred > .card,#fi-body > .card { padding:16px; }
-#fi-pred .card h2,#fi-body .card h2 { font-size:var(--text-app-card-title); }
+#fi-pred .card h2,#fi-body .card h2 { font-size:max(17px,var(--text-app-card-title)); }
 .fitness-predictions .pred { gap:8px 12px; }
 .fitness-predictions .pred > div { padding:8px 0; border-top:1px solid var(--line); border-radius:0; background:transparent; }
 .fitness-predictions .pred > div.pr { background:var(--prog2); }
@@ -2949,7 +2949,7 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .progress-home-totals .progress-totals-title svg { width:12px; height:12px; }
 .progress-home-totals .progress-filters .range-btn { padding:4px 6px; gap:3px; }
 .progress-home-totals .progress-filters .range-btn svg { width:14px; height:14px; }
-.progress-home-totals .me-period button { padding-inline:3px; font-size:max(15px,.9375rem); }
+.progress-home-totals .me-period button { padding-inline:0; font-size:max(15px,.9375rem); }
 .progress-home-totals .empty { text-align:left; }
 .progress-home-totals .empty p { margin:0; }
 .progress-home-totals #m-chart { margin-top:0; }
@@ -2981,3 +2981,5 @@ html.keyboard-open .thread-quick-actions {display:none;}
 
 /* Keep the explanatory action clear of the consent switch below it. */
 #ai > .seg { margin-top:8px; }
+
+.progress-tile-name b { overflow-wrap:anywhere; }

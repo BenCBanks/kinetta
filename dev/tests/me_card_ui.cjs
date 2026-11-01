@@ -14,6 +14,7 @@ const total=await p.locator('.me-card-total').innerText();assert.match(total,/3,
 assert.match(await p.locator('.me-sport-chips').innerText(),/2,938/);assert.equal(await p.locator('.me-sport-chip .me-sport-ico svg').count(),4,'each sport chip has its icon');assert.equal(await p.locator('.me-sport-chip i').count(),0,'no coloured dots');
 const label=p.locator('[data-week-label]'),before=await label.innerText(),weeks=p.locator('.me-week');assert.equal(await weeks.count(),7);
 const chart=p.locator('.me-card-bars');
+if(size.root===16)assert(await label.evaluate(n=>{const [name,total]=n.children;return Math.abs(name.getBoundingClientRect().top-total.getBoundingClientRect().top)<.02;}),'Chart heading and total share a row at normal phone width');
 const geometry=await weeks.evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{x:r.x,width:r.width,height:r.height};}));
 for(let i=0;i<7;i++){assert(geometry[i].height>=44&&geometry[i].width>=44,'every day/week has a44px target');if(i)assert(geometry[i].x-geometry[i-1].x-geometry[i-1].width>=7.98,'day/week targets keep8px gaps');}
 await chart.scrollIntoViewIfNeeded();

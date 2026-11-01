@@ -1095,8 +1095,8 @@ function dayLine(box, pts, {fmt, height = 150, color = 'walk'}) {
 }
 
 // Nutrition trends (2026-10-09): eaten (bars) vs burned (line) + goal (dashed), one kcal axis. cols: [{label, tick, eaten, burned, goal, partial}]
-function energyChart(box, cols, {height = 190, weight = null, burned = true, interactive = true, labelSize = 10} = {}) {   // weight: {fmt, axis} -> panel below with cols[i].weight / .trend
-  const W = Math.max(300, box.clientWidth || 340), H = height, padL = 38, padR = 4, padT = Math.max(8, labelSize), padB = 18, n = cols.length;
+function energyChart(box, cols, {height = 190, weight = null, burned = true, interactive = true, topPadding = 8} = {}) {   // weight: {fmt, axis} -> panel below with cols[i].weight / .trend
+  const W = Math.max(300, box.clientWidth || 340), H = height, padL = 38, padR = 4, padT = Math.max(8, topPadding), padB = 18, n = cols.length;
   if (!cols.some((c) => c.eaten)) { box.innerHTML = '<p class="muted small">Log some food and this chart fills in.</p>'; return; }
   const max = Math.max(1, ...cols.flatMap((c) => [c.eaten || 0, burned ? c.burned || 0 : 0, c.goal || 0])), step = niceStep(max), top = Math.ceil(max / step) * step;
   const Y = (v) => padT + (1 - v / top) * (H - padT - padB), bw = (W - padL - padR) / n, gap = Math.min(3, bw * .25), X = (i) => padL + i * bw + bw / 2;

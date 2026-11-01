@@ -34,7 +34,11 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    await p.evaluate(pin=>{store.set('intervals:'+JSON.stringify([Native.base,App.me.id])+':selected',pin);render();},pin);await ready();assert.equal(await p.locator('#interval-open').getAttribute('title'),name);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'a long checked preset name cannot widen the phone');
   }
   await p.locator('#track-other').click();await p.waitForSelector('.pick-list');await p.locator('.pick-list [data-pk]').last().click();assert.equal(await p.locator('#track-other').getAttribute('aria-pressed'),'true');
-  await p.locator('[data-quick]').first().click();
+  const firstQuick=p.locator('[data-quick]').first(),quickId=await firstQuick.getAttribute('data-quick');
+  // A long selected activity may put the common prefix in More at enlarged text sizes.
+  if(await firstQuick.isVisible())await firstQuick.click();
+  else{await p.locator('#track-other').click();await p.locator('.pick-list [data-pk="'+quickId+'"]').click();}
+  assert.equal(await firstQuick.getAttribute('aria-pressed'),'true','The first common activity remains reachable directly or through More');
   if(native){
    await p.locator('#track-options').click();await p.waitForSelector('#track-voice');await p.locator('#track-voice').uncheck();await p.keyboard.press('Escape');assert.match(await p.locator('#track-options').getAttribute('aria-label'),/Spoken updates off/);
    await p.locator('#interval-open').click();await p.waitForSelector('#interval-library');if(who==='runner'){await p.locator('[data-remove]').click();assert.match(await p.locator('#interval-open').innerText(),/Intervals/);}await p.keyboard.press('Escape');

@@ -1016,13 +1016,13 @@ const PVIEWS = [['totals', 'Totals', 'Distance by week, month and year', 'progre
 const PMORE = [['trends', 'Year over year', 'Pace, heart rate and distance, year by year', 'progress', 'c-blue'],
   ['calendar', 'Calendar', 'Training and eating, day by day', 'calendar', 'c-orange'], ['routes', 'Matched routes', 'Compare the loops you have recorded more than once', 'activity', 'c-green'], ['segments', 'Segments & times', 'Your fixed courses, personal times and leaderboards', 'route', 'c-green'],
   ['heatmap', 'Heatmap', "Everywhere you've been", 'globe', 'c-brand'], ['plan', 'Training plan', '5K to marathon, built around your runs', 'target', 'c-purple']];
-const PPERIODS = [['week', 'Weeks'], ['month', 'Months'], ['year', 'Years']];
+const PPERIODS = [['week', 'Week'], ['month', 'Month'], ['year', 'Year']];
 function pSport(q) {
   let s = q.get('sport'); if (!s) try { s = localStorage.getItem('fit.psport'); } catch (e) { /* no storage */ }
   return PSPORTS.some((p) => p[0] === s) ? s : 'run';
 }
 const pillBtn = (id, ico, name, label) => `<button type="button" class="range-btn" id="${id}" aria-label="${esc(label)}: ${esc(name)}. Change">${ico ? svg(ico) : ''}<span>${esc(name)}</span>${svg('down')}</button>`;
-const sportBtn = (cur) => { const k = cur || 'all'; return pillBtn('p-sport', k === 'all' ? 'activity' : k, PSPORTS.find((p) => p[0] === k)[1], 'Sport'); };
+const sportBtn = (cur) => { const k = cur || 'all'; return pillBtn('p-sport', k === 'all' ? 'activity' : k, k === 'all' ? 'All' : SPORT_NAMES[k] || PSPORTS.find((p) => p[0] === k)[1], 'Sport'); };
 // a sheet listing choices, the current one ticked; pick(key) is called with the chosen one
 const pickRows = (rows, cur) => `<div class="pick-list">${rows.map(([k, n, d, ic, c]) => `<button type="button" class="row-link" data-pk="${k}">${ic ? `<span class="ri ${c}">${svg(ic)}</span>` : ''}
   <span class="grow"><span>${esc(n)}</span>${d ? `<small class="muted">${esc(d)}</small>` : ''}</span>${k === cur ? `<span class="tick">${svg('check')}</span>` : ''}</button>`).join('')}</div>`;

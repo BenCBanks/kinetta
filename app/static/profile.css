@@ -55,8 +55,8 @@
 .activity-filters { flex-wrap:wrap; overflow:visible; }
 
 /* Me: the card friends see, then a clearly private dashboard (owner-approved mockup, 29 October 2026). */
-.me-top { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 10px; }
-.me-top h1 { margin:0; font-size:1.875rem; font-weight:800; overflow-wrap:anywhere; min-width:0; }
+.me-top { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 0 10px; min-height:48px; }
+.me-top h1 { margin:0; font-size:var(--text-app-title); font-weight:800; overflow-wrap:anywhere; min-width:0; }
 .me-card { background:var(--card); border-radius:20px; overflow:hidden; box-shadow:var(--shadow), 0 8px 24px color-mix(in srgb, var(--color-brand) 10%, transparent); outline:1px solid var(--line); }
 .me-card.editing { outline:2px solid var(--btn); outline-offset:2px; }
 .me-card-banner { min-height:64px; padding:10px 10px 0; display:flex; justify-content:flex-end; align-items:flex-start; gap:8px; background:linear-gradient(135deg, var(--color-action), var(--color-brand) 60%, var(--color-ride)); }
@@ -148,7 +148,7 @@
 .me-card-head { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
 .me-card-head .me-card-label { flex:1 1 160px; min-width:0; min-height:calc(2.36rem + 8px); align-content:center; }
 .me-period { margin:0; flex:none; gap:8px; }
-.me-period button { min-width:44px; min-height:44px; padding:0 4px; font-size:max(15px,.9375rem); }
+.me-period button { min-width:44px; min-height:44px; padding:0; font-size:max(15px,.9375rem); }
 .me-distance.days .me-card-bars { height:calc(64px + 1rem); }
 .me-distance.days .me-week { flex-direction:column; justify-content:flex-end; align-items:stretch; gap:4px; }
 .me-week i { font-style:normal; font-size:.8125rem; line-height:1.2; text-align:center; color:var(--tx3); }
@@ -222,3 +222,5 @@
 .me-insight-link + .me-insight-link { margin-top:8px; }
 
 .me-insight > small,.me-insight-link .grow > small { font-size:.8125rem; }
+
+.me-card-head .me-card-label > span { text-transform:none; letter-spacing:0; }

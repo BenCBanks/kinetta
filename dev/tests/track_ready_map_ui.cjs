@@ -33,7 +33,10 @@ for(const size of [{width:390,height:844},{width:330,height:667}])for(const them
  assert.notEqual(await centre(),before,'drag pans the map');
  const expand=p.locator('#track-ready-map-wrap .map-full'),locate=p.locator('#track-locate');
  for(const button of [expand,locate]){const bb=await button.boundingBox();assert(bb.width>=44&&bb.height>=44,'44px target');}
- const [e,lo]=[await expand.boundingBox(),await locate.boundingBox()];assert(e.y+e.height<=lo.y,'expand sits above locate');
+ const [e,lo]=[await expand.boundingBox(),await locate.boundingBox()];
+ const gap=Math.max(e.x-lo.x-lo.width,lo.x-e.x-e.width,e.y-lo.y-lo.height,lo.y-e.y-e.height);
+ assert(gap>=8-.02,'map controls keep 8px clearance');
+ for(const button of [expand,locate])assert(await button.evaluate(el=>{const b=el.getBoundingClientRect(),hit=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2);return hit===el||el.contains(hit);}), 'map control is exposed');
  if(out&&size.width===390){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/track-ready-${theme}.png`});}
  // Full screen covers the page with the controls reachable, and Close / Escape bring the page back.
  await expand.click();await p.waitForSelector('#track-ready-map-wrap.full');
