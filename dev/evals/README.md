@@ -51,7 +51,7 @@ ledger rules), with `case_count >= 40`, `baseline_compared: true`, `reference_ac
 `qualitative_review_passed: true`. The complete existing food-chat understanding gate still has to pass;
 the contextual set does not replace its 200-case minimum or allow invented amounts/reply numbers.
 
-`food_memory_cases.py` adds 48 fictional cases, 40 containing multiple foods. Fixture numbers represent stored
+`food_memory_cases.py` adds 51 fictional cases, 41 containing multiple foods. Fixture numbers represent stored
 facts for source/arithmetic checks, not real-world nutrition accuracy. Capture actual production/candidate
 responses on the same owned sources and catalogue fixtures, retaining model settings, prompts/fingerprints,
 attempt/token costs, latency and unresolved cases. Score retained names, reference identity, exact copies/scaling,

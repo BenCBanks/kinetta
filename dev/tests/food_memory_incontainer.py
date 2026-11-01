@@ -212,6 +212,7 @@ class FoodMemory(unittest.TestCase):
 
     def test_clarification_can_choose_a_reference_without_reestimating_it(self):
         first=self.message('latte');self.food();self.food('Maple cloud latte')
+        with db.connect() as c:c.execute('UPDATE food_chat_messages SET local_day=local_day-1 WHERE user_id=%s AND id=%s',(self.ids[0],first['id']))
         original=self.post(f"/api/food/thread/messages/{first['id']}/process",{})
         previous=next(x['result'] for x in original['messages'] if x.get('reply_to')==first['id'])
         self.assertGreater(previous['pending_count'],0)
@@ -259,5 +260,113 @@ class FoodMemory(unittest.TestCase):
             self.assertEqual(release.call_args.args[-1],400)
             self.assertIn('/models/gemini-3.8-flash:',send.call_args.args[0].full_url)
 
+    def test_context_prompt_has_stable_prefix_and_internal_stronger_first_policy(self):
+        from app import food_memory_understand as contextual
+        ctx={'stable':{'frequent':[],'preferences':[]},'dynamic':{'matches':[],'today':[],'recent_turns':[]}}
+        message={'id':123,'client_id':str(uuid.uuid4()),'body':'A latte similar to my usual one, plus toast'}
+        with patch('app.food_photo.brake'),patch('app.food_photo.ask',return_value=({}, {}, 'stand-in')) as ask:
+            contextual.ask_model(self.ids[0],message,ctx,{'card':'No pending food','previous':'Hello'})
+        parts=ask.call_args.args[0];self.assertIn('Choose one intent',parts[0]['text'])
+        self.assertEqual(json.loads(parts[1]['text']),ctx['stable']);self.assertIn(message['body'],parts[2]['text'])
+        self.assertEqual(ask.call_args.kwargs['model_policy'],'context');self.assertTrue(callable(ask.call_args.kwargs['before_attempt']))
+
+    def test_reference_volume_needs_a_compatible_recorded_measure(self):
+        m=self.message('A 12 fl oz hazelnut latte; use Wooden robot latte nutrition');self.food(unit='serving')
+        def ask(uid,message,ctx,card):return self.reading([{'name':'Hazelnut latte','quantity':12,'unit':'fl oz','reference_token':next(iter(ctx['sources']))}]),{},'stand-in'
+        with self.context_patches(ask):data=self.post(f"/api/food/thread/messages/{m['id']}/process",{})
+        part=next(x['result'] for x in data['messages'] if x.get('reply_to')==m['id'])['parts'][0]
+        self.assertNotIn('entries',part);self.assertIn('saved portion',part['question'])
+        with db.connect() as c:
+            fid=c.execute("INSERT INTO custom_foods(user_id,name,serving_label,kcal) VALUES(%s,'Fictional coffee','1 cup',180) RETURNING id",(self.ids[0],)).fetchone()['id']
+            item=memory.source(c,self.ids[0],'custom',fid);p=memory.reference_portion(c,self.ids[0],item,2,'cup',{'count':1})
+            rows,_=memory.entries(c,self.ids[0],item,p);self.assertEqual(rows[0]['kcal'],360)
+
+    def test_published_household_search_result_also_labels_the_assumption(self):
+        from app import food_thread_resolve as resolver
+        from app.food_thread_models import ResolveIn
+        food={'source':'usda','generic':True,'id':'999999999999','name':'Banana bread','per100':{'kcal':300,'protein_g':4,'carbs_g':50,'fat_g':10},'serving':{'label':'1 slice','g':50,'is_default':False}}
+        part={'index':0,'status':'unknown','text':'a slice of banana bread','logged':False,'item':{},'analogue':{'name':'Lavender loaf','base':'banana bread'}}
+        work={'message':{'body':'A slice of lavender loaf, similar to banana bread','result':{'review_only':True}},'result':{'parts':[part]},'media':{'kind':'text'}}
+        with patch('app.meal_chat.lookup',return_value={'kind':'plain','foods':[food]}),patch('app.food_memory.household_portion') as detail:
+            updates,error=resolver.resolve_outside(self.ids[0],work,ResolveIn());detail.assert_not_called()
+        self.assertEqual(updates[0]['part']['entries'][0]['ref']['typical_portion'],'slice')
+
+    def test_three_item_semicolon_and_newline_lists_route_stronger(self):
+        from app import food_memory_understand as contextual
+        self.assertTrue(contextual.complex_message('Eggs; toast; coffee'))
+        self.assertTrue(contextual.complex_message('Eggs\nToast\nCoffee'))
+        self.assertFalse(contextual.complex_message('A banana'))
+
+
+
+    def test_household_label_on_history_in_grams_uses_the_recorded_weight(self):
+        m=self.message('A cup of apple oatmeal, use Wooden robot latte nutrition')
+        fid=self.food(amount=200,unit='g')
+        with db.connect() as c:c.execute('UPDATE food_entries SET kcal=400,ref=%s WHERE user_id=%s AND id=%s',
+            (json.dumps({'serving':{'label':'1 cup','g':100}}),self.ids[0],fid))
+        def ask(uid,message,ctx,card):return self.reading([{'name':'Apple oatmeal','quantity':1,'unit':'cup','reference_token':next(iter(ctx['sources']))}]),{},'stand-in'
+        with self.context_patches(ask):data=self.post(f"/api/food/thread/messages/{m['id']}/process",{})
+        result=next(x['result'] for x in data['messages'] if x.get('reply_to')==m['id'])
+        entry=result['parts'][0]['entries'][0]
+        self.assertEqual((entry['amount'],entry['unit'],entry['kcal']),(100,'g',200))
+        with db.connect() as c:
+            c.execute('UPDATE food_entries SET ref=%s WHERE user_id=%s AND id=%s',
+                (json.dumps({'serving':{'label':'1 cup'}}),self.ids[0],fid))
+            item=memory.source(c,self.ids[0],'history',fid)
+            from fastapi import HTTPException
+            with self.assertRaises(HTTPException):memory.reference_portion(c,self.ids[0],item,1,'cup',{'count':200,'unit':'g'})
+
+    def test_unresolved_reference_keeps_the_new_food_without_estimation(self):
+        m=self.message('An apple fritter latte, use my missing usual latte nutrition')
+        def ask(uid,message,ctx,card):
+            out=self.reading([{'name':'Apple fritter latte','quantity':1,'unit':'cup','reference_question':True}])
+            out['reply']='Which of your saved lattes should I use?';return out,{},'stand-in'
+        with self.context_patches(ask),patch('app.food_photo.estimate') as estimate:
+            data=self.post(f"/api/food/thread/messages/{m['id']}/process",{})
+            estimate.assert_not_called()
+        result=next(x['result'] for x in data['messages'] if x.get('reply_to')==m['id'])
+        part=result['parts'][0];self.assertEqual(part['description']['food'],'Apple fritter latte')
+        self.assertNotIn('entries',part);self.assertIn('?',part['question']);self.assertFalse(result['can_resolve'])
+
+
+    def test_reference_source_answer_keeps_the_original_two_cups(self):
+        first=self.message('2 cups of apple latte, use my usual latte nutrition');self.food()
+        def unclear(uid,message,ctx,card):
+            out=self.reading([{'name':'Apple latte','quantity':2,'unit':'cup','reference_question':True}])
+            out['reply']='Which saved latte should I use?';return out,{},'stand-in'
+        with self.context_patches(unclear):self.post(f"/api/food/thread/messages/{first['id']}/process",{})
+        m=self.post('/api/food/thread/messages',{'body':'The Wooden robot one','client_id':str(uuid.uuid4()),
+            'review_only':True,'draft_id':self.draft,'context':first['client_id']},status=201)['message']
+        def answer(uid,message,ctx,card):
+            out=self.reading([{'name':'Apple latte','quantity':2,'unit':'cup','reference_token':next(iter(ctx['sources']))}])
+            out['intent']='answer';return out,{},'stand-in'
+        with self.context_patches(answer):data=self.post(f"/api/food/thread/messages/{m['id']}/process",{})
+        result=next(x['result'] for x in data['messages'] if x.get('reply_to')==m['id'])
+        entry=result['parts'][0]['entries'][0];self.assertEqual((entry['name'],entry['amount'],entry['kcal']),('Apple latte',2,360))
+
+    def test_unclear_reference_never_attaches_the_question_to_an_unrelated_banana(self):
+        m=self.message('A banana and a latte, use my usual latte nutrition')
+        def unclear(uid,message,ctx,card):
+            out=self.reading([{'name':'Banana','quantity':1},{'name':'Latte','quantity':1}]);out['intent']='unclear'
+            out['reply']='Which saved latte should I use?';return out,{},'stand-in'
+        with self.context_patches(unclear),patch('app.food_photo.estimate') as estimate:
+            data=self.post(f"/api/food/thread/messages/{m['id']}/process",{});estimate.assert_not_called()
+        result=next(x['result'] for x in data['messages'] if x.get('reply_to')==m['id'])
+        self.assertEqual(result['kind'],'answer');self.assertIn('latte',result['text']);self.assertNotIn('parts',result)
+
+    def test_context_query_timeout_rolls_back_and_uses_rules_without_a_provider(self):
+        from app import food_memory_understand as contextual
+        def timeout(*args):
+            # Exercise a real aborted PostgreSQL savepoint, not merely a thrown Python exception.
+            args[0].execute("SET LOCAL statement_timeout='1ms'")
+            args[0].execute('SELECT pg_sleep(0.1)')
+        m=self.message('A banana')
+        with patch('app.food_memory_understand.enabled',return_value=True),patch('app.food_thread_understand.allowed',return_value=True),\
+             patch('app.food_thread_understand.obvious',return_value=False),patch('app.food_memory_understand.context',side_effect=timeout),\
+             patch('app.food_memory_understand.ask_model') as ask,patch('app.food_thread_understand.ask_model') as old:
+            self.post(f"/api/food/thread/messages/{m['id']}/process",{});ask.assert_not_called();old.assert_not_called()
+        with db.connect() as c:
+            row=c.execute('SELECT state,result FROM food_chat_messages WHERE user_id=%s AND id=%s',(self.ids[0],m['id'])).fetchone()
+            self.assertNotEqual(row['state'],'pending')
 
 if __name__=='__main__':unittest.main(verbosity=2)

@@ -25,6 +25,7 @@ python3 dev/tests/test_ui_inventory.py
 python3 dev/design/build_content.py
 python3 dev/tests/test_website_content.py
 python3 dev/tests/ai_fingerprints.py
+python3 dev/evals/test_food_memory_score.py
 node dev/design/build_guide.js --check
 
 echo "== syntax"

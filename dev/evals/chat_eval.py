@@ -9,7 +9,8 @@ code-only chat and stand-in catalog/estimator results; only the case's own messa
 the normal budget/attempt accounting (the server's daily dollar cap stops further calls). Fictional accounts are
 deleted afterwards. Output: JSON summary on stdout plus per-case lines in CHAT_EVAL_OUTPUT if set.
 """
-import json, os, re, sys, uuid
+import json, os, re, sys, uuid, datetime as dt, time
+from contextlib import ExitStack
 from unittest.mock import patch
 sys.path.insert(0, '/tmp'); sys.path.insert(0, '/srv')
 from fastapi.testclient import TestClient
@@ -20,6 +21,13 @@ import chat_cases
 
 MODE = os.environ.get('CHAT_EVAL_MODE', 'rules')
 if MODE == 'ai' and os.environ.get('CHAT_EVAL_ACCEPT_PAID_CALLS') != '1': sys.exit('Paid calls need CHAT_EVAL_ACCEPT_PAID_CALLS=1')
+COMPARISON=os.environ.get('CHAT_EVAL_COMPARISON')=='1'
+META=None
+if COMPARISON:
+    from food_eval_guard import provenance,setup,reserve,spending,output as capture_output
+    META=provenance()
+    if META['mode']=='candidate':from app import food_memory_understand as CONTEXTUAL
+    else:CONTEXTUAL=None
 PW = 'green teapot on the hill'
 CALLS = []
 
@@ -45,7 +53,7 @@ def account():
     login = 'zz_test_chateval_' + uuid.uuid4().hex[:10]
     with db.connect() as c:
         uid = c.execute('INSERT INTO users(login,name,pw_hash) VALUES (%s,%s,%s) RETURNING id', (login, 'Fictional', auth.hash_pw(PW))).fetchone()['id']
-        c.execute("INSERT INTO profile(user_id,tz,ai_ok,weight_kg,kcal_target,protein_target) VALUES (%s,'UTC',true,75,2000,110)", (uid,))
+        c.execute("INSERT INTO profile(user_id,tz,ai_ok,ai_adult_at,birth_year,weight_kg,kcal_target,protein_target) VALUES (%s,'UTC',true,now(),1990,75,2000,110)", (uid,))
     cl = TestClient(app); cl.headers['Origin'] = 'http://testserver'
     assert cl.post('/api/login', json={'login': login, 'password': PW}).status_code == 200
     return uid, cl
@@ -59,7 +67,8 @@ def post(cl, text, draft, context):
 
 def run_rules(cl, mid):
     n = len(CALLS)
-    data = cl.post(f'/api/food/thread/messages/{mid}/process', json={}).json()
+    with patch('app.food_thread_understand.enabled',return_value=False):
+        data = cl.post(f'/api/food/thread/messages/{mid}/process', json={}).json()
     reply = next(m for m in data['messages'] if m.get('reply_to') == mid)
     if reply['result'].get('can_resolve'):
         data = cl.post(f'/api/food/thread/messages/{mid}/resolve', json={}).json()
@@ -107,11 +116,32 @@ def score(case, intent, foods, u=None, card=''):
 
 
 def main():
-    out = open(os.environ['CHAT_EVAL_OUTPUT'], 'w') if os.environ.get('CHAT_EVAL_OUTPUT') else None
+    previous=[]
+    if COMPARISON:
+        setup(META)
+        path,previous=capture_output(os.environ['CHAT_EVAL_OUTPUT'],META,'existing-understanding')
+        out=path.open('a')
+    else:out = open(os.environ['CHAT_EVAL_OUTPUT'], 'w') if os.environ.get('CHAT_EVAL_OUTPUT') else None
+    done={row['i'] for row in previous}
+    started=time.monotonic()
     totals = {'cases': 0, 'passed': 0, 'intent_ok': 0, 'food_cases': 0, 'foods_ok': 0, 'invented_amounts': 0, 'reply_number_violations': 0, 'model_failures': 0}
     uids = []
-    with patch('app.meal_chat.lookup', side_effect=lookup), patch('app.food_photo.estimate', side_effect=estimate):
+    if previous:
+        for line in previous:
+            for key,value in line['totals_delta'].items():totals[key]+=value
+    with ExitStack() as stack:
+        stack.enter_context(patch('app.meal_chat.lookup',side_effect=lookup))
+        stack.enter_context(patch('app.food_photo.estimate',side_effect=estimate))
+        if COMPARISON:
+            from app import ai_budget,food_photo
+            stack.enter_context(ai_budget.after_reserve(lambda aid:reserve(META,aid)))
+            stack.enter_context(patch('app.food_thread_understand.enabled',return_value=True))
+            if CONTEXTUAL:stack.enter_context(patch('app.food_memory_understand.enabled',return_value=True))
+            if META['dry_run']:
+                stack.enter_context(patch('app.food_photo.ask',return_value=({'intent':'unclear','foods':[],'reply':'Dry run.'},{},'dry-run')))
         for i, case in enumerate(chat_cases.CASES[:int(os.environ.get('CHAT_EVAL_LIMIT', '100000'))]):
+            if i in done:continue
+            before_totals=dict(totals);begin=time.monotonic()
             uid, cl = account(); uids.append(uid); draft = str(uuid.uuid4()); context = None
             for text in case['setup']:
                 cid, m = post(cl, text, draft, context); run_rules(cl, m['id']); context = cid
@@ -123,7 +153,16 @@ def main():
                 with db.connect() as c:
                     row = c.execute(f'SELECT {food_thread.COLUMNS} FROM food_chat_messages WHERE id=%s', (m['id'],)).fetchone()
                     ctx = U.context(c, uid, row); card = ctx['card']
-                try: u = U.clean(U.ask_model(uid, row, ctx), case['message'])
+                    if COMPARISON and CONTEXTUAL:
+                        contextual=CONTEXTUAL.context(c,uid,row);key=str(uuid.uuid4());contextual['lease']=key
+                        until=(dt.datetime.now(dt.timezone.utc)+dt.timedelta(seconds=180)).isoformat()
+                        c.execute("UPDATE food_chat_messages SET result=result||%s::jsonb WHERE user_id=%s AND id=%s",
+                            (json.dumps({'_memory_lease':{'id':key,'until':until}}),uid,row['id']))
+                try:
+                    if COMPARISON and CONTEXTUAL:
+                        raw,_,_=CONTEXTUAL.ask_model(uid,row,contextual,ctx)
+                        u=CONTEXTUAL.clean(raw,case['message'],contextual)
+                    else:u = U.clean(U.ask_model(uid, row, ctx), case['message'])
                 except Exception as error: u = None; print('model failure', type(error).__name__, str(getattr(error, 'detail', ''))[:120], file=sys.stderr)
                 if u is None:
                     totals['model_failures'] += 1; u = {'intent': None, 'foods': [], 'missing': None, 'target': None, 'new_quantity': None, 'meal': None, 'topic': None, 'nutrient': None, 'reply': ''}
@@ -141,14 +180,30 @@ def main():
             line = {'i': i, 'setup': case['setup'], 'message': case['message'], 'expected': case['intents'], 'got': intent, 'ok': ok,
                     'failed': [k for k, v in checks.items() if not v], 'foods': [(f['name'], f.get('quantity')) for f in foods], 'reply': said,
                     **({k: u[k] for k in ('missing', 'target', 'new_quantity', 'meal', 'topic', 'nutrient')} if u else {})}
-            if out: out.write(json.dumps(line) + '\n'); out.flush()
+            line['seconds']=round(time.monotonic()-begin,3)
+            line['totals_delta']={key:totals[key]-before_totals[key] for key in before_totals}
+            if COMPARISON:
+                with db.connect() as c:
+                    line['attempts']=c.execute('SELECT model,state,input_tokens,output_tokens,thinking_tokens,charged_micros FROM ai_food_attempts WHERE user_id=%s ORDER BY created',(uid,)).fetchall()
+                    c.execute('DELETE FROM users WHERE id=%s',(uid,))
+                uids.remove(uid)
+            if out: out.write(json.dumps(line,default=str) + '\n'); out.flush()
+            print(i,'PASS' if ok else ','.join(line['failed']),flush=True) if COMPARISON else None
     with db.connect() as c:
         spent = c.execute('SELECT coalesce(sum(charged_micros),0) AS s, count(*) AS n FROM ai_food_attempts WHERE user_id=ANY(%s)', (uids,)).fetchone()
-        rows = c.execute('DELETE FROM ai_food_attempts WHERE user_id=ANY(%s) RETURNING day,charged_micros', (uids,)).fetchall()
+        if not COMPARISON:c.execute('DELETE FROM ai_food_attempts WHERE user_id=ANY(%s)', (uids,))
         c.execute('DELETE FROM users WHERE id=ANY(%s)', (uids,))
+    if COMPARISON:
+        lines=[json.loads(line) for line in path.read_text().splitlines() if line]
+        attempts=[a for line in lines for a in line.get('attempts',[])]
+        spent={'n':len(attempts),'s':sum(a['charged_micros'] for a in attempts)}
     totals.update(mode=MODE, attempts=spent['n'], spent_usd=round(float(spent['s']) / 1e6, 4),
                   intent_accuracy=round(totals['intent_ok'] / totals['cases'], 3), pass_rate=round(totals['passed'] / totals['cases'], 3),
                   food_accuracy=round(totals['foods_ok'] / max(1, totals['food_cases']), 3))
+    if COMPARISON:
+        totals.update(**META,cumulative_spending=spending(META),complete=totals['cases']==len(chat_cases.CASES),seconds=round(time.monotonic()-started,3),
+            estimator='stand-in; this existing benchmark scores interpretation only')
+        path.with_suffix('.summary.json').write_text(json.dumps(totals,indent=2))
     print(json.dumps(totals))
 
 

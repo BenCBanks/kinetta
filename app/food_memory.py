@@ -57,6 +57,7 @@ def public(c, uid, item):
     totals = {k: N.rounded(k, sum(r[k] for r in rows)) if rows and all(N.known(r, k) for r in rows) else None for k in N.ALL}
     return {'kind': item['kind'], 'id': item['id'], 'name': item['name'], 'brand':item['row'].get('brand'),
             'expected': signature(uid, item,portion),'canonical_portion':portion,
+            'uses':item.get('uses'),
             'day': str(item['row']['day']) if item['kind'] == 'history' else None,
             'portion': [{'amount': r['amount'], 'unit': r['unit']} for r in rows or []],
             'totals': totals, 'ready': bool(rows) and totals['kcal'] is not None}
@@ -81,9 +82,12 @@ def retrieve(c, uid, query, day):
         FROM food_entries WHERE user_id=%s AND day BETWEEN %s AND %s GROUP BY 1,2,3,4),
         ranked AS (SELECT *,sum(n) OVER(PARTITION BY nk,bk) AS uses,
           row_number() OVER(PARTITION BY nk,bk ORDER BY n DESC,seen DESC,id DESC) AS rn FROM portions)
-        SELECT f.* FROM ranked x JOIN food_entries f ON f.id=x.id
+        SELECT f.*,x.uses AS context_uses FROM ranked x JOIN food_entries f ON f.id=x.id
         WHERE x.rn=1 AND f.user_id=%s ORDER BY x.uses DESC,x.seen DESC,x.id DESC LIMIT 40''', (uid, start, day, uid)).fetchall()
-    pool = {('history', r['id']): candidate('history', r) for r in frequent}
+    frequent_items=[]
+    for row in frequent:
+        uses=int(row.pop('context_uses'));frequent_items.append({**candidate('history',row),'uses':uses})
+    pool = {('history', item['id']):item for item in frequent_items}
     terms = list(dict.fromkeys(M.name_words(query)))[:16]
     # Each trigram query uses the indexed lowercase name and fixed owner predicate.
     if terms:
@@ -107,7 +111,7 @@ def retrieve(c, uid, query, day):
     today = c.execute('''SELECT * FROM food_entries WHERE user_id=%s AND day=%s
                         ORDER BY position,id LIMIT 30''', (uid, day)).fetchall()
     return {'matches': [public(c, uid, x) for x in matches],
-            'frequent': [public(c, uid, candidate('history', r)) for r in frequent],
+            'frequent': [public(c, uid, item) for item in frequent_items],
             'today': [public(c, uid, candidate('history', r)) for r in today]}
 
 
@@ -152,3 +156,33 @@ def household_portion(food,unit):
     if not candidates:return food
     _,label,grams,chosen=min(candidates)
     return {**food,'serving':{'label':label,'g':grams,'is_default':False},'typical_unit':chosen}
+
+
+def reference_portion(c,uid,item,quantity,unit,original):
+    """A described measure must match a stored unit/label or a known weight conversion."""
+    if quantity is None:return original
+    try:valid=math.isfinite(float(quantity)) and 0<quantity<=100000
+    except (ValueError,TypeError,OverflowError):valid=False
+    if not valid:raise HTTPException(422,'Use a positive portion within the food-entry limit.')
+    unit=(unit or '').lower().strip();row=item['row'];kind='food' if item['kind']=='history' else item['kind']
+    if not unit:return M.settle(c,uid,{**item,'kind':kind},{'count':quantity})[0]
+    normalize=lambda value:' '.join(M.stem(w) for w in re.findall(r'\w+',str(value).lower()))
+    recorded=row.get('unit') if kind=='food' else 'serving'
+    if normalize(unit)==normalize(recorded):return {'count':quantity,**({'unit':recorded} if kind=='food' else {})}
+    if unit in M.MASS:
+        if kind=='food' and str(recorded).lower() in M.MASS:return {'count':quantity*M.MASS[unit]/M.MASS[str(recorded).lower()],'unit':recorded}
+        return {'grams':quantity*M.MASS[unit]}
+    label=(row.get('ref') or {}).get('serving',{}).get('label') if kind=='food' else row.get('serving_label') if kind=='custom' else (row.get('recipe_source') or {}).get('serving_label') if kind=='dish' else None
+    if label:
+        described,remaining=M.amount(M.raw(label))
+        described_unit=(described or {}).get('unit') or ' '.join(remaining or [])
+        if described and described.get('count') and normalize(described_unit)==normalize(unit):
+            count=quantity/described['count']
+            if kind=='food' and str(recorded).lower() in M.MASS:
+                grams=(row.get('ref') or {}).get('serving',{}).get('g')
+                if type(grams) not in (int,float) or not math.isfinite(grams) or grams<=0:
+                    raise HTTPException(422,'That saved household portion has no known weight. How much did you have?')
+                return {'count':count*grams/M.MASS[str(recorded).lower()],'unit':recorded}
+            if kind!='food' or normalize(recorded) in ('serving','portion'):
+                return {'count':count,**({'unit':recorded} if kind=='food' else {})}
+    raise HTTPException(422,'Your saved food uses '+str(recorded or 'a different portion')+'. How much of that saved portion did you have?')

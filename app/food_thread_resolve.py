@@ -181,6 +181,11 @@ def resolve_outside(uid,work,body):
                         food=food_memory.household_portion(food,portion.get('unit'))
                         selected=_catalog(food,part,review_only=S.held_review(message))
                     if food.get('typical_unit'):selected['analogue']={**part['analogue'],'typical_unit':food['typical_unit']}
+                    elif selected['status']=='ready':
+                        portion=meal_chat.read_part(part['text'],[]).get('portion') or {}
+                        serving=food.get('serving') or {};household=set(meal_chat.product_words(serving.get('label') or ''))&{'slice','piece','cup','bowl','serving','portion'}
+                        if not portion.get('grams') and household and not serving.get('is_default'):
+                            selected['analogue']={**part['analogue'],'typical_unit':next(iter(sorted(household)))}
                     food_memory.label_entries(selected)
                 else:selected={**part,'status':'quantity','looked_up':True,'catalog':[],
                     'question':'I could not find published nutrition for '+part['analogue']['base']+'. Choose a catalog food or enter the nutrition you know.'}

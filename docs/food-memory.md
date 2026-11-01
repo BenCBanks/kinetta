@@ -11,7 +11,7 @@ deletion require choosing the current food again; login, selection and staging d
 The bounded reader uses the authenticated account, fixed SQL and the read-only RLS role. It searches the last
 90 local calendar days and saved foods, recipes and combinations with indexed PostgreSQL trigram matching.
 Forty frequent foods use their most frequently logged portion, with a recent tie-break. Brand variants remain
-distinct. Today's records and recent turns are bounded; turns belong to the same draft and local day.
+distinct. Today's records and recent turns are bounded; turns belong to the selected draft and include their dates.
 Historical recipe entries retain their historical numbers. They are separate from the current saved recipe.
 
 Model output can choose only a supplied candidate token. The backend rereads that source, checks its digest and
@@ -42,7 +42,7 @@ message would bring that last example to $1.086 before retries. These are scenar
 The roughly $1/heavy-user/month goal must be checked against all actual attempts and reuse savings. Existing
 daily spend/request/concurrency guards remain; monthly reporting is not a monthly hard spending cap.
 
-Keep the existing understanding benchmark and add the 48 cases in `dev/evals/food_memory_cases.py`, including
-40 multi-item messages. Compare actual production and candidate responses on the same fictional sources.
+Keep the existing understanding benchmark and add the 51 cases in `dev/evals/food_memory_cases.py`, including
+41 multi-item messages. Compare actual production and candidate responses on the same fictional sources.
 Score source choice, retained names, exact copied/scaled numbers, unknowns, analogue bases, habits/overrides,
 follow-up necessity, isolation, latency and total cost separately. Owner review and activation remain release steps.
