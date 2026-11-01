@@ -13,8 +13,11 @@ function foodReuseChips({box,field,live,choose,day}){
         const result=await api('/api/food/meals-chat/reuse?q='+encodeURIComponent(text)+'&day='+encodeURIComponent(day()),{signal:controller.signal});
         if(!live()||version!==generation)return;
         for(const item of (result.items||[]).slice(0,3)){
-          const button=document.createElement('button');button.type='button';button.className='ghost';
-          button.textContent='↺ '+item.name+' · '+homeCalories(item.totals.kcal)+' kcal';
+          const button=document.createElement('button');button.type='button';
+          const pill=document.createElement('span');pill.className='reuse-pill';
+          const name=document.createElement('span');name.textContent='↺ '+item.name;
+          const calories=document.createElement('span');calories.className='reuse-kcal';calories.textContent=' · '+homeCalories(item.totals.kcal)+' kcal';
+          pill.append(name,calories);button.append(pill);
           button.setAttribute('aria-label','Reuse '+item.name+' · '+homeCalories(item.totals.kcal)+' kcal');
           button.onclick=async()=>{if(busy||!live()||version!==generation)return;busy=true;box.querySelectorAll('button').forEach(n=>n.disabled=true);
             try{await choose(item);}finally{busy=false;if(live()&&version===generation)box.querySelectorAll('button').forEach(n=>n.disabled=false);}};

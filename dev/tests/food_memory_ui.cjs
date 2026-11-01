@@ -23,8 +23,9 @@ const until=async(p,fn,label)=>{for(let n=0;n<160;n++){if(await p.evaluate(fn))r
    await p.goto(base+'/food/describe');await p.locator('#thread-text').waitFor();await until(p,()=>App.pageReady,'Food entry ready');
    const field=p.locator('#thread-text');await field.fill('la');await p.waitForTimeout(120);await field.fill('latte');await p.waitForTimeout(120);assert.equal(queries.length,0,'400ms debounce');
    await p.locator('.thread-reuse button').first().waitFor();assert.equal(await p.locator('.thread-reuse button').count(),3);
-   const layout=await p.locator('.thread-reuse button').evaluateAll(ns=>ns.map(n=>({h:n.getBoundingClientRect().height,w:n.getBoundingClientRect().width})));
-   assert(layout.every(r=>r.h>=44&&r.w>=44));assert.equal(await p.locator('.thread-reuse').evaluate(n=>parseFloat(getComputedStyle(n).gap)),8);
+   const layout=await p.locator('.thread-reuse button').evaluateAll(ns=>ns.map(n=>{const r=n.getBoundingClientRect(),s=getComputedStyle(n),pill=n.firstElementChild;return {h:r.height,w:r.width,left:r.left,right:r.right,font:parseFloat(s.fontSize),weight:s.fontWeight,pill:pill.getBoundingClientRect().height,clipped:pill.scrollWidth>pill.clientWidth+1};}));
+   assert(layout.every(r=>r.h>=44&&r.w>=44&&r.left>=0&&r.right<=390&&r.font>=15&&r.weight==='500'&&!r.clipped));assert(layout.some(r=>r.pill<=36));assert.equal(await p.locator('.thread-reuse').evaluate(n=>parseFloat(getComputedStyle(n).gap)),8);
+   assert.equal(await p.locator('.thread-reuse').evaluate(n=>n.scrollWidth>n.clientWidth),false);assert.match(await p.locator('.thread-reuse').innerText(),/Vanilla and cinnamon breakfast latte/);
    assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);assert(await field.evaluate(n=>parseFloat(getComputedStyle(n).fontSize)>=16));
    await field.focus();await p.locator('.thread-heading h1').tap();assert.equal(await field.inputValue(),'latte');assert.equal(await field.evaluate(n=>document.activeElement===n),false);cases+=3;
    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,'reuse-chips-'+theme+'.png')});}
