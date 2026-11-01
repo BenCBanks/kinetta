@@ -1,0 +1,6 @@
+.username-status:empty { display: none; }
+.username-status { margin: 6px 0 0; overflow-wrap: anywhere; }
+.username-choice summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+.username-choice[open] summary { margin-bottom: 8px; }
+.enrollment-email-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.enrollment-email-links a { display: inline-flex; align-items: center; min-height: 44px; }

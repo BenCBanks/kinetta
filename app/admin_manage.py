@@ -21,6 +21,7 @@ def manage(uid: int, action: Literal['reset-email','signout','suspend','restore'
            background: BackgroundTasks, user=Depends(admin_user)):
     audit_action = ('role.administrator' if body.administrator else 'role.member') if action == 'role' and body.administrator is not None else ACTIONS[action]
     with db.connect() as c:
+        if action == 'confirm-email': account_email.reservation_lock(c)
         digest, old = replay(c, user, body, audit_action, uid)
         if old: result = old
         else:

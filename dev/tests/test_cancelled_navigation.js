@@ -1,0 +1,15 @@
+'use strict';
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync(process.env.ROUTER_SOURCE||'app/static/app.js','utf8'),marker="const a = e.target.closest('a[href^=\"/\"]');";
+const at=source.indexOf(marker),start=source.lastIndexOf("document.addEventListener('click'",at),end=source.indexOf("\ndocument.addEventListener('pointerdown'",at);
+assert(start>=0&&end>start);let handler;const navigated=[],scrolled=[];
+const context={document:{addEventListener:(event,fn)=>{assert.equal(event,'click');handler=fn;}},go:href=>navigated.push(href),location:{pathname:'/me',search:''},App:{scroll:{}},window:{scrollTo:options=>scrolled.push(options)}};
+vm.createContext(context);vm.runInContext(source.slice(start,end),context);
+let download=false;const anchor={dataset:{},target:'',hasAttribute:name=>name==='download'&&download,getAttribute:()=>'/track'};
+const event=cancelled=>({defaultPrevented:cancelled,target:{closest:()=>anchor},preventDefault(){this.defaultPrevented=true;}});
+handler(event(true));assert.equal(navigated.length,0,'A local controller that cancelled the click keeps its action and return path');
+handler(event(false));assert.deepEqual(navigated,['/track'],'Ordinary links still route');
+handler({...event(false),metaKey:true});assert.equal(navigated.length,1,'Modified browser navigation stays native');
+download=true;handler(event(false));assert.equal(navigated.length,1,'Download links retain the browser download action');download=false;
+anchor.dataset.tab='me';handler(event(false));assert.equal(navigated.length,1);assert.equal(scrolled.length,1,'Current tab still scrolls to top');
+console.log('Navigation respects handled clicks, ordinary links, modified clicks and current-tab scrolling PASS');

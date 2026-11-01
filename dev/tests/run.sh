@@ -83,6 +83,7 @@ node dev/tests/test_recipe_pending.js
 node dev/tests/test_recipe_title_retry.js
 node dev/tests/test_recipe_library_intent.js
 node dev/tests/test_navigation_animation.js
+node dev/tests/test_cancelled_navigation.js
 node dev/tests/test_notification_rows.js
 node dev/tests/test_native_display_diagnostics.js
 python3 dev/tests/test_native_display_copy.py
@@ -234,6 +235,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/food_lookup_sizes_incont
 docker compose -p "$P" exec -T app python - < dev/tests/test_admin_portal.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_account_email.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_signup.py
+docker compose -p "$P" exec -T app python - < dev/tests/signup_uniqueness_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_friend_links.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_admin_users.py
 

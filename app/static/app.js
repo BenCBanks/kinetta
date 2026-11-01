@@ -641,8 +641,9 @@ function showError(el, e) {
 }
 // in-app links: <a href="/..."> navigate without reloading; prefetch on press for instant pages
 document.addEventListener('click', (e) => {
+  if (e.defaultPrevented) return;
   const a = e.target.closest('a[href^="/"]');
-  if (!a || e.metaKey || e.ctrlKey || a.target) return;
+  if (!a || e.metaKey || e.ctrlKey || a.target || a.hasAttribute('download')) return;
   e.preventDefault();
   // The tab you're on (owner, 20 Oct 2026): its plain home page; already there, scroll to the top (like iPhone tab bars).
   if (a.dataset.tab && location.pathname === '/' + a.dataset.tab && !location.search) { window.scrollTo({top: 0, behavior: 'smooth'}); return; }
@@ -1247,6 +1248,27 @@ async function challengeOrigin(){
   try{const q=await api('/api/challenges/'+encodeURIComponent(code));if(typeof q?.code!=='string'||typeof q?.title!=='string')throw Error('Challenge reply was incomplete.');if(q.joining_closed)return null;return {code:q.code,title:q.title,join_default:false};}
   catch(x){if(current()&&[404,410].includes(x.status)){if(store.get('kinetta.challengeLink')===code)store.del('kinetta.challengeLink');return null;}throw x;}
 }
+// Only a validated local invitation path survives a trip through login/password recovery.
+function pendingJoinPath() {
+  const path = store.get('kinetta.joinReturn');
+  return typeof path === 'string' && /^\/join\/[A-Za-z0-9_-]{1,100}$/.test(path) ? path : null;
+}
+function rememberJoinPath() {
+  if (/^\/join\/[A-Za-z0-9_-]{1,100}$/.test(location.pathname)) store.set('kinetta.joinReturn',location.pathname);
+}
+function enrollmentEmailError(input, message) {
+  const label=input.closest('label'); let note=label.nextElementSibling;
+  if (!note?.classList.contains('field-err')) { note=document.createElement('p');note.className='field-err';label.after(note); }
+  note.id='enrollment-email-exists';note.setAttribute('role','status');note.setAttribute('aria-live','polite');
+  input.setAttribute('aria-describedby',[...(input.getAttribute('aria-describedby')||'').split(/\s+/).filter(x=>x&&x!==note.id),note.id].join(' '));
+  input.addEventListener('input',()=>{note.remove();input.removeAttribute('aria-invalid');const ids=(input.getAttribute('aria-describedby')||'').split(/\s+/).filter(x=>x&&x!==note.id);if(ids.length)input.setAttribute('aria-describedby',ids.join(' '));else input.removeAttribute('aria-describedby');},{once:true});
+  note.innerHTML=esc(message)+'.<span class="enrollment-email-links"><a href="/" data-email-login>Log in</a><a href="/forgot-password" data-email-reset>Reset password</a></span>';
+  const email=input.value.trim();
+  $('[data-email-login]',note).onclick=e=>{e.preventDefault();rememberJoinPath();history.replaceState(null,'',pendingJoinPath()||'/');showLogin();$('input[name=login]',root).value=email;};
+  $('[data-email-reset]',note).onclick=e=>{e.preventDefault();rememberJoinPath();showForgot(email);};
+  input.setAttribute('aria-invalid','true');input.focus({preventScroll:true});note.scrollIntoView({block:'center',behavior:'smooth'});
+}
+
 function showNewAccount({title, intro, button, send, signup = false, email = signup, card = null,challenge=null}) {
   const pick = !email;
   root.innerHTML = `<div class="login"><form novalidate>
@@ -1260,6 +1282,7 @@ function showNewAccount({title, intro, button, send, signup = false, email = sig
     <label>Who sees new activities<select name="share_default"><option value="everyone" selected>Everyone on Kinetta</option><option value="friends">Approved friends</option><option value="me">Only me</option></select></label>
     <p class="small muted">Everyone means signed-in members of this Kinetta. You can change this in Sharing, or choose a different audience for an activity.</p>
     ${email ? '<p class="small muted">We\'ll give you a username from your name, like @casey, so friends can find you. Change it any time in Settings.</p>' : ''}
+    ${email ? `<details class="username-choice"><summary>Choose your @username (optional)</summary><label>Username<input name="login" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30" enterkeyhint="next"></label></details>` : ''}
     ${signup ? `<label class="check"><input type="checkbox" name="age_ok" required><span>I'm 16 or older and agree to the <a href="https://kinetta.app/privacy" target="_blank" rel="noopener">privacy policy</a></span></label>
     <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>` : ''}
     ${challenge?`<label class="check"><input type="checkbox" name="challenge_join"${challenge.join_default?' checked':''}><span>Join ${esc(challenge.title)} ${email?'after I confirm my email':'when I create my account'}. Only my username, permitted photo and progress are shared.</span></label>`:''}
@@ -1267,10 +1290,12 @@ function showNewAccount({title, intro, button, send, signup = false, email = sig
     <p class="err" role="alert"></p>
     <button class="primary" type="submit">${esc(button)}</button></form></div>`;
   const f = $('form', root); f.name.focus();
+  const username = globalThis.UsernameAvailability?.watch(f.login);
   if (pick) {
     f.name.addEventListener('input', () => {   // suggest a username from the first name until they type their own
       if (f.login.dataset.touched) return;
       f.login.value = (f.name.value.trim().split(/\s+/)[0] || '').toLowerCase().normalize('NFD').replace(/[^a-z0-9_]/g, '').slice(0, 30);
+      username?.changed();
     });
     f.login.addEventListener('input', () => { f.login.dataset.touched = '1'; });
   }
@@ -1283,13 +1308,13 @@ function showNewAccount({title, intro, button, send, signup = false, email = sig
     const input = name && f.elements[name], err = $('.err', f);
     err.textContent = input ? '' : text;
     const at = input ? input.closest('label') : err;
-    if (input) { at.insertAdjacentHTML('afterend', `<p class="field-err" role="alert">${esc(text)}</p>`); input.setAttribute('aria-invalid', 'true'); input.focus({preventScroll: true}); }
+    if (input) { const details=input.closest('details');if(details)details.open=true;at.insertAdjacentHTML('afterend', `<p class="field-err" role="alert">${esc(text)}</p>`); input.setAttribute('aria-invalid', 'true'); input.focus({preventScroll: true}); }
     at.scrollIntoView({block: 'center', behavior: 'smooth'});
   };
   // fixing a field clears its message
   f.addEventListener('input', (e) => { const l = e.target.closest('label'); if (l?.nextElementSibling?.classList.contains('field-err')) { l.nextElementSibling.remove(); e.target.removeAttribute('aria-invalid'); } });
   // which field a server answer is about
-  const fieldOf = (m) => /password/i.test(m) ? 'password' : /email/i.test(m) && email ? 'email' : /username/i.test(m) && pick ? 'login' : /\bname\b/i.test(m) ? 'name' : /16 or older/i.test(m) && signup ? 'age_ok' : null;
+  const fieldOf = (m) => /password/i.test(m) ? 'password' : /email/i.test(m) && email ? 'email' : /username/i.test(m) && f.login ? 'login' : /\bname\b/i.test(m) ? 'name' : /16 or older/i.test(m) && signup ? 'age_ok' : null;
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
     const b = $('button[type=submit]', f) || $('button', f);
@@ -1300,12 +1325,12 @@ function showNewAccount({title, intro, button, send, signup = false, email = sig
     if (signup && !f.age_ok.checked) return fieldErr('age_ok', 'Kinetta is for people 16 or older. Tick the box to continue.');
     b.disabled = true; fieldErr(null, '');
     try { await send({name: f.name.value, password: f.password.value, share_default:f.elements.share_default.value, ...phoneDefaults(),
-        ...(pick ? {login: f.login.value.trim().toLowerCase()} : {email: f.email.value.trim()}),
+        ...(pick ? {login: f.login.value.trim().toLowerCase()} : {email: f.email.value.trim(), ...(f.login.value.trim() ? {login:f.login.value.trim().toLowerCase()} : {})}),
         ...(signup ? {age_ok: f.age_ok.checked, website: f.website.value} : {}),...(card?{card_code:card.code||store.get('kinetta.cardLink'),card_request:!!f.card_request?.checked}:{}),...(challenge?{challenge_code:challenge.code,challenge_join:!!f.challenge_join?.checked}:{})});
       // On an iPhone browser, a new account goes to the iPhone app, not this browser view (Ben, 2026-10-24)
       if (getAppFirst()) { store.set('kinetta.getApp', '1'); history.replaceState(null, '', '/'); return showGetApp(); }
       history.replaceState(null, '', '/welcome'); await start(); }
-    catch (x) { fieldErr(fieldOf(x.message || ''), x.message); b.disabled = false; }
+    catch (x) { if(x.code==='email_exists'&&email)enrollmentEmailError(f.email,x.message);else {const field=fieldOf(x.message||'');if(field==='login')username?.error('');fieldErr(field,x.message);} b.disabled = false; }
   });
 }
 // An iPhone (or iPad) browser, outside the app: new accounts are sent to the iPhone app instead.
@@ -1354,20 +1379,40 @@ async function showInvite(code) {
   $('#iv-login', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/'); showLogin(); };
 }
 async function showJoin(token) {
+  rememberJoinPath();
   const active=enrollmentView();enrollmentStatus('Join Kinetta','Loading invitation…');
   let info;
   try { info = await api('/api/join/' + encodeURIComponent(token));if(!info||Array.isArray(info)||typeof info!=='object')throw Error('Invitation reply was incomplete.'); }
   catch (x) {
     if(!active())return;
     if(![404,410].includes(x.status))return enrollmentStatus('Invitation couldn’t load','Your invitation link is kept. Try again.',()=>showJoin(token));
+    store.del('kinetta.joinReturn');
     root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>This link doesn't work</h1><p>${esc(x.message)}</p><a class="ghost" href="/">Go to log in</a></div></div>`;
     $('a', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/'); showLogin(); };
     return;
   }
   if(!active())return;
+  if (App.me) {
+    const owner=readOwner(), login=App.me.login;
+    root.innerHTML=`<div class="login"><div class="form">${BRAND}<h1>Join Kinetta</h1><p>${info.inviter ? esc(info.inviter)+' invited you. ' : ''}You are signed in as @${esc(login)}. Use your existing account; no new account or friend request is created.</p><p class="err" role="alert"></p><div class="btncol"><button type="button" class="primary" id="j-accept">Accept invitation as @${esc(login)}</button><button type="button" class="ghost" id="j-cancel">Not now</button></div></div></div>`;
+    const button=$('#j-accept',root),cancel=$('#j-cancel',root),live=()=>active()&&owner===readOwner()&&button.isConnected;
+    const open=()=>{store.del('kinetta.joinReturn');history.replaceState(null,'','/me');start();};
+    cancel.onclick=open;
+    button.onclick=async()=>{
+      if(button.disabled||!live())return;button.disabled=true;cancel.disabled=true;
+      try{
+        await api('/api/join/existing',json('POST',{token}));if(!live())return;
+        store.del('kinetta.joinReturn');
+        root.innerHTML=`<div class="login"><div class="form">${BRAND}<h1>Invitation accepted</h1><p>You’re using @${esc(login)}. Friend requests and challenge joining remain your choice.</p><div class="btncol"><button type="button" class="primary" id="j-open">Open Kinetta</button>${info.card?`<a class="ghost" href="/card/${encodeURIComponent(info.card.code)}">View Kinetta card</a>`:''}${info.challenge?`<a class="ghost" href="/me/challenges/${encodeURIComponent(info.challenge.code)}">View challenge</a>`:''}</div></div></div>`;
+        $('#j-open',root).onclick=open;
+      }catch(error){if(live()){$('.err',root).textContent=error.message;button.disabled=false;cancel.disabled=false;}}
+    };
+    return;
+  }
   showNewAccount({title: 'Join Kinetta', button: 'Create my account', email: !!info.email,card:info.card,challenge:info.challenge,
-    intro: `${info.inviter ? esc(info.inviter) + ' invited you. ' : ''}Make your account. Choose who sees new activities. Your food log and body settings stay private.`,
+    intro: `${info.inviter ? esc(info.inviter) + ' invited you. ' : ''}Make your account. Choose who sees new activities. Your food log and body settings stay private. <a href="/" id="j-login">Log in to accept with an existing account</a>.`,
     send: (body) => api('/api/join', json('POST', {...body, token}))});
+  $('#j-login',root).onclick=e=>{e.preventDefault();rememberJoinPath();showLogin();};
 }
 // "Create an account" (open signup, #232): email, username, password and a 16+ confirmation. When the server's account
 // cap is reached the waitlist takes over; the email link still has to be opened before others can see the person.
@@ -1451,12 +1496,12 @@ async function showBeta(full = false) {
       root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>Thanks, ${esc(f.name.value.trim().split(/\s+/)[0])}!</h1>
         <p>You're on the list. We'll email your invite link to ${esc(f.email.value.trim())} when there's a spot.</p>${Native.on ? '<a class="primary wide" href="/" id="b-done">Back to log in</a>' : '<a class="primary wide" href="https://kinetta.app/">Back to the Kinetta website</a>'}</div></div>`;
       const done = $('#b-done', root); if (done) done.onclick = (ev) => { ev.preventDefault(); backToLogin(); };
-    } catch (x) { err.textContent = x.message; b.disabled = false; }
+    } catch (x) { if(x.code==='email_exists')enrollmentEmailError(f.email,x.message);else err.textContent = x.message; b.disabled = false; }
   });
 }
 // Forgot password, reset from the emailed link, and confirming an email address (2026-10-24, #232). The server answers
 // "Forgot password" the same way whether or not an account matches, so this screen never says which it was.
-function backToLogin(msg = '') { history.replaceState(null, '', '/'); showLogin(msg); }
+function backToLogin(msg = '') { history.replaceState(null, '', pendingJoinPath() || '/'); showLogin(msg); }
 function showForgot(prefill = '') {
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<h1>Forgot your password?</h1><p>Enter your username or email. If your account has a confirmed email, we'll send a link to choose a new password.</p></div>
@@ -1551,6 +1596,8 @@ async function start() {
   if (location.pathname === '/forgot-password' && !kept('/api/me')) return showForgot();
   if (Native.on && !Native.token) return showLogin();
   const enter = () => {
+    const invitation = /^\/join\/[A-Za-z0-9_-]{1,100}$/.test(location.pathname) ? location.pathname : pendingJoinPath();
+    if (invitation) { store.set('kinetta.joinReturn',invitation);history.replaceState(null,'',invitation);return showJoin(invitation.split('/').pop()); }
     if (store.get('kinetta.getApp') && getAppFirst()) return showGetApp();
     if (location.pathname === '/' || location.pathname === '' || location.pathname.startsWith('/join/') || location.pathname === '/beta' || location.pathname === '/signup') history.replaceState(null, '', '/me');
     // logged in after opening a friend's invite link: show who it's from and let them say yes
@@ -1569,7 +1616,7 @@ async function start() {
   };
   // logged in on this phone before: open at once and check the login in the background (a 401 there shows the login)
   const saved = kept('/api/me');
-  if (saved && !location.pathname.startsWith('/join/')) {
+  if (saved && !location.pathname.startsWith('/join/') && !pendingJoinPath()) {
     App.me = saved; enter();
     api('/api/me').then(refreshMe).catch((x) => { if (x.status === 401) forgetKept(); else if (x.offline) netState(true); });
     return;

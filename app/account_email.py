@@ -23,9 +23,44 @@ SENT = 'If that matches an account with a confirmed email, we’ve sent a link t
 
 
 def _clean_email(v):
-    v = (v or '').strip()
+    v = (v or '').strip().lower()
     if len(v) > 120 or not EMAIL_RE.fullmatch(v): raise HTTPException(400, 'Check the email address')
     return v
+
+
+EMAIL_EXISTS = "There's already a Kinetta account with this email"
+
+
+def email_exists():
+    raise HTTPException(409, {'code': 'email_exists', 'message': EMAIL_EXISTS,
+                              'login': '/', 'reset': '/forgot-password'})
+
+
+def reservation_lock(c):
+    # Always before account, invitation and confirmation-token locks, including resends.
+    c.execute("SELECT pg_advisory_xact_lock(hashtextextended('kinetta-email-reservations',0))")
+
+
+def require_available(c, email, uid=None, *, confirmation=False):
+    """Pending addresses remain claimed when a link expires; replacing/deleting it releases the claim."""
+    reservation_lock(c)
+    if c.execute('SELECT 1 FROM users WHERE email=%s AND (%s::bigint IS NULL OR id<>%s)', (email,uid,uid)).fetchone():
+        email_exists()
+    if confirmation:
+        return  # Legacy ambiguous pending accounts: the first valid confirmation wins the unique index.
+    own = uid is not None and c.execute("""SELECT 1 FROM users WHERE id=%s AND email=%s
+      UNION ALL SELECT 1 FROM account_tokens WHERE user_id=%s AND kind='verify_email' AND used_at IS NULL AND lower(email)=%s LIMIT 1""", (uid,email,uid,email)).fetchone()
+    if not own and c.execute("""SELECT 1 FROM account_tokens WHERE kind='verify_email' AND used_at IS NULL
+      AND lower(email)=%s AND (%s::bigint IS NULL OR user_id<>%s) LIMIT 1""", (email,uid,uid)).fetchone():
+        email_exists()
+
+
+def enrollment_limit(request, email):
+    # Commit rejected attempts too. Keep addresses out of the limiter key.
+    with db.connect() as c:
+        ip_hit = limited(c, 'signup-ip:' + auth.client_ip(request), 5, 60)
+        email_hit = limited(c, 'signup-email:' + auth.token_hash(email), 5, 60)
+    if ip_hit or email_hit: raise HTTPException(429, 'Too many tries - wait an hour')
 
 
 def _base():
@@ -34,6 +69,7 @@ def _base():
 
 def limited(c, key, most, minutes):
     """True once `key` has been tried `most` times in the last `minutes`; every call counts as a try."""
+    c.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", ('rate:'+key,))
     c.execute("DELETE FROM auth_attempts WHERE created < now() - interval '1 day'")
     n = c.execute("SELECT count(*) AS n FROM auth_attempts WHERE key = %s AND created > now() - %s",
                   (key, dt.timedelta(minutes=minutes))).fetchone()['n']
@@ -61,7 +97,10 @@ def _token(c, uid, kind, minutes, email=None):
     return token
 
 
-def _open(c, token, kind):
+def _open(c, token, kind, *, lock_user=False):
+    if lock_user:
+        seed = c.execute("SELECT user_id FROM account_tokens WHERE token_hash=%s AND kind=%s", (auth.token_hash(token or ''),kind)).fetchone()
+        if seed: c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE', (seed['user_id'],))
     r = c.execute("""SELECT t.token_hash, t.user_id, t.email, u.login::text AS login, u.name, u.email AS current
                      FROM account_tokens t JOIN users u ON u.id = t.user_id
                      WHERE t.token_hash = %s AND t.kind = %s AND t.used_at IS NULL AND t.expires > now() FOR UPDATE OF t""",
@@ -86,8 +125,13 @@ def set_email(body: EmailIn, request: Request, background: BackgroundTasks, user
     email = _clean_email(body.email)
     if not mail_ready(): raise HTTPException(503, 'Email isn’t set up on this Kinetta yet. Ask the person who runs it.')
     with db.connect() as c:
-        if limited(c, f"email:{user['id']}", 5, 60): raise HTTPException(429, 'Too many tries - wait an hour')
-        stored = c.execute('SELECT pw_hash FROM users WHERE id = %s', (user['id'],)).fetchone()['pw_hash']
+        hit = limited(c, f"email:{user['id']}", 5, 60)
+    if hit: raise HTTPException(429, 'Too many tries - wait an hour')
+    with db.connect() as c:
+        reservation_lock(c)
+        account = c.execute('SELECT pw_hash FROM users WHERE id=%s FOR UPDATE', (user['id'],)).fetchone()
+        if not account: raise HTTPException(404, 'Account not found.')
+        stored = account['pw_hash']
         if not auth.check_pw(stored, body.password): raise HTTPException(400, 'Your password is wrong')
         confirmation(background, c, user['id'], user['name'], email)
     return {'ok': True, 'pending': email}
@@ -105,6 +149,8 @@ def iphone_app():
 def confirmation(background, c, uid, name, email, welcome=False):
     """A fresh single-use link to confirm `email`, sent after the caller's transaction commits. A new account's email
     (welcome) also says Kinetta is in beta and how to get the iPhone app."""
+    email = _clean_email(email)
+    require_available(c, email, uid)
     link = f"{_base()}/confirm-email/{_token(c, uid, 'verify_email', VERIFY_HOURS * 60, email)}"
     app = iphone_app() if welcome else None
     # Written the way Ben talks (2026-10-24): short, plain, signed by the team, always "we". No stock phrases.
@@ -137,13 +183,16 @@ class TokenIn(BaseModel):
 def confirm_email(body: TokenIn, request: Request, background: BackgroundTasks):
     """No login needed: the link may be opened on another device."""
     with db.connect() as c:
+        reservation_lock(c)
         if limited(c, 'confirm:' + auth.client_ip(request), 20, 15): raise HTTPException(429, 'Too many tries - wait 15 minutes')
-        r = _open(c, body.token, 'verify_email')
+        r = _open(c, body.token, 'verify_email', lock_user=True)
+        r['email'] = _clean_email(r['email'])
+        require_available(c, r['email'], r['user_id'], confirmation=True)
         try:
             with c.transaction():
                 c.execute('UPDATE users SET email = %s, email_verified_at = now(), needs_email_confirm = false WHERE id = %s', (r['email'], r['user_id']))
         except errors.UniqueViolation:
-            raise HTTPException(409, 'That email is already used by another Kinetta account.')
+            email_exists()
         c.execute('UPDATE account_tokens SET used_at = now() WHERE token_hash = %s', (r['token_hash'],))
         link = (c.execute('SELECT friend_link FROM profile WHERE user_id = %s', (r['user_id'],)).fetchone() or {}).get('friend_link')
         if link:     # signed up through a friend's invite link: friends now (an expired link just doesn't apply)

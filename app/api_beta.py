@@ -48,10 +48,12 @@ def beta_request(body: BetaIn, request: Request):
     if auth.too_many(ip, 'beta'): raise HTTPException(429, 'Too many tries - wait 15 minutes')
     auth.failed(ip, 'beta')          # every request counts, so one address can send only a few
     if body.website: return {'ok': True}
-    email = body.email.strip()
-    if not EMAIL_RE.match(email): raise HTTPException(400, 'Check your email address')
+    from . import account_email
+    email = account_email._clean_email(body.email)
+    account_email.enrollment_limit(request, email)
     clean = lambda v: (v or '').strip() or None
     with db.connect() as c:
+        account_email.require_available(c, email)
         if c.execute("SELECT count(*) AS n FROM beta_requests WHERE status = 'new'").fetchone()['n'] >= MAX_WAITING:
             raise HTTPException(503, 'The beta is full right now - please try again later')
         origin=None
