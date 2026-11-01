@@ -1947,6 +1947,26 @@ MIGRATIONS = [
           (user_id=nullif(current_setting(''kinetta.coach_user_id'',true),'''')::bigint)',t);
       END LOOP;
     END $$;""",
+    # 93. Optional aggregate feature metrics; daily unlinkable keys expire at rotation.
+    """CREATE TABLE admin_feature_counts(feature text NOT NULL,day date NOT NULL,
+      people bigint NOT NULL CHECK(people>=0),opens bigint NOT NULL CHECK(opens>=people),PRIMARY KEY(feature,day));
+    CREATE INDEX admin_feature_counts_retention ON admin_feature_counts(day);
+    CREATE TABLE admin_feature_salts(day date PRIMARY KEY,secret bytea NOT NULL);
+    CREATE TABLE admin_feature_keys(day date NOT NULL,feature text NOT NULL,digest bytea NOT NULL,
+      opened timestamptz NOT NULL DEFAULT clock_timestamp(),PRIMARY KEY(day,feature,digest));
+    CREATE TABLE admin_feature_state(singleton boolean PRIMARY KEY DEFAULT true CHECK(singleton),started date NOT NULL);
+    ALTER TABLE admin_feature_counts ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE admin_feature_salts ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE admin_feature_keys ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE admin_feature_state ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE profile ADD COLUMN welcome_completed_day date,ADD COLUMN health_setup_day date;
+    ALTER TABLE food_entries ADD COLUMN entry_method text CHECK(entry_method IN
+      ('describe','search','barcode','photo','recipe','copy_yesterday','copy_other','manual','mixed','other','unknown'));
+    CREATE INDEX activities_feature_created ON activities(created,user_id);
+    CREATE INDEX food_feature_created ON food_entries(created,user_id);
+    CREATE INDEX users_feature_created ON users(created,id);
+    CREATE INDEX friendships_feature_accepted ON friendships(accepted) WHERE status='accepted';
+    """,
 
 ]
 

@@ -21,16 +21,20 @@ def insert(c,uid,message,rows,day,meal):
         ids.append(c.execute('''INSERT INTO food_entries(user_id,day,meal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref,position,client_id)
                                  VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id''',
                              (uid,day,meal,row['name'],row.get('brand'),row['amount'],row['unit'],*(row[k] for k in api_dishes.NUM),row['source'],json.dumps(row.get('ref')),pos+i,f"{message['client_id']}-{i:02d}")).fetchone()['id'])
+    from . import food_entry_methods as methods
+    methods.copy_rows(c,uid,ids,rows,day)
     return ids
 
 
 def save(c,uid,message,rows,day,meal):
     if not rows:raise HTTPException(400,'Choose at least one food to copy')
     if meal_chat.too_big(rows):raise HTTPException(400,'That amount is too large')
+    from . import food_entry_methods as methods
+    rows=methods.staged_copy(c,uid,message,rows,day)
     if (message.get('result') or {}).get('review_only'):
         from . import food_thread_compose as compose
         # A copied log is a deliberate historical snapshot, with no live entry IDs.
-        fields=('name','brand','amount','unit',*N.ALL,'source','ref')
+        fields=('name','brand','amount','unit',*N.ALL,'source','ref','entry_method')
         entries=[N.storage({k:row.get(k) for k in fields}) for row in rows]
         return compose.write(c,uid,message,{'composed':True,'day':str(day),'meal':meal,
             'parts':[{'index':0,'text':message['body'],'status':'ready','manual':True,'entries':entries,'logged':False}]})

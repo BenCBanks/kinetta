@@ -311,6 +311,7 @@ const Native = (() => {
     await put('health.on', '1');
     N.lastAuto = 0; // A pre-connection auto-sync must not suppress the first import for ten minutes.
     progress('Health sync is enabled. Your first import runs separately.');
+    if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('health_setup');
     // Permission completion is independent of background delivery and a potentially large first import.
     N.enableBackground().catch(() => {});
   })().finally(() => { N.connecting = null; }));

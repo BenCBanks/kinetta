@@ -278,6 +278,8 @@ def _insert(c,uid,message,result,part,entries):
                            e.get('source','quick'),json.dumps(e.get('ref'),default=str),pos,f'{prefix}-{i:02d}')).fetchone()
         if not row:raise HTTPException(409,'That food part was already saved; refresh its card')
         ids.append(row['id'])
+    from . import food_entry_methods as methods
+    methods.compose(c,uid,ids,message,part,entries)
     return ids
 
 

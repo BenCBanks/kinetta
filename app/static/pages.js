@@ -891,6 +891,7 @@ function drawMark(g, cx, cy, w, color) {
 // The share picture (Ben, 2026-10-24): one 4:5 picture for texting, Instagram or anything else. The map fills it and the
 // details sit on a frosted, see-through card near the bottom. Start and finish get the app's markers unless hidden.
 async function routePicture(a, trim) {
+  const pictureOwner=readOwner();
   const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d'), ui = getComputedStyle(document.body).fontFamily, serif = '"Source Serif 4", Georgia, serif';
   try { await Promise.all([document.fonts.load(`600 64px ${serif}`), document.fonts.load(`800 80px ${ui}`)]); } catch (x) { /* system fonts are fine */ }
@@ -972,7 +973,7 @@ async function routePicture(a, trim) {
     g.fillStyle = PIC.text; g.fillText(v, x, y + 14 + size);
     if (u) { const vw = g.measureText(v).width; g.font = `600 24px ${ui}`; g.fillStyle = PIC.soft; g.fillText(u.trim(), x + vw + 8, y + 14 + size); }
   });
-  return new Promise((res) => c.toBlob(res, 'image/png'));
+  return new Promise((res) => c.toBlob(b=>{if(b&&typeof FeatureUsage!=='undefined')void FeatureUsage.event('share_picture',pictureOwner);res(b);}, 'image/png'));
 }
 
 // ---------- Matched route ----------
@@ -1624,18 +1625,19 @@ route(/^\/me\/settings$/, 'me', async (el) => {
 
   $('#m-kit-memory',el).onclick=()=>KitChat.memorySettings();
   const aiInfo = $('#m-ai-info', el); if (aiInfo) aiInfo.onclick = () => sheet('Kit', aiExplain());
-  $('#m-name', el).onclick = () => accountSheet('name');
-  $('#m-login', el).onclick = () => accountSheet('login');
-  $('#m-pw', el).onclick = () => passwordSheet();
-  $('#m-email', el).onclick = () => emailSheet();
+  $('#m-name', el).onclick = () => {if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_account');accountSheet('name');};
+  $('#m-login', el).onclick = () => {if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_account');accountSheet('login');};
+  $('#m-pw', el).onclick = () => {if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_account');passwordSheet();};
+  $('#m-email', el).onclick = () => {if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_account');emailSheet();};
   if (new URLSearchParams(location.search).get('email') === 'add') { history.replaceState(null, '', '/me/settings'); emailSheet(); }
   $('#m-export', el).onclick = async (e) => {
+    if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_data');
     if (!Native.on) { toast('Preparing your download - this can take a minute'); return; }
     e.preventDefault();        // the app can't save downloads: a one-time link opens in Safari, which saves it to Files
     try { const r = await api('/api/account/export-link', json('POST', {})); window.open(Native.base + r.path, '_blank'); toast('Opening Safari to download your data'); }
     catch (x) { toast(x.message); }
   };
-  $('#m-del', el).onclick = () => deleteSheet();
+  $('#m-del', el).onclick = () => {if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_data');deleteSheet();};
   $$('[data-ai]', el).forEach((b) => b.onclick = async () => {
     const on = b.dataset.ai === '1'; if (on === !!me.ai_ok) return;
     if (on) { aiSheet(() => render()); return; }

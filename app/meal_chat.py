@@ -832,6 +832,8 @@ def confirm_data(c, uid, body, include_groups=False):
                                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id''',
                              (uid, body.day, body.meal, x['name'], x['brand'], x['amount'], x['unit'], *(x[k] for k in NUM),
                               x['source'], json.dumps(ref, default=str), pos + n, f'{body.client_id}-{n:02d}')).fetchone()['id'])
+    from . import food_entry_methods as methods
+    methods.described(c,uid,ids)
     result={'ids':ids,'replayed':False}
     if include_groups:
         groups=[];offset=0

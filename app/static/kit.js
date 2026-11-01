@@ -128,6 +128,7 @@ const KitChat = (() => {
       const data=await api('/api/coach/conversation/visits',json('POST',{visit_id:visit}));
       if(!active(c)||c.visit_id!==visit)return;
       c.generation=data.generation;status(c,'');await refresh(c);
+      if(active(c)&&c.visit_id===visit&&typeof FeatureUsage!=='undefined')void FeatureUsage.event('kit_conversation');
     };
     try{await start();}catch(e){if(active(c)&&c.visit_id===visit){status(c,e.message);const retry=$('#kit-load-retry',c.el);retry.hidden=false;retry.onclick=async()=>{retry.hidden=true;try{await start();}catch(x){if(active(c)){status(c,x.message);retry.hidden=false;}}};}}
   }

@@ -36,6 +36,18 @@ jobs:
           python3 dev/screenshots/stage.py /tmp/gpx
       - name: Syntax, unit and quick API checks
         run: dev/tests/run.sh --quick
+      - name: Check aggregate Features portal with fictional history (writes blocked)
+        env:
+          KINETTA_URL: http://localhost:8798
+          KINETTA_PROJECT: kinettatest
+          FEATURE_UI_SESSION: /tmp/kinetta-features-session.json
+        run: |
+          npm install --prefix /tmp/card-browser playwright
+          /tmp/card-browser/node_modules/.bin/playwright install --with-deps chromium
+          python3 dev/tests/admin_features_fixture.py
+          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/admin_features_ui.cjs
+          python3 dev/tests/feature_collection_fixture.py
+          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/feature_collection_ui.cjs
       - name: Server log (if something failed)
         if: failure()
         run: docker compose -p kinettatest logs app | tail -100
@@ -209,6 +221,16 @@ jobs:
           KINETTA_URL: http://localhost:8798
         run: NODE_PATH=/tmp/card-browser/node_modules node dev/tests/community_ui.cjs
 
+      - name: Check aggregate Features portal with fictional history (writes blocked)
+        env:
+          KINETTA_URL: http://localhost:8798
+          KINETTA_PROJECT: kinettatest
+          FEATURE_UI_SESSION: /tmp/kinetta-features-session.json
+        run: |
+          python3 dev/tests/admin_features_fixture.py
+          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/admin_features_ui.cjs
+          python3 dev/tests/feature_collection_fixture.py
+          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/feature_collection_ui.cjs
       - name: Server log (if something failed)
         if: failure()
         run: docker compose -p kinettatest logs app | tail -100

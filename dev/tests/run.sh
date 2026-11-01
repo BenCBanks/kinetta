@@ -36,6 +36,7 @@ echo "== native sync recovery (stand-in HealthKit, no health data)"
 python3 dev/tests/test_native_ui_lifecycle.py
 node dev/tests/test_boot.js
 node dev/tests/test_guide_visits.js
+node dev/tests/test_feature_usage.js
 
 node dev/tests/test_progress_links.js
 node dev/tests/test_energy_overview.js
@@ -248,6 +249,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/test_admin_kit.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_request_log.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_devices.py
 docker compose -p "$P" exec -T app python - < dev/tests/admin_usage_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/admin_features_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/reactions_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_photo_batches_corrections.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_photo_context_incontainer.py
