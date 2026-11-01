@@ -22,6 +22,7 @@ FILES={
     'general':['ai_access.py','coach.py','coach_chat.py','coach_tools.py','coach_proposals.py','food_photo.py','cook_chat.py','food_coach.py','food_thread_kit.py','food_thread_photo.py','food_thread_compose.py','food_thread_resolve.py'],
     'understanding':['food_thread_understand.py','food_photo.py','food_thread_choices.py','food_thread_compose.py','food_thread_log.py','food_thread_photo.py','ai_budget.py'],
     'kit':['kit_thread.py','kit_memory.py','kit_tools.py','coach_chat.py','coach_tools.py','coach_proposals.py','coach.py','ai_access.py','ai_budget.py'],
+    'food_memory':['food_memory_understand.py','food_memory.py','food_thread_understand.py','food_photo.py'],
 }
 SQL=re.compile(r'\s*(?:SELECT|INSERT|UPDATE|DELETE|WITH|CREATE|ALTER|DROP)\b',re.I)
 
@@ -54,6 +55,7 @@ def models(gate):
     food={'food_model':os.environ.get('GEMINI_FOOD_MODEL','gemini-3.1-flash-lite'),
           'food_fallback':os.environ.get('GEMINI_FOOD_FALLBACK_MODEL','gemini-3.8-flash')}
     if gate=='understanding':return food
+    if gate=='food_memory':return {**food,'context_model':os.environ.get('GEMINI_FOOD_CONTEXT_MODEL',food['food_fallback']),'context_policy':1}
     coach_model=os.environ.get('GEMINI_MODEL','gemini-3.8-flash') if coach.provider()=='gemini' else coach.MODEL
     if gate=='kit':return {'provider':coach.provider(),'model':coach_model}
     return {**food,'coach_model':coach_model,'coach_fallback':os.environ.get('GEMINI_FALLBACK_MODEL','gemini-3.1-flash-lite')}

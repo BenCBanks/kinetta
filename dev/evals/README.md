@@ -42,6 +42,23 @@ measure (no amounts checked); model 210/212 on the strict measure (intent 212/21
 reply number violations 0), about $0.085 per full run. The case set was written by the same author as the rules, so it
 favours them; the owner's qualitative review of real replies is still required before enabling.
 
+## Contextual food references (#451)
+
+The optional contextual path additionally requires a `food_memory` block in the same reviewed report. Its
+`candidate_fingerprint` must match `ai_release.gate_fingerprint('food_memory')` (or the existing equivalent-text
+ledger rules), with `case_count >= 40`, `baseline_compared: true`, `reference_accuracy >= 0.95`,
+`copied_number_errors: 0`, `isolation_failures: 0`, `memory_revocation_failures: 0` and
+`qualitative_review_passed: true`. The complete existing food-chat understanding gate still has to pass;
+the contextual set does not replace its 200-case minimum or allow invented amounts/reply numbers.
+
+`food_memory_cases.py` adds 48 fictional cases, 40 containing multiple foods. Fixture numbers represent stored
+facts for source/arithmetic checks, not real-world nutrition accuracy. Capture actual production/candidate
+responses on the same owned sources and catalogue fixtures, retaining model settings, prompts/fingerprints,
+attempt/token costs, latency and unresolved cases. Score retained names, reference identity, exact copies/scaling,
+unknown values, sensible analogue bases, habits/explicit overrides and necessary follow-ups independently.
+Include concurrent retries, stale/deleted/foreign tokens, memory/AI revocation, source changes and confirmation.
+No paid calls are made by CI, and no owner-reviewed rollout report is created from stand-ins.
+
 ## Shared Kit conversation
 
 The app-wide assistant has its own owner-approved gate: `KINETTA_KIT_ENABLED=1` and `KINETTA_KIT_EVAL_REPORT` pointing at a reviewed report with a `candidate_fingerprint` matching `ai_release.kit_fingerprint()`. It requires a `kit` report block with `case_count >=40`, `unsupported_numeric_claims:0`, `isolation_failures:0`, `health_disclosures:0`, `conversation_review_passed:true` and `qualitative_review_passed:true`. The Kit block also requires `baseline_compared:true`; the report's top-level `reviewed:true` is set only after actual owner review. Existing food/food-chat report requirements remain separate and unchanged. Include all sports, strength, individual food records/unknown nutrients, goals, general diet/exercise education, multi-turn follow-ups, proposed changes and app actions, missing histories and injection/consent failures. Compare the current coach and candidate on the same fictional records and questions. Record real responses and token/cost/latency; schema/evidence pass is not proof of useful or medically sound advice. Owner review and physical-phone checks remain separate.

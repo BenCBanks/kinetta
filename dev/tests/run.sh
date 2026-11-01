@@ -258,6 +258,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/food_thread_resolution_i
 docker compose -p "$P" exec -T app python - < dev/tests/food_chat_quality_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_chat_understand_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_entry_review_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/food_memory_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/pending_food_nutrition_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_thread_resolution_sql.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_thread_receipts_incontainer.py

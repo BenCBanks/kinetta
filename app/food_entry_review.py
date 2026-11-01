@@ -17,6 +17,7 @@ from pydantic import BaseModel,ConfigDict,Field,StrictBool,field_validator
 from . import db,nutrients as N,api_dishes as D,api_food as F,food_thread as T
 from . import food_thread_compose as C,food_thread_log as E
 from .auth import current_user
+from .meal_chat import Portion
 
 router=APIRouter(prefix='/api/food/thread/reviews')
 class Strict(BaseModel):
@@ -30,6 +31,15 @@ class DishIn(Strict):
     client_id:UUID
     did:int=Field(gt=0)
     portion:D.PortionIn
+class ReuseIn(Strict):
+    draft_id:UUID
+    client_id:UUID
+    kind:Literal['history','dish','combo','custom']
+    id:int=Field(gt=0)
+    expected:str=Field(pattern=r'^[a-f0-9]{64}$')
+    portion:Portion|None=None
+    day:dt.date
+    meal:Literal['breakfast','lunch','dinner','snacks']='snacks'
 class ReviewIn(Strict):
     draft_id:UUID
     client_id:UUID
@@ -145,6 +155,26 @@ def stage_dish(body:DishIn,user=Depends(current_user)):
         return C.write(c,user['id'],m,result)
 
 
+@router.post('/reuse')
+def stage_reuse(body:ReuseIn,user=Depends(current_user)):
+    from . import food_memory as memory
+    request=body.model_dump(mode='json',exclude={'client_id'})
+    if body.portion is not None:
+        request['portion']=body.portion.clean()
+    uid=user['id']
+    with db.connect() as c:
+        m,created=root(c,uid,body.client_id,request,'Reuse food for review')
+        if not created:return T.answer_with(c,uid,m)
+        pick=memory.source(c,uid,body.kind,body.id,lock=True)
+        if memory.signature(uid,pick,request.get('portion'))!=body.expected:raise HTTPException(409,'That food changed. Choose its current suggestion again.')
+        entries,why=memory.entries(c,uid,pick,request.get('portion'))
+        if not entries:raise HTTPException(422,why or 'Choose an amount first')
+        result={'composed':True,'day':str(body.day),'meal':body.meal,
+                'parts':[{'index':0,'text':pick['name'],'status':'ready','manual':True,
+                          'entries':entries,'logged':False,'own_reuse':request}]}
+        return C.write(c,uid,m,result)
+
+
 def collect(c,uid,ids):
     entries=[];sources=[]
     for mid in sorted(set(ids)):
@@ -159,11 +189,19 @@ def collect(c,uid,ids):
         for part in parts:
             if part.get('logged'):raise HTTPException(409,'A selected food is already logged')
             if part.get('entered_numbers') and not part.get('manual'):raise HTTPException(409,'Review the entered nutrition numbers first')
-            if part.get('recipe_pick'):
+            if part.get('own_reuse'):
+                from . import food_memory as memory
+                pick=part['own_reuse'];item=memory.source(c,uid,pick['kind'],pick['id'],lock=True)
+                if memory.signature(uid,item,pick.get('portion'))!=pick['expected']:
+                    raise HTTPException(409,'A reused food changed. Remove it from the draft and choose its current suggestion.')
+            elif part.get('recipe_pick'):
                 pick=part['recipe_pick'];part['entries']=[dish_entry(c,uid,pick['did'],pick['portion'])]
             elif part.get('drafts'):C.fresh_drafts(c,uid,part)
             elif part.get('templates'):C.fresh_templates(c,uid,part)
             elif not part.get('manual'):C.fresh_own(c,uid,part)
+            if part.get('analogue'):
+                from . import food_memory
+                food_memory.label_entries(part)
             entries+=copy.deepcopy(part.get('entries') or [])
         if parts:sources.append((m,result))
     if not entries:raise HTTPException(409,'Add a food and finish its details first')

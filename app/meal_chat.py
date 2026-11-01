@@ -23,7 +23,7 @@ import unicodedata
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from . import nutrients as N
@@ -33,6 +33,14 @@ from .api_food import _custom_food, _search_off, _search_usda
 from .auth import current_user
 
 router = APIRouter(prefix='/api/food/meals-chat')
+
+
+@router.get('/reuse')
+def reuse_suggestions(q: str = Query(min_length=2, max_length=200), day: dt.date | None = None, user=Depends(current_user)):
+    from . import food_memory
+    return food_memory.suggestions(user['id'], q, day)
+
+
 NUM = dishes.NUM
 LIMITS = N.ENTRY_MAX   # the normal entry limits
 MAX_PARTS = 12

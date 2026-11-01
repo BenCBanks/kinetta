@@ -107,6 +107,7 @@ function foodOutbox({db,request,session,changed,progress=async()=>{},online=()=>
             if(job.phase==='process') {
               r=await call(`/api/food/thread/messages/${job.mid}/process`,{});
               const result=(r.messages||[]).find(m=>m.reply_to===job.mid)?.result || {};
+              if(r.processing||result.processing)break;
               if(result.can_resolve)await write({phase:'resolve'});
               else {await db.remove(owner,job.id);continue;}
             }

@@ -207,7 +207,10 @@ def process(c,uid,message):
     from . import food_thread_understand as understand
     try:
         with c.transaction():
-            understood=understand.apply(c,uid,message)
+            if (message.get('result') or {}).get('food_memory'):
+                from . import food_memory_understand as memory
+                understood=memory.apply(c,uid,message)
+            else:understood=understand.apply(c,uid,message)
         if understood is not None:return understood
     except (HTTPException,ValidationError) as error:
         # A failed AI-guided step is undone; the rules below answer the same message.

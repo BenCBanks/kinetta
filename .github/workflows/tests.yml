@@ -117,6 +117,12 @@ jobs:
           KINETTA_URL: http://localhost:8798
           KINETTA_PROJECT: kinettatest
         run: NODE_PATH=/tmp/card-browser/node_modules node dev/tests/food_entry_ui.cjs
+      - name: Check own-food reuse chips and provenance review (fictional account)
+        env:
+          KINETTA_URL: http://localhost:8798
+        run: |
+          python3 dev/tests/food_memory_fixture.py
+          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/food_memory_ui.cjs
       - name: Check compact training plans and Track preparation (fictional accounts)
         env:
           KINETTA_URL: http://localhost:8798
