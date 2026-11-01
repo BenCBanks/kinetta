@@ -1810,3 +1810,12 @@ See `dev/tests/README.md` for local use and deliberate-regression checks. Browse
 from signed iPhone/device acceptance.
 
 Route/record annotations and Last-set history are secondary data inside their full44px hit areas. Plain action labels retain15–16px type. App title tokens use28px at the default root, within the28–32px range, to preserve compact phone headers.
+
+
+## Small-phone navigation labels · 1 November 2026 (#480)
+
+Long tab labels can claim their intrinsic width while shorter targets share the remaining space. At 330px,
+labels keep 13px text with slight negative letter spacing; targets stay at least 44px with 8px gaps. The unread
+badge stays within its target even when that target is 44px. The browser navigation matrix checks every tab,
+both themes, normal/enlarged text, label bounds, target size, gaps, contrast, keyboard drafts and content
+clearance before merge. The existing screenshot workflow also runs when that navigation test changes.
