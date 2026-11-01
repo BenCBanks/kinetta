@@ -235,6 +235,7 @@ async function say(page, text) {
       // the other screenshots start from the same demo data.
       if (opt.cleanup) { await page.evaluate(cleanFood, opt.cleanup); delete opt.cleanup; }   // gone before the next pass's Today and feed
     }
+    await ctx.unrouteAll({behavior:'ignoreErrors'});
     await ctx.close();
   }
   } finally { await browser.close(); }
