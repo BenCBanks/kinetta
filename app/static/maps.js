@@ -51,7 +51,8 @@ const MapTiles=(()=>{
   }
   async function mount(map,L,el){
     let layer=null,closed=false,version=0,failures=0,successes=0;
-    const note=L.control({position:'bottomleft'});note.onAdd=()=>{const n=L.DomUtil.create('div','map-unavailable');n.hidden=true;n.setAttribute('role','status');const message=document.createElement('span');message.className='map-unavailable-message';message.textContent='Map unavailable ';n.append(message);const b=document.createElement('button');b.type='button';b.textContent='Retry map';b.onclick=()=>draw();n.append(b);L.DomEvent.disableClickPropagation(n);return n;};note.addTo(map);
+    // Live recording has very little map height on short phones. Stack Retry with the credits so they share space.
+    const note=L.control({position:el.classList.contains('live-record-map')?'bottomright':'bottomleft'});note.onAdd=()=>{const n=L.DomUtil.create('div','map-unavailable');n.hidden=true;n.setAttribute('role','status');const message=document.createElement('span');message.className='map-unavailable-message';message.textContent='Map unavailable ';n.append(message);const b=document.createElement('button');b.type='button';b.append('Retry');const context=document.createElement('span');context.className='map-retry-context';context.textContent=' map';b.append(context);b.onclick=()=>draw();n.append(b);L.DomEvent.disableClickPropagation(n);return n;};note.addTo(map);
     const missing=()=>{const n=note.getContainer();if(n)n.hidden=false;};
     const update=()=>{const n=note.getContainer();if(n)n.hidden=!(failures>0&&failures>=successes);};
     const loaded=()=>{successes++;update();};

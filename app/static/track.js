@@ -210,7 +210,7 @@ const Track = (() => {
     $$('[data-track-pause]').forEach(b=>b.disabled=controlling||saving);
     for(const id of ['track-pause','track-finish']){const b=$('#'+id);if(b)b.disabled=controlling||saving;}
     // plain Recording / Paused is what the dot shows; screen readers still hear it, sighted people see only news
-    const status = $('#track-status'); if (status) { status.textContent = idle ? 'Auto-paused · starts again when you move' : message || (session.state === 'recording' ? 'Recording' : 'Paused'); status.classList.toggle('vh', !idle && !message); }
+    const status = $('#track-status'); if (status) { status.textContent = idle ? 'Auto-paused · starts again when you move' : message || (session.state === 'recording' ? 'Recording' : 'Paused'); status.classList.toggle('vh', !idle && (!message || /^(Recording|Paused)$/.test(message))); }
   }
   async function markLap() {
     if(!session?.gps || session.state!=='recording' || controlling || saving)return;
@@ -234,8 +234,9 @@ const Track = (() => {
   function refreshMap() {
     if (mapTimer) return;
     mapTimer = setTimeout(async () => {
+      const el=$('#track-map'),recording=session?.id,expected=owner;
       try {
-        const el = $('#track-map'); if (!el || !session) return;const recording=session.id,expected=owner;
+        if (!el || !session) return;
         const ln = lines(); el.hidden = false;
         if (!mapView || mapView.el !== el) {
           const view = await mapInto(el, ln, {sport: session.sport, still: false, ends: false});
@@ -252,10 +253,15 @@ const Track = (() => {
         const chip = $('#track-gps-live'); if (chip) { chip.textContent = last ? gpsText(last.accuracy) : 'Finding GPS…'; chip.hidden = false; }
         followButton();
       } catch (_) { message = 'Map unavailable. Your timer and GPS recording continue.'; update(); }
-      finally { mapTimer = null; }
+      finally {
+        mapTimer = null;
+        // Resume, Pause or Finish can replace the map while its renderer is still loading.
+        const current=$('#track-map');
+        if(recording&&session?.id===recording&&session.gps&&owner===expected&&readOwner()===expected&&current?.isConnected&&current!==el&&mapView?.el!==current)refreshMap();
+      }
     }, mapView?.el===$('#track-map')?1200:0);
   }
-  function followButton() { const b = $('#track-follow'); if (b) { b.innerHTML = follow ? 'Whole route' : `${svg('track')}Follow me`; b.setAttribute('aria-pressed', String(!follow)); } }
+  function followButton() { const b = $('#track-follow'); if (b) { const label=follow?'Whole route':'Follow me';b.innerHTML = `${svg('track')}<span>${label}</span>`;b.setAttribute('aria-label',label);b.setAttribute('title',label);b.setAttribute('aria-pressed', String(!follow)); } }
   function discard() {
     const id=session?.id,account=readOwner(),live=()=>session?.id===id&&account===readOwner();if(!id)return;
     sheet('Discard this recording?', '<p>This removes the draft from this device. It has not been saved as an activity.</p><button class="ghost wide" id="tr-keep">Keep recording</button><button class="primary danger-btn wide" id="tr-discard">Discard recording</button>', (b, close) => {
