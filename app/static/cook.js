@@ -409,7 +409,8 @@ function shareDishSheet(d,set){
 }
 
 function sharedMenu(d) {
-  sheet(d.name, `<p class="small muted">${esc(d.owner.name)} shared this meal with you.</p><div class="btncol"><button class="ghost danger" id="sm-hide">Remove it from my list</button></div>`, (b, close) => {
+  sheet(d.name, `<p class="small muted">${esc(d.owner.name)} shared this meal with you.</p><div class="btncol"><button class="ghost" id="sm-report">Report or block</button><button class="ghost danger" id="sm-hide">Remove it from my list</button></div>`, (b, close) => {
+    $('#sm-report', b).onclick = () => { close(); reportSheet(d.owner, {dish_id: d.id}, () => { invalidate('/api/dishes'); go('/food', {replace: true}); }); };
     $('#sm-hide', b).onclick = async () => {
       try { await api(`/api/dishes/${d.id}/share/${encodeURIComponent(App.me.login)}`, {method: 'DELETE'}); App.cache.delete('/api/dishes'); close(); go('/food', {replace: true}); }
       catch (x) { toast(x.message); }

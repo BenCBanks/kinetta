@@ -17,7 +17,7 @@ import os
 import secrets
 from zoneinfo import ZoneInfo
 
-from . import analysis
+from . import community_filter, analysis
 
 from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -502,6 +502,12 @@ def set_sharing(body: SharingIn, user=Depends(current_user)):
     if body.findable is not None: sets['findable'] = body.findable
     if sets:
         with db.connect() as c:
+            profile = c.execute('SELECT share_details FROM profile WHERE user_id=%s FOR UPDATE', (user['id'],)).fetchone() or {}
+            if body.details is not None:
+                proposed = {'share_details': _clean_details(body.details)}
+                for activity in c.execute("SELECT id,name,description,sport_label,visibility,share_details FROM activities WHERE user_id=%s AND visibility<>'me'", (user['id'],)).fetchall():
+                    if details_of(proposed['share_details'], activity['share_details'])['description'] and not details_of(profile.get('share_details'), activity['share_details'])['description']:
+                        community_filter.activity(c, user['id'], activity, proposed)
             c.execute(f"UPDATE profile SET {', '.join(f'{k} = %s' for k in sets)} WHERE user_id = %s", (*sets.values(), user['id']))
     return {'ok': True}
 
@@ -519,6 +525,14 @@ def set_activity_sharing(aid: int, body: ActivitySharingIn, user=Depends(current
     if body.usual_details: sets.append('share_details = NULL')
     elif body.details is not None: sets.append('share_details = %s'); args.append(json.dumps(_clean_details(body.details)))
     with db.connect() as c:
+        profile = c.execute('SELECT share_details FROM profile WHERE user_id=%s FOR SHARE', (user['id'],)).fetchone() or {}
+        activity = c.execute('SELECT id,name,description,sport_label,visibility,share_details FROM activities WHERE id=%s AND user_id=%s FOR UPDATE', (aid,user['id'])).fetchone()
+        if not activity: raise HTTPException(404, 'Not found')
+        proposed = {**activity}
+        if body.visibility is not None: proposed['visibility'] = body.visibility
+        if body.usual_details: proposed['share_details'] = None
+        elif body.details is not None: proposed['share_details'] = _clean_details(body.details)
+        community_filter.activity(c, user['id'], proposed, profile, publishing=activity['visibility']=='me')
         if not c.execute(f"UPDATE activities SET {', '.join(sets or ['id = id'])} WHERE id = %s AND user_id = %s RETURNING id",
                          (*args, aid, user['id'])).fetchone():
             raise HTTPException(404, 'Not found')
@@ -627,6 +641,8 @@ def comment(aid: int, body: CommentIn, user=Depends(current_user)):
     with db.connect() as c:
         confirmed(c, user['id'])
         owner = can_see(c, user['id'], aid)
+        private = owner == user['id'] and c.execute("SELECT 1 FROM activities WHERE id=%s AND user_id=%s AND visibility='me' FOR SHARE", (aid,user['id'])).fetchone()
+        if not private: community_filter.public(c, user['id'], ('comment', text))
         cid = c.execute('INSERT INTO comments (activity_id, user_id, text) VALUES (%s, %s, %s) RETURNING id', (aid, user['id'], text)).fetchone()['id']
         notify.add(c, owner, 'comment', user['id'], activity_id=aid, comment_id=cid)
         return _social(c, aid, user['id'], owner)
@@ -685,7 +701,9 @@ MAX_OPEN_REPORTS = 20      # per person reporting, so the admins' list can't be 
 class ReportIn(BaseModel):
     login: str = Field(min_length=1, max_length=60)
     activity_id: int | None = None
-    comment_id: int | None = None
+    comment_id: int | None = Field(None, gt=0)
+    dish_id: int | None = Field(None, gt=0)
+    challenge_code: str | None = Field(None, min_length=1, max_length=60)
     reason: str = Field(pattern='^(spam|abuse|inappropriate|other)$')
     note: str | None = Field(None, max_length=500)
 
@@ -694,12 +712,25 @@ class ReportIn(BaseModel):
 def report(body: ReportIn, user=Depends(current_user)):
     """Report a person, one of their activities or one of their comments to this server's admins. Only something you
     can see can be reported; the admins get a notification and a copy of the words as they were."""
+    if sum(value is not None for value in (body.activity_id, body.comment_id, body.dish_id, body.challenge_code)) > 1:
+        raise HTTPException(400, 'Choose one item to report.')
+    challenge_id = None
     with db.connect() as c:
         t = _person(c, body.login)
         if t['id'] == user['id']: raise HTTPException(400, "You can't report yourself")
         kind = 'person'
         what = f"{t['name']} (@{t['login']})"
-        if body.comment_id:
+        if body.dish_id:
+            from .api_dishes import _seen
+            dish = _seen(c, user['id'], body.dish_id)
+            if dish['user_id'] != t['id']: raise HTTPException(404, 'Not found')
+            kind, what = 'dish', f"Shared recipe: {dish['name']}"
+        elif body.challenge_code:
+            from . import challenges
+            challenge = challenges.accessible(c, body.challenge_code, user['id'])
+            if challenge['user_id'] != t['id']: raise HTTPException(404, 'Not found')
+            kind, challenge_id, what = 'challenge', challenge['id'], 'Challenge: ' + challenges.title(challenge)
+        elif body.comment_id:
             kind = 'comment'
             cm = c.execute('SELECT activity_id, user_id, text FROM comments WHERE id = %s', (body.comment_id,)).fetchone()
             if not cm or cm['user_id'] != t['id']: raise HTTPException(404, 'Not found')
@@ -708,14 +739,16 @@ def report(body: ReportIn, user=Depends(current_user)):
         elif body.activity_id:
             kind = 'activity'
             if can_see(c, user['id'], body.activity_id) != t['id']: raise HTTPException(404, 'Not found')
-            a = c.execute('SELECT name, description FROM activities WHERE id = %s', (body.activity_id,)).fetchone()
-            what = f"Activity: {a['name']}" + (f" - {a['description']}" if a['description'] else '')
+            a = c.execute(f'SELECT a.name,a.description,a.share_details,p.share_details AS usual_details FROM activities a JOIN profile p ON p.user_id=a.user_id WHERE a.id=%(aid)s AND a.user_id=%(owner)s AND {CAN_SEE}', {'aid':body.activity_id,'owner':t['id'],'viewer':user['id']}).fetchone()
+            if not a: raise HTTPException(404, 'Not found')
+            description = a['description'] if details_of(a['usual_details'],a['share_details'])['description'] else None
+            what = f"Activity: {a['name']}" + (f" - {description}" if description else '')
         n = c.execute("SELECT count(*) AS n FROM reports WHERE reporter = %s AND status = 'open'", (user['id'],)).fetchone()['n']
         if n >= MAX_OPEN_REPORTS: raise HTTPException(429, 'You have a lot of reports waiting - the admins will get to them')
-        rid = c.execute("""INSERT INTO reports (reporter, person, activity_id, comment_id, kind, what, reason, note)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+        rid = c.execute("""INSERT INTO reports (reporter, person, activity_id, comment_id, kind, what, reason, note, dish_id, challenge_id)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
                         (user['id'], t['id'], body.activity_id, body.comment_id, kind, what[:1000], body.reason,
-                         (body.note or '').strip() or None)).fetchone()['id']
+                         (body.note or '').strip() or None, body.dish_id, challenge_id)).fetchone()['id']
         for a in c.execute('SELECT id FROM users WHERE is_admin AND id <> %s', (user['id'],)).fetchall():
             notify.add(c, a['id'], 'report', user['id'])
     return {'ok': True, 'id': rid}

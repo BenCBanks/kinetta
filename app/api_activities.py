@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field, ConfigDict
 
-from . import activities, analysis, coach, db, importer, plans, reactions
+from . import community_filter, activities, analysis, coach, db, importer, plans, reactions
 from .api_lifts import FEED_SQL as LIFTS_SQL, plan_of as lift_plan, copy_into as copy_lift
 from .auth import current_user
 from .activity_chart import sunday, weekly_distances, distance_days
@@ -197,8 +197,14 @@ class ActivityEdit(BaseModel):
 def edit(aid: int, body: ActivityEdit, user=Depends(current_user)):
     sets, args = [], []
     with db.connect() as c:
+        profile = c.execute('SELECT share_details FROM profile WHERE user_id=%s FOR SHARE', (user['id'],)).fetchone() or {}
         a = c.execute('SELECT * FROM activities WHERE id = %s AND user_id = %s FOR UPDATE', (aid, user['id'])).fetchone()
         if not a: raise HTTPException(404, 'Not found')
+        proposed = {**a}
+        for field in ('name', 'description', 'sport_label'):
+            if getattr(body, field) is not None: proposed[field] = getattr(body, field)
+        if any(getattr(body, field) is not None for field in ('name', 'description', 'sport_label')):
+            community_filter.activity(c, user['id'], proposed, profile)
         from . import activity_corrections as corrections
         changed={k:getattr(body,k) for k in corrections.FIELDS if k in body.model_fields_set}
         if any(k not in corrections.FIELDS for k in body.restore_summary):raise HTTPException(400,'Unknown summary field')
@@ -230,7 +236,9 @@ def edit(aid: int, body: ActivityEdit, user=Depends(current_user)):
         # a name nobody typed follows the new kind ("Lunch Workout" becomes "Lunch Yoga"); a typed name is left alone
         kind = (body.sport or a['sport'], a['sport_label'] if body.sport_label is None else body.sport_label.strip() or None)
         if body.name is None and a['auto_name'] and kind != (a['sport'], a['sport_label']):
-            sets.append('name = %s'); args.append(activities.default_name(a['start_time'], a['tz'] or db.DEFAULT_TZ, *kind))
+            generated = activities.default_name(a['start_time'], a['tz'] or db.DEFAULT_TZ, *kind)
+            community_filter.activity(c, user['id'], {**proposed, 'name': generated}, profile)
+            sets.append('name = %s'); args.append(generated)
         if sets:
             c.execute(f"UPDATE activities SET {', '.join(sets)}, updated = now() WHERE id = %s AND user_id = %s", (*args, aid, user['id']))
         sport_changed = body.sport and body.sport != a['sport']
@@ -474,12 +482,14 @@ def save_track(body: TrackIn, user=Depends(current_user)):
         raw_path=os.path.join(activities.DATA,'files',str(user['id']),hashlib.sha256(raw).hexdigest()+'.json')
         already_present=os.path.exists(raw_path)
         try:
-            _, aid = activities.store(user['id'], parsed, meta, raw=raw, ext='.json', source='track', connection=c)
+            _, aid = activities.store(user['id'], parsed, meta, raw=raw, ext='.json', source='track', connection=c, visibility=body.visibility)
             if laps:
                 # A watch/phone duplicate can keep the richer watch stream, while retaining explicitly marked phone laps.
                 c.execute('UPDATE activities SET laps=%s WHERE id=%s AND user_id=%s', (Jsonb(laps), aid, user['id']))
             for photo in prepared_photos: insert_activity_photo(c, aid, user['id'], photo)
             if body.visibility is not None:
+                actual = c.execute('SELECT id,name,description,sport_label,visibility,share_details FROM activities WHERE id=%s AND user_id=%s FOR UPDATE', (aid,user['id'])).fetchone()
+                community_filter.activity(c, user['id'], {**actual, 'visibility': body.visibility}, publishing=actual['visibility']=='me')
                 c.execute('UPDATE activities SET visibility=%s WHERE user_id=%s AND id=%s',(body.visibility,user['id'],aid))
             if body.route_plan:
                 p=body.route_plan

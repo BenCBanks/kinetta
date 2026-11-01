@@ -2,6 +2,8 @@
 """Render editable Markdown copy into existing marketing layouts. No dependencies."""
 from pathlib import Path
 import html
+import json
+import hashlib
 import re
 import subprocess
 ROOT = Path(__file__).resolve().parents[2]
@@ -33,6 +35,13 @@ def build():
         required = set(re.findall(r'\{\{copy:([^}]+)\}\}', source))
         if required != set(entries): raise ValueError(f'{template.name}: missing or unknown section keys')
         (ROOT/'site'/template.name).write_text(re.sub(r'\{\{copy:([^}]+)\}\}', lambda m: entries[m[1]], source))
+        if template.name == 'terms.html':
+            # One editable document supplies both the website and the app's version gate.
+            document = {'version': entries['version'], 'draft': entries['status'] != 'Published' or '[OWNER:' in md,
+                        'sha256': hashlib.sha256(md.encode()).hexdigest(),
+                        'url': 'https://kinetta.app/terms', 'privacy_url': 'https://kinetta.app/privacy'}
+            (ROOT/'app/terms_document.json').write_text(json.dumps(document, indent=2)+'\n')
+
     subprocess.run(['node', str(ROOT/'dev/design/build_guide.js')], check=True)
     print('Website copy rendered from site/content/*.md')
 if __name__ == '__main__': build()

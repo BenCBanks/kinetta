@@ -9,7 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StrictBool
-from . import cards,milestones,challenges,personal_notifications,progress_overview
+from . import cards,milestones,challenges,personal_notifications,progress_overview,community_terms,community_filter
 from . import db, auth, api_activities, api_food, api_connections, api_account, food_photo, nutrition_insights, history_import, coach, plans, api_beta, api_mydata, api_health, api_social, api_dishes, cook_chat, food_coach, notify, api_photos, api_lifts, garmin_connect
 import threading
 from .auth import current_user
@@ -19,6 +19,7 @@ from . import api_routes_plan, api_segments, segments, route_sharing, map_config
 
 @asynccontextmanager
 async def lifespan(app):
+    community_terms.active_version()  # Refuse an unpublished or mismatched legal version.
     db.migrate()     # nightly database copies: host timer fit-db-backup.timer (pg_dump), see README
     threading.Thread(target=coach.weekly_scheduler, daemon=True).start()      # Sunday 6 PM weekly reviews (if an AI key is set)
     threading.Thread(target=meal_reminders.scheduler,daemon=True).start()
@@ -37,6 +38,7 @@ async def lifespan(app):
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 from . import recaps
+app.include_router(community_terms.router)
 app.include_router(recaps.router)
 app.include_router(personal_notifications.router)
 app.include_router(progress_overview.router)
@@ -212,7 +214,7 @@ def logout(request: Request, response: Response):
 def me(user=Depends(current_user)):
     from . import ai_access
     with db.connect() as c:
-        p = c.execute('SELECT setup_hidden, setup_skipped, profile_layout, share_default, bio, units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, sodium_target_mg, sugar_target_g, saturated_fat_target_g, (ai_ok AND ai_adult_at IS NOT NULL) AS ai_ok, health_ai_ok, health_weight_ai_ok, garmin_ai_ok, health_weight_read, health_nutrition_write, weight_health_derived, resting_source, nutrition_goal, goal_pace_percent FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
+        p = c.execute('SELECT terms_version, terms_accepted_at, setup_hidden, setup_skipped, profile_layout, share_default, bio, units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, sodium_target_mg, sugar_target_g, saturated_fat_target_g, (ai_ok AND ai_adult_at IS NOT NULL) AS ai_ok, health_ai_ok, health_weight_ai_ok, garmin_ai_ok, health_weight_read, health_nutrition_write, weight_health_derived, resting_source, nutrition_goal, goal_pace_percent FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
         waiting = api_social.waiting(c, user['id'])     # friend requests to answer (a number on the Me tab)
         unread = notify.unread(c, user['id'])            # notifications not yet seen
         from .admin_usage import opened
@@ -221,7 +223,7 @@ def me(user=Depends(current_user)):
         acct = c.execute("SELECT email::text AS email, email_verified_at IS NOT NULL AS email_confirmed, needs_email_confirm, created FROM users WHERE id = %s", (user['id'],)).fetchone()
         friend_count=sum(row['status']=='accepted' for row in api_social._friend_rows(c,user['id']))
         acct['pending_email'] = account_email.pending(c, user['id'])    # Progress shows its Food & weight half only for food users
-    return {**user, **acct, 'mail_ready': account_email.mail_ready(), 'iphone_app': account_email.iphone_app(), 'food_user': food_user, 'ai_access': ai_access.capabilities(user['id']), 'friend_requests': waiting, 'friend_count':friend_count, 'notifications': unread, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'ai_paused': not coach.ai_budget.enabled(), 'coach': coach.enabled(), 'coach_tools': ai_release.enabled(), 'food_coach_tools': ai_release.enabled('food'), 'food_photo_itemize': ai_release.food_photo_itemization_enabled(), 'kit_chat': ai_release.enabled('kit'), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
+    return {**user, **acct, 'mail_ready': account_email.mail_ready(), 'iphone_app': account_email.iphone_app(), 'terms': community_terms.state(p), 'food_user': food_user, 'ai_access': ai_access.capabilities(user['id']), 'friend_requests': waiting, 'friend_count':friend_count, 'notifications': unread, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'ai_paused': not coach.ai_budget.enabled(), 'coach': coach.enabled(), 'coach_tools': ai_release.enabled(), 'food_coach_tools': ai_release.enabled('food'), 'food_photo_itemize': ai_release.food_photo_itemization_enabled(), 'kit_chat': ai_release.enabled('kit'), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
 
 
 class ProfileIn(BaseModel):
@@ -263,6 +265,8 @@ def set_profile(body: ProfileIn, user=Depends(current_user)):
     if vals:
         with db.connect() as c:
             c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
+            if vals.get('bio'):
+                community_filter.public(c, user['id'], ('bio', vals['bio']))
             old=c.execute('SELECT tz,health_ai_ok,weight_kg,weight_health_derived,health_weight_read,birth_year,ai_access_allowed FROM profile WHERE user_id=%s FOR UPDATE',(user['id'],)).fetchone() or {}
             # Kit is 18+: a yes needs the age confirmation, now or recorded earlier (sign-up itself is 16+)
             adult=vals.pop('ai_adult',None)

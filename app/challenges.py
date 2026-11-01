@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter,Depends,HTTPException,Request
 from fastapi.responses import HTMLResponse,Response
 from pydantic import BaseModel,ConfigDict,Field,StrictBool
-from . import db,recaps,energy,notify,cards,signup,account_email
+from . import community_filter,db,recaps,energy,notify,cards,signup,account_email
 from .auth import current_user
 
 router=APIRouter()
@@ -58,6 +58,7 @@ def accessible(c,code,uid=None,lock=False):
 def confirmed_for_challenge(c,uid):
     from .api_social import confirmed
     confirmed(c,uid)
+    community_filter.public(c, uid)
     row=c.execute("SELECT u.email_verified_at,EXISTS(SELECT 1 FROM account_tokens t WHERE t.user_id=u.id AND t.kind='verify_email') AS asked FROM users u WHERE u.id=%s",(uid,)).fetchone()
     # Invited accounts can otherwise be active while their first email is pending. A signup
     # challenge choice still waits for that email, including when its original token expires.

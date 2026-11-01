@@ -281,6 +281,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/nutrients_pipeline_incon
 docker compose -p "$P" exec -T app python - < dev/tests/nutrients_range_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/weekly_food_review_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/shared_recipes_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/community_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_weights_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/health_nutrition_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/meal_reminders_incontainer.py

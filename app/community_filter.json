@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "words": ["asshole", "motherfucker", "fuck", "fucker", "nigger", "faggot", "cocksucker"],
+  "rules": "Original small list maintained here. Case and accents are ignored. Whole words only, including common leetspeak, separators between letters and ordinary English inflections. Never send private text to a provider. Review false positives before adding words."
+}
