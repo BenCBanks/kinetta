@@ -19,8 +19,9 @@
 .friends-page .person-link small { font-size:.8125rem; }
 .friends-page .fr-request { flex-wrap:wrap; }
 .friends-page .fr-request .person-link { flex:1 1 max(120px,8rem); }
+.friends-page .fr-request .person-link b, .friends-page .fr-request .person-link small { line-height:1.2; }
 .friends-page .fr-request .btnrow { gap:8px;max-width:100%; }
-.friends-page .fr-request .btnrow > button { min-height:44px;font-size:max(15px,.9375rem);padding-inline:9px; }
+.friends-page .fr-request .btnrow > button { min-height:44px;font-size:max(15px,.9375rem);padding-inline:0; }
 .friends-page .fr-request .btnrow > .icon-btn { width:44px;min-width:44px;padding:0; }
 .friends-page .card-origin { flex-basis:100%;font-size:.8125rem;margin:0 0 3px 38px; }
 .friends-page .fr-friend > .icon-btn { flex:none; }
