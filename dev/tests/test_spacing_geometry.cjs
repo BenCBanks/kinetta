@@ -1,5 +1,5 @@
 'use strict';
-const assert=require('node:assert/strict'),{audit,neighbours,validateExceptions}=require('./spacing_geometry.cjs');
+const assert=require('node:assert/strict'),{audit,neighbours,validateExceptions,combineMeasurements}=require('./spacing_geometry.cjs');
 const target=(key,x,y,width=44,height=44,extra={})=>({key,selector:'#'+key,rect:{x,y,width,height},...extra});
 const scene=(targets=[],texts=[],extra={})=>({screen:'fictional',rootFont:16,viewportWidth:390,targets,texts,...extra});
 const metrics=s=>audit(s).violations.map(v=>v.metric);
@@ -37,8 +37,20 @@ assert(metrics(scene([target('parent',0,0,120,60),target('child',8,8,44,44,{ance
 const overlay={id:'corner',selector:'#corner',withSelector:'#card',metric:'overlap',kind:'intentional-overlay',maximum:44,reason:'Only this reserved corner overlays its enclosing card hit area'};
 const card=target('card',0,0,200,140,{hit:true}),corner=target('corner',140,8,44,44,{hit:true,pairedExceptions:{corner:['card']}});
 assert.equal(audit(scene([card,corner]),[overlay]).violations.length,0,'A justified pair with exposed targets passes');
+const exposedPair=audit(scene([card,corner]),[overlay]),coveredPair=audit(scene([{...card,hit:false},corner]),[overlay]);
+assert.equal(combineMeasurements([coveredPair,exposedPair],[overlay]).violations.length,0,'An exposed approved pair remains proven when temporary page chrome covers it at another scroll position');
+const smallerProof={violations:[],exceptionsUsed:exposedPair.exceptionsUsed.map(v=>({...v,actual:20}))},covered30={exceptionsUsed:[],violations:coveredPair.violations.map(v=>({...v,actual:30}))};
+for(const order of [[exposedPair,smallerProof,covered30],[smallerProof,exposedPair,covered30]])assert.equal(combineMeasurements(order,[overlay]).violations.length,0,'Every exposed proof contributes to the maximum, regardless of later presentation deduplication or sample order');
+assert(combineMeasurements([coveredPair],[overlay]).violations.some(v=>v.metric==='overlap'),'A permanently covered pair still fails');
+const larger={...coveredPair,violations:coveredPair.violations.map(v=>({...v,actual:50}))};
+assert(combineMeasurements([exposedPair,larger],[overlay]).violations.some(v=>v.actual===50),'A larger unapproved overlap remains a failure');
+const otherPair={...coveredPair,violations:coveredPair.violations.map(v=>({...v,neighbour:'#another-control'}))};
+assert(combineMeasurements([exposedPair,otherPair],[overlay]).violations.some(v=>v.neighbour==='#another-control'),'Exposed proof never applies to another partner');
+const blockedTarget=audit(scene([{...corner,unreachable:true}]),[overlay]);
+assert(combineMeasurements([exposedPair,blockedTarget],[overlay]).violations.some(v=>v.metric==='blocked'),'An overlay exception cannot waive an unreachable target');
 assert(audit(scene([card,{...corner,hit:false}]),[overlay]).violations.some(v=>v.metric==='overlap'),'A covered corner does not receive its overlay exception');
 assert(audit(scene([card,{...corner,pairedExceptions:{corner:['unrelated']}}]),[overlay]).violations.some(v=>v.metric==='overlap'),'The exception cannot hide another overlapping pair');
+assert(combineMeasurements([exposedPair,audit(scene([card,{...corner,pairedExceptions:{corner:['unrelated']}}]),[overlay])],[overlay]).violations.some(v=>v.metric==='overlap'),'Even the same element IDs cannot carry proof after leaving the approved overlay scope');
 assert.deepEqual(metrics(scene([], [{...number('part1',36,true),heroKey:'one'},{...number('part2',36,true),heroKey:'one'}])),[],'Fragments of one marked hero count once');
 assert(metrics(scene([], [number('tiny-stat',13)])).includes('font-min'),'Primary metric values cannot shrink to secondary text');
 assert(metrics(scene([], [number('small-hero-one',20,true),number('small-hero-two',24,true)])).includes('hero-count'),'Two marked heroes fail even below the large-number threshold');

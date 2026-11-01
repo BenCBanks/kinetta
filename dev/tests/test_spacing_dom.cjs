@@ -62,6 +62,13 @@ const {collectSpacing}=require('./spacing_dom.cjs'),{audit}=require('./spacing_g
   const photoRule={id:'photo-tools',selector:'.arrow',withSelector:'#photo-background',within:'#photo-hero',metric:'overlap',kind:'intentional-overlay',maximum:44,reason:'Tools overlay their own exposed photo surface'};
   const photo=await snapshot([photoRule]);assert(photo.targets.find(t=>t.key==='#photo-background').hit,'The visible photo between arrows remains tappable above fixed navigation');
   assert.equal(audit(photo,[photoRule]).violations.filter(v=>v.metric==='overlap').length,0,'An exposed photo is not mistaken for one hidden by navigation');
+  await page.setContent(`<style>*{box-sizing:border-box}body{margin:0}.rail{display:flex;width:306px;overflow-x:auto;scroll-snap-type:x mandatory;gap:8px;padding:2px 4px}.tile{position:relative;flex:0 0 152px;height:100px;scroll-snap-align:start}.dismiss{position:absolute;right:0;top:0;width:44px;height:44px}</style><div class="rail">${Array.from({length:6},(_,i)=>`<div class="tile"><button class="dismiss" id="snap-${i}">×</button></div>`).join('')}</div>`);
+  const snapWidths=await page.evaluate(async()=>{
+   const n=document.querySelector('.rail'),max=n.scrollWidth-n.clientWidth,widths=Array.from({length:6},()=>[]);
+   for(let x=0;;x=Math.min(max,x+n.clientWidth*.5)){n.scrollLeft=x;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));const r=n.getBoundingClientRect();for(let i=0;i<6;i++){const b=document.querySelector('#snap-'+i).getBoundingClientRect();widths[i].push(Math.min(b.right,r.right)-Math.max(b.left,r.left));}if(x>=max)break;}
+   return widths;
+  });
+  for(const widths of snapWidths)assert(Math.max(...widths)>=43.98,'Half-width traversal exposes every complete44px corner even when mandatory card snapping skips a three-quarter-width sample');
   console.log('Spacing DOM: nested details, hidden controls, labels, metric roles, heroes, placeholders and vertical clipping PASS');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

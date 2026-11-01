@@ -35,8 +35,9 @@ function audit(snapshot,rules=[]){
  validateExceptions(rules);
  const violations=[],exceptionsUsed=[],scale=Math.max(1,(snapshot.rootFont||16)/16);
  const issue=(record,metric,actual,expected,other)=>{
-  const exception=rules.find(r=>r.metric===metric&&(r.withSelector?other&&((record.pairedExceptions?.[r.id]?.includes(other.key))||(other.pairedExceptions?.[r.id]?.includes(record.key)))&&record.hit&&other.hit:record.exceptions?.includes(r.id)&&(!other||other.exceptions?.includes(r.id)))&&(r.minimum===undefined||typeof actual==='number'&&actual>=r.minimum-.02)&&(r.maximum===undefined||typeof actual==='number'&&actual<=r.maximum+.02)&&(r.exact===undefined||actual===r.exact));
-  const row={screen:snapshot.screen,element:record.selector||record.key,metric,actual,expected,...(record.rect?{box:record.rect}:{}),...(record.hit===undefined?{}:{hit:record.hit,hitOwner:record.hitOwner}),...(other?{neighbour:other.selector||other.key,neighbourBox:other.rect}:{})};
+  const eligible=rules.filter(r=>r.metric===metric&&(r.withSelector?other&&((record.pairedExceptions?.[r.id]?.includes(other.key))||(other.pairedExceptions?.[r.id]?.includes(record.key))):record.exceptions?.includes(r.id)&&(!other||other.exceptions?.includes(r.id)))&&(r.minimum===undefined||typeof actual==='number'&&actual>=r.minimum-.02)&&(r.maximum===undefined||typeof actual==='number'&&actual<=r.maximum+.02)&&(r.exact===undefined||actual===r.exact));
+  const exception=eligible.find(r=>!r.withSelector||record.hit&&other.hit);
+  const row={screen:snapshot.screen,element:record.selector||record.key,metric,actual,expected,...(metric==='overlap'?{overlayCandidates:eligible.filter(r=>r.kind==='intentional-overlay').map(r=>r.id)}:{}),...(record.rect?{box:record.rect}:{}),...(record.hit===undefined?{}:{hit:record.hit,hitOwner:record.hitOwner}),...(other?{neighbour:other.selector||other.key,neighbourBox:other.rect}:{})};
   if(exception)exceptionsUsed.push({...row,exception:exception.id,reason:exception.reason,followup:exception.followup});else violations.push(row);
  };
  if(snapshot.overflow)issue({key:'document',selector:'html',exceptions:snapshot.exceptions},'overflow',snapshot.documentWidth,snapshot.viewportWidth);
@@ -59,4 +60,14 @@ function audit(snapshot,rules=[]){
  for(const [group,items] of heroes)if(items.size>1)issue({key:group,selector:group,exceptions:[...items.values()][0].groupExceptions},'hero-count',items.size,1);
  return {violations,exceptionsUsed};
 }
-module.exports={audit,neighbours,validateExceptions,typeScale};
+function combineMeasurements(measurements,rules=[]){
+ const key=v=>JSON.stringify([v.metric,...(v.neighbour?[v.element,v.neighbour].sort():[v.element])]);
+ const exceptionsUsed=[...new Map(measurements.flatMap(m=>m.exceptionsUsed).map(v=>[JSON.stringify([v.exception,key(v)]),v])).values()];
+ const verified=new Map();
+ // A reviewed overlay must be exposed at one scroll position. Temporary page chrome at another
+ // position cannot revoke that proof; larger overlaps and permanently hidden controls still fail.
+ for(const v of measurements.flatMap(m=>m.exceptionsUsed))if(rules.some(r=>r.id===v.exception&&r.kind==='intentional-overlay'))verified.set(v.exception+key(v),Math.max(verified.get(v.exception+key(v))||0,v.actual));
+ const violations=[...new Map(measurements.flatMap(m=>m.violations).filter(v=>!(v.metric==='overlap'&&v.overlayCandidates?.some(id=>verified.has(id+key(v))&&v.actual<=verified.get(id+key(v))+.02))).map(v=>[key(v),v])).values()];
+ return{violations,exceptionsUsed};
+}
+module.exports={audit,neighbours,validateExceptions,typeScale,combineMeasurements};

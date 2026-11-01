@@ -31,8 +31,10 @@ scale in `docs/design.md`, one hero value per card/sheet, no horizontal page ove
 clipped text. Type maxima scale with enlarged root text; minima are not weakened. Inline sentence
 links and the small, justified `spacing_exceptions.json` list are the only exceptions. Changing
 an exception requires a specific selector, reason and metric; unfinished violations need a linked
-issue. The Nutrition Goals overlay additionally names its exact partner and requires exposed
-hit areas for both controls.
+issue. Each intentional overlay names its exact partner and requires exposed hit areas for both
+controls at a reachable scroll position. That proof applies only to the same still-eligible
+rule and pair, at no larger overlap; permanently blocked or clipped targets still fail.
+Horizontal traversal uses overlapping half-width steps so card snapping cannot skip a corner.
 
 To check a regression, temporarily set the lifting row gap to 2px in your local branch, rebuild
 that disposable app, and run the lifting subset. It must exit nonzero and name the too-close row

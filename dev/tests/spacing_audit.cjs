@@ -3,7 +3,7 @@
 // KINETTA_SPACING_SCREENS is a comma-separated local subset. CI runs every scene; all saves/devices are blocked.
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const {audit,validateExceptions}=require('./spacing_geometry.cjs'),{collectSpacing}=require('./spacing_dom.cjs'),{scenes,initialize,notificationState}=require('./spacing_screens.cjs');
+const {audit,validateExceptions,combineMeasurements}=require('./spacing_geometry.cjs'),{collectSpacing}=require('./spacing_dom.cjs'),{scenes,initialize,notificationState}=require('./spacing_screens.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798',project=process.env.KINETTA_PROJECT||'kinettatest';
 assert(['localhost','127.0.0.1'].includes(new URL(base).hostname),'Spacing evidence requires a disposable local server');
 const fixtures=JSON.parse(fs.readFileSync(process.env.KINETTA_SPACING_FIXTURES||'/tmp/'+project+'-spacing-fixtures.json','utf8'));
@@ -67,7 +67,8 @@ async function settle(p){
      const rails=await p.evaluate(()=>{document.querySelectorAll('[data-spacing-rail]').forEach(n=>n.removeAttribute('data-spacing-rail'));let id=0;return[...document.querySelectorAll('body *')].filter(n=>{const r=n.getBoundingClientRect();return n.scrollWidth>n.clientWidth+1&&/auto|scroll/.test(getComputedStyle(n).overflowX)&&r.width>0&&r.bottom>0&&r.top<innerHeight;}).map(n=>{n.dataset.spacingRail=String(++id);return{id:n.dataset.spacingRail,start:n.scrollLeft,max:n.scrollWidth-n.clientWidth,width:n.clientWidth};});});
      for(const rail of rails){
       assert(rail.max/Math.max(1,rail.width)<30,'Horizontal rail fits the bounded audit traversal');
-      for(let x=0;;x=Math.min(rail.max,x+Math.max(44,rail.width*.75))){await p.locator(`[data-spacing-rail="${rail.id}"]`).evaluate((n,x)=>{n.scrollLeft=x;},x);await frame();await measure();if(x>=rail.max)break;}
+      // Half-width steps avoid skipping a card snap that fully exposes a corner control.
+      for(let x=0;;x=Math.min(rail.max,x+Math.max(44,rail.width*.5))){await p.locator(`[data-spacing-rail="${rail.id}"]`).evaluate((n,x)=>{n.scrollLeft=x;},x);await frame();await measure();if(x>=rail.max)break;}
       await p.locator(`[data-spacing-rail="${rail.id}"]`).evaluate((n,x)=>{n.scrollLeft=x;},rail.start);await frame();
      }
      if(end){traversedEnd=true;break;}
@@ -79,7 +80,7 @@ async function settle(p){
     // A sticky/header layer must not hide a target at every position where it can be fully in view.
     for(const t of exposure.values())if(t.bestUsable.width<43.98||t.bestUsable.height<43.98||t.seenFully&&!t.exposed)measurements.push(audit({screen:scene.name,rootFont:size.root,targets:[{...t,rect:t.bestUsable,unreachable:t.seenFully&&!t.exposed}],texts:[]},rules));
     if(pictures){fs.mkdirSync(pictures,{recursive:true});await p.evaluate(()=>{window.scrollTo(0,0);document.querySelector('.scrim .sheet')?.scrollTo(0,0);});await settle(p);await p.screenshot({path:path.join(pictures,scene.name.replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'-'+size.width+'-'+theme+'.png')});}
-    const violations=[...new Map(measurements.flatMap(m=>m.violations).map(v=>[JSON.stringify([v.element,v.metric,v.neighbour]),v])).values()],exceptionsUsed=measurements.flatMap(m=>m.exceptionsUsed);
+    const {violations,exceptionsUsed}=combineMeasurements(measurements,rules);
     results.push({screen:scene.name,width:size.width,root:size.root,theme,violations,exceptionsUsed});
     if(pageErrors.length||writes.length)errors.push({screen:scene.name,width:size.width,theme,pageErrors,writes});
     console.log(`${scene.name} ${size.width}/${size.root} ${theme}: ${violations.length} violations`);
