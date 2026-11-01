@@ -1795,7 +1795,7 @@ text, and the page/section/card/body/secondary limits. Maximum text sizes grow p
 root is enlarged. Primary metric values are 20–24px; one marked hero per card or sheet can reach 40px.
 A hero's units stay secondary text, and split number spans count as one value.
 
-Names, recipe descriptions and sticky activity titles wrap. The seven-button Me chart scrolls horizontally
+Names, recipe descriptions and sticky activity titles wrap. The seven-button Me chart fits at390px with normal text, and scrolls horizontally on narrower or enlarged layouts
 rather than shrinking its targets or dropping days/weeks; focus reveals a complete target and current
 periods begin in view. Page and sheet content below the fold is measured too. Closed disclosures and
 invisible/inert controls are excluded, with regression coverage for nested closed disclosures.

@@ -57,7 +57,7 @@
 /* Me: the card friends see, then a clearly private dashboard (owner-approved mockup, 29 October 2026). */
 .me-top { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 0 10px; min-height:48px; }
 .me-top h1 { margin:0; font-size:var(--text-app-title); font-weight:800; overflow-wrap:anywhere; min-width:0; }
-.me-card { background:var(--card); border-radius:20px; overflow:hidden; box-shadow:var(--shadow), 0 8px 24px color-mix(in srgb, var(--color-brand) 10%, transparent); outline:1px solid var(--line); }
+.me-card { margin-inline:-6px; background:var(--card); border-radius:20px; overflow:hidden; box-shadow:var(--shadow), 0 8px 24px color-mix(in srgb, var(--color-brand) 10%, transparent); outline:1px solid var(--line); }
 .me-card.editing { outline:2px solid var(--btn); outline-offset:2px; }
 .me-card-banner { min-height:64px; padding:10px 10px 0; display:flex; justify-content:flex-end; align-items:flex-start; gap:8px; background:linear-gradient(135deg, var(--color-action), var(--color-brand) 60%, var(--color-ride)); }
 .me-card-banner.hidden-tools>* { visibility:hidden; }
@@ -83,8 +83,8 @@
 .me-card-label { display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; }
 .me-card-label span { font-size:.8125rem; font-weight:700; color:var(--tx2); text-transform:uppercase; letter-spacing:.04em; }
 .me-card-label small { font-size:.8125rem; color:var(--tx3); }
-.me-chart-scroll { position:relative; margin-top:8px; min-width:0; }
-.me-card-bars { display:flex; align-items:flex-end; gap:8px; height:60px; padding:4px; overflow-x:auto; scrollbar-width:none; scroll-snap-type:x proximity; scroll-padding-inline:4px; }
+.me-chart-scroll { position:relative; margin:4px -18px 0; min-width:0; }
+.me-card-bars { display:flex; align-items:flex-end; gap:8px; height:60px; padding:4px 0; overflow-x:auto; scrollbar-width:none; scroll-snap-type:x proximity; scroll-padding-inline:0; }
 .me-card-bars::-webkit-scrollbar { display:none; }
 .me-chart-scroll::before,.me-chart-scroll::after { content:''; position:absolute; z-index:1; top:0; bottom:0; width:16px; pointer-events:none; opacity:0; }
 .me-chart-scroll::before { left:0; background:linear-gradient(to right,var(--card),transparent); }
@@ -93,10 +93,10 @@
 .me-chart-scroll:focus-within::before,.me-chart-scroll:focus-within::after { opacity:0; }
 /* Week bars are buttons: the whole column is the tap target, the bar inside it shows the distance. */
 .me-week { flex:1 0 44px; min-width:44px; height:100%; min-height:44px; display:flex; align-items:flex-end; padding:0; border:0; background:none; border-radius:6px; cursor:pointer; scroll-snap-align:end; -webkit-tap-highlight-color:transparent; }
-.me-week span { width:100%; min-height:2px; border-radius:4px 4px 2px 2px; background:var(--color-distance-muted); transition:background-color .12s; }
+.me-week span { width:calc(100% - 8px); margin-inline:4px; min-height:2px; border-radius:4px 4px 2px 2px; background:var(--color-distance-muted); transition:background-color .12s; }
 .me-week.now span { background:var(--btn); }
 .me-week[aria-pressed=true] span { background:var(--accent); box-shadow:0 0 0 2px var(--card), 0 0 0 4px var(--accent); }
-.me-week:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.me-week:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
 .me-card-label.picked small { color:var(--tx); font-weight:700; font-size:.8125rem; }
 /* All time reads as its own block: a soft tinted panel. */
 .me-card-total { padding:12px 12px 14px; border-radius:var(--r2); background:var(--card2); }
@@ -143,10 +143,10 @@
 .setup-mark { width:24px; height:24px; border-radius:50%; display:grid; place-items:center; flex:none; background:var(--good); color:#fff; }
 .setup-mark svg { width:14px; height:14px; stroke-width:3; }
 .setup-mark.todo { background:none; border:2px solid var(--color-outline); width:22px; height:22px; }
-@media(max-width:360px) { .me-card-body { padding:0 14px 16px; } .me-card-avatar .av { width:3.5rem; height:3.5rem; } }
+@media(max-width:360px) { .me-chart-scroll { margin-inline:-14px; } .me-card-body { padding:0 14px 16px; } .me-card-avatar .av { width:3.5rem; height:3.5rem; } }
 /* The card's distance chart: a tiny Days / Weeks switch beside the heading; days carry weekday letters. */
 .me-card-head { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
-.me-card-head .me-card-label { flex:1 1 160px; min-width:0; min-height:calc(2.36rem + 8px); align-content:center; }
+.me-card-head .me-card-label { flex:1 1 160px; min-width:0; min-height:calc(2.36rem + 8px); align-items:flex-end; }
 .me-period { margin:0; flex:none; gap:8px; }
 .me-period button { min-width:44px; min-height:44px; padding:0; font-size:max(15px,.9375rem); }
 .me-distance.days .me-card-bars { height:calc(64px + 1rem); }

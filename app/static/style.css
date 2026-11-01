@@ -1308,6 +1308,8 @@ button.lift-prev:active { background: var(--card2); }
 :root { --display: var(--font-display); --numf: var(--font); --shadow: none; }
 .shell { max-width: 800px; padding-inline: var(--space-5); }
 .shell h1 { font-family: var(--display); font-weight: 700; font-size: var(--text-app-title); letter-spacing: -.03em; }
+/* Preserve the approved minimum when a browser uses a smaller root font. */
+body .shell h1 { font-size:max(28px,var(--text-app-title)); }
 .sec-head, .card > h2, .post-title, .sheet-head h2, .plan-hero h2 { font-family: var(--display); font-weight: 700; }
 .sec-head { font-size: var(--text-app-section); margin-top: 20px; }
 .card { border: 1px solid var(--line); padding: 14px; margin-bottom: 12px; }

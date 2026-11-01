@@ -14,6 +14,8 @@ const total=await p.locator('.me-card-total').innerText();assert.match(total,/3,
 assert.match(await p.locator('.me-sport-chips').innerText(),/2,938/);assert.equal(await p.locator('.me-sport-chip .me-sport-ico svg').count(),4,'each sport chip has its icon');assert.equal(await p.locator('.me-sport-chip i').count(),0,'no coloured dots');
 const label=p.locator('[data-week-label]'),before=await label.innerText(),weeks=p.locator('.me-week');assert.equal(await weeks.count(),7);
 const chart=p.locator('.me-card-bars');
+const checkChart=async()=>{if(size.width!==390||size.root!==16)return;const g=await p.evaluate(()=>{const rail=document.querySelector('.me-card-bars'),label=document.querySelector('[data-week-label]'),bottom=Math.max(...[...label.children].map(n=>n.getBoundingClientRect().bottom)),top=Math.min(...[...rail.querySelectorAll('.me-week span')].map(n=>n.getBoundingClientRect().top));return{width:rail.clientWidth,content:rail.scrollWidth,gap:top-bottom};});assert(g.content<=g.width,'all seven days/weeks fit at390px without horizontal scrolling '+JSON.stringify(g));assert(g.gap>=8&&g.gap<=12,'caption-to-bars spacing is8–12px '+JSON.stringify(g));};
+await checkChart();
 if(size.root===16)assert(await label.evaluate(n=>{const [name,total]=n.children;return Math.abs(name.getBoundingClientRect().top-total.getBoundingClientRect().top)<.02;}),'Chart heading and total share a row at normal phone width');
 const geometry=await weeks.evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{x:r.x,width:r.width,height:r.height};}));
 for(let i=0;i<7;i++){assert(geometry[i].height>=44&&geometry[i].width>=44,'every day/week has a44px target');if(i)assert(geometry[i].x-geometry[i-1].x-geometry[i-1].width>=7.98,'day/week targets keep8px gaps');}
@@ -23,6 +25,7 @@ assert((await chartState()).atEnd,'the current week is initially visible at the 
 await chart.evaluate(n=>{n.scrollLeft=0;n.dispatchEvent(new Event('scroll'));});
 await p.locator('[data-period=days]').tap();await p.locator('.me-distance.days .me-week').first().waitFor();
 assert.equal(await weeks.count(),7,'all seven days remain present');
+await checkChart();
 assert(await weeks.evaluateAll(nodes=>nodes.filter(n=>n.classList.contains('now')).every(n=>{const r=n.getBoundingClientRect(),b=n.parentElement.getBoundingClientRect();return r.left>=b.left-.02&&r.right<=b.right+.02;})),'today is exposed when Days first opens');
 await chart.evaluate(n=>{n.scrollLeft=0;n.dispatchEvent(new Event('scroll'));});
 await p.locator('[data-period=weeks]').tap();await p.locator('.me-distance:not(.days) .me-week').first().waitFor();await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
