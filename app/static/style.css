@@ -1277,7 +1277,6 @@ button.lift-prev:active { background: var(--card2); }
 .person-link .grow { min-width: 0; } .person-link:focus-visible, .post-person:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
 .post-profile { padding: 14px 16px 0; margin-bottom: 0; } .post-profile + .post-link { padding-top: 8px; }
 .profile-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 16px; }
-.public-profile small { display: block; margin-top: 5px; }
 .gear-row { display: flex; align-items: center; border-bottom: 1px solid var(--line); gap: 4px; }
 .gear-row:last-child { border-bottom: 0; } .gear-row .row-link { flex: 1; min-width: 0; border-bottom: 0; }
 .gear-row .row-link > div:first-child { min-width: 0; overflow-wrap: anywhere; } .gear-row .r { flex-shrink: 0; }
@@ -1330,7 +1329,7 @@ button.lift-prev:active { background: var(--card2); }
 .stat, .hero .stat { min-width: 0; }
 .stat b { font-size: var(--text-app-stat); overflow-wrap: anywhere; }
 .stat b i { font-size: 12px; font-weight: 400; }
-.hero .stat b, .public-profile ~ .card .stat b { font-size: var(--text-app-stat); }
+.hero .stat b { font-size: var(--text-app-stat); }
 .stats3 { grid-template-columns:repeat(auto-fit,minmax(min(100%,6rem),1fr)); }
 /* Software keyboard takes precedence over global navigation on every route. */
 html.keyboard-open { --tab-h: 0px; }
@@ -1365,7 +1364,7 @@ html.keyboard-open nav.tabs { display: none; }
 /* Profile identity, visible progress and quick people search. */
 .profile-actions > :is(button,a) { flex: 1 1 8rem; min-height: 44px; text-align: center; }
 .profile-tools { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: -8px 0 16px; }
-.profile-tools a { display: inline-flex; align-items: center; min-height: 44px; font-size: .875rem; }.public-profile h1 { white-space:normal; overflow-wrap:anywhere; }
+.profile-tools a { display: inline-flex; align-items: center; min-height: 44px; font-size: .875rem; }
 .profile-progress > .small { margin: 6px 0 12px; }
 .profile-progress .stats3 { margin: 14px 0; }
 .profile-progress .stat { min-width: 0; overflow-wrap: anywhere; }
@@ -2869,7 +2868,6 @@ html.native body:has(.map-head:first-child)::before, html.native body:has(.scrim
 html.keyboard-open .thread-quick-actions {display:none;}
 
 /* Friends list and profile relationship count (#325). */
-.profile-friends{display:block;margin:8px 0;color:var(--tx2);font-size:14px}.profile-friends[href]{color:var(--brand)}
 /* Find people sits under the Friends title as a visible search field (Ben, 30 Oct 2026); invite + suggestions below the lists. */
 .friend-discovery{margin:12px 0 20px}.friend-discovery .people-search-help{margin-bottom:0}.friend-more{margin:20px 0}.friend-more #fr-suggest:not(:empty){margin-bottom:16px}.friend-filter{display:block;margin:12px 0}.friend-filter input{display:block;width:100%;margin-top:6px;font-size:16px}#fr-own-list .person[hidden]{display:none}#fr-own-list .person-link{min-width:0}#fr-own-list .person-link b,#fr-own-list .person-link small{overflow-wrap:anywhere}#fr-own-list .btnrow{flex:none}#fr-own-list .btnrow button{min-height:44px}#fr-own-list .btnrow svg{width:14px;height:14px}#fr-list-error:empty{display:none}
 @media(max-width:360px){#fr-own-list .person{gap:8px;padding-inline:10px}#fr-own-list .btnrow button{padding-inline:10px}}

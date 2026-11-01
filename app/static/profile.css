@@ -1,11 +1,10 @@
 /* Profile-first Me and audience-aware profiles (#353), using the shared Sky Blue tokens. */
-.me-handle { grid-column:2 / -1; font-size:.8125rem; color:var(--tx3); overflow-wrap:anywhere; }
 .me-profile-tools { display:flex; align-items:center; flex:none; }
 .me-profile-bio { margin:10px 0 0; font-size:.9375rem; line-height:1.4; color:var(--tx2); white-space:pre-wrap; overflow-wrap:anywhere; }
 .me-about summary { min-height:44px; display:flex; align-items:center; color:var(--accent); cursor:pointer; }
 .me-about p { margin:0 0 8px; white-space:pre-wrap; overflow-wrap:anywhere; }
 .me-friends-link { display:flex; align-items:center; gap:7px; min-height:44px; font-size:.875rem; color:var(--tx); flex-wrap:wrap; }
-.me-friends-link svg,.profile-friends svg { width:18px; height:18px; flex:none; }
+.me-friends-link svg { width:18px; height:18px; flex:none; }
 .me-friends-link svg:last-child { color:var(--accent); width:14px; }
 .me-overview-title { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 12px; }
 .me-overview-title>div:first-child { display:flex; align-items:center; gap:10px; min-width:0; }
@@ -27,8 +26,6 @@
 .pf-preview .mileage-toggle button { font-size:.8125rem; }
 .pf-preview small { flex-basis:100%; font-weight:400; color:var(--tx3); }
 #person-profile .profile-activities { margin-top:12px; }
-.profile-private-note { display:flex; gap:7px; align-items:center; margin:0 0 20px; }
-.profile-private-note svg { width:16px; height:16px; flex:none; }
 .profile-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,5.5rem),1fr)); gap:14px; margin:14px 0 4px; }
 .profile-stats .stat { min-width:0; overflow-wrap:anywhere; }
 .profile-stats .stat b { font-size:var(--text-app-stat); }
@@ -56,9 +53,6 @@
 @media(min-width:900px) { .feed-list .activity-media { --media-height:260px; } }
 
 .activity-filters { flex-wrap:wrap; overflow:visible; }
-
-.public-profile { flex-wrap:wrap; }
-.public-profile>div { flex:1 1 11rem; }
 
 /* Me: the card friends see, then a clearly private dashboard (owner-approved mockup, 29 October 2026). */
 .me-top { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 10px; }
