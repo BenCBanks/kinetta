@@ -168,6 +168,28 @@ def resolve_outside(uid,work,body):
             if has_link or re.search(r'https?://|www\.',part['text'],re.I):
                 updates.append({'indices':[part['index']],'part':{**part,'looked_up':True,'recipe_url':True,
                                 'question':'Import this recipe or add its nutrition.'}});continue
+            if part.get('analogue'):
+                # An analogue uses published catalog values, never a fresh model's invented numbers.
+                from . import food_memory
+                choices=(lookups.get(part['index']) or {}).get('foods') or []
+                choices=[food for food in choices if food.get('source') in ('usda','off')]
+                if choices:
+                    base=part['analogue']['base'];choices.sort(key=lambda f:-food_memory.relevance(f['name'],base))
+                    food=choices[0];selected=_catalog(food,part,review_only=S.held_review(message))
+                    if selected['status']=='quantity' and not selected.get('catalog_incomplete'):
+                        portion=meal_chat.read_part(part['text'],[]).get('portion') or {}
+                        food=food_memory.household_portion(food,portion.get('unit'))
+                        selected=_catalog(food,part,review_only=S.held_review(message))
+                    if food.get('typical_unit'):selected['analogue']={**part['analogue'],'typical_unit':food['typical_unit']}
+                    elif selected['status']=='ready':
+                        portion=meal_chat.read_part(part['text'],[]).get('portion') or {}
+                        serving=food.get('serving') or {};household=set(meal_chat.product_words(serving.get('label') or ''))&{'slice','piece','cup','bowl','serving','portion'}
+                        if not portion.get('grams') and household and not serving.get('is_default'):
+                            selected['analogue']={**part['analogue'],'typical_unit':next(iter(sorted(household)))}
+                    food_memory.label_entries(selected)
+                else:selected={**part,'status':'quantity','looked_up':True,'catalog':[],
+                    'question':'I could not find published nutrition for '+part['analogue']['base']+'. Choose a catalog food or enter the nutrition you know.'}
+                updates.append({'indices':[part['index']],'part':selected});continue
             if part.get('prefer_estimate'):
                 estimate.append(part);continue
             lookup=lookups.get(part['index']) or {'kind':'none','foods':[]}

@@ -358,6 +358,9 @@ def _write(c,uid,message,result,*,force=False,only=None):
             if not fresh_templates(c,uid,part):changed=True
         elif (auto or force) and not part.get('drafts') and not part.get('manual') and not fresh_own(c,uid,part):
             changed=True
+        if part.get('analogue'):
+            from . import food_memory
+            food_memory.label_entries(part)
     # Explicit review never saves newly changed numbers in the same tap.
     if changed and force:
         result['text']='The food details changed. Check the amounts, then tap Log again.'

@@ -25,6 +25,7 @@ python3 dev/tests/test_ui_inventory.py
 python3 dev/design/build_content.py
 python3 dev/tests/test_website_content.py
 python3 dev/tests/ai_fingerprints.py
+python3 dev/evals/test_food_memory_score.py
 node dev/design/build_guide.js --check
 
 echo "== syntax"
@@ -258,6 +259,9 @@ docker compose -p "$P" exec -T app python - < dev/tests/food_thread_resolution_i
 docker compose -p "$P" exec -T app python - < dev/tests/food_chat_quality_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_chat_understand_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_entry_review_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/food_memory_incontainer.py
+docker compose -p "$P" cp dev/evals/food_eval_guard.py app:/tmp/food_eval_guard.py
+docker compose -p "$P" exec -T app python - < dev/evals/test_food_eval_guard.py
 docker compose -p "$P" exec -T app python - < dev/tests/pending_food_nutrition_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_thread_resolution_sql.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_thread_receipts_incontainer.py

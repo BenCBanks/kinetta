@@ -108,6 +108,9 @@ const FoodThread = (() => {
     const ref=entry.ref||{},origin=ref.origin;
     const names={usda:'USDA',off:'Open Food Facts',quick:'Your numbers',custom:'My foods',dish:'My Recipes',recent:'Your food log',ai:'Kit’s estimate'};
     let label=origin==='ai'?'Kit’s estimate':origin==='label'?'Nutrition label':names[ref.origin_ref?.source||ref.source||entry.source]||'Your food log';
+    if(ref.nutrition_from){const from=ref.nutrition_from;label='Nutrition from: '+from.name;
+      if(/^\d{4}-\d{2}-\d{2}$/.test(from.day||''))label+=' ('+new Date(from.day+'T12:00:00Z').toLocaleDateString(undefined,{timeZone:'UTC',month:'short',day:'numeric'})+')';}
+    if(ref.estimated_from)label='Estimated from '+ref.estimated_from+(ref.typical_portion?' · typical '+ref.typical_portion:'');
     if(ref.estimated_portion)label+=' · estimated portion';
     if(ref.origin_edited)label+=' · Edited';
     return label;
@@ -222,13 +225,14 @@ const FoodThread = (() => {
     button.setAttribute('aria-label',`Add to log: ${sum.textContent}`+(state.open?`. ${state.open} unanswered food${state.open===1?' is':'s are'} not included.`:''));
     $('#thread-send',ctx.el).classList.add('primary');$('#thread-send',ctx.el).classList.remove('ghost');
   }
-  async function review(ctx,{saveRecipe=ctx.saveRecipe}={}){
+  async function review(ctx,{saveRecipe=ctx.saveRecipe,allowUnsent=false}={}){
     if(!active(ctx)||ctx.preparingReview)return;
-    if($('#thread-text',ctx.el).value.trim()){status(ctx,'Send your unsent text first, or clear it to review the foods already added.');return;}
+    if(!allowUnsent&&$('#thread-text',ctx.el).value.trim()){status(ctx,'Send your unsent text first, or clear it to review the foods already added.');return;}
     const state=held(ctx);if(!state.ready||waitingJobs(ctx)||pendingReview()){status(ctx,'Finish the food details before reviewing.');return;}
     ctx.preparingReview=true;primary(ctx);
     try {
-      await FoodReview.open({done:result=>{if(!result.queued)wipe(ctx);},messages:state.ids,draftId:ctx.draftId,meal:ctx.meal,day:ctx.day,saveRecipe,draftForm:ctx.reviewForm,rememberForm:form=>{ctx.reviewForm=form;store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,day:ctx.day,meal:ctx.meal,form});},active:()=>active(ctx),accept:data=>merge(ctx.owner,data)});
+      await FoodReview.open({done:result=>{if(!result.queued){const typed=allowUnsent?$('#thread-text',ctx.el).value:null;wipe(ctx);
+        if(typed!==null&&active(ctx)){$('#thread-text',ctx.el).value=typed;saveDraft(ctx,typed);ctx.chatView?.resize();}}},messages:state.ids,draftId:ctx.draftId,meal:ctx.meal,day:ctx.day,saveRecipe,draftForm:ctx.reviewForm,rememberForm:form=>{ctx.reviewForm=form;store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,day:ctx.day,meal:ctx.meal,form});},active:()=>active(ctx),accept:data=>merge(ctx.owner,data)});
     } finally {ctx.preparingReview=false;primary(ctx);}
   }
   async function stage(items,{dish=null}={}){
@@ -237,6 +241,21 @@ const FoodThread = (() => {
     const id=uuid(),job={id,body:dish?'Recipe portion':items.map(e=>e.name).join(', '),at:new Date().toISOString(),phase:'process',draft_id:ctx.draftId,...(dish?{dish}:{items:items.map(foodStorage)})};
     await ThreadDB.put(ctx.owner,id,job);ctx.visibleClients.add(id);ctx.jobs=await ThreadDB.list(ctx.owner);draw(ctx);await flush(ctx);
     return {held:true,queued:(await ThreadDB.list(ctx.owner)).some(j=>j.id===id)};
+  }
+  async function reuse(ctx,item){
+    if(!active(ctx)||ctx.preparingReview||pendingReview())return;
+    const draft=ctx.draftId,request={draft_id:draft,kind:item.kind,id:item.id,expected:item.expected,
+      portion:item.canonical_portion,day:ctx.day,meal:ctx.meal||'snacks'};
+    const key=JSON.stringify(request);ctx.reuseAttempts??=new Map();
+    if(!ctx.reuseAttempts.has(key))ctx.reuseAttempts.set(key,uuid());
+    const id=ctx.reuseAttempts.get(key);ctx.preparingReview=true;primary(ctx);
+    try{
+      const data=await api('/api/food/thread/reviews/reuse',json('POST',{...request,client_id:id}));
+      if(!active(ctx)||ctx.draftId!==draft)return;
+      ctx.visibleClients.add(id);await merge(ctx.owner,data);ctx.reuseAttempts.delete(key);ctx.reuseChips?.clear();
+    }catch(error){if(active(ctx))status(ctx,error.message);return;}
+    finally{ctx.preparingReview=false;if(active(ctx))primary(ctx);}
+    if(active(ctx)&&ctx.draftId===draft)await review(ctx,{allowUnsent:true});
   }
   function photoHtml(ctx,id){
     const job=ctx.jobs.find(j=>j.id===id),images=job?.phase==='cancel'?[]:job?.previews||photos.get(ctx.owner,id);
@@ -483,6 +502,10 @@ const FoodThread = (() => {
       await stage([{...nutrition,day:ctx.day||isoDay(new Date()),meal:ctx.meal||'snacks',amount:grams||1,unit:grams?'g':'serving',source:'quick'}]);return true;
     });
     const field=$('#thread-text',el);field.value=String(store.get(draftKey(owner))||'');
+    const reuseBox=document.createElement('div');reuseBox.className='thread-reuse';reuseBox.hidden=true;
+    reuseBox.setAttribute('role','group');reuseBox.setAttribute('aria-label','Reuse your foods');
+    $('.thread-compose-row',el).before(reuseBox);
+    ctx.reuseChips=foodReuseChips({box:reuseBox,field,live:()=>active(ctx),choose:item=>reuse(ctx,item),day:()=>ctx.day});
     ctx.nativeEntries=(store.get(nativeKey(owner))||[]).filter(x=>x&&x.at>Date.now()-86400000).slice(-100);
     let fitKey='';
     const grow=()=>{

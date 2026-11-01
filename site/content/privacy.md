@@ -8,7 +8,7 @@ Privacy policy
 
 ## updated
 
-Last updated October 29, 2026
+Last updated November 1, 2026
 
 ## intro
 
@@ -101,6 +101,8 @@ AI features (Kit)
 ## ai
 
 When you set up your account, Kinetta asks whether to turn on Kit's AI features. Kit is for people 18 or older, and you confirm that when you turn it on. You can turn them on or off at any time with the AI features switch in Me → Settings; when they're off, nothing is sent. When they're on, Kinetta sends only what that feature needs to the AI provider (Google Gemini or Anthropic Claude; the app shows which). For example, a food photo for an estimate, or your recent workouts when you ask Kit about training. It never sends your whole account or your password. Apple Health and Garmin data each need a separate yes before they're included (see Garmin above). You can change these choices in Me → Settings.
+
+Food understanding can include matching foods from your own recent log, saved foods, recipes and combinations, your frequently logged portions, today's foods and recent food-chat turns. If Kit memory is on, it can also include your saved food preferences. This helps it understand “the same latte” and similar references. These records stay private to your account. Tap-to-reuse suggestions use your own records without an AI request. You still review food before logging it.
 
 ## provider-retention
 

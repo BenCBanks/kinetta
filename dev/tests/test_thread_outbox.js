@@ -11,6 +11,7 @@ function fixture(){
  return {rows,db,outbox,calls,releases,add,setSession:v=>session=v,setFail:v=>fail=v};
 }
 (async()=>{
+ let leased=fixture();await leased.add();await leased.db.update('owner-a','stable-id',j=>({...j,mid:7}));leased.releases.push(()=>({processing:true,messages:[]}));await leased.outbox.flush('owner-a');assert.equal(leased.rows.size,1,'A context lease retains the pending message for retry');await leased.outbox.flush('owner-a');assert.equal(leased.rows.size,0);
  let f=fixture();await f.add();await f.outbox.flush('owner-a');assert.equal(f.calls.length,3);assert.equal(f.calls[0].body.client_id,'stable-id');assert.equal(f.calls[0].body.captured_at,'2026-10-17T08:00:00Z');assert.equal(f.rows.size,0);
  f=fixture();await f.db.put('owner-a','photo-id',{body:'Half a turkey sub, no mayo',media:'photo',itemize:true,images:['fictional-jpeg'],phase:'process'});await f.outbox.flush('owner-a');assert.equal(f.calls[0].body.itemize,true);assert.equal(f.calls[0].body.body,'Half a turkey sub, no mayo');assert.equal(f.calls[2].body.itemize,true);assert.equal(f.calls[2].body.images[0],'fictional-jpeg');
  f=fixture();await f.add();f.setFail({offline:true});await f.outbox.flush('owner-a');assert.equal(f.rows.size,1);assert(!f.rows.get('stable-id').error);f.setFail(null);await f.outbox.flush('owner-a');assert.equal(f.calls[1].body.client_id,'stable-id','lost response resumes same UUID');

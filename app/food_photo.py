@@ -98,26 +98,37 @@ def _ordered(schema):
     return out
 
 
-def ask(parts, schema, label, timeout=45):
+def ask(parts, schema, label, timeout=45, *, model_policy=None, before_attempt=None):
     """One Gemini call that answers in JSON (schema). Returns (answer, raw response, model); 502 if it fails.
     Google sometimes answers 429/5xx ("high demand") or is slow: then it tries once more, and then a second model
     (GEMINI_FOOD_FALLBACK_MODEL), before giving up (2026-10-12: an ingredient typed in a dish failed on a busy model)."""
     import time
     parts = [*parts, {'text': ROUNDING}]
     main = os.environ.get('GEMINI_FOOD_MODEL', 'gemini-3.1-flash-lite')
-    body = json.dumps({'contents': [{'parts': parts}],
-                       'generationConfig': {'responseMimeType': 'application/json', 'responseSchema': _ordered(schema), 'temperature': 0.2,
-                                            'maxOutputTokens': MAX_OUTPUT_TOKENS}}).encode()
+    config={'responseMimeType':'application/json','responseSchema':_ordered(schema),'temperature':0.2,
+            'maxOutputTokens':MAX_OUTPUT_TOKENS}
     tries = [main, main, os.environ.get('GEMINI_FOOD_FALLBACK_MODEL', 'gemini-3.8-flash')]
+    if model_policy is not None:
+        if model_policy!='context':raise ValueError('Unknown food model policy')
+        from . import ai_release
+        policy=ai_release.models('food_memory');stronger=policy['context_model'];tries=[stronger,stronger]
+        # Leave room for the JSON after reasoning; a small shared token cap can truncate it.
+        config.update(thinkingConfig={'thinkingLevel':policy['context_thinking']},maxOutputTokens=policy['context_output_tokens'])
+    body=json.dumps({'contents':[{'parts':parts}],'generationConfig':config}).encode()
     for n, model in enumerate(tries):
         attempt = ai_budget.reserve(model,label,payload=body)
         last = n == len(tries) - 1
         req = urllib.request.Request(f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent', body,
                                      {'Content-Type': 'application/json', 'x-goog-api-key': os.environ.get('GEMINI_API_KEY', '')})
         try:
-            with ai_budget.lease(attempt), urllib.request.urlopen(req, timeout=timeout) as r: data = json.load(r)
+            with ai_budget.lease(attempt):
+                if before_attempt is not None:before_attempt()
+                with urllib.request.urlopen(req, timeout=timeout) as r:data = json.load(r)
             ai_budget.settle(attempt, data)
             return json.loads(data['candidates'][0]['content']['parts'][-1]['text']), data, model
+        except HTTPException:
+            ai_budget.release_failed(attempt,400)
+            raise
         except urllib.error.HTTPError as e:
             ai_budget.release_failed(attempt,e.code)
             print(f'{label}: gemini {model} HTTP', e.code, flush=True)

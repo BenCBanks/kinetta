@@ -272,6 +272,9 @@ class LogIn(BaseModel):
 @router.post('/messages/{mid}/process')
 def process_message(mid: int, body: AnswerIn, user=Depends(current_user)):
     from . import food_thread_log as engine, food_thread_understand as understand
+    from . import food_memory_understand as memory
+    pending=memory.prepare(user['id'],mid)
+    if pending is not None:return pending
     understand.prepare(user['id'],mid)   # the optional model call happens before the account lock
     with db.connect() as c:
         message=engine.locked_message(c,user['id'],mid)

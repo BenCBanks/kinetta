@@ -42,6 +42,55 @@ measure (no amounts checked); model 210/212 on the strict measure (intent 212/21
 reply number violations 0), about $0.085 per full run. The case set was written by the same author as the rules, so it
 favours them; the owner's qualitative review of real replies is still required before enabling.
 
+## Contextual food references (#451)
+
+The optional contextual path additionally requires a `food_memory` block in the same reviewed report. Its
+`candidate_fingerprint` must match `ai_release.gate_fingerprint('food_memory')` (or the existing equivalent-text
+ledger rules), with `case_count >= 40`, `baseline_compared: true`, `reference_accuracy >= 0.95`,
+`copied_number_errors: 0`, `isolation_failures: 0`, `memory_revocation_failures: 0` and
+`qualitative_review_passed: true`. The complete existing food-chat understanding gate still has to pass;
+the contextual set does not replace its 200-case minimum or allow invented amounts/reply numbers.
+
+`food_memory_cases.py` adds 51 fictional cases, 41 containing multiple foods. Fixture numbers represent stored
+facts for source/arithmetic checks, not real-world nutrition accuracy. Capture actual production/candidate
+responses on the same owned sources and catalogue fixtures, retaining model settings, prompts/fingerprints,
+attempt/token costs, latency and unresolved cases. Score retained names, reference identity, exact copies/scaling,
+unknown values, sensible analogue bases, habits/explicit overrides and necessary follow-ups independently.
+Include concurrent retries, stale/deleted/foreign tokens, memory/AI revocation, source changes and confirmation.
+No paid calls are made by CI, and no owner-reviewed rollout report is created from stand-ins. The revocation control requires a valid captured interpretation, an observed memory-off/version change and inspection of the discarded stored result before rules continue. An unrelated provider failure cannot pass it. Explicit mixed-dish/drink components may be grouped only when all requested ingredients and quantities are retained; duplicates or an additional whole-food row fail. Apply scorer corrections symmetrically to both saved captures and retain their original scores.
+
+### Capture the contextual comparison
+
+Use the same committed collectors in both isolated revisions. Copy `food_eval_guard.py`, `chat_eval.py`,
+`food_memory_eval.py`, `food_memory_score.py`, `chat_cases.py` and `food_memory_cases.py` into `/tmp` in each image.
+Run `test_food_eval_guard.py` there first and run both collectors with `FOOD_MEMORY_EVAL_DRY_RUN=1` to check every
+fixture without a provider. A dry capture is marked as such and is never accuracy evidence.
+
+For paid collection, explicitly set `FOOD_MEMORY_EVAL_ACCEPT_PAID_CALLS=1`, `FOOD_MEMORY_EVAL_MODE=baseline|candidate`,
+the exact full `FOOD_MEMORY_EVAL_SOURCE_COMMIT`, verified `FOOD_MEMORY_EVAL_APP_DIGEST` and one persistent
+`FOOD_MEMORY_EVAL_RUN_ID` per isolated revision/database. Set the ordinary `KINETTA_AI_DAILY_USD` guard to at most
+2. Both collectors share a cumulative $2 allowance for that revision, including reservations, failed attempts and
+restarts; the pair leaves $1 margin within the approved combined $5 envelope. Keep these databases, attempt
+ledgers and run identities until the comparison is finished. Do not reset a database or start a new paid run to
+bypass an exhausted allowance. No production configuration or account is involved.
+
+Run the 229 existing cases with `CHAT_EVAL_MODE=ai CHAT_EVAL_COMPARISON=1 CHAT_EVAL_ACCEPT_PAID_CALLS=1` and an
+explicit `CHAT_EVAL_OUTPUT`. Its setup cards use code rules and stand-in estimates; the target interpretation is
+real. Then run the 51 contextual journeys with `FOOD_MEMORY_EVAL_OUTPUT` set. Those use fixed fictional catalogue
+replies while both interpretation and any needed estimator calls are real. Contextual gates are overridden only
+inside these disposable collectors, and that override is recorded. Neither collector approves rollout.
+
+For a revised candidate, keep the same database and allowance UUID and explicitly set
+`FOOD_MEMORY_EVAL_CONTINUE_ALLOWANCE=1`, with a new output path. The original provenance, failures and all charges
+remain counted; continuation never replenishes the allowance. Each revision gets its own immutable capture
+metadata. Changing the dataset is rejected. If the scorer is corrected, apply the same documented correction to
+both saved captures and retain the original scores alongside the rescored comparison.
+
+Outputs append and resume completed cases, retaining failures. Sidecars bind app source, both datasets, collectors,
+scorer, models, fingerprints and rates; a mismatched capture is rejected. Summaries include cumulative ledger
+spending even when an earlier process stopped before writing its case. Keep partial captures explicit; compare
+complete runs and review unresolved cases and qualitative replies before preparing a release report.
+
 ## Shared Kit conversation
 
 The app-wide assistant has its own owner-approved gate: `KINETTA_KIT_ENABLED=1` and `KINETTA_KIT_EVAL_REPORT` pointing at a reviewed report with a `candidate_fingerprint` matching `ai_release.kit_fingerprint()`. It requires a `kit` report block with `case_count >=40`, `unsupported_numeric_claims:0`, `isolation_failures:0`, `health_disclosures:0`, `conversation_review_passed:true` and `qualitative_review_passed:true`. The Kit block also requires `baseline_compared:true`; the report's top-level `reviewed:true` is set only after actual owner review. Existing food/food-chat report requirements remain separate and unchanged. Include all sports, strength, individual food records/unknown nutrients, goals, general diet/exercise education, multi-turn follow-ups, proposed changes and app actions, missing histories and injection/consent failures. Compare the current coach and candidate on the same fictional records and questions. Record real responses and token/cost/latency; schema/evidence pass is not proof of useful or medically sound advice. Owner review and physical-phone checks remain separate.

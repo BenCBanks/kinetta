@@ -1932,6 +1932,21 @@ MIGRATIONS = [
     ALTER TABLE reports ADD CONSTRAINT reports_kind_check CHECK(kind IN ('person','activity','comment','dish','challenge'));
     ALTER TABLE reports ADD COLUMN dish_id bigint REFERENCES dishes(id) ON DELETE SET NULL;
     ALTER TABLE reports ADD COLUMN challenge_id uuid REFERENCES challenges(id) ON DELETE SET NULL;""",
+    # 92. Indexed, owner-only food retrieval after service-terms migration91.
+    """CREATE EXTENSION IF NOT EXISTS pg_trgm;
+    CREATE INDEX food_entries_name_trgm ON food_entries USING gin(lower(name||' '||coalesce(brand,'')) gin_trgm_ops);
+    CREATE INDEX dishes_name_trgm ON dishes USING gin(lower(name) gin_trgm_ops);
+    CREATE INDEX custom_foods_name_trgm ON custom_foods USING gin(lower(name||' '||coalesce(brand,'')) gin_trgm_ops);
+    CREATE INDEX saved_meals_name_trgm ON saved_meals USING gin(lower(name) gin_trgm_ops);
+    CREATE INDEX custom_foods_user ON custom_foods(user_id);
+    CREATE INDEX saved_meals_user ON saved_meals(user_id);
+    DO $$ DECLARE t text; BEGIN
+      FOREACH t IN ARRAY ARRAY['food_chat_messages','kit_memories','kit_conversations'] LOOP
+        EXECUTE format('GRANT SELECT ON %I TO fit_coach',t);
+        EXECUTE format('CREATE POLICY coach_own_rows ON %I FOR SELECT TO fit_coach USING
+          (user_id=nullif(current_setting(''kinetta.coach_user_id'',true),'''')::bigint)',t);
+      END LOOP;
+    END $$;""",
 
 ]
 

@@ -4,6 +4,12 @@ Product requirements agreed October 14, 2026.
 
 ## Structured data stays in PostgreSQL
 
+Contextual food references have a separately reviewed extension described in [food memory](food-memory.md).
+Their bounded own-record reader uses fixed SQL/RLS; the model selects supplied tokens while the backend copies
+or scales stored nutrition. Catalog analogues keep source provenance. Existing food-chat understanding remains
+available under its original gate; adding model context requires the additional matching `food_memory` report.
+Own-food reuse chips make no AI call. The public privacy policy describes the additional food context.
+
 Do not embed activity, food or weight rows in a vector database. Kit calls deterministic application tools and receives compact JSON. Date-range totals, averages and comparisons are computed by the application, not guessed by a model. A vector store is a later possibility for genuinely unstructured notes or race reports; none is introduced here.
 
 The tool catalog covers profile units/targets, nutrition summaries, recent runs, individual activities, comparable routes, weight trend, training load, current plan, permissible plan options and known-food combinations. Nutrition summaries report logged versus unlogged days and average per logged day; an absent food day is not zero intake. Tools describe missing data and avoid pretending that all runs were intended to be easy or that correlations prove causes.

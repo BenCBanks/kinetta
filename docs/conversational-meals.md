@@ -45,7 +45,9 @@ is **not** guessed:
 - First, Kinetta checks USDA and Open Food Facts for branded products containing every requested name/brand word. Choose a candidate, check the package and serving, then confirm its amount. No generic substitute is silently logged. Coverage and catalog accuracy vary; search or scan the barcode if the exact product is missing. Database failures retain Search and Retry options.
 - With AI access and consent, tap **Estimate with Kit** (or **Use Kit’s estimate instead**). Only the words of the foods that weren't found (for example “a hot dog”) go to the AI
   estimator, and its estimate is shown as **Kit’s estimate**, editable, in the same list. Later corrections about that
-  food go to the AI as well. Your saved foods, recipes and history are never sent.
+  food go to the AI as well. The ordinary estimator receives the unresolved food words. The separately reviewed
+  [contextual food path](food-memory.md), when enabled, also supplies bounded relevant own-food records and permitted
+  preferences to food understanding; it remains off until its matching evaluation is reviewed.
 - With AI off, the food gets a **Search for “…”** button. After you add the rest, Add food opens on Search with those
   words filled in.
 

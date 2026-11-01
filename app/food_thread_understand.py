@@ -108,7 +108,7 @@ def allowed(c, uid):
     if not enabled() or not os.environ.get('GEMINI_API_KEY'): return False
     try:
         if not ai_budget.enabled(): return False
-        ai_access.require(uid, 'food')
+        ai_access.require(uid, 'food', connection=c)
     except HTTPException: return False
     return coach.allowed(uid, 'food', connection=c)
 
