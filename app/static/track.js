@@ -210,7 +210,7 @@ const Track = (() => {
     $$('[data-track-pause]').forEach(b=>b.disabled=controlling||saving);
     for(const id of ['track-pause','track-finish']){const b=$('#'+id);if(b)b.disabled=controlling||saving;}
     // plain Recording / Paused is what the dot shows; screen readers still hear it, sighted people see only news
-    const status = $('#track-status'); if (status) { status.textContent = idle ? 'Auto-paused · starts again when you move' : message || (session.state === 'recording' ? 'Recording' : 'Paused'); status.classList.toggle('vh', !idle && !message); }
+    const status = $('#track-status'); if (status) { status.textContent = idle ? 'Auto-paused · starts again when you move' : message || (session.state === 'recording' ? 'Recording' : 'Paused'); status.classList.toggle('vh', !idle && (!message || /^(Recording|Paused)$/.test(message))); }
   }
   async function markLap() {
     if(!session?.gps || session.state!=='recording' || controlling || saving)return;
