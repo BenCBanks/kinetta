@@ -124,6 +124,8 @@ Services you connect yourself, such as Garmin Connect or Health Auto Export, als
 
 The person running the server can technically see its database. That access is used only to run the service, help you, keep it secure or meet legal duties. Ordinary account support shows status, counts, birth year/approximate age and Kit permission/consent status, without opening your private workouts, routes, food, other health records or conversations. An administrator can correct birth year and allow or block Kit access. Allowing access never supplies your own AI consent or permission to include Apple Health or Garmin data. An administrator reviewing a report can see its reported comment, current profile bio/photo, or the reported activity’s summary and attached photos. Review access and actions are recorded without copying that content into the audit log. If you make a data request, we keep its type, status, verification method and dates, linked to your account while it exists; correspondence and identity documents are not stored in this register.
 
+## feature-counts
+
 **How we improve Kinetta.** Kinetta counts which features are used, on its own server, to decide what to improve. Administrators see totals per feature, not a history of what one person did. Counts never include food names, workout titles, locations or messages. New food entries may note how they were added (for example search or photo). Daily counting keys are deleted each day; totals are kept for 13 months. No third-party analytics or tracking is used.
 
 ## retention-heading
