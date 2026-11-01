@@ -194,8 +194,9 @@ def clean(out,said,ctx):
         result['intent']='log'
     if result['missing']=='type' and len(result['foods'])==1:
         food=result['foods'][0]
-        if memory.M.norm(food['name']) in ('coffee','tea','latte','cappuccino','espresso') and not food['reference_question']:
-            result['missing']='none'
+        if memory.M.norm(food['name']) in ('coffee','tea','latte','cappuccino','espresso','pasta') and not food['reference_question']:
+            result['missing']='amount' if food['quantity'] is None and not food.get('unit') and not food.get('size') else 'none'
+    result['reply']=U.safe_reply(result['reply'],said) or ''
     return result
 
 

@@ -469,4 +469,15 @@ class FoodMemory(unittest.TestCase):
              patch('app.food_thread_understand.obvious',return_value=True),patch('app.food_memory_understand.ask_model') as ask:
             self.assertIsNone(contextual.prepare(self.ids[0],m['id']));ask.assert_not_called()
 
+
+    def test_understanding_discards_model_nutrition_numbers_before_persisting(self):
+        from app import food_memory_understand as contextual
+        ctx={'sources':{},'stable':{'preferences':[]},'dynamic':{'recent_turns':[]}}
+        out=self.reading([{'name':'Banana','quantity':1}]);out.update(intent='ask_food',reply='A banana contains105 calories.')
+        result=contextual.clean(out,'calories in a banana',ctx)
+        self.assertEqual(result['intent'],'ask_food');self.assertEqual(result['reply'],'')
+        out.update(reply='Use2 bananas.');self.assertEqual(contextual.clean(out,'2 bananas',ctx)['reply'],'Use2 bananas.')
+        out=self.reading([{'name':'Pasta'}]);out['missing']='type'
+        self.assertEqual(contextual.clean(out,'pasta',ctx)['missing'],'amount')
+
 if __name__=='__main__':unittest.main(verbosity=2)
