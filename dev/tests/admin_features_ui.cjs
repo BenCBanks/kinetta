@@ -15,6 +15,7 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.SHOT
     if(width<700)await page.locator('#admin-section').selectOption('features');else await page.locator('[data-view=features]').click();
     await page.locator('.feature-table').waitFor();await page.getByText('New counting is off',{exact:false}).waitFor();
     assert(await page.locator('.feature-funnel svg').count()>0,'real aggregate funnel visible');checks++;
+    assert(await page.locator('.feature-funnel li>div>b').evaluateAll(ns=>ns.every(n=>{const r=document.createRange();r.selectNodeContents(n);return r.getClientRects().length===1;})),'each milestone fraction stays on one line');
     assert(await page.locator('.feature-table tbody tr').first().evaluate(e=>e.getBoundingClientRect().top<700),'first data row stays in the first phone screen');checks++;
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);checks++;
     const units=page.locator('td[data-label="user-days"]');assert(await units.count()>0);if(width<700){assert(await units.first().evaluate(e=>getComputedStyle(e,'::before').content.includes('user-days')));}else{assert(await units.first().innerText().then(x=>x.includes('user-days')));}checks++;

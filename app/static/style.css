@@ -1551,6 +1551,7 @@ html.keyboard-open nav.tabs { display: none; }
 .me-settings[open] > summary { margin-bottom: 18px; }
 .me-settings .ri { color: var(--tx3); background: transparent; }
 .me-settings .val { max-width: 45%; text-align: right; overflow-wrap: anywhere; }
+.me-settings .row-link:has(> .val) > .grow { overflow-wrap:anywhere; }
 .track-question { margin: 24px 0; font-size: 28px; }
 .track-sports { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 16px 0 26px; }
 .track-sports button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 92px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); font: 500 15px system-ui; }
