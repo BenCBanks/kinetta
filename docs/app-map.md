@@ -255,7 +255,7 @@ flowchart LR
  SharedDetail -->|Map expand · 2| FullMap
  Detail -->|Photo · 2| ActivityPhoto["Full photo viewer"]
  SharedDetail -->|Photo · 2| ActivityPhoto
- SharedDetail -->|Report in Details · 3| ActivityReport["Report activity / Block sheet"]
+ SharedDetail -->|Report or block · 2| ActivityReport["Report activity / Block sheet"]
  ActivityPanes -->|Make a segment · 3| SegmentStretch["Choose the segment sheet"]
  SegmentStretch -->|Use this stretch · 4| SegmentReview["Review segment · Progress boundary"]
  ActivityPanes -->|Add original map · 3| OriginalMapHelp["Original-map help sheet"]
@@ -263,11 +263,14 @@ flowchart LR
  Detail -->|Edit sets · 2| LiftEdit["Track lifting editor boundary"]
  Detail -->|Exercise · 2| LiftHistory["Progress exercise history boundary"]
  Detail -->|Matched route · 2| MatchedRoute["Matched route · /route/:id · Progress boundary"]
- Detail -->|Personal best · 2| RecordHistory["Record history · /records/:sport/:distance · Progress boundary"]
- ActivityPanes -->|Similar effort · 2| Detail
+ Detail -->|Personal best selects Efforts · 2| ActivityPanes
+ ActivityPanes -->|All records from Efforts · 3| RecordHistory["Records · /progress?view=records&sport=:sport · Progress boundary"]
+ ActivityPanes -->|Similar effort from Efforts · 3| Detail
+ Activity -.->|Start a challenge · 1, low-friend state, source-only| ChallengeTemplates
+ Activity -.->|Public segments · 1, low-friend state, source-only| Segments["Public segments · /progress/segments · Progress boundary"]
  Challenges -->|Create · 2| ChallengeTemplates["Five challenge templates sheet"]
- ChallengeTemplates -->|Choose · 3| ChallengeCreate["Challenge form and custom dates"]
- ChallengeCreate -->|Create · 4| ChallengeInvite["Invitation picture and link sheet"]
+ ChallengeTemplates -->|Choose · 2 direct or3 via list| ChallengeCreate["Challenge form and custom dates"]
+ ChallengeCreate -->|Create · 3 direct or4 via list| ChallengeInvite["Invitation picture and link sheet"]
  Challenge -->|Invite · 2| ChallengeInvite
  Challenge -->|Finished picture · 2| ChallengeFinish["Finished picture sheet"]
  Challenge -->|Join / Refresh| Challenge
@@ -280,7 +283,7 @@ flowchart LR
 
 ## Track
 
-Depth starts on Track with the appropriate sport already selected. Recording and lifting summaries are states of existing routes. Native UI was inspected with local browser stand-ins; dashed plan/recovery arrows are source-only.
+Depth starts on Track with the appropriate sport already selected. Recording and lifting summaries are states of existing routes. Native UI was inspected with local browser stand-ins; dashed plan/recovery arrows are source-only. A loaded interval selection also keeps the entrance available for removal when the selected activity changes.
 
 ```mermaid
 flowchart LR
@@ -306,6 +309,7 @@ flowchart LR
  ExerciseMenu -->|Choose a set · 4| ChooseSet["Set picker sheet"]
  ChooseSet -->|Set · 5| SetMenu["Warm-up, working or delete set sheet"]
  LiftEdit -->|Set number · 3| SetMenu
+ LiftEdit -->|Exercise name · 3| LiftHistory
  ExerciseMenu -->|History · 4| LiftHistory["Exercise history · Progress boundary"]
  LiftEdit -->|Finish · 3| LiftFinish["Unticked sets confirmation when needed"]
  LiftFinish -->|Confirm · 4| LiftSummary["Lifting summary · same logger route"]
@@ -326,7 +330,7 @@ flowchart LR
  Health -->|Done or Back| Connections
  Connections -->|Import activity history · 2, browser| Import
  Connections -->|Other connections · 2| OtherConnections["Health Auto Export disclosure"]
- Track -->|Intervals · 1, outdoor iPhone| IntervalLibrary["Intervals library sheet"]
+ Track -->|Run or Walk intervals · 1, iPhone| IntervalLibrary["Intervals library sheet"]
  IntervalLibrary -->|New · 2| IntervalEdit["New or Edit intervals builder sheet"]
  IntervalLibrary -->|Saved preset · 2| IntervalPreview["Preset preview sheet"]
  IntervalPreview -->|Edit · 3| IntervalEdit
