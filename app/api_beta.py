@@ -69,9 +69,9 @@ def beta_request(body: BetaIn, request: Request):
                        watch = EXCLUDED.watch, note = EXCLUDED.note,card_code=EXCLUDED.card_code,card_request=EXCLUDED.card_request,challenge_code=EXCLUDED.challenge_code,challenge_join=EXCLUDED.challenge_join
                      WHERE beta_requests.status = 'new'""",
                   (body.name.strip(), email, body.phone, clean(body.watch), clean(body.note),origin,body.card_request if origin else False,challenge,body.challenge_join if challenge else False))
-        if fresh:
-            from .signup import admin_notice
-            admin_notice(c, waitlist_new=True)
+    if fresh:
+        from .signup import capacity_notice
+        capacity_notice(waitlist_new=True)
     return {'ok': True}
 
 

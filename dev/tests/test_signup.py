@@ -224,12 +224,26 @@ class Signup(unittest.TestCase):
     def test_public_prefix_official_names_and_legacy_identities(self):
         self.env(KINETTA_SIGNUP='open');self.fixture_names.stop()
         for name in ('zz_test_su_public','kinetta_','k1netta_support','supp0rt','adm1n','he1p','off1c1a1','staff'):
-            r=client().post('/api/signup',json=form(name));self.assertEqual(r.status_code,400,(name,r.text))
+            r=client().post('/api/signup',json=form(name,is_admin=True,allow_test=True,fixture=True));self.assertEqual(r.status_code,400,(name,r.text))
             self.assertFalse(client().get('/api/account/username-availability',params={'login':name}).json()['available'])
+        # A public bootstrap result being administrator does not grant the fixture allowance.
+        from fastapi import HTTPException
+        with db.connect()as c:
+            with self.assertRaises(HTTPException)as denied:api_account._create(c,api_account.NewAccountIn(name='Fixture Owner',login='zz_test_su_boot',password=PW),is_admin=True)
+            self.assertIn('reserved',denied.exception.detail)
+            import secrets
+            invitation=secrets.token_urlsafe(24)
+            iid=c.execute("INSERT INTO invites(token_hash,expires)VALUES(%s,now()+interval '1 day')RETURNING id",(auth.token_hash(invitation),)).fetchone()['id']
+        try:
+            r=client().post('/api/join',json={'token':invitation,'login':'zz_test_su_invited_public','name':'Fixture Member','password':PW,'allow_test':True,'is_admin':True})
+            self.assertEqual(r.status_code,400,r.text)
+            with db.connect()as c:self.assertIsNone(c.execute('SELECT used_at FROM invites WHERE id=%s',(iid,)).fetchone()['used_at'])
+        finally:
+            with db.connect()as c:c.execute('DELETE FROM invites WHERE id=%s',(iid,))
         for i,name in enumerate(('Kinetta','kinetta Support','Kinetta Team','Kinetta Official')):
             self.assertEqual(client().post('/api/signup',json=form('zzsutestofficial'+str(i),name=name)).status_code,400)
         person,uid=self.member('legacy');admin,aid=self.member('official_admin',True)
-        self.assertEqual(person.put('/api/account',json={'login':'zz_test_su_changed'}).status_code,400)
+        self.assertEqual(person.put('/api/account',json={'login':'zz_test_su_changed','is_admin':True,'allow_test':True,'current':'zz_test_su_changed'}).status_code,400)
         self.assertEqual(person.put('/api/account',json={'name':'Kinetta'}).status_code,400)
         with db.connect()as c:c.execute("UPDATE users SET name='Kinetta',login='kinetta' WHERE id=%s",(uid,))
         self.assertEqual(person.put('/api/account',json={'name':'Kinetta','login':'kinetta'}).status_code,200,'unchanged legacy identity remains')
@@ -317,6 +331,16 @@ class Signup(unittest.TestCase):
         with db.connect()as c:token=account_email._token(c,tid,'verify_email',60,'zz_test_su_old@example.test')
         self.assertEqual(client().post('/api/account/email/confirm',json={'token':token}).status_code,200)
         with db.connect()as c:self.assertIsNone(c.execute('SELECT signup_confirmed_at FROM users WHERE id=%s',(tid,)).fetchone()['signup_confirmed_at'])
+
+    def test_capacity_notices_run_after_account_write_locks(self):
+        self.env(KINETTA_SIGNUP='open',KINETTA_MAX_ACCOUNTS=self.real_accounts()+1)
+        original=signup.admin_notice;held=[]
+        def inspect(c,**kw):
+            held.append(c.execute("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=pg_backend_pid() AND relation='users'::regclass AND mode IN('RowExclusiveLock','ShareRowExclusiveLock'))AS x").fetchone()['x'])
+            return original(c,**kw)
+        with patch.object(signup,'admin_notice',side_effect=inspect):
+            self.assertEqual(client().post('/api/signup',json=form('zz_test_su_notice_order')).status_code,200)
+        self.assertTrue(held);self.assertFalse(any(held),'notice recipient locks cannot reverse the account/cap order')
 
     def test_admin_bell_notice_is_aggregate_daily_and_role_guarded(self):
         admin,uid=self.member('notice_admin',True);member,mid=self.member('notice_member')

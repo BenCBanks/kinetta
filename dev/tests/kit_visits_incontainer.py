@@ -3,7 +3,7 @@ import json,threading,uuid,zipfile,tempfile
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 from fastapi.testclient import TestClient
-from app import auth,db,kit_memory
+from app import auth,db,kit_memory,api_account
 from app.main import app
 from app.api_mydata import _write_export
 from app.coach_chat import answer as real_answer
@@ -26,7 +26,8 @@ try:
         client=TestClient(app);client.headers['Origin']='http://testserver';client.headers['Content-Type']='application/json';assert client.post('/api/login',json={'login':name,'password':'green kettle after morning walk'}).status_code==200;clients.append(client)
     a,b=clients;uid,other=uids
     from app.api_account import _create,NewAccountIn
-    with db.connect() as c:
+    original=api_account.reserved_login
+    with patch.object(api_account,'reserved_login',side_effect=lambda v,**kw:original(v,allow_test=True)),db.connect() as c:
         chosen=_create(c,NewAccountIn(name='Fictional private signup',login='zz_test_choice_'+uuid.uuid4().hex[:8],password='green kettle after morning walk',share_default='me'));uids.append(chosen)
         assert c.execute('SELECT share_default FROM profile WHERE user_id=%s',(chosen,)).fetchone()['share_default']=='me'
 

@@ -135,10 +135,10 @@ def add_person(body: PersonIn, user=Depends(admin_user)):
                             (login, name, auth.hash_pw(body.password))).fetchone()['id']
             c.execute('INSERT INTO profile (user_id) VALUES (%s)', (uid,))
             audit(c,user['id'],'account.create_member',uid)
-            from .signup import admin_notice
-            admin_notice(c)
     except errors.UniqueViolation:
         raise HTTPException(409, 'That username is taken')
+    from .signup import capacity_notice
+    capacity_notice()
     return {'ok': True, 'login': login}
 
 
@@ -270,7 +270,7 @@ def _create(c, body, is_admin=False):
     """Insert a person + their settings; returns the new id."""
     community_terms.check_agreement(body.terms_version)
     name, chosen = _clean_name(body.name, is_admin=is_admin), body.login and body.login.strip()
-    login = _clean_login(chosen, allow_test=is_admin) if chosen else suggest_login(c, name)
+    login = _clean_login(chosen) if chosen else suggest_login(c, name)
     community_filter.check(login, 'username')
     auth.check_new_password(body.password, login)
     tz = db.valid_tz(body.tz) or db.DEFAULT_TZ
@@ -288,8 +288,6 @@ def _create(c, body, is_admin=False):
     c.execute('INSERT INTO profile (user_id, tz, units, share_default, terms_version, terms_accepted_at) VALUES (%s, %s, %s, %s, %s, %s)', (uid, tz, body.units or 'imperial', body.share_default, community_terms.active_version(), dt.datetime.now(dt.timezone.utc) if community_terms.active_version() else None))
     if body.card_code:c.execute("INSERT INTO signup_join_intents(user_id,kind,code,want_request) VALUES(%s,'card',%s,%s)",(uid,body.card_code,body.card_request))
     if body.challenge_code and body.challenge_join:c.execute("INSERT INTO signup_join_intents(user_id,kind,code,want_request) VALUES(%s,'challenge',%s,true)",(uid,body.challenge_code))
-    from .signup import admin_notice
-    admin_notice(c)
     return uid
 
 
@@ -308,6 +306,8 @@ def setup(body: NewAccountIn, request: Request, response: Response):
         if c.execute('SELECT 1 FROM users LIMIT 1').fetchone(): raise HTTPException(409, 'This server is already set up - log in instead')
         uid = _create(c, body, is_admin=True)
         token = auth.new_session(c, uid, request.headers.get('user-agent'))
+    from .signup import capacity_notice
+    capacity_notice()
     auth.set_cookie(request, response, token)
     return {'ok': True}
 
@@ -401,7 +401,8 @@ def join(body: JoinIn, request: Request, response: Response, background: Backgro
         if email and account_email.mail_ready(): account_email.confirmation(background, c, uid, _clean_name(body.name), email, welcome=True)
         token = auth.new_session(c, uid, request.headers.get('user-agent'))
         login = c.execute('SELECT login::text AS login FROM users WHERE id = %s', (uid,)).fetchone()['login']
-    from . import cards,challenges
+    from . import cards,challenges,signup
+    signup.capacity_notice()
     with db.connect() as c:cards.consume_signup(c,uid)
     with db.connect() as c:challenges.consume_signup(c,uid)
     auth.set_cookie(request, response, token)

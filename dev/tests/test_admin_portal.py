@@ -3,7 +3,7 @@ import base64, hashlib, hmac, json, os, time, unittest, uuid
 from unittest.mock import patch
 import httpx
 from fastapi.testclient import TestClient
-from app import db, auth, admin_auth, admin_mail
+from app import db, auth, admin_auth, admin_mail, api_account
 from app.main import app
 
 PW='test account private password'
@@ -23,6 +23,8 @@ class Portal(unittest.TestCase):
             c.execute("DELETE FROM beta_requests WHERE email LIKE 'zz_test_portal%%'")
             c.execute("DELETE FROM users WHERE login LIKE 'zz_test_portal%%'")
     def setUp(self):
+        original=api_account.reserved_login
+        names=patch.object(api_account,'reserved_login',side_effect=lambda v,**kw:original(v,allow_test=True));names.start();self.addCleanup(names.stop)
         self.client=TestClient(app);self.client.headers['Origin']=BASE;self.client.headers['Content-Type']='application/json'
         with db.connect() as c:
             self.token=admin_auth.issue_session(c,self.uid)
