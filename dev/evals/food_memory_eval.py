@@ -136,7 +136,7 @@ def snapshot(c,ids,mid=None):
     return foods,cards
 
 
-def score(case,parts,aliases,captures,preference_aliases,reply,rows_unchanged,old_cards_unchanged,revocation_failed):
+def score(case,parts,aliases,captures,preference_aliases,reply,rows_unchanged,old_cards_unchanged,revocation_failed,revocation_discarded,revocation_evidence):
     findings=[];observed=[]
     for part in parts:
         part_foods=[]
@@ -146,7 +146,7 @@ def score(case,parts,aliases,captures,preference_aliases,reply,rows_unchanged,ol
                 'amount':1,'unit':'combination','source':'recent',**{k:sum(e[k] for e in entries) if all(N.known(e,k) for e in entries) else None for k in N.ALL}}]
         for entry in entries:
             part_foods.append({'name':entry['name'],'source':source_alias(part,aliases),'analogue':(part.get('analogue') or {}).get('base'),
-                'amount':entry['amount'],'unit':entry['unit'],'catalogue_source':entry.get('source'),'text':part.get('text',''),'nutrition':{k:entry.get(k) if N.known(entry,k) else None for k in N.ALL}})
+                'amount':entry['amount'],'unit':entry['unit'],'serving_label':(entry.get('ref') or {}).get('serving',{}).get('label'),'catalogue_source':entry.get('source'),'text':part.get('text',''),'nutrition':{k:entry.get(k) if N.known(entry,k) else None for k in N.ALL}})
         observed.extend(group_components(part_foods,part.get('text','')))
     interpretations=[call['answer'] for call in captures if call['kind'] in ('food chat','food chat context')]
     intent=interpretations[-1].get('intent') if interpretations else ('chat' if reply.get('intent')=='small_talk' else 'unclear' if reply.get('intent') in ('clarify','clarification_help') else 'log' if parts else 'ask_log')
@@ -157,6 +157,7 @@ def score(case,parts,aliases,captures,preference_aliases,reply,rows_unchanged,ol
         'rows_unchanged':rows_unchanged,'old_cards_unchanged':old_cards_unchanged,
         'foreign_disclosure':'FOREIGN_ONLY_NEVER_SHARE_73c2' in json.dumps(reply),
         'revocation_failed':revocation_failed,
+        'revocation_discarded':revocation_discarded,'revocation_evidence':revocation_evidence,
         'raw_foods':interpretations[-1].get('foods',[]) if interpretations else [],
         'preference_aliases':preference_aliases}
     result=evaluate(case,frame,FIXTURES)
@@ -169,7 +170,7 @@ def main():
     selected=CASES[:int(os.environ.get('FOOD_MEMORY_EVAL_LIMIT','100000'))]
     output=Path(os.environ.get('FOOD_MEMORY_EVAL_OUTPUT','/tmp/food-memory-'+MODE+'.jsonl'))
     output,results=capture_output(output,META,'food-memory')
-    done={r['id'] for r in results};started=time.monotonic()
+    done={r['id'] for r in results};started=time.monotonic();discarded=False;valid_late_response=False;memory_transition=False
     with output.open('a') as stream,ExitStack() as stack:
         stack.enter_context(ai_budget.after_reserve(lambda aid:budget_attempt(META,aid)))
         stack.enter_context(patch('app.food_photo.ask',side_effect=capture))
@@ -181,14 +182,30 @@ def main():
             if any(c.get('revoke_memory_during_response') for c in selected):
                 original=CONTEXTUAL.ask_model
                 def ask(uid,message,ctx,card):
+                    nonlocal valid_late_response,memory_transition
                     if any((v['kind'],v['id']) not in active_aliases for v in ctx['sources'].values()):raise RuntimeError('Foreign retrieval candidate')
                     value=original(uid,message,ctx,card)
                     if active_case.get('revoke_memory_during_response'):
-                        with db.connect() as c:c.execute('UPDATE kit_conversations SET memory_enabled=false,memory_version=memory_version+1 WHERE user_id=%s',(uid,))
+                        valid_late_response=CONTEXTUAL.clean(value[0],message['body'],ctx) is not None
+                        with db.connect() as c:
+                            changed=c.execute('UPDATE kit_conversations SET memory_enabled=false,memory_version=memory_version+1 WHERE user_id=%s RETURNING memory_enabled,memory_version',(uid,)).fetchone()
+                        memory_transition=bool(ctx['memory_enabled'] and changed and not changed['memory_enabled'] and changed['memory_version']==ctx['memory_version']+1)
                     return value
                 stack.enter_context(patch('app.food_memory_understand.ask_model',side_effect=ask))
+                original_prepare=CONTEXTUAL.prepare
+                def prepare(uid,mid):
+                    nonlocal discarded
+                    value=original_prepare(uid,mid)
+                    if active_case.get('revoke_memory_during_response'):
+                        with db.connect() as c:
+                            row=c.execute('SELECT result FROM food_chat_messages WHERE user_id=%s AND id=%s',(uid,mid)).fetchone()
+                        stored=(row or {}).get('result') or {}
+                        discarded=stored.get('understanding')=={'failed':True} and not stored.get('food_memory') and not stored.get('_memory_lease')
+                    return value
+                stack.enter_context(patch('app.food_memory_understand.prepare',side_effect=prepare))
         for active_case in selected:
             if active_case['id'] in done:continue
+            discarded=not bool(CONTEXTUAL);valid_late_response=False;memory_transition=False  # Legacy baseline never reads personal memory context.
             uid=None;ids=[];before=len(CAPTURES);begin=time.monotonic();result={'id':active_case['id'],'message':active_case['message']}
             try:
                 uid,ids,client,mid,aliases,representatives,preference_aliases=fixture(active_case);active_aliases=aliases
@@ -205,7 +222,8 @@ def main():
                 prior_unchanged=all(after_cards.get(key)==value for key,value in before_cards.items())
                 revoked=bool(active_case.get('revoke_memory_during_response') and CONTEXTUAL and apply_spy.call_count!=apply_before)
                 result.update(score(active_case,reply['result'].get('parts') or [],aliases,CAPTURES[before:],preference_aliases,
-                    reply['result'],before_food==after_food,prior_unchanged,revoked))
+                    reply['result'],before_food==after_food,prior_unchanged,revoked,discarded,
+                    {'legacy_without_memory':not bool(CONTEXTUAL),'valid_late_response':valid_late_response,'memory_transition':memory_transition,'stored_discard':discarded}))
                 result['state_evidence']={'food_before':before_food,'food_after':after_food,'prior_cards_unchanged':prior_unchanged}
                 result['reply']={'body':reply['body'],'result':reply['result']}
             except Exception as error:

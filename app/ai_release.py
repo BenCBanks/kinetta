@@ -55,7 +55,7 @@ def models(gate):
     food={'food_model':os.environ.get('GEMINI_FOOD_MODEL','gemini-3.1-flash-lite'),
           'food_fallback':os.environ.get('GEMINI_FOOD_FALLBACK_MODEL','gemini-3.8-flash')}
     if gate=='understanding':return food
-    if gate=='food_memory':return {**food,'context_model':os.environ.get('GEMINI_FOOD_CONTEXT_MODEL',food['food_fallback']),'context_policy':3,'context_thinking':'LOW','context_output_tokens':4096}
+    if gate=='food_memory':return {**food,'context_model':os.environ.get('GEMINI_FOOD_CONTEXT_MODEL',food['food_fallback']),'context_policy':4,'context_thinking':'LOW','context_output_tokens':4096}
     coach_model=os.environ.get('GEMINI_MODEL','gemini-3.8-flash') if coach.provider()=='gemini' else coach.MODEL
     if gate=='kit':return {'provider':coach.provider(),'model':coach_model}
     return {**food,'coach_model':coach_model,'coach_fallback':os.environ.get('GEMINI_FALLBACK_MODEL','gemini-3.1-flash-lite')}

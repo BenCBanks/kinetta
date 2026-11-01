@@ -21,7 +21,24 @@ def group_components(foods,text):
     """
     if len(foods)<2 or any(f.get('source') or f.get('analogue') for f in foods):return foods
     drinks=[f for f in foods if words(f['name'])&{'tea','coffee','latte'}]
-    if len(drinks)!=1:return foods
+    if len(drinks)!=1:
+        # A named mixed dish can be itemized into the ingredients explicitly requested.
+        # Keep the component rows and reject an extra whole-dish row or unrelated ingredient.
+        said=words(text);dishes=said&{'burrito','salad','sandwich','smoothie','soup','curry','pizza'}
+        if not dishes or any(words(f['name'])&dishes for f in foods):return foods
+        descriptions={'white','black','brown','cooked','boiled','grilled','shredded','cheddar','long','grain','short','plain','dry','fresh'}
+        seen=set();covered=set()
+        for food in foods:
+            ingredient=words(food['name'])-descriptions
+            if not ingredient or not ingredient<=said or frozenset(ingredient) in seen:return foods
+            seen.add(frozenset(ingredient));covered.update(ingredient)
+        stop={'a','an','the','of','with','and','plus','bowl','cup','serving','portion','typical','large','small','medium',
+            'one','two','three','half','g','gram','ounce','oz'}
+        if covered!=said-descriptions-dishes-stop:return foods
+        keys={key for food in foods for key in food['nutrition']}
+        nutrition={key:sum(food['nutrition'][key] for food in foods)
+            if all(food['nutrition'].get(key) is not None for food in foods) else None for key in keys}
+        return [{**foods[0],'name':text,'nutrition':nutrition,'components':foods}]
     drink=drinks[0];categories=[];said=words(text)
     allowed={'white','granulated','cane','brown','sugar','milk','whole','skim','oat','almond','soy','cream',
         'dairy','nonfat','low','fat','unsweetened','sweetened'}
@@ -41,6 +58,18 @@ def group_components(foods,text):
 
 def evaluate(case,frame,fixtures):
     failures=[];observed=frame['foods'];raw=frame.get('raw_foods') or []
+    if case.get('revoke_memory_during_response'):
+        # Revocation must discard the late interpretation. Requiring its food would reward the leak.
+        if not frame.get('revocation_discarded'):failures.append('missing_revocation_discard_evidence')
+        proof=frame.get('revocation_evidence') or {}
+        if not proof.get('legacy_without_memory') and not all(proof.get(k) for k in ('valid_late_response','memory_transition','stored_discard')):
+            failures.append('missing_revocation_transition_evidence')
+        if frame.get('revocation_failed'):failures.append('memory_revocation')
+        if not frame.get('rows_unchanged',True):failures.append('premature_write_or_source_mutation')
+        if not frame.get('old_cards_unchanged',True):failures.append('changed_unselected_card')
+        if frame.get('foreign_disclosure'):failures.append('foreign_disclosure')
+        return {'passed':not failures,'failures':failures,'observed':observed,
+            'pending_question':bool(frame.get('question')),'control':'late-memory-revocation'}
     allowed=case['intents']+(['unclear'] if case['needs_question'] else [])
     if frame.get('intent') not in allowed:failures.append('wrong_intent')
     if case['needs_question']:
@@ -84,6 +113,14 @@ def evaluate(case,frame,fixtures):
         for phrase in expected.get('must_exclude') or []:
             if positive_phrase(semantic,phrase):failures.append('contradicted_override:'+phrase)
         if expected.get('sugar_count') and not ('sugar' in words(semantic) and re.search(r'\b(?:2|two)\b',semantic,re.I)):failures.append('sugar_amount')
+        if expected.get('sugar_count') and found.get('components'):
+            sugar=[food for food in found['components'] if 'sugar' in words(food['name'])]
+            if len(sugar)!=1:failures.append('sugar_component')
+            else:
+                food=sugar[0];label=food.get('serving_label') or '1 serving'
+                measure=re.match(r'^\s*(\d+(?:\.\d+)?)\s+(?:tsp|teaspoons?|packets?|cubes?|servings?|portions?)\b',label,re.I)
+                count=food['amount']*float(measure[1]) if measure and food['unit'] in ('serving','tsp','teaspoon','packet','cube') else None
+                if count is None or not math.isclose(count,expected['sugar_count'],abs_tol=.001):failures.append('sugar_component_amount')
         if expected.get('quantity') is not None and not reference and not analogue:
             q=expected['quantity']
             expected_unit=expected.get('unit')

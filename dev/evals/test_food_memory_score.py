@@ -43,3 +43,25 @@ drink_frame={**good,'foods':grouped,'raw_foods':[{'name':'Tea with two sugars','
 assert evaluate(drink_case,drink_frame,fixtures)['passed']
 for invalid in [group_components([tea,sugar,sugar],'Tea with two sugars'),group_components([tea,sugar,{**tea,'name':'Banana'}],'Tea with two sugars')]:
     assert not evaluate(drink_case,{**drink_frame,'foods':invalid},fixtures)['passed']
+bowl=[{**tea,'name':'White rice'},{**tea,'name':'Black beans'},{**tea,'name':'Shredded cheddar cheese'}]
+assert len(group_components(bowl,'A burrito bowl with rice, beans and cheese'))==1
+assert len(group_components(bowl+[bowl[0]],'A burrito bowl with rice, beans and cheese'))==4
+assert len(group_components(bowl+[{**tea,'name':'Burrito bowl'}],'A burrito bowl with rice, beans and cheese'))==4
+assert len(group_components(bowl+[{**tea,'name':'Banana'}],'A burrito bowl with rice, beans and cheese'))==4
+revoked_case={**case,'revoke_memory_during_response':True}
+assert not evaluate(revoked_case,good,fixtures)['passed']
+assert evaluate(revoked_case,{**good,'foods':[],'question':True,'revocation_discarded':True,'revocation_evidence':{'valid_late_response':True,'memory_transition':True,'stored_discard':True}},fixtures)['passed']
+assert not evaluate(revoked_case,{**good,'revocation_discarded':True,'revocation_failed':True},fixtures)['passed']
+assert not evaluate(revoked_case,{**good,'revocation_discarded':True,'rows_unchanged':False},fixtures)['passed']
+print('Mixed-dish components/duplicate guards and independently evidenced late-memory discard controls PASS')
+
+assert len(group_components(bowl[:2],'A burrito bowl with rice, beans and cheese'))==2
+sugar_case={'intents':['log'],'needs_question':False,'foods':[{'words':['tea'],'reference':None,'quantity':None,'analogue':None,'sugar_count':2}]}
+for amount in (1,20):
+    bad_group=group_components([tea,{**sugar,'amount':amount}],'Tea with two sugars')
+    assert not evaluate(sugar_case,{**drink_frame,'foods':bad_group},fixtures)['passed']
+assert evaluate(sugar_case,{**drink_frame,'foods':grouped},fixtures)['passed']
+for missing in ('valid_late_response','memory_transition','stored_discard'):
+    proof={'valid_late_response':True,'memory_transition':True,'stored_discard':True};proof[missing]=False
+    assert not evaluate(revoked_case,{**good,'revocation_discarded':True,'revocation_evidence':proof},fixtures)['passed']
+print('Omitted ingredients, wrong sugar components and unobserved revocation transitions rejected PASS')

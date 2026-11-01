@@ -403,4 +403,70 @@ class FoodMemory(unittest.TestCase):
             config=json.loads(send.call_args.args[0].data)['generationConfig']
             self.assertNotIn('thinkingConfig',config);self.assertEqual(config['maxOutputTokens'],2048)
 
+
+    def test_ingredient_substitution_uses_a_new_estimate_instead_of_unchanged_reference(self):
+        m=self.message('My usual latte, but oat milk instead of whole milk today');self.food()
+        with db.connect() as c:c.execute('UPDATE profile SET ai_ok=true,ai_adult_at=now(),birth_year=1990 WHERE user_id=%s',(self.ids[0],))
+        def ask(uid,message,ctx,card):return self.reading([{'name':'Latte','quantity':1,'details':'oat milk','reference_token':next(iter(ctx['sources']))}]),{},'stand-in'
+        with self.context_patches(ask):data=self.post(f"/api/food/thread/messages/{m['id']}/process",{})
+        result=next(x['result'] for x in data['messages'] if x.get('reply_to')==m['id']);part=result['parts'][0]
+        self.assertEqual(part['status'],'unknown');self.assertIn('oat milk',part['text']);self.assertNotIn('entries',part)
+
+    def test_explicit_copy_after_a_conjunction_keeps_the_requested_source(self):
+        m=self.message('My latte but with oat milk, and use Wooden robot latte nutrition exactly');self.food()
+        def ask(uid,message,ctx,card):return self.reading([{'name':'Latte','quantity':1,'details':'oat milk','reference_token':next(iter(ctx['sources']))}]),{},'stand-in'
+        with self.context_patches(ask):data=self.post(f"/api/food/thread/messages/{m['id']}/process",{})
+        part=next(x['result'] for x in data['messages'] if x.get('reply_to')==m['id'])['parts'][0]
+        self.assertEqual(part['entries'][0]['kcal'],180);self.assertIn('nutrition_from',part['entries'][0]['ref'])
+
+    def test_known_again_reference_still_receives_context_instead_of_obvious_shortcut(self):
+        m=self.message('My Wooden robot latte again');self.food()
+        def ask(uid,message,ctx,card):return self.reading([{'name':'Latte','reference_token':next(iter(ctx['sources']))}]),{},'stand-in'
+        with self.context_patches(ask),patch('app.food_thread_understand.obvious',return_value=True) as obvious:
+            data=self.post(f"/api/food/thread/messages/{m['id']}/process",{});obvious.assert_not_called()
+        part=next(x['result'] for x in data['messages'] if x.get('reply_to')==m['id'])['parts'][0];self.assertEqual(part['entries'][0]['kcal'],180)
+
+    def test_ordinary_single_latte_does_not_need_a_brand_question(self):
+        m=self.message('A latte');self.food();self.food('Maple cloud latte')
+        def ask(uid,message,ctx,card):
+            out=self.reading([{'name':'Latte','quantity':1}]);out['missing']='type';out['reply']='Which brand?'
+            return out,{},'stand-in'
+        with self.context_patches(ask):data=self.post(f"/api/food/thread/messages/{m['id']}/process",{})
+        result=next(x['result'] for x in data['messages'] if x.get('reply_to')==m['id']);self.assertEqual(result['parts'][0]['status'],'unknown')
+        self.assertTrue(result['can_resolve'])
+
+    def test_preference_bearing_two_food_list_uses_stronger_model(self):
+        from app import food_memory_understand as contextual
+        ctx={'stable':{'frequent':[],'preferences':[{'id':'1','user_said':'I prefer whole milk.'}]},'dynamic':{'matches':[],'today':[],'recent_turns':[]}}
+        message={'id':123,'client_id':str(uuid.uuid4()),'body':'A latte and a banana'}
+        with patch('app.food_photo.brake'),patch('app.food_photo.ask',return_value=({}, {}, 'stand-in')) as ask:
+            contextual.ask_model(self.ids[0],message,ctx,{'card':'No pending food','previous':'None'})
+        self.assertEqual(ask.call_args.kwargs['model_policy'],'context')
+
+
+    def test_substitution_in_the_new_name_cannot_copy_the_old_nutrition(self):
+        m=self.message('An oat milk latte instead of my usual one');self.food()
+        def ask(uid,message,ctx,card):return self.reading([{'name':'Oat milk latte','quantity':1,'reference_token':next(iter(ctx['sources']))}]),{},'stand-in'
+        with self.context_patches(ask):data=self.post(f"/api/food/thread/messages/{m['id']}/process",{})
+        part=next(x['result'] for x in data['messages'] if x.get('reply_to')==m['id'])['parts'][0]
+        self.assertNotIn('entries',part);self.assertEqual(part['status'],'unknown')
+
+    def test_one_drinks_copy_instruction_does_not_override_another_drinks_change(self):
+        m=self.message('My usual latte with oat milk instead, and a honey latte using Wooden robot latte nutrition');self.food()
+        def ask(uid,message,ctx,card):
+            token=next(iter(ctx['sources']))
+            return self.reading([{'name':'Latte','quantity':1,'details':'oat milk','reference_token':token},
+                {'name':'Honey latte','quantity':1,'reference_token':token}]),{},'stand-in'
+        with self.context_patches(ask):data=self.post(f"/api/food/thread/messages/{m['id']}/process",{})
+        parts=next(x['result'] for x in data['messages'] if x.get('reply_to')==m['id'])['parts']
+        self.assertNotIn('entries',parts[0]);self.assertEqual(parts[1]['entries'][0]['kcal'],180)
+        self.assertEqual(parts[1]['entries'][0]['name'],'Honey latte')
+
+    def test_ordinary_exact_food_still_skips_context_model(self):
+        from app import food_memory_understand as contextual
+        m=self.message('Wooden robot latte');self.food()
+        with patch('app.food_memory_understand.enabled',return_value=True),patch('app.food_thread_understand.allowed',return_value=True),\
+             patch('app.food_thread_understand.obvious',return_value=True),patch('app.food_memory_understand.ask_model') as ask:
+            self.assertIsNone(contextual.prepare(self.ids[0],m['id']));ask.assert_not_called()
+
 if __name__=='__main__':unittest.main(verbosity=2)

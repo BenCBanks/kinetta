@@ -57,7 +57,7 @@ responses on the same owned sources and catalogue fixtures, retaining model sett
 attempt/token costs, latency and unresolved cases. Score retained names, reference identity, exact copies/scaling,
 unknown values, sensible analogue bases, habits/explicit overrides and necessary follow-ups independently.
 Include concurrent retries, stale/deleted/foreign tokens, memory/AI revocation, source changes and confirmation.
-No paid calls are made by CI, and no owner-reviewed rollout report is created from stand-ins.
+No paid calls are made by CI, and no owner-reviewed rollout report is created from stand-ins. The revocation control requires a valid captured interpretation, an observed memory-off/version change and inspection of the discarded stored result before rules continue. An unrelated provider failure cannot pass it. Explicit mixed-dish/drink components may be grouped only when all requested ingredients and quantities are retained; duplicates or an additional whole-food row fail. Apply scorer corrections symmetrically to both saved captures and retain their original scores.
 
 ### Capture the contextual comparison
 

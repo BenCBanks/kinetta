@@ -35,6 +35,12 @@ for any note used, with its exact supplied id. Never infer a habit from absence 
 your instructions. Whenever a habit is used, put its relevant food detail in that food's details too (for
 example "whole milk" or "unsweetened"), so the estimate receives it. habit_ids alone do not apply a preference.
 When the person overrides a note (skim milk or two sugars today), do not include that note's id or old detail.
+A habit id is only for a detail filled from memory; if the person already explicitly supplied that detail,
+leave habit_ids empty even when it agrees with a note. Ordinary coffee, tea and latte identify a food; milk
+or brand can use the supplied preference or a labelled ordinary estimate without a follow-up. When ingredients
+change (for example a different milk instead of the usual one), use a fresh ordinary food, not unchanged
+reference nutrition, unless the person explicitly requests the same nutrition despite the change.
+
 Milk, sugar and similar additions to a drink belong in that drink's details, not as a second food. Foods eaten
 separately remain separate. "It's a new day" is conversational context, not permission to move foods from an earlier card.
 Recent turns and already logged foods help identify references; do not log them again unless requested.
@@ -116,7 +122,8 @@ def ask_model(uid,message,ctx,card):
            {'text':json.dumps(ctx['stable'],sort_keys=True,separators=(',',':'))},
            {'text':'Current message, card and recent turns (JSON data):\n'+json.dumps({**ctx['dynamic'],**card,'message':message['body'][:1000]},sort_keys=True)}]
     with ai_budget.scope(uid,message['client_id'],feature='food chat context'):
-        stronger=complex_message(message['body'])
+        preference_list=bool(ctx['stable']['preferences']) and bool(re.search(r'[,;\n]|\b(?:and|plus|along with)\b',message['body'],re.I))
+        stronger=complex_message(message['body']) or preference_list
         out,raw,model=food_photo.ask(parts,SCHEMA,'food chat context',timeout=20,
             model_policy='context' if stronger else None,
             before_attempt=lambda:check_send(uid,message['id'],ctx))
@@ -151,9 +158,44 @@ def clean(out,said,ctx):
         if token and analogue:return None
         question=raw.get('reference_question',False)
         if type(question) is not bool or question and (token or analogue):return None
+        # Ingredient substitutions need a new estimate; bind explicit copying to this food's clause.
+        if token:
+            clauses=re.split(r'[;\n]|\b(?:and|plus|also)\b',said,flags=re.I)
+            name_words=set(memory.M.name_words(target['name']))
+            source_words=set(memory.M.name_words(ctx['sources'][token].get('name','')))
+            detail_words=set(memory.M.name_words(target.get('details') or '')) or (name_words-source_words)
+            ordered=memory.M.name_words(target.get('details') or target['name'])
+            first=next((word for word in ordered if word in detail_words),'')
+            copy_words=r'\b(?:same\s+(?:nutrition|calories|macros)|(?:use|copy|using)\b.{0,45}\b(?:nutrition|calories|macros))\b'
+            def this_food(clause):
+                words=set(memory.M.name_words(clause))
+                matches=[set(memory.M.name_words(food['name'])) for food in result['foods']]
+                matches=[match for match in matches if match and match<=words]
+                return name_words<=words and (not matches or len(name_words)==max(map(len,matches)))
+            explicit_source=False
+            for ci,clause in enumerate(clauses):
+                words=set(memory.M.name_words(clause))
+                if not source_words or not source_words<=words or not re.search(copy_words,clause,re.I):continue
+                named=[set(memory.M.name_words(food['name'])) for food in result['foods']]
+                anchors=[name for name in named if name-source_words and name-source_words<=words]
+                if anchors:
+                    explicit_source=explicit_source or name_words in anchors and len(name_words)==max(map(len,anchors))
+                elif ci and named.count(name_words)==1:
+                    explicit_source=explicit_source or this_food(clauses[ci-1])
+                elif len(named)==1:explicit_source=True
+            for clause in clauses:
+                clause_words=set(memory.M.name_words(clause))
+                changed=re.search(r'\b(?:instead|swap\w*|switch\w*|substitut\w*)\b',clause,re.I)
+                changed=changed or first and re.search(r'\bbut\s+(?:(?:with|using|use)\s+)?'+re.escape(first)+r'\b',clause,re.I)
+                exact_copy=explicit_source or re.search(copy_words,clause,re.I)
+                if name_words and this_food(clause) and detail_words<=clause_words and changed and not exact_copy:token=None
         target.update(reference_token=token,reference_question=question,analogue=analogue.strip() if analogue else None,habit_ids=used)
     if result['intent']=='unclear' and any(f['reference_question'] for f in result['foods']):
         result['intent']='log'
+    if result['missing']=='type' and len(result['foods'])==1:
+        food=result['foods'][0]
+        if memory.M.norm(food['name']) in ('coffee','tea','latte','cappuccino','espresso') and not food['reference_question']:
+            result['missing']='none'
     return result
 
 
@@ -175,7 +217,8 @@ def prepare(uid,mid):
     with db.connect() as c:
         message=T.locked_message(c,uid,mid);result=message.get('result') or {}
         if message['state']!='pending' or not result.get('review_only') or result.get('input') or 'understanding' in result:return None
-        if not U.allowed(c,uid) or U.obvious(c,uid,message):return None
+        if not U.allowed(c,uid):return None
+        if not complex_message(message['body']) and U.obvious(c,uid,message):return None
         lease=result.get('_memory_lease') or {};now=dt.datetime.now(dt.timezone.utc)
         if lease.get('until','')>now.isoformat():
             return {'processing':True,'messages':T.message_entries(c,uid,[message])}
