@@ -42,6 +42,8 @@ jobs:
           KINETTA_PROJECT: kinettatest
           FEATURE_UI_SESSION: /tmp/kinetta-features-session.json
         run: |
+          npm install --prefix /tmp/card-browser playwright
+          /tmp/card-browser/node_modules/.bin/playwright install --with-deps chromium
           python3 dev/tests/admin_features_fixture.py
           python3 dev/tests/feature_consent_fixture.py
           NODE_PATH=/tmp/card-browser/node_modules node dev/tests/admin_features_ui.cjs

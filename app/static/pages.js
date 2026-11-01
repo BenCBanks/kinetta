@@ -1592,6 +1592,7 @@ route(/^\/me\/settings$/, 'me', async (el) => {
     <h2 class="sec-head">Profile &amp; sharing</h2>
     <div class="card list">${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile', 'Name, photo, bio & layout')}
       ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing &amp; privacy')}</div>
+    <div id="feature-metrics"></div>
     <h2 class="sec-head">Connections &amp; notifications</h2>
     <div class="card list">${row('a', 'href="/track/connections"', 'watch', 'c-brand', 'Connections')}
       ${row('a', 'href="/me/notifications"', 'bell', 'c-orange', 'Notifications')}<label class="row-link"><span class="ri c-brand">${svg('help')}</span><span class="grow">Show setup tips<small class="muted">Optional connection and profile reminders</small></span><input type="checkbox" id="m-setup-tips"${me.setup_hidden?'':' checked'}></label>${(me.setup_skipped||[]).length?'<button type="button" class="row-link" id="m-setup-unskip"><span class="ri c-brand">'+svg('check')+'</span><span class="grow">Bring back skipped setup steps</span></button>':''}</div>
@@ -1601,7 +1602,6 @@ route(/^\/me\/settings$/, 'me', async (el) => {
       ${row('button', 'id="m-body"', 'heart', 'c-red', 'Body & heart rate', esc([me.max_hr ? `Max HR ${me.max_hr}` : '', me.weight_kg ? `${Math.round(U.weight(me.weight_kg))} ${imp() ? 'lb' : 'kg'}` : ''].filter(Boolean).join(' · ') || 'Set up'))}</div>
     ${me.coach ? `<h2 class="sec-head">Kit</h2><div class="card" id="ai"><p class="small muted">${me.ai_paused ? 'AI is paused. Search, barcodes and manual logging still work.' : 'Optional training notes and food estimates. AI consent is separate from access.'}</p>${me.ai_access ? `<p class="small muted">Food estimates: ${me.ai_access.food?.entitled && me.ai_access.food?.available ? 'available' : 'not available'} · Coaching: ${me.ai_access.coach?.entitled && me.ai_access.coach?.available ? 'available' : 'not available'}. Manual tools stay available.</p>${me.ai_access.coach?.reason?`<p class="small muted">${esc(me.ai_access.coach.reason)}</p>`:''}` : ''}<button class="linkbtn small" id="m-ai-info">What gets shared?</button>${kitChatOn() ? `<a class="icon-btn kit-help" href="/me/kit" aria-label="Ask Kit">${svg('sparkle')}</a>` : ''}
       <div class="seg wide" role="group" aria-label="AI features"><button data-ai="1" aria-pressed="${!!me.ai_ok}">On</button><button data-ai="0" aria-pressed="${!me.ai_ok}">Off</button></div></div>` : ''}
-    <div id="feature-metrics"></div>
     <h2 class="sec-head">Your data</h2>
     <div class="card list">${row('button', 'id="m-kit-memory"', 'sparkle', 'c-green', 'What Kit remembers', 'View or remove')}${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}
       ${row('a', 'href="https://kinetta.app/terms" target="_blank" rel="noopener"', 'shield', 'c-green', 'Terms of Use')}
