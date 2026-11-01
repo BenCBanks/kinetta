@@ -28,8 +28,8 @@ Regular page Back controls use the previous app entry when its account and local
 | `/people/{login}` | Me for your own profile, Friends for another profile |
 | `/add/{invite}` | Activity |
 | `/card/{card}`, including expired cards | Friends |
-| `/me/challenges` | Friends; full challenge discovery remains on Activity |
-| `/me/challenges/{challenge}`, `/challenge/{challenge}` | Challenges |
+| `/me/challenges` | Activity; Challenges is available from its header for every account |
+| `/me/challenges/{challenge}`, `/challenge/{challenge}` | Activity; explicit parent remains Activity even after another entry path |
 | `/me/settings` | Me |
 | `/me/people` | Me; administrator access is unchanged |
 | `/me/import`, `/track/import` | Existing import route goes to Track |

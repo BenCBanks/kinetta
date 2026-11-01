@@ -56,14 +56,19 @@ const Challenges=(()=>{
       };
     });
   }
+  function summary(items){
+    const active=items.filter(q=>q.member&&q.self&&!q.self.finished).sort((a,b)=>(a.self.days_left??Infinity)-(b.self.days_left??Infinity));
+    return active.length?{active,count:active.length,first:active[0],progress:number(active[0].self.value,active[0].unit)+' / '+total(active[0])}:null;
+  }
+  const activityBack=el=>{el.classList.add('has-back');el._backFallback='/activity';return `<a class="back" href="/activity" data-back data-challenge-back aria-label="Back to Activity">${svg('back')}<span>Activity</span></a>`;};
   async function mount(node,{me=false}={}){
-    if(!node)return;const owner=readOwner();try{const items=await api('/api/challenges');if(!node.isConnected||owner!==readOwner())return;const active=items.filter(q=>q.member&&!q.self.finished);
-      if(me){node.innerHTML=active.length?`<div class="card list"><a class="row-link" href="/me/challenges"><span class="ri">${svg('people')}</span><span class="grow"><b>Challenges</b><small>${active.length} active · ${number(active[0].self.value,active[0].unit)} / ${total(active[0])}</small></span><span class="chev">${svg('chev')}</span></a></div>`:'';return;}
+    if(!node)return;const owner=readOwner();try{const items=await api('/api/challenges');if(!node.isConnected||owner!==readOwner())return;const glance=summary(items),active=glance?.active||[];
+      if(me){node.innerHTML=glance?`<div class="card list"><a class="row-link" href="/me/challenges"><span class="ri">${svg('people')}</span><span class="grow"><b>Challenges</b><small>${glance.count} active · ${glance.progress}</small></span><span class="chev">${svg('chev')}</span></a></div>`:'';return;}
       node.innerHTML=`<section class="challenge-section"><h2 class="sec-head">Challenges</h2>${active.length?`<div class="card list">${active.map(q=>`<a class="row-link" href="${path(q)}"><span class="grow"><b>${esc(q.title)}</b><small>${number(q.self.value,q.unit)} / ${total(q)}</small></span><span class="chev">${svg('chev')}</span></a>`).join('')}</div>`:''}<button type="button" class="ghost wide" data-start-challenge>Start a challenge</button><a class="linkbtn wide" href="/me/challenges">All your challenges</a></section>`;$('[data-start-challenge]',node).onclick=create;
     }catch(_){if(node.isConnected&&owner===readOwner()&&!me)node.innerHTML='<a class="ghost wide" href="/me/challenges">Open challenges</a>';}
   }
   async function page(el,code){
-    const owner=readOwner();el.innerHTML=`<div class="top">${backBtn('Challenges')}</div><div id="challenge-detail">${skel(2)}</div>`;wireBack(el,'/me/challenges');let busy=false,generation=0;
+    const owner=readOwner();el.innerHTML=`<div class="top">${activityBack(el)}</div><div id="challenge-detail">${skel(2)}</div>`;let busy=false,generation=0;
     const live=()=>el.isConnected&&owner===readOwner();
     async function load(initial=false){if(busy)return;busy=true;const stamp=++generation;try{const q=await fetchOne(code);if(!live()||stamp!==generation||(!initial&&el._challengePress))return;draw(q);if(initial&&new URLSearchParams(location.search).get('invite')==='1'){history.replaceState(null,'',path(q));share(q);}}
       catch(error){if(live()&&stamp===generation){if(initial)showError($('#challenge-detail',el),error);else{const status=$('#challenge-page-status',el);if(status)status.textContent='Couldn’t refresh. Your displayed progress may be out of date. '+error.message;}}}finally{busy=false;}}
@@ -90,10 +95,10 @@ const Challenges=(()=>{
     try{const result=await api('/api/challenges/signup/continue',json('POST',{}));if(result.joined&&owner===readOwner()&&location.pathname===before){invalidate('/api/challenges');if(['/me','/welcome'].includes(before))go('/me/challenges/'+encodeURIComponent(result.joined));else if(before==='/me/challenges/'+result.joined)render();}}
     catch(_){/* The confirmed join intent is also retried by the server. */}
   }
-  return{create,mount,page,picture,number,resumeSignup};
+  return{create,mount,page,picture,number,summary,activityBack,resumeSignup};
 })();
-route(/^\/me\/challenges$/,'me',async el=>{
-  const owner=readOwner();el.innerHTML=`<div class="top">${backBtn('Friends')}</div><h1>Challenges</h1><p>Small, friendly goals to do together.</p><button type="button" class="primary wide" id="challenge-start">Start a challenge</button><div id="challenge-list">${skel(1)}</div>`;wireBack(el,'/me/friends');$('#challenge-start',el).onclick=Challenges.create;
+route(/^\/me\/challenges$/,'activity',async el=>{
+  const owner=readOwner();el.innerHTML=`<div class="top">${Challenges.activityBack(el)}</div><h1>Challenges</h1><p>Small, friendly goals to do together.</p><button type="button" class="primary wide" id="challenge-start">Start a challenge</button><div id="challenge-list">${skel(1)}</div>`;$('#challenge-start',el).onclick=Challenges.create;
   try{const items=await api('/api/challenges');if(!el.isConnected||owner!==readOwner())return;$('#challenge-list',el).innerHTML=items.length?`<div class="card list">${items.map(q=>`<a class="row-link" href="/me/challenges/${encodeURIComponent(q.code)}"><span class="grow"><b>${esc(q.title)}</b><small>${q.member?'':'You left · '}${Challenges.number(q.self.value,q.unit)} / ${Challenges.number(q.target,q.unit)} ${q.unit}${q.self.finished?' · Finished':''}</small></span><span class="chev">${svg('chev')}</span></a>`).join('')}</div>`:'<p class="muted">No challenges yet. Start one or join an invitation.</p>';}catch(e){if(el.isConnected&&owner===readOwner())showError($('#challenge-list',el),e);}
 });
-route(/^\/(?:me\/challenges|challenge)\/([A-Za-z0-9_-]{1,60})$/,'me',(el,code)=>Challenges.page(el,code));
+route(/^\/(?:me\/challenges|challenge)\/([A-Za-z0-9_-]{1,60})$/,'activity',(el,code)=>Challenges.page(el,code));

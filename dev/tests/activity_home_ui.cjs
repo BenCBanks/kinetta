@@ -5,7 +5,7 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
 (async()=>{
  cp.execFileSync('python3',[path.join(__dirname,'activity_fixture.py')],{env:process.env,stdio:'inherit'});
- const b=await chromium.launch();try{for(const who of ['empty','typical','heavy'])for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){
+ const b=await chromium.launch();try{for(const who of ['empty','typical','heavy','established'])for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){
   if(process.env.KINETTA_ACTIVITY_CASE&&process.env.KINETTA_ACTIVITY_CASE!==`${who}-${size.width}-${theme}`)continue;
   const c=await b.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});
   assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_feed_'+who,password:pw}})).status(),200);
@@ -15,11 +15,14 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(/\/api\/activities\/\d+\/reaction$/.test(u.pathname))return r.continue();return r.fulfill({json:{}});}return r.continue();});
   await p.goto(base+'/activity');const ready=()=>until(p,()=>App.pageReady&&!!document.querySelector('#ff-list')&&document.querySelector('#feed-tools')?.getAttribute('aria-busy')==='false','social tools and feed ready');await ready();
   assert.equal(await p.locator('h1').innerText(),'Activity');assert.equal(await p.locator('a[aria-label="Find friends"],[data-activity-feature=find]').count(),1,'one Find friends entry');
-  assert.equal(await p.locator('.feed-low').count(),who==='heavy'?0:1);assert.equal(await p.locator('.feed-discovery').count(),0,'old full-width duplicate is gone');
+  assert.equal(await p.locator('.feed-low').count(),['heavy','established'].includes(who)?0:1);assert.equal(await p.locator('.feed-discovery').count(),0,'old full-width duplicate is gone');
   assert((await p.locator('.feed-social-strip a').count())<=4);if(who==='empty')assert.equal(await p.locator('.feed-social-strip').count(),0);
-  if(who!=='heavy'){assert.match(await p.locator('#feed-discovery a').first().innerText(),/Find friends/);assert.equal(await p.locator('#feed-discovery').evaluate(n=>getComputedStyle(n).gridTemplateColumns.split(' ').length),2);}
-  if(who!=='empty')assert.match(await p.locator('[data-feed-tool=requests]').innerText(),/1 request/);
-  if(who==='heavy')assert.match(await p.locator('[data-feed-tool=challenges]').innerText(),/days left/);
+  if(!['heavy','established'].includes(who)){assert.match(await p.locator('#feed-discovery a').first().innerText(),/Find friends/);assert.equal(await p.locator('#feed-discovery').evaluate(n=>getComputedStyle(n).gridTemplateColumns.split(' ').length),2);}
+  assert.equal(await p.locator('[data-feed-tool=requests],[data-feed-tool=invite]').count(),0,'Invite and requests stay on Friends');
+  assert.equal(await p.locator('[data-feed-challenges]').count(),1,'Challenges stays reachable after discovery');
+  if(who==='established'){assert.equal(await p.locator('#feed-tools').innerText(),'');const gap=await p.evaluate(()=>document.querySelector('#ff-list .post').getBoundingClientRect().top-document.querySelector('#feed-top .top').getBoundingClientRect().bottom);assert(Math.abs(gap-16)<1,'No empty row; first card16px below header');}
+  if(who==='heavy'){assert.match(await p.locator('[data-feed-tool=challenges]').innerText(),/days? left|Ends today|Goal reached/);assert.match(await p.locator('[data-feed-tool=challenges]').innerText(),/\d+ \/ 4 days/);assert((await p.locator('[data-feed-tool=challenges]').boundingBox()).height>=56);}
+  const headerGaps=await p.locator('#feed-top .acts').evaluate(e=>{const a=[...e.children].map(n=>n.getBoundingClientRect()).sort((a,b)=>a.left-b.left);return a.slice(1).map((r,i)=>r.left-a[i].right);});assert(headerGaps.every(g=>g>=8),'Header actions retain8px gaps, including enlarged330px');
   const ids=await p.locator('#ff-list .post').evaluateAll(nodes=>nodes.map(n=>Number(n.dataset.href.split('/').at(-1))));assert(privateIds.every(id=>ids.includes(id)),'own private workouts remain in Activity');for(const id of privateIds){const card=p.locator(`#ff-list .post[data-href="/activity/${id}"]`);assert.equal(await card.locator('.post-private[aria-label="Only you can see this"] svg').count(),1,'own private subtitle has the accessible lock');}assert.equal(await p.locator('.post[data-href^="/activity/friends/"] .post-private').count(),0,'no other private card appears');assert(!/Fictional private noodles|121\.7|999/.test(await p.locator('#page').innerText()),'no food/body values');assert.equal(await p.locator('[href="/people/zz_test_feed_blocked"]').count(),0);
   if(original[0]&&original[0].start_time.slice(0,10)===new Date().toISOString().slice(0,10))assert(!/Today/.test(await p.locator(`#ff-list .post[data-href="/activity/${original[0].id}"] .post-hd small`).innerText()),'today subtitle uses the short time');
   assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no page overflow');
@@ -36,9 +39,36 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    await mapHandle.dispose();
    if(who==='heavy'){const before=await p.locator('#ff-list .post').count();await p.locator('#ff-more').click();await until(p,n=>document.querySelectorAll('#ff-list .post').length>n,'pagination',before);assert(await p.evaluate(()=>globalThis.feedMapFixture===document.querySelector('#ff-list .post .fmap')),'pagination retains existing map');}
   }
-  const invite=p.locator('[data-activity-feature=invite],[data-feed-tool=invite]').first();await invite.click();await p.waitForSelector('.card-preview');await p.keyboard.press('Escape');assert.equal(new URL(p.url()).pathname,'/activity');
-  if(who!=='heavy'){await p.locator('[data-activity-feature=challenge]').click();await p.waitForSelector('.challenge-templates');await p.keyboard.press('Escape');assert.equal(new URL(p.url()).pathname,'/activity');}
+  if(!['heavy','established'].includes(who)){const invite=p.locator('[data-activity-feature=invite]').first();await invite.click();await p.waitForSelector('.card-preview');await p.keyboard.press('Escape');assert.equal(new URL(p.url()).pathname,'/activity');}
+  if(!['heavy','established'].includes(who)){await p.locator('[data-activity-feature=challenge]').click();await p.waitForSelector('.challenge-templates');await p.keyboard.press('Escape');assert.equal(new URL(p.url()).pathname,'/activity');}
+  if(who==='heavy'&&size.width===390&&theme==='light'){
+   const own=(await(await c.request.get(base+'/api/challenges')).json())[0];assert(own);
+   const checkState=async(items,text)=>{await c.route('**/api/challenges',r=>r.fulfill({json:items}),{times:1});await p.evaluate(()=>void document.querySelector('#page').refresh());await until(p,()=>document.querySelector('#feed-tools')?.getAttribute('aria-busy')==='false','summary refresh');if(text)assert.match(await p.locator('.challenge-summary').innerText(),text);else assert.equal(await p.locator('.feed-social-strip').count(),0);};
+   await checkState([{...own,self:{...own.self,value:own.target,complete:true,finished:false}}],/Goal reached/);
+   await checkState([own,{...own,code:'fictional_second',self:{...own.self,days_left:8}}],/2 challenges/);
+   const future=new Date(Date.now()+86400000).toISOString().slice(0,10);await checkState([{...own,start:future,self:{...own.self,days_left:8}}],/Starts/);
+   await checkState([{...own,self:{...own.self,finished:true}}],null);await p.evaluate(()=>document.querySelector('#page').refresh());await ready();
+  }
+  if(who==='established'&&size.width===390&&theme==='light'){
+   await c.route('**/api/challenges',r=>r.fulfill({status:503,json:{detail:'Fictional challenge read unavailable'}}),{times:1});await p.evaluate(()=>document.querySelector('#page').refresh());await ready();assert.equal(await p.locator('[data-feed-challenges]').count(),1);assert.equal(await p.locator('.feed-social-strip').count(),0);
+  }
+  await p.locator('[data-feed-challenges]').click();await p.locator('#challenge-start').waitFor();assert.equal(await p.locator('[data-challenge-back]').innerText(),'Activity');assert.equal(await p.locator('[data-challenge-back]').getAttribute('href'),'/activity');assert.equal(await p.locator('nav.tabs a[data-tab=activity]').getAttribute('aria-current'),'page');
+  await p.locator('#challenge-start').click();await p.locator('.challenge-templates').waitFor();await p.keyboard.press('Escape');
+  if(who==='heavy'){
+   await p.locator('#challenge-list a').first().click();await p.locator('#challenge-refresh').waitFor();assert.equal(await p.locator('[data-challenge-back]').innerText(),'Activity');
+   if(size.width===390&&theme==='light'){
+    const code=new URL(p.url()).pathname.split('/').at(-1);
+    await p.goto(base+'/me/challenges/'+code);await p.locator('#challenge-refresh').waitFor();assert.equal(await p.locator('[data-challenge-back]').innerText(),'Activity');assert.equal(await p.locator('nav.tabs a[data-tab=activity]').getAttribute('aria-current'),'page');
+    await p.goto(base+'/challenge/'+code);await p.getByRole('link',{name:'Open challenge',exact:true}).click();await p.locator('#challenge-refresh').waitFor();assert.equal(await p.locator('[data-challenge-back]').getAttribute('href'),'/activity');
+   }
+  }
+  await p.locator('[data-challenge-back]').click();await ready();
+  if(who==='heavy'&&size.width===390&&theme==='light'){
+   const hold=async()=>{let release;await c.route('**/api/challenges',async r=>{const response=await r.fetch();await new Promise(resolve=>release=()=>r.fulfill({response}).then(resolve));},{times:1});await p.evaluate(()=>{document.querySelector('#page').refresh().catch(()=>{});});for(let n=0;n<100&&!release;n++)await p.waitForTimeout(20);assert(release,'challenge response held');return release;};
+   let release=await hold();await p.evaluate(()=>go('/me/friends'));await p.locator('#fr-title').waitFor();await release();await p.waitForTimeout(100);assert.equal(await p.locator('.feed-social-strip').count(),0,'late feed response does not enter Friends');assert.equal(await p.locator('a[href="/me/challenges"]').count(),0);
+   await p.evaluate(()=>go('/activity'));await ready();release=await hold();assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_feed_established',password:pw}})).status(),200);await p.evaluate(()=>{App.me=null;App.cache.clear();showLogin();});await p.goto(base+'/activity');await ready();await release();await p.waitForTimeout(100);assert.equal(await p.evaluate(()=>App.me.login),'zz_test_feed_established');assert.equal(await p.locator('.feed-social-strip').count(),0,'late former-owner progress is discarded');
+  }
   assert.deepEqual(errors,[]);assert(!writes.some(w=>!/\/api\/activities\/\d+\/reaction$/.test(w)&&w!=='/api/challenges/signup/continue'));console.log(`Activity ${who} ${size.width}/${size.root} ${theme}: discovery/strip, own private lock/privacy, compact media/reactions and map reuse PASS`);await c.close();
  }
- }finally{for(const who of ['empty','typical','heavy',...Array.from({length:6},(_,i)=>'friend'+i),'pending','blocked']){const c=await b.newContext();try{const r=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_feed_'+who,password:pw}});if(r.ok())await c.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password:pw}});}finally{await c.close();}}await b.close();}
+ }finally{for(const who of ['empty','typical','heavy','established',...Array.from({length:6},(_,i)=>'friend'+i),'pending','blocked']){const c=await b.newContext();try{const r=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_feed_'+who,password:pw}});if(r.ok())await c.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password:pw}});}finally{await c.close();}}await b.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
