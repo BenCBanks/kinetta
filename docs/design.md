@@ -1416,20 +1416,23 @@ Every week keeps a 44px tap target and an accessible name with dates and distanc
 narrower rails keep scrolling, with small indicators in the card padding instead of a fade over the bars.
 Large numbers use thousands separators everywhere on the card and shared profile (3,044 · 11,784 mi · Run · 2,938);
 100 or more hours show whole hours ("1,546h"). Recent and all-time figures share one quiet block and one visible
-set of metric labels; distance units belong to the heading. Narrow/enlarged cards pair both periods under each
-metric so Activities never splits and Time remains visible. Numbers stay unbroken and 20 px at the default root.
+set of metric labels; distance units belong to the heading. Cards at 320–430 px use the paired presentation,
+with metric labels beside both periods; enlarged layouts put the label above the pair so every value stays visible.
+Time uses hours in this presentation, with its precise duration retained in the accessible label and tooltip.
+Tiny positive durations stay positive; longer-form times keep a thin space between units and retain locale grouping.
+Numbers stay unbroken and 20 px at the default root.
 The recent date range stays in its accessible label. Custom nonadjacent section orders remain separate;
 independent section visibility, selected metrics/sports and identity-only layouts still work.
 
 Friends shares the handle line, retaining a 44 px target and pending requests. Sport summaries use plain 13 px
 secondary text and existing sport icons in one scrolling row, without grey pills. Overflow is keyboard reachable
 with 44 px targets. Card padding and section gaps are 16 px; the shared-activities link is a 48 px single-line row.
-The shorter lock explanation wraps completely and can scroll clear of the tab bar. Banner, photo, Edit/Share,
+The one-line lock explanation reads “Private totals, no details”; its screen-reader text and tooltip retain the full friends/private-details explanation. It fits the card and can scroll clear of the tab bar. Banner, photo, Edit/Share,
 the Days/Weeks controls and the top gap remain intact.
 
 The empty owner Me card offers Set a goal, opening the existing add form in one tap. Opening saves nothing;
-the one-shot query is consumed so Cancel/refresh does not reopen it. Recent milestones have one app-only footer
-row after the shared summary, marked Only you, showing the latest offer. See all opens a sheet; every offer opens
+the one-shot query is consumed so Cancel/refresh does not reopen it. Recent milestones have one quiet app-only footer
+line after the shared summary, marked Only you, showing the latest offer. See all opens a sheet; every offer opens
 its existing share preview. No offers means no row. Milestones never enter shared profiles or card pictures;
 old `/me/milestones` links redirect to Me. Existing preview, privacy, revalidation and sharing-confirmation rules remain.
 

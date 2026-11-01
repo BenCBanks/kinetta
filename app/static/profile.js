@@ -66,7 +66,7 @@ const MeCard=(()=>{
       <div class="me-card-body"><div class="me-card-id">${link?`<a class="me-card-avatar" href="${profileHref(p)}" aria-label="View your shared profile">${photo}</a>`:`<span class="me-card-avatar">${photo}</span>`}<div class="me-card-name"><h2>${esc(p.name||p.login)}</h2><div class="me-card-meta"><span data-type="secondary">@${esc(p.login)}</span>${friends}</div></div></div>
         ${bio?bio.length>140?`<details class="me-about"><summary>About me</summary><p>${esc(bio)}</p></details>`:`<p class="me-profile-bio">${esc(bio)}</p>`:''}
         <div class="me-card-sections" aria-busy="true">${skel(1)}</div>
-        ${mine?`<p class="me-card-note">${svg('lock')}<span>Friends see this card. Private workouts count in totals, never in detail.</span></p>`:''}${milestones?'<div data-me-milestones hidden></div>':''}</div></section>`;
+        ${mine?`<p class="me-card-note">${svg('lock')}<span aria-hidden="true" title="Friends see this card. Private workouts count in totals, never in detail.">Private totals, no details</span><span class="vh">Friends see this card. Private workouts count in totals, never in detail.</span></p>`:''}${milestones?'<div data-me-milestones hidden></div>':''}</div></section>`;
   }
   const ownPills=()=>`<button type="button" class="me-card-pill" data-card-edit>${svg('edit')}Edit</button><button type="button" class="me-card-pill" data-card-share aria-label="Share your profile">${svg('share')}</button>`;
   function ownFriends(count){
@@ -97,13 +97,17 @@ const MeCard=(()=>{
     // Combine the default presentation or adjacent periods; keep custom nonadjacent section ordering intact.
     const combined=periods.length===2&&(Math.abs(layout.sections.indexOf('recent')-layout.sections.indexOf('totals'))===1||layout.sections.every((k,i,a)=>!i||order.indexOf(k)>order.indexOf(a[i-1])));
     const periodName=k=>k==='recent'?'Last <span>30 days</span>':'<span>All time</span>',periodRange=k=>k==='recent'?`Last 30 days, ${short(r.recent.start)} – ${short(r.recent.end)}`:'All time';
-    const heading=stat=>ProfileLayout.labels.stats[stat]+(stat==='distance'?`<small> (${esc(U.du())})</small>`:'');
-    const number=(k,stat)=>{const row=k==='recent'?r.recent.current:r.overview,field={activities:'activities',distance:'distance_m',time:'time_s',active_days:'active_days'}[stat],n=row[field],value=n==null?'—':stat==='distance'?ProfileLayout.distance(n):stat==='time'?ProfileLayout.hours(n).replace(/\s+/g,''):Number(n).toLocaleString();return `<b class="me-metric-value" data-type="stat">${esc(value)}</b>`;};
+    const heading=(stat,paired=false)=>ProfileLayout.labels.stats[stat]+(stat==='distance'?`<small> (${esc(U.du())})</small>`:paired&&stat==='time'?'<small> (h)</small>':'');
+    const number=(k,stat,paired=false)=>{
+      const row=k==='recent'?r.recent.current:r.overview,field={activities:'activities',distance:'distance_m',time:'time_s',active_days:'active_days'}[stat],n=row[field];let value=n==null?'—':stat==='distance'?ProfileLayout.distance(n):stat==='time'?ProfileLayout.hours(n).replace(/([hms])\s+(?=\d)/g,'$1\u202f'):Number(n).toLocaleString();
+      if(paired&&stat==='time'&&n!=null){const h=n/3600;value=h>0&&h<.005?'<0.01':(h>=100?Math.floor(h):h).toLocaleString(undefined,{maximumFractionDigits:h>=100?0:h>=1?1:2});}
+      return `<b class="me-metric-value" data-type="stat"${paired&&stat==='time'&&n!=null?` title="${esc(dur(n,true))}"`:''}>${esc(value)}</b>`;
+    };
     const figures=keys=>{
       const id='me-stats-'+keys.join('-');
       // Narrow cards pair the two periods for each metric: every value stays visible, with one set of labels.
       return `<div class="me-card-sec me-stat-group"><div class="me-summary-scroll me-stat-wide"><div class="me-stats-scroll" role="region" aria-label="Workout totals"><table class="me-stats" aria-label="Workout totals"><thead data-type="secondary"><tr><th scope="col" aria-label="Period"></th>${layout.stats.map(k=>`<th scope="col">${heading(k)}</th>`).join('')}</tr></thead><tbody>${keys.map(k=>`<tr data-card-period="${k}"><th scope="row" data-type="secondary" aria-label="${esc(periodRange(k))}">${periodName(k)}</th>${layout.stats.map(stat=>`<td>${number(k,stat)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>
-      <table class="me-stat-pairs" aria-label="Workout totals"><thead data-type="secondary"><tr>${keys.map(k=>`<th scope="col" id="${id}-${k}" data-card-pair-period="${k}" aria-label="${esc(periodRange(k))}">${periodName(k)}</th>`).join('')}</tr></thead>${layout.stats.map(stat=>`<tbody data-card-pair-metric="${stat}"><tr><th scope="rowgroup" id="${id}-${stat}" colspan="${keys.length}" data-type="secondary">${heading(stat)}</th></tr><tr>${keys.map(k=>`<td headers="${id}-${stat} ${id}-${k}" data-card-value-period="${k}">${number(k,stat)}</td>`).join('')}</tr></tbody>`).join('')}</table></div>`;
+      <table class="me-stat-pairs${keys.length===1?' me-pairs-one':''}" role="table" aria-label="Workout totals"><thead role="rowgroup" data-type="secondary"><tr role="row"><th class="me-pair-corner" scope="col" role="columnheader" aria-label="Metric"></th>${keys.map(k=>`<th scope="col" role="columnheader" id="${id}-${k}" data-card-pair-period="${k}" aria-label="${esc(periodRange(k))}">${periodName(k)}</th>`).join('')}</tr></thead>${layout.stats.map(stat=>`<tbody role="rowgroup" data-card-pair-metric="${stat}"><tr role="row"><th scope="row" role="rowheader" id="${id}-${stat}" data-type="secondary">${heading(stat,true)}</th>${keys.map(k=>`<td role="cell" headers="${id}-${stat} ${id}-${k}" data-card-value-period="${k}"${stat==='time'&&(k==='recent'?r.recent.current:r.overview).time_s!=null?` aria-label="${esc(dur((k==='recent'?r.recent.current:r.overview).time_s,true))}"`:''}>${number(k,stat,true)}</td>`).join('')}</tr></tbody>`).join('')}</table></div>`;
     };
     return layout.sections.map(key=>{
       if(key==='recent'||key==='totals')return !periods.includes(key)||combined&&key!==periods[0]?'':figures(combined?periods:[key]);
@@ -124,8 +128,8 @@ const MeCard=(()=>{
     const chartPositions=new Map();
     function chartScroll(){
       chartCleanup();
-      const summaries=$$('.me-summary-scroll',box).map(frame=>{
-        const rail=frame.firstElementChild,update=()=>{if(!live()||!frame.isConnected)return;const max=rail.scrollWidth-rail.clientWidth;frame.classList.toggle('has-before',rail.scrollLeft>1);frame.classList.toggle('has-after',max-rail.scrollLeft>1);rail.tabIndex=max>1?0:-1;};
+      const summaries=$$('.me-summary-scroll,.me-stat-group',box).map(frame=>{
+        const rail=frame.classList.contains('me-stat-group')?frame:frame.firstElementChild,update=()=>{if(!live()||!frame.isConnected)return;const max=rail.scrollWidth-rail.clientWidth;frame.classList.toggle('has-before',rail.scrollLeft>1);frame.classList.toggle('has-after',max-rail.scrollLeft>1);rail.tabIndex=max>1?0:-1;};
         const observer=new ResizeObserver(update);observer.observe(rail);rail.addEventListener('scroll',update,{passive:true});update();let cleaned=false;
         const cleanup=()=>{if(cleaned)return;cleaned=true;observer.disconnect();rail.removeEventListener('scroll',update);viewResources.delete(rail);};viewResources.set(rail,cleanup);return cleanup;
       });

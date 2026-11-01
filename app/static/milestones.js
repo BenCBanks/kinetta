@@ -35,7 +35,7 @@ const Milestones=(()=>{
     if(!items.length)return;const first=items[0],refresh=()=>{if(node.isConnected&&owner===readOwner())mount(node,{params,row,onChange});onChange?.();};
     if(row){
       const latest=[...items].sort((a,b)=>(Date.parse(b.occurred||b.day)||0)-(Date.parse(a.occurred||a.day)||0)),item=latest[0];
-      node.innerHTML=`<div class="me-milestone-row"><button type="button" class="me-milestone-latest" aria-label="Only you: ${esc(item.title)}. Review share picture">${svg('trophy')}<span class="grow"><small>Only you</small><span>${esc(item.title)}</span></span></button>${items.length>1?'<button type="button" class="me-milestone-all">See all</button>':''}</div>`;
+      node.innerHTML=`<div class="me-milestone-row"><button type="button" class="me-milestone-latest" aria-label="Only you: ${esc(item.title)}. Review share picture">${svg('trophy')}<small>Only you</small><span>${esc(item.title)}</span></button>${items.length>1?'<button type="button" class="me-milestone-all">See all</button>':''}</div>`;
       $('.me-milestone-latest',node).onclick=()=>{if(owner===readOwner())open(item,refresh);};
       const all=$('.me-milestone-all',node);if(all)all.onclick=()=>{if(owner===readOwner())more(latest,refresh);};return;
     }
