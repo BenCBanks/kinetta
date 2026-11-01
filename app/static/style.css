@@ -2983,3 +2983,12 @@ html.keyboard-open .thread-quick-actions {display:none;}
 #ai > .seg { margin-top:8px; }
 
 .progress-tile-name b { overflow-wrap:anywhere; }
+
+/* Compact metric labels leave the three overview values on the same baseline. */
+.progress-home-totals .stats3 .stat small { text-transform:none;letter-spacing:0; }
+
+/* Shared rows align all summary values when an enlarged label needs two lines. */
+.progress-home-totals .stats3 { row-gap:0;align-items:start; }
+.progress-home-totals .stats3 > .stat { display:contents; }
+.progress-home-totals .stats3 > .stat > small { grid-row:1; }
+.progress-home-totals .stats3 > .stat > b { grid-row:2; }

@@ -12,7 +12,7 @@
 .compact-lift .lift-ex { padding:16px; margin-bottom:12px; }
 .compact-lift .lift-hd { gap:8px; margin:0; }
 .lift-title-line { display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-width:0; flex:1; }
-.compact-lift .lift-name { min-height:44px; font-size:max(16px,1rem); }
+.compact-lift .lift-name { min-height:44px;min-width:44px; font-size:max(16px,1rem); }
 .compact-lift .lift-note { margin:0; padding:0; min-height:44px; border:0; background:none; color:var(--tx2); font-size:max(15px,.9375rem); text-align:left; overflow-wrap:anywhere; }
 .compact-lift .lift-note::before { content:'· '; }
 .compact-lift .lift-sets { gap:8px; margin-top:8px; }
