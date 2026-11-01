@@ -1646,12 +1646,14 @@ settings use the lighter divider border and quieter text; at390px the ordinary I
 voice/auto-pause. Long preset names shorten inside their pill while retaining the full accessible label and title.
 At330px with enlarged text the recording pills can use separate single-line rows. The global me-chip style stays.
 
-Main's five titles already align within one pixel in both themes with0 and59px simulated top safe areas. Their
-bounding boxes start16.53–17.5px below that inset. Native automatic content insets are already disabled, so no extra
-40–50px CSS band or double inset was reproduced. Shared shell padding and native inset configuration therefore need
-no change on that evidence; the physical owner observation remains a separate check. Regression checks retain the
-activity-detail map hero under the status area. The More picker already has the same sport icons; the GPS badge
-remains a distinct, readable map overlay. Recording, settings, privacy and other launch tools keep their behavior.
+Real compact/Pro Simulator measurements (#410, 1 November) confirm the WebView fills the window, automatic
+content insets are zero, and CSS counts the safe area once (20pt compact, 62pt Pro). The shell added an extra 10pt
+before each title row. Native pages now omit that extra gap; browser pages retain 10px. Shared sticky-header,
+map-edge and live-height calculations use the same gap so map heroes still reach the screen edge and controls
+still clear the actual safe area. Native regression checks all five title positions, UIKit geometry and 44px
+header targets in both themes. The existing map, larger-text, recipe/food and live-recording cases remain.
+The More picker retains its sport icons and the GPS badge its readable map overlay. Recording and privacy
+behavior are unchanged; physical iPhone acceptance remains separate.
 
 The later31October spacing rule keeps8px between quick activities, More and recording pills. Common targets stay44px, giving52px minimum pitch. The primary plan link itself gets a 44px target. Two-line More choices use56px rows and8px separation. Track discovery cards use16px padding and12px grid gaps. The31px iPhone-shaped Spoken updates switch stays visually intact inside a 44px-high label target; Auto-pause already had a full-row label. Control labels use15px and secondary notes at least13px. These are scoped spacing/activation changes; no recording preference or GPS behavior changes.
 
@@ -1808,3 +1810,12 @@ See `dev/tests/README.md` for local use and deliberate-regression checks. Browse
 from signed iPhone/device acceptance.
 
 Route/record annotations and Last-set history are secondary data inside their full44px hit areas. Plain action labels retain15–16px type. App title tokens use28px at the default root, within the28–32px range, to preserve compact phone headers.
+
+
+## Small-phone navigation labels · 1 November 2026 (#480)
+
+Long tab labels can claim their intrinsic width while shorter targets share the remaining space. At 330px,
+labels keep 13px text with slight negative letter spacing; targets stay at least 44px with 8px gaps. The unread
+badge stays within its target even when that target is 44px. The browser navigation matrix checks every tab,
+both themes, normal/enlarged text, label bounds, target size, gaps, contrast, keyboard drafts and content
+clearance before merge. The existing screenshot workflow also runs when that navigation test changes.

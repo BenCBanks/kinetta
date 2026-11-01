@@ -1,7 +1,7 @@
 """Instrument a disposable unsigned Simulator bundle; never modify source or the original build."""
 import argparse,json,shutil,subprocess,uuid
 from pathlib import Path
-p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('destination',type=Path);p.add_argument('--stage',choices=['recipe','review','food','track-live','track-review','track-map','activity','activity-sticky','activity-empty','activity-map','friends-empty','friends-typical','friends-heavy'],required=True);p.add_argument('--root',type=int,default=16);p.add_argument('--run',required=True);p.add_argument('--update',action='store_true');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('destination',type=Path);p.add_argument('--stage',choices=['recipe','review','food','track-live','track-review','track-map','activity','activity-sticky','activity-empty','activity-map','friends-empty','friends-typical','friends-heavy','header-me','header-activity','header-track','header-progress','header-food'],required=True);p.add_argument('--root',type=int,default=16);p.add_argument('--run',required=True);p.add_argument('--update',action='store_true');a=p.parse_args()
 assert a.source.suffix=='.app' and a.source.is_dir()
 assert a.destination.suffix=='.app' and a.destination.resolve()!=a.source.resolve()
 if a.update:
@@ -12,6 +12,7 @@ else:
 public=a.destination/'public';index=public/'index.html';assert index.is_file()
 fixture=Path(__file__).parent
 config={'stage':a.stage,'root':a.root,'run':a.run}
+if a.stage.startswith('header-'):config['headerPage']=a.stage.removeprefix('header-')
 if a.stage.startswith('friends-'):
  config['friends']=json.loads(subprocess.check_output(['node','-e','process.stdout.write(JSON.stringify(require(process.argv[1])(process.argv[2])))',str(fixture.parents[1]/'demo/friends.cjs'),a.stage.removeprefix('friends-')],text=True))
 if a.stage.startswith('activity'):

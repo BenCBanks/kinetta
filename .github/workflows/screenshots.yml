@@ -10,7 +10,7 @@ on:
     paths: ["app/static/**", "dev/demo/**", "dev/screenshots/**"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
-    paths: ["dev/screenshots/**", ".github/workflows/screenshots.yml"]
+    paths: ["dev/screenshots/**", "dev/tests/navigation_ui.cjs", ".github/workflows/screenshots.yml"]
   workflow_dispatch:
 permissions:
   contents: write

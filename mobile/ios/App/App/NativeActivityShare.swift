@@ -24,12 +24,29 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
     @objc func uiTestMetrics(_ call: CAPPluginCall) {
         guard let value = call.getString("value"), value.utf8.count <= 65536,
               let data = value.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              var object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               object["fixture"] as? Bool == true else { call.reject("Invalid UI fixture measurements"); return }
-        do {
-            try data.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("kinetta-ui-metrics.json"), options: .atomic)
-            call.resolve()
-        } catch { call.reject("UI fixture measurements could not be saved") }
+        DispatchQueue.main.async { [weak self] in
+            guard let web = self?.bridge?.webView, let window = web.window else {
+                call.reject("UI fixture window is not ready"); return
+            }
+            func rect(_ value: CGRect) -> [String: Double] {
+                ["x": Double(value.minX), "y": Double(value.minY), "width": Double(value.width), "height": Double(value.height)]
+            }
+            object["uikit"] = [
+                "window": rect(window.bounds), "webView": rect(web.convert(web.bounds, to: window)),
+                "statusBar": rect(window.windowScene?.statusBarManager?.statusBarFrame ?? .zero),
+                "safeTop": Double(window.safeAreaInsets.top),
+                "scrollAdjustedTop": Double(web.scrollView.adjustedContentInset.top),
+                "scrollContentTop": Double(web.scrollView.contentInset.top),
+                "scrollOffsetY": Double(web.scrollView.contentOffset.y)
+            ]
+            do {
+                let output = try JSONSerialization.data(withJSONObject: object)
+                try output.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("kinetta-ui-metrics.json"), options: .atomic)
+                call.resolve()
+            } catch { call.reject("UI fixture measurements could not be saved") }
+        }
     }
     #endif
 

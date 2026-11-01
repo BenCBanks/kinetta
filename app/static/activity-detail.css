@@ -1,6 +1,6 @@
 /* A mapped activity starts at the screen edge; the ordinary header remains for indoor activities. */
 .activity-detail { --detail-edge:22px; }
-.detail-map-hero { position:relative; margin:calc(-10px - env(safe-area-inset-top)) calc(-1 * var(--detail-edge)) 12px; }
+.detail-map-hero { position:relative; margin:calc(0px - env(safe-area-inset-top) - var(--shell-top-gap)) calc(-1 * var(--detail-edge)) 12px; }
 .detail-map-hero .detail-media { --media-height:clamp(220px,38dvh,340px); margin:0; }
 .detail-map-hero .media-track { border-radius:0; }
 .detail-map-hero::after { content:''; position:absolute; pointer-events:none; inset:0 0 auto; height:calc(env(safe-area-inset-top) + 64px); z-index:1001; background:linear-gradient(var(--bg),transparent); }

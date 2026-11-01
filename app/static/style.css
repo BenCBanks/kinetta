@@ -17,6 +17,7 @@
   --tab-h: calc(var(--nav-height) + var(--nav-bottom) - env(safe-area-inset-bottom)); --segon: #FFFFFF; --segbg: #EDF0F3; --toast-bg: #15191D; --toast-tx: #F1F3F5; --toast-tx2: #B4BCC4; --toast-act: #82AAF6;
   --shadow: 0 1px 2px rgba(21,25,29,.03), 0 6px 22px rgba(21,25,29,.05);
   --lift: 0 10px 30px rgba(21,25,29,.14), 0 1px 3px rgba(21,25,29,.08);
+  --shell-top-gap: 10px;
   --font: var(--font-ui);
   --numf: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color-scheme: light;
@@ -168,7 +169,7 @@ details.fold-row[open] { padding-bottom: 12px; }
 
 /* ---------- shell: page, header, tab bar ---------- */
 .shell { min-height: 100dvh; max-width: 760px; margin: 0 auto;
-  padding: calc(env(safe-area-inset-top) + 10px) 16px calc(env(safe-area-inset-bottom) + var(--tab-h) + 28px); }
+  padding: calc(env(safe-area-inset-top) + var(--shell-top-gap)) 16px calc(env(safe-area-inset-bottom) + var(--tab-h) + 28px); }
 .top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 14px; min-height: 48px; }
 .top > h1 { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 .top .acts { display: flex; flex-wrap: wrap; max-width: 100%; margin-left: auto; gap: 8px; }
@@ -191,14 +192,15 @@ details.fold-row[open] { padding-bottom: 12px; }
 @keyframes page-in { from { opacity: 0; } to { opacity: 1; } }
 
 /* Floating Frost: one stable five-tab capsule (owner-selected, 29 October 2026).
-   --tab-h reserves its actual height and bottom gap in existing sticky controls and page padding. */
+   --tab-h reserves its actual height and bottom gap in existing sticky controls and page padding.
+   Long labels keep their intrinsic width; the other targets share the remaining room. */
 nav.tabs { position: fixed; z-index: 20; left: 12px; right: 12px; bottom: var(--nav-bottom); max-width: 520px; margin: 0 auto;
-  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; height: var(--nav-height); padding: var(--nav-padding);
+  display: grid; grid-template-columns: minmax(44px,1fr) minmax(max-content,1fr) minmax(44px,1fr) repeat(2,minmax(max-content,1fr)); gap: 8px; height: var(--nav-height); padding: var(--nav-padding);
   border: 1px solid var(--line); border-color: color-mix(in srgb, var(--card) 80%, var(--line)); border-radius: calc(var(--nav-height) / 2);
   background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none;
   box-shadow: 0 8px 26px rgba(21,25,29,.12), inset 0 1px 0 rgba(255,255,255,.7); }
 nav.tabs :is(a,button) { position: relative; display: grid; justify-items: center; align-content: center; gap: 2px;
-  min-width: 0; min-height: 44px; height: 100%; padding: 3px 0; border-radius: 30px;
+  min-width: 44px; min-height: 44px; height: 100%; padding: 3px 0; border-radius: 30px;
   color: var(--tx2); font-size: 13px; font-weight: 650; line-height: 1.15; letter-spacing: 0; transition: color .12s, background-color .12s; }
 nav.tabs :is(a,button) svg { width: 23px; height: 23px; stroke-width: 1.9; }
 nav.tabs :is(a,button)[aria-current="page"] { color: var(--accent); background: var(--accent2); font-weight: 750;
@@ -211,7 +213,7 @@ nav.tabs :is(a,button):active { transform: scale(.96); }
     -webkit-backdrop-filter: blur(22px) saturate(1.3); backdrop-filter: blur(22px) saturate(1.3); }
 }
 @media (prefers-color-scheme: dark) { nav.tabs { box-shadow: 0 8px 26px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.08); } }
-@media (max-width: 350px) { :root { --nav-height: 68px; --nav-padding: 6px; } nav.tabs { left:8px; right:8px; } nav.tabs :is(a,button) { font-size: 13px; } }
+@media (max-width: 350px) { :root { --nav-height: 68px; --nav-padding: 6px; } nav.tabs { left:8px; right:8px; } nav.tabs :is(a,button) { font-size: 13px; letter-spacing:-.025em; } }
 @media (max-height: 700px) { :root { --nav-height: 64px; --nav-padding: 5px; --nav-bottom: max(8px, calc(env(safe-area-inset-bottom) - 8px)); } }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   nav.tabs { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; border-color: var(--color-outline); }
@@ -227,7 +229,7 @@ html.native-increase-contrast nav.tabs [aria-current="page"] { box-shadow: inset
   nav.tabs [aria-current="page"] { background: Highlight; color: HighlightText; box-shadow: none; outline: 2px solid Highlight; outline-offset: -2px; }
 }
 @media (prefers-reduced-motion: reduce) { nav.tabs :is(a,button) { transition: none !important; transform: none; } nav.tabs svg { animation: none !important; } }
-.tab-n { position: absolute; top: 3px; left: auto; right: calc(50% - 24px); min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
+.tab-n { position: absolute; top: 3px; left: auto; right: max(0px, calc(50% - 24px)); min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
   background: var(--btn); color: var(--onbtn); font-size: 13px; font-weight: 700; line-height: 20px; text-align: center; box-shadow: 0 0 0 2px var(--card); }
 
 /* ---------- cards, rows, lists ---------- */
@@ -464,7 +466,7 @@ button.pf:active, a.pf:active { background: var(--card2); }
 .map.full .map-full { top: calc(12px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); }
 .map-note { margin: -4px 4px 12px; }
 /* activity page: the map fills the top of the screen (under the status bar); back/share/edit float over it */
-.map-head { position: relative; margin: calc(-10px - env(safe-area-inset-top)) -16px 12px; }
+.map-head { position: relative; margin: calc(0px - env(safe-area-inset-top) - var(--shell-top-gap)) -16px 12px; }
 .map-head .map.lead { margin: 0; height: calc(380px + env(safe-area-inset-top)); border-radius: 0 0 var(--r) var(--r); }
 .top.over { position: absolute; top: calc(env(safe-area-inset-top) + 8px); left: 12px; right: 12px; z-index: 1001; margin: 0; pointer-events: none; }
 .top.over > * { pointer-events: auto; }
@@ -2598,7 +2600,7 @@ nav.tabs { view-transition-name: tabs; }
    page it sits exactly where other headers do, and stuck while scrolling it still clears the status bar (2026-10-26,
    Ben: a blank band above Friends that stayed when scrolling). */
 .has-back > .top:has([data-back]) {position:sticky;top:0;z-index:1010;background:var(--bg);min-height:48px;padding:env(safe-area-inset-top,0px) 0 4px;box-shadow:0 -30px 0 30px var(--bg);border-bottom:1px solid var(--line)}
-.has-back > .top:not(.over):has([data-back]) {margin-top:calc(-10px - env(safe-area-inset-top,0px));padding-top:calc(env(safe-area-inset-top,0px) + 10px)}
+.has-back > .top:not(.over):has([data-back]) {margin-top:calc(0px - env(safe-area-inset-top,0px) - var(--shell-top-gap));padding-top:calc(env(safe-area-inset-top,0px) + var(--shell-top-gap))}
 .has-back > .top.over {left:auto;right:auto;margin:0;padding-inline:16px;pointer-events:auto}
 .has-back > .top.over .back, .has-back > .top.over .icon-btn {background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none}
 .me-settings {margin-top:20px}
@@ -2816,6 +2818,8 @@ body:has(.track-review) .toast { bottom:calc(var(--tab-h) + env(safe-area-inset-
 @media(max-width:360px){.track-review-dock{padding-inline:16px}.track-review-map-wrap{height:185px}}
 /* iPhone app: the page runs under the status bar too; a soft page-coloured strip keeps scrolled content from sitting
    under the clock and Dynamic Island. Hidden while a sheet is open and on screens whose map runs to the top. */
+/* Preserve the measured native safe area without the web page's extra top gap. */
+html.native { --shell-top-gap: 0px; }
 html.native body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); z-index: 1500; pointer-events: none;
   background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 html.native body:has(.map-head:first-child)::before, html.native body:has(.scrim)::before { display: none; }
@@ -2824,7 +2828,7 @@ html.native body:has(.map-head:first-child)::before, html.native body:has(.scrim
    left rather than a fixed share of the screen, so a status line or a short phone never pushes the
    controls down. The note and Discard sit below, a scroll away. */
 .track-live-main { display: flex; flex-direction: column;
-  min-height: calc(100dvh - env(safe-area-inset-top, 0px) - 10px - env(safe-area-inset-bottom, 0px) - var(--tab-h) - 28px);container-type:inline-size;container-name:track-live; }
+  min-height: calc(100dvh - env(safe-area-inset-top, 0px) - var(--shell-top-gap) - env(safe-area-inset-bottom, 0px) - var(--tab-h) - 28px);container-type:inline-size;container-name:track-live; }
 .track-live-main .track-map-wrap { flex: 1 1 0; min-height: 100px; max-height: 420px; }
 .track-live-main .track-map-wrap .live-record-map { position: absolute; inset: 0; height: auto; }
 .track-live.has-route .track-live-main .track-map-wrap { min-height: 96px; }
