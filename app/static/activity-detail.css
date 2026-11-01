@@ -46,7 +46,15 @@
 
 .activity-detail .seg.dtabs button { min-height:44px; }
 
-.detail-map-hero .map-full { top:calc(env(safe-area-inset-top) + 60px); right:12px; left:auto; bottom:auto; }
+/* Keep media tools together below the floating navigation, with 44px targets and 8px gaps. */
+.detail-map-hero .map-full { top:calc(env(safe-area-inset-top) + 60px); right:8px; left:auto; bottom:auto; }
+.detail-map-hero .compact-media:has(.media-map) .media-controls > button { top:calc(env(safe-area-inset-top) + 60px); bottom:auto; left:auto; }
+.detail-map-hero .compact-media [data-media-step="-1"] { right:112px; }
+.detail-map-hero .compact-media [data-media-step="1"] { right:60px; }
+.detail-map-hero .compact-media:has(.media-map) .media-dots { top:calc(env(safe-area-inset-top) + 22px); }
+/* Reserve the tools' three targets, their gaps and the notice's left margin. */
+.detail-map-hero .leaflet-bottom.leaflet-left { width:calc(100% - 174px); }
+.detail-map-hero .map-unavailable { box-sizing:border-box; max-width:min(150px,100%); }
 @media(min-width:1000px) { .activity-detail { --detail-edge:32px; } }
 
 .detail-owner-tools { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
