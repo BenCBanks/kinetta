@@ -30,8 +30,7 @@ route(/^\/welcome$/, 'me', async (el) => {
       `<div class="welcome-photo"><button type="button" class="av-edit" id="wc-photo" aria-label="${me.photo ? 'Change' : 'Add'} profile photo">${avatar(me, 'xl')}<span class="av-cam">${svg('camera')}</span></button></div>
       <form class="form" id="wc-form"><label>Name<input name="name" value="${esc(me.name)}" maxlength="60" required autocomplete="name" enterkeyhint="next"></label>
       <label>Bio · optional<textarea name="bio" rows="3" maxlength="280" placeholder="What you enjoy, what you’re working toward…">${esc(me.bio || '')}</textarea></label>
-      <p class="small muted" id="wc-count">${(me.bio || '').length}/280</p></form><div id="feature-metrics"></div>`);
-    if(typeof FeatureUsage!=='undefined')void FeatureUsage.settings(el,{folded:true});
+      <p class="small muted" id="wc-count">${(me.bio || '').length}/280</p></form>`);
     const f = $('#wc-form', el);
     $('#wc-photo', el).onclick = () => profilePhotoSheet(() => { keep('/api/me', App.me); if (here()) { const keepName = f.elements.name.value, keepBio = f.elements.bio.value; profile(); const g = $('#wc-form', el); g.elements.name.value = keepName; g.elements.bio.value = keepBio; } });
     f.elements.bio.oninput = () => { $('#wc-count', el).textContent = `${f.elements.bio.value.length}/280`; };

@@ -138,7 +138,7 @@ def stage_items(body:ItemsIn,user=Depends(current_user)):
         m,created=root(c,user['id'],body.client_id,request,'Added for review: '+', '.join(e['name'] for e in values)[:600])
         if not created:return T.answer_with(c,user['id'],m)
         from . import admin_features
-        if not admin_features.allowed(c,user['id']):
+        if not admin_features.enabled():
             for e in values:e.pop('entry_method',None)
         result={'composed':True,'day':str(m['local_day']),'meal':values[0]['meal'],
                 'parts':[{'index':0,'text':m['body'],'status':'ready','manual':True,'entries':values,'logged':False}]}

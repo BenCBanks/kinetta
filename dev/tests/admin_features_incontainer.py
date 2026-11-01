@@ -22,7 +22,7 @@ class Features(unittest.TestCase):
    for n in range(6):
     uid=c.execute("INSERT INTO users(login,name,pw_hash,is_admin,created) VALUES(%s,'Fictional feature person',%s,%s,%s) RETURNING id",
       (f'zz_test_features_{n}',auth.hash_pw('fictional feature password'),n==0,DAY-dt.timedelta(days=20))).fetchone()['id']
-    cls.users.append(uid);c.execute("INSERT INTO profile(user_id,feature_metrics_ok,feature_metrics_at,feature_metrics_version) VALUES(%s,true,now(),%s)",(uid,F.CONSENT_VERSION))
+    cls.users.append(uid);c.execute("INSERT INTO profile(user_id) VALUES(%s)",(uid,))
  @classmethod
  def tearDownClass(cls):
   with db.connect() as c:
@@ -38,7 +38,6 @@ class Features(unittest.TestCase):
    c.execute('DELETE FROM food_chat_messages WHERE user_id=ANY(%s)',(self.users,))
    c.execute('UPDATE users SET created=%s WHERE id=ANY(%s)',(DAY-dt.timedelta(days=20),self.users))
    c.execute('UPDATE profile SET welcome_completed_day=NULL,health_setup_day=NULL WHERE user_id=ANY(%s)',(self.users,))
-   c.execute('UPDATE profile SET feature_metrics_ok=true,feature_metrics_at=now(),feature_metrics_version=%s WHERE user_id=ANY(%s)',(F.CONSENT_VERSION,self.users))
   self.client.cookies.set(admin_auth.COOKIE,token,path='/api')
   self.member=TestClient(app);self.member.headers['Origin']='http://testserver';self.member.cookies.set(auth.COOKIE,member_token)
  def report(self,**params):
@@ -160,6 +159,12 @@ class Features(unittest.TestCase):
    self.assertEqual([r['entry_method'] for r in c.execute('SELECT entry_method FROM food_entries WHERE id=ANY(%s) ORDER BY id',(ids,))],['photo','barcode','unknown','recipe'])
    with patch.dict(os.environ,{'KINETTA_FEATURE_METRICS':'1'}):M.stamp(c,self.users[2],ids,'manual')
    self.assertEqual(c.execute('SELECT entry_method FROM food_entries WHERE id=%s',(ids[0],)).fetchone()['entry_method'],'photo')
+   unstamped=c.execute("INSERT INTO food_entries(user_id,day,name,kcal) VALUES(%s,%s,'Fictional unstamped food',100) RETURNING id",(self.users[1],DAY)).fetchone()['id']
+   with patch.dict(os.environ,{'KINETTA_FEATURE_METRICS':'1'}):
+    M.stamp(c,self.users[2],[unstamped],'manual')
+    self.assertIsNone(c.execute('SELECT entry_method FROM food_entries WHERE id=%s',(unstamped,)).fetchone()['entry_method'])
+    M.stamp(c,self.users[1],[unstamped],'barcode')
+    self.assertEqual(c.execute('SELECT entry_method FROM food_entries WHERE id=%s',(unstamped,)).fetchone()['entry_method'],'barcode')
  def test_complementary_activity_and_food_suppression(self):
   self.add_activities(3)
   with db.connect() as c:
@@ -182,46 +187,43 @@ class Features(unittest.TestCase):
    body['client_id']=str(uuid.uuid4());r=self.member.post('/api/food/thread/reviews/items',json=body);self.assertEqual(r.status_code,200,r.text)
   with patch.dict(os.environ,{'KINETTA_FEATURE_METRICS':'0'}):
    r=self.member.post('/api/food/thread/reviews/items',json=body);self.assertEqual(r.status_code,200,r.text)
- def test_individual_opt_in_is_required_and_withdrawal_excludes_records(self):
+ def test_every_signed_in_account_uses_the_operator_switch_without_preferences(self):
+  anonymous=TestClient(app);anonymous.headers['Origin']='http://testserver'
+  self.assertEqual(anonymous.get('/api/features/state').status_code,401)
+  self.assertEqual(anonymous.post('/api/features/open',json={'feature':'kit'}).status_code,401)
+  self.assertNotIn('/api/features/preferences',app.openapi()['paths'])
+  self.assertIn(self.member.put('/api/features/preferences',json={'enabled':True}).status_code,(404,405))
   with db.connect() as c:
-   c.execute('UPDATE profile SET feature_metrics_ok=false,feature_metrics_at=NULL,feature_metrics_version=NULL WHERE user_id=%s',(self.users[1],))
-  self.add_activities(3)
+   columns={r['column_name'] for r in c.execute("SELECT column_name FROM information_schema.columns WHERE table_name='profile'")}
+   self.assertFalse({'feature_metrics_ok','feature_metrics_at','feature_metrics_version'}&columns)
   with patch.dict(os.environ,{'KINETTA_FEATURE_METRICS':'1'}):
-   state=self.member.get('/api/features/state').json();self.assertTrue(state['available']);self.assertFalse(state['enabled']);self.assertFalse(state['participating'])
-   self.assertEqual(self.member.post('/api/features/open',json={'feature':'welcome_complete'}).status_code,204)
-   self.assertEqual(self.member.post('/api/features/open',json={'feature':'kit'}).status_code,204)
-   self.assertIsNone(next(r for r in self.report(period='7')['rows'] if r['feature']=='activity_source_track')['uses'])
-   self.assertEqual(self.member.put('/api/features/preferences',json={'enabled':True,'version':'old'}).status_code,409)
-   r=self.member.put('/api/features/preferences',json={'enabled':True,'version':F.CONSENT_VERSION});self.assertEqual(r.status_code,200,r.text);self.assertTrue(r.json()['enabled'])
-   self.assertEqual(next(r for r in self.report(period='7')['rows'] if r['feature']=='activity_source_track')['uses'],3)
-   with db.connect() as c:
-    p=c.execute('SELECT feature_metrics_at,feature_metrics_version FROM profile WHERE user_id=%s',(self.users[1],)).fetchone();self.assertIsNotNone(p['feature_metrics_at']);self.assertEqual(p['feature_metrics_version'],F.CONSENT_VERSION)
-   self.assertEqual(self.member.put('/api/features/preferences',json={'enabled':False}).status_code,200)
-   self.assertIsNone(next(r for r in self.report(period='7')['rows'] if r['feature']=='activity_source_track')['uses'])
-   with db.connect() as c:
-    self.assertFalse(F.allowed(c,self.users[1]));self.assertEqual(c.execute('SELECT count(*) AS n FROM admin_feature_counts').fetchone()['n'],0)
+   self.assertEqual(self.member.get('/api/features/state').json(),{'enabled':True})
+   for feature in ('kit','welcome_complete'):
+    self.assertEqual(self.member.post('/api/features/open',json={'feature':feature}).status_code,204)
+  with db.connect() as c:
+   self.assertEqual(c.execute("SELECT people,opens FROM admin_feature_counts WHERE feature='kit'").fetchone(),{'people':1,'opens':1})
+   self.assertIsNotNone(c.execute('SELECT welcome_completed_day FROM profile WHERE user_id=%s',(self.users[1],)).fetchone()['welcome_completed_day'])
   with patch.dict(os.environ,{'KINETTA_FEATURE_METRICS':'0'}):
-   self.assertEqual(self.member.put('/api/features/preferences',json={'enabled':True,'version':F.CONSENT_VERSION}).status_code,409)
-   self.assertEqual(self.member.put('/api/features/preferences',json={'enabled':False}).status_code,200)
- def test_withdrawal_waits_for_an_inflight_collection_transaction(self):
-  import threading
-  started=threading.Event()
-  def withdraw():
-   started.set();return self.member.put('/api/features/preferences',json={'enabled':False}).status_code
-  with patch.dict(os.environ,{'KINETTA_FEATURE_METRICS':'1'}):
-   with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-    with db.connect() as c:
-     self.assertTrue(F.allowed(c,self.users[1]));future=pool.submit(withdraw);self.assertTrue(started.wait(1));time.sleep(.05);self.assertFalse(future.done())
-    self.assertEqual(future.result(timeout=3),200)
-   with db.connect() as c:
-    F.collect(c,self.users[1],'kit');self.assertEqual(c.execute('SELECT count(*) AS n FROM admin_feature_counts').fetchone()['n'],0)
+   self.assertEqual(self.member.get('/api/features/state').json(),{'enabled':False})
+   self.assertEqual(self.member.post('/api/features/open',json={'feature':'heatmap'}).status_code,204)
+  with db.connect() as c:
+   self.assertIsNone(c.execute("SELECT 1 FROM admin_feature_counts WHERE feature='heatmap'").fetchone())
+ def test_records_current_state_and_signup_cohort_include_ordinary_accounts(self):
+  self.add_activities(3)
+  with db.connect() as c:
+   c.execute('UPDATE profile SET segment_boards=true WHERE user_id=ANY(%s)',(self.users[:3],))
+  report=self.report(period='30');rows={r['feature']:r for r in report['rows']}
+  self.assertEqual(rows['activity_source_track']['uses'],3)
+  self.assertGreaterEqual(rows['leaderboards']['people'],3)
+  accounts=next(r for r in report['funnel'] if r['key']=='accounts')
+  self.assertEqual(accounts['count'],len(self.users));self.assertEqual(accounts['eligible'],len(self.users))
  def test_successful_counters_have_no_account_linked_request_row(self):
   with patch.dict(os.environ,{'KINETTA_FEATURE_METRICS':'1'}),patch('app.request_log._write') as writer:
    self.assertEqual(self.member.post('/api/features/open',json={'feature':'kit'}).status_code,204)
    time.sleep(.05);self.assertEqual(writer.call_count,0,'Counter calls must not create a second per-person usage history')
    self.assertEqual(self.member.get('/api/features/state').status_code,200)
    time.sleep(.05);self.assertTrue(any(call.args[0]['route']=='/api/features/state' for call in writer.call_args_list))
- def test_setup_and_view_collection_do_not_upgrade_shared_locks(self):
+ def test_concurrent_setup_and_view_collection_finishes(self):
   def opened(n):
    client=TestClient(app);client.headers['Origin']='http://testserver';client.cookies.set(auth.COOKIE,self.member.cookies.get(auth.COOKIE))
    return client.post('/api/features/open',json={'feature':'welcome_complete' if n%2 else 'kit'}).status_code

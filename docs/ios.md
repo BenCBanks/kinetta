@@ -89,8 +89,14 @@ Do these in order. Nothing here costs money except the membership.
 9. **Fill in App Privacy** (App Store Connect > the app > **App Privacy**), needed before outside testing or the App
    Store. Answers for Kinetta: data collected: **Health & Fitness** (Health, Fitness), **Contact Info** (name),
    **Identifiers** (user ID), **Location** (precise: workout routes), **User Content** (photos of food, other content: recipes
-   and comments); all *linked to the user*, *not used for tracking*, used for *App Functionality*. These match the
-   app's privacy manifest. If the AI features are on for your server, also say that health, fitness and food data and
+   and comments); all *linked to the user*, *not used for tracking*, used for *App Functionality*. Also disclose
+   **Usage Data → Product Interaction**, linked to the user, used for **Analytics**, not tracking: the operator can
+   enable aggregate feature counts for every signed-in account, without a per-person opt-in. **User ID, Health and
+   Fitness** also have an **Analytics** purpose because account cohorts and retained-record counts feed those reports.
+   The bundled privacy manifest declares those purposes; changing it does not update App Store Connect answers.
+   Actual Connect updates and Apple's collection/consent and HealthKit requirements remain release-review steps;
+   first-party aggregation does not itself establish an exception or Apple acceptance. See `docs/admin-features.md`.
+   If the AI features are on for your server, also say that health, fitness and food data and
    food photos are shared with Google (Gemini) when the person turns AI features on (the welcome steps ask; Me changes it).
 
 The workflow archives without a development profile, preserves the HealthKit entitlements, then lets Xcode

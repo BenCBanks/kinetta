@@ -14,7 +14,7 @@ with db.connect() as c:
  c.execute('INSERT INTO profile(user_id) VALUES(%s)',(admin,));uids=[]
  for n in range(6):
   uid=c.execute("INSERT INTO users(login,name,created) VALUES(%s,'Fictional member',now()-interval '20 days') RETURNING id",('zz_test_feature_gallery_'+str(n),)).fetchone()['id'];uids.append(uid)
-  c.execute("INSERT INTO profile(user_id,welcome_completed_day,health_setup_day,feature_metrics_ok,feature_metrics_at,feature_metrics_version) VALUES(%s,%s,%s,true,now(),'2026-11-01-v1')",(uid,day-dt.timedelta(days=18) if n<3 else None,day-dt.timedelta(days=17) if n<3 else None))
+  c.execute("INSERT INTO profile(user_id,welcome_completed_day,health_setup_day) VALUES(%s,%s,%s)",(uid,day-dt.timedelta(days=18) if n<3 else None,day-dt.timedelta(days=17) if n<3 else None))
   for ago in range(30):
    when=dt.datetime.combine(day-dt.timedelta(days=ago),dt.time(12),dt.timezone.utc)
    c.execute("INSERT INTO activities(user_id,name,sport,source,start_time,created) VALUES(%s,'Fictional morning run','run','track',%s,%s)",(uid,when,when))
