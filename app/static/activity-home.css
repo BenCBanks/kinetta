@@ -11,7 +11,7 @@
 .challenge-summary small { color:var(--tx2); font-size:max(13px,.8125rem); line-height:1.4; }
 .challenge-summary svg { width:18px; height:18px; flex:none; }
 .feed-low { margin:0 0 12px; }
-.feed-low h2 { font-size:1rem; margin:0 0 10px; }
+.feed-low h2 { font-size:var(--text-app-section); margin:0 0 10px; }
 .feed-low .progress-grid { margin-bottom:0; }
 .feed-low .progress-tile:last-child:nth-child(even) { grid-column:auto; }
 .feed-empty { margin:12px 0; }
@@ -37,3 +37,16 @@
 
 .post-private { display:inline-flex; align-items:center; vertical-align:middle; color:var(--tx3); }
 .post-private svg { width:14px; height:14px; }
+
+/* Keep room for the next header while names retain their44px profile targets. */
+.activity-home .feed-list .post-link { padding-top:0; padding-bottom:6px; }
+@media(max-width:899px) { .activity-home .feed-list .activity-media { --media-height:190px; margin-top:8px; } }
+
+/* Whole enlarged words fit within the existing two-column cards. */
+.feed-low .progress-grid .progress-tile { padding-inline:8px; }
+
+/* Let title lines use the card's full width after the inline sport icon. */
+.feed-low .progress-tile-name { display:block; }
+.feed-low .progress-tile-name > svg { display:inline-block;vertical-align:-2px;margin-right:6px; }
+.feed-low .progress-tile-name > b { display:inline;overflow-wrap:normal; }
+.feed-low .progress-tile-name .progress-new { margin-left:6px;vertical-align:middle; }

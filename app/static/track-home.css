@@ -70,3 +70,10 @@
 
 .compact-track-tools .progress-tile-name { min-width:0; width:100%; }
 .compact-track-tools .progress-tile-name b { overflow-wrap:anywhere; }
+
+#track-gps-chip { font-size:max(13px,.8125rem); }
+.track-plan > .me-chip { font-size:max(15px,.9375rem); }
+
+/* A short ready map keeps both tools above the required source credits. */
+.compact-ready .track-ready-map-wrap:not(.full) .track-locate { top:12px; right:64px; }
+.compact-ready .track-ready-map-wrap:not(.full) .gps-chip { max-width:calc(100% - 128px); white-space:normal; }

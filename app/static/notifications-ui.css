@@ -1,7 +1,7 @@
 /* Notification preferences lead with a full labelled switch; details follow only when enabled. */
 .notification-settings > h1 { font-size:2rem; }
 .notification-settings .card { padding:16px; margin-bottom:12px; }
-.notification-settings h2 { font-size:max(17px,1.125rem); margin-bottom:8px; }
+.notification-settings h2 { font-size:var(--text-app-card-title); margin-bottom:8px; }
 .notification-settings .notification-choices { display:grid; gap:8px; }
 .notification-settings .switch-row { min-height:56px; margin:0; border:0; padding:8px 0; font-size:max(15px,.9375rem); }
 .notification-settings .switch-row > span { min-width:0; overflow-wrap:anywhere; }

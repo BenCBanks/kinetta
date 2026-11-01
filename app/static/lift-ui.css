@@ -11,9 +11,9 @@
 .lift-top .lift-save[data-state=error] { color:var(--warn); font-size:max(13px,.8125rem); white-space:normal; max-width:7rem; }
 .compact-lift .lift-ex { padding:16px; margin-bottom:12px; }
 .compact-lift .lift-hd { gap:8px; margin:0; }
-.lift-title-line { display:flex; flex-wrap:wrap; align-items:center; gap:0 8px; min-width:0; flex:1; }
-.compact-lift .lift-name { min-height:44px; font-size:max(16px,1rem); }
-.compact-lift .lift-note { margin:0; padding:0; min-height:44px; border:0; background:none; color:var(--tx2); font-size:max(13px,.8125rem); text-align:left; overflow-wrap:anywhere; }
+.lift-title-line { display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-width:0; flex:1; }
+.compact-lift .lift-name { min-height:44px;min-width:44px; font-size:max(16px,1rem); }
+.compact-lift .lift-note { margin:0; padding:0; min-height:44px; border:0; background:none; color:var(--tx2); font-size:max(15px,.9375rem); text-align:left; overflow-wrap:anywhere; }
 .compact-lift .lift-note::before { content:'· '; }
 .compact-lift .lift-sets { gap:8px; margin-top:8px; }
 .compact-lift .lift-row { padding:0; margin:0; gap:8px; }
@@ -45,7 +45,8 @@
 }
 @media(min-width:700px) { .compact-lift .lift-row > .lift-pr { flex:0 1 auto; padding-left:4px; } }
 
-.compact-lift .lift-row.lh span,.compact-lift .lift-n { font-size:max(13px,.8125rem); }
+.compact-lift .lift-row.lh span { font-size:max(13px,.8125rem); }
+.compact-lift .lift-n { font-size:max(15px,.9375rem); }
 
 /* At enlarged text sizes, keep complete numeric values and the tick together.
    The set control and previous result use the line above instead of squeezing fields. */

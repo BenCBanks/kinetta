@@ -237,3 +237,51 @@ jobs:
       - name: Stop it
         if: always()
         run: docker compose -p kinettatest down -v
+
+  spacing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      KINETTA_URL: http://localhost:8798
+      KINETTA_PROJECT: kinettatest
+      KINETTA_PORT: 8798
+      GEMINI_API_KEY: placeholder-for-tests
+      TZ: America/New_York
+      KINETTA_SPACING_REPORT: /tmp/spacing-report.json
+      KINETTA_SPACING_SHOTS: /tmp/spacing-shots
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Start a disposable copy
+        run: |
+          docker compose -p kinettatest up -d --build
+          for i in $(seq 1 60); do curl -sf localhost:8798/api/health && break; sleep 3; done
+      - name: Load fictional screens
+        run: |
+          python3 dev/demo/gen_gpx.py /tmp/spacing-gpx 120
+          python3 dev/demo/seed.py /tmp/spacing-gpx
+          python3 dev/screenshots/stage.py /tmp/spacing-gpx
+          python3 dev/tests/spacing_prepare.py
+      - name: Install the browser
+        run: |
+          npm install --prefix /tmp/spacing-browser playwright
+          /tmp/spacing-browser/node_modules/.bin/playwright install --with-deps chromium
+      - name: Check the collector and every screen
+        run: |
+          node dev/tests/test_spacing_geometry.cjs
+          NODE_PATH=/tmp/spacing-browser/node_modules node dev/tests/test_spacing_dom.cjs
+          NODE_PATH=/tmp/spacing-browser/node_modules node dev/tests/spacing_audit.cjs
+      - name: Keep fictional spacing evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spacing-evidence
+          path: |
+            /tmp/spacing-report.json
+            /tmp/spacing-shots
+          if-no-files-found: ignore
+      - name: Stop the disposable copy
+        if: always()
+        run: docker compose -p kinettatest down -v

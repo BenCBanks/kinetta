@@ -22,6 +22,13 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    const bar=p.locator(mapped?'.detail-floating':'.detail-bar.top');assert.equal(await bar.locator('.back').innerText(),'Activity');
    for(const control of await bar.locator('button').all()){const r=await control.boundingBox();assert(r.height>=44&&r.width>=44,'44px navigation/action');}
    assert.equal(await p.locator('.detail-secondary .stat').count()<=3,true);
+   if(kind==='run'&&size.root===16){
+    assert(await p.locator('.detail-title-row h1').evaluate(n=>n.getBoundingClientRect().height<=parseFloat(getComputedStyle(n).lineHeight)+1),'The normal fictional activity name fits a compact title row');
+    const labels=await p.locator('.detail-primary .stat small').evaluateAll(ns=>ns.map(n=>{const r=document.createRange();r.selectNodeContents(n);return r.getClientRects().length;}));assert(labels.every(n=>n===1),'Primary metric labels remain on one line');
+    const highlights=await p.locator('.detail-highlights .detail-highlight').evaluateAll(ns=>ns.map(n=>n.getBoundingClientRect().top));assert(highlights.length<2||Math.abs(highlights[0]-highlights[1])<.02,'Route and record metadata stay together at normal phone width');
+    const chart=await p.locator('#d-charts').boundingBox(),nav=await p.locator('nav.tabs').boundingBox();assert(chart.y<nav.y,'The first chart starts above the tabs');
+   }
+
    if(friend){assert.equal(await p.locator('[data-detail-share],[data-detail-edit],#d-kit,.detail-highlights,#d-milestones').count(),0);assert(!/Only me|Friends|Cadence|Avg HR|Calories/.test(await p.locator('.d-title').innerText()),'only permitted friend fields');assert(await p.locator('.detail-owner').isVisible());assert(await p.locator('#s-rb').isVisible());}
    else{await until(p,()=>!!document.querySelector('#d-soc [data-ttalk]'),'owner reactions read');assert(await p.locator('#d-soc').isHidden(),'empty owner reaction/comment counts omitted');}
    if(mapped){

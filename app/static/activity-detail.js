@@ -17,14 +17,14 @@ const ActivityDetail=(()=>{
  function highlights(a,{shared=false}={}){
   if(shared)return '';
   const rows=[];
-  if(a.route_id&&a.route_name)rows.push(`<a href="/route/${a.route_id}" class="detail-highlight">${svg('route')}Matched: ${esc(a.route_name)}</a>`);
+  if(a.route_id&&a.route_name)rows.push(`<a href="/route/${a.route_id}" class="detail-highlight" data-type="secondary">${svg('route')}Matched: ${esc(a.route_name)}</a>`);
   const best=(a.efforts||[]).find(e=>e.rank_then===1&&e.label);
-  if(best)rows.push(`<button type="button" class="detail-highlight" data-detail-tab="efforts">${svg('trophy')}${esc(best.label)} best</button>`);
+  if(best)rows.push(`<button type="button" class="detail-highlight" data-type="secondary" data-detail-tab="efforts">${svg('trophy')}${esc(best.label)} best</button>`);
   return rows.length?`<div class="detail-highlights">${rows.join('')}</div>`:'';
  }
  function title(a,hero,{shared=false,socialId=shared?'s-soc':'d-soc'}={}){
   const kit=!shared&&(a.ai_note||aiCan('coach'))?`<button type="button" class="me-chip detail-kit" id="d-kit" aria-label="${kitChatOn()?'Ask Kit about this activity':'Kit’s workout note'}">${svg('sparkle')}Kit</button>`:'';
-  return `<section class="d-title card compact-detail-title"><div class="detail-title-row">${sportMark(a.sport)}<h1>${esc(a.name)}</h1>${kit}</div><p class="detail-date">${date(a,{shared})}</p>${shared&&a.owner?`<a class="detail-owner" href="${profileHref(a.owner)}">${esc(a.owner.name)}</a>`:''}
+  return `<section class="d-title card compact-detail-title"><div class="detail-title-row"><h1>${esc(a.name)}</h1></div><div class="detail-date-row">${sportMark(a.sport)}<p class="detail-date">${date(a,{shared})}</p>${kit}</div>${shared&&a.owner?`<a class="detail-owner" href="${profileHref(a.owner)}">${esc(a.owner.name)}</a>`:''}
     <div class="hero detail-primary">${hero}</div>${secondary(a,{shared})}${highlights(a,{shared})}<div class="detail-social" id="${socialId}"${!shared?' hidden':''}></div>${!shared?'<div id="d-milestones"></div>':''}</section>`;
  }
  function header(a,{mine=true,mapped=!!a.line,backLabel='Activity'}={}){

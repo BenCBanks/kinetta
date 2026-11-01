@@ -67,3 +67,5 @@
 #nt-overview-chart .sw.k-s1 { background:var(--color-action); }
 .nutrition-detail .weekly-food-review h2 { font-size:1.25rem; }
 .nutrition-detail .nutrition-back { white-space:nowrap; text-decoration:none; font-weight:500; padding-right:0; }
+
+.insights-copy .insight > span { font-size:inherit; }
