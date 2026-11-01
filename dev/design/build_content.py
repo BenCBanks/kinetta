@@ -24,6 +24,12 @@ def inline(text):
     text = re.sub(r'\*([^*]+)\*', r'<em>\1</em>', text)
     return re.sub('\x00(\\d+)\x00', lambda m: links[int(m[1])], text)
 
+def render(source, entries):
+    # An empty content entry removes its whole optional block, including media.
+    source = re.sub(r'\{\{#copy:([a-z0-9-]+)\}\}(.*?)\{\{/copy:\1\}\}',
+                    lambda m: m[2] if entries[m[1]] else '', source, flags=re.S)
+    return re.sub(r'\{\{copy:([^}]+)\}\}', lambda m: entries[m[1]], source)
+
 def build():
     for template in sorted((ROOT/'site/templates').glob('*.html')):
         md = (ROOT/'site/content'/template.with_suffix('.md').name).read_text()
@@ -32,9 +38,9 @@ def build():
         if len(set(keys)) != len(keys): raise ValueError('Duplicate section key')
         entries = dict(zip(keys, (inline(' '.join(x.split())) for x in parts[2::2])))
         source = template.read_text()
-        required = set(re.findall(r'\{\{copy:([^}]+)\}\}', source))
+        required = set(re.findall(r'\{\{(?:#|/)?copy:([^}]+)\}\}', source))
         if required != set(entries): raise ValueError(f'{template.name}: missing or unknown section keys')
-        (ROOT/'site'/template.name).write_text(re.sub(r'\{\{copy:([^}]+)\}\}', lambda m: entries[m[1]], source))
+        (ROOT/'site'/template.name).write_text(render(source, entries))
         if template.name == 'terms.html':
             # One editable document supplies both the website and the app's version gate.
             document = {'version': entries['version'], 'draft': entries['status'] != 'Published' or '[OWNER:' in md,
