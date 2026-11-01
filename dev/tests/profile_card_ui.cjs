@@ -34,7 +34,7 @@ for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}
    const response=await r.fetch(),j=await response.json(),empty=cardState==='new';j.overview={...j.overview,activities:empty?0:3045,distance_m:empty?0:18968840,time_s:empty?0:5569200,active_days:empty?0:468};j.recent.current={activities:empty?0:32,distance_m:empty?0:259102,time_s:empty?0:78360,active_days:empty?0:18};j.sports=empty?[]:[{sport:'run',activities:2939},{sport:'walk',activities:70},{sport:'ride',activities:19},{sport:'hike',activities:9}];if(cardState!=='heavy'){j.items=[];j.shared_count=0;}if(empty)j.mileage.weeks=[];if(cardLayout)j.layout=cardLayout;return r.fulfill({response,json:j});
   }return r.continue();});
  const shot=async name=>{if(out&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/${name}-${theme}.png`});}};
- const settled=()=>p.waitForSelector('.me-card-sections[aria-busy=false]',{timeout:15000});
+ const settled=()=>p.waitForSelector('.me-card-sections[aria-busy=false]',{state:'attached',timeout:15000});
  const noOverflow=async where=>assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no overflow on '+where);
 
  // Me: one distance chart (on the card), private insights below the line.
