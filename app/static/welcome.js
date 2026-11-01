@@ -97,7 +97,7 @@ route(/^\/welcome$/, 'me', async (el) => {
   async function friends() {
     frame(4 + k, 'Find your friends', 'See each other’s runs and rides, and send cheers.', `<div id="wc-inv"></div>
       <a class="ghost wide" href="/me/friends?find=1">${svg('search')}Search by name or username</a>`, 'Done');
-    $('#wc-next', el).onclick = () => { toast('You’re all set'); go('/me'); };
+    $('#wc-next', el).onclick = () => { if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('welcome_complete'); toast('You’re all set'); go('/me'); };
     let who = null;
     try { who = (await api('/api/account/inviter')).inviter; } catch (x) { /* search still works */ }
     if (!here() || !who) return;

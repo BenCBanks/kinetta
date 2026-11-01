@@ -553,7 +553,7 @@ function tSearch(body, where, close) {
     all = []; let html = '';
     for (const [title, list] of groups) if (list.length) { html += `<h3 class="ghead">${title}</h3>`; for (const f of list) { html += foodRow(f, all.length); all.push(f); } }
     out.innerHTML = html || '<p class="small muted">No matches yet…</p>';
-    $$('[data-i]', out).forEach((x) => x.onclick = () => amountSheet(all[+x.dataset.i], where(), close));
+    $$('[data-i]', out).forEach((x) => x.onclick = () => amountSheet({...all[+x.dataset.i],entry_method:"search"}, where(), close));
   };
   const run = async (q) => {
     const my = ++seq; if (!inp.isConnected) return; out.innerHTML = ''; if (q.length < 2) { out.innerHTML = ''; return; }
@@ -744,7 +744,7 @@ function tQuick(body, where, close) {
     it.kcal = f.kcal.value.trim() ? n(f.kcal) : Math.round(it.protein_g * 4 + it.carbs_g * 4 + it.fat_g * 9);
     if (!it.kcal && !it.protein_g) { toast('Enter calories or macros'); return; }
     button.disabled=true;
-    try { const result=await addEntries([{...it, ...where()}],{thread:location.pathname==='/food/describe'}); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${it.name}`,result.undo); } catch (x) { toast(x.message);button.disabled=false; }
+    try { const result=await addEntries([{...it, ...where(),entry_method:'manual'}],{thread:location.pathname==='/food/describe'}); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${it.name}`,result.undo); } catch (x) { toast(x.message);button.disabled=false; }
   };
 }
 
@@ -795,7 +795,7 @@ function amountSheet(f, w, closeParent, onEditFood) {
       e.preventDefault(); const a = parseFloat(fm.amount.value); if (!(a > 0)) { toast('Enter an amount'); return; }
       const v = calc();
       const ref = {...(f.dish_id?{dish_id:f.dish_id,weight_g:f.weight_g,dish_kcal:f.dish_kcal}:{}),origin:f.origin,origin_notes:f.origin_notes,origin_model:f.origin_model,origin_edited:f.origin_edited,origin_ref:f.origin_ref,unknown_nutrients:f.unknown_nutrients||f._last?.ref?.unknown_nutrients,source: f.source, id: f.id, per100: f.per100 || null, per_serving: f.per_serving || null, serving: f.serving || null};
-      try { const result=await addEntries([{...w, name: nm || br || f.name, brand: f.brand || null, amount: a, unit: fm.unit.value, ...v, source: f.source === 'recent' ? 'recent' : f.source || 'search', ref}],{thread:location.pathname==='/food/describe'});
+      try { const result=await addEntries([{...w, name: nm || br || f.name, brand: f.brand || null, amount: a, unit: fm.unit.value, ...v, source: f.source === 'recent' ? 'recent' : f.source || 'search', entry_method:f.entry_method||'search', ref}],{thread:location.pathname==='/food/describe'});
         close(); closeParent(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${title}`,result.undo); } catch (x) { toast(x.message); }
     };
   });
@@ -871,7 +871,7 @@ function scanSheet(day, meal, onFound, onCode) {
     const v = $('#sc-v', b), msg = $('#sc-msg', b);
     const found = async (code) => {
       stop(); if(onCode){close();onCode(String(code));return;} msg.textContent = `Found ${code}. Looking it up…`;
-      try { const f = await api(`/api/food/barcode/${code}`); close(); if (onFound) onFound(f); else amountSheet(f, {day, meal}, () => {}); }
+      try { const f = await api(`/api/food/barcode/${code}`); close(); if (onFound) onFound(f); else amountSheet({...f,entry_method:"barcode"}, {day, meal}, () => {}); }
       catch (x) { msg.textContent = x.message; if (x.status === 404) { const go2 = confirm(`${x.message}. Create it now?`); if (go2) { close(); foodEditor({name: '', barcode: code, serving: {label: '1 serving'}}, null); } } }
     };
     $('#sc-f', b).onsubmit = (e) => { e.preventDefault(); const c = e.target.code.value.replace(/\D/g, ''); if (c.length >= 6) found(c); };

@@ -29,16 +29,19 @@ async def lifespan(app):
     milestone_stop,milestone_worker=milestones.start_worker()
     challenge_stop,challenge_worker=challenges.start_worker()
     personal_stop,personal_worker=personal_notifications.start_worker()
+    feature_stop,feature_worker=admin_features.start_cleanup()
     try:yield
     finally:
+        feature_stop.set();feature_worker.join(timeout=3)
         personal_stop.set();personal_worker.join(timeout=3)
         challenge_stop.set();challenge_worker.join(timeout=3)
         milestone_stop.set();milestone_worker.join(timeout=3)
         recipe_stop.set();recipe_worker.join(timeout=3);segment_stop.set();segment_worker.join(timeout=3)
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
-from . import recaps
+from . import recaps,admin_features
 app.include_router(community_terms.router)
+app.include_router(admin_features.router)
 app.include_router(recaps.router)
 app.include_router(personal_notifications.router)
 app.include_router(progress_overview.router)

@@ -27,7 +27,7 @@ const sectionPicker=$('#admin-section');
 sectionPicker.innerHTML=[...document.querySelectorAll('[data-view]')].map(b=>`<option value="${b.dataset.view}">${esc(b.textContent)}</option>`).join('');
 sectionPicker.onchange=()=>show(sectionPicker.value);
 async function show(view){current=view;sectionPicker.value=view;const rev=++revision;err.textContent='';$('#retry').hidden=true;content.innerHTML='<p>Loading…</p>';document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-current',b.dataset.view===view?'page':'false'));
-try{const query=['logins','usage'].includes(view)?'?'+new URLSearchParams({days:reportDays,...(view==='logins'?{...(loginOutcome?{outcome:loginOutcome}:{}),...(loginAccount?{account:loginAccount}:{})}:{})}):'';const special=typeof adminQuery==='function'?adminQuery(view):null;const data=await api('/'+({audit:'audit-history',requests:'data-requests'}[view]||view)+(special===null?query:special));if(rev!==revision||!who)return;
+try{const query=view==='features'?featureQuery():['logins','usage'].includes(view)?'?'+new URLSearchParams({days:reportDays,...(view==='logins'?{...(loginOutcome?{outcome:loginOutcome}:{}),...(loginAccount?{account:loginAccount}:{})}:{})}):'';const special=typeof adminQuery==='function'?adminQuery(view):null;const data=await api('/'+({audit:'audit-history',requests:'data-requests'}[view]||view)+(special===null?query:special));if(rev!==revision||!who)return;
  if(view==='overview')await overviewView(data,rev);
  if(view==='people')peopleView(data,rev);
  if(view==='readiness')readinessView(data,rev);
@@ -37,6 +37,7 @@ try{const query=['logins','usage'].includes(view)?'?'+new URLSearchParams({days:
  if(view==='reports')reportsView(data,rev);
  if(view==='segments')segmentsView(data,rev);
  if(view==='usage')usageView(data);
+ if(view==='features')featuresView(data);
  if(view==='logins')await loginsView(data,rev);
  if(view==='audit')auditView(data,rev);
 }catch(e){if(rev!==revision)return;content.innerHTML='<p>Could not load this section.</p>';error(e);$('#retry').hidden=false}}

@@ -1,0 +1,26 @@
+'use strict';
+let featurePeriod='30',featureBucket='week',featureSort='label',featureDirection=1;
+function featureQuery(){return '?'+new URLSearchParams({period:featurePeriod,bucket:featureBucket});}
+function featuresView(data){
+ const count=n=>n===null?'Fewer than 3':Number(n).toLocaleString(), signed=n=>n===null?'Unavailable':(n>0?'+':'')+n.toLocaleString();
+ function spark(row){
+  const points=row.trend.filter(p=>p.uses!==null);if(!points.length)return '<span class="small">Hidden / unavailable</span>';
+  const max=Math.max(1,...points.map(p=>p.uses)),first=Date.parse(data.start),span=Math.max(86400000,Date.parse(data.end)-first);
+  const xy=p=>[(5+Math.max(0,Date.parse(p.day)-first)*110/span).toFixed(1),(33-p.uses/max*27).toFixed(1)];
+  const d=points.map((p,i)=>(i&&!(row.kind==='daily counters'&&Date.parse(p.day)-Date.parse(points[i-1].day)>86400000)?'L':'M')+xy(p).join(' ')).join(' ');
+  const dots=points.map(p=>{const [x,y]=xy(p);return `<circle class="feature-dot" cx="${x}" cy="${y}" r="2"/>`;}).join('');
+  const labels=points.map(p=>esc(p.day)+': '+p.uses+' uses').join('; ');
+  return `<svg viewBox="0 0 120 44" role="img" aria-label="${esc(row.label)} trend. ${labels}"><title>${labels}</title><path class="feature-axis" d="M5 5V34H115"/><path class="feature-line" d="${d}"/>${dots}<text x="1" y="43">0</text><text x="115" y="43" text-anchor="end">${esc(points.at(-1).day.slice(5))}</text></svg>`;
+ }
+ content.innerHTML=`<div class="feature-heading"><h2>Features</h2><div class="feature-controls"><label>Range<select id="feature-period">${[['7','7 days'],['30','30 days'],['90','90 days'],['12m','12 months']].map(([k,v])=>`<option value="${k}"${k===featurePeriod?' selected':''}>${v}</option>`).join('')}</select></label><label>Trend<select id="feature-bucket">${['day','week','month'].map(k=>`<option${k===featureBucket?' selected':''}>${k}</option>`).join('')}</select></label></div></div>
+ <p class="small">${esc(data.start)} – ${esc(data.end)} · UTC · Counts below three people are hidden.</p>
+ ${data.collection_enabled?'': '<p class="notice">New feature counting is off pending approval of the privacy wording. Existing-record totals remain available.</p>'}
+ <p class="small">People are distinct within each record row. Daily counters show user-days from visible days only. Rows overlap; do not add them together. Tracking since ${esc(data.tracking_since||'not started')}.</p>
+ <div class="feature-sort" role="group" aria-label="Sort feature rows">${[['label','Feature'],['people','People'],['uses','Uses'],['change','Change']].map(([k,v])=>`<button data-feature-sort="${k}" aria-pressed="${featureSort===k}">${v}${featureSort===k?(featureDirection===1?' ↑':' ↓'):''}</button>`).join('')}</div>
+ <div class="feature-results"></div><section class="feature-funnel"><h3>New-account milestones</h3><p class="small">Independent steps for accounts created in this range. Deleted accounts/records are absent. Week 2 includes only accounts at least 14 days old. Setup history before tracking is unavailable.</p><ul>${data.funnel.map(s=>`<li><div><span>${esc(s.label)}</span><b>${s.count===null?esc(s.state):count(s.count)+' / '+count(s.eligible)}</b></div>${s.percent===null?'<p class="small">'+esc(s.state)+'</p>':`<svg viewBox="0 0 100 5" preserveAspectRatio="none" role="img" aria-label="${esc(s.label)}: ${s.percent}% of eligible accounts"><rect class="feature-bar-bg" width="100" height="5"/><rect class="feature-bar" width="${s.percent}" height="5"/></svg>`}</li>`).join('')}</ul><p class="small">0% ───────────────── 100% of eligible accounts</p></section>
+ <details><summary>Definitions, privacy and coverage</summary><ul>${data.notes.map(s=>`<li>${esc(s)}</li>`).join('')}</ul><p>Anonymous daily counters are retained for13 months. Daily salts and deduplication keys are discarded at the next UTC day; no stable identifier is kept in counters. A previous12-month comparison is unavailable with13-month retention.</p></details>`;
+ const rows=[...data.rows].sort((a,b)=>{const x=a[featureSort],y=b[featureSort];if(x===null||y===null)return x===y?0:x===null?1:-1;return featureDirection*(typeof x==='string'?x.localeCompare(y):x-y);});
+ $('.feature-results').innerHTML='<table class="feature-table"><thead><tr><th>Feature</th><th>People / user-days</th><th>Uses</th><th>Change</th><th>Trend · uses</th></tr></thead><tbody>'+rows.map(r=>`<tr><th scope="row">${esc(r.label)}<small>${esc(r.kind)}</small></th><td data-label="${r.metric}">${count(r.people)}<small>${esc(r.metric)}</small></td><td data-label="Uses">${count(r.uses)}</td><td data-label="Change">${signed(r.change)}</td><td class="feature-trend">${spark(r)}</td></tr>`).join('')+'</tbody></table>';
+ $('#feature-period').onchange=e=>{featurePeriod=e.target.value;show('features');};$('#feature-bucket').onchange=e=>{featureBucket=e.target.value;show('features');};
+ content.querySelectorAll('[data-feature-sort]').forEach(b=>b.onclick=()=>{if(featureSort===b.dataset.featureSort)featureDirection*=-1;else{featureSort=b.dataset.featureSort;featureDirection=featureSort==='label'?1:-1;}featuresView(data);});
+}

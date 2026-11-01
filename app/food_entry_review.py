@@ -126,14 +126,16 @@ def stage_items(body:ItemsIn,user=Depends(current_user)):
     values=[]
     for item in body.items:
         if 'kcal' not in item.model_fields_set:raise HTTPException(422,'Enter calories for this food')
-        value=item.model_dump(mode='json',exclude={'client_id'});ref=value.get('ref') or {}
+        value=item.model_dump(mode='json',exclude={'client_id'}|({'entry_method'} if item.entry_method is None else set()));ref=value.get('ref') or {}
         missing=set(ref.get('unknown_nutrients') or [])|{k for k in N.ALL if k not in item.model_fields_set or getattr(item,k) is None}
+        from .admin_features import enabled as metrics_enabled
+        if not metrics_enabled():value.pop('entry_method',None)
         value['ref']={**ref,'unknown_nutrients':sorted(missing)};values.append(value)
     if len(json.dumps(values))>150000:raise HTTPException(422,'Add fewer foods at a time')
     for e in values:
         if not e['name'].strip():raise HTTPException(422,'Give the food a name')
         e['name']=e['name'].strip()
-    request={'items':values,'draft_id':str(body.draft_id)}
+    request={'items':[{k:v for k,v in e.items() if k!='entry_method'} for e in values],'draft_id':str(body.draft_id)}
     with db.connect() as c:
         m,created=root(c,user['id'],body.client_id,request,'Added for review: '+', '.join(e['name'] for e in values)[:600])
         if not created:return T.answer_with(c,user['id'],m)
@@ -298,6 +300,8 @@ def confirm(mid:int,body:ConfirmIn,response:Response,user=Depends(current_user))
                     (uid,day,body.meal,e['name'],e.get('brand'),e['amount'],e['unit'],*[e[k] for k in N.ALL],e['source'],json.dumps(e.get('ref')),pos,key)).fetchone()
                 ids.append(row['id']);entry_digests[str(row['id'])]=E.entry_digest(row)
                 c.execute('INSERT INTO food_chat_entries(user_id,message_id,entry_id) VALUES(%s,%s,%s)',(uid,mid,row['id']))
+        from . import food_entry_methods as methods
+        methods.review(c,uid,ids,sources,recipe=bool(recipe_id),combined=body.basis!='amounts')
         messages=[]
         for source,result in sources:
             result.update(kind='reviewed',parts=[],pending_count=0,can_resolve=False,text='Included in your completed food review.',completed_review=mid)

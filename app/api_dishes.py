@@ -499,6 +499,8 @@ def portion(did: int, body: PortionIn, user=Depends(current_user), thread: bool 
                              RETURNING id, day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref""",
                           (user['id'], day, body.meal, d['name'], amount, unit, vals['kcal'], vals['protein_g'] or 0, vals['carbs_g'] or 0,
                            vals['fat_g'] or 0, vals['fiber_g'],vals['sodium_mg'],vals['sugar_g'],vals['saturated_fat_g'],json.dumps(ref), pos, body.client_id)).fetchone()
+        from . import food_entry_methods as methods
+        methods.recipe(c,user['id'],[entry['id']])
         if body.of and d['user_id'] == user['id']:      # "1 of 4": the next time it offers 4 again
             c.execute('UPDATE dishes SET servings = %s WHERE id = %s AND user_id = %s', (body.of, did, user['id']))
         messages=receipts.create(c,user['id'],[entry['id']],captured_at) if thread else []

@@ -1,4 +1,4 @@
-// Period pictures contain only deliberately selected aggregates. No map, intake, weight, real name or sharing analytics.
+// Period pictures contain only deliberately selected aggregates. No map, intake, weight, real name or destination tracking.
 'use strict';
 const ShareArt=(()=>{
   const palette=()=>({bg:col('--share-surface'),text:col('--share-text'),soft:col('--share-text-secondary'),muted:col('--share-text-muted'),line:col('--share-divider'),blue:col('--share-action'),tint:col('--share-soft')});
@@ -33,6 +33,7 @@ const ShareArt=(()=>{
   }
 
   async function simplePicture({kicker,title,date,value,unit,facts=[],sources=[],identity=false,qrLink=null}){
+    const pictureOwner=readOwner();
     await document.fonts.ready;const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;
     const g=canvas.getContext('2d'),p=palette(),M=72;g.fillStyle=p.bg;g.fillRect(0,0,1080,1350);let y=85;
     if(identity){
@@ -57,7 +58,8 @@ const ShareArt=(()=>{
     if(y+20>top)throw Error('The picture could not fit clearly. Try again without photo and username.');
     creditLines.forEach((line,n)=>text(g,line,M,top+n*27,22,{color:p.muted}));
     g.strokeStyle=p.line;g.lineWidth=2;g.beginPath();g.moveTo(M,1275);g.lineTo(1008,1275);g.stroke();drawMark(g,M+24,1311,48,p.blue);text(g,'Kinetta',M+62,1323,30);text(g,'kinetta.app',1008,1321,26,{align:'right',color:p.muted});
-    return{blob:await blob(canvas),alt:[identity?'@'+App.me.login:'',kicker,title,date,value,unit,...facts,credit,qrLink?'Invitation: '+qrLink:''].filter(Boolean).join('. ')};
+    const pictureBlob=await blob(canvas);if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('share_picture',pictureOwner);
+    return{blob:pictureBlob,alt:[identity?'@'+App.me.login:'',kicker,title,date,value,unit,...facts,credit,qrLink?'Invitation: '+qrLink:''].filter(Boolean).join('. ')};
   }
   return{palette,family,text,lines,blob,deliver,photo,simplePicture};
 })();
@@ -226,6 +228,7 @@ const Recaps=(()=>{
           if(!saved&&!defaultApplied)options.streak=data.streak_weeks>=2;defaultApplied=true;
           $('#recap-description',b).textContent='Totals and chart include Only me workouts; highlights use shared activities. No maps, places or body details.'+(options.food?' Food: logged and protein-goal days only.':'')+(options.identity?' Includes your photo and username.':'');
           const result=await draw(data,options);if(!live()||run!==version)return;
+          if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('share_picture',owner);
           if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(result.blob);image.src=url;image.alt=result.alt;picture=result.blob;
           const hasData=data.activities>0||options.food&&data.food.logged_days>0,hasSections=options.totals||options.calendar||options.highlights&&data.highlights.length>0||options.streak&&data.streak_weeks>=2||options.food||options.identity;
           canShare=hasData&&hasSections;

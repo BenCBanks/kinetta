@@ -624,7 +624,7 @@ function render() {
   const result=page.fn(el,...m.slice(1));
   if(typeof KitChat!=='undefined')KitChat.entry(el,path);
   requestAnimationFrame(()=>{if(current()&&!touched)window.scrollTo(0,targetY);});
-  return Promise.resolve(result).catch((e) => showError(el, e)).finally(() => {
+  return Promise.resolve(result).then(() => {if(current()&&typeof FeatureUsage!=='undefined')FeatureUsage.open(path);}).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
     requestAnimationFrame(() => { if(current()&&!touched)window.scrollTo(0,targetY);interactions.abort(); });
     if (current()) { App.pageReady = true; globalThis.CommunityTerms?.check(); if(typeof KitChat!=='undefined')KitChat.entry(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }

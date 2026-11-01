@@ -1,3 +1,4 @@
+from typing import Literal
 """Food log API: day view, entries (add/edit/move/copy/delete), food search (own foods, recent, Open Food Facts, USDA),
 barcode lookup, custom foods, saved meals, weight + trend, nutrition targets.
 
@@ -290,7 +291,10 @@ def _last_meals(c, uid, day_):
     return out
 
 
+from . import food_entry_methods as methods
+
 class EntryIn(N.ExtraValues):
+    entry_method: Literal['describe','search','barcode','photo','recipe','copy_yesterday','copy_other','manual','mixed','other','unknown'] | None = None
     day: dt.date
     meal: str = Field('snacks', pattern='^(breakfast|lunch|dinner|snacks)$')
     name: str = Field(min_length=1, max_length=200)
@@ -330,6 +334,7 @@ def add_entries(items: list[EntryIn], user=Depends(current_user), thread: bool =
                              ON CONFLICT (user_id, client_id) WHERE client_id IS NOT NULL DO NOTHING RETURNING id""",
                           (user['id'], e.day, e.meal, e.name.strip(), e.brand, e.amount, e.unit, e.kcal, e.protein_g, e.carbs_g, e.fat_g,
                            e.fiber_g, e.sodium_mg,e.sugar_g,e.saturated_fat_g,e.source, json.dumps(e.ref) if e.ref else None, pos, e.client_id)).fetchone()
+            if r is not None:methods.stamp(c,user['id'],[r['id']],e.entry_method)
             if r is None:   # already received (offline resend)
                 r = c.execute('SELECT id FROM food_entries WHERE user_id = %s AND client_id = %s', (user['id'], e.client_id)).fetchone()
             ids.append(r['id'])
@@ -420,7 +425,7 @@ def edit_entry(eid: int, body: EntryEdit, user=Depends(current_user)):
 def delete_entry(eid: int, user=Depends(current_user)):
     with db.connect() as c:
         r = c.execute("""DELETE FROM food_entries WHERE id = %s AND user_id = %s
-                         RETURNING day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref""", (eid, user['id'])).fetchone()
+                         RETURNING day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref, entry_method""", (eid, user['id'])).fetchone()
     if not r: raise HTTPException(404, 'Not found')
     return {'deleted': r}     # the phone keeps this for Undo
 
@@ -437,8 +442,10 @@ def copy(body: CopyIn, user=Depends(current_user)):
     with db.connect() as c:
         n = c.execute("""INSERT INTO food_entries (user_id, day, meal, name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref, position)
                          SELECT user_id, %s, coalesce(%s, meal), name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref, position + 1000
-                         FROM food_entries WHERE user_id = %s AND day = %s AND (%s::text IS NULL OR meal = %s)""",
-                      (body.to_day, body.to_meal, user['id'], body.from_day, body.meal, body.meal)).rowcount
+                         FROM food_entries WHERE user_id = %s AND day = %s AND (%s::text IS NULL OR meal = %s) RETURNING id""",
+                      (body.to_day, body.to_meal, user['id'], body.from_day, body.meal, body.meal)).fetchall()
+        methods.copied(c,user['id'],[r['id'] for r in n],body.from_day,body.to_day)
+        n=len(n)
     return {'copied': n}
 
 
