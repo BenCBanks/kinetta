@@ -1,14 +1,18 @@
 # Kinetta app map
 
-The pre-launch walkthrough (#472) builds this map one tab at a time. The Me slice was inspected at `8cb2c01`; the remaining tab interiors will be added after their walkthroughs. Routes use placeholders and contain no account data.
+The pre-launch walkthrough (#472) builds this map one tab at a time. Me was inspected at `8cb2c01`, and Activity and Track at `7d0b3d6`. Track’s native recording and Health visuals used browser stand-ins; physical-device behavior is not verified. Progress, Nutrition and sign-up interiors remain for their walkthroughs. Routes use placeholders and contain no account data.
 
 Depth counts taps after selecting the tab. Opening a disclosure and then its Open link counts as two taps. Sheet depth is included. Scrolling does not add taps. A node can have several entrances; depths below use the shortest entrance available in the inspected state.
+
+## Me and the five-tab spine
+
+The boundary nodes lead to other tabs; their owned flows appear below as each slice is reviewed.
 
 ```mermaid
 flowchart LR
   Tabs["Five tabs"] --> Me["Me · 0 taps"]
-  Tabs --> Activity["Activity · future slice"]
-  Tabs --> Track["Track · future slice"]
+  Tabs --> Activity["Activity · see audited flow below"]
+  Tabs --> Track["Track · see audited flow below"]
   Tabs --> Progress["Progress · future slice"]
   Tabs --> Nutrition["Nutrition · future slice"]
   Signup["Sign-up and welcome · future slice"]
@@ -220,3 +224,117 @@ The measured entrance depends on account state: populated goals and recent miles
 ## Follow-up decisions
 
 Speed check and its Settings link are scheduled for retirement in #486; the diagram records their current presence. A direct first-Goal entrance belongs to #421. Kit permissions/history depth belongs to #418. Merging Recent milestones into Me remains a proposal awaiting an owner decision. Private history and shared profiles retain separate entrances, as do signed-in profile links and public card/QR sharing.
+
+## Activity
+
+Depth starts on Activity. Own and shared activity routes keep different audiences; panes and sheets are not extra pages.
+
+```mermaid
+flowchart LR
+ Activity["Activity · /activity · 0"] -->|Own card · 1| Detail["Own activity · /activity/:id"]
+ Activity -->|Shared card · 1| SharedDetail["Shared activity · /activity/friends/:id"]
+ Activity -->|Trophy · 1| Challenges["Challenges · /me/challenges"]
+ Activity -->|Featured challenge · 1| Challenge["Challenge · /me/challenges/:code"]
+ Challenges -->|Choose · 2| Challenge
+ Activity -->|Bell · 1| Inbox["Notifications"]
+ Activity -->|Person · 1| Profile["Signed-in profile"]
+ Activity -->|Find friends · 1| Friends["Friends"]
+ Activity -->|Share your QR card · 1| PublicCard["Public-card options sheet"]
+ Detail -->|Select pane · 2| ActivityPanes["Charts / Splits / Efforts / Details"]
+ SharedDetail -->|Select pane · 2| SharedPanes["Permitted Charts / Splits / Details"]
+ Detail -->|Comments · 2| Comments["Comments sheet: empty / populated"]
+ SharedDetail -->|Comments · 2| Comments
+ Detail -->|Reaction arrow · 2| ReactionPicker["Reaction chooser"]
+ SharedDetail -->|Reaction arrow · 2| ReactionPicker
+ Comments -->|Reactions · 3| ReactionPeople["Who reacted sheet"]
+ Comments -->|Report · 3| CommentReport["Report comment sheet"]
+ Detail -->|Edit · 2| ActivityEdit["Activity editor and correction disclosure"]
+ ActivityEdit -->|Preview as a friend · 3| SharedDetail
+ Detail -->|Share · 2| ActivityPicture["Activity picture preview"]
+ Detail -->|Map expand · 2| FullMap["Full map dialog"]
+ SharedDetail -->|Map expand · 2| FullMap
+ Detail -->|Photo · 2| ActivityPhoto["Full photo viewer"]
+ SharedDetail -->|Photo · 2| ActivityPhoto
+ SharedDetail -->|Report in Details · 3| ActivityReport["Report activity / Block sheet"]
+ ActivityPanes -->|Make a segment · 3| SegmentStretch["Choose the segment sheet"]
+ SegmentStretch -->|Use this stretch · 4| SegmentReview["Review segment · Progress boundary"]
+ ActivityPanes -->|Add original map · 3| OriginalMapHelp["Original-map help sheet"]
+ OriginalMapHelp -->|Upload original · 4| Import["Track upload boundary"]
+ Detail -->|Edit sets · 2| LiftEdit["Track lifting editor boundary"]
+ Detail -->|Exercise · 2| LiftHistory["Progress exercise history boundary"]
+ Detail -->|Matched route · 2| MatchedRoute["Matched route · /route/:id · Progress boundary"]
+ Detail -->|Personal best · 2| RecordHistory["Record history · /records/:sport/:distance · Progress boundary"]
+ ActivityPanes -->|Similar effort · 2| Detail
+ Challenges -->|Create · 2| ChallengeTemplates["Five challenge templates sheet"]
+ ChallengeTemplates -->|Choose · 3| ChallengeCreate["Challenge form and custom dates"]
+ ChallengeCreate -->|Create · 4| ChallengeInvite["Invitation picture and link sheet"]
+ Challenge -->|Invite · 2| ChallengeInvite
+ Challenge -->|Finished picture · 2| ChallengeFinish["Finished picture sheet"]
+ Challenge -->|Join / Refresh| Challenge
+ Challenge -->|Leave / End / Remove · 2| ChallengeConfirm["Explicit confirmation sheet"]
+ Challenge -->|Report · 2| ChallengeReport["Report challenge sheet"]
+ ChallengeInvite -.->|Open copied link| ChallengePublic["Public invitation · /challenge/:code"]
+ ChallengePublic -->|Existing-member login| Login["Sign-in boundary"]
+ ChallengePublic -->|Privacy| Policies["Website privacy"]
+```
+
+## Track
+
+Depth starts on Track with the appropriate sport already selected. Recording and lifting summaries are states of existing routes. Native UI was inspected with local browser stand-ins; dashed plan/recovery arrows are source-only.
+
+```mermaid
+flowchart LR
+ Track["Track · /track · 0"] -->|More · 1| SportPicker["Activity picker sheet · GPS, Timer, Sets and reps"]
+ Track -->|Start selected timer or GPS · 1| Recording["Recording · /track"]
+ Recording -->|Map or Stats| Recording
+ Recording -->|Pause · 2| Paused["Paused recording · /track"]
+ Paused -->|Resume| Recording
+ Paused -->|Finish · 3| TrackReview["Review activity · /track"]
+ TrackReview -->|Details and splits · 4| TrackDetails["Review disclosure"]
+ TrackReview -->|Add photos · 4| PhotoPicker["Photo picker and selected photos"]
+ TrackReview -->|Continue recording| Recording
+ Recording -->|Discard · 2| TrackDiscard["Discard draft confirmation"]
+ Paused -->|Discard · 3| TrackDiscard
+ TrackReview -->|Save · 4| TrackSaved["Saved activity banner · /track?done=:id"]
+ TrackSaved -->|View activity · 5| Detail["Own activity · Activity boundary"]
+ Track -->|Start lifting · 1| LiftStart["Start lifting sheet: empty, repeat or past"]
+ LiftStart -->|Empty or repeat · 2| LiftEdit["Lifting logger · /track/lift/:id"]
+ LiftEdit -->|Add exercise · 3| ExercisePicker["Exercise picker/search sheet"]
+ ExercisePicker -->|Add new name · 4| ExerciseKind["Measurement kind sheet"]
+ LiftEdit -->|More · 3| ExerciseMenu["Exercise menu"]
+ ExerciseMenu -->|Note · 4| ExerciseNote["Note for next time sheet"]
+ ExerciseMenu -->|Choose a set · 4| ChooseSet["Set picker sheet"]
+ ChooseSet -->|Set · 5| SetMenu["Warm-up, working or delete set sheet"]
+ LiftEdit -->|Set number · 3| SetMenu
+ ExerciseMenu -->|History · 4| LiftHistory["Exercise history · Progress boundary"]
+ LiftEdit -->|Finish · 3| LiftFinish["Unticked sets confirmation when needed"]
+ LiftFinish -->|Confirm · 4| LiftSummary["Lifting summary · same logger route"]
+ LiftEdit -->|Finish, no unticked sets · 3| LiftSummary
+ LiftSummary -->|Carry on| LiftEdit
+ LiftSummary -->|Done · 4 or5| TrackSaved
+ LiftEdit -->|Discard · 3| LiftDiscard["Delete own session confirmation"]
+ Track -->|Log past · 1| Manual["Add activity sheet and More details"]
+ LiftStart -->|Log earlier · 2| Manual
+ Manual -->|Lifting save| LiftEdit
+ Manual -->|Save| Track
+ Track -->|Import history · 1, browser| Import["Upload activities · /track/import"]
+ Track -->|Import history · 1, iPhone| ImportHelp["Import history sheet"]
+ ImportHelp -->|Open in browser · 2| Import
+ Import -->|Choose files| FilePicker["File picker and import job status"]
+ Track -->|Connections · 1| Connections["Connections · /track/connections"]
+ Connections -->|Apple Health · 2| Health["Apple Health · /track/health"]
+ Health -->|Done or Back| Connections
+ Connections -->|Import activity history · 2, browser| Import
+ Connections -->|Other connections · 2| OtherConnections["Health Auto Export disclosure"]
+ Track -->|Intervals · 1, outdoor iPhone| IntervalLibrary["Intervals library sheet"]
+ IntervalLibrary -->|New · 2| IntervalEdit["New or Edit intervals builder sheet"]
+ IntervalLibrary -->|Saved preset · 2| IntervalPreview["Preset preview sheet"]
+ IntervalPreview -->|Edit · 3| IntervalEdit
+ IntervalPreview -->|Delete · 3| IntervalDelete["Delete preset confirmation"]
+ IntervalPreview -->|Use in Track| Track
+ Recording -->|Skip or End intervals · 2| IntervalControl["Explicit Skip or End confirmation"]
+ Track -.->|Today's plan, source-only| Plan["Training plan · Progress boundary"]
+ TrackReview -.->|Unconfirmed save, source-only| Retry["Retry save or own activity history"]
+```
+
+The Activity and Track slices found no additional Speed Check entrance. The browser-only Health explanation is agreed to fold into Connections in the later shell batch, while full iPhone Health settings and independent consent scopes stay distinct. The application is unchanged by this map. Known layout and copy findings are tracked separately from this map.

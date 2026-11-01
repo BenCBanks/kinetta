@@ -5,6 +5,10 @@ This supersedes Evergreen Agenda’s colours and serif headings, the unapproved 
 options in reference-only #224. The change is colours and heading font only: keep the existing logo, tab names and
 order, layout, conditional panels, homepage structure and privacy rules. Do not merge those earlier proposals.
 
+## Compact, slick and intuitive · owner direction, 1 November 2026
+
+Choose the denser, quieter layout. Keep Back and the title on one row, and keep action footers on one row. Avoid grey pill fills and extra boxes; use colour for the active state. Give each feature one obvious entrance with few taps, while preserving 44px touch targets.
+
 ## One source of truth
 
 `docs/design-tokens.json` owns standard colors for light/dark themes, sport/chart series, fonts, spacing, radii and touch
