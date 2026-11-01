@@ -11,8 +11,8 @@ import re
 import secrets
 import unicodedata
 import shutil
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
-from pydantic import BaseModel, Field, StrictBool
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, Query
+from pydantic import BaseModel, Field, StrictBool, ConfigDict
 from psycopg import errors, sql
 from . import db, auth
 from .auth import current_user
@@ -22,11 +22,16 @@ from .profile_layout import ProfileLayout
 router = APIRouter()
 DATA = os.environ.get('FIT_DATA', '/data')
 LOGIN_RE = re.compile(r'^[a-z][a-z0-9_]{1,29}$')
+RESERVED_LOGINS = {'admin','administrator','support','kinetta','help','api','root','system','security','moderator','team','login','logout','signup','beta','privacy','terms','account','settings','static','www','me'}
+
+def reserved_login(value):
+    return re.sub(r'[0-9]+$', '', value) in RESERVED_LOGINS
 
 
-def _clean_login(v):
+def _clean_login(v, *, current=None):
     v = (v or '').strip().lower()
     if not LOGIN_RE.match(v): raise HTTPException(400, 'Username: 2-30 lowercase letters, numbers or _, starting with a letter')
+    if reserved_login(v) and v != (current or '').strip().lower(): raise HTTPException(400, 'That username is reserved. Choose another.')
     return v
 
 
@@ -47,7 +52,7 @@ class AccountIn(BaseModel):
 def set_account(body: AccountIn, user=Depends(current_user)):
     vals = {}
     if body.name is not None: vals['name'] = _clean_name(body.name)
-    if body.login is not None: vals['login'] = _clean_login(body.login)
+    if body.login is not None: vals['login'] = _clean_login(body.login, current=user['login'])
     layout=body.profile_layout.model_dump() if body.profile_layout is not None else None
     if vals or body.bio is not None or layout is not None:
         try:
@@ -221,10 +226,32 @@ def suggest_login(c, name, taken=()):
     with their email and change their username whenever they like)."""
     word = (unicodedata.normalize('NFKD', name).encode('ascii', 'ignore').decode().lower().split() or [''])[0]
     base = re.sub(r'^[^a-z]+', '', re.sub(r'[^a-z0-9_]', '', word))[:26]
-    if len(base) < 2: base = 'mover'
+    if len(base) < 2 or reserved_login(base): base = 'mover'
     for n in range(1, 100000):
         cand = base if n == 1 else f'{base}{n}'
         if cand not in taken and not c.execute('SELECT 1 FROM users WHERE login = %s', (cand,)).fetchone(): return cand
+
+
+@router.get('/api/account/username-availability')
+def username_availability(request: Request, login: str = Query('', max_length=60)):
+    """Only public handle availability; an unchanged handle comes from the authenticated session."""
+    from . import account_email
+    with db.connect() as c:
+        hit = account_email.limited(c, 'username-ip:' + auth.client_ip(request), 60, 1)
+    if hit: raise HTTPException(429, 'Too many checks. Wait a minute and try again.')
+    who = None
+    if auth.session_token(request):
+        try: who = current_user(request)
+        except HTTPException as error:
+            if error.status_code != 401: raise
+    value = login.strip().lower()
+    try: value = _clean_login(value, current=who['login'] if who else None)
+    except HTTPException as error:
+        return {'login':value,'available':False,'reason':'reserved' if reserved_login(value) else 'invalid','message':error.detail}
+    with db.connect() as c:
+        taken = c.execute('SELECT 1 FROM users WHERE login=%s AND (%s::bigint IS NULL OR id<>%s)', (value,who['id'] if who else None,who['id'] if who else None)).fetchone()
+        suggestion = suggest_login(c,value,taken={value}) if taken else None
+    return {'login':value,'available':not bool(taken),'reason':'taken' if taken else None,'suggestion':suggestion}
 
 
 def _create(c, body, is_admin=False):
@@ -340,13 +367,18 @@ def join(body: JoinIn, request: Request, response: Response, background: Backgro
     email = account_email._clean_email(body.email) if body.email and body.email.strip() else None
     ip = auth.client_ip(request)
     if auth.too_many(ip, 'join'): raise HTTPException(429, 'Too many tries - wait 15 minutes')
+    if email: account_email.enrollment_limit(request, email)
     try:
         with db.connect() as c:
             inv = _open_invite(c, body.token, lock=True)      # 404 for a bad link: counted below, after this connection
     except HTTPException:
         auth.failed(ip, 'join'); raise
     with db.connect() as c:
+        if email: account_email.reservation_lock(c)
         inv = _open_invite(c, body.token, lock=True)
+        if email:
+            account_email.require_available(c, email)
+            if not account_email.mail_ready(): raise HTTPException(503, 'Email isn’t set up on this Kinetta yet. Ask the person who runs it.')
         uid = _create(c, body)
         if not body.card_code and inv.get('origin_card'):c.execute("INSERT INTO signup_join_intents(user_id,kind,code,want_request) VALUES(%s,'card',%s,false)",(uid,inv['origin_card']))
         c.execute('UPDATE invites SET used_by = %s, used_at = now() WHERE id = %s', (uid, inv['id']))
@@ -358,6 +390,26 @@ def join(body: JoinIn, request: Request, response: Response, background: Backgro
     with db.connect() as c:challenges.consume_signup(c,uid)
     auth.set_cookie(request, response, token)
     return {'ok': True, 'login': login}
+
+
+class ExistingJoinIn(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    token: str = Field(min_length=1, max_length=100)
+
+
+@router.post('/api/join/existing')
+def join_existing(body: ExistingJoinIn, user=Depends(current_user)):
+    """Explicit acceptance records the inviter; it does not create accounts, sessions or friend requests."""
+    with db.connect() as c:
+        if not c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE', (user['id'],)).fetchone(): raise HTTPException(404, 'Account not found.')
+        invitation = c.execute('SELECT id,used_by,used_at,expires FROM invites WHERE token_hash=%s FOR UPDATE', (_hash(body.token),)).fetchone()
+        if not invitation: raise HTTPException(404, 'This invitation is no longer available.')
+        if invitation['used_at']:
+            if invitation['used_by'] == user['id']: return {'ok':True,'already_accepted':True}
+            raise HTTPException(404, 'This invitation is no longer available.')
+        if invitation['expires'] <= dt.datetime.now(dt.timezone.utc): raise HTTPException(404, 'This invitation has expired.')
+        c.execute('UPDATE invites SET used_by=%s,used_at=now() WHERE id=%s', (user['id'],invitation['id']))
+    return {'ok':True,'already_accepted':False}
 
 
 @router.get('/api/account/inviter')

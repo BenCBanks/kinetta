@@ -5,8 +5,8 @@ const source=fs.readFileSync('app/static/app.js','utf8');
 function fixture(){
   let html='',nodes={},owner='one';const values=new Map(),calls=[],forms=[],betas=[];
   const root={get innerHTML(){return html;},set innerHTML(value){html=value;nodes=Object.fromEntries([...value.matchAll(/id="([^"]+)"/g)].map(m=>['#'+m[1],{disabled:false}]));}};
-  const c={root,location:{pathname:'/signup',search:''},readOwner:()=>owner,BRAND:'Kinetta',esc:String,store:{get:k=>values.get(k),del:k=>values.delete(k)},$:s=>nodes[s]||null,
-    history:{replaceState(a,b,url){c.location.pathname=url;}},showLogin:()=>{root.innerHTML='Current login';},showNewAccount:form=>forms.push(form),showBeta:full=>betas.push(!!full)};
+  const c={root,location:{pathname:'/signup',search:''},readOwner:()=>owner,BRAND:'Kinetta',esc:String,App:{me:null},store:{get:k=>values.get(k),set:(k,v)=>values.set(k,v),del:k=>values.delete(k)},$:s=>nodes[s]||null,
+    history:{replaceState(a,b,url){c.location.pathname=url;}},showLogin:()=>{root.innerHTML='Current login';},showNewAccount:form=>{forms.push(form);root.innerHTML='<a id="j-login"></a>';},showBeta:full=>betas.push(!!full)};
   c.api=async path=>{calls.push(path);if(path==='/api/signup')return {open:true,full:false};if(path==='/api/beta')return {open:false};throw Error(path);};
   vm.createContext(c);
   vm.runInContext(source.slice(source.indexOf('async function challengeOrigin('),source.indexOf('function showNewAccount('))+source.slice(source.indexOf('async function enrollmentPolicy('),source.indexOf('// "Join the beta"')),c);

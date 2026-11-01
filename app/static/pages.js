@@ -1717,17 +1717,18 @@ function tzOptions(cur) {
 
 // ---------- account (name, username, password) + people (admin) ----------
 function accountSheet(field) {
-  const me = App.me, isName = field === 'name';
+  const me = App.me, owner=readOwner(), isName = field === 'name';
   sheet(isName ? 'Your name' : 'Username', `<form class="form" id="ac">
     <label>${isName ? 'Name' : 'Username'}<input name="v" value="${esc(isName ? me.name : me.login)}" maxlength="${isName ? 60 : 30}"
       ${isName ? 'autocomplete="name"' : 'autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username"'} enterkeyhint="done" required></label>
     <p class="small muted">${isName ? 'Shown at the top of your screens.' : me.email ? 'Your @name: how friends find and mention you. Change it whenever you like; you log in with your email. Lowercase letters, numbers or _.' : 'Your @name, and what you type to log in until you add an email. Change it whenever you like. Lowercase letters, numbers or _.'}</p>
     <div class="actions"><button class="primary">Save</button></div></form>`, (b, close) => {
     const f = $('#ac', b); f.v.focus();
+    const username = !isName && globalThis.UsernameAvailability?.watch(f.v);
     f.onsubmit = async (e) => {
       e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
-      try { const r = await api('/api/account', json('PUT', {[field]: f.v.value})); me[field] = r[field]; close(); render(); toast(isName ? 'Name saved' : me.email ? `You're now @${r[field]}` : 'Username changed - use it next time you log in'); }
-      catch (x) { toast(x.message); btn.disabled = false; }
+      try { const r = await api('/api/account', json('PUT', {[field]: f.v.value})); if(owner!==readOwner())return;App.me[field] = r[field];keep('/api/me',App.me);if(!b.isConnected||b.closest('.scrim')?.classList.contains('is-closing'))return;close(); render(); toast(isName ? 'Name saved' : me.email ? `You're now @${r[field]}` : 'Username changed - use it next time you log in'); }
+      catch (x) { if(owner!==readOwner()||!b.isConnected)return;if(username)username.error(x.message);else toast(x.message); btn.disabled = false; }
     };
   });
 }

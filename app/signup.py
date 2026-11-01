@@ -68,14 +68,15 @@ class SignupIn(NewAccountIn):
 def signup(body: SignupIn, request: Request, response: Response, background: BackgroundTasks):
     email = account_email._clean_email(body.email)
     if not body.age_ok: raise HTTPException(400, 'Kinetta is for people 16 or older')
-    with db.connect() as c:
-        if account_email.limited(c, 'signup-ip:' + auth.client_ip(request), 5, 60): raise HTTPException(429, 'Too many tries - wait an hour')
+    account_email.enrollment_limit(request, email)
     if body.website: return {'ok': True}          # a bot: say nothing useful, make nothing
     with db.connect() as c:
+        account_email.reservation_lock(c)
         c.execute('LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE')     # the cap holds even for simultaneous signups
         s = state(c)
+        if not s['open'] and not s['full']: raise HTTPException(404, 'Not found')
+        account_email.require_available(c, email)
         if s['full']: raise HTTPException(409, {'code': 'full', 'message': 'Kinetta is full for now. Join the waitlist and we’ll let you know when there’s room.'})
-        if not s['open']: raise HTTPException(404, 'Not found')
         uid = _create(c, body)
         c.execute('UPDATE users SET needs_email_confirm = true WHERE id = %s', (uid,))
         # Kept until the email is confirmed (account_email.confirm_email), when the two become friends.

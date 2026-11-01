@@ -76,7 +76,7 @@ class AccountEmail(unittest.TestCase):
         self.assertEqual(r.status_code, 200); self.assertTrue(r.json()['token'])
         # someone else can't take a confirmed address; the change notice goes to the old one
         b = self.client('zz_test_mail_b')
-        self.assertEqual(self.confirm(b, 'zz_a@example.test').status_code, 409)
+        self.assertEqual(b.put('/api/account/email',json={'email':'zz_a@example.test','password':PW}).status_code,409,'duplicate rejected before sending another confirmation')
         self.mail.reset_mock()
         self.assertEqual(self.confirm(a, 'zz_a2@example.test').status_code, 200)
         self.assertIn(['zz_a@example.test'], [x['to'] for x in self.messages()], 'old address told about the change')
