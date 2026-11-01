@@ -1,0 +1,157 @@
+[
+  [
+    "today",
+    "/me"
+  ],
+  [
+    "feed",
+    "/activity"
+  ],
+  [
+    "profile",
+    "/people/alex"
+  ],
+  [
+    "track",
+    "/track"
+  ],
+  [
+    "activity",
+    "RUN",
+    {
+      "summary": true
+    }
+  ],
+  [
+    "charts",
+    "RUN",
+    {
+      "charts": true
+    }
+  ],
+  [
+    "similar",
+    "RUN",
+    {
+      "similar": true
+    }
+  ],
+  [
+    "coach",
+    "COACH",
+    {
+      "to": "Kit"
+    }
+  ],
+  [
+    "route",
+    "ROUTE"
+  ],
+  [
+    "progress",
+    "/progress"
+  ],
+  [
+    "fitness",
+    "/progress?view=fitness"
+  ],
+  [
+    "plan",
+    "/plan"
+  ],
+  [
+    "heatmap",
+    "/progress/heatmap"
+  ],
+  [
+    "food",
+    "/food"
+  ],
+  [
+    "insights",
+    "/food?view=overview&r=30"
+  ],
+  [
+    "explore",
+    "/me/explore"
+  ],
+  [
+    "meals",
+    "/food/meals"
+  ],
+  [
+    "cook",
+    "DISH"
+  ],
+  [
+    "serve",
+    "/food",
+    {
+      "logDish": "Chicken and veg traybake",
+      "portion": "380"
+    }
+  ],
+  [
+    "friends",
+    "/me/friends"
+  ],
+  [
+    "dietcoach",
+    "/food?view=overview",
+    {
+      "to": "Kit’s take"
+    }
+  ],
+  [
+    "recipecoach",
+    "DISH",
+    {
+      "to": "Kit’s take"
+    }
+  ],
+  [
+    "photos",
+    "LATEST",
+    {
+      "photo": true
+    }
+  ],
+  [
+    "describe",
+    "/food",
+    {
+      "describe": [
+        "I had a hot dog from Costco and a Diet Coke",
+        "make it two hot dogs"
+      ]
+    }
+  ],
+  [
+    "scan",
+    "/food",
+    {
+      "scan": "0000000000017"
+    }
+  ],
+  [
+    "talk",
+    "/food",
+    {
+      "snap": [
+        "chicken curry rice bowl for lunch",
+        "only half the rice"
+      ]
+    }
+  ],
+  [
+    "liftex",
+    "SQUAT"
+  ],
+  [
+    "lift",
+    "/track",
+    {
+      "lift": true
+    }
+  ]
+]

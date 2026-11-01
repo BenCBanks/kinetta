@@ -28,6 +28,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref || github.ref_name }}
+      - name: Read the published public basemap settings (no account data)
+        run: python3 dev/screenshots/map_env.py
       - name: Start a throwaway Kinetta
         # a placeholder AI key only makes the app show its AI cards; nothing is ever sent (the demo's reviews are made up
         # in coach.sql and no one presses the buttons). dev/screenshots/standin.py supplies the food chat's made-up estimates.
@@ -71,6 +73,7 @@ jobs:
           NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/goals_ui.cjs"
           pip install pillow==11.0.0
           python3 "$GITHUB_WORKSPACE/dev/screenshots/to_webp.py" /tmp/png "$GITHUB_WORKSPACE/site/assets/shots"
+          NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/website_screens_ui.cjs"
       - name: Commit them
         if: github.event_name != 'pull_request'
         env:

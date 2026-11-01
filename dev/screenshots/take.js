@@ -1,43 +1,12 @@
 // Homepage screenshots (site/assets/shots): every shot in light and dark, at an iPhone 16's screen size (393 x 852 at 2x =
 // 786 x 1704), from a throwaway install with dev/demo/seed.py + dev/screenshots/stage.py loaded. Usage: node take.js <out dir> [base url]
-// Writes PNGs; to_webp.py turns them into the site's .webp files. Maps need the internet (OpenStreetMap tiles).
+// Writes PNGs; to_webp.py turns them into the site's .webp files. Maps use the operator-configured tile/archive source; never bulk-fetch the public OSM tile service.
 // Like a real iPhone (2026-10-13): the app gets the status bar's 59 px at the top and the home bar's 34 px at the bottom
 // (its stylesheet's safe-area values are filled in), and a status bar with the Dynamic Island and the home bar are drawn over it.
 const {chromium} = require('playwright');
 const OUT = process.argv[2], B = process.argv[3] || 'http://localhost:8798';
 // name, address, and optionally a card title to scroll to, or something to do first
-const SHOTS = [
-  ['today', '/me'],
-  ['feed', '/activity'],
-  ['profile', '/people/alex'],
-  ['track', '/track'],
-  ['activity', 'RUN', {summary: true}],
-  ['charts', 'RUN', {charts: true}],
-  ['similar', 'RUN', {similar: true}],
-  ['coach', 'COACH', {to: 'Kit'}],
-  ['route', 'ROUTE'],
-  ['progress', '/progress'],
-  ['fitness', '/progress?view=fitness'],
-  ['plan', '/plan'],
-  ['heatmap', '/progress/heatmap'],
-  ['food', '/food'],
-  ['explore', '/me/explore'],
-  ['meals', '/food/meals'],
-  ['cook', 'DISH'],
-  ['serve', '/food', {logDish: 'Chicken and veg traybake', portion: '380'}],
-  ['friends', '/me/friends'],
-  ['dietcoach', '/food?view=overview', {to: "Kit’s take"}],
-  ['recipecoach', 'DISH', {to: "Kit’s take"}],
-  ['photos', 'LATEST', {photo: true}],
-  ['describe', '/food', {describe: ['I had a hot dog from Costco and a Diet Coke', 'make it two hot dogs']}],
-  // the website's Food story (2026-10-16): scan a barcode, snap a meal, then talk the estimate into shape. 'talk' also
-  // writes 'snap' (the same conversation one message earlier).
-  ['scan', '/food', {scan: '0000000000017'}],
-  ['talk', '/food', {snap: ['chicken curry rice bowl for lunch', 'only half the rice']}],
-  // lifting (2026-10-13): last; the logger starts a session from the latest one (live sessions stay in Track)
-  ['liftex', 'SQUAT'],
-  ['lift', '/track', {lift: true}],
-];
+const SHOTS = require('./scenes.json');
 // ONLY=lift,liftex takes just those (new shots, without retaking every other picture)
 const ONLY = process.env.ONLY ? process.env.ONLY.split(',') : null;
 const W = 393, H = 852, TOP = 59, BOTTOM = 34;
@@ -68,7 +37,7 @@ function chrome(dark) {
   const NS = 'http://www.w3.org/2000/svg', sb = document.createElementNS(NS, 'svg');
   sb.id = 'k-sb'; sb.setAttribute('viewBox', `0 0 ${W} 54`); sb.setAttribute('width', W); sb.setAttribute('height', 54);
   // set through .style: the app's security policy ignores style="..." attributes
-  sb.style.cssText = 'position:fixed;left:0;top:0;z-index:2147483647;pointer-events:none;display:block';
+  sb.style.cssText = 'position:fixed;left:0;top:0;width:393px;height:54px;z-index:2147483647;pointer-events:none;display:block';
   sb.innerHTML = `<rect width="${W}" height="54" fill="${bg}"/>
     <text x="66" y="35" text-anchor="middle" fill="${c}" font-family="-apple-system,'SF Pro Text',Inter,system-ui,sans-serif" font-size="17" font-weight="600" letter-spacing="-.2">9:41</text>
     <rect x="${W / 2 - 62}" y="11" width="124" height="36" rx="18" fill="#000"/>
@@ -78,9 +47,9 @@ function chrome(dark) {
       <rect x="49" y="1.2" width="24" height="10.6" rx="3.2" fill="none" stroke="${c}" stroke-opacity=".4"/><rect x="51" y="3.2" width="20" height="6.6" rx="1.8"/><path d="M74.6 4.8v3.4a1.8 1.8 0 0 0 0-3.4z" fill-opacity=".45"/></g>`;
   const hb = document.createElementNS(NS, 'svg');
   hb.id = 'k-hb'; hb.setAttribute('viewBox', `0 0 ${W} 13`); hb.setAttribute('width', W); hb.setAttribute('height', 13);
-  hb.style.cssText = 'position:fixed;left:0;bottom:0;z-index:2147483647;pointer-events:none;display:block';
+  hb.style.cssText = 'position:fixed;left:0;bottom:0;width:393px;height:13px;z-index:2147483647;pointer-events:none;display:block';
   hb.innerHTML = `<rect x="${W / 2 - 67}" y="0" width="134" height="5" rx="2.5" fill="${c}"/>`;
-  document.documentElement.append(sb, hb);
+  document.body.append(sb, hb);
 }
 // The food chat: open it for a meal with the demo account's AI consent on (the estimates are stand-ins), send a message,
 // and wait until nothing is pending on this phone.
@@ -104,6 +73,18 @@ async function settle(page) {
   await page.locator('.thread-pending').first().waitFor({state: 'detached', timeout: 30000}).catch(() => {});
   await page.waitForTimeout(600);
 }
+async function loadedMaps(page){
+  for(const preview of await page.locator('.fmap:visible').all()){
+    if(!await preview.evaluate(el=>{const r=el.getBoundingClientRect();return r.top<innerHeight&&r.bottom>0&&r.width>0&&r.height>0;}))continue;
+    for(let n=0;n<150;n++){if(await preview.evaluate(el=>el.classList.contains('ready')))break;await page.waitForTimeout(100);}
+    if(!await preview.evaluate(el=>el.classList.contains('ready')))throw Error('Visible feed map did not initialize');
+  }
+  for(const map of await page.locator('.leaflet-container:visible').all()){
+    if(!await map.evaluate(el=>{const r=el.getBoundingClientRect();return r.top<innerHeight&&r.bottom>0&&r.width>0&&r.height>0;}))continue;
+    await map.locator('.leaflet-tile-loaded').first().waitFor({state:'attached',timeout:15000});
+  }
+  if(await page.locator('.map-unavailable:visible').count())throw Error('Capture requires the loaded approved basemap');
+}
 async function say(page, text) {
   const before = await page.locator('#thread-messages article').count();
   await page.fill('#thread-text', text); await page.click('#thread-send');
@@ -112,11 +93,29 @@ async function say(page, text) {
 }
 (async () => {
   const browser = await chromium.launch(), errors = [];
+  try {
   for (const scheme of ['light', 'dark']) {
     // the browser keeps the server's time zone (the workflow sets TZ), or a run near midnight UTC shows an empty week
     const ctx = await browser.newContext({viewport: {width: W, height: H}, deviceScaleFactor: 2, colorScheme: scheme,
       timezoneId: process.env.TZ || 'America/New_York'});
+    const basemap = await (await ctx.request.get(B+'/api/map-config')).json();
+    if(!['pmtiles','vector'].includes(basemap.kind))throw Error('Capture needs an operator-controlled vector basemap');
+    // The public archive admits the published app origin. Adapt only CORS for this local demo;
+    // the range bytes and map renderer stay unchanged, and no production setting is edited.
+    const archiveOrigin = new URL(basemap.url).origin;
+    const publishedOrigin = process.env.KINETTA_SCREENSHOT_MAP_ORIGIN || 'https://login.kinetta.app';
+    await ctx.route(archiveOrigin+'/**',async route=>{
+      const request=route.request();
+      if(!['GET','HEAD'].includes(request.method())||basemap.kind==='pmtiles'&&request.method()==='GET'&&!request.headers().range)return route.abort();
+      const response=await route.fetch({headers:{...request.headers(),origin:publishedOrigin,referer:publishedOrigin+'/'}});
+      if(!response.ok())throw Error('Approved capture map source returned HTTP '+response.status());
+      await route.fulfill({response,headers:{...response.headers(),'access-control-allow-origin':new URL(B).origin,'access-control-expose-headers':'content-range,content-length,etag'}});
+    });
     const page = await ctx.newPage();
+    await ctx.route('**/*', route => { const request=route.request(), url=new URL(request.url());
+      if(url.hostname==='tile.openstreetmap.org'||url.origin!==B&&!['GET','HEAD'].includes(request.method()))return route.abort();
+      return route.fallback();
+    });
     // the iPhone's status bar and home bar spaces: what env(safe-area-inset-*) is on a phone (0 in a desktop browser)
     await page.route('**/style.css*', async (route) => {
       const r = await route.fetch(), css = (await r.text())
@@ -148,7 +147,10 @@ async function say(page, text) {
       await page.waitForTimeout(1500);
       await page.evaluate(() => { window.scrollTo(0, 0); });
       await page.evaluate(() => document.fonts.ready);
-      await page.waitForFunction(() => !document.querySelector('.leaflet-container') || document.querySelector('.leaflet-tile-loaded'), null, {timeout: 8000}).catch(() => {});
+      // Locator/evaluate polling works under the app’s strict script policy.
+      for(let n=0;n<40;n++){if(await page.evaluate(()=>!document.querySelector('.leaflet-tile-container')||document.querySelector('.leaflet-tile-loaded')))break;await page.waitForTimeout(100);}
+      if(name==='feed'){await page.locator('#feed-tools[aria-busy=false]').waitFor();if(await page.locator('#feed-discovery').count())throw Error('Mature feed must not show discovery cards');}
+      if(name==='insights'){await page.getByRole('heading',{name:'Insights',exact:true}).waitFor();await page.locator('#nt-overview-chart').waitFor();}
       if (opt.logDish) {      // Add food > My Recipes > the recipe: the log sheet, with a portion typed in
         await page.evaluate(() => describeSheet(isoDay(new Date()), 'dinner'));
         await page.locator('#thread-text').waitFor();
@@ -182,7 +184,7 @@ async function say(page, text) {
       if (opt.describe || opt.snap || opt.scan) {   // the food chat (2026-10-18): estimates come from dev/screenshots/standin.py
         const before = await page.evaluate(snapshotFood);
         await chat(page, opt.scan ? 'breakfast' : opt.snap ? 'lunch' : 'dinner');
-        if (opt.describe) {      // type a meal, then correct it in plain words; it logs at once with Undo
+        if (opt.describe) {      // type a meal, then correct its pending review in plain words
           await say(page, opt.describe[0]); await page.locator('.thread-card').filter({hasText: 'Hot dog'}).filter({hasText: '550'}).first().waitFor();
           await say(page, opt.describe[1]); await page.locator('.thread-card').filter({hasText: 'Hot dog'}).filter({hasText: '1100'}).first().waitFor();
         }
@@ -196,7 +198,7 @@ async function say(page, text) {
           await page.setInputFiles('#ql-file', PHOTO); await page.click('#photos-use');
           await settle(page); await page.locator('.thread-card').filter({hasText: 'Spiced rice'}).filter({hasText: '320'}).first().waitFor();
           await page.evaluate(() => document.activeElement.blur()); await page.waitForTimeout(500);
-          await page.evaluate(chrome, scheme === 'dark'); await page.screenshot({path: `${OUT}/${scheme}-snap.png`});
+          await loadedMaps(page); await page.evaluate(chrome, scheme === 'dark'); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))); await page.screenshot({path: `${OUT}/${scheme}-snap.png`});
           await say(page, opt.snap[1]); await page.locator('.thread-card').filter({hasText: 'Spiced rice'}).filter({hasText: '160'}).first().waitFor();
         }
         await page.evaluate(() => document.activeElement.blur());
@@ -226,16 +228,16 @@ async function say(page, text) {
         if (h) window.scrollTo(0, h.getBoundingClientRect().top + scrollY - 70);   // below the status bar
       }, opt.to);
       await page.waitForTimeout(700);
-      await page.evaluate(chrome, scheme === 'dark');
+      await loadedMaps(page); await page.evaluate(chrome, scheme === 'dark'); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
       await page.screenshot({path: `${OUT}/${scheme}-${name}.png`});
       if (opt.lift) await page.evaluate(() => fetch('/api/activities/' + window.__liftId, {method: 'DELETE', headers: {'Content-Type': 'application/json'}}));
-      // The chat logs food at once: remove what this story added (entries, saved foods, messages) so the next pass and
+      // Remove only what this fictional review story added (entries, saved foods, messages) so the next pass and
       // the other screenshots start from the same demo data.
       if (opt.cleanup) { await page.evaluate(cleanFood, opt.cleanup); delete opt.cleanup; }   // gone before the next pass's Today and feed
     }
     await ctx.close();
   }
-  await browser.close();
+  } finally { await browser.close(); }
   if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
   console.log('shots taken');
 })();
