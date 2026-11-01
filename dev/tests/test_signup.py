@@ -341,6 +341,9 @@ class Signup(unittest.TestCase):
         with patch.object(signup,'admin_notice',side_effect=inspect):
             self.assertEqual(client().post('/api/signup',json=form('zz_test_su_notice_order')).status_code,200)
         self.assertTrue(held);self.assertFalse(any(held),'notice recipient locks cannot reverse the account/cap order')
+        self.env(KINETTA_SIGNUP='open',KINETTA_MAX_ACCOUNTS='')
+        with patch.object(signup,'admin_notice',side_effect=signup.DatabaseError('fixture notice outage')),self.assertLogs('uvicorn.error',level='WARNING'):
+            self.assertEqual(client().post('/api/signup',json=form('zz_test_su_notice_outage')).status_code,200,'an auxiliary notice cannot fail a committed signup')
 
     def test_admin_bell_notice_is_aggregate_daily_and_role_guarded(self):
         admin,uid=self.member('notice_admin',True);member,mid=self.member('notice_member')
