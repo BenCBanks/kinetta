@@ -255,7 +255,7 @@ pre .c { color: #929BA4; }
 .about-copy { max-width: 68ch; min-width: 0; }
 .about p { font-size: 16px; color: var(--ink2); }
 .about p + p { margin-top: 16px; }
-.about-copy a { display: inline-flex; align-items: center; min-height: 44px; color: var(--brand); }
+.about-copy a { color: var(--brand); }
 .about-couple { flex: 0 0 240px; margin: 0; }
 .about-couple img { width: 240px; height: auto; border-radius: 16px; }
 .about-couple figcaption { margin-top: 8px; font-size: 14px; color: var(--ink3); }
