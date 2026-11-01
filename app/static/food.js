@@ -1120,15 +1120,12 @@ function energyCard(box) {
   });
 }
 function weeksCard(box) {
-  const kcalFmt = (v) => `${r0(v)} kcal`;
   // 2. week by week
   load('/api/food/weeks?weeks=26', (W) => {
     if (!box.isConnected) return;
-    const rows = W.weeks, logged = rows.filter((w) => w.days_logged), t = App.me;
+    const rows = W.weeks, logged = rows.filter((w) => w.days_logged);
     if (!logged.length) { box.innerHTML = '<div class="card empty"><b>No food logged yet</b>Weekly averages appear here once you start logging.</div>'; return; }
     const shown = rows.slice(rows.findIndex((w) => w.days_logged));   // from the first logged week
-    const col = (k) => shown.map((w, i) => { const d = new Date(w.week + 'T12:00'), prev = shown[i - 1] && new Date(shown[i - 1].week + 'T12:00');
-      return {label: 'Week of ' + d.toLocaleDateString([], {month: 'short', day: 'numeric'}), tick: !prev || prev.getMonth() !== d.getMonth() ? d.toLocaleDateString([], {month: 'short'}) : '', partial: w.partial, segs: [{k: k.k, v: w[k.f] || 0}]}; });
     const wt = (kg) => (kg == null ? '–' : U.weight(kg));
     box.innerHTML = `<div class="card"><div class="tblwrap"><table class="tbl yrs"><thead><tr><th>Week of</th><th class="r">Days</th><th class="r">kcal</th><th class="r">P</th><th class="r">C</th><th class="r">F</th><th class="r">Exercise</th><th class="r">${U.du()}</th><th class="r">Weight</th></tr></thead><tbody>
         ${[...shown].reverse().map((w) => `<tr${w.partial ? ' class="cur"' : ''}><td>${esc(new Date(w.week + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric'}))}</td><td class="r num">${w.days_logged}${w.partial ? '' : '/7'}</td>
