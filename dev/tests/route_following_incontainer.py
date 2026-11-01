@@ -60,7 +60,7 @@ class Following(unittest.TestCase):
         @contextmanager
         def local_connection(*args,**kwargs):
             with connect(*args,**kwargs) as c:
-                c.execute("SET TIME ZONE 'America/New_York'")
+                c.execute("SET LOCAL TIME ZONE 'America/New_York'")
                 yield c
         # The connection's timezone controls returned datetimes; the profile timezone does not.
         with patch.object(db,'connect',local_connection):
@@ -69,6 +69,8 @@ class Following(unittest.TestCase):
                 with db.connect() as c:
                     aid=c.execute("""INSERT INTO activities(user_id,name,sport,start_time,source,source_id,elapsed_s,moving_s,distance_m,visibility)
                       VALUES(%s,'Fictional Watch run','run',%s,'healthkit',%s,100,100,250,'me') RETURNING id""",(self.ids['owner'],body['start'],str(uuid.uuid4()))).fetchone()['id']
+                    returned=c.execute('SELECT start_time FROM activities WHERE id=%s',(aid,)).fetchone()['start_time']
+                    self.assertEqual(str(returned.tzinfo),'America/New_York');self.assertEqual(returned.fold,1 if hour==6 else 0)
                 with self.subTest(hour=hour):
                     self.assertEqual(self.save(body)['id'],aid);self.assertEqual(self.save(body)['id'],aid)
                     self.assertEqual(self.c['owner'].get(f'/api/activities/{aid}').json()['route_plan']['version'],4)
