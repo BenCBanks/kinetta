@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>About us · Kinetta</title>
+<meta name="description" content="Meet Ben and Rachel, who built Kinetta to bring workouts, routes, training, food and friends into one app.">
+<link rel="canonical" href="https://kinetta.app/about">
+<link rel="icon" href="assets/favicon.svg?v=4" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/icon-180.png?v=4">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="assets/theme.css?v=9">
+<link rel="stylesheet" href="assets/site.css?v=21">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="./" aria-label="Kinetta home"><picture><source srcset="assets/logo-dark.svg?v=4" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg?v=4" alt="Kinetta" width="132" height="21"></picture></a>
+    <nav class="tabs" aria-label="Pages"><a href="training">Training</a><a href="food">Food</a><a href="friends">Friends</a><a href="compare">Compare</a><a href="privacy">Privacy</a></nav>
+    <span class="signup"><a class="btn solid sm" href="https://login.kinetta.app/signup">Join beta</a></span>
+  </div>
+</header>
+<main id="main">
+  <section class="pagehead"><div class="wrap"><h1>{{copy:title}}</h1></div></section>
+  <section class="about" aria-label="About Ben and Rachel">
+    <div class="wrap about-layout">
+      <div class="about-bio">
+        <picture class="about-avatar"><source srcset="assets/about/ben.webp" type="image/webp"><img src="assets/about/ben.jpg" alt="Ben, who makes Kinetta" loading="lazy" width="224" height="224"></picture>
+        <div class="about-copy">
+          <p>{{copy:about-story}}</p>
+          <p>{{copy:about-feedback}}</p>
+        </div>
+      </div>
+{{#copy:about-couple-photo}}
+      <figure class="about-couple">
+        <picture><source srcset="assets/about/ben-and-rachel.webp" type="image/webp"><img src="assets/about/ben-and-rachel.jpg" alt="Ben and Rachel by the river" loading="lazy" width="480" height="360"></picture>
+        <figcaption>{{copy:about-couple-photo}}</figcaption>
+      </figure>
+{{/copy:about-couple-photo}}
+    </div>
+  </section>
+</main>
+<footer>
+  <div class="wrap">
+    <picture><source srcset="assets/logo-dark.svg?v=4" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg?v=4" alt="Kinetta" width="124" height="20"></picture>
+    <div>
+      <p>{{copy:footer-links}} · <a href="about">About us</a></p>
+      <p>{{copy:footer-license}}</p>
+      <p>{{copy:footer-copyright}}</p>
+    </div>
+  </div>
+</footer>
+</body>
+</html>
