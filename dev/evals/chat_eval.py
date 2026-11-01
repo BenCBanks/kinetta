@@ -31,6 +31,7 @@ if COMPARISON:
     else:CONTEXTUAL=None
 PW = 'green teapot on the hill'
 CALLS = []
+CAPTURES=[]
 
 
 def lookup(text): return {'kind': 'none', 'text': text, 'foods': []}
@@ -140,11 +141,17 @@ def main():
             stack.enter_context(ai_budget.after_reserve(lambda aid:reserve(META,aid)))
             stack.enter_context(patch('app.food_thread_understand.enabled',return_value=True))
             if CONTEXTUAL:stack.enter_context(patch('app.food_memory_understand.enabled',return_value=True))
-            if META['dry_run']:
-                stack.enter_context(patch('app.food_photo.ask',return_value=({'intent':'unclear','foods':[],'reply':'Dry run.'},{},'dry-run')))
+            real_ask=food_photo.ask
+            def capture(*args,**kwargs):
+                if META['dry_run']:return {'intent':'unclear','foods':[],'reply':'Dry run.'},{},'dry-run'
+                answer,raw,model=real_ask(*args,**kwargs)
+                CAPTURES.append({'kind':args[2] if len(args)>2 else kwargs.get('kind','unknown'),
+                    'model':model,'usage':raw.get('usageMetadata',{}),'answer':answer})
+                return answer,raw,model
+            stack.enter_context(patch('app.food_photo.ask',side_effect=capture))
         for i, case in enumerate(chat_cases.CASES[:int(os.environ.get('CHAT_EVAL_LIMIT', '100000'))]):
             if i in done:continue
-            before_totals=dict(totals);begin=time.monotonic()
+            before_totals=dict(totals);begin=time.monotonic();capture_start=len(CAPTURES)
             uid, cl = account(); uids.append(uid); draft = str(uuid.uuid4()); context = None
             for text in case['setup']:
                 cid, m = post(cl, text, draft, context); run_rules(cl, m['id']); context = cid
@@ -184,6 +191,7 @@ def main():
                     'failed': [k for k, v in checks.items() if not v], 'foods': [(f['name'], f.get('quantity')) for f in foods], 'reply': said,
                     **({k: u[k] for k in ('missing', 'target', 'new_quantity', 'meal', 'topic', 'nutrient')} if u else {})}
             line['seconds']=round(time.monotonic()-begin,3)
+            if COMPARISON:line.update(captures=CAPTURES[capture_start:],reading=u)
             line['totals_delta']={key:totals[key]-before_totals[key] for key in before_totals}
             if COMPARISON:
                 with db.connect() as c:

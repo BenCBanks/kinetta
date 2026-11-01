@@ -40,7 +40,7 @@ def capture(*args,**kwargs):
     if DRY:
         return {'intent':'unclear','foods':[],'missing':'none','meal':'none','day':'none','topic':'none','nutrient':'none','reply':'Dry-run fixture only.'},{},'dry-run'
     out,raw,model=REAL_ASK(*args,**kwargs)
-    CAPTURES.append({'kind':args[2],'model':model,'usage':raw.get('usageMetadata',{}),'answer':out})
+    CAPTURES.append({'kind':args[2] if len(args)>2 else kwargs.get('kind','unknown'),'model':model,'usage':raw.get('usageMetadata',{}),'answer':out})
     return out,raw,model
 
 
