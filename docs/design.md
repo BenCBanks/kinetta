@@ -158,6 +158,8 @@ Apply the same UI sans headings, Sky Blue palette, blue actions and neutral surf
 pages. Header/footer copies must stay consistent. Screenshots are actual implemented demo screens, never generated
 mockups presented as app evidence. Capture on an isolated clean demo install so test accounts do not appear publicly.
 
+Show complete phone screens in the shared frame, at up to 320px wide on desktop. Mobile galleries show their current position and 44px previous/next controls. Use explicit dimensions, lazy below-fold loading and both 1×/2× WebP candidates in each theme. Keep usable pictures during failed refreshes. The shared website/App Store scene list is `dev/screenshots/scenes.json`; website browser captures with simulated OS bars are separate from actual native store evidence.
+
 Keep the homepage track: the logo's oval behind the hero phone with the runner going round it, plus its play/pause
 control (owner, 23 October 2026: "a critical piece to our brand"; briefly removed in #225 and restored). The oval uses
 the quiet divider colour and the runner the brand blue. Keep the hero phone, existing copy, page sections, links and their order. Headline emphasis inherits normal heading colour and is not
@@ -1590,7 +1592,7 @@ Mapped activities lead with a full-bleed route/photo rail around38% of viewport 
 
 Analysis tabs appear next, in Charts/Splits/Efforts/Details order, omitting unavailable sections. Existing chart values, splits, efforts, interval history, lifting, original-map help, photo controls, device details and notes remain intact. Matched route and genuine first-ranked effort links use short inline labels; celebration sharing/dismissal remains separate from sharing the activity. An owner's empty reaction/comment bar stays hidden until it has content, with comment deep links and live updates retained. A Comment action beside the photo tools in Details keeps the first comment reachable without showing empty counts. Friends keep their reaction actions.
 
-The compact carousel reuses the feed's accessible position and44px overlay controls above map credits. Coarse-pointer maps already omitted zoom buttons and keep pinch. Expanded maps from a still photo rail additionally restore mouse zoom/keyboard interaction, then remove temporary controls on close. No discovery grid belongs on this sub-page. Browser regressions cover phone/enlarged-text/themes, owner/friend permissions, tabs, edit, map modal, mouse controls and social updates. The native fixture adds real WKWebView safe-area/status-bar captures for mapped, sticky, indoor, full-map and enlarged-text detail; physical-device gestures/sharing remain separate acceptance.
+The compact carousel reuses the feed's accessible position and 44px overlay controls above map credits. Coarse-pointer maps already omitted zoom buttons and keep pinch. Expanded maps from a still photo rail additionally restore mouse zoom/keyboard interaction, then remove temporary controls on close. No discovery grid belongs on this sub-page. Browser regressions cover phone/enlarged-text/themes, owner/friend permissions, tabs, edit, map modal, mouse controls and social updates. The native fixture adds real WKWebView safe-area/status-bar captures for mapped, sticky, indoor, full-map and enlarged-text detail; physical-device gestures/sharing remain separate acceptance.
 
 ## Compact lifting logger and exercise header (31 October 2026, #391)
 

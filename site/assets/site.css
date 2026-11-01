@@ -99,9 +99,7 @@ nav.tabs a[aria-current="page"] { color: var(--brand); background: color-mix(in 
 .food-hero h1 { font-size: clamp(38px, 5.6vw, 66px); }
 .hero .note { margin-top: 18px; font-size: 14px; color: var(--ink3); }
 .stage { position: relative; display: grid; place-items: center; }
-.phone { width: min(340px, 82vw); margin-inline: auto; border-radius: 40px; padding: 10px; background: var(--ink);
-  box-shadow: 0 30px 60px -30px rgba(21, 25, 29, .45); position: relative; z-index: 1; }
-.phone img { border-radius: 31px; width: 100%; height: auto; min-width: 0; aspect-ratio: 720 / 1558; object-fit: cover; object-position: top; }
+.phone { position:relative; z-index:1; }
 @media (max-width: 860px) {
   .hero .wrap { grid-template-columns: 1fr; gap: 40px; }
 }
@@ -147,8 +145,6 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
 .shot, .shot figure, .shot .frame { min-width: 0; }
 .shot figure { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 /* 2026-10-13: iPhone-sized shots (786 x 1704) with the status bar and Dynamic Island; the frame's corners follow the phone's */
-.shot .frame { border-radius: 16% / 8.6%; padding: 2.4%; background: var(--ink); }
-.shot .frame img { border-radius: 13.8% / 7.6%; aspect-ratio: 786 / 1704; object-fit: cover; object-position: top; width: 100%; height: auto; }
 .shot h3 { font-size: 19px; }
 .shot figcaption p { color: var(--ink2); font-size: 15.5px; margin-top: 6px; }
 @media (max-width: 900px) {
@@ -165,8 +161,8 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
 /* 2026-10-12 (Ben): the two phones side by side, level and centred (the second used to sit 48 px lower) */
 .spot .pair { justify-content: center; }
 .spot .pair .credit { grid-column: 1 / -1; margin: 0; font-size: 12.5px; color: var(--ink2); text-align: center; }   /* photo credits under the phones */
-.frame { border-radius: 16% / 8.6%; padding: 2.4%; background: var(--ink); min-width: 0; }
-.frame img { border-radius: 13.8% / 7.6%; width: 100%; height: auto; aspect-ratio: 786 / 1704; object-fit: cover; object-position: top; }
+.frame, .phone { width:100%; max-width:320px; margin-inline:auto; border-radius:16% / 8.6%; padding:7px; background:var(--ink); min-width:0; box-shadow:0 22px 44px -30px rgba(21,25,29,.45); }
+.frame img, .phone img { border-radius:13.8% / 7.6%; width:100%; height:auto; min-width:0; aspect-ratio:786 / 1704; }
 .spot h3 { font-size: clamp(26px, 3vw, 34px); margin-top: 14px; }
 .spot p { color: var(--ink2); font-size: 18px; margin-top: 14px; max-width: 44ch; }
 .spot ul { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; color: var(--ink2); }
@@ -185,7 +181,7 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
 .pcard p { color: var(--ink2); font-size: 15.5px; }
 @media (max-width: 900px) {
   /* .four too (2026-10-13): its four columns used to win here, so on a phone each shot was ~70 px wide */
-  .pcards, .pcards.four { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: min(300px, 80vw); overflow-x: auto;
+  .pcards, .pcards.four { grid-template-columns: none; justify-content:start; gap:22px; grid-auto-flow: column; grid-auto-columns: min(300px, 80vw); overflow-x: auto;
     scroll-snap-type: x mandatory; padding-bottom: 12px; margin-inline: -20px; padding-inline: 20px; scroll-padding-inline: 20px; }
   .pcard { scroll-snap-align: start; }
 }
@@ -316,12 +312,23 @@ html { scroll-padding-top: 130px; }
 .public-guide-card a { color: var(--brand); display: inline-block; padding-block: 12px; }
 @media(max-width:650px) { #feature-catalog { grid-template-columns: 1fr; } .feature-guide-public { padding-block: 40px; } }
 
-/* Homepage cards lead with a real screen (top of the screenshot), then one line (23 October 2026). */
-.point { padding: 14px 14px 22px; }
-.point h2, .point p, .point .go { margin-inline: 10px; }
-.pshot { display: block; height: 260px; overflow: hidden; border-radius: 14px; border: 1px solid var(--line); background: var(--bg); margin-bottom: 8px; }
-.pshot img { display: block; width: 100%; height: auto; margin-top: -15%; }   /* skip the phone's status bar */
-@media (max-width: 860px) { .point { padding: 12px 12px 20px; } .pshot { height: 220px; } }
+/* Whole phones keep the real status, content and navigation together. */
+.point { padding:14px 10px 18px; }
+.point h2, .point p, .point .go { margin-inline:10px; }
+.point h2 { font-size:24px; }
+.point .go { display:inline-flex; align-items:center; min-height:44px; text-decoration:none; }
+.points .wrap { gap:24px; }
+@media (max-width:860px) {
+  .points .wrap { display:grid; grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:min(320px,85vw); overflow-x:auto; scroll-snap-type:x mandatory; scroll-padding-inline:20px; padding-bottom:12px; }
+  .point { scroll-snap-align:start; }
+}
+.gallery { min-width:0; }
+.gallery-position, .gallery-position[hidden] { display:none; }
+@media (max-width:900px) {
+  .gallery-position { display:flex; justify-content:center; align-items:center; gap:12px; margin:8px 0 20px; font-size:14px; color:var(--ink2); }
+  .gallery-position button { width:44px; height:44px; border:1px solid var(--line); border-radius:50%; background:var(--paper); color:var(--ink); font:inherit; font-size:22px; cursor:pointer; }
+  .gallery-position button:disabled { opacity:.4; cursor:default; }
+}
 .final p.more-links { max-width: none; }
 .more-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 12px; margin: 18px 0 28px; font-size: 15px; }
 .more-links a { color: var(--brand); font-weight: 600; } .more-links span { color: var(--ink3); }

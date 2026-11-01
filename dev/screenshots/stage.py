@@ -47,7 +47,7 @@ def later(gpx, minutes):   # the same made-up route, a little later in the day
 
 alex = person('alex', 'blue kettle morning run')
 alex('PUT','/api/account',{'name':'Alex Rivera','bio':'Runs, rides and good food.'})
-for login, name in (('jordan', 'Jordan Lee'), ('sam', 'Sam Rivera')):
+for login, name in (('jordan', 'Jordan Lee'), ('sam', 'Sam Rivera'), ('casey', 'Casey Example'), ('taylor', 'Taylor Example')):
     try: alex('POST', '/api/admin/people', {'login': login, 'name': name, 'password': PW})
     except urllib.error.HTTPError as e:
         if e.code != 409: raise
@@ -60,6 +60,10 @@ print('jordan import', upload(jordan, [(os.path.basename(p), later(open(p, 'rb')
 
 jordan('POST', '/api/friends', {'login': 'alex'}); alex('POST', '/api/friends/jordan/accept')
 sam('POST', '/api/friends', {'login': 'alex'})                      # waiting for Alex
+# A mature fictional account tells the feed story without new-account discovery cards.
+for login in ('casey','taylor'):
+    friend=person(login,PW);friend('POST','/api/friends',{'login':'alex'});alex('POST','/api/friends/'+login+'/accept')
+assert alex('GET','/api/me')['friend_count']>=3
 alex('PUT', '/api/sharing', {'default': 'friends'})
 last = [p for p in sorted(glob.glob(G + '/*running.gpx'))][-1]; raw = open(last, 'rb').read()
 t0 = dt.datetime.fromisoformat(re.search(rb'<time>([^<]+)</time>', raw).group(1).decode().replace('Z', '+00:00'))

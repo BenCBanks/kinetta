@@ -44,7 +44,7 @@ Your day at a glance.
 
 ## calories-and-macros-as-rings-and-your-deficit-11
 
-See eaten and remaining calories, macro totals and your targets. Open the energy breakdown to see how daily needs and recorded workouts contribute. Track weigh-ins in Weight and review trends in Overview.
+See eaten and remaining calories, macro totals and your targets. Open the energy breakdown to see how daily needs and recorded workouts contribute. Track weigh-ins in Progress and review food trends in Insights.
 
 ## what-s-working-and-what-to-try-next-12
 
@@ -94,3 +94,7 @@ Save a recipe. Log it when you eat.
 ## recipe-purpose-copy
 
 Name it first, add ingredients and save the whole recipe. Logging is optional. When you’re ready, choose the servings or weight you ate. Editing a recipe and adding food to your day each have their own clear flow.
+
+## food-insights-copy
+
+See calories and macros over time, compare logged days and explore your food patterns. Missing days stay visible so a partial log does not look like a complete one.

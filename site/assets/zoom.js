@@ -3,7 +3,8 @@
 // arrows (the picture or the dark space around it), press Escape or × to go back to where you were (2026-10-16, Ben).
 (() => {
   'use strict';
-  const frames = (sec) => [...sec.querySelectorAll('.frame img')];
+  const selector = '.frame img, .phone img';
+  const frames = (sec) => [...sec.querySelectorAll(selector)];
   let dlg, strip, count, trigger;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
@@ -12,6 +13,22 @@
     img.setAttribute('role', 'button');
     img.setAttribute('aria-haspopup', 'dialog');
     img.setAttribute('aria-label', 'Enlarge screenshot: ' + img.alt);
+  }
+
+  for (const row of document.querySelectorAll('.shots, .pcards, .spot .pair, .points > .wrap')) {
+    const slides = [...row.children].filter(el => el.matches('.frame') || el.querySelector('.frame'));
+    if (slides.length < 2) continue;
+    const gallery = document.createElement('div'); gallery.className = 'gallery';
+    row.before(gallery); gallery.append(row);
+    const controls = document.createElement('div'); controls.className = 'gallery-position';
+    controls.innerHTML = '<button type="button" aria-label="Previous screenshot">‹</button><span aria-live="polite"></span><button type="button" aria-label="Next screenshot">›</button>';
+    gallery.append(controls);
+    const [prev, next] = controls.querySelectorAll('button'), label = controls.querySelector('span');
+    const current = () => slides.reduce((best, slide, i) => Math.abs(slide.getBoundingClientRect().left-row.getBoundingClientRect().left-20) < Math.abs(slides[best].getBoundingClientRect().left-row.getBoundingClientRect().left-20) ? i : best, 0);
+    const update = () => { controls.hidden = row.scrollWidth <= row.clientWidth+1; const i = current(); label.textContent = `${i+1} of ${slides.length}`; prev.disabled = i === 0; next.disabled = i === slides.length-1; };
+    const move = delta => { const i = Math.max(0, Math.min(slides.length-1, current()+delta)); row.scrollTo({left:slides[i].offsetLeft-slides[0].offsetLeft, behavior:reducedMotion.matches?'instant':'smooth'}); };
+    prev.onclick = () => move(-1); next.onclick = () => move(1);
+    row.addEventListener('scroll', update, {passive:true}); new ResizeObserver(update).observe(row); update();
   }
 
   function build() {
@@ -59,7 +76,9 @@
       const slide = document.createElement('div'), big = document.createElement('img');
       slide.className = 'slide';
       big.loading = x === img ? 'eager' : 'lazy';
-      big.src = x.currentSrc || x.src;     // the light or dark picture, whichever the page is showing
+      const full = new URL(x.currentSrc || x.src);
+      full.pathname = full.pathname.replace(/-1x\.webp$/, '.webp');
+      big.src = full.href; // Enlarge the matching theme at full capture resolution.
       big.alt = x.alt; big.width = 786; big.height = 1704;
       slide.append(big); strip.append(slide);
     }
@@ -71,11 +90,11 @@
   }
 
   document.addEventListener('click', (e) => {
-    const img = e.target.closest('.frame img');
+    const img = e.target.closest(selector);
     if (img && !img.closest('.zoom')) { e.preventDefault(); open(img); }
   });
   document.addEventListener('keydown', (e) => {
-    const img = e.target.closest('.frame img');
+    const img = e.target.closest(selector);
     if (img && (e.key === 'Enter' || e.key === ' ')) {
       e.preventDefault(); open(img);
     }
