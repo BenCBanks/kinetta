@@ -1,8 +1,10 @@
 # Community terms and text checks
 
-The service terms in `site/content/terms.md` are a **draft for the owner to approve**, not legal advice. They do not
-replace the source licence or Apple's standard app licence. The owner must confirm the service operator, any
-jurisdiction/liability wording and the promise to review reports within 24 hours. Apple's Guideline 1.2 calls for
+The service terms in `site/content/terms.md` were approved by the owner on 1 November 2026. They refer to the
+operator already identified in the Privacy Policy, retain the approved 24-hour report-review promise and add no
+jurisdiction clause. They do not replace the source licence or Apple's standard app licence. This implementation
+is not legal advice. Acceptance remains inactive until the operator enables the exact published version for a
+compatible app/server release. Apple's Guideline 1.2 calls for
 filtering, reporting with timely responses, blocking and contact information; it does not set a numeric 24-hour
 limit or prescribe a signup checkbox. The checkbox is an explicit agreement choice for Kinetta.
 

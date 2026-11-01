@@ -22,11 +22,17 @@ class Matching(unittest.TestCase):
         original = '  ordinary route  '; filtering.check(original); self.assertEqual(original, '  ordinary route  ')
 
     def test_draft_and_unmatched_configuration_fail_closed(self):
-        with patch.dict(os.environ, {'KINETTA_TERMS_VERSION': terms.DOCUMENT['version']}):
+        with patch.dict(terms.DOCUMENT, {'draft': True}), patch.dict(os.environ, {'KINETTA_TERMS_VERSION': terms.DOCUMENT['version']}):
             with self.assertRaises(ValueError): terms.active_version()
         with patch.dict(os.environ, {'KINETTA_TERMS_VERSION': ''}): self.assertIsNone(terms.active_version())
         with patch.dict(os.environ, {'KINETTA_TERMS_VERSION': 'wrong'}), patch.dict(terms.DOCUMENT, {'draft': False}):
             with self.assertRaises(ValueError): terms.active_version()
+
+    def test_only_the_exact_approved_version_can_be_enabled(self):
+        with patch.dict(terms.DOCUMENT, {'draft': False}), patch.dict(os.environ, {'KINETTA_TERMS_VERSION': terms.DOCUMENT['version']}):
+            self.assertEqual(terms.active_version(),terms.DOCUMENT['version'])
+            self.assertTrue(terms.state({})['required'])
+            self.assertFalse(terms.state({'terms_version':terms.DOCUMENT['version']})['required'])
 
 
 class Publication(unittest.TestCase):

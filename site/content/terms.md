@@ -1,24 +1,24 @@
-# Terms of Use draft
+# Terms of Use website copy
 
-This is a draft for owner review. Confirm the bracketed fields and the moderation promise before changing status to Published. Change the version whenever published wording changes. Run dev/design/build_content.py to regenerate the page and app manifest.
+Approved by the service owner on 1 November 2026. Change the version whenever published wording changes. Run dev/design/build_content.py to regenerate the page and app manifest.
 
 ## title
 Terms of Use
 
 ## version
-2026-10-31-v1
+2026-11-01-v1
 
 ## status
-Draft for owner review — not in force
+Published
 
 ## intro
-Your workouts and food, with clear choices about sharing. These service and community terms are a draft. They do not replace the software licence or Apple’s standard licence for the iPhone app.
+Your workouts and food, with clear choices about sharing. These service and community terms cover the hosted Kinetta service. They do not replace the software licence or Apple’s standard licence for the iPhone app.
 
 ## operator-heading
 Who provides this service
 
 ## operator
-[OWNER: confirm the legal service operator, referring to the operator identified in the Privacy Policy.] These terms cover the hosted Kinetta service. If you use a server run by someone else, check that operator’s terms. The [Privacy Policy](https://kinetta.app/privacy) explains data use and your choices.
+The operator identified in the [Privacy Policy](https://kinetta.app/privacy) provides the hosted Kinetta service. If you use a server run by someone else, check that operator’s terms. The [Privacy Policy](https://kinetta.app/privacy) explains data use and your choices.
 
 ## age-heading
 Who can use Kinetta
@@ -42,7 +42,7 @@ Kinetta has **no tolerance for objectionable content or abusive behaviour**. Do 
 Report a problem or block someone
 
 ## report
-Use Report in a person’s or shared content’s menu, or contact us below. You can block a person to stop their contact and hide their identity/content where the app’s sharing rules apply. **Reports are reviewed within 24 hours.** [OWNER: approve this response commitment and confirm the operating process.] Reports give administrators the submitted material needed to review the problem, not general access to everyone’s private records.
+Use Report in a person’s or shared content’s menu, or contact us below. You can block a person to stop their contact and hide their identity/content where the app’s sharing rules apply. **Reports are reviewed within 24 hours.** Reports give administrators the submitted material needed to review the problem, not general access to everyone’s private records.
 
 ## health-heading
 Estimates are not medical advice
@@ -69,10 +69,10 @@ Changes to these terms
 The app records the version and time you accept. When an updated version takes effect, we ask you to read and accept it before continuing to publish content. You can choose to export or delete your account instead.
 
 ## law-heading
-Your rights and governing law
+Your rights
 
 ## law
-[OWNER: confirm any governing-law or jurisdiction wording and review the liability/warranty terms. No jurisdiction or company name is assumed by this draft.] These service terms do not remove rights that the law does not allow us to remove.
+These service terms do not remove rights that the law does not allow us to remove.
 
 ## contact-heading
 Contact
