@@ -3,7 +3,7 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs');const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
 (async()=>{const b=await chromium.launch();const l=await b.newContext();await l.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});const st=await l.storageState();
-for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){const c=await b.newContext({storageState:st,viewport:size,colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true}),p=await c.newPage(),errors=[],writes=[];p.on('pageerror',e=>errors.push(e.message));
+for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){const c=await b.newContext({storageState:st,viewport:size,colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];p.on('pageerror',e=>errors.push(e.message));
 await c.addInitScript(r=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=r+'px'),size.root);
 await c.route('**/api/**',async r=>{const q=r.request(),u=new URL(q.url());if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);return r.fulfill({json:{}});}
  // Lifetime numbers at Ben's scale (fictional values) so separators and aligned period totals are exercised

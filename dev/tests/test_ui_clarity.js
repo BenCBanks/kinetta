@@ -47,7 +47,7 @@ console.log('Food chat: Search tool label PASS');
  const pages=fs.readFileSync('app/static/pages.js','utf8');
  const profile=fs.readFileSync('app/static/profile.js','utf8');
  assert.match(pages,/MeCard\.header\(me\)/);assert.match(pages,/Your dashboard/);assert.match(profile,/Only you below this line/);assert.match(profile,/Hi, \$\{/);
- assert.match(profile,/data-card-edit/);assert.match(profile,/aria-label="Share your profile"/);assert.match(profile,/Totals include all your workouts; private ones never show details/);
+ assert.match(profile,/data-card-edit/);assert.match(profile,/aria-label="Share your profile"/);assert.match(profile,/Private workouts count in totals, never in detail/);
  assert.doesNotMatch(pages,/me-edit-profile|>View profile</,'Me has no large View/Edit profile buttons');
  assert.doesNotMatch(pages,/ME_SHORTCUTS|whoseSeg|wireWhose|Latest activity|Friends recently/,'retired home/feed components have no live callers');
  assert.match(pages,/href="\/me\/activities"/,'the complete private history is reachable');
