@@ -89,7 +89,7 @@ const MeCard=(()=>{
     const when=w=>weekly?`${day(w.d)}–${day(w.end)}`:fdate(w.d+'T12:00',{weekday:'short',month:'short',day:'numeric'});
     const value=w=>w.future?'Not yet':dist(w),letter=w=>fdate(w.d+'T12:00',{weekday:'narrow'});
     const toggle=`<div class="mileage-toggle me-period" role="group" aria-label="Distance chart period">${[['days','Days'],['weeks','Weeks']].map(([k,l])=>`<button type="button" data-period="${k}" aria-pressed="${period===k}"${k==='weeks'&&!all.weeks?' disabled':''}>${l}</button>`).join('')}</div>`;
-    return `<div class="me-card-sec me-distance${weekly?'':' days'}"><div class="me-card-head"><div class="me-card-label" data-week-label aria-live="polite"><span>${weekly?'Distance · 7 weeks':'This week'}</span><small>${esc(U.dist(total,1))} ${esc(U.du())}</small></div>${toggle}</div>
+    return `<div class="me-card-sec me-distance${weekly?'':' days'}"><div class="me-card-head"><div class="me-card-label" data-week-label aria-live="polite"><span>${weekly?'7 weeks':'This week'}</span><small>${esc(U.dist(total,1))} ${esc(U.du())}</small></div>${toggle}</div>
       <div class="me-chart-scroll"><div class="me-card-bars" role="group" aria-label="${weekly?'Weekly distance, last 7 weeks':'Daily distance this week'}">${rows.map(w=>`<button type="button" class="me-week${w.today?' now':''}${w.future?' future':''}" aria-pressed="false" data-range="${esc(when(w))}" data-dist="${esc(value(w))}" aria-label="${esc((w.today?(weekly?'This week, ':'Today, '):'')+when(w)+': '+value(w))}"><span data-h="${top?Math.max(2,Math.round((w.distance_m||0)/top*10)):2}"></span>${weekly?'':`<i aria-hidden="true">${esc(letter(w))}</i>`}</button>`).join('')}</div></div></div>`;
   }
   function sections(r,layout,full){

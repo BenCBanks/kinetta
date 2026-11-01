@@ -75,5 +75,16 @@
     "kind": "intentional-overlay",
     "maximum": 44,
     "reason": "Dismiss floats in its own empty corner beside the44px avatar, above the profile name. Only this card/profile pairing is excepted and both hit areas must be exposed; other controls and text clipping remain checked."
+  },
+  {
+    "id": "me-chart-adjacent-columns",
+    "selector": ".me-card-bars .me-week",
+    "withSelector": ".me-card-bars .me-week",
+    "within": ".me-card-bars",
+    "metric": "gap",
+    "kind": "chart-column",
+    "maximum": 0,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/424",
+    "reason": "Claude approved adjacent >=44px chart-column targets, like a segmented control; visual separation comes from the inset bars. Only zero-gap pairs in this chart are excepted; target size, overlap and other gaps remain checked. Review: https://github.com/BenCBanks/kinetta/pull/470#issuecomment-6561475712"
   }
 ]

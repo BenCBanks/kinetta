@@ -1796,7 +1796,7 @@ root is enlarged. Primary metric values are 20–24px; one marked hero per card 
 A hero's units stay secondary text, and split number spans count as one value.
 
 Names, recipe descriptions and sticky activity titles wrap. The seven-button Me chart fits at390px with normal text, and scrolls horizontally on narrower or enlarged layouts
-rather than shrinking its targets or dropping days/weeks; focus reveals a complete target and current
+rather than shrinking its targets or dropping days/weeks. Its seven adjacent columns have at least44px tap targets and inset visible bars inside normal card padding; only their zero-gap adjacency has a reviewed exception. The short heading, total and Days/Weeks share one row at390px and330px with normal text. Focus reveals a complete target and current
 periods begin in view. Page and sheet content below the fold is measured too. Closed disclosures and
 invisible/inert controls are excluded, with regression coverage for nested closed disclosures.
 

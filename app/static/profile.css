@@ -83,17 +83,17 @@
 .me-card-label { display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; }
 .me-card-label span { font-size:.8125rem; font-weight:700; color:var(--tx2); text-transform:uppercase; letter-spacing:.04em; }
 .me-card-label small { font-size:.8125rem; color:var(--tx3); }
-.me-chart-scroll { position:relative; margin:4px -18px 0; min-width:0; }
-.me-card-bars { display:flex; align-items:flex-end; gap:8px; height:60px; padding:4px 0; overflow-x:auto; scrollbar-width:none; scroll-snap-type:x proximity; scroll-padding-inline:0; }
+.me-chart-scroll { position:relative; margin:4px 0 0; min-width:0; }
+.me-card-bars { display:flex; align-items:flex-end; gap:0; height:60px; padding:4px 0; overflow-x:auto; scrollbar-width:none; scroll-snap-type:x proximity; scroll-padding-inline:0; }
 .me-card-bars::-webkit-scrollbar { display:none; }
 .me-chart-scroll::before,.me-chart-scroll::after { content:''; position:absolute; z-index:1; top:0; bottom:0; width:16px; pointer-events:none; opacity:0; }
 .me-chart-scroll::before { left:0; background:linear-gradient(to right,var(--card),transparent); }
 .me-chart-scroll::after { right:0; background:linear-gradient(to left,var(--card),transparent); }
 .me-chart-scroll.has-before::before,.me-chart-scroll.has-after::after { opacity:1; }
 .me-chart-scroll:focus-within::before,.me-chart-scroll:focus-within::after { opacity:0; }
-/* Week bars are buttons: the whole column is the tap target, the bar inside it shows the distance. */
+/* Adjacent chart columns retain 44px targets; inset bars provide the visible separation. */
 .me-week { flex:1 0 44px; min-width:44px; height:100%; min-height:44px; display:flex; align-items:flex-end; padding:0; border:0; background:none; border-radius:6px; cursor:pointer; scroll-snap-align:end; -webkit-tap-highlight-color:transparent; }
-.me-week span { width:calc(100% - 8px); margin-inline:4px; min-height:2px; border-radius:4px 4px 2px 2px; background:var(--color-distance-muted); transition:background-color .12s; }
+.me-week span { width:calc(100% - 16px); margin-inline:8px; min-height:2px; border-radius:4px 4px 2px 2px; background:var(--color-distance-muted); transition:background-color .12s; }
 .me-week.now span { background:var(--btn); }
 .me-week[aria-pressed=true] span { background:var(--accent); box-shadow:0 0 0 2px var(--card), 0 0 0 4px var(--accent); }
 .me-week:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
@@ -143,10 +143,11 @@
 .setup-mark { width:24px; height:24px; border-radius:50%; display:grid; place-items:center; flex:none; background:var(--good); color:#fff; }
 .setup-mark svg { width:14px; height:14px; stroke-width:3; }
 .setup-mark.todo { background:none; border:2px solid var(--color-outline); width:22px; height:22px; }
-@media(max-width:360px) { .me-chart-scroll { margin-inline:-14px; } .me-card-body { padding:0 14px 16px; } .me-card-avatar .av { width:3.5rem; height:3.5rem; } }
+@media(max-width:360px) { .me-card-body { padding:0 14px 16px; } .me-card-avatar .av { width:3.5rem; height:3.5rem; } }
 /* The card's distance chart: a tiny Days / Weeks switch beside the heading; days carry weekday letters. */
-.me-card-head { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
-.me-card-head .me-card-label { flex:1 1 160px; min-width:0; min-height:calc(2.36rem + 8px); align-items:flex-end; }
+.me-card-head { display:flex; align-items:flex-end; gap:8px; }
+.me-card-head .me-card-label { flex:1; min-width:0; align-items:baseline; }
+.me-card-head .me-period button { display:flex; align-items:flex-end; justify-content:center; }
 .me-period { margin:0; flex:none; gap:8px; }
 .me-period button { min-width:44px; min-height:44px; padding:0; font-size:max(15px,.9375rem); }
 .me-distance.days .me-card-bars { height:calc(64px + 1rem); }

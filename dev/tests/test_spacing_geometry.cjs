@@ -54,4 +54,12 @@ assert(combineMeasurements([exposedPair,audit(scene([card,{...corner,pairedExcep
 assert.deepEqual(metrics(scene([], [{...number('part1',36,true),heroKey:'one'},{...number('part2',36,true),heroKey:'one'}])),[],'Fragments of one marked hero count once');
 assert(metrics(scene([], [number('tiny-stat',13)])).includes('font-min'),'Primary metric values cannot shrink to secondary text');
 assert(metrics(scene([], [number('small-hero-one',20,true),number('small-hero-two',24,true)])).includes('hero-count'),'Two marked heroes fail even below the large-number threshold');
+const chartRule=require('./spacing_exceptions.json').find(r=>r.id==='me-chart-adjacent-columns');
+validateExceptions([chartRule]);
+const columnA=target('column-a',0,0,46,60,{hit:true,pairedExceptions:{[chartRule.id]:['column-b']}}),columnB=target('column-b',46,0,46,60,{hit:true});
+assert.equal(audit(scene([columnA,columnB]),[chartRule]).violations.length,0,'Approved adjacent chart columns pass');
+assert(audit(scene([columnA,{...columnB,rect:{...columnB.rect,x:45}}]),[chartRule]).violations.some(v=>v.metric==='overlap'),'Chart exception cannot allow overlapping targets');
+assert(audit(scene([{...columnA,rect:{...columnA.rect,width:43}},columnB]),[chartRule]).violations.some(v=>v.metric==='target'),'Chart exception cannot shrink a target');
+assert(audit(scene([columnA,{...columnB,rect:{...columnB.rect,x:48}}]),[chartRule]).violations.some(v=>v.metric==='gap'),'Only zero-gap chart adjacency is approved');
+assert(audit(scene([target('other-a',0,0),target('other-b',44,0)]),[chartRule]).violations.some(v=>v.metric==='gap'),'Other adjacent controls still need 8px separation');
 console.log('Spacing geometry: small targets, 2px lifting gaps, overlap, inputs, type maxima, clipping, heroes and narrow exceptions PASS');
