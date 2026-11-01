@@ -75,13 +75,20 @@ async function settle(page) {
 }
 async function loadedMaps(page){
   for(const preview of await page.locator('.fmap:visible').all()){
-    if(!await preview.evaluate(el=>{const r=el.getBoundingClientRect();return r.top<innerHeight&&r.bottom>0&&r.width>0&&r.height>0;}))continue;
+    if(!await preview.evaluate(el=>{const r=el.getBoundingClientRect();return r.top<innerHeight&&r.bottom>0&&r.left<innerWidth&&r.right>0&&r.width>0&&r.height>0;}))continue;
     for(let n=0;n<150;n++){if(await preview.evaluate(el=>el.classList.contains('ready')))break;await page.waitForTimeout(100);}
     if(!await preview.evaluate(el=>el.classList.contains('ready')))throw Error('Visible feed map did not initialize');
   }
   for(const map of await page.locator('.leaflet-container:visible').all()){
-    if(!await map.evaluate(el=>{const r=el.getBoundingClientRect();return r.top<innerHeight&&r.bottom>0&&r.width>0&&r.height>0;}))continue;
-    await map.locator('.leaflet-tile-loaded').first().waitFor({state:'attached',timeout:15000});
+    if(!await map.evaluate(el=>{const r=el.getBoundingClientRect();return r.top<innerHeight&&r.bottom>0&&r.left<innerWidth&&r.right>0&&r.width>0&&r.height>0;}))continue;
+    let stable=0;
+    for(let n=0;n<200&&stable<3;n++){
+      const ready=await map.evaluate(el=>{
+        const box=el.getBoundingClientRect(),tiles=[...el.querySelectorAll('.leaflet-tile')].filter(tile=>{const r=tile.getBoundingClientRect();return r.width>0&&r.height>0&&r.left<Math.min(box.right,innerWidth)&&r.right>Math.max(box.left,0)&&r.top<Math.min(box.bottom,innerHeight)&&r.bottom>Math.max(box.top,0);});
+        return tiles.length>0&&tiles.every(tile=>tile.classList.contains('leaflet-tile-loaded'));
+      });stable=ready?stable+1:0;if(stable<3)await page.waitForTimeout(100);
+    }
+    if(stable<3)throw Error('All visible basemap tiles must load before capture');
   }
   if(await page.locator('.map-unavailable:visible').count())throw Error('Capture requires the loaded approved basemap');
 }
