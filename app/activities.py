@@ -52,6 +52,9 @@ def profile_of(c, user_id, lock=False):
 def overlap(a_start, a_len, b_start, b_len):
     """The share of the longer workout that both cover (0 to 1): a short run inside a long hike is not the same workout."""
     if not a_len or not b_len: return 0.0
+    # A local repeated hour changes fold when adding a timedelta. Workout lengths are elapsed seconds.
+    if a_start.tzinfo: a_start = a_start.astimezone(dt.timezone.utc)
+    if b_start.tzinfo: b_start = b_start.astimezone(dt.timezone.utc)
     a_end, b_end = a_start + dt.timedelta(seconds=float(a_len)), b_start + dt.timedelta(seconds=float(b_len))
     shared = (min(a_end, b_end) - max(a_start, b_start)).total_seconds()
     return max(0.0, shared) / max(float(a_len), float(b_len))
@@ -63,6 +66,7 @@ PHONE_OVERLAP = 0.8
 def find_duplicate(c, user_id, start, distance_m, sport=None, elapsed_s=None, source=None):
     # Phone recording + the same workout from a watch (#234 item 3): one activity when 80% of the longer one overlaps the
     # other, whatever the sport label or start gap. Two phone recordings are never merged with each other.
+    if start.tzinfo: start = start.astimezone(dt.timezone.utc)
     window = (start - dt.timedelta(minutes=2), start + dt.timedelta(minutes=2))
     rows = c.execute("""SELECT id, start_time, distance_m, elapsed_s, sport, auto_name, source, summary_original, summary_overrides FROM activities WHERE user_id = %(u)s
                         AND (start_time BETWEEN %(a)s AND %(b)s OR (%(len)s::float8 IS NOT NULL AND elapsed_s IS NOT NULL

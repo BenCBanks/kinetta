@@ -220,6 +220,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/routes_segments_incontai
 docker compose -p "$P" exec -T app python - < dev/tests/route_paths_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/segment_integrity_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/route_sharing_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/test_activity_overlap_dst.py
 docker compose -p "$P" exec -T app python - < dev/tests/route_following_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/race_predictions_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/coach_incontainer.py

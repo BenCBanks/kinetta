@@ -5,6 +5,8 @@ import json
 import secrets
 import unittest
 import uuid
+from contextlib import contextmanager
+from unittest.mock import patch
 import psycopg
 from psycopg import errors,sql
 from fastapi.testclient import TestClient
@@ -54,12 +56,25 @@ class Following(unittest.TestCase):
             self.assertEqual(c.execute('SELECT count(*) AS n FROM track_recording_receipts WHERE user_id=%s',(self.ids['owner'],)).fetchone()['n'],1)
         other=self.save(body,'other')['id'];self.assertNotEqual(other,aid,'recording identities are scoped to the account')
     def test_watch_first_canonical_recording_keeps_plan_across_retry(self):
-        body=self.payload()
-        with db.connect() as c:
-            aid=c.execute("""INSERT INTO activities(user_id,name,sport,start_time,source,source_id,elapsed_s,moving_s,distance_m,visibility)
-              VALUES(%s,'Fictional Watch run','run',%s,'healthkit',%s,100,100,250,'me') RETURNING id""",(self.ids['owner'],body['start'],str(uuid.uuid4()))).fetchone()['id']
-        self.assertEqual(self.save(body)['id'],aid);self.assertEqual(self.save(body)['id'],aid)
-        self.assertEqual(self.c['owner'].get(f'/api/activities/{aid}').json()['route_plan']['version'],4)
+        connect=db.connect
+        @contextmanager
+        def local_connection(*args,**kwargs):
+            with connect(*args,**kwargs) as c:
+                c.execute("SET TIME ZONE 'America/New_York'")
+                yield c
+        # The connection's timezone controls returned datetimes; the profile timezone does not.
+        with patch.object(db,'connect',local_connection):
+            for hour in (5,6,7):
+                body=self.payload()|{'start':f'2024-11-03T{hour:02d}:10:00+00:00'}
+                with db.connect() as c:
+                    aid=c.execute("""INSERT INTO activities(user_id,name,sport,start_time,source,source_id,elapsed_s,moving_s,distance_m,visibility)
+                      VALUES(%s,'Fictional Watch run','run',%s,'healthkit',%s,100,100,250,'me') RETURNING id""",(self.ids['owner'],body['start'],str(uuid.uuid4()))).fetchone()['id']
+                with self.subTest(hour=hour):
+                    self.assertEqual(self.save(body)['id'],aid);self.assertEqual(self.save(body)['id'],aid)
+                    self.assertEqual(self.c['owner'].get(f'/api/activities/{aid}').json()['route_plan']['version'],4)
+            with db.connect() as c:
+                for table in ('activities','activity_route_plans','track_recording_receipts'):
+                    self.assertEqual(c.execute(sql.SQL('SELECT count(*) AS n FROM {} WHERE user_id=%s').format(sql.Identifier(table)),(self.ids['owner'],)).fetchone()['n'],3)
     def test_deleted_activity_receipt_prevents_resurrection_and_old_clients_work(self):
         body=self.payload();aid=self.save(body)['id'];self.assertEqual(self.c['owner'].delete(f'/api/activities/{aid}').status_code,200)
         self.assertEqual(self.c['owner'].post('/api/activities/track',json=body).status_code,409)
