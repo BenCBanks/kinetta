@@ -1,7 +1,15 @@
 /* The social launch tools and compact feed; profile/activity-detail controls keep their own layout. */
-.feed-social-strip { display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; margin:0 0 12px; padding-block:1px; }
-.feed-social-strip .me-chip { display:flex; align-items:center; gap:6px; flex:none; min-height:44px; white-space:nowrap; padding:6px 10px; font-size:.875rem; }
-.feed-social-strip svg { width:16px; height:16px; flex:none; }
+#feed-top { margin-bottom:16px; }
+#feed-top .top { margin-bottom:0; }
+#feed-top .top .acts { gap:8px; }
+#feed-tools:empty { display:none; }
+.activity-home #ff-list > .post:first-child { margin-top:0; }
+.feed-social-strip { margin:0 0 16px; }
+.feed-social-strip .challenge-summary { min-height:56px; gap:8px; padding:4px 0; border:0; }
+.challenge-summary .ri { flex:none; width:32px; height:32px; }
+.challenge-summary b { font-size:max(15px,.9375rem); font-weight:500; line-height:1.3; }
+.challenge-summary small { color:var(--tx2); font-size:max(13px,.8125rem); line-height:1.4; }
+.challenge-summary svg { width:18px; height:18px; flex:none; }
 .feed-low { margin:0 0 12px; }
 .feed-low h2 { font-size:1rem; margin:0 0 10px; }
 .feed-low .progress-grid { margin-bottom:0; }
@@ -24,8 +32,8 @@
 .activity-home .post-ft:has(.inline-reactions) { padding:6px 12px; gap:8px; }
 
 /* Keep map-source attribution clear beneath carousel controls. */
-.compact-media:has(.media-map) .media-controls > button { bottom:28px; }
-.compact-media:has(.media-map) .media-dots { bottom:42px; }
+.compact-media:has(.media-map) .media-controls > button { top:8px; bottom:auto; }
+.compact-media:has(.media-map) .media-dots { top:22px; bottom:auto; }
 
 .post-private { display:inline-flex; align-items:center; vertical-align:middle; color:var(--tx3); }
 .post-private svg { width:14px; height:14px; }

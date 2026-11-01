@@ -146,6 +146,12 @@ activity detail. Input text is at least 16px to avoid iPhone zoom. Account for b
   focus. Keep normal scrolling and drafts. A downward swipe outside the input dismisses the keyboard; exclude text
   selection, maps, horizontal galleries, photo viewers and pinch gestures. Native iOS uses interactive dismissal too.
 
+## Challenges on Activity
+
+Challenges always has a 44px header action on Activity, including established accounts with no active challenge. Only unfinished participation creates the progress strip; reaching the target keeps it visible until the challenge ends. The strip reuses the personal count/target summary from Me. Me retains its useful active-only progress shortcut. Friends stays about people, while Invite remains there and in low-friends Activity discovery.
+
+The empty strip occupies no space: the first activity starts 16px below the header. Progress rows are at least 56px with 15–16px primary/13px secondary text, and header targets have 8px gaps. Enlarged 330px text can wrap the header actions as a group, preserving their size and gaps. The remaining Friends footer rows use 48px targets, 8px gaps and 15px text. Challenge home and detail explicitly return to Activity, including old `/me/challenges` and public `/challenge/...` addresses; previous-page history does not relabel that parent.
+
 ## Website and brand assets
 
 Apply the same UI sans headings, Sky Blue palette, blue actions and neutral surfaces across all seven website
@@ -1597,7 +1603,7 @@ An exercise has a named Lifting return and compact muscle/name/session/note head
 
 ### Lifting spacing correction (31 October 2026, #423)
 
-Exercise cards use16px padding with12px between cards. Set rows and neighbouring controls have8px gaps; numeric
+Exercise cards use16px padding with12px between cards. Set rows and neighbouring controls have 8px gaps; numeric
 inputs and ticks remain at least44px high, with input text at least16px and Last/record text at least13px. Record
 lines have4px above and below. At enlarged text sizes the set number and previous result move above the fields;
 complete numeric values and the inline tick keep their own row. Default-size rows remain compact, with the sticky
@@ -1645,7 +1651,7 @@ no change on that evidence; the physical owner observation remains a separate ch
 activity-detail map hero under the status area. The More picker already has the same sport icons; the GPS badge
 remains a distinct, readable map overlay. Recording, settings, privacy and other launch tools keep their behavior.
 
-The later31October spacing rule keeps8px between quick activities, More and recording pills. Common targets stay44px, giving52px minimum pitch. The primary plan link itself gets a44px target. Two-line More choices use56px rows and8px separation. Track discovery cards use16px padding and12px grid gaps. The31px iPhone-shaped Spoken updates switch stays visually intact inside a44px-high label target; Auto-pause already had a full-row label. Control labels use15px and secondary notes at least13px. These are scoped spacing/activation changes; no recording preference or GPS behavior changes.
+The later31October spacing rule keeps8px between quick activities, More and recording pills. Common targets stay44px, giving52px minimum pitch. The primary plan link itself gets a 44px target. Two-line More choices use56px rows and8px separation. Track discovery cards use16px padding and12px grid gaps. The31px iPhone-shaped Spoken updates switch stays visually intact inside a 44px-high label target; Auto-pause already had a full-row label. Control labels use15px and secondary notes at least13px. These are scoped spacing/activation changes; no recording preference or GPS behavior changes.
 
 ## Progress share pictures · 31 October 2026
 
@@ -1681,7 +1687,7 @@ need no change. Chart inspection and existing year filtering stay available.
 
 Explore keeps its searchable catalog and real destinations. Category chips scroll in one row; category headings appear once above compact divider rows. Each row uses an existing app icon, a name, one-line summary and disclosure chevron. Opening it retains the full description, instructions and Open link. New dots mean a guide entry has not been opened on this account/server/device; they do not infer feature usage elsewhere. Reading an entry clears its dot. The catalog, native import exclusions and shared Kit availability/consent helpers are unchanged. This sub-page has no discovery tile grid or layout helper paragraph. Enlarged text wraps names; the touch target stays at least44px.
 
-The later31October owner spacing rule takes precedence over the original ten-visible-rows target: two-line summary targets are at least56px, separated by at least8px; group cards use16px padding and12px between groups. Category chips and the search/filters have8px separation. Names use15px and secondary summaries13px at the default text size; enlarged text grows naturally. Density comes from grouping and removing duplicated category labels rather than reducing these minimums. The PR reports the measured visible row count, pitch and gaps.
+The later31October owner spacing rule takes precedence over the original ten-visible-rows target: two-line summary targets are at least 56px, separated by at least8px; group cards use16px padding and12px between groups. Category chips and the search/filters have 8px separation. Names use15px and secondary summaries13px at the default text size; enlarged text grows naturally. Density comes from grouping and removing duplicated category labels rather than reducing these minimums. The PR reports the measured visible row count, pitch and gaps.
 
 Explore review corrections: the named Me return uses its own row, with the left-aligned title below. Category controls have36px visible faces within44px targets,15px medium labels,8px gaps and a quiet selected tint. Overflow edges fade and keyboard focus brings a complete label into view. All59 guide entries have explicit icons from the existing destination set.
 

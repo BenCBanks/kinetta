@@ -279,13 +279,15 @@ async function homeFeed(el) {
 // Read-only own social facts never replace feed cards or their live maps.
 function feedTools(el,current){
   if(typeof Discovery==='undefined')return{refresh:async()=>{}};
-  const host=$('#feed-tools',el),top=$('#feed-top',el),owner=readOwner();let count=Number.isInteger(App.me?.friend_count)?App.me.friend_count:null,waiting=App.me?.friend_requests||0,challenges=[],ready=false;
+  const host=$('#feed-tools',el),top=$('#feed-top',el),owner=readOwner();let count=Number.isInteger(App.me?.friend_count)?App.me.friend_count:null,challenges=[],ready=false;
   const live=()=>current()&&readOwner()===owner;
   function draw(){
     if(!live())return;host.setAttribute('aria-busy',String(!ready));const low=count!=null&&count<=2;top.innerHTML=actTop(false,!low);
-    const active=challenges.filter(q=>q.member&&!q.self?.finished&&Number.isInteger(q.self?.days_left)).sort((a,b)=>a.self.days_left-b.self.days_left);
-    const chips=[...(active.length?[{id:'challenges',title:(active.length>1?active.length+' challenges':'Challenge')+' · '+active[0].self.days_left+' days left',href:'/me/challenges/'+encodeURIComponent(active[0].code),icon:'trophy'}]:[]),...(!low?[{id:'invite',title:'Invite',href:'/me',icon:'share'}]:[]),...(waiting?[{id:'requests',title:waiting+' request'+(waiting===1?'':'s'),href:'/me/friends',icon:'people'}]:[])].slice(0,4);
-    host.innerHTML=`${chips.length?`<div class="feed-social-strip" aria-label="Social tools">${chips.map(q=>`<a class="me-chip" data-feed-tool="${q.id}" href="${esc(q.href)}">${svg(q.icon)}${esc(q.title)}</a>`).join('')}</div>`:''}${low?'<section class="feed-low"><h2>Make Activity yours</h2><div class="progress-grid" id="feed-discovery"></div></section>':''}`;
+    $('.acts',top).insertAdjacentHTML('afterbegin',`<a class="icon-btn" href="/me/challenges" data-feed-challenges aria-label="Challenges">${svg('trophy')}</a>`);
+    $('[data-feed-challenges]',top).onclick=()=>{if(live())Discovery.visit('activity','challenge');};
+    const summary=Challenges.summary(challenges),q=summary?.first;
+    const timing=q?(q.start>isoDay(new Date())?'Starts '+new Date(q.start+'T12:00:00Z').toLocaleDateString(undefined,{timeZone:'UTC',month:'short',day:'numeric'}):q.self.complete?'Goal reached':q.self.days_left===0?'Ends today':q.self.days_left===1?'1 day left':q.self.days_left+' days left'):'';
+    host.innerHTML=`${summary?`<div class="feed-social-strip" aria-label="Active challenge progress"><a class="row-link challenge-summary" data-feed-tool="challenges" href="/me/challenges/${encodeURIComponent(q.code)}"><span class="ri">${svg('trophy')}</span><span class="grow"><b>${summary.count>1?summary.count+' challenges':'Challenge'}</b><small>${esc(summary.progress)} · ${esc(timing)}</small></span><span class="chev">${svg('chev')}</span></a></div>`:''}${low?'<section class="feed-low"><h2>Make Activity yours</h2><div class="progress-grid" id="feed-discovery"></div></section>':''}`;
     const grid=$('#feed-discovery',host);if(grid){Discovery.render(grid,[
       {id:'find',title:'Find friends',description:'People you know →',href:'/me/friends?find=1',icon:'people'},
       {id:'invite',title:'Invite card',description:'Share your QR card →',href:'/me',icon:'share'},
@@ -295,7 +297,7 @@ function feedTools(el,current){
   host.addEventListener('click',e=>{if(!live()||e.metaKey||e.ctrlKey||e.button>0)return;const tile=e.target.closest('[data-activity-feature],[data-feed-tool]');if(!tile)return;const id=tile.dataset.activityFeature||tile.dataset.feedTool;Discovery.visit('activity',id);
     if(id==='invite'||id==='challenge'){e.preventDefault();e.stopPropagation();if(id==='invite')KinettaCard.open();else Challenges.create();}
   });
-  async function refresh(){if(live())host.setAttribute('aria-busy','true');await Promise.allSettled([api('/api/friends').then(r=>{if(live()){count=r.friends.length;waiting=r.incoming.length;}}),api('/api/challenges').then(rows=>{if(live())challenges=rows;})]);ready=true;draw();}
+  async function refresh(){if(live())host.setAttribute('aria-busy','true');await Promise.allSettled([api('/api/friends').then(r=>{if(live())count=r.friends.length;}),api('/api/challenges').then(rows=>{if(live())challenges=rows;})]);ready=true;draw();}
   draw();refresh();return{refresh};
 }
 
