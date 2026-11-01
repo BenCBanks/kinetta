@@ -67,7 +67,9 @@ def post(cl, text, draft, context):
 
 def run_rules(cl, mid):
     n = len(CALLS)
-    with patch('app.food_thread_understand.enabled',return_value=False):
+    with ExitStack() as stack:
+        stack.enter_context(patch('app.food_thread_understand.enabled',return_value=False))
+        if COMPARISON and CONTEXTUAL:stack.enter_context(patch('app.food_memory_understand.enabled',return_value=False))
         data = cl.post(f'/api/food/thread/messages/{mid}/process', json={}).json()
     reply = next(m for m in data['messages'] if m.get('reply_to') == mid)
     if reply['result'].get('can_resolve'):
