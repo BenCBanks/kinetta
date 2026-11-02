@@ -163,6 +163,9 @@ details.fold-row[open] { padding-bottom: 12px; }
 .login form, .login .form { width: 100%; max-width: 360px; display: grid; gap: 14px; }
 .login h1 { margin: 0 0 4px; font-size: 30px; font-weight: 700; letter-spacing: -.03em; } .login p { margin: 0 0 8px; color: var(--tx2); }
 .login h1 + p { margin-top: 6px; } .login .small.muted { margin: -6px 0 0; font-weight: 400; }
+.login.invite-landing { grid-template-columns:minmax(0,1fr); }
+.invite-landing .form { min-width:0; }
+.invite-landing h1 { overflow-wrap:anywhere; }
 .login .primary { min-height: 46px; }
 .login .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 .brand { display: block; margin: 0 0 22px; } .brand img { display: block; width: 190px; height: auto; }

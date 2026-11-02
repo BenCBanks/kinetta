@@ -105,9 +105,9 @@ class Portal(unittest.TestCase):
             with db.connect() as c:
                 row=c.execute('SELECT body,invite_id FROM beta_responses WHERE id=%s',(draft['request_key'],)).fetchone();self.assertNotIn('/join/',row['body'])
             text=first.json()['body'];token=text.split('/join/')[1].split()[0]
-            join=TestClient(app);join.headers['Origin']=BASE;r=join.post('/api/join',json={'name':'New Member','login':'zz_test_portal_joined','password':PW,'token':token,'is_admin':True});self.assertEqual(r.status_code,200,r.text)
+            join=TestClient(app);join.headers['Origin']=BASE;r=join.post('/api/join',json={'age_ok':True,'name':'New Member','login':'zz_test_portal_joined','password':PW,'token':token,'is_admin':True});self.assertEqual(r.status_code,200,r.text)
             self.assertFalse(join.get('/api/me').json()['is_admin'])
-            self.assertEqual(join.post('/api/join',json={'name':'Again','login':'zz_test_portal_again','password':PW,'token':token}).status_code,404)
+            self.assertEqual(join.post('/api/join',json={'age_ok':True,'name':'Again','login':'zz_test_portal_again','password':PW,'token':token}).status_code,404)
             self.assertTrue(any(x['joined_at'] for x in self.client.get('/api/admin/beta').json() if x['id']==b['id']))
             b2=self.beta();draft2=self.draft(b2);r=self.client.post(f"/api/admin/beta/{b2['id']}/responses",json=draft2);self.assertEqual(r.status_code,200)
             with db.connect() as c:iid=c.execute('SELECT invite_id FROM beta_responses WHERE id=%s',(draft2['request_key'],)).fetchone()['invite_id']
@@ -158,7 +158,7 @@ class Portal(unittest.TestCase):
                 r=self.client.post(f"/api/admin/beta/{b['id']}/responses",json=self.draft(b,kind));self.assertEqual(r.status_code,200,r.text)
             self.assertEqual(TestClient(app).get('/api/join/'+token).status_code,404)
             join=TestClient(app);join.headers['Origin']=BASE
-            self.assertEqual(join.post('/api/join',json={'name':'Declined','login':'zz_test_portal_declined','password':PW,'token':token}).status_code,404)
+            self.assertEqual(join.post('/api/join',json={'age_ok':True,'name':'Declined','login':'zz_test_portal_declined','password':PW,'token':token}).status_code,404)
             row=next(x for x in self.client.get('/api/admin/beta').json() if x['id']==b['id'])
             self.assertEqual(row['status'],'declined' if kind=='decline' else 'waitlisted');self.assertIsNone(row['invite_id'])
     def test_password_only_when_owner_turns_mfa_off(self):

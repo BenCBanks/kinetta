@@ -242,7 +242,7 @@ class Challenges(unittest.TestCase):
    with db.connect() as c:
     row=c.execute('SELECT id,challenge_code,challenge_join FROM beta_requests WHERE lower(email)=lower(%s)',(email,)).fetchone();self.assertEqual((row['challenge_code'],row['challenge_join']),(q['code'],True));c.execute('UPDATE users SET is_admin=true WHERE id=%s',(self.ids[0],))
    invitation=api_beta.beta_invite(row['id'],{'id':self.ids[0],'login':'fictional_admin','is_admin':True});token=invitation['url'].rsplit('/',1)[-1];info=self.anon.get('/api/join/'+token);self.assertEqual(info.status_code,200,info.text);self.assertEqual(info.json()['challenge'],{'code':q['code'],'title':q['title'],'join_default':True});self.assertNotIn('PRIVATE',info.text)
-   client=TestClient(app);login='zz_test_ch_invited_'+uuid.uuid4().hex[:8];r=client.post('/api/join',json={'token':token,'name':'Fictional member','login':login,'email':email,'password':'fictional invited challenge phrase','challenge_code':q['code'],'challenge_join':True});self.assertEqual(r.status_code,200,r.text)
+   client=TestClient(app);login='zz_test_ch_invited_'+uuid.uuid4().hex[:8];r=client.post('/api/join',json={'age_ok':True,'token':token,'name':'Fictional member','login':login,'email':email,'password':'fictional invited challenge phrase','challenge_code':q['code'],'challenge_join':True});self.assertEqual(r.status_code,200,r.text)
    with db.connect() as c:uid=c.execute('SELECT id FROM users WHERE login=%s',(login,)).fetchone()['id'];self.ids.append(uid);self.assertFalse(C.member(c,C.accessible(c,q['code'])['id'],uid))
    self.assertEqual(client.post('/api/account/email/confirm',json={'token':tokens[uid]}).status_code,200)
    with db.connect() as c:self.assertTrue(C.member(c,C.accessible(c,q['code'])['id'],uid))

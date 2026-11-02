@@ -191,7 +191,7 @@ class Publication(unittest.TestCase):
             with patch.object(api_account,'reserved_login',side_effect=lambda v,**kw:original(v,allow_test=True)),patch.dict(terms.DOCUMENT,document),patch.dict(os.environ,{'KINETTA_TERMS_VERSION':document['version'],'KINETTA_SIGNUP':'open'}),patch.object(auth,'client_ip',return_value='community-'+self.tag),patch.object(account_email,'mail_ready',return_value=True),patch.object(account_email,'confirmation',return_value=None):
                 self.assertEqual(guest.post('/api/terms/accept',json={'version':document['version']}).status_code,401)
                 invite=self.q('admin','POST','/api/admin/invites',{})
-                body={'token':invite['path'].split('/')[-1],'name':'Invite Example','login':prefix+'i','password':PW}
+                body={'age_ok':True,'token':invite['path'].split('/')[-1],'name':'Invite Example','login':prefix+'i','password':PW}
                 self.assertEqual(guest.post('/api/join',json=body).status_code,428)
                 self.assertEqual(guest.post('/api/join',json={**body,'terms_version':document['version']}).status_code,200)
                 response=guest.get('/api/me'); self.assertEqual(response.status_code,200)
