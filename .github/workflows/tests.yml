@@ -208,6 +208,11 @@ jobs:
           python3 dev/tests/inline_reactions_fixture.py
           PHASE=after NODE_PATH=/tmp/card-browser/node_modules node dev/tests/inline_reactions_ui.cjs
           NODE_PATH=/tmp/card-browser/node_modules node dev/tests/inline_reactions_actions.cjs
+      - name: Check shared subpage headers and modal ownership (fictional records; writes blocked)
+        env:
+          KINETTA_URL: http://localhost:8798
+          KINETTA_PROJECT: kinettatest
+        run: NODE_PATH=/tmp/card-browser/node_modules node dev/tests/shell_ui.cjs
       - name: Check shared password visibility in app and admin forms (fictional values)
         env:
           KINETTA_URL: http://localhost:8798

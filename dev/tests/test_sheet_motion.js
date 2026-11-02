@@ -8,7 +8,7 @@ function setup(reduced=false){
  const element=()=>({style:{setProperty(k,v){this[k]=v;}},classList:classes(),listeners:{},addEventListener(k,fn){this.listeners[k]=fn;},setAttribute(k,v){this[k]=v;},remove(){this.isConnected=false;},contains(){return false;}});
  const notice=element();notice.classList.add('on');notice.undo=false;
  const previous={isConnected:true,focus(options){assert.equal(options.preventScroll,true);focuses++;}};
- const document={activeElement:previous,body:{classList:classes(),append:s=>{s.isConnected=true;sheets.push(s);}},
+ const document={activeElement:previous,body:{children:sheets,classList:classes(),append:s=>{s.isConnected=true;sheets.push(s);}},
   createElement:()=>{const s=element();s.sh=element();s.body=element();s.classList.add('scrim');s.contains=el=>el.sheet===s;return s;},
   querySelector:()=>sheets.find(s=>s.isConnected),querySelectorAll:()=>sheets.filter(s=>s.isConnected),
   addEventListener:(k,f)=>documentEvents.set(k,f),removeEventListener:k=>documentEvents.delete(k)};
@@ -19,7 +19,7 @@ function setup(reduced=false){
   $$:()=>sheets.filter(s=>s.isConnected&&s.classList.contains('is-closing'))};
  vm.createContext(ctx);
  vm.runInContext(source.slice(source.indexOf('const viewResources ='),source.indexOf('async function mapInto'))+'\nglobalThis.resources=viewResources;',ctx);
- vm.runInContext(source.slice(source.indexOf('function sheet('),source.indexOf('// ---------- router')),ctx);
+ vm.runInContext(source.slice(source.indexOf('const ModalStack ='),source.indexOf('// ---------- router')),ctx);
  function open(){const close=ctx.sheet('Demo','<p>Fictional</p>');const s=sheets.at(-1),resource={sheet:s,get isConnected(){return s.isConnected;}};ctx.resources.set(resource,()=>disposed++);return {close,s};}
  return {ctx,open,sheets,timers,events,documentEvents,document,notice,get focuses(){return focuses;},get disposed(){return disposed;}};
 }
