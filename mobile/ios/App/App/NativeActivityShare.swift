@@ -1,6 +1,7 @@
 import Capacitor
 import ImageIO
 import UIKit
+import WebKit
 
 // Exports only the picture the person previewed. No server access, account tokens or photo-library writes.
 @objc(KinettaActivitySharePlugin)
@@ -43,11 +44,63 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
                 "scrollContentTop": Double(web.scrollView.contentInset.top),
                 "scrollOffsetY": Double(web.scrollView.contentOffset.y)
             ]
-            do {
-                let output = try JSONSerialization.data(withJSONObject: object)
-                try output.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("kinetta-ui-metrics.json"), options: .atomic)
-                call.resolve()
-            } catch { call.reject("UI fixture measurements could not be saved") }
+            func save() {
+                do {
+                    let output = try JSONSerialization.data(withJSONObject: object)
+                    try output.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("kinetta-ui-metrics.json"), options: .atomic)
+                    call.resolve()
+                } catch { call.reject("UI fixture measurements could not be saved") }
+            }
+            #if targetEnvironment(simulator)
+            if object["stage"] as? String == "header-me", object["theme"] as? String == "light", object["store"] as? Bool != true {
+                // Exercise the real registered bridge in the unsigned Simulator, never a physical phone.
+                // The fixture can load the bundled hook before its parallel UI consumer has landed.
+                let script = """
+                let timer;
+                const check = async () => {
+                    const c = globalThis.Capacitor;
+                    if (!c?.isNativePlatform() || !c.isPluginAvailable('KinettaHaptics'))
+                        throw Error('Native haptics unavailable');
+                    let hookLoadedBy = 'app';
+                    if (!globalThis.Haptics) {
+                        hookLoadedBy = 'fixture';
+                        await new Promise((resolve, reject) => {
+                            const script = document.createElement('script');
+                            // Fresh Simulator fixture only; the production loader uses its own asset hash.
+                            script.src = '/static/haptics.js';
+                            script.onload = resolve;
+                            script.onerror = () => reject(Error('Bundled haptics hook missing'));
+                            document.head.append(script);
+                        });
+                    }
+                    if (typeof Haptics.react !== 'function' || typeof Haptics.tick !== 'function')
+                        throw Error('Reaction haptics hooks missing');
+                    await c.Plugins.KinettaHaptics.tap({kind:'light'});
+                    await c.Plugins.KinettaHaptics.tap({kind:'selection'});
+                    return {available:true, lightResolved:true, selectionResolved:true, hookLoadedBy};
+                };
+                try {
+                    return await Promise.race([check(), new Promise((_, reject) => {
+                        timer = setTimeout(() => reject(Error('Haptics bridge timeout')), 2000);
+                    })]);
+                } finally { clearTimeout(timer); }
+                """
+                web.callAsyncJavaScript(script, arguments: [:], in: nil, in: .page) { result in
+                    switch result {
+                    case .success(let value):
+                        if let haptics = value as? [String: Any], haptics["available"] as? Bool == true,
+                           haptics["lightResolved"] as? Bool == true, haptics["selectionResolved"] as? Bool == true {
+                            object["haptics"] = haptics
+                        } else { object["error"] = "Native reaction haptics measurements were incomplete" }
+                    case .failure:
+                        object["error"] = "Bundled reaction haptics bridge smoke failed"
+                    }
+                    save()
+                }
+                return
+            }
+            #endif
+            save()
         }
     }
     #endif
