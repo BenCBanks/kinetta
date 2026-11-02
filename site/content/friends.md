@@ -8,7 +8,7 @@ Keep up with *your friends’ workouts.*
 
 ## find-friends-by-name-see-their-runs-send-them-cheers-2
 
-Build your profile, find people you know and see your activities together. React with an emoji or leave a comment.
+Build your profile, find people you know and see your activities together. Send cheers or leave a comment.
 
 ## see-who-s-out-there-today-3
 
@@ -16,9 +16,7 @@ Your workouts and theirs, in one feed.
 
 ## your-runs-and-theirs-newest-first-4
 
-Runs, rides, walks and other shared activities, newest first. Tap to applaud or use + to choose from 16 emoji. One reaction per person, changeable any time. iPhone feedback uses your system haptics setting.
-
-New accounts share new activities with everyone on Kinetta by default. Choose approved friends or Only me in the welcome steps or Settings → Sharing & privacy. Existing accounts and activities keep their saved choices.
+Runs, rides, walks and other shared activities, newest first. New accounts share new activities with everyone on Kinetta by default. Choose approved friends or Only me in the welcome steps or Settings → Sharing & privacy. Existing accounts and activities keep their saved choices.
 
 ## photos-of-freedom-park-charlotte-james-willamor-and-ci-5
 
