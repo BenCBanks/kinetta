@@ -1014,7 +1014,7 @@ const PSPORTS = [['run', 'Runs'], ['ride', 'Rides'], ['walk', 'Walks'], ['hike',
 const PVIEWS = [['fitness', 'Fitness', 'Race predictions, fitness and form', 'flame', 'c-orange'], ['records', 'Records', 'Your fastest times at each distance', 'trophy', 'c-purple'],
   ['lifting', 'Lifting', 'Every exercise, your bests and its history', 'workout', 'c-brand']];
 const PMORE = [['trends', 'Year over year', 'Pace, heart rate and distance, year by year', 'progress', 'c-blue'],
-  ['calendar', 'Calendar', 'Training and eating, day by day', 'calendar', 'c-orange'], ['routes', 'Matched routes', 'Compare the loops you have recorded more than once', 'activity', 'c-green'], ['segments', 'Segments & times', 'Your fixed courses, personal times and leaderboards', 'route', 'c-green'],
+  ['calendar', 'Calendar', 'Training and eating, day by day', 'calendar', 'c-orange'], ['routes', 'Matched routes', 'Compare the loops you have recorded more than once', 'activity', 'c-green'], ['segments', 'Segments', 'Your fixed courses, personal times and leaderboards', 'route', 'c-green'],
   ['heatmap', 'Heatmap', "Everywhere you've been", 'globe', 'c-brand'], ['plan', 'Training plan', '5K to marathon, built around your runs', 'target', 'c-purple']];
 const PPERIODS = [['week', 'Week'], ['month', 'Month'], ['year', 'Year']];
 function pSport(q) {
