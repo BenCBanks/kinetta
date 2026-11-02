@@ -2,11 +2,12 @@
 // Real isolated-account reaction writes; reject unrelated app/provider/device writes.
 const {chromium}=require('playwright'),assert=require('node:assert/strict');
 const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill';
-const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))return;await p.waitForTimeout(100);}throw Error(label);};
+const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))return;await p.waitForTimeout(100);}throw Error(label+' '+JSON.stringify(await p.evaluate(()=>({url:location.pathname,ready:App.pageReady,body:document.body.innerText.slice(0,250)}))));};
 (async()=>{
  const browser=await chromium.launch();let cases=0;
  try{
   for(const theme of ['light','dark'])for(const size of [{width:390,root:15},{width:330,root:24}])for(const surface of ['friends','profile','own','history']){
+   if(process.env.KINETTA_REACTION_CASE&&process.env.KINETTA_REACTION_CASE!==`${surface}-${size.width}-${theme}`)continue;
    const actor=surface==='own'||surface==='history'?'owner':'viewer',c=await browser.newContext({viewport:{width:size.width,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true});
    try{
     assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_inline_'+actor,password:pw}})).status(),200);
