@@ -39,6 +39,7 @@ from unittest.mock import MagicMock
 from fastapi import HTTPException
 high={'kcal':225,'protein_g':7.5,'carbs_g':82.5,'fat_g':2.5,'fiber_g':45}
 assert F._sane(high)==high
+assert F._sane({'kcal':1046,'protein_g':0,'carbs_g':50,'fat_g':0,'fiber_g':30})['kcal']==250, 'existing kJ repair still accepts fiber-excluded labels'
 assert F._sane({'kcal':260,'protein_g':0,'carbs_g':50,'fat_g':0,'fiber_g':30}) is not None, 'fiber-excluded carbohydrate labels remain usable'
 assert F._sane({**high,'fiber_g':None}) is None
 product={'code':'0016000157620','product_name':'Fictional high-fiber cereal','serving_quantity':40,'serving_size':'1 cup',

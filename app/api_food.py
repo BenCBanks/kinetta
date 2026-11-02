@@ -69,7 +69,7 @@ def _sane(per100):
         if est is None: return None
         per100 = {**per100, 'kcal': round(est)}
     elif k > 900:                       # nothing has more than ~900 kcal/100 g (pure fat): it was kJ
-        if est is not None and abs(k / 4.184 - est) <= max(40, est * .25): per100 = {**per100, 'kcal': round(k / 4.184)}
+        if est is not None and any(abs(k / 4.184 - v) <= max(40, v * .25) for v in (est, legacy)): per100 = {**per100, 'kcal': round(k / 4.184)}
         else: return None
     elif est is not None and est > 40 and not any(v * .6 <= k <= v * 1.5 for v in (est, legacy)):
         return None                    # allow labels with fiber included in or excluded from carbs

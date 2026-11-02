@@ -159,7 +159,7 @@ function foodPortion(e) {
   const ref=e.ref||{},src=ref.origin==='catalog'&&ref.source!=='custom'&&e.unit==='g'?ref.origin_ref||ref:ref,s=src.serving||{},mass={g:1,oz:28.3495,kg:1000,lb:453.592};
   const declared=s.g>0&&!s.is_default&&(s.g!==100||s.is_default===false||!['off','usda'].includes(src.source));
   const label=(s.label||'').trim(),match=label.match(/^(?:(\d+(?:\.\d+)?)(?:\/(\d+))?\s*)?([a-z]+)\b/i);
-  const count=match?(Number(match[1]||1)/Number(match[2]||1)):1,house=match?.[3].toLowerCase().replace(/s$/,'');
+  const count=match?(Number(match[1]||1)/Number(match[2]||1)):1,house=match?.[3].toLowerCase().replace(/(?<!s)s$/,'');
   const serving=e.unit==='serving'?1:mass[e.unit]&&declared?s.g/mass[e.unit]:e.unit===house?count:null;
   const grams=mass[e.unit]||(declared&&serving?s.g/serving:null);
   const units=[{key:'g',label:'g',factor:grams?1/grams:null},{key:'oz',label:'oz',factor:grams?mass.oz/grams:null}];

@@ -41,3 +41,5 @@ portion=c.foodPortion({...cup,amount:1,ref:{source:'custom',id:9,origin:'catalog
 
 portion=c.foodPortion({...cup,amount:100,unit:'g',ref:{serving:{label:'1 container',g:170}}});portion.select('serving');portion.step(.5);assert.equal(portion.amount,185,'stepper adds half a serving to exact100g');
 portion=c.foodPortion({...cup,amount:1,unit:'g',ref:{serving:{label:'1 bowl',g:500}}});portion.select('serving');assert.equal(portion.unit,'g');assert.equal(portion.format(),'1','tiny positive portion uses representable unit');
+
+portion=c.foodPortion({...cup,ref:{serving:{label:'1 glass',g:200}}});assert(portion.units.some(u=>u.key==='glass'),'singular unit ending in ss stays intact');
