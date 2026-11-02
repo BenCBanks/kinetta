@@ -19,7 +19,7 @@ module.exports=()=>{
   '/api/people/alex/profile':profile,
   '/api/activities':[activity],'/api/activities/1':activity,'/api/activities/1/social':activity.social,
   '/api/stats':{chart_today:today,chart_weeks:weeks,week_days:days,recent_days:days,weeks:[],years:[],total:134,week_streak:7},
-  '/api/progress/overview':{today,activities:134,mapped:110,active_days:12,years:2,routes:4,segments:0,record:{label:'5K',elapsed_s:1500,start_time:'2026-10-31T08:30:00Z'},plan:null,food:{protein_days:4,weight_change_kg:-.2,weight_kg:70,logged_days:28,library_items:3}},
+  '/api/progress/overview':{today,activities:134,mapped:110,active_days:2,years:2,routes:4,segments:0,record:{label:'5K',elapsed_s:1500,start_time:'2026-10-31T08:30:00Z'},plan:null,food:{protein_days:4,weight_change_kg:-.2,weight_kg:70,logged_days:28,library_items:3}},
   '/api/progress/volume':{today,period:'week',rows:weeks.map((w,i)=>({p:date((6-i)*7),s:'run',n:4,d:w.distance_m,t:w.distance_m*.36,a:80}))},
   '/api/progress/trends':{today,months:[]},'/api/records':{efforts:[]},
   '/api/fitness':{days:[{day:today,fitness:42,fatigue:39,form:3}],predictions:[{label:'5K',seconds:1500}]},
@@ -33,5 +33,6 @@ module.exports=()=>{
   '/api/goals':[],'/api/coach/week':{enabled:false,paused:false,latest:null},'/api/connections':{garmin:{available:false}},
   '/api/features/state':{enabled:false},'/api/food/check-in':{week:today,current:null,readiness:{ready:false,reason:'Not enough complete days yet.'},history:[]},'/api/food/week':{days:[],totals:{}},
  };
- return {now:today+'T12:00:00Z',responses};
+ const [lat,lon]=require('../../demo/routes.json')['park loop'][0];
+ return {now:today+'T12:00:00Z',position:{lat,lon,accuracy:8,timestamp:Date.parse(today+'T12:00:00Z')},responses};
 };

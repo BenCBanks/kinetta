@@ -8,7 +8,7 @@
     // Measure the real native layout without reading Health/GPS or registering alerts.
     Native.syncPush=()=>Promise.resolve();Native.healthOn=Native.foodHealthOn=async()=>false;Native.healthStatus=async()=>null;
     TrackNative.call=async method=>{if(method==='status')return {session:null};throw Error('Native header fixture blocked recording controls');};
-    TrackNative.locate=async()=>{throw Error('Native header fixture blocked GPS reads');};
+    TrackNative.locate=async()=>{if(cfg.store)return cfg.store.position;throw Error('Native header fixture blocked GPS reads');};
   }
   if(cfg.recording){TrackNative.supported=false;TrackNative.call=()=>Promise.reject(Error('Native UI fixture blocked GPS controls'));}
   const rect=selector=>{const e=document.querySelector(selector);if(!e)return null;const r=e.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};};
@@ -19,7 +19,7 @@
       const checks={
         'header-me':()=>document.querySelector('.me-card-sections[aria-busy="false"]')&&document.querySelectorAll('.me-week').length===7,
         activity:()=>document.querySelector('[data-dt="charts"][aria-selected="true"]')&&paintedMap()&&!document.querySelector('.map-unavailable:not([hidden])'),
-        'header-track':()=>document.querySelector('#track-start')&&!document.querySelector('#track-lap'),
+        'header-track':()=>document.querySelector('#track-start')?.getAttribute('aria-label')==='Start run'&&!document.querySelector('#track-lap')&&paintedMap()&&!document.querySelector('.map-unavailable:not([hidden])'),
         'header-food':()=>document.querySelectorAll('#fd-meals [data-id]').length===2&&document.querySelector('#fd-sum').textContent.includes('915'),
         food:()=>document.querySelector('.thread-card [data-action="undo"]')&&document.querySelector('#thread-text'),
         'header-progress':()=>document.querySelector('#m-chart svg')&&document.querySelector('[data-progress-fitness]').textContent.includes('Training steadily'),
