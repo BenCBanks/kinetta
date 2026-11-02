@@ -1,5 +1,8 @@
 """Real throwaway SQL histories: brief presentation never changes data/default readers; unknown stays unknown."""
 import datetime as dt
+from contextlib import nullcontext
+from unittest.mock import patch
+from app.api_food import food_weeks
 from app import db
 from app.nutrition_insights import insights_data
 with db.connect() as c:
@@ -21,6 +24,16 @@ with db.connect() as c:
             assert result['summary']['avg_protein_g'] is None
             assert result['summary']['avg_eaten']==1800
             assert not any('protein' in text.lower() for _,text in result['insights'])
-        print('Real SQL optional brief/data equality/default/unknown-protein formatter PASS')
+        c.execute("INSERT INTO food_entries(user_id,day,meal,name,kcal,protein_g,carbs_g,fat_g) VALUES(%s,%s,'lunch','Fictional zero',0,0,0,0)",(uid,today-dt.timedelta(days=10)))
+        calendar=insights_data(c,uid)['rows']
+        assert next(r for r in calendar if r['day']==str(today-dt.timedelta(days=10)))['entries']==1,'Zero-calorie logged days remain discoverable'
+        def weeks():
+            with patch('app.api_food.db.connect',return_value=nullcontext(c)):return food_weeks(26,user={'id':uid})
+        before=weeks()
+        monday=(today-dt.timedelta(days=1))-dt.timedelta(days=(today-dt.timedelta(days=1)).weekday())
+        assert next(w for w in before['weeks'] if w['week']==str(monday))['protein_g'] is None,'Missing weekly nutrition is never zero'
+        c.execute("INSERT INTO food_entries(user_id,day,meal,name,kcal,protein_g,carbs_g,fat_g) VALUES(%s,%s,'lunch','Fictional future',999999,999,999,999)",(uid,today+dt.timedelta(days=1)))
+        assert weeks()==before,'Weekly food bases exclude future days'
+        print('Real SQL optional brief/default/unknown-protein, logged-zero calendar and weekly missing/future bases PASS')
     finally:
         c.execute('ROLLBACK TO SAVEPOINT insights_test')
