@@ -75,20 +75,24 @@ const MeCard=(()=>{
   const paintBars=box=>$$('.me-card-bars span',box).forEach(bar=>bar.style.height=bar.dataset.h*5+'px');
   // Reuse the recipient renderer without mounting any interactive controls in the miniature.
   function previewCard(root,data){
-    const r={...data,mine:false},layout=ProfileLayout.singlePeriod(r.layout);layout.sections=layout.sections.filter(k=>k==='totals'||k==='recent');
+    const r={...data,mine:false},layout=ProfileLayout.singlePeriod(r.layout),savedPeriod=period;
     const friends=Number.isInteger(r.friend_count)?`<span class="me-friends-link">${svg('people')}<span>${friendCountText(r.friend_count)}</span></span>`:'';
-    root.innerHTML=card(r.person,{friends});const content=$('.me-card-sections',root);
-    content.innerHTML=sections(r,layout,true);content.setAttribute('aria-busy','false');
+    root.innerHTML=card(r.person,{mine:true,friends});const content=$('.me-card-sections',root);
+    try{period='weeks';content.innerHTML=sections(r,layout,true);paintBars(content);}finally{period=savedPeriod;}
+    content.setAttribute('aria-busy','false');
   }
   function shareSheet(){
     const owner=readOwner(),login=App.me.login;
-    sheet('Share your profile',`<p class="small muted profile-share-caption">Preview</p><div class="profile-share-preview" role="img" aria-label="Loading profile preview"><div class="profile-share-art" inert aria-hidden="true"></div></div><p class="small" id="profile-share-status" role="status">Loading preview…</p><div class="profile-share-actions"><button type="button" class="primary" data-share-link disabled>${svg('share')}Share profile link</button>${typeof KinettaCard==='undefined'?'':'<button type="button" class="ghost" data-share-card>Public card &amp; QR</button>'}</div>`,(body,close)=>{
+    sheet('Share your profile',`<div class="profile-share-scroll" tabindex="0" role="region" aria-label="Profile preview"><p class="small muted profile-share-caption">Preview</p><div class="profile-share-preview" role="img" aria-label="Loading profile preview"><div class="profile-share-art" inert aria-hidden="true"></div></div><p class="small" id="profile-share-status" role="status">Loading preview…</p></div><div class="profile-share-actions"><button type="button" class="primary" data-share-link disabled>${svg('share')}Share profile link</button>${typeof KinettaCard==='undefined'?'':'<button type="button" class="ghost" data-share-card>Public card &amp; QR</button>'}</div>`,(body,close)=>{
+      body.closest('.sheet').classList.add('profile-share-sheet');const scroll=$('.profile-share-scroll',body);
+      // An already-scrolled preview owns the gesture; dragging the sheet header still dismisses.
+      scroll.addEventListener('touchstart',e=>{if(scroll.scrollTop>0)e.stopPropagation();},{passive:true});
       const active=()=>body.isConnected&&owner===readOwner(),frame=$('.profile-share-preview',body),art=$('.profile-share-art',body),status=$('#profile-share-status',body),link=$('[data-share-link]',body);let revision=0,dispose=()=>{};
       const draw=async()=>{const version=++revision;dispose();frame.hidden=false;link.disabled=true;status.textContent='Loading preview…';
         try{const r=await api('/api/people/'+encodeURIComponent(login)+'/profile?as_friend=true&preview=member&limit=1');if(!active()||version!==revision)return;
           if(r.preview!=='member'||r.profile_hidden)throw Error(r.profile_hidden?'Your profile is hidden until your account is confirmed and active.':'The preview needs a server update.');
           previewCard(art,r);const card=$('.me-card',art);
-          const fit=()=>{if(!active()||!card.isConnected||version!==revision){observer.disconnect();return;}const width=frame.clientWidth/.9;art.style.width=width+'px';const height=Math.ceil(card.offsetHeight*.9)+'px';if(frame.style.height!==height)frame.style.height=height;};
+          const fit=()=>{if(!active()||!card.isConnected||version!==revision){observer.disconnect();return;}const width=Math.max(358,frame.clientWidth/.9),scale=frame.clientWidth/width;art.style.width=width+'px';art.style.setProperty('--preview-scale',scale);$$('.me-sport-chips',art).forEach(fitSports);const height=Math.ceil(card.offsetHeight*scale)+'px';if(frame.style.height!==height)frame.style.height=height;};
           const observer=new ResizeObserver(fit);dispose=()=>observer.disconnect();observer.observe(frame);observer.observe(card);viewResources.set(frame,dispose);fit();document.fonts.ready.then(fit);
           frame.setAttribute('aria-label','Profile card preview: '+card.innerText.replace(/\s+/g,' ').trim());status.textContent='';link.disabled=false;
         }catch(x){if(active()&&version===revision){frame.hidden=true;art.replaceChildren();status.innerHTML=`${esc(x.message)} <button type="button" class="linkbtn" data-preview-retry>Try again</button>`;$('[data-preview-retry]',body).onclick=draw;}}
