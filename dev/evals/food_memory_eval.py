@@ -100,17 +100,14 @@ def fixture(case):
         antecedent=None
         if case.get('previous_day_card') or case.get('other_draft_only') or case.get('ready_cheese'):
             other_day=ANCHOR-dt.timedelta(days=1) if case.get('previous_day_card') else ANCHOR
-            other_draft=draft if case.get('previous_day_card') else str(uuid.uuid4());other_cid=str(uuid.uuid4())
+            other_draft=draft if case.get('previous_day_card') or case.get('ready_cheese') else str(uuid.uuid4());other_cid=str(uuid.uuid4())
+            cheese=bool(case.get('ready_cheese'));prior_name='American cheese slice' if cheese else 'Toast'
             older=c.execute(f'''INSERT INTO food_chat_messages(user_id,client_id,kind,body,captured_at,local_day,state,result)
-                VALUES(%s,%s,'user','Yesterday toast',%s,%s,'pending',%s) RETURNING {T.COLUMNS}''',
-                (uid,other_cid,dt.datetime.combine(other_day,dt.time(12),dt.timezone.utc),other_day,json.dumps({'draft_id':other_draft,'review_only':True}))).fetchone()
-            entry={'name':'Toast','amount':1,'unit':'serving',**{k:100 if k=='kcal' else None for k in N.ALL},'source':'quick','ref':{}}
-            T.finish_reply(c,uid,older,{'kind':'preview','text':'Pending toast from the earlier card.','day':str(other_day),'meal':'breakfast',
-                'composed':True,'parts':[{'index':0,'text':'Toast','status':'ready','manual':True,'logged':False,'entries':[entry]}],'pending_count':0,'can_resolve':False})
-            if case.get('ready_cheese'):
-                entry.update(name='American cheese slice',amount=2)
-                T.finish_reply(c,uid,older,{'kind':'preview','text':'Review the cheese.','day':str(other_day),'meal':'breakfast',
-                    'composed':True,'parts':[{'index':0,'text':'American cheese slice','status':'ready','manual':True,'logged':False,'entries':[entry]}],'pending_count':0,'can_resolve':False})
+                VALUES(%s,%s,'user',%s,%s,%s,'pending',%s) RETURNING {T.COLUMNS}''',
+                (uid,other_cid,'2 American cheese slice' if cheese else 'Yesterday toast',dt.datetime.combine(other_day,dt.time(12),dt.timezone.utc),other_day,json.dumps({'draft_id':other_draft,'review_only':True}))).fetchone()
+            entry={'name':prior_name,'amount':2 if cheese else 1,'unit':'serving',**{k:100 if k=='kcal' else None for k in N.ALL},'source':'quick','ref':{}}
+            T.finish_reply(c,uid,older,{'kind':'preview','text':'Review the cheese.' if cheese else 'Pending toast from the earlier card.','day':str(other_day),'meal':'breakfast',
+                'composed':True,'parts':[{'index':0,'text':prior_name,'status':'ready','manual':True,'logged':False,'entries':[entry]}],'pending_count':0,'can_resolve':False})
             if case.get('previous_day_card') or case.get('ready_cheese'):antecedent=other_cid
         client=TestClient(app);client.headers['Origin']='http://testserver';client.cookies.set(auth.COOKIE,auth.new_session(c,uid,'fictional evaluation'))
         cid=str(uuid.uuid4());body=case['message']+(f' history:{foreign}:foreign-token' if case.get('foreign_token') else '')
