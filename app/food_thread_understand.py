@@ -304,7 +304,7 @@ def apply(c, uid, message):
     if intent in ('correct', 'remove', 'move'):
         if intent=='correct':
             portion,rest=meal_chat.amount(meal_chat.raw(message['body']))
-            explicit=re.search(r'\b(make|change|set|actually|instead|only|was|were|double|halve|rather|should)\b',message['body'],re.I)
+            explicit=re.search(r'\b(make|change|set|actually|instead|only|was|were|double|halve|rather|should|wait|oops)\b',message['body'],re.I)
             if not explicit and portion and rest and any(w not in meal_chat.FILLER and w not in meal_chat.CORRECTION for w in rest):
                 return None   # A bare new food/typo is never permission to edit an earlier card.
         words = meal_chat.name_words(u['target'] or '')
