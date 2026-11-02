@@ -555,8 +555,6 @@ class WeightIn(BaseModel):
 def weights(days: int = 180, user=Depends(current_user)):
     """Weigh-ins plus a smoothed trend (exponential average, 10 % per day, like Happy Scale / MacroFactor) and the weekly rate."""
     with db.connect() as c:
-        from .weight_undo import expire
-        expire(c,user['id'])
         rows = c.execute('SELECT day, kg, note, source, source_name FROM weights WHERE user_id = %s ORDER BY day', (user['id'],)).fetchall()
     trend, out, prev_day = None, [], None
     for r in rows:
@@ -610,32 +608,15 @@ def weight_delete(day: dt.date, user=Depends(current_user)):
     with db.connect() as c:
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
         from . import api_health_weights as H
-        from . import weight_undo as undo
         p=H.profile(c,user['id'])
-        snapshot=undo.capture(c,user['id'],day,p)
-        old=snapshot['point'] if snapshot else None
+        old=c.execute('SELECT source,health_sample_id FROM weights WHERE user_id=%s AND day=%s',(user['id'],day)).fetchone()
         if p['health_weight_read']:
             c.execute('INSERT INTO health_weight_exclusions(user_id,day) VALUES(%s,%s) ON CONFLICT(user_id,day) DO UPDATE SET before_time=greatest(health_weight_exclusions.before_time,excluded.before_time)',(user['id'],day))
             if old and old['source']=='healthkit':
                 c.execute('UPDATE health_weight_samples SET excluded=true WHERE user_id=%s AND (sampled_at AT TIME ZONE %s)::date=%s',(user['id'],p['tz'] or db.DEFAULT_TZ,day))
         c.execute('DELETE FROM weights WHERE user_id = %s AND day = %s', (user['id'], day))
-        identity=undo.remember(c,user['id'],day,p,snapshot)
         _latest_weight(c, user['id'])
-    return {'ok': True,'undo_id':identity}
-
-
-class WeightUndoIn(BaseModel):
-    id: UUID
-    confirmed: StrictBool = False
-
-
-@router.post('/weights/undo')
-def weight_undo(body: WeightUndoIn, user=Depends(current_user)):
-    if not body.confirmed:raise HTTPException(400,'Confirm Undo')
-    from . import weight_undo as undo
-    with db.connect() as c:
-        c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
-        return undo.restore(c,user['id'],body.id)
+    return {'ok': True}
 
 
 class TargetsIn(N.ExtraTargets):

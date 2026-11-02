@@ -181,7 +181,7 @@ flowchart LR
   GuidePage4["/food?view=energy · first destination only"]
   GuidePage5["/food?view=macros · first destination only"]
   GuidePage6["/food?view=needs · first destination only"]
-  GuidePage7["/food?view=weeks · first destination only"]
+  GuidePage7["/food?view=weeks · legacy alias to Insights disclosure"]
   GuidePage8["/food/import · first destination only"]
   GuidePage9["/track?intervals=1 · first destination only"]
   GuidePage10["/progress?view=lifting · first destination only"]
@@ -374,9 +374,10 @@ flowchart LR
  H --> Recap["Generic recap sheet · 2 · no map"]
  W --> Help["Weight help sheet · 2"]
  W --> WeightEdit["Day / Save / Update / Delete controls"]
+ WeightEdit --> Undo["Short Undo toast after Delete"]
 ```
 
-Record history, Fitness, exercise history and repeated routes link to their Activity source. Totals has sport, period and table controls; Year over year has sport, range, table and chart controls. Record history preserves progression and fastest-first efforts. Weight also has a Nutrition entrance. Heatmap remains private; its recap contains no map. Immediate weight deletion without recovery and other correctness findings are tracked in #491. Totals folding into Progress and simpler repeated record lists are agreed for #492; this map retains the inspected pages until those changes ship.
+Record history, Fitness, exercise history and repeated routes link to their Activity source. Totals has sport, period and table controls; Year over year has sport, range, table and chart controls. Record history preserves progression and fastest-first efforts. Weight also has a Nutrition entrance. Heatmap remains private; its recap contains no map. Weight deletion offers a short Undo toast, cancelling the deferred deletion without rewriting the original source or Health data; no extra sheet is involved. Other Progress correctness findings are tracked in #491. Totals folding into Progress and simpler repeated record lists are agreed for #492; this map retains the inspected pages until those changes ship.
 
 ### Fixed courses
 
@@ -429,7 +430,7 @@ Race, level, length, days, date and goal are setup controls. The preview's compl
 
 ## Nutrition
 
-Thirteen owned route/view families; day/origin parameters and import/setup variants are states. Depth starts on the food log. Nutrition details use an explicit Nutrition-parent Back, while `from=progress` preserves Progress. No additional Speed check entrance was found.
+Twelve canonical owned route/view families; day/origin parameters and import/setup variants are states. Depth starts on the food log. Nutrition details use an explicit Nutrition-parent Back, while `from=progress` preserves Progress. No additional Speed check entrance was found.
 
 ### Log, insights and targets
 
@@ -439,7 +440,7 @@ Weight has a direct one-tap entrance from the log and Insights; meal reminders l
 flowchart TD
  N["Food log · 0"] --> I["Insights · 1"]
  N --> C["Calorie needs · 1"]
- N --> W["Week by week · 1"]
+ N --> D["Food calendar · 1"]
  N --> H["Add past days · 1 · browser"]
 ```
 
@@ -448,9 +449,10 @@ flowchart TD
  I["Insights · 1"] --> E["Calories & weight · 2"]
  I --> M["Protein & macros · 2"]
  I --> D["Food calendar · 2"]
+ I --> W["Week by week disclosure · 2"]
 ```
 
-Insights also links to Calorie needs and Week by week. Choosing a calendar day returns to that day's log. Goal preview can return to setup to change details, or Save/Not now back to the log.
+Insights also links to Calorie needs. Its Week by week disclosure covers 26 weeks independently of the selected chart range; old weekly links open that disclosure. Food calendar lists logged days newest first, including zero and unknown-calorie days. Choosing a listed day or using Open any day returns to that day's log. Goal preview can return to setup to change details, or Save/Not now back to the log.
 
 ```mermaid
 flowchart LR
@@ -471,7 +473,7 @@ flowchart LR
  N --> COPY["Copy yesterday scope · 1"]
  COPY --> CP
  N --> T["Add food thread · 1"]
- T --> P["Usuals / Search / Recipes picker · 2"]
+ T --> P["Choose food picker · 2"]
  P --> AM["Portion sheet · 3"]
  AM -->|Stage, then review| F["Final food review · 2 ready / 5 newly staged"]
  T -->|Manual numbers, then review| F
@@ -481,7 +483,7 @@ flowchart LR
  T -.->|Access required; prepared only| PHOTO["Photo selection component"]
 ```
 
-“Ready” means the review is already available in a restored thread; “newly staged” counts opening the picker, selecting a portion and staging it before final review. Manual review preserves semantic unknown nutrients. Search/describe/photo prepared results are UI evidence, not model accuracy. Photo selection was mounted locally and cancelled; native library/camera behavior and final thread Save-as-recipe remain unverified. Day, meal, portion and explicit confirmation must remain distinct from editing reusable foods.
+“Ready” means the review is already available in a restored thread; “newly staged” counts opening the picker, selecting a portion and staging it before final review. Manual review preserves semantic unknown nutrients. Search/describe/photo prepared results are UI evidence, not model accuracy. Photo selection was mounted locally and cancelled; native library/camera behavior and final thread Save-as-recipe remain unverified. Day, meal, portion and explicit confirmation remain distinct from editing reusable foods. Choose food keeps source tabs and portion selection; recipe creation stays in the library’s New action.
 
 ### Reusable recipes and foods
 
@@ -493,6 +495,8 @@ flowchart TD
  L --> NEW["New chooser · 2"]
  NEW -->|New recipe| OWN
  NEW --> URL["Recipe from link · 3"]
+ L -->|Incomplete owned recipe: Add nutrition| TOTAL
+ P["Choose food picker · 2"] -->|Incomplete owned recipe: Add nutrition · 3| TOTAL
  OWN --> OPT["Options sheet · 3 or 4"]
  OPT --> TOTAL["Whole-recipe total sheet · 4 or 5"]
  TOTAL --> EXTRA["More nutrients disclosure · 5 or 6"]
@@ -500,7 +504,7 @@ flowchart TD
  ADD --> MAN["Manual ingredient sheet · 4 or 5"]
  OWN --> SAVE["Save recipe sheet · 3 or 4"]
  SAVE -->|Save only| L
- SAVE -->|Tick Add to log, then Save and choose a portion| PORT["Meal and portion review · 5 existing / 6 new"]
+ SAVE -->|Calories known: tick Add to log, then choose a portion| PORT["Meal and portion review · 5 existing / 6 new"]
  PORT -.->|Confirm save/log: source-only, not submitted| L
  OWN --> SHARE["Approved friends sheet · 3 existing"]
  SH -->|Log a portion| AM["Own portion review sheet · 3"]
@@ -512,9 +516,9 @@ flowchart TD
  PRE -->|Save / Save for later| OWN
 ```
 
-Library/import/setup use history-aware Back with named fallbacks. Import states share one URL; saving opens the owned recipe. Unknown calories prevent portion logging and offer Add nutrition. Sharing/unsharing was checked with a fictional friend: access changed 404→200→404 while the owner's food log stayed unchanged. Shared access and each person's logged portions remain distinct. The deepest mapped disclosure takes six taps through a new recipe's Options and whole-recipe total.
+Library/import/setup use history-aware Back with named fallbacks. Import states share one URL; saving opens the owned recipe. Unknown calories prevent portion logging. Owned incomplete recipes offer Add nutrition; shared incomplete recipes explain that their owner must add it. Sharing/unsharing was checked with a fictional friend: access changed 404→200→404 while the owner's food log stayed unchanged. Shared access and each person's logged portions remain distinct. The deepest mapped disclosure takes six taps through a new recipe's Options and whole-recipe total.
 
-Bugs in blank-macro handling, energy rows, recipe-choice arrows and narrow food-review context are tracked in #493. Number/label/history-grid polish and the agreed Week by week→Insights, compact logged-day list and single Add-food entrance are assigned in #494. These are planned changes; this diagram shows inspected behavior. Native Health, moderation, external recipes and paid processing remain boundaries.
+The #493 fixes preserve unknown macros and clarify energy rows and food review. #494 unifies recipe rounding, labels chart/table bases, keeps history dates fixed, folds Week by week into Insights and simplifies Food calendar and the food chooser. This map includes those implementation changes. Native Health, moderation, external recipes and paid processing remain boundaries.
 
 ## Sign-up, recovery and welcome
 

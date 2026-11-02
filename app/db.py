@@ -1976,23 +1976,6 @@ MIGRATIONS = [
     """ALTER TABLE custom_foods ALTER COLUMN protein_g DROP NOT NULL,
       ALTER COLUMN carbs_g DROP NOT NULL, ALTER COLUMN fat_g DROP NOT NULL;""",
 
-    # 96. Recover a deleted weigh-in without losing its source or overwriting a subsequent edit.
-    """CREATE TABLE weight_delete_undos(id uuid PRIMARY KEY,user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      day date NOT NULL,snapshot jsonb NOT NULL,active boolean NOT NULL DEFAULT true,restored boolean NOT NULL DEFAULT false,
-      expires_at timestamptz NOT NULL DEFAULT now()+interval '1 minute');
-    CREATE INDEX weight_delete_undos_owner ON weight_delete_undos(user_id,day);
-    ALTER TABLE weight_delete_undos ENABLE ROW LEVEL SECURITY;
-    CREATE POLICY own_rows ON weight_delete_undos FOR SELECT TO fit_readers USING(user_id=fit_me());
-    CREATE POLICY all_rows ON weight_delete_undos FOR SELECT TO fit_all_readers USING(true);
-    GRANT SELECT ON weight_delete_undos TO fit_readers;
-    CREATE FUNCTION invalidate_weight_undo() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
-      UPDATE weight_delete_undos SET active=false WHERE user_id=coalesce(NEW.user_id,OLD.user_id)
-        AND day=coalesce(NEW.day,OLD.day) AND active AND NOT restored;
-      RETURN NULL;
-    END $$;
-    CREATE TRIGGER weight_undo_changed AFTER INSERT OR UPDATE OR DELETE ON weights
-      FOR EACH ROW EXECUTE FUNCTION invalidate_weight_undo();""",
-
 ]
 
 

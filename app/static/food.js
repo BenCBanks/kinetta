@@ -948,6 +948,24 @@ const targetsSheet = () => goalSheet();
 
 // ---------- weight trend + food trends ----------
 // The same private weigh-ins and trend live under Progress, with Nutrition links.
+let pendingWeightDelete=null;
+function deferWeightDelete(button,box,owner){
+  if(owner!==readOwner()||button.disabled)return;
+  pendingWeightDelete?.flush();
+  const row=button.closest('.weight-history-row'),day=button.dataset.del;
+  let active=true,timer;
+  const clear=()=>{active=false;clearTimeout(timer);removeEventListener('pagehide',flush);document.removeEventListener('visibilitychange',hidden);viewResources.delete(row);if(pendingWeightDelete?.flush===flush)pendingWeightDelete=null;};
+  const undo=()=>{if(!active||owner!==readOwner())return;clear();row.hidden=false;button.disabled=false;if(box.isConnected)weightHistory(box);toast('Weigh-in kept');};
+  const flush=async()=>{
+    if(!active)return;clear();if(owner!==readOwner())return;
+    try{await api(`/api/food/weights/${day}`,{method:'DELETE',keepalive:true});if(owner===readOwner()){await weightHistoryChanged(owner,box);toast('Weigh-in deleted');}}
+    catch(e){if(owner!==readOwner())return;row.hidden=false;button.disabled=false;invalidate('/api/food/weights');if(box.isConnected)weightHistory(box);toast(e.message);}
+  };
+  const hidden=()=>{if(document.visibilityState==='hidden')flush();};
+  button.disabled=true;row.hidden=true;pendingWeightDelete={owner,day,flush};
+  viewResources.set(row,flush);addEventListener('pagehide',flush);document.addEventListener('visibilitychange',hidden);
+  timer=setTimeout(flush,6000);toast('Weigh-in deleted',undo);
+}
 function weightHistory(box) {
   const account=readOwner(),valid=()=>box.isConnected&&account===readOwner();
   load('/api/food/weights?days=365', (W) => {
@@ -958,22 +976,8 @@ function weightHistory(box) {
       <div class="card"><h2>Weigh-ins</h2>${[...pts].reverse().slice(0, 60).map((p) => `<div class="row weight-history-row"><span>${esc(new Date(p.day + 'T12:00').toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'}))}<small class="weight-source muted">${esc(p.source_label||'Manual')}</small></span>
         <span class="num">${wt(p.kg)} <small class="muted">trend ${U.weight(p.trend)}</small> <button class="linkbtn danger" data-del="${p.day}" aria-label="Delete weigh-in">×</button></span></div>`).join('')}</div>`
       : '<div class="card empty"><b>No weigh-ins yet</b>Log one above. Kinetta smooths out the daily ups and downs into a trend.</div>';
-    $$('[data-del]', box).forEach(b=>b.onclick=async()=>{
-      if(!valid()||b.disabled)return;b.disabled=true;
-      try{
-        const deleted=await api(`/api/food/weights/${b.dataset.del}`,{method:'DELETE'});
-        if(account!==readOwner())return;
-        await weightHistoryChanged(account,box);if(account!==readOwner())return;
-        let used=false,busy=false,until=Date.now()+6000;
-        const undo=async()=>{
-          if(used||busy||account!==readOwner()||Date.now()>until)return;busy=true;
-          try{const result=await api('/api/food/weights/undo',json('POST',{id:deleted.undo_id,confirmed:true}));used=true;
-            if(account!==readOwner())return;await weightHistoryChanged(account,box);if(account===readOwner())toast(result.replayed?'Undo already applied · current weight kept':'Weigh-in restored');
-          }catch(x){busy=false;if(account!==readOwner())return;const retry=x.status!==404&&x.status!==409;if(retry)until=Date.now()+6000;toast(x.message,retry?undo:undefined);}
-        };
-        toast('Weigh-in deleted',deleted.undo_id?undo:undefined);
-      }catch(x){if(valid()){b.disabled=false;toast(x.message);}}
-    });
+    $$('[data-del]',box).forEach(b=>b.onclick=()=>deferWeightDelete(b,box,account));
+    if(pendingWeightDelete?.owner===account)box.querySelector(`[data-del="${pendingWeightDelete.day}"]`)?.closest('.weight-history-row')?.setAttribute('hidden','');
     if (pts.length) requestAnimationFrame(() => {
       if(!valid())return;
       const xs = pts.map((p) => new Date(p.day + 'T12:00') / 864e5);
@@ -1172,6 +1176,7 @@ function weightCard(box) {
       e.preventDefault(); if(!valid())return;const v = parseFloat(e.target.w.value.replace(',', '.')); if (!(v > 0)) return;
       const kg = imp() ? v / 2.20462 : v;
       try {
+        if(pendingWeightDelete?.owner===owner){await pendingWeightDelete.flush();if(owner!==readOwner())return;}
         const q = await sendOrQueue('/api/food/weights', 'PUT', {day, kg}, `weight ${U.weight(kg)}`);
         if(owner!==readOwner())return;
         toast(q.queued ? 'Weight saved on this phone - it sends when you are back online' : `Weight logged${day === today ? '' : ` for ${dayLabel(day)}`}: ${U.weight(kg)} ${unit}`);
