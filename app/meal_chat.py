@@ -765,6 +765,9 @@ def item_for(c, uid, p, catalog, issued=None):
             'detail': KIND_LABEL[e['kind']]}
     portion, note = settle(c, uid, e, p.get('portion') or read['portion'])     # "two" = two of your usual amount
     if portion is None:
+        requested=p.get('portion') or read['portion']
+        if e['kind'] not in ('custom','food') or not requested or 'count' not in requested:
+            return {**head, 'status': 'quantity', 'message': f"How much {e['name']}? Say grams, or tap an amount.", 'options': quick_amounts(e)}
         return {**head, 'status': 'choose', 'message': f"Which food and portion did you mean by “{p['text']}”?",
                 'choices': [choice(e)], 'new_ok': True, 'new_name': ' '.join(read['query']), 'portion_conflict': True}
     entries, why = compute(c, uid, e['kind'], e['row'], portion)
