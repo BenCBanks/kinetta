@@ -560,28 +560,30 @@ function shareFields(box, aid, s) {
 const profileTab = (login) => App.me && decodeURIComponent(login).toLowerCase() === App.me.login.toLowerCase() ? 'me' : 'activity';
 route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
   login=decodeURIComponent(login);
-  const own=!!App.me&&login.toLowerCase()===App.me.login.toLowerCase(),owner=readOwner();
-  let audience=new URLSearchParams(location.search).get('preview')==='member'?'member':'friend',revision=0;
-  const path=()=>'/api/people/'+encodeURIComponent(login)+'/profile'+(own?'?as_friend=true&preview='+audience:'');
-  el.innerHTML=`<div class="top">${backBtn(own?'Me':'People')}<span class="profile-page-title">${own?'Your profile':'Profile'}</span><a class="icon-btn" href="/me/friends?find=1" aria-label="Find people">${svg('search')}</a></div><div id="person-profile">${skel(2)}</div>`;
-  wireBack(el,own?'/me':'/me/friends');
+  const own=!!App.me&&login.toLowerCase()===App.me.login.toLowerCase(),owner=readOwner(),initial=new URLSearchParams(location.search);
+  let audience=['friend','member'].includes(initial.get('preview'))?initial.get('preview'):'you',revision=0,sport=initial.get('sport')||'',term=initial.get('q')||'',deferred=null;
+  const path=()=>'/api/people/'+encodeURIComponent(login)+'/profile'+(own?(audience==='you'?'?limit=1':'?as_friend=true&preview='+audience):'');
+  el.innerHTML=`<div class="top${own?' owner-profile-top':''}">${backBtn(own?'Me':'People')}<span class="profile-page-title">${own?'Your profile':'Profile'}</span>${own?'':`<a class="icon-btn" href="/me/friends?find=1" aria-label="Find people">${svg('search')}</a>`}</div><div id="person-profile">${skel(2)}</div>`;
   const box=$('#person-profile',el),active=()=>box.isConnected&&owner===readOwner();
+  if(own){el.classList.add('has-back');el._backFallback='/me';const back=$('[data-back]',el);back.setAttribute('aria-label','Back to Me');back.onclick=()=>{if(active())go('/me');};}else wireBack(el,'/me/friends');
+  function address(){const q=new URLSearchParams(location.search);for(const [key,value] of [['preview',audience==='you'?'':audience],['sport',sport],['q',term]])value?q.set(key,value):q.delete(key);replacePageAddress(el,location.pathname+(q.size?'?'+q:'')+location.hash);}
   const draw=r=>{
     if(!active())return;
+    if($('.me-card.editing',box)){deferred={data:r,version:revision,key:path(),epoch:readEpoch(path())};return;}
     if(own&&audience==='member'&&r.preview!=='member'){box.innerHTML='<p class="callout">This server needs an update to preview other members.</p><button type="button" class="ghost wide" id="pf-friend-fallback">Preview as friends</button>';$('#pf-friend-fallback',box).onclick=()=>setAudience('friend');return;}
     r={...r,layout:ProfileLayout.normalize(r.layout)};
-    // The page is the Me card at full size, then the shared activities (Ben, 30 Oct 2026). Someone else's card puts the
-    // friendship button and a ⋯ (report or block) where your own has Edit and Share.
-    const p=r.person,feed=r.layout.sections.includes('activities');
+    const p=r.person,mine=own&&r.mine&&audience==='you',feed=mine||r.layout.sections.includes('activities');
     const action=r.status==='friends'?`<button type="button" class="me-card-pill" data-person-manage>${svg('check')}Friends</button>`:r.status==='sent'?'<button type="button" class="me-card-pill" data-person-action="cancel">Request sent</button>':r.status==='incoming'?`<button type="button" class="me-card-pill solid" data-person-action="accept">${svg('check')}Approve request</button>`:`<button type="button" class="me-card-pill solid" data-person-action="add">${svg('plus')}Add friend</button>`;
     const pills=r.mine?MeCard.ownPills():action+`<button type="button" class="me-card-pill" data-person-report aria-label="Report or block ${esc(p.name)}">${svg('more')}</button>`;
     const friends=r.mine?MeCard.ownFriends(r.friend_count):Number.isInteger(r.friend_count)?`<span class="me-friends-link">${svg('people')}<span>${friendCountText(r.friend_count)}</span></span>`:'';
-    box.innerHTML=`${r.profile_hidden?'<p class="callout warn">Your profile is hidden until your account is confirmed and active.</p>':''}
-      ${MeCard.card(p,{mine:r.mine,pills,friends})}
-      ${r.mine?`<div class="pf-preview" role="group" aria-label="Preview your profile as"><span>Preview as</span><div class="mileage-toggle">${[['friend','Friends'],['member','Other members']].map(([k,l])=>`<button type="button" data-audience="${k}" aria-pressed="${audience===k}">${l}</button>`).join('')}</div><small>${audience==='friend'?'Activities shared with friends or everyone.':'Activities shared with everyone.'}</small></div>`:''}
-      ${feed?ProfileLayout.content(r,{...r.layout,sections:['activities']}):''}`;
-    MeCard.mount(box,{data:r,full:true,reload,onSaved:reload});
-    ProfileLayout.mount(box,r);
+    box.innerHTML=`${r.profile_hidden?'<p class="callout warn">Your profile is hidden until your account is confirmed and active.</p>':''}${MeCard.card(p,{mine:r.mine,pills,friends})}
+      ${r.mine?`<div class="pf-preview"><span>View as</span><div class="profile-audiences" role="group" aria-label="View as">${[['you','You'],['friend','Friends'],['member','Everyone']].map(([key,label])=>`<button type="button" data-audience="${key}" aria-pressed="${audience===key}">${label}</button>`).join('')}</div>${audience==='you'?'':`<p class="small muted profile-preview-note">${audience==='friend'?'Previewing as a friend':'Previewing as another member'}</p>`}</div>`:''}
+      ${mine?`<section class="profile-activities" aria-label="Your activities"><div id="workout-sync"></div><div class="profile-activity-tools"><button type="button" class="ghost" id="person-sport"></button><button type="button" class="icon-btn" id="person-search" aria-label="Search your activities" aria-expanded="${!!term}">${svg('search')}</button></div><form id="person-search-form" role="search"${term?'':' hidden'}><input type="search" name="q" aria-label="Search your activities" value="${esc(term)}" placeholder="Search names and descriptions" enterkeyhint="search"></form><div class="feed-list" id="person-activities" aria-busy="true">${skelFeed(2)}</div><button type="button" class="ghost wide feed-more" id="person-more" hidden>Show more</button></section>`:feed?ProfileLayout.content(r,{...r.layout,sections:['activities']}):''}`;
+    MeCard.mount(box,{data:r,full:true,reload,onSaved:reload,onEditEnd:async({saved})=>{
+      const held=deferred;deferred=null;if(saved||!held||!active()||held.version!==revision||held.key!==path())return;
+      if(held.epoch!==readEpoch(held.key)){reload();return;}
+      await draw(held.data);if(active()&&held.version===revision&&document.activeElement===document.body)$('[data-card-edit]',box)?.focus({preventScroll:true});
+    }});ProfileLayout.mount(box,r);
     if(r.mine)$$('[data-audience]',box).forEach(b=>b.onclick=()=>{if(b.dataset.audience!==audience)setAudience(b.dataset.audience);});
     const act=$('[data-person-action]',box);
     if(act)act.onclick=async()=>{
@@ -596,23 +598,61 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
     };
     const manage=$('[data-person-manage]',box);if(manage)manage.onclick=()=>friendshipSheet(p,({blocked})=>blocked?go('/me/friends',{replace:true}):reload());
     const report=$('[data-person-report]',box);if(report)report.onclick=()=>reportSheet(p,{},()=>go('/me/friends',{replace:true}));
+    if(mine)return ownHistory(r);
     const more=$('#person-more',box);let next=r.next;
     if(more)more.onclick=async()=>{
       if(!next||more.disabled||!active())return;more.disabled=true;more.textContent='Loading…';const version=revision;
-      try{const fresh=await api(path()+(own?'&':'?')+new URLSearchParams(next));if(!active()||version!==revision)return;
+      try{const fresh=await api(path()+(path().includes('?')?'&':'?')+new URLSearchParams(next));if(!active()||version!==revision)return;
         $('#person-activities',box).insertAdjacentHTML('beforeend',fresh.items.map(a=>postCard(a)).join(''));next=fresh.next;more.hidden=!next;feedMaps(box);wireCheers(box);
       }catch(x){if(active()&&version===revision)toast(x.message);}finally{more.disabled=false;more.textContent='Show more';}
     };
   };
-  const reload=async()=>{const version=++revision;invalidate('/api/people/');box.setAttribute('aria-busy','true');
-    // Remove the previous projection while changing audiences; a failed read must not masquerade as the new preview.
+  async function ownHistory(r){
+    // Raw owner rows stay out of every audience-filtered profile response and cache.
+    const list=$('#person-activities',box),more=$('#person-more',box),form=$('#person-search-form',box),picker=$('#person-sport',box),search=$('#person-search',box),version=revision;
+    const current=()=>active()&&version===revision&&list.isConnected,base=()=>'/api/activities?'+new URLSearchParams({limit:25,...(sport?{sport}:{}),...(term?{q:term}:{})});
+    let sports=[...new Set((r.sports||[]).map(row=>row.sport))],rows=[],request=0,revalidating=false;
+    load('/api/stats',stats=>{if(current())sports=[...new Set([...sports,...stats.years.map(row=>row.sport)])];}).catch(()=>{});
+    const stopMore=()=>{viewResources.get(more)?.();viewResources.delete(more);};
+    const arm=()=>{stopMore();if(!revalidating&&!more.hidden&&current())lazy(more,()=>{if(current()&&!more.disabled)more.click();});};
+    const label=()=>{const name=SPORT_NAMES[sport]||'All sports';picker.innerHTML=esc(name)+svg('chev');picker.setAttribute('aria-label',name+', choose sport');};label();
+    workoutSyncStatus($('#workout-sync',box));
+    picker.onclick=()=>sheet('Sport',`<div class="profile-sport-options">${['',...sports].map(s=>`<button type="button" class="row-link" data-owner-sport="${esc(s)}" aria-pressed="${sport===s}"><span class="grow">${esc(SPORT_NAMES[s]||'All sports')}</span>${sport===s?svg('check'):''}</button>`).join('')}</div>`,(body,close)=>{$$('[data-owner-sport]',body).forEach(b=>b.onclick=()=>{if(!current())return;close();sport=b.dataset.ownerSport;term=form.elements.q.value.trim();address();label();loadRows();});});
+    search.onclick=()=>{form.hidden=!form.hidden;search.setAttribute('aria-expanded',String(!form.hidden));if(!form.hidden)form.elements.q.focus();};
+    form.onsubmit=e=>{e.preventDefault();term=form.elements.q.value.trim();address();loadRows();};
+    async function loadRows(){
+      const key=base(),sequence=++request;stopMore();revalidating=true;rows=[];more.hidden=true;more.disabled=true;more.textContent='Show more';list.setAttribute('aria-busy','true');list.innerHTML=skelFeed(2);cleanViews();
+      try{const data=await load(key,records=>{
+        if(!current()||sequence!==request)return;rows=records;sports=[...new Set([...sports,...rows.map(a=>a.sport)])];
+        list.innerHTML=rows.length?rows.map(a=>postCard(a,{lock:true})).join(''):`<div class="card empty"><b>${term||sport?'Nothing matches':'No activities yet'}</b>${term||sport?'Try another filter.':`Workouts from your watch arrive here on their own.${startCta()}`}</div>`;
+        more.hidden=rows.length<25||rows.length%25!==0;list.setAttribute('aria-busy','false');feedMaps(list);wireCheers(list);arm();
+      });if(data===null&&current()&&sequence===request)throw Error('Your activities changed. Try loading again.');}
+      catch(x){if(current()&&sequence===request){showError(list,x);const retry=$('button',list);if(retry)retry.onclick=loadRows;}}
+      finally{if(current()&&sequence===request){revalidating=false;more.disabled=false;list.setAttribute('aria-busy','false');arm();}}
+    }
+    more.onclick=async()=>{
+      if(!current()||revalidating||more.hidden||more.disabled||!rows.length)return;stopMore();const key=base(),epoch=readEpoch(key),sequence=++request,last=rows.at(-1),focused=document.activeElement===more;let ok=false;
+      more.disabled=true;more.textContent='Loading…';
+      try{const page=await api(key+'&'+new URLSearchParams({before:last.start_time,before_id:last.id}));if(!current()||sequence!==request||epoch!==readEpoch(key))return;
+        rows=rows.concat(page);App.cache.set(key,{data:rows,at:Date.now()});list.insertAdjacentHTML('beforeend',page.map(a=>postCard(a,{lock:true})).join(''));more.hidden=page.length<25;feedMaps(list);wireCheers(list);ok=true;
+      }catch(x){if(current()&&sequence===request){toast(x.message);more.textContent='Retry';}}
+      finally{if(current()&&sequence===request){more.disabled=false;if(more.textContent==='Loading…')more.textContent='Show more';if(ok)arm();if(focused&&!more.hidden&&document.activeElement===document.body)more.focus({preventScroll:true});}}
+    };
+    await loadRows();
+  }
+  async function reload(initial=false,focus=null){
+    const version=++revision;deferred=null;let pending;
+    if(!focus&&document.activeElement?.matches('[data-card-edit]'))focus='[data-card-edit]';
+    if(!initial)invalidate('/api/people/');box.style.minHeight=box.getBoundingClientRect().height+'px';box.setAttribute('aria-busy','true');
+    // Clear the previous projection immediately, including any private owner feed.
     box.innerHTML=skel(2);
-    try{const r=await api(path());if(active()&&version===revision)draw(r);}
-    catch(x){if(active()&&version===revision)showError(box,x);}
-    finally{if(active()&&version===revision)box.removeAttribute('aria-busy');}
-  };
-  function setAudience(next){audience=next;const q=new URLSearchParams(location.search);q.set('preview',audience);history.replaceState(history.state,'',location.pathname+'?'+q);reload();}
-  await load(path(),draw,{maxAge:0});
+    try{await load(path(),r=>{if(active()&&version===revision)pending=draw(r);},{maxAge:0});await pending;
+      if(active()&&version===revision&&focus&&document.activeElement===document.body)$(focus,box)?.focus({preventScroll:true});
+    }catch(x){if(active()&&version===revision)showError(box,x);}
+    finally{if(active()&&version===revision){box.style.minHeight='';box.removeAttribute('aria-busy');}}
+  }
+  function setAudience(next){const field=$('#person-search-form input',box);if(field)term=field.value.trim();audience=next;address();reload(false,`[data-audience="${next}"]`);}
+  await reload(true);
 });
 
 const friendCountText = n => n===0?'No friends yet':`${n} ${n===1?'friend':'friends'}`;
@@ -766,14 +806,15 @@ function reportSheet(p, what = {}, onBlocked) {
 
 // ---------- Me > Sharing: the usual choices for new activities ----------
 route(/^\/me\/sharing$/, 'me', async (el) => {
+  el.classList.add('sharing-settings');
   el.innerHTML = `<div class="top">${backBtn('Settings')}</div><h1>Sharing &amp; privacy</h1><div id="sh-body">${skel(2)}</div>`;
   wireBack(el, '/me/settings');
   const sharingOwner=readOwner(),s = await api('/api/sharing'), box = $('#sh-body', el);
   if(!el.isConnected)return;
   box.innerHTML = `<div class="card"><h2>Who sees new activities</h2>${visSeg(s.default)}
-      <p class="small muted">New accounts start with Everyone on Kinetta. Your saved choice applies to new activities; older activities keep their own setting. You can choose a different audience before saving a phone recording.</p></div>
-    <div class="card"><h2>What others see</h2><form class="checks" id="sh-d">${detailChecks(s.details)}</form>
-      <p class="small muted">Distance, time and the type of activity are always shown to the people who can see it. Splits and laps are shared only with pace. Private notes and Kit’s notes are never shared. You can choose differently on each activity.</p></div>
+      <p class="small muted">Applies to new activities. Older activities keep their audience; you can change it for each workout.</p></div>
+    <div class="card"><h2>What others see</h2><form class="sharing-switches" id="sh-d">${Object.entries(DETAIL_NAMES).map(([key,name])=>`<label class="switch-row"><span>${esc(name)}</span><input type="checkbox" role="switch" name="${key}"${s.details[key]?' checked':''}></label>`).join('')}</form>
+      <p class="small muted">Distance, time and type are always shown to that audience. Splits and laps need pace. Private notes and Kit notes are never shared.</p></div>
     <div class="card"><h2>Friend search</h2><label class="check"><input type="checkbox" id="sh-find"${s.findable ? ' checked' : ''}> Let people find me by name</label>
       <p class="small muted">Off: you don't show up when people on this Kinetta search for friends. Friends you already have, and anyone who types your exact username, can still find you.</p></div>
     <div class="card"><h2>Hide the start and end of your route</h2>

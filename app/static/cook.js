@@ -58,7 +58,7 @@ function drawDish(el, d) {
   const source=d.recipe_source||{}, imported=!!source.import_id, display=imported&&bySv?d.per_serving:t;
   el.classList.toggle('imported-recipe',imported);el.classList.add('recipe-page');
   const sums=has?`<div class="recipe-nutrition num" aria-label="${imported&&bySv?'Nutrition per serving':'Nutrition in the whole recipe'}"><div><b class="${display.kcal==null?'nutrient-unknown':''}">${recipeCalories(display.kcal)}</b><small>kcal${imported&&bySv?' / serving':' total'}</small></div>${MACROS.map(([k,nm])=>`<div><b class="${display[k]==null?'nutrient-unknown':''}">${display[k]==null?'Unknown':r0(display[k])+' g'}</b><small>${nm}</small></div>`).join('')}</div>${typed&&!imported?`<p class="small muted">Using the total ${mine?'you':esc(d.owner.name.split(' ')[0])} typed in${d.items.length?', not the ingredients':''}.</p>`:''}`:'';
-  el.innerHTML = `<div class="top">${backBtn(mine?'Recipes':'Nutrition')}<div class="acts">${(mine && aiCan('coach')) || d.review ? `<button class="icon-btn kit-help" id="dk-kit" aria-label="Ask Kit about this recipe">${svg('sparkle')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Recipe options">${svg('more')}</button>${mine?`<button type="button" class="primary sm" id="dk-done"${has?'':' disabled'}>Done</button>`:''}</div></div>
+  el.innerHTML = `<div class="top">${backBtn(mine?'Recipes':'Nutrition')}<div class="acts">${(mine && kitChatOn()) || d.review ? `<button class="icon-btn${mine&&kitChatOn()?' kit-help':''}" id="dk-kit" aria-label="${mine&&kitChatOn()?'Ask Kit about this recipe':'Saved recipe review'}">${svg(mine&&kitChatOn()?'sparkle':'clock')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Recipe options">${svg('more')}</button>${mine?`<button type="button" class="primary sm" id="dk-done"${has?'':' disabled'}>Done</button>`:''}</div></div>
     <div class="recipe-content" tabindex="0" aria-label="Recipe ingredients and nutrition">
     ${mine ? `<div class="recipe-title"><textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the recipe" aria-label="Recipe name" aria-describedby="recipe-title-status" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea></div><p id="recipe-title-status" class="small muted" role="status">${d.named?'Saved':'Draft saved · add a name'}</p>`
       : `<div class="eyebrow">From ${esc(d.owner.name)}</div><h1 class="dish-name">${esc(d.name)}</h1>`}
@@ -83,7 +83,7 @@ function drawDish(el, d) {
   $$('[data-it]', el).forEach((b) => b.onclick = () => itemSheet(d, d.items.find((x) => x.id === b.dataset.it), set));
   const patch = async (body) => { try { set(await api(`/api/dishes/${d.id}`, json('PATCH', body))); return true; } catch (x) { toast(x.message); return false; } };
   const lg = $('#dk-log', el); if (lg) lg.onclick = () => dishLogSheet(d, {day: isoDay(new Date()), meal: guessMeal()}, () => {});
-  const kit = $('#dk-kit', el); if (kit) kit.onclick = () => mine&&aiCan('coach') ? KitChat.open('nutrition',null,`Help me review the saved recipe “${d.name}”. Check its saved ingredients and nutrition.`) : recipeKit(d,mine,set);
+  const kit = $('#dk-kit', el); if (kit) kit.onclick = () => mine&&kitChatOn() ? KitChat.open('nutrition',null,`Help me review the saved recipe “${d.name}”. Check its saved ingredients and nutrition.`) : recipeKit(d,mine,set);
   if (!mine) return;
   $$('[data-dismiss-pending]',el).forEach(b=>b.onclick=()=>{if(confirm('Leave this unmatched line out of the recipe nutrition? If you added it separately, its nutrition will be included.'))patch({dismiss_pending:[b.dataset.dismissPending],use_ingredients:true});});
   swipeRows(el, (id) => removeItem(d, d.items.find((x) => x.id === id), set));
@@ -638,6 +638,7 @@ function recipeKit(d, mine, set) {
     const draw = () => {
       box.innerHTML = recipeReview(d, mine);
       const button = $('#dk-review',box); if (!button) return;
+      if(!kitChatOn()){button.remove();return;}
       button.onclick = async () => {
         if (!App.me.ai_ok) { aiSheet(draw); return; }
         button.disabled = true; button.textContent = 'Reading this recipe…';

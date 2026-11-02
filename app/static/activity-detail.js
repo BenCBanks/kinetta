@@ -23,7 +23,7 @@ const ActivityDetail=(()=>{
   return rows.length?`<div class="detail-highlights">${rows.join('')}</div>`:'';
  }
  function title(a,hero,{shared=false,socialId=shared?'s-soc':'d-soc'}={}){
-  const kit=!shared&&(a.ai_note||aiCan('coach'))?`<button type="button" class="me-chip detail-kit" id="d-kit" aria-label="${kitChatOn()?'Ask Kit about this activity':'Kit’s workout note'}">${svg('sparkle')}Kit</button>`:'';
+  const kit=!shared&&(a.ai_note||kitChatOn())?`<button type="button" class="me-chip detail-kit" id="d-kit" aria-label="${kitChatOn()?'Ask Kit about this activity':'Kit’s workout note'}">${svg(kitChatOn()?'sparkle':'clock')}${kitChatOn()?'Kit':'Saved note'}</button>`:'';
   return `<section class="d-title card compact-detail-title"><div class="detail-title-row"><h1>${esc(a.name)}</h1></div><div class="detail-date-row">${sportMark(a.sport)}<p class="detail-date">${date(a,{shared})}</p>${kit}</div>${shared&&a.owner?`<a class="detail-owner" href="${profileHref(a.owner)}">${esc(a.owner.name)}</a>`:''}
     <div class="hero detail-primary">${hero}</div>${secondary(a,{shared})}${highlights(a,{shared})}<div class="detail-social" id="${socialId}"${!shared?' hidden':''}></div>${!shared?'<div id="d-milestones"></div>':''}</section>`;
  }

@@ -3,6 +3,7 @@
 
 // ---------- shared bits ----------
 const stat = (label, v, u = '') => `<div class="stat"><small>${esc(label)}</small><b class="num">${esc(v)}${u ? `<i>${esc(u)}</i>` : ''}</b></div>`;
+const firstStep = (icon,copy,id,label,options='') => `<div class="card first-step"><span class="first-step-icon" aria-hidden="true">${svg(icon)}</span><p>${copy}</p><button type="button" class="primary wide" id="${id}">${label}</button>${options}</div>`;
 function headline(a) {
   const r = rate(a);
   if (a.lifts && !a.distance_m) return stat('Time', dur(a.moving_s || a.elapsed_s)) + stat('Sets', a.lifts.sets)
@@ -15,7 +16,7 @@ function headline(a) {
 // One card for every activity in a list (2026-10-11 redesign, Strava-style): who and when, the name, three numbers, the
 // map edge to edge, then cheers and comments. `who` adds the person (the Feed); without it the sport leads (Mine, Today).
 // The card is a link; the footer sits outside it so the Cheers button is a real button.
-function postCard(a, {who = false, compact = false} = {}) {
+function postCard(a, {who = false, compact = false, lock = false} = {}) {
   const theirs = !!a.owner, href = theirs ? `/activity/friends/${a.id}` : `/activity/${a.id}`;
   const kind = a.sport_label && a.sport_label.toLowerCase() !== SPORT_NAMES[a.sport].toLowerCase() ? a.sport_label : SPORT_NAMES[a.sport];
   const badges = [];
@@ -25,7 +26,7 @@ function postCard(a, {who = false, compact = false} = {}) {
   // Only the photo and the name open the person's profile (2026-10-16, Ben: the whole row did, so taps meant for the
   // activity landed on the profile); every other part of the card opens the activity (wireCheers → wireCardTaps).
   const person = theirs ? a.owner : App.me, pref = profileHref(person), pname = theirs ? esc(a.owner.name) : 'You';
-  const vis = a.visibility || 'me',audience=theirs?'':compact&&vis==='me'?` · <span class="post-private" role="img" aria-label="Only you can see this" title="Only you can see this">${svg('lock')}</span>`:` · ${esc(VIS_SHORT[vis])}`;
+  const vis = a.visibility || 'me',audience=theirs?'':(compact||lock)&&vis==='me'?` · <span class="post-private" role="img" aria-label="Only you can see this" title="Only you can see this">${svg('lock')}</span>`:` · ${esc(VIS_SHORT[vis])}`;
   const time=compact&&isoDay(new Date(a.start_time))===isoDay(new Date())?ftime(a.start_time):when(a.start_time);
   const share=theirs?'':`<button type="button" class="pf activity-share" data-share-picture="${a.id}" aria-label="Share a picture of this activity">${svg('share')}</button>`;
   const mark=theirs?(compact?'':sportMark(a.sport)):share;
@@ -166,7 +167,7 @@ function combinedWeekHtml(w) {
   if(w.seconds>0)stats.push(stat('Time',dur(w.seconds)));
   const food=w.days_logged?`${w.days_logged} of 7 days with food logged.`:'Your food consistency will appear as you log meals.';
   const protein=w.days_logged&&w.protein_target?`${w.protein_days_reached?`${w.protein_days_reached} ${w.protein_days_reached===1?'day':'days'} reached`:'No logged days reached'} your current ${r0(w.protein_target)} g protein target.${w.protein_days_unknown?` ${w.protein_days_unknown} logged ${w.protein_days_unknown===1?'day has':'days have'} unknown protein.`:''}`:'';
-  return `<details class="card combined-week"><summary>Your week in review</summary><p class="small muted">${esc(dayLabel(w.start))} – ${esc(dayLabel(w.end))} · last 7 completed days</p>${stats.length?`<div class="stats3">${stats.join('')}</div>`:'<p>No workouts recorded in this week. Distance and time appear with your workouts.</p>'}<p>${food}</p>${protein?`<p>${protein}</p>`:''}${w.days_logged?'<p class="small muted">Food logged does not mean the whole day is complete. Protein compares known recorded amounts with your current target.</p>':''}<a class="linkbtn" href="${w.days_logged?'/food?view=overview':'/food/describe'}">${w.days_logged?'Food review':'Log food'}</a>${w.workouts?' <a class="linkbtn" href="/me/activities">Your workouts</a>':''}</details>`;
+  return `<details class="card combined-week"><summary>Your week in review</summary><p class="small muted">${esc(dayLabel(w.start))} – ${esc(dayLabel(w.end))} · last 7 completed days</p>${stats.length?`<div class="stats3">${stats.join('')}</div>`:'<p>No workouts recorded in this week. Distance and time appear with your workouts.</p>'}<p>${food}</p>${protein?`<p>${protein}</p>`:''}${w.days_logged?'<p class="small muted">Food logged does not mean the whole day is complete. Protein compares known recorded amounts with your current target.</p>':''}<a class="linkbtn" href="${w.days_logged?'/food?view=overview':'/food/describe'}">${w.days_logged?'Food review':'Log food'}</a>${w.workouts?` <a class="linkbtn" href="${profileHref(App.me)}">Your workouts</a>`:''}</details>`;
 }
 function combinedWeek(box) {
   if(!box)return;const owner=readOwner();
@@ -366,27 +367,7 @@ async function meOverview(el) {
     $('#t-food',el).innerHTML = '<div class="card"><p>Today’s food could not load.</p><button class="ghost wide" id="tf-retry">Try again</button></div>';agenda();
     $('#tf-retry',el).onclick = () => { invalidate('/api/food/day'); render(); };
   });
-  const kit=$('#t-review',el);
-  if(kit&&kitChatOn())kit.innerHTML=`<a class="kit-pill" href="/me/kit?from=me">${svg('sparkle')}Ask Kit</a>`;
-  else load('/api/coach/week', (r) => {
-    const box = $('#t-review', el); if (!box) return;
-    if (!r.enabled && !r.paused && !r.latest) { box.innerHTML = ''; return; }
-    const wk = r.latest ? r.latest.period_start : null, when = wk ? new Date(wk + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric'}) : '';
-    async function reviewNow(btn, close) {
-      btn.disabled = true; btn.textContent = 'Thinking…';
-      try { const fresh = await api('/api/coach/week', json('POST', {})); showCoach('week:' + fresh.period_start); invalidate('/api/coach'); if (close) close(); render(); }
-      catch (x) { toast(x.message); btn.disabled = false; btn.textContent = 'Review this week now'; }
-    }
-    if(r.paused){box.innerHTML=r.latest?`<button type="button" class="kit-pill" id="t-saved-review">${svg('sparkle')}Kit review</button>`:'';const saved=$('#t-saved-review',box);if(saved)saved.onclick=()=>showCoach('week:'+r.latest.period_start);return;}
-    box.innerHTML = `<button class="icon-btn kit-help" id="t-review-open" aria-label="Kit’s weekly review">${svg('sparkle')}</button>`;
-    $('#t-review-open', box).onclick = () => sheet('Kit’s weekly review', wk
-      ? `<p class="small muted">Week of ${esc(when)}</p><p class="review-text">${esc(r.latest.text)}</p>
-          ${r.enabled ? '<button class="ghost wide" id="rv-now">Review this week now</button>' : ''}`
-      : `<p>Kit writes a short review every Sunday evening.</p><p class="small muted">You can also ask for a review of this week so far.</p>
-          <button class="primary wide" id="rv-now">Review this week now</button>`, (sb, close) => {
-        const button = $('#rv-now', sb); if (button) button.onclick = () => reviewNow(button, close);
-      });
-  }).catch(() => {});
+  if(typeof KitChat!=='undefined')KitChat.entry(el,'/me');
   const overviewLoads = await Promise.allSettled([
     tracked('history', load('/api/activities?limit=1', (d) => {
       if (!el.isConnected) return;
@@ -453,40 +434,7 @@ route(/^\/activity$/, 'activity', async el=>{
   if(q.get('view')==='mine'){q.delete('view');return go('/me/activities'+(q.toString()?'?'+q:''),{replace:true});}
   return homeFeed(el);
 });
-route(/^\/me\/activities$/, 'me', async (el)=>{
-  const q=new URLSearchParams(location.search),sport=q.get('sport')||'',term=q.get('q')||'';
-  const sports = ['', 'run', 'ride', 'walk', 'hike', 'swim', 'workout', 'row', 'ski', 'other'];
-  el.innerHTML = `<div class="top">${backBtn('Me')}<button type="button" class="icon-btn" id="f-search" aria-label="Search activities">${svg('search')}</button></div><h1>Your activities</h1><p class="small muted">Your complete history, including private activities.</p><div id="workout-sync"></div>
-    <form id="f-sform" class="${term ? '' : 'hidden'}" role="search"><input type="search" name="q" value="${esc(term)}" placeholder="Search names and descriptions" enterkeyhint="search"></form>
-    <div class="chips activity-filters" role="group" aria-label="Sport">${sports.map((s) => `<button class="chip" data-s="${s}" aria-pressed="${s === sport}">${s === 'other' ? 'Other' : s ? SPORT_NAMES[s] : 'All'}</button>`).join('')}</div>
-    <div class="feed-list" id="f-list">${skelFeed(3)}</div><button class="ghost feed-more" id="f-more" hidden>Show more</button>`;
-  wireBack(el,'/me');workoutSyncStatus($('#workout-sync',el));
-  const sf = $('#f-sform', el); if (!term) sf.hidden = true;
-  $('#f-search', el).onclick = () => { sf.hidden = !sf.hidden; if (!sf.hidden) $('input', sf).focus(); };
-  sf.onsubmit = (e) => { e.preventDefault(); const p = new URLSearchParams(location.search); const v = $('input', sf).value.trim(); v ? p.set('q', v) : p.delete('q'); go('/me/activities' + (p.toString() ? '?' + p : ''), {replace: true}); };
-  $$('.chip', el).forEach((b) => b.onclick = () => { const p = new URLSearchParams(location.search); b.dataset.s ? p.set('sport', b.dataset.s) : p.delete('sport'); go('/me/activities' + (p.toString() ? '?' + p : ''), {replace: true}); });
-  const base = `/api/activities?limit=25${sport ? '&sport=' + sport : ''}${term ? '&q=' + encodeURIComponent(term) : ''}`;
-  const list=$('#f-list',el),more=$('#f-more',el),owner=readOwner(),active=()=>owner===readOwner()&&list.isConnected;
-  let items = [];
-  const draw = (rows) => {
-    items = rows;
-    list.innerHTML = rows.length ? rows.map((x) => postCard(x)).join('') : `<div class="card empty"><b>${term || sport ? 'Nothing matches' : 'No activities yet'}</b>${term || sport ? 'Try another filter.' : `Workouts from your watch arrive here on their own.${startCta()}`}</div>`;
-    more.hidden = rows.length < 25 || rows.length % 25 !== 0;
-    feedMaps(list); wireCheers(list);
-  };
-  await load(base, draw);
-  more.onclick = async () => {
-    if(more.disabled||!items.length||!active())return;const epoch=readEpoch(base);
-    more.disabled = true; more.textContent = 'Loading…';
-    try {
-      const rows = await api(base + '&before=' + encodeURIComponent(items[items.length - 1].start_time)+'&before_id='+items[items.length-1].id);
-      if(!active()||epoch!==readEpoch(base))return;
-      items = items.concat(rows); App.cache.set(base, {data: items, at: Date.now()});
-      list.insertAdjacentHTML('beforeend', rows.map((x) => postCard(x)).join('')); more.hidden = rows.length < 25; feedMaps(list); wireCheers(list);
-    } catch(e){if(active()&&epoch===readEpoch(base))toast(e.message);}
-    more.disabled = false; more.textContent = 'Show more';
-  };
-});
+route(/^\/me\/activities$/, 'me', () => go(profileHref(App.me)+location.search+location.hash,{replace:true}));
 
 // ---------- Activity detail ----------
 const ZN = ['Easy', 'Aerobic', 'Tempo', 'Threshold', 'Max'];
@@ -1581,14 +1529,14 @@ route(/^\/me$/, 'me', async (el) => {
   const me = App.me, ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
   el.innerHTML = `<div id="me-overview"></div>
-    <div class="card list me-tools">${row('a', 'href="/me/activities"', 'activity', 'c-brand', 'All your activities<small class="muted">Every workout, including private ones</small>')}${row('a', 'href="/plan"', 'calendar', 'c-brand', 'Training plan')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>`;
+    <div class="card list me-tools">${row('a', `href="${profileHref(App.me)}"`, 'activity', 'c-brand', 'Your profile<small class="muted">All your activities, including private ones</small>')}${row('a', 'href="/plan"', 'calendar', 'c-brand', 'Training plan')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>`;
   el.insertAdjacentHTML('beforeend','<div id="me-challenges"></div>');Challenges.mount($('#me-challenges',el),{me:true});
   meOverview($('#me-overview', el)).catch((e) => showError($('#me-overview', el), e));
 });
 route(/^\/me\/settings$/, 'me', async (el) => {
   const me = App.me, ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
-  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Settings</h1><p class="muted">Your account, connections and private preferences.</p><button class="ghost wide" id="logout">${svg('logout')}Log out</button><section class="me-settings">
+  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Settings</h1><section class="me-settings">
     <h2 class="sec-head">Account</h2>
     <div class="card list">${row('button', 'id="m-name"', 'user', 'c-grey', 'Name', esc(me.name))}
       ${row('button', 'id="m-login"', 'user', 'c-grey', 'Username', esc(me.login))}
@@ -1605,15 +1553,16 @@ route(/^\/me\/settings$/, 'me', async (el) => {
     <div class="card list"><div class="row-link static"><span class="ri c-grey">${svg('ruler')}</span><span class="grow">Units</span><div class="seg" role="group" aria-label="Units">
         <button data-u="imperial" aria-pressed="${me.units === 'imperial'}">mi · lb</button><button data-u="metric" aria-pressed="${me.units === 'metric'}">km · kg</button></div></div>
       ${row('button', 'id="m-body"', 'heart', 'c-red', 'Body & heart rate', esc([me.max_hr ? `Max HR ${me.max_hr}` : '', me.weight_kg ? `${Math.round(U.weight(me.weight_kg))} ${imp() ? 'lb' : 'kg'}` : ''].filter(Boolean).join(' · ') || 'Set up'))}</div>
-    ${me.coach ? `<h2 class="sec-head">Kit</h2><div class="card" id="ai"><p class="small muted">${me.ai_paused ? 'AI is paused. Search, barcodes and manual logging still work.' : 'Optional training notes and food estimates. AI consent is separate from access.'}</p>${me.ai_access ? `<p class="small muted">Food estimates: ${me.ai_access.food?.entitled && me.ai_access.food?.available ? 'available' : 'not available'} · Coaching: ${me.ai_access.coach?.entitled && me.ai_access.coach?.available ? 'available' : 'not available'}. Manual tools stay available.</p>${me.ai_access.coach?.reason?`<p class="small muted">${esc(me.ai_access.coach.reason)}</p>`:''}` : ''}<button class="linkbtn small" id="m-ai-info">What gets shared?</button>${kitChatOn() ? `<a class="icon-btn kit-help" href="/me/kit" aria-label="Ask Kit">${svg('sparkle')}</a>` : ''}
+    ${me.coach ? `<h2 class="sec-head">Kit</h2><div class="card" id="ai"><p class="small muted">${me.ai_paused ? 'AI is paused. Search, barcodes and manual logging still work.' : 'Optional training notes and food estimates. AI consent is separate from access.'}</p>${me.ai_access ? `<p class="small muted">Food estimates: ${me.ai_access.food?.entitled && me.ai_access.food?.available ? 'available' : 'not available'} · Coaching: ${me.ai_access.coach?.entitled && me.ai_access.coach?.available ? 'available' : 'not available'}. Manual tools stay available.</p>${me.ai_access.coach?.reason?`<p class="small muted">${esc(me.ai_access.coach.reason)}</p>`:''}` : ''}<button class="linkbtn small" id="m-ai-info">What gets shared?</button>
       <div class="seg wide" role="group" aria-label="AI features"><button data-ai="1" aria-pressed="${!!me.ai_ok}">On</button><button data-ai="0" aria-pressed="${!me.ai_ok}">Off</button></div></div>` : ''}
-    <h2 class="sec-head">Your data</h2>
-    <div class="card list">${row('button', 'id="m-kit-memory"', 'sparkle', 'c-green', 'What Kit remembers', 'View or remove')}${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}
-      ${row('a', 'href="https://kinetta.app/terms" target="_blank" rel="noopener"', 'shield', 'c-green', 'Terms of Use')}
-      ${row('a', 'href="https://kinetta.app/privacy" target="_blank" rel="noopener"', 'shield', 'c-green', 'Privacy policy')}
-      ${row('button', 'id="m-del"', 'trash', 'c-red', '<span class="danger">Delete my account</span>')}</div>
     <h2 class="sec-head">Help</h2>
     <div class="card list">${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help &amp; contact')}</div>
+    <h2 class="sec-head">Your data</h2>
+    <div class="card list">${row('button', 'id="m-kit-memory"', 'sparkle', 'c-green', 'What Kit remembers', 'View or remove')}${row('button', 'id="m-kit-history"', 'clock', 'c-green', 'Earlier Kit reviews')}${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}
+      ${row('a', 'href="https://kinetta.app/terms" target="_blank" rel="noopener"', 'shield', 'c-green', 'Terms of Use')}
+      ${row('a', 'href="https://kinetta.app/privacy" target="_blank" rel="noopener"', 'shield', 'c-green', 'Privacy policy')}
+      ${row('button', 'id="m-del"', 'trash', 'c-red', '<span class="danger">Delete my account</span>')}
+      ${row('button', 'type="button" id="logout"', 'logout', 'c-red', '<span class="danger">Log out</span>')}</div>
     </section>`;
   wireBack(el, '/me');
   const unskip=$('#m-setup-unskip',el);if(unskip)unskip.onclick=async()=>{
@@ -1629,6 +1578,12 @@ route(/^\/me\/settings$/, 'me', async (el) => {
   $('#m-profile', el).onclick = () => MeCard.openEditor();
 
   $('#m-kit-memory',el).onclick=()=>KitChat.memorySettings();
+  $('#m-kit-history',el).onclick=()=>KitChat.savedReviews();
+  if(location.hash==='#ai'){
+    let touched=false;const events=new AbortController();
+    for(const type of ['pointerdown','touchstart','wheel','keydown'])window.addEventListener(type,()=>touched=true,{passive:true,signal:events.signal});
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{events.abort();if(!touched&&el.isConnected&&location.hash==='#ai')$('#ai',el)?.scrollIntoView({block:'start',behavior:'instant'});}));
+  }
   const aiInfo = $('#m-ai-info', el); if (aiInfo) aiInfo.onclick = () => sheet('Kit', aiExplain());
   $('#m-name', el).onclick = () => {if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_account');accountSheet('name');};
   $('#m-login', el).onclick = () => {if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_account');accountSheet('login');};
@@ -1836,7 +1791,7 @@ route(/^\/track\/import$/, 'track', async (el) => {
     <div class="card upload"><label class="drop" id="u-drop" for="u-file"><b>Choose files</b><br><span class="small">or drop them here</span></label>
       <input id="u-file" type="file" multiple accept=".fit,.gpx,.tcx,.gz,.zip" hidden>
       <div id="u-prog" hidden><div class="prog"><div class="bar" id="u-bar"></div></div><p class="small muted" id="u-text"></p></div></div>
-    <div class="card"><h2>How to get your Strava history</h2><p class="small">Strava → Settings → My Account → <b>Download or Delete Your Account</b> → Request your archive. Strava emails a .zip; upload it here as is. For a large archive, ask the person running your Kinetta for help importing it.</p></div>
+    <details class="card"><summary>Get your Strava history</summary><p class="small">Strava → Settings → My Account → <b>Download or Delete Your Account</b> → Request your archive. Strava emails a .zip; upload it here as is. For a large archive, ask the person running your Kinetta for help importing it.</p></details>
     <div class="card"><h2>Recent imports</h2><div id="u-jobs">${skel(1)}</div></div>`;
   wireBack(el, '/track');
   const input = $('#u-file', el), drop = $('#u-drop', el);
@@ -1888,7 +1843,7 @@ function garminNote(g){
 }
 function garminCard(box,C,valid){
   const g=C.garmin_connect;if(!box)return;
-  if(!(C.garmin_connect_available||g)){box.innerHTML='<div class="card"><h2>Garmin Connect</h2><p>Garmin Connect is not available for this account yet. You can use Apple Health or record activities in Kinetta.</p></div>';return;}
+  if(!(C.garmin_connect_available||g)){box.innerHTML='<p class="small muted">Garmin Connect: not available yet.</p>';return;}
   box.innerHTML=`<div class="card"><h2>Garmin Connect</h2>
     <p>${g?`<b>Connected.</b> ${garminNote(g)}`:'New Garmin activities arrive after your watch syncs, with maps and heart rate.'} For older history, ${Native.on?'import past workouts from Apple Health':'use Apple Health or import a Strava export in your browser'}.</p>
     ${g?`<label class="check"><input type="checkbox" id="gc-ai"${App.me.garmin_ai_ok?' checked':''}> Let Kit read my Garmin activities</label>
@@ -1977,12 +1932,14 @@ route(/^\/me\/gear$/, 'me', async (el) => {
   });
   $('#g-add', el).onclick = () => edit(null);
   await load('/api/gear', (gear) => {
+    $('#g-add',el).hidden=!gear.length;
     $('#g-list', el).innerHTML = gear.length ? `<div class="card">${gear.map((g) => {
       const due = g.alert_distance_m && g.total_m >= g.alert_distance_m;
       return `<div class="gear-row"><button class="row-link" data-id="${g.id}" aria-label="Edit ${esc(g.name)}"><div><b>${esc(g.name)}</b>${g.is_default ? ' <span class="badge">Default</span>' : ''}${g.retired ? ' <span class="badge">Retired</span>' : ''}<br>
         <small class="muted">${g.uses} activities${g.last_used ? ' · last ' + esc(fdate(g.last_used, {month: 'short', day: 'numeric'})) : ''}</small></div>
         <div class="r"><b class="num">${U.dist(g.total_m, 0)} ${U.du()}</b>${due ? '<br><small class="danger">Time to replace</small>' : g.alert_distance_m ? `<br><small class="muted">of ${U.dist(g.alert_distance_m, 0)}</small>` : ''}</div></button><button type="button" class="icon-btn danger" data-gear-delete="${g.id}" aria-label="Delete ${esc(g.name)}">${svg('trash')}</button></div>`; }).join('')}</div>`
-      : '<div class="card empty"><b>No gear yet</b>Add shoes or a bike to track their mileage. Strava gear is imported with your export.</div>';
+      : firstStep('shoe','Track the mileage on your shoes and bikes.','g-first','Add shoes or a bike');
+    const first=$('#g-first',el);if(first)first.onclick=()=>edit(null);
     $$('[data-id]', el).forEach((b) => b.onclick = () => edit(gear.find((g) => g.id === +b.dataset.id)));
     $$('[data-gear-delete]', el).forEach((b) => b.onclick = () => remove(gear.find((g) => g.id === +b.dataset.gearDelete), b));
   });
@@ -1991,26 +1948,31 @@ route(/^\/me\/gear$/, 'me', async (el) => {
 route(/^\/me\/goals$/, 'me', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Me')}<button class="ghost sm" id="o-add">${svg('plus')}Add goal</button></div><h1>Goals</h1><div id="o-list">${skel(1)}</div>`;
   wireBack(el, '/me');
-  $('#o-add', el).onclick = () => sheet('New goal', `<form class="form">
+  const editGoal = (preset={}) => sheet('New goal', `<form class="form">
     <div class="two"><label>Sport<select name="sport"><option value="">All sports</option>${['run', 'ride', 'walk', 'hike', 'swim'].map((s) => `<option value="${s}">${SPORT_NAMES[s]}</option>`).join('')}</select></label>
     <label>Every<select name="period"><option value="day">Day</option><option value="week" selected>Week</option><option value="month">Month</option><option value="year">Year</option></select></label></div>
     <div class="two"><label>Measure<select name="metric"><option value="distance">Distance (${U.du()})</option><option value="time">Time (hours)</option><option value="calories">Calories burned (kcal)</option><option value="elevation">Climb (${U.eu()})</option><option value="count">Activities</option></select></label>
     <label>Target<input name="target" inputmode="decimal" required></label></div>
     <div class="actions"><button type="button" class="ghost" data-close>Cancel</button><button class="primary">Add goal</button></div></form>`, (b, close) => {
     const f = $('form', b);
+    for(const [key,value] of Object.entries(preset))f.elements.namedItem(key).value=String(value);
     f.onsubmit = async (e) => {
       e.preventDefault(); const v = Number(f.target.value); if (!(v > 0)) { toast('Enter a target above 0'); return; }
       const target = f.metric.value === 'distance' ? v * (imp() ? MI : 1000) : f.metric.value === 'time' ? v * 3600 : f.metric.value === 'elevation' ? (imp() ? v / 3.28084 : v) : v;
       try { await api('/api/goals', json('POST', {sport: f.sport.value || null, period: f.period.value, metric: f.metric.value, target})); invalidate('/api/goals'); close(); render(); } catch (x) { toast(x.message); }
     };
   });
+  $('#o-add',el).onclick=()=>editGoal();
   const goalQuery=new URLSearchParams(location.search);
   if(goalQuery.get('new')==='1'){
     goalQuery.delete('new');
     if(replacePageAddress(el,location.pathname+(goalQuery.size?'?'+goalQuery:'')+location.hash))$('#o-add',el).click();
   }
   await load('/api/goals', (g) => {
-    $('#o-list', el).innerHTML = g.length ? `<div class="card">${g.map((x) => `${goalRow(x)}<button class="ghost danger small" data-del="${x.id}">Remove</button>`).join('')}</div>` : '<div class="card empty"><b>No goals yet</b>Set a target for distance, time or calories burned: each day, week, month or year.</div>';
+    $('#o-add',el).hidden=!g.length;
+    $('#o-list', el).innerHTML = g.length ? `<div class="card">${g.map((x) => `${goalRow(x)}<button class="ghost danger small" data-del="${x.id}">Remove</button>`).join('')}</div>` : firstStep('trophy','Choose a target for your workouts.','o-first','Add a goal',`<div class="first-step-presets"><button type="button" class="linkbtn" data-goal-preset="run">Run 10 ${U.du()}/week</button><button type="button" class="linkbtn" data-goal-preset="calories">Burn 500 kcal/day</button></div>`);
+    const first=$('#o-first',el);if(first)first.onclick=()=>editGoal();
+    $$('[data-goal-preset]',el).forEach(b=>b.onclick=()=>editGoal(b.dataset.goalPreset==='run'?{sport:'run',period:'week',metric:'distance',target:10}:{sport:'',period:'day',metric:'calories',target:500}));
     $$('[data-del]', el).forEach((b) => b.onclick = async () => {
       const row = g.find((x) => x.id === +b.dataset.del);
       try { await api(`/api/goals/${row.id}`, {method: 'DELETE'}); invalidate('/api/goals'); render();
@@ -2127,10 +2089,10 @@ function activityKit(activity) {
     const box = $('#activity-kit', root);
     const draw = () => {
       box.innerHTML = (activity.ai_note ? `<p>${esc(activity.ai_note)}</p>` : '<p>Ask for a note about this workout using your own training history.</p>')
-        + (aiCan('coach') ? '<button class="primary wide" id="activity-kit-generate">'+(activity.ai_note ? 'Ask again' : 'Ask Kit')+'</button>' : '<p class="small muted">New reviews are unavailable. Saved notes remain readable.</p>');
+        + (kitChatOn() ? '<button class="primary wide" id="activity-kit-generate">'+(activity.ai_note ? 'Ask again' : 'Ask Kit')+'</button>' : '<p class="small muted">New reviews are unavailable. Saved notes remain readable.</p>');
       const button = $('#activity-kit-generate', box); if (!button) return;
       button.onclick = async () => {
-        if (!App.me.ai_ok) { aiSheet(draw); return; }
+        if (!kitChatOn() || App.me?.login !== account || !box.isConnected) { draw(); return; }
         button.disabled = true; button.textContent = 'Reading this workout…';
         try {
           const result = await api(`/api/activities/${activity.id}/coach`, json('POST', {}));
