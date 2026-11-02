@@ -52,6 +52,7 @@ html=c.replyHtml({id:1,state:'answered',result:{review_only:true}},{entries:[],r
 assert.match(html,/Fictional &lt;penne&gt;/);assert.match(html,/Checking the other foods/);assert(!html.includes('thread-thinking'),'a spinner does not hide a resolved source');
 console.log('Partial food resolution: ready numbers remain visible with a working status PASS');
 
+c.aiCan=()=>false;c.aiOffer=()=>false;
 vm.runInContext(thread.slice(thread.indexOf('  function choices('),thread.indexOf('  function changedNumbers(')),c);
 html=c.choices({parts:[{index:0,status:'choose',description:{reference:true},item:{choices:[{name:'Egg whites',kind:'custom',id:1}],new_ok:true,new_name:'Egg'}}]});
 assert.match(html,/Egg whites/);assert.match(html,/Egg \(new food\)/);assert.match(html,/data-choice=/,'model ambiguity retains actual choice buttons');
