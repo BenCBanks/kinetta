@@ -1,9 +1,10 @@
 // Crawl concrete rendered href/data-href values, source literals and go() destinations observed in real journeys.
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const {scenes,journeys}=require('./journey_scenes.cjs'),{intention,literalTargets}=require('./link_contract.cjs');
+const {createHash}=require('node:crypto');
+const {scenes,journeys}=require('./journey_scenes.cjs'),{intention,literalTargets,fetchDocument}=require('./link_contract.cjs');
 const {fixturePage}=require('./ui_fixture_browser.cjs');
-const {boundary,context,fixtureSessions,ready,settle}=require('./journey_browser.cjs');
+const {boundary,context,fixtureSessions,ready,settle,visibleTitles}=require('./journey_browser.cjs');
 const base=process.env.KINETTA_URL,project=process.env.KINETTA_PROJECT,partial=process.argv.includes('--rendered-only');
 const collect=p=>p.evaluate(()=>[...document.querySelectorAll('a[href],[data-href]')].map(node=>{const raw=node.getAttribute('href')||node.dataset.href;if(!raw)return null;const url=new URL(raw,location.href);return {href:url.origin===location.origin?url.pathname+url.search+url.hash:url.href,label:node.getAttribute('aria-label')||node.textContent.trim(),source:location.pathname+location.search};}).filter(Boolean));
 (async()=>{
@@ -23,6 +24,9 @@ const collect=p=>p.evaluate(()=>[...document.querySelectorAll('a[href],[data-hre
      const bad=(await collect(f.p)).find(link=>link.href==='/progress?view=training');assert(bad,'Real rendered link was deliberately broken');
      assert.throws(()=>add(bad,scene.login),error=>{broken=error.message;return /unsupported view=training/.test(broken);});
      await anchor.evaluate((n,href)=>n.setAttribute('href',href),original);
+     await f.p.evaluate(()=>{const h=document.createElement('h1');h.hidden=true;h.dataset.linkHeadingProof='';h.textContent='Fictional hidden heading proof';document.querySelector('#page').append(h);});
+     assert(!(await visibleTitles(f.p)).includes('Fictional hidden heading proof'),'A hidden matching heading cannot validate a destination');
+     await f.p.locator('[data-link-heading-proof]').evaluate(h=>h.remove());
     }
     assert.deepEqual(f.pageErrors,[],'No collection page exception');
    }finally{await f.c.close();}
@@ -34,21 +38,24 @@ const collect=p=>p.evaluate(()=>[...document.querySelectorAll('a[href],[data-hre
   }
   if(!partial){
    const report=JSON.parse(fs.readFileSync(process.env.KINETTA_JOURNEY_REPORT||'/tmp/'+project+'-journeys-report.json'));
-   assert.equal(report.cases.length,journeys(fixtures).length,'Full journey report required for observed dynamic go() coverage');
+   assert.equal(report.mode,'complete','A selected journey is not full dynamic go() coverage');
+   assert(report.cases.every(row=>row.passed),'All journeys must pass before complete link acceptance');
+   assert.equal(report.fixture_sha256,createHash('sha256').update(fs.readFileSync(process.env.KINETTA_JOURNEY_FIXTURES||'/tmp/'+project+'-journeys.json')).digest('hex'),'Journey report must match this fixture');
+   assert.deepEqual(report.cases.map(row=>row.id).sort(),journeys(fixtures).map(row=>row.id).sort(),'Full journey report required for observed dynamic go() coverage');
    for(const row of report.cases)for(const href of row.go)add({href,label:'',source:row.id+' observed go()'},fixtures.journey.login);
   }
   for(const {link,login,result} of targets.values()){
    const kit=result.url.pathname==='/me/kit',key=login+':'+kit;let f=contexts.get(key);
    if(!f){f=await context(browser,base,fixtures,sessions,{id:'link-crawl',login,kit});contexts.set(key,f);}
    if(result.kind==='document'){
-    const response=await f.c.request.get(result.url.href);assert.equal(response.status(),200,link.href+' document');
+    const response=await fetchDocument(f.c.request,result.url.href,base);
     assert.equal(new URL(response.url()).origin,new URL(base).origin,'Internal download never escapes the fixture');
    }else{
     if(f.p.url().startsWith(base))await f.p.evaluate(url=>go(url),link.href);else await f.p.goto(new URL(link.href,base).href);
     await ready(f.p);await settle(f.p);
     const actual=new URL(f.p.url());assert.equal(actual.pathname.replace(/\/+$/,'')||'/me',result.canonical,`${link.source}: unexpected redirect for ${link.href}`);
     assert(await f.p.evaluate(()=>App.pages.some(page=>page.re.test(location.pathname.replace(/\/+$/,'')||'/me'))),'No unknown-route fallback');
-    const titles=await f.p.locator('#page h1,.profile-page-title,.sheet h2').allTextContents();
+    const titles=await visibleTitles(f.p);
     assert(titles.some(title=>title.trim()),'Destination has a visible page title: '+link.href);
     if(result.heading)assert(titles.some(title=>title.toLowerCase().includes(result.heading.toLowerCase())),`${link.href}: expected ${result.heading}, saw ${titles.join(' / ')}`);
     assert(!/^(?:Not available|Not found)$/.test(await f.p.locator('#page h1').first().textContent().catch(()=>'')),'Missing record destination: '+link.href);

@@ -6,16 +6,19 @@ const views={
  '/food':{log:'Nutrition',overview:'Insights',trends:'Insights',energy:'Calories & weight',macros:'Protein & macros',weight:'Weight',needs:'Calorie needs',weeks:'Week by week',calendar:'Food calendar'},
  '/activity':{mine:'Your activities'},
 };
+const foodProgressViews=new Set(['overview','energy','macros','weight','needs','weeks','calendar']);
 const redirects={'/today':'/me','/me/connections':'/track/connections','/me/health':'/track/health','/me/import':'/track/import','/me/speed':'/me/settings','/me/milestones':'/me','/segments':'/progress/segments','/food/trends':'/food','/food/weight':'/progress/weight'};
 const headings={'/me':'Hi,','/activity':'Activity','/track':'Track','/progress':'Progress','/food':'Nutrition','/me/settings':'Settings','/me/friends':'Friends','/me/activities':'Your activities','/notifications':'Notifications','/me/notifications':'Notifications','/me/sharing':'Sharing & privacy','/me/gear':'Shoes & bikes','/me/goals':'Goals','/me/devices':'Signed-in devices','/me/people':'Admin tools','/track/connections':'Connections','/track/import':'Import','/track/health':'Apple Health','/food/meals':'My Recipes','/food/describe':'Add food','/food/setup':'Nutrition','/me/kit':'Ask Kit','/plan':'Training plan','/progress/weight':'Weight','/progress/routes':'Matched routes','/progress/segments':'Segments','/progress/calendar':'Calendar','/progress/trends':'Year over year','/progress/heatmap':'Heatmap','/me/challenges':'Challenges','/me/explore':'Explore Kinetta'};
-const externalHosts=new Set(['kinetta.app','www.openstreetmap.org','openstreetmap.org','leafletjs.com','github.com','support.apple.com','support.garmin.com','connect.garmin.com','www.garmin.com']);
+const externalHosts=new Set(['kinetta.app','apps.apple.com','www.openstreetmap.org','openstreetmap.org','leafletjs.com','github.com','support.apple.com','support.garmin.com','connect.garmin.com','www.garmin.com']);
 function intention(link,base,registry){
  const source=link.source||'link',label=(link.label||'').trim(),url=new URL(link.href,base),origin=new URL(base).origin;
  const fail=message=>assert.fail(`${source}: ${label||'(unlabelled)'} → ${link.href}: ${message}`);
+ if(url.username||url.password)return fail('credentials are not allowed in links');
  if(url.protocol==='blob:'&&url.origin===origin)return {kind:'local-document'};
  if(url.origin!==origin){
-  if(url.protocol==='mailto:'&&url.pathname==='support@kinetta.app')return {kind:'external'};
-  if(url.protocol==='https:'&&externalHosts.has(url.hostname))return {kind:'external'};
+  if(url.href==='kinetta://open')return {kind:'external'};
+  if(url.protocol==='mailto:'&&url.pathname==='feedback@kinetta.app'&&[...url.searchParams.keys()].every(key=>key==='subject')&&!/[\r\n]/.test(url.searchParams.get('subject')||''))return {kind:'external'};
+  if(url.protocol==='https:'&&!url.port&&externalHosts.has(url.hostname))return {kind:'external'};
   return fail('external destination needs an explicit allowlist entry');
  }
  const pathname=url.pathname.replace(/\/+$/,'')||'/me',q=url.searchParams;
@@ -23,13 +26,16 @@ function intention(link,base,registry){
  if(!registry.some(route=>new RegExp(route.source,route.flags).test(pathname)))return fail('unregistered route would render the unknown-route fallback');
  if(q.has('view')&&!Object.hasOwn(views[pathname]||{},q.get('view')))return fail('unsupported view='+q.get('view'));
  if(pathname==='/progress'&&q.has('section')&&q.get('section')!=='food')return fail('unsupported Progress section');
- if(q.has('foodview')&&!Object.hasOwn(views['/food'],q.get('foodview')))return fail('unsupported foodview='+q.get('foodview'));
+ if(q.has('foodview')&&(pathname!=='/progress'||q.get('section')!=='food'))return fail('foodview requires the Progress food section');
+ if(q.has('foodview')&&!foodProgressViews.has(q.get('foodview')))return fail('unsupported foodview='+q.get('foodview'));
+ if(pathname==='/progress'&&q.get('section')==='food'&&q.has('view'))return fail('Progress food section uses foodview, not view');
  if(pathname==='/me/kit'&&q.has('from')&&!['me','nutrition','activity','progress','plan','strength','track'].includes(q.get('from')))return fail('unsupported Kit context');
  if(pathname.startsWith('/people/')&&q.has('preview')&&!['friend','member'].includes(q.get('preview')))return fail('unsupported profile preview');
  if(/view progress/i.test(label)&&(pathname!=='/progress'||q.has('view')||q.has('section')))return fail('View progress must open Progress home');
  if(/view your shared profile|your profile$/i.test(label)&&!pathname.startsWith('/people/'))return fail('profile control must open a person’s profile');
  if(/^(?:view my|all your|your) activities/i.test(label)&&pathname!=='/me/activities')return fail('activity-history control must open your activity list');
  let canonical=redirects[pathname]||pathname;
+ if(pathname==='/progress'&&q.get('section')==='food')canonical=q.get('foodview')==='weight'?'/progress/weight':'/food';
  if(pathname==='/activity'&&q.get('view')==='mine')canonical='/me/activities';
  if(pathname==='/progress'&&q.has('view')){
   const view=q.get('view');
@@ -38,8 +44,21 @@ function intention(link,base,registry){
  }
  if(pathname==='/food'&&q.get('view')==='weight')canonical='/progress/weight';
  if(/^\/lift\/\d+$/.test(pathname))canonical=pathname.replace('/lift/','/track/lift/');
- const heading=q.has('view')?views[pathname][q.get('view')]:q.get('section')==='food'?views['/food'][q.get('foodview')||'overview']:headings[canonical];
+ const heading=q.has('view')?views[pathname][q.get('view')]:q.get('section')==='food'?views['/food'][q.get('foodview')||'overview']:pathname==='/food/trends'?'Insights':headings[canonical];
  return {kind:'page',url,canonical,heading};
+}
+async function fetchDocument(request,url,base){
+ const origin=new URL(base).origin;let target=new URL(url,base);
+ for(let hop=0;hop<=5;hop++){
+  assert.equal(target.origin,origin,'Internal document redirect must stay inside the fixture before requesting it');
+  assert(!target.username&&!target.password,'Document links cannot include credentials');
+  const response=await request.get(target.href,{maxRedirects:0});
+  if([301,302,303,307,308].includes(response.status())){
+   const location=response.headers().location;assert(location,'Document redirect needs a destination');target=new URL(location,target);continue;
+  }
+  assert.equal(response.status(),200,'Internal document must resolve');return response;
+ }
+ assert.fail('Too many internal document redirects');
 }
 function literalTargets(source){
  // Dynamic arguments are checked from rendered links and real go() calls recorded by the journeys.
@@ -57,4 +76,4 @@ function literalTargets(source){
  for(const match of clean.matchAll(/\bgo\(\s*(['"`])([^'"`\n]+)\1\s*(?=[,)])/g))if(!match[2].includes('${'))targets.push(match[2]);
  return targets;
 }
-module.exports={intention,literalTargets};
+module.exports={intention,literalTargets,fetchDocument};

@@ -1,6 +1,7 @@
 // Real tap destinations and two explicit fictional writes; native/GPS/Kit transports are stand-ins.
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const {createHash}=require('node:crypto');
 const {journeys}=require('./journey_scenes.cjs');
 const {boundary,context,fixtureSessions,ready,assertDestination,until}=require('./journey_browser.cjs');
 const base=process.env.KINETTA_URL,project=process.env.KINETTA_PROJECT;
@@ -14,15 +15,16 @@ async function recording(f,uncertain){
  await p.locator('.track-saved a[href^="/activity/"]').click();assert(Number.isSafeInteger(f.saved),'Save returned a real activity ID');
 }
 async function food(f){
- const p=f.p;await p.locator('#fq-add').click();await p.locator('#thread-text').fill('1 serving fictional journey rice');
+ const day=async()=>{const response=await f.c.request.get(base+'/api/food/day'+(f.foodDay?'?d='+f.foodDay:''));assert.equal(response.status(),200,'Read this fictional account through its browser cookie');return response.json();};
+ const p=f.p,initial=await day();assert.match(initial.day,/^\d{4}-\d{2}-\d{2}$/);f.foodDay=initial.day;
+ await p.locator('#fq-add').click();await p.locator('#thread-text').fill('1 serving fictional journey rice');
  await p.locator('#thread-send').click();await p.locator('#thread-review:visible').waitFor();
  assert.match(await p.locator('.compact-food').innerText(),/Fictional journey rice/i);
- const headers={Authorization:'Bearer '+f.auth.token},before=await(await f.c.request.get(base+'/api/food/day',{headers})).json();
- assert.equal(before.entries.length,0,'Draft did not log early');
+ const before=await day();assert.deepEqual(before.entries.map(row=>row.id),initial.entries.map(row=>row.id),'Draft did not log early');
  await p.locator('#thread-review').click();await p.locator('#review-confirm').click();
  await until(p,()=>!document.querySelector('#food-final-review'),'Explicit review confirmed');
- const after=await(await f.c.request.get(base+'/api/food/day',{headers})).json();
- assert.equal(after.entries.length,1);assert.equal(after.entries[0].kcal,130);
+ const after=await day(),added=after.entries.filter(row=>!initial.entries.some(old=>old.id===row.id));
+ assert.equal(after.entries.length,initial.entries.length+1);assert.equal(added.length,1);assert.equal(added[0].kcal,130);
  await p.locator('.thread-heading .back').click();await ready(p);assert.match(await p.locator('#fd-meals').innerText(),/Fictional journey rice/i);
 }
 async function feedBack(f){
@@ -50,30 +52,33 @@ async function feedBack(f){
    try{
     if(existing)await f.p.evaluate(url=>go(url,{replace:true}),test.start);else await f.p.goto(base+test.start);
     await ready(f.p);
+    if(test.startReady)await f.p.locator(test.startReady).waitFor({state:'attached'});
     if(test.action==='record'||test.action==='uncertainSave')await recording(f,test.action==='uncertainSave');
     else if(test.action==='food')await food(f);
     else if(test.action==='feedBack')await feedBack(f);
     else for(const selector of test.taps)await f.p.locator(selector).first().click();
-    await assertDestination(f.p,test.end,{saved:f.saved});
+    await assertDestination(f.p,test.end,{saved:f.saved,day:f.foodDay});
     if(test.back){
-     if(test.history)await f.p.goBack();else await f.p.locator('[data-back]:visible,.thread-heading > .back').first().click();
+     if(test.history)await f.p.goBack();else await f.p.locator('[data-back]:visible,.progress-back:visible,.thread-heading > .back').first().click();
      await assertDestination(f.p,test.back);
     }
     if(test.close)await f.p.locator('.scrim:not([inert]) .sheet header [data-close]').first().click();
     assert.deepEqual(f.errors,[],'No page exception');
     assert.deepEqual(f.httpErrors,[],'No unexpected API failure');
-    const targets=await f.p.evaluate(()=>window.journeyGoTargets||[]);results.push({id:test.id,passed:true,end:test.end.url,go:targets});
+    const targets=await f.p.evaluate(()=>window.journeyGoTargets||[]);results.push({id:test.id,passed:true,end:test.end.url,go:targets,writes:[...f.writes]});
     console.log('Journey '+test.id+': URL, title and key element PASS');
     if(process.env.KINETTA_JOURNEY_SHOTS&&['me-profile','track-save-detail','nutrition-log','notification-activity_ready'].includes(test.id)){
      fs.mkdirSync(process.env.KINETTA_JOURNEY_SHOTS,{recursive:true});await f.p.screenshot({path:path.join(process.env.KINETTA_JOURNEY_SHOTS,test.id+'.png')});
     }
    }catch(error){
     if(process.env.KINETTA_JOURNEY_SHOTS){fs.mkdirSync(process.env.KINETTA_JOURNEY_SHOTS,{recursive:true});await f.p.screenshot({path:path.join(process.env.KINETTA_JOURNEY_SHOTS,test.id+'-failed.png')}).catch(()=>{});}
-    throw Error(test.id+': '+error.message,{cause:error});
+    results.push({id:test.id,passed:false,error:error.message,url:f.p.url(),go:await f.p.evaluate(()=>window.journeyGoTargets||[]).catch(()=>[])});
+    console.error('Journey '+test.id+': FAIL '+error.message);contexts.delete(key);await f.c.close();
    }
   }
  }finally{for(const f of contexts.values())await f.c.close();await browser.close();}
- const result={fictional:true,cases:results,elapsed_seconds:(Date.now()-started)/1000,standins:['Native recorder and GPS','Kit availability/conversation','Backend-generated notification list']};
+ const result={fictional:true,mode:process.env.KINETTA_JOURNEY_CASE?'PARTIAL selection':'complete',fixture_sha256:createHash('sha256').update(fs.readFileSync(fixturesFile)).digest('hex'),cases:results,elapsed_seconds:(Date.now()-started)/1000,standins:['Native recorder and GPS','Kit availability/conversation','Backend-generated notification list']};
  const output=process.env.KINETTA_JOURNEY_REPORT||'/tmp/'+project+'-journeys-report.json';fs.writeFileSync(output,JSON.stringify(result,null,2));
- console.log(`Journeys: ${results.length} passed in ${result.elapsed_seconds.toFixed(1)} seconds`);
+ const failures=results.filter(row=>!row.passed);console.log(`Journeys: ${results.length-failures.length}/${results.length} passed in ${result.elapsed_seconds.toFixed(1)} seconds`);
+ assert.equal(failures.length,0,failures.map(row=>row.id+': '+row.error).join('\n'));
 })().catch(error=>{console.error(error);process.exitCode=1;});

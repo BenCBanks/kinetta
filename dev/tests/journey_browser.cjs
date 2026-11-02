@@ -54,17 +54,18 @@ async function context(browser,base,fixtures,sessions,test,theme='light'){
   }
   return route.continue();
  });
- const p=await c.newPage();p.on('pageerror',error=>errors.push(error.message));
+ const p=await c.newPage();p.setDefaultTimeout(8000);p.on('pageerror',error=>errors.push(error.message));
  p.on('response',response=>{const u=new URL(response.url());if(u.pathname.startsWith('/api/')&&response.status()>=400&&!(current.action==='uncertainSave'&&u.pathname==='/api/activities/track'&&response.status()===503))httpErrors.push({path:u.pathname,status:response.status()});});
- return {c,p,auth,errors,httpErrors,writes,get saved(){return saved;},test(value){current=value;}};
+ return {c,p,auth,errors,httpErrors,writes,get saved(){return saved;},test(value){current=value;errors.length=0;httpErrors.length=0;writes.length=0;}};
 }
 async function ready(p){await until(p,()=>typeof App!=='undefined'&&App.pageReady&&!document.querySelector('#page[data-home-loading]'),'Journey page ready');}
+async function visibleTitles(p,selector='#page h1,.profile-page-title,.me-card-editor h2,.scrim:not([inert]) .sheet h2'){return p.locator(selector).filter({visible:true}).allTextContents();}
 async function assertDestination(p,expected,values={}){
- const url=expected.url.replace('{saved}',String(values.saved));
+ const url=expected.url.replace('{saved}',String(values.saved)).replace('{day}',String(values.day));
  await p.waitForURL(actual=>actual.pathname+actual.search===url);await ready(p);
  await p.locator(expected.ready).first().waitFor({state:'visible'});
- const titles=expected.titleValue?[await p.locator(expected.titleSelector).inputValue()]:await p.locator(expected.titleSelector||'#page h1,.profile-page-title,.me-card-editor h2,.scrim:not([inert]) .sheet h2').allTextContents();
+ const titles=expected.titleValue?[await p.locator(expected.titleSelector).filter({visible:true}).inputValue()]:await visibleTitles(p,expected.titleSelector);
  assert(titles.some(title=>title.toLowerCase().includes(expected.title.toLowerCase())),`Expected title ${expected.title} at ${url}; saw ${titles.join(' / ')}`);
  assert(await p.evaluate(()=>App.pages.some(page=>page.re.test(location.pathname))),'Destination must be registered, never the unknown-route fallback');
 }
-module.exports={boundary,context,fixtureSessions,ready,assertDestination,until,settle};
+module.exports={boundary,context,fixtureSessions,ready,assertDestination,visibleTitles,until,settle};
