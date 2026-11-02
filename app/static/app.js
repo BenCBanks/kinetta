@@ -1229,7 +1229,7 @@ function showLogin(msg = '') {
   globalThis.CommunityTerms?.reset();
   App.mediaMapBack?.(); App.closeActivityShare?.(); Native.stopActivityShare?.().catch(() => {});
   root.innerHTML = `<div class="login"><form novalidate>
-    <div>${BRAND}<p>Your runs, rides, walks and food, private to you.</p></div>
+    <div>${BRAND}<p>Your workouts and food in one app. Choose who sees your activities; your food log stays private.</p></div>
     ${Native.on ? `<label${(Native.base || Native.server) === Native.server ? ' hidden' : ''} id="l-server">Server<input name="server" type="url" inputmode="url" autocomplete="url" autocapitalize="none" spellcheck="false" enterkeyhint="next" value="${esc(Native.base || Native.server)}"></label>` : ''}
     <label>Email or username<input name="login" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" enterkeyhint="next" required></label>
     <label>Password<input name="password" type="password" autocomplete="current-password" enterkeyhint="go" required></label>
@@ -1263,7 +1263,7 @@ function showLogin(msg = '') {
 }
 // A fallback credential grants only this short-lived change step, never an app session.
 function showTemporaryPassword(token) {
-  root.innerHTML=`<div class="login"><form><div>${BRAND}<h1>Choose your own password</h1><p>Your temporary password cannot open Kinetta. Choose a different password to finish recovery. This step expires after ten minutes.</p></div><label>New password<input name="password" type="password" autocomplete="new-password" minlength="10" maxlength="200" required></label><label>Repeat new password<input name="confirm" type="password" autocomplete="new-password" minlength="10" maxlength="200" required></label><p class="err" role="alert"></p><button type="submit" class="primary">Save new password</button><button type="button" class="linkbtn" id="temp-cancel">Back to sign in</button></form></div>`;
+  root.innerHTML=`<div class="login"><form><div>${BRAND}<h1>Choose your own password</h1><p>Your temporary password cannot open Kinetta. Choose a different password to finish recovery. This step expires after ten minutes.</p></div><label>New password<input name="password" type="password" autocomplete="new-password" minlength="10" maxlength="200" required></label><p class="small muted">At least 10 characters. A short sentence works well.</p><label>Repeat new password<input name="confirm" type="password" autocomplete="new-password" minlength="10" maxlength="200" required></label><p class="err" role="alert"></p><button type="submit" class="primary">Save new password</button><button type="button" class="linkbtn" id="temp-cancel">Back to sign in</button></form></div>`;
   const f=$('form',root);$('#temp-cancel',f).onclick=()=>showLogin();f.elements.password.focus();
   f.onsubmit=async e=>{e.preventDefault();const b=$('button[type=submit]',f),err=$('.err',f);if(b.disabled)return;if(f.elements.password.value!==f.elements.confirm.value){err.textContent='The passwords do not match.';return;}b.disabled=true;err.textContent='';
     try {await api('/api/password/temporary',json('POST',{change_token:token,password:f.elements.password.value,password_confirm:f.elements.confirm.value}));if(f.isConnected)showLogin('Password changed. Sign in with your new password.');}
@@ -1294,11 +1294,11 @@ function rememberJoinPath() {
   if (/^\/join\/[A-Za-z0-9_-]{1,100}$/.test(location.pathname)) store.set('kinetta.joinReturn',location.pathname);
 }
 function enrollmentEmailError(input, message) {
-  const label=input.closest('label'); let note=label.nextElementSibling;
+  const label=input.closest('label'),hint=input.form.querySelector('#enrollment-email-help');if(hint)hint.hidden=true;let note=label.nextElementSibling;
   if (!note?.classList.contains('field-err')) { note=document.createElement('p');note.className='field-err';label.after(note); }
   note.id='enrollment-email-exists';note.setAttribute('role','status');note.setAttribute('aria-live','polite');
   input.setAttribute('aria-describedby',[...(input.getAttribute('aria-describedby')||'').split(/\s+/).filter(x=>x&&x!==note.id),note.id].join(' '));
-  input.addEventListener('input',()=>{note.remove();input.removeAttribute('aria-invalid');const ids=(input.getAttribute('aria-describedby')||'').split(/\s+/).filter(x=>x&&x!==note.id);if(ids.length)input.setAttribute('aria-describedby',ids.join(' '));else input.removeAttribute('aria-describedby');},{once:true});
+  input.addEventListener('input',()=>{note.remove();if(hint)hint.hidden=false;input.removeAttribute('aria-invalid');const ids=(input.getAttribute('aria-describedby')||'').split(/\s+/).filter(x=>x&&x!==note.id);if(ids.length)input.setAttribute('aria-describedby',ids.join(' '));else input.removeAttribute('aria-describedby');},{once:true});
   note.innerHTML=esc(message)+'.<span class="enrollment-email-links"><a href="/" data-email-login>Log in</a><a href="/forgot-password" data-email-reset>Reset password</a></span>';
   const email=input.value.trim();
   $('[data-email-login]',note).onclick=e=>{e.preventDefault();rememberJoinPath();history.replaceState(null,'',pendingJoinPath()||'/');showLogin();$('input[name=login]',root).value=email;};
@@ -1311,7 +1311,7 @@ function showNewAccount({title, intro, button, send, signup = false, ageConfirm 
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<h1>${esc(title)}</h1><p>${intro}</p></div>
     <label>Your name<input name="name" autocomplete="name" maxlength="60" enterkeyhint="next" required></label>
-    ${email ? `<label>Email<input name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="120" enterkeyhint="next" required></label><p class="small muted">You'll log in with it. We'll send a link to confirm it; it's never shown to other people.</p>` : ''}
+    ${email ? `<label>Email<input name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="120" enterkeyhint="next" required></label><p class="small muted" id="enrollment-email-help">You'll log in with it. We'll send a link to confirm it; it's never shown to other people.</p>` : ''}
     ${pick ? `<label>Username<input name="login" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30" enterkeyhint="next" required></label>
     <p class="small muted">What you'll type to log in: lowercase letters, numbers or _.</p>` : ''}
     <label>Password<input name="password" type="password" autocomplete="new-password" minlength="10" enterkeyhint="go" required></label>
@@ -1383,7 +1383,7 @@ async function showGetApp() {
   root.innerHTML = `<div class="login get-app"><div class="form">${BRAND}<h1>You’re in${first ? ', ' + esc(first) : ''}!</h1>
     <p>Kinetta is in beta on iPhone. The app records runs, rides and walks with GPS and brings in your Apple Health workouts.</p>
     <ol class="get-app-steps"><li><b>Install TestFlight</b>, Apple’s free app for beta apps.<br><a href="https://apps.apple.com/app/testflight/id899247664" target="_blank" rel="noopener">Get TestFlight from the App Store</a></li>
-      <li><b>Get Kinetta</b> through TestFlight.${link ? '' : '<br><small class="muted">Ask the person who runs this Kinetta for the TestFlight link.</small>'}</li>
+      <li><b>Get Kinetta</b> through TestFlight.${link ? '' : `<br><small class="muted"><a href="mailto:${SUPPORT_EMAIL}?subject=Kinetta%20TestFlight%20link">Contact Kinetta support for the TestFlight link</a>.</small>`}</li>
       <li><b>Open Kinetta and log in</b> with ${esc(who)} and your password.</li></ol>
     ${link ? `<a class="primary wide" href="${esc(link)}" target="_blank" rel="noopener">Get the Kinetta iPhone app</a>` : ''}
     ${me?.needs_email_confirm ? `<p class="small muted">We also sent a link to ${esc(who)}. Open it to confirm your email.</p>` : ''}
