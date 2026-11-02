@@ -195,7 +195,9 @@ for label in sorted({x[0] for x in records}):
 query = """SELECT coalesce(json_agg(t),'[]') FROM (SELECT queryid::text,query,calls,total_exec_time,mean_exec_time,
            max_exec_time,rows,shared_blks_hit,shared_blks_read FROM pg_stat_statements
            WHERE dbid=(SELECT oid FROM pg_database WHERE datname='fit') ORDER BY total_exec_time DESC LIMIT 15) t"""
+http = [row for row in records if row[0] in routes]
 report = {'fictional': True, 'users': args.users, 'requested_seconds': args.seconds, 'elapsed_seconds': time.monotonic()-started,
+          'http_requests': len(http), 'http_non_success': sum(not 200 <= row[1] < 300 for row in http),
           'think_seconds': args.think, 'source_sha': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip(),
           'provider_standins': {'model_seconds': .2, 'catalog_seconds': .05, 'paid_calls': 0},
           'limits': ['Closed-loop users with think time, not an open-loop saturation test',
@@ -204,4 +206,4 @@ report = {'fictional': True, 'users': args.users, 'requested_seconds': args.seco
           'endpoints': summary, 'transport_errors': transport_errors,
           'queries': json.loads(sql(args.project, query)), 'resources': resources, 'errors': failures}
 (args.output/'report.json').write_text(json.dumps(report, indent=2))
-print(json.dumps({'users': args.users, 'calls': len(records), 'endpoints': summary, 'errors': failures}, indent=2))
+print(json.dumps({'users': args.users, 'http_requests': len(http), 'endpoints': summary, 'errors': failures}, indent=2))
