@@ -38,6 +38,11 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    await p.locator('.thread-heading h1').click();assert.equal(await p.locator('#thread-text').inputValue(),draft);assert.equal(await p.locator('#thread-text').evaluate(n=>document.activeElement===n),false,'background dismisses focus');
    if(native)await p.evaluate(()=>{dispatchEvent(new Event('keyboardWillHide'));dispatchEvent(new Event('keyboardDidHide'));});
    await p.locator('#thread-plus').click();await p.waitForSelector('.thread-tools-sheet');for(const text of ['Camera','Barcode','Recipes','Search'])assert(await p.locator('.thread-tools-sheet button',{hasText:text}).first().isVisible());await p.keyboard.press('Escape');assert.equal(await p.locator('#thread-text').inputValue(),draft);
+   if(who==='photo'){
+    await p.evaluate(()=>amountSheet({name:'Fictional unknown macros',source:'custom',serving:{label:'1 serving'},per_serving:{kcal:107,protein_g:null,carbs_g:null,fat_g:null}},{day:isoDay(new Date()),meal:'dinner'},()=>{}));await p.waitForSelector('#am');
+    const sheet=await p.locator('.scrim:not(.is-closing) .sheet').boundingBox();assert(sheet.x>=0&&sheet.x+sheet.width<=size.width+1,'unknown macro preview cannot push the sheet or destination outside the viewport');
+    assert.equal(await p.locator('#am .nutrient-unknown').count(),3);assert.match(await p.locator('#am .portion-context').innerText(),/Dinner/);await p.keyboard.press('Escape');
+   }
    assert.deepEqual(errors,[]);assert(!writes.some(x=>x!=='/api/challenges/signup/continue'),'read-only layout');console.log(`Food entry ${name}: rows, total, shortcuts, draft/keyboard and controls PASS`);await c.close();contexts.splice(contexts.indexOf(c),1);
   }
   if(!process.env.KINETTA_FOOD_CASE||process.env.KINETTA_FOOD_CASE==='actions'){

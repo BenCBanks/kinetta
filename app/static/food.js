@@ -776,7 +776,7 @@ function amountSheet(f, w, closeParent, onEditFood) {
     guardFoodSheet(b,close,owner);
     const fm = $('#am', b);
     const calc = () => { const a = parseFloat(fm.amount.value) || 0; const v = f.per100 || f.per_serving ? scaleFood(f, a, fm.unit.value) : Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,null]));
-      $('#am-p', b).innerHTML = `<div><b class="num">${r0(v.kcal)}</b><small>kcal</small></div>${MACROS.map(([k, , s]) => `<div><b class="num">${v[k]==null?'Unknown':r1(v[k])}</b><small>${s === 'P' ? 'protein' : s === 'C' ? 'carbs' : 'fat'} g</small></div>`).join('')}${extraFood(v)}`; return v; };
+      $('#am-p', b).innerHTML = `<div><b class="num">${r0(v.kcal)}</b><small>kcal</small></div>${MACROS.map(([k, , s]) => `<div><b class="num${v[k]==null?' nutrient-unknown':''}">${v[k]==null?'Unknown':r1(v[k])}</b><small>${s === 'P' ? 'protein' : s === 'C' ? 'carbs' : 'fat'} g</small></div>`).join('')}${extraFood(v)}`; return v; };
     fm.amount.oninput = calc; calc();
     $$('[data-step]', fm).forEach((x) => x.onclick = () => {      // ½ a serving at a time, or 10 g
       const st = fm.unit.value === 'g' ? 10 : 0.5, a = (parseFloat(fm.amount.value) || 0) + st * +x.dataset.step;
