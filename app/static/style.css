@@ -1372,11 +1372,13 @@ html.keyboard-open nav.tabs { display: none; }
 /* your own profile, editable in place (social.js wireProfileEditing) */
 #kit-settings-panel > .seg {margin:8px 0 16px;grid-template-columns:repeat(2,minmax(0,1fr));}
 #kit-settings-panel > .seg button {min-height:44px;font-size:max(15px,.9375rem);}
-.profile-share-preview {position:relative;height:200px;overflow:hidden;}
+.profile-share-preview {position:relative;height:240px;overflow:hidden;border:1px solid var(--line);border-radius:var(--r3);background:var(--card);}
+.profile-share-preview::after {content:'';position:absolute;inset:auto 0 0;height:24px;background:linear-gradient(transparent,var(--card));pointer-events:none;}
 .profile-share-preview[hidden] {display:none;}
-.profile-share-art {position:absolute;top:0;left:50%;width:358px;transform:translateX(-50%) scale(var(--preview-scale,.45));transform-origin:top center;pointer-events:none;}
-.profile-share-art .me-card {margin:0;}
-.profile-share-caption {margin:8px 0 16px;text-align:center;}
+.profile-share-art {position:absolute;top:0;left:0;width:111.111111%;transform:scale(.9);transform-origin:top left;pointer-events:none;}
+.profile-share-art .me-card {margin:0;border:0;border-radius:0;}
+.profile-share-caption {margin:0 0 8px;}
+.profile-share-actions {margin-top:16px;}
 #profile-share-status:empty {display:none;}
 .profile-share-actions {display:grid;grid-template-columns:1fr;gap:8px;}
 .profile-share-actions button {min-height:48px;font-size:max(15px,.9375rem);}
