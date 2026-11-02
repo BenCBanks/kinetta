@@ -22,7 +22,7 @@ class Milestones(unittest.TestCase):
    for uid in self.ids:erase(c,{'id':uid,'sql_role':None})
   for uid in self.ids:erase_files(uid)
  def activity(self,days=0,sport='run',distance=10000,uid=None,source='manual',device=None):
-  at=self.now-dt.timedelta(days=days,hours=2)
+  at=(self.now-dt.timedelta(hours=2)).astimezone(M.ZoneInfo('America/New_York'))-dt.timedelta(days=days)
   with db.connect() as c:return c.execute("INSERT INTO activities(user_id,sport,name,start_time,distance_m,moving_s,elapsed_s,source,device,visibility) VALUES(%s,%s,'PRIVATE WORKOUT TITLE',%s,%s,3600,3600,%s,%s,'me') RETURNING id",(uid or self.ids[0],sport,at,distance,source,device)).fetchone()['id']
  def process(self,uid=None):
   with patch('app.notify._push_later'):
