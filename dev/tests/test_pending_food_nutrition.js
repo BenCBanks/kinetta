@@ -43,3 +43,5 @@ portion=c.foodPortion({...cup,amount:100,unit:'g',ref:{serving:{label:'1 contain
 portion=c.foodPortion({...cup,amount:1,unit:'g',ref:{serving:{label:'1 bowl',g:500}}});portion.select('serving');assert.equal(portion.unit,'g');assert.equal(portion.format(),'1','tiny positive portion uses representable unit');
 
 portion=c.foodPortion({...cup,ref:{serving:{label:'1 glass',g:200}}});assert(portion.units.some(u=>u.key==='glass'),'singular unit ending in ss stays intact');
+
+html=c.preview.html({...cup,kcal:160},'Kit estimate','40 g');assert.match(html,/Chosen amount<small>40 g<\/small>/,'table heading follows the selected display unit');assert(!html.includes('Chosen amount<small>0.666'));

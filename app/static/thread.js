@@ -345,11 +345,11 @@ const FoodThread = (() => {
       <button type="button" class="linkbtn danger" id="pending-remove">Remove food</button></div>`,(b,close)=>{
       guardFoodSheet(b,close,ctx.session);
       const valid=()=>active(ctx)&&b.isConnected,form=$('#pending-amount-form',b),input=form.elements.amount;
-      const draw=e=>$('#pending-nutrition',b).innerHTML=FoodNutrition.html(e,source(e));draw(row.e);
+      const draw=e=>$('#pending-nutrition',b).innerHTML=FoodNutrition.html(e,source(e),`${portion.format()} ${portion.unit}`);draw(row.e);
       $('#pending-amount',b).onclick=()=>{form.prepend($('.portion-context',b));form.hidden=false;input.focus();input.select();};
       if(amount)$('#pending-amount',b).click();
       input.oninput=()=>{portion.input(input.value);if(portion.amount>0)draw(FoodNutrition.scale(row.e,portion.amount,!!row.part.drafts));};
-      form.elements.unit.onchange=()=>{portion.select(form.elements.unit.value);form.elements.unit.value=portion.unit;input.value=portion.format();};
+      form.elements.unit.onchange=()=>{portion.select(form.elements.unit.value);form.elements.unit.value=portion.unit;input.value=portion.format();if(portion.amount>0)draw(FoodNutrition.scale(row.e,portion.amount,!!row.part.drafts));};
       form.onsubmit=async ev=>{
         ev.preventDefault();if(!valid())return;const button=$('button',form);button.disabled=true;$('.err',form).textContent='';
         try{if(!(portion.amount>0))throw Error('Enter an amount');await changePending(ctx,m,key,row,{amount:portion.amount});if(!valid())return;portion.remember();row=pendingRow(ctx,m,key);if(!row){close();return;}portion=foodPortion(row.e);input.value=portion.format();form.elements.unit.innerHTML=portionOptions(portion);b.prepend($('.portion-context',form));form.hidden=true;draw(row.e);$('#pending-nutrition',b).focus({preventScroll:true});b.closest('.sheet').scrollTop=0;}
