@@ -8,7 +8,7 @@ const MACROS = [['protein_g', 'Protein', 'P'], ['carbs_g', 'Carbs', 'C'], ['fat_
 const r0 = (v) => (v == null ? '–' : Math.round(v).toLocaleString());
 const r1 = (v) => (v == null ? '–' : (Math.round(v * 10) / 10).toString());
 // a food's numbers in full, shown when you tap it (rows show calories only; 2026-10-12: "1P 50C 1F" meant nothing)
-const nutGrid = (v) => `<div class="nut"><span><b class="num">${r0(v.kcal)}</b><small>Calories</small></span>${MACROS.map(([k, n]) =>
+const nutGrid = (v, {calories=r0}={}) => `<div class="nut"><span><b class="num">${calories(v.kcal)}</b><small>Calories</small></span>${MACROS.map(([k, n]) =>
   `<span><b class="num${nutrientKnown(v,k)?'':' nutrient-unknown'}">${nutrientKnown(v,k)?r1(v[k])+' g':'Unknown'}</b><small>${n}</small></span>`).join('')}</div>`;
 const EXTRA_NUTRIENTS = [['sodium_mg','Sodium','mg','sodium_target_mg'],['sugar_g','Total sugar','g','sugar_target_g'],['saturated_fat_g','Saturated fat','g','saturated_fat_target_g']];
 const FOOD_NUTRIENTS = ['kcal','protein_g','carbs_g','fat_g','fiber_g',...EXTRA_NUTRIENTS.map(([k])=>k)];
@@ -32,6 +32,7 @@ function guessMeal() {   // the meal you usually log at this hour (learned from 
 
 // Displayed energy rounds to 5 kcal.
 const homeCalories = v => Math.round((v || 0) / 5) * 5;
+const recipeCalories = v => v==null?'Unknown':r0(homeCalories(v));
 function macroTotal(D,k,target){const missing=D.unknown_nutrients?.[k]||0;if(missing)return missing>=D.entries.length?'Unknown':`${r0(D.totals[k])} g known · incomplete`;return `${r0(D.totals[k])} g${target?' / '+r0(target)+' g':''}`;}
 function syncCheckinPrimary(page){
   if(!page)return;const log=$('#tf-add',page);
@@ -110,7 +111,7 @@ function todayFoodCard(box, {onHistory, onFoodUser} = {}) {
       ${g > 0 ? `<div class="gbar${left < 0 ? ' over' : ''}" role="progressbar" aria-label="Calories eaten" aria-valuemin="0" aria-valuemax="${g}" aria-valuenow="${Math.min(g,Math.max(0,T.kcal))}" aria-valuetext="${esc(progress)}"><div class="gfill" data-w="${fraction.toFixed(3)}"></div></div>` : ''}
       <div class="today-macros">${MACROS.map(([k,name])=>{const target=D.targets?.[k.replace('_g','_target')],unknown=D.unknown_nutrients?.[k]||0;
         const value=unknown>=D.entries.length?'Unknown':r0(T[k]||0)+(unknown?'+':'');
-        return `<div class="today-macro m-${k}"><small>${name}</small><b class="num">${value}${value==='Unknown'?'':'<i> g</i>'}</b>${target?`<span class="small muted">of ${r0(target)} g</span>`:''}</div>`;}).join('')}</div>
+        return `<div class="today-macro m-${k}"><small>${name}</small><b class="num">${value}${value==='Unknown'?'':'<i> g</i>'}</b>${target?`<span class="small muted">${unknown?'Target':'of'} ${r0(target)} g${unknown?' · incomplete':''}</span>`:''}</div>`;}).join('')}</div>
       ${D.entries.some(e => e.pending) ? '<p class="small muted" role="status">Some foods are waiting to send.</p>' : ''}</a>
       <button class="primary wide" id="tf-add">${svg('plus')} Log food</button></div>`;
     syncCheckinPrimary(box.closest?.('#page'));
@@ -212,7 +213,7 @@ async function foodDiscovery(el) {
       {id:'weight',title:'Weight',description:'Log a weigh-in →',icon:'scale',href:'/progress/weight?from=nutrition',teaser:change!=null?change===0?'Weight trend is steady':`${change<0?'−':'+'}${U.weight(Math.abs(change))} ${imp()?'lb':'kg'} trend`:f?.weight_kg!=null?`${U.weight(f.weight_kg)} ${imp()?'lb':'kg'} last logged`:null},
       {id:'goals',title:'Calorie & macro goals',description:'Set your daily targets →',icon:'target',href:'/food?goals=1'},
       {id:'needs',title:'Calorie needs',description:'Your daily needs →',icon:'target',href:'/food?view=needs'},
-      {id:'weeks',title:'Week by week',description:'Compare weeks →',icon:'calendar',href:'/food?view=weeks',teaser:f?.logged_days>0?`${f.logged_days} logged days`:null},
+      {id:'calendar',title:'Food calendar',description:'Review a logged day →',icon:'calendar',href:'/food?view=calendar',teaser:f?.logged_days>0?`${f.logged_days} logged days`:null},
       {id:'reminders',title:'Meal reminders',description:f?'Off · Set times →':'Choose times →',icon:'bell',href:'/me/notifications',teaser:f?.reminders_on?'On · Review times':null},
       ...(Native.on?[{id:'health',title:'Apple Health food',description:facts.health==='unavailable'?'Check Health →':facts.health===undefined?'Set up Health →':'Off · Set up →',icon:'heart',href:'/track/health',teaser:facts.health&&facts.health!=='unavailable'?facts.health:null}]:[{id:'import',title:'Add past days',description:'Bring in weight and calories →',icon:'upload',href:'/food/import'}])
     ];
@@ -521,10 +522,9 @@ function guardFoodSheet(body,close,owner){const guard=e=>{if(owner===readOwner()
 function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
   const owner=readOwner();
   // One suggestions list inside Add food; meal cards show only what was actually logged.
-  sheet('Add food', `<div class="where"><span class="muted">Adding to</span>
+  sheet('Choose food', `<div class="where"><span class="muted">Adding to</span>
       <span class="pill-sel"><select id="as-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
       <span class="pill-sel daypick">${svg('calendar')}<span id="as-dayl">${esc(dayLabel(day))}</span><input id="as-day" type="date" value="${esc(day)}" aria-label="Day"></span></div>
-    <div class="ways food-ways"><button class="way" id="as-photo">${svg('comment')}<span><b>Add food</b><small>Describe, snap, scan or build a recipe</small></span></button></div>
     <div class="seg wide" role="tablist">${[['usuals', 'Your usuals'], ['saved', 'My Recipes'], ['search', 'Search'], ['quick', 'Quick']]
     .map(([k, n], i) => `<button data-t="${k}" aria-pressed="${i === 0}">${n}</button>`).join('')}</div>
     <div id="as-body"></div>`, (b, close) => {
@@ -537,9 +537,6 @@ function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
     const tabs = {search: tSearch, usuals: tUsuals, saved: tSaved, quick: tQuick};
     const show = (k) => { $$('[data-t]', b).forEach((x) => x.setAttribute('aria-pressed', x.dataset.t === k)); tabs[k](body, where, close); };
     $$('[data-t]', b).forEach((x) => x.onclick = () => show(x.dataset.t));
-    const photo = $('#as-photo', b); if (photo) photo.onclick = () => {   // saved-meal lookup is local; model estimates separately require access and consent
-      const w=where();close();describeSheet(w.day,w.meal);
-    };
     show(tab);
     if (find) { const q = $('#as-body input[type=search]', b); if (q) { q.value = find; q.oninput(); } }
   });
@@ -641,33 +638,29 @@ async function tSaved(body, where, close, {manage=false}={}) {
     if(manage){drawRecipeLibrary(body,dishes,meals,foods,where,close,()=>{if(valid())return tSaved(body,where,close,{manage});});return;}
     const mine = dishes.filter((d) => d.mine !== false), theirs = dishes.filter((d) => d.mine === false);
     const row = (kind, i, name, sub, kcal, unit = 'kcal') => `<button class="fe" data-${kind}="${i}"><div><b>${esc(name)}</b><small class="muted">${esc(sub)}</small></div>
-      <div class="r"><b class="num">${r0(kcal)}</b><small class="muted">${unit}</small></div></button>`;
+      <div class="r"><b class="num">${kind==='dish'?recipeCalories(kcal):r0(kcal)}</b><small class="muted">${unit}</small></div></button>`;
     const dishRow = (d, i) => row('dish', i, d.name, d.mine === false ? `From ${d.owner.name.split(' ')[0]}` : d.items.length ? listOf(d.items.map((x) => x.name)) : 'Total typed in',
-      (d.serving === 'one' ? d.per_serving.kcal : d.totals.kcal), d.serving === 'one' ? 'kcal a serving' : 'kcal total');
-    body.innerHTML = `<p class="small muted">${manage?'Open a recipe to edit it, or choose Log portion.':'Choose a recipe to log a portion. Edit changes the saved recipe.'}</p><div class="btncol recipe-library-actions"><button class="${manage?'primary':'ghost'} wide" id="tm-dish">Create recipe</button><button class="ghost wide" id="tm-link">Recipe from a link</button></div>
+      (d.serving === 'one' ? d.per_serving.kcal : d.totals.kcal), d.totals.kcal==null?(d.mine===false?'Calories unavailable':'Add nutrition'):d.serving === 'one' ? 'kcal a serving' : 'kcal total');
+    body.innerHTML = `<p class="small muted">${manage?'Open a recipe to edit it, or choose Log portion.':'Choose a recipe to log a portion. Edit changes the saved recipe.'}</p>
       ${mine.length ? `<h3 class="ghead">Your recipes</h3><div class="results">${mine.map((d) => `<div class="meal-library-row">${dishRow(d, dishes.indexOf(d))}<button type="button" class="ghost sm" data-edit-meal="${d.id}" aria-label="${manage?'Log a portion of':'Edit'} ${esc(d.name)}">${manage?'Log portion':svg('edit')+' Edit'}</button></div>`).join('')}</div>` : '<p class="small muted">Create your first recipe, with or without Kit.</p>'}
       ${theirs.length ? `<h3 class="ghead">Shared with you</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
       ${meals.length ? `<h3 class="ghead">Saved combinations</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
       <h3 class="ghead ghead-act">My foods<button class="linkbtn" id="tm-food">New food</button></h3><p class="small muted">Tap a food to log it, or choose Edit to change its saved nutrition.</p><div class="results">${foods.map((f,i) => `<div class="meal-library-row">${foodRow(f,i)}<button class="ghost sm" data-edit-food="${i}">Edit</button></div>`).join('')}</div>
-      <div class="btncol"><button class="ghost wide" id="tm-describe">Describe what you ate</button></div>
 `;
     const again = () => {if(valid())return tSaved(body, where, close, {manage});};
-    $('#tm-describe', body).onclick = () => { const w = where(); close(); describeSheet(w.day, w.meal); };
     $$('[data-edit-food]', body).forEach(x => x.onclick = () => foodEditor(foods[+x.dataset.editFood], again));
     $('#tm-food', body).onclick = () => foodEditor(null, again);
-    $('#tm-link', body).onclick = () => { close(); go('/food/recipe-link'); };
-    $('#tm-dish', body).onclick = (e) => { close(); newDish(e.currentTarget); };
     $$('[data-edit-meal]', body).forEach((b) => b.onclick = () => { const dish=dishes.find(d=>String(d.id)===b.dataset.editMeal);if(manage)dishLogSheet(dish,where(),()=>{});else{close();go('/food/cook/'+b.dataset.editMeal);} });
     $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close, () => foodEditor(foods[+x.dataset.i], again)));
-    $$('[data-dish]', body).forEach((x) => x.onclick = () => { const dish=dishes[+x.dataset.dish];if(manage)go('/food/cook/'+dish.id);else dishLogSheet(dish,where(),()=>close()); });
+    $$('[data-dish]', body).forEach((x) => x.onclick = () => { const dish=dishes[+x.dataset.dish];if(manage)go('/food/cook/'+dish.id);else if(dish.totals.kcal==null&&dish.mine!==false)knownSheet(dish,()=>{invalidate('/api/dishes');again();});else dishLogSheet(dish,where(),()=>close()); });
     $$('[data-meal]', body).forEach((x) => x.onclick = () => savedSheet(meals[+x.dataset.meal], where(), close, again));
   } catch (x) { if(valid()){body.innerHTML = `<p class="err">${esc(x.message)}</p><button type="button" class="ghost wide" id="tm-retry">Try again</button>`;$('#tm-retry',body).onclick=()=>tSaved(body,where,close,{manage});} }
 }
 // The managed library stays separate from Add food's existing portion picker.
 function drawRecipeLibrary(body,dishes,meals,foods,where,close,again){
   const preview=items=>items.slice(0,3).map(x=>x.name).join(', ')+(items.length>3?` +${items.length-3}`:'');
-  const dishRow=(d,i)=>{const per=d.serving==='one'||Number(d.serving_count)>1,value=(per?d.per_serving:d.totals)?.kcal;
-    return `<div class="library-row" data-library-name="${esc(d.name.toLowerCase())}"><button type="button" class="library-recipe" data-dish="${i}" title="${esc(d.name)}"><b>${esc(d.name)}</b><small>${esc(d.mine===false?`From ${d.owner.name.split(' ')[0]}`:d.items.length?preview(d.items):'Entered nutrition')}</small><span class="num">${value==null?'Calories unknown':r0(value)+' kcal'}${value==null?'':per?' / serving':' total'}</span></button><button type="button" class="icon-btn" data-log-dish="${i}" aria-label="Log a portion of ${esc(d.name)}">${svg('plus')}</button></div>`;};
+  const dishRow=(d,i)=>{const per=d.serving==='one'||(d.mine===false&&!d.weight_g),value=(per?d.per_serving:d.totals)?.kcal;
+    return `<div class="library-row" data-library-name="${esc(d.name.toLowerCase())}"><button type="button" class="library-recipe" data-dish="${i}" title="${esc(d.name)}"><b>${esc(d.name)}</b><small>${esc(d.mine===false?`From ${d.owner.name.split(' ')[0]}`:d.items.length?preview(d.items):'Entered nutrition')}</small><span class="num">${value==null?'Calories unknown':recipeCalories(value)+' kcal'}${value==null?'':per?' / serving':' total'}</span></button><button type="button" class="${d.totals.kcal==null&&d.mine!==false?'ghost sm library-add-nutrition':'icon-btn'}" data-log-dish="${i}" aria-label="${d.totals.kcal==null&&d.mine!==false?'Add nutrition for':'Log a portion of'} ${esc(d.name)}">${d.totals.kcal==null&&d.mine!==false?'Add nutrition':svg('plus')}</button></div>`;};
   const mine=dishes.filter(d=>d.mine!==false),theirs=dishes.filter(d=>d.mine===false),many=dishes.length+meals.length+foods.length>10;
   body.innerHTML=`
     ${many?`<label class="library-search"><span class="library-search-label">Search recipes and foods</span><input id="tm-filter" type="search" placeholder="Search recipes and foods" autocomplete="off"></label>${foods.length&&(dishes.length||meals.length)?`<div class="library-jumps"><button type="button" class="linkbtn" data-library-jump="recipes">Recipes ${dishes.length}</button><button type="button" class="linkbtn" data-library-jump="foods">Foods ${foods.length}</button></div>`:''}`:''}
@@ -683,7 +676,7 @@ function drawRecipeLibrary(body,dishes,meals,foods,where,close,again){
     $('#tm-dish',b).onclick=e=>{const button=e.currentTarget;end();newDish(button);};$('#tm-link',b).onclick=()=>{end();go('/food/recipe-link');};$('#tm-food',b).onclick=()=>{end();return foodEditor(null,again);};
   });
   $$('[data-dish]',body).forEach(b=>b.onclick=()=>go('/food/cook/'+dishes[+b.dataset.dish].id));
-  $$('[data-log-dish]',body).forEach(b=>b.onclick=()=>dishLogSheet(dishes[+b.dataset.logDish],where(),()=>{}));
+  $$('[data-log-dish]',body).forEach(b=>b.onclick=()=>{const d=dishes[+b.dataset.logDish];if(d.totals.kcal==null&&d.mine!==false)knownSheet(d,()=>{invalidate('/api/dishes');again();});else dishLogSheet(d,where(),()=>{});});
   $$('[data-edit-food]',body).forEach(b=>b.onclick=()=>foodEditor(foods[+b.dataset.editFood],again));
   $$('[data-i]',body).forEach(b=>b.onclick=()=>amountSheet(foods[+b.dataset.i],where(),close,()=>foodEditor(foods[+b.dataset.i],again)));
   $$('[data-meal]',body).forEach(b=>b.onclick=()=>savedSheet(meals[+b.dataset.meal],where(),close,again));
@@ -965,7 +958,22 @@ function weightHistory(box) {
       <div class="card"><h2>Weigh-ins</h2>${[...pts].reverse().slice(0, 60).map((p) => `<div class="row weight-history-row"><span>${esc(new Date(p.day + 'T12:00').toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'}))}<small class="weight-source muted">${esc(p.source_label||'Manual')}</small></span>
         <span class="num">${wt(p.kg)} <small class="muted">trend ${U.weight(p.trend)}</small> <button class="linkbtn danger" data-del="${p.day}" aria-label="Delete weigh-in">×</button></span></div>`).join('')}</div>`
       : '<div class="card empty"><b>No weigh-ins yet</b>Log one above. Kinetta smooths out the daily ups and downs into a trend.</div>';
-    $$('[data-del]', box).forEach((b) => b.onclick = async () => { if(!valid())return;try { await api(`/api/food/weights/${b.dataset.del}`, {method: 'DELETE'});if(account===readOwner())await weightChanged(account,box); } catch (x) { if(valid())toast(x.message); } });
+    $$('[data-del]', box).forEach(b=>b.onclick=async()=>{
+      if(!valid()||b.disabled)return;b.disabled=true;
+      try{
+        const deleted=await api(`/api/food/weights/${b.dataset.del}`,{method:'DELETE'});
+        if(account!==readOwner())return;
+        await weightHistoryChanged(account,box);if(account!==readOwner())return;
+        let used=false,busy=false,until=Date.now()+6000;
+        const undo=async()=>{
+          if(used||busy||account!==readOwner()||Date.now()>until)return;busy=true;
+          try{const result=await api('/api/food/weights/undo',json('POST',{id:deleted.undo_id,confirmed:true}));used=true;
+            if(account!==readOwner())return;await weightHistoryChanged(account,box);if(account===readOwner())toast(result.replayed?'Undo already applied · current weight kept':'Weigh-in restored');
+          }catch(x){busy=false;if(account!==readOwner())return;const retry=x.status!==404&&x.status!==409;if(retry)until=Date.now()+6000;toast(x.message,retry?undo:undefined);}
+        };
+        toast('Weigh-in deleted',deleted.undo_id?undo:undefined);
+      }catch(x){if(valid()){b.disabled=false;toast(x.message);}}
+    });
     if (pts.length) requestAnimationFrame(() => {
       if(!valid())return;
       const xs = pts.map((p) => new Date(p.day + 'T12:00') / 864e5);
@@ -995,7 +1003,7 @@ route(/^\/food\/import$/, 'food', async (el) => {
       <div id="hi-prev"></div></div>
     <div class="card"><h2>Enter day by day</h2>
       <p class="small muted">Type what you have for each day; leave the rest blank. Burned fills itself in from Eaten + Deficit. Clearing a box and saving removes that imported number.</p>
-      <div class="gridbar"><label>From<input type="date" id="hg-start" max="${today}"></label><label class="gtog"><input type="checkbox" id="hg-mac"> Show macros</label></div>
+      <div class="gridbar"><label>From<input type="date" id="hg-start" max="${today}"></label><label class="gtog"><input type="checkbox" id="hg-mac"> Show macros <span aria-hidden="true">↔</span></label></div>
       <div id="hg"></div></div>
     <div id="hi-sum"></div>`;
   wireBack(el, '/food?view=overview');
@@ -1041,7 +1049,7 @@ route(/^\/food\/import$/, 'food', async (el) => {
     gbox.innerHTML = skel(1);
     try { orig = await api(`/api/food/history/days?start=${start}&end=${end}`); } catch (x) { gbox.innerHTML = `<p class="err">${esc(x.message)}</p>`; return; }
     const m = mac.checked;
-    gbox.innerHTML = `<div class="hgrid${m ? ' macros' : ''}"><div class="hrow hhead"><span>Day</span><span>Weight ${wu}</span><span>Eaten</span><span>Burned</span><span>Deficit</span>${m ? '<span>P g</span><span>C g</span><span>F g</span>' : ''}</div>
+    gbox.innerHTML = `${m?'<p class="small muted">Scroll sideways for all macros. Dates stay visible.</p>':''}<div class="hgrid${m ? ' macros' : ''}" tabindex="0" role="region" aria-label="Food and weight history; scroll sideways for more columns"><div class="hrow hhead"><span>Day</span><span>Weight ${wu}</span><span>Eaten kcal</span><span>Burned kcal</span><span>Deficit kcal</span>${m ? '<span>P g</span><span>C g</span><span>F g</span>' : ''}</div>
       ${orig.map((r, i) => `<div class="hrow" data-i="${i}"><span class="hday"><small>${esc(new Date(r.day + 'T12:00').toLocaleDateString([], {weekday: 'short'}))}</small>${esc(new Date(r.day + 'T12:00').toLocaleDateString([], {month: 'numeric', day: 'numeric'}))}</span>
         ${cell('w', r.weight_kg == null ? null : wshow(r.weight_kg))}
         ${r.eaten_in_app != null ? cell('e', r.eaten_in_app, '', true) : cell('e', r.eaten)}
@@ -1125,19 +1133,19 @@ function energyCard(box) {
   });
 }
 function weeksCard(box) {
-  // 2. week by week
-  load('/api/food/weeks?weeks=26', (W) => {
-    if (!box.isConnected) return;
+  const owner=readOwner(),valid=()=>box.isConnected&&owner===readOwner();
+  return load('/api/food/weeks?weeks=26', (W) => {
+    if (!valid()) return;
     const rows = W.weeks, logged = rows.filter((w) => w.days_logged);
     if (!logged.length) { box.innerHTML = '<div class="card empty"><b>No food logged yet</b>Weekly averages appear here once you start logging.</div>'; return; }
     const shown = rows.slice(rows.findIndex((w) => w.days_logged));   // from the first logged week
     const wt = (kg) => (kg == null ? '–' : U.weight(kg));
-    box.innerHTML = `<div class="card"><div class="tblwrap"><table class="tbl yrs"><thead><tr><th>Week of</th><th class="r">Days</th><th class="r">kcal</th><th class="r">P</th><th class="r">C</th><th class="r">F</th><th class="r">Exercise</th><th class="r">${U.du()}</th><th class="r">Weight</th></tr></thead><tbody>
+    box.innerHTML = `<div class="card nutrition-weeks"><p class="small muted">Last 26 weeks · separate from the selected chart range</p><div class="tblwrap" tabindex="0" role="region" aria-label="Weekly food totals; scroll sideways for more columns"><table class="tbl yrs"><thead><tr><th>Week of</th><th class="r">Days</th><th class="r">Eaten kcal/day</th><th class="r">Protein g/day</th><th class="r">Carbs g/day</th><th class="r">Fat g/day</th><th class="r">Exercise kcal/day</th><th class="r">${U.du()}</th><th class="r">Weight ${imp()?'lb':'kg'}</th></tr></thead><tbody>
         ${[...shown].reverse().map((w) => `<tr${w.partial ? ' class="cur"' : ''}><td>${esc(new Date(w.week + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric'}))}</td><td class="r num">${w.days_logged}${w.partial ? '' : '/7'}</td>
           <td class="r num"><b>${w.kcal == null ? '–' : r0(w.kcal)}</b></td><td class="r num">${w.protein_g == null ? '–' : r0(w.protein_g)}</td><td class="r num">${w.carbs_g == null ? '–' : r0(w.carbs_g)}</td><td class="r num">${w.fat_g == null ? '–' : r0(w.fat_g)}</td>
           <td class="r num">${r0(w.exercise_per_day)}</td><td class="r num">${U.dist(w.distance_m, 0)}</td><td class="r num">${wt(w.trend_kg)}</td></tr>`).join('')}</tbody></table></div>
-        <p class="small muted">Per day on logged days · exercise = kcal burned per day · ${U.du()} = run + ride + walk · weight = trend at the end of the week.</p></div>`;
-  });
+        <p class="small muted">Food averages use all logged days, including partly logged days and today. A dash means missing nutrition. Exercise uses elapsed days in the week · ${U.du()} = run + ride + walk · weight = trend at the end of the week.</p></div>`;
+  }).catch(()=>{if(!valid())return;box.innerHTML='<p class="small muted">Weekly food history could not load.</p><button type="button" class="ghost wide" data-weeks-retry>Retry weeks</button>';box.querySelector('[data-weeks-retry]').onclick=()=>weeksCard(box);});
 }
 const NRANGES = [[7, '7 days'], [30, '30 days'], [90, '90 days'], [365, '1 year']];
 // Log your weight (2026-10-12: moved here from the Log view). Any day up to today, so old weigh-ins can be added too.
@@ -1186,14 +1194,21 @@ async function refreshWeightData(owner) {
     refreshMe({...App.me,weight_kg:me.weight_kg,weight_health_derived:me.weight_health_derived});return true;
   } catch {return false;} // The weigh-in already saved; an optional profile read cannot undo it.
 }
-async function weightChanged(owner,box) {
+async function weightChanged(owner,box,historyOnly=false) {
   if(owner!==readOwner())return;
   const profile=refreshWeightData(owner);
-  if(box.isConnected)render();
+  if(box.isConnected){if(historyOnly)weightHistory(box);else render();}
   await profile;
   if(owner!==readOwner()||box.isConnected)return;
   const q=new URLSearchParams(location.search),home=location.pathname==='/me'||location.pathname==='/me/settings'||location.pathname==='/progress'&&!q.has('view')&&!q.has('section');
   if(home&&!document.querySelector('.scrim:not(.is-closing)')&&!document.activeElement?.matches('input,textarea,select,[contenteditable]'))render();
+}
+
+
+async function weightHistoryChanged(owner,box){
+  if(owner!==readOwner())return;
+  const current=location.pathname==='/progress/weight'?$('#nt-whist'):null,field=current&&$('.wform input');
+  await weightChanged(owner,current||box,!!field&&field.value!==field.defaultValue);
 }
 
 function weightAddress(query) {
@@ -1219,14 +1234,17 @@ route(/^\/progress\/weight$/, 'progress', async el=>{
 });
 
 async function foodCalendar(root) {
+  const owner=readOwner(),today=isoDay(new Date());
   await load('/api/food/insights?days=90',I=>{
-    if(!root.isConnected)return;
-    const rows=(I.rows||[]).slice().sort((a,b)=>b.day.localeCompare(a.day)),logged=rows.filter(r=>r.eaten>0);
-    root.innerHTML=`<section class="card"><h2>Food calendar</h2><p class="small muted">${logged.length} days with food logged in the last 90 days. Newest first · open a day to review it.</p>${logged.length?`<div class="food-calendar">${rows.map(r=>`<a href="/food?d=${esc(r.day)}" aria-label="${esc(dayLabel(r.day))}, ${r.eaten?homeCalories(r.eaten)+' kcal logged':'no foods logged'}"${r.eaten?' class="logged"':''}><small>${esc(new Date(r.day+'T12:00').toLocaleDateString([],{month:'short'}))}</small><b>${new Date(r.day+'T12:00').getDate()}</b><small>${r.eaten?r0(homeCalories(r.eaten))+' kcal':'—'}</small></a>`).join('')}</div>`:'<p>Log something you ate to start your calendar.</p><a class="primary wide" href="/food">Open food log</a>'}</section>`;
+    if(!root.isConnected||owner!==readOwner())return;
+    const logged=(I.rows||[]).filter(r=>r.entries>0||r.eaten!=null).sort((a,b)=>b.day.localeCompare(a.day));
+    root.innerHTML=`<section class="card"><h2>Logged days</h2><label class="food-history-date">Open any day<input type="date" max="${today}" aria-label="Pick a food-log day"></label><p class="small muted">${logged.length} logged days in the last 90 days · newest first</p>${logged.length?`<div class="food-day-list">${logged.map(r=>`<a class="row-link" href="/food?d=${esc(r.day)}"><span>${esc(dayLabel(r.day))}</span><span class="num">${r.eaten==null?'Calories unknown':r0(homeCalories(r.eaten))+' kcal'}</span>${svg('chev')}</a>`).join('')}</div>`:'<p>No food logged in the last 90 days.</p><a class="primary wide" href="/food">Open food log</a>'}</section>`;
+    const date=$('input[type=date]',root);date.onchange=()=>{if(owner===readOwner()&&date.value&&date.value<=today)go('/food?d='+date.value);};
   });
 }
 
 async function nutritionView(el, view, q) {
+  if(view==='weeks'){const params=new URLSearchParams(q);params.set('weeks','1');return go(nutritionHref('overview',params.toString()),{replace:true});}
   // range (overview, energy, macros): 7/30/90/365 days, or "since" = from a start date the person picks (e.g. the start
   // of a diet); remembered on this phone
   let r = q.get('r'); if (!r) { try { r = localStorage.getItem('fit.nrange'); } catch (e) { /* none */ } }
@@ -1243,14 +1261,14 @@ async function nutritionView(el, view, q) {
   });
   if (view === 'weight') { root.innerHTML = '<div id="nt-weight"></div><div id="nt-whist"></div>'; weightCard($('#nt-weight', root)); weightHistory($('#nt-whist', root)); return; }
   if (view === 'needs') { energyCard(root); return; }
-  if (view === 'weeks') { weeksCard(root); return; }
   let since = null;
   $('#n-range', el).onclick = () => pickSheet('Time range', pickRows([...NRANGES.map(([d, n]) => [String(d), n]),
     ['since', since ? `Since ${new Date(since + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric', year: 'numeric'})}` : 'Since a date…', since ? 'Tap again to change the date' : 'For example the day you started a diet']], r),
     (k) => (k === 'since' ? (since && r !== 'since' ? save('since') : startSheet(since)) : save(k)));
-  root.innerHTML = `${view==='overview'&&(location.pathname==='/progress'||q.get('from')==='progress')?'<details class="insights-review"><summary>Your weekly check-in</summary><div id="nt-checkin"></div></details>':''}${view==='overview'?'<details class="insights-review"><summary>Your week in food</summary><div id="nt-weekly-food"></div></details>':''}<div id="nt-body">${skel(3)}</div>${view === 'overview' ? '<div id="nt-coach"></div>' : ''}`;
+  root.innerHTML = `${view==='overview'&&(location.pathname==='/progress'||q.get('from')==='progress')?'<details class="insights-review"><summary>Your weekly check-in</summary><div id="nt-checkin"></div></details>':''}${view==='overview'?`<details class="insights-review"><summary>Your week in food</summary><div id="nt-weekly-food"></div></details><details class="insights-review" id="nt-weeks-fold"${q.get('weeks')==='1'?' open':''}><summary>Week by week</summary><div id="nt-weeks"></div></details>`:''}<div id="nt-body">${skel(3)}</div>${view === 'overview' ? '<div id="nt-coach"></div>' : ''}`;
   if(view==='overview'&&(location.pathname==='/progress'||q.get('from')==='progress'))weeklyCheckinCard($('#nt-checkin',root));   // the numbers first, then the coach
   if (view === 'overview') {weeklyFoodReviewCard($('#nt-weekly-food',root));dietCoach($('#nt-coach', root));}
+  if(view==='overview'){const fold=$('#nt-weeks-fold',root);let loaded=false;const open=()=>{if(fold.open&&!loaded){loaded=true;weeksCard($('#nt-weeks',fold));}};fold.addEventListener('toggle',open);open();}
   const url = r === 'since' ? '/api/food/insights?days=30&since=' : `/api/food/insights?days=${r}`;
   if (r === 'since') {   // need the saved start date first
     const I0 = await api('/api/food/insights?days=7').catch(() => null); since = I0 && I0.deficit_start;
@@ -1293,7 +1311,7 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
       : `Burn is a formula estimate of daily needs (about ${r0(homeCalories(S.tdee))} kcal before recorded workouts), plus recorded activity calories. It is not a measurement of your exact needs.`;
   const kcalP = (S.avg_protein_g || 0) * 4, kcalC = (S.avg_carbs_g || 0) * 4, kcalF = (S.avg_fat_g || 0) * 9, kcalM = kcalP + kcalC + kcalF || 1;
   const pct = (v) => Math.round(v / kcalM * 100);
-  const overviewLinks=()=>`<div class="insights-links" aria-label="Nutrition details">${NPROG.filter(v=>v[0]!=='overview').map(([key,name,,icon])=>`<a href="${esc(nutritionHref(key))}">${svg(icon)}<span>${esc(name)}</span>${svg('chev')}</a>`).join('')}</div>`;
+  const overviewLinks=()=>`<div class="insights-links" aria-label="Nutrition details">${NPROG.filter(v=>!['overview','weeks'].includes(v[0])).map(([key,name,,icon])=>`<a href="${esc(nutritionHref(key))}">${svg(icon)}<span>${esc(name)}</span>${svg('chev')}</a>`).join('')}</div>`;
   const hasFood=I.rows.some(r=>r.eaten!=null),low=S.logged<7||(S.past_days>0&&S.logged/S.past_days<.25);
   const from=low&&S.logged?` · from ${S.logged} ${S.logged===1?'day':'days'}`:'';
   const fact=(label,value,unit,sub,view)=>`<a class="insights-figure" href="${esc(nutritionHref(view))}"><span>${esc(label)}</span><b class="num">${value}${unit?`<small>${esc(unit)}</small>`:''}</b><span class="muted">${sub}</span></a>`;
@@ -1312,14 +1330,14 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
 
     energy: `<div class="card"><h2>Eaten, burned & weight<span class="muted small">${weekly ? 'weekly average' : 'per day'}</span></h2><div id="nt-energychart"></div>
       <p class="small muted estimate-note">${esc(burnNote)} The goal line is your food target; eating below it does not by itself establish a calorie deficit.</p></div>
-    <div class="card"><h2>Running deficit</h2><div id="nt-cum"></div>
+    <div class="card"><h2>Running deficit<span class="muted small">kcal total</span></h2><div id="nt-cum"></div>
       <p class="small muted estimate-note">Adds estimated burn minus logged food across fully logged days with burn data. The weight conversion is a rough energy model, not measured fat loss. Water changes, missing food and burn-estimate errors can affect the comparison.</p></div>`,
-    macros: `<div class="card"><h2>Protein<span class="muted small">${weekly ? 'weekly average' : 'per day'}</span></h2><div id="nt-protein"></div></div>
+    macros: `<div class="card"><h2>Protein<span class="muted small">${weekly ? 'weekly average · g/day' : 'g per day'}</span></h2><div id="nt-protein"></div></div>
     <div class="card"><h2>Where your calories come from</h2>
-      ${S.avg_protein_g != null ? `<div class="split" role="img" aria-label="Protein ${pct(kcalP)}%, carbs ${pct(kcalC)}%, fat ${pct(kcalF)}%"><i class="m-protein_g" data-w="${(kcalP / kcalM).toFixed(3)}"></i><i class="m-carbs_g" data-w="${(kcalC / kcalM).toFixed(3)}"></i><i class="m-fat_g" data-w="${(kcalF / kcalM).toFixed(3)}"></i></div>
-      <div class="legend small"><span><i class="sw m-protein_g"></i>Protein ${pct(kcalP)}% · ${r0(S.avg_protein_g)} g</span><span><i class="sw m-carbs_g"></i>Carbs ${pct(kcalC)}% · ${r0(S.avg_carbs_g)} g</span><span><i class="sw m-fat_g"></i>Fat ${pct(kcalF)}% · ${r0(S.avg_fat_g)} g</span></div>` : ''}
-      <h3 class="sub">By meal</h3>${Object.entries(S.meals || {}).map(([m, v]) => `<div class="mrow mealrow"><span>${esc(MEAL_NAMES[m])}</span><div class="track"><div class="bar meal-bar" data-w="${(v / 100).toFixed(3)}"></div></div><b class="num">${v}%</b></div>`).join('')}</div>
-    ${I.top_foods.length ? `<div class="card"><h2>Top foods by calories</h2>${I.top_foods.map((f) => `<div class="mrow topf"><span title="${esc(f.name)}">${esc(f.name)}</span><div class="track"><div class="bar meal-bar" data-w="${(f.kcal / I.top_foods[0].kcal).toFixed(3)}"></div></div><b class="num">${r0(f.kcal)}<i> · ${f.n}×</i></b></div>`).join('')}</div>` : ''}`};
+      ${MACROS.every(([k])=>S['avg_'+k]!=null) ? `<div class="split" role="img" aria-label="Protein ${pct(kcalP)}%, carbs ${pct(kcalC)}%, fat ${pct(kcalF)}%"><i class="m-protein_g" data-w="${(kcalP / kcalM).toFixed(3)}"></i><i class="m-carbs_g" data-w="${(kcalC / kcalM).toFixed(3)}"></i><i class="m-fat_g" data-w="${(kcalF / kcalM).toFixed(3)}"></i></div>
+      <div class="legend small"><span><i class="sw m-protein_g"></i>Protein ${pct(kcalP)}% · ${r0(S.avg_protein_g)} g</span><span><i class="sw m-carbs_g"></i>Carbs ${pct(kcalC)}% · ${r0(S.avg_carbs_g)} g</span><span><i class="sw m-fat_g"></i>Fat ${pct(kcalF)}% · ${r0(S.avg_fat_g)} g</span></div><p class="small muted">Average grams per fully logged day · ${S.logged} completed days in this range.</p>` : '<p class="small muted">Macro split unavailable: some nutrient values are missing.</p>'}
+      <h3 class="sub">By meal</h3><p class="small muted">Share of recorded calories on fully logged completed days in this range.</p>${Object.entries(S.meals || {}).map(([m, v]) => `<div class="mrow mealrow"><span>${esc(MEAL_NAMES[m])}</span><div class="track"><div class="bar meal-bar" data-w="${(v / 100).toFixed(3)}"></div></div><b class="num">${v}%</b></div>`).join('')}</div>
+    ${I.top_foods.length ? `<div class="card"><h2>Top foods by calories</h2><p class="small muted">Recorded totals in this range, excluding today · includes partly logged days.</p>${I.top_foods.map((f) => `<div class="mrow topf"><span title="${esc(f.name)}">${esc(f.name)}</span><div class="track"><div class="bar meal-bar" data-w="${(f.kcal / I.top_foods[0].kcal).toFixed(3)}"></div></div><b class="num">${r0(homeCalories(f.kcal))} kcal<i> · ${f.n}×</i></b></div>`).join('')}</div>` : ''}`};
   box.innerHTML = html[part];syncCheckinPrimary(box.closest?.('#page'));
   requestAnimationFrame(() => {
     if(part==='overview'&&hasFood){

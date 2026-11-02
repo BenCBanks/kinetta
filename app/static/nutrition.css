@@ -60,3 +60,19 @@
 .nutrition-secondary summary { min-height:44px; }
 .nutrition-secondary summary small { font-size:.8125rem; }
 .nutrition-home .meal .swipe + .swipe { margin-top:8px; }
+
+/* Food history keeps one row per logged day and dates visible while reading columns. */
+.food-history-date { display:grid;gap:8px;font-size:max(15px,.9375rem); }
+.food-history-date input { flex:1;min-width:0;font-size:max(16px,1rem);min-height:44px; }
+.food-day-list .row-link { display:flex;align-items:center;gap:8px;min-height:52px; }
+.food-day-list .row-link > span:first-child { flex:1;min-width:0; }
+.food-day-list .num { font-size:.875rem;white-space:nowrap; }
+.food-day-list svg { flex:none;width:18px;height:18px; }
+.hrow { grid-template-columns:minmax(72px,4.5rem) repeat(4,minmax(76px,1fr));min-width:calc(4.5rem + 328px); }
+.hgrid.macros .hrow { grid-template-columns:minmax(72px,4.5rem) repeat(7,minmax(76px,1fr));min-width:calc(4.5rem + 568px); }
+.hrow > :first-child { position:sticky;left:4px;z-index:1;background:var(--card);align-self:stretch;display:flex;flex-direction:column;justify-content:center;box-shadow:-4px 0 var(--card),4px 0 var(--card); }
+.hrow.hhead span,.hrow .hday small { font-size:max(12px,.75rem); }
+.hrow input { min-height:44px; }
+.nutrition-weeks th:first-child,.nutrition-weeks td:first-child,#hi-prev .tbl th:first-child,#hi-prev .tbl td:first-child { position:sticky;left:0;z-index:1;background:var(--card); }
+.nutrition-weeks tr.cur td:first-child { background:var(--card2); }
+.nutrition-weeks .tblwrap { max-width:100%; }

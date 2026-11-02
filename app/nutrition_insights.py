@@ -66,7 +66,7 @@ def insights_data(c, uid, days=30, since=None, *, brief=False):
         counted = eaten is not None and d < today and not (typical and eaten < 0.5 * typical) and eaten >= least
         deficit = burned - eaten if counted and burned is not None else None
         if deficit is not None: total += deficit
-        rows.append({'day': d.isoformat(), 'imported_burn': burn['source'] == 'imported', 'burn_source': burn['source'], 'burn_missing': burned is None, 'eaten': round(eaten) if eaten is not None else None, 'burned': round(burned) if burned is not None else None, 'exercise': round(exk),
+        rows.append({'day': d.isoformat(), 'entries':f['n'] if f else 0, 'imported_burn': burn['source'] == 'imported', 'burn_source': burn['source'], 'burn_missing': burned is None, 'eaten': round(eaten) if eaten is not None else None, 'burned': round(burned) if burned is not None else None, 'exercise': round(exk),
                      'goal': round(goal) if goal else None, 'deficit': round(deficit) if deficit is not None else None, 'total': round(total),
                      'counted': counted, 'burn_counted': counted and burned is not None, 'today': d == today, 'training': exk > usual + 150,
                      **{k: round(float(f[k]), 1) if f and f[k] is not None else None for k in ('protein_g', 'carbs_g', 'fat_g')},

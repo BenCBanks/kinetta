@@ -555,6 +555,8 @@ class WeightIn(BaseModel):
 def weights(days: int = 180, user=Depends(current_user)):
     """Weigh-ins plus a smoothed trend (exponential average, 10 % per day, like Happy Scale / MacroFactor) and the weekly rate."""
     with db.connect() as c:
+        from .weight_undo import expire
+        expire(c,user['id'])
         rows = c.execute('SELECT day, kg, note, source, source_name FROM weights WHERE user_id = %s ORDER BY day', (user['id'],)).fetchall()
     trend, out, prev_day = None, [], None
     for r in rows:
@@ -608,15 +610,32 @@ def weight_delete(day: dt.date, user=Depends(current_user)):
     with db.connect() as c:
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
         from . import api_health_weights as H
+        from . import weight_undo as undo
         p=H.profile(c,user['id'])
-        old=c.execute('SELECT source,health_sample_id FROM weights WHERE user_id=%s AND day=%s',(user['id'],day)).fetchone()
+        snapshot=undo.capture(c,user['id'],day,p)
+        old=snapshot['point'] if snapshot else None
         if p['health_weight_read']:
             c.execute('INSERT INTO health_weight_exclusions(user_id,day) VALUES(%s,%s) ON CONFLICT(user_id,day) DO UPDATE SET before_time=greatest(health_weight_exclusions.before_time,excluded.before_time)',(user['id'],day))
             if old and old['source']=='healthkit':
                 c.execute('UPDATE health_weight_samples SET excluded=true WHERE user_id=%s AND (sampled_at AT TIME ZONE %s)::date=%s',(user['id'],p['tz'] or db.DEFAULT_TZ,day))
         c.execute('DELETE FROM weights WHERE user_id = %s AND day = %s', (user['id'], day))
+        identity=undo.remember(c,user['id'],day,p,snapshot)
         _latest_weight(c, user['id'])
-    return {'ok': True}
+    return {'ok': True,'undo_id':identity}
+
+
+class WeightUndoIn(BaseModel):
+    id: UUID
+    confirmed: StrictBool = False
+
+
+@router.post('/weights/undo')
+def weight_undo(body: WeightUndoIn, user=Depends(current_user)):
+    if not body.confirmed:raise HTTPException(400,'Confirm Undo')
+    from . import weight_undo as undo
+    with db.connect() as c:
+        c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
+        return undo.restore(c,user['id'],body.id)
 
 
 class TargetsIn(N.ExtraTargets):
@@ -722,9 +741,9 @@ def food_weeks(weeks: int = 26, user=Depends(current_user)):
         ctx = energy.context(c, user['id'])
         monday = ctx['today'] - dt.timedelta(days=ctx['today'].weekday())
         start = monday - dt.timedelta(weeks=weeks - 1)
-        food = c.execute("""SELECT date_trunc('week', day)::date AS wk, count(DISTINCT day) AS days, sum(kcal) AS kcal, sum(protein_g) AS protein_g,
-                                   sum(carbs_g) AS carbs_g, sum(fat_g) AS fat_g, sum(coalesce(fiber_g, 0)) AS fiber_g
-                            FROM food_entries WHERE user_id = %s AND day >= %s GROUP BY 1""", (user['id'], start)).fetchall()
+        food = c.execute(f"""SELECT date_trunc('week', day)::date AS wk, count(DISTINCT day) AS days, CASE WHEN bool_or({energy.unknown_sql('kcal')}) THEN NULL ELSE sum(kcal) END AS kcal, CASE WHEN bool_or({energy.unknown_sql('protein_g')}) THEN NULL ELSE sum(protein_g) END AS protein_g,
+                                   CASE WHEN bool_or({energy.unknown_sql('carbs_g')}) THEN NULL ELSE sum(carbs_g) END AS carbs_g, CASE WHEN bool_or({energy.unknown_sql('fat_g')}) THEN NULL ELSE sum(fat_g) END AS fat_g, sum(coalesce(fiber_g, 0)) AS fiber_g
+                            FROM food_entries WHERE user_id = %s AND day >= %s AND day <= %s GROUP BY 1""", (user['id'], start, ctx['today'])).fetchall()
         dist = c.execute("""SELECT date_trunc('week', start_time AT TIME ZONE %s)::date AS wk, sum(distance_m) AS d
                             FROM activities WHERE user_id = %s AND start_time AT TIME ZONE %s >= %s GROUP BY 1""",
                          (ctx['tz'], user['id'], ctx['tz'], start)).fetchall()
@@ -737,7 +756,7 @@ def food_weeks(weeks: int = 26, user=Depends(current_user)):
         elapsed = min(7, (ctx['today'] - wk).days + 1)
         exk = sum(v['kcal'] for d, v in ex.items() if wk <= d < wk + dt.timedelta(days=7))
         out.append({'week': wk.isoformat(), 'days_logged': n, 'partial': elapsed < 7,
-                    **{k: round(float(f[k]) / n, 1) if n else None for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')},
+                    **{k: round(float(f[k]) / n, 1) if n and f[k] is not None else None for k in ('kcal', 'protein_g', 'carbs_g', 'fat_g', 'fiber_g')},
                     'exercise_per_day': round(exk / elapsed), 'distance_m': round(D.get(wk, 0)),
                     'trend_kg': round(energy.trend_on(ctx['points'], wk + dt.timedelta(days=6)), 2) if energy.trend_on(ctx['points'], wk + dt.timedelta(days=6)) else None})
     return {'weeks': out}

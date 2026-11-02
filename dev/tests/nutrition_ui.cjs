@@ -77,6 +77,8 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    }
    for(const view of ['overview','energy','macros','weight','needs','weeks','calendar','trends']){
     await p.evaluate(view=>go('/food?view='+view),view);await ready();const weight=view==='weight';assert.equal(await p.locator(weight?'.weight-heading [data-back]':'.nutrition-back').count(),1,view+' back');if(weight){assert.equal(new URL(p.url()).pathname,'/progress/weight');assert.equal(await p.locator('nav.tabs [aria-current=page]').getAttribute('data-tab'),'progress');}assert.equal(await p.locator('.view-nav,.pbar').count(),0,view+' no global bars');await fits(view);
+    if(view==='weeks'){assert.equal(new URL(p.url()).searchParams.get('view'),'overview');assert(await p.locator('#nt-weeks-fold').evaluate(n=>n.open),'Old weekly links open the folded table in Insights');}
+    if(view==='calendar'){assert.equal(await p.locator('.food-calendar').count(),0,'No90-tile calendar');assert(await p.locator('.food-history-date input').isVisible());const dates=await p.locator('.food-day-list a').evaluateAll(ns=>ns.map(n=>new URL(n.href).searchParams.get('d')));assert.deepEqual(dates,dates.slice().sort().reverse(),'Logged dates stay newest first');assert(dates.length<=35,'Only logged dates are listed');}
     await p.locator(weight?'.weight-heading [data-back]':'.nutrition-back').click();await ready();
    }
    for(const address of ['/food/weight','/progress?section=food','/progress?section=food&foodview=calendar','/progress?section=food&foodview=weight']){
