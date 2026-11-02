@@ -1606,7 +1606,7 @@ html.keyboard-open nav.tabs { display: none; }
 .first-step-presets {display:flex;flex-wrap:wrap;justify-content:center;gap:8px;}
 .first-step-presets .linkbtn {min-height:44px;font-size:max(15px,.9375rem);}
 .import-file-actions {display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
-.import-file-actions > button {flex:1 1 auto;min-height:44px;background:none;border:1px solid var(--line);font-size:max(15px,.9375rem);}
+.import-file-actions > button.ghost {flex:1 1 auto;min-height:44px;background:none;border:1px solid var(--line);font-size:max(15px,.9375rem);}
 .sharing-switches {display:grid;gap:8px;}
 .sharing-switches .switch-row {margin:0;min-height:56px;}
 .sharing-switches .switch-row > span {white-space:nowrap;}
