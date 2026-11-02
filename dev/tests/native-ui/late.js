@@ -13,7 +13,12 @@
   if(cfg.recording){TrackNative.supported=false;TrackNative.call=()=>Promise.reject(Error('Native UI fixture blocked GPS controls'));}
   const rect=selector=>{const e=document.querySelector(selector);if(!e)return null;const r=e.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};};
   function paintedMap(){
-    return [...document.querySelectorAll('canvas.leaflet-tile-loaded')].some(c=>{try{const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;let different=0;for(let i=0;i<d.length;i+=64)if(d[i+3]&&(d[i]!==d[0]||d[i+1]!==d[1]||d[i+2]!==d[2]))different++;return different>16;}catch(_){return false;}});
+    return [...document.querySelectorAll('canvas.leaflet-tile-loaded')].some(c=>{try{
+      const b=c.getBoundingClientRect(),m=c.closest('.leaflet-container').getBoundingClientRect(),x=Math.max(0,b.x,m.x),y=Math.max(0,b.y,m.y),right=Math.min(innerWidth,b.right,m.right),bottom=Math.min(innerHeight,b.bottom,m.bottom);
+      if(right<=x||bottom<=y)return false;let opacity=1;for(let e=c;e;e=e.parentElement){const css=getComputedStyle(e);opacity*=Number(css.opacity);if(opacity<.95||css.visibility==='hidden'||css.display==='none')return false;}
+      const sx=Math.floor((x-b.x)/b.width*c.width),sy=Math.floor((y-b.y)/b.height*c.height),w=Math.max(1,Math.floor((right-x)/b.width*c.width)),h=Math.max(1,Math.floor((bottom-y)/b.height*c.height));
+      const d=c.getContext('2d').getImageData(sx,sy,w,h).data;let different=0;for(let i=0;i<d.length;i+=64)if(d[i+3]&&(d[i]!==d[0]||d[i+1]!==d[1]||d[i+2]!==d[2]))different++;return different>16;
+    }catch(_){return false;}});
   }
   function storeReady(){
       const checks={

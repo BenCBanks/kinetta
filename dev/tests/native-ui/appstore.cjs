@@ -24,6 +24,7 @@ module.exports=()=>{
   '/api/progress/trends':{today,months:[]},'/api/records':{efforts:[]},
   '/api/fitness':{days:[{day:today,fitness:42,fatigue:39,form:3}],predictions:[{label:'5K',seconds:1500}]},
   '/api/food/day':{day:today,entries,totals:macros,unknown_nutrients:{fiber_g:2,sodium_mg:2,sugar_g:2,saturated_fat_g:2},targets:{kcal_target:1800,protein_target:110},goal:{kcal:1800,default:1800},burned:{kcal:330,n:1,items:[],day_burn:2250,deficit:1335,source:'formula'},food_user:true,has_history:true},
+  '/api/health/nutrition':{enabled:false,epoch:'00000000-0000-4000-8000-000000000001',tz:'UTC',since:null,include_older:false,account_id:'00000000-0000-4000-8000-000000000002'},'/api/dishes/shared':[],
   '/api/food/thread':{messages,before:null,has_more:false,preferences:prefs},'/api/food/thread/preferences':prefs,
   '/api/friends':friends,'/api/people/suggested':friends.suggested,'/api/sharing':{default:'friends'},
   '/api/notifications':{items:[],unread:0,push:{},push_ready:false},
