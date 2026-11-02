@@ -1208,17 +1208,19 @@ const aiExplain = () => `<p>Kit is Kinetta’s AI assistant for training, nutrit
 // Kit is for people 18 or older (28 October 2026; the AI provider's terms), though Kinetta itself is 16+: turning it on
 // asks for that separately, and the server refuses AI calls without it.
 const aiAdultBox = () => `<label class="check ai-adult"><input type="checkbox" name="ai_adult" required><span>I'm 18 or older</span></label>`;
-function aiSheet(after) {   // ask once; after() runs when they turn it on
+function aiSheet(after) {
+  const owner=readOwner();   // ask once; after() runs when they turn it on
   sheet('Turn on Kit?', `<div class="form">${aiExplain()}<p class="small">Kit is for people 18 or older.</p>${aiAdultBox()}<p class="small danger" id="ai-age-err" role="alert"></p>
     <div class="actions"><button class="primary" id="ai-yes">Turn on</button><button class="ghost" id="ai-no">Not now</button></div></div>`, (b, close) => {
     $('#ai-no', b).onclick = close;
     $('#ai-yes', b).onclick = async (e) => {
+      if(owner!==readOwner()||!b.isConnected)return;
       const adult = $('[name=ai_adult]', b).checked;
       $('#ai-age-err', b).textContent = adult ? '' : 'Tick the box to confirm you’re 18 or older.';
       if (!adult) return;
       e.target.disabled = true;
-      try { await api('/api/profile', json('PUT', {ai_ok: true, ai_adult: true})); App.me.ai_ok = true; keep('/api/me', App.me); close(); toast('Kit is on'); if (after) after(); }
-      catch (x) { toast(x.message); e.target.disabled = false; }
+      try { await api('/api/profile', json('PUT', {ai_ok: true, ai_adult: true})); if(owner!==readOwner())return;App.me.ai_ok = true; keep('/api/me', App.me); close(); toast('Kit is on'); if (after) after(); }
+      catch (x) { if(owner===readOwner()&&b.isConnected){toast(x.message); e.target.disabled = false;} }
     };
   });
 }

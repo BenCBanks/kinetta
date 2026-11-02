@@ -1588,7 +1588,7 @@ route(/^\/me\/settings$/, 'me', async (el) => {
         if(!valid()||saving)return;const on=button.dataset.ai==='1';if(on===!!App.me.ai_ok)return;
         if(on){close();aiSheet(()=>{if(owner===readOwner())render();});return;}
         saving=true;button.disabled=true;
-        try{await api('/api/profile',json('PUT',{ai_ok:false}));if(!valid())return;App.me.ai_ok=me.ai_ok=false;keep('/api/me',App.me);invalidate('/api/coach');close();render();toast('AI features off - nothing is sent');}
+        try{await api('/api/profile',json('PUT',{ai_ok:false}));if(owner!==readOwner())return;App.me.ai_ok=me.ai_ok=false;keep('/api/me',App.me);invalidate('/api/coach');if(el.isConnected)$('#m-kit .val',el).textContent='Off';if(valid()){close();render();toast('AI features off - nothing is sent');}}
         catch(x){if(valid())$('.err',box).textContent=x.message;}finally{if(valid()){saving=false;button.disabled=false;}}
       });
     });

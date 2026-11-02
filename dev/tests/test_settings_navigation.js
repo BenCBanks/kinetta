@@ -26,3 +26,21 @@ function fixture(pending=0,accept=true){
  f=fixture();f.c.Native.forget=()=>new Promise(resolve=>finish=resolve);await f.run();const clearing=f.nodes.get('#logout').onclick();for(let i=0;i<8;i++)await Promise.resolve();f.c.App.me={id:2,login:'zz_test_other'};f.c.session++;finish();await clearing;assert.equal(f.c.App.me.id,2);assert(!f.writes.some(w=>w[0]==='fit.queue'),'late native cleanup cannot remove the new account queue or session');
  console.log('Settings: final logout row, successful sign-out/session cleanup, other-account queue preserved, cancelled/failed pending check retains drafts; failed server request, duplicates and stale-account callbacks guarded PASS');
 })().catch(e=>{console.error(e);process.exit(1)});
+
+// Exercise the shared adult/consent helper, including a late response after changing accounts.
+(async()=>{
+ const app=fs.readFileSync(process.env.KINETTA_TEST_CONSENT_SOURCE||'app/static/app.js','utf8'),start=app.indexOf('function aiSheet(after)'),end=app.indexOf('// ---------- login',start);
+ function consent(){
+  const nodes=new Map(),box={isConnected:true},state={owner:'A',calls:[],kept:[],toasts:[],after:0};
+  const c={App:{me:{id:1,ai_ok:false}},readOwner:()=>state.owner,aiExplain:()=>'',aiAdultBox:()=>'',sheet:(title,html,wire)=>wire(box,()=>{}),$:(key)=>{if(!nodes.has(key))nodes.set(key,{checked:true});return nodes.get(key)},json:(method,body)=>({method,body}),keep:(path,data)=>state.kept.push(data.id),toast:t=>state.toasts.push(t),api:(...args)=>{state.calls.push(args);return new Promise((resolve,reject)=>{state.finish=resolve;state.fail=reject})}};
+  vm.createContext(c);vm.runInContext(app.slice(start,end),c);c.aiSheet(()=>state.after++);return {c,nodes,box,state,tap:()=>nodes.get('#ai-yes').onclick({target:nodes.get('#ai-yes')})};
+ }
+ let f=consent();f.c.$('[name=ai_adult]').checked=false;await f.tap();assert.equal(f.state.calls.length,0,'adult confirmation remains required');assert.match(f.nodes.get('#ai-age-err').textContent,/18/);
+ f=consent();const old=f.tap();f.state.owner='B';f.c.App.me={id:2,ai_ok:false};f.state.finish({});await old;assert.equal(f.c.App.me.ai_ok,false,'old consent response cannot mark the new account On');assert.deepEqual(f.state.kept,[]);assert.equal(f.state.after,0);
+ f=consent();const failed=f.tap();f.state.owner='B';f.c.App.me={id:2,ai_ok:false};f.state.fail(Error('Old account failure'));await failed;assert.deepEqual(f.state.toasts,[],'stale errors cannot appear for a new account');
+ f=consent();f.box.isConnected=false;await f.tap();assert.equal(f.state.calls.length,0,'a dismissed old consent control cannot send');
+ f=consent();const accepted=f.tap();f.box.isConnected=false;f.state.finish({});await accepted;assert.equal(f.c.App.me.ai_ok,true,'an accepted same-account consent updates state after dismissal');assert.deepEqual(f.state.kept,[1]);
+ // The new Kit sheet applies an accepted Off response even if that sheet was dismissed.
+ async function off(changeOwner=false){const f=fixture();f.c.App.me.ai_ok=true;const buttons=[{dataset:{ai:'1'}},{dataset:{ai:'0'}}],box={isConnected:true};f.c.$$=sel=>sel==='[data-ai]'?buttons:[];f.c.sheet=(title,html,wire)=>wire(box,()=>{});let finish,kept=0;f.c.api=()=>new Promise(r=>finish=r);f.c.keep=()=>kept++;f.c.invalidate=()=>{};await f.run();f.nodes.get('#m-kit').onclick();const task=buttons[1].onclick();box.isConnected=false;if(changeOwner){f.c.App.me={id:2,ai_ok:true};f.c.session++;}finish({});await task;assert.equal(f.c.App.me.ai_ok,changeOwner,'Off acknowledges only the captured account after dismissal');assert.equal(kept,changeOwner?0:1);}
+ await off();await off(true);console.log('Kit consent UI: adult confirmation, stale owner/read/error fences, dismissed same-owner On/Off acknowledgement and own cache PASS');
+})().catch(e=>{console.error(e);process.exitCode=1});
