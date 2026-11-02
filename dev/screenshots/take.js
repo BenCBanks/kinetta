@@ -144,7 +144,7 @@ async function say(page, text) {
       const acts = await get('/api/activities?limit=40'), routes = await get('/api/routes'), dishes = await get('/api/dishes');
       const loop = acts.find((a) => a.sport === 'run' && a.distance_m > 4600 && a.distance_m < 4950) || acts[0];
       const coach = (await Promise.all(acts.slice(0, 40).map((a) => get('/api/activities/' + a.id)))).find((a) => a.ai_note) || loop;
-      return {LATEST: '/activity/' + (acts.find(a => a.photos?.length && a.line) || acts[0]).id, RUN: '/activity/' + loop.id, COACH: '/activity/' + coach.id, ROUTE: routes.length ? '/route/' + routes.sort((x, y) => y.count - x.count)[0].id : '/progress',
+      return {FEED_ACTIVITY: acts[0].id, LATEST: '/activity/' + (acts.find(a => a.photos?.length && a.line) || acts[0]).id, RUN: '/activity/' + loop.id, COACH: '/activity/' + coach.id, ROUTE: routes.length ? '/route/' + routes.sort((x, y) => y.count - x.count)[0].id : '/progress',
         DISH: '/food/cook/' + ((dishes.find((d) => d.name === 'Chicken and veg traybake') || dishes[0] || {}).id || ''),
         SQUAT: '/lift/ex/' + (((await get('/api/lifts/exercises')).mine.find((x) => x.name === 'Squat') || {}).id || '')};
     });
@@ -156,7 +156,20 @@ async function say(page, text) {
       await page.evaluate(() => document.fonts.ready);
       // Locator/evaluate polling works under the app’s strict script policy.
       for(let n=0;n<40;n++){if(await page.evaluate(()=>!document.querySelector('.leaflet-tile-container')||document.querySelector('.leaflet-tile-loaded')))break;await page.waitForTimeout(100);}
-      if(name==='feed'){await page.locator('#feed-tools[aria-busy=false]').waitFor({state:'attached'});if(await page.locator('#feed-discovery').count())throw Error('Mature feed must not show discovery cards');}
+      if(name==='feed'){
+        await page.locator('#feed-tools[aria-busy=false]').waitFor({state:'attached'});
+        if(await page.locator('#feed-discovery').count())throw Error('Mature feed must not show discovery cards');
+        const group=page.locator(`#ff-list .post[data-href="/activity/${ids.FEED_ACTIVITY}"] .post-ft [data-reaction-group][data-aid="${ids.FEED_ACTIVITY}"]`);
+        await group.waitFor({state:'visible'});
+        for(const kind of ['clap','muscle','fire'])if(await group.getAttribute(`data-count-${kind}`)!=='1')throw Error(`Demo feed must have one ${kind} reaction on the same card`);
+        const emoji=group.locator('.reaction-count .reaction-icons .reaction-emoji');
+        const shown=await emoji.allTextContents();
+        if(shown.length!==3||!['👏','💪','🔥'].every(value=>shown.includes(value))||await group.locator('.reaction-count .num').textContent()!=='3')throw Error('Demo feed must render all three emoji and their total');
+        if(!await group.locator('.reaction-count').evaluate(el=>{
+          const limit=document.querySelector('nav.tabs').getBoundingClientRect().top;
+          return [...el.querySelectorAll('.reaction-emoji,.num')].every(node=>{const r=node.getBoundingClientRect();return r.width>0&&r.height>0&&r.left>=0&&r.right<=innerWidth&&r.top>=59&&r.bottom<=limit;});
+        }))throw Error('Demo feed emoji and total must be visible in the captured viewport');
+      }
       if(name==='insights'){await page.getByRole('heading',{name:'Insights',exact:true}).waitFor();await page.locator('#nt-overview-chart').waitFor();}
       if (opt.logDish) {      // Add food > My Recipes > the recipe: the log sheet, with a portion typed in
         await page.evaluate(() => describeSheet(isoDay(new Date()), 'dinner'));
