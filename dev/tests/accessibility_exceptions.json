@@ -1,0 +1,16 @@
+[
+  {
+    "id": "decorative-profile-initials",
+    "rule": "label-content-name-mismatch",
+    "selector": ".post-av:has(> .av[aria-hidden=\"true\"])",
+    "maximum": 10,
+    "reason": "Initials are a decorative avatar, explicitly hidden from the accessibility tree. The named profile link describes its action; the person's full name is the adjacent visible profile link. Initials are not its control label."
+  },
+  {
+    "id": "decorative-own-profile-initials",
+    "rule": "label-content-name-mismatch",
+    "selector": ".me-card-avatar:has(.av[aria-hidden=\"true\"])",
+    "maximum": 1,
+    "reason": "The avatar's hidden decorative initials are not a spoken control label. The link has an explicit profile name/action, with the full profile name immediately beside it. This exception applies only while the avatar remains aria-hidden."
+  }
+]

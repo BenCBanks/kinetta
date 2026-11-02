@@ -15,6 +15,8 @@ class KinettaDisplayPreferencesPlugin: CAPPlugin, CAPBridgedPlugin {
             name: UIAccessibility.reduceTransparencyStatusDidChangeNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(preferencesChanged),
             name: UIAccessibility.darkerSystemColorsStatusDidChangeNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(preferencesChanged),
+            name: UIContentSizeCategory.didChangeNotification, object: nil)
     }
 
     deinit {
@@ -22,8 +24,11 @@ class KinettaDisplayPreferencesPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @MainActor private var state: JSObject {
-        ["reduceTransparency": UIAccessibility.isReduceTransparencyEnabled,
-         "increaseContrast": UIAccessibility.isDarkerSystemColorsEnabled]
+        let traits = bridge?.webView?.traitCollection ?? UITraitCollection.current
+        return ["reduceTransparency": UIAccessibility.isReduceTransparencyEnabled,
+         "increaseContrast": UIAccessibility.isDarkerSystemColorsEnabled,
+         "contentSizeCategory": traits.preferredContentSizeCategory.rawValue,
+         "preferredBodyPointSize": Double(UIFont.preferredFont(forTextStyle: .body, compatibleWith: traits).pointSize)]
     }
 
     @objc func getState(_ call: CAPPluginCall) {
