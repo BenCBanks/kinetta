@@ -377,8 +377,11 @@ function discardLift(aid, stop) {
 // The session's numbers (28 October 2026, Ben: runs had a summary, lifting went straight back to Track). Working sets
 // only: warm-ups are left out, as in every other total here.
 function liftTotals(exercises) {
-  const t = {exercises: 0, sets: 0, reps: 0, kg: 0, records: []};
+  const t = {exercises: 0, sets: 0, reps: 0, kg: 0, records: [], warmupExercises: 0, warmupSets: 0};
   for (const e of exercises) {
+    const warmups = e.sets.filter((s) => s.done !== false && s.warmup && (s.reps || s.secs));
+    if (warmups.length) t.warmupExercises++;
+    t.warmupSets += warmups.length;
     const real = e.sets.filter((s) => s.done !== false && !s.warmup && (s.reps || s.secs));
     if (real.length) t.exercises++;
     t.sets += real.length;
@@ -398,23 +401,25 @@ async function liftSummary(el, aid, r) {
   let a;
   try { a = await api(`/api/activities/${aid}`); } catch (x) { if (!active()) return; go(`/track?done=${aid}`, {replace: true}); toast('Session saved'); return; }
   if (!active()) return;
-  const t = liftTotals(r.exercises), secs = a.elapsed_s || a.moving_s || 0, start = new Date(a.start_time);
+  const t = liftTotals(r.exercises), secs = a.elapsed_s || a.moving_s || 0, start = new Date(a.start_time), warmupOnly = !t.sets && t.warmupSets > 0;
   // the server's estimate for a workout without a watch number (energy.activity_kcal): 5 METs, profile weight else 75 kg
   const kcal = a.calories > 0 ? a.calories : 5 * (App.me?.weight_kg || 75) * (a.moving_s || secs) / 3600;
   const stat = (v, u, l) => `<div><b class="num">${esc(v)}${u ? `<i>${esc(u)}</i>` : ''}</b><small>${esc(l)}</small></div>`;
-  const stats = [stat(dur(secs), '', 'Duration'), stat(t.exercises, '', t.exercises === 1 ? 'Exercise' : 'Exercises'), stat(t.sets, '', 'Working sets'),
+  const exercises = warmupOnly ? t.warmupExercises : t.exercises;
+  const stats = [stat(dur(secs), '', 'Duration'), stat(exercises, '', exercises === 1 ? 'Exercise' : 'Exercises'), stat(warmupOnly ? t.warmupSets : t.sets, '', warmupOnly ? 'Warm-up sets' : 'Working sets'),
     t.reps && stat(t.reps.toLocaleString(), '', 'Reps'), t.kg && stat(Math.round(imp() ? t.kg * LB : t.kg).toLocaleString(), wUnit(), 'Volume'),
     stat(Math.round(kcal).toLocaleString(), 'kcal', a.calories > 0 ? 'Calories' : 'Calories (est.)')].filter(Boolean).join('');
+  const summarySets = e => { const n=e.sets.filter(s=>s.done !== false && s.warmup && (s.reps || s.secs)).length; return warmupOnly && n ? `${n} warm-up set${n === 1 ? '' : 's'}` : setsText(e.sets,e.kind); };
   const when = `${start.toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'})}, ${start.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})}`;
   const vis = a.visibility || App.me.share_default || 'me';
   el.innerHTML = `<div class="top">${backBtn('Track')}</div>
     <section class="track-session track-review lift-review"><form class="form" id="lf-sum">
       <p class="track-review-when">${svg('workout')}${esc(a.sport_label || 'Strength')} · ${esc(when)}</p>
       <label class="track-title">Title<input name="activity_name" value="${esc(a.name || '')}" maxlength="200" autocomplete="off" enterkeyhint="done" required></label>
-      <div class="card track-review-stats">${stats}</div>
+      ${warmupOnly ? '<p class="small muted">Warm-up only</p>' : ''}<div class="card track-review-stats">${stats}</div>
       ${t.records.length ? `<div class="card lift-review-records"><h3>${svg('trophy')} New record${t.records.length > 1 ? 's' : ''}</h3>
         ${t.records.map((x) => `<div><span>${esc(x.name)}<small>${esc(PR_NAMES[x.what])}</small></span><b class="num">${esc(recordText(x))}</b></div>`).join('')}</div>` : ''}
-      ${r.exercises.length ? `<div class="card lift-review-ex"><h3>Exercises</h3>${r.exercises.map((e) => `<div><b>${esc(e.name)}</b><small class="num">${esc(setsText(e.sets, e.kind))}</small>
+      ${r.exercises.length ? `<div class="card lift-review-ex"><h3>Exercises</h3>${r.exercises.map((e) => `<div><b>${esc(e.name)}</b><small class="num">${esc(summarySets(e))}</small>
         ${e.last ? `<small class="muted">${esc(shortDay(e.last.start_time))}: ${esc(setsText(e.last.sets, e.kind))}</small>` : ''}</div>`).join('')}</div>` : ''}
       <label>Who can see this activity<select name="visibility">${Object.entries({me: 'Only me', friends: 'Approved friends', everyone: 'Everyone on Kinetta'}).map(([value, label]) => `<option value="${value}"${value === vis ? ' selected' : ''}>${label}</option>`).join('')}</select></label>
       <button class="primary wide" id="lf-sum-done">Done</button><p class="small danger" id="lf-sum-error" role="alert"></p></form>

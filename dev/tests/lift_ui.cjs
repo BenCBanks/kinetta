@@ -35,6 +35,8 @@ async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))
    await p.waitForTimeout(350);
    const overlap=await p.locator('.track-review-stats > div').evaluateAll(es=>es.flatMap((e,i)=>{const a=e.getBoundingClientRect(),b=e.querySelector('b').getBoundingClientRect();return b.right>a.right+1||b.left<a.left-1||e.querySelector('b').scrollWidth>e.querySelector('b').clientWidth+1?[i]:[];}));
    assert.deepEqual(overlap,[],'Enlarged summary numbers must fit their own cell');
+   await p.evaluate(async()=>{await liftSummary(document.querySelector('#page'),999901,{exercises:[{name:'Squat',kind:'weight',sets:[{kg:20,reps:8,warmup:true},{kg:30,reps:5,warmup:true},{kg:40,reps:5,warmup:true,done:false}]}]});});
+   assert((await p.locator('.lift-review').innerText()).includes('Warm-up only'));assert.equal(await p.locator('.track-review-stats > div').filter({hasText:'Exercise'}).innerText(),'1\nExercise');assert.equal(await p.locator('.track-review-stats > div').filter({hasText:'Warm-up sets'}).innerText(),'2\nWarm-up sets');assert.equal(await p.locator('.track-review-stats').getByText('Working sets',{exact:true}).count(),0,'warm-up-only summary never claims zero working sets');assert((await p.locator('.lift-review-ex').innerText()).includes('2 warm-up sets'),'exercise detail labels its completed warm-ups');
    // The paired day/time fields use the same responsive form layout as other app sheets.
    await p.evaluate(()=>addActivitySheet(null,'workout'));await p.locator('#ma').waitFor();
    const yesterday=await p.locator('#ma select[name=day] option').nth(1).getAttribute('value');await p.locator('#ma select[name=day]').selectOption(yesterday);

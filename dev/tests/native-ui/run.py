@@ -82,7 +82,7 @@ for device in preferred:
     assert not metrics['errors'] and not metrics['overflow'] and not metrics['status'],metrics
     nav=metrics['navigation']
     assert nav['ready'],'Actual UIKit display-preference bridge must respond: '+json.dumps(metrics.get('display',{}),sort_keys=True)
-    assert nav['visible']==(stage in ('track-live','track-review','activity','activity-sticky','activity-empty') or stage.startswith(('friends-','header-'))),metrics
+    assert nav['visible']==(stage in ('activity','activity-sticky','activity-empty') or stage.startswith(('friends-','header-'))),metrics
     if nav['visible']:
      box=nav['box'];assert box['x']>=8 and box['x']+box['width']<=metrics['viewport']['width']-8,metrics
      assert box['bottom']<metrics['viewport']['height'],metrics
@@ -123,11 +123,11 @@ for device in preferred:
     if stage.startswith('track-'):
      track=metrics['tracking']
      if stage=='track-review':
-      assert track['save'] and track['save']['bottom']<=track['tabs']['y']+1,metrics
+      assert track['save'] and track['save']['bottom']<=metrics['viewport']['height']-metrics['safeBottom']+1,metrics
       assert metrics['header']['y']>=metrics['safeTop'] and metrics['header']['y']<=metrics['safeTop']+14,metrics
       assert track['photos'] and track['title'] and track['chart'],metrics
      else:
-      limit=metrics['viewport']['height']-metrics['safeBottom'] if stage=='track-map' else nav['box']['y']
+      limit=metrics['viewport']['height']-metrics['safeBottom']
       assert track['controls'] and track['controls']['bottom']<=limit,metrics
       assert all(bottom<=limit for bottom in track['captions']),metrics
       assert track['expanded']==(stage=='track-map'),metrics

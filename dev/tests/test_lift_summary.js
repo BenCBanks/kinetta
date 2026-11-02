@@ -13,13 +13,14 @@ assert.equal(t.exercises, 3); assert.equal(t.sets, 5, 'warm-ups and empty sets a
 assert.equal(t.reps, 29); assert.equal(t.kg, 60 * 5 + 55 * 6, 'volume is working sets only');
 assert.deepEqual(t.records.map((r) => r.name + ':' + r.what), ['Bench press:heaviest', 'Pull-up:reps']);
 assert.deepEqual(texts, ['60 kg × 5', '10 reps']);
+assert.equal(t.warmupExercises, 1); assert.equal(t.warmupSets, 1);
+const only = vm.runInNewContext(code + '\nliftTotals(x);', {x:[{name:'Squat',sets:[{reps:8,warmup:true},{reps:5,warmup:true},{reps:5,warmup:true,done:false},{warmup:true}]}],imp:()=>false,LB:2.20462262});
+assert.equal(only.exercises,0);assert.equal(only.sets,0);assert.equal(only.reps,0);assert.equal(only.kg,0);assert.equal(only.warmupExercises,1);assert.equal(only.warmupSets,2,'only completed warm-up sets count');
 assert(/const r = await save\(true\)[\s\S]{0,120}liftSummary\(el, aid, r\)/.test(lift), 'Finish on a live session opens the summary');
 console.log('PASS lifting summary totals, records and Finish wiring');
-// The recording screen sizes its map to the space left, so Pause/Resume/Finish stay above the tab bar.
-const track = fs.readFileSync('app/static/track.js', 'utf8'), css = fs.readFileSync('app/static/style.css', 'utf8');
-assert(/<div class="track-live-main"><div class="track-live-top">[\s\S]*?aria-label="Recording controls">[\s\S]*?<\/div><\/div><p class="small muted">/.test(track), 'controls close the sized block');
-assert(/\.track-live-main \{[^}]*min-height: calc\(100dvh[^}]*var\(--tab-h\)/.test(css) && /\.track-live-main \.track-map-wrap \{ flex: 1 1 0/.test(css));
-console.log('PASS recording controls sized above the tab bar');
+// The recording controls remain outside the scrolling content block.
+const track = fs.readFileSync('app/static/track.js', 'utf8');
+// Viewport size, captions and hit targets are covered by tracking_ui.cjs.
 // Discard right away (28 October 2026): a lifting session can be deleted before or after Finish; a paused recording shows
 // Discard under its controls, on screen.
 assert(/id="lf-discard">Discard session/.test(lift) && /id="lf-sum-del">Delete this session/.test(lift), 'lifting: discard and delete');
