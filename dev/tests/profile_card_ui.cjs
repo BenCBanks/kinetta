@@ -60,6 +60,7 @@ for(const size of [{width:320,height:667,root:16},{width:390,height:844,root:16}
  await cardChecks(p,size);
  if(size.width===390&&theme==='light'){await p.setViewportSize({width:600,height:844});await until(p,()=>document.querySelectorAll('.me-sport-chip:not([hidden])').length===3,'wide row caps at three');await sportChecks(p);await p.setViewportSize({width:330,height:844});await sportChecks(p);await p.setViewportSize({width:390,height:844});await until(p,()=>document.querySelectorAll('.me-sport-chip:not([hidden])').length===3,'sports recover on wider phone');await sportChecks(p);}
  await milestoneChecks(p);
+ if(size.width===390)await require('./milestone_picture_ui.cjs')(p,theme,out);
  await p.waitForSelector('.me-insights',{timeout:15000});
  assert.equal(await p.locator('#me-distance, .mileage-heading').count(),0,'no second distance chart on Me');
  assert.match(await p.locator('.me-insights').innerText(),/This week so far[\s\S]*of your usual/);
