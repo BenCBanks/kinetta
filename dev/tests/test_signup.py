@@ -103,6 +103,28 @@ class Signup(unittest.TestCase):
         self.assertEqual(new.post('/api/friends', json={'login': 'zz_test_su_old'}).status_code, 200)
         self.assertEqual(new.post(f'/api/activities/{oid}/comments', json={'text': 'hello'}).status_code, 200)
 
+    def test_shared_strict_age_confirmation(self):
+        self.env(KINETTA_SIGNUP='open')
+        with db.connect() as c:
+            import secrets
+            token = secrets.token_urlsafe(24)
+            iid = c.execute("INSERT INTO invites (token_hash, expires) VALUES (%s, now() + interval '1 day') RETURNING id", (auth.token_hash(token),)).fetchone()['id']
+        for endpoint in ('/api/signup', '/api/join'):
+            body = form('zz_test_su_age' + ('public' if endpoint.endswith('signup') else 'invite'), token=token)
+            for value, expected in ((False, 400), (None, 422), (1, 422), ('true', 422), ('missing', 400)):
+                invalid = {**body, 'age_ok': value}
+                if value == 'missing': invalid.pop('age_ok')
+                new = client(); response = new.post(endpoint, json=invalid)
+                self.assertEqual(response.status_code, expected, (endpoint, value, response.text))
+                self.assertNotIn('set-cookie', response.headers)
+            with db.connect() as c:
+                self.assertIsNone(c.execute('SELECT id FROM users WHERE login = %s', (body['login'],)).fetchone())
+                self.assertIsNone(c.execute('SELECT used_at FROM invites WHERE id = %s', (iid,)).fetchone()['used_at'])
+        self.assertEqual(self.mail.call_count, 0, 'refused age confirmations send no mail')
+        new = client(); body = form('zz_test_su_ageinvite', token=token); body.pop('email')
+        self.assertEqual(new.post('/api/join', json=body).status_code, 200, 'same invite survives rejected attempts')
+        self.assertFalse(new.get('/api/me').json().get('ai_ok'), '16+ confirmation does not enable 18+ Kit')
+
     def test_cap_waitlist_and_invites(self):
         n = self.real_accounts()
         self.env(KINETTA_SIGNUP='open', KINETTA_MAX_ACCOUNTS=n + 1)
@@ -116,7 +138,7 @@ class Signup(unittest.TestCase):
             import secrets
             token = secrets.token_urlsafe(24)
             c.execute("INSERT INTO invites (token_hash, note, expires) VALUES (%s, 'zz', now() + interval '1 day')", (auth.token_hash(token),))
-        self.assertEqual(client().post('/api/join', json={'name': 'Invited', 'login': 'zz_test_su_invited', 'password': PW, 'token': token}).status_code, 200)
+        self.assertEqual(client().post('/api/join', json={'age_ok':True,'name': 'Invited', 'login': 'zz_test_su_invited', 'password': PW, 'token': token}).status_code, 200)
         with db.connect() as c: c.execute("DELETE FROM users WHERE login = 'zz_test_su_last'")
         self.assertTrue(client().get('/api/signup').json()['open'] is False, 'the invited account took the freed place')
         with db.connect() as c: c.execute("DELETE FROM users WHERE login = 'zz_test_su_invited'")
@@ -173,7 +195,7 @@ class Signup(unittest.TestCase):
         with db.connect() as c: c.execute("INSERT INTO invites (token_hash, note, expires) VALUES (%s, 'zz', now() + interval '1 day')", (auth.token_hash(token),))
         self.assertTrue(client().get('/api/join/' + token).json()['email'], 'the join page can ask for an email')
         j = client()
-        r = j.post('/api/join', json={'name': 'Zz_test_su_joiner Invited', 'email': 'zz_test_su_joiner@example.test', 'password': PW, 'token': token})
+        r = j.post('/api/join', json={'age_ok':True,'name': 'Zz_test_su_joiner Invited', 'email': 'zz_test_su_joiner@example.test', 'password': PW, 'token': token})
         self.assertEqual(r.status_code, 200, r.text); self.assertTrue(r.json()['login'].startswith('zz_test_su_joiner'))
         self.assertEqual(self.mail.call_args.kwargs['json']['to'], ['zz_test_su_joiner@example.test'])
         me = j.get('/api/me').json()
@@ -235,7 +257,7 @@ class Signup(unittest.TestCase):
             invitation=secrets.token_urlsafe(24)
             iid=c.execute("INSERT INTO invites(token_hash,expires)VALUES(%s,now()+interval '1 day')RETURNING id",(auth.token_hash(invitation),)).fetchone()['id']
         try:
-            r=client().post('/api/join',json={'token':invitation,'login':'zz_test_su_invited_public','name':'Fixture Member','password':PW,'allow_test':True,'is_admin':True})
+            r=client().post('/api/join',json={'age_ok':True,'token':invitation,'login':'zz_test_su_invited_public','name':'Fixture Member','password':PW,'allow_test':True,'is_admin':True})
             self.assertEqual(r.status_code,400,r.text)
             with db.connect()as c:self.assertIsNone(c.execute('SELECT used_at FROM invites WHERE id=%s',(iid,)).fetchone()['used_at'])
         finally:

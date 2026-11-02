@@ -6,7 +6,7 @@ function fixture(){
   let html='',nodes={},owner='one';const values=new Map(),calls=[],forms=[],betas=[];
   const root={get innerHTML(){return html;},set innerHTML(value){html=value;nodes=Object.fromEntries([...value.matchAll(/id="([^"]+)"/g)].map(m=>['#'+m[1],{disabled:false}]));}};
   const c={root,location:{pathname:'/signup',search:''},readOwner:()=>owner,BRAND:'Kinetta',esc:String,App:{me:null},store:{get:k=>values.get(k),set:(k,v)=>values.set(k,v),del:k=>values.delete(k)},$:s=>nodes[s]||null,
-    history:{replaceState(a,b,url){c.location.pathname=url;}},showLogin:()=>{root.innerHTML='Current login';},showNewAccount:form=>{forms.push(form);root.innerHTML='<a id="j-login"></a>';},showBeta:full=>betas.push(!!full)};
+    json:(method,body)=>({method,body}),history:{replaceState(a,b,url){c.location.pathname=url;}},showLogin:()=>{root.innerHTML='Current login';},showNewAccount:form=>{forms.push(form);root.innerHTML='<a id="j-login"></a>';},showBeta:full=>betas.push(!!full)};
   c.api=async path=>{calls.push(path);if(path==='/api/signup')return {open:true,full:false};if(path==='/api/beta')return {open:false};throw Error(path);};
   vm.createContext(c);
   vm.runInContext(source.slice(source.indexOf('async function challengeOrigin('),source.indexOf('function showNewAccount('))+source.slice(source.indexOf('async function enrollmentPolicy('),source.indexOf('// "Join the beta"')),c);
@@ -31,6 +31,14 @@ function fixture(){
     r=fixture();r.c.location.pathname='/'+(kind==='friend'?'add':'join')+'/fictional';r.values.set('kinetta.friendLink','fictional');r.c.api=async()=>{throw Object.assign(Error('Temporary'),{status:503});};await(kind==='friend'?r.c.showInvite('fictional'):r.c.showJoin('fictional'));assert.match(r.root.innerHTML,/Invitation couldn’t load/);assert.equal(r.values.get('kinetta.friendLink'),'fictional');r.c.api=async path=>path==='/api/signup'?{open:true,full:false}:{name:'Fictional friend',email:'fictional@example.test'};await r.node('#enrollment-retry').onclick();assert(kind==='friend'?r.root.innerHTML.includes('confirm your email'):r.forms.length===1);
   }
   r=fixture();r.c.location.pathname='/add/fictional';r.c.api=async path=>path==='/api/signup'?{open:false,full:false}:path==='/api/beta'?{open:true}:{name:'Fictional inviter'};await r.c.showInvite('fictional');assert.match(r.root.innerHTML,/Join the beta/);assert(r.node('#iv-signup'),'a friend invite preserves an available waitlist path');
+  r=fixture();r.c.location.pathname='/add/fictional';r.c.api=async path=>path==='/api/signup'?{open:false,full:false}:path==='/api/beta'?{open:false}:{name:'Fictional inviter'};await r.c.showInvite('fictional');assert(!r.node('#iv-signup'));assert(!r.root.innerHTML.includes('Create an account'));assert.match(r.root.innerHTML,/account invitation/);assert(r.node('#iv-login'));
+  for(const outcome of ['success','failure','newer']){
+    r=fixture();r.c.location.pathname='/join/fictional';r.c.api=async()=>({email:false});await r.c.showJoin('fictional');
+    assert.equal(r.values.get('kinetta.joinReturn'),'/join/fictional');
+    r.c.api=async(path,options)=>{assert.equal(path,'/api/join');assert.equal(options.body.token,'fictional');if(outcome==='failure')throw Error('Retry');if(outcome==='newer')r.values.set('kinetta.joinReturn','/join/newer');return {ok:true};};
+    if(outcome==='failure')await assert.rejects(r.forms[0].send({}),/Retry/);else await r.forms[0].send({});
+    assert.equal(r.values.get('kinetta.joinReturn'),outcome==='success'?undefined:outcome==='newer'?'/join/newer':'/join/fictional');
+  }
   r=fixture();r.values.set('kinetta.friendLink','kept');r.c.api=async path=>path==='/api/signup'?{open:true,full:false}:null;await r.c.showInvite('kept');assert.match(r.root.innerHTML,/Invitation couldn’t load/);assert.equal(r.values.get('kinetta.friendLink'),'kept','malformed successful replies must not expire an invite');
   r=fixture();vm.runInContext(source.slice(source.indexOf('async function showBeta('),source.indexOf('// Forgot password')),r.c);r.c.location.pathname='/beta';r.c.api=async()=>{throw Object.assign(Error('Temporary failure'),{status:503});};await r.c.showBeta();assert.match(r.root.innerHTML,/Enrollment couldn’t load/);r.c.api=async()=>({open:false});await r.node('#enrollment-retry').onclick();assert.match(r.root.innerHTML,/Beta enrollment is closed/);
   for(const status of [503,404]){

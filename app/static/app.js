@@ -1271,7 +1271,7 @@ function enrollmentEmailError(input, message) {
   input.setAttribute('aria-invalid','true');input.focus({preventScroll:true});note.scrollIntoView({block:'center',behavior:'smooth'});
 }
 
-function showNewAccount({title, intro, button, send, signup = false, email = signup, card = null,challenge=null}) {
+function showNewAccount({title, intro, button, send, signup = false, ageConfirm = signup, email = signup, card = null,challenge=null}) {
   const pick = !email;
   root.innerHTML = `<div class="login"><form novalidate>
     <div>${BRAND}<h1>${esc(title)}</h1><p>${intro}</p></div>
@@ -1285,8 +1285,8 @@ function showNewAccount({title, intro, button, send, signup = false, email = sig
     <p class="small muted">Everyone means signed-in members of this Kinetta. You can change this in Sharing, or choose a different audience for an activity.</p>
     ${email ? '<p class="small muted">We\'ll give you a username from your name, like @casey, so friends can find you. Change it any time in Settings.</p>' : ''}
     ${email ? `<details class="username-choice"><summary>Choose your @username (optional)</summary><label>Username<input name="login" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30" enterkeyhint="next"></label></details>` : ''}
-    ${signup ? `<label class="check"><input type="checkbox" name="age_ok" required><span>I'm 16 or older</span></label>
-    <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>` : ''}
+    ${ageConfirm ? '<label class="check"><input type="checkbox" name="age_ok" required><span>I\'m 16 or older</span></label>' : ''}
+    ${signup ? '<label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>' : ''}
     ${challenge?`<label class="check"><input type="checkbox" name="challenge_join"${challenge.join_default?' checked':''}><span>Join ${esc(challenge.title)} ${email?'after I confirm my email':'when I create my account'}. Only my username, permitted photo and progress are shared.</span></label>`:''}
     ${card?.allow_requests?`<label class="check"><input type="checkbox" name="card_request"${card.request_default===false?'':' checked'}><span>Send @${esc(card.username)} a friend request ${email?'after I confirm my email':'when I create my account'}</span></label>`:''}
     <p class="err" role="alert"></p>
@@ -1317,7 +1317,7 @@ function showNewAccount({title, intro, button, send, signup = false, email = sig
   // fixing a field clears its message
   f.addEventListener('input', (e) => { const l = e.target.closest('label'); if (l?.nextElementSibling?.classList.contains('field-err')) { l.nextElementSibling.remove(); e.target.removeAttribute('aria-invalid'); } });
   // which field a server answer is about
-  const fieldOf = (m) => /password/i.test(m) ? 'password' : /email/i.test(m) && email ? 'email' : /username/i.test(m) && f.login ? 'login' : /\bname\b/i.test(m) ? 'name' : /16 or older/i.test(m) && signup ? 'age_ok' : null;
+  const fieldOf = (m) => /password/i.test(m) ? 'password' : /email/i.test(m) && email ? 'email' : /username/i.test(m) && f.login ? 'login' : /\bname\b/i.test(m) ? 'name' : /16 or older/i.test(m) && ageConfirm ? 'age_ok' : null;
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
     const b = $('button[type=submit]', f) || $('button', f);
@@ -1325,11 +1325,11 @@ function showNewAccount({title, intro, button, send, signup = false, email = sig
     if (pick && !f.login.value.trim()) return fieldErr('login', 'Choose a username.');
     if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email.value.trim())) return fieldErr('email', 'Enter your email address, like name@example.com.');
     if (f.password.value.length < 10) return fieldErr('password', `Use at least 10 characters for your password (you have ${f.password.value.length}).`);
-    if (signup && !f.age_ok.checked) return fieldErr('age_ok', 'Kinetta is for people 16 or older. Tick the box to continue.');
+    if (ageConfirm && !f.age_ok.checked) return fieldErr('age_ok', 'Kinetta is for people 16 or older. Tick the box to continue.');
     b.disabled = true; fieldErr(null, '');
-    try { const termsVersion = agreement ? await agreement() : null; await send({terms_version: termsVersion, name: f.name.value, password: f.password.value, share_default:f.elements.share_default.value, ...phoneDefaults(),
+    try { const termsVersion = agreement ? await agreement() : null; await send({terms_version: termsVersion, ...(ageConfirm ? {age_ok:f.age_ok.checked} : {}), name: f.name.value, password: f.password.value, share_default:f.elements.share_default.value, ...phoneDefaults(),
         ...(pick ? {login: f.login.value.trim().toLowerCase()} : {email: f.email.value.trim(), ...(f.login.value.trim() ? {login:f.login.value.trim().toLowerCase()} : {})}),
-        ...(signup ? {age_ok: f.age_ok.checked, website: f.website.value} : {}),...(card?{card_code:card.code||store.get('kinetta.cardLink'),card_request:!!f.card_request?.checked}:{}),...(challenge?{challenge_code:challenge.code,challenge_join:!!f.challenge_join?.checked}:{})});
+        ...(signup ? {website: f.website.value} : {}),...(card?{card_code:card.code||store.get('kinetta.cardLink'),card_request:!!f.card_request?.checked}:{}),...(challenge?{challenge_code:challenge.code,challenge_join:!!f.challenge_join?.checked}:{})});
       // On an iPhone browser, a new account goes to the iPhone app, not this browser view (Ben, 2026-10-24)
       if (getAppFirst()) { store.set('kinetta.getApp', '1'); history.replaceState(null, '', '/'); return showGetApp(); }
       history.replaceState(null, '', '/welcome'); await start(); }
@@ -1374,7 +1374,7 @@ async function showInvite(code) {
   } else {
     const phone = getAppFirst(), link = s.iphone_app;
     root.innerHTML = `<div class="login invite-landing"><div class="form">${BRAND}<h1>${esc(who.name)} invited you to Kinetta</h1>
-      <p>Follow each other’s runs, rides and walks, and keep your food log private. Create an account and confirm your email to become friends.</p>
+      <p>Follow each other’s runs, rides and walks, and keep your food log private. ${s.open?'Create an account and confirm your email to become friends.':waiting?'Join the beta to request an invitation, or log in with an existing account.':'New here? Ask the person running this Kinetta for an account invitation.'}</p>
       ${phone && link ? `<a class="primary wide" href="${esc(link)}" target="_blank" rel="noopener">Get the iPhone app</a><p class="small muted">Kinetta is in beta through Apple’s TestFlight. After installing, open this invite link again and it opens in the app.</p>` : ''}
       ${s.open||waiting ? `<a class="${phone && link ? 'ghost' : 'primary'} wide" href="/signup" id="iv-signup">${s.open?'Create an account'+(phone&&link?' on the web':''):'Join the beta'}</a>` : ''}${login}</div></div>`;
     const su = $('#iv-signup', root); if (su) su.onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/signup'); showSignup(code); };
@@ -1412,9 +1412,13 @@ async function showJoin(token) {
     };
     return;
   }
-  showNewAccount({title: 'Join Kinetta', button: 'Create my account', email: !!info.email,card:info.card,challenge:info.challenge,
+  showNewAccount({title: 'Join Kinetta', button: 'Create my account', ageConfirm:true, email: !!info.email,card:info.card,challenge:info.challenge,
     intro: `${info.inviter ? esc(info.inviter) + ' invited you. ' : ''}Make your account. Choose who sees new activities. Your food log and body settings stay private. <a href="/" id="j-login">Log in to accept with an existing account</a>.`,
-    send: (body) => api('/api/join', json('POST', {...body, token}))});
+    send: async (body) => {
+      const result=await api('/api/join', json('POST', {...body, token}));
+      if(pendingJoinPath()==='/join/'+token)store.del('kinetta.joinReturn');
+      return result;
+    }});
   $('#j-login',root).onclick=e=>{e.preventDefault();rememberJoinPath();showLogin();};
 }
 // "Create an account" (open signup, #232): email, username, password and a 16+ confirmation. When the server's account

@@ -105,7 +105,7 @@ class Cards(unittest.TestCase):
     r=c.execute('SELECT id,card_code,card_request FROM beta_requests WHERE lower(email)=lower(%s)',(email,)).fetchone();self.assertEqual((r['card_code'],r['card_request']),(self.code,True));c.execute('UPDATE users SET is_admin=true WHERE id=%s',(self.ids[0],))
    invitation=api_beta.beta_invite(r['id'],{'id':self.ids[0],'login':'fictional_admin','is_admin':True});token=invitation['url'].rsplit('/',1)[-1]
    info=self.guest.get('/api/join/'+token);self.assertEqual(info.status_code,200,info.text);self.assertEqual(info.json()['card']['code'],self.code);self.assertNotIn('SECRET REAL',info.text);self.assertNotIn('PRIVATE WAITLIST NAME',info.text)
-   login='zz_test_card_invited_'+uuid.uuid4().hex[:8];new=TestClient(app);r=new.post('/api/join',json={'token':token,'name':'Fictional invited member','login':login,'email':email,'password':'fictional invited card phrase','card_code':self.code,'card_request':True});self.assertEqual(r.status_code,200,r.text)
+   login='zz_test_card_invited_'+uuid.uuid4().hex[:8];new=TestClient(app);r=new.post('/api/join',json={'age_ok':True,'token':token,'name':'Fictional invited member','login':login,'email':email,'password':'fictional invited card phrase','card_code':self.code,'card_request':True});self.assertEqual(r.status_code,200,r.text)
    with db.connect() as c:
     uid=c.execute('SELECT id FROM users WHERE login=%s',(login,)).fetchone()['id'];self.ids.append(uid);self.assertFalse(c.execute('SELECT 1 FROM friendships WHERE requester=%s',(uid,)).fetchone())
    self.assertEqual(new.post('/api/account/email/confirm',json={'token':tokens[uid]}).status_code,200)
