@@ -1,0 +1,24 @@
+# Combine with the repository compose file; database stays on the internal network.
+services:
+  db:
+    command: [postgres, -c, shared_preload_libraries=pg_stat_statements, -c, pg_stat_statements.track=all, -c, track_io_timing=on]
+  app:
+    command: [python, /load/serve.py]
+    ports: !override ["127.0.0.1:${KINETTA_PORT:?Set a disposable port}:8000"]
+    volumes:
+      - ./dev/load:/load:ro
+    environment:
+      KINETTA_LOAD_FIXTURE: "1"
+      KINETTA_FOOD_CHAT_AI: "0" # No fabricated reviewed report; measure deterministic parsing + fake estimates.
+      GEMINI_API_KEY: load-standin
+      ANTHROPIC_API_KEY: ""
+      FDC_API_KEY: load-standin
+      KINETTA_RESEND_KEY: ""
+      KINETTA_APNS_PRIVATE_KEY: ""
+      GARMIN_CLIENT_ID: ""
+      GARMIN_CLIENT_SECRET: ""
+networks:
+  default:
+    internal: true
+  public:
+    internal: false # Docker needs a gateway to publish loopback ports; serve.py blocks outgoing sockets.
