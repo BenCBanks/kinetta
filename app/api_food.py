@@ -7,7 +7,10 @@ Every personal query is limited to user['id']. Public food data (barcodes, searc
 USDA FoodData Central needs a key: FDC_API_KEY setting (falls back to the low-volume DEMO_KEY).
 """
 import datetime as dt
+from copy import deepcopy
 import json
+from contextlib import contextmanager
+from contextvars import ContextVar
 from uuid import UUID
 import os
 import re
@@ -27,26 +30,114 @@ UA = 'Kinetta/1.0 (fitness app; +https://kinetta.app)'
 MEALS = ('breakfast', 'lunch', 'dinner', 'snacks')
 _last_off = [0.0]
 _off_pace = threading.Lock()
+CATALOG_BUDGET = 5.0
+OFF_INTERVAL = 6.0
+_catalog_deadline = ContextVar('catalog_deadline', default=None)
+_catalog_lock = threading.Lock()
+_catalog_slots = threading.BoundedSemaphore(8)
+_catalog_io_slots = threading.BoundedSemaphore(8)
+_catalog_flights = {}
+
+
+class CatalogUnavailable(HTTPException):
+    def __init__(self):
+        super().__init__(503, 'The food database is busy. Your food is kept; retry the lookup in a moment.')
+
+
+def catalog_deadline():
+    end = _catalog_deadline.get()
+    return end if end is not None else time.monotonic() + CATALOG_BUDGET
+
+
+@contextmanager
+def catalog_budget(deadline=None):
+    end = catalog_deadline()
+    token = _catalog_deadline.set(min(end, deadline) if deadline is not None else end)
+    try: yield _catalog_deadline.get()
+    finally: _catalog_deadline.reset(token)
+
+
+def _remaining(deadline=None):
+    left = (catalog_deadline() if deadline is None else deadline) - time.monotonic()
+    if left <= 0: raise CatalogUnavailable()
+    return left
 
 
 def _get(url, timeout=6, body=None):
     headers = {'User-Agent': UA, 'Accept': 'application/json'}
     if body is not None: headers['Content-Type'] = 'application/json'
     req = urllib.request.Request(url, headers=headers, data=None if body is None else json.dumps(body).encode())
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.loads(r.read())
+    end = min(catalog_deadline(), time.monotonic()+timeout)
+    opener = urllib.request.urlopen
+    def read():
+        with opener(req, timeout=_remaining(end)) as r: return json.loads(r.read())
+    # Also bounds direct serving-detail calls and DNS/slow bodies, not just a socket's individual reads.
+    _remaining(end)
+    slots = _catalog_io_slots
+    if not slots.acquire(blocking=False): raise CatalogUnavailable()
+    done = threading.Event(); result = {}
+    def request():
+        try: result['data'] = read()
+        except Exception as exc: result['error'] = exc
+        finally: slots.release(); done.set()
+    try: threading.Thread(target=request, daemon=True).start()
+    except Exception:
+        slots.release(); raise CatalogUnavailable() from None
+    if not done.wait(_remaining(end)): raise CatalogUnavailable()
+    if 'error' in result: raise result['error']
+    return result['data']
 
 
 def _cached(key, fetch, days=30):
-    with db.connect() as c:
-        hit = c.execute("SELECT data FROM food_cache WHERE key = %s AND fetched > now() - make_interval(days => %s)", (key, days)).fetchone()
-    if hit: return hit['data']
-    data = fetch()
-    if not data: return data          # never cache "nothing found" (could be a hiccup)
-    with db.connect() as c:
-        c.execute("""INSERT INTO food_cache (key, data) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET data = excluded.data, fetched = now()""",
-                  (key, json.dumps(data)))
-    return data
+    # Only public provider values enter this map. Own foods/recent history stay in their account-scoped queries.
+    end = catalog_deadline(); _remaining(end)
+    identity = (key, days)
+    with _catalog_lock:
+        flight = _catalog_flights.get(identity)
+        if flight is None:
+            slots = _catalog_slots
+            if not slots.acquire(blocking=False): raise CatalogUnavailable()
+            flight = {'done': threading.Event(), 'ok': False, 'data': None}
+            _catalog_flights[identity] = flight
+            def fill():
+                try:
+                    with catalog_budget(end):
+                        # Recheck after taking ownership: another process may have filled the database cache.
+                        with db.connect() as c:
+                            hit = c.execute("SELECT data FROM food_cache WHERE key = %s AND fetched > now() - make_interval(days => %s)", (key, days)).fetchone()
+                        _remaining()
+                        data = hit['data'] if hit else fetch()
+                        if not hit and data:  # Preserve the existing policy: empty answers are not persisted.
+                            with db.connect() as c:
+                                c.execute("""INSERT INTO food_cache (key, data) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET data = excluded.data, fetched = now()""",
+                                          (key, json.dumps(data)))
+                        flight.update(ok=True, data=data)
+                except Exception:
+                    pass  # Do not retain provider URLs/credentials or share exception tracebacks between callers.
+                finally:
+                    with _catalog_lock:
+                        if _catalog_flights.get(identity) is flight: _catalog_flights.pop(identity)
+                        slots.release()
+                    flight['done'].set()
+            try: threading.Thread(target=fill, daemon=True).start()
+            except Exception:
+                _catalog_flights.pop(identity, None); slots.release()
+                raise CatalogUnavailable() from None
+    # A timed caller never waits for a worker's shutdown. At most eight public fetches can outlive callers.
+    if not flight['done'].wait(_remaining(end)) or not flight['ok']: raise CatalogUnavailable()
+    return deepcopy(flight['data'])
+
+
+def _pace_search():
+    if not _off_pace.acquire(timeout=_remaining()): raise CatalogUnavailable()
+    try:
+        wait = OFF_INTERVAL - (time.monotonic() - _last_off[0])
+        if wait > 0:
+            if wait >= _remaining(): raise CatalogUnavailable()
+            time.sleep(wait)
+        _remaining()
+        _last_off[0] = time.monotonic()
+    finally: _off_pace.release()
 
 
 def _num(v):
@@ -120,35 +211,37 @@ def _fdc_food(f):
 
 
 def _search_off(q):
+    get = _get
     def fetch():
         # Open Food Facts asks for ~10 searches a minute at most; we pace and cache
-        with _off_pace:      # several lookups can run side by side; keep them spaced out
-            wait = 6 - (time.time() - _last_off[0])
-            if wait > 0: time.sleep(min(wait, 6))
-            _last_off[0] = time.time()
+        _pace_search()
         fields = 'code,product_name,brands,nutriments,serving_size,serving_quantity,quantity,countries_tags'
         try:
-            d = _get('https://search.openfoodfacts.org/search?' + urllib.parse.urlencode({'q': q, 'page_size': 20, 'fields': fields}))
+            d = get('https://search.openfoodfacts.org/search?' + urllib.parse.urlencode({'q': q, 'page_size': 20, 'fields': fields}))
             items = d.get('hits') or []
             if items: return items
+        except CatalogUnavailable: raise
         except Exception:
             pass
-        d = _get('https://world.openfoodfacts.org/cgi/search.pl?' + urllib.parse.urlencode(
+        d = get('https://world.openfoodfacts.org/cgi/search.pl?' + urllib.parse.urlencode(
             {'search_terms': q, 'search_simple': 1, 'action': 'process', 'json': 1, 'page_size': 20, 'fields': fields}))
         return d.get('products') or []
     try: foods = [f for f in (_off_food(p) for p in _cached('off2-search:' + q.lower(), fetch)) if f]
+    except CatalogUnavailable: raise
     except Exception: return []
     return sorted(foods, key=lambda f: (not f['us'], -_match(q, f['name'])))   # US products first, then best name match
 
 
 def _search_usda(q):
     key = os.environ.get('FDC_API_KEY') or 'DEMO_KEY'
+    get = _get
     def fetch():
         # Sent as JSON: the same filter in the address ("Survey (FNDDS)") was refused by about half of USDA's servers.
-        d = _get('https://api.nal.usda.gov/fdc/v1/foods/search?' + urllib.parse.urlencode({'api_key': key}),
+        d = get('https://api.nal.usda.gov/fdc/v1/foods/search?' + urllib.parse.urlencode({'api_key': key}),
                  body={'query': q, 'pageSize': 25, 'dataType': ['Foundation', 'SR Legacy', 'Survey (FNDDS)', 'Branded']})
         return d.get('foods') or []
     try: foods = [f for f in (_fdc_food(x) for x in _cached('usda2-search:' + q.lower(), fetch)) if f]
+    except CatalogUnavailable: raise
     except Exception: return []
     # plain foods ("Bananas, raw") before branded products that merely share a word ("Banana" peanut butter)
     return sorted(foods, key=lambda f: (-(_match(q, f['name']) + (1.5 if f['generic'] else 0)), not f['generic'], len(f['name'])))
@@ -186,8 +279,15 @@ def search(q: str, sources: str = 'mine,off,usda', user=Depends(current_user)):
         recent = c.execute("""SELECT DISTINCT ON (lower(name)) name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, ref, source
                               FROM food_entries WHERE user_id = %s AND name ILIKE %s ORDER BY lower(name), created DESC LIMIT 10""",
                            (user['id'], f'%{q}%')).fetchall()
-    return {'mine': mine if 'mine' in want else [], 'recent': recent if 'mine' in want else [],
-            'off': _search_off(q) if 'off' in want else [], 'usda': _search_usda(q) if 'usda' in want else []}
+    result = {'mine': mine if 'mine' in want else [], 'recent': recent if 'mine' in want else [], 'off': [], 'usda': []}
+    unavailable = []
+    with catalog_budget():
+        for source, lookup in (('off', _search_off), ('usda', _search_usda)):
+            if source in want:
+                try: result[source] = lookup(q)
+                except CatalogUnavailable: unavailable.append(source)
+    if unavailable: result['unavailable'] = unavailable
+    return result
 
 
 def _barcode_codes(code):
@@ -206,16 +306,20 @@ def barcode(code: str, user=Depends(current_user)):
     with db.connect() as c:
         mine = c.execute('SELECT * FROM custom_foods WHERE user_id = %s AND barcode = ANY(%s) ORDER BY barcode = %s DESC LIMIT 1', (user['id'], codes, code)).fetchone()
     if mine: return _custom_food(mine)
-    failed = False
+    failed = False; unavailable = False
+    end = catalog_deadline()
+    get = _get
     for candidate in codes:
-        def fetch():
-            d = _get(f'https://world.openfoodfacts.org/api/v2/product/{candidate}.json?fields=code,product_name,brands,nutriments,serving_size,serving_quantity,quantity')
+        def fetch(candidate=candidate):
+            d = get(f'https://world.openfoodfacts.org/api/v2/product/{candidate}.json?fields=code,product_name,brands,nutriments,serving_size,serving_quantity,quantity')
             return d.get('product') if d.get('status') in (1, 'success') else None
         try:
-            p = _cached('off-code:' + candidate, fetch, days=60)
+            with catalog_budget(end): p = _cached('off-code:' + candidate, fetch, days=60)
             f = _off_food(p) if p else None
             if f: return f
+        except CatalogUnavailable: unavailable = True
         except Exception: failed = True
+    if unavailable: raise CatalogUnavailable()
     if failed: raise HTTPException(502, "Couldn't reach the food database - try again or add it by hand")
     raise HTTPException(404, 'Not found in the food database')
 
