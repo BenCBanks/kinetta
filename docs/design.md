@@ -1681,6 +1681,18 @@ behavior are unchanged; physical iPhone acceptance remains separate.
 
 The later31October spacing rule keeps8px between quick activities, More and recording pills. Common targets stay44px, giving52px minimum pitch. The primary plan link itself gets a 44px target. Two-line More choices use56px rows and8px separation. Track discovery cards use16px padding and12px grid gaps. The31px iPhone-shaped Spoken updates switch stays visually intact inside a 44px-high label target; Auto-pause already had a full-row label. Control labels use15px and secondary notes at least13px. These are scoped spacing/activation changes; no recording preference or GPS behavior changes.
 
+## Single-workout milestone pictures · 2 November 2026
+
+First-sport, first-distance and best-effort milestones include a recorded route when that activity
+allows map sharing. Keep the milestone title, date, number and workout facts. Hide both endpoints
+using the activity-picture distance (400 m by default, including when the saved distance is zero).
+Private activities, maps switched off, missing GPS and routes too short after hiding keep the existing
+numbers-only picture without an empty map panel. Totals and streaks remain map-free even if a workout
+triggered them. Use the configured activity basemap, route styling and visible attribution; recheck
+activity/map privacy and cropped geometry before handoff, requiring another review if they changed.
+Coordinates stay out of milestone records and sharing receipts. Recap and challenge pictures retain
+their existing composition.
+
 ## Progress share pictures · 31 October 2026
 
 The recap sheet exports one4:5 picture (1080×1350). A larger full-width preview frame opens the original picture. Periods scroll in snap pages of whole pills, with an edge fade showing more; text enlargement can put fewer choices on each page. Inclusion choices stay account/server scoped. Share follows the controls in normal scroll order. No discovery section belongs in this sheet.
