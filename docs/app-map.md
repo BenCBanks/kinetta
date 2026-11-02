@@ -346,11 +346,11 @@ The Activity and Track slices found no additional Speed Check entrance. The brow
 
 ## Progress
 
-Eighteen owned route/view families include the plan and fixed-course flows below. Filters, chart modes and disclosures are states. Most detail pages take two taps; the deepest confirmed sheet takes four. Depth starts on Progress.
+Seventeen owned route/view families include the plan and fixed-course flows below. Filters, chart modes and disclosures are states. Most detail pages take two taps; the deepest confirmed sheet takes four. Depth starts on Progress.
 
 ```mermaid
 flowchart LR
- P["Progress · 0"] --> T["Totals · 1"]
+ P["Progress · 0 · Totals card, sport, period and table"]
  P --> F["Fitness · 1"]
  P --> R["Records · 1"]
  P --> L["Lifting · 1"]
@@ -377,7 +377,7 @@ flowchart LR
  WeightEdit --> Undo["Short Undo toast after Delete"]
 ```
 
-Record history, Fitness, exercise history and repeated routes link to their Activity source. Totals has sport, period and table controls; Year over year has sport, range, table and chart controls. Record history preserves progression and fastest-first efforts. Weight also has a Nutrition entrance. Heatmap remains private; its recap contains no map. Weight deletion offers a short Undo toast, cancelling the deferred deletion without rewriting the original source or Health data; no extra sheet is involved. Other Progress correctness findings are tracked in #491. Totals folding into Progress and simpler repeated record lists are agreed for #492; this map retains the inspected pages until those changes ship.
+Record history, Fitness, exercise history and repeated routes link to their Activity source. Totals lives on Progress itself, with sport, period and table controls; old Totals/mileage URLs redirect there with their filters. Year over year has sport, range, table and chart controls. Record history has one fastest-first list with All and PRs filters. Weight also has a Nutrition entrance. Heatmap remains private; its recap contains no map. Weight deletion offers a short Undo toast, cancelling the deferred deletion without rewriting the original source or Health data; no extra sheet is involved. Other Progress correctness findings are tracked in #491. Totals folding into Progress and simpler repeated record lists are agreed for #492; this map retains the inspected pages until those changes ship.
 
 ### Fixed courses
 

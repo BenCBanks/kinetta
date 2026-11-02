@@ -31,7 +31,7 @@ const Segments = (() => {
     body.innerHTML = `<a class="primary wide" href="/segments/new">${svg('plus')}Create a segment</a>
       <p class="small muted">Segments are fixed stretches with times. Members can race the same course; joining the leaderboards is your choice.</p>
       <form class="searchbox" id="sg-find" role="search"><span class="sb-ico">${svg('search')}</span><input type="search" name="q" value="${esc(term)}" placeholder="Search segments" aria-label="Search segments" maxlength="120" enterkeyhint="search"></form>
-      <div class="chips segment-filters" role="group" aria-label="Show">${[['near', 'Near the map'], ['saved', 'Saved'], ['mine', 'Created by me']].map(([k, l]) => `<button type="button" class="chip" data-f="${k}" aria-pressed="${filter === k}">${l}</button>`).join('')}
+      <div class="chips segment-filters" role="group" aria-label="Show">${[['near', 'Near map'], ['saved', 'Saved'], ['mine', 'Mine']].map(([k, l]) => `<button type="button" class="chip" data-f="${k}" aria-pressed="${filter === k}">${l}</button>`).join('')}
         <select id="sg-sport" class="chip" aria-label="Sport"><option value="">All sports</option>${PLAN_SPORTS.map(([k, l]) => `<option value="${k}"${sport === k ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="seg-map" id="sg-map" ${filter === 'near' && !term ? '' : 'hidden'}></div><div id="sg-list">${skel(2)}</div>`;
     const reload = (o) => go(`/progress/segments?${new URLSearchParams({ f: filter, ...(term ? {q: term} : {}), ...(sport ? {sport} : {}), ...o})}`, {replace: true});
@@ -48,7 +48,7 @@ const Segments = (() => {
       if (map) { map.group.clearLayers(); for (const r of rows) if (r.line) map.L.polyline(decode(r.line), {color: col('--route'), weight: 4}).addTo(map.group).on('click', () => go(`/segments/${r.id}`)); }
       box.innerHTML = rows.length ? `<div class="card list">${rows.map((r) => `<a class="row-link" href="/segments/${r.id}">${r.line ? miniRoute(r.line, r.sport) : ''}<span class="grow"><b>${esc(r.name)}</b>
           <small class="muted">${esc(sportName(r.sport))} · ${U.dist(r.distance_m)} ${U.du()}${r.ascent_m != null ? ` · ↑ ${U.elev(r.ascent_m)} ${U.eu()}` : ''}${r.audience === 'me' ? ' · only you' : ''}${r.status === 'retired' ? ' · retired' : ''}${r.saved ? ' · saved' : ''}</small></span>${svg('chev')}</a>`).join('')}</div>`
-        : `<div class="card empty"><b>${filter === 'saved' ? 'No saved segments' : filter === 'mine' ? 'You haven’t created a segment' : 'No segments here yet'}</b>${filter === 'near' ? 'Move the map, or create the first one: a hill, a loop of the park, a sprint.' : 'Open a segment and tap Save to keep it here.'}</div>`;
+        : `<div class="card empty"><b>${term?'No matching segments':filter === 'saved' ? 'No saved segments' : filter === 'mine' ? 'You haven’t created a segment' : 'No segments here yet'}</b>${term ? 'Try another search or sport.' : filter==='mine' ? 'Create a segment to keep its course and your times here.' : filter==='saved' ? 'Open a segment and tap Save to keep it here.' : map ? 'Move the map, or create the first segment here.' : 'Try a search or another sport, or create a segment.'}</div>`;
     };
     if (filter === 'near' && !term) {
       try {
@@ -56,6 +56,7 @@ const Segments = (() => {
         if (map) { if (centre) map.map.setView(centre, 13); else map.map.setView([39.5, -98.5], 3);
           let t = 0; map.map.on('moveend', () => { clearTimeout(t); t = setTimeout(() => { const c = map.map.getCenter(); centre = [c.lat, c.lng]; store.set('kinetta.segCentre', centre); fetchList(); }, 500); }); }
       } catch (_) { /* the list still works */ }
+      if(!map)$('#sg-map',body).hidden=true;
     }
     await fetchList();
   }
@@ -142,9 +143,9 @@ const Segments = (() => {
       ${s.description ? `<p>${esc(s.description)}</p>` : ''}
       ${s.status === 'retired' ? `<p class="plan-warn" role="note">${svg('info')}Retired${s.status_reason ? ': ' + esc(s.status_reason) : ''}. It takes no new times; the board below is kept as it was.${s.replaced_by ? ` <a href="/segments/${s.replaced_by}">See the replacement</a>.` : ''}</p>` : ''}
       <div class="seg-course" id="sg-map"></div>
-      <p class="seg-fixed small" role="note">${svg('lock')}<span>Fixed course, created ${esc(fdate(s.created, {month: 'short', day: 'numeric', year: 'numeric'}))}. It can’t be edited by anyone, so every time here is on the same course.</span></p>
+      <details class="seg-rules"><summary>Course &amp; timing rules${svg('chev')}</summary><p class="small muted">Fixed course, created ${esc(fdate(s.created, {month: 'short', day: 'numeric', year: 'numeric'}))}. It can’t be edited by anyone, so every time here is on the same course.</p><p class="small muted">One best time per member, in whole seconds; equal times share a place. Only ${sportName(s.sport).toLowerCase()}s shared with Everyone, by members who joined leaderboards, declared outdoors without motor assistance, from the start to the finish in order.</p></details>
       <div class="btnrow seg-btns"><button class="ghost" id="sg-save" aria-pressed="${s.saved}">${svg('bookmark')}${s.saved ? 'Saved' : 'Save'}</button>
-        ${s.mine && s.audience === 'me' && s.status === 'active' ? `<button class="primary" id="sg-pub">Publish to everyone</button>` : ''}</div>
+        ${s.mine && s.audience === 'me' && s.status === 'active' ? `<button class="primary" id="sg-pub" aria-label="Publish to everyone">Publish</button>` : ''}</div>
       <div class="seg tabs2" role="tablist"><button role="tab" data-t="board" aria-selected="${tab === 'board'}">Leaderboard</button><button role="tab" data-t="mine" aria-selected="${tab === 'mine'}">Your times</button></div>
       <div id="sg-tab"></div>`;
     mapInto($('#sg-map', body), [s.line], {sport: s.sport}).then((v) => v && arrows(v, decode(s.line))).catch(() => {});
@@ -206,14 +207,14 @@ const Segments = (() => {
       ${x.me ? '' : `<button class="icon-btn lb-more" data-rep="${esc(x.login)}" data-name="${esc(x.name)}" aria-label="Report ${esc(x.name)}’s time">${svg('more')}</button>`}</li>`;
     if (after) { const ol = $('.lb', box); ol.insertAdjacentHTML('beforeend', r.rows.map(row).join('')); wireRows(box, s); moreBtn(box, s, r); return; }
     const me = r.me || {};
-    const myCard = !r.public ? `<div class="card seg-me"><b>Only you can see this segment</b><p class="small muted">Publish it to compete with others. ${me.private_best ? `Your best: <b class="num">${dur(me.private_best)}</b>.` : ''}</p></div>`
-      : r.paused ? `<div class="card seg-me"><b>${SEG_WHY.paused}</b><p class="small muted">Your own times are still under Your times.</p></div>`
-      : `<div class="card seg-me">${me.rank ? `<p>Your best public time <b class="num">${dur(me.public_best)}</b> · rank <b class="num">${me.rank}</b> of ${r.count}</p>` : me.private_best ? `<p>Your fastest private time <b class="num">${dur(me.private_best)}</b></p><p class="small muted">${esc(SEG_WHY[me.why_not] || '')}</p>` : '<p class="small muted">No time on this segment yet. Complete it from start to finish in a recorded activity.</p>'}
+    const myCard = !r.public ? `<div class="seg-me"><b>Only you can see this segment</b><p class="small muted">Publish it to compete with others. ${me.private_best ? `Your best: <b class="num">${dur(me.private_best)}</b>.` : ''}</p></div>`
+      : r.paused ? `<div class="seg-me"><b>${SEG_WHY.paused}</b><p class="small muted">Your own times are still under Your times.</p></div>`
+      : `<div class="seg-me">${me.rank ? `<p>Your best public time <b class="num">${dur(me.public_best)}</b> · rank <b class="num">${me.rank}</b> of ${r.count}</p>` : me.private_best ? `<p>Your fastest private time <b class="num">${dur(me.private_best)}</b></p><p class="small muted">${esc(SEG_WHY[me.why_not] || '')}</p>` : `<p class="small muted">${r.rows.length?'No time on this segment yet.':'No public times yet.'} Complete it from start to finish in a recorded activity.</p>`}
         ${me.joined ? `<button class="linkbtn" id="lb-join">Leaderboard settings</button>` : `<button class="primary sm" id="lb-join">Join leaderboards</button>`}</div>`;
     box.innerHTML = `${myCard}${r.matching_update&&!r.rebuilding?'<p class="small muted" role="status">A matching update is available. Existing complete results remain visible while an admin arranges the rebuild.</p>':''}${r.processing ? `<p class="plan-warn small" role="status">${svg('info')}Checking activities. During a rebuild, the previous complete results stay visible until the replacement is ready.</p>` : ''}
-      ${r.public && !r.paused ? (r.rows.length ? `<ol class="lb card">${r.rows.map(row).join('')}</ol>` : `<div class="card empty"><b>No public times yet</b>Members who join leaderboards and complete this ${sportName(s.sport).toLowerCase()} appear here.</div>`) : ''}
+      ${r.public && !r.paused ? (r.rows.length ? `<ol class="lb card">${r.rows.map(row).join('')}</ol>` : (me.private_best?'<p class="small muted">No public times yet.</p>':'')) : ''}
       <div id="lb-more"></div>
-      <p class="small muted">One best time per member, in whole seconds; equal times share a place. Only ${sportName(s.sport).toLowerCase()}s shared with Everyone, by members who joined leaderboards, declared outdoors without motor assistance, from the start to the finish in order.${r.scope ? ' ' + esc(r.scope) : ''}</p>`;
+      ${r.scope?`<p class="small muted">${esc(r.scope)}</p>`:''}`;
     const j = $('#lb-join', box); if (j) j.onclick = () => joinSheet(() => board(box, s));
     wireRows(box, s); moreBtn(box, s, r);
   }
@@ -249,7 +250,7 @@ const Segments = (() => {
   function effortRow(e, s, best) {
     const why = e.public ? '<small class="good">On the leaderboard</small>' : `<small class="muted">${esc(SEG_WHY[e.why_not] || '')}${e.reason_text ? ' ' + esc(e.reason_text) : e.reason && e.why_not === 'excluded' ? ' ' + esc(e.reason) : ''}</small>`;
     const canAppeal = ['held', 'excluded'].includes(e.why_not) && e.reason !== 'duplicate' && e.appeal !== 'open';
-    return `<li class="row-link seg-effort"><a class="grow" href="/activity/${e.activity_id}"><b class="num">${dur(e.elapsed_s)}</b>${best ? ' <span class="badge on">Your best</span>' : ''}
+    return `<li class="row-link seg-effort"><a class="grow" href="/activity/${e.activity_id}"><b class="num">${dur(e.elapsed_s)}</b>${best ? ' <small class="seg-best-label">· Your best</small>' : ''}
       <small class="muted">${esc(e.activity_name)} · ${esc(fdate(e.started, {month: 'short', day: 'numeric', year: 'numeric'}))} · ${pace(e.elapsed_s, s.distance_m || e.distance_m, s.sport || 'run')}</small>${why}${e.appeal === 'open' ? '<small class="muted">Review requested</small>' : ''}</a>
       ${canAppeal ? `<button class="ghost sm" data-appeal="${e.id}">Ask for review</button>` : ''}</li>`;
   }
