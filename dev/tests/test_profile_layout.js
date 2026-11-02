@@ -10,4 +10,8 @@ assert(!html.includes('Last 30 days')&&!html.includes('data-profile-mileage'));a
 assert.equal(c.layout.content(r,{sections:[],stats:['time'],sports:[]}),'','identity-only layout is valid');
 html=c.layout.content({...r,overview:{activities:0},sports:[],items:[],mine:true});assert(html.includes('No shared activities yet'));assert(!html.includes('data-profile-mileage')&&!html.includes('[Activities:0]'));
 assert.deepEqual(JSON.parse(JSON.stringify(c.layout.normalize({sections:['food','recent','recent'],stats:['private'],sports:['unknown','run','run']}))),{sections:['recent'],stats:['activities','distance','time'],sports:['run']});
+const single=v=>JSON.parse(JSON.stringify(c.layout.singlePeriod(v))).sections;
+assert.deepEqual(single({sections:['recent','sports','totals','mileage']}),['totals','sports','mileage'],'All time wins for legacy two-period layouts at the first numbers slot');
+assert.deepEqual(single({sections:['recent','sports']}),['recent','sports'],'a Recent-only choice survives');
+assert.deepEqual(single({sections:[]}),[],'hidden numbers remain hidden');assert.deepEqual(single({}),['totals','mileage','sports','activities'],'old defaults render All time without changing stored data');
 console.log('Profile presentation: section order/visibility, selected stats/sports, no private or unknown fields, empty profiles and upgraded defaults PASS');

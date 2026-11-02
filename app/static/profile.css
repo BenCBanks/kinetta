@@ -88,14 +88,13 @@
 .me-card-label span { font-size:.8125rem; font-weight:600; color:var(--tx2); }
 .me-card-label small { font-size:.8125rem; color:var(--tx3); }
 .me-chart-scroll { position:relative; margin:4px 0 0; min-width:0; }
-.me-summary-scroll { position:relative; min-width:0; }
 .me-card-bars { display:flex; align-items:flex-end; gap:0; height:60px; padding:4px 0; overflow-x:auto; scrollbar-width:none; scroll-snap-type:x proximity; scroll-padding-inline:0; }
 .me-card-bars::-webkit-scrollbar { display:none; }
-.me-chart-scroll::before,.me-chart-scroll::after,.me-summary-scroll::before,.me-summary-scroll::after { content:''; position:absolute; z-index:1; top:0; bottom:0; width:16px; pointer-events:none; opacity:0; }
-.me-chart-scroll::before,.me-summary-scroll::before { left:0; background:linear-gradient(to right,var(--card),transparent); }
-.me-chart-scroll::after,.me-summary-scroll::after { right:0; background:linear-gradient(to left,var(--card),transparent); }
-.me-chart-scroll.has-before::before,.me-chart-scroll.has-after::after,.me-summary-scroll.has-before::before,.me-summary-scroll.has-after::after { opacity:1; }
-.me-chart-scroll:focus-within::before,.me-chart-scroll:focus-within::after,.me-summary-scroll:focus-within::before,.me-summary-scroll:focus-within::after { opacity:0; }
+.me-chart-scroll::before,.me-chart-scroll::after { content:''; position:absolute; z-index:1; top:0; bottom:0; width:16px; pointer-events:none; opacity:0; }
+.me-chart-scroll::before { left:0; background:linear-gradient(to right,var(--card),transparent); }
+.me-chart-scroll::after { right:0; background:linear-gradient(to left,var(--card),transparent); }
+.me-chart-scroll.has-before::before,.me-chart-scroll.has-after::after { opacity:1; }
+.me-chart-scroll:focus-within::before,.me-chart-scroll:focus-within::after { opacity:0; }
 /* Indicate hidden weeks in the padding, without fading a partly visible bar. */
 .me-chart-scroll::before,.me-chart-scroll::after { top:50%; bottom:auto; width:5px; height:5px; background:none; border-top:1.5px solid var(--tx3); border-right:1.5px solid var(--tx3); }
 .me-chart-scroll::before { left:-10px; transform:translateY(-50%) rotate(-135deg); }
@@ -107,45 +106,19 @@
 .me-week[aria-pressed=true] span { background:var(--accent); box-shadow:0 0 0 2px var(--card), 0 0 0 4px var(--accent); }
 .me-week:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
 .me-card-label.picked small { color:var(--tx); font-weight:700; font-size:.8125rem; }
-.me-stats-scroll { overflow-x:auto; scrollbar-width:thin; overscroll-behavior-x:contain; }
-.me-stats { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
-.me-stats th,.me-stats td { padding:8px 4px; text-align:right; }
-.me-stats thead th { padding:0 2px 8px; font-size:.8125rem; font-weight:600; color:var(--tx2); white-space:nowrap; }
-.me-stats thead small { font-size:inherit; font-weight:500; }
-.me-stat-group { overflow-x:auto; scrollbar-width:thin; }
-.me-stat-pairs { display:none; width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
-.me-stat-pairs th,.me-stat-pairs td { padding:4px; text-align:right; white-space:nowrap; }
-.me-stat-pairs thead th { padding-top:0; padding-bottom:8px; font-size:.8125rem; font-weight:600; color:var(--tx2); }
-.me-stat-pairs th:first-child { padding-left:0; text-align:left; }
-.me-stat-pairs tr > :last-child { padding-right:0; }
-.me-stat-pairs tbody th { font-size:.8125rem; font-weight:600; color:var(--tx2); }
-.me-stat-pairs small { font-size:inherit; font-weight:500; }
-@media(max-width:430px) { .me-stat-wide { display:none; } .me-stat-pairs { display:table; } }
-@container(max-width:20rem) { .me-stat-wide { display:none; } .me-stat-pairs { display:table; } }
-@container(max-width:14rem) {
-  .me-stat-pairs,.me-stat-pairs thead,.me-stat-pairs tbody { display:block; }
-  .me-stat-pairs tr { display:grid; grid-template-columns:repeat(2,minmax(min-content,1fr)); }
-  .me-stat-pairs.me-pairs-one tr { grid-template-columns:minmax(0,1fr); }
-  .me-stat-pairs .me-pair-corner { display:none; }
-  .me-stat-pairs thead th:nth-child(2),.me-stat-pairs td:first-of-type { padding-left:0; text-align:left; }
-  .me-stat-pairs.me-pairs-one thead th:nth-child(2) { text-align:right; }
-  .me-stat-pairs tbody th { grid-column:1/-1; padding:0 0 4px; }
-  .me-stat-pairs tbody + tbody th { padding-top:12px; }
-  .me-stat-pairs td { padding-block:0; }
-  .me-stat-pairs thead th { padding-bottom:12px; white-space:normal; }
-  .me-stat-pairs thead span { white-space:nowrap; }
-}
-.me-stats tbody th { max-width:5rem; text-align:left; font-size:.8125rem; font-weight:600; color:var(--tx2); }
-.me-stats tbody th span { white-space:nowrap; }
-.me-stats tr > :first-child { padding-left:0; }
-.me-stats tr > :last-child { padding-right:0; }
-.me-stats tbody tr + tr > * { border-top:1px solid var(--line); }
-.me-stats td { white-space:nowrap; }
-.me-metric-value { font-size:1.25rem; line-height:1.3; }
+.me-card-figures { display:flex; flex-direction:column; gap:8px; }
+.me-card-period { margin:0; font-size:.8125rem; line-height:1.3; font-weight:600; color:var(--tx2); }
+.me-card-numbers { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:0; font-variant-numeric:tabular-nums; text-align:center; }
+.me-card-numbers.me-numbers-1 { grid-template-columns:1fr; }
+.me-card-numbers.me-numbers-2 { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.me-card-numbers > div { display:flex; flex-direction:column; min-width:0; gap:4px; }
+.me-card-numbers dt { order:2; display:flex; justify-content:center; flex-wrap:wrap; column-gap:4px; font-size:.8125rem; line-height:1.3; color:var(--tx2); overflow-wrap:normal; word-break:normal; }
+.me-card-numbers dt small { font-size:inherit; white-space:nowrap; }
+.me-card-numbers dd { order:1; margin:0; line-height:1.3; white-space:nowrap; }
+.me-metric-value { font-size:20px; font-size:clamp(20px,8cqw,24px); line-height:1.3; }
 .me-sport-chips { display:flex; flex-wrap:nowrap; gap:12px; min-height:24px; }
 .me-sport-chip { display:inline-flex; align-items:center; flex:none; gap:4px; min-height:24px; font-size:.8125rem; font-weight:500; white-space:nowrap; }
 .me-sport-more { flex:none; align-self:center; font-size:.8125rem; font-weight:500; white-space:nowrap; color:var(--tx2); }
-.me-stats-scroll:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
 /* Keep summary icons as quiet as their labels; colour belongs to active controls. */
 .me-sport-ico { display:inline-flex; flex:none; color:var(--tx2); } .me-sport-ico svg { width:16px; height:16px; stroke-width:2; }
 .me-card-row { display:flex; align-items:center; gap:12px; min-height:48px; padding:8px 0; border-top:1px solid var(--line); color:var(--tx); font-size:.9375rem; }
@@ -160,6 +133,9 @@
 .me-card-note span { white-space:nowrap; }
 .me-card-note svg { width:14px; height:14px; flex:none; margin-top:2px; }
 .me-card-editor { display:flex; flex-direction:column; gap:6px; }
+.me-card-editor .me-chips[data-card-period] { gap:8px; }
+.me-card-editor [data-card-period] .me-chip { min-height:44px; border:1px solid transparent; border-radius:0; background:none; font-size:.9375rem; }
+.me-card-editor [data-card-period] .me-chip[aria-pressed=true] { color:var(--accent); text-decoration:underline; text-underline-offset:4px; }
 .me-card-editor h3 { font-size:.875rem; color:var(--tx2); margin:12px 0 2px; }
 .me-card-editor .small { margin:0; }
 .me-edit-row { display:flex; align-items:center; gap:4px; min-height:48px; padding:0 0 0 12px; border:1.5px dashed var(--color-distance-muted); border-radius:12px; font-weight:600; }

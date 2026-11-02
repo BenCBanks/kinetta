@@ -1414,18 +1414,16 @@ The Me card's weekly distance bars are buttons. Tapping one marks it and swaps t
 and its distance on the right, so nothing below moves; tapping it again restores "7 weeks" and the total.
 Every week keeps a 44px tap target and an accessible name with dates and distance. All seven fit at 390 px;
 narrower rails keep scrolling, with small indicators in the card padding instead of a fade over the bars.
-Large numbers use thousands separators everywhere on the card and shared profile (3,044 · 11,784 mi · Run · 2,938);
-100 or more hours show whole hours ("1,546h"). Recent and all-time figures share one quiet block and one visible
-set of metric labels; distance units belong to the heading. Cards at 320–430 px use the paired presentation,
-with metric labels beside both periods; enlarged layouts put the label above the pair so every value stays visible.
-Time uses hours in this presentation, with its precise duration retained in the accessible label and tooltip.
-Tiny positive durations stay positive; longer-form times keep a thin space between units and retain locale grouping.
-Numbers stay unbroken and 20 px at the default root.
-The recent date range stays in its accessible label. Custom nonadjacent section orders remain separate;
-independent section visibility, selected metrics/sports and identity-only layouts still work.
+One period shows one row of headline numbers, with small metric labels and units underneath. All time wins
+whenever the saved layout contains totals, including the former two-period default; a Recent-only choice shows
+Last 30 days. The editor saves one period, while preserving hidden-number layouts, selected metrics and section order.
+The single numbers block occupies the first former numbers slot. Its quiet period caption identifies the timeframe;
+the recent date range remains in its accessible group name and tooltip. Numbers stay unbroken, at 20–24 px, with
+thousands separators; time is labelled in hours, with its precise duration in screen-reader text and a tooltip.
+Tiny positive durations stay positive. There is no totals table or second period column.
 
 Friends shares the handle line, retaining a 44 px target and pending requests. Sport summaries use plain 13 px
-secondary text and neutral icons: only whole labels that fit, in saved order or most-used first by default.
+secondary text and neutral icons: at most three whole labels that fit, in saved order or most-used first by default.
 A quiet +N counts omitted sports, with their details available to screen readers and in a tooltip; no sideways scroll or clipping.
 Card padding and section gaps are 16 px; the shared-activities link is a 48 px single-line row.
 The one-line lock explanation reads “Private totals, no details”; its screen-reader text and tooltip retain the full friends/private-details explanation. It fits the card and can scroll clear of the tab bar. Banner, photo, Edit/Share,
