@@ -116,6 +116,10 @@ def describe(person):
     if reply.get('can_resolve'):
         status, value = request(person, 'describe_resolve', 'POST', path+'/resolve', {'itemize': False})
         reply = next((m.get('result') or {} for m in (value or {}).get('messages', []) if m.get('reply_to') == mid), {})
+    if status == 200 and any(p.get('status') == 'choose' for p in reply.get('parts', [])):
+        # A genuine source-choice hold is expected. Do not invent a choice or label it an HTTP failure.
+        with lock: records.append(('describe_held_for_choice', 202, (time.monotonic()-started)*1000))
+        return
     ready = reply.get('parts') and all(p.get('status') == 'ready' and not p.get('logged') for p in reply['parts'])
     if status == 200 and (not ready or reply.get('entry_ids')): status = 500
     if status == 200:

@@ -23,6 +23,9 @@ food-message/process/resolve/review/explicit confirmation5%, reactions/comments6
 Import completion requires one added activity, zero duplicates/failures; cursors survive repeat runs.
 Tab bundles include Me's statistics/activity-food/plan/food, Nutrition's thread, and Track's plan/connections.
 Calls are sequential within a person's bundle; the people run concurrently. Workflow and HTTP timings are separate.
+Repeated descriptions may legitimately ask for a saved-source choice. Those are recorded as held workflows,
+not HTTP failures; this baseline leaves that explicit choice unresolved. Only confirmed receipts count as
+completed descriptions. Precreated sessions exclude sign-up, email and login-burst capacity.
 Keep separate output directories for separate deployments. Sessions are private: never publish sessions.json,
 browser profiles, raw resource output, addresses or host details. Reports and test output stay out of git.
 
@@ -46,3 +49,4 @@ This separately measures a cold390×844 Me overview at150ms/1600Kbps/4×CPU and 
 JSON/HTML plus actual JS/CSS transfer/decoded sizes and first-useful readiness. Providers and product writes
 are blocked in the browser. Lighthouse uses simulated throttling; the explicit first-useful probe uses CDP
 throttling. Keep those measurements distinct. Run it outside the load interval to avoid benchmark contention.
+See the [official Lighthouse CLI documentation](https://github.com/GoogleChrome/lighthouse#using-the-node-cli).
