@@ -457,9 +457,9 @@ class FoodIn(N.ExtraValues):
     serving_label: str = Field('1 serving', max_length=60)
     serving_g: float | None = Field(None, gt=0, le=10000)
     kcal: float = Field(0, ge=0, le=20000)
-    protein_g: float = Field(0, ge=0, le=2000)
-    carbs_g: float = Field(0, ge=0, le=2000)
-    fat_g: float = Field(0, ge=0, le=2000)
+    protein_g: float | None = Field(0, ge=0, le=2000)
+    carbs_g: float | None = Field(0, ge=0, le=2000)
+    fat_g: float | None = Field(0, ge=0, le=2000)
     fiber_g: float | None = Field(None, ge=0, le=1000)
     favorite: bool = False
 
@@ -516,7 +516,7 @@ def meals(user=Depends(current_user)):
     with db.connect() as c:
         rows = c.execute('SELECT id, name, items, ai_note, ai_note_at FROM saved_meals WHERE user_id = %s ORDER BY name', (user['id'],)).fetchall()
     for r in rows:
-        r['totals'] = {k: round(sum((i.get(k) or 0) for i in r['items']), 1) for k in NUM}
+        r['totals'] = {k: round(sum(i[k] for i in r['items']), 1) if all(N.known(i,k) for i in r['items']) else None for k in NUM}
         note, at = r.pop('ai_note'), r.pop('ai_note_at')        # AI feedback on the meal (food_coach.py), if asked for
         r['review'] = {**json.loads(note), 'at': at} if note else None
     return rows

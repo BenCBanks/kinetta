@@ -212,7 +212,7 @@ function dishLogSheet(d, w, done, {chooseMeal=false}={}) {
   const both = wt > 0 && (bySv || (d.serving_count || 0) > 1) && !d.recipe_source?.import_id;   // a default 1 'serving' would be the whole pot
   let mode = bySv ? 'sv' : 'g';
   const vals = (k) => Object.fromEntries(FOOD_NUTRIENTS.map((x) => [x, t[x]==null?null:t[x]*k]));
-  sheet(d.name, `${d.mine===false?`<p class="small muted">Shared by ${esc(d.owner?.name||'your friend')}. Your food log stays private.</p>`:''}<form class="form" id="dl">
+  sheet(d.name, `${foodDestination(w)}${d.mine===false?`<p class="small muted">Shared by ${esc(d.owner?.name||'your friend')}. Your food log stays private.</p>`:''}<form class="form" id="dl">
     ${chooseMeal?`<label>Meal today<select name="meal" required><option value="">Choose a meal</option>${Object.entries(MEAL_NAMES).map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select></label>`:''}
     ${both ? `<div class="seg dl-mode" role="group" aria-label="Log by"><button type="button" data-mode="sv" aria-pressed="${bySv}">Servings</button><button type="button" data-mode="g" aria-pressed="${!bySv}">Grams</button></div>` : ''}
     ${bySv || both ? `<div id="dl-sv"${bySv ? '' : ' hidden'}><div class="stepper" role="group" aria-label="Servings"><button type="button" class="icon-btn" data-st="-1" aria-label="Fewer">${svg('minus')}</button>
@@ -221,7 +221,7 @@ function dishLogSheet(d, w, done, {chooseMeal=false}={}) {
       : bySv ? '' : '<p class="callout warn">This meal is measured by weight but has no weight yet. Edit it and type its total weight, or switch it to servings.</p>'}
     ${d.mine===false&&d.serving!=='one'&&!wt?'<p class="small muted">No total weight has been added. Use servings instead.</p>':''}${bySv&&!d.recipe_source?.import_id?`<p class="small muted" id="dl-sv-note">The recipe makes ${esc(d.serving_count)} serving${d.serving_count==1?'':'s'}. Enter the number you ate.</p>`:''}${d.recipe_source?.import_id?`<p class="small muted">The whole recipe makes ${esc(d.serving_count)} servings. Unknown nutrition is shown as a dash.</p>`:''}<div class="portion-out" aria-live="polite"></div>
     <div class="actions">${d.mine !== false ? `<button type="button" class="ghost" id="dl-edit">${svg('edit')}Edit</button><span class="spacer"></span>` : ''}
-      <button class="primary"${!bySv && !wt && !both ? ' disabled' : ''}>${chooseMeal?'Log portion':'Add to '+esc(MEAL_NAMES[w.meal])}${w.day !== isoDay(new Date()) ? `, ${esc(dayLabel(w.day))}` : ''}</button></div></form>`, (b, close) => {
+      <button class="primary"${!bySv && !wt && !both ? ' disabled' : ''}>${chooseMeal?'Log portion':'Add to '+esc(MEAL_NAMES[w.meal])}</button></div></form>`, (b, close) => {
     guardFoodSheet(b,close,owner);
     const f = $('#dl', b), out = $('.portion-out', f), num = x => {const v=x?.value?.trim()||'';const m=v.match(/^(\d*)([¼½¾])$/);return m?Number(m[1]||0)+({'¼':.25,'½':.5,'¾':.75}[m[2]]):Number(v.replace(',','.'));};
     const half=x=>{const whole=Math.floor(x),frac=Math.round((x-whole)*4);return frac?`${whole||''}${['','¼','½','¾'][frac]}`:String(whole);};

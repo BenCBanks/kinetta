@@ -1972,6 +1972,10 @@ MIGRATIONS = [
     """ALTER TABLE users ADD COLUMN signup_guard boolean NOT NULL DEFAULT false,
       ADD COLUMN signup_confirmed_at timestamptz;""",
 
+    # 95. A blank custom-food macro is unknown; keep existing zeros and legacy defaults.
+    """ALTER TABLE custom_foods ALTER COLUMN protein_g DROP NOT NULL,
+      ALTER COLUMN carbs_g DROP NOT NULL, ALTER COLUMN fat_g DROP NOT NULL;""",
+
 ]
 
 

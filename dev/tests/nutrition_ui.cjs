@@ -49,6 +49,21 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     if(size.root===16){const lunch=await p.locator('.meal-lunch').boundingBox(),nav=await p.locator('nav.tabs').boundingBox();if(who==='typical')assert(lunch.y+lunch.height<nav.y-8,'Breakfast and Lunch clear the tab bar');}
     assert.equal(await p.locator('.meal-calories').first().evaluate(n=>getComputedStyle(n.querySelector('small')).display),'inline');
    }
+   if(who!=='empty'){
+    const details=p.locator('#fd-details details.bd');
+    if(await details.count()){
+     if(!await details.evaluate(n=>n.open))await details.locator('summary').click();
+     assert.equal(await details.locator('summary').evaluate(n=>getComputedStyle(n).display),'flex');
+     assert((await details.locator('summary').boundingBox()).height>=44,'energy disclosure keeps a44px target');
+     assert(await details.locator('summary').evaluate(n=>parseFloat(getComputedStyle(n).fontSize)>=15),'energy disclosure keeps readable type');
+     for(const row of await details.locator('.brow').all()){
+      const label=await row.locator(':scope > span').boundingBox(),value=await row.locator(':scope > b').boundingBox();
+      assert(label.x+label.width<=value.x-4,'energy label/qualification and amount stay in separate columns');
+     }
+     for(const icon of await details.locator('.exi svg').all()){const r=await icon.boundingBox();assert(r.width<=16.1&&r.height<=16.1,'energy workout icon stays16px');}
+     await details.locator('summary').click();await p.evaluate(()=>scrollTo(0,0));
+    }
+   }
    await fits('home');if(out&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.waitForTimeout(350);await p.screenshot({path:`${out}/nutrition-${who}-${theme}.png`,fullPage:true,animations:'disabled'});}
    // One summary leads to the same analysis used by legacy Progress links; all options live in cards.
    if(who!=='empty'){
@@ -75,7 +90,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    assert.equal(await p.locator('#thread-text').evaluate(n=>document.activeElement===n),false,'background dismisses keyboard focus');
    assert.equal(await p.locator('.keyboard-done,.keyboard-done-bar').count(),0);assert(Number.parseFloat(await p.locator('#thread-text').evaluate(n=>getComputedStyle(n).fontSize))>=16);
    await p.locator('.thread-heading .back').click();await ready();assert.equal(new URL(p.url()).searchParams.get('d'),past);await p.locator('.meal-breakfast [data-add]').click();await until(p,()=>App.pageReady&&!!document.querySelector('#thread-text'),'return to draft');assert.equal(await p.locator('#thread-text').inputValue(),draft);await p.locator('#thread-text').fill('');
-   if(who==='typical'&&size.root===16){
+   if(who==='typical'){
     // Entered numbers cannot call a catalog/model. The final explicit confirmation must keep the chosen day.
     await p.locator('#thread-plus').click();await p.locator('.sheet .thread-tools button',{hasText:'Manual'}).click();await p.waitForSelector('#ty');
     await p.locator('#ty [name=name]').fill('Fictional past-day meal');await p.locator('#ty [name=kcal]').fill('180');await p.locator('#ty [name=protein_g]').fill('10');await p.locator('#ty button.primary').click();
