@@ -385,7 +385,9 @@ class FoodMemory(unittest.TestCase):
             return out,{},'stand-in'
         with self.context_patches(ask):data=self.post(f"/api/food/thread/messages/{m['id']}/process",{})
         result=next(x['result'] for x in data['messages'] if x.get('reply_to')==m['id'])
-        self.assertEqual(result['parts'][0]['status'],'description');self.assertFalse(result['can_resolve'])
+        part=result['parts'][0];self.assertEqual(part['status'],'choose');self.assertFalse(result['can_resolve'])
+        self.assertEqual({x['name'] for x in part['item']['choices']},{'Wooden robot latte','Maple cloud latte'})
+        self.assertTrue(part['description']['reference']);self.assertFalse(part.get('entries'))
 
     def test_context_transport_uses_low_thinking_and_leaves_default_policy_unchanged(self):
         from contextlib import nullcontext
