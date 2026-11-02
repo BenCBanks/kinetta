@@ -19,7 +19,7 @@ def choose(c,uid,message,index,pick=None,portion=None,catalog=None,factor=None,n
     if part.get('logged'):return food_thread.answer_with(c,uid,message)
     if part.get('entered_numbers'):raise HTTPException(409,'Use Review numbers on this card; nutrition numbers are not catalog foods')
     part=copy.deepcopy(part)
-    phrase=part.get('learn_phrase') or part['text']
+    phrase=part.get('learn_phrase') or part.get('text') or ''
     learned=part.get('learn_templates')
     if new:
         if part.get('drafts'):raise HTTPException(409,'Edit this estimate or Undo it before trying a different food')

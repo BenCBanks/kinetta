@@ -688,4 +688,18 @@ class FoodMemory(unittest.TestCase):
         self.post(f"/api/food/thread/reviews/{review['id']}/confirm",{'confirm':True,'meal':'breakfast'})
         with db.connect() as c:self.assertEqual(c.execute('SELECT count(*) AS n FROM food_chat_aliases WHERE user_id=%s',(self.ids[0],)).fetchone()['n'],0)
 
+    def test_older_textless_draft_stepper_still_changes_only_the_named_food(self):
+        from app import food_thread as T,food_thread_compose as C,food_thread_sources as S
+        message=self.message('Fictional older draft')
+        drafts=S.model_drafts({'items':[{'name':'Fictional grain','amount':'2 servings','kcal':200,'protein_g':8,'carbs_g':40,'fat_g':2},
+                                      {'name':'Fictional fruit','amount':'1 serving','kcal':50,'protein_g':0,'carbs_g':12,'fat_g':0}]})
+        with db.connect() as c:
+            C.write(c,self.ids[0],T.locked_message(c,self.ids[0],message['id']),{'composed':True,'day':str(self.day),'meal':'lunch',
+                'parts':[{'index':0,'status':'ready','drafts':drafts,'entries':S.draft_entries(drafts)}]})
+        data=self.post(f"/api/food/thread/messages/{message['id']}/choose",{'part':0,'draft':0,'factor':1.5})
+        entries=next(m['result']['parts'][0]['entries'] for m in data['messages'] if m.get('reply_to')==message['id'])
+        self.assertEqual([(e['amount'],e['kcal']) for e in entries],[(3,300),(1,50)])
+        self.assertEqual(self.a.get('/api/food/day').json()['entries'],[])
+        with db.connect() as c:self.assertEqual(c.execute('SELECT count(*) AS n FROM food_chat_aliases WHERE user_id=%s',(self.ids[0],)).fetchone()['n'],0)
+
 if __name__=='__main__':unittest.main(verbosity=2)
