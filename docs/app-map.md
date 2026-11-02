@@ -1,6 +1,6 @@
 # Kinetta app map
 
-The pre-launch walkthrough (#472) builds this map one tab at a time. Me was inspected at `8cb2c01`, and Activity and Track at `7d0b3d6`. #421 updates the first-Goal entrance and folds milestones into the card. Track’s native recording and Health visuals used browser stand-ins; physical-device behavior is not verified. Progress, Nutrition and sign-up interiors remain for their walkthroughs. Routes use placeholders and contain no account data.
+The pre-launch walkthrough (#472) builds this map one tab at a time. Me was inspected at `8cb2c01`, and Activity and Track at `7d0b3d6`. #421 updates the first-Goal entrance and folds milestones into the card. Track’s native recording and Health visuals used browser stand-ins; physical-device behavior is not verified. Progress was inspected at `fe929ab`; Nutrition and sign-up at `9e94178` (identical application code, with the intervening map update). Prepared enrollment, recovery, Terms and native welcome states are labelled below; they do not establish email delivery, consent, installation or device behavior. Routes use placeholders and contain no account data.
 
 Depth counts taps after selecting the tab. Opening a disclosure and then its Open link counts as two taps. Sheet depth is included. Scrolling does not add taps. A node can have several entrances; depths below use the shortest entrance available in the inspected state.
 
@@ -13,9 +13,9 @@ flowchart LR
   Tabs["Five tabs"] --> Me["Me · 0 taps"]
   Tabs --> Activity["Activity · see audited flow below"]
   Tabs --> Track["Track · see audited flow below"]
-  Tabs --> Progress["Progress · future slice"]
-  Tabs --> Nutrition["Nutrition · future slice"]
-  Signup["Sign-up and welcome · future slice"]
+  Tabs --> Progress["Progress · see audited flow below"]
+  Tabs --> Nutrition["Nutrition · see audited flow below"]
+  Signup["Sign-up and welcome · see flow below"]
 
   Me -->|Settings icon · 1| Settings["Settings · /me/settings"]
   Me -->|Avatar or shared count · 1| Profile["Your full profile · /people/:username"]
@@ -64,7 +64,7 @@ flowchart LR
   Settings -->|Delete account · 2| Delete["Delete-account confirmation sheet"]
   Settings -->|Terms or Privacy · 2| Policies["Website policies · new browser tab"]
   Settings -->|Speed check · 2| Speed["Speed check · /me/speed"]
-  Settings -->|Log out · 2| Login["Sign-in screen · future slice"]
+  Settings -->|Log out · 2| Login["Sign-in screen · see flow below"]
   Settings -->|Help| Mail
 
   Editor -->|Change photo · 2, or 3 through Settings| Photo["Profile photo sheet and file picker"]
@@ -343,3 +343,236 @@ flowchart LR
 ```
 
 The Activity and Track slices found no additional Speed Check entrance. The browser-only Health explanation is agreed to fold into Connections in the later shell batch, while full iPhone Health settings and independent consent scopes stay distinct. The application is unchanged by this map. Known layout and copy findings are tracked separately from this map.
+
+
+## Progress
+
+Eighteen owned route/view families include the plan and fixed-course flows below. Filters, chart modes and disclosures are states. Most detail pages take two taps; the deepest confirmed sheet takes four. Depth starts on Progress.
+
+```mermaid
+flowchart LR
+ P["Progress · 0"] --> T["Totals · 1"]
+ P --> F["Fitness · 1"]
+ P --> R["Records · 1"]
+ P --> L["Lifting · 1"]
+ P --> Y["Year over year · 1"]
+ P --> C["Calendar · 1"]
+ P --> W["Weight · 1"]
+ P --> I["Nutrition Insights boundary · 1"]
+ P --> H["Private Heatmap · 1"]
+ P --> Routes["Matched routes · 1"]
+ R --> RH["Distance history · 2"]
+ F --> Charts["Full chart / range / method sheets · 2"]
+ L --> E["Exercise history · 2"]
+ E --> Note["Note sheet · 3"]
+ E --> Edit["Edit exercise sheet · 3"]
+ Edit --> Delete["Delete confirmation · 4"]
+ C --> Day["Day sheet · 2"]
+ Day --> A["Activity boundary"]
+ Day --> Food["Nutrition day boundary"]
+ Routes --> Route["Repeated route · 2"]
+ Route --> Rename["Rename sheet · 3"]
+ H --> Recap["Generic recap sheet · 2 · no map"]
+ W --> Help["Weight help sheet · 2"]
+ W --> WeightEdit["Day / Save / Update / Delete controls"]
+```
+
+Record history, Fitness, exercise history and repeated routes link to their Activity source. Totals has sport, period and table controls; Year over year has sport, range, table and chart controls. Record history preserves progression and fastest-first efforts. Weight also has a Nutrition entrance. Heatmap remains private; its recap contains no map. Immediate weight deletion without recovery and other correctness findings are tracked in #491. Totals folding into Progress and simpler repeated record lists are agreed for #492; this map retains the inspected pages until those changes ship.
+
+### Fixed courses
+
+```mermaid
+flowchart TD
+ P["Progress · 0"] --> S["Segments · 1"]
+ S --> New["New map planner · 2"]
+ New --> Tools["Tools / Points / place search · 3"]
+ New -.->|Map drawing: source-only| Review["Review course"]
+ A["Activity Details boundary"] --> Stretch["Choose section / stretch"]
+ Stretch --> Review
+ Review --> Draft["Private autosaved draft"]
+ Review -->|Create| Detail["Fixed segment detail"]
+ Review -->|Bottom Back: loses selection, #491| New
+ Review -->|Header Edit: originating activity| A
+ Detail --> Mine["Your private times"]
+ Detail --> Board["Leaderboard"]
+ Board --> Consent["Separate leaderboard consent sheet"]
+ Detail --> Saved["Bookmark / public share action"]
+ Detail --> Publish["Private owner: publish"]
+ Detail --> Menu["More sheet"]
+ Menu --> Moderation["Report / retirement confirmation"]
+ Menu --> Delete["Private Delete confirmation"]
+ Mine -.->|Genuine moderation state: source-only| Appeal["Ask for review"]
+```
+
+List controls include map, search, near, saved, mine and sport. Visibility and leaderboard consent remain separate. Interior-stretch selection, private draft restoration and creation were exercised. Header Edit returns to the originating activity, with `/segments/new` as its direct-load fallback. Bottom Back instead opens an empty planner: that defective return is tracked in #491. Consent, publication, retirement and moderation submission were not performed. Bookmark toggles directly; public sharing uses native/Web Share or clipboard, with native sharing unverified.
+
+### Training plan
+
+```mermaid
+flowchart TD
+ P["Progress · 0"] -->|Active plan| Plan["Saved plan · 1"]
+ Plan --> Week["Saved workout · 2"]
+ Week --> Mark["Mark / Undo · 3"]
+ Plan --> Key["Key / details / paces · 2"]
+ Plan --> Track["Track boundary: prepared workout · 2"]
+ Plan --> Options["Options sheet · 2"]
+ Options --> Setup["Replacement setup · 3"]
+ Options --> Confirm["Restart / End confirmation · 3"]
+ P -->|No active plan| Empty["Plan setup · 1"]
+ Empty --> Preview["Unsaved preview · 1 empty / 3 replacement"]
+ Setup --> Preview
+ Preview -->|Create| Plan
+ Preview --> PW["Preview workout · 2 empty / 4 replacement"]
+ PW -.->|Defect: writes overlapping saved dates, #491| Mark
+```
+
+Race, level, length, days, date and goal are setup controls. The preview's completion write into an existing plan was verified and restored; the dashed arrow records a defect. Restart/End were inspected and cancelled. Start prepares Track without recording. Paid AI and physical recording remain unverified.
+
+## Nutrition
+
+Thirteen owned route/view families; day/origin parameters and import/setup variants are states. Depth starts on the food log. Nutrition details use an explicit Nutrition-parent Back, while `from=progress` preserves Progress. No additional Speed check entrance was found.
+
+### Log, insights and targets
+
+Weight has a direct one-tap entrance from the log and Insights; meal reminders link to Me in one tap. Expanded energy breakdown links to its Activity source.
+
+```mermaid
+flowchart TD
+ N["Food log · 0"] --> I["Insights · 1"]
+ N --> C["Calorie needs · 1"]
+ N --> W["Week by week · 1"]
+ N --> H["Add past days · 1 · browser"]
+```
+
+```mermaid
+flowchart TD
+ I["Insights · 1"] --> E["Calories & weight · 2"]
+ I --> M["Protein & macros · 2"]
+ I --> D["Food calendar · 2"]
+```
+
+Insights also links to Calorie needs and Week by week. Choosing a calendar day returns to that day's log. Goal preview can return to setup to change details, or Save/Not now back to the log.
+
+```mermaid
+flowchart LR
+ N["Food log · 0"] --> S["Optional goal setup · 1"]
+ S --> SP["Target preview · 2 · unsaved"]
+ N --> G["Daily targets sheet · 1"]
+ G --> GD["Day override disclosure · 2"]
+ I["Insights · 1"] --> R["Time range sheet · 2"]
+ R --> RS["Count from sheet · 3"]
+```
+
+```mermaid
+flowchart LR
+ N["Food log · 0"] -->|Food row| FE["Logged-food editor sheet · 1"]
+ FE --> FM["Move meal/day disclosure · 2"]
+ N -->|Meal menu| ME["Meal actions sheet · 1"]
+ ME --> CP["Copy review sheet · 2"]
+ N --> COPY["Copy yesterday scope · 1"]
+ COPY --> CP
+ N --> T["Add food thread · 1"]
+ T --> P["Usuals / Search / Recipes picker · 2"]
+ P --> AM["Portion sheet · 3"]
+ AM -->|Stage, then review| F["Final food review · 2 ready / 5 newly staged"]
+ T -->|Manual numbers, then review| F
+ F -->|Explicit confirm; clear draft| T
+ F --> FR["Save as recipe · 3 ready / 6 newly staged"]
+ T -->|Header Back to selected day| N
+ T -.->|Access required; prepared only| PHOTO["Photo selection component"]
+```
+
+“Ready” means the review is already available in a restored thread; “newly staged” counts opening the picker, selecting a portion and staging it before final review. Manual review preserves semantic unknown nutrients. Search/describe/photo prepared results are UI evidence, not model accuracy. Photo selection was mounted locally and cancelled; native library/camera behavior and final thread Save-as-recipe remain unverified. Day, meal, portion and explicit confirmation must remain distinct from editing reusable foods.
+
+### Reusable recipes and foods
+
+```mermaid
+flowchart TD
+ N["Food log · 0"] --> L["Recipes & foods library · 1"]
+ L --> OWN["Owned recipe editor · 2 existing / 3 new"]
+ L --> SH["Shared recipe · 2"]
+ L --> NEW["New chooser · 2"]
+ NEW -->|New recipe| OWN
+ NEW --> URL["Recipe from link · 3"]
+ OWN --> OPT["Options sheet · 3 or 4"]
+ OPT --> TOTAL["Whole-recipe total sheet · 4 or 5"]
+ TOTAL --> EXTRA["More nutrients disclosure · 5 or 6"]
+ OWN --> ADD["Ingredient methods sheet · 3 or 4"]
+ ADD --> MAN["Manual ingredient sheet · 4 or 5"]
+ OWN --> SAVE["Save recipe sheet · 3 or 4"]
+ SAVE -->|Save only| L
+ SAVE -->|Tick Add to log, then Save and choose a portion| PORT["Meal and portion review · 5 existing / 6 new"]
+ PORT -.->|Confirm save/log: source-only, not submitted| L
+ OWN --> SHARE["Approved friends sheet · 3 existing"]
+ SH -->|Log a portion| AM["Own portion review sheet · 3"]
+ URL --> CAND["Candidate choice state"]
+ CAND --> EDIT["Import editor state"]
+ URL -->|Single candidate| EDIT
+ EDIT --> PRE["Nutrition preview state"]
+ PRE -->|Edit draft| EDIT
+ PRE -->|Save / Save for later| OWN
+```
+
+Library/import/setup use history-aware Back with named fallbacks. Import states share one URL; saving opens the owned recipe. Unknown calories prevent portion logging and offer Add nutrition. Sharing/unsharing was checked with a fictional friend: access changed 404→200→404 while the owner's food log stayed unchanged. Shared access and each person's logged portions remain distinct. The deepest mapped disclosure takes six taps through a new recipe's Options and whole-recipe total.
+
+Bugs in blank-macro handling, energy rows, recipe-choice arrows and narrow food-review context are tracked in #493. Number/label/history-grid polish and the agreed Week by week→Insights, compact logged-day list and single Add-food entrance are assigned in #494. These are planned changes; this diagram shows inspected behavior. Native Health, moderation, external recipes and paid processing remain boundaries.
+
+## Sign-up, recovery and welcome
+
+Nine route families: `/`, `/signup`, `/beta`, `/join/:token`, `/add/:code`, `/forgot-password`, `/reset-password/:token`, `/confirm-email/:token` and `/welcome`. Login, initial-admin setup, install guidance and temporary-password recovery share `/`; welcome steps and Terms/photo overlays are states. Depth here starts at anonymous/direct entry rather than a tab.
+
+### Entry and recovery
+
+```mermaid
+flowchart LR
+ Login["Sign in · / · 0"] -->|Forgot password · 1| Forgot["Request reset link"]
+ Login -->|Enrollment open · 1| Signup["Public signup · /signup"]
+ Login -->|Waitlist available · 1| Beta["Waitlist · /beta"]
+ Signup -->|Capacity reached| Beta
+ Signup -->|Existing email| Recovery["Log in / Reset password"]
+ Forgot -.->|Email delivery unverified| Reset["New password · /reset-password/:token"]
+ Login -.->|Temporary credential prepared| Temp["Choose permanent password · / state"]
+ Login -.->|Required Terms prepared| Terms["Mandatory Terms sheet"]
+ Terms -->|Your data| Settings["Settings boundary · currently top"]
+```
+
+```mermaid
+flowchart TD
+ Join["Admin invitation · /join/:token · external entry"] -->|Existing member| Login["Sign in"]
+ Join -->|Signed in, accept · 1| Ack["No new account or friendship acknowledgment"]
+ Ack -->|Open · 2| Me["Me boundary"]
+ Join -.->|Creation succeeds; welcome handoff fails| Welcome["Welcome boundary"]
+ Join -->|Unavailable| JoinError["New invitation / Log in"]
+ Friend["Friend invitation · /add/:code · external entry"] -->|Log in| Login
+ Friend -->|Enrollment available| Signup["Public signup"]
+ Friend -->|Waitlist available| Beta["Waitlist"]
+ Friend -->|Unavailable| FriendError["Ask friend for a new link / Log in"]
+```
+
+Forgot password's login link opens an inline state without changing `/`; direct `/forgot-password` also works. Invalid reset's Send new link similarly replaces its URL with `/`, then explicit Back returns login. A friend link does not override closed enrollment. New-account invitation creation succeeded, but a retained consumed-invitation return interrupts welcome: original timeout, labelled replay and fresh-login recovery are separate evidence. Existing-account acceptance and acknowledgment passed without creating a friendship.
+
+Public enrollment/cap/waitlist, active Terms, valid reset and temporary-password screens used labelled browser stand-ins. The inspected server had Terms disabled. No email, password change or Terms acceptance was performed; initial-admin creation is source-only. Received invitation/reset/confirmation URLs start at zero external-entry taps.
+
+### Welcome
+
+```mermaid
+flowchart TD
+ Profile["Profile · /welcome · 0"] -->|Photo · 1| Photo["Photo options sheet / file picker"]
+ Profile -->|Continue / Skip| Kit["Optional Kit consent · 1"]
+ Profile -->|Kit not offered| Audience["Activity audience · 1 without Kit / 2 with Kit"]
+ Kit --> Audience
+ Audience --> Workouts["Workouts · 2 / 3"]
+ Workouts -->|Continue / Later| Friends["Friends · 3 / 4"]
+ Friends -->|Done · 4 / 5| Me["Me boundary"]
+ Profile -->|Not now| Me
+ Workouts -->|Record · 3 / 4| Track["Track boundary"]
+ Workouts -->|Connections · 3 / 4| Connections["Connections boundary"]
+ Workouts -->|Upload · 3 / 4| Import["Import boundary"]
+ Track -->|Browser Back: restarts wizard| Profile
+ Connections -->|Browser Back: restarts wizard| Profile
+ Import -->|Browser Back: restarts wizard| Profile
+```
+
+Not now is available throughout welcome and returns Me. Profile and audience Save/readback/restore or Skip were checked, with Kit skipped without consent. Audience choice remains separate from optional Kit's 18+ data consent. The three workouts-boundary returns restart at profile rather than retaining the step. A first fictional upload through Import created one Only-me activity; another fictional account could not read its shared endpoint. Native Health/install visuals were prepared, without permissions or store actions. Photo options were opened/cancelled without selecting a photo.
+
+The welcome handoff, invited 16+ confirmation and invite-page clipping are tracked in #496. Copy, compactness and lost welcome-step position belong to #497; folding the one-link Friends step into Me/setup is agreed there. Keep secure recovery, admin/friend invitations, explicit activity audience and separate Kit consent distinct. The map documents current behavior; it does not approve page removals or policy changes.
