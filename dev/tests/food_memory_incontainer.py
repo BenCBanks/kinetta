@@ -525,6 +525,15 @@ class FoodMemory(unittest.TestCase):
         _,_,calls=self.routed('2 fictional beans',self.reading([{'name':'Fictional beans','quantity':2}]))
         self.assertEqual(calls,0)
 
+    def test_context_ambiguity_keeps_tappable_owned_choices(self):
+        self.food('Egg whites',amount=100,unit='g')
+        reading=self.reading([{'name':'Egg','quantity':1,'reference_question':True}]);reading['reply']='Which egg did you mean?'
+        message,data,calls=self.routed('1 egg',reading)
+        part=next(m['result']['parts'][0] for m in data['messages'] if m.get('reply_to')==message['id'])
+        self.assertEqual(calls,1);self.assertEqual(part['status'],'choose')
+        self.assertEqual([c['name'] for c in part['item']['choices']],['Egg whites'])
+        self.assertEqual(part['item']['new_name'],'Egg');self.assertEqual(part['learn_phrase'],'1 egg')
+
     def test_ambiguous_saved_name_without_ai_is_a_choice_not_a_gram_question(self):
         self.food('Egg whites',amount=100,unit='g')
         message=self.message('1 egg')

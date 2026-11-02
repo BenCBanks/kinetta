@@ -128,13 +128,13 @@ const FoodThread = (() => {
     // One clarification at a time; the original card retains all pending parts.
     const part=parts.find(p=>p.status!=='ready'&&!p.logged);if(!part){const numbers=parts.find(p=>p.entered_numbers&&!p.logged);return numbers?`<button type="button" class="linkbtn" data-manual="${numbers.index}">Review numbers</button>`:'';}
     // Short food questions are answered in the composer, or with one tap on a suggested reply.
-    if(part.description)return part.replies?.length?`<div class="thread-choices thread-replies">${part.replies.map(r=>`<button type="button" class="ghost" data-reply="${esc(r)}">${esc(r)}</button>`).join('')}</div>`:'';
+    if(part.description&&!part.item?.choices?.length)return part.replies?.length?`<div class="thread-choices thread-replies">${part.replies.map(r=>`<button type="button" class="ghost" data-reply="${esc(r)}">${esc(r)}</button>`).join('')}</div>`:'';
     const item=part.item||{},options=[];
     for(const c of item.choices||[])options.push([c.name,{part:part.index,pick:{kind:c.kind,id:c.id}}]);
     for(const [i,f] of (part.catalog||[]).entries())options.push([f.name,{part:part.index,catalog:i}]);
     for(const o of item.options||[])options.push([o.label,{part:part.index,portion:o.portion}]);
     for(const o of part.scale_options||[])options.push([o.label,{part:part.index,factor:o.factor}]);
-    if(item.new_ok)options.push(['Something new',{part:part.index,new:true}]);
+    if(item.new_ok)options.push([item.new_name?item.new_name+' (new food)':'Something new',{part:part.index,new:true}]);
     return `<div class="thread-choices">${options.map(([label,value])=>`<button type="button" class="ghost" data-choice="${esc(JSON.stringify(value))}">${esc(label)}</button>`).join('')}${!part.drafts&&!item.kind&&['choose','quantity','unknown'].includes(part.status)?aiCan('food')?`<button type="button" class="ghost" data-estimate="${part.index}">Estimate calories with Kit</button>`:aiOffer('food')?`<button type="button" class="ghost" data-kit-on="${part.index}">Turn on Kit to estimate</button>`:'':''}${part.entered_numbers?'':`<button type="button" class="linkbtn" data-portion="${part.index}">Change amount</button>`}<button type="button" class="linkbtn" data-manual="${part.index}">Enter nutrition</button></div>`;
   }
   function changedNumbers(result,entries){

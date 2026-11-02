@@ -303,6 +303,10 @@ def apply(c,uid,message):
             question=U.safe_reply(u['reply'],message['body'])
             if not question or '?' not in question:question='Which of your saved or logged foods should supply the nutrition?'
             part.update(status='description',description={'food':f['name'],'reference':True,'quantity':f['quantity'],'unit':f.get('unit')},question=question)
+            resolution=engine.resolve(c,uid,{**message,'body':text});items=resolution.get('items') or []
+            if len(items)==1 and items[0].get('choices'):
+                part.update(status='choose',item={**items[0],'new_ok':True,'new_name':f['name']},
+                            learn_phrase=message['body'] if len(u['foods'])==1 else text)
         elif token:
             pick=meta['sources'][token]
             try:
