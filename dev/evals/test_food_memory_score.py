@@ -65,3 +65,10 @@ for missing in ('valid_late_response','memory_transition','stored_discard'):
     proof={'valid_late_response':True,'memory_transition':True,'stored_discard':True};proof[missing]=False
     assert not evaluate(revoked_case,{**good,'revocation_discarded':True,'revocation_evidence':proof},fixtures)['passed']
 print('Omitted ingredients, wrong sugar components and unobserved revocation transitions rejected PASS')
+
+selected=copy.deepcopy(ordinary);selected['foods'][0].update(expected_source='ordinary:Latte',expected_nutrition={'kcal':180},unit='cup',selected_excludes=['white'])
+selected_frame=copy.deepcopy(good);selected_frame['foods'][0]['source']='ordinary:Latte'
+assert evaluate(selected,selected_frame,fixtures)['passed']
+for change in ({'source':'ordinary:Egg'},{'name':'Latte with egg whites'},{'nutrition':{'kcal':90}},{'unit':'g'}):
+ bad=copy.deepcopy(selected_frame);bad['foods'][0].update(change);assert not evaluate(selected,bad,fixtures)['passed']
+print('Exact selected source, selected-entry qualifiers, controlled nutrition and count units checked PASS')

@@ -301,6 +301,10 @@ def learn_review(c,uid,ids,sources):
             entries=part.get('entries') or [];picked=ids[offset:offset+len(entries)];offset+=len(entries)
             if not part.get('learn_choice') or not part.get('learn_phrase'):continue
             templates=part.get('learn_templates')
+            if templates:
+                try:
+                    if not fresh_templates(c,uid,{'templates':copy.deepcopy(templates)}):continue
+                except HTTPException:continue
             initial=part.get('learn_entries') or []
             if not templates and len(initial)==len(entries)==len(picked):
                 templates=[{'kind':'food','id':eid,'portion':{'count':old['amount'],'unit':old['unit']}}

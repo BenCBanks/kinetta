@@ -105,9 +105,9 @@ add('A 12 fl oz hazelnut latte using Wooden robot latte nutrition.',[food('hazel
 
 egg={'expected_source':'ordinary:Egg','expected_nutrition':{'kcal':100,'protein_g':5,'carbs_g':15,'fat_g':2},'unit':'serving'}
 add('1 dgg',[food('egg',quantity=1,**egg)],ready_cheese=True)
-add('i egg',[food('egg',quantity=1,unit='serving',must_exclude=['egg whites'])],omit_ordinary=['Egg'],extra_fixtures={
+add('i egg',[food('egg',quantity=1,unit='serving',selected_excludes=['white'])],omit_ordinary=['Egg'],extra_fixtures={
     'WHITES':{'name':'Egg whites','kind':'custom','amount':1,'unit':'serving','kcal':50,'protein_g':10,'carbs_g':1,'fat_g':0}})
-add('1 egg',[food('egg',quantity=1,unit='serving',must_exclude=['egg whites'])],omit_ordinary=['Egg'],extra_fixtures={
+add('1 egg',[food('egg',quantity=1,unit='serving',selected_excludes=['white'])],omit_ordinary=['Egg'],extra_fixtures={
     'GRAM_EGG':{'name':'Egg','amount':100,'unit':'g','kcal':140,'protein_g':12,'carbs_g':1,'fat_g':10}})
 
 assert len(CASES)==54 and sum(len(c['foods'])>=2 for c in CASES)>=40

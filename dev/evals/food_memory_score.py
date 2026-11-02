@@ -85,6 +85,7 @@ def evaluate(case,frame,fixtures):
             if not case['needs_question']:failures.append('missing_food:'+','.join(expected['words']))
             continue
         reference=expected.get('reference');actual=found.get('source')
+        if any(word in words(found['name']) for word in expected.get('selected_excludes',[])):failures.append('wrong_selected_food')
         if expected.get('expected_source') and actual!=expected['expected_source']:failures.append('wrong_selected_source')
         for key,wanted_value in (expected.get('expected_nutrition') or {}).items():
             got=found['nutrition'].get(key)

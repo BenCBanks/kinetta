@@ -33,7 +33,7 @@ def choose(c,uid,message,index,pick=None,portion=None,catalog=None,factor=None,n
         part.update(learn_phrase=phrase,learn_choice=True)
         if item['status']=='ready':
             same=learned and all(t['kind']==item['kind'] and t['id']==item['id'] for t in learned)
-            part['learn_templates']=learned if same else [{k:item[k] for k in ('kind','id','portion')}]
+            part['learn_templates']=learned if same else [{**{k:item[k] for k in ('kind','id','portion','expected')},'issued':resolved['issued']}]
     elif catalog is not None and part.get('catalog'):
         if not 0<=catalog<len(part['catalog']):raise HTTPException(422,'Choose the product you meant')
         if portion:part['portion_override']=portion.clean()
@@ -63,6 +63,7 @@ def choose(c,uid,message,index,pick=None,portion=None,catalog=None,factor=None,n
         if portion:part['portion_override']=portion.clean()
         part=resolver._catalog(part['catalog'][selected],part,review_only=S.held_review(message))
         if part['status']=='quantity':part['catalog_selected']=0
+        elif part.get('learn_choice') and not part.get('learn_entries'):part['learn_entries']=copy.deepcopy(part.get('entries') or [])
     elif portion and part.get('item',{}).get('kind'):
         item=part['item'];pick=meal_chat.Pick(kind=item['kind'],id=item['id'])
         return choose(c,uid,message,index,pick=pick,portion=portion)

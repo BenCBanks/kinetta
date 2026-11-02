@@ -622,19 +622,33 @@ class FoodMemory(unittest.TestCase):
     def test_catalog_choice_learns_confirmed_row_without_extra_food_creation(self):
         from app import food_thread as T,food_thread_compose as C
         message=self.message('1 dgg')
-        food={'name':'Fictional egg','source':'usda','id':'999999999999','per100':{'kcal':140,'protein_g':12,'carbs_g':1,'fat_g':10},'serving':{'label':'1 egg','g':50}}
+        food={'name':'Fictional egg','source':'usda','id':'999999999999','per100':{'kcal':140,'protein_g':12,'carbs_g':1,'fat_g':10},'serving':{'label':'1 egg','g':None}}
         with db.connect() as c:
             C.write(c,self.ids[0],T.locked_message(c,self.ids[0],message['id']),{'composed':True,'day':str(self.day),'meal':'breakfast',
                 'parts':[{'index':0,'text':'1 dgg','status':'choose','catalog':[food],'entries':[]}]})
-        data=self.post(f"/api/food/thread/messages/{message['id']}/choose",{'part':0,'catalog':0,'portion':{'count':1,'unit':'egg'}})
+        data=self.post(f"/api/food/thread/messages/{message['id']}/choose",{'part':0,'catalog':0})
         part=next(m['result']['parts'][0] for m in data['messages'] if m.get('reply_to')==message['id'])
-        self.post(f"/api/food/thread/messages/{message['id']}/edit-food",{'part':0,'entry':0,'expected':part['remove_token'],'amount':2})
+        self.assertEqual(part['status'],'quantity')
+        data=self.post(f"/api/food/thread/messages/{message['id']}/choose",{'part':0,'portion':{'grams':50}})
+        part=next(m['result']['parts'][0] for m in data['messages'] if m.get('reply_to')==message['id'])
+        self.post(f"/api/food/thread/messages/{message['id']}/edit-food",{'part':0,'entry':0,'expected':part['remove_token'],'amount':100})
         review=self.post('/api/food/thread/reviews',{'client_id':str(uuid.uuid4()),'draft_id':self.draft,'messages':[message['id']]})
         for _ in range(2):self.post(f"/api/food/thread/reviews/{review['id']}/confirm",{'confirm':True,'meal':'breakfast'})
         with db.connect() as c:
             self.assertEqual(c.execute('SELECT count(*) AS n FROM food_entries WHERE user_id=%s',(self.ids[0],)).fetchone()['n'],1)
             self.assertEqual(c.execute('SELECT count(*) AS n FROM custom_foods WHERE user_id=%s',(self.ids[0],)).fetchone()['n'],0)
             template=c.execute('SELECT templates FROM food_chat_aliases WHERE user_id=%s',(self.ids[0],)).fetchone()['templates'][0]
-            self.assertEqual((template['kind'],template['portion']['count']),('food',1))
+            self.assertEqual((template['kind'],template['portion']['count'],template['portion']['unit']),('food',50,'g'))
+
+    def test_amount_snapshot_does_not_teach_a_changed_source(self):
+        egg=self.post('/api/food/foods',{'name':'Egg large','serving_label':'1 egg','serving_g':50,'kcal':72})
+        message=self.message('1 dgg');self.post(f"/api/food/thread/messages/{message['id']}/process",{})
+        data=self.post(f"/api/food/thread/messages/{message['id']}/choose",{'part':0,'pick':{'kind':'custom','id':egg['id']},'portion':{'count':1}})
+        part=next(m['result']['parts'][0] for m in data['messages'] if m.get('reply_to')==message['id'])
+        self.post(f"/api/food/thread/messages/{message['id']}/edit-food",{'part':0,'entry':0,'expected':part['remove_token'],'amount':2})
+        with db.connect() as c:c.execute('UPDATE custom_foods SET kcal=90 WHERE user_id=%s AND id=%s',(self.ids[0],egg['id']))
+        review=self.post('/api/food/thread/reviews',{'client_id':str(uuid.uuid4()),'draft_id':self.draft,'messages':[message['id']]})
+        self.post(f"/api/food/thread/reviews/{review['id']}/confirm",{'confirm':True,'meal':'breakfast'})
+        with db.connect() as c:self.assertEqual(c.execute('SELECT count(*) AS n FROM food_chat_aliases WHERE user_id=%s',(self.ids[0],)).fetchone()['n'],0)
 
 if __name__=='__main__':unittest.main(verbosity=2)
