@@ -13,7 +13,7 @@ from psycopg import Error as DatabaseError
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
 from pydantic import Field, StrictBool
 from . import db, auth, account_email
-from .api_account import NewAccountIn, _create
+from .api_account import NewAccountIn, _create, require_signup_age
 
 router = APIRouter()
 
@@ -92,7 +92,7 @@ class SignupIn(NewAccountIn):
 @router.post('/api/signup')
 def signup(body: SignupIn, request: Request, response: Response, background: BackgroundTasks):
     email = account_email._clean_email(body.email)
-    if not body.age_ok: raise HTTPException(400, 'Kinetta is for people 16 or older')
+    require_signup_age(body.age_ok)
     account_email.enrollment_limit(request, email)
     if body.website: return {'ok': True}          # a bot: say nothing useful, make nothing
     # Existing capacity warnings must survive a later full/invalid signup response.

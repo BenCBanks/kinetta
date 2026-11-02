@@ -1,20 +1,22 @@
 'use strict';
-// Browser plugin unavailable. Fictional account; availability and writes are controlled stand-ins.
+// Browser plugin unavailable. Controlled uniqueness cases plus one isolated, email-free real invitation.
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.SHOT_DIR;
 const login='zz_test_username_ui',password='green teapot on the hill',token='fictional_signup_invitation';
 const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))return;await p.waitForTimeout(50);}throw Error(label);};
 (async()=>{
+ const fixture=JSON.parse(fs.readFileSync(process.env.KINETTA_SIGNUP_FLOW_FIXTURE||'/tmp/'+(process.env.KINETTA_PROJECT||'kinettatest')+'-signup-flow.json','utf8'));
+ assert.equal(fixture.base,base);assert.equal(fixture.project,process.env.KINETTA_PROJECT||'kinettatest');assert.equal(fixture.login,'walkthrough_demo');assert(['localhost','127.0.0.1'].includes(new URL(base).hostname));
  const browser=await chromium.launch();let cases=0;
  try{for(const theme of ['light','dark'])for(const width of [390,330]){
   if(process.env.THEME&&process.env.THEME!==theme||process.env.WIDTH&&Number(process.env.WIDTH)!==width)continue;
   const c=await browser.newContext({viewport:{width,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true});
   try{
-   const p=await c.newPage(),errors=[],checks=[],signups=[],accepts=[];let oldRelease=null,saveRelease=null,saveFailure=true;
+   const p=await c.newPage(),errors=[],checks=[],signups=[],accepts=[],joins=[];let oldRelease=null,saveRelease=null,saveFailure=true,closed=true;
    p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!m.text().startsWith('Failed to load resource'))errors.push(m.text());});
    await c.route('**/*',async r=>{
     const request=r.request(),u=new URL(request.url());if(u.origin!==base)return r.abort();
-    if(u.pathname==='/api/signup'&&request.method()==='GET')return r.fulfill({json:{open:true,full:false}});
+    if(u.pathname==='/api/signup'&&request.method()==='GET')return r.fulfill({json:{open:!closed,full:false}});
     if(u.pathname==='/api/account/username-availability'){
      const value=u.searchParams.get('login');checks.push(value);
      if(value==='old_choice')return new Promise(resolve=>{oldRelease=()=>r.fulfill({json:{login:value,available:false,reason:'taken',suggestion:'old_choice2'}}).catch(()=>{}).then(resolve);});
@@ -26,6 +28,7 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
      const response=await c.request.post(base+'/api/login',{headers:{Origin:base},data:body});return r.fulfill({response});
     }
     if(u.pathname==='/api/join/'+token)return r.fulfill({json:{email:true,inviter:'@casey',card:null,challenge:null}});
+    if(u.pathname==='/api/join'&&request.method()==='POST'){joins.push(request.postDataJSON());return r.fulfill({status:400,json:{detail:'Kinetta is for people 16 or older'}});}
     if(u.pathname==='/api/join/existing'){accepts.push(request.postDataJSON());return r.fulfill({json:{ok:true,already_accepted:false}});}
     if(u.pathname==='/api/account'&&request.method()==='PUT'){
      if(saveFailure)return r.fulfill({status:409,json:{detail:'That username is taken'}});
@@ -36,6 +39,8 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
    });
    const shot=async name=>{if(out&&width===390){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`${name}-${theme}.png`),fullPage:name.startsWith('signup')});}};
    const fit=async()=>assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'No horizontal overflow');
+   await p.goto(base+fixture.friend_path);await p.locator('#iv-login').waitFor();assert.equal(await p.locator('#iv-signup').count(),0);assert(!((await p.locator('.form').innerText()).includes('Create an account')));assert.match(await p.locator('.form').innerText(),/account invitation/);
+   assert(await p.evaluate(w=>{const h=document.querySelector('h1').getBoundingClientRect(),body=document.querySelector('.form>p').getBoundingClientRect();return document.documentElement.scrollWidth<=w+1&&h.left>=0&&h.right<=w&&body.left>=0&&body.right<=w;},width),'Long inviter heading and body stay within viewport');await shot('friend-invitation-closed');closed=false;cases++;
    await p.goto(base+'/signup');await p.locator('details.username-choice').waitFor();assert.equal(checks.length,0,'No checks before typing');
    await p.locator('details.username-choice summary').click();const field=p.locator('input[name=login]');
    await field.fill('a');await p.waitForTimeout(100);await field.fill('available_name');await p.waitForTimeout(150);assert.equal(checks.length,0,'400ms debounce');
@@ -48,7 +53,11 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
    await p.locator('button[type=submit]').click();await p.locator('[data-email-login]').waitFor();assert.equal(signups.length,1);assert.equal(signups[0].login,'new_choice');assert.equal(await p.locator('input[name=password]').inputValue(),'fictional long passphrase');assert.equal(await p.locator('#enrollment-email-exists').getAttribute('aria-live'),'polite');await shot('signup-email-exists');await fit();cases++;
    await p.locator('[data-email-login]').click();await p.locator('input[name=login]').waitFor();assert.equal(await p.locator('input[name=login]').inputValue(),'registered@example.invalid');cases++;
    // Password-recovery navigation keeps only the validated local invitation origin.
-   await p.goto(base+'/join/'+token);await p.locator('#j-login').waitFor();assert.equal(accepts.length,0);await p.locator('#j-login').click();await p.locator('#l-forgot').click();await p.locator('#f-back').click();assert.equal(new URL(p.url()).pathname,'/join/'+token);
+   await p.goto(base+'/join/'+token);await p.locator('#j-login').waitFor();assert.equal(accepts.length,0);
+   await p.locator('input[name=name]').fill('Invite Example');await p.locator('input[name=email]').fill('invited@example.invalid');await p.locator('input[name=password]').fill(password);
+   await p.locator('button[type=submit]').click();await p.locator('input[name=age_ok][aria-invalid=true]').waitFor();assert.equal(joins.length,0,'Unticked invite sends no request');await shot('invite-age-required');
+   await p.locator('input[name=age_ok]').check();await p.locator('button[type=submit]').click();await until(p,()=>document.querySelector('input[name=age_ok]')?.getAttribute('aria-invalid')==='true','Age error targets checkbox');assert.equal(joins.length,1);assert.equal(joins[0].age_ok,true);assert.equal(await p.evaluate(()=>store.get('kinetta.joinReturn')),'/join/'+token,'Failed create keeps invitation');cases+=2;
+   await p.locator('#j-login').click();await p.locator('#l-forgot').click();await p.locator('#f-back').click();assert.equal(new URL(p.url()).pathname,'/join/'+token);
    await p.locator('input[name=login]').fill(login);await p.locator('input[name=password]').fill(password);await p.locator('button[type=submit]').click();await p.locator('#j-accept').waitFor();assert.equal(accepts.length,0,'Authentication alone does not accept');await shot('existing-invitation');
    await p.locator('#j-accept').click();await p.locator('#j-open').waitFor();assert.deepEqual(accepts,[{token}]);await p.locator('#j-open').click();await until(p,()=>App.pageReady,'Existing account opens after acceptance');cases+=2;
    await p.evaluate(()=>go('/me/settings'));await until(p,()=>App.pageReady&&location.pathname==='/me/settings','Settings ready');if(width===390&&theme==='light'){const download=p.waitForEvent('download');await p.locator('#m-export').click();assert.match((await download).suggestedFilename(),/\.zip$/);assert.equal(new URL(p.url()).pathname,'/me/settings');cases++;}await p.evaluate(()=>accountSheet('login'));await p.locator('#ac input').waitFor();
@@ -61,6 +70,21 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
    await p.evaluate(()=>accountSheet('login'));await p.locator('#ac input').fill('detached_choice');const before=checks.length;await p.getByRole('dialog').locator('[data-close]').first().click();await p.waitForTimeout(500);assert.equal(checks.length,before);cases++;
    await fit();assert.deepEqual(errors,[]);console.log(`Signup uniqueness ${width}px ${theme}: debounce, stale replies, duplicate links, recovery/explicit invitation, edit conflict/refresh/detach PASS`);
   }finally{await c.close();}
- }}finally{await browser.close();}
+ }
+ // Real fresh-account journey, bound to the disposable fixture; no mail or consent/provider writes.
+ const c=await browser.newContext({viewport:{width:330,height:844},colorScheme:'light',serviceWorkers:'block',isMobile:true,hasTouch:true,reducedMotion:'reduce'});let created=false;
+ try{
+  const p=await c.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));
+  await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(['GET','HEAD'].includes(q.method()))return r.continue();if(u.pathname==='/api/join'){const body=q.postDataJSON();assert.equal(body.login,fixture.login);assert.equal(body.token,fixture.invite_path.split('/').pop());assert.equal(body.age_ok,true);assert.equal(body.share_default,'me');assert(!body.email);return r.continue();}return r.fulfill({status:503,json:{detail:'Real signup test: unrelated write blocked'}});});
+  await p.goto(base+fixture.invite_path);await p.locator('input[name=age_ok]').waitFor();await p.locator('input[name=name]').fill('Welcome Example');await p.locator('input[name=login]').fill(fixture.login);await p.locator('input[name=password]').fill(password);await p.locator('select[name=share_default]').selectOption('me');await p.locator('input[name=age_ok]').check();
+  const joined=p.waitForResponse(r=>r.url()===base+'/api/join'&&r.request().method()==='POST');await p.locator('button[type=submit]').click();assert.equal((await joined).status(),200);created=true;
+  await p.locator('#wc-form').waitFor();assert.equal(new URL(p.url()).pathname,'/welcome');assert.equal(await p.evaluate(()=>store.get('kinetta.joinReturn')),null,'Redeemed invite cannot hijack welcome');
+  const shot=async name=>{if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,name+'-330-light.png'),fullPage:true});}};await shot('real-welcome-profile');
+  await p.locator('#wc-next').click();if(await p.locator('[name=ai_adult]').count()){assert.equal(await p.locator('[name=ai_adult]').isChecked(),false);await p.locator('#wc-skip').click();}
+  await p.locator('input[name=aud][value=me]').waitFor();assert(await p.locator('input[name=aud][value=me]').isChecked());await p.locator('#wc-next').click();await p.locator('#wc-next').click();await p.getByRole('button',{name:'Done',exact:true}).waitFor();await shot('real-welcome-done');await p.locator('#wc-next').click();await until(p,()=>App.pageReady&&location.pathname==='/me','Welcome Done opens Me');
+  const me=await (await c.request.get(base+'/api/me')).json(),sharing=await (await c.request.get(base+'/api/sharing')).json();assert.equal(me.login,fixture.login);assert.equal(me.is_admin,false);assert.equal(me.ai_ok,false);assert.equal(me.health_ai_ok,false);assert.equal(me.garmin_ai_ok,false);assert.equal(sharing.default,'me');await shot('real-welcome-me');assert.deepEqual(errors,[]);cases++;
+  console.log('Real email-free invite → create → welcome → Done → Me, private audience and Kit off PASS');
+ }finally{if(created){const me=await (await c.request.get(base+'/api/me')).json();assert.equal(me.login,fixture.login);const removed=await c.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password}});assert.equal(removed.status(),200);assert.equal((await c.request.get(base+'/api/me')).status(),401);}await c.close();}
+ }finally{await browser.close();}
  console.log(`Signup uniqueness: ${cases} rendered journey checks passed`);
 })().catch(error=>{console.error(error);process.exit(1);});
