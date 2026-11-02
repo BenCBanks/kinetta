@@ -154,6 +154,34 @@ function yesterdayMeal(day, meal) {
   });
 }
 
+// Display units never round the canonical amount used by source validation.
+function foodPortion(e) {
+  const ref=e.ref||{},src=ref.origin==='catalog'&&ref.source!=='custom'&&e.unit==='g'?ref.origin_ref||ref:ref,s=src.serving||{},mass={g:1,oz:28.3495,kg:1000,lb:453.592};
+  const declared=s.g>0&&!s.is_default&&(s.g!==100||s.is_default===false||!['off','usda'].includes(src.source));
+  const label=(s.label||'').trim(),match=label.match(/^(?:(\d+(?:\.\d+)?)(?:\/(\d+))?\s*)?([a-z]+)\b/i);
+  const count=match?(Number(match[1]||1)/Number(match[2]||1)):1,house=match?.[3].toLowerCase().replace(/s$/,'');
+  const serving=e.unit==='serving'?1:mass[e.unit]&&declared?s.g/mass[e.unit]:e.unit===house?count:null;
+  const grams=mass[e.unit]||(declared&&serving?s.g/serving:null);
+  const units=[{key:'g',label:'g',factor:grams?1/grams:null},{key:'oz',label:'oz',factor:grams?mass.oz/grams:null}];
+  if(house&&!mass[house]&&house!=='serving'&&count>0&&serving)units.push({key:house,label:house,factor:serving/count});
+  units.push({key:'serving',label:'serving',factor:serving});
+  if(!units.some(u=>u.key===e.unit))units.push({key:e.unit,label:e.unit,factor:1});
+  const identitySource=ref.id?ref:ref.origin_ref||ref;
+  const identity=identitySource.id?[identitySource.source,identitySource.id]:[e.name,e.brand,label,s.g];
+  const key='fit.food.unit:'+JSON.stringify([Native.base||location.origin,App.me?.id,identity]);
+  let unit=store.get(key)||e.unit,amount=e.amount;if(!units.some(u=>u.key===unit&&u.factor))unit=e.unit;
+  const current=()=>units.find(u=>u.key===unit);
+  const fit=()=>{if(amount>0&&amount/current().factor<.005){const u=units.find(x=>x.factor&&amount/x.factor>=.005);if(u)unit=u.key;}};fit();
+  const format=()=>String(Number((amount/current().factor).toFixed(2)));
+  return {units,get unit(){return unit;},get amount(){return amount;},format,
+    select:u=>{if(units.some(x=>x.key===u&&x.factor))unit=u;fit();},
+    step:n=>{const next=amount+n*current().factor;if(next>0)amount=next;},
+    input:text=>{const n=Number(text.replace(',','.'));amount=n>0&&Number.isFinite(n)?n*current().factor:NaN;},
+    remember:()=>store.set(key,unit)};
+}
+function portionOptions(p){return p.units.map(u=>`<option value="${esc(u.key)}"${u.key===p.unit?' selected':''}${u.factor?'':' disabled'}>${esc(u.label)}</option>`).join('');}
+const portionWeightNote=p=>p.units.find(u=>u.key==='g').factor?'':'<p class="small muted">g and oz need a known serving weight.</p>';
+
 // nutrition for an amount of a normalised food (per100 / per_serving + serving grams)
 function scaleFood(f, amount, unit) {
   const out = {};
@@ -745,54 +773,45 @@ function tQuick(body, where, close) {
 }
 
 // choose an amount for a food (live numbers), then add
-// How much (2026-10-12, Ben: the unit dropdown was big and odd, "Amount" unclear, a scanned product's name tiny): the
-// product's full name as the title (brand + name), its serving size underneath, "Servings" with - and +, and small
-// buttons for the other units (grams) when the food has them.
+// Keep the full food name and source portion, with compact count and unit controls.
 function amountSheet(f, w, closeParent, onEditFood) {
   const owner=readOwner();
   const last = f._last;
-  const startUnit = last ? last.unit : f._unit || 'serving', startAmt = last ? last.amount : 1;
+  const startUnit = last ? last.unit : f._unit || (f.serving?.is_default?'g':'serving'), startAmt = last ? last.amount : startUnit==='g'?100:1;
+  const portion=foodPortion({...f,amount:startAmt,unit:startUnit,ref:f});
   const nm = f.name && f.name !== 'Unnamed product' ? f.name : '', br = f.brand || '';
   const title = br && nm && !nm.toLowerCase().includes(br.toLowerCase().split(',')[0].trim()) ? `${br.split(',')[0].trim()} ${nm}` : nm || br || 'Food';
   // a recent food without a database entry only knows the unit it was logged in: no made-up serving size, no other units
   const plain = f._plain || (f._unit && !f.per100);
   const sub = !plain && f.serving && f.serving.label ? `${f.serving.label}${f.serving.g && !/\d\s*g\b/.test(f.serving.label) ? ` (${r1(f.serving.g)} g)` : ''}` : '';
-  const units = plain ? [startUnit] : unitList(f.per100 || f.per_serving ? f : null, startUnit).map(([k]) => k);
+  if(!portion.units.find(u=>u.key===portion.unit)?.factor)portion.select(startUnit);
   const uName = (u) => (u === 'serving' ? 'Servings' : u === 'g' ? 'Grams' : u.charAt(0).toUpperCase() + u.slice(1));
   sheet(title, `<form class="form" id="am">
     ${sub||nutrientSource(f)?`<p class="am-sub small muted">${[sub,nutrientSource(f)].filter(Boolean).map(esc).join(' · ')}</p>`:''}${foodDestination(w)}
     <div class="am-control-row"><div class="am-amt"><button type="button" class="icon-btn" data-step="-1" aria-label="Less">${svg('minus')}</button>
-      <label><input name="amount" inputmode="decimal" value="${r1(startAmt)}" aria-label="Amount" aria-describedby="am-u"><small id="am-u"${units.length>1?' class="vh"':''}>${esc(uName(startUnit))}</small></label>
+      <label><input name="amount" inputmode="decimal" value="${portion.format()}" aria-label="Amount" aria-describedby="am-u"><small id="am-u" class="vh">${esc(uName(startUnit))}</small></label>
       <button type="button" class="icon-btn" data-step="1" aria-label="More">${svg('plus')}</button></div>
-    <input type="hidden" name="unit" value="${esc(startUnit)}">
-    ${units.length > 1 ? `<div class="seg wide am-units" role="group" aria-label="Unit">${units.map((u) => `<button type="button" data-unit="${esc(u)}" aria-pressed="${u === startUnit}">${esc(uName(u))}</button>`).join('')}</div>` : ''}</div>
+    <input type="hidden" name="unit" value="${esc(portion.unit)}">
+    <select class="am-units" aria-label="Unit">${portionOptions(portion)}</select></div>${portionWeightNote(portion)}
     <div class="macpreview" id="am-p"></div>
     <div class="actions">${onEditFood ? '<button type="button" class="ghost" id="am-edit">Edit food</button><span class="spacer"></span>' : ''}<button class="primary">Add to ${esc(MEAL_NAMES[w.meal])}</button></div></form>`, (b, close) => {
     guardFoodSheet(b,close,owner);
     const fm = $('#am', b);
-    const calc = () => { const a = parseFloat(fm.amount.value) || 0; const v = f.per100 || f.per_serving ? scaleFood(f, a, fm.unit.value) : Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,null]));
+    const calc = () => { const a = portion.amount; const v = f.per100 || f.per_serving ? scaleFood(f, a, startUnit) : Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,null]));
       $('#am-p', b).innerHTML = `<div><b class="num">${r0(v.kcal)}</b><small>kcal</small></div>${MACROS.map(([k, , s]) => `<div><b class="num${v[k]==null?' nutrient-unknown':''}">${v[k]==null?'Unknown':r1(v[k])}</b><small>${s === 'P' ? 'protein' : s === 'C' ? 'carbs' : 'fat'} g</small></div>`).join('')}${extraFood(v)}`; return v; };
-    fm.amount.oninput = calc; calc();
+    fm.amount.oninput = () => {portion.input(fm.amount.value);calc();}; calc();
     $$('[data-step]', fm).forEach((x) => x.onclick = () => {      // ½ a serving at a time, or 10 g
-      const st = fm.unit.value === 'g' ? 10 : 0.5, a = (parseFloat(fm.amount.value) || 0) + st * +x.dataset.step;
-      if (a > 0) { fm.amount.value = r1(a); calc(); }     // minus never goes to zero (or up)
+      const st = fm.unit.value === 'g' ? 10 : 0.5;
+      portion.step(st * +x.dataset.step);fm.amount.value=portion.format();calc();     // minus never goes to zero (or up)
     });
-    $$('[data-unit]', fm).forEach((x) => x.onclick = () => {
-      const u = x.dataset.unit, was = fm.unit.value; if (u === was) return;
-      const g1 = f.serving && f.serving.g, a = parseFloat(fm.amount.value) || 0;
-      if (g1 && was === 'serving' && u === 'g') fm.amount.value = r1(a * g1);       // keep the same amount of food
-      else if (g1 && was === 'g' && u === 'serving') fm.amount.value = r1(a / g1);
-      else fm.amount.value = u === 'g' ? 100 : 1;
-      fm.unit.value = u; $('#am-u', fm).textContent = uName(u);
-      $$('[data-unit]', fm).forEach((y) => y.setAttribute('aria-pressed', String(y === x))); calc();
-    });
+    $('.am-units',fm).onchange=ev=>{portion.select(ev.target.value);fm.unit.value=portion.unit;fm.amount.value=portion.format();$('#am-u',fm).textContent=uName(portion.unit);calc();};
     if (onEditFood) $('#am-edit', b).onclick = () => { close(); onEditFood(); };
     fm.onsubmit = async (e) => {
-      e.preventDefault(); const a = parseFloat(fm.amount.value); if (!(a > 0)) { toast('Enter an amount'); return; }
+      e.preventDefault(); const a = portion.amount; if (!(a > 0)) { toast('Enter an amount'); return; }
       const v = calc();
       const ref = {...(f.dish_id?{dish_id:f.dish_id,weight_g:f.weight_g,dish_kcal:f.dish_kcal}:{}),origin:f.origin,origin_notes:f.origin_notes,origin_model:f.origin_model,origin_edited:f.origin_edited,origin_ref:f.origin_ref,unknown_nutrients:f.unknown_nutrients||f._last?.ref?.unknown_nutrients,source: f.source, id: f.id, per100: f.per100 || null, per_serving: f.per_serving || null, serving: f.serving || null};
-      try { const result=await addEntries([{...w, name: nm || br || f.name, brand: f.brand || null, amount: a, unit: fm.unit.value, ...v, source: f.source === 'recent' ? 'recent' : f.source || 'search', entry_method:f.entry_method||'search', ref}],{thread:location.pathname==='/food/describe'});
-        close(); closeParent(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${title}`,result.undo); } catch (x) { toast(x.message); }
+      try { const result=await addEntries([{...w, name: nm || br || f.name, brand: f.brand || null, amount: a, unit: startUnit, ...v, source: f.source === 'recent' ? 'recent' : f.source || 'search', entry_method:f.entry_method||'search', ref}],{thread:location.pathname==='/food/describe'});
+        if(owner!==readOwner())return;portion.remember();close(); closeParent(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${title}`,result.undo); } catch (x) { toast(x.message); }
     };
   });
 }
