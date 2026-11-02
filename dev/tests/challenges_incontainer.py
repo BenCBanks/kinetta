@@ -19,7 +19,7 @@ class Challenges(unittest.TestCase):
   self.ids=[];self.clients=[];self.now=dt.datetime.now(dt.timezone.utc)
   with db.connect() as c:
    for n in range(3):
-    uid=c.execute('INSERT INTO users(login,name,pw_hash,created) VALUES(%s,%s,%s,now()-interval \'1 year\') RETURNING id',('zz_test_ch_'+uuid.uuid4().hex[:12],'PRIVATE REAL NAME',self.pw)).fetchone()['id'];self.ids.append(uid)
+    uid=c.execute('INSERT INTO users(login,name,pw_hash,created) VALUES(%s,%s,%s,now()-interval \'1 year\') RETURNING id',('zz_test_ch_9999_'+uuid.uuid4().hex[:12],'PRIVATE REAL NAME',self.pw)).fetchone()['id'];self.ids.append(uid)
     c.execute("INSERT INTO profile(user_id,tz,units,protein_target) VALUES(%s,'America/New_York','metric',123)",(uid,));token=auth.new_session(c,uid,'fictional challenge');client=TestClient(app);client.headers.update({'Origin':'http://testserver','Content-Type':'application/json'});client.cookies.set(auth.COOKIE,token);self.clients.append(client)
   self.anon=TestClient(app)
  def tearDown(self):
@@ -39,12 +39,28 @@ class Challenges(unittest.TestCase):
  def join(self,code,who=1):
   with patch('app.notify._push_later'):r=self.clients[who].post('/api/challenges/'+code+'/join',json={})
   self.assertEqual(r.status_code,200,r.text);return r.json()
+ def assert_aggregate_only(self,result):
+  self.assertEqual(set(result),{'code','kind','title','sports','target','unit','start','end','creator','participants','member','owner','joining_closed','ended_early','url','self','people','manual','garmin_sources'})
+  self.assertEqual(set(result['self']),{'value','complete','manual','garmin_sources','days_left','finished','needs_target'})
+  for person in result['people']:self.assertEqual(set(person),{'username','photo','value','complete'})
+  for facts in [result['self'],*result['people']]:self.assertIn(type(facts['value']),(int,float))
+  # Public usernames and random invitation tokens may legitimately contain the marker.
+  aggregates={k:v for k,v in result.items() if k not in ('code','creator','url')}
+  aggregates['people']=[{k:v for k,v in person.items() if k!='username'} for person in result['people']]
+  self.assertNotIn('9999',json.dumps(aggregates))
+  for word in ('PRIVATE','protein_target','distance_m','start_time','activity_id'):self.assertNotIn(word,json.dumps(result))
  def test_explicit_join_and_strict_aggregate_allowlist_never_friend(self):
   self.activity(0,source='garmin_connect',device='Forerunner 965');self.activity(1);self.food(0);q,_=self.make();code=q['code']
   before=self.clients[1].get('/api/challenges/'+code).json();self.assertFalse(before['member']);self.assertNotIn('people',before);self.assertNotIn('self',before)
   public=self.anon.get('/api/challenges/'+code).json();self.assertNotIn('people',public);self.assertNotIn('self',public)
-  result=self.join(code);self.assertEqual(len(result['people']),2);self.assertEqual(set(result['people'][0]),{'username','photo','value','complete'});self.assertTrue(result['manual']);self.assertEqual(result['garmin_sources'],['Garmin Forerunner 965']);self.assertEqual(result['self']['value'],10)
-  for word in ('PRIVATE','9999','protein_target','distance_m','start_time','activity_id'):self.assertNotIn(word,json.dumps(result))
+  result=self.join(code);self.assertEqual(len(result['people']),2);self.assertTrue(result['manual']);self.assertEqual(result['garmin_sources'],['Garmin Forerunner 965']);self.assertEqual(result['self']['value'],10)
+  self.assert_aggregate_only(result);self.assertTrue(all(p['username'].startswith('zz_test_ch_9999_') for p in result['people']));self.assertEqual({p['value'] for p in result['people']},{10})
+  # Permitted usernames may contain the private-value marker; raw numbers/fields still fail.
+  for path,value in [('self',9999.0),('people',9999)]:
+   leaked=json.loads(json.dumps(result));(leaked['self'] if path=='self' else leaked['people'][1])['value']=value
+   with self.assertRaises(AssertionError):self.assert_aggregate_only(leaked)
+  leaked=json.loads(json.dumps(result));leaked['people'][1]['kcal']=1
+  with self.assertRaises(AssertionError):self.assert_aggregate_only(leaked)
   with db.connect() as c:self.assertEqual(c.execute('SELECT count(*) AS n FROM friendships WHERE requester=ANY(%s) OR addressee=ANY(%s)',(self.ids,self.ids)).fetchone()['n'],0)
   page=self.anon.get('/challenge/'+code);self.assertEqual(page.status_code,200);self.assertIn('noindex',page.text);self.assertNotIn('PRIVATE',page.text);self.assertIn('invite-only',page.text)
  def test_fixed_templates_and_create_replay_are_validated(self):
@@ -72,7 +88,7 @@ class Challenges(unittest.TestCase):
   self.food(day=today,unknown=True);self.assertEqual(self.get(protein['code'])['self']['value'],1)
   with db.connect() as c:c.execute('UPDATE profile SET protein_target=NULL WHERE user_id=%s',(self.ids[1],))
   r=self.clients[1].post('/api/challenges/'+protein['code']+'/join',json={});self.assertEqual(r.status_code,409);self.assertIn('your own protein target',r.text)
-  joined=self.join(food['code']);self.assertNotIn('protein_target',json.dumps(joined));self.assertNotIn('PRIVATE',json.dumps(joined));self.assertNotIn('9999',json.dumps(joined))
+  joined=self.join(food['code']);self.assert_aggregate_only(joined);self.assertEqual(joined['self']['value'],0)
  def test_per_participant_local_days_cover_month_boundary_and_fall_dst(self):
   # A first-November UTC workout can still belong to October in New York.
   start=dt.date(2026,11,1);end=dt.date(2026,11,3);q,_=self.make('active_days',target=3);self.join(q['code'])
