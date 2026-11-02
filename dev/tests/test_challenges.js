@@ -6,7 +6,13 @@ vm.createContext(ctx);vm.runInContext(fs.readFileSync('app/static/challenges.js'
 (async()=>{
  assert.equal(ctx.subject.number(.04,'km'),'0.04','A small remaining distance must not say zero to go');
  const data={code:'fictional',title:'November distance:80km',kind:'distance',target:80,unit:'km',sports:['walk','run'],start:'2026-11-01',end:'2026-11-30',url:'https://example.test/challenge/fictional',self:{value:41,manual:true,complete:false,finished:true,garmin_sources:['Garmin Forerunner 965']},people:[{username:'PRIVATE_OTHER_USERNAME',value:99999,protein_target:123}],food:'PRIVATE MEAL',weight:123};
- await ctx.subject.picture(data);assert.equal(captured.identity,false);assert.equal(captured.value,'80');assert.equal(captured.qrLink,data.url);assert.equal(captured.sources.length,0);assert(!JSON.stringify(captured).includes('PRIVATE'));assert(!JSON.stringify(captured).includes('99999'));
+ assert.equal(ctx.subject.title(data),'Distance · 80 km');assert.equal(ctx.subject.title({...data,kind:'activities',target:4,unit:'days'}),'Activities · 4');
+ assert.equal(ctx.subject.title({...data,kind:'unknown'}),data.title);assert.equal(ctx.subject.title({...data,target:null}),data.title);
+ for(const [start,end]of [['2026-11-01','2026-11-30'],['2026-10-28','2026-11-03'],['2026-12-28','2027-01-03']]){
+  const f=new Intl.DateTimeFormat(undefined,{timeZone:'UTC',month:'short',day:'numeric',year:'numeric'});assert.equal(ctx.subject.dateRange({start,end}),f.formatRange(new Date(start+'T12:00:00Z'),new Date(end+'T12:00:00Z')));
+ }
+ assert.equal(ctx.subject.participants({participants:1}),'1 participant');assert.equal(ctx.subject.participants({participants:2}),'2 participants');assert.equal(ctx.subject.participants({people:[1]}),'');
+ await ctx.subject.picture(data);assert.equal(captured.title,data.title);assert.equal(captured.identity,false);assert.equal(captured.value,'80');assert.equal(captured.qrLink,data.url);assert.equal(captured.sources.length,0);assert(!JSON.stringify(captured).includes('PRIVATE'));assert(!JSON.stringify(captured).includes('99999'));
  await ctx.subject.picture(data,true);assert.equal(captured.value,'41 / 80');assert.equal(captured.qrLink,null);assert.equal(captured.identity,false);assert.deepEqual(Array.from(captured.sources),['Garmin Forerunner 965']);assert(captured.facts.includes('Includes manual entries'));assert(!JSON.stringify(captured).includes('PRIVATE'));
  await ctx.subject.picture({...data,kind:'food_days',unit:'days',target:20,self:{value:7,garmin_sources:[],manual:false,finished:true}},true,true);assert.equal(captured.value,'7 / 20');assert.equal(captured.unit,'days');assert.equal(captured.identity,true);assert(!JSON.stringify(captured).includes('protein_target'));assert(!JSON.stringify(captured).includes('weight'));
  console.log('Challenge invitation and incomplete/food finish pictures: only chosen target or own aggregate, QR link, safe credits, identity off and no participant details PASS');

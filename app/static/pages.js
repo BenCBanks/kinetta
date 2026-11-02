@@ -27,11 +27,11 @@ function postCard(a, {who = false, compact = false} = {}) {
   const person = theirs ? a.owner : App.me, pref = profileHref(person), pname = theirs ? esc(a.owner.name) : 'You';
   const vis = a.visibility || 'me',audience=theirs?'':compact&&vis==='me'?` · <span class="post-private" role="img" aria-label="Only you can see this" title="Only you can see this">${svg('lock')}</span>`:` · ${esc(VIS_SHORT[vis])}`;
   const time=compact&&isoDay(new Date(a.start_time))===isoDay(new Date())?ftime(a.start_time):when(a.start_time);
-  const head = who ? `<a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><span class="ph-txt"><a class="post-name" href="${pref}">${pname}</a><small>${esc(time)} · ${esc(kind)}${audience}${compact&&a.route_id?' · <span class="post-route">Matched route</span>':''}</small></span>${compact?'':sportMark(a.sport)}`
-    : `${sportMark(a.sport)}<span class="ph-txt"><small>${esc(time)} · ${esc(kind)}${audience}</small></span>`;
-  // the comment button opens the comments in a sheet from below, right here (2026-10-12); you can cheer your own activity too
-  const foot = reactionButtons(a.id,a,false,compact)+`<button type="button" class="pf activity-comments" data-talk="${a.id}" aria-label="Comments, ${a.comments||0}">${svg('comment')}<span class="num"${a.comments?'':' hidden'}>${a.comments||''}</span></button>`+
-    (theirs?'':`<button type="button" class="pf activity-share" data-share-picture="${a.id}" aria-label="Share a picture of this activity">${svg('share')}</button>`);
+  const share=theirs?'':`<button type="button" class="pf activity-share" data-share-picture="${a.id}" aria-label="Share a picture of this activity">${svg('share')}</button>`;
+  const mark=theirs?(compact?'':sportMark(a.sport)):share;
+  const head = who ? `<a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><span class="ph-txt"><a class="post-name" href="${pref}">${pname}</a><small>${esc(time)} · ${esc(kind)}${audience}${compact&&a.route_id?' · <span class="post-route">Matched route</span>':''}</small></span>${mark}`
+    : `${theirs?sportMark(a.sport):''}<span class="ph-txt"><small>${esc(time)} · ${esc(kind)}${audience}</small></span>${share}`;
+  const foot = reactionButtons(a.id,a,false,compact)+`<button type="button" class="pf activity-comments" data-talk="${a.id}" aria-label="Comments, ${a.comments||0}">${svg('comment')}<span class="num"${a.comments?'':' hidden'}>${a.comments?reactionNumber(a.comments):''}</span></button>`;
   return `<article class="card post" data-href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}"><div class="post-hd post-profile">${head}</div><a class="post-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}">
     <h3 class="post-title">${esc(a.name)}</h3>
     <div class="stats3">${theirs ? sharedHeadline(a) : headline(a)}</div>${!theirs && a.lifts && a.lifts.names ? `<p class="post-lifts">${esc(a.lifts.names.slice(0, 4).join(' · '))}${a.lifts.names.length > 4 ? ` +${a.lifts.names.length - 4}` : ''}</p>` : ''}${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}
@@ -54,7 +54,7 @@ function wireCheers(box) {
   $$('[data-talk]', box).forEach((b) => {SocialData.warm(b,b.dataset.talk);b.onclick = () => {
     commentsSheet(b.dataset.talk, null, (fresh) => {
       if (!b.isConnected) return;
-      $('.num',b).textContent = fresh.comments.length||'';$('.num',b).hidden=!fresh.comments.length;
+      $('.num',b).textContent = fresh.comments.length?reactionNumber(fresh.comments.length):'';$('.num',b).hidden=!fresh.comments.length;
       b.setAttribute('aria-label',`Comments, ${fresh.comments.length}`);
       const group=b.closest('.post-ft')?.querySelector('[data-reaction-group]');group?._sync?.(fresh);
     });

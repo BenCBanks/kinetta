@@ -56,7 +56,19 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   await p.locator('[data-feed-challenges]').click();await p.locator('#challenge-start').waitFor();assert.equal(await p.locator('[data-challenge-back]').innerText(),'Activity');assert.equal(await p.locator('[data-challenge-back]').getAttribute('href'),'/activity');assert.equal(await p.locator('nav.tabs a[data-tab=activity]').getAttribute('aria-current'),'page');
   await p.locator('#challenge-start').click();await p.locator('.challenge-templates').waitFor();await p.keyboard.press('Escape');
   if(who==='heavy'){
+   const goals=await(await c.request.get(base+'/api/challenges')).json();for(const goal of goals){const range=await p.evaluate(q=>Challenges.dateRange(q),goal);assert((await p.locator('#challenge-list a[href$="'+goal.code+'"]').innerText()).includes(range),'Challenge rows retain their single period');}
+   await p.locator('#challenge-start').click();await p.locator('[data-challenge-kind=activities]').click();await p.locator('#challenge-create').waitFor();assert.equal((await p.locator('#challenge-create').innerText()).match(/10 minutes/g).length,1,'One clear minimum-workout explanation');await p.keyboard.press('Escape');
    await p.locator('#challenge-list a').first().click();await p.locator('#challenge-refresh').waitFor();assert.equal(await p.locator('[data-challenge-back]').innerText(),'Activity');
+   assert.doesNotMatch(await p.locator('.challenge-title').innerText(),/\b20\d\d\b/);assert.equal(await p.locator('.challenge-dates').innerText(),await p.evaluate(q=>Challenges.dateRange(q),goals[0]),'One compact date range');
+   assert(await p.locator('.challenge-title').evaluate(n=>{const s=getComputedStyle(n);return parseFloat(s.fontSize)>=28&&n.scrollHeight<=parseFloat(s.lineHeight)*2+1;}),'Complete challenge title fits two lines at approved size');
+
+
+   const code=goals[0].code;
+   for(const count of [1,2]){
+    await c.route('**/api/challenges/'+code,r=>r.fulfill({json:{...goals[0],member:false,owner:false,participants:count,self:null}}),{times:1});
+    await p.goto(base+'/me/challenges/'+code+'?participants='+count);await p.locator('#challenge-join').waitFor();assert.match(await p.locator('#challenge-detail').innerText(),new RegExp(count+' participant'+(count===1?' ·':'s ·')));assert.match(await p.locator('#challenge-detail').innerText(),/individual workouts, food entries and your protein target stay private/);
+   }
+   await p.goto(base+'/me/challenges/'+code);await p.locator('#challenge-invite').waitFor();
    if(size.width===390&&theme==='light'){
     const code=new URL(p.url()).pathname.split('/').at(-1);
     await p.goto(base+'/me/challenges/'+code);await p.locator('#challenge-refresh').waitFor();assert.equal(await p.locator('[data-challenge-back]').innerText(),'Activity');assert.equal(await p.locator('nav.tabs a[data-tab=activity]').getAttribute('aria-current'),'page');

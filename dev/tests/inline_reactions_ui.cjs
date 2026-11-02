@@ -20,8 +20,16 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
      const footer=await card.locator('.post-ft').boundingBox(),tabs=await p.locator('nav.tabs').boundingBox();assert(footer.y+footer.height<=tabs.y+1,'Footer is visible above navigation in evidence');
      if(out){fs.mkdirSync(out,{recursive:true});await card.screenshot({path:path.join(out,`${phase}-${state}-${theme}-${size.width}.png`)});}
      if(phase==='after'){const buttons=card.locator('[data-inline-react]');assert.equal(await buttons.count(),3);for(const kind of ['cheer','strong','applause'])assert.equal(await card.locator(`[data-inline-react="${kind}"]`).count(),1);
-      assert.equal(metrics.overflow,false);for(const b of metrics.buttons)assert(b.width>=44&&b.height>=44,JSON.stringify(b));for(let a=0;a<metrics.buttons.length;a++)for(let b=a+1;b<metrics.buttons.length;b++){const x=metrics.buttons[a],y=metrics.buttons[b],dx=Math.max(x.x-y.x-y.width,y.x-x.x-x.width),dy=Math.max(x.y-y.y-y.height,y.y-x.y-x.height);assert(dx>=7.5||dy>=7.5,'Neighbouring tap targets have8px separation');}}
+      assert.equal(await card.locator('.reaction-count > svg').count(),1,'People icon identifies the tappable reactor total');assert(await card.locator('.post-ft .num:visible').evaluateAll(ns=>ns.every(n=>parseFloat(getComputedStyle(n).fontSize)>=15)),'Readable counter labels keep the15px minimum');assert.equal(metrics.overflow,false);assert(Math.max(...metrics.buttons.map(b=>b.y))-Math.min(...metrics.buttons.map(b=>b.y))<2,'Footer stays on one row');
+      assert(await card.locator('.reaction-inline').evaluateAll(ns=>ns.every(n=>{const s=getComputedStyle(n);return s.backgroundColor==='rgba(0, 0, 0, 0)'&&getComputedStyle(n,'::before').content==='none';})),'Reaction faces remain unpainted');
+      assert(await card.locator('.reaction-inline[aria-pressed=true]').evaluateAll(ns=>ns.every(n=>{const probe=document.createElement('i');probe.style.color='var(--accent)';n.append(probe);const same=getComputedStyle(n).color===getComputedStyle(probe).color;probe.remove();return same;})),'Selected reaction keeps the brand color');
+      for(const b of metrics.buttons)assert(b.width>=44&&b.height>=44,JSON.stringify(b));for(let a=0;a<metrics.buttons.length;a++)for(let b=a+1;b<metrics.buttons.length;b++){const x=metrics.buttons[a],y=metrics.buttons[b],dx=Math.max(x.x-y.x-y.width,y.x-x.x-x.width),dy=Math.max(x.y-y.y-y.height,y.y-x.y-x.height);assert(dx>=7.5||dy>=7.5,'Neighbouring tap targets have8px separation');}}
      reports.push({state,theme,...size,...metrics});
+    }
+    if(phase==='after'){
+     const card=p.locator('article.post').filter({hasText:'Fictional mixed run'});await card.evaluate(n=>n.querySelector('[data-reaction-group]')._sync({my_reaction:'strong',reactions:{cheer:999999,strong:1234567,applause:12000}}));
+     const group=card.locator('[data-reaction-group]');assert.match(await group.locator('[data-inline-react=strong]').getAttribute('aria-label'),/1234567 reactions/);assert.match(await group.locator('.reaction-count').getAttribute('aria-label'),/2246566 reactions/);
+     assert(await group.locator('.num:visible').evaluateAll(ns=>ns.every(n=>{const ink=document.createRange();ink.selectNodeContents(n);const a=ink.getBoundingClientRect(),b=n.closest('button').getBoundingClientRect();return a.left>=b.left-.5&&a.right<=b.right+.5;})),'Large displayed counts fit their whole targets');
     }
     assert.deepEqual(errors,[]);
    }finally{await c.close();}
