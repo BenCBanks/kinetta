@@ -3036,7 +3036,8 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .record-history-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
 .record-history-heading h2 { margin:0; }
 .record-history-heading .me-period { gap:8px; }
-.progress-segment-controls .mileage-toggle { min-width:0; max-width:100%; }
+.progress-segment-controls .mileage-toggle { min-width:0; max-width:100%; gap:8px; }
+.progress-segment-controls [data-f] { min-width:44px; min-height:44px; }
 
 .seg-rules { margin:12px 0; }
 .seg-rules > summary { min-height:44px; display:flex; align-items:center; font-weight:500; cursor:pointer; }

@@ -3,6 +3,9 @@
 const assert=require('node:assert/strict');
 module.exports=async function polishChecks(p,{size,theme}){
  const base=new URL(p.url()).origin,until=async(fn,label,arg)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);};
+ await p.goto(base+'/progress/trends?sport=run');await p.locator('#g-wk .readout').waitFor({state:'attached'});assert.match(await p.locator('#g-wk .readout').innerText(),/\/week/);assert.match(await p.locator('#g-wk .readout').innerText(),/so far/);
+ const loop={id:999999,name:'Fictional repeated route',sport:'run',fastest_id:20003,line:null,pace_trend:{start:600,end:600,slope_per_day:0},efficiency_trend:{slope_per_day:0},activities:[600,610,590].map((moving_s,n)=>({id:20001+n,name:'Fictional timed run',start_time:`2026-10-${String(n+1).padStart(2,'0')}T12:00:00Z`,distance_m:1000,moving_s,avg_hr:150}))};
+ await p.route('**/api/routes/999999',r=>r.fulfill({json:loop}));try{await p.goto(base+'/route/999999');await p.locator('#r-chart .dotp.best').waitFor({state:'attached'});assert.match(await p.locator('#page').innerText(),/distance per heartbeat is unchanged/);assert.doesNotMatch(await p.locator('#page').innerText(),/you’re fitter|you're fitter/);assert(await p.evaluate(()=>{const key=getComputedStyle(document.querySelector('.route-fastest-key')),point=getComputedStyle(document.querySelector('#r-chart .dotp.best'));return [point.fill,point.stroke].includes(key.color);}), 'Fastest key matches its gold point');}finally{await p.unroute('**/api/routes/999999');}
  const history=await p.evaluate(()=>api('/api/records/history?sport=run&distance_m=5000'));
  await p.goto(base+'/records/run/5000');await p.locator('#h-all .record-effort').first().waitFor();
  assert.equal(await p.getByRole('heading',{name:'PR progression',exact:true}).count(),0,'one history list');
@@ -20,7 +23,7 @@ module.exports=async function polishChecks(p,{size,theme}){
    const copy=await p.locator('#sg-list').innerText();assert.match(copy,filter==='mine'?/Create a segment/:filter==='saved'?/tap Save/:/Try a search/);assert.doesNotMatch(copy,/Move the map/);
    if(filter==='mine'){
     assert.equal(await p.locator('[data-f=mine]').innerText(),'Mine');
-    const fit=await p.locator('.progress-segment-controls').evaluate(n=>{const r=n.getBoundingClientRect();return [...n.querySelectorAll('[data-f]')].every(b=>{const x=b.getBoundingClientRect();return x.left>=r.left&&x.right<=r.right&&x.width>=44&&x.height>=44;});});assert(fit,'whole filter targets fit');
+    const targets=await p.locator('.progress-segment-controls').evaluate(n=>{const r=n.getBoundingClientRect();return [...n.querySelectorAll('[data-f]')].map(b=>{const x=b.getBoundingClientRect();return {label:b.innerText,left:x.left,right:x.right,width:x.width,height:x.height,inside:x.left>=r.left-.1&&x.right<=r.right+.1};});});assert(targets.every(x=>x.inside&&x.width>=44&&x.height>=44),'whole filter targets fit '+JSON.stringify(targets));
    }
   }
   const course={id:999999,name:'Fictional fixed course',sport:'run',distance_m:1200,created:'2026-10-25T12:00:00Z',status:'active',audience:'me',mine:true,saved:false,line:'????'};
