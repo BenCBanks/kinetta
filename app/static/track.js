@@ -554,7 +554,7 @@ const Track = (() => {
       const o=recordOptions(c.sport),unit=imp()?'mile':'km';
       const intervals=globalThis.Intervals?.hasSelection()&&['run','walk'].includes(c.sport),paused=intervals?'off':o.autoPause?'on':'off';
       box.innerHTML=`${svg('sound')}<span>${o.voice?`1 ${imp()?'mi':'km'}`:'Off'} · Auto-pause ${paused}</span>`;
-      box.setAttribute('aria-label',`${o.voice?'Spoken updates every '+unit:'Spoken updates off'}. Auto-pause ${paused}${intervals?' for intervals':''}. Recording settings`);
+      box.setAttribute('aria-label',box.textContent.trim()+'. '+`${o.voice?'Spoken updates every '+unit:'Spoken updates off'}. Auto-pause ${paused}${intervals?' for intervals':''}. Recording settings`);
       box.title=box.getAttribute('aria-label');box.onclick=()=>prefs(c); };
     const prefs=(c)=>{ const o=recordOptions(c.sport),unit=imp()?'mile':'km';
       sheet('Recording settings',`<div class="track-pref-list"><div class="switch-row"><div class="track-voice-copy"><label for="track-voice"><b>Spoken updates</b></label><small>Hear your time and ${speedSport(c)?'speed':'pace'} at every ${unit}, even with the screen locked.</small>${globalThis.Intervals?.hasSelection()&&['run','walk'].includes(c.sport)?Intervals.voiceControls():''}</div><label class="track-switch-target" for="track-voice"><input type="checkbox" role="switch" id="track-voice"${o.voice?' checked':''}></label></div>

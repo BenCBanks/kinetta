@@ -409,7 +409,7 @@ async function meOverview(el) {
       const form = last.form, [k, word, tip] = form > 5 ? ['good', 'Fresh', 'A good day for a hard effort'] : form < -15 ? ['warn', 'Tired', 'An easy day helps you absorb training'] : ['', 'Training steadily', 'Fitness is building'];
       // one compact row (2026-10-16): the status word and its numbers; the explanations live on the Fitness page
       const mini = (label, v) => `<span><b class="num">${esc(v)}</b><small>${esc(label)}</small></span>`;
-      $('#t-form', el).innerHTML = `<a class="card tap me-form" href="/progress?view=fitness" aria-label="Fitness and freshness: ${esc(word)}. ${esc(tip)}. Open details">
+      $('#t-form', el).innerHTML = `<a class="card tap me-form" href="/progress?view=fitness">
         <span class="me-form-top"><span class="grow"><small>Fitness & freshness</small><b class="status-word ${k}">${esc(word)}</b></span>${svg('chev')}</span>
         <span class="me-form-nums">${mini('Fitness', Math.round(last.fitness))}${mini('Freshness', (form > 0 ? '+' : '') + Math.round(form))}${f.vdot_now ? mini('Run score', f.vdot_now) : ''}</span>
         ${f.ramp_7d > 8 ? '<span class="callout warn">Your training load jumped this week. Watch for niggles.</span>' : ''}</a>`;

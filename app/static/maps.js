@@ -50,6 +50,8 @@ const MapTiles=(()=>{
     return instance;
   }
   async function mount(map,L,el){
+    // An interactive map contains attribution links and Retry; it is not an atomic image.
+    if(el.getAttribute('role')==='img')el.setAttribute('role','region');
     let layer=null,closed=false,version=0,failures=0,successes=0;
     // Live recording has very little map height on short phones. Stack Retry with the credits so they share space.
     const note=L.control({position:el.classList.contains('live-record-map')?'bottomright':'bottomleft'});note.onAdd=()=>{const n=L.DomUtil.create('div','map-unavailable');n.hidden=true;n.setAttribute('role','status');const message=document.createElement('span');message.className='map-unavailable-message';message.textContent='Map unavailable ';n.append(message);const b=document.createElement('button');b.type='button';b.append('Retry');const context=document.createElement('span');context.className='map-retry-context';context.textContent=' map';b.append(context);b.onclick=()=>draw();n.append(b);L.DomEvent.disableClickPropagation(n);return n;};note.addTo(map);
