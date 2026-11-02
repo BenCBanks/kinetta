@@ -86,18 +86,7 @@ Do these in order. Nothing here costs money except the membership.
      and install Kinetta. Up to 10,000 people, no Apple team accounts needed.
    - Beta review asks for **Test Information**: a sentence on what to test, your contact details, and a **sign-in for
      the reviewer** (see below).
-9. **Fill in App Privacy** (App Store Connect > the app > **App Privacy**), needed before outside testing or the App
-   Store. Answers for Kinetta: data collected: **Health & Fitness** (Health, Fitness), **Contact Info** (name),
-   **Identifiers** (user ID), **Location** (precise: workout routes), **User Content** (photos of food, other content: recipes
-   and comments); all *linked to the user*, *not used for tracking*, used for *App Functionality*. Also disclose
-   **Usage Data → Product Interaction**, linked to the user, used for **Analytics**, not tracking: the operator can
-   enable aggregate feature counts for every signed-in account, without a per-person opt-in. **User ID, Health and
-   Fitness** also have an **Analytics** purpose because account cohorts and retained-record counts feed those reports.
-   The bundled privacy manifest declares those purposes; changing it does not update App Store Connect answers.
-   Actual Connect updates and Apple's collection/consent and HealthKit requirements remain release-review steps;
-   first-party aggregation does not itself establish an exception or Apple acceptance. See `docs/admin-features.md`.
-   If the AI features are on for your server, also say that health, fitness and food data and
-   food photos are shared with Google (Gemini) when the person turns AI features on (the welcome steps ask; Me changes it).
+9. **Fill in App Privacy** in App Store Connect using the owner-review [code-linked inventory](../mobile/appstore/privacy-audit.md). Each category lists linking, tracking, purposes and source pointers. It includes Email Address, device identifiers, friendships, cached searches, diagnostics and age/consent records alongside Health/Fitness, routes, photos and private content. All are conservatively linked, none used for tracking; App Functionality is the normal purpose. Health/Fitness/User ID and Product Interaction retain Analytics purposes for operator-controlled reports; tailored Health/Fitness/content suggestions also have Product Personalization. There is no per-person analytics opt-in. Resolve the documented Health-analytics/consent gate before enabling counts. Match the exact configured AI providers and submitted build; the manifest does not update Apple's form. No Connect change is performed by these files.
 
 The workflow archives without a development profile, preserves the HealthKit entitlements, then lets Xcode
 automatically sign for App Store Connect during export. You do not need to register a development iPhone for this
@@ -137,14 +126,7 @@ if offered. See [Apple's external testing guide](https://developer.apple.com/hel
 Already done: the **privacy policy URL** (https://kinetta.app/privacy, which covers Apple Health), **delete my account**
 inside the app (Me → Settings & account → Your data), and **download my data**.
 
-Still to do when you submit:
-- **A sign-in for Apple's reviewer** on login.kinetta.app, with some made-up workouts and food in it. Before making it,
-  remember that "Everyone" on a shared server means every account there, reviewer included: activities testers share
-  with *Everyone* would be visible to it (new accounts default to *Everyone on Kinetta*, with a choice in welcome, Settings → Sharing & privacy, and before saving a recording; existing activities retain their audience).
-- **Screenshots** at 6.9-inch iPhone size (1320 x 2868). The app is iPhone-only, so no iPad screenshots are needed.
-- **Support URL**: https://kinetta.app works. **Marketing URL**: optional.
-- **Age rating** questionnaire: no objectionable content; friends can comment on each other's activities, so answer
-  yes to "user-generated content" if asked.
+Before submission, review the [listing and screenshot instructions](../mobile/appstore/README.md), [age questionnaire](../mobile/appstore/age-rating.md) and [review notes](../mobile/appstore/review-notes.md). Supply private reviewer credentials only after deciding which server the reviewer may see. **Recommend a separate server with fictional accounts**: Everyone on a shared server includes a new reviewer, and creating a demo account does not isolate that feed. No account or visibility change is made here. The listing, exact6.9-inch native artifacts, actual App Privacy/age/License Agreement answers and signed release remain separate owner checks.
 
 ## Recording with this iPhone
 

@@ -77,6 +77,8 @@ jobs:
       - run: npm ci
       # copies app/static into the app and writes the native project's plugin list
       - run: npm run sync
+      - name: Check App Store listing and privacy declarations
+        run: python3 scripts/test_listing.py
       - name: Test compatible saved-workout notification destinations
         run: |
           swiftc ios/App/App/NativePush.swift tests/notification/main.swift -o "$RUNNER_TEMP/notification-path-tests"
@@ -171,6 +173,18 @@ jobs:
       - name: Check native WebView layout with fictional records
         timeout-minutes: 23
         run: python3 dev/tests/native-ui/run.py --app "$RUNNER_TEMP/simulator/App.app" --output "$RUNNER_TEMP/native-ui" --device "${{ matrix.device }}"
+      - name: Capture6.9-inch App Store scenes (fictional records, unsigned)
+        if: matrix.device == 'pro'
+        timeout-minutes: 8
+        run: python3 dev/tests/native-ui/run.py --app "$RUNNER_TEMP/simulator/App.app" --output "$RUNNER_TEMP/appstore" --store
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.device == 'pro'
+        with:
+          name: appstore-6.9-fictional
+          path: |
+            ${{ runner.temp }}/appstore/*.png
+            ${{ runner.temp }}/appstore/*.json
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         if: always()
         with:

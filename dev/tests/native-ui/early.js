@@ -5,6 +5,7 @@
   cfg.errors=errors;cfg.requests=requests;
   addEventListener('error',e=>errors.push(String(e.message)));
   addEventListener('unhandledrejection',e=>errors.push(String(e.reason?.message||e.reason)));
+  if(cfg.store){const Clock=Date;globalThis.Date=class extends Clock{constructor(...v){super(...(v.length?v:[cfg.store.now]));}static now(){return new Clock(cfg.store.now).getTime();}};}
   localStorage.clear();document.documentElement.style.fontSize=cfg.root+'px';
   history.replaceState(null,'',cfg.headerPage?'/'+cfg.headerPage:cfg.friends?'/me/friends':cfg.stage.startsWith('activity')?'/activity/1':cfg.stage.startsWith('track-')?'/track':cfg.stage==='food'?'/food/describe':'/food/cook/1');
   if(cfg.recording){const s={...cfg.recording,native:true,lapSupport:true,activeSeconds:cfg.recording.activeMs/1000,elapsedSeconds:(cfg.recording.finishedAt-cfg.recording.start)/1000,_snapshotClock:performance.now()};localStorage.setItem('kinetta.track:'+JSON.stringify(['https://example.test',1]),JSON.stringify(s));}
@@ -16,6 +17,7 @@
     const raw=typeof input==='string'?input:input.url,u=new URL(raw,location.href),p=u.pathname;
     if(p.startsWith('/api/')){
       requests.push(p);let data;
+      if(cfg.store){const method=options.method||input?.method||'GET';if(method!=='GET')throw Error('Store fixture blocked mutation '+method+' '+p);if(!Object.hasOwn(cfg.store.responses,p))throw Error('Missing store fixture '+p);return new Response(JSON.stringify(cfg.store.responses[p]),{status:200,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});}
       if(p==='/api/me')data=me;
       else if(cfg.headerPage&&p==='/api/challenges')data=[];
       else if(cfg.headerPage&&p==='/api/plans/current')data={plan:null};

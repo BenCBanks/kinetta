@@ -3,7 +3,7 @@
 (() => {
   const cfg=globalThis.KinettaUIFixture;
   Native.autoSync=()=>Promise.resolve();Native.resumeFoodEntry=()=>Promise.resolve();
-  if(cfg.headerPage){
+  if(cfg.headerPage||cfg.store){
     // Measure the real native layout without reading Health/GPS or registering alerts.
     Native.syncPush=()=>Promise.resolve();Native.healthOn=Native.foodHealthOn=async()=>false;Native.healthStatus=async()=>null;
     TrackNative.call=async method=>{if(method==='status')return {session:null};throw Error('Native header fixture blocked recording controls');};
@@ -16,6 +16,7 @@
       if(cfg.headerPage?(App.pageReady&&document.querySelector('#page h1')):cfg.friends?(App.pageReady&&document.querySelector('#fr-own-list')&&document.querySelectorAll('.pym-tile').length===3):cfg.activity?(App.pageReady&&document.querySelector('.compact-detail-title')):cfg.recording?document.querySelector(cfg.stage==='track-review'?'#track-photos-add:not(:disabled)':'#track-lap'):cfg.stage==='food'?document.querySelector('#thread-text'):document.querySelector('#dk-name'))break;
       await new Promise(ok=>setTimeout(ok,100));
     }
+    if(cfg.store&&cfg.activity)document.querySelector('[data-dt=charts]')?.click();
     if(cfg.stage==='review')finishDish(cfg.dish);
     if(cfg.stage==='track-map')document.querySelector('#track-map-wrap .map-full')?.click();
     await document.fonts.ready;await new Promise(ok=>setTimeout(ok,2000));
@@ -37,7 +38,7 @@
       ready:document.documentElement.classList.contains('native-display-ready'),visible:navStyle.display!=='none',box:rect('nav.tabs'),
       items:[...nav.querySelectorAll('a')].map(a=>({text:a.querySelector('span').textContent,selected:a.getAttribute('aria-current')==='page',box:(()=>{const r=a.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})(),label:(()=>{const r=a.querySelector('span').getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})()}))};
     const field=document.querySelector('#thread-text'),fieldSize=field?{...rect('#thread-text'),scrollHeight:field.scrollHeight,clientHeight:field.clientHeight}:null;
-    const result={fixture:true,display:cfg.displayDiagnostics(),navigation,field:fieldSize,run:cfg.run,stage:cfg.stage,root:cfg.root,theme:matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light',native:Native.on,viewport:{width:innerWidth,height:innerHeight,offset:visualViewport?.offsetTop||0},safeTop,safeBottom,back:rect(cfg.stage==='food'?'.thread-heading .back':'.top .back'),header:rect(cfg.stage==='food'?'.thread-heading':'.top'),name:rect('#dk-name'),content:rect('.recipe-content'),composer:rect(cfg.stage==='food'?'#thread-composer':'#dk-add'),review:rect('#recipe-finish'),overflow:document.documentElement.scrollWidth>innerWidth+1,status:document.querySelector('#thread-status')?.textContent||'',errors:cfg.errors,requests:cfg.requests};
+    const result={fixture:true,store:!!cfg.store,bodyText:cfg.store?document.querySelector('#page')?.textContent:null,display:cfg.displayDiagnostics(),navigation,field:fieldSize,run:cfg.run,stage:cfg.stage,root:cfg.root,theme:matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light',native:Native.on,viewport:{width:innerWidth,height:innerHeight,offset:visualViewport?.offsetTop||0},safeTop,safeBottom,back:rect(cfg.stage==='food'?'.thread-heading .back':'.top .back'),header:rect(cfg.stage==='food'?'.thread-heading':'.top'),name:rect('#dk-name'),content:rect('.recipe-content'),composer:rect(cfg.stage==='food'?'#thread-composer':'#dk-add'),review:rect('#recipe-finish'),overflow:document.documentElement.scrollWidth>innerWidth+1,status:document.querySelector('#thread-status')?.textContent||'',errors:cfg.errors,requests:cfg.requests};
     if(cfg.headerPage){
       const title=document.querySelector('#page h1'),shell=document.querySelector('#page'),header=title.closest('.top,.me-top'),glyph=document.createRange();glyph.selectNodeContents(title);
       const g=glyph.getBoundingClientRect(),css=getComputedStyle(shell),h=getComputedStyle(header);
