@@ -2,9 +2,10 @@
 'use strict';
 (() => {
   const cfg=globalThis.KinettaUIFixture,errors=[],requests=[];
-  cfg.errors=errors;cfg.requests=requests;
+  cfg.errors=errors;cfg.requests=requests;cfg.blocked=[];
   addEventListener('error',e=>errors.push(String(e.message)));
   addEventListener('unhandledrejection',e=>errors.push(String(e.reason?.message||e.reason)));
+  if(cfg.store){const Clock=Date,epoch=new Clock(cfg.store.now).getTime(),began=performance.now(),now=()=>epoch+Math.floor(performance.now()-began);globalThis.Date=class extends Clock{constructor(...v){super(...(v.length?v:[now()]));}static now(){return now();}};}
   localStorage.clear();document.documentElement.style.fontSize=cfg.root+'px';
   history.replaceState(null,'',cfg.headerPage?'/'+cfg.headerPage:cfg.friends?'/me/friends':cfg.stage.startsWith('activity')?'/activity/1':cfg.stage.startsWith('track-')?'/track':cfg.stage==='food'?'/food/describe':'/food/cook/1');
   if(cfg.recording){const s={...cfg.recording,native:true,lapSupport:true,activeSeconds:cfg.recording.activeMs/1000,elapsedSeconds:(cfg.recording.finishedAt-cfg.recording.start)/1000,_snapshotClock:performance.now()};localStorage.setItem('kinetta.track:'+JSON.stringify(['https://example.test',1]),JSON.stringify(s));}
@@ -16,6 +17,13 @@
     const raw=typeof input==='string'?input:input.url,u=new URL(raw,location.href),p=u.pathname;
     if(p.startsWith('/api/')){
       requests.push(p);let data;
+      if(cfg.store){
+        const method=options.method||input?.method||'GET',key=p.startsWith('/api/food/thread/reviews/draft/')?'/api/food/thread':p;
+        if(method!=='GET'||!Object.hasOwn(cfg.store.responses,key)){cfg.blocked.push(method+' '+p);throw Error('Store fixture blocked unexpected request');}
+        const data=structuredClone(cfg.store.responses[key]);
+        if(key==='/api/food/thread'){const draft=p.split('/').at(-1);for(const m of data.messages)if(m.kind==='user'){m.captured_at=m.created;m.result={...m.result,draft_id:draft,kind:'log'};}}
+        return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
+      }
       if(p==='/api/me')data=me;
       else if(cfg.headerPage&&p==='/api/challenges')data=[];
       else if(cfg.headerPage&&p==='/api/plans/current')data={plan:null};
@@ -43,6 +51,7 @@
       else data={};
       return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
     }
+    if(cfg.store&&raw===cfg.store.mapUrl)return nativeFetch(input,{...options,credentials:'omit'});
     if(u.origin!==location.origin)throw Error('Native UI fixture blocked external request');
     return nativeFetch(input,options);
   };

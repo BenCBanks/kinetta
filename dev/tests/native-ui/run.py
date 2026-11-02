@@ -1,9 +1,11 @@
 """Run native layout evidence on isolated Simulator devices. Fixtures and artifacts contain no real data."""
-import argparse,json,os,platform,re,subprocess,time,uuid
+import argparse,hashlib,json,os,platform,re,subprocess,time,uuid
 from pathlib import Path
+from urllib.parse import urlsplit
+import urllib.request
 from lifecycle import stop_for_fixture
 from header_geometry import check_headers
-p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--device',choices=['compact','pro','all'],default='all');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
+p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--store',action='store_true');p.add_argument('--device',choices=['compact','pro','all'],default='all');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
 def run(*args,check=True,timeout=180):
  try:result=subprocess.run(args,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=timeout)
  except subprocess.TimeoutExpired as error:
@@ -33,14 +35,33 @@ preferred=[]
 for names in [('iPhone SE (3rd generation)','iPhone 16e','iPhone 17'),('iPhone 17 Pro','iPhone 16 Pro','iPhone 16 Pro Max')]:
  choice=next((t for name in names for t in iphones if t['name']==name),None)
  if choice:preferred.append(choice)
-assert len(preferred)==2,'Two phone device types are required'
-if a.device!='all':preferred=[preferred[0 if a.device=='compact' else 1]]
+if a.store:
+ preferred=[next((t for t in iphones if t['name']=='iPhone 16 Pro Max'),None)]
+ assert preferred[0], 'Exact1320x2868 iPhone16ProMax Simulator type required; no fallback/upscaling'
+assert a.store or len(preferred)==2,'Two phone device types are required'
+if not a.store and a.device!='all':preferred=[preferred[0 if a.device=='compact' else 1]]
+if a.store:
+ expected=a.output/'expected-static'
+ run('python3','app/asset_build.py','app/static',str(expected))
+ for item in expected.rglob('*'):
+  if item.is_file() and item.name!='sw.js':
+   bundled=a.app/'public/static'/item.relative_to(expected)
+   assert bundled.is_file() and hashlib.sha256(item.read_bytes()).digest()==hashlib.sha256(bundled.read_bytes()).digest(),'Supplied bundle differs from current app assets: '+str(item.relative_to(expected))
+ import shutil
+ shutil.rmtree(expected)
+ # Read only the published map contract; no account, cookie or runtime setting access.
+ with urllib.request.urlopen(urllib.request.Request('https://login.kinetta.app/api/map-config',headers={'User-Agent':'Kinetta fictional capture setup'}),timeout=20) as response:map_config=json.load(response)
+ url=urlsplit(map_config['url'])
+ assert map_config['kind']=='pmtiles' and url.scheme=='https' and url.hostname and not (url.username or url.password or url.query or url.fragment),'Public credential-free vector map required'
+ assert not url.hostname.endswith('tile.openstreetmap.org'),'Never use public OSM tile servers'
+ (a.output/'public-map.json').write_text(json.dumps(map_config,indent=2))
 results=[]
 for device in preferred:
  udid=None
  try:
   try:udid=sim('create','KinettaLayout-'+uuid.uuid4().hex[:8],device['identifier'],runtime['identifier'])
   except subprocess.CalledProcessError:
+   if a.store:raise
    candidate=next((d for d in existing if d.get('deviceTypeIdentifier') and (('Pro' in d['name'])==('Pro' in device['name']))),None)
    if not candidate:raise
    device={'name':candidate['name'],'identifier':candidate['deviceTypeIdentifier']};udid=sim('create','KinettaLayout-'+uuid.uuid4().hex[:8],device['identifier'],runtime['identifier'])
@@ -50,16 +71,17 @@ for device in preferred:
   # A fresh hosted runner must initialize the iOS runtime; this can exceed three minutes.
   sim('boot',udid);sim('bootstatus',udid,'-b',timeout=480);sim('status_bar',udid,'override','--time','9:41','--dataNetwork','wifi','--wifiMode','active','--wifiBars','3','--batteryState','charged','--batteryLevel','100')
   installed=None;recovered=False
-  for theme in ('light','dark'):
+  for theme in (('light',) if a.store else ('light','dark')):
    sim('ui',udid,'appearance',theme)
-   for stage,root in [(name,16) for name in ['header-me','header-activity','header-track','header-progress','header-food']]+[('recipe',16),('review',16),('food',16),('recipe',24),('food',24),('track-live',16),('track-map',16),('track-review',16),('track-live',24),('track-review',24),('activity',16),('activity-sticky',16),('activity-empty',16),('activity-map',16),('activity',24),('friends-empty',16),('friends-typical',16),('friends-heavy',16),('friends-heavy',24)]:
+   stages=[('header-me',16),('activity',16),('header-track',16),('header-food',16),('food',16),('header-progress',16),('header-activity',16)] if a.store else [(name,16) for name in ['header-me','header-activity','header-track','header-progress','header-food']]+[('recipe',16),('review',16),('food',16),('recipe',24),('food',24),('track-live',16),('track-map',16),('track-review',16),('track-live',24),('track-review',24),('activity',16),('activity-sticky',16),('activity-empty',16),('activity-map',16),('activity',24),('friends-empty',16),('friends-typical',16),('friends-heavy',16),('friends-heavy',24)]
+   for stage,root in stages:
     diagnostics['phase']=f'{theme} {stage} root={root}';(a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
     print(f'Native UI: {device["name"]} {theme} {stage} root={root}',flush=True)
     token=uuid.uuid4().hex;copy=a.output/'KinettaLayout.app'
     if installed:recovered=stop_for_fixture(sim,udid,theme,recovered)
     diagnostics['terminationRecovery']=recovered;(a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
     destination=installed or copy
-    run('python3',str(Path(__file__).with_name('prepare.py')),str(a.app),str(destination),'--stage',stage,'--root',str(root),'--run',token,*(['--update'] if installed else []))
+    run('python3',str(Path(__file__).with_name('prepare.py')),str(a.app),str(destination),'--stage',stage,'--root',str(root),'--run',token,*(['--update'] if installed else []),*(['--store','--map-config',str(a.output/'public-map.json')] if a.store else []))
     if not installed:
      sim('install',udid,str(copy));installed=Path(sim('get_app_container',udid,'com.kinetta.app','app'))
     container=Path(sim('get_app_container',udid,'com.kinetta.app','data'));sim('launch',udid,'com.kinetta.app')
@@ -75,7 +97,8 @@ for device in preferred:
      sim('io',udid,'screenshot','--type=png',str(a.output/(filename+'-missing-metrics.png')),check=False,timeout=20)
      (a.output/(filename+'-missing-metrics.json')).write_text(json.dumps({**diagnostics,'error':'No metrics for current fixture run'},indent=2))
     assert metrics, f'No native metrics: {device["name"]} {theme} {stage}'
-    sim('io',udid,'screenshot','--type=png',str(a.output/(filename+'.png')))
+    capture=a.output/(filename+('.jpg' if a.store else '.png'))
+    sim('io',udid,'screenshot','--type='+('jpeg' if a.store else 'png'),str(capture))
     metrics.update(device=device['name'],runtime=runtime['name'],terminationRecovery=recovered);(a.output/(filename+'.json')).write_text(json.dumps(metrics,indent=2))
     assert 'error' not in metrics,metrics
     assert metrics['native'] and metrics['theme']==theme and metrics['safeTop']>=20,metrics
@@ -83,6 +106,15 @@ for device in preferred:
     nav=metrics['navigation']
     assert nav['ready'],'Actual UIKit display-preference bridge must respond: '+json.dumps(metrics.get('display',{}),sort_keys=True)
     assert nav['visible']==(stage in ('activity','activity-sticky','activity-empty') or stage.startswith(('friends-','header-'))),metrics
+    if a.store:
+     raw=capture.read_bytes();dimensions=run('sips','-g','pixelWidth','-g','pixelHeight',str(capture))
+     assert raw[:3]==b'\xff\xd8\xff' and re.search(r'pixelWidth: 1320\b',dimensions) and re.search(r'pixelHeight: 2868\b',dimensions),'Store JPEG must be native1320x2868, no alpha or resizing'
+     assert not metrics.get('blocked') and metrics.get('sceneReady'),metrics
+     assert metrics.get('store') and metrics.get('bodyText') and not re.search(r'could not load|couldn.t load|Map unavailable|NaN|undefined',metrics['bodyText'],re.I),metrics
+     assert metrics['viewport']=={'width':440,'height':956,'offset':0},metrics
+     metrics['sha256']=hashlib.sha256(raw).hexdigest();metrics['captureToolRevision']=run('git','rev-parse','HEAD');metrics['bundleAssetsVerifiedAgainst']=metrics['captureToolRevision']
+     (a.output/(filename+'.json')).write_text(json.dumps(metrics,indent=2))
+     results.append(metrics);(a.output/'results.json').write_text(json.dumps(results,indent=2));continue
     if nav['visible']:
      box=nav['box'];assert box['x']>=8 and box['x']+box['width']<=metrics['viewport']['width']-8,metrics
      assert box['bottom']<metrics['viewport']['height'],metrics
@@ -145,5 +177,5 @@ for device in preferred:
   if udid:sim('shutdown',udid,check=False,timeout=20);sim('delete',udid,check=False,timeout=20)
 import shutil
 shutil.rmtree(a.output/'KinettaLayout.app',ignore_errors=True)
-assert len(results)==48*len(preferred),'Every selected phone needs all forty-eight layout cases'
+assert len(results)==(7 if a.store else 48*len(preferred)),'Every selected phone needs all forty-eight layout cases'
 print(f'PASS {len(results)} actual native WebView layout captures with fictional API stand-ins; physical device checks remain separate')
