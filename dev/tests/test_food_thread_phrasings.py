@@ -8,7 +8,7 @@ p=person('zz_test_thread_phrasings')
 p.put('/api/profile',{'tz':'UTC','ai_ok':False})
 p.put('/api/food/targets',{'kcal_target':2000})
 for name,kcal in [('Protein bar',200),('Eggs',70),('Toast',80)]:
- status,_=p.post('/api/food/foods',{'name':name,'serving_label':'1 serving','kcal':kcal,'protein_g':10,'carbs_g':10,'fat_g':4});assert status==200
+ status,_=p.post('/api/food/foods',{'name':name,'serving_label':'1 slice' if name=='Toast' else '1 serving','kcal':kcal,'protein_g':10,'carbs_g':10,'fat_g':4});assert status==200
 status,dish=p.post('/api/dishes',{'name':'Garden pasta'});assert status==200
 assert p.patch('/api/dishes/'+str(dish['id']),{'known_kcal':2000,'known_protein_g':100,'known_carbs_g':200,'known_fat_g':80,'cooked_g':1000,'serving':'portion'})[0]==200
 now=dt.datetime.now(dt.timezone.utc);captured=dt.datetime.combine(now.date()-dt.timedelta(days=1),dt.time(9),dt.timezone.utc)

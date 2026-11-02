@@ -429,8 +429,6 @@ def settle(c, uid, e, p):
             named = (label or {}).get('unit') or ' '.join(rest or [])
             if unit and named and stem(unit) != stem(named):
                 return None, 'Choose the food and its portion.'
-            if not unit and named and named not in VAGUE and not set(name_words(named)) <= set(name_words(row['name'])):
-                return None, 'Choose the food and its portion.'
             if unit and label and label.get('count'):
                 return {'count':p['count']/label['count']}, None
         return {'count': p['count'] if p and 'count' in p else 1}, None
