@@ -633,6 +633,7 @@ async function tUsuals(body, where, close) {
 // foods in one list. My Recipes opens editing; Add food opens portion review (dishLogSheet in cook.js).
 async function tSaved(body, where, close, {manage=false}={}) {
   const owner=readOwner(),valid=()=>body.isConnected&&owner===readOwner();
+  if(manage)$('#tm-new',body.closest('#page')).disabled=true;
   body.innerHTML = skel(1);
   try {
     const [dishes, meals, foods] = await Promise.all([api('/api/dishes'), api('/api/food/meals'), api('/api/food/foods')]);
@@ -668,7 +669,7 @@ function drawRecipeLibrary(body,dishes,meals,foods,where,close,again){
   const dishRow=(d,i)=>{const per=d.serving==='one'||Number(d.serving_count)>1,value=(per?d.per_serving:d.totals)?.kcal;
     return `<div class="library-row" data-library-name="${esc(d.name.toLowerCase())}"><button type="button" class="library-recipe" data-dish="${i}" title="${esc(d.name)}"><b>${esc(d.name)}</b><small>${esc(d.mine===false?`From ${d.owner.name.split(' ')[0]}`:d.items.length?preview(d.items):'Entered nutrition')}</small><span class="num">${value==null?'Calories unknown':r0(value)+' kcal'}${value==null?'':per?' / serving':' total'}</span></button><button type="button" class="icon-btn" data-log-dish="${i}" aria-label="Log a portion of ${esc(d.name)}">${svg('plus')}</button></div>`;};
   const mine=dishes.filter(d=>d.mine!==false),theirs=dishes.filter(d=>d.mine===false),many=dishes.length+meals.length+foods.length>10;
-  body.innerHTML=`<div class="library-heading"><h1>Recipes &amp; foods</h1><button type="button" class="ghost sm" id="tm-new">${svg('plus')} New</button></div>
+  body.innerHTML=`
     ${many?`<label class="library-search"><span class="library-search-label">Search recipes and foods</span><input id="tm-filter" type="search" placeholder="Search recipes and foods" autocomplete="off"></label>${foods.length&&(dishes.length||meals.length)?`<div class="library-jumps"><button type="button" class="linkbtn" data-library-jump="recipes">Recipes ${dishes.length}</button><button type="button" class="linkbtn" data-library-jump="foods">Foods ${foods.length}</button></div>`:''}`:''}
     <div id="library-recipes">
     ${mine.length?`<section class="library-section"><h2>Your recipes</h2>${mine.map(d=>dishRow(d,dishes.indexOf(d))).join('')}</section>`:''}
@@ -677,7 +678,8 @@ function drawRecipeLibrary(body,dishes,meals,foods,where,close,again){
     <section class="library-section" id="library-foods"><h2>My foods</h2>${foods.map((f,i)=>`<div class="meal-library-row" data-library-name="${esc(f.name.toLowerCase())}">${foodRow(f,i)}<button type="button" class="icon-btn" data-edit-food="${i}" aria-label="Edit ${esc(f.name)}">${svg('edit')}</button></div>`).join('')}${!foods.length?'<p class="small muted">No saved foods yet.</p>':''}</section>
     ${!dishes.length&&!meals.length?'<p class="small muted">No recipes yet. Choose New to create one.</p>':''}<p id="tm-no-match" class="small muted" hidden>No matching recipes or foods.</p><button type="button" class="linkbtn library-log" id="tm-describe">Log food</button>`;
   $('#tm-describe',body).onclick=()=>{const w=where();close();describeSheet(w.day,w.meal);};
-  $('#tm-new',body).onclick=()=>sheet('New',`<div class="btncol"><button type="button" class="ghost" id="tm-dish">${svg('plus')}New recipe</button><button type="button" class="ghost" id="tm-link">Recipe from a link</button><button type="button" class="ghost" id="tm-food">${svg('edit')}New food</button></div>`,(b,end)=>{
+  $('#tm-new',body.closest('#page')).disabled=false;
+  $('#tm-new',body.closest('#page')).onclick=()=>sheet('New',`<div class="btncol"><button type="button" class="ghost" id="tm-dish">${svg('plus')}New recipe</button><button type="button" class="ghost" id="tm-link">Recipe from a link</button><button type="button" class="ghost" id="tm-food">${svg('edit')}New food</button></div>`,(b,end)=>{
     $('#tm-dish',b).onclick=e=>{const button=e.currentTarget;end();newDish(button);};$('#tm-link',b).onclick=()=>{end();go('/food/recipe-link');};$('#tm-food',b).onclick=()=>{end();return foodEditor(null,again);};
   });
   $$('[data-dish]',body).forEach(b=>b.onclick=()=>go('/food/cook/'+dishes[+b.dataset.dish].id));
@@ -691,7 +693,7 @@ function drawRecipeLibrary(body,dishes,meals,foods,where,close,again){
 route(/^\/food\/meals$/, 'food', async (el) => {
   Discovery.visit('nutrition','recipes');
   el.classList.add('recipes-library');
-  el.innerHTML = `<div class="top">${backBtn('Nutrition')}</div><div id="meal-library"></div>`;
+  el.innerHTML = `<div class="top library-heading">${backBtn('Nutrition')}<h1>Recipes &amp; foods</h1><button type="button" class="ghost sm" id="tm-new" disabled>${svg('plus')} New</button></div><div id="meal-library"></div>`;
   wireBack(el, '/food');
   await tSaved($('#meal-library', el), () => ({day: isoDay(new Date()), meal: guessMeal()}), () => {}, {manage:true});
 });

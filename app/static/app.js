@@ -405,6 +405,28 @@ function toast(msg, undo) {
 // opts.save (Ben, 30 Oct 2026: Save shouldn't be at the bottom of a long form): a pinned header with Cancel · title ·
 // Save, where Save submits the form with that id. opts.canClose: asked before a swipe, Escape, tap outside or Cancel
 // closes it (e.g. "Discard your changes?"); onMount's close and the returned close skip it.
+// One stack owns background state, including maps, so nested dialogs cannot restore stale inert flags.
+const ModalStack = (() => {
+  const stack=[],original=new Map(),layers=new Map();
+  const top=()=>stack.at(-1);
+  function sync(){
+    for(let i=stack.length-1;i>=0;i--)if(!stack[i].isConnected){const node=stack.splice(i,1)[0];node.style.zIndex=layers.get(node)||'';layers.delete(node);}
+    if(!stack.length){for(const [node,inert] of original)node.inert=inert;original.clear();return;}
+    for(const node of document.body.children){if(!original.has(node))original.set(node,node.inert);node.inert=node!==top();}
+    stack.forEach((node,i)=>node.style.zIndex=String(3000+i));
+  }
+  const open=node=>{layers.set(node,node.style.zIndex);stack.push(node);sync();return()=>{const at=stack.indexOf(node);if(at<0)return;stack.splice(at,1);node.style.zIndex=layers.get(node)||'';layers.delete(node);sync();};};
+  const isTop=node=>top()===node;
+  function trap(event,node){
+    if(event.key!=='Tab'||event.defaultPrevented||!isTop(node))return;
+    const controls=[...node.querySelectorAll('button,input,select,textarea,a[href],[tabindex="0"]')].filter(n=>!n.disabled&&n.getClientRects().length),first=controls[0],last=controls.at(-1);
+    if(!first)return;
+    if(event.shiftKey&&(document.activeElement===first||!node.contains(document.activeElement))){event.preventDefault();last.focus();}
+    else if(!event.shiftKey&&(document.activeElement===last||!node.contains(document.activeElement))){event.preventDefault();first.focus();}
+  }
+  if(typeof MutationObserver!=='undefined')new MutationObserver(sync).observe(document.body,{childList:true});
+  return {open,isTop,trap};
+})();
 function sheet(title, html, onMount, opts = {}) {
   $$('.scrim.is-closing').forEach(el => el.remove());
   cleanViews();
@@ -424,7 +446,7 @@ function sheet(title, html, onMount, opts = {}) {
     document.removeEventListener('keydown', onKey); removeEventListener('mousemove', onMove); removeEventListener('mouseup', onUp); unfit();
     // Release focus and handlers at once. Keep only the inert visual shell for the short exit, including when
     // closing halfway through entrance or a drag. A replacement sheet can take focus without a delayed restore.
-    s.inert = true; s.setAttribute('aria-hidden', 'true'); cleanViews(s);
+    releaseModal(); s.inert = true; s.setAttribute('aria-hidden', 'true'); cleanViews(s);
     const remove = () => { s.remove(); cleanViews(); if (!document.querySelector('.scrim')) document.body.classList.remove('has-sheet'); };
     if (matchMedia('(prefers-reduced-motion: reduce)').matches || !s.isConnected) remove();
     else {
@@ -440,15 +462,9 @@ function sheet(title, html, onMount, opts = {}) {
     if (prev && prev.isConnected && prev.focus) prev.focus({preventScroll: true});
   };
   const onKey = (e) => {
-    if ([...document.querySelectorAll('.scrim')].at(-1) !== s) return;
+    if (!ModalStack.isTop(s)) return;
     if (e.key === 'Escape') { e.preventDefault(); close(); }
-    if (e.key === 'Tab') {
-      const controls = [...s.querySelectorAll('button, input, select, textarea, a[href], [tabindex="0"]')]
-        .filter((el) => !el.disabled && el.getClientRects().length);
-      const first = controls[0], last = controls[controls.length - 1];
-      if (e.shiftKey && (document.activeElement === first || !s.contains(document.activeElement))) { e.preventDefault(); last?.focus(); }
-      else if (!e.shiftKey && (document.activeElement === last || !s.contains(document.activeElement))) { e.preventDefault(); first?.focus(); }
-    }
+    ModalStack.trap(e,s);
   };
   s.addEventListener('click', (e) => { if (e.target === s || e.target.closest('[data-close]')) close(); });
   // swipe down to dismiss (2026-10-09): from the grab bar / header, or anywhere in the body while it is scrolled to
@@ -492,7 +508,7 @@ function sheet(title, html, onMount, opts = {}) {
   if (vv) { vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); }
   addEventListener('kinetta:keyboard', fit); fit();
   document.addEventListener('keydown', onKey);
-  document.body.append(s); document.body.classList.add('has-sheet');
+  document.body.append(s); const releaseModal=ModalStack.open(s); document.body.classList.add('has-sheet');
   // phones: a text box waits for a tap (a focused box pops up the keyboard over the sheet); buttons still take focus
   const first = $('input, select, textarea, button:not([data-close])', $('.sbody', s));
   // (2026-10-12: a select too - iOS opened the meal picker as soon as Add food appeared)
@@ -595,6 +611,23 @@ function closeActivityEditor() {
   const editor=$('#e-form')?.closest('.sheet');
   return !editor||editor.requestClose?.()===true;
 }
+// Adapt existing page markup into one header while retaining Back's history and the controls' handlers.
+function compactSubpageHeader(el){
+  const top=el.querySelector(':scope > .top'),back=top?.querySelector('.back,.progress-back');
+  if(!back)return;
+  let title=top.querySelector('h1')||el.querySelector(':scope > h1');
+  const profileTitle=top.querySelector('.profile-page-title');
+  if(!title&&profileTitle){title=document.createElement('h1');title.className=profileTitle.className;title.textContent=profileTitle.textContent;profileTitle.replaceWith(title);}
+  if(!title)return;
+  if(title.parentElement&&title.parentElement!==el&&title.parentElement!==top){const group=title.parentElement;while(group.firstChild)top.insertBefore(group.firstChild,group);group.remove();}
+  if(title.parentElement!==top)top.append(title);
+  if(back!==top.firstElementChild)top.prepend(back);
+  if(back.nextElementSibling!==title)back.after(title);
+  for(const node of [...back.childNodes])if(node.nodeType===3&&node.textContent.trim()){const label=document.createElement('span');label.className='vh';node.replaceWith(label);label.append(node);}
+  back.querySelectorAll(':scope > span').forEach(n=>n.classList.add('vh'));
+  top.classList.add('subpage-header');
+  if(['/me/settings','/me/notifications','/me/sharing'].includes(location.pathname)&&top.nextElementSibling?.matches('p.muted'))top.nextElementSibling.remove();
+}
 function render() {
   if (!App.me) return;
   App.pageReady = false;
@@ -612,6 +645,7 @@ function render() {
     `<a href="/${t}" data-tab="${t}"${t === activeTab ? ' aria-current="page"' : ''}>${svg(t)}<span>${n}</span></a>`).join('')}</nav>`;
   cleanViews();
   const el = $('#page');
+  const headerObserver=new MutationObserver(()=>{if(el.isConnected)compactSubpageHeader(el);});headerObserver.observe(el,{childList:true,subtree:true});headerObservers.set(el,headerObserver);
   const current=()=>el.isConnected&&(el._renderKey||key)===location.pathname+location.search;
   el.dataset.area = activeTab;
   if (typeof Track !== 'undefined') Track.sync();
@@ -621,13 +655,13 @@ function render() {
   if (typeof Social !== 'undefined') Social.refresh();   // friend requests waiting: a number on the Me tab
   let touched=false;const interactions=new AbortController();
   for(const event of ['touchstart','wheel','pointerdown','keydown'])window.addEventListener(event,()=>{touched=true;},{passive:true,signal:interactions.signal});
-  const result=page.fn(el,...m.slice(1));
+  const result=page.fn(el,...m.slice(1));compactSubpageHeader(el);
   if(typeof KitChat!=='undefined')KitChat.entry(el,path);
   requestAnimationFrame(()=>{if(current()&&!touched)window.scrollTo(0,targetY);});
   return Promise.resolve(result).then(() => {if(current()&&typeof FeatureUsage!=='undefined')FeatureUsage.open(path);}).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
     requestAnimationFrame(() => { if(current()&&!touched)window.scrollTo(0,targetY);interactions.abort(); });
-    if (current()) { App.pageReady = true; globalThis.CommunityTerms?.check(); if(typeof KitChat!=='undefined')KitChat.entry(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
+    if (current()) { compactSubpageHeader(el);App.pageReady = true; globalThis.CommunityTerms?.check(); if(typeof KitChat!=='undefined')KitChat.entry(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
   });
 }
 function showError(el, e) {
@@ -699,8 +733,9 @@ function miniRoute(line, sport) {
 
 // ---------- maps (Leaflet, loaded only when a map is on screen) ----------
 let leafletP;
-const viewResources = new Map();
+const viewResources = new Map(),headerObservers=new Map();
 function cleanViews(closing) {
+  for(const [el,observer] of headerObservers)if(!el.isConnected||closing?.contains(el)){observer.disconnect();headerObservers.delete(el);}
   for (const [el, clean] of viewResources) if (!el.isConnected || (closing?.contains(el) && !clean.keepVisual)) { clean(); viewResources.delete(el); }
 }
 function loadLeaflet() {   // (not "leaflet": leaflet.js overwrites window.leaflet)

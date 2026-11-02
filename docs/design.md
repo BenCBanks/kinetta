@@ -1381,7 +1381,7 @@ After the completed launch/lifting/chart review, #356 adds a compact Training & 
 ## Floating frosted navigation · 29 October 2026 (owner-selected first concept)
 
 The stable five tabs live in one floating rounded capsule: Me, Activity, Track, Progress and Nutrition. Keep every
-label, the existing icons, unread/recording indicators and an opaque pale-blue current-tab pill with a visible edge.
+label, the existing icons and unread/recording indicators. Owner revision, 1 November: the selected tab uses accent blue plus a heavier label and icon stroke, with no background pill or outline. Preserve focus rings and pressed feedback, including solid accessibility fallbacks.
 Use a restrained translucent surface and blur in both themes; unsupported browsers keep a solid surface. Reduced
 Transparency, Increase Contrast and forced colors use a solid treatment. The iPhone bridge reads accessibility
 preferences locally, updates on changes/foreground and keeps the first paint solid until it has a valid result.
@@ -1855,3 +1855,14 @@ labels keep 13px text with slight negative letter spacing; targets stay at least
 badge stays within its target even when that target is 44px. The browser navigation matrix checks every tab,
 both themes, normal/enlarged text, label bounds, target size, gaps, contrast, keyboard drafts and content
 clearance before merge. The existing screenshot workflow also runs when that navigation test changes.
+
+
+## Shared subpage headers and modal ownership · 2 November 2026 (#477/#485)
+
+The shared header places a 44px Back chevron, a section-size title and actions on one row. Long titles wrap within that row; tab roots retain their larger titles. Back retains its named accessible parent and existing history/filter behavior. Settings, Notifications and Sharing omit redundant introductory sentences. Profile identity remains in its card; its existing Your profile/Profile label becomes the header title. Recipes keeps New beside the title through library refreshes.
+
+Activity detail retains its map-overlay toolbar and sticky activity-title bar to preserve map-first media and scrolling. Food chat retains its composer-aware Back/title/settings header. Full-screen maps, photo viewers, welcome and recording/review flows retain their specialized controls; they do not gain a second shared header.
+
+Sheets, photo viewers and full-screen activity maps share background ownership: only the top modal accepts input, nested dismissal preserves lower modals, and final dismissal restores prior inert states and focus. Dialog layers cover sticky headers. Shared form actions retain at least44px targets and confirmation pairs have8px gaps. The spacing audit opens the shared form, pinned Save, weight, public-link and friend-confirmation patterns, photo viewer and full-screen map, with saves blocked.
+
+Light basemaps use slightly deeper earth, vegetation, water, buildings and road edges. Routes use the existing darker brand blue in light mode to retain or improve the original contrast against every changed background, including translucent heatmap lines. Route opacity/weight and dark-mode colours stay unchanged; exported pictures retain their existing route casing and privacy trimming.
