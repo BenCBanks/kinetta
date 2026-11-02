@@ -34,6 +34,7 @@ for state in ('week3','race'):
  for i,w in enumerate(selected):
   metres=(w.get('dist') or 3)*(1609.344 if d['plan']['unit']=='mi' else 1000)*1.02
   ok(c.post('/api/activities/manual',{'sport':'run','name':'Fictional completed plan run '+str(i+1),'start':w['day']+'T08:00:00Z','duration_s':2700,'distance_m':metres}))
- d=ok(c.get('/api/plans/current'));current=next(w for w in d['weeks'] if w['n']==d['this_week']);assert any(w['status']=='done' for w in current['workouts']);assert any(w['status']=='missed' for week in d['weeks'] for w in week['workouts'])
+ # Early in a week there may be no past run to complete; elapsed weeks still exercise both outcomes.
+ d=ok(c.get('/api/plans/current'));assert any(w['status']=='done' for week in d['weeks'] for w in week['workouts']);assert any(w['status']=='missed' for week in d['weeks'] for w in week['workouts'])
  print(state,'week',d['this_week'],'done/missed fixtures ready')
 for state in ('empty','future','first','paced'):print(state,'ready')

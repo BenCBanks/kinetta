@@ -28,7 +28,13 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     const rows=current.locator('.compact-workout');assert.equal(await rows.count(),7,'all seven dates including slim rest days');
     for(const row of await rows.all()){const r=await row.boundingBox();if(await row.evaluate(n=>n.tagName==='BUTTON'))assert(r.height>=44,'workout touch target');else if(size.root===16)assert(r.height<=32,'slim rest day');}
     if(size.root===16){const nav=await p.locator('nav.tabs').boundingBox(),last=await rows.last().boundingBox();assert(last.y+last.height<nav.y,'summary, next and entire week above the tabs');}
-    if(who==='week3'||who==='race'){assert(await current.locator('.pw-result svg').count()>0,'matched run checkmark');assert.match(await current.innerText(),/Missed/);const done=cur.workouts.find(w=>w.status==='done');assert.match(await current.innerText(),new RegExp(String(done.actual).replace('.','\\.')),'actual completed distance');}
+    if(who==='week3'||who==='race'){
+     // Keep the default current-week checks above; Monday may need an elapsed week for both outcomes.
+     const shown=[cur,...d.weeks.filter(w=>w.n<cur.n)].find(w=>w.workouts.some(x=>x.status==='done')&&w.workouts.some(x=>x.status==='missed'));assert(shown,'completed and missed runs remain covered');
+     const result=p.locator(`.pweek[data-week="${shown.n}"]`),wasOpen=await result.evaluate(n=>n.open);if(!wasOpen)await result.locator('summary').click();
+     assert(await result.locator('.pw-result svg').count()>0,'matched run checkmark');assert.match(await result.innerText(),/Missed/);const done=shown.workouts.find(w=>w.status==='done');assert.match(await result.innerText(),new RegExp(String(done.actual).replace('.','\\.')),'actual completed distance');
+     if(!wasOpen)await result.locator('summary').click();assert(await current.evaluate(n=>n.open),'current week remains open');
+    }
     if(who==='paced'){assert(d.vdot>0&&d.paces.easy);for(const fact of await p.locator('.plan-summary-facts > span').all())assert(await fact.evaluate(n=>n.getBoundingClientRect().height<=parseFloat(getComputedStyle(n).lineHeight)+1),'race labels stay with their values');assert((await current.innerText()).includes(d.paces.easy[0].split('/')[0]),'server target pace shown');assert((await p.locator('.compact-plan-summary').innerText()).includes(await p.evaluate(n=>dur(n),d.plan.goal_s)),'supplied goal shown');}
     const next=d.today_workout&&d.today_workout.status!=='done'?d.today_workout:d.next_workout;assert.equal(await p.locator('.plan-next-workout b').innerText(),next.title);
     await p.locator('.plan-next-workout').click();await p.waitForSelector('#pw-done');assert.match(await p.locator('.sheet').innerText(),/What to do/i);assert.match(await p.locator('.sheet').innerText(),/Why/i);assert((await p.locator('.sheet').innerText()).includes(next.detail),'full coaching retained');await p.keyboard.press('Escape');
