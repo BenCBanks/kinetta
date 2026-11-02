@@ -1,4 +1,4 @@
-// Period pictures contain only deliberately selected aggregates. No map, intake, weight, real name or destination tracking.
+// Period pictures contain only selected aggregates. Single-workout milestone pictures may add an approved, cropped route.
 'use strict';
 const ShareArt=(()=>{
   const palette=()=>({bg:col('--share-surface'),text:col('--share-text'),soft:col('--share-text-secondary'),muted:col('--share-text-muted'),line:col('--share-divider'),blue:col('--share-action'),tint:col('--share-soft')});
@@ -32,7 +32,7 @@ const ShareArt=(()=>{
     try{return await Promise.race([load(),timeout]);}finally{clearTimeout(timer);if(object)URL.revokeObjectURL(object);}
   }
 
-  async function simplePicture({kicker,title,date,value,unit,facts=[],sources=[],identity=false,qrLink=null}){
+  async function simplePicture({kicker,title,date,value,unit,facts=[],sources=[],identity=false,qrLink=null,routePoints=[]}){
     const pictureOwner=readOwner();
     await document.fonts.ready;const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;
     const g=canvas.getContext('2d'),p=palette(),M=72;g.fillStyle=p.bg;g.fillRect(0,0,1080,1350);let y=85;
@@ -44,7 +44,8 @@ const ShareArt=(()=>{
     text(g,kicker,M,y+30,28,{color:p.muted});y+=85;
     for(const line of lines(g,title,936,56)){text(g,line,M,y+45,56);y+=70;}
     if(date){text(g,date,M,y+38,32,{color:p.soft});y+=70;}
-    y=Math.max(y+80,520);text(g,value,M,y+120,148);if(unit)text(g,unit,M,y+178,40,{color:p.soft});y+=235;
+    const hasMap=routePoints.length>1&&!qrLink;
+    y=hasMap?y+12:Math.max(y+80,520);text(g,value,M,y+120,148);if(unit)text(g,unit,M,y+178,40,{color:p.soft});y+=235;
     for(const fact of facts)for(const line of lines(g,fact,936,32)){text(g,line,M,y+35,32,{color:p.soft});y+=48;}
     const list=[...new Set(sources)],credit=list.length?'Includes data from '+list.slice(0,2).join(', ')+(list.length>2?` + ${list.length-2} other Garmin devices`:''):'';
     if(qrLink){
@@ -55,11 +56,33 @@ const ShareArt=(()=>{
       text(g,'Scan to join',540,1235,26,{align:'center',color:p.muted});
     }
     const creditLines=credit?lines(g,credit,936,22):[];const top=1260-creditLines.length*27;
+    let mapCredit='';
+    if(hasMap){
+      const config=await MapTiles.config().catch(()=>null),credit=config?MapTiles.credit(config):'',attribution=credit?lines(g,credit,912,20):[];
+      const box={x:M,y:y+22,w:936,h:top-y-48,pad:64,top:0,under:attribution.length*25+12};
+      if(box.h<180)throw Error('The picture could not fit clearly. Try again without photo and username.');
+      // Only cropped points reach the renderer. Use the configured activity-picture tiles and projection.
+      g.save();g.beginPath();g.roundRect(box.x,box.y,box.w,box.h,24);g.clip();
+      try{
+        g.fillStyle=p.tint;g.fillRect(box.x,box.y,box.w,box.h);
+        g.filter='grayscale(.45) brightness(1.03) contrast(.95)';
+        const {tiles,P}=await mapPlace(g,routePoints,box);g.filter='none';
+        if(tiles){g.fillStyle='rgba(255,255,255,.14)';g.fillRect(box.x,box.y,box.w,box.h);mapCredit=credit;}
+        g.lineJoin=g.lineCap='round';
+        const path=()=>{g.beginPath();routePoints.forEach((point,i)=>{const [x,y]=P(point);if(i)g.lineTo(x,y);else g.moveTo(x,y);});};
+        path();g.strokeStyle='rgba(255,255,255,.95)';g.lineWidth=26;g.stroke();
+        path();g.strokeStyle=p.blue;g.lineWidth=13;g.stroke();
+      }finally{g.restore();}
+      // Attribution stays outside the clipped map, with its own bounded space above device credits.
+      if(attribution.length*25>box.h-100)throw Error('The map credit could not fit clearly.');
+      if(mapCredit){g.fillStyle=p.bg;g.fillRect(M,box.y+box.h-attribution.length*25-12,936,attribution.length*25+12);attribution.forEach((line,n)=>text(g,line,M+12,box.y+box.h-(attribution.length-1-n)*25-5,20,{color:p.muted,max:912}));}
+      y=top-24;
+    }
     if(y+20>top)throw Error('The picture could not fit clearly. Try again without photo and username.');
     creditLines.forEach((line,n)=>text(g,line,M,top+n*27,22,{color:p.muted}));
     g.strokeStyle=p.line;g.lineWidth=2;g.beginPath();g.moveTo(M,1275);g.lineTo(1008,1275);g.stroke();drawMark(g,M+24,1311,48,p.blue);text(g,'Kinetta',M+62,1323,30);text(g,'kinetta.app',1008,1321,26,{align:'right',color:p.muted});
     const pictureBlob=await blob(canvas);if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('share_picture',pictureOwner);
-    return{blob:pictureBlob,alt:[identity?'@'+App.me.login:'',kicker,title,date,value,unit,...facts,credit,qrLink?'Invitation: '+qrLink:''].filter(Boolean).join('. ')};
+    return{blob:pictureBlob,alt:[identity?'@'+App.me.login:'',kicker,title,date,value,unit,...facts,credit,hasMap?'Route with start and end hidden':'',mapCredit,qrLink?'Invitation: '+qrLink:''].filter(Boolean).join('. ')};
   }
   return{palette,family,text,lines,blob,deliver,photo,simplePicture};
 })();
