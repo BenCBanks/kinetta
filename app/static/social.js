@@ -472,7 +472,7 @@ function photoStrip(box, a, mine, {controlsOnly = false, afterChange = null} = {
 }
 // full screen: swipe or the arrows for the next one; the owner can remove one
 function photoViewer(a, start, mine, onChange) {
-  const previous=document.activeElement,anchor=document.createComment('photo viewer');($('#page')||root).append(anchor);
+  const previous=document.activeElement,page=$('#page')||root,anchor=document.createComment('photo viewer');page.append(anchor);
   let i = start,changed=false,closed=false;
   const v = document.createElement('div');
   v.className = 'ph-view'; v.setAttribute('role', 'dialog'); v.setAttribute('aria-modal', 'true'); v.setAttribute('aria-label', 'Photos');
@@ -492,7 +492,7 @@ function photoViewer(a, start, mine, onChange) {
       try {
         await api('/api/activity-photos/' + p.id, {method: 'DELETE'});
         a.photos = ph.filter((x) => x.id !== p.id); photoChanged(a.id);changed=true;
-        if(closed)return; // Navigation may have closed the viewer while removal was pending.
+        if(closed){if(page.isConnected)onChange();return;} // Refresh a still-open page after a late removal, never a different view.
         if (!a.photos.length) return close();
         i = Math.min(i, a.photos.length - 1); draw();
       } catch (x) { toast(x.message); del.disabled = false; }
