@@ -1,0 +1,16 @@
+'use strict';
+const assert=require('node:assert/strict'),{intention,literalTargets}=require('./link_contract.cjs');
+const base='http://localhost:8899',registry=[{source:'^/progress$'},{source:'^/food$'},{source:'^/people/[^/]+$'},{source:'^/me/kit$'}];
+const check=(href,label='Feature')=>intention({href,label,source:'Me'},base,registry);
+assert.equal(check('/progress','View progress').canonical,'/progress');
+assert.equal(check('/progress?view=fitness').heading,'Fitness');
+assert.throws(()=>check('/progress?view=training','View progress'),/Me: View progress.*unsupported view=training/);
+assert.throws(()=>check('/progress?view=fitness','View progress'),/Progress home/);
+assert.throws(()=>check('/not-a-page'),/unknown-route fallback/);
+assert.throws(()=>check('/progress','Your profile'),/person’s profile/);
+assert.throws(()=>check('/food?view=training'),/unsupported view/);
+assert.throws(()=>check('/me/kit?from=unknown'),/unsupported Kit context/);
+assert.throws(()=>check('https://example.invalid/'),/allowlist/);
+assert.equal(check('https://kinetta.app/privacy').kind,'external');
+assert.deepEqual(literalTargets("go('/progress'); go(`/people/${name}`); go('/activity/'+id); go('/food', {replace:true});"),['/progress','/food']);
+console.log('Link intentions: broken view, wrong destination, unknown route/context/external and literal-versus-dynamic targets PASS');

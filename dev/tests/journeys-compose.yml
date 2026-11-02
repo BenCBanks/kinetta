@@ -1,0 +1,6 @@
+# Test-only marker and loopback publication for journeys that save fictional records.
+services:
+  app:
+    ports: !override ["127.0.0.1:${KINETTA_PORT:-8798}:8000"]
+    environment:
+      KINETTA_JOURNEY_FIXTURE: "1"
