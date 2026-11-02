@@ -29,8 +29,8 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
     if(!foodOnly)await until(p,()=>/170/.test(document.querySelector('[data-progress-feature=weight]')?.textContent||''),'Progress tile has the saved weigh-in');
     assert(await p.evaluate(()=>kept('/api/me').weight_kg===App.me.weight_kg),'Offline profile is updated');
     if(foodOnly)await p.evaluate(()=>go('/progress/weight'));else await p.locator('[data-progress-feature=weight]').click();await p.locator(`button[data-del="${today}"]`).waitFor();
-    seen=false;hold='DELETE';await p.locator(`button[data-del="${today}"]`).click();for(let n=0;n<100&&!seen;n++)await p.waitForTimeout(50);assert(seen,'DELETE held');
-    await p.evaluate(()=>go('/me/settings'));release();hold='';await until(p,()=>Math.abs(App.me.weight_kg-75)<.01,'Delete refreshes after leaving Weight');
+    seen=false;hold='DELETE';await p.locator(`button[data-del="${today}"]`).click();assert.equal(seen,false,'Delete waits during the Undo window');assert(await p.locator('#toast button').isVisible(),'Undo is offered before committing');
+    await p.evaluate(()=>go('/me/settings'));for(let n=0;n<100&&!seen;n++)await p.waitForTimeout(50);assert(seen,'Navigation flushes the held DELETE');release();hold='';await until(p,()=>Math.abs(App.me.weight_kg-75)<.01,'Delete refreshes after leaving Weight');
     await p.locator('#m-body').click();assert.equal(await p.locator('#m-form input[name=weight]').inputValue(),'165.3');await p.locator('.sheet header button[data-close]').click();
     if(foodOnly){assert.deepEqual(errors,[]);console.log('Weight Food-stage '+theme+': delayed real PUT/DELETE after navigation refresh/persist current profile PASS');continue;}
     // An unchanged stale weight field must not overwrite a later saved weigh-in.
