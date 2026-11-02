@@ -42,6 +42,14 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     await p.locator('#pl-more > summary').click();await until(p,()=>!!document.querySelector('#pl-chart svg'),'details chart');assert.match(await p.locator('#pl-more').innerText(),/Your paces/);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'details chart fits large text');
     await p.locator('#pl-actions').click();await p.waitForSelector('#pl-end');assert(await p.locator('a[href="/plan?new=1"]').isVisible());assert(await p.locator('#pl-restart').isVisible());p.once('dialog',dialog=>dialog.dismiss());await p.locator('#pl-end').click();assert.equal((await(await get('/api/plans/current')).json()).plan.id,d.plan.id,'cancel keeps plan');await p.keyboard.press('Escape');
    }
+   if(who==='empty'||who==='future'){
+    const original=await(await get('/api/plans/current')).json();
+    if(who==='future'){await p.locator('#pl-actions').click();await p.locator('a[href="/plan?new=1"]').click();}
+    await until(p,()=>!!document.querySelector('#ps-prev [data-wday]'),'preview workouts');
+    const days=await p.locator('#ps-prev [data-wday]').evaluateAll(nodes=>nodes.map(n=>n.dataset.wday)),activeDays=new Set((original.weeks||[]).flatMap(w=>w.workouts.map(x=>x.day))),day=who==='future'?days.find(day=>activeDays.has(day)):days[0];assert(day,'replacement preview overlaps an existing plan day');
+    await p.locator(`#ps-prev [data-wday="${day}"]`).click();assert.equal(await p.locator('#pw-done,#pw-undo').count(),0,'unsaved preview has no completion actions');assert((await p.locator('.sheet').innerText()).includes('Save this plan before tracking completion.'));await p.keyboard.press('Escape');
+    const after=await(await get('/api/plans/current')).json();assert.deepEqual(after.plan,original.plan,'preview never replaces the active plan');assert.deepEqual(after.weeks,original.weeks,'preview never marks the active plan');
+   }
    assert.deepEqual(errors,[]);assert(!writes.some(x=>x!=='/api/plans/preview'&&x!=='/api/challenges/signup/continue'),'layout opens no plan/activity writes');console.log(`Plan ${name}: summary/week/rest/matched distances/details/menu/layout PASS`);await c.close();contexts.splice(contexts.indexOf(c),1);
   }
   if(!process.env.KINETTA_PLAN_CASE||process.env.KINETTA_PLAN_CASE==='actions')for(const who of ['future','first'])for(const native of [false,true]){

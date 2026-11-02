@@ -538,7 +538,8 @@ function drawExercise(el, h) {
         + rec('e1rm', 'Best one-rep max (estimate)', R.e1rm ? E(R.e1rm.value) : '', R.e1rm ? `from ${toW(R.e1rm.kg)} × ${R.e1rm.reps}` : '')
         + rec('volume', 'Most in one session', R.volume ? `${Math.round(imp() ? R.volume.value * LB : R.volume.value).toLocaleString()}<i>${wUnit()}</i>` : '', 'weight × reps, added up'));
   // the chart: estimated 1RM for weighted lifts (it compares 5 heavy reps with 10 lighter ones), else reps or seconds
-  const pick = (s) => (kind === 'time' ? s.secs : kind === 'body' ? s.reps : s.e1rm || (s.top && s.top.kg));
+  const bestReps = s => s.best_reps ?? Math.max(0,...(s.sets||[]).filter(set=>set.done&&!set.warmup).map(set=>set.reps||0));
+  const pick = (s) => (kind === 'time' ? s.secs : kind === 'body' ? bestReps(s) : s.e1rm || (s.top && s.top.kg));
   const pts = h.sessions.filter((s) => pick(s)).map((s) => ({x: new Date(s.start_time) / 864e5, y: kind === 'weight' ? +toW(pick(s)) : pick(s), id: s.activity_id}));
   const chartName = kind === 'time' ? 'Longest hold (seconds)' : kind === 'body' ? 'Most reps in a set' : `One-rep max, estimated (${wUnit()})`;
   el.classList.add('compact-lift-exercise');

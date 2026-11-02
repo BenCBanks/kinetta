@@ -6,6 +6,23 @@ const base=process.env.KINETTA_URL||'http://localhost:8798';
 // Older Chromium rejects waitForFunction's internal eval under the app's CSP. Direct function calls preserve that policy.
 async function ready(page){for(let i=0;i<150;i++){if(await page.evaluate(()=>App.pageReady&&!document.querySelector('#page[data-home-loading]')))return;await page.waitForTimeout(100);}throw Error('Page did not become ready');}
 const tile=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><path fill="#4a7586" d="M0 0h256v256H0z"/><path stroke="#fff" d="m0 30 256 180"/></svg>');
+async function segmentReturn(page,context){
+ const points=require('../demo/routes.json')['park loop'];let draft=null,problem=false;const checked=[],writes=[];
+ const course=await page.evaluate(points=>({line:Plan.enc(points),distance:points.slice(1).reduce((n,p,i)=>n+TrackMath.metres({lat:points[i][0],lon:points[i][1]},{lat:p[0],lon:p[1]}),0)}),points);
+ await context.route('**/api/plan/services',r=>r.fulfill({json:{paths:true}}));await context.route('**/api/plan/elevation',r=>r.fulfill({json:null}));
+ await context.route('**/api/route-drafts/segment-new',r=>{if(r.request().method()==='PUT'){const body=r.request().postDataJSON();draft=body.data||body;}return r.fulfill({json:draft?{data:draft,updated:new Date().toISOString()}:null});});
+ await context.route('**/api/segments/check',r=>{const data=r.request().postDataJSON();checked.push(data);return r.fulfill({json:{line:data.line,distance_m:course.distance,problems:problem?['Fictional stretch needs review']:[],similar:[]}});});
+ await context.route('**/api/segment-drafts**',r=>r.fulfill({json:{id:999991}}));await context.route('**/api/segments',r=>{if(r.request().method()==='POST'){writes.push('publish');return r.abort();}return r.continue();});
+ await page.evaluate(()=>go('/progress/segments'));await ready(page);
+ draft=await page.evaluate(points=>{const d={sport:'ride',waypoints:[points[0],points.at(-1)],legs:[{mode:'path',line:Plan.enc(points),ready:true}],clientId:crypto.randomUUID(),at:Date.now()};store.set(planDraftKey('segment-new'),d);return d;},points);
+ await page.evaluate(()=>go('/segments/new'));await page.locator('#pl-save:not(:disabled)').waitFor();
+ const distance=await page.locator('#pl-total b').innerText(),parent=await page.locator('.top [data-back]').innerText(),sport=await page.locator('[data-sport][aria-pressed=true]').getAttribute('data-sport');assert.notEqual(distance,'0.00');assert.equal(sport,'ride','restored Ride draft highlights Ride');
+ for(const link of ['.top [data-back]','#sr-form a[href="/segments/new"]','.plan-alert a[href="/segments/new"]']){
+  problem=link.startsWith('.plan-alert');await page.locator('#pl-save').click();await page.locator('#sr-form').waitFor();if(problem)assert(await page.locator('#sr-create').isDisabled());
+  await page.locator(link).click();await page.waitForURL('**/segments/new');await page.locator('#pl-save:not(:disabled)').waitFor();assert.equal(await page.locator('#pl-total b').innerText(),distance,'edit return keeps selected distance');assert.equal(await page.locator('[data-sport][aria-pressed=true]').getAttribute('data-sport'),sport,'edit return keeps selected sport');assert.equal(await page.locator('.top [data-back]').innerText(),parent,'body edit uses the same verified return as the header');
+ }
+ assert.equal(checked.length,3);assert(checked.every(x=>x.sport==='ride'&&x.line===checked[0].line),'review keeps the seeded sport and first submitted stretch');assert.deepEqual(writes,[],'review/edit never publishes a segment');
+}
 (async()=>{
  const browser=await chromium.launch();
  try{
@@ -43,6 +60,7 @@ const tile=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="256" heig
    await page.locator('#pl-more').click();const sheet=page.locator('.scrim').last();await sheet.waitFor();
    assert(await sheet.evaluate(el=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height-30));}),'Map paints over the open tools sheet');
    await sheet.getByRole('button',{name:'Close',exact:true}).click();await sheet.waitFor({state:'detached'});
+   if(width===330&&root===16)await segmentReturn(page,context);
    await page.evaluate(()=>go('/activity/1'));await ready(page);await page.locator('.hero .stat').first().waitFor();
    const statOverflow=await page.locator('.hero .stat').evaluateAll(es=>es.flatMap(e=>{const cell=e.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(e.querySelector('b'));return [...range.getClientRects()].some(r=>r.left<cell.left-1||r.right>cell.right+1)?[e.innerText]:[];}));
    assert.deepEqual(statOverflow,[],'Activity values must fit their own cells, including enlarged text');

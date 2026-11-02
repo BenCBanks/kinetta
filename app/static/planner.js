@@ -132,6 +132,7 @@ const Planner = (() => {
     // resume: the server's autosaved draft if it's newer than this device's copy
     if (!opts.plan && S.key) await resume();
     if (state !== S || state.owner !== readOwner()) return;
+    $$('[data-sport]', el).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.sport === S.sport)));
     if (S.waypoints.length) fit(); else if (opts.center) map.setView(opts.center, 15); else locate(true);
     changed(false);
   }
