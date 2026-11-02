@@ -55,9 +55,9 @@ function drawDish(el, d) {
   const ing = (it) => `<span class="ig-info"><span class="ig-n">${esc(it.name)}</span><span class="ig-g num"> · ${it.amount && !/\d\s*g$/.test(it.amount) ? `${esc(it.amount)} · ` : ''}${gfmt(it.grams)}</span></span><b class="num r">${r0(it.kcal)}</b>`;
   const shared = mine ? d.shared_with || [] : [];
   const bySv = d.serving === 'one';
-  const source=d.recipe_source||{}, imported=!!source.import_id, display=imported?d.per_serving:t;
+  const source=d.recipe_source||{}, imported=!!source.import_id, display=imported&&bySv?d.per_serving:t;
   el.classList.toggle('imported-recipe',imported);el.classList.add('recipe-page');
-  const sums=has?`<div class="recipe-nutrition num" aria-label="${imported?'Nutrition per serving':'Nutrition in the whole recipe'}"><div><b>${display.kcal==null?'Unknown':r0(display.kcal)}</b><small>kcal${imported?' / serving':' total'}</small></div>${MACROS.map(([k,nm])=>`<div><b>${display[k]==null?'Unknown':r0(display[k])+' g'}</b><small>${nm}</small></div>`).join('')}</div>${typed&&!imported?`<p class="small muted">Using the total ${mine?'you':esc(d.owner.name.split(' ')[0])} typed in${d.items.length?', not the ingredients':''}.</p>`:''}`:'';
+  const sums=has?`<div class="recipe-nutrition num" aria-label="${imported&&bySv?'Nutrition per serving':'Nutrition in the whole recipe'}"><div><b class="${display.kcal==null?'nutrient-unknown':''}">${recipeCalories(display.kcal)}</b><small>kcal${imported&&bySv?' / serving':' total'}</small></div>${MACROS.map(([k,nm])=>`<div><b class="${display[k]==null?'nutrient-unknown':''}">${display[k]==null?'Unknown':r0(display[k])+' g'}</b><small>${nm}</small></div>`).join('')}</div>${typed&&!imported?`<p class="small muted">Using the total ${mine?'you':esc(d.owner.name.split(' ')[0])} typed in${d.items.length?', not the ingredients':''}.</p>`:''}`:'';
   el.innerHTML = `<div class="top">${backBtn(mine?'Recipes':'Nutrition')}<div class="acts">${(mine && aiCan('coach')) || d.review ? `<button class="icon-btn kit-help" id="dk-kit" aria-label="Ask Kit about this recipe">${svg('sparkle')}</button>` : ''}<button class="icon-btn" id="dk-more" aria-label="Recipe options">${svg('more')}</button>${mine?`<button type="button" class="primary sm" id="dk-done"${has?'':' disabled'}>Done</button>`:''}</div></div>
     <div class="recipe-content" tabindex="0" aria-label="Recipe ingredients and nutrition">
     ${mine ? `<div class="recipe-title"><textarea class="dish-name-in" id="dk-name" rows="1" placeholder="Name the recipe" aria-label="Recipe name" aria-describedby="recipe-title-status" maxlength="80" enterkeyhint="done" autocomplete="off">${d.named ? esc(d.name) : ''}</textarea></div><p id="recipe-title-status" class="small muted" role="status">${d.named?'Saved':'Draft saved · add a name'}</p>`
@@ -77,7 +77,7 @@ function drawDish(el, d) {
         <input name="t" id="dk-t" placeholder="${aiCan('food') ? 'e.g. 100 g oats' : 'Search ingredients…'}" aria-label="${aiCan('food') ? 'Describe an ingredient' : 'Search for an ingredient by name'}" autocomplete="off" enterkeyhint="${aiCan('food')?'send':'search'}" maxlength="600" required>
         <button class="icon-btn send" aria-label="${aiCan('food')?'Add ingredient':'Search ingredients'}">${svg('send')}</button></form>
       <input type="file" accept="image/*" multiple id="dk-label-file" hidden>`
-      : has ? `</div><div class="finish"><button class="primary wide" id="dk-log">Log a portion</button></div>` : `</div><p class="small muted">${esc(d.owner.name.split(' ')[0])} hasn't added anything yet.</p>`}`;
+      : has&&t.kcal!=null ? `</div><div class="finish"><button class="primary wide" id="dk-log">Log a portion</button></div>` : `</div><p class="small muted">${has?'Calories are unavailable. The owner needs to add nutrition before you can log a portion.':esc(d.owner.name.split(' ')[0])+" hasn't added anything yet."}</p>`}`;
   wireBack(el, mine?'/food/meals':'/food');
   $('#dk-more', el).onclick = () => (mine ? dishMenu(d, set, () => el._search && el._search(), () => knownSheet(d, set),()=>{const n=$('#dk-name',el);n.focus();n.setSelectionRange(0,n.value.length);}) : sharedMenu(d));
   $$('[data-it]', el).forEach((b) => b.onclick = () => itemSheet(d, d.items.find((x) => x.id === b.dataset.it), set));
@@ -151,16 +151,16 @@ function manualDishFood(d,set){
 }
 function finishDish(d){
   const owner=readOwner();
-  sheet('Save recipe',`<form class="form" id="recipe-finish"><label>Recipe name<input name="title" value="${esc(d.name)}" maxlength="80" required autocomplete="off"></label><p>Your recipe is saved in My Recipes for reuse.</p><p class="small muted">${d.items.length} ingredient${d.items.length===1?'':'s'} · ${d.totals.kcal==null?'Calories unknown':r0(d.totals.kcal)+' kcal in the whole recipe'}</p><label class="switch-row"><span><b>Add to log</b><small>Optional · choose a meal and portion next</small></span><input type="checkbox" role="switch" name="log_today"></label><p class="small danger" role="alert" id="recipe-finish-error" hidden></p><button type="submit" class="primary wide" id="recipe-finish-save">Save recipe</button></form>`,(b,close)=>{
+  sheet('Save recipe',`<form class="form" id="recipe-finish"><label>Recipe name<input name="title" value="${esc(d.name)}" maxlength="80" required autocomplete="off"></label><p>Your recipe is saved in My Recipes for reuse.</p><p class="small muted">${d.items.length} ingredient${d.items.length===1?'':'s'} · ${d.totals.kcal==null?'Calories unknown':recipeCalories(d.totals.kcal)+' kcal in the whole recipe'}</p>${d.totals.kcal!=null?'<label class="switch-row"><span><b>Add to log</b><small>Optional · choose a meal and portion next</small></span><input type="checkbox" role="switch" name="log_today"></label>':'<p class="small muted">Add nutrition before logging a portion.</p>'}<p class="small danger" role="alert" id="recipe-finish-error" hidden></p><button type="submit" class="primary wide" id="recipe-finish-save">Save recipe</button></form>`,(b,close)=>{
     guardFoodSheet(b,close,owner);const form=$('#recipe-finish',b),button=$('#recipe-finish-save',b),error=$('#recipe-finish-error',b),live=()=>b.isConnected&&owner===readOwner();
-    form.elements.log_today.onchange=()=>button.textContent=form.elements.log_today.checked?'Save and choose a portion':'Save recipe';
+    if(form.elements.log_today)form.elements.log_today.onchange=()=>button.textContent=form.elements.log_today.checked?'Save and choose a portion':'Save recipe';
     form.onsubmit=async e=>{
       e.preventDefault();if(!live()||button.disabled)return;const name=form.elements.title.value.trim();if(!name){error.textContent='Name your recipe first.';error.hidden=false;return;}button.disabled=true;error.hidden=true;
       try{
         const fresh=name!==d.name?await api('/api/dishes/'+d.id,json('PATCH',{name})):d;
-        if(!live())return;App.cache.delete('/api/dishes');App.cache.delete('/api/dishes/'+d.id);const logging=form.elements.log_today.checked;close();
+        if(!live())return;App.cache.delete('/api/dishes');App.cache.delete('/api/dishes/'+d.id);const logging=form.elements.log_today?.checked;close();
         if(logging)dishLogSheet(fresh,{day:isoDay(new Date()),meal:null},editing=>{if(!editing)go('/food/meals',{replace:true});},{chooseMeal:true});
-        else{go('/food/meals',{replace:true});toast('Recipe saved · nothing added to your log');}
+        else{go('/food/meals',{replace:true});toast(d.totals.kcal==null?'Recipe saved · add nutrition before logging':'Recipe saved · nothing added to your log');}
       }catch(x){if(live()){error.textContent=x.message;error.hidden=false;button.disabled=false;}}
     };
   });
@@ -206,7 +206,7 @@ function foodToDish(d, f, set) {
 // 2026-10-12): by servings -> how many servings (½ steps); by weight -> your portion in grams. w = {day, meal} from Add food.
 function dishLogSheet(d, w, done, {chooseMeal=false}={}) {
   const owner=readOwner();
-  if(d.totals.kcal==null){sheet(d.name,'<p>Add calories before logging a portion. Missing ingredients are kept unknown.</p><button class="primary wide" id="recipe-add-nutrition">Add nutrition</button>',(b,close)=>{$('#recipe-add-nutrition',b).onclick=()=>{close();done(true);go('/food/cook/'+d.id);};});return;}
+  if(d.totals.kcal==null){if(d.mine===false)sheet(d.name,'<p>Calories are unavailable for this shared recipe. Its owner needs to add nutrition before you can log a portion.</p>');else knownSheet(d,()=>{invalidate('/api/dishes');done(true);toast('Nutrition saved · choose a portion when ready');});return;}
   const t = d.totals, wt = d.weight_g, bySv = d.serving === 'one'||(d.mine===false&&!d.weight_g);     // by servings: the whole dish is one serving
   // Some recipes are measured by servings, some by weight; when both are known the person can log either (owner, 20 Oct 2026).
   const both = wt > 0 && (bySv || (d.serving_count || 0) > 1) && !d.recipe_source?.import_id;   // a default 1 'serving' would be the whole pot
@@ -219,7 +219,7 @@ function dishLogSheet(d, w, done, {chooseMeal=false}={}) {
         <span><input class="num" id="dl-n" name="count" inputmode="decimal" value="1" aria-label="Servings to log"><small id="dl-u">serving</small></span><button type="button" class="icon-btn" data-st="1" aria-label="More">${svg('plus')}</button></div></div>` : ''}
     ${wt ? `<div id="dl-g"${bySv ? ' hidden' : ''}><label>Your portion<span class="gfield"><input name="g" inputmode="decimal" placeholder="The whole meal is ${Math.round(wt)}" aria-label="Your portion in grams"><span>g</span></span></label></div>`
       : bySv ? '' : '<p class="callout warn">This meal is measured by weight but has no weight yet. Edit it and type its total weight, or switch it to servings.</p>'}
-    ${d.mine===false&&d.serving!=='one'&&!wt?'<p class="small muted">No total weight has been added. Use servings instead.</p>':''}${bySv&&!d.recipe_source?.import_id?`<p class="small muted" id="dl-sv-note">The recipe makes ${esc(d.serving_count)} serving${d.serving_count==1?'':'s'}. Enter the number you ate.</p>`:''}${d.recipe_source?.import_id?`<p class="small muted">The whole recipe makes ${esc(d.serving_count)} servings. Unknown nutrition is shown as a dash.</p>`:''}<div class="portion-out" aria-live="polite"></div>
+    ${d.mine===false&&d.serving!=='one'&&!wt?'<p class="small muted">No total weight has been added. Use servings instead.</p>':''}${bySv&&!d.recipe_source?.import_id?`<p class="small muted" id="dl-sv-note">The recipe makes ${esc(d.serving_count)} serving${d.serving_count==1?'':'s'}. Enter the number you ate.</p>`:''}${d.recipe_source?.import_id?`<p class="small muted">${bySv?`The whole recipe makes ${esc(d.serving_count)} serving${d.serving_count==1?'':'s'}.`:wt?`The whole recipe weighs ${gfmt(wt)}.`:'Add the whole recipe weight to log grams.'} Missing nutrients are shown as Unknown.</p>`:''}<div class="portion-out" aria-live="polite"></div>
     <div class="actions">${d.mine !== false ? `<button type="button" class="ghost" id="dl-edit">${svg('edit')}Edit</button><span class="spacer"></span>` : ''}
       <button class="primary"${!bySv && !wt && !both ? ' disabled' : ''}>${chooseMeal?'Log portion':'Add to '+esc(MEAL_NAMES[w.meal])}</button></div></form>`, (b, close) => {
     guardFoodSheet(b,close,owner);
@@ -228,7 +228,7 @@ function dishLogSheet(d, w, done, {chooseMeal=false}={}) {
     const needsFraction=d.mine===false&&!wt&&!d.recipe_source?.import_id&&(d.serving_count||1)<=1;
     let n=needsFraction||chooseMeal?NaN:1;if(bySv&&(needsFraction||chooseMeal)){f.count.value='';f.count.placeholder=needsFraction?'e.g. 0.25':'How many?';if(needsFraction)f.count.setAttribute('aria-label','Fraction of the whole recipe');}
     const factor = () => (mode === 'sv' ? (Number.isFinite(n)&&n>0&&n<=20?n/(d.serving_count||1):null) : num(f.g) > 0 && wt ? num(f.g) / wt : null);
-    const show = () => { const k = factor(); out.innerHTML = k ? nutGrid(vals(k))+extraFood(vals(k)) : '';$('button.primary',f).disabled=!k; };
+    const show = () => { const k = factor(); out.innerHTML = k ? nutGrid(vals(k),{calories:recipeCalories})+extraFood(vals(k)) : '';$('button.primary',f).disabled=!k; };
     $$('[data-mode]', f).forEach((x) => x.onclick = () => {
       mode = x.dataset.mode; $$('[data-mode]', f).forEach((y) => y.setAttribute('aria-pressed', String(y === x)));
       // Carry the amount across: 1 serving of a 4-serving, 1,200 g recipe is 300 g.
@@ -275,7 +275,7 @@ function dishLogSheet(d, w, done, {chooseMeal=false}={}) {
             invalidate('/api/food');if(location.pathname!=='/food/describe')render();toast(removed.queued?'Undo saved on this phone · waiting to send':'Portion removed');
           }catch(x){if(readOwner()===owner)toast('Could not undo · try again',undo);}finally{undoing=false;}
         };
-        toast(r.queued?'Portion saved on this phone · waiting to send':`Added ${d.name} to ${MEAL_NAMES[w.meal].toLowerCase()}: ${Math.round(r.entry.kcal/5)*5} kcal`,undo);
+        toast(r.queued?'Portion saved on this phone · waiting to send':`Added ${d.name} to ${MEAL_NAMES[w.meal].toLowerCase()}: ${recipeCalories(r.entry.kcal)} kcal`,undo);
       } catch (x) { if(readOwner()===owner){if(d.mine===false&&x.status===404){invalidate('/api/dishes');close();done(false);toast('This recipe is no longer shared with you.');}else{toast(x.message);btn.disabled=false;btn.textContent=label;}} }
     };
   });
@@ -377,7 +377,7 @@ function cookSteps(d) {
   const added = d.items.length > 0 || d.known.kcal != null;
   const steps = [
     [added, 'Add what goes in', added ? `${d.items.length ? `${d.items.length} so far` : 'Total typed in'}, ${r0(d.totals.kcal)} kcal` : 'Type it the way you\'d text it, or tap + to scan a barcode or photograph the label.'],
-    [added, 'Say how it\'s measured', `Set the number of servings in the whole recipe, or enter its cooked weight and log grams. This recipe currently makes ${d.serving_count} servings.`],
+    [added, 'Say how it\'s measured', `Set the number of servings in the whole recipe, or enter its cooked weight and log grams. ${d.serving==='one'?`This recipe makes ${d.serving_count} serving${d.serving_count==1?'':'s'}.`:d.weight_g?`The whole recipe weighs ${gfmt(d.weight_g)}.`:'Add the total cooked weight before logging grams.'}`],
     [false, 'Choose whether to log a portion', 'Tap Done to choose a meal today and the amount you ate, or save it for later. Reuse it from My Recipes any day.'],
   ];
   const now = added ? 2 : 0;
@@ -654,5 +654,5 @@ function recipeKit(d, mine, set) {
 
 function recipeSourceCard(d){
   const s=d.recipe_source,labels=RECIPE_SOURCE_LABELS;
-  return `<div class="card recipe-source"><p class="small">Makes ${esc(d.serving_count)} servings · ${d.totals.kcal==null?'Calories unknown':`${Math.round(d.totals.kcal/5)*5} kcal in the whole recipe`}</p>${s.source_url?`<a class="linkbtn" href="${esc(s.source_url)}" target="_blank" rel="noopener noreferrer">Original recipe</a>`:'<p class="small muted">From a recipe screenshot · Kit’s estimates</p>'}<p class="small muted">${esc([...new Set(Object.values(s.sources||{}).map(k=>labels[k]||'Unknown'))].join(' · '))}${s.edited?' · Edited':''}</p>${s.site_recipe_changed?'<p class="small muted">Published values describe the site’s original recipe; ingredients were edited.</p>':''}${s.pending?.length?`<details><summary>Unmatched ingredients (${s.pending.length})</summary>${s.pending.map(t=>`<p>${esc(t)}${d.mine!==false?` <button class="linkbtn" data-dismiss-pending="${esc(t)}">Leave this line out</button>`:''}</p>`).join('')}</details>`:''}</div>`;
+  return `<div class="card recipe-source"><p class="small">${d.serving==='one'?`Makes ${esc(d.serving_count)} serving${d.serving_count==1?'':'s'}`:d.weight_g?`Whole recipe · ${gfmt(d.weight_g)}`:'Whole recipe'} · ${d.totals.kcal==null?'Calories unknown':`${recipeCalories(d.totals.kcal)} kcal total`}</p>${s.source_url?`<a class="linkbtn" href="${esc(s.source_url)}" target="_blank" rel="noopener noreferrer">Original recipe</a>`:'<p class="small muted">From a recipe screenshot · Kit’s estimates</p>'}<p class="small muted">${esc([...new Set(Object.values(s.sources||{}).map(k=>labels[k]||'Unknown'))].join(' · '))}${s.edited?' · Edited':''}</p>${s.site_recipe_changed?'<p class="small muted">Published values describe the site’s original recipe; ingredients were edited.</p>':''}${s.pending?.length?`<details><summary>Unmatched ingredients (${s.pending.length})</summary>${s.pending.map(t=>`<p>${esc(t)}${d.mine!==false?` <button class="linkbtn" data-dismiss-pending="${esc(t)}">Leave this line out</button>`:''}</p>`).join('')}</details>`:''}</div>`;
 }

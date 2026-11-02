@@ -199,6 +199,7 @@ jobs:
           PHASE=after W=330 ROOT=24 NODE_PATH=/tmp/card-browser/node_modules node dev/tests/weight_progress_ui.cjs
           NODE_PATH=/tmp/card-browser/node_modules node dev/tests/weight_progress_actions.cjs
           NODE_PATH=/tmp/card-browser/node_modules node dev/tests/weight_progress_journeys.cjs
+          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/weight_undo_ui.cjs
 
       - name: Check one-tap reaction choices on every activity list (fictional accounts)
         env:

@@ -3,7 +3,8 @@
 .insights-range .me-chip { min-height:44px; max-width:100%; }
 .insights-review { border-bottom:1px solid var(--line); margin:0 0 12px; }
 .insights-review > summary { min-height:44px; padding:10px 0; font-size:max(15px,.9375rem); font-weight:600; cursor:pointer; }
-.insights-review:has(> div:empty) { display:none; }
+/* Weekly history loads on open; its empty body must not hide the opener. */
+.insights-review:not(#nt-weeks-fold):has(> div:empty) { display:none; }
 .insights-review .card { margin:4px 0 8px; }
 .insights-summary { padding:16px; }
 .insights-chart { display:block; margin-bottom:8px; color:inherit; text-decoration:none; border-radius:8px; }
