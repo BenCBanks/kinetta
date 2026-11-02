@@ -12,6 +12,7 @@ const externalHosts=new Set(['kinetta.app','www.openstreetmap.org','openstreetma
 function intention(link,base,registry){
  const source=link.source||'link',label=(link.label||'').trim(),url=new URL(link.href,base),origin=new URL(base).origin;
  const fail=message=>assert.fail(`${source}: ${label||'(unlabelled)'} → ${link.href}: ${message}`);
+ if(url.protocol==='blob:'&&url.origin===origin)return {kind:'local-document'};
  if(url.origin!==origin){
   if(url.protocol==='mailto:'&&url.pathname==='support@kinetta.app')return {kind:'external'};
   if(url.protocol==='https:'&&externalHosts.has(url.hostname))return {kind:'external'};
@@ -42,8 +43,18 @@ function intention(link,base,registry){
 }
 function literalTargets(source){
  // Dynamic arguments are checked from rendered links and real go() calls recorded by the journeys.
+ let clean='';
+ for(let i=0;i<source.length;){
+  const ch=source[i];
+  if(['"',"'",'`'].includes(ch)){
+   clean+=ch;i++;
+   while(i<source.length){const next=source[i++];clean+=next;if(next==='\\'&&i<source.length)clean+=source[i++];else if(next===ch)break;}
+  }else if(source.slice(i,i+2)==='//'){const end=source.indexOf('\n',i);i=end<0?source.length:end;clean+=' ';}
+  else if(source.slice(i,i+2)==='/*'){const end=source.indexOf('*/',i+2);i=end<0?source.length:end+2;clean+=' ';}
+  else{clean+=ch;i++;}
+ }
  const targets=[];
- for(const match of source.matchAll(/\bgo\(\s*(['"`])([^'"`\n]+)\1\s*(?=[,)])/g))if(!match[2].includes('${'))targets.push(match[2]);
+ for(const match of clean.matchAll(/\bgo\(\s*(['"`])([^'"`\n]+)\1\s*(?=[,)])/g))if(!match[2].includes('${'))targets.push(match[2]);
  return targets;
 }
 module.exports={intention,literalTargets};

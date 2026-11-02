@@ -61,6 +61,7 @@ async function feedBack(f){
     }
     if(test.close)await f.p.locator('.scrim:not([inert]) .sheet header [data-close]').first().click();
     assert.deepEqual(f.errors,[],'No page exception');
+    assert.deepEqual(f.httpErrors,[],'No unexpected API failure');
     const targets=await f.p.evaluate(()=>window.journeyGoTargets||[]);results.push({id:test.id,passed:true,end:test.end.url,go:targets});
     console.log('Journey '+test.id+': URL, title and key element PASS');
     if(process.env.KINETTA_JOURNEY_SHOTS&&['me-profile','track-save-detail','nutrition-log','notification-activity_ready'].includes(test.id)){

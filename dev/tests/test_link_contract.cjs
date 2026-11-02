@@ -13,4 +13,5 @@ assert.throws(()=>check('/me/kit?from=unknown'),/unsupported Kit context/);
 assert.throws(()=>check('https://example.invalid/'),/allowlist/);
 assert.equal(check('https://kinetta.app/privacy').kind,'external');
 assert.deepEqual(literalTargets("go('/progress'); go(`/people/${name}`); go('/activity/'+id); go('/food', {replace:true});"),['/progress','/food']);
+assert.deepEqual(literalTargets("// go('/comment')\ngo('https://kinetta.app/guide'); /* go('/old') */ go('/progress');"),['https://kinetta.app/guide','/progress']);
 console.log('Link intentions: broken view, wrong destination, unknown route/context/external and literal-versus-dynamic targets PASS');

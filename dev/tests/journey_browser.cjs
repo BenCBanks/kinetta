@@ -7,7 +7,7 @@ const tile=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4
 function boundary(){cp.execFileSync('python3',[path.join(__dirname,'journeys_guard.py')],{env:process.env,stdio:'inherit'});}
 function initialize({base,token,native,seed}){
  const goTargets=[];window.journeyGoTargets=goTargets;
- document.addEventListener('DOMContentLoaded',()=>{if(typeof go==='function'){const original=go;go=(url,...args)=>{goTargets.push(String(url));return original(url,...args);};}});
+ document.addEventListener('DOMContentLoaded',()=>{if(typeof go==='function'){const original=go;go=(url,...args)=>{const target=new URL(String(url),location.href);goTargets.push(target.origin===location.origin?target.pathname+target.search+target.hash:target.href);return original(url,...args);};}});
  Object.defineProperty(navigator,'geolocation',{value:{watchPosition:()=>1,clearWatch:()=>{},getCurrentPosition:()=>{}}});
  if(!native)return;
  const preferences={server:base,token};let session=null;
@@ -26,7 +26,7 @@ async function context(browser,base,fixtures,sessions,test,theme='light'){
  const auth=sessions.get(test.login+(test.native?':native':''));assert(auth,'Fictional login exists');
  const c=await browser.newContext({storageState:auth.storageState,viewport:{width:390,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});
  await c.addInitScript(initialize,{base,token:auth.token,native:!!test.native,seed:trackSession('recording')});
- const errors=[],writes=[],goTargets=[];let current=test,saved=null;
+ const errors=[],httpErrors=[],writes=[];let current=test,saved=null;
  await c.route('**/*',async route=>{
   const q=route.request(),u=new URL(q.url()),method=q.method();
   if(u.origin!==base)return route.abort();
@@ -55,7 +55,8 @@ async function context(browser,base,fixtures,sessions,test,theme='light'){
   return route.continue();
  });
  const p=await c.newPage();p.on('pageerror',error=>errors.push(error.message));
- return {c,p,auth,errors,writes,goTargets,get saved(){return saved;},test(value){current=value;}};
+ p.on('response',response=>{const u=new URL(response.url());if(u.pathname.startsWith('/api/')&&response.status()>=400&&!(current.action==='uncertainSave'&&u.pathname==='/api/activities/track'&&response.status()===503))httpErrors.push({path:u.pathname,status:response.status()});});
+ return {c,p,auth,errors,httpErrors,writes,get saved(){return saved;},test(value){current=value;}};
 }
 async function ready(p){await until(p,()=>typeof App!=='undefined'&&App.pageReady&&!document.querySelector('#page[data-home-loading]'),'Journey page ready');}
 async function assertDestination(p,expected,values={}){
