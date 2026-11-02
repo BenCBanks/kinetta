@@ -48,7 +48,7 @@ const RecipeImport=(()=>{
     }
     if(c.editor&&data.candidates[c.editor.candidate]){editor(c);return;}
     if(data.candidates.length===1){choose(c,0);return;}
-    shell(c,'Choose the recipe',`<div class="card list">${data.candidates.map((r,i)=>`<button class="row tap" data-candidate="${i}"><span><b>${esc(r.name)}</b><small>${esc(r.yield_text.join(' · ')||'Check servings')}</small></span>${svg('chev')}</button>`).join('')}</div>`);
+    shell(c,'Choose the recipe',`<div class="card list">${data.candidates.map((r,i)=>`<button type="button" class="row-link" data-candidate="${i}"><span class="grow"><b>${esc(r.name)}</b><small>${esc(r.yield_text.join(' · ')||'Check servings')}</small></span>${svg('chev')}</button>`).join('')}</div>`);
     $$('[data-candidate]',c.el).forEach(b=>b.onclick=()=>choose(c,+b.dataset.candidate));
   }
   async function refresh(c){if(!active(c)||!c.id)return;const id=c.id;try{const d=await api('/api/recipe-links/'+id);if(valid(c,id))receive(c,d);}catch(e){if(valid(c,id))retry(c,e.message);}}

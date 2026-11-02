@@ -3,7 +3,7 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('app/static/thread.js','utf8');
-const el=()=>({hidden:true,disabled:false,textContent:'',attrs:{},setAttribute(k,v){this.attrs[k]=v;},classList:{add(){},remove(){}}});
+const el=()=>({hidden:true,disabled:false,textContent:'',set innerHTML(v){this.markup=v;this.textContent=v.replace(/<[^>]*>/g,'');},attrs:{},setAttribute(k,v){this.attrs[k]=v;},classList:{add(){},remove(){}}});
 const nodes={'#thread-review':el(),'#thread-review-sum':el(),'#thread-send':el()};
 const c={Set,Number,Math,JSON,App:{me:{food_photo_itemize:true}},$:id=>nodes[id],active:()=>true,homeCalories:n=>String(Math.round(n)),Q:{mine:()=>[]},FoodReview:{busy:()=>false},
   esc:s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[ch]),aiCan:()=>true};
@@ -23,7 +23,9 @@ assert.equal(nodes['#thread-review'].hidden,false);assert.equal(nodes['#thread-r
 assert.equal(nodes['#thread-review-sum'].textContent,'3 foods · ≈ 405 kcal');
 assert.match(nodes['#thread-review'].attrs['aria-label'],/1 unanswered food is not included/);
 ctx.jobs=[{id:'c4',draft_id:'d1'}];c.primary(ctx);
-assert.equal(nodes['#thread-review'].disabled,true,'a message still sending waits');assert.match(nodes['#thread-review-sum'].textContent,/checking…$/);
+assert.equal(nodes['#thread-review'].disabled,true,'a message still sending waits');assert.equal(nodes['#thread-review-sum'].textContent,'Checking…');
+ctx.jobs=[];ctx.preparingReview=true;c.primary(ctx);assert.match(nodes['#thread-review-sum'].markup,/thread-review-count/);assert.equal(nodes['#thread-review-sum'].textContent,'Preparing your review…');
+ctx.preparingReview=false;c.FoodReview.busy=()=>true;c.primary(ctx);assert.match(nodes['#thread-review-sum'].markup,/thread-review-count/);assert.equal(nodes['#thread-review-sum'].textContent,'Your review is waiting to save…');c.FoodReview.busy=()=>false;
 ctx.jobs=[];ctx.messages=[user(2),reply(2,[question])];c.primary(ctx);
 assert.equal(nodes['#thread-review'].hidden,true,'nothing finished, nothing to review');
 const html=c.choices({kind:'needs',parts:[{...question,replies:['1','<b>']}]});
