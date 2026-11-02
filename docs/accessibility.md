@@ -15,7 +15,7 @@ Pinned axe checks run at 390 px in light and dark on Me, Activity, activity deta
 
 ## Large text: current limit
 
-The browser captures normal and doubled CSS root text (16/32px). These are labelled proxies, not system Dynamic Type evidence. The initial audit showed headings growing while the fixed 15 px body did not. Fixed pixel text elsewhere also needs a measured scaling pass; this first audit batch does not claim complete 200% support.
+The browser captures normal and doubled CSS root text (16/32px). These are labelled proxies, not system Dynamic Type evidence. The initial audit showed headings growing while the fixed 15 px body did not. Fixed pixel text elsewhere also needs a measured scaling pass; this first audit batch does not claim complete 200% support. The recorded enlarged proxies also retain crowded Activities/Distance labels on Me and midword wrapping/truncated descriptions in Track’s lower cards. Those remain layout fixes for the next measured batch under #473; zero serious/critical axe findings does not resolve them.
 
 The read-only native display bridge now exposes the effective UIKit content-size category and preferred body point size. Debug evidence records these directly from the WebView's UIKit traits, independently of JavaScript. Recording the OS preference alone does not make web text scale. A largest-category Simulator run must omit the fixture's forced CSS root, verify the actual category/point size, and compare actual computed text and reachable controls. Existing root 24 px native captures cannot substitute for it. Full Dynamic Type support and largest-category acceptance remain work under #473.
 
