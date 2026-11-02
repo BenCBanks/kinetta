@@ -281,16 +281,25 @@ async function homeFeed(el) {
 // Read-only own social facts never replace feed cards or their live maps.
 function feedTools(el,current){
   if(typeof Discovery==='undefined')return{refresh:async()=>{}};
-  const host=$('#feed-tools',el),top=$('#feed-top',el),owner=readOwner();let count=Number.isInteger(App.me?.friend_count)?App.me.friend_count:null,challenges=[],ready=false;
+  const host=$('#feed-tools',el),top=$('#feed-top',el),owner=readOwner();let count=Number.isInteger(App.me?.friend_count)?App.me.friend_count:null,challenges=[],ready=false,headerCleanup=()=>{};
   const live=()=>current()&&readOwner()===owner;
+  function fitHeader(){
+    headerCleanup();const heading=$('.top',top),actions=$('.acts',top),title=$('h1',top),context=document.createElement('canvas').getContext('2d');
+    const update=()=>{if(!live()||!heading.isConnected)return;context.font=getComputedStyle(title).font;const buttons=[...actions.children],gap=8;
+      const required=context.measureText(title.textContent).width+buttons.reduce((n,b)=>n+Math.max(44,b.getBoundingClientRect().width),0)+gap*buttons.length;
+      el.toggleAttribute('data-compact-actions',required>heading.clientWidth+1);
+    };
+    const observer=new ResizeObserver(update);observer.observe(heading);observer.observe(actions);update();document.fonts.ready.then(update);
+    headerCleanup=()=>observer.disconnect();viewResources.set(top,headerCleanup);
+  }
   function draw(){
     if(!live())return;host.setAttribute('aria-busy',String(!ready));const low=count!=null&&count<=2;top.innerHTML=actTop(false,false);
     $('.acts',top).insertAdjacentHTML('afterbegin',`<a class="icon-btn" href="/me/challenges" data-feed-challenges aria-label="Challenges">${svg('trophy')}</a>`);
     $('[data-feed-challenges]',top).onclick=()=>{if(live())Discovery.visit('activity','challenge');};
-    if(typeof KitChat!=='undefined')KitChat.entry(el,'/activity');
+    if(typeof KitChat!=='undefined')KitChat.entry(el,'/activity');fitHeader();
     const summary=Challenges.summary(challenges),q=summary?.first;
     const timing=q?(q.start>isoDay(new Date())?'Starts '+new Date(q.start+'T12:00:00Z').toLocaleDateString(undefined,{timeZone:'UTC',month:'short',day:'numeric'}):q.self.complete?'Goal reached':q.self.days_left===0?'Ends today':q.self.days_left===1?'1 day left':q.self.days_left+' days left'):'';
-    host.innerHTML=`${summary?`<div class="feed-social-strip" aria-label="Active challenge progress"><a class="row-link challenge-summary" data-feed-tool="challenges" href="/me/challenges/${encodeURIComponent(q.code)}"><span class="ri">${svg('trophy')}</span><span class="grow"><b>${summary.count>1?summary.count+' challenges':'Challenge'}</b><small>${esc(summary.progress)} · ${esc(timing)}</small></span><span class="chev">${svg('chev')}</span></a></div>`:''}${low?'<section class="feed-low"><h2>Make Activity yours</h2><div class="progress-grid" id="feed-discovery"></div></section>':''}`;
+    host.innerHTML=`<a class="row-link feed-challenges-shortcut" data-narrow-challenges data-feed-tool="challenges" href="/me/challenges"><span class="grow">Challenges</span>${svg('chev')}</a>${summary?`<div class="feed-social-strip" aria-label="Active challenge progress"><a class="row-link challenge-summary" data-feed-tool="challenges" href="/me/challenges/${encodeURIComponent(q.code)}"><span class="ri">${svg('trophy')}</span><span class="grow"><b>${summary.count>1?summary.count+' challenges':'Challenge'}</b><small>${esc(summary.progress)} · ${esc(timing)}</small></span><span class="chev">${svg('chev')}</span></a></div>`:''}${low?'<section class="feed-low"><h2>Make Activity yours</h2><div class="progress-grid" id="feed-discovery"></div></section>':''}`;
     const grid=$('#feed-discovery',host);if(grid){Discovery.render(grid,[
       {id:'find',title:'Find friends',description:'People you know →',href:'/me/friends?find=1',icon:'people'},
       {id:'invite',title:'Invite card',description:'Share your QR card →',href:'/me',icon:'share'},
@@ -562,30 +571,27 @@ const profileTab = (login) => App.me && decodeURIComponent(login).toLowerCase() 
 route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
   login=decodeURIComponent(login);
   const own=!!App.me&&login.toLowerCase()===App.me.login.toLowerCase(),owner=readOwner(),initial=new URLSearchParams(location.search);
-  let audience=['friend','member'].includes(initial.get('preview'))?initial.get('preview'):'you',revision=0,sport=initial.get('sport')||'',term=initial.get('q')||'',deferred=null;
-  const path=()=>'/api/people/'+encodeURIComponent(login)+'/profile'+(own?(audience==='you'?'?limit=1':'?as_friend=true&preview='+audience):'');
+  let revision=0,sport=initial.get('sport')||'',term=initial.get('q')||'',deferred=null;
+  const path=()=>'/api/people/'+encodeURIComponent(login)+'/profile'+(own?'?limit=1':'');
   el.innerHTML=`<div class="top${own?' owner-profile-top':''}">${backBtn(own?'Me':'People')}<span class="profile-page-title">${own?'Your profile':'Profile'}</span>${own?'':`<a class="icon-btn" href="/me/friends?find=1" aria-label="Find people">${svg('search')}</a>`}</div><div id="person-profile">${skel(2)}</div>`;
   const box=$('#person-profile',el),active=()=>box.isConnected&&owner===readOwner();
   if(own){el.classList.add('has-back');el._backFallback='/me';const back=$('[data-back]',el);back.setAttribute('aria-label','Back to Me');back.onclick=()=>{if(active())go('/me');};}else wireBack(el,'/me/friends');
-  function address(){const q=new URLSearchParams(location.search);for(const [key,value] of [['preview',audience==='you'?'':audience],['sport',sport],['q',term]])value?q.set(key,value):q.delete(key);replacePageAddress(el,location.pathname+(q.size?'?'+q:'')+location.hash);}
+  function address(){const q=new URLSearchParams(location.search);q.delete('preview');for(const [key,value] of [['sport',sport],['q',term]])value?q.set(key,value):q.delete(key);replacePageAddress(el,location.pathname+(q.size?'?'+q:'')+location.hash);}
   const draw=r=>{
     if(!active())return;
     if($('.me-card.editing',box)){deferred={data:r,version:revision,key:path(),epoch:readEpoch(path())};return;}
-    if(own&&audience==='member'&&r.preview!=='member'){box.innerHTML='<p class="callout">This server needs an update to preview other members.</p><button type="button" class="ghost wide" id="pf-friend-fallback">Preview as friends</button>';$('#pf-friend-fallback',box).onclick=()=>setAudience('friend');return;}
     r={...r,layout:ProfileLayout.normalize(r.layout)};
-    const preview=own&&audience!=='you',cardData=preview?{...r,mine:false}:r;
-    const p=r.person,mine=own&&r.mine&&!preview,feed=mine||r.layout.sections.includes('activities');
+    const p=r.person,mine=own&&r.mine,feed=mine||r.layout.sections.includes('activities');
     const action=r.status==='friends'?`<button type="button" class="me-card-pill" data-person-manage>${svg('check')}Friends</button>`:r.status==='sent'?'<button type="button" class="me-card-pill" data-person-action="cancel">Request sent</button>':r.status==='incoming'?`<button type="button" class="me-card-pill solid" data-person-action="accept">${svg('check')}Approve request</button>`:`<button type="button" class="me-card-pill solid" data-person-action="add">${svg('plus')}Add friend</button>`;
-    const pills=mine?MeCard.ownPills():preview?'':action+`<button type="button" class="me-card-pill" data-person-report aria-label="Report or block ${esc(p.name)}">${svg('more')}</button>`;
+    const pills=mine?MeCard.ownPills():action+`<button type="button" class="me-card-pill" data-person-report aria-label="Report or block ${esc(p.name)}">${svg('more')}</button>`;
     const friends=mine?MeCard.ownFriends(r.friend_count):Number.isInteger(r.friend_count)?`<span class="me-friends-link">${svg('people')}<span>${friendCountText(r.friend_count)}</span></span>`:'';
-    box.innerHTML=`${r.profile_hidden?'<p class="callout warn">Your profile is hidden until your account is confirmed and active.</p>':''}${preview?`<div class="profile-preview-bar"><span>Previewing as <b>${audience==='friend'?'Friends':'Everyone'}</b></span><button type="button" class="linkbtn" data-audience="${audience==='friend'?'member':'friend'}">${audience==='friend'?'Everyone':'Friends'}</button><button type="button" class="linkbtn" data-audience="you">Done</button></div>`:''}${MeCard.card(p,{mine,pills,friends})}
-      ${mine?`<section class="profile-activities" aria-label="Your activities"><div id="workout-sync"></div><div class="profile-activity-tools"><h2>Activities</h2><div class="profile-list-filters"><button type="button" class="ghost" id="person-sport"></button><button type="button" class="icon-btn" id="person-search" aria-label="Search your activities" aria-expanded="${!!term}">${svg('search')}</button></div></div><form id="person-search-form" role="search"${term?'':' hidden'}><input type="search" name="q" aria-label="Search your activities" value="${esc(term)}" placeholder="Search names and descriptions" enterkeyhint="search"></form><div class="feed-list" id="person-activities" aria-busy="true">${skelFeed(2)}</div><button type="button" class="ghost wide feed-more" id="person-more" hidden>Show more</button></section>`:feed?ProfileLayout.content(cardData,{...r.layout,sections:['activities']}):''}`;
-    MeCard.mount(box,{data:cardData,full:true,reload,onSaved:reload,onEditEnd:async({saved})=>{
+    box.innerHTML=`${r.profile_hidden?'<p class="callout warn">Your profile is hidden until your account is confirmed and active.</p>':''}${MeCard.card(p,{mine,pills,friends})}
+      ${mine?`<section class="profile-activities" aria-label="Your activities"><div id="workout-sync"></div><div class="profile-activity-tools"><h2>Activities</h2><div class="profile-list-filters"><button type="button" class="ghost" id="person-sport"></button><button type="button" class="icon-btn" id="person-search" aria-label="Search your activities" aria-expanded="${!!term}">${svg('search')}</button></div></div><form id="person-search-form" role="search"${term?'':' hidden'}><input type="search" name="q" aria-label="Search your activities" value="${esc(term)}" placeholder="Search names and descriptions" enterkeyhint="search"></form><div class="feed-list" id="person-activities" aria-busy="true">${skelFeed(2)}</div><button type="button" class="ghost wide feed-more" id="person-more" hidden>Show more</button></section>`:feed?ProfileLayout.content(r,{...r.layout,sections:['activities']}):''}`;
+    MeCard.mount(box,{data:r,full:true,reload,onSaved:reload,onEditEnd:async({saved})=>{
       const held=deferred;deferred=null;if(saved||!held||!active()||held.version!==revision||held.key!==path())return;
       if(held.epoch!==readEpoch(held.key)){reload();return;}
       await draw(held.data);if(active()&&held.version===revision&&document.activeElement===document.body)$('[data-card-edit]',box)?.focus({preventScroll:true});
-    }});ProfileLayout.mount(box,cardData);
-    if(r.mine)$$('[data-audience]',box).forEach(b=>b.onclick=()=>{if(b.dataset.audience!==audience)setAudience(b.dataset.audience);});
+    }});ProfileLayout.mount(box,r);
     const act=$('[data-person-action]',box);
     if(act)act.onclick=async()=>{
       act.disabled=true;
@@ -652,7 +658,7 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
     }catch(x){if(active()&&version===revision)showError(box,x);}
     finally{if(active()&&version===revision){box.style.minHeight='';box.removeAttribute('aria-busy');}}
   }
-  function setAudience(next){const field=$('#person-search-form input',box);if(field)term=field.value.trim();audience=next;address();reload(false,`[data-audience="${next}"]`);}
+  if(own&&initial.has('preview'))address();
   await reload(true);
 });
 

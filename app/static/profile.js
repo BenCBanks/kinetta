@@ -29,7 +29,7 @@ const ProfileLayout=(()=>{
       return row.active_days?stat('Active days',big(row.active_days)):'';
     }).join('');
   }
-  function content(r,value=r.layout,{preview=false}={}){
+  function content(r,value=r.layout){
     const layout=normalize(value),any=!!r.overview?.activities;
     return layout.sections.map(section=>{
       if(section==='recent'){
@@ -46,7 +46,7 @@ const ProfileLayout=(()=>{
         const rows=layout.sports.length?layout.sports.map(s=>(r.sports||[]).find(row=>row.sport===s)).filter(Boolean):(r.sports||[]);
         return rows.length?`<section class="card"><h2>Sports</h2><div class="sport-overview">${rows.map(s=>`<div class="row"><b>${esc(SPORT_NAMES[s.sport]||s.sport)}</b><span class="num">${s.activities} ${s.activities===1?'activity':'activities'} · ${s.distance_m>0?U.dist(s.distance_m)+' '+U.du():dur(s.time_s,true)}</span></div>`).join('')}</div></section>`:'';
       }
-      return `<section class="profile-activities"><h2 class="sec-head">Shared activities</h2><div class="feed-list" id="${preview?'draft-activities':'person-activities'}">${r.items.length?r.items.map(a=>postCard(a)).join(''):`<div class="card empty"><b>No shared activities yet</b>${r.mine?'Choose an activity and change its audience to share it.' : 'No activities shared with you.'}${r.mine&&!preview?`<a class="ghost wide" href="${profileHref(App.me)}">Choose an activity</a>`:''}</div>`}</div>${preview?'':`<button type="button" class="ghost wide" id="person-more"${r.next?'':' hidden'}>Show more</button>`}</section>`;
+      return `<section class="profile-activities"><h2 class="sec-head">Shared activities</h2><div class="feed-list" id="person-activities">${r.items.length?r.items.map(a=>postCard(a)).join(''):`<div class="card empty"><b>No shared activities yet</b>${r.mine?'Choose an activity and change its audience to share it.' : 'No activities shared with you.'}${r.mine?`<a class="ghost wide" href="${profileHref(App.me)}">Choose an activity</a>`:''}</div>`}</div><button type="button" class="ghost wide" id="person-more"${r.next?'':' hidden'}>Show more</button></section>`;
     }).join('');
   }
   function mount(box,r){
@@ -71,6 +71,36 @@ const MeCard=(()=>{
         ${bio?bio.length>140?`<details class="me-about"><summary>About me</summary><p>${esc(bio)}</p></details>`:`<p class="me-profile-bio">${esc(bio)}</p>`:''}
         <div class="me-card-sections" aria-busy="true">${skel(1)}</div>
         ${mine?`<p class="me-card-note">${svg('lock')}<span aria-hidden="true" title="Totals include your private workouts. Friends see the totals, not the workouts.">Private workouts count, but stay hidden</span><span class="vh">Totals include your private workouts. Friends see the totals, not the workouts.</span></p>`:''}${milestones?'<div data-me-milestones hidden></div>':''}</div></section>`;
+  }
+  const paintBars=box=>$$('.me-card-bars span',box).forEach(bar=>bar.style.height=bar.dataset.h*5+'px');
+  // Reuse the recipient renderer without mounting any interactive controls in the miniature.
+  function previewCard(root,data){
+    const saved=period,r={...data,mine:false};period='weeks';
+    try{
+      const friends=Number.isInteger(r.friend_count)?`<span class="me-friends-link">${svg('people')}<span>${friendCountText(r.friend_count)}</span></span>`:'';
+      const pills=`<button type="button" class="me-card-pill${r.status==='friends'?'':' solid'}">${svg(r.status==='friends'?'check':'plus')}${r.status==='friends'?'Friends':'Add friend'}</button><button type="button" class="me-card-pill" aria-label="More">${svg('more')}</button>`;
+      root.innerHTML=card(r.person,{friends,pills});const content=$('.me-card-sections',root);
+      content.innerHTML=sections(r,ProfileLayout.normalize(r.layout),true);content.setAttribute('aria-busy','false');paintBars(content);
+      $$('.me-sport-chips',root).forEach(fitSports);
+    }finally{period=saved;}
+  }
+  function shareSheet(){
+    const owner=readOwner(),login=App.me.login;
+    sheet('Share your profile',`<div class="profile-share-preview" role="img" aria-label="Loading profile preview"><div class="profile-share-art" inert aria-hidden="true"></div></div><p class="small muted profile-share-caption">This is what people will see</p><p class="small" id="profile-share-status" role="status">Loading preview…</p><div class="profile-share-actions"><button type="button" class="primary" data-share-link disabled>${svg('share')}Share profile link</button>${typeof KinettaCard==='undefined'?'':'<button type="button" class="ghost" data-share-card disabled>Public card &amp; QR</button>'}</div>`,(body,close)=>{
+      const active=()=>body.isConnected&&owner===readOwner(),frame=$('.profile-share-preview',body),art=$('.profile-share-art',body),status=$('#profile-share-status',body),buttons=$$('.profile-share-actions button',body);let revision=0,dispose=()=>{};
+      const draw=async()=>{const version=++revision;dispose();frame.hidden=false;buttons.forEach(b=>b.disabled=true);status.textContent='Loading preview…';
+        try{const r=await api('/api/people/'+encodeURIComponent(login)+'/profile?as_friend=true&preview=member&limit=1');if(!active()||version!==revision)return;
+          if(r.preview!=='member'||r.profile_hidden)throw Error(r.profile_hidden?'Your profile is hidden until your account is confirmed and active.':'The preview needs a server update.');
+          previewCard(art,r);const card=$('.me-card',art);
+          const fit=()=>{if(!active()||!card.isConnected||version!==revision){observer.disconnect();return;}const scale=Math.min(1,200/card.offsetHeight,(frame.clientWidth-8)/358);art.style.setProperty('--preview-scale',scale);frame.style.height=Math.ceil(card.offsetHeight*scale)+'px';$$('.me-sport-chips',art).forEach(fitSports);};
+          const observer=new ResizeObserver(fit);dispose=()=>observer.disconnect();observer.observe(frame);observer.observe(card);viewResources.set(frame,dispose);fit();document.fonts.ready.then(fit);
+          frame.setAttribute('aria-label','Profile card preview: '+card.innerText.replace(/\s+/g,' ').trim());status.textContent='';buttons.forEach(b=>b.disabled=false);
+        }catch(x){if(active()&&version===revision){frame.hidden=true;art.replaceChildren();status.innerHTML=`${esc(x.message)} <button type="button" class="linkbtn" data-preview-retry>Try again</button>`;$('[data-preview-retry]',body).onclick=draw;}}
+      };
+      $('[data-share-link]',body).onclick=()=>{if(active()){close();shareProfile(App.me);}};
+      const publicCard=$('[data-share-card]',body);if(publicCard)publicCard.onclick=()=>{if(active()){close();KinettaCard.open();}};
+      draw();
+    });
   }
   const ownPills=()=>`<button type="button" class="me-card-pill" data-card-edit>${svg('edit')}Edit</button><button type="button" class="me-card-pill" data-card-share aria-label="Share your profile">${svg('share')}</button>`;
   function ownFriends(count){
@@ -147,7 +177,7 @@ const MeCard=(()=>{
       chartCleanup=()=>{if(cleaned)return;cleaned=true;clearSummaries();chartPositions.set(mode,wrap.scrollLeft);cancelAnimationFrame(initial);observer.disconnect();wrap.removeEventListener('scroll',update);wrap.removeEventListener('focusin',focused);viewResources.delete(wrap);};
       viewResources.set(wrap,chartCleanup);
     }
-    const bars=()=>{$$('.me-card-bars span',box).forEach(bar=>bar.style.height=bar.dataset.h*5+'px');chartScroll();}; // CSP blocks inline style attributes
+    const bars=()=>{paintBars(box);chartScroll();}; // CSP blocks inline style attributes
     // The heading swaps to the picked week's dates and distance, so the layout never shifts; tap again for the total.
     const weekTaps=()=>{const wrap=$('.me-card-bars',box),label=$('[data-week-label]',box);if(!wrap||!label)return;const [head,side]=[$('span',label),$('small',label)],[h0,s0]=[head.textContent,side.textContent];
       wrap.onclick=e=>{const b=e.target.closest('.me-week');if(!b)return;const on=b.getAttribute('aria-pressed')!=='true';
@@ -226,10 +256,7 @@ const MeCard=(()=>{
       go(profileHref(App.me));
     });
     $('[data-card-edit]',card).onclick=edit;
-    $('[data-card-share]',card).onclick=()=>{const q=new URLSearchParams(location.pathname===profileHref(App.me)?location.search:'');q.set('preview','friend');sheet('Share your profile',`<button type="button" class="primary wide" data-share-link>${svg('share')}Share profile link</button><div class="profile-share-rows"><a class="row-link" href="${esc(profileHref(App.me)+'?'+q)}" data-close data-card-preview><span class="grow">See what others see</span>${svg('chev')}</a>${typeof KinettaCard==='undefined'?'':'<button type="button" class="row-link" data-share-card><span class="grow">Public card &amp; QR</span>'+svg('chev')+'</button>'}</div>`,(b,close)=>{
-      $('[data-share-link]',b).onclick=()=>{close();shareProfile(App.me);};
-      const cardButton=$('[data-share-card]',b);if(cardButton)cardButton.onclick=()=>{close();KinettaCard.open();};
-    });};
+    $('[data-card-share]',card).onclick=shareSheet;
     if(data)draw();else load();
     return {edit};
   }

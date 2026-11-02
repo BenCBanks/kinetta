@@ -111,14 +111,12 @@ for(const size of [{width:320,height:667,root:16},{width:390,height:844,root:16}
  assert((await p.locator('#person-activities .post, #person-activities .card').count())>0,'activities follow the card');
  await shot('profile-own');
  await p.locator('[data-card-share]').click();const share=p.locator('.sheet');await share.waitFor();
- assert.match(await share.innerText(),/Public card/);assert.equal(await share.locator('[data-card-preview]').count(),1);assert.equal(await share.locator('[data-card-preview]').innerText(),'See what others see');assert.doesNotMatch(await share.innerText(),/View full profile/);
+ await share.locator('.profile-share-art .me-card-sections[aria-busy=false]').waitFor();assert.match(await share.innerText(),/Public card/);assert.equal(await share.locator('.profile-share-actions button').count(),2);assert.equal(await share.locator('[data-card-edit],[data-card-share],.me-card-note').count(),0,'recipient miniature has no owner controls or private footer');assert(await share.locator('.profile-share-art').evaluate(n=>n.inert),'miniature cannot receive input');assert.doesNotMatch(await share.innerText(),/See what others see|Previewing as|View full profile/);
  await p.keyboard.press('Escape');await share.waitFor({state:'detached'}).catch(()=>{});
  // Edit happens in place on the card, exactly as on Me; Cancel leaves everything as it was.
  await p.locator('[data-card-edit]').click();await p.waitForSelector('#person-profile .me-card.editing');
  assert.equal(await p.locator('#person-activities').evaluate(n=>!!n.closest('[inert]')),true,'activities dimmed while editing');
  await p.locator('[data-card-cancel]').click();await until(p,()=>!document.querySelector('.me-card.editing'),'4')
- await p.locator('[data-card-share]').click();await p.locator('[data-card-preview]').click();await until(p,()=>new URLSearchParams(location.search).get('preview')==='friend','Friends preview');await settled();assert.match(await p.locator('.profile-preview-bar').innerText(),/Previewing as Friends/);assert.equal(await p.locator('[data-card-edit],[data-card-share],.me-card-note,#person-sport').count(),0,'preview contains only the audience projection');
- await p.locator('[data-audience="member"]').click();await until(p,()=>new URLSearchParams(location.search).get('preview')==='member','member preview');await settled();await p.locator('.profile-preview-bar').scrollIntoViewIfNeeded();await shot('profile-own-preview');await p.locator('[data-audience="you"]').click();await until(p,()=>!new URLSearchParams(location.search).has('preview'),'preview Done');await settled();assert.equal(await p.locator('.profile-preview-bar').count(),0);
  await noOverflow('own profile');
 
  // Someone else's profile: the same card; the friendship button and ⋯ sit where Edit and Share are.

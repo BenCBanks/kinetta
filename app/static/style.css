@@ -333,7 +333,7 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .profile { display: flex; align-items: center; gap: 14px; margin: 6px 2px 18px; min-height: 64px; }
 .profile > div { min-width: 0; } .profile h1 { white-space: normal; overflow-wrap: anywhere; }
 .profile .sub { color: var(--tx3); font-size: 14px; margin-top: 2px; }
-#logout { margin-top: 18px; color: var(--alert); background: var(--card); box-shadow: var(--shadow); }
+#logout {margin-top:0;color:var(--alert);background:transparent;box-shadow:none;}
 
 /* ---------- skeletons, toast, offline bar ---------- */
 .sk { background: linear-gradient(90deg, var(--card2), color-mix(in srgb, var(--card2) 45%, var(--card)), var(--card2)); background-size: 200% 100%;
@@ -1372,10 +1372,16 @@ html.keyboard-open nav.tabs { display: none; }
 /* your own profile, editable in place (social.js wireProfileEditing) */
 #kit-settings-panel > .seg {margin:8px 0 16px;grid-template-columns:repeat(2,minmax(0,1fr));}
 #kit-settings-panel > .seg button {min-height:44px;font-size:max(15px,.9375rem);}
-.profile-share-rows {display:grid;gap:8px;margin-top:12px;}
+.profile-share-preview {position:relative;height:200px;overflow:hidden;}
+.profile-share-preview[hidden] {display:none;}
+.profile-share-art {position:absolute;top:0;left:50%;width:358px;transform:translateX(-50%) scale(var(--preview-scale,.45));transform-origin:top center;pointer-events:none;}
+.profile-share-art .me-card {margin:0;}
+.profile-share-caption {margin:8px 0 16px;text-align:center;}
+#profile-share-status:empty {display:none;}
+.profile-share-actions {display:grid;grid-template-columns:1fr;gap:8px;}
+.profile-share-actions button {min-height:48px;font-size:max(15px,.9375rem);}
+.profile-share-actions .ghost {background:transparent;border:1px solid var(--line);}
 .challenge-find-friends {margin-top:12px;}
-.profile-preview-bar {display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;margin:0 0 12px;font-size:max(13px,.8125rem);}
-.profile-preview-bar .linkbtn {min-height:44px;padding:0;font-size:max(15px,.9375rem);}
 .profile-activity-tools {display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0;}
 .profile-activity-tools h2 {flex:1;margin:0;font-size:max(17px,1.0625rem);}
 .profile-list-filters {display:flex;align-items:center;gap:8px;}
@@ -3114,5 +3120,17 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .seg-rules > summary svg { flex:none; width:16px; height:16px; margin-left:auto; }
 .seg-rules[open] > summary svg { transform:rotate(90deg); }
 
-/* Small Activity headers keep two full-size actions; Notifications also stays on Me. */
-@media(max-width:360px) {.activity-home #feed-top .bell {display:none;}}
+/* Move Challenges below the header only when the full-size actions cannot fit beside the title. */
+.activity-home #feed-top .top,.activity-home #feed-top .acts {flex-wrap:nowrap;}
+.feed-challenges-shortcut {display:none;margin-bottom:12px;}
+.activity-home[data-compact-actions] [data-feed-challenges] {display:none;}
+.activity-home[data-compact-actions] .feed-challenges-shortcut {display:flex;}
+@media(max-width:360px) {
+ .activity-home .post-hd.post-profile {display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:8px;}
+ .activity-home .post-hd>.post-av {grid-column:1;grid-row:1;}
+ .activity-home .post-hd>.ph-txt {display:contents;}
+ .activity-home .post-hd>.ph-txt>.post-name {grid-column:2;grid-row:1;}
+ .activity-home .post-hd>.activity-share {grid-column:3;grid-row:1;}
+ .activity-home .post-hd>.ph-txt>small {grid-column:1/-1;grid-row:2;white-space:nowrap;}
+ .activity-home .post-route {display:none;}
+}
