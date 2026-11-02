@@ -1022,7 +1022,7 @@ function wireProgressPeriods(el) {
   });
 }
 // Kit sits at the far right of the Progress header like other pages; the header is redrawn per view, so add it each time.
-function wireProgressFocus(el) { if (typeof KitChat !== 'undefined') KitChat.entry(el, '/progress'); if(typeof Recaps!=='undefined')Recaps.entry(el); }
+function wireProgressFocus(el) { if (typeof KitChat !== 'undefined') KitChat.entry(el, location.pathname); if(typeof Recaps!=='undefined')Recaps.entry(el); }
 function nutritionHref(view, params = '') {
   const q=new URLSearchParams(params);q.set('view',view);
   if(location.pathname==='/progress'||new URLSearchParams(location.search).get('from')==='progress')q.set('from','progress');
@@ -1035,8 +1035,9 @@ function foodProgress(el,q) {
 }
 function pHead(el, view, filters) {
   const v = [...PVIEWS, ...PMORE].find(m => m[0] === view);
-  el.innerHTML = `<div class="top progress-heading"><h1>${esc(v?.[1] || 'Progress')}</h1><div class="acts">${bellBtn()}</div></div><div id="p-body">${skelChart()}</div>`;
+  el.innerHTML = `<div class="top progress-heading"><h1>${esc(({routes:'Routes',trends:'Years'})[view]||v?.[1]||'Progress')}</h1><div class="acts"><button type="button" class="icon-btn" id="recap-entry" aria-label="Share a progress picture">${svg('share')}</button>${bellBtn()}</div></div><div id="p-body">${skelChart()}</div>`;
   progressBack(el); progressVisit(view); wireProgressFocus(el);
+  $('#recap-entry',el).onclick=()=>Recaps.open('this_month');
   progressFilters(el, $('#p-body',el), filters, {selector:view === 'heatmap' ? '.heatmap-tools' : '.card'});
 }
 const PEXPLORE = [
@@ -1123,7 +1124,7 @@ route(/^\/progress$/, 'progress', async (el) => {
 });
 route(/^\/progress\/routes$/, 'progress', async el => { pHead(el,'routes',''); await pRoutes($('#p-body',el)); });
 route(/^\/progress\/segments$/, 'progress', async el => {
-  pHead(el,'segments','');const body=$('#p-body',el),pending=Segments.list(body);
+  pHead(el,'segments','');$('#recap-entry',el).remove();$('.acts',el).insertAdjacentHTML('afterbegin','<a class="linkbtn" href="/segments/new" aria-label="New segment">New</a>');const body=$('#p-body',el),pending=Segments.list(body);
   // Segments owns its map/search logic; contain the existing options without changing that logic.
   const panel=document.createElement('section');panel.className='card progress-segment-controls';
   for(const child of [...body.children])if(!['sg-map','sg-list'].includes(child.id))panel.append(child);

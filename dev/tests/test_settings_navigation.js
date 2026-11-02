@@ -8,7 +8,7 @@ function fixture(pending=0,accept=true){
   MeCard:{openEditor:()=>editors.push('inline')},render(){},URLSearchParams,SUPPORT_EMAIL:'help@example.test',location:{search:''},pendingEmail:()=>null,emailSheet(){},route:(re,tab,fn)=>route=fn,svg:()=>'',esc:String,backBtn:()=>'<button data-back>Back</button>',wireBack(){},profileHref:()=>'/people/zz_test_settings',
   $:sel=>{if(!nodes.has(sel))nodes.set(sel,{});return nodes.get(sel)},$$:()=>[],kitChatOn:()=>false,
   Q:{mine:()=>pending?[{who:'zz_test_settings'}]:[],all:()=>[{who:'zz_test_settings'},{who:'zz_test_other'}]},
-  FoodThread:{pendingCount:async()=>0,eraseDevice:async()=>{erased++}},KitChat:{eraseDevice(){},memorySettings(){}},
+  FoodThread:{pendingCount:async()=>0,eraseDevice:async()=>{erased++}},KitChat:{eraseDevice(){},memorySettings(){},savedReviews(){editors.push('reviews')}},
   Native:{on:false,foodEntryPendingCount:async()=>0,forget:async()=>{forgot++}},Track:{pause:async()=>{}},
   confirm:()=>accept,api:async(...args)=>writes.push(args),json:(method,body)=>({method,body}),store:{set:(...args)=>writes.push(args)},forgetKept(){},netbar(){},history:{replaceState(){}},showLogin:()=>{login++},toast:message=>notices.push(message)};
  vm.createContext(c);vm.runInContext(source.slice(start,end),c);
@@ -16,6 +16,7 @@ function fixture(pending=0,accept=true){
 }
 (async()=>{
  let f=fixture();await f.run();f.nodes.get('#m-profile').onclick();assert.equal(f.editors.length,1,'Edit profile opens the shared editor directly');assert.equal(f.editors[0],'inline','Settings opens the card editor entry');assert(f.el.innerHTML.includes('Name, photo, bio &amp; layout')||f.el.innerHTML.includes('Name, photo, bio & layout'));assert(f.el.innerHTML.includes('<h1>Settings</h1>'));assert(!f.el.innerHTML.includes('<details class="me-settings"'));const rows=[...f.el.innerHTML.matchAll(/<(?:a|button|label|div)\b[^>]*class="row-link\b[^"]*"[^>]*>/g)];assert.match(rows.at(-1)[0],/id="logout"/,'Log out is the final Settings row');assert(f.el.innerHTML.includes('id="m-email"'),'Account has an Email row');
+ f.nodes.get('#m-kit-history').onclick();assert.equal(f.editors.at(-1),'reviews','Earlier Kit reviews remain reachable without a chat entry');
  await f.nodes.get('#logout').onclick();assert.equal(f.c.App.me,null);assert.equal(f.counts().login,1);assert.equal(f.counts().forgot,1);assert(f.writes.some(w=>w[0]==='/api/logout'));const queue=f.writes.find(w=>w[0]==='fit.queue')[1];assert.equal(queue.length,1);assert.equal(queue[0].who,'zz_test_other','another account’s queue is preserved');
  f=fixture(1,false);await f.run();await f.nodes.get('#logout').onclick();assert(f.c.App.me);assert.equal(f.counts().erased,0);assert.equal(f.writes.length,0,'declining unsent-data warning never clears drafts or logs out');
  f=fixture();f.c.FoodThread.pendingCount=async()=>{throw Error('Fictional storage error')};await f.run();await f.nodes.get('#logout').onclick();assert(f.c.App.me);assert.equal(f.writes.length,0,'failed pending check keeps the account and drafts');

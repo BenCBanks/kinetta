@@ -85,7 +85,7 @@ for(const size of [{width:320,height:667,root:16},{width:390,height:844,root:16}
     assert.match(await p.locator('.me-card-empty').innerText(),/totals appear here/);assert.equal(await p.locator('.me-card-figures').count(),0);assert.equal(await p.locator('[data-friend-count]').innerText(),'No friends yet');
     const goal=p.locator('.me-card-empty a[href="/me/goals?new=1"]');assert((await goal.boundingBox()).height>=44);assert.equal(await goal.evaluate(n=>getComputedStyle(n).backgroundColor),"rgba(0, 0, 0, 0)","first Goal is a plain action, without a grey pill");await goal.click();await p.locator('.sheet').getByRole('heading',{name:'New goal',exact:true}).waitFor();await until(p,()=>App.pageReady,'one-tap Goal ready');assert.equal(new URL(p.url()).searchParams.has('new'),false,'auto-open flag consumed');assert(!writes.includes('/api/goals'),'opening does not save a goal');
     await p.locator('.sheet').getByRole('button',{name:'Cancel',exact:true}).click();await p.reload();await until(p,()=>App.pageReady,'Goals reload');assert.equal(await p.locator('.sheet').count(),0,'reload does not reopen Goal add');await p.locator('[data-back]').click();await p.waitForURL('**/me');await until(p,()=>App.pageReady,'Goal returns to Me');await settled();
-   }else if(state==='private'){assert.match((await p.locator('.me-card-figures[data-card-period=totals] .me-metric-value').allTextContents()).join(' '),/3,045/);assert.match(await p.locator('.me-card-row').innerText(),/0 shared activities/);}else{const time=p.locator('[data-card-stat=time] b');assert.deepEqual(await time.allTextContents(),['<0.01'],'positive short durations do not become zero');assert.match(await time.first().locator('..').ariaSnapshot(),/01s/,'precise short duration retained');}
+   }else if(state==='private'){assert.match((await p.locator('.me-card-figures[data-card-period=totals] .me-metric-value').allTextContents()).join(' '),/3,045/);assert.equal(await p.locator('.me-card-row').count(),0,'private aggregates do not add a redundant shared-count row');}else{const time=p.locator('[data-card-stat=time] b');assert.deepEqual(await time.allTextContents(),['<0.01'],'positive short durations do not become zero');assert.match(await time.first().locator('..').ariaSnapshot(),/01s/,'precise short duration retained');}
    assert(await p.locator('[data-me-milestones]').isHidden(),'no empty milestone box');await noOverflow(state);
   }
   cardState='heavy';cardLayout={sections:['totals','sports','recent'],stats:['time','active_days'],sports:['hike','run']};await p.evaluate(()=>{for(const k of Object.keys(localStorage))if(k.startsWith('fit.c:'))localStorage.removeItem(k)});await p.reload();await until(p,()=>App.pageReady,'custom card');await settled();
@@ -135,7 +135,7 @@ for(const size of [{width:320,height:667,root:16},{width:390,height:844,root:16}
  await noOverflow('request profile');
  assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[]);
  console.log(`Profile card ${size.width}x${size.height}/${size.root} ${theme} PASS`);await c.close();}
-await inlineEditorChecks(b);await b.close();})().catch(e=>{console.error(e);process.exit(1);});
+await inlineEditorChecks(b);await require('./me_polish_ui.cjs')({browser:b,storageState:st,base});await b.close();})().catch(e=>{console.error(e);process.exit(1);});
 
 async function inlineEditorChecks(browser){
  const cp=require('node:child_process'),path=require('node:path'),pw='green teapot on the hill';

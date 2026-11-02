@@ -50,9 +50,10 @@ console.log('Food chat: Search tool label PASS');
  assert.match(profile,/data-card-edit/);assert.match(profile,/aria-label="Share your profile"/);assert.match(profile,/Private workouts count in totals, never in detail/);
  assert.doesNotMatch(pages,/me-edit-profile|>View profile</,'Me has no large View/Edit profile buttons');
  assert.doesNotMatch(pages,/ME_SHORTCUTS|whoseSeg|wireWhose|Latest activity|Friends recently/,'retired home/feed components have no live callers');
- assert.match(pages,/href="\/me\/activities"/,'the complete private history is reachable');
+ assert.match(pages,/href="\$\{profileHref\(App.me\)\}"/,'complete private history links to the canonical owner profile');
  assert.match(pages,/q.get\('view'\)==='mine'/,'existing history links retain a redirect');
- console.log('Me: friends-view card with Edit/Share, private dashboard below the line, separate complete history, no duplicated selectors/shortcut grid PASS');
+ const redirect=pages.split('\n').find(line=>line.startsWith('route(/^\\/me\\/activities$/'));let destination,options;vm.runInNewContext(redirect,{route:(pattern,tab,fn)=>fn(),profileHref:()=>'/people/zz_test_history',App:{me:{}},location:{search:'?sport=run&q=Morning',hash:'#history'},go:(url,opts)=>{destination=url;options=opts;}});assert.equal(destination,'/people/zz_test_history?sport=run&q=Morning#history');assert.equal(options.replace,true,'old history address keeps filters without a Back loop');
+ console.log('Me: friends-view card with Edit/Share, private dashboard below the line, canonical complete history, no duplicated selectors/shortcut grid PASS');
 }
 // Retired diagnostics keep old links useful without retaining a page or Settings entrance (#486).
 {

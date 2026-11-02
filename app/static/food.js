@@ -1296,7 +1296,7 @@ async function nutritionView(el, view, q) {
     (k) => (k === 'since' ? (since && r !== 'since' ? save('since') : startSheet(since)) : save(k)));
   // Keep Insights chart-first; old weekly links still lead with their open table.
   const weeklyFold=view==='overview'?`<details class="insights-review" id="nt-weeks-fold"${q.get('weeks')==='1'?' open':''}><summary>Week by week</summary><div id="nt-weeks"></div></details>`:'';
-  root.innerHTML = `${view==='overview'&&(location.pathname==='/progress'||q.get('from')==='progress')?'<details class="insights-review"><summary>Your weekly check-in</summary><div id="nt-checkin"></div></details>':''}${view==='overview'?`<details class="insights-review"><summary>Your week in food</summary><div id="nt-weekly-food"></div></details>`:''}${q.get('weeks')==='1'?weeklyFold:''}<div id="nt-body">${skel(3)}</div>${q.get('weeks')==='1'?'':weeklyFold}${view === 'overview' ? '<div id="nt-coach"></div>' : ''}`;
+  root.innerHTML = `${view==='overview'?'<div id="nt-coach"></div>':''}${view==='overview'&&(location.pathname==='/progress'||q.get('from')==='progress')?'<details class="insights-review"><summary>Your weekly check-in</summary><div id="nt-checkin"></div></details>':''}${view==='overview'?`<details class="insights-review"><summary>Your week in food</summary><div id="nt-weekly-food"></div></details>`:''}${q.get('weeks')==='1'?weeklyFold:''}<div id="nt-body">${skel(3)}</div>${q.get('weeks')==='1'?'':weeklyFold}`;
   if(view==='overview'&&(location.pathname==='/progress'||q.get('from')==='progress'))weeklyCheckinCard($('#nt-checkin',root));   // the numbers first, then the coach
   if (view === 'overview') {weeklyFoodReviewCard($('#nt-weekly-food',root));dietCoach($('#nt-coach', root));}
   if(view==='overview'){const fold=$('#nt-weeks-fold',root);let loaded=false;const open=()=>{if(fold.open&&!loaded){loaded=true;weeksCard($('#nt-weeks',fold));}};fold.addEventListener('toggle',open);open();}
@@ -1444,6 +1444,7 @@ function mealCoach(m) {
 function dietCoach(box) {
   if (!box?.isConnected) return;
   box.replaceChildren();
+  const page=box.closest('#page'),range=page?.querySelector('.insights-range');if(range)range.append(box);
   if(typeof KitChat!=='undefined')KitChat.entry(box.closest('#page'),location.pathname);
 }
 

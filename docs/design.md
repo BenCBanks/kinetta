@@ -1885,3 +1885,12 @@ Record history has one list with All/PRs controls. Segment controls stay inside 
 widths, with concise Mine and Publish labels. Course/timing rules fold once; personal exclusion,
 matching state, participation and publication privacy confirmations stay accessible. Empty searches
 and missing charts offer actions that are actually available.
+
+
+## Compact Me, Settings and Kit · 2 November 2026 (#417–#419, #427)
+
+Me and the owner profile share one card; its background opens the profile while chart, Edit, Share and Friends controls keep their own actions. The owner profile starts at You with all personal activities, including locked private rows. Friends/Everyone use the existing filtered previews. Sport/search stay with that list, and old history addresses retain their filters. A pending refresh preserves an open editor draft.
+
+Settings keeps account values on one line and places Log out beside account deletion at the end. Empty Gear, Goals and Challenges lead with one first action; presets only prepare the existing confirmation form. Sharing uses plain audience choices and switch rows. Imports lead with file/paste actions and fold format help. Routes and Years use concise one-row headers.
+
+Kit uses one small, unfilled 44px header icon (Claude review, 2 November); Insights keeps it beside its existing range control. Unavailable chat has no entrance or generation/retry action; saved reviews and individual notes remain readable. Empty-chat suggestions sit under the header, with provider disclosure and the keyboard-aware composer retained. Segment browsing/drawing share this account’s remembered or recent GPS area, then already-permitted location; otherwise they offer search/Locate without requesting permission or inventing an area. Late responses preserve user input and account isolation.

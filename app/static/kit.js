@@ -201,11 +201,13 @@ const KitChat = (() => {
   function eraseDevice(){const o=owner();entryDraft=null;if(current){clearTimeout(current.timer);current.view?.dispose();current=null;}if(o){for(const k of ['draft','pending'])localStorage.removeItem(key(o,k));for(const k of Object.keys(localStorage))if(k.startsWith('fit.kit.proposal:'+o+':'))localStorage.removeItem(k);}}
   function entry(el,path){
     const screen=/^\/track\/lift\/\d+$/.test(path)?'strength':{'/me':'me','/food':'nutrition','/food/insights':'nutrition','/activity':'activity','/progress':'progress','/track':'track','/plan':'plan'}[path];
-    if(!el||!screen)return;
+    if(!el||!screen||path==='/progress'&&new URLSearchParams(globalThis.location?.search).has('view'))return;
     if(!kitChatOn()){el.querySelector('[data-kit-entry]')?.remove();return;}
-    const heading=el.querySelector('.top,.me-top');if(!heading)return;
+    const insights=path==='/food'&&new URLSearchParams(globalThis.location?.search).get('view')==='overview';
+    const heading=insights?el.querySelector('#nt-coach'):el.querySelector('.top,.me-top');if(!heading)return;
     if(el.querySelector('.kit-help'))return;
     const link=document.createElement('a');link.className='icon-btn kit-help';link.href=href(screen);link.setAttribute('aria-label','Ask Kit');link.setAttribute('data-kit-entry','');link.innerHTML=svg('sparkle');
+    if(insights)heading.classList.add('insights-kit-entry');
     (heading.querySelector('.acts,.me-profile-tools')||heading).append(link);
   }
   return {mount,href,open,entry,eraseDevice,starters,actions,memorySettings,savedReviews};

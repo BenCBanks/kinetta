@@ -1,0 +1,63 @@
+// Bounded owner-profile, privacy, Kit and first-step regressions. Fictional demo data; writes/providers blocked.
+'use strict';
+const assert=require('node:assert/strict');
+async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error('Timed out: '+label);}
+module.exports=async function({browser,storageState,base}){
+ const auth=await browser.newContext({storageState}),rows=await(await auth.request.get(base+'/api/activities?limit=25')).json();await auth.close();assert(rows.length>=25);
+ const privateRow={...rows[0],id:999991,visibility:'me',name:'Fictional private workout',description:'PRIVATE-ONLY-DESCRIPTION',ai_note:'PRIVATE-ONLY-NOTE'},ownerRows=[privateRow,...rows.slice(0,24)];
+ for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){
+  const c=await browser.newContext({storageState,viewport:size,colorScheme:theme,serviceWorkers:'block',reducedMotion:'reduce',timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[],cursors=[],nearby=[];
+  let mode='on',holdProfile=false,heldProfile,holdRows=false,heldRows,holdArea=false,heldArea;
+  p.on('pageerror',e=>errors.push(e.message));p.on('dialog',d=>d.accept());
+  await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
+  await c.route('**/*',async r=>{
+   const q=r.request(),u=new URL(q.url()),method=q.method();if(u.origin!==base)return r.abort();
+   if(u.pathname==='/api/me'){const response=await r.fetch(),j=await response.json();Object.assign(j,{ai_ok:mode!=='off',coach:true,kit_chat:mode!=='unreviewed',ai_paused:mode==='paused',email:'a.long.fictional.address.for.settings@example.invalid'});j.ai_access={...j.ai_access,coach:{available:true,entitled:mode!=='under18',reason:mode==='under18'?'age':null}};return r.fulfill({response,json:j});}
+   if(u.pathname==='/api/coach/conversation/visits'&&method==='POST')return r.fulfill({json:{generation:'11111111-1111-4111-8111-111111111111',visit_id:q.postDataJSON().visit_id,ready:true}});
+   if(u.pathname==='/api/coach/conversation')return r.fulfill({json:{generation:'11111111-1111-4111-8111-111111111111',messages:[],before:null,ready:true}});
+   if(/\/conversation\/visits\/[^/]+\/end$/.test(u.pathname))return r.fulfill({json:{ok:true}});
+   if(!['GET','HEAD'].includes(method)){writes.push(u.pathname);return r.fulfill({json:{}});}
+   if(u.pathname==='/api/people/alex/profile'&&holdProfile){holdProfile=false;const response=await r.fetch(),j=await response.json();j.person={...j.person,name:'Updated fictional server'};return new Promise(resolve=>heldProfile=async()=>{await r.fulfill({response,json:j});resolve();});}
+   if(u.pathname==='/api/activities'){
+    if(u.searchParams.get('limit')==='100'){if(holdArea){holdArea=false;return new Promise(resolve=>heldArea=async()=>{await r.fulfill({json:rows});resolve();});}return r.fulfill({json:rows});}
+    if(u.searchParams.has('before')){cursors.push(Object.fromEntries(u.searchParams));return r.fulfill({json:[]});}
+    const data=ownerRows.filter(a=>!u.searchParams.get('sport')||a.sport===u.searchParams.get('sport')).filter(a=>!u.searchParams.get('q')||a.name.toLowerCase().includes(u.searchParams.get('q').toLowerCase()));
+    if(holdRows){holdRows=false;return new Promise(resolve=>heldRows=async()=>{await r.fulfill({json:[{...data[0],name:'Refreshed private workout'},...data.slice(1)]});resolve();});}return r.fulfill({json:data});
+   }
+   if(u.pathname==='/api/goals'||u.pathname==='/api/gear'||u.pathname==='/api/challenges')return r.fulfill({json:[]});
+   if(u.pathname==='/api/plan/services')return r.fulfill({json:{paths:true}});
+   if(u.pathname==='/api/plan/elevation')return r.fulfill({json:null});
+   if(u.pathname.startsWith('/api/route-drafts/'))return r.fulfill({json:null});
+   if(u.pathname==='/api/segments'){nearby.push(Object.fromEntries(u.searchParams));return r.fulfill({json:[]});}
+   if(u.pathname==='/api/map-config')return r.fulfill({json:{kind:'raster',url:base+'/qa-map/{z}/{x}/{y}.png',max_zoom:19,attribution:'Fictional tiles',attribution_url:''}});
+   if(u.pathname.startsWith('/qa-map/'))return r.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><path fill="#b9d4dd" d="M0 0h256v256H0z"/></svg>'});
+   return r.continue();
+  });
+  const ready=()=>until(p,()=>App.pageReady,'page ready');
+  const go=async path=>{await p.evaluate(path=>{go(path)},path);await ready();};
+  const fit=async label=>{await p.evaluate(()=>document.fonts.ready);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),label+' page fits');};
+  await p.goto(base+'/people/alex');await ready();await p.locator('#person-activities .post-private').first().waitFor();assert.equal(await p.locator('[data-audience=you]').getAttribute('aria-pressed'),'true');
+  assert.equal(await p.locator('.me-card-row').count(),0);await fit('owner profile');
+  // A cached card must not replace a typed editor draft when its fresh response arrives.
+  await go('/me');holdProfile=true;await p.evaluate(()=>{go('/people/alex')});await p.locator('[data-card-edit]').click();await p.locator('#card-name').fill('My typed draft');await until(p,()=>!!document.querySelector('.me-card.editing'),'editing');assert(heldProfile);await heldProfile();await p.waitForTimeout(80);assert.equal(await p.locator('#card-name').inputValue(),'My typed draft');await p.locator('[data-card-cancel]').click();await until(p,()=>!document.querySelector('.me-card.editing')&&document.querySelector('.me-card')?.textContent.includes('Updated fictional server'),'deferred fresh card');
+  // Cached first-page rows cannot start pagination while revalidation is pending.
+  await go('/me');await p.evaluate(()=>{const hit=App.cache.get('/api/activities?limit=25');if(hit)hit.at=0;});holdRows=true;await p.evaluate(()=>{go('/people/alex')});await p.locator('#person-more').waitFor();assert(await p.locator('#person-more').isDisabled());await p.locator('#person-more').evaluate(n=>n.click());assert.equal(cursors.length,0);assert(heldRows);await heldRows();await ready();await p.locator('#person-activities').getByText('Refreshed private workout',{exact:true}).waitFor();await p.locator('#person-more').click();assert.equal(cursors.at(-1).before_id,String(ownerRows.at(-1).id));assert.equal(cursors.at(-1).before,ownerRows.at(-1).start_time);
+  for(const audience of ['friend','member']){await p.locator('[data-audience='+audience+']').click();await until(p,a=>document.querySelector('[data-audience="'+a+'"]')?.getAttribute('aria-pressed')==='true'&&!document.querySelector('#person-profile[aria-busy]'),'audience',audience);assert.equal(await p.locator('#person-sport').count(),0);assert(!((await p.locator('#person-profile').innerText()).includes('PRIVATE-ONLY')));assert.equal(await p.locator('[data-prefetch="/api/activities/999991"]').count(),0);await fit('audience '+audience);}
+  assert(await p.evaluate(()=>[...App.cache.entries()].filter(([k])=>k.startsWith('/api/people/')).every(([,v])=>!JSON.stringify(v.data).includes('PRIVATE-ONLY'))),'owner raw fields never enter profile caches');
+  await go('/me/activities?sport=run&q=Morning#history');assert(p.url().includes('/people/alex?sport=run&q=Morning#history'));assert.equal(await p.locator('#person-search-form input').inputValue(),'Morning');await p.locator('#person-sport').click();assert.equal(await p.locator('[data-owner-sport=ride]').count(),1);await p.keyboard.press('Escape');
+  await go('/me/sharing');assert.equal(await p.locator('#sh-d input[role=switch]').count(),8);await fit('Sharing');
+  for(const path of ['/progress/routes','/progress/trends','/food?view=overview']){await go(path);const h=await p.locator('.subpage-header h1').evaluate(n=>({height:n.getBoundingClientRect().height,line:parseFloat(getComputedStyle(n).lineHeight)}));assert(h.height<=h.line+1,path+' title stays on one row');await fit(path);}
+  await go('/food/import');assert(await p.locator('#fi-file').count()||await p.locator('input[type=file]').count());const importOrder=await p.evaluate(()=>{const d=document.querySelector('details'),buttons=[...document.querySelectorAll('button')].filter(n=>/Choose a file|Paste rows/.test(n.textContent));return buttons.length===2&&buttons.every(n=>n.getBoundingClientRect().top<d.getBoundingClientRect().top)});assert(importOrder,'both import actions precede Format help');
+  for(const [path,first,header]of [['/me/gear','#g-first','#g-add'],['/me/goals','#o-first','#o-add'],['/me/challenges','#challenge-first','#challenge-start']]){await go(path);assert(await p.locator(first).isVisible());assert(await p.locator(header).isHidden());await fit('first step '+path);}
+  await go('/me/goals');await p.locator('[data-goal-preset=run]').click();assert.equal(await p.locator('.sheet [name=sport]').inputValue(),'run');assert.equal(await p.locator('.sheet [name=target]').inputValue(),'10');assert.equal(await p.locator('.sheet [name=period]').inputValue(),'week');await p.keyboard.press('Escape');
+  await go('/me/challenges');await p.locator('[data-challenge-template=distance]').click();assert.equal(await p.locator('.sheet [name=kind]').count(),0);await p.locator('#challenge-create').waitFor();await p.keyboard.press('Escape');
+  // Every main screen has one eligible entrance; utilities never do. Paused access remains otherwise configured.
+  for(const state of ['on','off','paused','unreviewed','under18']){mode=state;await p.evaluate(async()=>refreshMe(await api('/api/me')));for(const path of ['/me','/activity','/track','/progress','/food']){await go(path);assert.equal(await p.locator('.kit-help').count(),state==='on'?1:0,state+' '+path);}}
+  mode='on';await p.evaluate(async()=>refreshMe(await api('/api/me')));for(const path of ['/me/settings','/me/sharing','/me/devices','/me/import','/track/connections','/me/explore']){await go(path);assert.equal(await p.locator('.kit-help').count(),0,path+' utility');}
+  await go('/me/kit?from=nutrition');await p.locator('[data-kit-start]').first().waitFor();const intro=await p.locator('[data-kit-start]').first().boundingBox();assert(intro.y<size.height/2,'suggestions are near the top');assert.match(await p.locator('#kit-intro').innerText(),/Look at my food today/);await p.locator('#kit-text').fill('Keep this draft');await p.locator('#kit-settings').click();await p.locator('a[href="/me/settings#ai"]').click();await ready();await until(p,()=>{const r=document.querySelector('#ai')?.getBoundingClientRect();return r&&r.top>=0&&r.top<innerHeight/2},'permissions destination scroll');assert.equal(await p.locator('.sheet').count(),0);await go('/me/kit?from=nutrition');assert.equal(await p.locator('#kit-text').inputValue(),'Keep this draft');
+  // Both segment views start in the same real fictional recent course, without asking permission.
+  await p.evaluate(()=>{const original=mapInto;window.testMaps=[];mapInto=async(...args)=>{const v=await original(...args);if(v)window.testMaps.push(v);return v;};localStorage.removeItem(MapArea.key());});await go('/progress/segments');await until(p,()=>testMaps.length>0&&testMaps.at(-1).map.getZoom()===15,'recent map');assert(nearby.at(-1).lat&&nearby.at(-1).lon);const centre=await p.evaluate(()=>{const c=testMaps.at(-1).map.getCenter();return[c.lat,c.lng]});await go('/segments/new');await until(p,()=>testMaps.at(-1).map.getZoom()===15,'new segment area');const newCentre=await p.evaluate(()=>{const c=testMaps.at(-1).map.getCenter();return[c.lat,c.lng]});assert(Math.abs(centre[0]-newCentre[0])<.001&&Math.abs(centre[1]-newCentre[1])<.001);
+  await go('/me');await p.evaluate(()=>localStorage.removeItem(MapArea.key()));holdArea=true;await p.evaluate(()=>{go('/segments/new')});await p.locator('#pl-map.leaflet-container').waitFor();await until(p,()=>testMaps.at(-1).map.getContainer().id==='pl-map','new map');await p.evaluate(()=>{const m=testMaps.at(-1).map;m.getContainer().dispatchEvent(new Event('pointerdown',{bubbles:true}));m.setView([41,-76],16);});assert(heldArea);await heldArea();await p.waitForTimeout(100);assert(Math.abs((await p.evaluate(()=>testMaps.at(-1).map.getCenter().lat))-41)<.001,'late area cannot override a pan');
+  assert(!writes.some(path=>/\/conversation\/messages|\/coach$|\/api\/goals|\/api\/challenges$/.test(path)),'no generation or confirmed writes');assert.deepEqual(errors,[]);await c.close();console.log('Me polish',size.width,size.root,theme,'PASS');
+ }
+};
