@@ -1,8 +1,11 @@
 # Private milestones
 
 A new achievement appears on the activity that earned it, at the bottom of the relevant Food day,
-and in **Me → Recent milestones** for seven days. The highest achievement leads; **+ more** opens
-other offers. Share opens a picture preview, and Dismiss removes the offer permanently.
+and in the **Me card** for seven days. One compact, owner-only row follows the shared summary and shows the latest
+offer; **See all** opens the remaining offers in a sheet. No row appears when there are none. These app-only offers
+are absent from shared profiles and card pictures. Tapping an offer opens its share preview; Dismiss removes it
+permanently. Old links to the retired Recent milestones page return to Me. Activity and Food-day banners still
+lead with the highest achievement.
 
 The fixed first release includes first sports, first run/walk 5K, 10K, half and marathon distances,
 standard-distance personal bests, calendar-year 100/250/500/1,000/2,000km or miles, 4/12/26/52 active

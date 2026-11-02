@@ -67,30 +67,39 @@
 /* Add friend / Approve on someone else's card: the one solid pill, so the next step stands out. */
 .me-card-pill.solid { background:#fff; color:var(--color-brand); }
 .me-card-pill:disabled { opacity:.6; }
-.me-card-body { padding:0 18px 18px; display:flex; flex-direction:column; gap:12px; }
-.me-card-id { display:flex; align-items:flex-end; gap:14px; min-width:0; }
+.me-card-body { padding:0 16px 16px; display:flex; flex-direction:column; gap:16px; container-type:inline-size; }
+.me-card-id { display:flex; align-items:flex-start; gap:14px; min-width:0; }
 /* The row overlaps the banner; only the photo link takes taps there, so Edit and Share stay reachable. */
 .me-card-id { pointer-events:none; } .me-card-avatar { pointer-events:auto; }
 .me-card-avatar { flex:none; margin-top:-34px; border-radius:50%; border:4px solid var(--card); background:var(--card); display:grid; }
 .me-card-avatar .av { width:4.25rem; height:4.25rem; font-size:1.625rem; }
 .me-card-name { min-width:0; padding-top:8px; display:flex; flex-direction:column; }
 .me-card-name h2 { font-size:1.25rem; line-height:1.15; overflow-wrap:anywhere; }
-.me-card-name span { color:var(--tx2); font-size:.875rem; overflow-wrap:anywhere; }
+.me-card-meta { display:flex; align-items:center; flex-wrap:wrap; gap:0 8px; }
+.me-card-meta > span { color:var(--tx2); font-size:.875rem; overflow-wrap:anywhere; }
+.me-card-meta .me-friends-link { min-height:44px; max-width:100%; gap:4px; font-size:.9375rem; pointer-events:auto; }
+.me-friends-count { display:inline-flex; align-items:center; flex:none; gap:4px; }
+.me-card-meta .me-friends-link span { white-space:nowrap; }
 .me-card .me-profile-bio { margin:0; color:var(--tx); }
-.me-card .me-friends-link { min-height:48px; font-weight:600; }
-.me-card-sections { display:flex; flex-direction:column; gap:14px; }
+.me-card .me-friends-link { font-weight:500; }
+.me-card-sections { display:flex; flex-direction:column; gap:16px; }
 .me-card-sec .profile-stats { margin:6px 0 0; }
 .me-card-label { display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; }
-.me-card-label span { font-size:.8125rem; font-weight:700; color:var(--tx2); text-transform:uppercase; letter-spacing:.04em; }
+.me-card-label span { font-size:.8125rem; font-weight:600; color:var(--tx2); }
 .me-card-label small { font-size:.8125rem; color:var(--tx3); }
 .me-chart-scroll { position:relative; margin:4px 0 0; min-width:0; }
+.me-summary-scroll { position:relative; min-width:0; }
 .me-card-bars { display:flex; align-items:flex-end; gap:0; height:60px; padding:4px 0; overflow-x:auto; scrollbar-width:none; scroll-snap-type:x proximity; scroll-padding-inline:0; }
 .me-card-bars::-webkit-scrollbar { display:none; }
-.me-chart-scroll::before,.me-chart-scroll::after { content:''; position:absolute; z-index:1; top:0; bottom:0; width:16px; pointer-events:none; opacity:0; }
-.me-chart-scroll::before { left:0; background:linear-gradient(to right,var(--card),transparent); }
-.me-chart-scroll::after { right:0; background:linear-gradient(to left,var(--card),transparent); }
-.me-chart-scroll.has-before::before,.me-chart-scroll.has-after::after { opacity:1; }
-.me-chart-scroll:focus-within::before,.me-chart-scroll:focus-within::after { opacity:0; }
+.me-chart-scroll::before,.me-chart-scroll::after,.me-summary-scroll::before,.me-summary-scroll::after { content:''; position:absolute; z-index:1; top:0; bottom:0; width:16px; pointer-events:none; opacity:0; }
+.me-chart-scroll::before,.me-summary-scroll::before { left:0; background:linear-gradient(to right,var(--card),transparent); }
+.me-chart-scroll::after,.me-summary-scroll::after { right:0; background:linear-gradient(to left,var(--card),transparent); }
+.me-chart-scroll.has-before::before,.me-chart-scroll.has-after::after,.me-summary-scroll.has-before::before,.me-summary-scroll.has-after::after { opacity:1; }
+.me-chart-scroll:focus-within::before,.me-chart-scroll:focus-within::after,.me-summary-scroll:focus-within::before,.me-summary-scroll:focus-within::after { opacity:0; }
+/* Indicate hidden weeks in the padding, without fading a partly visible bar. */
+.me-chart-scroll::before,.me-chart-scroll::after { top:50%; bottom:auto; width:5px; height:5px; background:none; border-top:1.5px solid var(--tx3); border-right:1.5px solid var(--tx3); }
+.me-chart-scroll::before { left:-10px; transform:translateY(-50%) rotate(-135deg); }
+.me-chart-scroll::after { right:-10px; transform:translateY(-50%) rotate(45deg); }
 /* Adjacent chart columns retain 44px targets; inset bars provide the visible separation. */
 .me-week { flex:1 0 44px; min-width:44px; height:100%; min-height:44px; display:flex; align-items:flex-end; padding:0; border:0; background:none; border-radius:6px; cursor:pointer; scroll-snap-align:end; -webkit-tap-highlight-color:transparent; }
 .me-week span { width:calc(100% - 16px); margin-inline:8px; min-height:2px; border-radius:4px 4px 2px 2px; background:var(--color-distance-muted); transition:background-color .12s; }
@@ -98,23 +107,57 @@
 .me-week[aria-pressed=true] span { background:var(--accent); box-shadow:0 0 0 2px var(--card), 0 0 0 4px var(--accent); }
 .me-week:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
 .me-card-label.picked small { color:var(--tx); font-weight:700; font-size:.8125rem; }
-/* All time reads as its own block: a soft tinted panel. */
-.me-card-total { padding:12px 12px 14px; border-radius:var(--r2); background:var(--card2); }
-.me-card-total .profile-stats { display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px 8px; }
-.me-card-total .stat b { font-size:clamp(1.25rem,5vw,var(--text-app-stat)); }
-.me-sport-chips { display:flex; flex-wrap:wrap; gap:8px; }
-.me-sport-chip { display:inline-flex; align-items:center; gap:7px; min-height:34px; padding:0 12px; border-radius:999px; background:var(--card2); font-size:.875rem; font-weight:600; }
-/* Sport icons instead of dots (Ben, 30 Oct 2026), tinted with each sport's colour. */
-.me-sport-ico { display:inline-flex; flex:none; color:var(--other); } .me-sport-ico svg { width:16px; height:16px; stroke-width:2; }
-.me-sport-ico[data-sport=run] { color:var(--run); } .me-sport-ico[data-sport=ride] { color:var(--ride); } .me-sport-ico[data-sport=walk] { color:var(--walk); }
-.me-sport-ico[data-sport=hike] { color:var(--hike); } .me-sport-ico[data-sport=swim] { color:var(--swim); } .me-sport-ico[data-sport=row] { color:var(--row); }
-.me-sport-ico[data-sport=ski] { color:var(--ski); } .me-sport-ico[data-sport=workout] { color:var(--workout); }
-.me-card-row { display:flex; align-items:center; gap:12px; min-height:56px; padding:8px 14px; border-radius:14px; background:var(--card2); color:var(--tx); }
+.me-stats-scroll { overflow-x:auto; scrollbar-width:thin; overscroll-behavior-x:contain; }
+.me-stats { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+.me-stats th,.me-stats td { padding:8px 4px; text-align:right; }
+.me-stats thead th { padding:0 2px 8px; font-size:.8125rem; font-weight:600; color:var(--tx2); white-space:nowrap; }
+.me-stats thead small { font-size:inherit; font-weight:500; }
+.me-stat-group { overflow-x:auto; scrollbar-width:thin; }
+.me-stat-pairs { display:none; width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+.me-stat-pairs th,.me-stat-pairs td { padding:4px; text-align:right; white-space:nowrap; }
+.me-stat-pairs thead th { padding-top:0; padding-bottom:8px; font-size:.8125rem; font-weight:600; color:var(--tx2); }
+.me-stat-pairs th:first-child { padding-left:0; text-align:left; }
+.me-stat-pairs tr > :last-child { padding-right:0; }
+.me-stat-pairs tbody th { font-size:.8125rem; font-weight:600; color:var(--tx2); }
+.me-stat-pairs small { font-size:inherit; font-weight:500; }
+@media(max-width:430px) { .me-stat-wide { display:none; } .me-stat-pairs { display:table; } }
+@container(max-width:20rem) { .me-stat-wide { display:none; } .me-stat-pairs { display:table; } }
+@container(max-width:14rem) {
+  .me-stat-pairs,.me-stat-pairs thead,.me-stat-pairs tbody { display:block; }
+  .me-stat-pairs tr { display:grid; grid-template-columns:repeat(2,minmax(min-content,1fr)); }
+  .me-stat-pairs.me-pairs-one tr { grid-template-columns:minmax(0,1fr); }
+  .me-stat-pairs .me-pair-corner { display:none; }
+  .me-stat-pairs thead th:nth-child(2),.me-stat-pairs td:first-of-type { padding-left:0; text-align:left; }
+  .me-stat-pairs.me-pairs-one thead th:nth-child(2) { text-align:right; }
+  .me-stat-pairs tbody th { grid-column:1/-1; padding:0 0 4px; }
+  .me-stat-pairs tbody + tbody th { padding-top:12px; }
+  .me-stat-pairs td { padding-block:0; }
+  .me-stat-pairs thead th { padding-bottom:12px; white-space:normal; }
+  .me-stat-pairs thead span { white-space:nowrap; }
+}
+.me-stats tbody th { max-width:5rem; text-align:left; font-size:.8125rem; font-weight:600; color:var(--tx2); }
+.me-stats tbody th span { white-space:nowrap; }
+.me-stats tr > :first-child { padding-left:0; }
+.me-stats tr > :last-child { padding-right:0; }
+.me-stats tbody tr + tr > * { border-top:1px solid var(--line); }
+.me-stats td { white-space:nowrap; }
+.me-metric-value { font-size:1.25rem; line-height:1.3; }
+.me-sport-chips { display:flex; flex-wrap:nowrap; gap:12px; overflow-x:auto; scrollbar-width:thin; }
+.me-sport-chip { display:inline-flex; align-items:center; flex:none; gap:4px; min-height:24px; font-size:.8125rem; font-weight:500; white-space:nowrap; }
+.me-sport-chips[tabindex="0"] { min-height:44px; }
+.me-stats-scroll:focus-visible,.me-sport-chips:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+/* Keep summary icons as quiet as their labels; colour belongs to active controls. */
+.me-sport-ico { display:inline-flex; flex:none; color:var(--tx2); } .me-sport-ico svg { width:16px; height:16px; stroke-width:2; }
+.me-card-row { display:flex; align-items:center; gap:12px; min-height:48px; padding:8px 0; border-top:1px solid var(--line); color:var(--tx); font-size:.9375rem; }
 .me-card-row .grow { display:flex; flex-direction:column; min-width:0; flex:1; }
 .me-card-row small { color:var(--tx2); font-size:.8125rem; }
 .me-card-row svg { width:16px; height:16px; color:var(--tx3); flex:none; }
 .me-card-empty { margin:0; }
-.me-card-note { margin:0; display:flex; gap:7px; align-items:flex-start; font-size:.8125rem; line-height:1.4; color:var(--tx2); }
+.me-card-empty { display:flex; flex-direction:column; gap:8px; }
+.me-card-empty p { margin:0; }
+.me-card-empty .ghost { min-height:44px; background:none; border-color:transparent; color:var(--accent); }
+.me-card-note { margin:0; display:flex; gap:7px; align-items:center; font-size:.8125rem; line-height:1.4; color:var(--tx2); }
+.me-card-note span { white-space:nowrap; }
 .me-card-note svg { width:14px; height:14px; flex:none; margin-top:2px; }
 .me-card-editor { display:flex; flex-direction:column; gap:6px; }
 .me-card-editor h3 { font-size:.875rem; color:var(--tx2); margin:12px 0 2px; }
@@ -143,7 +186,7 @@
 .setup-mark { width:24px; height:24px; border-radius:50%; display:grid; place-items:center; flex:none; background:var(--good); color:#fff; }
 .setup-mark svg { width:14px; height:14px; stroke-width:3; }
 .setup-mark.todo { background:none; border:2px solid var(--color-outline); width:22px; height:22px; }
-@media(max-width:360px) { .me-card-body { padding:0 14px 16px; } .me-card-avatar .av { width:3.5rem; height:3.5rem; } }
+@media(max-width:360px) { .me-card-avatar .av { width:3.5rem; height:3.5rem; } }
 /* The card's distance chart: a tiny Days / Weeks switch beside the heading; days carry weekday letters. */
 .me-card-head { display:flex; align-items:flex-end; gap:8px; }
 .me-card-head .me-card-label { flex:1; min-width:0; align-items:baseline; }
@@ -181,6 +224,7 @@
 .me-card.editing .me-profile-bio,
 .me-card.editing .me-about,
 .me-card.editing .me-friends-link,
+.me-card.editing [data-me-milestones],
 .me-card.editing .me-card-body > .profile-friend-count { display:none; }
 .me-card.editing .me-card-body { padding-top:0; }
 .me-card-editor { gap:8px; margin:0; }

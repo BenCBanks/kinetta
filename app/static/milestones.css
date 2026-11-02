@@ -15,4 +15,11 @@
 .milestone-body {flex:1;min-height:0;overflow-y:auto;padding-bottom:8px;}
 @media(max-width:360px){.milestone-actions {flex:1 1 100%;justify-content:center;}.milestone-share {flex:1;}}
 
-#me-milestones .row-link>svg,.milestone-list .row-link>svg {width:20px;height:20px;flex:none;}
+.milestone-list .row-link>svg {width:20px;height:20px;flex:none;}
+.me-milestone-row {display:flex;align-items:center;gap:8px;border-top:1px solid var(--line);padding-top:8px;}
+.me-milestone-latest,.me-milestone-all {min-height:44px;border:0;padding:0;background:none;color:var(--tx);font-size:.9375rem;}
+.me-milestone-latest {display:flex;align-items:center;gap:6px;flex:1;min-width:0;text-align:left;white-space:nowrap;overflow-x:auto;scrollbar-width:none;}
+.me-milestone-latest>svg {width:18px;height:18px;flex:none;color:var(--tx2);}
+.me-milestone-latest>span,.me-milestone-latest small {flex:none;}
+.me-milestone-latest small {font-size:.8125rem;color:var(--tx2);}
+.me-milestone-all {flex:none;min-width:44px;color:var(--accent);}
