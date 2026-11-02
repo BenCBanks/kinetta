@@ -1,0 +1,9 @@
+{
+  "name": "kinetta-browser-checks",
+  "private": true,
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "dependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "playwright": "1.63.0"
+  }
+}

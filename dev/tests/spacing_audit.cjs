@@ -3,6 +3,7 @@
 // KINETTA_SPACING_SCREENS is a comma-separated local subset. CI runs every scene; all saves/devices are blocked.
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const {until,settle,fixtureSessions,fixturePage}=require('./ui_fixture_browser.cjs');
 const {audit,validateExceptions,combineMeasurements}=require('./spacing_geometry.cjs'),{collectSpacing}=require('./spacing_dom.cjs'),{scenes,initialize,notificationState,modalState}=require('./spacing_screens.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798',project=process.env.KINETTA_PROJECT||'kinettatest';
 assert(['localhost','127.0.0.1'].includes(new URL(base).hostname),'Spacing evidence requires a disposable local server');
@@ -10,45 +11,17 @@ const fixtures=JSON.parse(fs.readFileSync(process.env.KINETTA_SPACING_FIXTURES||
 assert.equal(fixtures.base,base);assert.equal(fixtures.project,project);
 const rules=JSON.parse(fs.readFileSync(path.join(__dirname,'spacing_exceptions.json'),'utf8'));validateExceptions(rules);
 const report=path.resolve(process.env.KINETTA_SPACING_REPORT||'/tmp/'+project+'-spacing-report.json'),pictures=process.env.KINETTA_SPACING_SHOTS;
-const tile=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64');
-async function until(p,fn,label){for(let n=0;n<160;n++){if(await p.evaluate(fn))return;await p.waitForTimeout(100);}throw Error(label);}
-async function settle(p){
- let previous='',stable=0;
- for(let n=0;n<100&&stable<3;n++){
-  const now=await p.evaluate(()=>JSON.stringify([document.fonts.status,document.documentElement.scrollHeight,...[...document.querySelectorAll('button,input,select,textarea')].filter(n=>n.getBoundingClientRect().width).map(n=>{const r=n.getBoundingClientRect();return[r.x,r.y,r.width,r.height];})]));
-  stable=now===previous?stable+1:0;previous=now;if(stable<3)await p.waitForTimeout(100);
- }
- assert.equal(stable,3,'Measured control layout settles');
-}
 (async()=>{
- const browser=await chromium.launch(),results=[],errors=[],sessions=new Map();
+ const browser=await chromium.launch(),results=[],errors=[];let sessions;
  let selected=scenes(fixtures);if(process.env.KINETTA_SPACING_SCREENS){const names=process.env.KINETTA_SPACING_SCREENS.split(',');selected=selected.filter(s=>names.includes(s.name));assert.equal(selected.length,names.length,'Every selected scene exists');}
  try{
-  // Reuse login state across sizes/themes to avoid needless sessions and login-rate pressure.
-  for(const scene of selected){const key=scene.login+(scene.native?':native':'');if(sessions.has(key))continue;const c=await browser.newContext();try{
-   const response=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:scene.login,password:scene.login==='alex'?'blue kettle morning run':'green teapot on the hill',app:!!scene.native}});assert.equal(response.status(),200,'Fixture login');
-   const token=(await response.json()).token,headers=scene.native?{Authorization:'Bearer '+token}:{},me=await(await c.request.get(base+'/api/me',{headers})).json();
-   sessions.set(key,{token,id:me.id,storageState:await c.storageState()});
-  }finally{await c.close();}}
+  sessions=await fixtureSessions(browser,base,selected);
   for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark'])for(const scene of selected){
-   const auth=sessions.get(scene.login+(scene.native?':native':'')),c=await browser.newContext({storageState:auth.storageState,viewport:{width:size.width,height:size.height},colorScheme:theme,serviceWorkers:'block',reducedMotion:'reduce',isMobile:true,hasTouch:true,timezoneId:'UTC'}),writes=[],pageErrors=[];
+   let c;const writes=[],pageErrors=[];
    try{
-    const liftData=scene.lift?await(await c.request.get(base+'/api/activities/'+scene.lift+'/lifts')).json():null;
-    await c.addInitScript(initialize,{root:size.root,native:!!scene.native,base,token:auth.token,id:auth.id,lift:scene.lift,liftData});
-    await c.route('**/*',r=>{const request=r.request(),u=new URL(request.url());if(u.origin!==base)return r.abort();if(u.pathname==='/api/challenges/signup/continue')return r.fulfill({json:{}});if(!['GET','HEAD'].includes(request.method())){writes.push(u.pathname);return r.abort();}
-     if(u.pathname==='/api/map-config')return r.fulfill({json:{kind:'raster',url:base+'/__spacing_tiles/{z}/{x}/{y}.png',max_zoom:17,attribution:'Demo tiles'}});
-     if(u.pathname.startsWith('/__spacing_tiles/'))return r.fulfill({contentType:'image/png',body:tile});
-     if(scene.recap&&u.pathname==='/api/recaps')return r.fulfill({json:fixtures.recaps.matrix.typical[u.searchParams.get('period')]});
-     if(scene.notifications&&u.pathname==='/api/notifications/personal')return r.fulfill({json:{plan:true,weekly:true,plan_time:'08:00',tz:'UTC',push_ready:true,device_ready:true}});
-     if(scene.notifications&&u.pathname==='/api/food/reminders')return r.fulfill({json:{enabled:true,tz:'UTC',push_ready:true,device_ready:true,times:['breakfast','lunch','dinner'].map(meal=>({meal,ready:true,time:'12:15'}))}});
-     return r.continue();
-    });
-    const p=await c.newPage();p.on('pageerror',e=>pageErrors.push(e.message));if(scene.recap)await p.clock.setFixedTime(new Date(fixtures.recaps.now));
-    await p.goto(base+scene.route);await until(p,()=>typeof App!=='undefined'&&App.pageReady,'Page route settles');await p.locator(scene.entryReady||scene.ready).first().waitFor({state:'attached'});
-    if(scene.modal){await modalState(p,scene.modal);await p.locator(scene.ready).first().waitFor({state:'attached'});}
-    if(scene.notifications)await notificationState(p);
-    if(scene.recap){await p.locator('#recap-entry').click();await until(p,()=>document.querySelector('#recap-preview')?.naturalWidth>0&&!document.querySelector('.recap-preview.busy'),'Recap picture ready');}
-    await p.evaluate(()=>document.fonts.ready);
+    const opened=await fixturePage(browser,base,fixtures,sessions,scene,size,theme);c=opened.c;const {p,auth}=opened;
+    // Reuse the guarded context's live collectors throughout traversal.
+    const writes=opened.writes,pageErrors=opened.pageErrors;
     const measurements=[],seen=new Set(),allTexts=new Map(),exposure=new Map();
     const measure=async()=>{
      assert(await p.evaluate(id=>App.me?.id===id,auth.id),'The intended fictional account remains signed in');assert.equal(await p.locator('.login').count(),0,'The intended screen cannot be replaced by login');
@@ -86,7 +59,7 @@ async function settle(p){
     if(pageErrors.length||writes.length)errors.push({screen:scene.name,width:size.width,theme,pageErrors,writes});
     console.log(`${scene.name} ${size.width}/${size.root} ${theme}: ${violations.length} violations`);
     for(const v of violations.slice(0,8))console.log(`  ${v.metric}: ${v.element}${v.neighbour?' ↔ '+v.neighbour:''} measured ${JSON.stringify(v.actual)}, expected ${JSON.stringify(v.expected)}`);
-   }catch(e){errors.push({screen:scene.name,width:size.width,theme,error:e.message});console.error(scene.name,e.message);}finally{await c.close();}
+   }catch(e){errors.push({screen:scene.name,width:size.width,theme,error:e.message});console.error(scene.name,e.message);}finally{await c?.close();}
   }
  }finally{await browser.close();}
  fs.mkdirSync(path.dirname(report),{recursive:true});fs.writeFileSync(report,JSON.stringify({results,errors},null,2));

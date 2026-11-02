@@ -34,6 +34,8 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
                 ["x": Double(value.minX), "y": Double(value.minY), "width": Double(value.width), "height": Double(value.height)]
             }
             object["uikit"] = [
+                "contentSizeCategory": web.traitCollection.preferredContentSizeCategory.rawValue,
+                "preferredBodyPointSize": Double(UIFont.preferredFont(forTextStyle: .body, compatibleWith: web.traitCollection).pointSize),
                 "window": rect(window.bounds), "webView": rect(web.convert(web.bounds, to: window)),
                 "statusBar": rect(window.windowScene?.statusBarManager?.statusBarFrame ?? .zero),
                 "safeTop": Double(window.safeAreaInsets.top),
