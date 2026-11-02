@@ -1057,17 +1057,18 @@ function progressFilters(el, body, html, {selector='.card'}={}) {
   const mount = () => {
     const first = $(selector, body);
     if (first && controls.parentNode !== first) first.prepend(controls);
+    const tableButton=$('[data-progress-table]',controls);if(tableButton){tableButton.disabled=!$('#m-table',body);tableButton.setAttribute('aria-pressed',String(!tableButton.disabled&&body._showTable===true));}
   };
   const observer = new MutationObserver(mount); observer.observe(body, {childList:true,subtree:true});
   viewResources.set(body, () => observer.disconnect()); mount();
 }
 function progressPeriods(period) {
-  return '<div class="me-period mileage-toggle" role="group" aria-label="Totals period">'+PPERIODS.map(([k,n])=>`<button type="button" data-progress-period="${k}" aria-pressed="${period===k}">${n}</button>`).join('')+'<button type="button" data-progress-table aria-pressed="false" aria-controls="m-table">Table</button></div>';
+  return '<div class="me-period mileage-toggle" role="group" aria-label="Totals period">'+PPERIODS.map(([k,n])=>`<button type="button" data-progress-period="${k}" aria-pressed="${period===k}">${n}</button>`).join('')+'<button type="button" data-progress-table disabled aria-pressed="false" aria-controls="m-table">Table</button></div>';
 }
 function wireProgressPeriods(el) {
   el.addEventListener('click', e => {
     const tableButton=e.target.closest('[data-progress-table]');
-    if(tableButton){const chart=$('#m-chart',el),table=$('#m-table',el);if(!chart||!table)return;const show=table.hidden;table.hidden=!show;chart.hidden=show;tableButton.setAttribute('aria-pressed',String(show));return;}
+    if(tableButton){const chart=$('#m-chart',el),table=$('#m-table',el);if(!chart||!table)return;const show=table.hidden;$('#p-home-totals',el)._showTable=show;table.hidden=!show;chart.hidden=show;tableButton.setAttribute('aria-pressed',String(show));return;}
     const b = e.target.closest('[data-progress-period]'); if (!b) return;
     const q = new URLSearchParams(location.search); q.set('period',b.dataset.progressPeriod);
     go('/progress?'+q, {replace:true});
@@ -1385,8 +1386,8 @@ async function pMileage(body, q, {home=false}={}) {
         ${home&&avg==null?'':stat({week: 'Weekly avg', month: 'Monthly avg', year: 'Yearly avg'}[period], avg == null ? '–' : avg.toFixed(1), U.du()).replace('class="stat"','class="stat progress-average"')}
         ${stat('Best ' + word + (scoped ? ' (range)' : ''), toU(val(best)).toFixed(period === 'year' ? 0 : 1), U.du())}</div>
         ${home?'':`<p class="small muted">${last ? `Last ${word}: ${esc(fmt(toU(val(last))))} · ` : ''}best ${esc(label(best).replace('Week of ', 'week of '))}</p>`}
-        <div id="m-chart"></div>
-        <div id="m-table" class="tbl-wrap" hidden><table class="tbl"><thead><tr><th>${period === 'week' ? 'Week of' : period === 'month' ? 'Month' : 'Year'}</th><th class="r">${U.du()}</th><th class="r">Time</th><th class="r">#</th><th class="r">Climb</th></tr></thead><tbody>
+        <div id="m-chart"${body._showTable?' hidden':''}></div>
+        <div id="m-table" class="tbl-wrap"${body._showTable?'':' hidden'}><table class="tbl"><thead><tr><th>${period === 'week' ? 'Week of' : period === 'month' ? 'Month' : 'Year'}</th><th class="r">${U.du()}</th><th class="r">Time</th><th class="r">#</th><th class="r">Climb</th></tr></thead><tbody>
         ${[...show].reverse().map((d) => `<tr><td>${esc(period === 'week' ? d.toLocaleDateString([], {month: 'short', day: 'numeric', year: '2-digit'}) : period === 'month' ? d.toLocaleDateString([], {month: 'short', year: 'numeric'}) : d.getFullYear())}</td>
           <td class="r num">${toU(val(d)).toFixed(1)}</td><td class="r num">${val(d, 't') ? dur(val(d, 't'), true) : '–'}</td><td class="r num">${val(d, 'n')}</td><td class="r num">${val(d, 'a') ? U.elev(val(d, 'a')) : '–'}</td></tr>`).join('')}</tbody></table></div></div>`;
     requestAnimationFrame(() => periodBars($('#m-chart', box), cols, {keys, fmt, yfmt: (v) => String(Math.round(v)), avg, avgLabel: period === 'year' ? 'Yearly average' + (scoped ? ` (${rangeName})` : '') : `Average ${period} (${scoped ? rangeName : 'last 12 months'})`, height: home?165:190, distance: sport === 'all'}));

@@ -1475,7 +1475,7 @@ html.keyboard-open nav.tabs { display: none; }
 .progress-new.seen { visibility:hidden; }
 .progress-new::before { content:''; width:5px; height:5px; border-radius:50%; background:var(--accent); }
 
-.progress-home-totals #m-table { margin-top:8px; }
+.progress-home-totals #m-table { margin-top:8px; max-width:100%; overflow-x:auto; }
 .progress-home-totals [data-progress-table] { margin-left:8px; }
 .progress-food-summary { display:block; color:var(--tx); }
 .progress-food-options .view-nav { margin:0; }
