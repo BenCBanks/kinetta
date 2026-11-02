@@ -9,7 +9,7 @@ const r0 = (v) => (v == null ? '–' : Math.round(v).toLocaleString());
 const r1 = (v) => (v == null ? '–' : (Math.round(v * 10) / 10).toString());
 // a food's numbers in full, shown when you tap it (rows show calories only; 2026-10-12: "1P 50C 1F" meant nothing)
 const nutGrid = (v) => `<div class="nut"><span><b class="num">${r0(v.kcal)}</b><small>Calories</small></span>${MACROS.map(([k, n]) =>
-  `<span><b class="num">${nutrientKnown(v,k)?r1(v[k])+' g':'Unknown'}</b><small>${n}</small></span>`).join('')}</div>`;
+  `<span><b class="num${nutrientKnown(v,k)?'':' nutrient-unknown'}">${nutrientKnown(v,k)?r1(v[k])+' g':'Unknown'}</b><small>${n}</small></span>`).join('')}</div>`;
 const EXTRA_NUTRIENTS = [['sodium_mg','Sodium','mg','sodium_target_mg'],['sugar_g','Total sugar','g','sugar_target_g'],['saturated_fat_g','Saturated fat','g','saturated_fat_target_g']];
 const FOOD_NUTRIENTS = ['kcal','protein_g','carbs_g','fat_g','fiber_g',...EXTRA_NUTRIENTS.map(([k])=>k)];
 const nutrientKnown = (v,k) => v[k]!=null && !(v.ref?.unknown_nutrients||[]).includes(k);

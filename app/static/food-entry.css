@@ -36,3 +36,6 @@
 #am .macpreview > div { min-width:0; }
 #am .macpreview:has(.nutrient-unknown) { grid-template-columns:repeat(2,minmax(0,1fr)); }
 #am .macpreview .nutrient-unknown { font:600 1rem/1.3 var(--font);overflow-wrap:anywhere; }
+
+#sv .nut:has(.nutrient-unknown) { grid-template-columns:repeat(2,minmax(0,1fr)); }
+#sv .nut .nutrient-unknown { font:600 1rem/1.3 var(--font);overflow-wrap:anywhere; }
