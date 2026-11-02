@@ -35,7 +35,8 @@ Regular page Back controls use the previous app entry when its account and local
 | `/me/import`, `/track/import` | Existing import route goes to Track |
 | `/me/connections`, `/track/connections` | Existing connections route goes to Track |
 | `/me/health`, `/track/health` | Connections |
-| `/me/gear`, `/me/goals`, `/me/speed` | Me |
+| `/me/gear`, `/me/goals` | Me |
+| `/me/speed` | Legacy redirect to Settings; Settings returns to Me |
 | `/me/devices` | Settings |
 | `/me/sharing`, `/me/notifications` | Settings |
 | `/notifications` | Me through the existing Today alias |
