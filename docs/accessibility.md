@@ -2,7 +2,7 @@
 
 The accessibility job shares the spacing audit's fictional accounts, login state, screen inventory and guarded browser contexts. It runs on every PR, including Drafts. All product writes, Health/GPS/push controls and external requests are blocked. Sign-up uses a read-only fictional open-enrollment response; it never creates an account or changes server settings.
 
-Prepare a disposable server as described in `dev/tests/native-ui/README.md` and the spacing scripts, then:
+Start and seed a throwaway copy using the [development guide](development-and-updates.md), then run the shared fixture preparation. For an already running disposable copy:
 
 ```sh
 KINETTA_URL=http://localhost:8798 KINETTA_PROJECT=kinettatest python3 dev/tests/spacing_prepare.py
@@ -11,13 +11,13 @@ npm ci --prefix dev/tests/browser
 NODE_PATH="$PWD/dev/tests/browser/node_modules" KINETTA_URL=http://localhost:8798 KINETTA_PROJECT=kinettatest node dev/tests/accessibility_audit.cjs
 ```
 
-Pinned axe checks run at390px in light and dark on Me, Activity, activity detail, Track before Start, Progress, Nutrition, Add food, Settings and sign-up. Serious and critical violations fail the job. Other findings and incomplete checks remain in `accessibility-evidence/report.json` for manual review; a zero failure count is not proof of full WCAG compliance. The job artifact includes screenshots and every applied exception. Exceptions name a rule, narrow selector, bounded count and written reason in `dev/tests/accessibility_exceptions.json`; never suppress a whole page or rule. Decorative avatar initials are not action labels: their explicit profile action and adjacent full name remain accessible.
+Pinned axe checks run at 390 px in light and dark on Me, Activity, activity detail, Track before Start, Progress, Nutrition, Add food, Settings and sign-up. Serious and critical violations fail the job. Other findings and incomplete checks remain in `accessibility-evidence/report.json` for manual review; a zero failure count is not proof of full WCAG compliance. The job artifact includes screenshots and every applied exception. Exceptions name a rule, narrow selector, bounded count and written reason in `dev/tests/accessibility_exceptions.json`; never suppress a whole page or rule. Decorative avatar initials are not action labels: their explicit profile action and adjacent full name remain accessible.
 
 ## Large text: current limit
 
-The browser captures normal and doubled CSS root text (16/32px). These are labelled proxies, not system Dynamic Type evidence. The initial audit showed headings growing while the fixed15px body did not. Fixed pixel text elsewhere also needs a measured scaling pass; this first audit batch does not claim complete200% support.
+The browser captures normal and doubled CSS root text (16/32px). These are labelled proxies, not system Dynamic Type evidence. The initial audit showed headings growing while the fixed 15 px body did not. Fixed pixel text elsewhere also needs a measured scaling pass; this first audit batch does not claim complete 200% support.
 
-The read-only native display bridge now exposes the effective UIKit content-size category and preferred body point size. Debug evidence records these directly from the WebView's UIKit traits, independently of JavaScript. Recording the OS preference alone does not make web text scale. A largest-category Simulator run must omit the fixture's forced CSS root, verify the actual category/point size, and compare actual computed text and reachable controls. Existing root24px native captures cannot substitute for it. Full Dynamic Type support and largest-category acceptance remain work under #473.
+The read-only native display bridge now exposes the effective UIKit content-size category and preferred body point size. Debug evidence records these directly from the WebView's UIKit traits, independently of JavaScript. Recording the OS preference alone does not make web text scale. A largest-category Simulator run must omit the fixture's forced CSS root, verify the actual category/point size, and compare actual computed text and reachable controls. Existing root 24 px native captures cannot substitute for it. Full Dynamic Type support and largest-category acceptance remain work under #473.
 
 ## Real iPhone acceptance
 
