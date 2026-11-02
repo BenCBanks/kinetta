@@ -1476,7 +1476,10 @@ html.keyboard-open nav.tabs { display: none; }
 .progress-new::before { content:''; width:5px; height:5px; border-radius:50%; background:var(--accent); }
 
 .progress-home-totals #m-table { margin-top:8px; max-width:100%; overflow-x:auto; }
-.progress-home-totals [data-progress-table] { margin-left:8px; }
+.progress-home-totals .totals-display { display:grid; grid-template-columns:minmax(0,1fr) minmax(44px,max-content); gap:0 8px; align-items:end; }
+.progress-home-totals .totals-table-toggle { grid-column:2; min-width:44px; min-height:44px; padding:0; border:0; background:none; color:var(--accent); font-size:max(15px,.9375rem); }
+.progress-home-totals .totals-table-toggle[aria-pressed="true"] { text-decoration:underline; text-underline-offset:4px; }
+.progress-home-totals #m-table { grid-column:1/-1; }
 .progress-food-summary { display:block; color:var(--tx); }
 .progress-food-options .view-nav { margin:0; }
 .progress-food-options .pbar { margin:0; padding:8px 0 0; }
