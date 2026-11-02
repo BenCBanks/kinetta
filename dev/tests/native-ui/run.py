@@ -1,6 +1,8 @@
 """Run native layout evidence on isolated Simulator devices. Fixtures and artifacts contain no real data."""
-import argparse,hashlib,json,os,platform,re,struct,subprocess,time,uuid
+import argparse,hashlib,json,os,platform,re,subprocess,time,uuid
 from pathlib import Path
+from urllib.parse import urlsplit
+import urllib.request
 from lifecycle import stop_for_fixture
 from header_geometry import check_headers
 p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--store',action='store_true');p.add_argument('--device',choices=['compact','pro','all'],default='all');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
@@ -38,6 +40,21 @@ if a.store:
  assert preferred[0], 'Exact1320x2868 iPhone16ProMax Simulator type required; no fallback/upscaling'
 assert a.store or len(preferred)==2,'Two phone device types are required'
 if not a.store and a.device!='all':preferred=[preferred[0 if a.device=='compact' else 1]]
+if a.store:
+ expected=a.output/'expected-static'
+ run('python3','app/asset_build.py','app/static',str(expected))
+ for item in expected.rglob('*'):
+  if item.is_file() and item.name!='sw.js':
+   bundled=a.app/'public/static'/item.relative_to(expected)
+   assert bundled.is_file() and hashlib.sha256(item.read_bytes()).digest()==hashlib.sha256(bundled.read_bytes()).digest(),'Supplied bundle differs from current app assets: '+str(item.relative_to(expected))
+ import shutil
+ shutil.rmtree(expected)
+ # Read only the published map contract; no account, cookie or runtime setting access.
+ with urllib.request.urlopen('https://login.kinetta.app/api/map-config',timeout=20) as response:map_config=json.load(response)
+ url=urlsplit(map_config['url'])
+ assert map_config['kind']=='pmtiles' and url.scheme=='https' and url.hostname and not (url.username or url.password or url.query or url.fragment),'Public credential-free vector map required'
+ assert not url.hostname.endswith('tile.openstreetmap.org'),'Never use public OSM tile servers'
+ (a.output/'public-map.json').write_text(json.dumps(map_config,indent=2))
 results=[]
 for device in preferred:
  udid=None
@@ -64,7 +81,7 @@ for device in preferred:
     if installed:recovered=stop_for_fixture(sim,udid,theme,recovered)
     diagnostics['terminationRecovery']=recovered;(a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
     destination=installed or copy
-    run('python3',str(Path(__file__).with_name('prepare.py')),str(a.app),str(destination),'--stage',stage,'--root',str(root),'--run',token,*(['--update'] if installed else []),*(['--store'] if a.store else []))
+    run('python3',str(Path(__file__).with_name('prepare.py')),str(a.app),str(destination),'--stage',stage,'--root',str(root),'--run',token,*(['--update'] if installed else []),*(['--store','--map-config',str(a.output/'public-map.json')] if a.store else []))
     if not installed:
      sim('install',udid,str(copy));installed=Path(sim('get_app_container',udid,'com.kinetta.app','app'))
     container=Path(sim('get_app_container',udid,'com.kinetta.app','data'));sim('launch',udid,'com.kinetta.app')
@@ -80,7 +97,8 @@ for device in preferred:
      sim('io',udid,'screenshot','--type=png',str(a.output/(filename+'-missing-metrics.png')),check=False,timeout=20)
      (a.output/(filename+'-missing-metrics.json')).write_text(json.dumps({**diagnostics,'error':'No metrics for current fixture run'},indent=2))
     assert metrics, f'No native metrics: {device["name"]} {theme} {stage}'
-    sim('io',udid,'screenshot','--type=png',str(a.output/(filename+'.png')))
+    capture=a.output/(filename+('.jpg' if a.store else '.png'))
+    sim('io',udid,'screenshot','--type='+('jpeg' if a.store else 'png'),str(capture))
     metrics.update(device=device['name'],runtime=runtime['name'],terminationRecovery=recovered);(a.output/(filename+'.json')).write_text(json.dumps(metrics,indent=2))
     assert 'error' not in metrics,metrics
     assert metrics['native'] and metrics['theme']==theme and metrics['safeTop']>=20,metrics
@@ -89,12 +107,12 @@ for device in preferred:
     assert nav['ready'],'Actual UIKit display-preference bridge must respond: '+json.dumps(metrics.get('display',{}),sort_keys=True)
     assert nav['visible']==(stage in ('activity','activity-sticky','activity-empty') or stage.startswith(('friends-','header-'))),metrics
     if a.store:
-     raw=(a.output/(filename+'.png')).read_bytes()
-     assert raw[:8]==b'\x89PNG\r\n\x1a\n' and struct.unpack('>II',raw[16:24])==(1320,2868),'Store capture must be native1320x2868'
-     assert raw[25] in (0,2), 'Store PNG cannot contain an alpha channel'
-     assert metrics.get('store') and metrics.get('bodyText') and not re.search(r'could not load|couldn.t load|NaN|undefined',metrics['bodyText'],re.I),metrics
+     raw=capture.read_bytes();dimensions=run('sips','-g','pixelWidth','-g','pixelHeight',str(capture))
+     assert raw[:3]==b'\xff\xd8\xff' and re.search(r'pixelWidth: 1320\b',dimensions) and re.search(r'pixelHeight: 2868\b',dimensions),'Store JPEG must be native1320x2868, no alpha or resizing'
+     assert not metrics.get('blocked') and metrics.get('sceneReady'),metrics
+     assert metrics.get('store') and metrics.get('bodyText') and not re.search(r'could not load|couldn.t load|Map unavailable|NaN|undefined',metrics['bodyText'],re.I),metrics
      assert metrics['viewport']=={'width':440,'height':956,'offset':0},metrics
-     metrics['sha256']=hashlib.sha256(raw).hexdigest();metrics['source']=run('git','rev-parse','HEAD')
+     metrics['sha256']=hashlib.sha256(raw).hexdigest();metrics['captureToolRevision']=run('git','rev-parse','HEAD');metrics['bundleAssetsVerifiedAgainst']=metrics['captureToolRevision']
      (a.output/(filename+'.json')).write_text(json.dumps(metrics,indent=2))
      results.append(metrics);(a.output/'results.json').write_text(json.dumps(results,indent=2));continue
     if nav['visible']:

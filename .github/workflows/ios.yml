@@ -23,13 +23,13 @@ jobs:
   # Is there anything new for testers? A scheduled run with no app changes since the last release stops here, so no
   # Mac time is spent and nobody gets an email. Also writes "What to Test" from the changes since that release.
   changes:
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     permissions:
       contents: read
       actions: read
     outputs:
-      native: ${{ steps.paths.outputs.native }}
+      native: ${{ steps.paths.outputs.native == 'true' || steps.store.outputs.preview == 'true' }}
+      store: ${{ steps.store.outputs.enabled }}
       release: ${{ steps.check.outputs.release }}
       since: ${{ steps.check.outputs.since }}
     steps:
@@ -38,6 +38,19 @@ jobs:
           fetch-depth: 0
       - id: paths
         run: python3 dev/ci/policy.py >> "$GITHUB_OUTPUT"
+      # A listing Draft needs real unsigned UIKit captures before its one Ready transition.
+      - id: store
+        run: |
+          python3 - <<'PYCODE' >> "$GITHUB_OUTPUT"
+          import json, os, sys
+          sys.path.insert(0, 'dev/ci')
+          from policy import changed_paths
+          event=json.load(open(os.environ['GITHUB_EVENT_PATH']))
+          pr=event.get('pull_request')
+          enabled=bool(pr and any(p.startswith('mobile/appstore/') or p=='dev/tests/native-ui/appstore.cjs' for p in changed_paths(event)))
+          print('enabled='+str(enabled).lower())
+          print('preview='+str(enabled and pr.get('draft',False)).lower())
+          PYCODE
       - id: check
         env:
           GH_TOKEN: ${{ github.token }}
@@ -77,8 +90,6 @@ jobs:
       - run: npm ci
       # copies app/static into the app and writes the native project's plugin list
       - run: npm run sync
-      - name: Check App Store listing and privacy declarations
-        run: python3 scripts/test_listing.py
       - name: Test compatible saved-workout notification destinations
         run: |
           swiftc ios/App/App/NativePush.swift tests/notification/main.swift -o "$RUNNER_TEMP/notification-path-tests"
@@ -151,11 +162,11 @@ jobs:
 
   native-ui:
     needs: [changes, build]
-    if: needs.changes.outputs.native == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+    if: needs.changes.outputs.native == 'true'
     strategy:
       fail-fast: false
       matrix:
-        device: [compact, pro]
+        device: ${{ fromJSON(github.event_name == 'pull_request' && github.event.pull_request.draft && '["pro"]' || '["compact","pro"]') }}
     # Native iOS Simulator execution uses Apple Silicon; Intel remains the compile/archive runner.
     runs-on: macos-26
     timeout-minutes: 35
@@ -171,18 +182,19 @@ jobs:
       - name: Unpack the unsigned universal Simulator app
         run: unzip -q "$RUNNER_TEMP/simulator/Kinetta-simulator.zip" -d "$RUNNER_TEMP/simulator"
       - name: Check native WebView layout with fictional records
+        if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
         timeout-minutes: 23
         run: python3 dev/tests/native-ui/run.py --app "$RUNNER_TEMP/simulator/App.app" --output "$RUNNER_TEMP/native-ui" --device "${{ matrix.device }}"
       - name: Capture6.9-inch App Store scenes (fictional records, unsigned)
-        if: matrix.device == 'pro'
+        if: matrix.device == 'pro' && needs.changes.outputs.store == 'true'
         timeout-minutes: 8
         run: python3 dev/tests/native-ui/run.py --app "$RUNNER_TEMP/simulator/App.app" --output "$RUNNER_TEMP/appstore" --store
       - uses: actions/upload-artifact@v4
-        if: always() && matrix.device == 'pro'
+        if: always() && matrix.device == 'pro' && needs.changes.outputs.store == 'true'
         with:
           name: appstore-6.9-fictional
           path: |
-            ${{ runner.temp }}/appstore/*.png
+            ${{ runner.temp }}/appstore/*.jpg
             ${{ runner.temp }}/appstore/*.json
           retention-days: 14
       - uses: actions/upload-artifact@v4

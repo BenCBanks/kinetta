@@ -19,7 +19,7 @@ Run `python3 mobile/scripts/test_listing.py`. Review `privacy-audit.md`, `age-ra
 
 ## Native screenshot artifacts
 
-The capture mode uses an unsigned Simulator bundle, actual UIKit safe areas and fictional API responses. It must produce7 light-mode PNGs at1320×2868 with no alpha, source/scene hashes and readiness metrics. Never resize browser/website captures into App Store screenshots or commit image artifacts. Review raw native captures before choosing an optional Sky Blue caption treatment. Actual captures and public PR examples remain pending until the native CI artifact has been inspected.
+The capture mode uses an unsigned Simulator bundle, actual UIKit safe areas and fictional API responses. It must produce7 light-mode JPEGs at1320×2868 with no alpha, source/scene hashes and readiness metrics. Never resize browser/website captures into App Store screenshots or commit image artifacts. Review raw native captures before choosing an optional Sky Blue caption treatment. Actual captures and public PR examples remain pending until the native CI artifact has been inspected.
 
 ## Existing push protection
 
