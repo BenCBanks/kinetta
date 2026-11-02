@@ -2167,8 +2167,8 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .activity-reactions .pf, .activity-comments, .post-hd .activity-share { background:none; border-color:transparent; box-shadow:none; }
 .inline-reactions .reaction-inline[aria-pressed="true"] { color:var(--accent); }
 .post-ft .inline-reactions .reaction-inline, .post-ft .inline-reactions .reaction-count, .post-ft > .activity-comments { display:grid; grid-template-rows:20px minmax(16px,auto); align-content:center; align-items:center; justify-items:center; min-width:44px; min-height:44px; padding:0; gap:0; }
-.post-ft .inline-reactions .reaction-inline > svg, .post-ft > .activity-comments > svg { width:20px; height:20px; }
-.post-ft .num, .reaction-total-label { font-size:max(12px,.6875rem); line-height:1.2; }
+.post-ft .inline-reactions .reaction-inline > svg, .post-ft .inline-reactions .reaction-count > svg, .post-ft > .activity-comments > svg { width:20px; height:20px; }
+.post-ft .num { font-size:max(12px,.6875rem); line-height:1.2; }
 .post-hd .activity-share { width:44px; min-width:44px; height:44px; padding:0; justify-content:center; margin-left:auto; }
 .post-hd .activity-share > svg { width:20px; height:20px; }
 .detail-social:has(.activity-reactions) { display:grid; grid-template-columns:repeat(4,minmax(44px,1fr)); gap:8px; }
