@@ -1,5 +1,6 @@
 """Development-only fake provider transport; ordinary APIs, validation and budgets remain real."""
 import io
+import errno
 import json
 import os
 import sys
@@ -25,6 +26,17 @@ def connect(sock, address):
 
 
 socket.socket.connect = connect
+
+
+def connect_ex(sock, address):
+    try:
+        connect(sock, address)
+        return 0
+    except OSError as error:
+        return error.errno or errno.EACCES
+
+
+socket.socket.connect_ex = connect_ex
 
 
 def transport(request, *args, **kwargs):
