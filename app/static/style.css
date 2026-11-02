@@ -4,7 +4,7 @@
 :root {
   --bg: var(--color-canvas); --card: var(--color-surface); --card2: var(--color-soft); --tx: var(--color-text); --tx2: var(--color-text-secondary); --tx3: var(--color-text-muted); --line: var(--color-divider);
   --accent: var(--color-brand); --accent2: var(--color-brand-soft); --ontx: #FFFFFF;               /* blue: links, selection, the active tab */
-  --route: var(--color-action);                                                                     /* GPS routes on maps and thumbnails: blue, whatever the sport (Ben, 2026-10-23) */
+  --route: var(--color-brand);                                                                     /* GPS routes on maps and thumbnails: blue, whatever the sport (Ben, 2026-10-23) */
   --ink: var(--color-text); --onink: var(--color-surface);                                      /* toasts */
   --btn: var(--color-action); --onbtn: var(--color-on-action);                                      /* main buttons and selected distance bars */
   --prog: var(--color-success); --prog2: var(--color-soft);                                     /* success and data progress */
@@ -112,8 +112,8 @@ details.fold-row[open] { padding-bottom: 12px; }
 .hand details.more > summary { font-size: 15px; gap: 6px; flex-wrap: wrap; } .hand details.more > summary .muted { font-weight: 500; font-size: 13px; }
 .hand details.more > .form { margin-top: 8px; }
 .form .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; } .form .actions .spacer { display: none; }
-.form .actions > button, .form .actions > a { flex: 1 1 0; min-height: 42px; }
-.btnrow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0 4px; } .btnrow > * { min-height: 42px; }
+.form .actions > button, .form .actions > a { flex: 1 1 0; min-height: 44px; }
+.btnrow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0 4px; } .btnrow > * { min-height: 44px; }
 .btnrow.one { grid-template-columns: 1fr; }
 .btnrow.tight { display: flex; gap: 8px; margin: 0; flex: none; } .btnrow.tight > * { min-height: 36px; }
 .btncol { display: grid; gap: 10px; } .btncol > * { width: 100%; min-height: 42px; }
@@ -206,8 +206,7 @@ nav.tabs :is(a,button) { position: relative; display: grid; justify-items: cente
   min-width: 44px; min-height: 44px; height: 100%; padding: 3px 0; border-radius: 30px;
   color: var(--tx2); font-size: 13px; font-weight: 650; line-height: 1.15; letter-spacing: 0; transition: color .12s, background-color .12s; }
 nav.tabs :is(a,button) svg { width: 23px; height: 23px; stroke-width: 1.9; }
-nav.tabs :is(a,button)[aria-current="page"] { color: var(--accent); background: var(--accent2); font-weight: 750;
-  box-shadow: inset 0 0 0 1px var(--accent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 82%, transparent); }
+nav.tabs :is(a,button)[aria-current="page"] { color: var(--accent); background: transparent; font-weight: 750;box-shadow:none; }
 nav.tabs :is(a,button)[aria-current="page"] svg { stroke-width: 2.3; }
 nav.tabs :is(a,button):active { transform: scale(.96); }
 /* Blur is confined to this small surface; unsupported browsers keep the solid base. */
@@ -220,16 +219,16 @@ nav.tabs :is(a,button):active { transform: scale(.96); }
 @media (max-height: 700px) { :root { --nav-height: 64px; --nav-padding: 5px; --nav-bottom: max(8px, calc(env(safe-area-inset-bottom) - 8px)); } }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   nav.tabs { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; border-color: var(--color-outline); }
-  nav.tabs [aria-current="page"] { box-shadow: inset 0 0 0 1px var(--accent); }
+  nav.tabs [aria-current="page"] { box-shadow:none; }
 }
 /* UIKit preferences are read locally; remain solid before the native bridge answers. */
 html.native:not(.native-display-ready) nav.tabs, html.native-reduce-transparency nav.tabs, html.native-increase-contrast nav.tabs {
   background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; }
 html.native-increase-contrast nav.tabs { border-color: var(--color-outline); }
-html.native-increase-contrast nav.tabs [aria-current="page"] { box-shadow: inset 0 0 0 1px var(--accent); }
+html.native-increase-contrast nav.tabs [aria-current="page"] { box-shadow:none; }
 @media (forced-colors: active) {
   nav.tabs { background: Canvas; border-color: CanvasText; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
-  nav.tabs [aria-current="page"] { background: Highlight; color: HighlightText; box-shadow: none; outline: 2px solid Highlight; outline-offset: -2px; }
+  nav.tabs :is(a,button)[aria-current="page"] { background:transparent;color:LinkText;box-shadow:none; }
 }
 @media (prefers-reduced-motion: reduce) { nav.tabs :is(a,button) { transition: none !important; transform: none; } nav.tabs svg { animation: none !important; } }
 .tab-n { position: absolute; top: 3px; left: auto; right: max(0px, calc(50% - 24px)); min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
@@ -374,7 +373,7 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .reminder-how summary {font-size:1rem;min-height:44px;display:flex;align-items:center;cursor:pointer}
 
 /* ---------- sheet (bottom dialog) ---------- */
-.scrim { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.36); display: flex; align-items: flex-end; justify-content: center; animation: fade .18s ease-out; }
+.scrim { position: fixed; inset: 0; z-index: 3000; background: rgba(0,0,0,.36); display: flex; align-items: flex-end; justify-content: center; animation: fade .18s ease-out; }
 @keyframes fade { from { opacity: 0; } }
 .sheet { width: 100%; max-width: 640px; max-height: 92dvh; overflow: auto; overflow-x: hidden; background: var(--bg); border-radius: 28px 28px 0 0;
   padding: 8px 18px calc(env(safe-area-inset-bottom) + 20px); overscroll-behavior: contain; animation: rise .26s cubic-bezier(.2, .8, .2, 1); }
@@ -392,6 +391,10 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .sheet input, .sheet select, .sheet textarea { background: var(--card); }
 .pick-list .row-link { width: 100%; border-left: 0; border-right: 0; border-bottom: 0; background: none; text-align: left; font-size: .95rem; }
 .pick-list .tick { color: var(--accent); } .pick-list .tick svg, .pick-list .row-link svg { width: 20px; height: 20px; }
+
+.sheet .form label:not(.check):not(.switch-row) {font-size:max(15px,.9375rem);}
+.sheet .actions {display:flex;gap:8px;align-items:center;flex-wrap:nowrap;}
+.sheet .actions > :is(button,a) {min-height:44px;min-width:0;flex:1 1 0;}
 
 /* ---------- sport marks + stats ---------- */
 .sp { --c: var(--other); width: 36px; height: 36px; flex: none; border-radius: 11px; display: grid; place-items: center; color: color-mix(in srgb, var(--c) 85%, var(--tx));
@@ -1850,7 +1853,7 @@ html.keyboard-open .goal-setup .goal-actions { position:static; }
 
 #quick-weight button { font-size:1rem; }
 #quick-weight input { font-size:max(16px,1rem); }
-#quick-weight label { font-size:.9rem; }
+#quick-weight label { font-size:max(15px,.9375rem); }
 
 /* Pending food and weight writes remain reviewable after errors. */
 .netbar { position: sticky; left: auto; transform: none; top: 0; width: calc(100% - 24px); max-width: 620px; margin: 8px auto; border-radius: 12px; display: flex; align-items: center; gap: 8px; font-size: .85rem; }
@@ -2611,6 +2614,13 @@ nav.tabs { view-transition-name: tabs; }
 .has-back > .top.over {left:auto;right:auto;margin:0;padding-inline:16px;pointer-events:auto}
 .has-back > .top.over .back, .has-back > .top.over .icon-btn {background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none}
 .me-settings {margin-top:20px}
+.shell .top.subpage-header {display:flex;flex-wrap:nowrap;gap:8px;border-bottom:0;margin-bottom:12px;}
+.shell .top.subpage-header h1 {flex:1;min-width:0;margin:0;font-size:var(--text-app-section);line-height:1.2;overflow-wrap:anywhere;}
+.subpage-header .back,.subpage-header .progress-back {flex:none;width:44px;min-width:44px;height:44px;padding:0;justify-content:center;background:transparent;box-shadow:none;}
+.subpage-header .back svg,.subpage-header .progress-back svg {width:20px;height:20px;}
+.subpage-header .acts {flex:none;flex-wrap:nowrap;}
+
+.has-back > .top.subpage-header {border-bottom:0;}
 /* Fitness charts keep full numeric readouts in a full-height, keyboard-accessible sheet. */
 .chart-expand {display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;width:100%;margin-top:8px}
 .chart-expand svg {width:18px;height:18px}

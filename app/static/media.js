@@ -15,7 +15,7 @@ function wireMediaMapFull(box, mapObject, lines, still, {tapArea = null, refitOn
   const spot = document.createComment('map'), path = location.pathname + location.search;
   const token = 'map-' + Date.now() + '-' + Math.random().toString(36).slice(2);
   const routeLines = () => {const value=typeof lines==='function'?lines():lines;return Array.isArray(value)?value:[value];};
-  let previousState, background = [], waitingBack = false, press = null, tap = false, overlayZoom = null;
+  let previousState, releaseModal=()=>{}, waitingBack = false, press = null, tap = false, overlayZoom = null;
   const controls = 'button, a, input, select, .leaflet-control';
   const refit = () => {
     const m = mapObject(), points = routeLines().flatMap(line => typeof line === 'string' ? decode(line) : line);
@@ -27,7 +27,7 @@ function wireMediaMapFull(box, mapObject, lines, still, {tapArea = null, refitOn
     removeEventListener('keydown', key, true); if (App.mediaMapBack === back) delete App.mediaMapBack;
     box.classList.remove('full'); document.body.classList.remove('map-open');
     box.setAttribute('role', 'img'); box.setAttribute('aria-label', 'Route map'); box.removeAttribute('aria-modal');
-    for (const [node, wasInert] of background) node.inert = wasInert; background = [];
+    releaseModal();
     overlayZoom?.remove(); overlayZoom = null;
     const m = mapObject(); if (m && still) { m.map.dragging.disable(); m.map.touchZoom.disable(); m.map.keyboard?.disable(); }
     // Navigation/account changes must release the overlay without moving back to an old page.
@@ -44,6 +44,7 @@ function wireMediaMapFull(box, mapObject, lines, still, {tapArea = null, refitOn
   };
   const back = () => { close(); return true; };
   const key = e => {
+    if (!ModalStack.isTop(box)) return;
     if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); requestClose(); }
     if (e.key === 'Tab') {
       const buttons = [...box.querySelectorAll('button, a[href], [tabindex="0"]')].filter(n => !n.disabled && n.getClientRects().length);
@@ -57,8 +58,7 @@ function wireMediaMapFull(box, mapObject, lines, still, {tapArea = null, refitOn
     previousState = history.state; history.pushState({...previousState, kinettaMap: token}, '', location.href);
     box.replaceWith(spot); document.body.append(box); box.classList.add('full'); document.body.classList.add('map-open');
     box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', 'Activity route map'); box.setAttribute('aria-modal', 'true');
-    background = [...document.body.children].filter(n => n !== box).map(n => [n, n.inert]);
-    for (const [node] of background) node.inert = true;
+    releaseModal=ModalStack.open(box);
     const m = mapObject(); if (m) {
       m.map.dragging.enable(); m.map.touchZoom.enable(); m.map.keyboard?.enable();
       // Photo rails keep their inline map still. Expanded maps must also work with a mouse/keyboard.

@@ -16,7 +16,7 @@ function collectSpacing({screen,rules=[]}){
   return right-left>.02&&bottom-top>.02;
  };
  const exceptions=el=>rules.filter(r=>el.matches(r.selector)).map(r=>r.id);
- const modal=[...document.querySelectorAll('.scrim')].filter(visible).at(-1),scope=modal||document.body;
+ const modal=[...document.querySelectorAll('.scrim,.ph-view,[aria-modal="true"]')].filter(visible).at(-1),scope=modal||document.body;
  const targetSelector='button,a[href],summary,input:not([type=hidden]),select,textarea,[role=button],[role=tab],[role=switch],[role=checkbox]';
  const effective=el=>{if(el.matches('input[type=checkbox],input[type=radio]')){const label=el.closest('label')||el.labels?.[0];if(label&&visible(label))return label;}return el;};
  const nodes=new Set([...scope.querySelectorAll(targetSelector)].map(effective).filter(visible));
@@ -56,6 +56,7 @@ function collectSpacing({screen,rules=[]}){
   else if(el.matches('.chartbox .lbl > span:first-child'))role='card';
   else if(el.matches('.count'))role='body';
   else if(el.closest('button,[role=button],[role=tab],[role=switch]'))role='body';
+  else if(el.closest('.subpage-header h1'))role='section';
   else if(el.closest('h1'))role='title';
   else if(el.matches('#fd-meals .meal > h2 > span:first-child'))role='card';
   else if(el.closest('h2'))role=el.closest('.card')?'card':'section';

@@ -472,7 +472,8 @@ function photoStrip(box, a, mine, {controlsOnly = false, afterChange = null} = {
 }
 // full screen: swipe or the arrows for the next one; the owner can remove one
 function photoViewer(a, start, mine, onChange) {
-  let i = start;
+  const previous=document.activeElement,page=$('#page')||root,anchor=document.createComment('photo viewer');page.append(anchor);
+  let i = start,changed=false,closed=false;
   const v = document.createElement('div');
   v.className = 'ph-view'; v.setAttribute('role', 'dialog'); v.setAttribute('aria-modal', 'true'); v.setAttribute('aria-label', 'Photos');
   const draw = () => {
@@ -490,7 +491,8 @@ function photoViewer(a, start, mine, onChange) {
       del.disabled = true;
       try {
         await api('/api/activity-photos/' + p.id, {method: 'DELETE'});
-        a.photos = ph.filter((x) => x.id !== p.id); photoChanged(a.id); onChange();
+        a.photos = ph.filter((x) => x.id !== p.id); photoChanged(a.id);changed=true;
+        if(closed){if(page.isConnected)onChange();return;} // Refresh a still-open page after a late removal, never a different view.
         if (!a.photos.length) return close();
         i = Math.min(i, a.photos.length - 1); draw();
       } catch (x) { toast(x.message); del.disabled = false; }
@@ -498,13 +500,13 @@ function photoViewer(a, start, mine, onChange) {
     $('[data-x]', v).focus();
   };
   const step = (d) => { const n = i + d; if (n >= 0 && n < a.photos.length) { i = n; draw(); } };
-  const key = (e) => { if (e.key === 'Escape') close(); else if (e.key === 'ArrowRight') step(1); else if (e.key === 'ArrowLeft') step(-1); };
+  const key = (e) => { if(!ModalStack.isTop(v))return;ModalStack.trap(e,v);if (e.key === 'Escape') close(); else if (e.key === 'ArrowRight') step(1); else if (e.key === 'ArrowLeft') step(-1); };
   let x0 = null;
   v.addEventListener('pointerdown', (e) => { x0 = e.clientX; });
   v.addEventListener('pointerup', (e) => { if (x0 != null && Math.abs(e.clientX - x0) > 50) step(e.clientX < x0 ? 1 : -1); x0 = null; });
-  function close() { document.removeEventListener('keydown', key); v.remove(); document.body.classList.remove('ph-open'); }
+  function close() { if(closed)return;closed=true;const refresh=changed&&anchor.isConnected;document.removeEventListener('keydown', key);viewResources.delete(anchor);anchor.remove();releaseModal();v.remove();document.body.classList.remove('ph-open');if(previous?.isConnected)previous.focus({preventScroll:true});if(refresh)onChange(); } // Refresh the underlying page after the remaining photos are closed.
   document.addEventListener('keydown', key);
-  document.body.append(v); document.body.classList.add('ph-open');
+  document.body.append(v);const releaseModal=ModalStack.open(v);viewResources.set(anchor,close);document.body.classList.add('ph-open');
   draw();
 }
 
