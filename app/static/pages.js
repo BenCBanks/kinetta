@@ -1830,7 +1830,7 @@ route(/^\/track\/import$/, 'track', async (el) => {
     <div class="card upload"><label class="drop" id="u-drop" for="u-file"><b>Choose files</b><br><span class="small">or drop them here</span></label>
       <input id="u-file" type="file" multiple accept=".fit,.gpx,.tcx,.gz,.zip" hidden>
       <div id="u-prog" hidden><div class="prog"><div class="bar" id="u-bar"></div></div><p class="small muted" id="u-text"></p></div></div>
-    <div class="card"><h2>How to get your Strava history</h2><p class="small">Strava → Settings → My Account → <b>Download or Delete Your Account</b> → Request your archive. Strava emails a .zip; upload it here as is. For a very large archive (over a few GB) ask for it to be placed in the server inbox instead.</p></div>
+    <div class="card"><h2>How to get your Strava history</h2><p class="small">Strava → Settings → My Account → <b>Download or Delete Your Account</b> → Request your archive. Strava emails a .zip; upload it here as is. For a large archive, ask the person running your Kinetta for help importing it.</p></div>
     <div class="card"><h2>Recent imports</h2><div id="u-jobs">${skel(1)}</div></div>`;
   wireBack(el, '/track');
   const input = $('#u-file', el), drop = $('#u-drop', el);

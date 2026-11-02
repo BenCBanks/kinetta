@@ -561,17 +561,18 @@ flowchart TD
  Profile -->|Kit not offered| Audience["Activity audience · 1 without Kit / 2 with Kit"]
  Kit --> Audience
  Audience --> Workouts["Workouts · 2 / 3"]
- Workouts -->|Continue / Later| Friends["Friends · 3 / 4"]
- Friends -->|Done · 4 / 5| Me["Me boundary"]
+ Workouts -->|Done · 3 / 4| Me["Me boundary"]
+ Workouts --> Friends["Optional Friends disclosure · 3 / 4"]
+ Friends -->|Explicit search or invitation| FindFriends["Friends boundary"]
  Profile -->|Not now| Me
  Workouts -->|Record · 3 / 4| Track["Track boundary"]
  Workouts -->|Connections · 3 / 4| Connections["Connections boundary"]
  Workouts -->|Upload · 3 / 4| Import["Import boundary"]
- Track -->|Browser Back: restarts wizard| Profile
- Connections -->|Browser Back: restarts wizard| Profile
- Import -->|Browser Back: restarts wizard| Profile
+ Track -->|Browser Back: retained step| Workouts
+ Connections -->|Browser Back: retained step| Workouts
+ Import -->|Browser Back: retained step| Workouts
 ```
 
-Not now is available throughout welcome and returns Me. Profile and audience Save/readback/restore or Skip were checked, with Kit skipped without consent. Audience choice remains separate from optional Kit's 18+ data consent. The three workouts-boundary returns restart at profile rather than retaining the step. A first fictional upload through Import created one Only-me activity; another fictional account could not read its shared endpoint. Native Health/install visuals were prepared, without permissions or store actions. Photo options were opened/cancelled without selecting a photo.
+Not now is available throughout welcome and returns Me. Profile and audience Save/readback/restore or Skip were checked, with Kit skipped without consent. Audience choice remains separate from optional Kit's 18+ data consent. The semantic welcome step survives the workouts-boundary returns. Friends is optional within workout setup; completing setup never sends a friend request. A first fictional upload through Import created one Only-me activity; another fictional account could not read its shared endpoint. Native Health/install visuals were prepared, without permissions or store actions. Photo options were opened/cancelled without selecting a photo.
 
-The welcome handoff, invited 16+ confirmation and invite-page clipping are tracked in #496. Copy, compactness and lost welcome-step position belong to #497; folding the one-link Friends step into Me/setup is agreed there. Keep secure recovery, admin/friend invitations, explicit activity audience and separate Kit consent distinct. The map documents current behavior; it does not approve page removals or policy changes.
+The #496 handoff, invited 16+ confirmation and invite-page clipping fixes are merged. #497 makes privacy and estimate wording precise, labels save/skip/leave actions, conditions Garmin and install copy, clarifies recovery/Terms/import copy, folds Friends into setup and retains the welcome step. Keep secure recovery, admin/friend invitations, explicit activity audience and separate Kit consent distinct. The map documents current behavior; it does not approve page removals or policy changes.

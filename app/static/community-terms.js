@@ -11,7 +11,7 @@ globalThis.CommunityTerms = (() => {
       if (!form.isConnected) throw Error('This account form has closed.');
       if (!current || current.version !== status.version || current.draft !== status.draft) {
         place.innerHTML = status.version ? `<label class="check"><input type="checkbox" name="terms_ok" required><span>By creating an account you agree to the ${links}.</span></label>`
-          : `<p class="small muted">Read the ${links}. ${status.draft ? 'The service terms are a draft awaiting approval.' : 'Terms acceptance is not enabled on this server.'}</p>`;
+          : `<p class="small muted">Read the ${links} before creating your account.</p>`;
       }
       current = status;
       return status;

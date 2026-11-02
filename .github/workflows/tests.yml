@@ -224,6 +224,7 @@ jobs:
         run: |
           python3 dev/tests/signup_uniqueness_fixture.py
           NODE_PATH=/tmp/card-browser/node_modules node dev/tests/signup_uniqueness_ui.cjs
+          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/welcome_polish_ui.cjs
       - name: Check terms agreement and community report journeys (fictional records; writes blocked)
         env:
           KINETTA_URL: http://localhost:8798
