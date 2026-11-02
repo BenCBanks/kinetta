@@ -437,14 +437,18 @@ Thirteen owned route/view families; day/origin parameters and import/setup varia
 Weight has a direct one-tap entrance from the log and Insights; meal reminders link to Me in one tap. Expanded energy breakdown links to its Activity source.
 
 ```mermaid
-flowchart LR
+flowchart TD
  N["Food log · 0"] --> I["Insights · 1"]
- I --> E["Calories & weight · 2"]
- I --> M["Protein & macros · 2"]
  N --> C["Calorie needs · 1"]
  N --> W["Week by week · 1"]
- I --> D["Food calendar · 2"]
  N --> H["Add past days · 1 · browser"]
+```
+
+```mermaid
+flowchart TD
+ I["Insights · 1"] --> E["Calories & weight · 2"]
+ I --> M["Protein & macros · 2"]
+ I --> D["Food calendar · 2"]
 ```
 
 Insights also links to Calorie needs and Week by week. Choosing a calendar day returns to that day's log. Goal preview can return to setup to change details, or Save/Not now back to the log.
