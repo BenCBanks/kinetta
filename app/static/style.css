@@ -2168,14 +2168,14 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .inline-reactions .reaction-inline[aria-pressed="true"] { color:var(--accent); }
 .post-ft .inline-reactions .reaction-inline, .post-ft .inline-reactions .reaction-count, .post-ft > .activity-comments { display:grid; grid-template-rows:20px minmax(16px,auto); align-content:center; align-items:center; justify-items:center; min-width:44px; min-height:44px; padding:0; gap:0; }
 .post-ft .inline-reactions .reaction-inline > svg, .post-ft .inline-reactions .reaction-count > svg, .post-ft > .activity-comments > svg { width:20px; height:20px; }
-.post-ft .num { font-size:max(12px,.6875rem); line-height:1.2; }
+.post-ft .num { font-size:max(15px,.6875rem); line-height:1.2; }
 .post-hd .activity-share { width:44px; min-width:44px; height:44px; padding:0; justify-content:center; margin-left:auto; }
 .post-hd .activity-share > svg { width:20px; height:20px; }
 .detail-social:has(.activity-reactions) { display:grid; grid-template-columns:repeat(4,minmax(44px,1fr)); gap:8px; }
 .detail-social .reaction-action { display:contents; }
 .detail-social:has(.activity-reactions) :is(.reaction-main,.reaction-count,.activity-comments) { display:grid; grid-template-rows:20px minmax(16px,auto); align-content:center; justify-items:center; min-width:44px; min-height:44px; padding:0; gap:0; }
 .detail-social :is(.reaction-main,.activity-comments)>svg { width:20px; height:20px; }
-.detail-social .num { font-size:max(12px,.75rem); line-height:1.2; }
+.detail-social .num { font-size:max(15px,.75rem); line-height:1.2; }
 .detail-social .reaction-main[aria-pressed="true"][data-kind] { color:var(--accent); }
 .detail-social .reaction-icons .reaction-badge { width:20px; height:20px; margin-left:-4px; }
 .detail-social .reaction-icons .reaction-badge svg { width:14px; height:14px; }
