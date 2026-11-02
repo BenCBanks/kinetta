@@ -89,6 +89,7 @@ def manual(c,uid,message,body):
     replacement.pop('drafts',None);replacement.pop('templates',None)
     for key in ('analogue','own_reuse','display_name'):replacement.pop(key,None)
     result['parts']=[replacement if p['index']==body.part else p for p in result['parts']]
+    if all(p.get('logged') or p['status']=='ready' for p in result['parts']):result.pop('error',None)
     return C.write(c,uid,message,result,force=not (message.get('result') or {}).get('review_only'),only={body.part})
 
 

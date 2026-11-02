@@ -193,6 +193,9 @@ def amount(ts):
             if nxt and isnum(nxt) and '/' in nxt and '/' not in t and number(nxt) is not None: n, used = n + number(nxt), 2   # 1 1/2
             if i + used < len(rest) and rest[i + used] == 'x': used += 1               # 2x coffee
         elif t in COUNTS and t not in ('a', 'an'):
+            # A trailing brand word after an explicit mass is part of the name.
+            if out and 'grams' in out and i > 0 and i == len(rest)-1 and isinstance(rest[i-1], str) and rest[i-1] not in FILLER:
+                i += 1; continue
             n, used = COUNTS[t], 1
             if t == 'couple' and nxt == 'of': used = 2
             if nxt in ('quarter', 'third') and i + 2 <= len(rest):                     # three quarters

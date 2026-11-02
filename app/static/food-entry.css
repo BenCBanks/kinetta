@@ -18,7 +18,7 @@
 .am-control-row .am-amt { flex:1; min-width:150px; margin:0; gap:4px; }
 .am-control-row .am-amt input { width:64px; min-height:44px; font-size:1.25rem; }
 .am-control-row .am-amt .icon-btn { width:44px; height:44px; flex:none; }
-.am-control-row .am-units { flex:1; min-width:156px; margin:0; }
+.am-control-row .am-units { flex:1; min-width:104px; width:auto; min-height:44px; margin:0; }
 .am-control-row .am-units button { min-height:44px; }
 #am .am-sub { margin:0 0 4px; }
 @media(max-width:360px) {
