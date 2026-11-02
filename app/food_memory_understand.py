@@ -141,7 +141,9 @@ def ask_model(uid,message,ctx,card):
 
 
 def clean(out,said,ctx):
-    result=U.clean(out,said)
+    # The reported single-food typo means one egg; never reinterpret the pronoun in other messages.
+    amount_text='1 egg' if re.fullmatch(r'\s*i\s+egg[.!?]?\s*',said,re.I) else said
+    result=U.clean(out,amount_text)
     if not result:return None
     habit_ids={x['id'] for x in ctx['stable']['preferences']}
     raw_foods=(out.get('foods') or [])[:12]
@@ -196,7 +198,8 @@ def clean(out,said,ctx):
                 changed=changed or first and re.search(r'\bbut\s+(?:(?:with|using|use)\s+)?'+re.escape(first)+r'\b',clause,re.I)
                 exact_copy=explicit_source or re.search(copy_words,clause,re.I)
                 if name_words and this_food(clause) and detail_words<=clause_words and changed and not exact_copy:token=None
-        target.update(reference_token=token,reference_question=question,analogue=analogue.strip() if analogue else None,habit_ids=used)
+        target.update(reference_token=token,reference_question=question,analogue=analogue.strip() if analogue else None,habit_ids=used,
+                      explicit_reference=bool(token and explicit_source))
     if result['intent']=='unclear' and any(f['reference_question'] for f in result['foods']):
         result['intent']='log'
     if result['missing']=='type' and len(result['foods'])==1:
@@ -325,8 +328,14 @@ def apply(c,uid,message):
                 part.update(status='ready',manual=True,entries=rows,own_reuse={'kind':item['kind'],'id':item['id'],
                     'portion':portion,'expected':memory.signature(uid,item,portion)},display_name=f['name'])
             except HTTPException as error:
-                part.update(status='description',description={'food':f['name'],'reference':True,'quantity':f['quantity'],'unit':f.get('unit')},
-                            question=error.detail if error.status_code==422 else 'That saved food changed. Choose it again or describe the amount.')
+                clauses=re.split(r'[;\n]|\b(?:and|plus|also)\b',message['body'],flags=re.I)
+                named=set(M.name_words(f['name']))
+                explicit=f.get('explicit_reference') or any(named<=set(M.name_words(clause)) and re.search(r'\b(my|saved|usual|again|same|logged|nutrition|copy|use|using)\b',clause,re.I) for clause in clauses)
+                if previous_result is None and not explicit and error.status_code==422 and str(error.detail).startswith('Your saved food uses '):
+                    part.update(status='unknown',item={},prefer_estimate=not bool(f.get('brand')))
+                else:
+                    part.update(status='description',description={'food':f['name'],'reference':True,'quantity':f['quantity'],'unit':f.get('unit')},
+                                question=error.detail if error.status_code==422 else 'That saved food changed. Choose it again or describe the amount.')
         elif analogue:
             base={**f,'name':analogue,'brand':None,'details':None}
             if base['quantity'] is None:base['typical']=True

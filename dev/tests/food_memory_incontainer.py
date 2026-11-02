@@ -536,6 +536,32 @@ class FoodMemory(unittest.TestCase):
         self.assertEqual([c['name'] for c in part['item']['choices']],['Egg whites'])
         self.assertEqual(part['item']['new_name'],'Egg');self.assertEqual(part['learn_phrase'],'1 egg')
 
+    def test_single_food_i_egg_keeps_one_without_rewriting_pronouns(self):
+        from app import food_memory_understand as contextual
+        ctx={'sources':{},'stable':{'preferences':[]},'dynamic':{'recent_turns':[]}}
+        reading=self.reading([{'name':'Egg','quantity':1}])
+        self.assertEqual(contextual.clean(reading,'i egg',ctx)['foods'][0]['quantity'],1)
+        self.assertIsNone(contextual.clean(reading,'I ate egg',ctx)['foods'][0]['quantity'])
+
+    def test_ordinary_unit_mismatch_estimates_but_explicit_reference_still_asks(self):
+        self.food('Plain yogurt',amount=1,unit='serving')
+        def ask(uid,message,ctx,card):
+            token=next(k for k,v in ctx['sources'].items() if v['name']=='Plain yogurt')
+            return self.reading([{'name':'Plain yogurt','quantity':1,'unit':'pot','reference_token':token}]),{},'stand-in'
+        for said,status in [('A pot of plain yogurt','unknown'),('A pot of my saved plain yogurt','description')]:
+            message=self.message(said)
+            with self.context_patches(ask):data=self.post(f"/api/food/thread/messages/{message['id']}/process",{})
+            part=next(m['result']['parts'][0] for m in data['messages'] if m.get('reply_to')==message['id'])
+            self.assertEqual(part['status'],status)
+            if status=='unknown':self.assertEqual(part['text'],'1 pot of Plain yogurt');self.assertTrue(part['prefer_estimate'])
+        message=self.post('/api/food/thread/messages',{'body':'Plain yogurt','client_id':str(uuid.uuid4()),'review_only':True,
+            'draft_id':self.draft,'context':message['client_id']},status=201)['message']
+        def answer(uid,message,ctx,card):
+            result,raw,model=ask(uid,message,ctx,card);result['intent']='answer';return result,raw,model
+        with self.context_patches(answer):data=self.post(f"/api/food/thread/messages/{message['id']}/process",{})
+        part=next(m['result']['parts'][0] for m in data['messages'] if m.get('reply_to')==message['id'])
+        self.assertEqual(part['status'],'description','an inherited explicit reference never silently becomes an estimate')
+
     def test_ambiguous_saved_name_without_ai_is_a_choice_not_a_gram_question(self):
         self.food('Egg whites',amount=100,unit='g')
         message=self.message('1 egg')
