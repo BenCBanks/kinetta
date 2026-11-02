@@ -2162,18 +2162,32 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .combined-week .stat b i { font-size: .7em; }
 
 /* Optional food guidance follows the user's text size. */
-/* Activity social row: actions/counts on the left, reaction people on the right. */
+/* Activity actions share one quiet row. Complete counts remain in accessible labels. */
+.post-ft:has(.inline-reactions) { display:grid; grid-template-columns:repeat(5,minmax(44px,1fr)); gap:8px; }
+.activity-reactions .pf, .activity-comments, .post-hd .activity-share { background:none; border-color:transparent; box-shadow:none; }
+.inline-reactions .reaction-inline[aria-pressed="true"] { color:var(--accent); }
+.post-ft .inline-reactions .reaction-inline, .post-ft .inline-reactions .reaction-count, .post-ft > .activity-comments { display:grid; grid-template-rows:20px minmax(16px,auto); align-content:center; align-items:center; justify-items:center; min-width:44px; min-height:44px; padding:0; gap:0; }
+.post-ft .inline-reactions .reaction-inline > svg, .post-ft > .activity-comments > svg { width:20px; height:20px; }
+.post-ft .num, .reaction-total-label { font-size:max(12px,.6875rem); line-height:1.2; }
+.post-hd .activity-share { width:44px; min-width:44px; height:44px; padding:0; justify-content:center; margin-left:auto; }
+.post-hd .activity-share > svg { width:20px; height:20px; }
+.detail-social:has(.activity-reactions) { display:grid; grid-template-columns:repeat(4,minmax(44px,1fr)); gap:8px; }
+.detail-social .reaction-action { display:contents; }
+.detail-social:has(.activity-reactions) :is(.reaction-main,.reaction-count,.activity-comments) { display:grid; grid-template-rows:20px minmax(16px,auto); align-content:center; justify-items:center; min-width:44px; min-height:44px; padding:0; gap:0; }
+.detail-social :is(.reaction-main,.activity-comments)>svg { width:20px; height:20px; }
+.detail-social .num { font-size:max(12px,.75rem); line-height:1.2; }
+.detail-social .reaction-main[aria-pressed="true"][data-kind] { color:var(--accent); }
+.detail-social .reaction-icons .reaction-badge { width:20px; height:20px; margin-left:-4px; }
+.detail-social .reaction-icons .reaction-badge svg { width:14px; height:14px; }
+
+
 .activity-reactions { display:contents; }
 .inline-reactions .reaction-action { display:contents; }
 .inline-reactions .reaction-inline { position:relative; isolation:isolate; order:1; min-width:44px; min-height:44px; gap:6px; justify-content:center; border:0; background:none; color:var(--tx2); }
-.inline-reactions .reaction-inline::before { content:""; position:absolute; z-index:-1; inset:4px 0; border-radius:18px; background:var(--card2); }
 .inline-reactions .reaction-inline > svg { width:24px; height:24px; flex:none; }
 .inline-reactions .reaction-inline[aria-pressed="true"] { color:var(--accent); }
-.inline-reactions .reaction-inline[aria-pressed="true"]::before { background:var(--accent2); }
-.inline-reactions .reaction-inline[data-kind="strong"][aria-pressed="true"] { color:var(--react-strong); }
-.inline-reactions .reaction-inline[data-kind="applause"][aria-pressed="true"] { color:var(--react-applause); }
 .post-ft:has(.activity-reactions.inline-reactions) { gap:8px; }
-.inline-reactions .reaction-count { margin-left:auto; }
+.inline-reactions .reaction-count { margin-left:0; }
 .inline-reactions .reaction-count svg { width:24px; height:24px; }
 .reaction-action { display:flex; align-items:center; order:1; min-width:0; }
 .activity-reactions .pf, .activity-comments, .activity-share { min-height:44px; padding:4px 8px; font-size:1rem; white-space:nowrap; }

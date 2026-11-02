@@ -38,3 +38,7 @@
 .challenge-share-actions button{min-height:44px;white-space:normal;}
 #me-challenges .ri,#me-challenges .chev,.challenge-section .chev{flex:none;}
 @media(max-width:360px){.challenge-ring{margin-inline:auto;}.challenge-hero>.grow{flex-basis:100%;text-align:center;}}
+
+/* Challenge headings state the goal; the date range appears once below it. */
+.challenge-title { font-size:var(--text-app-title); line-height:1.25; }
+.challenge-title,.challenge-section .grow>b,#challenge-list .grow>b { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
