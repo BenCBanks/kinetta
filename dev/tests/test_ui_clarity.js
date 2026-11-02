@@ -54,10 +54,13 @@ console.log('Food chat: Search tool label PASS');
  assert.match(pages,/q.get\('view'\)==='mine'/,'existing history links retain a redirect');
  console.log('Me: friends-view card with Edit/Share, private dashboard below the line, separate complete history, no duplicated selectors/shortcut grid PASS');
 }
-// Speed check (2026-10-18): reachable from Profile & settings, read-only (GET requests only), nothing stored.
+// Retired diagnostics keep old links useful without retaining a page or Settings entrance (#486).
 {
- const pages=fs.readFileSync('app/static/pages.js','utf8'),part=pages.slice(pages.indexOf('// ---------- Speed check'));
- assert.match(pages,/href="\/me\/speed"/);assert.match(part,/route\(\/\^\\\/me\\\/speed\$\//);
- assert.doesNotMatch(part,/json\('(POST|PUT|DELETE|PATCH)'|method:\s*'(POST|PUT|DELETE|PATCH)'|store\.set|localStorage/,'speed check only reads');
- console.log('Speed check: linked from settings, read-only, stores nothing PASS');
+ const pages=fs.readFileSync('app/static/pages.js','utf8'),navigation=fs.readFileSync('app/static/back-navigation.js','utf8');
+ assert.doesNotMatch(pages,/href="\/me\/speed"|sp-run|sp-copy|Run speed check|Copy results/);
+ assert.doesNotMatch(navigation,/['"]\/me\/speed['"]\s*:/,'retired page has no navigation label');
+ const redirect=pages.split('\n').find(line=>line.startsWith('route(/^\\/me\\/speed$/'));let destination,options;
+ vm.runInNewContext(redirect,{route:(pattern,tab,handler)=>{assert(pattern.test('/me/speed'));assert.equal(tab,'me');handler();},go:(url,opts)=>{destination=url;options=opts;}});
+ assert.equal(destination,'/me/settings');assert.equal(options.replace,true,'old URL cannot create a Back loop');
+ console.log('Speed Check retired: no UI/entrance/label; old links replace themselves with Settings PASS');
 }
