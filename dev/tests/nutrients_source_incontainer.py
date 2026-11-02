@@ -33,3 +33,39 @@ assert result['saturated_fat_g']['recorded']==1 and result['saturated_fat_g']['c
 assert N.day_values([{'sodium_mg':3,'ref':{'unknown_nutrients':42}}],{})['sodium_mg']['recorded']==3
 flagged=N.day_values([{'sodium_mg':0,'ref':{'unknown_nutrients':['sodium_mg']}}],{});assert flagged['sodium_mg']['recorded'] is None and flagged['sodium_mg']['unknown_count']==1
 print('Extra nutrient sources: OFF normalized grams→mg/zero/missing/invalid; USDA IDs/legacy numbers/units/total-sugar precedence; nullable input bounds, partial coverage and unknown-vs-zero PASS; no network/AI')
+
+# High-fiber catalog rows and validated UPC-A/EAN-13 aliases; no provider traffic.
+from unittest.mock import MagicMock
+from fastapi import HTTPException
+high={'kcal':225,'protein_g':7.5,'carbs_g':82.5,'fat_g':2.5,'fiber_g':45}
+assert F._sane(high)==high
+assert F._sane({'kcal':1046,'protein_g':0,'carbs_g':50,'fat_g':0,'fiber_g':30})['kcal']==250, 'existing kJ repair still accepts fiber-excluded labels'
+assert F._sane({'kcal':260,'protein_g':0,'carbs_g':50,'fat_g':0,'fiber_g':30}) is not None, 'fiber-excluded carbohydrate labels remain usable'
+assert F._sane({**high,'fiber_g':None}) is None
+product={'code':'0016000157620','product_name':'Fictional high-fiber cereal','serving_quantity':40,'serving_size':'1 cup',
+ 'nutriments':{'energy-kcal_100g':225,'proteins_100g':7.5,'carbohydrates_100g':82.5,'fat_100g':2.5,'fiber_100g':45}}
+assert F._off_food(product)['per100']=={**high,**dict.fromkeys(N.EXTRA)}
+with patch.object(F,'_cached',return_value=[product]):assert F._search_off('fictional cereal')[0]['per100']['fiber_g']==45
+assert F._barcode_codes('016000157620')==['016000157620','0016000157620']
+assert F._barcode_codes('0016000157620')==['0016000157620','016000157620']
+for code in ['016000157621','0016000157621']:
+ try:F._barcode_codes(code)
+ except HTTPException as e:assert e.status_code==400
+ else:raise AssertionError('bad check digit accepted')
+for code in ['123456','12345678','10160001576201']:assert F._barcode_codes(code)==[code]
+connection=MagicMock();connection.__enter__.return_value.execute.return_value.fetchone.return_value=None
+with patch.object(F.db,'connect',return_value=connection),patch.object(F,'_cached',side_effect=lambda key,fetch,days:fetch()),patch.object(F,'_get',side_effect=lambda url:{'status':1,'product':product} if '/0016000157620.json?' in url else {'status':0}) as provider:
+ assert F.barcode('016000157620',user={'id':42})['per100']['fiber_g']==45
+ assert provider.call_count==2
+ params=connection.__enter__.return_value.execute.call_args.args[1];assert params==(42,['016000157620','0016000157620'],'016000157620')
+connection.__enter__.return_value.execute.return_value.fetchone.return_value={'id':9}
+with patch.object(F.db,'connect',return_value=connection),patch.object(F,'_custom_food',return_value={'source':'custom'}) as own,patch.object(F,'_get',side_effect=AssertionError('own food needs no provider')):
+ assert F.barcode('0016000157620',user={'id':43})=={'source':'custom'}
+ assert connection.__enter__.return_value.execute.call_args.args[1]==(43,['0016000157620','016000157620'],'0016000157620')
+from app import meal_chat as M
+portion,rest=M.amount(M.raw('40 g fiber one'));assert portion=={'grams':40} and rest==['fiber','one']
+assert M.amount(M.raw('2 eggs and 3 slices'))==(None,None)
+print('High-fiber barcode/search, checksum and bidirectional aliases, owner-scoped own match and explicit mass before brand words PASS')
+with patch.object(M,'_search_usda',return_value=[]) as usda,patch.object(M,'_search_off',return_value=[]) as off:
+ lookup=M.lookup('40 g fiber one');assert lookup['portion']=={'grams':40} and lookup['query']=='fiber one';usda.assert_called_once_with('fiber one');off.assert_called_once_with('fiber one')
+print('Typed mass and complete unsaved brand words reach catalog search unchanged PASS')

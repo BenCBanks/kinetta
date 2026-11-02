@@ -60,15 +60,19 @@ def _sane(per100):
     missing kcal (computed from macros). Returns fixed values, or None to drop the food."""
     k, p, c, f = (per100.get(x) for x in ('kcal', 'protein_g', 'carbs_g', 'fat_g'))
     if any(v is not None and (v < 0 or v > 100) for v in (p, c, f)): return None       # grams per 100 g
-    est = 4 * (p or 0) + 4 * (c or 0) + 9 * (f or 0) if None not in (p, c, f) else None
+    fiber = per100.get('fiber_g')
+    # US carbohydrate totals include fiber, which supplies less energy than starch.
+    fiber = min(c or 0, max(0, fiber)) if fiber is not None else 0
+    est = 4 * (p or 0) + 4 * ((c or 0) - fiber) + 2 * fiber + 9 * (f or 0) if None not in (p, c, f) else None
+    legacy = 4 * (p or 0) + 4 * (c or 0) + 9 * (f or 0) if est is not None else None
     if k is None:
         if est is None: return None
         per100 = {**per100, 'kcal': round(est)}
     elif k > 900:                       # nothing has more than ~900 kcal/100 g (pure fat): it was kJ
-        if est is not None and abs(k / 4.184 - est) <= max(40, est * .25): per100 = {**per100, 'kcal': round(k / 4.184)}
+        if est is not None and any(abs(k / 4.184 - v) <= max(40, v * .25) for v in (est, legacy)): per100 = {**per100, 'kcal': round(k / 4.184)}
         else: return None
-    elif est is not None and est > 40 and not (est * .6 <= k <= est * 1.5):
-        return None                    # kcal and macros disagree badly: one of them is wrong
+    elif est is not None and est > 40 and not any(v * .6 <= k <= v * 1.5 for v in (est, legacy)):
+        return None                    # allow labels with fiber included in or excluded from carbs
     return per100
 
 
@@ -186,20 +190,34 @@ def search(q: str, sources: str = 'mine,off,usda', user=Depends(current_user)):
             'off': _search_off(q) if 'off' in want else [], 'usda': _search_usda(q) if 'usda' in want else []}
 
 
+def _barcode_codes(code):
+    if not re.fullmatch(r'\d{6,14}', code): raise HTTPException(400, 'Barcodes are 6-14 digits')
+    if len(code) in (12, 13):
+        check = sum(int(n) * (3 if i % 2 == 0 else 1) for i, n in enumerate(reversed(code[:-1])))
+        if (check + int(code[-1])) % 10: raise HTTPException(400, 'Check the barcode digits and try again')
+        if len(code) == 12: return [code, '0' + code]
+        if code.startswith('0'): return [code, code[1:]]
+    return [code]                       # EAN-8, UPC-E and GTIN-14 keep their own formats
+
+
 @router.get('/barcode/{code}')
 def barcode(code: str, user=Depends(current_user)):
-    if not re.fullmatch(r'\d{6,14}', code): raise HTTPException(400, 'Barcodes are 6-14 digits')
+    codes = _barcode_codes(code)
     with db.connect() as c:
-        mine = c.execute('SELECT * FROM custom_foods WHERE user_id = %s AND barcode = %s LIMIT 1', (user['id'], code)).fetchone()
+        mine = c.execute('SELECT * FROM custom_foods WHERE user_id = %s AND barcode = ANY(%s) ORDER BY barcode = %s DESC LIMIT 1', (user['id'], codes, code)).fetchone()
     if mine: return _custom_food(mine)
-    def fetch():
-        d = _get(f'https://world.openfoodfacts.org/api/v2/product/{code}.json?fields=code,product_name,brands,nutriments,serving_size,serving_quantity,quantity')
-        return d.get('product') if d.get('status') in (1, 'success') else None
-    try: p = _cached('off-code:' + code, fetch, days=60)
-    except Exception: raise HTTPException(502, "Couldn't reach the food database - try again or add it by hand")
-    f = _off_food(p) if p else None
-    if not f: raise HTTPException(404, 'Not found in the food database - add it as your own food')
-    return f
+    failed = False
+    for candidate in codes:
+        def fetch():
+            d = _get(f'https://world.openfoodfacts.org/api/v2/product/{candidate}.json?fields=code,product_name,brands,nutriments,serving_size,serving_quantity,quantity')
+            return d.get('product') if d.get('status') in (1, 'success') else None
+        try:
+            p = _cached('off-code:' + candidate, fetch, days=60)
+            f = _off_food(p) if p else None
+            if f: return f
+        except Exception: failed = True
+    if failed: raise HTTPException(502, "Couldn't reach the food database - try again or add it by hand")
+    raise HTTPException(404, 'Not found in the food database')
 
 
 @router.get('/recent')

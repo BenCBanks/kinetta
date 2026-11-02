@@ -24,3 +24,24 @@ const part={index:0,status:'ready',entries:[pasta],entry_drafts:[0],drafts:[{}],
 html=c.stepRow(c.previewRows({result:{review_only:true}},{parts:[part]})[0]);assert.match(html,/Protein 14 g · Carbs 84 g · Fat 2 g/);assert.match(html,/aria-label="Nutrition for Fictional &lt;penne&gt;, Protein 14 g/);assert.match(html,/data-food-nutrition=/);assert.match(html,/data-step="1"/);
 assert.match(c.food({...pasta,id:undefined},0),/tf-macros/,'typed/manual/photo pending rows share the macro line');
 console.log('Pending nutrition: source serving vs chosen amount, unknown/zero, fallback weight honesty, label correction scale, escaped compact cards and accessible macros PASS');
+
+// Unit display keeps the original canonical amount until a genuine edit.
+c.App={me:{id:1}};c.Native={base:''};c.location={origin:'https://example.test'};const preferences=new Map();c.store={get:k=>preferences.get(k),set:(k,v)=>preferences.set(k,v)};
+vm.runInContext(food.slice(food.indexOf('function foodPortion('),food.indexOf('// nutrition for an amount')),c);
+const cup={name:'Fictional cereal',amount:2/3,unit:'serving',ref:{origin:'ai',serving:{label:'1 cup',g:60}}};
+let portion=c.foodPortion(cup);assert.equal(portion.format(),'0.67');
+for(let i=0;i<20;i++){portion.select('g');assert.equal(portion.format(),'40');portion.select('oz');assert.equal(portion.format(),'1.41');portion.select('cup');assert.equal(portion.format(),'0.67');}
+assert.equal(portion.amount,2/3,'toggles and rounded display preserve exact canonical value');portion.select('g');portion.input('30');assert.equal(portion.amount,.5);portion.remember();assert.equal(c.foodPortion(cup).unit,'g');c.App.me.id=2;assert.equal(c.foodPortion(cup).unit,'serving','preference isolated by account');c.App.me.id=1;
+portion=c.foodPortion({...cup,ref:{serving:{label:'1/2 cup (28 g)',g:28}}});portion.select('cup');assert.equal(portion.format(),'0.33');portion.input('1');assert.equal(portion.amount,2);
+for(const ref of [{serving:{label:'1 cup'}},{source:'off',per100:{},serving:{label:'1 cup',g:100,is_default:true}},{source:'off',per100:{},serving:{label:'1 cup',g:100}}]){portion=c.foodPortion({...cup,ref});assert.equal(portion.units.find(u=>u.key==='g').factor,null);assert.equal(portion.units.find(u=>u.key==='oz').factor,null);assert.match(vm.runInContext('portionWeightNote',c)(portion),/known serving weight/);}
+portion=c.foodPortion({...cup,amount:40,unit:'g',ref:{serving:{label:'1 cup',g:60}}});portion.select('cup');assert.equal(portion.format(),'0.67');portion.input('1');assert.equal(portion.amount,60);portion.input('');assert(Number.isNaN(portion.amount));
+console.log('Unit choices: g/oz/cup/serving, two decimals, exact repeated toggles, true edits, fractional labels, unknown weights and account-specific preference PASS');
+
+portion=c.foodPortion({...cup,amount:1,ref:{source:'custom',id:9,origin:'catalog',serving:{label:'1 bowl',g:200},origin_ref:{source:'off',id:'original',serving:{label:'1 cup',g:50}}}});portion.select('g');portion.input('100');assert.equal(portion.amount,.5,'edited saved-food serving beats original catalog provenance');
+
+portion=c.foodPortion({...cup,amount:100,unit:'g',ref:{serving:{label:'1 container',g:170}}});portion.select('serving');portion.step(.5);assert.equal(portion.amount,185,'stepper adds half a serving to exact100g');
+portion=c.foodPortion({...cup,amount:1,unit:'g',ref:{serving:{label:'1 bowl',g:500}}});portion.select('serving');assert.equal(portion.unit,'g');assert.equal(portion.format(),'1','tiny positive portion uses representable unit');
+
+portion=c.foodPortion({...cup,ref:{serving:{label:'1 glass',g:200}}});assert(portion.units.some(u=>u.key==='glass'),'singular unit ending in ss stays intact');
+
+html=c.preview.html({...cup,kcal:160},'Kit estimate','40 g');assert.match(html,/Chosen amount<small>40 g<\/small>/,'table heading follows the selected display unit');assert(!html.includes('Chosen amount<small>0.666'));

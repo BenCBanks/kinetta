@@ -83,7 +83,8 @@ class PendingNutrition(unittest.TestCase):
   self.assertEqual(self.a.delete('/api/food/foods/'+str(foods[1]['id']),headers={'Content-Type':'application/json'}).status_code,200)
   self.post(path,self.edit(m,p),status=404);self.assertEqual(self.entries(),[])
  def test_barcode_http_flow_keeps_incomplete_macros_ready_for_explicit_review(self):
-  code='999'+str(uuid.uuid4().int%10000000000).zfill(10)
+  prefix='99'+str(uuid.uuid4().int%10000000000).zfill(10)
+  code=prefix+str((-sum(int(n)*(3 if i%2==0 else 1) for i,n in enumerate(reversed(prefix))))%10)
   product={'code':code,'product_name':'Fictional scanned grain','brands':'Fictional Pantry','quantity':'500 g','serving_size':'1 cup','serving_quantity':50,
    'nutriments':{'energy-kcal_100g':400,'proteins_100g':14,'carbohydrates_100g':84}}
   m=self.post('/api/food/thread/messages',{'client_id':str(uuid.uuid4()),'draft_id':self.draft,'review_only':True,'body':'Scanned product '+code,'media':'barcode','barcode':code},status=201)['message']
@@ -95,5 +96,22 @@ class PendingNutrition(unittest.TestCase):
   self.assertIsNone(e['fat_g']);self.assertEqual(e['protein_g'],7);self.assertEqual(e['ref']['origin_ref']['package_size'],'500 g');self.assertEqual(self.entries(),[])
   prepared=self.review(m);self.post(f"/api/food/thread/reviews/{prepared['id']}/confirm",{'confirm':True,'meal':'dinner'})
   self.assertIn('fat_g',self.entries()[0]['ref']['unknown_nutrients'])
+
+ def test_barcode_not_found_manual_recovery_and_own_alias_isolation(self):
+  code='016000157620'
+  m=self.post('/api/food/thread/messages',{'client_id':str(uuid.uuid4()),'draft_id':self.draft,'review_only':True,'body':'Scanned product','media':'barcode','barcode':code},status=201)['message']
+  self.post(f"/api/food/thread/messages/{m['id']}/process",{})
+  with patch('app.api_food._cached',side_effect=lambda key,fetch,days:fetch()),patch('app.api_food._get',return_value={'status':0}):
+   data=self.post(f"/api/food/thread/messages/{m['id']}/resolve",{})
+  result=self.result(data,m['id']);self.assertEqual(result['error']['message'],'Not found in the food database')
+  data=self.post(f"/api/food/thread/messages/{m['id']}/manual",{'part':result['parts'][0]['index'],'items':[{'name':'Fictional cereal','amount':1,'unit':'serving','kcal':200}],'confirm':True})
+  result=self.result(data,m['id']);self.assertNotIn('error',result);self.assertEqual(result['parts'][0]['status'],'ready');self.assertEqual(self.entries(),[])
+  saved=self.post('/api/food/foods',{'name':'Fictional fiber one','barcode':'0016000157620','serving_label':'1 cup','serving_g':60,'kcal':200,'protein_g':5,'carbs_g':40,'fat_g':2})
+  with patch('app.api_food._get',side_effect=AssertionError('Own alias does not call provider')):
+   self.assertEqual(self.a.get('/api/food/barcode/'+code).json()['id'],saved['id'])
+  with patch('app.api_food._cached',side_effect=lambda key,fetch,days:fetch()),patch('app.api_food._get',return_value={'status':0}):
+   self.assertEqual(self.b.get('/api/food/barcode/'+code).status_code,404)
+  resolved=self.post('/api/food/meals-chat/resolve',{'say':'40 g fictional fiber one','parts':[]})
+  self.assertEqual(resolved['items'][0]['status'],'ready');self.assertEqual(resolved['items'][0]['portion'],{'grams':40})
 
 if __name__=='__main__':unittest.main(verbosity=2)

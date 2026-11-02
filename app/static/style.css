@@ -2368,6 +2368,7 @@ body .leaflet-container .leaflet-control-attribution { background: var(--card); 
 .food-label table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: .85rem; }
 .food-label th, .food-label td { padding: 10px 4px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
 .food-label th { text-align: left; font-weight: 600; }
+.food-label tbody th { overflow-wrap: normal; word-break: normal; hyphens: none; }
 .food-label th:first-child { width: 34%; }
 .food-label td, .food-label thead th:not(:first-child) { text-align: right; }
 .food-label thead { border-top: 3px solid var(--tx); border-bottom: 2px solid var(--tx); }
