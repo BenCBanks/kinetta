@@ -116,6 +116,21 @@ ck(m['calories'] == 250 and m['avg_hr'] and not m['lift_open'] and m['elapsed_s'
 s, res = a.post('/api/health/workouts', {'workouts': [w]})
 ck(res['duplicates'] == 1 and res['results'][0]['activity_id'] == lv['id'], 'sent again: duplicate')
 
+# Bodyweight history keeps session totals separate from the best completed, non-warm-up set.
+for i in range(4):
+    status, activity = a.post('/api/activities/manual', {'sport': 'workout', 'start': f'2026-10-{10+i:02d}T18:00', 'duration_s': 600})
+    ck(status == 200, 'bodyweight history workout')
+    status, saved = a.put(f"/api/activities/{activity['id']}/lifts", {'exercises': [{'exercise_id': mine['id'], 'sets': [
+        {'reps': 7+i, 'kg': 0}, {'reps': 6+i, 'kg': 30}, {'reps': 90, 'warmup': True}, {'reps': 99, 'done': False}]}]})
+    ck(status == 200, 'bodyweight history sets')
+status, history = a.get(f"/api/lifts/exercises/{mine['id']}")
+rows = list(reversed(history['sessions']))
+ck(status == 200 and [row['reps'] for row in rows] == [13, 15, 17, 19], 'session rep totals unchanged')
+ck([row['best_reps'] for row in rows] == [7, 8, 9, 10], 'best single set ignores warm-up and unfinished sets')
+ck([row['top']['reps'] for row in rows] == [6, 7, 8, 9], 'heaviest weighted set is distinct from best reps')
+ck(history['records']['reps']['value'] == 10, 'bodyweight single-set record remains correct')
+ck(b.get(f"/api/lifts/exercises/{mine['id']}")[0] == 404, 'other person cannot read bodyweight best sets')
+
 ck(a.delete(f"/api/lifts/exercises/{plank['id']}")[0] == 200 and a.get(f"/api/lifts/exercises/{plank['id']}")[0] == 404, 'delete exercise')
 s, r = a.get(f"/api/activities/{two['id']}/lifts"); ck([e['name'] for e in r['exercises']] == ['Bench press'], 'its sets went with it')
 

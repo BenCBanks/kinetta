@@ -127,13 +127,14 @@ def delete_exercise(eid: int, user=Depends(current_user)):
 
 # ---------- one exercise over time ----------
 def _summary(sets):
-    """Per session: the top set, the best estimated 1RM, total reps, volume (kg x reps) and the longest hold."""
+    """Per session: top set, estimated 1RM, total/best-set reps, volume and longest hold."""
     real = [s for s in sets if _counts(s)]
     top = max(real, key=lambda s: ((s['kg'] or 0), (s['reps'] or 0)), default=None)
     ests = [e1rm(s['kg'], s['reps']) for s in real]
     return {'top': {'kg': top['kg'], 'reps': top['reps']} if top else None,
             'e1rm': max((x for x in ests if x), default=None),
             'reps': sum(s['reps'] or 0 for s in real),
+            'best_reps': max((s['reps'] or 0 for s in real), default=0) or None,
             'volume': sum((s['kg'] or 0) * (s['reps'] or 0) for s in real),
             'secs': max((s['secs'] or 0 for s in real), default=0) or None}
 

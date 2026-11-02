@@ -88,7 +88,7 @@ const Segments = (() => {
     const body = $('#sr-body', el); if (!body) return;
     body.innerHTML = `<div class="seg-course" id="sr-map"></div>
       <div class="bigstat">${stat('Sport', sportName(d.sport))}${stat('Distance', `${U.dist(chk.distance_m)} ${U.du()}`)}${stat('Direction', 'Start ▸ finish')}</div>
-      ${chk.problems.length ? `<div class="plan-alert" role="alert"><p><b>This path can’t be a segment yet.</b></p><ul>${chk.problems.map((p) => `<li>${esc(p)}</li>`).join('')}</ul><a class="ghost sm" href="/segments/new">Back to edit</a></div>` : ''}
+      ${chk.problems.length ? `<div class="plan-alert" role="alert"><p><b>This path can’t be a segment yet.</b></p><ul>${chk.problems.map((p) => `<li>${esc(p)}</li>`).join('')}</ul><a class="ghost sm" data-segment-edit href="/segments/new">Back to edit</a></div>` : ''}
       ${chk.similar.length ? `<div class="card"><h2>Already on Kinetta</h2><p class="small muted">These published segments follow nearly the same path. Using one keeps everyone’s times on the same board.</p><div class="list">${chk.similar.map((s) => `<a class="row-link" href="/segments/${s.id}"><span class="grow">${esc(s.name)}<small class="muted">${U.dist(s.distance_m)} ${U.du()}</small></span>${svg('chev')}</a>`).join('')}</div></div>` : ''}
       <form class="form" id="sr-form">
         <label>Name<input name="name" maxlength="120" required value="${esc(d.name || '')}" placeholder="Park hill"></label>
@@ -99,8 +99,12 @@ const Segments = (() => {
         <div class="seg-fixed" role="note">${svg('lock')}<div><b>A segment can’t be changed once it’s created.</b> Its name, description, path, start, finish, direction and sport stay exactly as shown, so everyone’s times are on the same course. To fix something later, you’d create a new segment with its own leaderboard${d.source === 'route' ? '; editing the route it came from never changes it' : ''}.</div></div>
         <label class="check-row"><input type="checkbox" name="ok" required> <span>I understand this segment can’t be edited after it’s created</span></label>
         <button class="primary wide" id="sr-create"${chk.problems.length ? ' disabled' : ''}>Create segment</button>
-        <a class="ghost wide" href="/segments/new">Back to edit</a>
+        <a class="ghost wide" data-segment-edit href="/segments/new">Back to edit</a>
         <p class="small danger" id="sr-err" role="alert"></p><p class="small muted" id="sr-draft" role="status">Draft saved. It stays private until you create it.</p></form>`;
+    $$('[data-segment-edit]', body).forEach(link => link.onclick = event => {
+      event.preventDefault();
+      if (body.isConnected && d.owner === reviewOwner()) $('[data-back]', el)?.click();
+    });
     mapInto($('#sr-map', body), [chk.line], {sport: d.sport}).then((v) => v && arrows(v, decode(chk.line))).catch(() => {});
     const f = $('#sr-form', body); let t = 0;
     f.oninput = () => { d.name = f.elements.name.value; d.description = f.elements.description.value; d.audience = f.elements.aud.value; clearTimeout(t);

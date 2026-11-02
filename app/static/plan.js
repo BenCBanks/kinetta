@@ -53,18 +53,18 @@ function workoutRow(w, U = '', {compact=false,paces={},plan={}}={}) {
     <div class="pw-main"><b>${esc(w.title)}${HARD.includes(w.type) ? ' <span class="pw-hard">hard</span>' : ''}</b><small>${esc(w.detail)}</small>${badge ? `<div class="badges">${badge}</div>` : ''}</div>
     <span class="chev">${svg('chev')}</span></button>`;
 }
-function wireWorkouts(box, d) {
+function wireWorkouts(box, d, {canMark = true} = {}) {
   $$('[data-wday]', box).forEach((b) => b.onclick = () => {
     const w = d.weeks.flatMap((wk) => wk.workouts).find((x) => x.day === b.dataset.wday);
-    if (w) workoutSheet(w, d.plan.unit);
+    if (w) workoutSheet(w, d.plan.unit, {canMark});
   });
 }
 // Ticks (2026-10-12): a run that day of at least the planned distance ticks it off by itself; any workout, past or
 // future, can be ticked off or unticked by hand (a treadmill run, a watch left at home, a run that didn't count)
-function workoutSheet(w, U) {
+function workoutSheet(w, U, {canMark = true} = {}) {
   const done = w.status === 'done', ran = w.activity_id ? `You ran ${w.actual} ${U} that day.` : '';
   const auto = w.dist ? `Run at least ${w.dist} ${U} that day and it ticks off by itself` : 'Record a run that day and it ticks off by itself';
-  const note = done ? (w.by_hand ? `Done - ticked off by hand. ${ran}` : `Done - you ran ${w.actual} ${U}.`)
+  const note = !canMark ? 'Save this plan before tracking completion.' : done ? (w.by_hand ? `Done - ticked off by hand. ${ran}` : `Done - you ran ${w.actual} ${U}.`)
     : w.by_hand ? `Marked as not done. ${ran}`
     : w.short ? `You ran ${w.actual} of ${w.dist} ${U}, short of the plan. Tick it off yourself if it counts.`
     : w.status === 'missed' ? `Missed - no run recorded that day. Tick it off if you did it without recording.`
@@ -74,9 +74,10 @@ function workoutSheet(w, U) {
       <h3 class="ghead">Why</h3><p>${esc(WHY[w.type] || '')}</p></div>
     <p class="small muted">${esc(note.trim())}</p>
     ${w.activity_id ? `<a class="ghost wide" href="/activity/${w.activity_id}">See the run you did</a>` : ''}
-    ${done ? '<button class="ghost wide" id="pw-undo">Not done after all</button>' : `<button class="primary wide" id="pw-done">${svg('check')}Mark as done</button>`}`, (b, close) => {
+    ${!canMark ? '' : done ? '<button class="ghost wide" id="pw-undo">Not done after all</button>' : `<button class="primary wide" id="pw-done">${svg('check')}Mark as done</button>`}`, (b, close) => {
     const a = $('a.ghost', b); if (a) a.addEventListener('click', () => close());
     const set = async (btn, on) => {
+      if (!canMark || btn.disabled) return;
       btn.disabled = true;
       try {
         // unticking a day ticked by hand with no run just clears the tick; with a run it has to say "not done"
@@ -278,7 +279,7 @@ async function planSetup(box, existing) {
         ${S.level === 'first' ? '' : `<div class="stats3 big">${stat('Week 1', s.first_week, UN)}${stat('Biggest week', s.peak_week, UN)}${stat('Longest run', s.longest, UN)}</div>`}
         ${r.warning ? `<div class="callout warn">${esc(r.warning)}</div>` : ''}
         <h3 class="ghead">Week 1</h3>${r.weeks[0].workouts.map((w) => workoutRow(w, UN)).join('')}`;
-      wireWorkouts(pv, {plan: {unit: UN}, weeks: r.weeks});
+      wireWorkouts(pv, {plan: {unit: UN}, weeks: r.weeks}, {canMark: false});
       go_.disabled = false; go_.textContent = `${existing ? 'Replace with' : 'Start'} this ${s.weeks}-week plan`;
     } catch (x) { if (my === seq && pv.isConnected) { pv.innerHTML = `${step(5, 'Your plan')}<p class="err">${esc(x.message)}</p>`; go_.disabled = true; } }
   };
