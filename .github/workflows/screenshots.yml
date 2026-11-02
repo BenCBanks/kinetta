@@ -54,7 +54,7 @@ jobs:
           python-version: "3.12"
       - name: Take the screenshots
         run: |
-          mkdir -p /tmp/shots-tool /tmp/png && cd /tmp/shots-tool && npm init -y >/dev/null && npm install playwright@1.48.2
+          mkdir -p /tmp/shots-tool /tmp/png && cd /tmp/shots-tool && npm init -y >/dev/null && npm install playwright@1.63.0
           npx playwright install --with-deps chromium
           NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/boot_ui.cjs"
           NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/navigation_ui.cjs"
