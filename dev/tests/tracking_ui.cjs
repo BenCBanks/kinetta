@@ -3,6 +3,13 @@
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs');
 const fixture=require('../demo/track_session.cjs'),base=process.env.KINETTA_URL || 'http://localhost:8798',out=process.env.KINETTA_EVIDENCE;
 async function until(page,fn,label){for(let i=0;i<150;i++){if(await page.evaluate(fn))return;await page.waitForTimeout(100);}throw Error(label);}
+async function recordingControls(p,ids){
+ assert(await p.locator('nav.tabs').isHidden(),'recording hides the tab bar');
+ const fit=await p.evaluate(ids=>{const probe=document.createElement('div');probe.style.paddingBottom='env(safe-area-inset-bottom,0px)';document.body.append(probe);const bottom=innerHeight-parseFloat(getComputedStyle(probe).paddingBottom);probe.remove();const controls=document.querySelector('.track-controls').getBoundingClientRect();return{bottom,overflow:document.documentElement.scrollWidth>innerWidth+1,controls:controls.toJSON(),buttons:ids.map(id=>{const b=document.getElementById(id),r=b?.getBoundingClientRect();return{id,rect:r?.toJSON(),hit:r?document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('button')?.id:null};})};},ids);
+ assert(!fit.overflow,'recording fits the phone width');
+ assert(fit.controls.top>=0&&fit.controls.bottom<=fit.bottom+1,'controls and captions fit the safe viewport: '+JSON.stringify(fit));
+ for(const b of fit.buttons){assert(b.rect?.width>=44&&b.rect.height>=44,'recording targets remain at least 44px');assert.equal(b.hit,b.id,'recording button centre hits its own target: '+JSON.stringify(fit));}
+}
 async function reviewFailures(page,setMode,setCapabilities,saves) {
  const photo=path.resolve(__dirname,'../demo/photos/curry-rice-bowl.jpg');
  await page.evaluate(()=>{globalThis.originalPhotoWrite=TrackReviewStore.photos;TrackReviewStore.photos=async()=>{throw Error('Fictional storage failure');};});
@@ -24,12 +31,32 @@ async function reviewFailures(page,setMode,setCapabilities,saves) {
  setCapabilities('current');setMode('validation');await page.locator('#track-save').click();await until(page,()=>document.querySelector('#track-save-error')?.textContent==='Check this recording.' && !document.querySelector('input[name=activity_name]').disabled,'definite validation failure');assert.equal(await page.evaluate(()=>TrackReviewStore.pending('kinetta.track:'+JSON.stringify([location.origin,App.me.id]))),null,'definite rejection reopens the review for correction');
  saves.length=0;setMode('offline');
 }
+async function intervalControls(browser,storageState,uid){
+ const preset=require('./fixtures/interval_presets.json')[0];
+ for(const size of [{width:330,height:667,root:16},{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){
+  const c=await browser.newContext({storageState,viewport:{width:size.width,height:size.height},colorScheme:theme,serviceWorkers:'block'}),p=await c.newPage(),errors=[],writes=[];p.on('pageerror',e=>errors.push(e.message));
+  const recording=fixture();recording.intervals={pin:preset.pin,phases:preset.expected_steps,index:0,status:'running',time:30,distance:90,phase_time:0,phase_distance:0,phase_ignored_distance:0,results:[],effects:[]};
+  await c.addInitScript(({recording,uid,base,root})=>{const key='kinetta.track:'+JSON.stringify([base,uid]);if(!localStorage.getItem(key))localStorage.setItem(key,JSON.stringify(recording));Object.defineProperty(navigator,'geolocation',{value:{watchPosition:()=>1,clearWatch:()=>{}}});document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px');},{recording,uid,base,root:size.root});
+  await c.route('**/*',r=>{const req=r.request(),u=new URL(req.url());if(u.origin!==base)return r.abort();if(u.pathname==='/api/challenges/signup/continue')return r.fulfill({json:{}});if(!['GET','HEAD'].includes(req.method())){writes.push(u.pathname);return r.abort();}return r.continue();});
+  await p.goto(base+'/track');await p.locator('#track-pause').click();await p.locator('#track-lap').waitFor();await recordingControls(p,['track-lap','track-pause','track-finish']);
+  if(size.root===16)assert(await p.locator('.track-live-body').evaluate(n=>n.scrollHeight<=n.clientHeight+1),'interval, stats and map fit without scrolling');
+  const actions=await p.locator('[data-interval-control]').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{width:r.width,height:r.height,hit:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('button')===n};}));assert.equal(actions.length,2);assert(actions.every(r=>r.width>=44&&r.height>=44&&(size.root!==16||r.hit)),'interval controls remain full targets');
+  if(size.root!==16)for(const action of await p.locator('[data-interval-control]').all()){await action.scrollIntoViewIfNeeded();assert(await action.evaluate(n=>{const r=n.getBoundingClientRect();return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('button')===n;}),'enlarged interval actions are reachable');await recordingControls(p,['track-lap','track-pause','track-finish']);}
+  await p.locator('[data-display=stats]').click();await recordingControls(p,['track-lap','track-pause','track-finish']);if(size.root===16)assert(await p.locator('.track-live-body').evaluate(n=>n.scrollHeight<=n.clientHeight+1),'interval Stats fits without scrolling');
+  await p.locator('#track-finish').click();await p.locator('#track-save').waitFor();assert(await p.locator('nav.tabs').isHidden(),'direct Finish keeps unsaved review focused');await p.locator('#track-continue').click();await p.locator('#track-lap').waitFor();await recordingControls(p,['track-lap','track-pause','track-finish']);
+  await p.locator('#track-pause').click();await recordingControls(p,['track-discard','track-pause','track-finish']);assert(!(await p.locator('.track-live > p').innerText()).includes('background'));
+  await p.evaluate(async()=>{const key='kinetta.track:'+JSON.stringify([location.origin,App.me.id]),r=JSON.parse(localStorage.getItem(key));await Track.forgetDraft();r.state='review';r.intervals.status='ended';localStorage.setItem(key,JSON.stringify(r));});await p.reload();await p.locator('#track-save').waitFor();await p.locator('.track-review-details summary').click();assert((await p.locator('#interval-live').innerText()).includes('Recording finished.'));assert(await p.locator('nav.tabs').isHidden());
+  await p.locator('#track-continue').click();await p.locator('#track-lap').waitFor();await recordingControls(p,['track-lap','track-pause','track-finish']);
+  await p.evaluate(()=>go('/progress'));await p.waitForURL('**/progress');assert(await p.locator('nav.tabs').isVisible(),'leaving Track restores navigation');await p.evaluate(()=>go('/track'));await p.locator('#track-pause').waitFor();assert(await p.locator('nav.tabs').isHidden());
+  await p.locator('#track-discard').click();await p.locator('#tr-discard').click();await p.locator('#track-start').waitFor();assert(await p.locator('nav.tabs').isVisible(),'Discard restores navigation');assert.equal(await p.evaluate(()=>Track.active),false);assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);await c.close();console.log(`Interval controls/review/navigation: ${size.width}/${size.root} ${theme} PASS`);
+ }
+}
 (async()=>{
  const b=await chromium.launch();
  try {
   const auth=await b.newContext();assert.equal((await auth.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}})).status(),200);
   const me=await(await auth.request.get(base+'/api/me')).json(),state=await auth.storageState();await auth.close();
-  for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16},{width:330,height:844,root:24},{width:330,height:667,root:24},{width:1280,height:900,root:16}])for(const theme of ['light','dark']) {
+  for(const size of [{width:390,height:844,root:16},{width:390,height:844,root:24},{width:330,height:667,root:16},{width:330,height:844,root:24},{width:330,height:667,root:24},{width:1280,height:900,root:16}])for(const theme of ['light','dark']) {
    const c=await b.newContext({storageState:state,viewport:{width:size.width,height:size.height},colorScheme:theme,serviceWorkers:'block'}),p=await c.newPage(),errors=[],writes=[],saves=[];
    p.on('pageerror',e=>errors.push(e.message));
    await c.addInitScript(({recording,uid,base,root})=>{
@@ -43,7 +70,8 @@ async function reviewFailures(page,setMode,setCapabilities,saves) {
    await p.goto(base+'/track');await p.locator('#track-pause').waitFor();await p.locator('#track-pause').click();await p.locator('#track-lap').waitFor();
    await until(p,()=>!!document.querySelector('#track-map .leaflet-pane'),'live map');
    assert((await p.locator('.track-live-metrics').innerText()).includes('Avg pace'));assert.notEqual(await p.locator('#track-lap-pace').innerText(),'—','new journal knows its current mile pace');
-   const controls=await p.evaluate(()=>{const r=document.querySelector('#track-pause').closest('.track-controls').getBoundingClientRect(),nav=document.querySelector('nav.tabs').getBoundingClientRect();return {top:r.top,bottom:r.bottom,nav:nav.top};});assert(controls.top>=0 && controls.bottom<=controls.nav,'live controls and captions stay above tabs, including enlarged text');
+   await recordingControls(p,['track-lap','track-pause','track-finish']);
+   await p.locator('[data-display=stats]').click();await recordingControls(p,['track-lap','track-pause','track-finish']);await p.locator('[data-display=map]').click();
    {
     await until(p,()=>!!document.querySelector('#track-map .map-unavailable:not([hidden])'),'blocked basemap feedback');
     const feedback=await p.evaluate(()=>{const box=document.querySelector('#track-map').getBoundingClientRect(),note=document.querySelector('#track-map .map-unavailable').getBoundingClientRect(),gps=document.querySelector('#track-gps-live').getBoundingClientRect();const others=[...document.querySelectorAll('#track-map-wrap #track-follow,#track-map-wrap .map-full,#track-map .leaflet-control-attribution')].map(n=>n.getBoundingClientRect());return {box:box.toJSON(),note:note.toJSON(),gps:gps.toJSON(),inside:note.top>=box.top && note.bottom<=box.bottom && note.left>=box.left && note.right<=box.right,overlap:[gps,...others].some(r=>r.width>0&&r.height>0&&Math.min(note.right,r.right)>Math.max(note.left,r.left)&&Math.min(note.bottom,r.bottom)>Math.max(note.top,r.top))};});
@@ -52,6 +80,7 @@ async function reviewFailures(page,setMode,setCapabilities,saves) {
    await snap('01-live');
    await p.locator('#track-map-wrap .map-full').click();assert(await p.locator('#track-map-wrap.full').isVisible());
    assert(await p.locator('#track-map-wrap.full [data-track-lap]').isVisible());assert(await p.locator('nav.tabs').isHidden());
+   const full=await p.locator('.track-full-controls button').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{width:r.width,height:r.height,left:r.left,right:r.right,bottom:r.bottom,hit:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('button')===n};}));assert.equal(full.length,4);assert(full.every(r=>r.width>=44&&r.height>=44&&r.left>=0&&r.right<=size.width&&r.bottom<=size.height&&r.hit),'expanded-map controls fit and hit their own targets: '+JSON.stringify(full));assert(full.every((r,i)=>!i||r.left-full[i-1].right>=7.98),'expanded-map controls retain at least 8px gaps');
    await p.locator('#track-map-wrap.full [data-track-lap]').click();assert(await p.locator('#track-map-wrap.full').isVisible(),'Lap leaves the expanded map open');
    const first=await p.evaluate(()=>JSON.parse(localStorage.getItem('kinetta.track:'+JSON.stringify([location.origin,App.me.id]))));
    assert.equal(first.laps.length,1);assert.equal(first.laps[0].distance,first.distance,'first manual lap starts at activity start');assert(first.laps[0].distance>1609.344);
@@ -62,7 +91,7 @@ async function reviewFailures(page,setMode,setCapabilities,saves) {
     await p.mouse.click(x,y);assert.equal(await p.locator('#track-map-wrap.full').count(),1,'a deliberate map tap expands it');await p.keyboard.press('Tab');assert(await p.locator(':focus').evaluate(n=>!!n.closest('#track-map-wrap')),'keyboard focus stays in the map');await p.keyboard.press('Escape');
     await p.mouse.move(x,y);await p.mouse.down();await p.mouse.move(x-32,y-16,{steps:5});await p.mouse.up();assert.equal(await p.locator('#track-map-wrap.full').count(),0,'panning does not become an expand tap');
    }
-   await p.locator('#track-pause').click();await p.locator('#track-finish').click();await until(p,()=>!!document.querySelector('#track-photos-add:not(:disabled)'),'review/photo storage');
+   await p.locator('#track-pause').click();await recordingControls(p,['track-discard','track-pause','track-finish']);assert((await p.locator('.track-live > p').innerText()).includes('Recording paused.'));await p.locator('#track-finish').click();await until(p,()=>!!document.querySelector('#track-photos-add:not(:disabled)'),'review/photo storage');
    assert.equal(await p.locator('.top h1').innerText(),'Review activity');assert(await p.locator('#track-review-charts .chartbox').count()>=1);
    await p.locator('input[name=activity_name]').fill('Fictional weekend run');const mapBeforePhoto=await p.locator('#track-map').elementHandle();
    await p.locator('#track-photos-file').setInputFiles(path.resolve(__dirname,'../demo/photos/curry-rice-bowl.jpg'));await until(p,()=>document.querySelectorAll('.track-photo-list figure').length===1 && !document.querySelector('#track-save').disabled,'local photo review');
@@ -80,12 +109,13 @@ async function reviewFailures(page,setMode,setCapabilities,saves) {
    assert(await p.locator('input[name=activity_name]').isDisabled());assert.equal(await p.locator('#track-continue').count(),0);assert.equal(await p.locator('#track-save-error').innerText(),'Save not confirmed. Draft kept.');
    await snap('05-retry');await p.reload();await until(p,()=>document.querySelector('#track-save')?.textContent==='Retry save' && !document.querySelector('#track-save').disabled,'confirmed request recovery');
    await p.evaluate(()=>{App.me.share_default='everyone';Track.draw();});assert.equal(await p.locator('select[name=visibility]').inputValue(),'me','retry displays the originally confirmed audience');
-   const fit=await p.evaluate(()=>{const save=document.querySelector('#track-save'),r=save.getBoundingClientRect(),nav=document.querySelector('nav.tabs').getBoundingClientRect();return {overflow:document.documentElement.scrollWidth>innerWidth+1,top:r.top,bottom:r.bottom,navTop:nav.top,hit:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('button')?.id};});
-   assert(!fit.overflow);assert(fit.top>=0 && fit.bottom<=fit.navTop+1,'Save stays above tabs');assert.equal(fit.hit,'track-save');
-   saveMode='ok';await p.locator('#track-save').click();await p.locator('.track-saved').waitFor();assert.equal(saves.length,2);assert.deepEqual(saves[1],saves[0],'Retry sends exactly the confirmed photos/laps/audience');
+   const fit=await p.evaluate(()=>{const save=document.querySelector('#track-save'),r=save.getBoundingClientRect(),nav=document.querySelector('nav.tabs').getBoundingClientRect();return {overflow:document.documentElement.scrollWidth>innerWidth+1,top:r.top,bottom:r.bottom,navTop:innerHeight,hit:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('button')?.id};});
+   assert(await p.locator('nav.tabs').isHidden());assert(!fit.overflow);assert(fit.top>=0 && fit.bottom<=fit.navTop+1,'Save stays inside the viewport');assert.equal(fit.hit,'track-save');
+   saveMode='ok';await p.locator('#track-save').click();await p.locator('.track-saved').waitFor();assert(await p.locator('nav.tabs').isVisible(),'Save restores navigation');assert.equal(saves.length,2);assert.deepEqual(saves[1],saves[0],'Retry sends exactly the confirmed photos/laps/audience');
    assert.equal(await p.evaluate(()=>Track.active),false);assert.equal(await p.evaluate(()=>TrackReviewStore.pending('kinetta.track:'+JSON.stringify([location.origin,App.me.id]))),null,'acknowledged saves remove their local confirmed request');
    const isolation=await p.evaluate(async image=>{const scope='kinetta.track:'+JSON.stringify([location.origin,App.me.id]);await TrackReviewStore.photos(scope,'owned-local-check',[image]);await TrackReviewStore.photos('fictional-other-server-account','other-local-check',[image]);await Track.forgetDraft();const own=await TrackReviewStore.read(scope,'owned-local-check'),other=await TrackReviewStore.read('fictional-other-server-account','other-local-check');await TrackReviewStore.erase('fictional-other-server-account');return [own.photos.length,other.photos.length];},saves[0].photos[0]);assert.deepEqual(isolation,[0,1],'local account erasure cannot touch a different account/server');
    assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);await c.close();console.log(`GPS lap/map/photo/chart/save/recovery: ${size.width}x${size.height}px/${size.root}px ${theme} PASS`);
   }
+  await intervalControls(b,state,me.id);
  }finally{await b.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

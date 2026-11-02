@@ -1864,7 +1864,7 @@ route(/^\/track\/import$/, 'track', async (el) => {
       const jobs = await api('/api/imports');
       if(!valid())return;
       $('#u-jobs', el).innerHTML = jobs.length ? jobs.map((j) => `<div class="job"><b>${esc(j.label)}</b>
-        <small>${j.status === 'running' || j.status === 'queued' ? `${j.status === 'queued' ? 'Waiting' : 'Processing'} ${j.done} of ${j.total || '?'}` : j.status === 'done' ? 'Finished' : 'Stopped'} · ${j.added} added · ${j.duplicates} duplicates${j.failed ? ` · ${j.failed} couldn't be read` : ''}</small>
+        <small>${j.status === 'running' || j.status === 'queued' ? `${j.status === 'queued' ? 'Waiting' : 'Processing'} ${j.done} of ${j.total || '?'}` : j.status === 'done' ? 'Finished' : 'Stopped'} · ${j.added} added · ${j.duplicates} duplicate${j.duplicates === 1 ? '' : 's'}${j.failed ? ` · ${j.failed} couldn't be read` : ''}</small>
         ${j.total ? `<div class="prog"><div class="bar" data-w="${(j.done / j.total).toFixed(3)}"></div></div>` : ''}
         ${j.messages.length ? `<details><summary class="small">Details</summary><ul class="small">${j.messages.slice(-20).map((m) => `<li>${esc(m)}</li>`).join('')}</ul></details>` : ''}</div>`).join('') : '<p class="muted">No imports yet.</p>';
       if (jobs.some((j) => j.status === 'running' || j.status === 'queued')) { invalidate('/api/'); timer = setTimeout(poll, 2000); }
