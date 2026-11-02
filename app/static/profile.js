@@ -70,7 +70,7 @@ const MeCard=(()=>{
       <div class="me-card-body"><div class="me-card-id">${link?`<a class="me-card-avatar" href="${profileHref(p)}" aria-label="View your profile">${photo}</a>`:`<span class="me-card-avatar">${photo}</span>`}<div class="me-card-name"><h2>${esc(p.name||p.login)}</h2><div class="me-card-meta"><span data-type="secondary">@${esc(p.login)}</span>${friends}</div></div></div>
         ${bio?bio.length>140?`<details class="me-about"><summary>About me</summary><p>${esc(bio)}</p></details>`:`<p class="me-profile-bio">${esc(bio)}</p>`:''}
         <div class="me-card-sections" aria-busy="true">${skel(1)}</div>
-        ${mine?`<p class="me-card-note">${svg('lock')}<span aria-hidden="true" title="Totals include your private workouts. Friends see the totals, not the workouts.">Private workouts count in totals, but stay hidden</span><span class="vh">Totals include your private workouts. Friends see the totals, not the workouts.</span></p>`:''}${milestones?'<div data-me-milestones hidden></div>':''}</div></section>`;
+        ${mine?`<p class="me-card-note">${svg('lock')}<span aria-hidden="true" title="Totals include your private workouts. Friends see the totals, not the workouts.">Private workouts count, but stay hidden</span><span class="vh">Totals include your private workouts. Friends see the totals, not the workouts.</span></p>`:''}${milestones?'<div data-me-milestones hidden></div>':''}</div></section>`;
   }
   const ownPills=()=>`<button type="button" class="me-card-pill" data-card-edit>${svg('edit')}Edit</button><button type="button" class="me-card-pill" data-card-share aria-label="Share your profile">${svg('share')}</button>`;
   function ownFriends(count){
@@ -226,7 +226,7 @@ const MeCard=(()=>{
       go(profileHref(App.me));
     });
     $('[data-card-edit]',card).onclick=edit;
-    $('[data-card-share]',card).onclick=()=>{const q=new URLSearchParams(location.pathname===profileHref(App.me)?location.search:'');q.set('preview','friend');sheet('Share your profile',`<p class="small muted">Friends see the card on Me. Other members see only activities shared with everyone.</p><a class="row-link" href="${esc(profileHref(App.me)+'?'+q)}" data-close data-card-preview><span class="grow">See what others see</span>${svg('chev')}</a><button type="button" class="primary wide" data-share-link>${svg('share')}Share profile link</button>${typeof KinettaCard==='undefined'?'':'<button type="button" class="ghost wide" data-share-card>Public card &amp; QR</button>'}${full?'':`<a class="ghost wide" href="${profileHref(App.me)}" data-close>View full profile</a>`}`,(b,close)=>{
+    $('[data-card-share]',card).onclick=()=>{const q=new URLSearchParams(location.pathname===profileHref(App.me)?location.search:'');q.set('preview','friend');sheet('Share your profile',`<button type="button" class="primary wide" data-share-link>${svg('share')}Share profile link</button><div class="profile-share-rows"><a class="row-link" href="${esc(profileHref(App.me)+'?'+q)}" data-close data-card-preview><span class="grow">See what others see</span>${svg('chev')}</a>${typeof KinettaCard==='undefined'?'':'<button type="button" class="row-link" data-share-card><span class="grow">Public card &amp; QR</span>'+svg('chev')+'</button>'}</div>`,(b,close)=>{
       $('[data-share-link]',b).onclick=()=>{close();shareProfile(App.me);};
       const cardButton=$('[data-share-card]',b);if(cardButton)cardButton.onclick=()=>{close();KinettaCard.open();};
     });};

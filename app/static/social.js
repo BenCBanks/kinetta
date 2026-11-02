@@ -220,7 +220,7 @@ function warmFeed() {
 }
 async function homeFeed(el) {
   el.classList?.add('activity-home');
-  el.innerHTML=`<div id="feed-top">${actTop(false,!(Number.isInteger(App.me?.friend_count)&&App.me.friend_count<=2))}</div><div id="feed-tools"></div>
+  el.innerHTML=`<div id="feed-top">${actTop(false,false)}</div><div id="feed-tools"></div>
     <div class="feed-list" id="ff-list">${skelFeed(3)}</div><button type="button" class="ghost feed-more" id="ff-more" hidden>Show more</button>`;
   const list=$('#ff-list',el),more=$('#ff-more',el),account=readOwner();
   let items=[],shown=null,pageRevision=0;
@@ -284,9 +284,10 @@ function feedTools(el,current){
   const host=$('#feed-tools',el),top=$('#feed-top',el),owner=readOwner();let count=Number.isInteger(App.me?.friend_count)?App.me.friend_count:null,challenges=[],ready=false;
   const live=()=>current()&&readOwner()===owner;
   function draw(){
-    if(!live())return;host.setAttribute('aria-busy',String(!ready));const low=count!=null&&count<=2;top.innerHTML=actTop(false,!low);
+    if(!live())return;host.setAttribute('aria-busy',String(!ready));const low=count!=null&&count<=2;top.innerHTML=actTop(false,false);
     $('.acts',top).insertAdjacentHTML('afterbegin',`<a class="icon-btn" href="/me/challenges" data-feed-challenges aria-label="Challenges">${svg('trophy')}</a>`);
     $('[data-feed-challenges]',top).onclick=()=>{if(live())Discovery.visit('activity','challenge');};
+    if(typeof KitChat!=='undefined')KitChat.entry(el,'/activity');
     const summary=Challenges.summary(challenges),q=summary?.first;
     const timing=q?(q.start>isoDay(new Date())?'Starts '+new Date(q.start+'T12:00:00Z').toLocaleDateString(undefined,{timeZone:'UTC',month:'short',day:'numeric'}):q.self.complete?'Goal reached':q.self.days_left===0?'Ends today':q.self.days_left===1?'1 day left':q.self.days_left+' days left'):'';
     host.innerHTML=`${summary?`<div class="feed-social-strip" aria-label="Active challenge progress"><a class="row-link challenge-summary" data-feed-tool="challenges" href="/me/challenges/${encodeURIComponent(q.code)}"><span class="ri">${svg('trophy')}</span><span class="grow"><b>${summary.count>1?summary.count+' challenges':'Challenge'}</b><small>${esc(summary.progress)} · ${esc(timing)}</small></span><span class="chev">${svg('chev')}</span></a></div>`:''}${low?'<section class="feed-low"><h2>Make Activity yours</h2><div class="progress-grid" id="feed-discovery"></div></section>':''}`;
@@ -577,7 +578,7 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
     const action=r.status==='friends'?`<button type="button" class="me-card-pill" data-person-manage>${svg('check')}Friends</button>`:r.status==='sent'?'<button type="button" class="me-card-pill" data-person-action="cancel">Request sent</button>':r.status==='incoming'?`<button type="button" class="me-card-pill solid" data-person-action="accept">${svg('check')}Approve request</button>`:`<button type="button" class="me-card-pill solid" data-person-action="add">${svg('plus')}Add friend</button>`;
     const pills=mine?MeCard.ownPills():preview?'':action+`<button type="button" class="me-card-pill" data-person-report aria-label="Report or block ${esc(p.name)}">${svg('more')}</button>`;
     const friends=mine?MeCard.ownFriends(r.friend_count):Number.isInteger(r.friend_count)?`<span class="me-friends-link">${svg('people')}<span>${friendCountText(r.friend_count)}</span></span>`:'';
-    box.innerHTML=`${r.profile_hidden?'<p class="callout warn">Your profile is hidden until your account is confirmed and active.</p>':''}${preview?`<div class="profile-preview-bar"><span>Previewing as ${audience==='friend'?'Friends':'other members'}</span><button type="button" class="linkbtn" data-audience="${audience==='friend'?'member':'friend'}">${audience==='friend'?'Other members':'Friends'}</button><button type="button" class="linkbtn" data-audience="you">Done</button></div>`:''}${MeCard.card(p,{mine,pills,friends})}
+    box.innerHTML=`${r.profile_hidden?'<p class="callout warn">Your profile is hidden until your account is confirmed and active.</p>':''}${preview?`<div class="profile-preview-bar"><span>Previewing as <b>${audience==='friend'?'Friends':'Everyone'}</b></span><button type="button" class="linkbtn" data-audience="${audience==='friend'?'member':'friend'}">${audience==='friend'?'Everyone':'Friends'}</button><button type="button" class="linkbtn" data-audience="you">Done</button></div>`:''}${MeCard.card(p,{mine,pills,friends})}
       ${mine?`<section class="profile-activities" aria-label="Your activities"><div id="workout-sync"></div><div class="profile-activity-tools"><h2>Activities</h2><div class="profile-list-filters"><button type="button" class="ghost" id="person-sport"></button><button type="button" class="icon-btn" id="person-search" aria-label="Search your activities" aria-expanded="${!!term}">${svg('search')}</button></div></div><form id="person-search-form" role="search"${term?'':' hidden'}><input type="search" name="q" aria-label="Search your activities" value="${esc(term)}" placeholder="Search names and descriptions" enterkeyhint="search"></form><div class="feed-list" id="person-activities" aria-busy="true">${skelFeed(2)}</div><button type="button" class="ghost wide feed-more" id="person-more" hidden>Show more</button></section>`:feed?ProfileLayout.content(cardData,{...r.layout,sections:['activities']}):''}`;
     MeCard.mount(box,{data:cardData,full:true,reload,onSaved:reload,onEditEnd:async({saved})=>{
       const held=deferred;deferred=null;if(saved||!held||!active()||held.version!==revision||held.key!==path())return;

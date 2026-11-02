@@ -1545,7 +1545,7 @@ route(/^\/me\/settings$/, 'me', async (el) => {
       ${row('button', 'id="m-pw"', 'key', 'c-grey', 'Password', 'Change')}
       ${row('a', 'href="/me/devices"', 'shield', 'c-grey', 'Signed-in devices')}</div>
     <h2 class="sec-head">Profile &amp; sharing</h2>
-    <div class="card list">${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile', 'Name, photo, bio & layout')}
+    <div class="card list">${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile')}
       ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing &amp; privacy')}</div>
     <h2 class="sec-head">Connections &amp; notifications</h2>
     <div class="card list">${row('a', 'href="/track/connections"', 'watch', 'c-brand', 'Connections')}
@@ -1554,16 +1554,15 @@ route(/^\/me\/settings$/, 'me', async (el) => {
     <div class="card list"><div class="row-link static"><span class="ri c-grey">${svg('ruler')}</span><span class="grow">Units</span><div class="seg" role="group" aria-label="Units">
         <button data-u="imperial" aria-pressed="${me.units === 'imperial'}">mi · lb</button><button data-u="metric" aria-pressed="${me.units === 'metric'}">km · kg</button></div></div>
       ${row('button', 'id="m-body"', 'heart', 'c-red', 'Body & heart rate', esc([me.max_hr ? `Max HR ${me.max_hr}` : '', me.weight_kg ? `${Math.round(U.weight(me.weight_kg))} ${imp() ? 'lb' : 'kg'}` : ''].filter(Boolean).join(' · ') || 'Set up'))}</div>
-    ${me.coach ? `<h2 class="sec-head">Kit</h2><div class="card" id="ai"><p class="small muted">${me.ai_paused ? 'AI is paused. Search, barcodes and manual logging still work.' : 'Optional training notes and food estimates. AI consent is separate from access.'}</p>${me.ai_access ? `<p class="small muted">Food estimates: ${me.ai_access.food?.entitled && me.ai_access.food?.available ? 'available' : 'not available'} · Coaching: ${me.ai_access.coach?.entitled && me.ai_access.coach?.available ? 'available' : 'not available'}. Manual tools stay available.</p>${me.ai_access.coach?.reason?`<p class="small muted">${esc(me.ai_access.coach.reason)}</p>`:''}` : ''}<button class="linkbtn small" id="m-ai-info">What gets shared?</button>
-      <div class="seg wide" role="group" aria-label="AI features"><button data-ai="1" aria-pressed="${!!me.ai_ok}">On</button><button data-ai="0" aria-pressed="${!me.ai_ok}">Off</button></div></div>` : ''}
+    <div class="card list" id="ai">${row('button','type="button" id="m-kit"','sparkle','c-green','Kit',me.ai_paused?'Paused':me.ai_ok?'On':'Off')}</div>
     <h2 class="sec-head">Help</h2>
     <div class="card list">${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help &amp; contact')}</div>
     <h2 class="sec-head">Your data</h2>
-    <div class="card list">${row('button', 'id="m-kit-memory"', 'sparkle', 'c-green', 'What Kit remembers', 'View or remove')}${row('button', 'id="m-kit-history"', 'clock', 'c-green', 'Earlier Kit reviews')}${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}
+    <div class="card list">${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}
       ${row('a', 'href="https://kinetta.app/terms" target="_blank" rel="noopener"', 'shield', 'c-green', 'Terms of Use')}
       ${row('a', 'href="https://kinetta.app/privacy" target="_blank" rel="noopener"', 'shield', 'c-green', 'Privacy policy')}
-      ${row('button', 'id="m-del"', 'trash', 'c-red', '<span class="danger">Delete my account</span>')}
-      ${row('button', 'type="button" id="logout"', 'logout', 'c-red', '<span class="danger">Log out</span>')}</div>
+      ${row('button', 'id="m-del"', 'trash', 'c-red', '<span class="danger">Delete my account</span>')}</div>
+    <div class="card list">${row('button', 'type="button" id="logout"', 'logout', 'c-red', '<span class="danger">Log out</span>')}</div>
     </section>`;
   wireBack(el, '/me');
   const unskip=$('#m-setup-unskip',el);if(unskip)unskip.onclick=async()=>{
@@ -1578,14 +1577,24 @@ route(/^\/me\/settings$/, 'me', async (el) => {
   };
   $('#m-profile', el).onclick = () => MeCard.openEditor();
 
-  $('#m-kit-memory',el).onclick=()=>KitChat.memorySettings();
-  $('#m-kit-history',el).onclick=()=>KitChat.savedReviews();
-  if(location.hash==='#ai'){
-    let touched=false;const events=new AbortController();
-    for(const type of ['pointerdown','touchstart','wheel','keydown'])window.addEventListener(type,()=>touched=true,{passive:true,signal:events.signal});
-    requestAnimationFrame(()=>requestAnimationFrame(()=>{events.abort();if(!touched&&el.isConnected&&location.hash==='#ai')$('#ai',el)?.scrollIntoView({block:'start',behavior:'instant'});}));
+  function openKitSettings(){
+    const owner=readOwner();
+    sheet('Kit',`<div id="kit-settings-panel"><p class="small muted">${me.ai_paused?'AI is paused. Search, barcodes and manual logging still work.':'Optional training notes and food estimates. AI consent is separate from access.'}</p>${me.ai_access?`<p class="small muted">Food estimates: ${me.ai_access.food?.entitled&&me.ai_access.food?.available?'available':'not available'} · Coaching: ${me.ai_access.coach?.entitled&&me.ai_access.coach?.available?'available':'not available'}. Manual tools stay available.</p>${me.ai_access.coach?.reason?`<p class="small muted">${esc(me.ai_access.coach.reason)}</p>`:''}`:''}<button type="button" class="linkbtn" id="m-ai-info">What gets shared?</button><div class="seg wide" role="group" aria-label="AI features"><button type="button" data-ai="1" aria-pressed="${!!me.ai_ok}">On</button><button type="button" data-ai="0" aria-pressed="${!me.ai_ok}">Off</button></div><div class="card list">${row('button','type="button" id="m-kit-memory"','sparkle','c-green','What Kit remembers')}${row('button','type="button" id="m-kit-history"','clock','c-green','Earlier Kit reviews')}</div><p class="err" role="alert"></p></div>`,(box,close)=>{
+      const valid=()=>box.isConnected&&el.isConnected&&owner===readOwner();let saving=false;
+      $('#m-ai-info',box).onclick=()=>{if(valid())sheet('Kit & data',aiExplain());};
+      $('#m-kit-memory',box).onclick=()=>{if(valid()){close();KitChat.memorySettings();}};
+      $('#m-kit-history',box).onclick=()=>{if(valid()){close();KitChat.savedReviews();}};
+      $$('[data-ai]',box).forEach(button=>button.onclick=async()=>{
+        if(!valid()||saving)return;const on=button.dataset.ai==='1';if(on===!!App.me.ai_ok)return;
+        if(on){close();aiSheet(()=>{if(owner===readOwner())render();});return;}
+        saving=true;button.disabled=true;
+        try{await api('/api/profile',json('PUT',{ai_ok:false}));if(!valid())return;App.me.ai_ok=me.ai_ok=false;keep('/api/me',App.me);invalidate('/api/coach');close();render();toast('AI features off - nothing is sent');}
+        catch(x){if(valid())$('.err',box).textContent=x.message;}finally{if(valid()){saving=false;button.disabled=false;}}
+      });
+    });
   }
-  const aiInfo = $('#m-ai-info', el); if (aiInfo) aiInfo.onclick = () => sheet('Kit', aiExplain());
+  $('#m-kit',el).onclick=openKitSettings;
+  if(location.hash==='#ai'){replacePageAddress(el,location.pathname+location.search);openKitSettings();}
   $('#m-name', el).onclick = () => {if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_account');accountSheet('name');};
   $('#m-login', el).onclick = () => {if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_account');accountSheet('login');};
   $('#m-pw', el).onclick = () => {if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_account');passwordSheet();};
@@ -1599,12 +1608,6 @@ route(/^\/me\/settings$/, 'me', async (el) => {
     catch (x) { toast(x.message); }
   };
   $('#m-del', el).onclick = () => {if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_data');deleteSheet();};
-  $$('[data-ai]', el).forEach((b) => b.onclick = async () => {
-    const on = b.dataset.ai === '1'; if (on === !!me.ai_ok) return;
-    if (on) { aiSheet(() => render()); return; }
-    try { await api('/api/profile', json('PUT', {ai_ok: on})); me.ai_ok = on; keep('/api/me', me); invalidate('/api/coach'); render(); toast(on ? 'AI features on' : 'AI features off - nothing is sent'); }
-    catch (x) { toast(x.message); }
-  });
   $$('.seg button[data-u]', el).forEach((b) => b.onclick = async () => {
     const prev = me.units; me.units = b.dataset.u; render();
     try { await api('/api/profile', json('PUT', {units: me.units})); } catch (x) { me.units = prev; render(); toast('Could not save: ' + x.message); }
