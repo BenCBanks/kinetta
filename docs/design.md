@@ -1408,14 +1408,32 @@ friend lists; results and Browse people appear right under it. Invite friends to
 the lists. It is no longer a folded card at the bottom. Search behaviour, debouncing, stale-response handling and
 server-enforced discovery rules are unchanged.
 
-## Me card: tappable weeks and a clear All time panel · 30 October 2026 (owner)
+## Me card: compact totals and tappable weeks · 1 November 2026 (#421)
 
 The Me card's weekly distance bars are buttons. Tapping one marks it and swaps the section heading to that week's dates
-and its distance on the right ("SEP 27–OCT 3 · 36.5 mi"), so nothing below moves; tapping it again restores
-"Distance · 7 weeks" and the total. Every week keeps a 44px tap target and an accessible name with dates and distance.
-Large numbers use thousands separators everywhere on the card and shared profile (3,044 · 11,784 mi · Run · 2,938);
-100 or more hours show whole hours ("1,546h"). All time sits in its own softly tinted panel with content-sized
-columns that wrap only when they cannot fit (narrow phones with enlarged text). Sport chips show the sport's own small icon in its sport colour instead of a coloured dot.
+and its distance on the right, so nothing below moves; tapping it again restores "7 weeks" and the total.
+Every week keeps a 44px tap target and an accessible name with dates and distance. All seven fit at 390 px;
+narrower rails keep scrolling, with small indicators in the card padding instead of a fade over the bars.
+One period shows one row of headline numbers, with small metric labels and units underneath. All time wins
+whenever the saved layout contains totals, including the former two-period default; a Recent-only choice shows
+Last 30 days. The editor saves one period, while preserving hidden-number layouts, selected metrics and section order.
+The single numbers block occupies the first former numbers slot. Its quiet period caption identifies the timeframe;
+the recent date range remains in its accessible group name and tooltip. Numbers stay unbroken, at 20–24 px, with
+thousands separators; time is labelled in hours, with its precise duration in screen-reader text and a tooltip.
+Tiny positive durations stay positive. There is no totals table or second period column.
+
+Friends shares the handle line, retaining a 44 px target and pending requests. Sport summaries use plain 13 px
+secondary text and neutral icons: at most three whole labels that fit, in saved order or most-used first by default.
+A quiet +N counts omitted sports, with their details available to screen readers and in a tooltip; no sideways scroll or clipping.
+Card padding and section gaps are 16 px; the shared-activities link is a 48 px single-line row.
+The one-line lock explanation reads “Private totals, no details”; its screen-reader text and tooltip retain the full friends/private-details explanation. It fits the card and can scroll clear of the tab bar. Banner, photo, Edit/Share,
+the Days/Weeks controls and the top gap remain intact.
+
+The empty owner Me card offers Set a goal, opening the existing add form in one tap. Opening saves nothing;
+the one-shot query is consumed so Cancel/refresh does not reopen it. Recent milestones have one quiet app-only footer
+line after the shared summary, marked Only you, showing the latest offer. See all opens a sheet; every offer opens
+its existing share preview. No offers means no row. Milestones never enter shared profiles or card pictures;
+old `/me/milestones` links redirect to Me. Existing preview, privacy, revalidation and sharing-confirmation rules remain.
 
 ## Track: the map before Start moves and expands · 30 October 2026 (owner)
 

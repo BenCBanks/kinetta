@@ -324,6 +324,7 @@ async function meOverview(el) {
     <div id="t-content"><section class="me-agenda" hidden><div id="t-food"></div><div id="t-checkin"></div></section>
     <div id="t-recap"></div><div id="t-combined-week"></div><div id="t-goals"></div><div id="t-form"></div></div>`;
   MeCard.mount(el,{reload:()=>render(),editOnLoad:new URLSearchParams(location.search).get('edit')==='profile'});
+  if(typeof Milestones!=='undefined')Milestones.mount($('[data-me-milestones]',el),{row:true});
   const setup=$('#t-setup',el);
   if(me.needs_email_confirm)$('#t-required',el).innerHTML=`<a class="card tap row-link" href="/me/settings?email=add"><span class="ri c-brand">${svg('mail')}</span><span class="grow"><b>Confirm your email</b><small class="muted">Your profile stays hidden until you confirm it.</small></span>${svg('chev')}</a>`;
   if(typeof Recaps!=='undefined')Recaps.offer($('#t-recap',el));
@@ -1576,7 +1577,6 @@ route(/^\/me$/, 'me', async (el) => {
   el.innerHTML = `<div id="me-overview"></div>
     <div class="card list me-tools">${row('a', 'href="/me/activities"', 'activity', 'c-brand', 'All your activities<small class="muted">Every workout, including private ones</small>')}${row('a', 'href="/plan"', 'calendar', 'c-brand', 'Training plan')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>`;
   el.insertAdjacentHTML('beforeend','<div id="me-challenges"></div>');Challenges.mount($('#me-challenges',el),{me:true});
-  el.insertAdjacentHTML('beforeend','<div id="me-milestones"></div>');Milestones.mount($('#me-milestones',el),{row:true});
   meOverview($('#me-overview', el)).catch((e) => showError($('#me-overview', el), e));
 });
 route(/^\/me\/settings$/, 'me', async (el) => {
@@ -1999,6 +1999,11 @@ route(/^\/me\/goals$/, 'me', async (el) => {
       try { await api('/api/goals', json('POST', {sport: f.sport.value || null, period: f.period.value, metric: f.metric.value, target})); invalidate('/api/goals'); close(); render(); } catch (x) { toast(x.message); }
     };
   });
+  const goalQuery=new URLSearchParams(location.search);
+  if(goalQuery.get('new')==='1'){
+    goalQuery.delete('new');
+    if(replacePageAddress(el,location.pathname+(goalQuery.size?'?'+goalQuery:'')+location.hash))$('#o-add',el).click();
+  }
   await load('/api/goals', (g) => {
     $('#o-list', el).innerHTML = g.length ? `<div class="card">${g.map((x) => `${goalRow(x)}<button class="ghost danger small" data-del="${x.id}">Remove</button>`).join('')}</div>` : '<div class="card empty"><b>No goals yet</b>Set a target for distance, time or calories burned: each day, week, month or year.</div>';
     $$('[data-del]', el).forEach((b) => b.onclick = async () => {

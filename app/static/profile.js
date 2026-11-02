@@ -13,6 +13,10 @@ const ProfileLayout=(()=>{
     if(!d.stats.length)d.stats=defaults().stats;
     return d;
   }
+  function singlePeriod(value){
+    const layout=normalize(value),selected=layout.sections.includes('totals')?'totals':'recent';let used=false;
+    layout.sections=layout.sections.flatMap(k=>{if(k!=='recent'&&k!=='totals')return[k];if(used)return[];used=true;return[selected];});return layout;
+  }
   // Thousands separators (Ben, 30 Oct 2026: "3044" and "11784 mi" read poorly); 100+ hours drop the minutes.
   const big=n=>Number(n).toLocaleString();
   const distance=m=>{const v=U.dist(m,1),n=Number(v);return n>=1000?n.toLocaleString(undefined,{maximumFractionDigits:1}):v;};
@@ -50,7 +54,7 @@ const ProfileLayout=(()=>{
     if(chart)mileageChart(chart,r.mileage||{},'days',{shared:true});
     feedMaps(box);wireCheers(box);
   }
-  return {defaults,normalize,numbers,content,mount,labels:{sections,stats},sports};
+  return {defaults,normalize,singlePeriod,numbers,content,mount,distance,hours,labels:{sections,stats},sports};
 })();
 
 // Me leads with the card friends see, then a private dashboard (owner-approved mockup, 29 October 2026). The card uses the
@@ -59,24 +63,23 @@ const MeCard=(()=>{
   const firstName=me=>(me.name||'').trim().split(/\s+/)[0]||me.login;
   const short=d=>fdate(d+'T12:00',{month:'short',day:'numeric'});
   // The card itself, shared by Me and every profile page (Ben, 30 Oct 2026: the full profile is this card at full size,
-  // then the shared activities). pills fill the banner; friends is the friend-count line.
-  function card(p,{mine=false,pills='',friends='',link=false}={}){
+  // then the shared activities). Friends shares the handle row without changing its audience or destination.
+  function card(p,{mine=false,pills='',friends='',link=false,milestones=false}={}){
     const bio=(p.bio||'').trim(),photo=avatar(p,'lg');
     return `<section class="me-card" aria-label="${mine?'Your profile card':esc(p.name||p.login)+'’s profile card'}"><div class="me-card-banner">${pills}</div>
-      <div class="me-card-body"><div class="me-card-id">${link?`<a class="me-card-avatar" href="${profileHref(p)}" aria-label="View your shared profile">${photo}</a>`:`<span class="me-card-avatar">${photo}</span>`}<div class="me-card-name"><h2>${esc(p.name||p.login)}</h2><span>@${esc(p.login)}</span></div></div>
+      <div class="me-card-body"><div class="me-card-id">${link?`<a class="me-card-avatar" href="${profileHref(p)}" aria-label="View your shared profile">${photo}</a>`:`<span class="me-card-avatar">${photo}</span>`}<div class="me-card-name"><h2>${esc(p.name||p.login)}</h2><div class="me-card-meta"><span data-type="secondary">@${esc(p.login)}</span>${friends}</div></div></div>
         ${bio?bio.length>140?`<details class="me-about"><summary>About me</summary><p>${esc(bio)}</p></details>`:`<p class="me-profile-bio">${esc(bio)}</p>`:''}
-        ${friends}
         <div class="me-card-sections" aria-busy="true">${skel(1)}</div>
-        ${mine?`<p class="me-card-note">${svg('lock')}<span>Your friends see this card. Totals include all your workouts; private ones never show details. Food, body data and Kit are never shown.</span></p>`:''}</div></section>`;
+        ${mine?`<p class="me-card-note">${svg('lock')}<span aria-hidden="true" title="Friends see this card. Private workouts count in totals, never in detail.">Private totals, no details</span><span class="vh">Friends see this card. Private workouts count in totals, never in detail.</span></p>`:''}${milestones?'<div data-me-milestones hidden></div>':''}</div></section>`;
   }
   const ownPills=()=>`<button type="button" class="me-card-pill" data-card-edit>${svg('edit')}Edit</button><button type="button" class="me-card-pill" data-card-share aria-label="Share your profile">${svg('share')}</button>`;
   function ownFriends(count){
     const pending=Number.isInteger(App.me.friend_requests)?App.me.friend_requests:0;
-    return `<a class="me-friends-link" href="/me/friends">${svg('people')}<span data-friend-count>${Number.isInteger(count)?friendCountText(count):'Friends'}</span><span class="badge alert" data-friend-waiting${pending?'':' hidden'}>${pending} waiting</span>${svg('chev')}</a>`;
+    return `<a class="me-friends-link" href="/me/friends"><span class="me-friends-count"><span data-friend-count>${Number.isInteger(count)?friendCountText(count):'Friends'}</span>${svg('chev')}</span><span class="badge alert" data-friend-waiting${pending?'':' hidden'}>${pending} waiting</span></a>`;
   }
   function header(me){
     return `<header class="me-top"><h1>Hi, ${esc(firstName(me))}</h1><div class="me-profile-tools">${bellBtn()}<a class="icon-btn" href="/me/settings" aria-label="Settings">${svg('settings')}</a></div></header>
-    ${card(me,{mine:true,link:true,pills:ownPills(),friends:ownFriends(me.friend_count)})}
+    ${card(me,{mine:true,link:true,pills:ownPills(),friends:ownFriends(me.friend_count),milestones:true})}
     <div class="me-divider"><span>${svg('lock')}Only you below this line</span></div>`;
   }
   // One distance chart, on the card, with a tiny Days / Weeks switch (Ben, 30 Oct 2026: no second chart below it).
@@ -93,18 +96,32 @@ const MeCard=(()=>{
       <div class="me-chart-scroll"><div class="me-card-bars" role="group" aria-label="${weekly?'Weekly distance, last 7 weeks':'Daily distance this week'}">${rows.map(w=>`<button type="button" class="me-week${w.today?' now':''}${w.future?' future':''}" aria-pressed="false" data-range="${esc(when(w))}" data-dist="${esc(value(w))}" aria-label="${esc((w.today?(weekly?'This week, ':'Today, '):'')+when(w)+': '+value(w))}"><span data-h="${top?Math.max(2,Math.round((w.distance_m||0)/top*10)):2}"></span>${weekly?'':`<i aria-hidden="true">${esc(letter(w))}</i>`}</button>`).join('')}</div></div></div>`;
   }
   function sections(r,layout,full){
-    if(!r.overview?.activities&&!r.shared_count)return `<p class="small muted me-card-empty">${r.mine===false?'No workouts to show yet.':'Your totals appear here once you have workouts.'}</p>`;
-    return layout.sections.map(key=>{
-      if(key==='recent'){const figures=ProfileLayout.numbers(r.recent.current,layout.stats);return figures?`<div class="me-card-sec"><div class="me-card-label"><span>Last 30 days</span><small>${esc(short(r.recent.start))} – ${esc(short(r.recent.end))}</small></div><div class="profile-stats">${figures}</div></div>`:'';}
+    if(!r.overview?.activities&&!r.shared_count)return `<div class="me-card-empty"><p>${r.mine===false?'No workouts to show yet.':'Your totals appear here once you have workouts.'}</p>${r.mine===false||full?'':'<a class="ghost wide" href="/me/goals?new=1">Set a goal</a>'}</div>`;
+    const figures=key=>{
+      const recent=key==='recent',row=(recent?r.recent?.current:r.overview)||{},name=recent?'Last 30 days':'All time',range=recent&&r.recent?.start?`${name}, ${short(r.recent.start)} – ${short(r.recent.end)}`:name;
+      return `<div class="me-card-sec me-card-figures" role="group" data-card-period="${key}" aria-label="${esc(range)} workout totals"><p class="me-card-period" data-type="secondary" title="${esc(range)}">${name}</p><dl class="me-card-numbers me-numbers-${layout.stats.length}">${layout.stats.map(stat=>{
+        const n=row[{activities:'activities',distance:'distance_m',time:'time_s',active_days:'active_days'}[stat]],unit=stat==='distance'?U.du():stat==='time'?'h':'',precise=stat==='time'&&n!=null?dur(n,true):null;let value=n==null?'—':stat==='distance'?ProfileLayout.distance(n):Number(n).toLocaleString();
+        if(precise){const h=n/3600;value=h>0&&h<.005?'<0.01':(h>=100?Math.floor(h):h).toLocaleString(undefined,{maximumFractionDigits:h>=100?0:h>=1?1:2});}
+        return `<div data-card-stat="${stat}"><dt data-type="secondary"><span>${ProfileLayout.labels.stats[stat]}</span>${unit?` <small>(${esc(unit)})</small>`:''}</dt><dd${precise?` title="${esc(precise)}"`:''}><b class="me-metric-value" data-type="stat"${precise?' aria-hidden="true"':''}>${esc(value)}</b>${precise?`<span class="vh">${esc(precise)}</span>`:''}</dd></div>`;
+      }).join('')}</dl></div>`;
+    };
+    return ProfileLayout.singlePeriod(layout).sections.map(key=>{
+      if(key==='recent'||key==='totals')return figures(key);
       if(key==='mileage')return distance(r);
-      if(key==='totals'){const figures=ProfileLayout.numbers(r.overview,layout.stats);return figures?`<div class="me-card-sec me-card-total"><div class="me-card-label"><span>All time</span></div><div class="profile-stats">${figures}</div></div>`:'';}
       if(key==='sports'){
-        const rows=(layout.sports.length?layout.sports.map(s=>(r.sports||[]).find(x=>x.sport===s)).filter(Boolean):(r.sports||[])).slice(0,4);
-        return rows.length?`<div class="me-card-sec me-sport-chips">${rows.map(x=>`<span class="me-sport-chip"><span class="me-sport-ico" data-sport="${esc(x.sport)}" aria-hidden="true">${svg(SPORT_NAMES[x.sport]?x.sport:'other')}</span>${esc(SPORT_NAMES[x.sport]||x.sport)} · ${esc(Number(x.activities).toLocaleString())}</span>`).join('')}</div>`:'';
+        const rows=layout.sports.length?layout.sports.map(s=>(r.sports||[]).find(x=>x.sport===s)).filter(Boolean):[...(r.sports||[])].sort((a,b)=>b.activities-a.activities);
+        return rows.length?`<div class="me-card-sec"><div class="me-sport-chips" role="group" aria-label="Sports totals">${rows.map(x=>`<span class="me-sport-chip"><span class="me-sport-ico" data-sport="${esc(x.sport)}" aria-hidden="true">${svg(SPORT_NAMES[x.sport]?x.sport:'other')}</span>${esc(SPORT_NAMES[x.sport]||x.sport)} · ${esc(Number(x.activities).toLocaleString())}</span>`).join('')}<span class="me-sport-more" data-type="secondary" hidden></span></div></div>`:'';
       }
       if(full)return '';
-      return `<a class="me-card-row" href="${profileHref(App.me)}"><span class="grow"><b>${r.shared_count??r.items.length} shared ${(r.shared_count??r.items.length)===1?'activity':'activities'}</b><small>Shared with friends or everyone</small></span>${svg('chev')}</a>`;
+      return `<a class="me-card-row" href="${profileHref(App.me)}"><span class="grow">${r.shared_count??r.items.length} shared ${(r.shared_count??r.items.length)===1?'activity':'activities'}</span>${svg('chev')}</a>`;
     }).join('');
+  }
+  function fitSports(rail){
+    const chips=$$('.me-sport-chip',rail),more=$('.me-sport-more',rail);let count=Math.min(3,chips.length);chips.forEach((n,i)=>n.hidden=i>=count);more.hidden=count===chips.length;if(!more.hidden)more.textContent='+'+(chips.length-count);
+    const fits=()=>{const a=rail.getBoundingClientRect(),b=(more.hidden?chips.at(-1):more).getBoundingClientRect();return b.left>=a.left-.01&&b.right<=a.right+.01;};
+    // Reserve the omitted-count label too; never leave a partial sport at either edge.
+    while(count&&!fits()){chips[--count].hidden=true;more.hidden=false;more.textContent='+'+(chips.length-count);}
+    if(count<chips.length){const n=chips.length-count,names=chips.slice(count).map(x=>x.textContent.trim()).join(', ');more.title=names;more.innerHTML=`<span aria-hidden="true">+${n}</span><span class="vh">${n} more ${n===1?'sport':'sports'}: ${esc(names)}</span>`;}
   }
   // data: the profile page passes the response it already has; full: the activities follow the card (no link row, no
   // View full profile); onSaved: reread after a layout save. Someone else's card only gets the week taps.
@@ -113,7 +130,14 @@ const MeCard=(()=>{
     let data=given,editing=false,editRevision=0,chartCleanup=()=>{};
     const chartPositions=new Map();
     function chartScroll(){
-      chartCleanup();const wrap=$('.me-card-bars',box);if(!wrap)return;
+      chartCleanup();
+      const summaries=$$('.me-sport-chips',box).map(rail=>{
+        let resized=0,cleaned=false;const update=()=>{if(!cleaned&&live()&&rail.isConnected)fitSports(rail);};
+        const observer=new ResizeObserver(()=>{cancelAnimationFrame(resized);resized=requestAnimationFrame(update);});[rail,...rail.children].forEach(n=>observer.observe(n));update();
+        const cleanup=()=>{if(cleaned)return;cleaned=true;cancelAnimationFrame(resized);observer.disconnect();viewResources.delete(rail);};viewResources.set(rail,cleanup);return cleanup;
+      });
+      const clearSummaries=()=>summaries.forEach(clean=>clean());
+      chartCleanup=clearSummaries;const wrap=$('.me-card-bars',box);if(!wrap)return;
       const frame=wrap.parentElement,mode=wrap.closest('.me-distance').classList.contains('days')?'days':'weeks',saved=chartPositions.get(mode);let atEnd=false,cleaned=false;
       const update=()=>{if(!live()||!wrap.isConnected)return;const max=wrap.scrollWidth-wrap.clientWidth;atEnd=max-wrap.scrollLeft<1;frame.classList.toggle('has-before',wrap.scrollLeft>1);frame.classList.toggle('has-after',!atEnd);chartPositions.set(mode,wrap.scrollLeft);};
       const reveal=b=>{if(!b)return;const r=b.getBoundingClientRect(),left=r.left-wrap.getBoundingClientRect().left+wrap.scrollLeft;if(left<wrap.scrollLeft+4)wrap.scrollLeft=left-4;else if(left+r.width>wrap.scrollLeft+wrap.clientWidth-4)wrap.scrollLeft=left+r.width-wrap.clientWidth+4;};
@@ -121,7 +145,7 @@ const MeCard=(()=>{
       wrap.addEventListener('scroll',update,{passive:true});wrap.addEventListener('focusin',focused);
       const observer=new ResizeObserver(()=>{if(!live()||!wrap.isConnected)return;if(atEnd)wrap.scrollLeft=wrap.scrollWidth;update();});observer.observe(wrap);
       const initial=requestAnimationFrame(()=>{if(!live()||!wrap.isConnected)return;if(saved!==undefined)wrap.scrollLeft=saved;else if(mode==='weeks')wrap.scrollLeft=wrap.scrollWidth;else reveal($('.me-week.now',wrap));update();});
-      chartCleanup=()=>{if(cleaned)return;cleaned=true;chartPositions.set(mode,wrap.scrollLeft);cancelAnimationFrame(initial);observer.disconnect();wrap.removeEventListener('scroll',update);wrap.removeEventListener('focusin',focused);viewResources.delete(wrap);};
+      chartCleanup=()=>{if(cleaned)return;cleaned=true;clearSummaries();chartPositions.set(mode,wrap.scrollLeft);cancelAnimationFrame(initial);observer.disconnect();wrap.removeEventListener('scroll',update);wrap.removeEventListener('focusin',focused);viewResources.delete(wrap);};
       viewResources.set(wrap,chartCleanup);
     }
     const bars=()=>{$$('.me-card-bars span',box).forEach(bar=>bar.style.height=bar.dataset.h*5+'px');chartScroll();}; // CSP blocks inline style attributes
@@ -143,9 +167,10 @@ const MeCard=(()=>{
     function edit({focusName=false,fromSettings=false}={}){
       if(!live()||editing)return;chartCleanup();editing=true;dim(true);
       const revision=++editRevision,valid=()=>live()&&editing&&revision===editRevision;
-      const start={name:App.me.name||'',bio:App.me.bio||'',layout:ProfileLayout.normalize(App.me.profile_layout||data?.layout)};
+      const start={name:App.me.name||'',bio:App.me.bio||'',layout:ProfileLayout.singlePeriod(App.me.profile_layout||data?.layout)};
       const value=structuredClone(start.layout),{sections:names,stats}=ProfileLayout.labels;
-      let order=[...value.sections,...Object.keys(names).filter(k=>!value.sections.includes(k))],busy=false;
+      let chosenPeriod=value.sections.includes('recent')?'recent':'totals',order=[...value.sections,...Object.keys(names).filter(k=>!value.sections.includes(k))].filter(k=>k!=='recent'&&k!=='totals'||k===chosenPeriod),busy=false;
+      const sectionName=k=>k==='recent'||k==='totals'?'Numbers':names[k];
       const chip=(group,id,label,on)=>`<button type="button" class="me-chip" data-${group}="${esc(id)}" aria-pressed="${on}">${esc(label)}</button>`;
       box.innerHTML=`<form class="me-card-editor" novalidate>
         <header class="me-editor-head"><button type="button" class="linkbtn" data-card-cancel>Cancel</button><b>Editing your card</b><button type="submit" class="linkbtn" data-card-save disabled>Save</button><p class="small muted" role="status" aria-live="polite" data-card-status></p></header>
@@ -153,6 +178,7 @@ const MeCard=(()=>{
           <div class="me-editor-fields"><label class="vh" for="card-name">Name</label><input id="card-name" name="name" value="${esc(start.name)}" maxlength="60" autocomplete="name" placeholder="Name" required aria-describedby="card-name-error"><small class="danger" id="card-name-error" role="alert"></small><span class="small muted">@${esc(App.me.login)}</span>
           <label class="vh" for="card-bio">Bio</label><textarea id="card-bio" name="bio" rows="2" maxlength="280" placeholder="Bio" aria-describedby="card-bio-count">${esc(start.bio)}</textarea><div class="me-editor-bio-label"><small class="muted" id="card-bio-count" data-card-bio-count>${start.bio.length}/280</small></div></div></div>
         <p class="small muted me-editor-privacy">Your name, photo and bio are visible to people who find your profile.</p>
+        <h3 id="card-period-label">Period</h3><div class="me-chips" data-card-period role="group" aria-labelledby="card-period-label"></div>
         <h3>Sections</h3><div class="me-editor-sections" data-card-sections></div>
         <h3>Headline numbers <span>· up to 3</span></h3><div class="me-chips" data-card-stats></div>
         <h3>Featured sports <span>· up to 3 · none = all</span></h3><div class="me-chips" data-card-sports></div></form>`;
@@ -161,16 +187,20 @@ const MeCard=(()=>{
       const changed=text=>{save.disabled=busy||!dirty();if(text)status.textContent=text;};
       const sizeBio=()=>{bio.style.height='auto';const style=getComputedStyle(bio),line=parseFloat(style.lineHeight)||22,padding=parseFloat(style.paddingTop)+parseFloat(style.paddingBottom)+2;bio.style.height=Math.max(line*2+padding,Math.min(bio.scrollHeight,line*3+padding))+'px';};
       const rows=focus=>{
-        $('[data-card-sections]',box).innerHTML=order.map((k,i)=>{const on=value.sections.includes(k);return `<div class="me-edit-row${on?'':' off'}"><label class="me-section-toggle switch-row"><span>${names[k]}</span><input type="checkbox" role="switch" data-show="${k}" aria-label="Show ${names[k]}"${on?' checked':''}></label><button type="button" class="icon-btn" data-move="${k}" data-step="-1" aria-label="Move ${names[k]} up"${i?'':' disabled'}><span class="profile-up">${svg('down')}</span></button><button type="button" class="icon-btn" data-move="${k}" data-step="1" aria-label="Move ${names[k]} down"${i===order.length-1?' disabled':''}>${svg('down')}</button></div>`;}).join('');
-        $$('[data-show]',box).forEach(input=>input.onchange=()=>{if(!valid())return;const k=input.dataset.show;value.sections=order.filter(x=>x===k?input.checked:value.sections.includes(x));input.closest('.me-edit-row').classList.toggle('off',!input.checked);changed(`${names[k]} ${input.checked?'shown':'hidden'}.`);});
+        $('[data-card-sections]',box).innerHTML=order.map((k,i)=>{const on=value.sections.includes(k);return `<div class="me-edit-row${on?'':' off'}"><label class="me-section-toggle switch-row"><span>${sectionName(k)}</span><input type="checkbox" role="switch" data-show="${k}" aria-label="Show ${sectionName(k)}"${on?' checked':''}></label><button type="button" class="icon-btn" data-move="${k}" data-step="-1" aria-label="Move ${sectionName(k)} up"${i?'':' disabled'}><span class="profile-up">${svg('down')}</span></button><button type="button" class="icon-btn" data-move="${k}" data-step="1" aria-label="Move ${sectionName(k)} down"${i===order.length-1?' disabled':''}>${svg('down')}</button></div>`;}).join('');
+        $$('[data-show]',box).forEach(input=>input.onchange=()=>{if(!valid())return;const k=input.dataset.show;value.sections=order.filter(x=>x===k?input.checked:value.sections.includes(x));input.closest('.me-edit-row').classList.toggle('off',!input.checked);periodChoices();changed(`${sectionName(k)} ${input.checked?'shown':'hidden'}.`);});
         $$('[data-move]',box).forEach(button=>button.onclick=()=>{if(!valid())return;const i=order.indexOf(button.dataset.move),j=i+Number(button.dataset.step);if(j<0||j>=order.length)return;[order[i],order[j]]=[order[j],order[i]];value.sections=order.filter(k=>value.sections.includes(k));changed(`${names[button.dataset.move]} moved ${button.dataset.step==='1'?'down':'up'}.`);rows({key:button.dataset.move,step:button.dataset.step});});
         if(focus){const b=$(`[data-move="${focus.key}"][data-step="${focus.step}"]`,box);(b.disabled?$(`[data-show="${focus.key}"]`,box):b).focus({preventScroll:true});}
+      };
+      const periodChoices=()=>{
+        const enabled=value.sections.includes(chosenPeriod),target=$('[data-card-period]',box);target.innerHTML=Object.entries({totals:'All time',recent:'Last 30 days'}).map(([k,l])=>chip('number-period',k,l,k===chosenPeriod)).join('');
+        $$('[data-number-period]',target).forEach(button=>{button.disabled=!enabled;button.onclick=()=>{if(!valid()||!enabled)return;const k=button.dataset.numberPeriod;order=order.map(x=>x===chosenPeriod?k:x);value.sections=value.sections.map(x=>x===chosenPeriod?k:x);chosenPeriod=k;rows();periodChoices();$(`[data-number-period="${k}"]`,box).focus({preventScroll:true});changed('Period updated.');};});
       };
       const choices=(group,key,catalog,min)=>{
         const target=$(`[data-card-${key}]`,box);target.innerHTML=Object.entries(catalog).map(([k,l])=>chip(group,k,l,value[key].includes(k))).join('');
         $$(`[data-${group}]`,target).forEach(button=>button.onclick=()=>{if(!valid())return;const k=button.dataset[group],on=value[key].includes(k);if(on&&value[key].length<=min){status.textContent='Keep at least one number.';return;}if(!on&&value[key].length>=3){status.textContent='Choose up to three.';return;}value[key]=on?value[key].filter(x=>x!==k):[...value[key],k];button.setAttribute('aria-pressed',String(!on));changed(`${key==='stats'?'Headline numbers':'Featured sports'} updated.`);});
       };
-      rows();choices('stat','stats',stats,1);choices('sport','sports',Object.fromEntries(ProfileLayout.sports.map(k=>[k,SPORT_NAMES[k]||k])),0);
+      rows();periodChoices();choices('stat','stats',stats,1);choices('sport','sports',Object.fromEntries(ProfileLayout.sports.map(k=>[k,SPORT_NAMES[k]||k])),0);
       name.oninput=()=>{nameError.textContent='';name.removeAttribute('aria-invalid');changed();};
       bio.oninput=()=>{$('[data-card-bio-count]',box).textContent=bio.value.length+'/280';sizeBio();changed();};
       $('[data-card-photo]',box).onclick=()=>{if(!valid())return;profilePhotoSheet(()=>{if(!valid())return;const photo=$('[data-card-photo]',box);photo.innerHTML=avatar(App.me,'lg')+'<small>Change</small>';const original=$('.me-card-id .me-card-avatar',card);if(original)original.innerHTML=avatar(App.me,'lg');invalidate('/api/me');invalidate('/api/people/');keep('/api/me',App.me);status.textContent='Photo saved. Your other edits are kept.';});};
@@ -179,7 +209,7 @@ const MeCard=(()=>{
       form.onsubmit=async e=>{
         e.preventDefault();if(!valid()||busy||!dirty())return;
         const trimmed=name.value.trim();if(!trimmed||trimmed.length>60){nameError.textContent='Enter a name between 1 and 60 characters.';name.setAttribute('aria-invalid','true');name.focus();return;}
-        const body={name:trimmed,bio:bio.value.trim(),profile_layout:structuredClone(value)};
+        const body={name:trimmed,bio:bio.value.trim(),profile_layout:ProfileLayout.singlePeriod(value)};
         busy=true;save.disabled=true;save.textContent='Saving…';status.textContent='';
         try{
           const account=await api('/api/account',json('PUT',body));if(owner!==readOwner())return;

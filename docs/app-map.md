@@ -1,6 +1,6 @@
 # Kinetta app map
 
-The pre-launch walkthrough (#472) builds this map one tab at a time. Me was inspected at `8cb2c01`, and Activity and Track at `7d0b3d6`. Track’s native recording and Health visuals used browser stand-ins; physical-device behavior is not verified. Progress, Nutrition and sign-up interiors remain for their walkthroughs. Routes use placeholders and contain no account data.
+The pre-launch walkthrough (#472) builds this map one tab at a time. Me was inspected at `8cb2c01`, and Activity and Track at `7d0b3d6`. #421 updates the first-Goal entrance and folds milestones into the card. Track’s native recording and Health visuals used browser stand-ins; physical-device behavior is not verified. Progress, Nutrition and sign-up interiors remain for their walkthroughs. Routes use placeholders and contain no account data.
 
 Depth counts taps after selecting the tab. Opening a disclosure and then its Open link counts as two taps. Sheet depth is included. Scrolling does not add taps. A node can have several entrances; depths below use the shortest entrance available in the inspected state.
 
@@ -24,7 +24,10 @@ flowchart LR
   Me -->|All your activities · 1| History["Your activities · /me/activities"]
   Me -->|Shoes and bikes · 1| Gear["Shoes and bikes · /me/gear"]
   Me -->|Goals Edit · 1 when goals exist| Goals["Goals · /me/goals"]
-  Me -->|Recent milestones · 1 when present| Milestones["Recent milestones · /me/milestones"]
+  Me -->|Latest milestone · 1 when present| MilestoneShare["Share milestone sheet"]
+  Me -->|See all milestones · 1 when present| MilestoneList["Recent milestones sheet"]
+  Me -->|Set a goal · 1 when empty| GoalEdit
+  MilestoneLegacy["Legacy /me/milestones"] -.-> Me
   Me -->|Explore · 1| Explore["Explore Kinetta · /me/explore"]
   Me -->|Edit · 1| Editor["Inline card editor"]
   Me -->|Share · 1| ShareMenu["Share your profile sheet"]
@@ -86,9 +89,7 @@ flowchart LR
   Recap -->|Preview picture · 2| RecapPicture["Full-size progress picture sheet"]
   Recap -->|Periods and included facts| Recap
   Recap -->|Share| SystemShare
-  Milestones -->|More · 2| MilestoneList["Milestone list sheet"]
-  Milestones -->|Share · 2| MilestoneShare["Share milestone sheet"]
-  MilestoneList -->|Choose one · 3| MilestoneShare
+  MilestoneList -->|Choose one · 2| MilestoneShare
   MilestoneShare -->|Share| SystemShare
 
   Friends -->|Search or Browse| Friends
@@ -153,7 +154,7 @@ flowchart LR
   GuideEntry -->|"Open Matched routes"| GuidePage15
   GuideEntry -->|"Open Heatmap"| GuidePage16
   GuideEntry -->|"Open Year-over-year trends"| GuidePage17
-  GuideEntry -->|"Open Recent milestones"| Milestones
+  GuideEntry -->|"Open Recent milestones"| MilestoneLegacy
   GuideEntry -->|"Open Share your progress"| Progress
   GuideEntry -->|"Open Fitness, fatigue and form defined"| GuidePage11
   GuideEntry -->|"Open VDOT and race predictions"| GuidePage11
@@ -209,21 +210,21 @@ Observed return exceptions: Explore's four Add-food entries and four Nutrition v
 
 ## Me page summary
 
-The inspected slice includes 15 app pages (Me, Settings, sharing/privacy, notification preferences, devices, Speed check, Gear, Goals, Friends, full profile, activity history, Explore, milestones, Ask Kit and the notification inbox), plus the public-card landing and their sheets.
+The inspected slice contained 15 app pages. With the separate milestones page retired by #421, there are 14: Me, Settings, sharing/privacy, notification preferences, devices, Speed check, Gear, Goals, Friends, full profile, activity history, Explore, Ask Kit and the notification inbox, plus the public-card landing and their sheets. The owner-only milestone footer is absent from shared profiles and card pictures; its complete list uses a sheet.
 
 | Destination | Shortest observed entrance from Me | Taps |
 |---|---|---|
 | Profile editor, Friends, Settings, history, Gear, Explore | Direct visible entry | 1 |
 | Body settings, devices, privacy, notification preferences, Speed check | Settings, then row | 2 |
 | Public card options / QR | Share, public card / Show QR | 2 / 3 |
-| New Goal with no existing goals | Explore, Goals disclosure, Open, Add | 4 |
+| New Goal from the empty Me card | Set a goal | 1 |
 | Earlier Kit reviews in the inspected unavailable state | Explore, Ask Kit disclosure, Open, More, Earlier reviews | 5 |
 
-The measured entrance depends on account state: populated goals and recent milestones have direct Me entries. A view reached by an Explore disclosure takes three taps before any controls inside it.
+The entrance depends on account state: an empty card offers direct Goal setup; existing goals have a management link, and recent milestones have direct preview and See all actions. A view reached by an Explore disclosure takes three taps before any controls inside it.
 
 ## Follow-up decisions
 
-Speed check and its Settings link are scheduled for retirement in #486; the diagram records their current presence. A direct first-Goal entrance belongs to #421. Kit permissions/history depth belongs to #418. Merging Recent milestones into Me remains a proposal awaiting an owner decision. Private history and shared profiles retain separate entrances, as do signed-in profile links and public card/QR sharing.
+Speed check and its Settings link are scheduled for retirement in #486; the diagram records their current presence. The direct first-Goal entrance and milestone footer are implemented in #421. Kit permissions/history depth belongs to #418. Ben approved folding Recent milestones into Me: one latest offer, a See all sheet and no empty row. Old page links redirect to Me. Private history and shared profiles retain separate entrances, as do signed-in profile links and public card/QR sharing.
 
 ## Activity
 

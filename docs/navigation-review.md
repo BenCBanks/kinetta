@@ -39,7 +39,8 @@ Regular page Back controls use the previous app entry when its account and local
 | `/me/devices` | Settings |
 | `/me/sharing`, `/me/notifications` | Settings |
 | `/notifications` | Me through the existing Today alias |
-| `/me/explore`, `/me/milestones` | Me |
+| `/me/explore` | Me |
+| `/me/milestones` | Legacy redirect to Me; recent milestones use the card and a sheet |
 | `/food/meals` | Nutrition |
 | `/food/cook/{recipe}` | Recipes for the owner, Nutrition for a shared recipe |
 | `/food/recipe-link` | Existing named recipe/library return |
