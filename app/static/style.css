@@ -1457,7 +1457,7 @@ html.keyboard-open nav.tabs { display: none; }
 .progress-filters .rng { margin:0; }
 .progress-filters .me-period { margin:0 0 0 auto; }
 .progress-filters .me-period button { min-width:44px; min-height:44px; padding:0 5px; font-size:max(15px,.9375rem); }
-.progress-totals-title { display:flex; align-items:center; min-height:44px; font-size:var(--text-app-card-title); font-weight:700; color:var(--tx); }
+.progress-totals-title { margin:0; display:flex; align-items:center; min-height:44px; font-size:var(--text-app-card-title); font-weight:700; color:var(--tx); }
 .progress-totals-title svg { width:16px; height:16px; }
 .progress-pair { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
 .progress-pair .card { margin-bottom:0; }
@@ -1475,7 +1475,8 @@ html.keyboard-open nav.tabs { display: none; }
 .progress-new.seen { visibility:hidden; }
 .progress-new::before { content:''; width:5px; height:5px; border-radius:50%; background:var(--accent); }
 
-.progress-home-totals .table-fold { display:none; }
+.progress-home-totals .table-fold { margin:4px 0 8px; }
+.progress-home-totals .table-fold > summary { min-height:44px; }
 .progress-food-summary { display:block; color:var(--tx); }
 .progress-food-options .view-nav { margin:0; }
 .progress-food-options .pbar { margin:0; padding:8px 0 0; }
@@ -3029,3 +3030,17 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .progress-home-totals .stats3 > .stat { display:contents; }
 .progress-home-totals .stats3 > .stat > small { grid-row:1; }
 .progress-home-totals .stats3 > .stat > b { grid-row:2; }
+/* Progress: existing values with explicit keys and compact history/segment controls (#492). */
+.sw.k-brand { background:var(--accent); }
+.route-fastest-key { color:var(--gold); }
+.record-history-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+.record-history-heading h2 { margin:0; }
+.record-history-heading .me-period { gap:8px; }
+.progress-segment-controls .mileage-toggle { min-width:0; max-width:100%; }
+
+.seg-rules { margin:12px 0; }
+.seg-rules > summary { min-height:44px; display:flex; align-items:center; font-weight:500; cursor:pointer; }
+.seg-me { margin:12px 0; }
+.seg-best-label { color:var(--accent); font-weight:500; }
+.seg-rules > summary svg { flex:none; width:16px; height:16px; margin-left:auto; }
+.seg-rules[open] > summary svg { transform:rotate(90deg); }

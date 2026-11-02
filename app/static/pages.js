@@ -988,14 +988,14 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
     const perMonth = t ? t.slope_per_day * 30 : null;
     let headline = '';
     if (t && Math.abs(perMonth) >= 1) headline = `${perMonth < 0 ? 'Getting faster' : 'Getting slower'}: about ${foot ? Math.round(Math.abs(imp() ? perMonth * MI / 1000 : perMonth)) + ' s' + U.pu() : ''} per month on this route.`;
-    if (e && t) { const effUp = e.slope_per_day > 0; headline += effUp ? ' Your pace per heartbeat is improving: you\'re fitter at the same effort.' : ' Pace per heartbeat is slipping. Heat, fatigue or easier days can do that.'; }
+    if (e && t) { const effUp = e.slope_per_day > 0; headline += ` Recorded distance per heartbeat ${e.slope_per_day===0?'is unchanged':effUp?'increased':'decreased'}. Conditions and recording differences can affect this.`; }
     const best = acts.find((a) => a.id === r.fastest_id);
     el.innerHTML = `<div class="top">${backBtn('Routes')}<button class="icon-btn" id="r-edit" aria-label="Rename route">${svg('edit')}</button></div>
       <div class="card"><h1>${esc(r.name)}</h1><p class="muted">${acts.length} times · ${SPORT_NAMES[r.sport] || 'Activity'} · first ${esc(fdate(acts[0].start_time, {month: 'short', year: 'numeric'}))}</p>
         <div class="hero">${stat('Best', dur(best && best.moving_s))}${stat('Average', dur(acts.reduce((s, a) => s + (a.moving_s || 0), 0) / acts.length))}${stat('Distance', U.dist(acts[0].distance_m), U.du())}</div></div>
       ${r.line ? '<div class="map" id="r-map"></div>' : ''}
       <div class="card"><h2>${foot ? 'Pace' : 'Speed'} over time</h2>${headline ? `<div class="callout">${esc(headline)}</div>` : ''}<div id="r-chart"></div>
-        <div class="badges"><span class="badge pr">● Fastest</span><span class="badge">- - Trend</span></div></div>
+        <div class="badges"><span class="badge"><span class="route-fastest-key" aria-hidden="true">●</span> Fastest</span><span class="badge">- - Trend</span></div></div>
       <div class="card"><h2>Every time</h2>${[...acts].reverse().map((a) => `<a class="row-link" href="/activity/${a.id}" data-prefetch="/api/activities/${a.id}">
         <div><b>${a.id === r.fastest_id ? '<span class="badge pr">' + svg('trophy') + ' Fastest</span> ' : ''}${esc(fdate(a.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))}</b><br><small class="muted">${esc(a.name)}${a.avg_hr ? ' · ' + Math.round(a.avg_hr) + ' bpm' : ''}${a.avg_temp != null ? ' · ' + U.temp(a.avg_temp) : ''}</small></div>
         <div class="r"><b class="num">${dur(a.moving_s)}</b><br><small class="muted num">${foot ? U.pace(a.moving_s / a.distance_m * 1000) + U.pu() : U.speed(a.distance_m / a.moving_s) + ' ' + U.su()}</small></div></a>`).join('')}</div>`;
@@ -1011,8 +1011,7 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
 
 // ---------- Progress: home of cards, with each view’s filters inside its first card ----------
 const PSPORTS = [['run', 'Runs'], ['ride', 'Rides'], ['walk', 'Walks'], ['hike', 'Hikes'], ['all', 'All sports']];
-const PVIEWS = [['totals', 'Totals', 'Distance by week, month and year', 'progress', 'c-red'],
-  ['fitness', 'Fitness', 'Race predictions, fitness and form', 'flame', 'c-orange'], ['records', 'Records', 'Your fastest times at each distance', 'trophy', 'c-purple'],
+const PVIEWS = [['fitness', 'Fitness', 'Race predictions, fitness and form', 'flame', 'c-orange'], ['records', 'Records', 'Your fastest times at each distance', 'trophy', 'c-purple'],
   ['lifting', 'Lifting', 'Every exercise, your bests and its history', 'workout', 'c-brand']];
 const PMORE = [['trends', 'Year over year', 'Pace, heart rate and distance, year by year', 'progress', 'c-blue'],
   ['calendar', 'Calendar', 'Training and eating, day by day', 'calendar', 'c-orange'], ['routes', 'Matched routes', 'Compare the loops you have recorded more than once', 'activity', 'c-green'], ['segments', 'Segments & times', 'Your fixed courses, personal times and leaderboards', 'route', 'c-green'],
@@ -1133,7 +1132,7 @@ async function progressHome(el, q) {
   wireProgressFocus(el); wireProgressPeriods(el);
   Discovery.wire($('#p-explore',el),'progress',{attribute:'data-progress-feature'});
   const totals=$('#p-home-totals',el), grid=$('#p-explore',el); progressTiles(grid);
-  progressFilters(el,totals,`<a class="progress-totals-title" href="/progress?view=totals">Totals ${svg('chev')}</a>${sportBtn(forView(sport,'totals'))}${progressPeriods(period)}`);
+  progressFilters(el,totals,`<h2 class="progress-totals-title">Totals</h2>${sportBtn(forView(sport,'totals'))}${progressPeriods(period)}`);
   wireSport(el,sport);
   q.set('sport',forView(sport,'totals'));q.set('period',period);
   if ($('#p-combined-week',el)) combinedWeek($('#p-combined-week',el));
@@ -1160,6 +1159,7 @@ route(/^\/progress$/, 'progress', async (el) => {
   if (q.get('section') === 'food') return foodProgress(el,q);
   if (!q.has('view')) return progressHome(el,q);
   const v0 = q.get('view') || 'totals';
+  if(['totals','mileage'].includes(v0)||!PVIEWS.some(p=>p[0]===v0)&&!PMORE.some(p=>p[0]===v0)){q.delete('view');return go('/progress'+(q.size?'?'+q:''),{replace:true});}
   if (v0 === 'plan') return go('/plan', {replace: true});
   if (PMORE.some((m) => m[0] === v0)) { q.delete('view'); return go(`/progress/${v0}${q.toString() ? '?' + q : ''}`, {replace: true}); }   // old addresses
   const view = v0 === 'mileage' ? 'totals' : PVIEWS.some((p) => p[0] === v0) ? v0 : 'totals', sport = pSport(q);
@@ -1199,6 +1199,7 @@ function fitnessChart(box, title, draw) {
   let closeFull = null;
   viewResources.set(box, () => closeFull?.());
   const plot = $('[data-fitness-plot]', box), open = () => {
+    if(!$('svg',plot))return;
     const owner = readOwner();
     const selected = chartViews.get(plot)?.state();
     sheet(title, '<div class="fitness-inspect"><p class="small muted">Pinch or scroll to zoom. Drag to move through dates. Tap or hover for exact values.</p><div data-full-chart></div></div>', (body, close) => {
@@ -1211,6 +1212,7 @@ function fitnessChart(box, title, draw) {
         const view = chartViews.get(mount)?.state() ?? selected;
         const focused = mount.contains(document.activeElement);
         draw(mount, Math.max(220, Math.min(600, innerHeight * .52)), {view,interactive:true});
+        $('.fitness-inspect > p',body).hidden=!$('svg',mount);
         if (focused) $('svg',mount)?.focus({preventScroll:true});
       };
       requestAnimationFrame(redraw);
@@ -1222,7 +1224,7 @@ function fitnessChart(box, title, draw) {
   // The chart itself and the labelled button both open the larger analysis view.
   const graph = $('.chartbox', plot);
   if (graph) { graph.setAttribute('role','button'); graph.tabIndex=0; graph.setAttribute('aria-label','View '+title+' full screen'); graph.onclick=open; graph.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}}; }
-  $('.chart-expand',box).onclick=open;
+  $('.chart-expand',box).hidden=!graph;$('.chart-expand',box).onclick=open;
 }
 async function pFitness(body, q) {
   const R = getRange(q), nowY = new Date().getFullYear();
@@ -1251,16 +1253,17 @@ async function pFitness(body, q) {
         ${commonSource ? '' : predictionSource(p.from)}<small class="pbest">${p.best_s ? `${pr ? 'Beats your best,' : 'Your best:'} ${esc(dur(p.best_s))}` : 'Not raced yet'}</small></div>`; }).join('')}</div>
         <p class="small muted prediction-note">Estimates, not target paces.</p><details class="prediction-method"><summary>How estimates work</summary><p class="small muted">Uses your best efforts from the past 90 days, adjusted for endurance. Without recent long runs, it uses weekly mileage. Course, weather and race-day pacing aren’t included.</p><p class="small muted">Fastest recent effort: <a href="/activity/${b.activity_id}">${esc(b.label)} in ${esc(dur(b.elapsed_s))}</a> · ${esc(fdate(b.start_time, {month: 'short', day: 'numeric'}))}</p></details></div>`
       : '<div class="card"><h2>Race predictions</h2><p class="muted">Run a mile or more in the last 90 days and predictions appear here.</p></div>';
-    box.innerHTML = `<div class="card"><h2>Running fitness</h2>${f.vdot_months.length ? `<div class="bigstat">${stat('VDOT now', f.vdot_now || '–')}${stat(R.from || R.to ? 'Best in range' : 'Best ever', ((v) => (v.length ? Math.max(...v).toFixed(1) : '–'))(f.vdot_months.filter((m) => inRange(R, +m.m.slice(0, 4))).map((m) => m.v)))}</div><div id="p-vdot"></div>
-        <p class="small muted">VDOT is a running-performance score calculated from your fastest stretch each month (a mile or longer). Higher means faster recorded performance. It is not a measured VO₂max or a guarantee of race pace.</p>` : '<p class="muted">Needs runs of a mile or longer.</p>'}</div>
+    box.innerHTML = `<div class="card"><h2>Running fitness</h2>${f.vdot_months.length ? `<div class="bigstat">${stat('Best · 90 days', f.vdot_now || '–')}${stat(R.from || R.to ? 'Best in range' : 'Best ever', ((v) => (v.length ? Math.max(...v).toFixed(1) : '–'))(f.vdot_months.filter((m) => inRange(R, +m.m.slice(0, 4))).map((m) => m.v)))}</div><div id="p-vdot"></div>
+        <p class="small muted">VDOT is a running-performance score from best efforts of a mile or longer. Higher means faster recorded performance. It is not a measured VO₂max or a guarantee of race pace.</p>` : '<p class="muted">Needs runs of a mile or longer.</p>'}</div>
       <div class="card"><h2>Fitness, fatigue & form</h2>
       <div class="bigstat">${stat('Fitness', Math.round(last.fitness))}${stat('Form', (last.form > 0 ? '+' : '') + Math.round(last.form))}</div>
-      <div id="p-load"></div><p class="small muted">Fitness = 6-week average training load, fatigue = last week. Form = fitness − fatigue: positive means fresh, negative means recent load is higher than your longer-term load. It does not diagnose overtraining.</p>
+      <div id="p-load"></div><p class="small muted">Fitness uses a 42-day weighted training load; fatigue uses 7 days. Form = fitness − fatigue: positive means fresh, negative means recent load is higher than your longer-term load. It does not diagnose overtraining.</p>
       ${f.ramp_7d > 8 ? '<div class="callout warn">Fitness rose fast this week (ramp ' + f.ramp_7d + '). Build gradually to stay healthy.</div>' : ''}</div>`;
     requestAnimationFrame(() => {
       fitnessChart($('#p-load', box), 'Training load', (mount, height, options) => loadChart(mount, f.days, {height,...options}));
-      if (f.vdot_months.length) fitnessChart($('#p-vdot', box), 'Running fitness', (mount, height, options) => trendLine(mount, monthSeries(f.vdot_months[0].m, (m) => { const r = f.vdot_months.find((x) => x.m === m); return r ? {y: r.v} : {y: null}; }),
-        {fmt: (v) => v.toFixed(1), color: 'brand', height, ...options, keep: (p) => inRange(R, p.d.getFullYear())}));
+      if (f.vdot_months.length) fitnessChart($('#p-vdot', box), 'Monthly best score', (mount, height, options) => {trendLine(mount, monthSeries(f.vdot_months[0].m, (m) => { const r = f.vdot_months.find((x) => x.m === m); return r ? {y: r.v} : {y: null}; }),
+        {fmt: (v) => v.toFixed(1), rollName:'6-month average of monthly bests', color: 'brand', height, ...options, keep: (p) => inRange(R, p.d.getFullYear())});
+        const key=$('.legend span:last-child',mount);if(key)key.lastChild.textContent='Monthly best';});
     });
   });
 }
@@ -1282,16 +1285,16 @@ route(/^\/records\/(\w+)\/([\d.]+)$/, 'progress', async (el, sport, dist) => {
   el.innerHTML = `<div class="top">${backBtn('Records')}</div>${skel(2)}`;
   wireBack(el, `/progress?view=records&sport=${sport}`);
   await load(`/api/records/history?sport=${sport}&distance_m=${dist}`, (rows) => {
-    const prs = rows.filter((r) => r.pr);
+    const prs = rows.filter((r) => r.pr),owner=readOwner();let onlyPRs=false;
     const label = (rows[0] && rows[0].label) || '';
     el.innerHTML = `<div class="top">${backBtn('Records')}</div><div class="card"><h1>${esc(U.dist(+dist) + ' ' + U.du())} · ${SPORT_NAMES[sport]}</h1>
       <p class="muted">${rows.length} efforts · ${prs.length} times you set a new PR</p><div id="h-chart"></div></div>
-      <div class="card"><h2>PR progression</h2>${[...prs].reverse().map((r) => `<a class="row-link" href="/activity/${r.activity_id}"><div><b class="num">${dur(r.elapsed_s)}</b><br><small class="muted">${esc(r.name)}</small></div><small class="muted">${esc(fdate(r.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))}</small></a>`).join('')}</div>
-      <div class="card"><h2>All efforts</h2><p class="small muted">Fastest first</p><div id="h-all"></div></div>`;
+      <div class="card"><div class="record-history-heading"><h2>Efforts</h2><div class="me-period" role="group" aria-label="Effort history"><button type="button" data-record-filter="all" aria-pressed="true">All</button><button type="button" data-record-filter="prs" aria-label="Personal records only" aria-pressed="false">PRs</button></div></div><p class="small muted">Fastest first</p><div id="h-all"></div></div>`;
     wireBack(el, `/progress?view=records&sport=${sport}`);
-    const all = [...rows].sort((a, b) => a.elapsed_s - b.elapsed_s), allRow = (r, i) => `<a class="row-link record-effort" href="/activity/${r.activity_id}"><span class="record-rank num">${i + 1}</span><div class="record-effort-main"><b class="num">${dur(r.elapsed_s)}</b><br><small class="muted">${esc(r.name)}</small></div><small class="muted">${esc(fdate(r.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))}</small></a>`;
-    const drawAll = (n) => { const box = $('#h-all', el); if (!box) return; box.innerHTML = all.slice(0, n).map(allRow).join('') + (all.length > n ? `<button type="button" class="ghost wide" id="h-more">Show all ${all.length}</button>` : ''); const more = $('#h-more', box); if (more) more.onclick = () => drawAll(all.length); };
+    const all = [...rows].sort((a, b) => a.elapsed_s - b.elapsed_s), allRow = (r, i) => `<a class="row-link record-effort" href="/activity/${r.activity_id}"><span class="record-rank num">${i + 1}</span><div class="record-effort-main"><b class="num">${dur(r.elapsed_s)}</b><br><small class="muted">${esc(r.name)}${r.pr?' · PR':''}</small></div><small class="muted">${esc(fdate(r.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))}</small></a>`;
+    const drawAll = (n) => { const box = $('#h-all', el),list=onlyPRs?all.filter(r=>r.pr):all; if (!box||owner!==readOwner()) return; box.innerHTML = list.slice(0, n).map(allRow).join('') + (list.length > n ? `<button type="button" class="ghost wide" id="h-more">Show all ${list.length}</button>` : ''); const more = $('#h-more', box); if (more) more.onclick = () => drawAll(list.length); };
     drawAll(10);
+    $$('[data-record-filter]',el).forEach(button=>button.onclick=()=>{if(!el.isConnected||owner!==readOwner())return;onlyPRs=button.dataset.recordFilter==='prs';$$('[data-record-filter]',el).forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.recordFilter==='prs')===onlyPRs)));drawAll(10);});
     const best = rows.reduce((b, r) => (!b || r.elapsed_s < b.elapsed_s ? r : b), null);
     requestAnimationFrame(() => dotChart($('#h-chart', el), rows.map((r) => ({x: new Date(r.start_time) / 864e5, y: r.elapsed_s, id: r.activity_id})), {yfmt: (v) => dur(v), invert: true, best: best && best.activity_id}));
   });
@@ -1433,12 +1436,12 @@ async function pTrends(body, q) {
     box.innerHTML = `<div class="card"><h2>By year</h2><div class="tblwrap"><table class="tbl yrs"><thead><tr><th>Year</th><th class="r">${U.du()}/wk</th><th class="r">${noun[0].toUpperCase() + noun.slice(1)}/wk</th><th class="r">${foot ? 'Pace' : 'Speed'}</th><th class="r">HR</th><th class="r">Avg ${U.du()}</th><th class="r">Longest</th></tr></thead><tbody>
         ${yrows.map((y) => `<tr${+y.y === today.getFullYear() ? ' class="cur"' : ''}><td>${y.y}${+y.y === today.getFullYear() ? '<small class="muted"> so far</small>' : ''}</td><td class="r num"><b>${y.wk == null ? '–' : y.wk.toFixed(1)}</b></td><td class="r num">${y.perwk == null ? '–' : y.perwk.toFixed(1)}</td>
           <td class="r num">${foot ? pace(y.pace) : spd(y.speed)}</td><td class="r num">${y.hr ? Math.round(y.hr) : '–'}</td><td class="r num">${y.avgd == null ? '–' : y.avgd.toFixed(1)}</td><td class="r num">${y.longest ? toU(y.longest).toFixed(1) : '–'}</td></tr>`).join('')}</tbody></table></div>
-        <p class="small muted">${foot ? 'Pace' : 'Speed'} = total moving time ÷ total distance. Heart rate is weighted by time, from ${noun} that recorded it.</p></div>
+        <p class="small muted">${foot ? 'Pace = total moving time ÷ total distance' : 'Speed = total distance ÷ total moving time'}. Heart rate is weighted by time, from ${noun} that recorded it.</p></div>
       ${metrics.map((m) => `<div class="card"><h2>${esc(m.t)}</h2>
         ${cy && cy[m.k] != null ? `<p class="small"><b class="num">${esc(m.fmt(cy[m.k]))}</b> in ${cy.y}${+cy.y === today.getFullYear() ? ' so far' : ''}${ly && ly[m.k] != null ? ` · ${esc(m.fmt(ly[m.k]))} in ${ly.y} ${cmp(m)}` : ''}</p>` : ''}
         <div id="g-${m.k}"></div></div>`).join('')}`;
     requestAnimationFrame(() => {
-      for (const m of metrics) trendLine($(`#g-${m.k}`, box), series.map((p) => ({d: p.d, label: p.label, y: m.k === 'wk' || m.k === 'perwk' ? p[m.k] : p.n ? p[m.k] : null, w: m.w ? p[m.w] : 1})), {fmt: m.fmt, yfmt: m.axis || ((v) => (Math.abs(v) >= 20 ? String(Math.round(v)) : v.toFixed(1))), color: m.color, invert: !!m.invert, keep: (p) => inRange(R, p.d.getFullYear())});
+      for (const m of metrics) trendLine($(`#g-${m.k}`, box), series.map((p) => ({d: p.d, label: p.label+(p.ym===r.today.slice(0,7)?' · so far':''), y: m.k === 'wk' || m.k === 'perwk' ? p[m.k] : p.n ? p[m.k] : null, w: m.w ? p[m.w] : 1})), {fmt:v=>m.fmt(v)+(['wk','perwk'].includes(m.k)?'/week':''), yfmt: m.axis || ((v) => (Math.abs(v) >= 20 ? String(Math.round(v)) : v.toFixed(1))), color: m.color, invert: !!m.invert, keep: (p) => inRange(R, p.d.getFullYear())});
     });
   });
 }

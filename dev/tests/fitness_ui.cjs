@@ -17,7 +17,7 @@ async function until(p,fn,label){for(let i=0;i<180;i++){if(await p.evaluate(fn))
    for(const card of await p.locator('#fi-pred > .card,#fi-body > .card').all())assert(await card.evaluate(n=>{const s=getComputedStyle(n);return [s.paddingTop,s.paddingRight,s.paddingBottom,s.paddingLeft].every(v=>parseFloat(v)>=16);}), '16px on every Fitness card');
    if(size.root<=16)for(const h of await p.locator('#fi-pred h2,#fi-body h2').all()){const v=await h.evaluate(n=>parseFloat(getComputedStyle(n).fontSize));assert(v>=17&&v<=20,'section heading scale');}
    assert.equal(await p.locator('.discovery-grid').count(),0);assert.equal(await p.locator('#p-rng button').count(),1,'existing years choice remains in the first card');
-   if(state==='empty'){assert.equal(await p.locator('.pred').count(),0);assert.match(await p.locator('#fi-pred').innerText(),/Run a mile or more/);}
+   if(state==='empty'){await p.locator('#p-load .chart-expand').waitFor({state:'attached'});assert(await p.locator('#p-load .chart-expand').isHidden(),'empty load has no full-screen/zoom affordance');assert.equal(await p.locator('.pred').count(),0);assert.match(await p.locator('#fi-pred').innerText(),/Run a mile or more/);}
    else{
     assert.equal(await p.locator('.pred > div').count(),4);assert.equal(await p.locator('.fitness-predictions .prediction-source').count(),1,'one complete shared source');const source=data.predictions[0].from;assert(source.distance_m>0&&source.elapsed_s>0);assert.equal(await p.locator('.fitness-predictions .prediction-source').getAttribute('href'),'/activity/'+source.activity_id);assert.match(await p.locator('.fitness-predictions .prediction-source').innerText(),/Based on your 5K/);
     const shown=await p.locator('.pred > div > b').allTextContents(),expected=await p.evaluate(rows=>rows.map(x=>dur(x.seconds)),data.predictions);assert.deepEqual(shown,expected,'displayed times equal unchanged API predictions');
@@ -26,9 +26,12 @@ async function until(p,fn,label){for(let i=0;i<180;i++){if(await p.evaluate(fn))
     if(size.root<=16){const type=await p.locator('.fitness-predictions .pred b').first().evaluate(n=>parseFloat(getComputedStyle(n).fontSize));assert(type>=20&&type<=24);const running=p.locator('#fi-body .card').first(),vdot=await running.locator('.bigstat').boundingBox(),nav=await p.locator('nav.tabs').boundingBox();assert(vdot.y+vdot.height<nav.y,'Running fitness and current VDOT remain on the first screen');}
     console.log('Fitness spacing',state,size.width,size.root,theme,JSON.stringify(geometry));
     await p.locator('.prediction-method summary').click();assert(await p.locator('.prediction-method').evaluate(n=>n.open));assert.match(await p.locator('.prediction-method').innerText(),/90 days/);await p.locator('.prediction-method summary').click();
+    assert.match(await p.locator('#fi-body .card').first().innerText(),/Best · 90 days/i);assert.match(await p.locator('#p-vdot .legend').innerText(),/6-month average of monthly bests/);
+    const swatches=await p.locator('#p-vdot .sw').evaluateAll(ns=>ns.map(n=>getComputedStyle(n).backgroundColor));assert(swatches.length===2&&swatches.every(c=>c!=='rgba(0, 0, 0, 0)'&&c!=='transparent'),'fitness keys have a visible color');
     await p.locator('#p-vdot .chart-expand').click();await until(p,()=>!!document.querySelector('.fitness-inspect svg'),'full VDOT chart');await p.locator('.sheet [data-close]').click();assert.equal(await p.locator('.fitness-inspect').count(),0);
    }
    if(out){fs.mkdirSync(out,{recursive:true});await p.evaluate(()=>scrollTo(0,0));await p.screenshot({path:`${out}/${state}-fitness-${size.width}-${size.root}-${theme}.png`});}
+   if(state==='heavy')await require('./progress_polish_ui.cjs')(p,{size,theme});
    assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);await c.close();console.log(`Fitness ${state} ${size.width}/${size.root} ${theme} PASS`);
   }
  }
