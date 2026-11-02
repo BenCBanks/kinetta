@@ -47,6 +47,27 @@ try:
  with db.connect() as c:
   fid,entries=C._custom(c,uid,catalog_draft);values(entries[0],[450,0,.0123])
   learned=c.execute('SELECT * FROM custom_foods WHERE user_id=%s AND id=%s',(uid,fid)).fetchone();values(learned,[450,0,.0123])
+ # Custom-food blanks stay nullable; explicit zero and omitted legacy fields stay known.
+ macros=('protein_g','carbs_g','fat_g')
+ nullable={'name':'Fictional nullable bowl','serving_g':100,'kcal':107,'barcode':'1234567890101',**dict.fromkeys(macros)}
+ fid=post('/api/food/foods',nullable)['id']
+ def own_food():return next(x for x in a.get('/api/food/foods').json() if x['id']==fid)
+ for valueset in (own_food(),a.get('/api/food/search',params={'q':'nullable bowl','sources':'mine'}).json()['mine'][0],a.get('/api/food/barcode/1234567890101').json()):
+  assert all(valueset['per_serving'][k] is None and valueset['per100'][k] is None for k in macros),valueset
+ assert not b.get('/api/food/search',params={'q':'nullable bowl','sources':'mine'}).json()['mine']
+ assert a.put('/api/food/foods/'+str(fid),json={**nullable,'favorite':True}).status_code==200
+ assert own_food()['favorite'] and all(own_food()['per_serving'][k] is None for k in macros)
+ assert b.put('/api/food/foods/'+str(fid),json=nullable).status_code==404
+ scaled=post('/api/food/meals-chat/resolve',{'say':'50 g fictional nullable bowl'})
+ item=scaled['items'][0];assert item['totals']['kcal']==53.5 and all(item['totals'][k] is None for k in macros),item
+ confirmed=post('/api/food/meals-chat/confirm',{'items':[{k:item[k] for k in ('kind','id','portion','expected')}],'issued':scaled['issued'],'client_id':scaled['client_id'],'day':day,'meal':'lunch','confirm':True})
+ stored=entry(confirmed['ids'][0]);assert all(stored[k]==0 for k in macros) and set(macros)<=set(stored['ref']['unknown_nutrients']),stored
+ assert a.put('/api/food/foods/'+str(fid),json={**nullable,**dict.fromkeys(macros,0)}).status_code==200
+ assert all(own_food()['per_serving'][k]==0 for k in macros)
+ assert a.put('/api/food/foods/'+str(fid),json={'name':nullable['name'],'kcal':0}).status_code==200
+ assert own_food()['per_serving']['kcal']==0 and all(own_food()['per_serving'][k]==0 for k in macros)
+ for key in macros:
+  assert a.post('/api/food/foods',json={'name':'Fictional invalid macro','kcal':107,key:-1}).status_code==422
  # Thread logging, current-row correction, replay and Undo preserve every value.
  def send(text):
   r=a.post('/api/food/thread/messages',json={'body':text,'client_id':str(uuid.uuid4())});assert r.status_code==201,r.text

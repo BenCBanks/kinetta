@@ -457,9 +457,9 @@ class FoodIn(N.ExtraValues):
     serving_label: str = Field('1 serving', max_length=60)
     serving_g: float | None = Field(None, gt=0, le=10000)
     kcal: float = Field(0, ge=0, le=20000)
-    protein_g: float = Field(0, ge=0, le=2000)
-    carbs_g: float = Field(0, ge=0, le=2000)
-    fat_g: float = Field(0, ge=0, le=2000)
+    protein_g: float | None = Field(0, ge=0, le=2000)
+    carbs_g: float | None = Field(0, ge=0, le=2000)
+    fat_g: float | None = Field(0, ge=0, le=2000)
     fiber_g: float | None = Field(None, ge=0, le=1000)
     favorite: bool = False
 

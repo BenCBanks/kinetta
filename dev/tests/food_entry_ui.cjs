@@ -25,6 +25,10 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    if(who==='empty'){assert.equal(await p.locator('[data-thread-quick]:visible').count(),4);if(size.root===16)assert((await p.locator('#thread-empty p').boundingBox()).height<28,'one intro line');}
    else{assert.equal(await p.locator('[data-thread-quick]:visible').count(),0,'shortcuts collapse after a message');if(who==='clarify'){assert.equal(await p.locator('[data-reply]').count(),2);assert(await p.locator('#thread-review').isHidden());}
     else{const count=who==='one'?1:who==='photo'?4:3;assert.equal(await rows.count(),count);assert.equal(await p.locator('.thread-total').count(),0,'only the sticky review total');assert(await p.locator('#thread-review').isVisible());
+     const total=await p.locator('.thread-review-kcal').boundingBox(),action=await p.locator('.thread-review-go').boundingBox();
+     assert(total.x+total.width<=action.x-4,'complete calorie total stays separate from Review, including enlarged text');
+     assert(await p.locator('.thread-review-kcal').evaluate(n=>n.scrollWidth<=n.clientWidth+1),'calorie total never ellipsizes');
+
      for(const row of await rows.all()){assert(!/×\s*1\b/.test(await row.innerText()),'natural amount');assert.match(await row.locator('.tf-source').innerText(),/Kit’s estimate/);for(const control of await row.locator('button').all()){const rect=await control.boundingBox();assert(rect.width>=43.9&&rect.height>=43.9,'44px food controls');}if(size.root===16)assert((await row.boundingBox()).height<=96,'about 90px food row');}
      if(size.root===16&&who!=='keyboard'){const list=await p.locator('#thread-messages').boundingBox(),review=await p.locator('#thread-review').boundingBox(),first=await rows.first().boundingBox(),last=await rows.last().boundingBox();assert(first.y>=list.y-1&&last.y+last.height<=review.y,'all draft foods and the review strip fit');}
     }

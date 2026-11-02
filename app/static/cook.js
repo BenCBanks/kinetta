@@ -212,7 +212,7 @@ function dishLogSheet(d, w, done, {chooseMeal=false}={}) {
   const both = wt > 0 && (bySv || (d.serving_count || 0) > 1) && !d.recipe_source?.import_id;   // a default 1 'serving' would be the whole pot
   let mode = bySv ? 'sv' : 'g';
   const vals = (k) => Object.fromEntries(FOOD_NUTRIENTS.map((x) => [x, t[x]==null?null:t[x]*k]));
-  sheet(d.name, `${d.mine===false?`<p class="small muted">Shared by ${esc(d.owner?.name||'your friend')}. Your food log stays private.</p>`:''}<form class="form" id="dl">
+  sheet(d.name, `${foodDestination(w)}${d.mine===false?`<p class="small muted">Shared by ${esc(d.owner?.name||'your friend')}. Your food log stays private.</p>`:''}<form class="form" id="dl">
     ${chooseMeal?`<label>Meal today<select name="meal" required><option value="">Choose a meal</option>${Object.entries(MEAL_NAMES).map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select></label>`:''}
     ${both ? `<div class="seg dl-mode" role="group" aria-label="Log by"><button type="button" data-mode="sv" aria-pressed="${bySv}">Servings</button><button type="button" data-mode="g" aria-pressed="${!bySv}">Grams</button></div>` : ''}
     ${bySv || both ? `<div id="dl-sv"${bySv ? '' : ' hidden'}><div class="stepper" role="group" aria-label="Servings"><button type="button" class="icon-btn" data-st="-1" aria-label="Fewer">${svg('minus')}</button>

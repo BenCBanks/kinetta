@@ -716,14 +716,14 @@ tr.muted td { color: var(--tx3); }
 .tcard .tc-macros .mrow b { font: 700 13px/1.2 var(--numf); letter-spacing: 0; } .tc-macros .mrow b i { font-style: normal; color: var(--tx3); font-weight: 500; }
 .tc-macros .linkbtn { justify-self: start; min-height: 32px; padding: 0; }
 .tc-bal { margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--line); }
-.balance details.tc-bal { margin-top: 12px; }
-.balance details.tc-bal > summary { display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer; font-size: 15px; font-weight: 700; min-height: 40px; color: var(--tx); }
+:is(.balance,.nutrition-secondary) details.tc-bal { margin-top: 12px; }
+:is(.balance,.nutrition-secondary) details.tc-bal > summary { display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer; font-size: 15px; font-weight: 700; min-height: 40px; color: var(--tx); }
 .tc-bal > summary::-webkit-details-marker { display: none; }
-.tc-bal > summary > span:first-child { flex: 1; min-width: 0; } .tcard .tc-bal > summary small { display: inline; font-weight: 500; font-size: 13px; text-transform: none; letter-spacing: 0; }
-.tcard .tc-bal > summary b { font: 800 22px var(--numf); letter-spacing: -.02em; } .tc-bal > summary b i { font-size: 13px; font-style: normal; color: var(--tx3); font-weight: 600; }
+.tc-bal > summary > span:first-child { flex: 1; min-width: 0; } :is(.tcard,.nutrition-secondary) .tc-bal > summary small { display: inline; font-weight: 500; font-size: 13px; text-transform: none; letter-spacing: 0; }
+:is(.tcard,.nutrition-secondary) .tc-bal > summary b { font: 800 22px var(--numf); letter-spacing: -.02em; } .tc-bal > summary b i { font-size: 13px; font-style: normal; color: var(--tx3); font-weight: 600; }
 .tc-bal > summary b.good { color: var(--good); } .tc-bal > summary b.bad { color: var(--alert); }
 .tc-bal > summary .chev svg { width: 16px; height: 16px; color: var(--tx3); transition: transform .15s; } .tc-bal[open] > summary .chev svg { transform: rotate(90deg); }
-.tcard .tc-bal .brow b { font: 700 15px var(--numf); letter-spacing: 0; }
+:is(.tcard,.nutrition-secondary) .tc-bal .brow b { font: 700 15px var(--numf); letter-spacing: 0; }
 a.ntile { color: inherit; text-decoration: none; }
 .quick { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-bottom: 12px; }
 .quick .ghost { min-height: 44px; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); padding: 8px 16px; }
@@ -756,17 +756,17 @@ a.ntile { color: inherit; text-decoration: none; }
 .gbar { height: 10px; border-radius: 999px; background: var(--card2); overflow: hidden; margin: 14px 0 8px; }
 .gbar .gfill { height: 100%; width: calc(var(--w, 0) * 100%); background: var(--prog); border-radius: 999px; }
 .gbar.over .gfill { background: var(--alert); }
-.balance .brow { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+:is(.balance,.nutrition-secondary) .brow { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
 .balance h2 + .brow { border-top: 0; }
-.balance .brow > span { display: flex; flex-direction: column; min-width: 0; } .balance .brow small { font-size: 12px; }
-.balance .brow a { color: inherit; display: inline-flex; align-items: center; gap: 6px; }
-.balance .exi { display: inline-flex; width: auto; height: auto; background: none; border-radius: 0; color: var(--c); } .balance .exi svg { width: 16px; height: 16px; }
-.balance .brow.sum { border-top: 2px solid var(--tx3); font-weight: 700; }
-.balance .brow.big { border-top: 0; font-size: 17px; font-weight: 750; padding: 2px 0 6px; }
-.balance .brow.big b { font: 800 28px var(--numf); letter-spacing: -.03em; } .balance .brow.big i { font-size: 13px; font-style: normal; color: var(--tx3); }
-.balance .brow.good b { color: var(--good); } .balance .brow.bad b { color: var(--alert); }
-.balance .more-link { display: inline-block; margin-top: 8px; }
-.balance details.bd { margin-top: 4px; } .balance details.bd > summary { font-size: 14px; }
+:is(.balance,.nutrition-secondary) .brow > span { display: flex; flex-direction: column; min-width: 0; } :is(.balance,.nutrition-secondary) .brow small { font-size: 12px; }
+:is(.balance,.nutrition-secondary) .brow a { color: inherit; display: inline-flex; align-items: center; gap: 6px; }
+:is(.balance,.nutrition-secondary) .exi { display: inline-flex; width: auto; height: auto; background: none; border-radius: 0; color: var(--c); } :is(.balance,.nutrition-secondary) .exi svg { width: 16px; height: 16px; }
+:is(.balance,.nutrition-secondary) .brow.sum { border-top: 2px solid var(--tx3); font-weight: 700; }
+:is(.balance,.nutrition-secondary) .brow.big { border-top: 0; font-size: 17px; font-weight: 750; padding: 2px 0 6px; }
+:is(.balance,.nutrition-secondary) .brow.big b { font: 800 28px var(--numf); letter-spacing: -.03em; } :is(.balance,.nutrition-secondary) .brow.big i { font-size: 13px; font-style: normal; color: var(--tx3); }
+:is(.balance,.nutrition-secondary) .brow.good b { color: var(--good); } :is(.balance,.nutrition-secondary) .brow.bad b { color: var(--alert); }
+:is(.balance,.nutrition-secondary) .more-link { display: inline-block; margin-top: 8px; }
+:is(.balance,.nutrition-secondary) details.bd { margin-top: 4px; } :is(.balance,.nutrition-secondary) details.bd > summary { font-size: 14px; }
 .balance .addwk { display: inline-block; margin: 2px 0 6px; }
 
 .meal { padding-top: 12px; padding-bottom: 6px; }
@@ -1202,7 +1202,7 @@ body.ph-open { overflow: hidden; }
 .comment .c-acts { display: flex; gap: 16px; } .comment .c-acts:empty { display: none; }
 .comment .c-acts .linkbtn { min-height: 32px; padding: 0; font-size: 13px; }
 .comment .c-hd b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; } .comment .c-hd small { white-space: nowrap; }
-.tcard .tc-bal .brow small { display: block; text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 400; }
+:is(.tcard,.nutrition-secondary) .tc-bal .brow small { display: block; text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 400; }
 /* Described food: conversation rows shared by full-page logging and previews. */
 .ways.three .way b { text-align: center; line-height: 1.15; }
 .ql-img { display: block; max-width: 180px; max-height: 180px; border-radius: 12px; margin: -3px -7px; }
@@ -1496,7 +1496,7 @@ html.keyboard-open nav.tabs { display: none; }
 .food-library-link a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 8px; font-weight: 600; }
 .food-library-link a svg { width: 18px; height: 18px; flex: none; }
 .food-library-link a svg:last-child { width: 14px; height: 14px; }
-.tcard .tc-bal:not([open]) > summary .day-balance-detail { display: none; }
+:is(.tcard,.nutrition-secondary) .tc-bal:not([open]) > summary .day-balance-detail { display: none; }
 .meal-library-row > .ghost { flex: none; min-height: 44px; }
 
 
@@ -2262,10 +2262,12 @@ html:has(.recipe-page) nav.tabs { display: none; }
 
 /* Shared food review keeps capture and final confirmation in one conversation. */
 /* The review action is a slim strip attached to the composer, showing what's waiting. */
-.thread-review-strip {display:flex;align-items:center;justify-content:space-between;gap:10px;width:calc(100% - 32px);min-height:44px;margin:0 16px -1px;padding:6px 14px;
+.thread-review-strip {display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:44px;margin:0 0 -1px;padding:6px 12px;
   border:1px solid var(--line);border-bottom:0;border-radius:16px 16px 0 0;background:var(--card);color:var(--tx);font:inherit;font-size:.875rem;text-align:left;cursor:pointer;}
 .thread-review-strip[hidden] {display:none;}
-.thread-review-strip #thread-review-sum {min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.thread-review-strip #thread-review-sum {display:flex;align-items:baseline;gap:4px;min-width:0;white-space:nowrap;}
+.thread-review-count {min-width:0;overflow:hidden;text-overflow:ellipsis;}
+.thread-review-kcal {flex:none;}
 .thread-review-go {flex:none;color:var(--accent);font-weight:650;}
 .thread-review-strip:disabled {cursor:default;}
 .thread-review-strip:disabled .thread-review-go {color:var(--tx2);}
@@ -2395,6 +2397,8 @@ button.thread-food:active { opacity: .7; }
 
 /* Add to log sheet (owner, 20 Oct 2026): calories edit in place, one total, a Save-as-recipe switch. */
 .food-final-review .review-where { margin: 0 0 6px; }
+.food-final-review .review-where > .muted { display:inline; }
+.portion-context { margin:0 0 8px;overflow-wrap:anywhere; }
 .food-final-review .review-food-row { align-items: center; }
 .kcal-edit { flex: none; white-space: nowrap; min-height: 40px; padding: 4px 10px; border: 1px dashed var(--line); border-radius: 10px; background: none;
   color: var(--tx); font: inherit; font-weight: 600; }

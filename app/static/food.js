@@ -24,6 +24,7 @@ function extraFood(v){return `<details class="extra-nutrients"><summary>More nut
 const isoDay = (d) => d.toLocaleDateString('en-CA', {timeZone: tz()});
 const addDays = (iso, n) => { const d = new Date(iso + 'T12:00'); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); };
 const dayLabel = (iso) => { const t = isoDay(new Date()); return iso === t ? 'Today' : iso === addDays(t, -1) ? 'Yesterday' : iso === addDays(t, 1) ? 'Tomorrow' : new Date(iso + 'T12:00').toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'}); };
+const foodDestination = w => `<p class="portion-context small muted">${esc([MEAL_NAMES[w.meal],dayLabel(w.day||isoDay(new Date()))].filter(Boolean).join(' · '))}</p>`;
 function guessMeal() {   // the meal you usually log at this hour (learned from your log), else a sensible clock guess
   const h = Number(new Intl.DateTimeFormat('en-US',{timeZone:tz(),hour:'2-digit',hourCycle:'h23'}).format(new Date())), mine = App.mealHours && App.mealHours[h];
   return mine || (h < 10 ? 'breakfast' : h < 14 ? 'lunch' : h < 17 ? 'snacks' : h < 21 ? 'dinner' : 'snacks');
@@ -699,7 +700,7 @@ route(/^\/food\/meals$/, 'food', async (el) => {
 function savedSheet(m, w, closeParent, after) {
   const T = m.totals, weight = m.items.every((it) => it.unit === 'g') ? m.items.reduce((a, it) => a + it.amount, 0) : null;
   sheet(m.name, `<form class="form" id="sv">
-    <p class="small muted">${esc(m.items.map((x) => x.name).join(', '))}</p>
+    <p class="small muted">${esc(m.items.map((x) => x.name).join(', '))}</p>${foodDestination(w)}
     ${weight ? `<label>Your portion<span class="gfield"><input name="g" inputmode="decimal" placeholder="${Math.round(weight)}" aria-label="Your portion in grams"><span>g</span></span></label>` : ''}
     <div class="share-line">${weight ? '<span class="muted">or</span>' : ''}<input name="n" inputmode="decimal" value="1" aria-label="Servings"><span>servings</span></div>
     <div class="portion-out" aria-live="polite"></div>
@@ -764,7 +765,7 @@ function amountSheet(f, w, closeParent, onEditFood) {
   const units = plain ? [startUnit] : unitList(f.per100 || f.per_serving ? f : null, startUnit).map(([k]) => k);
   const uName = (u) => (u === 'serving' ? 'Servings' : u === 'g' ? 'Grams' : u.charAt(0).toUpperCase() + u.slice(1));
   sheet(title, `<form class="form" id="am">
-    ${sub||nutrientSource(f)?`<p class="am-sub small muted">${[sub,nutrientSource(f)].filter(Boolean).map(esc).join(' · ')}</p>`:''}
+    ${sub||nutrientSource(f)?`<p class="am-sub small muted">${[sub,nutrientSource(f)].filter(Boolean).map(esc).join(' · ')}</p>`:''}${foodDestination(w)}
     <div class="am-control-row"><div class="am-amt"><button type="button" class="icon-btn" data-step="-1" aria-label="Less">${svg('minus')}</button>
       <label><input name="amount" inputmode="decimal" value="${r1(startAmt)}" aria-label="Amount" aria-describedby="am-u"><small id="am-u"${units.length>1?' class="vh"':''}>${esc(uName(startUnit))}</small></label>
       <button type="button" class="icon-btn" data-step="1" aria-label="More">${svg('plus')}</button></div>
@@ -811,12 +812,14 @@ function foodEditor(food, after) {
     <label class="check"><input type="checkbox" name="favorite"${food && food.favorite ? ' checked' : ''}> Favourite (shows first)</label>
     <div class="actions">${food ? '<button type="button" class="ghost danger" id="fe-del">Delete</button><span class="spacer"></span>' : ''}<button class="primary">Save</button></div></form>`, (b, close) => {
     guardFoodSheet(b,close,owner);
-    const f = $('#fe', b), n = (x) => (x.value.trim() === '' ? null : parseFloat(x.value));
+    const f = $('#fe', b), n = (x) => (x.value.trim() === '' ? null : Number(x.value.replace(',', '.')));
     f.onsubmit = async (e) => {
       e.preventDefault();
       const body = {name: f.name.value.trim(), brand: f.brand.value.trim() || null, barcode: f.barcode.value.trim() || null, serving_label: f.serving_label.value.trim() || '1 serving',
-        serving_g: n(f.serving_g), kcal: n(f.kcal) || 0, protein_g: n(f.protein_g) || 0, carbs_g: n(f.carbs_g) || 0, fat_g: n(f.fat_g) || 0, fiber_g: n(f.fiber_g), ...extraFormValues(f), favorite: f.favorite.checked};
-      if (!body.kcal) body.kcal = Math.round(body.protein_g * 4 + body.carbs_g * 4 + body.fat_g * 9);
+        serving_g: n(f.serving_g), kcal: n(f.kcal), protein_g: n(f.protein_g), carbs_g: n(f.carbs_g), fat_g: n(f.fat_g), fiber_g: n(f.fiber_g), ...extraFormValues(f), favorite: f.favorite.checked};
+      if (['serving_g',...FOOD_NUTRIENTS].some(k=>body[k]!=null&&!Number.isFinite(body[k]))) { toast('Enter a number, or leave an unknown nutrient blank.'); return; }
+      if (body.kcal==null&&['protein_g','carbs_g','fat_g'].every(k=>body[k]!=null)) body.kcal=Math.round(body.protein_g*4+body.carbs_g*4+body.fat_g*9);
+      if (body.kcal==null) { toast('Enter calories, or all three macros to work them out.'); return; }
       try { await api(food ? `/api/food/foods/${food.id}` : '/api/food/foods', json(food ? 'PUT' : 'POST', body)); close(); toast('Food saved'); if (after) after(); } catch (x) { toast(x.message); }
     };
     if (food) $('#fe-del', b).onclick = async () => { if (!confirm(`Delete ${food.name}? Logged entries stay.`)) return; try { await api(`/api/food/foods/${food.id}`, {method: 'DELETE'}); close(); if (after) after(); } catch (x) { toast(x.message); } };
