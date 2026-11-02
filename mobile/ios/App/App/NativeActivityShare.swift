@@ -85,7 +85,7 @@ class KinettaActivitySharePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentInterac
                     })]);
                 } finally { clearTimeout(timer); }
                 """
-                web.callAsyncJavaScript(script, arguments: [:], in: nil, contentWorld: .page) { result in
+                web.callAsyncJavaScript(script, arguments: [:], in: nil, in: .page) { result in
                     switch result {
                     case .success(let value):
                         if let haptics = value as? [String: Any], haptics["available"] as? Bool == true,
