@@ -1425,8 +1425,9 @@ The recent date range stays in its accessible label. Custom nonadjacent section 
 independent section visibility, selected metrics/sports and identity-only layouts still work.
 
 Friends shares the handle line, retaining a 44 px target and pending requests. Sport summaries use plain 13 px
-secondary text and existing sport icons in one scrolling row, without grey pills. Overflow is keyboard reachable
-with 44 px targets. Card padding and section gaps are 16 px; the shared-activities link is a 48 px single-line row.
+secondary text and neutral icons: only whole labels that fit, in saved order or most-used first by default.
+A quiet +N counts omitted sports, with their details available to screen readers and in a tooltip; no sideways scroll or clipping.
+Card padding and section gaps are 16 px; the shared-activities link is a 48 px single-line row.
 The one-line lock explanation reads “Private totals, no details”; its screen-reader text and tooltip retain the full friends/private-details explanation. It fits the card and can scroll clear of the tab bar. Banner, photo, Edit/Share,
 the Days/Weeks controls and the top gap remain intact.
 

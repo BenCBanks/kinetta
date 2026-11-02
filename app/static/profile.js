@@ -113,12 +113,20 @@ const MeCard=(()=>{
       if(key==='recent'||key==='totals')return !periods.includes(key)||combined&&key!==periods[0]?'':figures(combined?periods:[key]);
       if(key==='mileage')return distance(r);
       if(key==='sports'){
-        const rows=(layout.sports.length?layout.sports.map(s=>(r.sports||[]).find(x=>x.sport===s)).filter(Boolean):(r.sports||[])).slice(0,4);
-        return rows.length?`<div class="me-card-sec me-summary-scroll"><div class="me-sport-chips" role="region" aria-label="Sports totals">${rows.map(x=>`<span class="me-sport-chip"><span class="me-sport-ico" data-sport="${esc(x.sport)}" aria-hidden="true">${svg(SPORT_NAMES[x.sport]?x.sport:'other')}</span>${esc(SPORT_NAMES[x.sport]||x.sport)} · ${esc(Number(x.activities).toLocaleString())}</span>`).join('')}</div></div>`:'';
+        const rows=layout.sports.length?layout.sports.map(s=>(r.sports||[]).find(x=>x.sport===s)).filter(Boolean):[...(r.sports||[])].sort((a,b)=>b.activities-a.activities);
+        return rows.length?`<div class="me-card-sec me-summary-scroll"><div class="me-sport-chips" role="group" aria-label="Sports totals">${rows.map(x=>`<span class="me-sport-chip"><span class="me-sport-ico" data-sport="${esc(x.sport)}" aria-hidden="true">${svg(SPORT_NAMES[x.sport]?x.sport:'other')}</span>${esc(SPORT_NAMES[x.sport]||x.sport)} · ${esc(Number(x.activities).toLocaleString())}</span>`).join('')}<span class="me-sport-more" data-type="secondary" hidden></span></div></div>`:'';
       }
       if(full)return '';
       return `<a class="me-card-row" href="${profileHref(App.me)}"><span class="grow">${r.shared_count??r.items.length} shared ${(r.shared_count??r.items.length)===1?'activity':'activities'}</span>${svg('chev')}</a>`;
     }).join('');
+  }
+  function fitSports(rail){
+    const chips=$$('.me-sport-chip',rail),more=$('.me-sport-more',rail);chips.forEach(n=>n.hidden=false);more.hidden=true;
+    const fits=()=>{const a=rail.getBoundingClientRect(),b=(more.hidden?chips.at(-1):more).getBoundingClientRect();return b.left>=a.left-.01&&b.right<=a.right+.01;};
+    let count=chips.length;
+    // Reserve the omitted-count label too; never leave a partial sport at either edge.
+    while(count&&!fits()){chips[--count].hidden=true;more.hidden=false;more.textContent='+'+(chips.length-count);}
+    if(count<chips.length){const n=chips.length-count,names=chips.slice(count).map(x=>x.textContent.trim()).join(', ');more.title=names;more.innerHTML=`<span aria-hidden="true">+${n}</span><span class="vh">${n} more ${n===1?'sport':'sports'}: ${esc(names)}</span>`;}
   }
   // data: the profile page passes the response it already has; full: the activities follow the card (no link row, no
   // View full profile); onSaved: reread after a layout save. Someone else's card only gets the week taps.
@@ -129,9 +137,10 @@ const MeCard=(()=>{
     function chartScroll(){
       chartCleanup();
       const summaries=$$('.me-summary-scroll,.me-stat-group',box).map(frame=>{
-        const rail=frame.classList.contains('me-stat-group')?frame:frame.firstElementChild,update=()=>{if(!live()||!frame.isConnected)return;const max=rail.scrollWidth-rail.clientWidth;frame.classList.toggle('has-before',rail.scrollLeft>1);frame.classList.toggle('has-after',max-rail.scrollLeft>1);rail.tabIndex=max>1?0:-1;};
-        const observer=new ResizeObserver(update);observer.observe(rail);rail.addEventListener('scroll',update,{passive:true});update();let cleaned=false;
-        const cleanup=()=>{if(cleaned)return;cleaned=true;observer.disconnect();rail.removeEventListener('scroll',update);viewResources.delete(rail);};viewResources.set(rail,cleanup);return cleanup;
+        const rail=frame.classList.contains('me-stat-group')?frame:frame.firstElementChild;let resized=0;
+        const update=()=>{if(!live()||!frame.isConnected)return;if(rail.classList.contains('me-sport-chips'))fitSports(rail);const max=rail.scrollWidth-rail.clientWidth;frame.classList.toggle('has-before',rail.scrollLeft>1);frame.classList.toggle('has-after',max-rail.scrollLeft>1);rail.tabIndex=max>1?0:-1;};
+        const observer=new ResizeObserver(()=>{cancelAnimationFrame(resized);resized=requestAnimationFrame(update);});observer.observe(rail);if(rail.classList.contains('me-sport-chips'))[...rail.children].forEach(n=>observer.observe(n));rail.addEventListener('scroll',update,{passive:true});update();let cleaned=false;
+        const cleanup=()=>{if(cleaned)return;cleaned=true;cancelAnimationFrame(resized);observer.disconnect();rail.removeEventListener('scroll',update);viewResources.delete(rail);};viewResources.set(rail,cleanup);return cleanup;
       });
       const clearSummaries=()=>summaries.forEach(clean=>clean());
       chartCleanup=clearSummaries;const wrap=$('.me-card-bars',box);if(!wrap)return;

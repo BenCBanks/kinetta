@@ -142,10 +142,10 @@
 .me-stats tbody tr + tr > * { border-top:1px solid var(--line); }
 .me-stats td { white-space:nowrap; }
 .me-metric-value { font-size:1.25rem; line-height:1.3; }
-.me-sport-chips { display:flex; flex-wrap:nowrap; gap:12px; overflow-x:auto; scrollbar-width:thin; }
+.me-sport-chips { display:flex; flex-wrap:nowrap; gap:12px; min-height:24px; }
 .me-sport-chip { display:inline-flex; align-items:center; flex:none; gap:4px; min-height:24px; font-size:.8125rem; font-weight:500; white-space:nowrap; }
-.me-sport-chips[tabindex="0"] { min-height:44px; }
-.me-stats-scroll:focus-visible,.me-sport-chips:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+.me-sport-more { flex:none; align-self:center; font-size:.8125rem; font-weight:500; white-space:nowrap; color:var(--tx2); }
+.me-stats-scroll:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
 /* Keep summary icons as quiet as their labels; colour belongs to active controls. */
 .me-sport-ico { display:inline-flex; flex:none; color:var(--tx2); } .me-sport-ico svg { width:16px; height:16px; stroke-width:2; }
 .me-card-row { display:flex; align-items:center; gap:12px; min-height:48px; padding:8px 0; border-top:1px solid var(--line); color:var(--tx); font-size:.9375rem; }
