@@ -40,7 +40,7 @@ assert len(people) == args.users
 sequence_file = args.output/'import-sequences.json'
 sequences = json.loads(sequence_file.read_text()) if sequence_file.exists() else {}
 sql(args.project, 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements; SELECT pg_stat_statements_reset();')
-records, resources, failures, routes = [], [], [], {}
+records, resources, failures, routes, transport_errors = [], [], [], {}, {}
 lock = threading.Lock()
 stop = threading.Event()
 deadline = time.monotonic()+args.seconds
@@ -57,8 +57,11 @@ def request(person, label, method, path, body=None, content_type='application/js
         value = json.loads(raw or b'null')
     except urllib.error.HTTPError as e:
         status, value = e.code, None
-    except (OSError, ValueError):
+    except (OSError, ValueError) as error:
         status, value = 0, None
+        with lock:
+            key = label+':'+type(error).__name__
+            transport_errors[key] = transport_errors.get(key, 0)+1
     with lock:
         routes[label] = method+' '+re.sub(r'/\d+(?=/|$)', '/{id}', path.split('?')[0])
         records.append((label, status, (time.monotonic()-started)*1000))
@@ -70,7 +73,7 @@ def worker(i):
     reads = [('me', [('me', '/api/me'), ('stats', '/api/stats'), ('activity_food', '/api/activity-food'),
                      ('plans', '/api/plans/current'), ('nutrition', '/api/food/day')]),
              ('activity', [('feed', '/api/activities')]), ('progress', [('progress', '/api/progress/overview')]),
-             ('nutrition', [('nutrition', '/api/food/day'), ('food_thread', '/api/food/thread/messages')]),
+             ('nutrition', [('nutrition', '/api/food/day'), ('food_thread', '/api/food/thread')]),
              ('track', [('plans', '/api/plans/current'), ('connections', '/api/connections')]),
              ('detail', [('activity_detail', '/api/activities/'+str(person['activity']))])]
     while time.monotonic() < deadline:
@@ -194,6 +197,7 @@ report = {'fictional': True, 'users': args.users, 'requested_seconds': args.seco
           'limits': ['Closed-loop users with think time, not an open-loop saturation test',
                      'Context/understanding gates off; deterministic food parsing and simulated estimator transport',
                      'Current food-message → process/resolve → unified review → explicit confirmation APIs; browser UI is measured separately'],
-          'endpoints': summary, 'queries': json.loads(sql(args.project, query)), 'resources': resources, 'errors': failures}
+          'endpoints': summary, 'transport_errors': transport_errors,
+          'queries': json.loads(sql(args.project, query)), 'resources': resources, 'errors': failures}
 (args.output/'report.json').write_text(json.dumps(report, indent=2))
 print(json.dumps({'users': args.users, 'calls': len(records), 'endpoints': summary, 'errors': failures}, indent=2))
