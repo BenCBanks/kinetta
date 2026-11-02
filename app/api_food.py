@@ -516,7 +516,7 @@ def meals(user=Depends(current_user)):
     with db.connect() as c:
         rows = c.execute('SELECT id, name, items, ai_note, ai_note_at FROM saved_meals WHERE user_id = %s ORDER BY name', (user['id'],)).fetchall()
     for r in rows:
-        r['totals'] = {k: round(sum((i.get(k) or 0) for i in r['items']), 1) for k in NUM}
+        r['totals'] = {k: round(sum(i[k] for i in r['items']), 1) if all(N.known(i,k) for i in r['items']) else None for k in NUM}
         note, at = r.pop('ai_note'), r.pop('ai_note_at')        # AI feedback on the meal (food_coach.py), if asked for
         r['review'] = {**json.loads(note), 'at': at} if note else None
     return rows

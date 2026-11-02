@@ -712,7 +712,7 @@ function savedSheet(m, w, closeParent, after) {
       if (mode === 'g') { const g = num(f.g); return g > 0 && weight ? g / weight : null; }
       const n = num(f.n); return n > 0 ? n : null;
     };
-    const show = () => { const k = factor(); out.innerHTML = k ? nutGrid(Object.fromEntries(['kcal', ...MACROS.map((x) => x[0])].map((x) => [x, (T[x] || 0) * k]))) : ''; };
+    const show = () => { const k = factor(); out.innerHTML = k ? nutGrid(Object.fromEntries(['kcal', ...MACROS.map((x) => x[0])].map((x) => [x, T[x] == null ? null : T[x] * k]))) : ''; };
     const byN = () => { mode = 'n'; const k = factor(); if (f.g) f.g.value = k ? Math.round(weight * k) : ''; show(); };
     if (f.g) f.g.oninput = () => { mode = 'g'; show(); };
     f.n.oninput = byN; byN();

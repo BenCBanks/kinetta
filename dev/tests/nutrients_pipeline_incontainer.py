@@ -62,6 +62,10 @@ try:
  item=scaled['items'][0];assert item['totals']['kcal']==53.5 and all(item['totals'][k] is None for k in macros),item
  confirmed=post('/api/food/meals-chat/confirm',{'items':[{k:item[k] for k in ('kind','id','portion','expected')}],'issued':scaled['issued'],'client_id':scaled['client_id'],'day':day,'meal':'lunch','confirm':True})
  stored=entry(confirmed['ids'][0]);assert all(stored[k]==0 for k in macros) and set(macros)<=set(stored['ref']['unknown_nutrients']),stored
+ combo=post('/api/food/meals',{'name':'Fictional nullable combination','entry_ids':confirmed['ids']})
+ saved=next(m for m in a.get('/api/food/meals').json() if m['id']==combo['id'])
+ assert saved['totals']['kcal']==53.5 and all(saved['totals'][k] is None for k in macros),saved
+ assert set(macros)<=set(saved['items'][0]['ref']['unknown_nutrients'])
  assert a.put('/api/food/foods/'+str(fid),json={**nullable,**dict.fromkeys(macros,0)}).status_code==200
  assert all(own_food()['per_serving'][k]==0 for k in macros)
  assert a.put('/api/food/foods/'+str(fid),json={'name':nullable['name'],'kcal':0}).status_code==200
