@@ -71,7 +71,7 @@ function aiOffer(feature) {
   return !App.me?.ai_ok && (access ? access.available && access.entitled : !!App.me?.coach);
 }
 // Kit's shared chat has its own reviewed release gate; until it passes, the older Kit reviews stay in place.
-function kitChatOn() { return !!App.me?.kit_chat && aiCan('coach'); }
+function kitChatOn() { return !!App.me?.kit_chat && !App.me?.ai_paused && aiCan('coach'); }
 const guideId=title=>title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 // Match the existing destination icons; titles alone do not determine the feature.
 const GUIDE_ICONS = {
@@ -162,7 +162,7 @@ route(/^\/me\/explore$/, 'me', async (el) => {
     const groups=[...new Set(rows.map(f=>f[0]))];
     $('#guide-results', el).innerHTML = rows.length ? groups.map(group=>`<section class="guide-group"><h2>${esc(group)}</h2><div class="card">${rows.filter(f=>f[0]===group).map(([,title,desc,href,how,,feature])=>{
       const id=guideId(title),fresh=!Discovery.hasVisited('guide',id);
-      return `<details data-guide-id="${esc(id)}"><summary>${svg(guideIcon(group,title,href))}<span class="guide-row-copy"><b>${esc(title)}</b><span class="guide-row-summary">${esc(desc)}</span></span><span class="guide-new${fresh?'':' seen'}"${fresh?' aria-label="New guide entry"':' aria-hidden="true"'}></span>${svg('chev')}</summary><div class="guide-how"><h3>${esc(title)}</h3><p>${esc(desc)}</p><p>${esc(how)}</p><a class="guide-open linkbtn" href="${esc(href)}">Open ${esc(title)} ${svg('chev')}</a></div></details>`;
+      return `<details data-guide-id="${esc(id)}"><summary>${svg(guideIcon(group,title,href))}<span class="guide-row-copy"><b>${esc(title)}</b><span class="guide-row-summary">${esc(desc)}</span></span><span class="guide-new${fresh?'':' seen'}"${fresh?' aria-label="New guide entry"':' aria-hidden="true"'}></span>${svg('chev')}</summary><div class="guide-how"><h3>${esc(title)}</h3><p>${esc(desc)}</p><p>${esc(how)}</p>${href==='/me/kit'?'':`<a class="guide-open linkbtn" href="${esc(href==='/me/activities'?profileHref(App.me):href)}">Open ${esc(title)} ${svg('chev')}</a>`}</div></details>`;
     }).join('')}</div></section>`).join('') : '<div class="card empty">No features match. Try a shorter search or choose All.</div>';
     $$('#guide-results details',el).forEach(d=>d.addEventListener('toggle',()=>{
       if(d.open&&valid()){Discovery.visit('guide',d.dataset.guideId);const dot=$('.guide-new',d);dot.classList.add('seen');dot.setAttribute('aria-hidden','true');dot.removeAttribute('aria-label');}

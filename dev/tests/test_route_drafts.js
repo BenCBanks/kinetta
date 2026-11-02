@@ -42,3 +42,15 @@ console.log('PASS segment draft storage: account/server isolation and own deleti
  const offline=await run(new Error('offline'));assert.equal(offline.shown,false,'offline opens the editor as before');assert.equal(offline.el.innerHTML,'editor');
  console.log('PASS route planning off: notice instead of editor, cached answer, offline unchanged');
 })().catch(e=>{console.error(e);process.exitCode=1});
+
+// Both segment views use an existing area belonging to this account, or its newest usable GPS course.
+(async()=>{
+ c.readOwner=()=>c.server+':'+c.App.me?.id;c.App.me={id:1};c.server='first';vm.runInContext('this.area=MapArea',c);
+ let calls=0;c.api=async()=>{calls++;return [{line:null},{line:'bad'},{line:'good'}]};c.decode=line=>{if(line==='bad')throw Error('bad course');return [[40,-75],[40.001,-75.001]]};
+ assert.deepEqual(Array.from(await c.area.recent()),[40.001,-75.001]);assert.equal(calls,1);c.area.remember([41,-76],c.readOwner());assert.deepEqual(Array.from(await c.area.recent()),[41,-76]);assert.equal(calls,1,'saved area avoids another history fetch');
+ c.area.remember([42,-77],'old owner');assert.deepEqual(Array.from(await c.area.recent()),[41,-76]);c.App.me={id:2};assert.deepEqual(Array.from(await c.area.recent()),[40.001,-75.001],'another account cannot inherit the saved region');
+ let finish;c.api=()=>new Promise(r=>finish=r);const late=c.area.recent();c.App.me={id:3};finish([{line:'good'}]);assert.equal(await late,null,'late old-owner history cannot choose the next account’s area');
+ c.api=async()=>[];let permissions=0;c.navigator={permissions:{query:async()=>({state:'prompt'})},geolocation:{getCurrentPosition:()=>permissions++}};assert.equal(await c.area.recent(),null);assert.equal(permissions,0,'opening maps never asks for location');
+ c.navigator.permissions.query=async()=>({state:'granted'});c.navigator.geolocation.getCurrentPosition=ok=>{permissions++;ok({coords:{latitude:43,longitude:-78}})};assert.deepEqual(Array.from(await c.area.recent()),[43,-78]);assert.equal(permissions,1,'already permitted location is a fallback');
+ c.area.remember([43,-78],c.readOwner());const ownArea=c.area.key();c.clearSegmentDrafts();assert.equal(localStorage[ownArea],undefined,'account cleanup removes its private map region');console.log('PASS shared map area: usable recent GPS, remembered region, account/late-owner isolation, granted-only location and own cleanup');
+})().catch(e=>{console.error(e);process.exitCode=1});

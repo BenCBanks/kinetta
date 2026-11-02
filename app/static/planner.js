@@ -46,11 +46,29 @@ const Plan = {
 
 // Remove retired route snapshots together with this account’s segment drafts.
 const planDraftKey = key => App.me ? `kinetta.planDraft:${serverKey()}:${App.me.id}:${key}` : null;
+// Shared default for browsing and drawing segments. Never reuse another account’s old global region.
+const MapArea = {
+  key:()=>App.me?`kinetta.mapArea:${serverKey()}:${App.me.id}`:null,
+  valid:p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)&&Math.abs(p[0])<=90&&Math.abs(p[1])<=180,
+  remember(p,owner){const key=this.key();if(key&&owner===readOwner()&&this.valid(p))store.set(key,p);},
+  async recent(){
+    const owner=readOwner(),key=this.key();if(!key)return null;
+    const saved=store.get(key);if(this.valid(saved))return saved;
+    try{const rows=await api('/api/activities?limit=100');if(owner!==readOwner())return null;
+      for(const row of rows){if(!row.line)continue;try{const points=decode(row.line).filter(p=>this.valid(p));if(points.length)return points[Math.floor(points.length/2)];}catch{/* Skip an unusable course. */}}
+    }catch{/* Search and explicit Locate remain available offline. */}
+    // Reading an already granted location never opens a permission prompt.
+    try{if(typeof navigator!=='undefined'&&navigator.geolocation&&await navigator.permissions?.query({name:'geolocation'}).then(p=>p.state,()=>null)==='granted'){
+      const g=await new Promise((ok,no)=>navigator.geolocation.getCurrentPosition(ok,no,{maximumAge:30000,timeout:3500})),p=[g.coords.latitude,g.coords.longitude];
+      if(owner===readOwner()&&this.valid(p))return p;
+    }}catch{/* No area is an honest empty state, not an invented location. */}return null;
+  }
+};
 // Erase device drafts only for this signed-in account/server. Legacy geometry stays in account exports.
 function clearSegmentDrafts() {
   if(!App.me)return;
   const prefix=planDraftKey(''),server=serverKey(),id=App.me.id;
-  for(const k of Object.keys(localStorage))if(k.startsWith(prefix)||k===`kinetta.trackRoute:${server}:${id}`||k===`kinetta.routeDownloads:${JSON.stringify([Native.base||location.origin,id])}`)localStorage.removeItem(k);
+  for(const k of Object.keys(localStorage))if(k.startsWith(prefix)||k===MapArea.key()||k===`kinetta.trackRoute:${server}:${id}`||k===`kinetta.routeDownloads:${JSON.stringify([Native.base||location.origin,id])}`)localStorage.removeItem(k);
   sessionStorage.removeItem(`kinetta.segmentReview:${server}:${id}`);
   if(typeof Segments!=='undefined')Segments.pending=null;
 }
@@ -102,7 +120,7 @@ const Planner = (() => {
     $('#pl-save', el).onclick = () => opts.onSave(api_state());
     $('#pl-search', el).onclick = search;
     $('#pl-total', el).onclick = () => { localUnits = units() === 'mi' ? 'km' : 'mi'; drawTotal(); drawMarks(); };
-    $('#pl-locate', el).onclick = locate;
+    $('#pl-locate', el).onclick = () => locate(false);
     $('#pl-fit', el).onclick = fit;
     $('#pl-elev', el).onclick = elevationSheet;
     document.addEventListener('keydown', keys);
@@ -120,28 +138,35 @@ const Planner = (() => {
     for (const k of ['sport', 'name', 'description', 'clientId', 'routeId', 'baseVersion']) if (p[k] !== undefined && p[k] !== null) S[k] = p[k];
   }
   async function mount(el, opts) {
-    const state = S;
-    const box = $('#pl-map', el);
+    const state = S,events=new AbortController();state.interactions=0;
+    const box = $('#pl-map', el),current=()=>state===S&&state.owner===readOwner()&&box.isConnected;
+    for(const event of ['pointerdown','touchstart','wheel','keydown'])el.addEventListener(event,()=>state.interactions++,{passive:true,signal:events.signal});
+    const area=MapArea.recent();
     let mounted; try { mounted = await mapInto(box, [], {ends: false}); } catch (_) { mounted = null; }
-    if (state !== S || state.owner !== readOwner()) return;
+    if (!current()){events.abort();return;}
     view = mounted;
     if (!view || !box.isConnected) { if (box.isConnected) box.innerHTML = '<p class="muted pad">The map couldn’t load. Check your connection and try again.</p>'; return; }
-    const {map, L} = view; layers = {legs: L.layerGroup().addTo(map), marks: L.layerGroup().addTo(map), points: L.layerGroup().addTo(map)};
+    const {map, L} = view;map.on('unload',()=>events.abort()); layers = {legs: L.layerGroup().addTo(map), marks: L.layerGroup().addTo(map), points: L.layerGroup().addTo(map)};
     map.doubleClickZoom.disable();
-    map.on('click', (e) => { if (Date.now() < (S.quietUntil || 0)) return; add([e.latlng.lat, e.latlng.lng]); });
+    map.on('click', (e) => { if (!current()||view!==mounted||$('#pl-area-empty',box)||Date.now() < (S.quietUntil || 0)) return; add([e.latlng.lat, e.latlng.lng]); });
     // resume: the server's autosaved draft if it's newer than this device's copy
     if (!opts.plan && S.key) await resume();
-    if (state !== S || state.owner !== readOwner()) return;
+    if (!current()||view!==mounted)return;
     $$('[data-sport]', el).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.sport === S.sport)));
-    if (S.waypoints.length) fit(); else if (opts.center) map.setView(opts.center, 15); else locate(true);
+    if(S.waypoints.length)fit();else if(opts.center)map.setView(opts.center,15);
     changed(false);
+    if(!S.waypoints.length&&!opts.center){const centre=await area;
+      if(!current()||view!==mounted||state.interactions||S.waypoints.length)return;
+      if(centre){map.setView(centre,15);MapArea.remember(centre,state.owner);}
+      else{box.insertAdjacentHTML('beforeend','<div class="plan-area-empty" id="pl-area-empty">Search for a place or tap Locate me to start.</div>');}
+    }
   }
   async function resume() {
-    const state = S;
+    const state = S,revision=S.interactions;
     let local = null, remote = null;
     try { local = store.get(planDraftKey(S.key)); } catch (_) { /* none */ }
     try { remote = await api('/api/route-drafts/' + S.key); } catch (_) { /* offline: the device copy */ }
-    if (state !== S || state.owner !== readOwner()) return;
+    if (state !== S || state.owner !== readOwner() || revision!==S.interactions) return;
     const pick = [local, remote?.data && {...remote.data, at: Date.parse(remote.updated)}].filter((d) => d?.waypoints?.length).sort((a, b) => (b.at || 0) - (a.at || 0))[0];
     if (!pick) return;
     load(pick);
@@ -152,6 +177,7 @@ const Planner = (() => {
   function connect(a, b) { return {mode:'path',pts:[a,b],rev:1,state:'pending',dist:null}; }
   function intentAt() { return 'path'; }
   function add(p, at = S.waypoints.length) {
+    S.interactions++;
     if (S.waypoints.length >= 100) { toast('Routes can have up to 100 points'); return; }
     remember();
     if (at >= S.waypoints.length) { S.waypoints.push(p); if (S.waypoints.length > 1) S.legs.push(connect(S.waypoints.at(-2), p, 'path')); }
@@ -388,6 +414,8 @@ const Planner = (() => {
     });
   }
   async function search() {
+    const state=S,mounted=view;if(!state||!mounted)return;state.interactions++;
+    const current=()=>state===S&&state.owner===readOwner()&&view===mounted&&$('#pl-map')?.isConnected;
     sheet('Find a place', `<form class="searchbox" id="pl-q" role="search"><span class="sb-ico">${svg('search')}</span><input type="search" name="q" placeholder="Park, street or town" aria-label="Place" maxlength="120" enterkeyhint="search" autocomplete="off"></form>
       <p class="small muted" id="pl-q-status" role="status">Search uses OpenStreetMap. Only what you type and the map area are sent.</p><div class="list card" id="pl-q-res" hidden></div>`, (b, close) => {
       const form = $('#pl-q', b), status = $('#pl-q-status', b), res = $('#pl-q-res', b);
@@ -398,16 +426,19 @@ const Planner = (() => {
         const c = view?.map.getCenter();
         try {
           const r = await api(`/api/plan/search?q=${encodeURIComponent(q)}${c ? `&lat=${c.lat.toFixed(3)}&lon=${c.lng.toFixed(3)}` : ''}`);
+          if(!current()||!b.isConnected)return;
           status.textContent = r.places.length ? '' : 'No places found. Try a different name.';
           res.hidden = !r.places.length;
           res.innerHTML = r.places.map((p, i) => `<button class="row-link" data-p="${i}"><span class="grow">${esc(p.name)}<small class="muted">${esc(p.detail)}</small></span>${svg('chev')}</button>`).join('');
-          $$('[data-p]', res).forEach((x) => x.onclick = () => { const p = r.places[+x.dataset.p]; close();
+          $$('[data-p]', res).forEach((x) => x.onclick = () => { if(!current()||!b.isConnected)return;const p = r.places[+x.dataset.p]; close();$('#pl-area-empty')?.remove();
             if (!view) return; if (p.bbox) view.map.fitBounds([[p.bbox[0], p.bbox[1]], [p.bbox[2], p.bbox[3]]], {maxZoom: 17}); else view.map.setView([p.lat, p.lon], 16); });
-        } catch (x) { status.textContent = x.message; }
+        } catch (x) { if(current()&&b.isConnected)status.textContent = x.message; }
       };
     });
   }
-  async function locate(quiet) {   // asks for location only when someone presses Locate me (or already allowed it)
+  async function locate(quiet) {   // Ask only after the explicit Locate action.
+    const state=S,mounted=view;if(!state||!mounted)return;const revision=++state.interactions;
+    const current=()=>state===S&&state?.owner===readOwner()&&view===mounted&&$('#pl-map')?.isConnected&&state.interactions===revision;
     try {
       let p;
       if (typeof TrackNative !== 'undefined' && TrackNative.supported) { if (quiet) return; p = await TrackNative.locate(); p = [p.lat, p.lon]; }
@@ -417,8 +448,8 @@ const Planner = (() => {
         const g = await new Promise((ok, no) => navigator.geolocation.getCurrentPosition(ok, no, {enableHighAccuracy: true, timeout: 12000, maximumAge: 30000}));
         p = [g.coords.latitude, g.coords.longitude];
       }
-      if (view) view.map.setView(p, 16);
-    } catch (e) { if (!quiet) toast(e?.message && e.code === undefined ? e.message : 'Allow location to find where you are, or search for a place.'); }
+      if(current()&&MapArea.valid(p)){$('#pl-area-empty')?.remove();mounted.map.setView(p,16);MapArea.remember(p,state.owner);}
+    } catch (e) { if (!quiet&&current()) toast(e?.message && e.code === undefined ? e.message : 'Allow location to find where you are, or search for a place.'); }
   }
 
   // ---------- drafts and saving ----------

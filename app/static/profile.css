@@ -21,10 +21,6 @@
 .setup-heading button { min-height:44px; }
 .setup-tips>.small { margin-top:-4px; }
 .profile-page-title { flex:1; text-align:center; font-size:.9375rem; font-weight:650; }
-/* Your own profile: a slim Preview as switch between the card and the activities, in the Days/Weeks style. */
-.pf-preview { display:flex; flex-wrap:wrap; align-items:center; column-gap:8px; margin:12px 2px 4px; padding:0; background:none; font-size:.8125rem; font-weight:600; color:var(--tx2); }
-.pf-preview .mileage-toggle button { font-size:.8125rem; }
-.pf-preview small { flex-basis:100%; font-weight:400; color:var(--tx3); }
 #person-profile .profile-activities { margin-top:12px; }
 .profile-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,5.5rem),1fr)); gap:14px; margin:14px 0 4px; }
 .profile-stats .stat { min-width:0; overflow-wrap:anywhere; }
@@ -129,8 +125,8 @@
 .me-card-empty { display:flex; flex-direction:column; gap:8px; }
 .me-card-empty p { margin:0; }
 .me-card-empty .ghost { min-height:44px; background:none; border-color:transparent; color:var(--accent); }
-.me-card-note { margin:0; display:flex; gap:7px; align-items:center; font-size:.8125rem; line-height:1.4; color:var(--tx2); }
-.me-card-note span { white-space:nowrap; }
+.me-card-note { margin:0; display:flex; gap:4px; align-items:center; font-size:max(13px,.8125rem); line-height:1.4; color:var(--tx2); }
+.me-card-note span {white-space:normal;min-width:0;}
 .me-card-note svg { width:14px; height:14px; flex:none; margin-top:2px; }
 .me-card-editor { display:flex; flex-direction:column; gap:6px; }
 .me-card-editor .me-chips[data-card-period] { gap:8px; }

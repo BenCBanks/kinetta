@@ -727,7 +727,7 @@ function savedSheet(m, w, closeParent, after) {
     ${weight ? `<label>Your portion<span class="gfield"><input name="g" inputmode="decimal" placeholder="${Math.round(weight)}" aria-label="Your portion in grams"><span>g</span></span></label>` : ''}
     <div class="share-line">${weight ? '<span class="muted">or</span>' : ''}<input name="n" inputmode="decimal" value="1" aria-label="Servings"><span>servings</span></div>
     <div class="portion-out" aria-live="polite"></div>
-    <div class="actions"><button type="button" class="ghost danger" id="sv-del">Delete</button>${aiCan('coach') || m.review ? `<button type="button" class="ghost" id="sv-ai" aria-label="Kit’s take on ${esc(m.name)}">${svg('sparkle')}</button>` : ''}<span class="spacer"></span>
+    <div class="actions"><button type="button" class="ghost danger" id="sv-del">Delete</button>${kitChatOn() || m.review ? `<button type="button" class="${kitChatOn()?'kit-help':'icon-btn'}" id="sv-ai" aria-label="${kitChatOn()?'Ask Kit about this meal':'Saved meal review'}">${svg(kitChatOn()?'sparkle':'clock')}</button>` : ''}<span class="spacer"></span>
       <button class="primary">Add to ${esc(MEAL_NAMES[w.meal])}</button></div></form>`, (b, close) => {
     const f = $('#sv', b), out = $('.portion-out', f), num = (x) => (x ? +x.value.replace(',', '.') : 0);
     let mode = 'n';
@@ -1018,15 +1018,15 @@ route(/^\/food\/import$/, 'food', async (el) => {
   const lb = imp(), wu = lb ? 'lb' : 'kg', today = isoDay(new Date());
   const wshow = (kg) => (kg == null ? '–' : (lb ? kg * 2.20462 : kg).toFixed(1));
   el.innerHTML = `<div class="top">${backBtn('Nutrition')}</div><h1>Add past days</h1>
-    <p class="muted">Bring in history from another app or a spreadsheet: weight, calories eaten, macros, and calories burned or your deficit. Imported burned numbers are used instead of this app's estimate for those days.</p>
-    <div class="card"><h2>From a spreadsheet or another app</h2>
+    <p class="muted">Bring in weight and calories from another app.</p>
+    <div class="card"><div class="actions import-file-actions"><button type="button" class="ghost" id="hi-pick">${svg('upload')}Choose a file</button><button type="button" class="ghost" id="hi-paste">Paste rows</button></div><details><summary>Format help</summary>
       <p class="small muted">First row = column names. Recognized: <b>Date</b>, <b>Weight</b> (${wu} unless the column says kg/lb), <b>Calories</b>, <b>Protein</b>, <b>Carbs</b>, <b>Fat</b>, <b>Fiber</b>, <b>Burned</b> (or Expenditure/TDEE), <b>Deficit</b>. Any order; other columns are ignored. Several rows per day (e.g. one per meal) are added up.</p>
       <pre class="eg">Date,Weight,Calories,Protein,Carbs,Fat,Deficit
 2026-03-01,152.4,1650,110,160,55,450
-2026-03-02,152.0,1720,115,170,58,380</pre>
+2026-03-02,152.0,1720,115,170,58,380</pre><p class="small muted">Imported burned numbers replace the app’s estimate for those days.</p></details>
       <form class="form" id="hi-f"><label>Paste rows (copy them from Excel, Google Sheets or Numbers)<textarea name="text" rows="6" placeholder="Date, Weight, Calories, ..."></textarea></label>
         <input type="file" id="hi-file" accept=".csv,.tsv,.txt,text/csv,text/plain" hidden>
-        <div class="actions"><button type="button" class="ghost" id="hi-pick">${svg('upload')} Choose a CSV file</button><button class="primary">Preview</button></div></form>
+        <button class="primary wide">Preview</button></form>
       <div id="hi-prev"></div></div>
     <div class="card"><h2>Enter day by day</h2>
       <p class="small muted">Type what you have for each day; leave the rest blank. Burned fills itself in from Eaten + Deficit. Clearing a box and saving removes that imported number.</p>
@@ -1036,6 +1036,7 @@ route(/^\/food\/import$/, 'food', async (el) => {
   wireBack(el, '/food?view=overview');
   const f = $('#hi-f', el), box = $('#hi-prev', el), file = $('#hi-file', el);
   $('#hi-pick', el).onclick = () => file.click();
+  $('#hi-paste',el).onclick=()=>f.text.focus();
   file.onchange = async () => { const fl = file.files && file.files[0]; if (!fl) return; if (fl.size > 2e6) { toast('That file is over 2 MB'); return; } f.text.value = await fl.text(); f.requestSubmit(); };
   const saveRows = async (rows) => {
     const r = await api('/api/food/history', json('POST', {rows}));
@@ -1295,7 +1296,7 @@ async function nutritionView(el, view, q) {
     (k) => (k === 'since' ? (since && r !== 'since' ? save('since') : startSheet(since)) : save(k)));
   // Keep Insights chart-first; old weekly links still lead with their open table.
   const weeklyFold=view==='overview'?`<details class="insights-review" id="nt-weeks-fold"${q.get('weeks')==='1'?' open':''}><summary>Week by week</summary><div id="nt-weeks"></div></details>`:'';
-  root.innerHTML = `${view==='overview'&&(location.pathname==='/progress'||q.get('from')==='progress')?'<details class="insights-review"><summary>Your weekly check-in</summary><div id="nt-checkin"></div></details>':''}${view==='overview'?`<details class="insights-review"><summary>Your week in food</summary><div id="nt-weekly-food"></div></details>`:''}${q.get('weeks')==='1'?weeklyFold:''}<div id="nt-body">${skel(3)}</div>${q.get('weeks')==='1'?'':weeklyFold}${view === 'overview' ? '<div id="nt-coach"></div>' : ''}`;
+  root.innerHTML = `${view==='overview'?'<div id="nt-coach"></div>':''}${view==='overview'&&(location.pathname==='/progress'||q.get('from')==='progress')?'<details class="insights-review"><summary>Your weekly check-in</summary><div id="nt-checkin"></div></details>':''}${view==='overview'?`<details class="insights-review"><summary>Your week in food</summary><div id="nt-weekly-food"></div></details>`:''}${q.get('weeks')==='1'?weeklyFold:''}<div id="nt-body">${skel(3)}</div>${q.get('weeks')==='1'?'':weeklyFold}`;
   if(view==='overview'&&(location.pathname==='/progress'||q.get('from')==='progress'))weeklyCheckinCard($('#nt-checkin',root));   // the numbers first, then the coach
   if (view === 'overview') {weeklyFoodReviewCard($('#nt-weekly-food',root));dietCoach($('#nt-coach', root));}
   if(view==='overview'){const fold=$('#nt-weeks-fold',root);let loaded=false;const open=()=>{if(fold.open&&!loaded){loaded=true;weeksCard($('#nt-weeks',fold));}};fold.addEventListener('toggle',open);open();}
@@ -1428,7 +1429,7 @@ function mealCoach(m) {
         <p class="small muted">${esc(new Date(R.at).toLocaleDateString([], {month: 'short', day: 'numeric'}))}</p><button class="linkbtn" id="mc-go">${svg('sparkle')}Ask again</button>`)
         : `<p>Feedback on this meal from Kit: how it fits your day, and a few tweaks with what each one changes.</p><button class="primary wide" id="mc-go">${svg('sparkle')}Get feedback</button>`;
       const g = $('#mc-go', box);
-      if (!aiCan('coach')) { g.remove(); return; }
+      if (!kitChatOn()) { g.remove(); return; }
       g.onclick = async () => {
         if (!App.me.ai_ok) { aiSheet(() => g.click()); return; }
         g.disabled = true; const was = g.innerHTML; g.textContent = 'Reading the meal…';
@@ -1441,17 +1442,10 @@ function mealCoach(m) {
 }
 
 function dietCoach(box) {
-  if (!box) return;
-  if (kitChatOn()) { box.innerHTML = `<a class="icon-btn kit-help" href="/me/kit?from=nutrition" aria-label="Ask Kit about nutrition">${svg('sparkle')}</a>`; return; }
-  // Until shared Kit chat is released, keep the food-log review that already works.
-  const account = App.me.login, show = () => {
-    box.innerHTML = `<button class="icon-btn kit-help" aria-label="Ask Kit about your food log">${svg('sparkle')}</button>`;
-    $('button', box).onclick = () => sheet('Kit · Food log', '<div id="food-kit"></div>', (root) => dietCoachContent($('#food-kit', root)));
-  };
-  load('/api/food/review', (r) => {
-    if (App.me?.login !== account || !box.isConnected || (!r.latest && !aiCan('coach'))) return;
-    show();
-  }).catch(() => { if (box.isConnected && App.me?.login === account && aiCan('coach')) show(); });
+  if (!box?.isConnected) return;
+  box.replaceChildren();
+  const page=box.closest('#page'),range=page?.querySelector('.insights-range');if(range)range.append(box);
+  if(typeof KitChat!=='undefined')KitChat.entry(box.closest('#page'),location.pathname);
 }
 
 // The resting source changes burn accounting only; the food target remains a separate explicit action.

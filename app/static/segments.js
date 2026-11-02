@@ -27,36 +27,45 @@ const Segments = (() => {
   const pace = (s, d, sport) => sport === 'ride' ? `${U.speed(d / s)} ${U.su()}` : `${U.pace(s / d * 1000)}${U.pu()}`;
 
   async function list(body) {
+    const owner=readOwner(),token={};body.segmentView=token;
+    const current=()=>body.isConnected&&body.segmentView===token&&owner===readOwner();
     const q = new URLSearchParams(location.search), filter = q.get('f') || 'near', term = q.get('q') || '', sport = q.get('sport') || '';
-    body.innerHTML = `<a class="primary wide" href="/segments/new">${svg('plus')}Create a segment</a>
-      <p class="small muted">Segments are fixed stretches with times. Members can race the same course; joining the leaderboards is your choice.</p>
-      <form class="searchbox" id="sg-find" role="search"><span class="sb-ico">${svg('search')}</span><input type="search" name="q" value="${esc(term)}" placeholder="Search segments" aria-label="Search segments" maxlength="120" enterkeyhint="search"></form>
-      <div class="chips segment-filters" role="group" aria-label="Show">${[['near', 'Near map'], ['saved', 'Saved'], ['mine', 'Mine']].map(([k, l]) => `<button type="button" class="chip" data-f="${k}" aria-pressed="${filter === k}">${l}</button>`).join('')}
+    body.innerHTML = `<form class="searchbox" id="sg-find" role="search"><span class="sb-ico">${svg('search')}</span><input type="search" name="q" value="${esc(term)}" placeholder="Search segments" aria-label="Search segments" maxlength="120" enterkeyhint="search"></form>
+      <div class="chips segment-filters" role="group" aria-label="Show">${[['near', 'Nearby'], ['saved', 'Saved'], ['mine', 'Mine']].map(([k, l]) => `<button type="button" class="chip" data-f="${k}" aria-pressed="${filter === k}">${l}</button>`).join('')}
         <select id="sg-sport" class="chip" aria-label="Sport"><option value="">All sports</option>${PLAN_SPORTS.map(([k, l]) => `<option value="${k}"${sport === k ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="seg-map" id="sg-map" ${filter === 'near' && !term ? '' : 'hidden'}></div><div id="sg-list">${skel(2)}</div>`;
     const reload = (o) => go(`/progress/segments?${new URLSearchParams({ f: filter, ...(term ? {q: term} : {}), ...(sport ? {sport} : {}), ...o})}`, {replace: true});
     $$('[data-f]', body).forEach((b) => b.onclick = () => reload({f: b.dataset.f}));
     $('#sg-sport', body).onchange = (e) => reload({sport: e.target.value});
     $('#sg-find', body).onsubmit = (e) => { e.preventDefault(); reload({q: e.currentTarget.elements.q.value.trim()}); };
-    let map = null, centre = store.get('kinetta.segCentre');
+    let map=null,centre=null,request=0,timer=0;
+    const area=filter==='near'&&!term?MapArea.recent():Promise.resolve(null);
     const fetchList = async () => {
+      if(!current())return;const sequence=++request;
       const p = new URLSearchParams({q: term, sport, ...(filter === 'saved' ? {saved: true} : {}), ...(filter === 'mine' ? {mine: true} : {}), ...(centre && filter === 'near' ? {lat: centre[0].toFixed(4), lon: centre[1].toFixed(4)} : {})});
-      try { draw(await api('/api/segments?' + p)); } catch (e) { const box = $('#sg-list', body); if (box) box.innerHTML = `<p class="err" role="alert">${esc(e.message)}</p>`; }
+      try { const rows=await api('/api/segments?'+p);if(current()&&sequence===request)draw(rows); } catch (e) { if(!current()||sequence!==request)return;const box = $('#sg-list', body); if (box) box.innerHTML = `<p class="err" role="alert">${esc(e.message)}</p>`; }
     };
     const draw = (rows) => {
-      const box = $('#sg-list', body); if (!box) return;
+      if(!current())return;const box = $('#sg-list', body); if (!box) return;
       if (map) { map.group.clearLayers(); for (const r of rows) if (r.line) map.L.polyline(decode(r.line), {color: col('--route'), weight: 4}).addTo(map.group).on('click', () => go(`/segments/${r.id}`)); }
       box.innerHTML = rows.length ? `<div class="card list">${rows.map((r) => `<a class="row-link" href="/segments/${r.id}">${r.line ? miniRoute(r.line, r.sport) : ''}<span class="grow"><b>${esc(r.name)}</b>
           <small class="muted">${esc(sportName(r.sport))} · ${U.dist(r.distance_m)} ${U.du()}${r.ascent_m != null ? ` · ↑ ${U.elev(r.ascent_m)} ${U.eu()}` : ''}${r.audience === 'me' ? ' · only you' : ''}${r.status === 'retired' ? ' · retired' : ''}${r.saved ? ' · saved' : ''}</small></span>${svg('chev')}</a>`).join('')}</div>`
-        : `<div class="card empty"><b>${term?'No matching segments':filter === 'saved' ? 'No saved segments' : filter === 'mine' ? 'You haven’t created a segment' : 'No segments here yet'}</b>${term ? 'Try another search or sport.' : filter==='mine' ? 'Create a segment to keep its course and your times here.' : filter==='saved' ? 'Open a segment and tap Save to keep it here.' : map ? 'Move the map, or create the first segment here.' : 'Try a search or another sport, or create a segment.'}</div>`;
+        : `<div class="card empty"><b>${term?'No matching segments':filter === 'saved' ? 'No saved segments' : filter === 'mine' ? 'You haven’t created a segment' : 'No segments here yet'}</b>${term ? 'Try another search or sport.' : filter==='mine' ? 'Create a segment to keep its course and your times here.' : filter==='saved' ? 'Open a segment and tap Save to keep it here.' : map&&!$('#sg-map',body).hidden ? 'Move the map, or create the first segment here.' : 'Try a search or another sport, or create a segment.'}</div>`;
     };
     if (filter === 'near' && !term) {
       try {
         map = await mapInto($('#sg-map', body), [], {ends: false});
-        if (map) { if (centre) map.map.setView(centre, 13); else map.map.setView([39.5, -98.5], 3);
-          let t = 0; map.map.on('moveend', () => { clearTimeout(t); t = setTimeout(() => { const c = map.map.getCenter(); centre = [c.lat, c.lng]; store.set('kinetta.segCentre', centre); fetchList(); }, 500); }); }
+        if(!current())return;
+        if(map){const events=new AbortController();let touched=false;
+          for(const event of ['pointerdown','touchstart','wheel','keydown'])map.map.getContainer().addEventListener(event,()=>touched=true,{passive:true,signal:events.signal});
+          map.map.on('unload',()=>{events.abort();clearTimeout(timer);request++;});
+          map.map.on('moveend',()=>{if(!current())return;request++;clearTimeout(timer);const c=map.map.getCenter();centre=[c.lat,c.lng];MapArea.remember(centre,owner);timer=setTimeout(fetchList,500);});
+          const recent=await area;if(!current())return;
+          if(recent&&!touched){centre=recent;map.map.setView(centre,15);MapArea.remember(centre,owner);clearTimeout(timer);}
+          else if(!touched&&!recent){$('#sg-map',body).hidden=true;}
+        }
       } catch (_) { /* the list still works */ }
-      if(!map)$('#sg-map',body).hidden=true;
+      if(!current())return;if(!map)$('#sg-map',body).hidden=true;
     }
     await fetchList();
   }
