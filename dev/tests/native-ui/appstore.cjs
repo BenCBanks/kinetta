@@ -26,6 +26,7 @@ module.exports=()=>{
   '/api/food/day':{day:today,entries,totals:macros,unknown_nutrients:{fiber_g:2,sodium_mg:2,sugar_g:2,saturated_fat_g:2},targets:{kcal_target:1800,protein_target:110},goal:{kcal:1800,default:1800},burned:{kcal:330,n:1,items:[],day_burn:2250,deficit:1335,source:'formula'},food_user:true,has_history:true},
   '/api/food/thread':{messages,before:null,has_more:false,preferences:prefs},'/api/food/thread/preferences':prefs,
   '/api/friends':friends,'/api/people/suggested':friends.suggested,'/api/sharing':{default:'friends'},
+  '/api/notifications':{items:[],unread:0,push:{},push_ready:false},
   '/api/notifications/count':{unread:0,friend_requests:1},'/api/map-config':{kind:'off',attribution:'',personal_default:false},
   '/api/feed/friends':[],'/api/lifts/sessions':[],'/api/activity-food':{week:{start:date(7),end:date(1),workouts:4,distance_m:29000,seconds:10440,days_logged:7,protein_target:110,protein_days_reached:4,protein_days_known:7,protein_days_unknown:0},today:{day:today,items:[],exercise_kcal:0,estimated:true,burn_source:'formula',day_burn:2250,included_in_day_burn:true,food_href:'/food'}},
   '/api/setup':{needed:false},'/api/milestones':{items:[],pending:false},'/api/recaps':{items:[]},
