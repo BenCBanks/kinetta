@@ -63,7 +63,6 @@ flowchart LR
   Settings -->|Download my data · 2| Export["Own-data ZIP download"]
   Settings -->|Delete account · 2| Delete["Delete-account confirmation sheet"]
   Settings -->|Terms or Privacy · 2| Policies["Website policies · new browser tab"]
-  Settings -->|Speed check · 2| Speed["Speed check · /me/speed"]
   Settings -->|Log out · 2| Login["Sign-in screen · see flow below"]
   Settings -->|Help| Mail
 
@@ -210,12 +209,12 @@ Observed return exceptions: Explore's four Add-food entries and four Nutrition v
 
 ## Me page summary
 
-The inspected slice contained 15 app pages. With the separate milestones page retired by #421, there are 14: Me, Settings, sharing/privacy, notification preferences, devices, Speed check, Gear, Goals, Friends, full profile, activity history, Explore, Ask Kit and the notification inbox, plus the public-card landing and their sheets. The owner-only milestone footer is absent from shared profiles and card pictures; its complete list uses a sheet.
+The inspected slice contained 15 app pages. With the separate milestones page retired by #421 and Speed Check retired by #486, there are 13: Me, Settings, sharing/privacy, notification preferences, devices, Gear, Goals, Friends, full profile, activity history, Explore, Ask Kit and the notification inbox, plus the public-card landing and their sheets. The owner-only milestone footer is absent from shared profiles and card pictures; its complete list uses a sheet.
 
 | Destination | Shortest observed entrance from Me | Taps |
 |---|---|---|
 | Profile editor, Friends, Settings, history, Gear, Explore | Direct visible entry | 1 |
-| Body settings, devices, privacy, notification preferences, Speed check | Settings, then row | 2 |
+| Body settings, devices, privacy, notification preferences | Settings, then row | 2 |
 | Public card options / QR | Share, public card / Show QR | 2 / 3 |
 | New Goal from the empty Me card | Set a goal | 1 |
 | Earlier Kit reviews in the inspected unavailable state | Explore, Ask Kit disclosure, Open, More, Earlier reviews | 5 |
@@ -224,7 +223,7 @@ The entrance depends on account state: an empty card offers direct Goal setup; e
 
 ## Follow-up decisions
 
-Speed check and its Settings link are scheduled for retirement in #486; the diagram records their current presence. The direct first-Goal entrance and milestone footer are implemented in #421. Kit permissions/history depth belongs to #418. Ben approved folding Recent milestones into Me: one latest offer, a See all sheet and no empty row. Old page links redirect to Me. Private history and shared profiles retain separate entrances, as do signed-in profile links and public card/QR sharing.
+Speed Check and its Settings link are retired by #486; old `/me/speed` links redirect to Settings. The direct first-Goal entrance and milestone footer are implemented in #421. Kit permissions/history depth belongs to #418. Ben approved folding Recent milestones into Me: one latest offer, a See all sheet and no empty row. Old page links redirect to Me. Private history and shared profiles retain separate entrances, as do signed-in profile links and public card/QR sharing.
 
 ## Activity
 

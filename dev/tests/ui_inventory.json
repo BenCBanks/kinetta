@@ -323,6 +323,7 @@
     {
       "id": "pages-20",
       "source": "app/static/pages.js",
+      "redirect": "/me/settings",
       "pattern": "/^\\/me\\/speed$/",
       "paths": [
         "/me/speed"
