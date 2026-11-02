@@ -77,7 +77,7 @@ const MeCard=(()=>{
   function previewCard(root,data){
     const r={...data,mine:false},layout=ProfileLayout.singlePeriod(r.layout),savedPeriod=period;
     const friends=Number.isInteger(r.friend_count)?`<span class="me-friends-link">${svg('people')}<span>${friendCountText(r.friend_count)}</span></span>`:'';
-    root.innerHTML=card(r.person,{mine:true,friends});const content=$('.me-card-sections',root);
+    root.innerHTML=card(r.person,{friends});const content=$('.me-card-sections',root);
     try{period='weeks';content.innerHTML=sections(r,layout,true);paintBars(content);}finally{period=savedPeriod;}
     content.setAttribute('aria-busy','false');
   }
