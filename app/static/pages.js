@@ -1380,6 +1380,7 @@ async function pMileage(body, q, {home=false}={}) {
     const rangeName = scoped ? (R.from === R.to ? String(R.from) : `${R.from || 'start'}–${R.to || 'now'}`) : '';
     const word = {week: 'week', month: 'month', year: 'year'}[period], fmt = (v) => `${v >= 100 ? Math.round(v) : v.toFixed(1)} ${U.du()}`;
     const cur = all[all.length - 1], last = all[all.length - 2];
+    const restoreTableFocus=body.contains(document.activeElement)&&document.activeElement?.matches('[data-progress-table]');
     box.innerHTML = `<div class="card"><div class="stats3">
         ${stat('This ' + word, toU(val(cur)).toFixed(1), U.du())}
         ${home&&avg==null?'':stat({week: 'Weekly avg', month: 'Monthly avg', year: 'Yearly avg'}[period], avg == null ? '–' : avg.toFixed(1), U.du()).replace('class="stat"','class="stat progress-average"')}
@@ -1389,7 +1390,7 @@ async function pMileage(body, q, {home=false}={}) {
         <div id="m-table" class="tbl-wrap"${body._showTable?'':' hidden'}><table class="tbl"><thead><tr><th>${period === 'week' ? 'Week of' : period === 'month' ? 'Month' : 'Year'}</th><th class="r">${U.du()}</th><th class="r">Time</th><th class="r">#</th><th class="r">Climb</th></tr></thead><tbody>
         ${[...show].reverse().map((d) => `<tr><td>${esc(period === 'week' ? d.toLocaleDateString([], {month: 'short', day: 'numeric', year: '2-digit'}) : period === 'month' ? d.toLocaleDateString([], {month: 'short', year: 'numeric'}) : d.getFullYear())}</td>
           <td class="r num">${toU(val(d)).toFixed(1)}</td><td class="r num">${val(d, 't') ? dur(val(d, 't'), true) : '–'}</td><td class="r num">${val(d, 'n')}</td><td class="r num">${val(d, 'a') ? U.elev(val(d, 'a')) : '–'}</td></tr>`).join('')}</tbody></table></div></div></div>`;
-    requestAnimationFrame(() => periodBars($('#m-chart', box), cols, {keys, fmt, yfmt: (v) => String(Math.round(v)), avg, avgLabel: period === 'year' ? 'Yearly average' + (scoped ? ` (${rangeName})` : '') : `Average ${period} (${scoped ? rangeName : 'last 12 months'})`, height: home?165:190, distance: sport === 'all'}));
+    requestAnimationFrame(() => {periodBars($('#m-chart', box), cols, {keys, fmt, yfmt: (v) => String(Math.round(v)), avg, avgLabel: period === 'year' ? 'Yearly average' + (scoped ? ` (${rangeName})` : '') : `Average ${period} (${scoped ? rangeName : 'last 12 months'})`, height: home?165:190, distance: sport === 'all'});if(restoreTableFocus&&body.isConnected&&document.activeElement===document.body)$('[data-progress-table]',box)?.focus({preventScroll:true});});
   });
 }
 
