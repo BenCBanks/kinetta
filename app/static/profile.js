@@ -204,18 +204,18 @@ const MeCard=(()=>{
       bio.oninput=()=>{$('[data-card-bio-count]',box).textContent=bio.value.length+'/280';sizeBio();changed();};
       $('[data-card-photo]',box).onclick=()=>{if(!valid())return;profilePhotoSheet(()=>{if(!valid())return;const photo=$('[data-card-photo]',box);photo.innerHTML=avatar(App.me,'lg')+'<small>Change</small>';const original=$('.me-card-id .me-card-avatar',card);if(original)original.innerHTML=avatar(App.me,'lg');invalidate('/api/me');invalidate('/api/people/');keep('/api/me',App.me);status.textContent='Photo saved. Your other edits are kept.';});};
       const close=()=>{finish();if(fromSettings&&live())go('/me',{replace:true});};
-      $('[data-card-cancel]',box).onclick=()=>{if(valid()&&(!dirty()||confirm('Discard your changes?')))close();};
+      const cancel=$('[data-card-cancel]',box);cancel.onclick=()=>{if(valid()&&!busy&&(!dirty()||confirm('Discard your changes?')))close();};
       form.onsubmit=async e=>{
         e.preventDefault();if(!valid()||busy||!dirty())return;
         const trimmed=name.value.trim();if(!trimmed||trimmed.length>60){nameError.textContent='Enter a name between 1 and 60 characters.';name.setAttribute('aria-invalid','true');name.focus();return;}
         const body={name:trimmed,bio:bio.value.trim(),profile_layout:ProfileLayout.singlePeriod(value)};
-        busy=true;save.disabled=true;save.textContent='Saving…';status.textContent='';
+        busy=true;cancel.disabled=true;save.disabled=true;save.textContent='Saving…';status.textContent='';
         try{
           const account=await api('/api/account',json('PUT',body));if(owner!==readOwner())return;
           App.me.name=account.name??body.name;App.me.bio=account.bio??body.bio;App.me.profile_layout=account.profile_layout||body.profile_layout;
           invalidate('/api/me');invalidate('/api/people/');invalidateFeed();keep('/api/me',App.me);
           if(valid()){finish(true);toast('Card saved');if(fromSettings)go('/me',{replace:true});else (onSaved||reload)?.();}
-        }catch(x){if(valid()){status.textContent=x.message;save.textContent='Save';busy=false;changed();}}
+        }catch(x){if(valid()){status.textContent=x.message;save.textContent='Save';busy=false;cancel.disabled=false;changed();}}
       };
       sizeBio();if(focusName){card.scrollIntoView({block:'start'});name.focus({preventScroll:true});}else $('[data-show]',box)?.focus({preventScroll:true});
     }

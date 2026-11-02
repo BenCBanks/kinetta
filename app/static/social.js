@@ -627,7 +627,7 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
         list.innerHTML=rows.length?rows.map(a=>postCard(a,{lock:true})).join(''):`<div class="card empty"><b>${term||sport?'Nothing matches':'No activities yet'}</b>${term||sport?'Try another filter.':`Workouts from your watch arrive here on their own.${startCta()}`}</div>`;
         more.hidden=rows.length<25||rows.length%25!==0;list.setAttribute('aria-busy','false');feedMaps(list);wireCheers(list);arm();
       });if(data===null&&current()&&sequence===request)throw Error('Your activities changed. Try loading again.');}
-      catch(x){if(current()&&sequence===request){showError(list,x);const retry=$('button',list);if(retry)retry.onclick=loadRows;}}
+      catch(x){if(current()&&sequence===request){rows=[];more.hidden=true;stopMore();showError(list,x);const retry=$('button',list);if(retry)retry.onclick=loadRows;}}
       finally{if(current()&&sequence===request){revalidating=false;more.disabled=false;list.setAttribute('aria-busy','false');arm();}}
     }
     more.onclick=async()=>{
