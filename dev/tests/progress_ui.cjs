@@ -34,7 +34,13 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    await p.locator('[data-progress-period="month"]').click();await ready();assert.equal(await p.locator('[data-progress-period="month"]').getAttribute('aria-pressed'),'true');
    await p.locator('#p-sport').click();await p.locator('[data-pk="all"]').click();await ready();assert.equal(await p.evaluate(()=>localStorage.getItem('fit.psport')),'all');
    assert.equal(await p.locator('.progress-totals-title').getAttribute('href'),null,'Totals is on Progress, with no second page');
-   if(who==='runner'){const table=p.locator('#p-home-totals .table-fold');assert(await table.isVisible(),'Totals table is reachable on home');await table.locator('summary').click();assert(await table.locator('tbody tr').count()>0);await table.locator('summary').click();}
+   if(who==='runner'){
+    const table=p.locator('#m-table'),toggle=p.locator('[data-progress-table]'),chart=p.locator('#m-chart');
+    assert(await toggle.evaluate(n=>!!n.closest('#p-home-totals .card')),'Table action stays inside Totals');
+    const row=await p.locator('[data-progress-period], [data-progress-table]').evaluateAll(ns=>ns.map(n=>{const r=n.getBoundingClientRect();return {top:r.top,left:r.left,right:r.right,height:r.height};}));
+    assert(Math.max(...row.map(r=>r.top))-Math.min(...row.map(r=>r.top))<2,'Table shares the period row');assert(row.every(r=>r.left>=0&&r.right<=size.width&&r.height>=44),'whole targets fit');
+    assert(await table.isHidden());await toggle.click();assert(await table.isVisible());assert(await chart.isHidden());assert.equal(await toggle.getAttribute('aria-pressed'),'true');assert(await table.locator('tbody tr').count()>0);await toggle.click();assert(await chart.isVisible());assert(await table.isHidden());
+   }
    for(const legacy of ['totals','mileage','training']){await p.goto(base+`/progress?view=${legacy}&period=month&sport=all`);await ready();assert.equal(new URL(p.url()).searchParams.get('view'),null);assert.equal(new URL(p.url()).searchParams.get('period'),'month');assert.equal(new URL(p.url()).searchParams.get('sport'),'all');assert.equal(await p.locator('.progress-home').count(),1,'old Totals links resolve to the home card');}await home();
    // Every tile has a direct destination and every Progress detail has a Home arrow, including old addresses.
    for(const url of ['/progress/weight','/progress?view=fitness','/progress?view=records','/progress?view=lifting','/progress/trends','/progress/calendar','/progress/routes','/progress/segments','/progress/heatmap','/progress?section=food','/progress?section=food&foodview=weight','/progress?view=heatmap']){
