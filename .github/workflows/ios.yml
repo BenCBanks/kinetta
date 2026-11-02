@@ -45,7 +45,7 @@ jobs:
           import json, os, sys
           sys.path.insert(0, 'dev/ci')
           from policy import changed_paths
-          event=json.load(open(os.environ['GITHUB_EVENT_PATH']))
+          with open(os.environ['GITHUB_EVENT_PATH']) as source:event=json.load(source)
           pr=event.get('pull_request')
           enabled=bool(pr and any(p.startswith('mobile/appstore/') or p=='dev/tests/native-ui/appstore.cjs' for p in changed_paths(event)))
           print('enabled='+str(enabled).lower())

@@ -1,4 +1,9 @@
 """Event/path decisions and workflow wiring; no GitHub mutations."""
+import contextlib
+import io
+import json
+import sys
+import textwrap
 import importlib.util
 from pathlib import Path
 import unittest
@@ -36,6 +41,26 @@ class CIPolicyTests(unittest.TestCase):
             self.assertEqual(set(paths),{'old.txt','dev/tests/native-ui/fixture.txt'})
             self.assertTrue(policy.native_needed('pull_request',{'pull_request':{'draft':False}},paths))
 
+    def test_store_draft_preview_is_bounded(self):
+        ios=(ROOT/'.github/workflows/ios.yml').read_text()
+        script=textwrap.dedent(ios.split("python3 - <<'PYCODE' >> \"$GITHUB_OUTPUT\"",1)[1].split('PYCODE',1)[0])
+        cases=[(True,['mobile/appstore/README.md'],True,True),
+               (True,['dev/tests/native-ui/appstore.cjs'],True,True),
+               (True,['app/static/food.js'],False,False),
+               (False,['mobile/appstore/README.md'],True,False),
+               (None,[],False,False)]
+        for draft,paths,enabled,preview in cases:
+            with self.subTest(draft=draft,paths=paths),tempfile.TemporaryDirectory() as temp:
+                event=Path(temp)/'event.json';event.write_text(json.dumps({'pull_request':{'draft':draft}} if draft is not None else {}))
+                output=io.StringIO();old_path=sys.path[:]
+                try:
+                    with patch.dict(os.environ,{'GITHUB_EVENT_PATH':str(event)}),patch.dict(sys.modules,{'policy':policy}),patch.object(policy,'changed_paths',return_value=paths),contextlib.redirect_stdout(output):
+                        exec(compile(script,'store-preview-step','exec'),{})
+                finally:sys.path[:]=old_path
+                self.assertEqual(output.getvalue().splitlines(),['enabled='+str(enabled).lower(),'preview='+str(preview).lower()])
+        self.assertIn("github.event.pull_request.draft && '[\"pro\"]'",ios)
+        self.assertIn("if: matrix.device == 'pro' && needs.changes.outputs.store == 'true'",ios)
+
     def test_workflow_event_guards_and_release_boundaries(self):
         for name in ('tests.yml','ios.yml','screenshots.yml','admin-ui.yml'):
             text=(ROOT/'.github/workflows'/name).read_text()
@@ -45,7 +70,7 @@ class CIPolicyTests(unittest.TestCase):
         self.assertIn('github.event.pull_request.draft == true',tests);self.assertIn('dev/tests/run.sh --quick',tests)
         self.assertNotIn('paths:',tests) # required full-suite workflow must run for every ready PR
         ios=(ROOT/'.github/workflows/ios.yml').read_text()
-        self.assertIn('native: ${{ steps.paths.outputs.native }}',ios)
+        self.assertIn("native: ${{ steps.paths.outputs.native == 'true' || steps.store.outputs.preview == 'true' }}",ios)
         self.assertIn('python3 dev/ci/policy.py',ios)
         self.assertIn("if: needs.changes.outputs.release == '1' && github.ref == 'refs/heads/main'",ios)
         self.assertEqual(ios.count('npm run sync'),2) # unsigned and signed builds share stamping

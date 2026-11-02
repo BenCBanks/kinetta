@@ -50,7 +50,7 @@ if a.store:
  import shutil
  shutil.rmtree(expected)
  # Read only the published map contract; no account, cookie or runtime setting access.
- with urllib.request.urlopen('https://login.kinetta.app/api/map-config',timeout=20) as response:map_config=json.load(response)
+ with urllib.request.urlopen(urllib.request.Request('https://login.kinetta.app/api/map-config',headers={'User-Agent':'Kinetta fictional capture setup'}),timeout=20) as response:map_config=json.load(response)
  url=urlsplit(map_config['url'])
  assert map_config['kind']=='pmtiles' and url.scheme=='https' and url.hostname and not (url.username or url.password or url.query or url.fragment),'Public credential-free vector map required'
  assert not url.hostname.endswith('tile.openstreetmap.org'),'Never use public OSM tile servers'
