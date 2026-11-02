@@ -7,6 +7,7 @@ import math
 import os
 from pathlib import Path
 import random
+import re
 import subprocess
 import threading
 import time
@@ -39,7 +40,7 @@ assert len(people) == args.users
 sequence_file = args.output/'import-sequences.json'
 sequences = json.loads(sequence_file.read_text()) if sequence_file.exists() else {}
 sql(args.project, 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements; SELECT pg_stat_statements_reset();')
-records, resources, failures = [], [], []
+records, resources, failures, routes = [], [], [], {}
 lock = threading.Lock()
 stop = threading.Event()
 deadline = time.monotonic()+args.seconds
@@ -58,19 +59,27 @@ def request(person, label, method, path, body=None, content_type='application/js
         status, value = e.code, None
     except (OSError, ValueError):
         status, value = 0, None
-    with lock: records.append((label, status, (time.monotonic()-started)*1000))
+    with lock:
+        routes[label] = method+' '+re.sub(r'/\d+(?=/|$)', '/{id}', path.split('?')[0])
+        records.append((label, status, (time.monotonic()-started)*1000))
     return status, value
 
 
 def worker(i):
     person, rng = people[i], random.Random(i)
-    reads = [('me', '/api/me'), ('feed', '/api/activities'), ('progress', '/api/progress/overview'),
-             ('nutrition', '/api/food/day'), ('activity_detail', '/api/activities/'+str(person['activity']))]
+    reads = [('me', [('me', '/api/me'), ('stats', '/api/stats'), ('activity_food', '/api/activity-food'),
+                     ('plans', '/api/plans/current'), ('nutrition', '/api/food/day')]),
+             ('activity', [('feed', '/api/activities')]), ('progress', [('progress', '/api/progress/overview')]),
+             ('nutrition', [('nutrition', '/api/food/day'), ('food_thread', '/api/food/thread/messages')]),
+             ('track', [('plans', '/api/plans/current'), ('connections', '/api/connections')]),
+             ('detail', [('activity_detail', '/api/activities/'+str(person['activity']))])]
     while time.monotonic() < deadline:
         pick = rng.randrange(100)
         if pick < 65:
-            label, path = rng.choice(reads)
-            request(person, label, 'GET', path)
+            tab, calls = rng.choice(reads); began = time.monotonic(); statuses = []
+            for label, path in calls: statuses.append(request(person, label, 'GET', path)[0])
+            with lock: records.append(('tab_'+tab, next((s for s in statuses if not 200 <= s < 300), 200),
+                                       (time.monotonic()-began)*1000))
         elif pick < 80:
             request(person, 'search_mine' if pick < 73 else 'search_catalog', 'GET',
                     '/api/food/search?q=Fictional'+('%20saved&sources=mine' if pick < 73 else '%20oats&sources=off,usda'))
@@ -169,7 +178,8 @@ finally:
 summary = {}
 for label in sorted({x[0] for x in records}):
     rows = [x for x in records if x[0] == label]
-    stats = {'count': len(rows), 'statuses': {str(s): sum(x[1] == s for x in rows) for s in sorted({x[1] for x in rows})}}
+    stats = {'route': routes.get(label, 'complete workflow'), 'count': len(rows),
+             'statuses': {str(s): sum(x[1] == s for x in rows) for s in sorted({x[1] for x in rows})}}
     for group, valid in [('success', lambda s: 200 <= s < 300), ('rejected_or_failed', lambda s: not 200 <= s < 300)]:
         values = sorted(x[2] for x in rows if valid(x[1]))
         stats[group] = {'count': len(values), **{f'p{p}_ms': round(values[max(0, math.ceil(len(values)*p/100)-1)], 2)

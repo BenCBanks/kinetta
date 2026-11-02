@@ -21,6 +21,8 @@ Defaults: 100 fictional accounts (the hosted cap documented in docs/ios.md, not 
 one-second jittered think time. The mix selects tab/detail reads65%, food search15%, manual logging7%,
 food-message/process/resolve/review/explicit confirmation5%, reactions/comments6%, fresh FIT imports2%.
 Import completion requires one added activity, zero duplicates/failures; cursors survive repeat runs.
+Tab bundles include Me's statistics/activity-food/plan/food, Nutrition's thread, and Track's plan/connections.
+Calls are sequential within a person's bundle; the people run concurrently. Workflow and HTTP timings are separate.
 Keep separate output directories for separate deployments. Sessions are private: never publish sessions.json,
 browser profiles, raw resource output, addresses or host details. Reports and test output stay out of git.
 
