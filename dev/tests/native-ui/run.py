@@ -73,7 +73,7 @@ for device in preferred:
   installed=None;recovered=False
   for theme in (('light',) if a.store else ('light','dark')):
    sim('ui',udid,'appearance',theme)
-   stages=[('header-me',16),('activity',16),('header-track',16),('header-food',16),('food',16),('header-progress',16),('friends-typical',16)] if a.store else [(name,16) for name in ['header-me','header-activity','header-track','header-progress','header-food']]+[('recipe',16),('review',16),('food',16),('recipe',24),('food',24),('track-live',16),('track-map',16),('track-review',16),('track-live',24),('track-review',24),('activity',16),('activity-sticky',16),('activity-empty',16),('activity-map',16),('activity',24),('friends-empty',16),('friends-typical',16),('friends-heavy',16),('friends-heavy',24)]
+   stages=[('header-me',16),('activity',16),('header-track',16),('header-food',16),('food',16),('header-progress',16),('header-activity',16)] if a.store else [(name,16) for name in ['header-me','header-activity','header-track','header-progress','header-food']]+[('recipe',16),('review',16),('food',16),('recipe',24),('food',24),('track-live',16),('track-map',16),('track-review',16),('track-live',24),('track-review',24),('activity',16),('activity-sticky',16),('activity-empty',16),('activity-map',16),('activity',24),('friends-empty',16),('friends-typical',16),('friends-heavy',16),('friends-heavy',24)]
    for stage,root in stages:
     diagnostics['phase']=f'{theme} {stage} root={root}';(a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
     print(f'Native UI: {device["name"]} {theme} {stage} root={root}',flush=True)

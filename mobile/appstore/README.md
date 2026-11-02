@@ -19,7 +19,7 @@ Run `python3 mobile/scripts/test_listing.py`. Review `privacy-audit.md`, `age-ra
 
 ## Native screenshot artifacts
 
-The capture mode uses an unsigned Simulator bundle, actual UIKit safe areas and fictional API responses. Track’s location is a supplied point from the published fictional park route; no GPS permission or real position is read. Only the public basemap contract and its map-file ranges are requested without account credentials. It must produce7 light-mode JPEGs at1320×2868 with no alpha, source revision, image hashes and readiness metrics. Never resize browser/website captures into App Store screenshots or commit image artifacts. Review raw native captures before choosing an optional Sky Blue caption treatment. Inspect the native CI artifact and attach reviewed examples to the PR before marking preparation complete.
+The seven scenes are Me, activity map/charts, Track ready, Nutrition day, Add food chat, Progress and the friends’ Activity feed. The capture mode uses an unsigned Simulator bundle, actual UIKit safe areas and fictional API responses. Track’s location is a supplied point from the published fictional park route; no GPS permission or real position is read. Only the public basemap contract and its map-file ranges are requested without account credentials. It must produce7 light-mode JPEGs at1320×2868 with no alpha, source revision, image hashes and readiness metrics. Never resize browser/website captures into App Store screenshots or commit image artifacts. Review raw native captures before choosing an optional Sky Blue caption treatment. Inspect the native CI artifact and attach reviewed examples to the PR before marking preparation complete.
 
 ## Existing push protection
 

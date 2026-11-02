@@ -5,6 +5,7 @@ module.exports=()=>{
  const activity=require('../../demo/activity_detail.cjs')(),friends=require('../../demo/friends.cjs')('typical');
  friends.friends=Array.from({length:3},(_,i)=>({...friends.friends[0],login:['jordan','casey','taylor'][i],name:['Jordan Example','Casey Example','Taylor Example'][i]}));
  activity.name='Morning park run';
+ const friendActivity={...activity,id:2,name:'Park loop with friends',start_time:'2026-11-01T08:00:00Z',owner:friends.friends[0],visibility:'friends',sport_label:null,speed_available:true,shares:{pace:true,map:true},cheers:0,comments:0,reactions:{cheer:0,strong:0,applause:0},my_reaction:null,cheered:false};
  const macros={kcal:915,protein_g:48,carbs_g:90,fat_g:31,fiber_g:null,sodium_mg:null,sugar_g:null,saturated_fat_g:null};
  const entries=[['Oatmeal with blueberries','breakfast',395,16,50,9],['Chicken salad bowl','lunch',520,32,40,22]].map(([name,meal,kcal,protein_g,carbs_g,fat_g],i)=>({...macros,id:i+1,day:today,name,meal,kcal,protein_g,carbs_g,fat_g,amount:1,unit:'serving',source:'quick',ref:null}));
  const weeks=[24,28,26,32,30,29,8].map((km,i)=>({d:date((6-i)*7+1),end:i===6?today:date((6-i)*7-5),distance_m:km*1000,by_sport:{run:km*1000},today:i===6}));
@@ -29,7 +30,7 @@ module.exports=()=>{
   '/api/friends':friends,'/api/people/suggested':friends.suggested,'/api/sharing':{default:'friends'},
   '/api/notifications':{items:[],unread:0,push:{},push_ready:false},
   '/api/notifications/count':{unread:0,friend_requests:1},'/api/map-config':{kind:'off',attribution:'',personal_default:false},
-  '/api/feed/friends':[],'/api/lifts/sessions':[],'/api/activity-food':{week:{start:date(7),end:date(1),workouts:4,distance_m:29000,seconds:10440,days_logged:7,protein_target:110,protein_days_reached:4,protein_days_known:7,protein_days_unknown:0},today:{day:today,items:[],exercise_kcal:0,estimated:true,burn_source:'formula',day_burn:2250,included_in_day_burn:true,food_href:'/food'}},
+  '/api/feed/friends':[friendActivity],'/api/lifts/sessions':[],'/api/activity-food':{week:{start:date(7),end:date(1),workouts:4,distance_m:29000,seconds:10440,days_logged:7,protein_target:110,protein_days_reached:4,protein_days_known:7,protein_days_unknown:0},today:{day:today,items:[],exercise_kcal:0,estimated:true,burn_source:'formula',day_burn:2250,included_in_day_burn:true,food_href:'/food'}},
   '/api/setup':{needed:false},'/api/milestones':{items:[],pending:false},'/api/recaps':{items:[]},
   '/api/plans/current':{plan:null},'/api/plan/today':{plan:null},'/api/challenges':[],
   '/api/goals':[],'/api/coach/week':{enabled:false,paused:false,latest:null},'/api/connections':{garmin:{available:false}},

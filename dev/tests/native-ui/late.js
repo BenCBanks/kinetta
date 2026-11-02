@@ -12,8 +12,8 @@
   }
   if(cfg.recording){TrackNative.supported=false;TrackNative.call=()=>Promise.reject(Error('Native UI fixture blocked GPS controls'));}
   const rect=selector=>{const e=document.querySelector(selector);if(!e)return null;const r=e.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};};
-  function paintedMap(){
-    return [...document.querySelectorAll('canvas.leaflet-tile-loaded')].some(c=>{try{
+  function paintedMap(scope=document){
+    return [...scope.querySelectorAll('canvas.leaflet-tile-loaded')].some(c=>{try{
       const b=c.getBoundingClientRect(),m=c.closest('.leaflet-container').getBoundingClientRect(),x=Math.max(0,b.x,m.x),y=Math.max(0,b.y,m.y),right=Math.min(innerWidth,b.right,m.right),bottom=Math.min(innerHeight,b.bottom,m.bottom);
       if(right<=x||bottom<=y)return false;let opacity=1;for(let e=c;e;e=e.parentElement){const css=getComputedStyle(e);opacity*=Number(css.opacity);if(opacity<.95||css.visibility==='hidden'||css.display==='none')return false;}
       const sx=Math.floor((x-b.x)/b.width*c.width),sy=Math.floor((y-b.y)/b.height*c.height),w=Math.max(1,Math.floor((right-x)/b.width*c.width)),h=Math.max(1,Math.floor((bottom-y)/b.height*c.height));
@@ -28,7 +28,7 @@
         'header-food':()=>document.querySelectorAll('#fd-meals [data-id]').length===2&&document.querySelector('#fd-sum').textContent.includes('915'),
         food:()=>document.querySelector('.thread-card [data-action="undo"]')&&document.querySelector('#thread-text'),
         'header-progress':()=>document.querySelector('#m-chart svg')&&document.querySelector('[data-progress-fitness]').textContent.includes('Training steadily'),
-        'friends-typical':()=>document.querySelectorAll('.fr-friend').length===3,
+        'header-activity':()=>{const post=document.querySelector('#ff-list .post[data-href="/activity/friends/2"]');return post?.querySelector('.post-name')?.textContent==='Jordan Example'&&paintedMap(post)&&!post.querySelector('.map-unavailable:not([hidden])');},
       };
       return !!checks[cfg.stage]?.();
   }
