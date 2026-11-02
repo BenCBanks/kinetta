@@ -97,7 +97,7 @@ function planCard(box, {onReady} = {}) {
     if (!d.plan) { box.innerHTML = ''; onReady?.(); return; }
     const p = d.plan, w = d.today_workout, n = d.next_workout, pr = d.progress || {};
     const started = d.today >= p.start_day;
-    const head = d.days_to_race > 0 ? `${d.days_to_race} day${d.days_to_race === 1 ? '' : 's'} to go` : d.days_to_race === 0 ? 'Race day!' : 'Finished';
+    const head = d.days_to_race > 0 ? `${d.days_to_race} day${d.days_to_race === 1 ? '' : 's'} to go` : d.days_to_race === 0 ? 'Target day' : 'Finished';
     const wk = d.this_week ? `Week ${d.this_week} of ${p.weeks}` : started ? 'Plan finished' : `Starts ${pday(p.start_day)}`;
     const show = w && w.status !== 'done' ? w : n || w, ran = d.today_run;
     // a run today on a rest day still shows (2026-10-12: "it is not registering that I worked out")
@@ -142,7 +142,7 @@ function planOverview(box, d) {
   const openKey=readOwner()+':'+p.id+':'+cur.n;if(!planWeekOpen.has(openKey))planWeekOpen.set(openKey,new Set([cur.n]));const expanded=planWeekOpen.get(openKey);
   box.classList.add('plan-overview');
   box.innerHTML=`<section class="card compact-plan-summary"><div class="plan-summary-title"><h2>${esc(p.race_name)}</h2><span>${esc(p.level_name)} · ${p.weeks} weeks</span></div>
-    <p class="plan-summary-facts"><span>${esc(pday(p.race_day))}</span><span>${d.days_to_race>=0?`${d.days_to_race} day${d.days_to_race===1?'':'s'} to go`:'Finished'}</span>${d.predicted_s?`<span>Predicted ${esc(fmtT(d.predicted_s))}</span>`:''}${p.goal_s?`<span>Goal ${esc(fmtT(p.goal_s))}</span>`:''}</p>
+    <p class="plan-summary-facts"><span>${esc(pday(p.race_day))}</span><span>${d.days_to_race>=0?`${d.days_to_race} day${d.days_to_race===1?'':'s'} to go`:'Finished'}</span>${d.predicted_s?`<span>Endurance estimate ${esc(fmtT(d.predicted_s))}</span>`:''}${p.goal_s?`<span>Goal ${esc(fmtT(p.goal_s))}</span>`:''}</p>
     ${started?`<div class="plan-week-progress"><span>${d.this_week?`Week ${d.this_week} · ${esc(cur.phase)}`:'Plan finished'}</span><b class="num">${esc(progress)}</b></div><progress max="1" value="${Math.max(0,Math.min(1,fraction))}" aria-label="This week's completed ${planned?'distance':'workouts'}"></progress>`:`<p class="plan-start-date">Starts ${esc(pday(p.start_day))}</p>`}</section>
     ${next?`<section class="card plan-next"><div class="plan-next-grid"><button type="button" class="plan-next-workout" data-wday="${esc(next.day)}"><small>${next.day===d.today?'Today':'Next · '+esc(pday(next.day))}${next.minutes?` · about ${esc(next.minutes)} min`:''}</small><b>${esc(next.title)}</b>${compactWorkoutPace(next,pc,p)?`<span class="small muted">${esc(compactWorkoutPace(next,pc,p))}</span>`:''}</button><button type="button" class="primary plan-next-start" data-plan-start>Start</button></div><p class="small danger" data-plan-error role="alert"></p></section>`:''}
     <section class="card plan-weeks"><div class="plan-weeks-title"><h2>Weeks</h2><details class="plan-key"><summary>Key</summary><div class="plan-legend"><span data-workout-kind="easy">Easy</span><span data-workout-kind="hard">Workout / intervals</span><span data-workout-kind="long">Long run</span><span data-workout-kind="rest">Rest</span></div></details></div>
@@ -155,14 +155,14 @@ function planOverview(box, d) {
     <div class="plan-detail-section"><h2>About this plan</h2><p class="small">${esc(d.level_desc || '')}</p>
       ${detail('Race', `${p.race_name}${p.goal_s ? `, goal ${fmtT(p.goal_s)}` : ''}`)}${detail('Level', p.level_name)}${detail('Length', `${p.weeks} weeks`)}
       ${detail('Runs a week', p.runs)}${detail('Long run', p.long_day === 6 ? 'Sundays' : 'Saturdays')}${detail('Starts', pday(p.start_day, {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'}))}
-      ${detail('Race day', pday(p.race_day, {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'}))}
+      ${detail('Plan target date', pday(p.race_day, {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'}))}
       ${s.peak_week ? detail('Biggest week', `${s.peak_week} ${U}`) + detail('Longest run', `${s.longest} ${U}`) : ''}${s.hard_per_week ? detail('Hard days', `up to ${s.hard_per_week} a week`) : ''}
       <h3 class="ghead">How it's built</h3><p class="small">${p.level === 'first' ? 'Run/walk sessions that slowly swap walking for running, until you can run 30 minutes and then a 5K.'
         : `<b>Base</b>: easy miles to build up. <b>Build</b> and <b>Peak</b>: more distance and harder sessions. Every 4th week is a lighter <b>cutback</b> week so your body absorbs the training. <b>Taper</b> (last ${d.taper_weeks} week${d.taper_weeks > 1 ? 's' : ''}): less running, so you start the race fresh.`}</p></div>
     <div class="plan-detail-section"><h2>Your paces</h2>
       ${d.vdot ? paceRow('Easy & long runs', pc.easy, 'chatty, relaxed - most of your running') + paceRow('Recovery', pc.recovery, 'the day after a long run') +
         paceRow('Tempo', pc.tempo, 'comfortably hard, about 1-hour race pace') + paceRow('Intervals', pc.intervals, 'hard repeats, about 5K effort') +
-        paceRow(p.goal_s ? 'Goal race pace' : 'Predicted race pace', p.goal_s ? pc.goal : pc[goalKey], p.goal_s ? `for your ${fmtT(p.goal_s)} goal` : 'from your current fitness')
+        paceRow(p.goal_s ? 'Goal race pace' : 'Race pace from fitness', p.goal_s ? pc.goal : pc[goalKey], p.goal_s ? `for your ${fmtT(p.goal_s)} goal` : 'from best efforts in the past 90 days')
         + '<p class="small muted">From your best recent run; they update as you get faster. In heat, on hills or on tired legs, go by feel.</p>'
         : '<p class="small">No fast runs recorded yet, so go by feel:</p><ul class="small"><li><b>Easy</b>: you can talk in full sentences.</li><li><b>Tempo</b>: comfortably hard, a few words at a time.</li><li><b>Intervals</b>: hard but controlled, like a 5K race.</li></ul>'}</div>
     </details>`;
@@ -240,8 +240,8 @@ async function planSetup(box, existing) {
         <h3 class="ghead">Runs a week</h3><div class="chips wrap">${Array.from({length: L.runs[1] - L.runs[0] + 1}, (_, i) => L.runs[0] + i).map((x) => `<button class="chip" data-runs="${x}" aria-pressed="${x === S.runs}">${x} runs</button>`).join('')}</div>`}
         <h3 class="ghead">Long run on</h3><div class="seg full" role="group" aria-label="Long run day"><button data-ld="5" aria-pressed="${S.long_day === 5}">Saturday</button><button data-ld="6" aria-pressed="${S.long_day === 6}">Sunday</button></div></div>
       <div class="card">${step(4, 'Race date and goal')}<p class="small muted">Both optional.</p>
-        <form class="form" id="ps-f"><label>Race date<input type="date" class="datefield" name="race_day" value="${esc(S.race_day || '')}" min="${esc(o.today)}"></label>
-        <p class="small muted ps-note">${S.race_day ? "The plan is counted back from race day." : `Without a date the plan starts ${[0, 4, 5, 6].includes(new Date(o.today + 'T12:00').getDay()) ? 'next Monday' : 'this Monday'}.`}${S.race_day ? ' <button type="button" class="linkbtn" id="ps-nodate">No race date</button>' : ''}</p>
+        <form class="form" id="ps-f"><label>Target date<input type="date" class="datefield" name="race_day" value="${esc(S.race_day || '')}" min="${esc(o.today)}"></label>
+        <p class="small muted ps-note">${S.race_day ? "The plan is counted back from this target date." : `Without a date the plan starts ${[0, 4, 5, 6].includes(new Date(o.today + 'T12:00').getDay()) ? 'next Monday' : 'this Monday'}.`}${S.race_day ? ' <button type="button" class="linkbtn" id="ps-nodate">No race date</button>' : ''}</p>
         <fieldset class="goaltime"><legend>Goal finish time</legend>
           <div class="hms">${['gh', 'gm', 'gs'].map((k, i) => `<label><input name="${k}" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="${['0', '00', '00'][i]}" value="${hms(S.goal_s)[i] === '' ? '' : String(hms(S.goal_s)[i]).padStart(i ? 2 : 1, '0')}" aria-label="${['Hours', 'Minutes', 'Seconds'][i]}"><span>${['hours', 'minutes', 'seconds'][i]}</span></label>`).join('')}</div>
           <p class="small muted" id="ps-pace">${paceLine(S.goal_s)}</p></fieldset></form></div>
@@ -275,7 +275,7 @@ async function planSetup(box, existing) {
       const r = await api('/api/plans/preview', json('POST', body()));
       if (my !== seq || !pv.isConnected) return;
       const s = r.summary;
-      pv.innerHTML = `${step(5, 'Your plan')}<p><b>${esc(race().name)} · ${esc(level().name)} · ${s.weeks} weeks</b><br><span class="muted">${esc(pday(r.start_day))} → race ${esc(pday(r.race_day, {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'}))}</span></p>
+      pv.innerHTML = `${step(5, 'Your plan')}<p><b>${esc(race().name)} · ${esc(level().name)} · ${s.weeks} weeks</b><br><span class="muted">${esc(pday(r.start_day))} → target run ${esc(pday(r.race_day, {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'}))}</span></p>
         ${S.level === 'first' ? '' : `<div class="stats3 big">${stat('Week 1', s.first_week, UN)}${stat('Biggest week', s.peak_week, UN)}${stat('Longest run', s.longest, UN)}</div>`}
         ${r.warning ? `<div class="callout warn">${esc(r.warning)}</div>` : ''}
         <h3 class="ghead">Week 1</h3>${r.weeks[0].workouts.map((w) => workoutRow(w, UN)).join('')}`;

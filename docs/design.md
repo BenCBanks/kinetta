@@ -1869,3 +1869,19 @@ Activity detail retains its map-overlay toolbar and sticky activity-title bar to
 Sheets, photo viewers and full-screen activity maps share background ownership: only the top modal accepts input, nested dismissal preserves lower modals, and final dismissal restores prior inert states and focus. Dialog layers cover sticky headers. Shared form actions retain at least44px targets and confirmation pairs have8px gaps. The spacing audit opens the shared form, pinned Save, weight, public-link and friend-confirmation patterns, photo viewer and full-screen map, with saves blocked.
 
 Light basemaps use slightly deeper earth, vegetation, water, buildings and road edges. Routes use the existing darker brand blue in light mode to retain or improve the original contrast against every changed background, including translucent heatmap lines. Route opacity/weight and dark-mode colours stay unchanged; exported pictures retain their existing route casing and privacy trimming.
+
+## Progress windows and compact history · 2 November 2026
+
+Keep calculations unchanged while naming their basis. Running fitness shows the best score from
+90 days, monthly bests and their trailing six-month average. Plan goal pace comes from the entered
+time; the separate race pace comes from recent best-effort fitness, while the headline prediction
+adjusts for endurance. Generated plan dates are targets. Monthly weekly rates keep their per-week
+units and mark the current month as so far. Matched-route efficiency describes recorded distance
+per heartbeat; conditions and recording differences can affect it. Chart keys use their actual
+series colors, including the gold Fastest point.
+
+Totals and its table live directly on Progress; old links retain sport and period while redirecting.
+Record history has one list with All/PRs controls. Segment controls stay inside the card at narrow
+widths, with concise Mine and Publish labels. Course/timing rules fold once; personal exclusion,
+matching state, participation and publication privacy confirmations stay accessible. Empty searches
+and missing charts offer actions that are actually available.
