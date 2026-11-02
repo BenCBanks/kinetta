@@ -37,7 +37,7 @@ function audit(snapshot,rules=[]){
  const issue=(record,metric,actual,expected,other)=>{
   const eligible=rules.filter(r=>r.metric===metric&&(r.withSelector?other&&((record.pairedExceptions?.[r.id]?.includes(other.key))||(other.pairedExceptions?.[r.id]?.includes(record.key))):record.exceptions?.includes(r.id)&&(!other||other.exceptions?.includes(r.id)))&&(r.minimum===undefined||typeof actual==='number'&&actual>=r.minimum-.02)&&(r.maximum===undefined||typeof actual==='number'&&actual<=r.maximum+.02)&&(r.exact===undefined||actual===r.exact));
   const exception=eligible.find(r=>!r.withSelector||record.hit&&other.hit);
-  const row={screen:snapshot.screen,element:record.selector||record.key,metric,actual,expected,...(metric==='overlap'?{overlayCandidates:eligible.filter(r=>r.kind==='intentional-overlay').map(r=>r.id)}:{}),...(record.rect?{box:record.rect}:{}),...(record.hit===undefined?{}:{hit:record.hit,hitOwner:record.hitOwner}),...(other?{neighbour:other.selector||other.key,neighbourBox:other.rect}:{})};
+  const row={screen:snapshot.screen,element:record.selector||record.key,metric,actual,expected,...(metric==='overlap'?{overlayCandidates:eligible.filter(r=>r.kind==='intentional-overlay').map(r=>r.id)}:{}),...(metric==='gap'?{gapCandidates:eligible.filter(r=>r.kind==='chart-column'&&r.maximum===0).map(r=>r.id)}:{}),...(record.rect?{box:record.rect}:{}),...(record.hit===undefined?{}:{hit:record.hit,hitOwner:record.hitOwner}),...(other?{neighbour:other.selector||other.key,neighbourBox:other.rect}:{})};
   if(exception)exceptionsUsed.push({...row,exception:exception.id,reason:exception.reason,followup:exception.followup});else violations.push(row);
  };
  if(snapshot.overflow)issue({key:'document',selector:'html',exceptions:snapshot.exceptions},'overflow',snapshot.documentWidth,snapshot.viewportWidth);
@@ -63,11 +63,14 @@ function audit(snapshot,rules=[]){
 function combineMeasurements(measurements,rules=[]){
  const key=v=>JSON.stringify([v.metric,...(v.neighbour?[v.element,v.neighbour].sort():[v.element])]);
  const exceptionsUsed=[...new Map(measurements.flatMap(m=>m.exceptionsUsed).map(v=>[JSON.stringify([v.exception,key(v)]),v])).values()];
- const verified=new Map();
+ const verified=new Map(),columns=new Set();
  // A reviewed overlay must be exposed at one scroll position. Temporary page chrome at another
  // position cannot revoke that proof; larger overlaps and permanently hidden controls still fail.
  for(const v of measurements.flatMap(m=>m.exceptionsUsed))if(rules.some(r=>r.id===v.exception&&r.kind==='intentional-overlay'))verified.set(v.exception+key(v),Math.max(verified.get(v.exception+key(v))||0,v.actual));
- const violations=[...new Map(measurements.flatMap(m=>m.violations).filter(v=>!(v.metric==='overlap'&&v.overlayCandidates?.some(id=>verified.has(id+key(v))&&v.actual<=verified.get(id+key(v))+.02))).map(v=>[key(v),v])).values()];
+ // The same zero-gap columns also remain proven when navigation temporarily covers them.
+ // Current-sample candidates retain the reviewed chart scope; all reachability checks stay separate.
+ for(const v of measurements.flatMap(m=>m.exceptionsUsed))if(v.metric==='gap'&&v.actual===0&&rules.some(r=>r.id===v.exception&&r.kind==='chart-column'&&r.metric==='gap'&&r.maximum===0))columns.add(v.exception+key(v));
+ const violations=[...new Map(measurements.flatMap(m=>m.violations).filter(v=>!(v.metric==='overlap'&&v.overlayCandidates?.some(id=>verified.has(id+key(v))&&v.actual<=verified.get(id+key(v))+.02))&&!(v.metric==='gap'&&v.actual===0&&v.gapCandidates?.some(id=>columns.has(id+key(v))))).map(v=>[key(v),v])).values()];
  return{violations,exceptionsUsed};
 }
 module.exports={audit,neighbours,validateExceptions,typeScale,combineMeasurements};

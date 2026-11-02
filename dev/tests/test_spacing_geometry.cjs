@@ -58,6 +58,16 @@ const chartRule=require('./spacing_exceptions.json').find(r=>r.id==='me-chart-ad
 validateExceptions([chartRule]);
 const columnA=target('column-a',0,0,46,60,{hit:true,pairedExceptions:{[chartRule.id]:['column-b']}}),columnB=target('column-b',46,0,46,60,{hit:true});
 assert.equal(audit(scene([columnA,columnB]),[chartRule]).violations.length,0,'Approved adjacent chart columns pass');
+const exposedColumns=audit(scene([columnA,columnB]),[chartRule]),coveredColumns=audit(scene([{...columnA,hit:false},columnB]),[chartRule]);
+for(const samples of [[exposedColumns,coveredColumns],[coveredColumns,exposedColumns]])assert.equal(combineMeasurements(samples,[chartRule]).violations.length,0,'Exposed zero-gap chart pairs stay proven through temporary navigation coverage');
+assert(combineMeasurements([coveredColumns],[chartRule]).violations.some(v=>v.metric==='gap'),'An unexposed chart pair still fails');
+const changedColumns=extra=>audit(scene([columnA,{...columnB,hit:false,...extra}]),[chartRule]);
+assert(combineMeasurements([exposedColumns,changedColumns({rect:{...columnB.rect,x:48}})],[chartRule]).violations.some(v=>v.metric==='gap'),'Exposed chart proof cannot waive a nonzero gap');
+assert(combineMeasurements([exposedColumns,changedColumns({key:'other-column',selector:'#other-column'})],[chartRule]).violations.some(v=>v.metric==='gap'),'Chart proof cannot carry to a different pair');
+assert(combineMeasurements([exposedColumns,audit(scene([{...columnA,hit:false,pairedExceptions:{}},columnB]),[chartRule])],[chartRule]).violations.some(v=>v.metric==='gap'),'The same chart IDs outside approved scope still fail');
+assert(combineMeasurements([exposedColumns,changedColumns({unreachable:true})],[chartRule]).violations.some(v=>v.metric==='blocked'),'Chart proof cannot waive an unreachable target');
+assert(combineMeasurements([exposedColumns,changedColumns({rect:{...columnB.rect,width:43}})],[chartRule]).violations.some(v=>v.metric==='target'),'Chart proof cannot waive a small target');
+assert(combineMeasurements([exposedColumns,changedColumns({rect:{...columnB.rect,x:45}})],[chartRule]).violations.some(v=>v.metric==='overlap'),'Chart proof cannot waive overlap');
 assert(audit(scene([columnA,{...columnB,rect:{...columnB.rect,x:45}}]),[chartRule]).violations.some(v=>v.metric==='overlap'),'Chart exception cannot allow overlapping targets');
 assert(audit(scene([{...columnA,rect:{...columnA.rect,width:43}},columnB]),[chartRule]).violations.some(v=>v.metric==='target'),'Chart exception cannot shrink a target');
 assert(audit(scene([columnA,{...columnB,rect:{...columnB.rect,x:48}}]),[chartRule]).violations.some(v=>v.metric==='gap'),'Only zero-gap chart adjacency is approved');
