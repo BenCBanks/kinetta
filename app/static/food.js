@@ -1019,7 +1019,7 @@ route(/^\/food\/import$/, 'food', async (el) => {
   const wshow = (kg) => (kg == null ? '–' : (lb ? kg * 2.20462 : kg).toFixed(1));
   el.innerHTML = `<div class="top">${backBtn('Nutrition')}</div><h1>Add past days</h1>
     <p class="muted">Bring in weight and calories from another app.</p>
-    <div class="card"><div class="actions"><button type="button" class="ghost" id="hi-pick">${svg('upload')}Choose a file</button><button type="button" class="ghost" id="hi-paste">Paste rows</button></div><details><summary>Format help</summary>
+    <div class="card"><div class="actions import-file-actions"><button type="button" class="ghost" id="hi-pick">${svg('upload')}Choose a file</button><button type="button" class="ghost" id="hi-paste">Paste rows</button></div><details><summary>Format help</summary>
       <p class="small muted">First row = column names. Recognized: <b>Date</b>, <b>Weight</b> (${wu} unless the column says kg/lb), <b>Calories</b>, <b>Protein</b>, <b>Carbs</b>, <b>Fat</b>, <b>Fiber</b>, <b>Burned</b> (or Expenditure/TDEE), <b>Deficit</b>. Any order; other columns are ignored. Several rows per day (e.g. one per meal) are added up.</p>
       <pre class="eg">Date,Weight,Calories,Protein,Carbs,Fat,Deficit
 2026-03-01,152.4,1650,110,160,55,450

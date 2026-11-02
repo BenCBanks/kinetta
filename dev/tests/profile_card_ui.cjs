@@ -27,7 +27,7 @@ async function cardChecks(p,size){
  if(size.root===16&&size.width>=390){const meta=await card.locator('.me-card-meta').evaluate(n=>[...n.children].map(x=>{const r=x.getBoundingClientRect();return [r.top,r.bottom]}));assert(Math.max(...meta.map(x=>x[0]))<Math.min(...meta.map(x=>x[1])),'friends and handle share a line');}
  const bars=await card.locator('.me-week').evaluateAll(nodes=>nodes.map(n=>({width:n.getBoundingClientRect().width,height:n.getBoundingClientRect().height})));assert.equal(bars.length,7);assert(bars.every(r=>r.width>=44&&r.height>=44));assert.equal(await card.locator('.me-chart-scroll').evaluate(n=>getComputedStyle(n,'::before').backgroundImage),'none','scroll cue does not fade a bar');
  const padding=await card.evaluate(n=>{const b=n.querySelector('.me-card-body'),r=b.getBoundingClientRect(),s=getComputedStyle(b),rail=n.querySelector('.me-card-bars').getBoundingClientRect();return rail.left>=r.left+parseFloat(s.paddingLeft)-.1&&rail.right<=r.right-parseFloat(s.paddingRight)+.1});assert(padding,'chart rail remains inside card padding');
- const note=card.locator('.me-card-note');assert.match(await note.innerText(),/Private totals, no details/);assert.match(await note.ariaSnapshot(),/Friends see this card\. Private workouts count in totals, never in detail\./,"complete privacy explanation reaches the accessibility tree");assert(await note.evaluate(n=>n.scrollWidth<=n.clientWidth+1),"one-line privacy footer fits the card");await p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));await note.evaluate(n=>{n.scrollIntoView({block:'end',behavior:'instant'});scrollBy({top:n.getBoundingClientRect().bottom-document.querySelector('nav.tabs').getBoundingClientRect().top+8,behavior:'instant'})});
+ const note=card.locator('.me-card-note');assert.match(await note.innerText(),/Private workouts count in totals, but stay hidden/);assert.match(await note.ariaSnapshot(),/Totals include your private workouts\. Friends see the totals, not the workouts\./,"complete privacy explanation reaches the accessibility tree");assert(await note.evaluate(n=>n.scrollWidth<=n.clientWidth+1),"one-line privacy footer fits the card");await p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));await note.evaluate(n=>{n.scrollIntoView({block:'end',behavior:'instant'});scrollBy({top:n.getBoundingClientRect().bottom-document.querySelector('nav.tabs').getBoundingClientRect().top+8,behavior:'instant'})});
  const clearance=await note.evaluate(n=>{const r=n.getBoundingClientRect(),nav=document.querySelector('nav.tabs').getBoundingClientRect();return {top:r.top,bottom:r.bottom,navTop:nav.top}});assert(clearance.top>=0&&clearance.bottom<=clearance.navTop-7,'complete privacy note clears the tab bar '+JSON.stringify(clearance));
 }
 async function milestoneChecks(p){
@@ -111,15 +111,14 @@ for(const size of [{width:320,height:667,root:16},{width:390,height:844,root:16}
  assert((await p.locator('#person-activities .post, #person-activities .card').count())>0,'activities follow the card');
  await shot('profile-own');
  await p.locator('[data-card-share]').click();const share=p.locator('.sheet');await share.waitFor();
- assert.match(await share.innerText(),/Public card/);assert.doesNotMatch(await share.innerText(),/View full profile/);
+ assert.match(await share.innerText(),/Public card/);assert.equal(await share.locator('[data-card-preview]').count(),1);assert.equal(await share.locator('[data-card-preview]').innerText(),'See what others see');assert.doesNotMatch(await share.innerText(),/View full profile/);
  await p.keyboard.press('Escape');await share.waitFor({state:'detached'}).catch(()=>{});
  // Edit happens in place on the card, exactly as on Me; Cancel leaves everything as it was.
  await p.locator('[data-card-edit]').click();await p.waitForSelector('#person-profile .me-card.editing');
  assert.equal(await p.locator('#person-activities').evaluate(n=>!!n.closest('[inert]')),true,'activities dimmed while editing');
  await p.locator('[data-card-cancel]').click();await until(p,()=>!document.querySelector('.me-card.editing'),'4')
- await p.locator('[data-audience="member"]').click();await until(p,()=>new URLSearchParams(location.search).get('preview')==='member','5');await settled();
- assert.equal(await p.locator('[data-audience="member"]').getAttribute('aria-pressed'),'true');
- await p.locator('.pf-preview').scrollIntoViewIfNeeded();await shot('profile-own-preview');
+ await p.locator('[data-card-share]').click();await p.locator('[data-card-preview]').click();await until(p,()=>new URLSearchParams(location.search).get('preview')==='friend','Friends preview');await settled();assert.match(await p.locator('.profile-preview-bar').innerText(),/Previewing as Friends/);assert.equal(await p.locator('[data-card-edit],[data-card-share],.me-card-note,#person-sport').count(),0,'preview contains only the audience projection');
+ await p.locator('[data-audience="member"]').click();await until(p,()=>new URLSearchParams(location.search).get('preview')==='member','member preview');await settled();await p.locator('.profile-preview-bar').scrollIntoViewIfNeeded();await shot('profile-own-preview');await p.locator('[data-audience="you"]').click();await until(p,()=>!new URLSearchParams(location.search).has('preview'),'preview Done');await settled();assert.equal(await p.locator('.profile-preview-bar').count(),0);
  await noOverflow('own profile');
 
  // Someone else's profile: the same card; the friendship button and ⋯ sit where Edit and Share are.

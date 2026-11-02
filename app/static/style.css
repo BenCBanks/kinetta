@@ -1370,15 +1370,11 @@ html.keyboard-open nav.tabs { display: none; }
 .post .post-title { font-size: var(--text-app-card-title); }
 .profile-bio { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 2px 18px; max-width: 60ch; color: var(--tx2); }
 /* your own profile, editable in place (social.js wireProfileEditing) */
-.pf-preview {display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:12px 0;color:var(--tx);font-size:max(13px,.8125rem);}
-.pf-preview span { color: var(--tx2); }
-.profile-audiences {display:flex;flex:1 1 14rem;flex-wrap:wrap;gap:8px;min-width:0;max-width:100%;}
-.profile-audiences button {position:relative;flex:1 0 auto;min-height:44px;min-width:44px;padding:0 8px;background:none;border:0;font-size:max(15px,.9375rem);font-weight:500;white-space:nowrap;}
-.profile-audiences button::before {content:'';position:absolute;inset:4px 0;border:1px solid var(--line);border-radius:999px;pointer-events:none;}
-.profile-audiences button[aria-pressed=true] {color:var(--accent);}
-.profile-audiences button[aria-pressed=true]::before {border-color:var(--accent);}
-.profile-preview-note {flex-basis:100%;margin:0;}
-.profile-activity-tools {display:flex;gap:8px;align-items:center;margin:12px 0;}
+.profile-preview-bar {display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;margin:0 0 12px;font-size:max(13px,.8125rem);}
+.profile-preview-bar .linkbtn {min-height:44px;padding:0;font-size:max(15px,.9375rem);}
+.profile-activity-tools {display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0;}
+.profile-activity-tools h2 {flex:1;margin:0;font-size:max(17px,1.0625rem);}
+.profile-list-filters {display:flex;align-items:center;gap:8px;}
 .profile-activity-tools #person-sport {display:flex;gap:8px;align-items:center;max-width:calc(100% - 52px);min-height:44px;font-size:max(15px,.9375rem);background:none;}
 #person-sport svg {flex:none;width:16px;height:16px;transform:rotate(90deg);}
 .profile-sport-options {display:grid;gap:8px;}
@@ -1593,6 +1589,8 @@ html.keyboard-open nav.tabs { display: none; }
 .first-step-icon svg {width:24px;height:24px;}
 .first-step-presets {display:flex;flex-wrap:wrap;justify-content:center;gap:8px;}
 .first-step-presets .linkbtn {min-height:44px;font-size:max(15px,.9375rem);}
+.import-file-actions {display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+.import-file-actions > button {flex:1 1 auto;min-height:44px;background:none;border:1px solid var(--line);font-size:max(15px,.9375rem);}
 .sharing-switches {display:grid;gap:8px;}
 .sharing-switches .switch-row {margin:0;min-height:56px;}
 .sharing-switches .switch-row > span {white-space:nowrap;}
@@ -2500,7 +2498,8 @@ button.thread-food:active { opacity: .7; }
 .kit-chat #kit-intro {margin:16px 0 0;overflow-y:auto;padding:0 0 16px;animation:kit-in .18s ease-out;}
 .kit-chat .kit-chat-actions {display:flex;gap:8px;justify-self:end;}
 .kit-chat .kit-chat-actions .linkbtn {padding:0;font-size:max(15px,.9375rem);}
-.kit-chat .kit-fine {flex:none;margin:auto 0 12px;}
+.kit-chat .kit-fine {flex:none;margin:auto 0 12px;font-size:max(13px,.8125rem);}
+.kit-chat #kit-status {font-size:max(13px,.8125rem);}
 .kit-chat #kit-composer {padding-top:0;}
 .kit-chat #kit-status:empty {display:none;}
 @keyframes kit-in {from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
