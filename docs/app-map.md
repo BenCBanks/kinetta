@@ -350,7 +350,7 @@ The Activity and Track slices found no additional Speed Check entrance. The brow
 Eighteen owned route/view families include the plan and fixed-course flows below. Filters, chart modes and disclosures are states. Most detail pages take two taps; the deepest confirmed sheet takes four. Depth starts on Progress.
 
 ```mermaid
-flowchart TD
+flowchart LR
  P["Progress · 0"] --> T["Totals · 1"]
  P --> F["Fitness · 1"]
  P --> R["Records · 1"]
@@ -362,26 +362,22 @@ flowchart TD
  P --> H["Private Heatmap · 1"]
  P --> Routes["Matched routes · 1"]
  R --> RH["Distance history · 2"]
- RH --> A["Activity boundary"]
- F --> A
  F --> Charts["Full chart / range / method sheets · 2"]
  L --> E["Exercise history · 2"]
  E --> Note["Note sheet · 3"]
  E --> Edit["Edit exercise sheet · 3"]
  Edit --> Delete["Delete confirmation · 4"]
- E --> A
  C --> Day["Day sheet · 2"]
- Day --> A
+ Day --> A["Activity boundary"]
  Day --> Food["Nutrition day boundary"]
  Routes --> Route["Repeated route · 2"]
  Route --> Rename["Rename sheet · 3"]
- Route --> A
  H --> Recap["Generic recap sheet · 2 · no map"]
  W --> Help["Weight help sheet · 2"]
  W --> WeightEdit["Day / Save / Update / Delete controls"]
 ```
 
-Totals has sport, period and table controls; Year over year has sport, range, table and chart controls. Record history preserves progression and fastest-first efforts. Weight also has a Nutrition entrance. Heatmap remains private; its recap contains no map. Immediate weight deletion without recovery and other correctness findings are tracked in #491. Totals folding into Progress and simpler repeated record lists are agreed for #492; this map retains the inspected pages until those changes ship.
+Record history, Fitness, exercise history and repeated routes link to their Activity source. Totals has sport, period and table controls; Year over year has sport, range, table and chart controls. Record history preserves progression and fastest-first efforts. Weight also has a Nutrition entrance. Heatmap remains private; its recap contains no map. Immediate weight deletion without recovery and other correctness findings are tracked in #491. Totals folding into Progress and simpler repeated record lists are agreed for #492; this map retains the inspected pages until those changes ship.
 
 ### Fixed courses
 
@@ -438,30 +434,29 @@ Thirteen owned route/view families; day/origin parameters and import/setup varia
 
 ### Log, insights and targets
 
+Weight has a direct one-tap entrance from the log and Insights; meal reminders link to Me in one tap. Expanded energy breakdown links to its Activity source.
+
 ```mermaid
-flowchart TD
+flowchart LR
  N["Food log · 0"] --> I["Insights · 1"]
  I --> E["Calories & weight · 2"]
  I --> M["Protein & macros · 2"]
  N --> C["Calorie needs · 1"]
  N --> W["Week by week · 1"]
- I --> C
- I --> W
  I --> D["Food calendar · 2"]
- D -->|Choose day| N
  N --> H["Add past days · 1 · browser"]
- N --> S["Optional goal setup · 1"]
+```
+
+Insights also links to Calorie needs and Week by week. Choosing a calendar day returns to that day's log. Goal preview can return to setup to change details, or Save/Not now back to the log.
+
+```mermaid
+flowchart LR
+ N["Food log · 0"] --> S["Optional goal setup · 1"]
  S --> SP["Target preview · 2 · unsaved"]
- SP -->|Change details| S
- SP -->|Save / Not now| N
  N --> G["Daily targets sheet · 1"]
  G --> GD["Day override disclosure · 2"]
- I --> R["Time range sheet · 2"]
+ I["Insights · 1"] --> R["Time range sheet · 2"]
  R --> RS["Count from sheet · 3"]
- N --> WT["Weight · Progress boundary · 1"]
- I --> WT
- N --> REM["Meal reminders · Me boundary · 1"]
- N -->|Expanded energy breakdown| A["Recorded workout · Activity boundary"]
 ```
 
 ```mermaid
@@ -483,7 +478,7 @@ flowchart LR
  T -.->|Access required; prepared only| PHOTO["Photo selection component"]
 ```
 
-Manual review preserves semantic unknown nutrients. Search/describe/photo prepared results are UI evidence, not model accuracy. Photo selection was mounted locally and cancelled; native library/camera behavior and final thread Save-as-recipe remain unverified. Day, meal, portion and explicit confirmation must remain distinct from editing reusable foods.
+“Ready” means the review is already available in a restored thread; “newly staged” counts opening the picker, selecting a portion and staging it before final review. Manual review preserves semantic unknown nutrients. Search/describe/photo prepared results are UI evidence, not model accuracy. Photo selection was mounted locally and cancelled; native library/camera behavior and final thread Save-as-recipe remain unverified. Day, meal, portion and explicit confirmation must remain distinct from editing reusable foods.
 
 ### Reusable recipes and foods
 
@@ -525,26 +520,29 @@ Nine route families: `/`, `/signup`, `/beta`, `/join/:token`, `/add/:code`, `/fo
 ### Entry and recovery
 
 ```mermaid
-flowchart TD
- Login["Sign in · / · 0"] -->|Forgot password · 1| Forgot["Request reset link · inline or direct route"]
+flowchart LR
+ Login["Sign in · / · 0"] -->|Forgot password · 1| Forgot["Request reset link"]
  Login -->|Enrollment open · 1| Signup["Public signup · /signup"]
  Login -->|Waitlist available · 1| Beta["Waitlist · /beta"]
  Signup -->|Capacity reached| Beta
  Signup -->|Existing email| Recovery["Log in / Reset password"]
  Forgot -.->|Email delivery unverified| Reset["New password · /reset-password/:token"]
- Confirm["Confirm email · /confirm-email/:token · external entry"]
- Join["Admin invitation · /join/:token · external entry"] -->|Existing member| Login
+ Login -.->|Temporary credential prepared| Temp["Choose permanent password · / state"]
+ Login -.->|Required Terms prepared| Terms["Mandatory Terms sheet"]
+ Terms -->|Your data| Settings["Settings boundary · currently top"]
+```
+
+```mermaid
+flowchart TD
+ Join["Admin invitation · /join/:token · external entry"] -->|Existing member| Login["Sign in"]
  Join -->|Signed in, accept · 1| Ack["No new account or friendship acknowledgment"]
  Ack -->|Open · 2| Me["Me boundary"]
  Join -.->|Creation succeeds; welcome handoff fails| Welcome["Welcome boundary"]
  Join -->|Unavailable| JoinError["New invitation / Log in"]
  Friend["Friend invitation · /add/:code · external entry"] -->|Log in| Login
- Friend -->|Enrollment available| Signup
- Friend -->|Waitlist available| Beta
+ Friend -->|Enrollment available| Signup["Public signup"]
+ Friend -->|Waitlist available| Beta["Waitlist"]
  Friend -->|Unavailable| FriendError["Ask friend for a new link / Log in"]
- Login -.->|Temporary credential state prepared| Temp["Choose permanent password · / state"]
- Login -.->|Required Terms prepared| Terms["Mandatory Terms sheet"]
- Terms -->|Your data| Settings["Settings boundary · currently top"]
 ```
 
 Forgot password's login link opens an inline state without changing `/`; direct `/forgot-password` also works. Invalid reset's Send new link similarly replaces its URL with `/`, then explicit Back returns login. A friend link does not override closed enrollment. New-account invitation creation succeeded, but a retained consumed-invitation return interrupts welcome: original timeout, labelled replay and fresh-login recovery are separate evidence. Existing-account acceptance and acknowledgment passed without creating a friendship.
@@ -560,7 +558,7 @@ flowchart TD
  Profile -->|Kit not offered| Audience["Activity audience · 1 without Kit / 2 with Kit"]
  Kit --> Audience
  Audience --> Workouts["Workouts · 2 / 3"]
- Workouts --> Friends["Friends · 3 / 4"]
+ Workouts -->|Continue / Later| Friends["Friends · 3 / 4"]
  Friends -->|Done · 4 / 5| Me["Me boundary"]
  Profile -->|Not now| Me
  Workouts -->|Record · 3 / 4| Track["Track boundary"]
@@ -571,6 +569,6 @@ flowchart TD
  Import -->|Browser Back: restarts wizard| Profile
 ```
 
-Profile and audience Save/readback/restore or Skip were checked, with Kit skipped without consent. Audience choice remains separate from optional Kit's 18+ data consent. The three workouts-boundary returns restart at profile rather than retaining the step. A first fictional upload through Import created one Only-me activity; another fictional account could not read its shared endpoint. Native Health/install visuals were prepared, without permissions or store actions. Photo options were opened/cancelled without selecting a photo.
+Not now is available throughout welcome and returns Me. Profile and audience Save/readback/restore or Skip were checked, with Kit skipped without consent. Audience choice remains separate from optional Kit's 18+ data consent. The three workouts-boundary returns restart at profile rather than retaining the step. A first fictional upload through Import created one Only-me activity; another fictional account could not read its shared endpoint. Native Health/install visuals were prepared, without permissions or store actions. Photo options were opened/cancelled without selecting a photo.
 
 The one-link Friends step, ambiguous advance/skip/leave actions and unavailable connection/install handoffs are proposals for a compact welcome flow. Keep secure recovery, admin/friend invitations, explicit activity audience and separate Kit consent distinct. The map documents current behavior; it does not approve page removals or policy changes.
