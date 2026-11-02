@@ -1,6 +1,6 @@
 # Kinetta app map
 
-The pre-launch walkthrough (#472) builds this map one tab at a time. Me was inspected at `8cb2c01`, and Activity and Track at `7d0b3d6`. #421 updates the first-Goal entrance and folds milestones into the card. Track’s native recording and Health visuals used browser stand-ins; physical-device behavior is not verified. Progress, Nutrition and sign-up were inspected at `9e94178`. Prepared enrollment, recovery, Terms and native welcome states are labelled below; they do not establish email delivery, consent, installation or device behavior. Routes use placeholders and contain no account data.
+The pre-launch walkthrough (#472) builds this map one tab at a time. Me was inspected at `8cb2c01`, and Activity and Track at `7d0b3d6`. #421 updates the first-Goal entrance and folds milestones into the card. Track’s native recording and Health visuals used browser stand-ins; physical-device behavior is not verified. Progress was inspected at `fe929ab`; Nutrition and sign-up at `9e94178` (identical application code, with the intervening map update). Prepared enrollment, recovery, Terms and native welcome states are labelled below; they do not establish email delivery, consent, installation or device behavior. Routes use placeholders and contain no account data.
 
 Depth counts taps after selecting the tab. Opening a disclosure and then its Open link counts as two taps. Sheet depth is included. Scrolling does not add taps. A node can have several entrances; depths below use the shortest entrance available in the inspected state.
 
