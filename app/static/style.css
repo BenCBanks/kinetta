@@ -2210,65 +2210,36 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 
 /* Optional food guidance follows the user's text size. */
 /* Activity actions share one quiet row. Complete counts remain in accessible labels. */
-.post-ft:has(.inline-reactions) { display:grid; grid-template-columns:repeat(5,minmax(44px,1fr)); gap:8px; }
-.activity-reactions .pf, .activity-comments, .post-hd .activity-share { background:none; border-color:transparent; box-shadow:none; }
-.inline-reactions .reaction-inline[aria-pressed="true"] { color:var(--accent); }
-.post-ft .inline-reactions .reaction-inline, .post-ft .inline-reactions .reaction-count, .post-ft > .activity-comments { display:grid; grid-template-rows:20px minmax(16px,auto); align-content:center; align-items:center; justify-items:center; min-width:44px; min-height:44px; padding:0; gap:0; }
-.post-ft .inline-reactions .reaction-inline > svg, .post-ft .inline-reactions .reaction-count > svg, .post-ft > .activity-comments > svg { width:20px; height:20px; }
-.post-ft .num { font-size:max(15px,.6875rem); line-height:1.2; }
-.post-hd .activity-share { width:44px; min-width:44px; height:44px; padding:0; justify-content:center; margin-left:auto; }
-.post-hd .activity-share > svg { width:20px; height:20px; }
-.detail-social:has(.activity-reactions) { display:grid; grid-template-columns:repeat(4,minmax(44px,1fr)); gap:8px; }
-.detail-social .reaction-action { display:contents; }
-.detail-social:has(.activity-reactions) :is(.reaction-main,.reaction-count,.activity-comments) { display:grid; grid-template-rows:20px minmax(16px,auto); align-content:center; justify-items:center; min-width:44px; min-height:44px; padding:0; gap:0; }
-.detail-social :is(.reaction-main,.activity-comments)>svg { width:20px; height:20px; }
-.detail-social .num { font-size:max(15px,.75rem); line-height:1.2; }
-.detail-social .reaction-main[aria-pressed="true"][data-kind] { color:var(--accent); }
-.detail-social .reaction-icons .reaction-badge { width:20px; height:20px; margin-left:-4px; }
-.detail-social .reaction-icons .reaction-badge svg { width:14px; height:14px; }
-
-
-.activity-reactions { display:contents; }
-.inline-reactions .reaction-action { display:contents; }
-.inline-reactions .reaction-inline { position:relative; isolation:isolate; order:1; min-width:44px; min-height:44px; gap:6px; justify-content:center; border:0; background:none; color:var(--tx2); }
-.inline-reactions .reaction-inline > svg { width:24px; height:24px; flex:none; }
-.inline-reactions .reaction-inline[aria-pressed="true"] { color:var(--accent); }
-.post-ft:has(.activity-reactions.inline-reactions) { gap:8px; }
-.inline-reactions .reaction-count { margin-left:0; }
-.inline-reactions .reaction-count svg { width:24px; height:24px; }
-.reaction-action { display:flex; align-items:center; order:1; min-width:0; }
-.activity-reactions .pf, .activity-comments, .activity-share { min-height:44px; padding:4px 8px; font-size:1rem; white-space:nowrap; }
-.activity-reactions .reaction-main { gap:8px; }
-.activity-reactions .reaction-main > svg, .activity-comments > svg, .activity-share > svg { width:24px; height:24px; flex:none; }
-.activity-reactions .reaction-more { width:44px; min-width:44px; padding:0; justify-content:center; }
-.reaction-more svg { width:14px; height:14px; }
-.activity-comments { order:2; }
-.activity-share { order:3; justify-content:center; }
-.activity-reactions .reaction-count { order:4; margin-left:auto; min-width:44px; justify-content:center; }
-.reaction-icons { display:flex; align-items:center; padding-left:4px; }
-/* Reactions: bright, happy and distinct, never brown (Ben, 2026-10-23): Cheers blue, Strong coral, Applause raspberry. */
-:root { --react-cheer:#2563EB; --react-strong:#E2562A; --react-applause:#D6336C; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --react-cheer:#6EA6F2; --react-strong:#FF8A5C; --react-applause:#FF7FA6; } }
-:root[data-theme="dark"] { --react-cheer:#6EA6F2; --react-strong:#FF8A5C; --react-applause:#FF7FA6; }
-.reaction-badge { --reaction-color:var(--react-cheer); display:grid; place-items:center; flex:none; width:26px; height:26px; border:2px solid var(--card); border-radius:50%; background:var(--reaction-color); color:var(--card); font-style:normal; }
-.reaction-badge[data-kind="strong"] { --reaction-color:var(--react-strong); }
-.reaction-badge[data-kind="applause"] { --reaction-color:var(--react-applause); }
-.reaction-icons .reaction-badge { margin-left:-5px; }
-.reaction-badge svg { width:16px; height:16px; }
-.reaction-main[aria-pressed="true"][data-kind="cheer"] { color:var(--react-cheer); }
-.reaction-main[aria-pressed="true"][data-kind="strong"] { color:var(--react-strong); }
-.reaction-main[aria-pressed="true"][data-kind="applause"] { color:var(--react-applause); }
-/* Choices keep visible names as well as color, with comfortable touch targets. */
-.reaction-picker { position:fixed; z-index:1000; display:flex; flex-wrap:wrap; gap:4px; width:max-content; max-width:calc(100vw - 24px); padding:8px; border:1px solid var(--line); border-radius:24px; background:var(--card); color:var(--tx); box-shadow:var(--lift); }
-.reaction-picker button { display:grid; flex:1 0 auto; justify-items:center; gap:4px; min-width:64px; min-height:60px; padding:4px; border:0; border-radius:16px; background:none; color:var(--tx); }
-.reaction-picker .reaction-badge { width:32px; height:32px; border:0; }
-.reaction-picker .reaction-badge svg { width:20px; height:20px; }
-.reaction-picker button span { max-width:100%; overflow-wrap:anywhere; font-size:max(12px,.8rem); font-weight:600; }
-.reaction-picker button:hover,.reaction-picker button:focus-visible,.reaction-picker button[aria-checked="true"] { background:var(--accent2); }
-.post-ft:has(.activity-reactions) { flex-wrap:wrap; gap:0; padding:6px 8px; }
-.t-row:has(.activity-reactions) { flex-wrap:wrap; }
-.t-soc:has(.activity-reactions) { flex:1 0 100%; flex-wrap:wrap; margin:0; max-width:100%; gap:0; }
-.post-profile .ph-txt small { white-space:normal; overflow:visible; }
+.activity-reactions {display:contents;}
+.reaction-action {display:contents;}
+.activity-reactions .pf,.activity-comments,.post-hd .activity-share {background:none;border-color:transparent;box-shadow:none;min-height:44px;}
+.post-ft:has(.emoji-reactions),.detail-social:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;gap:8px;padding:6px 12px;}
+.emoji-reactions :is(.reaction-main,.reaction-more) {flex:none;width:44px;min-width:44px;height:44px;justify-content:center;padding:0;}
+.reaction-main {order:1;}
+.reaction-main[aria-pressed="true"] {border:1px solid var(--accent);border-radius:var(--r2);background:var(--accent2);}
+.emoji-reactions .reaction-more {order:2;font-size:1.5rem;}
+.emoji-reactions .reaction-count {order:3;display:flex;align-items:center;justify-content:center;gap:6px;min-width:44px;padding:0;margin-left:auto;}
+.emoji-reactions .reaction-count[hidden] {display:none;}
+.reaction-icons {display:flex;align-items:center;gap:0;}
+.reaction-emoji {font-family:Apple Color Emoji,Segoe UI Emoji,Noto Color Emoji,sans-serif;font-size:1.25rem;line-height:1;}
+.emoji-reactions .reaction-icons .reaction-emoji {font-size:1rem;}
+.activity-comments {order:4;display:flex;align-items:center;justify-content:center;gap:4px;min-width:44px;padding:0;margin-left:auto;}
+.activity-comments>svg {width:20px;height:20px;flex:none;}
+.post-ft .num,.detail-social .num {font-size:max(15px,.75rem);line-height:1.2;}
+.post-hd .activity-share {width:44px;min-width:44px;height:44px;padding:0;justify-content:center;margin-left:auto;}
+.post-hd .activity-share>svg {width:20px;height:20px;}
+/* Two rows retain full targets; narrow screens reveal the remaining columns by scrolling. */
+.reaction-picker {position:fixed;z-index:1000;width:426px;max-width:calc(100vw - 24px);padding:8px;border:1px solid var(--line);border-radius:var(--r3);background:var(--card);color:var(--tx);box-shadow:var(--lift);}
+.reaction-options {display:grid;grid-template-columns:repeat(8,44px);grid-template-rows:repeat(2,44px);gap:8px;overflow-x:auto;overscroll-behavior:contain;scrollbar-width:thin;}
+.reaction-picker button {display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;border-radius:var(--r2);background:none;color:var(--tx);}
+.reaction-picker button:hover,.reaction-picker button:focus-visible,.reaction-picker button[aria-checked="true"],.reaction-picker button.is-highlighted {background:var(--accent2);}
+.reaction-picker::before,.reaction-picker::after {content:'';position:absolute;inset:8px auto 8px 8px;width:16px;pointer-events:none;opacity:0;background:linear-gradient(to right,var(--card),transparent);}
+.reaction-picker::after {left:auto;right:8px;background:linear-gradient(to left,var(--card),transparent);}
+.reaction-picker[data-overflow-start]::before,.reaction-picker[data-overflow-end]::after {opacity:1;}
+.cheers-list .reaction-emoji {font-size:1.25rem;}
+.t-row:has(.activity-reactions) {flex-wrap:wrap;}
+.t-soc:has(.activity-reactions) {flex:1 0 100%;flex-wrap:nowrap;margin:0;max-width:100%;gap:8px;}
+.post-profile .ph-txt small {white-space:normal;overflow:visible;}
 
 /* Keep the outer conversation still; only messages/ingredients scroll. The
    keyboard helper supplies the visible height for Safari and the native WebView. */

@@ -22,7 +22,7 @@ from . import community_filter, analysis
 from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg import errors
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from . import db, notify, reactions
 from .api_account import _admin
@@ -597,7 +597,14 @@ def social(aid: int, user=Depends(current_user)):
 
 
 class ReactionIn(BaseModel):
-    kind:Literal['cheer','strong','applause']='cheer'
+    kind:str=Field('clap',max_length=32)
+
+    @field_validator('kind')
+    @classmethod
+    def allowed_kind(cls,value):
+        kind=reactions.canonical(value)
+        if kind not in reactions.KINDS:raise ValueError('Choose a reaction from the list')
+        return kind
 
 
 def _react(aid,kind,user):
@@ -619,7 +626,7 @@ def react(aid:int,body:ReactionIn,user=Depends(current_user)):
 @router.post('/activities/{aid}/cheer')
 def cheer(aid:int,user=Depends(current_user)):
     # Existing phones retain the one-tap Cheers action.
-    return _react(aid,'cheer',user)
+    return _react(aid,'clap',user)
 
 
 @router.delete('/activities/{aid}/reaction')

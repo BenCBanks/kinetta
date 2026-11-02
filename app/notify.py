@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from .dish_access import NOTICE_VISIBLE
-from . import apns, db, notification_words, notification_facts
+from . import apns, db, notification_words, notification_facts, reactions
 from .auth import current_user, session_token, token_hash, SESSION_DAYS
 
 # A stale or removed source cannot leave a pending private celebration in the bell or on a phone.
@@ -47,7 +47,7 @@ def add(c, user_id, kind, actor_id, activity_id=None, dish_id=None, comment_id=N
           AND activity_id IS NOT DISTINCT FROM %s AND dish_id IS NOT DISTINCT FROM %s
           AND created>now()-interval '1 day' ORDER BY id DESC LIMIT 1""",(user_id,kind,actor_id,activity_id,dish_id)).fetchone()
     if prior:
-        if kind=='cheer':c.execute('UPDATE notifications SET reaction_kind=%s,cancelled=false WHERE id=%s',(reaction_kind or 'cheer',prior['id']))
+        if kind=='cheer':c.execute('UPDATE notifications SET reaction_kind=%s,cancelled=false WHERE id=%s',(reaction_kind or 'clap',prior['id']))
         return
     nid=c.execute("""INSERT INTO notifications(user_id,kind,actor_id,activity_id,dish_id,comment_id,reaction_kind)
       VALUES(%s,%s,%s,%s,%s,%s,%s) RETURNING id""",(user_id,kind,actor_id,activity_id,dish_id,comment_id,reaction_kind if kind=='cheer' else None)).fetchone()['id']
@@ -106,8 +106,8 @@ def _words(r):
     if r['kind'] == 'friend_request': return f'{who} wants to be friends', '/me/friends'
     if r['kind'] == 'friend_accepted': return f'You and {who} are now friends', '/activity'
     if r['kind']=='cheer':
-        action={'cheer':'cheered','applause':'applauded','strong':'sent Strong for'}.get(r.get('reaction_kind') or 'cheer','cheered')
-        return f"{who} {action} your {act}",f"/activity/{r['activity_id']}"
+        emoji=reactions.EMOJI.get(reactions.canonical(r.get('reaction_kind')),'👏')
+        return f"{who} reacted {emoji} to your {act}",f"/activity/{r['activity_id']}"
     if r['kind'] == 'comment':
         snip = notification_words.clean(r['comment'],80)
         return f'{who} commented on your {act}' + (f': "{snip}"' if snip else ''), f"/activity/{r['activity_id']}"
