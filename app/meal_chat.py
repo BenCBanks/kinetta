@@ -382,6 +382,19 @@ def scaled(values, f):
 def fmt(n): return f'{n:g}' if n == int(n) else f'{round(n, 2):g}'
 
 
+def portion_compatible(entry, portion):
+    """Only skip interpretation when the requested measure has an actual source basis."""
+    if 'share' in portion:return True
+    serving=(entry.get('ref') or {}).get('serving') or {}
+    if 'grams' in portion:return entry['unit']=='g' or bool(serving.get('g'))
+    label,rest=amount(raw(re.sub(r'\([^)]*\)', '', serving.get('label') or '')))
+    if entry['unit'] in MASS or entry['unit'] in ('ml','l') or label and label.get('grams'):return False
+    unit=portion.get('unit')
+    if not unit or unit in VAGUE:return True
+    named=(label or {}).get('unit') or ' '.join(rest or [])
+    return stem(unit) in (stem(entry['unit']),stem(named))
+
+
 def last_dish_portion(c, uid, did):
     return c.execute("""SELECT amount, unit FROM food_entries WHERE user_id = %s AND source = 'dish' AND ref->>'dish_id' = %s
                         ORDER BY created DESC LIMIT 1""", (uid, str(did))).fetchone()
@@ -408,6 +421,16 @@ def settle(c, uid, e, p):
         return {'count': p['count'] if p and 'count' in p else 1}, None
     if kind == 'custom':
         if p and 'share' in p: return {'count': p['share']}, None
+        if p and 'count' in p and p.get('unit') not in VAGUE:
+            label, rest = amount(raw(re.sub(r'\([^)]*\)', '', row.get('serving_label') or '')))
+            unit = p.get('unit')
+            if label and 'grams' in label:
+                return None, 'Choose the food and its portion.'
+            named = (label or {}).get('unit') or ' '.join(rest or [])
+            if unit and named and stem(unit) != stem(named):
+                return None, 'Choose the food and its portion.'
+            if unit and label and label.get('count'):
+                return {'count':p['count']/label['count']}, None
         return {'count': p['count'] if p and 'count' in p else 1}, None
     # food logged before: no amount = as last time; "2" = 2 of the unit used last time (2 eggs), or 2 × last time's amount
     if not p: return {'count': row['amount'], 'unit': row['unit']}, 'as last time'
@@ -416,7 +439,7 @@ def settle(c, uid, e, p):
     last_unit = stem((row['unit'] or '').split()[0].lower()) if (row['unit'] or '').split() else ''
     if unit and stem(unit) == last_unit: return {'count': n, 'unit': row['unit']}, None
     if not unit and row['unit'] not in ('g', 'ml', 'oz', 'lb', 'kg', 'l'): return {'count': n, 'unit': row['unit']}, None
-    return {'count': round(row['amount'] * n, 3), 'unit': row['unit']}, (f'{fmt(n)} × last time' if n != 1 else 'same as last time')
+    return None, 'Choose the food and its portion.'
 
 
 def compute(c, uid, kind, row, p):
@@ -729,16 +752,22 @@ def item_for(c, uid, p, catalog, issued=None):
             return {**base, 'status': 'choose', 'message': f"Is “{p['text']}” one of your foods?",
                     'choices': [choice(x) for x in close[:6]], 'more': False, 'new_ok': True}
         if not found: return {**base, 'status': 'unknown', 'message': f"“{p['text']}” isn't in your foods yet."}
-        if len(found) > 1:
+        weak = read.get('ref') is None and any(set(read['query']) != set(x['words']) for x in found)
+        if len(found) > 1 or weak:
             found.sort(key=lambda x: (KIND_RANK[x['kind']], x['name'].lower()))
             return {**base, 'status': 'choose', 'message': f"Which one did you mean by “{p['text']}”?",
-                    'choices': [choice(x) for x in found[:12]], 'more': len(found) > 12}
+                    'choices': [choice(x) for x in found[:12]], 'more': len(found) > 12,
+                    'new_ok': weak, 'new_name': ' '.join(read['query']) if weak else None}
         e = found[0]
     head = {**base, 'kind': e['kind'], 'id': e['id'], 'name': e['name'], 'saved_day': e['saved_day'] and e['saved_day'].isoformat(),
             'detail': KIND_LABEL[e['kind']]}
     portion, note = settle(c, uid, e, p.get('portion') or read['portion'])     # "two" = two of your usual amount
     if portion is None:
-        return {**head, 'status': 'quantity', 'message': f"How much {e['name']}? Say grams, or tap an amount.", 'options': quick_amounts(e)}
+        requested=p.get('portion') or read['portion']
+        if e['kind'] not in ('custom','food') or not requested or 'count' not in requested:
+            return {**head, 'status': 'quantity', 'message': f"How much {e['name']}? Say grams, or tap an amount.", 'options': quick_amounts(e)}
+        return {**head, 'status': 'choose', 'message': f"Which food and portion did you mean by “{p['text']}”?",
+                'choices': [choice(e)], 'new_ok': True, 'new_name': ' '.join(read['query']), 'portion_conflict': True}
     entries, why = compute(c, uid, e['kind'], e['row'], portion)
     if not why and too_big(entries): why = 'That portion is too large. Check the amount.'
     if why: return {**head, 'status': 'quantity', 'message': why, 'options': quick_amounts(e)}

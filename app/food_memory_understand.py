@@ -49,6 +49,13 @@ clear request to discard/cancel the card. A brief negative reply with no card is
 question about a named food is ask_food; ask_log is for the person's already logged records. When a generic
 mixed food or bar/shake lacks its identifying type/brand, ask a brief specific question instead of picking one.
 
+A number followed by an unfamiliar or misspelled food word introduces a new food, not an edit to an earlier
+item. Resolve ordinary typos using the current words and context; never change a previous food without clear
+edit wording and an unambiguous target. Egg and egg whites are different foods: a saved name with an additional
+qualifier is only an option, not an automatic match. A count is not a saved gram amount or a multiple of the
+last gram portion. For an ordinary egg, use a labelled typical size when needed; the food estimator supplies
+any missing nutrition and weight for review. Never invent nutrition in this interpretation.
+
 '''
 
 
@@ -125,7 +132,7 @@ def ask_model(uid,message,ctx,card):
         preference_list=bool(ctx['stable']['preferences']) and bool(re.search(r'[,;\n]|\b(?:and|plus|along with)\b',message['body'],re.I))
         stronger=complex_message(message['body']) or preference_list
         out,raw,model=food_photo.ask(parts,SCHEMA,'food chat context',timeout=20,
-            model_policy='context' if stronger else None,
+            model_policy='context',
             before_attempt=lambda:check_send(uid,message['id'],ctx))
         if not stronger and isinstance(out,dict) and len(out.get('foods') or [])>2 and model!=ai_release.models('food_memory')['context_model']:
             out,raw,model=food_photo.ask(parts,SCHEMA,'food chat context',timeout=20,model_policy='context',
@@ -134,7 +141,9 @@ def ask_model(uid,message,ctx,card):
 
 
 def clean(out,said,ctx):
-    result=U.clean(out,said)
+    # The reported single-food typo means one egg; never reinterpret the pronoun in other messages.
+    amount_text='1 egg' if re.fullmatch(r'\s*i\s+egg[.!?]?\s*',said,re.I) else said
+    result=U.clean(out,amount_text)
     if not result:return None
     habit_ids={x['id'] for x in ctx['stable']['preferences']}
     raw_foods=(out.get('foods') or [])[:12]
@@ -189,7 +198,8 @@ def clean(out,said,ctx):
                 changed=changed or first and re.search(r'\bbut\s+(?:(?:with|using|use)\s+)?'+re.escape(first)+r'\b',clause,re.I)
                 exact_copy=explicit_source or re.search(copy_words,clause,re.I)
                 if name_words and this_food(clause) and detail_words<=clause_words and changed and not exact_copy:token=None
-        target.update(reference_token=token,reference_question=question,analogue=analogue.strip() if analogue else None,habit_ids=used)
+        target.update(reference_token=token,reference_question=question,analogue=analogue.strip() if analogue else None,habit_ids=used,
+                      explicit_reference=bool(token and explicit_source))
     if result['intent']=='unclear' and any(f['reference_question'] for f in result['foods']):
         result['intent']='log'
     if result['missing']=='type' and len(result['foods'])==1:
@@ -296,6 +306,10 @@ def apply(c,uid,message):
             question=U.safe_reply(u['reply'],message['body'])
             if not question or '?' not in question:question='Which of your saved or logged foods should supply the nutrition?'
             part.update(status='description',description={'food':f['name'],'reference':True,'quantity':f['quantity'],'unit':f.get('unit')},question=question)
+            resolution=engine.resolve(c,uid,{**message,'body':text});items=resolution.get('items') or []
+            if len(items)==1 and items[0].get('choices'):
+                part.update(status='choose',item={**items[0],'new_ok':True,'new_name':f['name']},
+                            learn_phrase=message['body'] if len(u['foods'])==1 else text)
         elif token:
             pick=meta['sources'][token]
             try:
@@ -314,8 +328,14 @@ def apply(c,uid,message):
                 part.update(status='ready',manual=True,entries=rows,own_reuse={'kind':item['kind'],'id':item['id'],
                     'portion':portion,'expected':memory.signature(uid,item,portion)},display_name=f['name'])
             except HTTPException as error:
-                part.update(status='description',description={'food':f['name'],'reference':True,'quantity':f['quantity'],'unit':f.get('unit')},
-                            question=error.detail if error.status_code==422 else 'That saved food changed. Choose it again or describe the amount.')
+                clauses=re.split(r'[;\n]|\b(?:and|plus|also)\b',message['body'],flags=re.I)
+                named=set(M.name_words(f['name']))
+                explicit=f.get('explicit_reference') or any(named<=set(M.name_words(clause)) and re.search(r'\b(my|saved|usual|again|same|logged|nutrition|copy|use|using)\b',clause,re.I) for clause in clauses)
+                if previous_result is None and not explicit and error.status_code==422 and str(error.detail).startswith('Your saved food uses '):
+                    part.update(status='unknown',item={},prefer_estimate=not bool(f.get('brand')))
+                else:
+                    part.update(status='description',description={'food':f['name'],'reference':True,'quantity':f['quantity'],'unit':f.get('unit')},
+                                question=error.detail if error.status_code==422 else 'That saved food changed. Choose it again or describe the amount.')
         elif analogue:
             base={**f,'name':analogue,'brand':None,'details':None}
             if base['quantity'] is None:base['typical']=True
@@ -326,6 +346,10 @@ def apply(c,uid,message):
                 part=C.own_part(c,uid,items[0],resolution['issued']);part['index']=len(parts)
                 if part['status']=='choose':
                     part={'index':len(parts),'text':text,'status':'unknown','item':{},'logged':False,'skip_alias':True}
+                if part['status']=='unknown' and not f.get('brand'):
+                    # Context has already resolved this ordinary food. Do not
+                    # serialize another public lookup before its reviewed estimate.
+                    part['prefer_estimate']=True
                 C.description_question(part)
             else:part.update(status='unknown',item={})
         parts.append(part)

@@ -283,6 +283,36 @@ def _insert(c,uid,message,result,part,entries):
     return ids
 
 
+def remember(c,uid,phrase,templates):
+    if not phrase or not templates:return
+    for template in templates:
+        row=meal_chat.source_row(c,uid,template['kind'],template['id'])
+        entries,why=meal_chat.compute(c,uid,template['kind'],row,template['portion'])
+        if why or meal_chat.too_big(entries):return
+    c.execute('''INSERT INTO food_chat_aliases(user_id,key,templates) VALUES (%s,%s,%s)
+                 ON CONFLICT(user_id,key) DO UPDATE SET templates=excluded.templates''',
+                 (uid,alias_key(phrase),json.dumps(templates)))
+
+
+def learn_review(c,uid,ids,sources):
+    offset=0
+    for _,result in sources:
+        for part in result.get('parts',[]):
+            entries=part.get('entries') or [];picked=ids[offset:offset+len(entries)];offset+=len(entries)
+            if not part.get('learn_choice') or not part.get('learn_phrase'):continue
+            templates=part.get('learn_templates')
+            if templates:
+                try:
+                    if not fresh_templates(c,uid,{'templates':copy.deepcopy(templates)}):continue
+                except HTTPException:continue
+            initial=part.get('learn_entries') or []
+            if not templates and len(initial)==len(entries)==len(picked):
+                templates=[{'kind':'food','id':eid,'portion':{'count':old['amount'],'unit':old['unit']}}
+                    for eid,old,current in zip(picked,initial,entries) if old['unit']==current['unit']]
+                if len(templates)!=len(entries):continue
+            remember(c,uid,part['learn_phrase'],templates)
+
+
 def log_part(c,uid,message,result,part):
     groups=[];templates=[];alias_templates=[]
     if part.get('manual'):
@@ -325,11 +355,9 @@ def log_part(c,uid,message,result,part):
     ids=_insert(c,uid,message,result,part,entries)
     for group in groups:
         result.setdefault('groups',[]).append({'name':group['name'],'ids':ids[group['offset']:group['offset']+group['count']],'portion':group['portion']})
-    if part.get('drafts') and part.get('learn_phrase'):
-        phrase=part['learn_phrase']
-        c.execute('''INSERT INTO food_chat_aliases(user_id,key,templates) VALUES (%s,%s,%s)
-                     ON CONFLICT(user_id,key) DO UPDATE SET templates=excluded.templates''',
-                     (uid,alias_key(phrase),json.dumps(alias_templates)))
+    learned=alias_templates or part.get('learn_templates') or templates
+    if learned and part.get('learn_phrase') and (part.get('drafts') or part.get('learn_choice')):
+        remember(c,uid,part['learn_phrase'],learned)
     part['logged']=True;part['entry_ids']=ids;part['templates']=templates
     part.pop('drafts',None)
     return ids

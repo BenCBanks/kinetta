@@ -45,7 +45,8 @@ def edit(c,uid,message,body):
         if part.get('drafts') and body.entry<len(mapping) and mapping.count(mapping[body.entry])==1:
             S.scale_drafts([part['drafts'][mapping[body.entry]]],factor)
         else:
-            part=manual_part(part)
+            learned={k:part[k] for k in ('learn_choice','learn_phrase','learn_templates','learn_entries') if k in part and part.get('learn_choice')}
+            part=manual_part(part);part.update(learned)
             part['entries'][body.entry]={**old,'amount':body.amount,**{k:N.rounded(k,old[k]*factor) if N.known(old,k) else None for k in N.ALL}}
     else:
         raw=body.item.model_dump();factor=old['amount']/body.basis_amount

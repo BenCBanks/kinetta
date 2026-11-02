@@ -303,6 +303,7 @@ def confirm(mid:int,body:ConfirmIn,response:Response,user=Depends(current_user))
                 c.execute('INSERT INTO food_chat_entries(user_id,message_id,entry_id) VALUES(%s,%s,%s)',(uid,mid,row['id']))
         from . import food_entry_methods as methods
         methods.review(c,uid,ids,sources,recipe=bool(recipe_id),combined=body.basis!='amounts')
+        if body.log_today and body.basis=='amounts' and body.kcal is None:C.learn_review(c,uid,ids,sources)
         messages=[]
         for source,result in sources:
             result.update(kind='reviewed',parts=[],pending_count=0,can_resolve=False,text='Included in your completed food review.',completed_review=mid)

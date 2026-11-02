@@ -76,9 +76,11 @@ bypass an exhausted allowance. No production configuration or account is involve
 
 Run the 229 existing cases with `CHAT_EVAL_MODE=ai CHAT_EVAL_COMPARISON=1 CHAT_EVAL_ACCEPT_PAID_CALLS=1` and an
 explicit `CHAT_EVAL_OUTPUT`. Its setup cards use code rules and stand-in estimates; the target interpretation is
-real. Then run the 51 contextual journeys with `FOOD_MEMORY_EVAL_OUTPUT` set. Those use fixed fictional catalogue
+real. Then run the 54 contextual journeys (the original51 plus three routing regressions) with `FOOD_MEMORY_EVAL_OUTPUT` set. Those use fixed fictional catalogue
 replies while both interpretation and any needed estimator calls are real. Contextual gates are overridden only
-inside these disposable collectors, and that override is recorded. Neither collector approves rollout.
+inside these disposable collectors, and that override is recorded. Both comparison revisions use their contextual path, including the production baseline. Case-local saved foods
+keep the original51 retrieval pools unchanged. Captures separate fixture, process, resolve and successful-provider
+call durations; failed attempts remain in the cost ledger and whole-case time. Neither collector approves rollout.
 
 For a revised candidate, keep the same database and allowance UUID and explicitly set
 `FOOD_MEMORY_EVAL_CONTINUE_ALLOWANCE=1`, with a new output path. The original provenance, failures and all charges
