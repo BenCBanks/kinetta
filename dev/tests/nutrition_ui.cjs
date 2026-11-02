@@ -54,6 +54,8 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     if(await details.count()){
      if(!await details.evaluate(n=>n.open))await details.locator('summary').click();
      assert.equal(await details.locator('summary').evaluate(n=>getComputedStyle(n).display),'flex');
+     assert((await details.locator('summary').boundingBox()).height>=44,'energy disclosure keeps a44px target');
+     assert(await details.locator('summary').evaluate(n=>parseFloat(getComputedStyle(n).fontSize)>=15),'energy disclosure keeps readable type');
      for(const row of await details.locator('.brow').all()){
       const label=await row.locator(':scope > span').boundingBox(),value=await row.locator(':scope > b').boundingBox();
       assert(label.x+label.width<=value.x-4,'energy label/qualification and amount stay in separate columns');
