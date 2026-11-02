@@ -45,3 +45,9 @@ portion=c.foodPortion({...cup,amount:1,unit:'g',ref:{serving:{label:'1 bowl',g:5
 portion=c.foodPortion({...cup,ref:{serving:{label:'1 glass',g:200}}});assert(portion.units.some(u=>u.key==='glass'),'singular unit ending in ss stays intact');
 
 html=c.preview.html({...cup,kcal:160},'Kit estimate','40 g');assert.match(html,/Chosen amount<small>40 g<\/small>/,'table heading follows the selected display unit');assert(!html.includes('Chosen amount<small>0.666'));
+// A ready rule/source card stays visible while another food is still resolving.
+c.kitChatOn=()=>false;c.kitFoodWords=s=>s||'';c.dayLabel=()=> 'Today';c.choices=()=>'<p>Choose another food</p>';
+vm.runInContext(thread.slice(thread.indexOf('  function changedNumbers('),thread.indexOf('  function previewRows(')),c);
+html=c.replyHtml({id:1,state:'answered',result:{review_only:true}},{entries:[],result:{kind:'preview',meal:'lunch',day:'2026-11-02',pending_count:1,can_resolve:true,parts:[part,{index:1,status:'unknown',entries:[]}]}});
+assert.match(html,/Fictional &lt;penne&gt;/);assert.match(html,/Checking the other foods/);assert(!html.includes('thread-thinking'),'a spinner does not hide a resolved source');
+console.log('Partial food resolution: ready numbers remain visible with a working status PASS');

@@ -49,6 +49,13 @@ clear request to discard/cancel the card. A brief negative reply with no card is
 question about a named food is ask_food; ask_log is for the person's already logged records. When a generic
 mixed food or bar/shake lacks its identifying type/brand, ask a brief specific question instead of picking one.
 
+A number followed by an unfamiliar or misspelled food word introduces a new food, not an edit to an earlier
+item. Resolve ordinary typos using the current words and context; never change a previous food without clear
+edit wording and an unambiguous target. Egg and egg whites are different foods: a saved name with an additional
+qualifier is only an option, not an automatic match. A count is not a saved gram amount or a multiple of the
+last gram portion. For an ordinary egg, use a labelled typical size when needed; the food estimator supplies
+any missing nutrition and weight for review. Never invent nutrition in this interpretation.
+
 '''
 
 
@@ -125,7 +132,7 @@ def ask_model(uid,message,ctx,card):
         preference_list=bool(ctx['stable']['preferences']) and bool(re.search(r'[,;\n]|\b(?:and|plus|along with)\b',message['body'],re.I))
         stronger=complex_message(message['body']) or preference_list
         out,raw,model=food_photo.ask(parts,SCHEMA,'food chat context',timeout=20,
-            model_policy='context' if stronger else None,
+            model_policy='context',
             before_attempt=lambda:check_send(uid,message['id'],ctx))
         if not stronger and isinstance(out,dict) and len(out.get('foods') or [])>2 and model!=ai_release.models('food_memory')['context_model']:
             out,raw,model=food_photo.ask(parts,SCHEMA,'food chat context',timeout=20,model_policy='context',
@@ -326,6 +333,10 @@ def apply(c,uid,message):
                 part=C.own_part(c,uid,items[0],resolution['issued']);part['index']=len(parts)
                 if part['status']=='choose':
                     part={'index':len(parts),'text':text,'status':'unknown','item':{},'logged':False,'skip_alias':True}
+                if part['status']=='unknown' and not f.get('brand'):
+                    # Context has already resolved this ordinary food. Do not
+                    # serialize another public lookup before its reviewed estimate.
+                    part['prefer_estimate']=True
                 C.description_question(part)
             else:part.update(status='unknown',item={})
         parts.append(part)

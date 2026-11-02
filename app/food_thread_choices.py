@@ -19,6 +19,8 @@ def choose(c,uid,message,index,pick=None,portion=None,catalog=None,factor=None,n
     if part.get('logged'):return food_thread.answer_with(c,uid,message)
     if part.get('entered_numbers'):raise HTTPException(409,'Use Review numbers on this card; nutrition numbers are not catalog foods')
     part=copy.deepcopy(part)
+    phrase=part.get('learn_phrase') or part['text']
+    learned=part.get('learn_templates')
     if new:
         if part.get('drafts'):raise HTTPException(409,'Edit this estimate or Undo it before trying a different food')
         part={k:part[k] for k in ('index','text','logged') if k in part}
@@ -28,11 +30,16 @@ def choose(c,uid,message,index,pick=None,portion=None,catalog=None,factor=None,n
         resolved=meal_chat.resolve_data(c,uid,engine.ThreadResolveIn(parts=[engine.ThreadPartIn(text=part['text'],pick=pick,portion=portion)]),anchor=message['local_day'])
         item=resolved['items'][0];item['index']=index
         part=C.own_part(c,uid,item,resolved['issued'])
+        part.update(learn_phrase=phrase,learn_choice=True)
+        if item['status']=='ready':
+            same=learned and all(t['kind']==item['kind'] and t['id']==item['id'] for t in learned)
+            part['learn_templates']=learned if same else [{k:item[k] for k in ('kind','id','portion')}]
     elif catalog is not None and part.get('catalog'):
         if not 0<=catalog<len(part['catalog']):raise HTTPException(422,'Choose the product you meant')
         if portion:part['portion_override']=portion.clean()
         part=resolver._catalog(part['catalog'][catalog],part,review_only=S.held_review(message))
         part['catalog_selected']=catalog
+        part.update(learn_phrase=phrase,learn_choice=True,learn_entries=copy.deepcopy(part.get('entries') or []))
     elif part.get('drafts'):
         if draft is not None and not 0<=draft<len(part['drafts']):raise HTTPException(422,'Choose a food on this card')
         if factor is not None:S.scale_drafts([part['drafts'][draft]] if draft is not None else part['drafts'],factor)
@@ -353,12 +360,17 @@ def draft_edit(c,uid,message,intent=None,dest=None):
         if not rest:return done({'messages':cancel_card(c,uid,previous)},f'Removed {spoken_label(part)}. Nothing was logged.')
         return done(C.write(c,uid,previous,{**result,'parts':rest}),f'Removed {spoken_label(part)}.')
     p=intent['portion']
+    affected=S.draft_entries([drafts[i] for i in named]) if drafts and named and not whole else part.get('entries',[])
+    if not affected or not all(meal_chat.portion_compatible(e,p) for e in affected):return separate(c,uid,message,previous)
     if drafts and len(drafts)==1:named=[0]
     if drafts and (not whole or len(drafts)==1):
         if len(named)!=1:return separate(c,uid,message,previous)
         draft=drafts[named[0]];old=draft['portion']
         if 'share' in p:factor=p['share']
-        elif 'count' in p and 'count' in old:factor=p['count']/old['count']
+        elif 'count' in p and 'count' in old:
+            label,_=meal_chat.amount(meal_chat.raw(re.sub(r'\([^)]*\)', '',draft['food'].get('serving_label') or '')))
+            basis=(label or {}).get('count',1) if p.get('unit') and p['unit'] not in meal_chat.VAGUE else 1
+            factor=p['count']/basis/old['count']
         elif 'grams' in p and (old.get('grams') or draft['food'].get('serving_g')):factor=p['grams']/(old.get('grams') or draft['food']['serving_g']*old.get('count',1))
         else:return separate(c,uid,message,previous)
         part={**part,'drafts':copy.deepcopy(drafts)};S.scale_drafts([part['drafts'][named[0]]],factor);part['entries']=S.draft_entries(part['drafts'])

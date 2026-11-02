@@ -230,12 +230,21 @@ def obvious(c, uid, message):
     if engine.social_reply(body) is not None: return True
     question = facts.classify(body, message['local_day'])
     if question and question['kind'] in ('totals', 'left', 'history', 'burn'): return True
-    if edits._intent(body, message['local_day']) is not None: return False
+    edit=edits._intent(body, message['local_day'])
     previous = edits._context(c, uid, message)
     card = compose.card(c, uid, previous) if previous else None
+    if edit:
+        if not card or edit.get('invalid') or edit.get('destination'):return False
+        entries=[e for p in card.get('parts',[]) if not p.get('logged') for e in p.get('entries',[])]
+        words=set(edit.get('words') or [])
+        found=[e for e in entries if set(meal_chat.name_words(e['name']))==words] if words else entries
+        return len(found)==1 and (edit.get('remove') or meal_chat.portion_compatible(found[0],edit['portion']))
     if card and card.get('pending_count') and not card.get('cancelled'): return False
     resolution = engine.resolve(c, uid, message)
     items = resolution.get('items') or []
+    if any(i.get('status')!='ready' for i in items):
+        from .food_thread_resolve import _alias
+        if _alias(c,uid,[{'index':i,'text':item['text']} for i,item in enumerate(items) if item.get('status')!='ready']):return True
     return resolution.get('status') == 'ready' and bool(items) and all(i.get('kind') for i in items)
 
 
@@ -293,6 +302,11 @@ def apply(c, uid, message):
         food = describe(foods[0])
         return engine.food_info(c, uid, message, {'kind': 'food_info', 'food': food})
     if intent in ('correct', 'remove', 'move'):
+        if intent=='correct':
+            portion,rest=meal_chat.amount(meal_chat.raw(message['body']))
+            explicit=re.search(r'\b(make|change|set|actually|instead|only|was|were|double|halve|rather|should)\b',message['body'],re.I)
+            if not explicit and portion and rest and any(w not in meal_chat.FILLER and w not in meal_chat.CORRECTION for w in rest):
+                return None   # A bare new food/typo is never permission to edit an earlier card.
         words = meal_chat.name_words(u['target'] or '')
         if intent == 'move':
             if not u['meal'] and not u['day']: return None
@@ -301,7 +315,7 @@ def apply(c, uid, message):
         if intent == 'remove': return choices.draft_edit(c, uid, message, intent={'remove': True, 'words': words})
         q, unit = u['new_quantity'], (u['new_unit'] or '').lower()
         if q is None: return None
-        portion = {'grams': q * meal_chat.MASS[unit]} if unit in meal_chat.MASS else {'count': q}
+        portion = {'grams': q * meal_chat.MASS[unit]} if unit in meal_chat.MASS else {'count': q,**({'unit':unit} if unit else {})}
         return choices.draft_edit(c, uid, message, intent={'portion': portion, 'words': words})
     if intent in ('log', 'answer') and foods:
         # Owner decision: a missing amount is assumed as a typical portion (said on the card); only a missing type is asked.

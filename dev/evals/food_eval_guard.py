@@ -18,7 +18,7 @@ def digest(paths):
         for name,path in sorted(paths))).hexdigest()
 
 
-def provenance():
+def provenance(*,contextual=False):
     mode=os.environ.get('FOOD_MEMORY_EVAL_MODE')
     dry=os.environ.get('FOOD_MEMORY_EVAL_DRY_RUN')=='1'
     if mode not in ('baseline','candidate') or not dry and os.environ.get('FOOD_MEMORY_EVAL_ACCEPT_PAID_CALLS')!='1':
@@ -32,15 +32,16 @@ def provenance():
     dataset=digest([(name,Path('/tmp')/name) for name in ('chat_cases.py','food_memory_cases.py')])
     collectors=digest([(name,Path('/tmp')/name) for name in
         ('food_eval_guard.py','chat_eval.py','food_memory_eval.py','food_memory_score.py')])
-    gates=['understanding']+(['food_memory'] if mode=='candidate' else [])
+    contextual=contextual or mode=='candidate'
+    gates=['understanding']+(['food_memory'] if contextual else [])
     return {'mode':mode,'dry_run':dry,'source_commit':revision,'app_digest':actual,
         'dataset_digest':dataset,'collector_digest':collectors,
-        'run_id':str(uuid.UUID(os.environ['FOOD_MEMORY_EVAL_RUN_ID'])),
+        'run_id':str(uuid.UUID(os.environ['FOOD_MEMORY_EVAL_RUN_ID'])),'contextual_enabled':contextual,
         'allowance_continuation':os.environ.get('FOOD_MEMORY_EVAL_CONTINUE_ALLOWANCE')=='1',
         'models':{gate:ai_release.models(gate) for gate in gates},
         'fingerprints':{gate:ai_release.gate_fingerprint(gate) for gate in gates},
         'ai_text':{gate:ai_release.ai_text(gate) for gate in gates},
-        'gate_overrides':['understanding enabled for evaluation']+(['food_memory enabled for evaluation'] if mode=='candidate' else []),
+        'gate_overrides':['understanding enabled for evaluation']+(['food_memory enabled for evaluation'] if contextual else []),
         'rates_per_million':{model:[str(x) for x in rates] for model,rates in ai_budget.RATES.items()},
         'pricing_review_by':str(ai_budget.review_by()),'reviewed':False,'cap_usd':2}
 

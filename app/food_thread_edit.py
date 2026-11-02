@@ -144,7 +144,8 @@ def _scale(c,uid,row,portion):
         serving=(row['ref'].get('serving') or {}).get('g') if row['unit']=='g' else None
         if not serving:raise HTTPException(400,'Use an amount with units, such as grams, for this food.')
         portion={'grams':portion['count']*serving}
-    settled,_=meal_chat.settle(c,uid,{'kind':'food','row':row},portion)
+    settled,question=meal_chat.settle(c,uid,{'kind':'food','row':row},portion)
+    if settled is None:raise HTTPException(400,question)
     values,why=meal_chat.compute(c,uid,'food',row,settled)
     if why or meal_chat.too_big(values or []):raise HTTPException(400,why or 'That portion is too large')
     value=values[0]
