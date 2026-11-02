@@ -143,7 +143,7 @@ def _close(query,food):
 
 def resolve_outside(uid,work,body):
     message,result=work['message'],work['result'];unknown=_unknown(result);media=work['media']
-    updates=[];estimate=[];fallback=[]
+    updates=[];estimate=[];fallback=[];catalog_error=None
     # Parsing normalizes punctuation, so also inspect the original untouched input.
     has_link=bool(re.search(r'https?://|www\.',message['body'],re.I))
     if media['kind']=='barcode':
@@ -158,13 +158,20 @@ def resolve_outside(uid,work,body):
         # queries are short food words, never a truncated private conversation.
         # Classify links before *any* public database lookup, including tokenized URLs.
         short=[p for p in unknown if not p.get('prefer_estimate') and not has_link and 2<=len(p['text'])<=200 and not re.search(r'https?://|www\.',p['text'],re.I)]
+        deadline=api_food.catalog_deadline()
         def lookup_part(part):
-            try:return meal_chat.lookup(part['text'])
-            except Exception:return {'kind':'none','foods':[]}
+            with api_food.catalog_budget(deadline):
+                try:return meal_chat.lookup(part['text'])
+                except api_food.CatalogUnavailable as exc:return exc
+                except Exception:return {'kind':'none','foods':[]}
         with ThreadPoolExecutor(max_workers=4) as pool:
             lookups=dict(zip((p['index'] for p in short),pool.map(lookup_part,short)))
         ai_ok=None
         for part in unknown:
+            lookup=lookups.get(part['index']) or {'kind':'none','foods':[]}
+            if isinstance(lookup,api_food.CatalogUnavailable):
+                catalog_error=lookup
+                continue
             if has_link or re.search(r'https?://|www\.',part['text'],re.I):
                 updates.append({'indices':[part['index']],'part':{**part,'looked_up':True,'recipe_url':True,
                                 'question':'Import this recipe or add its nutrition.'}});continue
@@ -192,7 +199,6 @@ def resolve_outside(uid,work,body):
                 updates.append({'indices':[part['index']],'part':selected});continue
             if part.get('prefer_estimate'):
                 estimate.append(part);continue
-            lookup=lookups.get(part['index']) or {'kind':'none','foods':[]}
             if lookup['kind']=='brand' and not (body.allow_brand_estimate and (body.part is None or body.part==part['index'])):
                 # With AI estimates on, a loose catalog match isn't worth a question: the estimate knows brands
                 # (Ben, 25 October: "3 handfuls of PopCorners and a Garage Beer" took two rounds of questions).
@@ -210,6 +216,7 @@ def resolve_outside(uid,work,body):
                     estimate.append(part);fallback.append(update)
                 else:updates.append(update)
             else:estimate.append(part)
+    if catalog_error:return updates+fallback,catalog_error
     if estimate:
         text='\n'.join(p['text'] for p in estimate)
         if media['kind']=='photo':text=message['body'] if message['body']!='Photo of food' else ''
@@ -308,7 +315,8 @@ def resolve(uid,mid,body):
     work=claim(uid,mid,body)
     if 'done' in work:return work['done']
     updates=[];error=None
-    try:updates,error=resolve_outside(uid,work,body)
+    try:
+        with api_food.catalog_budget():updates,error=resolve_outside(uid,work,body)
     except Exception as exc:
         error=exc
         if not isinstance(exc,HTTPException):print('food thread resolution failed:',type(exc).__name__,flush=True)
