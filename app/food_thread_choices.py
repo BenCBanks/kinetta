@@ -179,13 +179,14 @@ def _follow_up(c,uid,message):
         response=choose(c,uid,previous,pending[0]['index'],portion=meal_chat.Portion(**portion))
     else:
         hits=[]
+        answer_words=set(meal_chat.read_part(text,[])['query'])
         for part in pending:
             for i,food in enumerate(part.get('catalog',[])):
                 if words and words<=set(meal_chat.name_words(food['name'])):hits.append((part['index'],i,None))
             for food in part.get('item',{}).get('choices',[]):
-                if words and words<=set(meal_chat.name_words(food['name'])):hits.append((part['index'],None,meal_chat.Pick(kind=food['kind'],id=food['id'])))
+                if answer_words and answer_words=={meal_chat.stem(w) for w in meal_chat.name_words(food['name'])}:hits.append((part['index'],None,meal_chat.Pick(kind=food['kind'],id=food['id'])))
         if len(hits)==1:
-            index,catalog,pick=hits[0];response=choose(c,uid,previous,index,pick=pick,catalog=catalog)
+            index,catalog,pick=hits[0];response=choose(c,uid,previous,index,pick=pick,catalog=catalog,portion=meal_chat.Portion(**portion) if portion else None)
     if response is None:return None
     text='Updated that food card.'
     if dest:
