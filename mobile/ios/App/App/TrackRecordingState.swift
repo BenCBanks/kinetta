@@ -272,15 +272,14 @@ enum NativeTrackVoiceText {
         return "\(value) \(name)\(value=="1" ? "":"s")"
     }
     static func intervalText(_ state: TrackRecordingState, at now: Double) -> String? {
-        guard state.voice==true,let intervals=state.intervals,intervals.voice else { return nil }
+        guard let intervals=state.intervals,intervals.voice else { return nil }
         let active=state.seconds(at:now),unit=state.splitMetres ?? 1000
         var parts=[intervals.instruction(unitMetres:unit)]
         if state.intervalSayTotal ?? true { parts.append("Total time \(said(active)).") }
-        let fix=state.points.last
-        let fresh=fix.map { $0.accuracy<=25 && $0.segment==state.segment && now-(state.start+$0.t*1000)<=15000 && now>=state.start+$0.t*1000 } ?? false
         let minimum=unit>1500 ? TrackRecordingState.mile*0.1:150
-        if state.intervalSayPace ?? true, fresh, state.distance>=minimum,active>0,active.isFinite,state.distance.isFinite {
-            parts.append("Average pace \(said(active/state.distance*unit)) per \(unit>1500 ? "mile":"kilometre").")
+        if state.intervalSayPace ?? true,unit.isFinite,unit>0,state.distance>=minimum,active>0,active.isFinite,state.distance.isFinite {
+            let pace=active/state.distance*unit
+            if pace.isFinite,pace>0 { parts.append("Average pace \(said(pace)) per \(unit>1500 ? "mile":"kilometre").") }
         }
         return parts.joined(separator:" ")
     }
