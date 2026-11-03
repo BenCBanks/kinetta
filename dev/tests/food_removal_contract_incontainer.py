@@ -23,7 +23,7 @@ try:
         result=c.execute('SELECT result FROM food_chat_messages WHERE user_id=%s AND id=%s',(uid,reply['id'])).fetchone()['result']
         result['pending_count']=1
         c.execute('UPDATE food_chat_messages SET result=%s::jsonb WHERE user_id=%s AND id=%s',(json.dumps(result),uid,reply['id']))
-    refused=client.delete(f"/api/food/thread/messages/{root['id']}/unlogged")
+    refused=client.delete(f"/api/food/thread/messages/{root['id']}/unlogged",headers={'Content-Type':'application/json'})
     assert refused.status_code==409,refused.text
     assert any(m['id']==root['id'] for m in client.get('/api/food/thread').json()['messages'])
     print('Food removal route: a linked entry blocks removal while other parts remain pending PASS')
