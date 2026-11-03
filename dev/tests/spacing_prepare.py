@@ -14,7 +14,8 @@ assert base.port == int(port), 'Fixture project and URL must refer to the same d
 fixtures = {'base': base.geturl().rstrip('/'), 'project': project}
 for filename in ['activity_fixture.py', 'activity_detail_fixture.py', 'track_fixture.py', 'lift_compact_fixture.py',
                  'test_progress_overview.py', 'subpages_fixture.py', 'nutrition_fixture.py', 'food_entry_fixture.py',
-                 'recipes_compact_fixture.py', 'friends_compact_fixture.py', 'recaps_ui_fixture.py', 'insights_fixture.py']:
+                 'recipes_compact_fixture.py', 'friends_compact_fixture.py', 'recaps_ui_fixture.py', 'insights_fixture.py',
+                 'me_today_fixture.py']:
     env = dict(os.environ, KINETTA_KEEP_PROGRESS='1')
     result = subprocess.run([sys.executable, str(Path(__file__).parent/filename)], env=env, capture_output=True, text=True)
     print(result.stdout, end='', flush=True)
