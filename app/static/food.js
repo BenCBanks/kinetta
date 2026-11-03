@@ -672,7 +672,7 @@ async function tSaved(body, where, close, {manage=false}={}) {
     body.innerHTML = `<p class="small muted">${manage?'Open a recipe to edit it, or choose Log portion.':'Choose a recipe to log a portion. Edit changes the saved recipe.'}</p>
       ${mine.length ? `<h3 class="ghead">Your recipes</h3><div class="results">${mine.map((d) => `<div class="meal-library-row">${dishRow(d, dishes.indexOf(d))}<button type="button" class="ghost sm" data-edit-meal="${d.id}" aria-label="${manage?'Log a portion of':'Edit'} ${esc(d.name)}">${manage?'Log portion':svg('edit')+' Edit'}</button></div>`).join('')}</div>` : '<p class="small muted">Create your first recipe, with or without Kit.</p>'}
       ${theirs.length ? `<h3 class="ghead">Shared with you</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
-      ${meals.length ? `<h3 class="ghead">Saved meals</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
+      ${meals.length ? `<h3 class="ghead">Saved combinations</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
       <h3 class="ghead ghead-act">My foods<button class="linkbtn" id="tm-food">New food</button></h3><p class="small muted">Tap a food to log it, or choose Edit to change its saved nutrition.</p><div class="results">${foods.map((f,i) => `<div class="meal-library-row">${foodRow(f,i)}<button class="ghost sm" data-edit-food="${i}">Edit</button></div>`).join('')}</div>
 `;
     const again = () => {if(valid())return tSaved(body, where, close, {manage});};
@@ -695,7 +695,7 @@ function drawRecipeLibrary(body,dishes,meals,foods,where,close,again){
     <div id="library-recipes">
     ${mine.length?`<section class="library-section"><h2>Your recipes</h2>${mine.map(d=>dishRow(d,dishes.indexOf(d))).join('')}</section>`:''}
     ${theirs.length?`<section class="library-section"><h2>Shared with you</h2>${theirs.map(d=>dishRow(d,dishes.indexOf(d))).join('')}</section>`:''}
-    ${meals.length?`<section class="library-section"><h2>Saved meals</h2>${meals.map((m,i)=>`<button type="button" class="fe" data-meal="${i}" data-library-name="${esc(m.name.toLowerCase())}"><div><b>${esc(m.name)}</b><small>${esc(preview(m.items))}</small></div><span class="num">${m.totals.kcal==null?'Calories unknown':r0(m.totals.kcal)+' kcal'}</span></button>`).join('')}</section>`:''}</div>
+    ${meals.length?`<section class="library-section"><h2>Saved combinations</h2>${meals.map((m,i)=>`<button type="button" class="fe" data-meal="${i}" data-library-name="${esc(m.name.toLowerCase())}"><div><b>${esc(m.name)}</b><small>${esc(preview(m.items))}</small></div><span class="num">${m.totals.kcal==null?'Calories unknown':r0(m.totals.kcal)+' kcal'}</span></button>`).join('')}</section>`:''}</div>
     <section class="library-section" id="library-foods"><h2>My foods</h2>${foods.map((f,i)=>`<div class="meal-library-row" data-library-name="${esc(f.name.toLowerCase())}">${foodRow(f,i)}<button type="button" class="icon-btn" data-edit-food="${i}" aria-label="Edit ${esc(f.name)}">${svg('edit')}</button></div>`).join('')}${!foods.length?'<p class="small muted">No saved foods yet.</p>':''}</section>
     ${!dishes.length&&!meals.length?'<p class="small muted">No recipes yet. Choose New to create one.</p>':''}<p id="tm-no-match" class="small muted" hidden>No matching recipes or foods.</p><button type="button" class="linkbtn library-log" id="tm-describe">Log food</button>`;
   $('#tm-describe',body).onclick=()=>{const w=where();close();describeSheet(w.day,w.meal);};
@@ -747,8 +747,8 @@ function savedSheet(m, w, closeParent, after) {
       try { const result=await addEntries(items,{thread:location.pathname==='/food/describe'}); close(); closeParent(); toast(`Added ${m.name}`,result.undo); } catch (x) { toast(x.message); }
     };
     $('#sv-del', b).onclick = async () => {
-      if (!confirm(`Delete “${m.name}” from Saved meals? Food already in your food log will stay.`)) return;
-      try { await api(`/api/food/meals/${m.id}`, {method: 'DELETE'}); close(); toast('Saved meal deleted.'); after(); } catch (x) { toast(x.message); }
+      if (!confirm(`Delete “${m.name}” from Saved combinations? Food already in your food log will stay.`)) return;
+      try { await api(`/api/food/meals/${m.id}`, {method: 'DELETE'}); close(); toast('Saved combination deleted.'); after(); } catch (x) { toast(x.message); }
     };
     const ai = $('#sv-ai', b); if (ai) ai.onclick = () => {if(!kitChatOn()){mealCoach(m);return;}close();closeParent();KitChat.open('nutrition',null,`Help me review the saved meal “${m.name}”. Check its stored foods and nutrition.`);};
   });
