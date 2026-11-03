@@ -51,8 +51,9 @@ function wireReactionGroup(group,aid,changed){
     clearTimeout(hoverTimer);clearTimeout(leaveTimer);document.body.appendChild(picker);picker.hidden=false;more.setAttribute('aria-expanded','true');
     listen(true);
     const footer=group.closest('.post-ft,.detail-social')||group.parentElement;
-    const content=group.closest('.post')?.querySelector('.stats3')||footer.parentElement?.querySelector('.detail-primary')||footer;
-    const bounds=content.getBoundingClientRect(),r=main.getBoundingClientRect(),vv=window.visualViewport;
+    const link=group.closest('.post')?.querySelector('.post-link'),content=link||footer.parentElement?.querySelector('.detail-primary')||footer;
+    const box=content.getBoundingClientRect(),style=link&&getComputedStyle(link),leftInset=style?parseFloat(style.paddingLeft)||0:0,rightInset=style?parseFloat(style.paddingRight)||0:0;
+    const bounds={left:box.left+leftInset,right:box.right-rightInset,width:box.width-leftInset-rightInset},r=main.getBoundingClientRect(),vv=window.visualViewport;
     const width=Math.min(bounds.width,innerWidth-16),font=parseFloat(getComputedStyle(document.documentElement).fontSize);
     picker.style.width=width+'px';picker.style.setProperty('--reaction-columns',width>=426&&font<=16?'8':'4');
     const p=picker.getBoundingClientRect();anchorRect=r;
