@@ -8,7 +8,7 @@ const base=process.env.KINETTA_URL||'http://localhost:8798';
   const response=await page.goto(base+'/api/connections/garmin/callback?state=fictional-expired');
   assert.equal(response.status(),400);assert.equal(await page.locator('h1').innerText(),'That link has expired');
   const layout=await page.locator('main').evaluate(main=>({width:main.getBoundingClientRect().width,bodyWidth:document.body.scrollWidth,font:parseFloat(getComputedStyle(document.body).fontSize)}));
-  assert(layout.width<=420&&layout.bodyWidth<=innerWidth+1&&layout.font>=17,'standalone callback remains readable without horizontal overflow');
+  assert(layout.width<=420&&layout.bodyWidth<=size.width+1&&layout.font>=17,'standalone callback remains readable without horizontal overflow');
   assert.deepEqual(errors,[]);await context.close();
  }
  console.log('Garmin standalone callback layout 390/330 light/dark PASS');
