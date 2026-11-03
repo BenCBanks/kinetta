@@ -19,7 +19,7 @@ function extraInputs(v={},targets=false,lead=''){return `<details class="extra-n
 function extraFormValues(f,targets=false){return Object.fromEntries(EXTRA_NUTRIENTS.map(([key,, ,target])=>{const k=targets?target:key,raw=f.elements.namedItem(k)?.value.trim()??'',value=raw===''?null:Number(raw.replace(',','.'));if(value!==null&&(!Number.isFinite(value)||value<0))throw Error('Enter a positive number or zero, or leave the nutrient blank.');return [k,value];}));}
 function foodStorage(entry){const missing=FOOD_NUTRIENTS.filter(k=>!nutrientKnown(entry,k));if(missing.includes('kcal'))throw Error('Add calories before logging this food.');const out={...entry,ref:{...(entry.ref||{}),unknown_nutrients:[...new Set([...(Array.isArray(entry.ref?.unknown_nutrients)?entry.ref.unknown_nutrients.filter(k=>typeof k==='string'&&!FOOD_NUTRIENTS.includes(k)):[]),...missing])]}};for(const k of FOOD_NUTRIENTS)if(missing.includes(k))out[k]=['kcal','protein_g','carbs_g','fat_g'].includes(k)?0:null;return out;}
 function extraCoverage(entries,targets={}){return Object.fromEntries(EXTRA_NUTRIENTS.map(([k,,,target])=>{const known=entries.filter(e=>nutrientKnown(e,k));return [k,{recorded:known.length?known.reduce((n,e)=>n+Number(e[k]),0):null,known_count:known.length,unknown_count:entries.length-known.length,complete:!!entries.length&&known.length===entries.length,target:targets[target]}];}));}
-function extraTotals(values,{period=false}={}){return `<details class="extra-nutrients"><summary>More nutrients${period?' · this range':''}</summary><dl>${EXTRA_NUTRIENTS.map(([k,label,unit])=>{const v=values?.[k]||{};return `<div><dt>${label}</dt><dd><b class="num">${nutrientNumber(v.recorded,unit)}</b>${v.recorded!=null&&!v.complete?'<small>Known subtotal · incomplete</small>':''}${v.unknown_count?`<small>${v.unknown_count} food${v.unknown_count===1?'':'s'} with no value</small>`:''}${!period&&v.target!=null?`<small>Your limit: ${nutrientNumber(v.target,unit)}</small>`:''}</dd></div>`;}).join('')}</dl><p class="small muted">${period?'Recorded totals across this date range. ':''}Missing values are unknown, not zero. Total sugar includes naturally occurring sugar.</p></details>`;}
+function extraTotals(values,{period=false}={}){return `<details class="extra-nutrients"><summary>More nutrients${period?' · this range':''}</summary><dl>${EXTRA_NUTRIENTS.map(([k,label,unit])=>{const v=values?.[k]||{};return `<div><dt>${label}</dt><dd><b class="num">${nutrientNumber(v.recorded,unit)}</b>${v.recorded!=null&&!v.complete?'<small>Some foods are missing values</small>':''}${v.unknown_count?`<small>${v.unknown_count} food${v.unknown_count===1?'':'s'} with no value</small>`:''}${!period&&v.target!=null?`<small>Your limit: ${nutrientNumber(v.target,unit)}</small>`:''}</dd></div>`;}).join('')}</dl><p class="small muted">${period?'Recorded totals across this date range. ':''}Missing values are unknown, not zero. Total sugar includes naturally occurring sugar.</p></details>`;}
 function extraFood(v){return `<details class="extra-nutrients"><summary>More nutrients</summary><dl>${EXTRA_NUTRIENTS.map(([k,label,unit])=>`<div><dt>${label}</dt><dd class="num">${nutrientNumber(nutrientKnown(v,k)?v[k]:null,unit)}</dd></div>`).join('')}</dl><p class="small muted">For this portion, using its recorded source values. Estimates stay estimates; missing values are unknown.</p></details>`;}
 const isoDay = (d) => d.toLocaleDateString('en-CA', {timeZone: tz()});
 const addDays = (iso, n) => { const d = new Date(iso + 'T12:00'); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); };
@@ -33,7 +33,7 @@ function guessMeal() {   // the meal you usually log at this hour (learned from 
 // Displayed energy rounds to 5 kcal.
 const homeCalories = v => Math.round((v || 0) / 5) * 5;
 const recipeCalories = v => v==null?'Unknown':r0(homeCalories(v));
-function macroTotal(D,k,target){const missing=D.unknown_nutrients?.[k]||0;if(missing)return missing>=D.entries.length?'Unknown':`${r0(D.totals[k])} g known · incomplete`;return `${r0(D.totals[k])} g${target?' / '+r0(target)+' g':''}`;}
+function macroTotal(D,k,target){const missing=D.unknown_nutrients?.[k]||0;if(missing)return missing>=D.entries.length?'Unknown':`${r0(D.totals[k])} g recorded · some foods are missing values`;return `${r0(D.totals[k])} g${target?' / '+r0(target)+' g':''}`;}
 function syncCheckinPrimary(page){
   if(!page)return;const log=$('#tf-add',page);
   if(log){const pending=page.dataset.checkinPending==='true';log.classList.toggle('primary',!pending);log.classList.toggle('ghost',pending);}
@@ -48,10 +48,10 @@ function checkinDetails(row,actions=false){
   const rate=d.trend_kg_per_week,requested=convert(d.requested_kg_per_week||0);
   const aim=requested>=.05&&['lose_weight','build_muscle'].includes(d.goal)?`For your goal of ${d.goal==='lose_weight'?'losing':'gaining'} about ${requested.toFixed(1)} ${unit} a week, `:'For your current goal, ';
   return `<section class="card checkin-card" data-checkin="${esc(row.id)}"><h2>Your weekly check-in</h2><p class="small muted">Week of ${esc(new Date(row.week+'T12:00:00').toLocaleDateString([],{month:'short',day:'numeric'}))} · last 28 completed days · as of ${esc(new Date(row.updated).toLocaleDateString([],{month:'short',day:'numeric',timeZone:tz()}))}</p>
-    <dl class="checkin-numbers"><div><dt>Average eaten</dt><dd><b>${r0(homeCalories(d.avg_intake))}</b><small>kcal / logged day</small></dd></div><div><dt>Weight trend</dt><dd><b>${sgn(trend)}${Math.abs(trend).toFixed(1)}</b><small>${unit} / week</small></dd></div><div><dt>Observed burn</dt><dd><b>${r0(homeCalories(d.observed_burn))}</b><small>kcal / day · inferred</small></dd></div></dl>
-    <p>${actions?esc(aim)+'try ':'Saved suggestion: '}<b>${r0(d.suggested_kcal)} kcal a day</b>.</p>${d.floor_applied?'<p class="small">The estimated resting-burn floor limits this suggestion; the requested pace may be slower.</p>':''}
-    <p class="small muted">${d.logged_days} fully logged days · ${d.weigh_ins} weigh-ins over ${d.weigh_in_span_days} days. Formula estimate: about ${r0(homeCalories(d.estimated_burn))} kcal / day.${d.unknown_calorie_days?' Days with unknown calories are left out.':''}</p>
-    ${actions?'<div class="checkin-actions"><button type="button" class="primary" data-checkin-accept>Accept</button><button type="button" class="ghost" data-checkin-later>Not now</button></div>':`<p class="small">${row.state==='accepted'?'Accepted · calorie target updated at that time.':row.state==='deferred'?'Not now · hidden on Me until next week.':'Previous suggestion · not applied.'}</p>`}
+    <dl class="checkin-numbers"><div><dt>Average calories logged</dt><dd><b>${r0(homeCalories(d.avg_intake))}</b><small>kcal / logged day</small></dd></div><div><dt>Weight trend</dt><dd><b>${sgn(trend)}${Math.abs(trend).toFixed(1)}</b><small>${unit} / week</small></dd></div><div><dt>Estimated daily calorie use</dt><dd><b>${r0(homeCalories(d.observed_burn))}</b><small>kcal / day · from food and weight</small></dd></div></dl>
+    <p>${actions?esc(aim)+'try ':'Saved suggestion: '}<b>${r0(d.suggested_kcal)} kcal a day</b>.</p>${d.floor_applied?'<p class="small">This suggestion cannot go below the calories your body needs at rest, so your weight may change more slowly than you chose.</p>':''}
+    <p class="small muted">${d.logged_days} complete food days · ${d.weigh_ins} weigh-ins over ${d.weigh_in_span_days} days. Another estimate from your body details is about ${r0(homeCalories(d.estimated_burn))} kcal / day.${d.unknown_calorie_days?' Days with unknown calories are left out.':''}</p>
+    ${actions?'<div class="checkin-actions"><button type="button" class="primary" data-checkin-accept>Accept</button><button type="button" class="ghost" data-checkin-later>Not now</button></div>':`<p class="small">${row.state==='accepted'?'Accepted · calorie target updated at that time.':row.state==='deferred'?'Hidden on Me until next week.':'Previous suggestion · not applied.'}</p>`}
     <button type="button" class="linkbtn" data-checkin-help>How this works</button><p class="err" role="status" data-checkin-status></p></section>`;
 }
 async function weeklyCheckinCard(box,{home=false,onReady}={}){
@@ -64,33 +64,33 @@ async function weeklyCheckinCard(box,{home=false,onReady}={}){
     if(row)box.innerHTML=checkinDetails(row,pending);
     else{const r=data.readiness||{},action=r.action||'food';box.innerHTML=`<section class="card checkin-card"><h2>Your weekly check-in</h2><p>${esc(r.reason||'Not enough data yet.')}</p>${action==='weight'?'<button class="primary wide" type="button" data-checkin-weight>Log weight</button>':`<a class="primary wide" href="${action==='goal'?'/food/setup':'/food/describe'}">${action==='goal'?'Choose a goal':'Log food'}</a>`}</section>`;const weight=$('[data-checkin-weight]',box);if(weight)weight.onclick=()=>{if(valid())quickWeighIn();};}
     if(!home){const history=(data.history||[]).filter(r=>r.id!==row?.id&&r.week<data.week);if(history.length)box.insertAdjacentHTML('beforeend',`<details class="checkin-history"><summary>Previous check-ins</summary>${history.map(r=>checkinDetails(r)).join('')}</details>`);}
-    $$('[data-checkin-help]',box).forEach(b=>b.onclick=()=>{if(!valid())return;sheet('How your check-in works',`<div class="checkin-explanation"><p>We use the last 28 completed days. At least 7 fully logged food days and 3 weigh-ins spanning 10 days are needed. Very partial days and today are left out.</p><p>Average food minus the energy equivalent of your weight trend gives an observed daily burn estimate. It includes your usual workouts; it is not a direct measurement. The formula estimate is shown for comparison.</p><p>Your chosen goal and pace shape the calorie suggestion. It cannot go below estimated resting burn. Water changes, missing food and scale variation can affect the result.</p><p>Accept changes only your calorie target. Your chosen resting-calorie source and macro targets stay as set. Not now hides the card on Me until next week; this record remains in Progress.</p><p>No Kit or watch is needed. You can change your goal or target any time.</p></div>`);});
+    $$('[data-checkin-help]',box).forEach(b=>b.onclick=()=>{if(!valid())return;sheet('How your check-in works',`<div class="checkin-explanation"><p>We use the last 28 completed days. At least 7 complete food days and 3 weigh-ins spanning 10 days are needed. Very partial days and today are left out.</p><p>We compare the food you logged with how your weight changed to estimate the calories you use each day. This estimate includes your usual workouts, but it is not a direct measurement. We also show an estimate based on your body details.</p><p>Your goal and pace shape the calorie suggestion. It cannot go below the calories your body needs at rest. Water changes, missing food and scale variation can affect the result.</p><p>Accept changes only your calorie target. Your resting-calorie source and nutrient goals stay the same. Not now hides the card on Me until next week; you can still find this check-in in Progress.</p><p>No Kit or watch is needed. You can change your goal or target any time.</p></div>`);});
     syncCheckinPrimary(page);
     for(const [selector,action]of [['[data-checkin-accept]','accept'],['[data-checkin-later]','later']]){const button=$(selector,box);if(button)button.onclick=async()=>{
       if(!valid())return;$$('.checkin-actions button',box).forEach(b=>b.disabled=true);const status=$('[data-checkin-status]',box);status.textContent=action==='accept'?'Updating your calorie target…':'Saving your choice…';
       try{const result=await api(`/api/food/check-in/${row.id}/${action}`,json('POST',action==='accept'?{baseline:row.baseline,confirmed:true}:{}));if(!valid())return;
-        invalidate('/api/food');if(result.kcal_target!=null)refreshMe({...App.me,kcal_target:result.kcal_target});toast(result.already_decided?(result.current?.state==='accepted'?'Already accepted. Your current target is unchanged.':'Already set aside until next week.'):result.current?.state==='accepted'?'Calorie target saved.':'Check-in hidden until next week.');render();
+        invalidate('/api/food');if(result.kcal_target!=null)refreshMe({...App.me,kcal_target:result.kcal_target});toast(result.already_decided?(result.current?.state==='accepted'?'You already accepted this check-in; your target is unchanged.':'You already chose to hide this check-in until next week.'):result.current?.state==='accepted'?'Calorie target saved.':'Check-in hidden until next week.');render();
       }catch(e){if(!valid())return;if(e.status===409){invalidate('/api/food/check-in');await weeklyCheckinCard(box,{home});toast(e.message);}else{status.textContent=e.message;$$('.checkin-actions button',box).forEach(b=>b.disabled=false);}}
     };}
     } finally { onReady?.(); }
   };
-  try{await load('/api/food/check-in',draw,{maxAge:0});}catch(e){if(valid()){if(home){const page=box.closest('#page');if(page){page.dataset.checkinPending='false';syncCheckinPrimary(page);}}box.innerHTML=home?'':`<section class="card checkin-card"><h2>Your weekly check-in</h2><p>Check-in could not load. Your food log is still available.</p><button class="ghost wide" type="button" data-checkin-retry>Retry</button></section>`;const retry=$('[data-checkin-retry]',box);if(retry)retry.onclick=()=>weeklyCheckinCard(box,{home});}}
+  try{await load('/api/food/check-in',draw,{maxAge:0});}catch(e){if(valid()){if(home){const page=box.closest('#page');if(page){page.dataset.checkinPending='false';syncCheckinPrimary(page);}}box.innerHTML=home?'':`<section class="card checkin-card"><h2>Your weekly check-in</h2><p>Couldn’t load your weekly check-in. Your food log is still available.</p><button class="ghost wide" type="button" data-checkin-retry>Try again</button></section>`;const retry=$('[data-checkin-retry]',box);if(retry)retry.onclick=()=>weeklyCheckinCard(box,{home});}}
 }
 
 function weeklyReviewHtml(data){
   const dateLabel=day=>new Date(day+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'});
-  const nutrient=(key,label,unit)=>{const v=data.nutrients[key];return `<div><dt>${label}</dt><dd><b class="num">${nutrientNumber(v.recorded,unit)}</b>${v.recorded!=null&&!v.complete?'<small>Known subtotal · incomplete</small>':''}${v.unknown_count?`<small>${v.unknown_count} food${v.unknown_count===1?'':'s'} with no value</small>`:''}</dd></div>`;};
+  const nutrient=(key,label,unit)=>{const v=data.nutrients[key];return `<div><dt>${label}</dt><dd><b class="num">${nutrientNumber(v.recorded,unit)}</b>${v.recorded!=null&&!v.complete?'<small>Some foods are missing values</small>':''}${v.unknown_count?`<small>${v.unknown_count} food${v.unknown_count===1?'':'s'} with no value</small>`:''}</dd></div>`;};
   return `<section class="card weekly-food-review"><h2>Your week in food</h2><p class="small muted">${esc(dateLabel(data.start))}–${esc(dateLabel(data.end))} · 7 completed days</p><p class="weekly-food-lead">Food logged on <b>${data.days_logged} of 7 days</b>.</p><p class="small muted">${esc(data.source)}. ${esc(data.note)}</p>
-    <details class="weekly-food-fold"><summary>Protein across meals</summary><p class="small muted">Recorded totals across these 7 days, not daily averages.</p><dl>${data.protein_by_meal.map(m=>`<div><dt>${esc(MEAL_NAMES[m.meal])}<small>Logged on ${m.days} day${m.days===1?'':'s'}</small></dt><dd><b class="num">${nutrientNumber(m.recorded,'g')}</b>${m.recorded!=null&&!m.complete?'<small>Known subtotal · incomplete</small>':''}${m.unknown_count?`<small>${m.unknown_count} food${m.unknown_count===1?'':'s'} with no value</small>`:''}</dd></div>`).join('')}</dl></details>
+    <details class="weekly-food-fold"><summary>Protein across meals</summary><p class="small muted">Recorded totals across these 7 days, not daily averages.</p><dl>${data.protein_by_meal.map(m=>`<div><dt>${esc(MEAL_NAMES[m.meal])}<small>Logged on ${m.days} day${m.days===1?'':'s'}</small></dt><dd><b class="num">${nutrientNumber(m.recorded,'g')}</b>${m.recorded!=null&&!m.complete?'<small>Some foods are missing values</small>':''}${m.unknown_count?`<small>${m.unknown_count} food${m.unknown_count===1?'':'s'} with no value</small>`:''}</dd></div>`).join('')}</dl></details>
     <details class="weekly-food-fold"><summary>Fiber and more nutrients</summary><p class="small muted">Recorded totals across these 7 days. Total sugar includes naturally occurring sugar.</p><dl>${nutrient('fiber_g','Fiber','g')}${EXTRA_NUTRIENTS.map(([k,label,unit])=>nutrient(k,label,unit)).join('')}</dl></details>
-    ${data.top_foods.length?`<details class="weekly-food-fold"><summary>Top recorded calorie sources</summary><ol class="weekly-top-foods">${data.top_foods.map(f=>`<li><span>${esc(f.name)}<small>${f.logs} log${f.logs===1?'':'s'}${f.complete?'':' · known subtotal'}</small></span><b class="num">${r0(homeCalories(f.recorded))} kcal</b></li>`).join('')}</ol></details>`:''}
+    ${data.top_foods.length?`<details class="weekly-food-fold"><summary>Top recorded calorie sources</summary><ol class="weekly-top-foods">${data.top_foods.map(f=>`<li><span>${esc(f.name)}<small>${f.logs} log${f.logs===1?'':'s'}${f.complete?'':' · some values are missing'}</small></span><b class="num">${r0(homeCalories(f.recorded))} kcal</b></li>`).join('')}</ol></details>`:''}
     ${data.suggestions.length?`<div class="weekly-food-suggestions"><h3>For the next few days</h3>${data.suggestions.map(s=>`<p>${esc(s.text)}</p>`).join('')}</div>`:''}</section>`;
 }
 async function weeklyFoodReviewCard(box){
   const owner=readOwner(),valid=()=>box?.isConnected&&readOwner()===owner;
   if(!valid())return;box.innerHTML=skel(1);let shown=false;
   try{await load('/api/food/weekly-review',data=>{if(!valid())return;shown=!!data.entries;box.innerHTML=data.entries?weeklyReviewHtml(data):'';});}
-  catch(e){if(!valid())return;const error='<div class="card"><p>'+ (shown?'Saved review shown. It could not refresh.':'Your weekly food review could not load.')+'</p><button type="button" class="linkbtn" data-weekly-retry>Retry review</button></div>';if(shown)box.insertAdjacentHTML('beforeend',error);else box.innerHTML=error;box.querySelector('[data-weekly-retry]').onclick=()=>weeklyFoodReviewCard(box);}
+  catch(e){if(!valid())return;const error='<div class="card"><p>'+ (shown?'Showing your saved review. Couldn’t check for updates.':'Couldn’t load your weekly food review.')+'</p><button type="button" class="linkbtn" data-weekly-retry>Try again</button></div>';if(shown)box.insertAdjacentHTML('beforeend',error);else box.innerHTML=error;box.querySelector('[data-weekly-retry]').onclick=()=>weeklyFoodReviewCard(box);}
 }
 // Me is activity-first (owner decisions 2026-10-18): food appears on Me only once something is logged today, as one
 // compact card with a single Log food button. Every other way to log lives in Nutrition. food_user (a goal or food in
@@ -111,7 +111,7 @@ function todayFoodCard(box, {onHistory, onFoodUser} = {}) {
       ${g > 0 ? `<div class="gbar${left < 0 ? ' over' : ''}" role="progressbar" aria-label="Calories eaten" aria-valuemin="0" aria-valuemax="${g}" aria-valuenow="${Math.min(g,Math.max(0,T.kcal))}" aria-valuetext="${esc(progress)}"><div class="gfill" data-w="${fraction.toFixed(3)}"></div></div>` : ''}
       <div class="today-macros">${MACROS.map(([k,name])=>{const target=D.targets?.[k.replace('_g','_target')],unknown=D.unknown_nutrients?.[k]||0;
         const value=unknown>=D.entries.length?'Unknown':r0(T[k]||0)+(unknown?'+':'');
-        return `<div class="today-macro m-${k}"><small>${name}</small><b class="num">${value}${value==='Unknown'?'':'<i> g</i>'}</b>${target?`<span class="small muted">${unknown?'Target':'of'} ${r0(target)} g${unknown?' · incomplete':''}</span>`:''}</div>`;}).join('')}</div>
+        return `<div class="today-macro m-${k}"><small>${name}</small><b class="num">${value}${value==='Unknown'?'':'<i> g</i>'}</b>${target?`<span class="small muted">${unknown?'Target':'of'} ${r0(target)} g${unknown?' · values missing':''}</span>`:''}</div>`;}).join('')}</div>
       ${D.entries.some(e => e.pending) ? '<p class="small muted" role="status">Some foods are waiting to send.</p>' : ''}</a>
       <button class="primary wide" id="tf-add">${svg('plus')} Log food</button></div>`;
     syncCheckinPrimary(box.closest?.('#page'));
@@ -672,7 +672,7 @@ async function tSaved(body, where, close, {manage=false}={}) {
     body.innerHTML = `<p class="small muted">${manage?'Open a recipe to edit it, or choose Log portion.':'Choose a recipe to log a portion. Edit changes the saved recipe.'}</p>
       ${mine.length ? `<h3 class="ghead">Your recipes</h3><div class="results">${mine.map((d) => `<div class="meal-library-row">${dishRow(d, dishes.indexOf(d))}<button type="button" class="ghost sm" data-edit-meal="${d.id}" aria-label="${manage?'Log a portion of':'Edit'} ${esc(d.name)}">${manage?'Log portion':svg('edit')+' Edit'}</button></div>`).join('')}</div>` : '<p class="small muted">Create your first recipe, with or without Kit.</p>'}
       ${theirs.length ? `<h3 class="ghead">Shared with you</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
-      ${meals.length ? `<h3 class="ghead">Saved combinations</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
+      ${meals.length ? `<h3 class="ghead">Saved meals</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
       <h3 class="ghead ghead-act">My foods<button class="linkbtn" id="tm-food">New food</button></h3><p class="small muted">Tap a food to log it, or choose Edit to change its saved nutrition.</p><div class="results">${foods.map((f,i) => `<div class="meal-library-row">${foodRow(f,i)}<button class="ghost sm" data-edit-food="${i}">Edit</button></div>`).join('')}</div>
 `;
     const again = () => {if(valid())return tSaved(body, where, close, {manage});};
@@ -695,7 +695,7 @@ function drawRecipeLibrary(body,dishes,meals,foods,where,close,again){
     <div id="library-recipes">
     ${mine.length?`<section class="library-section"><h2>Your recipes</h2>${mine.map(d=>dishRow(d,dishes.indexOf(d))).join('')}</section>`:''}
     ${theirs.length?`<section class="library-section"><h2>Shared with you</h2>${theirs.map(d=>dishRow(d,dishes.indexOf(d))).join('')}</section>`:''}
-    ${meals.length?`<section class="library-section"><h2>Saved combinations</h2>${meals.map((m,i)=>`<button type="button" class="fe" data-meal="${i}" data-library-name="${esc(m.name.toLowerCase())}"><div><b>${esc(m.name)}</b><small>${esc(preview(m.items))}</small></div><span class="num">${m.totals.kcal==null?'Calories unknown':r0(m.totals.kcal)+' kcal'}</span></button>`).join('')}</section>`:''}</div>
+    ${meals.length?`<section class="library-section"><h2>Saved meals</h2>${meals.map((m,i)=>`<button type="button" class="fe" data-meal="${i}" data-library-name="${esc(m.name.toLowerCase())}"><div><b>${esc(m.name)}</b><small>${esc(preview(m.items))}</small></div><span class="num">${m.totals.kcal==null?'Calories unknown':r0(m.totals.kcal)+' kcal'}</span></button>`).join('')}</section>`:''}</div>
     <section class="library-section" id="library-foods"><h2>My foods</h2>${foods.map((f,i)=>`<div class="meal-library-row" data-library-name="${esc(f.name.toLowerCase())}">${foodRow(f,i)}<button type="button" class="icon-btn" data-edit-food="${i}" aria-label="Edit ${esc(f.name)}">${svg('edit')}</button></div>`).join('')}${!foods.length?'<p class="small muted">No saved foods yet.</p>':''}</section>
     ${!dishes.length&&!meals.length?'<p class="small muted">No recipes yet. Choose New to create one.</p>':''}<p id="tm-no-match" class="small muted" hidden>No matching recipes or foods.</p><button type="button" class="linkbtn library-log" id="tm-describe">Log food</button>`;
   $('#tm-describe',body).onclick=()=>{const w=where();close();describeSheet(w.day,w.meal);};
@@ -741,14 +741,14 @@ function savedSheet(m, w, closeParent, after) {
     f.n.oninput = byN; byN();
     f.onsubmit = async (e) => {
       e.preventDefault(); const k = factor();
-      if (!k) { toast('How many servings?'); return; }
+      if (!k) { toast('Enter the number of servings.'); return; }
       const sc = (v) => (v == null ? null : v * k);
       const items = m.items.map((it) => ({...it, ...w, amount: it.amount * k, kcal: sc(it.kcal), protein_g: sc(it.protein_g), carbs_g: sc(it.carbs_g), fat_g: sc(it.fat_g), fiber_g: sc(it.fiber_g), ref: it.ref || null, source: 'meal'}));
       try { const result=await addEntries(items,{thread:location.pathname==='/food/describe'}); close(); closeParent(); toast(`Added ${m.name}`,result.undo); } catch (x) { toast(x.message); }
     };
     $('#sv-del', b).onclick = async () => {
-      if (!confirm(`Delete the saved meal ${m.name}?`)) return;
-      try { await api(`/api/food/meals/${m.id}`, {method: 'DELETE'}); close(); toast('Deleted'); after(); } catch (x) { toast(x.message); }
+      if (!confirm(`Delete “${m.name}” from Saved meals? Food already in your food log will stay.`)) return;
+      try { await api(`/api/food/meals/${m.id}`, {method: 'DELETE'}); close(); toast('Saved meal deleted.'); after(); } catch (x) { toast(x.message); }
     };
     const ai = $('#sv-ai', b); if (ai) ai.onclick = () => {if(!kitChatOn()){mealCoach(m);return;}close();closeParent();KitChat.open('nutrition',null,`Help me review the saved meal “${m.name}”. Check its stored foods and nutrition.`);};
   });
@@ -836,7 +836,7 @@ function foodEditor(food, after) {
       if (body.kcal==null) { toast('Enter calories, or all three macros to work them out.'); return; }
       try { await api(food ? `/api/food/foods/${food.id}` : '/api/food/foods', json(food ? 'PUT' : 'POST', body)); close(); toast('Food saved'); if (after) after(); } catch (x) { toast(x.message); }
     };
-    if (food) $('#fe-del', b).onclick = async () => { if (!confirm(`Delete ${food.name}? Logged entries stay.`)) return; try { await api(`/api/food/foods/${food.id}`, {method: 'DELETE'}); close(); if (after) after(); } catch (x) { toast(x.message); } };
+    if (food) $('#fe-del', b).onclick = async () => { if (!confirm(`Delete “${food.name}” from My foods? Food already in your food log will stay.`)) return; try { await api(`/api/food/foods/${food.id}`, {method: 'DELETE'}); close(); toast('Saved food deleted.'); if (after) after(); } catch (x) { toast(x.message); } };
   });
 }
 
@@ -1130,8 +1130,8 @@ route(/^\/food\/import$/, 'food', async (el) => {
     sb.innerHTML = S.first ? `<div class="card"><h2>Imported so far</h2><p class="small">${S.weights} weigh-ins, ${S.days_food} days of food, ${S.burned} days of burned calories - back to ${esc(new Date(S.first + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric', year: 'numeric'}))}.</p>
       <div class="actions"><button class="ghost danger" id="hi-del">Remove imported data</button></div><p class="small muted">Removes only what came from imports. Food you logged in the app and weights you logged by hand stay.</p></div>` : '';
     const del = $('#hi-del', sb);
-    if (del) del.onclick = async () => { if (!confirm('Remove all imported weights, calories and burned numbers?')) return;
-      try { const r = await api('/api/food/history', {method: 'DELETE'}); invalidate('/api/food'); toast(`Removed ${r.weights} weigh-ins, ${r.days_food} days of food, ${r.burned} burned`); drawSum(); } catch (x) { toast(x.message); } };
+    if (del) del.onclick = async () => { if (!confirm('Remove imported food, calorie and weight data? Food and weights you logged in Kinetta will stay.')) return;
+      try { const r = await api('/api/food/history', {method: 'DELETE'}); invalidate('/api/food'); toast(`Removed ${r.weights} weigh-ins, ${r.days_food} days of food and ${r.burned} days of activity calories`); drawSum(); } catch (x) { toast(x.message); } };
   }, {maxAge: 0});
   drawSum();
 });
@@ -1489,7 +1489,7 @@ async function restingSourceCard(box) {
     catch(e){if(account===readOwner()&&box.isConnected){error.textContent=e.message;sync.disabled=false;}}
   };
   $('#resting-remove',box).onclick=async e=>{
-    if(!confirm('Remove your synced resting calories and use Kinetta’s estimate? Your food goal and activities stay the same.'))return;
+    if(!confirm('Use Kinetta’s estimate for resting calories? Synced resting calories will be removed; your food goal and activities will stay the same.'))return;
     e.currentTarget.disabled=true;
     try {if(Native.on)await Native.stopRestingEnergy();if(account!==readOwner())return;await api('/api/health/resting',{method:'DELETE'});if(account!==readOwner())return;App.me.resting_source='formula';invalidate('/api/food');invalidate('/api/health/resting');render();}
     catch(err){if(account===readOwner()&&box.isConnected){error.textContent=err.message;e.currentTarget.disabled=false;}}

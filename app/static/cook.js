@@ -31,7 +31,7 @@ route(/^\/food\/cook\/(\d+)$/, 'food', async (el, id) => {
   try { await load(`/api/dishes/${id}`, (d) => drawDish(el, d), {maxAge: 0}); }
   catch (x) {     // deleted (or no longer shared)
     if (x.status !== 404) throw x;
-    el.innerHTML = `<div class="top">${backBtn('Nutrition')}</div><div class="card empty"><b>This meal is gone</b>Portions logged from it are still in the food log.</div>`;
+    el.innerHTML = `<div class="top">${backBtn('Nutrition')}</div><div class="card empty"><b>This recipe is no longer available</b>Portions already logged from it are still in your food log.</div>`;
     wireBack(el, '/food');
   }
 });
@@ -85,7 +85,7 @@ function drawDish(el, d) {
   const lg = $('#dk-log', el); if (lg) lg.onclick = () => dishLogSheet(d, {day: isoDay(new Date()), meal: guessMeal()}, () => {});
   const kit = $('#dk-kit', el); if (kit) kit.onclick = () => mine&&kitChatOn() ? KitChat.open('nutrition',null,`Help me review the saved recipe “${d.name}”. Check its saved ingredients and nutrition.`) : recipeKit(d,mine,set);
   if (!mine) return;
-  $$('[data-dismiss-pending]',el).forEach(b=>b.onclick=()=>{if(confirm('Leave this unmatched line out of the recipe nutrition? If you added it separately, its nutrition will be included.'))patch({dismiss_pending:[b.dataset.dismissPending],use_ingredients:true});});
+  $$('[data-dismiss-pending]',el).forEach(b=>b.onclick=()=>{if(confirm('Remove this unmatched ingredient from the recipe? Its nutrition will no longer be included in the total.'))patch({dismiss_pending:[b.dataset.dismissPending],use_ingredients:true});});
   swipeRows(el, (id) => removeItem(d, d.items.find((x) => x.id === id), set));
   chatBox(el, d, set);
   const cancelClarification=$('#dk-cancel-clarification',el);
@@ -117,7 +117,7 @@ function drawDish(el, d) {
       titleStatus.textContent='Saving title…';
       try{const fresh=await api(`/api/dishes/${d.id}`,json('PATCH',{name:v}));if(!active())return false;
         d=fresh;titleStatus.textContent='Title saved';App.cache.set(`/api/dishes/${d.id}`,{data:fresh,at:Date.now()});App.cache.delete('/api/dishes');return true;
-      }catch(x){if(active()){titleStatus.innerHTML='Title not saved. <button type="button" class="linkbtn" id="dk-title-retry">Retry</button>';const retry=$('#dk-title-retry',el);retry.onclick=()=>{if(retry.disabled||!active())return;retry.disabled=true;return saveName();};toast(x.message);}return false;}
+      }catch(x){if(active()){titleStatus.innerHTML='Recipe name not saved. <button type="button" class="linkbtn" id="dk-title-retry">Try again</button>';const retry=$('#dk-title-retry',el);retry.onclick=()=>{if(retry.disabled||!active())return;retry.disabled=true;return saveName();};toast(x.message);}return false;}
     });
     return nameSave;
   };
@@ -142,7 +142,7 @@ function drawDish(el, d) {
 function manualDishFood(d,set){
   typeSheet('', '', async body=>{
     try {const fresh=await api(`/api/dishes/${d.id}/items`,json('POST',body));set(fresh);toast('Food added to the recipe');
-      if(d.known.kcal!=null)sheet('Which nutrition should the recipe use?',`<p>The named food is saved as an ingredient. This recipe currently uses an entered or published total instead of adding its ingredients.</p><div class="actions"><button type="button" class="ghost" id="manual-keep-total">Keep that total</button><button type="button" class="primary" id="manual-use-ingredients">Use ingredient totals</button></div>`,(b,close)=>{
+      if(d.known.kcal!=null)sheet('Choose recipe nutrition',`<p>You added this food as an ingredient. This recipe still uses its saved total instead of adding up its ingredients.</p><div class="actions"><button type="button" class="ghost" id="manual-keep-total">Keep that total</button><button type="button" class="primary" id="manual-use-ingredients">Use ingredient totals</button></div>`,(b,close)=>{
         guardFoodSheet(b,close,readOwner());$('#manual-keep-total',b).onclick=close;
         $('#manual-use-ingredients',b).onclick=async e=>{e.target.disabled=true;try{set(await api(`/api/dishes/${d.id}`,json('PATCH',{...Object.fromEntries(FOOD_NUTRIENTS.map(k=>['known_'+k,null])),use_ingredients:true})));close();}catch(x){toast(x.message);e.target.disabled=false;}};
       });return true;}
@@ -160,7 +160,7 @@ function finishDish(d){
         const fresh=name!==d.name?await api('/api/dishes/'+d.id,json('PATCH',{name})):d;
         if(!live())return;App.cache.delete('/api/dishes');App.cache.delete('/api/dishes/'+d.id);const logging=form.elements.log_today?.checked;close();
         if(logging)dishLogSheet(fresh,{day:isoDay(new Date()),meal:null},editing=>{if(!editing)go('/food/meals',{replace:true});},{chooseMeal:true});
-        else{go('/food/meals',{replace:true});toast(d.totals.kcal==null?'Recipe saved · add nutrition before logging':'Recipe saved · nothing added to your log');}
+        else{go('/food/meals',{replace:true});toast(d.totals.kcal==null?'Recipe saved. Add nutrition before logging it.':'Recipe saved. It wasn’t added to your food log.');}
       }catch(x){if(live()){error.textContent=x.message;error.hidden=false;button.disabled=false;}}
     };
   });
@@ -183,7 +183,7 @@ function foodToDish(d, f, set) {
   const p = f.per100, sg = f.serving && f.serving.g;
   if (!p || p.kcal == null) { toast(`${f.name} has no calories per 100 g - search for it or type it in instead`); return; }
   sheet(f.name, `<form class="form" id="fd2"><p class="small muted">${f.brand ? `${esc(f.brand)} · ` : ''}${r0(p.kcal)} kcal per 100 g${f.serving && f.serving.label ? ` · serving ${esc(f.serving.label)}` : ''}</p>
-    <label>How much went in<span class="gfield"><input name="g" inputmode="decimal" value="${sg ? Math.round(sg) : 100}" aria-label="How much went in, in grams"><span>g</span></span></label>
+    <label>Amount<span class="gfield"><input name="g" inputmode="decimal" value="${sg ? Math.round(sg) : 100}" aria-label="Amount in grams"><span>g</span></span></label>
     ${sg ? `<div class="share-line"><span class="muted">or</span><input name="n" inputmode="decimal" placeholder="1" aria-label="Servings"><span>servings</span></div>` : ''}
     <div class="portion-out" aria-live="polite"></div>
     <div class="actions"><button class="primary">Add to the meal</button></div></form>`, (b, close) => {
@@ -193,7 +193,7 @@ function foodToDish(d, f, set) {
     if (fm.n) fm.n.oninput = () => { const k = num(fm.n); if (k > 0) fm.g.value = Math.round(k * sg); show(); };
     show();
     fm.onsubmit = async (e) => {
-      e.preventDefault(); const g = num(fm.g); if (!(g > 0 && g < 20000)) { toast('How much went in, in grams?'); return; }
+      e.preventDefault(); const g = num(fm.g); if (!(g > 0 && g < 20000)) { toast('Enter the amount in grams.'); return; }
       const sb = $('button.primary', fm); sb.disabled = true;
       try {
         set(await api(`/api/dishes/${d.id}/items`, json('POST', {name: [f.brand, f.name].filter(Boolean).join(' ').slice(0, 200), grams: g, per100: p, source: f.source || 'off', ref: f.id ? {id: f.id} : null})));
@@ -273,7 +273,7 @@ function dishLogSheet(d, w, done, {chooseMeal=false}={}) {
             patchDay(w.day,day=>{const found=day.entries.find(e=>e.id==='q-'+portionId);if(found){day.entries=day.entries.filter(e=>e!==found);for(const k of FOOD_NUTRIENTS){day.totals[k]=Math.max(0,(day.totals[k]||0)-(found[k]||0));if(found[k]==null&&day.unknown_nutrients)day.unknown_nutrients[k]=Math.max(0,(day.unknown_nutrients[k]||0)-1);}}});
             if(readOwner()!==owner)return;undone=true;if(removed.messages&&typeof FoodThread!=='undefined')await FoodThread.accept(removed);
             invalidate('/api/food');if(location.pathname!=='/food/describe')render();toast(removed.queued?'Undo saved on this phone · waiting to send':'Portion removed');
-          }catch(x){if(readOwner()===owner)toast('Could not undo · try again',undo);}finally{undoing=false;}
+          }catch(x){if(readOwner()===owner)toast('Couldn’t undo the portion. Try again.',undo);}finally{undoing=false;}
         };
         toast(r.queued?'Portion saved on this phone · waiting to send':`Added ${d.name} to ${MEAL_NAMES[w.meal].toLowerCase()}: ${recipeCalories(r.entry.kcal)} kcal`,undo);
       } catch (x) { if(readOwner()===owner){if(d.mine===false&&x.status===404){invalidate('/api/dishes');close();done(false);toast('This recipe is no longer shared with you.');}else{toast(x.message);btn.disabled=false;btn.textContent=label;}} }
@@ -333,7 +333,7 @@ function labelButton(el, d, set) {
       box.innerHTML = `<form class="form" id="lb">
         <label>Name<input name="name" maxlength="200" value="${esc([L.brand, L.name].filter(Boolean).join(' '))}"></label>
         <p class="small muted">Per serving (${esc(L.serving.label)}): ${r0(S.kcal)} kcal · ${r1(S.protein_g)} g protein · ${r1(S.carbs_g)} g carbs · ${r1(S.fat_g)} g fat${L.servings ? ` · ${r1(L.servings)} servings in the package` : ''}</p>
-        <label>How much went in<span class="gfield"><input name="g" inputmode="decimal" value="${Math.round(pkg || L.serving.g)}" aria-label="How much went in, in grams"><span>g</span></span></label>
+        <label>Amount<span class="gfield"><input name="g" inputmode="decimal" value="${Math.round(pkg || L.serving.g)}" aria-label="Amount in grams"><span>g</span></span></label>
         <div class="share-line"><span class="muted">or</span><input name="n" inputmode="decimal" value="${pkg ? '' : 1}" placeholder="1" aria-label="Servings"><span>servings</span>
           ${pkg ? `<button type="button" class="linkbtn" id="lb-all">The whole package (${gfmt(pkg)})</button>` : ''}</div>
         <div class="portion-out" aria-live="polite"></div>
@@ -347,7 +347,7 @@ function labelButton(el, d, set) {
       show();
       f.onsubmit = async (e) => {
         e.preventDefault();if(!active())return; const g = num(f.g), name = f.name.value.trim() || L.name;
-        if (!(g > 0 && g < 20000)) { toast('How much went in, in grams?'); return; }
+        if (!(g > 0 && g < 20000)) { toast('Enter the amount in grams.'); return; }
         const sb = $('button.primary', f); sb.disabled = true;
         try {
           set(await api(`/api/dishes/${d.id}/items`, json('POST', {name, grams: g, per100: L.per100, source: 'label'})));

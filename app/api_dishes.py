@@ -293,7 +293,7 @@ def dish_add(body: DishIn, user=Depends(current_user)):
             c.execute('UPDATE dishes SET created = now(), updated = now(), name = %s WHERE id = %s', (NEW_NAME, empty['id']))
             return _view(c, user['id'], _get(c, user['id'], empty['id']))
         if c.execute('SELECT count(*) AS n FROM dishes WHERE user_id = %s', (user['id'],)).fetchone()['n'] >= MAX_DISHES:
-            raise HTTPException(400, f'You can keep up to {MAX_DISHES} meals - delete one first')
+            raise HTTPException(400, f'You can save up to {MAX_DISHES} recipes. Delete one before creating another.')
         # new dishes are measured by servings (the whole dish is one serving): the simplest to log; a pot switches to weight
         did = c.execute("INSERT INTO dishes (user_id, name, serving, servings) VALUES (%s, %s, 'one', 1) RETURNING id", (user['id'], name or NEW_NAME)).fetchone()['id']
         return _view(c, user['id'], _get(c, user['id'], did))
@@ -327,7 +327,7 @@ def dish_edit(did: int, body: DishEdit, user=Depends(current_user)):
         d = _get(c, user['id'], did, lock=True)
         sets = {}
         if 'name' in v:
-            if not (v['name'] or '').strip(): raise HTTPException(400, 'The meal needs a name')
+            if not (v['name'] or '').strip(): raise HTTPException(400, 'Name your recipe.')
             if c.execute('SELECT 1 FROM dish_shares WHERE dish_id=%s LIMIT 1', (did,)).fetchone():
                 community_filter.public(c, user['id'], ('shared recipe name', v['name']))
             sets['name'] = v['name'].strip()
@@ -339,13 +339,13 @@ def dish_edit(did: int, body: DishEdit, user=Depends(current_user)):
         if v.get('serving'): sets['serving'] = v['serving']
         if 'servings' in v: sets['servings'] = v['servings']
         if 'yield_servings' in v:
-            if v['yield_servings'] is None:raise HTTPException(400,'How many servings does the recipe make?')
+            if v['yield_servings'] is None:raise HTTPException(400,'Enter how many servings this recipe makes.')
             sets['yield_servings'] = v['yield_servings']
         if set(sets) & {'cooked_g', 'yield_servings', 'serving', *(f'known_{k}' for k in KNOWN)}: sets['recipe_updated'] = dt.datetime.now(dt.timezone.utc)
         if d.get('recipe_source') and (any('known_'+k in sets for k in KNOWN) or body.use_ingredients or body.dismiss_pending):
             source=dict(d['recipe_source']);source['basis']='ingredients' if body.use_ingredients else ('entered' if any('known_'+k in sets for k in KNOWN) else source['basis']);source['edited']=True
             if body.dismiss_pending:
-                if any(line not in source.get('pending',[]) for line in body.dismiss_pending):raise HTTPException(409,'This unmatched line changed. Reload the recipe.')
+                if any(line not in source.get('pending',[]) for line in body.dismiss_pending):raise HTTPException(409,'This ingredient changed. Reload the recipe and try again.')
                 source['pending']=[line for line in source.get('pending',[]) if line not in body.dismiss_pending]
                 source['site_recipe_changed']=bool(source.get('source_url')) or source.get('site_recipe_changed',False)
             source['sources']={k:('entered' if sets.get('known_'+k) is not None else 'unknown') if 'known_'+k in sets else (source.get('sources') or {}).get(k,'unknown') for k in NUM}
@@ -396,23 +396,23 @@ class ItemIn(N.ExtraValues):
 
 def _per100(body):
     if body.per100 is not None: return body.per100.model_dump()
-    if body.kcal is None: raise HTTPException(400, 'Pick a food, or type its calories')
+    if body.kcal is None: raise HTTPException(400, 'Choose a food or enter its calories.')
     per = {k: (getattr(body, k) * 100 / body.grams if getattr(body, k) is not None else None) for k in NUM}
     if any((per[k] or 0)>N.PER100_LIMITS[k] for k in NUM):
-        raise HTTPException(400, f"That's more than {body.grams:g} g of food can hold - check the amount and the calories")
+        raise HTTPException(400, f"Check the amount and calories for this {body.grams:g} g ingredient.")
     return {k:round(v,4 if k in N.EXTRA else 3) if v is not None else None for k,v in per.items()}
 
 
 @router.post('/{did:int}/items')
 def item_add(did: int, body: ItemIn, user=Depends(current_user)):
-    if body.ref is not None and len(json.dumps(body.ref)) > 2000: raise HTTPException(400, 'ref is too big')
-    if body.grams is None and body.per100 is not None:raise HTTPException(400,'Enter the ingredient weight to use per-100-gram nutrition')
+    if body.ref is not None and len(json.dumps(body.ref)) > 2000: raise HTTPException(400, 'This food’s nutrition details are too long. Choose the food again and retry.')
+    if body.grams is None and body.per100 is not None:raise HTTPException(400,'Enter this ingredient’s weight in grams to calculate its nutrition.')
     per100 = _per100(body) if body.grams is not None else None
     with db.connect() as c:
         dish=_get(c,user['id'],did,lock=True);items=dish['items']
-        if not body.name.strip():raise HTTPException(400,'Name the food you are adding')
-        if body.grams is None and body.kcal is None:raise HTTPException(400,'Enter calories for the amount you are adding')
-        if len(items) >= MAX_ITEMS: raise HTTPException(400, f'A meal can have up to {MAX_ITEMS} ingredients')
+        if not body.name.strip():raise HTTPException(400,'Name the food you are adding.')
+        if body.grams is None and body.kcal is None:raise HTTPException(400,'Enter calories for this amount of food.')
+        if len(items) >= MAX_ITEMS: raise HTTPException(400, f'A recipe can have up to {MAX_ITEMS} ingredients. Remove one before adding another.')
         item = {'id': secrets.token_hex(4), 'name': body.name.strip(), 'grams': _r(body.grams), **(_item_values(per100,body.grams) if per100 else {k:getattr(body,k) for k in NUM}),
                 'per100': per100, 'source': body.source, 'ref': body.ref}
         return _view(c, user['id'], _save_items(c, user['id'], did, items + [item]))
@@ -435,7 +435,7 @@ def item_edit(did: int, iid: str, body: ItemEdit, user=Depends(current_user)):
         n=_find(items,iid);old=items[n]
         if not old.get('per100'):
             per={k:old.get(k)*100/body.grams if old.get(k) is not None else None for k in NUM}
-            if any(v is not None and v>N.PER100_LIMITS[k] for k,v in per.items()):raise HTTPException(400,'Check the weight for this ingredient’s known nutrition')
+            if any(v is not None and v>N.PER100_LIMITS[k] for k,v in per.items()):raise HTTPException(400,'Check this ingredient’s weight and nutrition values.')
             items[n]={**old,'grams':_r(body.grams),'per100':per}
         else:
             values={k:N.rounded(k,old['per100'].get(k)*body.grams/100) if old['per100'].get(k) is not None else None for k in NUM} if dish.get('recipe_source') else _item_values(old['per100'],body.grams)
@@ -466,7 +466,7 @@ class PortionIn(BaseModel):
 
 @router.post('/{did:int}/portion')
 def portion(did: int, body: PortionIn, user=Depends(current_user), thread: bool = False, captured_at: AwareDatetime | None = None):
-    if sum(x is not None for x in (body.grams, body.share, body.count)) != 1: raise HTTPException(400, 'Send grams, share or count')
+    if sum(x is not None for x in (body.grams, body.share, body.count)) != 1: raise HTTPException(400, 'Enter one portion amount: grams, servings or a share of the recipe.')
     with db.connect() as c:
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
         from . import food_thread_receipts as receipts
@@ -476,13 +476,13 @@ def portion(did: int, body: PortionIn, user=Depends(current_user), thread: bool 
             old=c.execute(f'SELECT {receipts.ENTRY} FROM food_entries WHERE user_id=%s AND client_id=%s',(user['id'],body.client_id)).fetchone()
             if old:
                 ref=old.get('ref') or {}
-                if ref.get('dish_id')!=did or ref.get('portion_request')!=request:raise HTTPException(409,'This portion identity was already used. Edit the saved food or start a new log.')
+                if ref.get('dish_id')!=did or ref.get('portion_request')!=request:raise HTTPException(409,'This portion was already saved with different details. Refresh your food log and try again.')
                 messages=receipts.create(c,user['id'],[old['id']],captured_at) if thread else []
                 return {'entry':old,'replayed':True,**({'messages':messages} if thread else {})}
         d = _seen(c, user['id'], did)
-        if _totals(d)['kcal'] is None: raise HTTPException(400, "Add the ingredients or the meal's total calories first")
+        if _totals(d)['kcal'] is None: raise HTTPException(400, 'Add the recipe’s ingredients or enter its total calories before logging a portion.')
         weight = _weight(d)
-        if body.grams is not None and not weight: raise HTTPException(400, "This meal has no weight yet - log a share of it, or add its weight")
+        if body.grams is not None and not weight: raise HTTPException(400, 'This recipe has no total weight. Log a share instead, or add its weight.')
         if body.count is not None:      # servings of the whole dish: by servings, the whole dish is one serving (Ben, 2026-10-12)
             f, amount, unit = body.count / serving_count(d,viewer=user['id']), round(body.count, 2), 'serving'
         elif body.grams is not None: f, amount, unit = body.grams / weight, round(body.grams, 1), 'g'
@@ -490,7 +490,7 @@ def portion(did: int, body: PortionIn, user=Depends(current_user), thread: bool 
         else: f, amount, unit = body.share, round(body.share, 3), 'dish'     # "0.25 dish": a typed-in total with no weight
         totals = _totals(d)
         vals = {k:N.rounded(k,v*f) if v is not None else None for k,v in totals.items()}
-        if any(v is not None and v>N.ENTRY_MAX[k] for k,v in vals.items() if k in N.EXTRA):raise HTTPException(400,'That portion is too large. Check the amount.')
+        if any(v is not None and v>N.ENTRY_MAX[k] for k,v in vals.items() if k in N.EXTRA):raise HTTPException(400,'This portion is too large. Check its amount.')
         day = body.day or _today(c, user['id']).date()
         pos = c.execute('SELECT coalesce(max(position), 0) + 1 AS p FROM food_entries WHERE user_id = %s AND day = %s', (user['id'], day)).fetchone()['p']
         ref = {'dish_id': did, 'weight_g': weight, 'dish_kcal': totals['kcal'],'unknown_nutrients':[k for k,v in vals.items() if v is None],**({'recipe_source':{k:d['recipe_source'].get(k) for k in ('source_url','basis','sources','servings','edited')}} if d.get('recipe_source') else {}),**({'portion_request':request} if body.client_id else {})}
@@ -524,9 +524,9 @@ def share(did: int, body: ShareIn, user=Depends(current_user)):
         t = c.execute("""SELECT u.id, u.name FROM users u JOIN friendships f ON f.status = 'accepted'
                            AND ((f.requester = u.id AND f.addressee = %(me)s) OR (f.addressee = u.id AND f.requester = %(me)s))
                          WHERE u.login = %(l)s""", {'me': user['id'], 'l': body.login.strip().lower()}).fetchone()
-        if not t or c.execute('SELECT 1 FROM blocks WHERE (user_id=%s AND blocked=%s) OR (user_id=%s AND blocked=%s)',(user['id'],t['id'],t['id'],user['id'])).fetchone(): raise HTTPException(404, 'You can share a meal only with friends')
+        if not t or c.execute('SELECT 1 FROM blocks WHERE (user_id=%s AND blocked=%s) OR (user_id=%s AND blocked=%s)',(user['id'],t['id'],t['id'],user['id'])).fetchone(): raise HTTPException(404, 'You can share a recipe only with an approved friend.')
         if not c.execute('SELECT 1 FROM dish_shares WHERE dish_id=%s AND user_id=%s',(did,t['id'])).fetchone() and c.execute('SELECT count(*) AS n FROM dish_shares WHERE dish_id = %s', (did,)).fetchone()['n'] >= MAX_SHARES:
-            raise HTTPException(400, f'A meal can be shared with up to {MAX_SHARES} people')
+            raise HTTPException(400, f'A recipe can be shared with up to {MAX_SHARES} friends.')
         if c.execute('INSERT INTO dish_shares (dish_id, user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING RETURNING 1', (did, t['id'])).fetchone():
             notify.add(c, t['id'], 'dish_shared', user['id'], dish_id=did)
         return _view(c, user['id'], _get(c, user['id'], did))
@@ -557,7 +557,7 @@ def cancel_portion(did:int,body:PortionCancelIn,user=Depends(current_user)):
     with db.connect() as c:
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(uid,))
         entry=c.execute('SELECT * FROM food_entries WHERE user_id=%s AND client_id=%s',(uid,body.client_id)).fetchone()
-        if entry and (entry['source']!='dish' or (entry['ref'] or {}).get('dish_id')!=did):raise HTTPException(409,'This Undo belongs to a different food')
+        if entry and (entry['source']!='dish' or (entry['ref'] or {}).get('dish_id')!=did):raise HTTPException(409,'This portion belongs to a different recipe.')
         key=receipts.identity(uid,body.client_id)
         c.execute('INSERT INTO food_chat_cancellations(user_id,client_id) VALUES(%s,%s) ON CONFLICT DO NOTHING',(uid,key))
         root=c.execute(f'SELECT {food_thread.COLUMNS} FROM food_chat_messages WHERE user_id=%s AND client_id=%s FOR UPDATE',(uid,key)).fetchone()

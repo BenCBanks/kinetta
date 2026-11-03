@@ -15,6 +15,8 @@ try:
   client=TestClient(app,raise_server_exceptions=False);client.headers['Origin']='http://testserver';assert client.post('/api/login',json={'login':name,'password':PW}).status_code==200;clients.append(client)
  a,b=clients;uid,other=uids;day=dt.datetime.now(dt.timezone.utc).date().isoformat()
  before=a.get('/api/food/day').json();assert all(v['recorded'] is None and v['target'] is None for v in before['extra_nutrients'].values())
+ bad_date=a.get('/api/food/day?d=not-a-date')
+ assert bad_date.status_code==400 and bad_date.json()['detail']=='Enter a valid date.'
  body={'day':day,'meal':'lunch','name':'Fictional labelled bowl','kcal':300,'protein_g':20,'sodium_mg':350,'sugar_g':0,'saturated_fat_g':2.5,'source':'label','client_id':str(uuid.uuid4()),'ref':{'unknown_nutrients':['sugar_g']}}
  result=a.post('/api/food/entries',json=[body]);assert result.status_code==200,result.text;eid=result.json()['ids'][0]
  data=a.get('/api/food/day').json();entry=data['entries'][0];assert [entry[k] for k in ('sodium_mg','sugar_g','saturated_fat_g')]==[350,0,2.5]
@@ -22,7 +24,14 @@ try:
  assert data['extra_nutrients']['sodium_mg']['recorded']==350 and data['extra_nutrients']['sodium_mg']['unit']=='mg'
  assert not b.get('/api/food/day').json()['entries']
  assert b.patch('/api/food/entries/'+str(eid),json={'sodium_mg':1}).status_code==404
- assert a.patch('/api/food/entries/'+str(eid),json={'amount':None}).status_code==422
+ amount_error=a.patch('/api/food/entries/'+str(eid),json={'amount':None,'unit':'g'})
+ assert amount_error.status_code==422 and amount_error.json()['detail']=='Enter both the amount and its unit.'
+ restore_error=a.post('/api/food/entries?restore_from='+str(eid)+'&thread=true',json=[body])
+ assert restore_error.status_code==422 and restore_error.json()['detail']=='Restore one food at a time.'
+ undo_error=a.post('/api/food/entries/undo',json={'client_ids':[str(uuid.uuid4())],'confirm':False})
+ assert undo_error.status_code==400 and undo_error.json()['detail']=='This food could not be removed. Try again.'
+ bad_id=a.post('/api/food/entries/undo',json={'client_ids':['invalid!'],'confirm':True})
+ assert bad_id.status_code==422 and bad_id.json()['detail']=='This food could not be removed. Try again.'
  assert a.patch('/api/food/entries/'+str(eid),json={'sodium_mg':True}).status_code==422
  assert a.patch('/api/food/entries/'+str(eid),json={'sodium_mg':None}).status_code==200
  data=a.get('/api/food/day').json();assert data['entries'][0]['sodium_mg'] is None and data['extra_nutrients']['sodium_mg']['recorded'] is None and data['extra_nutrients']['sodium_mg']['unknown_count']==1
@@ -36,6 +45,8 @@ try:
  tomorrow=(dt.date.fromisoformat(day)+dt.timedelta(days=1)).isoformat()
  assert a.post('/api/food/copy',json={'from_day':day,'to_day':tomorrow}).json()['copied']==2
  copied=a.get('/api/food/day?d='+tomorrow).json()['entries'];assert copied[0]['sugar_g']==0 and copied[0]['saturated_fat_g']==2.5 and copied[1]['sodium_mg'] is None
+ empty_meal=a.post('/api/food/meals',json={'name':'Fictional empty meal','entry_ids':[]})
+ assert empty_meal.status_code==400 and empty_meal.json()['detail']=='Add at least one food before saving this meal.'
  assert a.post('/api/food/meals',json={'name':'Fictional saved combination','entry_ids':[eid]}).status_code==200
  saved=a.get('/api/food/meals').json()[0];assert saved['items'][0]['saturated_fat_g']==2.5 and saved['items'][0]['sugar_g']==0
  # Custom-food serving/100g output and edits preserve a reported zero and unknown independently.

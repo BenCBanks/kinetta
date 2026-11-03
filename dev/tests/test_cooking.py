@@ -72,8 +72,10 @@ check('delete missing item 404', b.delete(f'/api/dishes/{did}/items/deadbeef')[0
 # validation
 check('grams 0 -> 422', b.post(f'/api/dishes/{did}/items', {'name': 'X', 'grams': 0, 'kcal': 1})[0] == 422)
 check('grams 20000 -> 422', b.post(f'/api/dishes/{did}/items', {'name': 'X', 'grams': 20000, 'kcal': 1})[0] == 422)
-check('no nutrition -> 400', b.post(f'/api/dishes/{did}/items', {'name': 'X', 'grams': 10})[0] == 400)
-check('impossible kcal -> 400', b.post(f'/api/dishes/{did}/items', {'name': 'X', 'grams': 10, 'kcal': 500})[0] == 400)
+s, r = b.post(f'/api/dishes/{did}/items', {'name': 'X', 'grams': 10})
+check('no nutrition -> 400 with next step', s == 400 and r.get('detail') == 'Choose a food or enter its calories.', r)
+s, r = b.post(f'/api/dishes/{did}/items', {'name': 'X', 'grams': 10, 'kcal': 500})
+check('impossible kcal -> 400 with next step', s == 400 and r.get('detail') == 'Check the amount and calories for this 10 g ingredient.', r)
 check('per100 kcal > 1000 -> 422', b.post(f'/api/dishes/{did}/items', {'name': 'X', 'grams': 10, 'per100': {'kcal': 4000}})[0] == 422)
 check('no name -> 422', b.post(f'/api/dishes/{did}/items', {'grams': 10, 'kcal': 1})[0] == 422)
 check('rescale 0 -> 422', b.patch(f'/api/dishes/{did}/items/{oil}', {'grams': 0})[0] == 422)
@@ -86,7 +88,8 @@ check('pans are gone', b.get('/api/dishes/pans')[0] in (404, 405) and b.patch(f'
 # a portion is one of grams, a share or a count
 check('grams and share -> 400', b.post(f'/api/dishes/{did}/portion', {'grams': 100, 'share': .5, 'meal': 'dinner'})[0] == 400)
 check('grams and count -> 400', b.post(f'/api/dishes/{did}/portion', {'grams': 100, 'count': 1, 'meal': 'dinner'})[0] == 400)
-check('neither -> 400', b.post(f'/api/dishes/{did}/portion', {'meal': 'dinner'})[0] == 400)
+s, r = b.post(f'/api/dishes/{did}/portion', {'meal': 'dinner'})
+check('neither -> 400 with next step', s == 400 and r.get('detail') == 'Enter one portion amount: grams, servings or a share of the recipe.', r)
 check('share > 1 -> 422', b.post(f'/api/dishes/{did}/portion', {'share': 1.5, 'meal': 'dinner'})[0] == 422)
 check('count 0 -> 422', b.post(f'/api/dishes/{did}/portion', {'count': 0, 'meal': 'dinner'})[0] == 422)
 
@@ -137,8 +140,9 @@ b.patch(f'/api/dishes/{did}', {'serving': 'portion'})
 # ---- known_kcal override (from a recipe) ----
 s, k = b.post('/api/dishes', {'name': 'Test lasagne'})
 kid = k['id']
-check('portion with nothing -> 400', b.patch(f'/api/dishes/{kid}', {'cooked_g': 1200})[0] == 200
-      and b.post(f'/api/dishes/{kid}/portion', {'grams': 100, 'meal': 'dinner'})[0] == 400)
+check('weight can be saved before nutrition', b.patch(f'/api/dishes/{kid}', {'cooked_g': 1200})[0] == 200)
+s, r = b.post(f'/api/dishes/{kid}/portion', {'grams': 100, 'meal': 'dinner'})
+check('portion with no nutrition -> 400 with next step', s == 400 and r.get('detail') == 'Add the recipe’s ingredients or enter its total calories before logging a portion.', r)
 s, k = b.patch(f'/api/dishes/{kid}', {'known_kcal': 2400, 'known_protein_g': 120})
 check('known totals', s == 200 and k['totals']['kcal'] == 2400 and k['totals']['protein_g'] == 120 and k['totals']['fat_g'] is None
       and k['totals']['fiber_g'] is None and k['per_100g']['kcal'] == 200, k)
@@ -149,7 +153,8 @@ check('known portion', s == 200 and r['entry']['kcal'] == 600 and r['entry']['pr
 s, k = b.patch(f'/api/dishes/{kid}', {'known_kcal': None, 'name': 'Test lasagne 2'})
 check('null clears known', k['totals']['kcal'] == 875 and k['known']['kcal'] is None and k['name'] == 'Test lasagne 2', k)
 check('empty name -> 422', b.patch(f'/api/dishes/{kid}', {'name': ''})[0] == 422)
-check('blank name -> 400', b.patch(f'/api/dishes/{kid}', {'name': '   '})[0] == 400)
+s, r = b.patch(f'/api/dishes/{kid}', {'name': '   '})
+check('blank recipe name -> 400 with next step', s == 400 and r.get('detail') == 'Name your recipe.', r)
 # a typed-in total with no weight: shares only
 s, k2 = b.post('/api/dishes', {'name': 'Test pie'}); k2id = k2['id']
 s, k2 = b.patch(f'/api/dishes/{k2id}', {'known_kcal': 2000, 'known_protein_g': 80})
@@ -172,7 +177,8 @@ check('not logged in -> 401', Client().get('/api/dishes')[0] == 401)
 # ---- 60 ingredients max ----
 s, m = b.post('/api/dishes', {'name': 'Test big'})
 for i in range(60): b.post(f'/api/dishes/{m["id"]}/items', {'name': f'Thing {i}', 'grams': 1, 'kcal': 1})
-check('61st item -> 400', b.post(f'/api/dishes/{m["id"]}/items', {'name': 'More', 'grams': 1, 'kcal': 1})[0] == 400)
+s, r = b.post(f'/api/dishes/{m["id"]}/items', {'name': 'More', 'grams': 1, 'kcal': 1})
+check('61st item -> 400 with next step', s == 400 and r.get('detail') == 'A recipe can have up to 60 ingredients. Remove one before adding another.', r)
 
 # ---- delete keeps logged entries; old recipe routes are gone ----
 check('delete dish', b.delete(f'/api/dishes/{kid}')[0] == 200 and b.get(f'/api/dishes/{kid}')[0] == 404)

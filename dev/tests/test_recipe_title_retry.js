@@ -6,7 +6,7 @@ const source=fs.readFileSync('app/static/cook.js','utf8'),code=source.slice(sour
   const title={value:'Fictional new title',style:{},scrollHeight:40},status={textContent:'',innerHTML:''},retry={},rename={};let attempts=0,live=true;
   const c={d:{id:99,name:'Untitled recipe'},el:{},active:()=>live,App:{cache:new Map()},api:async()=>{if(++attempts===1)throw Error('Temporary failure');return {id:99,name:title.value};},json:(method,body)=>({method,body}),toast(){},$:(s)=>({'#dk-name':title,'#recipe-title-status':status,'#dk-title-retry':retry,'#dk-rename':rename}[s])};
   vm.createContext(c);vm.runInContext(code,c);
-  await title.onchange();assert.equal(title.value,'Fictional new title');assert.match(status.innerHTML,/Title not saved/);assert.equal(c.d.name,'Untitled recipe');assert.equal(typeof retry.onclick,'function');
+  await title.onchange();assert.equal(title.value,'Fictional new title');assert.match(status.innerHTML,/Recipe name not saved/);assert.match(status.innerHTML,/>Try again</);assert.equal(c.d.name,'Untitled recipe');assert.equal(typeof retry.onclick,'function');
   await retry.onclick();assert.equal(attempts,2);assert.equal(status.textContent,'Title saved');assert.equal(c.d.name,'Fictional new title');
   live=false;title.value='Old account draft';await title.onchange();assert.equal(attempts,2,'a stale editor cannot write into a new session');
   assert(!source.includes('Tap Done to try again'),'recovery names a control that exists');
