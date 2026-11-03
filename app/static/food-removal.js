@@ -2,7 +2,7 @@
 // owns transport; this module owns the reversible local removal window.
 'use strict';
 function foodThreadRemoval({db,request,session,photos={remove:async()=>{}},onChange=async()=>{},now=()=>Date.now(),setTimer=setTimeout,clearTimer=clearTimeout,online=()=>navigator.onLine,undoMs=6000}) {
-  const timers=new Map(),busy=new Set();
+  const timers=new Map(),busy=new Set(),rerun=new Set();
   const key=(owner,id)=>JSON.stringify([owner,id]);
   async function read(owner,id){return (await db.list(owner)).find(j=>j.id===id)||null;}
   async function notify(owner,id){if(session()===owner)await onChange(owner,id);}
@@ -46,45 +46,52 @@ function foodThreadRemoval({db,request,session,photos={remove:async()=>{}},onCha
   }
 
   async function flush(owner){
-    if(session()!==owner||busy.has(owner))return;
+    if(session()!==owner)return;
+    if(busy.has(owner)){
+      // A timer can expire outside the current snapshot while a request is in flight.
+      rerun.add(owner);return;
+    }
     busy.add(owner);
     try{
-      for(const job of await db.list(owner)){
-        if(session()!==owner)break;
-        if(job.phase!=='remove'||!job.removal)continue;
-        if(!job.removal.commitStarted&&now()<job.removal.undoUntil){
-          if(!timers.has(key(owner,job.id)))schedule(owner,job.id,job.removal.undoUntil-now());
-          continue;
+      do{
+        rerun.delete(owner);
+        for(const job of await db.list(owner)){
+          if(session()!==owner)break;
+          if(job.phase!=='remove'||!job.removal)continue;
+          if(!job.removal.commitStarted&&now()<job.removal.undoUntil){
+            if(!timers.has(key(owner,job.id)))schedule(owner,job.id,job.removal.undoUntil-now());
+            continue;
+          }
+          const version=Number(job.version)||0;let claimed=false;
+          const current=await db.update(owner,job.id,row=>{
+            if(row.phase!=='remove'||!row.removal||(Number(row.version)||0)!==version||
+               (!row.removal.commitStarted&&now()<row.removal.undoUntil))return row;
+            claimed=true;
+            return {...row,images:undefined,previews:undefined,offline:false,
+              removal:{...row.removal,commitStarted:true}};
+          });
+          if(!claimed||current?.phase!=='remove')continue;
+          // Once Undo expires, remove photo bytes locally even if the phone is
+          // offline. Keep only the tombstone intent so a later retry is safe.
+          await photos.remove(owner,job.id);
+          if(session()!==owner)continue;
+          if(!online()){
+            await db.update(owner,job.id,row=>row.phase==='remove'&&row.removal?.commitStarted?{...row,offline:true}:row);
+            await notify(owner,job.id);continue;
+          }
+          let completed=false;
+          try{await request('/api/food/thread/cancel',{client_id:job.id});completed=true;}
+          catch(error){
+            if(error.code==='message_cancelled'||(error.status===409&&/already saved/i.test(error.message||'')))completed=true;
+            else if(session()===owner)await db.update(owner,job.id,row=>row.phase==='remove'&&row.removal?.commitStarted?
+              {...row,offline:!!error.offline,error:error.offline?null:error.message}:row);
+          }
+          if(session()!==owner)continue;
+          if(completed){await db.remove(owner,job.id);clear(owner,job.id);await photos.remove(owner,job.id);}
+          await notify(owner,job.id);
         }
-        const version=Number(job.version)||0;let claimed=false;
-        const current=await db.update(owner,job.id,row=>{
-          if(row.phase!=='remove'||!row.removal||(Number(row.version)||0)!==version||
-             (!row.removal.commitStarted&&now()<row.removal.undoUntil))return row;
-          claimed=true;
-          return {...row,images:undefined,previews:undefined,offline:false,
-            removal:{...row.removal,commitStarted:true}};
-        });
-        if(!claimed||current?.phase!=='remove')continue;
-        // Once Undo expires, remove photo bytes locally even if the phone is
-        // offline. Keep only the tombstone intent so a later retry is safe.
-        await photos.remove(owner,job.id);
-        if(session()!==owner)continue;
-        if(!online()){
-          await db.update(owner,job.id,row=>row.phase==='remove'&&row.removal?.commitStarted?{...row,offline:true}:row);
-          await notify(owner,job.id);continue;
-        }
-        let completed=false;
-        try{await request('/api/food/thread/cancel',{client_id:job.id});completed=true;}
-        catch(error){
-          if(error.code==='message_cancelled'||(error.status===409&&/already saved/i.test(error.message||'')))completed=true;
-          else if(session()===owner)await db.update(owner,job.id,row=>row.phase==='remove'&&row.removal?.commitStarted?
-            {...row,offline:!!error.offline,error:error.offline?null:error.message}:row);
-        }
-        if(session()!==owner)continue;
-        if(completed){await db.remove(owner,job.id);clear(owner,job.id);await photos.remove(owner,job.id);}
-        await notify(owner,job.id);
-      }
-    }finally{busy.delete(owner);}
+      }while(session()===owner&&rerun.has(owner));
+    }finally{busy.delete(owner);rerun.delete(owner);}
   }
 
   return {remove,undo,flush,owns};

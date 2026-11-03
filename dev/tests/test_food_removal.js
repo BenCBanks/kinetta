@@ -29,7 +29,8 @@ function fixture(){
     const due=[...timers].filter(([,t])=>t.due<=clock);
     for(const [id,timer] of due){timers.delete(id);await timer.fn();}
   }
-  return {rows,photoRows,calls,changes,timers,db,get removal(){return removal;},add,advance,
+  async function fireTimer(id){const timer=timers.get(id);if(!timer)return;timers.delete(id);return timer.fn();}
+  return {rows,photoRows,calls,changes,timers,db,get removal(){return removal;},add,advance,fireTimer,setClock:v=>clock=v,
     setAccount:v=>account=v,setOnline:v=>connected=v,setRequestHandler:v=>requestHandler=v,
     getNow:()=>clock,dropTimers:()=>timers.clear(),reload:()=>{timers.clear();removal=createRemoval();},
   };
@@ -50,6 +51,22 @@ async function run(){
   f.reload();await f.removal.flush('owner-a');assert.equal(f.timers.size,1);
   await f.advance(5999);assert.equal(f.calls.length,0);
   await f.advance(1);assert.equal(f.calls.length,1);
+
+  // A timer that fires during another slow cancellation schedules a second
+  // pass so a newly added expired removal is not stranded outside the snapshot.
+  f=fixture();await f.add('owner-a','slow-id');await f.removal.remove('owner-a','slow-id');
+  f.setClock(f.getNow()+6000);
+  const slowTimer=[...f.timers.keys()][0];let releaseSlow;
+  f.setRequestHandler(()=>new Promise(resolve=>releaseSlow=resolve));
+  const slowFlush=f.fireTimer(slowTimer);await new Promise(setImmediate);
+  assert.equal(f.calls.length,1,'first cancellation is in flight');f.setRequestHandler(null);
+  await f.add('owner-a','late-id');assert.equal(await f.removal.remove('owner-a','late-id'),true);
+  f.setClock(f.getNow()+6000);const lateTimer=[...f.timers.keys()][0];await f.fireTimer(lateTimer);
+  releaseSlow({cancelled:true});await slowFlush;
+  assert.equal(f.calls.length,2,'the busy flush retries newly expired removals');
+  assert.equal(f.rows.has(JSON.stringify(['owner-a','slow-id'])),false);
+  assert.equal(f.rows.has(JSON.stringify(['owner-a','late-id'])),false,'the late removal is not stranded');
+  assert.equal(f.photoRows.has(JSON.stringify(['owner-a','late-id'])),false);
 
   // Repeated taps do not extend the Undo deadline or resubmit cancellation.
   f=fixture();await f.add();await f.removal.remove('owner-a','stable-id');
