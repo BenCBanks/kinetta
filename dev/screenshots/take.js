@@ -10,6 +10,15 @@ const SHOTS = require('./scenes.json');
 // ONLY=lift,liftex takes just those (new shots, without retaking every other picture)
 const ONLY = process.env.ONLY ? process.env.ONLY.split(',') : null;
 const W = 393, H = 852, TOP = 59, BOTTOM = 34;
+async function enableKitForDemo(page) {
+  // Kit requires the person's explicit opt-in; this is only the fictional screenshot account.
+  const result = await page.evaluate(async () => {
+    const saved = await api('/api/profile', json('PUT', {ai_ok: true, ai_adult: true}));
+    App.me.ai_ok = true;
+    return saved;
+  });
+  if (!result?.ok) throw Error('Could not opt the fictional screenshot account into Kit.');
+}
 // Describe, Snap or Scan: explicit estimates use per-food stand-ins; no provider is called.
 const SAMPLE = (note) => { const n = /two/.test(note || '') ? 2 : 1;   // the correction changes the answer, like the real thing
   const items = [{name: 'Hot dog', amount: String(n), kcal: 550 * n, protein_g: 20 * n, carbs_g: 45 * n, fat_g: 32 * n, fiber_g: 2 * n},
@@ -150,6 +159,7 @@ async function say(page, text) {
     });
     for (const [name, path, opt = {}] of SHOTS) {
       if (ONLY && !ONLY.includes(name)) continue;
+      if (name === 'dietcoach') await enableKitForDemo(page);
       await page.evaluate((p) => { document.querySelectorAll('.scrim').forEach((x) => x.remove()); document.body.classList.remove('has-sheet'); window.scrollTo(0, 0); go(p); }, ids[path] || path);   // no sheet left open from the shot before
       await page.waitForTimeout(1500);
       await page.evaluate(() => { window.scrollTo(0, 0); });

@@ -57,12 +57,15 @@ class KitScreenshotStandinTests(unittest.TestCase):
     def test_screenshot_compose_enables_only_the_disposable_gate(self):
         compose = (SCREENSHOTS / "compose.standin.yml").read_text()
         standin = (SCREENSHOTS / "standin.py").read_text()
+        capture = (SCREENSHOTS / "take.js").read_text()
         self.assertIn('KINETTA_KIT_ENABLED: "1"', compose)
         self.assertIn("/kit-screenshot-runtime/" + REPORT_NAME, compose)
         self.assertIn("GEMINI_API_KEY: placeholder-for-screenshots", compose)
         self.assertIn('ANTHROPIC_API_KEY: ""', compose)
         self.assertIn("ai_release.kit_fingerprint", standin)
         self.assertIn("ai_release.kit_enabled()", standin)
+        self.assertIn("if (name === 'dietcoach') await enableKitForDemo(page);", capture)
+        self.assertIn("{ai_ok: true, ai_adult: true}", capture)
 
 
 if __name__ == "__main__":
