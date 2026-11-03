@@ -34,7 +34,7 @@ function fixture(){
     getNow:()=>clock,dropTimers:()=>timers.clear(),reload:()=>{timers.clear();removal=createRemoval();},
   };
 }
-(async()=>{
+async function run(){
   let f=fixture();await f.add();
   const originalVersion=f.rows.get(JSON.stringify(['owner-a','stable-id'])).version||0;
   assert.equal(await f.removal.remove('owner-a','stable-id'),true);
@@ -125,4 +125,6 @@ function fixture(){
   assert.equal(f.photoRows.has(JSON.stringify(['owner-a','saved-race'])),false);
   assert.equal(f.changes.at(-1).id,'saved-race');
   console.log('food removal: durable pause, Undo, expiry, photos, stale responses, offline retry and owner isolation PASS');
-})().catch(error=>{console.error(error);process.exitCode=1;});
+}
+if(require.main===module)run().catch(error=>{console.error(error);process.exitCode=1;});
+module.exports=run;

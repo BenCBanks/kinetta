@@ -35,5 +35,6 @@ function fixture(){
  assert.equal(ctx.foodThreadError({status:404,message:'Food not found'},'/api/food/thread/messages/7'),'Food not found');
  assert.equal(ctx.foodThreadError({status:404,message:'Recipe not found',detail:'Recipe not found'},'/api/food/thread/reviews/dish'),'Recipe not found');
  assert.equal(ctx.foodThreadError({status:422,message:'Enter a portion',detail:[{type:'greater_than',loc:['body','amount']}]},'/api/food/thread/messages'),'Enter a portion');
+ await require('./test_food_removal.js')();
  console.log('food outbox: stable UUID/capture, offline replay, retained errors, account switches, cancellation races, tombstones and serialization PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});
