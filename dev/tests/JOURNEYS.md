@@ -28,7 +28,7 @@ with the expected URL, visible title and loaded key element. Optional `back` che
 app's Back control; use `startReady` for asynchronous starting screens. The same module
 reuses the spacing scene list for link collection and the later gallery work.
 
-`KINETTA_JOURNEY_CASE=me-profile` runs one case for debugging. Its report is explicitly
+`KINETTA_JOURNEY_CASE=me-profile` (or comma-separated IDs) selects debugging cases. Its report is explicitly
 partial and cannot satisfy the complete link check. Reports default to
 `/tmp/<project>-journeys-report.json` and `/tmp/<project>-links-report.json`; override with
 `KINETTA_JOURNEY_REPORT` and `KINETTA_LINK_REPORT`. Failed cases still appear in the report
@@ -36,6 +36,8 @@ and the process exits nonzero. Set `KINETTA_JOURNEY_SHOTS` to retain destination
 
 The link checker rejects unknown routes, ignored view selectors, mismatched control labels
 and unapproved external links. Downloads cannot follow a redirect outside the fixture.
+It follows newly discovered page links recursively, keeping exact account-scoped URLs;
+every discovery is checked before deduplication. Exceeding 1,000 destinations fails clearly.
 It temporarily breaks the real View progress link to `view=training` and proves that the
 same checker rejects it; a hidden-heading proof protects title checks. `--rendered-only`
 is a clearly labelled partial diagnostic, never complete dynamic `go()` acceptance.

@@ -2,15 +2,15 @@
 'use strict';
 const assert=require('node:assert/strict');
 const views={
- '/progress':{fitness:'Fitness',records:'Records',lifting:'Lifting',totals:'Progress',mileage:'Progress',trends:'Year over year',calendar:'Calendar',routes:'Matched routes',segments:'Segments',heatmap:'Heatmap',plan:'Training plan'},
- '/food':{log:'Nutrition',overview:'Insights',trends:'Insights',energy:'Calories & weight',macros:'Protein & macros',weight:'Weight',needs:'Calorie needs',weeks:'Week by week',calendar:'Food calendar'},
+ '/progress':{fitness:'Fitness',records:'Records',lifting:'Lifting',totals:'Progress',mileage:'Progress',trends:'Years',calendar:'Calendar',routes:'Routes',segments:'Segments',heatmap:'Heatmap',plan:'Training plan'},
+ '/food':{log:'Nutrition',overview:'Insights',trends:'Insights',energy:'Calories & weight',macros:'Protein & macros',weight:'Weight',needs:'Calorie needs',weeks:'Insights',calendar:'Food calendar'},
  '/activity':{mine:'Your activities'},
 };
 const foodProgressViews=new Set(['overview','energy','macros','weight','needs','weeks','calendar']);
 const redirects={'/today':'/me','/me/connections':'/track/connections','/me/health':'/track/health','/me/import':'/track/import','/me/speed':'/me/settings','/me/milestones':'/me','/segments':'/progress/segments','/food/trends':'/food','/food/weight':'/progress/weight'};
-const headings={'/me':'Hi,','/activity':'Activity','/track':'Track','/progress':'Progress','/food':'Nutrition','/me/settings':'Settings','/me/friends':'Friends','/me/activities':'Your activities','/notifications':'Notifications','/me/notifications':'Notifications','/me/sharing':'Sharing & privacy','/me/gear':'Shoes & bikes','/me/goals':'Goals','/me/devices':'Signed-in devices','/me/people':'Admin tools','/track/connections':'Connections','/track/import':'Import','/track/health':'Apple Health','/food/meals':'My Recipes','/food/describe':'Add food','/food/setup':'Nutrition','/me/kit':'Ask Kit','/plan':'Training plan','/progress/weight':'Weight','/progress/routes':'Matched routes','/progress/segments':'Segments','/progress/calendar':'Calendar','/progress/trends':'Year over year','/progress/heatmap':'Heatmap','/me/challenges':'Challenges','/me/explore':'Explore Kinetta'};
+const headings={'/me':'Hi,','/activity':'Activity','/track':'Track','/progress':'Progress','/food':'Nutrition','/me/settings':'Settings','/me/friends':'Friends','/notifications':'Notifications','/me/notifications':'Notifications','/me/sharing':'Sharing & privacy','/me/gear':'Shoes & bikes','/me/goals':'Goals','/me/devices':'Signed-in devices','/me/people':'Admin tools','/track/connections':'Connections','/track/import':'Upload activities','/track/health':'Apple Health','/food/meals':'Recipes & foods','/food/describe':'Add food','/food/setup':'What matters to you?','/me/kit':'Ask Kit','/plan':'Training plan','/progress/weight':'Weight','/progress/routes':'Routes','/progress/segments':'Segments','/progress/calendar':'Calendar','/progress/trends':'Years','/progress/heatmap':'Heatmap','/me/challenges':'Challenges','/me/explore':'Explore Kinetta'};
 const externalHosts=new Set(['kinetta.app','apps.apple.com','www.openstreetmap.org','openstreetmap.org','leafletjs.com','github.com','support.apple.com','support.garmin.com','connect.garmin.com','www.garmin.com']);
-function intention(link,base,registry){
+function intention(link,base,registry,login){
  const source=link.source||'link',label=(link.label||'').trim(),url=new URL(link.href,base),origin=new URL(base).origin;
  const fail=message=>assert.fail(`${source}: ${label||'(unlabelled)'} → ${link.href}: ${message}`);
  if(url.username||url.password)return fail('credentials are not allowed in links');
@@ -29,14 +29,19 @@ function intention(link,base,registry){
  if(q.has('foodview')&&(pathname!=='/progress'||q.get('section')!=='food'))return fail('foodview requires the Progress food section');
  if(q.has('foodview')&&!foodProgressViews.has(q.get('foodview')))return fail('unsupported foodview='+q.get('foodview'));
  if(pathname==='/progress'&&q.get('section')==='food'&&q.has('view'))return fail('Progress food section uses foodview, not view');
+ if(pathname==='/food'&&q.has('add')&&(q.get('add')!=='1'||q.has('view')&&q.get('view')!=='log'))return fail('unsupported food add context');
  if(pathname==='/me/kit'&&q.has('from')&&!['me','nutrition','activity','progress','plan','strength','track'].includes(q.get('from')))return fail('unsupported Kit context');
  if(pathname.startsWith('/people/')&&q.has('preview')&&!['friend','member'].includes(q.get('preview')))return fail('unsupported profile preview');
  if(/view progress/i.test(label)&&(pathname!=='/progress'||q.has('view')||q.has('section')))return fail('View progress must open Progress home');
- if(/view your shared profile|your profile$/i.test(label)&&!pathname.startsWith('/people/'))return fail('profile control must open a person’s profile');
- if(/^(?:view my|all your|your) activities/i.test(label)&&pathname!=='/me/activities')return fail('activity-history control must open your activity list');
+ const ownProfile=login?'/people/'+encodeURIComponent(login):null;
+ if(/view your shared profile|your profile$/i.test(label)&&(!pathname.startsWith('/people/')||ownProfile&&pathname!==ownProfile))return fail('profile control must open your profile');
+ if(/^(?:view my|view your|all your|your) activities/i.test(label)&&pathname!=='/me/activities'&&pathname!==ownProfile)return fail('activity-history control must open your own activity list');
  let canonical=redirects[pathname]||pathname;
+ const dialog=pathname==='/track'&&q.get('past')==='1'?{heading:'Add an activity',ready:'#ma'}:['/me','/me/settings'].includes(pathname)&&q.get('setup')==='body'?{heading:'Body, heart rate & time zone',ready:'#m-form'}:null;
+ const addFood=pathname==='/food'&&q.get('add')==='1';if(addFood)canonical='/food/describe';
+ if(pathname==='/me'&&q.get('setup')==='body')canonical='/me/settings';
  if(pathname==='/progress'&&q.get('section')==='food')canonical=q.get('foodview')==='weight'?'/progress/weight':'/food';
- if(pathname==='/activity'&&q.get('view')==='mine')canonical='/me/activities';
+ if(pathname==='/me/activities'||pathname==='/activity'&&q.get('view')==='mine'){assert(ownProfile,'Owner login required for activity-history alias');canonical=ownProfile;}
  if(pathname==='/progress'&&q.has('view')){
   const view=q.get('view');
   if(view==='plan')canonical='/plan';
@@ -44,8 +49,8 @@ function intention(link,base,registry){
  }
  if(pathname==='/food'&&q.get('view')==='weight')canonical='/progress/weight';
  if(/^\/lift\/\d+$/.test(pathname))canonical=pathname.replace('/lift/','/track/lift/');
- const heading=q.has('view')?views[pathname][q.get('view')]:q.get('section')==='food'?views['/food'][q.get('foodview')||'overview']:pathname==='/food/trends'?'Insights':headings[canonical];
- return {kind:'page',url,canonical,heading};
+ const heading=dialog?.heading||(addFood?'Add food':canonical===ownProfile&&!q.has('preview')?'Your profile':q.has('view')?views[pathname][q.get('view')]:q.get('section')==='food'?views['/food'][q.get('foodview')||'overview']:pathname==='/food/trends'?'Insights':headings[canonical]);
+ return {kind:'page',url,canonical,heading,dialog};
 }
 async function fetchDocument(request,url,base){
  const origin=new URL(base).origin;let target=new URL(url,base);

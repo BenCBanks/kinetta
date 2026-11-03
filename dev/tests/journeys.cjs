@@ -3,7 +3,7 @@
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {createHash}=require('node:crypto');
 const {journeys}=require('./journey_scenes.cjs');
-const {boundary,context,fixtureSessions,ready,assertDestination,until}=require('./journey_browser.cjs');
+const {boundary,context,fixtureSessions,ready,assertDestination,until,closeSheets}=require('./journey_browser.cjs');
 const base=process.env.KINETTA_URL,project=process.env.KINETTA_PROJECT;
 const fixturesFile=process.env.KINETTA_JOURNEY_FIXTURES||'/tmp/'+project+'-journeys.json';
 async function recording(f,uncertain){
@@ -19,7 +19,7 @@ async function food(f){
  const p=f.p,initial=await day();assert.match(initial.day,/^\d{4}-\d{2}-\d{2}$/);f.foodDay=initial.day;
  await p.locator('#fq-add').click();await p.locator('#thread-text').fill('1 serving fictional journey rice');
  await p.locator('#thread-send').click();await p.locator('#thread-review:visible').waitFor();
- assert.match(await p.locator('.compact-food').innerText(),/Fictional journey rice/i);
+ assert.match(await p.locator('.compact-food').last().innerText(),/Fictional journey rice/i);
  const before=await day();assert.deepEqual(before.entries.map(row=>row.id),initial.entries.map(row=>row.id),'Draft did not log early');
  await p.locator('#thread-review').click();await p.locator('#review-confirm').click();
  await until(p,()=>!document.querySelector('#food-final-review'),'Explicit review confirmed');
@@ -41,8 +41,8 @@ async function feedBack(f){
 }
 (async()=>{
  boundary();const fixtures=JSON.parse(fs.readFileSync(fixturesFile)),all=journeys(fixtures);
- const selected=process.env.KINETTA_JOURNEY_CASE?all.filter(test=>test.id===process.env.KINETTA_JOURNEY_CASE):all;
- assert(selected.length,'Selected journey exists');const browser=await chromium.launch(),contexts=new Map(),results=[];
+ const wanted=process.env.KINETTA_JOURNEY_CASE?.split(','),selected=wanted?all.filter(test=>wanted.includes(test.id)):all;
+ assert(selected.length&&(!wanted||selected.length===wanted.length),'Every selected journey must exist');const browser=await chromium.launch(),contexts=new Map(),results=[];
  const started=Date.now();
  try{
   const sessions=await fixtureSessions(browser,base,selected);
@@ -62,17 +62,17 @@ async function feedBack(f){
      if(test.history)await f.p.goBack();else await f.p.locator('[data-back]:visible,.progress-back:visible,.thread-heading > .back').first().click();
      await assertDestination(f.p,test.back);
     }
-    if(test.close)await f.p.locator('.scrim:not([inert]) .sheet header [data-close]').first().click();
+    if(test.close)await closeSheets(f.p);
     assert.deepEqual(f.errors,[],'No page exception');
     assert.deepEqual(f.httpErrors,[],'No unexpected API failure');
-    const targets=await f.p.evaluate(()=>window.journeyGoTargets||[]);results.push({id:test.id,passed:true,end:test.end.url,go:targets,writes:[...f.writes]});
+    const targets=await f.p.evaluate(()=>window.journeyGoTargets||[]);results.push({id:test.id,login:test.login,passed:true,end:test.end.url,go:targets,writes:[...f.writes]});
     console.log('Journey '+test.id+': URL, title and key element PASS');
     if(process.env.KINETTA_JOURNEY_SHOTS&&['me-profile','track-save-detail','nutrition-log','notification-activity_ready'].includes(test.id)){
      fs.mkdirSync(process.env.KINETTA_JOURNEY_SHOTS,{recursive:true});await f.p.screenshot({path:path.join(process.env.KINETTA_JOURNEY_SHOTS,test.id+'.png')});
     }
    }catch(error){
     if(process.env.KINETTA_JOURNEY_SHOTS){fs.mkdirSync(process.env.KINETTA_JOURNEY_SHOTS,{recursive:true});await f.p.screenshot({path:path.join(process.env.KINETTA_JOURNEY_SHOTS,test.id+'-failed.png')}).catch(()=>{});}
-    results.push({id:test.id,passed:false,error:error.message,url:f.p.url(),go:await f.p.evaluate(()=>window.journeyGoTargets||[]).catch(()=>[])});
+    results.push({id:test.id,login:test.login,passed:false,error:error.message,url:f.p.url(),go:await f.p.evaluate(()=>window.journeyGoTargets||[]).catch(()=>[])});
     console.error('Journey '+test.id+': FAIL '+error.message);contexts.delete(key);await f.c.close();
    }
   }

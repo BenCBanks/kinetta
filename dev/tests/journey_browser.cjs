@@ -35,7 +35,7 @@ async function context(browser,base,fixtures,sessions,test,theme='light'){
   if(u.pathname==='/api/challenges/signup/continue')return route.fulfill({json:{}});
   if(current.id?.startsWith('notification-')&&u.pathname==='/api/notifications')return route.fulfill({json:{items:fixtures.journey.notifications,unread:0,push:{},push_ready:false}});
   if(current.kit&&u.pathname==='/api/me'){
-   const response=await route.fetch(),me=await response.json();return route.fulfill({response,json:{...me,kit_chat:true,ai_ok:true,coach:true,ai_access:{...me.ai_access,coach:{available:true,entitled:true}}}});
+   const response=await route.fetch(),me=await response.json();return route.fulfill({response,json:{...me,kit_chat:true,ai_ok:true,ai_paused:false,coach:true,ai_access:{...me.ai_access,coach:{available:true,entitled:true}}}});
   }
   if(current.kit&&u.pathname.startsWith('/api/coach/conversation')){
    const allowed=u.pathname==='/api/coach/conversation'||u.pathname==='/api/coach/conversation/visits'||/^\/api\/coach\/conversation\/visits\/[^/]+\/end$/.test(u.pathname);
@@ -60,12 +60,19 @@ async function context(browser,base,fixtures,sessions,test,theme='light'){
 }
 async function ready(p){await until(p,()=>typeof App!=='undefined'&&App.pageReady&&!document.querySelector('#page[data-home-loading]'),'Journey page ready');}
 async function visibleTitles(p,selector='#page h1,.profile-page-title,.me-card-editor h2,.scrim:not([inert]) .sheet h2'){return p.locator(selector).filter({visible:true}).allTextContents();}
+async function closeSheets(p){
+ while(await p.locator('.scrim:not([inert]):visible').count()){
+  const sheet=p.locator('.scrim:not([inert]):visible').last(),handle=await sheet.elementHandle();
+  await sheet.locator('header [data-close]').click();await handle.waitForElementState('hidden');await handle.dispose();
+ }
+}
 async function assertDestination(p,expected,values={}){
  const url=expected.url.replace('{saved}',String(values.saved)).replace('{day}',String(values.day));
  await p.waitForURL(actual=>actual.pathname+actual.search===url);await ready(p);
  await p.locator(expected.ready).first().waitFor({state:'visible'});
  const titles=expected.titleValue?[await p.locator(expected.titleSelector).filter({visible:true}).inputValue()]:await visibleTitles(p,expected.titleSelector);
  assert(titles.some(title=>title.toLowerCase().includes(expected.title.toLowerCase())),`Expected title ${expected.title} at ${url}; saw ${titles.join(' / ')}`);
+ if(expected.text)assert.equal(await p.locator(expected.ready).first().innerText(),expected.text,'The intended original activity is present');
  assert(await p.evaluate(()=>App.pages.some(page=>page.re.test(location.pathname))),'Destination must be registered, never the unknown-route fallback');
 }
-module.exports={boundary,context,fixtureSessions,ready,assertDestination,visibleTitles,until,settle};
+module.exports={boundary,context,fixtureSessions,ready,assertDestination,visibleTitles,closeSheets,until,settle};
