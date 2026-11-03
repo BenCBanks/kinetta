@@ -409,11 +409,11 @@ function sharedCharts(box, a) {
 // The cheer and comment icons by an activity's title (2026-10-12, Ben: a little icon near the title, comments pop up
 // from below). Both activity pages use them; the counts follow what happens in the comments sheet.
 const talkIcons=(s,aid)=>reactionButtons(aid,s,true)+`<button type="button" class="pf activity-comments" data-ttalk aria-label="Comments, ${s.comments.length}">${svg('comment')}<span class="num"${s.comments.length?'':' hidden'}>${s.comments.length?reactionNumber(s.comments.length):''}</span></button>`;
-function wireTalk(box,aid,s,open){
+function wireTalk(box,aid,s,open,{hideEmpty=false}={}){
   if(!box)return;const owner=readOwner(),cached=SocialData.peek(aid);if(cached)s=cached;else SocialData.remember(aid,s);
-  box.innerHTML=talkIcons(s,aid);box.hidden=false;cleanViews();
+  box.innerHTML=talkIcons(s,aid);const visibility=()=>{if(hideEmpty)box.hidden=!(s.cheers.length||s.comments.length);};visibility();cleanViews();
   const group=$('[data-reaction-group]',box),talk=$('[data-ttalk]',box);
-  const update=fresh=>{if(!box.isConnected||owner!==readOwner())return;s=fresh;group?._sync?.(s);const count=$('.num',talk);count.hidden=!s.comments.length;count.textContent=s.comments.length?reactionNumber(s.comments.length):'';talk.setAttribute('aria-label',`Comments, ${s.comments.length}`);};
+  const update=fresh=>{if(!box.isConnected||owner!==readOwner())return;s=fresh;visibility();group?._sync?.(s);const count=$('.num',talk);count.hidden=!s.comments.length;count.textContent=s.comments.length?reactionNumber(s.comments.length):'';talk.setAttribute('aria-label',`Comments, ${s.comments.length}`);};
   wireReactionGroup(group,aid,update);SocialData.warm(talk,aid);
   viewResources.set(talk,SocialData.watch(aid,fresh=>{if(!box.isConnected||owner!==readOwner())return false;if(fresh)update(fresh);else box.replaceChildren();}));
   talk.onclick=()=>commentsSheet(aid,s,update);
@@ -559,10 +559,10 @@ function photoViewer(a, start, mine, onChange) {
 async function ownSocial(el, a) {
   const box = $('#d-soc', el); if (!box) return;
   const owner=readOwner(),cached=SocialData.peek(a.id),current=()=>box.isConnected&&owner===readOwner();
-  if(cached){if(cached.visibility&&cached.details)a._social=cached;wireTalk(box,a.id,cached,new URLSearchParams(location.search).get('tab')==='comments');}
+  if(cached){if(cached.visibility&&cached.details)a._social=cached;wireTalk(box,a.id,cached,new URLSearchParams(location.search).get('tab')==='comments',{hideEmpty:true});}
   else box.innerHTML='<span class="small muted" role="status">Loading reactions…</span>';
   try{const fresh=await SocialData.read(a.id,{ownerDetails:true});if(!fresh||!current())return;a._social=fresh;
-    if(!cached)wireTalk(box,a.id,fresh,new URLSearchParams(location.search).get('tab')==='comments');
+    if(!cached)wireTalk(box,a.id,fresh,new URLSearchParams(location.search).get('tab')==='comments',{hideEmpty:true});
   }catch(error){if(current()&&!cached){box.hidden=false;box.innerHTML='<button type="button" class="linkbtn" data-social-retry>Retry reactions</button>';$('[data-social-retry]',box).onclick=()=>ownSocial(el,a);}}
 }
 function detailChecks(d) {
