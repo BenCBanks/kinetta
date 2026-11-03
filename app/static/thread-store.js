@@ -8,7 +8,7 @@ const ThreadDB = (() => {
       const r = indexedDB.open('kinetta-food-thread', 1);
       r.onupgradeneeded = () => { r.result.createObjectStore('jobs', {keyPath:'key'}); r.result.createObjectStore('state', {keyPath:'key'}); };
       r.onsuccess = () => { r.result.onversionchange = () => { r.result.close(); opening = null; }; resolve(r.result); };
-      r.onerror = () => { opening = null; reject(Error("This phone couldn't open its food outbox. Keep your message and try again.")); };
+      r.onerror = () => { opening = null; reject(Error("This phone couldn't load your saved food yet. Keep this page open and try again.")); };
     });
     return opening;
   }
@@ -17,7 +17,7 @@ const ThreadDB = (() => {
     return new Promise((resolve, reject) => {
       const t = db.transaction(name, 'readwrite'), s = t.objectStore(name); let value;
       t.oncomplete = () => resolve(value);
-      t.onabort = t.onerror = () => reject(Error("This phone couldn't save the food message. Keep it here and try again."));
+      t.onabort = t.onerror = () => reject(Error("This phone couldn't save this food yet. Keep this page open and try again."));
       try { action(s, v => { value = v; }); } catch (e) { t.abort(); }
     });
   }
@@ -85,7 +85,7 @@ function foodOutbox({db,request,session,changed,progress=async()=>{},online=()=>
             const sendingKey=JSON.stringify([owner,job.id]);sending.add(sendingKey);await progress(owner);
             try{
               r=await Promise.race([request(path,body,{signal:controller.signal}),new Promise((_,reject)=>{
-                timer=setTimeout(()=>{reject(Object.assign(Error('Sending took too long. Your message is kept. Tap Retry to try again.'),{timeout:true}));controller.abort();},timeoutMs(path));
+                timer=setTimeout(()=>{reject(Object.assign(Error('Sending took too long. Your food is still on this phone. Tap Retry to try again.'),{timeout:true}));controller.abort();},timeoutMs(path));
               })]);
             }catch(e){e.message=foodThreadError(e,path);throw e;}
             finally{clearTimeout(timer);sending.delete(sendingKey);await progress(owner);}

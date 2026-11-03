@@ -103,7 +103,7 @@ class PendingNutrition(unittest.TestCase):
   self.post(f"/api/food/thread/messages/{m['id']}/process",{})
   with patch('app.api_food._cached',side_effect=lambda key,fetch,days:fetch()),patch('app.api_food._get',return_value={'status':0}):
    data=self.post(f"/api/food/thread/messages/{m['id']}/resolve",{})
-  result=self.result(data,m['id']);self.assertEqual(result['error']['message'],'Not found in the food database')
+  result=self.result(data,m['id']);self.assertEqual(result['error']['message'],"We couldn't find this barcode.")
   data=self.post(f"/api/food/thread/messages/{m['id']}/manual",{'part':result['parts'][0]['index'],'items':[{'name':'Fictional cereal','amount':1,'unit':'serving','kcal':200}],'confirm':True})
   result=self.result(data,m['id']);self.assertNotIn('error',result);self.assertEqual(result['parts'][0]['status'],'ready');self.assertEqual(self.entries(),[])
   saved=self.post('/api/food/foods',{'name':'Fictional fiber one','barcode':'0016000157620','serving_label':'1 cup','serving_g':60,'kcal':200,'protein_g':5,'carbs_g':40,'fat_g':2})
@@ -113,5 +113,11 @@ class PendingNutrition(unittest.TestCase):
    self.assertEqual(self.b.get('/api/food/barcode/'+code).status_code,404)
   resolved=self.post('/api/food/meals-chat/resolve',{'say':'40 g fictional fiber one','parts':[]})
   self.assertEqual(resolved['items'][0]['status'],'ready');self.assertEqual(resolved['items'][0]['portion'],{'grams':40})
+
+ def test_barcode_provider_failure_matches_the_retry_action(self):
+  with patch('app.api_food._cached',side_effect=lambda key,fetch,days:fetch()),patch('app.api_food._get',side_effect=OSError('private provider detail')):
+   response=self.a.get('/api/food/barcode/016000157620')
+  self.assertEqual(response.status_code,502)
+  self.assertEqual(response.json()['detail'],"We couldn't reach the food database. Try again.")
 
 if __name__=='__main__':unittest.main(verbosity=2)

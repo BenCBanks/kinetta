@@ -6,7 +6,7 @@ const source=fs.readFileSync('app/static/thread.js','utf8');
 const el=()=>({hidden:true,disabled:false,textContent:'',set innerHTML(v){this.markup=v;this.textContent=v.replace(/<[^>]*>/g,'');},attrs:{},setAttribute(k,v){this.attrs[k]=v;},classList:{add(){},remove(){}}});
 const nodes={'#thread-review':el(),'#thread-review-sum':el(),'#thread-send':el()};
 const c={Set,Number,Math,JSON,App:{me:{food_photo_itemize:true}},$:id=>nodes[id],active:()=>true,homeCalories:n=>String(Math.round(n)),Q:{mine:()=>[]},FoodReview:{busy:()=>false},
-  esc:s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[ch]),aiCan:()=>true};
+  esc:s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[ch]),aiCan:()=>true,aiOffer:()=>false};
 vm.createContext(c);
 vm.runInContext(source.slice(source.indexOf('  const pendingReview='),source.indexOf('  async function review(')),c);
 vm.runInContext(source.slice(source.indexOf('  function choices(result) {'),source.indexOf('  function changedNumbers(')),c);
@@ -34,6 +34,7 @@ console.log('food review strip: finished foods only, open questions never block,
 // New ingredient-analysis controls need current food capability/consent, while
 // the saved explanatory answer remains readable when generation is unavailable.
 Object.assign(c,{previewRows:()=>null,changedNumbers:()=>false,kitFoodWords:s=>s,kitHtml:()=>'',svg:()=>'',food:()=>{throw Error('An answer must not render another food')}});
+vm.runInContext(source.slice(source.indexOf('  function foodMessageBody('),source.indexOf('  function replyHtml(')),c);
 vm.runInContext(source.slice(source.indexOf('  function replyHtml('),source.indexOf('  // A "typing" bubble')),c);
 const photoAnswer={entries:[],body:'Saved photo answer',result:{kind:'answer',photo_itemize:3}};
 c.aiCan=()=>false;assert(!c.replyHtml({id:1,state:'answered',result:{review_only:true}},photoAnswer).includes('data-photo-itemize'));
@@ -77,3 +78,38 @@ for(const kcal of [0,120]){
 }
 const incomplete=c.replyHtml(root,{entries:[],result:{kind:'preview',parts:[{index:0,status:'ready',entries:[{name:'Unknown',amount:1,unit:'serving',kcal:null}]}]}});assert(incomplete.includes('Incomplete'));
 console.log('compact drafts: one sticky total, honest incomplete/legacy totals, one message menu, direct amount action and natural source portions PASS');
+
+// A missing barcode stays readable and offers only actions that make sense before a food exists.
+vm.runInContext(source.slice(source.indexOf('  function missingBarcodeActions('),source.indexOf('  function replyHtml(')),c);
+const barcodeRoot={id:8,state:'answered',body:'Scanned product 016000157620',media:'barcode',result:{review_only:true,input:{kind:'barcode'}}};
+const notFoundReply={entries:[],result:{kind:'needs',error:{message:"We couldn't find this barcode."},parts:[{index:0,status:'unknown',entries:[]}]}};
+const notFoundHtml=c.replyHtml(barcodeRoot,notFoundReply);
+assert.match(notFoundHtml,/We couldn't find this barcode\./);assert(!notFoundHtml.includes('Not found in the food database'));
+assert.match(notFoundHtml,/thread-barcode-not-found/);assert(!notFoundHtml.includes('thread-error'));assert(!notFoundHtml.includes('small muted'));
+assert.match(notFoundHtml,/data-manual="0"/);assert.match(notFoundHtml,/data-action="resolve"[^>]*>Try again/);assert(!notFoundHtml.includes('Change amount'));
+assert.match(notFoundHtml,/barcode-choice-row/);assert.match(notFoundHtml,/class="linkbtn" data-manual="0">Enter nutrition/);assert.match(notFoundHtml,/class="icon-btn thread-more" data-more aria-label="More food options"/);
+assert.equal(c.foodMessageBody(barcodeRoot),'Scanned a barcode','older saved barcode entries no longer expose their digits');
+const legacyNotFound=c.replyHtml(barcodeRoot,{...notFoundReply,result:{...notFoundReply.result,error:{message:'Not found in the food database'}}});
+assert.match(legacyNotFound,/thread-barcode-not-found/);assert.match(legacyNotFound,/We couldn't find this barcode\./);assert(!legacyNotFound.includes('Not found in the food database'));
+const oldCancelled=c.replyHtml({id:9,state:'cancelled',result:{review_only:true}},{entries:[],body:'Cancelled this food message.',result:{kind:'needs',cancelled:true,parts:[]}});
+assert.match(oldCancelled,/This food was removed before it was logged\./);assert(!oldCancelled.includes('message'));
+const oldPartialCancel=c.replyHtml({id:10,state:'cancelled',result:{review_only:true}},{entries:[],body:'Stopped checking the remaining food. Already logged food is kept; use Undo to remove it.',result:{kind:'needs',cancelled:true,parts:[]}});
+assert.match(oldPartialCancel,/The remaining food wasn’t checked\. Logged food stays in your log\./);assert(!oldPartialCancel.includes('Undo'));
+c.aiCan=()=>true;let actions=c.missingBarcodeActions(0);assert.match(actions,/class="primary wide" data-estimate="0">Estimate with Kit/);assert.match(actions,/class="linkbtn" data-manual="0">Enter nutrition/);assert.match(actions,/barcode-choice-row[\s\S]*Try again[\s\S]*data-more/);
+c.aiCan=()=>false;c.aiOffer=()=>true;actions=c.missingBarcodeActions(0);assert.match(actions,/data-kit-on="0">Turn on Kit to estimate/);
+c.aiOffer=()=>false;actions=c.missingBarcodeActions(0);assert(!/data-estimate|data-kit-on/.test(actions));assert.match(actions,/class="primary wide" data-manual="0">Enter nutrition/);assert.match(actions,/barcode-choice-row[\s\S]*Try again[\s\S]*data-more/);
+const scan=c.barcodeChatInput('016000157620');assert.equal(scan.body,'Scanned a barcode');assert.equal(scan.media,'barcode');assert.equal(scan.barcode,'016000157620');
+assert.equal(c.foodActionCopy(barcodeRoot,{entries:[],result:{parts:[]}}).title,'Food details');
+assert.equal(c.foodActionCopy(barcodeRoot,{entries:[{name:'Fictional oats'}]}).title,'Fictional oats');
+assert.equal(c.foodActionCopy(barcodeRoot,{entries:[]}).change,'Change it');
+assert.equal(c.foodActionCopy(barcodeRoot,{entries:[]}).remove,'Remove from chat');
+assert.equal(c.foodActionCopy(barcodeRoot,{entries:[]}).note,'This removes the food details from this chat.');
+assert.equal(c.foodActionCopy(barcodeRoot,{entries:[{name:'Fictional oats'}]}).note,'Food already in your log stays.','only logged food gets the reassurance note');
+const found=c.replyHtml(barcodeRoot,{entries:[],result:{kind:'preview',parts:[{index:0,status:'ready',entries:[{name:'Fictional oats',amount:1,unit:'serving',kcal:220}]}]}});
+assert.match(found,/Fictional oats/,'a recognized barcode still shows its product name');
+console.log('barcode card: normal not-found copy, consent-aware primary action, manual/retry recovery, generic scan label and food-named menu PASS');
+
+vm.runInContext(source.slice(source.indexOf('  function pendingHtml('),source.indexOf('  function wirePending(')),c);
+c.navigator={onLine:false};let pending=c.pendingHtml({phase:'process',body:'Fictional tacos'});
+assert.match(pending,/Your food is waiting to send when you’re back online/);assert(!pending.includes('message'));
+console.log('food chat pending status uses food language and avoids internal message wording PASS');

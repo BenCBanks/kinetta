@@ -291,7 +291,7 @@ def search(q: str, sources: str = 'mine,off,usda', user=Depends(current_user)):
 
 
 def _barcode_codes(code):
-    if not re.fullmatch(r'\d{6,14}', code): raise HTTPException(400, 'Barcodes are 6-14 digits')
+    if not re.fullmatch(r'\d{6,14}', code): raise HTTPException(400, 'Enter a barcode with 6–14 digits')
     if len(code) in (12, 13):
         check = sum(int(n) * (3 if i % 2 == 0 else 1) for i, n in enumerate(reversed(code[:-1])))
         if (check + int(code[-1])) % 10: raise HTTPException(400, 'Check the barcode digits and try again')
@@ -320,8 +320,8 @@ def barcode(code: str, user=Depends(current_user)):
         except CatalogUnavailable: unavailable = True
         except Exception: failed = True
     if unavailable: raise CatalogUnavailable()
-    if failed: raise HTTPException(502, "Couldn't reach the food database - try again or add it by hand")
-    raise HTTPException(404, 'Not found in the food database')
+    if failed: raise HTTPException(502, "We couldn't reach the food database. Try again.")
+    raise HTTPException(404, "We couldn't find this barcode.")
 
 
 @router.get('/recent')
