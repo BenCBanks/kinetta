@@ -2,7 +2,7 @@
 (dev/screenshots/take.js) is repeatable and no AI provider or public food database is ever called.
 Started by dev/screenshots/compose.standin.yml inside the screenshot workflow's own container; never used by an install.
 The numbers are the same made-up ones the screenshots have always used."""
-import sys
+import os, sys
 sys.path.insert(0, '/srv')
 from app import ai_release, food_photo, meal_chat
 from kit_release_standin import write_report
