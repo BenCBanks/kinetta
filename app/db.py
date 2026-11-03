@@ -1976,6 +1976,16 @@ MIGRATIONS = [
     """ALTER TABLE custom_foods ALTER COLUMN protein_g DROP NOT NULL,
       ALTER COLUMN carbs_g DROP NOT NULL, ALTER COLUMN fat_g DROP NOT NULL;""",
 
+    # 96. Curated emoji reactions; preserve the existing row, time and notification retry state.
+    """ALTER TABLE cheers DROP CONSTRAINT cheers_kind_check;
+    ALTER TABLE notifications DROP CONSTRAINT notifications_reaction_kind_check;
+    UPDATE cheers SET kind=CASE kind WHEN 'cheer' THEN 'clap' WHEN 'strong' THEN 'muscle' WHEN 'applause' THEN 'fire' ELSE kind END;
+    UPDATE notifications SET reaction_kind=CASE reaction_kind WHEN 'cheer' THEN 'clap' WHEN 'strong' THEN 'muscle' WHEN 'applause' THEN 'fire' ELSE reaction_kind END;
+    ALTER TABLE cheers ALTER COLUMN kind SET DEFAULT 'clap';
+    -- The server catalog owns allowed choices; these constraints bound stable storage keys.
+    ALTER TABLE cheers ADD CONSTRAINT cheers_kind_check CHECK(kind ~ '^[a-z_]{1,24}$');
+    ALTER TABLE notifications ADD CONSTRAINT notifications_reaction_kind_check CHECK(reaction_kind ~ '^[a-z_]{1,24}$');""",
+
 ]
 
 

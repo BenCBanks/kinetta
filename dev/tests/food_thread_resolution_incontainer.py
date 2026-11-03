@@ -469,7 +469,7 @@ class Resolution(unittest.TestCase):
   self.assertTrue(any(p['status']=='ready' for p in result['parts']));self.assertEqual(self.entries(),[]);self.model.assert_not_called()
   self.look.side_effect=lambda text:{'kind':'none','foods':[]};self.resolve(m,retry=True)
   review=self.post('/api/food/thread/reviews',{'client_id':str(uuid.uuid4()),'draft_id':draft,'messages':[m['id']]})
-  self.post(f"/api/food/thread/reviews/{review['id']}/confirm",{'confirm':True,'meal':'lunch','day':str(dt.date.today())})
+  self.post(f"/api/food/thread/reviews/{review['id']}/confirm",{'confirm':True,'meal':'lunch','day':self.a.get('/api/food/day').json()['day']})
   self.assertEqual(sorted(e['kcal'] for e in self.entries()),[130,540])
  def test_45_catalog_failure_preserves_each_owners_saved_search_results(self):
   from app import api_food as F

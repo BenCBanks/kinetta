@@ -21,7 +21,6 @@ function postCard(a, {who = false, compact = false, lock = false} = {}) {
   const kind = a.sport_label && a.sport_label.toLowerCase() !== SPORT_NAMES[a.sport].toLowerCase() ? a.sport_label : SPORT_NAMES[a.sport];
   const badges = [];
   if (a.prs) badges.push(`<span class="badge pr">${svg('trophy')} ${a.prs} PR${a.prs > 1 ? 's' : ''}</span>`);
-  if (a.route_id && !compact) badges.push('<span class="badge">Matched route</span>');
   if (a.commute) badges.push('<span class="badge">Commute</span>');
   // Only the photo and the name open the person's profile (2026-10-16, Ben: the whole row did, so taps meant for the
   // activity landed on the profile); every other part of the card opens the activity (wireCheers → wireCardTaps).
@@ -30,8 +29,8 @@ function postCard(a, {who = false, compact = false, lock = false} = {}) {
   const time=compact&&isoDay(new Date(a.start_time))===isoDay(new Date())?ftime(a.start_time):when(a.start_time);
   const share=theirs?'':`<button type="button" class="pf activity-share" data-share-picture="${a.id}" aria-label="Share a picture of this activity">${svg('share')}</button>`;
   const mark=theirs?(compact?'':sportMark(a.sport)):share;
-  const head = who ? `<a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><span class="ph-txt"><a class="post-name" href="${pref}">${pname}</a><small>${esc(time)} · ${esc(kind)}${audience}${compact&&a.route_id?' <span class="post-route">· Matched route</span>':''}</small></span>${mark}`
-    : `${theirs?sportMark(a.sport):''}<span class="ph-txt"><small>${esc(time)} · ${esc(kind)}${audience}</small></span>${share}`;
+  const head = who ? `<a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><span class="ph-txt"><a class="post-name" href="${pref}">${pname}</a><small>${esc(time)} · ${esc(kind)}${audience}${a.route_id?' <span class="post-route">· Matched route</span>':''}</small></span>${mark}`
+    : `${theirs?sportMark(a.sport):''}<span class="ph-txt"><small>${esc(time)} · ${esc(kind)}${audience}${a.route_id?' <span class="post-route">· Matched route</span>':''}</small></span>${share}`;
   const foot = reactionButtons(a.id,a,false,compact)+`<button type="button" class="pf activity-comments" data-talk="${a.id}" aria-label="Comments, ${a.comments||0}">${svg('comment')}<span class="num"${a.comments?'':' hidden'}>${a.comments?reactionNumber(a.comments):''}</span></button>`;
   return `<article class="card post" data-href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}"><div class="post-hd post-profile">${head}</div><a class="post-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}">
     <h3 class="post-title">${esc(a.name)}</h3>
