@@ -121,4 +121,32 @@ feature_collection_ui.cjs journeys_prepare.py journeys.cjs journeys.cjs links.cj
         self.assertEqual(len(owners),len(Counter(expected)))
         self.assertTrue(all(len(shards)==1 for shards in owners.values()),owners)
 
+    def test_exact_workflow_duplicates_are_removed_and_ci_caches_are_pinned(self):
+        run=(ROOT/'dev/tests/run.sh').read_text()
+        tests=(ROOT/'.github/workflows/tests.yml').read_text()
+        screenshots=(ROOT/'.github/workflows/screenshots.yml').read_text()
+        admin=(ROOT/'.github/workflows/admin-ui.yml').read_text()
+        shard=(ROOT/'dev/tests/run_browser_shard.sh').read_text()
+        cache_action=(ROOT/'.github/actions/build-test-image/action.yml').read_text()
+
+        self.assertIn('node dev/tests/test_spacing_geometry.cjs',run)
+        self.assertNotIn('node dev/tests/test_spacing_geometry.cjs',tests)
+        for name in ('test_admin_logins.js','test_admin_tools.js','test_temporary_login.js'):
+            self.assertIn(f'node dev/tests/{name}',run)
+            self.assertNotIn(f'node dev/tests/{name}',admin)
+        self.assertIn('node dev/tests/navigation_ui.cjs',shard)
+        self.assertNotIn('dev/tests/navigation_ui.cjs',screenshots)
+        self.assertIn('dev/screenshots/take.js',screenshots)
+        self.assertNotIn('/tmp/shots-tool/node_modules',screenshots)
+
+        for workflow in (tests,screenshots):
+            self.assertIn('npm ci --prefix dev/tests/browser',workflow)
+            self.assertIn('~/.cache/ms-playwright',workflow)
+            self.assertIn("hashFiles('dev/tests/browser/package-lock.json')",workflow)
+            self.assertNotIn('npm install playwright',workflow)
+        self.assertIn('cache-from: type=gha,scope=kinetta-${{ inputs.scope }}',cache_action)
+        self.assertIn('cache-to: type=gha,scope=kinetta-${{ inputs.scope }},mode=max,ignore-error=true',cache_action)
+        self.assertIn('load: true',cache_action)
+        self.assertNotIn('up -d --build',tests+screenshots)
+
 if __name__=='__main__':unittest.main()

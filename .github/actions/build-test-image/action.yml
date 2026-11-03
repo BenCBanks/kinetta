@@ -1,0 +1,17 @@
+name: Build test image with a reusable Docker layer cache
+description: Build the current Kinetta source for CI without publishing it.
+inputs:
+  scope:
+    description: Stable cache scope unique to the calling job.
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: docker/setup-buildx-action@v3
+    - uses: docker/build-push-action@v6
+      with:
+        context: .
+        load: true
+        tags: ghcr.io/bencbanks/kinetta:ci
+        cache-from: type=gha,scope=kinetta-${{ inputs.scope }}
+        cache-to: type=gha,scope=kinetta-${{ inputs.scope }},mode=max,ignore-error=true

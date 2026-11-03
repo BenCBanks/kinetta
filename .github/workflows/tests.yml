@@ -27,14 +27,25 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.pull_request.draft == true
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      KINETTA_VERSION: ci
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: dev/tests/browser/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('dev/tests/browser/package-lock.json') }}
+      - uses: ./.github/actions/build-test-image
+        with:
+          scope: tests-quick
       - name: Start a throwaway Kinetta
         run: |
-          GEMINI_API_KEY=placeholder-for-tests KINETTA_PORT=8798 TZ=America/New_York docker compose -p kinettatest up -d --build
+          GEMINI_API_KEY=placeholder-for-tests KINETTA_PORT=8798 TZ=America/New_York docker compose -p kinettatest up -d
           for i in $(seq 1 60); do curl -sf localhost:8798/api/health && break; sleep 3; done
       - name: Load the demo data
         env:
@@ -51,12 +62,12 @@ jobs:
           KINETTA_PROJECT: kinettatest
           FEATURE_UI_SESSION: /tmp/kinetta-features-session.json
         run: |
-          npm install --prefix /tmp/card-browser playwright
-          /tmp/card-browser/node_modules/.bin/playwright install --with-deps chromium
+          npm ci --prefix dev/tests/browser
+          dev/tests/browser/node_modules/.bin/playwright install --with-deps chromium
           python3 dev/tests/admin_features_fixture.py
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/admin_features_ui.cjs
+          NODE_PATH=dev/tests/browser/node_modules node dev/tests/admin_features_ui.cjs
           python3 dev/tests/feature_collection_fixture.py
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/feature_collection_ui.cjs
+          NODE_PATH=dev/tests/browser/node_modules node dev/tests/feature_collection_ui.cjs
       - name: Server log (if something failed)
         if: failure()
         run: docker compose -p kinettatest logs app | tail -100
@@ -72,17 +83,21 @@ jobs:
       KINETTA_URL: http://localhost:8798
       KINETTA_PROJECT: kt-ci-backend
       KINETTA_PORT: 8798
+      KINETTA_VERSION: ci
       TZ: America/New_York
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - uses: ./.github/actions/build-test-image
+        with:
+          scope: tests-backend
       - name: AI evaluation contracts (no paid model calls)
         run: python3 dev/evals/check.py
       - name: Start a throwaway Kinetta
         run: |
-          GEMINI_API_KEY=placeholder-for-tests docker compose -p "$KINETTA_PROJECT" up -d --build
+          GEMINI_API_KEY=placeholder-for-tests docker compose -p "$KINETTA_PROJECT" up -d
           for i in $(seq 1 60); do curl -sf "localhost:$KINETTA_PORT/api/health" && break; sleep 3; done
       - name: Load the demo data
         run: |
@@ -112,18 +127,28 @@ jobs:
       KINETTA_URL: http://localhost:8798
       KINETTA_PROJECT: kt-ci-shard-${{ matrix.shard }}
       KINETTA_PORT: 8798
+      KINETTA_VERSION: ci
       KINETTA_JOURNEY_SHOTS: /tmp/kt-ci-shard-${{ matrix.shard }}-journey-shots
       FEATURE_UI_SESSION: /tmp/kt-ci-shard-${{ matrix.shard }}-features-session.json
-      NODE_PATH: /tmp/kinetta-browser/node_modules
+      NODE_PATH: dev/tests/browser/node_modules
       TZ: America/New_York
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: dev/tests/browser/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('dev/tests/browser/package-lock.json') }}
+      - uses: ./.github/actions/build-test-image
+        with:
+          scope: tests-browser-shard-${{ matrix.shard }}
       - name: Start this shard's isolated Kinetta
         run: |
-          GEMINI_API_KEY=placeholder-for-tests docker compose -p "$KINETTA_PROJECT" up -d --build
+          GEMINI_API_KEY=placeholder-for-tests docker compose -p "$KINETTA_PROJECT" up -d
           for i in $(seq 1 60); do curl -sf "localhost:$KINETTA_PORT/api/health" && break; sleep 3; done
       - name: Load the demo data
         run: |
@@ -132,8 +157,8 @@ jobs:
           python3 dev/screenshots/stage.py /tmp/gpx
       - name: Install Playwright
         run: |
-          npm install --prefix /tmp/kinetta-browser playwright
-          /tmp/kinetta-browser/node_modules/.bin/playwright install --with-deps chromium
+          npm ci --prefix dev/tests/browser
+          dev/tests/browser/node_modules/.bin/playwright install --with-deps chromium
       - name: Run this browser shard
         run: bash dev/tests/run_browser_shard.sh "${{ matrix.shard }}"
       - name: Keep journey evidence
@@ -174,6 +199,7 @@ jobs:
       KINETTA_URL: http://localhost:8798
       KINETTA_PROJECT: kinettatest
       KINETTA_PORT: 8798
+      KINETTA_VERSION: ci
       GEMINI_API_KEY: placeholder-for-tests
       TZ: America/New_York
       KINETTA_SPACING_REPORT: /tmp/spacing-report.json
@@ -184,9 +210,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: dev/tests/browser/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('dev/tests/browser/package-lock.json') }}
+      - uses: ./.github/actions/build-test-image
+        with:
+          scope: tests-spacing
       - name: Start a disposable copy
         run: |
-          docker compose -p kinettatest up -d --build
+          docker compose -p kinettatest up -d
           for i in $(seq 1 60); do curl -sf localhost:8798/api/health && break; sleep 3; done
       - name: Load fictional screens
         run: |
@@ -200,7 +235,6 @@ jobs:
           dev/tests/browser/node_modules/.bin/playwright install --with-deps chromium
       - name: Check the collector and every screen
         run: |
-          node dev/tests/test_spacing_geometry.cjs
           NODE_PATH="$PWD/dev/tests/browser/node_modules" node dev/tests/test_spacing_dom.cjs
           NODE_PATH="$PWD/dev/tests/browser/node_modules" node dev/tests/spacing_audit.cjs
       - name: Check accessible names, semantics and contrast
