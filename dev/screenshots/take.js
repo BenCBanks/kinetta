@@ -240,11 +240,19 @@ async function say(page, text) {
         await page.evaluate((x) => { document.activeElement.blur(); window.scrollTo(0, 0); window.__liftId = x; }, id);
       }
       if (name === 'coach') await page.locator('#d-kit').click();
-      if (name === 'dietcoach') { await page.locator('#nt-coach button').waitFor({state:'visible'}); await page.locator('#nt-coach button').click(); }
+      if (name === 'dietcoach') {
+        const entry = page.locator('#nt-coach a[data-kit-entry][aria-label="Ask Kit"][href="/me/kit?from=nutrition"]');
+        await entry.waitFor({state:'visible'});
+        if (await entry.count() !== 1) throw Error('Nutrition screenshot needs exactly one visible Kit entry');
+        await entry.click();
+        await page.waitForFunction(() => location.pathname === '/me/kit' && new URLSearchParams(location.search).get('from') === 'nutrition');
+        await page.locator('#kit-composer').waitFor({state:'visible'});
+        await page.locator('#kit-intro h2').filter({hasText:'What can I help with?'}).waitFor({state:'visible'});
+      }
       if (name === 'recipecoach') await page.locator('#dk-kit').click();
       if (opt.sel) await page.evaluate((q) => { const e = document.querySelector(q); if (e) window.scrollTo(0, e.getBoundingClientRect().top + scrollY - 70); }, opt.sel);
       if (opt.to) await page.evaluate((t) => {
-        const h = [...document.querySelectorAll('.card > h2, .coach-heading h2, h2.sec-head')].find((x) => x.textContent.trim().startsWith(t));
+        const h = [...document.querySelectorAll('.card > h2, .coach-heading h2, h2.sec-head, #kit-intro h2')].find((x) => x.textContent.trim().startsWith(t));
         if (h) window.scrollTo(0, h.getBoundingClientRect().top + scrollY - 70);   // below the status bar
       }, opt.to);
       await page.waitForTimeout(700);
