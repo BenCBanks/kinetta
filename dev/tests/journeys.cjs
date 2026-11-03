@@ -42,6 +42,7 @@ async function feedBack(f){
 }
 (async()=>{
  boundary();const fixtures=JSON.parse(fs.readFileSync(fixturesFile)),all=journeys(fixtures);
+ const theme=process.env.KINETTA_JOURNEY_THEME||'light';assert(['light','dark'].includes(theme),'Known journey theme');
  const wanted=process.env.KINETTA_JOURNEY_CASE?.split(','),selected=wanted?all.filter(test=>wanted.includes(test.id)):all;
  assert(selected.length&&(!wanted||selected.length===wanted.length),'Every selected journey must exist');
  const started=Date.now();
@@ -53,7 +54,7 @@ async function feedBack(f){
   for(const test of selected){
    if(expired)break;
    const key=[test.login,test.native?test.id:'browser',!!test.kit].join(':'),existing=contexts.has(key);
-   const f=contexts.get(key)||await context(browser,base,fixtures,sessions,test);contexts.set(key,f);f.test(test);
+   const f=contexts.get(key)||await context(browser,base,fixtures,sessions,test,theme);contexts.set(key,f);f.test(test);
    try{
     if(existing)await f.p.evaluate(url=>go(url,{replace:true}),test.start);else await f.p.goto(base+test.start);
     await ready(f.p);
@@ -86,7 +87,7 @@ async function feedBack(f){
    }
   }
  }finally{clearTimeout(watchdog);for(const f of contexts.values())await f.c.close().catch(()=>{});await browser.close();}
- const result={fictional:true,mode:expired?'PARTIAL timeout':process.env.KINETTA_JOURNEY_CASE?'PARTIAL selection':'complete',fixture_sha256:createHash('sha256').update(fs.readFileSync(fixturesFile)).digest('hex'),cases:results,elapsed_seconds:(Date.now()-started)/1000,standins:['Native recorder and GPS','Kit availability/conversation','Backend-generated notification list']};
+ const result={fictional:true,theme,mode:expired?'PARTIAL timeout':process.env.KINETTA_JOURNEY_CASE?'PARTIAL selection':'complete',fixture_sha256:createHash('sha256').update(fs.readFileSync(fixturesFile)).digest('hex'),cases:results,elapsed_seconds:(Date.now()-started)/1000,standins:['Native recorder and GPS','Kit availability/conversation','Backend-generated notification list','Delayed Back challenge response']};
  const output=process.env.KINETTA_JOURNEY_REPORT||'/tmp/'+project+'-journeys-report.json';fs.writeFileSync(output,JSON.stringify(result,null,2));
  const failures=results.filter(row=>!row.passed);console.log(`Journeys: ${results.length-failures.length}/${results.length} passed in ${result.elapsed_seconds.toFixed(1)} seconds`);
  assert(!expired,'Journey batch must finish within its deadline');

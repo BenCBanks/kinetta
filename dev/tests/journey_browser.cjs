@@ -26,12 +26,13 @@ async function context(browser,base,fixtures,sessions,test,theme='light'){
  const auth=sessions.get(test.login+(test.native?':native':''));assert(auth,'Fictional login exists');
  const c=await browser.newContext({storageState:auth.storageState,viewport:{width:390,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});
  await c.addInitScript(initialize,{base,token:auth.token,native:!!test.native,seed:trackSession('recording')});
- const errors=[],httpErrors=[],writes=[],blocked=[];let current=test,saved=null;
+ const errors=[],httpErrors=[],writes=[],blocked=[];let current=test,saved=null,toolsReads=0;
  await c.route('**/*',async route=>{
   const q=route.request(),u=new URL(q.url()),method=q.method();
   if(u.origin!==base)return route.abort();
   if(u.pathname==='/api/map-config')return route.fulfill({json:{kind:'raster',url:base+'/__journey_tiles/{z}/{x}/{y}.png',max_zoom:17,attribution:'Fictional demo tiles'}});
   if(u.pathname.startsWith('/__journey_tiles/'))return route.fulfill({contentType:'image/png',body:tile});
+  if(current.action==='feedBack'&&method==='GET'&&u.pathname==='/api/challenges'&&++toolsReads>1)await new Promise(resolve=>setTimeout(resolve,250));
   if(u.pathname==='/api/challenges/signup/continue')return route.fulfill({json:{}});
   if(current.id?.startsWith('notification-')&&u.pathname==='/api/notifications')return route.fulfill({json:{items:fixtures.journey.notifications,unread:0,push:{},push_ready:false}});
   if(current.kit&&u.pathname==='/api/me'){
@@ -63,7 +64,7 @@ async function context(browser,base,fixtures,sessions,test,theme='light'){
  });
  const p=await c.newPage();p.setDefaultTimeout(8000);p.on('pageerror',error=>errors.push(error.message));
  p.on('response',response=>{const u=new URL(response.url());if(u.pathname.startsWith('/api/')&&response.status()>=400&&!(current.action==='uncertainSave'&&u.pathname==='/api/activities/track'&&response.status()===503))httpErrors.push({path:u.pathname,status:response.status()});});
- return {c,p,auth,errors,httpErrors,writes,blocked,get saved(){return saved;},test(value){current=value;errors.length=0;httpErrors.length=0;writes.length=0;blocked.length=0;}};
+ return {c,p,auth,errors,httpErrors,writes,blocked,get saved(){return saved;},test(value){current=value;errors.length=0;httpErrors.length=0;writes.length=0;blocked.length=0;toolsReads=0;}};
 }
 async function ready(p){await until(p,()=>typeof App!=='undefined'&&App.pageReady&&!document.querySelector('#page[data-home-loading]'),'Journey page ready');}
 async function visibleTitles(p,selector='#page h1,.profile-page-title,.me-card-editor h2,.scrim:not([inert]) .sheet h2'){return p.locator(selector).filter({visible:true}).allTextContents();}

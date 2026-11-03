@@ -31,8 +31,10 @@ app's Back control; use `startReady` for asynchronous starting screens. The same
 reuses the spacing scene list for link collection and the later gallery work.
 
 `KINETTA_JOURNEY_CASE=me-profile` (or comma-separated IDs) selects debugging cases. Its report is explicitly
-partial and cannot satisfy the complete link check. Reports default to
-`/tmp/<project>-journeys-report.json` and `/tmp/<project>-links-report.json`; override with
+partial and cannot satisfy the complete link check.
+`KINETTA_JOURNEY_THEME=dark` repeats a flow in the other theme. Feed Back delays the
+returning challenge response to exercise its scroll-restoration race.
+Reports default to `/tmp/<project>-journeys-report.json` and `/tmp/<project>-links-report.json`; override with
 `KINETTA_JOURNEY_REPORT` and `KINETTA_LINK_REPORT`. Failed cases still appear in the report
 and the process exits nonzero. Set `KINETTA_JOURNEY_SHOTS` to retain destination/failure images.
 
