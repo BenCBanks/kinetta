@@ -21,6 +21,7 @@ node dev/tests/test_link_contract.cjs
 node --check dev/tests/journeys.cjs
 node --check dev/tests/links.cjs
 node --check dev/tests/asset_cache_ui.cjs
+node --check dev/tests/garmin_connect_ui.cjs
 node dev/tests/test_spacing_geometry.cjs
 dev/tests/test_changed_map.sh
 node --check dev/tests/spacing_audit.cjs
