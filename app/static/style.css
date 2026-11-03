@@ -1454,6 +1454,7 @@ html.keyboard-open nav.tabs { display: none; }
 .pf, .pill-sel, .day-nav .icon-btn, .day-nav button { min-height: 44px; }
 #t-plan .plan-today { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; padding: 0 0 16px; }
 .plan-today .pt-w { margin-top: 8px; padding: 10px 12px; background: var(--card2); }
+.plan-today .pt-w b { font-size: 1rem; }
 .plan-today .pt-w[data-workout-kind] { border-inline-start-color: var(--btn); }   /* Today: a blue edge (Ben, 2026-10-23); the plan page keeps easy/hard colours */
 .plan-today .ptrack { display: none; }
 .plan-today p { margin: 6px 0; }

@@ -22,6 +22,12 @@ const report=path.resolve(process.env.KINETTA_SPACING_REPORT||'/tmp/'+project+'-
     const opened=await fixturePage(browser,base,fixtures,sessions,scene,size,theme);c=opened.c;const {p,auth}=opened;
     // Reuse the guarded context's live collectors throughout traversal.
     const writes=opened.writes,pageErrors=opened.pageErrors;
+    if(scene.todayPlan){
+     const title=p.locator('#t-plan .plan-today button.pt-w.today > b');
+     assert.equal(await title.count(),1,'The deterministic Me Today fixture renders today’s planned workout');
+     const font=await title.evaluate(n=>parseFloat(getComputedStyle(n).fontSize));
+     assert(font>=size.root*15/16-.02&&font<=size.root+.02,`Today workout action text follows the body scale (${font}px at ${size.root}px root)`);
+    }
     const measurements=[],seen=new Set(),allTexts=new Map(),exposure=new Map();
     const measure=async()=>{
      assert(await p.evaluate(id=>App.me?.id===id,auth.id),'The intended fictional account remains signed in');assert.equal(await p.locator('.login').count(),0,'The intended screen cannot be replaced by login');
@@ -53,7 +59,7 @@ const report=path.resolve(process.env.KINETTA_SPACING_REPORT||'/tmp/'+project+'-
     measurements.push(audit({screen:scene.name,rootFont:size.root,targets:[],texts:[...allTexts.values()]},rules));
     // A sticky/header layer must not hide a target at every position where it can be fully in view.
     for(const t of exposure.values())if(t.bestUsable.width<43.98||t.bestUsable.height<43.98||t.seenFully&&!t.exposed)measurements.push(audit({screen:scene.name,rootFont:size.root,targets:[{...t,rect:t.bestUsable,unreachable:t.seenFully&&!t.exposed}],texts:[]},rules));
-    if(pictures){fs.mkdirSync(pictures,{recursive:true});await p.evaluate(()=>{window.scrollTo(0,0);document.querySelector('.scrim:not([inert]):not(.is-closing) .sheet')?.scrollTo(0,0);});await settle(p);await p.screenshot({path:path.join(pictures,scene.name.replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'-'+size.width+'-'+theme+'.png')});}
+    if(pictures){fs.mkdirSync(pictures,{recursive:true});await p.evaluate(todayPlan=>{const card=todayPlan&&document.querySelector('#t-plan .plan-today');window.scrollTo(0,card?Math.max(0,window.scrollY+card.getBoundingClientRect().top-96):0);document.querySelector('.scrim:not([inert]):not(.is-closing) .sheet')?.scrollTo(0,0);},!!scene.todayPlan);await settle(p);await p.screenshot({path:path.join(pictures,scene.name.replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'-'+size.width+'-'+theme+'.png')});}
     const {violations,exceptionsUsed}=combineMeasurements(measurements,rules);
     results.push({screen:scene.name,width:size.width,root:size.root,theme,violations,exceptionsUsed});
     if(pageErrors.length||writes.length)errors.push({screen:scene.name,width:size.width,theme,pageErrors,writes});

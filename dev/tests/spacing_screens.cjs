@@ -1,6 +1,7 @@
 'use strict';
 const scenes=fixtures=>[
  {name:'Me',login:'alex',route:'/me',ready:'#page:not([data-home-loading]):has(.me-card-sections[aria-busy="false"])'},
+ {name:'Me Today plan',login:'zz_test_me_today',route:'/me',ready:'#t-plan .plan-today .pt-w.today > b',todayPlan:true},
  {name:'Activity',login:'zz_test_feed_typical',route:'/activity',ready:'#feed-tools[aria-busy="false"]'},
  {name:'Activity detail',login:'zz_test_detail_owner',route:'/activity/'+fixtures.detail.run,ready:'.compact-detail-title'},
  {name:'Track ready',login:'zz_test_track_runner',route:'/track',ready:'#track-explore[aria-busy="false"]',native:true},
