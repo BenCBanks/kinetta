@@ -24,6 +24,13 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
   const setting=await c.request.get(base+'/api/card'),data=await setting.json();
   assert(data.preview.sports.every(s=>s.activities>0));assert.match(await p.locator('#card-picture').getAttribute('alt'),/all-time activities/);
   const anonymous=await browser.newContext();assert((await anonymous.request.get(data.url)).ok());
+  const publicPage=await anonymous.newPage(),publicErrors=[];publicPage.on('pageerror',e=>publicErrors.push(e.message));
+  await publicPage.goto(data.url);
+  assert(await publicPage.getByRole('heading',{name:'@alex is on Kinetta'}).isVisible());
+  assert(await publicPage.getByRole('link',{name:'Already a member? Log in'}).isVisible());
+  assert.equal(await publicPage.locator('#public-card-request').count(),0,'anonymous visitors sign in before sending a friend request');
+  assert.match(await publicPage.locator('main').innerText(),/Opening this card never makes you friends automatically/);
+  assert.deepEqual(publicErrors,[]);await publicPage.close();
   if(out){fs.mkdirSync(out,{recursive:true});await p.evaluate(()=>Promise.all(document.getAnimations().map(a=>a.finished.catch(()=>{}))));await p.screenshot({path:`${out}/card-${size.width}-${theme}.png`});}
   // Unchecking sports changes both the actual API preview and the exported image, and can be restored.
   const first=await (await c.request.get(base+'/api/card/image.png')).body();

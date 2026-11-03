@@ -2,7 +2,7 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill';
-async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
+async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label+' '+JSON.stringify(await p.evaluate(()=>({url:location.href,title:document.title,app:typeof App!=='undefined',ready:typeof App!=='undefined'?App.pageReady:null,body:document.body.innerText.slice(0,300)}))));}
 (async()=>{
  const output=cp.execFileSync('python3',[path.join(__dirname,'recipes_compact_fixture.py')],{env:process.env,encoding:'utf8'});console.log(output.trim());const ids=JSON.parse(output.trim().split('\n').at(-1)),browser=await chromium.launch(),contexts=[];
  async function open(state,theme,size,native=false){
@@ -12,7 +12,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   await c.addInitScript(({root,native,token,base})=>{if(native){const prefs={server:base,token};window.Capacitor={isNativePlatform:()=>true,isPluginAvailable:n=>n==='Preferences',Plugins:{Preferences:{get:async({key})=>({value:prefs[key]??null}),set:async({key,value})=>{prefs[key]=value;},remove:async({key})=>{delete prefs[key];}}}};}document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px');},{root:size.root,native,token,base});
   const p=await c.newPage(),errors=[],writes=[];p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
   await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(u.pathname===`/api/dishes/${ids.recipe.saved}`||u.pathname===`/api/dishes/${ids.recipe.draft}`)return r.continue();return r.fulfill({json:{}});}return r.continue();});
-  await p.goto(base+(recipe?'/food/cook/'+ids.recipe[state==='draft'?'draft':'saved']:'/food/meals'));await until(p,()=>App.pageReady&&!!document.querySelector('#tm-new,#dk-add'),'recipe/library ready');return{c,p,errors,writes};
+  await p.goto(base+(recipe?'/food/cook/'+ids.recipe[state==='draft'?'draft':'saved']:'/food/meals'));await until(p,()=>typeof App!=='undefined'&&App.pageReady&&!!document.querySelector('#tm-new,#dk-add'),`recipe/library ready (${state})`);return{c,p,errors,writes};
  }
  async function closeSheet(p){await p.locator('[data-close]').last().click();await until(p,()=>!document.querySelector('.sheet'),'sheet closed');}
  try{
