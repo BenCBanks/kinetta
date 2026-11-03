@@ -88,6 +88,9 @@ class CIPolicyTests(unittest.TestCase):
         self.assertIn('needs: [backend, browser_shards]',workflow)
         self.assertIn('always()',workflow)
         self.assertIn('run: dev/tests/run.sh',workflow)
+        self.assertIn('KINETTA_PROJECT: kt-ci-shard-${{ matrix.shard }}',workflow)
+        self.assertIn('KINETTA_JOURNEY_SHOTS: /tmp/kt-ci-shard-${{ matrix.shard }}-journey-shots',workflow)
+        self.assertIn('COMPOSE_FILE: ${{ github.workspace }}/docker-compose.yml:${{ github.workspace }}/dev/tests/journeys-compose.yml',workflow)
 
         expected='''interval_voice_ui.cjs navigation_ui.cjs asset_cache_ui.cjs explore_fixture.py
 guide_ui.cjs progress_ui.cjs fitness_ui.cjs heatmap_ui.cjs profile_card_ui.cjs nutrition_ui.cjs
