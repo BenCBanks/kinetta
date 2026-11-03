@@ -70,6 +70,8 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
      const r=row.getBoundingClientRect(),input=row.querySelector('input[type=checkbox]'),s=input.getBoundingClientRect();
      return{height:r.height,display:getComputedStyle(row).display,centerDelta:Math.abs((r.top+r.bottom-s.top-s.bottom)/2),rightGap:r.right-s.right};
     }));
+    const order=await page.locator('#interval-editor').evaluate(el=>{const c=[...el.children];return{extras:c.findIndex(n=>n.classList.contains('interval-extras')),cues:c.findIndex(n=>n.classList.contains('interval-voice-controls')),name:c.findIndex(n=>n.classList.contains('interval-name'))};});
+    assert(order.extras>=0&&order.extras<order.cues&&order.cues<order.name,'Voice cues are the last option block before the name and save area: '+JSON.stringify(order));
     assert(rows.length>=1,'master switch row exists');for(const row of rows){assert(Math.abs(row.height-44)<=1,'switch row is 44px high: '+JSON.stringify(row));assert.equal(row.display,'flex','label and switch form one aligned row');assert(row.centerDelta<=2,'switch is vertically centered in its row: '+JSON.stringify(row));assert(row.rightGap>=-1&&row.rightGap<=2,'switch is aligned at the row end: '+JSON.stringify(row));}
    };
    const snap=async name=>{
