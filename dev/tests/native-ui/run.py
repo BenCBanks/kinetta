@@ -139,7 +139,8 @@ for device in preferred:
      if stage=='friends-heavy' and root==16:assert friends['firstFriend']['bottom']<nav['box']['y'],metrics
      if root==24:assert friends['requestNameFits'] and friends['requestActions']['y']>=friends['requestPerson']['bottom']-1,metrics
     if stage.startswith('activity'):
-     detail=metrics['activity'];assert detail['socialHidden'],metrics
+     detail=metrics['activity'];assert not detail['social']['hidden'],metrics
+     assert all(control and control['width']>=44 and control['height']>=44 for control in (detail['social']['react'],detail['social']['comments'])),metrics
      if stage=='activity-map':
       assert detail['expanded'] and detail['close']['y']>=metrics['safeTop'],metrics
      else:
