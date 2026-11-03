@@ -22,6 +22,7 @@ node --check dev/tests/journeys.cjs
 node --check dev/tests/links.cjs
 node --check dev/tests/asset_cache_ui.cjs
 node dev/tests/test_spacing_geometry.cjs
+dev/tests/test_changed_map.sh
 node --check dev/tests/spacing_audit.cjs
 node --check dev/tests/test_spacing_dom.cjs
 

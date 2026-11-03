@@ -63,7 +63,11 @@ Open PRs as drafts while changing them. The `quick` job runs syntax, existing pu
 unit contracts and eleven API groups (accounts, ownership, activity, Health, food-related
 profile data and notifications) with fictional data and no browser/native jobs; it
 has a 10-minute limit. Locally use `dev/tests/run.sh --quick` against a seeded isolated
-copy. Mark the PR ready when its final implementation is ready for full CI/review.
+copy. For builder worktrees, run `fit-worktree test <name>` before marking Ready; it runs
+the full suite and the changed-screen browser checks against the same disposable server.
+The local gate runs the mapped browser checks. The macOS iPhone workflow remains responsible
+for native WebView layout on Ready PRs that change `app/static/`.
+Mark the PR ready when its final implementation is ready for full CI/review.
 The `ready_for_review` event and pushes to ready PRs run the original complete
 `tests` job and browser checks. Converting back to draft cancels the old run and
 returns to quick checks. Main pushes still run the full suite.
