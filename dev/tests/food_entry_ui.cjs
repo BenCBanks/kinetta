@@ -1,7 +1,7 @@
 // Real saved fictional food responses and API writes; no AI, provider, camera or physical keyboard effects.
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),fs=require('node:fs'),path=require('node:path');
-const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill',people=['empty','one','three','photo','clarify','actions','nullable'];
+const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill',people=['empty','one','three','photo','clarify','actions','nullable','barcode'];
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
 (async()=>{
  cp.execFileSync('python3',[path.join(__dirname,'food_entry_fixture.py')],{env:process.env,stdio:'inherit'});
@@ -11,18 +11,52 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   const signed=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_food_compact_'+who,password:pw,app:native}});assert.equal(signed.status(),200);const token=(await signed.json()).token,headers=native?{Authorization:'Bearer '+token}:{},get=url=>c.request.get(base+url,{headers});
   const me=await(await get('/api/me')).json(),history=await(await get('/api/food/thread')).json(),root=history.messages.find(m=>m.kind==='user'),resume=root?{id:root.result.draft_id,meal:'lunch',day:root.local_day}:null;
   await c.addInitScript(({base,token,native,id,resume,font})=>{document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=font+'px');if(native){const prefs={server:base,token};window.Capacitor={isNativePlatform:()=>true,isPluginAvailable:n=>n==='Preferences',Plugins:{Preferences:{get:async({key})=>({value:prefs[key]??null}),set:async({key,value})=>{prefs[key]=value;},remove:async({key})=>{delete prefs[key];}}}};}if(resume)localStorage.setItem('fit.food.review.draft:'+JSON.stringify([base,id]),JSON.stringify(resume));},{base,token,native,id:me.id,resume,font:size.root});
-  const p=await c.newPage(),errors=[],writes=[];p.on('pageerror',e=>errors.push(e.message));p.on('response',async r=>{if(r.url().startsWith(base+'/api/')&&r.status()>=500)errors.push('HTTP '+r.status()+' '+new URL(r.url()).pathname);});p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
-  await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(who==='nullable'&&(/^\/api\/food\/(?:entries|meals|thread\/messages(?:\/\d+\/process)?)$/.test(u.pathname)))return r.continue();if(/^\/api\/food\/thread\/(reviews(?:\/items|\/\d+\/confirm)?|messages\/\d+\/(?:choose|edit-food|remove-food)|clear)$/.test(u.pathname))return r.continue();return r.fulfill({json:{}});}return r.continue();});
+  const p=await c.newPage(),errors=[],writes=[];let barcodeLookups=0,barcodeStatus=404;p.on('pageerror',e=>errors.push(e.message));p.on('response',async r=>{if(r.url().startsWith(base+'/api/')&&r.status()>=500&&!(who==='barcode'&&r.url().includes('/api/food/barcode/')))errors.push('HTTP '+r.status()+' '+new URL(r.url()).pathname);});p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
+  await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(who==='barcode'&&q.method()==='GET'&&u.pathname==='/api/food/barcode/016000157620'){barcodeLookups++;return r.fulfill({status:barcodeStatus,contentType:'application/json',body:JSON.stringify({detail:barcodeStatus===404?"We couldn't find this barcode.":"We couldn't reach the food database. Try again."})});}if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(who==='nullable'&&(/^\/api\/food\/(?:entries|meals|thread\/messages(?:\/\d+\/process)?)$/.test(u.pathname)))return r.continue();if(/^\/api\/food\/thread\/(reviews(?:\/items|\/\d+\/confirm)?|messages\/\d+\/(?:choose|edit-food|remove-food)|clear)$/.test(u.pathname))return r.continue();return r.fulfill({json:{}});}return r.continue();});
   await p.goto(base+'/food/describe?meal=lunch');await until(p,()=>App.pageReady&&!!document.querySelector('#thread-text'),'food ready');if(root)await until(p,()=>!!document.querySelector('.thread-card:not(.thread-thinking)'),'saved fictional response');
-  return {c,p,get,errors,writes,root};
+  return {c,p,get,errors,writes,root,barcodeLookups:()=>barcodeLookups,setBarcodeStatus:status=>{barcodeStatus=status;}};
  }
  try{
-  for(const who of ['empty','one','three','photo','clarify','keyboard'])for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){
+  for(const who of ['empty','one','three','photo','clarify','barcode','keyboard'])for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){
    const name=`${who}-${size.width}-${theme}`;if(process.env.KINETTA_FOOD_CASE&&process.env.KINETTA_FOOD_CASE!==name)continue;
-   const native=who==='keyboard',{c,p,errors,writes}=await open(native?'three':who,theme,size,native),rows=p.locator('.compact-food');
+    const native=who==='keyboard',{c,p,errors,writes,barcodeLookups,setBarcodeStatus}=await open(native?'three':who,theme,size,native),rows=p.locator('.compact-food');
    assert(await p.locator('.thread-heading .back').evaluate(n=>{const t=[...n.childNodes].find(x=>x.nodeType===Node.TEXT_NODE&&x.textContent.trim())||n.querySelector('span');if(!t)return false;const r=document.createRange();r.selectNodeContents(t);return r.getClientRects().length===1;}),'Nutrition back label stays whole');
    assert.equal(await p.locator('.keyboard-done,.keyboard-done-bar').count(),0);assert(Number.parseFloat(await p.locator('#thread-text').evaluate(n=>getComputedStyle(n).fontSize))>=16);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no document overflow');
-   if(who==='empty'){assert.equal(await p.locator('[data-thread-quick]:visible').count(),4);if(size.root===16)assert((await p.locator('#thread-empty p').boundingBox()).height<28,'one intro line');}
+   if(who==='barcode'){
+    const card=p.locator('.thread-card:not(.thread-thinking)'),message=p.locator('.thread-user p').last(),notFound=card.locator('.thread-barcode-not-found');
+    assert.equal(await message.innerText(),'Scanned a barcode','the chat never exposes raw barcode digits');
+    assert.equal(await notFound.innerText(),"We couldn't find this barcode.");
+    assert.equal(await notFound.evaluate(n=>getComputedStyle(n).color),await card.evaluate(n=>getComputedStyle(n).color),'not-found copy uses the normal card text colour');
+    const estimate=card.locator('[data-estimate]'),turnOn=card.locator('[data-kit-on]');
+    if(await estimate.count())assert.match(await estimate.innerText(),/^Estimate with Kit$/);
+    if(await turnOn.count())assert.match(await turnOn.innerText(),/^Turn on Kit to estimate$/);
+    assert.equal(await card.locator('[data-manual]').innerText(),'Enter nutrition');
+    assert.equal(await card.locator('[data-action=resolve]').innerText(),'Try again');
+    assert.equal(await card.locator('[data-portion]').count(),0,'no amount action before a food is found');
+    assert.equal(await card.locator('.thread-error,.small.muted').count(),0,'not-found copy is neither red nor muted');
+    assert.doesNotMatch(await card.innerText(),/Not found in the food database|016000157620|Change amount|Retry lookup|Which food and portion/);
+    const labels=await card.locator('.thread-choices button').allTextContents();assert.deepEqual(labels.slice(-2),['Enter nutrition','Try again']);
+    if(process.env.SHOT_DIR&&size.width===390){fs.mkdirSync(process.env.SHOT_DIR,{recursive:true});await p.screenshot({path:path.join(process.env.SHOT_DIR,`barcode-not-found-${theme}-390.png`)});}
+    await card.locator('[data-more]').click();await p.waitForSelector('#thread-correct');
+    assert.equal(await p.locator('.scrim .sheet h2').innerText(),'Food details');assert.equal(await p.locator('#thread-correct').innerText(),'Change it');assert.equal(await p.locator('#thread-delete').innerText(),'Remove description');assert.equal(await p.locator('.scrim .sheet p').innerText(),'This removes the food details from this chat.');
+    await p.keyboard.press('Escape');await p.locator('.scrim').waitFor({state:'detached'});
+    let dialogs=0;p.on('dialog',dialog=>{dialogs++;dialog.dismiss();});
+    await p.evaluate(()=>scanSheet(isoDay(new Date()),'lunch',null));await p.waitForSelector('#sc-lookup');
+    await p.locator('#sc-f input').fill('016000157620');
+    let response=p.waitForResponse(r=>r.url().includes('/api/food/barcode/016000157620')&&r.status()===404);await p.locator('#sc-lookup').click();await response;
+    await until(p,()=>!document.querySelector('#sc-actions').hidden,'classic barcode not-found actions');
+    assert.equal(await p.locator('#sc-msg').innerText(),"We couldn't find this barcode.");
+    assert.equal(await p.locator('#sc-lookup').innerText(),'Try again');assert(await p.locator('#sc-enter-nutrition').isVisible());
+    response=p.waitForResponse(r=>r.url().includes('/api/food/barcode/016000157620')&&r.status()===404);await p.locator('#sc-lookup').click();await response;
+    await until(p,()=>!document.querySelector('#sc-actions').hidden,'barcode retry actions');assert.equal(barcodeLookups(),2);
+    assert.equal(await p.locator('#sc-msg').innerText(),"We couldn't find this barcode.");assert.equal(dialogs,0,'not-found recovery does not use a confirmation dialog');
+    await p.locator('#sc-enter-nutrition').click();await p.waitForSelector('#fe');await p.keyboard.press('Escape');
+    setBarcodeStatus(502);await p.evaluate(()=>scanSheet(isoDay(new Date()),'lunch',null));await p.waitForSelector('#sc-lookup');await p.locator('#sc-f input').fill('016000157620');
+    response=p.waitForResponse(r=>r.url().includes('/api/food/barcode/016000157620')&&r.status()===502);await p.locator('#sc-lookup').click();await response;
+    assert.equal(await p.locator('#sc-msg').innerText(),"We couldn't reach the food database. Try again.");assert.equal(await p.locator('#sc-lookup').innerText(),'Try again');assert.equal(await p.locator('#sc-enter-nutrition').isVisible(),false,'network failure offers only the retry it describes');
+    await p.keyboard.press('Escape');await p.locator('.scrim').waitFor({state:'detached'});
+   }
+   else if(who==='empty'){assert.equal(await p.locator('[data-thread-quick]:visible').count(),4);if(size.root===16)assert((await p.locator('#thread-empty p').boundingBox()).height<28,'one intro line');}
    else{assert.equal(await p.locator('[data-thread-quick]:visible').count(),0,'shortcuts collapse after a message');if(who==='clarify'){assert.equal(await p.locator('[data-reply]').count(),2);assert(await p.locator('#thread-review').isHidden());}
     else{const count=who==='one'?1:who==='photo'?4:3;assert.equal(await rows.count(),count);assert.equal(await p.locator('.thread-total').count(),0,'only the sticky review total');assert(await p.locator('#thread-review').isVisible());
      const total=await p.locator('.thread-review-kcal').boundingBox(),action=await p.locator('.thread-review-go').boundingBox();

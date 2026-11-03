@@ -378,7 +378,7 @@ def cancel_pending(body: CancelIn,user=Depends(current_user)):
             c.execute("UPDATE food_chat_messages SET state='cancelled' WHERE id=%s AND user_id=%s",(message['id'],uid))
             c.execute("UPDATE food_chat_jobs SET state='cancelled' WHERE message_id=%s AND user_id=%s",(message['id'],uid))
             if reply:
-                result.update({'cancelled':True,'pending_count':0,'can_resolve':False,'text':'Stopped checking the remaining food. Already logged food is kept; use Undo to remove it.' if result.get('entry_ids') else 'Cancelled this food message.'})
+                result.update({'cancelled':True,'pending_count':0,'can_resolve':False,'text':'The remaining food wasn’t checked. Logged food stays in your log.' if result.get('entry_ids') else 'This food was removed before it was logged.'})
                 c.execute('UPDATE food_chat_messages SET body=%s,result=%s WHERE id=%s AND user_id=%s',(result['text'],json.dumps(result,default=str),reply['id'],uid))
         c.execute('INSERT INTO food_chat_cancellations(user_id,client_id) VALUES (%s,%s) ON CONFLICT DO NOTHING',(uid,body.client_id))
         return {'cancelled':True,'food_kept':bool(message and result.get('entry_ids'))}

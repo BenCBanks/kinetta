@@ -303,7 +303,7 @@ def cancel_card(c,uid,previous):
     c.execute("UPDATE food_chat_jobs SET state='cancelled' WHERE message_id=%s AND user_id=%s",(previous['id'],uid))
     c.execute('INSERT INTO food_chat_cancellations(user_id,client_id) VALUES (%s,%s) ON CONFLICT DO NOTHING',(uid,previous['client_id']))
     if reply:
-        result={**reply['result'],'cancelled':True,'pending_count':0,'can_resolve':False,'text':'Cancelled. Nothing from this message was logged.'}
+        result={**reply['result'],'cancelled':True,'pending_count':0,'can_resolve':False,'text':'This food was removed before it was logged.'}
         c.execute('UPDATE food_chat_messages SET body=%s,result=%s WHERE id=%s AND user_id=%s',(result['text'],json.dumps(result,default=str),reply['id'],uid))
     rows=c.execute(f'SELECT {food_thread.COLUMNS} FROM food_chat_messages WHERE user_id=%s AND (id=%s OR reply_to=%s) ORDER BY id',(uid,previous['id'],previous['id'])).fetchall()
     return food_thread.message_entries(c,uid,rows)

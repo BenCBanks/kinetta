@@ -111,7 +111,9 @@ class Understanding(unittest.TestCase):
         reply,_=self.say('no wait, 3 eggs',understood('correct',target='egg',new_quantity=3));self.assertEqual(reply['body'],'Changed egg to 3.')
         reply,_=self.say("I didn't have the toast",understood('remove',target='toast'));self.assertEqual(reply['body'],'Removed toast.')
         reply,messages=self.say('that was lunch',understood('move',meal='lunch'));self.assertEqual(reply['body'],'Okay, lunch today.')
-        reply,_=self.say('forget it',understood('cancel'));self.assertIn('Nothing was logged',reply['body'])
+        reply,messages=self.say('forget it',understood('cancel'));self.assertIn('Nothing was logged',reply['body'])
+        cancelled=next(m for m in messages if (m.get('result') or {}).get('cancelled'))
+        self.assertEqual(cancelled['body'],'This food was removed before it was logged.')
 
     def test_questions_use_code_numbers(self):
         reply,_=self.say('am I under my protein',understood('ask_log',topic='left',nutrient='protein',reply='You have 999 g left'))

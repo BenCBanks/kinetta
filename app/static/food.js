@@ -884,12 +884,20 @@ function scanSheet(day, meal, onFound, onCode) {
   let stop = () => {};
   const closeSheet = sheet('Scan a barcode', `<div class="scan"><video id="sc-v" playsinline muted></video><div class="scanbox"></div></div>
     <p class="small muted" id="sc-msg">Point the camera at the barcode.</p>
-    <form class="wform" id="sc-f"><input name="code" inputmode="numeric" placeholder="or type the number" aria-label="Barcode number"><button class="ghost">Look up</button></form>`, async (b, close) => {
+    <form class="wform" id="sc-f"><input name="code" inputmode="numeric" placeholder="or type the number" aria-label="Barcode number"><button class="ghost" id="sc-lookup">Look up</button></form>
+    <div class="thread-actions" id="sc-actions" hidden><button type="button" class="primary wide" id="sc-enter-nutrition">Enter nutrition</button></div>`, async (b, close) => {
     const v = $('#sc-v', b), msg = $('#sc-msg', b);
     const found = async (code) => {
-      stop(); if(onCode){close();onCode(String(code));return;} msg.textContent = `Found ${code}. Looking it up…`;
+      stop(); if(onCode){close();onCode(String(code));return;}
+      const retry=$('#sc-lookup',b),actions=$('#sc-actions',b),enter=$('#sc-enter-nutrition',b),field=$('#sc-f input',b);
+      if(actions)actions.hidden=true;if(retry)retry.textContent='Look up';if(field)field.value=String(code);
+      msg.textContent='Looking up this barcode…';
       try { const f = await api(`/api/food/barcode/${code}`); close(); if (onFound) onFound(f); else amountSheet({...f,entry_method:"barcode"}, {day, meal}, () => {}); }
-      catch (x) { msg.textContent = x.message; if (x.status === 404) { const go2 = confirm(`${x.message}. Create it now?`); if (go2) { close(); foodEditor({name: '', barcode: code, serving: {label: '1 serving'}}, null); } } }
+      catch (x) {
+        if(retry)retry.textContent='Try again';
+        if(x.status===404){msg.textContent="We couldn't find this barcode.";msg.classList.remove('small','muted');if(actions)actions.hidden=false;if(enter)enter.onclick=()=>{close();foodEditor({name:'',barcode:String(code),serving:{label:'1 serving'}},null);};}
+        else msg.textContent=x.status===502?"We couldn't reach the food database. Try again.":x.message;
+      }
     };
     $('#sc-f', b).onsubmit = (e) => { e.preventDefault(); const c = e.target.code.value.replace(/\D/g, ''); if (c.length >= 6) found(c); };
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { msg.textContent = 'No camera here. Type the number instead.'; return; }
