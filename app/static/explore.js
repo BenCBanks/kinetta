@@ -109,7 +109,7 @@ const GUIDE_ICONS = {
   "recent-milestones": "trophy",
   "share-your-kinetta": "share",
   "friends-people-search": "people",
-  "cheers-comments": "cheer",
+  "reactions-comments": "cheer",
   "your-shared-profile": "user",
   "sharing-map-privacy": "lock",
   "shoes-bikes": "shoe",

@@ -32,10 +32,16 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     if(await turnOn.count())assert.match(await turnOn.innerText(),/^Turn on Kit to estimate$/);
     assert.equal(await card.locator('[data-manual]').innerText(),'Enter nutrition');
     assert.equal(await card.locator('[data-action=resolve]').innerText(),'Try again');
+    const actionRow=card.locator('.barcode-choice-row');assert.equal(await actionRow.count(),1);
+    assert.deepEqual(await actionRow.locator('.linkbtn').allTextContents(),['Enter nutrition','Try again'],'secondary actions are plain links on one row');
+    assert.equal(await actionRow.locator('[data-more]').count(),1,'overflow menu ends the action row');
+    assert.equal(await card.locator('.thread-actions [data-more]').count(),0,'no duplicate menu row');
+    const rowGeometry=await actionRow.evaluate(row=>{const bounds=[...row.children].map(n=>n.getBoundingClientRect());return {centers:bounds.map(b=>b.top+b.height/2),right:bounds.at(-1).right,cardRight:row.closest('.thread-card').getBoundingClientRect().right};});
+    assert(rowGeometry.centers.every(y=>Math.abs(y-rowGeometry.centers[0])<2),'secondary links and overflow menu stay on one row');assert(rowGeometry.right<=rowGeometry.cardRight+1,'overflow menu fits inside the card');
     assert.equal(await card.locator('[data-portion]').count(),0,'no amount action before a food is found');
     assert.equal(await card.locator('.thread-error,.small.muted').count(),0,'not-found copy is neither red nor muted');
     assert.doesNotMatch(await card.innerText(),/Not found in the food database|016000157620|Change amount|Retry lookup|Which food and portion/);
-    const labels=await card.locator('.thread-choices button').allTextContents();assert.deepEqual(labels.slice(-2),['Enter nutrition','Try again']);
+    assert.equal(await card.locator('[data-manual]').evaluate(n=>n.classList.contains('linkbtn')),true,'Enter nutrition is a plain link, not a pill');
     if(process.env.SHOT_DIR&&size.width===390){fs.mkdirSync(process.env.SHOT_DIR,{recursive:true});await p.screenshot({path:path.join(process.env.SHOT_DIR,`barcode-not-found-${theme}-390.png`)});}
     await card.locator('[data-more]').click();await p.waitForSelector('#thread-correct');
     assert.equal(await p.locator('.scrim .sheet h2').innerText(),'Food details');assert.equal(await p.locator('#thread-correct').innerText(),'Change it');assert.equal(await p.locator('#thread-delete').innerText(),'Remove description');assert.equal(await p.locator('.scrim .sheet p').innerText(),'This removes the food details from this chat.');
