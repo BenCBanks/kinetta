@@ -32,7 +32,7 @@ Share with friends
 
 ## photos-cheers-and-comments-with-route-starts-and-ends--9
 
-One activity feed, a profile you control, and cheers from friends. Your food log and body data stay private.
+One activity feed, a profile you control, and 16 emoji reactions to cheer each other on. Your food log and body data stay private.
 
 ## want-to-try-it-12
 

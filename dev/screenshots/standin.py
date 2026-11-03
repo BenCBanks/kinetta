@@ -2,9 +2,10 @@
 (dev/screenshots/take.js) is repeatable and no AI provider or public food database is ever called.
 Started by dev/screenshots/compose.standin.yml inside the screenshot workflow's own container; never used by an install.
 The numbers are the same made-up ones the screenshots have always used."""
-import sys
+import os, sys
 sys.path.insert(0, '/srv')
-from app import food_photo, meal_chat
+from app import ai_release, food_photo, meal_chat
+from kit_release_standin import write_report
 
 NOTE = ''   # the real estimator's short note; left empty so the website shows no stand-in wording
 
@@ -42,6 +43,14 @@ def estimate(body, user, *, strict=False):
 food_photo.estimate = estimate
 # nothing in the public food databases, so the stand-in estimates every new food (as the old browser stand-ins did)
 meal_chat.lookup = lambda text, *a, **k: {'text': text, 'query': '', 'kind': 'none', 'foods': [], 'portion': None}
+
+# The disposable screenshot app gets a runtime fingerprint, never a copied production report.
+report_path = os.environ.get('KINETTA_KIT_EVAL_REPORT')
+if not report_path:
+    raise RuntimeError('The screenshot-only Kit fixture report path is missing.')
+write_report(report_path, ai_release.kit_fingerprint)
+if not ai_release.kit_enabled():
+    raise RuntimeError('The screenshot-only Kit fixture did not satisfy the Kit UI gate.')
 
 import uvicorn  # noqa: E402
 

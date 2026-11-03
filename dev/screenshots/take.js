@@ -10,6 +10,15 @@ const SHOTS = require('./scenes.json');
 // ONLY=lift,liftex takes just those (new shots, without retaking every other picture)
 const ONLY = process.env.ONLY ? process.env.ONLY.split(',') : null;
 const W = 393, H = 852, TOP = 59, BOTTOM = 34;
+async function enableKitForDemo(page) {
+  // Kit requires the person's explicit opt-in; this is only the fictional screenshot account.
+  const result = await page.evaluate(async () => {
+    const saved = await api('/api/profile', json('PUT', {ai_ok: true, ai_adult: true}));
+    App.me.ai_ok = true;
+    return saved;
+  });
+  if (!result?.ok) throw Error('Could not opt the fictional screenshot account into Kit.');
+}
 // Describe, Snap or Scan: explicit estimates use per-food stand-ins; no provider is called.
 const SAMPLE = (note) => { const n = /two/.test(note || '') ? 2 : 1;   // the correction changes the answer, like the real thing
   const items = [{name: 'Hot dog', amount: String(n), kcal: 550 * n, protein_g: 20 * n, carbs_g: 45 * n, fat_g: 32 * n, fiber_g: 2 * n},
@@ -144,19 +153,33 @@ async function say(page, text) {
       const acts = await get('/api/activities?limit=40'), routes = await get('/api/routes'), dishes = await get('/api/dishes');
       const loop = acts.find((a) => a.sport === 'run' && a.distance_m > 4600 && a.distance_m < 4950) || acts[0];
       const coach = (await Promise.all(acts.slice(0, 40).map((a) => get('/api/activities/' + a.id)))).find((a) => a.ai_note) || loop;
-      return {LATEST: '/activity/' + (acts.find(a => a.photos?.length && a.line) || acts[0]).id, RUN: '/activity/' + loop.id, COACH: '/activity/' + coach.id, ROUTE: routes.length ? '/route/' + routes.sort((x, y) => y.count - x.count)[0].id : '/progress',
+      return {FEED_ACTIVITY: acts[0].id, LATEST: '/activity/' + (acts.find(a => a.photos?.length && a.line) || acts[0]).id, RUN: '/activity/' + loop.id, COACH: '/activity/' + coach.id, ROUTE: routes.length ? '/route/' + routes.sort((x, y) => y.count - x.count)[0].id : '/progress',
         DISH: '/food/cook/' + ((dishes.find((d) => d.name === 'Chicken and veg traybake') || dishes[0] || {}).id || ''),
         SQUAT: '/lift/ex/' + (((await get('/api/lifts/exercises')).mine.find((x) => x.name === 'Squat') || {}).id || '')};
     });
     for (const [name, path, opt = {}] of SHOTS) {
       if (ONLY && !ONLY.includes(name)) continue;
+      if (name === 'dietcoach') await enableKitForDemo(page);
       await page.evaluate((p) => { document.querySelectorAll('.scrim').forEach((x) => x.remove()); document.body.classList.remove('has-sheet'); window.scrollTo(0, 0); go(p); }, ids[path] || path);   // no sheet left open from the shot before
       await page.waitForTimeout(1500);
       await page.evaluate(() => { window.scrollTo(0, 0); });
       await page.evaluate(() => document.fonts.ready);
       // Locator/evaluate polling works under the app’s strict script policy.
       for(let n=0;n<40;n++){if(await page.evaluate(()=>!document.querySelector('.leaflet-tile-container')||document.querySelector('.leaflet-tile-loaded')))break;await page.waitForTimeout(100);}
-      if(name==='feed'){await page.locator('#feed-tools[aria-busy=false]').waitFor({state:'attached'});if(await page.locator('#feed-discovery').count())throw Error('Mature feed must not show discovery cards');}
+      if(name==='feed'){
+        await page.locator('#feed-tools[aria-busy=false]').waitFor({state:'attached'});
+        if(await page.locator('#feed-discovery').count())throw Error('Mature feed must not show discovery cards');
+        const group=page.locator(`#ff-list .post[data-href="/activity/${ids.FEED_ACTIVITY}"] .post-ft [data-reaction-group][data-aid="${ids.FEED_ACTIVITY}"]`);
+        await group.waitFor({state:'visible'});
+        for(const kind of ['clap','muscle','fire'])if(await group.getAttribute(`data-count-${kind}`)!=='1')throw Error(`Demo feed must have one ${kind} reaction on the same card`);
+        const emoji=group.locator('.reaction-count .reaction-icons .reaction-emoji');
+        const shown=await emoji.allTextContents();
+        if(shown.length!==3||!['👏','💪','🔥'].every(value=>shown.includes(value))||await group.locator('.reaction-count .num').textContent()!=='3')throw Error('Demo feed must render all three emoji and their total');
+        if(!await group.locator('.reaction-count').evaluate(el=>{
+          const limit=document.querySelector('nav.tabs').getBoundingClientRect().top;
+          return [...el.querySelectorAll('.reaction-emoji,.num')].every(node=>{const r=node.getBoundingClientRect();return r.width>0&&r.height>0&&r.left>=0&&r.right<=innerWidth&&r.top>=59&&r.bottom<=limit;});
+        }))throw Error('Demo feed emoji and total must be visible in the captured viewport');
+      }
       if(name==='insights'){await page.getByRole('heading',{name:'Insights',exact:true}).waitFor();await page.locator('#nt-overview-chart').waitFor();}
       if (opt.logDish) {      // Add food > My Recipes > the recipe: the log sheet, with a portion typed in
         await page.evaluate(() => describeSheet(isoDay(new Date()), 'dinner'));
@@ -227,11 +250,19 @@ async function say(page, text) {
         await page.evaluate((x) => { document.activeElement.blur(); window.scrollTo(0, 0); window.__liftId = x; }, id);
       }
       if (name === 'coach') await page.locator('#d-kit').click();
-      if (name === 'dietcoach') { await page.locator('#nt-coach button').waitFor({state:'visible'}); await page.locator('#nt-coach button').click(); }
+      if (name === 'dietcoach') {
+        const entry = page.locator('#nt-coach a[data-kit-entry][aria-label="Ask Kit"][href="/me/kit?from=nutrition"]');
+        await entry.waitFor({state:'visible'});
+        if (await entry.count() !== 1) throw Error('Nutrition screenshot needs exactly one visible Kit entry');
+        await entry.click();
+        await page.waitForFunction(() => location.pathname === '/me/kit' && new URLSearchParams(location.search).get('from') === 'nutrition');
+        await page.locator('#kit-composer').waitFor({state:'visible'});
+        await page.locator('#kit-intro h2').filter({hasText:'What can I help with?'}).waitFor({state:'visible'});
+      }
       if (name === 'recipecoach') await page.locator('#dk-kit').click();
       if (opt.sel) await page.evaluate((q) => { const e = document.querySelector(q); if (e) window.scrollTo(0, e.getBoundingClientRect().top + scrollY - 70); }, opt.sel);
       if (opt.to) await page.evaluate((t) => {
-        const h = [...document.querySelectorAll('.card > h2, .coach-heading h2, h2.sec-head')].find((x) => x.textContent.trim().startsWith(t));
+        const h = [...document.querySelectorAll('.card > h2, .coach-heading h2, h2.sec-head, #kit-intro h2')].find((x) => x.textContent.trim().startsWith(t));
         if (h) window.scrollTo(0, h.getBoundingClientRect().top + scrollY - 70);   // below the status bar
       }, opt.to);
       await page.waitForTimeout(700);

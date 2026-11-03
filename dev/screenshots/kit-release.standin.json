@@ -1,0 +1,19 @@
+{
+  "fixture_only": true,
+  "purpose": "Render the Kit entry in disposable homepage screenshots only.",
+  "fixture_note": "No real evaluation was run or claimed. Gate fields below are synthetic placeholders for this screenshot-only container, not evaluation results, evidence, or accuracy claims. Never use this file to approve a deployed runtime.",
+  "real_evaluation_performed": false,
+  "evaluation_results": null,
+  "evidence": null,
+  "reviewed": true,
+  "candidate_fingerprint": null,
+  "kit": {
+    "case_count": 40,
+    "unsupported_numeric_claims": 0,
+    "isolation_failures": 0,
+    "health_disclosures": 0,
+    "baseline_compared": true,
+    "conversation_review_passed": true,
+    "qualitative_review_passed": true
+  }
+}

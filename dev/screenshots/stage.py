@@ -1,12 +1,16 @@
 # Made-up social + cooking state for the homepage screenshots, on top of dev/demo/seed.py (a throwaway install only).
-# Adds a friend, "Jordan", with a few weeks of rides and walks (the demo routes, two days later and an hour earlier, so
-# the newest activity in the feed is Jordan's), shares some of Alex's runs with friends, cheers and comments both ways,
+# Adds a friend, "Jordan", with a few weeks of rides and walks (the demo routes, two days later and an hour earlier),
+# shares some of Alex's runs with friends, adds reactions and comments both ways,
 # a waiting friend request from "Sam", photos on a few activities, saved dishes (a soup, a traybake shared with Jordan, a smoothie), four weeks of
 # lifting (the same session twice a week, a little heavier each week, in round pounds). Alex also ran this
 # morning (a demo run moved to 2.5 hours ago), so the Today screen isn't an empty week on a Monday.
 # Usage: stage.py <gpx dir from gen_gpx.py>
 from zoneinfo import ZoneInfo
-import datetime as dt, glob, http.cookiejar, json, os, re, sys, time, urllib.request, uuid
+import datetime as dt, glob, http.cookiejar, json, os, re, subprocess, sys, time, urllib.request, uuid
+from pathlib import Path
+
+# Keep the screenshot-only Kit report and its repository boundary checked in CI.
+subprocess.run([sys.executable, str(Path(__file__).with_name('test_kit_release_standin.py'))], check=True)
 
 sys.path.insert(0,str(__import__('pathlib').Path(__file__).resolve().parents[1]))
 from portal_fixture import admin_headers, is_admin_path
@@ -73,7 +77,11 @@ ago = max(now - dt.timedelta(hours=2.5), now.replace(hour=0, minute=0, second=0,
 print('alex today', upload(alex, [('today-running.gpx', later(raw, (ago - t0).total_seconds() // 60))]).get('added'))
 mine = alex('GET', '/api/activities?limit=8')
 for a in mine: alex('PUT', f"/api/activities/{a['id']}/sharing", {'visibility': 'friends'})
-jordan('POST', f"/api/activities/{mine[0]['id']}/cheer")
+# Three friends on the same newest card show the real curated emoji and total in both capture themes.
+for friend, kind in ((jordan, 'clap'), (person('casey', PW), 'muscle'), (person('taylor', PW), 'fire')):
+    friend('POST', f"/api/activities/{mine[0]['id']}/reaction", {'kind': kind})
+reactions = alex('GET', f"/api/activities/{mine[0]['id']}/social")['reactions']
+assert all(reactions.get(kind) == 1 for kind in ('clap', 'muscle', 'fire')) and sum(reactions.values()) == 3
 jordan('POST', f"/api/activities/{mine[0]['id']}/comments", {'text': 'Strong finish on that last mile!'})
 alex('POST', f"/api/activities/{mine[0]['id']}/comments", {'text': 'Thanks! Legs felt great today.'})
 jordan('POST', f"/api/activities/{mine[2]['id']}/cheer")
