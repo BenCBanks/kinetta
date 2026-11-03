@@ -181,6 +181,26 @@ def remove(mid: int, user=Depends(current_user)):
     return {'deleted': True, 'food_kept': True}
 
 
+@router.delete('/messages/{mid}/unlogged')
+def remove_unlogged(mid:int,user=Depends(current_user)):
+    """Remove one unlogged food card, refusing if another device logged any part first."""
+    uid=user['id']
+    with db.connect() as c:
+        c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(uid,))
+        message=c.execute('SELECT client_id,kind FROM food_chat_messages WHERE id=%s AND user_id=%s FOR UPDATE',(mid,uid)).fetchone()
+        if not message:return {'deleted':True,'food_kept':False,'already_removed':True}
+        if message['kind']!='user':raise HTTPException(404,'Food not found')
+        linked=c.execute('''SELECT 1 FROM food_chat_entries l JOIN food_chat_messages m
+                            ON m.id=l.message_id AND m.user_id=l.user_id
+                            WHERE l.user_id=%s AND (m.id=%s OR m.reply_to=%s) LIMIT 1''',(uid,mid,mid)).fetchone()
+        if linked:raise HTTPException(409,'This food was logged before it could be removed.')
+        c.execute('INSERT INTO food_chat_cancellations(user_id,client_id) VALUES (%s,%s) ON CONFLICT DO NOTHING',(uid,message['client_id']))
+        c.execute("UPDATE food_chat_messages SET state='cancelled' WHERE id=%s AND user_id=%s",(mid,uid))
+        c.execute("UPDATE food_chat_jobs SET state='cancelled' WHERE message_id=%s AND user_id=%s",(mid,uid))
+        c.execute('DELETE FROM food_chat_messages WHERE user_id=%s AND (id=%s OR reply_to=%s)',(uid,mid,mid))
+    return {'deleted':True,'food_kept':False}
+
+
 class PreferencesIn(BaseModel):
     model_config = ConfigDict(extra='forbid')
     auto_log: StrictBool | None = None

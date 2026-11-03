@@ -137,6 +137,11 @@ jobs:
           KINETTA_URL: http://localhost:8798
           KINETTA_PROJECT: kinettatest
         run: NODE_PATH=/tmp/card-browser/node_modules node dev/tests/food_entry_ui.cjs
+      - name: Check removable food cards and Undo (fictional accounts)
+        env:
+          KINETTA_URL: http://localhost:8798
+          KINETTA_PROJECT: kinettatest
+        run: NODE_PATH=/tmp/card-browser/node_modules node dev/tests/food_removal_ui.cjs
       - name: Check own-food reuse chips and provenance review (fictional account)
         env:
           KINETTA_URL: http://localhost:8798

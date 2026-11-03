@@ -61,30 +61,45 @@ const FoodThread = (() => {
   const nativeKey = owner => 'fit.thread.native:'+owner;
   const active = ctx => current===ctx && ctx.el.isConnected && ctx.owner===ownerKey() && ctx.session===readOwner();
   function remember(ctx) { store.set(cacheKey(ctx.owner),ctx.messages.slice(-80)); }
-  async function merge(owner,data,write=true) {
-    if(write&&owner===ownerKey())invalidate('/api/food');
+  async function merge(owner,data,write=true,outboxGuard=null) {
     const mergeEpoch=privacyEpoch;
     const rowsIn=[...(data.messages||[]),...(data.message?[data.message]:[]),...(data.updated_message?[data.updated_message]:[])];
+    let jobs=[];
+    try{jobs=await ThreadDB.list(owner);}catch(e){if(outboxGuard)return;/* server-confirmed data remains readable without the outbox */}
+    const guardedJob=rows=>{
+      if(!outboxGuard)return true;
+      const job=rows.find(j=>j.id===outboxGuard.id);
+      return owner===ownerKey()&&outboxGuard.session===readOwner()+':'+privacyEpoch&&job&&job.phase===outboxGuard.phase&&
+        (Number(job.version)||0)===(Number(outboxGuard.version)||0);
+    };
+    if(mergeEpoch!==privacyEpoch||!guardedJob(jobs))return;
+    if(write&&owner===ownerKey()&&!outboxGuard)invalidate('/api/food');
     // Forget pixels as soon as a confirmed server response arrives, even if the
     // optional device outbox cannot be read. Saved food must not look unsaved.
     for(const m of rowsIn.filter(m=>m.kind==='user')){
-      const reply=rowsIn.find(r=>r.reply_to===m.id),r=reply?.result||{};
-      if(m.state==='cancelled'||reply?.entries?.length||r.cancelled||['reviewed','undone','cancelled'].includes(r.kind))photos.remove(owner,m.client_id);
-      if(r.food_review&&r.confirmed)photos.clear(owner,m.result?.draft_id);
+      const reply=rowsIn.find(r=>r.reply_to===m.id),r=reply?.result||{},job=jobs.find(j=>j.id===m.client_id);
+      if((m.state==='cancelled'||reply?.entries?.length||r.cancelled||['reviewed','undone','cancelled'].includes(r.kind))&&(!job||job.phase!=='remove'))photos.remove(owner,m.client_id);
+      if(r.food_review&&r.confirmed&&(!job||job.phase!=='remove'))photos.clear(owner,m.result?.draft_id);
     }
-    let jobs=[];
-    try{jobs=await ThreadDB.list(owner);}catch(e){/* server-confirmed data remains readable without the outbox */}
-    if(mergeEpoch!==privacyEpoch)return;
     for(const m of rowsIn.filter(m=>m.kind==='user')){
       const reply=rowsIn.find(r=>r.reply_to===m.id),r=reply?.result||{},job=jobs.find(j=>j.id===m.client_id);
       if(m.state==='cancelled'||reply?.entries?.length||r.cancelled||['reviewed','undone','cancelled'].includes(r.kind)){
-        photos.remove(owner,m.client_id);
-        if(job)await ThreadDB.update(owner,job.id,j=>({...j,images:undefined,previews:undefined}));
-      }else if(job?.previews?.length&&job.phase!=='cancel')photos.put(owner,job.id,job.draft_id,job.previews);
+        let clean=!job;
+        if(job)await ThreadDB.update(owner,job.id,j=>{
+          if(j.phase==='remove'||j.phase==='remove-failed'||j.phase==='complete')return j;
+          clean=true;return {...j,images:undefined,previews:undefined};
+        });
+        if(clean)photos.remove(owner,m.client_id);
+      }else if(job?.previews?.length&&job.phase!=='cancel'&&job.phase!=='remove')photos.put(owner,job.id,job.draft_id,job.previews);
       if(r.food_review&&r.confirmed){
         photos.clear(owner,m.result?.draft_id);
-        for(const j of jobs)if(j.draft_id===m.result?.draft_id)await ThreadDB.update(owner,j.id,v=>({...v,images:undefined,previews:undefined}));
+        for(const j of jobs)if(j.draft_id===m.result?.draft_id)await ThreadDB.update(owner,j.id,v=>['remove','remove-failed','complete'].includes(v.phase)?v:{...v,images:undefined,previews:undefined});
       }
+    }
+    if(outboxGuard){
+      try{jobs=await ThreadDB.list(owner);}catch(e){return;}
+      if(mergeEpoch!==privacyEpoch||!guardedJob(jobs))return;
+      if(write&&owner===ownerKey())invalidate('/api/food');
     }
     const ctx=current;
     if(!ctx || ctx.owner!==owner || !active(ctx))return;
@@ -96,14 +111,95 @@ const FoodThread = (() => {
     if(completed){ctx.draftId=uuid();store.set(reviewDraftKey(ctx.owner),{id:ctx.draftId,day:ctx.day,meal:ctx.meal});ctx.context=null;ctx.reviewForm=null;store.del(contextKey(ctx.owner));}
     remember(ctx);draw(ctx);
   }
-  const outbox=foodOutbox({db:ThreadDB,request:(path,body,options)=>api(path,{...json('POST',body),...options}),session:()=>readOwner()+':'+privacyEpoch,changed:merge,progress:async owner=>{const ctx=current;if(ctx&&active(ctx)&&ctx.owner===owner){ctx.jobs=await ThreadDB.list(owner);if(active(ctx))draw(ctx);}}});
+  const outbox=foodOutbox({db:ThreadDB,request:(path,body,options)=>api(path,{...json('POST',body),...options}),session:()=>readOwner()+':'+privacyEpoch,changed:(owner,data,guard)=>merge(owner,data,true,guard),onCompleted:async(owner,id)=>photos.remove(owner,id),progress:async owner=>{const ctx=current;if(ctx&&active(ctx)&&ctx.owner===owner){ctx.jobs=await ThreadDB.list(owner);if(active(ctx))draw(ctx);}}});
+  const removalSession=()=>readOwner()+':'+privacyEpoch;
+  const removalAccount=token=>token===removalSession()?ownerKey():null;
+  const removalDb={
+    list:async token=>{const owner=removalAccount(token);return owner?ThreadDB.list(owner):[];},
+    update:async(token,id,fn)=>{const owner=removalAccount(token);return owner?ThreadDB.update(owner,id,fn):null;},
+    ensure:async(token,id,value)=>{const owner=removalAccount(token);if(owner)await ThreadDB.ensure(owner,id,value);},
+    remove:async(token,id)=>{const owner=removalAccount(token);if(owner)await ThreadDB.remove(owner,id);},
+  };
+  const foodRemoval=foodThreadRemoval({db:removalDb,session:removalSession,
+    request:(path,options,token)=>{
+      if(!removalAccount(token))throw Object.assign(Error('The account changed.'),{stale:true});
+      return api(path,options?.method==='DELETE'?{method:'DELETE'}:json('POST',options));
+    },
+    photos:{remove:async(token,id)=>{const owner=removalAccount(token);if(owner)photos.remove(owner,id);}},
+    onChange:async(token,id,event)=>{
+      const owner=removalAccount(token),ctx=current;if(!owner||!ctx||!active(ctx)||ctx.owner!==owner)return;
+      ctx.jobs=await ThreadDB.list(owner);if(!active(ctx))return;
+      const job=ctx.jobs.find(j=>j.id===id);
+      if(event==='completed'){
+        const root=ctx.messages.find(m=>m.kind==='user'&&m.client_id===id);
+        if(root)ctx.messages=ctx.messages.filter(m=>m.id!==root.id&&m.reply_to!==root.id);
+        ctx.visibleClients.delete(id);remember(ctx);
+        if(ctx.removeNotice?.id===id)clearRemovalNotice(ctx);
+        if(active(ctx))draw(ctx);
+        return;
+      }
+      if(job?.removeError){draw(ctx);await refresh(ctx);if(active(ctx))draw(ctx);return;}
+      if(job?.phase==='remove'&&!job.removal?.commitStarted){
+        if(ctx.pendingRemovalAnimation===id)await new Promise(resolve=>setTimeout(resolve,150));
+        if(!active(ctx))return;
+        showRemovalNotice(ctx,id,job.removal.undoUntil);
+      }else{
+        if(ctx.removeNotice?.id===id)clearRemovalNotice(ctx);
+        if(job&&!job.removeError&&!['remove','remove-failed','complete'].includes(job.phase))outbox.flush(owner);
+      }
+      if(ctx.pendingRemovalAnimation===id)ctx.pendingRemovalAnimation=null;
+      if(active(ctx))draw(ctx);
+    },
+  });
   async function flush(ctx=null,force=false) {
     const owner=ctx?.owner||ownerKey();
     if(!owner||owner!==ownerKey()||(ctx&&ctx.session!==readOwner()))return;
-    try {await outbox.flush(owner,{force});const view=current;if(view&&active(view)&&view.owner===owner){view.jobs=await ThreadDB.list(owner);draw(view);}}
+    try {await outbox.flush(owner,{force});await foodRemoval.flush(removalSession());const view=current;if(view&&active(view)&&view.owner===owner){view.jobs=await ThreadDB.list(owner);draw(view);}}
     catch(e){if(current&&active(current))status(current,e.message);}
   }
   function status(ctx,text){if(!active(ctx))return;const box=$('#thread-status',ctx.el);box.textContent=text;clearTimeout(ctx.statusTimer);if(['Saved.','Food removed.'].includes(text))ctx.statusTimer=setTimeout(()=>{if(box.textContent===text)box.textContent='';},2500);}
+  function clearRemovalNotice(ctx){
+    clearTimeout(ctx.removeNoticeTimer);ctx.removeNotice=null;
+    const notice=$('#thread-remove-notice',ctx.el);if(notice){notice.hidden=true;const undo=$('[data-removal-undo]',notice);if(undo)undo.onclick=null;}
+  }
+  function showRemovalNotice(ctx,id,undoUntil){
+    clearTimeout(ctx.removeNoticeTimer);ctx.removeNotice={id,undoUntil};
+    const notice=$('#thread-remove-notice',ctx.el);if(!notice)return;const button=$('[data-removal-undo]',notice);if(!button)return;
+    notice.hidden=false;
+    button.onclick=async()=>{
+      if(!active(ctx)||ctx.removeNotice?.id!==id)return;
+      button.disabled=true;
+      try{await foodRemoval.undo(removalSession(),id);}finally{if(button.isConnected)button.disabled=false;}
+    };
+    ctx.removeNoticeTimer=setTimeout(()=>{if(ctx.removeNotice?.id===id)clearRemovalNotice(ctx);},Math.max(0,(undoUntil||Date.now()+5000)-Date.now()));
+  }
+  function removeButtonMarkup(floating=true){return `<button type="button" class="thread-remove-unlogged${floating?' thread-remove-floating':''}" data-unlogged-remove aria-label="Remove this food">×</button>`;}
+  function beginRemovalCollapse(ctx,id,node){
+    ctx.pendingRemovalAnimation=id;const article=node?.matches?.('article')?node:node?.closest?.('article');
+    if(!article)return;
+    article.classList.add('thread-removing');void article.offsetHeight;
+    requestAnimationFrame(()=>{if(article.isConnected)article.classList.add('is-collapsing');});
+  }
+  async function removeUnlogged(ctx,node,m,job){
+    if(!active(ctx)||ctx.preparingReview||pendingReview())return;
+    const id=job?.id||m?.client_id;if(!id)return;
+    const button=$('[data-unlogged-remove]',node);if(button)button.disabled=true;
+    Native.haptic('light');beginRemovalCollapse(ctx,id,node);
+    try{
+      const savedMid=m?.id||job?.mid;
+      const removed=Number.isSafeInteger(Number(savedMid))&&Number(savedMid)>0
+        ?await foodRemoval.removeSaved(removalSession(),id,savedMid,m?.captured_at||job?.at)
+        :await foodRemoval.remove(removalSession(),id);
+      if(!removed){ctx.pendingRemovalAnimation=null;const article=node.matches?.('article')?node:node.closest?.('article');article?.classList.remove('thread-removing','is-collapsing');draw(ctx);}
+    }catch(error){ctx.pendingRemovalAnimation=null;const article=node.matches?.('article')?node:node.closest?.('article');article?.classList.remove('thread-removing','is-collapsing');if(button?.isConnected)button.disabled=false;status(ctx,error.message);}
+  }
+  function removalFailureHtml(){return `<div class="thread-remove-failed"><span>Couldn’t remove this food.</span><button type="button" class="linkbtn" data-removal-retry>Try again</button></div>`;}
+  async function retryRemoval(ctx,node,id){
+    if(!active(ctx)||!id)return;
+    const button=$('[data-removal-retry]',node);if(button)button.disabled=true;
+    try{await foodRemoval.retry(removalSession(),id);}catch(error){status(ctx,error.message);}
+    finally{if(button?.isConnected)button.disabled=false;}
+  }
   function source(entry) {
     const ref=entry.ref||{},origin=ref.origin;
     const names={usda:'USDA',off:'Open Food Facts',quick:'Your numbers',custom:'My foods',dish:'My Recipes',recent:'Your food log',ai:'Kit’s estimate'};
@@ -152,12 +248,12 @@ const FoodThread = (() => {
     if(r.daily_note||!kitChatOn()||!(r.offer_kit||r.intent==='review'))return '';
     return `<a class="linkbtn" href="/me/kit?from=nutrition">Ask Kit about nutrition ${svg('chev')}</a>`;
   }
-  function missingBarcodeActions(index=0){
+  function missingBarcodeActions(index=0,showRemove=false,showMore=true){
     const estimate=aiCan('food')?`<button type="button" class="primary wide" data-estimate="${index}">Estimate with Kit</button>`:
       aiOffer('food')?`<button type="button" class="primary wide" data-kit-on="${index}">Turn on Kit to estimate</button>`:'';
     const manual=estimate?`<button type="button" class="linkbtn" data-manual="${index}">Enter nutrition</button>`:
       `<button type="button" class="primary wide" data-manual="${index}">Enter nutrition</button>`;
-    return `<div class="thread-choices barcode-choices">${estimate||manual}<div class="barcode-choice-row">${estimate?manual:''}<button type="button" class="linkbtn" data-action="resolve">Try again</button><button type="button" class="icon-btn thread-more" data-more aria-label="More food options">${svg('more')}</button></div></div>`;
+    return `<div class="thread-choices barcode-choices">${estimate||manual}<div class="barcode-choice-row">${estimate?manual:''}<button type="button" class="linkbtn" data-action="resolve">Try again</button>${showMore&&!showRemove?`<button type="button" class="icon-btn thread-more" data-more aria-label="More food options">${svg('more')}</button>`:''}</div></div>`;
   }
   function foodActionTitle(root,reply){
     const entries=reply?.entries?.length?reply.entries:reply?.result?.parts?.flatMap(part=>part.entries||[])||[];
@@ -182,11 +278,13 @@ const FoodThread = (() => {
     return kitFoodWords(body);
   }
   function isBarcodeNotFound(message){return message==="We couldn't find this barcode."||message==='Not found in the food database';}
-  function replyHtml(root,reply) {
+  function loggedFood(reply){const r=reply?.result||{};return !!(reply?.entries?.length||r.entry_ids?.length||r.parts?.some(p=>p.logged));}
+  function removableFood(root,reply){const r=reply?.result||{};return !loggedFood(reply)&&!r.cancelled&&root?.state!=='cancelled'&&!root?.result?.receipt&&!r.daily_note;}
+  function replyHtml(root,reply,showRemove=removableFood(root,reply),showMore=true) {
     const r=reply?.result||{},entries=reply?.entries||[];
     const missingBarcode=root.result?.input?.kind==='barcode'&&isBarcodeNotFound(r.error?.message)&&!r.parts?.some(p=>p.status==='ready'&&p.entries?.length);
     const working=!!(r.processing||r.can_resolve),partial=r.parts?.some(p=>p.status==='ready'&&p.entries?.length&&!p.logged);
-    if(!r.error&&!r.cancelled&&!entries.length&&!partial&&root.state!=='cancelled'&&(!reply&&root.state==='pending'||working))return `<div class="thread-card thread-thinking" data-mid="${root.id}"><div class="thread-typing" role="status" aria-label="Checking your food"><span></span><span></span><span></span></div></div>`;
+    if(!r.error&&!r.cancelled&&!entries.length&&!partial&&root.state!=='cancelled'&&(!reply&&root.state==='pending'||working))return `<div class="thread-card thread-thinking" data-mid="${root.id}">${showRemove?removeButtonMarkup():''}<div class="thread-typing" role="status" aria-label="Checking your food"><span></span><span></span><span></span></div></div>`;
     const rows=entries.length?null:previewRows(root,r),preview=r.parts?.flatMap(p=>p.logged?[]:(p.entries||[]))||r.resolution?.items?.flatMap(i=>i.preview_entries||[])||[];
     const visible=entries.length?entries:(['preview','needs'].includes(r.kind)||r.pending_count||r.parts?.some(p=>p.status==='ready'&&!p.logged)?preview:[]),changed=changedNumbers(r,entries),removed=r.kind==='log'&&!entries.length&&r.entry_ids?.length;
     const notes=[...new Set(visible.map(e=>e.ref?.origin_notes).filter(Boolean))];
@@ -194,12 +292,12 @@ const FoodThread = (() => {
     const day=entries[0]?.day||r.day,meal=entries[0]?.meal||r.meal;
     const canLog=!root.result?.review_only&&!r.cancelled&&(r.kind==='preview'||r.parts?.some(p=>p.status==='ready'&&!p.logged));
     const compact=!!(root.result?.review_only&&rows?.length&&!entries.length),stripTotal=compact&&r.parts.every(p=>p.logged||p.status==='ready')&&visible.every(e=>e.kcal!=null&&!e.ref?.unknown_nutrients?.includes('kcal'));
-    return `<div class="thread-card${compact?' compact-thread-card':''}" data-mid="${root.id}">${compact?`<div class="thread-card-head"><span class="small muted">Review before logging</span><button type="button" class="icon-btn thread-more" data-more aria-label="More food options">${svg('more')}</button></div>`:''}${r.daily_note?`<h3>Your daily food summary</h3><p class="small muted">As of ${esc(new Date(r.as_of).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZone:tz()}))}. Later food is kept in your log.</p>`:''}${meal&&day&&!removed&&(!root.result?.review_only||entries.length)?`<button type="button" class="linkbtn thread-destination" data-destination>${esc(MEAL_NAMES[meal])} · ${esc(dayLabel(day))} ${svg('chev')}</button>`:''}
+    return `<div class="thread-card${compact?' compact-thread-card':''}" data-mid="${root.id}">${compact?`<div class="thread-card-head"><span class="small muted">Review before logging</span>${showRemove?removeButtonMarkup(false):showMore?`<button type="button" class="icon-btn thread-more" data-more aria-label="More food options">${svg('more')}</button>`:''}</div>`:''}${showRemove&&!compact?removeButtonMarkup():''}${r.daily_note?`<h3>Your daily food summary</h3><p class="small muted">As of ${esc(new Date(r.as_of).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZone:tz()}))}. Later food is kept in your log.</p>`:''}${meal&&day&&!removed&&(!root.result?.review_only||entries.length)?`<button type="button" class="linkbtn thread-destination" data-destination>${esc(MEAL_NAMES[meal])} · ${esc(dayLabel(day))} ${svg('chev')}</button>`:''}
       ${!compact&&root.result?.review_only&&visible.length&&r.kind!=='answer'&&!r.food_review&&!['reviewed','continued','cancelled'].includes(r.kind)?'<p class="small muted">Not logged yet</p>':''}${r.updated||changed?'<p class="thread-updated">Updated</p>':''}${!compact&&visible.length?`<p class="thread-breakdown-title">${r.parts?.some(p=>p.estimated)?'Estimate breakdown':'Food breakdown'}</p>`:''}${rows?.length?rows.map(row=>stepRow({...row,hideNotes:!!sharedNote})).join(''):visible.map((e,i)=>food(e,i,!!sharedNote)).join('')}${sharedNote?`<p class="small muted thread-assumptions">${esc(sharedNote)}</p>`:''}${!stripTotal&&visible.length?`<p class="thread-total"><span>Total</span><b class="num">${visible.every(e=>e.kcal!=null&&!e.ref?.unknown_nutrients?.includes('kcal'))?'≈ '+homeCalories(visible.reduce((n,e)=>n+e.kcal,0))+' kcal':'Incomplete'}</b></p>`:''}${!missingBarcode&&!(working&&partial)&&(!visible.length||r.pending_count||r.kind==='answer'||r.kind==='edit'||(r.food_review&&r.confirmed)||r.parts?.some(p=>p.entered_numbers&&!p.logged))?`<p>${esc(removed?'This food was removed from your log.':foodReplyBody(reply)||(root.state==='cancelled'?'This food was removed before logging.':root.state==='answered'?'Food details were removed from this chat. Any food already in your log stays.':'Your food is waiting to be checked…'))}</p>`:''}
       ${r.breakdown?.length?`<dl class="photo-breakdown">${r.breakdown.map(e=>`<div><dt>${esc(e.name)}${e.amount?`<small>${esc(e.amount)}</small>`:''}</dt><dd class="num">${e.kcal==null?'Unknown':`≈ ${esc(e.kcal)} kcal`}</dd></div>`).join('')}<div class="photo-breakdown-total"><dt>Total</dt><dd class="num">${r.breakdown_total==null?'Incomplete':`≈ ${esc(r.breakdown_total)} kcal`}</dd></div></dl>`:''}${r.breakdown_notes?.map(note=>`<p class="small muted">${esc(note)}</p>`).join('')||''}${r.photo_itemize&&App.me?.food_photo_itemize&&aiCan('food')?`<button type="button" class="ghost wide" data-photo-itemize="${r.photo_itemize}">Add photo for ingredient breakdown</button>`:''}
       ${working&&partial?'<p class="small muted" role="status">Checking the other foods…</p>':''}${r.assumed&&!entries.length?`<p class="small muted thread-assumed">${esc(r.assumed)}</p>`:''}${r.feedback&&!changed&&!removed?`<p class="thread-feedback">${esc(typeof r.feedback==='string'?r.feedback:r.feedback.text||'')}</p>`:''}
-      ${r.error?`<p class="${missingBarcode?'thread-barcode-not-found':'thread-error'}"${missingBarcode?' role="status"':''}>${esc(missingBarcode?"We couldn't find this barcode.":kitFoodWords(r.error.message||r.error))}</p>`:''}${missingBarcode?missingBarcodeActions(r.parts?.[0]?.index??0):!r.cancelled&&(r.kind==='needs'||r.pending_count||r.parts?.some(p=>p.entered_numbers&&!p.logged))?choices(r):''}
-      ${kitHtml(r)}${missingBarcode?'':`<div class="thread-actions">${canLog?'<button type="button" class="ghost" data-action="log">Log these foods</button>':''}${entries.length?'<button type="button" class="linkbtn" data-action="undo">Undo</button>':''}${!missingBarcode&&(r.error||r.parts?.some(p=>p.needs_photo))?(root.result?.input?.kind==='photo'?'<button type="button" class="linkbtn" data-reattach>Add the photo again</button>':'<button type="button" class="linkbtn" data-action="resolve">Retry lookup</button>'):''}${compact?'':`<button type="button" class="icon-btn thread-more" data-more aria-label="More food options">${svg('more')}</button>`}</div>`}</div>`;
+      ${r.error?`<p class="${missingBarcode?'thread-barcode-not-found':'thread-error'}"${missingBarcode?' role="status"':''}>${esc(missingBarcode?"We couldn't find this barcode.":kitFoodWords(r.error.message||r.error))}</p>`:''}${missingBarcode?missingBarcodeActions(r.parts?.[0]?.index??0,showRemove,showMore):!r.cancelled&&(r.kind==='needs'||r.pending_count||r.parts?.some(p=>p.entered_numbers&&!p.logged))?choices(r):''}
+      ${kitHtml(r)}${missingBarcode?'':`<div class="thread-actions">${canLog?'<button type="button" class="ghost" data-action="log">Log these foods</button>':''}${entries.length?'<button type="button" class="linkbtn" data-action="undo">Undo</button>':''}${!missingBarcode&&(r.error||r.parts?.some(p=>p.needs_photo))?(root.result?.input?.kind==='photo'?'<button type="button" class="linkbtn" data-reattach>Add the photo again</button>':'<button type="button" class="linkbtn" data-action="resolve">Retry lookup</button>'):''}${compact||showRemove||!showMore?'':`<button type="button" class="icon-btn thread-more" data-more aria-label="More food options">${svg('more')}</button>`}</div>`}</div>`;
   }
   // A "typing" bubble replaces interim text while food is checked (owner, 19 Oct 2026).
   // A "typing" bubble while the food is being checked, instead of interim text (owner, 19 Oct 2026).
@@ -233,11 +331,11 @@ const FoodThread = (() => {
   }
 
   const pendingReview=()=>(typeof FoodReview!=='undefined'&&FoodReview.busy())||Q.mine().some(op=>/^\/api\/food\/thread\/reviews\/\d+\/confirm$/.test(op.path));
-  const waitingJobs=ctx=>ctx.jobs.some(j=>j.draft_id===ctx.draftId&&!j.error);
+  const waitingJobs=ctx=>ctx.jobs.some(j=>j.draft_id===ctx.draftId&&!j.error&&!['remove','remove-failed','complete'].includes(j.phase));
   function held(ctx){
     // A food still waiting on a question is left out of the review rather than blocking the others.
     const ids=[];let ready=0,open=0,kcal=0;
-    for(const m of ctx.messages.filter(m=>m.kind==='user'&&ctx.visibleClients.has(m.client_id)&&m.result?.review_only&&m.result?.draft_id===ctx.draftId&&!ctx.jobs.some(j=>j.id===m.client_id&&j.error))){
+    for(const m of ctx.messages.filter(m=>m.kind==='user'&&ctx.visibleClients.has(m.client_id)&&m.result?.review_only&&m.result?.draft_id===ctx.draftId&&!ctx.jobs.some(j=>j.id===m.client_id&&(j.error||j.phase==='remove')))){
       const r=ctx.messages.find(x=>x.reply_to===m.id)?.result||{};
       if(r.food_review||['reviewed','undone','cancelled'].includes(r.kind)||m.state==='cancelled')continue;
       const parts=r.parts||[];
@@ -291,43 +389,47 @@ const FoodThread = (() => {
     if(active(ctx)&&ctx.draftId===draft)await review(ctx,{allowUnsent:true});
   }
   function photoHtml(ctx,id){
-    const job=ctx.jobs.find(j=>j.id===id),images=job?.phase==='cancel'?[]:job?.previews||photos.get(ctx.owner,id);
+    const job=ctx.jobs.find(j=>j.id===id),images=['cancel','remove'].includes(job?.phase)?[]:job?.previews||photos.get(ctx.owner,id);
     return images.length?`<div class="thread-photos">${images.map((url,i)=>/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(url)?`<img src="${url}" alt="Your food photo${images.length>1?' '+(i+1):''}" width="240" height="180">`:'').join('')}</div>`:'';
   }
   function draw(ctx) {
     if(!active(ctx))return;
     const list=$('#thread-messages',ctx.el),bottom=list.scrollHeight-list.scrollTop-list.clientHeight<100;
-    const roots=ctx.messages.filter(m=>m.kind==='user'&&ctx.visibleClients.has(m.client_id)&&m.result?.kind!=='food_review').sort((a,b)=>a.captured_at.localeCompare(b.captured_at)||a.id-b.id),ids=new Set();let anchor=list.firstElementChild,lastDay=null;
+    const allRoots=ctx.messages.filter(m=>m.kind==='user'&&ctx.visibleClients.has(m.client_id)&&m.result?.kind!=='food_review').sort((a,b)=>a.captured_at.localeCompare(b.captured_at)||a.id-b.id);
+    const roots=allRoots.filter(m=>ctx.jobs.find(j=>j.id===m.client_id)?.phase!=='remove'),ids=new Set();let anchor=list.firstElementChild,lastDay=null;
     for(const m of roots) {
       const reply=ctx.messages.find(r=>r.reply_to===m.id),job=ctx.jobs.find(j=>j.id===m.client_id);
       const id='message-'+m.id;ids.add(id);let node=list.querySelector(`[data-key="${id}"]`);
       const separator=m.local_day!==lastDay?`<h2 class="thread-day">${esc(dayLabel(m.local_day))}</h2>`:'';lastDay=m.local_day;
-      const user=`<div class="thread-user">${photoHtml(ctx,m.client_id)}<p>${esc(foodMessageBody(m))}</p><time class="vh" datetime="${esc(m.captured_at)}">${esc(dayLabel(m.local_day))} · ${esc(new Date(m.captured_at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZone:tz()}))}</time></div>`;
-      const replied=replyHtml(m,reply);let waiting=job?pendingHtml(job,outbox.isSending(ctx.owner,job.id)):'';
+      const user=job?.removeError?'':`<div class="thread-user">${photoHtml(ctx,m.client_id)}<p>${esc(foodMessageBody(m))}</p><time class="vh" datetime="${esc(m.captured_at)}">${esc(dayLabel(m.local_day))} · ${esc(new Date(m.captured_at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZone:tz()}))}</time></div>`;
+      const replied=replyHtml(m,reply,!job?.removeError&&removableFood(m,reply),!job?.removeError);let waiting=job&&!job.removeError?pendingHtml(job,outbox.isSending(ctx.owner,job.id)):'';
+      const failure=job?.removeError?removalFailureHtml():'';
       if(replied.includes('thread-thinking')&&waiting.includes('thread-thinking'))waiting='';   // one typing bubble, not two
-      const html=`${separator}${m.result?.receipt||m.result?.daily_note?'':user}${replied}${waiting}`;
+      const html=`${separator}${m.result?.receipt||m.result?.daily_note?'':user}${replied}${failure}${waiting}`;
       if(!node){node=document.createElement('article');node.dataset.key=id;}
       if(node===anchor)anchor=anchor.nextElementSibling;else list.insertBefore(node,anchor);
-      if(node._html!==html){node.innerHTML=html;node._html=html;wireCard(ctx,node,m,reply);if(job)wirePending(ctx,node,job);}
+      if(node._html!==html){node.innerHTML=html;node._html=html;wireCard(ctx,node,m,reply,job);if(job)wirePending(ctx,node,job);}
     }
-    for(const j of ctx.jobs.filter(j=>!roots.some(m=>m.client_id===j.id))){const id='queued-'+j.id;ids.add(id);let node=list.querySelector(`[data-key="${id}"]`);if(!node){node=document.createElement('article');node.dataset.key=id;list.append(node);}const html=`<div class="thread-user">${photoHtml(ctx,j.id)}<p>${esc(j.body)}</p></div>${pendingHtml(j,outbox.isSending(ctx.owner,j.id))}`;if(node._html!==html){node.innerHTML=html;node._html=html;wirePending(ctx,node,j);}}
+    const queued=ctx.jobs.filter(j=>!allRoots.some(m=>m.client_id===j.id)&&j.phase!=='remove');
+    for(const j of queued){const id='queued-'+j.id;ids.add(id);let node=list.querySelector(`[data-key="${id}"]`);if(!node){node=document.createElement('article');node.dataset.key=id;list.append(node);}const html=j.removeError?removalFailureHtml():`<div class="thread-user">${photoHtml(ctx,j.id)}<p>${esc(j.body)}</p></div>${pendingHtml(j,outbox.isSending(ctx.owner,j.id),true)}`;if(node._html!==html){node.innerHTML=html;node._html=html;wirePending(ctx,node,j);const remove=$('[data-unlogged-remove]',node);if(remove)remove.onclick=()=>removeUnlogged(ctx,node,null,j);const retry=$('[data-removal-retry]',node);if(retry)retry.onclick=()=>retryRemoval(ctx,node,j.id);}}
     for(const node of [...list.children])if(!ids.has(node.dataset.key))node.remove();
     // Failed local messages keep their original place; a fresh reply belongs at
     // the bottom, rather than above an appended block of older failures.
-    const order=[...roots.map(m=>({key:'message-'+m.id,at:m.captured_at})),...ctx.jobs.filter(j=>!roots.some(m=>m.client_id===j.id)).map(j=>({key:'queued-'+j.id,at:j.at}))].sort((a,b)=>Date.parse(a.at)-Date.parse(b.at)||a.key.localeCompare(b.key));
+    const order=[...roots.map(m=>({key:'message-'+m.id,at:m.captured_at})),...queued.map(j=>({key:'queued-'+j.id,at:j.at}))].sort((a,b)=>Date.parse(a.at)-Date.parse(b.at)||a.key.localeCompare(b.key));
     const nodes=new Map([...list.children].map(node=>[node.dataset.key,node]));
     order.forEach((row,index)=>{const node=nodes.get(row.key);if(list.children[index]!==node)list.insertBefore(node,list.children[index]||null);});
-    ctx.el.classList.toggle('has-messages',!!roots.length||!!ctx.jobs.length);
-    list.hidden=!roots.length&&!ctx.jobs.length;
+    ctx.el.classList.toggle('has-messages',!!roots.length||!!queued.length);
+    list.hidden=!roots.length&&!queued.length;
     $('#thread-empty',ctx.el).hidden=!list.hidden;
     $('#thread-older',ctx.el).hidden=true;
     if(!ctx.pauseFollow){if(ctx.chatView)ctx.chatView.pin(ctx.follow||ctx.initial);else if(bottom||ctx.follow||ctx.initial)list.scrollTop=list.scrollHeight;if(list.children.length)ctx.initial=false;}
     ctx.follow=false;primary(ctx);
   }
-  function pendingHtml(job,sending=false){
-    if(!job.error&&job.phase!=='cancel'&&(sending||job.mid)&&!job.offline&&navigator.onLine)return '<div class="thread-card thread-thinking"><div class="thread-typing" role="status" aria-label="Checking your food"><span></span><span></span><span></span></div></div>';
+  function pendingHtml(job,sending=false,showRemove=false){
+    if(job.phase==='remove'||job.removeError)return '';
+    if(!job.error&&job.phase!=='cancel'&&(sending||job.mid)&&!job.offline&&navigator.onLine)return `<div class="thread-card thread-thinking">${showRemove?removeButtonMarkup():''}<div class="thread-typing" role="status" aria-label="Checking your food"><span></span><span></span><span></span></div></div>`;
     const text=job.error||(job.phase==='cancel'?'Stopping this food check when you reconnect…':sending?(job.mid?'Checking your food…':'Sending your food…'):job.offline||!navigator.onLine?'Your food is waiting to send when you’re back online.':job.mid?'Your food is waiting to be checked.':'Your food is waiting to send.');
-    return `<div class="thread-pending"><p>${esc(text)}</p>${job.phase!=='cancel'&&!sending?'<button type="button" class="linkbtn" data-retry>Retry</button>':''}<button type="button" class="linkbtn" data-cancel>Cancel</button></div>`;
+    return `<div class="thread-card thread-pending-card">${showRemove?removeButtonMarkup():''}<div class="thread-pending"><p>${esc(text)}</p>${job.phase!=='cancel'&&!sending?'<button type="button" class="linkbtn" data-retry>Retry</button>':''}</div></div>`;
   }
   function wirePending(ctx,node,job){
     const retry=$('[data-retry]',node);if(retry)retry.onclick=async()=>{if(!active(ctx))return;
@@ -416,8 +518,10 @@ const FoodThread = (() => {
       };
     });
   }
-  function wireCard(ctx,node,m,reply){
+  function wireCard(ctx,node,m,reply,job=null){
     const r={...(reply?.result||{}),...(reply?.entries?.[0]?{day:reply.entries[0].day,meal:reply.entries[0].meal}:{})};
+    const remove=$('[data-unlogged-remove]',node);if(remove)remove.onclick=()=>removeUnlogged(ctx,node,m,job);
+    const removeRetry=$('[data-removal-retry]',node);if(removeRetry)removeRetry.onclick=()=>retryRemoval(ctx,node,job?.id||m.client_id);
     const itemize=$('[data-photo-itemize]',node);if(itemize)itemize.onclick=()=>{ctx.photoRetry={id:+itemize.dataset.photoItemize,itemize:true};const file=$('#ql-file',ctx.el);file.removeAttribute('capture');file.click();};
     const reattach=$('[data-reattach]',node);if(reattach)reattach.onclick=()=>{ctx.photoRetry=m.id;const file=$('#ql-file',ctx.el);file.removeAttribute('capture');file.click();};
     $$('[data-action]',node).forEach(b=>b.onclick=async()=>{b.disabled=true;try{await action(ctx,m.id,b.dataset.action,b.dataset.action==='log'?{confirm:true}:b.dataset.action==='resolve'?{retry:true}:{});}catch(e){toast(e.message);}finally{if(b.isConnected)b.disabled=false;}});
@@ -447,7 +551,7 @@ const FoodThread = (() => {
       // authoritative card. The final review cannot race this pending amount.
       const ratio=body.portion?.grams?body.portion.grams/old.grams:factor;
       const preview={...p,entries:(p.entries||[]).map((e,i)=>b.dataset.draft==null||p.entry_drafts?.[i]===+b.dataset.draft?FoodNutrition.scale(e,e.amount*ratio,true):e)};
-      const card=$('.thread-card',node);if(card)card.outerHTML=replyHtml(m,{...reply,result:{...r,parts:r.parts.map(x=>x.index===p.index?preview:x)}});
+      const card=$('.thread-card',node);if(card)card.outerHTML=replyHtml(m,{...reply,result:{...r,parts:r.parts.map(x=>x.index===p.index?preview:x)}},removableFood(m,reply));
       $$('button',node).forEach(control=>control.disabled=true);ctx.preparingReview=true;primary(ctx);
       try{await action(ctx,m.id,'choose',body);}catch(e){if(active(ctx))toast(e.message);}
       finally{ctx.preparingReview=false;node._html=null;draw(ctx);}
@@ -519,11 +623,12 @@ const FoodThread = (() => {
     catch(e){toast(e.message);}};});
   }
   function page(el,{day,meal}={}){
+    if(current){current.removeEvents?.abort();current.chatView?.dispose();clearTimeout(current.removeNoticeTimer);}
     if(new URLSearchParams(location.search).get('save')==='1'){el.innerHTML=`<header class="thread-heading">${backBtn('My Recipes')}<h1>Create recipe</h1></header><button type="button" class="primary wide" id="recipe-start">Create recipe</button>`;wireBack(el,'/food/meals');const button=$('#recipe-start',el);button.onclick=()=>newDish(button);newDish(button);return;}
-    const owner=ownerKey(),resume=store.get(reviewDraftKey(owner)),ctx={el,owner,day:/^\d{4}-\d{2}-\d{2}$/.test(day)?day:/^\d{4}-\d{2}-\d{2}$/.test(resume?.day)?resume.day:isoDay(new Date()),meal:Object.hasOwn(MEAL_NAMES,meal)?meal:(Object.hasOwn(MEAL_NAMES,resume?.meal)?resume.meal:null),session:readOwner(),draftId:(typeof resume==='string'?resume:resume?.id)||uuid(),saveRecipe:new URLSearchParams(location.search).get('save')==='1',reviewForm:resume?.form||null,messages:[],visibleClients:new Set(),context:resume?store.get(contextKey(owner)):null,jobs:[],before:null,follow:false,initial:true,epoch:0,readVersion:0};current?.chatView?.dispose();current=ctx;store.set(reviewDraftKey(owner),{id:ctx.draftId,day:ctx.day,meal:ctx.meal,form:ctx.reviewForm});
+    const owner=ownerKey(),resume=store.get(reviewDraftKey(owner)),ctx={el,owner,day:/^\d{4}-\d{2}-\d{2}$/.test(day)?day:/^\d{4}-\d{2}-\d{2}$/.test(resume?.day)?resume.day:isoDay(new Date()),meal:Object.hasOwn(MEAL_NAMES,meal)?meal:(Object.hasOwn(MEAL_NAMES,resume?.meal)?resume.meal:null),session:readOwner(),draftId:(typeof resume==='string'?resume:resume?.id)||uuid(),saveRecipe:new URLSearchParams(location.search).get('save')==='1',reviewForm:resume?.form||null,messages:[],visibleClients:new Set(),context:resume?store.get(contextKey(owner)):null,jobs:[],before:null,follow:false,initial:true,epoch:0,readVersion:0,removeEvents:new AbortController()};current=ctx;store.set(reviewDraftKey(owner),{id:ctx.draftId,day:ctx.day,meal:ctx.meal,form:ctx.reviewForm});
     el.classList.add('food-thread');el.setAttribute('aria-live','off');
     const tile=(attr,ico,label)=>`<button type="button" ${attr}>${svg(ico)}<span>${label}</span></button>`;
-    el.innerHTML=`<header class="thread-heading"><a class="back" href="${ctx.day?'/food?d='+encodeURIComponent(ctx.day):'/food'}">${svg('back')}Nutrition</a><h1>Add food</h1><button type="button" class="icon-btn" id="thread-settings" aria-label="Food chat settings">${svg('more')}</button></header><button type="button" class="linkbtn" id="thread-older" hidden>Earlier messages</button><div id="thread-messages" aria-live="off"></div><div id="thread-empty"><h2><span class="kit-mark" aria-hidden="true">${svg('sparkle')}</span>What did you eat?</h2><p>Describe food or choose an action.</p></div><form id="thread-composer" class="thread-composer"><div id="thread-shared-recipes"></div><div class="thread-menu" id="thread-menu" hidden><div class="thread-tools">${tile('data-tool="snap"','camera','Camera')}${tile('data-tool="library"','image','Photo')}${tile('data-tool="scan"','barcode','Barcode')}${tile('id="thread-search"','search','Search')}${tile('id="thread-usuals"','clock','Usuals')}${tile('id="thread-recipes"','pot','Recipes')}${tile('id="thread-manual-add"','edit','Manual')}</div></div><label class="vh" for="thread-text">Message about your food</label><button type="button" class="thread-review-strip" id="thread-review" hidden><span id="thread-review-sum"></span><span class="thread-review-go">Review ›</span></button><div class="kit-starters thread-quick-actions" role="group" aria-label="Quick food actions">${tile('data-thread-quick="recipes"','pot','My Recipes')}${tile('data-thread-quick="snap"','camera','Take a photo')}${tile('data-thread-quick="scan"','barcode','Scan a barcode')}${tile('data-thread-quick="search"','search','Search foods')}</div><div class="thread-compose-row"><button type="button" class="icon-btn thread-plus" id="thread-plus" aria-label="More ways to add food" aria-expanded="false" aria-controls="thread-menu">${svg('plus')}</button><textarea id="thread-text" rows="1" maxlength="4000" enterkeyhint="send" placeholder="What did you eat?"></textarea><button class="primary thread-send" id="thread-send" aria-label="Send">${svg('send')}</button></div><p id="thread-status" role="status" aria-live="polite"></p><input type="file" id="ql-file" accept="image/*" multiple hidden></form>`;
+    el.innerHTML=`<header class="thread-heading"><a class="back" href="${ctx.day?'/food?d='+encodeURIComponent(ctx.day):'/food'}">${svg('back')}Nutrition</a><h1>Add food</h1><button type="button" class="icon-btn" id="thread-settings" aria-label="Food chat settings">${svg('more')}</button></header><button type="button" class="linkbtn" id="thread-older" hidden>Earlier messages</button><div id="thread-messages" aria-live="off"></div><div id="thread-empty"><h2><span class="kit-mark" aria-hidden="true">${svg('sparkle')}</span>What did you eat?</h2><p>Describe food or choose an action.</p></div><form id="thread-composer" class="thread-composer"><div id="thread-shared-recipes"></div><div class="thread-menu" id="thread-menu" hidden><div class="thread-tools">${tile('data-tool="snap"','camera','Camera')}${tile('data-tool="library"','image','Photo')}${tile('data-tool="scan"','barcode','Barcode')}${tile('id="thread-search"','search','Search')}${tile('id="thread-usuals"','clock','Usuals')}${tile('id="thread-recipes"','pot','Recipes')}${tile('id="thread-manual-add"','edit','Manual')}</div></div><label class="vh" for="thread-text">Message about your food</label><button type="button" class="thread-review-strip" id="thread-review" hidden><span id="thread-review-sum"></span><span class="thread-review-go">Review ›</span></button><div class="kit-starters thread-quick-actions" role="group" aria-label="Quick food actions">${tile('data-thread-quick="recipes"','pot','My Recipes')}${tile('data-thread-quick="snap"','camera','Take a photo')}${tile('data-thread-quick="scan"','barcode','Scan a barcode')}${tile('data-thread-quick="search"','search','Search foods')}</div><div id="thread-remove-notice" class="thread-remove-notice" hidden><span class="vh" role="status" aria-live="polite">Food removed. Undo available.</span><span aria-hidden="true">Food removed</span><button type="button" class="linkbtn" data-removal-undo>Undo</button></div><div class="thread-compose-row"><button type="button" class="icon-btn thread-plus" id="thread-plus" aria-label="More ways to add food" aria-expanded="false" aria-controls="thread-menu">${svg('plus')}</button><textarea id="thread-text" rows="1" maxlength="4000" enterkeyhint="send" placeholder="What did you eat?"></textarea><button class="primary thread-send" id="thread-send" aria-label="Send">${svg('send')}</button></div><p id="thread-status" role="status" aria-live="polite"></p><input type="file" id="ql-file" accept="image/*" multiple hidden></form>`;
     // The + menu holds every other way to add food, so the bar stays one line like a messaging app.
     // + opens the tools as an ordinary bottom sheet (owner: the inline panel looked out of place). The tool
     // buttons keep living in the hidden menu, so the sheet shows clones that click the real ones.
@@ -540,6 +645,7 @@ const FoodThread = (() => {
     const reuseBox=document.createElement('div');reuseBox.className='thread-reuse';reuseBox.hidden=true;
     reuseBox.setAttribute('role','group');reuseBox.setAttribute('aria-label','Reuse your foods');
     $('.thread-compose-row',el).before(reuseBox);
+    $('.thread-compose-row',el).before($('#thread-remove-notice',el));
     ctx.reuseChips=foodReuseChips({box:reuseBox,field,live:()=>active(ctx),choose:item=>reuse(ctx,item),day:()=>ctx.day});
     ctx.nativeEntries=(store.get(nativeKey(owner))||[]).filter(x=>x&&x.at>Date.now()-86400000).slice(-100);
     let fitKey='';
@@ -550,6 +656,8 @@ const FoodThread = (() => {
       field.style.height='auto';field.style.height=Math.min(field.scrollHeight,160)+'px';
     };
     field.addEventListener('input',grow);
+    field.addEventListener('input',()=>{if(ctx.removeNotice)clearRemovalNotice(ctx);});
+    el.addEventListener('click',event=>{if(ctx.removeNotice&&!event.target.closest('[data-removal-undo],[data-unlogged-remove]'))clearRemovalNotice(ctx);},{signal:ctx.removeEvents.signal});
     field.oninput=()=>{if(!field.value.trim()){ctx.context=null;store.del(contextKey(owner));}else if(!ctx.context){ctx.context=latestContext(ctx);if(ctx.context)store.set(contextKey(owner),ctx.context);}primary(ctx);try{saveDraft(ctx,field.value);}catch(e){status(ctx,'Draft storage is full. Keep this screen open until you send.');}};
     ctx.chatView=foodChatViewport({list:$('#thread-messages',el),composer:$('#thread-composer',el),field,send:$('#thread-send',el),active:()=>active(ctx),resizeField:grow});
     field.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.keyCode!==229){e.preventDefault();$('#thread-composer',el).requestSubmit();}});
@@ -583,7 +691,7 @@ const FoodThread = (() => {
     });
     draw(ctx);const tool=new URLSearchParams(location.search).get('tool');
     if(tool&&['snap','scan','library'].includes(tool)){const url=new URL(location.href);url.searchParams.delete('tool');history.replaceState(history.state,'',url.pathname+url.search+url.hash);$('[data-tool="'+tool+'"]',el).click();}else if(field.value.trim())field.focus({preventScroll:true});
-    ThreadDB.list(owner).then(jobs=>{if(active(ctx)){ctx.jobs=jobs;for(const job of jobs)ctx.visibleClients.add(job.id);draw(ctx);flush(ctx);}}).catch(e=>status(ctx,e.message));
+    ThreadDB.list(owner).then(jobs=>{if(active(ctx)){ctx.jobs=jobs;for(const job of jobs)ctx.visibleClients.add(job.id);draw(ctx);flush(ctx);foodRemoval.flush(removalSession());}}).catch(e=>status(ctx,e.message));
     refresh(ctx);
   }
   addEventListener('food:review-state',()=>{if(current&&active(current))primary(current);});
