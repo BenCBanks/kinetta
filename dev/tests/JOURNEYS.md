@@ -1,0 +1,63 @@
+# Journeys and intended link destinations
+
+These checks use fictional accounts on a disposable local deployment. The independent
+guard requires this checkout, its marked app, its own named volumes and a loopback-only
+published port. Use `dev/tests/journeys-compose.yml` alongside the normal Compose file.
+Never point the scripts at an existing installation or another checkout.
+
+Start a fresh test project and load the normal `dev/demo/seed.py` and
+`dev/screenshots/stage.py` fixtures as described in `dev/screenshots/README.md`, then run:
+
+```sh
+export KINETTA_URL=http://localhost:8798 KINETTA_PROJECT=kinettatest
+python3 dev/tests/test_journeys_guard.py
+node dev/tests/test_link_contract.cjs
+python3 dev/tests/journeys_prepare.py
+node dev/tests/journeys.cjs
+node dev/tests/links.cjs
+```
+
+Playwright must be installed. GPS/recording transport, Kit availability/conversation and
+notification delivery are stand-ins; notification destinations come from the backend's
+actual kind-to-link function. Only the recording-save and food-review journeys may save
+fictional records. The food journey checks that a draft adds nothing and explicit review
+adds exactly one entry. Other navigation writes fail the check, apart from explicit
+read/usage markers and the prepared segment draft's blocked autosave. Intercepted account
+and recording requests cannot follow redirects.
+
+Add a row to `journey_scenes.cjs`: `start`, real control selectors in `taps`, and `end`
+with the expected URL, visible title and loaded key element. Optional `back` checks the
+app's Back control; use `startReady` for asynchronous starting screens. The same module
+reuses the spacing scene list for link collection and the later gallery work.
+
+`KINETTA_JOURNEY_CASE=me-profile` (or comma-separated IDs) selects debugging cases. Its report is explicitly
+partial and cannot satisfy the complete link check.
+`KINETTA_JOURNEY_THEME=dark` repeats a flow in the other theme. Feed Back delays the
+returning challenge response to exercise its scroll-restoration race.
+Reports default to `/tmp/<project>-journeys-report.json` and `/tmp/<project>-links-report.json`; override with
+`KINETTA_JOURNEY_REPORT` and `KINETTA_LINK_REPORT`. Failed cases still appear in the report
+and the process exits nonzero. Set `KINETTA_JOURNEY_SHOTS` to retain destination/failure images.
+
+The link checker rejects unknown routes, ignored view selectors, mismatched control labels
+and unapproved external links. Downloads cannot follow a redirect outside the fixture.
+It walks the full graph for the Alex demo and original journey accounts; shared persona
+scenes also contribute concrete destinations. It keeps exact account-scoped URLs;
+every discovery is checked before deduplication. Exceeding 1,000 destinations fails clearly.
+Only two browser contexts remain open; a four-minute crawl deadline fails at the active URL.
+Segment review uses an owned private fixture draft and real read-only geometry validation;
+the navigation checks never save or publish a segment.
+The lifting set editor has no heading; its loaded exercise rows identify that destination.
+Recipe editors expose their name in the visible editable title field.
+It temporarily breaks the real View progress link to `view=training` and proves that the
+same checker rejects it; a hidden-heading proof protects title checks. `--rendered-only`
+is a clearly labelled partial diagnostic, never complete dynamic `go()` acceptance.
+
+Record preparation and both scripts' durations; their added normal runtime should stay below
+five minutes. `KINETTA_JOURNEY_DEADLINE_MS` shares an absolute epoch-millisecond deadline
+across the browser scripts; independent runs also have two/four-minute limits. Use a fresh
+project for acceptance. Repeated local crawls must respect the export's five-minute cooldown.
+Ready/main full CI runs preparation, both-theme feed Back and complete journeys/links
+within one five-minute budget. The added Draft checks are the pure guard/link contracts. Open
+the Tests run's `journeys-links-<sha>` artifact for reports and destination images;
+session files are excluded. Browser/native before-and-after
+galleries are separate later steps of #429; this first step does not claim them.
