@@ -63,15 +63,16 @@ jobs:
       - name: Stop it
         if: always()
         run: docker compose -p kinettatest down -v
-  tests:
+  backend:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
       COMPOSE_FILE: ${{ github.workspace }}/docker-compose.yml:${{ github.workspace }}/dev/tests/journeys-compose.yml
       KINETTA_URL: http://localhost:8798
-      KINETTA_PROJECT: kinettatest
-      KINETTA_JOURNEY_SHOTS: /tmp/journey-shots
+      KINETTA_PROJECT: kt-ci-backend
+      KINETTA_PORT: 8798
+      TZ: America/New_York
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -81,211 +82,90 @@ jobs:
         run: python3 dev/evals/check.py
       - name: Start a throwaway Kinetta
         run: |
-          GEMINI_API_KEY=placeholder-for-tests KINETTA_PORT=8798 TZ=America/New_York docker compose -p kinettatest up -d --build
-          for i in $(seq 1 60); do curl -sf localhost:8798/api/health && break; sleep 3; done
+          GEMINI_API_KEY=placeholder-for-tests docker compose -p "$KINETTA_PROJECT" up -d --build
+          for i in $(seq 1 60); do curl -sf "localhost:$KINETTA_PORT/api/health" && break; sleep 3; done
       - name: Load the demo data
-        env:
-          KINETTA_URL: http://localhost:8798
         run: |
           python3 dev/demo/gen_gpx.py /tmp/gpx 120
           python3 dev/demo/seed.py /tmp/gpx
           python3 dev/screenshots/stage.py /tmp/gpx
       - name: Run the tests
         run: dev/tests/run.sh
-      - name: Check interval voice settings in a browser (fictional accounts)
-        run: |
-          npm install --prefix /tmp/interval-browser playwright
-          /tmp/interval-browser/node_modules/.bin/playwright install --with-deps chromium
-          NODE_PATH=/tmp/interval-browser/node_modules node dev/tests/interval_voice_ui.cjs
-
-      - name: Check all navigation labels, targets and keyboard clearance
-        run: NODE_PATH=/tmp/interval-browser/node_modules node dev/tests/navigation_ui.cjs
-
-      - name: Check automatic asset updates and offline cache
-        run: NODE_PATH=/tmp/interval-browser/node_modules node dev/tests/asset_cache_ui.cjs
-
-      - name: Check the compact Explore guide (fictional accounts)
-        env:
-          KINETTA_URL: http://localhost:8798
-          KINETTA_PROJECT: kinettatest
-        run: |
-          python3 dev/tests/explore_fixture.py
-          NODE_PATH=/tmp/interval-browser/node_modules node dev/tests/guide_ui.cjs
-
-      - name: Check Progress navigation in a browser (fictional accounts)
-        run: |
-          npm install --prefix /tmp/progress-browser playwright
-          /tmp/progress-browser/node_modules/.bin/playwright install --with-deps chromium
-          NODE_PATH=/tmp/progress-browser/node_modules node dev/tests/progress_ui.cjs
-
-      - name: Check Fitness prediction layout and provenance (fictional accounts)
-        run: KINETTA_PROJECT=kinettatest NODE_PATH=/tmp/progress-browser/node_modules node dev/tests/fitness_ui.cjs
-
-      - name: Check full-width personal Heatmap (fictional accounts and tiles)
-        run: KINETTA_PROJECT=kinettatest NODE_PATH=/tmp/progress-browser/node_modules node dev/tests/heatmap_ui.cjs
-
-      - name: Check profile cards and the inline editor in a browser (fictional accounts)
-        run: |
-          npm install --prefix /tmp/card-browser playwright
-          /tmp/card-browser/node_modules/.bin/playwright install --with-deps chromium
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/profile_card_ui.cjs
-      - name: Check Nutrition navigation and logging in a browser (fictional accounts)
-        run: NODE_PATH=/tmp/card-browser/node_modules node dev/tests/nutrition_ui.cjs
-      - name: Check Track launch controls and map gestures (fictional accounts)
-        run: |
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/track_home_ui.cjs
-          KINETTA_PROJECT=kinettatest NODE_PATH=/tmp/card-browser/node_modules node dev/tests/top_chips_ui.cjs
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/track_ready_map_ui.cjs
-      - name: Check Activity social tools and card reuse (fictional accounts)
-        env:
-          KINETTA_URL: http://localhost:8798
-          KINETTA_PROJECT: kinettatest
-        run: NODE_PATH=/tmp/card-browser/node_modules node dev/tests/activity_home_ui.cjs
-      - name: Check compact food entry and amount controls (fictional accounts)
-        env:
-          KINETTA_URL: http://localhost:8798
-          KINETTA_PROJECT: kinettatest
-        run: NODE_PATH=/tmp/card-browser/node_modules node dev/tests/food_entry_ui.cjs
-      - name: Check removable food cards and Undo (fictional accounts)
-        env:
-          KINETTA_URL: http://localhost:8798
-          KINETTA_PROJECT: kinettatest
-        run: NODE_PATH=/tmp/card-browser/node_modules node dev/tests/food_removal_ui.cjs
-      - name: Check own-food reuse chips and provenance review (fictional account)
-        env:
-          KINETTA_URL: http://localhost:8798
-        run: |
-          python3 dev/tests/food_memory_fixture.py
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/food_memory_ui.cjs
-      - name: Check compact training plans and Track preparation (fictional accounts)
-        env:
-          KINETTA_URL: http://localhost:8798
-          KINETTA_PROJECT: kinettatest
-        run: NODE_PATH=/tmp/card-browser/node_modules node dev/tests/plan_ui.cjs
-      - name: Check Activity detail layout and permissions (fictional accounts)
-        env:
-          KINETTA_URL: http://localhost:8798
-          KINETTA_PROJECT: kinettatest
-        run: |
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/activity_detail_ui.cjs
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/notification_edit_ui.cjs
-      - name: Check compact lifting logger and exercise history (fictional accounts)
-        env:
-          KINETTA_URL: http://localhost:8798
-          KINETTA_PROJECT: kinettatest
-        run: |
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/lift_compact_ui.cjs
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/lift_ui.cjs
-      - name: Check compact recipes, foods and ingredient editor (fictional accounts)
-        env:
-          KINETTA_URL: http://localhost:8798
-          KINETTA_PROJECT: kinettatest
-        run: NODE_PATH=/tmp/card-browser/node_modules node dev/tests/recipes_compact_ui.cjs
-      - name: Check Friends and named Back links with touch maps (fictional accounts)
-        env:
-          KINETTA_URL: http://localhost:8798
-          KINETTA_PROJECT: kinettatest
-        run: |
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/friends_ui.cjs
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/back_navigation_ui.cjs
-      - name: Check notification switches and pending saves (fictional preferences)
-        env:
-          KINETTA_URL: http://localhost:8798
-        run: |
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/personal_notifications_ui.cjs
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/notification_settings_ui.cjs
-      - name: Check progress share pictures and controls (fictional accounts)
-        env:
-          KINETTA_URL: http://localhost:8798
-          KINETTA_PROJECT: kinettatest
-        run: NODE_PATH=/tmp/card-browser/node_modules node dev/tests/recaps_ui.cjs
-      - name: Check food Insights and goals in a browser (fictional accounts)
-        env:
-          KINETTA_URL: http://localhost:8798
-          KINETTA_PROJECT: kinettatest
-        run: |
-          python3 dev/tests/insights_fixture.py
-          NODE_PATH=/tmp/interval-browser/node_modules node dev/tests/insights_ui.cjs
-          NODE_PATH=/tmp/interval-browser/node_modules node dev/tests/goals_ui.cjs
-
-      - name: Check private Weight discovery and saved-profile races (fictional accounts)
-        env:
-          KINETTA_URL: http://localhost:8798
-          KINETTA_PROJECT: kinettatest
-        run: |
-          python3 dev/tests/weight_progress_fixture.py
-          PHASE=after NODE_PATH=/tmp/card-browser/node_modules node dev/tests/weight_progress_ui.cjs
-          PHASE=after W=330 ROOT=24 NODE_PATH=/tmp/card-browser/node_modules node dev/tests/weight_progress_ui.cjs
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/weight_progress_actions.cjs
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/weight_progress_journeys.cjs
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/weight_undo_ui.cjs
-
-      - name: Check one-tap reaction choices on every activity list (fictional accounts)
-        env:
-          KINETTA_URL: http://localhost:8798
-          KINETTA_PROJECT: kinettatest
-        run: |
-          python3 dev/tests/inline_reactions_fixture.py
-          PHASE=after NODE_PATH=/tmp/card-browser/node_modules node dev/tests/inline_reactions_ui.cjs
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/inline_reactions_actions.cjs
-      - name: Check shared subpage headers and modal ownership (fictional records; writes blocked)
-        env:
-          KINETTA_URL: http://localhost:8798
-          KINETTA_PROJECT: kinettatest
-        run: NODE_PATH=/tmp/card-browser/node_modules node dev/tests/shell_ui.cjs
-      - name: Check shared password visibility in app and admin forms (fictional values)
-        env:
-          KINETTA_URL: http://localhost:8798
-        run: NODE_PATH=/tmp/card-browser/node_modules node dev/tests/password_visibility_ui.cjs
-
-      - name: Check signup uniqueness, username feedback and existing invitations (fictional records)
-        env:
-          KINETTA_URL: http://localhost:8798
-        run: |
-          python3 dev/tests/signup_uniqueness_fixture.py
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/signup_uniqueness_ui.cjs
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/welcome_polish_ui.cjs
-      - name: Check terms agreement and community report journeys (fictional records; writes blocked)
-        env:
-          KINETTA_URL: http://localhost:8798
-        run: NODE_PATH=/tmp/card-browser/node_modules node dev/tests/community_ui.cjs
-
-      - name: Check aggregate Features portal with fictional history (writes blocked)
-        env:
-          KINETTA_URL: http://localhost:8798
-          KINETTA_PROJECT: kinettatest
-          FEATURE_UI_SESSION: /tmp/kinetta-features-session.json
-        run: |
-          python3 dev/tests/admin_features_fixture.py
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/admin_features_ui.cjs
-          python3 dev/tests/feature_collection_fixture.py
-          NODE_PATH=/tmp/card-browser/node_modules node dev/tests/feature_collection_ui.cjs
-      - name: Check real journeys and intended links on the marked fictional deployment
-        env:
-          NODE_PATH: /tmp/card-browser/node_modules
-        run: |
-          export KINETTA_JOURNEY_DEADLINE_MS=$(( $(date +%s%3N) + 300000 ))
-          timeout --kill-after=5s 300s bash -e -c '
-            python3 dev/tests/journeys_prepare.py
-            node dev/tests/journeys.cjs
-            KINETTA_JOURNEY_CASE=activity-detail-back KINETTA_JOURNEY_THEME=dark KINETTA_JOURNEY_REPORT=/tmp/kinettatest-journeys-dark-report.json node dev/tests/journeys.cjs
-            node dev/tests/links.cjs
-          '
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: journeys-links-${{ github.sha }}
-          path: |
-            /tmp/kinettatest-journeys-report.json
-            /tmp/kinettatest-journeys-dark-report.json
-            /tmp/kinettatest-links-report.json
-            /tmp/journey-shots
       - name: Server log (if something failed)
         if: failure()
-        run: docker compose -p kinettatest logs app | tail -100
+        run: docker compose -p "$KINETTA_PROJECT" logs app | tail -100
       - name: Stop it
         if: always()
-        run: docker compose -p kinettatest down -v
+        run: docker compose -p "$KINETTA_PROJECT" down -v
+
+  browser_shards:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    name: browser shard ${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      COMPOSE_FILE: ${{ github.workspace }}/docker-compose.yml:${{ github.workspace }}/dev/tests/journeys-compose.yml
+      KINETTA_URL: http://localhost:8798
+      KINETTA_PROJECT: kt-ci-shard-${{ matrix.shard }}
+      KINETTA_PORT: 8798
+      KINETTA_JOURNEY_SHOTS: /tmp/kt-ci-shard-${{ matrix.shard }}-journey-shots
+      FEATURE_UI_SESSION: /tmp/kt-ci-shard-${{ matrix.shard }}-features-session.json
+      NODE_PATH: /tmp/kinetta-browser/node_modules
+      TZ: America/New_York
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Start this shard's isolated Kinetta
+        run: |
+          GEMINI_API_KEY=placeholder-for-tests docker compose -p "$KINETTA_PROJECT" up -d --build
+          for i in $(seq 1 60); do curl -sf "localhost:$KINETTA_PORT/api/health" && break; sleep 3; done
+      - name: Load the demo data
+        run: |
+          python3 dev/demo/gen_gpx.py /tmp/gpx 120
+          python3 dev/demo/seed.py /tmp/gpx
+          python3 dev/screenshots/stage.py /tmp/gpx
+      - name: Install Playwright
+        run: |
+          npm install --prefix /tmp/kinetta-browser playwright
+          /tmp/kinetta-browser/node_modules/.bin/playwright install --with-deps chromium
+      - name: Run this browser shard
+        run: bash dev/tests/run_browser_shard.sh "${{ matrix.shard }}"
+      - name: Keep journey evidence
+        if: always() && matrix.shard == 4
+        uses: actions/upload-artifact@v4
+        with:
+          name: journeys-links-${{ github.sha }}-shard-${{ matrix.shard }}
+          path: |
+            /tmp/kt-ci-shard-${{ matrix.shard }}-journeys-report.json
+            /tmp/kt-ci-shard-${{ matrix.shard }}-journeys-dark-report.json
+            /tmp/kt-ci-shard-${{ matrix.shard }}-links-report.json
+            /tmp/kt-ci-shard-${{ matrix.shard }}-journey-shots
+          if-no-files-found: ignore
+      - name: Server log (if something failed)
+        if: failure()
+        run: docker compose -p "$KINETTA_PROJECT" logs app | tail -100
+      - name: Stop this shard
+        if: always()
+        run: docker compose -p "$KINETTA_PROJECT" down -v
+
+  tests:
+    if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+    needs: [backend, browser_shards]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require backend and all browser shards to pass
+        env:
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          BROWSER_SHARDS_RESULT: ${{ needs.browser_shards.result }}
+        run: |
+          test "$BACKEND_RESULT" = success
+          test "$BROWSER_SHARDS_RESULT" = success
 
   spacing:
     runs-on: ubuntu-latest

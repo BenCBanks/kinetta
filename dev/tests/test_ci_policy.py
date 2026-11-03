@@ -7,9 +7,11 @@ import textwrap
 import importlib.util
 from pathlib import Path
 import unittest
+from collections import Counter
 import os
 import subprocess
 import tempfile
+import re
 from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[2]
@@ -76,5 +78,47 @@ class CIPolicyTests(unittest.TestCase):
         self.assertEqual(ios.count('npm run sync'),2) # unsigned and signed builds share stamping
         self.assertIn('RUN python -m app.asset_build app/static app/static',(ROOT/'Dockerfile').read_text())
 
+
+
+    def test_browser_shards_cover_every_existing_command_once(self):
+        workflow=(ROOT/'.github/workflows/tests.yml').read_text()
+        script=(ROOT/'dev/tests/run_browser_shard.sh').read_text()
+        self.assertIn('shard: [1, 2, 3, 4]',workflow)
+        self.assertIn('run_browser_shard.sh',workflow)
+        self.assertIn('needs: [backend, browser_shards]',workflow)
+        self.assertIn('always()',workflow)
+        self.assertIn('run: dev/tests/run.sh',workflow)
+        self.assertIn('KINETTA_PROJECT: kt-ci-shard-${{ matrix.shard }}',workflow)
+        self.assertIn('KINETTA_JOURNEY_SHOTS: /tmp/kt-ci-shard-${{ matrix.shard }}-journey-shots',workflow)
+        self.assertIn('COMPOSE_FILE: ${{ github.workspace }}/docker-compose.yml:${{ github.workspace }}/dev/tests/journeys-compose.yml',workflow)
+
+        expected='''interval_voice_ui.cjs navigation_ui.cjs asset_cache_ui.cjs explore_fixture.py
+guide_ui.cjs progress_ui.cjs fitness_ui.cjs heatmap_ui.cjs profile_card_ui.cjs nutrition_ui.cjs
+track_home_ui.cjs top_chips_ui.cjs track_ready_map_ui.cjs activity_home_ui.cjs food_entry_ui.cjs
+food_removal_ui.cjs food_memory_fixture.py food_memory_ui.cjs plan_ui.cjs activity_detail_ui.cjs
+notification_edit_ui.cjs lift_compact_ui.cjs lift_ui.cjs recipes_compact_ui.cjs friends_ui.cjs
+back_navigation_ui.cjs personal_notifications_ui.cjs notification_settings_ui.cjs recaps_ui.cjs
+insights_fixture.py insights_ui.cjs goals_ui.cjs weight_progress_fixture.py weight_progress_ui.cjs
+weight_progress_ui.cjs weight_progress_actions.cjs weight_progress_journeys.cjs weight_undo_ui.cjs
+inline_reactions_fixture.py inline_reactions_ui.cjs inline_reactions_actions.cjs shell_ui.cjs
+password_visibility_ui.cjs signup_uniqueness_fixture.py signup_uniqueness_ui.cjs welcome_polish_ui.cjs
+community_ui.cjs admin_features_fixture.py admin_features_ui.cjs feature_collection_fixture.py
+feature_collection_ui.cjs journeys_prepare.py journeys.cjs journeys.cjs links.cjs'''.split()
+        self.assertEqual(Counter(expected),Counter(re.findall(r'(?:node|python3) dev/tests/([A-Za-z0-9_.-]+)',script)))
+
+        shard=None
+        owners={}
+        for line in script.splitlines():
+            stripped=line.strip()
+            if stripped in ('1)','2)','3)','4)'):
+                shard=stripped[0]
+            elif stripped == ';;':
+                shard=None
+            for prefix in ('node dev/tests/','python3 dev/tests/'):
+                if prefix in line and shard:
+                    name=line.split(prefix,1)[1].split()[0]
+                    owners.setdefault(name,set()).add(shard)
+        self.assertEqual(len(owners),len(Counter(expected)))
+        self.assertTrue(all(len(shards)==1 for shards in owners.values()),owners)
 
 if __name__=='__main__':unittest.main()
