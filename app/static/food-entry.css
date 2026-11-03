@@ -54,6 +54,16 @@
 #sv .nut:has(.nutrient-unknown) { grid-template-columns:repeat(2,minmax(0,1fr)); }
 #sv .nut .nutrient-unknown { font:600 1rem/1.3 var(--font);overflow-wrap:anywhere; }
 
+/* Recent saved foods use one broad last-portion action plus a visible 44px add control. */
+.recent-saved-row { display:flex;align-items:center;gap:4px;min-width:0;border-top:1px solid var(--line); }
+.recent-saved-row .recent-main { flex:1;width:auto;min-width:0;min-height:56px;padding:8px 4px 8px 0;border:0;gap:8px; }
+.recent-main .recent-label { display:grid;flex:1;min-width:0;text-align:left; }
+.recent-main .recent-label b { font-size:.9375rem;line-height:1.25;overflow-wrap:anywhere; }
+.recent-main .recent-label small { font-size:.8125rem;line-height:1.25; }
+.recent-main .recent-kcal { flex:none;color:var(--tx2);font-size:.8125rem;font-weight:600;white-space:nowrap; }
+.recent-saved-row .recent-add { flex:none;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;background:transparent;box-shadow:none;color:var(--tx2); }
+.sheet .recent-saved .recent-saved-row .recent-add { width:44px;height:44px;min-width:44px;min-height:44px;background:transparent;box-shadow:none; }
+
 /* The food entry header keeps the destination below its title as secondary, tappable context. */
 .food-thread .thread-title { min-width:0;display:flex;flex-direction:column;align-items:center; }
 .food-thread .thread-context { min-width:44px;min-height:44px;padding:0 8px;border:0;border-radius:4px;background:transparent;color:var(--tx2);font:400 .8125rem/1.25 var(--font);text-align:center;white-space:normal; }

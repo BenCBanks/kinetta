@@ -398,9 +398,14 @@ function recentPortionLabel(recent) {
 }
 function recentSavedMarkup(recent, {library=false}={}) {
   if (!recent.length) return '';
-  const rows=recent.map((x,i)=>`<button type="button" class="fe" data-recent-item data-recent-index="${i}" data-recent-kind="${x.kind}" data-recent-id="${x.id}">
-    <div><b>${esc(x.name)}</b><small class="muted">Last portion · ${esc(recentPortionLabel(x))}</small></div>
-    <div class="r"><b class="num">${x.item.totals.kcal==null?'Calories unknown':x.kind==='dish'?recipeCalories(x.item.totals.kcal):r0(x.item.totals.kcal)}</b><small class="muted">${x.item.totals.kcal==null?'Add':'kcal · Add'}</small></div></button>`).join('');
+  const rows=recent.map((x,i)=>{
+    const portion=recentPortionLabel(x),calories=x.item.totals.kcal==null?'Calories unknown':`${x.kind==='dish'?recipeCalories(x.item.totals.kcal):r0(x.item.totals.kcal)} kcal`;
+    return `<div class="recent-saved-row" data-recent-row data-recent-index="${i}">
+      <button type="button" class="fe recent-main" data-recent-item data-recent-index="${i}" data-recent-kind="${x.kind}" data-recent-id="${x.id}" aria-label="Add ${esc(x.name)} with last portion ${esc(portion)}">
+        <span class="recent-label"><b>${esc(x.name)}</b><small class="muted">Last portion · ${esc(portion)}</small></span><span class="recent-kcal num">${esc(calories)}</span>
+      </button><button type="button" class="icon-btn recent-add" data-recent-add data-recent-index="${i}" data-recent-kind="${x.kind}" data-recent-id="${x.id}" aria-label="Add ${esc(x.name)} with last portion ${esc(portion)}">${svg('plus')}</button>
+    </div>`;
+  }).join('');
   return library?`<section class="library-section recent-saved" data-recent-saved><h2>Recent</h2>${rows}</section>`:`<section class="recent-saved" data-recent-saved><h3 class="ghead">Recent</h3><div class="results">${rows}</div></section>`;
 }
 async function logRecentMeal(meal, w) {
@@ -411,6 +416,19 @@ async function logRecentMeal(meal, w) {
     source:'meal',ref:{...(it.ref||{}),saved_meal_id:meal.id,saved_meal_factor:factor}}));
   App.cache.delete('/api/food/meals');
   return addEntries(items,{thread:location.pathname==='/food/describe'});
+}
+function wireRecentSaved(body,recent,where,{afterDish=()=>{},afterMeal=()=>{}}={}) {
+  $$('[data-recent-item],[data-recent-add]',body).forEach(button=>button.onclick=async()=>{
+    const item=recent[+button.dataset.recentIndex],row=button.closest('[data-recent-row]'),w=where();
+    if(!item||button.disabled||row?.dataset.busy==='true')return;
+    if(item.kind==='dish'){
+      dishLogSheet(item.item,w,afterDish,{quickPortion:item.item.last_used_portion});
+      return;
+    }
+    row.dataset.busy='true';$$('[data-recent-item],[data-recent-add]',row).forEach(control=>control.disabled=true);
+    try{await logRecentMeal(item.item,w);afterMeal();}
+    catch(e){toast(e.message);delete row.dataset.busy;$$('[data-recent-item],[data-recent-add]',row).forEach(control=>control.disabled=false);}
+  });
 }
 
 async function addEntries(items,{thread=false,restoreFrom=null}={}) {   // each item gets a client_id, so a resend after a lost connection never doubles it
@@ -702,7 +720,6 @@ async function tSaved(body, where, close, {manage=false}={}) {
       (d.serving === 'one' ? d.per_serving.kcal : d.totals.kcal), d.totals.kcal==null?(d.mine===false?'Calories unavailable':'Add nutrition'):d.serving === 'one' ? 'kcal a serving' : 'kcal total');
     const recent=recentSavedItems(dishes,meals);
     body.innerHTML = `${recentSavedMarkup(recent)}
-      <p class="small muted">${manage?'Open a recipe to edit it, or choose Log portion.':'Choose a recipe to log a portion. Edit changes the saved recipe.'}</p>
       ${mine.length ? `<h3 class="ghead">Your recipes</h3><div class="results">${mine.map((d) => `<div class="meal-library-row">${dishRow(d, dishes.indexOf(d))}<button type="button" class="ghost sm" data-edit-meal="${d.id}" aria-label="${manage?'Log a portion of':'Edit'} ${esc(d.named?d.name:'Untitled recipe')}">${manage?'Log portion':svg('edit')+' Edit'}</button></div>`).join('')}</div>` : '<p class="small muted">Create your first recipe, with or without Kit.</p>'}
       ${theirs.length ? `<h3 class="ghead">Shared with you</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
       ${meals.length ? `<h3 class="ghead">Saved combinations</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
@@ -715,17 +732,7 @@ async function tSaved(body, where, close, {manage=false}={}) {
     $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close, () => foodEditor(foods[+x.dataset.i], again)));
     $$('[data-dish]', body).forEach((x) => x.onclick = () => { const dish=dishes[+x.dataset.dish];if(manage)go('/food/cook/'+dish.id);else if(dish.totals.kcal==null&&dish.mine!==false)knownSheet(dish,()=>{invalidate('/api/dishes');again();});else dishLogSheet(dish,where(),()=>close()); });
     $$('[data-meal]', body).forEach((x) => x.onclick = () => savedSheet(meals[+x.dataset.meal], where(), close, again));
-    $$('[data-recent-item]',body).forEach(button=>button.onclick=async()=>{
-      const recentItem=recent[+button.dataset.recentIndex],w=where();if(!recentItem||button.disabled)return;
-      if(recentItem.kind==='dish'){
-        const dish=recentItem.item;
-        dishLogSheet(dish,w,()=>close(),{quickPortion:dish.last_used_portion});
-        return;
-      }
-      button.disabled=true;
-      try{await logRecentMeal(recentItem.item,w);close();}
-      catch(e){toast(e.message);button.disabled=false;}
-    });
+    wireRecentSaved(body,recent,where,{afterDish:()=>close(),afterMeal:()=>close()});
   } catch (x) { if(valid()){body.innerHTML = `<p class="err">${esc(x.message)}</p><button type="button" class="ghost wide" id="tm-retry">Try again</button>`;$('#tm-retry',body).onclick=()=>tSaved(body,where,close,{manage});} }
 }
 // The managed library stays separate from Add food's existing portion picker.
@@ -754,16 +761,7 @@ function drawRecipeLibrary(body,dishes,meals,foods,where,close,again){
   $$('[data-edit-food]',body).forEach(b=>b.onclick=()=>foodEditor(foods[+b.dataset.editFood],again));
   $$('[data-i]',body).forEach(b=>b.onclick=()=>amountSheet(foods[+b.dataset.i],where(),close,()=>foodEditor(foods[+b.dataset.i],again)));
   $$('[data-meal]',body).forEach(b=>b.onclick=()=>savedSheet(meals[+b.dataset.meal],where(),close,again));
-  $$('[data-recent-item]',body).forEach(button=>button.onclick=async()=>{
-    const recentItem=recent[+button.dataset.recentIndex],w=where();if(!recentItem||button.disabled)return;
-    if(recentItem.kind==='dish'){
-      dishLogSheet(recentItem.item,w,()=>{},{quickPortion:recentItem.item.last_used_portion});
-      return;
-    }
-    button.disabled=true;
-    try{await logRecentMeal(recentItem.item,w);}
-    catch(e){toast(e.message);button.disabled=false;}
-  });
+  wireRecentSaved(body,recent,where);
   $$('[data-library-jump]',body).forEach(b=>b.onclick=()=>$('#library-'+b.dataset.libraryJump,body).scrollIntoView({block:'start'}));
   const search=$('#tm-filter',body);if(search)search.oninput=()=>{const q=search.value.trim().toLowerCase();let count=0;$$('[data-library-name]',body).forEach(n=>{n.hidden=!n.dataset.libraryName.includes(q);if(!n.hidden)count++;});$$('.library-section',body).forEach(n=>n.hidden=![...n.querySelectorAll('[data-library-name]')].some(r=>!r.hidden));$('#tm-no-match',body).hidden=count>0;};
 }
