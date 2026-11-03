@@ -50,18 +50,24 @@ function intention(link,base,registry,login){
  if(pathname==='/food'&&q.get('view')==='weight')canonical='/progress/weight';
  if(/^\/lift\/\d+$/.test(pathname))canonical=pathname.replace('/lift/','/track/lift/');
  const heading=dialog?.heading||(addFood?'Add food':canonical===ownProfile&&!q.has('preview')?'Your profile':q.has('view')?views[pathname][q.get('view')]:q.get('section')==='food'?views['/food'][q.get('foodview')||'overview']:pathname==='/food/trends'?'Insights':headings[canonical]);
- return {kind:'page',url,canonical,heading:pathname==='/segments/review'?'Review segment':heading,dialog,segmentReview:pathname==='/segments/review',ready:/^\/track\/lift\/\d+$/.test(canonical)?'#lf-list .lift-name':null};
+ return {kind:'page',url,canonical,heading:pathname==='/segments/review'?'Review segment':heading,dialog,segmentReview:pathname==='/segments/review',ready:/^\/track\/lift\/\d+$/.test(canonical)?'#lf-list .lift-name':null,titleInput:/^\/food\/cook\/\d+$/.test(canonical)?'#dk-name':null};
 }
 async function fetchDocument(request,url,base){
  const origin=new URL(base).origin;let target=new URL(url,base);
+ const path=pathname=>pathname.replace(/\/+$/,'')||'/';
+ const expectedPath=path(target.pathname),expectedType={'/admin':'text/html','/api/account/export':'application/zip'}[expectedPath];
+ assert(expectedType,`Unsupported internal document: ${expectedPath}`);
  for(let hop=0;hop<=5;hop++){
   assert.equal(target.origin,origin,'Internal document redirect must stay inside the fixture before requesting it');
   assert(!target.username&&!target.password,'Document links cannot include credentials');
+  assert.equal(path(target.pathname),expectedPath,'Internal document redirect must stay on the requested endpoint');
   const response=await request.get(target.href,{maxRedirects:0});
   if([301,302,303,307,308].includes(response.status())){
    const location=response.headers().location;assert(location,'Document redirect needs a destination');target=new URL(location,target);continue;
   }
-  assert.equal(response.status(),200,'Internal document must resolve');return response;
+  assert.equal(response.status(),200,'Internal document must resolve');
+  const type=(response.headers()['content-type']||'').split(';',1)[0].trim().toLowerCase();
+  assert.equal(type,expectedType,'Internal document must have its expected content type');return response;
  }
  assert.fail('Too many internal document redirects');
 }

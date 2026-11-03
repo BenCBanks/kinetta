@@ -77,6 +77,7 @@ const collect=p=>p.evaluate(()=>[...document.querySelectorAll('a[href],[data-hre
     const actual=new URL(f.p.url());assert.equal(actual.pathname.replace(/\/+$/,'')||'/me',result.canonical,`${link.source}: unexpected redirect for ${link.href}`);
     assert(await f.p.evaluate(()=>App.pages.some(page=>page.re.test(location.pathname.replace(/\/+$/,'')||'/me'))),'No unknown-route fallback');
     const titles=await visibleTitles(f.p);
+    if(result.titleInput){const field=f.p.locator(result.titleInput);await field.waitFor({state:'visible'});titles.push(await field.inputValue());}
     // The set logger intentionally has no heading: its loaded exercise rows identify that editor.
     if(result.ready)await f.p.locator(result.ready).first().waitFor({state:'visible'});
     else assert(titles.some(title=>title.trim()),'Destination has a visible page title: '+link.href);

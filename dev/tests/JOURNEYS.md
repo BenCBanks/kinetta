@@ -47,6 +47,7 @@ Only two browser contexts remain open; a four-minute crawl deadline fails at the
 Segment review uses an owned private fixture draft and real read-only geometry validation;
 the navigation checks never save or publish a segment.
 The lifting set editor has no heading; its loaded exercise rows identify that destination.
+Recipe editors expose their name in the visible editable title field.
 It temporarily breaks the real View progress link to `view=training` and proves that the
 same checker rejects it; a hidden-heading proof protects title checks. `--rendered-only`
 is a clearly labelled partial diagnostic, never complete dynamic `go()` acceptance.
