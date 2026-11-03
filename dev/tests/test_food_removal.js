@@ -9,6 +9,7 @@ function fixture(){
   const db={
     list:async owner=>[...rows.values()].filter(j=>j.owner===owner).sort((a,b)=>a.at.localeCompare(b.at)),
     put:async(owner,id,value)=>rows.set(key(owner,id),{...value,owner,id}),
+    ensure:async(owner,id,value)=>{const k=key(owner,id);if(!rows.has(k))rows.set(k,{...value,owner,id});},
     update:async(owner,id,fn)=>{const k=key(owner,id),current=rows.get(k);if(!current)return null;const value=fn(current);rows.set(k,value);return value;},
     remove:async(owner,id)=>rows.delete(key(owner,id)),
   };
@@ -110,6 +111,28 @@ async function run(){
   // A newly created controller over the same durable row resumes the tombstone.
   f.setOnline(true);await f.removal.flush('owner-a');
   assert.equal(f.calls.length,1);assert.equal(f.rows.has(JSON.stringify(['owner-a','stable-id'])),false);
+
+  // A saved but unlogged chat message gets durable Undo even after its outbox job is gone.
+  f=fixture();await f.add('owner-a','other-id');
+  assert.equal(await f.removal.removeSaved('owner-a','saved-id',42,'2026-10-17T08:30:00Z'),true);
+  job=f.rows.get(JSON.stringify(['owner-a','saved-id']));assert.equal(job.savedMessage,true);assert.equal(job.mid,42);
+  assert.equal(job.at,'2026-10-17T08:30:00Z','synthetic rows remain sortable with normal outbox jobs');
+  await f.removal.flush('owner-a');assert.equal(f.calls.length,0,'the saved message remains available during Undo');
+  assert.equal(await f.removal.undo('owner-a','saved-id'),true);
+  assert.equal(f.rows.has(JSON.stringify(['owner-a','saved-id'])),false,'Undo removes only the synthetic local hold');
+  assert.equal(f.calls.length,0,'Undo does not delete the server message');
+
+  f=fixture();assert.equal(await f.removal.removeSaved('owner-a','saved-id',42),true);
+  f.setRequestHandler((path,options)=>({deleted:true,path,options}));await f.advance(6000);
+  assert.equal(f.calls[0].path,'/api/food/thread/messages/42');assert.equal(f.calls[0].body.method,'DELETE');
+  assert.equal(f.rows.has(JSON.stringify(['owner-a','saved-id'])),false,'expiry deletes the saved chat message hold');
+
+  // A lost delete acknowledgement retries the same message; an already-deleted 404 is complete.
+  f=fixture();await f.removal.removeSaved('owner-a','retry-saved',43);let deleted=false;
+  f.setRequestHandler(()=>{if(!deleted){deleted=true;throw Object.assign(Error('The response was lost'),{offline:true});}
+    throw Object.assign(Error('Message not found'),{status:404});});
+  await f.advance(6000);assert.equal(f.rows.get(JSON.stringify(['owner-a','retry-saved'])).removal.commitStarted,true);
+  await f.removal.flush('owner-a');assert.equal(f.calls.length,2);assert.equal(f.rows.has(JSON.stringify(['owner-a','retry-saved'])),false);
 
   // A user switch cannot Undo or flush another account's removal.
   f=fixture();await f.add('owner-a','same-id');await f.removal.remove('owner-a','same-id');

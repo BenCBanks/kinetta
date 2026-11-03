@@ -23,6 +23,21 @@ function foodThreadRemoval({db,request,session,photos={remove:async()=>{}},onCha
     schedule(owner,id,undoUntil-now());await notify(owner,id);return true;
   }
 
+  async function removeSaved(owner,id,mid,at){
+    if(session()!==owner)return false;
+    const messageId=Number(mid);
+    if(!id||!Number.isSafeInteger(messageId)||messageId<1)return false;
+    const before=await read(owner,id);
+    if(before)return remove(owner,id);
+    const capturedAt=typeof at==='string'&&Number.isFinite(Date.parse(at))?at:new Date(now()).toISOString();
+    const undoUntil=now()+undoMs;
+    await db.ensure(owner,id,{at:capturedAt,mid:messageId,savedMessage:true,phase:'remove',version:1,
+      removal:{previousPhase:'saved',undoUntil,commitStarted:false}});
+    const saved=await read(owner,id),removal=saved?.removal;
+    if(saved?.phase!=='remove'||!saved.savedMessage||saved.mid!==messageId||removal?.previousPhase!=='saved')return false;
+    schedule(owner,id,removal.undoUntil-now());await notify(owner,id);return true;
+  }
+
   async function undo(owner,id){
     if(session()!==owner)return false;
     const before=await read(owner,id),removal=before?.removal;
@@ -36,7 +51,9 @@ function foodThreadRemoval({db,request,session,photos={remove:async()=>{}},onCha
       delete next.removal;return next;
     });
     if(!restored||!saved||saved.phase==='remove')return false;
-    clear(owner,id);await notify(owner,id);return true;
+    clear(owner,id);
+    if(saved.phase==='saved')await db.remove(owner,id);
+    await notify(owner,id);return true;
   }
 
   async function owns(owner,id,version){
@@ -80,9 +97,12 @@ function foodThreadRemoval({db,request,session,photos={remove:async()=>{}},onCha
             await notify(owner,job.id);continue;
           }
           let completed=false;
-          try{await request('/api/food/thread/cancel',{client_id:job.id});completed=true;}
+          const path=job.savedMessage?`/api/food/thread/messages/${job.mid}`:'/api/food/thread/cancel';
+          const options=job.savedMessage?{method:'DELETE'}:{client_id:job.id};
+          try{await request(path,options);completed=true;}
           catch(error){
-            if(error.code==='message_cancelled'||(error.status===409&&/already saved/i.test(error.message||'')))completed=true;
+            if(error.code==='message_cancelled'||(error.status===409&&/already saved/i.test(error.message||''))||
+               (job.savedMessage&&error.status===404&&/message not found/i.test(error.message||'')))completed=true;
             else if(session()===owner)await db.update(owner,job.id,row=>row.phase==='remove'&&row.removal?.commitStarted?
               {...row,offline:!!error.offline,error:error.offline?null:error.message}:row);
           }
@@ -94,5 +114,5 @@ function foodThreadRemoval({db,request,session,photos={remove:async()=>{}},onCha
     }finally{busy.delete(owner);rerun.delete(owner);}
   }
 
-  return {remove,undo,flush,owns};
+  return {remove,removeSaved,undo,flush,owns};
 }
