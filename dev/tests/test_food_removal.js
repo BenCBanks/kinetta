@@ -120,18 +120,22 @@ async function run(){
 
   // A saved but unlogged chat message gets durable Undo even after its outbox job is gone.
   f=fixture();await f.add('owner-a','other-id');
+  const savedPhotoKey=JSON.stringify(['owner-a','saved-id']);f.photoRows.set(savedPhotoKey,['fictional-preview']);
   assert.equal(await f.removal.removeSaved('owner-a','saved-id',42,'2026-10-17T08:30:00Z'),true);
-  job=f.rows.get(JSON.stringify(['owner-a','saved-id']));assert.equal(job.savedMessage,true);assert.equal(job.mid,42);
+  job=f.rows.get(savedPhotoKey);assert.equal(job.savedMessage,true);assert.equal(job.mid,42);
   assert.equal(job.at,'2026-10-17T08:30:00Z','synthetic rows remain sortable with normal outbox jobs');
+  assert.deepEqual(f.photoRows.get(savedPhotoKey),['fictional-preview'],'photos remain available through Undo');
   await f.removal.flush('owner-a');assert.equal(f.calls.length,0,'the saved message remains available during Undo');
   assert.equal(await f.removal.undo('owner-a','saved-id'),true);
   assert.equal(f.rows.has(JSON.stringify(['owner-a','saved-id'])),false,'Undo removes only the synthetic local hold');
   assert.equal(f.calls.length,0,'Undo does not delete the server message');
 
-  f=fixture();assert.equal(await f.removal.removeSaved('owner-a','saved-id',42),true);
+  f=fixture();const expiringPhotoKey=JSON.stringify(['owner-a','saved-id']);f.photoRows.set(expiringPhotoKey,['fictional-preview']);
+  assert.equal(await f.removal.removeSaved('owner-a','saved-id',42),true);
   f.setRequestHandler((path,options)=>({deleted:true,path,options}));await f.advance(6000);
   assert.equal(f.calls[0].path,'/api/food/thread/messages/42');assert.equal(f.calls[0].body.method,'DELETE');
-  assert.equal(f.rows.has(JSON.stringify(['owner-a','saved-id'])),false,'expiry deletes the saved chat message hold');
+  assert.equal(f.rows.has(expiringPhotoKey),false,'expiry deletes the saved chat message hold');
+  assert.equal(f.photoRows.has(expiringPhotoKey),false,'expiry cleans saved-message photos');
 
   // A lost delete acknowledgement retries the same message; an already-deleted 404 is complete.
   f=fixture();await f.removal.removeSaved('owner-a','retry-saved',43);let deleted=false;
