@@ -204,7 +204,7 @@ function foodToDish(d, f, set) {
 }
 // Log a dish (Add food > Saved Dishes, or a friend's dish). One question only, the way the dish is measured (Ben,
 // 2026-10-12): by servings -> how many servings (½ steps); by weight -> your portion in grams. w = {day, meal} from Add food.
-function dishLogSheet(d, w, done, {chooseMeal=false,quickPortion=null}={}) {
+function dishLogSheet(d, w, done, {chooseMeal=false,quickPortion=null,onQuickFinish=()=>{}}={}) {
   const owner=readOwner();
   if(d.totals.kcal==null){if(d.mine===false)sheet(d.name,'<p>Calories are unavailable for this shared recipe. Its owner needs to add nutrition before you can log a portion.</p>');else knownSheet(d,()=>{invalidate('/api/dishes');done(true);toast('Nutrition saved · choose a portion when ready');});return;}
   const t = d.totals, wt = d.weight_g, bySv = d.serving === 'one'||(d.mine===false&&!d.weight_g);     // by servings: the whole dish is one serving
@@ -253,6 +253,7 @@ function dishLogSheet(d, w, done, {chooseMeal=false,quickPortion=null}={}) {
     show();
     const ed = $('#dl-edit', b); if (ed) ed.onclick = () => { close(); done(true); go(`/food/cook/${d.id}`); };
     const portionId=newId();
+    let quickSubmitting=false;
     f.onsubmit = async (e) => {
       e.preventDefault(); const btn = $('button.primary', f);if(btn.disabled)return;
       if(chooseMeal){if(!f.meal.value){toast('Which meal would you like to log it to?');f.meal.focus();return;}w={...w,meal:f.meal.value};}
@@ -260,6 +261,7 @@ function dishLogSheet(d, w, done, {chooseMeal=false,quickPortion=null}={}) {
       if(quickShare!=null)body.share=quickShare;
       else if (mode === 'sv') {if(!Number.isFinite(n)||n<=0||n>20){toast('Enter a serving count above zero and up to 20.');return;}body.count = n;}
       else { const g = num(f.g); if (!(g > 0)) { toast('How many grams did you have?'); return; } body.grams = g; }
+      if(quickPortion)quickSubmitting=true;
       const label=btn.textContent;btn.disabled = true;btn.textContent='Saving portion…';
       try {
         if(typeof FoodThread!=='undefined'&&FoodThread.collecting()){
@@ -285,8 +287,9 @@ function dishLogSheet(d, w, done, {chooseMeal=false,quickPortion=null}={}) {
         };
         toast(r.queued?'Portion saved on this phone · waiting to send':`Added ${d.name} to ${MEAL_NAMES[w.meal].toLowerCase()}: ${recipeCalories(r.entry.kcal)} kcal`,undo);
       } catch (x) { if(readOwner()===owner){if(d.mine===false&&x.status===404){invalidate('/api/dishes');close();done(false);toast('This recipe is no longer shared with you.');}else{toast(x.message);btn.disabled=false;btn.textContent=label;}} }
+      finally {if(quickPortion)onQuickFinish();}
     };
-    if(quickPortion)setTimeout(()=>{if(f.isConnected)f.requestSubmit();},0);
+    if(quickPortion)setTimeout(()=>{const scrim=f.closest('.scrim');if(f.isConnected&&scrim&&!scrim.inert&&!scrim.classList.contains('is-closing')){f.requestSubmit();if(!quickSubmitting)onQuickFinish();}else onQuickFinish();},0);
   });
 }
 // Swipe an ingredient left to show Remove (2026-10-12). The name stays put (so you can see what you're removing); the

@@ -422,7 +422,11 @@ function wireRecentSaved(body,recent,where,{afterDish=()=>{},afterMeal=()=>{}}={
     const item=recent[+button.dataset.recentIndex],row=button.closest('[data-recent-row]'),w=where();
     if(!item||button.disabled||row?.dataset.busy==='true')return;
     if(item.kind==='dish'){
-      dishLogSheet(item.item,w,afterDish,{quickPortion:item.item.last_used_portion});
+      if(item.item.totals.kcal==null){dishLogSheet(item.item,w,afterDish,{quickPortion:item.item.last_used_portion});return;}
+      row.dataset.busy='true';$$('[data-recent-item],[data-recent-add]',row).forEach(control=>control.disabled=true);
+      let locked=true;
+      const unlock=()=>{if(!locked)return;locked=false;if(row.isConnected){delete row.dataset.busy;$$('[data-recent-item],[data-recent-add]',row).forEach(control=>control.disabled=false);}};
+      dishLogSheet(item.item,w,(...args)=>{unlock();afterDish(...args);},{quickPortion:item.item.last_used_portion,onQuickFinish:unlock});
       return;
     }
     row.dataset.busy='true';$$('[data-recent-item],[data-recent-add]',row).forEach(control=>control.disabled=true);
