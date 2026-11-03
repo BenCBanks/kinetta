@@ -36,13 +36,14 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     assert.deepEqual(await actionRow.locator('.linkbtn').allTextContents(),['Enter nutrition','Try again'],'secondary actions are plain links on one row');
     assert.equal(await actionRow.locator('[data-more]').count(),1,'overflow menu ends the action row');
     assert.equal(await card.locator('.thread-actions [data-more]').count(),0,'no duplicate menu row');
-    const rowGeometry=await actionRow.evaluate(row=>{const bounds=[...row.children].map(n=>n.getBoundingClientRect());return {centers:bounds.map(b=>b.top+b.height/2),right:bounds.at(-1).right,cardRight:row.closest('.thread-card').getBoundingClientRect().right};});
-    assert(rowGeometry.centers.every(y=>Math.abs(y-rowGeometry.centers[0])<2),'secondary links and overflow menu stay on one row');assert(rowGeometry.right<=rowGeometry.cardRight+1,'overflow menu fits inside the card');
+    const rowGeometry=await actionRow.evaluate(row=>{const bounds=[...row.children].map(n=>n.getBoundingClientRect()),card=row.closest('.thread-card'),style=getComputedStyle(card),box=card.getBoundingClientRect(),padLeft=parseFloat(style.paddingLeft)+parseFloat(style.borderLeftWidth),padRight=parseFloat(style.paddingRight)+parseFloat(style.borderRightWidth),menu=bounds.at(-1);return {centers:bounds.map(b=>b.top+b.height/2),menuLeft:menu.left,menuRight:menu.right,menuWidth:menu.width,menuHeight:menu.height,paddedLeft:box.left+padLeft,paddedRight:box.right-padRight};});
+    assert(rowGeometry.centers.every(y=>Math.abs(y-rowGeometry.centers[0])<2),'secondary links and overflow menu stay on one row');assert(rowGeometry.menuLeft>=rowGeometry.paddedLeft-1&&rowGeometry.menuRight<=rowGeometry.paddedRight+1,`overflow menu stays within card padding at ${size.width}px (${rowGeometry.menuLeft.toFixed(1)}–${rowGeometry.menuRight.toFixed(1)} outside ${rowGeometry.paddedLeft.toFixed(1)}–${rowGeometry.paddedRight.toFixed(1)})`);
+    assert(rowGeometry.menuWidth>=44&&rowGeometry.menuHeight>=44,'barcode overflow menu retains a 44px touch target');
     assert.equal(await card.locator('[data-portion]').count(),0,'no amount action before a food is found');
     assert.equal(await card.locator('.thread-error,.small.muted').count(),0,'not-found copy is neither red nor muted');
     assert.doesNotMatch(await card.innerText(),/Not found in the food database|016000157620|Change amount|Retry lookup|Which food and portion/);
     assert.equal(await card.locator('[data-manual]').evaluate(n=>n.classList.contains('linkbtn')),true,'Enter nutrition is a plain link, not a pill');
-    if(process.env.SHOT_DIR&&size.width===390){fs.mkdirSync(process.env.SHOT_DIR,{recursive:true});await p.screenshot({path:path.join(process.env.SHOT_DIR,`barcode-not-found-${theme}-390.png`)});}
+    if(process.env.SHOT_DIR){fs.mkdirSync(process.env.SHOT_DIR,{recursive:true});await p.screenshot({path:path.join(process.env.SHOT_DIR,`barcode-not-found-${theme}-${size.width}.png`)});}
     await card.locator('[data-more]').click();await p.waitForSelector('#thread-correct');
     assert.equal(await p.locator('.scrim .sheet h2').innerText(),'Food details');assert.equal(await p.locator('#thread-correct').innerText(),'Change it');assert.equal(await p.locator('#thread-delete').innerText(),'Remove from chat');assert.equal(await p.locator('.scrim .sheet p').innerText(),'This removes the food details from this chat.');
     await p.keyboard.press('Escape');await p.locator('.scrim').waitFor({state:'detached'});

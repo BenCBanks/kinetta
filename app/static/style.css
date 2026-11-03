@@ -2002,9 +2002,9 @@ html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 .food-thread .thread-choices button.ghost { min-height: 36px; padding: 6px 12px; font-size: .85rem; font-weight: 500; border-radius: 999px; text-align: left; }
 .food-thread .thread-card .linkbtn { min-height: 36px; font-size: .85rem; }
 .food-thread .thread-card .barcode-choices { display: grid; gap: 2px; }
-.food-thread .thread-card .barcode-choice-row { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; min-width: 0; }
-.food-thread .thread-card .barcode-choice-row .linkbtn { flex: none; }
-.food-thread .thread-card .barcode-choice-row .thread-more { flex: none; margin-left: auto; background: none; box-shadow: none; }
+.food-thread .thread-card .barcode-choice-row { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; min-width: 0; }
+.food-thread .thread-card .barcode-choice-row .linkbtn { flex: 1 1 0; min-width: 0; padding-inline: 2px; line-height: 1.15; text-align: left; }
+.food-thread .thread-card .barcode-choice-row .thread-more { flex: 0 0 44px; margin-left: auto; background: none; box-shadow: none; }
 .food-thread .thread-card .thread-destination { font-size: .75rem; }
 
 @media (max-height: 650px) { .food-thread > .thread-intro { display: none; } }
