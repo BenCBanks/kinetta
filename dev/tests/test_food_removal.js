@@ -112,6 +112,12 @@ async function run(){
   f.setOnline(true);await f.removal.flush('owner-a');
   assert.equal(f.calls.length,1);assert.equal(f.rows.has(JSON.stringify(['owner-a','stable-id'])),false);
 
+  // If the outbox still owns the message, removal keeps its cancel endpoint.
+  f=fixture();await f.add('owner-a','processing-id',{mid:41});
+  assert.equal(await f.removal.removeSaved('owner-a','processing-id',41),true);
+  assert.equal(f.rows.get(JSON.stringify(['owner-a','processing-id'])).savedMessage,undefined);
+  await f.advance(6000);assert.equal(f.calls[0].path,'/api/food/thread/cancel');
+
   // A saved but unlogged chat message gets durable Undo even after its outbox job is gone.
   f=fixture();await f.add('owner-a','other-id');
   assert.equal(await f.removal.removeSaved('owner-a','saved-id',42,'2026-10-17T08:30:00Z'),true);
