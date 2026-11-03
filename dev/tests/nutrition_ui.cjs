@@ -9,6 +9,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
  try{
  for(const who of ['empty','typical','heavy']){
   const auth=await b.newContext();assert.equal((await auth.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_nutrition_'+who,password:'green teapot on the hill'}})).status(),200);cleanup.push(auth);const storage=await auth.storageState();
+  let savedMealAdded=false;
   for(const size of [{width:390,height:844,root:16},{width:330,height:740,root:24}])for(const theme of ['light','dark']){
    if(process.env.KINETTA_NUTRITION_CASE&&process.env.KINETTA_NUTRITION_CASE!==`${who}-${size.width}-${theme}`)continue;
    const c=await b.newContext({storageState:storage,viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],consoleErrors=[],writes=[],failed=[];p.nutritionDiagnostics={errors,consoleErrors,failed};p.on('requestfailed',r=>failed.push({url:r.url(),error:r.failure()?.errorText}));
@@ -26,7 +27,8 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    const ready=()=>until(p,()=>App.pageReady&&App.page?.key===location.pathname+location.search,'page ready');
    const home=async()=>{if(p.url()==='about:blank')await p.goto(base+'/food');else await p.evaluate(()=>go('/food'));await ready();await until(p,()=>document.querySelector('#nutrition-explore')?.getAttribute('aria-busy')==='false','food facts');};
    const fits=async label=>assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),label+' has no horizontal overflow');
-   await home();assert.equal(await p.locator('h1').innerText(),'Nutrition');assert.equal(await p.locator('.view-nav,.pbar,.food-library-link,.backtoday,.mealact').count(),0,'no stacked navigation or meal footer');
+   await home();
+   assert.equal(await p.locator('h1').innerText(),'Nutrition');assert.equal(await p.locator('.view-nav,.pbar,.food-library-link,.backtoday,.mealact').count(),0,'no stacked navigation or meal footer');
    assert.equal(await p.locator('#nutrition-explore a').count(),8);assert.equal(await p.locator('#fd-explore h2').innerText(),'Explore your food');
    assert.equal(await p.locator('#nutrition-explore').evaluate(n=>getComputedStyle(n).gridTemplateColumns.split(' ').length),2);
    for(const selector of ['#fq-add','#fq-photo','#fq-scan','#fd-prev','#fd-next','[data-add]','[data-more]','#nutrition-explore a'])for(const el of await p.locator(selector).all()){
@@ -42,12 +44,23 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     assert.equal(await p.locator('.nutrition-start').count(),1);assert.equal(await p.locator('.nutrition-body-prompt').count(),1);assert.equal(await p.locator('#nutrition-explore .progress-new:not(.seen)').count(),8);
     assert(!/0 (saved|logged)/.test(await p.locator('#nutrition-explore').innerText()));
    }else{
-    assert.match(await p.locator('[data-nutrition-feature=recipes]').innerText(),new RegExp((who==='typical'?'4':'13')+' saved'));
+    assert.match(await p.locator('[data-nutrition-feature=recipes]').innerText(),new RegExp(((who==='typical'?4:13)+(savedMealAdded?1:0))+' saved'));
     assert.match(await p.locator('[data-nutrition-feature=weight]').innerText(),/(last logged|trend)/);
     assert.equal(await p.locator('[data-nutrition-feature=weight] .progress-new:not(.seen)').count(),0);
     const barWidths=await p.locator('.nutrition-summary-link .track').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().width));assert.equal(barWidths.length,2);assert(Math.abs(barWidths[0]-barWidths[1])<2,'calorie and protein tracks match');
     if(size.root===16){const lunch=await p.locator('.meal-lunch').boundingBox(),nav=await p.locator('nav.tabs').boundingBox();if(who==='typical')assert(lunch.y+lunch.height<nav.y-8,'Breakfast and Lunch clear the tab bar');}
     assert.equal(await p.locator('.meal-calories').first().evaluate(n=>getComputedStyle(n.querySelector('small')).display),'inline');
+   }
+   if(who==='empty'&&size.width===390&&theme==='light'){
+    await c.route('**/api/food/check-in',r=>r.fulfill({status:503,json:{detail:'Fictional unavailable check-in'}}));
+    await c.route('**/api/food/weekly-review',r=>r.fulfill({status:503,json:{detail:'Fictional unavailable weekly review'}}));
+    await p.evaluate(()=>{App.cache.delete('/api/food/check-in');App.cache.delete('/api/food/weekly-review');go('/food?view=overview&from=progress');});await ready();
+    const checkinFold=p.locator('.insights-review').filter({hasText:'Your weekly check-in'});await checkinFold.locator('summary').click();
+    const checkinRetry=p.locator('[data-checkin-retry]');await checkinRetry.waitFor({state:'visible'});assert.match(await checkinFold.innerText(),/Couldn’t load your weekly check-in\. Your food log is still available\./);assert.equal(await checkinRetry.innerText(),'Try again');
+    await checkinRetry.click();await checkinRetry.waitFor({state:'visible'});
+    const weeklyFold=p.locator('.insights-review').filter({hasText:'Your week in food'});await weeklyFold.locator('summary').click();
+    const weeklyRetry=p.locator('[data-weekly-retry]');await weeklyRetry.waitFor({state:'visible'});assert.match(await weeklyFold.innerText(),/Couldn’t load your weekly food review\./);assert.equal(await weeklyRetry.innerText(),'Try again');
+    await weeklyRetry.click();await weeklyRetry.waitFor({state:'visible'});await c.unroute('**/api/food/check-in');await c.unroute('**/api/food/weekly-review');await home();
    }
    if(who!=='empty'){
     const details=p.locator('#fd-details details.bd');
@@ -65,6 +78,13 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     }
    }
    await fits('home');if(out&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.waitForTimeout(350);await p.screenshot({path:`${out}/nutrition-${who}-${theme}.png`,fullPage:true,animations:'disabled'});}
+   if(who==='typical'&&size.width===390&&theme==='light'){
+    const day=await(await c.request.get(base+'/api/food/day')).json();assert(day.entries.length,'fixture has a food to save');
+    const saved=await c.request.post(base+'/api/food/meals',{headers:{Origin:base},data:{name:'Fictional saved meal',entry_ids:[day.entries[0].id]}});assert.equal(saved.status(),200,'fictional meal fixture saves');savedMealAdded=true;
+    await p.evaluate(()=>go('/food/meals'));await ready();const heading=p.locator('.library-section h2').filter({hasText:'Saved combinations'});await heading.waitFor();assert.equal(await p.getByText('Saved combinations',{exact:true}).count(),1);assert.equal(await p.getByText('Saved meals',{exact:true}).count(),0);
+    await p.locator('[data-meal]').first().click();let prompt='';p.once('dialog',async dialog=>{prompt=dialog.message();await dialog.dismiss();});await p.locator('#sv-del').click();
+    assert.match(prompt,/Delete “Fictional saved meal” from Saved combinations\?/);assert.match(prompt,/Food already in your food log will stay/);assert.equal(await p.locator('#sv').count(),1,'cancel keeps the saved combination portion sheet open');await p.locator('.sheet [data-close]').click();await home();
+   }
    // One summary leads to the same analysis used by legacy Progress links; all options live in cards.
    if(who!=='empty'){
     const summary=await p.locator('.nutrition-day-summary').boundingBox();await p.mouse.click(summary.x+6,summary.y+summary.height/2);await ready();assert.equal(await p.locator('h1').innerText(),'Insights');

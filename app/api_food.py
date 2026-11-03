@@ -368,7 +368,7 @@ def food_user(c, uid):
 
 def day_data(c, uid, d=None):
     try: day_ = dt.date.fromisoformat(d) if d else None
-    except ValueError: raise HTTPException(400, 'Date must be YYYY-MM-DD')
+    except ValueError: raise HTTPException(400, 'Enter a valid date.')
     if day_ is None:
         tz = (c.execute('SELECT tz FROM profile WHERE user_id = %s', (uid,)).fetchone() or {}).get('tz') or db.DEFAULT_TZ
         day_ = c.execute('SELECT (now() AT TIME ZONE %s)::date AS d', (tz,)).fetchone()['d']
@@ -435,8 +435,8 @@ class EntryIn(N.ExtraValues):
 
 @router.post('/entries')
 def add_entries(items: list[EntryIn], user=Depends(current_user), thread: bool = False, captured_at: AwareDatetime | None = None, restore_from: int | None = Query(None,gt=0)):
-    if not 1 <= len(items) <= 100: raise HTTPException(400, '1-100 items')
-    if restore_from is not None and (thread or len(items)!=1):raise HTTPException(422,'Restore one food without creating a new chat card')
+    if not 1 <= len(items) <= 100: raise HTTPException(400, 'Add between 1 and 100 foods at a time.')
+    if restore_from is not None and (thread or len(items)!=1):raise HTTPException(422,'Restore one food at a time.')
     ids = []; messages = []
     with db.connect() as c:
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
@@ -474,8 +474,8 @@ class EntriesUndoIn(BaseModel):
 @router.post('/entries/undo')
 def undo_entries(body:EntriesUndoIn,user=Depends(current_user)):
     """Cancel stable upload IDs even before their first request reaches the server."""
-    if body.confirm is not True:raise HTTPException(400,'Confirm Undo')
-    if any(not re.fullmatch(r'[A-Za-z0-9-]{8,64}',v) for v in body.client_ids):raise HTTPException(422,'Use the original food upload IDs')
+    if body.confirm is not True:raise HTTPException(400,'This food could not be removed. Try again.')
+    if any(not re.fullmatch(r'[A-Za-z0-9-]{8,64}',v) for v in body.client_ids):raise HTTPException(422,'This food could not be removed. Try again.')
     from . import food_thread,food_thread_log as engine,food_thread_receipts as receipts
     uid=user['id'];messages=[];removed=0;kept=0
     with db.connect() as c:
@@ -525,14 +525,14 @@ def edit_entry(eid: int, body: EntryEdit, user=Depends(current_user)):
                     if not same_unit:
                         unit=vals.get('unit',old['unit']);amount=vals.get('amount',old['amount'])
                         source=ref.get('per100') if unit=='g' else ref.get('per_serving') if unit=='serving' else None
-                        if amount is None or unit is None:raise HTTPException(422,'Keep a value for the amount and unit')
+                        if amount is None or unit is None:raise HTTPException(422,'Enter both the amount and its unit.')
                         reference=N.number(source.get(key),N.PER100_MAX[key] if unit=='g' else N.ENTRY_MAX[key]) if isinstance(source,dict) else None
                         if reference is not None:value=reference*amount/(100 if unit=='g' else 1)
-                    if value is not None and value>maximum:raise HTTPException(422,'That portion is too large. Check the amount and nutrient values.')
+                    if value is not None and value>maximum:raise HTTPException(422,'This amount is too large. Check the food amount and nutrition values.')
                     vals[key]=value
         for key,value in list(vals.items()):
             if value is None:
-                if key not in N.ALL or key=='kcal':raise HTTPException(422,'Keep a value for calories and the food’s name, amount and destination')
+                if key not in N.ALL or key=='kcal':raise HTTPException(422,'Keep the food name, calories, amount and meal.')
                 missing.add(key)
                 if key not in ('fiber_g',*N.EXTRA):vals[key]=0
             elif key in N.ALL:missing.discard(key)
@@ -612,7 +612,7 @@ def food_edit(fid: int, body: FoodIn, user=Depends(current_user)):
             for key in N.EXTRA:
                 if key not in body.model_fields_set:
                     value=old.get(key)*body.serving_g/old['serving_g'] if old.get(key) is not None and old['serving_g'] and body.serving_g else None
-                    if value is not None and value>N.ENTRY_MAX[key]:raise HTTPException(422,'That serving is too large. Check the weight and nutrients.')
+                    if value is not None and value>N.ENTRY_MAX[key]:raise HTTPException(422,'This serving is too large. Check its weight and nutrition values.')
                     v[key]=N.rounded(key,value)
         if not c.execute(f"UPDATE custom_foods SET {', '.join(f'{k} = %s' for k in v)}, origin_edited=(origin='ai' OR origin_edited) WHERE id = %s AND user_id = %s RETURNING id",
                          (*v.values(), fid, user['id'])).fetchone(): raise HTTPException(404, 'Not found')
@@ -654,7 +654,7 @@ def meal_save(body: MealIn, user=Depends(current_user)):
         else:
             rows = c.execute("""SELECT name, brand, amount, unit, kcal, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, sugar_g, saturated_fat_g, source, ref FROM food_entries
                                 WHERE user_id = %s AND day = %s AND meal = %s ORDER BY position""", (user['id'], body.from_day, body.meal)).fetchall()
-        if not rows: raise HTTPException(400, 'Nothing to save')
+        if not rows: raise HTTPException(400, 'Add at least one food before saving this meal.')
         return {'id': c.execute('INSERT INTO saved_meals (user_id, name, items) VALUES (%s, %s, %s) RETURNING id',
                                 (user['id'], body.name, json.dumps(rows, default=str))).fetchone()['id']}
 
@@ -706,7 +706,7 @@ def latest_weight(user=Depends(current_user)):
 
 @router.put('/weights')
 def weight_set(body: WeightIn, user=Depends(current_user)):
-    if body.day > dt.date.today() + dt.timedelta(days=1): raise HTTPException(400, "That day hasn't happened yet")
+    if body.day > dt.date.today() + dt.timedelta(days=1): raise HTTPException(400, 'Choose a date up to tomorrow.')
     with db.connect() as c:
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
         from . import api_health_weights as H
@@ -793,7 +793,7 @@ def goal_setup(body: GoalSaveIn, user=Depends(current_user)):
         old=c.execute('SELECT kcal_target FROM profile WHERE user_id = %s FOR UPDATE', (user['id'],)).fetchone() or {}
         suggestion = _goal_preview(c, user['id'], body)
         if body.kcal_target < suggestion['resting_floor']:
-            raise HTTPException(400, f"Choose at least {suggestion['resting_floor']} kcal, your estimated resting burn.")
+            raise HTTPException(400, f"Choose at least {suggestion['resting_floor']} kcal, the estimated calories your body needs at rest.")
         values = body.model_dump(exclude_unset=True, exclude={'goal', 'pace_percent'})
         if body.kcal_target!=old.get('kcal_target'):values.update(training_target_average=None,training_target_kcal=None)
         values.update(nutrition_goal=body.goal, goal_pace_percent=suggestion['pace_percent'])
@@ -914,7 +914,7 @@ def weekly_checkin(user=Depends(current_user)):
 @router.post('/check-in/{cid}/accept')
 def accept_checkin(cid:UUID,body:CheckinAcceptIn,user=Depends(current_user)):
     from . import nutrition_checkin
-    if body.confirmed is not True:raise HTTPException(400,'Tap Accept to change your calorie target')
+    if body.confirmed is not True:raise HTTPException(400,'Accept the suggestion before changing your calorie target.')
     return nutrition_checkin.act(user['id'],cid,'accept',body.baseline)
 
 

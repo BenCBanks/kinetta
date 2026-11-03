@@ -37,7 +37,8 @@ check('minor estimate rejected',p.post('/api/food/target-suggestion',{**base,'bi
 check('no body defaults are explicit',other.post('/api/food/target-suggestion',{'goal':'eat_healthier'})[1]['weight_assumed'])
 check('no target created on other account',not other.get('/api/me')[1].get('kcal_target'))
 check('anonymous preview denied',Client().post('/api/food/target-suggestion',base)[0]==401)
-check('below resting save rejected',p.put('/api/food/goal-setup',{**base,'kcal_target':s['resting_floor']-1,'protein_target':130})[0]==400)
+status,below=p.put('/api/food/goal-setup',{**base,'kcal_target':s['resting_floor']-1,'protein_target':130})
+check('below resting save explains the minimum',status==400 and below.get('detail')==f"Choose at least {s['resting_floor']} kcal, the estimated calories your body needs at rest.")
 check('invalid save atomic',p.get('/api/me')[1]==before)
 other_before=other.get('/api/me')[1]
 status,saved=p.put('/api/food/goal-setup',{**base,'kcal_target':s['kcal_target']+10,'protein_target':135,'user_id':other_before['id']})
