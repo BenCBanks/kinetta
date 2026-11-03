@@ -287,14 +287,14 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
         recent = {'start': recent_start, 'end': today, 'current': by_period.get('current', empty_period),
                   'previous': by_period.get('previous', empty_period)}
         first_day = today - dt.timedelta(days=13)
-        params.update(chart_zone=zone, chart_start=sunday(today) - dt.timedelta(weeks=6), chart_end=today + dt.timedelta(days=1))
+        params.update(chart_zone=zone, chart_start=sunday(today) - dt.timedelta(weeks=11), chart_end=today + dt.timedelta(days=1))
         distances = c.execute(f"""SELECT (a.start_time AT TIME ZONE %(chart_zone)s)::date AS d,
                     a.sport, coalesce(sum(a.distance_m), 0) AS distance_m FROM activities a
                     WHERE {totals} AND a.start_time AT TIME ZONE %(chart_zone)s >= %(chart_start)s
                     AND a.start_time AT TIME ZONE %(chart_zone)s < %(chart_end)s GROUP BY 1,2""", params).fetchall()
         day_totals = distance_days(distances)
         by_day = {d: row['distance_m'] for d, row in day_totals.items()}
-        mileage = {'today': today, 'weeks': weekly_distances(today, by_day, {d: row['by_sport'] for d, row in day_totals.items()}), 'days': [{'d': first_day + dt.timedelta(days=i),
+        mileage = {'today': today, 'weeks': weekly_distances(today, by_day, {d: row['by_sport'] for d, row in day_totals.items()}, weeks=12), 'days': [{'d': first_day + dt.timedelta(days=i),
                             'distance_m': by_day.get(first_day + dt.timedelta(days=i), 0),
                             'today': i == 13, 'by_sport': (day_totals.get(first_day + dt.timedelta(days=i)) or {}).get('by_sport', {})} for i in range(14)]}
         shared_count = c.execute(f'SELECT count(*) AS n FROM activities a WHERE {visible}', params).fetchone()['n']

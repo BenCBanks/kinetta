@@ -72,7 +72,7 @@ const MeCard=(()=>{
         <div class="me-card-sections" aria-busy="true">${skel(1)}</div>
         ${mine?`<p class="me-card-note">${svg('lock')}<span aria-hidden="true" title="Totals include your private workouts. Friends see the totals, not the workouts.">Private workouts count, but stay hidden</span><span class="vh">Totals include your private workouts. Friends see the totals, not the workouts.</span></p>`:''}${milestones?'<div data-me-milestones hidden></div>':''}</div></section>`;
   }
-  const paintBars=box=>$$('.me-card-bars span',box).forEach(bar=>bar.style.height=bar.dataset.h*5+'px');
+  const paintBars=box=>$$('.me-card-bars span',box).forEach(bar=>bar.style.height=(bar.dataset.h==='0'?'0':Math.max(4,bar.dataset.h*5))+'px');
   // Reuse the recipient renderer without mounting any interactive controls in the miniature.
   function previewCard(root,data){
     const r={...data,mine:false},layout=ProfileLayout.singlePeriod(r.layout),savedPeriod=period;
@@ -113,17 +113,17 @@ const MeCard=(()=>{
     <div class="me-divider"><span>${svg('lock')}Only you below this line</span></div>`;
   }
   // One distance chart, on the card, with a tiny Days / Weeks switch (Ben, 30 Oct 2026: no second chart below it).
-  // Every bar is a button: tapping one shows its dates and distance in place of the total; tap again for the total.
+  // Every bar is a button: tapping shows that period's range and distance; tap again restores the current period.
   let period='weeks';
   function distance(r){
-    const weekly=period==='weeks',all=mileagePeriods(r.mileage||{}),rows=(weekly?all.weeks:all.days)||[],top=Math.max(0,...rows.map(w=>w.distance_m||0));
+    const weekly=period==='weeks',mileage=r.mileage||{},rows=(weekly?mileage.weeks:mileage.days)||[],visible=rows.slice(-(weekly?12:14)),top=Math.max(0,...visible.map(w=>w.distance_m||0));
     if(!(r.mileage?.weeks||[]).some(w=>w.distance_m>0))return '';
-    const total=rows.reduce((n,w)=>n+(w.distance_m||0),0),day=d=>fdate(d+'T12:00',{month:'short',day:'numeric'}),dist=w=>`${U.dist(w.distance_m||0,1)} ${U.du()}`;
+    const day=d=>fdate(d+'T12:00',{month:'short',day:'numeric'}),dist=w=>`${U.dist(w.distance_m||0,1)} ${U.du()}`;
     const when=w=>weekly?`${day(w.d)}–${day(w.end)}`:fdate(w.d+'T12:00',{weekday:'short',month:'short',day:'numeric'});
-    const value=w=>w.future?'Not yet':dist(w),letter=w=>fdate(w.d+'T12:00',{weekday:'narrow'});
-    const toggle=`<div class="mileage-toggle me-period" role="group" aria-label="Distance chart period">${[['days','Days'],['weeks','Weeks']].map(([k,l])=>`<button type="button" data-period="${k}" aria-pressed="${period===k}"${k==='weeks'&&!all.weeks?' disabled':''}>${l}</button>`).join('')}</div>`;
-    return `<div class="me-card-sec me-distance${weekly?'':' days'}"><div class="me-card-head"><div class="me-card-label" data-week-label aria-live="polite"><span>${weekly?'7 weeks':'This week'}</span><small>${esc(U.dist(total,1))} ${esc(U.du())}</small></div>${toggle}</div>
-      <div class="me-chart-scroll"><div class="me-card-bars" role="group" aria-label="${weekly?'Weekly distance, last 7 weeks':'Daily distance this week'}">${rows.map(w=>`<button type="button" class="me-week${w.today?' now':''}${w.future?' future':''}" aria-pressed="false" data-range="${esc(when(w))}" data-dist="${esc(value(w))}" aria-label="${esc((w.today?(weekly?'This week, ':'Today, '):'')+when(w)+': '+value(w))}"><span data-h="${top?Math.max(2,Math.round((w.distance_m||0)/top*10)):2}"></span>${weekly?'':`<i aria-hidden="true">${esc(letter(w))}</i>`}</button>`).join('')}</div></div></div>`;
+    const value=w=>dist(w),letter=w=>fdate(w.d+'T12:00',{weekday:'narrow'}),current=visible.find(w=>w.today)||visible.at(-1)||{distance_m:0},currentLabel=weekly?'This week':'Today';
+    const toggle=`<div class="mileage-toggle me-period" role="group" aria-label="Distance chart period">${[['days','Days'],['weeks','Weeks']].map(([k,l])=>`<button type="button" data-period="${k}" aria-pressed="${period===k}"${k==='weeks'&&!r.mileage?.weeks?' disabled':''}>${l}</button>`).join('')}</div>`;
+    return `<div class="me-card-sec me-distance${weekly?'':' days'}"><div class="me-card-head"><div class="me-card-label" data-week-label aria-live="polite"><span>${currentLabel}</span><small>${esc(value(current))}</small></div>${toggle}</div>
+      <div class="me-chart-scroll"><div class="me-card-bars" role="group" aria-label="${weekly?'Weekly distance, last 12 weeks':'Daily distance, last 14 days'}">${visible.map(w=>{const zero=!(w.distance_m>0),h=zero?0:Math.max(1,Math.round((w.distance_m||0)/top*10));return `<button type="button" class="me-week${w.today?' now':''}${zero?' zero':''}" aria-pressed="false" data-range="${esc(when(w))}" data-dist="${esc(value(w))}" aria-label="${esc((w.today?(weekly?'This week, ':'Today, '):'')+when(w)+': '+value(w))}"><span data-h="${h}"></span>${weekly?'':`<i aria-hidden="true">${esc(letter(w))}</i>`}</button>`;}).join('')}</div></div></div>`;
   }
   function sections(r,layout,full){
     if(!r.overview?.activities&&!r.shared_count)return `<div class="me-card-empty"><p>${r.mine===false?'No workouts to show yet.':'Your totals appear here once you have workouts.'}</p>${r.mine===false||full?'':'<a class="ghost wide" href="/me/goals?new=1">Set a goal</a>'}</div>`;
@@ -178,11 +178,20 @@ const MeCard=(()=>{
       viewResources.set(wrap,chartCleanup);
     }
     const bars=()=>{paintBars(box);chartScroll();}; // CSP blocks inline style attributes
-    // The heading swaps to the picked week's dates and distance, so the layout never shifts; tap again for the total.
+    // The heading swaps to the picked period's dates and distance, so the layout never shifts; tap again for the total.
     const weekTaps=()=>{const wrap=$('.me-card-bars',box),label=$('[data-week-label]',box);if(!wrap||!label)return;const [head,side]=[$('span',label),$('small',label)],[h0,s0]=[head.textContent,side.textContent];
-      wrap.onclick=e=>{const b=e.target.closest('.me-week');if(!b)return;const on=b.getAttribute('aria-pressed')!=='true';
-        $$('.me-week',wrap).forEach(x=>x.setAttribute('aria-pressed','false'));if(on)b.setAttribute('aria-pressed','true');
-        head.textContent=on?b.dataset.range:h0;side.textContent=on?b.dataset.dist:s0;label.classList.toggle('picked',on);};};
+      let pointer=null,ignorePointerClick=false,ignoreTimer=0;
+      const selected=()=>$('.me-week[aria-pressed="true"]',wrap);
+      const show=b=>{const prior=selected();if(prior===b)return false;$$('.me-week',wrap).forEach(x=>x.setAttribute('aria-pressed','false'));if(b)b.setAttribute('aria-pressed','true');
+        head.textContent=b?b.dataset.range:h0;side.textContent=b?b.dataset.dist:s0;label.classList.toggle('picked',!!b);Native.haptic('light');return true;};
+      const barAt=e=>{const shift=pointer.start.getBoundingClientRect().top-pointer.startTop;return document.elementFromPoint(e.clientX,e.clientY+shift)?.closest('.me-week');};
+      const onDown=e=>{if(e.button!==0||e.isPrimary===false)return;const b=e.target.closest('.me-week');if(!b)return;pointer={id:e.pointerId,start:b,startTop:b.getBoundingClientRect().top,wasSelected:selected()===b,moved:false};if(!pointer.wasSelected)show(b);document.addEventListener('pointermove',onMove,true);document.addEventListener('pointerup',onUp,true);document.addEventListener('pointercancel',onCancel,true);};
+      const onMove=e=>{if(!pointer||e.pointerId!==pointer.id)return;const b=barAt(e);if(!b)return;if(b!==pointer.start)pointer.moved=true;show(b);};
+      const finish=(e,cancelled=false)=>{if(!pointer||e.pointerId!==pointer.id)return;const gesture=pointer,end=barAt(e);if(!cancelled&&!gesture.moved&&gesture.wasSelected&&end===gesture.start)show(null);pointer=null;ignorePointerClick=!cancelled;clearTimeout(ignoreTimer);if(ignorePointerClick)ignoreTimer=setTimeout(()=>{ignorePointerClick=false;},0);document.removeEventListener('pointermove',onMove,true);document.removeEventListener('pointerup',onUp,true);document.removeEventListener('pointercancel',onCancel,true);};
+      const onUp=e=>finish(e),onCancel=e=>finish(e,true);
+      wrap.addEventListener('pointerdown',onDown);
+      wrap.onclick=e=>{if(ignorePointerClick){ignorePointerClick=false;clearTimeout(ignoreTimer);return;}const b=e.target.closest('.me-week');if(b)show(selected()===b?null:b);};
+      const cleanup=chartCleanup,dispose=()=>{cleanup();wrap.removeEventListener('pointerdown',onDown);document.removeEventListener('pointermove',onMove,true);document.removeEventListener('pointerup',onUp,true);document.removeEventListener('pointercancel',onCancel,true);clearTimeout(ignoreTimer);};chartCleanup=dispose;viewResources.set(wrap,dispose);};
     const periods=()=>$$('[data-period]',box).forEach(b=>b.onclick=()=>{if(b.dataset.period===period)return;period=b.dataset.period;draw();$(`[data-period="${period}"]`,box)?.focus({preventScroll:true});});
     const draw=()=>{if(!live()||editing||!data)return;chartCleanup();box.setAttribute('aria-busy','false');box.innerHTML=sections(data,ProfileLayout.normalize(data.mine===false?data.layout:App.me.profile_layout||data.layout),full);bars();weekTaps();periods();};
     const load=async()=>{

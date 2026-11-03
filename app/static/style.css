@@ -546,6 +546,12 @@ body.map-open nav.tabs { display: none; }      /* full-screen map: X, Esc or Bac
 .chartbox .avgline { stroke: var(--tx2); stroke-width: 1.5; stroke-dasharray: 4 4; }
 
 .chartbox .hl { fill: var(--tx); opacity: .06; }
+.avgline-label { fill:var(--tx2);font-size:11px;pointer-events:none; }
+.period-select-chart svg { touch-action:manipulation; }
+.period-column { cursor:pointer; }
+.period-hit { fill:transparent; }
+.period-column.is-selected .bar-seg { filter:brightness(1.16); }
+.period-column.is-selected .period-zero { stroke:var(--accent);stroke-width:2; }
 .chartbox .ln.faint { stroke-width: 1.25; opacity: .35; }
 .chartbox .xdot { stroke: var(--card); stroke-width: 2; }
 .chartbox .goal-ln { stroke: var(--tx2); stroke-width: 1.5; stroke-dasharray: 4 4; fill: none; }
@@ -953,8 +959,8 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 
 /* ---------- notifications (2026-10-11) ---------- */
 .icon-btn.bell { position: relative; }
-.bell-dot { position: absolute; top: -3px; right: -3px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--btn); color: var(--onbtn);
-  font: 700 13px/20px var(--numf); text-align: center; box-shadow: 0 0 0 2px var(--bg); }
+.bell-dot { position: absolute; top: 10px; right: 6px; min-width: 20px; height: 20px; padding: 0 5px; border: 2px solid var(--bg); border-radius: 999px; background: var(--btn); color: var(--onbtn);
+  font: 700 13px/20px var(--numf); text-align: center; box-shadow: none; }
 .notes-group + .notes-group { margin-top: 22px; }
 .notes-h { margin: 0 4px 8px; font: 700 13px/1.2 var(--font-ui); letter-spacing: .04em; text-transform: uppercase; color: var(--tx3); }
 .notes { padding: 4px 0; }
@@ -3078,7 +3084,6 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .progress-segment-controls #sg-sport>svg:first-child {display:none;}
 
 .progress-home-totals #m-chart .legend { display:none; }
-.progress-home-totals .progress-average > small::before { content:""; display:inline-block; width:10px; border-top:1.5px dashed var(--tx2); margin-right:4px; vertical-align:middle; }
 
 /* Keep the explanatory action clear of the consent switch below it. */
 #ai > .seg { margin-top:8px; }

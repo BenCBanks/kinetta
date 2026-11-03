@@ -4,14 +4,12 @@
 .recap-preview img{display:block;max-width:100%;height:100%;object-fit:contain;border-radius:12px}
 .recap-preview.busy{opacity:.6}
 .recap-sheet > header h2{font-size:1.25rem}
-.recap-period-wrap{position:relative;margin:8px 0}
-.recap-sheet .recap-periods{position:relative;display:flex;gap:0;margin:0;padding:0;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;background:transparent}
-.recap-periods::-webkit-scrollbar{display:none}
-.recap-period-page{display:flex;align-items:center;flex:0 0 100%;min-width:0;gap:8px;padding-right:20px;scroll-snap-align:start;scroll-snap-stop:always}
-.recap-period-wrap::after,.recap-period-wrap::before{content:'';position:absolute;top:4px;bottom:4px;width:18px;pointer-events:none;opacity:0}
-.recap-period-wrap::after{right:0;background:linear-gradient(90deg,transparent,var(--tx3));border-radius:0 12px 12px 0}
-.recap-period-wrap::before{left:0;background:linear-gradient(90deg,var(--tx3),transparent);border-radius:12px 0 0 12px}
-.recap-period-wrap.more-right::after,.recap-period-wrap.more-left::before{opacity:.2}
+.recap-sheet .recap-periods{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;overflow:visible;margin:8px 0 0}
+.recap-sheet .recap-periods [data-recap-period]{display:flex;align-items:center;justify-content:center;min-width:0;min-height:44px;height:44px;padding:4px 0;white-space:nowrap}
+.recap-period-nav{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:8px;margin:0 0 8px;text-align:center}
+.recap-period-nav .icon-btn{display:flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;font-size:22px;line-height:1}
+.recap-period-nav span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:max(15px,.9375rem);font-weight:500}
+.recap-period-nav button:disabled{opacity:.35}
 .recap-sheet [data-recap-period],.recap-sheet [data-recap-option]{display:flex;align-items:center;flex:none;min-height:44px;height:44px;padding:4px 0;border:0;border-radius:999px;background:transparent;color:var(--tx2);font-size:max(15px,.9375rem);font-weight:500;white-space:nowrap}
 .recap-sheet [data-recap-period]>span,.recap-sheet [data-recap-option]>span{display:flex;align-items:center;justify-content:center;min-height:36px;height:36px;padding:0 10px;border:1px solid var(--line);border-radius:999px;background:var(--card)}
 .recap-sheet [aria-pressed=true]>span{background:var(--accent2);border-color:var(--accent);color:var(--accent)}

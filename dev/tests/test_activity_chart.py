@@ -14,6 +14,8 @@ for text in ('2026-10-18', '2026-10-24', '2027-01-01', '2026-11-01', '2026-03-08
     # On Saturday tomorrow is outside the current week; on Sunday today is its first day.
     weeks = weekly_distances(today, totals)
     assert len(weeks) == 7 and all(r['d'].weekday() == 6 for r in weeks)
+    long_history = weekly_distances(today, totals, weeks=12)
+    assert len(long_history) == 12 and long_history[-1]['today'] and long_history[0]['d'] == sunday(today) - dt.timedelta(weeks=11)
     assert weeks[0]['d'] == first and weeks[0]['distance_m'] == 1000
     assert weeks[-2]['distance_m'] == 2000 and weeks[-1]['distance_m'] == 3000
     assert weeks[-1]['end'] == today and weeks[-1]['today']

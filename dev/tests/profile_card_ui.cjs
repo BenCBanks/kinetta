@@ -25,7 +25,8 @@ async function cardChecks(p,size){
  const friends=card.locator('a.me-friends-link'),target=await friends.boundingBox();assert(target.width>=44&&target.height>=44);assert.equal(await friends.evaluate(n=>getComputedStyle(n).pointerEvents),'auto','inline friends remains tappable');
  await sportChecks(p);
  if(size.root===16&&size.width>=390){const meta=await card.locator('.me-card-meta').evaluate(n=>[...n.children].map(x=>{const r=x.getBoundingClientRect();return [r.top,r.bottom]}));assert(Math.max(...meta.map(x=>x[0]))<Math.min(...meta.map(x=>x[1])),'friends and handle share a line');}
- const bars=await card.locator('.me-week').evaluateAll(nodes=>nodes.map(n=>({width:n.getBoundingClientRect().width,height:n.getBoundingClientRect().height})));assert.equal(bars.length,7);assert(bars.every(r=>r.width>=44&&r.height>=44));assert.equal(await card.locator('.me-chart-scroll').evaluate(n=>getComputedStyle(n,'::before').backgroundImage),'none','scroll cue does not fade a bar');
+ const bars=await card.locator('.me-week').evaluateAll(nodes=>nodes.map(n=>({width:n.getBoundingClientRect().width,height:n.getBoundingClientRect().height,label:n.getAttribute('aria-label')})));assert.equal(bars.length,12);assert(bars.every(r=>r.width>0&&r.height>=44&&r.label),'all twelve weeks have tall, labelled selection targets');assert(await card.locator('.me-card-bars').evaluate(n=>n.scrollWidth<=n.clientWidth+1),'all weeks fit without horizontal scrolling');assert.equal(await card.locator('.me-chart-scroll').evaluate(n=>getComputedStyle(n,'::before').backgroundImage),'none','scroll cue does not fade a bar');
+ assert.equal(await card.locator('[data-week-label] span').innerText(),'This week');assert.equal(await card.locator('[data-week-label] small').innerText(),await card.locator('.me-week.now').getAttribute('data-dist'),'unselected label shows the current period and distance');
  const padding=await card.evaluate(n=>{const b=n.querySelector('.me-card-body'),r=b.getBoundingClientRect(),s=getComputedStyle(b),rail=n.querySelector('.me-card-bars').getBoundingClientRect();return rail.left>=r.left+parseFloat(s.paddingLeft)-.1&&rail.right<=r.right-parseFloat(s.paddingRight)+.1});assert(padding,'chart rail remains inside card padding');
  const note=card.locator('.me-card-note');assert.match(await note.innerText(),/Private workouts count, but stay hidden/);assert.match(await note.ariaSnapshot(),/Totals include your private workouts\. Friends see the totals, not the workouts\./,"complete privacy explanation reaches the accessibility tree");assert(await note.evaluate(n=>n.scrollWidth<=n.clientWidth+1),"privacy footer fits the card");if(size.width===390&&size.root===16)assert(await note.locator('span[aria-hidden=true]').evaluate(n=>{const r=document.createRange();r.selectNodeContents(n);return r.getClientRects().length===1;}),'plain privacy footer remains one line at390');await p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));await note.evaluate(n=>{n.scrollIntoView({block:'end',behavior:'instant'});scrollBy({top:n.getBoundingClientRect().bottom-document.querySelector('nav.tabs').getBoundingClientRect().top+8,behavior:'instant'})});
  const clearance=await note.evaluate(n=>{const r=n.getBoundingClientRect(),nav=document.querySelector('nav.tabs').getBoundingClientRect();return {top:r.top,bottom:r.bottom,navTop:nav.top}});assert(clearance.top>=0&&clearance.bottom<=clearance.navTop-7,'complete privacy note clears the tab bar '+JSON.stringify(clearance));
@@ -67,11 +68,11 @@ for(const size of [{width:320,height:667,root:16},{width:390,height:844,root:16}
  assert.equal(await p.locator('.me-insights a[href^="/progress"]').count(),1);
  // The week bar is drawn to scale inside its track (not squashed to a sliver).
  const [bar,track]=await p.$$eval('.me-insights .track, .me-insights .track .bar',e=>e.map(x=>x.getBoundingClientRect().width).reverse());assert(track>100&&bar<=track,'week track spans the card');
- // Days / Weeks on the card: seven bars either way, days carry weekday letters, a tap shows that day.
+ // Days / Weeks on the card: fourteen daily and twelve weekly bars; days carry weekday letters and a tap shows that day.
  const toggle=p.locator('.me-card .me-period [data-period="days"]');assert((await toggle.boundingBox()).height>=44,'44px toggle target');
  await toggle.click();await p.waitForSelector('.me-distance.days');
- assert.equal(await p.locator('.me-distance .me-week').count(),7);assert.equal(await p.locator('.me-distance .me-week i').count(),7,'weekday letters');
- assert.match(await p.locator('[data-week-label] span').innerText(),/This week/i);
+ assert.equal(await p.locator('.me-distance .me-week').count(),14);assert.equal(await p.locator('.me-distance .me-week i').count(),14,'weekday letters');
+ assert.equal(await p.locator('[data-week-label] span').innerText(),'Today');assert.equal(await p.locator('[data-week-label] small').innerText(),await p.locator('.me-distance.days .me-week.now').getAttribute('data-dist'),'unselected label shows today’s distance');
  await p.locator('.me-distance .me-week.now').click();assert.match(await p.locator('[data-week-label] span').innerText(),/\d/,'tapped day shows its date');
  await p.locator('.me-card').scrollIntoViewIfNeeded();await shot('me-card-days');
  await p.locator('.me-card .me-period [data-period="weeks"]').click();await until(p,()=>!document.querySelector('.me-distance.days'),'2')
@@ -107,7 +108,7 @@ for(const size of [{width:320,height:667,root:16},{width:390,height:844,root:16}
  assert.equal(await p.locator('#person-profile .me-card [data-card-edit]').count(),1);assert.equal(await p.locator('#person-profile .me-card [data-card-share]').count(),1);
  assert.equal(await p.locator('#pf-card, #pf-edit-profile, #pf-share, .profile-progress, .profile-mileage').count(),0,'old profile parts are gone');
  assert.equal(await p.locator('#person-profile .me-card-row').count(),0,'no link row back to the same page');
- assert.equal(await p.locator('#person-profile .me-week').count(),7,'same distance chart as Me');
+ assert.equal(await p.locator('#person-profile .me-week').count(),12,'same distance chart as Me');
  assert((await p.locator('#person-activities .post, #person-activities .card').count())>0,'activities follow the card');
  await shot('profile-own');
  await p.locator('[data-card-share]').click();const share=p.locator('.sheet');await share.waitFor();

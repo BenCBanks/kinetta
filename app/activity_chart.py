@@ -23,15 +23,15 @@ def distance_days(rows):
     return days
 
 
-def weekly_distances(today, by_day, sports=None):
-    start = sunday(today) - dt.timedelta(weeks=6)
+def weekly_distances(today, by_day, sports=None, weeks=7):
+    start = sunday(today) - dt.timedelta(weeks=weeks - 1)
     return [{'d': start + dt.timedelta(weeks=i),
              'end': min(start + dt.timedelta(weeks=i, days=6), today),
              'distance_m': sum(by_day.get(start + dt.timedelta(weeks=i, days=j), 0) or 0
                                for j in range(7) if start + dt.timedelta(weeks=i, days=j) <= today),
-             'today': i == 6,
+             'today': i == weeks - 1,
              **({'by_sport': {sport: sum((sports.get(start + dt.timedelta(weeks=i, days=j)) or {}).get(sport, 0)
                                            for j in range(7) if start + dt.timedelta(weeks=i, days=j) <= today)
                               for sport in sorted({sport for j in range(7) if start + dt.timedelta(weeks=i, days=j) <= today
                                                    for sport in (sports.get(start + dt.timedelta(weeks=i, days=j)) or {})})}} if sports is not None else {})}
-            for i in range(7)]
+            for i in range(weeks)]

@@ -50,6 +50,8 @@ try:
     check(profile['person']['bio'] == bio, 'profile exposes public bio as literal text')
     check(sum(r['distance_m'] for r in profile['mileage']['days']) == 4000, 'distance chart totals include private and friends-only activities (owner decision 29 Oct)')
     check(len(profile['mileage']['days']) == 14, 'chart zero-fills fixed periods')
+    check(len(profile['mileage']['weeks']) == 12, 'weekly distance chart returns the last 12 weeks')
+    check(sum(r['distance_m'] for r in profile['mileage']['weeks']) == 4000 and any(r['distance_m'] == 0 for r in profile['mileage']['weeks']), 'weekly chart totals include authorised activity and zero-fill empty weeks')
     check(profile['sports'] == [{'sport': 'run', 'activities': 4, 'distance_m': 4000, 'time_s': 2400}], 'sport summaries count every finished workout')
     check(profile['overview'] == {'activities': 4, 'distance_m': 4000, 'time_s': 2400, 'active_days': len({(start+dt.timedelta(hours=i)).astimezone(ZoneInfo(request(viewer,'GET','/api/me')['tz'])).date() for i in range(4)})}, 'overview totals include private and friends-only workouts')
     check(profile['shared_count'] == 2 and {a['id'] for a in request(viewer, 'GET', '/api/people/zz_test_profile_owner/profile')['items']} == set(ids[2:]), 'activity list and its count still show only shared workouts')

@@ -84,7 +84,8 @@
 .me-card-label span { font-size:.8125rem; font-weight:600; color:var(--tx2); }
 .me-card-label small { font-size:.8125rem; color:var(--tx3); }
 .me-chart-scroll { position:relative; margin:4px 0 0; min-width:0; }
-.me-card-bars { display:flex; align-items:flex-end; gap:0; height:60px; padding:4px 0; overflow-x:auto; scrollbar-width:none; scroll-snap-type:x proximity; scroll-padding-inline:0; }
+.me-card-bars { position:relative; display:flex; align-items:flex-end; gap:0; width:100%; max-width:282px; margin-inline:auto; height:60px; padding:4px 0; overflow:hidden; }
+.me-card-bars::after { content:''; position:absolute; z-index:1; pointer-events:none; left:0; right:0; bottom:4px; height:1px; background:var(--line); }
 .me-card-bars::-webkit-scrollbar { display:none; }
 .me-chart-scroll::before,.me-chart-scroll::after { content:''; position:absolute; z-index:1; top:0; bottom:0; width:16px; pointer-events:none; opacity:0; }
 .me-chart-scroll::before { left:0; background:linear-gradient(to right,var(--card),transparent); }
@@ -95,11 +96,12 @@
 .me-chart-scroll::before,.me-chart-scroll::after { top:50%; bottom:auto; width:5px; height:5px; background:none; border-top:1.5px solid var(--tx3); border-right:1.5px solid var(--tx3); }
 .me-chart-scroll::before { left:-10px; transform:translateY(-50%) rotate(-135deg); }
 .me-chart-scroll::after { right:-10px; transform:translateY(-50%) rotate(45deg); }
-/* Adjacent chart columns retain 44px targets; inset bars provide the visible separation. */
-.me-week { flex:1 0 44px; min-width:44px; height:100%; min-height:44px; display:flex; align-items:flex-end; padding:0; border:0; background:none; border-radius:6px; cursor:pointer; scroll-snap-align:end; -webkit-tap-highlight-color:transparent; }
-.me-week span { width:calc(100% - 16px); margin-inline:8px; min-height:2px; border-radius:4px 4px 2px 2px; background:var(--color-distance-muted); transition:background-color .12s; }
-.me-week.now span { background:var(--btn); }
-.me-week[aria-pressed=true] span { background:var(--accent); box-shadow:0 0 0 2px var(--card), 0 0 0 4px var(--accent); }
+/* Bars sit above the baseline so zero ticks and short distances keep their full height. */
+.me-week { position:relative; z-index:2; flex:1 1 0; min-width:0; height:100%; min-height:44px; display:flex; align-items:flex-end; padding:0; border:0; background:none; border-radius:0; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.me-week span { width:min(18px,calc(100% - 6px)); height:0; margin-right:6px; min-height:0; border-radius:4px 4px 2px 2px; background:var(--color-distance-muted); transition:background-color .12s,opacity .12s; }
+.me-week.now span { background:var(--accent); opacity:.6; }
+.me-week.zero span { width:2px; height:2px !important; min-height:2px; border-radius:0; background:var(--line); opacity:1; }
+.me-week[aria-pressed=true] span { background:var(--accent); opacity:1; }
 .me-week:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
 .me-card-label.picked small { color:var(--tx); font-weight:700; font-size:.8125rem; }
 .me-card-figures { display:flex; flex-direction:column; gap:8px; }
@@ -165,8 +167,10 @@
 .me-card-head .me-period button { display:flex; align-items:flex-end; justify-content:center; }
 .me-period { margin:0; flex:none; gap:8px; }
 .me-period button { min-width:44px; min-height:44px; padding:0; font-size:max(15px,.9375rem); }
-.me-distance.days .me-card-bars { height:calc(64px + 1rem); }
-.me-distance.days .me-week { flex-direction:column; justify-content:flex-end; align-items:stretch; gap:4px; }
+.me-distance.days .me-card-bars { max-width:330px; height:calc(64px + 1rem); }
+.me-distance.days .me-card-bars::after { bottom:calc(4px + 1.2em + 4px); }
+.me-distance.days .me-week { flex-direction:column; justify-content:flex-end; align-items:center; gap:4px; }
+.me-distance.days .me-week span { margin-right:0; }
 .me-week i { font-style:normal; font-size:.8125rem; line-height:1.2; text-align:center; color:var(--tx3); }
 .me-week.now i { color:var(--accent); font-weight:700; }
 .me-week.future span { background:var(--line); }

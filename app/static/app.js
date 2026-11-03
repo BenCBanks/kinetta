@@ -910,7 +910,7 @@ function distanceBarPath(x, bottom, width, height) {
   return `M${x} ${bottom}V${top + r}Q${x} ${top} ${x + r} ${top}H${x + width - r}Q${x + width} ${top} ${x + width} ${top + r}V${bottom}Z`;
 }
 // Mouse, touch and keyboard inspect the same value; dismissing restores today/the current period.
-function wireDistanceBars(buttons, current, show) {
+function wireDistanceBars(buttons, current, show, onSelect = () => {}, owner = null) {
   let selected = null;
   const paint = (index) => {
     show(index);
@@ -918,6 +918,13 @@ function wireDistanceBars(buttons, current, show) {
       button.classList.toggle('is-inspected', i === index);
       button.classList.toggle('is-highlighted', i === (index == null ? current : index));
     });
+  };
+  const clear = () => {
+    if (selected == null) return;
+    selected = null;
+    buttons.forEach(b => b.setAttribute('aria-pressed', 'false'));
+    paint(null);
+    onSelect(null);
   };
   buttons.forEach((button, index) => {
     button.onpointerenter = e => { if (e.pointerType === 'mouse') paint(index); };
@@ -928,15 +935,14 @@ function wireDistanceBars(buttons, current, show) {
       selected = selected === index ? null : index;
       buttons.forEach((b, i) => b.setAttribute('aria-pressed', String(i === selected)));
       paint(selected);
+      onSelect(selected);
     };
     button.onkeydown = e => {
       if (button.tagName !== 'BUTTON' && ['Enter',' '].includes(e.key)) {
         e.preventDefault();
         button.onclick(); // SVG buttons do not receive the browser's native keyboard click.
       } else if (e.key === 'Escape') {
-        selected = null;
-        buttons.forEach(b => b.setAttribute('aria-pressed', 'false'));
-        paint(null);
+        clear();
       } else if (['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) {
         e.preventDefault();
         const next = e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1 : (index + (e.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
@@ -944,10 +950,51 @@ function wireDistanceBars(buttons, current, show) {
       }
     };
   });
+  const chart = buttons[0]?.closest('.chartbox');
+  owner?.addEventListener('pointerdown', e => { if (selected != null && !chart?.contains(e.target)) clear(); });
   paint(null);
 }
+function wirePeriodColumns(svg, {n, W, padL, bw}, onSelect, owner) {
+  let selected = null, focusIndex = n - 1;
+  const indexAt = e => {
+    const r = svg.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * W;
+    const i = Math.floor((x - padL) / bw);
+    return i >= 0 && i < n ? i : null;
+  };
+  const paint = i => svg.querySelectorAll('[data-period-index]').forEach(el => el.classList.toggle('is-selected', Number(el.dataset.periodIndex) === i));
+  const choose = i => {
+    if (i == null) return;
+    selected = selected === i ? null : i;
+    focusIndex = i;
+    paint(selected);
+    svg.setAttribute('aria-pressed', String(selected != null));
+    onSelect(selected);
+  };
+  svg.addEventListener('click', e => choose(indexAt(e)));
+  svg.addEventListener('pointermove', e => { if (e.pointerType === 'mouse' && selected == null) paint(indexAt(e)); });
+  svg.addEventListener('pointerleave', () => { if (selected == null) paint(null); });
+  svg.addEventListener('keydown', e => {
+    if (['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) {
+      e.preventDefault();
+      focusIndex = e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : Math.max(0, Math.min(n - 1, focusIndex + (e.key === 'ArrowRight' ? 1 : -1)));
+      if (selected != null) { selected = focusIndex; paint(selected); onSelect(selected); }
+      else paint(focusIndex);
+    } else if (['Enter',' '].includes(e.key)) {
+      e.preventDefault();
+      choose(focusIndex);
+    } else if (e.key === 'Escape' && selected != null) {
+      selected = null; paint(null); svg.setAttribute('aria-pressed', 'false'); onSelect(null);
+    }
+  });
+  const chart = svg.closest('.chartbox');
+  owner?.addEventListener('pointerdown', e => {
+    if (selected != null && !chart?.contains(e.target)) {
+      selected = null; paint(null); svg.setAttribute('aria-pressed', 'false'); onSelect(null);
+    }
+  });
+}
 // Columns of stacked bars. cols: [{label, tick, segs: [{k, v}], partial}], keys: [{k, name, color}]
-function periodBars(box, cols, {keys, fmt, yfmt = fmt, avg = null, avgLabel = 'avg', height = 180, distance = false}) {
+function periodBars(box, cols, {keys, fmt, yfmt = fmt, avg = null, avgLabel = 'avg', avgLineLabel = '', avgLegend = true, height = 180, distance = false, inlineSelection = false, onSelectPeriod = null}) {
   const W = Math.max(300, box.clientWidth || 340), H = height, padL = 34, padR = 4, padT = distance ? 18 : 8, padB = 18, n = cols.length;
   const tot = (c) => c.segs.reduce((s, x) => s + x.v, 0);
   const max = Math.max(1e-9, ...cols.map(tot), avg || 0), step = niceStep(max), top = Math.ceil(max / step) * step;
@@ -955,6 +1002,7 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, avg = null, avgLabel = 'a
   let g = '';
   for (let v = 0; v <= top + 1e-9; v += step) g += `<line class="gl" x1="${padL}" x2="${W - padR}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/><text class="yl" x="${padL - 4}" y="${(Y(v) + 3).toFixed(1)}" text-anchor="end">${esc(yfmt(v))}</text>`;
   cols.forEach((c, i) => {
+    const columnStart = g.length;
     let y = Y(0); const x = padL + i * bw + gap / 2, w = Math.max(1, bw - gap);
     if (distance) {
       const total = tot(c), h = Y(0) - Y(total);
@@ -971,20 +1019,36 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, avg = null, avgLabel = 'a
                           : `<rect class="bar-seg k-${sg.k}${c.partial ? ' partial' : ''}" x="${x.toFixed(1)}" y="${(y - hh).toFixed(1)}" width="${w.toFixed(1)}" height="${hh.toFixed(1)}"/>`;
       y -= h;
     });
+    if (inlineSelection && !distance) {
+      const bars = g.slice(columnStart);
+      const hit = `<rect class="period-hit" x="${(padL + i * bw).toFixed(1)}" y="${padT}" width="${bw.toFixed(1)}" height="${(H - padT - padB).toFixed(1)}"/>`;
+      const zero = tot(c) ? '' : `<line class="period-zero" x1="${x.toFixed(1)}" x2="${(x + w).toFixed(1)}" y1="${Y(0).toFixed(1)}" y2="${Y(0).toFixed(1)}"/>`;
+      g = g.slice(0, columnStart) + `<g class="period-column" data-period-index="${i}">${hit}${zero}${bars}</g>`;
+    }
     if (c.tick) g += `<text class="yl" x="${(i >= n - 2 ? x + w : x + w / 2).toFixed(1)}" y="${H - 4}" text-anchor="${i >= n - 2 ? 'end' : 'middle'}">${esc(c.tick)}</text>`;
   });
-  if (avg) g += `<line class="avgline" x1="${padL}" x2="${W - padR}" y1="${Y(avg).toFixed(1)}" y2="${Y(avg).toFixed(1)}"/>`;   // labelled in the legend below
-  if (!distance) g += `<rect class="hl" x="0" y="${padT}" width="${bw.toFixed(1)}" height="${(H - padT - padB).toFixed(1)}" visibility="hidden"/>`;
-  const legend = (!distance && keys.length > 1 ? keys.map((k) => `<span><i class="sw k-${k.k}"></i>${esc(k.name)}</span>`).join('') : '') + (avg ? `<span><i class="sw dash"></i>${esc(avgLabel)} ${esc(fmt(avg))}</span>` : '');
-  box.innerHTML = `<div class="readout num"${distance ? ' role="status"' : ''}><span></span></div><div class="chartbox${distance ? ' distance-chart' : ''}"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="${distance ? 'group' : 'img'}" aria-label="${distance ? 'Distance by period' : 'Bar chart'}">${g}</svg></div>${legend ? `<div class="legend small">${legend}</div>` : ''}`;
+  if (avg) {
+    const avgY = Y(avg).toFixed(1);
+    g += `<line class="avgline" x1="${padL}" x2="${W - padR}" y1="${avgY}" y2="${avgY}"/>`;
+    if (avgLineLabel) g += `<text class="avgline-label" x="${padL + 2}" y="${Math.max(padT + 11, Y(avg) - 3).toFixed(1)}">${esc(avgLineLabel)}</text>`;
+  }
+  if (!distance && !inlineSelection) g += `<rect class="hl" x="0" y="${padT}" width="${bw.toFixed(1)}" height="${(H - padT - padB).toFixed(1)}" visibility="hidden"/>`;
+  const legend = (!distance && keys.length > 1 ? keys.map((k) => `<span><i class="sw k-${k.k}"></i>${esc(k.name)}</span>`).join('') : '') + (avg && avgLegend ? `<span><i class="sw dash"></i>${esc(avgLabel)} ${esc(fmt(avg))}</span>` : '');
+  const readout = inlineSelection ? '' : `<div class="readout num"${distance ? ' role="status"' : ''}><span></span></div>`;
+  box.innerHTML = `${readout}<div class="chartbox${distance ? ' distance-chart' : ''}${inlineSelection ? ' period-select-chart' : ''}"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="${distance || inlineSelection ? 'group' : 'img'}" aria-label="${inlineSelection ? 'Distance by period. Tap a bar or use arrow keys and Enter to select.' : distance ? 'Distance by period' : 'Bar chart'}"${inlineSelection ? ' tabindex="0" aria-pressed="false"' : ''}>${g}</svg></div>${legend ? `<div class="legend small">${legend}</div>` : ''}`;
   const svgEl = $('svg', box), hl = $('.hl', box), ro = $('.readout', box);
   if (distance) {
     const buttons = [...box.querySelectorAll('.distance-column')], current = cols.findIndex(c => c.partial);
     wireDistanceBars(buttons, current < 0 ? cols.length - 1 : current, index => {
+      if (!ro) return;
       if (index == null) { ro.innerHTML = '<span></span>'; return; }
       const c = cols[index], parts = c.segs.filter(sg => sg.v).map(sg => `<span>${esc(keys.find(k => k.k === sg.k)?.name || sg.k)} <b>${esc(fmt(sg.v))}</b></span>`).join('');
       ro.innerHTML = `<span>${esc(c.label)}${c.partial ? ' (so far)' : ''}</span><span><b>${esc(fmt(tot(c)))}</b> total</span>${parts}`;
-    });
+    }, onSelectPeriod || (() => {}), box.closest('.card'));
+    return;
+  }
+  if (inlineSelection) {
+    wirePeriodColumns(svgEl, {n, W, padL, bw}, onSelectPeriod || (() => {}), box.closest('.card'));
     return;
   }
   const show = (e) => {
