@@ -2216,26 +2216,26 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .post-ft:has(.emoji-reactions),.detail-social:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;gap:8px;padding:6px 12px;}
 .emoji-reactions :is(.reaction-main,.reaction-more) {flex:none;width:44px;min-width:44px;height:44px;justify-content:center;padding:0;}
 .reaction-main {order:1;}
+.reaction-main .reaction-emoji {font-size:1rem;}
 .reaction-main[aria-pressed="true"] {border:1px solid var(--accent);border-radius:var(--r2);background:var(--accent2);}
-.emoji-reactions .reaction-more {order:2;font-size:1.5rem;}
+.emoji-reactions .reaction-more {order:2;}
+.emoji-reactions .reaction-more>svg {width:20px;height:20px;}
 .emoji-reactions .reaction-count {order:3;display:flex;align-items:center;justify-content:center;gap:6px;min-width:44px;padding:0;margin-left:auto;}
 .emoji-reactions .reaction-count[hidden] {display:none;}
 .reaction-icons {display:flex;align-items:center;gap:0;}
 .reaction-emoji {font-family:Apple Color Emoji,Segoe UI Emoji,Noto Color Emoji,sans-serif;font-size:1.25rem;line-height:1;}
 .emoji-reactions .reaction-icons .reaction-emoji {font-size:1rem;}
+@media(max-width:360px) {.emoji-reactions .reaction-icons .reaction-emoji:nth-child(n+3) {display:none;}}
 .activity-comments {order:4;display:flex;align-items:center;justify-content:center;gap:4px;min-width:44px;padding:0;margin-left:auto;}
 .activity-comments>svg {width:20px;height:20px;flex:none;}
 .post-ft .num,.detail-social .num {font-size:max(15px,.75rem);line-height:1.2;}
 .post-hd .activity-share {width:44px;min-width:44px;height:44px;padding:0;justify-content:center;margin-left:auto;}
 .post-hd .activity-share>svg {width:20px;height:20px;}
-/* Two rows retain full targets; narrow screens reveal the remaining columns by scrolling. */
-.reaction-picker {position:fixed;z-index:1000;width:426px;max-width:calc(100vw - 24px);padding:8px;border:1px solid var(--line);border-radius:var(--r3);background:var(--card);color:var(--tx);box-shadow:var(--lift);}
-.reaction-options {display:grid;grid-template-columns:repeat(8,44px);grid-template-rows:repeat(2,44px);gap:8px;overflow-x:auto;overscroll-behavior:contain;scrollbar-width:thin;}
+/* Three rows show all sixteen choices, including at the narrowest phone width. */
+.reaction-picker {position:fixed;z-index:1000;width:322px;max-width:calc(100vw - 8px);padding:8px;border:1px solid var(--line);border-radius:var(--r3);background:var(--card);color:var(--tx);box-shadow:var(--lift);}
+.reaction-options {display:grid;grid-template-columns:repeat(6,44px);grid-template-rows:repeat(3,44px);gap:8px;}
 .reaction-picker button {display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;border-radius:var(--r2);background:none;color:var(--tx);}
 .reaction-picker button:hover,.reaction-picker button:focus-visible,.reaction-picker button[aria-checked="true"],.reaction-picker button.is-highlighted {background:var(--accent2);}
-.reaction-picker::before,.reaction-picker::after {content:'';position:absolute;inset:8px auto 8px 8px;width:16px;pointer-events:none;opacity:0;background:linear-gradient(to right,var(--card),transparent);}
-.reaction-picker::after {left:auto;right:8px;background:linear-gradient(to left,var(--card),transparent);}
-.reaction-picker[data-overflow-start]::before,.reaction-picker[data-overflow-end]::after {opacity:1;}
 .cheers-list .reaction-emoji {font-size:1.25rem;}
 .t-row:has(.activity-reactions) {flex-wrap:wrap;}
 .t-soc:has(.activity-reactions) {flex:1 0 100%;flex-wrap:nowrap;margin:0;max-width:100%;gap:8px;}

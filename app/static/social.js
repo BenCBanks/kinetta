@@ -6,7 +6,14 @@
 // The quick appreciation button. Its name lives only here, so it can be renamed in one place.
 const CHEER = {verb: 'Cheers', done: 'Cheers sent', many: 'cheers', title: 'Cheers'};   // 'Cheers' everywhere (2026-10-12)
 // The authenticated server catalog is shared by every footer and picker.
-const REACTIONS=()=>App.me?.reaction_choices||[['clap','clapping hands','👏']];
+// Kept accounts can render offline before /api/me refreshes. A parity test keeps this bundle current.
+const REACTION_FALLBACK=[
+  ['clap','clapping hands','👏'],['muscle','flexed biceps','💪'],['fire','fire','🔥'],['heart','heart','❤️'],
+  ['party','celebration','🎉'],['hands','raised hands','🙌'],['wow','surprise','😮'],['laugh','laughter','😂'],
+  ['gold','gold medal','🥇'],['hundred','hundred points','💯'],['run','running','🏃'],['ride','cycling','🚴'],
+  ['swim','swimming','🏊'],['hike','hiking','🥾'],['lift','weightlifting','🏋️'],['mountain','mountain','⛰️'],
+];
+const REACTIONS=()=>App.me?.reaction_choices||REACTION_FALLBACK;
 let closeReactionPicker = null;
 const reactionKind=k=>({cheer:'clap',strong:'muscle',applause:'fire'})[k]||k;
 const reactionMark=kind=>`<span class="reaction-emoji" aria-hidden="true">${esc(REACTIONS().find(([k])=>k===reactionKind(kind))?.[2]||'👏')}</span>`;
@@ -16,7 +23,7 @@ const reactionCounts=s=>{const counts={};for(const[k,n]of Object.entries(s.react
 function reactionButtons(aid,s,detail=false,compact=false){
   const selected=reactionKind(s.my_reaction??(s.cheered?'clap':null)),counts=reactionCounts(s),total=Object.values(counts).reduce((n,v)=>n+v,0);
   return `<div class="activity-reactions emoji-reactions${compact?' compact-reactions':''}" role="group" aria-label="Reactions" data-reaction-group data-aid="${aid}" data-mine="${selected||''}" ${REACTIONS().map(([k])=>`data-count-${k}="${counts[k]||0}"`).join(' ')}>
-    <div class="reaction-action"><button type="button" class="pf reaction-main" data-cheer="${aid}"${detail?' data-tcheer':''} aria-pressed="${!!selected}">${reactionMark(selected)}</button><button type="button" class="pf reaction-more" aria-label="Choose a reaction" aria-haspopup="menu" aria-expanded="false">+</button></div>
+    <div class="reaction-action"><button type="button" class="pf reaction-main" data-cheer="${aid}"${detail?' data-tcheer':''} aria-pressed="${!!selected}">${reactionMark(selected)}</button><button type="button" class="pf reaction-more" aria-label="Choose a reaction" aria-haspopup="menu" aria-expanded="false">${svg('plus')}</button></div>
     <button type="button" class="pf reaction-count" aria-label="See who reacted"${total?'':' hidden'}></button>
     <div class="reaction-picker" role="menu" aria-label="Choose a reaction" hidden><div class="reaction-options">${REACTIONS().map(([kind,label])=>`<button type="button" role="menuitemradio" aria-label="React with ${esc(label)}" aria-checked="${selected===kind}" data-react="${kind}" tabindex="-1">${reactionMark(kind)}</button>`).join('')}</div></div></div>`;
 }
@@ -24,13 +31,11 @@ function reactionButtons(aid,s,detail=false,compact=false){
 function wireReactionGroup(group,aid,changed){
   if(!group||group.dataset.bound)return;group.dataset.bound='1';
   const owner=readOwner(),active=()=>group.isConnected&&readOwner()===owner;
-  const main=$('.reaction-main',group),more=$('.reaction-more',group),count=$('.reaction-count',group),picker=$('.reaction-picker',group),options=$$('[data-react]',picker),rail=$('.reaction-options',picker);
+  const main=$('.reaction-main',group),more=$('.reaction-more',group),count=$('.reaction-count',group),picker=$('.reaction-picker',group),options=$$('[data-react]',picker);
   let busy=false,state={my_reaction:group.dataset.mine||null,reactions:Object.fromEntries(REACTIONS().map(([k])=>[k,+group.getAttribute('data-count-'+k)||0]))};
-  let hoverTimer=null,leaveTimer=null,heldOpen=false,highlighted=null;
-  const edges=()=>{picker.toggleAttribute('data-overflow-start',rail.scrollLeft>1);picker.toggleAttribute('data-overflow-end',rail.scrollWidth-rail.clientWidth-rail.scrollLeft>1);};
-  rail.addEventListener('scroll',edges,{passive:true});
-  const highlight=(button,buzz=true)=>{if(!button||button===highlighted)return;highlighted?.classList.remove('is-highlighted');highlighted=button;button.classList.add('is-highlighted');if(buzz&&typeof Haptics!=='undefined')Haptics.tick();};
-  const focusOption=(button,buzz=true)=>{highlight(button,buzz);button.focus({preventScroll:true});const a=rail.getBoundingClientRect(),b=button.getBoundingClientRect();if(b.left<a.left)rail.scrollLeft+=b.left-a.left;else if(b.right>a.right)rail.scrollLeft+=b.right-a.right;edges();};
+  let hoverTimer=null,leaveTimer=null,heldOpen=false,highlighted=null,anchorRect=null;
+  const highlight=(button,buzz=true)=>{if(!active()||!button||button===highlighted)return;highlighted?.classList.remove('is-highlighted');highlighted=button;button.classList.add('is-highlighted');if(buzz&&typeof Haptics!=='undefined')Haptics.tick();};
+  const focusOption=(button,buzz=true)=>{highlight(button,buzz);button.focus({preventScroll:true});};
   const close=(focus=false)=>{
     listen(false);
     clearTimeout(hoverTimer);clearTimeout(leaveTimer);if(picker.hidden){if(focus===true&&active())main.focus({preventScroll:true});return;}picker.hidden=true;more.setAttribute('aria-expanded','false');heldOpen=false;
@@ -43,11 +48,11 @@ function wireReactionGroup(group,aid,changed){
     if(closeReactionPicker&&closeReactionPicker!==close)closeReactionPicker();closeReactionPicker=close;
     clearTimeout(hoverTimer);clearTimeout(leaveTimer);document.body.appendChild(picker);picker.hidden=false;more.setAttribute('aria-expanded','true');
     listen(true);
-    const r=main.getBoundingClientRect(),p=picker.getBoundingClientRect(),vv=window.visualViewport;
+    const r=main.getBoundingClientRect(),p=picker.getBoundingClientRect(),vv=window.visualViewport;anchorRect=r;
     const top=vv?.offsetTop||0,bottom=top+(vv?.height||innerHeight),above=r.top-p.height-8;
-    picker.style.left=Math.max(12,Math.min(r.left,innerWidth-p.width-12))+'px';
+    const edge=Math.min(12,(innerWidth-p.width)/2);picker.style.left=Math.max(edge,Math.min(r.left,innerWidth-p.width-edge))+'px';
     picker.style.top=Math.max(top+8,Math.min(above>=top+8?above:r.bottom+8,bottom-p.height-8))+'px';
-    highlighted?.classList.remove('is-highlighted');highlighted=null;edges();if(typeof Haptics!=='undefined')Haptics.tick();
+    highlighted?.classList.remove('is-highlighted');highlighted=null;if(typeof Haptics!=='undefined')Haptics.tick();
     if(focus)focusOption(options.find(b=>b.dataset.react===state.my_reaction)||options[0],false);
   };
   const draw=()=>{
@@ -91,8 +96,10 @@ function wireReactionGroup(group,aid,changed){
   for(const b of options){b.onclick=e=>{e.preventDefault();e.stopPropagation();choose(b.dataset.react);if(active())main.focus({preventScroll:true});};b.addEventListener('pointerenter',()=>{if(!picker.hidden)highlight(b);});}
   picker.addEventListener('keydown',e=>{
     const i=options.indexOf(document.activeElement);let next=null;
-    if(['ArrowRight','ArrowDown'].includes(e.key))next=(i+1)%options.length;
-    if(['ArrowLeft','ArrowUp'].includes(e.key))next=(i+options.length-1)%options.length;
+    if(e.key==='ArrowRight')next=(i+1)%options.length;
+    if(e.key==='ArrowLeft')next=(i+options.length-1)%options.length;
+    if(e.key==='ArrowDown')next=i+6<options.length?i+6:i%6;
+    if(e.key==='ArrowUp')next=i>=6?i-6:(i+12<options.length?i+12:i+6);
     if(e.key==='Home')next=0;if(e.key==='End')next=options.length-1;
     if(next!==null){e.preventDefault();focusOption(options[next]);}
     if(e.key==='Escape'){e.preventDefault();e.stopPropagation();close(true);}
@@ -100,7 +107,8 @@ function wireReactionGroup(group,aid,changed){
   });
   const outside=e=>{if(!picker.hidden&&!group.contains(e.target)&&!picker.contains(e.target))close();};
   const escape=e=>{if(e.key==='Escape'&&!picker.hidden){e.preventDefault();close(true);}};
-  const scroll=e=>{if(!picker.contains(e.target))close();};
+  // A queued page scroll can arrive after opening at the already-scrolled position.
+  const scroll=e=>{if(picker.contains(e.target))return;if(!active()||!anchorRect){close();return;}const now=main.getBoundingClientRect();if(['left','top','width','height'].some(k=>Math.abs(now[k]-anchorRect[k])>.5))close();};
   const resize=()=>close();
   function listen(on){const method=on?'addEventListener':'removeEventListener';document[method]('pointerdown',outside,true);document[method]('keydown',escape);window[method]('scroll',scroll,true);window[method]('resize',resize);}
   const enter=e=>{if(e.pointerType==='mouse'&&matchMedia('(hover: hover)').matches){clearTimeout(leaveTimer);hoverTimer=setTimeout(()=>open(),250);}};
@@ -392,7 +400,7 @@ function wireTalk(box,aid,s,open,{hideEmpty=false}={}){
   if(open)commentsSheet(aid,s,update);
 }
 const cheerName = (c) => (c.login === App.me.login ? 'You' : c.name);
-const cheersPeople = (cheers) => `<div class="card list">${cheers.length ? cheers.map((c) => `<div class="person" data-close>${personLink(c, cheerName(c))}<small aria-label="${esc(REACTIONS().find(([kind])=>kind===reactionKind(c.kind||'clap'))?.[1]||'clapping hands')}">${reactionMark(c.kind)}</small></div>`).join('') : '<p class="small muted">No reactions yet.</p>'}</div>`;
+const cheersPeople = (cheers) => `<div class="card list">${cheers.length ? cheers.map((c) => `<div class="person" data-close>${personLink(c, cheerName(c))}<small role="img" aria-label="Reacted with ${esc(REACTIONS().find(([kind])=>kind===reactionKind(c.kind||'clap'))?.[1]||'clapping hands')}">${reactionMark(c.kind)}</small></div>`).join('') : '<p class="small muted">No reactions yet.</p>'}</div>`;
 function socialChanged(aid) {
   invalidate('/api/shared/' + aid); invalidate('/api/activities/' + aid + '/social'); invalidate('/api/feed/friends'); invalidate('/api/activities?'); invalidateFeed();
 }

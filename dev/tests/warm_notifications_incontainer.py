@@ -71,7 +71,7 @@ class WarmNotifications(unittest.TestCase):
                 title,body=notify._push_words({**row,'sport':sport,'activity_id':aid})
                 self.assertIn(label,title.lower());self.assertIn('Alex',title);self.assertLess(len(title),40);self.assertNotIn('\n',body)
         self.assertIn('lift',notify._push_words({**row,'sport':'workout','has_lifts':True})[0].lower())
-        for kind,expected,link in [('cheer','Jordan Example cheered your Morning Run','/activity/2'),('friend_accepted','You and Jordan Example are now friends','/activity'),('milestone','100th run','/me/milestones')]:
+        for kind,expected,link in [('cheer','Jordan Example reacted 👏 to your Morning Run','/activity/2'),('friend_accepted','You and Jordan Example are now friends','/activity'),('milestone','100th run','/me/milestones')]:
             notice={**row,'kind':kind,'milestone_title':'100th run'}
             self.assertEqual(notify._words(notice),(expected,link));self.assertEqual(notify._push_words(notice)[1],expected)
         title,body=notify._push_words({**row,'kind':'comment'});self.assertEqual(title,'New comment');self.assertEqual(body,'Jordan Example commented on your Morning Run\nLooking good')
