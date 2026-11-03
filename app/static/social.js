@@ -209,6 +209,7 @@ const Social = {
     const a = $('nav.tabs a[data-tab="me"]'); if (!a) return;
     const n = Social.count(); let b = $('.tab-n', a);
     const un = (App.me && App.me.notifications) || 0;
+    $$('.bell').forEach(link => link.setAttribute('aria-label', `Notifications${un ? `, ${un} new` : ''}`));
     if (typeof Native !== 'undefined' && Native.setBadge) Native.setBadge(un);
     $$('[data-friend-waiting]').forEach(node=>{const waiting=Number.isInteger(App.me?.friend_requests)?App.me.friend_requests:0;node.hidden=!waiting;node.textContent=`${waiting} waiting`;});
     if(Number.isInteger(App.me?.friend_count))$$('[data-friend-count]').forEach(node=>node.textContent=friendCountText(App.me.friend_count));

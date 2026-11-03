@@ -86,5 +86,22 @@
     "maximum": 0,
     "followup": "https://github.com/BenCBanks/kinetta/issues/424",
     "reason": "Claude approved adjacent >=44px chart-column targets, like a segmented control; visual separation comes from the inset bars. Only zero-gap pairs in this chart are excepted; target size, overlap and other gaps remain checked. Review: https://github.com/BenCBanks/kinetta/pull/470#issuecomment-6561475712"
+  },
+  {
+    "id": "me-dense-chart-column-targets",
+    "selector": ".me-card-bars .me-week",
+    "metric": "target",
+    "kind": "chart-column",
+    "followup": "https://github.com/BenCBanks/kinetta/issues/541",
+    "reason": "Owner-approved design shows 12 weekly or 14 daily chart columns with 6px visual gaps; 44px-wide independent targets would require a 528px or 616px rail and defeat the compact chart. Native buttons keep date/value labels and keyboard access, and each target remains at least 44px tall. Revisit only with a changed chart design."
+  },
+  {
+    "id": "progress-average-chart-tick-font",
+    "selector": ".avgline-label",
+    "metric": "font-min",
+    "kind": "chart-tick",
+    "exact": 11,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/540",
+    "reason": "Issue #540 specifies the secondary average-line annotation as 11px at the left end; keep that chart-tick size while the visible average stat label remains readable."
   }
 ]

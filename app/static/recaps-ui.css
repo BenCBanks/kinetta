@@ -6,8 +6,8 @@
 .recap-sheet > header h2{font-size:1.25rem}
 .recap-sheet .recap-periods{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;overflow:visible;margin:8px 0 0}
 .recap-sheet .recap-periods [data-recap-period]{display:flex;align-items:center;justify-content:center;min-width:0;min-height:44px;height:44px;padding:4px 0;white-space:nowrap}
-.recap-period-nav{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:8px;margin:0 0 8px;text-align:center}
-.recap-period-nav .icon-btn{display:flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;font-size:22px;line-height:1}
+.recap-period-nav{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:8px;margin:4px 0 8px;text-align:center}
+.recap-period-nav .icon-btn{display:flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;font-size:16px;line-height:1}
 .recap-period-nav span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:max(15px,.9375rem);font-weight:500}
 .recap-period-nav button:disabled{opacity:.35}
 .recap-sheet [data-recap-period],.recap-sheet [data-recap-option]{display:flex;align-items:center;flex:none;min-height:44px;height:44px;padding:4px 0;border:0;border-radius:999px;background:transparent;color:var(--tx2);font-size:max(15px,.9375rem);font-weight:500;white-space:nowrap}
