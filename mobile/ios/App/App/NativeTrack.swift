@@ -118,7 +118,7 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
                         next.splitMetres=splitMetres==1609.344 ? 1609.344 : 1000
                     }
                     next.intervalSayTotal=intervalSayTotal;next.intervalSayPace=intervalSayPace
-                    if let intervals { next.intervals=try IntervalState(pin:intervals,voice:voice && intervalVoice,vibration:intervalVibration && NativeIntervalAlerts.vibrationAvailable) }
+                    if let intervals { next.intervals=try IntervalState(pin:intervals,voice:intervalVoice,vibration:intervalVibration && NativeIntervalAlerts.vibrationAvailable) }
                     guard let files=self.files else { throw self.fail("Recording storage is unavailable.") }
                     try files.save(next,resetPoints:true);self.session=next
                     self.startGPS()
@@ -249,7 +249,6 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
         guard let account=owner,var next=session,next.state=="recording",var intervals=next.intervals,
               let i=intervals.effects.indices.last else { return }
         let sequence=intervals.effects[i].sequence,id=next.id
-        if next.voice != true && intervals.effects[i].voice=="pending" { intervals.effects[i].voice="disabled";next.intervals=intervals;try? files?.save(next);session=next }
         let voice=intervals.effects[i].voice=="pending",vibration=intervals.effects[i].vibration=="pending"
         if !voice && !vibration { return }
         let attemptedAt=next.seconds(at:instant)

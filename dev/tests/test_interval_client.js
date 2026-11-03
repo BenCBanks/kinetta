@@ -3,7 +3,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert'),crypto=require(
 (async()=>{
  let revision=1,resolveCapabilities,calls=[],notices=[];
  const storage={};Object.defineProperties(storage,{getItem:{value(k){return this[k]??null}},setItem:{value(k,v){this[k]=String(v)}},removeItem:{value(k){delete this[k]}}});
- const ctx={console,JSON,Math,Number,Array,Object,Set,Map,Promise,Error,String,crypto,location:{origin:'https://fictional.invalid'},Native:{base:'https://fictional.invalid'},App:{me:{id:1}},localStorage:storage,store:{get:k=>{try{return JSON.parse(storage.getItem(k));}catch{return null;}}},readOwner:()=>revision,TrackNative:{supported:false,call:method=>{calls.push(method);return new Promise(r=>resolveCapabilities=r)}},toast:text=>notices.push(text)};
+ const ctx={console,JSON,Math,Number,Array,Object,Set,Map,Promise,Error,String,crypto,location:{origin:'https://fictional.invalid'},Native:{base:'https://fictional.invalid'},App:{me:{id:1}},localStorage:storage,store:{get:k=>{try{return JSON.parse(storage.getItem(k));}catch{return null;}},set:(k,v)=>storage.setItem(k,JSON.stringify(v))},readOwner:()=>revision,TrackNative:{supported:false,call:method=>{calls.push(method);return new Promise(r=>resolveCapabilities=r)}},toast:text=>notices.push(text)};
  vm.createContext(ctx);vm.runInContext(fs.readFileSync('app/static/intervals.js','utf8'),ctx);const I=ctx.Intervals;
  const fixtures=JSON.parse(fs.readFileSync('dev/tests/fixtures/interval_presets.json','utf8'));
  for(const fixture of fixtures){const p=I.expand(fixture.pin.definition);assert.deepStrictEqual(JSON.parse(JSON.stringify(p.steps)),fixture.expected_steps);}
@@ -19,17 +19,21 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert'),crypto=require(
  let request=I.startOptions({sport:'run',gps:true});resolveCapabilities({intervalCapabilities:{outdoor:true,vibrationAvailable:true}});let voiceOnly=await request;
  assert.equal(voiceOnly.intervalVoice,true);assert.equal(voiceOnly.intervalVibration,false);assert.equal(voiceOnly.autoPause,false);
  request=I.startOptions({sport:'walk',gps:true});resolveCapabilities({});await assert.rejects(request,/Update the iPhone app/,'An older iPhone app is asked to update');
- // Account-scoped Track settings are shared by builder/pre-start and never added to the preset.
- const trackPrefix='kinetta.track:'+JSON.stringify(['https://fictional.invalid',1])+':';
- storage.setItem(trackPrefix+'interval-total','false');storage.setItem(trackPrefix+'interval-pace','false');storage.setItem(trackPrefix+'voice','false');
- request=I.startOptions({sport:'run',gps:true});resolveCapabilities({intervalCapabilities:{outdoor:true}});const quiet=await request;
- assert.equal(quiet.intervalVoice,false);assert.equal(quiet.intervalSayTotal,false);assert.equal(quiet.intervalSayPace,false);
- assert.equal(JSON.stringify(quiet.intervals),JSON.stringify(options.intervals),'voice preferences cannot change checked preset content');
- storage.setItem(trackPrefix+'voice','true');storage.setItem(trackPrefix+'interval-total','true');
- request=I.startOptions({sport:'run',gps:true});resolveCapabilities({intervalCapabilities:{outdoor:true}});const justTime=await request;
- assert.equal(justTime.intervalVoice,true);assert.equal(justTime.intervalSayTotal,true);assert.equal(justTime.intervalSayPace,false);
- ctx.App.me={id:2};assert.deepStrictEqual(JSON.parse(JSON.stringify(I.voicePreferences())),{voice:true,total:true,pace:true});ctx.App.me={id:1};
- assert.equal(I.voicePreferences().pace,false,'switching back restores only this account’s saved choices');
+ // Account-scoped cue settings feed pre-start but remain outside the checked preset content.
+ const legacyPrefix='kinetta.track:'+JSON.stringify(['https://fictional.invalid',3])+':';
+ storage.setItem(legacyPrefix+'interval-total','false');storage.setItem(legacyPrefix+'interval-pace','false');storage.setItem(legacyPrefix+'voice','false');ctx.App.me={id:3};
+ assert.deepStrictEqual(JSON.parse(JSON.stringify(I.voicePreferences())),{voice:false,intervalVoice:false,total:false,pace:false},'an uninitialized account seeds interval voice from its legacy split choice');
+ assert.equal(storage.getItem(legacyPrefix+'interval-voice'),'false','legacy value is stored once for the account');
+ const trackPrefix='kinetta.track:'+JSON.stringify(['https://fictional.invalid',1])+':';ctx.App.me={id:1};
+ storage.setItem(trackPrefix+'voice','false');storage.setItem(trackPrefix+'interval-voice','true');storage.setItem(trackPrefix+'interval-total','true');storage.setItem(trackPrefix+'interval-pace','false');
+ request=I.startOptions({sport:'run',gps:true});resolveCapabilities({intervalCapabilities:{outdoor:true}});const independent=await request;
+ assert.equal(independent.intervalVoice,true,'interval voice can be enabled while split announcements are off');assert.equal(independent.intervalSayTotal,true);assert.equal(independent.intervalSayPace,false);
+ assert.equal(JSON.stringify(independent.intervals),JSON.stringify(options.intervals),'voice preferences cannot change checked preset content');
+ storage.setItem(trackPrefix+'voice','true');storage.setItem(trackPrefix+'interval-voice','false');
+ request=I.startOptions({sport:'run',gps:true});resolveCapabilities({intervalCapabilities:{outdoor:true}});const splitOnly=await request;
+ assert.equal(I.voicePreferences().voice,true);assert.equal(splitOnly.intervalVoice,false,'changing split announcements does not override an explicit interval setting');
+ ctx.App.me={id:2};assert.deepStrictEqual(JSON.parse(JSON.stringify(I.voicePreferences())),{voice:true,intervalVoice:true,total:true,pace:true});ctx.App.me={id:1};
+ assert.deepStrictEqual(JSON.parse(JSON.stringify(I.voicePreferences())),{voice:true,intervalVoice:false,total:true,pace:false},'switching back restores only this account’s saved choices');
  // Simple builder: Run/Walk/Repeat with optional warm-up and cool-down round-trips; other shapes are not opened in it.
  const B=I.builder,ids={wb:'wb',warm:'w',main:'m',run:'r',walk:'k',cb:'cb',cool:'c'};
  const form={name:'',run:{amount:'3',unit:'min'},walk:{amount:'90',unit:'s'},repeat:'4',warm:{amount:'5',unit:'min'},cool:null};

@@ -102,21 +102,25 @@ check(!NativeTrackVoiceText.intervalText(spoken,at:750000)!.contains("Average pa
 spoken.distance=TrackRecordingState.mile*0.1
 check(NativeTrackVoiceText.intervalText(spoken,at:750000)!.contains("Average pace"),"Tenth-mile boundary is eligible")
 spoken.distance=1000;spoken.points[0].t=730
-check(!NativeTrackVoiceText.intervalText(spoken,at:750000)!.contains("Average pace"),"Lost GPS omits pace")
+check(NativeTrackVoiceText.intervalText(spoken,at:750000)!.contains("Average pace"),"Stale GPS does not suppress valid cumulative pace")
 spoken.points[0].t=750;spoken.points[0].accuracy=80
-check(!NativeTrackVoiceText.intervalText(spoken,at:750000)!.contains("Average pace"),"Weak GPS omits pace")
+check(NativeTrackVoiceText.intervalText(spoken,at:750000)!.contains("Average pace"),"A weak latest fix does not suppress valid cumulative pace")
+spoken.points[0].accuracy=5;spoken.points[0].segment=1
+check(NativeTrackVoiceText.intervalText(spoken,at:750000)!.contains("Average pace"),"A fix from an earlier segment does not suppress valid cumulative pace")
 spoken.points=[]
-check(!NativeTrackVoiceText.intervalText(spoken,at:750000)!.contains("Average pace"),"No GPS omits pace")
+check(NativeTrackVoiceText.intervalText(spoken,at:750000)!.contains("Average pace"),"Valid distance and time do not require a current fix")
 spoken.voice=false
-check(NativeTrackVoiceText.intervalText(spoken,at:750000)==nil,"Spoken updates off silences interval speech")
+check(NativeTrackVoiceText.intervalText(spoken,at:750000)!.contains("Average pace"),"Interval cues work while general split announcements are off")
+check(!NativeTrackVoiceText.splitAllowed(spoken,splitTime:200),"General split announcements stay off independently")
 spoken.voice=true;spoken.intervals?.voice=false
 check(NativeTrackVoiceText.intervalText(spoken,at:750000)==nil,"Interval voice off also silences speech")
+check(NativeTrackVoiceText.splitAllowed(spoken,splitTime:200),"General split announcements remain on when interval cues are off")
 spoken.intervals?.voice=true
 // Manual pause and auto-pause use exactly the same active clock as Track.
 spoken.pause(at:600000);spoken.resume(at:900000)
-check(NativeTrackVoiceText.intervalText(spoken,at:1050000)==instruction+" Total time 12 minutes 30 seconds.","Manual pause excluded")
+check(NativeTrackVoiceText.intervalText(spoken,at:1050000)==instruction+" Total time 12 minutes 30 seconds. Average pace 20 minutes 7 seconds per mile.","Manual pause excluded from pace and total time")
 spoken.autoPause=true;spoken.lastMove=1030000
-check(NativeTrackVoiceText.intervalText(spoken,at:1050000)==instruction+" Total time 12 minutes 25 seconds.","Auto-pause excluded")
+check(NativeTrackVoiceText.intervalText(spoken,at:1050000)==instruction+" Total time 12 minutes 25 seconds. Average pace 19 minutes 59 seconds per mile.","Auto-pause excluded from pace and total time")
 spoken.autoPause=false;spoken.intervals?.advance(to:720)
 check(NativeTrackVoiceText.intervalText(spoken,at:1050000)!.hasPrefix("Interval sequence complete. Keep recording, or pause and finish when ready. Total time"),"Completion includes enabled totals")
 check(NativeTrackVoiceText.distance(402.336,unitMetres:TrackRecordingState.mile)=="0.25 miles","Imperial distance steps")
@@ -130,5 +134,5 @@ check(!NativeTrackVoiceText.splitAllowed(spoken,splitTime:177),"Interval shortly
 check(!NativeTrackVoiceText.splitAllowed(spoken,splitTime:183),"Interval shortly before a split wins")
 check(NativeTrackVoiceText.splitAllowed(spoken,splitTime:200),"Distant splits keep their unchanged wording")
 let persisted=try JSONDecoder().decode(TrackRecordingState.self,from:JSONEncoder().encode(spoken))
-check(persisted.intervalSayTotal==true && persisted.intervalSayPace==true,"Voice preferences persist in the recording journal")
+check(persisted.intervalSayTotal==true && persisted.intervalSayPace==true && persisted.intervals?.voice==true,"Interval voice preferences persist in the recording journal")
 print("PASS interval contracts, timing, recovery and exact time/pace/unit/switch/GPS/pause/completion/split voice cases; no physical delivery claim")
