@@ -441,8 +441,24 @@ def add_entries(items: list[EntryIn], user=Depends(current_user), thread: bool =
     with db.connect() as c:
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
         from . import food_thread_receipts as receipts
+        verified_meals = {}
         for e in items:
             receipts.guard(c,user['id'],e.client_id)
+            saved_meal_ref = (e.ref or {}).get('saved_meal_id') if isinstance(e.ref, dict) else None
+            # A resend of an already-committed food must not depend on metadata that may have been deleted since.
+            existing = c.execute('SELECT id FROM food_entries WHERE user_id = %s AND client_id = %s', (user['id'], e.client_id)).fetchone() if saved_meal_ref is not None and e.client_id else None
+            if saved_meal_ref is not None and not existing:
+                if isinstance(saved_meal_ref, bool) or not isinstance(saved_meal_ref, (int, str)) or not str(saved_meal_ref).isdigit(): raise HTTPException(404, 'Saved meal not found.')
+                saved_meal_id = int(saved_meal_ref)
+                if saved_meal_id <= 0: raise HTTPException(404, 'Saved meal not found.')
+                if saved_meal_id not in verified_meals:
+                    verified_meals[saved_meal_id] = bool(c.execute('SELECT id FROM saved_meals WHERE id = %s AND user_id = %s', (saved_meal_id, user['id'])).fetchone())
+                if not verified_meals[saved_meal_id]:
+                    # The queued food snapshot is sufficient to log; only its optional shortcut back to a saved meal is stale or foreign.
+                    ref = dict(e.ref or {})
+                    ref.pop('saved_meal_id', None)
+                    ref.pop('saved_meal_factor', None)
+                    e.ref = ref or None
             if e.ref is not None and isinstance(e.ref.get('unknown_nutrients'),list):
                 missing={k for k in e.ref['unknown_nutrients'] if isinstance(k,str)}
                 for k in N.EXTRA:
@@ -637,8 +653,21 @@ class MealIn(BaseModel):
 def meals(user=Depends(current_user)):
     with db.connect() as c:
         rows = c.execute('SELECT id, name, items, ai_note, ai_note_at FROM saved_meals WHERE user_id = %s ORDER BY name', (user['id'],)).fetchall()
+        uses = c.execute("""SELECT DISTINCT ON (ref->>'saved_meal_id') ref->>'saved_meal_id' AS saved_meal_id,
+                                   id AS last_used_entry_id, created AS last_used_at, ref->>'saved_meal_factor' AS factor
+                            FROM food_entries
+                            WHERE user_id = %s AND source = 'meal' AND jsonb_typeof(ref) = 'object'
+                              AND ref ? 'saved_meal_id' AND ref->>'saved_meal_id' ~ '^[0-9]{1,12}$'
+                            ORDER BY ref->>'saved_meal_id', created DESC, id DESC""", (user['id'],)).fetchall()
+    last_used = {row['saved_meal_id']: row for row in uses}
     for r in rows:
         r['totals'] = {k: round(sum(i[k] for i in r['items']), 1) if all(N.known(i,k) for i in r['items']) else None for k in NUM}
+        use = last_used.get(str(r['id']))
+        r['last_used_at'] = use['last_used_at'] if use else None
+        r['last_used_entry_id'] = use['last_used_entry_id'] if use else None
+        try: factor = float(use['factor']) if use and use['factor'] is not None else None
+        except (TypeError, ValueError): factor = None
+        r['last_used_factor'] = factor if factor is not None and 0 < factor < 100000 else None
         note, at = r.pop('ai_note'), r.pop('ai_note_at')        # AI feedback on the meal (food_coach.py), if asked for
         r['review'] = {**json.loads(note), 'at': at} if note else None
     return rows

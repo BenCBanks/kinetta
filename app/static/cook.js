@@ -204,7 +204,7 @@ function foodToDish(d, f, set) {
 }
 // Log a dish (Add food > Saved Dishes, or a friend's dish). One question only, the way the dish is measured (Ben,
 // 2026-10-12): by servings -> how many servings (½ steps); by weight -> your portion in grams. w = {day, meal} from Add food.
-function dishLogSheet(d, w, done, {chooseMeal=false}={}) {
+function dishLogSheet(d, w, done, {chooseMeal=false,quickPortion=null}={}) {
   const owner=readOwner();
   if(d.totals.kcal==null){if(d.mine===false)sheet(d.name,'<p>Calories are unavailable for this shared recipe. Its owner needs to add nutrition before you can log a portion.</p>');else knownSheet(d,()=>{invalidate('/api/dishes');done(true);toast('Nutrition saved · choose a portion when ready');});return;}
   const t = d.totals, wt = d.weight_g, bySv = d.serving === 'one'||(d.mine===false&&!d.weight_g);     // by servings: the whole dish is one serving
@@ -226,10 +226,16 @@ function dishLogSheet(d, w, done, {chooseMeal=false}={}) {
     const f = $('#dl', b), out = $('.portion-out', f), num = x => {const v=x?.value?.trim()||'';const m=v.match(/^(\d*)([¼½¾])$/);return m?Number(m[1]||0)+({'¼':.25,'½':.5,'¾':.75}[m[2]]):Number(v.replace(',','.'));};
     const half=x=>{const whole=Math.floor(x),frac=Math.round((x-whole)*4);return frac?`${whole||''}${['','¼','½','¾'][frac]}`:String(whole);};
     const needsFraction=d.mine===false&&!wt&&!d.recipe_source?.import_id&&(d.serving_count||1)<=1;
-    let n=needsFraction||chooseMeal?NaN:1;if(bySv&&(needsFraction||chooseMeal)){f.count.value='';f.count.placeholder=needsFraction?'e.g. 0.25':'How many?';if(needsFraction)f.count.setAttribute('aria-label','Fraction of the whole recipe');}
-    const factor = () => (mode === 'sv' ? (Number.isFinite(n)&&n>0&&n<=20?n/(d.serving_count||1):null) : num(f.g) > 0 && wt ? num(f.g) / wt : null);
+    let n=needsFraction||chooseMeal?NaN:1,quickShare=null;if(bySv&&(needsFraction||chooseMeal)){f.count.value='';f.count.placeholder=needsFraction?'e.g. 0.25':'How many?';if(needsFraction)f.count.setAttribute('aria-label','Fraction of the whole recipe');}
+    if(quickPortion?.grams>0){mode='g';if(f.g)f.g.value=String(quickPortion.grams);}
+    else if(quickPortion?.count>0){mode='sv';n=quickPortion.count;}
+    else if(quickPortion?.share>0){mode='sv';quickShare=quickPortion.share;n=quickShare*(d.serving_count||1);}
+    if(f.count&&Number.isFinite(n)){f.count.value=half(n);$('#dl-u',f).textContent=n===1?'serving':'servings';}
+    if(quickPortion){$$('[data-mode]',f).forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.mode===mode)));if($('#dl-sv',f))$('#dl-sv',f).hidden=mode!=='sv';if($('#dl-g',f))$('#dl-g',f).hidden=mode!=='g';const note=$('#dl-sv-note',f);if(note)note.hidden=mode!=='sv';}
+    const factor = () => (mode === 'sv' ? (quickShare!=null?quickShare:Number.isFinite(n)&&n>0&&n<=20?n/(d.serving_count||1):null) : num(f.g) > 0 && wt ? num(f.g) / wt : null);
     const show = () => { const k = factor(); out.innerHTML = k ? nutGrid(vals(k),{calories:recipeCalories})+extraFood(vals(k)) : '';$('button.primary',f).disabled=!k; };
     $$('[data-mode]', f).forEach((x) => x.onclick = () => {
+      quickShare=null;
       mode = x.dataset.mode; $$('[data-mode]', f).forEach((y) => y.setAttribute('aria-pressed', String(y === x)));
       // Carry the amount across: 1 serving of a 4-serving, 1,200 g recipe is 300 g.
       const k = mode === 'g' ? (Number.isFinite(n) && n > 0 ? n / (d.serving_count || 1) : null) : (num(f.g) > 0 ? num(f.g) / wt : null);
@@ -238,11 +244,12 @@ function dishLogSheet(d, w, done, {chooseMeal=false}={}) {
       $('#dl-sv', f).hidden = mode !== 'sv'; $('#dl-g', f).hidden = mode !== 'g'; const note = $('#dl-sv-note', f); if (note) note.hidden = mode !== 'sv'; show();
     });
     if (f.count) $$('[data-st]', f).forEach((x) => x.onclick = () => {
+      quickShare=null;
       n = Math.max(0.25, Math.min(20, (Number.isFinite(n)?n:1) + 0.25 * +x.dataset.st));
       $('#dl-n', f).value = half(n); $('#dl-u', f).textContent = n === 1 ? 'serving' : 'servings'; show();
     });
-    if (f.g) f.g.oninput = show;
-    if(f.count)f.count.oninput=()=>{n=num(f.count);$('#dl-u',f).textContent=n===1?'serving':'servings';show();};
+    if (f.g) f.g.oninput = ()=>{quickShare=null;show();};
+    if(f.count)f.count.oninput=()=>{quickShare=null;n=num(f.count);$('#dl-u',f).textContent=n===1?'serving':'servings';show();};
     show();
     const ed = $('#dl-edit', b); if (ed) ed.onclick = () => { close(); done(true); go(`/food/cook/${d.id}`); };
     const portionId=newId();
@@ -250,7 +257,8 @@ function dishLogSheet(d, w, done, {chooseMeal=false}={}) {
       e.preventDefault(); const btn = $('button.primary', f);if(btn.disabled)return;
       if(chooseMeal){if(!f.meal.value){toast('Which meal would you like to log it to?');f.meal.focus();return;}w={...w,meal:f.meal.value};}
       const body = {meal: w.meal, day: w.day, client_id:portionId};
-      if (mode === 'sv') {if(!Number.isFinite(n)||n<=0||n>20){toast('Enter a serving count above zero and up to 20.');return;}body.count = n;}
+      if(quickShare!=null)body.share=quickShare;
+      else if (mode === 'sv') {if(!Number.isFinite(n)||n<=0||n>20){toast('Enter a serving count above zero and up to 20.');return;}body.count = n;}
       else { const g = num(f.g); if (!(g > 0)) { toast('How many grams did you have?'); return; } body.grams = g; }
       const label=btn.textContent;btn.disabled = true;btn.textContent='Saving portion…';
       try {
@@ -278,6 +286,7 @@ function dishLogSheet(d, w, done, {chooseMeal=false}={}) {
         toast(r.queued?'Portion saved on this phone · waiting to send':`Added ${d.name} to ${MEAL_NAMES[w.meal].toLowerCase()}: ${recipeCalories(r.entry.kcal)} kcal`,undo);
       } catch (x) { if(readOwner()===owner){if(d.mine===false&&x.status===404){invalidate('/api/dishes');close();done(false);toast('This recipe is no longer shared with you.');}else{toast(x.message);btn.disabled=false;btn.textContent=label;}} }
     };
+    if(quickPortion)setTimeout(()=>{if(f.isConnected)f.requestSubmit();},0);
   });
 }
 // Swipe an ingredient left to show Remove (2026-10-12). The name stays put (so you can see what you're removing); the

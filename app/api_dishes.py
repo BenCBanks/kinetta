@@ -256,7 +256,48 @@ def dishes(user=Depends(current_user)):
                   {'u': user['id'], 'p': list(PLACEHOLDERS)})
         rows = c.execute(f"""SELECT {COLS} FROM dishes WHERE user_id = %(u)s OR ({SHARED})
                              ORDER BY user_id = %(u)s DESC, updated DESC, id DESC LIMIT %(n)s""", {'u': user['id'], 'n': MAX_DISHES + 50}).fetchall()
-        return [_view(c, user['id'], d) for d in rows if not (d['user_id'] == user['id'] and _empty(d))]
+        uses = c.execute("""SELECT DISTINCT ON (ref->>'dish_id') ref->>'dish_id' AS dish_id, id AS last_used_entry_id,
+                                   created AS last_used_at, amount, unit, ref
+                            FROM food_entries
+                            WHERE user_id = %s AND source = 'dish' AND jsonb_typeof(ref) = 'object'
+                              AND ref ? 'dish_id' AND ref->>'dish_id' ~ '^[0-9]{1,12}$'
+                            ORDER BY ref->>'dish_id', created DESC, id DESC""", (user['id'],)).fetchall()
+        last_used = {}
+        for use in uses:
+            try: did = int(use['dish_id'])
+            except (TypeError, ValueError): continue
+            last_used[did] = use
+        result = []
+        for d in rows:
+            if d['user_id'] == user['id'] and _empty(d): continue
+            view = _view(c, user['id'], d)
+            use = last_used.get(d['id'])
+            if use:
+                view['last_used_at'] = use['last_used_at']
+                view['last_used_entry_id'] = use['last_used_entry_id']
+                view['last_used_portion'] = _last_used_portion(use)
+            else:
+                view['last_used_at'] = None
+                view['last_used_entry_id'] = None
+                view['last_used_portion'] = None
+            result.append(view)
+        return result
+
+
+def _last_used_portion(entry):
+    """Return only the amount from the viewer's latest log, never its old meal, day or serving-count hint."""
+    ref = entry.get('ref') if isinstance(entry.get('ref'), dict) else {}
+    request = ref.get('portion_request') if isinstance(ref.get('portion_request'), dict) else {}
+    for key, maximum in (('grams', 20000), ('share', 1), ('count', 20)):
+        value = request.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and 0 < value <= maximum:
+            return {key: value}
+    value, unit = entry.get('amount'), entry.get('unit')
+    fallback = {'g': 'grams', 'serving': 'count', 'dish': 'share'}.get(unit)
+    maximum = {'grams': 20000, 'count': 20, 'share': 1}.get(fallback)
+    if fallback and isinstance(value, (int, float)) and not isinstance(value, bool) and 0 < value <= maximum:
+        return {fallback: value}
+    return None
 
 
 @router.get('/shared')
