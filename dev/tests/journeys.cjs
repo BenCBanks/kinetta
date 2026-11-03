@@ -42,11 +42,15 @@ async function feedBack(f){
 (async()=>{
  boundary();const fixtures=JSON.parse(fs.readFileSync(fixturesFile)),all=journeys(fixtures);
  const wanted=process.env.KINETTA_JOURNEY_CASE?.split(','),selected=wanted?all.filter(test=>wanted.includes(test.id)):all;
- assert(selected.length&&(!wanted||selected.length===wanted.length),'Every selected journey must exist');const browser=await chromium.launch(),contexts=new Map(),results=[];
+ assert(selected.length&&(!wanted||selected.length===wanted.length),'Every selected journey must exist');
  const started=Date.now();
+ const remaining=Number(process.env.KINETTA_JOURNEY_DEADLINE_MS||started+120000)-started;assert(remaining>0,'Journey batch deadline already expired');
+ const browser=await chromium.launch(),contexts=new Map(),results=[];
+ let expired=false;const watchdog=setTimeout(()=>{expired=true;console.error('Journey batch deadline exceeded');browser.close().catch(()=>{});},Math.min(remaining,120000));
  try{
   const sessions=await fixtureSessions(browser,base,selected);
   for(const test of selected){
+   if(expired)break;
    const key=[test.login,test.native?test.id:'browser',!!test.kit].join(':'),existing=contexts.has(key);
    const f=contexts.get(key)||await context(browser,base,fixtures,sessions,test);contexts.set(key,f);f.test(test);
    try{
@@ -58,6 +62,9 @@ async function feedBack(f){
     else if(test.action==='feedBack')await feedBack(f);
     else for(const selector of test.taps)await f.p.locator(selector).first().click();
     await assertDestination(f.p,test.end,{saved:f.saved,day:f.foodDay});
+    const capture=process.env.KINETTA_JOURNEY_SHOTS&&['me-profile','track-save-detail','nutrition-log','notification-activity_ready'].includes(test.id);
+    if(capture)await f.p.locator('#toast.on').waitFor({state:'hidden'});
+    const endShot=capture?await f.p.screenshot():null;
     if(test.back){
      if(test.history)await f.p.goBack();else await f.p.locator('[data-back]:visible,.progress-back:visible,.thread-heading > .back').first().click();
      await assertDestination(f.p,test.back);
@@ -65,10 +72,11 @@ async function feedBack(f){
     if(test.close)await closeSheets(f.p);
     assert.deepEqual(f.errors,[],'No page exception');
     assert.deepEqual(f.httpErrors,[],'No unexpected API failure');
+    assert.deepEqual(f.blocked,[],'No unexpected navigation mutation');
     const targets=await f.p.evaluate(()=>window.journeyGoTargets||[]);results.push({id:test.id,login:test.login,passed:true,end:test.end.url,go:targets,writes:[...f.writes]});
     console.log('Journey '+test.id+': URL, title and key element PASS');
-    if(process.env.KINETTA_JOURNEY_SHOTS&&['me-profile','track-save-detail','nutrition-log','notification-activity_ready'].includes(test.id)){
-     fs.mkdirSync(process.env.KINETTA_JOURNEY_SHOTS,{recursive:true});await f.p.screenshot({path:path.join(process.env.KINETTA_JOURNEY_SHOTS,test.id+'.png')});
+    if(endShot){
+     fs.mkdirSync(process.env.KINETTA_JOURNEY_SHOTS,{recursive:true});fs.writeFileSync(path.join(process.env.KINETTA_JOURNEY_SHOTS,test.id+'.png'),endShot);
     }
    }catch(error){
     if(process.env.KINETTA_JOURNEY_SHOTS){fs.mkdirSync(process.env.KINETTA_JOURNEY_SHOTS,{recursive:true});await f.p.screenshot({path:path.join(process.env.KINETTA_JOURNEY_SHOTS,test.id+'-failed.png')}).catch(()=>{});}
@@ -76,9 +84,10 @@ async function feedBack(f){
     console.error('Journey '+test.id+': FAIL '+error.message);contexts.delete(key);await f.c.close();
    }
   }
- }finally{for(const f of contexts.values())await f.c.close();await browser.close();}
- const result={fictional:true,mode:process.env.KINETTA_JOURNEY_CASE?'PARTIAL selection':'complete',fixture_sha256:createHash('sha256').update(fs.readFileSync(fixturesFile)).digest('hex'),cases:results,elapsed_seconds:(Date.now()-started)/1000,standins:['Native recorder and GPS','Kit availability/conversation','Backend-generated notification list']};
+ }finally{clearTimeout(watchdog);for(const f of contexts.values())await f.c.close().catch(()=>{});await browser.close();}
+ const result={fictional:true,mode:expired?'PARTIAL timeout':process.env.KINETTA_JOURNEY_CASE?'PARTIAL selection':'complete',fixture_sha256:createHash('sha256').update(fs.readFileSync(fixturesFile)).digest('hex'),cases:results,elapsed_seconds:(Date.now()-started)/1000,standins:['Native recorder and GPS','Kit availability/conversation','Backend-generated notification list']};
  const output=process.env.KINETTA_JOURNEY_REPORT||'/tmp/'+project+'-journeys-report.json';fs.writeFileSync(output,JSON.stringify(result,null,2));
  const failures=results.filter(row=>!row.passed);console.log(`Journeys: ${results.length-failures.length}/${results.length} passed in ${result.elapsed_seconds.toFixed(1)} seconds`);
+ assert(!expired,'Journey batch must finish within its deadline');
  assert.equal(failures.length,0,failures.map(row=>row.id+': '+row.error).join('\n'));
 })().catch(error=>{console.error(error);process.exitCode=1;});

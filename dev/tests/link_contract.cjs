@@ -37,7 +37,7 @@ function intention(link,base,registry,login){
  if(/view your shared profile|your profile$/i.test(label)&&(!pathname.startsWith('/people/')||ownProfile&&pathname!==ownProfile))return fail('profile control must open your profile');
  if(/^(?:view my|view your|all your|your) activities/i.test(label)&&pathname!=='/me/activities'&&pathname!==ownProfile)return fail('activity-history control must open your own activity list');
  let canonical=redirects[pathname]||pathname;
- const dialog=pathname==='/track'&&q.get('past')==='1'?{heading:'Add an activity',ready:'#ma'}:['/me','/me/settings'].includes(pathname)&&q.get('setup')==='body'?{heading:'Body, heart rate & time zone',ready:'#m-form'}:null;
+ const dialog=pathname==='/track'&&q.get('past')==='1'?{heading:'Add an activity',ready:'#ma'}:pathname==='/track'&&q.get('intervals')==='1'?{heading:'Intervals',ready:'.scrim:not([inert]) .sheet[aria-label="Intervals"] #interval-library [data-new]'}:pathname==='/me/settings'&&q.get('email')==='add'?{heading:'Email',ready:'.scrim:not([inert]) .sheet[aria-label="Email"]'}:['/me','/me/settings'].includes(pathname)&&q.get('setup')==='body'?{heading:'Body, heart rate & time zone',ready:'#m-form'}:null;
  const addFood=pathname==='/food'&&q.get('add')==='1';if(addFood)canonical='/food/describe';
  if(pathname==='/me'&&q.get('setup')==='body')canonical='/me/settings';
  if(pathname==='/progress'&&q.get('section')==='food')canonical=q.get('foodview')==='weight'?'/progress/weight':'/food';
@@ -50,7 +50,7 @@ function intention(link,base,registry,login){
  if(pathname==='/food'&&q.get('view')==='weight')canonical='/progress/weight';
  if(/^\/lift\/\d+$/.test(pathname))canonical=pathname.replace('/lift/','/track/lift/');
  const heading=dialog?.heading||(addFood?'Add food':canonical===ownProfile&&!q.has('preview')?'Your profile':q.has('view')?views[pathname][q.get('view')]:q.get('section')==='food'?views['/food'][q.get('foodview')||'overview']:pathname==='/food/trends'?'Insights':headings[canonical]);
- return {kind:'page',url,canonical,heading,dialog};
+ return {kind:'page',url,canonical,heading:pathname==='/segments/review'?'Review segment':heading,dialog,segmentReview:pathname==='/segments/review',ready:/^\/track\/lift\/\d+$/.test(canonical)?'#lf-list .lift-name':null};
 }
 async function fetchDocument(request,url,base){
  const origin=new URL(base).origin;let target=new URL(url,base);

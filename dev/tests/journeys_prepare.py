@@ -13,6 +13,8 @@ root = target(base, project)  # No fixture writes before the independent deploym
 subprocess.run([sys.executable, str(root/'dev/tests/spacing_prepare.py')], check=True)
 fixtures = json.loads(Path(os.environ.get('KINETTA_SPACING_FIXTURES', '/tmp/'+project+'-spacing-fixtures.json')).read_text())
 from kc import person, PW
+sys.path.insert(0, str(root))
+from app.route_geo import encode
 
 
 def ok(response):
@@ -42,6 +44,9 @@ challenge = ok(client.post('/api/challenges', {'kind': 'activities', 'target': 3
                    'start': str(now.date()), 'end': str(now.date()+dt.timedelta(days=6)), 'request_id': uuid.uuid4().hex}))['code']
 me = ok(client.get('/api/me'))
 journey = {'login': login, 'uid': me['id'], 'activity': activities[0], 'dish': dish, 'challenge': challenge, 'food': food}
+segment = {'sport': 'run', 'line': encode([[45.30, 10.20], [45.3045, 10.20]]), 'source': 'map',
+           'name': 'Fictional journey review', 'description': 'Made-up course for navigation checks.', 'audience': 'me'}
+journey['segment'] = {**segment, 'draftId': ok(client.post('/api/segment-drafts', {'data': segment}))['id']}
 # Exercise the backend's actual kind-to-link generation; delivery/visibility is tested separately.
 script = '''import datetime as dt,json,sys
 from app import notify

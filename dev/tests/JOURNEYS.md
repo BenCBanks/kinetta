@@ -21,7 +21,9 @@ Playwright must be installed. GPS/recording transport, Kit availability/conversa
 notification delivery are stand-ins; notification destinations come from the backend's
 actual kind-to-link function. Only the recording-save and food-review journeys may save
 fictional records. The food journey checks that a draft adds nothing and explicit review
-adds exactly one entry. Other navigation writes are blocked or acknowledged without saving.
+adds exactly one entry. Other navigation writes fail the check, apart from explicit
+read/usage markers and the prepared segment draft's blocked autosave. Intercepted account
+and recording requests cannot follow redirects.
 
 Add a row to `journey_scenes.cjs`: `start`, real control selectors in `taps`, and `end`
 with the expected URL, visible title and loaded key element. Optional `back` checks the
@@ -36,12 +38,20 @@ and the process exits nonzero. Set `KINETTA_JOURNEY_SHOTS` to retain destination
 
 The link checker rejects unknown routes, ignored view selectors, mismatched control labels
 and unapproved external links. Downloads cannot follow a redirect outside the fixture.
-It follows newly discovered page links recursively, keeping exact account-scoped URLs;
+It walks the full graph for the Alex demo and original journey accounts; shared persona
+scenes also contribute concrete destinations. It keeps exact account-scoped URLs;
 every discovery is checked before deduplication. Exceeding 1,000 destinations fails clearly.
+Only two browser contexts remain open; a four-minute crawl deadline fails at the active URL.
+Segment review uses an owned private fixture draft and real read-only geometry validation;
+the navigation checks never save or publish a segment.
+The lifting set editor has no heading; its loaded exercise rows identify that destination.
 It temporarily breaks the real View progress link to `view=training` and proves that the
 same checker rejects it; a hidden-heading proof protects title checks. `--rendered-only`
 is a clearly labelled partial diagnostic, never complete dynamic `go()` acceptance.
 
-Record both scripts' reported durations; their added normal runtime should stay below
-five minutes. Workflow wiring awaits the Core handoff. Browser/native before-and-after
+Record preparation and both scripts' durations; their added normal runtime should stay below
+five minutes. `KINETTA_JOURNEY_DEADLINE_MS` shares an absolute epoch-millisecond deadline
+across the browser scripts; independent runs also have two/four-minute limits. Use a fresh
+project for acceptance. Repeated local crawls must respect the export's five-minute cooldown.
+Workflow wiring awaits the Core handoff. Browser/native before-and-after
 galleries are separate later steps of #429; this first step does not claim them.

@@ -1,6 +1,6 @@
 'use strict';
 const assert=require('node:assert/strict'),{intention,literalTargets,fetchDocument}=require('./link_contract.cjs');
-const base='http://localhost:8899',registry=[{source:'^/progress$'},{source:'^/food(?:/trends)?$'},{source:'^/people/[^/]+$'},{source:'^/me$'},{source:'^/me/(?:kit|activities)$'},{source:'^/activity$'},{source:'^/track$'}];
+const base='http://localhost:8899',registry=[{source:'^/progress$'},{source:'^/food(?:/trends)?$'},{source:'^/people/[^/]+$'},{source:'^/me$'},{source:'^/me/(?:kit|activities|settings)$'},{source:'^/activity$'},{source:'^/track$'},{source:'^/segments/review$'},{source:'^/track/lift/\\d+$'}];
 const check=(href,label='Feature')=>intention({href,label,source:'Me'},base,registry,'zz_test_owner');
 assert.equal(check('/progress','View progress').canonical,'/progress');
 assert.equal(check('/progress?view=fitness').heading,'Fitness');
@@ -15,6 +15,10 @@ assert.equal(check('/activity?view=mine').canonical,'/people/zz_test_owner');
 assert.equal(check('/people/zz_test_owner','View my activities').heading,'Your profile');
 assert.equal(check('/me?setup=body').canonical,'/me/settings');assert.equal(check('/me?setup=body').dialog.ready,'#m-form');
 assert.equal(check('/track?past=1').dialog.ready,'#ma');assert.equal(check('/track?past=1').heading,'Add an activity');
+assert.equal(check('/track?intervals=1').canonical,'/track');assert.equal(check('/track?intervals=1').heading,'Intervals');
+assert.equal(check('/me/settings?email=add').dialog.heading,'Email');
+assert.equal(check('/segments/review').segmentReview,true);assert.equal(check('/segments/review').heading,'Review segment');
+assert.equal(check('/track/lift/123').ready,'#lf-list .lift-name');
 assert.equal(check('/food?add=1').canonical,'/food/describe');assert.equal(check('/food?add=1').heading,'Add food');
 assert.throws(()=>check('/food?view=energy&add=1'),/food add context/);assert.throws(()=>check('/food/thread'),/unknown-route fallback/);
 assert.throws(()=>check('/food?view=training'),/unsupported view/);
