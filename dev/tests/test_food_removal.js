@@ -51,6 +51,13 @@ function fixture(){
   await f.advance(5999);assert.equal(f.calls.length,0);
   await f.advance(1);assert.equal(f.calls.length,1);
 
+  // Repeated taps do not extend the Undo deadline or resubmit cancellation.
+  f=fixture();await f.add();await f.removal.remove('owner-a','stable-id');
+  const firstDeadline=f.rows.get(JSON.stringify(['owner-a','stable-id'])).removal.undoUntil;
+  await f.advance(4000);assert.equal(await f.removal.remove('owner-a','stable-id'),false);
+  assert.equal(f.rows.get(JSON.stringify(['owner-a','stable-id'])).removal.undoUntil,firstDeadline);
+  await f.advance(2000);assert.equal(f.calls.length,1);
+
   f=fixture();await f.add();assert.equal(await f.removal.remove('owner-a','stable-id'),true);
   await f.advance(1500);assert.equal(await f.removal.undo('owner-a','stable-id'),true);
   job=f.rows.get(JSON.stringify(['owner-a','stable-id']));
@@ -109,5 +116,13 @@ function fixture(){
   f=fixture();await f.add('owner-a','tombstone-id');await f.removal.remove('owner-a','tombstone-id');
   f.setRequestHandler(()=>{throw Object.assign(Error('This message was cancelled'),{code:'message_cancelled'});});
   await f.advance(6000);assert.equal(f.rows.has(JSON.stringify(['owner-a','tombstone-id'])),false);
+
+  // A cancellation that races with a successful food log removes only the
+  // local outbox job; the server's saved food is left for the chat refresh.
+  f=fixture();await f.add('owner-a','saved-race');await f.removal.remove('owner-a','saved-race');
+  f.setRequestHandler(()=>{throw Object.assign(Error('This food is already saved. Use Undo on its card to remove it.'),{status:409});});
+  await f.advance(6000);assert.equal(f.rows.has(JSON.stringify(['owner-a','saved-race'])),false);
+  assert.equal(f.photoRows.has(JSON.stringify(['owner-a','saved-race'])),false);
+  assert.equal(f.changes.at(-1).id,'saved-race');
   console.log('food removal: durable pause, Undo, expiry, photos, stale responses, offline retry and owner isolation PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});
