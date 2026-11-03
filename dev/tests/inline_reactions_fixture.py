@@ -16,10 +16,11 @@ for key,name in [('owner','Alex Example'),('viewer','Jordan Example'),('other','
  login='zz_test_inline_'+key;c=person(login);ok(c.post('/api/account/delete',{'password':PW}));c=person(login,name);ok(c.put('/api/profile',{'tz':'UTC','ai_ok':False,'setup_hidden':True}));clients[key]=c
 owner,viewer,other=clients.values();ok(viewer.post('/api/friends',{'login':'zz_test_inline_owner'}));ok(owner.post('/api/friends/zz_test_inline_viewer/accept'))
 now=dt.datetime.now(dt.timezone.utc)-dt.timedelta(hours=1);ids={}
-for i,key in enumerate(['empty','mixed','selected']):
+for i,key in enumerate(['empty','others','mixed','selected']):
  aid=ok(owner.post('/api/activities/manual',{'sport':'run','name':'Fictional '+key+' run','start':(now-dt.timedelta(days=i)).isoformat(),'duration_s':1800,'distance_m':5000}))['id'];ids[key]=aid;ok(owner.put(f'/api/activities/{aid}/sharing',{'visibility':'everyone'}))
+for actor,kind in [(owner,'cheer'),(other,'applause')]:ok(actor.post(f'/api/activities/{ids["others"]}/reaction',{'kind':kind}))
 for actor,kind in [(owner,'cheer'),(viewer,'strong'),(other,'applause')]:ok(actor.post(f'/api/activities/{ids["mixed"]}/reaction',{'kind':kind}))
 ok(viewer.post(f'/api/activities/{ids["selected"]}/reaction',{'kind':'cheer'}))
 ok(viewer.post(f'/api/activities/{ids["mixed"]}/comments',{'text':'Great effort!'}))
 if os.environ.get('KINETTA_REACTION_IDS'):Path(os.environ['KINETTA_REACTION_IDS']).write_text(json.dumps(ids))
-print('Three fictional reaction cards: empty, mixed with comment, viewer reaction selected; no real accounts/providers/devices')
+print('Four fictional reaction cards: empty, others reacted, mixed with comment, viewer reaction selected; no real accounts/providers/devices')
