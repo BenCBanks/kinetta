@@ -39,7 +39,10 @@ try:
     assert len(weeks) == 12 and len(public['days']) == 14
     assert all(dt.date.fromisoformat(r['d']).weekday() == 6 for r in weeks)
     assert weeks[0]['d'] == str(first) and weeks[0]['distance_m'] == 1000
+    assert weeks[0]['activities'] == 1 and weeks[0]['time_s'] == 600
     assert weeks[-2]['distance_m'] == 8000 and weeks[-1]['distance_m'] == 12000, 'totals include private and friends-only workouts (owner decision 29 Oct)'
+    assert (weeks[-2]['activities'], weeks[-2]['time_s']) == (2, 1200)
+    assert (weeks[-1]['activities'], weeks[-1]['time_s']) == (3, 1800)
     assert weeks[-1]['end'] == str(today) and weeks[-1]['today']
     assert weeks[-1]['by_sport'] == {'run': 3000, 'ride': 5000, 'walk': 4000}
     assert all(abs(sum(r['by_sport'].values())-r['distance_m'])<.001 for r in weeks)
@@ -47,13 +50,15 @@ try:
     stats = req(owner, 'GET', '/api/stats')
     assert len(stats['chart_weeks']) == 7 and len(stats['recent_days']) == 14
     assert stats['chart_today'] == str(today)
+    assert stats['week_streak'] == 1, 'week streak uses Monday weeks and counts the current or most recent active week'
     assert stats['chart_weeks'][0]['d'] == str(sunday - dt.timedelta(weeks=6))
     assert stats['chart_weeks'][0]['distance_m'] == 0, 'stats keeps its existing seven-week horizon'
     assert stats['chart_weeks'][-2]['distance_m'] == 8000
     assert stats['chart_weeks'][-1]['distance_m'] == 12000
     assert stats['chart_weeks'][-1]['by_sport'] == {'run':3000,'ride':5000,'walk':4000}
     assert next(r for r in stats['recent_days'] if r['d']==str(sunday))['by_sport'] == {'run':3000,'ride':5000,'walk':4000}
-    assert all(r['distance_m'] == 0 for r in req(viewer, 'GET', '/api/stats')['chart_weeks']), 'stats never include another owner'
+    viewer_stats = req(viewer, 'GET', '/api/stats')
+    assert viewer_stats['week_streak'] == 0 and all(r['distance_m'] == 0 for r in viewer_stats['chart_weeks']), 'stats never include another owner'
     req(viewer, 'POST', '/api/friends', {'login':'zz_test_chart_owner'})
     req(owner, 'POST', '/api/friends/zz_test_chart_view/accept')
     friend = profile(viewer)

@@ -959,8 +959,10 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 
 /* ---------- notifications (2026-10-11) ---------- */
 .icon-btn.bell { position: relative; }
-.bell-dot { position: absolute; top: 10px; right: 6px; min-width: 20px; height: 20px; padding: 0 5px; border: 2px solid var(--bg); border-radius: 999px; background: var(--btn); color: var(--onbtn);
-  font: 700 13px/20px var(--numf); text-align: center; box-shadow: none; }
+.bell-dot { position: absolute; top: -2px; right: -2px; display: grid; place-items: center; box-sizing: border-box; width: 18px; min-width: 18px; height: 18px; padding: 0; border: 2px solid var(--bg); border-radius: 999px; background: var(--btn); color: var(--onbtn);
+  font: 700 13px/1 var(--numf); text-align: center; box-shadow: none; }
+.bell-dot.many { right: -6px; width: 22px; font-size:12px; }
+.bell-dot[hidden] { display:none; }
 .notes-group + .notes-group { margin-top: 22px; }
 .notes-h { margin: 0 4px 8px; font: 700 13px/1.2 var(--font-ui); letter-spacing: .04em; text-transform: uppercase; color: var(--tx3); }
 .notes { padding: 4px 0; }
@@ -1387,6 +1389,7 @@ html.keyboard-open nav.tabs { display: none; }
 .profile-share-art {position:absolute;top:0;left:0;width:111.111111%;transform:scale(var(--preview-scale,.9));transform-origin:top left;pointer-events:none;}
 .profile-share-art .me-card {margin:0;border:0;border-radius:0;}
 .profile-share-caption {margin:0 0 8px;}
+.profile-share-privacy {flex:none;margin:12px 0 0;font-size:max(13px,.8125rem);}
 .profile-share-actions {flex:none;margin-top:16px;}
 #profile-share-status:empty {display:none;}
 .profile-share-actions {display:grid;grid-template-columns:1fr;gap:8px;}

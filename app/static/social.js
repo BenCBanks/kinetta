@@ -213,7 +213,7 @@ const Social = {
     if (typeof Native !== 'undefined' && Native.setBadge) Native.setBadge(un);
     $$('[data-friend-waiting]').forEach(node=>{const waiting=Number.isInteger(App.me?.friend_requests)?App.me.friend_requests:0;node.hidden=!waiting;node.textContent=`${waiting} waiting`;});
     if(Number.isInteger(App.me?.friend_count))$$('[data-friend-count]').forEach(node=>node.textContent=friendCountText(App.me.friend_count));
-    $$('.bell-dot').forEach((d) => { d.hidden = !un; d.textContent = un > 9 ? '9+' : un || ''; });
+    $$('.bell-dot').forEach((d) => { d.hidden = !un; d.classList.toggle('many',un>9); d.textContent = un > 9 ? '9+' : un || ''; });
     if (!n) { if (b) b.remove(); return; }
     if (!b) { b = document.createElement('span'); b.className = 'tab-n'; a.append(b); }
     b.innerHTML = `${n > 9 ? '9+' : n}<span class="vh"> new notification${n > 1 ? 's' : ''}</span>`;

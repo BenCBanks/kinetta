@@ -2,7 +2,7 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
-async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error('Timed out: '+label+' '+JSON.stringify(await p.evaluate(()=>({url:location.href,key:App.page?.key,ready:App.pageReady,body:document.body.textContent.slice(0,200)}))));}
+async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error('Timed out: '+label+' '+JSON.stringify(await p.evaluate(()=>({url:location.href,...(typeof App==='undefined'?{}:{key:App.page?.key,ready:App.pageReady}),body:document.body.textContent.slice(0,200)}))));}
 (async()=>{
  cp.execFileSync('python3',[path.join(__dirname,'test_progress_overview.py')],{env:{...process.env,KINETTA_KEEP_PROGRESS:'1'},stdio:'inherit'});
  const b=await chromium.launch(),cleanup=[];
@@ -15,7 +15,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
    p.on('pageerror',e=>errors.push(e.message));
    await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(u.pathname==='/api/notifications/count')return r.fulfill({json:{unread:notificationCount,friend_requests:0,friend_count:0}});if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);return r.fulfill({json:{}});}return r.continue();});
-   const ready=()=>until(p,()=>App.pageReady&&App.page?.key===location.pathname+location.search,'ready');
+   const ready=()=>until(p,()=>typeof App!=='undefined'&&App.pageReady&&App.page?.key===location.pathname+location.search,'ready');
    const home=async()=>{if(p.url()==='about:blank')await p.goto(base+'/progress');else await p.evaluate(()=>go('/progress'));await p.waitForURL(base+'/progress');await ready();await p.waitForSelector('#p-explore a');};
    const shot=async name=>{if(out&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/progress-${who}-${name}-${theme}.png`,fullPage:true});}};
    const fits=async label=>assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),label+' has no overflow');
@@ -24,9 +24,9 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     for(const [count,label] of [[1,'one'],[10,'many'],[0,'none']]){
      notificationCount=count;await p.evaluate(()=>{Social.at=0;Social.refresh();});
      await until(p,n=>{const dot=document.querySelector('.bell-dot');return dot&&(n===0?dot.hidden:!dot.hidden&&dot.textContent.trim()===(n>9?'9+':String(n)))&&document.querySelector('.bell')?.getAttribute('aria-label')===`Notifications${n?`, ${n} new`:''}`;},'live notification badge '+label,count);
-     const geometry=await p.locator('.bell').evaluate(link=>{const a=link.getBoundingClientRect(),d=link.querySelector('.bell-dot').getBoundingClientRect();return{button:{x:a.x,y:a.y,width:a.width,height:a.height},badge:{x:d.x,y:d.y,width:d.width,height:d.height,hidden:link.querySelector('.bell-dot').hidden}};});
+     const geometry=await p.locator('.bell').evaluate(link=>{const a=link.getBoundingClientRect(),i=link.querySelector('svg').getBoundingClientRect(),d=link.querySelector('.bell-dot').getBoundingClientRect();return{button:{x:a.x,y:a.y,width:a.width,height:a.height},icon:{left:i.left,right:i.right,top:i.top,bottom:i.bottom},badge:{x:d.x,y:d.y,width:d.width,height:d.height,hidden:link.querySelector('.bell-dot').hidden},overlap:{x:Math.min(i.right,d.right)-Math.max(i.left,d.left),y:Math.min(i.bottom,d.bottom)-Math.max(i.top,d.top)}};});
      assert(geometry.button.width>=44&&geometry.button.height>=44,'bell remains a 44px target');
-     if(count){assert(geometry.badge.x>=geometry.button.x&&geometry.badge.y>=geometry.button.y&&geometry.badge.x+geometry.badge.width<=geometry.button.x+geometry.button.width&&geometry.badge.y+geometry.badge.height<=geometry.button.y+geometry.button.height,'badge stays inside the bell button');}
+     if(count){assert.equal(geometry.badge.width,count>9?22:18,'badge stays compact for one or many unread items');assert.equal(geometry.badge.height,18);assert(Math.abs(geometry.overlap.x-4)<.5&&Math.abs(geometry.overlap.y-4)<.5,'badge covers only the bell glyph corner');assert(Math.abs(geometry.badge.y-(geometry.button.y-2))<.5,'badge sits above the bell’s upper edge');assert(Math.abs(geometry.badge.x+geometry.badge.width-(geometry.button.x+geometry.button.width+(count>9?6:2)))<.5,'badge sits at the bell’s upper-right corner');}
      if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/progress-bell-${label}-${theme}.png`,clip:{x:0,y:0,width:390,height:115}});}
     }
    }
@@ -43,6 +43,11 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    await fits('home');await shot('home');
    await p.locator('[data-progress-period="month"]').click();await ready();assert.equal(await p.locator('[data-progress-period="month"]').getAttribute('aria-pressed'),'true');
    await p.locator('#p-sport').click();await p.locator('[data-pk="all"]').click();await ready();assert.equal(await p.evaluate(()=>localStorage.getItem('fit.psport')),'all');
+   if(who==='runner'){
+    assert(await p.locator('#m-chart .distance-column[role="button"]').count(),'all sports uses the distance chart');
+    await p.locator('#p-sport').click();await p.locator('[data-pk="run"]').click();await ready();
+    await p.waitForSelector('#m-chart .period-column');
+   }
    assert.equal(await p.locator('.progress-totals-title').getAttribute('href'),null,'Totals is on Progress, with no second page');
    if(who==='runner'){
     const table=p.locator('#m-table'),toggle=p.locator('[data-progress-table]'),chart=p.locator('#m-chart');

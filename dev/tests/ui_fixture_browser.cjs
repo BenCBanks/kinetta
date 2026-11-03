@@ -3,7 +3,16 @@
 const assert=require('node:assert/strict');
 const {initialize,notificationState,modalState}=require('./spacing_screens.cjs');
 const tile=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64');
-async function until(p,fn,label){for(let n=0;n<160;n++){if(await p.evaluate(fn))return;await p.waitForTimeout(100);}throw Error(label);}
+async function until(p,fn,label,timeout=30000){
+ const deadline=Date.now()+timeout;
+ while(Date.now()<deadline){
+  if(await p.evaluate(fn))return;
+  const login=await p.evaluate(()=>document.querySelector('#login,.login')?.innerText||'');
+  if(login)throw Error(`${label}: login screen shown (${login.trim().slice(0,120)})`);
+  await p.waitForTimeout(100);
+ }
+ throw Error(`${label} after ${Math.round(timeout/1000)} seconds`);
+}
 async function settle(p){
  let previous='',stable=0;
  for(let n=0;n<100&&stable<3;n++){

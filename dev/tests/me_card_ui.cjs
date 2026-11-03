@@ -1,85 +1,160 @@
-// Rendered Me card: tappable week bars and aligned period totals with thousands separators. Fictional demo account; the
-// lifetime numbers are enlarged in the response (stand-in values) so separators are exercised. Nothing is written.
+// Rendered Me weekly card: current-week numbers, selectable 12-week chart and optional trend slots.
+// All names and values are fictional; requests that could write data are intercepted.
 'use strict';
-const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs');const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
+const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs');
+const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
 const addDays=(day,count)=>{const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+count);return d.toISOString().slice(0,10);};
-const chartFixture=today=>{const noon=new Date(today+'T12:00:00Z'),sunday=addDays(today,-noon.getUTCDay()),weekValues=[0,1800,6200,100,0,4300,2700,900,0,5500,3200,7800],dayValues=[1600,0,100,2500,800,0,900,1800,0,3000,700,2200,1500,4100];return {today,
- weeks:weekValues.map((distance_m,i)=>{const d=addDays(sunday,(i-11)*7),end=addDays(d,6);return{d,end:end>today?today:end,distance_m,today:i===11};}),
- days:dayValues.map((distance_m,i)=>({d:addDays(today,i-13),distance_m,today:i===13}))};};
-(async()=>{const b=await chromium.launch();const l=await b.newContext();await l.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});const st=await l.storageState();
-for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){const c=await b.newContext({storageState:st,viewport:size,colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];p.on('pageerror',e=>errors.push(e.message));
-await c.addInitScript(r=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=r+'px'),size.root);
-await c.route('**/api/**',async r=>{const q=r.request(),u=new URL(q.url());if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);return r.fulfill({json:{}});}
- // Lifetime numbers at Ben's scale (fictional values) so separators and aligned period totals are exercised
- if(u.pathname.endsWith('/profile')){const resp=await r.fetch();const j=await resp.json();j.overview={...j.overview,activities:3044,distance_m:18964000,time_s:5568300};j.sports=[{sport:'run',activities:2938},{sport:'walk',activities:70},{sport:'ride',activities:19},{sport:'hike',activities:9}];j.mileage=chartFixture(j.mileage.today);return r.fulfill({response:resp,json:j});}
- return r.continue();});
-await p.goto(base+'/me');for(let attempt=0;attempt<150;attempt++){if(await p.evaluate(()=>App.pageReady))break;await p.waitForTimeout(100);}assert(await p.evaluate(()=>App.pageReady),'Me route initialized');await p.locator('.me-card-sections[aria-busy=false]').waitFor();await p.locator('.me-card-figures[data-card-period=totals] .me-metric-value').first().waitFor();
-const total=(await p.locator('.me-card-figures[data-card-period=totals] .me-metric-value').allTextContents()).join(' ');assert.match(total,/3,044/);assert.match(total,/11,784/);assert.match(total,/1,546|1,547/);assert.match(await p.locator('[data-card-stat=time] dt').innerText(),/Time\s*\(h\)/);
-assert.match(await p.locator('.me-sport-chips').innerText(),/2,938/);assert.equal(await p.locator('.me-sport-chip .me-sport-ico svg').count(),4,'each sport chip has its icon');assert.equal(await p.locator('.me-sport-chip i').count(),0,'no coloured dots');
-const label=p.locator('[data-week-label]'),before=await label.innerText(),weeks=p.locator('.me-week');assert.equal(await weeks.count(),12,'Weeks shows twelve periods');assert.equal(await label.locator('span').innerText(),'This week','unselected label shows the current period');assert.equal(await label.locator('small').innerText(),await weeks.last().getAttribute('data-dist'),'unselected value matches the current period');
-const chart=p.locator('.me-card-bars');
-const checkChart=async()=>{if(size.width!==390||size.root!==16)return;const g=await p.evaluate(()=>{const rail=document.querySelector('.me-card-bars'),label=document.querySelector('[data-week-label]'),spans=[...rail.querySelectorAll('.me-week span')],zero=rail.querySelector('.me-week.zero span'),low=spans[3],nowBar=rail.querySelector('.me-week.now'),now=nowBar.querySelector('span'),bottom=Math.max(...[...label.children].map(n=>n.getBoundingClientRect().bottom)),top=Math.min(...spans.map(n=>n.getBoundingClientRect().top)),zeroBg=getComputedStyle(zero).backgroundColor,currentOpacity=getComputedStyle(now).opacity,transition=now.style.transition;now.style.transition='none';nowBar.classList.add('zero');const currentZero=[getComputedStyle(now).backgroundColor,getComputedStyle(now).opacity];nowBar.classList.remove('zero');now.style.transition=transition;return{width:rail.clientWidth,content:rail.scrollWidth,gap:top-bottom,bars:spans.map(n=>n.getBoundingClientRect().width),visibleGaps:spans.slice(1).map((n,i)=>n.getBoundingClientRect().left-spans[i].getBoundingClientRect().right),baseline:getComputedStyle(rail,'::after').height,baselineZ:Number(getComputedStyle(rail,'::after').zIndex),barZ:Number(getComputedStyle(rail.querySelector('.me-week')).zIndex),zero:zero&&[zero.getBoundingClientRect().width,zero.getBoundingClientRect().height],zeroBg,currentZero,low:low&&low.getBoundingClientRect().height,current:currentOpacity};});assert(g.content<=g.width,'all bars fit at390px without horizontal scrolling '+JSON.stringify(g));assert(g.gap>=8&&g.gap<=12,'caption-to-bars spacing is8–12px '+JSON.stringify(g));assert(g.bars.every(w=>w<=18.1),'visible bars are at most18px wide '+JSON.stringify(g));assert(g.visibleGaps.every(w=>w>=5.9),'visible bars keep a6px gap '+JSON.stringify(g));assert.equal(g.baseline,'1px','chart has a one-pixel baseline');assert(g.barZ>g.baselineZ,'zero ticks and short bars paint above the baseline');assert.deepEqual(g.zero,[2,2],'zero has only a2px muted tick');assert.deepEqual(g.currentZero,[g.zeroBg,'1'],'even a current zero stays a muted tick');assert(g.low>=4,'low non-zero distance remains visible '+JSON.stringify(g));assert.equal(g.current,'0.6','current period accent is about60% '+JSON.stringify(g));};
-const checkPadding=async()=>{
- const g=await chart.evaluate(n=>{
-  const body=n.closest('.me-card-body'),r=n.getBoundingClientRect(),b=body.getBoundingClientRect(),style=getComputedStyle(body);
-  return{left:r.left,right:r.right,min:b.left+parseFloat(style.paddingLeft),max:b.right-parseFloat(style.paddingRight),overflow:getComputedStyle(n).overflowX,
-   bars:[...n.querySelectorAll('.me-week')].map(button=>{const target=button.getBoundingClientRect(),bar=button.querySelector('span').getBoundingClientRect();return{width:target.width,height:target.height,label:button.getAttribute('aria-label'),left:bar.left-target.left,right:target.right-bar.right};})};
- });
- assert(g.left>=g.min-.02&&g.right<=g.max+.02,'chart stays inside normal card padding '+JSON.stringify(g));
- assert.equal(g.overflow,'hidden','fitted bars remain inside card padding');
- for(const bar of g.bars)assert(bar.height>=44&&bar.label&&bar.width>0,'each bar retains a labelled, tall touch/keyboard target '+JSON.stringify(bar));
+const chartFixture=today=>{
+ const noon=new Date(today+'T12:00:00Z'),sunday=addDays(today,-noon.getUTCDay());
+ const values=[0,1800,6200,100,0,4300,2700,900,0,5500,3200,7800];
+ return {today,weeks:values.map((distance_m,i)=>{
+  const d=addDays(sunday,(i-11)*7),end=addDays(d,6),activities=distance_m?i%4+1:0;
+  return {d,end,distance_m,activities,time_s:activities?1800+i*120:0,today:i===11};
+ })};
 };
-const checkHeader=async()=>{
- if(size.root!==16)return;
- const g=await p.locator('.me-card-head').evaluate(n=>{
-  const label=n.querySelector('[data-week-label]'),[name,total]=[...label.children].map(x=>x.getBoundingClientRect()),toggle=n.querySelector('.me-period').getBoundingClientRect();
-  return{heading:[name.top,name.bottom],total:[total.top,total.bottom],toggle:[toggle.top,toggle.bottom],labelRight:label.getBoundingClientRect().right,toggleLeft:toggle.left,
-   textCentres:[...label.children,...n.querySelectorAll('.me-period button')].map(x=>{const r=document.createRange();r.selectNodeContents(x);const b=r.getBoundingClientRect();return(b.top+b.bottom)/2;})};
- });
- assert(Math.max(...g.textCentres)-Math.min(...g.textCentres)<=2.5,'caption and Days/Weeks text align on one row '+JSON.stringify(g));
- assert(Math.abs(g.heading[0]-g.total[0])<.02,'heading and total share a row '+JSON.stringify(g));
- assert(Math.max(g.heading[0],g.total[0],g.toggle[0])<Math.min(g.heading[1],g.total[1],g.toggle[1]),'heading, total and Days/Weeks share one row '+JSON.stringify(g));
- assert(g.toggleLeft-g.labelRight>=7.98,'period controls stay separated from caption '+JSON.stringify(g));
-};
-await checkChart();await checkPadding();await checkHeader();
-const checkTargets=async()=>{const geometry=await weeks.evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height};}));
-for(let i=0;i<geometry.length;i++){assert(geometry[i].height>=44,'every day/week retains a44px-tall target');if(i){assert(Math.abs(geometry[i].y-geometry[i-1].y)<.02,'chart targets stay in one horizontal row');assert(Math.abs(geometry[i].x-geometry[i-1].x-geometry[i-1].width)<.02,'adjacent chart targets do not overlap or leave dead space');}}};
-const shot=async name=>{if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/${name}-${size.width}-${size.root}-${theme}.png`});}};
-await p.evaluate(()=>{window.__meChartHaptics=[];Native.haptic=kind=>window.__meChartHaptics.push(kind);});
-await checkTargets();
-await chart.scrollIntoViewIfNeeded();
-const chartState=()=>chart.evaluate(n=>({left:n.scrollLeft,max:n.scrollWidth-n.clientWidth,atEnd:n.scrollWidth-n.clientWidth-n.scrollLeft<1}));
-assert((await chartState()).atEnd,'the current week is initially visible at the right edge');
-await chart.evaluate(n=>{n.scrollLeft=0;n.dispatchEvent(new Event('scroll'));});
-if(size.width===390&&size.root===16)await shot('me-card-weeks-zero');
-await p.locator('[data-period=days]').tap();await p.locator('.me-distance.days .me-week').first().waitFor();
-assert.equal(await weeks.count(),14,'Days shows fourteen periods');assert.equal(await p.locator('[data-week-label] span').innerText(),'Today','unselected label shows the current day');assert.equal(await p.locator('[data-week-label] small').innerText(),await weeks.last().getAttribute('data-dist'),'unselected value matches today');
-await checkChart();await checkPadding();await checkHeader();await checkTargets();
-assert(await weeks.evaluateAll(nodes=>nodes.filter(n=>n.classList.contains('now')).every(n=>{const r=n.getBoundingClientRect(),b=n.parentElement.getBoundingClientRect();return r.left>=b.left-.02&&r.right<=b.right+.02;})),'today is exposed when Days first opens');
-await chart.evaluate(n=>{n.scrollLeft=0;n.dispatchEvent(new Event('scroll'));});
-if(size.width===390&&size.root===16)await shot('me-card-days-zero');
-await p.locator('[data-period=weeks]').tap();await p.locator('.me-distance:not(.days) .me-week').first().waitFor();await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
-assert((await chartState()).left<1,'Weeks retains its independently chosen position');
-await chart.scrollIntoViewIfNeeded();const pageY=await p.evaluate(()=>scrollY);
-await weeks.nth(6).evaluate(n=>n.focus({preventScroll:true}));
-assert((await chartState()).atEnd,'focus reveals an offscreen chart target');
-assert.equal(await p.evaluate(()=>scrollY),pageY,'revealing a chart target does not move the page');
-await p.locator('[data-period=days]').tap();await p.locator('.me-distance.days .me-week').first().waitFor();await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
-assert((await chartState()).left<1,'Days retains its independently chosen position');
-await p.locator('[data-period=weeks]').tap();await p.locator('.me-distance:not(.days) .me-week').first().waitFor();
+const waitApp=async p=>{for(let i=0;i<150;i++){if(await p.evaluate(()=>typeof App!=='undefined'&&App.pageReady).catch(()=>false))return;await p.waitForTimeout(100);}throw Error('Me route did not initialize');};
+const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStorage))if(k.startsWith('fit.c:'))localStorage.removeItem(k);});
+(async()=>{
+ const b=await chromium.launch(),login=await b.newContext();
+ await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});
+ const storageState=await login.storageState();
+ for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){
+  const c=await b.newContext({storageState,viewport:size,colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];
+  let slotFixture='both',zeroDistanceFixture=false,seriesFixture;
+  p.on('pageerror',e=>errors.push(e.message));
+  await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
+  await c.route('**/api/**',async r=>{
+   const q=r.request(),u=new URL(q.url());
+   if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);return r.fulfill({json:{}});}
+   if(u.pathname==='/api/me'){const resp=await r.fetch(),j=await resp.json();j.bio='Fictional trails and weekend rides.';return r.fulfill({response:resp,json:j});}
+   if(u.pathname==='/api/notifications/count')return r.fulfill({json:{unread:6,friend_requests:0,friend_count:2}});
+   if(u.pathname==='/api/stats'){const resp=await r.fetch(),j=await resp.json();j.week_streak=slotFixture==='short-streak'?1:12;return r.fulfill({response:resp,json:j});}
+   if(u.pathname.endsWith('/profile')){
+    const resp=await r.fetch(),j=await resp.json(),series=chartFixture(j.mileage.today);seriesFixture=series;
+    // Fictional stand-ins prove that all-time data stays off Me. They remain on the full profile.
+    j.overview={...j.overview,activities:3044,distance_m:18964000,time_s:5568300};
+    j.sports=[{sport:'run',activities:2938},{sport:'walk',activities:70},{sport:'ride',activities:19},{sport:'hike',activities:9}];
+    j.person={...j.person,bio:'Fictional trails and weekend rides.'};j.bio='Fictional trails and weekend rides.';
+    if(zeroDistanceFixture)series.weeks=series.weeks.map((w,i)=>({...w,distance_m:0,activities:i===11?2:0,time_s:i===11?1200:0}));
+    j.mileage=series;
+    if(slotFixture!=='no-close-to')j.close_to='One more walk to match last week.';
+    return r.fulfill({response:resp,json:j});
+   }
+   return r.continue();
+  });
+  await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();
+  const weekly=p.locator('.me-card-weekly'),label=p.locator('[data-week-label]'),chart=p.locator('.me-card-bars'),weeks=p.locator('.me-week');
+  const profileLink=p.locator('.me-card-profile-link'),linkBox=await profileLink.boundingBox();
+  assert.equal(await profileLink.getAttribute('aria-label'),'View your full profile','the name, avatar and handle share one labeled full-profile link');
+  assert(linkBox.height>=44,'the full-profile header link is at least 44px tall');
+  assert.equal(await profileLink.locator('.me-card-avatar').count(),1);assert.match(await profileLink.locator('h2').innerText(),/Alex Rivera\s+›$/);
+  const nameLine=await profileLink.locator('h2').evaluate(node=>({height:node.getBoundingClientRect().height,lineHeight:parseFloat(getComputedStyle(node).lineHeight),bottom:node.getBoundingClientRect().bottom})),chevronBox=await profileLink.locator('.me-profile-chevron').boundingBox();
+  const maxNameLines=size.width===390&&size.root===16?1:2;
+  assert(nameLine.height<=nameLine.lineHeight*maxNameLines+1&&chevronBox.y+chevronBox.height<=nameLine.bottom+1,'profile chevron stays with the name at this text size '+JSON.stringify({nameLine,chevronBox}));
+  assert.equal(await profileLink.locator('.me-card-meta').innerText(),'@alex');
+  assert.equal(await profileLink.locator('.me-profile-chevron').evaluate(n=>getComputedStyle(n).fontSize),'15px');
+  assert.equal(await profileLink.locator('.me-profile-chevron').evaluate(n=>getComputedStyle(n).color),await profileLink.locator('.me-card-meta > span').evaluate(n=>getComputedStyle(n).color),'chevron uses the secondary text color');
+  assert.equal(await p.locator('.me-card-id > .me-friends-link').count(),1,'friend navigation remains a separate link');
+  assert.equal(await profileLink.locator('.me-friends-link').count(),0,'friend navigation is not nested inside the profile link');
+  const divider=p.locator('.me-divider'),dividerBox=await divider.boundingBox();
+  assert.equal(await divider.getAttribute('aria-hidden'),'true');assert(Math.abs(dividerBox.height-1)<.1,'the private section boundary is a hairline');
+  assert.equal(await divider.locator('span').count(),0,'the divider has no label');
+  await weeks.first().waitFor();assert.equal(await weeks.count(),12,'Me has one 12-week chart');
+  assert.equal(await p.locator('.me-period,.me-distance.days,.me-card-figures,.me-card-note,.me-sport-chips,.me-profile-bio,.me-about').count(),0,'Me hides the Days toggle, daily chart, bio, all-time totals, sport rows and privacy footer');
+  assert.doesNotMatch(await p.locator('.me-card').innerText(),/3,044|11,784|1,546|Fictional trails and weekend rides|2,938/,'Me does not leak the full-profile bio, lifetime totals or sport counts');
+  assert.equal(await weekly.locator('[data-week-stat]').count(),3,'the weekly card has distance, workout and time values');
+  for(const stat of ['distance','activities','time'])assert(await weekly.locator(`[data-week-stat="${stat}"]`).count()===1,`current week exposes ${stat}`);
+  const currentStats=await weekly.locator('[data-week-stat]').allTextContents();assert(currentStats.every(value=>value.trim()),'This week has visible distance, workout and time totals');
+  assert.equal(await label.locator('span').innerText(),'This week','current week is the default selection');
+  assert.equal(await p.locator('.me-week-streak[data-week-streak="12"]').count(),1,'streak appears at twelve weeks');
+  assert.equal(await p.locator('.me-close-to,[data-close-to]').count(),0,'close-to stays hidden until the milestone design is ready');
+  assert.equal(await p.locator('.me-week-streak').getAttribute('aria-label'),'🔥 12 weeks');
+  assert.equal(await p.locator('.me-week-streak > span[aria-hidden="true"]').innerText(),'12 weeks');
+  assert.equal(await p.locator('.me-week-streak svg').count(),1,'streak flame remains visible without relying on a device emoji font');
+  const streakLayout=await p.locator('.me-week-streak').evaluate(node=>({right:node.getBoundingClientRect().right,headRight:node.parentElement.getBoundingClientRect().right,textAlign:getComputedStyle(node).textAlign}));
+  assert(Math.abs(streakLayout.right-streakLayout.headRight)<1&&streakLayout.textAlign==='right','streak is right-aligned in the This week row');
+  await p.locator('.me-top .bell-dot').waitFor({state:'visible'});assert.equal(await p.locator('.me-top .bell-dot').innerText(),'6');
+  const bell=await p.locator('.me-top .bell').evaluate(node=>{const icon=node.querySelector('svg').getBoundingClientRect(),badge=node.querySelector('.bell-dot').getBoundingClientRect();return{visible:!node.querySelector('.bell-dot').hidden,text:node.querySelector('.bell-dot').textContent.trim(),icon:{left:icon.left,right:icon.right,top:icon.top,bottom:icon.bottom},badge:{left:badge.left,right:badge.right,top:badge.top,bottom:badge.bottom},overlap:{x:Math.min(icon.right,badge.right)-Math.max(icon.left,badge.left),y:Math.min(icon.bottom,badge.bottom)-Math.max(icon.top,badge.top)}};});
+  assert(bell.visible&&bell.text==='6','fictional unread count is shown on the Me bell');
+  assert(bell.overlap.x>0&&bell.overlap.y>0&&bell.overlap.x<=4.5&&bell.overlap.y<=4.5,'unread badge overlaps only the bell glyph’s top-right corner');
 
-await p.evaluate(()=>{window.__meChartHaptics=[];});
-const y0=await weeks.nth(0).evaluate(n=>n.getBoundingClientRect().y+scrollY);await weeks.nth(2).tap();if(size.root===16)assert.equal(await weeks.nth(0).evaluate(n=>n.getBoundingClientRect().y+scrollY),y0,'bars stay put in the document');if(size.width===390&&size.root===16){const tops=await p.$$eval('.me-card-numbers .me-metric-value',nodes=>nodes.map(n=>n.getBoundingClientRect().top));assert.equal(tops.length,3);assert(Math.max(...tops)-Math.min(...tops)<.1,'three headline values share one row');}const picked=await label.innerText();assert.notEqual(picked,before);assert.match(picked,/–[\s\S]*\d/);assert.equal(await weeks.nth(2).getAttribute('aria-pressed'),'true');
-assert.deepEqual(await p.evaluate(()=>window.__meChartHaptics),['light'],'selecting a bar gives a light haptic');
-const selectedStyle=await weeks.nth(2).locator('span').evaluate(n=>({shadow:getComputedStyle(n).boxShadow,opacity:getComputedStyle(n).opacity}));assert.equal(selectedStyle.shadow,'none','selected bar has no outline box');assert.equal(selectedStyle.opacity,'1','selected bar is solid accent');
-if(size.width===390&&size.root===16)await shot('me-card-selected');
-await weeks.nth(2).tap();assert.equal(await label.innerText(),before,'second tap restores the total');
-await weeks.nth(6).focus();await p.keyboard.press('Enter');assert.match(await label.innerText(),/–/);
-await p.evaluate(()=>{window.__meChartHaptics=[];});
-await chart.evaluate(n=>n.scrollIntoView({block:'center',behavior:'instant'}));
-const box0=await weeks.nth(0).boundingBox(),box3=await weeks.nth(3).boundingBox();await p.mouse.move(box0.x+box0.width/2,box0.y+box0.height/2);await p.mouse.down();await p.mouse.move(box3.x+box3.width/2,box3.y+box3.height/2,{steps:5});await p.mouse.up();assert.equal(await weeks.nth(3).getAttribute('aria-pressed'),'true','drag selects the bar under the pointer');const dragHaptics=await p.evaluate(()=>window.__meChartHaptics);assert(dragHaptics.length>=2&&dragHaptics.every(kind=>kind==='light'),'drag gives a light haptic for each selection change '+JSON.stringify(dragHaptics));
-if(size.width===390&&size.root===16)await shot('me-card-selected-by-drag');
-if(size.width===330&&size.root===24)await shot('me-card-large-text');
-const ov=await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1);assert(!ov,'no overflow');
-assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[]);console.log(`Me card ${size.width}x${size.height}/${size.root} ${theme} PASS`);await c.close();}
-await b.close();})().catch(e=>{console.error(e);process.exit(1);});
+  const chartState=()=>chart.evaluate(n=>({left:n.scrollLeft,max:n.scrollWidth-n.clientWidth,atEnd:n.scrollWidth-n.clientWidth-n.scrollLeft<1}));
+  const checkChart=async()=>{
+   if(size.width!==390||size.root!==16)return;
+   const g=await p.evaluate(()=>{
+    const rail=document.querySelector('.me-card-bars'),buttons=[...rail.querySelectorAll('.me-week')],bars=buttons.map(n=>n.querySelector('span[data-h],span:not(.me-week-month)'));
+    const zero=buttons.find(n=>n.classList.contains('zero')),low=buttons.find(n=>!n.classList.contains('zero')&&!n.classList.contains('now'));
+    const current=buttons.find(n=>n.classList.contains('now')),zeroBar=zero?.querySelector('span[data-h],span:not(.me-week-month)'),currentBar=current?.querySelector('span[data-h],span:not(.me-week-month)');
+    const transitions=buttons.map((n,i)=>{const label=n.querySelector('.me-week-month');return label?.textContent.trim()?i:-1;}).filter(i=>i>=0);
+    return {width:rail.clientWidth,content:rail.scrollWidth,bars:bars.map(n=>n.getBoundingClientRect().width),visibleGaps:bars.slice(1).map((n,i)=>n.getBoundingClientRect().left-bars[i].getBoundingClientRect().right),
+     zero:zeroBar&&[zeroBar.getBoundingClientRect().width,zeroBar.getBoundingClientRect().height],low:low?.querySelector('span[data-h],span:not(.me-week-month)').getBoundingClientRect().height,
+     current:getComputedStyle(currentBar).opacity,baseline:getComputedStyle(rail,'::after').height,transitions};
+   });
+   assert(g.content<=g.width+1,'all weekly bars fit without horizontal scrolling '+JSON.stringify(g));
+   assert(g.bars.every(w=>w>0&&w<=18.1),'weekly bars are at most 18px wide '+JSON.stringify(g));
+   assert(g.visibleGaps.every(w=>w>=5.9),'weekly bars keep 6px visual gaps '+JSON.stringify(g));
+   assert.deepEqual(g.zero,[2,2],'zero weeks use a 2px tick');assert(g.low>=4,'nonzero weeks remain at least 4px high '+JSON.stringify(g));
+   assert(Math.abs(Number(g.current)-.6)<.05,'current week is shown at about 60% opacity '+JSON.stringify(g));
+   const expected=seriesFixture.weeks.map((w,i)=>i===0||w.d.slice(8,10)==='01'||w.d.slice(0,7)!==w.end.slice(0,7)?i:-1).filter(i=>i>=0);
+   assert.deepEqual(g.transitions,expected,'month labels appear under the week containing each month start');
+  };
+  const checkTargets=async()=>{
+   const geometry=await weeks.evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,label:n.getAttribute('aria-label')};}));
+   for(let i=0;i<geometry.length;i++){assert(geometry[i].height>=44&&geometry[i].label,'each week has a labelled 44px target');if(i){assert(Math.abs(geometry[i].y-geometry[i-1].y)<.02,'weeks stay on one row');assert(Math.abs(geometry[i].x-geometry[i-1].x-geometry[i-1].width)<.02,'week hit targets have no gaps or overlap');}}
+  };
+  const screenshot=async name=>{if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/${name}-${size.width}-${size.root}-${theme}.png`,animations:'disabled'});}};
+  await checkChart();await checkTargets();
+  const current=weeks.last();assert((await chartState()).atEnd,'This week is visible at the right edge');
+  if(size.width===390&&size.root===16)await screenshot('me-card-current-week');
+  if(size.width===330&&size.root===24)await screenshot('me-card-large-text');
+  if(size.width===390&&size.root===16&&theme==='light'){
+   if(out)await p.locator('.me-top').screenshot({path:`${out}/bell-badge-${size.width}-${theme}.png`,animations:'disabled'});
+   await profileLink.click();await p.waitForURL('**/people/alex');await p.locator('#person-profile').waitFor();
+   await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();
+  }
+
+  await p.evaluate(()=>{window.__meChartHaptics=[];Native.haptic=kind=>window.__meChartHaptics.push(kind);});
+  const currentStatsBefore=await weekly.locator('[data-week-stat]').allTextContents();
+  await weeks.nth(2).tap();
+  assert.equal(await weeks.nth(2).getAttribute('aria-pressed'),'true','tapping a past week selects it');
+  assert.notEqual(await label.locator('span').innerText(),'This week','selected week is named');
+  const pastStats=await weekly.locator('[data-week-stat]').allTextContents();assert.notDeepEqual(pastStats,currentStatsBefore,'distance, workouts and time update to the selected week');
+  assert.deepEqual(await p.evaluate(()=>window.__meChartHaptics),['light'],'tapping a week gives a light haptic');
+  const pickedStyle=await weeks.nth(2).locator('span[data-h],span:not(.me-week-month)').evaluate(n=>({shadow:getComputedStyle(n).boxShadow,opacity:getComputedStyle(n).opacity}));
+  assert.equal(pickedStyle.shadow,'none','selected bar has no outline');assert.equal(pickedStyle.opacity,'1','selected bar is solid accent');
+  if(size.width===390&&size.root===16)await screenshot('me-card-selected-past-week');
+  await p.locator('[data-week-label]').click();assert.equal(await label.locator('span').innerText(),'This week','tapping outside the chart restores the current week');
+
+  // Locate by the actual zero class to keep the selector independent of fixture ordering.
+  const zeroWeek=chart.locator('.me-week.zero').first();assert.equal(await zeroWeek.count(),1,'fictional series includes an empty week');
+  await zeroWeek.tap();assert.equal(await zeroWeek.getAttribute('aria-pressed'),'true','a zero week can be selected');
+  const zeroStats=await weekly.locator('[data-week-stat]').allTextContents();assert(zeroStats.every(value=>/0/.test(value)&&!/[1-9]/.test(value)),'zero week shows zero distance, workouts and time '+JSON.stringify(zeroStats));
+  if(size.width===390&&size.root===16)await screenshot('me-card-zero-week');
+  await p.locator('[data-week-label]').click();assert.equal(await current.getAttribute('aria-pressed'),'false','outside tap clears the selected zero week');
+
+  await p.evaluate(()=>{window.__meChartHaptics=[];});
+  await chart.evaluate(n=>n.scrollIntoView({block:'center',behavior:'instant'}));
+  const box0=await weeks.nth(0).boundingBox(),box3=await weeks.nth(3).boundingBox();
+  await p.mouse.move(box0.x+box0.width/2,box0.y+box0.height/2);await p.mouse.down();
+  await p.mouse.move(box3.x+box3.width/2,box3.y+box3.height/2,{steps:5});await p.mouse.up();
+  assert.equal(await weeks.nth(3).getAttribute('aria-pressed'),'true','drag selects the week under the pointer');
+  const dragHaptics=await p.evaluate(()=>window.__meChartHaptics);assert(dragHaptics.length>=2&&dragHaptics.every(kind=>kind==='light'),'drag gives a light haptic at each selection change '+JSON.stringify(dragHaptics));
+  await weeks.nth(6).focus();await p.keyboard.press('Enter');assert.equal(await weeks.nth(6).getAttribute('aria-pressed'),'true','keyboard activates a focused week');
+  assert.equal(await weeks.evaluateAll(nodes=>nodes.filter(n=>n.getAttribute('aria-pressed')==='true').length),1,'only one week can be selected');
+  // Optional slots have independent visibility rules and disappear when their own source data is absent.
+  slotFixture='short-streak';await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();
+  assert.equal(await p.locator('.me-week-streak').count(),0,'streaks shorter than two weeks stay hidden');assert.equal(await p.locator('.me-close-to,[data-close-to]').count(),0,'close-to stays hidden when the API supplies placeholder text');
+  slotFixture='no-close-to';await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();
+  assert.equal(await p.locator('.me-week-streak[data-week-streak="12"]').count(),1,'eligible streak remains visible');assert.equal(await p.locator('.me-close-to,[data-close-to]').count(),0,'close-to stays hidden without API text');
+  if(size.width===390&&size.root===16&&theme==='light'){
+   zeroDistanceFixture=true;await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();
+   assert.equal(await p.locator('.me-week').count(),12,'lifting-only history still shows all twelve weeks');assert.equal(await p.locator('.me-week.zero').count(),12,'zero-distance history keeps the zero baseline ticks');
+   assert.equal(await p.locator('[data-week-stat="distance"] .me-metric-value').innerText(),'0');assert.equal(await p.locator('[data-week-stat="activities"] .me-metric-value').innerText(),'2');assert.equal(await p.locator('[data-week-stat="time"] .me-metric-value').innerText(),'20m');
+   await screenshot('me-card-zero-distance-workouts');
+  }
+  const overflow=await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1);assert(!overflow,'no horizontal page overflow');
+  assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[]);
+  console.log(`Me weekly card ${size.width}x${size.height}/${size.root} ${theme} PASS`);await c.close();
+ }
+ await login.close();await b.close();
+})().catch(e=>{console.error(e);process.exit(1);});
