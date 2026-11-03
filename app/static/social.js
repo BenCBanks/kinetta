@@ -16,7 +16,7 @@ const REACTION_FALLBACK=[
 const REACTIONS=()=>App.me?.reaction_choices||REACTION_FALLBACK;
 let closeReactionPicker = null;
 const reactionKind=k=>({cheer:'clap',strong:'muscle',applause:'fire'})[k]||k;
-const reactionMark=kind=>`<span class="reaction-emoji" aria-hidden="true">${esc(REACTIONS().find(([k])=>k===reactionKind(kind))?.[2]||'👏')}</span>`;
+const reactionMark=kind=>`<span class="reaction-emoji" data-type="glyph" aria-hidden="true">${esc(REACTIONS().find(([k])=>k===reactionKind(kind))?.[2]||'👏')}</span>`;
 const reactionAddIcon=()=>'<svg class="reaction-add-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="13" r="7.5"/><path d="M6.5 14.5c.7 1 1.6 1.5 2.5 1.5s1.8-.5 2.5-1.5"/><path d="M6.5 10h.01 M11.5 10h.01"/><path d="M18.5 3.5v6 M15.5 6.5h6"/></svg>';
 const reactionCompact=new Intl.NumberFormat('en',{notation:'compact',maximumSignificantDigits:2});
 const reactionNumber=n=>n>=1000?reactionCompact.format(n):String(n);

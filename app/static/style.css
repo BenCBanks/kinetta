@@ -2218,8 +2218,8 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .activity-reactions {display:contents;}
 .reaction-action {display:contents;}
 .activity-reactions .pf,.activity-comments,.post-hd .activity-share {background:none;border-color:transparent;box-shadow:none;min-height:44px;}
-.post-ft:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;gap:0;padding:0 16px;min-height:44px;}
-.detail-social:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;gap:0;padding:0;min-height:44px;}
+.post-ft:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;gap:0;padding:3px 16px;min-height:44px;}
+.detail-social:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;gap:0;padding:0;margin-top:8px;min-height:44px;}
 .emoji-reactions .reaction-more {order:1;flex:none;min-width:44px;min-height:44px;justify-content:flex-start;gap:6px;padding:0;margin-right:16px;font-size:15px;font-weight:500;color:var(--tx2);}
 .emoji-reactions .reaction-more>svg {flex:none;width:20px;height:20px;}
 .emoji-reactions .reaction-more .reaction-emoji {font-size:22px;}
@@ -2230,7 +2230,7 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .reaction-icons>span {display:inline-flex;align-items:center;justify-content:center;}
 .reaction-icons>span+span {margin-left:-4px;}
 .reaction-emoji {font-family:Apple Color Emoji,Segoe UI Emoji,Noto Color Emoji,sans-serif;font-size:1.25rem;line-height:1;}
-.emoji-reactions .reaction-icons .reaction-emoji {font-size:18px;}
+.emoji-reactions .reaction-icons .reaction-emoji {font-size:16px;}
 .activity-comments {order:2;display:flex;align-items:center;justify-content:center;gap:4px;min-width:44px;min-height:44px;padding:0;margin:0;}
 .activity-comments>svg {width:20px;height:20px;flex:none;}
 .activity-comments .num[hidden] {display:none;}
