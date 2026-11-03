@@ -31,10 +31,11 @@ def target(base, project, read=inspect):
         if any(mounts.get(name, {}).get('Type') != 'volume' for name in required):
             raise ValueError('Data and secrets must use disposable named volumes')
         for mount in container['Mounts']:
-            if mount['Type'] == 'volume':
-                labels = read('volume', mount['Name']).get('Labels') or {}
-                if labels.get('com.docker.compose.project') != project:
-                    raise ValueError('All volumes must belong to this project')
+            if mount['Type'] != 'volume':
+                raise ValueError('All container mounts must be disposable named volumes')
+            labels = read('volume', mount['Name']).get('Labels') or {}
+            if labels.get('com.docker.compose.project') != project:
+                raise ValueError('All volumes must belong to this project')
     environment = app['Config']['Env']
     ports = app['NetworkSettings']['Ports'].get('8000/tcp') or []
     if ('KINETTA_JOURNEY_FIXTURE=1' not in environment or 'FIT_DB_HOST=db' not in environment

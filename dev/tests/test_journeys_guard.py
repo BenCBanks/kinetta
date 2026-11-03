@@ -38,6 +38,7 @@ class Boundary(unittest.TestCase):
                    lambda d: d['kt-journeys-db-1']['Config']['Labels'].update({'com.docker.compose.project': 'other'}),
                    lambda d: d['kt-journeys-db-1']['Config']['Labels'].update({'com.docker.compose.project.working_dir': '/tmp/other-checkout'}),
                    lambda d: d['kt-journeys-app-1']['Mounts'][0].update(Type='bind'),
+                   lambda d: d['kt-journeys-app-1']['Mounts'].append({'Destination': '/extra', 'Type': 'bind', 'Name': 'host-secret'}),
                    lambda d: d['db0']['Labels'].update({'com.docker.compose.project': 'other'})]
         for change in changes:
             data = copy.deepcopy(original); change(data)

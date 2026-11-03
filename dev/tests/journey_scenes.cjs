@@ -16,6 +16,7 @@ function journeys(fixtures){
   {id:'track-save-detail',start:'/track',native:true,action:'record',end:destination('/activity/{saved}','Fictional journey recording','.compact-detail-title')},
   {id:'track-my-activities',start:'/track',native:true,action:'uncertainSave',end:ownList},
   {id:'nutrition-log',start:'/food',action:'food',end:destination('/food?d={day}','Nutrition','#fd-goal')},
+  {id:'recipe-edit',start:'/food/meals',taps:['#library-recipes [data-dish]'],end:{...destination('/food/cook/'+f.dish,'Fictional journey soup','#dk-done'),titleSelector:'#dk-name',titleValue:true},back:destination('/food/meals','Recipes & foods','#tm-new')},
   {id:'nutrition-goals',start:'/food',taps:['#fd-goal'],end:destination('/food','Goals','#tg'),close:true},
   {id:'settings-profile',start:'/me/settings',taps:['#m-profile'],end:{...destination('/me?edit=profile','Editing your card','.me-card-editor #card-name'),titleSelector:'.me-editor-head b'},back:destination('/me/settings','Settings','#logout'),history:true},
   {id:'activity-challenges-back',start:'/activity',taps:['a[href="/me/challenges"]','[data-back]'],end:destination('/activity','Activity','#feed-tools')},
