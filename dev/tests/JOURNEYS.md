@@ -55,5 +55,8 @@ Record preparation and both scripts' durations; their added normal runtime shoul
 five minutes. `KINETTA_JOURNEY_DEADLINE_MS` shares an absolute epoch-millisecond deadline
 across the browser scripts; independent runs also have two/four-minute limits. Use a fresh
 project for acceptance. Repeated local crawls must respect the export's five-minute cooldown.
-Workflow wiring awaits the Core handoff. Browser/native before-and-after
+Ready/main full CI runs preparation, both-theme feed Back and complete journeys/links
+within one five-minute budget. The added Draft checks are the pure guard/link contracts. Open
+the Tests run's `journeys-links-<sha>` artifact for reports and destination images;
+session files are excluded. Browser/native before-and-after
 galleries are separate later steps of #429; this first step does not claim them.

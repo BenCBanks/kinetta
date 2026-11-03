@@ -305,11 +305,12 @@ async function homeFeed(el) {
   };
   try{if(!hit||Date.now()-hit.at>=15000)await revalidate();}
   catch(x){if(!hit)throw x;if(typeof PageRefresh!=='undefined')PageRefresh.failed(x);}
+  await tools.ready;
 }
 
 // Read-only own social facts never replace feed cards or their live maps.
 function feedTools(el,current){
-  if(typeof Discovery==='undefined')return{refresh:async()=>{}};
+  if(typeof Discovery==='undefined')return{refresh:async()=>{},ready:Promise.resolve()};
   const host=$('#feed-tools',el),top=$('#feed-top',el),owner=readOwner();let count=Number.isInteger(App.me?.friend_count)?App.me.friend_count:null,challenges=[],ready=false,headerCleanup=()=>{};
   const live=()=>current()&&readOwner()===owner;
   function fitHeader(){
@@ -339,7 +340,7 @@ function feedTools(el,current){
     if(id==='invite'||id==='challenge'){e.preventDefault();e.stopPropagation();if(id==='invite')KinettaCard.open();else Challenges.create();}
   });
   async function refresh(){if(live())host.setAttribute('aria-busy','true');await Promise.allSettled([api('/api/friends').then(r=>{if(live())count=r.friends.length;}),api('/api/challenges').then(rows=>{if(live())challenges=rows;})]);ready=true;draw();}
-  draw();refresh();return{refresh};
+  draw();const initial=refresh();return{refresh,ready:initial};
 }
 
 // ---------- someone else's activity (read-only); for your own: what others see ----------
