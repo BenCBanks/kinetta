@@ -38,6 +38,7 @@ async function feedBack(f){
  await until(p,()=>document.querySelector('#feed-tools')?.getAttribute('aria-busy')==='false','Feed restored');
  const restored=await p.locator(`.post[data-href="${target}"]`).evaluate(n=>({y:scrollY,top:n.getBoundingClientRect().top}));
  assert(Math.abs(restored.top-position.top)<=4,`Same feed card stays in place: ${JSON.stringify(position)} → ${JSON.stringify(restored)}`);
+ assert(Math.abs(restored.y-position.y)<=4,'Feed scroll position is restored after loaded tools');
 }
 (async()=>{
  boundary();const fixtures=JSON.parse(fs.readFileSync(fixturesFile)),all=journeys(fixtures);

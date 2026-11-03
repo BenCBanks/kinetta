@@ -81,7 +81,7 @@ const collect=p=>p.evaluate(()=>[...document.querySelectorAll('a[href],[data-hre
     if(result.ready)await f.p.locator(result.ready).first().waitFor({state:'visible'});
     else assert(titles.some(title=>title.trim()),'Destination has a visible page title: '+link.href);
     if(result.heading)assert(titles.some(title=>title.toLowerCase().includes(result.heading.toLowerCase())),`${link.href}: expected ${result.heading}, saw ${titles.join(' / ')}`);
-    assert(!/^(?:Not available|Not found)$/.test(await f.p.locator('#page h1').first().textContent().catch(()=>'')),'Missing record destination: '+link.href);
+    assert(!titles.some(title=>/^(?:Not available|Not found)$/.test(title.trim())),'Missing record destination: '+link.href);
     assert.deepEqual(f.errors,[],'No destination page exception');
     assert.deepEqual(f.httpErrors,[],'No destination API failure');
     assert.deepEqual(f.blocked,[],'No unexpected destination mutation');
