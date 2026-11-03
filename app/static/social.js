@@ -16,15 +16,17 @@ const REACTION_FALLBACK=[
 const REACTIONS=()=>App.me?.reaction_choices||REACTION_FALLBACK;
 let closeReactionPicker = null;
 const reactionKind=k=>({cheer:'clap',strong:'muscle',applause:'fire'})[k]||k;
-const reactionMark=kind=>`<span class="reaction-emoji" aria-hidden="true">${esc(REACTIONS().find(([k])=>k===reactionKind(kind))?.[2]||'👏')}</span>`;
+const reactionMark=kind=>`<span class="reaction-emoji" data-type="glyph" aria-hidden="true">${esc(REACTIONS().find(([k])=>k===reactionKind(kind))?.[2]||'👏')}</span>`;
+const reactionAddIcon=()=>'<svg class="reaction-add-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="13" r="7.5"/><path d="M6.5 14.5c.7 1 1.6 1.5 2.5 1.5s1.8-.5 2.5-1.5"/><path d="M6.5 10h.01 M11.5 10h.01"/><path d="M18.5 3.5v6 M15.5 6.5h6"/></svg>';
 const reactionCompact=new Intl.NumberFormat('en',{notation:'compact',maximumSignificantDigits:2});
 const reactionNumber=n=>n>=1000?reactionCompact.format(n):String(n);
 const reactionCounts=s=>{const counts={};for(const[k,n]of Object.entries(s.reactions||{clap:Array.isArray(s.cheers)?s.cheers.length:s.cheers||0})){const kind=reactionKind(k);counts[kind]=(counts[kind]||0)+(+n||0);}return counts;};
 function reactionButtons(aid,s,detail=false,compact=false){
   const selected=reactionKind(s.my_reaction??(s.cheered?'clap':null)),counts=reactionCounts(s),total=Object.values(counts).reduce((n,v)=>n+v,0);
+  const label=REACTIONS().find(([k])=>k===selected)?.[1]||'clapping hands',triggerLabel=selected?`Your reaction: ${label}. Change reaction`:'React',triggerContent=selected?reactionMark(selected):`${reactionAddIcon()}<span>React</span>`;
   return `<div class="activity-reactions emoji-reactions${compact?' compact-reactions':''}" role="group" aria-label="Reactions" data-reaction-group data-aid="${aid}" data-mine="${selected||''}" ${REACTIONS().map(([k])=>`data-count-${k}="${counts[k]||0}"`).join(' ')}>
     <button type="button" class="pf reaction-count" aria-label="See who reacted"${total?'':' hidden'}></button>
-    <div class="reaction-action"><button type="button" class="pf reaction-more" aria-label="Choose a reaction" aria-haspopup="menu" aria-expanded="false">${svg('plus')}</button></div>
+    <div class="reaction-action"><button type="button" class="pf reaction-more" aria-label="${esc(triggerLabel)}" aria-haspopup="menu" aria-expanded="false">${triggerContent}</button></div>
     <div class="reaction-picker" role="menu" aria-label="Choose a reaction" hidden><div class="reaction-options">${REACTIONS().map(([kind,label])=>`<button type="button" role="menuitemradio" aria-label="React with ${esc(label)}" aria-checked="${selected===kind}" data-react="${kind}" tabindex="-1">${reactionMark(kind)}</button>`).join('')}</div></div></div>`;
 }
 
@@ -49,14 +51,15 @@ function wireReactionGroup(group,aid,changed){
     clearTimeout(hoverTimer);clearTimeout(leaveTimer);document.body.appendChild(picker);picker.hidden=false;more.setAttribute('aria-expanded','true');
     listen(true);
     const footer=group.closest('.post-ft,.detail-social')||group.parentElement;
-    const content=group.closest('.post')?.querySelector('.stats3')||footer.parentElement?.querySelector('.detail-primary')||footer;
-    const bounds=content.getBoundingClientRect(),r=main.getBoundingClientRect(),vv=window.visualViewport;
+    const link=group.closest('.post')?.querySelector('.post-link'),content=link||footer.parentElement?.querySelector('.detail-primary')||footer;
+    const box=content.getBoundingClientRect(),style=link&&getComputedStyle(link),leftInset=style?parseFloat(style.paddingLeft)||0:0,rightInset=style?parseFloat(style.paddingRight)||0:0;
+    const bounds={left:box.left+leftInset,right:box.right-rightInset,width:box.width-leftInset-rightInset},r=main.getBoundingClientRect(),vv=window.visualViewport;
     const width=Math.min(bounds.width,innerWidth-16),font=parseFloat(getComputedStyle(document.documentElement).fontSize);
     picker.style.width=width+'px';picker.style.setProperty('--reaction-columns',width>=426&&font<=16?'8':'4');
     const p=picker.getBoundingClientRect();anchorRect=r;
     const top=vv?.offsetTop||0,bottom=top+(vv?.height||innerHeight);
     picker.style.left=Math.max(8,Math.min(bounds.left,innerWidth-p.width-8))+'px';
-    picker.style.top=Math.max(top+8,Math.min(footer.getBoundingClientRect().top-p.height,bottom-p.height-8))+'px';
+    picker.style.top=Math.max(top+8,Math.min(r.top-p.height,bottom-p.height-8))+'px';
     highlighted?.classList.remove('is-highlighted');highlighted=null;if(typeof Haptics!=='undefined')Haptics.tick();
     if(focus)focusOption(options.find(b=>b.dataset.react===state.my_reaction)||options[0],false);
   };
@@ -65,12 +68,14 @@ function wireReactionGroup(group,aid,changed){
     const selected=state.my_reaction,label=REACTIONS().find(([k])=>k===selected)?.[1]||'clapping hands';
     const used=REACTIONS().filter(([k])=>state.reactions[k]>0).sort((a,b)=>state.reactions[b[0]]-state.reactions[a[0]]),total=used.reduce((n,[k])=>n+state.reactions[k],0);
     group.dataset.mine=selected||'';more.dataset.kind=selected||'';
-    more.setAttribute('aria-label',`Choose a reaction${selected?'. Your reaction: '+label+'. Select it again to remove':''}`);
+    const triggerLabel=selected?`Your reaction: ${label}. Change reaction`:'React';
+    more.setAttribute('aria-label',triggerLabel);
+    const triggerContent=selected?reactionMark(selected):`${reactionAddIcon()}<span>React</span>`;
+    if(more._content!==triggerContent){more.innerHTML=triggerContent;more._content=triggerContent;}
     more.disabled=busy;group.setAttribute('aria-busy',String(busy));
     const popular=used.slice(0,3).map(([kind])=>kind);
-    if(selected){const index=popular.indexOf(selected);if(index>=0)popular.splice(index,1);popular.unshift(selected);popular.length=Math.min(popular.length,3);}
-    count.hidden=!total;const badges=`<span class="reaction-icons">${popular.map(k=>`<span${k===selected?' class="reaction-mine"':''}>${reactionMark(k)}</span>`).join('')}</span><span class="num">${reactionNumber(total)}</span>`;if(count._badges!==badges){count.innerHTML=badges;count._badges=badges;}
-    count.setAttribute('aria-label',`${total} reaction${total===1?'':'s'}${selected?'. Yours: '+label:''}. See who reacted`);
+    count.hidden=!total;const badges=`<span class="reaction-icons">${popular.map(k=>`<span>${reactionMark(k)}</span>`).join('')}</span><span class="num">${reactionNumber(total)}</span>`;if(count._badges!==badges){count.innerHTML=badges;count._badges=badges;}
+    count.setAttribute('aria-label',`${total} reaction${total===1?'':'s'}. See who reacted`);
     for(const b of options){b.setAttribute('aria-checked',String(selected===b.dataset.react));b.disabled=busy;}
   };
   group._sync=fresh=>{if(!busy&&active()){state={my_reaction:reactionKind(fresh.my_reaction),reactions:reactionCounts(fresh)};draw();}};
@@ -88,7 +93,6 @@ function wireReactionGroup(group,aid,changed){
     }catch(x){if(readOwner()===owner&&[401,403,404].includes(x.status))SocialData.forget(aid);if(active()){state=was;toast(x.message);}}finally{busy=false;draw();if(restoreFocus&&readOwner()===owner&&(document.activeElement===document.body||document.activeElement===focused)){const button=active()?main:host?.querySelector('.reaction-more');if(button?.isConnected)button.focus({preventScroll:true});}}
   };
   cheerGesture(main,()=>{picker.hidden?open(true):close(true);},()=>{open();heldOpen=true;});
-  main.title='Choose a reaction. Select your current emoji again to remove it.';
   // iOS keeps a held touch captured on its original button. Resolve the release
   // under the finger, so sliding onto a revealed choice selects it just once.
   const release=main.onpointerup,cancel=main.onpointercancel,move=main.onpointermove;
@@ -404,13 +408,12 @@ function sharedCharts(box, a) {
 
 // The cheer and comment icons by an activity's title (2026-10-12, Ben: a little icon near the title, comments pop up
 // from below). Both activity pages use them; the counts follow what happens in the comments sheet.
-const talkIcons=(s,aid)=>reactionButtons(aid,s,true)+`<button type="button" class="pf activity-comments" data-ttalk aria-label="Comments, ${s.comments.length}">${svg('comment')}<span class="num">${reactionNumber(s.comments.length)}</span></button>`;
+const talkIcons=(s,aid)=>reactionButtons(aid,s,true)+`<button type="button" class="pf activity-comments" data-ttalk aria-label="Comments, ${s.comments.length}">${svg('comment')}<span class="num"${s.comments.length?'':' hidden'}>${s.comments.length?reactionNumber(s.comments.length):''}</span></button>`;
 function wireTalk(box,aid,s,open,{hideEmpty=false}={}){
   if(!box)return;const owner=readOwner(),cached=SocialData.peek(aid);if(cached)s=cached;else SocialData.remember(aid,s);
-  box.innerHTML=talkIcons(s,aid);cleanViews();
-  const visibility=()=>{if(hideEmpty)box.hidden=!(s.cheers.length||s.comments.length);};visibility();
+  box.innerHTML=talkIcons(s,aid);const visibility=()=>{if(hideEmpty)box.hidden=!(s.cheers.length||s.comments.length);};visibility();cleanViews();
   const group=$('[data-reaction-group]',box),talk=$('[data-ttalk]',box);
-  const update=fresh=>{if(!box.isConnected||owner!==readOwner())return;s=fresh;visibility();group?._sync?.(s);$('.num',talk).textContent=reactionNumber(s.comments.length);talk.setAttribute('aria-label',`Comments, ${s.comments.length}`);};
+  const update=fresh=>{if(!box.isConnected||owner!==readOwner())return;s=fresh;visibility();group?._sync?.(s);const count=$('.num',talk);count.hidden=!s.comments.length;count.textContent=s.comments.length?reactionNumber(s.comments.length):'';talk.setAttribute('aria-label',`Comments, ${s.comments.length}`);};
   wireReactionGroup(group,aid,update);SocialData.warm(talk,aid);
   viewResources.set(talk,SocialData.watch(aid,fresh=>{if(!box.isConnected||owner!==readOwner())return false;if(fresh)update(fresh);else box.replaceChildren();}));
   talk.onclick=()=>commentsSheet(aid,s,update);
