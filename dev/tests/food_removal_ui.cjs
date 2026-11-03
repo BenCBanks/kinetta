@@ -33,6 +33,7 @@ async function until(page,fn,label){for(let i=0;i<120;i++){if(await page.evaluat
       const before=await card.innerText(),bubble=await article.locator('.thread-user').innerText();
       const remove=page.locator('[data-unlogged-remove]');assert.equal(await remove.count(),1,'one-tap remove replaces the menu on unlogged food');
       assert.equal(await page.locator('[data-more]').count(),0,'unlogged food has no overflow menu');
+      assert.equal(await card.locator('[data-remove-food]').count(),0,'the card remove is the only × on a single-food card');
       const geometry=await remove.evaluate(node=>({rect:node.getBoundingClientRect().toJSON(),style:getComputedStyle(node)}));
       assert.equal(geometry.rect.width,44);assert.equal(geometry.rect.height,44);assert.equal(geometry.style.fontSize,'18px');assert.equal(geometry.style.backgroundColor,'rgba(0, 0, 0, 0)');assert.equal(geometry.style.borderTopWidth,'0px');
       assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no horizontal overflow at 390 px');
@@ -56,9 +57,12 @@ async function until(page,fn,label){for(let i=0;i<120;i++){if(await page.evaluat
       await page.locator('#thread-remove-notice').waitFor({state:'visible'});await until(page,()=>!document.querySelector('#thread-messages article'),'offline removal hides the card');
       await page.waitForTimeout(5100);await context.setOffline(false);
       await page.locator('.thread-remove-failed').waitFor({timeout:5000});
-      assert.equal(await page.locator('.thread-remove-failed span').innerText(),'Couldn’t remove this food.');
+      assert.equal(await page.locator('.thread-remove-failed span').innerText(),"Couldn't remove this food.");
       assert.equal(await page.locator('.thread-remove-failed button').innerText(),'Try again');
       assert.equal(await page.locator('[data-unlogged-remove]').count(),0,'a refused removal offers Retry without leaving a second remove action');
+      assert(await page.locator('.thread-remove-failed').evaluate(node=>!!node.closest('.thread-card')),'the refusal line stays inside the card');
+      const failureLayout=await page.locator('.thread-remove-failed').evaluate(node=>({display:getComputedStyle(node).display,justify:getComputedStyle(node).justifyContent,span:node.querySelector('span').getBoundingClientRect().toJSON(),button:node.querySelector('button').getBoundingClientRect().toJSON()}));
+      assert.equal(failureLayout.display,'flex');assert.equal(failureLayout.justify,'flex-start');assert(failureLayout.button.left>=failureLayout.span.right-1&&failureLayout.button.left-failureLayout.span.right<8,'Try again follows the refusal sentence');
       assert.equal(await page.locator('.thread-remove-failed').evaluate(node=>getComputedStyle(node).color),await page.locator('.thread-card').first().evaluate(node=>getComputedStyle(node).color),'failure uses normal text colour');
       assert.equal(await page.locator('#thread-messages .thread-user').count(),0,'failure state does not repeat the original food text');
       await screenshot(page,'offline-failure',theme);
@@ -77,6 +81,13 @@ async function until(page,fn,label){for(let i=0;i<120;i++){if(await page.evaluat
       await logged.context.close();contexts.splice(contexts.indexOf(logged.context),1);
       console.log(`Food removal ${theme}: unlogged, removed/Undo, restored, offline refusal, logged ••• PASS`);
     }
+    const multi=await open('three','light'),multiPage=multi.page;
+    await multiPage.locator('.thread-card [data-unlogged-remove]').waitFor();
+    assert.equal(await multiPage.locator('[data-unlogged-remove]').count(),1,'a multi-food card has one whole-card remove');
+    assert(await multiPage.locator('[data-remove-food]').count()>1,'multi-food card keeps its per-food removal controls');
+    assert.deepEqual(multi.errors,[],'multi-food removal controls render without browser errors');
+    await multi.context.close();contexts.splice(contexts.indexOf(multi.context),1);
+
     const success=await open('three','light'),successPage=success.page;
     await successPage.locator('[data-unlogged-remove]').click();await successPage.locator('#thread-remove-notice').waitFor({state:'visible'});
     await successPage.waitForTimeout(5200);

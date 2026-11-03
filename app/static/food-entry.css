@@ -9,8 +9,8 @@
 .food-thread .thread-remove-notice {display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:0 4px;color:var(--tx2);font-size:.875rem;}
 .food-thread .thread-remove-notice[hidden] {display:none;}
 .food-thread .thread-remove-notice button {flex:none;min-width:44px;min-height:44px;padding:0 8px;border:0;background:transparent;color:var(--accent);text-align:right;text-decoration:underline;}
-.food-thread .thread-remove-failed {display:flex;align-items:center;justify-content:space-between;gap:8px;max-width:92%;color:var(--tx);font-size:.875rem;}
-.food-thread .thread-remove-failed button {flex:none;min-height:44px;padding:0 4px;color:var(--accent);text-decoration:underline;}
+.food-thread .thread-remove-failed {display:flex;align-items:center;justify-content:flex-start;gap:0;max-width:100%;margin-top:8px;color:var(--tx);font-size:.875rem;white-space:nowrap;}
+.food-thread .thread-remove-failed button {flex:none;min-height:44px;margin-left:2px;padding:0 4px;color:var(--accent);text-decoration:underline;}
 #thread-messages article.thread-removing {overflow:hidden;max-height:900px;opacity:1;transition:max-height 150ms ease,opacity 150ms ease,margin 150ms ease;}
 #thread-messages article.thread-removing.is-collapsing {max-height:0;opacity:0;margin-block:0;}
 @media(prefers-reduced-motion:reduce) {#thread-messages article.thread-removing {transition:none;}}
