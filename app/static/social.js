@@ -23,15 +23,15 @@ const reactionCounts=s=>{const counts={};for(const[k,n]of Object.entries(s.react
 function reactionButtons(aid,s,detail=false,compact=false){
   const selected=reactionKind(s.my_reaction??(s.cheered?'clap':null)),counts=reactionCounts(s),total=Object.values(counts).reduce((n,v)=>n+v,0);
   return `<div class="activity-reactions emoji-reactions${compact?' compact-reactions':''}" role="group" aria-label="Reactions" data-reaction-group data-aid="${aid}" data-mine="${selected||''}" ${REACTIONS().map(([k])=>`data-count-${k}="${counts[k]||0}"`).join(' ')}>
-    <div class="reaction-action"><button type="button" class="pf reaction-main" data-cheer="${aid}"${detail?' data-tcheer':''} aria-pressed="${!!selected}">${reactionMark(selected)}</button><button type="button" class="pf reaction-more" aria-label="Choose a reaction" aria-haspopup="menu" aria-expanded="false">${svg('plus')}</button></div>
     <button type="button" class="pf reaction-count" aria-label="See who reacted"${total?'':' hidden'}></button>
+    <div class="reaction-action"><button type="button" class="pf reaction-more" aria-label="Choose a reaction" aria-haspopup="menu" aria-expanded="false">${svg('plus')}</button></div>
     <div class="reaction-picker" role="menu" aria-label="Choose a reaction" hidden><div class="reaction-options">${REACTIONS().map(([kind,label])=>`<button type="button" role="menuitemradio" aria-label="React with ${esc(label)}" aria-checked="${selected===kind}" data-react="${kind}" tabindex="-1">${reactionMark(kind)}</button>`).join('')}</div></div></div>`;
 }
 
 function wireReactionGroup(group,aid,changed){
   if(!group||group.dataset.bound)return;group.dataset.bound='1';
   const owner=readOwner(),active=()=>group.isConnected&&readOwner()===owner;
-  const main=$('.reaction-main',group),more=$('.reaction-more',group),count=$('.reaction-count',group),picker=$('.reaction-picker',group),options=$$('[data-react]',picker);
+  const more=$('.reaction-more',group),main=more,count=$('.reaction-count',group),picker=$('.reaction-picker',group),options=$$('[data-react]',picker);
   let busy=false,state={my_reaction:group.dataset.mine||null,reactions:Object.fromEntries(REACTIONS().map(([k])=>[k,+group.getAttribute('data-count-'+k)||0]))};
   let hoverTimer=null,leaveTimer=null,heldOpen=false,highlighted=null,anchorRect=null;
   const highlight=(button,buzz=true)=>{if(!active()||!button||button===highlighted)return;highlighted?.classList.remove('is-highlighted');highlighted=button;button.classList.add('is-highlighted');if(buzz&&typeof Haptics!=='undefined')Haptics.tick();};
@@ -48,10 +48,15 @@ function wireReactionGroup(group,aid,changed){
     if(closeReactionPicker&&closeReactionPicker!==close)closeReactionPicker();closeReactionPicker=close;
     clearTimeout(hoverTimer);clearTimeout(leaveTimer);document.body.appendChild(picker);picker.hidden=false;more.setAttribute('aria-expanded','true');
     listen(true);
-    const r=main.getBoundingClientRect(),p=picker.getBoundingClientRect(),vv=window.visualViewport;anchorRect=r;
-    const top=vv?.offsetTop||0,bottom=top+(vv?.height||innerHeight),above=r.top-p.height-8;
-    const edge=Math.min(12,(innerWidth-p.width)/2);picker.style.left=Math.max(edge,Math.min(r.left,innerWidth-p.width-edge))+'px';
-    picker.style.top=Math.max(top+8,Math.min(above>=top+8?above:r.bottom+8,bottom-p.height-8))+'px';
+    const footer=group.closest('.post-ft,.detail-social')||group.parentElement;
+    const content=group.closest('.post')?.querySelector('.stats3')||footer.parentElement?.querySelector('.detail-primary')||footer;
+    const bounds=content.getBoundingClientRect(),r=main.getBoundingClientRect(),vv=window.visualViewport;
+    const width=Math.min(bounds.width,innerWidth-16),font=parseFloat(getComputedStyle(document.documentElement).fontSize);
+    picker.style.width=width+'px';picker.style.setProperty('--reaction-columns',width>=426&&font<=16?'8':'4');
+    const p=picker.getBoundingClientRect();anchorRect=r;
+    const top=vv?.offsetTop||0,bottom=top+(vv?.height||innerHeight);
+    picker.style.left=Math.max(8,Math.min(bounds.left,innerWidth-p.width-8))+'px';
+    picker.style.top=Math.max(top+8,Math.min(footer.getBoundingClientRect().top-p.height,bottom-p.height-8))+'px';
     highlighted?.classList.remove('is-highlighted');highlighted=null;if(typeof Haptics!=='undefined')Haptics.tick();
     if(focus)focusOption(options.find(b=>b.dataset.react===state.my_reaction)||options[0],false);
   };
@@ -59,12 +64,13 @@ function wireReactionGroup(group,aid,changed){
     if(!active())return;
     const selected=state.my_reaction,label=REACTIONS().find(([k])=>k===selected)?.[1]||'clapping hands';
     const used=REACTIONS().filter(([k])=>state.reactions[k]>0).sort((a,b)=>state.reactions[b[0]]-state.reactions[a[0]]),total=used.reduce((n,[k])=>n+state.reactions[k],0);
-    const icon=reactionMark(selected);if(main._icon!==icon){main.innerHTML=icon;main._icon=icon;}
-    main.dataset.kind=selected||'clap';main.setAttribute('aria-pressed',String(!!selected));
-    main.setAttribute('aria-label',`${selected?label+'. Tap to remove; hold to change':'React with clapping hands. Hold to choose'}. ${total} reaction${total===1?'':'s'}`);
-    main.disabled=more.disabled=busy;group.setAttribute('aria-busy',String(busy));
-    count.hidden=!total;const badges=`<span class="reaction-icons">${used.slice(0,3).map(([k])=>reactionMark(k)).join('')}</span><span class="num">${reactionNumber(total)}</span>`;if(count._badges!==badges){count.innerHTML=badges;count._badges=badges;}
-    count.setAttribute('aria-label',`${total} reaction${total===1?'':'s'}. See who reacted`);
+    group.dataset.mine=selected||'';more.dataset.kind=selected||'';
+    more.setAttribute('aria-label',`Choose a reaction${selected?'. Your reaction: '+label+'. Select it again to remove':''}`);
+    more.disabled=busy;group.setAttribute('aria-busy',String(busy));
+    const popular=used.slice(0,3).map(([kind])=>kind);
+    if(selected){const index=popular.indexOf(selected);if(index>=0)popular.splice(index,1);popular.unshift(selected);popular.length=Math.min(popular.length,3);}
+    count.hidden=!total;const badges=`<span class="reaction-icons">${popular.map(k=>`<span${k===selected?' class="reaction-mine"':''}>${reactionMark(k)}</span>`).join('')}</span><span class="num">${reactionNumber(total)}</span>`;if(count._badges!==badges){count.innerHTML=badges;count._badges=badges;}
+    count.setAttribute('aria-label',`${total} reaction${total===1?'':'s'}${selected?'. Yours: '+label:''}. See who reacted`);
     for(const b of options){b.setAttribute('aria-checked',String(selected===b.dataset.react));b.disabled=busy;}
   };
   group._sync=fresh=>{if(!busy&&active()){state={my_reaction:reactionKind(fresh.my_reaction),reactions:reactionCounts(fresh)};draw();}};
@@ -79,27 +85,26 @@ function wireReactionGroup(group,aid,changed){
       let fresh=await api(`/api/activities/${aid}/reaction`,next?json('POST',{kind:next}):{method:'DELETE'});if(readOwner()!==owner)return;
       if(!fresh.reactions)fresh=await api(`/api/activities/${aid}/social`);if(readOwner()!==owner)return;
       SocialData.remember(aid,fresh);socialChanged(aid);if(active()){state={my_reaction:reactionKind(fresh.my_reaction),reactions:reactionCounts(fresh)};changed?.(fresh);}
-    }catch(x){if(readOwner()===owner&&[401,403,404].includes(x.status))SocialData.forget(aid);if(active()){state=was;toast(x.message);}}finally{busy=false;draw();if(restoreFocus&&readOwner()===owner&&(document.activeElement===document.body||document.activeElement===focused)){const button=active()?main:host?.querySelector('.reaction-main');if(button?.isConnected)button.focus({preventScroll:true});}}
+    }catch(x){if(readOwner()===owner&&[401,403,404].includes(x.status))SocialData.forget(aid);if(active()){state=was;toast(x.message);}}finally{busy=false;draw();if(restoreFocus&&readOwner()===owner&&(document.activeElement===document.body||document.activeElement===focused)){const button=active()?main:host?.querySelector('.reaction-more');if(button?.isConnected)button.focus({preventScroll:true});}}
   };
-  cheerGesture(main,()=>{if(!picker.hidden){close();return;}choose(state.my_reaction?null:'clap');},()=>{open();heldOpen=true;});
-  main.title='Tap to send or remove; hold to choose a reaction';
+  cheerGesture(main,()=>{picker.hidden?open(true):close(true);},()=>{open();heldOpen=true;});
+  main.title='Choose a reaction. Select your current emoji again to remove it.';
   // iOS keeps a held touch captured on its original button. Resolve the release
   // under the finger, so sliding onto a revealed choice selects it just once.
   const release=main.onpointerup,cancel=main.onpointercancel,move=main.onpointermove;
   main.onpointermove=e=>{move(e);if(heldOpen){const b=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-react]');if(b&&picker.contains(b))highlight(b);}};
-  main.onpointerup=e=>{const held=heldOpen;release(e);if(held){const b=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-react]');if(b&&picker.contains(b))choose(b.dataset.react);}};
+  main.onpointerup=e=>{const held=heldOpen;release(e);if(held){const b=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-react]');if(b&&picker.contains(b))choose(b.dataset.react===state.my_reaction?null:b.dataset.react);}};
   main.onpointercancel=e=>{cancel(e);close();};
   main.addEventListener('keydown',e=>{if(e.key==='ArrowDown'){e.preventDefault();open(true);}});
-  more.onclick=e=>{e.preventDefault();e.stopPropagation();picker.hidden?open(true):close(true);};
   SocialData.warm(count,aid);
   count.onclick=e=>{e.preventDefault();e.stopPropagation();close();activityCheers(aid);};
-  for(const b of options){b.onclick=e=>{e.preventDefault();e.stopPropagation();choose(b.dataset.react);if(active())main.focus({preventScroll:true});};b.addEventListener('pointerenter',()=>{if(!picker.hidden)highlight(b);});}
+  for(const b of options){b.onclick=e=>{e.preventDefault();e.stopPropagation();choose(b.dataset.react===state.my_reaction?null:b.dataset.react);if(active())main.focus({preventScroll:true});};b.addEventListener('pointerenter',()=>{if(!picker.hidden)highlight(b);});}
   picker.addEventListener('keydown',e=>{
-    const i=options.indexOf(document.activeElement);let next=null;
+    const i=options.indexOf(document.activeElement),columns=+(picker.style.getPropertyValue('--reaction-columns')||4);let next=null;
     if(e.key==='ArrowRight')next=(i+1)%options.length;
     if(e.key==='ArrowLeft')next=(i+options.length-1)%options.length;
-    if(e.key==='ArrowDown')next=i+6<options.length?i+6:i%6;
-    if(e.key==='ArrowUp')next=i>=6?i-6:(i+12<options.length?i+12:i+6);
+    if(e.key==='ArrowDown')next=(i+columns)%options.length;
+    if(e.key==='ArrowUp')next=(i+options.length-columns)%options.length;
     if(e.key==='Home')next=0;if(e.key==='End')next=options.length-1;
     if(next!==null){e.preventDefault();focusOption(options[next]);}
     if(e.key==='Escape'){e.preventDefault();e.stopPropagation();close(true);}
@@ -170,13 +175,24 @@ function cheerGesture(button, toggle, show) {
 function activityCheers(aid) {
   cleanViews();
   const owner=readOwner(),cached=SocialData.peek(aid);
-  sheet('Reactions', `<div class="cheers-list social-people" aria-busy="${!cached}">${cached?cheersPeople(cached.cheers):skel(2)}</div><p class="social-read-status small muted" role="status"></p>`,box=>{
-    const list=$('.cheers-list',box),status=$('.social-read-status',box),current=()=>list.isConnected&&owner===readOwner();
-    let shown=cached?cheersPeople(cached.cheers):null;
-    const draw=s=>{const html=s?cheersPeople(s.cheers):'';if(shown!==html){list.innerHTML=html;shown=html;}};
+  sheet('Reactions', `<div class="reaction-filters" aria-label="Filter reactions"></div><div class="cheers-list social-people" aria-busy="${!cached}">${cached?cheersPeople(cached.cheers):skel(2)}</div><p class="social-read-status small muted" role="status"></p>`,box=>{
+    const list=$('.cheers-list',box),filters=$('.reaction-filters',box),status=$('.social-read-status',box),dialog=box.closest('.sheet'),current=()=>list.isConnected&&owner===readOwner();
+    dialog.classList.add('reaction-sheet');let state=cached,filter=null,shown=null;
+    const draw=s=>{
+      if(!current())return;
+      state=s;const people=s?.cheers||[],counts=people.reduce((all,p)=>{const k=reactionKind(p.kind||'clap');all[k]=(all[k]||0)+1;return all;},{});
+      if(filter&&!counts[filter])filter=null;
+      const title=`Reactions · ${people.length}`;$('header h2',dialog).textContent=title;dialog.setAttribute('aria-label',title);
+      const html=cheersPeople(filter?people.filter(p=>reactionKind(p.kind||'clap')===filter):people);if(shown!==html){list.innerHTML=html;shown=html;}
+      const focused=filters.contains(document.activeElement)?document.activeElement.dataset.reactionFilter:null;
+      const controls=REACTIONS().filter(([kind])=>counts[kind]).sort((a,b)=>counts[b[0]]-counts[a[0]]).map(([kind,label])=>`<button type="button" class="linkbtn" data-reaction-filter="${kind}" aria-pressed="${filter===kind}" aria-label="Show ${counts[kind]} ${esc(label)} reaction${counts[kind]===1?'':'s'}">${reactionMark(kind)} <span>${counts[kind]}</span></button>`).join('');
+      if(filters._controls!==controls){filters.innerHTML=controls;filters._controls=controls;if(focused)($(`[data-reaction-filter="${focused}"]`,filters)||$('button',filters))?.focus({preventScroll:true});}
+      for(const button of $$('[data-reaction-filter]',filters))button.onclick=()=>{if(!current())return;const kind=button.dataset.reactionFilter;filter=filter===kind?null:kind;draw(state);$(`[data-reaction-filter="${kind}"]`,filters)?.focus({preventScroll:true});};
+    };
+    if(cached)draw(cached);
     viewResources.set(list,SocialData.watch(aid,s=>{if(!current())return false;draw(s);}));
     const refresh=async()=>{try{const s=await SocialData.read(aid);if(!current()||!s)return;draw(s);list.setAttribute('aria-busy','false');status.textContent='';}
-      catch(error){if(!current())return;if([401,403,404].includes(error.status))list.replaceChildren();list.setAttribute('aria-busy','false');status.innerHTML=`${esc(error.message)} <button type="button" class="linkbtn" data-retry>Retry</button>`;$('[data-retry]',status).onclick=refresh;}};
+      catch(error){if(!current())return;if([401,403,404].includes(error.status))draw(null);list.setAttribute('aria-busy','false');status.innerHTML=`${esc(error.message)} <button type="button" class="linkbtn" data-retry>Retry</button>`;$('[data-retry]',status).onclick=refresh;}};
     refresh();
   });
 }
@@ -400,7 +416,7 @@ function wireTalk(box,aid,s,open,{hideEmpty=false}={}){
   if(open)commentsSheet(aid,s,update);
 }
 const cheerName = (c) => (c.login === App.me.login ? 'You' : c.name);
-const cheersPeople = (cheers) => `<div class="card list">${cheers.length ? cheers.map((c) => `<div class="person" data-close>${personLink(c, cheerName(c))}<small role="img" aria-label="Reacted with ${esc(REACTIONS().find(([kind])=>kind===reactionKind(c.kind||'clap'))?.[1]||'clapping hands')}">${reactionMark(c.kind)}</small></div>`).join('') : '<p class="small muted">No reactions yet.</p>'}</div>`;
+const cheersPeople = (cheers) => cheers.length ? cheers.map(c=>`<a class="person reaction-person" data-close href="${profileHref(c)}">${avatar(c)}<b>${esc(cheerName(c))}</b><span role="img" aria-label="Reacted with ${esc(REACTIONS().find(([kind])=>kind===reactionKind(c.kind||'clap'))?.[1]||'clapping hands')}">${reactionMark(c.kind)}</span></a>`).join('') : '<p class="small muted">No reactions yet.</p>';
 function socialChanged(aid) {
   invalidate('/api/shared/' + aid); invalidate('/api/activities/' + aid + '/social'); invalidate('/api/feed/friends'); invalidate('/api/activities?'); invalidateFeed();
 }

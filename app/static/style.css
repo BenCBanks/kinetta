@@ -2214,29 +2214,35 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .reaction-action {display:contents;}
 .activity-reactions .pf,.activity-comments,.post-hd .activity-share {background:none;border-color:transparent;box-shadow:none;min-height:44px;}
 .post-ft:has(.emoji-reactions),.detail-social:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;gap:8px;padding:6px 12px;}
-.emoji-reactions :is(.reaction-main,.reaction-more) {flex:none;width:44px;min-width:44px;height:44px;justify-content:center;padding:0;}
-.reaction-main {order:1;}
-.reaction-main .reaction-emoji {font-size:1rem;}
-.reaction-main[aria-pressed="true"] {border:1px solid var(--accent);border-radius:var(--r2);background:var(--accent2);}
-.emoji-reactions .reaction-more {order:2;}
+.emoji-reactions .reaction-more {order:2;flex:none;width:44px;min-width:44px;height:44px;justify-content:center;padding:0;margin-left:auto;}
 .emoji-reactions .reaction-more>svg {width:20px;height:20px;}
-.emoji-reactions .reaction-count {order:3;display:flex;align-items:center;justify-content:center;gap:6px;min-width:44px;padding:0;margin-left:auto;}
+.emoji-reactions .reaction-count {order:1;display:flex;align-items:center;justify-content:flex-start;gap:6px;min-width:44px;padding:0;}
 .emoji-reactions .reaction-count[hidden] {display:none;}
-.reaction-icons {display:flex;align-items:center;gap:0;}
+.reaction-icons {display:flex;align-items:center;gap:2px;}
 .reaction-emoji {font-family:Apple Color Emoji,Segoe UI Emoji,Noto Color Emoji,sans-serif;font-size:1.25rem;line-height:1;}
 .emoji-reactions .reaction-icons .reaction-emoji {font-size:1rem;}
-@media(max-width:360px) {.emoji-reactions .reaction-icons .reaction-emoji:nth-child(n+3) {display:none;}}
-.activity-comments {order:4;display:flex;align-items:center;justify-content:center;gap:4px;min-width:44px;padding:0;margin-left:auto;}
+.reaction-mine {display:grid;place-items:center;border-radius:6px;background:var(--accent2);box-shadow:0 0 0 1px var(--accent);padding:2px;}
+.activity-comments {order:3;display:flex;align-items:center;justify-content:center;gap:4px;min-width:44px;padding:0;margin-left:0;}
 .activity-comments>svg {width:20px;height:20px;flex:none;}
 .post-ft .num,.detail-social .num {font-size:max(15px,.75rem);line-height:1.2;}
 .post-hd .activity-share {width:44px;min-width:44px;height:44px;padding:0;justify-content:center;margin-left:auto;}
 .post-hd .activity-share>svg {width:20px;height:20px;}
-/* Three rows show all sixteen choices, including at the narrowest phone width. */
-.reaction-picker {position:fixed;z-index:1000;width:322px;max-width:calc(100vw - 8px);padding:8px;border:1px solid var(--line);border-radius:var(--r3);background:var(--card);color:var(--tx);box-shadow:var(--lift);}
-.reaction-options {display:grid;grid-template-columns:repeat(6,44px);grid-template-rows:repeat(3,44px);gap:8px;}
-.reaction-picker button {display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;border-radius:var(--r2);background:none;color:var(--tx);}
+/* Full rows share the card's content edges; narrow cards use four columns. */
+.reaction-picker {position:fixed;z-index:2100;max-width:calc(100vw - 16px);padding:8px;border:1px solid var(--line);border-radius:var(--r2);background:var(--card);color:var(--tx);box-shadow:var(--lift);}
+.reaction-options {display:grid;grid-template-columns:repeat(var(--reaction-columns,4),minmax(44px,1fr));gap:8px;}
+.reaction-picker button {display:grid;place-items:center;min-width:44px;height:44px;padding:0;border:0;border-radius:var(--r2);background:none;color:var(--tx);}
 .reaction-picker button:hover,.reaction-picker button:focus-visible,.reaction-picker button[aria-checked="true"],.reaction-picker button.is-highlighted {background:var(--accent2);}
-.cheers-list .reaction-emoji {font-size:1.25rem;}
+.reaction-sheet {padding-bottom:calc(env(safe-area-inset-bottom) + 12px);}
+.reaction-sheet header {margin-bottom:0;}
+.reaction-filters {display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;}
+.reaction-filters:empty,.reaction-sheet .social-read-status:empty {display:none;}
+.reaction-filters button {display:flex;align-items:center;gap:4px;min-width:44px;min-height:44px;padding:0;background:none;border:0;border-radius:0;color:var(--tx2);}
+.reaction-filters button[aria-pressed="true"] {color:var(--accent);text-decoration:underline;text-underline-offset:4px;}
+.reaction-filters .reaction-emoji,.cheers-list .reaction-emoji {font-size:1rem;}
+.reaction-sheet .reaction-person {height:44px;min-height:44px;padding:0;gap:10px;}
+.reaction-person .av {width:28px;height:28px;min-width:28px;font-size:12px;}
+.reaction-person>b {flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:1rem;}
+.reaction-person>[role="img"] {flex:none;}
 .t-row:has(.activity-reactions) {flex-wrap:wrap;}
 .t-soc:has(.activity-reactions) {flex:1 0 100%;flex-wrap:nowrap;margin:0;max-width:100%;gap:8px;}
 .post-profile .ph-txt small {white-space:normal;overflow:visible;}
