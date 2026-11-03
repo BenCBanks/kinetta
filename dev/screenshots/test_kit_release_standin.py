@@ -66,6 +66,15 @@ class KitScreenshotStandinTests(unittest.TestCase):
         self.assertIn("ai_release.kit_enabled()", standin)
         self.assertIn("if (name === 'dietcoach') await enableKitForDemo(page);", capture)
         self.assertIn("{ai_ok: true, ai_adult: true}", capture)
+        dietcoach = capture.split("if (name === 'dietcoach') {", 1)[1].split("\n      }", 1)[0]
+        self.assertIn("#nt-coach a[data-kit-entry][aria-label=\"Ask Kit\"][href=\"/me/kit?from=nutrition\"]", dietcoach)
+        self.assertIn("await entry.waitFor({state:'visible'});", dietcoach)
+        self.assertIn("await entry.count() !== 1", dietcoach)
+        self.assertIn("location.pathname === '/me/kit'", dietcoach)
+        self.assertIn("#kit-composer", dietcoach)
+        self.assertIn("What can I help with?", dietcoach)
+        self.assertNotIn("kit-send", dietcoach)
+        self.assertNotIn("/api/coach/conversation/messages", dietcoach)
 
 
 if __name__ == "__main__":
