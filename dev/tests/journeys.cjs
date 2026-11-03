@@ -29,6 +29,9 @@ async function food(f){
 }
 async function feedBack(f){
  const p=f.p,link=p.locator('.post .post-link').nth(4);await link.waitFor();await link.scrollIntoViewIfNeeded();
+ const shots=process.env.KINETTA_JOURNEY_SHOTS,theme=process.env.KINETTA_JOURNEY_THEME||'light';
+ const capture=async label=>{if(shots){fs.mkdirSync(shots,{recursive:true});await p.screenshot({path:path.join(shots,`feed-${theme}-${label}.png`)});}};
+ await capture('before');
  const target=await link.getAttribute('href'),name=await link.locator('.post-title').innerText();
  // Playwright may scroll a target again immediately before the tap. Measure the actual navigation moment.
  await p.evaluate(()=>document.addEventListener('click',event=>{window.journeyFeedPosition={y:scrollY,top:event.target.closest('.post').getBoundingClientRect().top};},{capture:true,once:true}));await link.click();
@@ -37,6 +40,7 @@ async function feedBack(f){
  await p.locator('[data-back]:visible').first().click();await ready(p);
  await until(p,()=>document.querySelector('#feed-tools')?.getAttribute('aria-busy')==='false','Feed restored');
  const restored=await p.locator(`.post[data-href="${target}"]`).evaluate(n=>({y:scrollY,top:n.getBoundingClientRect().top}));
+ await capture('returned');
  assert(Math.abs(restored.top-position.top)<=4,`Same feed card stays in place: ${JSON.stringify(position)} → ${JSON.stringify(restored)}`);
  assert(Math.abs(restored.y-position.y)<=4,'Feed scroll position is restored after loaded tools');
 }
