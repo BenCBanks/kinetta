@@ -20,6 +20,7 @@ function journeys(fixtures){
   {id:'nutrition-goals',start:'/food',taps:['#fd-goal'],end:destination('/food','Goals','#tg'),close:true},
   {id:'settings-profile',start:'/me/settings',taps:['#m-profile'],end:{...destination('/me?edit=profile','Editing your card','.me-card-editor #card-name'),titleSelector:'.me-editor-head b'},back:destination('/me/settings','Settings','#logout'),history:true},
   {id:'activity-challenges-back',start:'/activity',taps:['a[href="/me/challenges"]','[data-back]'],end:destination('/activity','Activity','#feed-tools')},
+  {id:'kit-activity-detail',start:'/activity/'+f.activity,startReady:'.compact-detail-title',kit:true,taps:['#d-kit'],end:destination('/me/kit?from=activity&activity='+f.activity,'Ask Kit','#kit-text'),back:destination('/activity/'+f.activity,'Fictional journey run 1','.compact-detail-title')},
  ];
  for(const [id,title,suffix,ready] of progress)cases.push({id:'progress-'+id,start:'/progress',taps:[['fitness','records'].includes(id)?`a.progress-summary[href="/progress${suffix}"]`:`[data-progress-feature="${id}"]`],end:destination(suffix==='plan'?'/plan':'/progress'+suffix,title,ready),back:destination('/progress','Progress','#p-explore')});
  for(const [url,title,ready] of settings)cases.push({id:'settings-'+url.split('/').at(-1),start:'/me/settings',taps:[`a[href="${url}"]`],end:destination(url,title,ready),back:destination('/me/settings','Settings','#logout')});

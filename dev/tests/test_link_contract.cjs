@@ -6,6 +6,8 @@ const check=(href,label='Feature')=>intention({href,label,source:'Me'},base,regi
 const recipeJourney=journeys({journey:{login:'zz_test_journeys',activity:17,dish:42,notifications:[]}}).find(item=>item.id==='recipe-edit');
 assert.equal(recipeJourney.taps[0],'#library-recipes [data-dish]');assert.equal(recipeJourney.end.url,'/food/cook/42');
 assert.equal(recipeJourney.end.titleSelector,'#dk-name');assert.equal(recipeJourney.back.url,'/food/meals');
+const activityKitJourney=journeys({journey:{login:'zz_test_journeys',activity:17,dish:42,notifications:[]}}).find(item=>item.id==='kit-activity-detail');
+assert.equal(activityKitJourney.end.url,'/me/kit?from=activity&activity=17');assert.equal(activityKitJourney.back.url,'/activity/17');
 assert.equal(check('/progress','View progress').canonical,'/progress');
 assert.equal(check('/progress?view=fitness').heading,'Fitness');
 assert.throws(()=>check('/progress?view=training','View progress'),/Me: View progress.*unsupported view=training/);
