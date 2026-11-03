@@ -23,7 +23,7 @@ function extraTotals(values,{period=false}={}){return `<details class="extra-nut
 function extraFood(v){return `<details class="extra-nutrients"><summary>More nutrients</summary><dl>${EXTRA_NUTRIENTS.map(([k,label,unit])=>`<div><dt>${label}</dt><dd class="num">${nutrientNumber(nutrientKnown(v,k)?v[k]:null,unit)}</dd></div>`).join('')}</dl><p class="small muted">For this portion, using its recorded source values. Estimates stay estimates; missing values are unknown.</p></details>`;}
 const isoDay = (d) => d.toLocaleDateString('en-CA', {timeZone: tz()});
 const addDays = (iso, n) => { const d = new Date(iso + 'T12:00'); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); };
-const dayLabel = (iso) => { const t = isoDay(new Date()); return iso === t ? 'Today' : iso === addDays(t, -1) ? 'Yesterday' : iso === addDays(t, 1) ? 'Tomorrow' : new Date(iso + 'T12:00').toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric'}); };
+const dayLabel = (iso) => { const t = isoDay(new Date()); return iso === t ? 'Today' : iso === addDays(t, -1) ? 'Yesterday' : iso === addDays(t, 1) ? 'Tomorrow' : new Date(iso + 'T12:00').toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric', ...(iso.slice(0,4) !== t.slice(0,4) ? {year:'numeric'} : {})}); };
 const foodDestination = w => `<p class="portion-context small muted">${esc([MEAL_NAMES[w.meal],dayLabel(w.day||isoDay(new Date()))].filter(Boolean).join(' · '))}</p>`;
 function guessMeal() {   // the meal you usually log at this hour (learned from your log), else a sensible clock guess
   const h = Number(new Intl.DateTimeFormat('en-US',{timeZone:tz(),hour:'2-digit',hourCycle:'h23'}).format(new Date())), mine = App.mealHours && App.mealHours[h];
@@ -121,18 +121,18 @@ function todayFoodCard(box, {onHistory, onFoodUser} = {}) {
 }
 function chooseYesterday(day) {
   const owner=readOwner();
-  sheet('Copy yesterday',`<p>Choose what to copy. You’ll review the foods before adding them.</p><div class="card list">${[['','All meals'],...Object.entries(MEAL_NAMES)].map(([key,label])=>`<button type="button" class="row-link" data-copy-meal="${key}"><span class="grow">${label}</span><span class="chev">${svg('chev')}</span></button>`).join('')}</div>`,(b,close)=>{
+  sheet("Copy yesterday's food",`<p>Choose what to copy. You’ll review the foods before adding them.</p><div class="card list">${[['','All meals'],...Object.entries(MEAL_NAMES)].map(([key,label])=>`<button type="button" class="row-link" data-copy-meal="${key}"><span class="grow">${label}</span><span class="chev">${svg('chev')}</span></button>`).join('')}</div>`,(b,close)=>{
     guardFoodSheet(b,close,owner);$$('[data-copy-meal]',b).forEach(button=>button.onclick=()=>{if(owner!==readOwner())return;const meal=button.dataset.copyMeal||null;close();yesterdayMeal(day,meal);});
   });
 }
 function yesterdayMeal(day, meal) {
   const owner = readOwner(), from = addDays(day, -1);
-  sheet('Copy yesterday', skel(1), (b, close) => {
+  sheet("Copy yesterday's food", skel(1), (b, close) => {
     const live = () => b.isConnected && readOwner() === owner;
     api(`/api/food/day?d=${from}`).then(D => {
       if (!live()) return;
-      const rows = D.entries.filter(e => (!meal || e.meal === meal) && !e.pending),label=meal?MEAL_NAMES[meal].toLowerCase():'all meals',logLabel=meal?'Log this meal':'Log these foods';
-      b.innerHTML = rows.length ? `<p>Add ${esc(label)} from ${esc(dayLabel(from))} to ${esc(dayLabel(day))}?</p><ul>${rows.map(e => `<li>${!meal?esc(MEAL_NAMES[e.meal])+': ':''}${esc(e.name)} · ${esc(fmtAmount(e))}</li>`).join('')}</ul><button class="primary wide" id="ym-save">${logLabel}</button><p class="small danger" id="ym-error" role="alert"></p>` : `<p>${meal?'No foods were logged for this meal yesterday.':'No food was logged yesterday.'}</p><button class="primary wide" id="ym-usual">Choose from your usuals</button>`;
+      const rows = D.entries.filter(e => (!meal || e.meal === meal) && !e.pending),label=meal?MEAL_NAMES[meal].toLowerCase():'all meals';
+      b.innerHTML = rows.length ? `<p>Add ${esc(label)} from ${esc(dayLabel(from))} to ${esc(dayLabel(day))}?</p><ul>${rows.map(e => `<li>${!meal?esc(MEAL_NAMES[e.meal])+': ':''}${esc(e.name)} · ${esc(fmtAmount(e))}</li>`).join('')}</ul><button class="primary wide" id="ym-save">Add to today</button><p class="small danger" id="ym-error" role="alert"></p>` : `<p>${meal?'No foods were logged for this meal yesterday.':'No food was logged yesterday.'}</p><button class="primary wide" id="ym-usual">Choose from your usuals</button>`;
       if (!rows.length) { $('#ym-usual', b).onclick = () => { if (!live()) return; close(); addSheet(day, meal); }; return; }
       // Keep the same upload identities when a response is lost and this preview is retried.
       const items = rows.map(({meal:sourceMeal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref}) => ({day,meal:meal||sourceMeal,name,brand,amount,unit,kcal,protein_g,carbs_g,fat_g,fiber_g,sodium_mg,sugar_g,saturated_fat_g,source,ref,entry_method:'copy_yesterday',client_id:newId()}));
@@ -148,7 +148,7 @@ function yesterdayMeal(day, meal) {
           toast(result.queued?'Food saved on this phone · waiting to send':meal?'Meal logged':'Foods logged',result.undo);
         }
         catch(x) { if (live()) $('#ym-error', b).textContent = x.message + ' Your meal is ready to retry.'; }
-        finally { busy = false; if (live() && !done) { button.disabled = false; button.textContent = logLabel; } }
+        finally { busy = false; if (live() && !done) { button.disabled = false; button.textContent = 'Add to today'; } }
       };
     }).catch(x => { if (live()) { b.innerHTML = '<p>The previous day could not load.</p><button class="primary wide" id="ym-retry">Try again</button>'; $('#ym-retry',b).onclick = () => { if (!live()) return; close(); yesterdayMeal(day,meal); }; } });
   });
@@ -361,7 +361,7 @@ function drawDay(el, D) {
     if (e.pending) { toast('Saved on this phone - it sends when you are back online'); return; }
     entrySheet(e, D.day);
   });
-  const cp = $('#fd-copy', el); if (cp) cp.onclick = () => chooseYesterday(D.day);
+  const cp = $('#fd-copy', el); if (cp) cp.onclick = () => chooseYesterday(isoDay(new Date()));
 }
 function servingAmount(e) {
   const label = e.ref?.serving?.label?.trim();
@@ -381,6 +381,59 @@ document.addEventListener('food:changed',()=>{
   foodRefreshFrame=requestAnimationFrame(()=>{foodRefreshFrame=null;if(owner===readOwner()&&location.pathname==='/food'&&page===$('#page'))render();});
 });
 const refresh = () => { invalidate('/api/food'); if (location.pathname !== '/food/describe') render(); else if(typeof FoodThread!=='undefined')FoodThread.refresh(); }; // keep a live full-page food conversation until its own confirmation navigates
+
+function recentSavedItems(dishes, meals) {
+  const recent = [
+    ...dishes.filter(d => d.last_used_at && d.last_used_portion && d.totals.kcal != null).map(item => ({kind:'dish',id:item.id,item,name:item.named?item.name:'Untitled recipe',at:item.last_used_at,entryId:item.last_used_entry_id})),
+    ...meals.filter(m => m.last_used_at && m.last_used_entry_id).map(item => ({kind:'meal',id:item.id,item,name:item.name,at:item.last_used_at,entryId:item.last_used_entry_id}))
+  ];
+  return recent.sort((a,b) => Date.parse(b.at)-Date.parse(a.at) || b.entryId-a.entryId || b.id-a.id || a.kind.localeCompare(b.kind)).slice(0,5);
+}
+function recentPortionLabel(recent) {
+  if (recent.kind === 'meal') return `${r1(recent.item.last_used_factor || 1)} serving${recent.item.last_used_factor === 1 ? '' : 's'}`;
+  const portion=recent.item.last_used_portion;
+  if (portion.grams != null) return `${r1(portion.grams)} g`;
+  if (portion.count != null) return `${r1(portion.count)} serving${portion.count === 1 ? '' : 's'}`;
+  return `${Math.round(portion.share*100)}% of recipe`;
+}
+function recentSavedMarkup(recent, {library=false}={}) {
+  if (!recent.length) return '';
+  const rows=recent.map((x,i)=>{
+    const portion=recentPortionLabel(x),calories=x.item.totals.kcal==null?'Calories unknown':`${x.kind==='dish'?recipeCalories(x.item.totals.kcal):r0(x.item.totals.kcal)} kcal`;
+    return `<div class="recent-saved-row" data-recent-row data-recent-index="${i}">
+      <button type="button" class="fe recent-main" data-recent-item data-recent-index="${i}" data-recent-kind="${x.kind}" data-recent-id="${x.id}" aria-label="Add ${esc(x.name)} with last portion ${esc(portion)}">
+        <span class="recent-label"><b>${esc(x.name)}</b><small class="muted">Last portion · ${esc(portion)}</small></span><span class="recent-kcal num">${esc(calories)}</span>
+      </button><button type="button" class="icon-btn recent-add" data-recent-add data-recent-index="${i}" data-recent-kind="${x.kind}" data-recent-id="${x.id}" aria-label="Add ${esc(x.name)} with last portion ${esc(portion)}">${svg('plus')}</button>
+    </div>`;
+  }).join('');
+  return library?`<section class="library-section recent-saved" data-recent-saved><h2>Recent</h2>${rows}</section>`:`<section class="recent-saved" data-recent-saved><h3 class="ghead">Recent</h3><div class="results">${rows}</div></section>`;
+}
+async function logRecentMeal(meal, w) {
+  const factor=Number(meal.last_used_factor)||1;
+  const items=meal.items.map(it=>({...it,...w,amount:it.amount*factor,kcal:it.kcal==null?null:it.kcal*factor,protein_g:it.protein_g==null?null:it.protein_g*factor,
+    carbs_g:it.carbs_g==null?null:it.carbs_g*factor,fat_g:it.fat_g==null?null:it.fat_g*factor,fiber_g:it.fiber_g==null?null:it.fiber_g*factor,
+    ...Object.fromEntries(EXTRA_NUTRIENTS.map(([key])=>[key,it[key]==null?null:it[key]*factor])),
+    source:'meal',ref:{...(it.ref||{}),saved_meal_id:meal.id,saved_meal_factor:factor}}));
+  App.cache.delete('/api/food/meals');
+  return addEntries(items,{thread:location.pathname==='/food/describe'});
+}
+function wireRecentSaved(body,recent,where,{afterDish=()=>{},afterMeal=()=>{}}={}) {
+  $$('[data-recent-item],[data-recent-add]',body).forEach(button=>button.onclick=async()=>{
+    const item=recent[+button.dataset.recentIndex],row=button.closest('[data-recent-row]'),w=where();
+    if(!item||button.disabled||row?.dataset.busy==='true')return;
+    if(item.kind==='dish'){
+      if(item.item.totals.kcal==null){dishLogSheet(item.item,w,afterDish,{quickPortion:item.item.last_used_portion});return;}
+      row.dataset.busy='true';$$('[data-recent-item],[data-recent-add]',row).forEach(control=>control.disabled=true);
+      let locked=true;
+      const unlock=()=>{if(!locked)return;locked=false;if(row.isConnected){delete row.dataset.busy;$$('[data-recent-item],[data-recent-add]',row).forEach(control=>control.disabled=false);}};
+      dishLogSheet(item.item,w,(...args)=>{unlock();afterDish(...args);},{quickPortion:item.item.last_used_portion,onQuickFinish:unlock});
+      return;
+    }
+    row.dataset.busy='true';$$('[data-recent-item],[data-recent-add]',row).forEach(control=>control.disabled=true);
+    try{await logRecentMeal(item.item,w);afterMeal();}
+    catch(e){toast(e.message);delete row.dataset.busy;$$('[data-recent-item],[data-recent-add]',row).forEach(control=>control.disabled=false);}
+  });
+}
 
 async function addEntries(items,{thread=false,restoreFrom=null}={}) {   // each item gets a client_id, so a resend after a lost connection never doubles it
   const owner=readOwner();
@@ -438,7 +491,7 @@ function mealMenu(D, meal) {
     <button class="ghost" id="mm-save"${list.length ? '' : ' disabled'}>Save these foods as a combination</button></div>`, (b, close) => {
     $$('[data-me]', b).forEach(x => x.onclick = () => { close(); entrySheet(list.find(e => String(e.id) === x.dataset.me), D.day); });
     $$('[data-remove-food]', b).forEach(x => x.onclick = () => removeFoodEntry(list.find(e => String(e.id) === x.dataset.removeFood), {button: x, after: close}));
-    $('#mm-yesterday', b).onclick = () => { close(); yesterdayMeal(D.day, meal); };
+    $('#mm-yesterday', b).onclick = () => { close(); yesterdayMeal(isoDay(new Date()), meal); };
     $('#mm-add', b).onclick = () => { close(); describeSheet(D.day, meal); };
     const cp = $('#mm-copy', b); if (cp) cp.onclick = () => { close(); copyDay(D.day, isoDay(new Date()), meal); };
     // naming happens right here (the phone's own pop-up box looked out of place in the iPhone app)
@@ -486,17 +539,17 @@ async function removeFoodEntry(e, {button, after} = {}) {
 function entrySheet(e, day) {
   const owner = readOwner();
   const ref = e.ref;
-  sheet('Edit food', `<p class="entry-context"><b>${esc(e.name)}</b><small class="muted">${MEAL_NAMES[e.meal]} · ${esc(dayLabel(day))}</small></p><div id="es-nut">${nutGrid(e)}</div><form class="form" id="es">
+  sheet('Edit food', `<div class="entry-edit-fields"><p class="entry-context"><b>${esc(e.name)}</b><small class="muted">${MEAL_NAMES[e.meal]} · ${esc(dayLabel(day))}</small></p><div id="es-nut">${nutGrid(e)}</div><form class="form" id="es">
     <label>Name<input name="name" value="${esc(e.name)}" maxlength="200"></label>
     <div class="two"><label>Amount<input name="amount" inputmode="decimal" value="${r1(e.amount)}"></label>
       <label>Unit<select name="unit">${unitOptions(ref, e.unit)}</select></label></div>
     ${macroInputs({...e,...Object.fromEntries((e.ref?.unknown_nutrients||[]).map(k=>[k,null]))})}
     <details class="entry-move"><summary>Move this food</summary><div class="two entry-when"><label>Meal<select name="meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === e.meal ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
       <label>Day<input class="datefield" name="day" type="date" value="${esc(day)}"></label></div></details>
-    <div class="actions"><button class="primary wide">Save changes</button></div></form>
-    <div class="entry-more"><button type="button" class="linkbtn" id="es-again">${svg('plus')}Log again today</button>
-      <button type="button" class="linkbtn danger" id="es-del">${svg('trash')}Remove from ${MEAL_NAMES[e.meal]}</button></div>`, (b, close) => {
+    </form><div class="entry-more"><button type="button" class="linkbtn" id="es-again">${svg('plus')}Log again today</button>
+      <button type="button" class="linkbtn danger" id="es-del">${svg('trash')}Remove from ${MEAL_NAMES[e.meal]}</button></div></div><div class="entry-edit-footer"><button class="primary wide" type="submit" form="es">Save changes</button></div>`, (b, close) => {
     guardFoodSheet(b,close,owner);const f = $('#es', b);
+    b.closest('.sheet').classList.add('food-entry-editor');
     // On a phone, opening the editor shouldn't pop the keyboard up over the numbers.
     if (matchMedia('(pointer: coarse)').matches) b.closest('.sheet').querySelector('[data-close]').focus({preventScroll: true});
     else softFocus(f.name);
@@ -667,10 +720,11 @@ async function tSaved(body, where, close, {manage=false}={}) {
     const mine = dishes.filter((d) => d.mine !== false), theirs = dishes.filter((d) => d.mine === false);
     const row = (kind, i, name, sub, kcal, unit = 'kcal') => `<button class="fe" data-${kind}="${i}"><div><b>${esc(name)}</b><small class="muted">${esc(sub)}</small></div>
       <div class="r"><b class="num">${kind==='dish'?recipeCalories(kcal):r0(kcal)}</b><small class="muted">${unit}</small></div></button>`;
-    const dishRow = (d, i) => row('dish', i, d.name, d.mine === false ? `From ${d.owner.name.split(' ')[0]}` : d.items.length ? listOf(d.items.map((x) => x.name)) : 'Total typed in',
+    const dishRow = (d, i) => row('dish', i, d.named?d.name:'Untitled recipe', d.mine === false ? `From ${d.owner.name.split(' ')[0]}` : d.items.length ? listOf(d.items.map((x) => x.name)) : 'Total typed in',
       (d.serving === 'one' ? d.per_serving.kcal : d.totals.kcal), d.totals.kcal==null?(d.mine===false?'Calories unavailable':'Add nutrition'):d.serving === 'one' ? 'kcal a serving' : 'kcal total');
-    body.innerHTML = `<p class="small muted">${manage?'Open a recipe to edit it, or choose Log portion.':'Choose a recipe to log a portion. Edit changes the saved recipe.'}</p>
-      ${mine.length ? `<h3 class="ghead">Your recipes</h3><div class="results">${mine.map((d) => `<div class="meal-library-row">${dishRow(d, dishes.indexOf(d))}<button type="button" class="ghost sm" data-edit-meal="${d.id}" aria-label="${manage?'Log a portion of':'Edit'} ${esc(d.name)}">${manage?'Log portion':svg('edit')+' Edit'}</button></div>`).join('')}</div>` : '<p class="small muted">Create your first recipe, with or without Kit.</p>'}
+    const recent=recentSavedItems(dishes,meals);
+    body.innerHTML = `${recentSavedMarkup(recent)}
+      ${mine.length ? `<h3 class="ghead">Your recipes</h3><div class="results">${mine.map((d) => `<div class="meal-library-row">${dishRow(d, dishes.indexOf(d))}<button type="button" class="ghost sm" data-edit-meal="${d.id}" aria-label="${manage?'Log a portion of':'Edit'} ${esc(d.named?d.name:'Untitled recipe')}">${manage?'Log portion':svg('edit')+' Edit'}</button></div>`).join('')}</div>` : '<p class="small muted">Create your first recipe, with or without Kit.</p>'}
       ${theirs.length ? `<h3 class="ghead">Shared with you</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
       ${meals.length ? `<h3 class="ghead">Saved combinations</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
       <h3 class="ghead ghead-act">My foods<button class="linkbtn" id="tm-food">New food</button></h3><p class="small muted">Tap a food to log it, or choose Edit to change its saved nutrition.</p><div class="results">${foods.map((f,i) => `<div class="meal-library-row">${foodRow(f,i)}<button class="ghost sm" data-edit-food="${i}">Edit</button></div>`).join('')}</div>
@@ -682,15 +736,18 @@ async function tSaved(body, where, close, {manage=false}={}) {
     $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close, () => foodEditor(foods[+x.dataset.i], again)));
     $$('[data-dish]', body).forEach((x) => x.onclick = () => { const dish=dishes[+x.dataset.dish];if(manage)go('/food/cook/'+dish.id);else if(dish.totals.kcal==null&&dish.mine!==false)knownSheet(dish,()=>{invalidate('/api/dishes');again();});else dishLogSheet(dish,where(),()=>close()); });
     $$('[data-meal]', body).forEach((x) => x.onclick = () => savedSheet(meals[+x.dataset.meal], where(), close, again));
+    wireRecentSaved(body,recent,where,{afterDish:()=>close(),afterMeal:()=>close()});
   } catch (x) { if(valid()){body.innerHTML = `<p class="err">${esc(x.message)}</p><button type="button" class="ghost wide" id="tm-retry">Try again</button>`;$('#tm-retry',body).onclick=()=>tSaved(body,where,close,{manage});} }
 }
 // The managed library stays separate from Add food's existing portion picker.
 function drawRecipeLibrary(body,dishes,meals,foods,where,close,again){
   const preview=items=>items.slice(0,3).map(x=>x.name).join(', ')+(items.length>3?` +${items.length-3}`:'');
-  const dishRow=(d,i)=>{const per=d.serving==='one'||(d.mine===false&&!d.weight_g),value=(per?d.per_serving:d.totals)?.kcal;
-    return `<div class="library-row" data-library-name="${esc(d.name.toLowerCase())}"><button type="button" class="library-recipe" data-dish="${i}" title="${esc(d.name)}"><b>${esc(d.name)}</b><small>${esc(d.mine===false?`From ${d.owner.name.split(' ')[0]}`:d.items.length?preview(d.items):'Entered nutrition')}</small><span class="num">${value==null?'Calories unknown':recipeCalories(value)+' kcal'}${value==null?'':per?' / serving':' total'}</span></button><button type="button" class="${d.totals.kcal==null&&d.mine!==false?'ghost sm library-add-nutrition':'icon-btn'}" data-log-dish="${i}" aria-label="${d.totals.kcal==null&&d.mine!==false?'Add nutrition for':'Log a portion of'} ${esc(d.name)}">${d.totals.kcal==null&&d.mine!==false?'Add nutrition':svg('plus')}</button></div>`;};
+  const dishRow=(d,i)=>{const per=d.serving==='one'||(d.mine===false&&!d.weight_g),value=(per?d.per_serving:d.totals)?.kcal,label=d.named?d.name:'Untitled recipe';
+    return `<div class="library-row" data-library-name="${esc(label.toLowerCase())}"><button type="button" class="library-recipe" data-dish="${i}" title="${esc(label)}"><b>${esc(label)}</b><small>${esc(d.mine===false?`From ${d.owner.name.split(' ')[0]}`:d.items.length?preview(d.items):'Entered nutrition')}</small><span class="num">${value==null?'Calories unknown':recipeCalories(value)+' kcal'}${value==null?'':per?' / serving':' total'}</span></button><button type="button" class="${d.totals.kcal==null&&d.mine!==false?'ghost sm library-add-nutrition':'icon-btn'}" data-log-dish="${i}" aria-label="${d.totals.kcal==null&&d.mine!==false?'Add nutrition for':'Log a portion of'} ${esc(label)}">${d.totals.kcal==null&&d.mine!==false?'Add nutrition':svg('plus')}</button></div>`;};
   const mine=dishes.filter(d=>d.mine!==false),theirs=dishes.filter(d=>d.mine===false),many=dishes.length+meals.length+foods.length>10;
+  const recent=recentSavedItems(dishes,meals);
   body.innerHTML=`
+    ${recentSavedMarkup(recent,{library:true})}
     ${many?`<label class="library-search"><span class="library-search-label">Search recipes and foods</span><input id="tm-filter" type="search" placeholder="Search recipes and foods" autocomplete="off"></label>${foods.length&&(dishes.length||meals.length)?`<div class="library-jumps"><button type="button" class="linkbtn" data-library-jump="recipes">Recipes ${dishes.length}</button><button type="button" class="linkbtn" data-library-jump="foods">Foods ${foods.length}</button></div>`:''}`:''}
     <div id="library-recipes">
     ${mine.length?`<section class="library-section"><h2>Your recipes</h2>${mine.map(d=>dishRow(d,dishes.indexOf(d))).join('')}</section>`:''}
@@ -708,6 +765,7 @@ function drawRecipeLibrary(body,dishes,meals,foods,where,close,again){
   $$('[data-edit-food]',body).forEach(b=>b.onclick=()=>foodEditor(foods[+b.dataset.editFood],again));
   $$('[data-i]',body).forEach(b=>b.onclick=()=>amountSheet(foods[+b.dataset.i],where(),close,()=>foodEditor(foods[+b.dataset.i],again)));
   $$('[data-meal]',body).forEach(b=>b.onclick=()=>savedSheet(meals[+b.dataset.meal],where(),close,again));
+  wireRecentSaved(body,recent,where);
   $$('[data-library-jump]',body).forEach(b=>b.onclick=()=>$('#library-'+b.dataset.libraryJump,body).scrollIntoView({block:'start'}));
   const search=$('#tm-filter',body);if(search)search.oninput=()=>{const q=search.value.trim().toLowerCase();let count=0;$$('[data-library-name]',body).forEach(n=>{n.hidden=!n.dataset.libraryName.includes(q);if(!n.hidden)count++;});$$('.library-section',body).forEach(n=>n.hidden=![...n.querySelectorAll('[data-library-name]')].some(r=>!r.hidden));$('#tm-no-match',body).hidden=count>0;};
 }
@@ -743,7 +801,8 @@ function savedSheet(m, w, closeParent, after) {
       e.preventDefault(); const k = factor();
       if (!k) { toast('Enter the number of servings.'); return; }
       const sc = (v) => (v == null ? null : v * k);
-      const items = m.items.map((it) => ({...it, ...w, amount: it.amount * k, kcal: sc(it.kcal), protein_g: sc(it.protein_g), carbs_g: sc(it.carbs_g), fat_g: sc(it.fat_g), fiber_g: sc(it.fiber_g), ref: it.ref || null, source: 'meal'}));
+      const items = m.items.map((it) => ({...it, ...w, amount: it.amount * k, kcal: sc(it.kcal), protein_g: sc(it.protein_g), carbs_g: sc(it.carbs_g), fat_g: sc(it.fat_g), fiber_g: sc(it.fiber_g),...Object.fromEntries(EXTRA_NUTRIENTS.map(([key])=>[key,sc(it[key])])),ref: {...(it.ref||{}),saved_meal_id:m.id,saved_meal_factor:k}, source: 'meal'}));
+      App.cache.delete('/api/food/meals');
       try { const result=await addEntries(items,{thread:location.pathname==='/food/describe'}); close(); closeParent(); toast(`Added ${m.name}`,result.undo); } catch (x) { toast(x.message); }
     };
     $('#sv-del', b).onclick = async () => {
