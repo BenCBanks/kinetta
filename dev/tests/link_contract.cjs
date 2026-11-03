@@ -22,7 +22,11 @@ function intention(link,base,registry,login){
   return fail('external destination needs an explicit allowlist entry');
  }
  const pathname=url.pathname.replace(/\/+$/,'')||'/me',q=url.searchParams;
- if(pathname==='/admin'||pathname==='/api/account/export')return {kind:'document',url};
+ if(pathname==='/api/account/export'){
+  if(!link.download)return fail('account export must be marked as a download');
+  return {kind:'download',url};
+ }
+ if(pathname==='/admin')return {kind:'document',url};
  if(!registry.some(route=>new RegExp(route.source,route.flags).test(pathname)))return fail('unregistered route would render the unknown-route fallback');
  if(q.has('view')&&!Object.hasOwn(views[pathname]||{},q.get('view')))return fail('unsupported view='+q.get('view'));
  if(pathname==='/progress'&&q.has('section')&&q.get('section')!=='food')return fail('unsupported Progress section');
@@ -55,7 +59,7 @@ function intention(link,base,registry,login){
 async function fetchDocument(request,url,base){
  const origin=new URL(base).origin;let target=new URL(url,base);
  const path=pathname=>pathname.replace(/\/+$/,'')||'/';
- const expectedPath=path(target.pathname),expectedType={'/admin':'text/html','/api/account/export':'application/zip'}[expectedPath];
+ const expectedPath=path(target.pathname),expectedType={'/admin':'text/html'}[expectedPath];
  assert(expectedType,`Unsupported internal document: ${expectedPath}`);
  for(let hop=0;hop<=5;hop++){
   assert.equal(target.origin,origin,'Internal document redirect must stay inside the fixture before requesting it');

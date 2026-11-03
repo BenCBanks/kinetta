@@ -7,7 +7,7 @@ const {fixturePage}=require('./ui_fixture_browser.cjs');
 const {boundary,context,fixtureSessions,ready,visibleTitles,closeSheets}=require('./journey_browser.cjs');
 const base=process.env.KINETTA_URL,project=process.env.KINETTA_PROJECT,partial=process.argv.includes('--rendered-only');
 let checking='collecting initial scenes';
-const collect=p=>p.evaluate(()=>[...document.querySelectorAll('a[href],[data-href]')].map(node=>{const raw=node.getAttribute('href')||node.dataset.href;if(!raw)return null;const url=new URL(raw,location.href);return {href:url.origin===location.origin?url.pathname+url.search+url.hash:url.href,label:node.getAttribute('aria-label')||node.textContent.trim(),source:location.pathname+location.search};}).filter(Boolean));
+const collect=p=>p.evaluate(()=>[...document.querySelectorAll('a[href],[data-href]')].map(node=>{const raw=node.getAttribute('href')||node.dataset.href;if(!raw)return null;const url=new URL(raw,location.href);return {href:url.origin===location.origin?url.pathname+url.search+url.hash:url.href,label:node.getAttribute('aria-label')||node.textContent.trim(),source:location.pathname+location.search,download:node.hasAttribute('download')};}).filter(Boolean));
 (async()=>{
  boundary();const started=Date.now(),fixtures=JSON.parse(fs.readFileSync(process.env.KINETTA_JOURNEY_FIXTURES||'/tmp/'+project+'-journeys.json'));
  const selected=scenes(fixtures),recursive=new Set(['alex',fixtures.journey.login]);
@@ -64,7 +64,10 @@ const collect=p=>p.evaluate(()=>[...document.querySelectorAll('a[href],[data-hre
    probe=f.p;
    if(result.kind==='document'){
     const response=await fetchDocument(f.c.request,result.url.href,base);
-    assert.equal(new URL(response.url()).origin,new URL(base).origin,'Internal download never escapes the fixture');
+    assert.equal(new URL(response.url()).origin,new URL(base).origin,'Internal document redirect must stay inside the fixture');
+   }else if(result.kind==='download'){
+    assert.equal(result.url.pathname,'/api/account/export','Only the explicit account export action is treated as a download');
+    assert(link.download,'Account export must keep its download marker');
    }else{
     await closeSheets(f.p);
     if(result.segmentReview){
