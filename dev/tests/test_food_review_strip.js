@@ -102,9 +102,9 @@ const scan=c.barcodeChatInput('016000157620');assert.equal(scan.body,'Scanned a 
 assert.equal(c.foodActionCopy(barcodeRoot,{entries:[],result:{parts:[]}}).title,'Food details');
 assert.equal(c.foodActionCopy(barcodeRoot,{entries:[{name:'Fictional oats'}]}).title,'Fictional oats');
 assert.equal(c.foodActionCopy(barcodeRoot,{entries:[]}).change,'Change it');
-assert.equal(c.foodActionCopy(barcodeRoot,{entries:[]}).remove,'Remove description');
+assert.equal(c.foodActionCopy(barcodeRoot,{entries:[]}).remove,'Remove from chat');
 assert.equal(c.foodActionCopy(barcodeRoot,{entries:[]}).note,'This removes the food details from this chat.');
-assert.match(c.foodActionCopy(barcodeRoot,{entries:[{name:'Fictional oats'}]}).note,/Food already in your log stays/);
+assert.equal(c.foodActionCopy(barcodeRoot,{entries:[{name:'Fictional oats'}]}).note,'Food already in your log stays.','only logged food gets the reassurance note');
 const found=c.replyHtml(barcodeRoot,{entries:[],result:{kind:'preview',parts:[{index:0,status:'ready',entries:[{name:'Fictional oats',amount:1,unit:'serving',kcal:220}]}]}});
 assert.match(found,/Fictional oats/,'a recognized barcode still shows its product name');
 console.log('barcode card: normal not-found copy, consent-aware primary action, manual/retry recovery, generic scan label and food-named menu PASS');

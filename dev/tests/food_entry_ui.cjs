@@ -44,7 +44,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     assert.equal(await card.locator('[data-manual]').evaluate(n=>n.classList.contains('linkbtn')),true,'Enter nutrition is a plain link, not a pill');
     if(process.env.SHOT_DIR&&size.width===390){fs.mkdirSync(process.env.SHOT_DIR,{recursive:true});await p.screenshot({path:path.join(process.env.SHOT_DIR,`barcode-not-found-${theme}-390.png`)});}
     await card.locator('[data-more]').click();await p.waitForSelector('#thread-correct');
-    assert.equal(await p.locator('.scrim .sheet h2').innerText(),'Food details');assert.equal(await p.locator('#thread-correct').innerText(),'Change it');assert.equal(await p.locator('#thread-delete').innerText(),'Remove description');assert.equal(await p.locator('.scrim .sheet p').innerText(),'This removes the food details from this chat.');
+    assert.equal(await p.locator('.scrim .sheet h2').innerText(),'Food details');assert.equal(await p.locator('#thread-correct').innerText(),'Change it');assert.equal(await p.locator('#thread-delete').innerText(),'Remove from chat');assert.equal(await p.locator('.scrim .sheet p').innerText(),'This removes the food details from this chat.');
     await p.keyboard.press('Escape');await p.locator('.scrim').waitFor({state:'detached'});
     let dialogs=0;p.on('dialog',dialog=>{dialogs++;dialog.dismiss();});
     await p.evaluate(()=>scanSheet(isoDay(new Date()),'lunch',null));await p.waitForSelector('#sc-lookup');

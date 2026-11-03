@@ -168,7 +168,7 @@ const FoodThread = (() => {
   }
   function foodActionCopy(root,reply){
     const entries=reply?.entries?.length?reply.entries:reply?.result?.parts?.flatMap(part=>part.entries||[])||[];
-    return {title:foodActionTitle(root,reply),change:'Change it',remove:'Remove description',note:entries.length?'This removes the food details from this chat. Food already in your log stays.':'This removes the food details from this chat.'};
+    return {title:foodActionTitle(root,reply),change:'Change it',remove:'Remove from chat',note:entries.length?'Food already in your log stays.':'This removes the food details from this chat.'};
   }
   function barcodeChatInput(code){return {body:'Scanned a barcode',media:'barcode',barcode:String(code)};}
   function foodMessageBody(message){
