@@ -174,6 +174,7 @@ node dev/tests/test_food_send_recovery.js
 node dev/tests/test_food_chat_viewport.js
 node dev/tests/test_food_review_strip.js
 node --check dev/tests/food_entry_ui.cjs
+node --check dev/tests/food_removal_ui.cjs
 node dev/tests/test_pending_food_nutrition.js
 node dev/tests/test_thread_privacy.js
 node dev/tests/test_quick_food_visit.js
@@ -243,6 +244,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/push_repair_incontainer.
 docker compose -p "$P" exec -T app python - < dev/tests/daily_goals_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/ai_access_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/meal_chat_incontainer.py
+docker compose -p "$P" exec -T app python - < dev/tests/food_removal_contract_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/food_lookup_sizes_incontainer.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_admin_portal.py
 docker compose -p "$P" exec -T app python - < dev/tests/test_account_email.py

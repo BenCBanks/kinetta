@@ -25,9 +25,19 @@ try:
  assert b.post(f"/api/food/thread/messages/{root['id']}/undo",{})[0]==404
  post(f"/api/food/thread/messages/{root['id']}/undo",{});post('/api/food/entries?thread=true',[item],status=409)
  assert not any(e['id']==r['ids'][0] for e in a.get('/api/food/day?d=2026-10-16')[1]['entries'])
- kept=entry('Kept food');r=post('/api/food/entries?thread=true',[kept]);mid=r['messages'][0]['id'];assert a.delete('/api/food/thread/messages/'+str(mid))[0]==200
+ kept=entry('Kept food');r=post('/api/food/entries?thread=true',[kept]);mid=r['messages'][0]['id']
+ assert a.delete(f'/api/food/thread/messages/{mid}/unlogged')[0]==409,'one-tap removal refuses food another device already logged'
+ assert any(m['id']==mid for m in roots()),'a refused removal keeps its card available'
+ assert a.delete('/api/food/thread/messages/'+str(mid))[0]==200,'the logged-card text action still works'
  replay=post('/api/food/entries?thread=true',[kept]);assert replay['ids']==r['ids'] and not replay['messages'],'deleted text never resurrects'
  assert a.delete('/api/food/entries/'+str(r['ids'][0]))[0]==200;post('/api/food/entries?thread=true',[kept],status=409)
+ pending_id=str(uuid.uuid4());pending=post('/api/food/thread/messages',{'client_id':pending_id,'body':'Fictional unsaved food','review_only':True,'draft_id':str(uuid.uuid4())},status=201)['message']
+ foreign=b.delete(f"/api/food/thread/messages/{pending['id']}/unlogged")
+ assert foreign[0]==200 and foreign[1]['already_removed'],'an absent card is an idempotent no-op for another account'
+ assert any(m['id']==pending['id'] for m in roots()),"the other account cannot remove the owner's card"
+ removed=a.delete(f"/api/food/thread/messages/{pending['id']}/unlogged");assert removed[0]==200 and removed[1]=={'deleted':True,'food_kept':False}
+ repeated=a.delete(f"/api/food/thread/messages/{pending['id']}/unlogged");assert repeated[0]==200 and repeated[1]=={'deleted':True,'food_kept':False,'already_removed':True}
+ assert a.post('/api/food/thread/messages',{'client_id':pending_id,'body':'Fictional unsaved food','review_only':True,'draft_id':pending['result']['draft_id']})[0]==409,'the removal tombstone prevents a late append from restoring the card'
  dish=post('/api/dishes',{'name':'Fictional soup'});did=dish['id'];assert a.patch('/api/dishes/'+str(did),{'known_kcal':600,'known_protein_g':30,'known_carbs_g':70,'known_fat_g':20})[0]==200
  portion={'count':.5,'day':'2026-10-16','meal':'dinner','client_id':str(uuid.uuid4())}
  pr=post(f'/api/dishes/{did}/portion?thread=true',portion);assert pr['entry']['kcal']==300 and len(pr['messages'])==2

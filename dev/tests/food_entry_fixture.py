@@ -6,7 +6,7 @@ from kc import person,PW
 base=urlparse(os.environ.get('KINETTA_URL','http://localhost:8798'));project=os.environ.get('KINETTA_PROJECT','kinettatest')
 assert base.hostname in ('localhost','127.0.0.1') and (project.startswith('kt-') or project=='kinettatest')
 port=subprocess.check_output(['docker','inspect','--format','{{(index (index .NetworkSettings.Ports "8000/tcp") 0).HostPort}}',project+'-app-1'],text=True).strip();assert base.port==int(port)
-for who in ('empty','one','three','photo','clarify','actions','nullable','barcode'):
+for who in ('empty','one','three','photo','clarify','actions','nullable','barcode','logged'):
  c=person('zz_test_food_compact_'+who);assert c.post('/api/account/delete',{'password':PW})[0]==200;c=person('zz_test_food_compact_'+who,'River '+who.title());ai_ok=who=='barcode';assert c.put('/api/profile',{'tz':'UTC','ai_ok':ai_ok,'ai_adult':ai_ok})[0]==200
 script=r'''
 import datetime as dt,uuid
@@ -43,5 +43,12 @@ with patch('urllib.request.urlopen',side_effect=AssertionError('No external requ
    uid=c.execute('SELECT id FROM users WHERE login=%s',(login,)).fetchone()['id'];result=C.write(c,uid,T.locked_message(c,uid,m['id']),{'composed':True,'day':str(dt.date.today()),'meal':'lunch','parts':[part]})
   reply=next(x for x in result['messages'] if x.get('reply_to')==m['id']);assert not reply['result'].get('error'),reply['result'];assert client.get('/api/food/day').json()['entries']==[]
   print(who,'saved fictional stand-in ready')
+login='zz_test_food_compact_logged';client=TestClient(app);client.headers['Origin']='http://testserver';assert client.post('/api/login',json={'login':login,'password':'green teapot on the hill'}).status_code==200
+draft=str(uuid.uuid4());message=client.post('/api/food/thread/messages',json={'client_id':str(uuid.uuid4()),'draft_id':draft,'body':'Fictional logged apple','meal':'lunch','day':str(dt.date.today())});assert message.status_code==201,message.text
+m=message.json()['message'];entry={'name':'Fictional logged apple','brand':None,'amount':1,'unit':'serving','kcal':80,'protein_g':0,'carbs_g':21,'fat_g':0,'fiber_g':4,'source':'quick','ref':{}}
+with db.connect() as c:
+ uid=c.execute('SELECT id FROM users WHERE login=%s',(login,)).fetchone()['id'];result=C.write(c,uid,T.locked_message(c,uid,m['id']),{'composed':True,'day':str(dt.date.today()),'meal':'lunch','parts':[{'index':0,'status':'ready','manual':True,'entries':[entry]}]},force=True)
+reply=next(x for x in result['messages'] if x.get('reply_to')==m['id']);assert reply['entries'] and reply['result']['kind']=='log'
+print('logged saved fictional card')
 '''
 subprocess.run(['docker','exec','-i',project+'-app-1','python','-'],input=script,text=True,check=True)

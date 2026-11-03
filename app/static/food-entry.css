@@ -1,5 +1,19 @@
 /* Draft foods keep amounts, source and explicit review together without repeated totals. */
 .food-thread.has-messages .thread-quick-actions { display:none; }
+.food-thread .thread-remove-unlogged {display:grid;place-items:center;flex:none;width:44px;min-width:44px;height:44px;min-height:44px;margin:0;padding:0;border:0;border-radius:0;background:transparent;color:var(--tx2);font:400 18px/1 var(--font);}
+.food-thread .thread-remove-unlogged:active {transform:scale(.94);}
+.food-thread .thread-remove-floating {position:absolute;z-index:1;top:3px;right:3px;}
+.food-thread .thread-card:has(> .thread-remove-floating) {padding-top:48px;}
+.food-thread .compact-thread-card .thread-remove-unlogged {position:static;margin:0 -8px 0 0;}
+.food-thread .thread-pending-card {position:relative;}
+.food-thread .thread-remove-notice {display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:0 4px;color:var(--tx2);font-size:.875rem;}
+.food-thread .thread-remove-notice[hidden] {display:none;}
+.food-thread .thread-remove-notice button {flex:none;min-width:44px;min-height:44px;padding:0 8px;border:0;background:transparent;color:var(--accent);text-align:right;text-decoration:underline;}
+.food-thread .thread-remove-failed {display:flex;align-items:center;justify-content:flex-start;gap:0;max-width:100%;margin-top:8px;color:var(--tx);font-size:.875rem;white-space:nowrap;}
+.food-thread .thread-remove-failed button {flex:none;min-height:44px;margin-left:2px;padding:0 4px;color:var(--accent);text-decoration:underline;}
+#thread-messages article.thread-removing {overflow:hidden;max-height:900px;opacity:1;transition:max-height 150ms ease,opacity 150ms ease,margin 150ms ease;}
+#thread-messages article.thread-removing.is-collapsing {max-height:0;opacity:0;margin-block:0;}
+@media(prefers-reduced-motion:reduce) {#thread-messages article.thread-removing {transition:none;}}
 .food-thread .compact-thread-card { max-width:100%; padding:0 12px 8px; }
 .compact-thread-card .thread-card-head { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:44px; }
 .compact-thread-card .thread-card-head .thread-more { flex:none; margin:0 -8px 0 0; }

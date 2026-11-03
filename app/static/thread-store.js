@@ -28,6 +28,7 @@ const ThreadDB = (() => {
     put: (owner,id,value) => tx('jobs',(s) => s.put({...value,owner,id,key:key(owner,id)})),
     ensure: (owner,id,value) => tx('jobs',s=>{const r=s.get(key(owner,id));r.onsuccess=()=>{if(!r.result)s.put({...value,owner,id,key:key(owner,id)});};}),
     update: (owner,id,fn) => tx('jobs',(s,done)=>{const r=s.get(key(owner,id));r.onsuccess=()=>{if(!r.result){done(null);return;}const value=fn(r.result);s.put(value);done(value);};}),
+    removeIfCurrent: (owner,id,phase,expectedVersion) => tx('jobs',(s,done)=>{const r=s.get(key(owner,id));r.onsuccess=()=>{const current=r.result;if(!current||current.phase!==phase||(Number(current.version)||0)!==expectedVersion||['remove','remove-failed','complete'].includes(current.phase)||current.removeError){done(false);return;}s.delete(key(owner,id));done(true);};}),
     remove: (owner,id) => tx('jobs',s=>s.delete(key(owner,id))),
     read: owner => tx('state',(s,done)=>{const r=s.get(owner);r.onsuccess=()=>done(r.result || {});}),
     patch: (owner,patch) => tx('state',s=>{const r=s.get(owner);r.onsuccess=()=>s.put({...r.result,...patch,key:owner});}),
@@ -64,40 +65,66 @@ async function restoreFoodPending({db,owner,draftId,messages}) {
 
 // Injected transport/storage allow tests to reorder responses and switch accounts
 // through the same state machine the app uses. Every network step is replay-safe.
-function foodOutbox({db,request,session,changed,progress=async()=>{},online=()=>navigator.onLine,timeoutMs=path=>path.endsWith('/resolve')?180000:30000}) {
-  const busy = new Set(), sending = new Set();
+function foodOutbox({db,request,session,changed,progress=async()=>{},onCompleted=async()=>{},online=()=>navigator.onLine,timeoutMs=path=>path.endsWith('/resolve')?180000:30000}) {
+  const busy = new Set(), sending = new Set(), rerun = new Map();
+  const version = job => Number(job.version)||0;
   return {
     isSending: (owner,id)=>sending.has(JSON.stringify([owner,id])),
     async flush(owner,{force=false}={}) {
-      if (busy.has(owner) || (!online()&&!force)) return;
+      if (busy.has(owner)){rerun.set(owner,!!force||rerun.get(owner));return;}
+      if (!online()&&!force) return;
       const guard=session();busy.add(owner);
       try {
+        do {
+        if(rerun.get(owner))force=true;
+        rerun.delete(owner);
         for (let job of await db.list(owner)) {
           if (session()!==guard || (!online()&&!force)) break;
+          if(['remove','remove-failed','complete'].includes(job.phase)||job.removeError)continue;
           if (job.error && job.phase!=='cancel') continue; // Failed messages keep Retry without blocking new messages.
+          const owns = async () => {
+            if(session()!==guard)return false;
+            const current=(await db.list(owner)).find(row=>row.id===job.id);
+            return !!current&&current.phase===job.phase&&version(current)===version(job);
+          };
           const write = async patch => {
-            job=await db.update(owner,job.id,current=>current.phase==='cancel'?current:{...current,...patch});
-            if(!job||job.phase==='cancel')throw Object.assign(Error('Stopped sending this message.'),{interrupted:true});
+            const expectedPhase=job.phase,expectedVersion=version(job);let changed=false;
+            const current=await db.update(owner,job.id,row=>{
+              if(row.phase!==expectedPhase||row.phase==='cancel'||['remove','remove-failed','complete'].includes(row.phase)||row.removeError||version(row)!==expectedVersion)return row;
+              changed=true;return {...row,...patch};
+            });
+            if(!changed||!current||current.phase==='cancel'||['remove','remove-failed','complete'].includes(current.phase)||current.removeError||version(current)!==expectedVersion)
+              throw Object.assign(Error('Stopped sending this message.'),{interrupted:true});
+            job=current;
+          };
+          const finish = async () => {
+            const expectedPhase=job.phase,expectedVersion=version(job);
+            if(!await db.removeIfCurrent(owner,job.id,expectedPhase,expectedVersion))throw Object.assign(Error('Stopped sending this message.'),{interrupted:true});
+            try{await onCompleted(owner,job.id);}catch{}
           };
           const call = async (path,body) => {
             if(session()!==guard)throw Object.assign(Error('The account changed.'),{stale:true});
             let r,timer;const controller=new AbortController();
             const sendingKey=JSON.stringify([owner,job.id]);sending.add(sendingKey);await progress(owner);
             try{
+              if(!await owns())throw Object.assign(Error('Stopped sending this message.'),{interrupted:true});
               r=await Promise.race([request(path,body,{signal:controller.signal}),new Promise((_,reject)=>{
                 timer=setTimeout(()=>{reject(Object.assign(Error('Sending took too long. Your food is still on this phone. Tap Retry to try again.'),{timeout:true}));controller.abort();},timeoutMs(path));
               })]);
             }catch(e){e.message=foodThreadError(e,path);throw e;}
             finally{clearTimeout(timer);sending.delete(sendingKey);await progress(owner);}
             if(session()!==guard)throw Object.assign(Error('The account changed.'),{stale:true});
-            await changed(owner,r);return r;
+            if(!await owns())throw Object.assign(Error('Stopped sending this message.'),{interrupted:true});
+            await changed(owner,r,{id:job.id,version:version(job),phase:job.phase,session:guard});
+            if(!await owns())throw Object.assign(Error('Stopped sending this message.'),{interrupted:true});
+            return r;
           };
           try {
-            if(job.offline)await db.update(owner,job.id,current=>({...current,offline:false}));
-            if (job.phase==='cancel') { await call('/api/food/thread/cancel',{client_id:job.id});await db.remove(owner,job.id);continue; }
+            if(job.offline)await write({offline:false});
+            if (job.phase==='cancel') { await call('/api/food/thread/cancel',{client_id:job.id});await finish();continue; }
             if(job.items||job.dish){
               await call('/api/food/thread/reviews/'+(job.items?'items':'dish'),{client_id:job.id,draft_id:job.draft_id,...(job.items?{items:job.items}:job.dish)});
-              await db.remove(owner,job.id);continue;
+              await finish();continue;
             }
             if (!job.mid) {
               const r=await call('/api/food/thread/messages',{client_id:job.id,body:job.body,captured_at:job.at,media:job.media||'text',...(job.itemize?{itemize:true}:{}),...(job.review_only?{review_only:true}:{}),...(job.draft_id?{draft_id:job.draft_id}:{}),...(job.day?{day:job.day}:{}),...(job.meal?{meal:job.meal}:{}),...(job.context?{context:job.context}:{}),...(job.barcode?{barcode:job.barcode}:{})});
@@ -109,25 +136,26 @@ function foodOutbox({db,request,session,changed,progress=async()=>{},online=()=>
               const result=(r.messages||[]).find(m=>m.reply_to===job.mid)?.result || {};
               if(r.processing||result.processing)break;
               if(result.can_resolve)await write({phase:'resolve'});
-              else {await db.remove(owner,job.id);continue;}
+              else {await finish();continue;}
             }
             if(job.phase==='resolve') {
               r=await call(`/api/food/thread/messages/${job.mid}/resolve`,{...(job.images?.length?{images:job.images}:{}),retry:!!job.retry,...(job.note!==undefined?{note:job.note}:{}),...(job.itemize?{itemize:true}:{})});
               const result=(r.messages||[]).find(m=>m.reply_to===job.mid)?.result || {};
               if(r.processing||result.processing)break; // Another request holds the bounded server lease.
-              await db.remove(owner,job.id); // Source errors remain on the server card with explicit Retry.
+              await finish(); // Source errors remain on the server card with explicit Retry.
             }
           } catch(e) {
-            if(job.phase==='cancel' && e.status===409){await db.remove(owner,job.id);continue;}
-            if(e.code==='message_cancelled'){await db.remove(owner,job.id);continue;}
-            if(e.offline)await db.update(owner,job.id,current=>current.phase==='cancel'?current:{...current,offline:true});
+            if(job.phase==='cancel' && e.status===409){try{await finish();}catch{}continue;}
+            if(e.code==='message_cancelled'){try{await finish();}catch{}continue;}
+            if(e.offline)await db.update(owner,job.id,current=>current.phase!==job.phase||['remove','remove-failed','complete'].includes(current.phase)||current.removeError||version(current)!==version(job)?current:{...current,offline:true});
             if(!e.offline&&!e.stale&&!e.interrupted) {
-              await db.update(owner,job.id,current=>current.phase==='cancel'?current:{...current,error:e.message});
+              await db.update(owner,job.id,current=>current.phase!==job.phase||current.phase==='cancel'||['remove','remove-failed','complete'].includes(current.phase)||current.removeError||version(current)!==version(job)?current:{...current,error:e.message});
             }
             await progress(owner);if(e.stale||e.interrupted)break;
           }
         }
-      } finally {busy.delete(owner);}
+        } while(session()===guard&&rerun.has(owner));
+      } finally {busy.delete(owner);rerun.delete(owner);}
     },
   };
 }

@@ -33,7 +33,7 @@ assert.match(html,/data-reply="1"/);assert.match(html,/data-reply="&lt;b&gt;"/,'
 console.log('food review strip: finished foods only, open questions never block, calorie total, sending waits, escaped quick replies PASS');
 // New ingredient-analysis controls need current food capability/consent, while
 // the saved explanatory answer remains readable when generation is unavailable.
-Object.assign(c,{previewRows:()=>null,changedNumbers:()=>false,kitFoodWords:s=>s,kitHtml:()=>'',svg:()=>'',food:()=>{throw Error('An answer must not render another food')}});
+Object.assign(c,{previewRows:()=>null,changedNumbers:()=>false,kitFoodWords:s=>s,kitHtml:()=>'',svg:()=>'',removeButtonMarkup:floating=>`<button class="thread-remove-unlogged${floating?' thread-remove-floating':''}" data-unlogged-remove>×</button>`,food:()=>{throw Error('An answer must not render another food')}});
 vm.runInContext(source.slice(source.indexOf('  function foodMessageBody('),source.indexOf('  function replyHtml(')),c);
 vm.runInContext(source.slice(source.indexOf('  function replyHtml('),source.indexOf('  // A "typing" bubble')),c);
 const photoAnswer={entries:[],body:'Saved photo answer',result:{kind:'answer',photo_itemize:3}};
@@ -67,17 +67,17 @@ ctx.messages=[user(1),reply(1,[])];c.primary(ctx);assert.equal(nodes['#thread-re
 assert.equal(c.previewRows({result:{review_only:false}},{parts:[removable]}),null,'logged/legacy rows cannot expose removal');
 console.log('estimate removal: named explicit action, portion controls retained, final-food review hidden PASS');
 
-// Current draft foods use the sticky review total; logged/legacy and incomplete cards keep their own honest total.
+// Current draft foods use the sticky review total and the direct remove control; logged/legacy and incomplete cards keep their own honest total.
 c.fmtAmount=e=>`${e.amount} ${e.unit}`;
 for(const [label,amount,want] of [['1',2,'2 servings'],['1 estimated portion',2,'2 estimated portions'],['1 bottle',1,'1 bottle'],['1 bottle',2,'2 bottles'],['1 hot dog',2,'2 hot dogs'],['1 slice (30 g)',2,'2 servings · 1 slice (30 g) each']])assert.equal(c.threadAmount({amount,unit:'serving',ref:{serving:{label}}}),want);
 assert.equal(c.threadAmount({amount:150,unit:'g'}),'150 g');
 for(const kcal of [0,120]){
  const entry={name:'Fictional food',amount:1,unit:'serving',kcal},result={kind:'preview',parts:[{index:0,status:'ready',estimated:true,entries:[entry]}]};
- const html=c.replyHtml(root,{entries:[],result});assert(!html.includes('thread-total'));assert(html.includes('Review before logging'));assert.equal((html.match(/data-more /g)||[]).length,1);assert(html.includes('data-amount-editor'));
+ const html=c.replyHtml(root,{entries:[],result});assert(!html.includes('thread-total'));assert(html.includes('Review before logging'));assert.equal((html.match(/data-unlogged-remove/g)||[]).length,1,'an unlogged draft has the card remove control');assert(!html.includes('data-more '),'an unlogged draft does not keep the overflow menu');assert(html.includes('data-amount-editor'));
  assert(c.replyHtml({id:1,state:'answered',result:{review_only:false}},{entries:[],result}).includes('thread-total'));
 }
 const incomplete=c.replyHtml(root,{entries:[],result:{kind:'preview',parts:[{index:0,status:'ready',entries:[{name:'Unknown',amount:1,unit:'serving',kcal:null}]}]}});assert(incomplete.includes('Incomplete'));
-console.log('compact drafts: one sticky total, honest incomplete/legacy totals, one message menu, direct amount action and natural source portions PASS');
+console.log('compact drafts: one sticky total, honest incomplete/legacy totals, one card remove control, direct amount action and natural source portions PASS');
 
 // A missing barcode stays readable and offers only actions that make sense before a food exists.
 vm.runInContext(source.slice(source.indexOf('  function missingBarcodeActions('),source.indexOf('  function replyHtml(')),c);
@@ -87,7 +87,7 @@ const notFoundHtml=c.replyHtml(barcodeRoot,notFoundReply);
 assert.match(notFoundHtml,/We couldn't find this barcode\./);assert(!notFoundHtml.includes('Not found in the food database'));
 assert.match(notFoundHtml,/thread-barcode-not-found/);assert(!notFoundHtml.includes('thread-error'));assert(!notFoundHtml.includes('small muted'));
 assert.match(notFoundHtml,/data-manual="0"/);assert.match(notFoundHtml,/data-action="resolve"[^>]*>Try again/);assert(!notFoundHtml.includes('Change amount'));
-assert.match(notFoundHtml,/barcode-choice-row/);assert.match(notFoundHtml,/class="linkbtn" data-manual="0">Enter nutrition/);assert.match(notFoundHtml,/class="icon-btn thread-more" data-more aria-label="More food options"/);
+assert.match(notFoundHtml,/barcode-choice-row/);assert.match(notFoundHtml,/class="linkbtn" data-manual="0">Enter nutrition/);assert.match(notFoundHtml,/data-unlogged-remove/);assert(!notFoundHtml.includes('data-more '),'an unlogged barcode card uses remove instead of the overflow menu');
 assert.equal(c.foodMessageBody(barcodeRoot),'Scanned a barcode','older saved barcode entries no longer expose their digits');
 const legacyNotFound=c.replyHtml(barcodeRoot,{...notFoundReply,result:{...notFoundReply.result,error:{message:'Not found in the food database'}}});
 assert.match(legacyNotFound,/thread-barcode-not-found/);assert.match(legacyNotFound,/We couldn't find this barcode\./);assert(!legacyNotFound.includes('Not found in the food database'));
