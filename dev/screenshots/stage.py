@@ -6,7 +6,11 @@
 # morning (a demo run moved to 2.5 hours ago), so the Today screen isn't an empty week on a Monday.
 # Usage: stage.py <gpx dir from gen_gpx.py>
 from zoneinfo import ZoneInfo
-import datetime as dt, glob, http.cookiejar, json, os, re, sys, time, urllib.request, uuid
+import datetime as dt, glob, http.cookiejar, json, os, re, subprocess, sys, time, urllib.request, uuid
+from pathlib import Path
+
+# Keep the screenshot-only Kit report and its repository boundary checked in CI.
+subprocess.run([sys.executable, str(Path(__file__).with_name('test_kit_release_standin.py'))], check=True)
 
 sys.path.insert(0,str(__import__('pathlib').Path(__file__).resolve().parents[1]))
 from portal_fixture import admin_headers, is_admin_path

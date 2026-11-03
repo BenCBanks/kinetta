@@ -4,5 +4,14 @@
 services:
   app:
     command: ["python", "/standin/standin.py"]
+    environment:
+      # Screenshot-only Kit entry; production/runtime configuration stays untouched.
+      KINETTA_KIT_ENABLED: "1"
+      KINETTA_KIT_EVAL_REPORT: /kit-screenshot-runtime/kit-release.standin.json
+      # Only a placeholder reaches Gemini, even when a local .env contains a real key.
+      GEMINI_API_KEY: placeholder-for-screenshots
+      ANTHROPIC_API_KEY: ""
+    tmpfs:
+      - /kit-screenshot-runtime:uid=1000,gid=1000,mode=0700
     volumes:
       - ./dev/screenshots:/standin:ro
