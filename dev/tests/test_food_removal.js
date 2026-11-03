@@ -61,6 +61,16 @@ function fixture(){
   assert.equal(await f.removal.undo('owner-a','stable-id'),false,'a stale Undo callback is harmless');
   assert.equal(f.calls.length,0);
 
+  // Undo after a reload restores the stored phase, error and photo payload.
+  f=fixture();await f.add('owner-a','retry-id',{phase:'resolve',mid:23,version:4,error:'Check the portion',offline:true});
+  await f.removal.remove('owner-a','retry-id');f.reload();
+  assert.equal(await f.removal.undo('owner-a','retry-id'),true);
+  job=f.rows.get(JSON.stringify(['owner-a','retry-id']));
+  assert.equal(job.phase,'resolve');assert.equal(job.mid,23);assert.equal(job.version,6);
+  assert.equal(job.error,'Check the portion');assert.equal(job.offline,true);
+  assert.deepEqual(job.images,['fictional-jpeg']);assert.deepEqual(job.previews,['fictional-preview']);
+  assert.deepEqual(f.photoRows.get(JSON.stringify(['owner-a','retry-id'])),['fictional-preview']);
+
   f=fixture();await f.add();await f.removal.remove('owner-a','stable-id');await f.advance(6000);
   assert.equal(f.calls.length,1);assert.equal(f.calls[0].path,'/api/food/thread/cancel');
   assert.equal(f.calls[0].body.client_id,'stable-id');
