@@ -44,6 +44,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    await p.locator('[data-progress-period="month"]').click();await ready();assert.equal(await p.locator('[data-progress-period="month"]').getAttribute('aria-pressed'),'true');
    await p.locator('#p-sport').click();await p.locator('[data-pk="all"]').click();await ready();assert.equal(await p.evaluate(()=>localStorage.getItem('fit.psport')),'all');
    if(who==='runner'){
+    await until(p,()=>document.querySelector('#m-chart .distance-column[role="button"]'),'all sports distance chart');
     assert(await p.locator('#m-chart .distance-column[role="button"]').count(),'all sports uses the distance chart');
     await p.locator('#p-sport').click();await p.locator('[data-pk="run"]').click();await ready();
     await p.waitForSelector('#m-chart .period-column');

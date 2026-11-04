@@ -67,7 +67,7 @@ const MeCard=(()=>{
   function card(p,{mine=false,pills='',friends='',link=false,milestones=false,showBio=true}={}){
     const bio=showBio?(p.bio||'').trim():'',photo=avatar(p,'lg'),name=esc(p.name||p.login),handle=`<span data-type="secondary">@${esc(p.login)}</span>`;
     const identity=link
-      ? `<a class="me-card-profile-link" href="${profileHref(p)}" aria-label="View your full profile"><span class="me-card-avatar">${photo}</span><span class="me-card-name"><h2>${name} <span class="me-profile-chevron" data-type="glyph" aria-hidden="true">›</span></h2><span class="me-card-meta">${handle}</span></span></a>${friends}`
+      ? `<a class="me-card-profile-link" href="${profileHref(p)}"><span class="me-card-avatar">${photo}</span><span class="me-card-name"><h2>${name} <span class="me-profile-chevron" data-type="glyph" aria-hidden="true">›</span></h2><span class="me-card-meta">${handle}</span></span></a>${friends}`
       : `<span class="me-card-avatar">${photo}</span><div class="me-card-name"><h2>${name}</h2><div class="me-card-meta">${handle}${friends}</div></div>`;
     return `<section class="me-card" aria-label="${mine?'Your profile card':esc(p.name||p.login)+'’s profile card'}"><div class="me-card-banner">${pills}</div>
       <div class="me-card-body"><div class="me-card-id${link?' me-card-id-link':''}">${identity}</div>
@@ -143,8 +143,8 @@ const MeCard=(()=>{
     };
     const day=d=>fdate(d+'T12:00',{month:'short',day:'numeric'}),streak=Number(r.week_streak);
     const chart=weeks.length?`<div class="me-chart-scroll"><div class="me-card-bars" role="group" aria-label="Weekly distance, last 12 weeks">${weeks.map((w,i)=>{
-      const zero=!(Number(w.distance_m)>0),h=zero?0:Math.max(1,Math.round(Number(w.distance_m)/Math.max(1,...weeks.map(row=>Number(row.distance_m)||0))*10)),label=w.today?'This week':`Week of ${day(w.d)}`,value=weekMetrics(w),aria=`${label}: ${value.distance} ${U.du()}, ${value.activities} ${value.activities==='1'?'workout':'workouts'}, ${value.time}`;
-      return `<button type="button" class="me-week${w.today?' now':''}${zero?' zero':''}" aria-pressed="false" data-range="${esc(w.d)}" data-distance="${esc(w.distance_m||0)}" data-activities="${esc(w.activities||0)}" data-time="${esc(w.time_s||0)}" data-current="${w.today?'true':'false'}" aria-label="${esc(aria)}"><span data-h="${h}"></span><span class="me-week-month" data-type="chart" aria-hidden="true">${esc(month(w,i))}</span></button>`;
+      const zero=!(Number(w.distance_m)>0),h=zero?0:Math.max(1,Math.round(Number(w.distance_m)/Math.max(1,...weeks.map(row=>Number(row.distance_m)||0))*10)),label=w.today?'This week':`Week of ${day(w.d)}`,axisMonth=month(w,i),value=weekMetrics(w),aria=`${label}${axisMonth?`, ${axisMonth}`:''}: ${value.distance} ${U.du()}, ${value.activities} ${value.activities==='1'?'workout':'workouts'}, ${value.time}`;
+      return `<button type="button" class="me-week${w.today?' now':''}${zero?' zero':''}" aria-pressed="false" data-range="${esc(w.d)}" data-distance="${esc(w.distance_m||0)}" data-activities="${esc(w.activities||0)}" data-time="${esc(w.time_s||0)}" data-current="${w.today?'true':'false'}" aria-label="${esc(aria)}"><span data-h="${h}"></span><span class="me-week-month" data-type="chart" aria-hidden="true">${esc(axisMonth)}</span></button>`;
     }).join('')}</div></div>`:'';
     const streakSlot=Number.isInteger(streak)&&streak>=2?`<span class="me-week-streak" data-week-streak="${streak}" role="img" aria-label="🔥 ${streak} weeks">${svg('flame')}<span aria-hidden="true">${streak} weeks</span></span>`:'';
     return `<div class="me-card-sec me-card-weekly"><div class="me-card-head"><div class="me-card-label" data-week-label aria-live="polite"><span>This week</span></div>${streakSlot}</div>
