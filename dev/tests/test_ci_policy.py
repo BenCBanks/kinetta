@@ -37,13 +37,11 @@ class CIPolicyTests(unittest.TestCase):
         self.assertEqual([root for root in configured_roots('root:15; root:16; ROOT=16') if root>16],[])
         self.assertEqual([root for root in configured_roots('root:17; rootFont:24; root==32; ROOT=20; documentElement.style.fontSize="18px"; for(const root of [15,16,32])') if root>16],[17,24,32,20,18,32])
 
-        # Sage reserved these two files for open PR #567; remove this temporary exclusion after rebasing its merge.
-        deferred={'dev/tests/inline_reactions_ui.cjs','dev/tests/inline_reactions_actions.cjs'}
         offenders=[]
         for path in (ROOT/'dev/tests').rglob('*'):
             if not path.is_file() or path.suffix not in {'.cjs','.js','.py','.sh'}:continue
             relative=path.relative_to(ROOT).as_posix()
-            if relative in deferred or relative=='dev/tests/test_ci_policy.py':continue
+            if relative=='dev/tests/test_ci_policy.py':continue
             large=[root for root in configured_roots(path.read_text()) if root>16]
             if large:offenders.append((relative,large))
         self.assertEqual(offenders,[],'test roots above 16 are out of scope for this app')
