@@ -223,7 +223,7 @@ def answer(uid, question, *, turn=None, food_only=False, kit=False, history=None
             try:
                 cached=next((e for e in evidence if kit and e['tool']==name and e['arguments']==args and 'data' in e),None)
                 ev['data'] = cached['data'] if cached else json.loads(json.dumps(tools.call(name, args), default=str, allow_nan=False))
-            except ValueError: ev['error'] = 'Tool unavailable: check its arguments, record ownership and Apple Health sharing consent. Do not infer values from missing data.'
+            except ValueError: ev['error'] = 'Tool unavailable: check its arguments, record ownership and Health app sharing consent. Do not infer values from missing data.'
             evidence.append(ev)
             if provider == 'gemini':
                 function = {'name': name, 'response': ev}

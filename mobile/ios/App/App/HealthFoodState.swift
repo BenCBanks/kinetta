@@ -57,6 +57,7 @@ struct HealthFoodDay: Decodable {
     let start: String
     let end: String
     let deleted: Bool
+    let estimated: Bool?
     let values: [String: Double?]
 
     static let fields = ["kcal", "protein_g", "carbs_g", "fat_g", "fiber_g"]
@@ -89,6 +90,16 @@ struct HealthFoodDay: Decodable {
         return "kinetta.food.\(ownerDigest).\(day).\(field)"
     }
     func quantity(_ field: String) -> Double? { deleted ? nil : (values[field] ?? nil) }
+}
+
+enum HealthFoodNutritionMetadata {
+    static let estimatedKey = "estimated"
+
+    static func forSavedNutrition(estimated: Bool, wasUserEnteredKey: String) -> [String: Any] {
+        var metadata: [String: Any] = [wasUserEnteredKey: true]
+        if estimated { metadata[estimatedKey] = true }
+        return metadata
+    }
 }
 
 #if os(iOS)

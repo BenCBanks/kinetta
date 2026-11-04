@@ -1275,7 +1275,7 @@ function aiError(btn, msg) {
 }
 // ---------- AI consent (2026-10-11): coach notes, weekly reviews and food photos send data to the AI service ----------
 const aiExplain = () => `<p>Kit is Kinetta’s AI assistant for training, nutrition and progress. Ask questions, review your records, estimate food, or prepare a plan or meal proposal that you review before confirming.</p>
-  <p class="small muted">Your question, current chat, saved Kit memories and the relevant food, workout, strength, goal, recipe or body records are sent to ${esc(App.me.ai_provider || 'the configured AI provider')}. Kit reads selected records through private account tools; it does not receive your whole database or login credentials. Apple Health sharing follows your separate connection permissions.</p>
+  <p class="small muted">Your question, current chat, saved Kit memories and the relevant food, workout, strength, goal, recipe or body records are sent to ${esc(App.me.ai_provider || 'the configured AI provider')}. Kit reads selected records through private account tools; it does not receive your whole database or login credentials. Health app sharing follows your separate connection permissions.</p>
   <p class="small muted">Kit starts a fresh chat when you leave. It can remember useful statements you share about preferences, goals and routines. View, remove or turn off memory in Kit’s chat settings. Your food, workouts and goals stay saved. You can turn Kit off in Me and download or delete your account data under Your data.</p>`;
 // Kit is for people 18 or older (28 October 2026; the AI provider's terms), though Kinetta itself is 16+: turning it on
 // asks for that separately, and the server refuses AI calls without it.
@@ -1455,7 +1455,7 @@ async function showGetApp() {
   if (!link) { try { link = (await api('/api/signup')).iphone_app; } catch (x) { /* shown without the link */ } }
   const first = (me?.name || '').trim().split(/\s+/)[0], who = me?.email || me?.pending_email || (me?.login ? 'your username, ' + me.login + ',' : 'your email');
   root.innerHTML = `<div class="login get-app"><div class="form">${BRAND}<h1>You’re in${first ? ', ' + esc(first) : ''}!</h1>
-    <p>Kinetta is in beta on iPhone. The app records runs, rides and walks with GPS and brings in your Apple Health workouts.</p>
+    <p>Kinetta is in beta on iPhone. The app records runs, rides and walks with GPS and brings in workouts from the Health app.</p>
     <ol class="get-app-steps"><li><b>Install TestFlight</b>, Apple’s free app for beta apps.<br><a href="https://apps.apple.com/app/testflight/id899247664" target="_blank" rel="noopener">Get TestFlight from the App Store</a></li>
       <li><b>Get Kinetta</b> through TestFlight.${link ? '' : `<br><small class="muted"><a href="mailto:${SUPPORT_EMAIL}?subject=Kinetta%20TestFlight%20link">Contact Kinetta support for the TestFlight link</a>.</small>`}</li>
       <li><b>Open Kinetta and log in</b> with ${esc(who)} and your password.</li></ol>

@@ -207,7 +207,7 @@ def answer(question, S):
     elif kind=='burn':
         B=D['burned'];value=B.get('day_burn');result['source']=B.get('source');result['facts']['burned']=value
         if value is None:text=f"Resting calories have not synced for {label}." + (f" Recorded activities add about {kcal(B['kcal']):,} kcal." if B.get('kcal') else ' No activity calories are recorded.')
-        elif B.get('source')=='apple_health':text=f"Synced Apple Health resting calories plus recorded activities total about {kcal(value):,} kcal for {label}."
+        elif B.get('source')=='apple_health':text=f"Synced Health app resting calories plus recorded activities total about {kcal(value):,} kcal for {label}."
         elif B.get('source')=='imported':text=f"Imported daily burn is about {kcal(value):,} kcal for {label}."
         else:text=f"Estimated burn for the whole day is about {kcal(value):,} kcal for {label}, including recorded activities."
     elif kind=='advice':

@@ -49,7 +49,7 @@ def status(user=Depends(current_user)):
 
 @router.put('/preferences')
 def preference(body:Preference,user=Depends(current_user)):
-    if (body.enabled or body.include_older) and not body.confirmed:raise HTTPException(400,'Confirm writing your nutrition to Apple Health before enabling it')
+    if (body.enabled or body.include_older) and not body.confirmed:raise HTTPException(400,'Confirm writing your nutrition to the Health app before enabling it')
     uid=user['id']
     with db.connect() as c:
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(uid,))
@@ -78,22 +78,38 @@ def totals(rows):
     return result,coverage
 
 
+def is_estimated(row):
+    """Whether a saved food entry includes any AI or explicitly estimated part."""
+    ref=row.get('ref')
+    if not isinstance(ref,dict):ref={}
+    if row.get('source')=='ai' or ref.get('origin')=='ai' or ref.get('estimated') or ref.get('estimated_from') or ref.get('estimated_portion'):
+        return True
+    recipe=ref.get('recipe_source')
+    if not isinstance(recipe,dict):return False
+    if recipe.get('basis')=='estimated_ingredients':return True
+    sources=recipe.get('sources')
+    if isinstance(sources,dict):return any(value=='estimated_ingredients' for value in sources.values())
+    if isinstance(sources,list):return 'estimated_ingredients' in sources
+    return False
+
+
 @router.get('/days')
 def days(epoch:UUID,after:int=Query(0,ge=0,le=9007199254740991),limit:int=Query(50,ge=1,le=100),user=Depends(current_user)):
     uid=user['id']
     with db.connect() as c:
         lock(c,uid);p=profile(c,uid)
-        if not p['health_nutrition_write']:raise HTTPException(409,'Apple Health nutrition writing is off')
+        if not p['health_nutrition_write']:raise HTTPException(409,'Health app nutrition writing is off')
         if p['health_nutrition_epoch']!=epoch:raise HTTPException(409,'Nutrition sharing changed. Refresh settings before writing.')
         changed=c.execute('SELECT day,revision FROM health_nutrition_days WHERE user_id=%s AND revision>%s AND (%s OR day>=%s) ORDER BY revision LIMIT %s',(uid,after,p['health_nutrition_older'],p['health_nutrition_since'],limit+1)).fetchall()
         selected=changed[:limit];more=len(changed)>limit
-        entries=c.execute('SELECT day,kcal,protein_g,carbs_g,fat_g,fiber_g,ref FROM food_entries WHERE user_id=%s AND day=ANY(%s) ORDER BY day,id',(uid,[r['day'] for r in selected])).fetchall() if selected else []
+        entries=c.execute('SELECT day,kcal,protein_g,carbs_g,fat_g,fiber_g,source,ref FROM food_entries WHERE user_id=%s AND day=ANY(%s) ORDER BY day,id',(uid,[r['day'] for r in selected])).fetchall() if selected else []
         grouped={}
         for r in entries:grouped.setdefault(r['day'],[]).append(r)
         out=[];zone=ZoneInfo(p['tz'] or db.DEFAULT_TZ)
         for row in selected:
-            day=row['day'];values,coverage=totals(grouped.get(day,[]))
+            day=row['day'];day_entries=grouped.get(day,[]);values,coverage=totals(day_entries)
             out.append({'day':day,'revision':row['revision'],'start':dt.datetime.combine(day,dt.time.min,zone),
                 'end':dt.datetime.combine(day+dt.timedelta(days=1),dt.time.min,zone),
-                'deleted':not bool(grouped.get(day)), 'values':values,'coverage':coverage})
+                'deleted':not bool(day_entries), 'estimated':any(is_estimated(entry) for entry in day_entries),
+                'values':values,'coverage':coverage})
         return {**data(p),'days':out,'next':selected[-1]['revision'] if selected else after,'more':more}

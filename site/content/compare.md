@@ -28,7 +28,7 @@ Runs, rides, walks, swims, lifting
 
 ## watch-file-and-strava-history-imports-7
 
-Apple Health, watch files and Strava export imports
+Health app, watch files and Strava export imports
 
 ## maps-pace-heart-rate-8
 

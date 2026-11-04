@@ -163,7 +163,7 @@ def confirmation(background, c, uid, name, email, welcome=False):
     app = iphone_app() if welcome else None
     # Written the way Ben talks (2026-10-24): short, plain, signed by the team, always "we". No stock phrases.
     beta = (f"\n\nKinetta is in beta, and the iPhone app is the best way to use it. It records your runs, rides and walks "
-            f"with GPS and brings in your Apple Health workouts. To get it:\n"
+            f"with GPS and brings in workouts from the Health app. To get it:\n"
             f"1. Install TestFlight (Apple's free app for betas) from the App Store.\n2. Open this link on your iPhone: {app}\n"
             f"3. Open Kinetta and log in with {email}.") if app else ''
     if welcome:

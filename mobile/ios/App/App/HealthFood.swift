@@ -194,8 +194,12 @@ final class HealthFood {
                         let interval = try row.interval(timeZone:zone)
                         if let value = row.quantity(item.0) {
                             let unit = HKUnit(from:HealthFoodDay.unitSymbols[item.0]!)
+                            var metadata = HealthFoodNutritionMetadata.forSavedNutrition(
+                                estimated:row.estimated == true,wasUserEnteredKey:HKMetadataKeyWasUserEntered)
+                            metadata[HKMetadataKeySyncIdentifier] = identity
+                            metadata[HKMetadataKeySyncVersion] = NSNumber(value:row.revision)
                             saves.append(HKQuantitySample(type:type,quantity:HKQuantity(unit:unit,doubleValue:value),start:interval.0,end:interval.1,
-                                metadata:[HKMetadataKeySyncIdentifier:identity,HKMetadataKeySyncVersion:NSNumber(value:row.revision)]))
+                                metadata:metadata))
                         } else {
                             predicates.append(NSCompoundPredicate(andPredicateWithSubpredicates:[
                                 HKQuery.predicateForObjects(withMetadataKey:HKMetadataKeySyncIdentifier,allowedValues:[identity]),

@@ -1,7 +1,6 @@
 # The Kinetta iPhone app
 
-The iPhone app is the same Kinetta you use in Safari, inside a real app, so it can read **Apple Health**. Garmin, Apple
-Watch and other apps can make workouts available through Apple Health. Once you connect, Kinetta imports the data those sources actually write and you allow it to read. The iPhone app omits file imports; use a browser for original files or a Strava export.
+The iPhone app is the same Kinetta you use in Safari, inside a real app, so it can read health information you allow in the **Health app**. Garmin, Apple Watch and other apps can make workouts available there. Once you connect, Kinetta imports the records those sources actually save in the Health app and you allow it to read. The iPhone app omits file imports; use a browser for original files or a Strava export.
 
 For the owner steps, remaining engineering work and approval prospects, start with [External beta readiness](beta-readiness.md).
 
@@ -16,27 +15,27 @@ can be signed and uploaded automatically.
   Developers can point a build at a test server; it must use `https://`.
 - **Welcome.** New accounts see four optional steps: profile, activity audience, bring in workouts and find friends. Skip/Not now do not save pending name, bio or audience edits, or undo actions already confirmed (such as a photo upload or friend request). Me leads with Get started and hides the empty chart until activity or food history exists.
 - **Account safety.** Settings → Signed-in devices lists device labels and sign-in dates, without IP addresses. Sign out one other login or all others; use Log out for this one. Settings → Notifications controls New sign-in emails, on by default for confirmed addresses when mail is available. The first device and known device types are silent.
-- **Settings → Connections → Apple Health.** Explains what Kinetta reads (workouts, heart rate during workouts, routes), then shows Apple's
+- **Settings → Connections → Health app.** Explains what Kinetta reads (workouts, heart rate during workouts, routes), then shows Apple's
   permission sheet. Optional weight reading and nutrition writing have separate controls, described below.
 - **Sync.** The first sync brings in the last 30 days ("Also bring in the past year" goes further back). After that,
-  the app sends new workouts whenever it's opened or brought back to the front. The native background component also watches HealthKit changes, saves pending workout IDs and retries unacknowledged uploads independently of the web view. iOS decides when it can run; delivery can be delayed while locked or after force-quitting. The native component has passed Mac builds and a TestFlight upload; physical-device background delivery acceptance remains pending. Failed ranges stay queued for the next sync, including a failed past-year import. The Apple Health screen shows the latest attempt and any error. Connecting is specific to your account and server; logging out stops sync and clears that connection. Each workout is sent with Apple
-  Health's own id for it, so a workout sent twice is stored once. A workout that's already in Kinetta from somewhere
+  the app sends new workouts whenever it's opened or brought back to the front. The native background component also watches HealthKit changes, saves pending workout IDs and retries unacknowledged uploads independently of the web view. iOS decides when it can run; delivery can be delayed while locked or after force-quitting. The native component has passed Mac builds and a TestFlight upload; physical-device background delivery acceptance remains pending. Failed ranges stay queued for the next sync, including a failed past-year import. The Health app screen shows the latest attempt and any error. Connecting is specific to your account and server; logging out stops sync and clears that connection. Each workout is sent with HealthKit's
+  own id for it, so a workout sent twice is stored once. A workout that's already in Kinetta from somewhere
   else (a Garmin file, a Strava export) isn't added again either.
-- **Kit AI consent.** Kit reads Apple Health workouts only after you tick "Let Kit read my Apple
-  Health data". Until then Kit is off for anyone with Apple Health workouts (Apple's rules require consent
+- **Kit AI consent.** Kit reads workouts from the Health app only after you tick "Let Kit use my health
+  data from the Health app". Until then Kit is off for anyone with workouts from the Health app (Apple's rules require consent
   before health data goes to an AI service).
 
 ## The plan (roadmap step 3)
 
-1. **The app and Apple Health permission** (done in this first piece): the shell around `app/static`, the permission
+1. **The app and Health app permissions** (done in this first piece): the shell around `app/static`, the permission
    screen, syncing when the app is open, the server endpoint, and a build on GitHub's Mac computers for every change.
 2. **TestFlight** (workflow implemented; new installations need the Apple setup below): the `testflight` job in `.github/workflows/ios.yml` signs
    the app with Apple's own cloud signing and uploads it. Build numbers count up by themselves. Already in place for
    Apple's checks: a privacy manifest (`mobile/ios/App/App/PrivacyInfo.xcprivacy`), the "no special encryption"
-   answer, the Apple Health permission texts, the 1024-pixel icon, delete-my-account in the app and the privacy policy
+   answer, the Health app permission texts, the 1024-pixel icon, delete-my-account in the app and the privacy policy
    at https://kinetta.app/privacy.
 3. **Background sync**: native observer, anchored reads and a durable per-account queue have merged and passed Mac builds and a TestFlight upload. Complete the physical-device checklist below before declaring background delivery reliable.
-4. **More from Apple Health**: optional weight and Resting Energy reads are implemented with separate permissions; physical-device acceptance remains pending. Resting heart rate and sleep remain planned.
+4. **More from the Health app**: optional weight and Resting Energy reads are implemented with separate permissions; physical-device acceptance remains pending. Resting heart rate and sleep remain planned.
 5. **App Store**: screenshots and a demo account for Apple's reviewers (see "Before outside testers" below).
 6. **Android** (Health Connect) after that. The Health plugin already supports it.
 
@@ -123,7 +122,7 @@ if offered. See [Apple's external testing guide](https://developer.apple.com/hel
 
 ## Before outside testers or the App Store
 
-Already done: the **privacy policy URL** (https://kinetta.app/privacy, which covers Apple Health), **delete my account**
+Already done: the **privacy policy URL** (https://kinetta.app/privacy, which covers the Health app), **delete my account**
 inside the app (Me → Settings & account → Your data), and **download my data**.
 
 Before submission, review the [listing and screenshot instructions](../mobile/appstore/README.md), [age questionnaire](../mobile/appstore/age-rating.md) and [review notes](../mobile/appstore/review-notes.md). Supply private reviewer credentials only after deciding which server the reviewer may see. **Recommend a separate server with fictional accounts**: Everyone on a shared server includes a new reviewer, and creating a demo account does not isolate that feed. No account or visibility change is made here. The listing, exact6.9-inch native artifacts, actual App Privacy/age/License Agreement answers and signed release remain separate owner checks.
@@ -152,7 +151,7 @@ Use a signed build whose provisioning profile includes `com.apple.developer.heal
 8. Switch accounts and servers during reads/uploads. Logout cancels native work; no old pending workout reaches the new account or server; the new account needs explicit Health consent.
 9. Stop syncing and relaunch. No Health observer/uploads resume. Previously imported activities stay on the server.
 10. Interrupt a large import with a background time expiry. Next activation resumes pending work; one failed item does not discard other items.
-11. Compare Nutrition, Today, activity details and the Apple Health screen in light/dark mode. Pending/error text and foreground Sync now remain usable.
+11. Compare Nutrition, Today, activity details and the Health app screen in light/dark mode. Pending/error text and foreground Sync now remain usable.
 
 HealthKit read access is private: denied access can look like an empty result. Kinetta cannot prove authorization merely from a successful empty query. If a queued workout was deleted from Health or access revoked, its reference remains pending with a readable error; disconnect/reconnect resets that queue without deleting server activities.
 
@@ -173,7 +172,7 @@ A compatible original workout file arriving after a Health summary can also fill
 
 Additional read permission is requested only through Connect or Change what Kinetta can read. Native statistics include steps, elevation, running power/speed/stride/vertical oscillation/ground contact time (supported on iOS 16+) and cycling power/speed/cadence (iOS 17+), when the recording provides them. Aggregate values do not invent time-series charts. Stored running stride/vertical oscillation use millimetres, ground contact uses milliseconds, speed uses metres per second and power uses watts.
 
-Apple Health does not guarantee that every recording app shares every metric. [Garmin documents that its GPS tracks are not transmitted to Apple Health](https://support.garmin.com/es-CL/?faq=lK5FPB9iPF5PXFkIpFlFPA&searchType=noProduct). Use a compatible original FIT/GPX/TCX file or an independently configured connection for fuller Garmin workouts. A missing route is not proof that permission was denied: HealthKit intentionally does not reveal denied read access.
+The Health app does not guarantee that every recording app shares every metric. [Garmin documents that its GPS tracks are not transmitted to the Health app](https://support.garmin.com/es-CL/?faq=lK5FPB9iPF5PXFkIpFlFPA&searchType=noProduct). Use a compatible original FIT/GPX/TCX file or an independently configured connection for fuller Garmin workouts. A missing route is not proof that permission was denied: HealthKit intentionally does not reveal denied read access.
 
 Physical acceptance must include an Apple Watch outdoor workout with route permission, a summary-only Garmin import, a delayed-route replay, an empty/denied-detail retry, an existing file import and account switching. Compare the values with their recorded source; verify one activity remains after foreground/background retries. Linux stand-ins establish API/state contracts, not actual HealthKit delivery.
 

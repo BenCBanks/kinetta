@@ -152,7 +152,7 @@ def callback(state: str = '', code: str = '', error: str = ''):
                      ON CONFLICT (user_id, kind) DO UPDATE SET settings = excluded.settings, status = excluded.status""",
                   (uid, json.dumps({**tok, 'garmin_user_id': gid, 'permissions': perms}), _status_for(perms, 'connected - new activities arrive after your watch syncs')))
     threading.Thread(target=backfill, args=(uid,), daemon=True).start()
-    return page('Garmin is connected', 'New activities arrive after your watch syncs. For older history, import a Strava export or past workouts from Apple Health.', True)
+    return page('Garmin is connected', 'New activities arrive after your watch syncs. For older history, import a Strava export or past workouts from the Health app.', True)
 
 
 def _perm_list(raw):

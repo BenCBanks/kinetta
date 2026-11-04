@@ -268,7 +268,7 @@ def import_resting(body: RestingIn, user=Depends(current_user)):
     if len({r.day for r in body.days}) != len(body.days): raise HTTPException(400, 'Send each resting energy day once')
     with db.connect() as c:
         p = c.execute('SELECT resting_source, tz FROM profile WHERE user_id = %s FOR UPDATE', (user['id'],)).fetchone() or {}
-        if p.get('resting_source') != 'apple_health': raise HTTPException(409, 'Choose Apple Health resting calories before syncing')
+        if p.get('resting_source') != 'apple_health': raise HTTPException(409, 'Choose Health app resting calories before syncing')
         if tz != (p.get('tz') or db.DEFAULT_TZ): raise HTTPException(409, 'Your time zone changed. Read resting energy again')
         for r in body.days:
             c.execute('''INSERT INTO health_resting (user_id, tz, day, resting_kcal, observed_at)

@@ -44,11 +44,11 @@ What we keep
 
 ## health-heading
 
-Apple Health and location
+Health app and location
 
 ## health
 
-The iPhone app reads only the Apple Health data you allow. It writes to Apple Health only if you turn on Share nutrition, and then only your daily food totals (calories, protein, carbs, fat and fiber). You can change this any time in the Health app. Kinetta uses location for the Track map preview and activities you record, including while the iPhone app is in the background or the phone is locked. The preview stays on your phone; only recordings you save are uploaded. Imported activities can also include routes.
+The iPhone app reads only the health information you allow in the Health app. It writes daily food totals (calories, protein, carbs, fat and fiber) only if you turn on Share nutrition. Only food you review and save is included; estimates you've reviewed are included and marked as estimates. You can change this any time in the Health app. Kinetta uses location for the Track map preview and activities you record, including while the iPhone app is in the background or the phone is locked. The preview stays on your phone; only recordings you save are uploaded. Imported activities can also include routes.
 
 ## garmin-heading
 
@@ -60,7 +60,7 @@ If you connect Garmin Connect, Kinetta receives the activities you allow in Garm
 
 ## garmin-ai
 
-**AI and Garmin data.** Kit, the AI coach, can read your Garmin activities only after you turn on "Let Kit read my Garmin activities" in Me → Settings → Connections. This is separate from the main AI switch and from Apple Health, and it's off until you choose it. When it's on, Kinetta sends only the activities a question needs to the AI provider shown in the app (Google Gemini or Anthropic Claude). Turn the switch off at any time and Kit stops reading them. Garmin data, and anything made from it, is never used to train, test or improve AI models.
+**AI and Garmin data.** Kit, the AI coach, can read your Garmin activities only after you turn on "Let Kit read my Garmin activities" in Me → Settings → Connections. This is separate from the main AI switch and from the health information you choose to share from the Health app, and it's off until you choose it. When it's on, Kinetta sends only the activities a question needs to the AI provider shown in the app (Google Gemini or Anthropic Claude). Turn the switch off at any time and Kit stops reading them. Garmin data, and anything made from it, is never used to train, test or improve AI models.
 
 ## garmin-control
 
@@ -100,7 +100,7 @@ AI features (Kit)
 
 ## ai
 
-When you set up your account, Kinetta asks whether to turn on Kit's AI features. Kit is for people 18 or older, and you confirm that when you turn it on. You can turn them on or off at any time with the AI features switch in Me → Settings; when they're off, nothing is sent. When they're on, Kinetta sends only what that feature needs to the AI provider (Google Gemini or Anthropic Claude; the app shows which). For example, a food photo for an estimate, or your recent workouts when you ask Kit about training. It never sends your whole account or your password. Apple Health and Garmin data each need a separate yes before they're included (see Garmin above). You can change these choices in Me → Settings.
+When you set up your account, Kinetta asks whether to turn on Kit's AI features. Kit is for people 18 or older, and you confirm that when you turn it on. You can turn them on or off at any time with the AI features switch in Me → Settings; when they're off, nothing is sent. When they're on, Kinetta sends only what that feature needs to the AI provider (Google Gemini or Anthropic Claude; the app shows which). For example, a food photo for an estimate, or your recent workouts when you ask Kit about training. It never sends your whole account or your password. Your health information from the Health app and Garmin activity information each need a separate yes before they're included (see Garmin above). You can change these choices in Me → Settings.
 
 Food understanding can include matching foods from your own recent log, saved foods, recipes and combinations, your frequently logged portions, today's foods and recent food-chat turns. If Kit memory is on, it can also include your saved food preferences. This helps it understand “the same latte” and similar references. These records stay private to your account. Tap-to-reuse suggestions use your own records without an AI request. You still review food before logging it.
 
@@ -122,7 +122,7 @@ Services you connect yourself, such as Garmin Connect or Health Auto Export, als
 
 ## admin
 
-The person running the server can technically see its database. That access is used only to run the service, help you, keep it secure or meet legal duties. Ordinary account support shows status, counts, birth year/approximate age and Kit permission/consent status, without opening your private workouts, routes, food, other health records or conversations. An administrator can correct birth year and allow or block Kit access. Allowing access never supplies your own AI consent or permission to include Apple Health or Garmin data. An administrator reviewing a report can see its reported comment, current profile bio/photo, or the reported activity’s summary and attached photos. Review access and actions are recorded without copying that content into the audit log. If you make a data request, we keep its type, status, verification method and dates, linked to your account while it exists; correspondence and identity documents are not stored in this register.
+The person running the server can technically see its database. That access is used only to run the service, help you, keep it secure or meet legal duties. Ordinary account support shows status, counts, birth year/approximate age and Kit permission/consent status, without opening your private workouts, routes, food, other health records or conversations. An administrator can correct birth year and allow or block Kit access. Allowing access never supplies your own AI consent or permission to include health information from the Health app or Garmin Connect. An administrator reviewing a report can see its reported comment, current profile bio/photo, or the reported activity’s summary and attached photos. Review access and actions are recorded without copying that content into the audit log. If you make a data request, we keep its type, status, verification method and dates, linked to your account while it exists; correspondence and identity documents are not stored in this register.
 
 ## feature-counts
 

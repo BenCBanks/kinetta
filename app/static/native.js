@@ -270,7 +270,7 @@ const Native = (() => {
     const guard=()=>{if(account!==owner() || token!==N.token || version!==restingGeneration || App.me?.resting_source!=='apple_health' || zone!==App.me?.tz) throw new Error('Resting energy sync stopped because the account or settings changed.');};
     const data=await N.healthCall(background.restingEnergy({tz:zone}), 'Resting energy did not respond. Unlock your phone and try again.');
     guard();
-    if(data?.tz!==zone || !Array.isArray(data.days) || !data.observed_at) throw new Error('Apple Health returned an incomplete resting-energy result.');
+    if(data?.tz!==zone || !Array.isArray(data.days) || !data.observed_at) throw new Error('The Health app returned an incomplete resting-energy result.');
     const res=await N.healthCall(api('/api/health/resting',json('POST',data)), 'Resting energy could not be uploaded. Sync again when online.');
     guard();
     if(!res?.ok || res.received!==data.days.length || !Array.isArray(res.days) || !data.days.every(r=>res.days.includes(r.day))) throw new Error('Kinetta did not confirm the resting-energy sync. Try again.');
@@ -299,13 +299,13 @@ const Native = (() => {
   N.connectHealth = () => N.connecting || (N.connecting = (async () => {
     N.healthPaused=false;
     const account = owner(), version = generation;
-    if (!(await N.healthCall(health.isHealthAvailable(), 'Apple Health did not respond. Please try again.')).available) throw new Error("Apple Health isn't available on this device.");
+    if (!(await N.healthCall(health.isHealthAvailable(), 'The Health app did not respond. Please try again.')).available) throw new Error("The Health app isn't available on this device.");
     if (!account || account !== owner() || version !== generation) throw new Error('Health connection stopped because the account changed.');
-    progress('Choose what Kinetta can read in Apple Health, then tap Done.');
+    progress('Choose what Kinetta can read in the Health app, then tap Done.');
     // Older shells retain their original permission API; new builds use one combined native request.
     await N.healthCall(background?.requestPermissions ? background.requestPermissions() : health.requestHealthPermissions({permissions: ASK}),
       'Health setup has not finished. Close the Health permission screen, then try Connect again.', N.healthPermissionTimeout);
-    if (!account || account !== owner() || version !== generation) throw new Error('Log in before connecting Apple Health.');
+    if (!account || account !== owner() || version !== generation) throw new Error('Log in before connecting to the Health app.');
     await put('health.owner', account);
     if (account !== owner() || version !== generation) throw new Error('Health connection stopped because the account changed.');
     await put('health.on', '1');
@@ -361,7 +361,7 @@ const Native = (() => {
     const from = retry ? Math.min(retry, requested) : requested;
     const previous = await N.healthStatus();
     const sum = {added: 0, duplicates: 0, updated: 0, failed: 0};
-    progress('Reading recent workouts from Apple Health…');
+    progress('Reading recent workouts from the Health app…');
     guard(); await put('health.retryFrom', from);
     try {
       if (background) {
@@ -374,9 +374,9 @@ const Native = (() => {
         guard();
         progress(`Reading workouts: ${Math.min(Math.ceil((a - from) / DAY) + 7, Math.ceil((to - from) / DAY))} of ${Math.ceil((to - from) / DAY)} days…`);
         const r = await N.healthCall(health.queryWorkouts({startDate: new Date(a).toISOString(), endDate: new Date(Math.min(a + 7 * DAY, to)).toISOString(),
-          includeHeartRate: true, includeRoute: true, includeSteps: true}), 'Apple Health is taking too long to read workouts. Keep your phone unlocked and try Sync now.');
+          includeHeartRate: true, includeRoute: true, includeSteps: true}), 'The Health app is taking too long to read workouts. Keep your phone unlocked and try Sync now.');
         guard();
-        if (r.errors && Object.keys(r.errors).length) throw new Error('Apple Health could not read all workout details. Unlock your phone and try again.');
+        if (r.errors && Object.keys(r.errors).length) throw new Error('The Health app could not read all workout details. Unlock your phone and try again.');
         const ws = (r.workouts || []).filter((w) => w.id && w.duration > 0).map(shape);
         for (let i = 0; i < ws.length; i += 10) {
           guard();
@@ -395,7 +395,7 @@ const Native = (() => {
       await put('health.last', to);
       await put('health.retryFrom', null);
       await put('health.status', JSON.stringify({...sum, at: new Date(to).toISOString(), last_success_at: new Date(to).toISOString()}));
-      progress(sum.added || sum.updated ? 'Import complete.' : 'No new readable workouts. If you expected some, check Kinetta’s access in Apple Health.');
+      progress(sum.added || sum.updated ? 'Import complete.' : 'No new readable workouts. If you expected some, check Kinetta’s access in the Health app.');
       return sum;
     } catch (e) {
       if (version === generation && account === owner()) progress(e.message || 'Sync paused. Try again.');
@@ -573,7 +573,7 @@ const Native = (() => {
     N.autoFoodEntry();
     if (!on || !App.me || Date.now() - (N.lastAuto || 0) < (foreground?15000:600000)) return;
     N.lastAuto = Date.now();
-    N.syncHealth().then((s) => { if (s && (s.added || s.updated)) { toast(s.added ? `${s.added} new workout${s.added > 1 ? 's' : ''} from Apple Health` : 'Apple Health workout details updated'); render(); } }).catch(() => { N.lastAuto = 0; });
+    N.syncHealth().then((s) => { if (s && (s.added || s.updated)) { toast(s.added ? `${s.added} new workout${s.added > 1 ? 's' : ''} from the Health app` : 'Health app workout details updated'); render(); } }).catch(() => { N.lastAuto = 0; });
   };
   if (on) window.addEventListener('online', () => N.autoSync());
   if (on) document.addEventListener('visibilitychange', () => { if (!document.hidden) N.autoSync({foreground:true}); });
@@ -583,11 +583,11 @@ const Native = (() => {
 route(/^\/me\/health$/, 'track', async () => go('/track/health',{replace:true}));
 route(/^\/track\/health$/, 'track', async (el) => {
   el.classList.add('health-page');
-  el.innerHTML = `<div class="top">${backBtn('Connections')}</div><h1>Apple Health</h1><div id="h-body">${skel(1)}</div>`;
+  el.innerHTML = `<div class="top">${backBtn('Connections')}</div><h1>Health app</h1><div id="h-body">${skel(1)}</div>`;
   wireBack(el, '/track/connections');
   const box = $('#h-body', el);
   if (!Native.on) {
-    box.innerHTML = `<div class="card"><p>Apple Health works in the Kinetta iPhone app. In a browser, use <a href="/track/import">Upload files</a> to add activity recordings.</p></div>`;
+    box.innerHTML = `<div class="card"><p>The Health app connection works in the Kinetta iPhone app. In a browser, use <a href="/track/import">Upload files</a> to add activity recordings.</p></div>`;
     return;
   }
   const pageOwner=readOwner(),valid=()=>box.isConnected&&pageOwner===readOwner();
@@ -595,14 +595,14 @@ route(/^\/track\/health$/, 'track', async (el) => {
   if(!valid())return;
   const ai = !!App.me.health_ai_ok && (!(App.me.health_weight_read||App.me.weight_health_derived)||!!App.me.health_weight_ai_ok);
   box.innerHTML = `<div id="h-food">${skel(1)}</div><div class="card">
-      <h2>Workouts & weight from Health</h2><p class="small">Optional. One Apple screen: import workouts with their heart rate and routes, and your weight. Switch off anything you don’t want to share there. Writing food to Health is a separate choice.</p><details class="health-details"><summary>What’s read & how sync works</summary>
-      <p class="small muted">Choose only the Health categories you want to share. Apple keeps your read-permission choices private; enabling sync does not mean every category was allowed.</p>
+      <h2>Workouts & weight from the Health app</h2><p class="small">Optional. One permission screen from the Health app: import workouts with their heart rate and routes, and your weight. Switch off anything you don’t want to share there. Writing food to the Health app is a separate choice.</p><details class="health-details"><summary>What’s read & how sync works</summary>
+      <p class="small muted">Choose only the categories you want to share. Apple keeps your read-permission choices private; enabling sync does not mean every category was allowed.</p>
       <p id="h-progress" class="health-progress" role="status">${esc(Native.healthProgress || '')}</p>
-      <p>Kinetta reads from Apple Health:</p>
-      <ul class="reads"><li><b>Weight</b>, for your weight trend</li><li><b>Workouts</b>: type, time, distance, calories and steps</li><li><b>Heart rate</b> during workouts</li><li><b>Resting Energy</b>, only if you choose Apple Health resting calories in Nutrition</li><li><b>Routes</b> of outdoor workouts</li><li><b>Other recorded metrics</b>: elevation, running/cycling power and running dynamics, when available</li></ul>
-      <p class="small muted">Kinetta can only import what the recording app saves to Health. Garmin Connect does not send GPS tracks to Apple Health; connect Garmin directly for maps on new workouts. Sync now also checks for details that arrived later.</p>
+      <p>Kinetta reads from the Health app:</p>
+      <ul class="reads"><li><b>Weight</b>, for your weight trend</li><li><b>Workouts</b>: type, time, distance, calories and steps</li><li><b>Heart rate</b> during workouts</li><li><b>Resting Energy</b>, only if you choose it in Nutrition</li><li><b>Routes</b> of outdoor workouts</li><li><b>Other recorded metrics</b>: elevation, running/cycling power and running dynamics, when available</li></ul>
+      <p class="small muted">Kinetta can only import what the recording app saves to the Health app. Garmin Connect does not send GPS tracks to the Health app; connect Garmin directly for maps on new workouts. Sync now also checks for details that arrived later.</p>
       <p class="small muted">${bg?.enabled ? 'iOS can sync new workouts in the background. Delivery timing depends on iOS; locked phones and force-quitting can delay it. Open Kinetta to catch up.' : 'Sync runs when you open Kinetta or return to it.'} Keep your phone unlocked until the first import finishes.</p>
-      <p class="small muted">Anything that writes to Apple Health counts: Apple Watch, Garmin, Coros, Wahoo, Strava and more. Workout import only reads Health. Optional weight reading and nutrition writing have separate controls on this page.</p>
+      <p class="small muted">Anything that writes to the Health app counts: Apple Watch, Garmin, Coros, Wahoo, Strava and more. Workout import only reads the Health app. Optional weight reading and nutrition writing have separate controls on this page.</p>
       <p class="small muted">Workouts go only to your Kinetta server${Native.base ? ` (${esc(Native.base.replace(/^https?:\/\//, ''))})` : ''} and are private to you.</p>
       </details>${isOn ? `<p class="small">${st ? `Last ${st.error ? 'attempt' : 'sync'} ${esc(when(st.at))}: ${st.added} new, ${st.duplicates} already here${st.updated ? `, ${st.updated} with updated details` : ''}${st.failed ? `, ${st.failed} couldn't be read` : ''}.` : 'Not synced yet.'}</p>` : ''}
       <p class="err" role="alert">${esc(st?.error || '')}</p>
@@ -613,10 +613,10 @@ route(/^\/track\/health$/, 'track', async (el) => {
 
         <p class="small muted">In the Health app, tap your profile → Apps (or Apps and Services) → Kinetta to change individual switches. Settings may also list Health under Privacy & Security. Return here and tap Sync now.</p>
         <button class="ghost wide danger" id="h-off">Disconnect all Health sync</button>`
-      : '<button class="ghost wide" id="h-on">Connect Apple Health</button>'}</div>
+      : '<button class="ghost wide" id="h-on">Connect to the Health app</button>'}</div>
     <div class="card"><h2>Kit, your AI coach</h2>
-      <p class="small">Kit writes notes about your training using an AI service. It can read your Apple Health workouts, selected resting calories and imported weight only if you say yes. This sends those records to ${esc(App.me.ai_provider || 'the AI service configured on your server')}. Food-only answers do not read them. You can turn this off any time.</p>
-      <label class="check"><input type="checkbox" id="h-ai"${ai ? ' checked' : ''}> Let Kit read my Apple Health data</label></div><a class="primary wide" href="/track/connections">Done</a>`;
+      <p class="small">Kit writes notes about your training using an AI service. It can read your workouts, selected resting calories and imported weight from the Health app only if you say yes. This sends those records to ${esc(App.me.ai_provider || 'the AI service configured on your server')}. Food-only answers do not read them. You can turn this off any time.</p>
+      <label class="check"><input type="checkbox" id="h-ai"${ai ? ' checked' : ''}> Let Kit use my health data from the Health app</label></div><a class="primary wide" href="/track/connections">Done</a>`;
   healthFoodControls($('#h-food',box),valid);
   const err = $('.err', box);
   Native.onHealthProgress = (text) => { if (box.isConnected) $('#h-progress', box).textContent = text; };
@@ -639,7 +639,7 @@ route(/^\/track\/health$/, 'track', async (el) => {
   };
   $('#h-ai', box).onchange = async (e) => {
     if(!valid())return;const v = e.target.checked;
-    try { await api('/api/profile', json('PUT', {health_ai_ok: v,health_weight_ai_ok:v})); if(!valid())return;App.me.health_ai_ok = v;App.me.health_weight_ai_ok=v;toast(v ? 'Health data sharing with Kit enabled' : 'Health data sharing with Kit off'); }
+    try { await api('/api/profile', json('PUT', {health_ai_ok: v,health_weight_ai_ok:v})); if(!valid())return;App.me.health_ai_ok = v;App.me.health_weight_ai_ok=v;toast(v ? 'Sharing health info with Kit enabled' : 'Sharing health info with Kit off'); }
     catch (x) { e.target.checked = !v; toast(x.message); }
   };
 });
@@ -662,7 +662,7 @@ async function healthFoodControls(box,parentValid=()=>true) {
           ${Native.foodHealthSupported?`<button class="ghost wide" data-h-food="${kind}" data-h-action="${enabled?'sync':'connect'}">${enabled?'Sync now':state.enabled&&!local?'Set up on this iPhone':kind==='weight'?'Read weight from Health':'Share nutrition with Health'}</button>${kind==='nutrition'&&enabled&&!state.include_older?`<button class="ghost wide" data-h-food="nutrition" data-h-action="older">Also add older days</button>`:''}${state.enabled||local?`<button class="ghost wide" data-h-food="${kind}" data-h-action="off">Turn off ${kind==='weight'?'weight reading':'nutrition sharing'}</button>`:''}`:'<p class="small muted">Install the latest Kinetta iPhone build to set this up.</p>'}
           <p class="err h-food-error" role="alert"></p></section>`;
       };
-      box.innerHTML=card('nutrition',nutrition,nutritionLocal,'Nutrition to Health','Share your logged daily calories, protein, carbs, fat and fiber, including edits and deletions. Sharing starts on the day you enable it; older days need a separate choice. Missing values stay unknown. Only Kinetta’s samples for this account change.')+
+      box.innerHTML=card('nutrition',nutrition,nutritionLocal,'Nutrition to the Health app','Share daily totals from foods you have reviewed and saved, including edits and deletions. Includes estimates you\'ve reviewed. Sharing starts on the day you enable it; older days need a separate choice. Missing values stay unknown. Only Kinetta’s samples for this account change.')+
         card('weight',weight,weightLocal,'Weight from Health','Bring smart-scale weight into your private log and weekly check-in. Manual weigh-ins take priority. Your calorie budget and resting-calorie choice stay unchanged.')+
         (Native.foodHealthSupported?'<button class="ghost wide" id="h-food-settings">Manage Health permissions</button>':'')+
         '<p class="small muted">These two categories catch up when you open or return to Kinetta. Unlock your phone and use Sync now if a read or write is waiting. Turning weight reading off hides its Health-derived weight points; raw samples remain private. Nutrition already written to Health stays there; remove system access in Health → your profile → Apps → Kinetta.</p>';
@@ -671,7 +671,7 @@ async function healthFoodControls(box,parentValid=()=>true) {
         if(!valid())return;const kind=button.dataset.hFood,action=button.dataset.hAction,section=button.closest('section'),error=$('.h-food-error',section),was=button.textContent;
         $$('button',box).forEach(b=>b.disabled=true);button.textContent=action==='connect'?'Opening Health…':action==='off'?'Stopping…':'Syncing…';error.textContent='';
         try{
-          if(action==='older'){if(!confirm('Also add your older logged nutrition days to Apple Health? This may take several syncs.')){await draw();return;}await Native.connectFoodHealth(kind,{includeOlder:true});}
+          if(action==='older'){if(!confirm('Also add your older logged nutrition days to the Health app? This may take several syncs.')){await draw();return;}await Native.connectFoodHealth(kind,{includeOlder:true});}
           else if(action==='connect')await Native.connectFoodHealth(kind);
           else if(action==='off')await Native.disableFoodHealth(kind);
           else await Native.syncFoodHealth({weight:kind==='weight'});

@@ -715,7 +715,7 @@ def weights(days: int = 180, user=Depends(current_user)):
             a = 1 - 0.9 ** max(gap, 1)
             trend += a * (r['kg'] - trend)
         prev_day = r['day']
-        out.append({'day': r['day'].isoformat(), 'kg': r['kg'], 'trend': round(trend, 2), 'note': r['note'],'source':r['source'] or 'manual','source_label':('Apple Health'+(' · '+r['source_name'] if r['source_name'] and r['source_name']!='Apple Health' else '')) if r['source']=='healthkit' else 'Manual' if not r['source'] else 'Imported'})
+        out.append({'day': r['day'].isoformat(), 'kg': r['kg'], 'trend': round(trend, 2), 'note': r['note'],'source':r['source'] or 'manual','source_label':('Health app'+(' · '+r['source_name'] if r['source_name'] and r['source_name'] not in ('Apple Health','Health app') else '')) if r['source']=='healthkit' else 'Manual' if not r['source'] else 'Imported'})
     cut = (dt.date.today() - dt.timedelta(days=days)).isoformat()
     out = [x for x in out if x['day'] >= cut]
     rate = None

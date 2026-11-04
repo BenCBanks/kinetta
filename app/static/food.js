@@ -254,7 +254,7 @@ async function foodDiscovery(el) {
       {id:'needs',title:'Calorie needs',description:'Your daily needs →',icon:'target',href:'/food?view=needs'},
       {id:'calendar',title:'Food calendar',description:'Review a logged day →',icon:'calendar',href:'/food?view=calendar',teaser:f?.logged_days>0?`${f.logged_days} logged days`:null},
       {id:'reminders',title:'Meal reminders',description:f?'Off · Set times →':'Choose times →',icon:'bell',href:'/me/notifications',teaser:f?.reminders_on?'On · Review times':null},
-      ...(Native.on?[{id:'health',title:'Apple Health food',description:facts.health==='unavailable'?'Check Health →':facts.health===undefined?'Set up Health →':'Off · Set up →',icon:'heart',href:'/track/health',teaser:facts.health&&facts.health!=='unavailable'?facts.health:null}]:[{id:'import',title:'Add past days',description:'Bring in weight and calories →',icon:'upload',href:'/food/import'}])
+      ...(Native.on?[{id:'health',title:'Health app sync',description:facts.health==='unavailable'?'Check Health →':facts.health===undefined?'Set up Health →':'Off · Set up →',icon:'heart',href:'/track/health',teaser:facts.health&&facts.health!=='unavailable'?facts.health:null}]:[{id:'import',title:'Add past days',description:'Bring in weight and calories →',icon:'upload',href:'/food/import'}])
     ];
     Discovery.render(grid,items,{space:'nutrition',ready,attribute:'data-nutrition-feature'});
   };
@@ -319,7 +319,7 @@ function drawDay(el, D) {
   const row = (label, v, cls = '', sub = '') => `<div class="brow ${cls}"><span>${label}${sub ? `<small class="muted">${sub}</small>` : ''}</span><b class="num">${v}</b></div>`;
   // one card (2026-10-12 redesign): calories, macros, then the day's balance, with how it adds up folded underneath
   const energyDetails = B.day_burn != null && (watchResting || B.deficit != null);
-  const restingSourceLink = `<a class="small more-link" id="fd-resting-source" href="/food?view=needs">Resting calories: ${watchResting ? 'Apple Health' : 'Kinetta estimate'} · change ›</a>`;
+  const restingSourceLink = `<a class="small more-link" id="fd-resting-source" href="/food?view=needs">Resting calories: ${watchResting ? 'Health app' : 'Kinetta estimate'} · change ›</a>`;
   const fresh = !D.has_history && !D.entries.length && goal == null;
   $('#fd-details',el).replaceChildren();
   if (fresh) firstFood($('#fd-sum', el), D.day);
@@ -337,7 +337,7 @@ function drawDay(el, D) {
             <b class="num ${today ? 'day-balance-detail' : ''} ${B.partly ? '' : B.deficit >= 0 ? 'good' : 'bad'}">${B.deficit == null ? neg(B.day_burn) : B.deficit >= 0 ? neg(B.deficit) : pos(-B.deficit)}<i> kcal</i></b><span class="chev">${svg('chev')}</span></summary>
         ${goalNote ? `<p class="small muted tc-note">${esc(goalNote)}</p>` : ''}
         ${B.partly ? '<p class="small muted">Looks only partly logged, so this day is left out of your averages and totals. Add the rest and it counts.</p>' : ''}
-        ${row(watchResting ? 'Resting calories · Apple Health' : 'Resting burn (BMR)', neg(B.bmr), '', watchResting ? `${today ? 'synced so far' : 'synced daily total'}${B.observed_at ? ` · read ${esc(when(B.observed_at))}` : ''}` : B.bmr_exact ? 'Kinetta estimate' : 'rough guess · <a href="/me">add height & age</a>')}
+        ${row(watchResting ? 'Resting calories · Health app' : 'Resting burn (BMR)', neg(B.bmr), '', watchResting ? `${today ? 'synced so far' : 'synced daily total'}${B.observed_at ? ` · read ${esc(when(B.observed_at))}` : ''}` : B.bmr_exact ? 'Kinetta estimate' : 'rough guess · <a href="/me">add height & age</a>')}
         ${watchResting ? '' : row('Everyday activity', neg(B.daily_life), '', `${esc((B.activity || '').toLowerCase())} · <a href="/food?view=needs">change</a>`)}
         ${B.items.length ? B.items.map((a) => row(`<a href="/activity/${a.id}"><span class="exi sp ${esc(a.sport)}">${svg(a.sport)}</span>${esc(a.name)}</a>`, neg(a.kcal) + (a.estimated ? '*' : ''), 'ex', a.distance_m ? `${U.dist(a.distance_m, 1)} ${U.du()}` : '')).join('')
                          : row('Exercise', '0', 'ex', 'no workouts this day')}
@@ -1338,7 +1338,7 @@ route(/^\/progress\/weight$/, 'progress', async el=>{
   el.classList.add('weight-page');
   el.innerHTML=`<div class="top weight-heading">${backBtn(origin.label)}<div class="weight-heading-main"><h1>Weight</h1><div class="acts"><button type="button" class="icon-btn" id="weight-help" aria-label="About your weight">${svg('help')}</button>${bellBtn()}</div></div></div><div id="nt-weight"></div><div id="nt-whist"></div>`;
   wireBack(el,origin.href);
-  $('#weight-help',el).onclick=()=>sheet('Your weight',`<p>Weigh-ins and body measurements are private. They never appear on a shared profile or progress picture.</p><p>The trend smooths day-to-day changes. Apple Health weights keep their source label; a manual weigh-in takes priority for its day.</p><p class="small muted">Daily calorie estimates use your trend when available, then your stored body weight. Logging a weigh-in also updates that stored value.</p>`);
+  $('#weight-help',el).onclick=()=>sheet('Your weight',`<p>Weigh-ins and body measurements are private. They never appear on a shared profile or progress picture.</p><p>The trend smooths day-to-day changes. Health app weights keep their source label; a manual weigh-in takes priority for its day.</p><p class="small muted">Daily calorie estimates use your trend when available, then your stored body weight. Logging a weigh-in also updates that stored value.</p>`);
   weightCard($('#nt-weight',el));weightHistory($('#nt-whist',el));
 });
 
@@ -1416,7 +1416,7 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
   }
   const pDef = S.predicted_kg, pTr = S.trend_change_kg;
   const burnNote=I.rows.some(r=>r.burn_source==='apple_health')
-    ? 'Burn uses synced Apple Health resting calories plus recorded activity calories, counted once. Missing resting data stays missing. These are source estimates, not a measurement of your exact needs.'
+    ? 'Burn uses synced Health app resting calories plus recorded activity calories, counted once. Missing resting data stays missing. These are source estimates, not a measurement of your exact needs.'
     : I.rows.some(r=>r.burn_source==='imported')
       ? 'Some days use imported daily burn; other days use the formula estimate plus recorded workouts. These source values are estimates.'
       : `Burn is a formula estimate of daily needs (about ${r0(homeCalories(S.tdee))} kcal before recorded workouts), plus recorded activity calories. It is not a measurement of your exact needs.`;
@@ -1533,7 +1533,7 @@ async function restingSourceCard(box) {
   if (!box?.isConnected) return;
   const account=readOwner(),watch=App.me.resting_source==='apple_health';
   box.innerHTML=`<section class="card"><h2>Resting calories</h2><p class="small muted">Choose where passive calories come from. Your food goal stays the same. Activity calories already in Kinetta are added once.</p>
-    <label>Source<select id="resting-source"><option value="formula"${watch?'':' selected'}>Kinetta estimate</option><option value="apple_health"${watch?' selected':''}>Apple Health · Resting Energy</option></select></label>
+    <label>Source<select id="resting-source"><option value="formula"${watch?'':' selected'}>Kinetta estimate</option><option value="apple_health"${watch?' selected':''}>Health app · Resting Energy</option></select></label>
     <p class="small muted">${watch ? 'Uses synced Resting Energy, without an everyday-activity multiplier. Today shows the amount so far; missing days stay blank until synced.' : 'Uses calculated BMR and your everyday activity setting.'}</p>
     ${watch ? `<p class="small" id="resting-status" role="status">Checking resting-energy sync…</p>${Native.on ? `<button class="primary wide" id="resting-sync">Connect / sync resting calories</button>` : '<p class="small muted">Open the latest Kinetta iPhone app to allow Resting Energy and sync. Synced totals also appear here in your browser.</p>'}<button class="ghost wide danger" id="resting-remove">Remove synced resting calories</button>` : ''}
     <p class="small err" id="resting-error" role="alert"></p></section>`;
