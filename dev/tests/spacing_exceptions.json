@@ -38,6 +38,32 @@
     "reason": "Required map copyright/source text uses compact 12px type. Smaller credits still fail, and clipping remains audited."
   },
   {
+    "id": "activity-card-map-credit-type",
+    "selector": ".activity-card .leaflet-control-attribution,.activity-card .leaflet-control-attribution a",
+    "metric": "font-min",
+    "kind": "attribution",
+    "exact": 9,
+    "reason": "Owner-approved #543 activity-card credits use 9px text to fit the top-right map corner. Other maps keep the 12px minimum; visible credit text and clipping remain audited."
+  },
+  {
+    "id": "activity-card-map-metric-number-size",
+    "selector": ".activity-card .post-map-metric b",
+    "metric": "font-max",
+    "kind": "activity-metric",
+    "maximum": 24,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/543",
+    "reason": "Issue #543 specifies 20px overlay numbers at normal text and caps them at 24px when accessibility text is enlarged. The narrow card selector keeps every other text maximum active."
+  },
+  {
+    "id": "activity-card-map-metric-unit-size",
+    "selector": ".activity-card .post-map-metric i",
+    "metric": "font-min",
+    "kind": "activity-metric",
+    "minimum": 13,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/543",
+    "reason": "Issue #543 specifies 13px overlay units at normal text; they may grow with accessibility text. The narrow card selector keeps every other text minimum active."
+  },
+  {
     "id": "nutrition-goal-corner",
     "selector": "#fd-goal",
     "withSelector": "#fd-sum > .nutrition-day-summary > .nutrition-summary-link",

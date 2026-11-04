@@ -50,3 +50,40 @@
 .feed-low .progress-tile-name > svg { display:inline-block;vertical-align:-2px;margin-right:6px; }
 .feed-low .progress-tile-name > b { display:inline;overflow-wrap:normal; }
 .feed-low .progress-tile-name .progress-new { margin-left:6px;vertical-align:middle; }
+
+/* Feed and profile activity cards: title first, one metadata row, then an edge-to-edge route. */
+.activity-card { overflow:hidden; }
+.activity-card.post .post-hd.post-profile { display:flex; align-items:center; gap:8px; padding:12px 14px 8px; margin:0; min-width:0; }
+.activity-card.post .post-av { display:grid; place-items:center; flex:none; width:44px; min-width:44px; height:44px; min-height:44px; }
+.activity-card.post .post-av .av { width:36px; height:36px; }
+.activity-card.post .post-hd .ph-txt { display:block; flex:1; min-width:0; }
+.activity-card.post .post-hd .post-title-link { display:flex; align-items:center; min-height:44px; padding:0; color:inherit; text-decoration:none; background:none; }
+.activity-card.post .post-title { margin:0; font-size:max(17px,1.0625rem); font-weight:600; letter-spacing:0; line-height:1.25; overflow-wrap:anywhere; }
+.activity-card.post .post-hd small { display:block; margin-top:8px; color:var(--tx2); font-size:max(13px,.8125rem); line-height:1.35; white-space:normal; }
+.activity-card.post .post-name { color:inherit; font-size:inherit; font-weight:500; text-decoration:none; }
+.activity-card.post .post-name:focus-visible,.activity-card.post .post-title-link:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
+.activity-card .activity-media { width:100%; margin:0; }
+.activity-card .media-track { height:auto; border-radius:0; }
+.activity-card .media-item { height:auto; aspect-ratio:4 / 3; }
+.activity-card .media-map > .fmap { width:100%; height:100%; min-height:0; }
+.activity-card .post-map-metrics { position:absolute; z-index:3; inset:auto 0 0; box-sizing:border-box; height:56px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:end; gap:6px; padding:0 12px 8px; color:#fff; background:linear-gradient(to bottom,transparent,rgba(0,0,0,.55)); pointer-events:none; }
+.activity-card .post-map-metric { min-width:0; white-space:nowrap; }
+.activity-card .post-map-metric b { display:block; overflow:hidden; color:#fff; font-size:min(24px,max(20px,1.25rem)); font-weight:600; line-height:1.1; text-overflow:clip; }
+.activity-card .post-map-metric i { margin-left:3px; font-size:max(13px,.8125rem); font-style:normal; font-weight:400; }
+.activity-card .fmap .leaflet-bottom.leaflet-right { top:5px; right:6px; bottom:auto; max-width:calc(100% - 56px); }
+.activity-card .fmap .leaflet-control-attribution { margin:0; padding:0!important; border-radius:0; background:transparent!important; color:#fff!important; font-size:9px!important; line-height:1.2!important; opacity:.7; text-shadow:0 1px 2px rgba(0,0,0,.95); }
+.activity-card .fmap .leaflet-control-attribution a { color:inherit!important; }
+.activity-card .post-summary { padding:8px 14px 12px; }
+.activity-card .post-summary .stats3 { grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.activity-card .post-summary .stat small { font-size:.75rem; }
+.activity-card .post-extra > .post-lifts,.activity-card .post-extra > .badges { margin:0; padding:0 14px 8px; }
+.activity-card .post-summary .post-lifts,.activity-card .post-summary .badges { margin:6px 0 0; padding:0; }
+.activity-card .post-ft .activity-share { order:3; display:flex; align-items:center; justify-content:center; flex:none; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; margin-left:auto; }
+.activity-card .post-ft:has(.activity-share) .emoji-reactions .reaction-count { margin-left:0; }
+.activity-card .post-ft:has(.emoji-reactions) { gap:8px; padding-top:8px; }
+.activity-card .compact-media:has(.media-map) .media-controls > button[data-media-step="1"] { top:36px; }
+
+/* The old 330px grid split the avatar and subtitle across rows; keep the redesigned header intact. */
+.activity-home .activity-card .post-hd.post-profile { display:flex; grid-template-columns:none; }
+.activity-home .activity-card .post-hd > .ph-txt { display:block; }
+.activity-home .activity-card .post-hd > .ph-txt > small { grid-column:auto; grid-row:auto; white-space:normal; }

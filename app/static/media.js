@@ -1,10 +1,10 @@
 // The route leads, followed by photos in one equally sized horizontal rail.
 'use strict';
-function activityMedia(a, {mapId = '', detail = false, full = false, openHref = '', compact = false} = {}) {
+function activityMedia(a, {mapId = '', detail = false, full = false, openHref = '', compact = false, mapMetrics = ''} = {}) {
   const photos = a.photos || [], count = photos.length + (a.line ? 1 : 0);
   if (!count) return '';
   const map = a.line ? `<div class="media-item media-map"><div class="${detail ? 'map big lead' : 'fmap'}"${mapId ? ` id="${mapId}"` : ''} data-line="${esc(a.line)}" data-sport="${esc(a.sport)}" role="img" aria-label="Route map">
-    ${detail ? '' : miniRoute(a.line, a.sport)}${full ? '<button class="map-full" id="d-full" aria-label="Full-screen map">' + svg('expand') + '</button>' : ''}</div></div>` : '';
+    ${detail ? '' : miniRoute(a.line, a.sport)}${full ? '<button class="map-full" id="d-full" aria-label="Full-screen map">' + svg('expand') + '</button>' : ''}</div>${!detail?mapMetrics:''}</div>` : '';
   return `<div class="activity-media${detail ? ' detail-media' : ''}${compact?' compact-media':''}" data-media="${a.id}" data-media-photos="${esc(JSON.stringify(photos))}" data-media-mine="${!a.owner || a.owner.login === App.me.login}">
     <div class="media-track" tabindex="0" role="region" aria-label="Activity photos and route; swipe or use arrow buttons">${map}${photos.map((p, i) => `<button type="button" class="media-item media-photo" data-media-photo="${i}" aria-label="Open photo ${i + 1} of ${photos.length}">${pimg(photoSrc(p, true)).replace('alt=""', `alt="Activity photo ${i + 1}"`)}</button>`).join('')}</div>
     ${openHref ? `<a class="primary wide post-open" href="${esc(openHref)}">View activity ${svg('chev')}</a>` : ''}

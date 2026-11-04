@@ -19,20 +19,34 @@ for who,count in [('typical',2),('heavy',6),('established',3)]:
   friend='friend'+str(i);ok(clients[friend].post('/api/friends',{'login':'zz_test_feed_'+who}));ok(clients[who].post('/api/friends/zz_test_feed_'+friend+'/accept'))
  ok(clients['pending'].post('/api/friends',{'login':'zz_test_feed_'+who}))
 now=dt.datetime.now(dt.timezone.utc)
-photos=['freedom-park-lake.jpg','freedom-park-bridge.jpg'];all_ids=[];first={}
+photos=['freedom-park-lake.jpg','freedom-park-bridge.jpg'];first={}
 for who in ['typical','heavy','established']+['friend'+str(i) for i in range(6)]+['blocked']:
  c=clients[who];ids=[]
  for i in range(12 if who=='heavy' else 3 if who.startswith('friend') else 2):
   when=now-dt.timedelta(hours=i*3+(1 if who.startswith('friend') else 0))
-  aid=ok(c.post('/api/activities/manual',{'sport':'run' if i%2==0 else 'walk','name':'Fictional park loop' if i==0 else 'Fictional trail session '+str(i+1),'start':when.isoformat(),'duration_s':1500+i*60,'distance_m':5000 if i%2==0 else 2400}))['id'];ids.append(aid)
+  name=['Fictional short route','Fictional long route','Fictional formerly clipped route'][i] if i<3 else 'Fictional trail session '+str(i+1)
+  aid=ok(c.post('/api/activities/manual',{'sport':'run' if i%2==0 else 'walk','name':name,'start':when.isoformat(),'duration_s':1500+i*60,'distance_m':5000 if i%2==0 else 2400}))['id'];ids.append(aid)
   ok(c.put(f'/api/activities/{aid}/sharing',{'visibility':'me' if i==1 else 'friends'}))
-  all_ids.append(aid)
  first[who]=ids[0]
  for photo in photos if who in ('typical','heavy','established') else photos[:1] if who=='friend0' else []:
   raw=base64.b64encode((Path('dev/demo/photos')/photo).read_bytes()).decode();ok(c.post(f'/api/activities/{ids[0]}/photos',{'image':'data:image/jpeg;base64,'+raw}))
-# Fixed fictional loop on public-park coordinates, used only to draw/trim the test routes.
-coords=','.join(f'{-73.9665+.006*math.cos(i*math.tau/80)} {40.7812+.0045*math.sin(i*math.tau/80)}' for i in range(81));wkt='LINESTRING('+coords+')'
-statements=[f"UPDATE activities SET geom=ST_GeomFromText('{wkt}',4326),start_pt=ST_StartPoint(ST_GeomFromText('{wkt}',4326)),end_pt=ST_EndPoint(ST_GeomFromText('{wkt}',4326)) WHERE id IN ({','.join(map(str,all_ids))});"]
+# One mapless treadmill run and three fictional route scales exercise the compact row and route fitting.
+aid=ok(clients['heavy'].post('/api/activities/manual',{'sport':'run','name':'Fictional treadmill workout','start':(now-dt.timedelta(minutes=30)).isoformat(),'duration_s':2400,'distance_m':5000}))['id']
+ok(clients['heavy'].put(f'/api/activities/{aid}/sharing',{'visibility':'me'}))
+spans=[(.0008,.0005),(.018,.01),(.075,.05)]
+statements=[]
+for who in ['typical','heavy','established']+['friend'+str(i) for i in range(6)]+['blocked']:
+ # The first three rows for each persona are short, long and previously clipped routes.
+ own=[int(row['id']) for row in ok(clients[who].get('/api/activities?limit=100')) if row['name']!='Fictional treadmill workout']
+ for index,activity_id in enumerate(own):
+  if who.startswith('friend') and index==0:
+   sx,sy=spans[1]  # Leave a visible fictional route after the 400 m friend-map trim.
+  elif index<3:
+   sx,sy=spans[index]
+  else:
+   sx,sy=spans[1]
+  coords=','.join(f'{-73.9665+sx*math.cos(i*math.tau/80)} {40.7812+sy*math.sin(i*math.tau/80)}' for i in range(81));wkt='LINESTRING('+coords+')'
+  statements.append(f"UPDATE activities SET geom=ST_GeomFromText('{wkt}',4326),start_pt=ST_StartPoint(ST_GeomFromText('{wkt}',4326)),end_pt=ST_EndPoint(ST_GeomFromText('{wkt}',4326)) WHERE id={activity_id};")
 for who in ('typical','heavy','established'):
  uid=ok(clients[who].get('/api/me'))['id'];aid=first[who];statements.append(f"WITH r AS (INSERT INTO routes(user_id,sport,name) VALUES({uid},'run','Fictional matched loop') RETURNING id) UPDATE activities SET route_id=(SELECT id FROM r) WHERE user_id={uid} AND id={aid};")
  ok(clients['friend0'].post(f'/api/activities/{aid}/reaction',{'kind':'strong'}));ok(clients['friend1'].post(f'/api/activities/{aid}/reaction',{'kind':'applause'}));ok(clients['friend0'].post(f'/api/activities/{aid}/comments',{'text':'Fictional encouragement'}))
