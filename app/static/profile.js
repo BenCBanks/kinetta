@@ -67,7 +67,7 @@ const MeCard=(()=>{
   function card(p,{mine=false,pills='',friends='',link=false,milestones=false,showBio=true}={}){
     const bio=showBio?(p.bio||'').trim():'',photo=avatar(p,'lg'),name=esc(p.name||p.login),handle=`<span data-type="secondary">@${esc(p.login)}</span>`;
     const identity=link
-      ? `<a class="me-card-profile-link" href="${profileHref(p)}" aria-label="View your full profile: ${name}, ${handle.replace(/<[^>]*>/g,'')}"><span class="me-card-avatar">${photo}</span><span class="me-card-name"><h2>${name} <span class="me-profile-chevron" data-type="glyph" aria-hidden="true">›</span></h2><span class="me-card-meta">${handle}</span></span></a>${friends}`
+      ? `<a class="me-card-profile-link" href="${profileHref(p)}" aria-label="View your full profile: ${name} › ${handle.replace(/<[^>]*>/g,'')}"><span class="me-card-avatar">${photo}</span><span class="me-card-name"><h2>${name} <span class="me-profile-chevron" data-type="glyph" aria-hidden="true">›</span></h2><span class="me-card-meta">${handle}</span></span></a>${friends}`
       : `<span class="me-card-avatar">${photo}</span><div class="me-card-name"><h2>${name}</h2><div class="me-card-meta">${handle}${friends}</div></div>`;
     return `<section class="me-card" aria-label="${mine?'Your profile card':esc(p.name||p.login)+'’s profile card'}"><div class="me-card-banner">${pills}</div>
       <div class="me-card-body"><div class="me-card-id${link?' me-card-id-link':''}">${identity}</div>
