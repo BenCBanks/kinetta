@@ -27,9 +27,13 @@ const addDays = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDa
 const dayLabel = (iso, timeZone = tz()) => { const t = isoDay(new Date(),timeZone); return iso === t ? 'Today' : iso === addDays(t, -1) ? 'Yesterday' : iso === addDays(t, 1) ? 'Tomorrow' : new Date(iso + 'T12:00:00Z').toLocaleDateString([], {timeZone:'UTC',weekday: 'short', month: 'short', day: 'numeric', ...(iso.slice(0,4) !== t.slice(0,4) ? {year:'numeric'} : {})}); };
 const foodDestination = w => { const zone=w.timeZone||tz();return `<p class="portion-context small muted">${esc([MEAL_NAMES[w.meal],dayLabel(w.day||isoDay(new Date(),zone),zone)].filter(Boolean).join(' · '))}</p>`; };
 function foodDestinationPicker(w,onSave,formId='food-destination'){
-  const zone=deviceTimeZone(),day=w.day||isoDay(new Date(),zone),meal=Object.hasOwn(MEAL_NAMES,w.meal)?w.meal:guessMeal(zone);
-  sheet('Meal and day',`<form class="form" id="${esc(formId)}"><label>Meal<select name="meal">${Object.entries(MEAL_NAMES).map(([k,v])=>`<option value="${k}"${k===meal?' selected':''}>${v}</option>`).join('')}</select></label><label>Day<input name="day" type="date" value="${esc(day)}" required></label><button class="primary wide">Save</button></form>`,(b,close)=>{
-    $(`#${formId}`,b).onsubmit=async e=>{e.preventDefault();try{await onSave({meal:e.target.meal.value,day:e.target.day.value});close();}catch(error){toast(error.message);}};
+  const zone=deviceTimeZone(),today=isoDay(new Date(),zone),yesterday=addDays(today,-1),day=w.day||today,meal=Object.hasOwn(MEAL_NAMES,w.meal)?w.meal:guessMeal(zone);
+  const mealRows=Object.entries(MEAL_NAMES).map(([key,name])=>{const label=key==='snacks'?'Snack':name;return `<button type="button" class="food-destination-option" data-meal="${esc(key)}" aria-pressed="${key===meal}"><span>${esc(label)}</span>${key===meal?'<span class="food-destination-check" aria-hidden="true">✓</span>':''}</button>`;}).join('');
+  sheet('Meal and day',`<div class="food-destination-picker" id="${esc(formId)}"><div class="food-destination-group" role="group" aria-label="Meal">${mealRows}</div><div class="food-destination-group" role="group" aria-label="Day"><button type="button" class="food-destination-option" data-day="${today}" aria-pressed="${day===today}">Today</button><button type="button" class="food-destination-option" data-day="${yesterday}" aria-pressed="${day===yesterday}">Yesterday</button><label class="food-destination-option food-destination-pick"><span>Pick a date…</span><input name="date" type="date" value="${esc(day)}" aria-label="Pick a date"></label></div></div>`,(b,close)=>{
+    const root=$(`#${formId}`,b),apply=async next=>{try{await onSave(next);close();}catch(error){toast(error.message);}};
+    $$('[data-meal]',root).forEach(button=>button.onclick=()=>apply({meal:button.dataset.meal,day}));
+    $$('[data-day]',root).forEach(button=>button.onclick=()=>apply({meal,day:button.dataset.day}));
+    const date=$('input[name="date"]',root);date.onchange=()=>{if(date.value)apply({meal,day:date.value});};
   });
 }
 function guessMeal(timeZone = tz()) {   // the meal you usually log at this hour (learned from your log), else a sensible clock guess
@@ -700,11 +704,10 @@ async function tUsuals(body, where, close) {
     const recent=recentSavedItems(dishes,meals);
     const collecting=typeof FoodThread!=='undefined'&&FoodThread.collecting();
     const quick = (f, i) => `<div class="usual">${foodRow(f, i)}<button class="icon-btn qadd choose-food-add" data-q="${i}" aria-label="${collecting?'Add':'Log'} ${esc(f.name)} (${esc(fmtAmount(f._last))})">${svg('plus')}</button></div>`;
-    body.innerHTML = `${recentSavedMarkup(recent)}<div data-shared-usuals></div>`+(usual.length ? `<p class="small muted">+ ${collecting?'adds your usual amount for review':'logs your usual amount'}</p><div class="results">${usual.map((_, i) => quick(foods[i], i)).join('')}</div>`
-      : '<p class="small muted">Foods you log often will appear here. Search to add something new.</p><div class="btncol"><button class="ghost" id="tr-search">Search for a food</button></div>');
+    body.innerHTML = `${recentSavedMarkup(recent)}<div data-shared-usuals></div>`+(usual.length ? `<div class="results">${usual.map((_, i) => quick(foods[i], i)).join('')}</div>`
+      : '<p class="small muted">Your usuals appear after you log a few foods.</p>');
     sharedRecipes($('[data-shared-usuals]',body),where,close);
     wireRecentSaved(body,recent,where,{afterDish:()=>close(),afterMeal:()=>close()});
-    const ts = $('#tr-search', body); if (ts) ts.onclick = () => $('.sheet [data-t=search]').click();
     $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close));
     $$('[data-q]', body).forEach((x) => x.onclick = async () => {
       const f = foods[+x.dataset.q], l = f._last, w = where(); x.disabled = true;
