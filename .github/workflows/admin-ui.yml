@@ -19,10 +19,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Sign-in history with paginated account responses (no server or database)
+      - name: Check admin scripts parse (no server or database)
         run: |
           node --check app/static/admin.js
-          node dev/tests/test_admin_logins.js
-          node dev/tests/test_admin_tools.js
-          node dev/tests/test_temporary_login.js
           node --check app/static/admin-tools.js

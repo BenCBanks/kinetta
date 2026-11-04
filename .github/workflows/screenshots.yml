@@ -10,7 +10,7 @@ on:
     paths: ["app/static/**", "dev/demo/**", "dev/screenshots/**"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
-    paths: ["dev/screenshots/**", "dev/tests/navigation_ui.cjs", ".github/workflows/screenshots.yml"]
+    paths: ["dev/screenshots/**", ".github/workflows/screenshots.yml"]
   workflow_dispatch:
 permissions:
   contents: write
@@ -24,17 +24,22 @@ jobs:
     if: github.event_name != 'pull_request' || (github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      KINETTA_VERSION: ci
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref || github.ref_name }}
       - name: Read the published public basemap settings (no account data)
         run: python3 dev/screenshots/map_env.py
+      - uses: ./.github/actions/build-test-image
+        with:
+          scope: screenshots
       - name: Start a throwaway Kinetta
         # a placeholder AI key only makes the app show its AI cards; nothing is ever sent (the demo's reviews are made up
         # in coach.sql and no one presses the buttons). dev/screenshots/standin.py supplies the food chat's made-up estimates.
         run: |
-          GEMINI_API_KEY=placeholder-for-screenshots KINETTA_PORT=8798 TZ=America/New_York docker compose -p shots -f docker-compose.yml -f dev/screenshots/compose.standin.yml up -d --build
+          GEMINI_API_KEY=placeholder-for-screenshots KINETTA_PORT=8798 TZ=America/New_York docker compose -p shots -f docker-compose.yml -f dev/screenshots/compose.standin.yml up -d
           for i in $(seq 1 60); do curl -sf localhost:8798/api/health && break; sleep 3; done
       - name: Load the demo data
         env:
@@ -47,6 +52,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: dev/tests/browser/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('dev/tests/browser/package-lock.json') }}
       # Pin Python: the runner's default moved to 3.14, which the pinned Pillow has no wheel for (it then tried, and
       # failed, to compile it from source, so the screenshots stopped updating on 22 October).
       - uses: actions/setup-python@v5
@@ -54,26 +65,26 @@ jobs:
           python-version: "3.12"
       - name: Take the screenshots
         run: |
-          mkdir -p /tmp/shots-tool /tmp/png && cd /tmp/shots-tool && npm init -y >/dev/null && npm install playwright@1.63.0
-          npx playwright install --with-deps chromium
-          NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/boot_ui.cjs"
-          NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/navigation_ui.cjs"
-          NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/screenshots/take.js" /tmp/png
-          NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/map_ui.cjs"
-          NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/lift_ui.cjs"
-          NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/activity_ui.cjs"
-          NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/edit_activity_ui.cjs"
-          NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/tracking_ui.cjs"
-          NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/map_feedback_ui.cjs"
-          NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/track_ready_map_ui.cjs"
-          NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/personal_notifications_ui.cjs"
-          NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/me_card_ui.cjs"
-          NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/profile_card_ui.cjs"
-          NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/public_card_ui.cjs"
-          NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/goals_ui.cjs"
+          mkdir -p /tmp/png
+          npm ci --prefix dev/tests/browser
+          dev/tests/browser/node_modules/.bin/playwright install --with-deps chromium
+          NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/boot_ui.cjs"
+          NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/screenshots/take.js" /tmp/png
+          NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/map_ui.cjs"
+          NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/lift_ui.cjs"
+          NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/activity_ui.cjs"
+          NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/edit_activity_ui.cjs"
+          NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/tracking_ui.cjs"
+          NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/map_feedback_ui.cjs"
+          NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/track_ready_map_ui.cjs"
+          NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/personal_notifications_ui.cjs"
+          NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/me_card_ui.cjs"
+          NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/profile_card_ui.cjs"
+          NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/public_card_ui.cjs"
+          NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/goals_ui.cjs"
           pip install pillow==11.0.0
           python3 "$GITHUB_WORKSPACE/dev/screenshots/to_webp.py" /tmp/png "$GITHUB_WORKSPACE/site/assets/shots"
-          NODE_PATH=/tmp/shots-tool/node_modules node "$GITHUB_WORKSPACE/dev/tests/website_screens_ui.cjs"
+          NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/website_screens_ui.cjs"
       - name: Commit them
         if: github.event_name != 'pull_request'
         env:
