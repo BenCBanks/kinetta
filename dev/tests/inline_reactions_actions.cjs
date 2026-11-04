@@ -3,6 +3,21 @@
 const {chromium}=require('playwright'),assert=require('node:assert/strict');
 const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill';
 const until=async(p,fn,label,assetFailures)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))return;await p.waitForTimeout(100);}throw Error(label+' '+JSON.stringify({page:await p.evaluate(()=>({url:location.pathname,...(typeof App==='undefined'?{}:{ready:App.pageReady}),body:document.body.innerText.slice(0,250)})),staticAssetFailures:assetFailures}));};
+async function assertCardActions(card,{share,width,label}){
+ const footer=card.locator('.post-ft'),react=card.locator('.reaction-more'),comment=card.locator('.activity-comments'),shareButton=card.locator('.post-ft [data-share-picture]');
+ const reactBox=await react.boundingBox(),commentBox=await comment.boundingBox(),footerBox=await footer.boundingBox();
+ assert(Math.abs(commentBox.x-reactBox.x-reactBox.width-16)<1,`${label}: Comment follows React by 16px`);
+ assert.equal(await shareButton.count(),share?1:0,`${label}: Share matches ownership`);
+ let trailing=commentBox.x+commentBox.width;
+ if(share){const shareBox=await shareButton.boundingBox();assert(Math.abs(shareBox.x-trailing-16)<1,`${label}: Share follows Comment by 16px`);trailing=shareBox.x+shareBox.width;}
+ const shortcuts=card.locator('.reaction-shortcuts');
+ if(await shortcuts.isVisible()){
+  const summary=await shortcuts.boundingBox(),padding=await footer.evaluate(n=>parseFloat(getComputedStyle(n).paddingRight)||0);
+  assert(summary.x-trailing>=7.5,`${label}: reaction summary has an 8px gap from the last action`);
+  assert(Math.abs(summary.x+summary.width-footerBox.x-footerBox.width+padding)<1,`${label}: reaction summary sits at the trailing content edge`);
+  if(width===330)assert(await shortcuts.locator('.reaction-summary-emoji:visible').count()<=2,`${label}: narrow card shows no more than two reaction emojis`);
+ }
+}
 (async()=>{
  const browser=await chromium.launch();let cases=0;
  try{
@@ -19,9 +34,10 @@ const until=async(p,fn,label,assetFailures)=>{for(let n=0;n<150;n++){if(await p.
      if(!['GET','HEAD'].includes(r.method())&&!(u.pathname===`/api/activities/${aid}/reaction`||u.pathname===`/api/activities/${otherAid}/reaction`||u.pathname===`/api/activities/${aid}/comments`||r.method()==='DELETE'&&/^\/api\/comments\/\d+$/.test(u.pathname)))return route.fulfill({json:{}});return route.continue();});
     const href=surface==='profile'?'/people/zz_test_inline_owner':surface==='history'?'/me/activities':'/activity';await p.goto(base+href);await until(p,()=>typeof App!=='undefined'&&App.pageReady,'Page ready',assetFailures);
     const card=p.locator('article.post').filter({hasText:'Fictional empty run'});await card.waitFor();await until(p,()=>[...document.querySelectorAll('article.post [data-reaction-group]')].every(g=>g.dataset.bound==='1'),'Reaction handlers ready');const group=card.locator('[data-reaction-group]');assert.equal(await group.locator('[data-inline-react]').count(),0);assert(await group.locator('.reaction-more').isVisible());assert.equal(await group.locator('.reaction-more').getAttribute('aria-label'),'React');assert.equal((await group.locator('.reaction-more').innerText()).trim(),'React');
-    const ownCard=surface==='own'||surface==='history';assert.equal(await card.locator('.post-hd [data-share-picture]').count(),0,'Share is not in the header');assert.equal(await card.locator('.post-ft [data-share-picture]').count(),ownCard?1:0,'Only own cards offer footer Share');
+    const ownCard=surface==='own'||surface==='history';assert.equal(await card.locator('.post-hd [data-share-picture]').count(),0,'Share is not in the header');await assertCardActions(card,{share:ownCard,width:size.width,label:surface+' empty activity'});
     if(ownCard){const url=p.url();await card.locator('.post-ft [data-share-picture]').click();await p.locator('#pi-img').waitFor({state:'attached'});assert.equal(p.url(),url,'Footer Share opens the picture without card navigation');await p.keyboard.press('Escape');}
     assert.equal(await card.locator('.activity-comments').isVisible(),true);assert.equal(await card.locator('.activity-comments .num').isVisible(),false);assert.equal(await group.locator('.reaction-count').isVisible(),false);
+    const otherCard=p.locator('article.post').filter({hasText:'Fictional others run'});await otherCard.waitFor();assert(await otherCard.locator('.reaction-shortcuts').isVisible(),'the reaction fixture shows its summary');await assertCardActions(otherCard,{share:ownCard,width:size.width,label:surface+' reacted activity'});
     const choose=async kind=>{await group.locator('.reaction-more').click();const tray=p.locator('.reaction-picker:not([hidden])');await tray.waitFor({state:'visible'});assert.equal(await tray.locator('[data-react]').count(),16,'all choices for '+kind+' on '+surface+' '+size.width+' '+theme);await tray.locator(`[data-react="${kind}"]`).click();await until(p,()=>!document.querySelector('article.post [aria-busy=true]'),'Save settled');assert.equal(await group.getAttribute('data-mine'),kind);assert.equal(await group.locator('.reaction-more').getAttribute('data-kind'),kind);const choice=await p.evaluate(kind=>App.me.reaction_choices.find(row=>row[0]===kind),kind),label=choice[1];assert.equal(await group.locator('.reaction-more').getAttribute('aria-label'),'Your reaction: '+label+'. Change reaction');if(kind==='lift')assert.equal(await group.locator('.reaction-more .reaction-barbell').count(),1,'selected lift uses the barbell SVG');else assert.equal(await group.locator('.reaction-more').innerText(),choice[2]);const state=await(await c.request.get(base+`/api/activities/${aid}/social`)).json();assert.equal(state.my_reaction,kind);assert.equal(state.reactions[kind],1);assert.equal(Object.values(state.reactions).reduce((n,v)=>n+v,0),1,'one reaction replaces the previous choice');assert(await group.locator('.reaction-more').evaluate(n=>n===document.activeElement),'Focus returns to the reaction action');};
     const kinds=surface==='friends'&&size.width===390&&theme==='light'?(await(await c.request.get(base+'/api/me')).json()).reaction_choices.map(row=>row[0]):['clap','muscle','fire'];for(const kind of kinds)await choose(kind);
     const selected=await group.getAttribute('data-mine');await group.locator('.reaction-more').click();await p.locator(`.reaction-picker:not([hidden]) [data-react="${selected}"]`).click();await until(p,()=>!document.querySelector('article.post [aria-busy=true]'),'Clear settled');assert.equal(await group.getAttribute('data-mine'),'');assert(await group.locator('.reaction-count').isHidden());
