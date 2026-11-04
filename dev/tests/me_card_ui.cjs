@@ -45,7 +45,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();
   const weekly=p.locator('.me-card-weekly'),label=p.locator('[data-week-label]'),chart=p.locator('.me-card-bars'),weeks=p.locator('.me-week');
   const profileLink=p.locator('.me-card-profile-link'),linkBox=await profileLink.boundingBox();
-  assert.equal(await profileLink.getAttribute('aria-label'),`View your full profile: ${await profileLink.locator('h2').innerText().then(n=>n.replace(/\s+›$/,''))} › ${await profileLink.locator('.me-card-meta').innerText()}`,'the link label identifies the action and includes the visible name, chevron and handle');
+  assert.equal(await profileLink.getAttribute('aria-label'),`View your full profile: ${await profileLink.locator('.me-card-avatar').innerText()}${await profileLink.locator('h2').innerText().then(n=>n.replace(/\s+›$/,''))}, ${await profileLink.locator('.me-card-meta').innerText()}`,'the accessible name identifies the action and includes the avatar initials, visible name and handle');
   assert(linkBox.height>=44,'the full-profile header link is at least 44px tall');
   assert.equal(await profileLink.locator('.me-card-avatar').count(),1);assert.match(await profileLink.locator('h2').innerText(),/Alex Rivera\s+›$/);
   const nameLine=await profileLink.locator('h2').evaluate(node=>({height:node.getBoundingClientRect().height,lineHeight:parseFloat(getComputedStyle(node).lineHeight),bottom:node.getBoundingClientRect().bottom})),chevronBox=await profileLink.locator('.me-profile-chevron').boundingBox();
