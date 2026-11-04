@@ -18,7 +18,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
  const b=await chromium.launch(),login=await b.newContext();
  await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});
  const storageState=await login.storageState();
- for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){
+ for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16}])for(const theme of ['light','dark']){
   const c=await b.newContext({storageState,viewport:size,colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];
   let slotFixture='both',zeroDistanceFixture=false,seriesFixture;
   p.on('pageerror',e=>errors.push(e.message));
@@ -106,7 +106,6 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   await checkChart();await checkTargets();
   const current=weeks.last();assert((await chartState()).atEnd,'This week is visible at the right edge');
   if(size.width===390&&size.root===16)await screenshot('me-card-current-week');
-  if(size.width===330&&size.root===24)await screenshot('me-card-large-text');
   if(size.width===390&&size.root===16&&theme==='light'){
    if(out)await p.locator('.me-top').screenshot({path:`${out}/bell-badge-${size.width}-${theme}.png`,animations:'disabled'});
    await profileLink.click();await p.waitForURL('**/people/alex');await p.locator('#person-profile').waitFor();

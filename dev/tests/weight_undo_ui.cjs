@@ -8,7 +8,7 @@ const until=async(p,f,label)=>{for(let n=0;n<160;n++){if(await p.evaluate(f))ret
 (async()=>{const browser=await chromium.launch();let cases=0;try{
  const auth=await browser.newContext();assert.equal((await auth.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}})).status(),200);const me=await(await auth.request.get(base+'/api/me')).json(),state=await auth.storageState();await auth.close();
  const today=new Date().toLocaleDateString('en-CA',{timeZone:me.tz||'UTC'}),previous=new Date(new Date(today+'T12:00Z').valueOf()-86400000).toISOString().slice(0,10);
- for(const size of[{width:390,height:844,root:16},{width:330,height:740,root:24}])for(const theme of['light','dark']){
+ for(const size of[{width:390,height:844,root:16}])for(const theme of['light','dark']){
   const original=[{day:previous,kg:71,trend:71,source:'healthkit',source_label:'Apple Health · Fictional Scale'},{day:today,kg:70,trend:70.9,source:'manual',source_label:'Manual'}];let points=original.slice(),deleteCalls=0,putCalls=0,putDay=null,holdDelete=null,release,failDelete=false;
   const c=await browser.newContext({storageState:state,viewport:size,colorScheme:theme,serviceWorkers:'block',reducedMotion:'reduce'}),p=await c.newPage(),errors=[],writes=[],dialogs=[];
   try{

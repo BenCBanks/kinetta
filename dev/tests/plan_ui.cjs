@@ -15,7 +15,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   await p.goto(base+'/plan');await until(p,()=>App.pageReady&&!!document.querySelector('#pl'),'plan ready');return{c,p,get,errors,writes};
  }
  try{
-  for(const who of people)for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){
+  for(const who of people)for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
    const name=`${who}-${size.width}-${theme}`;if(process.env.KINETTA_PLAN_CASE&&process.env.KINETTA_PLAN_CASE!==name)continue;
    const {c,p,get,errors,writes}=await open(who,theme,size),d=await(await get('/api/plans/current')).json();
    assert.equal(await p.locator('.top .back').innerText(),'Progress');assert.equal(await p.locator('.discovery-grid').count(),0,'no sub-page tile grid');assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no document overflow');
@@ -40,7 +40,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     const next=d.today_workout&&d.today_workout.status!=='done'?d.today_workout:d.next_workout;assert.equal(await p.locator('.plan-next-workout b').innerText(),next.title);
     await p.locator('.plan-next-workout').click();await p.waitForSelector('#pw-done');assert.match(await p.locator('.sheet').innerText(),/What to do/i);assert.match(await p.locator('.sheet').innerText(),/Why/i);assert((await p.locator('.sheet').innerText()).includes(next.detail),'full coaching retained');await p.keyboard.press('Escape');
     const other=p.locator('.pweek').nth(1);await other.locator('summary').click();assert(await other.evaluate(n=>n.open));await p.evaluate(()=>render());await until(p,()=>!!document.querySelector('.plan-overview'),'rerender');assert(await p.locator('.pweek').nth(1).evaluate(n=>n.open),'chosen expansion survives rerender');
-    await p.locator('#pl-more > summary').click();await until(p,()=>!!document.querySelector('#pl-chart svg'),'details chart');assert.match(await p.locator('#pl-more').innerText(),/Your paces/);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'details chart fits large text');
+    await p.locator('#pl-more > summary').click();await until(p,()=>!!document.querySelector('#pl-chart svg'),'details chart');assert.match(await p.locator('#pl-more').innerText(),/Your paces/);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'details chart fits its viewport');
     await p.locator('#pl-actions').click();await p.waitForSelector('#pl-end');assert(await p.locator('a[href="/plan?new=1"]').isVisible());assert(await p.locator('#pl-restart').isVisible());p.once('dialog',dialog=>dialog.dismiss());await p.locator('#pl-end').click();assert.equal((await(await get('/api/plans/current')).json()).plan.id,d.plan.id,'cancel keeps plan');await p.keyboard.press('Escape');
    }
    if(who==='empty'||who==='future'){

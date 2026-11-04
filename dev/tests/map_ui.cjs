@@ -29,7 +29,7 @@ async function segmentReturn(page,context){
   const login=await browser.newContext();
   assert.equal((await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}})).status(),200);
   const storageState=await login.storageState();await login.close();
-  for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16},{width:330,height:844,root:24},{width:1280,height:900,root:16}])for(const theme of ['light','dark']){
+  for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16},{width:1280,height:900,root:16}])for(const theme of ['light','dark']){
    const {width,height,root}=size;
    const context=await browser.newContext({storageState,viewport:{width,height},colorScheme:theme,serviceWorkers:'block'}),page=await context.newPage(),errors=[];
    page.on('pageerror',e=>errors.push(e.message));
@@ -63,7 +63,7 @@ async function segmentReturn(page,context){
    if(width===330&&root===16)await segmentReturn(page,context);
    await page.evaluate(()=>go('/activity/1'));await ready(page);await page.locator('.hero .stat').first().waitFor();
    const statOverflow=await page.locator('.hero .stat').evaluateAll(es=>es.flatMap(e=>{const cell=e.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(e.querySelector('b'));return [...range.getClientRects()].some(r=>r.left<cell.left-1||r.right>cell.right+1)?[e.innerText]:[];}));
-   assert.deepEqual(statOverflow,[],'Activity values must fit their own cells, including enlarged text');
+   assert.deepEqual(statOverflow,[],'Activity values fit inside their own cells');
    const zoomStarted=await page.evaluate(async()=>{
     const box=document.createElement('div');box.className='map';Object.assign(box.style,{position:'fixed',top:'0',width:'300px',height:'240px'});document.body.append(box);
     const view=await mapInto(box,[[[38,-100],[38.001,-100.001]]]);view.map.setView([38,-100],10,{animate:false});view.map.setZoom(11);

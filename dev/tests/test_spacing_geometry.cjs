@@ -26,7 +26,6 @@ assert(metrics(scene([], [],{overflow:true,documentWidth:410})).includes('overfl
 const number=(key,font,hero=false)=>({key,font,role:'stat',numeric:true,hero,group:'.fictional-card'});
 assert.deepEqual(metrics(scene([], [number('hero',40,true),number('other',24)])),[],'One hero plus secondary stats passes');
 assert(metrics(scene([], [number('first',36,true),number('second',36,true)])).includes('hero-count'),'Two marked heroes in one card still fail');
-assert.deepEqual(metrics(scene([], [{key:'title',role:'title',font:48},{key:'body',role:'body',font:24}],{rootFont:24})),[],'Enlarged text retains its accessible scale');
 assert.throws(()=>validateExceptions([{id:'all',selector:'*',metric:'target',reason:'Ignore all targets for convenience'}]));
 assert.throws(()=>validateExceptions([{id:'tiny',selector:'#specific',metric:'target',reason:'Existing target still needs a correction'}]),/follow-up/);
 const rule={id:'tick',selector:'.chart .axis-tick',metric:'font-min',kind:'chart-tick',minimum:10,reason:'Chart axis tick labels accompany the accessible chart summary'};

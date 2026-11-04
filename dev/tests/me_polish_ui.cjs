@@ -5,7 +5,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
 module.exports=async function({browser,storageState,base}){
  const auth=await browser.newContext({storageState}),rows=await(await auth.request.get(base+'/api/activities?limit=25')).json();await auth.close();assert(rows.length>=25);
  const privateRow={...rows[0],id:999991,visibility:'me',name:'Fictional private workout',description:'PRIVATE-ONLY-DESCRIPTION',ai_note:'PRIVATE-ONLY-NOTE'},ownerRows=[privateRow,...rows.slice(0,24)];
- for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){
+ for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
   const c=await browser.newContext({storageState,viewport:size,colorScheme:theme,serviceWorkers:'block',reducedMotion:'reduce',timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[],cursors=[],nearby=[];
   let hiddenPreview=false,mode='on',holdProfile=false,heldProfile,holdRows=false,heldRows,holdArea=false,heldArea;
   p.on('pageerror',e=>errors.push(e.message));p.on('dialog',d=>d.accept());

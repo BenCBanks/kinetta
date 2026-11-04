@@ -31,7 +31,7 @@ function recapFacts(matrix,params){
   await p.goto(base+'/progress');await until(p,()=>typeof App!=='undefined'&&App.pageReady,'Progress');assert.equal(await p.title(),'Kinetta');await p.evaluate(()=>store.set('fit.recap.format:'+JSON.stringify([serverKey(),App.me.id]),'story'));await p.locator('#recap-entry').click();await pictureReady(p);return{c,p,errors};
  }
  try{
-  for(const state of ['empty','typical','heavy'])for(const theme of ['light','dark'])for(const size of [{width:390,height:844,root:15},{width:390,height:844,root:16},{width:330,height:667,root:24}]){
+  for(const state of ['empty','typical','heavy'])for(const theme of ['light','dark'])for(const size of [{width:390,height:844,root:15},{width:390,height:844,root:16}]){
    const {c,p,errors}=await open(state,theme,size);
    assert.equal(await p.locator('.recap-sheet .discovery-grid').count(),0);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth+1)),'no horizontal overflow');
    const rows=await p.locator('[data-recap-period]').evaluateAll(ns=>ns.map(n=>n.getBoundingClientRect().top));assert(rows.every(y=>Math.abs(y-rows[0])<1),'periods stay on one scrollable row');
@@ -65,7 +65,7 @@ function recapFacts(matrix,params){
    await p.locator('.recap-sheet [data-close]').click();await until(p,()=>!document.querySelector('.sheet'),'close');await p.locator('#recap-entry').click();await pictureReady(p);assert.equal(await p.locator('[data-recap-format]').count(),0,'one format after reopening');
    assert.deepEqual(errors,[]);await c.close();contexts.splice(contexts.indexOf(c),1);console.log(`Recaps ${state} ${size.width}/${size.root} ${theme}: controls/privacy/export/preview/prefs PASS`);
   }
-  for(const boundary of snapshots.boundaries)for(const size of (boundary.name==='month-boundary'?[{width:390,height:844,root:15},{width:330,height:667,root:24}]:[{width:390,height:844,root:15}]))for(const theme of ['light','dark']){
+  for(const boundary of snapshots.boundaries)for(const size of (boundary.name==='month-boundary'?[{width:390,height:844,root:15}]:[{width:390,height:844,root:15}]))for(const theme of ['light','dark']){
    const context=await browser.newContext({viewport:{width:size.width,height:size.height},colorScheme:theme,timezoneId:boundary.browser_tz,reducedMotion:'reduce',serviceWorkers:'block'});contexts.push(context);
    await context.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
    assert.equal((await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_recap_ui_empty',password:pw}})).status(),200);

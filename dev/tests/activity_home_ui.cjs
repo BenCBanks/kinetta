@@ -5,7 +5,7 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
 (async()=>{
  cp.execFileSync('python3',[path.join(__dirname,'activity_fixture.py')],{env:process.env,stdio:'inherit'});
- const b=await chromium.launch();try{for(const who of ['empty','typical','heavy','established'])for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){
+ const b=await chromium.launch();try{for(const who of ['empty','typical','heavy','established'])for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
   if(process.env.KINETTA_ACTIVITY_CASE&&process.env.KINETTA_ACTIVITY_CASE!==`${who}-${size.width}-${theme}`)continue;
   const c=await b.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});
   assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_feed_'+who,password:pw}})).status(),200);
@@ -18,7 +18,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   assert.equal(await p.locator('.feed-low').count(),['heavy','established'].includes(who)?0:1);assert.equal(await p.locator('.feed-discovery').count(),0,'old full-width duplicate is gone');
   assert((await p.locator('.feed-social-strip a').count())<=4);if(who==='empty')assert.equal(await p.locator('.feed-social-strip').count(),0);
   if(!['heavy','established'].includes(who)){assert.match(await p.locator('#feed-discovery a').first().innerText(),/Find friends/);assert.equal(await p.locator('#feed-discovery').evaluate(n=>getComputedStyle(n).gridTemplateColumns.split(' ').length),2);}
-  assert(await p.locator('#feed-discovery .progress-tile-name b').evaluateAll(ns=>ns.every(n=>{const walker=document.createTreeWalker(n,NodeFilter.SHOW_TEXT);for(let t=walker.nextNode();t;t=walker.nextNode())for(const m of t.textContent.matchAll(/\S+/g)){const r=document.createRange();r.setStart(t,m.index);r.setEnd(t,m.index+m[0].length);if(r.getClientRects().length>1)return false;}const title=n.closest('.progress-tile-name');return title.scrollWidth<=title.clientWidth;})), 'Activity discovery titles keep whole words inside their cards at enlarged text');
+  assert(await p.locator('#feed-discovery .progress-tile-name b').evaluateAll(ns=>ns.every(n=>{const walker=document.createTreeWalker(n,NodeFilter.SHOW_TEXT);for(let t=walker.nextNode();t;t=walker.nextNode())for(const m of t.textContent.matchAll(/\S+/g)){const r=document.createRange();r.setStart(t,m.index);r.setEnd(t,m.index+m[0].length);if(r.getClientRects().length>1)return false;}const title=n.closest('.progress-tile-name');return title.scrollWidth<=title.clientWidth;})), 'Activity discovery titles keep whole words inside their cards');
   assert.equal(await p.locator('[data-feed-tool=requests],[data-feed-tool=invite]').count(),0,'Invite and requests stay on Friends');
   assert.equal(await p.locator('[data-feed-challenges]').count(),1,'Challenges stays reachable after discovery');
   if(who==='established'){assert.equal(await p.locator('#feed-tools').innerText(),'');const gap=await p.evaluate(()=>document.querySelector('#ff-list .post').getBoundingClientRect().top-document.querySelector('#feed-top .top').getBoundingClientRect().bottom);assert(Math.abs(gap-16)<1,'No empty row; first card16px below header');}

@@ -10,7 +10,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
  for(const who of ['empty','typical','heavy']){
   const auth=await b.newContext();assert.equal((await auth.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_nutrition_'+who,password:'green teapot on the hill'}})).status(),200);cleanup.push(auth);const storage=await auth.storageState();
   let savedMealAdded=false;
-  for(const size of [{width:390,height:844,root:16},{width:330,height:740,root:24}])for(const theme of ['light','dark']){
+  for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
    if(process.env.KINETTA_NUTRITION_CASE&&process.env.KINETTA_NUTRITION_CASE!==`${who}-${size.width}-${theme}`)continue;
    const c=await b.newContext({storageState:storage,viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],consoleErrors=[],writes=[],failed=[];p.nutritionDiagnostics={errors,consoleErrors,failed};p.on('requestfailed',r=>failed.push({url:r.url(),error:r.failure()?.errorText}));
    p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/net::ERR_FAILED|net::ERR_ABORTED|503/.test(m.text()))consoleErrors.push(m.text());});

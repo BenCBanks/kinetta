@@ -6,7 +6,7 @@ const until=async(p,fn,label)=>{for(let i=0;i<150;i++){if(await p.evaluate(fn))r
 (async()=>{
  const browser=await chromium.launch();let cases=0;
  try{
-  for(const size of [{width:390,root:15},{width:330,root:24}])for(const theme of ['light','dark']){
+  for(const size of [{width:390,root:15}])for(const theme of ['light','dark']){
    const c=await browser.newContext({viewport:{width:size.width,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block'});
    try{
     assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_weight_health',password:'green teapot on the hill'}})).status(),200);

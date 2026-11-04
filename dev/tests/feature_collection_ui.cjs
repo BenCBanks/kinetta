@@ -4,12 +4,12 @@ const{chromium}=require('playwright'),assert=require('node:assert/strict'),fs=re
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.SHOT_DIR;
 async function until(p,fn){for(let n=0;n<160;n++){if(await p.evaluate(fn))return;await p.waitForTimeout(50);}throw Error('Route did not settle');}
 (async()=>{const browser=await chromium.launch();let checks=0;
-try{for(const enabled of [false,true])for(const theme of ['light','dark'])for(const width of [390,330]){
+try{for(const enabled of [false,true])for(const theme of ['light','dark'])for(const width of [390]){
  const c=await browser.newContext({viewport:{width,height:width===390?844:667},colorScheme:theme,serviceWorkers:'block',reducedMotion:'reduce'});
  try{
   assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_feature_collection',password:'green teapot on the hill'}})).status(),200);
   const calls=[],errors=[],writes=[];let reads=0;
-  await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),width===390?16:24);
+  await c.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize='16px'));
   await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();
    // Welcome's background challenge continuation is a no-op in this fictional renderer check.
    if(u.pathname==='/api/challenges/signup/continue')return r.fulfill({json:{}});

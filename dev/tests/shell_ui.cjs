@@ -11,7 +11,7 @@ const detail=packet?.detail||JSON.parse(cp.execFileSync('python3',[path.join(__d
 const until=async(p,f,label)=>{for(let i=0;i<150;i++){if(await p.evaluate(f))return;await p.waitForTimeout(100);}throw Error(label);};
 (async()=>{const b=await chromium.launch(),states={};let cases=0;try{
  for(const who of ['alex','zz_test_detail_owner']){const c=await b.newContext();assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:who,password:who==='alex'?'blue kettle morning run':'green teapot on the hill'}})).status(),200);states[who]=await c.storageState();await c.close();}
- for(const theme of ['light','dark'])for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}]){
+ for(const theme of ['light','dark'])for(const size of [{width:390,height:844,root:16}]){
   for(const who of ['alex','zz_test_detail_owner']){
    const c=await b.newContext({storageState:states[who],viewport:size,colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true}),p=await c.newPage(),errors=[],writes=[],pending={hold:false,release:null};
    try{

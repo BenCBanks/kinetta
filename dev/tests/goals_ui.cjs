@@ -9,7 +9,7 @@ const ready=p=>until(p,()=>App.pageReady,'View did not settle');
  const browser=await chromium.launch();
  try{
   const login=await browser.newContext();assert.equal((await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}})).status(),200);const auth=await login.storageState();await login.close();
-  for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16},{width:330,height:844,root:24},{width:1280,height:900,root:16}])for(const theme of ['light','dark']){
+  for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16},{width:1280,height:900,root:16}])for(const theme of ['light','dark']){
    const c=await browser.newContext({storageState:auth,viewport:{width:size.width,height:size.height},colorScheme:theme,serviceWorkers:'block'}),p=await c.newPage(),errors=[],writes=[],targets=[],dayGoals=[];
    p.on('pageerror',e=>errors.push(e.message));await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
    await c.route('**/*',r=>new URL(r.request().url()).origin===base?r.continue():r.abort());

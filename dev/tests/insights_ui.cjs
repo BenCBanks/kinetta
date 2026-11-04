@@ -7,7 +7,7 @@ const ready=p=>until(p,()=>(typeof App !== "undefined" && App.pageReady)&&!!docu
 (async()=>{const b=await chromium.launch();try{
  for(const state of ['empty','low','typical','heavy','unknown']){
  const login=await b.newContext();assert.equal((await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_insights_'+state,password:'green teapot on the hill'}})).status(),200);const auth=await login.storageState();await login.close();
- for(const theme of ['light','dark'])for(const size of [{width:390,height:844,root:15},{width:390,height:844,root:16},{width:330,height:667,root:24}]){
+ for(const theme of ['light','dark'])for(const size of [{width:390,height:844,root:15},{width:390,height:844,root:16}]){
  const c=await b.newContext({storageState:auth,viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,reducedMotion:'reduce'}),p=await c.newPage(),errors=[],writes=[],weekReads=[];p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
  await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
  await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(u.pathname==='/api/food/weeks')weekReads.push(u.search);if(u.pathname==='/api/challenges/signup/continue')return r.fulfill({json:{}});if(!['GET','HEAD','OPTIONS'].includes(q.method())){writes.push(u.pathname);return r.fulfill({json:{}});}return r.continue();});

@@ -6,7 +6,7 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
  const browser=await chromium.launch(),login=await browser.newContext();
  assert((await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}})).ok());
  const storageState=await login.storageState();await login.close();
- for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24},{width:1280,height:900,root:16}])for(const theme of ['light','dark']){
+ for(const size of [{width:390,height:844,root:16},{width:1280,height:900,root:16}])for(const theme of ['light','dark']){
   const c=await browser.newContext({storageState,viewport:size,colorScheme:theme,timezoneId:'America/New_York',serviceWorkers:'block'}),p=await c.newPage(),errors=[];
   p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
   await c.addInitScript(r=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=r+'px'),size.root);

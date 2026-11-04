@@ -33,15 +33,14 @@ async function reviewFailures(page,setMode,setCapabilities,saves) {
 }
 async function intervalControls(browser,storageState,uid){
  const preset=require('./fixtures/interval_presets.json')[0];
- for(const size of [{width:330,height:667,root:16},{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){
+ for(const size of [{width:330,height:667,root:16},{width:390,height:844,root:16}])for(const theme of ['light','dark']){
   const c=await browser.newContext({storageState,viewport:{width:size.width,height:size.height},colorScheme:theme,serviceWorkers:'block'}),p=await c.newPage(),errors=[],writes=[];p.on('pageerror',e=>errors.push(e.message));
   const recording=fixture();recording.intervals={pin:preset.pin,phases:preset.expected_steps,index:0,status:'running',time:30,distance:90,phase_time:0,phase_distance:0,phase_ignored_distance:0,results:[],effects:[]};
   await c.addInitScript(({recording,uid,base,root})=>{const key='kinetta.track:'+JSON.stringify([base,uid]);if(!localStorage.getItem(key))localStorage.setItem(key,JSON.stringify(recording));Object.defineProperty(navigator,'geolocation',{value:{watchPosition:()=>1,clearWatch:()=>{}}});document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px');},{recording,uid,base,root:size.root});
   await c.route('**/*',r=>{const req=r.request(),u=new URL(req.url());if(u.origin!==base)return r.abort();if(u.pathname==='/api/challenges/signup/continue')return r.fulfill({json:{}});if(!['GET','HEAD'].includes(req.method())){writes.push(u.pathname);return r.abort();}return r.continue();});
   await p.goto(base+'/track');await p.locator('#track-pause').click();await p.locator('#track-lap').waitFor();await recordingControls(p,['track-lap','track-pause','track-finish']);
   if(size.root===16)assert(await p.locator('.track-live-body').evaluate(n=>n.scrollHeight<=n.clientHeight+1),'interval, stats and map fit without scrolling');
-  const actions=await p.locator('[data-interval-control]').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{width:r.width,height:r.height,hit:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('button')===n};}));assert.equal(actions.length,2);assert(actions.every(r=>r.width>=44&&r.height>=44&&(size.root!==16||r.hit)),'interval controls remain full targets');
-  if(size.root!==16)for(const action of await p.locator('[data-interval-control]').all()){await action.scrollIntoViewIfNeeded();assert(await action.evaluate(n=>{const r=n.getBoundingClientRect();return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('button')===n;}),'enlarged interval actions are reachable');await recordingControls(p,['track-lap','track-pause','track-finish']);}
+  const actions=await p.locator('[data-interval-control]').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{width:r.width,height:r.height,hit:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('button')===n};}));assert.equal(actions.length,2);assert(actions.every(r=>r.width>=44&&r.height>=44&&r.hit),'interval controls remain full targets');
   await p.locator('[data-display=stats]').click();await recordingControls(p,['track-lap','track-pause','track-finish']);if(size.root===16)assert(await p.locator('.track-live-body').evaluate(n=>n.scrollHeight<=n.clientHeight+1),'interval Stats fits without scrolling');
   await p.locator('#track-finish').click();await p.locator('#track-save').waitFor();assert(await p.locator('nav.tabs').isHidden(),'direct Finish keeps unsaved review focused');await p.locator('#track-continue').click();await p.locator('#track-lap').waitFor();await recordingControls(p,['track-lap','track-pause','track-finish']);
   await p.locator('#track-pause').click();await recordingControls(p,['track-discard','track-pause','track-finish']);assert(!(await p.locator('.track-live > p').innerText()).includes('background'));
@@ -56,7 +55,7 @@ async function intervalControls(browser,storageState,uid){
  try {
   const auth=await b.newContext();assert.equal((await auth.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}})).status(),200);
   const me=await(await auth.request.get(base+'/api/me')).json(),state=await auth.storageState();await auth.close();
-  for(const size of [{width:390,height:844,root:16},{width:390,height:844,root:24},{width:330,height:667,root:16},{width:330,height:844,root:24},{width:330,height:667,root:24},{width:1280,height:900,root:16}])for(const theme of ['light','dark']) {
+  for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16},{width:1280,height:900,root:16}])for(const theme of ['light','dark']) {
    const c=await b.newContext({storageState:state,viewport:{width:size.width,height:size.height},colorScheme:theme,serviceWorkers:'block'}),p=await c.newPage(),errors=[],writes=[],saves=[];
    p.on('pageerror',e=>errors.push(e.message));
    await c.addInitScript(({recording,uid,base,root})=>{

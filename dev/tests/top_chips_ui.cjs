@@ -5,7 +5,7 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error('Timed out: '+label);}
 (async()=>{
  const fixture=cp.execFileSync('python3',[path.join(__dirname,'top_chips_fixture.py')],{env:process.env,encoding:'utf8'});console.log(fixture.trim().split('\n').slice(0,-1).join('\n'));const ids=JSON.parse(fixture.trim().split('\n').at(-1)),browser=await chromium.launch(),contexts=[];
- try{for(const native of [true,false])for(const size of [{width:390,height:844,root:15},{width:390,height:844,root:16},{width:390,height:844,root:24},{width:330,height:667,root:24}])for(const theme of ['light','dark'])for(const long of native?[false,true]:[false]){
+ try{for(const native of [true,false])for(const size of [{width:390,height:844,root:15},{width:390,height:844,root:16}])for(const theme of ['light','dark'])for(const long of native?[false,true]:[false]){
   const c=await browser.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,reducedMotion:'reduce'});contexts.push(c);
   const response=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_track_empty',password:'green teapot on the hill',app:native}});assert.equal(response.status(),200);const token=(await response.json()).token;
   await c.addInitScript(({base,token,native,root,long,preset})=>{
@@ -34,7 +34,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   }
   if(!long&&size.root===16){
    await p.setViewportSize({width:480,height:844});await p.waitForTimeout(100);await p.locator('.track-quick button:not([hidden])').last().focus();
-   await p.setViewportSize({width:330,height:667});await p.evaluate(()=>document.documentElement.style.fontSize='24px');await p.waitForTimeout(100);await checkFit();assert.equal(await p.evaluate(()=>document.activeElement.id),'track-other','a hidden focused quick choice hands focus to More');
+   await p.setViewportSize({width:330,height:667});await p.waitForTimeout(100);await checkFit();assert.equal(await p.evaluate(()=>document.activeElement.id),'track-other','a hidden focused quick choice hands focus to More');
    await p.setViewportSize({width:390,height:844});await p.evaluate(()=>document.documentElement.style.fontSize='16px');await p.waitForTimeout(100);await checkFit();
    await p.locator('#track-other').click();const last=p.locator('.pick-list [data-pk]').last(),chosen=(await last.innerText()).split('\n')[0];await last.click();assert.equal(await p.locator('#track-other').getAttribute('aria-pressed'),'true','a choice outside the quick prefix stays named in More');assert((await p.locator('#track-other').innerText()).includes(chosen));await checkFit();
    await p.locator('#track-other').click();await p.locator('.pick-list [data-pk="0"]').click();await checkFit();

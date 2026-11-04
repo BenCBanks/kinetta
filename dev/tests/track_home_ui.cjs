@@ -6,7 +6,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
 (async()=>{
  cp.execFileSync('python3',[path.join(__dirname,'track_fixture.py')],{env:process.env,stdio:'inherit'});
  const b=await chromium.launch(),cleanup=[];
- try{for(const who of ['empty','runner','lifter'])for(const native of [true,false])for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){
+ try{for(const who of ['empty','runner','lifter'])for(const native of [true,false])for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
   if(process.env.KINETTA_TRACK_CASE&&process.env.KINETTA_TRACK_CASE!==`${who}-${native?'native':'browser'}-${size.width}-${theme}`)continue;
   const c=await b.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});cleanup.push(c);
   const signed=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_track_'+who,password:pw,app:native}});assert.equal(signed.status(),200);
@@ -28,14 +28,14 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   if(native&&who==='runner')await until(p,()=>!document.querySelector('#track-plan').hidden,'today workout');
   else assert(await p.locator('#track-plan').isHidden());
   if(out&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/${native?'native':'browser'}-${who}-${theme}.png`,fullPage:true,animations:'disabled'});}
-  if(native&&who==='empty'&&size.root===24&&theme==='dark'){
+  if(native&&who==='empty'&&size.width===390&&size.root===16&&theme==='dark'){
    const name='Fictional'+('longname'.repeat(13)),definition={schema:1,name,description:'',blocks:[{id:'main',repeat:3,steps:[{id:'run',action:'run',role:'effort',title:'',target:{kind:'time',amount:'3',unit:'min'}},{id:'walk',action:'walk',role:'recovery',title:'',target:{kind:'time',amount:'1',unit:'min'}}]}]};
    const created=await c.request.put(base+'/api/interval-presets/'+require('node:crypto').randomUUID(),{headers:{...auth,Origin:base},data:{mutation_id:require('node:crypto').randomUUID(),definition}});assert.equal(created.status(),200);const pin=await created.json();
    await p.evaluate(pin=>{store.set('intervals:'+JSON.stringify([Native.base,App.me.id])+':selected',pin);render();},pin);await ready();assert.equal(await p.locator('#interval-open').getAttribute('title'),name);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'a long checked preset name cannot widen the phone');
   }
   await p.locator('#track-other').click();await p.waitForSelector('.pick-list');await p.locator('.pick-list [data-pk]').last().click();assert.equal(await p.locator('#track-other').getAttribute('aria-pressed'),'true');
   const firstQuick=p.locator('[data-quick]').first(),quickId=await firstQuick.getAttribute('data-quick');
-  // A long selected activity may put the common prefix in More at enlarged text sizes.
+  // A long selected activity may put the common prefix in More at a narrow phone width.
   if(await firstQuick.isVisible())await firstQuick.click();
   else{await p.locator('#track-other').click();await p.locator('.pick-list [data-pk="'+quickId+'"]').click();}
   assert.equal(await firstQuick.getAttribute('aria-pressed'),'true','The first common activity remains reachable directly or through More');

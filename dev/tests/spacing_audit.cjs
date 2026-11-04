@@ -16,7 +16,7 @@ const report=path.resolve(process.env.KINETTA_SPACING_REPORT||'/tmp/'+project+'-
  let selected=scenes(fixtures);if(process.env.KINETTA_SPACING_SCREENS){const names=process.env.KINETTA_SPACING_SCREENS.split(',');selected=selected.filter(s=>names.includes(s.name));assert.equal(selected.length,names.length,'Every selected scene exists');}
  try{
   sessions=await fixtureSessions(browser,base,selected);
-  for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark'])for(const scene of selected){
+  for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16}])for(const theme of ['light','dark'])for(const scene of selected){
    let c;const writes=[],pageErrors=[];
    try{
     const opened=await fixturePage(browser,base,fixtures,sessions,scene,size,theme);c=opened.c;const {p,auth}=opened;

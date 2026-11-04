@@ -18,8 +18,36 @@ ROOT=Path(__file__).resolve().parents[2]
 spec=importlib.util.spec_from_file_location('ci_policy',ROOT/'dev/ci/policy.py')
 policy=importlib.util.module_from_spec(spec);spec.loader.exec_module(policy)
 
+def configured_roots(source):
+    roots=[]
+    for pattern in (
+        r'\broot(?:Font)?\s*:\s*(\d+)',
+        r'\broot\s*={1,2}\s*(\d+)',
+        r'\bROOT\s*=\s*(\d+)',
+        r"documentElement\.style\.fontSize\s*=\s*['\"](\d+)px",
+    ):
+        roots.extend(int(value) for value in re.findall(pattern,source))
+    for values in re.findall(r'\broot\s+of\s*\[([^\]]+)\]',source):
+        roots.extend(int(value) for value in re.findall(r'\d+',values))
+    return roots
+
 
 class CIPolicyTests(unittest.TestCase):
+    def test_test_roots_stop_at_16_and_still_allow_15(self):
+        self.assertEqual([root for root in configured_roots('root:15; root:16; ROOT=16') if root>16],[])
+        self.assertEqual([root for root in configured_roots('root:17; rootFont:24; root==32; ROOT=20; documentElement.style.fontSize="18px"; for(const root of [15,16,32])') if root>16],[17,24,32,20,18,32])
+
+        # Sage reserved these two files for open PR #567; remove this temporary exclusion after rebasing its merge.
+        deferred={'dev/tests/inline_reactions_ui.cjs','dev/tests/inline_reactions_actions.cjs'}
+        offenders=[]
+        for path in (ROOT/'dev/tests').rglob('*'):
+            if not path.is_file() or path.suffix not in {'.cjs','.js','.py','.sh'}:continue
+            relative=path.relative_to(ROOT).as_posix()
+            if relative in deferred or relative=='dev/tests/test_ci_policy.py':continue
+            large=[root for root in configured_roots(path.read_text()) if root>16]
+            if large:offenders.append((relative,large))
+        self.assertEqual(offenders,[],'test roots above 16 are out of scope for this app')
+
     def test_ready_native_paths_and_draft_skip(self):
         for path in ('mobile/ios/App/App.swift','app/static/style.css','dev/tests/native-ui/run.py','app/asset_build.py','.github/workflows/ios.yml','dev/ci/policy.py','dev/demo/friends.cjs','dev/demo/activity_detail.cjs','dev/demo/track_session.cjs','dev/tests/fixtures/interval_presets.json'):
             self.assertTrue(policy.native_needed('pull_request',{'pull_request':{'draft':False}},[path]))
@@ -99,7 +127,7 @@ food_removal_ui.cjs food_memory_fixture.py food_memory_ui.cjs plan_ui.cjs activi
 notification_edit_ui.cjs lift_compact_ui.cjs lift_ui.cjs recipes_compact_ui.cjs friends_ui.cjs
 back_navigation_ui.cjs personal_notifications_ui.cjs notification_settings_ui.cjs recaps_ui.cjs
 insights_fixture.py insights_ui.cjs goals_ui.cjs weight_progress_fixture.py weight_progress_ui.cjs
-weight_progress_ui.cjs weight_progress_actions.cjs weight_progress_journeys.cjs weight_undo_ui.cjs
+weight_progress_actions.cjs weight_progress_journeys.cjs weight_undo_ui.cjs
 inline_reactions_fixture.py inline_reactions_ui.cjs inline_reactions_actions.cjs shell_ui.cjs
 password_visibility_ui.cjs signup_uniqueness_fixture.py signup_uniqueness_ui.cjs welcome_polish_ui.cjs
 community_ui.cjs admin_features_fixture.py admin_features_ui.cjs feature_collection_fixture.py
