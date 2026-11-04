@@ -30,7 +30,7 @@ function postCard(a, {compact = false, lock = false} = {}) {
   const media=activityMedia(a,{compact,mapMetrics:a.line?postMapMetrics(a):''});
   const details=`${!theirs && a.lifts && a.lifts.names ? `<p class="post-lifts">${esc(a.lifts.names.slice(0, 4).join(' · '))}${a.lifts.names.length > 4 ? ` +${a.lifts.names.length - 4}` : ''}</p>` : ''}${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}`;
   const summary=a.line?details:`<div class="post-summary"><div class="stats3">${theirs ? sharedHeadline(a) : headline(a)}</div>${details}</div>`;
-  return `<article class="card post activity-card" data-href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}"><div class="post-hd post-profile">${head}</div>${media}${summary?`<div class="post-extra">${summary}</div>`:''}<div class="post-ft">${foot}</div></article>`;
+  return `<article class="card post activity-card" data-href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}"><div class="post-hd post-profile post-link">${head}</div>${media}${summary?`<div class="post-extra">${summary}</div>`:''}<div class="post-ft">${foot}</div></article>`;
 }
 function sharedHeadline(a) {   // what a friend shares: no pace when they keep pace to themselves
   const st = [];

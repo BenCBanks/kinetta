@@ -53,7 +53,7 @@
 
 /* Feed and profile activity cards: title first, one metadata row, then an edge-to-edge route. */
 .activity-card { overflow:hidden; }
-.activity-card.post .post-hd.post-profile { display:flex; align-items:center; gap:8px; padding:12px 14px 8px; margin:0; min-width:0; }
+.activity-card.post .post-hd.post-profile { display:flex; align-items:center; gap:8px; padding:12px 16px 8px; margin:0; min-width:0; }
 .activity-card.post .post-av { display:grid; place-items:center; flex:none; width:44px; min-width:44px; height:44px; min-height:44px; }
 .activity-card.post .post-av .av { width:36px; height:36px; }
 .activity-card.post .post-hd .ph-txt { display:block; flex:1; min-width:0; }
@@ -80,6 +80,7 @@
 .activity-card .post-summary .post-lifts,.activity-card .post-summary .badges { margin:6px 0 0; padding:0; }
 .activity-card .post-ft .activity-share { order:3; display:flex; align-items:center; justify-content:center; flex:none; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; margin-left:auto; }
 .activity-card .post-ft:has(.activity-share) .emoji-reactions .reaction-count { margin-left:0; }
+.activity-card .post-ft:has(.emoji-reactions) .reaction-more { margin-right:8px; }
 .activity-card .post-ft:has(.emoji-reactions) { gap:8px; padding-top:8px; }
 .activity-card .compact-media:has(.media-map) .media-controls > button[data-media-step="1"] { top:36px; }
 
