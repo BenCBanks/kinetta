@@ -29,7 +29,7 @@ const foodDestination = w => { const zone=w.timeZone||tz();return `<p class="por
 function foodDestinationPicker(w,onSave,formId='food-destination'){
   const zone=deviceTimeZone(),today=isoDay(new Date(),zone),yesterday=addDays(today,-1),day=w.day||today,meal=Object.hasOwn(MEAL_NAMES,w.meal)?w.meal:guessMeal(zone);
   const mealRows=Object.entries(MEAL_NAMES).map(([key,name])=>{const label=key==='snacks'?'Snack':name;return `<button type="button" class="food-destination-option" data-meal="${esc(key)}" aria-pressed="${key===meal}"><span>${esc(label)}</span>${key===meal?'<span class="food-destination-check" aria-hidden="true">✓</span>':''}</button>`;}).join('');
-  sheet('Meal and day',`<div class="food-destination-picker" id="${esc(formId)}"><div class="food-destination-group" role="group" aria-label="Meal">${mealRows}</div><div class="food-destination-group" role="group" aria-label="Day"><button type="button" class="food-destination-option" data-day="${today}" aria-pressed="${day===today}">Today</button><button type="button" class="food-destination-option" data-day="${yesterday}" aria-pressed="${day===yesterday}">Yesterday</button><label class="food-destination-option food-destination-pick"><span>Pick a date…</span><input name="date" type="date" value="${esc(day)}" aria-label="Pick a date"></label></div></div>`,(b,close)=>{
+  sheet('Meal and day',`<div class="food-destination-picker" id="${esc(formId)}"><div class="food-destination-group" role="group" aria-label="Meal">${mealRows}</div><div class="food-destination-group" role="group" aria-label="Day"><button type="button" class="food-destination-option" data-day="${today}" aria-pressed="${day===today}"><span>Today</span>${day===today?'<span class="food-destination-check" aria-hidden="true">✓</span>':''}</button><button type="button" class="food-destination-option" data-day="${yesterday}" aria-pressed="${day===yesterday}"><span>Yesterday</span>${day===yesterday?'<span class="food-destination-check" aria-hidden="true">✓</span>':''}</button><label class="food-destination-option food-destination-pick"><span>Pick a date…</span><input name="date" type="date" value="${esc(day)}" aria-label="Pick a date"></label></div></div>`,(b,close)=>{
     const root=$(`#${formId}`,b),apply=async next=>{try{await onSave(next);close();}catch(error){toast(error.message);}};
     $$('[data-meal]',root).forEach(button=>button.onclick=()=>apply({meal:button.dataset.meal,day}));
     $$('[data-day]',root).forEach(button=>button.onclick=()=>apply({meal,day:button.dataset.day}));
@@ -704,8 +704,8 @@ async function tUsuals(body, where, close) {
     const recent=recentSavedItems(dishes,meals);
     const collecting=typeof FoodThread!=='undefined'&&FoodThread.collecting();
     const quick = (f, i) => `<div class="usual">${foodRow(f, i)}<button class="icon-btn qadd choose-food-add" data-q="${i}" aria-label="${collecting?'Add':'Log'} ${esc(f.name)} (${esc(fmtAmount(f._last))})">${svg('plus')}</button></div>`;
-    body.innerHTML = `${recentSavedMarkup(recent)}<div data-shared-usuals></div>`+(usual.length ? `<div class="results">${usual.map((_, i) => quick(foods[i], i)).join('')}</div>`
-      : '<p class="small muted">Your usuals appear after you log a few foods.</p>');
+    const emptyHint=usual.length||recent.length?'':'<p class="small muted">Your usuals appear after you log a few foods.</p>';
+    body.innerHTML = `${recentSavedMarkup(recent)}<div data-shared-usuals></div>`+(usual.length ? `<div class="results">${usual.map((_, i) => quick(foods[i], i)).join('')}</div>` : emptyHint);
     sharedRecipes($('[data-shared-usuals]',body),where,close);
     wireRecentSaved(body,recent,where,{afterDish:()=>close(),afterMeal:()=>close()});
     $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close));
