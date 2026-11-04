@@ -3,6 +3,8 @@
 .card-options {border:0;padding:0;margin:16px 0;min-width:0;}
 .card-options legend {font-weight:700;margin-bottom:8px;}
 .card-options .check {min-height:44px;}
+.card-period {border:0;padding:0;margin:8px 0 0;min-width:0;}
+.card-period legend {font-weight:600;margin-bottom:0;}
 .public-card {max-width:600px;text-align:center;}
 .public-card h1 {overflow-wrap:anywhere;margin-bottom:20px;}
 .public-card .wide {margin-block:12px;}
