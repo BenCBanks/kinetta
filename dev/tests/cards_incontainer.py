@@ -23,23 +23,44 @@ class Cards(unittest.TestCase):
    for uid in self.ids:erase(c,{'id':uid,'sql_role':None})
   for uid in self.ids:erase_files(uid)
  def enable(self,**kw):
-  body={'enabled':True,'photo':False,'sports':True,'stats':[],'allow_requests':True}|kw;r=self.clients[0].put('/api/card',json=body);self.assertEqual(r.status_code,200,r.text);return r.json()
+  if 'stats' in kw and 'period' not in kw:kw.pop('stats');kw['period']='all_time'
+  body={'enabled':True,'photo':False,'sports':True,'period':'this_week','allow_requests':True}|kw;r=self.clients[0].put('/api/card',json=body);self.assertEqual(r.status_code,200,r.text);return r.json()
  def test_on_by_default_selected_metrics_owner_preview_and_strict_settings(self):
-  self.assertTrue(self.settings['enabled']);self.assertEqual(self.settings['stats'],['distance_year','activity_weeks']);self.assertTrue(self.settings['photo']);self.assertTrue(self.settings['sports']);self.assertTrue(self.settings['allow_requests']);self.assertEqual(self.clients[0].get('/api/card/image.png').status_code,200)
+  self.assertTrue(self.settings['enabled']);self.assertEqual(self.settings['period'],'this_week');self.assertTrue(self.settings['photo']);self.assertTrue(self.settings['sports']);self.assertTrue(self.settings['allow_requests']);self.assertEqual(self.clients[0].get('/api/card/image.png').status_code,200)
   for path in ('/api/cards/','/card/'):
    self.assertEqual(self.guest.get(path+self.code).status_code,200)
-  preview=self.settings['preview'];self.assertEqual([s['key'] for s in preview['stats']],['distance_year','activity_weeks']);self.assertAlmostEqual(preview['stats'][0]['value'],6.2);self.assertEqual(preview['stats'][1]['value'],1)
+  preview=self.settings['preview'];self.assertEqual(preview['period'],'this_week');self.assertAlmostEqual(preview['weekly']['distance_m'],10000);self.assertEqual(preview['weekly']['activities'],1);self.assertEqual(len(preview['weekly']['weeks']),12)
   for stats in [['weight'],['distance_year']*2,['distance_year','activities_year','active_days_year']]:self.assertEqual(self.clients[0].put('/api/card',json={'enabled':True,'stats':stats}).status_code,422)
   self.assertEqual(self.guest.put('/api/card',json={'enabled':True}).status_code,401)
   self.assertEqual(self.clients[0].put('/api/card',json={'enabled':True,'user_id':self.ids[1]}).status_code,422)
  def test_anonymous_preview_and_png_never_disclose_unselected_private_fields(self):
-  self.enable();d=self.guest.get('/api/cards/'+self.code).json();self.assertEqual(set(d),{'username','sports','stats','garmin_sources','allow_requests','url'});self.assertEqual(d['stats'],[]);self.assertEqual(d['sports'],[{'sport':'run','activities':1}])
+  self.enable();d=self.guest.get('/api/cards/'+self.code).json();self.assertEqual(set(d),{'username','period','weekly','sports','stats','garmin_sources','allow_requests','url'});self.assertEqual(d['period'],'this_week');self.assertEqual(d['sports'],[{'sport':'run','activities':1}])
   page=self.guest.get('/card/'+self.code);self.assertEqual(page.status_code,200);self.assertIn('noindex',page.headers['x-robots-tag']);self.assertIn('og:image',page.text);self.assertIn('/image.png',page.text)
   for secret in ('SECRET REAL','SECRET ACTIVITY','SECRET NOTE','avg_hr','calories','weight','bio'):self.assertNotIn(secret,page.text+json.dumps(d))
   pic=self.guest.get('/card/'+self.code+'/image.png');self.assertEqual(pic.status_code,200);self.assertEqual(Image.open(io.BytesIO(pic.content)).size,(1080,1350));self.assertEqual(pic.headers['cache-control'],'no-store')
- def test_stats_allowlist_owner_only_and_private_totals_are_deliberate(self):
-  d=self.enable(stats=['distance_year','activities_year'])['preview'];self.assertEqual(len(d['stats']),2);self.assertEqual(d['stats'][1]['value'],1);self.assertAlmostEqual(d['stats'][0]['value'],6.2);self.assertNotIn('health',str(d));self.assertEqual([s['value'] for s in self.clients[1].get('/api/card').json()['preview']['stats']],[0,0])
+ def test_week_and_all_time_choices_are_persisted_in_owner_and_public_preview(self):
+  weekly=self.enable()['preview'];self.assertEqual(weekly['period'],'this_week');self.assertEqual(weekly['weekly']['activities'],1)
+  all_time=self.enable(period='all_time')['preview'];self.assertEqual(all_time['period'],'all_time');self.assertEqual(all_time['all_time']['activities'],1);self.assertAlmostEqual(all_time['all_time']['distance_m'],10000)
+  public=self.guest.get('/api/cards/'+self.code).json();self.assertEqual(public['period'],'all_time');self.assertEqual(public['all_time']['activities'],1)
+  self.assertEqual(self.clients[1].get('/api/card').json()['period'],'this_week');self.assertEqual(self.clients[1].get('/api/card').json()['preview']['weekly']['activities'],0)
   self.assertEqual(self.guest.get('/card/'+self.code+'/photo').status_code,404)
+ def test_none_choice_and_legacy_empty_stats_hide_public_totals(self):
+  selected=self.enable(period='none');self.assertEqual(selected['period'],'none');self.assertEqual(selected['stats'],[])
+  self.assertNotIn('weekly',selected['preview']);self.assertNotIn('all_time',selected['preview'])
+  public=self.guest.get('/api/cards/'+self.code).json();self.assertEqual(public['period'],'none');self.assertEqual(public['stats'],[])
+  self.assertNotIn('weekly',public);self.assertNotIn('all_time',public)
+  none_image=self.guest.get('/card/'+self.code+'/image.png');self.assertEqual(none_image.status_code,200)
+  self.enable(period='this_week');weekly_image=self.guest.get('/card/'+self.code+'/image.png')
+  self.assertNotEqual(none_image.content,weekly_image.content)
+  with db.connect() as c:c.execute("UPDATE public_cards SET stats='[]'::jsonb,updated=now() WHERE user_id=%s",(self.ids[0],))
+  legacy=self.guest.get('/api/cards/'+self.code).json();self.assertEqual(legacy['period'],'none')
+  self.assertNotIn('weekly',legacy);self.assertNotIn('all_time',legacy);self.assertEqual(legacy['stats'],[])
+ def test_garmin_attribution_matches_selected_period(self):
+  with db.connect() as c:
+   c.execute("INSERT INTO activities(user_id,sport,name,start_time,source,device,visibility,distance_m,moving_s,elapsed_s) VALUES(%s,'run','Fictional Garmin this week',now(),'garmin_connect','Forerunner 265','me',5000,1800,1800)",(self.ids[0],))
+   c.execute("INSERT INTO activities(user_id,sport,name,start_time,source,device,visibility,distance_m,moving_s,elapsed_s) VALUES(%s,'ride','Fictional Garmin history',now()-interval '2 years','garmin_connect','Edge 540','me',10000,2400,2400)",(self.ids[0],))
+  weekly=self.enable(period='this_week')['preview'];self.assertEqual(weekly['garmin_sources'],['Garmin Forerunner 265'])
+  all_time=self.enable(period='all_time')['preview'];self.assertEqual(all_time['garmin_sources'],['Garmin Edge 540','Garmin Forerunner 265'])
  def test_photo_is_deliberately_selected_and_public_relationship_is_current(self):
   out=io.BytesIO();Image.new('RGB',(40,40),'#1F55D0').save(out,format='JPEG')
   with db.connect() as c:
@@ -178,7 +199,7 @@ class Cards(unittest.TestCase):
    self.assertEqual(self.guest.get('/card/'+self.code).status_code,200)
  def test_unfinished_lifting_is_excluded_from_card_totals_and_sports(self):
   with db.connect() as c:c.execute("INSERT INTO activities(user_id,sport,name,start_time,source,lift_open) VALUES(%s,'workout','Fictional unfinished set',now(),'manual',true)",(self.ids[0],))
-  preview=self.enable(stats=['activities_year'])['preview'];self.assertEqual(preview['stats'][0]['value'],1);self.assertEqual(preview['sports'],[{'sport':'run','activities':1}])
+  preview=self.enable(period='this_week')['preview'];self.assertEqual(preview['weekly']['activities'],1);self.assertEqual(preview['sports'],[{'sport':'run','activities':1}])
  def test_sports_are_owned_all_time_completed_counts_and_can_be_hidden(self):
   with db.connect() as c:
    for uid,sport,when,unfinished in [(self.ids[0],'run',"now()-interval '2 years'",False),(self.ids[0],'ride',"now()-interval '1 year'",False),(self.ids[0],'swim','now()',True),(self.ids[1],'hike','now()',False)]:
@@ -189,7 +210,7 @@ class Cards(unittest.TestCase):
   self.assertEqual(self.enable(sports=False)['preview']['sports'],[])
   self.assertEqual(self.guest.get('/api/cards/'+self.code).json()['sports'],[])
  def test_later_choices_and_off_switch_survive_reads_rotation_and_migration(self):
-  chosen={'enabled':False,'photo':False,'sports':False,'stats':['food_days_month'],'allow_requests':False}
+  chosen={'enabled':False,'photo':False,'sports':False,'period':'all_time','allow_requests':False}
   self.enable(**chosen);db.migrate()
   for answer in (self.clients[0].get('/api/card').json(),self.clients[0].post('/api/card/new').json()):
    self.assertEqual({k:answer[k] for k in chosen},chosen)
@@ -201,23 +222,23 @@ class Cards(unittest.TestCase):
   with patch('app.cards.sport_icon',wraps=original) as icon,patch('app.cards.ImageDraw.ImageDraw.text',autospec=True) as text:
    self.assertEqual(self.clients[0].get('/api/card/image.png').status_code,200)
    self.assertEqual([call.args[1] for call in icon.call_args_list],['run'])
-   self.assertIn('Sports · all time',[call.args[2] for call in text.call_args_list]);self.assertIn('1',[call.args[2] for call in text.call_args_list])
+   self.assertIn('Sports · all time',[call.args[2] for call in text.call_args_list]);self.assertIn('This week',[call.args[2] for call in text.call_args_list]);self.assertIn('6.2 mi',[call.args[2] for call in text.call_args_list])
  def test_photo_and_every_sport_fit_the_exported_picture(self):
   photo=io.BytesIO();Image.new('RGB',(80,80),'#1F55D0').save(photo,format='JPEG')
   with db.connect() as c:
    c.execute('INSERT INTO profile_photos(user_id,img) VALUES(%s,%s)',(self.ids[0],photo.getvalue()));c.execute("UPDATE users SET photo_v='fictional-grid-photo' WHERE id=%s",(self.ids[0],))
    for sport in cards.SPORTS:
     c.execute("INSERT INTO activities(user_id,sport,name,start_time,source,visibility) VALUES(%s,%s,'Fictional sport grid',now(),'manual','me')",(self.ids[0],sport))
-  self.enable(photo=True,stats=['distance_year','activity_weeks']);bounds=[];original=ImageDraw.ImageDraw.text
+  self.enable(photo=True,period='all_time');bounds=[];original=ImageDraw.ImageDraw.text
   def record(draw,xy,value,*args,**kwargs):
    bounds.append((str(value),draw.textbbox(xy,value,font=kwargs.get('font'))));return original(draw,xy,value,*args,**kwargs)
   with patch('app.cards.ImageDraw.ImageDraw.text',new=record):
    self.assertEqual(self.clients[0].get('/api/card/image.png').status_code,200)
   for value,(left,top,right,bottom) in bounds:self.assertTrue(0<=left<right<=1080 and 0<=top<bottom<=1350,(value,(left,top,right,bottom)))
   for sport in cards.SPORTS:self.assertIn(cards.SPORTS[sport],[v for v,b in bounds])
-  # Each headline value and its label must also fit before the following headline/footer.
-  stats=[(v,b) for v,b in bounds if b[1]>850 and b[1]<1060]
-  for (_,a),(_,b) in zip(stats,stats[1:]):self.assertLessEqual(a[3],b[1],stats)
+  # Totals stay above the fixed footer in both selected views.
+  for value,box in bounds:
+   if value in ('All time','distance','workouts','time'):self.assertLess(box[3],1135,(value,box))
  def test_picture_cache_has_bounded_entries_and_render_concurrency(self):
   import threading,time
   from concurrent.futures import ThreadPoolExecutor

@@ -18,6 +18,7 @@ from .auth import current_user
 
 router=APIRouter()
 STAT_KEYS=('distance_year','active_days_year','activities_year','activity_weeks','food_days_month')
+PERIODS=('this_week','all_time','none')
 DEFAULT_STATS=('distance_year','activity_weeks')
 SPORTS={'run':'Running','ride':'Cycling','walk':'Walking','hike':'Hiking','swim':'Swimming','workout':'Workouts','row':'Rowing','ski':'Skiing','other':'Other activities'}
 # The light-theme sport colours used by app/static/theme.css; exported pictures have a white canvas.
@@ -53,22 +54,44 @@ def active(c,code,viewer=None,lock=False):
     if not row or (viewer and _blocked_pair(c,viewer,row['user_id'])):raise HTTPException(404,'This card is no longer active')
     return row
 
+def period(row):
+    saved=row.get('stats') or []
+    # An empty legacy selection means the owner opted out of public totals.
+    if not saved:return 'none'
+    # Old metric selections keep the new default until the owner picks a period.
+    return saved[0] if len(saved)==1 and saved[0] in PERIODS else 'this_week'
+
 def payload(c,row,request=None):
-    uid=row['user_id'];wanted=row['stats'];out={'username':row['login'],'sports':[],'stats':[],'garmin_sources':[],'allow_requests':row['allow_requests'],'url':url(row['code'],request)}
-    year=recaps.facts(c,uid,'this_year') if wanted else None
+    uid=row['user_id'];chosen=period(row);out={'username':row['login'],'period':chosen,'sports':[],'stats':[],'garmin_sources':[],'allow_requests':row['allow_requests'],'url':url(row['code'],request)}
     if row['sports']:
         out['sports']=[dict(r) for r in c.execute('''SELECT sport,count(*) AS activities FROM activities
           WHERE user_id=%s AND NOT lift_open GROUP BY sport ORDER BY activities DESC,sport''',(uid,)).fetchall() if r['sport'] in SPORTS]
-    if wanted:
-        profile=c.execute('SELECT units FROM profile WHERE user_id=%s',(uid,)).fetchone() or {};imperial=profile.get('units')=='imperial'
-        for key in wanted:
-            if key=='distance_year':value=year['distance_m']/(1609.344 if imperial else 1000);label=('mi' if imperial else 'km')+' this year';value=round(value,1)
-            elif key=='active_days_year':value=year['active_days'];label='active days this year'
-            elif key=='activities_year':value=year['activities'];label='activities this year'
-            elif key=='activity_weeks':value=year['streak_weeks'];label='active weeks in a row'
-            else:value=recaps.facts(c,uid,'this_month')['food']['logged_days'];label='days with food logged this month'
-            out['stats'].append({'key':key,'value':value,'label':label})
-        if any(k!='food_days_month' for k in wanted):out['garmin_sources']=year['garmin_sources']
+    if chosen!='none':
+        profile=c.execute('SELECT tz,units FROM profile WHERE user_id=%s',(uid,)).fetchone() or {};imperial=profile.get('units')=='imperial'
+        zone=db.valid_tz(profile.get('tz')) or db.DEFAULT_TZ
+    if chosen=='this_week':
+        current=recaps.facts(c,uid,'this_week');first=current['start']-dt.timedelta(weeks=11);end=current['end']
+        out['garmin_sources']=current['garmin_sources']
+        rows=c.execute('''SELECT date_trunc('week',start_time AT TIME ZONE %s)::date AS week,
+                            count(*) AS activities,coalesce(sum(distance_m),0) AS distance_m,
+                            coalesce(sum(coalesce(moving_s,elapsed_s)),0) AS time_s
+                          FROM activities WHERE user_id=%s AND NOT lift_open
+                            AND start_time >= (%s::timestamp AT TIME ZONE %s)
+                            AND start_time < (%s::timestamp AT TIME ZONE %s)
+                          GROUP BY 1''',(zone,uid,first,zone,end,zone)).fetchall()
+        by_week={r['week']:r for r in rows};weeks=[]
+        for i in range(12):
+            week=first+dt.timedelta(weeks=i);r=by_week.get(week,{})
+            weeks.append({'week':week.isoformat(),'distance_m':float(r.get('distance_m') or 0),'activities':int(r.get('activities') or 0),'time_s':int(r.get('time_s') or 0)})
+        this_week=by_week.get(current['start'],{})
+        out['weekly']={'distance_m':float(this_week.get('distance_m') or 0),'activities':int(this_week.get('activities') or 0),'time_s':int(this_week.get('time_s') or 0),'streak_weeks':current['streak_weeks'],'weeks':weeks,'unit':'mi' if imperial else 'km'}
+    elif chosen=='all_time':
+        totals=c.execute('''SELECT count(*) AS activities,coalesce(sum(distance_m),0) AS distance_m,
+                              coalesce(sum(coalesce(moving_s,elapsed_s)),0) AS time_s
+                            FROM activities WHERE user_id=%s AND NOT lift_open''',(uid,)).fetchone()
+        out['all_time']={'activities':totals['activities'],'distance_m':float(totals['distance_m'] or 0),'time_s':int(totals['time_s'] or 0),'unit':'mi' if imperial else 'km'}
+        source_rows=c.execute('SELECT DISTINCT source,device FROM activities WHERE user_id=%s AND NOT lift_open',(uid,)).fetchall()
+        out['garmin_sources']=sorted({credit for item in source_rows if (credit:=recaps.garmin_source(item.get('source'),item.get('device')))})
     if row['photo'] and row['photo_v']:out['photo']=url(row['code'],request)+'/photo'
     return out
 
@@ -77,18 +100,20 @@ class Settings(BaseModel):
     enabled:StrictBool
     photo:StrictBool=True
     sports:StrictBool=True
-    stats:list[str]=Field(default_factory=lambda:list(DEFAULT_STATS),max_length=2)
+    period:str='this_week'
+    stats:list[str]=Field(default_factory=list,max_length=2)
     allow_requests:StrictBool=True
     @model_validator(mode='after')
     def valid_stats(self):
-        if len(set(self.stats))!=len(self.stats) or any(k not in STAT_KEYS for k in self.stats):raise ValueError('Choose up to two listed stats')
+        if self.period not in PERIODS:raise ValueError('Choose This week, All time, or None')
+        if len(set(self.stats))!=len(self.stats) or any(k not in STAT_KEYS for k in self.stats):raise ValueError('Choose This week, All time, or None')
         return self
 
 def owner_answer(c,uid,request):
     row=own(c,uid);row.update(c.execute('SELECT login::text AS login,photo_v FROM users WHERE id=%s',(uid,)).fetchone())
     waiting=c.execute("SELECT count(*) AS n FROM card_connections k JOIN friendships f ON f.requester=k.member_id AND f.addressee=k.user_id AND f.status='pending' WHERE k.user_id=%s",(uid,)).fetchone()['n']
     joined=c.execute('SELECT count(*) AS n FROM card_connections WHERE user_id=%s AND joined',(uid,)).fetchone()['n']
-    return {**{k:row[k] for k in ('enabled','photo','sports','stats','allow_requests')},'url':url(row['code'],request),'preview':payload(c,row,request),'joined':joined,'waiting':waiting}
+    return {**{k:row[k] for k in ('enabled','photo','sports','stats','allow_requests')},'period':period(row),'url':url(row['code'],request),'preview':payload(c,row,request),'joined':joined,'waiting':waiting}
 
 @router.get('/api/card')
 def settings(request:Request,user=Depends(current_user)):
@@ -99,7 +124,7 @@ def change(body:Settings,request:Request,user=Depends(current_user)):
     from .api_social import confirmed
     with db.connect() as c:
         confirmed(c,user['id']);own(c,user['id'])
-        c.execute('UPDATE public_cards SET enabled=%s,photo=%s,sports=%s,stats=%s,allow_requests=%s,updated=now() WHERE user_id=%s',(body.enabled,body.photo,body.sports,json.dumps(body.stats),body.allow_requests,user['id']))
+        c.execute('UPDATE public_cards SET enabled=%s,photo=%s,sports=%s,stats=%s,allow_requests=%s,updated=now() WHERE user_id=%s',(body.enabled,body.photo,body.sports,json.dumps([] if body.period=='none' else [body.period]),body.allow_requests,user['id']))
         return owner_answer(c,user['id'],request)
 
 @router.post('/api/card/new')
@@ -186,6 +211,14 @@ def sport_icon(g,sport,x,y,size=48):
         for px,py in points:g.ellipse((px-width/2,py-width/2,px+width/2,py+width/2),fill=color)
     for cx,cy,r in circles.get(sport,[]):g.ellipse((x+(cx-r)*scale,y+(cy-r)*scale,x+(cx+r)*scale,y+(cy+r)*scale),outline=color,width=width)
 
+def flame_icon(g,x,y,size=24):
+    # Draw the streak mark locally; the default image font has no emoji glyphs.
+    s=size/24
+    outer=[(12,1),(15,7),(19,9),(22,15),(20,21),(16,24),(7,23),(3,18),(4,12),(8,8),(9,14),(12,11)]
+    inner=[(12,14),(15,17),(14,21),(9,21),(7,18),(9,15)]
+    g.polygon([(x+a*s,y+b*s) for a,b in outer],fill='#F0642B')
+    g.polygon([(x+a*s,y+b*s) for a,b in inner],fill='#FFC247')
+
 
 def image(c,row,request):
     d=payload(c,row,request);im=Image.new('RGB',(1080,1350),'#FFFFFF');g=ImageDraw.Draw(im)
@@ -210,13 +243,40 @@ def image(c,row,request):
             text(f"{item['activities']:,}",x+76,top+10,36,max_width=204)
             text(SPORTS[sport],x+76,top+54,22,'#4A535C',max_width=204)
         y+=((len(d['sports'])+2)//3)*100+16
-    if d['stats']:
-        slot=(1040-y)/len(d['stats'])
-        for stat in d['stats']:
-            size=min(144,int(slot*.5));offset=max(0,(slot-size-65)/2)
-            text(f"{stat['value']:,}",72,y+offset,size)
-            text(stat['label'],72,y+offset+size+18,min(40,int(slot*.2)),'#4A535C')
-            y+=slot
+    if d['period']=='this_week':
+        week=d['weekly'];unit=week['unit'];scale=1609.344 if unit=='mi' else 1000
+        text('This week',72,y,30,'#646D77')
+        if week['streak_weeks']>=2:
+            streak=f"{week['streak_weeks']} weeks";font=ImageFont.load_default(size=30)
+            while g.textlength(streak,font=font)>330:font=ImageFont.load_default(size=max(20,font.size-2))
+            g.text((1008,y),streak,font=font,fill='#15191D',anchor='ra')
+            flame_icon(g,1008-round(g.textlength(streak,font=font))-32,y+2,size=26)
+        y+=48
+        distance=week['distance_m']/scale
+        elapsed=week['time_s'];duration=(f'{elapsed//3600}h {elapsed%3600//60:02}m' if elapsed>=3600 else f'{elapsed//60}m')
+        metrics=[(f'{distance:.1f} {unit}','distance'),(f"{week['activities']:,}",'workouts'),(duration,'time')]
+        for i,(value,label) in enumerate(metrics):
+            x=72+i*312;text(value,x,y,48,max_width=292);text(label,x,y+56,22,'#4A535C',max_width=292)
+        y+=98
+        bars=week['weeks'];peak=max((v['distance_m'] for v in bars),default=0);bar_top=y+62;baseline=bar_top+64;bar_w=42;step=78
+        g.line((72,baseline,1008,baseline),fill='#AEB6C0',width=2)
+        previous_month=None
+        for i,item in enumerate(bars):
+            x=72+i*step;value=item['distance_m'];height=max(4,round(value/peak*58)) if peak else 2
+            color='#1F55D0' if i==len(bars)-1 else '#93B4F4'
+            if value:g.rounded_rectangle((x,baseline-height,x+bar_w,baseline),radius=6,fill=color)
+            else:g.line((x,baseline-2,x+bar_w,baseline-2),fill='#646D77',width=2)
+            month=dt.date.fromisoformat(item['week']).strftime('%b')
+            if month!=previous_month:text(month,x,baseline+10,18,'#646D77',max_width=bar_w+20)
+            previous_month=month
+        y=baseline+42
+    elif d['period']=='all_time':
+        totals=d['all_time'];unit=totals['unit'];scale=1609.344 if unit=='mi' else 1000
+        text('All time',72,y,30,'#646D77');y+=48
+        distance=totals['distance_m']/scale;elapsed=totals['time_s'];duration=(f'{elapsed//3600}h {elapsed%3600//60:02}m' if elapsed>=3600 else f'{elapsed//60}m')
+        for i,(value,label) in enumerate([(f'{distance:.1f} {unit}','distance'),(f"{totals['activities']:,}",'workouts'),(duration,'time')]):
+            x=72+i*312;text(value,x,y,48,max_width=292);text(label,x,y+56,22,'#4A535C',max_width=292)
+        y+=135
     def wrapped(value,y,size,max_lines):
         # Long configured addresses and source lists must wrap, never leave the canvas.
         while size>=18:
