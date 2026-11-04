@@ -48,6 +48,9 @@ class Reactions(unittest.TestCase):
   with db.connect() as c:
    stored=c.execute('SELECT kind FROM cheers WHERE activity_id=%s AND user_id=%s',(self.aid,self.ids[1])).fetchone()
   self.assertEqual(stored['kind'],catalog[-1][0])
+ def test_lift_notification_uses_barbell_word(self):
+  text,link=notify._words({'kind':'cheer','name':'Alex','activity':'workout','activity_id':7,'reaction_kind':'lift'})
+  self.assertEqual(text,'Alex reacted with a barbell to your workout');self.assertEqual(link,'/activity/7')
  def test_replace_retry_and_legacy(self):
   self.assertEqual(self.actor.post(self.path+'/cheer').json()['my_reaction'],'clap')
   for legacy,kind in [('cheer','clap'),('strong','muscle'),('applause','fire'),('laugh','clap')]:
