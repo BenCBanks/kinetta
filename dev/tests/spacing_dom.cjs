@@ -32,7 +32,8 @@ function collectSpacing({screen,rules=[]}){
   const points=[.15,.5,.85].flatMap(x=>[.15,.5,.85].map(y=>[x,y])),hits=points.map(([x,y])=>document.elementFromPoint(usableRect.x+usableRect.width*x,usableRect.y+usableRect.height*y));
   const hit=hits.some(n=>n&&(el===n||el.contains(n))),hitOwner=hits.map(n=>n?selector(n):null);
   const pairedExceptions=Object.fromEntries(rules.filter(r=>r.withSelector&&el.matches(r.selector)).map(r=>[r.id,[...nodes].filter(n=>n!==el&&n.matches(r.withSelector)&&(!r.within||el.closest(r.within)&&el.closest(r.within)===n.closest(r.within))).map(selector)]));
-  targets.push({key,selector:key,rect:box,usableRect,hit,hitOwner,fullyVisible,disabled:!!original?.disabled,pairedExceptions,font:parseFloat(getComputedStyle(original||el).fontSize),input:!!input,hero:!!el.closest('[data-hero],.hero-number,[data-type=hero]'),inlineLink,layer:layer(el),ancestors:[],exceptions:exceptions(el)});
+  const activationGroup=el.closest('[role="group"][aria-label="Reaction shortcuts"]');
+  targets.push({key,selector:key,rect:box,usableRect,hit,hitOwner,fullyVisible,disabled:!!original?.disabled,pairedExceptions,activationKey:activationGroup?selector(activationGroup):undefined,font:parseFloat(getComputedStyle(original||el).fontSize),input:!!input,hero:!!el.closest('[data-hero],.hero-number,[data-type=hero]'),inlineLink,layer:layer(el),ancestors:[],exceptions:exceptions(el)});
  }
  const walker=document.createTreeWalker(scope,NodeFilter.SHOW_ELEMENT);
  for(let el=walker.nextNode();el;el=walker.nextNode()){

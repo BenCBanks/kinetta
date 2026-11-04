@@ -114,37 +114,15 @@
     "reason": "These abbreviated month-axis ticks stay at 12px so labels fit the compact 12-week chart, including at 330px with large app text. Every 44px week button keeps its full date and totals in its accessible name, so the ticks are supplementary; clipping and overflow checks remain active."
   },
   {
-    "id": "reaction-summary-approved-targets",
-    "selector": ".emoji-reactions .reaction-summary-emoji,.emoji-reactions .reaction-count",
+    "id": "reaction-summary-target-width",
+    "selector": ".emoji-reactions .reaction-summary-emoji",
     "metric": "target",
     "kind": "approved-target",
-    "minimumWidth": 40,
-    "maximumWidth": 40,
-    "minimumHeight": 40,
-    "maximumHeight": 40,
+    "minimumWidth": 24,
+    "maximumWidth": 24,
+    "minimumHeight": 44,
+    "maximumHeight": 44,
     "followup": "https://github.com/BenCBanks/kinetta/issues/545",
-    "reason": "Owner-approved #545 specifies exact40×40 reaction shortcut and total targets around20px marks. The focused UI check keeps every target at40×40, verifies the four-pixel mark gaps and six-pixel total gap, and hits each visible mark and total directly."
-  },
-  {
-    "id": "reaction-summary-shortcut-hit-overlap",
-    "selector": ".emoji-reactions .reaction-summary-emoji",
-    "withSelector": ".emoji-reactions .reaction-summary-emoji",
-    "within": ".emoji-reactions .reaction-summary",
-    "metric": "overlap",
-    "kind": "intentional-overlay",
-    "maximum": 16,
-    "followup": "https://github.com/BenCBanks/kinetta/issues/545",
-    "reason": "The approved #545 layout puts20px marks4px apart inside separate40px target boxes, so adjacent transparent hit boxes overlap by16px. The per-mark geometry and tap tests prove each visible mark remains independently clickable; any larger overlap or other pair still fails."
-  },
-  {
-    "id": "reaction-summary-total-hit-overlap",
-    "selector": ".emoji-reactions .reaction-summary-emoji",
-    "withSelector": ".emoji-reactions .reaction-count",
-    "within": ".emoji-reactions",
-    "metric": "overlap",
-    "kind": "intentional-overlay",
-    "maximum": 14,
-    "followup": "https://github.com/BenCBanks/kinetta/issues/545",
-    "reason": "The approved #545 six-pixel visible gap after the final20px mark leaves a14px overlap between its40px target and the40px total target. The mark and number each retain a directly verified hit area; any larger overlap or other pair still fails."
+    "reason": "Owner-approved #545 puts 20px reaction marks 4px apart. Splitting at the midpoint gives each mark its own 24×44px hit area; the total keeps a separate default 44×44px target. Focused browser checks verify all shortcut boxes are disjoint and each mark and the total receives its own tap. This is the only target-width exception."
   }
 ]
