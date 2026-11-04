@@ -44,6 +44,23 @@ class Cards(unittest.TestCase):
   public=self.guest.get('/api/cards/'+self.code).json();self.assertEqual(public['period'],'all_time');self.assertEqual(public['all_time']['activities'],1)
   self.assertEqual(self.clients[1].get('/api/card').json()['period'],'this_week');self.assertEqual(self.clients[1].get('/api/card').json()['preview']['weekly']['activities'],0)
   self.assertEqual(self.guest.get('/card/'+self.code+'/photo').status_code,404)
+ def test_none_choice_and_legacy_empty_stats_hide_public_totals(self):
+  selected=self.enable(period='none');self.assertEqual(selected['period'],'none');self.assertEqual(selected['stats'],[])
+  self.assertNotIn('weekly',selected['preview']);self.assertNotIn('all_time',selected['preview'])
+  public=self.guest.get('/api/cards/'+self.code).json();self.assertEqual(public['period'],'none');self.assertEqual(public['stats'],[])
+  self.assertNotIn('weekly',public);self.assertNotIn('all_time',public)
+  none_image=self.guest.get('/card/'+self.code+'/image.png');self.assertEqual(none_image.status_code,200)
+  self.enable(period='this_week');weekly_image=self.guest.get('/card/'+self.code+'/image.png')
+  self.assertNotEqual(none_image.content,weekly_image.content)
+  with db.connect() as c:c.execute("UPDATE public_cards SET stats='[]'::jsonb,updated=now() WHERE user_id=%s",(self.ids[0],))
+  legacy=self.guest.get('/api/cards/'+self.code).json();self.assertEqual(legacy['period'],'none')
+  self.assertNotIn('weekly',legacy);self.assertNotIn('all_time',legacy);self.assertEqual(legacy['stats'],[])
+ def test_garmin_attribution_matches_selected_period(self):
+  with db.connect() as c:
+   c.execute("INSERT INTO activities(user_id,sport,name,start_time,source,device,visibility,distance_m,moving_s,elapsed_s) VALUES(%s,'run','Fictional Garmin this week',now(),'garmin_connect','Forerunner 265','me',5000,1800,1800)",(self.ids[0],))
+   c.execute("INSERT INTO activities(user_id,sport,name,start_time,source,device,visibility,distance_m,moving_s,elapsed_s) VALUES(%s,'ride','Fictional Garmin history',now()-interval '2 years','garmin_connect','Edge 540','me',10000,2400,2400)",(self.ids[0],))
+  weekly=self.enable(period='this_week')['preview'];self.assertEqual(weekly['garmin_sources'],['Garmin Forerunner 265'])
+  all_time=self.enable(period='all_time')['preview'];self.assertEqual(all_time['garmin_sources'],['Garmin Edge 540','Garmin Forerunner 265'])
  def test_photo_is_deliberately_selected_and_public_relationship_is_current(self):
   out=io.BytesIO();Image.new('RGB',(40,40),'#1F55D0').save(out,format='JPEG')
   with db.connect() as c:

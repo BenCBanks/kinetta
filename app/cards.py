@@ -18,7 +18,7 @@ from .auth import current_user
 
 router=APIRouter()
 STAT_KEYS=('distance_year','active_days_year','activities_year','activity_weeks','food_days_month')
-PERIODS=('this_week','all_time')
+PERIODS=('this_week','all_time','none')
 DEFAULT_STATS=('distance_year','activity_weeks')
 SPORTS={'run':'Running','ride':'Cycling','walk':'Walking','hike':'Hiking','swim':'Swimming','workout':'Workouts','row':'Rowing','ski':'Skiing','other':'Other activities'}
 # The light-theme sport colours used by app/static/theme.css; exported pictures have a white canvas.
@@ -56,7 +56,9 @@ def active(c,code,viewer=None,lock=False):
 
 def period(row):
     saved=row.get('stats') or []
-    # Legacy stat selections use the new default until the owner picks a period.
+    # An empty legacy selection means the owner opted out of public totals.
+    if not saved:return 'none'
+    # Old metric selections keep the new default until the owner picks a period.
     return saved[0] if len(saved)==1 and saved[0] in PERIODS else 'this_week'
 
 def payload(c,row,request=None):
@@ -64,10 +66,12 @@ def payload(c,row,request=None):
     if row['sports']:
         out['sports']=[dict(r) for r in c.execute('''SELECT sport,count(*) AS activities FROM activities
           WHERE user_id=%s AND NOT lift_open GROUP BY sport ORDER BY activities DESC,sport''',(uid,)).fetchall() if r['sport'] in SPORTS]
-    profile=c.execute('SELECT tz,units FROM profile WHERE user_id=%s',(uid,)).fetchone() or {};imperial=profile.get('units')=='imperial'
-    zone=db.valid_tz(profile.get('tz')) or db.DEFAULT_TZ
+    if chosen!='none':
+        profile=c.execute('SELECT tz,units FROM profile WHERE user_id=%s',(uid,)).fetchone() or {};imperial=profile.get('units')=='imperial'
+        zone=db.valid_tz(profile.get('tz')) or db.DEFAULT_TZ
     if chosen=='this_week':
         current=recaps.facts(c,uid,'this_week');first=current['start']-dt.timedelta(weeks=11);end=current['end']
+        out['garmin_sources']=current['garmin_sources']
         rows=c.execute('''SELECT date_trunc('week',start_time AT TIME ZONE %s)::date AS week,
                             count(*) AS activities,coalesce(sum(distance_m),0) AS distance_m,
                             coalesce(sum(coalesce(moving_s,elapsed_s)),0) AS time_s
@@ -81,11 +85,13 @@ def payload(c,row,request=None):
             weeks.append({'week':week.isoformat(),'distance_m':float(r.get('distance_m') or 0),'activities':int(r.get('activities') or 0),'time_s':int(r.get('time_s') or 0)})
         this_week=by_week.get(current['start'],{})
         out['weekly']={'distance_m':float(this_week.get('distance_m') or 0),'activities':int(this_week.get('activities') or 0),'time_s':int(this_week.get('time_s') or 0),'streak_weeks':current['streak_weeks'],'weeks':weeks,'unit':'mi' if imperial else 'km'}
-    else:
+    elif chosen=='all_time':
         totals=c.execute('''SELECT count(*) AS activities,coalesce(sum(distance_m),0) AS distance_m,
                               coalesce(sum(coalesce(moving_s,elapsed_s)),0) AS time_s
                             FROM activities WHERE user_id=%s AND NOT lift_open''',(uid,)).fetchone()
         out['all_time']={'activities':totals['activities'],'distance_m':float(totals['distance_m'] or 0),'time_s':int(totals['time_s'] or 0),'unit':'mi' if imperial else 'km'}
+        source_rows=c.execute('SELECT DISTINCT source,device FROM activities WHERE user_id=%s AND NOT lift_open',(uid,)).fetchall()
+        out['garmin_sources']=sorted({credit for item in source_rows if (credit:=recaps.garmin_source(item.get('source'),item.get('device')))})
     if row['photo'] and row['photo_v']:out['photo']=url(row['code'],request)+'/photo'
     return out
 
@@ -99,8 +105,8 @@ class Settings(BaseModel):
     allow_requests:StrictBool=True
     @model_validator(mode='after')
     def valid_stats(self):
-        if self.period not in PERIODS:raise ValueError('Choose This week or All time')
-        if len(set(self.stats))!=len(self.stats) or any(k not in STAT_KEYS for k in self.stats):raise ValueError('Choose This week or All time')
+        if self.period not in PERIODS:raise ValueError('Choose This week, All time, or None')
+        if len(set(self.stats))!=len(self.stats) or any(k not in STAT_KEYS for k in self.stats):raise ValueError('Choose This week, All time, or None')
         return self
 
 def owner_answer(c,uid,request):
@@ -118,7 +124,7 @@ def change(body:Settings,request:Request,user=Depends(current_user)):
     from .api_social import confirmed
     with db.connect() as c:
         confirmed(c,user['id']);own(c,user['id'])
-        c.execute('UPDATE public_cards SET enabled=%s,photo=%s,sports=%s,stats=%s,allow_requests=%s,updated=now() WHERE user_id=%s',(body.enabled,body.photo,body.sports,json.dumps([body.period]),body.allow_requests,user['id']))
+        c.execute('UPDATE public_cards SET enabled=%s,photo=%s,sports=%s,stats=%s,allow_requests=%s,updated=now() WHERE user_id=%s',(body.enabled,body.photo,body.sports,json.dumps([] if body.period=='none' else [body.period]),body.allow_requests,user['id']))
         return owner_answer(c,user['id'],request)
 
 @router.post('/api/card/new')
@@ -264,7 +270,7 @@ def image(c,row,request):
             if month!=previous_month:text(month,x,baseline+10,18,'#646D77',max_width=bar_w+20)
             previous_month=month
         y=baseline+42
-    else:
+    elif d['period']=='all_time':
         totals=d['all_time'];unit=totals['unit'];scale=1609.344 if unit=='mi' else 1000
         text('All time',72,y,30,'#646D77');y+=48
         distance=totals['distance_m']/scale;elapsed=totals['time_s'];duration=(f'{elapsed//3600}h {elapsed%3600//60:02}m' if elapsed>=3600 else f'{elapsed//60}m')
