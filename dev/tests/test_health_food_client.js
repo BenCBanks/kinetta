@@ -15,7 +15,7 @@ function fixture(){
   if(path==='/api/me')return {id:1,health_nutrition_write:true};
   if(path==='/api/health/weights')return {...state.weight};
   if(path==='/api/health/nutrition')return {...state.nutrition};
-  if(path.startsWith('/api/health/nutrition/days'))return {...state.nutrition,days:[{day:'2026-10-17',revision:1}],next:1,more:false};
+  if(path.startsWith('/api/health/nutrition/days'))return {...state.nutrition,days:[{day:'2026-10-17',revision:1,estimated:true}],next:1,more:false};
   throw Error('Unexpected API path');
  };
  vm.createContext(c);vm.runInContext(source.slice(source.indexOf('  // ---------- Optional Health weight/nutrition'),source.indexOf('  // quietly, when the app opens')),c);
@@ -35,7 +35,7 @@ function fixture(){
  f=fixture();f.connect('weight');f.connect('nutrition');await f.N.disableFoodHealth('weight');assert(!await f.N.foodHealthOn('weight'));assert(await f.N.foodHealthOn('nutrition'));assert(!f.state.weight.enabled);assert(f.calls.findIndex(x=>x[0]==='stop')<f.calls.findIndex(x=>typeof x[1]==='string'&&x[1].endsWith('/preferences')));
  f=fixture();f.connect('nutrition');f.plugin.writeNutrition=async()=>{throw Error('Fictional Health write failure');};await f.N.syncFoodHealth();assert(f.N.foodHealthResult.nutrition.error);assert.equal(f.calls.filter(x=>x[0]==='write').length,0);
  f=fixture();f.connect('weight');f.connect('nutrition');f.N.foodHealthResult={owner:'a',weight:{pending:true,error:'retained weight state'}};
- await f.N.syncFoodHealth({weight:false});assert(f.N.foodHealthResult.weight.pending);assert.equal(f.calls.find(x=>x[0]==='write')[1].account_id,f.state.nutrition.account_id);
+ await f.N.syncFoodHealth({weight:false});assert(f.N.foodHealthResult.weight.pending);const nutritionWrite=f.calls.find(x=>x[0]==='write')[1];assert.equal(nutritionWrite.account_id,f.state.nutrition.account_id);assert.equal(nutritionWrite.days[0].estimated,true,'API estimate flag reaches HealthKit bridge');
  assert.equal(f.calls.filter(x=>x[0]==='api'&&x[1]==='/api/health/nutrition').length,1,'reuse authenticated page settings');
  f=fixture();f.connect('weight');f.connect('nutrition');let release;const waiting=new Promise(r=>release=r);f.plugin.writeNutrition=async()=>{await waiting;};
  const nutritionOnly=f.N.syncFoodHealth({weight:false});while(!f.calls.some(x=>x[0]==='api'&&x[1].includes('/days?')))await new Promise(r=>setImmediate(r));

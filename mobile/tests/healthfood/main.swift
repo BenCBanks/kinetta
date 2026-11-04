@@ -18,12 +18,19 @@ state.prepareNutrition(epoch: "nutrition-two", permissions: "all-five"); check(s
 let decoded = try JSONDecoder().decode(HealthFoodState.self, from: JSONEncoder().encode(state))
 check(decoded.owner == state.owner && decoded.weightEpoch == "weight-two", "protected file roundtrip")
 let json = """
-{"day":"2026-03-08","revision":22,"start":"2026-03-08T00:00:00-05:00","end":"2026-03-09T00:00:00-04:00","deleted":false,"values":{"kcal":300,"protein_g":20,"carbs_g":null,"fat_g":0,"fiber_g":null}}
+{"day":"2026-03-08","revision":22,"start":"2026-03-08T00:00:00-05:00","end":"2026-03-09T00:00:00-04:00","deleted":false,"estimated":true,"values":{"kcal":300,"protein_g":20,"carbs_g":null,"fat_g":0,"fiber_g":null}}
 """
 let row = try JSONDecoder().decode(HealthFoodDay.self, from: Data(json.utf8))
 let dates = try row.interval(timeZone: "America/New_York")
 check(dates.1.timeIntervalSince(dates.0) == 23 * 3600, "local DST day")
 check(row.quantity("fat_g") == 0 && row.quantity("carbs_g") == nil, "zero vs unknown")
+check(row.estimated == true, "estimated day flag decoded")
+let estimateMetadata = HealthFoodNutritionMetadata.forSavedNutrition(estimated:row.estimated == true,wasUserEnteredKey:"HKWasUserEntered")
+check(estimateMetadata["HKWasUserEntered"] as? Bool == true && estimateMetadata["estimated"] as? Bool == true,
+      "reviewed estimate samples are user-entered and tagged estimated")
+let ordinaryMetadata = HealthFoodNutritionMetadata.forSavedNutrition(estimated:false,wasUserEnteredKey:"HKWasUserEntered")
+check(ordinaryMetadata["HKWasUserEntered"] as? Bool == true && ordinaryMetadata["estimated"] == nil,
+      "saved non-estimate samples are user-entered without estimate tag")
 check(HealthFoodDay.unitSymbols["kcal"] == "kcal" && HealthFoodDay.fields.dropFirst().allSatisfy { HealthFoodDay.unitSymbols[$0] == "g" }, "energy kcal and nutrient grams")
 let digest = String(repeating: "a", count: 64)
 let identity = try row.identifier(ownerDigest: digest, field: "kcal")

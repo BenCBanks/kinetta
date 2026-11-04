@@ -54,7 +54,7 @@ Kinetta’s calorie, nutrition, training and health estimates can be wrong or in
 Optional Kit features
 
 ## ai
-Kit can make mistakes. Review its suggestions before acting. AI permissions, including the separate choices for Apple Health and Garmin data, are described in the Privacy Policy. Agreement to these terms does not turn on AI or grant permission to use health data.
+Kit can make mistakes. Review its suggestions before acting. AI permissions, including the separate choices for the Health app and Garmin data, are described in the Privacy Policy. Agreement to these terms does not turn on AI or grant permission to use health data.
 
 ## delete-heading
 Leaving and your data

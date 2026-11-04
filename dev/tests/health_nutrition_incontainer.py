@@ -22,9 +22,23 @@ try:
   r=client.get('/api/health/nutrition/days',params={'epoch':state['epoch'],'after':after,'limit':limit});assert r.status_code==status,(r.status_code,r.text);return r.json()
  def insert(day='2026-03-08',owner=uid,**values):
   with db.connect() as c:
-   r=c.execute('INSERT INTO food_entries(user_id,day,name,kcal,protein_g,carbs_g,fat_g,fiber_g,ref) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id',(owner,day,'Fictional journal plate',values.get('kcal',300),values.get('protein_g',20),values.get('carbs_g',40),values.get('fat_g',10),values.get('fiber_g',5),json.dumps(values.get('ref',{})))).fetchone();return r['id']
+   r=c.execute('INSERT INTO food_entries(user_id,day,name,kcal,protein_g,carbs_g,fat_g,fiber_g,source,ref) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id',(owner,day,'Fictional journal plate',values.get('kcal',300),values.get('protein_g',20),values.get('carbs_g',40),values.get('fat_g',10),values.get('fiber_g',5),values.get('source','quick'),json.dumps(values.get('ref',{})))).fetchone();return r['id']
+ def preview(day):
+  now=dt.datetime.now(dt.timezone.utc)
+  with db.connect() as c:
+   user_message=c.execute('''INSERT INTO food_chat_messages(user_id,client_id,kind,body,captured_at,local_day,state)
+     VALUES(%s,%s,'user','Fictional unreviewed meal',%s,%s,'answered') RETURNING id''',(uid,str(uuid.uuid4()),now,day)).fetchone()['id']
+   c.execute('''INSERT INTO food_chat_messages(user_id,client_id,kind,body,captured_at,local_day,state,reply_to,result)
+     VALUES(%s,%s,'reply','Unreviewed estimate',%s,%s,'answered',%s,%s)''',
+     (uid,str(uuid.uuid4()),now,day,user_message,json.dumps({'kind':'preview','parts':[{'estimated':True,'entries':[{'kcal':999}]}]})))
+ assert not H.is_estimated({'source':'quick','ref':{}})
+ assert H.is_estimated({'source':'ai','ref':{}})
+ assert H.is_estimated({'source':'quick','ref':{'estimated_from':'banana'}})
+ assert H.is_estimated({'source':'quick','ref':{'estimated_portion':True}})
+ assert H.is_estimated({'source':'dish','ref':{'recipe_source':{'sources':{'kcal':'estimated_ingredients'}}}})
  off=a.get('/api/health/nutrition').json();assert not off['enabled'];days(off,status=409)
  entry=insert()
+ preview('2026-03-08')
  with db.connect() as c:assert not c.execute('SELECT 1 FROM health_nutrition_days WHERE user_id=%s',(uid,)).fetchone()
  assert a.put('/api/health/nutrition/preferences',json={'enabled':True}).status_code==400
  assert a.put('/api/health/nutrition/preferences',json={'enabled':1,'confirmed':True}).status_code==422
@@ -33,6 +47,7 @@ try:
  assert state['since']==dt.datetime.now(__import__('zoneinfo').ZoneInfo('America/New_York')).date().isoformat()
  stable=state['account_id'];state=preferences(older=True);assert state['include_older'] and state['account_id']==stable
  page=days(state);row=page['days'][0];assert row['day']=='2026-03-08' and row['values']==dict(kcal=300,protein_g=20,carbs_g=40,fat_g=10,fiber_g=5)
+ assert row['estimated'] is False, 'unreviewed chat previews are not written with saved food'
  assert row['start']=='2026-03-08T00:00:00-05:00' and row['end']=='2026-03-09T00:00:00-04:00' # 23h local DST day
  assert not row['deleted'] and not page['more'];cursor=page['next'];assert not days(state,cursor)['days']
  # An actual old-client API update queues the changed day; replay returns stable revision.
@@ -85,6 +100,10 @@ try:
  # Known zero is writable, unlike unknown; only the five expressly requested types.
  insert('2026-03-14',kcal=0,protein_g=0,carbs_g=0,fat_g=0,fiber_g=0)
  row=next(r for r in days(state3)['days'] if r['day']=='2026-03-14');assert all(v==0 for v in row['values'].values()) and len(row['values'])==5
+ insert('2026-03-15',source='quick')
+ insert('2026-03-15',source='ai',ref={'origin':'ai'})
+ estimated_row=next(r for r in days(state3)['days'] if r['day']=='2026-03-15')
+ assert estimated_row['estimated'] is True, 'one estimated saved part marks the daily Health samples'
  with db.connect() as c:
   c.execute(sql.SQL('CREATE ROLE {} LOGIN PASSWORD {}').format(sql.Identifier(role),sql.Literal(password)));c.execute(sql.SQL('GRANT fit_readers TO {}').format(sql.Identifier(role)));c.execute('UPDATE users SET sql_role=%s WHERE id=%s',(role,uid))
  with psycopg.connect(db._conninfo(role,password),row_factory=psycopg.rows.dict_row) as reader:

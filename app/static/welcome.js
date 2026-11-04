@@ -74,10 +74,10 @@ route(/^\/welcome$/, 'me', async (el) => {
   }
   function workouts() {
     const card = (href, ico, title, sub) => `<a class="row-link" href="${href}"><span class="ri c-brand">${svg(ico)}</span><span class="grow">${title}<small class="muted gs-sub">${sub}</small></span><span class="chev">${svg('chev')}</span></a>`;
-    // In the iPhone app, Apple Health leads: one tap, one Apple screen, then the recent workouts import (2026-10-24)
+    // In the iPhone app, the Health app leads: one tap, one permission screen, then the recent workouts import (2026-10-24)
     const health = Native.on;
-    frame('workouts',3 + k, 'Bring in your workouts', health ? 'Connect Apple Health to bring in workouts from your iPhone, Apple Watch and other apps. Weight reading has its own control in Connections.' : 'Pick one now, or come back to it from Get started on Me.',
-      `${health ? '<button class="primary wide" id="wc-health">' + svg('heart') + ' Connect Apple Health</button><p class="small muted">Apple shows one screen where you choose what to share. You can change it any time in the Health app.</p><p class="err" role="alert" id="wc-health-err"></p>' : ''}
+    frame('workouts',3 + k, 'Bring in your workouts', health ? 'Connect to the Health app to bring in workouts from your iPhone, Apple Watch and other apps. Weight reading has its own control in Connections.' : 'Pick one now, or come back to it from Get started on Me.',
+      `${health ? '<button class="primary wide" id="wc-health">' + svg('heart') + ' Connect to the Health app</button><p class="small muted">The Health app shows one screen where you choose what to share. You can change it any time in the Health app.</p><p class="err" role="alert" id="wc-health-err"></p>' : ''}
       <div class="card list">${card('/track', 'track', 'Record with this phone', 'Runs, rides, walks and lifting. Your phone asks for location when you start.')}
       <div id="wc-connections">${card('/track/connections', 'watch', 'Workout connections', 'Check which connections are available.')}</div>
       ${Native.on ? '' : card('/track/import', 'upload', 'Upload files or a Strava export', 'GPX, FIT and TCX files, or the zip file Strava gives you.')}</div><details class="welcome-kit"><summary>Find friends · optional</summary><div id="wc-inv"></div><a class="ghost wide" href="/me/friends?find=1">${svg('search')}Search by name or username</a></details>`, 'Done');
@@ -86,14 +86,14 @@ route(/^\/welcome$/, 'me', async (el) => {
     api('/api/connections').then(connections=>{if(!here('workouts'))return;const available=connections.garmin_connect_available||connections.garmin_connect;$('#wc-connections',el).innerHTML=card('/track/connections','watch',available?'Garmin Connect':'Workout connections',available?'Manage Garmin workout syncing in Connections.':'Garmin Connect isn’t available for this account.');}).catch(()=>{});
     const h = health ? $('#wc-health', el) : null;
     if (h) {
-      Native.healthOn().then((done) => { if (done && h.isConnected && here('workouts')) { h.textContent = 'Apple Health connected'; h.disabled = true; $('#wc-next', el).textContent = 'Done'; } }).catch(() => {});
+      Native.healthOn().then((done) => { if (done && h.isConnected && here('workouts')) { h.textContent = 'Health app connected'; h.disabled = true; $('#wc-next', el).textContent = 'Done'; } }).catch(() => {});
       h.onclick = async () => {
-        h.disabled = true; h.textContent = 'Opening Apple Health…'; $('#wc-health-err', el).textContent = '';
+        h.disabled = true; h.textContent = 'Opening Health app…'; $('#wc-health-err', el).textContent = '';
         try {
           await Native.connectAppleHealth();
           if (!here('workouts')) return;
-          Native.autoSync(); toast('Apple Health connected. Bringing in your recent workouts…'); complete();
-        } catch (x) { if (here('workouts')) { $('#wc-health-err', el).textContent = x.message; h.disabled = false; h.innerHTML = svg('heart') + ' Connect Apple Health'; } }
+          Native.autoSync(); toast('Health app connected. Bringing in your recent workouts…'); complete();
+        } catch (x) { if (here('workouts')) { $('#wc-health-err', el).textContent = x.message; h.disabled = false; h.innerHTML = svg('heart') + ' Connect to the Health app'; } }
       };
     }
   }

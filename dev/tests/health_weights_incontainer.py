@@ -30,7 +30,7 @@ try:
  assert a.put('/api/health/weights/preferences',json={'enabled':1,'confirmed':True}).status_code==422
  state=prefs();assert state['epoch']!=off['epoch'] and prefs()['epoch']==state['epoch'];send(body(off,[sample()]),status=409)
  sent=send(body(state,[sample()]));assert sent['received']==1 and sent['sample_ids']==[key] and sent['last_sync']
- p=points()[0];assert p['day']==day and p['kg']==73 and p['source']=='healthkit' and p['source_label']=='Apple Health · Fictional scale'
+ p=points()[0];assert p['day']==day and p['kg']==73 and p['source']=='healthkit' and p['source_label']=='Health app · Fictional scale'
  me=a.get('/api/me').json();assert me['weight_kg']==73 and me['weight_health_derived'] and me['kcal_target']==2100 and me['protein_target']==120 and me['resting_source']=='apple_health'
  assert not points(b)
  send(body(state,[sample()]));assert len(points())==1

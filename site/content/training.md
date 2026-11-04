@@ -36,11 +36,11 @@ Garmin Connect or Health Auto Export can bring in new workouts automatically whe
 
 ## apple-health-on-iphone-9
 
-Apple Health on iPhone
+Health app on iPhone
 
 ## testflight-access-is-being-prepared-in-the-iphone-app--10
 
-In the Kinetta iPhone app, workouts sync from Apple Health, including Apple Watch routes. The app is in Apple's TestFlight beta: [get the iPhone app](https://testflight.apple.com/join/YAX1JnwB).
+In the Kinetta iPhone app, workouts sync from the Health app, including Apple Watch routes. The app is in Apple's TestFlight beta: [get the iPhone app](https://testflight.apple.com/join/YAX1JnwB).
 
 ## works-with-20
 
@@ -48,15 +48,15 @@ Works with the watch you already wear.
 
 ## works-with-list-21
 
-Apple Watch, Apple Health, Garmin Connect, Health Auto Export, Strava exports, and FIT, GPX or TCX files from almost any watch or bike computer.
+Apple Watch, the Health app, Garmin Connect, Health Auto Export, Strava exports, and FIT, GPX or TCX files from almost any watch or bike computer.
 
 ## works-with-garmin-22
 
-**Garmin Connect** brings in new workouts after watch sync when activity sharing is enabled. Maps and heart rate depend on what Garmin supplies. For older history, import a Strava export in your browser or past workouts from Apple Health.
+**Garmin Connect** brings in new workouts after watch sync when activity sharing is enabled. Maps and heart rate depend on what Garmin supplies. For older history, import a Strava export in your browser or past workouts from the Health app.
 
 ## works-with-marks-23
 
-Apple Watch and Apple Health are trademarks of Apple Inc. Garmin and Garmin Connect are trademarks of Garmin Ltd. or its subsidiaries.
+Apple Watch is a trademark of Apple Inc. Garmin and Garmin Connect are trademarks of Garmin Ltd. or its subsidiaries.
 
 ## maps-splits-heart-rate-and-records-11
 

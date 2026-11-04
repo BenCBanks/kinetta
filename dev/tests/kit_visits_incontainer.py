@@ -121,7 +121,7 @@ try:
         with patch('app.coach_chat.answer',side_effect=real_answer),patch('app.kit_tools.KitTools.call',new=revoke_after_profile),patch('app.coach_chat._gemini_turn') as transport:
             result=request(a,'POST','/messages/'+pending['client_id']+'/answer',{'generation':sixth['generation'],'visit_id':sixth['visit_id']})
             assert result['state']=='failed' and not result['answer'] and not transport.called
-            assert 'Apple Health' in result['error']
+            assert result['error']=='Review the Health app and Garmin data sharing with Kit under Me > Connections first.'
         # Memory is personal exported data; visits/messages/memories cascade on account deletion.
         with tempfile.NamedTemporaryFile(suffix='.zip') as f:
             _write_export(uid,f.name)

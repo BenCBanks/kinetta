@@ -59,7 +59,7 @@ def status(user=Depends(current_user)):
 
 @router.put('/preferences')
 def preference(body:Preference,user=Depends(current_user)):
-    if body.enabled and not body.confirmed:raise HTTPException(400,'Confirm reading Apple Health weight before enabling it')
+    if body.enabled and not body.confirmed:raise HTTPException(400,'Confirm Health app weight reading before enabling it')
     with db.connect() as c:
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
         p=profile(c,user['id'],True)
@@ -109,14 +109,14 @@ def rebuild(c,uid,tz,*,days=None):
 def import_weights(body:Batch,user=Depends(current_user)):
     now=dt.datetime.now(dt.timezone.utc);tz=db.valid_tz(body.tz)
     if not tz:raise HTTPException(400,'Unknown time zone')
-    if not now-dt.timedelta(days=7)<=body.observed_at<=now+dt.timedelta(minutes=5):raise HTTPException(400,'Read Apple Health weight again before syncing')
+    if not now-dt.timedelta(days=7)<=body.observed_at<=now+dt.timedelta(minutes=5):raise HTTPException(400,'Read weight from the Health app again before syncing')
     ids=[s.sample_id for s in body.samples]
     if len(set(ids))!=len(ids) or len(set(body.deleted))!=len(body.deleted) or set(ids)&set(body.deleted):raise HTTPException(400,'Send each Health sample identity once')
     if any(s.sampled_at>body.observed_at+dt.timedelta(minutes=5) for s in body.samples):raise HTTPException(400,'A weight cannot be in the future')
     with db.connect() as c:
         c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(user['id'],))
         p=profile(c,user['id'],True)
-        if not p['health_weight_read']:raise HTTPException(409,'Apple Health weight sync is off')
+        if not p['health_weight_read']:raise HTTPException(409,'Health app weight reading is off')
         if p['health_weight_epoch']!=body.epoch or (p['tz'] or db.DEFAULT_TZ)!=tz:raise HTTPException(409,'Weight sync settings changed. Read Health again.')
         zone=ZoneInfo(tz)
         touched={sample.sampled_at.astimezone(zone).date() for sample in body.samples}
@@ -124,7 +124,7 @@ def import_weights(body:Batch,user=Depends(current_user)):
             touched.update(row['sampled_at'].astimezone(zone).date() for row in c.execute('SELECT sampled_at FROM health_weight_samples WHERE user_id=%s AND sample_id=ANY(%s) AND sampled_at IS NOT NULL',(user['id'],body.deleted)))
         for sample in body.samples:
             old=c.execute('SELECT sampled_at,kg,source_name,source_bundle,deleted FROM health_weight_samples WHERE user_id=%s AND sample_id=%s',(user['id'],sample.sample_id)).fetchone()
-            name=' '.join(sample.source_name.split()) or 'Apple Health';bundle=sample.source_bundle.strip()
+            name=' '.join(sample.source_name.split()) or 'Health app';bundle=sample.source_bundle.strip()
             # ZoneInfo equality is ambiguous during a repeated DST hour; compare actual instants.
             same_time=bool(old and old['sampled_at'] is not None and old['sampled_at'].astimezone(dt.timezone.utc)==sample.sampled_at.astimezone(dt.timezone.utc))
             if old and not old['deleted'] and (not same_time or old['kg']!=sample.kg or old['source_name']!=name or old['source_bundle']!=bundle):

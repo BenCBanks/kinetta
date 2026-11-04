@@ -180,7 +180,7 @@ function workoutEnergy(box,aid) {
   const owner=readOwner();load('/api/activity-food',data=>{
     if(!box.isConnected||owner!==readOwner())return;
     const t=data.today,a=t.items.find(x=>String(x.id)===String(aid));if(!a){box.innerHTML='';return;}
-    box.innerHTML=`<a class="card tap workout-energy" href="${esc(t.food_href)}"><h2>Today’s energy</h2><p>${a.kcal<=0?'Calories are unavailable for this workout.':t.day_burn==null?`${r0(homeCalories(a.kcal))} activity kcal recorded${a.estimated?' · estimate':''}. Total burn is waiting for resting data.`:t.included_in_day_burn?`Today: +${r0(homeCalories(a.kcal))} kcal burned${a.estimated?' · estimate':''}.`:`${r0(homeCalories(a.kcal))} activity kcal recorded${a.estimated?' · estimate':''}. Your imported total burn takes priority, so these calories are not added again.`}</p>${a.kcal>0?`<p class="small muted">${a.estimated?'Estimated from recorded distance/time and weight.':a.source==='healthkit'?'Recorded calories from Apple Health.':a.source==='track'?'Calories from your phone recording.':'Calories from your workout record.'}</p>`:''}<span class="small more-link">See this workout in your food log ›</span></a>`;
+    box.innerHTML=`<a class="card tap workout-energy" href="${esc(t.food_href)}"><h2>Today’s energy</h2><p>${a.kcal<=0?'Calories are unavailable for this workout.':t.day_burn==null?`${r0(homeCalories(a.kcal))} activity kcal recorded${a.estimated?' · estimate':''}. Total burn is waiting for resting data.`:t.included_in_day_burn?`Today: +${r0(homeCalories(a.kcal))} kcal burned${a.estimated?' · estimate':''}.`:`${r0(homeCalories(a.kcal))} activity kcal recorded${a.estimated?' · estimate':''}. Your imported total burn takes priority, so these calories are not added again.`}</p>${a.kcal>0?`<p class="small muted">${a.estimated?'Estimated from recorded distance/time and weight.':a.source==='healthkit'?'Recorded calories from the Health app.':a.source==='track'?'Calories from your phone recording.':'Calories from your workout record.'}</p>`:''}<span class="small more-link">See this workout in your food log ›</span></a>`;
   }).catch(()=>{if(box.isConnected&&owner===readOwner())box.innerHTML='<p class="small muted">Today’s energy is unavailable. <a href="/food">Open food log</a></p>';});
 }
 function workoutSyncStatus(box) {
@@ -190,7 +190,7 @@ function workoutSyncStatus(box) {
     if(!valid()){if(Native.onWorkoutStatus===progress)Native.onWorkoutStatus=null;return;}
     const text=$('[data-sync-progress]',box),summary=$('[data-sync-summary]',box),button=$('[data-sync-now]',box);
     if(text&&Native.syncing)text.textContent=Native.healthProgress||'Syncing…';
-    if(summary&&Native.syncing)summary.textContent='Apple Health · syncing';
+    if(summary&&Native.syncing)summary.textContent='Health app · syncing';
     if(button)button.disabled=!!Native.syncing;
     if(Native.syncing)wasSyncing=true;else if(wasSyncing){wasSyncing=false;draw().catch(()=>{});}
   };
@@ -198,11 +198,11 @@ function workoutSyncStatus(box) {
     const v=++version;const [enabled,status,bg]=await Promise.all([Native.healthOn(),Native.healthStatus(),Native.backgroundStatus()]);
     if(v!==version||!valid())return;
     if(!enabled){box.innerHTML='';return;}
-    if(!$('.workout-sync',box))box.innerHTML='<details class="card workout-sync"><summary data-sync-summary></summary><p class="small muted" data-sync-last></p><p class="small muted" data-sync-progress></p><p data-sync-login></p><p data-sync-pending></p><p class="small muted">Garmin Connect can take an hour or more to send workouts to Health and does not send route maps.</p><button class="ghost" data-sync-now>Sync now</button> <a class="linkbtn" href="/track/health">Manage Apple Health</a></details>';
+    if(!$('.workout-sync',box))box.innerHTML='<details class="card workout-sync"><summary data-sync-summary></summary><p class="small muted" data-sync-last></p><p class="small muted" data-sync-progress></p><p data-sync-login></p><p data-sync-pending></p><p class="small muted">Garmin Connect can take an hour or more to send workouts to Health and does not send route maps.</p><button class="ghost" data-sync-now>Sync now</button> <a class="linkbtn" href="/track/health">Manage Health permissions</a></details>';
     const dates=[status?.last_success_at,bg?.lastSuccess].filter(Boolean).map(x=>new Date(x)).filter(x=>Number.isFinite(+x));const last=dates.sort((a,b)=>b-a)[0];
-    $('[data-sync-summary]',box).textContent='Apple Health · '+(Native.syncing?'syncing':bg?.pending?`${bg.pending} pending`:status?.error||bg?.error?'needs attention':last?'last synced '+last.toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'waiting for first sync');
+    $('[data-sync-summary]',box).textContent='Health app · '+(Native.syncing?'syncing':bg?.pending?`${bg.pending} pending`:status?.error||bg?.error?'needs attention':last?'last synced '+last.toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'waiting for first sync');
     $('[data-sync-last]',box).textContent=last?'Last successful sync: '+last.toLocaleString():'';
-    $('[data-sync-progress]',box).textContent=Native.syncing?Native.healthProgress:status?.error||bg?.error||'Only workouts already available in Apple Health can be imported.';
+    $('[data-sync-progress]',box).textContent=Native.syncing?Native.healthProgress:status?.error||bg?.error||'Only workouts already available in the Health app can be imported.';
     $('[data-sync-login]',box).textContent=bg?.needsLogin?'Sign in again to resume background uploads.':'';
     $('[data-sync-pending]',box).textContent=bg?.pending?`${bg.pending} workouts waiting to upload.`:'';
     $('[data-sync-now]',box).onclick=async()=>{try{const result=await Native.syncHealth();if(!valid())return;if(result?.added||result?.updated){render();return;}}catch(e){if(valid())toast(e.message);}await draw();};
@@ -225,9 +225,9 @@ function getStarted(healthConnected = false, hasHistory = false) {
   const rows = [
     App.me?.mail_ready && !App.me.email && !pendingEmail() && !App.me.needs_email_confirm ? step('/me/settings?email=add', 'mail', 'c-brand', 'Add your email', 'So you can reset your password if you forget it') : '',
     !hasHistory && !App.me?.photo && !App.me?.bio ? step('/welcome', 'user', 'c-green', 'Set up your profile', 'A photo and a line about you, who sees your activities, and friends') : '',
-    !Native.on && /iPhone|iPad|iPod/.test(navigator.userAgent) && App.me?.iphone_app ? `<a class="row-link" href="${esc(App.me.iphone_app)}" target="_blank" rel="noopener"><span class="ri c-brand">${svg('track')}</span><span class="grow">Get the Kinetta iPhone app<small class="muted gs-sub">Beta, through Apple’s TestFlight. Records with GPS and brings in Apple Health.</small></span><span class="chev">${svg('chev')}</span></a>` : '',
-    !hasHistory ? step('/track/connections', 'watch', 'c-brand', 'Bring in workouts', 'Apple Health or Garmin · optional') : '',
-    Native.on && hasHistory && !healthConnected ? step('/track/health', 'heart', 'c-brand', 'Connect Apple Health · optional', 'Bring in workouts and weight from Apple Health') : '',
+    !Native.on && /iPhone|iPad|iPod/.test(navigator.userAgent) && App.me?.iphone_app ? `<a class="row-link" href="${esc(App.me.iphone_app)}" target="_blank" rel="noopener"><span class="ri c-brand">${svg('track')}</span><span class="grow">Get the Kinetta iPhone app<small class="muted gs-sub">Beta, through Apple’s TestFlight. Records with GPS and brings in workouts from the Health app.</small></span><span class="chev">${svg('chev')}</span></a>` : '',
+    !hasHistory ? step('/track/connections', 'watch', 'c-brand', 'Bring in workouts', 'Health app or Garmin · optional') : '',
+    Native.on && hasHistory && !healthConnected ? step('/track/health', 'heart', 'c-brand', 'Connect to the Health app · optional', 'Bring in workouts and weight from the Health app') : '',
     !hasHistory ? step('/track', 'track', 'c-green', 'Record an activity', 'A run, ride, walk or lifting session with your phone.') : '',
     !hasHistory ? step('/me/friends', 'me', 'c-brand', 'Find your friends', "See each other's runs and rides, and send cheers.") : '',
     ios && !home && !Native.on && !hasHistory ? `<div class="row-link"><span class="ri c-orange">${svg('today')}</span><span class="grow">Add Kinetta to your Home Screen<small class="muted gs-sub">In Safari, tap Share, then Add to Home Screen. It opens like an app.</small></span></div>` : '',
@@ -242,7 +242,7 @@ function setupChecklist(healthConnected) {
   // Health); Settings → Show setup tips brings skipped steps back.
   const items = [
     me.mail_ready && !me.needs_email_confirm ? ['email', '/me/settings?email=add', 'Add your email', !!me.email || !!pendingEmail()] : null,
-    Native.on ? ['health', '/track/health', 'Connect Apple Health', healthConnected] : null,
+    Native.on ? ['health', '/track/health', 'Connect to the Health app', healthConnected] : null,
     !Native.on && /iPhone|iPad|iPod/.test(navigator.userAgent) && me.iphone_app ? ['iphone', me.iphone_app, 'Get the iPhone app', false, true] : null,
     // The photo picker opens in place: the profile page no longer has its own camera badge (30 Oct 2026).
     ['photo', 'photo', 'Add a profile photo', !!me.photo],
@@ -570,7 +570,7 @@ function drawDetail(el, a) {
   wireActivityTabs(el, key => { if (key === 'charts' && drawCharts) { requestAnimationFrame(drawCharts); drawCharts = null; } });
   ActivityDetail.wire(el,a);
   const segBox = $('#d-segments', el); if (segBox) lazy(segBox, () => Segments.activityCard(segBox, a.id));   // segment times, routes and segments from this activity (#278)
-  const addMap=$('#d-add-map',el);if(addMap&&Native.on)addMap.remove();if(addMap&&!Native.on)addMap.onclick=()=>sheet('Add the original map',`<p>Some apps send a workout summary to Apple Health without its GPS route. Your workout summary is already here.</p><p>For a Garmin recording:</p><ol><li>Open the matching activity on the Garmin Connect website.</li><li>Choose the settings gear, then <b>Export Original</b>.</li><li>Upload the downloaded ZIP or FIT file here.</li></ol><p class="small muted">Kinetta matches the sport, start time and distance. A matching file adds the map to this workout without making a second activity. Your edited title and numbers stay.</p><a class="primary wide" href="/track/import?map_for=${a.id}">Upload the original file</a>`,(body,close)=>{body.classList.add('activity-map-help');body.querySelector('a').onclick=()=>close();});
+  const addMap=$('#d-add-map',el);if(addMap&&Native.on)addMap.remove();if(addMap&&!Native.on)addMap.onclick=()=>sheet('Add the original map',`<p>Some apps send a workout summary to the Health app without its GPS route. Your workout summary is already here.</p><p>For a Garmin recording:</p><ol><li>Open the matching activity on the Garmin Connect website.</li><li>Choose the settings gear, then <b>Export Original</b>.</li><li>Upload the downloaded ZIP or FIT file here.</li></ol><p class="small muted">Kinetta matches the sport, start time and distance. A matching file adds the map to this workout without making a second activity. Your edited title and numbers stay.</p><a class="primary wide" href="/track/import?map_for=${a.id}">Upload the original file</a>`,(body,close)=>{body.classList.add('activity-map-help');body.querySelector('a').onclick=()=>close();});
   if(a.has_intervals)globalThis.Intervals?.history($('#activity-interval-history',el),a.id);
   ownSocial(el, a);
   $('#d-comment-open',el).onclick=()=>commentsSheet(a.id,SocialData.peek(a.id),()=>{});
@@ -683,7 +683,7 @@ function editActivity(a) {
     ${optionalText('description', 'Description', 'Add a description', a.description)}
     ${optionalText('private_note', 'Private note (only you)', 'Add a private note', a.private_note)}
     <h3 class="ghead e-details-head">Details</h3>
-    <details id="e-summary" class="fold-row"><summary><span class="ri c-brand">${svg('edit')}</span><span class="grow"><b>Distance, time & heart rate</b><small>Fix numbers your watch got wrong</small></span><span class="chev">${svg('chev')}</span></summary><div class="form e-fields"><p class="small muted">Your edits stay when Apple Health syncs again. Leave a box empty if it wasn't recorded. Changing distance or time hides records and splits; tick “Use recorded” to undo an edit.</p>${correctionFields}</div></details>
+    <details id="e-summary" class="fold-row"><summary><span class="ri c-brand">${svg('edit')}</span><span class="grow"><b>Distance, time & heart rate</b><small>Fix numbers your watch got wrong</small></span><span class="chev">${svg('chev')}</span></summary><div class="form e-fields"><p class="small muted">Your edits stay when the Health app syncs again. Leave a box empty if it wasn't recorded. Changing distance or time hides records and splits; tick “Use recorded” to undo an edit.</p>${correctionFields}</div></details>
     <label>Gear<span class="selbox"><select name="gear"><option value="">None</option></select>${svg('chev')}</span></label>
     <label class="check"><input type="checkbox" name="commute"${a.commute ? ' checked' : ''}> Commute</label>
     <button type="button" class="e-delete" id="e-del">Delete activity</button></form>`, async (body, close) => {
@@ -1858,7 +1858,7 @@ function garminCard(box,C,valid){
   const g=C.garmin_connect;if(!box)return;
   if(!(C.garmin_connect_available||g)){box.innerHTML='<p class="small muted">Garmin Connect: not available yet.</p>';return;}
   box.innerHTML=`<div class="card"><h2>Garmin Connect</h2>
-    <p>${g?`<b>Connected.</b> ${garminNote(g)}`:'New Garmin activities arrive after your watch syncs, with maps and heart rate.'} For older history, ${Native.on?'import past workouts from Apple Health':'use Apple Health or import a Strava export in your browser'}.</p>
+    <p>${g?`<b>Connected.</b> ${garminNote(g)}`:'New Garmin activities arrive after your watch syncs, with maps and heart rate.'} For older history, ${Native.on?'import past workouts from the Health app':'use the Health app or import a Strava export in your browser'}.</p>
     ${g?`<label class="check"><input type="checkbox" id="gc-ai"${App.me.garmin_ai_ok?' checked':''}> Let Kit read my Garmin activities</label>
     <p class="small muted">Off unless you say yes. Sends the activities Kit needs to ${esc(App.me.ai_provider||'the AI service')}. Garmin data is never used to train AI.</p>
     <button type="button" class="linkbtn danger gc-off" id="gc-off">Disconnect Garmin</button>`
@@ -1882,18 +1882,18 @@ route(/^\/me\/connections$/, 'track', async () => go('/track/connections',{repla
 route(/^\/track\/connections$/, 'track', async (el) => {
   el.classList.add('connections-page');
   const owner=readOwner(),valid=()=>el.isConnected&&readOwner()===owner;
-  el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Connections</h1><p class="muted">Connect Garmin or Apple Health to bring in workouts automatically. A watch is optional.</p>
+  el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Connections</h1><p class="muted">Connect Garmin or the Health app to bring in workouts automatically. A watch is optional.</p>
     <div id="c-gc"></div>
-    <div class="card" id="c-health"><h2>Apple Health</h2>${skel(1)}</div>
+    <div class="card" id="c-health"><h2>Health app</h2>${skel(1)}</div>
     ${Native.on ? '' : '<a class="card tap row-link" href="/track/import"><div class="grow"><h2>Import activity history</h2><p>Original activity files or a Strava export, in your browser.</p></div><span class="chev">'+svg('chev')+'</span></a>'}
     <details class="card" id="c-other"><summary>Other connections</summary><div id="c-body">${skel(2)}</div></details>`;
   wireBack(el, '/track');
-  const healthCard=(isOn,st,error='')=>{if(!valid())return;$('#c-health',el).innerHTML=`<h2>Apple Health</h2>
+  const healthCard=(isOn,st,error='')=>{if(!valid())return;$('#c-health',el).innerHTML=`<h2>Health app</h2>
     <p>${Native.on?isOn?'Sync enabled. Health shares only the categories you allow.':'Optional · share nutrition, read weight or import workouts.':'Available in the Kinetta iPhone app.'}</p>
     ${st?.at?`<p class="small muted">Last ${st.error?'attempt':'sync'} ${esc(when(st.at))}.</p>`:''}${error?`<p class="err">${esc(error)}</p>`:''}
-    <a class="${Native.on?'primary':'ghost'} wide" href="/track/health">${Native.on?isOn?'Manage Apple Health':'Connect Apple Health':'About Apple Health'}</a>
-    <details><summary>Using a Garmin?</summary><p class="small">Enable Apple Health sharing in Garmin Connect, then sync your watch there. Workouts can take a while to arrive. Garmin does not send GPS routes to Health. Connect Garmin directly for maps on new workouts.</p></details>`;};
-  if(Native.on)Native.healthCall(Promise.all([Native.anyHealthOn?Native.anyHealthOn():Native.healthOn(),Native.healthStatus()]),'Health status could not be checked.',5000).then(([on,st])=>healthCard(on,st)).catch(()=>healthCard(false,null,'Health status could not be checked. Open Apple Health to review setup.'));
+    <a class="${Native.on?'primary':'ghost'} wide" href="/track/health">${Native.on?isOn?'Manage Health permissions':'Connect to the Health app':'About the Health app'}</a>
+    <details><summary>Using a Garmin?</summary><p class="small">Enable Health sharing in Garmin Connect, then sync your watch there. Workouts can take a while to arrive. Garmin does not send GPS routes to Health. Connect Garmin directly for maps on new workouts.</p></details>`;};
+  if(Native.on)Native.healthCall(Promise.all([Native.anyHealthOn?Native.anyHealthOn():Native.healthOn(),Native.healthStatus()]),'Health status could not be checked.',5000).then(([on,st])=>healthCard(on,st)).catch(()=>healthCard(false,null,'Health status could not be checked. Open the Health app to review setup.'));
   else healthCard(false,null);
   let C;
   try{C=await api('/api/connections');}catch(e){if(valid()){$('#c-gc',el).innerHTML=`<div class="card" role="alert"><p>Connections could not load. ${esc(e.message)}</p><button type="button" class="ghost" data-connections-retry>Retry</button></div>`;$('[data-connections-retry]',el).onclick=()=>render();}return;}

@@ -72,7 +72,7 @@ try:
         page, used = sign_in(a)
         assert page.status_code == 200 and b'Garmin is connected' in page.body
         assert b'New activities arrive after your watch syncs.' in page.body
-        assert b'Strava export' in page.body and b'Apple Health' in page.body
+        assert b'Strava export' in page.body and b'Health app' in page.body
         assert b'last 30 days' not in page.body
         assert G.callback(state=used, code='zz-code').status_code == 400, 'a sign-in link works once'
         assert G.callback(state='zz-made-up', code='zz-code').status_code == 400
@@ -182,7 +182,7 @@ try:
         assert page.status_code == 302 and page.headers['location'].startswith('kinetta://garmin-connect?ok=1&'), page.headers.get('location')
         native_text = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(page.headers['location']).query))['text']
         assert 'New activities arrive after your watch syncs.' in native_text
-        assert 'Strava export' in native_text and 'Apple Health' in native_text and 'last 30 days' not in native_text
+        assert 'Strava export' in native_text and 'Health app' in native_text and 'last 30 days' not in native_text
         page, _ = sign_in(a, native=True)
         q = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(page.headers['location']).query))
         assert q['ok'] == '0' and 'different Kinetta account' in q['text']

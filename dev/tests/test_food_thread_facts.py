@@ -53,7 +53,7 @@ unknown=copy.deepcopy(S);unknown['day']['burned']={'source':'apple_health','day_
 check('not synced' in f.answer(f.classify('how much did I burn?',anchor),unknown)['text'],'missing resting calories honest')
 check('whole day' in f.answer(f.classify('how much did I burn?',anchor),S)['text'],'formula burn is a whole-day estimate')
 watch=copy.deepcopy(S);watch['day']['burned']['source']='apple_health'
-check('Synced Apple Health' in f.answer(f.classify('how much did I burn?',anchor),watch)['text'],'watch source explicit')
+check('Synced Health app' in f.answer(f.classify('how much did I burn?',anchor),watch)['text'],'watch source explicit')
 check(f.answer(f.classify('what should I eat?',anchor),S)['offer_kit'],'advice offers consent-gated Kit; no model')
 S['period_rows']=[{'kcal':1800,'protein_g':100,'carbs_g':200,'fat_g':60,'fiber_g':None,'n':3,'fiber_n':0},{'kcal':400,'protein_g':25,'carbs_g':50,'fat_g':12,'fiber_g':None,'n':1,'fiber_n':0}]
 check('2,200 kcal logged' in f.answer(f.classify('how many calories this week?',anchor),S)['text'],'week sum uses logged days')
