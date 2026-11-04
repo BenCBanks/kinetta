@@ -92,7 +92,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     await p.locator('.sl-history').click();await until(p,()=>/^\/lift\/history\/workout\/\d+$/.test(location.pathname),'workout history route');
     await p.locator('.lift-history').waitFor();assert.equal(await p.locator('.lift-history-list > li').count(),2,'last two saved sessions are visible');
     assert.equal(await p.locator('.lift-history-best').count(),3,'best set is marked for each exercise');
-    assert.match(await p.locator('.lift-history-sets').first().innerText(),/3 × 8 @ \d+(?:\.\d+)? lb/,'sets are shown in the familiar compact format');
+    assert.match(await p.locator('.lift-history-sets').first().innerText(),/^3 × 5 @ \d+(?:\.\d+)? lb$/,'first exercise uses the familiar compact set format');
     assert.equal(await p.locator('#lx-chart').count(),0,'history stays a plain list');
     await p.waitForTimeout(450);assert.equal(await p.locator('.scrim:not([inert])').count(),0,'repeat sheet closes before history is read');
     await shot(p,`history-workout-390-${theme}`);

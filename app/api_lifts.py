@@ -145,7 +145,7 @@ def _sessions(c, uid, eid, before=None, limit=200):
         SELECT a.id AS activity_id, a.start_time, a.tz, a.name,
           jsonb_agg(jsonb_build_object('n', s.n, 'reps', s.reps, 'kg', s.kg, 'secs', s.secs, 'warmup', s.warmup, 'done', s.done) ORDER BY s.n) AS sets
         FROM lift_sets s JOIN activities a ON a.id = s.activity_id
-        WHERE s.user_id = %s AND s.exercise_id = %s AND s.done AND (%s::timestamptz IS NULL OR a.start_time < %s)
+        WHERE s.user_id = %s AND s.exercise_id = %s AND s.done AND NOT a.lift_open AND (%s::timestamptz IS NULL OR a.start_time < %s)
         GROUP BY a.id ORDER BY a.start_time DESC LIMIT %s""", (uid, eid, before, before, limit)).fetchall()
     for r in rows: r.update(_summary(r['sets']))
     return rows
@@ -382,7 +382,7 @@ def session_history(aid: int, user=Depends(current_user)):
             JOIN exercises e ON e.id = s.exercise_id AND e.user_id = s.user_id
             GROUP BY r.id, r.name, r.start_time, r.tz, e.id, e.name, e.kind
             ORDER BY r.start_time DESC, r.id DESC, min(s.pos), e.id""",
-                         (uid, seed['name'], uid, uid)).fetchall()
+                         (uid, seed['name'], uid)).fetchall()
     history = {}
     for row in rows:
         session = history.setdefault(row['activity_id'], {
