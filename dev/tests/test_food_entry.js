@@ -10,10 +10,10 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
  c.location.search='';handler(el);assert.deepEqual(JSON.parse(JSON.stringify(calls[1][1])),{day:null,meal:null});
  console.log('Food description route: permanent conversation with explicit/default destination parameters PASS');
 }
-let owner='a',full=false;const saved=new Map(),field={value:'Existing draft',focus(){}},ctx={owner:'a',nativeEntries:[],el:{}};
-const c={current:ctx,Date,active:x=>x.owner===owner,$:()=>field,draftKey:o=>'draft:'+o,nativeKey:o=>'native:'+o,primary(){},localStorage:{setItem:(k,v)=>{if(full)throw Error('Fictional storage full');saved.set(k,v);},removeItem:k=>saved.delete(k)},status:()=>{}};vm.createContext(c);vm.runInContext(source.slice(source.indexOf('  function saveDraft'),source.indexOf('  async function pendingCount')),c);
+let owner='a',full=false,savedReview=null;const saved=new Map(),field={value:'Existing draft',focus(){}},ctx={owner:'a',nativeEntries:[],el:{}};
+const c={current:ctx,Date,active:x=>x.owner===owner,$:()=>field,draftKey:o=>'draft:'+o,nativeKey:o=>'native:'+o,primary(){},saveReviewDraft:(draft,inProgress)=>{savedReview={active:inProgress,day:draft.day,meal:draft.meal};},localStorage:{setItem:(k,v)=>{if(full)throw Error('Fictional storage full');saved.set(k,v);},removeItem:k=>saved.delete(k)},status:()=>{}};vm.createContext(c);vm.runInContext(source.slice(source.indexOf('  function saveDraft'),source.indexOf('  async function pendingCount')),c);
 const id='aaaaaaaa-1111-4111-8111-111111111111';assert(c.receiveNative({id,source:'quick-action'}));assert.equal(field.value,'Existing draft');assert.equal(saved.size,0);
-assert(c.receiveNative({id,source:'shortcut',text:'Fictional eggs and toast'}));assert.equal(field.value,'Existing draft\nFictional eggs and toast');const draft=JSON.parse(saved.get('draft:a'));assert.equal(typeof draft,'string');assert.equal(JSON.parse(saved.get('native:a'))[0].id,id);
+assert(c.receiveNative({id,source:'shortcut',text:'Fictional eggs and toast'}));assert.equal(savedReview.active,true,'a native food entry stays attached to an active review draft');assert.equal(field.value,'Existing draft\nFictional eggs and toast');const draft=JSON.parse(saved.get('draft:a'));assert.equal(typeof draft,'string');assert.equal(JSON.parse(saved.get('native:a'))[0].id,id);
 assert(c.receiveNative({id,source:'shortcut',text:'Fictional eggs and toast'}));assert.equal(field.value,draft,'replayed delivery does not duplicate text');
 field.value='';c.saveDraft(ctx,'');assert(c.receiveNative({id,source:'shortcut',text:'Fictional eggs and toast'}));assert.equal(field.value,'','separate receipt survives sending/clearing draft');assert(!saved.has('draft:a'));
 field.value='Keep this';full=true;assert.equal(c.receiveNative({id:'bbbbbbbb-1111-4111-8111-111111111111',source:'shortcut',text:'Waiting text'}),false);assert.equal(field.value,'Keep this');assert.equal(ctx.nativeEntries.length,1);full=false;
@@ -35,6 +35,6 @@ function client(){let who='a',received=0;const calls=[],entry={id,source:'shortc
 })().catch(e=>{console.error(e);process.exitCode=1});
 
 (async()=>{let puts=0;const field={value:'Sent Shortcut text'},button={disabled:false};const ctx={owner:'a',el:{},messages:[],jobs:[]};
- const c={active:()=>true,pendingReview:()=>false,$:s=>s==='#thread-text'?field:button,uuid:()=> 'stable-job',Date,isoDay:()=> '2026-10-18',latestContext:()=>null,finishNativeDraft:()=>{},saveDraft:()=>{throw Error('Fictional draft cleanup failure')},ThreadDB:{put:async()=>puts++},status:()=>{}};
+ const c={active:()=>true,pendingReview:()=>false,$:s=>s==='#thread-text'?field:button,uuid:()=> 'stable-job',Date,isoDay:()=> '2026-10-18',latestContext:()=>null,finishNativeDraft:()=>{},saveDraft:()=>{throw Error('Fictional draft cleanup failure')},saveReviewDraft:()=>{},ThreadDB:{put:async()=>puts++},status:()=>{}};
  vm.createContext(c);vm.runInContext(source.slice(source.indexOf('  async function send('),source.indexOf('  function preferences(')),c);await c.send(ctx);assert.equal(puts,0,'draft cleanup failure cannot leave a saved upload plus a reappearing draft');assert.equal(field.value,'Sent Shortcut text');console.log('Food send: failed draft cleanup prevents upload and retains visible text PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});

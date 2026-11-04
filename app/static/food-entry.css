@@ -66,7 +66,7 @@
 
 /* The food entry header keeps the destination below its title as secondary, tappable context. */
 .food-thread .thread-title { min-width:0;display:flex;flex-direction:column;align-items:center; }
-.food-thread .thread-context { min-width:44px;min-height:44px;padding:0 8px;border:0;border-radius:4px;background:transparent;color:var(--tx2);font:400 .8125rem/1.25 var(--font);text-align:center;white-space:normal; }
+.food-thread .thread-context { min-width:44px;min-height:44px;padding:0 8px;border:0;border-radius:4px;background:transparent;color:var(--accent);font:600 .8125rem/1.25 var(--font);text-align:center;white-space:normal; }
 .food-thread .thread-context:focus-visible { outline:2px solid var(--link);outline-offset:1px; }
 @media(max-width:360px) {
   .food-thread .thread-heading .thread-title { grid-column:1 / -1;grid-row:2; }
@@ -83,3 +83,26 @@
 .entry-edit-fields > #es-nut .nut { padding:10px 0;margin-bottom:6px; }
 .entry-edit-footer { flex:none;padding-top:10px;border-top:1px solid var(--line);background:var(--bg); }
 .entry-edit-footer .primary { width:100%;min-height:44px; }
+
+/* Choose food uses a text subtitle, text tabs and one consistent trailing add action. */
+.sheet .choose-food-context-wrap { margin:-8px 0 4px; }
+.sheet .choose-food-context { display:inline-flex;align-items:center;gap:5px;min-width:44px;min-height:44px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--accent);font:600 13px/1.3 var(--font);text-align:left; }
+.sheet .choose-food-context svg { width:14px;height:14px;flex:none;transform:rotate(90deg); }
+.sheet .choose-food-context:focus-visible,.sheet #as-tabs.choose-food-tabs button:focus-visible { outline:2px solid var(--link);outline-offset:1px; }
+.sheet #as-tabs.choose-food-tabs { display:grid;width:100%;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;overflow:visible;margin:0 0 12px;border-bottom:1px solid var(--line); }
+.sheet #as-tabs.choose-food-tabs button { display:flex;align-items:center;justify-content:center;min-width:0;min-height:44px;padding:6px 3px 4px;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;box-shadow:none;color:var(--tx2);font-size:14px;font-weight:500;line-height:1.15;white-space:nowrap; }
+.sheet #as-tabs.choose-food-tabs button[aria-pressed="true"] { border-bottom-color:var(--accent);background:transparent;box-shadow:none;color:var(--accent);font-weight:700; }
+.sheet .fe .r.kcal-line { display:flex;align-items:baseline;gap:3px;white-space:nowrap;color:var(--tx2);font-size:.875rem; }
+.sheet .fe .r.kcal-line b { display:inline;font-weight:600; }
+.sheet .meal-library-row.chooser-row { gap:4px; }
+.sheet .meal-library-row.chooser-row > .fe { flex:1;min-width:0; }
+.sheet .choose-food-add,.sheet .recent-add,.sheet .qadd { flex:none;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--tx2); }
+.sheet .choose-food-add svg,.sheet .recent-add svg,.sheet .qadd svg { width:19px;height:19px; }
+.sheet .food-destination-picker { display:grid;gap:8px; }
+.sheet .food-destination-group { display:grid;gap:0; }
+.sheet .food-destination-option { position:relative;display:flex;align-items:center;justify-content:space-between;width:100%;min-width:0;min-height:48px;margin:0;padding:10px 0;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--tx);font:500 16px/1.3 var(--font);text-align:left;cursor:pointer; }
+.sheet .food-destination-option[aria-pressed="true"] { color:var(--accent);font-weight:700; }
+.sheet .food-destination-option:focus-visible { outline:2px solid var(--link);outline-offset:2px; }
+.sheet .food-destination-check { flex:none;color:var(--accent);font-size:18px;line-height:1; }
+.sheet .food-destination-pick { overflow:hidden; }
+.sheet .food-destination-pick input[type="date"] { position:absolute;inset:0;width:100%;height:100%;min-height:48px;padding:0;opacity:0;cursor:pointer; }

@@ -21,12 +21,23 @@ function foodStorage(entry){const missing=FOOD_NUTRIENTS.filter(k=>!nutrientKnow
 function extraCoverage(entries,targets={}){return Object.fromEntries(EXTRA_NUTRIENTS.map(([k,,,target])=>{const known=entries.filter(e=>nutrientKnown(e,k));return [k,{recorded:known.length?known.reduce((n,e)=>n+Number(e[k]),0):null,known_count:known.length,unknown_count:entries.length-known.length,complete:!!entries.length&&known.length===entries.length,target:targets[target]}];}));}
 function extraTotals(values,{period=false}={}){return `<details class="extra-nutrients"><summary>More nutrients${period?' · this range':''}</summary><dl>${EXTRA_NUTRIENTS.map(([k,label,unit])=>{const v=values?.[k]||{};return `<div><dt>${label}</dt><dd><b class="num">${nutrientNumber(v.recorded,unit)}</b>${v.recorded!=null&&!v.complete?'<small>Some foods are missing values</small>':''}${v.unknown_count?`<small>${v.unknown_count} food${v.unknown_count===1?'':'s'} with no value</small>`:''}${!period&&v.target!=null?`<small>Your limit: ${nutrientNumber(v.target,unit)}</small>`:''}</dd></div>`;}).join('')}</dl><p class="small muted">${period?'Recorded totals across this date range. ':''}Missing values are unknown, not zero. Total sugar includes naturally occurring sugar.</p></details>`;}
 function extraFood(v){return `<details class="extra-nutrients"><summary>More nutrients</summary><dl>${EXTRA_NUTRIENTS.map(([k,label,unit])=>`<div><dt>${label}</dt><dd class="num">${nutrientNumber(nutrientKnown(v,k)?v[k]:null,unit)}</dd></div>`).join('')}</dl><p class="small muted">For this portion, using its recorded source values. Estimates stay estimates; missing values are unknown.</p></details>`;}
-const isoDay = (d) => d.toLocaleDateString('en-CA', {timeZone: tz()});
-const addDays = (iso, n) => { const d = new Date(iso + 'T12:00'); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); };
-const dayLabel = (iso) => { const t = isoDay(new Date()); return iso === t ? 'Today' : iso === addDays(t, -1) ? 'Yesterday' : iso === addDays(t, 1) ? 'Tomorrow' : new Date(iso + 'T12:00').toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric', ...(iso.slice(0,4) !== t.slice(0,4) ? {year:'numeric'} : {})}); };
-const foodDestination = w => `<p class="portion-context small muted">${esc([MEAL_NAMES[w.meal],dayLabel(w.day||isoDay(new Date()))].filter(Boolean).join(' · '))}</p>`;
-function guessMeal() {   // the meal you usually log at this hour (learned from your log), else a sensible clock guess
-  const h = Number(new Intl.DateTimeFormat('en-US',{timeZone:tz(),hour:'2-digit',hourCycle:'h23'}).format(new Date())), mine = App.mealHours && App.mealHours[h];
+const deviceTimeZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || tz(); } catch (e) { return tz(); } };
+const isoDay = (d, timeZone = tz()) => d.toLocaleDateString('en-CA', {timeZone});
+const addDays = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0,10); };
+const dayLabel = (iso, timeZone = tz()) => { const t = isoDay(new Date(),timeZone); return iso === t ? 'Today' : iso === addDays(t, -1) ? 'Yesterday' : iso === addDays(t, 1) ? 'Tomorrow' : new Date(iso + 'T12:00:00Z').toLocaleDateString([], {timeZone:'UTC',weekday: 'short', month: 'short', day: 'numeric', ...(iso.slice(0,4) !== t.slice(0,4) ? {year:'numeric'} : {})}); };
+const foodDestination = w => { const zone=w.timeZone||tz();return `<p class="portion-context small muted">${esc([MEAL_NAMES[w.meal],dayLabel(w.day||isoDay(new Date(),zone),zone)].filter(Boolean).join(' · '))}</p>`; };
+function foodDestinationPicker(w,onSave,formId='food-destination'){
+  const zone=deviceTimeZone(),today=isoDay(new Date(),zone),yesterday=addDays(today,-1),day=w.day||today,meal=Object.hasOwn(MEAL_NAMES,w.meal)?w.meal:guessMeal(zone);
+  const mealRows=Object.entries(MEAL_NAMES).map(([key,name])=>{const label=key==='snacks'?'Snack':name;return `<button type="button" class="food-destination-option" data-meal="${esc(key)}" aria-pressed="${key===meal}"><span>${esc(label)}</span>${key===meal?'<span class="food-destination-check" aria-hidden="true">✓</span>':''}</button>`;}).join('');
+  sheet('Meal and day',`<div class="food-destination-picker" id="${esc(formId)}"><div class="food-destination-group" role="group" aria-label="Meal">${mealRows}</div><div class="food-destination-group" role="group" aria-label="Day"><button type="button" class="food-destination-option" data-day="${today}" aria-pressed="${day===today}">Today</button><button type="button" class="food-destination-option" data-day="${yesterday}" aria-pressed="${day===yesterday}">Yesterday</button><label class="food-destination-option food-destination-pick"><span>Pick a date…</span><input name="date" type="date" value="${esc(day)}" aria-label="Pick a date"></label></div></div>`,(b,close)=>{
+    const root=$(`#${formId}`,b),apply=async next=>{try{await onSave(next);close();}catch(error){toast(error.message);}};
+    $$('[data-meal]',root).forEach(button=>button.onclick=()=>apply({meal:button.dataset.meal,day}));
+    $$('[data-day]',root).forEach(button=>button.onclick=()=>apply({meal,day:button.dataset.day}));
+    const date=$('input[name="date"]',root);date.onchange=()=>{if(date.value)apply({meal,day:date.value});};
+  });
+}
+function guessMeal(timeZone = tz()) {   // the meal you usually log at this hour (learned from your log), else a sensible clock guess
+  const h = Number(new Intl.DateTimeFormat('en-US',{timeZone,hour:'2-digit',hourCycle:'h23'}).format(new Date())), mine = timeZone === tz() && App.mealHours && App.mealHours[h]; // learned hours use the profile zone; while travelling, use the local clock instead
   return mine || (h < 10 ? 'breakfast' : h < 14 ? 'lunch' : h < 17 ? 'snacks' : h < 21 ? 'dinner' : 'snacks');
 }
 
@@ -115,7 +126,7 @@ function todayFoodCard(box, {onHistory, onFoodUser} = {}) {
       ${D.entries.some(e => e.pending) ? '<p class="small muted" role="status">Some foods are waiting to send.</p>' : ''}</a>
       <button class="primary wide" id="tf-add">${svg('plus')} Log food</button></div>`;
     syncCheckinPrimary(box.closest?.('#page'));
-    $('#tf-add', box).onclick = () => describeSheet(D.day, null);
+    $('#tf-add', box).onclick = () => describeSheet(null, null);
     onFoodUser?.(true);
   }, {maxAge: 5000});
 }
@@ -274,10 +285,10 @@ route(/^\/food$/, 'food', async (el) => {
   const dp = $('#fd-date', el);
   dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* the browser opens its own picker */ } };
   dp.onchange = () => { if (dp.value) go(dp.value === today ? '/food' : `/food?d=${dp.value}`, {replace: true}); };
-  $('#fq-add', el).onclick = () => describeSheet(day,null);
+  $('#fq-add', el).onclick = () => describeSheet(q.get('d'),null);
   const photo=$('#fq-photo',el),scan=$('#fq-scan',el);
-  if(photo)photo.onclick=()=>describeSheet(day,null,'snap');
-  if(scan)scan.onclick=()=>describeSheet(day,null,'scan');
+  if(photo)photo.onclick=()=>describeSheet(q.get('d'),null,'snap');
+  if(scan)scan.onclick=()=>describeSheet(q.get('d'),null,'scan');
   let openedGoals=false;
   await load(`/api/food/day?d=${day}`, (D) => {
     drawDay(el,D);
@@ -285,7 +296,7 @@ route(/^\/food$/, 'food', async (el) => {
   }, {maxAge:5000});
   if(el.isConnected)foodDiscovery(el);
   if (q.get('add') === '1' && el.isConnected) {
-    history.replaceState(null, '', '/food'); describeSheet(day,null);
+    history.replaceState(null, '', '/food'); describeSheet(q.get('d'),null);
   }
 });
 
@@ -403,7 +414,7 @@ function recentSavedMarkup(recent, {library=false}={}) {
     return `<div class="recent-saved-row" data-recent-row data-recent-index="${i}">
       <button type="button" class="fe recent-main" data-recent-item data-recent-index="${i}" data-recent-kind="${x.kind}" data-recent-id="${x.id}" aria-label="Add ${esc(x.name)} with last portion ${esc(portion)}">
         <span class="recent-label"><b>${esc(x.name)}</b><small class="muted">Last portion · ${esc(portion)}</small></span><span class="recent-kcal num">${esc(calories)}</span>
-      </button><button type="button" class="icon-btn recent-add" data-recent-add data-recent-index="${i}" data-recent-kind="${x.kind}" data-recent-id="${x.id}" aria-label="Add ${esc(x.name)} with last portion ${esc(portion)}">${svg('plus')}</button>
+      </button><button type="button" class="icon-btn recent-add choose-food-add" data-recent-add data-recent-index="${i}" data-recent-kind="${x.kind}" data-recent-id="${x.id}" aria-label="Add ${esc(x.name)} with last portion ${esc(portion)}">${svg('plus')}</button>
     </div>`;
   }).join('');
   return library?`<section class="library-section recent-saved" data-recent-saved><h2>Recent</h2>${rows}</section>`:`<section class="recent-saved" data-recent-saved><h3 class="ghead">Recent</h3><div class="results">${rows}</div></section>`;
@@ -602,37 +613,35 @@ function guardFoodSheet(body,close,owner){const guard=e=>{if(owner===readOwner()
 }
 function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
   const owner=readOwner();
+  const zone=deviceTimeZone(),destination={day:day||isoDay(new Date(),zone),meal:Object.hasOwn(MEAL_NAMES,meal)?meal:guessMeal(zone)};
   // One suggestions list inside Add food; meal cards show only what was actually logged.
-  sheet('Choose food', `<div class="where"><span class="muted">Adding to</span>
-      <span class="pill-sel"><select id="as-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
-      <span class="pill-sel daypick">${svg('calendar')}<span id="as-dayl">${esc(dayLabel(day))}</span><input id="as-day" type="date" value="${esc(day)}" aria-label="Day"></span></div>
-    <div class="seg wide" role="tablist">${[['usuals', 'Your usuals'], ['saved', 'My Recipes'], ['search', 'Search'], ['quick', 'Quick']]
-    .map(([k, n], i) => `<button data-t="${k}" aria-pressed="${i === 0}">${n}</button>`).join('')}</div>
+  sheet('Choose food', `<div class="choose-food-context-wrap"><button type="button" id="as-context" class="choose-food-context"></button></div>
+    <div id="as-tabs" class="choose-food-tabs" role="group" aria-label="Food type">${[['usuals', 'Usuals'], ['saved', 'Recipes'], ['search', 'Search'], ['quick', 'Quick']]
+    .map(([k, n]) => `<button type="button" data-t="${k}" aria-pressed="${k===tab}">${n}</button>`).join('')}</div>
     <div id="as-body"></div>`, (b, close) => {
     guardFoodSheet(b,close,owner);
-    const dp = $('#as-day', b);     // a short label ("Today", "Sat, Oct 10") over the native picker: the full date field didn't fit
-    dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* the browser opens its own picker */ } };
-    dp.onchange = () => { if (dp.value) $('#as-dayl', b).textContent = dayLabel(dp.value); };
     const body = $('#as-body', b);
-    const where = () => ({day: $('#as-day', b).value, meal: $('#as-meal', b).value});
+    const context=$('#as-context',b),where=()=>destination,drawContext=()=>{const label=[dayLabel(destination.day,zone),MEAL_NAMES[destination.meal]].join(' · ');context.innerHTML=`${esc(label)} ${svg('chev')}`;context.setAttribute('aria-label',`Change food day and meal. Adding to ${label}.`);};
+    drawContext();context.onclick=()=>foodDestinationPicker(where(),next=>{destination.day=next.day;destination.meal=next.meal;drawContext();},'as-destination');
     const tabs = {search: tSearch, usuals: tUsuals, saved: tSaved, quick: tQuick};
-    const show = (k) => { $$('[data-t]', b).forEach((x) => x.setAttribute('aria-pressed', x.dataset.t === k)); tabs[k](body, where, close); };
+    const show = (k) => { $$('[data-t]', b).forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.t === k))); tabs[k](body, where, close); };
     $$('[data-t]', b).forEach((x) => x.onclick = () => show(x.dataset.t));
     show(tab);
     if (find) { const q = $('#as-body input[type=search]', b); if (q) { q.value = find; q.oninput(); } }
   });
 }
 const foodRow = (f, i) => `<button class="fe" data-i="${i}"><div><b>${esc(f.name)}</b><small class="muted">${esc([f.brand, f.serving && f.serving.label, f.source === 'usda' ? 'USDA' : f.source === 'off' ? 'Open Food Facts' : f.origin==='ai'?'Kit’s estimate'+(f.origin_edited?' · Edited':''):f.origin==='label'?'Nutrition label':f.source === 'custom' ? 'My food' : ''].filter(Boolean).join(' · '))}</small></div>
-  <div class="r"><b class="num">${r0(f.per_serving ? f.per_serving.kcal : f.per100 && f.serving ? f.per100.kcal * (f.serving.g || 100) / 100 : f.kcal)}</b><small class="muted">kcal</small></div></button>`;
+  <div class="r kcal-line"><b class="num">${r0(f.per_serving ? f.per_serving.kcal : f.per100 && f.serving ? f.per100.kcal * (f.serving.g || 100) / 100 : f.kcal)}</b><span> kcal</span></div></button>`;
 function tSearch(body, where, close) {
   body.innerHTML = `<form id="ts-f" role="search"><input type="search" name="q" placeholder="Search foods, brands…" aria-label="Search foods and brands" autocomplete="off" enterkeyhint="search"></form><div id="ts-r" class="results"><p class="small muted">Your own foods and recent items come first, then USDA and Open Food Facts.</p></div>`;
   const inp = $('input', body), out = $('#ts-r', body); softFocus(inp);
   let timer, seq = 0, all = [];
   const draw = (groups) => {
     all = []; let html = '';
-    for (const [title, list] of groups) if (list.length) { html += `<h3 class="ghead">${title}</h3>`; for (const f of list) { html += foodRow(f, all.length); all.push(f); } }
+    for (const [title, list] of groups) if (list.length) { html += `<h3 class="ghead">${title}</h3>`; for (const f of list) { const i=all.length;html += `<div class="meal-library-row chooser-row">${foodRow(f,i)}<button type="button" class="icon-btn choose-food-add" data-search-add="${i}" aria-label="Add ${esc(f.name)}">${svg('plus')}</button></div>`; all.push(f); } }
     out.innerHTML = html || '<p class="small muted">No matches yet…</p>';
     $$('[data-i]', out).forEach((x) => x.onclick = () => amountSheet({...all[+x.dataset.i],entry_method:"search"}, where(), close));
+    $$('[data-search-add]',out).forEach(x=>x.onclick=()=>amountSheet({...all[+x.dataset.searchAdd],entry_method:'search'},where(),close));
   };
   const run = async (q) => {
     const my = ++seq; if (!inp.isConnected) return; out.innerHTML = ''; if (q.length < 2) { out.innerHTML = ''; return; }
@@ -690,14 +699,15 @@ async function sharedRecipes(box,where,after=()=>{},isActive=()=>true){
 async function tUsuals(body, where, close) {
   body.innerHTML = skel(1);
   try {
-    const usual = await api('/api/food/usual');
+    const [usual,dishes,meals] = await Promise.all([api('/api/food/usual'),api('/api/dishes'),api('/api/food/meals')]);
     const foods = usual.map(recentToFood);
+    const recent=recentSavedItems(dishes,meals);
     const collecting=typeof FoodThread!=='undefined'&&FoodThread.collecting();
-    const quick = (f, i) => `<div class="usual">${foodRow(f, i)}<button class="icon-btn qadd" data-q="${i}" aria-label="${collecting?'Add':'Log'} ${esc(f.name)} (${esc(fmtAmount(f._last))})">${svg('plus')}</button></div>`;
-    body.innerHTML = '<div data-shared-usuals></div>'+(usual.length ? `<p class="small muted">+ ${collecting?'adds your usual amount for review':'logs your usual amount'}</p><div class="results">${usual.map((_, i) => quick(foods[i], i)).join('')}</div>`
-      : '<p class="small muted">Foods you log often will appear here. Search to add something new.</p><div class="btncol"><button class="ghost" id="tr-search">Search for a food</button></div>');
+    const quick = (f, i) => `<div class="usual">${foodRow(f, i)}<button class="icon-btn qadd choose-food-add" data-q="${i}" aria-label="${collecting?'Add':'Log'} ${esc(f.name)} (${esc(fmtAmount(f._last))})">${svg('plus')}</button></div>`;
+    body.innerHTML = `${recentSavedMarkup(recent)}<div data-shared-usuals></div>`+(usual.length ? `<div class="results">${usual.map((_, i) => quick(foods[i], i)).join('')}</div>`
+      : '<p class="small muted">Your usuals appear after you log a few foods.</p>');
     sharedRecipes($('[data-shared-usuals]',body),where,close);
-    const ts = $('#tr-search', body); if (ts) ts.onclick = () => $('.sheet [data-t=search]').click();
+    wireRecentSaved(body,recent,where,{afterDish:()=>close(),afterMeal:()=>close()});
     $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close));
     $$('[data-q]', body).forEach((x) => x.onclick = async () => {
       const f = foods[+x.dataset.q], l = f._last, w = where(); x.disabled = true;
@@ -718,25 +728,28 @@ async function tSaved(body, where, close, {manage=false}={}) {
     if(!valid())return;
     if(manage){drawRecipeLibrary(body,dishes,meals,foods,where,close,()=>{if(valid())return tSaved(body,where,close,{manage});});return;}
     const mine = dishes.filter((d) => d.mine !== false), theirs = dishes.filter((d) => d.mine === false);
-    const row = (kind, i, name, sub, kcal, unit = 'kcal') => `<button class="fe" data-${kind}="${i}"><div><b>${esc(name)}</b><small class="muted">${esc(sub)}</small></div>
-      <div class="r"><b class="num">${kind==='dish'?recipeCalories(kcal):r0(kcal)}</b><small class="muted">${unit}</small></div></button>`;
-    const dishRow = (d, i) => row('dish', i, d.named?d.name:'Untitled recipe', d.mine === false ? `From ${d.owner.name.split(' ')[0]}` : d.items.length ? listOf(d.items.map((x) => x.name)) : 'Total typed in',
-      (d.serving === 'one' ? d.per_serving.kcal : d.totals.kcal), d.totals.kcal==null?(d.mine===false?'Calories unavailable':'Add nutrition'):d.serving === 'one' ? 'kcal a serving' : 'kcal total');
-    const recent=recentSavedItems(dishes,meals);
-    body.innerHTML = `${recentSavedMarkup(recent)}
-      ${mine.length ? `<h3 class="ghead">Your recipes</h3><div class="results">${mine.map((d) => `<div class="meal-library-row">${dishRow(d, dishes.indexOf(d))}<button type="button" class="ghost sm" data-edit-meal="${d.id}" aria-label="${manage?'Log a portion of':'Edit'} ${esc(d.named?d.name:'Untitled recipe')}">${manage?'Log portion':svg('edit')+' Edit'}</button></div>`).join('')}</div>` : '<p class="small muted">Create your first recipe, with or without Kit.</p>'}
-      ${theirs.length ? `<h3 class="ghead">Shared with you</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
-      ${meals.length ? `<h3 class="ghead">Saved combinations</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
-      <h3 class="ghead ghead-act">My foods<button class="linkbtn" id="tm-food">New food</button></h3><p class="small muted">Tap a food to log it, or choose Edit to change its saved nutrition.</p><div class="results">${foods.map((f,i) => `<div class="meal-library-row">${foodRow(f,i)}<button class="ghost sm" data-edit-food="${i}">Edit</button></div>`).join('')}</div>
+    const row = (kind, i, name, sub, kcal) => `<button class="fe" data-${kind}="${i}"><div><b>${esc(name)}</b><small class="muted">${esc(sub)}</small></div>
+      <div class="r kcal-line"><b class="num">${kind==='dish'?recipeCalories(kcal):r0(kcal)}</b><span> kcal</span></div></button>`;
+    const dishRow = (d, i) => {const subtitle=[d.mine === false ? `From ${d.owner.name.split(' ')[0]}` : d.items.length ? listOf(d.items.map((x) => x.name)) : 'Total typed in',d.serving==='one'?'Per serving':''].filter(Boolean).join(' · ');return row('dish', i, d.named?d.name:'Untitled recipe', subtitle,
+      (d.serving === 'one' ? d.per_serving.kcal : d.totals.kcal));};
+    const chooserRow=(content,kind,index,name)=>`<div class="meal-library-row chooser-row">${content}<button type="button" class="icon-btn choose-food-add" data-choose-${kind}="${index}" aria-label="Add ${esc(name)}">${svg('plus')}</button></div>`;
+    body.innerHTML = `${mine.length ? `<h3 class="ghead">Your recipes</h3><div class="results">${mine.map((d) => chooserRow(dishRow(d,dishes.indexOf(d)),'dish',dishes.indexOf(d),d.named?d.name:'Untitled recipe')).join('')}</div>` : '<p class="small muted">Create your first recipe, with or without Kit.</p>'}
+      ${theirs.length ? `<h3 class="ghead">Shared with you</h3><div class="results">${theirs.map((d) => chooserRow(dishRow(d,dishes.indexOf(d)),'dish',dishes.indexOf(d),d.name)).join('')}</div>` : ''}
+      ${meals.length ? `<h3 class="ghead">Saved combinations</h3><div class="results">${meals.map((m,i) => chooserRow(row('meal',i,m.name,listOf(m.items.map((x) => x.name)),m.totals.kcal),'meal',i,m.name)).join('')}</div>` : ''}
+      <h3 class="ghead ghead-act">My foods<button class="linkbtn" id="tm-food">New food</button></h3><div class="results">${foods.map((f,i) => chooserRow(foodRow(f,i),'food',i,f.name)).join('')}${!foods.length?'<p class="small muted">No saved foods yet.</p>':''}</div>
 `;
     const again = () => {if(valid())return tSaved(body, where, close, {manage});};
-    $$('[data-edit-food]', body).forEach(x => x.onclick = () => foodEditor(foods[+x.dataset.editFood], again));
     $('#tm-food', body).onclick = () => foodEditor(null, again);
-    $$('[data-edit-meal]', body).forEach((b) => b.onclick = () => { const dish=dishes.find(d=>String(d.id)===b.dataset.editMeal);if(manage)dishLogSheet(dish,where(),()=>{});else{close();go('/food/cook/'+b.dataset.editMeal);} });
     $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close, () => foodEditor(foods[+x.dataset.i], again)));
-    $$('[data-dish]', body).forEach((x) => x.onclick = () => { const dish=dishes[+x.dataset.dish];if(manage)go('/food/cook/'+dish.id);else if(dish.totals.kcal==null&&dish.mine!==false)knownSheet(dish,()=>{invalidate('/api/dishes');again();});else dishLogSheet(dish,where(),()=>close()); });
-    $$('[data-meal]', body).forEach((x) => x.onclick = () => savedSheet(meals[+x.dataset.meal], where(), close, again));
-    wireRecentSaved(body,recent,where,{afterDish:()=>close(),afterMeal:()=>close()});
+    const addDish=index=>{const dish=dishes[index];if(dish.totals.kcal==null&&dish.mine!==false)knownSheet(dish,()=>{invalidate('/api/dishes');again();});else dishLogSheet(dish,where(),()=>close());};
+    $$('[data-dish]',body).forEach(x=>x.onclick=()=>addDish(+x.dataset.dish));
+    $$('[data-choose-dish]',body).forEach(x=>x.onclick=()=>addDish(+x.dataset.chooseDish));
+    const addMeal=index=>savedSheet(meals[index],where(),close,again);
+    $$('[data-meal]',body).forEach(x=>x.onclick=()=>addMeal(+x.dataset.meal));
+    $$('[data-choose-meal]',body).forEach(x=>x.onclick=()=>addMeal(+x.dataset.chooseMeal));
+    const addFood=index=>amountSheet(foods[index],where(),close,()=>foodEditor(foods[index],again));
+    $$('[data-i]',body).forEach(x=>x.onclick=()=>addFood(+x.dataset.i));
+    $$('[data-choose-food]',body).forEach(x=>x.onclick=()=>addFood(+x.dataset.chooseFood));
   } catch (x) { if(valid()){body.innerHTML = `<p class="err">${esc(x.message)}</p><button type="button" class="ghost wide" id="tm-retry">Try again</button>`;$('#tm-retry',body).onclick=()=>tSaved(body,where,close,{manage});} }
 }
 // The managed library stays separate from Add food's existing portion picker.

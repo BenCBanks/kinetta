@@ -28,5 +28,5 @@ function foodReuseChips({box,field,live,choose,day}){
     },400);
   };
   field.addEventListener('input',update);update();
-  return{clear,dispose(){clear();field.removeEventListener('input',update);}};
+  return{clear,refresh:update,dispose(){clear();field.removeEventListener('input',update);}};
 }

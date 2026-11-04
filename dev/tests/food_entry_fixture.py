@@ -20,7 +20,7 @@ with patch('urllib.request.urlopen',side_effect=AssertionError('No external requ
  for who in ('one','three','photo','clarify','actions','barcode'):
   login='zz_test_food_compact_'+who;client=TestClient(app);client.headers['Origin']='http://testserver';assert client.post('/api/login',json={'login':login,'password':'green teapot on the hill'}).status_code==200
   draft=str(uuid.uuid4());body='Scanned product 016000157620' if who=='barcode' else 'Fictional photo result: half the rice' if who=='photo' else 'Make it two hot dogs' if who=='three' else 'A taco' if who=='clarify' else 'A fictional hot dog'
-  payload={'client_id':str(uuid.uuid4()),'draft_id':draft,'review_only':True,'body':body,'meal':'lunch','day':str(dt.date.today())}
+  payload={'client_id':str(uuid.uuid4()),'draft_id':draft,'review_only':True,'body':body,'meal':'lunch','day':str(dt.datetime.now(dt.timezone.utc).date())}
   if who=='barcode':payload.update(media='barcode',barcode='016000157620')
   response=client.post('/api/food/thread/messages',json=payload);assert response.status_code==201,response.text
   if who=='barcode':
@@ -40,19 +40,19 @@ with patch('urllib.request.urlopen',side_effect=AssertionError('No external requ
   part={'index':0,'status':'ready','estimated':True,'drafts':drafts,'entries':S.draft_entries(drafts)}
   if who=='clarify':part={'index':0,'status':'description','description':{'food':'taco','portion_only':False},'question':'What kind of taco?','replies':['Chicken taco','Beef taco']}
   with db.connect() as c:
-   uid=c.execute('SELECT id FROM users WHERE login=%s',(login,)).fetchone()['id'];result=C.write(c,uid,T.locked_message(c,uid,m['id']),{'composed':True,'day':str(dt.date.today()),'meal':'lunch','parts':[part]})
+   uid=c.execute('SELECT id FROM users WHERE login=%s',(login,)).fetchone()['id'];result=C.write(c,uid,T.locked_message(c,uid,m['id']),{'composed':True,'day':str(dt.datetime.now(dt.timezone.utc).date()),'meal':'lunch','parts':[part]})
   reply=next(x for x in result['messages'] if x.get('reply_to')==m['id']);assert not reply['result'].get('error'),reply['result'];assert client.get('/api/food/day').json()['entries']==[]
   print(who,'saved fictional stand-in ready')
 login='zz_test_food_compact_logged';client=TestClient(app);client.headers['Origin']='http://testserver';assert client.post('/api/login',json={'login':login,'password':'green teapot on the hill'}).status_code==200
-draft=str(uuid.uuid4());message=client.post('/api/food/thread/messages',json={'client_id':str(uuid.uuid4()),'draft_id':draft,'body':'Fictional logged apple','meal':'lunch','day':str(dt.date.today())});assert message.status_code==201,message.text
+draft=str(uuid.uuid4());message=client.post('/api/food/thread/messages',json={'client_id':str(uuid.uuid4()),'draft_id':draft,'body':'Fictional logged apple','meal':'lunch','day':str(dt.datetime.now(dt.timezone.utc).date())});assert message.status_code==201,message.text
 m=message.json()['message'];entry={'name':'Fictional logged apple','brand':None,'amount':1,'unit':'serving','kcal':80,'protein_g':0,'carbs_g':21,'fat_g':0,'fiber_g':4,'source':'quick','ref':{}}
 with db.connect() as c:
- uid=c.execute('SELECT id FROM users WHERE login=%s',(login,)).fetchone()['id'];result=C.write(c,uid,T.locked_message(c,uid,m['id']),{'composed':True,'day':str(dt.date.today()),'meal':'lunch','parts':[{'index':0,'status':'ready','manual':True,'entries':[entry]}]},force=True)
+ uid=c.execute('SELECT id FROM users WHERE login=%s',(login,)).fetchone()['id'];result=C.write(c,uid,T.locked_message(c,uid,m['id']),{'composed':True,'day':str(dt.datetime.now(dt.timezone.utc).date()),'meal':'lunch','parts':[{'index':0,'status':'ready','manual':True,'entries':[entry]}]},force=True)
 reply=next(x for x in result['messages'] if x.get('reply_to')==m['id']);assert reply['entries'] and reply['result']['kind']=='log'
 print('logged saved fictional card')
 def signed(who):
  client=TestClient(app);client.headers['Origin']='http://testserver';assert client.post('/api/login',json={'login':'zz_test_food_compact_'+who,'password':'green teapot on the hill'}).status_code==200;return client
-today=dt.date.today();yesterday=(today-dt.timedelta(days=1)).isoformat()
+today=dt.datetime.now(dt.timezone.utc).date();yesterday=(today-dt.timedelta(days=1)).isoformat()
 for who,day,name in [('copy',yesterday,'Fictional copied breakfast'),('edit',today.isoformat(),'Fictional editable food')]:
  client=signed(who);res=client.post('/api/food/entries',json=[{'client_id':str(uuid.uuid4()),'day':day,'meal':'breakfast','name':name,'amount':1,'unit':'serving','kcal':320,'protein_g':12,'carbs_g':44,'fat_g':9,'fiber_g':5,'source':'quick','ref':{}}]);assert res.status_code==200,res.text
 client=signed('untitled');res=client.post('/api/dishes',json={});assert res.status_code==200,res.text;did=res.json()['id'];res=client.post(f'/api/dishes/{did}/items',json={'name':'Fictional oats','grams':40,'per100':{'kcal':389,'protein_g':16.9,'carbs_g':66.3,'fat_g':6.9,'fiber_g':10.6}});assert res.status_code==200,res.text
