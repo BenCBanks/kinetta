@@ -48,6 +48,24 @@
 .compact-lift .lift-row.lh span { font-size:max(13px,.8125rem); }
 .compact-lift .lift-n { font-size:max(15px,.9375rem); }
 
+.sl-routines .sl-routine { display:flex; align-items:center; gap:8px; border-top:1px solid var(--line); }
+.sl-routines .sl-routine:first-child { border-top:0; }
+.sl-routines .sl-repeat { flex:1; min-width:0; border-top:0; padding:8px 0; }
+.sl-routines .sl-history { flex:none; min-width:44px; min-height:44px; padding:8px; border:0; background:none; color:var(--accent); font-weight:700; white-space:nowrap; }
+.sl-routines .sl-history:active { opacity:.6; }
+.compact-lift-history .lift-history { padding:14px; }
+.compact-lift-history .lift-history h1 { margin:0; font-size:1.2rem; overflow-wrap:anywhere; }
+.compact-lift-history .lift-history > p { margin:3px 0 0; font-size:.875rem; }
+.lift-history-list { list-style:none; margin:10px 0 0; padding:0; }
+.lift-history-session { padding:12px 0; border-top:1px solid var(--line); }
+.lift-history-session:first-child { border-top:0; padding-top:2px; }
+.lift-history-date { margin:0 0 4px; color:var(--tx3); font-size:.9375rem; font-weight:500; }
+.lift-history-exercise { margin-top:8px; padding:0; border:0; }
+.lift-history-name { display:flex; align-items:center; min-height:44px; color:var(--accent); font-weight:600; text-decoration:none; }
+.lift-history-name .chev { flex:none; }
+.lift-history-sets { margin:0; font-size:1.0625rem; font-weight:600; font-variant-numeric:tabular-nums; }
+.lift-history-best { display:block; margin-top:3px; color:var(--tx3); font-size:.875rem; font-weight:500; }
+
 /* At enlarged text sizes, keep complete numeric values and the tick together.
    The set control and previous result use the line above instead of squeezing fields. */
 .compact-lift .lift-sets { container-type:inline-size; }

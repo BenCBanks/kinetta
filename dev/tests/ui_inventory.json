@@ -130,6 +130,22 @@
       ]
     },
     {
+      "id": "lift-4",
+      "source": "app/static/lift.js",
+      "pattern": "/^\\/lift\\/history\\/workout\\/(\\d+)$/",
+      "paths": [
+        "/lift/history/workout/{lift}"
+      ]
+    },
+    {
+      "id": "lift-5",
+      "source": "app/static/lift.js",
+      "pattern": "/^\\/lift\\/history\\/exercise\\/(\\d+)$/",
+      "paths": [
+        "/lift/history/exercise/{exercise}"
+      ]
+    },
+    {
       "id": "milestones-1",
       "source": "app/static/milestones.js",
       "pattern": "/^\\/me\\/milestones$/",

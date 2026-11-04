@@ -47,9 +47,6 @@ ck(s == 200 and [x['activity_id'] for x in h['sessions']] == [two['id'], one['id
 ck(h['records']['heaviest']['value'] == 90 and h['records']['heaviest']['activity_id'] == two['id'], f"heaviest record {h['records']}")
 ck(abs(h['records']['e1rm']['value'] - 85 * (1 + 5 / 30)) < 0.01, 'best estimated 1RM (85 x 5)')
 ck(all(x['done'] for x in h['sessions'][0]['sets']) and len(h['sessions'][0]['sets']) == 3, 'planned set left out of history')
-s, lst = a.get('/api/lifts/exercises')
-row = next(x for x in lst['mine'] if x['id'] == bench['id'])
-ck(row['sessions'] == 2 and row['best_kg'] == 90, f'list summary {row}')
 
 # feed and detail carry the summary
 s, d = a.get(f"/api/activities/{two['id']}")
@@ -68,6 +65,10 @@ ck(all(x['reps'] is None and x['kg'] is None for x in L['exercises'][0]['sets'])
 ck(L['exercises'][0]['last']['activity_id'] == two['id'], 'grey numbers come from the copied session')
 ck(any(x['id'] == live['id'] and x['lift_open'] for x in a.get('/api/lifts/sessions')[1]), 'open session listed')
 sets = L['exercises'][0]['sets']; sets[1]['done'] = True
+s, r = a.put(f"/api/activities/{live['id']}/lifts", {'exercises': [{'exercise_id': bench['id'], 'sets': sets}]})
+ck(s == 200 and r['open'], 'save a completed set while the session stays open')
+s, open_history = a.get(f"/api/lifts/exercises/{bench['id']}")
+ck(s == 200 and all(x['activity_id'] != live['id'] for x in open_history['sessions']), 'exercise history excludes an open session')
 s, r = a.put(f"/api/activities/{live['id']}/lifts", {'exercises': [{'exercise_id': bench['id'], 'sets': sets}], 'finish': True})
 ck(s == 200 and not r['open'], 'finish closes it')
 quick = a.get(f"/api/activities/{live['id']}")[1]
@@ -130,6 +131,32 @@ ck([row['best_reps'] for row in rows] == [7, 8, 9, 10], 'best single set ignores
 ck([row['top']['reps'] for row in rows] == [6, 7, 8, 9], 'heaviest weighted set is distinct from best reps')
 ck(history['records']['reps']['value'] == 10, 'bodyweight single-set record remains correct')
 ck(b.get(f"/api/lifts/exercises/{mine['id']}")[0] == 404, 'other person cannot read bodyweight best sets')
+
+# read-only workout history: same-name saved sessions, newest five, completed working sets only
+routine_ids = []
+for i in range(6):
+    status, routine = a.post('/api/activities/manual', {'sport': 'workout', 'name': 'Fictional Strength A',
+        'start': f'2026-10-{20+i:02d}T18:00', 'duration_s': 2400})
+    ck(status == 200, 'saved routine session')
+    routine_ids.append(routine['id'])
+    status, _ = a.put(f"/api/activities/{routine['id']}/lifts", {'exercises': [
+        {'exercise_id': bench['id'], 'sets': [{'kg': 200, 'reps': 1, 'warmup': True}, {'kg': 50+i, 'reps': 8}, {'kg': 999, 'reps': 99, 'done': False}]},
+        {'exercise_id': plank['id'], 'sets': [{'secs': 40+i}]}
+    ]})
+    ck(status == 200, 'saved routine sets')
+session_count = len(a.get('/api/lifts/sessions?limit=100')[1])
+status, workout_history = a.get(f"/api/lifts/sessions/{routine_ids[-1]}/history")
+ck(status == 200 and workout_history['name'] == 'Fictional Strength A', 'routine history name')
+ck([s['activity_id'] for s in workout_history['sessions']] == list(reversed(routine_ids[-5:])), 'routine history is newest five')
+ck(all([e['name'] for e in s['exercises']] == ['Bench press', 'Plank'] for s in workout_history['sessions']), 'routine history groups exercises in order')
+ck(all(len(s['exercises'][0]['sets']) == 1 and s['exercises'][0]['sets'][0]['kg'] == 50 + routine_ids.index(s['activity_id']) for s in workout_history['sessions']), 'routine history omits warm-up and unfinished sets')
+ck(len(a.get('/api/lifts/sessions?limit=100')[1]) == session_count, 'opening workout history creates no session or draft')
+ck(b.get(f"/api/lifts/sessions/{routine_ids[-1]}/history")[0] == 404, 'another person cannot read workout history')
+
+s, lst = a.get('/api/lifts/exercises')
+row = next(x for x in lst['mine'] if x['id'] == bench['id'])
+ck(row['sessions'] == 9 and row['best_kg'] == 90, f'list summary includes routine history {row}')
+
 
 ck(a.delete(f"/api/lifts/exercises/{plank['id']}")[0] == 200 and a.get(f"/api/lifts/exercises/{plank['id']}")[0] == 404, 'delete exercise')
 s, r = a.get(f"/api/activities/{two['id']}/lifts"); ck([e['name'] for e in r['exercises']] == ['Bench press'], 'its sets went with it')
