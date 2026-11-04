@@ -64,7 +64,8 @@ class KitScreenshotStandinTests(unittest.TestCase):
         self.assertIn('ANTHROPIC_API_KEY: ""', compose)
         self.assertIn("ai_release.kit_fingerprint", standin)
         self.assertIn("ai_release.kit_enabled()", standin)
-        self.assertIn("if (name === 'dietcoach') await enableKitForDemo(page);", capture)
+        self.assertEqual(capture.count('await enableKitForDemo(page);'), 1)
+        self.assertLess(capture.index('await enableKitForDemo(page);'), capture.index('for (const [name, path, opt = {}] of SHOTS)'))
         self.assertIn("{ai_ok: true, ai_adult: true}", capture)
         dietcoach = capture.split("if (name === 'dietcoach') {", 1)[1].split("\n      }", 1)[0]
         self.assertIn("#nt-coach a[data-kit-entry][aria-label=\"Ask Kit\"][href=\"/me/kit?from=nutrition\"]", dietcoach)

@@ -86,5 +86,31 @@
     "maximum": 0,
     "followup": "https://github.com/BenCBanks/kinetta/issues/424",
     "reason": "Claude approved adjacent >=44px chart-column targets, like a segmented control; visual separation comes from the inset bars. Only zero-gap pairs in this chart are excepted; target size, overlap and other gaps remain checked. Review: https://github.com/BenCBanks/kinetta/pull/470#issuecomment-6561475712"
+  },
+  {
+    "id": "me-dense-chart-column-targets",
+    "selector": ".me-card-bars .me-week",
+    "metric": "target",
+    "kind": "chart-column",
+    "followup": "https://github.com/BenCBanks/kinetta/issues/551",
+    "reason": "Owner-approved #551 keeps 12 thin weekly bars with 6px visual gaps and an 18px maximum bar width. Independent buttons are about 24px wide and at least 44px tall; labels remain in the accessibility tree and keyboard selection works. A 44px-wide rail would be 528px, defeating the compact chart. Revisit only with a changed chart design."
+  },
+  {
+    "id": "progress-average-chart-tick-font",
+    "selector": ".avgline-label",
+    "metric": "font-min",
+    "kind": "chart-tick",
+    "exact": 11,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/540",
+    "reason": "Issue #540 specifies the secondary average-line annotation as 11px at the left end; keep that chart-tick size while the visible average stat label remains readable."
+  },
+  {
+    "id": "me-weekly-chart-month-labels",
+    "selector": ".me-card-weekly .me-week-month",
+    "metric": "font-min",
+    "kind": "chart-tick",
+    "exact": 12,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/551",
+    "reason": "These abbreviated month-axis ticks stay at 12px so labels fit the compact 12-week chart, including at 330px with large app text. Every 44px week button keeps its full date and totals in its accessible name, so the ticks are supplementary; clipping and overflow checks remain active."
   }
 ]

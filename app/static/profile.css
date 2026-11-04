@@ -65,15 +65,20 @@
 .me-card-pill:disabled { opacity:.6; }
 .me-card-body { padding:0 16px 16px; display:flex; flex-direction:column; gap:16px; container-type:inline-size; }
 .me-card-id { display:flex; align-items:flex-start; gap:14px; min-width:0; }
-/* The row overlaps the banner; only the photo link takes taps there, so Edit and Share stay reachable. */
-.me-card-id { pointer-events:none; } .me-card-avatar { pointer-events:auto; }
+/* The identity link rises over the banner; Edit and Share remain independent controls. */
+.me-card-id { pointer-events:none; } .me-card-avatar,.me-card-profile-link,.me-card-id > .me-friends-link { pointer-events:auto; }
+.me-card-id-link { flex-wrap:wrap; gap:8px 14px; }
 .me-card-avatar { flex:none; margin-top:-34px; border-radius:50%; border:4px solid var(--card); background:var(--card); display:grid; }
+.me-card-profile-link { display:flex; align-items:flex-start; flex:1 1 15rem; gap:14px; min-width:0; min-height:44px; color:inherit; text-decoration:none; }
+.me-card-profile-link:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:10px; }
 .me-card-avatar .av { width:4.25rem; height:4.25rem; font-size:1.625rem; }
 .me-card-name { min-width:0; padding-top:8px; display:flex; flex-direction:column; }
 .me-card-name h2 { font-size:1.25rem; line-height:1.15; overflow-wrap:anywhere; }
+.me-profile-chevron { margin-left:4px; color:var(--tx2); font-size:15px; font-weight:500; }
 .me-card-meta { display:flex; align-items:center; flex-wrap:wrap; gap:0 8px; }
 .me-card-meta > span { color:var(--tx2); font-size:.875rem; overflow-wrap:anywhere; }
 .me-card-meta .me-friends-link { min-height:44px; max-width:100%; gap:4px; font-size:.9375rem; pointer-events:auto; }
+.me-card-id-link > .me-friends-link { flex:0 1 auto; max-width:100%; gap:4px; font-size:.9375rem; }
 .me-friends-count { display:inline-flex; align-items:center; flex:none; gap:4px; }
 .me-card-meta .me-friends-link span { white-space:nowrap; }
 .me-card .me-profile-bio { margin:0; color:var(--tx); }
@@ -84,7 +89,8 @@
 .me-card-label span { font-size:.8125rem; font-weight:600; color:var(--tx2); }
 .me-card-label small { font-size:.8125rem; color:var(--tx3); }
 .me-chart-scroll { position:relative; margin:4px 0 0; min-width:0; }
-.me-card-bars { display:flex; align-items:flex-end; gap:0; height:60px; padding:4px 0; overflow-x:auto; scrollbar-width:none; scroll-snap-type:x proximity; scroll-padding-inline:0; }
+.me-card-bars { position:relative; display:flex; align-items:flex-end; gap:0; width:100%; max-width:282px; margin-inline:auto; height:60px; padding:4px 0; overflow:hidden; }
+.me-card-bars::after { content:''; position:absolute; z-index:1; pointer-events:none; left:0; right:0; bottom:4px; height:1px; background:var(--line); }
 .me-card-bars::-webkit-scrollbar { display:none; }
 .me-chart-scroll::before,.me-chart-scroll::after { content:''; position:absolute; z-index:1; top:0; bottom:0; width:16px; pointer-events:none; opacity:0; }
 .me-chart-scroll::before { left:0; background:linear-gradient(to right,var(--card),transparent); }
@@ -95,11 +101,12 @@
 .me-chart-scroll::before,.me-chart-scroll::after { top:50%; bottom:auto; width:5px; height:5px; background:none; border-top:1.5px solid var(--tx3); border-right:1.5px solid var(--tx3); }
 .me-chart-scroll::before { left:-10px; transform:translateY(-50%) rotate(-135deg); }
 .me-chart-scroll::after { right:-10px; transform:translateY(-50%) rotate(45deg); }
-/* Adjacent chart columns retain 44px targets; inset bars provide the visible separation. */
-.me-week { flex:1 0 44px; min-width:44px; height:100%; min-height:44px; display:flex; align-items:flex-end; padding:0; border:0; background:none; border-radius:6px; cursor:pointer; scroll-snap-align:end; -webkit-tap-highlight-color:transparent; }
-.me-week span { width:calc(100% - 16px); margin-inline:8px; min-height:2px; border-radius:4px 4px 2px 2px; background:var(--color-distance-muted); transition:background-color .12s; }
-.me-week.now span { background:var(--btn); }
-.me-week[aria-pressed=true] span { background:var(--accent); box-shadow:0 0 0 2px var(--card), 0 0 0 4px var(--accent); }
+/* Bars sit above the baseline so zero ticks and short distances keep their full height. */
+.me-week { position:relative; z-index:2; flex:1 1 0; min-width:0; height:100%; min-height:44px; display:flex; align-items:flex-end; padding:0; border:0; background:none; border-radius:0; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.me-week > span:first-child { width:min(18px,calc(100% - 6px)); height:0; margin-right:6px; min-height:0; border-radius:4px 4px 2px 2px; background:var(--color-distance-muted); transition:background-color .12s,opacity .12s; }
+.me-week.now > span:first-child { background:var(--accent); opacity:.6; }
+.me-week.zero > span:first-child { width:2px; height:2px !important; min-height:2px; border-radius:0; background:var(--line); opacity:1; }
+.me-week[aria-pressed=true] > span:first-child { background:var(--accent); opacity:1; }
 .me-week:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
 .me-card-label.picked small { color:var(--tx); font-weight:700; font-size:.8125rem; }
 .me-card-figures { display:flex; flex-direction:column; gap:8px; }
@@ -125,9 +132,6 @@
 .me-card-empty { display:flex; flex-direction:column; gap:8px; }
 .me-card-empty p { margin:0; }
 .me-card-empty .ghost { min-height:44px; background:none; border-color:transparent; color:var(--accent); }
-.me-card-note { margin:0; display:flex; gap:4px; align-items:center; font-size:max(13px,.8125rem); line-height:1.4; color:var(--tx2); }
-.me-card-note span {white-space:normal;min-width:0;}
-.me-card-note svg { width:14px; height:14px; flex:none; margin-top:2px; }
 .me-card-editor { display:flex; flex-direction:column; gap:6px; }
 .me-card-editor .me-chips[data-card-period] { gap:8px; }
 .me-card-editor [data-card-period] .me-chip { min-height:44px; border:1px solid transparent; border-radius:0; background:none; font-size:.9375rem; }
@@ -142,10 +146,7 @@
 .me-chip[aria-pressed=true] { border:1.5px solid var(--btn); background:var(--accent2); color:var(--accent); }
 .me-card-actions { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,2fr); gap:10px; margin-top:8px; }
 .me-card-actions button { min-height:46px; }
-.me-divider { display:flex; align-items:center; gap:10px; margin:26px 0 16px; }
-.me-divider::before,.me-divider::after { content:""; flex:1; height:1px; background:var(--line); }
-.me-divider span { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; background:var(--ink); color:var(--onink); font-size:.8125rem; font-weight:700; text-align:center; }
-.me-divider svg { width:13px; height:13px; flex:none; }
+.me-divider { height:1px; margin:26px 0 16px; background:var(--line); }
 .me-dim { opacity:.35; transition:opacity .15s; }
 .setup-check .setup-heading { margin-top:0; align-items:flex-start; }
 .setup-check .setup-heading p { margin:2px 0 0; }
@@ -165,11 +166,28 @@
 .me-card-head .me-period button { display:flex; align-items:flex-end; justify-content:center; }
 .me-period { margin:0; flex:none; gap:8px; }
 .me-period button { min-width:44px; min-height:44px; padding:0; font-size:max(15px,.9375rem); }
-.me-distance.days .me-card-bars { height:calc(64px + 1rem); }
-.me-distance.days .me-week { flex-direction:column; justify-content:flex-end; align-items:stretch; gap:4px; }
+.me-distance.days .me-card-bars { max-width:330px; height:calc(64px + 1rem); }
+.me-distance.days .me-card-bars::after { bottom:calc(4px + 1.2em + 4px); }
+.me-distance.days .me-week { flex-direction:column; justify-content:flex-end; align-items:center; gap:4px; }
+.me-distance.days .me-week span { margin-right:0; }
 .me-week i { font-style:normal; font-size:.8125rem; line-height:1.2; text-align:center; color:var(--tx3); }
 .me-week.now i { color:var(--accent); font-weight:700; }
 .me-week.future span { background:var(--line); }
+/* The Me card is week-first; month names sit under the 12 slim bars (owner-approved #551). */
+.me-card-weekly .me-card-head { align-items:baseline; gap:8px; }
+.me-card-weekly .me-card-label { margin:0; }
+.me-card-weekly .me-card-label > span { font-size:max(13px,.8125rem); font-weight:500; color:var(--tx2); }
+.me-card-weekly .me-card-label.picked > span { color:var(--tx); font-weight:650; }
+.me-week-streak { display:inline-flex; align-items:center; gap:5px; flex:none; margin-left:auto; color:var(--tx); font-size:max(15px,.9375rem); font-weight:650; text-align:right; white-space:nowrap; }
+.me-week-streak > svg { width:17px; height:17px; color:var(--color-achievement); flex:none; }
+.me-card-weekly .me-card-numbers { margin:0; }
+.me-card-weekly .me-card-bars { height:calc(60px + 1.2em + 8px); font-size:12px; }
+.me-card-weekly .me-card-bars::after { bottom:calc(4px + 1.2em + 4px); }
+.me-card-weekly .me-week { flex-direction:column; justify-content:flex-end; align-items:center; gap:4px; }
+.me-card-weekly .me-week > span:first-child { flex:none; width:min(18px,calc(100% - 6px)); margin:0 auto; }
+.me-card-weekly .me-week.zero > span:first-child { width:2px; }
+.me-card-weekly .me-week-month { display:block; flex:none; width:auto; height:1.2em; min-height:1.2em; margin:0; border-radius:0; background:none; color:var(--tx3); font-size:inherit; line-height:1.2; white-space:nowrap; }
+.me-card-weekly .me-week.now .me-week-month { color:var(--accent); font-weight:700; }
 /* Your insights: private rows under the card (replaces the second distance chart, 30 Oct 2026). */
 .me-insights h2 { margin:0 0 4px; }
 .me-insight { display:flex; flex-direction:column; gap:6px; padding:12px 0; border-top:1px solid var(--line); color:var(--tx); }

@@ -3,7 +3,7 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const source=fs.readFileSync('app/static/pages.js','utf8'),app=fs.readFileSync('app/static/app.js','utf8');
 const context={SPORT_NAMES:{run:'Run',ride:'Ride',walk:'Walk',other:'Other'},svg:()=>'<svg></svg>',U:{dist:n=>(n/1000).toFixed(1),du:()=> 'km'},esc:String,fdate:(d,o)=>new Date(d).toLocaleDateString('en-US',o)};
 vm.createContext(context);vm.runInContext(app.slice(app.indexOf('const niceStep ='),app.indexOf('// Monthly values (faint)')),context);vm.runInContext(source.slice(source.indexOf('function mileagePeriods('),source.indexOf('// A shared private reader')),context);
-function chartButton(){const classes=new Set();return {attrs:{},classes,classList:{toggle(k,on){on?classes.add(k):classes.delete(k);}},setAttribute(k,v){this.attrs[k]=v;},focus(options){this.focused=true;this.focusOptions=options;this.onfocus?.();}};}
+function chartButton(){const classes=new Set();return {attrs:{},classes,classList:{toggle(k,on){on?classes.add(k):classes.delete(k);}},setAttribute(k,v){this.attrs[k]=v;},closest(){return null;},focus(options){this.focused=true;this.focusOptions=options;this.onfocus?.();}};}
 const highlighted=buttons=>buttons.flatMap((b,i)=>b.classes.has('is-highlighted')?[i]:[]);
 function render(series){
  const readout={},box={buttons:[],toggles:[],querySelectorAll(s){return s==='.mileage-day'?this.buttons:this.toggles;},querySelector(s){return s==='.mileage-range'?readout:this.toggles.find(b=>s.includes('"'+b.dataset.mileagePeriod+'"'));}};
@@ -51,7 +51,7 @@ console.log('Single total bars: exact heights/tiny values, flat baseline, rounde
 // Progress All activities shares the inspection rules; filtered sport/food charts keep their own renderer.
 context.$=(selector,box)=>selector==='.readout'?box.readout:selector==='svg'?box.svg:box.hl;
 function periods(distance,keys=[{k:'run',name:'Run'},{k:'ride',name:'Ride'}]){
- const box={clientWidth:340,readout:{},svg:{addEventListener(k,f){this[k]=f;},getBoundingClientRect(){return {left:0,width:340};}},hl:{setAttribute(){}},querySelectorAll(){return this.buttons;}};
+ const box={clientWidth:340,readout:{},svg:{addEventListener(k,f){this[k]=f;},getBoundingClientRect(){return {left:0,width:340};}},hl:{setAttribute(){}},closest(){return null;},querySelectorAll(){return this.buttons;}};
  Object.defineProperty(box,'innerHTML',{get(){return this.html;},set(html){this.html=html;this.buttons=Array.from({length:(html.match(/class="distance-column"/g)||[]).length},chartButton);}});
  context.periodBars(box,[{label:'Week A',tick:'A',segs:[{k:'run',v:3},{k:'ride',v:6}]},{label:'Week B',partial:true,segs:[{k:'run',v:0}]}],{keys,fmt:v=>v.toFixed(1)+' km',distance});return box;
 }

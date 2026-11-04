@@ -9,7 +9,7 @@ function journeys(fixtures){
  const settings=[['/me/devices','Signed-in devices','#dv-list .device-row'],['/me/sharing','Sharing & privacy','#sh-find'],['/track/connections','Connections','#page a'],['/me/notifications','Notifications','#nt-push']];
  const sheets=[['#m-name','Your name','#ac'],['#m-login','Username','#ac'],['#m-email','Email','.sheet[aria-label="Email"]'],['#m-pw','Change password','#pw'],['#m-body','Body, heart rate & time zone','#m-form'],['#m-kit','Kit','#kit-settings-panel'],['#m-del','Delete my account','#del']];
  const cases=[
-  {id:'me-profile',start:'/me',taps:['.me-card-avatar[href]'],end:ownList},
+  {id:'me-profile',start:'/me',taps:['.me-card-profile-link'],end:ownList},
   {id:'me-friends',start:'/me',taps:['.me-friends-link[href]'],end:destination('/me/friends','Friends','.friends-page')},
   {id:'me-progress',start:'/me',taps:['.mileage-progress'],end:destination('/progress','Progress','#p-explore')},
   {id:'activity-detail-back',start:'/activity',startReady:'#feed-tools[aria-busy=false]',action:'feedBack',end:destination('/activity','Activity','#feed-tools')},
@@ -18,7 +18,7 @@ function journeys(fixtures){
   {id:'nutrition-log',start:'/food',action:'food',end:destination('/food?d={day}','Nutrition','#fd-goal')},
   {id:'recipe-edit',start:'/food/meals',taps:['#library-recipes [data-dish]'],end:{...destination('/food/cook/'+f.dish,'Fictional journey soup','#dk-done'),titleSelector:'#dk-name',titleValue:true},back:destination('/food/meals','Recipes & foods','#tm-new')},
   {id:'nutrition-goals',start:'/food',taps:['#fd-goal'],end:destination('/food','Goals','#tg'),close:true},
-  {id:'settings-profile',start:'/me/settings',taps:['#m-profile'],end:{...destination('/me?edit=profile','Editing your card','.me-card-editor #card-name'),titleSelector:'.me-editor-head b'},back:destination('/me/settings','Settings','#logout'),history:true},
+  {id:'settings-profile',start:'/me/settings',taps:['#m-profile'],end:{...destination('/me?edit=profile','Editing your profile','.me-card-editor #card-name'),titleSelector:'.me-editor-head b'},back:destination('/me/settings','Settings','#logout'),history:true},
   {id:'activity-challenges-back',start:'/activity',taps:['a[href="/me/challenges"]','[data-back]'],end:destination('/activity','Activity','#feed-tools')},
   {id:'kit-activity-detail',start:'/activity/'+f.activity,startReady:'.compact-detail-title',kit:true,taps:['#d-kit'],end:destination('/me/kit?from=activity&activity='+f.activity,'Ask Kit','#kit-text'),back:destination('/activity','Activity','#feed-tools[aria-busy="false"]')},
  ];

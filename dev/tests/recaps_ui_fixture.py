@@ -32,7 +32,8 @@ print('Recap empty / two-run typical (one Only me) / mixed-sport heavy with 80 w
 windows=[{'name':'midday','now':'2026-10-28T16:00:00+00:00','tz':'America/New_York','browser_tz':'UTC'},
  {'name':'utc-midnight','now':'2026-10-29T00:30:00+00:00','tz':'America/New_York','browser_tz':'UTC'},
  {'name':'week-boundary','now':'2026-11-02T00:30:00+00:00','tz':'UTC','browser_tz':'America/New_York'},
- {'name':'month-boundary','now':'2026-11-01T00:30:00+00:00','tz':'UTC','browser_tz':'America/New_York'}]
+ {'name':'month-boundary','now':'2026-11-01T00:30:00+00:00','tz':'UTC','browser_tz':'America/New_York'},
+ {'name':'new-year','now':'2027-01-04T12:00:00+00:00','tz':'UTC','browser_tz':'America/Los_Angeles'}]
 program="""import datetime as dt,json
 from app import db,recaps
 payload=json.loads(input())

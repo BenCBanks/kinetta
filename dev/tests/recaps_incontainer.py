@@ -1,5 +1,6 @@
 """Period aggregates, source/privacy boundaries and month offers on real disposable SQL; no models or providers."""
 import unittest,uuid,datetime as dt,json
+from types import SimpleNamespace
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 from fastapi.testclient import TestClient
@@ -25,8 +26,8 @@ class Recaps(unittest.TestCase):
     def activity(self,start,distance=1000,seconds=600,visibility='everyone',source='manual',device=None,sport='run',owner=0):
         with db.connect() as c:return c.execute('''INSERT INTO activities(user_id,sport,name,start_time,distance_m,moving_s,elapsed_s,source,visibility,device)
           VALUES(%s,%s,'PRIVATE ACTIVITY TITLE NEVER OUTPUT',%s,%s,%s,%s,%s,%s,%s) RETURNING id''',(self.ids[owner],sport,start,distance,seconds,seconds,source,visibility,device)).fetchone()['id']
-    def facts(self,period='this_month',now='2026-11-04T12:00:00+00:00',owner=0):
-        with db.connect() as c:return recaps.facts(c,self.ids[owner],period,dt.datetime.fromisoformat(now))
+    def facts(self,period='this_month',now='2026-11-04T12:00:00+00:00',owner=0,offset=0):
+        with db.connect() as c:return recaps.facts(c,self.ids[owner],period,dt.datetime.fromisoformat(now),offset)
     def test_legacy_invalid_time_zone_uses_the_configured_default(self):
         with db.connect() as c:c.execute("UPDATE profile SET tz='Invalid/Fictional' WHERE user_id=%s",(self.ids[0],))
         self.assertEqual(self.facts()['tz'],db.DEFAULT_TZ)
@@ -56,9 +57,41 @@ class Recaps(unittest.TestCase):
         d=self.facts('last_month');self.assertEqual(d['food'],{'logged_days':7,'protein_goal_days':5});self.assertTrue(d['monthly_offer']);self.assertNotIn('PRIVATE FOOD',str(d));self.assertNotIn('protein_target',str(d));self.assertNotIn('kcal',str(d))
         with db.connect() as c:c.execute('UPDATE profile SET protein_target=NULL WHERE user_id=%s',(self.ids[0],))
         self.assertIsNone(self.facts('last_month')['food']['protein_goal_days'])
+    def test_calendar_navigation_is_bounded_and_preserves_legacy_periods(self):
+        today=dt.date(2026,11,4)
+        self.assertEqual(recaps.dates('week',today),(dt.date(2026,11,2),dt.date(2026,11,9)))
+        self.assertEqual(recaps.dates('week',today,1),(dt.date(2026,10,26),dt.date(2026,11,2)))
+        self.assertEqual(recaps.dates('month',today),(dt.date(2026,11,1),dt.date(2026,12,1)))
+        self.assertEqual(recaps.dates('month',today,1),(dt.date(2026,10,1),dt.date(2026,11,1)))
+        self.assertEqual(recaps.dates('month',today,24),(dt.date(2024,11,1),dt.date(2024,12,1)))
+        self.assertEqual(recaps.dates('year',today,1),(dt.date(2025,1,1),dt.date(2026,1,1)))
+        self.assertEqual(recaps.dates('last_month',today),(dt.date(2026,10,1),dt.date(2026,11,1)))
+        for offset in (-1,25):
+            with self.assertRaises(ValueError):recaps.dates('month',today,offset)
+        with self.assertRaises(ValueError):recaps.dates('last_month',today,24)
+    def test_period_api_returns_local_ranges_and_keeps_owner_isolation(self):
+        self.activity('2026-11-01T03:59:59Z',distance=1000) # October 31 in New York.
+        self.activity('2026-11-01T04:00:00Z',distance=2000) # November 1 in New York.
+        self.activity('2026-11-01T12:00:00Z',distance=99999,owner=1)
+        class FixedDateTime(dt.datetime):
+            @classmethod
+            def now(cls,tz=None):
+                value=cls(2026,11,4,12,tzinfo=UTC)
+                return value if tz is None else value.astimezone(tz)
+        fixed=SimpleNamespace(date=dt.date,datetime=FixedDateTime,time=dt.time,timedelta=dt.timedelta,timezone=dt.timezone)
+        with patch.object(recaps,'dt',fixed):
+            current=self.clients[0].get('/api/recaps',params={'period':'month','offset':0})
+            previous=self.clients[0].get('/api/recaps',params={'period':'month','offset':1})
+            other=self.clients[1].get('/api/recaps',params={'period':'month','offset':1})
+        self.assertEqual(current.status_code,200);self.assertEqual((current.json()['period'],current.json()['offset'],current.json()['start'],current.json()['end'],current.json()['activities'],current.json()['distance_m']),('month',0,'2026-11-01','2026-12-01',1,2000))
+        self.assertEqual(previous.status_code,200);self.assertEqual((previous.json()['period'],previous.json()['offset'],previous.json()['start'],previous.json()['end'],previous.json()['activities'],previous.json()['distance_m']),('month',1,'2026-10-01','2026-11-01',1,1000))
+        self.assertEqual(other.status_code,200);self.assertEqual(other.json()['activities'],0);self.assertEqual(other.json()['distance_m'],0)
+        for params in ({'period':'month','offset':-1},{'period':'month','offset':25},{'period':'day','offset':0},{'period':'last_month','offset':1}):
+            self.assertEqual(self.clients[0].get('/api/recaps',params=params).status_code,422)
     def test_offer_days_threshold_and_owner_only_endpoint(self):
         for i in range(3):self.activity(f'2026-10-{i+1:02d}T12:00:00Z')
         self.assertTrue(self.facts('last_month')['monthly_offer']);self.assertFalse(self.facts('last_month','2026-11-08T12:00:00+00:00')['monthly_offer'])
+        self.assertTrue(self.facts('month',offset=1)['monthly_offer'])
         r=self.clients[1].get('/api/recaps',params={'period':'this_year','user_id':self.ids[0]});self.assertEqual(r.status_code,200);self.assertEqual(r.json()['activities'],0)
         self.assertEqual(TestClient(app).get('/api/recaps').status_code,401);self.assertEqual(self.clients[0].get('/api/recaps?period=next_month').status_code,422)
     def test_january_week_boundary_streak_and_safe_device_names(self):

@@ -148,6 +148,7 @@ async function say(page, text) {
     await page.goto(B + '/');
     await page.fill('input[name=login]', 'alex'); await page.fill('input[name=password]', 'blue kettle morning run');
     await page.click('button[type=submit]'); await page.waitForSelector('nav.tabs');
+    await enableKitForDemo(page);
     const ids = await page.evaluate(async () => {
       const get = async (p) => (await fetch(p)).json();
       const acts = await get('/api/activities?limit=40'), routes = await get('/api/routes'), dishes = await get('/api/dishes');
@@ -159,7 +160,6 @@ async function say(page, text) {
     });
     for (const [name, path, opt = {}] of SHOTS) {
       if (ONLY && !ONLY.includes(name)) continue;
-      if (name === 'dietcoach') await enableKitForDemo(page);
       await page.evaluate((p) => { document.querySelectorAll('.scrim').forEach((x) => x.remove()); document.body.classList.remove('has-sheet'); window.scrollTo(0, 0); go(p); }, ids[path] || path);   // no sheet left open from the shot before
       await page.waitForTimeout(1500);
       await page.evaluate(() => { window.scrollTo(0, 0); });

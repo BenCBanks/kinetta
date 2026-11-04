@@ -7,19 +7,44 @@ from . import db,energy
 from .auth import current_user
 
 router=APIRouter(prefix='/api')
-PERIODS=('this_week','last_week','this_month','last_month','this_year')
+PERIODS=('week','month','year','this_week','last_week','this_month','last_month','this_year')
 
 
-def dates(period,today):
-    if period in ('this_week','last_week'):
-        start=today-dt.timedelta(days=today.weekday()+(7 if period=='last_week' else 0))
+def _period(period,offset):
+    """Return the calendar period and its distance back from the current one."""
+    if not isinstance(offset,int) or isinstance(offset,bool) or not 0<=offset<=24:
+        raise ValueError('Recap offset must be between 0 and 24')
+    aliases={
+      'this_week':('week',0),'last_week':('week',1),
+      'this_month':('month',0),'last_month':('month',1),
+      'this_year':('year',0),
+    }
+    if period in aliases:
+        if offset:raise ValueError('Offset is only used with week, month or year')
+        kind,back=aliases[period]
+    else:
+        kind,back=period,offset
+    if kind not in ('week','month','year'):
+        raise ValueError('Unknown recap period')
+    if back>24:raise ValueError('Recap period is out of range')
+    return kind,back
+
+
+def dates(period,today,offset=0):
+    kind,back=_period(period,offset)
+    if kind=='week':
+        start=today-dt.timedelta(days=today.weekday()+7*back)
         return start,start+dt.timedelta(days=7)
-    if period in ('this_month','last_month'):
-        start=today.replace(day=1)
-        if period=='last_month':return (start-dt.timedelta(days=1)).replace(day=1),start
-        return start,(start.replace(year=start.year+1,month=1) if start.month==12 else start.replace(month=start.month+1))
-    if period=='this_year':return today.replace(month=1,day=1),today.replace(year=today.year+1,month=1,day=1)
-    raise ValueError('Unknown recap period')
+    if kind=='month':
+        month_index=today.year*12+today.month-1-back
+        year,month0=divmod(month_index,12)
+        if year<1:raise ValueError('Recap period is out of range')
+        start=dt.date(year,month0+1,1)
+        end=dt.date(year+1,1,1) if month0==11 else dt.date(year,month0+2,1)
+        return start,end
+    year=today.year-back
+    if year<1:raise ValueError('Recap period is out of range')
+    return dt.date(year,1,1),dt.date(year+1,1,1)
 
 
 def garmin_source(source,device):
@@ -34,11 +59,12 @@ def garmin_source(source,device):
     return None
 
 
-def facts(c,uid,period,now=None):
+def facts(c,uid,period,now=None,offset=0):
+    kind,back=_period(period,offset)
     profile=c.execute('SELECT tz,units,protein_target FROM profile WHERE user_id=%s',(uid,)).fetchone() or {}
     tz=db.valid_tz(profile.get('tz')) or db.DEFAULT_TZ;zone=ZoneInfo(tz)
     today=(now or dt.datetime.now(dt.timezone.utc)).astimezone(zone).date()
-    start,end=dates(period,today)
+    start,end=dates(period,today,offset)
     lo=dt.datetime.combine(start,dt.time.min,zone);hi=dt.datetime.combine(end,dt.time.min,zone)
     # Same date_trunc/week boundary, rows and moving-time sums as Progress /progress/volume.
     rows=c.execute('''SELECT id,sport,visibility,distance_m,moving_s,source,device,
@@ -82,9 +108,13 @@ def facts(c,uid,period,now=None):
       'time_s':sum(d['time_s'] for d in days.values()),'top_sport':max(sports,key=sports.get) if sports else None,
       'days':list(days.values()),'highlights':highlights[:2],'streak_weeks':streak,
       'food':{'logged_days':len(food),'protein_goal_days':protein_days},'garmin_sources':sorted(sources),
-      'monthly_offer':period=='last_month' and today.day<=7 and (len(rows)>=3 or len(food)>=7)}
+      'monthly_offer':kind=='month' and back==1 and today.day<=7 and (len(rows)>=3 or len(food)>=7),
+      'offset':offset}
 
 
 @router.get('/recaps')
-def recap(period:str=Query('this_month',pattern='^(this_week|last_week|this_month|last_month|this_year)$'),user=Depends(current_user)):
-    with db.connect() as c:return facts(c,user['id'],period)
+def recap(period:str=Query('this_month',pattern='^(week|month|year|this_week|last_week|this_month|last_month|this_year)$'),offset:int=Query(0,ge=0,le=24),user=Depends(current_user)):
+    try:
+        with db.connect() as c:return facts(c,user['id'],period,offset=offset)
+    except ValueError as error:
+        raise HTTPException(status_code=422,detail=str(error)) from error
