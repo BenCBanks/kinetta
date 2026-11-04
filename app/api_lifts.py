@@ -355,6 +355,46 @@ def sessions(limit: int = 20, user=Depends(current_user)):
             ORDER BY a.start_time DESC LIMIT %s""", (user['id'], limit)).fetchall()
 
 
+@router.get('/lifts/sessions/{aid}/history')
+def session_history(aid: int, user=Depends(current_user)):
+    """Read the last five saved sessions with this workout name, including completed working sets only."""
+    uid = user['id']
+    with db.connect() as c:
+        seed = c.execute("""SELECT a.name::text AS name FROM activities a
+            WHERE a.id = %s AND a.user_id = %s AND NOT a.lift_open
+              AND EXISTS (SELECT 1 FROM lift_sets s WHERE s.activity_id = a.id AND s.user_id = a.user_id)""",
+                         (aid, uid)).fetchone()
+        if not seed: raise HTTPException(404, 'Not found')
+        rows = c.execute("""
+            WITH recent AS (
+              SELECT a.id, a.name, a.start_time, a.tz
+              FROM activities a
+              WHERE a.user_id = %s AND a.name = %s AND NOT a.lift_open
+                AND EXISTS (SELECT 1 FROM lift_sets x WHERE x.activity_id = a.id AND x.user_id = a.user_id AND x.done AND NOT x.warmup)
+              ORDER BY a.start_time DESC, a.id DESC LIMIT 5
+            )
+            SELECT r.id AS activity_id, r.name::text AS name, r.start_time, r.tz,
+                   e.id AS exercise_id, e.name::text AS exercise_name, e.kind,
+                   jsonb_agg(jsonb_build_object('n', s.n, 'reps', s.reps, 'kg', s.kg, 'secs', s.secs,
+                                                'warmup', s.warmup, 'done', s.done) ORDER BY s.pos, s.n) AS sets
+            FROM recent r
+            JOIN lift_sets s ON s.activity_id = r.id AND s.user_id = %s AND s.done AND NOT s.warmup
+            JOIN exercises e ON e.id = s.exercise_id AND e.user_id = s.user_id
+            GROUP BY r.id, r.name, r.start_time, r.tz, e.id, e.name, e.kind
+            ORDER BY r.start_time DESC, r.id DESC, min(s.pos), e.id""",
+                         (uid, seed['name'], uid, uid)).fetchall()
+    history = {}
+    for row in rows:
+        session = history.setdefault(row['activity_id'], {
+            'activity_id': row['activity_id'], 'name': row['name'], 'start_time': row['start_time'],
+            'tz': row['tz'], 'exercises': []
+        })
+        session['exercises'].append({
+            'exercise_id': row['exercise_id'], 'name': row['exercise_name'], 'kind': row['kind'], 'sets': row['sets']
+        })
+    return {'name': seed['name'], 'sessions': list(history.values())}
+
+
 # for the activity list and feed cards: a short summary of a session's lifting (None for sessions without sets)
 FEED_SQL = """(SELECT CASE WHEN count(*) > 0 THEN jsonb_build_object(
                  'sets', count(*) FILTER (WHERE s.done AND NOT s.warmup),

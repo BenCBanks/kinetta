@@ -82,6 +82,66 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    for(let n=(await first.locator('[data-row]').count())-1;n>=0;n--){await first.locator('[data-set]').last().click();await p.locator('[data-pk=del]').click();await until(p,n=>document.querySelector('#lf-save')?.textContent==='Saved'&&document.querySelectorAll('.lift-ex:first-child [data-row]').length===n,'last-set delete',n);}
    assert(await first.locator('[data-addset]').evaluate(n=>document.activeElement===n),'deleting only remaining set focuses Add set');await p.locator('#toast.on button').click();await until(p,()=>document.querySelector('#lf-save')?.textContent==='Saved'&&document.querySelectorAll('.lift-ex:first-child [data-row]').length===1,'only-set Undo');assert(await first.locator('[data-set="0"]').evaluate(n=>document.activeElement===n));assert.deepEqual(errors,[]);console.log('Only-set delete/Undo and Add set/restored focus '+theme+' PASS');await c.close();contexts.splice(contexts.indexOf(c),1);
   }
+  if(!process.env.KINETTA_LIFT_CASE||process.env.KINETTA_LIFT_CASE==='history'){
+   for(const theme of ['light','dark']){
+    const {c,p,errors,writes}=await open('exercise',theme,{width:390,height:844,root:16});
+    await p.evaluate(()=>{for(const k of Object.keys(localStorage))if(k.startsWith('fit.lift:'))localStorage.removeItem(k);});
+    const draftsBefore=await p.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('fit.lift:')).sort());
+    await p.evaluate(()=>startLiftSheet());await until(p,()=>!!document.querySelector('.sl-routine'),'saved workout rows');
+    assert.equal(await p.locator('.sl-routine').count(),1,'one saved workout row for the fixture name');
+    await p.locator('.sl-history').click();await until(p,()=>/^\/lift\/history\/workout\/\d+$/.test(location.pathname),'workout history route');
+    await p.locator('.lift-history').waitFor();assert.equal(await p.locator('.lift-history-list > li').count(),2,'last two saved sessions are visible');
+    assert.equal(await p.locator('.lift-history-best').count(),3,'best set is marked for each exercise');
+    assert.match(await p.locator('.lift-history-sets').first().innerText(),/3 × 8 @ \d+(?:\.\d+)? lb/,'sets are shown in the familiar compact format');
+    assert.equal(await p.locator('#lx-chart').count(),0,'history stays a plain list');
+    await p.waitForTimeout(450);assert.equal(await p.locator('.scrim:not([inert])').count(),0,'repeat sheet closes before history is read');
+    await shot(p,`history-workout-390-${theme}`);
+    await p.locator('.lift-history-name').first().click();await until(p,()=>/^\/lift\/history\/exercise\/\d+$/.test(location.pathname),'exercise history route');
+    await until(p,()=>document.querySelector('.lift-history h1')?.textContent==='Squat','exercise history content');assert.equal(await p.locator('.lift-history-list > li').count(),2);
+    assert.equal(await p.locator('.lift-history-best').count(),1,'exercise history marks its best set');
+    await p.waitForTimeout(450);
+    await shot(p,`history-exercise-390-${theme}`);
+    await p.locator('.top .back').click();await until(p,()=>/^\/lift\/history\/workout\/\d+$/.test(location.pathname),'exercise history returns to workout history');
+    const draftsAfter=await p.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('fit.lift:')).sort());
+    assert.deepEqual(draftsAfter,draftsBefore,'opening history creates no local workout draft');
+    assert(!writes.includes('/api/lifts/start'),'opening history does not start a workout');
+    assert(!writes.some(x=>/^\/api\/activities\/\d+\/lifts$/.test(x)),'opening history does not write sets');
+    assert.deepEqual(errors,[]);console.log(`Lifting history 390/${theme}: workout/exercise lists, best sets and no draft/session PASS`);
+    await c.close();contexts.splice(contexts.indexOf(c),1);
+   }
+   for(const theme of ['light','dark']){
+    const {c,p,get,errors,writes}=await open('idle',theme,{width:390,height:844,root:16}),first=p.locator('.lift-ex').first();
+    const draftBefore=await p.evaluate(()=>Object.fromEntries(Object.entries(localStorage).filter(([k])=>k.startsWith('fit.lift:')).sort(([a],[b])=>a.localeCompare(b))));
+    const sessionsBefore=(await(await get('/api/lifts/sessions?limit=100')).json()).length;
+    await first.locator('[data-exmenu]').click();assert(await p.locator('[data-pk=hist]').isVisible());assert.equal(await p.locator('[data-pk=hist]').innerText(),'History');
+    await p.locator('[data-pk=hist]').click();await until(p,()=>/^\/lift\/history\/exercise\/\d+$/.test(location.pathname),'logger row history route');
+    await until(p,()=>document.querySelector('.lift-history h1')?.textContent==='Squat','logger row exercise history');assert.equal(await p.locator('.lift-history-list > li').count(),2);
+    await p.waitForTimeout(450);await shot(p,`history-from-open-logger-390-${theme}`);
+    const draftAfter=await p.evaluate(()=>Object.fromEntries(Object.entries(localStorage).filter(([k])=>k.startsWith('fit.lift:')).sort(([a],[b])=>a.localeCompare(b))));
+    assert.deepEqual(draftAfter,draftBefore,'exercise-row History leaves the existing local draft unchanged');
+    assert.equal((await(await get('/api/lifts/sessions?limit=100')).json()).length,sessionsBefore,'exercise-row History creates no session');
+    assert(!writes.includes('/api/lifts/start'));assert(!writes.some(x=>/^\/api\/activities\/\d+\/lifts$/.test(x)));
+    assert.deepEqual(errors,[]);console.log(`Exercise-row History 390/${theme}: opens read-only history without creating a session or draft PASS`);
+    await c.close();contexts.splice(contexts.indexOf(c),1);
+   }
+   for(const theme of ['light','dark']){
+    const {c,p,errors}=await open('new',theme,{width:390,height:844,root:16});
+    await p.evaluate(id=>go(`/lift/history/exercise/${id}`),ids.new);await until(p,()=>/^\/lift\/history\/exercise\/\d+$/.test(location.pathname),'empty exercise history route');
+    await p.getByText('No completed lifting sessions yet',{exact:true}).waitFor();assert.equal(await p.locator('.lift-history-list').count(),0);
+    await p.waitForTimeout(450);
+    await shot(p,`history-empty-390-${theme}`);assert.deepEqual(errors,[]);console.log(`Empty lifting history 390/${theme}: explicit empty state PASS`);
+    await c.close();contexts.splice(contexts.indexOf(c),1);
+   }
+   for(const theme of ['light','dark']){
+    const {c,p,errors}=await open('new',theme,{width:390,height:844,root:16}),failed=999999901;
+    await c.route(`**/api/lifts/exercises/${failed}`,r=>r.fulfill({status:503,json:{detail:'Fictional history temporarily unavailable'}}),{times:1});
+    await p.evaluate(id=>go(`/lift/history/exercise/${id}`),failed);await until(p,()=>location.pathname===`/lift/history/exercise/${failed}`,'failed exercise history route');
+    await p.locator('#retry').waitFor();assert((await p.locator('#page').innerText()).includes('Fictional history temporarily unavailable'));
+    await p.waitForTimeout(450);await shot(p,`history-error-390-${theme}`);assert.deepEqual(errors,[]);
+    console.log(`Lifting history 390/${theme}: failed read shows retry instead of a stuck skeleton PASS`);
+    await c.close();contexts.splice(contexts.indexOf(c),1);
+   }
+  }
   if(!process.env.KINETTA_LIFT_CASE||process.env.KINETTA_LIFT_CASE==='actions'){
    const {c,p,get,errors}=await open('idle','light',{width:390,height:844,root:16}),first=p.locator('.lift-ex').first(),session=async()=>await(await get('/api/activities/'+ids.live+'/lifts')).json();
    await first.locator('[data-addset]').click();await until(p,()=>document.querySelectorAll('.lift-ex:first-child [data-row]').length===5,'added set');await until(p,()=>document.querySelector('#lf-save')?.textContent==='Saved','added set saved');let d=await session();assert.equal(d.exercises[0].sets.length,5);assert.equal(d.exercises[0].sets[4].kg,null,'new set keeps blank values and prior-set hints');

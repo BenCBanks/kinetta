@@ -56,8 +56,9 @@ function startLiftSheet() {
     $('#sl-body', b).innerHTML = `<button class="primary wide" id="sl-new">${svg('workout')}Start an empty session</button>
       ${recentFailed ? '<p class="small muted">Recent sessions couldn’t load.</p><button class="ghost wide" id="sl-retry">Try again</button>' : ''}
       ${recent.length ? `<h3 class="ghead">Or repeat one</h3><p class="small muted sl-hint">Its exercises come along, with that day's numbers in grey beside each set.</p>
-      <div class="pick-list">${recent.map((s) => `<button type="button" class="row-link" data-copy="${s.id}"><span class="grow"><span>${esc(s.name)}</span>
-        <small class="muted">${esc(shortDay(s.start_time))} · ${esc(s.exercises.slice(0, 3).join(', '))}${s.exercises.length > 3 ? ` +${s.exercises.length - 3}` : ''}</small></span><span class="chev">${svg('chev')}</span></button>`).join('')}</div>` : ''}
+      <div class="pick-list sl-routines">${recent.map((s) => `<div class="sl-routine"><button type="button" class="row-link sl-repeat" data-copy="${s.id}"><span class="grow"><span>${esc(s.name)}</span>
+        <small class="muted">${esc(shortDay(s.start_time))} · ${esc(s.exercises.slice(0, 3).join(', '))}${s.exercises.length > 3 ? ` +${s.exercises.length - 3}` : ''}</small></span><span class="chev">${svg('chev')}</span></button>
+        <button type="button" class="sl-history" data-history="${s.id}" aria-label="View history for ${esc(s.name)}">History</button></div>`).join('')}</div>` : ''}
       <button class="ghost wide" id="sl-past">Log one you did earlier</button>`;
     const begin = async (copy) => {
       if (!active()) return;
@@ -68,9 +69,60 @@ function startLiftSheet() {
     const retry = $('#sl-retry', b); if (retry) retry.onclick = () => { close(); startLiftSheet(); };
     $('#sl-new', b).onclick = () => begin();
     $$('[data-copy]', b).forEach((x) => x.onclick = () => begin(x.dataset.copy));
+    $$('[data-history]', b).forEach((x) => x.onclick = () => { close(); go(`/lift/history/workout/${x.dataset.history}`); });
     $('#sl-past', b).onclick = () => { close(); addActivitySheet(null, 'workout'); };
   });
 }
+
+function compareLiftSet(kind, a, b) {
+  const av = kind === 'time' ? [a.secs || 0] : kind === 'body' ? [a.reps || 0, a.kg || 0] : [a.kg || 0, a.reps || 0];
+  const bv = kind === 'time' ? [b.secs || 0] : kind === 'body' ? [b.reps || 0, b.kg || 0] : [b.kg || 0, b.reps || 0];
+  for (let i = 0; i < av.length; i++) if (av[i] !== bv[i]) return av[i] - bv[i];
+  return 0;
+}
+function liftHistoryBest(sessions) {
+  const best = new Map();
+  for (const session of sessions) for (const ex of session.exercises || []) for (const set of ex.sets || []) {
+    if (set.done === false || set.warmup) continue;
+    const old = best.get(ex.exercise_id);
+    if (!old || compareLiftSet(ex.kind, set, old.set) > 0) best.set(ex.exercise_id, {activity_id: session.activity_id, set, kind: ex.kind});
+  }
+  return best;
+}
+function liftBestText(kind, set) {
+  if (kind === 'time') return `${set.secs || 0} s`;
+  if (kind === 'body') return `${set.reps || 0} reps${set.kg ? ` + ${toW(set.kg)} ${wUnit()}` : ''}`;
+  return `${set.reps || 0} reps @ ${toW(set.kg) || 0} ${wUnit()}`;
+}
+function liftHistoryMarkup(data, backTo) {
+  const sessions = (data.sessions || []).slice(0, 5), best = liftHistoryBest(sessions);
+  const rows = sessions.map((session) => `<li class="lift-history-session"><h2 class="lift-history-date">${esc(fdate(session.start_time, {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'}))}</h2>
+    ${(session.exercises || []).map((ex) => {
+      const mark = best.get(ex.exercise_id), selected = mark && mark.activity_id === session.activity_id;
+      return `<div class="lift-history-exercise"><a class="lift-history-name" href="/lift/history/exercise/${ex.exercise_id}?back=${encodeURIComponent(backTo)}">${esc(ex.name)}</a>
+        <p class="lift-history-sets">${esc(setsText(ex.sets, ex.kind) || 'No completed sets')}</p>${selected ? `<small class="lift-history-best">Best set · ${esc(liftBestText(mark.kind, mark.set))}</small>` : ''}</div>`;
+    }).join('')}</li>`).join('');
+  return `<div class="card lift-history"><h1>${esc(data.name)}</h1><p class="muted">${sessions.length ? `Last ${sessions.length} session${sessions.length === 1 ? '' : 's'}` : 'No completed lifting sessions yet'}</p>
+    ${sessions.length ? `<ol class="lift-history-list">${rows}</ol>` : ''}</div>`;
+}
+function liftHistoryRoute(el, label, fallback, url, shape) {
+  el.classList.add('compact-lift-history');
+  el.innerHTML = `<div class="top">${backBtn(label)}</div><div id="lift-history-body">${skel(2)}</div>`;
+  wireBack(el, fallback);
+  return load(url, (data) => {
+    const body = $('#lift-history-body', el); if (!body) return;
+    const shaped = shape(data);
+    body.innerHTML = liftHistoryMarkup(shaped, location.pathname + location.search);
+  });
+}
+route(/^\/lift\/history\/workout\/(\d+)$/, 'track', (el, id) => liftHistoryRoute(el, 'Track', '/track', `/api/lifts/sessions/${id}/history`, (data) => data));
+route(/^\/lift\/history\/exercise\/(\d+)$/, 'progress', (el, id) => {
+  const back = new URLSearchParams(location.search).get('back'), fallback = back && /^\/lift\/history\/workout\/\d+$/.test(back) ? back : '/progress?view=lifting';
+  return liftHistoryRoute(el, 'Lifting', fallback, `/api/lifts/exercises/${id}`, (data) => ({
+    name: data.exercise.name,
+    sessions: (data.sessions || []).slice(0, 5).map((s) => ({...s, exercises: [{exercise_id: data.exercise.id, name: data.exercise.name, kind: data.exercise.kind, sets: s.sets}]}))
+  }));
+});
 
 // ---------- the logger ----------
 // The whole session lives here and goes to the server after each change (a moment later, as one PUT, so a resend never
@@ -300,13 +352,13 @@ function liftLogger(el, aid, data) {
       ${e.kind === 'body' ? (hasWeight(e) ? '<button type="button" class="row-link" data-pk="nowt"><span class="grow"><span>No added weight</span><small class="muted">Back to reps only</small></span></button>'
         : '<button type="button" class="row-link" data-pk="wt"><span class="grow"><span>Add weight</span><small class="muted">A weighted vest or a dip belt</small></span></button>') : ''}
       <button type="button" class="row-link" data-pk="sets"><span class="grow"><span>Warm-up or delete a set</span></span></button>
-      <button type="button" class="row-link" data-pk="hist"><span class="grow"><span>History and records</span></span></button>
+      <button type="button" class="row-link" data-pk="hist"><span class="grow"><span>History</span></span></button>
       ${i > 0 ? '<button type="button" class="row-link" data-pk="up"><span class="grow"><span>Move up</span></span></button>' : ''}
       ${i < S.ex.length - 1 ? '<button type="button" class="row-link" data-pk="down"><span class="grow"><span>Move down</span></span></button>' : ''}
       <button type="button" class="row-link danger" data-pk="del"><span class="grow"><span>Remove from this session</span></span></button></div>`, (k) => {
       if (!live() || finishing) return;
       if(k==='sets')return pickSheet('Choose a set',pickRows(e.sets.map((s,j)=>[String(j),'Set '+(j+1)+(s.warmup?' · Warm-up':''),''])),j=>setMenu(e,+j));
-      if (k === 'hist') { flush(); return go(`/lift/ex/${e.exercise_id}`); }
+      if (k === 'hist') { flush(); return go(`/lift/history/exercise/${e.exercise_id}`); }
       if (k === 'note') return noteSheet(e, () => { draw(); });
       if (k === 'wt') { e.addWeight = true; draw(); return later(); }
       if (k === 'nowt') { e.addWeight = false; e.sets.forEach((s) => { s.kg = null; }); }
