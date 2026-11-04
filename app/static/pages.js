@@ -24,8 +24,9 @@ function postCard(a, {compact = false, lock = false} = {}) {
   const person = theirs ? a.owner : App.me, pref = profileHref(person), pname = theirs ? esc(a.owner.name) : 'You';
   const vis = a.visibility || 'me',audience=theirs?'':(compact||lock)&&vis==='me'?` · <span class="post-private" role="img" aria-label="Only you can see this" title="Only you can see this">${svg('lock')}</span>`:` · ${esc(VIS_SHORT[vis])}`;
   const title = `<a class="post-link post-title-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}"><h3 class="post-title">${esc(a.name)}</h3></a>`;
-  const meta = `${pname} · ${esc(when(a.start_time))} · ${esc(kind)}${audience}`;
-  const head = `<a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><span class="ph-txt">${title}<small><a class="post-name" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${meta}</a></small></span>`;
+  const profileName = `<a class="post-name" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${pname}</a>`;
+  const meta = `${profileName}<span class="post-meta-rest"> · ${esc(when(a.start_time))} · ${esc(kind)}${audience}</span>`;
+  const head = `<a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><span class="ph-txt">${title}<small>${meta}</small></span>`;
   const share=theirs?'':`<button type="button" class="pf activity-share" data-share-picture="${a.id}" aria-label="Share a picture of this activity">${svg('share')}</button>`;
   const foot = reactionButtons(a.id,a,false,compact)+`<button type="button" class="pf activity-comments" data-talk="${a.id}" aria-label="Comments, ${a.comments||0}">${svg('comment')}<span class="num"${a.comments?'':' hidden'}>${a.comments?reactionNumber(a.comments):''}</span></button>`+share;
   const media=activityMedia(a,{compact,mapMetrics:a.line?postMapMetrics(a):''});
