@@ -66,7 +66,7 @@
 
 /* The food entry header keeps the destination below its title as secondary, tappable context. */
 .food-thread .thread-title { min-width:0;display:flex;flex-direction:column;align-items:center; }
-.food-thread .thread-context { min-width:44px;min-height:44px;padding:0 8px;border:0;border-radius:4px;background:transparent;color:var(--tx2);font:400 .8125rem/1.25 var(--font);text-align:center;white-space:normal; }
+.food-thread .thread-context { min-width:44px;min-height:44px;padding:0 8px;border:0;border-radius:4px;background:transparent;color:var(--accent);font:600 .8125rem/1.25 var(--font);text-align:center;white-space:normal; }
 .food-thread .thread-context:focus-visible { outline:2px solid var(--link);outline-offset:1px; }
 @media(max-width:360px) {
   .food-thread .thread-heading .thread-title { grid-column:1 / -1;grid-row:2; }
@@ -83,3 +83,19 @@
 .entry-edit-fields > #es-nut .nut { padding:10px 0;margin-bottom:6px; }
 .entry-edit-footer { flex:none;padding-top:10px;border-top:1px solid var(--line);background:var(--bg); }
 .entry-edit-footer .primary { width:100%;min-height:44px; }
+
+/* Choose food keeps destination values plain and tappable, with a compact four-way segmented control. */
+.where.choose-food-destination { flex-wrap:nowrap;gap:0;margin:-8px 0 8px; }
+.where.choose-food-destination > .muted { margin-right:4px;font-size:14px;white-space:nowrap; }
+.food-destination-value { position:relative;display:inline-flex;flex:none;align-items:center;justify-content:center;gap:4px;min-width:44px;min-height:44px;padding:0 6px;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--accent);font:600 15px/1.2 var(--font); }
+.food-destination-value:focus-within { outline:2px solid var(--link);outline-offset:1px; }
+.food-destination-value select { appearance:none;-webkit-appearance:none;min-width:0;min-height:44px;width:auto;padding:0 20px 0 6px;border:0;border-radius:0;background:transparent;box-shadow:none;color:inherit;font:inherit; }
+.food-destination-value.meal-value > svg { position:absolute;right:7px;width:14px;height:14px;transform:rotate(90deg);color:var(--accent);pointer-events:none; }
+.food-destination-value.daypick > svg { position:static;width:14px;height:14px;flex:none;transform:rotate(90deg);color:var(--accent); }
+.food-destination-value.daypick > span { white-space:nowrap; }
+.food-destination-value.daypick > input { position:absolute;inset:0;width:100%;height:100%;min-height:0;padding:0;border:0;opacity:0;cursor:pointer; }
+ .sheet #as-tabs { display:grid;width:100%;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;overflow:visible; }
+.sheet #as-tabs button { min-width:0;min-height:44px;padding:5px 3px;font-size:14px;line-height:1.15;letter-spacing:-.02em;white-space:normal; }
+.sheet .meal-library-row > .add-food-edit { flex:none;width:44px;height:44px;min-width:44px;min-height:44px;background:transparent;box-shadow:none;color:var(--tx2); }
+.sheet .meal-library-row > .add-food-edit svg { width:19px;height:19px; }
+@media (max-width:370px) { .where.choose-food-destination > .muted { display:none; } }

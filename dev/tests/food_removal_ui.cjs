@@ -11,7 +11,7 @@ async function until(page,fn,label){for(let i=0;i<120;i++){if(await page.evaluat
     const login=await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_food_compact_'+who,password:pw}});assert.equal(login.status(),200);
     const me=await(await context.request.get(base+'/api/me')).json(),history=await(await context.request.get(base+'/api/food/thread')).json();
     const root=history.messages.find(m=>m.kind==='user');assert(root,'fixture has a fictional food card');
-    const resume={id:root.result.draft_id,meal:'lunch',day:root.local_day};
+    const resume={id:root.result.draft_id,meal:'lunch',day:root.local_day,active:true};
     await context.addInitScript(({base,id,resume})=>localStorage.setItem('fit.food.review.draft:'+JSON.stringify([base,id]),JSON.stringify(resume)),{base,id:me.id,resume});
     const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>{if(message.type()==='error'&&!/Failed to load resource/.test(message.text()))errors.push(message.text());});
     let rejectRemoval=false;

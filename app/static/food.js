@@ -21,12 +21,13 @@ function foodStorage(entry){const missing=FOOD_NUTRIENTS.filter(k=>!nutrientKnow
 function extraCoverage(entries,targets={}){return Object.fromEntries(EXTRA_NUTRIENTS.map(([k,,,target])=>{const known=entries.filter(e=>nutrientKnown(e,k));return [k,{recorded:known.length?known.reduce((n,e)=>n+Number(e[k]),0):null,known_count:known.length,unknown_count:entries.length-known.length,complete:!!entries.length&&known.length===entries.length,target:targets[target]}];}));}
 function extraTotals(values,{period=false}={}){return `<details class="extra-nutrients"><summary>More nutrients${period?' · this range':''}</summary><dl>${EXTRA_NUTRIENTS.map(([k,label,unit])=>{const v=values?.[k]||{};return `<div><dt>${label}</dt><dd><b class="num">${nutrientNumber(v.recorded,unit)}</b>${v.recorded!=null&&!v.complete?'<small>Some foods are missing values</small>':''}${v.unknown_count?`<small>${v.unknown_count} food${v.unknown_count===1?'':'s'} with no value</small>`:''}${!period&&v.target!=null?`<small>Your limit: ${nutrientNumber(v.target,unit)}</small>`:''}</dd></div>`;}).join('')}</dl><p class="small muted">${period?'Recorded totals across this date range. ':''}Missing values are unknown, not zero. Total sugar includes naturally occurring sugar.</p></details>`;}
 function extraFood(v){return `<details class="extra-nutrients"><summary>More nutrients</summary><dl>${EXTRA_NUTRIENTS.map(([k,label,unit])=>`<div><dt>${label}</dt><dd class="num">${nutrientNumber(nutrientKnown(v,k)?v[k]:null,unit)}</dd></div>`).join('')}</dl><p class="small muted">For this portion, using its recorded source values. Estimates stay estimates; missing values are unknown.</p></details>`;}
-const isoDay = (d) => d.toLocaleDateString('en-CA', {timeZone: tz()});
-const addDays = (iso, n) => { const d = new Date(iso + 'T12:00'); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); };
-const dayLabel = (iso) => { const t = isoDay(new Date()); return iso === t ? 'Today' : iso === addDays(t, -1) ? 'Yesterday' : iso === addDays(t, 1) ? 'Tomorrow' : new Date(iso + 'T12:00').toLocaleDateString([], {weekday: 'short', month: 'short', day: 'numeric', ...(iso.slice(0,4) !== t.slice(0,4) ? {year:'numeric'} : {})}); };
-const foodDestination = w => `<p class="portion-context small muted">${esc([MEAL_NAMES[w.meal],dayLabel(w.day||isoDay(new Date()))].filter(Boolean).join(' · '))}</p>`;
-function guessMeal() {   // the meal you usually log at this hour (learned from your log), else a sensible clock guess
-  const h = Number(new Intl.DateTimeFormat('en-US',{timeZone:tz(),hour:'2-digit',hourCycle:'h23'}).format(new Date())), mine = App.mealHours && App.mealHours[h];
+const deviceTimeZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || tz(); } catch (e) { return tz(); } };
+const isoDay = (d, timeZone = tz()) => d.toLocaleDateString('en-CA', {timeZone});
+const addDays = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0,10); };
+const dayLabel = (iso, timeZone = tz()) => { const t = isoDay(new Date(),timeZone); return iso === t ? 'Today' : iso === addDays(t, -1) ? 'Yesterday' : iso === addDays(t, 1) ? 'Tomorrow' : new Date(iso + 'T12:00:00Z').toLocaleDateString([], {timeZone:'UTC',weekday: 'short', month: 'short', day: 'numeric', ...(iso.slice(0,4) !== t.slice(0,4) ? {year:'numeric'} : {})}); };
+const foodDestination = w => { const zone=w.timeZone||tz();return `<p class="portion-context small muted">${esc([MEAL_NAMES[w.meal],dayLabel(w.day||isoDay(new Date(),zone),zone)].filter(Boolean).join(' · '))}</p>`; };
+function guessMeal(timeZone = tz()) {   // the meal you usually log at this hour (learned from your log), else a sensible clock guess
+  const h = Number(new Intl.DateTimeFormat('en-US',{timeZone,hour:'2-digit',hourCycle:'h23'}).format(new Date())), mine = timeZone === tz() && App.mealHours && App.mealHours[h]; // learned hours use the profile zone; while travelling, use the local clock instead
   return mine || (h < 10 ? 'breakfast' : h < 14 ? 'lunch' : h < 17 ? 'snacks' : h < 21 ? 'dinner' : 'snacks');
 }
 
@@ -115,7 +116,7 @@ function todayFoodCard(box, {onHistory, onFoodUser} = {}) {
       ${D.entries.some(e => e.pending) ? '<p class="small muted" role="status">Some foods are waiting to send.</p>' : ''}</a>
       <button class="primary wide" id="tf-add">${svg('plus')} Log food</button></div>`;
     syncCheckinPrimary(box.closest?.('#page'));
-    $('#tf-add', box).onclick = () => describeSheet(D.day, null);
+    $('#tf-add', box).onclick = () => describeSheet(null, null);
     onFoodUser?.(true);
   }, {maxAge: 5000});
 }
@@ -274,10 +275,10 @@ route(/^\/food$/, 'food', async (el) => {
   const dp = $('#fd-date', el);
   dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* the browser opens its own picker */ } };
   dp.onchange = () => { if (dp.value) go(dp.value === today ? '/food' : `/food?d=${dp.value}`, {replace: true}); };
-  $('#fq-add', el).onclick = () => describeSheet(day,null);
+  $('#fq-add', el).onclick = () => describeSheet(q.get('d'),null);
   const photo=$('#fq-photo',el),scan=$('#fq-scan',el);
-  if(photo)photo.onclick=()=>describeSheet(day,null,'snap');
-  if(scan)scan.onclick=()=>describeSheet(day,null,'scan');
+  if(photo)photo.onclick=()=>describeSheet(q.get('d'),null,'snap');
+  if(scan)scan.onclick=()=>describeSheet(q.get('d'),null,'scan');
   let openedGoals=false;
   await load(`/api/food/day?d=${day}`, (D) => {
     drawDay(el,D);
@@ -285,7 +286,7 @@ route(/^\/food$/, 'food', async (el) => {
   }, {maxAge:5000});
   if(el.isConnected)foodDiscovery(el);
   if (q.get('add') === '1' && el.isConnected) {
-    history.replaceState(null, '', '/food'); describeSheet(day,null);
+    history.replaceState(null, '', '/food'); describeSheet(q.get('d'),null);
   }
 });
 
@@ -603,16 +604,16 @@ function guardFoodSheet(body,close,owner){const guard=e=>{if(owner===readOwner()
 function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
   const owner=readOwner();
   // One suggestions list inside Add food; meal cards show only what was actually logged.
-  sheet('Choose food', `<div class="where"><span class="muted">Adding to</span>
-      <span class="pill-sel"><select id="as-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</span>
-      <span class="pill-sel daypick">${svg('calendar')}<span id="as-dayl">${esc(dayLabel(day))}</span><input id="as-day" type="date" value="${esc(day)}" aria-label="Day"></span></div>
-    <div class="seg wide" role="tablist">${[['usuals', 'Your usuals'], ['saved', 'My Recipes'], ['search', 'Search'], ['quick', 'Quick']]
+  sheet('Choose food', `<div class="where choose-food-destination"><span class="muted">Adding to</span>
+      <label class="food-destination-value meal-value"><select id="as-meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k, n]) => `<option value="${k}"${k === meal ? ' selected' : ''}>${n}</option>`).join('')}</select>${svg('chev')}</label>
+      <label class="food-destination-value daypick"><span id="as-dayl">${esc(dayLabel(day,deviceTimeZone()))}</span>${svg('chev')}<input id="as-day" type="date" value="${esc(day)}" aria-label="Day"></label></div>
+    <div id="as-tabs" class="seg wide choose-food-tabs" role="tablist">${[['usuals', 'Your usuals'], ['saved', 'My Recipes'], ['search', 'Search'], ['quick', 'Quick']]
     .map(([k, n], i) => `<button data-t="${k}" aria-pressed="${i === 0}">${n}</button>`).join('')}</div>
     <div id="as-body"></div>`, (b, close) => {
     guardFoodSheet(b,close,owner);
     const dp = $('#as-day', b);     // a short label ("Today", "Sat, Oct 10") over the native picker: the full date field didn't fit
     dp.onclick = () => { try { dp.showPicker(); } catch (e) { /* the browser opens its own picker */ } };
-    dp.onchange = () => { if (dp.value) $('#as-dayl', b).textContent = dayLabel(dp.value); };
+    dp.onchange = () => { if (dp.value) $('#as-dayl', b).textContent = dayLabel(dp.value,deviceTimeZone()); };
     const body = $('#as-body', b);
     const where = () => ({day: $('#as-day', b).value, meal: $('#as-meal', b).value});
     const tabs = {search: tSearch, usuals: tUsuals, saved: tSaved, quick: tQuick};
@@ -724,10 +725,10 @@ async function tSaved(body, where, close, {manage=false}={}) {
       (d.serving === 'one' ? d.per_serving.kcal : d.totals.kcal), d.totals.kcal==null?(d.mine===false?'Calories unavailable':'Add nutrition'):d.serving === 'one' ? 'kcal a serving' : 'kcal total');
     const recent=recentSavedItems(dishes,meals);
     body.innerHTML = `${recentSavedMarkup(recent)}
-      ${mine.length ? `<h3 class="ghead">Your recipes</h3><div class="results">${mine.map((d) => `<div class="meal-library-row">${dishRow(d, dishes.indexOf(d))}<button type="button" class="ghost sm" data-edit-meal="${d.id}" aria-label="${manage?'Log a portion of':'Edit'} ${esc(d.named?d.name:'Untitled recipe')}">${manage?'Log portion':svg('edit')+' Edit'}</button></div>`).join('')}</div>` : '<p class="small muted">Create your first recipe, with or without Kit.</p>'}
+      ${mine.length ? `<h3 class="ghead">Your recipes</h3><div class="results">${mine.map((d) => `<div class="meal-library-row">${dishRow(d, dishes.indexOf(d))}<button type="button" class="${manage?'ghost sm':'icon-btn add-food-edit'}" data-edit-meal="${d.id}" aria-label="${manage?'Log a portion of':'Edit'} ${esc(d.named?d.name:'Untitled recipe')}">${manage?'Log portion':svg('edit')}</button></div>`).join('')}</div>` : '<p class="small muted">Create your first recipe, with or without Kit.</p>'}
       ${theirs.length ? `<h3 class="ghead">Shared with you</h3><div class="results">${theirs.map((d) => dishRow(d, dishes.indexOf(d))).join('')}</div>` : ''}
       ${meals.length ? `<h3 class="ghead">Saved combinations</h3><div class="results">${meals.map((m, i) => row('meal', i, m.name, listOf(m.items.map((x) => x.name)), m.totals.kcal)).join('')}</div>` : ''}
-      <h3 class="ghead ghead-act">My foods<button class="linkbtn" id="tm-food">New food</button></h3><p class="small muted">Tap a food to log it, or choose Edit to change its saved nutrition.</p><div class="results">${foods.map((f,i) => `<div class="meal-library-row">${foodRow(f,i)}<button class="ghost sm" data-edit-food="${i}">Edit</button></div>`).join('')}</div>
+      <h3 class="ghead ghead-act">My foods<button class="linkbtn" id="tm-food">New food</button></h3><p class="small muted">Tap a food to log it, or choose the pencil to change its saved nutrition.</p><div class="results">${foods.map((f,i) => `<div class="meal-library-row">${foodRow(f,i)}<button type="button" class="icon-btn add-food-edit" data-edit-food="${i}" aria-label="Edit ${esc(f.name)}">${svg('edit')}</button></div>`).join('')}</div>
 `;
     const again = () => {if(valid())return tSaved(body, where, close, {manage});};
     $$('[data-edit-food]', body).forEach(x => x.onclick = () => foodEditor(foods[+x.dataset.editFood], again));
