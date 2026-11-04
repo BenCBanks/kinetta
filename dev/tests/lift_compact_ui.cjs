@@ -13,8 +13,8 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   const p=await c.newPage(),errors=[],writes=[];p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
   await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(u.pathname===`/api/activities/${aid}/lifts`||u.pathname===`/api/lifts/exercises/${ids.exercise}`)return r.continue();return r.fulfill({json:{}});}return r.continue();});
   await p.goto(base+(state==='exercise'||state==='new'?'/lift/ex/'+ids[state]:'/track/lift/'+aid));
-  const exerciseView=state==='exercise'||state==='new';
-  await until(p,isExercise=>isExercise?!!document.querySelector('.lx-head'):App.pageReady&&!!document.querySelector('.lift-ex'),exerciseView?`exercise content ${size.width}/${theme}`:'lifting ready',exerciseView);
+  const viewSelector=state==='exercise'||state==='new'?'.lx-head':'.lift-ex';
+  await until(p,selector=>!!document.querySelector(selector),`${state} content ${size.width}/${theme}`,viewSelector);
   return{c,p,errors,writes,get:url=>c.request.get(base+url,{headers:auth})};
  }
  async function spacing(p){
