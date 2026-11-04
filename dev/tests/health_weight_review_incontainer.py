@@ -47,7 +47,7 @@ try:
  with db.connect() as c:
   c.execute('DELETE FROM weights WHERE user_id=%s',(uid,));c.execute('DELETE FROM health_weight_exclusions WHERE user_id=%s',(uid,));c.execute('DELETE FROM health_weight_samples WHERE user_id=%s',(uid,))
  with patch.object(coach,'after_import',return_value=None):api_connections._ingest_apple(uid,payload)
- assert points()[0]['source']=='healthkit' and points()[0]['source_label']=='Apple Health · Health Auto Export'
+ assert points()[0]['source']=='healthkit' and points()[0]['source_label']=='Health app · Health Auto Export'
  with db.connect() as c:assert not coach.health_ok(c,uid)
  # A page for another day does not rewrite the prior day's projected point.
  with db.connect() as c:before=c.execute('SELECT ctid::text AS stamp FROM weights WHERE user_id=%s AND day=%s',(uid,day)).fetchone()['stamp']

@@ -12,7 +12,7 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from . import coach, db, energy
+from . import coach, db, energy, health_copy
 from .api_dishes import _seen, _totals, _weight, serving_count
 from .auth import current_user
 
@@ -77,7 +77,7 @@ def _check(c, user_id, kind, health=False):
     from . import ai_access
     ai_access.require(user_id, 'coach', c)
     if not coach.allowed(user_id, connection=c): raise HTTPException(400, coach.off())
-    if health and not coach.health_ok(c, user_id): raise HTTPException(400, coach.HEALTH_NO)
+    if health and not coach.health_ok(c, user_id): raise HTTPException(400, health_copy.user_message(coach.HEALTH_NO))
     c.execute('SELECT 1 FROM profile WHERE user_id = %s FOR UPDATE', (user_id,))
     n = c.execute("SELECT count(*) AS n FROM ai_requests WHERE user_id = %s AND created > now() - interval '1 day'", (user_id,)).fetchone()['n']
     if n >= DAILY_LIMIT: raise HTTPException(429, 'Daily limit for food feedback reached - try again tomorrow.')

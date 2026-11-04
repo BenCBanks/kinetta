@@ -69,7 +69,7 @@ def off():
     return ai_budget.FALLBACK if not ai_budget.enabled() else OFF
 
 
-HEALTH_NO = 'Review Health app and Garmin data sharing with Kit under Me > Connections first.'
+HEALTH_NO = 'Review Apple Health and Garmin data sharing with Kit under Me > Connections first.'
 
 
 def health_ok(c,user_id):

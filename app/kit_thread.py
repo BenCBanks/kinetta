@@ -5,7 +5,7 @@ from typing import Literal
 from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import Field, field_validator
-from . import db, coach, coach_chat, ai_release, ai_access, ai_budget, kit_memory
+from . import db, coach, coach_chat, ai_release, ai_access, ai_budget, kit_memory, health_copy
 from .auth import current_user
 from .coach_tools import Empty
 from .food_photo import brake
@@ -139,7 +139,7 @@ def generate(client_id:UUID,body:GenerationIn,user=Depends(current_user)):
         with ai_budget.scope(uid,client_id,feature='Kit conversation'):
             answer=coach_chat.answer(uid,question,kit=True,history=history,active=lambda:still_active(uid,body.generation,client_id,lease,health_context))
     except HTTPException as x:error=x.detail if isinstance(x.detail,str) else 'Kit is unavailable right now.'
-    except ValueError as x:error=str(x)[:500]
+    except ValueError as x:error=health_copy.user_message(str(x))[:500]
     except Exception:error='Kit could not finish this answer. Your question is saved; tap Retry.'
     with db.connect() as c:
         current=c.execute('SELECT generation FROM kit_conversations WHERE user_id=%s FOR UPDATE',(uid,)).fetchone()
@@ -151,7 +151,7 @@ def generate(client_id:UUID,body:GenerationIn,user=Depends(current_user)):
         if answer and health_context:answer['health_included']=True
         # Consent can change while the last provider call is in flight. Do not save Health output after revocation.
         if answer and answer.get('health_included') and not coach.health_ok(c,uid):
-            answer=None;error=coach.HEALTH_NO
+            answer=None;error=health_copy.user_message(coach.HEALTH_NO)
         memory_settings=c.execute('SELECT memory_enabled,memory_version FROM kit_conversations WHERE user_id=%s',(uid,)).fetchone()
         if answer and memory_settings['memory_enabled'] and memory_settings['memory_version']==memory_version:
             kit_memory.remember(c,uid,row['question'],answer.get('health_included',False))

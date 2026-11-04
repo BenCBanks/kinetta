@@ -77,7 +77,7 @@ const guideId=title=>title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|
 const GUIDE_ICONS = {
   "welcome-to-kinetta": "user",
   "personal-estimates": "target",
-  "apple-health": "heart",
+  "health-app": "heart",
   "watch-connections": "watch",
   "bring-in-activity-history": "upload",
   "log-food-without-ai": "food",
