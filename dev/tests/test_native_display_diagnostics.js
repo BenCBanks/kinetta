@@ -8,7 +8,7 @@ function fixture({proxy=false,read=()=>Promise.resolve({reduceTransparency:false
  const classes=new Set(['native']),observers=[],events=new Map(),documentEvents=new Map(),nativeEvents={},timers=new Map(),requests=[];let clock=0,timer=0,removed=0;
  const emit=(map,name,value)=>{for(const fn of map.get(name)||[])fn(value);};
  const changed=()=>observers.forEach(fn=>fn());
- const root={classList:{contains:key=>classes.has(key),add:key=>{classes.add(key);changed();},remove:key=>{classes.delete(key);changed();},toggle:(key,on)=>{on?classes.add(key):classes.delete(key);changed();}}};
+ const root={style:{setProperty:()=>{},removeProperty:()=>{}},classList:{contains:key=>classes.has(key),add:key=>{classes.add(key);changed();},remove:key=>{classes.delete(key);changed();},toggle:(key,on)=>{on?classes.add(key):classes.delete(key);changed();}}};
  const handle={remove:()=>{removed++;return Promise.resolve();}},registered=Promise.resolve(handle);
  let raw;
  const methods={getState:function(...args){assert.equal(this,raw);requests.push(args);return read(...args);},addListener:function(event,fn){nativeEvents[event]=fn;return registered;}};

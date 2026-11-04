@@ -6,8 +6,8 @@
   addEventListener('error',e=>errors.push(String(e.message)));
   addEventListener('unhandledrejection',e=>errors.push(String(e.reason?.message||e.reason)));
   if(cfg.store){const Clock=Date,epoch=new Clock(cfg.store.now).getTime(),began=performance.now(),now=()=>epoch+Math.floor(performance.now()-began);globalThis.Date=class extends Clock{constructor(...v){super(...(v.length?v:[now()]));}static now(){return now();}};}
-  localStorage.clear();document.documentElement.style.fontSize=cfg.root+'px';
-  history.replaceState(null,'',cfg.headerPage?'/'+cfg.headerPage:cfg.friends?'/me/friends':cfg.stage.startsWith('activity')?'/activity/1':cfg.stage.startsWith('track-')?'/track':cfg.stage==='food'?'/food/describe':'/food/cook/1');
+  localStorage.clear();if(Number.isFinite(cfg.root)){document.documentElement.style.fontSize=cfg.root+'px';if(cfg.root>=24)document.documentElement.classList.add('large-text');if(cfg.root>=40)document.documentElement.classList.add('large-text-stack-tabs');}
+  history.replaceState(null,'',cfg.headerPage?'/'+cfg.headerPage:cfg.friends?'/me/friends':cfg.stage.startsWith('activity')?'/activity/1':cfg.stage.startsWith('track-')?'/track':['food','choose-food'].includes(cfg.stage)?'/food/describe':cfg.stage==='signup'?'/signup':'/food/cook/1');
   if(cfg.recording){const s={...cfg.recording,native:true,lapSupport:true,activeSeconds:cfg.recording.activeMs/1000,elapsedSeconds:(cfg.recording.finishedAt-cfg.recording.start)/1000,_snapshotClock:performance.now()};localStorage.setItem('kinetta.track:'+JSON.stringify(['https://example.test',1]),JSON.stringify(s));}
   const nutrients={kcal:450,protein_g:30,carbs_g:40,fat_g:19,fiber_g:null,sodium_mg:null,sugar_g:null,saturated_fat_g:null};
   cfg.dish={id:1,name:'Fictional recipe',named:true,mine:true,items:[],known:nutrients,totals:nutrients,recipe_source:{},serving:'one',servings:1,serving_count:1,weight_g:null,items_g:null,weighed:false,shared_with:[],owner:{login:'zz_test_native',name:'Demo'}};
@@ -25,6 +25,8 @@
         return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
       }
       if(p==='/api/me')data=me;
+      else if(p==='/api/signup')data={open:true,full:false};
+      else if(p==='/api/beta')data={open:false};
       else if(cfg.headerPage&&p==='/api/challenges')data=[];
       else if(cfg.headerPage&&p==='/api/plans/current')data={plan:null};
       else if(cfg.headerPage&&p==='/api/feed/friends')data=[];
@@ -38,6 +40,7 @@
       else if(p==='/api/food/thread'||p.startsWith('/api/food/thread/reviews/draft/'))data={messages:[],before:null,has_more:false,preferences:prefs};
       else if(p==='/api/food/thread/preferences')data=prefs;
       else if(p==='/api/food/day')data={day:'2026-10-28',entries:[],totals:nutrients,goal:null,targets:{},food_user:false,has_history:false,unknown_nutrients:{}};
+      else if(p==='/api/food/usual'||p==='/api/food/meals'||p==='/api/food/foods')data=[];
       else if(p==='/api/friends')data=cfg.friends||{friends:[],incoming:[],outgoing:[]};
       else if(cfg.friends&&p==='/api/people/suggested')data=cfg.friends.suggested;
       else if(cfg.friends&&p==='/api/sharing')data={default:'friends'};

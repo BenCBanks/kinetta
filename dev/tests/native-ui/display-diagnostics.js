@@ -8,7 +8,9 @@
     const record = (event, fields = {}) => {
       if (events.length < 64) events.push({event, at: at(), ...fields}); else dropped++;
     };
-    const types = state => ({reduceTransparencyType: typeof state?.reduceTransparency, increaseContrastType: typeof state?.increaseContrast});
+    const types = state => ({reduceTransparencyType: typeof state?.reduceTransparency, increaseContrastType: typeof state?.increaseContrast,
+      contentSizeCategory: typeof state?.contentSizeCategory === 'string' ? state.contentSizeCategory : null,
+      preferredBodyPointSize: Number.isFinite(state?.preferredBodyPointSize) ? state.preferredBodyPointSize : null});
     const failure = error => ({
       errorName: ['Error', 'TypeError', 'TimeoutError'].includes(error?.name) ? error.name : 'Error',
       errorCode: ['UNIMPLEMENTED', 'UNAVAILABLE', 'ERROR'].includes(error?.code) ? error.code : 'other',

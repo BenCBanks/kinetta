@@ -628,6 +628,19 @@ function compactSubpageHeader(el){
   top.classList.add('subpage-header');
   if(['/me/settings','/me/notifications','/me/sharing'].includes(location.pathname)&&top.nextElementSibling?.matches('p.muted'))top.nextElementSibling.remove();
 }
+function keepLargeTextTabVisible(){
+  if(!root||!document.documentElement.classList.contains('large-text'))return;
+  const nav=$('nav.tabs',root);
+  if(!nav)return;
+  const selected=$('[aria-current="page"]',nav);
+  if(!selected)return;
+  const navBox=nav.getBoundingClientRect(),tabBox=selected.getBoundingClientRect(),inset=nav.clientLeft+8;
+  const left=navBox.left+inset,right=navBox.right-nav.clientLeft-8;
+  if(tabBox.left<left)nav.scrollLeft=Math.max(0,nav.scrollLeft-(left-tabBox.left));
+  else if(tabBox.right>right)nav.scrollLeft+=tabBox.right-right;
+}
+function scheduleLargeTextTabVisibility(){if(typeof requestAnimationFrame==='function')requestAnimationFrame(keepLargeTextTabVisible);}
+if(typeof MutationObserver!=='undefined')new MutationObserver(scheduleLargeTextTabVisibility).observe(document.documentElement,{attributes:true,attributeFilter:['class','style']});
 function render() {
   if (!App.me) return;
   App.pageReady = false;
@@ -643,6 +656,7 @@ function render() {
     $$('a[data-tab]', nav).forEach((a) => (a.dataset.tab === activeTab ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
   } else root.innerHTML = `${fresh}<nav class="tabs" aria-label="Main">${TABS.map(([t, n]) =>
     `<a href="/${t}" data-tab="${t}"${t === activeTab ? ' aria-current="page"' : ''}>${svg(t)}<span>${n}</span></a>`).join('')}</nav>`;
+  scheduleLargeTextTabVisibility();
   cleanViews();
   const el = $('#page');
   const headerObserver=new MutationObserver(()=>{if(el.isConnected)compactSubpageHeader(el);});headerObserver.observe(el,{childList:true,subtree:true});headerObservers.set(el,headerObserver);
@@ -1390,8 +1404,8 @@ function showNewAccount({title, intro, button, send, signup = false, ageConfirm 
     <p class="small muted">What you'll type to log in: lowercase letters, numbers or _.</p>` : ''}
     <label>Password<input name="password" type="password" autocomplete="new-password" minlength="10" enterkeyhint="go" required></label>
     <p class="small muted">At least 10 characters. A short sentence you'll remember works well.</p>
-    <label>Who sees new activities<select name="share_default"><option value="everyone" selected>Everyone on Kinetta</option><option value="friends">Approved friends</option><option value="me">Only me</option></select></label>
-    <p class="small muted">Everyone means signed-in members of this Kinetta. You can change this in Sharing, or choose a different audience for an activity.</p>
+    <label>Who sees new activities<select name="share_default"><option value="everyone" selected>Everyone</option><option value="friends">Friends</option><option value="me">Only me</option></select></label>
+    <p class="small muted">Everyone means signed-in members of this Kinetta. Friends means people you approve. You can change this in Sharing, or choose a different audience for an activity.</p>
     ${email ? '<p class="small muted">We\'ll give you a username from your name, like @casey, so friends can find you. Change it any time in Settings.</p>' : ''}
     ${email ? `<details class="username-choice"><summary>Choose your @username (optional)</summary><label>Username<input name="login" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="30" enterkeyhint="next"></label></details>` : ''}
     ${ageConfirm ? '<label class="check"><input type="checkbox" name="age_ok" required><span>I\'m 16 or older</span></label>' : ''}
@@ -1562,7 +1576,7 @@ async function showSignup(friendLink = store.get('kinetta.friendLink')) {
     if(waiting){history.replaceState(null,'','/beta');return showBeta();}
     return enrollmentStatus('Join Kinetta','Public signup is closed. Open your invitation link to create an account, or log in.');
   }
-  showNewAccount({title: 'Create your account', button: 'Create my account', signup: true, card,challenge,
+  showNewAccount({title: 'Sign up', button: 'Create my account', signup: true, card,challenge,
     intro: (inviter ? `${esc(inviter)} invited you. You’ll be friends once you confirm your email. ` : '') + 'Your workouts and food in one app. Choose who sees your activities; your food log and body settings stay private. <a href="/" id="s-login">Already have an account? Log in</a>',
     send: async (body) => {
       if(card)body={...body,card_code:cardCode};

@@ -12,6 +12,17 @@
     if(typeof state?.reduceTransparency!=='boolean'||typeof state?.increaseContrast!=='boolean'){
       root.classList.remove('native-display-ready');return;
     }
+    const bodyPointSize=state.preferredBodyPointSize;
+    if(typeof bodyPointSize==='number'&&Number.isFinite(bodyPointSize)&&bodyPointSize>0){
+      const scale=bodyPointSize/17;
+      root.style.setProperty('--native-root-font-size',`${16*scale}px`);
+      root.classList.toggle('large-text',scale>=1.3);
+      root.classList.toggle('large-text-stack-tabs',scale>=2.5);
+    }else{
+      root.style.removeProperty('--native-root-font-size');
+      root.classList.remove('large-text');
+      root.classList.remove('large-text-stack-tabs');
+    }
     root.classList.toggle('native-reduce-transparency',state.reduceTransparency);
     root.classList.toggle('native-increase-contrast',state.increaseContrast);
     root.classList.add('native-display-ready');

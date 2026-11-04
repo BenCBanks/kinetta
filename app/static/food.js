@@ -633,7 +633,7 @@ function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
 const foodRow = (f, i) => `<button class="fe" data-i="${i}"><div><b>${esc(f.name)}</b><small class="muted">${esc([f.brand, f.serving && f.serving.label, f.source === 'usda' ? 'USDA' : f.source === 'off' ? 'Open Food Facts' : f.origin==='ai'?'Kit’s estimate'+(f.origin_edited?' · Edited':''):f.origin==='label'?'Nutrition label':f.source === 'custom' ? 'My food' : ''].filter(Boolean).join(' · '))}</small></div>
   <div class="r kcal-line"><b class="num">${r0(f.per_serving ? f.per_serving.kcal : f.per100 && f.serving ? f.per100.kcal * (f.serving.g || 100) / 100 : f.kcal)}</b><span> kcal</span></div></button>`;
 function tSearch(body, where, close) {
-  body.innerHTML = `<form id="ts-f" role="search"><input type="search" name="q" placeholder="Search foods, brands…" aria-label="Search foods and brands" autocomplete="off" enterkeyhint="search"></form><div id="ts-r" class="results"><p class="small muted">Your own foods and recent items come first, then USDA and Open Food Facts.</p></div>`;
+  body.innerHTML = `<form id="ts-f" role="search"><input type="search" name="q" placeholder="Search" aria-label="Search foods and brands" autocomplete="off" enterkeyhint="search"></form><div id="ts-r" class="results"><p class="small muted">Your own foods and recent items come first, then USDA and Open Food Facts.</p></div>`;
   const inp = $('input', body), out = $('#ts-r', body); softFocus(inp);
   let timer, seq = 0, all = [];
   const draw = (groups) => {
@@ -826,7 +826,7 @@ function savedSheet(m, w, closeParent, after) {
   });
 }
 function tQuick(body, where, close) {
-  body.innerHTML = `<form class="form" id="tq"><label>Name<input name="name" placeholder="e.g. Restaurant salad" maxlength="200"></label>${macroInputs()}
+  body.innerHTML = `<form class="form" id="tq"><label>Name<input name="name" placeholder="e.g. Salad" maxlength="200"></label>${macroInputs()}
     <p class="small muted">Enter calories, or all three macros to work them out. Other blank nutrients stay unknown.</p>
     <div class="actions"><button class="primary">Add</button></div></form>`;
   guardFoodSheet(body,close,readOwner());const f = $('#tq', body); softFocus(f.name);

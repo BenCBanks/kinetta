@@ -51,7 +51,9 @@ semantics, the real production timeout, missing/malformed/rejected bridges and o
 The five `header-*` fixtures measure Me, Activity, Track, Progress and Nutrition in each theme. They retain the
 production layout and record shell/header/title and text-glyph bounds alongside actual UIKit window, status-bar,
 WebView frame and scroll insets. Health/GPS reads and push registration are replaced by explicit stand-ins; the
-display bridge and WebView geometry remain real. Each phone now has 48 captures. The regression requires all five headers to start at the measured native safe
+display bridge and WebView geometry remain real. Each phone now has 56 captures. The regression requires all five headers to start at the measured native safe
 area, title positions to agree within 2pt, and visible header controls to retain 44px targets below the status
 area. It also rejects unexpected WebView/content insets. Browser fixture checks are separate from actual
 Simulator evidence; the earlier extra 10pt shell gap fails this check on both phones and in both themes.
+
+Four additional captures per theme exercise Nutrition, Add food, Choose food with its meal/day picker open, and sign-up at the actual UIKit `AccessibilityExtraExtraExtraLarge` category. These runs do not force a CSS root size: they verify the reported category and body point size, scaled computed text, reachable primary controls, and a fully visible selected Nutrition tab with unbroken labels. Browser root 32px and 52px captures remain labelled text-scale proxies, not Dynamic Type evidence. Physical iPhone behavior remains separate acceptance work.

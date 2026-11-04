@@ -37,6 +37,12 @@
 .nutrition-home .meal .fe small { font-size:.8125rem; }
 .nutrition-home .meal .meal-calories { white-space:nowrap; flex:none; }
 .nutrition-home .meal .meal-calories b,.nutrition-home .meal .meal-calories small { display:inline; }
+/* Keep the Goals control out of the calorie total's text column when text is enlarged. */
+html.large-text .nutrition-summary-link .nutrition-summary { padding-right:0; }
+html.large-text .nutrition-home .nutrition-goals { position:static; width:fit-content; max-width:calc(100% - 16px); height:auto; margin:4px 8px 12px auto; padding-block:8px; white-space:normal; }
+html.large-text-stack-tabs .nutrition-home .top { display:grid; grid-template-columns:minmax(0,1fr) max-content; align-items:center; column-gap:8px; row-gap:4px; }
+html.large-text-stack-tabs .nutrition-home .top h1 { grid-column:1/-1; margin:0; font-size:1.125rem; letter-spacing:0; overflow-wrap:normal; word-break:normal; }
+html.large-text-stack-tabs .nutrition-home .top .acts { grid-column:2; justify-self:end; margin-left:0; }
 .nutrition-detail .top { display:grid; grid-template-columns:max-content minmax(0,1fr) auto; gap:8px; }
 .nutrition-detail .top h1 { font-size:1.5rem; }
 .nutrition-detail .top .acts { flex-wrap:nowrap; }

@@ -2,21 +2,25 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const code=fs.readFileSync('app/static/appearance.js','utf8'),flush=()=>new Promise(setImmediate);
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
-function fixture({native=true,missing=false,read=()=>Promise.resolve({reduceTransparency:false,increaseContrast:false}),lateListener=false}={}){
-  const classes=new Set(native?['native']:[]),events={},timers=new Map();let calls=0,removed=0,id=0;
+function fixture({native=true,missing=false,read=()=>Promise.resolve({reduceTransparency:false,increaseContrast:false,preferredBodyPointSize:17}),lateListener=false}={}){
+  const classes=new Set(native?['native']:[]),events={},timers=new Map(),styles=new Map();let calls=0,removed=0,id=0;
   const registration=deferred(),handle={remove:()=>{removed++;return Promise.resolve();}};
   const display={getState:()=>{calls++;return read();},addListener:(name,fn)=>{events[name]=fn;return lateListener?registration.promise:Promise.resolve(handle);}};
   const c={Capacitor:{isNativePlatform:()=>native,Plugins:{KinettaDisplayPreferences:missing?undefined:display,App:{addListener:(name,fn)=>{events[name]=fn;return Promise.resolve(handle);}}}},
-    document:{documentElement:{classList:{add:x=>classes.add(x),remove:x=>classes.delete(x),toggle:(x,on)=>on?classes.add(x):classes.delete(x)}}},
+    document:{documentElement:{style:{setProperty:(name,value)=>styles.set(name,value),removeProperty:name=>styles.delete(name)},classList:{add:x=>classes.add(x),remove:x=>classes.delete(x),toggle:(x,on)=>on?classes.add(x):classes.delete(x)}}},
     addEventListener:(name,fn)=>events[name]=fn,setTimeout:(fn,ms)=>{assert.equal(ms,2000);const n=++id;timers.set(n,fn);return n;},clearTimeout:n=>timers.delete(n)};
   vm.createContext(c);vm.runInContext(code,c);
-  return {classes,events,timers,registration,handle,calls:()=>calls,removed:()=>removed};
+  return {classes,events,timers,styles,registration,handle,calls:()=>calls,removed:()=>removed};
 }
 (async()=>{
-  let f=fixture();assert(!f.classes.has('native-display-ready'),'The first paint is solid until preferences are known');await flush();assert(f.classes.has('native-display-ready'));assert(!f.classes.has('native-reduce-transparency'));
+  let f=fixture();assert(!f.classes.has('native-display-ready'),'The first paint is solid until preferences are known');await flush();assert(f.classes.has('native-display-ready'));assert(!f.classes.has('native-reduce-transparency'));assert.equal(f.styles.get('--native-root-font-size'),'16px');assert(!f.classes.has('large-text'));
   f.events.changed({reduceTransparency:true,increaseContrast:false});assert(f.classes.has('native-reduce-transparency'));
   f.events.changed({reduceTransparency:false,increaseContrast:true});assert(!f.classes.has('native-reduce-transparency'));assert(f.classes.has('native-increase-contrast'));
   f.events.changed({reduceTransparency:false,increaseContrast:false});assert(!f.classes.has('native-increase-contrast'));assert.equal(f.timers.size,0);
+  f.events.changed({reduceTransparency:false,increaseContrast:false,preferredBodyPointSize:34});assert.equal(f.styles.get('--native-root-font-size'),'32px');assert(f.classes.has('large-text'),'A doubled preferred body size selects the reflow layout');assert(!f.classes.has('large-text-stack-tabs'),'Two-column tabs stay compact at 200%');
+  f.events.changed({reduceTransparency:false,increaseContrast:false,preferredBodyPointSize:53});assert.equal(f.styles.get('--native-root-font-size'),`${16*53/17}px`);assert(f.classes.has('large-text'),'Largest Dynamic Type retains the native text scale');assert(f.classes.has('large-text-stack-tabs'),'The largest category stacks chooser tabs to keep every word whole');
+  f.events.changed({reduceTransparency:false,increaseContrast:false,preferredBodyPointSize:17});assert.equal(f.styles.get('--native-root-font-size'),'16px');assert(!f.classes.has('large-text'));assert(!f.classes.has('large-text-stack-tabs'));
+  f.events.changed({reduceTransparency:false,increaseContrast:false,preferredBodyPointSize:NaN});assert.equal(f.styles.has('--native-root-font-size'),false);assert(!f.classes.has('large-text'));assert(!f.classes.has('large-text-stack-tabs'),'Invalid point sizes fall back to the stylesheet default');
   f.events.changed({reduceTransparency:'false',increaseContrast:false});assert(!f.classes.has('native-display-ready'),'Malformed flags keep the solid fallback');
   f=fixture({native:false});await flush();assert.equal(f.calls(),0);assert.equal(Object.keys(f.events).length,0,'Web appearance remains owned by CSS media queries');
   f=fixture({missing:true});await flush();assert(!f.classes.has('native-display-ready'));assert.equal(f.calls(),0,'An older native bridge remains usable and solid');
@@ -32,5 +36,5 @@ function fixture({native=true,missing=false,read=()=>Promise.resolve({reduceTran
   pending=deferred();f=fixture({read:()=>pending.promise});await flush();f.events.pagehide();assert.equal(f.removed(),2);pending.resolve({reduceTransparency:false,increaseContrast:false});await flush();assert(!f.classes.has('native-display-ready'));f.events.changed({reduceTransparency:false,increaseContrast:false});assert(!f.classes.has('native-display-ready'),'A disposed view ignores late notifications');
   f=fixture({lateListener:true});await flush();f.events.pagehide();assert.equal(f.removed(),1);f.registration.resolve(f.handle);await flush();assert.equal(f.removed(),2,'A listener registered after disposal is removed too');
   f=fixture();await flush();f.handle.remove=()=>{throw Error('Bridge closed');};assert.doesNotThrow(()=>f.events.pagehide(),'Listener cleanup remains safe after bridge shutdown');
-  console.log('Native display preferences: initial solid fallback, live flags, browser/old bridge, notification/read ordering, foreground refresh, nonterminal watchdog/error and listener disposal PASS');
+  console.log('Native display preferences: baseline/large text scale, reflow class, live flags, browser/old bridge, notification/read ordering, foreground refresh, watchdog/error and listener disposal PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});

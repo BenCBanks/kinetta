@@ -34,8 +34,19 @@
   }
   async function capture(){
     for(let n=0;n<150;n++){
-      if(cfg.headerPage?(App.pageReady&&document.querySelector('#page h1')):cfg.friends?(App.pageReady&&document.querySelector('#fr-own-list')&&document.querySelectorAll('.pym-tile').length===3):cfg.activity?(App.pageReady&&document.querySelector('.compact-detail-title')):cfg.recording?document.querySelector(cfg.stage==='track-review'?'#track-photos-add:not(:disabled)':'#track-lap'):cfg.stage==='food'?document.querySelector('#thread-text'):document.querySelector('#dk-name'))break;
+      if(cfg.headerPage?(App.pageReady&&document.querySelector('#page h1')):cfg.friends?(App.pageReady&&document.querySelector('#fr-own-list')&&document.querySelectorAll('.pym-tile').length===3):cfg.activity?(App.pageReady&&document.querySelector('.compact-detail-title')):cfg.recording?document.querySelector(cfg.stage==='track-review'?'#track-photos-add:not(:disabled)':'#track-lap'):cfg.stage==='signup'?document.querySelector('.login form button[type="submit"]'):['food','choose-food'].includes(cfg.stage)?document.querySelector('#thread-text'):document.querySelector('#dk-name'))break;
       await new Promise(ok=>setTimeout(ok,100));
+    }
+    if(cfg.stage==='signup'&&!document.querySelector('.login form button[type="submit"]')&&typeof showSignup==='function'){
+      history.replaceState(null,'','/signup');await showSignup();
+      for(let n=0;n<150&&!document.querySelector('.login form button[type="submit"]');n++)await new Promise(ok=>setTimeout(ok,100));
+    }
+    if(cfg.stage==='choose-food'){
+      const trigger=document.querySelector('[data-thread-quick="recipes"]');if(!trigger)throw Error('Add food quick action is missing');trigger.click();
+      for(let n=0;n<150&&!document.querySelector('.sheet #as-tabs.choose-food-tabs');n++)await new Promise(ok=>setTimeout(ok,100));
+      const context=document.querySelector('.sheet #as-context');if(!context)throw Error('Choose food destination control is missing');context.click();
+      for(let n=0;n<150&&!document.querySelector('#as-destination [name="date"]');n++)await new Promise(ok=>setTimeout(ok,100));
+      if(!document.querySelector('#as-destination [name="date"]'))throw Error('Meal and day picker did not open');
     }
     if(cfg.activity){let socialReady=false;for(let n=0;n<150;n++){const box=document.querySelector('#d-soc'),requested=cfg.requests.includes('/api/activities/1/social'),hasContent=cfg.activity.social.cheers.length||cfg.activity.social.comments.length;socialReady=!!box&&requested&&(hasContent?!box.hidden:box.hidden);if(socialReady)break;await new Promise(ok=>setTimeout(ok,100));}if(!socialReady)throw Error('Owner activity empty-social state did not finish loading');}
     if(cfg.store&&cfg.activity)document.querySelector('[data-dt=charts]')?.click();
@@ -51,17 +62,24 @@
     let safeTop=0,safeBottom=0,previous='',stable=0;
     for(let n=0;n<150&&stable<8;n++){
       const cs=getComputedStyle(probe);safeTop=parseFloat(cs.paddingTop)||0;safeBottom=parseFloat(cs.paddingBottom)||0;
-      const key=JSON.stringify([safeTop,safeBottom,rect('.shell'),rect(cfg.stage==='food'?'.thread-heading':'.top'),visualViewport?.height]);
+      const key=JSON.stringify([safeTop,safeBottom,rect(['food','choose-food'].includes(cfg.stage)?'.thread-heading':'.top'),rect('.shell'),visualViewport?.height]);
       stable=key===previous&&(!Native.on||safeTop>=20)?stable+1:0;previous=key;await new Promise(ok=>setTimeout(ok,100));
     }
     probe.remove();if(Native.on&&(safeTop<20||stable<8))throw Error('Native safe-area layout did not settle');
     // Exercise the real read-only UIKit bridge; a silent old/missing plugin must fail this check.
     for(let n=0;n<50&&!document.documentElement.classList.contains('native-display-ready');n++)await new Promise(ok=>setTimeout(ok,100));
-    const nav=document.querySelector('nav.tabs'),navStyle=getComputedStyle(nav),navigation={
-      ready:document.documentElement.classList.contains('native-display-ready'),visible:navStyle.display!=='none',box:rect('nav.tabs'),
-      items:[...nav.querySelectorAll('a')].map(a=>({text:a.querySelector('span').textContent,selected:a.getAttribute('aria-current')==='page',box:(()=>{const r=a.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})(),label:(()=>{const r=a.querySelector('span').getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})()}))};
+    const nav=document.querySelector('nav.tabs'),navStyle=nav?getComputedStyle(nav):null,selectedTab=nav?.querySelector('[aria-current="page"]'),selectedRect=selectedTab?.getBoundingClientRect(),navRect=nav?.getBoundingClientRect(),navigation={
+      ready:document.documentElement.classList.contains('native-display-ready'),visible:!!nav&&navStyle.display!=='none',box:rect('nav.tabs'),
+      scrollable:!!nav&&nav.scrollWidth>nav.clientWidth+1,selectedVisible:!!selectedTab&&selectedRect.left>=navRect.left+nav.clientLeft-1&&selectedRect.right<=navRect.right-nav.clientLeft+1,
+      labelsSingleLine:!!nav&&[...nav.querySelectorAll('a span')].every(label=>{const a=label.closest('a'),line=parseFloat(getComputedStyle(a).fontSize)*1.1;return label.scrollWidth<=label.clientWidth+1&&label.getBoundingClientRect().height<=line+2;}),
+      items:nav?[...nav.querySelectorAll('a')].map(a=>({text:a.querySelector('span').textContent,selected:a.getAttribute('aria-current')==='page',box:(()=>{const r=a.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})(),label:(()=>{const r=a.querySelector('span').getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})()})):[]};
     const field=document.querySelector('#thread-text'),fieldSize=field?{...rect('#thread-text'),scrollHeight:field.scrollHeight,clientHeight:field.clientHeight}:null;
-    const result={fixture:true,store:!!cfg.store,blocked:cfg.blocked,bodyText:cfg.store?document.querySelector('#page')?.innerText:null,display:cfg.displayDiagnostics(),navigation,field:fieldSize,run:cfg.run,stage:cfg.stage,root:cfg.root,theme:matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light',native:Native.on,viewport:{width:innerWidth,height:innerHeight,offset:visualViewport?.offsetTop||0},safeTop,safeBottom,back:rect(cfg.stage==='food'?'.thread-heading .back':'.top .back'),header:rect(cfg.stage==='food'?'.thread-heading':'.top'),name:rect('#dk-name'),content:rect('.recipe-content'),composer:rect(cfg.stage==='food'?'#thread-composer':'#dk-add'),review:rect('#recipe-finish'),overflow:document.documentElement.scrollWidth>innerWidth+1,status:document.querySelector('#thread-status')?.textContent||'',errors:cfg.errors,requests:cfg.requests};
+    const textTarget=cfg.stage==='header-food'?'.nutrition-home h1':cfg.stage==='food'?'.thread-heading h1':cfg.stage==='choose-food'?'.sheet header h2':cfg.stage==='signup'?'.login h1':null;
+    const actionSelector=cfg.stage==='header-food'?'#fq-add':cfg.stage==='food'?'#thread-plus':cfg.stage==='choose-food'?'#as-destination [name="date"]':cfg.stage==='signup'?'.login form button[type="submit"]':null;
+    let actionReachable=false,actionBox=null;
+    if(actionSelector){const action=document.querySelector(actionSelector);if(action){const windowY=scrollY,parents=[];for(let e=action.parentElement;e;e=e.parentElement)if(e.scrollHeight>e.clientHeight+1)parents.push([e,e.scrollTop,e.scrollLeft]);action.scrollIntoView({block:'center',inline:'nearest'});await new Promise(ok=>setTimeout(ok,120));const r=action.getBoundingClientRect();actionReachable=r.width>0&&r.height>0&&r.top>=0&&r.bottom<=innerHeight;actionBox={x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};for(const [e,top,left] of parents.reverse()){e.scrollTop=top;e.scrollLeft=left;}scrollTo(0,windowY);await new Promise(ok=>setTimeout(ok,120));}}
+    const rootFontSize=parseFloat(getComputedStyle(document.documentElement).fontSize),bodyFontSize=parseFloat(getComputedStyle(document.body).fontSize),targetFontSize=textTarget?parseFloat(getComputedStyle(document.querySelector(textTarget)).fontSize):null;
+    const result={fixture:true,store:!!cfg.store,blocked:cfg.blocked,bodyText:cfg.store?document.querySelector('#page')?.innerText:null,display:cfg.displayDiagnostics(),navigation,field:fieldSize,run:cfg.run,stage:cfg.stage,root:cfg.root,theme:matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light',native:Native.on,viewport:{width:innerWidth,height:innerHeight,offset:visualViewport?.offsetTop||0},safeTop,safeBottom,back:rect(['food','choose-food'].includes(cfg.stage)?'.thread-heading .back':'.top .back'),header:rect(['food','choose-food'].includes(cfg.stage)?'.thread-heading':'.top'),name:rect('#dk-name'),content:rect('.recipe-content'),composer:rect(cfg.stage==='food'?'#thread-composer':'#dk-add'),review:rect('#recipe-finish'),overflow:document.documentElement.scrollWidth>innerWidth+1,status:document.querySelector('#thread-status')?.textContent||'',rootFontSize,bodyFontSize,largeText:{targetFontSize,actionReachable,action:actionBox},errors:cfg.errors,requests:cfg.requests};
     if(cfg.headerPage){
       const title=document.querySelector('#page h1'),shell=document.querySelector('#page'),header=title.closest('.top,.me-top'),glyph=document.createRange();glyph.selectNodeContents(title);
       const g=glyph.getBoundingClientRect(),css=getComputedStyle(shell),h=getComputedStyle(header);

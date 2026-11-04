@@ -1,7 +1,7 @@
 """Instrument a disposable unsigned Simulator bundle; never modify source or the original build."""
 import argparse,json,shutil,subprocess,uuid
 from pathlib import Path
-p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('destination',type=Path);p.add_argument('--stage',choices=['recipe','review','food','track-live','track-review','track-map','activity','activity-sticky','activity-empty','activity-map','friends-empty','friends-typical','friends-heavy','header-me','header-activity','header-track','header-progress','header-food'],required=True);p.add_argument('--store',action='store_true');p.add_argument('--map-config',type=Path);p.add_argument('--root',type=int,default=16);p.add_argument('--run',required=True);p.add_argument('--update',action='store_true');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('destination',type=Path);p.add_argument('--stage',choices=['recipe','review','food','choose-food','signup','track-live','track-review','track-map','activity','activity-sticky','activity-empty','activity-map','friends-empty','friends-typical','friends-heavy','header-me','header-activity','header-track','header-progress','header-food'],required=True);p.add_argument('--store',action='store_true');p.add_argument('--map-config',type=Path);p.add_argument('--root',type=int);p.add_argument('--run',required=True);p.add_argument('--update',action='store_true');a=p.parse_args()
 assert a.source.suffix=='.app' and a.source.is_dir()
 assert a.destination.suffix=='.app' and a.destination.resolve()!=a.source.resolve()
 if a.update:

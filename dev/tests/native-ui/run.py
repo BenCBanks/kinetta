@@ -73,15 +73,17 @@ for device in preferred:
   installed=None;recovered=False
   for theme in (('light',) if a.store else ('light','dark')):
    sim('ui',udid,'appearance',theme)
-   stages=[('header-me',16),('activity',16),('header-track',16),('header-food',16),('food',16),('header-progress',16),('header-activity',16)] if a.store else [(name,16) for name in ['header-me','header-activity','header-track','header-progress','header-food']]+[('recipe',16),('review',16),('food',16),('recipe',24),('food',24),('track-live',16),('track-map',16),('track-review',16),('track-live',24),('track-review',24),('activity',16),('activity-sticky',16),('activity-empty',16),('activity-map',16),('activity',24),('friends-empty',16),('friends-typical',16),('friends-heavy',16),('friends-heavy',24)]
+   stages=[('header-me',16),('activity',16),('header-track',16),('header-food',16),('food',16),('header-progress',16),('header-activity',16)] if a.store else [(name,16) for name in ['header-me','header-activity','header-track','header-progress','header-food']]+[('recipe',16),('review',16),('food',16),('recipe',24),('food',24),('track-live',16),('track-map',16),('track-review',16),('track-live',24),('track-review',24),('activity',16),('activity-sticky',16),('activity-empty',16),('activity-map',16),('activity',24),('friends-empty',16),('friends-typical',16),('friends-heavy',16),('friends-heavy',24)]+[(name,None) for name in ['header-food','food','choose-food','signup']]
    for stage,root in stages:
-    diagnostics['phase']=f'{theme} {stage} root={root}';(a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
-    print(f'Native UI: {device["name"]} {theme} {stage} root={root}',flush=True)
+    dynamic=root is None;root_label='native' if dynamic else str(root)
+    sim('ui',udid,'content_size','accessibility-extra-extra-extra-large' if dynamic else 'large')
+    diagnostics['phase']=f'{theme} {stage} root={root_label}';(a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
+    print(f'Native UI: {device["name"]} {theme} {stage} root={root_label}',flush=True)
     token=uuid.uuid4().hex;copy=a.output/'KinettaLayout.app'
     if installed:recovered=stop_for_fixture(sim,udid,theme,recovered)
     diagnostics['terminationRecovery']=recovered;(a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
     destination=installed or copy
-    run('python3',str(Path(__file__).with_name('prepare.py')),str(a.app),str(destination),'--stage',stage,'--root',str(root),'--run',token,*(['--update'] if installed else []),*(['--store','--map-config',str(a.output/'public-map.json')] if a.store else []))
+    run('python3',str(Path(__file__).with_name('prepare.py')),str(a.app),str(destination),'--stage',stage,*(['--root',str(root)] if root is not None else []),'--run',token,*(['--update'] if installed else []),*(['--store','--map-config',str(a.output/'public-map.json')] if a.store else []))
     if not installed:
      sim('install',udid,str(copy));installed=Path(sim('get_app_container',udid,'com.kinetta.app','app'))
     container=Path(sim('get_app_container',udid,'com.kinetta.app','data'));sim('launch',udid,'com.kinetta.app')
@@ -92,7 +94,7 @@ for device in preferred:
       if candidate.get('run')==token:metrics=candidate;break
      except (OSError,ValueError):pass
      time.sleep(.2)
-    filename=device['name'].replace(' ','-').replace('(','').replace(')','')+'-'+theme+'-'+stage+'-'+str(root)
+    filename=device['name'].replace(' ','-').replace('(','').replace(')','')+'-'+theme+'-'+stage+'-'+root_label
     if not metrics:
      sim('io',udid,'screenshot','--type=png',str(a.output/(filename+'-missing-metrics.png')),check=False,timeout=20)
      (a.output/(filename+'-missing-metrics.json')).write_text(json.dumps({**diagnostics,'error':'No metrics for current fixture run'},indent=2))
@@ -105,6 +107,18 @@ for device in preferred:
     assert not metrics['errors'] and not metrics['overflow'] and not metrics['status'],metrics
     nav=metrics['navigation']
     assert nav['ready'],'Actual UIKit display-preference bridge must respond: '+json.dumps(metrics.get('display',{}),sort_keys=True)
+    if dynamic:
+     readings=[e for e in metrics['display']['events'] if e.get('event')=='read-end' and isinstance(e.get('preferredBodyPointSize'),(int,float))]
+     assert readings, 'Actual UIKit bridge must report a preferred body point size'
+     display=readings[-1];assert str(display.get('contentSizeCategory','')).endswith('AccessibilityExtraExtraExtraLarge'),display
+     point_size=display['preferredBodyPointSize'];assert point_size>=40,display
+     scale=point_size/17
+     assert abs(metrics['rootFontSize']-16*scale)<1.5,metrics
+     assert abs(metrics['bodyFontSize']-15*scale)<1.5,metrics
+     assert metrics['largeText']['actionReachable'],metrics
+     assert metrics['largeText']['targetFontSize']>=metrics['bodyFontSize'],metrics
+     if stage=='header-food':
+      assert nav['scrollable'] and nav['selectedVisible'] and nav['labelsSingleLine'],metrics
     assert nav['visible']==(stage in ('activity','activity-sticky','activity-empty') or stage.startswith(('friends-','header-'))),metrics
     if a.store:
      raw=capture.read_bytes();dimensions=run('sips','-g','pixelWidth','-g','pixelHeight',str(capture))
@@ -125,7 +139,7 @@ for device in preferred:
       assert target['width']>=44 and target['height']>=44,metrics
       assert label['x']>=target['x']-1 and label['x']+label['width']<=target['x']+target['width']+1,metrics
       assert label['y']>=target['y'] and label['bottom']<=target['bottom'],metrics
-    if not stage.startswith(('track-','activity','header-')):assert metrics['back'] and abs(metrics['back']['y']-metrics['safeTop'])<=4,metrics
+    if not stage.startswith(('track-','activity','header-','signup')):assert metrics['back'] and abs(metrics['back']['y']-metrics['safeTop'])<=4,metrics
     if stage.startswith('header-'):
      assert metrics['topBand']['page']==stage.removeprefix('header-') and metrics['topBand']['title']['height']>0,metrics
      if stage=='header-food':check_headers([*results,metrics][-5:])
@@ -169,13 +183,14 @@ for device in preferred:
      assert metrics['name']['y']<=metrics['header']['bottom']+30,metrics
      assert metrics['composer']['bottom']<=metrics['viewport']['height']-metrics['safeBottom']+1,metrics
     if stage=='review':assert metrics['review'],metrics
-    if stage=='food':
+    if stage in ('food','choose-food'):
      assert metrics['field'] and metrics['field']['scrollHeight']<=metrics['field']['clientHeight']+1,metrics
-     assert metrics['composer']['bottom']<=metrics['viewport']['height']-metrics['safeBottom']+1,metrics
+     if stage=='food':assert metrics['composer']['bottom']<=metrics['viewport']['height']-metrics['safeBottom']+1,metrics
+     else:assert metrics['largeText']['actionReachable'],metrics
     results.append(metrics);(a.output/'results.json').write_text(json.dumps(results,indent=2))
  finally:
   if udid:sim('shutdown',udid,check=False,timeout=20);sim('delete',udid,check=False,timeout=20)
 import shutil
 shutil.rmtree(a.output/'KinettaLayout.app',ignore_errors=True)
-assert len(results)==(7 if a.store else 48*len(preferred)),'Every selected phone needs all forty-eight layout cases'
+assert len(results)==(7 if a.store else 56*len(preferred)),'Every selected phone needs all fifty-six standard and large-text cases'
 print(f'PASS {len(results)} actual native WebView layout captures with fictional API stand-ins; physical device checks remain separate')
