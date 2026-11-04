@@ -6,7 +6,7 @@ from kc import person,PW
 base=urlparse(os.environ.get('KINETTA_URL','http://localhost:8798'));project=os.environ.get('KINETTA_PROJECT','kinettatest')
 assert base.hostname in ('localhost','127.0.0.1') and (project.startswith('kt-') or project=='kinettatest')
 port=subprocess.check_output(['docker','inspect','--format','{{(index (index .NetworkSettings.Ports "8000/tcp") 0).HostPort}}',project+'-app-1'],text=True).strip();assert base.port==int(port)
-for who in ('empty','one','three','photo','clarify','actions','nullable','barcode','logged','context','copy','edit','recent','recentd','untitled','multi'):
+for who in ('empty','one','three','photo','clarify','actions','nullable','barcode','logged','context','copy','edit','recent','recentd','untitled','multi','multid'):
  c=person('zz_test_food_compact_'+who);assert c.post('/api/account/delete',{'password':PW})[0]==200;c=person('zz_test_food_compact_'+who,'River '+who.title());ai_ok=who=='barcode';assert c.put('/api/profile',{'tz':'UTC','ai_ok':ai_ok,'ai_adult':ai_ok})[0]==200
 script=r'''
 import datetime as dt,uuid

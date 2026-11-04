@@ -642,6 +642,10 @@ function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
     const addUsual=(button,entry,name,restoreLabel)=>{
       if(button.disabled||owner!==readOwner())return;
       const plusMarkup=button._foodPlusMarkup||(button._foodPlusMarkup=button.innerHTML);
+      const subtitle=button.closest('.usual')?.querySelector('.fe small');
+      if(subtitle&&!button._foodOriginalSubtitle)button._foodOriginalSubtitle={text:subtitle.textContent,className:subtitle.className};
+      const originalSubtitle=button._foodOriginalSubtitle;
+      if(subtitle&&originalSubtitle){subtitle.textContent=originalSubtitle.text;subtitle.className=originalSubtitle.className;}
       if(button._foodFeedbackTimer){clearTimeout(button._foodFeedbackTimer);button._foodFeedbackTimer=null;}
       button.disabled=true;button.removeAttribute('aria-busy');button.classList.remove('food-add-success','food-add-failed');button.textContent='';button.setAttribute('aria-label',restoreLabel);button.setAttribute('aria-busy','true');
       pendingAdds++;updateDone();
@@ -652,7 +656,7 @@ function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
           if(!result.batchItems?.length){close();toast(result.queued?'Food draft saved on this phone · waiting to send':'Added for review');return;}
           batchItems.push(...result.batchItems);if(result.queued)for(const it of result.batchItems)queuedIds.add(it.client_id);updateTitle();
           if(button.isConnected){button.textContent='✓';button.classList.add('food-add-success');button.setAttribute('aria-label',`Added ${name}`);button.removeAttribute('aria-busy');button._foodFeedbackTimer=setTimeout(()=>{button._foodFeedbackTimer=null;if(!button.isConnected)return;button.innerHTML=plusMarkup;button.classList.remove('food-add-success');button.disabled=false;button.setAttribute('aria-label',restoreLabel);},2000);}
-        }catch(e){if(button.isConnected){button.disabled=false;button.removeAttribute('aria-busy');button.classList.add('food-add-failed');button.textContent="Couldn't add · Retry";button.setAttribute('aria-label',`Couldn't add ${name}. Retry.`);}}
+        }catch(e){if(button.isConnected){if(subtitle){subtitle.textContent="Couldn't add";subtitle.className='food-add-error';}button.disabled=false;button.removeAttribute('aria-busy');button.classList.add('food-add-failed');button.textContent='↻';button.setAttribute('aria-label',`Retry adding ${name}`);}}
         finally{pendingAdds--;updateDone();finishBatch();}
       })();
     };
