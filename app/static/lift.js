@@ -57,7 +57,7 @@ function startLiftSheet() {
       ${recentFailed ? '<p class="small muted">Recent sessions couldn’t load.</p><button class="ghost wide" id="sl-retry">Try again</button>' : ''}
       ${recent.length ? `<h3 class="ghead">Or repeat one</h3><p class="small muted sl-hint">Its exercises come along, with that day's numbers in grey beside each set.</p>
       <div class="pick-list sl-routines">${recent.map((s) => `<div class="sl-routine"><button type="button" class="row-link sl-repeat" data-copy="${s.id}"><span class="grow"><span>${esc(s.name)}</span>
-        <small class="muted">${esc(shortDay(s.start_time))} · ${esc(s.exercises.slice(0, 3).join(', '))}${s.exercises.length > 3 ? ` +${s.exercises.length - 3}` : ''}</small></span><span class="chev">${svg('chev')}</span></button>
+        <small class="muted">${esc(shortDay(s.start_time))} · ${esc(s.exercises.slice(0, 3).join(', '))}${s.exercises.length > 3 ? ` +${s.exercises.length - 3}` : ''}</small></span></button>
         <button type="button" class="sl-history" data-history="${s.id}" aria-label="View history for ${esc(s.name)}">History</button></div>`).join('')}</div>` : ''}
       <button class="ghost wide" id="sl-past">Log one you did earlier</button>`;
     const begin = async (copy) => {
@@ -89,20 +89,26 @@ function liftHistoryBest(sessions) {
   }
   return best;
 }
-function liftBestText(kind, set) {
+function liftHistoryBestText(kind, set) {
   if (kind === 'time') return `${set.secs || 0} s`;
   if (kind === 'body') return `${set.reps || 0} reps${set.kg ? ` + ${toW(set.kg)} ${wUnit()}` : ''}`;
-  return `${set.reps || 0} reps @ ${toW(set.kg) || 0} ${wUnit()}`;
+  return `${set.reps || 0} × ${toW(set.kg) || 0} ${wUnit()}`;
 }
 function liftHistoryMarkup(data, backTo) {
   const sessions = (data.sessions || []).slice(0, 5), best = liftHistoryBest(sessions);
+  const exerciseId = data.exercise?.id;
+  const bestSet = exerciseId == null ? null : best.get(exerciseId);
+  const bestSession = bestSet && sessions.find((s) => s.activity_id === bestSet.activity_id);
+  const summary = bestSet && bestSession
+    ? `Best · ${liftHistoryBestText(bestSet.kind, bestSet.set)} · ${fdate(bestSession.start_time, {month: 'short', day: 'numeric'})}`
+    : `Last ${sessions.length} session${sessions.length === 1 ? '' : 's'}`;
   const rows = sessions.map((session) => `<li class="lift-history-session"><h2 class="lift-history-date">${esc(fdate(session.start_time, {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'}))}</h2>
     ${(session.exercises || []).map((ex) => {
-      const mark = best.get(ex.exercise_id), selected = mark && mark.activity_id === session.activity_id;
-      return `<div class="lift-history-exercise"><a class="lift-history-name" href="/lift/history/exercise/${ex.exercise_id}?back=${encodeURIComponent(backTo)}">${esc(ex.name)}</a>
-        <p class="lift-history-sets">${esc(setsText(ex.sets, ex.kind) || 'No completed sets')}</p>${selected ? `<small class="lift-history-best">Best set · ${esc(liftBestText(mark.kind, mark.set))}</small>` : ''}</div>`;
+      const name = data.exercise ? '' : `<a class="lift-history-name" href="/lift/history/exercise/${ex.exercise_id}?back=${encodeURIComponent(backTo)}">${esc(ex.name)}</a>`;
+      return `<div class="lift-history-exercise">${name}<p class="lift-history-sets">${esc(setsText(ex.sets, ex.kind) || 'No completed sets')}</p></div>`;
     }).join('')}</li>`).join('');
-  return `<div class="card lift-history"><h1>${esc(data.name)}</h1><p class="muted">${sessions.length ? `Last ${sessions.length} session${sessions.length === 1 ? '' : 's'}` : 'No completed lifting sessions yet'}</p>
+  const heading = sessions.length ? `<p class="${bestSet ? 'muted lift-history-best' : 'muted'}">${esc(summary)}</p>` : '<p class="muted">No completed lifting sessions yet</p>';
+  return `<div class="${sessions.length ? 'lift-history' : 'card lift-history'}"><h1>${esc(data.name)}</h1>${heading}
     ${sessions.length ? `<ol class="lift-history-list">${rows}</ol>` : ''}</div>`;
 }
 function liftHistoryRoute(el, label, fallback, url, shape) {
@@ -120,6 +126,7 @@ route(/^\/lift\/history\/exercise\/(\d+)$/, 'progress', (el, id) => {
   const back = new URLSearchParams(location.search).get('back'), fallback = back && /^\/lift\/history\/workout\/\d+$/.test(back) ? back : '/progress?view=lifting';
   return liftHistoryRoute(el, 'Lifting', fallback, `/api/lifts/exercises/${id}`, (data) => ({
     name: data.exercise.name,
+    exercise: data.exercise,
     sessions: (data.sessions || []).slice(0, 5).map((s) => ({...s, exercises: [{exercise_id: data.exercise.id, name: data.exercise.name, kind: data.exercise.kind, sets: s.sets}]}))
   }));
 });

@@ -57,14 +57,14 @@
 .compact-lift-history .lift-history h1 { margin:0; font-size:1.2rem; overflow-wrap:anywhere; }
 .compact-lift-history .lift-history > p { margin:3px 0 0; font-size:.875rem; }
 .lift-history-list { list-style:none; margin:10px 0 0; padding:0; }
-.lift-history-session { padding:10px 0; border-top:1px solid var(--line); }
+.lift-history-session { padding:12px 0; border-top:1px solid var(--line); }
 .lift-history-session:first-child { border-top:0; padding-top:2px; }
-.lift-history-date { margin:0 0 3px; font-size:.9375rem; }
-.lift-history-exercise { padding:5px 0; border-top:1px solid var(--line); }
-.lift-history-name { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:44px; color:var(--accent); font-weight:700; text-decoration:none; }
+.lift-history-date { margin:0 0 4px; color:var(--tx3); font-size:.9375rem; font-weight:500; }
+.lift-history-exercise { margin-top:8px; padding:0; border:0; }
+.lift-history-name { display:flex; align-items:center; min-height:44px; color:var(--accent); font-weight:600; text-decoration:none; }
 .lift-history-name .chev { flex:none; }
-.lift-history-sets { margin:0; font-size:.9375rem; font-weight:600; font-variant-numeric:tabular-nums; }
-.lift-history-best { display:block; margin-top:2px; color:var(--gold); font-size:.8125rem; font-weight:700; }
+.lift-history-sets { margin:0; font-size:1.0625rem; font-weight:600; font-variant-numeric:tabular-nums; }
+.lift-history-best { display:block; margin-top:3px; color:var(--tx3); font-size:.875rem; font-weight:500; }
 
 /* At enlarged text sizes, keep complete numeric values and the tick together.
    The set control and previous result use the line above instead of squeezing fields. */

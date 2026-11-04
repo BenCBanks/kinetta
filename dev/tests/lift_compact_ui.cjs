@@ -12,7 +12,10 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   await c.addInitScript(({base,id,aid,data,rest,root,native,token})=>{if(native){const prefs={server:base,token};window.Capacitor={isNativePlatform:()=>true,isPluginAvailable:n=>n==='Preferences',Plugins:{Preferences:{get:async({key})=>({value:prefs[key]??null}),set:async({key,value})=>{prefs[key]=value;},remove:async({key})=>{delete prefs[key];}}}};}document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px');localStorage.setItem('fit.lift:'+JSON.stringify([base,id,String(aid)]),JSON.stringify({unsent:false,data,lastTick:rest?Date.now()-12000:null}));},{base,id:me.id,aid,data,rest:state==='rest',root:size.root,native,token});
   const p=await c.newPage(),errors=[],writes=[];p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
   await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(u.pathname===`/api/activities/${aid}/lifts`||u.pathname===`/api/lifts/exercises/${ids.exercise}`)return r.continue();return r.fulfill({json:{}});}return r.continue();});
-  await p.goto(base+(state==='exercise'||state==='new'?'/lift/ex/'+ids[state]:'/track/lift/'+aid));await until(p,()=>App.pageReady&&!!document.querySelector('.lift-ex,.lx-head'),'lifting ready');return{c,p,errors,writes,get:url=>c.request.get(base+url,{headers:auth})};
+  await p.goto(base+(state==='exercise'||state==='new'?'/lift/ex/'+ids[state]:'/track/lift/'+aid));
+  const exerciseView=state==='exercise'||state==='new';
+  await until(p,isExercise=>isExercise?!!document.querySelector('.lx-head'):App.pageReady&&!!document.querySelector('.lift-ex'),exerciseView?`exercise content ${size.width}/${theme}`:'lifting ready',exerciseView);
+  return{c,p,errors,writes,get:url=>c.request.get(base+url,{headers:auth})};
  }
  async function spacing(p){
   const previousValues=await p.locator('.lift-prev > span:last-child').evaluateAll(ns=>ns.map(n=>{const r=document.createRange();r.selectNodeContents(n);return r.getClientRects().length;}));assert(previousValues.every(n=>n===1),'Each previous set value stays together on one line');
@@ -43,7 +46,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     await p.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));const header=await p.locator('.lift-top').boundingBox(),clock=await p.locator('.lift-header-clock').boundingBox();assert(header.y<=1&&clock.y>=header.y&&clock.y+clock.height<=header.y+header.height,'timer remains inside sticky header');
    }else{
     assert.equal(await p.locator('.top .back').innerText(),'Lifting');if(size.root===16)assert((await p.locator('.lx-head').boundingBox()).height<=120,'short exercise header');
-    if(state==='new'){assert.equal(await p.locator('.lx-rec').count(),0);assert.match(await p.locator('#page').innerText(),/Nothing logged yet/);}else{assert.equal(await p.locator('.lx-rec').count(),3);await until(p,()=>!!document.querySelector('#lx-chart svg'),'exercise chart');assert(await p.locator('#lx-chart svg').count()>0);await p.locator('#lx-note').click();await p.waitForSelector('#nt');assert.equal(await p.locator('#nt textarea').inputValue(),'Safety pins on 6');await p.keyboard.press('Escape');}
+    if(state==='new'){assert.equal(await p.locator('.lx-rec').count(),0);assert.match(await p.locator('#page').innerText(),/Nothing logged yet/);}else{assert.equal(await p.locator('.lx-rec').count(),3);await until(p,()=>!!document.querySelector('#lx-chart svg'),'exercise chart');assert(await p.locator('#lx-chart svg').count()>0);assert(await p.locator('.lx-head').isVisible(),'exercise content is visible before route-wide readiness');await shot(p,`exercise-${size.width}-${theme}`);await p.locator('#lx-note').click();await p.waitForSelector('#nt');assert.equal(await p.locator('#nt textarea').inputValue(),'Safety pins on 6');await p.keyboard.press('Escape');}
    }
    assert.deepEqual(errors,[]);assert(!writes.some(x=>x!=='/api/challenges/signup/continue'),'layout/menu opening writes no session');console.log(`Lifting ${name}: sticky timer, compact sets/note/Last, records/history and controls PASS`);await c.close();contexts.splice(contexts.indexOf(c),1);
   }
@@ -89,16 +92,27 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     const draftsBefore=await p.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('fit.lift:')).sort());
     await p.evaluate(()=>startLiftSheet());await until(p,()=>!!document.querySelector('.sl-routine'),'saved workout rows');
     assert.equal(await p.locator('.sl-routine').count(),1,'one saved workout row for the fixture name');
+    assert.equal(await p.locator('.sl-repeat .chev').count(),0,'repeat action has no second-destination chevron');
+    const historyAction=p.locator('.sl-history').first(),historyBox=await historyAction.boundingBox();assert.equal(await historyAction.innerText(),'History');assert(historyBox.width>=44&&historyBox.height>=44,'History stays the single trailing 44px action');
+    await p.waitForTimeout(450);await shot(p,`start-sheet-390-${theme}`);
     await p.locator('.sl-history').click();await until(p,()=>/^\/lift\/history\/workout\/\d+$/.test(location.pathname),'workout history route');
     await p.locator('.lift-history').waitFor();assert.equal(await p.locator('.lift-history-list > li').count(),2,'last two saved sessions are visible');
-    assert.equal(await p.locator('.lift-history-best').count(),3,'best set is marked for each exercise');
+    assert.equal(await p.locator('.lift-history-best').count(),0,'workout history has no repeated per-session best labels');
+    assert.equal(await p.locator('.lift-history').evaluate(n=>n.classList.contains('card')),false,'populated history has no card box');
+    assert.equal(await p.locator('.lift-history-date').first().evaluate(n=>getComputedStyle(n).fontSize),'15px','date is secondary 15px text');
+    assert.equal(await p.locator('.lift-history-sets').first().evaluate(n=>getComputedStyle(n).fontSize),'17px','sets are 17px text');
+    assert.deepEqual(await p.locator('.lift-history-session').evaluateAll(ns=>ns.map(n=>getComputedStyle(n).borderTopWidth)),['0px','1px'],'only sessions have one divider');
+    assert.equal(await p.locator('.lift-history-exercise').first().evaluate(n=>getComputedStyle(n).borderTopWidth),'0px','exercise rows do not add dividers');
     assert.match(await p.locator('.lift-history-sets').first().innerText(),/^3 × 5 @ \d+(?:\.\d+)? lb$/,'first exercise uses the familiar compact set format');
     assert.equal(await p.locator('#lx-chart').count(),0,'history stays a plain list');
     await p.waitForTimeout(450);assert.equal(await p.locator('.scrim:not([inert])').count(),0,'repeat sheet closes before history is read');
     await shot(p,`history-workout-390-${theme}`);
     await p.locator('.lift-history-name').first().click();await until(p,()=>/^\/lift\/history\/exercise\/\d+$/.test(location.pathname),'exercise history route');
     await until(p,()=>document.querySelector('.lift-history h1')?.textContent==='Squat','exercise history content');assert.equal(await p.locator('.lift-history-list > li').count(),2);
-    assert.equal(await p.locator('.lift-history-best').count(),1,'exercise history marks its best set');
+    assert.equal(await p.locator('.lift-history-name').count(),0,'exercise history does not repeat its title under each date');
+    assert.equal(await p.locator('.lift-history-best').count(),1,'best is summarized once below the exercise title');
+    assert.match(await p.locator('.lift-history-best').innerText(),/^Best · 5 × \d+(?:\.\d+)? lb · [A-Z][a-z]{2} \d{1,2}$/,'best summary includes the set and date in one muted line');
+    assert.equal(await p.locator('.lift-history').evaluate(n=>n.classList.contains('card')),false);
     await p.waitForTimeout(450);
     await shot(p,`history-exercise-390-${theme}`);
     await p.locator('.top .back').click();await until(p,()=>/^\/lift\/history\/workout\/\d+$/.test(location.pathname),'exercise history returns to workout history');
@@ -127,7 +141,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    for(const theme of ['light','dark']){
     const {c,p,errors}=await open('new',theme,{width:390,height:844,root:16});
     await p.evaluate(id=>go(`/lift/history/exercise/${id}`),ids.new);await until(p,()=>/^\/lift\/history\/exercise\/\d+$/.test(location.pathname),'empty exercise history route');
-    await p.getByText('No completed lifting sessions yet',{exact:true}).waitFor();assert.equal(await p.locator('.lift-history-list').count(),0);
+    await p.getByText('No completed lifting sessions yet',{exact:true}).waitFor();assert.equal(await p.locator('.lift-history-list').count(),0);assert.equal(await p.locator('.lift-history').evaluate(n=>n.classList.contains('card')),true,'empty history keeps its existing card treatment');
     await p.waitForTimeout(450);
     await shot(p,`history-empty-390-${theme}`);assert.deepEqual(errors,[]);console.log(`Empty lifting history 390/${theme}: explicit empty state PASS`);
     await c.close();contexts.splice(contexts.indexOf(c),1);
@@ -135,7 +149,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    for(const theme of ['light','dark']){
     const {c,p,errors}=await open('new',theme,{width:390,height:844,root:16}),failed=999999901;
     await c.route(`**/api/lifts/exercises/${failed}`,r=>r.fulfill({status:503,json:{detail:'Fictional history temporarily unavailable'}}),{times:1});
-    await p.evaluate(id=>go(`/lift/history/exercise/${id}`),failed);await until(p,()=>location.pathname===`/lift/history/exercise/${failed}`,'failed exercise history route');
+    await p.evaluate(id=>go(`/lift/history/exercise/${id}`),failed);await until(p,id=>location.pathname===`/lift/history/exercise/${id}`,'failed exercise history route',failed);
     await p.locator('#retry').waitFor();assert((await p.locator('#page').innerText()).includes('Fictional history temporarily unavailable'));
     await p.waitForTimeout(450);await shot(p,`history-error-390-${theme}`);assert.deepEqual(errors,[]);
     console.log(`Lifting history 390/${theme}: failed read shows retry instead of a stuck skeleton PASS`);
