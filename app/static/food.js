@@ -660,7 +660,7 @@ function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
     const context=$('#as-context',b),where=()=>destination,drawContext=()=>{const label=[dayLabel(destination.day,zone),MEAL_NAMES[destination.meal]].join(' · ');context.innerHTML=`${esc(label)} ${svg('chev')}`;context.setAttribute('aria-label',`Change food day and meal. Adding to ${label}.`);};
     drawContext();context.onclick=()=>foodDestinationPicker(where(),next=>{destination.day=next.day;destination.meal=next.meal;drawContext();},'as-destination');
     const tabs = {search: tSearch, usuals: tUsuals, saved: tSaved, quick: tQuick};
-    const show = (k) => { $$('[data-t]', b).forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.t === k))); tabs[k](body, where, close, k==='usuals'?addUsual:null); };
+    const show = (k) => { $$('[data-t]', b).forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.t === k))); if(k==='usuals')tabs[k](body,where,close,addUsual);else tabs[k](body,where,close); };
     $$('[data-t]', b).forEach((x) => x.onclick = () => show(x.dataset.t));
     show(tab);
     if (find) { const q = $('#as-body input[type=search]', b); if (q) { q.value = find; q.oninput(); } }
