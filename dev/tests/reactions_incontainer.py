@@ -58,8 +58,8 @@ class Reactions(unittest.TestCase):
    self.assertEqual(data['my_reaction'],kind);self.assertTrue(data['cheered']);self.assertEqual(len(data['cheers']),1)
    self.assertEqual(data['reactions'][kind],1);self.assertEqual(sum(data['reactions'].values()),1)
    self.assertEqual(self.actor.post(self.path+'/reaction',json={'kind':legacy}).json()['my_reaction'],kind)
-  self.assertEqual(len(self.notes()),1);self.assertEqual(self.notes()[0]['reaction_kind'],'fire')
-  shared=self.actor.get('/api/shared/'+str(self.aid)).json();self.assertEqual(shared['my_reaction'],'fire');self.assertEqual(shared['reactions']['fire'],1)
+  self.assertEqual(len(self.notes()),1);self.assertEqual(self.notes()[0]['reaction_kind'],'clap')
+  shared=self.actor.get('/api/shared/'+str(self.aid)).json();self.assertEqual(shared['my_reaction'],'clap');self.assertEqual(shared['reactions']['clap'],1)
   self.actor.post(self.path+'/cheer');self.assertEqual(self.actor.get(self.path+'/social').json()['my_reaction'],'clap')
   self.assertEqual(self.actor.post(self.path+'/reaction',json={}).json()['my_reaction'],'clap')
  def test_unlisted_input_rejected_without_changing_state(self):
