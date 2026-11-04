@@ -446,23 +446,24 @@ function wireRecentSaved(body,recent,where,{afterDish=()=>{},afterMeal=()=>{}}={
   });
 }
 
-async function addEntries(items,{thread=false,restoreFrom=null}={}) {   // each item gets a client_id, so a resend after a lost connection never doubles it
+async function addEntries(items,{thread=false,restoreFrom=null,silent=false}={}) {   // each item gets a client_id, so a resend after a lost connection never doubles it
   const owner=readOwner();
-  if(thread&&typeof FoodThread!=='undefined'&&FoodThread.collecting()){const result=await FoodThread.stage(items);toast(result.queued?'Food draft saved on this phone · waiting to send':'Added for review');return result;}
+  if(thread&&typeof FoodThread!=='undefined'&&FoodThread.collecting()){const result=await FoodThread.stage(items);if(!silent)toast(result.queued?'Food draft saved on this phone · waiting to send':'Added for review');return result;}
   items = items.map((it) => ({...foodStorage(it), client_id: it.client_id || newId()}));
   const query=new URLSearchParams();if(thread){query.set('thread','true');query.set('captured_at',new Date().toISOString());}if(restoreFrom)query.set('restore_from',restoreFrom);
   const r = await sendOrQueue('/api/food/entries'+(query.size?'?'+query:''), 'POST', items, items.length === 1 ? items[0].name : `${items.length} foods`);
   if(readOwner()!==owner)return r;
   r.undo=foodUploadUndo(items,owner);
+  r.batchItems=items;
   if (r.queued) {   // offline: show them now, marked "waiting to send"
     for (const it of items) patchDay(it.day, (d) => {
       d.entries.push({...it, id: 'q-' + it.client_id, pending: true});
       for(const k of FOOD_NUTRIENTS){d.totals[k]=(d.totals[k]||0)+(it[k]||0);if(d.unknown_nutrients&&(it[k]==null||it.ref?.unknown_nutrients?.includes(k)))d.unknown_nutrients[k]=(d.unknown_nutrients[k]||0)+1;}
     });
-    if(location.pathname!=='/food/describe')render(); toast('Saved on this phone · waiting to send',r.undo); return r;
+    if(location.pathname!=='/food/describe')render(); if(!silent)toast('Saved on this phone · waiting to send',r.undo); return r;
   }
   if(typeof FoodThread!=='undefined'&&r.messages){try{await FoodThread.accept(r);}catch(e){invalidate('/api/food');}}
-  refresh(); toast(items.length===1?`Logged ${items[0].name}`:'Meal logged',r.undo); return r;
+  refresh(); if(!silent)toast(items.length===1?`Logged ${items[0].name}`:'Meal logged',r.undo); return r;
 }
 // Keep the cancellation durable before removing an upload: it may already be in flight.
 function foodUploadUndo(items,owner) {
@@ -614,17 +615,52 @@ function guardFoodSheet(body,close,owner){const guard=e=>{if(owner===readOwner()
 function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
   const owner=readOwner();
   const zone=deviceTimeZone(),destination={day:day||isoDay(new Date(),zone),meal:Object.hasOwn(MEAL_NAMES,meal)?meal:guessMeal(zone)};
+  const batchItems=[],queuedIds=new Set();let pendingAdds=0,batchClosed=false,batchFinished=false;
   // One suggestions list inside Add food; meal cards show only what was actually logged.
   sheet('Choose food', `<div class="choose-food-context-wrap"><button type="button" id="as-context" class="choose-food-context"></button></div>
     <div id="as-tabs" class="choose-food-tabs" role="group" aria-label="Food type">${[['usuals', 'Usuals'], ['saved', 'Recipes'], ['search', 'Search'], ['quick', 'Quick']]
     .map(([k, n]) => `<button type="button" data-t="${k}" aria-pressed="${k===tab}">${n}</button>`).join('')}</div>
     <div id="as-body"></div>`, (b, close) => {
     guardFoodSheet(b,close,owner);
+    const panel=b.closest('.sheet'),dialogTitle=$('header h2',panel),done=$('header [data-close]',panel);
+    panel.classList.add('choose-food-multi');
+    const updateTitle=()=>{const title=batchItems.length?`Choose food · ${batchItems.length} added`:'Choose food';dialogTitle.textContent=title;panel.setAttribute('aria-label',title);};
+    const finishBatch=()=>{
+      if(batchFinished||!batchClosed||pendingAdds)return;
+      batchFinished=true;
+      if(owner!==readOwner()||!batchItems.length)return;
+      const count=batchItems.length,allQueued=batchItems.every(it=>queuedIds.has(it.client_id));
+      const message=allQueued?`Saved ${count} food${count===1?'':'s'} on this phone`:`Added ${count} food${count===1?'':'s'} to ${MEAL_NAMES[destination.meal]}`;
+      toast(message,foodUploadUndo(batchItems,owner));
+    };
+    const updateDone=()=>{if(done)done.disabled=pendingAdds>0;};
+    if(done){done.removeAttribute('data-close');done.className='sheet-text-btn food-multi-done';done.type='button';done.textContent='Done';done.onclick=()=>{batchClosed=true;close();finishBatch();};}
+    if(typeof MutationObserver!=='undefined'){
+      const observer=new MutationObserver(()=>{if(!panel.isConnected){batchClosed=true;observer.disconnect();finishBatch();}});
+      observer.observe(document.body,{childList:true,subtree:true});
+    }
+    const addUsual=(button,entry,name,restoreLabel)=>{
+      if(button.disabled||owner!==readOwner())return;
+      const plusMarkup=button._foodPlusMarkup||(button._foodPlusMarkup=button.innerHTML);
+      if(button._foodFeedbackTimer){clearTimeout(button._foodFeedbackTimer);button._foodFeedbackTimer=null;}
+      button.disabled=true;button.removeAttribute('aria-busy');button.classList.remove('food-add-success','food-add-failed');button.textContent='';button.setAttribute('aria-label',restoreLabel);button.setAttribute('aria-busy','true');
+      pendingAdds++;updateDone();
+      (async()=>{
+        try{
+          const result=await addEntries([entry],{thread:location.pathname==='/food/describe',silent:true});
+          if(owner!==readOwner()){close();return;}
+          if(!result.batchItems?.length){close();toast(result.queued?'Food draft saved on this phone · waiting to send':'Added for review');return;}
+          batchItems.push(...result.batchItems);if(result.queued)for(const it of result.batchItems)queuedIds.add(it.client_id);updateTitle();
+          if(button.isConnected){button.textContent='✓';button.classList.add('food-add-success');button.setAttribute('aria-label',`Added ${name}`);button.removeAttribute('aria-busy');button._foodFeedbackTimer=setTimeout(()=>{button._foodFeedbackTimer=null;if(!button.isConnected)return;button.innerHTML=plusMarkup;button.classList.remove('food-add-success');button.disabled=false;button.setAttribute('aria-label',restoreLabel);},2000);}
+        }catch(e){if(button.isConnected){button.disabled=false;button.removeAttribute('aria-busy');button.classList.add('food-add-failed');button.textContent="Couldn't add · Retry";button.setAttribute('aria-label',`Couldn't add ${name}. Retry.`);}}
+        finally{pendingAdds--;updateDone();finishBatch();}
+      })();
+    };
     const body = $('#as-body', b);
     const context=$('#as-context',b),where=()=>destination,drawContext=()=>{const label=[dayLabel(destination.day,zone),MEAL_NAMES[destination.meal]].join(' · ');context.innerHTML=`${esc(label)} ${svg('chev')}`;context.setAttribute('aria-label',`Change food day and meal. Adding to ${label}.`);};
     drawContext();context.onclick=()=>foodDestinationPicker(where(),next=>{destination.day=next.day;destination.meal=next.meal;drawContext();},'as-destination');
     const tabs = {search: tSearch, usuals: tUsuals, saved: tSaved, quick: tQuick};
-    const show = (k) => { $$('[data-t]', b).forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.t === k))); tabs[k](body, where, close); };
+    const show = (k) => { $$('[data-t]', b).forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.t === k))); tabs[k](body, where, close, k==='usuals'?addUsual:null); };
     $$('[data-t]', b).forEach((x) => x.onclick = () => show(x.dataset.t));
     show(tab);
     if (find) { const q = $('#as-body input[type=search]', b); if (q) { q.value = find; q.oninput(); } }
@@ -696,7 +732,7 @@ async function sharedRecipes(box,where,after=()=>{},isActive=()=>true){
   finally{clearTimeout(loading);}
 }
 
-async function tUsuals(body, where, close) {
+async function tUsuals(body, where, close, addUsual=null) {
   body.innerHTML = skel(1);
   try {
     const [usual,dishes,meals] = await Promise.all([api('/api/food/usual'),api('/api/dishes'),api('/api/food/meals')]);
@@ -710,9 +746,11 @@ async function tUsuals(body, where, close) {
     wireRecentSaved(body,recent,where,{afterDish:()=>close(),afterMeal:()=>close()});
     $$('[data-i]', body).forEach((x) => x.onclick = () => amountSheet(foods[+x.dataset.i], where(), close));
     $$('[data-q]', body).forEach((x) => x.onclick = async () => {
-      const f = foods[+x.dataset.q], l = f._last, w = where(); x.disabled = true;
-      try { const result=await addEntries([{...w, name: l.name, brand: l.brand, amount: l.amount, unit: l.unit, kcal: l.kcal, protein_g: l.protein_g, carbs_g: l.carbs_g,
-        fat_g: l.fat_g, fiber_g: l.fiber_g,...Object.fromEntries(EXTRA_NUTRIENTS.map(([k])=>[k,l[k]??null])), source: 'recent', ref: l.ref || null}],{thread:location.pathname==='/food/describe'}); close(); toast(result.held?'Usual amount added for review':result.queued?'Saved on this phone · waiting to send':`Added ${l.name} to ${MEAL_NAMES[w.meal].toLowerCase()}`,result.undo); }
+      const f = foods[+x.dataset.q], l = f._last, w = where(),entry={...w,name:l.name,brand:l.brand,amount:l.amount,unit:l.unit,kcal:l.kcal,protein_g:l.protein_g,carbs_g:l.carbs_g,
+        fat_g:l.fat_g,fiber_g:l.fiber_g,...Object.fromEntries(EXTRA_NUTRIENTS.map(([k])=>[k,l[k]??null])),source:'recent',ref:l.ref||null};
+      if(addUsual){addUsual(x,entry,l.name,x.getAttribute('aria-label'));return;}
+      x.disabled = true;
+      try { const result=await addEntries([entry],{thread:location.pathname==='/food/describe'}); close(); toast(result.held?'Usual amount added for review':result.queued?'Saved on this phone · waiting to send':`Added ${l.name} to ${MEAL_NAMES[w.meal].toLowerCase()}`,result.undo); }
       catch (e) { toast(e.message); x.disabled = false; }
     });
   } catch (x) { body.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
