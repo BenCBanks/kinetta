@@ -112,5 +112,17 @@
     "exact": 12,
     "followup": "https://github.com/BenCBanks/kinetta/issues/551",
     "reason": "These abbreviated month-axis ticks stay at 12px so labels fit the compact 12-week chart, including at 330px with large app text. Every 44px week button keeps its full date and totals in its accessible name, so the ticks are supplementary; clipping and overflow checks remain active."
+  },
+  {
+    "id": "reaction-summary-target-width",
+    "selector": ".emoji-reactions .reaction-summary-emoji",
+    "metric": "target",
+    "kind": "approved-target",
+    "minimumWidth": 24,
+    "maximumWidth": 24,
+    "minimumHeight": 44,
+    "maximumHeight": 44,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/545",
+    "reason": "Owner-approved #545 puts 20px reaction marks 4px apart. Splitting at the midpoint gives each mark its own 24×44px hit area; the total keeps a separate default 44×44px target. Focused browser checks verify all shortcut boxes are disjoint and each mark and the total receives its own tap. This is the only target-width exception."
   }
 ]

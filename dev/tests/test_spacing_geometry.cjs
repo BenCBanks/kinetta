@@ -72,4 +72,14 @@ assert(audit(scene([columnA,{...columnB,rect:{...columnB.rect,x:45}}]),[chartRul
 assert(audit(scene([{...columnA,rect:{...columnA.rect,width:43}},columnB]),[chartRule]).violations.some(v=>v.metric==='target'),'Chart exception cannot shrink a target');
 assert(audit(scene([columnA,{...columnB,rect:{...columnB.rect,x:48}}]),[chartRule]).violations.some(v=>v.metric==='gap'),'Only zero-gap chart adjacency is approved');
 assert(audit(scene([target('other-a',0,0),target('other-b',44,0)]),[chartRule]).violations.some(v=>v.metric==='gap'),'Other adjacent controls still need 8px separation');
+const reactionRules=require('./spacing_exceptions.json').filter(r=>r.id.startsWith('reaction-summary-'));
+assert.equal(reactionRules.length,1,'Reaction shortcuts have only the documented target-width exception');
+const reactionTargetRule=reactionRules[0],activationKey='reaction-shortcuts';
+const reactionA=target('reaction-a',0,0,24,44,{hit:true,activationKey,exceptions:[reactionTargetRule.id]});
+const reactionB=target('reaction-b',24,0,24,44,{hit:true,activationKey,exceptions:[reactionTargetRule.id]});
+const reactionTotal=target('reaction-total',52,0,44,44,{hit:true,activationKey});
+assert.equal(audit(scene([reactionA,reactionB,reactionTotal]),reactionRules).violations.length,0,'Disjoint midpoint-split reaction targets and the total pass');
+assert(audit(scene([{...reactionA,rect:{...reactionA.rect,width:23.9}},reactionB,reactionTotal]),reactionRules).violations.some(v=>v.metric==='target'),'The reaction target-width exception cannot admit a target under24px');
+const ungrouped=target('other-action',100,0,44,44);
+assert(audit(scene([reactionTotal,ungrouped]),reactionRules).violations.some(v=>v.metric==='gap'),'The grouped shortcut spacing does not exempt unrelated nearby controls');
 console.log('Spacing geometry: small targets, 2px lifting gaps, overlap, inputs, type maxima, clipping, heroes and narrow exceptions PASS');

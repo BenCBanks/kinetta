@@ -106,8 +106,9 @@ def _words(r):
     if r['kind'] == 'friend_request': return f'{who} wants to be friends', '/me/friends'
     if r['kind'] == 'friend_accepted': return f'You and {who} are now friends', '/activity'
     if r['kind']=='cheer':
-        emoji=reactions.EMOJI.get(reactions.canonical(r.get('reaction_kind')),'👏')
-        return f"{who} reacted {emoji} to your {act}",f"/activity/{r['activity_id']}"
+        kind=reactions.canonical(r.get('reaction_kind'))
+        reaction='with a barbell' if kind=='lift' else reactions.EMOJI.get(kind,'👏')
+        return f"{who} reacted {reaction} to your {act}",f"/activity/{r['activity_id']}"
     if r['kind'] == 'comment':
         snip = notification_words.clean(r['comment'],80)
         return f'{who} commented on your {act}' + (f': "{snip}"' if snip else ''), f"/activity/{r['activity_id']}"

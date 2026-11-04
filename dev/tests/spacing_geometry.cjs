@@ -10,6 +10,7 @@ function validateExceptions(rules){
   if(r.kind==='accessible-decoration'&&r.metric!=='font-min')throw Error('A decorative text exception only applies to its hidden label');
   if(r.metric==='font-min'&&![r.minimum,r.exact].some(Number.isFinite))throw Error('A small-text exception needs a measured lower bound or exact hidden value');
   if(r.kind==='intentional-overlay'&&(r.metric!=='overlap'||!r.withSelector||!Number.isFinite(r.maximum)))throw Error('An overlay exception needs one specific partner and a measured maximum');
+  if(r.kind==='approved-target'&&(r.metric!=='target'||![r.minimumWidth,r.maximumWidth,r.minimumHeight,r.maximumHeight].every(Number.isFinite)||r.minimumWidth>r.maximumWidth||r.minimumHeight>r.maximumHeight))throw Error('An approved target exception needs bounded measured width and height');
   if(!['attribution','chart-tick','inline-link','accessible-decoration','intentional-overlay'].includes(r.kind)&&!/^https:\/\/github\.com\/BenCBanks\/kinetta\/issues\/\d+$/.test(r.followup||''))throw Error('Existing spacing violations need a linked follow-up issue: '+r.id);
   ids.add(r.id);
  }
@@ -35,7 +36,7 @@ function audit(snapshot,rules=[]){
  validateExceptions(rules);
  const violations=[],exceptionsUsed=[],scale=Math.max(1,(snapshot.rootFont||16)/16);
  const issue=(record,metric,actual,expected,other)=>{
-  const eligible=rules.filter(r=>r.metric===metric&&(r.withSelector?other&&((record.pairedExceptions?.[r.id]?.includes(other.key))||(other.pairedExceptions?.[r.id]?.includes(record.key))):record.exceptions?.includes(r.id)&&(!other||other.exceptions?.includes(r.id)))&&(r.minimum===undefined||typeof actual==='number'&&actual>=r.minimum-.02)&&(r.maximum===undefined||typeof actual==='number'&&actual<=r.maximum+.02)&&(r.exact===undefined||actual===r.exact));
+  const eligible=rules.filter(r=>r.metric===metric&&(r.withSelector?other&&((record.pairedExceptions?.[r.id]?.includes(other.key))||(other.pairedExceptions?.[r.id]?.includes(record.key))):record.exceptions?.includes(r.id)&&(!other||other.exceptions?.includes(r.id)))&&(r.minimum===undefined||typeof actual==='number'&&actual>=r.minimum-.02)&&(r.maximum===undefined||typeof actual==='number'&&actual<=r.maximum+.02)&&(r.exact===undefined||actual===r.exact)&&(r.minimumWidth===undefined||actual?.width>=r.minimumWidth-.02)&&(r.maximumWidth===undefined||actual?.width<=r.maximumWidth+.02)&&(r.minimumHeight===undefined||actual?.height>=r.minimumHeight-.02)&&(r.maximumHeight===undefined||actual?.height<=r.maximumHeight+.02));
   const exception=eligible.find(r=>!r.withSelector||record.hit&&other.hit);
   const row={screen:snapshot.screen,element:record.selector||record.key,metric,actual,expected,...(metric==='overlap'?{overlayCandidates:eligible.filter(r=>r.kind==='intentional-overlay').map(r=>r.id)}:{}),...(metric==='gap'?{gapCandidates:eligible.filter(r=>r.kind==='chart-column'&&r.maximum===0).map(r=>r.id)}:{}),...(record.rect?{box:record.rect}:{}),...(record.hit===undefined?{}:{hit:record.hit,hitOwner:record.hitOwner}),...(other?{neighbour:other.selector||other.key,neighbourBox:other.rect}:{})};
   if(exception)exceptionsUsed.push({...row,exception:exception.id,reason:exception.reason,followup:exception.followup});else violations.push(row);

@@ -3,17 +3,17 @@
 CHOICES=(
     ('clap','clapping hands','👏'), ('muscle','flexed biceps','💪'),
     ('fire','fire','🔥'), ('heart','heart','❤️'), ('party','celebration','🎉'),
-    ('hands','raised hands','🙌'), ('wow','surprise','😮'), ('laugh','laughter','😂'),
+    ('hands','raised hands','🙌'), ('wow','surprise','😮'), ('bolt','fast','⚡'),
     ('gold','gold medal','🥇'), ('hundred','hundred points','💯'),
     ('run','running','🏃'), ('ride','cycling','🚴'), ('swim','swimming','🏊'),
-    ('hike','hiking','🥾'), ('lift','weightlifting','🏋️'), ('mountain','mountain','⛰️'),
+    ('hike','hiking','🥾'), ('lift','barbell',None), ('mountain','mountain','⛰️'),
 )
 KINDS=tuple(row[0] for row in CHOICES)
 EMOJI={kind:emoji for kind,_,emoji in CHOICES}
-LEGACY={'cheer':'clap','strong':'muscle','applause':'fire'}
+LEGACY={'cheer':'clap','strong':'muscle','applause':'fire','laugh':'clap'}
 
 def canonical(kind):
-    return LEGACY.get(kind,next((key for key,_,emoji in CHOICES if emoji==kind),kind))
+    return LEGACY.get(kind,next((key for key,_,emoji in CHOICES if emoji is not None and emoji==kind),kind))
 
 def visible(viewer):
     return f"NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.user_id={viewer} AND b.blocked=ch.user_id) OR (b.user_id=ch.user_id AND b.blocked={viewer}))"

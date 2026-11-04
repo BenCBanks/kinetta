@@ -1986,6 +1986,10 @@ MIGRATIONS = [
     ALTER TABLE cheers ADD CONSTRAINT cheers_kind_check CHECK(kind ~ '^[a-z_]{1,24}$');
     ALTER TABLE notifications ADD CONSTRAINT notifications_reaction_kind_check CHECK(reaction_kind ~ '^[a-z_]{1,24}$');""",
 
+    # 97. Removed laughter from the reaction catalog; keep old rows and notices as claps.
+    """UPDATE cheers SET kind='clap' WHERE kind='laugh';
+    UPDATE notifications SET reaction_kind='clap' WHERE reaction_kind='laugh';""",
+
 ]
 
 

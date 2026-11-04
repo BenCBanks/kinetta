@@ -2234,13 +2234,20 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .emoji-reactions .reaction-more>svg {flex:none;width:20px;height:20px;}
 .emoji-reactions .reaction-more .reaction-emoji {font-size:22px;}
 .emoji-reactions .reaction-more:active,.emoji-reactions .reaction-count:active,.activity-comments:active {background:none;opacity:.72;}
-.emoji-reactions .reaction-count {order:3;display:flex;align-items:center;justify-content:flex-end;gap:6px;min-width:44px;min-height:44px;padding:0;margin-left:auto;}
+.emoji-reactions .reaction-shortcuts {order:3;display:flex;flex:none;align-items:center;gap:4px;margin-left:auto;}
+.emoji-reactions .reaction-shortcuts[hidden] {display:none;}
+.emoji-reactions .reaction-summary {display:flex;align-items:center;gap:0;min-height:44px;overflow:visible;}
+.emoji-reactions .reaction-summary[hidden] {display:none;}
+.emoji-reactions .reaction-summary-emoji {position:relative;z-index:0;display:flex;flex:none;align-items:center;justify-content:center;width:24px;min-width:24px;height:44px;padding:0;margin:0;border:0;border-radius:0;background:none;color:var(--tx2);}
+.emoji-reactions .reaction-summary-emoji:active {background:none;opacity:.72;}
+.emoji-reactions .reaction-summary-emoji:focus-visible {z-index:1;outline:2px solid var(--accent);outline-offset:2px;border-radius:4px;}
+.emoji-reactions .reaction-summary-emoji .reaction-emoji {display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;font-size:20px;line-height:1;}
+.reaction-barbell {display:block;width:1em;height:1em;flex:none;}
+.reaction-barbell-bar {stroke:var(--tx);stroke-width:2.8;}
+.reaction-barbell-plates {stroke:var(--tx2);stroke-width:2.2;}
+.emoji-reactions .reaction-count {order:4;display:flex;flex:none;align-items:center;justify-content:flex-start;min-width:44px;height:44px;min-height:44px;padding:0;margin:0;}
 .emoji-reactions .reaction-count[hidden] {display:none;}
-.reaction-icons {display:flex;align-items:center;gap:0;}
-.reaction-icons>span {display:inline-flex;align-items:center;justify-content:center;}
-.reaction-icons>span+span {margin-left:-4px;}
 .reaction-emoji {font-family:Apple Color Emoji,Segoe UI Emoji,Noto Color Emoji,sans-serif;font-size:1.25rem;line-height:1;}
-.emoji-reactions .reaction-icons .reaction-emoji {font-size:16px;}
 .activity-comments {order:2;display:flex;align-items:center;justify-content:center;gap:4px;min-width:44px;min-height:44px;padding:0;margin:0;}
 .activity-comments>svg {width:20px;height:20px;flex:none;}
 .activity-comments .num[hidden] {display:none;}
