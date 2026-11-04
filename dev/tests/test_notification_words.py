@@ -1,7 +1,7 @@
 """Fixed fictional workout facts, no database/model/provider/device calls."""
 import copy
 import math
-from app import notification_words as words
+from app import notification_words as words, notify
 
 ROW={'id':7,'user_id':1,'activity_id':2,'recipient_name':'Alex Example','sport':'run','activity':'Morning Run','distance_m':8062.81344,'moving_s':2460,'elapsed_s':2500,'units':'imperial'}
 
@@ -15,6 +15,8 @@ def run():
         assert len(titles)==3 and all(kind in value.lower() and 'Alex' in value and len(value)<40 for value in titles)
     assert 'lift' in words.activity({**ROW,'sport':'workout','has_lifts':True})[0].lower()
     assert 'lift' not in words.activity({**ROW,'sport':'workout','sport_label':'Yoga'})[0].lower()
+    text,link=notify._words({'kind':'cheer','name':'Alex','activity':'workout','activity_id':7,'reaction_kind':'lift'})
+    assert text=='Alex reacted with a barbell to your workout' and link=='/activity/7'
     assert words.activity(ROW)==words.activity(ROW)
     title,body=words.activity(ROW);assert 'Alex' in title and body=='Morning Run · 5.01 mi in 41 min' and '\n' not in body
     assert '8.06 km' in words.activity({**ROW,'units':'metric'})[1]
