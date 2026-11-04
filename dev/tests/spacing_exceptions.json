@@ -50,9 +50,9 @@
     "selector": ".activity-card .post-map-metric b",
     "metric": "font-max",
     "kind": "activity-metric",
-    "maximum": 24,
+    "exact": 20,
     "followup": "https://github.com/BenCBanks/kinetta/issues/543",
-    "reason": "Issue #543 specifies 20px overlay numbers at normal text and caps them at 24px when accessibility text is enlarged. The narrow card selector keeps every other text maximum active."
+    "reason": "Issue #543 specifies exactly 20px overlay numbers. The narrow card selector admits that size while every other text maximum remains active."
   },
   {
     "id": "activity-card-map-metric-unit-size",
