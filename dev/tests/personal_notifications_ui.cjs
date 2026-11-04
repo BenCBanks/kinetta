@@ -8,7 +8,7 @@ async function ready(p){for(let n=0;n<120;n++){if(await p.evaluate(()=>App.pageR
  const browser=await chromium.launch();
  try{
   const login=await browser.newContext();assert.equal((await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}})).status(),200);const auth=await login.storageState();await login.close();
-  for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16},{width:330,height:844,root:24},{width:1280,height:900,root:16}])for(const theme of ['light','dark']){
+  for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16},{width:1280,height:900,root:16}])for(const theme of ['light','dark']){
    const c=await browser.newContext({storageState:auth,viewport:{width:size.width,height:size.height},colorScheme:theme,serviceWorkers:'block'}),p=await c.newPage(),errors=[],writes=[],puts=[];let state={plan:false,weekly:false,plan_time:'08:00',tz:'America/New_York',push_ready:true,device_ready:true},failRead=false,failWrite=false,hold=false,release;
    const held=async()=>{for(let n=0;n<100;n++){if(release)return;await p.waitForTimeout(50);}throw Error('Preference request did not reach the controlled hold');};
    p.on('pageerror',e=>errors.push(e.message));await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);

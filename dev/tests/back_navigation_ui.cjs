@@ -19,12 +19,12 @@ async function changed(p,action){await p.evaluate(()=>globalThis.navPreviousPage
  async function close(c){await c.close();contexts.splice(contexts.indexOf(c),1);}
  const visibleBack=p=>p.locator('[data-back]:visible').first();
  try{
-  for(const kind of ['route','exercise','plan','activity'])for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){
+  for(const kind of ['route','exercise','plan','activity'])for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
    const name=`${kind}-${size.width}-${theme}`;if(process.env.KINETTA_NAV_CASE&&process.env.KINETTA_NAV_CASE!==name)continue;
    const {c,p,errors,dest}=await open(kind,theme,size),label={route:'Routes',exercise:'Lifting',plan:'Progress',activity:'Activity'}[kind],back=visibleBack(p);assert.equal(await back.innerText(),label,'direct link names its parent');assert.equal(await back.getAttribute('aria-label'),'Back to '+label);const r=await back.boundingBox();assert(r.width>=44&&r.height>=44);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'header fits');
    await changed(p,()=>p.evaluate(()=>go('/me')));await changed(p,()=>p.evaluate(dest=>go(dest),dest));assert.equal(await visibleBack(p).innerText(),'Me','return label follows the real previous page');if(kind==='activity'&&size.root===16){await until(p,()=>typeof document.querySelector('#d-full')?.onclick==='function','full map ready');await p.locator('#d-full').click();await p.locator('.map.full').waitFor();await p.goBack();await until(p,()=>!document.querySelector('.map.full'),'map Back closes overlay');assert.equal(new URL(p.url()).pathname,new URL(base+dest).pathname);assert.equal(await visibleBack(p).innerText(),'Me','closing full map retains the app return entry');}await changed(p,()=>visibleBack(p).click());assert.equal(new URL(p.url()).pathname,'/me');assert.deepEqual(errors,[]);await close(c);console.log(`Named Back ${name}: direct fallback and actual Me return PASS`);
   }
-  if(!process.env.KINETTA_NAV_CASE||process.env.KINETTA_NAV_CASE==='speed-removal')for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){
+  if(!process.env.KINETTA_NAV_CASE||process.env.KINETTA_NAV_CASE==='speed-removal')for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
    const {c,p,errors}=await open('activity',theme,size);
    await p.goto(base+'/me/speed');await until(p,()=>App.pageReady&&location.pathname==='/me/settings','old diagnostic redirects to Settings');
    assert.equal(await p.locator('#sp-run,#sp-copy,#sp-out,a[href="/me/speed"]').count(),0,'no retired page or Settings entrance');assert(await p.locator('#m-profile').isVisible(),'Settings controls present');

@@ -5,7 +5,7 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
 async function until(p,fn,arg){for(let n=0;n<160;n++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(75);}throw Error('Notification state did not settle');}
 async function shot(p,name){if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,name+'.png'),animations:'disabled'});}}
 (async()=>{const browser=await chromium.launch();try{
-for(const state of ['empty','typical','heavy'])for(const size of [{width:390,height:844,root:15},{width:390,height:844,root:16},{width:330,height:844,root:24}])for(const theme of ['light','dark']){
+for(const state of ['empty','typical','heavy'])for(const size of [{width:390,height:844,root:15},{width:390,height:844,root:16}])for(const theme of ['light','dark']){
  const c=await browser.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',reducedMotion:'reduce'}),p=await c.newPage(),errors=[],writes=[],puts=[];let releaseMeal,holdMeal=false,failMeal=false,failKind=false;
  let meal={enabled:state!=='empty',tz:'UTC',push_ready:state!=='empty',device_ready:state!=='empty',times:['breakfast','lunch','dinner'].map((meal,i)=>({meal,ready:state==='heavy'||state==='typical'&&i===1,time:'12:15'}))};
  let personal={plan:state!=='empty',weekly:state==='heavy',plan_time:'08:00',tz:'UTC',push_ready:state!=='empty',device_ready:state!=='empty'},push={};

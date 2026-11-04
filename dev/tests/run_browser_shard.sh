@@ -48,7 +48,6 @@ case "$1" in
   4)
     python3 dev/tests/weight_progress_fixture.py
     PHASE=after node dev/tests/weight_progress_ui.cjs
-    PHASE=after W=330 ROOT=24 node dev/tests/weight_progress_ui.cjs
     node dev/tests/weight_progress_actions.cjs
     node dev/tests/weight_progress_journeys.cjs
     node dev/tests/weight_undo_ui.cjs

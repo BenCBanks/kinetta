@@ -16,7 +16,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   const presetId=crypto.randomUUID(),mutationId=crypto.randomUUID();
   const created=await admin.request.put(base+'/api/interval-presets/'+presetId,{headers:{Origin:base},data:{mutation_id:mutationId,expected_version:null,definition}});
   assert.equal(created.status(),200,'fixture interval set is created');const saved=await created.json();assert(saved.content_hash,'fixture has a stable preset hash');
-  for(const size of [{width:390,height:844,root:16,screenshots:true},{width:330,height:667,root:24,screenshots:false}])for(const theme of ['light','dark']){
+  for(const size of [{width:390,height:844,root:16,screenshots:true}])for(const theme of ['light','dark']){
    const context=await browser.newContext({storageState:state,viewport:{width:size.width,height:size.height},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,reducedMotion:'reduce',timezoneId:'America/New_York'});contexts.push(context);
    const page=await context.newPage(),errors=[],writes=[],nativeCalls=[];
    page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});

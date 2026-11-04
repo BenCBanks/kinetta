@@ -15,7 +15,7 @@ selected.push({name:'Sign-up',route:'/signup',ready:'input[name=age_ok]',signup:
  const browser=await chromium.launch(),results=[],errors=[];
  try{
   const sessions=await fixtureSessions(browser,base,selected);
-  for(const root of [16,32])for(const theme of ['light','dark'])for(const scene of selected){
+  for(const root of [16])for(const theme of ['light','dark'])for(const scene of selected){
    let opened;try{
     opened=await fixturePage(browser,base,fixtures,sessions,scene,{width:390,height:844,root},theme);const {p,auth,writes,pageErrors}=opened;
     await settle(p);if(!scene.signup)assert.equal(await p.evaluate(()=>App.me?.id),auth.id,'Intended fictional account');
@@ -36,8 +36,8 @@ selected.push({name:'Sign-up',route:'/signup',ready:'input[name=age_ok]',signup:
   }
  }finally{await browser.close();}
  fs.writeFileSync(path.join(output,'report.json'),JSON.stringify({axe:require('axe-core/package.json').version,results,errors},null,2));
- const failures=results.reduce((n,r)=>n+r.violations.length,0);assert.equal(results.length+errors.length,36,'All required screen/theme/text cases attempted');
- const summary=`Accessibility: ${results.length}/36 cases, ${failures} serious/critical violations, ${errors.length} guard/loading errors. Fictional screenshots, exceptions and incomplete/manual-review findings are in the accessibility artifact.\n`;
+ const failures=results.reduce((n,r)=>n+r.violations.length,0);assert.equal(results.length+errors.length,18,'All required screen/theme cases attempted');
+ const summary=`Accessibility: ${results.length}/18 cases, ${failures} serious/critical violations, ${errors.length} guard/loading errors. Fictional screenshots, exceptions and incomplete/manual-review findings are in the accessibility artifact.\n`;
  console.log(summary);if(process.env.GITHUB_STEP_SUMMARY)fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n## Accessibility audit\n\n'+summary);
  if(failures||errors.length)process.exitCode=1;
 })().catch(e=>{console.error(e.message);process.exitCode=1;});

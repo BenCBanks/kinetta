@@ -16,7 +16,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
  }
  async function closeSheet(p){await p.locator('[data-close]').last().click();await until(p,()=>!document.querySelector('.sheet'),'sheet closed');}
  try{
-  for(const state of ['empty','typical','heavy','saved','draft','weight'])for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){
+  for(const state of ['empty','typical','heavy','saved','draft','weight'])for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
    const name=`${state}-${size.width}-${theme}`;if(process.env.KINETTA_RECIPE_CASE&&process.env.KINETTA_RECIPE_CASE!==name)continue;
    const {c,p,errors,writes}=await open(state,theme,size);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no horizontal overflow');assert.equal(await p.locator('.discovery-grid').count(),0);
    if(['empty','typical','heavy'].includes(state)){

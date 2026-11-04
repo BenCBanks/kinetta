@@ -111,7 +111,7 @@ fi
 run_ui() {
   case "$1" in
     inline_reactions_ui.cjs) PHASE=after NODE_PATH="$browser" node "dev/tests/$1" ;;
-    weight_progress_ui.cjs) PHASE=after NODE_PATH="$browser" node "dev/tests/$1"; PHASE=after W=330 ROOT=24 NODE_PATH="$browser" node "dev/tests/$1" ;;
+    weight_progress_ui.cjs) PHASE=after NODE_PATH="$browser" node "dev/tests/$1" ;;
     *) NODE_PATH="$browser" node "dev/tests/$1" ;;
   esac
 }

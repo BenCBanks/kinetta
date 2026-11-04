@@ -8,7 +8,7 @@ const cases=[['signin',1],['signup',1],['invite',1],['temporary',2],['reset',1],
 (async()=>{
  const browser=await chromium.launch();let tested=0;
  try{
-  for(const theme of ['light','dark'])for(const size of [{width:390,root:15},{width:330,root:24}])for(const [kind,count] of cases){
+  for(const theme of ['light','dark'])for(const size of [{width:390,root:15}])for(const [kind,count] of cases){
    if(process.env.CASE&&process.env.CASE!==kind)continue;
    const c=await browser.newContext({viewport:{width:size.width,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true});
    try{

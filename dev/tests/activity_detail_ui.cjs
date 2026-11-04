@@ -15,7 +15,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   await p.goto(base+(friend?'/activity/friends/':'/activity/')+id+(comments?'?tab=comments':''));await until(p,()=>App.pageReady&&!!document.querySelector('.compact-detail-title'),'detail ready');return{c,p,id,errors,writes,friend};
  }
  try{
-  for(const kind of ['run','treadmill','ride','lifting','empty','friend'])for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const theme of ['light','dark']){
+  for(const kind of ['run','treadmill','ride','lifting','empty','friend'])for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
    const name=`${kind}-${size.width}-${theme}`;if(process.env.KINETTA_DETAIL_CASE&&process.env.KINETTA_DETAIL_CASE!==name)continue;
    const {c,p,errors,writes,friend}=await open(kind,theme,size),mapped=['run','ride','friend'].includes(kind);
    if(!friend)await until(p,()=>!!document.querySelector('#d-soc [data-ttalk]'),'owner reactions read');

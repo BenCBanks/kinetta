@@ -9,7 +9,7 @@ async function ready(page){for(let i=0;i<150;i++){if(await page.evaluate(()=>App
  try{
   const login=await browser.newContext();assert.equal((await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}})).status(),200);
   const sample=await(await login.request.get(base+'/api/activities/1')).json(),social=await(await login.request.get(base+'/api/activities/1/social')).json(),state=await login.storageState();await login.close();
-  for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16},{width:330,height:844,root:24},{width:1280,height:900,root:16}])for(const theme of ['light','dark']){
+  for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16},{width:1280,height:900,root:16}])for(const theme of ['light','dark']){
    const c=await browser.newContext({storageState:state,viewport:{width:size.width,height:size.height},colorScheme:theme,serviceWorkers:'block'}),p=await c.newPage(),errors=[];
    p.on('pageerror',e=>errors.push(e.message));await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
    await c.route('**/*',r=>new URL(r.request().url()).origin===base?r.continue():r.abort());

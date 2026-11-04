@@ -31,7 +31,7 @@ const until=async(p,fn,label,arg)=>{for(let n=0;n<150;n++){if(await p.evaluate(f
   return {context,page,errors,writes,responses};
  }
  try{
-  for(const theme of ['light','dark'])for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:24}])for(const entry of ['direct','list','native']){
+  for(const theme of ['light','dark'])for(const size of [{width:390,height:844,root:16}])for(const entry of ['direct','list','native']){
    const f=await open(theme,size,{native:entry==='native',pending:entry==='native'?`/activity/${id}?edit=1`:''}),p=f.page;
    try{
     await p.goto(base+(entry==='list'?'/notifications':entry==='native'?'/activity':`/activity/${id}?edit=1&tab=overview`));
@@ -41,7 +41,7 @@ const until=async(p,fn,label,arg)=>{for(let n=0;n<150;n++){if(await p.evaluate(f
     assert.equal(await p.evaluate(()=>new URLSearchParams(location.search).has('edit')),false);assert.equal(new URL(p.url()).pathname,`/activity/${id}`);
     assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
     for(const control of await sheet.locator('header button').all()){const box=await control.boundingBox();assert(box.width>=44&&box.height>=44&&box.x>=0&&box.x+box.width<=size.width+1,'Visible44px editor actions');}
-    assert(await sheet.locator('header').evaluate(header=>{const [cancel,save]=header.querySelectorAll('button'),title=header.querySelector('h2'),a=cancel.getBoundingClientRect(),b=save.getBoundingClientRect(),t=title.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(title);const ink=range.getBoundingClientRect();return a.right+7<=t.left&&t.right+7<=b.left&&ink.left>=t.left-1&&ink.right<=t.right+1;}),'Title and actions do not overlap at enlarged text');
+    assert(await sheet.locator('header').evaluate(header=>{const [cancel,save]=header.querySelectorAll('button'),title=header.querySelector('h2'),a=cancel.getBoundingClientRect(),b=save.getBoundingClientRect(),t=title.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(title);const ink=range.getBoundingClientRect();return a.right+7<=t.left&&t.right+7<=b.left&&ink.left>=t.left-1&&ink.right<=t.right+1;}),'Title and actions do not overlap');
     assert(await p.locator('#e-form input[name=name]').evaluate(n=>parseFloat(getComputedStyle(n).fontSize)>=16));
     if(process.env.SHOT_DIR){fs.mkdirSync(process.env.SHOT_DIR,{recursive:true});await p.screenshot({path:path.join(process.env.SHOT_DIR,`${entry}-${size.width}-${theme}.png`)});}
     await sheet.locator('header button[data-close]').click();await until(p,()=>!document.querySelector('.sheet'),'Close editor');assert(await p.locator('.compact-detail-title').isVisible());

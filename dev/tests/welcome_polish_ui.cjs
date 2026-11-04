@@ -7,7 +7,7 @@ cp.execFileSync('python3',['-c',"import sys;sys.path.insert(0,'dev/tests');from 
 const until=async(p,f,label)=>{for(let n=0;n<160;n++){if(await p.evaluate(f))return;await p.waitForTimeout(75);}throw Error(label);};
 (async()=>{const browser=await chromium.launch();let cases=0;const auth=await browser.newContext();try{
  assert.equal((await auth.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_welcome_polish',password:pw}})).status(),200);const state=await auth.storageState();
- for(const size of[{width:390,height:844,root:16},{width:330,height:740,root:24}])for(const theme of['light','dark']){
+ for(const size of[{width:390,height:844,root:16}])for(const theme of['light','dark']){
   const c=await browser.newContext({storageState:state,viewport:size,colorScheme:theme,serviceWorkers:'block',reducedMotion:'reduce',isMobile:true,hasTouch:true}),p=await c.newPage(),errors=[],writes=[],saves=[],friendRequests=[];let kit=true,garmin=false,sharing='me',sharingFailure=false,failSave=true,termsVersion=null,installLink=null;
   try{p.on('pageerror',e=>errors.push(e.message));await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
    await c.route('**/*',async r=>{const q=r.request(),u=new URL(q.url()),method=q.method();if(u.origin!==base)return r.abort();

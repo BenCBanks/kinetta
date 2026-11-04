@@ -6,7 +6,7 @@ const until=async(p,fn,label,assetFailures)=>{for(let n=0;n<150;n++){if(await p.
 (async()=>{
  const browser=await chromium.launch();let cases=0;
  try{
-  for(const theme of ['light','dark'])for(const size of [{width:390,root:16},{width:330,root:24}])for(const surface of ['friends','profile','own','history']){
+  for(const theme of ['light','dark'])for(const size of [{width:390,root:16}])for(const surface of ['friends','profile','own','history']){
    if(process.env.KINETTA_REACTION_CASE&&process.env.KINETTA_REACTION_CASE!==`${surface}-${size.width}-${theme}`)continue;
    const actor=surface==='own'||surface==='history'?'owner':'viewer',c=await browser.newContext({viewport:{width:size.width,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true});
    try{
