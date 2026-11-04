@@ -72,4 +72,13 @@ assert(audit(scene([columnA,{...columnB,rect:{...columnB.rect,x:45}}]),[chartRul
 assert(audit(scene([{...columnA,rect:{...columnA.rect,width:43}},columnB]),[chartRule]).violations.some(v=>v.metric==='target'),'Chart exception cannot shrink a target');
 assert(audit(scene([columnA,{...columnB,rect:{...columnB.rect,x:48}}]),[chartRule]).violations.some(v=>v.metric==='gap'),'Only zero-gap chart adjacency is approved');
 assert(audit(scene([target('other-a',0,0),target('other-b',44,0)]),[chartRule]).violations.some(v=>v.metric==='gap'),'Other adjacent controls still need 8px separation');
+const reactionRules=require('./spacing_exceptions.json').filter(r=>r.id.startsWith('reaction-summary-'));
+const reactionTargetRule=reactionRules.find(r=>r.metric==='target');
+const reactionA=target('reaction-a',0,0,40,40,{hit:true,exceptions:[reactionTargetRule.id],pairedExceptions:{'reaction-summary-shortcut-hit-overlap':['reaction-b']}});
+const reactionB=target('reaction-b',24,0,40,40,{hit:true,exceptions:[reactionTargetRule.id],pairedExceptions:{'reaction-summary-shortcut-hit-overlap':['reaction-a'],'reaction-summary-total-hit-overlap':['reaction-total']}});
+const reactionTotal=target('reaction-total',50,0,40,40,{hit:true,exceptions:[reactionTargetRule.id],pairedExceptions:{'reaction-summary-total-hit-overlap':['reaction-b']}});
+assert.equal(audit(scene([reactionA,reactionB,reactionTotal]),reactionRules).violations.length,0,'Owner-approved 40px reaction targets and bounded overlaps pass');
+assert(audit(scene([{...reactionA,rect:{...reactionA.rect,width:39.9}},reactionB,reactionTotal]),reactionRules).violations.some(v=>v.metric==='target'),'The reaction target exception cannot admit a target under40px');
+assert(audit(scene([reactionA,{...reactionB,rect:{...reactionB.rect,x:22}},reactionTotal]),reactionRules).violations.some(v=>v.metric==='overlap'),'The reaction pair exception cannot admit more than16px overlap');
+assert(audit(scene([reactionA,reactionB,{...reactionTotal,hit:false}]),reactionRules).violations.some(v=>v.metric==='overlap'),'A hidden reaction total hit area fails its overlap check');
 console.log('Spacing geometry: small targets, 2px lifting gaps, overlap, inputs, type maxima, clipping, heroes and narrow exceptions PASS');
