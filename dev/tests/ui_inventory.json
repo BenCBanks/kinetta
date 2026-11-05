@@ -91,7 +91,7 @@
     },
     {
       "id": "food-6",
-      "source": "app/static/food.js",
+      "source": "app/static/food-import.js",
       "pattern": "/^\\/food\\/import$/",
       "paths": [
         "/food/import"

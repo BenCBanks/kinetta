@@ -45,6 +45,11 @@ const app=fs.readFileSync('app/static/app.js','utf8');
  for(const file of files) for(const m of fs.readFileSync('app/static/'+file,'utf8').matchAll(/^route\((\/.*?\/),/gm))patterns.push(vm.runInNewContext(m[1]));
  const old=['/today','/me','/activity','/activity/1','/activity/friends/1','/people/fictional','/me/friends','/me/sharing','/notifications','/me/notifications','/plan','/food/setup','/food/cook/1','/me/health','/track/health','/track','/route/1','/progress','/progress/trends','/progress/calendar','/progress/routes','/progress/heatmap','/records/run/5000','/me/people','/me/import','/track/import','/me/connections','/track/connections','/me/gear','/me/goals','/food','/food/meals','/food/describe','/food/weight','/food/trends','/food/import','/me/explore','/me/kit','/lift/1','/track/lift/1','/lift/ex/1'];
  for(const path of old)assert(patterns.some(re=>re.test(path)),path+' remains routable');
+ const eagerFood=fs.readFileSync('app/static/food.js','utf8'),deferredFood=fs.readFileSync('app/static/food-import.js','utf8');
+ const imports=(source)=>source.split('\n').filter(line=>line.startsWith('route(')&&line.includes('food\\/import'));
+ assert.equal(imports(eagerFood).length,0,'/food/import is removed from eager food.js');
+ assert.equal(imports(deferredFood).length,1,'food-import.js registers exactly one import route');
+ assert(!fs.readFileSync('app/static/index.html','utf8').includes('/static/food-import.js'), 'Food import module stays out of eager script tags');
  console.log('navigation legacy URL contract: '+old.length+' previous destinations remain registered PASS');
 }
 // Progress now opens on cards, with a real back link and account-scoped discovery history.
