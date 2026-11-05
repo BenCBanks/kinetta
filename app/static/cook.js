@@ -9,7 +9,7 @@
 
 const RECIPE_SOURCE_LABELS=Object.freeze({site:'Published by site',ingredients:'Matched ingredients',estimated_ingredients:'Ingredients · includes Kit’s estimates',entered:'Entered by you',unknown:'Unknown'});
 const gfmt = (g) => (g == null ? '–' : `${Math.round(g).toLocaleString()} g`);
-Object.assign(IC, {minus: '<path d="M5 12h14"/>', send: '<path d="M12 19V5M6 11l6-6 6 6"/>', bookmark: '<path d="M6 3.5h12v17l-6-4.5-6 4.5z"/>',
+Object.assign(IC, {minus: '<path d="M5 12h14"/>', send: '<path d="M12 19V5M6 11l6-6 6 6"/>', bookmark: '<path d="M6 3.5h12v17l-6-4.5-6 4.5z"/>', recipe: '<path d="M6 3h13v18H8a4 4 0 0 0-4 2V5a2 2 0 0 1 2-2z"/><path d="M8 8h7M8 12h7M8 16h5"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><circle cx="12" cy="16.8" r=".6" fill="currentColor"/>'});
 const listOf = (xs) => xs.slice(0, 3).join(', ') + (xs.length > 3 ? ` and ${xs.length - 3} more` : '');
 
@@ -66,8 +66,8 @@ function drawDish(el, d) {
     ${imported?recipeSourceCard(d):''}
     ${d.items.length ? `<div class="card ing-card"><div class="ingredient-heading small muted">Ingredients<span>kcal</span></div><div class="ing-list">${d.items.map((it) => {
       const recipeId=it.source==='recipe'&&Number(it.ref?.recipe_id)>0?Number(it.ref.recipe_id):null;
-      const recipeName=recipeId?`<button type="button" class="ig-recipe-open" data-recipe-open="${recipeId}" aria-label="Open source recipe ${esc(it.name)}">${svg('bookmark')}<span class="ig-n">${esc(it.name)}</span></button>`:null;
-      if(recipeName&&mine)return `<div class="swipe"><button type="button" class="sw-del" data-del="${esc(it.id)}" tabindex="-1">${svg('trash')}Remove</button><div class="ig sw-row"><button type="button" class="ig-recipe-open" data-recipe-open="${recipeId}" aria-label="Open source recipe ${esc(it.name)}">${svg('bookmark')}<span class="ig-n">${esc(it.name)}</span></button><button type="button" class="ig-recipe-amount num" data-it="${esc(it.id)}" aria-label="Edit ${esc(it.name)} amount, ${gfmt(it.grams)}">${gfmt(it.grams)}</button><b class="num r">${r0(it.kcal)}</b></div></div>`;
+      const recipeName=recipeId?`<button type="button" class="ig-recipe-open" data-recipe-open="${recipeId}" aria-label="Open source recipe ${esc(it.name)}">${svg('recipe')}<span class="ig-n">${esc(it.name)}</span></button>`:null;
+      if(recipeName&&mine)return `<div class="swipe"><button type="button" class="sw-del" data-del="${esc(it.id)}" tabindex="-1">${svg('trash')}Remove</button><div class="ig sw-row"><button type="button" class="ig-recipe-open" data-recipe-open="${recipeId}" aria-label="Open source recipe ${esc(it.name)}">${svg('recipe')}<span class="ig-n">${esc(it.name)}</span></button><button type="button" class="ig-recipe-amount num" data-it="${esc(it.id)}" aria-label="Edit ${esc(it.name)} amount, ${gfmt(it.grams)}">${gfmt(it.grams)}</button><b class="num r">${r0(it.kcal)}</b></div></div>`;
       if(recipeName)return `<div class="ig">${recipeName}<span class="ig-g num">${gfmt(it.grams)}</span><b class="num r">${r0(it.kcal)}</b></div>`;
       return mine?`<div class="swipe"><button type="button" class="sw-del" data-del="${esc(it.id)}" tabindex="-1">${svg('trash')}Remove</button><button class="ig sw-row" data-it="${esc(it.id)}">${ing(it)}</button></div>`:`<div class="ig">${ing(it)}</div>`;
     }).join('')}</div></div>` : ''}
@@ -219,7 +219,7 @@ function recipeAmountSheet(d,recipe,set,{chatMessage=null,initialGrams=null}={})
   sheet('How much went in?',`<div class="recipe-amount">
     <p class="recipe-amount-name">${esc(recipe.name)}</p>
     ${valid?`<div class="recipe-amount-quick" role="group" aria-label="Choose an amount"><button type="button" data-recipe-mode="all">All</button><button type="button" data-recipe-mode="half">½</button><button type="button" id="recipe-one-cup">1 cup</button></div>
-      <form id="recipe-amount-form"><label for="recipe-amount-grams">Weight</label><span class="gfield"><input id="recipe-amount-grams" name="grams" inputmode="decimal" aria-label="Weight in grams" placeholder="Grams"><span>g</span></span>
+      <form id="recipe-amount-form"><label for="recipe-amount-grams">Weight</label><span class="gfield"><input id="recipe-amount-grams" name="grams" inputmode="decimal" aria-label="Weight in grams"><span>g</span></span>
         <p class="small muted" id="recipe-amount-question" role="status" aria-live="polite"></p><p class="small danger" id="recipe-amount-error" role="alert" hidden></p>
         <div class="actions"><button type="submit" class="primary" id="recipe-amount-add" disabled>Add ingredient</button></div></form>`
       : `<p class="small" id="recipe-amount-error" role="alert">Add calories and the recipe’s measured weight first.</p><button type="button" class="linkbtn" id="recipe-open-source">Open recipe</button>`}
