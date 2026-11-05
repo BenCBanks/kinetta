@@ -19,7 +19,7 @@ function fixture({mine=true,search='?edit=1&tab=overview',delay=false}={}){
 // Exercise the actual address helper: a consumed query stays on the same mounted
 // page and updates its saved scroll identity; detached/other views cannot change it.
 {
- const app=fs.readFileSync('app/static/app.js','utf8'),a=app.indexOf('function replacePageAddress('),b=app.indexOf('function render()',a);
+ const app=fs.readFileSync('app/static/app.js','utf8'),a=app.indexOf('function replacePageAddress('),b=app.indexOf('\nfunction render(',a);
  const el={isConnected:true},location={pathname:'/activity/42',search:'?edit=1'},App={page:{owner:'owner',key:'/activity/42?edit=1'}};
  const c={App,location,readOwner:()=> 'owner',$:()=>el,history:{state:null,replaceState(state,unused,href){const url=new URL(href,'https://example.test');location.pathname=url.pathname;location.search=url.search;}}};
  vm.createContext(c);vm.runInContext(app.slice(a,b),c);

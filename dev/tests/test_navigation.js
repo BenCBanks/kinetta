@@ -8,7 +8,7 @@ const app=fs.readFileSync('app/static/app.js','utf8');
  const c={App:{me:{weight_kg:75}},readOwner:()=>owner,isoDay:()=> '2026-10-17',dayLabel:()=> 'Today',imp:()=>false,U:{weight:v=>v},esc:String,LB:2.20462,
   sheet:(title,body,fn)=>{html=body;fn(b,()=>closed++)},$:s=>s==='button'?button:nodes[s],load:(path,fn)=>{prefill=fn;return Promise.resolve()},
   refreshWeightData:async who=>{assert.equal(who,'one');refreshed++;},sendOrQueue:async(...args)=>{writes.push(args);return{}},invalidate(){},Native:{haptic(){}},toast(){}};
- vm.createContext(c);vm.runInContext(app.slice(app.indexOf('function quickWeighIn'),app.indexOf('function render()')),c);
+ vm.createContext(c);vm.runInContext(app.slice(app.indexOf('function quickWeighIn'),app.indexOf('function render(options)')),c);
  c.quickWeighIn({afterSave:()=>callbacks++});assert.equal(writes.length,0);assert.match(html,/>Today</);assert.equal(focused,1);
  prefill({points:[{day:'2026-10-16',kg:76},{day:'2026-10-15',kg:77}]});assert.equal(field.value,76);
  field.selectionEnd=2;prefill({points:[{day:'2026-10-16',kg:79}]});assert.equal(field.value,76,'Selecting text before typing blocks a late prefill');field.selectionEnd=0;
@@ -64,7 +64,7 @@ const app=fs.readFileSync('app/static/app.js','utf8');
 // The actual router position helper: Back/Forward and same-page refresh retain place per account.
 {
  let owner='first';const c={App:{scroll:{}},scrollY:0,readOwner:()=>owner};vm.createContext(c);
- vm.runInContext(app.slice(app.indexOf('function pagePosition'),app.indexOf('function render()')),c);
+ vm.runInContext(app.slice(app.indexOf('function pagePosition'),app.indexOf('function render(options)')),c);
  assert.equal(c.pagePosition('/activity'),0);c.scrollY=12000;assert.equal(c.pagePosition('/activity/7'),0);
  c.scrollY=900;assert.equal(c.pagePosition('/activity'),12000,'Back restores the list');
  assert.equal(c.App.scroll['/activity/7'],900,'Back remembers the outgoing detail for Forward');

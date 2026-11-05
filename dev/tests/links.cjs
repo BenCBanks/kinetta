@@ -24,7 +24,14 @@ const collect=p=>p.evaluate(()=>[...document.querySelectorAll('a[href],[data-hre
   for(const scene of selected){
    const f=await fixturePage(browser,base,fixtures,sessions,scene,{width:390,height:844,root:16},'light');
    try{
-    registry=registry||await f.p.evaluate(()=>App.pages.map(page=>({source:page.re.source,flags:page.re.flags})));
+    // Deferred routes are declared by the eager router but intentionally do not
+    // enter App.pages until their bundle loads. Recognize those exact patterns
+    // here; each discovered destination is still opened below and must register
+    // a real App.pages route after loading.
+    registry=registry||await f.p.evaluate(()=>[
+     ...App.pages.map(page=>({source:page.re.source,flags:page.re.flags})),
+     ...lazyRouteBundles.map(({re})=>({source:re.source,flags:re.flags})),
+    ]);
     for(const link of await collect(f.p))add(link,scene.login);
     if(scene.name==='Me'){
      const anchor=f.p.locator('a.mileage-progress').first();await anchor.waitFor();const original=await anchor.getAttribute('href');

@@ -65,6 +65,8 @@ class AssetBuildTests(unittest.TestCase):
                 self.assertEqual(value,hashlib.sha256((parent/'docker'/name).read_bytes()).hexdigest()[:32])
             self.assertNotIn('__ASSET_HASH__',html);self.assertNotIn('__SHELL_HASH__',(parent/'docker/sw.js').read_text())
             self.assertIn(result['shell'],(parent/'docker/sw.js').read_text())
+            built_app=(parent/'docker/app.js').read_text()
+            self.assertIn('/static/explore.js?v='+result['assets']['explore.js'],built_app,'the real deferred route points at Explore’s own content hash')
 
     def test_two_branches_merge_without_version_edits(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -108,6 +110,28 @@ class AssetBuildTests(unittest.TestCase):
             self.assertEqual(first['assets']['style.css'],second['assets']['style.css'])
             self.assertIn('app.js?v='+second['assets']['app.js'],(parent/'two/index.html').read_text())
             before=self.files(parent/'two');builder.build(parent/'two',parent/'two');self.assertEqual(before,self.files(parent/'two'))
+
+    def test_lazy_bundle_version_tracks_its_own_content(self):
+        with tempfile.TemporaryDirectory() as temp:
+            parent=Path(temp);source=self.tree(parent)
+            (source/'explore.js').write_text('window.Explore="first";\n')
+            (source/'other.js').write_text('window.Other="unchanged";\n')
+            (source/'app.js').write_text("const bundles=['/static/explore.js?v=__ASSET_HASH__'];\n")
+            first=builder.build(source,parent/'first')
+            first_app=(parent/'first/app.js').read_text()
+            first_url=re.search(r'/static/explore\.js\?v=([0-9a-f]{32})',first_app).group(0)
+
+            (source/'explore.js').write_text('window.Explore="edited";\n')
+            second=builder.build(source,parent/'second')
+            second_app=(parent/'second/app.js').read_text()
+            second_url=re.search(r'/static/explore\.js\?v=([0-9a-f]{32})',second_app).group(0)
+
+            self.assertNotEqual(first_url,second_url,'an Explore-only edit gets a fresh deferred URL')
+            self.assertIn(first['assets']['explore.js'],first_url)
+            self.assertIn(second['assets']['explore.js'],second_url)
+            self.assertEqual(first['assets']['style.css'],second['assets']['style.css'])
+            self.assertEqual(first['assets']['other.js'],second['assets']['other.js'])
+            self.assertNotEqual(first['assets']['app.js'],second['assets']['app.js'],'the bundle map itself points to the new Explore hash')
 
 
 if __name__=='__main__':unittest.main()
