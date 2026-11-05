@@ -1178,6 +1178,9 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .recipe-source-readonly { display:grid; gap:8px; }
 .recipe-source-readonly > p { margin:0; }
 .recipe-source-readonly .ing-card { margin:0; }
+.recipe-source-readonly .ingredient-heading { display:grid; grid-template-columns:minmax(0,1fr) minmax(36px,auto); align-items:baseline; gap:10px; }
+.recipe-source-readonly .ingredient-heading > :last-child { text-align:right; }
+.recipe-source-readonly .ig { grid-template-columns:minmax(0,1fr) minmax(36px,auto); }
 .ig-recipe-open { display:flex; align-items:center; gap:8px; min-width:0; min-height:44px; padding:0; border:0; background:none; color:var(--tx); text-align:left; }
 .ig-recipe-open svg { width:16px; height:16px; flex:none; color:var(--tx2); }
 .ig-recipe-open .ig-n { min-width:0; }

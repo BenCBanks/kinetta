@@ -261,9 +261,9 @@ function recipeAmountSheet(d,recipe,set,{chatMessage=null,initialGrams=null}={})
 
 function recipeSourceHtml(d) {
   const t=d.totals||{},measuredWeight=d.weighed?d.cooked_g:null;
-  return `<div class="recipe-source-readonly"><p class="small muted">${measuredWeight?`Whole recipe · ${gfmt(measuredWeight)}`:'Whole recipe · Weight not measured'} · ${t.kcal==null?'Calories unknown':`${recipeCalories(t.kcal)} kcal total`}</p>
+  return `<div class="recipe-source-readonly"><p class="recipe-source-meta small muted">${measuredWeight?`Whole recipe · ${gfmt(measuredWeight)}`:'Whole recipe · Weight not measured'}</p>
     <div class="recipe-nutrition num" aria-label="Nutrition in the whole recipe"><div><b class="${t.kcal==null?'nutrient-unknown':''}">${recipeCalories(t.kcal)}</b><small>kcal total</small></div>${MACROS.map(([k,nm])=>`<div><b class="${t[k]==null?'nutrient-unknown':''}">${t[k]==null?'Unknown':r0(t[k])+' g'}</b><small>${nm}</small></div>`).join('')}</div>
-    ${d.items?.length?`<div class="card ing-card"><div class="ingredient-heading small muted">Ingredients<span>kcal</span></div><div class="ing-list">${d.items.map(it=>`<div class="ig"><span class="ig-info"><span class="ig-n">${esc(it.name)}</span><span class="ig-g num"> · ${gfmt(it.grams)}</span></span><b class="num r">${it.kcal==null?'Unknown':r0(it.kcal)}</b></div>`).join('')}</div></div>`:''}</div>`;
+    ${d.items?.length?`<div class="card ing-card"><div class="ingredient-heading small muted"><span>Ingredients</span><span>kcal</span></div><div class="ing-list">${d.items.map(it=>`<div class="ig"><span class="ig-info"><span class="ig-n">${esc(it.name)}</span><span class="ig-g num"> · ${gfmt(it.grams)}</span></span><b class="num r">${it.kcal==null?'Unknown':r0(it.kcal)}</b></div>`).join('')}</div></div>`:''}</div>`;
 }
 
 function openRecipeSource(id,name,owner=readOwner()) {
