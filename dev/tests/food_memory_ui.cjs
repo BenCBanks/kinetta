@@ -20,15 +20,16 @@ const until=async(p,fn,label)=>{for(let n=0;n<160;n++){if(await p.evaluate(fn))r
     if(!['GET','HEAD'].includes(req.method())&&u.pathname!=='/api/food/thread/reviews')return r.fulfill({status:503,json:{detail:'Fictional test: writes blocked'}});
     return r.continue();
    });
-   const route=width===390?'/food/describe?meal=breakfast':'/food/describe?d=2026-11-03&meal=lunch';
+   const checkpoint=process.env.KINETTA_CHECKPOINT_ONLY==='1',showOtherDay=checkpoint&&width===330;
+   const route=showOtherDay?'/food/describe?d=2026-11-03&meal=lunch':'/food/describe?meal=breakfast';
    await p.goto(base+route);await p.locator('#thread-text').waitFor();await until(p,()=>App.pageReady,'Food entry ready');
-   const context=p.locator('#thread-context'),header=p.locator('.thread-heading'),expectedTitle=width===390?'Breakfast ⌄':'Tue · Lunch ⌄',expectedAria=width===390?'Logging to Breakfast, today. Change':'Logging to Lunch on Tue. Change';
+   const context=p.locator('#thread-context'),header=p.locator('.thread-heading'),expectedTitle=showOtherDay?'Tue · Lunch ⌄':'Breakfast ⌄',expectedAria=showOtherDay?'Logging to Lunch on Tue. Change':'Logging to Breakfast, today. Change';
    assert.equal((await context.innerText()).replace(/\s+/g,' ').trim(),expectedTitle);assert.equal(await context.getAttribute('aria-label'),expectedAria);
    const boxes=await p.evaluate(()=>{const rect=s=>{const r=s.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};},row=document.querySelector('.thread-heading');return{row:rect(row),back:rect(row.querySelector('.back')),title:rect(row.querySelector('#thread-context')),gear:rect(row.querySelector('#thread-settings')),label:(()=>{const r=row.querySelector('.thread-context-label');return{width:r.clientWidth,scrollWidth:r.scrollWidth};})()};});
    assert(boxes.row.height<=46,'food chat header stays one 44 px row');assert(boxes.back.height>=44&&boxes.title.height>=44&&boxes.gear.height>=44,'all header actions meet the 44 px target');
    assert(boxes.title.y>=boxes.row.y-1&&boxes.title.bottom<=boxes.row.bottom+1,'title stays in the header row');assert(boxes.title.x>=boxes.back.right+7&&boxes.gear.x>=boxes.title.right+7,'center title keeps 8 px gaps from both sides');
    assert(boxes.label.scrollWidth<=boxes.label.width+1,'the destination title fits without truncation');assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
-   const today=await p.evaluate(()=>isoDay(new Date(),deviceTimeZone())),pickerDay=width===390?today:'2026-11-03',pickerMeal=width===390?'breakfast':'lunch';
+   const today=await p.evaluate(()=>isoDay(new Date(),deviceTimeZone())),pickerDay=showOtherDay?'2026-11-03':today,pickerMeal=showOtherDay?'lunch':'breakfast';
    await context.tap();const picker=p.getByRole('dialog');await picker.waitFor();assert.equal(await picker.locator('[data-meal="'+pickerMeal+'"]').getAttribute('aria-pressed'),'true');assert.equal(await picker.locator('input[name="date"]').inputValue(),pickerDay);await picker.locator('[data-close]').first().click();
    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,'food-header-'+width+'-'+theme+'.png')});}
    cases+=6;

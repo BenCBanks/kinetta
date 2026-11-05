@@ -68,7 +68,7 @@
 .food-thread .thread-title { min-width:0;display:flex;align-items:center;justify-content:center; }
 .food-thread .thread-context { display:inline-flex;align-items:center;justify-content:center;gap:4px;max-width:100%;min-width:44px;min-height:44px;padding:0 4px;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--tx);font:600 var(--text-nav-title,17px)/1.2 var(--font);text-align:center;white-space:nowrap;overflow:hidden; }
 .food-thread .thread-context-label { min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
-.food-thread .thread-context-chevron { flex:none;color:var(--tx2);font-size:16px;line-height:1; }
+.food-thread .thread-context-chevron { flex:none;align-self:center;transform:translateY(-2px);color:var(--tx2);font-size:16px;line-height:1; }
 .food-thread .thread-context:focus-visible { outline:2px solid var(--link);outline-offset:1px; }
 
 /* Keep the food editor's Save action pinned while its fields scroll above it. */
