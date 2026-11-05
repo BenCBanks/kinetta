@@ -450,7 +450,7 @@
     },
     {
       "id": "social-6",
-      "source": "app/static/social.js",
+      "source": "app/static/social-notifications.js",
       "pattern": "/^\\/notifications$/",
       "paths": [
         "/notifications"
@@ -458,7 +458,7 @@
     },
     {
       "id": "social-7",
-      "source": "app/static/social.js",
+      "source": "app/static/social-notifications.js",
       "pattern": "/^\\/me\\/notifications$/",
       "paths": [
         "/me/notifications"

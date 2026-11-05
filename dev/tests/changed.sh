@@ -20,7 +20,7 @@ app/static/track*.js,app/static/track-home.css,app/static/intervals.js,app/stati
 app/static/lift*.js,app/static/lift-ui.css;lift;Lifting with sets,Lifting blank sets
 app/static/plan*.js,app/static/plan-ui.css,app/static/planner.js;plan;Me,Me Today plan,Track ready
 app/static/discovery.js,app/static/heatmap-ui.css,app/static/milestones.*,app/static/recaps*;progress;Progress,Fitness,Share progress
-app/static/profile.*,app/static/notifications-ui.css,app/static/password-visibility.*,app/static/push-invitation.js;profile;Me,Settings,Notifications
+app/static/profile.*,app/static/notifications-ui.css,app/static/password-visibility.*,app/static/push-invitation.js,app/static/social-notifications.js;profile;Me,Settings,Notifications
 app/static/admin*,app/static/feature-usage.js;admin;
 app/static/welcome.js,app/static/onboarding.js,app/static/username-availability.*;welcome;
 app/static/explore.js,app/static/guide-ui.css;guide;

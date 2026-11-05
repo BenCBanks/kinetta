@@ -1,10 +1,10 @@
 // Notification rows: bold name, quoted comment on its own line, new-dot, short times (no browser).
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const src=fs.readFileSync('app/static/social.js','utf8'),a=src.indexOf('function noteRow('),b=src.indexOf('route(/^\\/notifications$/');
-const opened=[],navigated=[];
-const c={esc:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'),avatar:p=>`<span class="av">${p?.name?.[0]||'?'}</span>`,svg:k=>`<svg data-k="${k}"></svg>`,when:()=>'Mon at 9:00 AM',NOTE_ICON:{comment:'comment',cheer:'cheer',monthly_summary:'calendar'},App:{me:{tz:'America/New_York'}},Recaps:{today:()=> '2026-11-05',open(...args){opened.push(args);}},go:path=>navigated.push(path),Date};
-vm.createContext(c);vm.runInContext(src.slice(a,b),c);
+const src=fs.readFileSync('app/static/social-notifications.js','utf8'),opened=[],navigated=[],routes=[];
+const c={esc:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'),avatar:p=>`<span class="av">${p?.name?.[0]||'?'}</span>`,svg:k=>`<svg data-k="${k}"></svg>`,when:()=>'Mon at 9:00 AM',App:{me:{tz:'America/New_York'}},Recaps:{today:()=> '2026-11-05',open(...args){opened.push(args);}},go:path=>navigated.push(path),route:(re,tab,fn)=>routes.push({re,tab,fn}),Date};
+vm.createContext(c);vm.runInContext(src,c);
+assert.deepEqual(routes.map(({re,tab})=>[re.toString(),tab]),[['/^\\/notifications$/',null],['/^\\/me\\/notifications$/','me']],'the real extracted module registers both notification routes');
 const ago=m=>new Date(Date.now()-m*60000).toISOString();
 const comment=c.noteRow({kind:'comment',read:false,link:'/activity/1',created:ago(5),who:{name:'Sam Fictional'},text:'Sam Fictional commented on your Easy Run: "Great <pace>!"'});
 assert(comment.includes('<b>Sam Fictional</b> commented on your Easy Run<'),'name is bold, the action is plain text');
@@ -18,5 +18,8 @@ assert(summary.includes('data-summary-type="month" data-summary-period="2026-10"
 c.openSummary('month','2026-10');assert.equal(JSON.stringify(opened.pop()),'[{"period":"month","offset":1}]','a recent monthly item opens its exact month');
 c.openSummary('month','2024-11');assert.equal(JSON.stringify(opened.pop()),'[{"period":"month","offset":24}]','the oldest supported month stays exact');
 c.openSummary('month','2024-10');assert.deepEqual(navigated,['/progress']);assert.equal(JSON.stringify(opened.pop()),'[]','older monthly items open Progress → Share instead of a capped month');
+const year=c.noteRow({kind:'monthly_summary',period_type:'year',period:'2024',read:true,link:'/notifications?year=2024',created:ago(2),who:{name:'Kinetta'},text:'Your 2024 summary is ready'});
+assert(year.includes('data-summary-type="year" data-summary-period="2024"'),'year summaries expose their period link');
+c.openSummary('year','2024');assert.equal(JSON.stringify(opened.pop()),'[{"period":"year","offset":2}]','year links open their exact year');
 assert.equal(c.noteAgo(ago(0)),'Just now');assert.equal(c.noteAgo(ago(180)),'3 hr ago');
-console.log('Notification rows: comments, new dot, monthly summary detail, exact period links, 24-month fallback and short times PASS');
+console.log('Notification rows: both routes, comments, new dot, month/year summary links, 24-month fallback and short times PASS');

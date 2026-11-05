@@ -10,7 +10,11 @@ const col = (name) => getComputedStyle(document.documentElement).getPropertyValu
 const App = {me: null, pageReady: false, cache: new Map(), pages: [], scroll: {}};
 const classicScriptPromises = new Map();
 const classicScriptsLoaded = new Set();
-const lazyRouteBundles = [{re: /^\/me\/explore$/, tab: 'me', scripts: ['/static/explore.js?v=__ASSET_HASH__']}];
+const lazyRouteBundles = [
+  {re: /^\/me\/explore$/, tab: 'me', scripts: ['/static/explore.js?v=__ASSET_HASH__']},
+  {re: /^\/notifications$/, tab: null, scripts: ['/static/social-notifications.js?v=__ASSET_HASH__']},
+  {re: /^\/me\/notifications$/, tab: 'me', scripts: ['/static/social-notifications.js?v=__ASSET_HASH__']},
+];
 let lazyRouteGeneration = 0;
 function loadClassicScript(asset) {
   if (classicScriptPromises.has(asset)) return classicScriptPromises.get(asset);

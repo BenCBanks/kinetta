@@ -67,6 +67,7 @@ class AssetBuildTests(unittest.TestCase):
             self.assertIn(result['shell'],(parent/'docker/sw.js').read_text())
             built_app=(parent/'docker/app.js').read_text()
             self.assertIn('/static/explore.js?v='+result['assets']['explore.js'],built_app,'the real deferred route points at Explore’s own content hash')
+            self.assertIn('/static/social-notifications.js?v='+result['assets']['social-notifications.js'],built_app,'the notification routes point at their own content hash')
 
     def test_two_branches_merge_without_version_edits(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -115,23 +116,44 @@ class AssetBuildTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             parent=Path(temp);source=self.tree(parent)
             (source/'explore.js').write_text('window.Explore="first";\n')
+            (source/'social-notifications.js').write_text('window.Notifications="first";\n')
             (source/'other.js').write_text('window.Other="unchanged";\n')
-            (source/'app.js').write_text("const bundles=['/static/explore.js?v=__ASSET_HASH__'];\n")
+            (source/'app.js').write_text("const bundles=['/static/explore.js?v=__ASSET_HASH__','/static/social-notifications.js?v=__ASSET_HASH__'];\n")
             first=builder.build(source,parent/'first')
             first_app=(parent/'first/app.js').read_text()
             first_url=re.search(r'/static/explore\.js\?v=([0-9a-f]{32})',first_app).group(0)
+            first_notifications_url=re.search(r'/static/social-notifications\.js\?v=([0-9a-f]{32})',first_app).group(0)
 
             (source/'explore.js').write_text('window.Explore="edited";\n')
             second=builder.build(source,parent/'second')
             second_app=(parent/'second/app.js').read_text()
             second_url=re.search(r'/static/explore\.js\?v=([0-9a-f]{32})',second_app).group(0)
+            second_notifications_url=re.search(r'/static/social-notifications\.js\?v=([0-9a-f]{32})',second_app).group(0)
 
             self.assertNotEqual(first_url,second_url,'an Explore-only edit gets a fresh deferred URL')
             self.assertIn(first['assets']['explore.js'],first_url)
             self.assertIn(second['assets']['explore.js'],second_url)
-            self.assertEqual(first['assets']['style.css'],second['assets']['style.css'])
+            self.assertEqual(first_notifications_url,second_notifications_url,'an Explore-only edit keeps the notification URL')
+            self.assertIn(first['assets']['social-notifications.js'],first_notifications_url)
+            self.assertEqual(first['assets']['social-notifications.js'],second['assets']['social-notifications.js'])
             self.assertEqual(first['assets']['other.js'],second['assets']['other.js'])
-            self.assertNotEqual(first['assets']['app.js'],second['assets']['app.js'],'the bundle map itself points to the new Explore hash')
+            self.assertEqual(first['assets']['style.css'],second['assets']['style.css'])
+            self.assertNotEqual(first['assets']['app.js'],second['assets']['app.js'],'the bundle map follows Explore’s new hash')
+
+            (source/'social-notifications.js').write_text('window.Notifications="edited";\n')
+            third=builder.build(source,parent/'third')
+            third_app=(parent/'third/app.js').read_text()
+            third_url=re.search(r'/static/explore\.js\?v=([0-9a-f]{32})',third_app).group(0)
+            third_notifications_url=re.search(r'/static/social-notifications\.js\?v=([0-9a-f]{32})',third_app).group(0)
+            self.assertEqual(second_url,third_url,'a notification-only edit keeps Explore’s URL')
+            self.assertEqual(second['assets']['explore.js'],third['assets']['explore.js'])
+            self.assertNotEqual(second_notifications_url,third_notifications_url,'a notification-only edit gets a fresh deferred URL')
+            self.assertIn(first['assets']['social-notifications.js'],first_notifications_url)
+            self.assertIn(second['assets']['social-notifications.js'],second_notifications_url)
+            self.assertIn(third['assets']['social-notifications.js'],third_notifications_url)
+            self.assertEqual(second['assets']['style.css'],third['assets']['style.css'])
+            self.assertEqual(second['assets']['other.js'],third['assets']['other.js'])
+            self.assertNotEqual(second['assets']['app.js'],third['assets']['app.js'],'the bundle map follows the notification hash')
 
 
 if __name__=='__main__':unittest.main()
