@@ -76,11 +76,11 @@ console.log('estimate removal: named explicit action, portion controls retained,
 
 // Current draft foods use the sticky review total and the direct remove control; logged/legacy and incomplete cards keep their own honest total.
 c.fmtAmount=e=>`${e.amount} ${e.unit}`;
-for(const [label,amount,want] of [['1',2,'2 servings'],['1 estimated portion',2,'2 estimated portions'],['1 bottle',1,'1 bottle'],['1 bottle',2,'2 bottles'],['1 hot dog',2,'2 hot dogs'],['1 slice (30 g)',2,'2 servings · 1 slice (30 g) each']])assert.equal(c.threadAmount({amount,unit:'serving',ref:{serving:{label}}}),want);
+for(const [label,amount,want] of [['1',2,'2 servings'],['1 estimated portion',2,'2 portions'],['1 bottle',1,'1 bottle'],['1 bottle',2,'2 bottles'],['1 hot dog',2,'2 hot dogs'],['1 slice (30 g)',2,'2 servings · 1 slice (30 g) each']])assert.equal(c.threadAmount({amount,unit:'serving',ref:{serving:{label}}}),want);
 assert.equal(c.threadAmount({amount:150,unit:'g'}),'150 g');
 for(const kcal of [0,120]){
- const entry={name:'Fictional food',amount:1,unit:'serving',kcal},result={kind:'preview',parts:[{index:0,status:'ready',estimated:true,entries:[entry]}]};
- const html=c.replyHtml(root,{entries:[],result});assert(!html.includes('thread-total'));assert(!html.includes('Review before logging')&&!html.includes('Ready to add'),'a compact food card has no permanent instruction caption');assert.equal((html.match(/data-unlogged-remove/g)||[]).length,1,'an unlogged draft has the card remove control');assert(!html.includes('data-more '),'an unlogged draft does not keep the overflow menu');assert(html.includes('data-amount-editor'));
+ const entry={name:'Fictional food',amount:1,unit:'serving',kcal},result={kind:'preview',parts:[{index:0,status:'ready',estimated:true,entries:[entry],remove_entries:[0],remove_token:'a'.repeat(64)}]};
+ const html=c.replyHtml(root,{entries:[],result});assert(!html.includes('thread-total'));assert(!html.includes('Review before logging')&&!html.includes('Ready to add'),'a compact food card has no permanent instruction caption');assert.equal((html.match(/data-unlogged-remove/g)||[]).length,0,'a single unlogged draft has no wasted close row');assert.equal((html.match(/data-remove-food=/g)||[]).length,1,'a single unlogged draft keeps its title-row remove control');assert(!html.includes('data-more '),'an unlogged draft does not keep the overflow menu');assert(html.includes('data-amount-editor'));
  assert(c.replyHtml({id:1,state:'answered',result:{review_only:false}},{entries:[],result}).includes('thread-total'));
 }
 const incomplete=c.replyHtml(root,{entries:[],result:{kind:'preview',parts:[{index:0,status:'ready',entries:[{name:'Unknown',amount:1,unit:'serving',kcal:null}]}]}});assert(incomplete.includes('Incomplete'));

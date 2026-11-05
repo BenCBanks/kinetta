@@ -49,6 +49,8 @@ with patch('urllib.request.urlopen',side_effect=AssertionError('No external requ
   with db.connect() as c:
    uid=c.execute('SELECT id FROM users WHERE login=%s',(login,)).fetchone()['id'];result=C.write(c,uid,T.locked_message(c,uid,m['id']),{'composed':True,'day':str(dt.datetime.now(dt.timezone.utc).date()),'meal':'lunch','parts':parts})
   reply=next(x for x in result['messages'] if x.get('reply_to')==m['id']);assert not reply['result'].get('error'),reply['result'];assert client.get('/api/food/day').json()['entries']==[]
+  first=(reply['result'].get('parts') or [{}])[0].get('entries') or []
+  if first and first[0].get('name')=='Fictional hot dog':assert first[0].get('amount')==2 and first[0].get('kcal')==550, f"two fictional portions keep count-matched calories: {first[0]}"
   print(who,'saved fictional stand-in ready')
 login='zz_test_food_compact_logged';client=TestClient(app);client.headers['Origin']='http://testserver';assert client.post('/api/login',json={'login':login,'password':'green teapot on the hill'}).status_code==200
 draft=str(uuid.uuid4());message=client.post('/api/food/thread/messages',json={'client_id':str(uuid.uuid4()),'draft_id':draft,'body':'Fictional logged apple','meal':'lunch','day':str(dt.datetime.now(dt.timezone.utc).date())});assert message.status_code==201,message.text
