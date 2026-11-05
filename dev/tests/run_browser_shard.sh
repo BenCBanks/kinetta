@@ -37,6 +37,7 @@ case "$1" in
     node dev/tests/notification_edit_ui.cjs
     node dev/tests/lift_compact_ui.cjs
     node dev/tests/lift_ui.cjs
+    node dev/tests/lift_lazy_route_ui.cjs
     node dev/tests/recipes_compact_ui.cjs
     ;;
   3)
