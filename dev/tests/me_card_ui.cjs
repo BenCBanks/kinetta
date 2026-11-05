@@ -55,7 +55,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    if(u.pathname==='/api/stats'){
     const resp=await r.fetch(),j=await resp.json();
     j.week_streak=slotFixture==='short-streak'?1:['both','streak-only'].includes(slotFixture)?12:0;
-    j.close_to=['both','target-only'].includes(slotFixture)?'18 km to 1,000 km this year':null;
+    j.close_to=['both','target-only'].includes(slotFixture)?'18 mi to 1,000 mi this year':null;
     return r.fulfill({response:resp,json:j});
    }
    if(u.pathname.endsWith('/profile')){
@@ -93,7 +93,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   const currentStats=await weekly.locator('[data-week-stat]').allTextContents();assert(currentStats.every(value=>value.trim()),'This week has visible distance, workout and time totals');
   assert.equal(await label.locator('span').innerText(),'This week','current week is the default selection');
   assert.equal(await p.locator('.me-week-streak[data-week-streak="12"]').count(),1,'streak appears at twelve weeks');
-  assert.equal(await p.locator('.me-card-close-to[data-close-to]').innerText(),'18 km to 1,000 km this year','close-to appears under the bars from private stats');
+  assert.equal(await p.locator('.me-card-close-to[data-close-to]').innerText(),'18 mi to 1,000 mi this year','close-to follows the owner’s profile units');
   assert.equal(await weekly.locator('[data-week-stat]').count(),3,'the close-to line adds no number row');
   const closeGeometry=await p.locator('.me-card-close-to').evaluate(n=>{const r=n.getBoundingClientRect(),bar=document.querySelector('.me-card-bars').getBoundingClientRect(),s=getComputedStyle(n);return{top:r.top,barBottom:bar.bottom,font:parseFloat(s.fontSize),border:s.borderWidth,background:s.backgroundColor};});
   assert(closeGeometry.top>=closeGeometry.barBottom&&closeGeometry.font>=13&&closeGeometry.border==='0px'&&closeGeometry.background==='rgba(0, 0, 0, 0)','close-to remains plain 13px secondary text under the bars '+JSON.stringify(closeGeometry));

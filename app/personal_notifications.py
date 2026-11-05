@@ -73,7 +73,7 @@ def settings(body: Preference, user=Depends(current_user)):
             if value and (not cfg[key] or not cfg.get(key + '_after')):
                 if not body.confirmed:
                     raise HTTPException(400, 'Choose this notification explicitly before enabling it')
-                if not apns.ready() or not meal_reminders.devices(c, user['id']):
+                if key != 'streak' and (not apns.ready() or not meal_reminders.devices(c, user['id'])):
                     raise HTTPException(409, 'Turn on iPhone notifications after server setup is complete')
                 cfg[key + '_after'] = now
             cfg[key] = value
@@ -108,32 +108,42 @@ def due(p, now):
             continue
         if at <= after or not dt.timedelta(0) <= now - at < WINDOW:
             continue
-        # The Friday date is a distinct weekly-attempt key from Monday's prior-week summary.
-        period = local.date() if kind in ('plan', 'streak') else local.date() - dt.timedelta(days=7)
+        if kind == 'streak':
+            monday = local.date() - dt.timedelta(days=local.weekday())
+            period = monday + dt.timedelta(days=5)  # Saturday marker; never a Monday summary period
+        else:
+            period = local.date() if kind == 'plan' else local.date() - dt.timedelta(days=7)
         slots.append((kind, period, at))
     return slots
 
 
-def streak_at_risk(c, uid, tz, at):
-    """Count completed activity weeks before this reminder time; reject a current-week workout."""
+def streak_at_risk(c, uid, tz, now=None):
+    """Count completed activity weeks at the actual check time; food and future work never count."""
+    now = now or clock()
     zone = ZoneInfo(tz)
-    local = at.astimezone(zone)
+    local = now.astimezone(zone)
     monday = local.date() - dt.timedelta(days=local.weekday())
     start = dt.datetime.combine(monday, dt.time.min, zone)
     current = c.execute('''SELECT EXISTS(SELECT 1 FROM activities WHERE user_id=%s AND NOT lift_open
-      AND start_time >= %s AND start_time < %s) AS worked''', (uid, start, at)).fetchone()['worked']
+      AND start_time >= %s AND start_time < %s AND start_time<=%s
+      AND start_time+make_interval(secs=>greatest(coalesce(elapsed_s,moving_s,0),0))<=%s) AS worked''',
+                         (uid, start, now, now, now)).fetchone()['worked']
     if current:
         return 0
     weeks = [r['week'] for r in c.execute('''SELECT DISTINCT date_trunc('week',start_time AT TIME ZONE %s)::date AS week
-      FROM activities WHERE user_id=%s AND NOT lift_open AND start_time < %s''', (tz, uid, at)).fetchall()]
+      FROM activities WHERE user_id=%s AND NOT lift_open AND start_time < %s AND start_time<=%s
+      AND start_time+make_interval(secs=>greatest(coalesce(elapsed_s,moving_s,0),0))<=%s''',
+                                            (tz, uid, start, now, now)).fetchall()]
     return activity_week_streak(weeks, local.date())
 
 
-def eligible(c, uid, kind, period, tz):
+def eligible(c, uid, kind, period, tz, now=None):
     zone = ZoneInfo(tz)
     if kind == 'streak':
-        at = dt.datetime.combine(period, dt.time(18), zone)
-        return streak_at_risk(c, uid, tz, at) >= 2
+        actual = now or clock()
+        local = actual.astimezone(zone)
+        monday = local.date() - dt.timedelta(days=local.weekday())
+        return local.weekday() == 4 and period == monday + dt.timedelta(days=5) and streak_at_risk(c, uid, tz, actual) >= 2
     if kind == 'weekly':
         lo = dt.datetime.combine(period, dt.time.min, zone)
         hi = dt.datetime.combine(period + dt.timedelta(days=7), dt.time.min, zone)
@@ -195,10 +205,9 @@ def deliver(uid, kind, period, send=None, now=None):
 
 
 def tick(now=None, send=None):
+    actual_now = now or clock()
     with db.connect() as c:
         c.execute("DELETE FROM personal_notification_attempts WHERE attempted_at<now()-interval '90 days'")
-    if send is None and not apns.ready():
-        return 0
     with db.connect() as c:
         users = c.execute('''SELECT p.user_id,p.tz,p.notify FROM profile p JOIN users u ON u.id=p.user_id
           WHERE (p.notify->'personal' @> '{"plan":true}' OR p.notify->'personal' @> '{"weekly":true}' OR p.notify->'personal' @> '{"streak":true}')
@@ -208,20 +217,43 @@ def tick(now=None, send=None):
     for p in users:
         uid = p['user_id']
         try:
-            for kind, period, _ in due(p, now or clock()):
+            for kind, period, _ in due(p, actual_now):
+                if kind != 'streak' and send is None and not apns.ready():
+                    continue
                 with db.connect() as c:
                     fresh = profile(c, uid)
-                    if not fresh or not any(s[:2] == (kind, period) for s in due(fresh, now or clock())):
+                    if not fresh or not any(s[:2] == (kind, period) for s in due(fresh, actual_now)):
                         continue
-                    if not meal_reminders.devices(c, uid) or not eligible(c, uid, kind, period, db.valid_tz(fresh['tz']) or db.DEFAULT_TZ):
+                    tz = db.valid_tz(fresh['tz']) or db.DEFAULT_TZ
+                    if not eligible(c, uid, kind, period, tz, actual_now):
                         continue
-                    stored_kind = 'weekly' if kind == 'streak' else kind
-                    claimed = c.execute('''INSERT INTO personal_notification_attempts(user_id,kind,period) VALUES(%s,%s,%s)
-                      ON CONFLICT DO NOTHING RETURNING user_id''', (uid, stored_kind, period)).fetchone()
-                if not claimed:
+                    if kind == 'streak':
+                        nid = notify.record_streak_reminder(c, uid, period, actual_now)
+                        devices = meal_reminders.devices(c, uid)
+                    else:
+                        if not meal_reminders.devices(c, uid):
+                            continue
+                        nid = None
+                        stored_kind = kind
+                        claimed = c.execute('''INSERT INTO personal_notification_attempts(user_id,kind,period) VALUES(%s,%s,%s)
+                          ON CONFLICT DO NOTHING RETURNING user_id''', (uid, stored_kind, period)).fetchone()
+                        if not claimed:
+                            continue
+                if kind == 'streak':
+                    if not nid:
+                        continue
+                    accepted = 0
+                    if devices and send is not None:
+                        accepted = notify.push(nid, send=send) or 0
+                    elif devices and apns.ready():
+                        threading.Thread(target=notify._push_later, args=(nid,), daemon=True).start()
+                    with db.connect() as c:
+                        c.execute("UPDATE personal_notification_attempts SET delivered=%s WHERE user_id=%s AND kind='weekly' AND period=%s",
+                                  (accepted, uid, period))
+                    count += 1  # the private bell row exists even without a configured phone/device
                     continue
                 # The claim commits before network work; an uncertain send is never replayed.
-                sent = deliver(uid, kind, period, send=send, now=now)
+                sent = deliver(uid, kind, period, send=send, now=actual_now)
                 with db.connect() as c:
                     c.execute('UPDATE personal_notification_attempts SET delivered=%s WHERE user_id=%s AND kind=%s AND period=%s',
                               (sent, uid, stored_kind, period))

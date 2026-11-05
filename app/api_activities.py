@@ -741,7 +741,8 @@ def stats(user=Depends(current_user)):
         days = [r['d'] for r in c.execute("""SELECT DISTINCT (start_time AT TIME ZONE %s)::date AS d FROM activities
                                              WHERE user_id = %s ORDER BY 1 DESC""", (tz, user['id'])).fetchall()]
         active_weeks = [r['week'] for r in c.execute("""SELECT DISTINCT date_trunc('week',start_time AT TIME ZONE %s)::date AS week
-                                                        FROM activities WHERE user_id=%s AND NOT lift_open""",
+                                                        FROM activities WHERE user_id=%s AND NOT lift_open AND start_time<=now()
+                                                          AND start_time+make_interval(secs=>greatest(coalesce(elapsed_s,moving_s,0),0))<=now()""",
                                                        (tz, user['id'])).fetchall()]
         total = c.execute('SELECT count(*) AS n, min(start_time) AS first FROM activities WHERE user_id = %s', (user['id'],)).fetchone()
         today = dt.datetime.now(ZoneInfo(tz)).date()
@@ -749,10 +750,12 @@ def stats(user=Depends(current_user)):
         year_start = dt.datetime.combine(dt.date(today.year, 1, 1), dt.time.min, zone)
         next_year = dt.datetime.combine(dt.date(today.year + 1, 1, 1), dt.time.min, zone)
         year_activity = c.execute("""SELECT sport,count(*) AS n,coalesce(sum(distance_m),0) AS distance_m FROM activities
-                                      WHERE user_id=%s AND NOT lift_open AND start_time >= %s AND start_time < %s GROUP BY sport""",
+                                      WHERE user_id=%s AND NOT lift_open AND start_time >= %s AND start_time < %s AND start_time<=now()
+                                        AND start_time+make_interval(secs=>greatest(coalesce(elapsed_s,moving_s,0),0))<=now() GROUP BY sport""",
                                   (user['id'], year_start, next_year)).fetchall()
         all_activity = c.execute("""SELECT sport,count(*) AS n FROM activities
-                                     WHERE user_id=%s AND NOT lift_open GROUP BY sport""", (user['id'],)).fetchall()
+                                     WHERE user_id=%s AND NOT lift_open AND start_time<=now()
+                                       AND start_time+make_interval(secs=>greatest(coalesce(elapsed_s,moving_s,0),0))<=now() GROUP BY sport""", (user['id'],)).fetchall()
         close_to = close_to_target(sum(float(r['distance_m'] or 0) for r in year_activity),
                                    {r['sport']: r['n'] for r in all_activity}, units)
         chart_start = sunday(today) - dt.timedelta(weeks=6)
