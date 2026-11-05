@@ -2545,10 +2545,21 @@ button.thread-food:active { opacity: .7; }
 #thread-empty h2 {display:flex;align-items:center;gap:8px;}
 .kit-fine {margin:12px 0 0;color:var(--tx3);font-size:.8125rem;}
 .kit-fine .linkbtn {font-size:inherit;min-height:44px;padding:0 4px;}
-.kit-chat #thread-messages:empty {flex:0;padding:0;}
+.kit-chat #kit-messages {overflow-anchor:none;position:relative;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;align-content:start;gap:14px;padding:12px 0 8px;}
+.kit-chat #kit-messages:empty {flex:0;padding:0;}
 .kit-compose-row {grid-template-columns:minmax(0,1fr) 44px;}
 #kit-text {font-size:16px;resize:none;max-height:140px;min-height:44px;}
 #kit-status {font-size:.8rem;color:var(--tx2);margin:4px 0 0;min-height:1.3em;}
+.kit-chat #kit-food-slot:empty {display:none;}
+.kit-chat .kit-food-inline.shell {position:relative;inset:auto;width:100%;height:auto;min-height:0;max-height:none;overflow:visible;display:block;flex:none;margin:0;padding:0;background:transparent;}
+.kit-chat .kit-food-inline > :is(.thread-heading,#thread-empty,#thread-older) {display:none!important;}
+.kit-chat .kit-food-inline > #thread-messages {display:grid;flex:none;min-height:0;max-height:none;overflow:visible;gap:14px;padding:0;}
+.kit-chat .kit-food-inline > #thread-messages[hidden] {display:none;}
+.kit-chat .kit-food-inline > #thread-composer {display:contents;position:static;margin:0;padding:0;background:transparent;}
+.kit-chat .kit-food-inline > #thread-composer > :not(#thread-review):not(#thread-status) {display:none!important;}
+.kit-chat .kit-food-inline:has(#thread-review:not([hidden])) #thread-messages article:last-child .thread-card {border-bottom:0;border-bottom-right-radius:0;border-bottom-left-radius:0;}
+.kit-chat .kit-food-inline > #thread-composer > #thread-review {margin:0;border-top:0;border-bottom:1px solid var(--line);border-radius:0 0 20px 6px;}
+.kit-chat .kit-food-inline > #thread-composer > #thread-status:not(:empty) {display:block;color:var(--tx2);font-size:.85rem;}
 .kit-answer>p {white-space:pre-line;}
 .kit-facts {font-size:.9rem;margin:12px 0;}
 .kit-facts>div {display:flex;justify-content:space-between;gap:14px;padding:6px 0;border-top:1px solid var(--line);}
@@ -2749,13 +2760,9 @@ nav.tabs { view-transition-name: tabs; }
    The map is the workspace: it fills the space between the sport choice and the tool bar. Straight-line sections are
    dashed and listed, a connection with no path is red and dashed, and the distance says "updating" while it changes. */
 .planner-page {display:flex;flex-direction:column;min-height:calc(100dvh - var(--tab-h) - env(safe-area-inset-bottom,0px));padding-bottom:calc(env(safe-area-inset-bottom) + var(--tab-h) + 8px)}
-.plan-top {margin-bottom:6px}
-.plan-top .plan-title {font-size:1.15rem;margin:0;flex:1;min-width:0;text-align:center;white-space:normal;overflow-wrap:anywhere}
-@media(max-width:360px){
-  .plan-top {display:grid;grid-template-columns:minmax(0,1fr) 44px;}
-  .plan-top .plan-title {grid-column:1/-1;grid-row:2;}
-  .plan-top #pl-search {grid-column:2;grid-row:1;}
-}
+/* The Kit entry adds another direct action; keep Plan's back, title and actions in one row. */
+.shell.plan-page .plan-top {display:flex;margin-bottom:6px;flex-wrap:nowrap;gap:8px}
+.shell.plan-page .plan-top > h1 {font-size:1.15rem;margin:0;flex:1 1 0;min-width:0;max-width:none;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .plan-sports {display:flex;width:100%;margin-bottom:8px}
 .plan-sports button {flex:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:40px;padding:4px 6px}
 .plan-sports svg {width:17px;height:17px}

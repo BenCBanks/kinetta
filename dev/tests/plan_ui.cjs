@@ -3,6 +3,7 @@
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill',people=['empty','future','week3','race','first','paced'];
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
+async function headerMetrics(p){return p.locator('.plan-top').evaluate(n=>{const r=n.getBoundingClientRect(),s=getComputedStyle(n),items=[...n.children].filter(x=>x.getBoundingClientRect().width&&x.getBoundingClientRect().height),centers=items.map(x=>x.getBoundingClientRect().top+x.getBoundingClientRect().height/2),children=[...n.children].map(x=>{const b=x.getBoundingClientRect(),c=getComputedStyle(x);return{tag:x.tagName,id:x.id,cls:x.className,display:c.display,x:b.x,y:b.y,width:b.width,height:b.height,flex:c.flex,position:c.position}});return{height:r.height,width:r.width,display:s.display,flexWrap:s.flexWrap,centers,children};});}
 (async()=>{
  cp.execFileSync('python3',[path.join(__dirname,'plan_fixture.py')],{env:process.env,stdio:'inherit'});
  const b=await chromium.launch(),contexts=[];
@@ -17,7 +18,8 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
  try{
   for(const who of people)for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
    const name=`${who}-${size.width}-${theme}`;if(process.env.KINETTA_PLAN_CASE&&process.env.KINETTA_PLAN_CASE!==name)continue;
-   const {c,p,get,errors,writes}=await open(who,theme,size),d=await(await get('/api/plans/current')).json();
+   const {c,p,get,errors,writes}=await open(who,theme,size),d=await(await get('/api/plans/current')).json();if(who==='paced')await p.locator('.plan-top [data-kit-entry]').waitFor();
+   const header=await headerMetrics(p);assert(header.height<=60&&header.centers.length>=2&&Math.max(...header.centers)-Math.min(...header.centers)<=1,`Plan header stays on one row at ${size.width}px (${JSON.stringify(header)})`);if(who==='paced')assert.equal(await p.locator('.plan-top [data-kit-entry]').count(),1,'relevant Plan user gets the Kit entry');
    assert.equal(await p.locator('.top .back').innerText(),'Progress');assert.equal(await p.locator('.discovery-grid').count(),0,'no sub-page tile grid');assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no document overflow');
    if(who==='empty'){
     await until(p,()=>!!document.querySelector('#ps-prev .pw'),'real setup preview');assert(await p.locator('#pl-actions').isHidden());assert.equal(await p.locator('[data-plan-start]').count(),0);for(const field of await p.locator('input,select').all())if(await field.isVisible())assert(Number.parseFloat(await field.evaluate(n=>getComputedStyle(n).fontSize))>=16);
@@ -52,6 +54,10 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     const after=await(await get('/api/plans/current')).json();assert.deepEqual(after.plan,original.plan,'preview never replaces the active plan');assert.deepEqual(after.weeks,original.weeks,'preview never marks the active plan');
    }
    assert.deepEqual(errors,[]);assert(!writes.some(x=>x!=='/api/plans/preview'&&x!=='/api/challenges/signup/continue'),'layout opens no plan/activity writes');console.log(`Plan ${name}: summary/week/rest/matched distances/details/menu/layout PASS`);await c.close();contexts.splice(contexts.indexOf(c),1);
+  }
+  if(!process.env.KINETTA_PLAN_CASE||process.env.KINETTA_PLAN_CASE==='plan-header-330'){
+   const size={width:330,height:667,root:16},{c,p}=await open('paced','light',size);await p.locator('.pweek').first().locator('.compact-workout').last().waitFor();await p.locator('.plan-top [data-kit-entry]').waitFor();
+   const header=await headerMetrics(p);assert(header.height<=60&&header.centers.length>=4&&Math.max(...header.centers)-Math.min(...header.centers)<=1,`Plan header and Kit entry stay on one row at 330px (${JSON.stringify(header)})`);assert.equal(await p.locator('.plan-top [data-kit-entry]').count(),1);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'Plan fits at 330px');await c.close();contexts.splice(contexts.indexOf(c),1);
   }
   if(!process.env.KINETTA_PLAN_CASE||process.env.KINETTA_PLAN_CASE==='actions')for(const who of ['future','first'])for(const native of [false,true]){
    const {c,p,get,errors,writes}=await open(who,'light',{width:390,height:844,root:16},native),d=await(await get('/api/plans/current')).json(),beforeMarks=JSON.stringify(d.weeks),before=(await(await get('/api/interval-presets')).json()).length,next=d.next_workout;
