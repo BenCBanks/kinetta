@@ -99,3 +99,43 @@
 .activity-home .activity-card .post-hd.post-profile { display:flex; grid-template-columns:none; }
 .activity-home .activity-card .post-hd > .ph-txt { display:block; }
 .activity-home .activity-card .post-hd > .ph-txt > small { grid-column:auto; grid-row:auto; white-space:normal; }
+
+/* Identity and permitted numbers stay anchored while the square map/photo rail moves beneath them. */
+.activity-picture { position:relative; isolation:isolate; }
+.post-led .activity-media { position:relative; margin:0; }
+.post-led .media-item { aspect-ratio:1; }
+.post-led .media-track { border-radius:0; }
+.activity-card.post-led .post-hd.post-profile { position:absolute; z-index:4; inset:0 0 auto; padding:12px 14px 32px; color:#fff; background:linear-gradient(to bottom,rgba(0,0,0,.72),rgba(0,0,0,.62) calc(100% - 32px),transparent); pointer-events:none; }
+.activity-card.post-led .post-hd a { pointer-events:auto; color:#fff; }
+.activity-card.post-led .post-hd small { color:#fff; }
+.activity-card.post-led .post-private { color:#fff; }
+.activity-card.post-led .post-av .av { transform:none; background:rgba(0,0,0,.25); color:#fff; }
+.activity-card.post-led .post-title-link { align-items:center; }
+.post-led .post-map-metrics { z-index:3; bottom:20px; height:44px; padding:4px 12px 8px; background:linear-gradient(to bottom,transparent,rgba(0,0,0,.72)); }
+.post-led .post-map-metric b,.post-led .post-photo-metrics .stat b { font-variant-numeric:tabular-nums; }
+.post-led .post-photo-metrics .stats3 { width:100%; grid-column:1/-1; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.post-led .post-photo-metrics .stat { min-width:0; }
+.post-led .post-photo-metrics .stat small { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+.post-led .post-photo-metrics .stat b { font-size:20px; color:#fff; line-height:1.1; }
+.post-led .post-photo-metrics .stat i { margin-left:3px; font-size:13px; font-weight:400; }
+.post-led .fmap .leaflet-bottom.leaflet-right { inset:auto 0 0 auto; width:100%; max-width:100%; min-height:20px; display:flex; align-items:center; justify-content:flex-end; padding:0 6px; box-sizing:border-box; background:rgba(0,0,0,.72); }
+.post-led .fmap .leaflet-control-attribution { font-size:9px!important; opacity:1; text-shadow:none; }
+.post-led .fmap { pointer-events:auto; }
+.post-led .fmap .mini { top:var(--route-top,140px); bottom:var(--route-bottom,104px); }
+.post-led .fmap .mini svg { width:100%; height:100%; }
+.post-led .compact-media:has(.media-map) .media-controls > button,.post-led .compact-media .media-controls > button { top:50%; bottom:auto; transform:translateY(-50%); }
+.post-led .compact-media .media-dots { top:auto; bottom:88px; }
+.post-led .compact-media:has(.media-map) .media-dots { top:auto; bottom:88px; }
+
+.activity-card.post-led .activity-media { margin:0; }
+.activity-card.post-led .post-title { color:#fff; }
+.activity-card.post-led .compact-media:has(.media-map) .media-controls > button[data-media-step] { top:50%; bottom:auto; }
+
+.post-led .media-item { min-height:var(--picture-min-height,0px); }
+.post-led .fmap .mini { left:var(--route-side,24px); right:var(--route-side,24px); }
+
+/* The image fills the square; only its unobscured area opens the viewer. */
+.post-led .media-photo-open {position:absolute;top:var(--photo-top,148px);bottom:var(--photo-bottom,116px);left:var(--photo-side,64px);right:var(--photo-side,64px);min-width:44px;min-height:44px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+
+.post-led .fmap .leaflet-bottom.leaflet-left {left:64px;right:64px;bottom:112px}
+.post-led .map-unavailable {margin:0;max-width:100%}

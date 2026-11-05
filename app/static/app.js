@@ -863,7 +863,7 @@ function drawEnd(g, x, y, kind, r) {     // the same marker on a canvas, r = rad
   else { g.lineWidth = 1.8; g.beginPath(); g.moveTo(8.5, 6.5); g.lineTo(8.5, 17.5); g.stroke(); g.beginPath(); g.moveTo(9.3, 7); g.lineTo(16.3, 7); g.lineTo(14.3, 9.6); g.lineTo(16.3, 12.2); g.lineTo(9.3, 12.2); g.closePath(); g.fill(); }
   g.restore();
 }
-async function mapInto(el, lines, {sport = 'run', heat = false, still = false, ends = true} = {}) {   // ends: start/finish dots
+async function mapInto(el, lines, {sport = 'run', heat = false, still = false, ends = true, cardFit = null} = {}) {   // ends: start/finish dots
   const L = await loadLeaflet();
   cleanViews();
   if (!el.isConnected) return null;   // navigation may finish before Leaflet loads
@@ -892,7 +892,12 @@ async function mapInto(el, lines, {sport = 'run', heat = false, still = false, e
     L.marker(first[0], {icon: endIcon(L, 'start', loop), interactive: false, keyboard: false, title: 'Start'}).addTo(map);
     L.marker(last[last.length - 1], {icon: endIcon(L, 'end', loop), interactive: false, keyboard: false, title: 'Finish'}).addTo(map);
   }
-  if (still) { map.attributionControl.setPrefix(false); return {map, L, group,routeColor:()=>routeColor}; }
+  if (still) {
+    map.attributionControl.setPrefix(false);
+    const view={map, L, group,routeColor:()=>routeColor};
+    cardFit?.(el,view);
+    return view;
+  }
   map.attributionControl.setPrefix(false);      // no "Leaflet" credit; phones pinch to zoom, so +/- only with a mouse (2026-10-12)
   if (!matchMedia('(pointer: coarse)').matches) L.control.zoom({position: 'bottomright'}).addTo(map);
   return {map, L, group,routeColor:()=>routeColor};
@@ -900,7 +905,8 @@ async function mapInto(el, lines, {sport = 'run', heat = false, still = false, e
 function feedMaps(box) {   // Strava-style map on each feed card, built when it scrolls near the screen
   for (const el of box.querySelectorAll('.fmap:not([data-on])')) {
     el.dataset.on = '1';
-    lazy(el, () => mapInto(el, [el.dataset.line], {sport: el.dataset.sport, still: true})
+    lazy(el, () => mapInto(el, [el.dataset.line], {sport: el.dataset.sport, still: true,
+      cardFit:el.closest('.post-led')&&typeof fitActivityCardMap==='function'?fitActivityCardMap:null})
       .then(() => el.classList.add('ready')).catch(() => {}));   // on failure the route drawing stays
   }
 }

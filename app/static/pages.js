@@ -104,10 +104,12 @@ function postCard(a, {compact = false, lock = false} = {}) {
   const head = `<a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><span class="ph-txt">${title}<small>${meta}</small></span>`;
   const share=theirs?'':`<button type="button" class="pf activity-share" data-share-picture="${a.id}" aria-label="Share a picture of this activity">${svg('share')}</button>`;
   const foot = reactionButtons(a.id,a,false,compact)+`<button type="button" class="pf activity-comments" data-talk="${a.id}" aria-label="Comments, ${a.comments||0}">${svg('comment')}<span class="num"${a.comments?'':' hidden'}>${a.comments?reactionNumber(a.comments):''}</span></button>`+share;
-  const media=activityMedia(a,{compact,mapMetrics:a.line?postMapMetrics(a):''});
+  const media=activityMedia(a,{compact,mapLed:true});
+  const header=`<div class="post-hd post-profile post-link">${head}</div>`;
+  const metrics=media?(a.line?postMapMetrics(a):`<div class="post-map-metrics post-photo-metrics"><div class="stats3">${theirs?sharedHeadline(a):headline(a)}</div></div>`):'';
   const details=`${!theirs && a.lifts && a.lifts.names ? `<p class="post-lifts">${esc(a.lifts.names.slice(0, 4).join(' · '))}${a.lifts.names.length > 4 ? ` +${a.lifts.names.length - 4}` : ''}</p>` : ''}${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}`;
-  const summary=a.line?details:`<div class="post-summary"><div class="stats3">${theirs ? sharedHeadline(a) : headline(a)}</div>${details}</div>`;
-  return `<article class="card post activity-card" data-href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}" data-activity-month="${activityMonthKey(a.start_time)}"><div class="post-hd post-profile post-link">${head}</div>${media}${summary?`<div class="post-extra">${summary}</div>`:''}<div class="post-ft">${foot}</div></article>`;
+  const summary=media?details:`<div class="post-summary"><div class="stats3">${theirs ? sharedHeadline(a) : headline(a)}</div>${details}</div>`;
+  return `<article class="card post activity-card${media?' post-led':''}" data-href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}" data-activity-month="${activityMonthKey(a.start_time)}">${media?`<div class="activity-picture">${media}${header}${metrics}</div>`:header}${summary?`<div class="post-extra">${summary}</div>`:''}<div class="post-ft">${foot}</div></article>`;
 }
 function sharedHeadline(a) {   // what a friend shares: no pace when they keep pace to themselves
   const st = [];
@@ -133,11 +135,52 @@ function postMapMetrics(a) {
   if(!rows.length)return '';
   return `<div class="post-map-metrics" role="group" aria-label="Activity metrics">${rows.slice(0,3).map(([label,value,unit])=>`<div class="post-map-metric"><span class="vh">${esc(label)}</span><b>${esc(value)}${unit?`<i>${esc(unit)}</i>`:''}</b></div>`).join('')}</div>`;
 }
+// Measure overlays for both the fallback route and the loaded live map. Only card geometry changes trigger a refit.
+function activityCardInsets(el) {
+  const picture=el.closest('.activity-picture');
+  if(!picture)return null;
+  const frame=picture.getBoundingClientRect(),header=$('.post-hd',picture).getBoundingClientRect();
+  const lower=$$('.post-map-metrics,.leaflet-control-attribution,.media-dots,.map-unavailable:not([hidden])',picture).filter(n=>n.getClientRects().length).map(n=>frame.bottom-n.getBoundingClientRect().top+16);
+  const insets={top:Math.ceil(header.bottom-frame.top)+16,bottom:Math.ceil(Math.max(36,...lower)),side:$('.media-controls',picture)?64:24};
+  return Object.values(insets).every(Number.isFinite)?insets:null;
+}
+function fitActivityCardMap(el,view) {
+  if(!el.closest('.post-led'))return;
+  let signature='';
+  const fit=()=>{
+    if(!el.isConnected)return;
+    const inset=activityCardInsets(el);
+    if(!inset||el.clientWidth<=inset.side*2||el.clientHeight<=inset.top+inset.bottom)return;
+    const next=[el.clientWidth,el.clientHeight,inset.top,inset.bottom,inset.side].join(':');
+    if(next===signature)return;signature=next;
+    const bounds=view.group.getBounds();view.map.invalidateSize({pan:false});
+    if(bounds.isValid())view.map.fitBounds(bounds,{paddingTopLeft:[inset.side,inset.top],paddingBottomRight:[inset.side,inset.bottom],animate:false});
+  };
+  el._activityMapFit=fit;fit();document.fonts.ready.then(fit);
+}
+function measureActivityPictures(box){
+  $$('.post-led .fmap,.post-led .activity-picture:not(:has(.fmap))',box).forEach(el=>{
+    if(headerObservers.has(el))return;
+    const measure=()=>{
+      if(!el.isConnected)return;
+      const inset=activityCardInsets(el);if(!inset)return;
+      const picture=el.closest('.activity-picture');
+      // Enlarged or unusually long identity text can need more than a square; retain a usable route area.
+      picture.style.setProperty('--photo-top',inset.top+'px');picture.style.setProperty('--photo-bottom',inset.bottom+'px');picture.style.setProperty('--photo-side',inset.side+'px');
+      picture.style.setProperty('--picture-min-height',Math.ceil(inset.top+inset.bottom+64)+'px');
+      el.style.setProperty('--route-top',inset.top+'px');el.style.setProperty('--route-bottom',inset.bottom+'px');el.style.setProperty('--route-side',inset.side+'px');el._activityMapFit?.();
+    };
+    const observer=new ResizeObserver(measure),picture=el.closest('.activity-picture');
+    for(const node of [el,$('.post-hd',picture),$('.post-map-metrics',picture)])if(node)observer.observe(node);
+    const changes=new MutationObserver(measure);changes.observe(picture,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden']});
+    headerObservers.set(el,{disconnect(){observer.disconnect();changes.disconnect();}});measure();document.fonts.ready.then(measure);
+  });
+}
 // Cheers straight from a feed card: the count changes at once and goes back if the server says no. The comment
 // button opens the comments sheet and keeps the card's count in step.
 function wireCheers(box) {
   cleanViews();
-  wireActivityMedia(box); wireCardTaps(box);
+  measureActivityPictures(box); wireActivityMedia(box); wireCardTaps(box);
   $$('[data-talk]', box).forEach((b) => {SocialData.warm(b,b.dataset.talk);b.onclick = () => {
     commentsSheet(b.dataset.talk, null, (fresh) => {
       if (!b.isConnected) return;
@@ -158,6 +201,8 @@ addEventListener('scroll', cardRelease, {passive: true});
 function wireCardTaps(box) {
   if (box.dataset.cardTaps) return;
   box.dataset.cardTaps = '1';
+  // Keep the provider's link tappable without the map/card's activity-navigation handler taking over.
+  box.addEventListener('click',e=>{if(e.target.closest('.post-led .leaflet-control-attribution a'))e.stopPropagation();},{capture:true});
   const card = (e) => { const c = e.target.closest && e.target.closest('article.post[data-href]'); return c && box.contains(c) && !e.target.closest(CARD_OWN) ? c : null; };
   box.addEventListener('pointerdown', (e) => {
     cardRelease();
