@@ -167,7 +167,11 @@ function liftLogger(el, aid, data) {
     }
   }
   const later = () => { if (!live()) return; clearTimeout(saveT); remember(); if (stopped) { status('Deleting…'); return; } status(''); saveT = setTimeout(save, 700); };
-  const flush = () => { if (saveT && !stopped && owned()) save(); };
+  const flush = () => {
+    if (stopped || !owned()) return;
+    if (saveT) { save(); return; }
+    if (store.get(key)?.unsent && !liftWrites.has(key)) save();
+  };
   const cleanup = () => {
     flush(); disposed = true; clearTimeout(saveT); clearInterval(clock);
     removeEventListener('pagehide', flush); document.removeEventListener('visibilitychange', flush);

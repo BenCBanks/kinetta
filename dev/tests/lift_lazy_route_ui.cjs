@@ -2,7 +2,7 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill';
-const startTime='2026-11-05T12:00:00Z',savedId=990000010;
+const startTime=new Date(Date.now()-60_000).toISOString(),savedId=990000010;
 async function until(page,predicate,label,arg){for(let i=0;i<200;i++){try{if(await page.evaluate(predicate,arg))return;}catch(_){}await page.waitForTimeout(100);}throw Error(label);}
 async function ready(page,selector,label){await until(page,s=>!!document.querySelector(s)&&App.pageReady,label||`ready: ${selector}`,selector);}
 async function login(context,name='zz_test_lift_compact'){
@@ -11,8 +11,8 @@ async function login(context,name='zz_test_lift_compact'){
 }
 function dataFor(ids){return {open:true,start_time:startTime,lastTick:null,exercises:[{exercise_id:ids.exercise,name:'Squat',kind:'weight',sets:[{kg:null,reps:null,secs:null,warmup:false,done:false}],last:{activity_id:savedId,start_time:'2026-10-30T12:00:00Z',sets:[{kg:50,reps:8}]},sessions_before:1}]};}
 function savedSessions(){return [{id:savedId,name:'Fictional squat routine',start_time:'2026-10-30T12:00:00Z',exercises:['Fictional squat'],sets:3,volume:1200,lift_open:false}];}
-async function installRoutes(context,{ids,sessionId,failBundleFirst=false,holdBundle=false,failLiftWrites=0}={}){
- const openData=dataFor(ids),starts=[],scripts=[],liftWrites=[],unexpectedWrites=[];let opened=false,releaseBundle,enteredBundle;
+async function installRoutes(context,{ids,sessionId,failBundleFirst=false,holdBundle=false,holdLiftWrites=false,failLiftWrites=0}={}){
+ const openData=dataFor(ids),starts=[],scripts=[],liftWrites=[],unexpectedWrites=[];let opened=false,liftWritesHeld=holdLiftWrites,releaseBundle,enteredBundle;
  const gate=new Promise(resolve=>releaseBundle=resolve),entered=new Promise(resolve=>enteredBundle=resolve);
  await context.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url()),method=request.method();
@@ -34,13 +34,13 @@ async function installRoutes(context,{ids,sessionId,failBundleFirst=false,holdBu
   if(url.pathname===`/api/activities/${sessionId}/lifts`&&method==='GET')return route.fulfill({json:JSON.parse(JSON.stringify(openData))});
   if(url.pathname===`/api/activities/${sessionId}/lifts`&&method==='PUT'){
    const body=request.postDataJSON();liftWrites.push(body);
-   if(failLiftWrites>0){failLiftWrites--;return route.fulfill({status:503,json:{detail:'Fictional lifting save unavailable'}});}
+   if(liftWritesHeld||failLiftWrites>0){if(failLiftWrites>0)failLiftWrites--;return route.fulfill({status:503,json:{detail:'Fictional lifting save unavailable'}});}
    return route.fulfill({json:{open:!body.finish,start_time:startTime,exercises:body.exercises.map(e=>({...openData.exercises.find(x=>x.exercise_id===e.exercise_id),...e,sets:e.sets.map(s=>({...s,pr:[]}))}))}});
   }
   if(!['GET','HEAD'].includes(method)){unexpectedWrites.push(`${method} ${url.pathname}`);return route.fulfill({status:403,json:{detail:'Fictional test write blocked'}});}
   return route.continue();
  });
- return {starts,scripts,liftWrites,unexpectedWrites,waitBundle:()=>entered,releaseBundle,opened:()=>opened};
+ return {starts,scripts,liftWrites,unexpectedWrites,waitBundle:()=>entered,releaseBundle,releaseLiftWrites:()=>{liftWritesHeld=false;},opened:()=>opened};
 }
 async function startFromTrack(browser,ids,{mode,sessionId,failBundleFirst=false,holdBundle=false}={}){
  const context=await browser.newContext({viewport:{width:390,height:844},colorScheme:'light',serviceWorkers:'block',isMobile:true,hasTouch:true,reducedMotion:'reduce',timezoneId:'UTC'});
@@ -83,7 +83,7 @@ async function startFromTrack(browser,ids,{mode,sessionId,failBundleFirst=false,
   const carryContext=await browser.newContext({viewport:{width:390,height:844},colorScheme:'light',serviceWorkers:'block',isMobile:true,hasTouch:true,reducedMotion:'reduce',timezoneId:'UTC'});contexts.push(carryContext);
   await login(carryContext);const carryPage=await carryContext.newPage(),carryErrors=[];carryPage.on('pageerror',e=>carryErrors.push(e.message));
   await carryContext.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize='16px'));
-  const carryRoutes=await installRoutes(carryContext,{ids,sessionId:990001003,failBundleFirst:true,failLiftWrites:2});
+  const carryRoutes=await installRoutes(carryContext,{ids,sessionId:990001003,failBundleFirst:true,holdLiftWrites:true});
   await carryPage.goto(base+'/me');await ready(carryPage,'.me-card-sections[aria-busy="false"]','carry fixture Me readiness');assert.equal(carryRoutes.scripts.length,0);
   await carryPage.goto(base+'/track');await ready(carryPage,'#track-start','carry fixture Track readiness');await carryPage.locator('#track-start').click();await carryPage.locator('#sl-new').waitFor();await carryPage.locator('#sl-new').click();
   await carryPage.locator('#lazy-route-retry').waitFor();assert.equal(carryRoutes.starts.length,1);await carryPage.locator('#lazy-route-retry').click();await ready(carryPage,'.lift-ex','carry fixture logger');
@@ -98,9 +98,9 @@ async function startFromTrack(browser,ids,{mode,sessionId,failBundleFirst=false,
   await carryPage.locator('.lift-now').click();await ready(carryPage,'.lift-ex','logger after Track Carry on');
   assert.equal(new URL(carryPage.url()).pathname,'/track/lift/990001003','Carry on keeps the same open session id');
   assert.equal(await carryPage.locator('.lift-ex [data-row="0"] [data-k="reps"]').inputValue(),'7','Carry on restores the failed local draft');
-  await until(carryPage,()=>carryRoutes.liftWrites.length===2&&document.querySelector('#lf-save')?.textContent==='Not saved','automatic reopen retry remains local after simulated outage');
-  await carryPage.evaluate(()=>window.__fixtureVisibility(false));
-  await until(carryPage,()=>carryRoutes.liftWrites.length===3&&document.querySelector('#lf-save')?.textContent==='Saved','visibility resume flushes the restored draft');
+  await until(carryPage,()=>document.querySelector('#lf-save')?.textContent==='Not saved'&&JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k=>k.startsWith('fit.lift:')))||'null')?.unsent===true,'automatic reopen keeps the failed draft local');
+  const writesBeforeResume=carryRoutes.liftWrites.length;carryRoutes.releaseLiftWrites();await carryPage.evaluate(()=>window.__fixtureVisibility(false));
+  await until(carryPage,()=>carryRoutes.liftWrites.length>writesBeforeResume&&document.querySelector('#lf-save')?.textContent==='Saved','visibility resume flushes the restored draft');
   assert.equal(carryRoutes.liftWrites.at(-1).exercises[0].sets[0].reps,7,'visibility resume sends the same local draft');
   const savedDraft=await carryPage.evaluate(()=>JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k=>k.startsWith('fit.lift:')))));
   assert.equal(savedDraft.unsent,false,'successful resume flush marks the local draft synced');
