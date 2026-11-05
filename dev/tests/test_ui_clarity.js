@@ -46,14 +46,17 @@ console.log('Food chat: Search tool label PASS');
 {
  const pages=fs.readFileSync('app/static/pages.js','utf8');
  const profile=fs.readFileSync('app/static/profile.js','utf8');
- assert.match(pages,/MeCard\.header\(me\)/);assert.match(pages,/Your dashboard/);assert.match(profile,/class="me-divider" aria-hidden="true"/);assert.doesNotMatch(profile,/Only you below this line/);assert.match(profile,/Hi, \$\{/);
+ assert.match(pages,/MeCard\.header\(me\)/);
+ assert.match(pages,/if\(activityUser\)rows\.push/,'activity users get a Today row');assert.match(pages,/if\(todayFoodUser\)rows\.push/,'food users get a Today row');
+ assert.match(pages,/todayRoot\.innerHTML=rows\.length\?/,'Today is shown only when at least one applicable row exists');assert.match(pages,/id="t-today-title">Today/,'Today replaces the old dashboard heading');assert.doesNotMatch(pages,/Your dashboard/);
+ assert.doesNotMatch(profile,/class="me-divider"/,'no hairline above Today');assert.doesNotMatch(profile,/Only you below this line/);assert.match(profile,/Hi, \$\{/);
  assert.match(profile,/data-card-edit/);assert.match(profile,/aria-label="Share your profile"/);assert.match(profile,/Totals include your private workouts. Friends see the totals, not the workouts./);
  assert.doesNotMatch(pages,/me-edit-profile|>View profile</,'Me has no large View/Edit profile buttons');
  assert.doesNotMatch(pages,/ME_SHORTCUTS|whoseSeg|wireWhose|Latest activity|Friends recently/,'retired home/feed components have no live callers');
  assert.match(pages,/href="\$\{profileHref\(App.me\)\}"/,'complete private history links to the canonical owner profile');
  assert.match(pages,/q.get\('view'\)==='mine'/,'existing history links retain a redirect');
  const redirect=pages.split('\n').find(line=>line.startsWith('route(/^\\/me\\/activities$/'));let destination,options;vm.runInNewContext(redirect,{route:(pattern,tab,fn)=>fn(),profileHref:()=>'/people/zz_test_history',App:{me:{}},location:{search:'?sport=run&q=Morning',hash:'#history'},go:(url,opts)=>{destination=url;options=opts;}});assert.equal(destination,'/people/zz_test_history?sport=run&q=Morning#history');assert.equal(options.replace,true,'old history address keeps filters without a Back loop');
- console.log('Me: friends-view card with Edit/Share, hairline divider, private dashboard below, canonical complete history, no duplicated selectors/shortcut grid PASS');
+ console.log('Me: friends-view card with Edit/Share, no divider above Today, Today for applicable users, canonical complete history, no duplicated selectors/shortcut grid PASS');
 }
 // Retired diagnostics keep old links useful without retaining a page or Settings entrance (#486).
 {

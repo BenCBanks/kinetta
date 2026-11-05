@@ -308,114 +308,140 @@ function meInsights(box, s) {
 }
 route(/^\/today$/, 'me', async () => go('/me', {replace: true}));
 // A person's shared identity leads; the overview below it is private.
-function arrangeHomeFood(el,loggedToday) {
-  const food=$('#t-food',el),lead=$('#t-food-lead',el),agenda=$('.me-agenda',el);
-  if(loggedToday)lead.append(food);else agenda.insertBefore(food,$('#t-checkin',el));
-  lead.hidden=!loggedToday;
-  delete el.closest('#page').dataset.homeFoodLoading;
-}
 async function meOverview(el) {
-  // Keep cached cards stable while today’s food classification and active plan settle.
-  const page = el.closest('#page'), waiting = new Set(['chart', 'history', 'plan', 'food', 'checkin']);
-  page.dataset.homeLoading = '';page.dataset.homeFoodLoading = '';
-  const ready = key => {
-    waiting.delete(key);
-    if (!waiting.size && el.isConnected) { delete page.dataset.homeLoading; $('#t-loading', el)?.remove(); }
-  };
-  const tracked = (key, promise) => promise.catch(error => {
-    if (key === 'chart' && el.isConnected) $('#t-week', el).innerHTML = '<p class="small muted">Weekly activity could not load.</p>';
-    throw error;
-  }).finally(() => ready(key));
   const me=App.me;
-  el.innerHTML=`${MeCard.header(me)}
-    <div class="me-overview-title"><h2>Your dashboard</h2><div id="t-review"></div></div>
-    <div id="t-required"></div><div id="t-start"></div><div id="t-setup"></div><div id="t-food-lead" hidden></div>
-    <div id="t-plan"></div>
-    <section id="t-week" aria-label="Your insights">${skel(1)}</section>
-    <div id="t-loading" role="status"><span class="vh">Loading your overview</span>${skel(1)}</div>
-    <div id="t-content"><section class="me-agenda" hidden><div id="t-food"></div><div id="t-checkin"></div></section>
-    <div id="t-recap"></div><div id="t-combined-week"></div><div id="t-goals"></div><div id="t-form"></div></div>`;
+  el.innerHTML=MeCard.header(me)+
+    '<div id="t-today"></div><div id="t-required"></div><div id="t-start"></div><div id="t-setup"></div>'+
+    '<div id="t-content"><div id="t-checkin"></div><div id="t-recap"></div><div id="t-combined-week"></div><div id="t-goals"></div><div id="t-form"></div><div id="t-insights" hidden></div></div>';
   MeCard.mount(el,{reload:()=>render(),editOnLoad:new URLSearchParams(location.search).get('edit')==='profile'});
   if(typeof Milestones!=='undefined')Milestones.mount($('[data-me-milestones]',el),{row:true});
-  const setup=$('#t-setup',el);
-  if(me.needs_email_confirm)$('#t-required',el).innerHTML=`<a class="card tap row-link" href="/me/settings?email=add"><span class="ri c-brand">${svg('mail')}</span><span class="grow"><b>Confirm your email</b><small class="muted">Your profile stays hidden until you confirm it.</small></span>${svg('chev')}</a>`;
+  const setup=$('#t-setup',el),todayRoot=$('#t-today',el),owner=readOwner();
+  if(me.needs_email_confirm)$('#t-required',el).innerHTML='<a class="card tap row-link" href="/me/settings?email=add"><span class="ri c-brand">'+svg('mail')+'</span><span class="grow"><b>Confirm your email</b><small class="muted">Your profile stays hidden until you confirm it.</small></span>'+svg('chev')+'</a>';
   if(typeof Recaps!=='undefined')Recaps.offer($('#t-recap',el));
-  // Food leads when logged; the remaining private panels reveal together after their first reads.
-  const agenda = () => { const box=$('.me-agenda',el),food=$('#t-food',el);if(box)box.hidden=!(['#t-checkin'].some(id=>$(id,el)?.innerHTML.trim())||(food.parentElement===box&&food.innerHTML.trim())); };
-  tracked('plan', planCard($('#t-plan', el), {onReady: () => { agenda(); ready('plan'); }})).then(agenda).catch(() => {});
-  let foodHistory=null,activityHistory=null,healthConnected=false;
+  let foodHistory=null,activityHistory=null,activePlan=null,healthConnected=false,checkinStarted=false;
   const drawSetup=()=>{
-    if(!el.isConnected||foodHistory===null||activityHistory===null)return;
-    const missing = ['weight_kg', 'height_cm', 'sex', 'birth_year'].filter((k) => !App.me[k]);
-    // Nothing recorded yet (#232 G): Get started leads and the empty 0.0 mi chart stays hidden until there's history.
-    const fresh = !(activityHistory || foodHistory);
-    $('#t-week', el).hidden = fresh;
-    $('#t-start', el).innerHTML = fresh ? getStarted(healthConnected, false) : '';
-    setup.innerHTML = (fresh ? '' : getStarted(healthConnected, true)) +
-      (!App.me.setup_hidden && missing.length && App.me.kcal_target ? `<a class="card tap setup-body" href="/me?setup=body"><span>${svg('heart')}</span><div><b>Make your estimates more personal</b><p>Add ${esc(missing.map((k) => ({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))} for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>${svg('chev')}</a>` : '');
+    if(!el.isConnected||foodHistory===null||activityHistory===null||activePlan===null)return;
+    const missing=['weight_kg','height_cm','sex','birth_year'].filter(k=>!App.me[k]),fresh=!(activityHistory||foodHistory||activePlan);
+    $('#t-insights',el).hidden=fresh;
+    $('#t-start',el).innerHTML=fresh?getStarted(healthConnected,false):'';
+    setup.innerHTML=(fresh?'':getStarted(healthConnected,true))+(!App.me.setup_hidden&&missing.length&&App.me.kcal_target?
+      '<a class="card tap setup-body" href="/me?setup=body"><span>'+svg('heart')+'</span><div><b>Make your estimates more personal</b><p>Add '+esc(missing.map(k=>({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))+' for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>'+svg('chev')+'</a>':'');
     const photo=$('[data-setup-photo]',setup);if(photo)photo.onclick=()=>profilePhotoSheet(()=>{invalidate('/api/me');keep('/api/me',App.me);render();});
     $$('[data-setup-skip]',setup).forEach(button=>button.onclick=async()=>{
-      if(button.disabled)return;const owner=readOwner(),next=[...new Set([...(App.me.setup_skipped||[]),button.dataset.setupSkip])];button.disabled=true;
-      try{await api('/api/profile',json('PUT',{setup_skipped:next}));if(owner!==readOwner())return;App.me.setup_skipped=next;invalidate('/api/me');keep('/api/me',App.me);if(el.isConnected)drawSetup();}
-      catch(x){if(owner===readOwner()&&button.isConnected){toast(x.message);button.disabled=false;}}
+      if(button.disabled)return;const account=readOwner(),next=[...new Set([...(App.me.setup_skipped||[]),button.dataset.setupSkip])];button.disabled=true;
+      try{await api('/api/profile',json('PUT',{setup_skipped:next}));if(account!==readOwner())return;App.me.setup_skipped=next;invalidate('/api/me');keep('/api/me',App.me);if(el.isConnected)drawSetup();}
+      catch(x){if(account===readOwner()&&button.isConnected){toast(x.message);button.disabled=false;}}
     });
     new Set([...$$('[data-hide-setup]',el),...$$('[data-hide-setup]',setup)]).forEach(button=>button.onclick=async()=>{
-      if(button.disabled)return;const owner=readOwner();button.disabled=true;button.textContent='Hiding…';
-      try{await api('/api/profile',json('PUT',{setup_hidden:true}));if(owner!==readOwner())return;App.me.setup_hidden=true;invalidate('/api/me');keep('/api/me',App.me);if(!el.isConnected)return;drawSetup();toast('Setup tips hidden. Restore them in Settings.');}
-      catch(x){if(owner===readOwner()&&button.isConnected){toast(x.message);button.disabled=false;button.textContent=button.closest('.setup-check')?'Hide':'Hide tips';}}
+      if(button.disabled)return;const account=readOwner();button.disabled=true;button.textContent='Hiding…';
+      try{await api('/api/profile',json('PUT',{setup_hidden:true}));if(account!==readOwner())return;App.me.setup_hidden=true;invalidate('/api/me');keep('/api/me',App.me);if(!el.isConnected)return;drawSetup();toast('Setup tips hidden. Restore them in Settings.');}
+      catch(x){if(account===readOwner()&&button.isConnected){button.disabled=false;button.textContent=button.closest('.setup-check')?'Hide':'Hide tips';}}
     });
   };
-  tracked('food', todayFoodCard($('#t-food',el),{onHistory:value=>{foodHistory=value;drawSetup();},onFoodUser:loggedToday=>{
-    if(!el.isConnected)return;arrangeHomeFood(el,loggedToday);agenda(); ready('food');
-    if(!loggedToday||!el.isConnected){ ready('checkin'); return; }
-    tracked('checkin', weeklyCheckinCard($('#t-checkin',el),{home:true,onReady:()=>{agenda();ready('checkin');}})).then(agenda);
-    combinedWeek($('#t-combined-week',el));
-  }})).catch(() => {
-    if (!el.isConnected) return;
-    arrangeHomeFood(el,false);foodHistory=false;drawSetup();ready('checkin');
-    // Only food users see a failure here; for anyone else the food card would have been empty anyway.
-    if (!App.me.food_user && !App.me.kcal_target) return;
-    $('#t-food',el).innerHTML = '<div class="card"><p>Today’s food could not load.</p><button class="ghost wide" id="tf-retry">Try again</button></div>';agenda();
-    $('#tf-retry',el).onclick = () => { invalidate('/api/food/day'); render(); };
-  });
+  const zone=(()=>{try{return Intl.DateTimeFormat().resolvedOptions().timeZone||tz();}catch(e){return tz();}})();
+  const localDay=date=>date.toLocaleDateString('en-CA',{timeZone:zone}),dayNow=()=>localDay(new Date());
+  const shortDate=()=>{const parts=new Intl.DateTimeFormat(undefined,{weekday:'short',day:'numeric',month:'short',timeZone:zone}).formatToParts(new Date());return ['weekday','day','month'].map(k=>parts.find(p=>p.type===k)?.value).filter(Boolean).join(' ');};
+  const activityLine=rows=>{
+    if(rows.length===1){
+      const a=rows[0],parts=[],seconds=a.moving_s||a.elapsed_s,minutes=seconds?Math.round(seconds/60):0;
+      if(a.distance_m>0)parts.push(U.dist(a.distance_m,1)+' '+U.du());if(minutes>0)parts.push(minutes+' min');
+      const name=SPORT_NAMES[a.sport]||a.sport_label||'Workout';
+      return {title:[name,...parts].join(' · '),detail:new Date(a.start_time).toLocaleTimeString([], {timeZone:zone,hour:'numeric',minute:'2-digit'}),icon:IC[a.sport]?a.sport:'activity',sport:a.sport||'other',href:a.id?'/activity/'+a.id:'/me/activities'};
+    }
+    const distance=rows.reduce((sum,a)=>sum+(Number(a.distance_m)||0),0),names=[...new Set(rows.map(a=>SPORT_NAMES[a.sport]||a.sport_label||'Workout'))].join(', ');
+    return {title:rows.length+' workouts'+(distance>0?' · '+U.dist(distance,1)+' '+U.du():''),detail:names,icon:'activity',sport:rows[0]?.sport||'other',href:'/me/activities'};
+  };
+  const activityMarkup=state=>{
+    if(state.error)return '<div class="me-today-row" data-today-activity><span class="me-today-icon" data-sport="run">'+svg('activity')+'</span><button type="button" class="me-today-error" data-today-retry>Couldn\'t load · Try again</button></div>';
+    let title,detail,icon='activity',sport='run',href='/track',empty=false;
+    if(state.rows.length)({title,detail,icon,sport,href}=activityLine(state.rows));
+    else if(state.plan){
+      const p=state.plan.plan,w=state.plan.today_workout;
+      if(!w||w.type==='rest'||(w.day&&w.day!==state.day)){title='Rest day';detail='On your plan';href='/plan';}
+      else{const baseTitle=String(w.title||'Workout').trim(),amount=w.minutes?w.minutes+' min':w.dist?w.dist+' '+p.unit:'';title=amount&&!baseTitle.toLowerCase().includes(amount.toLowerCase())?baseTitle+' · '+amount:baseTitle;detail='On your plan';sport=w.type||'run';icon=IC[sport]?sport:'activity';href='/plan';}
+    }else{title='No workout yet today';detail='';empty=true;href='/track';}
+    const copy=empty?'<span>'+title+'</span>':'<b>'+esc(title)+'</b><small>'+esc(detail)+'</small>';
+    return '<a class="me-today-row" data-today-activity data-sport="'+esc(sport)+'" href="'+esc(href)+'"><span class="me-today-icon">'+svg(icon)+'</span><span class="me-today-copy'+(empty?' me-today-empty':'')+'">'+copy+'</span>'+svg('chev','me-today-chevron')+'</a>';
+  };
+  const foodMarkup=(data,day)=>{
+    const href='/food?d='+encodeURIComponent(day);let content;
+    if(!data.entries.length)content='<span class="me-today-empty">No food logged today</span>';
+    else{
+      const kcalTarget=data.targets?.kcal_target,proteinTarget=data.targets?.protein_target,estimate=data.entries.some(e=>e.source==='ai'||e.origin==='ai'||e.ref?.origin==='ai');
+      const unknownKcal=data.unknown_nutrients?.kcal||0,unknownProtein=data.unknown_nutrients?.protein_g||0;
+      const kcal=unknownKcal>=data.entries.length?'Unknown kcal':(estimate?'≈ ':'')+r0(homeCalories(data.totals.kcal))+(kcalTarget!=null?' / '+r0(kcalTarget):'')+' kcal';
+      const protein=unknownProtein>=data.entries.length?'Unknown protein'+(proteinTarget!=null?' · '+r0(proteinTarget)+' g target':''):
+        unknownProtein?r0(data.totals.protein_g)+' g recorded'+(proteinTarget!=null?' · '+r0(proteinTarget)+' g protein target':''):
+        r0(data.totals.protein_g)+(proteinTarget!=null?' / '+r0(proteinTarget)+' g protein':' g protein');
+      content='<b>'+kcal+'</b><small>'+protein+'</small>';
+    }
+    return '<div class="me-today-row" data-today-food><span class="me-today-icon me-today-food-icon">'+svg('food')+'</span><a class="me-today-copy'+(data.entries.length?'':' me-today-empty')+'" href="'+href+'">'+content+'</a><button type="button" class="me-today-add" data-today-add aria-label="Add food">'+svg('plus')+'</button></div>';
+  };
+  let todaySequence=0,midnightTimer=null;
+  const skeletonRow='<div class="me-today-row me-today-skeleton" aria-hidden="true"><span class="me-today-icon"></span><span class="me-today-copy"><i></i><i></i></span></div>';
+  todayRoot.innerHTML='<section class="me-today" aria-label="Today" aria-busy="true"><div class="me-today-head"><h2>Today</h2><span class="me-today-date">'+esc(shortDate())+'</span></div>'+skeletonRow+skeletonRow+'</section>';
+  const refreshToday=async()=>{
+    if(!el.isConnected||owner!==readOwner())return;
+    const token=++todaySequence,day=dayNow();todayRoot.dataset.loadToken=String(token);todayRoot.dataset.loading='true';
+    const [activityResult,planResult,foodHistoryResult,foodDayResult]=await Promise.allSettled([
+      api('/api/activities?limit=1'),api('/api/plans/current'),api('/api/food/history?days=30'),api('/api/food/day?d='+encodeURIComponent(day))
+    ]);
+    if(!el.isConnected||owner!==readOwner()||token!==todaySequence)return;
+    const activities=activityResult.status==='fulfilled'&&Array.isArray(activityResult.value)?activityResult.value:[];
+    const latestActivity=activities[0]||null,latestActivityDay=latestActivity?localDay(new Date(latestActivity.start_time)):null;
+    const todayActivityResult=latestActivityDay===day?((await Promise.allSettled([
+      api('/api/activities?limit=100&after='+encodeURIComponent(new Date(day+'T00:00:00').toISOString()))
+    ]))[0]):{status:'fulfilled',value:[]};
+    if(!el.isConnected||owner!==readOwner()||token!==todaySequence)return;
+    const todayRows=todayActivityResult.status==='fulfilled'&&Array.isArray(todayActivityResult.value)?todayActivityResult.value:[];
+    const noPlan=planResult.status==='rejected'&&planResult.reason?.status===404,planFailed=planResult.status==='rejected'&&!noPlan;
+    const plan=planResult.status==='fulfilled'?planResult.value:null,planActive=!!plan?.plan&&(!plan.plan.race_day||day<=plan.plan.race_day),activityFailed=activityResult.status==='rejected'||todayActivityResult.status==='rejected';
+    const sinceDate=new Date(day+'T12:00:00');sinceDate.setDate(sinceDate.getDate()-29);const since=localDay(sinceDate);
+    const recentActivity=!!latestActivity&&latestActivityDay>=since&&latestActivityDay<=day;
+    if(activityResult.status==='fulfilled')App.me.recentActivityUser=recentActivity;if(!planFailed)App.me.hasActivePlan=planActive;
+    const foodHistoryRows=foodHistoryResult.status==='fulfilled'&&Array.isArray(foodHistoryResult.value)?foodHistoryResult.value:[];
+    const foodData=foodDayResult.status==='fulfilled'?foodDayResult.value:null,recentFood=foodHistoryResult.status==='fulfilled'?foodHistoryRows.length>0:!!App.me.recentFoodUser;
+    if(foodHistoryResult.status==='fulfilled')App.me.recentFoodUser=foodHistoryRows.length>0;
+    const todayFoodUser=App.me.kcal_target!=null||recentFood||!!foodData?.food_user;
+    const activityUser=(activityFailed?!!App.me.recentActivityUser:recentActivity)||(planFailed?!!App.me.hasActivePlan:planActive);
+    if(activityResult.status==='fulfilled'){activityHistory=activities.length>0;App.me.hasActivityHistory=activityHistory;}else if(App.me.hasActivityHistory!=null)activityHistory=!!App.me.hasActivityHistory;
+    if(foodData)foodHistory=!!foodData.has_history||foodData.entries?.length>0;
+    else if(foodHistoryResult.status==='fulfilled')foodHistory=foodHistoryRows.length>0;
+    else if(App.me.hasFoodHistory!=null)foodHistory=!!App.me.hasFoodHistory;
+    if(foodHistory!==null)App.me.hasFoodHistory=foodHistory;
+    activePlan=planFailed?App.me.hasActivePlan===true:planActive;drawSetup();
+    const activityError=activityUser&&(activityFailed||(!todayRows.length&&planFailed)),foodError=todayFoodUser&&foodDayResult.status==='rejected',hasError=activityError||foodError;
+    if(!hasError)App.me.meTodayUpdatedAt=new Date().toISOString();
+    const rows=[];
+    if(activityUser)rows.push(activityMarkup({error:activityError,rows:todayRows,plan:plan?.plan?plan:null,day}));
+    if(todayFoodUser)rows.push(foodError?'<div class="me-today-row" data-today-food><span class="me-today-icon me-today-food-icon">'+svg('food')+'</span><button type="button" class="me-today-error" data-today-retry>Couldn\'t load · Try again</button></div>':foodMarkup(foodData,day));
+    const updated=hasError&&App.me.meTodayUpdatedAt?' · updated '+new Date(App.me.meTodayUpdatedAt).toLocaleTimeString([], {timeZone:zone,hour:'numeric',minute:'2-digit'}):'';
+    todayRoot.innerHTML=rows.length?'<section class="me-today" aria-labelledby="t-today-title"><div class="me-today-head"><h2 id="t-today-title">Today</h2><span class="me-today-date">'+esc(shortDate())+(updated?'<small>'+esc(updated)+'</small>':'')+'</span></div>'+rows.join('')+'</section>':'';
+    todayRoot.dataset.loadedDay=day;todayRoot.dataset.loadedToken=String(token);delete todayRoot.dataset.loading;
+    $$('.me-today-error',todayRoot).forEach(button=>button.onclick=()=>refreshToday());
+    const add=$('[data-today-add]',todayRoot);if(add)add.onclick=()=>describeSheet(day,guessMeal());
+    if(foodData?.entries?.length){
+      if(!checkinStarted){checkinStarted=true;weeklyCheckinCard($('#t-checkin',el),{home:true}).catch(()=>{});}
+      combinedWeek($('#t-combined-week',el));
+    }else if(!todayFoodUser||foodData){$('#t-checkin',el).innerHTML='';$('#t-combined-week',el).innerHTML='';checkinStarted=false;}
+  };
+  const onFoodChanged=()=>refreshToday(),onVisible=()=>{if(!document.hidden)refreshToday();};
+  const scheduleMidnight=()=>{clearTimeout(midnightTimer);const now=new Date(),next=new Date(now);next.setHours(24,0,0,250);midnightTimer=setTimeout(()=>{refreshToday();scheduleMidnight();},Math.max(1000,next-now));};
+  document.addEventListener('food:changed',onFoodChanged);document.addEventListener('visibilitychange',onVisible);window.addEventListener('pageshow',onVisible);
+  scheduleMidnight();viewResources.set(todayRoot,()=>{clearTimeout(midnightTimer);document.removeEventListener('food:changed',onFoodChanged);document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('pageshow',onVisible);});
   if(typeof KitChat!=='undefined')KitChat.entry(el,'/me');
-  const overviewLoads = await Promise.allSettled([
-    tracked('history', load('/api/activities?limit=1', (d) => {
-      if (!el.isConnected) return;
-      activityHistory=!!d.length;drawSetup();ready('history');
-      Promise.resolve(Native.on ? (Native.anyHealthOn?Native.anyHealthOn():Native.healthOn()) : false).catch(() => false).then((connected) => {
-        if (!el.isConnected) return;
-        healthConnected=connected;drawSetup();
-      });
-    })),
-    tracked('chart', load('/api/stats', (s) => {
-      if (!el.isConnected) return;
-      meInsights($('#t-week', el), s);
-      ready('chart');
-    })),
-    load('/api/fitness?days=60', (f) => {
-      if (!el.isConnected) return;
-      const last = f.days[f.days.length - 1];
-      if (!last || !f.days.some(day => day.fitness > 0)) { $('#t-form', el).innerHTML = ''; return; }
-      // the status word leads (like Garmin's training status); the numbers sit under it, the definitions on the Fitness page
-      const form = last.form, [k, word, tip] = form > 5 ? ['good', 'Fresh', 'A good day for a hard effort'] : form < -15 ? ['warn', 'Tired', 'An easy day helps you absorb training'] : ['', 'Training steadily', 'Fitness is building'];
-      // one compact row (2026-10-16): the status word and its numbers; the explanations live on the Fitness page
-      const mini = (label, v) => `<span><b class="num">${esc(v)}</b><small>${esc(label)}</small></span>`;
-      $('#t-form', el).innerHTML = `<a class="card tap me-form" href="/progress?view=fitness">
-        <span class="me-form-top"><span class="grow"><small>Fitness & freshness</small><b class="status-word ${k}">${esc(word)}</b></span>${svg('chev')}</span>
-        <span class="me-form-nums">${mini('Fitness', Math.round(last.fitness))}${mini('Freshness', (form > 0 ? '+' : '') + Math.round(form))}${f.vdot_now ? mini('Run score', f.vdot_now) : ''}</span>
-        ${f.ramp_7d > 8 ? '<span class="callout warn">Your training load jumped this week. Watch for niggles.</span>' : ''}</a>`;
-    }),
-    load('/api/goals', (g) => {
-      if (!el.isConnected) return;
-      $('#t-goals', el).innerHTML = g.length ? `<div class="card"><h2>Goals<a class="more" href="/me/goals">Edit</a></h2>${g.map(goalRow).join('')}</div>` : '';
-    }),
+  await Promise.allSettled([
+    refreshToday(),
+    load('/api/fitness?days=60',f=>{
+      if(!el.isConnected)return;const last=f.days[f.days.length-1];if(!last||!f.days.some(d=>d.fitness>0))return;
+      const form=last.form,[k,word]=form>5?['good','Fresh']:form< -15?['warn','Tired']:['','Training steadily'];
+      const mini=(label,value)=>'<span><b class="num">'+esc(value)+'</b><small>'+esc(label)+'</small></span>';
+      $('#t-form',el).innerHTML='<a class="card tap me-form" href="/progress?view=fitness"><span class="me-form-top"><span class="grow"><small>Fitness &amp; freshness</small><b class="status-word '+k+'">'+esc(word)+'</b></span>'+svg('chev')+'</span><span class="me-form-nums">'+mini('Fitness',Math.round(last.fitness))+mini('Freshness',(form>0?'+':'')+Math.round(form))+(f.vdot_now?mini('Run score',f.vdot_now):'')+'</span>'+(f.ramp_7d>8?'<span class="callout warn">Your training load jumped this week. Watch for niggles.</span>':'')+'</a>';
+    }).catch(()=>{}),
+    load('/api/stats',s=>{if(el.isConnected)meInsights($('#t-insights',el),s);}).catch(()=>{}),
+    load('/api/goals',g=>{if(el.isConnected)$('#t-goals',el).innerHTML=g.length?'<div class="card"><h2>Goals<a class="more" href="/me/goals">Edit</a></h2>'+g.map(goalRow).join('')+'</div>':'';}).catch(()=>{})
   ]);
-  if (overviewLoads[1].status === 'rejected' && el.isConnected) $('#t-week', el).innerHTML = '<p class="small muted">Weekly activity could not load.</p>';
-  if (overviewLoads.some((r) => r.status === 'rejected') && el.isConnected) {
-    el.insertAdjacentHTML('beforeend', '<button class="ghost wide" id="me-retry">Some updates could not load · Retry</button>');
-    $('#me-retry', el).onclick = () => { invalidate('/api/'); render(); };
-  }
+  Promise.resolve(Native.on?(Native.anyHealthOn?Native.anyHealthOn():Native.healthOn()):false).catch(()=>false).then(connected=>{if(!el.isConnected)return;healthConnected=connected;drawSetup();});
 }
 
 function goalFmt(metric, v) {

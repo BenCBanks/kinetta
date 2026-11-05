@@ -23,8 +23,11 @@ const report=path.resolve(process.env.KINETTA_SPACING_REPORT||'/tmp/'+project+'-
     // Reuse the guarded context's live collectors throughout traversal.
     const writes=opened.writes,pageErrors=opened.pageErrors;
     if(scene.todayPlan){
-     const title=p.locator('#t-plan .plan-today button.pt-w.today > b');
-     assert.equal(await title.count(),1,'The deterministic Me Today fixture renders today’s planned workout');
+     const row=p.locator('#t-today [data-today-activity]'),title=row.locator('.me-today-copy > b');
+     assert.equal(await row.count(),1,'The deterministic Me Today fixture renders its planned activity row');
+     assert.equal(await title.count(),1,'The planned activity row has a visible title');
+     assert.equal(await row.locator('.me-today-copy > small').innerText(),'On your plan','The activity row is from the active plan');
+     assert.equal(await row.getAttribute('href'),'/plan','Tapping the planned activity opens the plan');
      const font=await title.evaluate(n=>parseFloat(getComputedStyle(n).fontSize));
      assert(font>=size.root*15/16-.02&&font<=size.root+.02,`Today workout action text follows the body scale (${font}px at ${size.root}px root)`);
     }
@@ -59,7 +62,7 @@ const report=path.resolve(process.env.KINETTA_SPACING_REPORT||'/tmp/'+project+'-
     measurements.push(audit({screen:scene.name,rootFont:size.root,targets:[],texts:[...allTexts.values()]},rules));
     // A sticky/header layer must not hide a target at every position where it can be fully in view.
     for(const t of exposure.values())if(t.bestUsable.width<43.98||t.bestUsable.height<43.98||t.seenFully&&!t.exposed)measurements.push(audit({screen:scene.name,rootFont:size.root,targets:[{...t,rect:t.bestUsable,unreachable:t.seenFully&&!t.exposed}],texts:[]},rules));
-    if(pictures){fs.mkdirSync(pictures,{recursive:true});await p.evaluate(todayPlan=>{const card=todayPlan&&document.querySelector('#t-plan .plan-today');window.scrollTo(0,card?Math.max(0,window.scrollY+card.getBoundingClientRect().top-96):0);document.querySelector('.scrim:not([inert]):not(.is-closing) .sheet')?.scrollTo(0,0);},!!scene.todayPlan);await settle(p);await p.screenshot({path:path.join(pictures,scene.name.replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'-'+size.width+'-'+theme+'.png')});}
+    if(pictures){fs.mkdirSync(pictures,{recursive:true});await p.evaluate(todayPlan=>{const section=todayPlan&&document.querySelector('#t-today .me-today');window.scrollTo(0,section?Math.max(0,window.scrollY+section.getBoundingClientRect().top-96):0);document.querySelector('.scrim:not([inert]):not(.is-closing) .sheet')?.scrollTo(0,0);},!!scene.todayPlan);await settle(p);await p.screenshot({path:path.join(pictures,scene.name.replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'-'+size.width+'-'+theme+'.png')});}
     const {violations,exceptionsUsed}=combineMeasurements(measurements,rules);
     results.push({screen:scene.name,width:size.width,root:size.root,theme,violations,exceptionsUsed});
     if(pageErrors.length||writes.length)errors.push({screen:scene.name,width:size.width,theme,pageErrors,writes});
