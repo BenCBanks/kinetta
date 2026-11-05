@@ -4,10 +4,11 @@ const assert = require('node:assert/strict'), fs = require('node:fs'), vm = requ
 const saved = new Map();
 function client() {
   const listeners = [], ctx = {
-    document: {querySelector: () => null, addEventListener: (type, fn) => { if (type === 'click') listeners.push(fn); }},
+    document: {currentScript: {src: 'https://example.test/static/app.js?v=ui-test'}, querySelector: () => null,
+      addEventListener: (type, fn) => { if (type === 'click') listeners.push(fn); }},
     localStorage: {getItem: k => saved.get(k) ?? null, setItem: (k, v) => saved.set(k, v), removeItem: k => saved.delete(k)},
     location: {origin: 'https://example.test'}, Native: {base: '', token: null, headers: () => ({})},
-    navigator: {onLine: true}, addEventListener() {}, setInterval() {}, console, URLSearchParams,
+    navigator: {onLine: true}, addEventListener() {}, setInterval() {}, console, URL, URLSearchParams,
   };
   ctx.window = ctx;
   vm.createContext(ctx);
