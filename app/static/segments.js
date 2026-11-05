@@ -154,6 +154,7 @@ const Segments = (() => {
     $('#sg-acts', el).innerHTML = `<button class="icon-btn" id="sg-share" aria-label="Share">${svg('share')}</button><button class="icon-btn" id="sg-menu" aria-label="More">${svg('more')}</button>`;
     body.innerHTML = `<h1>${esc(s.name)}</h1><p class="muted">${esc(sportName(s.sport))} · ${U.dist(s.distance_m)} ${U.du()}${s.ascent_m != null ? ` · ↑ ${U.elev(s.ascent_m)} ${U.eu()}` : ''}${s.creator ? ` · by <a href="/people/${esc(s.creator.login)}">${esc(s.creator.name)}</a>` : ''}</p>
       ${s.description ? `<p>${esc(s.description)}</p>` : ''}
+      ${s.audience==='me'?'<div class="seg-me"><b>Only you can see this segment</b><p class="small muted">Publish it to compete with others. Your times stay private until then.</p></div>':''}
       ${s.status === 'retired' ? `<p class="plan-warn" role="note">${svg('info')}Retired${s.status_reason ? ': ' + esc(s.status_reason) : ''}. It takes no new times; the board below is kept as it was.${s.replaced_by ? ` <a href="/segments/${s.replaced_by}">See the replacement</a>.` : ''}</p>` : ''}
       <div class="seg-course" id="sg-map"></div>
       <details class="seg-rules"><summary>Course &amp; timing rules${svg('chev')}</summary><p class="small muted">Fixed course, created ${esc(fdate(s.created, {month: 'short', day: 'numeric', year: 'numeric'}))}. It can’t be edited by anyone, so every time here is on the same course.</p><p class="small muted">One best time per member, in whole seconds; equal times share a place. Only ${sportName(s.sport).toLowerCase()}s shared with Everyone, by members who joined leaderboards, declared outdoors without motor assistance, from the start to the finish in order.</p></details>
@@ -273,8 +274,7 @@ const Segments = (() => {
     box.innerHTML = skel(1);
     let r; try { r = await api(`/api/segments/${s.id}/efforts`); } catch (e) { if(!active())return;box.innerHTML = `<p class="err" role="alert">${esc(e.message)}</p>`; return; }
     if(!active())return;
-    const privateNote=s.audience==='me'?`<div class="seg-me"><b>Only you can see this segment</b><p class="small muted">Publish it to compete with others. ${r.efforts[0]?.elapsed_s ? `Your best: <b class="num">${dur(r.efforts[0].elapsed_s)}</b>.` : ''}</p></div>`:'';
-    box.innerHTML = privateNote + (r.efforts.length ? `<ol class="card list seg-efforts">${r.efforts.map((e, i) => effortRow(e, s, i === 0 && e.state === 'ok')).join('')}</ol>` : '<div class="card empty"><b>No times yet</b>Record a GPS activity that covers the whole segment, start to finish. Past activities are checked automatically.</div>')
+    box.innerHTML = (r.efforts.length ? `<ol class="card list seg-efforts">${r.efforts.map((e, i) => effortRow(e, s, i === 0 && e.state === 'ok')).join('')}</ol>` : '<div class="card empty"><b>No times yet</b>Record a GPS activity that covers the whole segment, start to finish. Past activities are checked automatically.</div>')
       + (r.near_misses.length ? `<details class="card"><summary>Activities near this segment that didn’t count</summary><ul class="small">${r.near_misses.map((m) => `<li><a href="/activity/${m.activity_id}">${esc(m.name)}</a>: ${esc(m.reason_text)}</li>`).join('')}</ul></details>` : '');
     if(s.mine&&s.audience==='me'&&s.matching_update&&!s.rebuilding){
       const owner=reviewOwner(),button=document.createElement('button');button.className='ghost wide';button.textContent='Recheck my private segment';box.prepend(button);
