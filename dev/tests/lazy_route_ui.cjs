@@ -19,6 +19,7 @@ async function until(page,predicate,label,arg){
 async function ready(page,selector,label=`page ready with ${selector}`){await until(page,s=>{try{return App.pageReady&&!!document.querySelector(s);}catch(_){return false;}},label,selector);}
 async function fixtureContext(browser){return browser.newContext({viewport:{width:390,height:844},colorScheme:'light',serviceWorkers:'block',isMobile:true,hasTouch:true,reducedMotion:'reduce'});}
 async function filterRequests(page,explore){await page.route('**/*',async route=>{const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();if(url.pathname==='/static/explore.js')return explore(route);if(!['GET','HEAD'].includes(request.method()))return route.abort();return route.continue();});}
+async function filterFoodRequests(page,food,blockedWrites=[]){await page.route('**/*',async route=>{const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();if(url.pathname==='/static/food-import.js')return food(route);if(!['GET','HEAD'].includes(request.method())){blockedWrites.push(`${request.method()} ${url.pathname}`);return route.abort();}return route.continue();});}
 async function holdExplore(page,{instrument=false}={}){
   let openGate,finishRequest;
   const gate=new Promise(resolve=>{openGate=resolve;}),done=new Promise(resolve=>{finishRequest=resolve;});
@@ -40,6 +41,28 @@ async function holdExplore(page,{instrument=false}={}){
   });
   return {release:openGate,count:()=>requests,done};
 }
+async function holdFood(page,{instrument=false,blockedWrites=[]}={}){
+  let openGate,finishRequest;
+  const gate=new Promise(resolve=>{openGate=resolve;}),done=new Promise(resolve=>{finishRequest=resolve;});
+  let requests=0;
+  await page.route('**/*',async route=>{
+    const request=route.request(),url=new URL(request.url());
+    if(url.origin!==base)return route.abort();
+    if(url.pathname==='/static/food-import.js'){
+      requests++;
+      if(instrument){
+        const response=await route.fetch(),body=await response.text();await gate;
+        const probe='\n;(()=>{const entry=App.pages.find(page=>page.re.test("/food/import"));const original=entry.fn;entry.fn=(...args)=>{window.testFoodOwners.push(App.me.login);return original(...args);};})();';
+        await route.fulfill({response,body:body+probe});
+      }else{await gate;await route.continue();}
+      finishRequest();return;
+    }
+    if(!['GET','HEAD'].includes(request.method())){blockedWrites.push(`${request.method()} ${url.pathname}`);return route.abort();}
+    return route.continue();
+  });
+  return {release:openGate,count:()=>requests,done};
+}
+
 const notificationItems=[
   {id:1,kind:'monthly_summary',period_type:'month',period:'2026-10',text:'Your October summary is ready',detail:'Fictional month',link:'/notifications?summary=2026-10',created:'2026-10-31T12:00:00Z',read:true,who:{name:'Kinetta'}},
   {id:2,kind:'monthly_summary',period_type:'year',period:'2025',text:'Your 2025 summary is ready',detail:'Fictional year',link:'/notifications?year=2025',created:'2026-01-01T12:00:00Z',read:true,who:{name:'Kinetta'}},
@@ -154,6 +177,77 @@ async function notificationFixture(browser,loginName=user,options={}){
     assert.deepEqual(await page.evaluate(()=>window.testExploreOwners),['zz_test_explore_typical'],'Explore mounts for the current fictional account');
     assert.equal(new URL(page.url()).pathname,'/me/explore');assert.deepEqual(errors,[]);
   }finally{await accountContext.close();}
+
+  const foodContext=await fixtureContext(browser);
+  try{
+    await login(foodContext);const page=await foodContext.newPage(),errors=[],assets=[],blockedWrites=[];page.on('pageerror',error=>errors.push(error.message));
+    await filterFoodRequests(page,route=>{assets.push(route.request().url());return route.continue();},blockedWrites);
+    await page.goto(base+'/me');await ready(page,meReady);assert.equal(assets.length,0,'Food import is absent from the initial Me load');
+    await page.goto(base+'/food/import');await ready(page,'#hi-pick','cold direct Food import route');
+    assert.equal(new URL(page.url()).pathname,'/food/import');assert.equal(assets.length,1,'a cold direct link loads Food import once');
+    assert.equal(await page.locator('#page').evaluate(el=>el._backFallback),'/food?view=overview','direct Food import keeps its Nutrition Back fallback');
+    assert.match(new URL(assets[0]).searchParams.get('v')||'',/^[0-9a-f]{32}$/,'Food import uses its own build-stamped URL');
+    assert.deepEqual(blockedWrites,[],'opening Food import attempts no writes');assert.deepEqual(errors,[]);
+  }finally{await foodContext.close();}
+
+  const foodMenuContext=await fixtureContext(browser);
+  try{
+    await login(foodMenuContext);const page=await foodMenuContext.newPage(),assets=[],blockedWrites=[];
+    await filterFoodRequests(page,route=>{assets.push(route.request().url());return route.continue();},blockedWrites);
+    await page.goto(base+'/food');await ready(page,'a[href="/food/import"]','Food home with Add past days link');
+    await page.locator('a[href="/food/import"]').click();await ready(page,'#hi-pick','Food import opened from Nutrition');
+    assert.equal(new URL(page.url()).pathname,'/food/import');assert.equal(assets.length,1,'the Nutrition menu link loads Food import once');
+    assert.deepEqual(blockedWrites,[],'menu navigation attempts no writes');
+  }finally{await foodMenuContext.close();}
+
+  const foodRetryContext=await fixtureContext(browser);
+  try{
+    await login(foodRetryContext);const page=await foodRetryContext.newPage(),errors=[],blockedWrites=[];let requests=0;page.on('pageerror',error=>errors.push(error.message));
+    await filterFoodRequests(page,route=>{requests++;return requests===1?route.abort():route.continue();},blockedWrites);
+    await page.goto(base+'/food/import',{waitUntil:'domcontentloaded'});await page.locator('.lazy-route-error').waitFor();
+    assert.equal(new URL(page.url()).pathname,'/food/import');assert(await page.locator('#lazy-route-retry').isVisible());
+    await page.locator('#lazy-route-retry').click();await ready(page,'#hi-pick','Food import after explicit retry');
+    assert.equal(requests,2,'retry requests Food import again after a failed bundle');assert.deepEqual(blockedWrites,[]);assert.deepEqual(errors,[]);
+  }finally{await foodRetryContext.close();}
+
+  const foodNavigationContext=await fixtureContext(browser);
+  try{
+    await login(foodNavigationContext);const page=await foodNavigationContext.newPage(),errors=[],blockedWrites=[];page.on('pageerror',error=>errors.push(error.message));
+    const delayed=await holdFood(page,{blockedWrites});
+    await page.goto(base+'/food');await ready(page,'a[href="/food/import"]');
+    await page.locator('a[href="/food/import"]').click();await page.locator('.lazy-route-loading').waitFor();
+    await page.locator('nav.tabs a[data-tab="me"]').click();await ready(page,meReady,'Me while Food import is pending');
+    const finished=page.waitForEvent('requestfinished',request=>new URL(request.url()).pathname==='/static/food-import.js');delayed.release();await finished;await delayed.done;await page.waitForTimeout(100);
+    assert.equal(delayed.count(),1);assert.equal(new URL(page.url()).pathname,'/me');assert.equal(await page.locator('#hi-f').count(),0,'a stale Food import cannot replace newer Me navigation');assert.deepEqual(blockedWrites,[]);assert.deepEqual(errors,[]);
+  }finally{await foodNavigationContext.close();}
+
+  const foodAccountContext=await fixtureContext(browser);
+  try{
+    await login(foodAccountContext);const page=await foodAccountContext.newPage(),errors=[],blockedWrites=[];page.on('pageerror',error=>errors.push(error.message));
+    const delayed=await holdFood(page,{instrument:true,blockedWrites});
+    await page.goto(base+'/food');await ready(page,'a[href="/food/import"]');
+    await page.evaluate(()=>{window.testFoodOwners=[];});
+    await page.locator('a[href="/food/import"]').click();await page.locator('.lazy-route-loading').waitFor();
+    await login(foodAccountContext,'zz_test_explore_typical');
+    const meResponse=await foodAccountContext.request.get(base+'/api/me');assert.equal(meResponse.status(),200,'second fictional account profile loads');
+    await page.evaluate(me=>refreshMe(me),await meResponse.json());
+    await until(page,()=>App.me.login==='zz_test_explore_typical'&&!!document.querySelector('.lazy-route-loading'),'new account owns the pending Food import shell');
+    delayed.release();await delayed.done;await ready(page,'#hi-pick','Food import after account change');
+    assert.deepEqual(await page.evaluate(()=>window.testFoodOwners),['zz_test_explore_typical'],'Food import mounts for the current fictional account only');
+    assert.equal(new URL(page.url()).pathname,'/food/import');assert.deepEqual(blockedWrites,[]);assert.deepEqual(errors,[]);
+  }finally{await foodAccountContext.close();}
+
+  const foodNativeContext=await fixtureContext(browser);
+  try{
+    await login(foodNativeContext);const page=await foodNativeContext.newPage(),errors=[],historyCalls=[],blockedWrites=[];page.on('pageerror',error=>errors.push(error.message));
+    await filterFoodRequests(page,route=>route.continue(),blockedWrites);
+    await page.route('**/api/food/history**',route=>{historyCalls.push(`${route.request().method()} ${new URL(route.request().url()).pathname}`);return route.request().method()==='GET'?route.continue():route.abort();});
+    await page.goto(base+'/me');await ready(page,meReady);
+    await page.evaluate(()=>{Native.on=true;});assert.equal(await page.evaluate(()=>Native.on),true,'native redirect fixture is enabled');
+    await page.evaluate(()=>go('/food/import'));
+    await until(page,()=>location.pathname==='/food'&&App.pageReady,'native Food import redirects to Nutrition');
+    assert.deepEqual(historyCalls,[],'native redirect makes no import history preview/day/summary calls');assert.deepEqual(blockedWrites,[]);assert.deepEqual(errors,[]);
+  }finally{await foodNativeContext.close();}
 
   // The two notification routes stay absent from the opening Me bundle and share one lazy asset.
   const normal=await notificationFixture(browser);

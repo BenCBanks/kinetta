@@ -14,6 +14,7 @@ const lazyRouteBundles = [
   {re: /^\/me\/explore$/, tab: 'me', scripts: ['/static/explore.js?v=__ASSET_HASH__']},
   {re: /^\/notifications$/, tab: null, scripts: ['/static/social-notifications.js?v=__ASSET_HASH__']},
   {re: /^\/me\/notifications$/, tab: 'me', scripts: ['/static/social-notifications.js?v=__ASSET_HASH__']},
+  {re: /^\/food\/import$/, tab: 'food', scripts: ['/static/food-import.js?v=__ASSET_HASH__']},
 ];
 let lazyRouteGeneration = 0;
 function loadClassicScript(asset) {

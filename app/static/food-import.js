@@ -113,4 +113,3 @@ route(/^\/food\/import$/, 'food', async (el) => {
   }, {maxAge: 0});
   drawSum();
 });
-
