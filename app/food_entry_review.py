@@ -304,7 +304,8 @@ def prepare(body:ReviewIn,user=Depends(current_user)):
         public,sources,signature,_=collect(c,uid,request['messages'],selection,str(body.draft_id))
         if any((source.get('result') or {}).get('draft_id')!=str(body.draft_id) for source,_ in sources):raise HTTPException(409,'These foods belong to different drafts')
         result={'kind':'food_review','food_review':True,'text':'Review these foods before saving.',
-                **public,'signature':signature,'sources':[source['id'] for source,_ in sources],
+                **public,'signature':signature,
+                'sources':request['messages'] if selection is None else [source['id'] for source,_ in sources],
                 'expires':(dt.datetime.now(dt.timezone.utc)+dt.timedelta(days=1)).isoformat()}
         if selection is not None:
             result['selection']=selection;result['draft_id']=str(body.draft_id)
@@ -330,6 +331,7 @@ def consume_selected(c,uid,sources,selection,review_id,entry_ids,basis,log_today
     picked=selected_map(selection);messages=[];offset=0;aggregate_used=False
     for source,result in sources:
         indexes=picked[source['id']]
+        source_entry_ids=[]
         for part in result.get('parts',[]):
             if part['index'] not in indexes:continue
             if basis=='amounts':
@@ -340,7 +342,8 @@ def consume_selected(c,uid,sources,selection,review_id,entry_ids,basis,log_today
                 part_ids=list(entry_ids);aggregate_used=True
             else:part_ids=[]
             part['logged']=True
-            if part_ids:part['entry_ids']=part_ids
+            if part_ids:
+                part['entry_ids']=part_ids;source_entry_ids.extend(part_ids)
         remaining=[part for part in result.get('parts',[]) if not part.get('logged')]
         if not remaining:
             result.update(kind='reviewed',parts=[],pending_count=0,can_resolve=False,
@@ -350,14 +353,14 @@ def consume_selected(c,uid,sources,selection,review_id,entry_ids,basis,log_today
             pending=[part for part in remaining if part['status']!='ready']
             ready=[part for part in remaining if part['status']=='ready']
             prior=list(result.get('entry_ids') or [])
-            result['entry_ids']=list(dict.fromkeys(prior+entry_ids))
+            result['entry_ids']=list(dict.fromkeys(prior+source_entry_ids))
             result['kind']='needs' if pending else 'preview'
             result['pending_count']=len(pending)
             result['can_resolve']=any(part['status']=='unknown' and not part.get('looked_up') for part in pending)
             result['source']='your food log' if result['entry_ids'] else 'food sources'
             names=[]
-            if entry_ids:
-                rows=c.execute('SELECT name,kcal FROM food_entries WHERE user_id=%s AND id=ANY(%s) ORDER BY id',(uid,entry_ids)).fetchall()
+            if source_entry_ids:
+                rows=c.execute('SELECT name,kcal FROM food_entries WHERE user_id=%s AND id=ANY(%s) ORDER BY id',(uid,source_entry_ids)).fetchall()
                 names=[row['name'] for row in rows[:3]]
                 suffix=' and more' if len(rows)>3 else ''
                 kcal=sum(row['kcal'] or 0 for row in rows)
