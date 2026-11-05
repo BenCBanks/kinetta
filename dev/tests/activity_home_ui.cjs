@@ -11,13 +11,13 @@ async function assertCardActions(card,{share,width,label}){
  assert(Math.abs(commentBox.x-reactBox.x-reactBox.width-16)<1,`${label}: Comment follows React by 16px`);
  assert.equal(await shareButton.count(),share?1:0,`${label}: Share matches ownership`);
  let trailing=commentBox.x+commentBox.width;
- if(share){const shareBox=await shareButton.boundingBox();assert(Math.abs(shareBox.x-trailing-16)<1,`${label}: Share follows Comment by 16px`);trailing=shareBox.x+shareBox.width;}
+ if(share){const shareBox=await shareButton.boundingBox(),expectedGap=width===330?8:16;assert(Math.abs(shareBox.x-trailing-expectedGap)<1,`${label}: Share follows Comment by ${expectedGap}px`);trailing=shareBox.x+shareBox.width;}
  const shortcuts=card.locator('.reaction-shortcuts');
  if(await shortcuts.isVisible()){
   const summary=await shortcuts.boundingBox(),padding=await footer.evaluate(n=>parseFloat(getComputedStyle(n).paddingRight)||0);
   assert(summary.x-trailing>=7.5,`${label}: reaction summary has an 8px gap from the last action`);
   assert(Math.abs(summary.x+summary.width-footerBox.x-footerBox.width+padding)<1,`${label}: reaction summary sits at the trailing content edge`);
-  if(width===330)assert(await shortcuts.locator('.reaction-summary-emoji:visible').count()<=2,`${label}: narrow card shows no more than two reaction emojis`);
+  const expectedEmojis=share&&width===330?1:2;assert.equal(await shortcuts.locator('.reaction-summary-emoji:visible').count(),expectedEmojis,`${label}: summary keeps ${expectedEmojis} emoji${expectedEmojis===1?'':'s'} at ${width}px`);
  }
 }
 (async()=>{
