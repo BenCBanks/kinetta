@@ -2304,7 +2304,7 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .t-row:has(.activity-reactions) {flex-wrap:wrap;}
 .t-soc:has(.activity-reactions) {flex:1 0 100%;flex-wrap:nowrap;margin:0;max-width:100%;gap:8px;}
 .post-profile .ph-txt small,.post-hd .ph-txt small {display:flex;align-items:center;flex-wrap:wrap;column-gap:8px;row-gap:0;margin-top:4px;white-space:normal;overflow:visible;}
-.post-meta-rest {display:flex;flex:1 1 0;flex-wrap:wrap;column-gap:.35em;min-width:0;line-height:1.4;}
+.post-meta-rest {display:flex;flex:1 1 0;flex-wrap:wrap;column-gap:.35em;min-width:min-content;line-height:1.4;}
 .post-meta-date,.post-meta-kind {white-space:nowrap;}
 
 /* Keep the outer conversation still; only messages/ingredients scroll. The
