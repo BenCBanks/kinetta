@@ -3142,6 +3142,9 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .progress-segment-controls .segment-filters {gap:8px;flex-wrap:nowrap;overflow-x:auto;}
 .progress-segment-controls .me-period {margin:0;flex-wrap:nowrap;gap:8px;}
 .progress-segment-controls [data-f] {min-width:44px;min-height:44px;padding:0 4px;white-space:nowrap;}
+.progress-segment-controls .segment-filters [data-f] { position:relative; min-height:44px; padding:0 4px; border:0; border-radius:0; background:transparent; box-shadow:none; color:var(--tx2); font-weight:500; }
+.progress-segment-controls .segment-filters [data-f][aria-pressed="true"] { background:transparent; color:var(--tx); font-weight:700; box-shadow:none; }
+.progress-segment-controls .segment-filters [data-f][aria-pressed="true"]::after { content:""; position:absolute; right:4px; bottom:0; left:4px; height:2px; background:var(--accent); }
 .progress-segment-controls #sg-sport {flex:none;background:none;padding-inline:4px;font-size:max(15px,.9375rem);}
 .progress-segment-controls #sg-sport>svg:first-child {display:none;}
 

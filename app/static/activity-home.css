@@ -26,6 +26,7 @@
 .compact-media [data-media-step="-1"] { left:8px; }
 .compact-media [data-media-step="1"] { right:8px; }
 .compact-media .media-controls > button:disabled { opacity:.45; }
+.compact-media .media-controls > button:disabled { visibility:hidden; }
 .media-dots { position:absolute; bottom:22px; left:50%; transform:translateX(-50%); display:flex; gap:5px; max-width:calc(100% - 120px); padding:5px 7px; border-radius:999px; background:var(--card); }
 .media-dots i { flex:none; display:block; width:5px; height:5px; border-radius:50%; background:var(--tx3); opacity:.4; }
 .media-dots i.current { background:var(--accent); opacity:1; }
@@ -59,9 +60,12 @@
 .activity-card.post .post-hd .ph-txt { display:block; flex:1; min-width:0; }
 .activity-card.post .post-hd .post-title-link { display:flex; align-items:flex-end; min-height:44px; padding:0; color:inherit; text-decoration:none; background:none; }
 .activity-card.post .post-title { margin:0; font-size:max(17px,1.0625rem); font-weight:600; letter-spacing:0; line-height:1.25; overflow-wrap:anywhere; }
-.activity-card.post .post-hd small { display:flex; align-items:center; flex-wrap:wrap; column-gap:4px; row-gap:0; margin-top:8px; color:var(--tx2); font-size:max(13px,.8125rem); line-height:1.35; white-space:normal; }
+.activity-card.post .post-hd small { display:flex; align-items:center; flex-wrap:nowrap; column-gap:4px; margin-top:8px; color:var(--tx2); font-size:max(13px,.8125rem); line-height:1.35; white-space:nowrap; overflow:hidden; }
 /* Keep the profile hit-area before its text so the separator can follow without a gap. */
-.activity-card.post .post-name { display:inline-flex; align-items:center; vertical-align:top; min-width:0; min-height:44px; margin-left:-23px; padding:0 0 0 23px; color:inherit; font-size:inherit; font-weight:500; text-decoration:none; }
+.activity-card.post .post-name { display:inline-flex; align-items:center; vertical-align:top; flex:0 1 auto; width:auto; min-width:44px; max-width:82%; min-height:44px; margin-left:-23px; padding:0 0 0 23px; color:inherit; font-size:inherit; font-weight:500; text-decoration:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.activity-card.post .post-meta-rest { flex:1 1 auto; min-width:0; flex-wrap:nowrap; overflow:hidden; }
+.activity-card.post .post-meta-date,.activity-card.post .post-meta-kind { display:block; flex:1 1 0; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.activity-card[data-href^="/activity/friends/"] .post-name { flex:0 0 75%; width:75%; max-width:75%; }
 .activity-card.post .post-name:focus-visible,.activity-card.post .post-title-link:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
 .activity-card .activity-media { width:100%; margin:0; }
 .activity-card .media-track { height:auto; border-radius:0; }
@@ -111,14 +115,14 @@
 .activity-card.post-led .post-private { color:#fff; }
 .activity-card.post-led .post-av .av { transform:none; background:rgba(0,0,0,.25); color:#fff; }
 .activity-card.post-led .post-title-link { align-items:center; }
-.post-led .post-map-metrics { z-index:3; bottom:20px; height:44px; padding:4px 12px 8px; background:linear-gradient(to bottom,transparent,rgba(0,0,0,.72)); }
+.post-led .post-map-metrics { z-index:3; bottom:0; height:44px; padding:4px 12px 8px; background:linear-gradient(to bottom,transparent,rgba(0,0,0,.72)); }
 .post-led .post-map-metric b,.post-led .post-photo-metrics .stat b { font-variant-numeric:tabular-nums; }
 .post-led .post-photo-metrics .stats3 { width:100%; grid-column:1/-1; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
 .post-led .post-photo-metrics .stat { min-width:0; }
 .post-led .post-photo-metrics .stat small { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
 .post-led .post-photo-metrics .stat b { font-size:20px; color:#fff; line-height:1.1; }
 .post-led .post-photo-metrics .stat i { margin-left:3px; font-size:13px; font-weight:400; }
-.post-led .fmap .leaflet-bottom.leaflet-right { inset:auto 0 0 auto; width:100%; max-width:100%; min-height:20px; display:flex; align-items:center; justify-content:flex-end; padding:0 6px; box-sizing:border-box; background:rgba(0,0,0,.72); }
+.post-led .fmap .leaflet-bottom.leaflet-right { inset:auto 0 0 auto; width:100%; max-width:100%; min-height:20px; display:flex; align-items:center; justify-content:flex-end; padding:0 6px; box-sizing:border-box; background:transparent; }
 .post-led .fmap .leaflet-control-attribution { font-size:9px!important; opacity:1; text-shadow:none; }
 .post-led .fmap { pointer-events:auto; }
 .post-led .fmap .mini { top:var(--route-top,140px); bottom:var(--route-bottom,104px); }
