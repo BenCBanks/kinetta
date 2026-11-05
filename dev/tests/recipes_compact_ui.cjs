@@ -13,7 +13,7 @@ async function capture(p,name){const dir=process.env.KINETTA_SCREENSHOT_DIR;if(!
   await c.addInitScript(({root,native,token,base})=>{if(native){const prefs={server:base,token};window.Capacitor={isNativePlatform:()=>true,isPluginAvailable:n=>n==='Preferences',Plugins:{Preferences:{get:async({key})=>({value:prefs[key]??null}),set:async({key,value})=>{prefs[key]=value;},remove:async({key})=>{delete prefs[key];}}}};}document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px');},{root:size.root,native,token,base});
   const p=await c.newPage(),errors=[],writes=[];p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
   await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(u.pathname===`/api/dishes/${ids.recipe.saved}`||u.pathname===`/api/dishes/${ids.recipe.draft}`||u.pathname.endsWith('/items/recipe')||u.pathname.endsWith('/say'))return r.continue();return r.fulfill({json:{}});}return r.continue();});
-  await p.goto(base+(recipe?'/food/cook/'+ids.recipe[state==='draft'?'draft':'saved']:'/food/meals'));await until(p,()=>typeof App!=='undefined'&&App.pageReady&&!!document.querySelector('#tm-new,#dk-add'),`recipe/library ready (${state})`);return{c,p,errors,writes,token};
+  await p.goto(base+(recipe?'/food/cook/'+ids.recipe[state==='draft'?'draft':'saved']:'/food/meals'));await until(p,()=>typeof App!=='undefined'&&App.pageReady&&!!document.querySelector('#tm-new,#dk-add'),`recipe/library ready (${state})`);return{c,p,errors,writes};
  }
  async function closeSheet(p){const s=await p.evaluate(()=>({has:!!document.querySelector('.sheet'),closing:!!document.querySelector('.scrim.is-closing')}));if(!s.has)return;if(!s.closing)await p.locator('[data-close]').last().click();await until(p,()=>!document.querySelector('.sheet'),'sheet closed');}
  try{
@@ -21,7 +21,7 @@ async function capture(p,name){const dir=process.env.KINETTA_SCREENSHOT_DIR;if(!
    const name=`${state}-${size.width}-${theme}`;if(process.env.KINETTA_RECIPE_CASE&&process.env.KINETTA_RECIPE_CASE!==name)continue;
    const {c,p,errors,writes}=await open(state,theme,size);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no horizontal overflow');assert.equal(await p.locator('.discovery-grid').count(),0);
    if(['empty','typical','heavy'].includes(state)){
-    assert.equal(await p.locator('h1').innerText(),'Recipes & foods');assert.equal(await p.locator('#tm-describe').innerText(),'Log food','existing food entry shortcut retained');assert.equal(await p.locator('.top .back').innerText(),'Nutrition');assert.equal(await p.locator('#tm-filter').count(),state==='heavy'?1:0);assert.equal(await p.locator('#tm-dish,#tm-link,#tm-food').count(),0,'create actions live under New');
+    assert.equal(await p.locator('h1').innerText(),'Recipes & foods');assert.equal(await p.locator('#tm-describe').innerText(),'Log food','existing food entry shortcut retained');assert.equal(await p.locator('.top .back').getAttribute('aria-label'),'Back to Nutrition','back destination remains accessible when its visible label is collapsed');assert.equal(await p.locator('#tm-filter').count(),state==='heavy'?1:0);assert.equal(await p.locator('#tm-dish,#tm-link,#tm-food').count(),0,'create actions live under New');
     for(const b of await p.locator('#tm-new,[data-log-dish],[data-edit-food]').all()){const r=await b.boundingBox();assert(r.height>=44&&r.width>=44,'44px actions');}
     if(state==='typical'){
      assert.equal(await p.locator('[data-dish]').count(),3);assert.equal(await p.locator('[data-i]').count(),2);assert.equal(await p.locator('#library-recipes .library-recipe .num').filter({hasText:'kcal total'}).count(),1,'By-weight recipe labels the whole total; the other two recipes use per-serving values');
@@ -52,7 +52,7 @@ async function capture(p,name){const dir=process.env.KINETTA_SCREENSHOT_DIR;if(!
    await p.locator('[data-recipe-open]').first().click();await p.locator('.recipe-source-readonly').waitFor();await capture(p,'577-source-readonly-390-light');assert.deepEqual(errors,[]);await c.close();contexts.splice(contexts.indexOf(c),1);console.log('Recipe checkpoint captures: recent list, amount choices and read-only source PASS');
   }
   if(!process.env.KINETTA_RECIPE_CASE||process.env.KINETTA_RECIPE_CASE==='recipe-flow'){
-   const {c,p,errors,writes,token}=await open('draft','light',{width:390,height:844,root:16});
+   const {c,p,errors,writes}=await open('draft','light',{width:390,height:844,root:16});
    const openRecipes=async()=>{await p.locator('#dk-plus').click();await p.locator('#pm-recipes').click();};
    const choose=async name=>{await openRecipes();const row=p.locator('[data-recent-recipe]').filter({hasText:name});await row.waitFor();await row.click();};
    const assertSourceDesign=async page=>{
@@ -61,8 +61,11 @@ async function capture(p,name){const dir=process.env.KINETTA_SCREENSHOT_DIR;if(!
     const cols=await page.locator('.recipe-source-readonly .ingredient-heading').evaluate(el=>{const [left,right]=el.children,s=getComputedStyle(el),a=left.getBoundingClientRect(),b=right.getBoundingClientRect(),value=el.parentElement.querySelector('.ig b').getBoundingClientRect();return{display:s.display,gap:parseFloat(s.columnGap),distance:b.left-a.right,headerRight:b.right,valueRight:value.right};});
     assert.equal(cols.display,'grid');assert(cols.gap>=8&&cols.distance>=8,'Ingredients and kcal occupy separate columns with a real gap');assert(Math.abs(cols.headerRight-cols.valueRight)<=1,'kcal heading aligns with the ingredient calories');
    };
-   // Earlier layout cases PATCH the saved dish and advance its timestamp. Touch the known newest source here so recency stays controlled in the full shard.
-   const newest=await c.request.patch(`${base}/api/dishes/${ids.recipe.ambiguous_b}`,{headers:{Origin:base,Authorization:`Bearer ${token}`},data:{serving:'portion'}});assert.equal(newest.status(),200,'newest recipe fixture update succeeds');
+   // Earlier layout cases PATCH the saved dish and advance its timestamp. Give the expected top pair explicit current update times here.
+   const touchRecent=async id=>{const response=await c.request.patch(`${base}/api/dishes/${id}`,{headers:{Origin:base},data:{serving:'portion'}});assert.equal(response.status(),200,'controlled recipe recency update succeeds');};
+   await touchRecent(ids.recipe.ambiguous_a);await new Promise(resolve=>setTimeout(resolve,25));await touchRecent(ids.recipe.ambiguous_b);
+   const ownedResponse=await c.request.get(`${base}/api/dishes`,{headers:{Origin:base}});assert.equal(ownedResponse.status(),200,'owner-only dishes load for the fixture');const ownedRows=await ownedResponse.json(),stew=ownedRows.find(row=>row.id===ids.recipe.ambiguous_a),curry=ownedRows.find(row=>row.id===ids.recipe.ambiguous_b);assert(stew&&curry,'both controlled recipes remain in the owner’s dish list');assert(Date.parse(curry.updated)>Date.parse(stew.updated),'with no food-log uses in this fresh fixture, curry updated time is the newer recent_at');
+   const recencyResponse=await c.request.get(`${base}/api/dishes/recent-own?exclude=${ids.recipe.draft}`,{headers:{Origin:base}});assert.equal(recencyResponse.status(),200,'owner-only recent recipe ordering loads');const recentRows=await recencyResponse.json();assert.deepEqual(recentRows.slice(0,2).map(row=>row.name),['Fictional bean curry','Fictional bean stew'],'recent-own sorts by the controlled current recency order');
    await openRecipes();await p.locator('[data-recent-recipe]').first().waitFor();
    const recentNames=await p.locator('[data-recent-recipe]').allTextContents();assert.deepEqual(recentNames.slice(0,2),['Fictional bean curry','Fictional bean stew'],'recent recipes are newest first after a controlled update');assert(recentNames.includes('Chicken and veg traybake'));
    await capture(p,'577-recipes-list-390-light');
