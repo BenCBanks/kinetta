@@ -41,3 +41,20 @@ const pick=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
  let auto=0;loader.kitChatOn=()=>false;loader.api=async()=>({generation:'generation-a',messages:[{id:1,client_id:'pending',state:'pending'}],ready:true,before:null});loader.answer=()=>auto++;await loader.refresh({...resumed,job:null});assert.equal(auto,0,'pause cannot auto-answer an existing pending message');loader.kitChatOn=()=>true;loader.api=async()=>({generation:'generation-a',messages:[{id:1,client_id:'pending',state:'pending'}],ready:false,before:null});await loader.refresh({...resumed,job:null});assert.equal(auto,0,'unreviewed chat cannot auto-answer pending messages');
  console.log('Kit UI: shared safe entry URLs/actions, account-scoped cleanup, durable-before-send/storage failure, duplicate-send prevention and late clear/account response fences PASS');
 })().catch(e=>{console.error(e);process.exit(1)});
+
+// #578 keeps the shared pushed-page title compact and the Kit reminder only in an empty chat.
+const css=fs.readFileSync('app/static/style.css','utf8');
+assert.match(css,/--text-nav-title\s*:\s*17px/);
+assert(css.includes('.shell .top.subpage-header > h1')&&css.includes('text-overflow:ellipsis'),'shared pushed-page titles truncate in their centered row');
+assert(css.includes('.food-thread .thread-heading h1')&&css.includes('var(--text-nav-title)'),'chat headings use the same title token');
+assert(source.includes('id="kit-fine"')&&source.includes('${esc(shortProvider())} · <button type="button" class="linkbtn" id="kit-footer-memory">Memory</button>'),'empty chat reminder sits below the composer');
+assert(source.includes('id="kit-about-open">About Kit</button>')&&source.includes('New chat each visit.')&&source.includes('providerName()'),'About Kit keeps visit and provider details in the menu flow');
+assert(source.includes("$('#kit-about-open',body).onclick=()=>{close();sheet('About Kit',"),'About Kit row opens the provider and visit details sheet');
+const drawSource=source.slice(source.indexOf('  function draw(c){'),source.indexOf('  async function refresh(c,before=null){')).replace('  function draw(c){','  globalThis.draw = function draw(c){');
+const drawNodes={'#thread-messages':{innerHTML:''},'#kit-intro':{hidden:true},'#kit-fine':{hidden:true},'#kit-older':{hidden:false}};
+const drawHarness={active:()=>true,$:s=>drawNodes[s],$$:()=>[],esc:String,controls(){},kitChatOn:()=>true};
+vm.createContext(drawHarness);vm.runInContext(drawSource,drawHarness);
+drawHarness.draw({el:{},messages:[],job:null,before:null});assert.equal(drawNodes['#kit-fine'].hidden,false,'empty chats show the reminder');
+drawHarness.draw({el:{},messages:[{client_id:'fictional',question:'A fictional question',state:'running'}],job:null,before:null});assert.equal(drawNodes['#kit-fine'].hidden,true,'messages hide the reminder');
+drawHarness.draw({el:{},messages:[],job:{client_id:'fictional',question:'A fictional question'},before:null});assert.equal(drawNodes['#kit-fine'].hidden,true,'a queued first message hides the reminder');
+console.log('Kit #578 title token, About Kit copy and empty-only reminder checks PASS');
