@@ -3,6 +3,18 @@
 const KitChat = (() => {
   const screens={me:['Me','/me'],nutrition:['Nutrition','/food'],activity:['Activity','/activity'],progress:['Progress','/progress'],plan:['Plan','/plan'],strength:['Track','/track'],track:['Track','/track']};
   const actions={food:['Add food','/food?add=1'],nutrition:['Nutrition','/food'],record:['Record a workout','/track'],activities:['Your activities','/me/activities'],plan:['Training plan','/plan'],progress:['Progress','/progress'],strength:['Record strength','/track'],recipes:['Recipes & foods','/food/meals'],goals:['Goals & profile','/me'],connections:['Connections','/me/connections']};
+  const foodWords=/\b(?:apple|applesauce|avocado|bacon|bagel|banana|beans|beef|berries|bread|broccoli|burger|burrito|butter|cake|cereal|cheese|chicken|chips|chocolate|coffee|cookie|coke|corn|crackers|cream|cucumber|egg|eggs|fish|fries|fruit|granola|grapes|ham|hamburger|hot dogs?|juice|kale|lettuce|milk|muffin|noodles|oatmeal|onion|orange|pancake|pasta|peanut|pear|pizza|potato|quinoa|rice|salad|salmon|sandwich|sausage|smoothie|soup|spinach|steak|toast|tomato|tuna|turkey|yogurt)\b/i;
+  function foodIntent(text,awaiting=false){
+    const value=String(text||'').trim();if(!value)return null;
+    if(awaiting){if(/\?/.test(value)||/^(?:what|when|where|which|who|why|how|should|could|can|do|did|is|are|will)\b/i.test(value))return null;return {kind:'food',body:value};}
+    const command=value.match(/^(?:(?:can|could|would)\s+you\s+|please\s+|i(?:'d| would) like you to\s+|i want you to\s+)?(?:log|add|record|track)\s+(?:my\s+)?(?:(?:food|meal|breakfast|lunch|dinner|snacks?)\s*)?(?::|—|-)?\s*(.*)$/i);
+    if(command){const body=command[1].replace(/[\s.!?]+$/,'').trim(),explicit=/\b(?:food|meal|breakfast|lunch|dinner|snacks?)\b/i.test(value);if(!body||/^(?:please|my food|my meal)$/i.test(body))return explicit?{kind:'prompt'}:null;if(!explicit&&!foodWords.test(body))return null;return {kind:'food',body};}
+    if(/\?/.test(value)||/^(?:what|when|where|which|who|why|how|should|could|can|do|did|is|are|will)\b/i.test(value))return null;
+    if(/^(?:same as|repeat|reuse)\b.*\b(?:yesterday|last night|breakfast|lunch|dinner|snack)\b/i.test(value))return {kind:'food',body:value};
+    if(/^(?:i\s+(?:ate|had|drank)\s+)/i.test(value)&&foodWords.test(value)||/^(?:ate|had|drank|for\s+)?\s*(?:my\s+)?(?:breakfast|lunch|dinner|snack|food|meal)\b/i.test(value))return {kind:'food',body:value};
+    if(foodWords.test(value)&&!/^help me (?:with|understand)\b/i.test(value))return {kind:'food',body:value};
+    return null;
+  }
   const starters={
     me:[['Review my progress','What stands out in my recent training and nutrition, and what should I focus on next?'],['Plan my next step','Given my goals and recent activity, what would be a useful next step?'],['Help me use Kinetta','What can I do in Kinetta to track my fitness and nutrition?']],
     nutrition:[['Look at my food today','Review my logged food today. What is known, what is missing, and what could I focus on?'],['What could I eat next?','Using my saved foods and remaining targets today, suggest a meal I can review before logging.'],['Talk about my diet','Help me think through a sustainable diet for my goals. Ask me what you need to know.']],
@@ -43,12 +55,15 @@ const KitChat = (() => {
   }
   function draw(c){
     if(!active(c))return;
-    const list=$('#thread-messages',c.el),pending=c.job&&!c.messages.some(m=>String(m.client_id)===c.job.client_id);
-    const has=c.messages.length||pending;
-    list.innerHTML=c.messages.map(m=>{
+    const list=$('#kit-messages',c.el),foodHost=c.foodHost;
+    if(foodHost?.isConnected)foodHost.remove();
+    const pending=c.job&&!c.messages.some(m=>String(m.client_id)===c.job.client_id);
+    const messages=[...c.messages,...(c.localMessages||[])],has=messages.length||pending||c.foodStarted;
+    list.innerHTML=messages.map(m=>{
       const a=m.answer,facts=(a?.facts||[]).filter(f=>!['id','source_id','route_id','candidate_id'].includes(f.path?.at(-1))), failed=m.state==='failed'||c.answerErrors?.[m.client_id];
       return `<article data-kit-id="${esc(String(m.client_id))}"><div class="thread-user"><p>${esc(m.question)}</p></div>${a?`<div class="thread-card kit-answer"><p>${esc(a.interpretation)}</p>${facts.length?`<dl class="kit-facts">${facts.map(f=>`<div><dt>${esc(factLabel(f))}</dt><dd>${esc(String(f.value))}</dd></div>`).join('')}</dl>`:''}${a.limitations?.length?`<details><summary>What Kit could check</summary>${[...new Set(a.limitations)].map(l=>`<p class="small muted">${esc(l)}</p>`).join('')}</details>`:''}${a.selection?'<button type="button" class="ghost wide" data-kit-review>Review proposed change</button>':''}${a.actions?.filter(x=>Object.hasOwn(actions,x)).map(x=>`<a class="linkbtn kit-action" href="${x==='activities'?profileHref(App.me):actions[x][1]}">${actions[x][0]} ${svg('chev')}</a>`).join('')||''}</div>`:failed?`<div class="thread-card"><p class="err">${esc(c.answerErrors?.[m.client_id]||m.error||'Kit could not finish. Your question is saved.')}</p>${kitChatOn()&&c.ready?'<button type="button" class="ghost" data-kit-retry>Retry</button>':''}</div>`:`<div class="thread-card thread-thinking"><div class="thread-typing" role="status" aria-label="Kit is checking your records"><span></span><span></span><span></span></div></div>`}</article>`;
-    }).join('')+(pending?`<article><div class="thread-user"><p>${esc(c.job.question)}</p></div><div class="thread-card"><p>${esc(c.jobError||'Sending your question…')}</p>${c.jobError&&kitChatOn()&&c.ready?'<button type="button" class="ghost" id="kit-retry-send">Retry sending</button>':''}</div></article>`:'');
+    }).join('')+(pending?`<article><div class="thread-user"><p>${esc(c.job.question)}</p></div><div class="thread-card"><p>${esc(c.jobError||'Sending your question…')}</p>${c.jobError&&kitChatOn()&&c.ready?'<button type="button" class="ghost" id="kit-retry-send">Retry sending</button>':''}</div></article>`:'')+(c.foodStarted?'<div id="kit-food-slot"></div>':'');
+    if(foodHost&&c.foodStarted)$('#kit-food-slot',list)?.append(foodHost);
     $('#kit-intro',c.el).hidden=!!has;
     $('#kit-fine',c.el).hidden=!!has;
     $('#kit-older',c.el).hidden=!c.before;
@@ -56,6 +71,31 @@ const KitChat = (() => {
     $$('[data-kit-review]',list).forEach(b=>b.onclick=()=>{const m=c.messages.find(m=>String(m.client_id)===b.closest('[data-kit-id]').dataset.kitId);kitReview(m.answer.selection,{scopeKey:'kit:'+m.client_id,conversation:true,onSaved:()=>status(c,'Saved. You can ask Kit to check your updated records.'),onStale:()=>status(c,'Your records changed. Ask Kit again before confirming this proposal.')});});
     const retry=$('#kit-retry-send',list);if(retry)retry.onclick=()=>deliver(c);
     controls(c);c.view?.pin();
+  }
+  function mountFoodThread(c){
+    if(c.foodHost?.isConnected)return c.foodHost;
+    if(typeof FoodThread==='undefined')throw Error('Food logging is unavailable right now. Your message is still here.');
+    c.foodStarted=true;draw(c);const slot=$('#kit-food-slot',c.el),host=document.createElement('section');
+    host.className='shell kit-food-inline';host.setAttribute('aria-label','Food log');slot.append(host);c.foodHost=host;
+    FoodThread.page(host,{});draw(c);return host;
+  }
+  function clearDraft(c,field,submitted){
+    if(submitted!=null&&field.value.trim()!==submitted.trim())return false;
+    field.value='';field.style.height='';store.del(key(c.owner,'draft'));return true;
+  }
+  async function sendFood(c,text){
+    const host=mountFoodThread(c),field=$('#thread-text',host),form=$('#thread-composer',host),notice=$('#thread-status',host);
+    if(!field||!form)throw Error('Food logging could not open. Your message is still here.');
+    if(field.value.trim()&&field.value.trim()!==text){status(c,'Your saved food draft is kept in the food log. Finish it before adding another.');return false;}
+    field.value=text;field.dispatchEvent(new Event('input',{bubbles:true}));form.requestSubmit();
+    const end=Date.now()+2500;
+    while(active(c)&&Date.now()<end){
+      if(!field.value.trim())return true;
+      if(notice.textContent.trim())throw Error(notice.textContent.trim());
+      await new Promise(resolve=>setTimeout(resolve,40));
+    }
+    if(!field.value.trim())return true;
+    throw Error(notice.textContent.trim()||'Food is still being saved on this phone. Keep this chat open and try again.');
   }
   async function refresh(c,before=null){
     const data=await api('/api/coach/conversation?visit_id='+encodeURIComponent(c.visit_id)+(before?'&before='+before:''));if(!active(c))return;
@@ -101,9 +141,22 @@ const KitChat = (() => {
   }
   async function send(c,text){
     if(!active(c)||!c.loaded||c.sending)return;
+    const question=(text??$('#kit-text',c.el).value).trim();if(!question)return;
+    const field=$('#kit-text',c.el),intent=foodIntent(question,c.awaitingFood);
+    if(intent?.kind==='prompt'){
+      c.awaitingFood=true;c.localMessages||=[];c.localMessages.push({client_id:'local-'+Date.now(),question,answer:{interpretation:'What did you have?'},state:'answered'});
+      clearDraft(c,field,question);draw(c);return;
+    }
+    if(intent?.kind==='food'){
+      c.sending=true;controls(c);
+      try{if(await sendFood(c,intent.body)){c.awaitingFood=false;clearDraft(c,field,question);status(c,'');}}
+      catch(e){status(c,e.message);}
+      finally{if(active(c)){c.sending=false;controls(c);draw(c);}}
+      return;
+    }
+    c.awaitingFood=false;
     if(!kitChatOn()){status(c,'Kit is unavailable. Your draft is kept.');return;}
     if(!c.ready){status(c,'Kit chat isn’t available yet. Your draft is kept.');return;}
-    const question=(text??$('#kit-text',c.el).value).trim();if(!question)return;
     if(c.job){status(c,'Retry the saved question before sending another.');return;}
     const job={client_id:newId(),generation:c.generation,visit_id:c.visit_id,question,context:c.context};
     try{save(c,'pending',job);c.job=job;await deliver(c);}catch(e){status(c,'This phone could not save your question. Keep it here and try again.');}
@@ -165,9 +218,9 @@ const KitChat = (() => {
     });
   }
   async function mount(el){
-    const ctx=context(),back=screens[ctx.screen],c={el,context:ctx,owner:owner(),session:readOwner(),messages:[],loaded:false,sending:false};current=c;
+    const ctx=context(),back=screens[ctx.screen],c={el,context:ctx,owner:owner(),session:readOwner(),messages:[],localMessages:[],loaded:false,sending:false,awaitingFood:false,foodStarted:false};current=c;
     el.classList.add('food-thread','kit-chat');
-    el.innerHTML=`<header class="thread-heading"><a class="back" href="${back[1]}">${svg('back')}${back[0]}</a><h1>Ask Kit</h1><div class="kit-chat-actions"><button type="button" class="icon-btn" id="kit-saved" aria-label="Earlier Kit reviews" title="Earlier Kit reviews">${svg('list')}</button><button type="button" class="icon-btn kit-settings" id="kit-settings" aria-label="Kit chat settings">${svg('more')}</button></div></header><p id="kit-status" role="status" aria-live="polite"></p><button class="linkbtn" id="kit-older" type="button" hidden>Earlier messages</button><div id="thread-messages" aria-live="off"></div><section id="kit-intro"><h2><span class="kit-mark" aria-hidden="true">${svg('sparkle')}</span>What can I help with?</h2><div class="kit-starters">${starters[ctx.screen].map(([label],i)=>`<button type="button" data-kit-start="${i}">${svg(starterIcons[ctx.screen][i])}<span>${esc(ctx.screen==='activity'&&i===0&&!ctx.activity_id?'Review my latest workout':label)}</span></button>`).join('')}</div><button class="ghost wide" id="kit-load-retry" hidden>Try loading again</button></section><form id="kit-composer" class="thread-composer"><div class="thread-compose-row kit-compose-row"><label class="vh" for="kit-text">Message Kit</label><textarea id="kit-text" rows="1" maxlength="1500" enterkeyhint="send" placeholder="Message Kit…"></textarea><button class="primary thread-send" id="kit-send" aria-label="Send to Kit">${svg('send')}</button></div><p class="kit-fine" id="kit-fine">${esc(shortProvider())} · <button type="button" class="linkbtn" id="kit-footer-memory">Memory</button></p></form>`;
+    el.innerHTML=`<header class="thread-heading"><a class="back" href="${back[1]}">${svg('back')}${back[0]}</a><h1>Ask Kit</h1><div class="kit-chat-actions"><button type="button" class="icon-btn" id="kit-saved" aria-label="Earlier Kit reviews" title="Earlier Kit reviews">${svg('list')}</button><button type="button" class="icon-btn kit-settings" id="kit-settings" aria-label="Kit chat settings">${svg('more')}</button></div></header><p id="kit-status" role="status" aria-live="polite"></p><button class="linkbtn" id="kit-older" type="button" hidden>Earlier messages</button><div id="kit-messages" aria-live="off"></div><section id="kit-intro"><h2><span class="kit-mark" aria-hidden="true">${svg('sparkle')}</span>What can I help with?</h2><div class="kit-starters">${starters[ctx.screen].map(([label],i)=>`<button type="button" data-kit-start="${i}">${svg(starterIcons[ctx.screen][i])}<span>${esc(ctx.screen==='activity'&&i===0&&!ctx.activity_id?'Review my latest workout':label)}</span></button>`).join('')}</div><button class="ghost wide" id="kit-load-retry" hidden>Try loading again</button></section><form id="kit-composer" class="thread-composer"><div class="thread-compose-row kit-compose-row"><label class="vh" for="kit-text">Message Kit</label><textarea id="kit-text" rows="1" maxlength="1500" enterkeyhint="send" placeholder="Message Kit…"></textarea><button class="primary thread-send" id="kit-send" aria-label="Send to Kit">${svg('send')}</button></div><p class="kit-fine" id="kit-fine">${esc(shortProvider())} · <button type="button" class="linkbtn" id="kit-footer-memory">Memory</button></p></form>`;
     const field=$('#kit-text',el),oldJob=store.get(key(c.owner,'pending'));
     field.value=store.get(key(c.owner,'draft'))||(entryDraft?.owner===c.owner?entryDraft.question:null)||oldJob?.question||new URLSearchParams(location.search).get('question')?.slice(0,1500)||'';
     entryDraft=null;store.del(key(c.owner,'pending'));
@@ -177,7 +230,7 @@ const KitChat = (() => {
     $('#kit-composer',el).onsubmit=e=>{e.preventDefault();send(c);};
     $$('[data-kit-start]',el).forEach(b=>b.onclick=()=>send(c,questionFor(c,+b.dataset.kitStart)));
     $('#kit-footer-memory',el).onclick=memorySettings;
-    $('#kit-older',el).onclick=async()=>{const list=$('#thread-messages',el),h=list.scrollHeight,y=list.scrollTop;try{await refresh(c,c.before);list.scrollTop=y+list.scrollHeight-h;}catch(e){status(c,e.message);}};
+    $('#kit-older',el).onclick=async()=>{const list=$('#kit-messages',el),h=list.scrollHeight,y=list.scrollTop;try{await refresh(c,c.before);list.scrollTop=y+list.scrollHeight-h;}catch(e){status(c,e.message);}};
     $('#kit-saved',el).onclick=savedReviews;
     $('#kit-settings',el).onclick=()=>sheet('Kit chat',`<button type="button" class="linkbtn wide" id="kit-about-open">About Kit</button><button type="button" class="linkbtn wide" id="kit-memory-open">What Kit remembers</button><a class="linkbtn wide" href="/me/settings#ai" data-close>Kit & data permissions</a><button type="button" class="ghost wide" id="kit-clear">Start a new chat</button><p class="small muted">Your food, workouts, plans, goals and saved memories stay available.</p>`,(body,close)=>{
       $('#kit-about-open',body).onclick=()=>{close();sheet('About Kit',`<p>New chat each visit.</p><p>Uses ${esc(providerName())}.</p><p>Kit checks your own records when needed and can keep useful details you share.</p>`);};
@@ -188,7 +241,7 @@ const KitChat = (() => {
         try{const data=await api('/api/coach/conversation/clear',json('POST',{generation:c.generation,visit_id:previousVisit,confirmed:true}));if(!active(c)||c.visit_id!==previousVisit)return;clearTimeout(c.timer);c.visit_id=data.visit_id;c.generation=data.generation;c.sending=false;c.answerErrors={};c.messages=[];c.before=null;c.job=null;c.jobError='';store.del(key(c.owner,'pending'));store.del(key(c.owner,'draft'));field.value='';close();status(c,'');draw(c);}catch(x){if(active(c)){status(c,x.message);e.target.disabled=false;}}
       };
     });
-    c.view=foodChatViewport({list:$('#thread-messages',el),composer:$('#kit-composer',el),field,send:$('#kit-send',el),active:()=>active(c)});
+    c.view=foodChatViewport({list:$('#kit-messages',el),composer:$('#kit-composer',el),field,send:$('#kit-send',el),active:()=>active(c)});
     const events=new AbortController();
     document.addEventListener('visibilitychange',()=>{
       if(document.hidden){leave(c);return;}
@@ -205,16 +258,15 @@ const KitChat = (() => {
   function eraseDevice(){const o=owner();entryDraft=null;if(current){clearTimeout(current.timer);current.view?.dispose();current=null;}if(o){for(const k of ['draft','pending'])localStorage.removeItem(key(o,k));for(const k of Object.keys(localStorage))if(k.startsWith('fit.kit.proposal:'+o+':'))localStorage.removeItem(k);}}
   function entry(el,path){
     const screen=/^\/track\/lift\/\d+$/.test(path)?'strength':{'/me':'me','/food':'nutrition','/food/insights':'nutrition','/activity':'activity','/progress':'progress','/track':'track','/plan':'plan'}[path];
-    if(!el||!screen||path==='/progress'&&new URLSearchParams(globalThis.location?.search).has('view'))return;
-    if(!kitChatOn()){el.querySelector('[data-kit-entry]')?.remove();return;}
+    if(!el||!screen)return;
     const insights=path==='/food'&&new URLSearchParams(globalThis.location?.search).get('view')==='overview';
     const heading=insights?el.querySelector('#nt-coach'):el.querySelector('.top,.me-top');if(!heading)return;
-    if(el.querySelector('.kit-help'))return;
-    const link=document.createElement('a');link.className='icon-btn kit-help';link.href=href(screen);link.setAttribute('aria-label','Ask Kit');link.setAttribute('data-kit-entry','');link.innerHTML=svg('sparkle');
+    let link=el.querySelector('[data-kit-entry]');
+    if(!link){link=document.createElement('a');link.className='icon-btn kit-help';link.setAttribute('data-kit-entry','');link.innerHTML=svg('sparkle');(heading.querySelector('.acts,.me-profile-tools')||heading).append(link);}
+    const enabled=kitChatOn();link.href=enabled?href(screen):'/food?add=1';link.setAttribute('aria-label',enabled?'Ask Kit':'Add food');link.title=enabled?'Ask Kit':'Add food';
     if(insights)heading.classList.add('insights-kit-entry');
-    (heading.querySelector('.acts,.me-profile-tools')||heading).append(link);
   }
-  return {mount,href,open,entry,eraseDevice,starters,actions,memorySettings,savedReviews};
+  return {mount,href,open,entry,eraseDevice,starters,actions,memorySettings,savedReviews,foodIntent};
 })();
 route(/^\/me\/kit$/,()=>({nutrition:'food',activity:'activity',progress:'progress',track:'track',strength:'track'}[new URLSearchParams(location.search).get('from')]||'me'),el=>KitChat.mount(el));
 function kitReview(selection, options = {}) {

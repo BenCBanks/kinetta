@@ -2545,10 +2545,20 @@ button.thread-food:active { opacity: .7; }
 #thread-empty h2 {display:flex;align-items:center;gap:8px;}
 .kit-fine {margin:12px 0 0;color:var(--tx3);font-size:.8125rem;}
 .kit-fine .linkbtn {font-size:inherit;min-height:44px;padding:0 4px;}
-.kit-chat #thread-messages:empty {flex:0;padding:0;}
+.kit-chat #kit-messages {overflow-anchor:none;position:relative;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;align-content:start;gap:14px;padding:12px 0 8px;}
+.kit-chat #kit-messages:empty {flex:0;padding:0;}
 .kit-compose-row {grid-template-columns:minmax(0,1fr) 44px;}
 #kit-text {font-size:16px;resize:none;max-height:140px;min-height:44px;}
 #kit-status {font-size:.8rem;color:var(--tx2);margin:4px 0 0;min-height:1.3em;}
+.kit-chat #kit-food-slot:empty {display:none;}
+.kit-chat .kit-food-inline.shell {position:relative;inset:auto;width:100%;height:auto;min-height:0;max-height:none;overflow:visible;display:block;flex:none;margin:0;padding:0;background:transparent;}
+.kit-chat .kit-food-inline > :is(.thread-heading,#thread-empty,#thread-older) {display:none!important;}
+.kit-chat .kit-food-inline > #thread-messages {display:grid;flex:none;min-height:0;max-height:none;overflow:visible;gap:14px;padding:0;}
+.kit-chat .kit-food-inline > #thread-messages[hidden] {display:none;}
+.kit-chat .kit-food-inline > #thread-composer {display:contents;position:static;margin:0;padding:0;background:transparent;}
+.kit-chat .kit-food-inline > #thread-composer > :not(#thread-review):not(#thread-status) {display:none!important;}
+.kit-chat .kit-food-inline > #thread-composer > #thread-review {margin:4px 0 0;}
+.kit-chat .kit-food-inline > #thread-composer > #thread-status:not(:empty) {display:block;color:var(--tx2);font-size:.85rem;}
 .kit-answer>p {white-space:pre-line;}
 .kit-facts {font-size:.9rem;margin:12px 0;}
 .kit-facts>div {display:flex;justify-content:space-between;gap:14px;padding:6px 0;border-top:1px solid var(--line);}

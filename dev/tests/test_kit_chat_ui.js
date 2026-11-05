@@ -4,6 +4,16 @@ const c={route(){},URLSearchParams,App:{me:{id:7}},Native:{base:'https://fiction
 assert.equal(c.Kit.href('nutrition'),'/me/kit?from=nutrition');assert.equal(c.Kit.href('activity',42),'/me/kit?from=activity&activity=42');assert.equal(c.Kit.href('javascript:bad'),'/me/kit?from=me');
 for(const group of Object.values(c.Kit.starters))assert.equal(group.length,3);
 for(const [,path] of Object.values(c.Kit.actions))assert(path.startsWith('/')&&!path.startsWith('//'));
+assert.equal(c.Kit.foodIntent('Can you log my food')?.kind,'prompt','a food-log request without details asks a follow-up');
+assert.equal(c.Kit.foodIntent('Can you log my food?')?.kind,'prompt','a question mark does not hide a bare log request');
+assert.equal(c.Kit.foodIntent('Can you log my food: 2 eggs and toast')?.body,'2 eggs and toast','food commands strip the command before forwarding');
+assert.equal(c.Kit.foodIntent('2 eggs and toast')?.kind,'food','plain food descriptions route to the food thread');
+assert.equal(c.Kit.foodIntent('two hot dogs and a Diet Coke')?.kind,'food','food descriptions with multiple items route to the food thread');
+assert.equal(c.Kit.foodIntent('same as yesterday’s lunch')?.kind,'food','food-thread references route to the existing engine');
+assert.equal(c.Kit.foodIntent('What did I eat today?'),null,'questions about logged food stay with Kit');
+assert.equal(c.Kit.foodIntent('Can you record my bike ride?'),null,'activity requests stay with Kit');
+assert.equal(c.Kit.foodIntent('2 eggs and toast',true)?.kind,'food','the follow-up accepts a food description');
+assert.equal(c.Kit.foodIntent('How many calories was breakfast?',true),null,'a follow-up question stays in Kit');
 const accountKeys=[];c.localStorage.removeItem=k=>accountKeys.push(k);c.Kit.eraseDevice();assert.equal(accountKeys.length,2);assert(accountKeys.every(k=>k.endsWith('["https://fictional.invalid",7]')));
 const pick=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
 // Shared entries need consent, access, a reviewed release and an unpaused service.
@@ -11,15 +21,15 @@ const pick=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
  const g={App:{me:{ai_ok:true,coach:true,ai_access:{coach:{available:true,entitled:true}}}}};vm.createContext(g);vm.runInContext(gate,g);
  assert.equal(g.kitChatOn(),false,'no Kit chat until the server reports kit_chat');g.App.me.kit_chat=true;assert.equal(g.kitChatOn(),true);g.App.me.ai_paused=true;assert.equal(g.aiCan('coach'),true,'configured access is independent from a service pause');assert.equal(g.kitChatOn(),false,'paused chat has no entrance');g.App.me.ai_paused=false;g.App.me.ai_access.coach.entitled=false;assert.equal(g.kitChatOn(),false,'age/access denial hides chat');g.App.me.ai_access.coach.entitled=true;g.App.me.ai_ok=false;assert.equal(g.kitChatOn(),false,'consent off hides Kit chat');
  let made=0,link=null;const heading={querySelector:()=>null,append:n=>link=n};
- const e={URLSearchParams,kitChatOn:()=>false,href:s=>'/me/kit?from='+s,document:{createElement(){made++;return {setAttribute(){},remove(){link=null;}}}},svg:()=>''};vm.createContext(e);vm.runInContext(source.slice(source.indexOf('  function entry(el,path){'),source.indexOf('  return {mount,')).replace('function entry','globalThis.entry=function'),e);
- const page={querySelector:s=>s==='.top,.me-top'?heading:s==='.kit-help'||s==='[data-kit-entry]'?link:null};e.entry(page,'/food');assert.equal(made,0,'gated Kit adds no tab-home entry');e.kitChatOn=()=>true;e.entry(page,'/food');assert.equal(made,1);e.entry(page,'/food');assert.equal(made,1,'repeated mounting never duplicates the entrance');e.kitChatOn=()=>false;e.entry(page,'/food');assert.equal(link,null,'revoking availability removes a mounted entrance');e.kitChatOn=()=>true;
- for(const path of ['/me','/activity','/track','/progress','/food/insights','/plan','/track/lift/7']){link=null;const before=made;e.entry(page,path);assert.equal(made,before+1,path+' uses the shared header entrance');}
+ const e={URLSearchParams,kitChatOn:()=>false,href:s=>'/me/kit?from='+s,document:{createElement(){made++;return {setAttribute(k,v){this[k]=v;},remove(){link=null;}}}},svg:()=>''};vm.createContext(e);vm.runInContext(source.slice(source.indexOf('  function entry(el,path){'),source.indexOf('  return {mount,')).replace('function entry','globalThis.entry=function'),e);
+ const page={querySelector:s=>s==='.top,.me-top'?heading:s==='[data-kit-entry]'?link:null};e.entry(page,'/food');assert.equal(made,1,'the food entry remains available when Kit is off');assert.equal(link.href,'/food?add=1');assert.equal(link['aria-label'],'Add food');e.entry(page,'/food');assert.equal(made,1,'repeated mounting never duplicates the entrance');e.kitChatOn=()=>true;e.entry(page,'/food');assert.equal(link.href,'/me/kit?from=nutrition');assert.equal(link['aria-label'],'Ask Kit');e.kitChatOn=()=>false;e.entry(page,'/food');assert.equal(link.href,'/food?add=1','turning Kit off routes the icon to Add food');
+ for(const [path,screen] of [['/me','me'],['/activity','activity'],['/track','track'],['/progress','progress'],['/food','nutrition'],['/food/insights','nutrition'],['/plan','plan'],['/track/lift/7','strength']]){link=null;const before=made;e.entry(page,path);assert.equal(made,before+1,path+' uses the shared header entrance');assert.equal(link.href,'/food?add=1');assert.equal(link.className,'icon-btn kit-help');}
  for(const path of ['/me/settings','/me/sharing','/me/devices','/track/import','/food/import','/track/connections','/me/explore','/me/people','/me/speed']){link=null;const before=made;e.entry(page,path);assert.equal(made,before,path+' has no general chat entrance');}
  for(const [file,needle] of [['app/static/pages.js',"kitChatOn() ? go(KitChat.href('activity'"],['app/static/thread.js',"!kitChatOn()||!(r.offer_kit"]])
    assert(fs.readFileSync(file,'utf8').includes(needle),file+' gates its Kit chat entry');}
 (async()=>{
  let saved,delivered=0,status='',field={value:'My unsent question'};
- const sender={active:()=>true,kitChatOn:()=>true,$:()=>field,newId:()=> 'stable-uuid',save:(ctx,k,v)=>{saved=v},deliver:async()=>delivered++,status:(ctx,v)=>status=v};vm.createContext(sender);vm.runInContext(pick('  async function send(c,text){','  async function mount(el){'),sender);
+ const sender={active:()=>true,kitChatOn:()=>true,foodIntent:()=>null,clearDraft(){},$ :()=>field,newId:()=> 'stable-uuid',save:(ctx,k,v)=>{saved=v},deliver:async()=>delivered++,status:(ctx,v)=>status=v};vm.createContext(sender);vm.runInContext(pick('  async function send(c,text){','  async function mount(el){'),sender);
  const ctx={loaded:true,ready:true,sending:false,generation:'generation-a',context:{screen:'nutrition'}};await sender.send(ctx);assert.equal(saved.question,'My unsent question');assert.equal(saved.client_id,'stable-uuid');assert.equal(saved.generation,'generation-a');assert.equal(delivered,1);await sender.send(ctx);assert.equal(delivered,1,'current-visit durable question is retried, never duplicated');
  ctx.job=null;sender.kitChatOn=()=>false;await sender.send(ctx);assert.equal(delivered,1,'availability loss cannot send a model request');assert.equal(field.value,'My unsent question','unavailable chat keeps its draft');sender.kitChatOn=()=>true;
  ctx.job=null;sender.save=()=>{throw Error('quota')};await sender.send(ctx);assert.equal(field.value,'My unsent question');assert.equal(delivered,1);assert(status.includes('could not save'));
@@ -54,7 +64,7 @@ assert(source.includes('id="kit-fine"')&&source.includes('${esc(shortProvider())
 assert(source.includes('id="kit-about-open">About Kit</button>')&&source.includes('New chat each visit.')&&source.includes('providerName()'),'About Kit keeps visit and provider details in the menu flow');
 assert(source.includes("$('#kit-about-open',body).onclick=()=>{close();sheet('About Kit',"),'About Kit row opens the provider and visit details sheet');
 const drawSource=source.slice(source.indexOf('  function draw(c){'),source.indexOf('  async function refresh(c,before=null){')).replace('  function draw(c){','  globalThis.draw = function draw(c){');
-const drawNodes={'#thread-messages':{innerHTML:''},'#kit-intro':{hidden:true},'#kit-fine':{hidden:true},'#kit-older':{hidden:false}};
+const drawNodes={'#kit-messages':{innerHTML:''},'#kit-intro':{hidden:true},'#kit-fine':{hidden:true},'#kit-older':{hidden:false}};
 const drawHarness={active:()=>true,$:s=>drawNodes[s],$$:()=>[],esc:String,controls(){},kitChatOn:()=>true};
 vm.createContext(drawHarness);vm.runInContext(drawSource,drawHarness);
 drawHarness.draw({el:{},messages:[],job:null,before:null});assert.equal(drawNodes['#kit-fine'].hidden,false,'empty chats show the reminder');
