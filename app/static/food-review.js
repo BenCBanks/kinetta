@@ -13,9 +13,10 @@ const FoodReview=(()=>{
     JSON.stringify(shown.map(foodStamp))===JSON.stringify(prepared.map(foodStamp));
   // A calorie edit scales that food's other nutrients by the same ratio (the server applies the same rule).
   const edited=(e,kcal)=>{if(kcal==null)return e;const r=e.kcal?kcal/e.kcal:null,out={...e,kcal};if(r!=null)for(const k of FOOD_NUTRIENTS)if(k!=='kcal'&&e[k]!=null)out[k]=e[k]*r;return out;};
-  async function open({done=()=>{},messages,expectedFoods,quickConfirm=false,draftId,meal,day=null,saveRecipe=false,draftForm=null,rememberForm=()=>{},active,accept}){
-    const owner=readOwner(),id=newId();let prepared;
-    try{prepared=await api('/api/food/thread/reviews',json('POST',{client_id:id,draft_id:draftId,messages}));}
+  async function open({done=()=>{},messages,selection=null,expectedFoods,quickConfirm=false,draftId,meal,day=null,saveRecipe=false,draftForm=null,rememberForm=()=>{},active,accept}){
+    const owner=readOwner(),id=newId();let prepared,body={client_id:id,draft_id:draftId,messages};
+    if(selection?.length)body.selection=selection;
+    try{prepared=await api('/api/food/thread/reviews',json('POST',body));}
     catch(e){toast(e.message);return;}
     if(!active()||owner!==readOwner())return;
     let review=prepared.review,kcal={},initialError='';

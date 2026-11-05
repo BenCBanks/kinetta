@@ -343,17 +343,18 @@ const FoodThread = (() => {
   const pendingReview=()=>(typeof FoodReview!=='undefined'&&FoodReview.busy())||queuedReview();
   const waitingJobs=ctx=>ctx.jobs.some(j=>j.draft_id===ctx.draftId&&!j.error&&!['remove','remove-failed','complete'].includes(j.phase));
   function held(ctx){
-    // A food still waiting on a question is left out of the review rather than blocking the others.
-    const ids=[],foods=[];let ready=0,open=0,kcal=0;
+    // A food still waiting on a question stays in the draft while ready parts can be selected safely.
+    const ids=[],foods=[],selections=[];let ready=0,open=0,kcal=0,partial=false;
     for(const m of ctx.messages.filter(m=>m.kind==='user'&&ctx.visibleClients.has(m.client_id)&&m.result?.review_only&&m.result?.draft_id===ctx.draftId&&!ctx.jobs.some(j=>j.id===m.client_id&&(j.error||j.phase==='remove')))){
       const r=ctx.messages.find(x=>x.reply_to===m.id)?.result||{};
       if(r.food_review||['reviewed','undone','cancelled'].includes(r.kind)||m.state==='cancelled')continue;
       const parts=r.parts||[];
       const waiting=parts.filter(p=>!p.logged&&!(p.status==='ready'&&(!p.entered_numbers||p.manual)));
-      if(waiting.length){open++;continue;}
-      const done=parts.filter(p=>!p.logged);if(done.length){ids.push(m.id);for(const p of done){ready+=Math.max(1,(p.entries||[]).length);foods.push(...(p.entries||[]));for(const e of p.entries||[])kcal+=Number(e.kcal)||0;}}
+      if(waiting.length){open++;partial=true;}
+      if(parts.some(p=>p.logged))partial=true;
+      const done=parts.filter(p=>!p.logged&&p.status==='ready'&&(!p.entered_numbers||p.manual));if(done.length){ids.push(m.id);selections.push({message:m.id,parts:done.map(p=>p.index)});for(const p of done){ready+=Math.max(1,(p.entries||[]).length);foods.push(...(p.entries||[]));for(const e of p.entries||[])kcal+=Number(e.kcal)||0;}}
     }
-    return {ids,ready,open,kcal,foods};
+    return {ids,ready,open,kcal,foods,selections:partial?selections:null};
   }
   const hasDraftWork=ctx=>!!ctx.reviewForm||!!ctx.context||!!String($('#thread-text',ctx.el)?.value||'').trim()||held(ctx).ready>0||held(ctx).open>0||waitingJobs(ctx);
   function primary(ctx){
@@ -376,7 +377,7 @@ const FoodThread = (() => {
     const state=held(ctx);if(!state.ready||waitingJobs(ctx)||pendingReview()){status(ctx,'Finish the food details before reviewing.');return;}
     ctx.preparingReview=true;primary(ctx);
     try {
-      await FoodReview.open({done:result=>{if(!result.queued&&active(ctx)){const typed=$('#thread-text',ctx.el).value;saveDraft(ctx,typed);saveReviewDraft(ctx,hasDraftWork(ctx));ctx.chatView?.resize();}},messages:state.ids,expectedFoods:state.foods,quickConfirm,draftId:ctx.draftId,meal:ctx.meal,day:ctx.day,saveRecipe,draftForm:ctx.reviewForm,rememberForm:form=>{ctx.reviewForm=form;saveReviewDraft(ctx,true);},active:()=>active(ctx),accept:data=>merge(ctx.owner,data)});
+      await FoodReview.open({done:result=>{if(!result.queued&&active(ctx)){const typed=$('#thread-text',ctx.el).value;saveDraft(ctx,typed);saveReviewDraft(ctx,hasDraftWork(ctx));ctx.chatView?.resize();}},messages:state.ids,selection:state.selections,expectedFoods:state.foods,quickConfirm,draftId:ctx.draftId,meal:ctx.meal,day:ctx.day,saveRecipe,draftForm:ctx.reviewForm,rememberForm:form=>{ctx.reviewForm=form;saveReviewDraft(ctx,true);},active:()=>active(ctx),accept:data=>merge(ctx.owner,data)});
     } finally {ctx.preparingReview=false;primary(ctx);}
   }
   async function stage(items,{dish=null}={}){

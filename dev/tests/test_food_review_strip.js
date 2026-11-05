@@ -17,7 +17,12 @@ const question={index:0,status:'description',description:{food:'coffee',portion_
 const ctx={draftId:'d1',jobs:[],visibleClients:new Set(['c1','c2','c3']),messages:[user(1),reply(1,[ready(200,100)]),user(2),reply(2,[question]),user(3),reply(3,[ready(105)])]};
 const state=c.held(ctx);
 assert.deepEqual([...state.ids],[1,3],'only finished cards are sent to review');
+assert.equal(JSON.stringify(state.selections),JSON.stringify([{message:1,parts:[0]},{message:3,parts:[0]}]),'an open draft uses explicit ready-part selections for every included message');
 assert.equal(state.ready,3);assert.equal(state.open,1);assert.equal(state.kcal,405);
+const allReady={...ctx,messages:[user(1),reply(1,[ready(200)])],visibleClients:new Set(['c1'])};
+assert.equal(c.held(allReady).selections,null,'an all-ready draft keeps the legacy whole-message request');
+const mixed={...ctx,messages:[user(4),reply(4,[{...ready(220),index:0},{...question,index:1}])],visibleClients:new Set(['c4'])};
+assert.equal(JSON.stringify(c.held(mixed).selections),JSON.stringify([{message:4,parts:[0]}]),'a mixed message selects only its ready part');
 c.primary(ctx);
 assert.equal(nodes['#thread-review'].hidden,false);assert.equal(nodes['#thread-review-add'].disabled,false,'an open question never blocks ready foods');assert.equal(nodes['#thread-review-edit'].disabled,false);
 assert.equal(nodes['#thread-review-sum'].textContent,'3 foods · ≈ 405 kcal');
