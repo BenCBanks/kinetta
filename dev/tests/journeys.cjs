@@ -28,7 +28,7 @@ async function food(f){
  await p.locator('.thread-heading .back').click();await ready(p);assert.match(await p.locator('#fd-meals').innerText(),/Fictional journey rice/i);
 }
 async function feedBack(f){
- const p=f.p,link=p.locator('.post .post-link').nth(4);await link.waitFor();await link.scrollIntoViewIfNeeded();
+ const p=f.p,link=p.locator('.post .post-title-link').nth(4);await link.waitFor();await link.scrollIntoViewIfNeeded();
  const shots=process.env.KINETTA_JOURNEY_SHOTS,theme=process.env.KINETTA_JOURNEY_THEME||'light';
  const capture=async label=>{if(shots){fs.mkdirSync(shots,{recursive:true});await p.screenshot({path:path.join(shots,`feed-${theme}-${label}.png`)});}};
  await capture('before');
