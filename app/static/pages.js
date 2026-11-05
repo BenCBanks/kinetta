@@ -19,7 +19,7 @@ function activityMonthKey(iso) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {timeZone:tz(),year:'numeric',month:'2-digit'}).formatToParts(date).map(p => [p.type,p.value]));
   return parts.year && parts.month ? `${parts.year}-${parts.month}` : '';
 }
-function activityMonthName(month) { return fdate(`${month}-01T12:00:00`, {month:'long',year:'numeric'}); }
+function activityMonthName(month) { return fdate(`${month}-01T12:00:00Z`, {timeZone:'UTC',month:'long',year:'numeric'}); }
 
 // The owner history is rendered by the profile route; enhance its activity-list header here so the
 // activity lane can own this control without changing the separate social/profile controller.

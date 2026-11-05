@@ -13,7 +13,7 @@ def ok(value):
 names=['empty','typical','heavy','established']+['friend'+str(i) for i in range(6)]+['pending','blocked']
 clients={}
 for who in names:
- name='zz_test_feed_'+who;c=person(name);ok(c.post('/api/account/delete',{'password':PW}));c=person(name,'River '+who.title());ok(c.put('/api/profile',{'tz':'UTC','ai_ok':False}));ok(c.put('/api/sharing',{'default':'friends','trim_m':400}));clients[who]=c
+ name='zz_test_feed_'+who;c=person(name);ok(c.post('/api/account/delete',{'password':PW}));c=person(name,'River '+who.title());ok(c.put('/api/profile',{'tz':'America/New_York' if who=='typical' else 'UTC','ai_ok':False}));ok(c.put('/api/sharing',{'default':'friends','trim_m':400}));clients[who]=c
 for who,count in [('typical',2),('heavy',6),('established',3)]:
  for i in range(count):
   friend='friend'+str(i);ok(clients[friend].post('/api/friends',{'login':'zz_test_feed_'+who}));ok(clients[who].post('/api/friends/zz_test_feed_'+friend+'/accept'))
@@ -28,8 +28,11 @@ for who in ['typical','heavy','established']+['friend'+str(i) for i in range(6)]
   aid=ok(c.post('/api/activities/manual',{'sport':'run' if i%2==0 else 'walk','name':name,'start':when.isoformat(),'duration_s':1500+i*60,'distance_m':5000 if i%2==0 else 2400}))['id'];ids.append(aid)
   ok(c.put(f'/api/activities/{aid}/sharing',{'visibility':'me' if i==1 else 'friends'}))
  if who=='typical':
-  for day,name in [('2026-10-29','Fictional October first workout'),('2026-10-12','Fictional October second workout')]:
+  for day,name in [('2026-10-29','Fictional River October first workout'),('2026-10-12','Fictional October second workout')]:
    ok(c.post('/api/activities/manual',{'sport':'run','name':name,'start':day+'T08:00:00+00:00','duration_s':1800,'distance_m':5000}))
+  for i in range(26):
+   when=now-dt.timedelta(minutes=7+i*31)
+   ok(c.post('/api/activities/manual',{'sport':'run','name':f'Fictional River session {i+1:02d}','start':when.isoformat(),'duration_s':1800,'distance_m':5000}))
  first[who]=ids[0]
  for photo in photos if who in ('typical','heavy','established') else photos[:1] if who=='friend0' else []:
   raw=base64.b64encode((Path('dev/demo/photos')/photo).read_bytes()).decode();ok(c.post(f'/api/activities/{ids[0]}/photos',{'image':'data:image/jpeg;base64,'+raw}))
