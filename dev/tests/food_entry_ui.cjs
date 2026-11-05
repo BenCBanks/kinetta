@@ -23,6 +23,45 @@ async function contextLabel(p){return p.locator('#thread-context').evaluate(n=>n
   await p.goto(base+(options.path||'/food/describe?meal=lunch'));await until(p,()=>typeof App!=='undefined'&&App.pageReady&&!!document.querySelector('#thread-text'),'food ready');if(root)await until(p,()=>!!document.querySelector('.thread-card:not(.thread-thinking)'),'saved fictional response');
   return {c,p,get,errors,writes,root,threadPosts,diaryPosts,barcodeLookups:()=>barcodeLookups,setBarcodeStatus:status=>{barcodeStatus=status;},failNextFoodAdd:()=>{multiFailNext=true;}};
  }
+ async function openNativeEntry(){
+  const c=await b.newContext({viewport:{width:390,height:844},colorScheme:'light',serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:foodTimeZone});contexts.push(c);
+  const signed=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_food_compact_empty',password:pw,app:true}});assert.equal(signed.status(),200);const token=(await signed.json()).token;
+  const entry={id:'f1c710a4-14ca-4f2b-a021-13b145c94c01',source:'shortcut',text:'Fictional native breakfast note'};
+  await c.addInitScript(({base,token,entry})=>{
+   document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize='16px');
+   const trace=[];let callback=null,pendingEntry=null,holdNext=false,releasePending=null,events=0,acks=0;
+   window.__foodEntryNote=entry.text;window.__foodEntryStaleId='22222222-2222-4222-8222-222222222222';
+   const prefs={server:base,token};
+   const plugin={
+    addListener:(name,fn)=>{trace.push({type:'listener',name});callback=fn;return {remove(){}};},
+    bind:async({owner})=>{trace.push({type:'bind',owner});},
+    pending:async({owner})=>{
+     const hold=holdNext;holdNext=false;
+     if(hold){trace.push({type:'pending-wait',owner,id:pendingEntry?.id});await new Promise(resolve=>{releasePending=resolve;});}
+     const entries=pendingEntry?[pendingEntry]:[];trace.push({type:'pending-result',owner,ids:entries.map(x=>x.id)});return {entries};
+    },
+    acknowledge:async({owner,id})=>{
+     const draft=Object.entries(localStorage).find(([key])=>key.startsWith('fit.thread.draft:'));
+     const row=Object.entries(localStorage).find(([key])=>key.startsWith('fit.thread.native:'));
+     const receipts=row?JSON.parse(row[1]):[],receipt=receipts.find(x=>x.id===id);
+     trace.push({type:'ack',owner,id,draftText:draft?JSON.parse(draft[1]):null,receiptIds:receipts.map(x=>x.id),pending:receipt?.pending??null});
+     acks++;if(pendingEntry?.id===id)pendingEntry=null;
+    },
+    stop:async({clear})=>{trace.push({type:'stop',clear});}
+   };
+   window.__foodEntryTrace=trace;
+   window.__foodEntrySnapshot=()=>({events,acks,pendingId:pendingEntry?.id,trace});
+   window.__fireFoodEntry=()=>{pendingEntry=entry;events++;return callback?.();};
+   window.__replayFoodEntry=()=>{pendingEntry=entry;events++;return callback?.();};
+   window.__startStaleFoodEntry=()=>{pendingEntry={...entry,id:window.__foodEntryStaleId};holdNext=true;events++;const task=callback?.();task?.catch(()=>{});};
+   window.__releaseStaleFoodEntry=()=>{releasePending?.();releasePending=null;};
+   window.Capacitor={isNativePlatform:()=>true,isPluginAvailable:n=>n==='Preferences'||n==='KinettaFoodEntry',Plugins:{Preferences:{get:async({key})=>({value:prefs[key]??null}),set:async({key,value})=>{prefs[key]=value;},remove:async({key})=>{delete prefs[key];}},KinettaFoodEntry:plugin}};
+  },{base,token,entry});
+  const foodWrites=[],errors=[];await c.route('**/api/**',route=>{const req=route.request(),url=new URL(req.url());if(url.pathname.startsWith('/api/food/')&&!['GET','HEAD','OPTIONS'].includes(req.method())){foodWrites.push(req.method()+' '+url.pathname);return route.abort();}return route.continue();});
+  const p=await c.newPage();p.on('pageerror',e=>errors.push('page: '+e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push('console: '+m.text());});p.on('response',r=>{if(r.url().startsWith(base+'/api/')&&r.status()>=500)errors.push('HTTP '+r.status()+' '+new URL(r.url()).pathname);});
+  await p.goto(base+'/me');await until(p,()=>typeof App!=='undefined'&&App.me&&App.pageReady,'fictional native Me ready');await until(p,()=>window.__foodEntryTrace.some(x=>x.type==='listener'&&x.name==='foodEntryReady'),'native food-entry listener');
+  return {c,p,foodWrites,errors};
+ }
  try{
   for(const who of ['empty','one','three','photo','clarify','barcode','keyboard'])for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
    const name=`${who}-${size.width}-${theme}`;if(process.env.KINETTA_FOOD_CASE&&process.env.KINETTA_FOOD_CASE!==name)continue;
@@ -228,6 +267,31 @@ async function contextLabel(p){return p.locator('#thread-context').evaluate(n=>n
    await ready('/food');await p.locator('.macro-line').first().waitFor();assert.match(await p.locator('.macro-line').innerText(),/Unknown/,'day protein is Unknown');assert.match(await p.locator('.nutrition-other-macros').innerText(),/Carbs\s+Unknown[\s\S]*Fat\s+Unknown/,'day carbs and fat are Unknown');
    if(process.env.SHOT_DIR){fs.mkdirSync(process.env.SHOT_DIR,{recursive:true});await p.screenshot({path:path.join(process.env.SHOT_DIR,'nullable-four-routes-day-'+theme+'.png'),fullPage:true});}
    assert.deepEqual(errors,[]);await c.close();contexts.splice(contexts.indexOf(c),1);
+  }
+  if(!process.env.KINETTA_FOOD_CASE||process.env.KINETTA_FOOD_CASE==='native-entry'){
+   const {c,p,foodWrites,errors}=await openNativeEntry(),entryId='f1c710a4-14ca-4f2b-a021-13b145c94c01',staleId='22222222-2222-4222-8222-222222222222',note='Fictional native breakfast note';
+   await p.evaluate(()=>{window.__receiveResults=[];const receive=FoodThread.receiveNative;FoodThread.receiveNative=entry=>{const result=receive(entry);window.__receiveResults.push({result,path:location.pathname,collecting:FoodThread.collecting()});return result;};});
+   await p.evaluate(()=>window.__fireFoodEntry());
+   await until(p,()=>location.pathname==='/food/describe'&&document.querySelector('#thread-text')?.value===window.__foodEntryNote,'first native entry staged after composer mount');
+   await until(p,()=>window.__foodEntryTrace.filter(x=>x.type==='ack').length===1,'first native receipt acknowledged');
+   const first=await p.evaluate(()=>{const drafts=Object.entries(localStorage).filter(([key])=>key.startsWith('fit.thread.draft:')).map(([,value])=>JSON.parse(value)),receipts=Object.entries(localStorage).filter(([key])=>key.startsWith('fit.thread.native:')).flatMap(([,value])=>JSON.parse(value));return {events:window.__foodEntrySnapshot().events,results:window.__receiveResults,text:document.querySelector('#thread-text')?.value,drafts,receipts,acks:window.__foodEntryTrace.filter(x=>x.type==='ack')};});
+   assert.equal(first.events,1,'one real plugin callback is enough; no second delivery is needed to stage');
+   assert.equal(first.results[0].result,false,'the first off-route receive waits for the actual composer');
+   assert(first.results.some(x=>x.result===true),'the mounted retry enters through the real native consumer');
+   assert.equal(first.text,note);assert.deepEqual(first.drafts,[note],'the single owner-bound draft is saved once');
+   assert.equal(first.receipts.filter(x=>x.id===entryId&&!x.pending).length,1,'the local receipt is saved and complete');
+   assert.equal(first.acks.length,1);assert.equal(first.acks[0].draftText,note);assert(first.acks[0].receiptIds.includes(entryId));assert.equal(first.acks[0].pending,null,'ack follows the saved draft and receipt');
+   await p.evaluate(()=>window.__replayFoodEntry());await until(p,()=>window.__foodEntryTrace.filter(x=>x.type==='ack').length===2,'native replay acknowledged');
+   const replay=await p.evaluate(()=>({events:window.__foodEntrySnapshot().events,text:document.querySelector('#thread-text')?.value,drafts:Object.entries(localStorage).filter(([key])=>key.startsWith('fit.thread.draft:')).map(([,value])=>JSON.parse(value)),acks:window.__foodEntryTrace.filter(x=>x.type==='ack')}));
+   assert.equal(replay.events,2);assert.equal(replay.text,note);assert.deepEqual(replay.drafts,[note],'replay does not duplicate the staged text');assert.equal(replay.acks.length,2);assert(replay.acks.every(x=>x.draftText===note&&x.receiptIds.includes(entryId)&&x.pending===null));
+   await p.evaluate(()=>window.__startStaleFoodEntry());await until(p,()=>window.__foodEntryTrace.some(x=>x.type==='pending-wait'&&x.id===window.__foodEntryStaleId),'stale path pending read held');
+   await p.evaluate(()=>go('/me',{replace:true}));await until(p,()=>location.pathname==='/me'&&App.pageReady,'navigated away from the food composer');
+   await p.evaluate(()=>window.__releaseStaleFoodEntry());await until(p,()=>window.__foodEntryTrace.some(x=>x.type==='pending-result'&&x.ids.includes(window.__foodEntryStaleId)),'stale pending read released');await p.waitForTimeout(50);
+   const away=await p.evaluate(()=>({path:location.pathname,state:window.__foodEntrySnapshot(),drafts:Object.entries(localStorage).filter(([key])=>key.startsWith('fit.thread.draft:')).map(([,value])=>JSON.parse(value))}));
+   assert.equal(away.path,'/me');assert.equal(away.state.pendingId,staleId,'stale entry remains pending');assert.deepEqual(away.state.trace.filter(x=>x.type==='ack').map(x=>x.id),[entryId,entryId],'navigation away prevents stale acknowledgement');assert.deepEqual(away.drafts,[note],'navigation away cannot alter the saved draft');
+   assert.deepEqual(foodWrites,[],'native staging does not write food');assert.deepEqual(errors,[]);
+   console.log('Native food entry mount handoff: one real plugin event stages after mount, save-before-ack, replay and stale path guards PASS');
+   await c.close();contexts.splice(contexts.indexOf(c),1);
   }
  }finally{for(const c of contexts)await c.close();for(const who of people){const c=await b.newContext();try{const r=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_food_compact_'+who,password:pw}});if(r.ok())await c.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password:pw}});}finally{await c.close();}}await b.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

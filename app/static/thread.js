@@ -50,7 +50,7 @@ function foodChatPhotoCache(){
 }
 
 const FoodThread = (() => {
-  let current = null, privacyEpoch = 0;
+  let current = null, privacyEpoch = 0, pendingNativeMountRetry = null;
   const photos=foodChatPhotoCache();
   const ownerKey = () => App.me ? JSON.stringify([Native.base || location.origin, App.me.id]) : null;
   const uuid = () => { if(crypto.randomUUID)return crypto.randomUUID();const b=crypto.getRandomValues(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=[...b].map(n=>n.toString(16).padStart(2,'0')).join('');return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`; };
@@ -698,6 +698,7 @@ const FoodThread = (() => {
     if(tool&&['snap','scan','library'].includes(tool)){const url=new URL(location.href);url.searchParams.delete('tool');history.replaceState(history.state,'',url.pathname+url.search+url.hash);$('[data-tool="'+tool+'"]',el).click();}else if(field.value.trim())field.focus({preventScroll:true});
     ThreadDB.list(owner).then(jobs=>{if(active(ctx)){ctx.jobs=jobs;for(const job of jobs)ctx.visibleClients.add(job.id);if(!resumeActive&&!hasDay&&!hasMeal&&resumeId&&jobs.some(job=>job.draft_id===resumeId&&!['remove','remove-failed','complete'].includes(job.phase))){ctx.draftId=resumeId;if(/^\d{4}-\d{2}-\d{2}$/.test(ctx.resumeDay))ctx.day=ctx.resumeDay;if(Object.hasOwn(MEAL_NAMES,ctx.resumeMeal))ctx.meal=ctx.resumeMeal;ctx.historyDay=ctx.day;ctx.reuseChips.refresh();saveReviewDraft(ctx,true);drawFoodContext(ctx);}draw(ctx);flush(ctx);foodRemoval.flush(removalSession());}}).catch(e=>status(ctx,e.message));
     refresh(ctx);
+    retryPendingNativeEntryAfterMount(ctx);
   }
   addEventListener('food:review-state',()=>{if(current&&active(current))primary(current);});
   addEventListener('online',()=>flush());
@@ -712,8 +713,20 @@ const FoodThread = (() => {
     const old=ctx.nativeEntries;ctx.nativeEntries=old.map(({id,at})=>({id,at}));
     try{nativeReceipts(ctx);}catch(e){ctx.nativeEntries=old;throw e;}
   }
+  function retryPendingNativeEntryAfterMount(ctx){
+    const request=pendingNativeMountRetry;if(!request)return;pendingNativeMountRetry=null;
+    if(request.owner!==ctx.owner||request.session!==ctx.session||!active(ctx)||location.pathname!=='/food/describe'||typeof Native.autoFoodEntry!=='function')return;
+    const retry=()=>{if(active(ctx)&&location.pathname==='/food/describe')Native.autoFoodEntry();};
+    const pending=Native.foodEntryTask;
+    if(pending)pending.then(retry,retry).catch(()=>{});else retry();
+  }
   function receiveNative(entry){
-    const ctx=current;if(!ctx||!active(ctx))return false;
+    const ctx=current;if(!ctx||!active(ctx)){
+      if(location.pathname==='/food/describe'){
+        const owner=ownerKey(),session=readOwner();if(owner&&session)pendingNativeMountRetry={owner,session};
+      }
+      return false;
+    }
     if(!entry||typeof entry.id!=='string'||!/^[-a-f0-9]{36}$/i.test(entry.id)||!['shortcut','quick-action'].includes(entry.source)||(entry.text!=null&&(typeof entry.text!=='string'||entry.text.length>4000))){status(ctx,'A Shortcut entry was skipped because it was invalid.');return 'skip';}
     const field=$('#thread-text',ctx.el),id=entry.id.toLowerCase(),previous=field.value;
     ctx.nativeEntries=ctx.nativeEntries||[];
@@ -734,6 +747,6 @@ const FoodThread = (() => {
     field.focus({preventScroll:true});return true;
   }
   async function pendingCount(){const owner=ownerKey();return owner?(await ThreadDB.list(owner)).length+(String(store.get(draftKey(owner))||'').trim()?1:0):0;}
-  async function eraseDevice(){const owner=ownerKey();if(!owner)return;privacyEpoch++;photos.clear(owner);const view=current;if(view?.owner===owner){view.messages=[];view.jobs=[];view.el.replaceChildren();current=null;}let failure;try{await ThreadDB.erase(owner);}catch(e){failure=e;}finally{let keys=[];try{keys=Object.keys(localStorage).filter(key=>key.startsWith('fit.kit.proposal:'+owner+':'));}catch(e){failure=failure||e;}for(const key of [...keys,cacheKey(owner),draftKey(owner),contextKey(owner),nativeKey(owner),reviewDraftKey(owner)]){try{localStorage.removeItem(key);}catch(e){failure=failure||e;}}}if(failure)throw failure;}
+  async function eraseDevice(){const owner=ownerKey();if(!owner)return;if(pendingNativeMountRetry?.owner===owner)pendingNativeMountRetry=null;privacyEpoch++;photos.clear(owner);const view=current;if(view?.owner===owner){view.messages=[];view.jobs=[];view.el.replaceChildren();current=null;}let failure;try{await ThreadDB.erase(owner);}catch(e){failure=e;}finally{let keys=[];try{keys=Object.keys(localStorage).filter(key=>key.startsWith('fit.kit.proposal:'+owner+':'));}catch(e){failure=failure||e;}for(const key of [...keys,cacheKey(owner),draftKey(owner),contextKey(owner),nativeKey(owner),reviewDraftKey(owner)]){try{localStorage.removeItem(key);}catch(e){failure=failure||e;}}}if(failure)throw failure;}
   return {collecting:()=>!!current&&active(current)&&location.pathname==='/food/describe',stage,stageDish:(did,portion)=>stage([],{dish:{did,portion}}),review:options=>current&&review(current,options),page,eraseDevice,pendingCount,receiveNative,accept:data=>merge(ownerKey(),data),refresh:()=>current&&refresh(current),send,ownerKey,source};
 })();
