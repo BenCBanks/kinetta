@@ -8,6 +8,7 @@ import logging
 from collections import Counter
 import threading
 import datetime as dt
+import re
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -27,12 +28,14 @@ NOTICE_VISIBLE += " AND (n.kind<>'activity_ready' OR EXISTS(SELECT 1 FROM activi
 NOTICE_VISIBLE += " AND (n.kind<>'signup_admin' OR EXISTS(SELECT 1 FROM users admin WHERE admin.id=n.user_id AND admin.is_admin AND admin.suspended_at IS NULL))"
 
 router = APIRouter(prefix='/api')
-KINDS = ('friend_request', 'friend_accepted', 'cheer', 'comment', 'dish_shared', 'activity_ready', 'milestone','challenge_join','challenge_reminder','challenge_finished', 'report', 'signup_admin')   # report: admins only, in the app only
-PUSH_KINDS = {'friends': ('friend_request', 'friend_accepted'), 'cheers': ('cheer',), 'comments': ('comment',), 'dishes': ('dish_shared',), 'activities': ('activity_ready',), 'milestones': ('milestone',),'challenge_joins':('challenge_join',),'challenge_reminders':('challenge_reminder',),'challenge_finished':('challenge_finished',)}
+KINDS = ('friend_request', 'friend_accepted', 'cheer', 'comment', 'dish_shared', 'activity_ready', 'milestone','challenge_join','challenge_reminder','challenge_finished', 'monthly_summary', 'report', 'signup_admin')   # report: admins only, in the app only
+PUSH_KINDS = {'friends': ('friend_request', 'friend_accepted'), 'cheers': ('cheer',), 'comments': ('comment',), 'dishes': ('dish_shared',), 'activities': ('activity_ready',), 'milestones': ('milestone',),'challenge_joins':('challenge_join',),'challenge_reminders':('challenge_reminder',),'challenge_finished':('challenge_finished',),'monthly_summary':('monthly_summary',)}
 log = logging.getLogger('uvicorn.error')
 CATCH_UP_KINDS = ('friend_request', 'friend_accepted', 'comment', 'cheer')
 MAX_SUBS = 10           # devices per person
 AUTO_SOURCES = ('apple', 'healthkit', 'garmin', 'garmin_connect')   # workouts that arrive without the person doing anything
+SUMMARY_WINDOW = dt.timedelta(minutes=15)
+SUMMARY_KIND = re.compile(r'^monthly_summary:(month|year):([0-9]{4}(?:-[0-9]{2})?)$')
 
 
 def add(c, user_id, kind, actor_id, activity_id=None, dish_id=None, comment_id=None,reaction_kind=None):
@@ -81,6 +84,139 @@ def drop(c, user_id, kind, actor_id):
     c.execute('DELETE FROM notifications WHERE user_id = %s AND kind = %s AND actor_id = %s', (user_id, kind, actor_id))
 
 
+def summary_parts(kind):
+    """The notification stores only a validated period, never a summary snapshot."""
+    match = SUMMARY_KIND.fullmatch(kind or '')
+    if not match:
+        return None
+    period_type, period = match.groups()
+    try:
+        dt.date.fromisoformat(period + ('-01' if period_type == 'month' else '-01-01'))
+    except ValueError:
+        return None
+    return period_type, period
+
+
+def summary_kind(period_type, period):
+    if period_type == 'month':
+        if not re.fullmatch(r'\d{4}-\d{2}', period):
+            raise ValueError('Invalid monthly summary period')
+        dt.date.fromisoformat(period + '-01')
+    elif period_type == 'year':
+        if not re.fullmatch(r'\d{4}', period):
+            raise ValueError('Invalid yearly summary period')
+        dt.date.fromisoformat(period + '-01-01')
+    else:
+        raise ValueError('Invalid summary period type')
+    return f'monthly_summary:{period_type}:{period}'
+
+
+def summary_due(tz, now=None):
+    """Return the previous calendar month, plus the previous year on 1 January, at local 9 am."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    if now.tzinfo is None:
+        raise ValueError('Summary schedule time must include a timezone')
+    zone = ZoneInfo(db.valid_tz(tz) or db.DEFAULT_TZ)
+    local = now.astimezone(zone)
+    scheduled = dt.datetime.combine(local.date(), dt.time(9), zone).replace(fold=0)
+    at = scheduled.astimezone(dt.timezone.utc)
+    if at.astimezone(zone).replace(tzinfo=None) != scheduled.replace(tzinfo=None):
+        return []
+    if local.day != 1 or not dt.timedelta(0) <= now.astimezone(dt.timezone.utc) - at < SUMMARY_WINDOW:
+        return []
+    previous_month = local.date().replace(day=1) - dt.timedelta(days=1)
+    due = [('month', previous_month.strftime('%Y-%m'))]
+    if local.month == 1:
+        due.append(('year', str(local.year - 1)))
+    return due
+
+
+def _summary_range(period_type, period, tz):
+    zone = ZoneInfo(db.valid_tz(tz) or db.DEFAULT_TZ)
+    if period_type == 'month':
+        start = dt.date.fromisoformat(period + '-01')
+        end = dt.date(start.year + (start.month == 12), start.month % 12 + 1, 1)
+    elif period_type == 'year':
+        start = dt.date.fromisoformat(period + '-01-01')
+        end = dt.date(start.year + 1, 1, 1)
+    else:
+        raise ValueError('Invalid summary period type')
+    return dt.datetime.combine(start, dt.time.min, zone), dt.datetime.combine(end, dt.time.min, zone)
+
+
+def summary_facts(c, user_id, period_type, period, tz):
+    """Read the person's own completed activities for the period, when the bell is opened."""
+    lo, hi = _summary_range(period_type, period, tz)
+    return c.execute('''SELECT count(*) AS activities,coalesce(sum(distance_m),0)::double precision AS distance_m,
+          coalesce(sum(moving_s),0)::double precision AS time_s
+        FROM activities WHERE user_id=%s AND NOT lift_open AND start_time>=%s AND start_time<%s''',
+        (user_id, lo, hi)).fetchone()
+
+
+def summary_detail(facts, units):
+    count = int(facts['activities'] or 0)
+    if not count:
+        return ''
+    distance = float(facts['distance_m'] or 0)
+    if distance > 0:
+        unit = 'mi' if units == 'imperial' else 'km'
+        value = distance / (1609.344 if unit == 'mi' else 1000)
+        number = f'{value:,.0f}' if value >= 10 else f'{value:,.1f}'
+        return f'{number} {unit} · {count} {"workouts" if count != 1 else "workout"}'
+    seconds = int(round(float(facts['time_s'] or 0)))
+    duration = f'{seconds // 3600} h {seconds % 3600 // 60} min' if seconds >= 3600 else f'{max(1, seconds // 60)} min'
+    return f'{duration} · {count} {"workouts" if count != 1 else "workout"}' if seconds else f'{count} {"workouts" if count != 1 else "workout"}'
+
+
+def summary_title(period_type, period):
+    if period_type == 'year':
+        return f'Your {period} in review'
+    month = dt.date.fromisoformat(period + '-01').strftime('%B')
+    return f'Your {month} summary is ready'
+
+
+def record_summary(c, user_id, period_type, period, *, created=None, enqueue=True):
+    """Create one period-only bell item if the owner recorded a completed workout."""
+    kind = summary_kind(period_type, period)
+    c.execute("SELECT pg_advisory_xact_lock(hashtextextended('monthly-summary:'||%s::text||':'||%s,0))", (user_id, kind))
+    if c.execute('SELECT 1 FROM notifications WHERE user_id=%s AND kind=%s LIMIT 1', (user_id, kind)).fetchone():
+        return None
+    profile = c.execute('''SELECT p.tz FROM profile p JOIN users u ON u.id=p.user_id
+      WHERE p.user_id=%s AND u.suspended_at IS NULL AND NOT u.needs_email_confirm
+      AND u.password_change_expires IS NULL''', (user_id,)).fetchone()
+    if not profile or not summary_facts(c, user_id, period_type, period, profile['tz'])['activities']:
+        return None
+    nid = c.execute('''INSERT INTO notifications(user_id,kind,actor_id,created)
+      VALUES(%s,%s,%s,coalesce(%s,now())) RETURNING id''', (user_id, kind, user_id, created)).fetchone()['id']
+    if enqueue:
+        threading.Thread(target=_push_later, args=(nid,), daemon=True).start()
+    return nid
+
+
+def summary_tick(now=None):
+    """Called by the existing notification worker; idempotency lives in the period-only bell row."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    with db.connect() as c:
+        profiles = c.execute('''SELECT p.user_id,p.tz FROM profile p JOIN users u ON u.id=p.user_id
+          WHERE u.suspended_at IS NULL AND NOT u.needs_email_confirm AND u.password_change_expires IS NULL''').fetchall()
+    made = 0
+    for profile in profiles:
+        periods = summary_due(profile['tz'], now)
+        for period_type, period in periods:
+            try:
+                with db.connect() as c:
+                    fresh = c.execute('''SELECT p.tz FROM profile p JOIN users u ON u.id=p.user_id
+                      WHERE p.user_id=%s AND u.suspended_at IS NULL AND NOT u.needs_email_confirm
+                      AND u.password_change_expires IS NULL''', (profile['user_id'],)).fetchone()
+                    if not fresh or (period_type, period) not in summary_due(fresh['tz'], now):
+                        continue
+                    if record_summary(c, profile['user_id'], period_type, period, created=now):
+                        made += 1
+            except Exception as error:
+                log.info('monthly summary skipped: reason=%s', type(error).__name__)
+    return made
+
+
 # ---------- reading: the words are made here ----------
 _LIST = """SELECT n.id, n.kind, n.reaction_kind, n.created, n.read_at IS NOT NULL AS read, n.activity_id, n.dish_id, n.user_id,n.challenge_id,q.code AS challenge_code,
              u.login::text AS login, u.name, u.photo_v AS photo, recipient.name AS recipient_name,
@@ -94,6 +230,11 @@ _LIST = """SELECT n.id, n.kind, n.reaction_kind, n.created, n.read_at IS NOT NUL
 
 
 def _words(r):
+    summary = summary_parts(r['kind'])
+    if summary:
+        period_type, period = summary
+        query = 'summary' if period_type == 'month' else 'year'
+        return summary_title(period_type, period), f'/notifications?{query}={period}'
     if r['kind']=='signup_admin':return 'Sign-up capacity needs attention. Review accounts and the waitlist in Administration.', '/me/people'
     if r['kind']=='milestone':return notification_words.clean(r.get('milestone_title') or 'A milestone is ready to review',100), '/me/milestones'
     if r['kind'].startswith('challenge_'):
@@ -117,12 +258,16 @@ def _words(r):
 
 
 
-def _item(r):
+def _item(r, detail=''):
     text, link = _words(r)
+    summary = summary_parts(r['kind'])
     if r['kind'].startswith('challenge_'):r={**r,'name':'@'+r['login']}
     if r['kind']=='signup_admin':r={**r,'login':'','name':'Kinetta','photo':None}
-    return {'id': r['id'], 'kind': r['kind'], 'text': text, 'link': link, 'created': r['created'], 'read': r['read'],
-            'who': {'login': r['login'], 'name': r['name'], 'photo': r['photo']}}
+    item = {'id': r['id'], 'kind': 'monthly_summary' if summary else r['kind'], 'text': text, 'link': link,
+            'created': r['created'], 'read': r['read'], 'who': {'login': r['login'], 'name': r['name'], 'photo': r['photo']}}
+    if summary:
+        item.update({'period_type': summary[0], 'period': summary[1], 'detail': detail})
+    return item
 
 
 def unread(c, uid):
@@ -135,7 +280,12 @@ def notifications(user=Depends(current_user)):
         rows = c.execute(_LIST + ' WHERE n.user_id = %s AND '+NOTICE_VISIBLE+' ORDER BY n.created DESC, n.id DESC LIMIT 60', (user['id'],)).fetchall()
         p = c.execute('SELECT notify FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
         n = unread(c, user['id'])
-    return {'items': [_item(r) for r in rows], 'unread': n, 'push': _prefs(p.get('notify')), 'push_ready': apns.ready()}
+        items = []
+        for row in rows:
+            parts = summary_parts(row['kind'])
+            detail = summary_detail(summary_facts(c, user['id'], *parts, row['tz']), row['units']) if parts else ''
+            items.append(_item(row, detail))
+    return {'items': items, 'unread': n, 'push': _prefs(p.get('notify')), 'push_ready': apns.ready()}
 
 
 @router.get('/notifications/count')
@@ -156,6 +306,12 @@ def notifications_read(user=Depends(current_user)):
 # ---------- phone notifications (Web Push) ----------
 def _prefs(v):
     return {k: bool((v or {}).get(k, k not in ('milestones','challenge_joins','challenge_reminders','challenge_finished'))) for k in PUSH_KINDS}
+
+
+def _push_preference(kind):
+    if summary_parts(kind):
+        return 'monthly_summary'
+    return next((name for name, kinds in PUSH_KINDS.items() if kind in kinds), None)
 
 
 # Older app copies get an explicit retirement response; no browser endpoint sends traffic.
@@ -217,6 +373,7 @@ class PrefsIn(BaseModel):
     challenge_joins: bool | None = None
     challenge_reminders: bool | None = None
     challenge_finished: bool | None = None
+    monthly_summary: bool | None = None
 
 
 @router.put('/notifications/settings')
@@ -228,8 +385,17 @@ def settings(body: PrefsIn, user=Depends(current_user)):
     return {'push': _prefs(p.get('notify'))}
 
 
-def _push_words(r, facts=None):
+def _push_words(r, facts=None, c=None):
     """Keep long activity/person text in the multiline body, not iOS's short title."""
+    summary = summary_parts(r['kind'])
+    if summary:
+        period_type, period = summary
+        profile = c.execute('SELECT tz,units FROM profile WHERE user_id=%s', (r['user_id'],)).fetchone() if c else None
+        detail = ''
+        if profile:
+            values = summary_facts(c, r['user_id'], period_type, period, profile['tz'])
+            detail = summary_detail(values, profile['units'])
+        return summary_title(period_type, period), detail
     text,_=_words(r)
     titles={'friend_request':'Friend request','friend_accepted':'You’re now friends',
             'cheer':'New reaction','comment':'New comment','dish_shared':'Meal shared',
@@ -324,11 +490,12 @@ def _push(c, nid, send, catchup, facts=None, stamp=None):
             prepare.reason = 'not_visible'
             return None
         prefs = conn.execute('SELECT notify FROM profile WHERE user_id=%s', (uid,)).fetchone() or {}
-        if not any(_prefs(prefs.get('notify'))[g] for g,kinds in PUSH_KINDS.items() if fresh['kind'] in kinds):
+        preference = _push_preference(fresh['kind'])
+        if not preference or not _prefs(prefs.get('notify'))[preference]:
             prepare.reason = 'preference_off'
             return None
         current_facts=facts if stamp is not None and stamp==notification_facts.signature(fresh) else None
-        title, body = _push_words(fresh,current_facts)
+        title, body = _push_words(fresh,current_facts,conn)
         _, link = _words(fresh)
         return {'title':title[:180], 'body':body[:600], 'url':link, 'badge':unread(conn,uid), 'tag':f'{kind}-{nid}'}
     prepare.kind = kind

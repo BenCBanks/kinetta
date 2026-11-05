@@ -2,7 +2,8 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const src=fs.readFileSync('app/static/social.js','utf8'),a=src.indexOf('function noteRow('),b=src.indexOf('route(/^\\/notifications$/');
-const c={esc:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'),avatar:p=>`<span class="av">${p?.name?.[0]||'?'}</span>`,svg:k=>`<svg data-k="${k}"></svg>`,when:()=>'Mon at 9:00 AM',NOTE_ICON:{comment:'comment',cheer:'cheer'},Date};
+const opened=[],navigated=[];
+const c={esc:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'),avatar:p=>`<span class="av">${p?.name?.[0]||'?'}</span>`,svg:k=>`<svg data-k="${k}"></svg>`,when:()=>'Mon at 9:00 AM',NOTE_ICON:{comment:'comment',cheer:'cheer',monthly_summary:'calendar'},App:{me:{tz:'America/New_York'}},Recaps:{today:()=> '2026-11-05',open(...args){opened.push(args);}},go:path=>navigated.push(path),Date};
 vm.createContext(c);vm.runInContext(src.slice(a,b),c);
 const ago=m=>new Date(Date.now()-m*60000).toISOString();
 const comment=c.noteRow({kind:'comment',read:false,link:'/activity/1',created:ago(5),who:{name:'Sam Fictional'},text:'Sam Fictional commented on your Easy Run: "Great <pace>!"'});
@@ -12,5 +13,10 @@ assert(comment.includes('note-dot')&&comment.includes('class="note unread"'),'ne
 assert(comment.includes('5 min ago')&&comment.includes('data-kind="comment"'));
 const old=c.noteRow({kind:'cheer',read:true,link:'/a',created:ago(60*30),who:{name:'Jo'},text:'Someone else cheered'});
 assert(!old.includes('note-dot')&&!old.includes('<b>')&&old.includes('Mon at 9:00 AM'),'read rows lose the dot; a name that does not lead stays plain; older times use the date');
+const summary=c.noteRow({kind:'monthly_summary',period_type:'month',period:'2026-10',read:false,link:'/notifications?summary=2026-10',created:ago(2),who:{name:'Kinetta'},text:'Your October summary is ready',detail:'112 mi · 18 workouts'});
+assert(summary.includes('data-summary-type="month" data-summary-period="2026-10"')&&summary.includes('112 mi · 18 workouts'),'monthly summaries expose a period link and private computed detail');
+c.openSummary('month','2026-10');assert.equal(JSON.stringify(opened.pop()),'[{"period":"month","offset":1}]','a recent monthly item opens its exact month');
+c.openSummary('month','2024-11');assert.equal(JSON.stringify(opened.pop()),'[{"period":"month","offset":24}]','the oldest supported month stays exact');
+c.openSummary('month','2024-10');assert.deepEqual(navigated,['/progress']);assert.equal(JSON.stringify(opened.pop()),'[]','older monthly items open Progress → Share instead of a capped month');
 assert.equal(c.noteAgo(ago(0)),'Just now');assert.equal(c.noteAgo(ago(180)),'3 hr ago');
-console.log('Notification rows: bold name, escaped quoted comment, new dot, kind colour hook and short times PASS');
+console.log('Notification rows: comments, new dot, monthly summary detail, exact period links, 24-month fallback and short times PASS');

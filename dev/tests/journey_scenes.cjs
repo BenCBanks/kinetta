@@ -29,8 +29,17 @@ function journeys(fixtures){
  for(const [tab,from,title] of [['me','me','Hi,'],['activity','activity','Activity'],['track','track','Track'],['progress','progress','Progress'],['food','nutrition','Nutrition']])cases.push({id:'kit-'+tab,start:'/'+tab,kit:true,startReady:tab==='activity'?'#feed-tools[aria-busy=false]':null,taps:[`a[href="/me/kit?from=${from}"]`],end:destination('/me/kit?from='+from,'Ask Kit','#kit-text'),back:destination('/'+tab,title,'#page')});
  for(const note of f.notifications){
   const admin=['report','signup_admin'].includes(note.kind),edit=note.kind==='activity_ready';
-  const end=note.kind==='milestone'?destination('/me','Hi,','.me-card'):note.link.startsWith('/me/challenges/')?destination(note.link,'Activities · 3','#challenge-detail h1.challenge-title'):note.kind==='dish_shared'?{...destination(note.link,'Fictional journey soup','.recipe-content .recipe-nutrition'),titleSelector:'#dk-name',titleValue:true}:admin?destination('/me/people','Admin tools','a[href$="/admin"]'):note.link==='/me/friends'?destination(note.link,'Friends','.friends-page'):note.link==='/activity'?destination(note.link,'Activity','#feed-tools'):destination(activity,edit?'Edit activity':'Fictional journey run 1',edit?'#e-form':'.compact-detail-title');
-  cases.push({id:'notification-'+note.kind,start:'/notifications',login:admin?'alex':f.login,taps:[`#nt-list a.note:has([data-kind="${note.kind}"])`],end,close:edit});
+  let end;
+  if(note.kind==='monthly_summary'){
+   const now=new Date(),previous=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth()-1,1));
+   const period=previous.toISOString().slice(0,7),title=previous.toLocaleDateString('en-US',{month:'long',year:'numeric',timeZone:'UTC'});
+   note.period_type='month';note.period=period;note.link='/notifications?summary='+period;
+   note.text='Your '+previous.toLocaleDateString('en-US',{month:'long',timeZone:'UTC'})+' summary is ready';
+   end={...destination('/notifications',title,'#recap-period-label'),titleSelector:'#recap-period-label'};
+  }else{
+   end=note.kind==='milestone'?destination('/me','Hi,','.me-card'):note.link.startsWith('/me/challenges/')?destination(note.link,'Activities · 3','#challenge-detail h1.challenge-title'):note.kind==='dish_shared'?{...destination(note.link,'Fictional journey soup','.recipe-content .recipe-nutrition'),titleSelector:'#dk-name',titleValue:true}:admin?destination('/me/people','Admin tools','a[href$="/admin"]'):note.link==='/me/friends'?destination(note.link,'Friends','.friends-page'):note.link==='/activity'?destination(note.link,'Activity','#feed-tools'):destination(activity,edit?'Edit activity':'Fictional journey run 1',edit?'#e-form':'.compact-detail-title');
+  }
+  cases.push({id:'notification-'+note.kind,start:'/notifications',login:admin?'alex':f.login,taps:['#nt-list a.note:has([data-kind="'+note.kind+'"])'],end,close:edit||note.kind==='monthly_summary'});
  }
  return cases.map(c=>({login:f.login,...c}));
 }
