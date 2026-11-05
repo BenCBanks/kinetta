@@ -99,8 +99,10 @@ async function startFromTrack(browser,ids,{mode,sessionId,failBundleFirst=false,
   assert.equal(new URL(carryPage.url()).pathname,'/track/lift/990001003','Carry on keeps the same open session id');
   assert.equal(await carryPage.locator('.lift-ex [data-row="0"] [data-k="reps"]').inputValue(),'7','Carry on restores the failed local draft');
   await until(carryPage,()=>document.querySelector('#lf-save')?.textContent==='Not saved'&&JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k=>k.startsWith('fit.lift:')))||'null')?.unsent===true,'automatic reopen keeps the failed draft local');
+  await until(carryPage,()=>liftWrites.size===0,'failed draft writes settle before visibility resume');
   const writesBeforeResume=carryRoutes.liftWrites.length;carryRoutes.releaseLiftWrites();await carryPage.evaluate(()=>window.__fixtureVisibility(false));
-  await until(carryPage,()=>carryRoutes.liftWrites.length>writesBeforeResume&&document.querySelector('#lf-save')?.textContent==='Saved','visibility resume flushes the restored draft');
+  await until(carryPage,()=>document.querySelector('#lf-save')?.textContent==='Saved','visibility resume flushes the restored draft');
+  assert(carryRoutes.liftWrites.length>writesBeforeResume,'visibility resume sends a lift save request');
   assert.equal(carryRoutes.liftWrites.at(-1).exercises[0].sets[0].reps,7,'visibility resume sends the same local draft');
   const savedDraft=await carryPage.evaluate(()=>JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k=>k.startsWith('fit.lift:')))));
   assert.equal(savedDraft.unsent,false,'successful resume flush marks the local draft synced');
