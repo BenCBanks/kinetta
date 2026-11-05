@@ -19,6 +19,7 @@ const {collectSpacing}=require('./spacing_dom.cjs'),{audit}=require('./spacing_g
   <div id="faded"><button id="faded-button">Not visible</button></div>
   <label id="check-label"><input id="check" type="checkbox">Reminders</label>
   <button id="number-action" data-type="body">30 days</button>
+  <header class="thread-heading"><h1 id="chat-nav-title" style="font-size:17px">Add food</h1></header>
   <section class="card"><div class="hero-number" id="hero"><span id="hero-part1">1,</span><span id="hero-part2">234</span><i id="unit">kcal</i></div></section>
   <input id="blank" placeholder="A visible placeholder">
   <div class="clip"><span id="clipped">This text extends below a deliberately clipped box</span></div>
@@ -35,6 +36,8 @@ const {collectSpacing}=require('./spacing_dom.cjs'),{audit}=require('./spacing_g
   assert.equal(s.targets.filter(t=>t.key==='#check-label').length,1,'A checkbox uses its single associated label hit area');
   assert(!s.targets.some(t=>t.key==='#check'),'The input and label are not duplicate controls');
   assert.equal(s.texts.find(t=>t.key==='#number-action').role,'body','An explicit numeric action label is not a metric');
+  assert.equal(s.texts.find(t=>t.key==='#chat-nav-title').role,'section','The shared chat navigation title uses the 17px nav scale');
+  assert(!audit(s).violations.some(v=>v.metric==='font-min'&&v.element==='#chat-nav-title'),'A 17px chat navigation title meets the shared nav scale');
   assert.equal(s.texts.find(t=>t.key==='#unit').role,'secondary','Units keep secondary type beside a hero');
   assert.equal(s.texts.find(t=>t.key==='#unit').hero,false,'The hero wrapper does not enlarge its unit');
   assert.equal(new Set(s.texts.filter(t=>t.hero).map(t=>t.heroKey)).size,1,'Split spans identify a single hero');
