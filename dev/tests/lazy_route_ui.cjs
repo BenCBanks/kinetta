@@ -65,6 +65,7 @@ async function notificationRoutes(context,{failFirst=false,hold=false,recordOwne
       return route.fulfill({json:{items:notificationItems,unread:0,push:{},push_ready:true}});
     }
     if(url.pathname==='/api/notifications/count'&&request.method()==='GET')return route.fulfill({json:{unread:3,friend_requests:0}});
+    if(url.pathname==='/api/challenges/signup/continue'&&request.method()==='POST')return route.fulfill({json:{}});
     if(url.pathname==='/api/notifications/personal')return route.fulfill({json:{plan:false,weekly:false,plan_time:'08:00',tz:'UTC',push_ready:true,device_ready:true}});
     if(url.pathname==='/api/food/reminders')return route.fulfill({json:{enabled:false,tz:'UTC',push_ready:true,device_ready:true,times:[]}});
     if(url.pathname==='/api/account/signin-email')return route.fulfill({json:{on:false}});
