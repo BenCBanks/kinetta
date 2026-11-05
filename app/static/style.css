@@ -1424,6 +1424,7 @@ html.keyboard-open nav.tabs { display: none; }
 .profile-activity-tools {display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0;}
 .profile-activity-tools h2 {flex:1;margin:0;font-size:max(17px,1.0625rem);}
 .profile-list-filters {display:flex;align-items:center;gap:8px;}
+.profile-activity-tools #person-month {min-height:44px;padding:0 2px;border:0;border-radius:0;background:none;box-shadow:none;color:var(--tx2);font-size:max(15px,.9375rem);font-weight:600;}
 .profile-activity-tools #person-sport {display:flex;gap:8px;align-items:center;max-width:calc(100% - 52px);min-height:44px;font-size:max(15px,.9375rem);background:none;}
 #person-sport svg {flex:none;width:16px;height:16px;transform:rotate(90deg);}
 .profile-sport-options {display:grid;gap:8px;}

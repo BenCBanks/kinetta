@@ -25,6 +25,9 @@ case "$1" in
     node dev/tests/top_chips_ui.cjs
     node dev/tests/track_ready_map_ui.cjs
     node dev/tests/activity_home_ui.cjs
+    KINETTA_ACTIVITY_MONTHS_ONLY=1 \
+      KINETTA_ACTIVITY_CASE=typical-390-light,typical-390-dark,typical-330-light,typical-330-dark \
+      node dev/tests/activity_home_ui.cjs
     node dev/tests/food_entry_ui.cjs
     node dev/tests/food_removal_ui.cjs
     python3 dev/tests/food_memory_fixture.py
