@@ -104,10 +104,12 @@ function postCard(a, {compact = false, lock = false} = {}) {
   const head = `<a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><span class="ph-txt">${title}<small>${meta}</small></span>`;
   const share=theirs?'':`<button type="button" class="pf activity-share" data-share-picture="${a.id}" aria-label="Share a picture of this activity">${svg('share')}</button>`;
   const foot = reactionButtons(a.id,a,false,compact)+`<button type="button" class="pf activity-comments" data-talk="${a.id}" aria-label="Comments, ${a.comments||0}">${svg('comment')}<span class="num"${a.comments?'':' hidden'}>${a.comments?reactionNumber(a.comments):''}</span></button>`+share;
-  const media=activityMedia(a,{compact,mapMetrics:a.line?postMapMetrics(a):''});
+  const media=activityMedia(a,{compact});
+  const header=`<div class="post-hd post-profile post-link">${head}</div>`;
+  const metrics=media?(a.line?postMapMetrics(a):`<div class="post-map-metrics post-photo-metrics"><div class="stats3">${theirs?sharedHeadline(a):headline(a)}</div></div>`):'';
   const details=`${!theirs && a.lifts && a.lifts.names ? `<p class="post-lifts">${esc(a.lifts.names.slice(0, 4).join(' · '))}${a.lifts.names.length > 4 ? ` +${a.lifts.names.length - 4}` : ''}</p>` : ''}${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}`;
-  const summary=a.line?details:`<div class="post-summary"><div class="stats3">${theirs ? sharedHeadline(a) : headline(a)}</div>${details}</div>`;
-  return `<article class="card post activity-card" data-href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}" data-activity-month="${activityMonthKey(a.start_time)}"><div class="post-hd post-profile post-link">${head}</div>${media}${summary?`<div class="post-extra">${summary}</div>`:''}<div class="post-ft">${foot}</div></article>`;
+  const summary=media?details:`<div class="post-summary"><div class="stats3">${theirs ? sharedHeadline(a) : headline(a)}</div>${details}</div>`;
+  return `<article class="card post activity-card${media?' post-led':''}" data-href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}" data-activity-month="${activityMonthKey(a.start_time)}">${media?`<div class="activity-picture">${media}${header}${metrics}</div>`:header}${summary?`<div class="post-extra">${summary}</div>`:''}<div class="post-ft">${foot}</div></article>`;
 }
 function sharedHeadline(a) {   // what a friend shares: no pace when they keep pace to themselves
   const st = [];
@@ -133,11 +135,40 @@ function postMapMetrics(a) {
   if(!rows.length)return '';
   return `<div class="post-map-metrics" role="group" aria-label="Activity metrics">${rows.slice(0,3).map(([label,value,unit])=>`<div class="post-map-metric"><span class="vh">${esc(label)}</span><b>${esc(value)}${unit?`<i>${esc(unit)}</i>`:''}</b></div>`).join('')}</div>`;
 }
+// Measure overlays for both the fallback route and the loaded live map. Only card geometry changes trigger a refit.
+function activityCardInsets(el) {
+  const picture=el.closest('.activity-picture');
+  if(!picture)return null;
+  const header=$('.post-hd',picture),metrics=$('.post-map-metrics',picture);
+  return {top:Math.ceil(header.getBoundingClientRect().height)+16,bottom:Math.ceil(metrics?.getBoundingClientRect().height||0)+36};
+}
+function fitActivityCardMap(el,view) {
+  if(!el.closest('.post-led'))return;
+  let signature='';
+  const fit=()=>{
+    if(!el.isConnected)return;
+    const inset=activityCardInsets(el),next=[el.clientWidth,el.clientHeight,inset.top,inset.bottom].join(':');
+    if(next===signature)return;signature=next;
+    el.style.setProperty('--route-top',inset.top+'px');el.style.setProperty('--route-bottom',inset.bottom+'px');
+    const bounds=view.group.getBounds();view.map.invalidateSize({pan:false});
+    if(bounds.isValid())view.map.fitBounds(bounds,{paddingTopLeft:[24,inset.top],paddingBottomRight:[24,inset.bottom],animate:false});
+  };
+  el._activityMapFit=fit;fit();document.fonts.ready.then(fit);
+}
+function measureActivityPictures(box){
+  $$('.post-led .fmap',box).forEach(el=>{
+    if(headerObservers.has(el))return;
+    const measure=()=>{if(!el.isConnected)return;const inset=activityCardInsets(el);el.style.setProperty('--route-top',inset.top+'px');el.style.setProperty('--route-bottom',inset.bottom+'px');el._activityMapFit?.();};
+    const observer=new ResizeObserver(measure),picture=el.closest('.activity-picture');
+    for(const node of [el,$('.post-hd',picture),$('.post-map-metrics',picture)])if(node)observer.observe(node);
+    headerObservers.set(el,observer);measure();document.fonts.ready.then(measure);
+  });
+}
 // Cheers straight from a feed card: the count changes at once and goes back if the server says no. The comment
 // button opens the comments sheet and keeps the card's count in step.
 function wireCheers(box) {
   cleanViews();
-  wireActivityMedia(box); wireCardTaps(box);
+  measureActivityPictures(box); wireActivityMedia(box); wireCardTaps(box);
   $$('[data-talk]', box).forEach((b) => {SocialData.warm(b,b.dataset.talk);b.onclick = () => {
     commentsSheet(b.dataset.talk, null, (fresh) => {
       if (!b.isConnected) return;
