@@ -21,8 +21,8 @@ async function food(f){
  await p.locator('#thread-send').click();await p.locator('#thread-review:visible').waitFor();
  assert.match(await p.locator('.compact-food').last().innerText(),/Fictional journey rice/i);
  const before=await day();assert.deepEqual(before.entries.map(row=>row.id),initial.entries.map(row=>row.id),'Draft did not log early');
- await p.locator('#thread-review').click();await p.locator('#review-confirm').click();
- await until(p,()=>!document.querySelector('#food-final-review'),'Explicit review confirmed');
+ await p.locator('#thread-review-add').click();
+ await until(p,()=>!document.querySelector('#food-final-review'),'Add to log confirmed');
  const after=await day(),added=after.entries.filter(row=>!initial.entries.some(old=>old.id===row.id));
  assert.equal(after.entries.length,initial.entries.length+1);assert.equal(added.length,1);assert.equal(added[0].kcal,130);
  await p.locator('.thread-heading .back').click();await ready(p);assert.match(await p.locator('#fd-meals').innerText(),/Fictional journey rice/i);
