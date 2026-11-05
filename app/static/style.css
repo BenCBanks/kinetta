@@ -2760,13 +2760,9 @@ nav.tabs { view-transition-name: tabs; }
    The map is the workspace: it fills the space between the sport choice and the tool bar. Straight-line sections are
    dashed and listed, a connection with no path is red and dashed, and the distance says "updating" while it changes. */
 .planner-page {display:flex;flex-direction:column;min-height:calc(100dvh - var(--tab-h) - env(safe-area-inset-bottom,0px));padding-bottom:calc(env(safe-area-inset-bottom) + var(--tab-h) + 8px)}
-.plan-top {margin-bottom:6px}
-.plan-top .plan-title {font-size:1.15rem;margin:0;flex:1;min-width:0;text-align:center;white-space:normal;overflow-wrap:anywhere}
-@media(max-width:360px){
-  .plan-top {display:grid;grid-template-columns:minmax(0,1fr) 44px;}
-  .plan-top .plan-title {grid-column:1/-1;grid-row:2;}
-  .plan-top #pl-search {grid-column:2;grid-row:1;}
-}
+/* The Kit entry adds another direct action; keep Plan's back, title and actions in one row. */
+.shell.plan-page .plan-top {display:flex;margin-bottom:6px;flex-wrap:nowrap;gap:8px}
+.shell.plan-page .plan-top > h1 {font-size:1.15rem;margin:0;flex:1 1 0;min-width:0;max-width:none;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .plan-sports {display:flex;width:100%;margin-bottom:8px}
 .plan-sports button {flex:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:40px;padding:4px 6px}
 .plan-sports svg {width:17px;height:17px}
