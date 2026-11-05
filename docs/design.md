@@ -1603,6 +1603,18 @@ Unlogged draft foods use a compact name/macros/calories row and a 44px amount-co
 The sticky review strip is the single total for complete draft foods. Incomplete and logged/legacy cards retain their honest totals. The four initial shortcuts collapse into the existing plus menu after a conversation begins; camera, photo, barcode, recipes and search remain reachable. Message menus keep Correct in chat and Delete message text, beside a compact review caption. Empty entry uses one introductory line. Barcode serving/source share a subtitle, with the unit toggle beside the amount controls where it fits. Full nutrition and More nutrients remain.
 
 No prompt, model, clarification, nutrition calculation, source validation, confirmation or account/day rules change. Keyboard dismissal retains drafts, normal controls and focus visibility; no accessory Done bar. Narrow/large text may wrap instead of clipping controls or source details. Physical keyboard animation/camera/barcode scanning remain device acceptance, separate from browser and native-idle stand-in checks.
+## Food chat: one-tap Add to log (5 November 2026, #598)
+
+Ready foods keep one 44px action row: **Add to log** at the left, a quiet food count and full calorie total in the middle,
+and a separate **Edit** action at the right. Add to log uses the existing server prepare/confirm flow for the shown amounts
+and selected meal/day. Edit opens the existing detail and recipe options. Confirmation waits for the server receipt; queued
+food says it is waiting to send and is not yet in the log. If server-prepared food differs from the visible draft, show the
+existing review before saving.
+
+The send arrow means Send message and stays disabled when the composer is empty. Adding ready food never sends its text.
+Unanswered food and unsent text stay in the chat when other foods are added. Confirmed food remains visible with its meal,
+day and existing Undo path. Ask Kit shows the same selectable meal/day as a short caption above the embedded food card.
+
 ## Compact training plan (31 October 2026, #390)
 
 Training plan has a named Progress return and a small options menu. The summary has no completion ring before the plan starts; afterwards it shows the current week's existing completed/planned distance, or workout count for run/walk plans. Race date, countdown and supplied prediction/goal stay together. One next-workout card has Start, which prepares Run in Track without starting recording or marking a workout complete. It shares Track's checked plan preparation; structured run/walk metadata loads an interval preset, while other runs keep their complete coaching instructions in the plan. It never parses prose into an interval prescription.

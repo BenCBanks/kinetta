@@ -6,15 +6,39 @@ const FoodReview=(()=>{
   const sending=new Set();
   const changed=()=>dispatchEvent(new CustomEvent('food:review-state'));
   const number=input=>{const text=input.value.trim();return text===''?null:Number(text.replace(',','.'));};
+  const stable=value=>Array.isArray(value)?value.map(stable):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(key=>[key,stable(value[key])])):value;
+  const foodStamp=food=>stable({name:food.name,brand:food.brand??null,amount:Number(food.amount),unit:food.unit,
+    nutrients:Object.fromEntries(FOOD_NUTRIENTS.map(key=>[key,food[key]??null])),source:food.source??null,ref:food.ref||{}});
+  const sameFoods=(shown,prepared)=>Array.isArray(shown)&&Array.isArray(prepared)&&shown.length>0&&shown.length===prepared.length&&
+    JSON.stringify(shown.map(foodStamp))===JSON.stringify(prepared.map(foodStamp));
   // A calorie edit scales that food's other nutrients by the same ratio (the server applies the same rule).
   const edited=(e,kcal)=>{if(kcal==null)return e;const r=e.kcal?kcal/e.kcal:null,out={...e,kcal};if(r!=null)for(const k of FOOD_NUTRIENTS)if(k!=='kcal'&&e[k]!=null)out[k]=e[k]*r;return out;};
-  async function open({done=()=>{},messages,draftId,meal,day=null,saveRecipe=false,draftForm=null,rememberForm=()=>{},active,accept}){
+  async function open({done=()=>{},messages,expectedFoods,quickConfirm=false,draftId,meal,day=null,saveRecipe=false,draftForm=null,rememberForm=()=>{},active,accept}){
     const owner=readOwner(),id=newId();let prepared;
     try{prepared=await api('/api/food/thread/reviews',json('POST',{client_id:id,draft_id:draftId,messages}));}
     catch(e){toast(e.message);return;}
     if(!active()||owner!==readOwner())return;
-    let review=prepared.review,kcal={};
+    let review=prepared.review,kcal={},initialError='';
     const chosen=Object.hasOwn(MEAL_NAMES,meal)?meal:guessMeal();
+    if(quickConfirm){
+      if(sameFoods(expectedFoods,review?.foods)){
+        const where=MEAL_NAMES[meal]||MEAL_NAMES[chosen]||'your log',request={confirm:true,save_recipe:false,log_today:true,...(day?{day}:{}),meal:chosen,basis:'amounts',whole:true};
+        sending.add(owner);changed();
+        try{
+          const result=await sendOrQueue(`/api/food/thread/reviews/${prepared.id}/confirm`,'POST',request,'Food review');
+          if(owner!==readOwner())return;
+          if(!result.queued)await accept(result);
+          App.cache.delete('/api/dishes');invalidate('/api/food');
+          if(!active())return;
+          done(result);toast(result.queued?'Food is waiting to send. It’s not in your log yet.':`Added to ${where}`);return;
+        }catch(error){
+          if(!active()||owner!==readOwner())return;
+          if(error.payload?.changed&&error.payload.review){review=error.payload.review;initialError='Food details changed. Review the updated numbers before adding them to your log.';}
+          else if(error.status>=400&&error.status<500&&![401,403].includes(error.status))initialError=error.message;
+          else{toast(error.message);return;}
+        }finally{sending.delete(owner);changed();}
+      }else initialError='Food details changed. Check the updated amounts before adding them to your log.';
+    }
     sheet('Add to log',`<form class="form food-final-review" id="food-final-review">
       <label id="review-recipe-name" hidden>Recipe name<input name="name" maxlength="80" autocomplete="off" placeholder="Name this recipe"></label>
       <div class="where review-where"><span class="muted">Adding to</span><span class="pill-sel"><select name="meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k,n])=>`<option value="${k}"${k===chosen?' selected':''}>${n}</option>`).join('')}</select>${svg('chev')}</span><span class="muted">${esc(day&&day!==isoDay(new Date())?dayLabel(day):'today')}</span></div>
@@ -70,7 +94,7 @@ const FoodReview=(()=>{
       for(const control of [...f.elements])control.addEventListener('input',()=>{
         rememberForm(Object.fromEntries([...f.elements].filter(x=>x.name&&x.type!=='number').map(x=>[x.name,x.type==='checkbox'?x.checked:x.value])));draw();
       });
-      foods();draw();
+      foods();draw();if(initialError)$('#review-error',body).textContent=initialError;
       f.onsubmit=async e=>{
         e.preventDefault();if(!valid())return;
         const focused=document.activeElement;if(focused?.closest?.('.kcal-box')){focused.blur();return;}   // Enter in a calorie box saves that box first
@@ -88,7 +112,7 @@ const FoodReview=(()=>{
           if(!result.queued)await accept(result);
           App.cache.delete('/api/dishes');invalidate('/api/food');
           if(!valid())return;close();done(result);
-          toast(result.queued?'Saved on this phone · waiting to send':recipe&&logging?'Recipe saved and added to your log':recipe?'Recipe saved for later':'Added to your log');
+          toast(result.queued?'Food is waiting to send. It’s not in your log yet.':recipe&&logging?'Recipe saved and added to your log':recipe?'Recipe saved for later':`Added to ${MEAL_NAMES[f.elements.meal.value]||'your log'}`);
         }catch(error){
           if(!valid())return;
           if(error.payload?.changed&&error.payload.review){review=error.payload.review;kcal={};foods();draw();}
