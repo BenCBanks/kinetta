@@ -9,7 +9,7 @@
 
 const RECIPE_SOURCE_LABELS=Object.freeze({site:'Published by site',ingredients:'Matched ingredients',estimated_ingredients:'Ingredients · includes Kit’s estimates',entered:'Entered by you',unknown:'Unknown'});
 const gfmt = (g) => (g == null ? '–' : `${Math.round(g).toLocaleString()} g`);
-Object.assign(IC, {minus: '<path d="M5 12h14"/>', send: '<path d="M12 19V5M6 11l6-6 6 6"/>', bookmark: '<path d="M6 3.5h12v17l-6-4.5-6 4.5z"/>',
+Object.assign(IC, {minus: '<path d="M5 12h14"/>', send: '<path d="M12 19V5M6 11l6-6 6 6"/>', bookmark: '<path d="M6 3.5h12v17l-6-4.5-6 4.5z"/>', recipe: '<path d="M6 3h13v18H8a4 4 0 0 0-4 2V5a2 2 0 0 1 2-2z"/><path d="M8 8h7M8 12h7M8 16h5"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><circle cx="12" cy="16.8" r=".6" fill="currentColor"/>'});
 const listOf = (xs) => xs.slice(0, 3).join(', ') + (xs.length > 3 ? ` and ${xs.length - 3} more` : '');
 
@@ -64,7 +64,13 @@ function drawDish(el, d) {
       : `<div class="eyebrow">From ${esc(d.owner.name)}</div><h1 class="dish-name">${esc(d.name)}</h1>`}
     ${sums}
     ${imported?recipeSourceCard(d):''}
-    ${d.items.length ? `<div class="card ing-card"><div class="ingredient-heading small muted">Ingredients<span>kcal</span></div><div class="ing-list">${d.items.map((it) => (mine ? `<div class="swipe"><button type="button" class="sw-del" data-del="${esc(it.id)}" tabindex="-1">${svg('trash')}Remove</button><button class="ig sw-row" data-it="${esc(it.id)}">${ing(it)}</button></div>` : `<div class="ig">${ing(it)}</div>`)).join('')}</div></div>` : ''}
+    ${d.items.length ? `<div class="card ing-card"><div class="ingredient-heading small muted">Ingredients<span>kcal</span></div><div class="ing-list">${d.items.map((it) => {
+      const recipeId=it.source==='recipe'&&Number(it.ref?.recipe_id)>0?Number(it.ref.recipe_id):null;
+      const recipeName=recipeId?`<button type="button" class="ig-recipe-open" data-recipe-open="${recipeId}" aria-label="Open source recipe ${esc(it.name)}">${svg('recipe')}<span class="ig-n">${esc(it.name)}</span></button>`:null;
+      if(recipeName&&mine)return `<div class="swipe"><button type="button" class="sw-del" data-del="${esc(it.id)}" tabindex="-1">${svg('trash')}Remove</button><div class="ig sw-row"><button type="button" class="ig-recipe-open" data-recipe-open="${recipeId}" aria-label="Open source recipe ${esc(it.name)}">${svg('recipe')}<span class="ig-n">${esc(it.name)}</span></button><button type="button" class="ig-recipe-amount num" data-it="${esc(it.id)}" aria-label="Edit ${esc(it.name)} amount, ${gfmt(it.grams)}">${gfmt(it.grams)}</button><b class="num r">${r0(it.kcal)}</b></div></div>`;
+      if(recipeName)return `<div class="ig">${recipeName}<span class="ig-g num">${gfmt(it.grams)}</span><b class="num r">${r0(it.kcal)}</b></div>`;
+      return mine?`<div class="swipe"><button type="button" class="sw-del" data-del="${esc(it.id)}" tabindex="-1">${svg('trash')}Remove</button><button class="ig sw-row" data-it="${esc(it.id)}">${ing(it)}</button></div>`:`<div class="ig">${ing(it)}</div>`;
+    }).join('')}</div></div>` : ''}
     ${mine && has ? `<div class="card serve measure"><div class="seg wide m-seg" role="group" aria-label="How it's measured">
         <button type="button" data-sv="one" aria-pressed="${bySv}">By servings</button><button type="button" data-sv="portion" aria-pressed="${!bySv}">By weight</button></div>
       ${bySv ? `<form class="m-row" id="dk-yield"><label class="m-lab" for="dk-servings">Servings in the whole recipe</label><input id="dk-servings" name="count" type="text" inputmode="decimal" value="${esc(d.serving_count)}" aria-label="Servings in the whole recipe"></form><p class="small muted m-note">Nutrition per serving uses this number.</p>`
@@ -81,6 +87,7 @@ function drawDish(el, d) {
   wireBack(el, mine?'/food/meals':'/food');
   $('#dk-more', el).onclick = () => (mine ? dishMenu(d, set, () => el._search && el._search(), () => knownSheet(d, set),()=>{const n=$('#dk-name',el);n.focus();n.setSelectionRange(0,n.value.length);}) : sharedMenu(d));
   $$('[data-it]', el).forEach((b) => b.onclick = () => itemSheet(d, d.items.find((x) => x.id === b.dataset.it), set));
+  $$('[data-recipe-open]',el).forEach(b=>b.onclick=e=>{e.stopPropagation();openRecipeSource(b.dataset.recipeOpen,b.querySelector('.ig-n')?.textContent||'',owner);});
   const patch = async (body) => { try { set(await api(`/api/dishes/${d.id}`, json('PATCH', body))); return true; } catch (x) { toast(x.message); return false; } };
   const lg = $('#dk-log', el); if (lg) lg.onclick = () => dishLogSheet(d, {day: isoDay(new Date()), meal: guessMeal()}, () => {});
   const kit = $('#dk-kit', el); if (kit) kit.onclick = () => mine&&kitChatOn() ? KitChat.open('nutrition',null,`Help me review the saved recipe “${d.name}”. Check its saved ingredients and nutrition.`) : recipeKit(d,mine,set);
@@ -171,13 +178,106 @@ function plusMenu(el, d, set) {
   sheet('Add an ingredient', `<div class="btncol plus-menu"><button class="ghost" id="pm-scan">${svg('barcode')}Scan a barcode</button>
     ${aiCan('food') ? `<button class="ghost" id="pm-label">${svg('camera')}Photo of the nutrition label</button>` : ''}
     <button class="ghost" id="pm-search">${svg('search')}Search the food database</button>
-    <button class="ghost" id="pm-known">${svg('edit')}Manually add a food</button></div>`, (b, close) => {
+    <button class="ghost" id="pm-known">${svg('edit')}Manually add a food</button>
+    <button class="ghost recipe-source-entry" id="pm-recipes">Recipes${svg('chev')}</button></div>`, (b, close) => {
     $('#pm-scan', b).onclick = () => { close(); scanSheet(null, null, (f) => foodToDish(d, f, set)); };
     const label = $('#pm-label', b); if (label) label.onclick = () => { close(); el._label(); };
     $('#pm-search', b).onclick = () => { close(); el._search && el._search(); };
     $('#pm-known', b).onclick = () => { close(); manualDishFood(d,set); };
+    $('#pm-recipes', b).onclick = () => { close(); recentRecipesSheet(d,set); };
   });
 }
+
+function recipeChoiceList(title, recipes, choose) {
+  sheet(title, `<div class="recipe-choice-list">${recipes.map((r,i)=>`<button type="button" class="recipe-choice-row" data-recipe-choice="${i}"><span>${esc(r.name)}</span>${svg('chev')}</button>`).join('')}</div>`, (b,close) => {
+    $$('[data-recipe-choice]',b).forEach(button=>button.onclick=()=>{const recipe=recipes[+button.dataset.recipeChoice];close();choose(recipe);});
+  });
+}
+
+function recentRecipesSheet(d,set) {
+  const owner=readOwner();
+  sheet('Recipes',`<div id="recent-recipe-list" aria-live="polite">${skel(2)}</div>`,(b,close)=>{
+    const box=$('#recent-recipe-list',b),live=()=>b.isConnected&&owner===readOwner();
+    const load=async()=>{
+      if(!live())return;box.innerHTML=skel(2);
+      try{
+        const recipes=await api(`/api/dishes/recent-own?exclude=${encodeURIComponent(d.id)}`);if(!live())return;
+        if(!recipes.length){box.innerHTML='<p class="small muted">No recent recipes.</p>';return;}
+        box.innerHTML=`<div class="recipe-choice-list">${recipes.map((r,i)=>`<button type="button" class="recipe-choice-row" data-recent-recipe="${i}"><span>${esc(r.name)}</span>${svg('chev')}</button>`).join('')}</div>`;
+        $$('[data-recent-recipe]',box).forEach(button=>button.onclick=()=>{const recipe=recipes[+button.dataset.recentRecipe];close();recipeAmountSheet(d,recipe,set);});
+      }catch(_){
+        if(!live())return;box.innerHTML='<p class="small" role="alert">Couldn\'t load your recipes.</p><button type="button" class="linkbtn recipe-try-again" id="recent-recipes-retry">Try again</button>';
+        $('#recent-recipes-retry',box).onclick=load;
+      }
+    };
+    load();
+  });
+}
+
+function recipeAmountSheet(d,recipe,set,{chatMessage=null,initialGrams=null}={}) {
+  const owner=readOwner(),valid=!!recipe.has_nutrition&&Number(recipe.weight_g)>0;
+  sheet('Amount to add',`<div class="recipe-amount">
+    <p class="recipe-amount-name">${esc(recipe.name)}</p>
+    ${valid?`<div class="recipe-amount-quick" role="group" aria-label="Choose an amount"><button type="button" data-recipe-mode="all">All</button><button type="button" data-recipe-mode="half">½</button><button type="button" id="recipe-one-cup">1 cup</button></div>
+      <form id="recipe-amount-form"><label for="recipe-amount-grams">Weight</label><span class="gfield"><input id="recipe-amount-grams" name="grams" inputmode="decimal" aria-label="Weight in grams"><span>g</span></span>
+        <p class="small muted" id="recipe-amount-question" role="status" aria-live="polite"></p><p class="small danger" id="recipe-amount-error" role="alert" hidden></p>
+        <div class="actions"><button type="submit" class="primary" id="recipe-amount-add" disabled>Add ingredient</button></div></form>`
+      : `<p class="small" id="recipe-amount-error" role="alert">Add calories and the recipe’s measured weight first.</p><button type="button" class="linkbtn" id="recipe-open-source">Open recipe</button>`}
+  </div>`,(b,close)=>{
+    const live=()=>b.isConnected&&owner===readOwner();
+    const openSource=$('#recipe-open-source',b);if(openSource)openSource.onclick=()=>{close();openRecipeSource(recipe.id,recipe.name,owner);};
+    if(!valid)return;
+    const form=$('#recipe-amount-form',b),input=$('#recipe-amount-grams',b),addButton=$('#recipe-amount-add',b),error=$('#recipe-amount-error',b),question=$('#recipe-amount-question',b);
+    let busy=false;
+    if(Number(initialGrams)>0)input.value=String(initialGrams);
+    const update=()=>{const g=Number(input.value.replace(',','.'));addButton.disabled=busy||!(g>0&&g<20000);};
+    input.oninput=()=>{error.hidden=true;question.textContent='';update();};update();
+    const add=async(mode)=>{
+      if(busy||!live())return;
+      const body={recipe_id:recipe.id,mode};
+      if(mode==='grams'){
+        const grams=Number(input.value.replace(',','.'));
+        if(!(grams>0&&grams<20000)){error.textContent='Enter the weight in grams.';error.hidden=false;input.focus();return;}
+        body.grams=grams;
+      }
+      busy=true;error.hidden=true;addButton.disabled=true;$$('[data-recipe-mode],#recipe-one-cup',b).forEach(button=>button.disabled=true);
+      try{
+        const result=await api(`/api/dishes/${d.id}/items/recipe`,json('POST',body));if(!live())return;
+        if(chatMessage){chatMessage.text=`Added ${recipe.name.toLowerCase()} (${gfmt(result.grams)}).`;chatMessage.added=result.added;delete chatMessage.clarification;}
+        set(result.dish);close();if(!chatMessage)toast(`Added ${recipe.name}`);
+      }catch(x){
+        if(!live())return;error.textContent=x.message;error.hidden=false;busy=false;$$('[data-recipe-mode],#recipe-one-cup',b).forEach(button=>button.disabled=false);update();
+      }
+    };
+    form.onsubmit=e=>{e.preventDefault();add('grams');};
+    $$('[data-recipe-mode]',b).forEach(button=>button.onclick=()=>add(button.dataset.recipeMode));
+    $('#recipe-one-cup',b).onclick=()=>{
+      const cupGrams=Number(recipe.cup_grams);
+      if(Number.isFinite(cupGrams)&&cupGrams>0&&cupGrams<20000){input.value=String(cupGrams);update();add('grams');return;}
+      question.textContent='How many grams was that cup?';input.focus();
+    };
+  });
+}
+
+function recipeSourceHtml(d) {
+  const t=d.totals||{},measuredWeight=d.weighed?d.cooked_g:null;
+  return `<div class="recipe-source-readonly"><p class="recipe-source-meta small muted">${measuredWeight?`Whole recipe · ${gfmt(measuredWeight)}`:'Whole recipe · Weight not measured'}</p>
+    <div class="recipe-nutrition num" aria-label="Nutrition in the whole recipe"><div><b class="${t.kcal==null?'nutrient-unknown':''}">${recipeCalories(t.kcal)}</b><small>kcal total</small></div>${MACROS.map(([k,nm])=>`<div><b class="${t[k]==null?'nutrient-unknown':''}">${t[k]==null?'Unknown':r0(t[k])+' g'}</b><small>${nm}</small></div>`).join('')}</div>
+    ${d.items?.length?`<div class="card ing-card"><div class="ingredient-heading small muted"><span>Ingredients</span><span>kcal</span></div><div class="ing-list">${d.items.map(it=>`<div class="ig"><span class="ig-info"><span class="ig-n">${esc(it.name)}</span><span class="ig-g num"> · ${gfmt(it.grams)}</span></span><b class="num r">${it.kcal==null?'Unknown':r0(it.kcal)}</b></div>`).join('')}</div></div>`:''}</div>`;
+}
+
+function openRecipeSource(id,name,owner=readOwner()) {
+  sheet(name||'Recipe',`<div id="recipe-source-content" aria-live="polite">${skel(2)}</div>`,(b)=>{
+    const box=$('#recipe-source-content',b),live=()=>b.isConnected&&owner===readOwner();
+    const load=async()=>{
+      if(!live())return;box.innerHTML=skel(2);
+      try{const d=await api(`/api/dishes/${encodeURIComponent(id)}/own-source`);if(live())box.innerHTML=recipeSourceHtml(d);}
+      catch(e){if(!live())return;if(e.status===404)box.innerHTML='<div class="empty"><b>This recipe is no longer available</b><p>Ingredients already copied from it stay in your recipe.</p></div>';else box.innerHTML='<p class="small" role="alert">Couldn\'t open this recipe.</p><button type="button" class="linkbtn" id="recipe-source-retry">Try again</button>';const retry=$('#recipe-source-retry',box);if(retry)retry.onclick=load;}
+    };
+    load();
+  });
+}
+
 // a scanned product: how much of it went in (grams, servings or the whole package), then it's an ingredient
 function foodToDish(d, f, set) {
   const p = f.per100, sg = f.serving && f.serving.g;
@@ -472,8 +572,12 @@ function chatBox(el, d, set) {
       return;
     }
     for(const row of log)delete row.clarification;
-    log.splice(log.indexOf(wait), 1, {who: 'ai', text: r.reply, added: r.added,clarification:r.clarification});
+    const message={who:'ai',text:r.reply,added:r.added,clarification:r.clarification};
+    log.splice(log.indexOf(wait),1,message);
     redraw(r.dish);
+    if(r.recipe_choices?.length)recipeChoiceList('Which recipe did you mean?',r.recipe_choices,recipe=>
+      recipeAmountSheet(d,recipe,set,{chatMessage:message,initialGrams:r.recipe_grams}));
+    else if(r.recipe_amount)recipeAmountSheet(d,r.recipe_amount,set,{chatMessage:message,initialGrams:r.recipe_grams});
   };
   f.onsubmit = (e) => { e.preventDefault(); const text = f.t.value.trim(); if (text) send(text); };
   el._search = () => searchFlow(el, d, set, f.t.value.trim());
