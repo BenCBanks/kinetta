@@ -619,12 +619,14 @@ function compactSubpageHeader(el){
     const label=back.getAttribute('aria-label')?.match(/^Back to (.+)$/i)?.[1]?.trim();
     if(label){const node=document.createElement('span');node.className='back-label';node.textContent=label;back.append(node);}
   }
-  const backLabel=back.querySelector('.vh,.back-label');
-  if(backLabel){backLabel.hidden=false;backLabel.hidden=backLabel.scrollWidth>backLabel.clientWidth+1;}
   let title=top.querySelector('h1')||el.querySelector(':scope > h1');
   const profileTitle=top.querySelector('.profile-page-title');
   if(!title&&profileTitle){title=document.createElement('h1');title.className=profileTitle.className;title.textContent=profileTitle.textContent;profileTitle.replaceWith(title);}
-  if(!title)return;
+  if(!title){
+    const backLabel=back.querySelector('.vh,.back-label');
+    if(backLabel){backLabel.hidden=false;backLabel.hidden=backLabel.scrollWidth>backLabel.clientWidth+1;}
+    return;
+  }
   if(title.parentElement&&title.parentElement!==el&&title.parentElement!==top){const group=title.parentElement;while(group.firstChild)top.insertBefore(group.firstChild,group);group.remove();}
   if(title.parentElement!==top)top.append(title);
   if(back!==top.firstElementChild)top.prepend(back);
@@ -632,6 +634,15 @@ function compactSubpageHeader(el){
   for(const node of [...back.childNodes])if(node.nodeType===3&&node.textContent.trim()){const label=document.createElement('span');label.className='vh';node.replaceWith(label);label.append(node);}
   back.querySelectorAll(':scope > span').forEach(n=>n.classList.add('vh'));
   top.classList.add('subpage-header');
+  const backLabel=back.querySelector('.vh,.back-label');
+  if(backLabel){
+    backLabel.hidden=false;
+    const labelRect=backLabel.getBoundingClientRect(),backRect=back.getBoundingClientRect(),titleRect=title.getBoundingClientRect(),range=document.createRange();
+    range.selectNodeContents(backLabel);const textRect=range.getBoundingClientRect();
+    const labelFits=backLabel.scrollWidth<=backLabel.clientWidth&&labelRect.left>=backRect.left-1&&labelRect.right<=backRect.right+1&&textRect.left>=backRect.left-1&&textRect.right<=backRect.right+1;
+    const gap=Math.max(titleRect.left-backRect.right,backRect.left-titleRect.right);
+    backLabel.hidden=!labelFits||gap<8;
+  }
   if(['/me/settings','/me/notifications','/me/sharing'].includes(location.pathname)&&top.nextElementSibling?.matches('p.muted'))top.nextElementSibling.remove();
 }
 function render() {

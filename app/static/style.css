@@ -2703,7 +2703,7 @@ nav.tabs { view-transition-name: tabs; }
 .me-settings {margin-top:20px}
 .shell .top.subpage-header {display:grid;grid-template-columns:minmax(82px,1fr) auto minmax(82px,1fr);align-items:center;gap:8px;border-bottom:0;margin-bottom:12px;}
 .shell .top.subpage-header > h1 {grid-column:2;justify-self:stretch;min-width:0;max-width:100%;margin:0;overflow:hidden;font:600 var(--text-nav-title)/1.2 var(--font);letter-spacing:-.02em;text-align:center;text-overflow:ellipsis;white-space:nowrap;}
-.subpage-header .back,.subpage-header .progress-back {flex:none;justify-self:start;width:max-content;min-width:44px;max-width:calc(100% + 8px);height:44px;padding:0;justify-content:flex-start;gap:4px;overflow:hidden;white-space:nowrap;background:transparent;box-shadow:none;}
+.subpage-header .back,.subpage-header .progress-back {flex:none;justify-self:start;width:max-content;min-width:44px;max-width:100%;height:44px;padding:0;justify-content:flex-start;gap:4px;overflow:hidden;white-space:nowrap;background:transparent;box-shadow:none;}
 .subpage-header .back svg,.subpage-header .progress-back svg {width:20px;height:20px;}
 .subpage-header .back > .vh,.subpage-header .progress-back > .back-label {display:block;position:static;flex:0 1 auto;min-width:0;max-width:calc(100% - 24px);width:auto;height:auto;margin:0;overflow:hidden;clip:auto;clip-path:none;font-size:15px;text-overflow:ellipsis;white-space:nowrap;}
 .subpage-header .back > .vh[hidden],.subpage-header .progress-back > .back-label[hidden] {display:none;}
