@@ -23,7 +23,7 @@ const until=async(p,fn,label)=>{for(let n=0;n<160;n++){if(await p.evaluate(fn))r
    const checkpoint=process.env.KINETTA_CHECKPOINT_ONLY==='1',showOtherDay=checkpoint&&width===330;
    const route=showOtherDay?'/food/describe?d=2026-11-03&meal=lunch':'/food/describe?meal=breakfast';
    await p.goto(base+route);await p.locator('#thread-text').waitFor();await until(p,()=>App.pageReady,'Food entry ready');
-   const context=p.locator('#thread-context'),header=p.locator('.thread-heading'),expectedTitle=showOtherDay?'Tue · Lunch ⌄':'Breakfast ⌄',expectedAria=showOtherDay?'Logging to Lunch on Tue. Change':'Logging to Breakfast, today. Change';
+   const context=p.locator('#thread-context'),header=p.locator('.thread-heading'),expectedTitle=showOtherDay?'Tue · Lunch ⌄':'Breakfast ⌄',expectedAria=showOtherDay?'Logging to Lunch, Tue. Change day or meal.':'Logging to Breakfast, today. Change day or meal.';
    assert.equal((await context.innerText()).replace(/\s+/g,' ').trim(),expectedTitle);assert.equal(await context.getAttribute('aria-label'),expectedAria);
    const boxes=await p.evaluate(()=>{const rect=s=>{const r=s.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};},row=document.querySelector('.thread-heading');return{row:rect(row),back:rect(row.querySelector('.back')),title:rect(row.querySelector('#thread-context')),gear:rect(row.querySelector('#thread-settings')),label:(()=>{const r=row.querySelector('.thread-context-label');return{width:r.clientWidth,scrollWidth:r.scrollWidth};})()};});
    assert(boxes.row.height<=46,'food chat header stays one 44 px row');assert(boxes.back.height>=44&&boxes.title.height>=44&&boxes.gear.height>=44,'all header actions meet the 44 px target');

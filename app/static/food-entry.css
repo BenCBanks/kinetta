@@ -41,7 +41,7 @@
   .compact-food .tf-source { order:3; max-width:100%; padding:0 0 8px; }
 }
 
-/* The fixed Nutrition label keeps its full word beside the centered title. */
+/* Dated titles use the accessible chevron-only fallback for the Nutrition link. */
 .food-thread .thread-heading .back { padding-right:0;white-space:nowrap;overflow-wrap:normal; }
 
 /* Unknown is a label, not a wide number; keep the portion and destination in the sheet. */
@@ -70,10 +70,16 @@
 .food-thread .thread-context-label { min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 .food-thread .thread-context-chevron { flex:none;align-self:center;transform:translateY(-2px);color:var(--tx2);font-size:16px;line-height:1; }
 .food-thread .thread-context:focus-visible { outline:2px solid var(--link);outline-offset:1px; }
+.food-thread .thread-heading { grid-template-columns:44px minmax(0,1fr) 44px; }
+.food-thread .thread-heading-dated-context { grid-template-columns:44px minmax(0,1fr) 44px; }
+.food-thread .thread-heading-dated-context > .back { width:44px;min-width:44px;min-height:44px; }
+.food-thread .thread-heading-dated-context .thread-back-label { position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0; }
+.food-thread .thread-heading > #thread-context { grid-column:2; }
 /* This destination title stays in the compact nav row; legacy narrow food chat keeps its fallback. */
 @media(max-width:360px) {
-  .food-thread:not(.kit-chat):has(#thread-context) .thread-heading { grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); }
-  .food-thread:not(.kit-chat):has(#thread-context) .thread-heading h1 { grid-column:2;grid-row:1;text-align:center; }
+  .food-thread:not(.kit-chat):has(#thread-context) .thread-heading { grid-template-columns:44px minmax(0,1fr) 44px; }
+  .food-thread:not(.kit-chat):has(#thread-context) .thread-heading.thread-heading-dated-context { grid-template-columns:44px minmax(0,1fr) 44px; }
+  .food-thread:not(.kit-chat):has(#thread-context) .thread-heading > #thread-context { grid-column:2;grid-row:1; }
   .food-thread:not(.kit-chat):has(#thread-context) .thread-heading #thread-settings { grid-column:3;grid-row:1; }
 }
 
