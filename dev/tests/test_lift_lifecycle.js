@@ -1,7 +1,9 @@
 // Exercise the real logger's event handlers with controlled saves; no network, clock or DOM dependency.
 'use strict';
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
-const source=fs.readFileSync('app/static/lift.js','utf8');
+const eager=fs.readFileSync('app/static/lift.js','utf8');
+const routes=fs.readFileSync('app/static/lift-routes.js','utf8');
+const source=eager+'\n'+routes;
 const turn=()=>new Promise(resolve=>setImmediate(resolve));
 function harness({imperial=false,sets=[{kg:null,reps:null,done:false}]}={}) {
   const elements=new Map(),timers=new Map(),disk=new Map(),requests=[],summaries=[],navigation=[],notices=[],undos=[];
