@@ -61,17 +61,6 @@ const FEATURE_GUIDE = [
   ['Optional AI', 'Ask Kit and memory', 'Ask about your own records when the reviewed Kit conversation is available and you have enabled it.', '/me/kit', 'Open Kit from the app. Answers use private account tools and optional AI; Health access needs separate consent. Check the cited numbers. Proposals need confirmation. View or remove saved preferences under What Kit remembers in Settings. Food logging chat and Kit are separate conversations.', 'kit assistant memory chat consent privacy tools', 'coach'],
   ['Optional AI', 'Kit training & nutrition reviews', 'Kit offers optional AI notes about workouts and reviews of training, food logs and recipes.', '/me', 'Turn on AI features in Settings if they are available for your account. Allow workouts from the Health app separately if you want them included. Reviews you have already saved remain readable.', 'coach weekly review ai analysis', 'coach'],
 ];
-function aiCan(feature) {
-  const access = App.me?.ai_access?.[feature];
-  return !!App.me?.ai_ok && (access ? access.available && access.entitled : !!App.me?.coach);
-}
-// Kit could do this if the person turned it on (offer the Turn on Kit sheet instead of a dead end).
-function aiOffer(feature) {
-  const access = App.me?.ai_access?.[feature];
-  return !App.me?.ai_ok && (access ? access.available && access.entitled : !!App.me?.coach);
-}
-// Kit's shared chat has its own reviewed release gate; until it passes, the older Kit reviews stay in place.
-function kitChatOn() { return !!App.me?.kit_chat && !App.me?.ai_paused && aiCan('coach'); }
 const guideId=title=>title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 // Match the existing destination icons; titles alone do not determine the feature.
 const GUIDE_ICONS = {

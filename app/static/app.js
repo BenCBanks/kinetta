@@ -8,6 +8,29 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<
 const root = $('#app');
 const col = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888';   // real colour for SVG attributes
 const App = {me: null, pageReady: false, cache: new Map(), pages: [], scroll: {}};
+const appAssetVersion = new URL(document.currentScript?.src || location.href).searchParams.get('v') || '';
+const classicScriptPromises = new Map();
+const classicScriptsLoaded = new Set();
+const lazyRouteBundles = [{re: /^\/me\/explore$/, tab: 'me', scripts: ['explore.js']}];
+let lazyRouteGeneration = 0;
+function loadClassicScript(file) {
+  if (classicScriptPromises.has(file)) return classicScriptPromises.get(file);
+  const url = new URL(`/static/${file}`, location.href);
+  if (appAssetVersion) url.searchParams.set('v', appAssetVersion);
+  const script = document.createElement('script');
+  script.async = false;
+  script.src = url.href;
+  const promise = new Promise((resolve, reject) => {
+    script.onload = () => { classicScriptsLoaded.add(file); resolve(); };
+    script.onerror = () => { script.remove(); classicScriptPromises.delete(file); reject(new Error('Could not load this page bundle.')); };
+    document.head.append(script);
+  });
+  classicScriptPromises.set(file, promise);
+  return promise;
+}
+function loadClassicScripts(files) {
+  return files.reduce((ready, file) => ready.then(() => loadClassicScript(file)), Promise.resolve());
+}
 // A quick tap can prefetch and open the same page before either request finishes.
 const pendingReads = new Map();
 const readEpochs = new Map();
@@ -55,6 +78,17 @@ async function api(path, opts = {}) {
   return body;
 }
 const json = (method, body) => ({method, body: JSON.stringify(body)});
+function aiCan(feature) {
+  const access = App.me?.ai_access?.[feature];
+  return !!App.me?.ai_ok && (access ? access.available && access.entitled : !!App.me?.coach);
+}
+// Kit could do this if the person turned it on (offer the Turn on Kit sheet instead of a dead end).
+function aiOffer(feature) {
+  const access = App.me?.ai_access?.[feature];
+  return !App.me?.ai_ok && (access ? access.available && access.entitled : !!App.me?.coach);
+}
+// Kit's shared chat has its own reviewed release gate; until it passes, the older Kit reviews stay in place.
+function kitChatOn() { return !!App.me?.kit_chat && !App.me?.ai_paused && aiCan('coach'); }
 // Calls render(data) at once with cached data (if any), then again with fresh data when it arrives.
 // Offline (2026-10-10): the screens you use most are also kept on the phone (localStorage) and shown from there.
 function screenHit(path) {
@@ -607,6 +641,20 @@ function replacePageAddress(el,href) {
   if(App.page?.owner===readOwner())App.page.key=el._renderKey;
   return true;
 }
+function lazyRouteShell(tab) {
+  let el = $('#page', root), nav = $('nav.tabs', root);
+  if (!el || !nav) {
+    root.innerHTML = `<main class="shell" id="page"></main><nav class="tabs" aria-label="Main">${TABS.map(([t, n]) =>
+      `<a href="/${t}" data-tab="${t}"${t === tab ? ' aria-current="page"' : ''}>${svg(t)}<span>${n}</span></a>`).join('')}</nav>`;
+    el = $('#page', root);
+    nav = $('nav.tabs', root);
+  } else {
+    el.innerHTML = '';
+    $$('a[data-tab]', nav).forEach((a) => (a.dataset.tab === tab ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
+  }
+  el.dataset.area = tab;
+  return el;
+}
 function closeActivityEditor() {
   const editor=$('#e-form')?.closest('.sheet');
   return !editor||editor.requestClose?.()===true;
@@ -645,11 +693,41 @@ function compactSubpageHeader(el){
   }
   if(['/me/settings','/me/notifications','/me/sharing'].includes(location.pathname)&&top.nextElementSibling?.matches('p.muted'))top.nextElementSibling.remove();
 }
-function render() {
+function render(options) {
   if (!App.me) return;
+  const globalSyncDone = options?.globalSyncDone === true;
   App.pageReady = false;
   const key=location.pathname+location.search,targetY=pagePosition(key);
   const path = location.pathname.replace(/\/+$/, '') || '/me';
+  const bundle = lazyRouteBundles.find((candidate) => candidate.re.test(path));
+  if (bundle && bundle.scripts.some((file) => !classicScriptsLoaded.has(file))) {
+    const owner = readOwner(), generation = ++lazyRouteGeneration;
+    const el = lazyRouteShell(bundle.tab);
+    el.innerHTML = '<div class="boot lazy-route-loading" role="status"><p>Opening this page…</p></div>';
+    if (!globalSyncDone) {
+      if (typeof Track !== 'undefined') Track.sync();
+      if (Native.syncPush) Native.syncPush();
+      if (typeof Social !== 'undefined') Social.refresh();
+    }
+    const current = () => generation === lazyRouteGeneration && owner === readOwner() && key === location.pathname + location.search && !!App.me;
+    loadClassicScripts(bundle.scripts).then(() => {
+      if (!current()) return;
+      if (!App.pages.some((page) => page.re.test(path))) {
+        el.innerHTML = '<div class="boot lazy-route-error"><p role="status">This page could not open. Reload Kinetta and try again.</p><button class="ghost" id="lazy-route-reload">Reload</button></div>';
+        $('#lazy-route-reload', el).onclick = () => location.reload();
+        App.pageReady = true;
+        return;
+      }
+      render({globalSyncDone: true});
+    }).catch(() => {
+      if (!current()) return;
+      el.innerHTML = '<div class="boot lazy-route-error"><p role="status">This page could not load. Check your connection, then try again.</p><button class="ghost" id="lazy-route-retry">Try again</button></div>';
+      $('#lazy-route-retry', el).onclick = () => render();
+      App.pageReady = true;
+    });
+    return;
+  }
+  lazyRouteGeneration++;
   const page = App.pages.find((p) => p.re.test(path)) || App.pages[0];
   const m = path.match(page.re) || [], activeTab = typeof page.tab === 'function' ? page.tab(...m.slice(1)) : page.tab;
   // The tab bar stays put between screens (2026-10-16): only the page is replaced, so a tap never waits for the bar to be
@@ -665,11 +743,11 @@ function render() {
   const headerObserver=new MutationObserver(()=>{if(el.isConnected)compactSubpageHeader(el);});headerObserver.observe(el,{childList:true,subtree:true});headerObservers.set(el,headerObserver);
   const current=()=>el.isConnected&&(el._renderKey||key)===location.pathname+location.search;
   el.dataset.area = activeTab;
-  if (typeof Track !== 'undefined') Track.sync();
+  if (!globalSyncDone && typeof Track !== 'undefined') Track.sync();
   // Switching tabs shows the page at once, like the iPhone's own tab bars; opening something inside a tab fades it in.
   if (App.lastPath !== location.pathname) { if (!TABS.some(([t]) => path === '/' + t) && !document.documentElement.dataset.nav) el.classList.add('enter'); App.lastPath = location.pathname; }
-  if (Native.syncPush) Native.syncPush();
-  if (typeof Social !== 'undefined') Social.refresh();   // friend requests waiting: a number on the Me tab
+  if (!globalSyncDone && Native.syncPush) Native.syncPush();
+  if (!globalSyncDone && typeof Social !== 'undefined') Social.refresh();   // friend requests waiting: a number on the Me tab
   let touched=false;const interactions=new AbortController();
   for(const event of ['touchstart','wheel','pointerdown','keydown'])window.addEventListener(event,()=>{touched=true;},{passive:true,signal:interactions.signal});
   const result=page.fn(el,...m.slice(1));compactSubpageHeader(el);
