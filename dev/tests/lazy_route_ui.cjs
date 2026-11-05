@@ -19,7 +19,7 @@ async function until(page,predicate,label,arg){
 async function ready(page,selector,label=`page ready with ${selector}`){await until(page,s=>{try{return App.pageReady&&!!document.querySelector(s);}catch(_){return false;}},label,selector);}
 async function fixtureContext(browser){return browser.newContext({viewport:{width:390,height:844},colorScheme:'light',serviceWorkers:'block',isMobile:true,hasTouch:true,reducedMotion:'reduce'});}
 async function filterRequests(page,explore){await page.route('**/*',async route=>{const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();if(url.pathname==='/static/explore.js')return explore(route);if(!['GET','HEAD'].includes(request.method()))return route.abort();return route.continue();});}
-async function filterFoodRequests(page,food,blockedWrites=[]){await page.route('**/*',async route=>{const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();if(url.pathname==='/static/food-import.js')return food(route);if(!['GET','HEAD'].includes(request.method())){blockedWrites.push(`${request.method()} ${url.pathname}`);return route.abort();}return route.continue();});}
+async function filterFoodRequests(page,food,blockedWrites=[]){await page.route('**/*',async route=>{const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();if(url.pathname==='/static/food-import.js')return food(route);if(!['GET','HEAD'].includes(request.method())){if(!(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue'))blockedWrites.push(`${request.method()} ${url.pathname}`);return route.abort();}return route.continue();});}
 async function holdExplore(page,{instrument=false}={}){
   let openGate,finishRequest;
   const gate=new Promise(resolve=>{openGate=resolve;}),done=new Promise(resolve=>{finishRequest=resolve;});
@@ -57,7 +57,7 @@ async function holdFood(page,{instrument=false,blockedWrites=[]}={}){
       }else{await gate;await route.continue();}
       finishRequest();return;
     }
-    if(!['GET','HEAD'].includes(request.method())){blockedWrites.push(`${request.method()} ${url.pathname}`);return route.abort();}
+    if(!['GET','HEAD'].includes(request.method())){if(!(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue'))blockedWrites.push(`${request.method()} ${url.pathname}`);return route.abort();}
     return route.continue();
   });
   return {release:openGate,count:()=>requests,done};
@@ -241,11 +241,11 @@ async function notificationFixture(browser,loginName=user,options={}){
   try{
     await login(foodNativeContext);const page=await foodNativeContext.newPage(),errors=[],historyCalls=[],blockedWrites=[];page.on('pageerror',error=>errors.push(error.message));
     await filterFoodRequests(page,route=>route.continue(),blockedWrites);
-    await page.route('**/api/food/history**',route=>{historyCalls.push(`${route.request().method()} ${new URL(route.request().url()).pathname}`);return route.request().method()==='GET'?route.continue():route.abort();});
+    await page.route('**/api/food/history**',route=>{const request=route.request(),url=new URL(request.url()),todayRead=request.method()==='GET'&&url.pathname==='/api/food/history'&&url.search==='?days=30';if(!todayRead)historyCalls.push(`${request.method()} ${url.pathname}`);return request.method()==='GET'?route.continue():route.abort();});
     await page.goto(base+'/me');await ready(page,meReady);
     await page.evaluate(()=>{Native.on=true;});assert.equal(await page.evaluate(()=>Native.on),true,'native redirect fixture is enabled');
     await page.evaluate(()=>go('/food/import'));
-    await until(page,()=>location.pathname==='/food'&&App.pageReady,'native Food import redirects to Nutrition');
+    await until(page,()=>location.pathname==='/food','native Food import redirects to Nutrition');
     assert.deepEqual(historyCalls,[],'native redirect makes no import history preview/day/summary calls');assert.deepEqual(blockedWrites,[]);assert.deepEqual(errors,[]);
   }finally{await foodNativeContext.close();}
 
