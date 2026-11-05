@@ -19,7 +19,10 @@ module.exports=async function polishChecks(p,{size,theme}){
   await p.goto(base+'/progress/segments?f=near&q=fictional-no-match');await p.locator('#sg-list .empty').waitFor();assert(await p.locator('#sg-map').isHidden());assert.match(await p.locator('#sg-list').innerText(),/No matching segments.*Try another search/s);assert.doesNotMatch(await p.locator('#sg-list').innerText(),/Move the map/);
   await p.evaluate(()=>{window.polishMapInto=mapInto;mapInto=async()=>null;});
   for(const filter of ['mine','saved','near']){
-   await p.evaluate(filter=>go('/progress/segments?f='+filter),filter);await until(()=>App.pageReady&&!!document.querySelector('#sg-list .empty'),'segment empty state');
+   await p.evaluate(filter=>go('/progress/segments?f='+filter),filter);await until(filter=>{
+    const active=document.querySelector(`[data-f="${filter}"]`),copy=document.querySelector('#sg-list .empty')?.innerText||'';
+    return active?.getAttribute('aria-pressed')==='true'&&(filter==='mine'?/You haven’t created a segment/.test(copy):filter==='saved'?/No saved segments/.test(copy):/No segments here yet/.test(copy));
+   },'segment empty state',filter);
    const copy=await p.locator('#sg-list').innerText();assert.match(copy,filter==='mine'?/Create a segment/:filter==='saved'?/tap Save/:/Try a search/);assert.doesNotMatch(copy,/Move the map/);
    if(filter==='mine'){
     assert.equal(await p.locator('[data-f=mine]').innerText(),'Mine');
@@ -36,11 +39,13 @@ module.exports=async function polishChecks(p,{size,theme}){
   assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'segment detail fits');
   course.audience='everyone';course.mine=false;await p.route('**/api/segment-settings',r=>r.fulfill({json:{joined:false}}));
   for(const [name,me,paused,message] of [['empty',{joined:false},false,'No public times yet.'],['excluded',{joined:true,private_best:600,why_not:'activity_private'},false,'This activity isn’t shared with Everyone'],['paused',{joined:true,private_best:600},true,'Leaderboards are paused']]){
-   board={public:true,paused,me,rows:[],count:0,scope:'Fictional local scope',processing:paused,matching_update:paused};
-   await p.evaluate(name=>go('/segments/999999?case='+name),name);await until(msg=>document.querySelector('#sg-tab')?.innerText.includes(msg),'current board status',message);
+   // Exercise board states only when an eligible other member makes the tab available.
+   board={public:true,paused,me,rows:[],count:1,scope:'Fictional local scope',processing:paused,matching_update:paused};
+   await p.evaluate(name=>{App.cache.delete('/api/segments/999999');App.cache.delete('/api/segments/999999/leaderboard');go('/segments/999999?tab=board&case='+name);},name);
+   if(paused){await until(()=>new URL(location.href).searchParams.get('tab')==='mine'&&!document.querySelector('[data-t="board"]'),'paused board fails closed');assert.doesNotMatch(await p.locator('#sg-tab').innerText(),/Leaderboards are paused|matching update is available|Checking activities/);continue;}
+   await until(msg=>document.querySelector('#sg-tab')?.innerText.includes(msg),'current board status',message);
    assert.match(await p.locator('#sg-tab').innerText(),/Fictional local scope/);
    if(name==='empty'){assert.equal((await p.locator('#sg-tab').innerText()).match(/No public times yet/g).length,1);await p.locator('#lb-join').click();await p.locator('#lj').waitFor();assert(!(await p.locator('#lj').isChecked()));const text=await p.locator('.sheet').innerText();assert.match(text,/past eligible activities/);assert.match(text,/heart rate, notes, exact start times/);assert.match(text,/privacy settings hide stay private/);assert.match(text,/Leave any time/);await p.locator('.sheet').getByRole('button',{name:'Done',exact:true}).click();}
-   if(paused){assert.match(await p.locator('#sg-tab').innerText(),/matching update is available/);assert.match(await p.locator('#sg-tab').innerText(),/Checking activities/);}
   }
 
  }finally{
