@@ -2708,8 +2708,8 @@ nav.tabs { view-transition-name: tabs; }
 .subpage-header .back > .vh,.subpage-header .progress-back > .back-label {display:block;position:static;flex:0 1 auto;min-width:0;max-width:calc(100% - 24px);width:auto;height:auto;margin:0;overflow:hidden;clip:auto;clip-path:none;font-size:15px;text-overflow:ellipsis;white-space:nowrap;}
 .subpage-header .back > .vh[hidden],.subpage-header .progress-back > .back-label[hidden] {display:none;}
 .subpage-header .acts {grid-column:3;justify-self:end;flex:none;flex-wrap:nowrap;margin-left:0;}
-.subpage-header > .icon-btn,.subpage-header > .ghost,.subpage-header > .primary,.subpage-header > .linkbtn {grid-column:3;justify-self:end;}
-@media (max-width:420px) {.shell .top.subpage-header {margin-inline:-8px;}}
+.subpage-header > .icon-btn:not(.progress-back),.subpage-header > .ghost,.subpage-header > .primary,.subpage-header > .linkbtn {grid-column:3;justify-self:end;}
+@media (max-width:420px) {.shell .top.subpage-header {margin-inline:-8px;padding-inline:8px;}}
 @media (max-width:360px) {.shell .top.subpage-header {grid-template-columns:minmax(44px,1fr) auto minmax(44px,1fr);}.shell .top.subpage-header .back,.shell .top.subpage-header .progress-back {gap:0;}.subpage-header .back > .vh,.subpage-header .progress-back > .back-label {max-width:calc(100% - 20px);}}
 
 .has-back > .top.subpage-header {border-bottom:0;}
