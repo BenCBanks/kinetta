@@ -1,7 +1,7 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('app/static/food.js','utf8');const c={esc:v=>String(v).replaceAll('<','&lt;'),r0:v=>String(Math.round(v)),r1:v=>String(Math.round(v*10)/10)};vm.createContext(c);
-vm.runInContext(source.slice(source.indexOf('const EXTRA_NUTRIENTS'),source.indexOf('const isoDay')),c);
+vm.runInContext(source.slice(source.indexOf('const EXTRA_NUTRIENTS'),source.indexOf('const deviceTimeZone')),c);
 vm.runInContext(source.slice(source.indexOf('function scaleFood'),source.indexOf('// ---------- day page')),c);
 const sample={per100:{kcal:200,protein_g:20,sodium_mg:400,sugar_g:0,saturated_fat_g:.0123}};
 assert.equal(c.scaleFood(sample,50,'g').sodium_mg,200);assert.equal(c.scaleFood(sample,50,'g').sugar_g,0);assert.equal(c.scaleFood(sample,50,'g').saturated_fat_g,.0062);assert.equal(c.scaleFood(sample,50,'g').carbs_g,null);
