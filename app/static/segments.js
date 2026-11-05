@@ -291,9 +291,9 @@ const Segments = (() => {
     wireAppeals(box);
   }
   function effortRow(e, s, best) {
-    const why = e.public ? '<small class="good">On the leaderboard</small>' : `<small class="muted">${esc(SEG_WHY[e.why_not] || '')}${e.reason_text ? ' ' + esc(e.reason_text) : e.reason && e.why_not === 'excluded' ? ' ' + esc(e.reason) : ''}</small>`;
+    const why = e.public ? '<small class="good">On the leaderboard</small>' : e.why_not === 'source' ? '' : `<small class="muted">${esc(SEG_WHY[e.why_not] || '')}${e.reason_text ? ' ' + esc(e.reason_text) : e.reason && e.why_not === 'excluded' ? ' ' + esc(e.reason) : ''}</small>`;
     const canAppeal = ['held', 'excluded'].includes(e.why_not) && e.reason !== 'duplicate' && e.appeal !== 'open';
-    return `<li class="row-link seg-effort"><a class="grow" href="/activity/${e.activity_id}"><b class="num">${dur(e.elapsed_s)}</b>${best ? ' <small class="seg-best-label">· Your best</small>' : ''}
+    return `<li class="row-link seg-effort"><a class="grow" href="/activity/${e.activity_id}"><span class="seg-effort-time"><b class="num">${dur(e.elapsed_s)}</b>${best ? ' <small class="seg-best-label">· Your best</small>' : ''}</span>
       <small class="muted">${esc(e.activity_name)} · ${esc(fdate(e.started, {month: 'short', day: 'numeric', year: 'numeric'}))} · ${pace(e.elapsed_s, s.distance_m || e.distance_m, s.sport || 'run')}</small>${why}${e.appeal === 'open' ? '<small class="muted">Review requested</small>' : ''}</a>
       ${canAppeal ? `<button class="ghost sm" data-appeal="${e.id}">Ask for review</button>` : ''}</li>`;
   }

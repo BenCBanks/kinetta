@@ -64,10 +64,11 @@
 /* Keep the profile hit-area before its text so the separator can follow without a gap. */
 .activity-card.post .post-name { display:inline-flex; align-items:center; vertical-align:top; flex:0 1 auto; width:auto; min-width:44px; max-width:82%; min-height:44px; margin-left:-23px; padding:0 0 0 23px; color:inherit; font-size:inherit; font-weight:500; text-decoration:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .activity-card.post .post-meta-rest { flex:1 1 auto; min-width:0; flex-wrap:nowrap; overflow:hidden; }
-.activity-card.post .post-meta-date,.activity-card.post .post-meta-kind { display:block; flex:1 1 0; min-width:0; overflow:hidden; text-overflow:ellipsis; }
-.activity-card[data-href^="/activity/friends/"] .post-name { flex:0 0 75%; width:75%; max-width:75%; }
+.activity-card.post .post-meta-date { display:block; flex:0 0 auto; min-width:0; white-space:nowrap; }
+.activity-card.post .post-meta-kind { display:block; flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.activity-card[data-href^="/activity/friends/"] .post-name { flex:0 1 auto; width:auto; max-width:calc(100% - 120px); }
 @media(max-width:360px) {
- .activity-card[data-href^="/activity/friends/"] .post-name { flex:0 1 auto; width:calc(100% - 124px); max-width:calc(100% - 124px); }
+ .activity-card[data-href^="/activity/friends/"] .post-name { max-width:calc(100% - 120px); }
  .activity-card[data-href^="/activity/friends/"] .post-meta-date { flex:0 0 auto; }
  .activity-card[data-href^="/activity/friends/"] .post-meta-kind { display:none; }
 }

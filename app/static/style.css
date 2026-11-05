@@ -2851,7 +2851,7 @@ nav.tabs { view-transition-name: tabs; }
 .segment-detail-tabs {display:flex;gap:8px;margin:6px 0 12px}
 .segment-detail-tabs button {flex:1;min-height:44px;padding:8px;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:var(--tx2);box-shadow:none}
 .segment-detail-tabs button[aria-selected="true"] {border-bottom-color:var(--accent);color:var(--tx);font-weight:600}
-#sg-body .seg-effort .grow > b.num {font-size:15px}
+#sg-body .seg-effort .grow > b.num,#sg-body .seg-effort .seg-effort-time > b.num {font-size:15px}
 .seg-me p {margin:0 0 8px}
 .lb {list-style:none;padding:4px 14px;margin:0 0 12px}
 .lb-row {display:flex;align-items:center;gap:10px;min-height:60px;border-bottom:1px solid var(--line)}
@@ -2865,7 +2865,10 @@ nav.tabs { view-transition-name: tabs; }
 .lb-more {width:36px;height:36px;color:var(--tx3)}
 .seg-efforts {list-style:none;padding:0;margin:0}
 .seg-effort {display:flex;align-items:center;gap:8px}
-.seg-effort .grow {display:grid;gap:2px;color:var(--tx);text-decoration:none}
+.seg-effort .grow {display:grid;gap:2px;min-width:0;min-height:44px;align-content:center;color:var(--tx);text-decoration:none}
+.seg-effort .seg-effort-time {display:block;white-space:nowrap}
+.seg-effort .seg-effort-time > b,.seg-effort .seg-effort-time > .seg-best-label {display:inline;white-space:nowrap}
+.seg-efforts .seg-effort + .seg-effort::before {left:0}
 .seg-effort small.good {color:var(--good);font-weight:600}
 @media (max-width:360px) { .plan-bar > button span {font-size:11px} .plan-sports button svg {display:none} }
 
