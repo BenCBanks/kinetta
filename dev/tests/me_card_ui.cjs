@@ -93,9 +93,9 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   const currentStats=await weekly.locator('[data-week-stat]').allTextContents();assert(currentStats.every(value=>value.trim()),'This week has visible distance, workout and time totals');
   assert.equal(await label.locator('span').innerText(),'This week','current week is the default selection');
   assert.equal(await p.locator('.me-week-streak[data-week-streak="12"]').count(),1,'streak appears at twelve weeks');
-  assert.equal(await p.locator('.me-close-to[data-close-to]').innerText(),'18 km to 1,000 km this year','close-to appears under the bars from private stats');
+  assert.equal(await p.locator('.me-card-close-to[data-close-to]').innerText(),'18 km to 1,000 km this year','close-to appears under the bars from private stats');
   assert.equal(await weekly.locator('[data-week-stat]').count(),3,'the close-to line adds no number row');
-  const closeGeometry=await p.locator('.me-close-to').evaluate(n=>{const r=n.getBoundingClientRect(),bar=document.querySelector('.me-card-bars').getBoundingClientRect(),s=getComputedStyle(n);return{top:r.top,barBottom:bar.bottom,font:parseFloat(s.fontSize),border:s.borderWidth,background:s.backgroundColor};});
+  const closeGeometry=await p.locator('.me-card-close-to').evaluate(n=>{const r=n.getBoundingClientRect(),bar=document.querySelector('.me-card-bars').getBoundingClientRect(),s=getComputedStyle(n);return{top:r.top,barBottom:bar.bottom,font:parseFloat(s.fontSize),border:s.borderWidth,background:s.backgroundColor};});
   assert(closeGeometry.top>=closeGeometry.barBottom&&closeGeometry.font>=13&&closeGeometry.border==='0px'&&closeGeometry.background==='rgba(0, 0, 0, 0)','close-to remains plain 13px secondary text under the bars '+JSON.stringify(closeGeometry));
   await screenshot('me-card-both');
   assert.equal(await p.locator('.me-week-streak').getAttribute('aria-label'),'🔥 12 weeks');
@@ -132,7 +132,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    const geometry=await weeks.evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,label:n.getAttribute('aria-label')};}));
    for(let i=0;i<geometry.length;i++){assert(geometry[i].height>=44&&geometry[i].label,'each week has a labelled 44px target');if(i){assert(Math.abs(geometry[i].y-geometry[i-1].y)<.02,'weeks stay on one row');assert(Math.abs(geometry[i].x-geometry[i-1].x-geometry[i-1].width)<.02,'week hit targets have no gaps or overlap');}}
   };
-  const screenshot=async name=>{
+  async function screenshot(name){
    if(!out)return;fs.mkdirSync(out,{recursive:true});
    await p.locator('.me-top').evaluate(n=>n.scrollIntoView({block:'start',inline:'nearest'}));
    await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
@@ -242,7 +242,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   for(const fixture of ['streak-only','target-only','neither']){
    slotFixture=fixture;await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();
    assert.equal(await p.locator('.me-week-streak').count(),fixture==='streak-only'?1:0,fixture+' streak visibility');
-   assert.equal(await p.locator('.me-close-to').count(),fixture==='target-only'?1:0,fixture+' close-to visibility');
+   assert.equal(await p.locator('.me-card-close-to').count(),fixture==='target-only'?1:0,fixture+' close-to visibility');
    assert.equal(await weekly.locator('[data-week-stat]').count(),3,fixture+' keeps the three existing numbers');
    if(fixture==='streak-only')await screenshot('me-card-streak-only');
    if(fixture==='target-only')await screenshot('me-card-target-only');
@@ -250,7 +250,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   }
   slotFixture='short-streak';await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();
   assert.equal(await p.locator('.me-week-streak').count(),0,'streaks shorter than two weeks stay hidden');
-  assert.equal(await p.locator('.me-close-to').count(),0,'neither-source state hides the line when a one-week streak has no target');
+  assert.equal(await p.locator('.me-card-close-to').count(),0,'neither-source state hides the line when a one-week streak has no target');
   if(size.width===390&&size.root===16&&theme==='light'){
    zeroDistanceFixture=true;await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();
    assert.equal(await p.locator('.me-week').count(),12,'lifting-only history still shows all twelve weeks');assert.equal(await p.locator('.me-week.zero').count(),12,'zero-distance history keeps the zero baseline ticks');
