@@ -2580,7 +2580,7 @@ button.thread-food:active { opacity: .7; }
 #kit-status {font-size:.8rem;color:var(--tx2);margin:4px 0 0;min-height:1.3em;}
 .kit-chat #kit-food-slot:empty {display:none;}
 .kit-chat .kit-food-inline.shell {position:relative;inset:auto;width:100%;height:auto;min-height:0;max-height:none;overflow:visible;display:block;flex:none;margin:0;padding:0;background:transparent;}
-.kit-chat .kit-food-inline > :is(.thread-heading,#thread-empty,#thread-older) {display:none!important;}
+.kit-chat .kit-food-inline > :is(#thread-empty,#thread-older) {display:none!important;}
 .kit-chat .kit-food-inline > #thread-messages {display:grid;flex:none;min-height:0;max-height:none;overflow:visible;gap:14px;padding:0;}
 .kit-chat .kit-food-inline > #thread-messages[hidden] {display:none;}
 .kit-chat .kit-food-inline > #thread-composer {display:contents;position:static;margin:0;padding:0;background:transparent;}
