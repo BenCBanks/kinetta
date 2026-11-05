@@ -16,8 +16,8 @@
 .food-thread .thread-review-strip {display:flex;align-items:center;gap:8px;width:100%;min-height:44px;margin:0;padding:0 4px;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--tx);font:inherit;cursor:default;}
 .food-thread .thread-review-strip[hidden] {display:none;}
 .food-thread .thread-review-strip > button {display:block;flex:none;min-width:44px;height:44px;min-height:44px;margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;white-space:nowrap;}
-.food-thread .thread-review-add {color:var(--accent);font:650 1rem/1.2 var(--font);text-align:left;}
-.food-thread .thread-review-edit {color:var(--tx2);font:600 .8125rem/1.2 var(--font);text-align:right;}
+.food-thread .thread-review-add {color:var(--accent);font:650 1rem/1.2 var(--font);text-align:right;}
+.food-thread .thread-review-edit {color:var(--tx2);font:600 .8125rem/1.2 var(--font);text-align:left;}
 .food-thread .thread-review-strip > button:disabled {color:var(--tx2);cursor:default;}
 .food-thread .thread-review-strip #thread-review-sum {display:flex;flex:1;align-items:baseline;justify-content:center;gap:4px;min-width:0;white-space:nowrap;color:var(--tx2);font-size:.8125rem;font-variant-numeric:tabular-nums;}
 .food-thread .thread-review-count {min-width:0;white-space:nowrap;}

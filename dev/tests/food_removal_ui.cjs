@@ -28,12 +28,30 @@ async function until(page,fn,label){for(let i=0;i<120;i++){if(await page.evaluat
   function screenshot(page,name,theme){if(!process.env.SHOT_DIR)return Promise.resolve();fs.mkdirSync(process.env.SHOT_DIR,{recursive:true});return page.screenshot({path:path.join(process.env.SHOT_DIR,`food-removal-${name}-${theme}.png`)});}
   try{
     for(const theme of ['light','dark']){
-      const state=await open('one',theme),{page,context,errors}=state;
+      // A single ready food keeps its quiet title-row remove control. The
+      // whole-card undo/retry flow below is exercised with the multi-food
+      // fixture, where that action remains available without adding a second
+      // close button to the single-food card.
+      const single=await open('one',theme),singlePage=single.page;
+      const singleCard=singlePage.locator('.thread-card:not(.thread-thinking)').first();
+      assert.equal(await singlePage.locator('[data-unlogged-remove]').count(),0,'single ready food has no whole-card close row');
+      assert.equal(await singlePage.locator('[data-more]').count(),0,'single ready food has no overflow menu');
+      const singleRemove=singleCard.locator('[data-remove-food]');
+      assert.equal(await singleRemove.count(),1,'single ready food keeps one title-row remove control');
+      const singleGeometry=await singleRemove.evaluate(node=>({rect:node.getBoundingClientRect().toJSON(),style:getComputedStyle(node)}));
+      assert.equal(singleGeometry.rect.width,44);assert.equal(singleGeometry.rect.height,44);
+      assert.equal(singleGeometry.style.backgroundColor,'rgba(0, 0, 0, 0)');assert.equal(singleGeometry.style.borderTopWidth,'0px');
+      assert(!(await singlePage.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'single ready food has no horizontal overflow at 390 px');
+      await screenshot(singlePage,'unlogged-single',theme);
+      assert.deepEqual(single.errors,[],'single ready food has no browser errors');
+      await single.context.close();contexts.splice(contexts.indexOf(single.context),1);
+
+      const state=await open('three',theme),{page,context,errors}=state;
       const card=page.locator('.thread-card:not(.thread-thinking)').first(),article=page.locator('#thread-messages article').first();
       const before=await card.innerText(),bubble=await article.locator('.thread-user').innerText();
       const remove=page.locator('[data-unlogged-remove]');assert.equal(await remove.count(),1,'one-tap remove replaces the menu on unlogged food');
       assert.equal(await page.locator('[data-more]').count(),0,'unlogged food has no overflow menu');
-      assert.equal(await card.locator('[data-remove-food]').count(),0,'the card remove is the only × on a single-food card');
+      assert(await card.locator('[data-remove-food]').count()>1,'multi-food card keeps its per-food remove controls');
       const geometry=await remove.evaluate(node=>({rect:node.getBoundingClientRect().toJSON(),style:getComputedStyle(node)}));
       assert.equal(geometry.rect.width,44);assert.equal(geometry.rect.height,44);assert.equal(geometry.style.fontSize,'18px');assert.equal(geometry.style.backgroundColor,'rgba(0, 0, 0, 0)');assert.equal(geometry.style.borderTopWidth,'0px');
       assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no horizontal overflow at 390 px');

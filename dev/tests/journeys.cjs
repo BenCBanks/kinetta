@@ -22,9 +22,9 @@ async function food(f){
  assert.match(await p.locator('.compact-food').last().innerText(),/Fictional journey rice/i);
  const before=await day();assert.deepEqual(before.entries.map(row=>row.id),initial.entries.map(row=>row.id),'Draft did not log early');
  await p.locator('#thread-review-add').click();
- await until(p,()=>!document.querySelector('#food-final-review'),'Add to log confirmed');
+ await until(p,()=>document.querySelector('#toast')?.textContent.includes('Added to '),'Add to log receipt');
  const after=await day(),added=after.entries.filter(row=>!initial.entries.some(old=>old.id===row.id));
- assert.equal(after.entries.length,initial.entries.length+1);assert.equal(added.length,1);assert.equal(added[0].kcal,130);
+ assert.equal(after.entries.length,initial.entries.length+1,`Add to log receipt changed the selected day: before=${JSON.stringify(initial.entries)} after=${JSON.stringify(after.entries)}`);assert.equal(added.length,1,`Add to log receipt did not add the fictional journey rice: ${JSON.stringify(after.entries)}`);assert.equal(added[0].kcal,130);
  await p.locator('.thread-heading .back').click();await ready(p);assert.match(await p.locator('#fd-meals').innerText(),/Fictional journey rice/i);
 }
 async function feedBack(f){
