@@ -15,6 +15,8 @@ const lazyRouteBundles = [
   {re: /^\/notifications$/, tab: null, scripts: ['/static/social-notifications.js?v=__ASSET_HASH__']},
   {re: /^\/me\/notifications$/, tab: 'me', scripts: ['/static/social-notifications.js?v=__ASSET_HASH__']},
   {re: /^\/food\/import$/, tab: 'food', scripts: ['/static/food-import.js?v=__ASSET_HASH__']},
+  {re: /^\/(?:lift\/\d+|track\/lift\/\d+|lift\/history\/workout\/\d+)$/, tab: 'track', scripts: ['/static/lift-routes.js?v=__ASSET_HASH__']},
+  {re: /^\/(?:lift\/ex\/\d+|lift\/history\/exercise\/\d+)$/, tab: 'progress', scripts: ['/static/lift-routes.js?v=__ASSET_HASH__']},
 ];
 let lazyRouteGeneration = 0;
 function loadClassicScript(asset) {
