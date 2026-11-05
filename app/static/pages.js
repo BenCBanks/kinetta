@@ -83,9 +83,11 @@ function mountOwnerActivityMonthJump() {
   button.onclick = () => openOwnerActivityMonths(button, list);
   filters.insertBefore(button, $('#person-sport', filters));
 }
-const ownerActivityMonthObserver = new MutationObserver(mountOwnerActivityMonthJump);
-ownerActivityMonthObserver.observe($('#app'), {childList:true,subtree:true});
-mountOwnerActivityMonthJump();
+if (typeof MutationObserver !== 'undefined' && typeof $ === 'function') {
+  const root = $('#app');
+  if (root) new MutationObserver(mountOwnerActivityMonthJump).observe(root, {childList:true,subtree:true});
+}
+if (typeof $ === 'function') mountOwnerActivityMonthJump();
 // One card for every activity list: title and person, a full-width map with overlay metrics, then footer actions.
 function postCard(a, {compact = false, lock = false} = {}) {
   const theirs = !!a.owner, href = theirs ? `/activity/friends/${a.id}` : `/activity/${a.id}`;
