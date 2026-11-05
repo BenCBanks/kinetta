@@ -2567,6 +2567,13 @@ button.thread-food:active { opacity: .7; }
 @keyframes refresh-turn {to {transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce) {.page-refresh-button[aria-busy="true"] svg {animation:none}}
 
+/* Food estimate breakdowns keep words readable on narrow phones. Kit keeps its one-row nav header. */
+@media (max-width:360px) {
+  .food-thread:not(.kit-chat) .thread-heading { grid-template-columns:minmax(0,1fr) auto; }
+  .food-thread:not(.kit-chat) .thread-heading h1 { grid-column:1 / -1; grid-row:2; text-align:center; }
+  .food-thread:not(.kit-chat) .thread-heading #thread-settings { grid-column:2; grid-row:1; }
+}
+
 /* Livelier semantic colours: keep surfaces quiet and put colour on useful cues. */
 .seg button[aria-pressed="true"], .seg button[aria-selected="true"] { background: var(--segon); }
 .macro.m-protein_g { --macro-color: var(--s1); }

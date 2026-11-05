@@ -40,7 +40,7 @@ async function contextLabel(p){return p.locator('#thread-context').evaluate(n=>n
     assert.equal(await card.locator('[data-manual]').innerText(),'Enter nutrition');
     assert.equal(await card.locator('[data-action=resolve]').innerText(),'Try again');
     const actionRow=card.locator('.barcode-choice-row');assert.equal(await actionRow.count(),1);
-    assert.deepEqual(await actionRow.locator('.linkbtn').allTextContents(),['Enter nutrition','Try again'],'secondary actions are plain links on one row');
+    const expectedActions=(await estimate.count())||(await turnOn.count())?['Enter nutrition','Try again']:['Try again'];assert.deepEqual(await actionRow.locator('.linkbtn').allTextContents(),expectedActions,'secondary actions match whether Kit estimates are available');
     assert.equal(await card.locator('[data-unlogged-remove]').count(),1,'unlogged not-found card offers one direct remove control');
     assert.equal(await actionRow.locator('[data-more]').count(),0,'unlogged card removal replaces the logged-card overflow menu');
     assert.equal(await card.locator('.thread-actions [data-more]').count(),0,'no duplicate menu row');
@@ -51,7 +51,7 @@ async function contextLabel(p){return p.locator('#thread-context').evaluate(n=>n
     assert.equal(await card.locator('[data-portion]').count(),0,'no amount action before a food is found');
     assert.equal(await card.locator('.thread-error,.small.muted').count(),0,'not-found copy is neither red nor muted');
     assert.doesNotMatch(await card.innerText(),/Not found in the food database|016000157620|Change amount|Retry lookup|Which food and portion/);
-    assert.equal(await card.locator('[data-manual]').evaluate(n=>n.classList.contains('linkbtn')),true,'Enter nutrition is a plain link, not a pill');
+    const manualClasses=(await card.locator('[data-manual]').getAttribute('class')).split(/\s+/),hasEstimate=!!((await estimate.count())||(await turnOn.count()));assert.equal(manualClasses.includes('linkbtn'),hasEstimate,'Enter nutrition is a plain link beside an estimate, otherwise it is the primary action');if(!hasEstimate)assert(manualClasses.includes('primary')&&manualClasses.includes('wide'),'without an estimate, Enter nutrition is the wide primary action');
     if(process.env.SHOT_DIR){fs.mkdirSync(process.env.SHOT_DIR,{recursive:true});await p.screenshot({path:path.join(process.env.SHOT_DIR,`barcode-not-found-${theme}-${size.width}.png`)});}
     let dialogs=0;p.on('dialog',dialog=>{dialogs++;dialog.dismiss();});
     await p.evaluate(()=>scanSheet(isoDay(new Date()),'lunch',null));await p.waitForSelector('#sc-lookup');
@@ -66,10 +66,10 @@ async function contextLabel(p){return p.locator('#thread-context').evaluate(n=>n
     await p.locator('#sc-enter-nutrition').click();await p.waitForSelector('#fe');await p.keyboard.press('Escape');
     setBarcodeStatus(502);await p.evaluate(()=>scanSheet(isoDay(new Date()),'lunch',null));await p.waitForSelector('#sc-lookup');await p.locator('#sc-f input').fill('016000157620');
     response=p.waitForResponse(r=>r.url().includes('/api/food/barcode/016000157620')&&r.status()===502);await p.locator('#sc-lookup').click();await response;
-    assert.equal(await p.locator('#sc-msg').innerText(),"We couldn't reach the food database. Try again.");assert.equal(await p.locator('#sc-lookup').innerText(),'Try again');assert.equal(await p.locator('#sc-enter-nutrition').isVisible(),false,'network failure offers only the retry it describes');
+    await until(p,()=>document.querySelector('#sc-msg')?.textContent==="We couldn't reach the food database. Try again.",'lookup error shown');assert.equal(await p.locator('#sc-msg').innerText(),"We couldn't reach the food database. Try again.");assert.equal(await p.locator('#sc-lookup').innerText(),'Try again');assert.equal(await p.locator('#sc-enter-nutrition').isVisible(),false,'network failure offers only the retry it describes');
     await p.keyboard.press('Escape');await p.locator('.scrim').waitFor({state:'detached'});
    }
-   else if(who==='empty'){assert.equal(await p.locator('[data-thread-quick]:visible').count(),4);if(size.root===16)assert((await p.locator('#thread-empty p').boundingBox()).height<28,'one intro line');}
+   else if(who==='empty'){assert.equal(await p.locator('[data-thread-quick]:visible').count(),4);assert.equal(await p.locator('#thread-empty p').count(),0,'empty food chat has no explainer row');}
    else{assert.equal(await p.locator('[data-thread-quick]:visible').count(),0,'shortcuts collapse after a message');if(who==='clarify'){assert.equal(await p.locator('[data-reply]').count(),2);assert(await p.locator('#thread-review').isHidden());}
     else{const count=who==='one'?1:who==='photo'?4:3;assert.equal(await rows.count(),count);assert.equal(await p.locator('.thread-total').count(),0,'only the sticky review total');assert(await p.locator('#thread-review').isVisible());
      const total=await p.locator('.thread-review-kcal').boundingBox(),action=await p.locator('.thread-review-go').boundingBox();
@@ -82,7 +82,7 @@ async function contextLabel(p){return p.locator('#thread-context').evaluate(n=>n
    }
    const draft='Fictional unsent draft';await p.locator('#thread-text').fill(draft);
    if(native){await p.evaluate(()=>{dispatchEvent(Object.assign(new Event('keyboardWillShow'),{keyboardHeight:336}));dispatchEvent(Object.assign(new Event('keyboardDidShow'),{keyboardHeight:336}));});await until(p,()=>document.querySelector('#thread-composer').getBoundingClientRect().bottom<=innerHeight-336+1,'composer above keyboard');const last=await rows.last().boundingBox(),review=await p.locator('#thread-review').boundingBox();assert(last.y+last.height<=review.y+1,'latest food stays above the strip');}
-   await p.locator('.thread-heading h1').click();assert.equal(await p.locator('#thread-text').inputValue(),draft);assert.equal(await p.locator('#thread-text').evaluate(n=>document.activeElement===n),false,'background dismisses focus');
+   await p.locator('#thread-context').click();await p.locator('#thread-destination').waitFor();assert.equal(await p.locator('#thread-text').inputValue(),draft);assert.equal(await p.locator('#thread-text').evaluate(n=>document.activeElement===n),false,'destination title dismisses composer focus');await p.locator('.scrim:has(#thread-destination) [data-close]').click();await settledSheet(p);
    if(native)await p.evaluate(()=>{dispatchEvent(new Event('keyboardWillHide'));dispatchEvent(new Event('keyboardDidHide'));});
    await p.locator('#thread-plus').click();await p.waitForSelector('.thread-tools-sheet');for(const text of ['Camera','Barcode','Recipes','Search'])assert(await p.locator('.thread-tools-sheet button',{hasText:text}).first().isVisible());await p.keyboard.press('Escape');assert.equal(await p.locator('#thread-text').inputValue(),draft);
    if(who==='photo'){
