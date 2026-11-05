@@ -141,18 +141,15 @@ const Segments = (() => {
 
   // ---------- one segment ----------
   async function page(el, id) {
-    const owner=readOwner(),token={};el.segmentView=token;
-    const current=()=>el.isConnected&&el.segmentView===token&&owner===readOwner();
+    const owner=readOwner(),token={},path=location.pathname;el.segmentView=token;
+    const current=()=>el.isConnected&&el.segmentView===token&&owner===readOwner()&&location.pathname===path;
     const requested=new URLSearchParams(location.search).get('tab');
     el.innerHTML = `<div class="top">${backBtn('Segments')}<span id="sg-acts" class="acts"></span></div><div id="sg-body">${skel(2)}</div>`;
     wireBack(el, '/progress/segments');
     let s; try { s = await api(`/api/segments/${id}`); }
     catch (e) { if(!current())return;$('#sg-body', el).innerHTML = `<div class="card empty"><b>${e.status === 410 ? 'This segment was removed' : 'Segment not found'}</b>${e.status === 410 ? 'It’s no longer available. Times on it were removed with it; the workouts themselves are untouched.' : 'It may be private, or the link may be wrong.'}</div>`; return; }
     if(!current())return;
-    let firstBoard=null,boardError=null;
-    try{firstBoard=await api(`/api/segments/${id}/leaderboard`);}catch(error){boardError=error;}
-    if(!current())return;
-    const hasBoard=otherMembers(firstBoard),tab=hasBoard&&requested==='board'?'board':'mine';
+    let firstBoard=null,tab='mine',boardIntent=requested==='board';
     const body = $('#sg-body', el);
     $('#sg-acts', el).innerHTML = `<button class="icon-btn" id="sg-share" aria-label="Share">${svg('share')}</button><button class="icon-btn" id="sg-menu" aria-label="More">${svg('more')}</button>`;
     body.innerHTML = `<h1>${esc(s.name)}</h1><p class="muted">${esc(sportName(s.sport))} · ${U.dist(s.distance_m)} ${U.du()}${s.ascent_m != null ? ` · ↑ ${U.elev(s.ascent_m)} ${U.eu()}` : ''}${s.creator ? ` · by <a href="/people/${esc(s.creator.login)}">${esc(s.creator.name)}</a>` : ''}</p>
@@ -162,7 +159,7 @@ const Segments = (() => {
       <details class="seg-rules"><summary>Course &amp; timing rules${svg('chev')}</summary><p class="small muted">Fixed course, created ${esc(fdate(s.created, {month: 'short', day: 'numeric', year: 'numeric'}))}. It can’t be edited by anyone, so every time here is on the same course.</p><p class="small muted">One best time per member, in whole seconds; equal times share a place. Only ${sportName(s.sport).toLowerCase()}s shared with Everyone, by members who joined leaderboards, declared outdoors without motor assistance, from the start to the finish in order.</p></details>
       <div class="btnrow seg-btns"><button class="ghost" id="sg-save" aria-pressed="${s.saved}">${svg('bookmark')}${s.saved ? 'Saved' : 'Save'}</button>
         ${s.mine && s.audience === 'me' && s.status === 'active' ? `<button class="primary" id="sg-pub" aria-label="Publish to everyone">Publish</button>` : ''}</div>
-      ${hasBoard ? `<div class="seg tabs2" role="tablist"><button role="tab" data-t="mine" aria-selected="${tab === 'mine'}">Your times</button><button role="tab" data-t="board" aria-selected="${tab === 'board'}">Leaderboard</button></div>` : '<h2 class="sec-head">Your times</h2>'}${boardError?`<p class="err" role="alert">${esc(boardError.message)}</p><button class="ghost" id="sg-board-retry">Retry leaderboard</button>`:''}
+      <div id="sg-view-tabs"><h2 class="sec-head">Your times</h2></div><div id="sg-board-status"></div>
       <div id="sg-tab"></div>`;
     mapInto($('#sg-map', body), [s.line], {sport: s.sport}).then((v) => v && arrows(v, decode(s.line))).catch(() => {});
     $('#sg-save', body).onclick = async (e) => { const b = e.currentTarget, on = b.getAttribute('aria-pressed') === 'true';
@@ -170,11 +167,33 @@ const Segments = (() => {
     const pub = $('#sg-pub', body); if (pub) pub.onclick = () => publish(s);
     $('#sg-share', el).onclick = () => share(s);
     $('#sg-menu', el).onclick = () => menu(s);
-    $$('[data-t]', body).forEach((b) => b.onclick = () => { replacePageAddress(el,`/segments/${id}?tab=${b.dataset.t}`); $$('[data-t]', body).forEach((x) => x.setAttribute('aria-selected', String(x === b))); show(b.dataset.t); });
-    const retry=$('#sg-board-retry',body);if(retry)retry.onclick=()=>{if(current())page(el,id);};
-    const show = (t) => {const box=$('#sg-tab',body);box.segmentPane=t;if(t==='mine')mine(box,s);else{board(box,s,null,firstBoard);firstBoard=null;}};
-    if(!hasBoard&&requested==='board')replacePageAddress(el,`/segments/${id}?tab=mine`);
-    show(tab);
+    const show = (t) => {tab=t;const box=$('#sg-tab',body);box.segmentPane=t;if(t==='mine')mine(box,s);else{board(box,s,null,firstBoard);firstBoard=null;}};
+    const probe = async () => {
+      const status=$('#sg-board-status',body);status.innerHTML='';
+      try {
+        const data=await api(`/api/segments/${id}/leaderboard`);
+        if(!current())return;
+        firstBoard=data;
+        const hasBoard=otherMembers(data);
+        if(hasBoard&&boardIntent){tab='board';boardIntent=false;show(tab);}
+        if(!hasBoard&&boardIntent){boardIntent=false;replacePageAddress(el,`/segments/${id}?tab=mine`);}
+        $('#sg-view-tabs',body).innerHTML=hasBoard?`<div class="segment-detail-tabs" role="tablist" aria-label="Segment times"><button role="tab" data-t="mine" aria-selected="${tab==='mine'}">Your times</button><button role="tab" data-t="board" aria-selected="${tab==='board'}">Leaderboard</button></div>`:'<h2 class="sec-head">Your times</h2>';
+        $$('[data-t]',body).forEach(b=>b.onclick=()=>{
+          if(!current())return;
+          replacePageAddress(el,`/segments/${id}?tab=${b.dataset.t}`);
+          $$('[data-t]',body).forEach(x=>x.setAttribute('aria-selected',String(x===b)));
+          show(b.dataset.t);
+        });
+      } catch (_) {
+        if(!current())return;
+        if(boardIntent)replacePageAddress(el,`/segments/${id}?tab=mine`);
+        status.innerHTML='<button class="linkbtn" id="sg-board-retry">Retry leaderboard</button>';
+        $('#sg-board-retry',body).onclick=()=>{if(current())probe();};
+      }
+    };
+    show('mine');
+    // Personal history is useful immediately; public-board availability must never hold it up.
+    probe();
   }
   async function share(s) {
     const url = `${Native.base || location.origin}/segments/${s.id}`;

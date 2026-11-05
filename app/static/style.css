@@ -2848,6 +2848,10 @@ nav.tabs { view-transition-name: tabs; }
 .radio-row span {display:grid;gap:2px} .radio-row small {color:var(--tx2);font-size:.85rem}
 .seg-btns {display:flex;gap:8px;margin:10px 0} .seg-btns button {flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px}
 .seg.tabs2 {display:flex;width:100%;margin:6px 0 12px} .seg.tabs2 button {flex:1;min-height:40px}
+.segment-detail-tabs {display:flex;gap:8px;margin:6px 0 12px}
+.segment-detail-tabs button {flex:1;min-height:44px;padding:8px;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:var(--tx2);box-shadow:none}
+.segment-detail-tabs button[aria-selected="true"] {border-bottom-color:var(--accent);color:var(--tx);font-weight:600}
+#sg-body .seg-effort .grow > b.num {font-size:15px}
 .seg-me p {margin:0 0 8px}
 .lb {list-style:none;padding:4px 14px;margin:0 0 12px}
 .lb-row {display:flex;align-items:center;gap:10px;min-height:60px;border-bottom:1px solid var(--line)}
