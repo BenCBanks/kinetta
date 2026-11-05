@@ -31,8 +31,9 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);return r.fulfill({json:{}});}
    if(u.pathname==='/api/me'){const resp=await r.fetch(),j=await resp.json();j.bio='Fictional trails and weekend rides.';j.kcal_target=null;j.protein_target=null;j.units='imperial';return r.fulfill({response:resp,json:j});}
    if(u.pathname==='/api/activities'&&u.searchParams.has('limit')){
-    const day=todayInNewYork(),hasActivity=['both','activity','food-error'].includes(todayFixture),yesterday=todayFixture==='activity-empty';
+    const day=todayInNewYork(),hasActivity=['both','activity','activity-multiple','food-error'].includes(todayFixture),yesterday=todayFixture==='activity-empty';
     const row={id:918204,sport:'run',start_time:`${day}T12:12:00Z`,distance_m:9656.064,moving_s:3120,elapsed_s:3180};
+    if(u.searchParams.has('after'))return r.fulfill({json:hasActivity?[row,...(todayFixture==='activity-multiple'?[{id:918205,sport:'walk',start_time:`${day}T10:00:00Z`,distance_m:1609.344,moving_s:900,elapsed_s:900}]:[])]:[]});
     return r.fulfill({json:hasActivity?[row]:yesterday?[{...row,id:918203,start_time:`${addDays(day,-1)}T12:12:00Z`}]:[]});
    }
    if(u.pathname==='/api/plans/current'){
@@ -149,7 +150,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
     if(state==='neither'){
      assert.equal(await today.innerHTML(),'','neither-users have no empty Today placeholder');assert.equal(await activity.count(),0);assert.equal(await food.count(),0);assert((await p.locator('#t-start').innerText()).includes('Get started'),'Get started replaces Today for a neither-user');
     }else{
-     const activityUser=['both','activity','planned','planned-distance','rest','activity-empty','food-error'].includes(state),foodUser=['both','food','estimate','food-error'].includes(state);
+     const activityUser=['both','activity','activity-multiple','planned','planned-distance','rest','activity-empty','food-error'].includes(state),foodUser=['both','food','estimate','food-error'].includes(state);
      assert.equal(await activity.count(),activityUser?1:0,`activity row visibility matches ${state} (${size.width}px ${theme})`);
      assert.equal(await food.count(),foodUser?1:0,`food row visibility matches ${state} (${size.width}px ${theme})`);
      assert.equal(await section.locator('.me-today-date').count(),1,'Today date is shown at the right of the header');
@@ -164,6 +165,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
      if(['both','activity','food-error'].includes(state)){
       assert.match(await activity.innerText(),/Run · 6\.0 mi · 52 min/);assert.match(await activity.innerText(),/7:12 AM/);assert.doesNotMatch(await activity.innerText(),/Today at/);assert.equal(await activity.getAttribute('href'),'/activity/918204');assert(await activity.boundingBox().then(box=>box.height>=56),'activity row is the 56px workout target');
      }
+     if(state==='activity-multiple')assert.match(await activity.innerText(),/2 workouts · 7\.0 mi[\s\S]*Run, Walk/,'the date-window query retains every workout from today');
      if(state==='both'){
       assert.match(await food.innerText(),/1,250 \/ 2,100 kcal/);assert.match(await food.innerText(),/70 \/ 130 g protein/);
      }
@@ -188,8 +190,8 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
     }
     await screenshot(`today-${state}`);
    };
-   for(const state of ['both','activity','food','planned','planned-distance','rest','activity-empty','estimate','food-error','neither'])await checkTodayState(state);
-   if(todayOnly){assert.deepEqual(errors,[],'Today fixture renders without browser errors');assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[],'Today fixture blocks every write beyond the existing challenge stub');console.log(`Today ${size.width}px ${theme} states: ten fictional activity, food, plan and visibility states; Me card unchanged PASS`);await c.close();continue;}
+   for(const state of ['both','activity','activity-multiple','food','planned','planned-distance','rest','activity-empty','estimate','food-error','neither'])await checkTodayState(state);
+   if(todayOnly){assert.deepEqual(errors,[],'Today fixture renders without browser errors');assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[],'Today fixture blocks every write beyond the existing challenge stub');console.log(`Today ${size.width}px ${theme} states: eleven fictional activity, food, plan and visibility states; Me card unchanged PASS`);await c.close();continue;}
   }
   await checkChart();await checkTargets();
   const current=weeks.last();assert((await chartState()).atEnd,'This week is visible at the right edge');

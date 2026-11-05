@@ -30,6 +30,8 @@ try:
         activity = request(owner, 'POST', '/api/activities/manual', {'sport': 'run', 'start': (start + dt.timedelta(hours=i)).isoformat(), 'duration_s': 600, 'distance_m': 1000, 'name': f'Profile fixture {i}', 'avg_hr': 145})
         ids.append(activity['id'])
         request(owner, 'PUT', f"/api/activities/{activity['id']}/sharing", {'visibility': visibility})
+    window = request(owner, 'GET', '/api/activities?limit=100&' + urlencode({'after': (start + dt.timedelta(hours=2)).isoformat()}))
+    check([row['id'] for row in window] == [ids[3], ids[2]], 'activity feed after a timestamp contains only the current window, newest first')
     request(owner, 'PUT', '/api/profile', {'weight_kg': 70, 'max_hr': 190})
     request(owner, 'PUT', '/api/account', {'name': 'Profile Owner', 'bio': 'Both saved together'})
     check(request(owner, 'GET', '/api/me')['bio'] == 'Both saved together', 'profile name and bio edit in one transaction')
