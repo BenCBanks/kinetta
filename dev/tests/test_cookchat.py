@@ -98,7 +98,7 @@ check('chat missing-data response remains resumable',s==200 and missing.get('by'
 
 s,_=p.delete(f'/api/dishes/{source}')
 copied=p.get(f'/api/dishes/{did}')[1]
-saved=next((i for i in copied['items'] if i.get('ref',{}).get('recipe_id')==source),None)
+saved=next((i for i in copied['items'] if (i.get('ref') or {}).get('recipe_id')==source),None)
 check('deleting source keeps copied ingredient nutrition',s==200 and saved is not None and saved.get('kcal')==200,p.get(f'/api/dishes/{did}'))
 check('deleted source becomes unavailable',p.get(f'/api/dishes/{source}/own-source')[0]==404)
 for client,rid in reversed(created):client.delete(f'/api/dishes/{rid}')

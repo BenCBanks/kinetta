@@ -1,6 +1,7 @@
 """Contract guards for ingredient ambiguity; synthetic model actions, no provider calls."""
 import unittest,uuid
 from unittest.mock import patch
+from fastapi import HTTPException
 from app import auth,db,api_dishes as D,cook_chat as C
 
 class Clarification(unittest.TestCase):
@@ -33,5 +34,12 @@ class Clarification(unittest.TestCase):
    self.assertEqual(it['grams'],200);self.assertEqual(it['amount'],'200 g');self.assertEqual(it['units'],{})
    model.return_value=([{'op':'remove','id':'different'}],'Wrong ingredient')
    r=self.say('remove quinoa');self.assertEqual(r['by'],'clarification');self.assertEqual(len(r['dish']['items']),1)
+ def test_recipe_copy_requires_calories_even_with_measured_weight(self):
+  source={'id':self.did+1000000,'name':'Fictional recipe without calories','measured_weight_g':250,'per_100g':{'kcal':None}}
+  with db.connect() as c,patch.object(D,'_recent_own',return_value=[source]):
+   with self.assertRaises(HTTPException) as caught:D._add_recipe_item(c,self.uid,self.did,source['id'],mode='all')
+  self.assertEqual(caught.exception.status_code,400)
+  self.assertEqual(caught.exception.detail,'Add calories and the recipe’s measured weight first.')
+  with db.connect() as c:self.assertEqual(D._get(c,self.uid,self.did)['items'],[])
 
 unittest.main()

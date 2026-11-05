@@ -278,13 +278,6 @@ function openRecipeSource(id,name,owner=readOwner()) {
   });
 }
 
-async function addChatRecipe(d,recipe,amount,set,message) {
-  const owner=readOwner(),body=typeof amount==='number'?{recipe_id:recipe.id,mode:'grams',grams:amount}:{recipe_id:recipe.id,mode:amount};
-  try{
-    const result=await api(`/api/dishes/${d.id}/items/recipe`,json('POST',body));if(owner!==readOwner())return;
-    message.text=`Added ${recipe.name.toLowerCase()} (${gfmt(result.grams)}).`;message.added=result.added;delete message.clarification;set(result.dish);
-  }catch(x){if(owner===readOwner())toast(x.message);}
-}
 // a scanned product: how much of it went in (grams, servings or the whole package), then it's an ingredient
 function foodToDish(d, f, set) {
   const p = f.per100, sg = f.serving && f.serving.g;
