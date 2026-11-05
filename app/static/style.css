@@ -2569,9 +2569,9 @@ button.thread-food:active { opacity: .7; }
 
 /* Food estimate breakdowns keep words readable when text is enlarged on a narrow phone. */
 @media (max-width:360px) {
-  .food-thread .thread-heading { grid-template-columns:minmax(0,1fr) auto; }
-  .food-thread .thread-heading h1 { grid-column:1 / -1; grid-row:2; text-align:center; }
-  .food-thread .thread-heading #thread-settings { grid-column:2; grid-row:1; }
+  .food-thread:not(.kit-chat) .thread-heading { grid-template-columns:minmax(0,1fr) auto; }
+  .food-thread:not(.kit-chat) .thread-heading h1 { grid-column:1 / -1; grid-row:2; text-align:center; }
+  .food-thread:not(.kit-chat) .thread-heading #thread-settings { grid-column:2; grid-row:1; }
 }
 
 /* Livelier semantic colours: keep surfaces quiet and put colour on useful cues. */

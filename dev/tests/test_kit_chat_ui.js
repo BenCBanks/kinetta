@@ -47,6 +47,7 @@ const css=fs.readFileSync('app/static/style.css','utf8');
 assert.match(css,/--text-nav-title\s*:\s*17px/);
 assert(css.includes('.shell .top.subpage-header > h1')&&css.includes('text-overflow:ellipsis'),'shared pushed-page titles truncate in their centered row');
 assert(css.includes('.food-thread .thread-heading h1')&&css.includes('var(--text-nav-title)'),'chat headings use the same title token');
+assert(css.includes('.food-thread:not(.kit-chat) .thread-heading h1 { grid-column:1 / -1; grid-row:2;'),'the narrow two-row food-chat layout does not move Ask Kit off its one-row navigation header');
 assert(source.includes('id="kit-fine"')&&source.includes('${esc(shortProvider())} · <button type="button" class="linkbtn" id="kit-footer-memory">Memory</button>'),'empty chat reminder sits below the composer');
 assert(source.includes('id="kit-about-open">About Kit</button>')&&source.includes('New chat each visit.')&&source.includes('providerName()'),'About Kit keeps visit and provider details in the menu flow');
 assert(source.includes("$('#kit-about-open',body).onclick=()=>{close();sheet('About Kit',"),'About Kit row opens the provider and visit details sheet');
