@@ -77,6 +77,7 @@ async function notificationRoutes(context,{failFirst=false,hold=false,recordOwne
 async function notificationFixture(browser,loginName=user,options={}){
   const context=await fixtureContext(browser);await login(context,loginName);
   const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.clock.install({time:new Date('2026-11-05T12:00:00Z')});
   const routes=await notificationRoutes(context,options);return {context,page,errors,routes};
 }
 (async()=>{const browser=await chromium.launch();try{
