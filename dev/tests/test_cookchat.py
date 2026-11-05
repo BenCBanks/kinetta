@@ -84,9 +84,9 @@ check('cannot copy without measured weight',p.post(f'/api/dishes/{did}/items/rec
 
 single=recipe(p,'Fictional broccoli soup')
 s,ask=p.post(f'/api/dishes/{did}/say',{'text':'Fictional broccoli soup'})
-check('single recipe match asks for amount',s==200 and ask.get('reply')=='How much went in?' and ask.get('clarification')=='Fictional broccoli soup' and ask.get('recipe_amount',{}).get('id')==single,ask)
+check('single recipe match asks for an amount to add',s==200 and ask.get('reply')=='Choose an amount to add.' and ask.get('clarification')=='Fictional broccoli soup' and ask.get('recipe_amount',{}).get('id')==single,ask)
 s,cup=p.post(f'/api/dishes/{did}/say',{'text':'1 cup Fictional broccoli soup'})
-check('generic cup density is not used for recipes',s==200 and cup.get('reply')=='How much went in?' and cup.get('recipe_grams') is None and not cup.get('added'),cup)
+check('generic cup density is not used for recipes',s==200 and cup.get('reply')=='Choose an amount to add.' and cup.get('recipe_grams') is None and not cup.get('added'),cup)
 s,explicit=p.post(f'/api/dishes/{did}/say',{'text':'50 g Fictional broccoli soup'})
 check('explicit chat grams add directly',s==200 and explicit.get('by')=='recipe' and len(explicit.get('added',[]))==1 and explicit['dish']['items'][-1]['grams']==50,explicit)
 ambiguous=recipe(p,'Fictional bean curry',measured=300)
