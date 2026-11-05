@@ -29,6 +29,7 @@ async function capture(p,card,name){
  cp.execFileSync('python3',['-c',"import sys;sys.path.insert(0,'dev/tests');from kc import login;assert login('zz_test_feed_friend1').put('/api/sharing',{'details':{'pace':False}})[0]==200"],{env,stdio:'inherit'});
  const b=await chromium.launch();try{
   for(const theme of ['light','dark']){
+   if(process.env.KINETTA_MAP_INTERACTIONS==='1'&&theme==='dark')continue;
    const c=await b.newContext({viewport:{width:390,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'});
    assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_feed_heavy',password:pw}})).status(),200);
    const errors=[];await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(u.pathname==='/api/map-config')return r.fulfill({json:{kind:'raster',url:base+'/fictional-map/{z}/{x}/{y}.svg',max_zoom:18,attribution:'Fictional test basemap'}});if(u.pathname.startsWith('/fictional-map/'))return r.fulfill({contentType:'image/svg+xml',body:tile(theme==='dark')});if(!['GET','HEAD'].includes(q.method()))return r.fulfill({json:{}});return r.continue();});
@@ -41,6 +42,17 @@ async function capture(p,card,name){
     assert.doesNotMatch(await friend.locator('.post-map-metrics').innerText(),/pace|\/mi|\/km/i,'hidden friend pace stays out of rendered/accessible metadata');assert.equal(await friend.locator('[data-share-picture]').count(),0,'sharing stays owner-only');
     await capture(p,friend,'friend-hidden-pace-390-light');
     const noMap=p.locator('#ff-list .post').filter({hasText:'Fictional treadmill workout'});assert.equal(await noMap.locator('.activity-picture,.fmap').count(),0,'no media means no blank square');assert.equal(await noMap.locator('.post-summary .stat').count(),3,'mapless meaningful metrics retained');await capture(p,noMap,'no-map-390-light');
+   }
+   if(process.env.KINETTA_MAP_INTERACTIONS==='1'){
+    const identity=await own.locator('.post-hd').elementHandle(),numbers=await own.locator('.post-map-metrics').innerText();
+    await own.locator('[data-media-step="1"]').click();await until(p,()=>document.querySelector('#ff-list .post-led[data-href^="/activity/"]:not([data-href^="/activity/friends/"]) [data-media-dot="1"]')?.classList.contains('current'),'carousel photo selected');
+    assert(await identity.evaluate(n=>n.isConnected),'carousel retains the identity node');assert.equal(await own.locator('.post-map-metrics').innerText(),numbers,'carousel retains one permitted metric set');
+    await own.locator('.media-photo').first().click();await p.locator('.ph-view').waitFor();await p.keyboard.press('Escape');assert.equal(new URL(p.url()).pathname,'/activity','photo viewer closes back to the same Activity path');
+    await own.locator('.media-track').focus();await p.keyboard.press('Home');await until(p,()=>document.querySelector('#ff-list .post-led[data-href^="/activity/"]:not([data-href^="/activity/friends/"]) [data-media-dot="0"]')?.classList.contains('current'),'keyboard returns to map');
+    const popup=await Promise.all([c.waitForEvent('page'),own.locator('.leaflet-control-attribution a').first().click()]);assert.equal(new URL(p.url()).pathname,'/activity','provider link does not trigger card navigation');await popup[0].close();
+    await own.locator('.post-name').click();await p.locator('#person-activities').waitFor();assert.equal(new URL(p.url()).pathname,'/people/zz_test_feed_heavy','profile name keeps its existing destination');
+    await p.goto(base+'/activity');await until(p,()=>App.pageReady&&document.querySelector('#feed-tools')?.getAttribute('aria-busy')==='false','Activity returns');const href=await own.getAttribute('data-href');await own.locator('.post-title-link').click();await until(p,href=>location.pathname===href&&App.pageReady,'title opens activity',href);
+    console.log('Map-led interactions: carousel, keyboard, photo viewer, attribution, profile and activity destinations PASS');
    }
    assert.deepEqual(errors,[]);console.log('Map-led checkpoint390 '+theme+': identity, square, targets, privacy and no-media PASS');await c.close();
   }
