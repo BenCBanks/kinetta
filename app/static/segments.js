@@ -273,7 +273,8 @@ const Segments = (() => {
     box.innerHTML = skel(1);
     let r; try { r = await api(`/api/segments/${s.id}/efforts`); } catch (e) { if(!active())return;box.innerHTML = `<p class="err" role="alert">${esc(e.message)}</p>`; return; }
     if(!active())return;
-    box.innerHTML = (r.efforts.length ? `<ol class="card list seg-efforts">${r.efforts.map((e, i) => effortRow(e, s, i === 0 && e.state === 'ok')).join('')}</ol>` : '<div class="card empty"><b>No times yet</b>Record a GPS activity that covers the whole segment, start to finish. Past activities are checked automatically.</div>')
+    const privateNote=s.audience==='me'?`<div class="seg-me"><b>Only you can see this segment</b><p class="small muted">Publish it to compete with others. ${r.efforts[0]?.elapsed_s ? `Your best: <b class="num">${dur(r.efforts[0].elapsed_s)}</b>.` : ''}</p></div>`:'';
+    box.innerHTML = privateNote + (r.efforts.length ? `<ol class="card list seg-efforts">${r.efforts.map((e, i) => effortRow(e, s, i === 0 && e.state === 'ok')).join('')}</ol>` : '<div class="card empty"><b>No times yet</b>Record a GPS activity that covers the whole segment, start to finish. Past activities are checked automatically.</div>')
       + (r.near_misses.length ? `<details class="card"><summary>Activities near this segment that didn’t count</summary><ul class="small">${r.near_misses.map((m) => `<li><a href="/activity/${m.activity_id}">${esc(m.name)}</a>: ${esc(m.reason_text)}</li>`).join('')}</ul></details>` : '');
     if(s.mine&&s.audience==='me'&&s.matching_update&&!s.rebuilding){
       const owner=reviewOwner(),button=document.createElement('button');button.className='ghost wide';button.textContent='Recheck my private segment';box.prepend(button);
