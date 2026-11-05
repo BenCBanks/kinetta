@@ -189,7 +189,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
     await screenshot(`today-${state}`);
    };
    for(const state of ['both','activity','food','planned','planned-distance','rest','activity-empty','estimate','food-error','neither'])await checkTodayState(state);
-   if(todayOnly){assert.deepEqual(errors,[],'Today fixture renders without browser errors');assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[],'Today fixture blocks every write beyond the existing challenge stub');console.log(`Today ${size.width}px ${theme} states: nine fictional visibility, activity, food, plan and error states; Me card unchanged PASS`);await c.close();continue;}
+   if(todayOnly){assert.deepEqual(errors,[],'Today fixture renders without browser errors');assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[],'Today fixture blocks every write beyond the existing challenge stub');console.log(`Today ${size.width}px ${theme} states: ten fictional activity, food, plan and visibility states; Me card unchanged PASS`);await c.close();continue;}
   }
   await checkChart();await checkTargets();
   const current=weeks.last();assert((await chartState()).atEnd,'This week is visible at the right edge');
