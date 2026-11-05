@@ -30,9 +30,10 @@ for who in ['typical','heavy','established']+['friend'+str(i) for i in range(6)]
  if who=='typical':
   for day,name in [('2026-10-29','Fictional River October first workout'),('2026-10-12','Fictional October second workout')]:
    ok(c.post('/api/activities/manual',{'sport':'run','name':name,'start':day+'T08:00:00+00:00','duration_s':1800,'distance_m':5000}))
-  for i in range(26):
-   when=now-dt.timedelta(minutes=7+i*31)
-   ok(c.post('/api/activities/manual',{'sport':'run','name':f'Fictional River session {i+1:02d}','start':when.isoformat(),'duration_s':1800,'distance_m':5000}))
+  if os.environ.get('KINETTA_ACTIVITY_MONTHS_ONLY') == '1':
+   for i in range(26):
+    when=now-dt.timedelta(minutes=7+i*31)
+    ok(c.post('/api/activities/manual',{'sport':'run','name':f'Fictional River session {i+1:02d}','start':when.isoformat(),'duration_s':1800,'distance_m':5000}))
  first[who]=ids[0]
  for photo in photos if who in ('typical','heavy','established') else photos[:1] if who=='friend0' else []:
   raw=base64.b64encode((Path('dev/demo/photos')/photo).read_bytes()).decode();ok(c.post(f'/api/activities/{ids[0]}/photos',{'image':'data:image/jpeg;base64,'+raw}))

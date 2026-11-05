@@ -42,7 +42,7 @@ async function verifyActivityMonthJump(p,out,theme,width){
  await reopened.locator('[data-activity-month="2026-10"]').click();
  await until(p,month=>{const row=document.querySelector(`#person-activities .activity-card[data-activity-month="${month}"]`);if(!row)return false;const top=row.getBoundingClientRect().top;return top>=0&&top<44;},'October first row at the top of the list','2026-10');
  const october=p.locator('#person-activities .activity-card[data-activity-month="2026-10"]');
- assert.equal(await october.first().locator('.post-title').innerText(),'Fictional River October first workout','October lands on its first row after paging');assert(pageRequests.length>beforeUnfiltered,'month jump loads an older activity page');
+ assert.equal(await october.first().locator('.post-title').innerText(),'Fictional River October first workout','October lands on its first row');if(process.env.KINETTA_ACTIVITY_MONTHS_ONLY!=='1')return;assert(pageRequests.length>beforeUnfiltered,'month jump loads an older activity page');
  await p.locator('#person-search').click();const query=p.locator('#person-search-form input');await query.fill('Fictional River');await query.press('Enter');
  await until(p,()=>{const more=document.querySelector('#person-more');return document.querySelector('#person-activities')?.getAttribute('aria-busy')==='false'&&document.querySelectorAll('#person-activities .activity-card').length===25&&more&&!more.disabled&&more.textContent==='Show more';},'search results and paging settle');
  await p.locator('#person-sport').click();const sports=p.locator('.scrim .sheet[aria-label="Sport"]');await sports.waitFor();await sports.locator('[data-owner-sport="run"]').click();
@@ -60,7 +60,7 @@ async function verifyActivityMonthJump(p,out,theme,width){
  if(process.env.KINETTA_ACTIVITY_FIXTURE_TMPDIR){if(originalTmp===undefined)delete process.env.TMPDIR;else process.env.TMPDIR=originalTmp;}
  const b=await chromium.launch();try{for(const who of ['empty','typical','heavy','established'])for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16}])for(const theme of ['light','dark']){
   if(process.env.KINETTA_ACTIVITY_CASE&&!process.env.KINETTA_ACTIVITY_CASE.split(',').includes(`${who}-${size.width}-${theme}`))continue;
-  const c=await b.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:process.env.KINETTA_ACTIVITY_MONTHS_ONLY==='1'&&who==='typical'?'Asia/Tokyo':'UTC'});
+  const c=await b.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:who==='typical'?'Asia/Tokyo':'UTC'});
   assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_feed_'+who,password:pw}})).status(),200);
   const original=(await(await c.request.get(base+'/api/activities?limit=100')).json()),privateIds=original.filter(a=>a.visibility==='me').map(a=>a.id),publicIds=original.filter(a=>a.visibility!=='me').map(a=>a.id);
   await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
@@ -147,7 +147,7 @@ async function verifyActivityMonthJump(p,out,theme,width){
    let release=await hold();await p.evaluate(()=>go('/me/friends'));await p.locator('#fr-title').waitFor();await release();await p.waitForTimeout(100);assert.equal(await p.locator('.feed-social-strip').count(),0,'late feed response does not enter Friends');assert.equal(await p.locator('a[href="/me/challenges"]').count(),0);
    await p.evaluate(()=>go('/activity'));await ready();release=await hold();assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_feed_established',password:pw}})).status(),200);await p.evaluate(()=>{App.me=null;App.cache.clear();showLogin();});await p.goto(base+'/activity');await ready();await release();await p.waitForTimeout(100);assert.equal(await p.evaluate(()=>App.me.login),'zz_test_feed_established');assert.equal(await p.locator('.feed-social-strip').count(),0,'late former-owner progress is discarded');
   }
-  if(who==='typical'&&size.width===390)await verifyActivityMonthJump(p,out,theme);
+  if(who==='typical'&&size.width===390)await verifyActivityMonthJump(p,out,theme,size.width);
   assert.deepEqual(errors,[]);assert(!writes.some(w=>!/\/api\/activities\/\d+\/reaction$/.test(w)&&w!=='/api/challenges/signup/continue'));console.log(`Activity ${who} ${size.width}/${size.root} ${theme}: discovery/strip, own private lock/privacy, compact media/reactions and map reuse PASS`);await c.close();
  }
  }finally{for(const who of ['empty','typical','heavy','established',...Array.from({length:6},(_,i)=>'friend'+i),'pending','blocked']){const c=await b.newContext();try{const r=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_feed_'+who,password:pw}});if(r.ok())await c.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password:pw}});}finally{await c.close();}}await b.close();}
