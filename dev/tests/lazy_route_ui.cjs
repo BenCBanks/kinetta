@@ -95,8 +95,15 @@ async function holdExplore(page,{instrument=false}={}){
   try{
     await login(accountContext);const page=await accountContext.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
     const delayed=await holdExplore(page,{instrument:true});
-    await page.evaluate(()=>{window.testExploreOwners=[];window.testDeferredPositions=[];const original=render;window.render=options=>{if(options?.routePosition)window.testDeferredPositions.push(options.routePosition.owner===readOwner());return original(options);};});
     await page.goto(base+'/me');await ready(page,meReady);
+    await page.evaluate(()=>{
+      window.testExploreOwners=[];window.testDeferredPositions=[];
+      const original=render;
+      window.render=options=>{
+        if(options?.routePosition)window.testDeferredPositions.push(options.routePosition.owner===readOwner());
+        return original(options);
+      };
+    });
     await page.locator('a[href="/me/explore"]').click();await page.locator('.lazy-route-loading').waitFor();
     await login(accountContext,'zz_test_explore_typical');
     const meResponse=await accountContext.request.get(base+'/api/me');assert.equal(meResponse.status(),200,'second fictional account profile loads');
