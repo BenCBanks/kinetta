@@ -3,6 +3,8 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
+const todayOnly=process.env.KINETTA_ME_TODAY_ONLY==='1';
+const todayInNewYork=()=>{const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()),v=Object.fromEntries(parts.map(p=>[p.type,p.value]));return `${v.year}-${v.month}-${v.day}`;};
 const addDays=(day,count)=>{const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+count);return d.toISOString().slice(0,10);};
 const chartFixture=today=>{
  const noon=new Date(today+'T12:00:00Z'),sunday=addDays(today,-noon.getUTCDay());
@@ -18,15 +20,30 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
  const b=await chromium.launch(),login=await b.newContext();
  await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});
  const storageState=await login.storageState();
- for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16}])for(const theme of ['light','dark']){
+ const sizes=todayOnly?[{width:390,height:844,root:16}]:[{width:390,height:844,root:16},{width:330,height:667,root:16}],themes=todayOnly?['light']:['light','dark'];
+ for(const size of sizes)for(const theme of themes){
   const c=await b.newContext({storageState,viewport:size,colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];
-  let slotFixture='both',zeroDistanceFixture=false,seriesFixture;
+  let slotFixture='both',todayFixture='both',zeroDistanceFixture=false,seriesFixture;
   p.on('pageerror',e=>errors.push(e.message));
   await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
   await c.route('**/api/**',async r=>{
    const q=r.request(),u=new URL(q.url());
    if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);return r.fulfill({json:{}});}
-   if(u.pathname==='/api/me'){const resp=await r.fetch(),j=await resp.json();j.bio='Fictional trails and weekend rides.';return r.fulfill({response:resp,json:j});}
+   if(u.pathname==='/api/me'){const resp=await r.fetch(),j=await resp.json();j.bio='Fictional trails and weekend rides.';j.kcal_target=null;j.protein_target=null;j.units='imperial';return r.fulfill({response:resp,json:j});}
+   if(u.pathname==='/api/activities'&&u.searchParams.has('limit')){
+    const day=todayInNewYork(),hasActivity=todayFixture==='both'||todayFixture==='activity';
+    return r.fulfill({json:hasActivity?[{id:918204,sport:'run',start_time:`${day}T12:12:00Z`,distance_m:9656.064,moving_s:3120,elapsed_s:3180}]:[]});
+   }
+   if(u.pathname==='/api/plans/current')return r.fulfill({json:{plan:null}});
+   if(u.pathname==='/api/food/history'){
+    const hasFood=todayFixture==='both'||todayFixture==='food';
+    return r.fulfill({json:hasFood?[{day:todayInNewYork(),kcal:1250,protein_g:70,carbs_g:120,fat_g:40,n:1}]:[]});
+   }
+   if(u.pathname==='/api/food/day'){
+    const day=u.searchParams.get('d')||todayInNewYork(),hasFood=todayFixture==='both'||todayFixture==='food',logged=todayFixture==='both';
+    const entries=logged?[{id:90001,name:'Fictional oats',source:'manual',kcal:1250,protein_g:70,carbs_g:120,fat_g:40,ref:{}}]:[];
+    return r.fulfill({json:{day,entries,totals:{kcal:logged?1250:0,protein_g:logged?70:0,carbs_g:logged?120:0,fat_g:logged?40:0,fiber_g:0},unknown_nutrients:{kcal:0,protein_g:0,carbs_g:0,fat_g:0,fiber_g:0},targets:{kcal_target:2100,protein_target:130},has_history:hasFood,food_user:hasFood,meal_hours:{}}});
+   }
    if(u.pathname==='/api/notifications/count')return r.fulfill({json:{unread:6,friend_requests:0,friend_count:2}});
    if(u.pathname==='/api/stats'){const resp=await r.fetch(),j=await resp.json();j.week_streak=slotFixture==='short-streak'?1:12;return r.fulfill({response:resp,json:j});}
    if(u.pathname.endsWith('/profile')){
@@ -103,6 +120,42 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    for(let i=0;i<geometry.length;i++){assert(geometry[i].height>=44&&geometry[i].label,'each week has a labelled 44px target');if(i){assert(Math.abs(geometry[i].y-geometry[i-1].y)<.02,'weeks stay on one row');assert(Math.abs(geometry[i].x-geometry[i-1].x-geometry[i-1].width)<.02,'week hit targets have no gaps or overlap');}}
   };
   const screenshot=async name=>{if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/${name}-${size.width}-${size.root}-${theme}.png`,animations:'disabled'});}};
+  if(size.width===390&&size.root===16&&theme==='light'){
+   await p.locator('#t-today[data-loaded-day]').waitFor({state:'attached'});
+   const meCard=p.locator('.me-card'),meCardBefore=await meCard.evaluate(n=>n.outerHTML),share=p.locator('[data-card-share]');
+   const shareLabel=await share.getAttribute('aria-label');assert.equal(shareLabel,'Share your profile');
+   const checkTodayState=async(state)=>{
+    if(state!==todayFixture){todayFixture=state;await p.goto(base+'/me');await waitApp(p);await p.locator('#t-today[data-loaded-day]').waitFor({state:'attached'});await p.locator('.me-card-weekly .me-week').nth(11).waitFor();}
+    const today=p.locator('#t-today'),section=today.locator('.me-today'),activity=today.locator('[data-today-activity]'),food=today.locator('[data-today-food]');
+    assert.equal(await meCard.evaluate(n=>n.outerHTML),meCardBefore,'Today state changes leave all Me card markup unchanged');
+    assert.equal(await share.getAttribute('aria-label'),shareLabel,'the Me card share control stays unchanged');
+    assert.equal(await today.locator('.me-today-head h2').count(),state==='neither'?0:1,'Today is hidden entirely when neither source applies');
+    assert.equal(await today.locator('.me-today p').count(),0,'Today has no connecting sentence or explainer line');
+    assert.doesNotMatch(await today.innerText(),/left to eat|deficit|burned|only|streak/i,'Today has no pressure wording');
+    if(state==='neither'){
+     assert.equal(await activity.count(),0);assert.equal(await food.count(),0);assert((await p.locator('#t-start').innerText()).includes('Get started'),'Get started replaces Today for a neither-user');
+    }else{
+     assert.equal(await activity.count(),state==='both'||state==='activity'?1:0,'activity row appears only for an activity user');
+     assert.equal(await food.count(),state==='both'||state==='food'?1:0,'food row appears only for a food user');
+     assert.equal(await section.locator('.me-today-date').count(),1,'Today date is shown at the right of the header');
+     const rows=await section.locator('.me-today-row').evaluateAll(nodes=>nodes.map(n=>({height:n.getBoundingClientRect().height,text:n.innerText,href:n.getAttribute('href')})));
+     assert(rows.every(row=>row.height>=56),`Today rows are at least 56px tall: ${JSON.stringify(rows)}`);
+     if(state==='both'||state==='activity'){
+      assert.match(await activity.innerText(),/Run · 6\.0 mi · 52 min/);assert.match(await activity.innerText(),/Today at 7:12 AM/);assert.equal(await activity.getAttribute('href'),'/activity/918204');assert(await activity.boundingBox().then(box=>box.height>=56),'activity row is the 56px workout target');
+     }
+     if(state==='both'){
+      assert.match(await food.innerText(),/1,250 \/ 2,100 kcal/);assert.match(await food.innerText(),/70 \/ 130 g protein/);
+     }
+     if(state==='food')assert.match(await food.innerText(),/No food logged today/);
+     if(state==='both'||state==='food'){
+      const add=food.locator('[data-today-add]'),box=await add.boundingBox();assert(box.width>=44&&box.height>=44,'food quick action meets the 44px target');assert.equal(await food.locator('.me-today-copy').getAttribute('href'),`/food?d=${todayInNewYork()}`,'food text opens today’s Nutrition day');
+     }
+    }
+    await screenshot(`today-${state}`);
+   };
+   for(const state of ['both','activity','food','neither'])await checkTodayState(state);
+   if(todayOnly){assert.deepEqual(errors,[],'Today fixture renders without browser errors');assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[],'Today fixture blocks every write beyond the existing challenge stub');console.log('Today 390px light states: both rows, activity only, food only, neither-user hidden; Me card unchanged PASS');await c.close();continue;}
+  }
   await checkChart();await checkTargets();
   const current=weeks.last();assert((await chartState()).atEnd,'This week is visible at the right edge');
   if(size.width===390&&size.root===16)await screenshot('me-card-current-week');
