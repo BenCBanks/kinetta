@@ -1,7 +1,8 @@
 'use strict';
 // Real isolated-account reaction writes; reject unrelated app/provider/device writes.
-const {chromium}=require('playwright'),assert=require('node:assert/strict');
+const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill';
+const shotDir=process.env.KINETTA_REACTION_SHOTS;
 const until=async(p,fn,label,assetFailures)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))return;await p.waitForTimeout(100);}throw Error(label+' '+JSON.stringify({page:await p.evaluate(()=>({url:location.pathname,...(typeof App==='undefined'?{}:{ready:App.pageReady}),body:document.body.innerText.slice(0,250)})),staticAssetFailures:assetFailures}));};
 async function assertCardActions(card,{share,width,label}){
  const footer=card.locator('.post-ft'),react=card.locator('.reaction-more'),comment=card.locator('.activity-comments'),shareButton=card.locator('.post-ft [data-share-picture]');
@@ -15,14 +16,14 @@ async function assertCardActions(card,{share,width,label}){
   const summary=await shortcuts.boundingBox(),padding=await footer.evaluate(n=>parseFloat(getComputedStyle(n).paddingRight)||0);
   assert(summary.x-trailing>=7.5,`${label}: reaction summary has an 8px gap from the last action`);
   assert(Math.abs(summary.x+summary.width-footerBox.x-footerBox.width+padding)<1,`${label}: reaction summary sits at the trailing content edge`);
-  if(width===330)assert(await shortcuts.locator('.reaction-summary-emoji:visible').count()<=2,`${label}: narrow card shows no more than two reaction emojis`);
+  assert.equal(await shortcuts.locator('.reaction-summary-emoji:visible').count(),2,`${label}: summary keeps two emojis visible when they fit`);
  }
 }
 (async()=>{
  const browser=await chromium.launch();let cases=0;
  try{
-  for(const theme of ['light','dark'])for(const size of [{width:390,root:16}])for(const surface of ['friends','profile','own','history']){
-   if(process.env.KINETTA_REACTION_CASE&&process.env.KINETTA_REACTION_CASE!==`${surface}-${size.width}-${theme}`)continue;
+  for(const theme of ['light','dark'])for(const size of [{width:390,root:16},{width:330,root:16}])for(const surface of ['friends','profile','own','history']){
+   if(process.env.KINETTA_REACTION_CASE&&!process.env.KINETTA_REACTION_CASE.split(',').includes(`${surface}-${size.width}-${theme}`))continue;
    const actor=surface==='own'||surface==='history'?'owner':'viewer',c=await browser.newContext({viewport:{width:size.width,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true});
    try{
     assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_inline_'+actor,password:pw}})).status(),200);
@@ -38,6 +39,7 @@ async function assertCardActions(card,{share,width,label}){
     if(ownCard){const url=p.url();await card.locator('.post-ft [data-share-picture]').click();await p.locator('#pi-img').waitFor({state:'attached'});assert.equal(p.url(),url,'Footer Share opens the picture without card navigation');await p.keyboard.press('Escape');}
     assert.equal(await card.locator('.activity-comments').isVisible(),true);assert.equal(await card.locator('.activity-comments .num').isVisible(),false);assert.equal(await group.locator('.reaction-count').isVisible(),false);
     const otherCard=p.locator('article.post').filter({hasText:'Fictional others run'});await otherCard.waitFor();assert(await otherCard.locator('.reaction-shortcuts').isVisible(),'the reaction fixture shows its summary');await assertCardActions(otherCard,{share:ownCard,width:size.width,label:surface+' reacted activity'});
+    if(shotDir&&size.width===390&&['friends','profile','own'].includes(surface)){fs.mkdirSync(shotDir,{recursive:true});await otherCard.evaluate(n=>n.scrollIntoView({block:'center',behavior:'instant'}));await p.waitForTimeout(100);await otherCard.screenshot({path:path.join(shotDir,`${surface}-390-${theme}.png`),animations:'disabled'});}
     const choose=async kind=>{await group.locator('.reaction-more').click();const tray=p.locator('.reaction-picker:not([hidden])');await tray.waitFor({state:'visible'});assert.equal(await tray.locator('[data-react]').count(),16,'all choices for '+kind+' on '+surface+' '+size.width+' '+theme);await tray.locator(`[data-react="${kind}"]`).click();await until(p,()=>!document.querySelector('article.post [aria-busy=true]'),'Save settled');assert.equal(await group.getAttribute('data-mine'),kind);assert.equal(await group.locator('.reaction-more').getAttribute('data-kind'),kind);const choice=await p.evaluate(kind=>App.me.reaction_choices.find(row=>row[0]===kind),kind),label=choice[1];assert.equal(await group.locator('.reaction-more').getAttribute('aria-label'),'Your reaction: '+label+'. Change reaction');if(kind==='lift')assert.equal(await group.locator('.reaction-more .reaction-barbell').count(),1,'selected lift uses the barbell SVG');else assert.equal(await group.locator('.reaction-more').innerText(),choice[2]);const state=await(await c.request.get(base+`/api/activities/${aid}/social`)).json();assert.equal(state.my_reaction,kind);assert.equal(state.reactions[kind],1);assert.equal(Object.values(state.reactions).reduce((n,v)=>n+v,0),1,'one reaction replaces the previous choice');assert(await group.locator('.reaction-more').evaluate(n=>n===document.activeElement),'Focus returns to the reaction action');};
     const kinds=surface==='friends'&&size.width===390&&theme==='light'?(await(await c.request.get(base+'/api/me')).json()).reaction_choices.map(row=>row[0]):['clap','muscle','fire'];for(const kind of kinds)await choose(kind);
     const selected=await group.getAttribute('data-mine');await group.locator('.reaction-more').click();await p.locator(`.reaction-picker:not([hidden]) [data-react="${selected}"]`).click();await until(p,()=>!document.querySelector('article.post [aria-busy=true]'),'Clear settled');assert.equal(await group.getAttribute('data-mine'),'');assert(await group.locator('.reaction-count').isHidden());
