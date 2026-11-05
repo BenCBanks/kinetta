@@ -220,6 +220,10 @@
 .me-card-weekly .me-week.zero > span:first-child { width:2px; }
 .me-card-weekly .me-week-month { display:block; flex:none; width:auto; height:1.2em; min-height:1.2em; margin:0; border-radius:0; background:none; color:var(--tx3); font-size:inherit; line-height:1.2; white-space:nowrap; }
 .me-card-weekly .me-week.now .me-week-month { color:var(--accent); font-weight:700; }
+@media (max-width:360px) {
+ .me-card-weekly .me-week:first-child .me-week-month { transform:translateX(50%); }
+ .me-card-weekly .me-week:last-child .me-week-month { transform:translateX(-50%); }
+}
 /* Your insights: private rows under the card (replaces the second distance chart, 30 Oct 2026). */
 .me-insights h2 { margin:0 0 4px; }
 .me-insight { display:flex; flex-direction:column; gap:6px; padding:12px 0; border-top:1px solid var(--line); color:var(--tx); }
