@@ -15,7 +15,7 @@ async function render(board,search=''){
  const solo={public:true,paused:false,count:1,rows:[{me:true}],me:{rank:1,joined:true}};
  for(const search of ['','?tab=board']){
   const nodes=await render(solo,search),body=nodes.get('#sg-body').innerHTML;
-  assert(!body.includes('data-t="board"'),'solo segment has no leaderboard tab, including old deep links');assert(body.includes('<h2>Your times</h2>'));
+  assert(!body.includes('data-t="board"'),'solo segment has no leaderboard tab, including old deep links');assert(body.includes('<h2 class="sec-head">Your times</h2>'));
   assert.match(nodes.get('#sg-tab').innerHTML,/Your best/);assert.doesNotMatch(nodes.get('#sg-tab').innerHTML,/rank|of 1/,'personal source-restricted effort has no rank');
  }
  for(const data of [{...solo,count:2},{...solo,me:{rank:null},count:1,rows:[{me:false}]}]){
