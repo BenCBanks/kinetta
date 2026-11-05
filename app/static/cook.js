@@ -216,7 +216,7 @@ function recentRecipesSheet(d,set) {
 
 function recipeAmountSheet(d,recipe,set,{chatMessage=null,initialGrams=null}={}) {
   const owner=readOwner(),valid=!!recipe.has_nutrition&&Number(recipe.weight_g)>0;
-  sheet('How much went in?',`<div class="recipe-amount">
+  sheet('Amount to add',`<div class="recipe-amount">
     <p class="recipe-amount-name">${esc(recipe.name)}</p>
     ${valid?`<div class="recipe-amount-quick" role="group" aria-label="Choose an amount"><button type="button" data-recipe-mode="all">All</button><button type="button" data-recipe-mode="half">½</button><button type="button" id="recipe-one-cup">1 cup</button></div>
       <form id="recipe-amount-form"><label for="recipe-amount-grams">Weight</label><span class="gfield"><input id="recipe-amount-grams" name="grams" inputmode="decimal" aria-label="Weight in grams"><span>g</span></span>
