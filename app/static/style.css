@@ -2567,7 +2567,7 @@ button.thread-food:active { opacity: .7; }
 @keyframes refresh-turn {to {transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce) {.page-refresh-button[aria-busy="true"] svg {animation:none}}
 
-/* Food estimate breakdowns keep words readable when text is enlarged on a narrow phone. */
+/* Food estimate breakdowns keep words readable on narrow phones. Kit keeps its one-row nav header. */
 @media (max-width:360px) {
   .food-thread:not(.kit-chat) .thread-heading { grid-template-columns:minmax(0,1fr) auto; }
   .food-thread:not(.kit-chat) .thread-heading h1 { grid-column:1 / -1; grid-row:2; text-align:center; }
