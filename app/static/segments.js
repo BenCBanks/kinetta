@@ -141,11 +141,18 @@ const Segments = (() => {
 
   // ---------- one segment ----------
   async function page(el, id) {
-    const tab = new URLSearchParams(location.search).get('tab') || 'board';
+    const owner=readOwner(),token={};el.segmentView=token;
+    const current=()=>el.isConnected&&el.segmentView===token&&owner===readOwner();
+    const requested=new URLSearchParams(location.search).get('tab');
     el.innerHTML = `<div class="top">${backBtn('Segments')}<span id="sg-acts" class="acts"></span></div><div id="sg-body">${skel(2)}</div>`;
     wireBack(el, '/progress/segments');
     let s; try { s = await api(`/api/segments/${id}`); }
-    catch (e) { $('#sg-body', el).innerHTML = `<div class="card empty"><b>${e.status === 410 ? 'This segment was removed' : 'Segment not found'}</b>${e.status === 410 ? 'It’s no longer available. Times on it were removed with it; the workouts themselves are untouched.' : 'It may be private, or the link may be wrong.'}</div>`; return; }
+    catch (e) { if(!current())return;$('#sg-body', el).innerHTML = `<div class="card empty"><b>${e.status === 410 ? 'This segment was removed' : 'Segment not found'}</b>${e.status === 410 ? 'It’s no longer available. Times on it were removed with it; the workouts themselves are untouched.' : 'It may be private, or the link may be wrong.'}</div>`; return; }
+    if(!current())return;
+    let firstBoard=null,boardError=null;
+    try{firstBoard=await api(`/api/segments/${id}/leaderboard`);}catch(error){boardError=error;}
+    if(!current())return;
+    const hasBoard=otherMembers(firstBoard),tab=hasBoard&&requested==='board'?'board':'mine';
     const body = $('#sg-body', el);
     $('#sg-acts', el).innerHTML = `<button class="icon-btn" id="sg-share" aria-label="Share">${svg('share')}</button><button class="icon-btn" id="sg-menu" aria-label="More">${svg('more')}</button>`;
     body.innerHTML = `<h1>${esc(s.name)}</h1><p class="muted">${esc(sportName(s.sport))} · ${U.dist(s.distance_m)} ${U.du()}${s.ascent_m != null ? ` · ↑ ${U.elev(s.ascent_m)} ${U.eu()}` : ''}${s.creator ? ` · by <a href="/people/${esc(s.creator.login)}">${esc(s.creator.name)}</a>` : ''}</p>
@@ -155,7 +162,7 @@ const Segments = (() => {
       <details class="seg-rules"><summary>Course &amp; timing rules${svg('chev')}</summary><p class="small muted">Fixed course, created ${esc(fdate(s.created, {month: 'short', day: 'numeric', year: 'numeric'}))}. It can’t be edited by anyone, so every time here is on the same course.</p><p class="small muted">One best time per member, in whole seconds; equal times share a place. Only ${sportName(s.sport).toLowerCase()}s shared with Everyone, by members who joined leaderboards, declared outdoors without motor assistance, from the start to the finish in order.</p></details>
       <div class="btnrow seg-btns"><button class="ghost" id="sg-save" aria-pressed="${s.saved}">${svg('bookmark')}${s.saved ? 'Saved' : 'Save'}</button>
         ${s.mine && s.audience === 'me' && s.status === 'active' ? `<button class="primary" id="sg-pub" aria-label="Publish to everyone">Publish</button>` : ''}</div>
-      <div class="seg tabs2" role="tablist"><button role="tab" data-t="board" aria-selected="${tab === 'board'}">Leaderboard</button><button role="tab" data-t="mine" aria-selected="${tab === 'mine'}">Your times</button></div>
+      ${hasBoard ? `<div class="seg tabs2" role="tablist"><button role="tab" data-t="mine" aria-selected="${tab === 'mine'}">Your times</button><button role="tab" data-t="board" aria-selected="${tab === 'board'}">Leaderboard</button></div>` : '<h2>Your times</h2>'}${boardError?`<p class="err" role="alert">${esc(boardError.message)}</p><button class="ghost" id="sg-board-retry">Retry leaderboard</button>`:''}
       <div id="sg-tab"></div>`;
     mapInto($('#sg-map', body), [s.line], {sport: s.sport}).then((v) => v && arrows(v, decode(s.line))).catch(() => {});
     $('#sg-save', body).onclick = async (e) => { const b = e.currentTarget, on = b.getAttribute('aria-pressed') === 'true';
@@ -163,8 +170,10 @@ const Segments = (() => {
     const pub = $('#sg-pub', body); if (pub) pub.onclick = () => publish(s);
     $('#sg-share', el).onclick = () => share(s);
     $('#sg-menu', el).onclick = () => menu(s);
-    $$('[data-t]', body).forEach((b) => b.onclick = () => { history.replaceState(null, '', `/segments/${id}?tab=${b.dataset.t}`); $$('[data-t]', body).forEach((x) => x.setAttribute('aria-selected', String(x === b))); show(b.dataset.t); });
-    const show = (t) => t === 'mine' ? mine($('#sg-tab', body), s) : board($('#sg-tab', body), s);
+    $$('[data-t]', body).forEach((b) => b.onclick = () => { replacePageAddress(el,`/segments/${id}?tab=${b.dataset.t}`); $$('[data-t]', body).forEach((x) => x.setAttribute('aria-selected', String(x === b))); show(b.dataset.t); });
+    const retry=$('#sg-board-retry',body);if(retry)retry.onclick=()=>{if(current())page(el,id);};
+    const show = (t) => {const box=$('#sg-tab',body);box.segmentPane=t;if(t==='mine')mine(box,s);else{board(box,s,null,firstBoard);firstBoard=null;}};
+    if(!hasBoard&&requested==='board')replacePageAddress(el,`/segments/${id}?tab=mine`);
     show(tab);
   }
   async function share(s) {
@@ -206,10 +215,13 @@ const Segments = (() => {
         catch (x) { $('#rp-err', b).textContent = x.message + ' What you wrote is kept.'; } };
     });
   }
-  async function board(box, s, after = null) {
+  const otherMembers = (data) => !!(data?.public&&!data.paused&&data.count>(data.me?.rank?1:0));
+  async function board(box, s, after = null, initial = null) {
+    const owner=readOwner(),active=()=>box.isConnected&&owner===readOwner()&&box.segmentPane==='board';
     if (!after) box.innerHTML = skel(1);
-    let r; try { r = await api(`/api/segments/${s.id}/leaderboard${after ? '?after=' + encodeURIComponent(after) : ''}`); }
-    catch (e) { box.innerHTML = `<p class="err" role="alert">${esc(e.message)}</p><button class="ghost" id="lb-retry">Retry</button>`; $('#lb-retry', box).onclick = () => board(box, s); return; }
+    let r; try { r = initial || await api(`/api/segments/${s.id}/leaderboard${after ? '?after=' + encodeURIComponent(after) : ''}`); }
+    catch (e) { if(!active())return;box.innerHTML = `<p class="err" role="alert">${esc(e.message)}</p><button class="ghost" id="lb-retry">Retry</button>`; $('#lb-retry', box).onclick = () => board(box, s); return; }
+    if(!active())return;
     const row = (x) => `<li class="lb-row${x.me ? ' me' : ''}"><span class="lb-rank num">${x.rank}</span>${avatar({login: x.login, name: x.name, photo: x.photo}, 'sm')}
       <a class="grow" href="/people/${esc(x.login)}"><b>${esc(x.name)}</b>${x.leader ? '<small class="lb-lead">Fastest time</small>' : ''}<small class="muted">${esc(fdate(x.date + 'T12:00:00Z', {month: 'short', day: 'numeric', year: 'numeric'}))}</small></a>
       <span class="lb-time"><b class="num">${dur(x.elapsed_s)}</b><small class="muted num">${pace(x.elapsed_s, s.distance_m, s.sport)}</small></span>
@@ -238,8 +250,10 @@ const Segments = (() => {
     });
   }
   async function mine(box, s) {
+    const owner=readOwner(),active=()=>box.isConnected&&owner===readOwner()&&box.segmentPane==='mine';
     box.innerHTML = skel(1);
-    let r; try { r = await api(`/api/segments/${s.id}/efforts`); } catch (e) { box.innerHTML = `<p class="err" role="alert">${esc(e.message)}</p>`; return; }
+    let r; try { r = await api(`/api/segments/${s.id}/efforts`); } catch (e) { if(!active())return;box.innerHTML = `<p class="err" role="alert">${esc(e.message)}</p>`; return; }
+    if(!active())return;
     box.innerHTML = (r.efforts.length ? `<ol class="card list seg-efforts">${r.efforts.map((e, i) => effortRow(e, s, i === 0 && e.state === 'ok')).join('')}</ol>` : '<div class="card empty"><b>No times yet</b>Record a GPS activity that covers the whole segment, start to finish. Past activities are checked automatically.</div>')
       + (r.near_misses.length ? `<details class="card"><summary>Activities near this segment that didn’t count</summary><ul class="small">${r.near_misses.map((m) => `<li><a href="/activity/${m.activity_id}">${esc(m.name)}</a>: ${esc(m.reason_text)}</li>`).join('')}</ul></details>` : '');
     if(s.mine&&s.audience==='me'&&s.matching_update&&!s.rebuilding){
