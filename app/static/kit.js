@@ -25,8 +25,29 @@ const KitChat = (() => {
     track:[['Choose a workout','Given my current plan and recent training, what should I consider doing next?'],['Help me record','How do I record a workout or strength session in Kinetta?'],['Talk about exercise','Help me choose exercise that fits my goals. Ask me what you need to know.']]};
   const starterIcons={me:['trophy','calendar','help'],nutrition:['food','pot','help'],activity:['run','calendar','heart'],progress:['trophy','calendar','sparkle'],plan:['calendar','edit','help'],strength:['workout','calendar','edit'],track:['run','edit','heart']};
   let current,entryDraft;
+  const tabEntryUsers=new Set(),activityEntryUsers=new Map(),activityEntryRequests=new Map();
   const owner=()=>App.me&&JSON.stringify([Native.base||location.origin,App.me.id]);
   const key=(o,k)=>'fit.kit.'+k+':'+o;
+  function entryRelevant(path,enabled=kitChatOn()){
+    const o=owner();if(o&&['/food','/activity','/track'].includes(path))tabEntryUsers.add(o);
+    return enabled||!!(App.me?.food_user||App.me?.kcal_target)||!!o&&(tabEntryUsers.has(o)||activityEntryUsers.get(o)===true);
+  }
+  function checkActivityEntry(el,path){
+    const o=owner();if(!o||activityEntryUsers.has(o))return Promise.resolve(false);
+    if(activityEntryRequests.has(o))return activityEntryRequests.get(o);
+    const cached=App.cache?.get('/api/activities?limit=1')?.data||kept('/api/activities?limit=1');
+    if(Array.isArray(cached)){
+      const used=cached.length>0;activityEntryUsers.set(o,used);
+      if(used){const page=document.querySelector('#page');if(page?.isConnected)entry(page,location.pathname);}
+      return Promise.resolve(used);
+    }
+    const pending=readOnce('/api/activities?limit=1').then(rows=>{
+      const used=Array.isArray(rows)&&rows.length>0;if(owner()!==o)return false;activityEntryUsers.set(o,used);
+      if(used){const page=document.querySelector('#page');if(page?.isConnected)entry(page,location.pathname);}
+      return used;
+    }).catch(()=>{if(owner()===o)activityEntryUsers.set(o,false);return false;}).finally(()=>activityEntryRequests.delete(o));
+    activityEntryRequests.set(o,pending);return pending;
+  }
   const active=c=>current===c&&!c.closed&&c.el.isConnected&&c.owner===owner()&&c.session===readOwner();
   const save=(c,k,v)=>{localStorage.setItem(key(c.owner,k),JSON.stringify(v));};
   const status=(c,text)=>{if(active(c))$('#kit-status',c.el).textContent=text||'';};
@@ -255,18 +276,20 @@ const KitChat = (() => {
     controls(c);resize();await begin(c);
     if(active(c))c.view.pin(true);
   }
-  function eraseDevice(){const o=owner();entryDraft=null;if(current){clearTimeout(current.timer);current.view?.dispose();current=null;}if(o){for(const k of ['draft','pending'])localStorage.removeItem(key(o,k));for(const k of Object.keys(localStorage))if(k.startsWith('fit.kit.proposal:'+o+':'))localStorage.removeItem(k);}}
+  function eraseDevice(){const o=owner();entryDraft=null;if(current){clearTimeout(current.timer);current.view?.dispose();current=null;}if(o){tabEntryUsers.delete(o);activityEntryUsers.delete(o);activityEntryRequests.delete(o);for(const k of ['draft','pending'])localStorage.removeItem(key(o,k));for(const k of Object.keys(localStorage))if(k.startsWith('fit.kit.proposal:'+o+':'))localStorage.removeItem(k);}}
   function entry(el,path){
     const screen=/^\/track\/lift\/\d+$/.test(path)?'strength':{'/me':'me','/food':'nutrition','/food/insights':'nutrition','/activity':'activity','/progress':'progress','/track':'track','/plan':'plan'}[path];
     if(!el||!screen)return;
     const insights=path==='/food'&&new URLSearchParams(globalThis.location?.search).get('view')==='overview';
     const heading=insights?el.querySelector('#nt-coach'):el.querySelector('.top,.me-top');if(!heading)return;
+    const enabled=kitChatOn();
+    if(!entryRelevant(path,enabled)){el.querySelector('[data-kit-entry]')?.remove();return checkActivityEntry(el,path);}
     let link=el.querySelector('[data-kit-entry]');
     if(!link){link=document.createElement('a');link.className='icon-btn kit-help';link.setAttribute('data-kit-entry','');link.innerHTML=svg('sparkle');(heading.querySelector('.acts,.me-profile-tools')||heading).append(link);}
-    const enabled=kitChatOn();link.href=enabled?href(screen):'/food?add=1';link.setAttribute('aria-label',enabled?'Ask Kit':'Add food');link.title=enabled?'Ask Kit':'Add food';
+    link.href=enabled?href(screen):'/food?add=1';link.setAttribute('aria-label',enabled?'Ask Kit':'Add food');link.title=enabled?'Ask Kit':'Add food';
     if(insights)heading.classList.add('insights-kit-entry');
   }
-  return {mount,href,open,entry,eraseDevice,starters,actions,memorySettings,savedReviews,foodIntent};
+  return {mount,href,open,entry,entryRelevant,eraseDevice,starters,actions,memorySettings,savedReviews,foodIntent};
 })();
 route(/^\/me\/kit$/,()=>({nutrition:'food',activity:'activity',progress:'progress',track:'track',strength:'track'}[new URLSearchParams(location.search).get('from')]||'me'),el=>KitChat.mount(el));
 function kitReview(selection, options = {}) {

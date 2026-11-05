@@ -2557,7 +2557,8 @@ button.thread-food:active { opacity: .7; }
 .kit-chat .kit-food-inline > #thread-messages[hidden] {display:none;}
 .kit-chat .kit-food-inline > #thread-composer {display:contents;position:static;margin:0;padding:0;background:transparent;}
 .kit-chat .kit-food-inline > #thread-composer > :not(#thread-review):not(#thread-status) {display:none!important;}
-.kit-chat .kit-food-inline > #thread-composer > #thread-review {margin:4px 0 0;}
+.kit-chat .kit-food-inline:has(#thread-review:not([hidden])) #thread-messages article:last-child .thread-card {border-bottom:0;border-bottom-right-radius:0;border-bottom-left-radius:0;}
+.kit-chat .kit-food-inline > #thread-composer > #thread-review {margin:0;border-top:0;border-bottom:1px solid var(--line);border-radius:0 0 20px 6px;}
 .kit-chat .kit-food-inline > #thread-composer > #thread-status:not(:empty) {display:block;color:var(--tx2);font-size:.85rem;}
 .kit-answer>p {white-space:pre-line;}
 .kit-facts {font-size:.9rem;margin:12px 0;}
