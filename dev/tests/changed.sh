@@ -132,7 +132,7 @@ for group in $group_order; do
     food) tests="food_entry_ui.cjs nutrition_ui.cjs food_memory_ui.cjs recipes_compact_ui.cjs insights_ui.cjs goals_ui.cjs" ;;
     social) tests="activity_home_ui.cjs activity_detail_ui.cjs notification_edit_ui.cjs inline_reactions_ui.cjs inline_reactions_actions.cjs friends_ui.cjs back_navigation_ui.cjs" ;;
     track) tests="track_home_ui.cjs top_chips_ui.cjs track_ready_map_ui.cjs interval_voice_ui.cjs map_ui.cjs tracking_ui.cjs edit_activity_ui.cjs map_feedback_ui.cjs" ;;
-    lift) tests="lift_compact_ui.cjs lift_ui.cjs" ;;
+    lift) tests="lift_compact_ui.cjs lift_ui.cjs lift_lazy_route_ui.cjs" ;;
     plan) tests="plan_ui.cjs" ;;
     progress) tests="progress_ui.cjs fitness_ui.cjs heatmap_ui.cjs recaps_ui.cjs weight_progress_ui.cjs weight_progress_actions.cjs weight_progress_journeys.cjs weight_undo_ui.cjs profile_card_ui.cjs" ;;
     profile) tests="profile_card_ui.cjs me_card_ui.cjs personal_notifications_ui.cjs notification_settings_ui.cjs password_visibility_ui.cjs" ;;

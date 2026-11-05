@@ -107,7 +107,7 @@
     },
     {
       "id": "lift-1",
-      "source": "app/static/lift.js",
+      "source": "app/static/lift-routes.js",
       "pattern": "/^\\/lift\\/(\\d+)$/",
       "paths": [
         "/lift/{lift}"
@@ -115,7 +115,7 @@
     },
     {
       "id": "lift-2",
-      "source": "app/static/lift.js",
+      "source": "app/static/lift-routes.js",
       "pattern": "/^\\/track\\/lift\\/(\\d+)$/",
       "paths": [
         "/track/lift/{lift}"
@@ -123,7 +123,7 @@
     },
     {
       "id": "lift-3",
-      "source": "app/static/lift.js",
+      "source": "app/static/lift-routes.js",
       "pattern": "/^\\/lift\\/ex\\/(\\d+)$/",
       "paths": [
         "/lift/ex/{exercise}"
@@ -131,7 +131,7 @@
     },
     {
       "id": "lift-4",
-      "source": "app/static/lift.js",
+      "source": "app/static/lift-routes.js",
       "pattern": "/^\\/lift\\/history\\/workout\\/(\\d+)$/",
       "paths": [
         "/lift/history/workout/{lift}"
@@ -139,7 +139,7 @@
     },
     {
       "id": "lift-5",
-      "source": "app/static/lift.js",
+      "source": "app/static/lift-routes.js",
       "pattern": "/^\\/lift\\/history\\/exercise\\/(\\d+)$/",
       "paths": [
         "/lift/history/exercise/{exercise}"

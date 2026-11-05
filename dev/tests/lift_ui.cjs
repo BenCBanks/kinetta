@@ -13,6 +13,9 @@ async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))
    assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}})).status(),200);
    await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
    await p.goto(base+'/me');await until(p,()=>App.pageReady);
+   // The logger now lives in the guarded lift-routes bundle; load it through a real deferred route before
+   // exercising its controls directly below. The eager Me/Track summary seam has already been checked above.
+   await p.goto(base+'/lift/ex/999905');await until(p,()=>App.pageReady);
    const start=new Date().toISOString(),past='2026-09-01T12:00:00Z';
    const exercises=[{exercise_id:999902,name:'Fictional bench press',kind:'weight',sets:[{kg:null,reps:null,done:false}],last:{activity_id:999900,start_time:past,sets:[{kg:60,reps:8}]}},
      {exercise_id:999903,name:'Fictional push-up',kind:'body',sets:[{reps:null,done:false}],last:{activity_id:999900,start_time:past,sets:[{reps:12}]}},
