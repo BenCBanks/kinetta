@@ -27,6 +27,9 @@ for who in ['typical','heavy','established']+['friend'+str(i) for i in range(6)]
   name=['Fictional short route','Fictional long route','Fictional formerly clipped route'][i] if i<3 else 'Fictional trail session '+str(i+1)
   aid=ok(c.post('/api/activities/manual',{'sport':'run' if i%2==0 else 'walk','name':name,'start':when.isoformat(),'duration_s':1500+i*60,'distance_m':5000 if i%2==0 else 2400}))['id'];ids.append(aid)
   ok(c.put(f'/api/activities/{aid}/sharing',{'visibility':'me' if i==1 else 'friends'}))
+ if who=='typical':
+  for day,name in [('2026-10-29','Fictional October first workout'),('2026-10-12','Fictional October second workout')]:
+   ok(c.post('/api/activities/manual',{'sport':'run','name':name,'start':day+'T08:00:00+00:00','duration_s':1800,'distance_m':5000}))
  first[who]=ids[0]
  for photo in photos if who in ('typical','heavy','established') else photos[:1] if who=='friend0' else []:
   raw=base64.b64encode((Path('dev/demo/photos')/photo).read_bytes()).decode();ok(c.post(f'/api/activities/{ids[0]}/photos',{'image':'data:image/jpeg;base64,'+raw}))

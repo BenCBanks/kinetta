@@ -20,6 +20,27 @@ async function assertCardActions(card,{share,width,label}){
   const expectedEmojis=share&&width===330?1:2;assert.equal(await shortcuts.locator('.reaction-summary-emoji:visible').count(),expectedEmojis,`${label}: summary keeps ${expectedEmojis} emoji${expectedEmojis===1?'':'s'} at ${width}px`);
  }
 }
+async function verifyActivityMonthJump(p,out,theme){
+ await p.goto(base+'/people/zz_test_feed_typical');await p.locator('#person-activities .activity-card').first().waitFor();
+ const header=p.locator('.profile-activity-tools'),button=p.locator('#person-month');await button.waitFor();
+ await p.evaluate(()=>{document.documentElement.style.scrollBehavior='auto';});await header.evaluate(n=>n.scrollIntoView({block:'start'}));
+ await until(p,()=>{const top=document.querySelector('.profile-activity-tools')?.getBoundingClientRect().top;return top!=null&&top>=0&&top<80;},'activity header in view');assert.equal(await button.innerText(),'Month ⌄');
+ assert.equal(await p.locator('.profile-list-filters').count(),1,'month stays in the existing list header');
+ assert.equal(await button.evaluate(n=>getComputedStyle(n).backgroundColor),'rgba(0, 0, 0, 0)','Month is a plain text control, not a grey pill');
+ await button.click();const sheet=p.locator('.scrim .sheet[aria-label="Month"]');await sheet.waitFor();await p.waitForTimeout(250);
+ const months=await sheet.locator('[data-activity-month]').evaluateAll(nodes=>nodes.map(n=>({month:n.dataset.activityMonth,count:Number(n.querySelector('.val')?.textContent)})));
+ assert.deepEqual(months.map(x=>x.month),[...months.map(x=>x.month)].sort((a,b)=>b.localeCompare(a)),'months are newest first');
+ assert.deepEqual(months.find(x=>x.month==='2026-10'),{month:'2026-10',count:2},'October shows its activity count');
+ assert(months.length>=2,'only months with activities are listed');
+ if(out)await p.screenshot({path:path.join(out,`activity-month-open-390-${theme}.png`),animations:'disabled'});
+ await p.keyboard.press('Escape');await p.locator('.scrim').waitFor({state:'detached'});await p.evaluate(()=>{document.documentElement.style.scrollBehavior='auto';document.scrollingElement.scrollTop=0;});
+ if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`activity-month-closed-390-${theme}.png`),animations:'disabled'});}
+ await button.click();const reopened=p.locator('.scrim .sheet[aria-label="Month"]');await reopened.waitFor();
+ await reopened.locator('[data-activity-month="2026-10"]').click();
+ await until(p,month=>{const row=document.querySelector(`#person-activities .activity-card[data-activity-month="${month}"]`);if(!row)return false;const top=row.getBoundingClientRect().top;return top>=0&&top<44;},'October first row at the top of the list','2026-10');
+ const october=p.locator('#person-activities .activity-card[data-activity-month="2026-10"]');
+ assert.equal(await october.first().locator('.post-title').innerText(),'Fictional October first workout','October lands on its first row');
+}
 (async()=>{
  cp.execFileSync('python3',[path.join(__dirname,'activity_fixture.py')],{env:process.env,stdio:'inherit'});
  const b=await chromium.launch();try{for(const who of ['empty','typical','heavy','established'])for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16}])for(const theme of ['light','dark']){
@@ -31,6 +52,10 @@ async function assertCardActions(card,{share,width,label}){
   await c.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>{const original=window.mapInto;if(typeof original!=='function')return;window.activityCardMapFits=[];window.mapInto=async(el,lines,options)=>{const view=await original(el,lines,options);if(view&&el.closest('.activity-card')){const pts=lines.flatMap(line=>typeof line==='string'?decode(line):line),px=pts.map(point=>view.map.latLngToContainerPoint(point)),size=view.map.getSize();window.activityCardMapFits.push({width:size.x,height:size.y,minX:Math.min(...px.map(p=>p.x)),maxX:Math.max(...px.map(p=>p.x)),minY:Math.min(...px.map(p=>p.y)),maxY:Math.max(...px.map(p=>p.y))});}return view;};}));
   const p=await c.newPage(),errors=[],failures=[],writes=[];p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});p.on('response',r=>{if(r.url().startsWith(base)&&r.status()>=400)failures.push(`${r.status()} ${new URL(r.url()).pathname}`);});p.on('requestfailed',r=>{if(r.url().startsWith(base))failures.push(`request failed ${new URL(r.url()).pathname}`);});
   await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin===base&&u.pathname==='/api/map-config'&&q.method()==='GET')return r.fulfill({json:{kind:'raster',url:base+'/mock-map/light/{z}/{x}/{y}.svg',dark_url:base+'/mock-map/dark/{z}/{x}/{y}.svg',max_zoom:18,attribution:'Kinetta test basemap'}});if(u.origin===base&&u.pathname.startsWith('/mock-map/'))return r.fulfill({status:200,contentType:'image/svg+xml',headers:{'access-control-allow-origin':'*'},body:u.pathname.includes('/dark/')?darkMapTile:lightMapTile});if(u.origin!==base)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(/\/api\/activities\/\d+\/reaction$/.test(u.pathname))return r.continue();return r.fulfill({json:{}});}return r.continue();});
+  if(process.env.KINETTA_ACTIVITY_MONTHS_ONLY==='1'){
+   if(who==='typical'&&size.width===390)await verifyActivityMonthJump(p,out,theme);
+   assert.deepEqual(errors,[]);assert(!writes.some(w=>w!=='/api/challenges/signup/continue'),'month navigation does not write records');console.log(`Activity month jump 390px ${theme}: counts, October first-row scroll and screenshots PASS`);await c.close();continue;
+  }
   await p.goto(base+'/activity');const ready=async()=>{try{await until(p,()=>App.pageReady&&!!document.querySelector('#ff-list')&&document.querySelector('#feed-tools')?.getAttribute('aria-busy')==='false','social tools and feed ready');}catch(e){const state=await p.evaluate(()=>({path:location.pathname,pageReady:typeof App!=='undefined'&&App.pageReady,signedIn:typeof App!=='undefined'&&!!App.me,feed:!!document.querySelector('#ff-list'),tools:!!document.querySelector('#feed-tools'),busy:document.querySelector('#feed-tools')?.getAttribute('aria-busy')}));throw Error(`${e.message}; state=${JSON.stringify(state)}; browser=${errors.join(' | ')}; requests=${failures.join(' | ')}`);}};await ready();
   assert.equal(await p.locator('h1').innerText(),'Activity');assert.equal(await p.locator('a[aria-label="Find friends"],[data-activity-feature=find]').count(),['heavy','established'].includes(who)?0:1,'low-friend discovery keeps Find friends; established accounts use Challenges');
   assert.equal(await p.locator('.feed-low').count(),['heavy','established'].includes(who)?0:1);assert.equal(await p.locator('.feed-discovery').count(),0,'old full-width duplicate is gone');
@@ -107,6 +132,7 @@ async function assertCardActions(card,{share,width,label}){
    let release=await hold();await p.evaluate(()=>go('/me/friends'));await p.locator('#fr-title').waitFor();await release();await p.waitForTimeout(100);assert.equal(await p.locator('.feed-social-strip').count(),0,'late feed response does not enter Friends');assert.equal(await p.locator('a[href="/me/challenges"]').count(),0);
    await p.evaluate(()=>go('/activity'));await ready();release=await hold();assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_feed_established',password:pw}})).status(),200);await p.evaluate(()=>{App.me=null;App.cache.clear();showLogin();});await p.goto(base+'/activity');await ready();await release();await p.waitForTimeout(100);assert.equal(await p.evaluate(()=>App.me.login),'zz_test_feed_established');assert.equal(await p.locator('.feed-social-strip').count(),0,'late former-owner progress is discarded');
   }
+  if(who==='typical'&&size.width===390)await verifyActivityMonthJump(p,out,theme);
   assert.deepEqual(errors,[]);assert(!writes.some(w=>!/\/api\/activities\/\d+\/reaction$/.test(w)&&w!=='/api/challenges/signup/continue'));console.log(`Activity ${who} ${size.width}/${size.root} ${theme}: discovery/strip, own private lock/privacy, compact media/reactions and map reuse PASS`);await c.close();
  }
  }finally{for(const who of ['empty','typical','heavy','established',...Array.from({length:6},(_,i)=>'friend'+i),'pending','blocked']){const c=await b.newContext();try{const r=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_feed_'+who,password:pw}});if(r.ok())await c.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password:pw}});}finally{await c.close();}}await b.close();}

@@ -13,6 +13,79 @@ function headline(a) {
     a.avg_hr ? stat('Avg HR', Math.round(a.avg_hr), 'bpm') : stat('Effort', a.effort ? Math.round(a.effort) : '–');
   return first + (a.distance_m ? (r.label==='Time' ? (a.avg_hr?stat('Avg HR',Math.round(a.avg_hr),'bpm'):'') : stat(r.label,r.v,r.u)) : (a.effort ? stat('Effort', Math.round(a.effort)) : stat('Calories', a.calories ? Math.round(a.calories) : '–'))) + third;
 }
+function activityMonthKey(iso) {
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return '';
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {timeZone:tz(),year:'numeric',month:'2-digit'}).formatToParts(date).map(p => [p.type,p.value]));
+  return parts.year && parts.month ? `${parts.year}-${parts.month}` : '';
+}
+function activityMonthName(month) { return fdate(`${month}-01T12:00:00`, {month:'long',year:'numeric'}); }
+
+// The owner history is rendered by the profile route; enhance its activity-list header here so the
+// activity lane can own this control without changing the separate social/profile controller.
+async function jumpOwnerActivitiesToMonth(list, month, button) {
+  const owner = readOwner(), active = () => list.isConnected && owner === readOwner();
+  const matches = () => $$('.activity-card[data-activity-month="' + month + '"]', list);
+  const more = $('#person-more', list.parentElement);
+  button.disabled = true;
+  try {
+    while (active() && !matches().length && more && !more.hidden && typeof more.onclick === 'function') {
+      if (more.disabled) break;
+      const before = $$('.activity-card', list).length;
+      await more.onclick.call(more);
+      if (!active() || $$('.activity-card', list).length <= before) break;
+    }
+    if (!active()) return;
+    const first = matches()[0];
+    if (!first) { toast(`No matching activities in ${activityMonthName(month)}.`); return; }
+    first.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
+  } finally {
+    if (button.isConnected) button.disabled = false;
+  }
+}
+async function openOwnerActivityMonths(button, list) {
+  const owner = readOwner();
+  button.disabled = true;
+  try {
+    const data = await api('/api/progress/volume?period=month');
+    if (!list.isConnected || owner !== readOwner()) return;
+    const counts = new Map();
+    for (const row of data.rows || []) {
+      const month = String(row.p || '').slice(0, 7);
+      if (/^\d{4}-\d{2}$/.test(month)) counts.set(month, (counts.get(month) || 0) + Number(row.n || 0));
+    }
+    const months = [...counts].filter(([, count]) => count > 0).sort(([a],[b]) => b.localeCompare(a));
+    const rows = months.length ? months.map(([month, count]) => {
+      const name = activityMonthName(month), noun = count === 1 ? 'activity' : 'activities';
+      return `<button type="button" class="row-link" data-activity-month="${month}" aria-label="${esc(name)}, ${count} ${noun}"><span class="grow">${esc(name)}</span><span class="val num">${count.toLocaleString()}</span></button>`;
+    }).join('') : '<p class="small muted">No activities yet.</p>';
+    sheet('Month', `<div class="profile-month-options">${rows}</div>`, (body, close) => {
+      $$('[data-activity-month]', body).forEach(row => row.onclick = () => {
+        const month = row.dataset.activityMonth;
+        close();
+        jumpOwnerActivitiesToMonth(list, month, button).catch(error => toast(error.message));
+      });
+    });
+  } catch (error) {
+    if (list.isConnected && owner === readOwner()) toast(error.message);
+  } finally {
+    if (button.isConnected) button.disabled = false;
+  }
+}
+function mountOwnerActivityMonthJump() {
+  const profile = $('#person-profile');
+  if (!profile) return;
+  const filters = $('.profile-list-filters', profile), list = $('#person-activities', profile);
+  if (!filters || !list || !$('#person-sport', filters) || $('#person-month', filters)) return;
+  const button = document.createElement('button');
+  button.type = 'button'; button.id = 'person-month'; button.setAttribute('aria-label', 'Choose activity month');
+  button.setAttribute('aria-haspopup', 'dialog'); button.textContent = 'Month ⌄';
+  button.onclick = () => openOwnerActivityMonths(button, list);
+  filters.insertBefore(button, $('#person-sport', filters));
+}
+const ownerActivityMonthObserver = new MutationObserver(mountOwnerActivityMonthJump);
+ownerActivityMonthObserver.observe($('#app'), {childList:true,subtree:true});
+mountOwnerActivityMonthJump();
 // One card for every activity list: title and person, a full-width map with overlay metrics, then footer actions.
 function postCard(a, {compact = false, lock = false} = {}) {
   const theirs = !!a.owner, href = theirs ? `/activity/friends/${a.id}` : `/activity/${a.id}`;
@@ -32,7 +105,7 @@ function postCard(a, {compact = false, lock = false} = {}) {
   const media=activityMedia(a,{compact,mapMetrics:a.line?postMapMetrics(a):''});
   const details=`${!theirs && a.lifts && a.lifts.names ? `<p class="post-lifts">${esc(a.lifts.names.slice(0, 4).join(' · '))}${a.lifts.names.length > 4 ? ` +${a.lifts.names.length - 4}` : ''}</p>` : ''}${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}`;
   const summary=a.line?details:`<div class="post-summary"><div class="stats3">${theirs ? sharedHeadline(a) : headline(a)}</div>${details}</div>`;
-  return `<article class="card post activity-card" data-href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}"><div class="post-hd post-profile post-link">${head}</div>${media}${summary?`<div class="post-extra">${summary}</div>`:''}<div class="post-ft">${foot}</div></article>`;
+  return `<article class="card post activity-card" data-href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}" data-activity-month="${activityMonthKey(a.start_time)}"><div class="post-hd post-profile post-link">${head}</div>${media}${summary?`<div class="post-extra">${summary}</div>`:''}<div class="post-ft">${foot}</div></article>`;
 }
 function sharedHeadline(a) {   // what a friend shares: no pace when they keep pace to themselves
   const st = [];
