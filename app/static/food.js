@@ -194,14 +194,14 @@ async function foodDiscovery(el) {
     if(!valid())return;
     const f=facts.food,change=f?.weight_change_kg;
     const items=[
-      {id:'recipes',title:'Recipes & cooking',description:'Save your meals →',icon:'pot',href:'/food/meals',teaser:f?.library_items>0?`${f.library_items} saved ${f.library_items===1?'item':'items'}`:null},
-      {id:'overview',title:'Insights',description:'See food trends →',icon:'sparkle',href:'/food?view=overview',teaser:Number.isInteger(f?.protein_days)?`Protein goal ${f.protein_days}/7`:f?.logged_days>0?`${f.logged_days} logged days`:null},
-      {id:'weight',title:'Weight',description:'Log a weigh-in →',icon:'scale',href:'/progress/weight?from=nutrition',teaser:change!=null?change===0?'Weight trend is steady':`${change<0?'−':'+'}${U.weight(Math.abs(change))} ${imp()?'lb':'kg'} trend`:f?.weight_kg!=null?`${U.weight(f.weight_kg)} ${imp()?'lb':'kg'} last logged`:null},
-      {id:'goals',title:'Calorie & macro goals',description:'Set your daily targets →',icon:'target',href:'/food?goals=1'},
-      {id:'needs',title:'Calorie needs',description:'Your daily needs →',icon:'target',href:'/food?view=needs'},
-      {id:'calendar',title:'Food calendar',description:'Review a logged day →',icon:'calendar',href:'/food?view=calendar',teaser:f?.logged_days>0?`${f.logged_days} logged days`:null},
-      {id:'reminders',title:'Meal reminders',description:f?'Off · Set times →':'Choose times →',icon:'bell',href:'/me/notifications',teaser:f?.reminders_on?'On · Review times':null},
-      ...(Native.on?[{id:'health',title:'Health app sync',description:facts.health==='unavailable'?'Check Health →':facts.health===undefined?'Set up Health →':'Off · Set up →',icon:'heart',href:'/track/health',teaser:facts.health&&facts.health!=='unavailable'?facts.health:null}]:[{id:'import',title:'Add past days',description:'Bring in weight and calories →',icon:'upload',href:'/food/import'}])
+      {id:'recipes',title:'Recipes & cooking',description:'Save your meals',icon:'pot',href:'/food/meals',teaser:f?.library_items>0?`${f.library_items} saved ${f.library_items===1?'item':'items'}`:null},
+      {id:'overview',title:'Insights',description:'See food trends',icon:'sparkle',href:'/food?view=overview',teaser:Number.isInteger(f?.protein_days)?`Protein goal ${f.protein_days}/7`:f?.logged_days>0?`${f.logged_days} logged days`:null},
+      {id:'weight',title:'Weight',description:'Log a weigh-in',icon:'scale',href:'/progress/weight?from=nutrition',teaser:change!=null?change===0?'Weight trend is steady':`${change<0?'−':'+'}${U.weight(Math.abs(change))} ${imp()?'lb':'kg'} trend`:f?.weight_kg!=null?`${U.weight(f.weight_kg)} ${imp()?'lb':'kg'} last logged`:null},
+      {id:'goals',title:'Calorie & macro goals',description:'Set your daily targets',icon:'target',href:'/food?goals=1'},
+      {id:'needs',title:'Calorie needs',description:'Your daily needs',icon:'target',href:'/food?view=needs'},
+      {id:'calendar',title:'Food calendar',description:'Review a logged day',icon:'calendar',href:'/food?view=calendar',teaser:f?.logged_days>0?`${f.logged_days} logged days`:null},
+      {id:'reminders',title:'Meal reminders',description:f?'Off · Set times':'Choose times',icon:'bell',href:'/me/notifications',teaser:f?.reminders_on?'On · Review times':null},
+      ...(Native.on?[{id:'health',title:'Health app sync',description:facts.health==='unavailable'?'Check Health':facts.health===undefined?'Set up Health':'Off · Set up',icon:'heart',href:'/track/health',teaser:facts.health&&facts.health!=='unavailable'?facts.health:null}]:[{id:'import',title:'Add past days',description:'Bring in weight and calories',icon:'upload',href:'/food/import'}])
     ];
     Discovery.render(grid,items,{space:'nutrition',ready,attribute:'data-nutrition-feature'});
   };
@@ -271,7 +271,7 @@ function drawDay(el, D) {
   $('#fd-details',el).replaceChildren();
   if (fresh) firstFood($('#fd-sum', el), D.day);
   else $('#fd-sum', el).innerHTML = `<div class="card tcard balance nutrition-day-summary">
-      <a class="nutrition-summary-link" href="/food?view=overview"><span class="vh">Nutrition overview and details. </span><div class="nutrition-summary"><div><small class="eyebrow">${left == null ? 'Calories eaten' : left < 0 ? 'Above goal' : 'Calories remaining'}</small><div class="hero-num">${r0(left == null ? eaten : Math.abs(left))}<i>kcal</i></div>${goal == null ? '' : `<p class="small muted">${r0(eaten)} eaten of ${r0(goal)}</p>`}</div></div>
+      <a class="nutrition-summary-link" href="/food?view=overview"><span class="vh">Nutrition overview and details. </span><div class="nutrition-summary"><div><small class="eyebrow">${left == null ? 'Calories logged' : left < 0 ? 'Above goal' : 'Calories remaining'}</small><div class="hero-num">${r0(left == null ? eaten : Math.abs(left))}<i>kcal</i></div>${goal == null ? '' : `<p class="small muted">${r0(eaten)} logged of ${r0(goal)}</p>`}</div></div>
       ${goal ? `<div class="track"><div class="bar${left < 0 ? ' over' : ''}" data-w="${Math.min(1,eaten/goal).toFixed(3)}"></div></div>` : ''}
       <div class="macro-bars"><div class="macro m-protein_g"><div class="macro-line"><b>Protein</b><span class="num">${macroTotal(D,'protein_g',t.protein_target)}</span></div>${t.protein_target&&!D.unknown_nutrients?.protein_g?`<div class="track"><div class="bar m-protein_g" data-w="${Math.min(1,(T.protein_g||0)/t.protein_target).toFixed(3)}"></div></div>`:''}</div></div>
       <div class="small muted nutrition-other-macros">Carbs <span class="num">${macroTotal(D,'carbs_g')}</span> · Fat <span class="num">${macroTotal(D,'fat_g')}</span>${svg('chev')}</div></a>
@@ -302,7 +302,7 @@ function drawDay(el, D) {
   const by = {breakfast: [], lunch: [], dinner: [], snacks: []}; for (const e of D.entries) by[e.meal].push(e);
   $('#fd-meals', el).innerHTML = Object.keys(MEAL_NAMES).map((m) => {
     const list = by[m], kc = list.reduce((s, e) => s + e.kcal, 0);
-    if (!list.length) return `<section class="card meal empty-meal meal-${m}"><h2>${MEAL_NAMES[m]}<button class="linkbtn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">+ Add</button></h2></section>`;
+    if (!list.length) return `<section class="card meal meal-${m}"><h2><span>${MEAL_NAMES[m]}</span><span class="meal-actions"><button class="icon-btn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">${svg('plus')}</button></span></h2></section>`;
     return `<section class="card meal meal-${m}"><h2><span>${MEAL_NAMES[m]}</span><span class="muted small num">${r0(kc)} kcal</span><span class="meal-actions"><button class="icon-btn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">${svg('plus')}</button><button class="icon-btn" data-more="${m}" aria-label="Edit ${MEAL_NAMES[m].toLowerCase()}">${svg('more')}</button></span></h2>
       ${list.map((e) => { const fe = `<button class="fe${e.pending ? ' pending' : ' sw-row'}" data-id="${e.id}"><span class="vh">Edit </span><div><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></div>
         <div class="r meal-calories"><b class="num">${r0(e.kcal)}</b> <small class="muted">kcal</small></div></button>`;
@@ -1288,7 +1288,7 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
   const html = {overview: `${hasFood?`<section class="card insights-summary">
       <a class="insights-chart" href="${esc(nutritionHref('energy'))}" aria-label="Calories eaten versus goal; open Calories and weight"><div class="insights-chart-heading"><h2>Eaten vs goal</h2><span>${weekly?'Weekly averages':'Daily calories'} ${svg('chev')}</span></div><div id="nt-overview-chart"></div><span class="insights-chart-note">${weekly?'Complete days, averaged by week':'Faded: today or partly logged'}</span></a>
       <div class="insights-figures">
-      ${fact('Average eaten',S.avg_eaten==null?'—':r0(homeCalories(S.avg_eaten)),S.avg_eaten==null?'':'kcal/day',S.avg_goal?`goal ${r0(homeCalories(S.avg_goal))}${from}`:S.logged?`Logged days${from}`:'No complete days yet','energy')}
+      ${fact('Average logged',S.avg_eaten==null?'—':r0(homeCalories(S.avg_eaten)),S.avg_eaten==null?'':'kcal/day',S.avg_goal?`goal ${r0(homeCalories(S.avg_goal))}${from}`:S.logged?`Logged days${from}`:'No complete days yet','energy')}
       ${fact('Estimated balance',S.avg_deficit==null?'—':r0(homeCalories(Math.abs(S.avg_deficit))),S.avg_deficit==null?'':'kcal/day',S.avg_deficit==null?(S.missing_burn_days?'Resting data missing':'No complete days yet'):`${S.avg_deficit>=0?'Deficit':'Surplus'}${from}`,'energy')}
       ${fact('Average protein',S.avg_protein_g==null?'—':r0(S.avg_protein_g),S.avg_protein_g==null?'':'g/day',S.avg_protein_g==null?(S.logged?'Protein data missing':'No complete days yet'):T.protein_target?`goal ${r0(T.protein_target)} g${from}`:`Logged days${from}`,'macros')}
       ${pTr==null?`<a class="insights-figure insights-log-weight" href="${esc(nutritionHref('weight'))}"><span>Weight trend</span><b>${svg('scale')}Log weight</b><span class="muted">Add a weigh-in</span></a>`:fact('Weight trend',sgn(pTr)+wconv(Math.abs(pTr)).toFixed(1),wu,'In this range','weight')}

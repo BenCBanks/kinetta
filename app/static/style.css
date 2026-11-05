@@ -783,13 +783,10 @@ a.ntile { color: inherit; text-decoration: none; }
 
 .meal { padding-top: 12px; padding-bottom: 6px; }
 .meal h2 span { font-weight: 600; color: var(--tx3); font-size: 15px; }
-/* each meal's colour dot, and an empty meal as a dashed outline (2026-10-13) */
+/* each meal's colour dot */
 .meal > h2::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 50%; margin-right: 2px; background: var(--tx3); }
 .meal > h2 { justify-content: flex-start; } .meal > h2 > :last-child { margin-left: auto; }
 .meal-breakfast { --mc: var(--s4); } .meal-lunch { --mc: var(--s2); } .meal-dinner { --mc: var(--s1); } .meal-snacks { --mc: var(--s5); }
-.card.empty-meal { background: transparent; box-shadow: none; border: 2px dashed color-mix(in srgb, var(--tx3) 30%, transparent); }
-.empty-meal { padding: 4px 16px; }
-.empty-meal > h2 { margin: 0; min-height: 48px; }
 .fe { display: flex; width: 100%; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 0; min-height: 52px; border: 0; border-top: 1px solid var(--line);
   background: none; text-align: left; border-radius: 0; color: inherit; }
 .fe:first-of-type { border-top: 0; } .fe:active { opacity: .6; }
