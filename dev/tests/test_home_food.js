@@ -1,12 +1,14 @@
-// Exercise the real Me food card (activity-first home, #164) with fictional days.
+// Keep legacy todayFoodCard coverage (unused by pages.js) and verify the extracted eager helpers with fictional data.
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const nodes=new Map(),calls=[];const node=()=>({onclick:null});
+const nodes=new Map(),calls=[];const node=()=>({onclick:null,classList:{toggle(){}}});
 nodes.set('#tf-add',node());
-const context={console,Date,Math,Number,Object,App:{me:{}},r0:v=>String(Math.round(v)),esc:String,svg:()=>'',stat:(l,v,u)=>`<span>${l} ${v}${u?' '+u:''}</span>`,
- guessMeal:()=> 'lunch',MEAL_NAMES:{breakfast:'Breakfast',lunch:'Lunch',dinner:'Dinner',snacks:'Snacks'},
- $:s=>nodes.get(s),$$:()=>[],describeSheet:(...a)=>calls.push(['describe',...a]),load:(p,draw)=>draw(context.day)};
-vm.createContext(context);const source=fs.readFileSync('app/static/food.js','utf8');vm.runInContext(source.match(/const MACROS = .*;/)[0],context);vm.runInContext(source.slice(source.indexOf('const homeCalories'),source.indexOf('function yesterdayMeal')),context);
+const context={console,Date,Math,Number,Object,URLSearchParams,App:{me:{},mealHours:null},tz:()=> 'UTC',imp:()=>false,esc:String,svg:()=>'',stat:(l,v,u)=>`<span>${l} ${v}${u?' '+u:''}</span>`,
+ MEAL_NAMES:{breakfast:'Breakfast',lunch:'Lunch',dinner:'Dinner',snacks:'Snacks'},
+ $:s=>s==='#tf-add'?nodes.get(s):null,$$:()=>[],go:path=>calls.push(['go',path]),readOwner:()=> 'fictional-owner',skel:()=>'',load:(p,draw)=>draw(p==='/api/food/check-in'?context.checkinData:context.day)};
+vm.createContext(context);const source=fs.readFileSync('app/static/food.js','utf8'),homeSource=fs.readFileSync('app/static/food-home.js','utf8');
+vm.runInContext(homeSource,context);vm.runInContext(source.match(/const MACROS = .*;/)[0],context);vm.runInContext(source.match(/^const recipeCalories = .*;$/m)[0],context);
+vm.runInContext(source.slice(source.indexOf('function todayFoodCard'),source.indexOf('function chooseYesterday')),context);
 const box={isConnected:true,innerHTML:'old'};let foodUser;
 // Not using food tracking: Me shows no food at all, not even an invitation.
 context.day={day:'2026-10-17',food_user:false,has_history:true,entries:[],totals:{kcal:0,protein_g:0,carbs_g:0,fat_g:0},goal:{},burned:{items:[]}};
@@ -16,17 +18,45 @@ context.day={...context.day,food_user:true,goal:{kcal:2000},targets:{protein_tar
 box.innerHTML='old';context.todayFoodCard(box,{onFoodUser:v=>foodUser=v});assert.equal(box.innerHTML,'');assert.equal(foodUser,false);assert.equal(context.App.me.food_user,true);
 // Something logged today: compact numbers and one Log food button.
 context.day={...context.day,entries:[{meal:'breakfast'}],totals:{kcal:0,protein_g:0,carbs_g:0,fat_g:0}};
-context.todayFoodCard(box,{onFoodUser:v=>{foodUser=v;assert.match(box.innerHTML,/Food today/,'day visibility is notified only after the card is mounted');assert.equal(typeof nodes.get('#tf-add').onclick,'function','logging is wired before notifying the parent');}});assert.equal(foodUser,true);assert.match(box.innerHTML,/Food today/);assert.match(box.innerHTML,/Left 2000 kcal/);assert.match(box.innerHTML,/m-protein_g/);assert.match(box.innerHTML,/>Protein<\/small>/);assert.match(box.innerHTML,/>of 120 g<\/span>/);assert.match(box.innerHTML,/aria-valuenow="0"/);
+context.todayFoodCard(box,{onFoodUser:v=>{foodUser=v;assert.match(box.innerHTML,/Food today/,'day visibility is notified only after the card is mounted');assert.equal(typeof nodes.get('#tf-add').onclick,'function','logging is wired before notifying the parent');}});assert.equal(foodUser,true);assert.match(box.innerHTML,/Food today/);assert.match(box.innerHTML.replace(/[\u00a0\u202f,]/g,''),/Left 2000 kcal/);assert.match(box.innerHTML,/m-protein_g/);assert.match(box.innerHTML,/>Protein<\/small>/);assert.match(box.innerHTML,/>of 120 g<\/span>/);assert.match(box.innerHTML,/aria-valuenow="0"/);
 assert.equal((box.innerHTML.match(/<button/g)||[]).length,1,'one logging button on Me');assert.doesNotMatch(box.innerHTML,/Describe|Snap|Scan|Usual|Same as yesterday|kcal burned/);
-nodes.get('#tf-add').onclick();assert.deepEqual(calls.pop(),['describe',null,null],'generic Add food chooses the device-local destination');
+nodes.get('#tf-add').onclick();assert.deepEqual(calls.pop(),['go','/food/describe'],'generic Add food chooses the device-local destination');
 context.day={...context.day,entries:[{meal:'breakfast'}],totals:{kcal:2431,protein_g:25,carbs_g:54,fat_g:13}};
-context.todayFoodCard(box);assert.match(box.innerHTML,/Eaten 2430 kcal/);assert.match(box.innerHTML,/Over 430 kcal/);assert.match(box.innerHTML,/gbar over/);
+context.todayFoodCard(box);assert.match(box.innerHTML.replace(/[\u00a0\u202f,]/g,''),/Eaten 2430 kcal/);assert.match(box.innerHTML,/Over 430 kcal/);assert.match(box.innerHTML,/gbar over/);
 // Food logged today counts even before the server flag catches up; no goal shows "not set" quietly.
 context.day={...context.day,food_user:false,goal:{},unknown_nutrients:{protein_g:1},entries:[{meal:'lunch',pending:true}]};
 context.todayFoodCard(box);assert.match(box.innerHTML,/Goal not set/);assert.match(box.innerHTML,/>Unknown<\/b>/);assert(!box.innerHTML.includes('role="progressbar"'),'no invented calorie goal or fill');assert.match(box.innerHTML,/waiting to send/);
 context.day={...context.day,goal:{kcal:2000},unknown_nutrients:{},totals:{kcal:500,protein_g:25,carbs_g:54,fat_g:13}};context.todayFoodCard(box);assert.match(box.innerHTML,/data-w="0.250"/);for(const k of ['protein_g','carbs_g','fat_g'])assert(box.innerHTML.includes('m-'+k));
 box.isConnected=false;box.innerHTML='left';context.todayFoodCard(box);assert.equal(box.innerHTML,'left');
-console.log('home food: hidden until something is logged today, compact card with one Log food action, over/unknown/pending states, detached-view guard PASS');
+console.log('legacy todayFoodCard: hidden until logged, compact one-action/over/unknown/pending states and detached-view guard PASS');
+
+// The extracted eager helpers preserve the same global names used by Pages, Cook, Kit and Thread.
+assert.equal(vm.runInContext("homeCalories(2431)",context),2430);
+assert.equal(vm.runInContext("addDays('2026-10-17',1)",context),'2026-10-18');
+assert.equal(vm.runInContext("isoDay(new Date('2026-10-18T02:00:00Z'),'America/Los_Angeles')",context),new Date('2026-10-18T02:00:00Z').toLocaleDateString('en-CA',{timeZone:'America/Los_Angeles'}));
+assert.equal(vm.runInContext("recipeCalories(null)",context),'Unknown');
+assert.equal(vm.runInContext("recipeCalories(2431)",context),vm.runInContext("r0(homeCalories(2431))",context));
+vm.runInContext("describeSheet('2026-10-17','lunch','photo')",context);
+assert.deepEqual(calls.pop(),['go','/food/describe?d=2026-10-17&meal=lunch&tool=photo']);
+const pages=fs.readFileSync('app/static/pages.js','utf8'),thread=fs.readFileSync('app/static/thread.js','utf8');
+assert.match(pages,/weeklyCheckinCard\(/);assert.match(pages,/describeSheet\(day,guessMeal\(\)\)/);assert.match(pages,/shrinkPhoto\(f, 1024\)/);assert.match(pages,/homeCalories\(/);assert.match(pages,/dayLabel\(/);
+assert.match(fs.readFileSync('app/static/cook.js','utf8'),/recipeCalories\(/);
+assert.match(fs.readFileSync('app/static/kit.js','utf8'),/\br0\(/);
+assert.match(thread,/homeCalories\(/);assert.match(thread,/shrinkPhoto\(/);
+assert.doesNotMatch(homeSource,/function todayFoodCard\(/,'unused todayFoodCard stays out of food-home.js');
+const index=fs.readFileSync('app/static/index.html','utf8');
+assert(index.indexOf('/static/food-home.js?v=__ASSET_HASH__')<index.indexOf('/static/food.js?v=__ASSET_HASH__'),'food-home.js loads before food.js');
+console.log('Food home boundary: shared math/date globals, Cook/Kit/Pages callsites, describe route and eager script order PASS');
+
+(async()=>{
+ const page={dataset:{},closest(selector){return selector==='#page'?page:null;}};
+ const checkinBox={isConnected:true,innerHTML:'',closest(selector){return selector==='#page'?page:null;}};
+ const row={id:'fictional-weekly-checkin',week:'2026-10-12',updated:'2026-10-18T12:00:00Z',state:'pending',baseline:1,data:{avg_intake:1842,trend_kg_per_week:-0.3,requested_kg_per_week:0.3,goal:'lose_weight',observed_burn:2200,suggested_kcal:1900,floor_applied:false,logged_days:12,weigh_ins:3,weigh_in_span_days:14,estimated_burn:2100,unknown_calorie_days:1}};
+ let ready=0;context.checkinBox=checkinBox;context.checkinData={current:row};context.weeklyReady=()=>ready++;
+ await vm.runInContext("weeklyCheckinCard(checkinBox,{home:true,onReady:weeklyReady})",context);
+ assert.equal(page.dataset.checkinPending,'true');assert.match(checkinBox.innerHTML,/Your weekly check-in/);assert.match(checkinBox.innerHTML,/Average calories logged/);assert.match(checkinBox.innerHTML,/Accept/);assert.match(checkinBox.innerHTML,/Not now/);assert.equal(ready,1);
+ console.log('weekly check-in: fictional pending card, home action state and ready callback PASS');
+})().catch(e=>{console.error(e);process.exitCode=1});
 
 // No real camera: both scanner engines reject like an unavailable browser camera.
 (async()=>{

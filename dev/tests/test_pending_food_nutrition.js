@@ -1,9 +1,9 @@
 // Real preview arithmetic/renderers: source servings, selected amounts and unknown values.
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const food=fs.readFileSync('app/static/food.js','utf8'),thread=fs.readFileSync('app/static/thread.js','utf8');
+const food=fs.readFileSync('app/static/food.js','utf8'),foodHome=fs.readFileSync('app/static/food-home.js','utf8'),thread=fs.readFileSync('app/static/thread.js','utf8');
 const c={svg:()=>'<svg></svg>',esc:s=>String(s).replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x])),fmtAmount:e=>`${e.amount} ${e.unit}`,source:()=> 'Open Food Facts',homeCalories:Math.round};
-vm.createContext(c);vm.runInContext(food.slice(food.indexOf('const MEAL_NAMES'),food.indexOf('const isoDay')),c);
+vm.createContext(c);vm.runInContext(foodHome.slice(foodHome.indexOf('const r0 ='),foodHome.indexOf('const isoDay')),c);vm.runInContext(food.slice(food.indexOf('const MEAL_NAMES'),food.indexOf('const deviceTimeZone')),c);
 vm.runInContext(fs.readFileSync('app/static/food-nutrition.js','utf8')+'\nglobalThis.preview=FoodNutrition;',c);
 vm.runInContext(thread.slice(thread.indexOf('  function food('),thread.indexOf('  function choices(')),c);
 vm.runInContext(thread.slice(thread.indexOf('  function previewRows('),thread.indexOf('  const pendingReview=')),c);
