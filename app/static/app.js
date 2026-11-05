@@ -8,28 +8,26 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<
 const root = $('#app');
 const col = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888';   // real colour for SVG attributes
 const App = {me: null, pageReady: false, cache: new Map(), pages: [], scroll: {}};
-const appAssetVersion = new URL(document.currentScript?.src || location.href).searchParams.get('v') || '';
 const classicScriptPromises = new Map();
 const classicScriptsLoaded = new Set();
-const lazyRouteBundles = [{re: /^\/me\/explore$/, tab: 'me', scripts: ['explore.js']}];
+const lazyRouteBundles = [{re: /^\/me\/explore$/, tab: 'me', scripts: ['/static/explore.js?v=__ASSET_HASH__']}];
 let lazyRouteGeneration = 0;
-function loadClassicScript(file) {
-  if (classicScriptPromises.has(file)) return classicScriptPromises.get(file);
-  const url = new URL(`/static/${file}`, location.href);
-  if (appAssetVersion) url.searchParams.set('v', appAssetVersion);
+function loadClassicScript(asset) {
+  if (classicScriptPromises.has(asset)) return classicScriptPromises.get(asset);
+  const url = new URL(asset, location.href);
   const script = document.createElement('script');
   script.async = false;
   script.src = url.href;
   const promise = new Promise((resolve, reject) => {
-    script.onload = () => { classicScriptsLoaded.add(file); resolve(); };
-    script.onerror = () => { script.remove(); classicScriptPromises.delete(file); reject(new Error('Could not load this page bundle.')); };
+    script.onload = () => { classicScriptsLoaded.add(asset); resolve(); };
+    script.onerror = () => { script.remove(); classicScriptPromises.delete(asset); reject(new Error('Could not load this page bundle.')); };
     document.head.append(script);
   });
-  classicScriptPromises.set(file, promise);
+  classicScriptPromises.set(asset, promise);
   return promise;
 }
-function loadClassicScripts(files) {
-  return files.reduce((ready, file) => ready.then(() => loadClassicScript(file)), Promise.resolve());
+function loadClassicScripts(assets) {
+  return assets.reduce((ready, asset) => ready.then(() => loadClassicScript(asset)), Promise.resolve());
 }
 // A quick tap can prefetch and open the same page before either request finishes.
 const pendingReads = new Map();
@@ -643,15 +641,17 @@ function replacePageAddress(el,href) {
 }
 function lazyRouteShell(tab) {
   let el = $('#page', root), nav = $('nav.tabs', root);
-  if (!el || !nav) {
+  if (!el || !nav || nav.parentNode !== root || root.children.length !== 2) {
     root.innerHTML = `<main class="shell" id="page"></main><nav class="tabs" aria-label="Main">${TABS.map(([t, n]) =>
       `<a href="/${t}" data-tab="${t}"${t === tab ? ' aria-current="page"' : ''}>${svg(t)}<span>${n}</span></a>`).join('')}</nav>`;
     el = $('#page', root);
     nav = $('nav.tabs', root);
   } else {
-    el.innerHTML = '';
+    const main = document.createElement('main'); main.className = 'shell'; main.id = 'page';
+    el.replaceWith(main); el = main;
     $$('a[data-tab]', nav).forEach((a) => (a.dataset.tab === tab ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
   }
+  cleanViews();
   el.dataset.area = tab;
   return el;
 }
@@ -697,11 +697,13 @@ function render(options) {
   if (!App.me) return;
   const globalSyncDone = options?.globalSyncDone === true;
   App.pageReady = false;
-  const key=location.pathname+location.search,targetY=pagePosition(key);
+  const key=location.pathname+location.search,routePosition=options?.routePosition;
+  const useRoutePosition=routePosition?.key===key&&routePosition.owner===readOwner();
+  const targetY=useRoutePosition?routePosition.y:pagePosition(key);
   const path = location.pathname.replace(/\/+$/, '') || '/me';
   const bundle = lazyRouteBundles.find((candidate) => candidate.re.test(path));
   if (bundle && bundle.scripts.some((file) => !classicScriptsLoaded.has(file))) {
-    const owner = readOwner(), generation = ++lazyRouteGeneration;
+    const owner = readOwner(), generation = ++lazyRouteGeneration, nextPosition={key,owner,y:targetY};
     const el = lazyRouteShell(bundle.tab);
     el.innerHTML = '<div class="boot lazy-route-loading" role="status"><p>Opening this page…</p></div>';
     if (!globalSyncDone) {
@@ -718,11 +720,11 @@ function render(options) {
         App.pageReady = true;
         return;
       }
-      render({globalSyncDone: true});
+      render({globalSyncDone: true,routePosition:nextPosition});
     }).catch(() => {
       if (!current()) return;
       el.innerHTML = '<div class="boot lazy-route-error"><p role="status">This page could not load. Check your connection, then try again.</p><button class="ghost" id="lazy-route-retry">Try again</button></div>';
-      $('#lazy-route-retry', el).onclick = () => render();
+      $('#lazy-route-retry', el).onclick = () => render({globalSyncDone:true,routePosition:nextPosition});
       App.pageReady = true;
     });
     return;
