@@ -358,7 +358,7 @@ def say(did: int, body: SayIn, user=Depends(current_user)):
                             'recipe_amount':choice, 'clarification':text, 'by':'recipe'}
                 if not grams:
                     return {'dish':D._view(c,uid,d),'added':[],'changed':[],'removed':[],
-                            'reply':'How much went in?', 'recipe_amount':choice,
+                            'reply':'Choose an amount to add.', 'recipe_amount':choice,
                             'clarification':text, 'by':'recipe'}
                 fresh, item = D._add_recipe_item(c, uid, did, recipe['id'], grams)
                 return {'dish':fresh, 'added':[item['id']], 'changed':[], 'removed':[],
