@@ -133,3 +133,9 @@
 
 .post-led .media-item { min-height:var(--picture-min-height,0px); }
 .post-led .fmap .mini { left:var(--route-side,24px); right:var(--route-side,24px); }
+
+/* The image fills the square; only its unobscured area opens the viewer. */
+.post-led .media-photo-open {position:absolute;top:var(--photo-top,148px);bottom:var(--photo-bottom,116px);left:var(--photo-side,64px);right:var(--photo-side,64px);min-width:44px;min-height:44px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+
+.post-led .fmap .leaflet-bottom.leaflet-left {left:64px;right:64px;bottom:112px}
+.post-led .map-unavailable {margin:0;max-width:100%}

@@ -104,7 +104,7 @@ function postCard(a, {compact = false, lock = false} = {}) {
   const head = `<a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><span class="ph-txt">${title}<small>${meta}</small></span>`;
   const share=theirs?'':`<button type="button" class="pf activity-share" data-share-picture="${a.id}" aria-label="Share a picture of this activity">${svg('share')}</button>`;
   const foot = reactionButtons(a.id,a,false,compact)+`<button type="button" class="pf activity-comments" data-talk="${a.id}" aria-label="Comments, ${a.comments||0}">${svg('comment')}<span class="num"${a.comments?'':' hidden'}>${a.comments?reactionNumber(a.comments):''}</span></button>`+share;
-  const media=activityMedia(a,{compact});
+  const media=activityMedia(a,{compact,mapLed:true});
   const header=`<div class="post-hd post-profile post-link">${head}</div>`;
   const metrics=media?(a.line?postMapMetrics(a):`<div class="post-map-metrics post-photo-metrics"><div class="stats3">${theirs?sharedHeadline(a):headline(a)}</div></div>`):'';
   const details=`${!theirs && a.lifts && a.lifts.names ? `<p class="post-lifts">${esc(a.lifts.names.slice(0, 4).join(' · '))}${a.lifts.names.length > 4 ? ` +${a.lifts.names.length - 4}` : ''}</p>` : ''}${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}`;
@@ -140,7 +140,7 @@ function activityCardInsets(el) {
   const picture=el.closest('.activity-picture');
   if(!picture)return null;
   const frame=picture.getBoundingClientRect(),header=$('.post-hd',picture).getBoundingClientRect();
-  const lower=$$('.post-map-metrics,.leaflet-control-attribution,.media-dots',picture).filter(n=>n.getClientRects().length).map(n=>frame.bottom-n.getBoundingClientRect().top+16);
+  const lower=$$('.post-map-metrics,.leaflet-control-attribution,.media-dots,.map-unavailable:not([hidden])',picture).filter(n=>n.getClientRects().length).map(n=>frame.bottom-n.getBoundingClientRect().top+16);
   const insets={top:Math.ceil(header.bottom-frame.top)+16,bottom:Math.ceil(Math.max(36,...lower)),side:$('.media-controls',picture)?64:24};
   return Object.values(insets).every(Number.isFinite)?insets:null;
 }
@@ -159,19 +159,21 @@ function fitActivityCardMap(el,view) {
   el._activityMapFit=fit;fit();document.fonts.ready.then(fit);
 }
 function measureActivityPictures(box){
-  $$('.post-led .fmap',box).forEach(el=>{
+  $$('.post-led .fmap,.post-led .activity-picture:not(:has(.fmap))',box).forEach(el=>{
     if(headerObservers.has(el))return;
     const measure=()=>{
       if(!el.isConnected)return;
       const inset=activityCardInsets(el);if(!inset)return;
       const picture=el.closest('.activity-picture');
       // Enlarged or unusually long identity text can need more than a square; retain a usable route area.
+      picture.style.setProperty('--photo-top',inset.top+'px');picture.style.setProperty('--photo-bottom',inset.bottom+'px');picture.style.setProperty('--photo-side',inset.side+'px');
       picture.style.setProperty('--picture-min-height',Math.ceil(inset.top+inset.bottom+64)+'px');
       el.style.setProperty('--route-top',inset.top+'px');el.style.setProperty('--route-bottom',inset.bottom+'px');el.style.setProperty('--route-side',inset.side+'px');el._activityMapFit?.();
     };
     const observer=new ResizeObserver(measure),picture=el.closest('.activity-picture');
     for(const node of [el,$('.post-hd',picture),$('.post-map-metrics',picture)])if(node)observer.observe(node);
-    headerObservers.set(el,observer);measure();document.fonts.ready.then(measure);
+    const changes=new MutationObserver(measure);changes.observe(picture,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden']});
+    headerObservers.set(el,{disconnect(){observer.disconnect();changes.disconnect();}});measure();document.fonts.ready.then(measure);
   });
 }
 // Cheers straight from a feed card: the count changes at once and goes back if the server says no. The comment

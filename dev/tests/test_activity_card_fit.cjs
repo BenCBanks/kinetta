@@ -10,7 +10,8 @@ const header={getBoundingClientRect:()=>({bottom:headerBottom})},metrics={getCli
 const el={isConnected:true,clientWidth:346,clientHeight:346,style,closest:selector=>selector==='.activity-picture'?picture:{}};
 const context={Number,Math,Object,Map,document:{fonts:{ready:Promise.resolve()}},headerObservers:new Map(),viewResources:new Map(),
  $:selector=>selector==='.post-hd'?header:selector==='.post-map-metrics'?metrics:selector==='.media-controls'&&controls?{}:null,
- $$:selector=>selector==='.post-led .fmap'?[el]:[metrics,credit,...dots?[dot]:[]],
+ $$:selector=>selector==='.post-led .fmap,.post-led .activity-picture:not(:has(.fmap))'?[el]:[metrics,credit,...dots?[dot]:[]],
+ MutationObserver:class{observe(){}disconnect(){}},
  ResizeObserver:class{observe(){}disconnect(){disconnected++;}}
 };
 vm.createContext(context);vm.runInContext(block+'\n'+cleanup,context);
