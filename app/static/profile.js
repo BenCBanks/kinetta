@@ -113,8 +113,7 @@ const MeCard=(()=>{
   }
   function header(me){
     return `<header class="me-top"><h1>Hi, ${esc(firstName(me))}</h1><div class="me-profile-tools">${bellBtn()}<a class="icon-btn" href="/me/settings" aria-label="Settings">${svg('settings')}</a></div></header>
-    ${card(me,{mine:true,link:true,pills:ownPills(),friends:ownFriends(me.friend_count),milestones:true,showBio:false})}
-    <div class="me-divider" aria-hidden="true"></div>`;
+    ${card(me,{mine:true,link:true,pills:ownPills(),friends:ownFriends(me.friend_count),milestones:true,showBio:false})}`;
   }
   // One distance chart, on the card, with a tiny Days / Weeks switch (Ben, 30 Oct 2026: no second chart below it).
   // Every bar is a button: tapping shows that period's range and distance; tap again restores the current period.

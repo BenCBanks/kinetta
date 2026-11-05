@@ -345,7 +345,7 @@ async function meOverview(el) {
       const a=rows[0],parts=[],seconds=a.moving_s||a.elapsed_s,minutes=seconds?Math.round(seconds/60):0;
       if(a.distance_m>0)parts.push(U.dist(a.distance_m,1)+' '+U.du());if(minutes>0)parts.push(minutes+' min');
       const name=SPORT_NAMES[a.sport]||a.sport_label||'Workout';
-      return {title:[name,...parts].join(' · '),detail:'Today at '+new Date(a.start_time).toLocaleTimeString([], {timeZone:zone,hour:'numeric',minute:'2-digit'}),icon:IC[a.sport]?a.sport:'activity',sport:a.sport||'other',href:a.id?'/activity/'+a.id:'/me/activities'};
+      return {title:[name,...parts].join(' · '),detail:new Date(a.start_time).toLocaleTimeString([], {timeZone:zone,hour:'numeric',minute:'2-digit'}),icon:IC[a.sport]?a.sport:'activity',sport:a.sport||'other',href:a.id?'/activity/'+a.id:'/me/activities'};
     }
     const distance=rows.reduce((sum,a)=>sum+(Number(a.distance_m)||0),0),names=[...new Set(rows.map(a=>SPORT_NAMES[a.sport]||a.sport_label||'Workout'))].join(', ');
     return {title:rows.length+' workouts'+(distance>0?' · '+U.dist(distance,1)+' '+U.du():''),detail:names,icon:'activity',sport:rows[0]?.sport||'other',href:'/me/activities'};
