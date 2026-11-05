@@ -24,7 +24,7 @@ class Review(unittest.TestCase):
  def stage(self,items=None,**extra):
   body={'client_id':str(uuid.uuid4()),'draft_id':self.draft,'items':items or [{'day':str(dt.date.today()),'meal':'snacks','name':'Fictional sauce','amount':1,'unit':'serving','kcal':400}],**extra}
   result=self.post('/api/food/thread/reviews/items',body);return next(m for m in result['messages'] if m['kind']=='user'),body
- def prepare(self,messages,**extra):return self.post('/api/food/thread/reviews',{'client_id':str(uuid.uuid4()),'draft_id':self.draft,'messages':[m['id'] for m in messages],**extra})
+ def prepare(self,messages,status=200,**extra):return self.post('/api/food/thread/reviews',{'client_id':str(uuid.uuid4()),'draft_id':self.draft,'messages':[m['id'] for m in messages],**extra},status=status)
  def confirm(self,review,**extra):return self.post(f"/api/food/thread/reviews/{review['id']}/confirm",{'confirm':True,'meal':'dinner',**extra})
  def rows(self,table):
   with db.connect() as c:return c.execute(f'SELECT * FROM {table} WHERE user_id=%s ORDER BY id',(self.ids[0],)).fetchall()
