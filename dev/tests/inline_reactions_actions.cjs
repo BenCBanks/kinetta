@@ -10,13 +10,13 @@ async function assertCardActions(card,{share,width,label}){
  assert(Math.abs(commentBox.x-reactBox.x-reactBox.width-16)<1,`${label}: Comment follows React by 16px`);
  assert.equal(await shareButton.count(),share?1:0,`${label}: Share matches ownership`);
  let trailing=commentBox.x+commentBox.width;
- if(share){const shareBox=await shareButton.boundingBox();assert(Math.abs(shareBox.x-trailing-16)<1,`${label}: Share follows Comment by 16px`);trailing=shareBox.x+shareBox.width;}
+  if(share){const shareBox=await shareButton.boundingBox(),expectedGap=width===330?8:16;assert(Math.abs(shareBox.x-trailing-expectedGap)<1,`${label}: Share follows Comment by ${expectedGap}px`);trailing=shareBox.x+shareBox.width;}
  const shortcuts=card.locator('.reaction-shortcuts');
  if(await shortcuts.isVisible()){
   const summary=await shortcuts.boundingBox(),padding=await footer.evaluate(n=>parseFloat(getComputedStyle(n).paddingRight)||0);
   assert(summary.x-trailing>=7.5,`${label}: reaction summary has an 8px gap from the last action`);
   assert(Math.abs(summary.x+summary.width-footerBox.x-footerBox.width+padding)<1,`${label}: reaction summary sits at the trailing content edge`);
-  assert.equal(await shortcuts.locator('.reaction-summary-emoji:visible').count(),2,`${label}: summary keeps two emojis visible when they fit`);
+  const expectedEmojis=share&&width===330?1:2;assert.equal(await shortcuts.locator('.reaction-summary-emoji:visible').count(),expectedEmojis,`${label}: summary keeps ${expectedEmojis} emoji${expectedEmojis===1?'':'s'} at ${width}px`);
  }
 }
 (async()=>{
@@ -39,11 +39,11 @@ async function assertCardActions(card,{share,width,label}){
     if(ownCard){const url=p.url();await card.locator('.post-ft [data-share-picture]').click();await p.locator('#pi-img').waitFor({state:'attached'});assert.equal(p.url(),url,'Footer Share opens the picture without card navigation');await p.keyboard.press('Escape');}
     assert.equal(await card.locator('.activity-comments').isVisible(),true);assert.equal(await card.locator('.activity-comments .num').isVisible(),false);assert.equal(await group.locator('.reaction-count').isVisible(),false);
     const otherCard=p.locator('article.post').filter({hasText:'Fictional others run'});await otherCard.waitFor();assert(await otherCard.locator('.reaction-shortcuts').isVisible(),'the reaction fixture shows its summary');await assertCardActions(otherCard,{share:ownCard,width:size.width,label:surface+' reacted activity'});
-    if(shotDir&&size.width===390&&['friends','profile','own'].includes(surface)){
+    if(shotDir&&(size.width===390&&['friends','profile','own'].includes(surface)||size.width===330&&surface==='own')){
      fs.mkdirSync(shotDir,{recursive:true});await otherCard.evaluate(n=>n.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'}));await p.waitForTimeout(150);
      const cardBox=await otherCard.boundingBox(),viewport=await p.evaluate(()=>({width:innerWidth,height:innerHeight})),stickyBottom=await p.evaluate(()=>Math.max(0,...[...document.querySelectorAll('#page *')].map(n=>{const s=getComputedStyle(n),r=n.getBoundingClientRect();return s.position==='sticky'&&r.top<=1&&r.bottom>0?r.bottom:0;})));
      assert(cardBox&&cardBox.x>=0&&cardBox.x+cardBox.width<=viewport.width,`${surface} evidence card fits the viewport`);assert(cardBox.y>=stickyBottom+8,`${surface} evidence card clears the sticky header (${cardBox.y}px vs ${stickyBottom}px)`);assert(cardBox.y+cardBox.height<=viewport.height-8,`${surface} evidence card is fully in view`);
-     await p.screenshot({path:path.join(shotDir,`${surface}-390-${theme}.png`),clip:cardBox,animations:'disabled'});
+     await p.screenshot({path:path.join(shotDir,`${surface}-${size.width}-${theme}.png`),clip:cardBox,animations:'disabled'});
     }
     const choose=async kind=>{await group.locator('.reaction-more').click();const tray=p.locator('.reaction-picker:not([hidden])');await tray.waitFor({state:'visible'});assert.equal(await tray.locator('[data-react]').count(),16,'all choices for '+kind+' on '+surface+' '+size.width+' '+theme);await tray.locator(`[data-react="${kind}"]`).click();await until(p,()=>!document.querySelector('article.post [aria-busy=true]'),'Save settled');assert.equal(await group.getAttribute('data-mine'),kind);assert.equal(await group.locator('.reaction-more').getAttribute('data-kind'),kind);const choice=await p.evaluate(kind=>App.me.reaction_choices.find(row=>row[0]===kind),kind),label=choice[1];assert.equal(await group.locator('.reaction-more').getAttribute('aria-label'),'Your reaction: '+label+'. Change reaction');if(kind==='lift')assert.equal(await group.locator('.reaction-more .reaction-barbell').count(),1,'selected lift uses the barbell SVG');else assert.equal(await group.locator('.reaction-more').innerText(),choice[2]);const state=await(await c.request.get(base+`/api/activities/${aid}/social`)).json();assert.equal(state.my_reaction,kind);assert.equal(state.reactions[kind],1);assert.equal(Object.values(state.reactions).reduce((n,v)=>n+v,0),1,'one reaction replaces the previous choice');assert(await group.locator('.reaction-more').evaluate(n=>n===document.activeElement),'Focus returns to the reaction action');};
     const kinds=surface==='friends'&&size.width===390&&theme==='light'?(await(await c.request.get(base+'/api/me')).json()).reaction_choices.map(row=>row[0]):['clap','muscle','fire'];for(const kind of kinds)await choose(kind);
