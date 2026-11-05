@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, StrictBool
 from . import apns, db, meal_reminders, notify, plans
 from .auth import current_user
+from .activity_metrics import week_streak as activity_week_streak
 
 router = APIRouter(prefix='/api/notifications/personal')
 TIMES = ('07:00', '08:00', '12:00', '18:00', '20:00')
@@ -22,7 +23,7 @@ def clock():
 def preferences(value):
     raw = value.get('personal') if isinstance(value, dict) else None
     raw = raw if isinstance(raw, dict) else {}
-    return {**raw, 'plan': raw.get('plan') is True, 'weekly': raw.get('weekly') is True,
+    return {**raw, 'plan': raw.get('plan') is True, 'weekly': raw.get('weekly') is True, 'streak': raw.get('streak') is True,
             'plan_time': raw.get('plan_time') if raw.get('plan_time') in TIMES else '08:00'}
 
 
@@ -37,7 +38,7 @@ def status_data(c, uid):
     if not p:
         raise HTTPException(404, 'Profile not found')
     cfg = preferences(p['notify'])
-    return {k: cfg[k] for k in ('plan', 'weekly', 'plan_time')} | {
+    return {k: cfg[k] for k in ('plan', 'weekly', 'streak', 'plan_time')} | {
         'tz': db.valid_tz(p['tz']) or db.DEFAULT_TZ,
         'push_ready': apns.ready(), 'device_ready': meal_reminders.devices(c, uid)}
 
@@ -52,6 +53,7 @@ class Preference(BaseModel):
     model_config = {'extra': 'forbid'}
     plan: StrictBool | None = None
     weekly: StrictBool | None = None
+    streak: StrictBool | None = None
     plan_time: Literal['07:00', '08:00', '12:00', '18:00', '20:00'] | None = None
     confirmed: StrictBool = False
 
@@ -64,7 +66,7 @@ def settings(body: Preference, user=Depends(current_user)):
             raise HTTPException(404, 'Profile not found')
         cfg = preferences(row['notify'])
         now = clock().isoformat()
-        for key in ('plan', 'weekly'):
+        for key in ('plan', 'weekly', 'streak'):
             value = getattr(body, key)
             if value is None:
                 continue
@@ -89,8 +91,8 @@ def due(p, now):
     zone = ZoneInfo(db.valid_tz(p['tz']) or db.DEFAULT_TZ)
     local = now.astimezone(zone)
     slots = []
-    for kind, time in (('plan', cfg['plan_time']), ('weekly', '09:00')):
-        if not cfg[kind] or (kind == 'weekly' and local.weekday() != 0):
+    for kind, time in (('plan', cfg['plan_time']), ('weekly', '09:00'), ('streak', '18:00')):
+        if not cfg[kind] or (kind == 'weekly' and local.weekday() != 0) or (kind == 'streak' and local.weekday() != 4):
             continue
         try:
             after = dt.datetime.fromisoformat(cfg[kind + '_after'])
@@ -106,13 +108,32 @@ def due(p, now):
             continue
         if at <= after or not dt.timedelta(0) <= now - at < WINDOW:
             continue
-        period = local.date() if kind == 'plan' else local.date() - dt.timedelta(days=7)
+        # The Friday date is a distinct weekly-attempt key from Monday's prior-week summary.
+        period = local.date() if kind in ('plan', 'streak') else local.date() - dt.timedelta(days=7)
         slots.append((kind, period, at))
     return slots
 
 
+def streak_at_risk(c, uid, tz, at):
+    """Count completed activity weeks before this reminder time; reject a current-week workout."""
+    zone = ZoneInfo(tz)
+    local = at.astimezone(zone)
+    monday = local.date() - dt.timedelta(days=local.weekday())
+    start = dt.datetime.combine(monday, dt.time.min, zone)
+    current = c.execute('''SELECT EXISTS(SELECT 1 FROM activities WHERE user_id=%s AND NOT lift_open
+      AND start_time >= %s AND start_time < %s) AS worked''', (uid, start, at)).fetchone()['worked']
+    if current:
+        return 0
+    weeks = [r['week'] for r in c.execute('''SELECT DISTINCT date_trunc('week',start_time AT TIME ZONE %s)::date AS week
+      FROM activities WHERE user_id=%s AND NOT lift_open AND start_time < %s''', (tz, uid, at)).fetchall()]
+    return activity_week_streak(weeks, local.date())
+
+
 def eligible(c, uid, kind, period, tz):
     zone = ZoneInfo(tz)
+    if kind == 'streak':
+        at = dt.datetime.combine(period, dt.time(18), zone)
+        return streak_at_risk(c, uid, tz, at) >= 2
     if kind == 'weekly':
         lo = dt.datetime.combine(period, dt.time.min, zone)
         hi = dt.datetime.combine(period + dt.timedelta(days=7), dt.time.min, zone)
@@ -155,13 +176,18 @@ def deliver(uid, kind, period, send=None, now=None):
         slot = next((s for s in due(p, at) if s[:2] == (kind, period)), None)
         if not slot:
             return None
+        stored_kind = 'weekly' if kind == 'streak' else kind
         claim = c.execute('''SELECT 1 FROM personal_notification_attempts WHERE user_id=%s AND kind=%s AND period=%s
-          AND attempted_at>now()-interval '5 minutes' ''', (uid, kind, period)).fetchone()
+          AND attempted_at>now()-interval '5 minutes' ''', (uid, stored_kind, period)).fetchone()
         if not claim or not eligible(c, uid, kind, period, db.valid_tz(p['tz']) or db.DEFAULT_TZ):
             return None
-        return {'title': 'Today’s plan' if kind == 'plan' else 'Weekly summary',
-                'body': 'You have a workout planned today. View it when you’re ready.' if kind == 'plan' else 'Your private progress summary is ready to view.',
-                'url': '/plan' if kind == 'plan' else '/progress?section=activity&review=week',
+        streak = streak_at_risk(c, uid, db.valid_tz(p['tz']) or db.DEFAULT_TZ, slot[2]) if kind == 'streak' else 0
+        title = {'plan': 'Today’s plan', 'weekly': 'Weekly summary', 'streak': 'Streak reminder'}[kind]
+        body = {'plan': 'You have a workout planned today. View it when you’re ready.',
+                'weekly': 'Your private progress summary is ready to view.',
+                'streak': f'One workout keeps your {streak}-week streak.'}[kind]
+        return {'title': title, 'body': body,
+                'url': '/plan' if kind == 'plan' else '/track' if kind == 'streak' else '/progress?section=activity&review=week',
                 'badge': notify.unread(c, uid), 'tag': f'personal-{kind}-{period}',
                 'expires_at': int((slot[2] + WINDOW).timestamp())}
     prepare.kind = kind
@@ -175,7 +201,7 @@ def tick(now=None, send=None):
         return 0
     with db.connect() as c:
         users = c.execute('''SELECT p.user_id,p.tz,p.notify FROM profile p JOIN users u ON u.id=p.user_id
-          WHERE (p.notify->'personal' @> '{"plan":true}' OR p.notify->'personal' @> '{"weekly":true}')
+          WHERE (p.notify->'personal' @> '{"plan":true}' OR p.notify->'personal' @> '{"weekly":true}' OR p.notify->'personal' @> '{"streak":true}')
           AND u.suspended_at IS NULL AND NOT u.needs_email_confirm AND u.password_change_expires IS NULL
           ORDER BY p.user_id''').fetchall()
     count = 0
@@ -189,15 +215,16 @@ def tick(now=None, send=None):
                         continue
                     if not meal_reminders.devices(c, uid) or not eligible(c, uid, kind, period, db.valid_tz(fresh['tz']) or db.DEFAULT_TZ):
                         continue
+                    stored_kind = 'weekly' if kind == 'streak' else kind
                     claimed = c.execute('''INSERT INTO personal_notification_attempts(user_id,kind,period) VALUES(%s,%s,%s)
-                      ON CONFLICT DO NOTHING RETURNING user_id''', (uid, kind, period)).fetchone()
+                      ON CONFLICT DO NOTHING RETURNING user_id''', (uid, stored_kind, period)).fetchone()
                 if not claimed:
                     continue
                 # The claim commits before network work; an uncertain send is never replayed.
                 sent = deliver(uid, kind, period, send=send, now=now)
                 with db.connect() as c:
                     c.execute('UPDATE personal_notification_attempts SET delivered=%s WHERE user_id=%s AND kind=%s AND period=%s',
-                              (sent, uid, kind, period))
+                              (sent, uid, stored_kind, period))
                 count += sent
         except Exception as error:
             print('personal notification account skipped', type(error).__name__, flush=True)

@@ -213,6 +213,7 @@
 .me-week-streak > svg { width:17px; height:17px; color:var(--color-achievement); flex:none; }
 .me-card-weekly .me-card-numbers { margin:0; }
 .me-card-weekly .me-card-bars { height:calc(60px + 1.2em + 8px); font-size:12px; }
+.me-card-close-to { margin:6px 0 0; font-size:max(13px,.8125rem); line-height:1.4; }
 .me-card-weekly .me-card-bars::after { bottom:calc(4px + 1.2em + 4px); }
 .me-card-weekly .me-week { flex-direction:column; justify-content:flex-end; align-items:center; gap:4px; }
 .me-card-weekly .me-week > span:first-child { flex:none; width:min(18px,calc(100% - 6px)); margin:0 auto; }

@@ -58,7 +58,7 @@ try:
     assert stats['chart_weeks'][-1]['by_sport'] == {'run':3000,'ride':5000,'walk':4000}
     assert next(r for r in stats['recent_days'] if r['d']==str(sunday))['by_sport'] == {'run':3000,'ride':5000,'walk':4000}
     viewer_stats = req(viewer, 'GET', '/api/stats')
-    assert viewer_stats['week_streak'] == 0 and all(r['distance_m'] == 0 for r in viewer_stats['chart_weeks']), 'stats never include another owner'
+    assert viewer_stats['week_streak'] == 0 and viewer_stats['close_to'] is None and all(r['distance_m'] == 0 for r in viewer_stats['chart_weeks']), 'stats never include another owner'
     req(viewer, 'POST', '/api/friends', {'login':'zz_test_chart_owner'})
     req(owner, 'POST', '/api/friends/zz_test_chart_view/accept')
     friend = profile(viewer)

@@ -164,13 +164,14 @@ async function personalNotificationCard(box,message='',pushPreferences=null){
     if(!valid())return;
     const unavailable=!state.push_ready||!state.device_ready;
     const monthlySummary=box.personalPush.monthly_summary!==false;
-    box.innerHTML=`<section class="card personal-notifications"><h2>Training & progress</h2><p class="small muted">Planned workouts and weekly summaries are off by default · ${esc(state.tz)}</p>
+    box.innerHTML=`<section class="card personal-notifications"><h2>Training & progress</h2><p class="small muted">Planned workouts, weekly summaries and streak reminders are off by default · ${esc(state.tz)}</p>
       <div class="notification-choices"><div class="personal-notice-choice"><label class="switch-row"><span>Planned workouts<small>Only when a workout is still due.</small></span><input type="checkbox" role="switch" data-personal="plan"${state.plan?' checked':''}${unavailable&&!state.plan?' disabled':''}></label>
       ${state.plan?`<label class="personal-notice-time">Reminder time<select data-personal="plan_time">${times.map(([k,v])=>`<option value="${k}"${state.plan_time===k?' selected':''}>${v}</option>`).join('')}</select></label>`:''}</div>
       <div class="personal-notice-choice"><label class="switch-row"><span>Weekly summary<small>Monday at 9 am.</small></span><input type="checkbox" role="switch" data-personal="weekly"${state.weekly?' checked':''}${unavailable&&!state.weekly?' disabled':''}></label></div>
+      <div class="personal-notice-choice"><label class="switch-row"><span>Streak reminder<small>Friday at 6 pm local, only when one workout can keep a streak of 2 weeks or more.</small></span><input type="checkbox" role="switch" data-personal="streak"${state.streak?' checked':''}${unavailable&&!state.streak?' disabled':''}></label></div>
       <div class="personal-notice-choice"><label class="switch-row"><span>Monthly summary<small>On the first of the month at 9 am.</small></span><input type="checkbox" role="switch" data-monthly-summary${monthlySummary?' checked':''}${unavailable&&!monthlySummary?' disabled':''}></label></div></div>
       ${unavailable?`<p class="small muted">${!state.push_ready?'Server notification setup is not complete.':Native.on?'Turn on iPhone notifications above.':'Turn on notifications in the Kinetta iPhone app first.'}</p>`:''}
-      ${state.plan||state.weekly?'<details class="reminder-how"><summary>Delivery details</summary><p>New choices start at the next scheduled time. A weekly summary needs a workout or food logged in the last seven completed days. iOS may delay or suppress alerts. Delivered alerts cannot be recalled.</p></details>':''}
+      ${state.plan||state.weekly||state.streak?'<details class="reminder-how"><summary>Delivery details</summary><p>New choices start at the next scheduled time. A weekly summary needs a workout or food logged in the last seven completed days. A streak reminder counts completed workouts in your local week; food never counts. iOS may delay or suppress alerts. Delivered alerts cannot be recalled.</p></details>':''}
       <p class="small${error?' err':''}" role="status" data-personal-status>${esc(error)}</p></section>`;
     $$('[data-personal]',box).forEach(input=>input.onchange=async()=>{
       if(!valid()||input.disabled)return;

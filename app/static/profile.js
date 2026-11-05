@@ -142,6 +142,7 @@ const MeCard=(()=>{
       return '';
     };
     const day=d=>fdate(d+'T12:00',{month:'short',day:'numeric'}),streak=Number(r.week_streak);
+    const closeTo=typeof r.close_to==='string'&&r.close_to.trim()?`<p class="me-card-close-to small muted" data-close-to>${esc(r.close_to)}</p>`:'';
     const chart=weeks.length?`<div class="me-chart-scroll"><div class="me-card-bars" role="group" aria-label="Weekly distance, last 12 weeks">${weeks.map((w,i)=>{
       const zero=!(Number(w.distance_m)>0),h=zero?0:Math.max(1,Math.round(Number(w.distance_m)/Math.max(1,...weeks.map(row=>Number(row.distance_m)||0))*10)),label=w.today?'This week':`Week of ${day(w.d)}`,axisMonth=month(w,i),value=weekMetrics(w),aria=`${label}${axisMonth?`, ${axisMonth}`:''}: ${value.distance} ${U.du()}, ${value.activities} ${value.activities==='1'?'workout':'workouts'}, ${value.time}`;
       return `<button type="button" class="me-week${w.today?' now':''}${zero?' zero':''}" aria-pressed="false" data-range="${esc(w.d)}" data-distance="${esc(w.distance_m||0)}" data-activities="${esc(w.activities||0)}" data-time="${esc(w.time_s||0)}" data-current="${w.today?'true':'false'}" aria-label="${esc(aria)}"><span data-h="${h}"></span><span class="me-week-month" data-type="chart" aria-hidden="true">${esc(axisMonth)}</span></button>`;
@@ -149,7 +150,7 @@ const MeCard=(()=>{
     const streakSlot=Number.isInteger(streak)&&streak>=2?`<span class="me-week-streak" data-week-streak="${streak}" role="img" aria-label="🔥 ${streak} weeks">${svg('flame')}<span aria-hidden="true">${streak} weeks</span></span>`:'';
     return `<div class="me-card-sec me-card-weekly"><div class="me-card-head"><div class="me-card-label" data-week-label aria-live="polite"><span>This week</span></div>${streakSlot}</div>
       <dl class="me-card-numbers me-numbers-3"><div data-week-stat="distance"><dd><b class="me-metric-value" data-type="stat" data-week-value="distance">${esc(values.distance)}</b></dd><dt data-type="secondary">Distance <small>(${esc(U.du())})</small></dt></div><div data-week-stat="activities"><dd><b class="me-metric-value" data-type="stat" data-week-value="activities">${esc(values.activities)}</b></dd><dt data-type="secondary">Workouts</dt></div><div data-week-stat="time"><dd><b class="me-metric-value" data-type="stat" data-week-value="time">${esc(values.time)}</b></dd><dt data-type="secondary">Time</dt></div></dl>
-      ${chart}</div>`;
+      ${chart}${closeTo}</div>`;
   }
   function sections(r,layout,full){
     if(!r.overview?.activities&&!r.shared_count)return `<div class="me-card-empty"><p>${r.mine===false?'No workouts to show yet.':'Your totals appear here once you have workouts.'}</p>${r.mine===false||full?'':'<a class="ghost wide" href="/me/goals?new=1">Set a goal</a>'}</div>`;
@@ -246,7 +247,7 @@ const MeCard=(()=>{
         const statsRead=full?Promise.resolve(null):load('/api/stats',()=>{}).catch(()=>null);
         const [profile,stats]=await Promise.all([profileRead,statsRead]);
         if(!live())return;
-        data=stats?{...profile,week_streak:stats.week_streak}:profile;draw();
+        data=stats?{...profile,week_streak:stats.week_streak,close_to:stats.close_to}:profile;draw();
         if(editOnLoad&&live()){editOnLoad=false;edit({focusName:true,fromSettings:true});}
       }
       catch(x){if(!live()||editing)return;box.setAttribute('aria-busy','false');box.innerHTML=`<p class="small muted">Your card’s numbers couldn’t load.</p><button type="button" class="ghost wide" data-card-retry>Try again</button>`;$('[data-card-retry]',box).onclick=()=>{box.innerHTML=skel(1);loadCard();};}
