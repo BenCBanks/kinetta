@@ -357,7 +357,7 @@ async function meOverview(el) {
     else if(state.plan){
       const p=state.plan.plan,w=state.plan.today_workout;
       if(!w||w.type==='rest'||(w.day&&w.day!==state.day)){title='Rest day';detail='On your plan';href='/plan';}
-      else{const amount=w.minutes?w.minutes+' min':w.dist?w.dist+' '+p.unit:'';title=[w.title||'Workout',amount].filter(Boolean).join(' · ');detail='On your plan';sport=w.type||'run';icon=IC[sport]?sport:'activity';href='/plan';}
+      else{const baseTitle=String(w.title||'Workout').trim(),amount=w.minutes?w.minutes+' min':w.dist?w.dist+' '+p.unit:'';title=amount&&!baseTitle.toLowerCase().includes(amount.toLowerCase())?baseTitle+' · '+amount:baseTitle;detail='On your plan';sport=w.type||'run';icon=IC[sport]?sport:'activity';href='/plan';}
     }else{title='No workout yet today';detail='';empty=true;href='/track';}
     const copy=empty?'<span>'+title+'</span>':'<b>'+esc(title)+'</b><small>'+esc(detail)+'</small>';
     return '<a class="me-today-row" data-today-activity data-sport="'+esc(sport)+'" href="'+esc(href)+'"><span class="me-today-icon">'+svg(icon)+'</span><span class="me-today-copy'+(empty?' me-today-empty':'')+'">'+copy+'</span>'+svg('chev','me-today-chevron')+'</a>';

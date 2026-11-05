@@ -36,8 +36,9 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
     return r.fulfill({json:hasActivity?[row]:yesterday?[{...row,id:918203,start_time:`${addDays(day,-1)}T12:12:00Z`}]:[]});
    }
    if(u.pathname==='/api/plans/current'){
-    const planned=['planned','rest'].includes(todayFixture),day=todayInNewYork();
-    return r.fulfill({json:planned?{today:day,plan:{id:9101,race_day:addDays(day,20),unit:'mi'},today_workout:{type:todayFixture==='rest'?'rest':'run',title:'Easy run',minutes:30,day}}:{plan:null}});
+    const planned=['planned','planned-distance','rest'].includes(todayFixture),day=todayInNewYork();
+    const today_workout=todayFixture==='planned-distance'?{type:'run',title:'Tempo run 4 mi',dist:4,day}:{type:todayFixture==='rest'?'rest':'run',title:'Easy run',minutes:30,day};
+    return r.fulfill({json:planned?{today:day,plan:{id:9101,race_day:addDays(day,20),unit:'mi'},today_workout}:{plan:null}});
    }
    if(u.pathname==='/api/food/history'){
     const hasFood=['both','food','estimate','food-error'].includes(todayFixture);
@@ -148,7 +149,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
     if(state==='neither'){
      assert.equal(await today.innerHTML(),'','neither-users have no empty Today placeholder');assert.equal(await activity.count(),0);assert.equal(await food.count(),0);assert((await p.locator('#t-start').innerText()).includes('Get started'),'Get started replaces Today for a neither-user');
     }else{
-     const activityUser=['both','activity','planned','rest','activity-empty','food-error'].includes(state),foodUser=['both','food','estimate','food-error'].includes(state);
+     const activityUser=['both','activity','planned','planned-distance','rest','activity-empty','food-error'].includes(state),foodUser=['both','food','estimate','food-error'].includes(state);
      assert.equal(await activity.count(),activityUser?1:0,`activity row visibility matches ${state} (${size.width}px ${theme})`);
      assert.equal(await food.count(),foodUser?1:0,`food row visibility matches ${state} (${size.width}px ${theme})`);
      assert.equal(await section.locator('.me-today-date').count(),1,'Today date is shown at the right of the header');
@@ -170,6 +171,9 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
      if(state==='planned'){
       assert.match(await activity.innerText(),/Easy run · 30 min/);assert.match(await activity.innerText(),/On your plan/);assert.equal(await activity.getAttribute('href'),'/plan');
      }
+     if(state==='planned-distance'){
+      assert.match(await activity.innerText(),/Tempo run 4 mi/);assert.doesNotMatch(await activity.innerText(),/4 mi · 4 mi/,'distance already shown in a plan title is not repeated');assert.equal(await activity.getAttribute('href'),'/plan');
+     }
      if(state==='rest'){
       assert.match(await activity.innerText(),/Rest day/);assert.match(await activity.innerText(),/On your plan/);assert.equal(await activity.getAttribute('href'),'/plan');
      }
@@ -184,7 +188,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
     }
     await screenshot(`today-${state}`);
    };
-   for(const state of ['both','activity','food','planned','rest','activity-empty','estimate','food-error','neither'])await checkTodayState(state);
+   for(const state of ['both','activity','food','planned','planned-distance','rest','activity-empty','estimate','food-error','neither'])await checkTodayState(state);
    if(todayOnly){assert.deepEqual(errors,[],'Today fixture renders without browser errors');assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[],'Today fixture blocks every write beyond the existing challenge stub');console.log(`Today ${size.width}px ${theme} states: nine fictional visibility, activity, food, plan and error states; Me card unchanged PASS`);await c.close();continue;}
   }
   await checkChart();await checkTargets();

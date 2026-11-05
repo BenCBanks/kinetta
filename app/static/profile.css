@@ -231,8 +231,8 @@
 .me-insight-ico { display:grid; place-items:center; width:32px; height:32px; border-radius:50%; background:var(--card2); color:var(--color-achievement); flex:none; }
 .me-insight-ico svg { width:17px; height:17px; }
 /* Finish setting up: each open step can be skipped on its own (owner, 30 Oct 2026). */
-.setup-row { display:flex; align-items:center; gap:8px; border-top:1px solid var(--line); }
-.setup-row:first-of-type { border-top:0; }
+.setup-row { display:flex; align-items:center; gap:11px; margin-top:7px; border-top:1px solid var(--line); }
+.setup-row:first-of-type { margin-top:0; border-top:0; }
 .setup-row>.row-link { flex:1; min-width:0; border-top:0; }
 .setup-skip { flex:none; min-height:44px; min-width:44px; padding:0 8px; border:0; background:none; color:var(--tx2); font-size:.9375rem; font-weight:600; }
 .me-insight .track { height:8px; border-radius:4px; background:var(--card2); overflow:hidden; }
