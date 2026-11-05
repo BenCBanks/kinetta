@@ -17,7 +17,7 @@ assert.equal(c.Kit.foodIntent('How many calories was breakfast?',true),null,'a f
 const accountKeys=[];c.localStorage.removeItem=k=>accountKeys.push(k);c.Kit.eraseDevice();assert.equal(accountKeys.length,2);assert(accountKeys.every(k=>k.endsWith('["https://fictional.invalid",7]')));
 const pick=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end));
 // Shared entries need consent, access, a reviewed release and an unpaused service.
-{const explore=fs.readFileSync('app/static/explore.js','utf8'),gate=explore.slice(explore.indexOf('function aiCan('),explore.indexOf('route(/^\\/me\\/explore$/'));
+{const app=fs.readFileSync('app/static/app.js','utf8'),gate=app.slice(app.indexOf('function aiCan('),app.indexOf('// Calls render(data)'));
  const g={App:{me:{ai_ok:true,coach:true,ai_access:{coach:{available:true,entitled:true}}}}};vm.createContext(g);vm.runInContext(gate,g);
  assert.equal(g.kitChatOn(),false,'no Kit chat until the server reports kit_chat');g.App.me.kit_chat=true;assert.equal(g.kitChatOn(),true);g.App.me.ai_paused=true;assert.equal(g.aiCan('coach'),true,'configured access is independent from a service pause');assert.equal(g.kitChatOn(),false,'paused chat has no entrance');g.App.me.ai_paused=false;g.App.me.ai_access.coach.entitled=false;assert.equal(g.kitChatOn(),false,'age/access denial hides chat');g.App.me.ai_access.coach.entitled=true;g.App.me.ai_ok=false;assert.equal(g.kitChatOn(),false,'consent off hides Kit chat');}
 async function testEntryVisibility(){
