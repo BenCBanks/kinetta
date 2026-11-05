@@ -410,7 +410,7 @@ def _push_words(r, facts=None, c=None):
 
 def _push_log(kind, reason, devices, accepted=0):
     # Only fixed kinds/reasons and counts: exception messages can contain token URLs or private text.
-    kind = _push_preference(kind) or (kind if kind in (*KINDS, 'meal', 'plan', 'weekly') else 'unknown')
+    kind = kind if kind in (*KINDS, 'meal', 'plan', 'weekly') else 'unknown'
     if reason:
         log.info('push skipped: kind=%s reason=%s devices=%d', kind, reason, devices)
     else:
