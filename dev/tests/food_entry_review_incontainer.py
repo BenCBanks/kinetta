@@ -1,5 +1,5 @@
 """Real owner-bound shared food review; all data fictional, no provider/device calls."""
-import datetime as dt,json,unittest,uuid
+import copy,datetime as dt,json,unittest,uuid
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 from fastapi.testclient import TestClient
@@ -46,6 +46,17 @@ class Review(unittest.TestCase):
   return m,next(x['result'] for x in data['messages'] if x.get('reply_to')==m['id'])
  def removal(self,m,part,entry=0,**kw):
   return self.post(f"/api/food/thread/messages/{m['id']}/remove-food",{'part':part['index'],'entry':entry,'expected':part['remove_token']},**kw)
+ def mixed_source(self):
+  """Make one held message with one ready and one unanswered fictional part."""
+  m,_=self.stage([{'day':str(dt.date.today()),'meal':'snacks','name':'Fictional rice','amount':1,'unit':'serving','kcal':220,'protein_g':5,'carbs_g':40,'fat_g':2}])
+  with db.connect() as c:
+   message=T.locked_message(c,self.ids[0],m['id']);reply=T.stored_reply(c,self.ids[0],message);result=copy.deepcopy(reply['result'])
+   ready=copy.deepcopy(result['parts'][0]);ready['index']=0
+   waiting={'index':1,'text':'Fictional unanswered food','status':'unknown','item':{},'logged':False}
+   result.update(kind='needs',parts=[ready,waiting],pending_count=1,can_resolve=True,text='Answer the remaining food question.')
+   T.finish_reply(c,self.ids[0],message,result)
+  restored=self.a.get('/api/food/thread/reviews/draft/'+self.draft).json()
+  return m,next(x['result'] for x in restored['messages'] if x.get('reply_to')==m['id'])
  def test_remove_one_estimated_ingredient_survives_reload_and_explicit_review(self):
   m,r=self.estimate();part=r['parts'][0];self.assertEqual(part['remove_entries'],[0,1]);self.assertEqual(sum(e['kcal'] for e in part['entries']),145)
   old_review=self.prepare([m]);self.removal(m,part,1,client=self.b,status=404)
@@ -117,6 +128,34 @@ class Review(unittest.TestCase):
   self.assertEqual(self.a.put('/api/food/foods/'+str(f['id']),json={'name':'Fictional rice','serving_g':100,'kcal':200,'protein_g':5,'carbs_g':20,'fat_g':3}).status_code,200)
   changed=self.post(f"/api/food/thread/reviews/{review['id']}/confirm",{'confirm':True,'meal':'lunch'},status=409);self.assertTrue(changed['changed']);self.assertEqual(changed['review']['totals']['kcal'],200);self.assertEqual(self.rows('food_entries'),[])
   self.confirm(review,meal='lunch');self.assertEqual(self.rows('food_entries')[0]['kcal'],200)
+ def test_selected_ready_part_can_replay_then_later_log_remainder(self):
+  m,card=self.mixed_source();selection=[{'message':m['id'],'parts':[0]}]
+  review=self.prepare([m],selection=selection);self.assertEqual(review['review']['foods'][0]['name'],'Fictional rice');self.assertEqual(review['review']['sources'],[m['id']]);self.assertEqual(review['review']['selection'],selection)
+  self.confirm(review,meal='lunch');self.assertEqual([(r['name'],r['kcal']) for r in self.rows('food_entries')],[('Fictional rice',220)])
+  restored=self.a.get('/api/food/thread/reviews/draft/'+self.draft).json();source=next(x['result'] for x in restored['messages'] if x.get('reply_to')==m['id'])
+  self.assertTrue(source['parts'][0]['logged']);self.assertFalse(source['parts'][1].get('logged'));self.assertNotIn('completed_review',source)
+  replay=self.confirm(review,meal='lunch');self.assertTrue(replay['replayed']);self.assertEqual(len(self.rows('food_entries')),1)
+  with db.connect() as c:
+   message=T.locked_message(c,self.ids[0],m['id']);reply=T.stored_reply(c,self.ids[0],message);result=copy.deepcopy(reply['result']);result['parts'][1]={'index':1,'text':'Fictional beans','status':'ready','manual':True,'entries':[{'name':'Fictional beans','brand':None,'amount':1,'unit':'serving','kcal':80,'protein_g':4,'carbs_g':12,'fat_g':1,'fiber_g':None,'sodium_mg':None,'sugar_g':None,'saturated_fat_g':None,'source':'quick','ref':{'unknown_nutrients':['fiber_g','sodium_mg','sugar_g','saturated_fat_g']}}],'logged':False};result.update(kind='preview',pending_count=0,can_resolve=False,text='Ready.');T.finish_reply(c,self.ids[0],message,result)
+  remainder=self.prepare([m],selection=[{'message':m['id'],'parts':[1]}]);self.confirm(remainder,meal='lunch');self.assertEqual([(r['name'],r['kcal']) for r in self.rows('food_entries')],[('Fictional rice',220),('Fictional beans',80)])
+  self.assertTrue(self.confirm(remainder,meal='lunch')['replayed']);self.assertEqual(len(self.rows('food_entries')),2)
+  restored=self.a.get('/api/food/thread/reviews/draft/'+self.draft).json();source=next(x['result'] for x in restored['messages'] if x.get('reply_to')==m['id']);self.assertEqual(source['parts'],[]);self.assertEqual(source.get('completed_review'),remainder['id'])
+ def test_selected_part_rejects_invalid_foreign_unready_and_consumed(self):
+  m,_=self.mixed_source();
+  self.prepare([m],selection=[{'message':m['id'],'parts':[9]}],status=409)
+  self.prepare([m],selection=[{'message':m['id'],'parts':[1]}],status=409)
+  self.prepare([m],selection=[{'message':m['id'],'parts':[0]}]);
+  foreign=self.b.post('/api/food/thread/reviews/items',json={'client_id':str(uuid.uuid4()),'draft_id':self.draft,'items':[{'day':str(dt.date.today()),'meal':'snacks','name':'Foreign food','amount':1,'unit':'serving','kcal':50}]}).json();foreign_m=next(x for x in foreign['messages'] if x['kind']=='user')
+  self.prepare([foreign_m],selection=[{'message':foreign_m['id'],'parts':[0]}],status=404)
+  self.prepare([m],selection=[{'message':999999999,'parts':[0]}],status=422)
+  review=self.prepare([m],selection=[{'message':m['id'],'parts':[0]}]);self.confirm(review,meal='dinner')
+  self.prepare([m],selection=[{'message':m['id'],'parts':[0]}],status=409)
+ def test_selected_review_refreshes_when_selected_food_changes(self):
+  m,_=self.stage([{'day':str(dt.date.today()),'meal':'snacks','name':'Fictional oats','amount':1,'unit':'serving','kcal':100,'protein_g':4,'carbs_g':18,'fat_g':2}]);review=self.prepare([m],selection=[{'message':m['id'],'parts':[0]}])
+  with db.connect() as c:
+   message=T.locked_message(c,self.ids[0],m['id']);reply=T.stored_reply(c,self.ids[0],message);result=copy.deepcopy(reply['result']);result['parts'][0]['entries'][0]['kcal']=180;T.finish_reply(c,self.ids[0],message,result)
+  changed=self.post(f"/api/food/thread/reviews/{review['id']}/confirm",{'confirm':True,'meal':'lunch'},status=409);self.assertTrue(changed['changed']);self.assertEqual(changed['review']['foods'][0]['kcal'],180);self.assertEqual(self.rows('food_entries'),[])
+  self.confirm(review,meal='lunch');self.assertEqual(self.rows('food_entries')[0]['kcal'],180)
  def test_questions_keep_other_ready_ingredients_and_resume_by_draft(self):
   self.food('Rice');self.food('Chicken taco',200)
   m,r=self.send('1 serving rice and taco');self.assertEqual(self.rows('food_entries'),[])

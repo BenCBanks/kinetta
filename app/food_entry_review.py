@@ -13,7 +13,7 @@ import secrets
 from typing import Literal
 from uuid import UUID,uuid4,uuid5
 from fastapi import APIRouter,Depends,HTTPException,Response
-from pydantic import BaseModel,ConfigDict,Field,StrictBool,field_validator
+from pydantic import AliasChoices,BaseModel,ConfigDict,Field,StrictBool,field_validator
 from . import db,nutrients as N,api_dishes as D,api_food as F,food_thread as T
 from . import food_thread_compose as C,food_thread_log as E
 from .auth import current_user
@@ -40,10 +40,24 @@ class ReuseIn(Strict):
     portion:Portion|None=None
     day:dt.date
     meal:Literal['breakfast','lunch','dinner','snacks']='snacks'
+class ReviewSelectionIn(Strict):
+    # Explicit partial review selection.  The aliases keep the wire format
+    # readable to older callers that called these values message_id/part_indices;
+    # responses and stored requests use the short canonical names.
+    message:int=Field(gt=0,validation_alias=AliasChoices('message','message_id'))
+    parts:list[int]=Field(min_length=1,max_length=60,validation_alias=AliasChoices('parts','part_indices'))
+
+    @field_validator('parts')
+    @classmethod
+    def valid_parts(cls,value):
+        if len(set(value))!=len(value) or any(type(part) is not int or not 0<=part<60 for part in value):
+            raise ValueError('Choose each food part once')
+        return sorted(value)
 class ReviewIn(Strict):
     draft_id:UUID
     client_id:UUID
     messages:list[int]=Field(min_length=1,max_length=60)
+    selection:list[ReviewSelectionIn]|None=Field(None,min_length=1,max_length=60)
 class ConfirmIn(Strict):
     confirm:StrictBool
     save_recipe:StrictBool=False
@@ -178,9 +192,40 @@ def stage_reuse(body:ReuseIn,user=Depends(current_user)):
         return C.write(c,uid,m,result)
 
 
-def collect(c,uid,ids):
-    entries=[];sources=[]
+def normalize_selection(ids,selection):
+    """Return a stable message -> part-index selection, or None for legacy review."""
+    if selection is None:return None
+    message_ids=sorted(set(ids));normalized=[];seen=set()
+    for item in selection:
+        value=item.model_dump(mode='json') if isinstance(item,ReviewSelectionIn) else dict(item)
+        mid=int(value.get('message',value.get('message_id',0)))
+        parts=value.get('parts',value.get('part_indices'))
+        if mid<=0 or mid not in message_ids:raise HTTPException(422,'Choose food parts from the selected messages')
+        if mid in seen:raise HTTPException(422,'Choose each food message once')
+        if not isinstance(parts,list) or not parts or len(set(parts))!=len(parts) or any(type(part) is not int or not 0<=part<60 for part in parts):
+            raise HTTPException(422,'Choose each food part once')
+        seen.add(mid);normalized.append({'message':mid,'parts':sorted(parts)})
+    if not normalized:raise HTTPException(422,'Choose at least one food part')
+    normalized.sort(key=lambda value:value['message'])
+    return normalized
+
+
+def selected_map(selection):
+    return {item['message']:set(item['parts']) for item in (selection or [])}
+
+
+def collect(c,uid,ids,selection=None,draft_id=None):
+    """Collect either every ready part (legacy) or only the explicit selection.
+
+    The full source result is returned for consumption updates.  A second,
+    selected-only source view feeds method labels and learning so an unselected
+    part can never be learned or classified by this review.
+    """
+    entries=[];sources=[];selected_sources=[];picked=selected_map(selection)
     for mid in sorted(set(ids)):
+        # A selection is authoritative: message IDs supplied for display but not
+        # selected do not get locked, refreshed or consumed.
+        if selection is not None and mid not in picked:continue
         m=T.locked_message(c,uid,mid)
         if not (m.get('result') or {}).get('review_only'):raise HTTPException(409,'Use the new food draft for this review')
         reply=E.stored_reply(c,uid,m);result=copy.deepcopy((reply or {}).get('result') or {})
@@ -188,9 +233,18 @@ def collect(c,uid,ids):
             raise HTTPException(409,'A selected food was removed or already saved. Refresh the draft.')
         if result.get('food_review'):raise HTTPException(422,'Choose food messages, not another review')
         parts=result.get('parts',[])
-        if any(p['status']!='ready' and not p.get('logged') for p in parts):raise HTTPException(409,'Answer the remaining food questions before reviewing')
+        if selection is None:
+            if any(p['status']!='ready' and not p.get('logged') for p in parts):raise HTTPException(409,'Answer the remaining food questions before reviewing')
+            indexes={p['index'] for p in parts}
+        else:
+            indexes=picked[mid]
+            actual={p['index'] for p in parts}
+            if indexes-actual:raise HTTPException(409,'A selected food part changed. Refresh the draft.')
+        selected_parts=[]
         for part in parts:
+            if part['index'] not in indexes:continue
             if part.get('logged'):raise HTTPException(409,'A selected food is already logged')
+            if part['status']!='ready':raise HTTPException(409,'Answer the remaining food questions before reviewing')
             if part.get('entered_numbers') and not part.get('manual'):raise HTTPException(409,'Review the entered nutrition numbers first')
             if part.get('own_reuse'):
                 from . import food_memory as memory
@@ -206,7 +260,12 @@ def collect(c,uid,ids):
                 from . import food_memory
                 food_memory.label_entries(part)
             entries+=copy.deepcopy(part.get('entries') or [])
-        if parts:sources.append((m,result))
+            selected_parts.append(part)
+        if selected_parts:
+            sources.append((m,result))
+            selected_result=copy.deepcopy(result)
+            selected_result['parts']=copy.deepcopy(selected_parts)
+            selected_sources.append((m,selected_result))
     if not entries:raise HTTPException(409,'Add a food and finish its details first')
     if len(entries)>D.MAX_ITEMS:raise HTTPException(422,'Review up to 60 foods at a time')
     if any(not N.known(e,'kcal') for e in entries):raise HTTPException(422,'Enter missing calories before logging these foods')
@@ -221,19 +280,34 @@ def collect(c,uid,ids):
     weights=[grams(e) for e in entries]
     public={'foods':entries,'totals':values,'known_weight_g':sum(weights) if all(g is not None for g in weights) else None,
             'names':', '.join(e['name'] for e in entries)[:200]}
-    return public,sources,digest({'sources':[m['id'] for m,_ in sources],'foods':entries})
+    if selection is None:
+        # Keep this exact payload for older clients: existing prepared reviews
+        # and their replay/freshness fingerprints must remain valid.
+        signature=digest({'sources':[m['id'] for m,_ in sources],'foods':entries})
+    else:
+        bound=[]
+        for m,result in selected_sources:
+            for part in result.get('parts',[]):
+                bound.append({'message':m['id'],'part':part['index'],'content':part})
+        signature=digest({'draft_id':str(draft_id),'selection':selection,'parts':bound,'foods':entries})
+    return public,sources,signature,selected_sources
 
 
 @router.post('')
 def prepare(body:ReviewIn,user=Depends(current_user)):
-    uid=user['id'];request={'messages':sorted(set(body.messages)),'draft_id':str(body.draft_id)}
+    uid=user['id'];messages=sorted(set(body.messages));selection=normalize_selection(messages,body.selection)
+    request={'messages':messages,'draft_id':str(body.draft_id)}
+    if selection is not None:request['selection']=selection
     with db.connect() as c:
         m,created=root(c,uid,body.client_id,request,'Food review')
         if not created:return {'review':(E.stored_reply(c,uid,m) or {}).get('result'), 'id':m['id']}
-        public,sources,signature=collect(c,uid,request['messages'])
+        public,sources,signature,_=collect(c,uid,request['messages'],selection,str(body.draft_id))
         if any((source.get('result') or {}).get('draft_id')!=str(body.draft_id) for source,_ in sources):raise HTTPException(409,'These foods belong to different drafts')
         result={'kind':'food_review','food_review':True,'text':'Review these foods before saving.',
-                **public,'signature':signature,'sources':request['messages'],'expires':(dt.datetime.now(dt.timezone.utc)+dt.timedelta(days=1)).isoformat()}
+                **public,'signature':signature,'sources':[source['id'] for source,_ in sources],
+                'expires':(dt.datetime.now(dt.timezone.utc)+dt.timedelta(days=1)).isoformat()}
+        if selection is not None:
+            result['selection']=selection;result['draft_id']=str(body.draft_id)
         T.finish_reply(c,uid,m,result)
         return {'review':result,'id':m['id']}
 
@@ -249,6 +323,52 @@ def recipe_items(foods):
                       'per100':{k:v*100/grams if v is not None else None for k,v in values.items()} if grams else None,
                       'source':e['source'],'ref':ref})
     return items
+
+
+def consume_selected(c,uid,sources,selection,review_id,entry_ids,basis,log_today):
+    """Mark only selected source parts consumed and keep any remainder visible."""
+    picked=selected_map(selection);messages=[];offset=0;aggregate_used=False
+    for source,result in sources:
+        indexes=picked[source['id']]
+        for part in result.get('parts',[]):
+            if part['index'] not in indexes:continue
+            if basis=='amounts':
+                count=len(part.get('entries') or [])
+                part_ids=entry_ids[offset:offset+count] if log_today else []
+                offset+=count
+            elif log_today and not aggregate_used:
+                part_ids=list(entry_ids);aggregate_used=True
+            else:part_ids=[]
+            part['logged']=True
+            if part_ids:part['entry_ids']=part_ids
+        remaining=[part for part in result.get('parts',[]) if not part.get('logged')]
+        if not remaining:
+            result.update(kind='reviewed',parts=[],pending_count=0,can_resolve=False,
+                          text='Included in your completed food review.',completed_review=review_id)
+            result.pop('entry_ids',None)
+        else:
+            pending=[part for part in remaining if part['status']!='ready']
+            ready=[part for part in remaining if part['status']=='ready']
+            prior=list(result.get('entry_ids') or [])
+            result['entry_ids']=list(dict.fromkeys(prior+entry_ids))
+            result['kind']='needs' if pending else 'preview'
+            result['pending_count']=len(pending)
+            result['can_resolve']=any(part['status']=='unknown' and not part.get('looked_up') for part in pending)
+            result['source']='your food log' if result['entry_ids'] else 'food sources'
+            names=[]
+            if entry_ids:
+                rows=c.execute('SELECT name,kcal FROM food_entries WHERE user_id=%s AND id=ANY(%s) ORDER BY id',(uid,entry_ids)).fetchall()
+                names=[row['name'] for row in rows[:3]]
+                suffix=' and more' if len(rows)>3 else ''
+                kcal=sum(row['kcal'] or 0 for row in rows)
+                text=f"Added {', '.join(names)}{suffix} · about {round(kcal):,} kcal."
+            else:text='Saved the selected food.'
+            if pending:text+=' Answer the remaining food questions before adding them.'
+            elif ready:text+=' Add the remaining food to your log when you’re ready.'
+            result['text']=text
+        messages+=T.finish_reply(c,uid,source,result)['messages']
+    if basis=='amounts' and log_today and offset!=len(entry_ids):raise RuntimeError('Review food identities do not match selected parts')
+    return messages
 
 
 @router.post('/{mid:int}/confirm')
@@ -271,7 +391,8 @@ def confirm(mid:int,body:ConfirmIn,response:Response,user=Depends(current_user))
             if r['confirmed']!=request_key:raise HTTPException(409,'This review was already saved with different choices')
             return {**T.answer_with(c,uid,m),'replayed':True,'recipe_id':r.get('recipe_id')}
         if m['state']=='cancelled' or r.get('kind')!='food_review' or dt.datetime.fromisoformat(r['expires'])<dt.datetime.now(dt.timezone.utc):raise HTTPException(409,'This review is no longer waiting. Review the food again.')
-        public,sources,signature=collect(c,uid,r['sources'])
+        selection=normalize_selection(r['sources'],r.get('selection')) if r.get('selection') is not None else None
+        public,sources,signature,selected_sources=collect(c,uid,r['sources'],selection,r.get('draft_id'))
         if signature!=r['signature']:
             fresh={**r,**public,'signature':signature,'text':'Food details changed. Review the updated numbers before confirming.'}
             T.finish_reply(c,uid,m,fresh);response.status_code=409
@@ -302,12 +423,15 @@ def confirm(mid:int,body:ConfirmIn,response:Response,user=Depends(current_user))
                 ids.append(row['id']);entry_digests[str(row['id'])]=E.entry_digest(row)
                 c.execute('INSERT INTO food_chat_entries(user_id,message_id,entry_id) VALUES(%s,%s,%s)',(uid,mid,row['id']))
         from . import food_entry_methods as methods
-        methods.review(c,uid,ids,sources,recipe=bool(recipe_id),combined=body.basis!='amounts')
-        if body.log_today and body.basis=='amounts' and body.kcal is None:C.learn_review(c,uid,ids,sources)
-        messages=[]
-        for source,result in sources:
-            result.update(kind='reviewed',parts=[],pending_count=0,can_resolve=False,text='Included in your completed food review.',completed_review=mid)
-            messages+=T.finish_reply(c,uid,source,result)['messages']
+        methods.review(c,uid,ids,selected_sources,recipe=bool(recipe_id),combined=body.basis!='amounts')
+        if body.log_today and body.basis=='amounts' and body.kcal is None:C.learn_review(c,uid,ids,selected_sources)
+        if selection is None:
+            messages=[]
+            for source,result in sources:
+                result.update(kind='reviewed',parts=[],pending_count=0,can_resolve=False,text='Included in your completed food review.',completed_review=mid)
+                messages+=T.finish_reply(c,uid,source,result)['messages']
+        else:
+            messages=consume_selected(c,uid,sources,selection,mid,ids,body.basis,body.log_today)
         text=(f'Saved {name} to My Recipes. ' if recipe_id else '')+(f'Logged to {body.meal} '+('today.' if day==today else f'on {day}.') if ids else 'Nothing was added to your food log.')
         result={**r,'kind':'log' if ids else 'answer','confirmed':request_key,'recipe_id':recipe_id,'entry_ids':ids,'entry_digests':entry_digests,'logged_totals':values,'logged_unknown':[k for k,v in values.items() if v is None],'day':str(day),'meal':body.meal,'text':text}
         saved=T.finish_reply(c,uid,m,result)
