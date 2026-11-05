@@ -2523,6 +2523,7 @@ button.thread-food:active { opacity: .7; }
 .kit-chat #kit-intro {margin:16px 0 0;overflow-y:auto;padding:0 0 16px;animation:kit-in .18s ease-out;}
 .kit-chat .kit-chat-actions {display:flex;gap:8px;justify-self:end;}
 .kit-chat .kit-chat-actions .linkbtn {padding:0;font-size:max(15px,.9375rem);}
+.kit-chat #kit-composer .kit-fine {background:transparent;}
 .kit-chat #kit-composer .kit-fine {display:flex;flex:none;align-items:center;justify-content:center;gap:4px;min-height:44px;margin:0;color:var(--tx3);font-size:13px;line-height:1.2;}
 .kit-chat #kit-composer .kit-fine[hidden] {display:none;}
 .kit-chat #kit-composer .kit-fine .linkbtn {font-size:inherit;min-height:44px;padding:0 4px;}
@@ -2700,12 +2701,16 @@ nav.tabs { view-transition-name: tabs; }
 .has-back > .top.over {left:auto;right:auto;margin:0;padding-inline:16px;pointer-events:auto}
 .has-back > .top.over .back, .has-back > .top.over .icon-btn {background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none}
 .me-settings {margin-top:20px}
-.shell .top.subpage-header {display:grid;grid-template-columns:minmax(44px,1fr) minmax(0,1fr) minmax(44px,1fr);align-items:center;gap:8px;border-bottom:0;margin-bottom:12px;}
-.shell .top.subpage-header > h1 {grid-column:2;justify-self:stretch;min-width:0;max-width:100%;margin:0;overflow:hidden;font-size:var(--text-nav-title);font-weight:600;line-height:1.2;letter-spacing:0;text-align:center;text-overflow:ellipsis;white-space:nowrap;}
-.subpage-header .back,.subpage-header .progress-back {flex:none;width:44px;min-width:44px;height:44px;padding:0;justify-content:center;background:transparent;box-shadow:none;}
+.shell .top.subpage-header {display:grid;grid-template-columns:minmax(82px,1fr) auto minmax(82px,1fr);align-items:center;gap:8px;border-bottom:0;margin-bottom:12px;}
+.shell .top.subpage-header > h1 {grid-column:2;justify-self:stretch;min-width:0;max-width:100%;margin:0;overflow:hidden;font:600 var(--text-nav-title)/1.2 var(--font);letter-spacing:-.02em;text-align:center;text-overflow:ellipsis;white-space:nowrap;}
+.subpage-header .back,.subpage-header .progress-back {flex:none;justify-self:start;width:max-content;min-width:44px;max-width:calc(100% + 8px);height:44px;padding:0;justify-content:flex-start;gap:4px;overflow:hidden;white-space:nowrap;background:transparent;box-shadow:none;}
 .subpage-header .back svg,.subpage-header .progress-back svg {width:20px;height:20px;}
+.subpage-header .back > .vh,.subpage-header .progress-back > .back-label {display:block;position:static;flex:0 1 auto;min-width:0;max-width:calc(100% - 24px);width:auto;height:auto;margin:0;overflow:hidden;clip:auto;clip-path:none;font-size:15px;text-overflow:ellipsis;white-space:nowrap;}
+.subpage-header .back > .vh[hidden],.subpage-header .progress-back > .back-label[hidden] {display:none;}
 .subpage-header .acts {grid-column:3;justify-self:end;flex:none;flex-wrap:nowrap;margin-left:0;}
 .subpage-header > .icon-btn,.subpage-header > .ghost,.subpage-header > .primary,.subpage-header > .linkbtn {grid-column:3;justify-self:end;}
+@media (max-width:420px) {.shell .top.subpage-header {margin-inline:-8px;}}
+@media (max-width:360px) {.shell .top.subpage-header {grid-template-columns:minmax(44px,1fr) auto minmax(44px,1fr);}.shell .top.subpage-header .back,.shell .top.subpage-header .progress-back {gap:0;}.subpage-header .back > .vh,.subpage-header .progress-back > .back-label {max-width:calc(100% - 20px);}}
 
 .has-back > .top.subpage-header {border-bottom:0;}
 /* Fitness charts keep full numeric readouts in a full-height, keyboard-accessible sheet. */

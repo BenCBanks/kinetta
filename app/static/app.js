@@ -615,6 +615,12 @@ function closeActivityEditor() {
 function compactSubpageHeader(el){
   const top=el.querySelector(':scope > .top'),back=top?.querySelector('.back,.progress-back');
   if(!back)return;
+  if(!back.textContent.trim()){
+    const label=back.getAttribute('aria-label')?.match(/^Back to (.+)$/i)?.[1]?.trim();
+    if(label){const node=document.createElement('span');node.className='back-label';node.textContent=label;back.append(node);}
+  }
+  const backLabel=back.querySelector('.vh,.back-label');
+  if(backLabel){backLabel.hidden=false;backLabel.hidden=backLabel.scrollWidth>backLabel.clientWidth+1;}
   let title=top.querySelector('h1')||el.querySelector(':scope > h1');
   const profileTitle=top.querySelector('.profile-page-title');
   if(!title&&profileTitle){title=document.createElement('h1');title.className=profileTitle.className;title.textContent=profileTitle.textContent;profileTitle.replaceWith(title);}

@@ -19,6 +19,13 @@ async function changed(p,action){await p.evaluate(()=>globalThis.navPreviousPage
  async function close(c){await c.close();contexts.splice(contexts.indexOf(c),1);}
  const visibleBack=p=>p.locator('[data-back]:visible').first();
  try{
+  if(!process.env.KINETTA_NAV_CASE||process.env.KINETTA_NAV_CASE==='sharing-title')for(const width of [390,330])for(const theme of ['light','dark']){
+   const {c,p,errors}=await open('activity',theme,{width,height:844,root:16});await changed(p,()=>p.evaluate(()=>go('/me/settings')));await changed(p,()=>p.evaluate(()=>go('/me/sharing')));
+   const title=p.locator('.subpage-header > h1');assert.equal(await title.innerText(),'Sharing & privacy');
+   const fit=await title.evaluate(n=>({width:n.clientWidth,scroll:n.scrollWidth,font:getComputedStyle(n).fontSize,row:n.getBoundingClientRect().height}));
+   assert(fit.scroll<=fit.width+1,'Sharing & privacy is not truncated at '+width+'px: '+JSON.stringify(fit));assert.equal(fit.font,'17px');assert(fit.row<=21,'single-line nav title');
+   const back=visibleBack(p);assert.equal(await back.getAttribute('aria-label'),'Back to Settings');const backLabel=back.locator('.vh,.back-label'),labelHidden=await backLabel.evaluate(n=>n.hidden);assert.equal(labelHidden,width===330,'parent label is hidden only when it cannot fit');if(width===390)assert.equal(await back.innerText(),'Settings','full parent name fits at 390');else assert.equal(await back.innerText(),'','narrow parent fallback is the bare chevron');assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'sharing header fits viewport');assert.deepEqual(errors,[]);await close(c);console.log('Sharing & privacy title '+width+' '+theme+': full title and correct parent label fallback PASS');
+  }
   for(const kind of ['route','exercise','plan','activity'])for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
    const name=`${kind}-${size.width}-${theme}`;if(process.env.KINETTA_NAV_CASE&&process.env.KINETTA_NAV_CASE!==name)continue;
    const {c,p,errors,dest}=await open(kind,theme,size),label={route:'Routes',exercise:'Lifting',plan:'Progress',activity:'Activity'}[kind],back=visibleBack(p);assert.equal(await back.innerText(),label,'direct link names its parent');assert.equal(await back.getAttribute('aria-label'),'Back to '+label);const r=await back.boundingBox();assert(r.width>=44&&r.height>=44);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'header fits');

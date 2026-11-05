@@ -57,7 +57,7 @@ function collectSpacing({screen,rules=[]}){
   else if(el.matches('.chartbox .lbl > span:first-child'))role='card';
   else if(el.matches('.count'))role='body';
   else if(el.closest('button,[role=button],[role=tab],[role=switch]'))role='body';
-  else if(el.closest('.subpage-header h1'))role='section';
+  else if(el.closest('.subpage-header h1,.thread-heading h1'))role='section';
   else if(el.closest('h1'))role='title';
   else if(el.matches('#fd-meals .meal > h2 > span:first-child'))role='card';
   else if(el.closest('h2'))role=el.closest('.card')?'card':'section';
