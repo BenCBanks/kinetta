@@ -3,9 +3,9 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const nodes=new Map(),calls=[];const node=()=>({onclick:null,classList:{toggle(){}}});
 nodes.set('#tf-add',node());
-const context={console,Date,Math,Number,Object,App:{me:{},mealHours:null},tz:()=> 'UTC',imp:()=>false,esc:String,svg:()=>'',stat:(l,v,u)=>`<span>${l} ${v}${u?' '+u:''}</span>`,
+const context={console,Date,Math,Number,Object,URLSearchParams,App:{me:{},mealHours:null},tz:()=> 'UTC',imp:()=>false,esc:String,svg:()=>'',stat:(l,v,u)=>`<span>${l} ${v}${u?' '+u:''}</span>`,
  MEAL_NAMES:{breakfast:'Breakfast',lunch:'Lunch',dinner:'Dinner',snacks:'Snacks'},
- $:s=>s==='#tf-add'?nodes.get(s):null,$$:()=>[],go:path=>calls.push(['go',path]),readOwner:()=> 'fictional-owner',skel:()=>'',load:(p,draw)=>draw(context.day)};
+ $:s=>s==='#tf-add'?nodes.get(s):null,$$:()=>[],go:path=>calls.push(['go',path]),readOwner:()=> 'fictional-owner',skel:()=>'',load:(p,draw)=>draw(p==='/api/food/check-in'?context.checkinData:context.day)};
 vm.createContext(context);const source=fs.readFileSync('app/static/food.js','utf8'),homeSource=fs.readFileSync('app/static/food-home.js','utf8');
 vm.runInContext(homeSource,context);vm.runInContext(source.match(/const MACROS = .*;/)[0],context);vm.runInContext(source.match(/^const recipeCalories = .*;$/m)[0],context);
 vm.runInContext(source.slice(source.indexOf('function todayFoodCard'),source.indexOf('function chooseYesterday')),context);
@@ -18,11 +18,11 @@ context.day={...context.day,food_user:true,goal:{kcal:2000},targets:{protein_tar
 box.innerHTML='old';context.todayFoodCard(box,{onFoodUser:v=>foodUser=v});assert.equal(box.innerHTML,'');assert.equal(foodUser,false);assert.equal(context.App.me.food_user,true);
 // Something logged today: compact numbers and one Log food button.
 context.day={...context.day,entries:[{meal:'breakfast'}],totals:{kcal:0,protein_g:0,carbs_g:0,fat_g:0}};
-context.todayFoodCard(box,{onFoodUser:v=>{foodUser=v;assert.match(box.innerHTML,/Food today/,'day visibility is notified only after the card is mounted');assert.equal(typeof nodes.get('#tf-add').onclick,'function','logging is wired before notifying the parent');}});assert.equal(foodUser,true);assert.match(box.innerHTML,/Food today/);assert.match(box.innerHTML,/Left 2000 kcal/);assert.match(box.innerHTML,/m-protein_g/);assert.match(box.innerHTML,/>Protein<\/small>/);assert.match(box.innerHTML,/>of 120 g<\/span>/);assert.match(box.innerHTML,/aria-valuenow="0"/);
+context.todayFoodCard(box,{onFoodUser:v=>{foodUser=v;assert.match(box.innerHTML,/Food today/,'day visibility is notified only after the card is mounted');assert.equal(typeof nodes.get('#tf-add').onclick,'function','logging is wired before notifying the parent');}});assert.equal(foodUser,true);assert.match(box.innerHTML,/Food today/);assert.match(box.innerHTML.replace(/[\u00a0\u202f,]/g,''),/Left 2000 kcal/);assert.match(box.innerHTML,/m-protein_g/);assert.match(box.innerHTML,/>Protein<\/small>/);assert.match(box.innerHTML,/>of 120 g<\/span>/);assert.match(box.innerHTML,/aria-valuenow="0"/);
 assert.equal((box.innerHTML.match(/<button/g)||[]).length,1,'one logging button on Me');assert.doesNotMatch(box.innerHTML,/Describe|Snap|Scan|Usual|Same as yesterday|kcal burned/);
 nodes.get('#tf-add').onclick();assert.deepEqual(calls.pop(),['go','/food/describe'],'generic Add food chooses the device-local destination');
 context.day={...context.day,entries:[{meal:'breakfast'}],totals:{kcal:2431,protein_g:25,carbs_g:54,fat_g:13}};
-context.todayFoodCard(box);assert.match(box.innerHTML,/Eaten 2430 kcal/);assert.match(box.innerHTML,/Over 430 kcal/);assert.match(box.innerHTML,/gbar over/);
+context.todayFoodCard(box);assert.match(box.innerHTML.replace(/[\u00a0\u202f,]/g,''),/Eaten 2430 kcal/);assert.match(box.innerHTML,/Over 430 kcal/);assert.match(box.innerHTML,/gbar over/);
 // Food logged today counts even before the server flag catches up; no goal shows "not set" quietly.
 context.day={...context.day,food_user:false,goal:{},unknown_nutrients:{protein_g:1},entries:[{meal:'lunch',pending:true}]};
 context.todayFoodCard(box);assert.match(box.innerHTML,/Goal not set/);assert.match(box.innerHTML,/>Unknown<\/b>/);assert(!box.innerHTML.includes('role="progressbar"'),'no invented calorie goal or fill');assert.match(box.innerHTML,/waiting to send/);
