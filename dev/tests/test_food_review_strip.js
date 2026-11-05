@@ -86,6 +86,16 @@ for(const kcal of [0,120]){
 const incomplete=c.replyHtml(root,{entries:[],result:{kind:'preview',parts:[{index:0,status:'ready',entries:[{name:'Unknown',amount:1,unit:'serving',kcal:null}]}]}});assert(incomplete.includes('Incomplete'));
 console.log('compact drafts: one sticky total, honest incomplete/legacy totals, one card remove control, direct amount action and natural source portions PASS');
 
+const incompleteStrip={...ctx,jobs:[],messages:[user(9),reply(9,[{index:0,status:'ready',entries:[{kcal:null}]}])],visibleClients:new Set(['c9'])};
+c.primary(incompleteStrip);
+assert.equal(nodes['#thread-review-sum'].textContent,'1 food · Incomplete','missing calories stay visibly incomplete');
+assert.equal(nodes['#thread-review-add'].disabled,true,'one-tap Add is unavailable until every selected calorie is known');
+assert.match(nodes['#thread-review-add'].attrs['aria-label'],/Edit the food details to add missing values/,'the unavailable action directs the person to Edit');
+assert.match(nodes['#thread-review-edit'].attrs['aria-label'],/add missing calories/);
+incompleteStrip.messages=[user(10),reply(10,[{index:0,status:'ready',entries:[{kcal:'Infinity'}]}])];incompleteStrip.visibleClients=new Set(['c10']);c.primary(incompleteStrip);
+assert.equal(nodes['#thread-review-sum'].textContent,'1 food · Incomplete','non-finite calories also stay incomplete');assert.equal(nodes['#thread-review-add'].disabled,true);
+console.log('review strip unknown calories: incomplete summary, disabled one-tap Add, accessible Edit direction and non-finite guard PASS');
+
 // A missing barcode stays readable and offers only actions that make sense before a food exists.
 vm.runInContext(source.slice(source.indexOf('  function missingBarcodeActions('),source.indexOf('  function replyHtml(')),c);
 const barcodeRoot={id:8,state:'answered',body:'Scanned product 016000157620',media:'barcode',result:{review_only:true,input:{kind:'barcode'}}};

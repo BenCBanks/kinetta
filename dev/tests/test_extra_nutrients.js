@@ -33,7 +33,7 @@ async function finalReview(foods,portion=false){
  nodes.set('#food-final-review',{elements});c.$=selector=>{if(!nodes.has(selector))nodes.set(selector,{});return nodes.get(selector);};
  c.sheet=(title,html,mount)=>mount({isConnected:true},()=>{});c.api=async()=>({id:1,review:{foods}});
  await c.review.open({messages:[1],draftId:'fixture',active:()=>true,accept(){}});
- return {summary:nodes.get('#review-totals').innerHTML,portion:nodes.get('#review-portion-nutrition').innerHTML};
+ return {summary:nodes.get('#review-totals').innerHTML,foods:nodes.get('#review-foods').innerHTML,portion:nodes.get('#review-portion-nutrition').innerHTML};
 }
 (async()=>{
  const unknown={name:'Fictional snack',kcal:120,protein_g:0,carbs_g:0,fat_g:0,ref:{unknown_nutrients:['protein_g','carbs_g','fat_g']}};
@@ -41,5 +41,39 @@ async function finalReview(foods,portion=false){
  const known={name:'Fictional drink',kcal:20,protein_g:0,carbs_g:5,fat_g:0};view=await finalReview([known]);assert.match(view.summary,/0 g protein/);assert.match(view.summary,/5 g carbs/);assert.match(view.summary,/0 g fat/);
  view=await finalReview([known,unknown]);assert.match(view.summary,/protein unknown/);assert.doesNotMatch(view.summary,/5 g carbs/,'a known subtotal is not the whole review');
  view=await finalReview([unknown],true);assert.equal((view.portion.match(/Unknown/g)||[]).length,3,'recipe portion preserves unknown macros');assert.match(view.portion,/>60<\/b>/,'known calories still scale to half the recipe');
+ const unknownKcal={name:'Fictional unmeasured snack',kcal:null,protein_g:1,carbs_g:2,fat_g:3,ref:{unknown_nutrients:['kcal']}};
+ view=await finalReview([unknownKcal]);assert.match(view.summary,/>Incomplete</,'unknown calories are not presented as zero');assert.match(view.foods,/aria-label="Add calories for Fictional unmeasured snack"/);assert.match(view.foods,/>Add<small> kcal/);
+ view=await finalReview([{name:'Fictional invalid snack',kcal:'Infinity',protein_g:1,carbs_g:2,fat_g:3}]);assert.match(view.summary,/>Incomplete</,'non-finite calories stay incomplete');
+ view=await finalReview([{name:'Fictional zero snack',kcal:0,protein_g:0,carbs_g:0,fat_g:0}]);assert.match(view.summary,/≈ 0 kcal/,'a known zero remains a real zero');
  console.log('Final food review: explicit unknown macros, true zero preserved, mixed-food totals and recipe portions use source coverage PASS');
-})().catch(error=>{console.error(error);process.exitCode=1});
+})().then(()=>delayedPrepareChecks()).catch(error=>{console.error(error);process.exitCode=1});
+
+async function delayedPrepareChecks(){
+ let owner='fixture',release,request=null,sheetTitle=null,confirms=0,current=true;const gate=new Promise(resolve=>release=resolve);
+ c.readOwner=()=>owner;c.json=(method,body)=>({method,body});c.newId=()=>'delayed-review';c.dispatchEvent=()=>{};c.CustomEvent=function(){};c.App??={};c.App.cache={delete(){}};c.invalidate=()=>{};c.toast=()=>{};c.isoDay=()=> '2026-11-05';
+ c.sendOrQueue=async()=>{confirms++;return {queued:true};};c.sheet=(title)=>{sheetTitle=title;};
+ c.api=(path,body)=>{request={path,...body};return gate;};
+ const source={name:'Fictional tap snapshot',brand:null,amount:1,unit:'serving',kcal:100,protein_g:2,carbs_g:3,fat_g:4,ref:{}};
+ const expected=[source],messages=[44],selection=[{message:44,parts:[0]}];
+ const pending=c.review.open({messages,selection,expectedFoods:expected,quickConfirm:true,draftId:'draft-before',meal:'lunch',day:'2026-11-05',session:'fixture',current:()=>current,active:()=>true,accept(){}});
+ source.kcal=200;messages[0]=45;selection[0].parts[0]=1;
+ const prepared={...source};release({id:7,review:{foods:[prepared]}});await pending;
+ assert.equal(JSON.stringify(request.body),JSON.stringify({client_id:'delayed-review',draft_id:'draft-before',messages:[44],selection:[{message:44,parts:[0]}]}),'prepare uses the tap-time draft, source IDs and part IDs');
+ assert.equal(confirms,0,'an edit during prepare cannot redefine the original tap snapshot');assert.equal(sheetTitle,'Add to log','mismatched tap-time food opens Edit for review');
+ for(const invalid of [
+  {name:'Fictional unknown-calorie food',amount:1,unit:'serving',kcal:null,protein_g:1,carbs_g:2,fat_g:3,ref:{unknown_nutrients:['kcal']}},
+  {name:'Fictional non-finite food',amount:1,unit:'serving',kcal:'Infinity',protein_g:1,carbs_g:2,fat_g:3,ref:{}}
+ ]){
+  let shown=null;c.sheet=title=>{shown=title;};c.api=async()=>({id:8,review:{foods:[invalid]}});const before=confirms;
+  await c.review.open({messages:[44],selection:[{message:44,parts:[0]}],expectedFoods:[{...invalid}],quickConfirm:true,draftId:'draft-before',meal:'lunch',day:'2026-11-05',session:'fixture',current:()=>true,active:()=>true,accept(){}});
+  assert.equal(confirms,before,'missing/non-finite calories never use quick Add');assert.equal(shown,'Add to log','incomplete quick Add opens the editable review path');
+ }
+ for(const mode of ['draft','session']){
+  let done;const wait=new Promise(resolve=>done=resolve);let shown=null,confirmBefore=confirms;owner='fixture';current=true;c.sheet=title=>{shown=title;};c.api=()=>wait;
+  const call=c.review.open({messages:[55],selection:[{message:55,parts:[0]}],expectedFoods:[{...source,kcal:200}],quickConfirm:true,draftId:'draft-before',meal:'lunch',day:'2026-11-05',session:'fixture',current:()=>current,active:()=>true,accept(){}});
+  if(mode==='draft')current=false;else owner='different-session';
+  done({id:8,review:{foods:[{...source,kcal:200}]}});await call;
+  assert.equal(shown,null,`stale ${mode} completion cannot open a review`);assert.equal(confirms,confirmBefore,`stale ${mode} completion cannot confirm`);
+ }
+ console.log('Food review prepare guard: delayed edit keeps tap-time snapshot; stale draft/session completions are discarded PASS');
+}
