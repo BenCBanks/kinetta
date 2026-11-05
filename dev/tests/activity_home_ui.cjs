@@ -20,6 +20,7 @@ async function assertCardActions(card,{share,width,label}){
   const expectedEmojis=share&&width===330?1:2;assert.equal(await shortcuts.locator('.reaction-summary-emoji:visible').count(),expectedEmojis,`${label}: summary keeps ${expectedEmojis} emoji${expectedEmojis===1?'':'s'} at ${width}px`);
  }
 }
+async function metadataLineTops(node){return node.evaluate(el=>{const tops=new Set(),walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);for(let t=walker.nextNode();t;t=walker.nextNode()){if(!t.textContent.trim())continue;const r=document.createRange();r.selectNodeContents(t);for(const box of r.getClientRects())tops.add(Math.round(box.top*2)/2);}return[...tops].sort((a,b)=>a-b);});}
 async function verifyActivityMonthJump(p,out,theme,width){
  await p.goto(base+'/people/zz_test_feed_typical');await p.locator('#person-activities .activity-card').first().waitFor();
  assert.equal(await p.evaluate(()=>Intl.DateTimeFormat().resolvedOptions().timeZone),'Asia/Tokyo','browser uses the Tokyo device zone');assert.equal(await p.evaluate(()=>App.me.tz),'America/New_York','owner profile uses the New York zone');
@@ -58,6 +59,8 @@ async function verifyActivityMonthJump(p,out,theme,width){
  const originalTmp=process.env.TMPDIR,fixtureEnv={...process.env};if(process.env.KINETTA_ACTIVITY_FIXTURE_TMPDIR)fixtureEnv.TMPDIR=process.env.KINETTA_ACTIVITY_FIXTURE_TMPDIR;
  cp.execFileSync('python3',[path.join(__dirname,'activity_fixture.py')],{env:fixtureEnv,stdio:'inherit'});
  if(process.env.KINETTA_ACTIVITY_FIXTURE_TMPDIR){if(originalTmp===undefined)delete process.env.TMPDIR;else process.env.TMPDIR=originalTmp;}
+ const project=process.env.KINETTA_PROJECT;assert(project&&(/^kt-[a-z0-9-]+$/.test(project)||project==='kinettatest'),'long-name fixture requires the disposable Kinetta project');
+ cp.execFileSync('docker',['exec',`${project}-db-1`,'psql','-U','postgres','-d','fit','-v','ON_ERROR_STOP=1','-q','-c',"UPDATE users SET name = CASE WHEN login::text = 'zz_test_feed_friend0' THEN 'River Friend' ELSE 'River Friend ' || right(login::text, 1) || ' With a Long Fictional Name' END WHERE login::text LIKE 'zz_test_feed_friend%';"],{stdio:'inherit'});
  const b=await chromium.launch();try{for(const who of ['empty','typical','heavy','established'])for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16}])for(const theme of ['light','dark']){
   if(process.env.KINETTA_ACTIVITY_CASE&&!process.env.KINETTA_ACTIVITY_CASE.split(',').includes(`${who}-${size.width}-${theme}`))continue;
   const c=await b.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:who==='typical'?'Asia/Tokyo':'UTC'});

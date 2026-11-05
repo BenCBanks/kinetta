@@ -1837,7 +1837,7 @@ nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 
 /* Feed cards: only the photo and the name open the profile; anywhere else on the card opens the activity. */
 .post-av { flex: none; display: grid; place-items: center; min-width: 44px; min-height: 44px; border-radius: 50%; color: inherit; }
 .post-av:active { transform: scale(.92); }
-.post-name { display:inline-flex; align-items:center; min-height:44px; min-width:44px; justify-self: start; max-width: 100%; color: var(--tx); font-size: 15px; font-weight: 700; white-space: normal; overflow-wrap: anywhere; }
+.post-name { display:inline-flex; align-items:center; flex:0 1 auto; min-height:44px; min-width:44px; max-width:45%; color:var(--tx); font-size:15px; font-weight:700; white-space:normal; overflow-wrap:anywhere; }
 .post-name:active { opacity: .6; }
 .post[data-href] { cursor: pointer; transition: transform .14s cubic-bezier(.2, .8, .2, 1); }
 .post.press { transform: scale(.985); }
@@ -2303,7 +2303,9 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .reaction-person>[role="img"] {flex:none;}
 .t-row:has(.activity-reactions) {flex-wrap:wrap;}
 .t-soc:has(.activity-reactions) {flex:1 0 100%;flex-wrap:nowrap;margin:0;max-width:100%;gap:8px;}
-.post-profile .ph-txt small {margin-top:4px;white-space:normal;overflow:visible;}
+.post-profile .ph-txt small {display:flex;align-items:flex-start;flex-wrap:wrap;margin-top:4px;white-space:normal;overflow:visible;}
+.post-meta-rest {display:flex;flex:1 1 0;flex-wrap:wrap;column-gap:.35em;min-width:0;line-height:1.4;}
+.post-meta-date,.post-meta-kind {white-space:nowrap;}
 
 /* Keep the outer conversation still; only messages/ingredients scroll. The
    keyboard helper supplies the visible height for Safari and the native WebView. */
@@ -3179,8 +3181,7 @@ html.keyboard-open .thread-quick-actions {display:none;}
  .activity-home .post-hd.post-profile {display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:8px;}
  .activity-home .post-hd>.post-av {grid-column:1;grid-row:1;}
  .activity-home .post-hd>.ph-txt {display:contents;}
- .activity-home .post-hd>.ph-txt>.post-name {grid-column:2;grid-row:1;}
  .activity-home .post-hd>.activity-share {grid-column:3;grid-row:1;}
- .activity-home .post-hd>.ph-txt>small {grid-column:1/-1;grid-row:2;white-space:nowrap;}
+ .activity-home .post-hd>.ph-txt>small {grid-column:1/-1;grid-row:2;white-space:normal;}
  .activity-home .post-route {display:none;}
 }
