@@ -247,6 +247,56 @@ def _empty(d):
     return not d['items'] and d['cooked_g'] is None and all(d.get('known_'+k) is None for k in KNOWN) and d['name'] in PLACEHOLDERS
 
 
+def _recent_own(c, uid, *, exclude=None):
+    """Recent saved recipes owned by this person, including ones used in their food log recently."""
+    cols = ', '.join('d.' + key.strip() for key in COLS.split(','))
+    params = {'uid': uid, 'limit': MAX_DISHES, 'default_tz': db.DEFAULT_TZ}
+    skip = ''
+    if exclude is not None:
+        skip = ' AND d.id <> %(exclude)s'
+        params['exclude'] = exclude
+    rows = c.execute(f"""SELECT {cols}, recent_use.last_used_at,
+                                GREATEST(d.updated, COALESCE(recent_use.last_used_at, d.updated)) AS recent_at,
+                                (GREATEST(d.updated, COALESCE(recent_use.last_used_at, d.updated))
+                                 AT TIME ZONE COALESCE(owner_profile.tz, %(default_tz)s))::date AS recent_day,
+                                (d.updated AT TIME ZONE COALESCE(owner_profile.tz, %(default_tz)s))::date AS updated_day,
+                                (recent_use.last_used_at
+                                 AT TIME ZONE COALESCE(owner_profile.tz, %(default_tz)s))::date AS last_used_day
+                         FROM dishes d
+                         LEFT JOIN profile owner_profile ON owner_profile.user_id = d.user_id
+                         LEFT JOIN LATERAL (
+                             SELECT max(fe.created) AS last_used_at
+                             FROM food_entries fe
+                             WHERE fe.user_id = d.user_id AND fe.source = 'dish'
+                               AND fe.ref->>'dish_id' = d.id::text
+                         ) recent_use ON TRUE
+                         WHERE d.user_id = %(uid)s{skip}
+                           AND (d.updated >= now() - interval '14 days'
+                                OR recent_use.last_used_at >= now() - interval '14 days')
+                         ORDER BY recent_at DESC, d.id DESC LIMIT %(limit)s""", params).fetchall()
+    result = []
+    for d in rows:
+        if _empty(d):
+            continue
+        view = _out(d)
+        result.append({'id': d['id'], 'name': view['name'], 'weight_g': view['weight_g'],
+                       'per_100g': view['per_100g'], 'updated': d['updated'],
+                       'last_used_at': d['last_used_at'], 'recent_at': d['recent_at'],
+                       'recent_day': d['recent_day'], 'updated_day': d['updated_day'],
+                       'last_used_day': d['last_used_day']})
+    return result
+
+
+@router.get('/recent-own')
+def recent_own(user=Depends(current_user)):
+    """Only your own recipes, ordered by last edit or food-log use, for cooking-mode ingredients."""
+    with db.connect() as c:
+        recipes = _recent_own(c, user['id'])
+        return [{'id': r['id'], 'name': r['name'], 'weight_g': r['weight_g'],
+                 'has_nutrition': bool(r['per_100g'] and r['per_100g'].get('kcal') is not None),
+                 'recent_day': r['recent_day']} for r in recipes]
+
+
 @router.get('')
 def dishes(user=Depends(current_user)):
     """Your saved dishes, then the ones friends shared with you; most recently changed first. An empty dish left for
@@ -457,6 +507,41 @@ def item_add(did: int, body: ItemIn, user=Depends(current_user)):
         item = {'id': secrets.token_hex(4), 'name': body.name.strip(), 'grams': _r(body.grams), **(_item_values(per100,body.grams) if per100 else {k:getattr(body,k) for k in NUM}),
                 'per100': per100, 'source': body.source, 'ref': body.ref}
         return _view(c, user['id'], _save_items(c, user['id'], did, items + [item]))
+
+
+class RecipeItemIn(BaseModel):
+    recipe_id: int = Field(gt=0)
+    grams: float = Field(gt=0, lt=20000)
+
+
+def _add_recipe_item(c, uid, did, recipe_id, grams):
+    if not (grams and 0 < grams < 20000):
+        raise HTTPException(400, 'Enter a recipe amount in grams below 20,000.')
+    grams = _r(grams)
+    if not grams:
+        raise HTTPException(400, 'Enter a recipe amount in grams below 20,000.')
+    dish = _get(c, uid, did, lock=True)
+    source = next((r for r in _recent_own(c, uid, exclude=did) if r['id'] == recipe_id), None)
+    if source is None:
+        raise HTTPException(404, 'Recipe not found or no longer recent.')
+    per100 = source['per_100g']
+    if not per100 or per100.get('kcal') is None:
+        raise HTTPException(400, 'Add calories and a measured recipe weight before using this recipe as an ingredient.')
+    if len(dish['items']) >= MAX_ITEMS:
+        raise HTTPException(400, f'A recipe can have up to {MAX_ITEMS} ingredients. Remove one before adding another.')
+    item = {'id': secrets.token_hex(4), 'name': source['name'], 'grams': grams,
+            **_item_values(per100, grams), 'per100': per100, 'source': 'recipe',
+            'ref': {'recipe_id': source['id']}}
+    view = _view(c, uid, _save_items(c, uid, did, dish['items'] + [item]))
+    return view, item
+
+
+@router.post('/{did:int}/items/recipe')
+def recipe_item_add(did: int, body: RecipeItemIn, user=Depends(current_user)):
+    """Copy nutrition from a recent recipe owned by this person; later edits never change this ingredient."""
+    with db.connect() as c:
+        view, _item = _add_recipe_item(c, user['id'], did, body.recipe_id, body.grams)
+        return view
 
 
 class ItemEdit(BaseModel):

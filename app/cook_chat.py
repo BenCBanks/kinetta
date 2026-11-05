@@ -14,6 +14,7 @@ The cook's own dish only (api_dishes._get checks user_id). Nothing about the per
 ingredient names and amounts and their message.
 """
 import concurrent.futures
+import datetime as dt
 import difflib
 import json
 import os
@@ -28,7 +29,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from . import nutrients as N
-from . import api_dishes as D, api_food, coach, db, food_photo
+from . import api_dishes as D, api_food, coach, db, food_photo, meal_chat
 from .auth import current_user
 
 router = APIRouter(prefix='/api/dishes')
@@ -66,6 +67,46 @@ def key(name):
     """How a food is looked up in memory: lower case, singular, no 'chopped' or 'fresh'. 'Apples' and 'apple' match."""
     words = [singular(w) for w in re.findall(r'[a-zà-ÿ]+', (name or '').lower()) if w not in PREP]
     return ' '.join(words)[:60]
+
+
+def _has_words(words, phrase):
+    return bool(phrase) and any(words[i:i + len(phrase)] == phrase for i in range(len(words) - len(phrase) + 1))
+
+
+def _recipe_matches(c, uid, did, text):
+    """Find only this person's recent saved recipes by their names and optional familiar day words."""
+    today = D._today(c, uid).date()
+    early_this_week = bool(re.search(r'\bearlier\s+this\s+week\b', text, re.I))
+    when_text = re.sub(r'\bearlier\s+this\s+week\b', ' ', text, flags=re.I) if early_this_week else text
+    cleaned, info = meal_chat.when(when_text, today)
+    if cleaned is None:
+        return []
+    wanted_day = info.get('saved_day') or info.get('day')
+    week_start = today - dt.timedelta(days=today.weekday()) if early_this_week else None
+    week_end = today - dt.timedelta(days=1) if early_this_week else None
+    spoken = key(text).split()
+    matches = []
+    for recipe in D._recent_own(c, uid, exclude=did):
+        name = key(recipe['name']).split()
+        if not _has_words(spoken, name):
+            continue
+        days = {recipe.get('updated_day'), recipe.get('last_used_day')} - {None}
+        if wanted_day and wanted_day not in days:
+            continue
+        if early_this_week and not any(week_start <= day <= week_end for day in days):
+            continue
+        matches.append(recipe)
+    if not matches:
+        return []
+    # Prefer the most specific title if it appears alongside a shorter title (e.g. "kale salad" over "kale").
+    longest = max(len(key(recipe['name']).split()) for recipe in matches)
+    return [recipe for recipe in matches if len(key(recipe['name']).split()) == longest]
+
+
+def _recipe_choice(recipe):
+    per100 = recipe.get('per_100g')
+    return {'id': recipe['id'], 'name': recipe['name'], 'weight_g': recipe.get('weight_g'),
+            'has_nutrition': bool(per100 and per100.get('kcal') is not None)}
 
 
 def pieces(text):
@@ -298,6 +339,27 @@ def say(did: int, body: SayIn, user=Depends(current_user)):
                 return {'dish':D._view(c,uid,d),'added':[],'changed':[],'removed':[],
                         'reply':'Which ingredient do you mean? Give its name and current amount so I change the right one.',
                         'clarification':text,'by':'clarification'}
+        if not correction:
+            recipes = _recipe_matches(c, uid, did, text)
+            if recipes:
+                parsed = D.parse_line(numerals(text))
+                grams = parsed.get('grams')
+                if len(recipes) > 1:
+                    return {'dish':D._view(c,uid,d),'added':[],'changed':[],'removed':[],
+                            'reply':'Which recipe did you mean?', 'recipe_choices':[_recipe_choice(r) for r in recipes],
+                            'recipe_grams':grams, 'clarification':text, 'by':'recipe'}
+                recipe = recipes[0]
+                if not recipe.get('per_100g') or recipe['per_100g'].get('kcal') is None:
+                    return {'dish':D._view(c,uid,d),'added':[],'changed':[],'removed':[],
+                            'reply':'This recipe needs calories and a measured weight before I can use it as an ingredient.',
+                            'by':'recipe'}
+                if not grams:
+                    return {'dish':D._view(c,uid,d),'added':[],'changed':[],'removed':[],
+                            'reply':'How much went in?', 'recipe_amount':_recipe_choice(recipe),
+                            'clarification':text, 'by':'recipe'}
+                fresh, item = D._add_recipe_item(c, uid, did, recipe['id'], grams)
+                return {'dish':fresh, 'added':[item['id']], 'changed':[], 'removed':[],
+                        'reply':f"Added {item['name'].lower()} ({item['grams']:g} g).", 'by':'recipe'}
         found = from_memory(text, memory(c, uid))
         if found is None and not correction:
             parsed=[D.parse_line(piece) for piece in pieces(text)]
