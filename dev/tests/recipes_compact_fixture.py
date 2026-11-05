@@ -31,6 +31,10 @@ for state in ('empty','typical','heavy','recipe'):
   add_source('no_nutrition','Fictional no calories',measured=150)
   add_source('ambiguous_a','Fictional bean stew',measured=200)
   add_source('ambiguous_b','Fictional bean curry',measured=300)
+  action=ok(c.post('/api/dishes',{'name':'Fictional actions traybake'}));action_id=action['id']
+  for label,g,k,p,carb,f in recipes[0][2]:ok(c.post(f'/api/dishes/{action_id}/items',{'name':label,'grams':g,'source':'quick','per100':{'kcal':k,'protein_g':p,'carbs_g':carb,'fat_g':f,'fiber_g':0}}))
+  action=ok(c.patch(f'/api/dishes/{action_id}',{'yield_servings':recipes[0][1],'serving':'one'}));assert action['serving_count']==recipes[0][1]
+  ids[state]['actions']=action_id
  for i in range(0 if state in ('empty','recipe') else 30 if state=='heavy' else 2):
   ok(c.post('/api/food/foods',{'name':('Fictional protein yogurt' if i==0 else 'Fictional oat bar' if i==1 else f'Fictional pantry food {i+1:02}'),'brand':'Fictional Pantry','serving_label':'1 pot' if i==0 else '1 bar' if i==1 else '1 portion','serving_g':170 if i==0 else 50,'kcal':180,'protein_g':12,'carbs_g':20,'fat_g':6,'fiber_g':3}))
  if state=='recipe':

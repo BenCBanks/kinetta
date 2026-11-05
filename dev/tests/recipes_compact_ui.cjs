@@ -2,23 +2,26 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),path=require('node:path'),fs=require('node:fs');
 const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill';
+const selectedCases=new Set((process.env.KINETTA_RECIPE_CASE||'').split(',').map(x=>x.trim()).filter(Boolean));
+const runCase=name=>selectedCases.size===0||selectedCases.has(name);
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label+' '+JSON.stringify(await p.evaluate(()=>({url:location.href,title:document.title,app:typeof App!=='undefined',ready:typeof App!=='undefined'?App.pageReady:null,body:document.body.innerText.slice(0,300)}))));}
 async function capture(p,name){const dir=process.env.KINETTA_SCREENSHOT_DIR;if(!dir)return;await p.waitForTimeout(320);fs.mkdirSync(dir,{recursive:true});await p.screenshot({path:path.join(dir,name+'.png')});console.log('Screenshot '+path.join(dir,name+'.png'));}
 (async()=>{
  const output=cp.execFileSync('python3',[path.join(__dirname,'recipes_compact_fixture.py')],{env:process.env,encoding:'utf8'});console.log(output.trim());const ids=JSON.parse(output.trim().split('\n').at(-1)),browser=await chromium.launch(),contexts=[];
- async function open(state,theme,size,native=false){
+ async function open(state,theme,size,native=false,sourceKey='saved'){
   const recipe=['saved','draft','weight','recipes'].includes(state),c=await browser.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});contexts.push(c);
   const signed=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_recipes_ui_'+(recipe?'recipe':state),password:pw,app:native}});assert.equal(signed.status(),200);const token=(await signed.json()).token;
-  if(recipe&&state!=='draft')assert.equal((await c.request.patch(base+'/api/dishes/'+ids.recipe.saved,{headers:{Origin:base,...(native?{Authorization:'Bearer '+token}:{})},data:{serving:state==='weight'?'portion':'one'}})).status(),200);
+  const dishId=ids.recipe[state==='draft'?'draft':sourceKey];
+  if(recipe&&state!=='draft')assert.equal((await c.request.patch(base+'/api/dishes/'+dishId,{headers:{Origin:base,...(native?{Authorization:'Bearer '+token}:{})},data:{serving:state==='weight'?'portion':'one'}})).status(),200);
   await c.addInitScript(({root,native,token,base})=>{if(native){const prefs={server:base,token};window.Capacitor={isNativePlatform:()=>true,isPluginAvailable:n=>n==='Preferences',Plugins:{Preferences:{get:async({key})=>({value:prefs[key]??null}),set:async({key,value})=>{prefs[key]=value;},remove:async({key})=>{delete prefs[key];}}}};}document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px');},{root:size.root,native,token,base});
   const p=await c.newPage(),errors=[],writes=[];p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
-  await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(u.pathname===`/api/dishes/${ids.recipe.saved}`||u.pathname===`/api/dishes/${ids.recipe.draft}`||u.pathname.endsWith('/items/recipe')||u.pathname.endsWith('/say'))return r.continue();return r.fulfill({json:{}});}return r.continue();});
-  await p.goto(base+(recipe?'/food/cook/'+ids.recipe[state==='draft'?'draft':'saved']:'/food/meals'));await until(p,()=>typeof App!=='undefined'&&App.pageReady&&!!document.querySelector('#tm-new,#dk-add'),`recipe/library ready (${state})`);return{c,p,errors,writes};
+  await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(u.pathname===`/api/dishes/${ids.recipe.saved}`||u.pathname===`/api/dishes/${ids.recipe.actions}`||u.pathname===`/api/dishes/${ids.recipe.draft}`||u.pathname.endsWith('/items/recipe')||u.pathname.endsWith('/say'))return r.continue();return r.fulfill({json:{}});}return r.continue();});
+  await p.goto(base+(recipe?'/food/cook/'+dishId:'/food/meals'));await until(p,()=>typeof App!=='undefined'&&App.pageReady&&!!document.querySelector('#tm-new,#dk-add'),`recipe/library ready (${state})`);return{c,p,errors,writes};
  }
  async function closeSheet(p){const s=await p.evaluate(()=>({has:!!document.querySelector('.sheet'),closing:!!document.querySelector('.scrim.is-closing')}));if(!s.has)return;if(!s.closing)await p.locator('[data-close]').last().click();await until(p,()=>!document.querySelector('.sheet'),'sheet closed');}
  try{
   for(const state of ['empty','typical','heavy','saved','draft','weight'])for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
-   const name=`${state}-${size.width}-${theme}`;if(process.env.KINETTA_RECIPE_CASE&&process.env.KINETTA_RECIPE_CASE!==name)continue;
+   const name=`${state}-${size.width}-${theme}`;if(!runCase(name))continue;
    const {c,p,errors,writes}=await open(state,theme,size);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no horizontal overflow');assert.equal(await p.locator('.discovery-grid').count(),0);
    if(['empty','typical','heavy'].includes(state)){
     assert.equal(await p.locator('h1').innerText(),'Recipes & foods');assert.equal(await p.locator('#tm-describe').innerText(),'Log food','existing food entry shortcut retained');assert.equal(await p.locator('.top .back').getAttribute('aria-label'),'Back to Nutrition','back destination remains accessible when its visible label is collapsed');assert.equal(await p.locator('#tm-filter').count(),state==='heavy'?1:0);assert.equal(await p.locator('#tm-dish,#tm-link,#tm-food').count(),0,'create actions live under New');
@@ -41,17 +44,17 @@ async function capture(p,name){const dir=process.env.KINETTA_SCREENSHOT_DIR;if(!
    }
    assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(x=>x!=='/api/challenges/signup/continue'),[],'layout/menus do not write recipes or food');await c.close();contexts.splice(contexts.indexOf(c),1);console.log(`Recipes ${name}: layout/actions/portion/search/clearance PASS`);
   }
-  if(!process.env.KINETTA_RECIPE_CASE||process.env.KINETTA_RECIPE_CASE==='keyboard')for(const theme of ['light','dark']){
+  if(runCase('keyboard'))for(const theme of ['light','dark']){
    const {c,p,errors}=await open('saved',theme,{width:390,height:844,root:16},true),field=p.locator('#dk-t');await field.fill('Fictional unsent oats');await field.focus();await p.evaluate(()=>{dispatchEvent(Object.assign(new Event('keyboardWillShow'),{keyboardHeight:336}));dispatchEvent(Object.assign(new Event('keyboardDidShow'),{keyboardHeight:336}));});await until(p,()=>{const n=document.activeElement,r=n.getBoundingClientRect();return n.id==='dk-t'&&r.bottom<=innerHeight-336+1&&r.top>=document.querySelector('.top').getBoundingClientRect().bottom;},'recipe composer above keyboard');await p.locator('#recipe-title-status').click();assert.equal(await field.inputValue(),'Fictional unsent oats');assert.equal(await field.evaluate(n=>document.activeElement===n),false,'background dismisses without losing ingredient draft');assert.equal(await p.locator('.keyboard-done,.keyboard-done-bar').count(),0);await p.evaluate(()=>{dispatchEvent(new Event('keyboardWillHide'));dispatchEvent(new Event('keyboardDidHide'));});assert.deepEqual(errors,[]);console.log('Recipe keyboard '+theme+': composer visible, background dismisses, draft retained PASS (native-event stand-in)');await c.close();contexts.splice(contexts.indexOf(c),1);
   }
-  if(process.env.KINETTA_RECIPE_CASE==='checkpoint'){
+  if(selectedCases.has('checkpoint')){
    const {c,p,errors}=await open('draft','light',{width:390,height:844,root:16});
    await p.locator('#dk-plus').click();await p.locator('#pm-recipes').click();await p.locator('[data-recent-recipe]').first().waitFor();await capture(p,'577-recipes-list-390-light');
    await p.getByRole('button',{name:'Chicken and veg traybake',exact:true}).click();await p.locator('#recipe-amount-form').waitFor();await capture(p,'577-amount-390-light');
    const added=p.waitForResponse(r=>r.url().includes('/items/recipe')&&r.request().method()==='POST'&&r.status()===200);await p.locator('[data-recipe-mode="all"]').click();await added;
    await p.locator('[data-recipe-open]').first().click();await p.locator('.recipe-source-readonly').waitFor();await capture(p,'577-source-readonly-390-light');assert.deepEqual(errors,[]);await c.close();contexts.splice(contexts.indexOf(c),1);console.log('Recipe checkpoint captures: recent list, amount choices and read-only source PASS');
   }
-  if(!process.env.KINETTA_RECIPE_CASE||process.env.KINETTA_RECIPE_CASE==='recipe-flow'){
+  if(runCase('recipe-flow')){
    const {c,p,errors,writes}=await open('draft','light',{width:390,height:844,root:16});
    const openRecipes=async()=>{await p.locator('#dk-plus').click();await p.locator('#pm-recipes').click();};
    const choose=async name=>{await openRecipes();const row=p.locator('[data-recent-recipe]').filter({hasText:name});await row.waitFor();await row.click();};
@@ -91,12 +94,13 @@ async function capture(p,name){const dir=process.env.KINETTA_SCREENSHOT_DIR;if(!
    assert.equal(await p.evaluate(async id=>(await fetch(`/api/dishes/${id}`,{method:'DELETE',headers:{'Content-Type':'application/json'},body:'{}'})).status,ids.recipe.saved),200);await p.locator('[data-recipe-open]').filter({hasText:'Chicken and veg traybake'}).click();await p.locator('#recipe-source-content .empty').waitFor();assert(await p.locator('#recipe-source-content .empty').innerText().then(t=>t.includes('This recipe is no longer available')),'deleted source shows unavailable state');assert.equal(await p.locator('[data-recipe-open]').filter({hasText:'Chicken and veg traybake'}).count(),1,'copied ingredient remains after source deletion');await closeSheet(p);
    assert.deepEqual(errors,[]);console.log('Recipe source/add/chat: owner list, recency, measured amounts, missing data, cup clarification, source privacy, retry and source deletion PASS');await c.close();contexts.splice(contexts.indexOf(c),1);
   }
-  if(!process.env.KINETTA_RECIPE_CASE||process.env.KINETTA_RECIPE_CASE==='actions'){
-   const {c,p,errors,writes}=await open('saved','light',{width:390,height:844,root:16});
+  if(runCase('actions')){
+   const {c,p,errors,writes}=await open('saved','light',{width:390,height:844,root:16},false,'actions');
+   const actionId=ids.recipe.actions;
    await p.locator('#dk-more').click();await p.locator('#dm-rename').click();await until(p,()=>document.activeElement?.id==='dk-name','rename focuses title');await p.locator('#dk-name').fill('Fictional renamed traybake');
-   let failed=false;await c.route(`**/api/dishes/${ids.recipe.saved}`,r=>{if(r.request().method()==='PATCH'&&!failed){failed=true;return r.fulfill({status:503,json:{detail:'Fictional title save failure'}});}return r.fallback();});
-   await p.locator('.recipe-nutrition').click();await p.locator('#dk-title-retry').waitFor();assert.equal(await p.locator('#dk-name').inputValue(),'Fictional renamed traybake');await p.locator('#dk-title-retry').click();await until(p,()=>document.querySelector('#recipe-title-status')?.textContent==='Title saved','title retry');assert.equal((await(await c.request.get(base+'/api/dishes/'+ids.recipe.saved)).json()).name,'Fictional renamed traybake');
-   await p.locator('#dk-servings').fill('6');const measure=p.waitForResponse(r=>r.url()===base+'/api/dishes/'+ids.recipe.saved&&r.request().method()==='PATCH'&&r.status()===200);await p.locator('.recipe-nutrition').click();assert.equal((await(await measure).json()).serving_count,6,'yield saved by existing API');await until(p,()=>document.querySelector('#dk-servings')?.value==='6','yield redraw');
+   let failed=false;await c.route(`**/api/dishes/${actionId}`,r=>{if(r.request().method()==='PATCH'&&!failed){failed=true;return r.fulfill({status:503,json:{detail:'Fictional title save failure'}});}return r.fallback();});
+   await p.locator('.recipe-nutrition').click();await p.locator('#dk-title-retry').waitFor();assert.equal(await p.locator('#dk-name').inputValue(),'Fictional renamed traybake');await p.locator('#dk-title-retry').click();await until(p,()=>document.querySelector('#recipe-title-status')?.textContent==='Title saved','title retry');assert.equal((await(await c.request.get(base+'/api/dishes/'+actionId)).json()).name,'Fictional renamed traybake');
+   await p.locator('#dk-servings').fill('6');const measure=p.waitForResponse(r=>r.url()===base+'/api/dishes/'+actionId&&r.request().method()==='PATCH'&&r.status()===200);await p.locator('.recipe-nutrition').click();assert.equal((await(await measure).json()).serving_count,6,'yield saved by existing API');await until(p,()=>document.querySelector('#dk-servings')?.value==='6','yield redraw');
    await p.locator('#dk-done').click();await p.locator('#recipe-finish').waitFor();assert.equal(await p.locator('[name=log_today]').isChecked(),false);await p.locator('[name=log_today]').check();await p.locator('#recipe-finish-save').click();await p.locator('#dl').waitFor();assert.equal(await p.locator('#dl [name=meal]').inputValue(),'');assert.equal(await p.locator('#dl-n').inputValue(),'');assert(!writes.some(x=>x.endsWith('/portion')),'Done and optional log still require portion and meal confirmation');await closeSheet(p);
    await p.locator('#dk-more').click();await p.locator('#dm-del').click();await p.locator('#recipe-delete-cancel').click();assert(await p.locator('#dk-name').isVisible());assert.deepEqual(errors,[]);await c.close();contexts.splice(contexts.indexOf(c),1);console.log('Recipe actions: rename/save failure/retry, yield autosave, explicit optional meal/portion review and delete cancel PASS');
   }
