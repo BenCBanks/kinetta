@@ -318,10 +318,26 @@ try:
     assert notify.push(month_id, send=lambda device,payload: sent.append(payload) or True) == 1
     assert sent[0]['title'] == 'Your October summary is ready' and sent[0]['body'] == month_item['detail']
     assert sent[0]['url'] == '/notifications?summary=2020-10'
+    # The existing minute worker runs the monthly summary scheduler; both calls are replaced here.
+    worker_calls = []
+    class OneCycleStop:
+        def __init__(self): self.waits = 0
+        def wait(self, _): self.waits += 1; return self.waits > 1
+    class InlineThread:
+        def __init__(self, target, daemon=False): self.target = target
+        def start(self): self.target()
+    class InlineThreading:
+        Event = OneCycleStop
+        Thread = InlineThread
+    with patch.object(M, 'threading', InlineThreading), \
+         patch.object(M, 'tick', side_effect=lambda: worker_calls.append('personal')), \
+         patch.object(notify, 'summary_tick', side_effect=lambda: worker_calls.append('monthly')):
+        M.start_worker()
+    assert worker_calls == ['personal', 'monthly']
     with db.connect() as c:
         c.execute('DELETE FROM users WHERE id=%s', (uid,))
         assert not c.execute('SELECT 1 FROM personal_notification_attempts WHERE user_id=%s', (uid,)).fetchone()
-    print('Personal notifications: HTTP defaults/strict opt-in/own settings, schedule/activation/DST/window, real plan completion/adjustments, food/workout/empty/open-lift weekly eligibility, concurrent once-only claims, private payload/expiry/no bell, final off/zone/claim/session checks, uncertain failure/no locks; monthly/yearly summary timezone, empty, dedupe, owner aggregate, switch and deep link PASS')
+    print('Personal notifications: HTTP defaults/strict opt-in/own settings, schedule/activation/DST/window, real plan completion/adjustments, food/workout/empty/open-lift weekly eligibility, concurrent once-only claims, private payload/expiry/no bell, final off/zone/claim/session checks, uncertain failure/no locks; monthly/yearly summary timezone, empty, dedupe, owner aggregate, switch, deep link and worker hook PASS')
 finally:
     for client in clients:
         client.close()

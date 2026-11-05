@@ -210,6 +210,7 @@ def start_worker():
         while not stop.wait(60):
             try:
                 tick()
+                notify.summary_tick()
             except Exception as error:
                 print('personal notifications paused', type(error).__name__, flush=True)
     worker = threading.Thread(target=run, daemon=True)

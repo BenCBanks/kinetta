@@ -914,7 +914,7 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
 // ---------- Notifications (2026-10-11, notify.py) ----------
 // 2026-10-12 (Ben): the bell shows only your notifications; phone-notification settings live in Me > Settings
 // (/me/notifications). /notifications lights no tab (it opens from several).
-const PUSH_NAMES = {friends: 'Friend requests', cheers: 'Cheers & reactions', comments: 'Comments', dishes: 'Shared meals', activities: 'New workouts', milestones:'Milestones (at most one a day)',challenge_joins:'Someone joins your challenge',challenge_reminders:'Challenge reminders',challenge_finished:'Challenge finish pictures',monthly_summary:'Monthly summary'};
+const PUSH_NAMES = {friends: 'Friend requests', cheers: 'Cheers & reactions', comments: 'Comments', dishes: 'Shared meals', activities: 'New workouts', milestones:'Milestones (at most one a day)',challenge_joins:'Someone joins your challenge',challenge_reminders:'Challenge reminders',challenge_finished:'Challenge finish pictures'};
 const NOTE_ICON = {friend_request: 'people', friend_accepted: 'people', cheer: 'cheer', comment: 'comment', dish_shared: 'pot', activity_ready: 'check', report: 'lock', monthly_summary:'calendar'};
 // One notification (2026-10-23, Ben: the list felt scrunched): the person's name in bold, a quoted comment on its own
 // quieter line, a short time, and a dot for new ones instead of tinted rows.
@@ -943,7 +943,9 @@ function summaryOffset(type, period) {
 }
 function openSummary(type, period) {
   const offset = summaryOffset(type, period);
-  if (offset !== null) Recaps.open({period:type,offset});
+  if (offset === null) return;
+  if (offset > 24) { go('/progress'); Recaps.open(); return; }
+  Recaps.open({period:type,offset});
 }
 function noteAgo(iso) {
   const min = Math.round((Date.now() - new Date(iso)) / 60000);
@@ -1001,7 +1003,7 @@ async function pushCard(box, r, message='') {
   const generation=Symbol();box.pushGeneration=generation;
   const valid=()=>box.isConnected&&account===readOwner()&&box.pushGeneration===generation;
   if(!valid())return;
-  personalNotificationCard($('#nt-personal',box.parentElement));
+  personalNotificationCard($('#nt-personal',box.parentElement), '', r.push);
   const render=(content,kinds='')=>{
     if(!valid())return;
     const meal=$('#np-meal-reminders',box);
@@ -1027,7 +1029,7 @@ async function pushCard(box, r, message='') {
     return;
   }
   if(!valid())return;
-  const hints={friends:'Requests and friendship updates.',cheers:'Reactions to your activities.',comments:'Replies to your activities.',dishes:'Meals shared with you.',activities:'When a watch or Health workout is ready.',milestones:'A new milestone, at most once a day.',challenge_joins:'When someone joins a challenge you host.',challenge_reminders:'A reminder while your challenge is active.',challenge_finished:'When a challenge finish picture is ready.',monthly_summary:'On the first of the month at 9 am.'};
+  const hints={friends:'Requests and friendship updates.',cheers:'Reactions to your activities.',comments:'Replies to your activities.',dishes:'Meals shared with you.',activities:'When a watch or Health workout is ready.',milestones:'A new milestone, at most once a day.',challenge_joins:'When someone joins a challenge you host.',challenge_reminders:'A reminder while your challenge is active.',challenge_finished:'When a challenge finish picture is ready.'};
   const kinds=status.enabled?`<section class="card"><h2>Alert types</h2><div class="notification-choices" id="np-kinds">${Object.entries(PUSH_NAMES).map(([k,n])=>`<label class="switch-row"><span>${esc(k==='milestones'?'Milestones':n)}<small>${esc(hints[k])}</small></span><input type="checkbox" role="switch" name="${k}"${r.push[k]?' checked':''}></label>`).join('')}</div></section>`:'';
   render(`${!r.push_ready?'<p class="small muted">Server notification setup is not complete; the bell still works.</p>':''}
     ${status.enabled?'<p class="small muted">Alerts are on for this iPhone.</p><div class="notification-phone-action"><button class="ghost sm" id="np-off">Turn off on this iPhone</button></div>'
@@ -1061,8 +1063,10 @@ async function pushCard(box, r, message='') {
   };
 }
 
-async function personalNotificationCard(box,message=''){
+async function personalNotificationCard(box,message='',pushPreferences=null){
   if(!box)return;
+  if(pushPreferences){box.personalPushSource=pushPreferences;box.personalPush={...pushPreferences};}
+  else if(!box.personalPush)box.personalPush={};
   const owner=readOwner();
   // A native permission refresh must not replace controls during their pending write.
   if(box.personalSaving===owner){box.personalRefresh=true;return;}
@@ -1072,10 +1076,12 @@ async function personalNotificationCard(box,message=''){
   const draw=(state,error=message)=>{
     if(!valid())return;
     const unavailable=!state.push_ready||!state.device_ready;
-    box.innerHTML=`<section class="card personal-notifications"><h2>Training & progress</h2><p class="small muted">Off by default · ${esc(state.tz)}</p>
+    const monthlySummary=box.personalPush.monthly_summary!==false;
+    box.innerHTML=`<section class="card personal-notifications"><h2>Training & progress</h2><p class="small muted">Planned workouts and weekly summaries are off by default · ${esc(state.tz)}</p>
       <div class="notification-choices"><div class="personal-notice-choice"><label class="switch-row"><span>Planned workouts<small>Only when a workout is still due.</small></span><input type="checkbox" role="switch" data-personal="plan"${state.plan?' checked':''}${unavailable&&!state.plan?' disabled':''}></label>
       ${state.plan?`<label class="personal-notice-time">Reminder time<select data-personal="plan_time">${times.map(([k,v])=>`<option value="${k}"${state.plan_time===k?' selected':''}>${v}</option>`).join('')}</select></label>`:''}</div>
-      <div class="personal-notice-choice"><label class="switch-row"><span>Weekly summary<small>Monday at 9 am.</small></span><input type="checkbox" role="switch" data-personal="weekly"${state.weekly?' checked':''}${unavailable&&!state.weekly?' disabled':''}></label></div></div>
+      <div class="personal-notice-choice"><label class="switch-row"><span>Weekly summary<small>Monday at 9 am.</small></span><input type="checkbox" role="switch" data-personal="weekly"${state.weekly?' checked':''}${unavailable&&!state.weekly?' disabled':''}></label></div>
+      <div class="personal-notice-choice"><label class="switch-row"><span>Monthly summary<small>On the first of the month at 9 am.</small></span><input type="checkbox" role="switch" data-monthly-summary${monthlySummary?' checked':''}${unavailable&&!monthlySummary?' disabled':''}></label></div></div>
       ${unavailable?`<p class="small muted">${!state.push_ready?'Server notification setup is not complete.':Native.on?'Turn on iPhone notifications above.':'Turn on notifications in the Kinetta iPhone app first.'}</p>`:''}
       ${state.plan||state.weekly?'<details class="reminder-how"><summary>Delivery details</summary><p>New choices start at the next scheduled time. A weekly summary needs a workout or food logged in the last seven completed days. iOS may delay or suppress alerts. Delivered alerts cannot be recalled.</p></details>':''}
       <p class="small${error?' err':''}" role="status" data-personal-status>${esc(error)}</p></section>`;
@@ -1086,7 +1092,7 @@ async function personalNotificationCard(box,message=''){
       const restoreFocus=()=>{const field=$(`[data-personal="${key}"]`,box);if(focused&&field&&!field.disabled)field.focus({preventScroll:true});};
       let failure='';
       box.personalSaving=owner;
-      $$('[data-personal]',box).forEach(field=>field.disabled=true);
+      $$('[data-personal],[data-monthly-summary]',box).forEach(field=>field.disabled=true);
       $('[data-personal-status]',box).textContent='Saving…';
       try{
         const fresh=await api('/api/notifications/personal',json('PUT',{[key]:value,confirmed:value===true}));
@@ -1094,9 +1100,37 @@ async function personalNotificationCard(box,message=''){
       }catch(error){failure=error.message||'This setting could not be saved.';if(valid()){draw(state,failure);restoreFocus();}}
       finally{
         if(box.personalSaving===owner)box.personalSaving=null;
-        if(valid()&&box.personalRefresh){box.personalRefresh=false;await personalNotificationCard(box,failure);}
+        if(valid()&&box.personalRefresh){box.personalRefresh=false;await personalNotificationCard(box,failure,box.personalPush);}
       }
     });
+    const summaryInput=$('[data-monthly-summary]',box);
+    summaryInput.onchange=async()=>{
+      if(!valid()||summaryInput.disabled)return;
+      const enabled=summaryInput.checked,focused=globalThis.document?.activeElement===summaryInput;
+      const restoreFocus=()=>{const field=$('[data-monthly-summary]',box);if(focused&&field&&!field.disabled)field.focus({preventScroll:true});};
+      let failure='';box.personalSaving=owner;
+      const controls=$$('[data-personal],[data-monthly-summary]',box).map(field=>[field,field.disabled]);
+      const restoreControls=()=>controls.forEach(([field,disabled])=>{if(field.isConnected)field.disabled=disabled;});
+      const status=$('[data-personal-status]',box);
+      controls.forEach(([field])=>{field.disabled=true;});
+      if(status){status.textContent='Saving…';status.classList.remove('err');}
+      try{
+        const fresh=await api('/api/notifications/settings',json('PUT',{monthly_summary:enabled}));
+        if(!valid())return;box.personalPush={...(fresh.push||box.personalPush),monthly_summary:enabled};
+        if(box.personalPushSource)box.personalPushSource.monthly_summary=enabled;
+        if(status){status.textContent='';status.classList.remove('err');}
+        summaryInput.checked=enabled;restoreControls();
+        invalidate('/api/notifications');restoreFocus();Native.haptic('light');
+      }catch(error){failure=error.message||'This setting could not be saved.';if(valid()){
+        box.personalPush={...box.personalPush,monthly_summary:!enabled};summaryInput.checked=!enabled;
+        if(status){status.textContent=failure;status.classList.add('err');}
+        restoreControls();restoreFocus();
+      }}
+      finally{
+        if(box.personalSaving===owner)box.personalSaving=null;
+        if(valid()&&box.personalRefresh){box.personalRefresh=false;await personalNotificationCard(box,failure,box.personalPush);}
+      }
+    };
   };
   const loadSettings=async()=>{
     try{const state=await api('/api/notifications/personal');if(valid())draw(state);}
