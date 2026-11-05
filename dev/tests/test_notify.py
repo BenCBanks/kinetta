@@ -16,6 +16,7 @@ def notes(c):
 
 
 for c in (n1, n2, n3): c.post('/api/notifications/read')
+ck(notes(n1)['push']['monthly_summary'] is True, 'monthly summaries are on by default for existing accounts')
 n2.delete('/api/friends/zz_test_note1'); n1.delete('/api/friends/zz_test_note2')
 base1 = len(notes(n1)['items'])
 
@@ -68,8 +69,11 @@ ck(n1.post('/api/push/ios', {'token': 'ab' * 32, 'environment': 'arbitrary-host'
 ck(n1.post('/api/push/ios', {'token': 'ab' * 32, 'environment': 'production'})[0] == 200, 'native device registered')
 ck(n1.delete('/api/push/ios')[0] == 200, 'native device disabled for this session')
 s, r = n1.put('/api/notifications/settings', {'cheers': False})
-ck(r['push'] == {'friends': True, 'cheers': False, 'comments': True, 'dishes': True, 'activities': True, 'milestones': False, 'challenge_joins': False, 'challenge_reminders': False, 'challenge_finished': False}, 'settings')
+ck(r['push'] == {'friends': True, 'cheers': False, 'comments': True, 'dishes': True, 'activities': True, 'milestones': False, 'challenge_joins': False, 'challenge_reminders': False, 'challenge_finished': False, 'monthly_summary': True}, 'settings')
 n1.put('/api/notifications/settings', {'cheers': True})
+ck(n1.put('/api/notifications/settings', {'monthly_summary': False})[1]['push']['monthly_summary'] is False, 'monthly summary has its own switch')
+ck(notes(n1)['push']['monthly_summary'] is False, 'monthly summary switch is stored in profile notification preferences')
+n1.put('/api/notifications/settings', {'monthly_summary': True})
 # A workout typed in by hand is never congratulated: you just did it yourself. (Workouts that arrive by
 # themselves are covered in incontainer.py, with Health/Garmin sources.)
 import datetime as dt

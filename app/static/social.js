@@ -914,8 +914,8 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
 // ---------- Notifications (2026-10-11, notify.py) ----------
 // 2026-10-12 (Ben): the bell shows only your notifications; phone-notification settings live in Me > Settings
 // (/me/notifications). /notifications lights no tab (it opens from several).
-const PUSH_NAMES = {friends: 'Friend requests', cheers: 'Cheers & reactions', comments: 'Comments', dishes: 'Shared meals', activities: 'New workouts', milestones:'Milestones (at most one a day)',challenge_joins:'Someone joins your challenge',challenge_reminders:'Challenge reminders',challenge_finished:'Challenge finish pictures'};
-const NOTE_ICON = {friend_request: 'people', friend_accepted: 'people', cheer: 'cheer', comment: 'comment', dish_shared: 'pot', activity_ready: 'check', report: 'lock'};
+const PUSH_NAMES = {friends: 'Friend requests', cheers: 'Cheers & reactions', comments: 'Comments', dishes: 'Shared meals', activities: 'New workouts', milestones:'Milestones (at most one a day)',challenge_joins:'Someone joins your challenge',challenge_reminders:'Challenge reminders',challenge_finished:'Challenge finish pictures',monthly_summary:'Monthly summary'};
+const NOTE_ICON = {friend_request: 'people', friend_accepted: 'people', cheer: 'cheer', comment: 'comment', dish_shared: 'pot', activity_ready: 'check', report: 'lock', monthly_summary:'calendar'};
 // One notification (2026-10-23, Ben: the list felt scrunched): the person's name in bold, a quoted comment on its own
 // quieter line, a short time, and a dot for new ones instead of tinted rows.
 function noteRow(n) {
@@ -923,10 +923,27 @@ function noteRow(n) {
   let lead = '', rest = text, quote = '';
   if (name && rest.startsWith(name)) { lead = name; rest = rest.slice(name.length); }
   const q = rest.match(/^([\s\S]*?):\s*"([\s\S]*)"$/); if (q) { rest = q[1]; quote = q[2]; }
-  return `<a class="note${n.read ? '' : ' unread'}" href="${esc(n.link)}">
+  const summary = n.kind === 'monthly_summary' && ['month','year'].includes(n.period_type) &&
+    (n.period_type === 'month' ? /^\d{4}-\d{2}$/.test(n.period) : /^\d{4}$/.test(n.period));
+  const summaryAttrs = summary ? ` data-summary-type="${n.period_type}" data-summary-period="${esc(n.period)}"` : '';
+  return `<a class="note${n.read ? '' : ' unread'}"${summaryAttrs} href="${esc(n.link)}">
     <span class="note-av">${avatar(n.who)}<span class="note-k" data-kind="${esc(n.kind)}">${svg(NOTE_ICON[n.kind] || 'people')}</span></span>
-    <span class="grow"><span class="note-t">${lead ? `<b>${esc(lead)}</b>` : ''}${esc(rest)}</span>${quote ? `<span class="note-q">“${esc(quote)}”</span>` : ''}<small>${esc(noteAgo(n.created))}</small></span>
+    <span class="grow"><span class="note-t">${lead ? `<b>${esc(lead)}</b>` : ''}${esc(rest)}</span>${quote ? `<span class="note-q">“${esc(quote)}”</span>` : n.detail ? `<span class="note-q">${esc(n.detail)}</span>` : ''}<small>${esc(noteAgo(n.created))}</small></span>
     ${n.read ? '' : '<span class="note-dot" aria-label="New"></span>'}</a>`;
+}
+function summaryOffset(type, period) {
+  if (!App.me?.tz || !Recaps) return null;
+  const current = Recaps.today(App.me.tz);
+  if (type === 'month') {
+    if (!/^\d{4}-\d{2}$/.test(period)) return null;
+    return Math.max(0, Number(current.slice(0,4))*12 + Number(current.slice(5,7)) - Number(period.slice(0,4))*12 - Number(period.slice(5,7)));
+  }
+  if (type === 'year' && /^\d{4}$/.test(period)) return Math.max(0, Number(current.slice(0,4)) - Number(period));
+  return null;
+}
+function openSummary(type, period) {
+  const offset = summaryOffset(type, period);
+  if (offset !== null) Recaps.open({period:type,offset});
 }
 function noteAgo(iso) {
   const min = Math.round((Date.now() - new Date(iso)) / 60000);
@@ -944,6 +961,12 @@ route(/^\/notifications$/, null, async (el) => {
     const group = (title, items) => items.length ? `<section class="notes-group">${title ? `<h2 class="notes-h">${title}</h2>` : ''}<div class="card list notes">${items.map(noteRow).join('')}</div></section>` : '';
     list.innerHTML = r.items.length ? group(fresh.length ? 'New' : '', fresh) + group(fresh.length && seen.length ? 'Earlier' : '', seen)
       : `<div class="card empty"><b>Nothing yet</b>New workouts, friend requests, ${esc(CHEER.many)}, comments and shared meals show up here.</div>`;
+    $$('[data-summary-period]',list).forEach(link=>link.addEventListener('click',event=>{
+      event.preventDefault();event.stopPropagation();openSummary(link.dataset.summaryType,link.dataset.summaryPeriod);
+    }));
+    const query=new URLSearchParams(location.search),month=query.get('summary'),year=query.get('year');
+    if(month&&/^\d{4}-\d{2}$/.test(month))openSummary('month',month);
+    else if(year&&/^\d{4}$/.test(year))openSummary('year',year);
     if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {});
     if (r.unread) api('/api/notifications/read', json('POST', {})).then(() => { App.me.notifications = 0; Social.badge(); invalidate('/api/notifications'); }).catch(() => {});
   }, {maxAge: 0});
@@ -1004,7 +1027,7 @@ async function pushCard(box, r, message='') {
     return;
   }
   if(!valid())return;
-  const hints={friends:'Requests and friendship updates.',cheers:'Reactions to your activities.',comments:'Replies to your activities.',dishes:'Meals shared with you.',activities:'When a watch or Health workout is ready.',milestones:'A new milestone, at most once a day.',challenge_joins:'When someone joins a challenge you host.',challenge_reminders:'A reminder while your challenge is active.',challenge_finished:'When a challenge finish picture is ready.'};
+  const hints={friends:'Requests and friendship updates.',cheers:'Reactions to your activities.',comments:'Replies to your activities.',dishes:'Meals shared with you.',activities:'When a watch or Health workout is ready.',milestones:'A new milestone, at most once a day.',challenge_joins:'When someone joins a challenge you host.',challenge_reminders:'A reminder while your challenge is active.',challenge_finished:'When a challenge finish picture is ready.',monthly_summary:'On the first of the month at 9 am.'};
   const kinds=status.enabled?`<section class="card"><h2>Alert types</h2><div class="notification-choices" id="np-kinds">${Object.entries(PUSH_NAMES).map(([k,n])=>`<label class="switch-row"><span>${esc(k==='milestones'?'Milestones':n)}<small>${esc(hints[k])}</small></span><input type="checkbox" role="switch" name="${k}"${r.push[k]?' checked':''}></label>`).join('')}</div></section>`:'';
   render(`${!r.push_ready?'<p class="small muted">Server notification setup is not complete; the bell still works.</p>':''}
     ${status.enabled?'<p class="small muted">Alerts are on for this iPhone.</p><div class="notification-phone-action"><button class="ghost sm" id="np-off">Turn off on this iPhone</button></div>'

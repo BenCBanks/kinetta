@@ -284,9 +284,44 @@ try:
         M.tick()
     with db.connect() as c:
         assert not c.execute("SELECT 1 FROM personal_notification_attempts WHERE attempted_at<now()-interval '90 days'").fetchone()
+    # Monthly and January yearly summaries use the person's timezone and only a period-only notification row.
+    assert notify.summary_due('UTC', dt.datetime(2026, 11, 1, 9, 14, 59, tzinfo=dt.timezone.utc)) == [('month', '2026-10')]
+    assert not notify.summary_due('UTC', dt.datetime(2026, 11, 1, 9, 15, tzinfo=dt.timezone.utc))
+    assert not notify.summary_due('America/New_York', dt.datetime(2026, 11, 1, 13, 59, tzinfo=dt.timezone.utc))
+    assert notify.summary_due('America/New_York', dt.datetime(2026, 11, 1, 14, 0, tzinfo=dt.timezone.utc)) == [('month', '2026-10')]
+    assert notify.summary_due('America/New_York', dt.datetime(2027, 1, 1, 14, 0, tzinfo=dt.timezone.utc)) == [('month', '2026-12'), ('year', '2026')]
+    # An empty period is skipped; one private workout creates one durable item even on repeated ticks.
+    assert a.post('/api/activities/manual', json={'sport':'run','start':'2020-10-05T12:00:00+00:00','duration_s':3600,'distance_m':5000}).status_code == 200
+    assert b.post('/api/activities/manual', json={'sport':'run','start':'2020-10-06T12:00:00+00:00','duration_s':3600,'distance_m':160934}).status_code == 200
+    with db.connect() as c:
+        assert notify.record_summary(c, other, 'month', '2020-09', enqueue=False) is None
+        month_id = notify.record_summary(c, uid, 'month', '2020-10', enqueue=False)
+        assert month_id and notify.record_summary(c, uid, 'month', '2020-10', enqueue=False) is None
+        year_id = notify.record_summary(c, uid, 'year', '2020', enqueue=False)
+        assert year_id
+    month_item = next(row for row in a.get('/api/notifications').json()['items'] if row['id'] == month_id)
+    assert month_item['kind'] == 'monthly_summary' and month_item['period_type'] == 'month' and month_item['period'] == '2020-10'
+    assert month_item['text'] == notify.summary_title('month', '2020-10') and month_item['link'] == '/notifications?summary=2020-10'
+    with db.connect() as c:
+        p = c.execute('SELECT tz,units FROM profile WHERE user_id=%s', (uid,)).fetchone()
+        facts = notify.summary_facts(c, uid, 'month', '2020-10', p['tz'])
+    assert month_item['detail'] == notify.summary_detail(facts, p['units']) and month_item['detail'].endswith(' · 1 workout')
+    year_item = next(row for row in a.get('/api/notifications').json()['items'] if row['id'] == year_id)
+    assert year_item['text'] == 'Your 2020 in review' and year_item['link'] == '/notifications?year=2020'
+    # Push delivery is mocked; switching the existing preference off leaves the bell item but sends nothing.
+    with db.connect() as c:
+        c.execute("UPDATE profile SET notify=coalesce(notify,'{}'::jsonb)||'{\"monthly_summary\":false}'::jsonb WHERE user_id=%s", (uid,))
+    sent = []
+    assert notify.push(month_id, send=lambda device,payload: sent.append(payload) or True) == 0 and not sent
+    with db.connect() as c:
+        c.execute("UPDATE profile SET notify=coalesce(notify,'{}'::jsonb)||'{\"monthly_summary\":true}'::jsonb WHERE user_id=%s", (uid,))
+    assert notify.push(month_id, send=lambda device,payload: sent.append(payload) or True) == 1
+    assert sent[0]['title'] == 'Your October summary is ready' and sent[0]['body'] == month_item['detail']
+    assert sent[0]['url'] == '/notifications?summary=2020-10'
+    with db.connect() as c:
         c.execute('DELETE FROM users WHERE id=%s', (uid,))
         assert not c.execute('SELECT 1 FROM personal_notification_attempts WHERE user_id=%s', (uid,)).fetchone()
-    print('Personal notifications: HTTP defaults/strict opt-in/own settings, schedule/activation/DST/window, real plan completion/adjustments, food/workout/empty/open-lift weekly eligibility, concurrent once-only claims, private payload/expiry/no bell, final off/zone/claim/session checks, uncertain failure/no locks, RLS/export/retention/erasure PASS')
+    print('Personal notifications: HTTP defaults/strict opt-in/own settings, schedule/activation/DST/window, real plan completion/adjustments, food/workout/empty/open-lift weekly eligibility, concurrent once-only claims, private payload/expiry/no bell, final off/zone/claim/session checks, uncertain failure/no locks; monthly/yearly summary timezone, empty, dedupe, owner aggregate, switch and deep link PASS')
 finally:
     for client in clients:
         client.close()
