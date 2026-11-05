@@ -1,13 +1,29 @@
 'use strict';
 // Real isolated-account reaction writes; reject unrelated app/provider/device writes.
-const {chromium}=require('playwright'),assert=require('node:assert/strict');
+const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill';
+const shotDir=process.env.KINETTA_REACTION_SHOTS;
 const until=async(p,fn,label,assetFailures)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))return;await p.waitForTimeout(100);}throw Error(label+' '+JSON.stringify({page:await p.evaluate(()=>({url:location.pathname,...(typeof App==='undefined'?{}:{ready:App.pageReady}),body:document.body.innerText.slice(0,250)})),staticAssetFailures:assetFailures}));};
+async function assertCardActions(card,{share,width,label}){
+ const footer=card.locator('.post-ft'),react=card.locator('.reaction-more'),comment=card.locator('.activity-comments'),shareButton=card.locator('.post-ft [data-share-picture]');
+ const reactBox=await react.boundingBox(),commentBox=await comment.boundingBox(),footerBox=await footer.boundingBox();
+ assert(Math.abs(commentBox.x-reactBox.x-reactBox.width-16)<1,`${label}: Comment follows React by 16px`);
+ assert.equal(await shareButton.count(),share?1:0,`${label}: Share matches ownership`);
+ let trailing=commentBox.x+commentBox.width;
+  if(share){const shareBox=await shareButton.boundingBox(),expectedGap=width===330?8:16;assert(Math.abs(shareBox.x-trailing-expectedGap)<1,`${label}: Share follows Comment by ${expectedGap}px`);trailing=shareBox.x+shareBox.width;}
+ const shortcuts=card.locator('.reaction-shortcuts');
+ if(await shortcuts.isVisible()){
+  const summary=await shortcuts.boundingBox(),padding=await footer.evaluate(n=>parseFloat(getComputedStyle(n).paddingRight)||0);
+  assert(summary.x-trailing>=7.5,`${label}: reaction summary has an 8px gap from the last action`);
+  assert(Math.abs(summary.x+summary.width-footerBox.x-footerBox.width+padding)<1,`${label}: reaction summary sits at the trailing content edge`);
+  const expectedEmojis=share&&width===330?1:2;assert.equal(await shortcuts.locator('.reaction-summary-emoji:visible').count(),expectedEmojis,`${label}: summary keeps ${expectedEmojis} emoji${expectedEmojis===1?'':'s'} at ${width}px`);
+ }
+}
 (async()=>{
  const browser=await chromium.launch();let cases=0;
  try{
-  for(const theme of ['light','dark'])for(const size of [{width:390,root:16}])for(const surface of ['friends','profile','own','history']){
-   if(process.env.KINETTA_REACTION_CASE&&process.env.KINETTA_REACTION_CASE!==`${surface}-${size.width}-${theme}`)continue;
+  for(const theme of ['light','dark'])for(const size of [{width:390,root:16},{width:330,root:16}])for(const surface of ['friends','profile','own','history']){
+   if(process.env.KINETTA_REACTION_CASE&&!process.env.KINETTA_REACTION_CASE.split(',').includes(`${surface}-${size.width}-${theme}`))continue;
    const actor=surface==='own'||surface==='history'?'owner':'viewer',c=await browser.newContext({viewport:{width:size.width,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true});
    try{
     assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_inline_'+actor,password:pw}})).status(),200);
@@ -19,9 +35,16 @@ const until=async(p,fn,label,assetFailures)=>{for(let n=0;n<150;n++){if(await p.
      if(!['GET','HEAD'].includes(r.method())&&!(u.pathname===`/api/activities/${aid}/reaction`||u.pathname===`/api/activities/${otherAid}/reaction`||u.pathname===`/api/activities/${aid}/comments`||r.method()==='DELETE'&&/^\/api\/comments\/\d+$/.test(u.pathname)))return route.fulfill({json:{}});return route.continue();});
     const href=surface==='profile'?'/people/zz_test_inline_owner':surface==='history'?'/me/activities':'/activity';await p.goto(base+href);await until(p,()=>typeof App!=='undefined'&&App.pageReady,'Page ready',assetFailures);
     const card=p.locator('article.post').filter({hasText:'Fictional empty run'});await card.waitFor();await until(p,()=>[...document.querySelectorAll('article.post [data-reaction-group]')].every(g=>g.dataset.bound==='1'),'Reaction handlers ready');const group=card.locator('[data-reaction-group]');assert.equal(await group.locator('[data-inline-react]').count(),0);assert(await group.locator('.reaction-more').isVisible());assert.equal(await group.locator('.reaction-more').getAttribute('aria-label'),'React');assert.equal((await group.locator('.reaction-more').innerText()).trim(),'React');
-    const ownCard=surface==='own'||surface==='history';assert.equal(await card.locator('.post-hd [data-share-picture]').count(),ownCard?1:0,'Only own cards offer header Share');assert.equal(await card.locator('.post-ft [data-share-picture]').count(),0,'Share uses the existing header');
-    if(ownCard){const url=p.url();await card.locator('[data-share-picture]').click();await p.locator('#pi-img').waitFor({state:'attached'});assert.equal(p.url(),url,'Header Share opens the picture without card navigation');await p.keyboard.press('Escape');}
+    const ownCard=surface==='own'||surface==='history';assert.equal(await card.locator('.post-hd [data-share-picture]').count(),0,'Share is not in the header');await assertCardActions(card,{share:ownCard,width:size.width,label:surface+' empty activity'});
+    if(ownCard){const url=p.url();await card.locator('.post-ft [data-share-picture]').click();await p.locator('#pi-img').waitFor({state:'attached'});assert.equal(p.url(),url,'Footer Share opens the picture without card navigation');await p.keyboard.press('Escape');}
     assert.equal(await card.locator('.activity-comments').isVisible(),true);assert.equal(await card.locator('.activity-comments .num').isVisible(),false);assert.equal(await group.locator('.reaction-count').isVisible(),false);
+    const otherCard=p.locator('article.post').filter({hasText:'Fictional others run'});await otherCard.waitFor();assert(await otherCard.locator('.reaction-shortcuts').isVisible(),'the reaction fixture shows its summary');await assertCardActions(otherCard,{share:ownCard,width:size.width,label:surface+' reacted activity'});
+    if(shotDir&&(size.width===390&&['friends','profile','own'].includes(surface)||size.width===330&&surface==='own')){
+     fs.mkdirSync(shotDir,{recursive:true});await otherCard.evaluate(n=>n.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'}));await p.waitForTimeout(150);
+     const cardBox=await otherCard.boundingBox(),viewport=await p.evaluate(()=>({width:innerWidth,height:innerHeight})),stickyBottom=await p.evaluate(()=>Math.max(0,...[...document.querySelectorAll('#page *')].map(n=>{const s=getComputedStyle(n),r=n.getBoundingClientRect();return s.position==='sticky'&&r.top<=1&&r.bottom>0?r.bottom:0;})));
+     assert(cardBox&&cardBox.x>=0&&cardBox.x+cardBox.width<=viewport.width,`${surface} evidence card fits the viewport`);assert(cardBox.y>=stickyBottom+8,`${surface} evidence card clears the sticky header (${cardBox.y}px vs ${stickyBottom}px)`);assert(cardBox.y+cardBox.height<=viewport.height-8,`${surface} evidence card is fully in view`);
+     await p.screenshot({path:path.join(shotDir,`${surface}-${size.width}-${theme}.png`),clip:cardBox,animations:'disabled'});
+    }
     const choose=async kind=>{await group.locator('.reaction-more').click();const tray=p.locator('.reaction-picker:not([hidden])');await tray.waitFor({state:'visible'});assert.equal(await tray.locator('[data-react]').count(),16,'all choices for '+kind+' on '+surface+' '+size.width+' '+theme);await tray.locator(`[data-react="${kind}"]`).click();await until(p,()=>!document.querySelector('article.post [aria-busy=true]'),'Save settled');assert.equal(await group.getAttribute('data-mine'),kind);assert.equal(await group.locator('.reaction-more').getAttribute('data-kind'),kind);const choice=await p.evaluate(kind=>App.me.reaction_choices.find(row=>row[0]===kind),kind),label=choice[1];assert.equal(await group.locator('.reaction-more').getAttribute('aria-label'),'Your reaction: '+label+'. Change reaction');if(kind==='lift')assert.equal(await group.locator('.reaction-more .reaction-barbell').count(),1,'selected lift uses the barbell SVG');else assert.equal(await group.locator('.reaction-more').innerText(),choice[2]);const state=await(await c.request.get(base+`/api/activities/${aid}/social`)).json();assert.equal(state.my_reaction,kind);assert.equal(state.reactions[kind],1);assert.equal(Object.values(state.reactions).reduce((n,v)=>n+v,0),1,'one reaction replaces the previous choice');assert(await group.locator('.reaction-more').evaluate(n=>n===document.activeElement),'Focus returns to the reaction action');};
     const kinds=surface==='friends'&&size.width===390&&theme==='light'?(await(await c.request.get(base+'/api/me')).json()).reaction_choices.map(row=>row[0]):['clap','muscle','fire'];for(const kind of kinds)await choose(kind);
     const selected=await group.getAttribute('data-mine');await group.locator('.reaction-more').click();await p.locator(`.reaction-picker:not([hidden]) [data-react="${selected}"]`).click();await until(p,()=>!document.querySelector('article.post [aria-busy=true]'),'Clear settled');assert.equal(await group.getAttribute('data-mine'),'');assert(await group.locator('.reaction-count').isHidden());

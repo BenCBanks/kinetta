@@ -2277,7 +2277,7 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .reaction-person>[role="img"] {flex:none;}
 .t-row:has(.activity-reactions) {flex-wrap:wrap;}
 .t-soc:has(.activity-reactions) {flex:1 0 100%;flex-wrap:nowrap;margin:0;max-width:100%;gap:8px;}
-.post-profile .ph-txt small {white-space:normal;overflow:visible;}
+.post-profile .ph-txt small {margin-top:4px;white-space:normal;overflow:visible;}
 
 /* Keep the outer conversation still; only messages/ingredients scroll. The
    keyboard helper supplies the visible height for Safari and the native WebView. */

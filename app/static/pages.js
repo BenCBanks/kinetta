@@ -13,30 +13,26 @@ function headline(a) {
     a.avg_hr ? stat('Avg HR', Math.round(a.avg_hr), 'bpm') : stat('Effort', a.effort ? Math.round(a.effort) : '–');
   return first + (a.distance_m ? (r.label==='Time' ? (a.avg_hr?stat('Avg HR',Math.round(a.avg_hr),'bpm'):'') : stat(r.label,r.v,r.u)) : (a.effort ? stat('Effort', Math.round(a.effort)) : stat('Calories', a.calories ? Math.round(a.calories) : '–'))) + third;
 }
-// One card for every activity in a list (2026-10-11 redesign, Strava-style): who and when, the name, three numbers, the
-// map edge to edge, then cheers and comments. `who` adds the person (the Feed); without it the sport leads (Mine, Today).
-// The card is a link; the footer sits outside it so the Cheers button is a real button.
-function postCard(a, {who = false, compact = false, lock = false} = {}) {
+// One card for every activity list: title and person, a full-width map with overlay metrics, then footer actions.
+function postCard(a, {compact = false, lock = false} = {}) {
   const theirs = !!a.owner, href = theirs ? `/activity/friends/${a.id}` : `/activity/${a.id}`;
   const kind = a.sport_label && a.sport_label.toLowerCase() !== SPORT_NAMES[a.sport].toLowerCase() ? a.sport_label : SPORT_NAMES[a.sport];
   const badges = [];
   if (a.prs) badges.push(`<span class="badge pr">${svg('trophy')} ${a.prs} PR${a.prs > 1 ? 's' : ''}</span>`);
   if (a.commute) badges.push('<span class="badge">Commute</span>');
-  // Only the photo and the name open the person's profile (2026-10-16, Ben: the whole row did, so taps meant for the
-  // activity landed on the profile); every other part of the card opens the activity (wireCheers → wireCardTaps).
+  // The activity title leads the header; the avatar and metadata link to the person's profile.
   const person = theirs ? a.owner : App.me, pref = profileHref(person), pname = theirs ? esc(a.owner.name) : 'You';
   const vis = a.visibility || 'me',audience=theirs?'':(compact||lock)&&vis==='me'?` · <span class="post-private" role="img" aria-label="Only you can see this" title="Only you can see this">${svg('lock')}</span>`:` · ${esc(VIS_SHORT[vis])}`;
-  const time=compact&&isoDay(new Date(a.start_time))===isoDay(new Date())?ftime(a.start_time):when(a.start_time);
+  const title = `<a class="post-link post-title-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}"><h3 class="post-title">${esc(a.name)}</h3></a>`;
+  const profileName = `<a class="post-name" href="${pref}">${pname}</a>`;
+  const meta = `${profileName}<span class="post-meta-rest"> · ${esc(when(a.start_time))} · ${esc(kind)}${audience}</span>`;
+  const head = `<a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><span class="ph-txt">${title}<small>${meta}</small></span>`;
   const share=theirs?'':`<button type="button" class="pf activity-share" data-share-picture="${a.id}" aria-label="Share a picture of this activity">${svg('share')}</button>`;
-  const mark=theirs?(compact?'':sportMark(a.sport)):share;
-  const head = who ? `<a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><span class="ph-txt"><a class="post-name" href="${pref}">${pname}</a><small>${esc(time)} · ${esc(kind)}${audience}${a.route_id?' <span class="post-route">· Matched route</span>':''}</small></span>${mark}`
-    : `${theirs?sportMark(a.sport):''}<span class="ph-txt"><small>${esc(time)} · ${esc(kind)}${audience}${a.route_id?' <span class="post-route">· Matched route</span>':''}</small></span>${share}`;
-  const foot = reactionButtons(a.id,a,false,compact)+`<button type="button" class="pf activity-comments" data-talk="${a.id}" aria-label="Comments, ${a.comments||0}">${svg('comment')}<span class="num"${a.comments?'':' hidden'}>${a.comments?reactionNumber(a.comments):''}</span></button>`;
-  return `<article class="card post" data-href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}"><div class="post-hd post-profile">${head}</div><a class="post-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}">
-    <h3 class="post-title">${esc(a.name)}</h3>
-    <div class="stats3">${theirs ? sharedHeadline(a) : headline(a)}</div>${!theirs && a.lifts && a.lifts.names ? `<p class="post-lifts">${esc(a.lifts.names.slice(0, 4).join(' · '))}${a.lifts.names.length > 4 ? ` +${a.lifts.names.length - 4}` : ''}</p>` : ''}${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}
-    </a>${activityMedia(a,{compact})}
-    <div class="post-ft">${foot}</div></article>`;
+  const foot = reactionButtons(a.id,a,false,compact)+`<button type="button" class="pf activity-comments" data-talk="${a.id}" aria-label="Comments, ${a.comments||0}">${svg('comment')}<span class="num"${a.comments?'':' hidden'}>${a.comments?reactionNumber(a.comments):''}</span></button>`+share;
+  const media=activityMedia(a,{compact,mapMetrics:a.line?postMapMetrics(a):''});
+  const details=`${!theirs && a.lifts && a.lifts.names ? `<p class="post-lifts">${esc(a.lifts.names.slice(0, 4).join(' · '))}${a.lifts.names.length > 4 ? ` +${a.lifts.names.length - 4}` : ''}</p>` : ''}${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}`;
+  const summary=a.line?details:`<div class="post-summary"><div class="stats3">${theirs ? sharedHeadline(a) : headline(a)}</div>${details}</div>`;
+  return `<article class="card post activity-card" data-href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}"><div class="post-hd post-profile post-link">${head}</div>${media}${summary?`<div class="post-extra">${summary}</div>`:''}<div class="post-ft">${foot}</div></article>`;
 }
 function sharedHeadline(a) {   // what a friend shares: no pace when they keep pace to themselves
   const st = [];
@@ -45,6 +41,22 @@ function sharedHeadline(a) {   // what a friend shares: no pace when they keep p
   st.push(stat('Time', dur(a.moving_s || a.elapsed_s)));
   if (st.length < 3 && a.ascent_m) st.push(stat('Elevation', U.elev(a.ascent_m), U.eu()));
   return st.slice(0, 3).join('');
+}
+function postMapMetrics(a) {
+  const rows=[];
+  if(a.distance_m) rows.push(['Distance',U.dist(a.distance_m),U.du()]);
+  const r=rate(a);
+  if(a.owner) {
+    if(a.distance_m&&a.moving_s&&a.shares?.pace&&r.label!=='Time') rows.push([r.label,r.v,r.u]);
+    rows.push(['Time',dur(a.moving_s||a.elapsed_s),'']);
+    if(rows.length<3&&a.ascent_m)rows.push(['Elevation',U.elev(a.ascent_m),U.eu()]);
+  } else {
+    if(a.distance_m&&r.label!=='Time')rows.push([r.label,r.v,r.u]);
+    else if(a.distance_m&&a.avg_hr)rows.push(['Avg HR',Math.round(a.avg_hr),'bpm']);
+    if(a.distance_m)rows.push(['Time',dur(a.moving_s||a.elapsed_s),'']);
+  }
+  if(!rows.length)return '';
+  return `<div class="post-map-metrics" role="group" aria-label="Activity metrics">${rows.slice(0,3).map(([label,value,unit])=>`<div class="post-map-metric"><span class="vh">${esc(label)}</span><b>${esc(value)}${unit?`<i>${esc(unit)}</i>`:''}</b></div>`).join('')}</div>`;
 }
 // Cheers straight from a feed card: the count changes at once and goes back if the server says no. The comment
 // button opens the comments sheet and keeps the card's count in step.

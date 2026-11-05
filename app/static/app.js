@@ -794,7 +794,7 @@ async function mapInto(el, lines, {sport = 'run', heat = false, still = false, e
   const color = col('--route');   // Routes are blue for every sport.
   // set the view BEFORE drawing (Leaflet can't clip lines on a map without a view)
   const all = lines.map((ln) => (typeof ln === 'string' ? decode(ln) : ln)).filter((p) => p.length > 1);
-  if (all.length) map.fitBounds(L.latLngBounds(all.flat()), {padding: still ? [12, 12] : [18, 18]}); else map.setView([39.5, -98.5], 3);
+  if (all.length) map.fitBounds(L.latLngBounds(all.flat()), {padding: still ? [24, 24] : [18, 18]}); else map.setView([39.5, -98.5], 3);
   const group = L.featureGroup().addTo(map);
   let routeColor=color;
   map.on('basemaptheme',event=>{routeColor=event.light?col('--color-action'):col('--route');group.setStyle({color:routeColor});});

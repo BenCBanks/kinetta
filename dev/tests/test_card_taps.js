@@ -16,7 +16,7 @@ vm.runInContext(source.slice(source.indexOf('function postCard'), source.indexOf
 const html = ctx.card({id: 7, sport: 'run', name: 'Easy run', start_time: '2026-10-16T10:00:00Z', owner: {login: 'zz_friend', name: 'Sam'}, shares: {}}, {who: true});
 const links = [...html.matchAll(/<a class="([^"]+)" href="([^"]+)"/g)].map((m) => [m[1], m[2]]);
 assert.deepEqual(links.filter(([, h]) => h.startsWith('/people/')).map(([c]) => c), ['post-av', 'post-name'], 'only the photo and the name link to the profile');
-assert.match(html, /<article class="card post" data-href="\/activity\/friends\/7"/, 'the whole card knows its activity');
+assert.match(html, /<article class="[^"]*\bpost\b[^"]*" data-href="\/activity\/friends\/7"/, 'the whole card knows its activity');
 assert(!html.includes('data-share'),"a friend's activity is never turned into a shareable picture by someone else");
 const own=ctx.card({id:8,sport:'run',name:'Private run',visibility:'me',comments:3});
 assert(own.includes('data-share-picture="8"'),'your own activities, private ones too, share as a picture');
