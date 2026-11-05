@@ -280,6 +280,7 @@ def _recent_own(c, uid, *, exclude=None):
             continue
         view = _out(d)
         result.append({'id': d['id'], 'name': view['name'], 'weight_g': view['weight_g'],
+                       'measured_weight_g': view['cooked_g'] if view['weighed'] else None,
                        'per_100g': view['per_100g'], 'updated': d['updated'],
                        'last_used_at': d['last_used_at'], 'recent_at': d['recent_at'],
                        'recent_day': d['recent_day'], 'updated_day': d['updated_day'],
@@ -288,13 +289,20 @@ def _recent_own(c, uid, *, exclude=None):
 
 
 @router.get('/recent-own')
-def recent_own(user=Depends(current_user)):
+def recent_own(exclude: int | None = None, user=Depends(current_user)):
     """Only your own recipes, ordered by last edit or food-log use, for cooking-mode ingredients."""
     with db.connect() as c:
-        recipes = _recent_own(c, user['id'])
-        return [{'id': r['id'], 'name': r['name'], 'weight_g': r['weight_g'],
+        recipes = _recent_own(c, user['id'], exclude=exclude)
+        return [{'id': r['id'], 'name': r['name'], 'weight_g': r['measured_weight_g'],
                  'has_nutrition': bool(r['per_100g'] and r['per_100g'].get('kcal') is not None),
                  'recent_day': r['recent_day']} for r in recipes]
+
+
+@router.get('/{did:int}/own-source')
+def own_recipe_source(did: int, user=Depends(current_user)):
+    """Read-only source view for a copied recipe ingredient; shared recipes are not source-readable."""
+    with db.connect() as c:
+        return _view(c, user['id'], _get(c, user['id'], did))
 
 
 @router.get('')
@@ -511,22 +519,29 @@ def item_add(did: int, body: ItemIn, user=Depends(current_user)):
 
 class RecipeItemIn(BaseModel):
     recipe_id: int = Field(gt=0)
-    grams: float = Field(gt=0, lt=20000)
+    grams: float | None = Field(None, gt=0, lt=20000)
+    mode: str = Field('grams', min_length=1, max_length=5, pattern='^(grams|all|half)$')
 
 
-def _add_recipe_item(c, uid, did, recipe_id, grams):
-    if not (grams and 0 < grams < 20000):
-        raise HTTPException(400, 'Enter a recipe amount in grams below 20,000.')
-    grams = _r(grams)
-    if not grams:
+def _add_recipe_item(c, uid, did, recipe_id, grams=None, mode='grams'):
+    if mode not in ('grams', 'all', 'half'):
+        raise HTTPException(400, 'Choose a recipe amount.')
+    if mode == 'grams' and not (grams and 0 < grams < 20000):
         raise HTTPException(400, 'Enter a recipe amount in grams below 20,000.')
     dish = _get(c, uid, did, lock=True)
     source = next((r for r in _recent_own(c, uid, exclude=did) if r['id'] == recipe_id), None)
     if source is None:
         raise HTTPException(404, 'Recipe not found or no longer recent.')
     per100 = source['per_100g']
-    if not per100 or per100.get('kcal') is None:
-        raise HTTPException(400, 'Add calories and a measured recipe weight before using this recipe as an ingredient.')
+    # A sum of ingredient weights is only an estimate of a finished recipe. A copied recipe
+    # needs the cook's measured whole weight so its calories per gram remain trustworthy.
+    weight = source['measured_weight_g']
+    if not weight or not per100 or per100.get('kcal') is None:
+        raise HTTPException(400, 'Add calories and the recipe’s measured weight first.')
+    grams = weight if mode == 'all' else weight / 2 if mode == 'half' else grams
+    grams = _r(grams)
+    if not grams or not 0 < grams < 20000:
+        raise HTTPException(400, 'Enter a recipe amount in grams below 20,000.')
     if len(dish['items']) >= MAX_ITEMS:
         raise HTTPException(400, f'A recipe can have up to {MAX_ITEMS} ingredients. Remove one before adding another.')
     item = {'id': secrets.token_hex(4), 'name': source['name'], 'grams': grams,
@@ -540,8 +555,8 @@ def _add_recipe_item(c, uid, did, recipe_id, grams):
 def recipe_item_add(did: int, body: RecipeItemIn, user=Depends(current_user)):
     """Copy nutrition from a recent recipe owned by this person; later edits never change this ingredient."""
     with db.connect() as c:
-        view, _item = _add_recipe_item(c, user['id'], did, body.recipe_id, body.grams)
-        return view
+        view, item = _add_recipe_item(c, user['id'], did, body.recipe_id, body.grams, body.mode)
+        return {'dish': view, 'added': [item['id']], 'grams': item['grams']}
 
 
 class ItemEdit(BaseModel):

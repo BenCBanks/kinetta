@@ -105,7 +105,7 @@ def _recipe_matches(c, uid, did, text):
 
 def _recipe_choice(recipe):
     per100 = recipe.get('per_100g')
-    return {'id': recipe['id'], 'name': recipe['name'], 'weight_g': recipe.get('weight_g'),
+    return {'id': recipe['id'], 'name': recipe['name'], 'weight_g': recipe.get('measured_weight_g'),
             'has_nutrition': bool(per100 and per100.get('kcal') is not None)}
 
 
@@ -343,19 +343,22 @@ def say(did: int, body: SayIn, user=Depends(current_user)):
             recipes = _recipe_matches(c, uid, did, text)
             if recipes:
                 parsed = D.parse_line(numerals(text))
-                grams = parsed.get('grams')
+                # The general parser knows a few water-like volume units. Recipe portions
+                # must use explicit weight, never a generic cup/ml density guess.
+                grams = parsed.get('grams') if parsed.get('unit') in ('g', 'kg', 'oz', 'lb') else None
                 if len(recipes) > 1:
                     return {'dish':D._view(c,uid,d),'added':[],'changed':[],'removed':[],
                             'reply':'Which recipe did you mean?', 'recipe_choices':[_recipe_choice(r) for r in recipes],
                             'recipe_grams':grams, 'clarification':text, 'by':'recipe'}
                 recipe = recipes[0]
-                if not recipe.get('per_100g') or recipe['per_100g'].get('kcal') is None:
+                choice = _recipe_choice(recipe)
+                if not choice['has_nutrition'] or not choice['weight_g']:
                     return {'dish':D._view(c,uid,d),'added':[],'changed':[],'removed':[],
-                            'reply':'This recipe needs calories and a measured weight before I can use it as an ingredient.',
-                            'by':'recipe'}
+                            'reply':'Add calories and the recipe’s measured weight first.',
+                            'recipe_amount':choice, 'clarification':text, 'by':'recipe'}
                 if not grams:
                     return {'dish':D._view(c,uid,d),'added':[],'changed':[],'removed':[],
-                            'reply':'How much went in?', 'recipe_amount':_recipe_choice(recipe),
+                            'reply':'How much went in?', 'recipe_amount':choice,
                             'clarification':text, 'by':'recipe'}
                 fresh, item = D._add_recipe_item(c, uid, did, recipe['id'], grams)
                 return {'dish':fresh, 'added':[item['id']], 'changed':[], 'removed':[],

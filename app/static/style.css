@@ -1160,6 +1160,28 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 
 .measure .wt-reset { margin: 0 0 8px auto; }
 .dish-name-in ~ .cchat { margin-top: 6px; }
+.recipe-choice-list { display:grid; gap:8px; }
+.recipe-choice-row { display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; min-height:44px; padding:0; border:0; background:none; color:var(--tx); text-align:left; font-size:16px; }
+.recipe-choice-row svg { width:16px; height:16px; flex:none; color:var(--tx3); }
+.recipe-choice-row:active,.ig-recipe-open:active,.ig-recipe-amount:active { opacity:.7; }
+.recipe-amount { display:grid; gap:8px; font-size:16px; }
+.recipe-amount-name { margin:0; font-size:16px; font-weight:650; overflow-wrap:anywhere; }
+.recipe-amount-quick { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.recipe-amount-quick button { min-width:0; min-height:44px; padding:4px; border:0; border-radius:8px; background:none; color:var(--tx); font-size:16px; font-weight:650; }
+.recipe-amount-quick button:disabled { opacity:.45; }
+#recipe-amount-form { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:center; }
+#recipe-amount-form > label { grid-column:1; align-self:center; color:var(--tx); font-size:16px; }
+#recipe-amount-form .gfield { width:116px; }
+#recipe-amount-form .gfield input { min-height:44px; padding:6px 30px 6px 10px; text-align:right; font:700 16px var(--numf); }
+#recipe-amount-form .gfield > span { right:10px; }
+#recipe-amount-question,#recipe-amount-error,#recipe-amount-form .actions { grid-column:1/-1; margin:0; }
+.recipe-source-readonly { display:grid; gap:8px; }
+.recipe-source-readonly > p { margin:0; }
+.recipe-source-readonly .ing-card { margin:0; }
+.ig-recipe-open { display:flex; align-items:center; gap:8px; min-width:0; min-height:44px; padding:0; border:0; background:none; color:var(--tx); text-align:left; }
+.ig-recipe-open svg { width:16px; height:16px; flex:none; color:var(--tx2); }
+.ig-recipe-open .ig-n { min-width:0; }
+.ig-recipe-amount { min-height:44px; padding:0 4px; border:0; background:none; color:var(--tx3); font-size:13px; white-space:nowrap; }
 .composer { position: sticky; bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + 10px); z-index: 6; display: flex; align-items: center; gap: 8px;
   margin: 8px -4px 0; padding: 6px; border-radius: 999px; background: var(--card); box-shadow: var(--lift); }
 .composer input { flex: 1; min-width: 0; min-height: 40px; border: 0; background: transparent; padding: 0 6px; box-shadow: none !important; }

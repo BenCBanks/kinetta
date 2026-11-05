@@ -13,18 +13,29 @@ recipes=[('Chicken and veg traybake',5,[('Chicken breast, raw',600,120,22,0,3),(
 ids={}
 for state in ('empty','typical','heavy','recipe'):
  c=person('zz_test_recipes_ui_'+state);ok(c.post('/api/account/delete',{'password':PW}));c=person('zz_test_recipes_ui_'+state,'River '+state.title());ok(c.put('/api/profile',{'tz':'UTC','ai_ok':False}));ids[state]={}
- n=0 if state=='empty' else 25 if state=='heavy' else 3 if state=='typical' else 1
+ n=0 if state=='empty' else 25 if state=='heavy' else 6 if state=='recipe' else 3 if state=='typical' else 1
  for i in range(n-1,-1,-1):
   name,yield_n,items=recipes[i%3];name=name if i<3 else f'Fictional recipe {i+1:02} · '+name
   d=ok(c.post('/api/dishes',{'name':name}));did=d['id']
   for label,g,k,p,carb,f in items:d=ok(c.post(f'/api/dishes/{did}/items',{'name':label,'grams':g,'source':'quick','per100':{'kcal':k,'protein_g':p,'carbs_g':carb,'fat_g':f,'fiber_g':0}}))
-  mode='portion' if i%3==2 else 'one';d=ok(c.patch(f'/api/dishes/{did}',{'yield_servings':yield_n,'serving':mode,**({'cooked_g':1500} if mode=='portion' else {})}));assert d['serving_count']==yield_n
+  mode='portion' if i%3==2 or (state=='recipe' and i==0) else 'one';d=ok(c.patch(f'/api/dishes/{did}',{'yield_servings':yield_n,'serving':mode,**({'cooked_g':1500} if mode=='portion' else {})}));assert d['serving_count']==yield_n
   if i==0:ids[state]['saved']=did
+ if state=='recipe':
+  def add_source(key,name,*,measured=None):
+   d=ok(c.post('/api/dishes',{'name':name}));rid=d['id'];item={'name':'Fictional source ingredient','grams':100,'source':'quick'}
+   item['per100']={'kcal':200,'protein_g':10,'carbs_g':20,'fat_g':4,'fiber_g':3}
+   ok(c.post(f'/api/dishes/{rid}/items',item))
+   if measured is not None:ok(c.patch(f'/api/dishes/{rid}',{'cooked_g':measured,'serving':'portion'}))
+   ids[state][key]=rid
+  add_source('no_weight','Fictional no measured weight')
+  add_source('no_nutrition','Fictional no calories',measured=150)
+  add_source('ambiguous_a','Fictional bean stew',measured=200)
+  add_source('ambiguous_b','Fictional bean curry',measured=300)
  for i in range(0 if state in ('empty','recipe') else 30 if state=='heavy' else 2):
   ok(c.post('/api/food/foods',{'name':('Fictional protein yogurt' if i==0 else 'Fictional oat bar' if i==1 else f'Fictional pantry food {i+1:02}'),'brand':'Fictional Pantry','serving_label':'1 pot' if i==0 else '1 bar' if i==1 else '1 portion','serving_g':170 if i==0 else 50,'kcal':180,'protein_g':12,'carbs_g':20,'fat_g':6,'fiber_g':3}))
  if state=='recipe':
   d=ok(c.post('/api/dishes',{}));ids[state]['draft']=d['id'];ok(c.post(f'/api/dishes/{d["id"]}/items',{'name':'Fictional unsaved-name ingredient','grams':100,'source':'quick','per100':{'kcal':100,'protein_g':10,'carbs_g':10,'fat_g':2,'fiber_g':0}}))
- assert len(ok(c.get('/api/dishes')))==n+(1 if state=='recipe' else 0)
+ assert len(ok(c.get('/api/dishes')))==n+(len(ids[state])-1 if state=='recipe' else 0)
  print(state,n,'recipes and',len(ok(c.get('/api/food/foods'))),'foods ready')
 if os.environ.get('KINETTA_RECIPE_IDS'):Path(os.environ['KINETTA_RECIPE_IDS']).write_text(json.dumps(ids))
 print(json.dumps(ids))
