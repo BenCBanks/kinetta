@@ -139,26 +139,36 @@ function postMapMetrics(a) {
 function activityCardInsets(el) {
   const picture=el.closest('.activity-picture');
   if(!picture)return null;
-  const header=$('.post-hd',picture),metrics=$('.post-map-metrics',picture);
-  return {top:Math.ceil(header.getBoundingClientRect().height)+16,bottom:Math.ceil(metrics?.getBoundingClientRect().height||0)+36};
+  const frame=picture.getBoundingClientRect(),header=$('.post-hd',picture).getBoundingClientRect();
+  const lower=$$('.post-map-metrics,.leaflet-control-attribution,.media-dots',picture).filter(n=>n.getClientRects().length).map(n=>frame.bottom-n.getBoundingClientRect().top+16);
+  const insets={top:Math.ceil(header.bottom-frame.top)+16,bottom:Math.ceil(Math.max(36,...lower)),side:$('.media-controls',picture)?64:24};
+  return Object.values(insets).every(Number.isFinite)?insets:null;
 }
 function fitActivityCardMap(el,view) {
   if(!el.closest('.post-led'))return;
   let signature='';
   const fit=()=>{
     if(!el.isConnected)return;
-    const inset=activityCardInsets(el),next=[el.clientWidth,el.clientHeight,inset.top,inset.bottom].join(':');
+    const inset=activityCardInsets(el);
+    if(!inset||el.clientWidth<=inset.side*2||el.clientHeight<=inset.top+inset.bottom)return;
+    const next=[el.clientWidth,el.clientHeight,inset.top,inset.bottom,inset.side].join(':');
     if(next===signature)return;signature=next;
-    el.style.setProperty('--route-top',inset.top+'px');el.style.setProperty('--route-bottom',inset.bottom+'px');
     const bounds=view.group.getBounds();view.map.invalidateSize({pan:false});
-    if(bounds.isValid())view.map.fitBounds(bounds,{paddingTopLeft:[24,inset.top],paddingBottomRight:[24,inset.bottom],animate:false});
+    if(bounds.isValid())view.map.fitBounds(bounds,{paddingTopLeft:[inset.side,inset.top],paddingBottomRight:[inset.side,inset.bottom],animate:false});
   };
   el._activityMapFit=fit;fit();document.fonts.ready.then(fit);
 }
 function measureActivityPictures(box){
   $$('.post-led .fmap',box).forEach(el=>{
     if(headerObservers.has(el))return;
-    const measure=()=>{if(!el.isConnected)return;const inset=activityCardInsets(el);el.style.setProperty('--route-top',inset.top+'px');el.style.setProperty('--route-bottom',inset.bottom+'px');el._activityMapFit?.();};
+    const measure=()=>{
+      if(!el.isConnected)return;
+      const inset=activityCardInsets(el);if(!inset)return;
+      const picture=el.closest('.activity-picture');
+      // Enlarged or unusually long identity text can need more than a square; retain a usable route area.
+      picture.style.setProperty('--picture-min-height',Math.ceil(inset.top+inset.bottom+64)+'px');
+      el.style.setProperty('--route-top',inset.top+'px');el.style.setProperty('--route-bottom',inset.bottom+'px');el.style.setProperty('--route-side',inset.side+'px');el._activityMapFit?.();
+    };
     const observer=new ResizeObserver(measure),picture=el.closest('.activity-picture');
     for(const node of [el,$('.post-hd',picture),$('.post-map-metrics',picture)])if(node)observer.observe(node);
     headerObservers.set(el,observer);measure();document.fonts.ready.then(measure);
@@ -189,6 +199,8 @@ addEventListener('scroll', cardRelease, {passive: true});
 function wireCardTaps(box) {
   if (box.dataset.cardTaps) return;
   box.dataset.cardTaps = '1';
+  // Keep the provider's link tappable without the map/card's activity-navigation handler taking over.
+  box.addEventListener('click',e=>{if(e.target.closest('.post-led .leaflet-control-attribution a'))e.stopPropagation();},{capture:true});
   const card = (e) => { const c = e.target.closest && e.target.closest('article.post[data-href]'); return c && box.contains(c) && !e.target.closest(CARD_OWN) ? c : null; };
   box.addEventListener('pointerdown', (e) => {
     cardRelease();

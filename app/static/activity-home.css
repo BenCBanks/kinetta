@@ -130,3 +130,6 @@
 .activity-card.post-led .activity-media { margin:0; }
 .activity-card.post-led .post-title { color:#fff; }
 .activity-card.post-led .compact-media:has(.media-map) .media-controls > button[data-media-step] { top:50%; bottom:auto; }
+
+.post-led .media-item { min-height:var(--picture-min-height,0px); }
+.post-led .fmap .mini { left:var(--route-side,24px); right:var(--route-side,24px); }
