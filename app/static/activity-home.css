@@ -107,6 +107,7 @@
  .activity-card .post-ft:has(.activity-share) .reaction-more { margin-right:8px; }
  .activity-card .post-ft .activity-share { margin-left:0; }
  .activity-card .post-ft:has(.activity-share) .reaction-summary-emoji:nth-child(n+2) { display:none; }
+ .activity-card .post-ft:has(.activity-share) .reaction-summary-emoji:first-child .reaction-emoji { margin-left:2px; }
 }
 .activity-card .compact-media:has(.media-map) .media-controls > button[data-media-step="1"] { top:36px; }
 
