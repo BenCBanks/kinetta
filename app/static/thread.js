@@ -162,7 +162,7 @@ const FoodThread = (() => {
   async function flush(ctx=null,force=false) {
     const owner=ctx?.owner||ownerKey();
     if(!owner||owner!==ownerKey()||(ctx&&ctx.session!==readOwner()))return;
-    try {await outbox.flush(owner,{force});await foodRemoval.flush(removalSession());const view=current;if(view&&active(view)&&view.owner===owner){view.jobs=await ThreadDB.list(owner);draw(view);}}
+    try {await outbox.flush(owner,{force});await foodRemoval.flush(removalSession());const view=current;if(view&&active(view)&&view.owner===owner){view.jobs=await ThreadDB.list(owner);draw(view);refreshAnother(view);}}
     catch(e){if(current&&active(current))status(current,e.message);}
   }
   function status(ctx,text){if(!active(ctx))return;const box=$('#thread-status',ctx.el);box.textContent=text;clearTimeout(ctx.statusTimer);if(['Saved.','Food removed.'].includes(text))ctx.statusTimer=setTimeout(()=>{if(box.textContent===text)box.textContent='';},2500);}
@@ -227,7 +227,8 @@ const FoodThread = (() => {
   }
   const nutritionAttr=(row,label)=>`data-food-nutrition="${esc(JSON.stringify({part:row.part,entry:row.entry}))}" aria-haspopup="dialog" aria-label="${esc(label||`Nutrition for ${row.e.name}, ${FoodNutrition.macros(row.e)}`)}"`;
   function choices(result) {
-    if(result.correction&&result.choices?.length)return `<div class="thread-choices">${result.choices.map((c,i)=>`<button type="button" class="ghost" data-choice="${esc(JSON.stringify({select:i}))}">${esc(c.name)}${c.day?' · '+esc(dayLabel(c.day))+' · '+esc(MEAL_NAMES[c.meal]||c.meal):''}</button>`).join('')}</div>`;
+    if(result.correction==='recent_reuse'&&result.choices?.length)return `<div class="thread-choices thread-reuse-choices">${result.choices.map((c,i)=>`<button type="button" class="thread-reuse-choice" data-choice="${esc(JSON.stringify({select:i}))}"><span class="thread-reuse-choice-name">${esc(c.name)}</span><time class="thread-reuse-choice-time" datetime="${esc(c.created||'')}">${esc(new Date(c.created).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZone:tz()}))}</time></button>`).join('')}</div>`;
+    if(result.correction&&result.choices?.length)return `<div class="thread-choices">${result.choices.map((c,i)=>`<button type="button" class="ghost" data-choice="${esc(JSON.stringify({select:i}))}">${esc(c.name)}${c.created?' · '+esc(new Date(c.created).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZone:tz()})):''}${c.day?' · '+esc(dayLabel(c.day))+' · '+esc(MEAL_NAMES[c.meal]||c.meal):''}</button>`).join('')}</div>`;
     const parts=result.parts || (result.resolution?.items||[]).map((item,index)=>({index,status:item.status,item}));
     // One clarification at a time; the original card retains all pending parts.
     const part=parts.find(p=>p.status!=='ready'&&!p.logged);if(!part){const numbers=parts.find(p=>p.entered_numbers&&!p.logged);return numbers?`<button type="button" class="linkbtn" data-manual="${numbers.index}">Review numbers</button>`:'';}
@@ -288,15 +289,19 @@ const FoodThread = (() => {
   function isBarcodeNotFound(message){return message==="We couldn't find this barcode."||message==='Not found in the food database';}
   function loggedFood(reply){const r=reply?.result||{};return !!(reply?.entries?.length||r.entry_ids?.length||r.parts?.some(p=>p.logged));}
   function removableFood(root,reply){const r=reply?.result||{};return !loggedFood(reply)&&!r.cancelled&&root?.state!=='cancelled'&&!root?.result?.receipt&&!r.daily_note;}
-  function loggedReplyHtml(root,entries,day,meal){
+  function loggedReplyHtml(root,entries,day,meal,result={}){
     const where=MEAL_NAMES[meal]||'Food log',target=`/food${day?'?d='+encodeURIComponent(day):''}${day?'&':'?'}meal=${encodeURIComponent(meal||'snacks')}`;
     const name=e=>String(e.name||'Food'),amount=e=>threadAmount(e),kcal=e=>e.kcal==null||e.ref?.unknown_nutrients?.includes('kcal')?'Unknown':`${homeCalories(e.kcal)} kcal`;
     const known=entries.every(e=>e.kcal!=null&&!e.ref?.unknown_nutrients?.includes('kcal'));
     const total=known?`≈ ${homeCalories(entries.reduce((sum,e)=>sum+Number(e.kcal),0))} kcal`:'Incomplete';
     const details=entries.map(e=>`<div class="thread-logged-detail"><span>${esc(name(e))} · ${esc(amount(e))}</span><span class="num">${esc(kcal(e))}</span></div>`).join('');
-    if(entries.length===1){const e=entries[0];return `<div class="thread-card thread-logged-card" data-mid="${root.id}"><a class="thread-logged-line thread-logged-single" href="${esc(target)}" aria-label="Open ${esc(name(e))} in the ${esc(where)} diary"><span class="thread-logged-summary"><span class="logged-check" aria-hidden="true">✓</span><span class="logged-foods">${esc(name(e))} · ${esc(amount(e))} · ${esc(kcal(e))}</span></span><span class="thread-logged-destination">${esc(where)} ›</span></a></div>`;}
+    const repeated=!!result.same_as,repeatedTotal=known?`${homeCalories(entries.reduce((sum,e)=>sum+Number(e.kcal),0))} kcal`:'Incomplete';
+    const summary=repeated?`<span class="thread-repeat-label">${esc(result.reuse_label||'Another '+name(entries[0]))}</span><span class="thread-logged-repeat-kcal"> · ${esc(repeatedTotal)}</span>`:null;
+    const sameAs=repeated?`<div class="thread-logged-meta"><span>same as ${esc(new Date(result.same_as).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZone:tz()}))}</span><a class="thread-logged-change" href="${esc(target)}">Change</a></div>`:'';
+    const cardClass=`thread-card thread-logged-card${repeated?' thread-logged-repeat':''}`;
+    if(entries.length===1){const e=entries[0];return `<div class="${cardClass}" data-mid="${root.id}"><a class="thread-logged-line thread-logged-single" href="${esc(target)}" aria-label="Open ${esc(name(e))} in the ${esc(where)} diary"><span class="thread-logged-summary"><span class="logged-check" aria-hidden="true">✓</span><span class="logged-foods">${summary||`${esc(name(e))} · ${esc(amount(e))} · ${esc(kcal(e))}`}</span></span><span class="thread-logged-destination">${esc(where)} ›</span></a>${sameAs}</div>`;}
     const detailsId=`thread-logged-details-${root.id}`;
-    return `<div class="thread-card thread-logged-card" data-mid="${root.id}"><div class="thread-logged-line"><button type="button" class="thread-logged-summary" data-logged-expand aria-expanded="false" aria-controls="${detailsId}"><span class="logged-check" aria-hidden="true">✓</span><span class="logged-foods">${entries.length} foods · ${esc(total)}</span><span class="thread-logged-chevron" aria-hidden="true">⌄</span></button><a class="thread-logged-destination" href="${esc(target)}">${esc(where)} ›</a></div><div class="thread-logged-details" id="${detailsId}" hidden>${details}</div></div>`;
+    return `<div class="${cardClass}" data-mid="${root.id}"><div class="thread-logged-line"><button type="button" class="thread-logged-summary" data-logged-expand aria-expanded="false" aria-controls="${detailsId}"><span class="logged-check" aria-hidden="true">✓</span><span class="logged-foods">${summary||`${entries.length} foods · ${esc(total)}`}</span><span class="thread-logged-chevron" aria-hidden="true">⌄</span></button><a class="thread-logged-destination" href="${esc(target)}">${esc(where)} ›</a></div>${sameAs}<div class="thread-logged-details" id="${detailsId}" hidden>${details}</div></div>`;
   }
   function replyHtml(root,reply,showRemove=removableFood(root,reply),showMore=true,removalFailure='') {
     const r=reply?.result||{},entries=reply?.entries||[];
@@ -305,14 +310,15 @@ const FoodThread = (() => {
     const working=!!(r.processing||r.can_resolve),partial=r.parts?.some(p=>p.status==='ready'&&p.entries?.length&&!p.logged);
     if(!r.error&&!r.cancelled&&!entries.length&&!partial&&root.state!=='cancelled'&&(!reply&&root.state==='pending'||working))return `<div class="thread-card thread-thinking" data-mid="${root.id}"><div class="thread-typing" role="status" aria-label="Checking your food"><span></span><span></span><span></span></div>${removalFailure}</div>`;
     const day=entries[0]?.day||r.day,meal=entries[0]?.meal||r.meal;
-    if(root.result?.review_only&&r.kind==='log'&&entries.length)return loggedReplyHtml(root,entries,day,meal);
+    if((root.result?.review_only||r.same_as)&&r.kind==='log'&&entries.length)return loggedReplyHtml(root,entries,day,meal,r);
     const rows=entries.length?null:previewRows(root,r),preview=r.parts?.flatMap(p=>p.logged?[]:(p.entries||[]))||r.resolution?.items?.flatMap(i=>i.preview_entries||[])||[];
     const visible=entries.length?entries:(['preview','needs'].includes(r.kind)||r.pending_count||r.parts?.some(p=>p.status==='ready'&&!p.logged)?preview:[]),changed=changedNumbers(r,entries),removed=r.kind==='log'&&!entries.length&&r.entry_ids?.length;
     const notes=[...new Set(visible.map(e=>e.ref?.origin_notes).filter(Boolean))];
     const sharedNote=visible.length>1&&notes.length===1?notes[0]:null;
     const canLog=!root.result?.review_only&&!r.cancelled&&(r.kind==='preview'||r.parts?.some(p=>p.status==='ready'&&!p.logged));
     const compact=!!(root.result?.review_only&&rows?.length&&!entries.length),stripTotal=compact&&r.parts.every(p=>p.logged||p.status==='ready')&&visible.every(e=>e.kcal!=null&&!e.ref?.unknown_nutrients?.includes('kcal'));
-    return `<div class="thread-card${compact?' compact-thread-card':''}" data-mid="${root.id}">${showRemove&&!compact&&!missingBarcode?removeButtonMarkup():''}${r.daily_note?`<h3>Your daily food summary</h3><p class="small muted">As of ${esc(new Date(r.as_of).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZone:tz()}))}. Later food is kept in your log.</p>`:''}${meal&&day&&!removed&&(!root.result?.review_only||entries.length)?`<button type="button" class="linkbtn thread-destination" data-destination>${esc(MEAL_NAMES[meal])} · ${esc(dayLabel(day))} ${svg('chev')}</button>`:''}
+    const recentReuse=r.correction==='recent_reuse';
+    return `<div class="thread-card${compact?' compact-thread-card':''}" data-mid="${root.id}">${showRemove&&!compact&&!missingBarcode&&!recentReuse?removeButtonMarkup():''}${r.daily_note?`<h3>Your daily food summary</h3><p class="small muted">As of ${esc(new Date(r.as_of).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',timeZone:tz()}))}. Later food is kept in your log.</p>`:''}${meal&&day&&!removed&&(!root.result?.review_only||entries.length)?`<button type="button" class="linkbtn thread-destination" data-destination>${esc(MEAL_NAMES[meal])} · ${esc(dayLabel(day))} ${svg('chev')}</button>`:''}
       ${!compact&&root.result?.review_only&&visible.length&&r.kind!=='answer'&&!r.food_review&&!['reviewed','continued','cancelled'].includes(r.kind)?'<p class="small muted">Not logged yet</p>':''}${r.updated||changed?'<p class="thread-updated">Updated</p>':''}${!compact&&visible.length?`<p class="thread-breakdown-title">${r.parts?.some(p=>p.estimated)?'Estimate breakdown':'Food breakdown'}</p>`:''}${rows?.length?rows.map(row=>stepRow({...row,hideNotes:!!sharedNote,hideItemRemove:!compact&&rows.length===1})).join(''):visible.map((e,i)=>food(e,i,!!sharedNote)).join('')}${sharedNote?`<p class="small muted thread-assumptions">${esc(sharedNote)}</p>`:''}${!stripTotal&&visible.length?`<p class="thread-total"><span>Total</span><b class="num">${visible.every(e=>e.kcal!=null&&!e.ref?.unknown_nutrients?.includes('kcal'))?'≈ '+homeCalories(visible.reduce((n,e)=>n+e.kcal,0))+' kcal':'Incomplete'}</b></p>`:''}${!missingBarcode&&!(working&&partial)&&(!visible.length||r.pending_count||r.kind==='answer'||r.kind==='edit'||(r.food_review&&r.confirmed)||r.parts?.some(p=>p.entered_numbers&&!p.logged))?`<p>${esc(removed?'This food was removed from your log.':foodReplyBody(reply)||(root.state==='cancelled'?'This food was removed before logging.':root.state==='answered'?'Food details were removed from this chat. Any food already in your log stays.':'Your food is waiting to be checked…'))}</p>`:''}
       ${r.breakdown?.length?`<dl class="photo-breakdown">${r.breakdown.map(e=>`<div><dt>${esc(e.name)}${e.amount?`<small>${esc(e.amount)}</small>`:''}</dt><dd class="num">${e.kcal==null?'Unknown':`≈ ${esc(e.kcal)} kcal`}</dd></div>`).join('')}<div class="photo-breakdown-total"><dt>Total</dt><dd class="num">${r.breakdown_total==null?'Incomplete':`≈ ${esc(r.breakdown_total)} kcal`}</dd></div></dl>`:''}${r.breakdown_notes?.map(note=>`<p class="small muted">${esc(note)}</p>`).join('')||''}${r.photo_itemize&&App.me?.food_photo_itemize&&aiCan('food')?`<button type="button" class="ghost wide" data-photo-itemize="${r.photo_itemize}">Add photo for ingredient breakdown</button>`:''}
       ${working&&partial?'<p class="small muted" role="status">Checking the other foods…</p>':''}${r.assumed&&!entries.length?`<p class="small muted thread-assumed">${esc(r.assumed)}</p>`:''}${r.feedback&&!changed&&!removed?`<p class="thread-feedback">${esc(typeof r.feedback==='string'?r.feedback:r.feedback.text||'')}</p>`:''}
@@ -413,6 +419,32 @@ const FoodThread = (() => {
     }catch(error){if(active(ctx))status(ctx,error.message);return;}
     finally{ctx.preparingReview=false;if(active(ctx))primary(ctx);}
     if(active(ctx)&&ctx.draftId===draft)await review(ctx,{allowUnsent:true});
+  }
+  function hideAnother(ctx){
+    if(!ctx.anotherBox)return;
+    ctx.anotherReadVersion=(ctx.anotherReadVersion||0)+1;
+    ctx.anotherBox.replaceChildren();ctx.anotherBox.hidden=true;
+  }
+  async function refreshAnother(ctx){
+    const box=ctx.anotherBox,field=$('#thread-text',ctx.el);
+    if(!box||!active(ctx))return;
+    const version=(ctx.anotherReadVersion||0)+1;ctx.anotherReadVersion=version;
+    if(field.value.trim()||ctx.sendingText||ctx.preparingReview||pendingReview()){
+      box.replaceChildren();box.hidden=true;return;
+    }
+    box.replaceChildren();box.hidden=true;
+    try{
+      const query=new URLSearchParams({day:ctx.day||isoDay(new Date()),meal:ctx.meal||guessMeal()});
+      const data=await api('/api/food/thread/recent-reuse?'+query);
+      if(!active(ctx)||ctx.anotherReadVersion!==version||field.value.trim())return;
+      const item=data.item;if(!item)return;
+      const button=document.createElement('button');button.type='button';button.className='thread-another-chip';
+      const plus=document.createElement('span');plus.className='reuse-add-icon';plus.innerHTML=svg('plus');
+      const label=document.createElement('span');label.textContent=`Another ${item.label}?`;button.append(plus,label);
+      button.setAttribute('aria-label',`Log another ${item.label}`);
+      button.onclick=()=>{if(!active(ctx)||ctx.sendingText||ctx.preparingReview)return;hideAnother(ctx);send(ctx,{body:`Another ${item.label}`,repeatEntryId:item.entry_id});};
+      box.append(button);box.hidden=false;
+    }catch(_){box.replaceChildren();box.hidden=true;}
   }
   function photoHtml(ctx,id){
     const job=ctx.jobs.find(j=>j.id===id),images=['cancel','remove'].includes(job?.phase)?[]:job?.previews||photos.get(ctx.owner,id);
@@ -602,7 +634,7 @@ const FoodThread = (() => {
   function destination(ctx,m,r,onSave=null){foodDestinationPicker(r,async next=>{if(onSave){if(!active(ctx))return;onSave(next);}else await action(ctx,m.id,'destination',next,'PUT');},'thread-destination');}
   function foodContextLabel(ctx){const zone=deviceTimeZone(),today=isoDay(new Date(),zone),meal=MEAL_NAMES[ctx.meal]||'Choose a meal',day=ctx.day&&ctx.day!==today?(dayLabel(ctx.day,zone)==='Yesterday'?'Yesterday':new Date(ctx.day+'T12:00:00Z').toLocaleDateString('en-US',{timeZone:'UTC',weekday:'short'})):null,spoken=day?`${meal}, ${day}`:`${meal}, today`;return {title:[day,meal].filter(Boolean).join(' · ')||meal,ariaLabel:`Logging to ${spoken}. Change day or meal.`,dated:!!day};}
   function drawFoodContext(ctx){const button=$('#thread-context',ctx.el);if(!button)return;const label=foodContextLabel(ctx),title=$('.thread-context-label',button),inline=!!ctx.el.closest('.kit-chat');if(title)title.textContent=inline&&!label.dated?`${label.title} · Today`:label.title;button.setAttribute('aria-label',label.ariaLabel);const heading=$('.thread-heading',ctx.el);if(heading)heading.classList.toggle('thread-heading-dated-context',label.dated);const back=$('.thread-heading .back',ctx.el);if(back){back.href='/food?d='+encodeURIComponent(ctx.day);back.setAttribute('aria-label','Nutrition');}}
-  function editFoodContext(ctx){destination(ctx,null,{day:ctx.day,meal:ctx.meal},next=>{ctx.day=next.day;ctx.historyDay=next.day;ctx.meal=next.meal;ctx.explicitDay=true;saveReviewDraft(ctx,hasDraftWork(ctx));const query=new URLSearchParams(location.search);query.set('d',ctx.day);query.set('meal',ctx.meal);history.replaceState(null,'',`${location.pathname}?${query}`);drawFoodContext(ctx);});}
+  function editFoodContext(ctx){destination(ctx,null,{day:ctx.day,meal:ctx.meal},next=>{ctx.day=next.day;ctx.historyDay=next.day;ctx.meal=next.meal;ctx.explicitDay=true;saveReviewDraft(ctx,hasDraftWork(ctx));const query=new URLSearchParams(location.search);query.set('d',ctx.day);query.set('meal',ctx.meal);history.replaceState(null,'',`${location.pathname}?${query}`);drawFoodContext(ctx);refreshAnother(ctx);});}
   function portion(ctx,m,index){sheet('Set portion',reviewDestination(ctx)+'<form class="form" id="thread-portion"><label>Amount<input name="amount" type="number" min="0.01" step="any" required inputmode="decimal"></label><label>Unit<select name="unit"><option value="count">Servings</option><option value="grams">Grams</option><option value="share">Share of the whole (0.5 = half)</option></select></label><button class="primary wide">Use this portion</button></form>',(b,close)=>{$('#thread-portion',b).onsubmit=async e=>{e.preventDefault();try{await action(ctx,m.id,'choose',{part:index,portion:{[e.target.unit.value]:+e.target.amount.value}});close();}catch(e){toast(e.message);}};});}
   function manual(ctx,m,index,result={}){const supplied=result.parts?.find(p=>p.index===index)?.entered_numbers,values=supplied?.values||{};sheet('Enter nutrition',`<form class="form" id="thread-manual"><label>Food<input name="name" value="${esc(supplied?.name||m.body.slice(0,200))}" maxlength="200" required></label>${macroInputs(values)}<p>Enter calories. Leave nutrients blank if you don’t know them; blank means unknown.</p><button class="primary wide">Use these numbers</button></form>`,(b,close)=>{guardFoodSheet(b,close,ctx.session);$('#thread-manual',b).onsubmit=async e=>{e.preventDefault();const f=e.target,item={name:f.name.value,amount:1,unit:'serving'};for(const k of FOOD_NUTRIENTS)item[k]=f[k].value.trim()===''?null:Number(f[k].value);if(item.kcal===null||!Number.isFinite(item.kcal)||item.kcal<0){f.kcal.setCustomValidity('Enter calories before logging.');f.kcal.reportValidity();f.kcal.oninput=()=>f.kcal.setCustomValidity('');return;}try{await action(ctx,m.id,'manual',{part:index,items:[item],confirm:true});close();}catch(e){toast(e.message);}};});}
   async function refresh(ctx,before=null){
@@ -611,7 +643,7 @@ const FoodThread = (() => {
     try{const data=await api('/api/food/thread/reviews/draft/'+ctx.draftId);if(!active(ctx)||ctx.epoch!==epoch||ctx.readVersion!==version)return;ctx.before=data.before;ctx.preferences=data.preferences;
       if(!before){const first=data.messages[0]?.id;ctx.messages=data.has_more?ctx.messages.filter(m=>m.id<first):[];}
       for(const m of data.messages||[])if(m.kind==='user'&&m.result?.draft_id===ctx.draftId)ctx.visibleClients.add(m.client_id);
-      await merge(ctx.owner,data,false);photos.prune(ctx.owner,new Set(ctx.messages.filter(m=>m.kind==='user').map(m=>m.client_id)));const restored=await restoreFoodPending({db:ThreadDB,owner:ctx.owner,draftId:ctx.draftId,messages:data.messages||[]});if(!active(ctx))return;ctx.jobs=await ThreadDB.list(ctx.owner);draw(ctx);status(ctx,'');if(restored)flush(ctx);}
+      await merge(ctx.owner,data,false);photos.prune(ctx.owner,new Set(ctx.messages.filter(m=>m.kind==='user').map(m=>m.client_id)));const restored=await restoreFoodPending({db:ThreadDB,owner:ctx.owner,draftId:ctx.draftId,messages:data.messages||[]});if(!active(ctx))return;ctx.jobs=await ThreadDB.list(ctx.owner);draw(ctx);refreshAnother(ctx);status(ctx,'');if(restored)flush(ctx);}
     catch(e){status(ctx,e.offline?'Offline. Your saved conversation and pending messages stay on this phone.':foodThreadError(e,'/api/food/thread/reviews/draft/'+ctx.draftId));}
   }
   function latestContext(ctx){
@@ -619,7 +651,7 @@ const FoodThread = (() => {
     const pending=ctx.jobs.filter(j=>j.phase!=='cancel'&&!j.error&&j.draft_id===ctx.draftId).sort((a,b)=>Date.parse(a.at)-Date.parse(b.at)).at(-1);
     return pending&&(!previous||Date.parse(pending.at)>Date.parse(previous.captured_at))?pending.id:previous?.client_id;
   }
-  async function send(ctx,{body,media='text',barcode,images,itemize=false,replaceDraft}={}) {
+  async function send(ctx,{body,media='text',barcode,images,itemize=false,replaceDraft,repeatEntryId}={}) {
     if(!active(ctx))return;const field=$('#thread-text',ctx.el),text=(body||field.value).trim();if(!text)return;
     if(ctx.preparingReview||pendingReview()){status(ctx,'Your food review is still saving. Wait or reconnect before adding more foods.');return;}
     if(text.length>4000){status(ctx,'Keep this message under 4,000 characters.');return;}
@@ -628,7 +660,7 @@ const FoodThread = (() => {
     const consumesDraft=!body||field.value.trim()===text||replaceDraft!==undefined&&field.value===replaceDraft;
     const draftId=ctx.draftId,previews=images?.length?await Promise.all(images.map(image=>shrinkPhoto(image,480))):undefined;
     if(!active(ctx)||ctx.draftId!==draftId)return;
-    const id=uuid(),job={id,previews,body:text,itemize,at:new Date().toISOString(),media,barcode,images,review_only:true,draft_id:ctx.draftId,phase:'process',context:context||latestContext(ctx)||id,day:ctx.day||isoDay(new Date()),...(ctx.meal?{meal:ctx.meal}:{})};saveReviewDraft(ctx,true);
+    const id=uuid(),job={id,previews,body:text,itemize,at:new Date().toISOString(),media,barcode,images,review_only:true,draft_id:ctx.draftId,phase:'process',context:context||latestContext(ctx)||id,day:ctx.day||isoDay(new Date()),...(ctx.meal?{meal:ctx.meal}:{}),...(repeatEntryId?{repeat_entry_id:repeatEntryId}:{})};saveReviewDraft(ctx,true);
     if(ctx.sendingText)return;ctx.sendingText=true;primary(ctx);
     try{if(consumesDraft){finishNativeDraft(ctx);saveDraft(ctx,'');}await ThreadDB.put(ctx.owner,job.id,job);if(ctx.draftId!==draftId){await ThreadDB.remove(ctx.owner,job.id);return;}if(!active(ctx))return;if(previews)photos.put(ctx.owner,job.id,ctx.draftId,previews);ctx.visibleClients.add(job.id);
       if(consumesDraft){field.value='';ctx.chatView?.resize();store.del(draftKey(ctx.owner));}ctx.context=null;ctx.reviewForm=null;store.del(contextKey(ctx.owner));
@@ -682,6 +714,9 @@ const FoodThread = (() => {
     const reuseBox=document.createElement('div');reuseBox.className='thread-reuse';reuseBox.hidden=true;
     reuseBox.setAttribute('role','group');reuseBox.setAttribute('aria-label','Reuse your foods');
     $('.thread-compose-row',el).before(reuseBox);
+    const anotherBox=document.createElement('div');anotherBox.className='thread-another';anotherBox.id='thread-another';anotherBox.hidden=true;
+    anotherBox.setAttribute('role','group');anotherBox.setAttribute('aria-label','Repeat a recent food');
+    $('.thread-compose-row',el).before(anotherBox);ctx.anotherBox=anotherBox;
     $('.thread-compose-row',el).before($('#thread-remove-notice',el));
     ctx.reuseChips=foodReuseChips({box:reuseBox,field,live:()=>active(ctx),choose:item=>reuse(ctx,item),day:()=>ctx.historyDay,excluded:()=>{const current=held(ctx).foods.map(e=>e.name),last=[...ctx.messages].reverse().find(m=>m.kind==='reply'&&m.result?.kind==='log'&&m.entries?.length);return [...current,...(last?.entries.map(e=>e.name)||[])];}});
     ctx.nativeEntries=(store.get(nativeKey(owner))||[]).filter(x=>x&&x.at>Date.now()-86400000).slice(-100);
@@ -695,7 +730,7 @@ const FoodThread = (() => {
     field.addEventListener('input',grow);
     field.addEventListener('input',()=>{if(ctx.removeNotice)clearRemovalNotice(ctx);});
     el.addEventListener('click',event=>{if(ctx.removeNotice&&!event.target.closest('[data-removal-undo],[data-unlogged-remove]'))clearRemovalNotice(ctx);},{signal:ctx.removeEvents.signal});
-    field.oninput=()=>{if(!field.value.trim()){ctx.context=null;store.del(contextKey(owner));}else if(!ctx.context){ctx.context=latestContext(ctx);if(ctx.context)store.set(contextKey(owner),ctx.context);}primary(ctx);try{saveDraft(ctx,field.value);saveReviewDraft(ctx,hasDraftWork(ctx));}catch(e){status(ctx,'Draft storage is full. Keep this screen open until you send.');}};
+    field.oninput=()=>{if(!field.value.trim()){ctx.context=null;store.del(contextKey(owner));refreshAnother(ctx);}else{hideAnother(ctx);if(!ctx.context){ctx.context=latestContext(ctx);if(ctx.context)store.set(contextKey(owner),ctx.context);}}primary(ctx);try{saveDraft(ctx,field.value);saveReviewDraft(ctx,hasDraftWork(ctx));}catch(e){status(ctx,'Draft storage is full. Keep this screen open until you send.');}};
     ctx.chatView=foodChatViewport({list:$('#thread-messages',el),composer:$('#thread-composer',el),field,send:$('#thread-send',el),active:()=>active(ctx),resizeField:grow});
     field.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.keyCode!==229){e.preventDefault();$('#thread-composer',el).requestSubmit();}});
     $('#thread-composer',el).onsubmit=e=>{e.preventDefault();send(ctx);};

@@ -38,6 +38,7 @@ class MessageIn(BaseModel):
     context: UUID | None = None
     review_only: StrictBool = False
     draft_id: UUID | None = None
+    repeat_entry_id: int | None = Field(None, gt=0)
 
     @field_validator('body')
     @classmethod
@@ -151,6 +152,7 @@ def append(body: MessageIn, response: Response, user=Depends(current_user)):
         if body.draft_id:metadata={**(metadata or {}),'draft_id':str(body.draft_id)}
         if body.review_only:metadata={**(metadata or {}),'review_only':True}
         if body.context:metadata={**(metadata or {}),'context':str(body.context)}
+        if body.repeat_entry_id:metadata={**(metadata or {}),'repeat_entry_id':body.repeat_entry_id}
         destination={k:v for k,v in {'day':body.day.isoformat() if body.day else None,'meal':body.meal}.items() if v is not None}
         if destination:metadata={**(metadata or {}),'destination':destination}
         row = c.execute(f'''INSERT INTO food_chat_messages
@@ -162,7 +164,7 @@ def append(body: MessageIn, response: Response, user=Depends(current_user)):
         if not created:
             row = c.execute(f'SELECT {COLUMNS} FROM food_chat_messages WHERE user_id = %s AND client_id = %s',
                             (uid, body.client_id)).fetchone()
-            if row['body'] != body.body or row['kind'] != 'user' or any((row.get('result') or {}).get(k)!=(metadata or {}).get(k) for k in ('input','context','destination','review_only','draft_id')):
+            if row['body'] != body.body or row['kind'] != 'user' or any((row.get('result') or {}).get(k)!=(metadata or {}).get(k) for k in ('input','context','destination','review_only','draft_id','repeat_entry_id')):
                 raise HTTPException(409, 'That message identity was already used for different text')
         response.status_code = 201 if created else 200
         return {'message': message_entries(c, uid, [row])[0], 'created': created}
@@ -241,7 +243,7 @@ def finish_reply(c, uid, message, result):
     if row is None: raise HTTPException(409,'A reply already exists; reload this message')
     updated = c.execute(f'''UPDATE food_chat_messages SET state='answered',result=%s
                              WHERE id=%s AND user_id=%s RETURNING {COLUMNS}''',
-                        (json.dumps({'kind':result['kind'],'reply_id':row['id'],**{k:message['result'][k] for k in ('input','receipt','context','destination','daily_note','review_only','review_request','draft_id') if (message.get('result') or {}).get(k) is not None}}),message['id'],uid)).fetchone()
+                        (json.dumps({'kind':result['kind'],'reply_id':row['id'],**{k:message['result'][k] for k in ('input','receipt','context','destination','daily_note','review_only','review_request','draft_id','repeat_entry_id') if (message.get('result') or {}).get(k) is not None}}),message['id'],uid)).fetchone()
     return {'handled':True,'messages':message_entries(c,uid,[updated,row])}
 
 
@@ -293,6 +295,9 @@ class LogIn(BaseModel):
 def process_message(mid: int, body: AnswerIn, user=Depends(current_user)):
     from . import food_thread_log as engine, food_thread_understand as understand
     from . import food_memory_understand as memory
+    from . import food_thread_reuse as reuse
+    fast=reuse.process(user['id'],mid)
+    if fast is not None:return fast
     pending=memory.prepare(user['id'],mid)
     if pending is not None:return pending
     understand.prepare(user['id'],mid)   # the optional model call happens before the account lock
@@ -339,11 +344,28 @@ def choose_message(mid: int, body: ChoiceIn, response: Response, user=Depends(cu
     from . import food_thread_log as engine, food_thread_edit as edits
     with db.connect() as c:
         message=engine.locked_message(c,user['id'],mid)
+        reply=engine.stored_reply(c,user['id'],message)
+        if reply and (reply.get('result') or {}).get('recent_reuse'):
+            from . import food_thread_reuse as reuse
+            return reuse.choose(c,user['id'],message,reply['result'],body.select)
         from . import food_thread_choices as choices
         result=choices.choose(c,user['id'],message,body.part,body.pick,body.portion,body.catalog,body.factor,body.new,draft=body.draft)
         if result is None:result=edits.choose(c,user['id'],message,body.part,body.pick,body.portion,body.select,body.omit)
         if result.get('changed'):response.status_code=409
         return result
+
+
+@router.get('/recent-reuse')
+def recent_reuse(day: dt.date | None = Query(None), meal: Literal['breakfast','lunch','dinner','snacks'] | None = Query(None), user=Depends(current_user)):
+    from . import food_thread_log as engine, food_thread_reuse as reuse
+    uid=user['id'];now=dt.datetime.now(dt.timezone.utc)
+    with db.connect() as c:
+        profile=c.execute('SELECT tz FROM profile WHERE user_id=%s',(uid,)).fetchone() or {}
+        zone=db.valid_tz(profile.get('tz')) or db.DEFAULT_TZ
+        target_day=day or now.astimezone(ZoneInfo(zone)).date()
+        target_meal=meal or engine.expected_meal(c,uid,now)
+        groups=reuse.recent_groups(c,uid,target_day,target_meal)
+        return {'item':reuse.suggestion(groups[0]) if groups else None}
 
 
 class RemoveFoodIn(BaseModel):

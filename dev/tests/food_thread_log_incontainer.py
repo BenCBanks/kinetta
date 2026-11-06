@@ -57,3 +57,70 @@ finally:
  db.connect=original_connect;food_photo.ask=original_ask;food_thread.finish_reply=original_finish
  if uid:
   with db.connect() as c:c.execute('DELETE FROM users WHERE id=%s',(uid,))
+
+# Recent "another one" fast path: owner-scoped, grouped, scaled, choice-bound and provider-free.
+from fastapi import Response
+from app import food_thread_reuse as reuse, food_memory_understand as memory, food_thread_understand as understand
+import time
+reuse_uids=[];original_memory_prepare=memory.prepare;original_understand_prepare=understand.prepare
+try:
+ with db.connect() as c:
+  for suffix in ('fast','chip','ambiguous','old','other','half'):
+   uid2=c.execute('INSERT INTO users(login,name) VALUES (%s,%s) RETURNING id',('zz_test_repeat_'+suffix,'Fictional repeat '+suffix)).fetchone()['id'];reuse_uids.append(uid2)
+   c.execute("INSERT INTO profile(user_id,tz,kcal_target,protein_target,food_chat_auto_log) VALUES (%s,'UTC',2000,110,true)",(uid2,))
+ repeat_day=dt.datetime.now(dt.timezone.utc).date()
+ def seed_group(uid2,items,minutes_ago=5,hours_ago=0,meal='lunch'):
+  stamp=dt.datetime.now(dt.timezone.utc)-dt.timedelta(minutes=minutes_ago,hours=hours_ago);prefix=str(uuid.uuid4());ids=[]
+  with db.connect() as c:
+   for position,(name,amount,unit,kcal) in enumerate(items,1):
+    row=c.execute("""INSERT INTO food_entries(user_id,day,meal,name,amount,unit,kcal,protein_g,carbs_g,fat_g,source,ref,position,client_id,created,updated)
+      VALUES (%s,%s,%s,%s,%s,%s,%s,2,18,4,'quick','{}',%s,%s,%s,%s) RETURNING id""",
+      (uid2,repeat_day,meal,name,amount,unit,kcal,position,f'{prefix}-{position:02d}',stamp,stamp)).fetchone();ids.append(row['id'])
+  return ids
+ def repeat_message(uid2,body,meal='lunch',repeat_entry_id=None,client_id=None):
+  request=food_thread.MessageIn(client_id=client_id or uuid.uuid4(),body=body,day=repeat_day,meal=meal,review_only=True,draft_id=uuid.uuid4(),repeat_entry_id=repeat_entry_id)
+  return food_thread.append(request,Response(),user={'id':uid2})['message']
+ def logged_count(uid2):
+  with db.connect() as c:return c.execute('SELECT count(*) AS n FROM food_entries WHERE user_id=%s',(uid2,)).fetchone()['n']
+ def no_model(*args,**kwargs):raise AssertionError('Recent repeat reached food-memory or food-understanding preparation')
+ fast_uid,chip_uid,amb_uid,old_uid,other_uid,half_uid=reuse_uids
+ source=seed_group(fast_uid,[('Fictional toast',1,'piece',120),('Fictional butter',1,'serving',40)])
+ message=repeat_message(fast_uid,'I had another two pieces of toast')
+ memory.prepare=no_model;understand.prepare=no_model
+ started=time.perf_counter();fast=food_thread.process_message(message['id'],food_thread.AnswerIn(),{'id':fast_uid});elapsed=time.perf_counter()-started
+ receipt=fast['messages'][-1];assert receipt['result']['kind']=='log' and receipt['result']['reuse_label']=='Another Fictional toast with Fictional butter'
+ assert receipt['result']['same_as'] and fast['messages'][0]['result'].get('review_only') is True,'fast logging preserves the chat replay metadata'
+ assert len(receipt['entries'])==2 and sorted((e['name'],e['amount']) for e in receipt['entries'])==[('Fictional butter',2),('Fictional toast',2)]
+ assert elapsed<.3,f'fast repeat took {elapsed:.3f}s, above the 300 ms target'
+ replay=food_thread.process_message(message['id'],food_thread.AnswerIn(),{'id':fast_uid});assert replay['messages'][-1]['id']==receipt['id'] and logged_count(fast_uid)==4,'replayed process is exactly once and still bypasses AI'
+ # The recent chip submits its server-selected entry id through the ordinary idempotent message queue.
+ chip_ids=seed_group(chip_uid,[('Fictional toast',1,'piece',120),('Fictional butter',1,'serving',40)])
+ assert food_thread.recent_reuse(repeat_day,'lunch',user={'id':chip_uid})['item']['entry_id'] in chip_ids
+ request_id=uuid.uuid4();chip_message=repeat_message(chip_uid,'Another Fictional toast with Fictional butter',repeat_entry_id=chip_ids[0],client_id=request_id)
+ duplicate=food_thread.append(food_thread.MessageIn(client_id=request_id,body='Another Fictional toast with Fictional butter',day=repeat_day,meal='lunch',review_only=True,draft_id=uuid.UUID(chip_message['result']['draft_id']),repeat_entry_id=chip_ids[0]),Response(),user={'id':chip_uid})
+ assert duplicate['created'] is False,'repeated chip delivery reuses the original message identity'
+ chip_result=food_thread.process_message(chip_message['id'],food_thread.AnswerIn(),{'id':chip_uid});assert len(chip_result['messages'][-1]['entries'])==2 and logged_count(chip_uid)==4
+ # No name plus two distinct recent groups asks one question; selecting a chip copies only its group.
+ seed_group(amb_uid,[('Fictional toast',1,'piece',120),('Fictional butter',1,'serving',40)],minutes_ago=8)
+ seed_group(amb_uid,[('Fictional pear',1,'piece',95)],minutes_ago=3)
+ question=food_thread.process_message(repeat_message(amb_uid,'another one')['id'],food_thread.AnswerIn(),{'id':amb_uid})
+ assert question['messages'][-1]['result']['kind']=='needs' and len(question['messages'][-1]['result']['choices'])==2 and logged_count(amb_uid)==3
+ chosen=food_thread.choose_message(question['messages'][0]['id'],food_thread.ChoiceIn(select=0),Response(),{'id':amb_uid})
+ assert chosen['messages'][-1]['result']['kind']=='log' and [e['name'] for e in chosen['messages'][-1]['entries']]==['Fictional pear'] and logged_count(amb_uid)==4
+ # Fractions scale a single unambiguous recent row.
+ half_source=seed_group(half_uid,[('Fictional pita',2,'piece',300)])
+ half_result=food_thread.process_message(repeat_message(half_uid,'half a piece more')['id'],food_thread.AnswerIn(),{'id':half_uid})
+ assert half_result['messages'][-1]['entries'][0]['amount']==1 and logged_count(half_uid)==2
+ # A three-hour-old source or another meal block stays on the normal path and is never auto-copied.
+ seed_group(old_uid,[('Fictional toast',1,'piece',120)],hours_ago=3)
+ old=repeat_message(old_uid,'another piece of toast');before=logged_count(old_uid);assert reuse.process(old_uid,old['id']) is None and logged_count(old_uid)==before
+ wrong_meal=repeat_message(old_uid,'another piece of toast',meal='dinner');assert reuse.process(old_uid,wrong_meal['id']) is None and logged_count(old_uid)==before
+ assert reuse.parse_repeat('another coffee but with oat milk') is None
+ # Candidate lookup cannot expose a different account's recent foods.
+ assert food_thread.recent_reuse(repeat_day,'lunch',user={'id':other_uid})['item'] is None
+ assert reuse.parse_repeat('another two pieces of toast')==(2,{'toast'}) and reuse.parse_repeat('half a piece more')==(.5,set())
+ print(f'Food repeat reuse: owner scope, {elapsed*1000:.0f} ms provider-free copy, scaled group, chip replay, ambiguity and stale fallback PASS')
+finally:
+ memory.prepare=original_memory_prepare;understand.prepare=original_understand_prepare
+ if reuse_uids:
+  with db.connect() as c:c.execute('DELETE FROM users WHERE id=ANY(%s)',(reuse_uids,))

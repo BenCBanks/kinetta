@@ -26,12 +26,12 @@ def insert(c,uid,message,rows,day,meal):
     return ids
 
 
-def save(c,uid,message,rows,day,meal):
+def save(c,uid,message,rows,day,meal,*,same_as=None,reuse_label=None,fast_reuse=False):
     if not rows:raise HTTPException(400,'Choose at least one food to copy')
     if meal_chat.too_big(rows):raise HTTPException(400,'That amount is too large')
     from . import food_entry_methods as methods
     rows=methods.staged_copy(c,uid,message,rows,day)
-    if (message.get('result') or {}).get('review_only'):
+    if (message.get('result') or {}).get('review_only') and not fast_reuse:
         from . import food_thread_compose as compose
         # A copied log is a deliberate historical snapshot, with no live entry IDs.
         fields=('name','brand','amount','unit',*N.ALL,'source','ref','entry_method')
@@ -41,6 +41,8 @@ def save(c,uid,message,rows,day,meal):
     result={'kind':'log','entry_ids':insert(c,uid,message,rows,day,meal),'day':str(day),'meal':meal,
             'text':f"{meal.capitalize()} · {', '.join(r['name'] for r in rows[:3])} · about {facts.kcal(sum(r['kcal'] for r in rows)):,} kcal from your log.",
             'source':'your food log','as_of':dt.datetime.now(dt.timezone.utc).isoformat()}
+    if same_as:result['same_as']=same_as
+    if reuse_label:result['reuse_label']=reuse_label
     saved=c.execute('SELECT * FROM food_entries WHERE user_id=%s AND id=ANY(%s)',(uid,result['entry_ids'])).fetchall()
     result['entry_digests']={str(r['id']):engine.entry_digest(r) for r in saved}
     result['feedback']=facts.feedback(facts.snapshot(c,uid,day),{k:sum(r[k] or 0 for r in rows) for k in ('kcal','protein_g')},seed=message['id'])
@@ -129,7 +131,9 @@ def choose(c,uid,message,result,portion=None,omit=None):
             from . import food_thread_edit as edits
             candidates=[edits._scale(c,uid,row,{'share':ref['scale']}) for row in candidates]
         if not (food_thread.preferences(c,uid) or {}).get('auto_log',True):return preview(c,uid,message,candidates,ref,dt.date.fromisoformat(result['day']),result['meal'])
-        return save(c,uid,message,candidates,dt.date.fromisoformat(result['day']),result['meal'])
+        return save(c,uid,message,candidates,dt.date.fromisoformat(result['day']),result['meal'],
+                    same_as=result.get('same_as'),reuse_label=result.get('reuse_label'),
+                    fast_reuse=result.get('fast_reuse',False))
     if kind=='remaining':
         if portion is None:raise HTTPException(422,'Choose the amount that was left')
         row=c.execute('SELECT * FROM food_entries WHERE user_id=%s AND id=%s FOR UPDATE',(uid,reference.get('source_id'))).fetchone()
