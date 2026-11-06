@@ -18,14 +18,16 @@ function validateExceptions(rules){
 function neighbours(targets){
  const pairs=new Map();
  for(const a of targets){
+  const ar=a.usableRect||a.rect;if(ar.width<=.02||ar.height<=.02)continue;
   const nearest={};
   for(const b of targets){
    if(related(a,b)||(a.layer||'page')!==(b.layer||'page'))continue;
-   const x=overlap(a.rect,b.rect,'x'),y=overlap(a.rect,b.rect,'y');
+   const br=b.usableRect||b.rect;if(br.width<=.02||br.height<=.02)continue;
+   const x=overlap(ar,br,'x'),y=overlap(ar,br,'y');
    if(x>.02&&y>.02){const key=[a.key,b.key].sort().join('|');pairs.set(key,{a,b,metric:'overlap',actual:Math.min(x,y)});continue;}
    let direction,distance;
-   if(x>.02){direction=b.rect.y>=a.rect.y+a.rect.height?'down':'up';distance=direction==='down'?b.rect.y-a.rect.y-a.rect.height:a.rect.y-b.rect.y-b.rect.height;}
-   else if(y>.02){direction=b.rect.x>=a.rect.x+a.rect.width?'right':'left';distance=direction==='right'?b.rect.x-a.rect.x-a.rect.width:a.rect.x-b.rect.x-b.rect.width;}
+   if(x>.02){direction=br.y>=ar.y+ar.height?'down':'up';distance=direction==='down'?br.y-ar.y-ar.height:ar.y-br.y-br.height;}
+   else if(y>.02){direction=br.x>=ar.x+ar.width?'right':'left';distance=direction==='right'?br.x-ar.x-ar.width:ar.x-br.x-br.width;}
    if(direction&&distance>=-.02&&(!nearest[direction]||distance<nearest[direction].actual))nearest[direction]={a,b,metric:'gap',actual:Math.max(0,distance),direction};
   }
   for(const p of Object.values(nearest))pairs.set([p.a.key,p.b.key].sort().join('|'),p);

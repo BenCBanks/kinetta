@@ -4,13 +4,12 @@
 .card-options legend {font-weight:700;margin-bottom:8px;}
 .card-options .check {min-height:44px;}
 .card-options > .check + .check,.card-options > .card-period + .check,.card-period > .check + .check {margin-top:8px;}
-.card-options .achievement-sharing-choice { min-height:44px; margin:0; padding:4px 0; border:0; color:var(--tx); }
-.card-options .achievement-sharing-choice > span { min-width:0; flex:1; color:var(--tx); font-size:max(15px,.9375rem); }
-.card-options .achievement-sharing-choice small { color:var(--tx2); font-size:13px; font-weight:400; }
+.card-options .achievement-sharing-choice { min-height:45px; margin:0; padding:4px 0; border:0; color:var(--tx); }
+.card-options .achievement-sharing-choice > span { display:grid; gap:2px; min-width:0; flex:1; color:var(--tx); font-size:max(15px,.9375rem); }
+.card-options .achievement-sharing-choice small { display:block; color:var(--tx2); font-size:13px; font-weight:400; }
 .card-period {border:0;padding:0;margin:8px 0 0;min-width:0;}
 .card-period legend {font-weight:600;margin-bottom:0;}
-.scrim:has(#card-picture) .sheet {display:flex;flex-direction:column;height:92dvh;}
-.scrim:has(#card-picture) .sheet > header {position:static;z-index:auto;flex:none;background:transparent;padding:0;margin:0 0 14px;}
+.scrim:has(#card-picture) .sheet {display:flex;flex-direction:column;height:92dvh;overflow:hidden;}
 .scrim:has(#card-picture) .sheet > .sbody {flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;}
 .scrim:has(#card-picture) .sheet > .sbody > .switch-row > span {font-size:max(15px,.9375rem);}
 .scrim:has(#card-picture) #card-new {min-height:45px;}
@@ -27,4 +26,4 @@
 
 .card-preview {max-width:300px;}
 .scrim:has(#card-picture) .sheet {scroll-padding-top:calc(4rem + 36px);}
-.scrim:has(#card-picture) .sheet > header {position:sticky;top:-8px;z-index:3;background:var(--bg);padding:8px 0;margin-top:-8px;}
+.scrim:has(#card-picture) .sheet > header {position:static;flex:none;z-index:auto;background:transparent;padding:0;margin:0 0 14px;}

@@ -10,6 +10,8 @@ assert(metrics(scene([target('a',0,0),target('b',51.9,0)])).includes('gap'),'A 7
 assert.deepEqual(metrics(scene([target('padded-icon',0,0,44,44,{visualWidth:20})])),[],'A small icon inside its full hit area passes');
 assert(metrics(scene([target('set1',0,0),target('set2',0,46)])).includes('gap'),'The lifting regression with a 2px row gap fails');
 assert(metrics(scene([target('a',0,0),target('b',40,0)])).includes('overlap'),'Overlapping hit areas fail even when visual icons fit');
+const header=target('close',328,94,44,44,{layer:'dialog'}),clipped=target('clipped-row',18,128,354,50,{layer:'dialog',usableRect:{x:18,y:152,width:354,height:26}});
+assert.deepEqual(metrics(scene([header,clipped])),[],'A scroll-clipped portion of a row cannot overlap a fixed header');
 assert.deepEqual(metrics(scene([target('parent',0,0,120,60,{activationKey:'same-control'}),target('child',8,8,44,44,{activationKey:'same-control'})])),[],'One nested control is not measured against itself');
 const n=neighbours([target('first',0,0),target('middle',0,52),target('last',0,104)]);
 assert(!n.some(p=>[p.a.key,p.b.key].includes('first')&&[p.a.key,p.b.key].includes('last')),'An intervening control prevents a non-neighbour pair');
