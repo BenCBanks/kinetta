@@ -35,7 +35,9 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     const rect=await el.boundingBox();assert(rect.height>=44,selector+' target height');assert(rect.width>=44,selector+' target width');
    }
    for(const group of await p.locator('.meal-actions').all()){
-    const buttons=await group.locator('button').all(),one=await buttons[0].boundingBox(),two=await buttons[1].boundingBox();assert(Math.abs(one.y-two.y)<1,'meal actions stay together when wrapping');
+    const add=group.locator('[data-add]'),more=group.locator('[data-more]');
+    const addBox=await add.boundingBox();assert(addBox.height>=44&&addBox.width>=44,'meal plus keeps a 44px target');
+    if(await more.count()){const moreBox=await more.boundingBox();assert(Math.abs(addBox.y-moreBox.y)<1,'meal actions stay together when wrapping');}
    }
    for(const title of await p.locator('.progress-tile-name').all())assert(await title.evaluate(n=>n.scrollWidth<=n.clientWidth+1),'tile title fits without clipping');
    assert.equal(await p.locator('.nutrition-date-row #fd-date').count(),1);assert.equal(await p.locator('#fq-add').count(),1);

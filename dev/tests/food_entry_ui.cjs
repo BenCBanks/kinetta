@@ -333,6 +333,7 @@ await p.goto(base+'/me/kit?from=nutrition');await until(p,()=>App.pageReady&&!!d
    assert.equal(first.text,note);assert.deepEqual(first.drafts,[note],'the single owner-bound draft is saved once');
    assert.equal(first.receipts.filter(x=>x.id===entryId&&!x.pending).length,1,'the local receipt is saved and complete');
    assert.equal(first.acks.length,1);assert.equal(first.acks[0].draftText,note);assert(first.acks[0].receiptIds.includes(entryId));assert.equal(first.acks[0].pending,null,'ack follows the saved draft and receipt');
+   await until(p,()=>!Native.foodEntryTask,'initial native consumption settled');
    await p.evaluate(()=>window.__replayFoodEntry());await until(p,()=>window.__foodEntryTrace.filter(x=>x.type==='ack').length===2,'native replay acknowledged');
    const replay=await p.evaluate(()=>({events:window.__foodEntrySnapshot().events,text:document.querySelector('#thread-text')?.value,drafts:Object.entries(localStorage).filter(([key])=>key.startsWith('fit.thread.draft:')).map(([,value])=>JSON.parse(value)),acks:window.__foodEntryTrace.filter(x=>x.type==='ack')}));
    assert.equal(replay.events,2);assert.equal(replay.text,note);assert.deepEqual(replay.drafts,[note],'replay does not duplicate the staged text');assert.equal(replay.acks.length,2);assert(replay.acks.every(x=>x.draftText===note&&x.receiptIds.includes(entryId)&&x.pending===null));
