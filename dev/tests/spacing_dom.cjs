@@ -10,9 +10,11 @@ function collectSpacing({screen,rules=[]}){
  const hitRect=el=>{
   if(!el.matches('.activity-card.post .post-name'))return null;
   const pseudo=getComputedStyle(el,'::before');if(pseudo.content==='none'||pseudo.position!=='absolute')return null;
+  const r=el.getBoundingClientRect(),left=parseFloat(pseudo.left),top=parseFloat(pseudo.top),width=parseFloat(pseudo.width),height=parseFloat(pseudo.height);
+  if([left,top,width,height].every(Number.isFinite))return{x:r.x+left,y:r.y+top,width,height};
   const insets=['top','right','bottom','left'].map(key=>parseFloat(pseudo[key]));if(insets.some(value=>!Number.isFinite(value)))return null;
-  const r=el.getBoundingClientRect(),[top,right,bottom,left]=insets;
-  return{x:r.x+left,y:r.y+top,width:Math.max(0,r.width-left-right),height:Math.max(0,r.height-top-bottom)};
+  const [insetTop,right,bottom,insetLeft]=insets;
+  return{x:r.x+insetLeft,y:r.y+insetTop,width:Math.max(0,r.width-insetLeft-right),height:Math.max(0,r.height-insetTop-bottom)};
  };
  const visible=el=>{
   const r=el.getBoundingClientRect(),s=getComputedStyle(el);if(!r.width||!r.height||s.visibility==='hidden'||s.display==='none'||+s.opacity===0)return false;

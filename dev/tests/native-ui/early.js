@@ -25,6 +25,8 @@
         return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
       }
       if(p==='/api/me')data=me;
+      else if(cfg.activityFeed&&p==='/api/activities')data=cfg.activityFeed.own;
+      else if(cfg.activityFeed&&p==='/api/feed/friends')data=cfg.activityFeed.friends;
       else if(cfg.headerPage&&p==='/api/challenges')data=[];
       else if(cfg.headerPage&&p==='/api/plans/current')data={plan:null};
       else if(cfg.headerPage&&p==='/api/feed/friends')data=[];
