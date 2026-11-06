@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from .dish_access import NOTICE_VISIBLE
 from . import apns, db, notification_words, notification_facts, reactions
 from .auth import current_user, session_token, token_hash, SESSION_DAYS
+from .activity_metrics import week_streak as activity_week_streak
 
 # A stale or removed source cannot leave a pending private celebration in the bell or on a phone.
 NOTICE_VISIBLE += " AND (n.kind<>'milestone' OR EXISTS(SELECT 1 FROM milestones m JOIN milestone_state ms ON ms.user_id=m.user_id WHERE m.id=n.milestone_id AND m.user_id=n.user_id AND m.valid AND NOT m.silent AND ms.generation=ms.processed AND (m.activity_id IS NULL OR EXISTS(SELECT 1 FROM activities ma WHERE ma.id=m.activity_id AND ma.user_id=m.user_id))))"
@@ -27,6 +28,24 @@ NOTICE_VISIBLE += " AND (n.kind<>'activity_ready' OR EXISTS(SELECT 1 FROM activi
 
 NOTICE_VISIBLE += " AND (n.kind<>'signup_admin' OR EXISTS(SELECT 1 FROM users admin WHERE admin.id=n.user_id AND admin.is_admin AND admin.suspended_at IS NULL))"
 
+# Streak reminders are visible only during the same local week in which the owner can still act.
+# The Saturday key is stable through timezone edits within a week and cannot collide with the
+# Monday period used by weekly summaries in personal_notification_attempts.
+NOTICE_VISIBLE += ''' AND (left(n.kind,16)<>'streak_reminder:' OR (
+  n.actor_id=n.user_id AND p.notify->'personal'->>'streak'='true'
+  AND n.kind ~ '^streak_reminder:[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+  AND substring(n.kind from 17)=to_char((date_trunc('week',now() AT TIME ZONE coalesce(p.tz,'America/New_York'))::date+5),'YYYY-MM-DD')
+  AND NOT EXISTS (SELECT 1 FROM activities sa WHERE sa.user_id=n.user_id AND NOT sa.lift_open
+    AND sa.start_time <= now() AND sa.start_time+make_interval(secs=>greatest(coalesce(sa.elapsed_s,sa.moving_s,0),0)) <= now()
+    AND date_trunc('week',sa.start_time AT TIME ZONE coalesce(p.tz,'America/New_York'))::date=date_trunc('week',now() AT TIME ZONE coalesce(p.tz,'America/New_York'))::date)
+  AND EXISTS (SELECT 1 FROM activities sa WHERE sa.user_id=n.user_id AND NOT sa.lift_open
+    AND sa.start_time <= now() AND sa.start_time+make_interval(secs=>greatest(coalesce(sa.elapsed_s,sa.moving_s,0),0)) <= now()
+    AND date_trunc('week',sa.start_time AT TIME ZONE coalesce(p.tz,'America/New_York'))::date=date_trunc('week',now() AT TIME ZONE coalesce(p.tz,'America/New_York'))::date-7)
+  AND EXISTS (SELECT 1 FROM activities sa WHERE sa.user_id=n.user_id AND NOT sa.lift_open
+    AND sa.start_time <= now() AND sa.start_time+make_interval(secs=>greatest(coalesce(sa.elapsed_s,sa.moving_s,0),0)) <= now()
+    AND date_trunc('week',sa.start_time AT TIME ZONE coalesce(p.tz,'America/New_York'))::date=date_trunc('week',now() AT TIME ZONE coalesce(p.tz,'America/New_York'))::date-14)
+ ))'''
+
 router = APIRouter(prefix='/api')
 KINDS = ('friend_request', 'friend_accepted', 'cheer', 'comment', 'dish_shared', 'activity_ready', 'milestone','challenge_join','challenge_reminder','challenge_finished', 'monthly_summary', 'report', 'signup_admin')   # report: admins only, in the app only
 PUSH_KINDS = {'friends': ('friend_request', 'friend_accepted'), 'cheers': ('cheer',), 'comments': ('comment',), 'dishes': ('dish_shared',), 'activities': ('activity_ready',), 'milestones': ('milestone',),'challenge_joins':('challenge_join',),'challenge_reminders':('challenge_reminder',),'challenge_finished':('challenge_finished',),'monthly_summary':('monthly_summary',)}
@@ -36,6 +55,66 @@ MAX_SUBS = 10           # devices per person
 AUTO_SOURCES = ('apple', 'healthkit', 'garmin', 'garmin_connect')   # workouts that arrive without the person doing anything
 SUMMARY_WINDOW = dt.timedelta(minutes=15)
 SUMMARY_KIND = re.compile(r'^monthly_summary:(month|year):([0-9]{4}(?:-[0-9]{2})?)$')
+STREAK_REMINDER_KIND = re.compile(r'^streak_reminder:([0-9]{4}-[0-9]{2}-[0-9]{2})$')
+
+
+def streak_reminder_parts(kind):
+    match = STREAK_REMINDER_KIND.fullmatch(kind or '')
+    if not match:
+        return None
+    try:
+        period = dt.date.fromisoformat(match.group(1))
+    except ValueError:
+        return None
+    return period if period.weekday() == 5 else None
+
+
+def streak_reminder_weeks(c, user_id, period, now=None):
+    """Current owner-only completed-week streak, or zero when its local Saturday key expired."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    if now.tzinfo is None:
+        raise ValueError('Streak reminder time must include a timezone')
+    profile = c.execute('''SELECT p.tz,p.notify FROM profile p JOIN users u ON u.id=p.user_id
+      WHERE p.user_id=%s AND u.suspended_at IS NULL AND NOT u.needs_email_confirm
+      AND u.password_change_expires IS NULL''', (user_id,)).fetchone()
+    if not profile or (profile['notify'] or {}).get('personal', {}).get('streak') is not True:
+        return 0
+    tz = db.valid_tz(profile['tz']) or db.DEFAULT_TZ
+    zone = ZoneInfo(tz)
+    local = now.astimezone(zone)
+    monday = local.date() - dt.timedelta(days=local.weekday())
+    if period != monday + dt.timedelta(days=5):
+        return 0
+    start = dt.datetime.combine(monday, dt.time.min, zone)
+    end = dt.datetime.combine(monday + dt.timedelta(days=7), dt.time.min, zone)
+    worked = c.execute('''SELECT EXISTS(SELECT 1 FROM activities WHERE user_id=%s AND NOT lift_open
+      AND start_time >= %s AND start_time < %s AND start_time <= %s
+      AND start_time+make_interval(secs=>greatest(coalesce(elapsed_s,moving_s,0),0)) <= %s) AS worked''',
+                       (user_id, start, end, now, now)).fetchone()['worked']
+    if worked:
+        return 0
+    weeks = [r['week'] for r in c.execute('''SELECT DISTINCT date_trunc('week',start_time AT TIME ZONE %s)::date AS week
+      FROM activities WHERE user_id=%s AND NOT lift_open AND start_time < %s AND start_time <= %s
+      AND start_time+make_interval(secs=>greatest(coalesce(elapsed_s,moving_s,0),0)) <= %s''',
+                                            (tz, user_id, start, now, now)).fetchall()]
+    return activity_week_streak(weeks, local.date())
+
+
+def record_streak_reminder(c, user_id, period, now=None):
+    """Atomically create one current-week owner-only bell row and its existing dedupe claim."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    kind = f'streak_reminder:{period.isoformat()}'
+    if streak_reminder_parts(kind) != period:
+        return None
+    c.execute("SELECT pg_advisory_xact_lock(hashtextextended('streak-reminder:'||%s::text||':'||%s::text,0))", (user_id, period))
+    if streak_reminder_weeks(c, user_id, period, now) < 2:
+        return None
+    claim = c.execute('''INSERT INTO personal_notification_attempts(user_id,kind,period)
+      VALUES(%s,'weekly',%s) ON CONFLICT DO NOTHING RETURNING user_id''', (user_id, period)).fetchone()
+    if not claim:
+        return None
+    return c.execute('''INSERT INTO notifications(user_id,kind,actor_id,created)
+      VALUES(%s,%s,%s,%s) RETURNING id''', (user_id, kind, user_id, now)).fetchone()['id']
 
 
 def add(c, user_id, kind, actor_id, activity_id=None, dish_id=None, comment_id=None,reaction_kind=None):
@@ -230,6 +309,9 @@ _LIST = """SELECT n.id, n.kind, n.reaction_kind, n.created, n.read_at IS NOT NUL
 
 
 def _words(r):
+    reminder = streak_reminder_parts(r['kind'])
+    if reminder:
+        return f"One workout keeps your {r.get('streak_weeks', 0)}-week streak.", '/track'
     summary = summary_parts(r['kind'])
     if summary:
         period_type, period = summary
@@ -261,9 +343,10 @@ def _words(r):
 def _item(r, detail=''):
     text, link = _words(r)
     summary = summary_parts(r['kind'])
+    reminder = streak_reminder_parts(r['kind'])
     if r['kind'].startswith('challenge_'):r={**r,'name':'@'+r['login']}
     if r['kind']=='signup_admin':r={**r,'login':'','name':'Kinetta','photo':None}
-    item = {'id': r['id'], 'kind': 'monthly_summary' if summary else r['kind'], 'text': text, 'link': link,
+    item = {'id': r['id'], 'kind': 'monthly_summary' if summary else 'streak_reminder' if reminder else r['kind'], 'text': text, 'link': link,
             'created': r['created'], 'read': r['read'], 'who': {'login': r['login'], 'name': r['name'], 'photo': r['photo']}}
     if summary:
         item.update({'period_type': summary[0], 'period': summary[1], 'detail': detail})
@@ -271,7 +354,7 @@ def _item(r, detail=''):
 
 
 def unread(c, uid):
-    return c.execute('SELECT count(*) AS n FROM notifications n WHERE n.user_id = %s AND n.read_at IS NULL AND '+NOTICE_VISIBLE, (uid,)).fetchone()['n']
+    return c.execute('SELECT count(*) AS n FROM notifications n JOIN profile p ON p.user_id=n.user_id WHERE n.user_id = %s AND n.read_at IS NULL AND '+NOTICE_VISIBLE, (uid,)).fetchone()['n']
 
 
 @router.get('/notifications')
@@ -282,6 +365,12 @@ def notifications(user=Depends(current_user)):
         n = unread(c, user['id'])
         items = []
         for row in rows:
+            reminder = streak_reminder_parts(row['kind'])
+            if reminder:
+                weeks = streak_reminder_weeks(c, user['id'], reminder)
+                if weeks < 2:
+                    continue
+                row = {**row, 'streak_weeks': weeks}
             parts = summary_parts(row['kind'])
             detail = summary_detail(summary_facts(c, user['id'], *parts, row['tz']), row['units']) if parts else ''
             items.append(_item(row, detail))
@@ -309,6 +398,8 @@ def _prefs(v):
 
 
 def _push_preference(kind):
+    if streak_reminder_parts(kind):
+        return 'personal_streak'
     if summary_parts(kind):
         return 'monthly_summary'
     return next((name for name, kinds in PUSH_KINDS.items() if kind in kinds), None)
@@ -387,6 +478,10 @@ def settings(body: PrefsIn, user=Depends(current_user)):
 
 def _push_words(r, facts=None, c=None):
     """Keep long activity/person text in the multiline body, not iOS's short title."""
+    reminder = streak_reminder_parts(r['kind'])
+    if reminder:
+        weeks = streak_reminder_weeks(c, r['user_id'], reminder) if c else 0
+        return 'Streak reminder', f'One workout keeps your {weeks}-week streak.'
     summary = summary_parts(r['kind'])
     if summary:
         period_type, period = summary
@@ -410,7 +505,7 @@ def _push_words(r, facts=None, c=None):
 
 def _push_log(kind, reason, devices, accepted=0):
     # Only fixed kinds/reasons and counts: exception messages can contain token URLs or private text.
-    kind = kind if kind in (*KINDS, 'meal', 'plan', 'weekly') else 'unknown'
+    kind = 'streak_reminder' if streak_reminder_parts(kind) else kind if kind in (*KINDS, 'meal', 'plan', 'weekly') else 'unknown'
     if reason:
         log.info('push skipped: kind=%s reason=%s devices=%d', kind, reason, devices)
     else:
@@ -491,7 +586,8 @@ def _push(c, nid, send, catchup, facts=None, stamp=None):
             return None
         prefs = conn.execute('SELECT notify FROM profile WHERE user_id=%s', (uid,)).fetchone() or {}
         preference = _push_preference(fresh['kind'])
-        if not preference or not _prefs(prefs.get('notify'))[preference]:
+        personal_streak = (prefs.get('notify') or {}).get('personal', {}).get('streak') is True
+        if not preference or (not personal_streak if preference == 'personal_streak' else not _prefs(prefs.get('notify'))[preference]):
             prepare.reason = 'preference_off'
             return None
         current_facts=facts if stamp is not None and stamp==notification_facts.signature(fresh) else None

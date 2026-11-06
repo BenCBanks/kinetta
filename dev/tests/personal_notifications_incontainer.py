@@ -28,9 +28,10 @@ at = dt.datetime.combine(monday, dt.time(9), dt.timezone.utc)
 def pref(uid, **values):
     with db.connect() as c:
         c.execute("UPDATE profile SET notify=coalesce(notify,'{}')||%s::jsonb WHERE user_id=%s",
-                  (json.dumps({'personal': {'plan': False, 'weekly': False, 'plan_time': '08:00',
+                  (json.dumps({'personal': {'plan': False, 'weekly': False, 'streak': False, 'plan_time': '08:00',
                                            'plan_after': (at - dt.timedelta(days=20)).isoformat(),
-                                           'weekly_after': (at - dt.timedelta(days=20)).isoformat(), **values}}), uid))
+                                           'weekly_after': (at - dt.timedelta(days=20)).isoformat(),
+                                           'streak_after': (at - dt.timedelta(days=20)).isoformat(), **values}}), uid))
 
 
 def food(uid, day):
@@ -65,9 +66,10 @@ try:
     a, b = clients
     endpoint = '/api/notifications/personal'
     status = a.get(endpoint).json()
-    assert not status['plan'] and not status['weekly'] and status['plan_time'] == '08:00'
+    assert not status['plan'] and not status['weekly'] and not status['streak'] and status['plan_time'] == '08:00'
     assert a.put(endpoint, json={'weekly': True}).status_code == 400
-    for body in [{'plan': 1}, {'weekly': 'true'}, {'plan_time': '03:00'}, {'plan_time': '09:15'}, {'weekly': False, 'user_id': other}]:
+    assert a.put(endpoint, json={'streak': True}).status_code == 400
+    for body in [{'plan': 1}, {'weekly': 'true'}, {'streak': 'true'}, {'plan_time': '03:00'}, {'plan_time': '09:15'}, {'weekly': False, 'user_id': other}]:
         assert a.put(endpoint, json=body).status_code == 422
     with patch.object(apns, 'ready', return_value=False):
         assert a.put(endpoint, json={'weekly': True, 'confirmed': True}).status_code == 409
@@ -108,13 +110,145 @@ try:
             p = {'tz': zone, 'notify': {'personal': {'plan': True, 'plan_after': (when - dt.timedelta(days=1)).isoformat()}}}
             assert M.due(p, when)[0][1] == day
             assert not M.due(p, when + dt.timedelta(hours=1))
+    # Friday's local 6 pm reminder follows DST and uses a stable local Saturday week marker.
+    for zone, friday, expected_utc_hour in [('America/New_York', dt.date(2026, 3, 6), 23),
+                                            ('America/New_York', dt.date(2026, 3, 13), 22),
+                                            ('Europe/London', dt.date(2026, 3, 27), 18),
+                                            ('Europe/London', dt.date(2026, 4, 3), 17)]:
+        scheduled = dt.datetime.combine(friday, dt.time(18), ZoneInfo(zone)).astimezone(dt.timezone.utc)
+        assert scheduled.hour == expected_utc_hour
+        p = {'tz': zone, 'notify': {'personal': {'streak': True, 'streak_after': (scheduled-dt.timedelta(days=1)).isoformat()}}}
+        monday_key = friday - dt.timedelta(days=friday.weekday()) + dt.timedelta(days=5)
+        assert M.due(p, scheduled) == [('streak', monday_key, scheduled)]
+        assert M.due(p, scheduled + dt.timedelta(minutes=14, seconds=59))
+        assert not M.due(p, scheduled - dt.timedelta(seconds=1))
+        assert not M.due(p, scheduled + dt.timedelta(minutes=15))
     assert not M.due({'tz': 'UTC', 'notify': {'personal': {'plan': True}}}, at)
     assert not M.due({'tz': 'UTC', 'notify': {'personal': {'plan': True, 'plan_after': 'invalid'}}}, at)
-    # Empty, future-only and unfinished lifting accounts do not receive a weekly invitation.
     sent = []
     def sender(device, payload):
         sent.append(payload)
         return True
+    streak_friday = monday + dt.timedelta(days=4)
+    streak_key = monday + dt.timedelta(days=5)
+    streak_at = dt.datetime.combine(streak_friday, dt.time(18), dt.timezone.utc)
+    pref(uid, streak=True, streak_after=(streak_at-dt.timedelta(days=20)).isoformat())
+    pref(other)
+    clear()
+    with db.connect() as c:
+        prior_1 = c.execute("INSERT INTO activities(user_id,sport,name,start_time,source,moving_s) VALUES(%s,'run','Fictional streak run',%s,'manual',600) RETURNING id",
+                             (uid, dt.datetime.combine(monday-dt.timedelta(days=14), dt.time(9), dt.timezone.utc))).fetchone()['id']
+        prior_2 = c.execute("INSERT INTO activities(user_id,sport,name,start_time,source,moving_s) VALUES(%s,'walk','Fictional streak walk',%s,'manual',600) RETURNING id",
+                             (uid, dt.datetime.combine(monday-dt.timedelta(days=7), dt.time(9), dt.timezone.utc))).fetchone()['id']
+        assert M.streak_at_risk(c, uid, 'UTC', streak_at) == 2
+        assert M.eligible(c, uid, 'streak', streak_key, 'UTC', streak_at)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        assert sum(pool.map(lambda _: M.tick(streak_at), range(2))) == 1, 'one period-only bell row per local week under concurrent ticks, even without APNs'
+    assert not sent, 'bell creation does not require or send a phone notification'
+    la_friday = dt.datetime.combine(streak_friday, dt.time(18), ZoneInfo('America/Los_Angeles')).astimezone(dt.timezone.utc)
+    with db.connect() as c:
+        c.execute('UPDATE profile SET tz=%s WHERE user_id=%s', ('America/Los_Angeles', uid))
+        p = M.profile(c, uid)
+        assert M.due(p, la_friday)[0][:2] == ('streak', streak_key), 'timezone edits within a local week preserve the Saturday key'
+    assert M.tick(la_friday) == 0, 'timezone edit and repeated ticks cannot create a second reminder in the same local week'
+    with db.connect() as c:
+        c.execute("UPDATE profile SET tz='UTC' WHERE user_id=%s", (uid,))
+    with db.connect() as c:
+        claim = c.execute("SELECT kind,period FROM personal_notification_attempts WHERE user_id=%s", (uid,)).fetchall()
+        assert ('weekly', streak_key) in [(row['kind'], row['period']) for row in claim], 'Saturday streak marker reuses the weekly attempt kind without migration'
+        assert ('weekly', monday-dt.timedelta(days=7)) not in [(row['kind'], row['period']) for row in claim]
+        c.execute("INSERT INTO personal_notification_attempts(user_id,kind,period) VALUES(%s,'weekly',%s) ON CONFLICT DO NOTHING", (uid, monday-dt.timedelta(days=7)))
+        assert c.execute("SELECT count(*) AS n FROM personal_notification_attempts WHERE user_id=%s AND kind='weekly'", (uid,)).fetchone()['n'] == 2, 'Friday Saturday marker cannot collide with Monday weekly-summary key'
+        c.execute("DELETE FROM personal_notification_attempts WHERE user_id=%s AND kind='weekly' AND period=%s", (uid, monday-dt.timedelta(days=7)))
+        assert notify.streak_reminder_parts(f'streak_reminder:{streak_key}') == streak_key
+        assert notify.streak_reminder_parts('streak_reminder:2026-02-30') is None
+        assert notify.streak_reminder_parts('streak_reminder:2026-11-06') is None
+        assert notify.record_streak_reminder(c, uid, streak_key, streak_at) is None, 'repeated tick cannot create a second bell row'
+        c.execute('DELETE FROM notifications WHERE user_id=%s AND kind=%s', (uid, f'streak_reminder:{streak_key}'))
+        current_activity = c.execute("INSERT INTO activities(user_id,sport,name,start_time,source,moving_s) VALUES(%s,'ride','Fictional current-week ride',%s,'manual',600) RETURNING id",
+                                     (uid, dt.datetime.combine(monday+dt.timedelta(days=2), dt.time(8), dt.timezone.utc))).fetchone()['id']
+        assert M.streak_at_risk(c, uid, 'UTC', streak_at) == 0, 'a completed current-week workout removes the risk'
+        delayed_start = streak_at - dt.timedelta(minutes=5)
+        c.execute('DELETE FROM activities WHERE id=%s', (current_activity,))
+        delayed = c.execute("INSERT INTO activities(user_id,sport,name,start_time,source,moving_s) VALUES(%s,'run','Fictional in-progress workout',%s,'manual',600) RETURNING id",
+                            (uid, delayed_start)).fetchone()['id']
+        assert M.eligible(c, uid, 'streak', streak_key, 'UTC', streak_at+dt.timedelta(minutes=3)), 'unfinished activity is not treated as completed'
+        assert not M.eligible(c, uid, 'streak', streak_key, 'UTC', streak_at+dt.timedelta(minutes=6)), 'completion during the delivery window suppresses the reminder'
+        c.execute('DELETE FROM activities WHERE id=%s', (delayed,))
+        c.execute('DELETE FROM activities WHERE id=%s', (prior_2,))
+        assert M.streak_at_risk(c, uid, 'UTC', streak_at) == 0, 'a broken chain outside the last two completed weeks is not at risk'
+        c.execute('DELETE FROM activities WHERE id=%s', (prior_1,))
+        assert M.streak_at_risk(c, uid, 'UTC', streak_at) == 0, 'food never creates an activity streak'
+    # A real current-local-week bell row is owner-only, visible without APNs/devices,
+    # and disappears from both list and unread count as soon as it is ineligible.
+    actual_now = M.clock()
+    actual_monday = actual_now.date() - dt.timedelta(days=actual_now.weekday())
+    actual_friday = dt.datetime.combine(actual_monday + dt.timedelta(days=4), dt.time(18), ZoneInfo('UTC'))
+    actual_key = actual_monday + dt.timedelta(days=5)
+    pref(uid, streak=True, streak_after=(actual_friday-dt.timedelta(days=1)).isoformat())
+    with db.connect() as c:
+        history = [c.execute("INSERT INTO activities(user_id,sport,name,start_time,source,moving_s) VALUES(%s,'run','Fictional completed streak history',%s,'manual',600) RETURNING id",
+                             (uid, dt.datetime.combine(actual_monday-dt.timedelta(days=7*i), dt.time(9), ZoneInfo('UTC')))).fetchone()['id']
+                   for i in (1, 2)]
+        c.execute('DELETE FROM native_push_devices WHERE user_id=%s', (uid,))
+    with patch.object(apns, 'ready', return_value=False):
+        assert M.tick(actual_friday) == 1, 'streak bell row is created when APNs and devices are absent'
+    bell = a.get('/api/notifications').json()
+    reminder = next(item for item in bell['items'] if item['kind'] == 'streak_reminder')
+    assert reminder['text'] == 'One workout keeps your 2-week streak.' and reminder['link'] == '/track'
+    assert bell['unread'] == a.get('/api/notifications/count').json()['unread'] == 1
+    assert not any(item['kind'] == 'streak_reminder' for item in b.get('/api/notifications').json()['items'])
+    with db.connect() as c:
+        session = c.execute('SELECT token_hash FROM sessions WHERE user_id=%s ORDER BY created DESC LIMIT 1', (uid,)).fetchone()['token_hash']
+        c.execute("INSERT INTO native_push_devices(token,environment,user_id,session_hash) VALUES(%s,'sandbox',%s,%s)",
+                  (uuid.uuid4().hex * 2, uid, session))
+    assert notify.push(reminder['id'], send=sender) == 1
+    assert sent[-1]['title'] == 'Streak reminder' and sent[-1]['body'] == 'One workout keeps your 2-week streak.' and sent[-1]['url'] == '/track'
+    with db.connect() as c:
+        foreign_id = c.execute('''INSERT INTO notifications(user_id,kind,actor_id,created)
+          VALUES(%s,%s,%s,%s) RETURNING id''', (uid, f'streak_reminder:{actual_key}', other, actual_now)).fetchone()['id']
+        expired_id = c.execute('''INSERT INTO notifications(user_id,kind,actor_id,created)
+          VALUES(%s,%s,%s,%s) RETURNING id''', (uid, f'streak_reminder:{actual_key-dt.timedelta(days=7)}', uid, actual_now)).fetchone()['id']
+    bell = a.get('/api/notifications').json()
+    assert reminder['id'] in [item['id'] for item in bell['items']]
+    assert foreign_id not in [item['id'] for item in bell['items']] and expired_id not in [item['id'] for item in bell['items']]
+    assert bell['unread'] == 1, 'foreign and expired reminder rows do not affect unread count'
+    pref(uid, streak=False)
+    bell = a.get('/api/notifications').json()
+    assert not any(item['kind'] == 'streak_reminder' for item in bell['items']) and bell['unread'] == 0, 'opt-out suppresses list and unread count'
+    pref(uid, streak=True)
+    with db.connect() as c:
+        workout = c.execute("INSERT INTO activities(user_id,sport,name,start_time,source,moving_s) VALUES(%s,'run','Fictional current-week workout',%s,'manual',600) RETURNING id",
+                             (uid, actual_now-dt.timedelta(minutes=10))).fetchone()['id']
+    bell = a.get('/api/notifications').json()
+    assert not any(item['kind'] == 'streak_reminder' for item in bell['items']) and bell['unread'] == 0, 'a completed current-week workout suppresses the reminder'
+    sent_before = len(sent)
+    assert notify.push(reminder['id'], send=sender) is None and len(sent) == sent_before, 'push preparation rechecks current-week eligibility'
+    with db.connect() as c:
+        c.execute('DELETE FROM activities WHERE id=%s OR id=ANY(%s)', (workout, history))
+        c.execute('DELETE FROM notifications WHERE id=ANY(%s)', ([reminder['id'], foreign_id, expired_id],))
+    # The Me-card close-to and streak totals ignore future and still-running rows.
+    with db.connect() as c:
+        historical_ids = [c.execute("""INSERT INTO activities(user_id,sport,name,start_time,source,moving_s,distance_m)
+          VALUES(%s,'run','Fictional old completed run',%s,'manual',600,0) RETURNING id""",
+          (uid, dt.datetime(2020, 1, 1, tzinfo=dt.timezone.utc)+dt.timedelta(days=i))).fetchone()['id'] for i in range(24)]
+    stats_before = a.get('/api/stats').json()
+    with db.connect() as c:
+        future_id = c.execute("""INSERT INTO activities(user_id,sport,name,start_time,source,moving_s,distance_m)
+          VALUES(%s,'run','Fictional future run',%s,'manual',600,500000) RETURNING id""",
+          (uid, M.clock()+dt.timedelta(days=1))).fetchone()['id']
+        unfinished_id = c.execute("""INSERT INTO activities(user_id,sport,name,start_time,source,moving_s,distance_m)
+          VALUES(%s,'run','Fictional unfinished run',%s,'manual',3600,500000) RETURNING id""",
+          (uid, M.clock()-dt.timedelta(minutes=30))).fetchone()['id']
+    stats_after = a.get('/api/stats').json()
+    assert stats_before['close_to'] == '1 workout to your 25th'
+    assert stats_after['close_to'] == stats_before['close_to'] and stats_after['week_streak'] == stats_before['week_streak'], 'future and unfinished rows do not count in Me-card metrics'
+    with db.connect() as c:
+        c.execute('DELETE FROM activities WHERE id=ANY(%s)', (historical_ids+[future_id, unfinished_id],))
+    assert not any(word in json.dumps(sent).lower() for word in ['fictional', 'calorie', 'protein', 'distance'])
+    # Empty, future-only and unfinished lifting accounts do not receive a weekly invitation.
+    sent = []
+    pref(uid, weekly=True)
     assert M.tick(at, send=sender) == 0
     future = food(uid, monday + dt.timedelta(days=1))
     with db.connect() as c:

@@ -17,6 +17,7 @@ from . import community_filter, activities, analysis, coach, db, importer, plans
 from .api_lifts import FEED_SQL as LIFTS_SQL, plan_of as lift_plan, copy_into as copy_lift
 from .auth import current_user
 from .activity_chart import sunday, weekly_distances, distance_days
+from .activity_metrics import close_to_target, week_streak as activity_week_streak
 
 router = APIRouter(prefix='/api')
 DATA = os.environ.get('FIT_DATA', '/data')
@@ -727,7 +728,9 @@ def progress_trends(sport: str = 'run', user=Depends(current_user)):
 @router.get('/stats')
 def stats(user=Depends(current_user)):
     with db.connect() as c:
-        tz = (c.execute('SELECT tz FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}).get('tz') or db.DEFAULT_TZ
+        profile = c.execute('SELECT tz,units FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
+        tz = profile.get('tz') or db.DEFAULT_TZ
+        units = profile.get('units') or 'imperial'
         weeks = c.execute("""SELECT date_trunc('week', start_time AT TIME ZONE %s)::date AS week, sport, count(*) AS n,
                                sum(distance_m) AS distance_m, sum(moving_s) AS moving_s, sum(ascent_m) AS ascent_m, sum(effort) AS effort
                              FROM activities WHERE user_id = %s AND start_time > now() - interval '53 weeks' GROUP BY 1, 2 ORDER BY 1""",
@@ -737,8 +740,24 @@ def stats(user=Depends(current_user)):
                              FROM activities WHERE user_id = %s GROUP BY 1, 2 ORDER BY 1 DESC""", (tz, user['id'])).fetchall()
         days = [r['d'] for r in c.execute("""SELECT DISTINCT (start_time AT TIME ZONE %s)::date AS d FROM activities
                                              WHERE user_id = %s ORDER BY 1 DESC""", (tz, user['id'])).fetchall()]
+        active_weeks = [r['week'] for r in c.execute("""SELECT DISTINCT date_trunc('week',start_time AT TIME ZONE %s)::date AS week
+                                                        FROM activities WHERE user_id=%s AND NOT lift_open AND start_time<=now()
+                                                          AND start_time+make_interval(secs=>greatest(coalesce(elapsed_s,moving_s,0),0))<=now()""",
+                                                       (tz, user['id'])).fetchall()]
         total = c.execute('SELECT count(*) AS n, min(start_time) AS first FROM activities WHERE user_id = %s', (user['id'],)).fetchone()
         today = dt.datetime.now(ZoneInfo(tz)).date()
+        zone = ZoneInfo(tz)
+        year_start = dt.datetime.combine(dt.date(today.year, 1, 1), dt.time.min, zone)
+        next_year = dt.datetime.combine(dt.date(today.year + 1, 1, 1), dt.time.min, zone)
+        year_activity = c.execute("""SELECT sport,count(*) AS n,coalesce(sum(distance_m),0) AS distance_m FROM activities
+                                      WHERE user_id=%s AND NOT lift_open AND start_time >= %s AND start_time < %s AND start_time<=now()
+                                        AND start_time+make_interval(secs=>greatest(coalesce(elapsed_s,moving_s,0),0))<=now() GROUP BY sport""",
+                                  (user['id'], year_start, next_year)).fetchall()
+        all_activity = c.execute("""SELECT sport,count(*) AS n FROM activities
+                                     WHERE user_id=%s AND NOT lift_open AND start_time<=now()
+                                       AND start_time+make_interval(secs=>greatest(coalesce(elapsed_s,moving_s,0),0))<=now() GROUP BY sport""", (user['id'],)).fetchall()
+        close_to = close_to_target(sum(float(r['distance_m'] or 0) for r in year_activity),
+                                   {r['sport']: r['n'] for r in all_activity}, units)
         chart_start = sunday(today) - dt.timedelta(weeks=6)
         # this week day by day (Today's strip, 2026-10-10): distance + time per day, main sport by time
         groups = c.execute("""SELECT (start_time AT TIME ZONE %s)::date AS d, sport, sum(distance_m) AS distance_m, sum(moving_s) AS moving_s
@@ -750,16 +769,13 @@ def stats(user=Depends(current_user)):
     streak, d = 0, today if days and days[0] == today else today - dt.timedelta(days=1)
     s = set(days)
     while d in s: streak += 1; d -= dt.timedelta(days=1)
-    wk = set(); wd = today - dt.timedelta(days=today.weekday()); wstreak = 0
-    for x in days: wk.add(x - dt.timedelta(days=x.weekday()))
-    w = wd if wd in wk else wd - dt.timedelta(days=7)
-    while w in wk: wstreak += 1; w -= dt.timedelta(days=7)
+    wstreak = activity_week_streak(active_weeks, today)
     mon = today - dt.timedelta(days=today.weekday()); wd_by = {r['d']: r for r in week_days}
     strip = [{'d': (mon + dt.timedelta(days=i)).isoformat(), 'distance_m': (wd_by.get(mon + dt.timedelta(days=i)) or {}).get('distance_m'),
               'moving_s': (wd_by.get(mon + dt.timedelta(days=i)) or {}).get('moving_s'), 'sport': (wd_by.get(mon + dt.timedelta(days=i)) or {}).get('sport'),
               'today': mon + dt.timedelta(days=i) == today} for i in range(7)]
     recent = [{'d': (today - dt.timedelta(days=i)).isoformat(), 'distance_m': (wd_by.get(today - dt.timedelta(days=i)) or {}).get('distance_m', 0), 'today': i == 0, 'by_sport': (wd_by.get(today - dt.timedelta(days=i)) or {}).get('by_sport', {})} for i in reversed(range(14))]
-    return {'chart_today': today, 'chart_weeks': weekly_distances(today, {r['d']: r['distance_m'] for r in week_days}, {d: v['by_sport'] for d, v in day_totals.items()}), 'recent_days': recent, 'weeks': weeks, 'years': years, 'day_streak': streak, 'week_streak': wstreak, 'total': total['n'], 'first': total['first'], 'week_days': strip}
+    return {'chart_today': today, 'chart_weeks': weekly_distances(today, {r['d']: r['distance_m'] for r in week_days}, {d: v['by_sport'] for d, v in day_totals.items()}), 'recent_days': recent, 'weeks': weeks, 'years': years, 'day_streak': streak, 'week_streak': wstreak, 'close_to': close_to, 'total': total['n'], 'first': total['first'], 'week_days': strip}
 
 
 @router.get('/calendar')
