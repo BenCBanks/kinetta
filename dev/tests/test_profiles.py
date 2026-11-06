@@ -24,7 +24,8 @@ def request(client, method, path, body=None, expected=200):
 
 
 try:
-    start = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=5)
+    # Fixed midday anchor so all four workouts share one local day and week whatever time the suite runs.
+    start = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=5)).replace(hour=12, minute=0, second=0, microsecond=0)
     ids = []
     for i, visibility in enumerate(('me', 'friends', 'everyone', 'everyone')):
         activity = request(owner, 'POST', '/api/activities/manual', {'sport': 'run', 'start': (start + dt.timedelta(hours=i)).isoformat(), 'duration_s': 600, 'distance_m': 1000, 'name': f'Profile fixture {i}', 'avg_hr': 145})
