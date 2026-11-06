@@ -39,8 +39,8 @@ const paletteCss=String.raw`
 :root[data-achievement-palette="p3"] .profile-achievement-medallion[data-level="6"],
 :root[data-achievement-palette="p3"] .profile-achievement-medallion[data-level="7"],
 :root[data-achievement-palette="p3"] .profile-achievement-medallion[data-level="8"] { box-shadow:0 1px 4px color-mix(in srgb,var(--color-text) 16%,transparent); }
-:root[data-achievement-palette="p3"] .profile-achievement-icon { color:#fff; filter:drop-shadow(0 0 1px var(--color-text)) drop-shadow(0 1px 2px color-mix(in srgb,var(--color-text) 55%,transparent)); }
-:root[data-achievement-palette="p3"] .profile-achievement-value { color:#fff; text-shadow:0 0 1px var(--color-text),0 0 2px color-mix(in srgb,var(--color-text) 70%,transparent); }
+:root[data-achievement-palette="p3"] .profile-achievement-icon { color:var(--color-on-action); filter:drop-shadow(0 0 1px var(--color-text)) drop-shadow(0 1px 2px color-mix(in srgb,var(--color-text) 55%,transparent)); }
+:root[data-achievement-palette="p3"] .profile-achievement-value { color:var(--color-on-action); text-shadow:0 0 1px var(--color-text),0 0 2px color-mix(in srgb,var(--color-text) 70%,transparent); }
 :root[data-achievement-evidence="all-tracks"] nav.tabs { display:none !important; }
 @media(prefers-color-scheme:dark){
  :root[data-achievement-palette="p1"] .profile-achievement-medallion,
