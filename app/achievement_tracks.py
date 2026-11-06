@@ -119,6 +119,18 @@ def _fixed_then_step(fixed, step, value):
     return out
 
 
+def _next_fixed_then_step(fixed, step, value):
+    """Return the first fixed threshold ahead, then the next every-N tier."""
+    value = _finite(value)
+    for n in fixed:
+        if n > value:
+            return float(n)
+    if not fixed:
+        return None
+    steps = math.floor((value - float(fixed[-1])) / float(step)) + 1
+    return float(fixed[-1]) + steps * float(step)
+
+
 def _fixed_then_double(fixed, value):
     """Return fixed thresholds followed by a doubling tail."""
     value = _finite(value)
@@ -176,7 +188,9 @@ def _journey_next(value) -> Tier:
     if MOON_M > value:
         return Tier(rank, MOON_M, 'To the Moon', 'm', True)
     moon_count = math.floor(value / MOON_M) + 1
-    return Tier(rank + max(0, moon_count - 2), moon_count * MOON_M,
+    # ``rank`` is the first Moon tier (To the Moon).  The next tier after it
+    # is ×2, so each additional Moon adds one rank.
+    return Tier(rank + moon_count - 1, moon_count * MOON_M,
                 f'To the Moon ×{moon_count}', 'm', True)
 
 
@@ -275,34 +289,17 @@ def next_tier(code: str, value) -> Tier | None:
         return Tier(n, n, f'{n} year{"" if n == 1 else "s"} active', 'years', False)
     if code == 'active_time':
         hours = value / 3600
-        next_hours = next((n for n in _fixed_then_step(ACTIVE_TIME_HOURS, 500, hours + 1e-9)
-                           if n > hours), None)
-        if next_hours is None:
-            next_hours = (ACTIVE_TIME_HOURS[-1] + 500)
-            while next_hours <= hours:
-                next_hours += 500
+        next_hours = _next_fixed_then_step(ACTIVE_TIME_HOURS, 500, hours)
         rank = len(tiers_for(code, next_hours))
         return Tier(rank, next_hours * 3600, f'{int(next_hours):,} active hours', 'seconds', False)
     if code == 'consistency':
-        n = next((n for n in _fixed_then_step(CONSISTENCY_LEVELS, 50, value + 1e-9) if n > value), None)
-        if n is None:
-            n = CONSISTENCY_LEVELS[-1] + 50
-            while n <= value:
-                n += 50
+        n = _next_fixed_then_step(CONSISTENCY_LEVELS, 50, value)
         return Tier(len(tiers_for(code, n)), n, f'{int(n)} active weeks', 'weeks', True)
     if code == 'workouts':
-        n = next((n for n in _fixed_then_step(WORKOUT_LEVELS, 500, value + 1e-9) if n > value), None)
-        if n is None:
-            n = WORKOUT_LEVELS[-1] + 500
-            while n <= value:
-                n += 500
+        n = _next_fixed_then_step(WORKOUT_LEVELS, 500, value)
         return Tier(len(tiers_for(code, n)), n, f'{int(n):,} workouts', 'workouts', False)
     if code == 'personal_bests':
-        n = next((n for n in _fixed_then_step(PERSONAL_BEST_LEVELS, 25, value + 1e-9) if n > value), None)
-        if n is None:
-            n = PERSONAL_BEST_LEVELS[-1] + 25
-            while n <= value:
-                n += 25
+        n = _next_fixed_then_step(PERSONAL_BEST_LEVELS, 25, value)
         return Tier(len(tiers_for(code, n)), n, f'{int(n):,} personal bests', 'bests', False)
     if code.startswith('sport:'):
         sport = code.split(':', 1)[1]

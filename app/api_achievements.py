@@ -38,13 +38,19 @@ def _tier(row, code, units):
         threshold = float(threshold)
     except (TypeError, ValueError):
         threshold = 0.0
-    rule = tracks.Tier(int(details.get('rank', row.get('rank', 0)) or 0), threshold,
+    rank = details.get('rank')
+    if rank is None and str(row.get('code', '')).startswith('track:'):
+        try:
+            rank = int(str(row['code']).rsplit(':', 1)[1])
+        except (ValueError, IndexError):
+            rank = row.get('rank', 0)
+    rule = tracks.Tier(int(rank if rank is not None else row.get('rank', 0) or 0), threshold,
                        details.get('label') or row.get('title') or '',
                        details.get('unit') or tracks.TRACK_UNITS.get(code, 'count'),
                        bool(details.get('big')))
     item = {
         'code': row['code'],
-        'rank': row.get('rank'),
+        'rank': rule.rank,
         'label': rule.label,
         'title': row.get('title') or rule.label,
         'day': row.get('day'),
@@ -77,8 +83,8 @@ def achievements(user=Depends(current_user)):
     state is still safe to render.
     """
     with db.connect() as c:
-        pending = bool(c.execute('''SELECT generation>processed OR next_check<=now() AS pending
-                                    FROM milestone_state WHERE user_id=%s''', (user['id'],)).fetchone() or {}).get('pending', False)
+        pending = bool((c.execute('''SELECT generation>processed OR next_check<=now() AS pending
+                                     FROM milestone_state WHERE user_id=%s''', (user['id'],)).fetchone() or {}).get('pending', False))
         profile = c.execute('SELECT units FROM profile WHERE user_id=%s', (user['id'],)).fetchone() or {}
         units = profile.get('units') or 'imperial'
         states = c.execute('''SELECT code,title,day,occurred,details

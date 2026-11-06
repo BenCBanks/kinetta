@@ -198,7 +198,7 @@ def _personal_best_events(c, uid, rows_by_id):
 def _tier_item(code,tier,row,zone,now,*,occurred=None,day=None):
     occurred=occurred or row['start_time']
     day=day or occurred.astimezone(zone).date()
-    details={'track':code,'threshold':tier.threshold,'label':tier.label,'unit':tier.unit,
+    details={'track':code,'rank':tier.rank,'threshold':tier.threshold,'label':tier.label,'unit':tier.unit,
              'big':bool(tier.big)}
     if tier.unit=='m':details['value_m']=tier.threshold
     elif tier.unit=='kg':details['value_kg']=tier.threshold
@@ -209,7 +209,7 @@ def _tier_item(code,tier,row,zone,now,*,occurred=None,day=None):
     return {'code':f'track:{code}:{tier.rank}','kind':'track','title':tier.label,'rank':1000+tier.rank,
             'activity_id':row.get('id') if row else None,'day':day,'occurred':occurred,
             'arrival':_arrival(row,now) if row else now,'details':details,
-            'garmin_source':recaps.garmin_source(row) if row else None}
+            'garmin_source':recaps.garmin_source(row.get('source'),row.get('device')) if row else None}
 
 
 def _state_item(code,value,tiers,first_row,zone,now):
@@ -225,6 +225,38 @@ def _state_item(code,value,tiers,first_row,zone,now):
     return {'code':f'track-state:{code}','kind':'track_state','title':tracks.track_label(code),'rank':0,
             'activity_id':None,'day':_local_day(first_row,zone),'occurred':first_row['start_time'],
             'arrival':now,'details':details,'garmin_source':None}
+
+
+def _preserve_track_progress(c,uid,states):
+    """Keep computed lifetime highs when an activity is later edited or deleted."""
+    if not states:return
+    previous={}
+    for row in c.execute('''SELECT details,day,occurred FROM milestones
+                            WHERE user_id=%s AND kind='track_state' AND valid''',(uid,)).fetchall():
+        details=row.get('details') or {}
+        code=details.get('track')
+        if code:previous[code]={'details':details,'day':row.get('day'),'occurred':row.get('occurred')}
+    for state in states:
+        details=state['details'];code=details['track'];old=previous.get(code)
+        if not old:continue
+        old_details=old['details']
+        try:old_value=float(old_details.get('value',0) or 0)
+        except (TypeError,ValueError):old_value=0.0
+        try:value=float(details.get('value',0) or 0)
+        except (TypeError,ValueError):value=0.0
+        if old_value>value:
+            value=old_value;details['value']=value
+            field={'journey':'value_m','climbing':'value_m','lifted':'value_kg','active_time':'value_s',
+                   'sport:run':'value_m','sport:ride':'value_m','sport:walk-hike':'value_m','sport:swim':'value_m',
+                   'consistency':'value_weeks','years_active':'value_years',
+                   'sport:lift':'value_sessions'}.get(code)
+            if field:details[field]=value
+            state['day']=old['day'];state['occurred']=old['occurred']
+            nxt=tracks.next_tier(code,value)
+            if nxt:
+                details['next_threshold']=nxt.threshold;details['next_label']=nxt.label;details['next_unit']=nxt.unit
+        details['level']=max(int(details.get('level',0) or 0),int(old_details.get('level',0) or 0),
+                             len(tracks.tiers_for(code,value)))
 
 
 def achievement_candidates(c,uid,now,zone):
@@ -280,10 +312,12 @@ def achievement_candidates(c,uid,now,zone):
         total,crossing=_crossings(code,subset,amount,zone);add(code,total,crossing,bool(subset))
 
     events=_personal_best_events(c,uid,by_id)
-    pb_crossing={}
-    for n,event in enumerate(events,1):pb_crossing[float(n)]=event
-    reached=tracks.tiers_for('personal_bests',len(events));states.append(_state_item('personal_bests',len(events),reached,rows[0],zone,now))
-    for tier in reached:tiers.append(_tier_item('personal_bests',tier,pb_crossing.get(tier.threshold) or rows[-1],zone,now))
+    if events:
+        pb_crossing={}
+        for n,event in enumerate(events,1):pb_crossing[float(n)]=event
+        reached=tracks.tiers_for('personal_bests',len(events));states.append(_state_item('personal_bests',len(events),reached,rows[0],zone,now))
+        for tier in reached:tiers.append(_tier_item('personal_bests',tier,pb_crossing.get(tier.threshold) or rows[-1],zone,now))
+    _preserve_track_progress(c,uid,states)
     return states,tiers,True
 
 
