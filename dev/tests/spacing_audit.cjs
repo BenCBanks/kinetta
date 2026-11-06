@@ -55,14 +55,14 @@ const report=path.resolve(process.env.KINETTA_SPACING_REPORT||'/tmp/'+project+'-
       await p.locator(`[data-spacing-rail="${rail.id}"]`).evaluate((n,x)=>{n.scrollLeft=x;},rail.start);await frame();
      }
      if(end){traversedEnd=true;break;}
-     end=await p.evaluate(()=>{const el=document.querySelector('.scrim:not([inert]):not(.is-closing) .sheet')||document.querySelector('.ph-view:not([inert]),.map.full:not([inert])')||document.scrollingElement,before=el.scrollTop;el.scrollTop=Math.min(el.scrollHeight-el.clientHeight,before+Math.max(200,el.clientHeight*.7));return Math.abs(el.scrollTop-before)<1||el.scrollTop+el.clientHeight>=el.scrollHeight-1;});
+     end=await p.evaluate(()=>{const sheet=document.querySelector('.scrim:not([inert]):not(.is-closing) .sheet'),body=sheet?.querySelector(':scope > .sbody'),el=body&&body.scrollHeight>body.clientHeight+1?body:sheet||document.querySelector('.ph-view:not([inert]),.map.full:not([inert])')||document.scrollingElement,before=el.scrollTop;el.scrollTop=Math.min(el.scrollHeight-el.clientHeight,before+Math.max(200,el.clientHeight*.7));return Math.abs(el.scrollTop-before)<1||el.scrollTop+el.clientHeight>=el.scrollHeight-1;});
     }
     assert(traversedEnd,'Vertical content fits the bounded audit traversal');
     // Hero limits apply to the whole card, including values encountered at different scroll positions.
     measurements.push(audit({screen:scene.name,rootFont:size.root,targets:[],texts:[...allTexts.values()]},rules));
     // A sticky/header layer must not hide a target at every position where it can be fully in view.
     for(const t of exposure.values())if(t.bestUsable.width<43.98||t.bestUsable.height<43.98||t.seenFully&&!t.exposed)measurements.push(audit({screen:scene.name,rootFont:size.root,targets:[{...t,rect:t.bestUsable,unreachable:t.seenFully&&!t.exposed}],texts:[]},rules));
-    if(pictures){fs.mkdirSync(pictures,{recursive:true});await p.evaluate(todayPlan=>{const section=todayPlan&&document.querySelector('#t-today .me-today');window.scrollTo(0,section?Math.max(0,window.scrollY+section.getBoundingClientRect().top-96):0);document.querySelector('.scrim:not([inert]):not(.is-closing) .sheet')?.scrollTo(0,0);},!!scene.todayPlan);await settle(p);await p.screenshot({path:path.join(pictures,scene.name.replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'-'+size.width+'-'+theme+'.png')});}
+    if(pictures){fs.mkdirSync(pictures,{recursive:true});await p.evaluate(todayPlan=>{const section=todayPlan&&document.querySelector('#t-today .me-today');window.scrollTo(0,section?Math.max(0,window.scrollY+section.getBoundingClientRect().top-96):0);const sheet=document.querySelector('.scrim:not([inert]):not(.is-closing) .sheet'),body=sheet?.querySelector(':scope > .sbody'),el=body&&body.scrollHeight>body.clientHeight+1?body:sheet;el?.scrollTo(0,0);},!!scene.todayPlan);await settle(p);await p.screenshot({path:path.join(pictures,scene.name.replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'-'+size.width+'-'+theme+'.png')});}
     const {violations,exceptionsUsed}=combineMeasurements(measurements,rules);
     results.push({screen:scene.name,width:size.width,root:size.root,theme,violations,exceptionsUsed});
     if(pageErrors.length||writes.length)errors.push({screen:scene.name,width:size.width,theme,pageErrors,writes});

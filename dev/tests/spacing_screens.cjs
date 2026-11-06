@@ -2,7 +2,7 @@
 const scenes=fixtures=>[
  {name:'Me',login:'alex',route:'/me',ready:'#page:not([data-home-loading]):has(.me-card-sections[aria-busy="false"])'},
  {name:'Me Today plan',login:'zz_test_me_today',route:'/me',ready:'#t-today[data-loaded-day] [data-today-activity]',todayPlan:true},
- {name:'Sharing & privacy',login:'alex',route:'/me/sharing',ready:'#sh-achievements'},
+ {name:'Sharing & privacy',login:'alex',route:'/me/sharing',ready:'#sh-find'},
  {name:'Activity',login:'zz_test_feed_typical',route:'/activity',ready:'#feed-tools[aria-busy="false"]'},
  {name:'Activity detail',login:'zz_test_detail_owner',route:'/activity/'+fixtures.detail.run,ready:'.compact-detail-title'},
  {name:'Track ready',login:'zz_test_track_runner',route:'/track',ready:'#track-explore[aria-busy="false"]',native:true},
@@ -21,6 +21,7 @@ const scenes=fixtures=>[
  {name:'Account name sheet',login:'alex',route:'/me/settings',entryReady:'#m-name',ready:'.scrim:not([inert]) #ac',modal:'name'},
  {name:'Pinned save sheet',login:'alex',route:'/me/settings',entryReady:'#m-name',ready:'.scrim:not([inert]) .sheet.pinned',modal:'pinned'},
  {name:'Quick weight sheet',login:'alex',route:'/me',entryReady:'.me-card-sections[aria-busy="false"]',ready:'#quick-weight',modal:'weight'},
+ {name:'Share card choices',login:'alex',route:'/me',entryReady:'.me-card-sections[aria-busy="false"]',ready:'#card-achievements',modal:'share-card'},
  {name:'Public link confirmation',login:'alex',route:'/me',entryReady:'.me-card-sections[aria-busy="false"]',ready:'#card-rotate',modal:'card'},
  {name:'Remove friend confirmation',login:'zz_test_fc_typical',route:'/me/friends',entryReady:'#fr-own-list',ready:'[data-confirm]',modal:'remove'},
  {name:'Block friend confirmation',login:'zz_test_fc_typical',route:'/me/friends',entryReady:'#fr-own-list',ready:'[data-confirm]',modal:'block'},
@@ -50,6 +51,7 @@ async function notificationState(page){
 async function modalState(page,kind){
  if(kind==='name')await page.locator('#m-name').click();
  else if(kind==='weight')await page.evaluate(()=>quickWeighIn());
+ else if(kind==='share-card')await page.evaluate(()=>KinettaCard.open());
  else if(kind==='card'){await page.evaluate(()=>KinettaCard.open());await page.locator('#card-new').click();}
  else if(kind==='photo')await page.locator('[data-media-photo]').first().click();
  else if(kind==='map')await page.locator('.detail-map-hero .map-full').click();

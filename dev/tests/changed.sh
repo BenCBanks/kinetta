@@ -25,7 +25,7 @@ app/static/admin*,app/static/feature-usage.js;admin;
 app/static/welcome.js,app/static/onboarding.js,app/static/username-availability.*;welcome;
 app/static/explore.js,app/static/guide-ui.css;guide;
 app/static/community-terms.*;community;
-app/static/cards.*,app/static/card-public.js,app/static/vendor/qrcode.js;cards;Me,Public link confirmation
+app/static/cards.*,app/static/card-public.js,app/static/vendor/qrcode.js;cards;Me,Share card choices,Public link confirmation
 app/static/standalone.css;standalone;
 app/static/sw.js,app/static/manifest.webmanifest,app/static/favicon.svg,app/static/icon*,app/static/logo*,app/static/mark.svg,app/static/vendor/*LICENSE,app/static/vendor/*notices.txt;assets;
 MAP

@@ -281,6 +281,7 @@ class Milestones(unittest.TestCase):
   self.assertEqual(len(moments),2,'multiple big tiers fold into one moment per owner per local week')
   first_week=next(m for m in moments if m['week_start']==(base.astimezone(zone).date()-dt.timedelta(days=base.astimezone(zone).date().weekday())).isoformat())
   self.assertEqual(first_week['title'],'Across the US');self.assertEqual(first_week['extra_count'],2,'big tiers and the sport First fold together; a small tier does not')
+  self.assertTrue(first_week['is_track'],'the leading journey tier is identified for its feed icon')
   for moment in moments:
    self.assertLess(moment['id'],0)
    for private_key in ('activity_id','distance_m','line','calories','route_id','food','user_id'):

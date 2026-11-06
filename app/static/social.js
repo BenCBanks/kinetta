@@ -261,10 +261,10 @@ const visibleFeedRows=rows=>rows.filter(a=>!a.owner||(App.me?.login&&a.owner.log
 const feedRowKey=a=>`${a.kind==='achievement_moment'?'moment':'activity'}:${a.id}`;
 function feedCard(a,options={}){
   if(a.kind==='achievement_moment'){
-    const p=a.owner,name=esc(p.name||p.login),extra=a.extra_count?` and ${a.extra_count} more achievement${a.extra_count===1?'':'s'}`:'';
+    const p=a.owner,name=esc(p.name||p.login),track=a.is_track?svg('globe','achievement-moment-track'):'',extra=a.extra_count?` and ${a.extra_count} more`:'';
     return `<article class="card achievement-moment" data-feed-key="${esc(feedRowKey(a))}"><div class="achievement-moment-body">
       <a class="post-av" href="${profileHref(p)}" aria-label="${name}’s profile">${avatar(p)}</a><div class="achievement-moment-copy">
-        <p><a class="achievement-moment-name" href="${profileHref(p)}">${name}</a> reached ${esc(a.title)}${extra}</p>
+        <p><a class="achievement-moment-name" href="${profileHref(p)}">${name}</a> reached ${esc(a.title)}${track}${extra}</p>
         <time datetime="${esc(a.start_time)}">${esc(when(a.start_time))}</time></div></div>
       <div class="post-ft">${reactionButtons(null,a,false,true,{owner:p.login,week:a.week_start})}</div></article>`;
   }
@@ -891,8 +891,6 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
       <p class="small muted">Applies to new activities. Older activities keep their audience; you can change it for each workout.</p></div>
     <div class="card"><h2>What others see</h2><form class="sharing-switches" id="sh-d">${Object.entries(DETAIL_NAMES).map(([key,name])=>`<label class="switch-row"><span>${esc(name)}</span><input type="checkbox" role="switch" name="${key}"${s.details[key]?' checked':''}></label>`).join('')}</form>
       <p class="small muted">Distance, time and type are always shown to that audience. Splits and laps need pace. Private notes and Kit notes are never shared.</p></div>
-    <div class="card"><h2>Achievement sharing</h2><label class="switch-row"><span>Share achievements with friends</span><input type="checkbox" role="switch" id="sh-achievements"${s.share_achievements?' checked':''}></label>
-      <p class="small muted">New big activity achievements appear as one weekly moment in friends’ feeds. The moment includes no route or workout details.</p></div>
     <div class="card"><h2>Friend search</h2><label class="check"><input type="checkbox" id="sh-find"${s.findable ? ' checked' : ''}> Let people find me by name</label>
       <p class="small muted">Off: you don't show up when people on this Kinetta search for friends. Friends you already have, and anyone who types your exact username, can still find you.</p></div>
     <div class="card"><h2>Hide the start and end of your route</h2>
@@ -914,27 +912,24 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
   load('/api/blocks', drawBlocked, {maxAge: 0}).catch(() => {});
   const save = async (body, msg) => {
     if(sharingOwner!==readOwner()||!box.isConnected)return;
-    const controls=$$('button[data-vis],button[data-trim],#sh-d input,#sh-find,#sh-achievements',box);controls.forEach(b=>b.disabled=true);
+    const controls=$$('button[data-vis],button[data-trim],#sh-d input,#sh-find',box);controls.forEach(b=>b.disabled=true);
     try {
       await api('/api/sharing',json('PUT',body));if(sharingOwner!==readOwner())return;
       if(body.default){s.default=body.default;App.me.share_default=body.default;keep('/api/me',App.me);}
       if(body.trim_m!==undefined)s.trim_m=body.trim_m;
       if(body.details)s.details=body.details;
-      if(body.share_achievements!==undefined)s.share_achievements=body.share_achievements;
-      invalidate('/api/');if(body.share_achievements!==undefined)invalidateFeed();if(box.isConnected)toast(msg);
+      invalidate('/api/');if(box.isConnected)toast(msg);
     }catch(x){
       if(sharingOwner===readOwner()&&box.isConnected){
         $$('[data-vis]',box).forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.vis===s.default)));
         $$('[data-trim]',box).forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.trim===s.trim_m)));
         $$('input',f).forEach(b=>b.checked=!!s.details[b.name]);toast(x.message);
-        const toggle=$('#sh-achievements',box);if(toggle)toggle.checked=!!s.share_achievements;
       }
     }finally{if(sharingOwner===readOwner()&&box.isConnected)controls.forEach(b=>b.disabled=false);}
   };
   wireSeg(box, 'vis', (v) => save({default: v}, `New activities: ${VIS[v].toLowerCase()}`));
   wireSeg(box, 'trim', (m) => save({trim_m: +m}, m === '0' ? 'Maps show the whole route' : `Maps hide the first and last ${trimName(+m)}`));
   const f = $('#sh-d', box); f.onchange = () => save({details: readChecks(f)}, 'Saved');
-  $('#sh-achievements',box).onchange=e=>save({share_achievements:e.target.checked},e.target.checked?'New big achievement moments will be shared':'Achievement moments hidden from friends');
   $('#sh-find', box).onchange = async (e) => {
     if(sharingOwner!==readOwner()||!box.isConnected)return;
     const on = e.target.checked;

@@ -605,7 +605,8 @@ def _friend_achievement_moments(c, viewer, owner_ids=None):
         key = (row['user_id'], week_start)
         owner = {'login': row['owner_login'], 'name': row['owner_name'] or row['owner_login'], 'photo': row['owner_photo']}
         grouped.setdefault(key, {'owner': owner, 'tiers': []})['tiers'].append(
-            {'title': tier['title'] or tier['label'], 'occurred': row['occurred'], 'day': day, 'code': row['code']})
+            {'title': tier['title'] or tier['label'], 'occurred': row['occurred'], 'day': day, 'code': row['code'],
+             'is_track': row['kind'] == 'track'})
 
     out = []
     for (owner_id, week_start), group in grouped.items():
@@ -614,7 +615,8 @@ def _friend_achievement_moments(c, viewer, owner_ids=None):
         owner = group['owner']
         out.append({'id': _moment_sort_id(owner['login'], week_start), 'kind': 'achievement_moment',
                     'week_start': week_start.isoformat(), 'start_time': primary['occurred'], 'day': primary['day'],
-                    'title': primary['title'], 'extra_count': len(group['tiers']) - 1, 'owner': owner,
+                    'title': primary['title'], 'extra_count': len(group['tiers']) - 1,
+                    'is_track': primary['is_track'], 'owner': owner,
                     '_owner_id': owner_id, '_week_start': week_start})
     return out
 
