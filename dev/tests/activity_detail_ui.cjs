@@ -1,7 +1,7 @@
 // Real owner/friend APIs and fictional demo geometry. No provider, device or sharing effects.
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),path=require('node:path');
-const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill',out=process.env.KINETTA_EVIDENCE,fs=require('node:fs');
+const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill',out=process.env.KINETTA_EVIDENCE,fs=require('node:fs'),medalKind=process.env.KINETTA_MEDAL_CASE||'',medalTheme=process.env.KINETTA_MEDAL_THEME||'light';
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
 (async()=>{
  const output=cp.execFileSync('python3',[path.join(__dirname,'activity_detail_fixture.py')],{env:process.env,encoding:'utf8'});console.log(output.trim());const ids=JSON.parse(output.trim().split('\n').at(-1));
@@ -11,13 +11,21 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_detail_'+(friend?'friend':'owner'),password:pw}})).status(),200);
   await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
   const p=await c.newPage(),errors=[],writes=[];p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
-  await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(u.pathname===`/api/activities/${id}/comments`)return r.continue();return r.fulfill({json:{}});}if(u.pathname==='/api/map-config')return r.fulfill({json:{kind:'raster',url:base+'/__detail_tiles/light/{z}/{x}/{y}.svg',dark_url:base+'/__detail_tiles/dark/{z}/{x}/{y}.svg',max_zoom:17,attribution:'Fictional mapping and terrain tiles'}});if(u.pathname.startsWith('/__detail_tiles/'))return r.fulfill({contentType:'image/svg+xml',body:`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="${u.pathname.includes('/dark/')?'#20262B':'#EDF0F3'}"/></svg>`});return r.continue();});
+  await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(u.pathname===`/api/activities/${id}/comments`)return r.continue();return r.fulfill({json:{}});}if(medalKind&&u.pathname===`/api/activities/${id}`){return r.fetch().then(async response=>{const activity=await response.json(),ride=medalKind==='ride';activity.created=new Date().toISOString();activity.sport=ride?'ride':'run';activity.distance_m=ride?20000:5000;return r.fulfill({response,json:activity});});}if(medalKind&&u.pathname==='/api/sharing')return r.fulfill({json:{share_achievements:true}});if(medalKind&&u.pathname==='/api/achievements'){const ride=medalKind==='ride';return r.fulfill({json:{pending:false,tracks:[{code:ride?'sport:ride':'sport:run',value:ride?157233:9000,tiers:[]}]}});}if(u.pathname==='/api/map-config')return r.fulfill({json:{kind:'raster',url:base+'/__detail_tiles/light/{z}/{x}/{y}.svg',dark_url:base+'/__detail_tiles/dark/{z}/{x}/{y}.svg',max_zoom:17,attribution:'Fictional mapping and terrain tiles'}});if(u.pathname.startsWith('/__detail_tiles/'))return r.fulfill({contentType:'image/svg+xml',body:`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="${u.pathname.includes('/dark/')?'#20262B':'#EDF0F3'}"/></svg>`});return r.continue();});
   await p.goto(base+(friend?'/activity/friends/':'/activity/')+id+(comments?'?tab=comments':''));await until(p,()=>App.pageReady&&!!document.querySelector('.compact-detail-title'),'detail ready');return{c,p,id,errors,writes,friend};
  }
  try{
   for(const kind of ['run','treadmill','ride','lifting','empty','friend'])for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
    const name=`${kind}-${size.width}-${theme}`;if(process.env.KINETTA_DETAIL_CASE&&process.env.KINETTA_DETAIL_CASE!==name)continue;
+   if(medalKind&&(kind!==medalKind||theme!==medalTheme))continue;
    const {c,p,errors,writes,friend}=await open(kind,theme,size),mapped=['run','ride','friend'].includes(kind);
+   if(medalKind){
+    await until(p,()=>!!document.querySelector('.activity-next-medal'),'detail next medal');
+    const metric=await p.evaluate(()=>App.me?.units==='metric'),expected=medalKind==='ride'?`${metric?'3.7 km':'2.3 mi'} to Century`:`${metric?'1 km':'0.62 mi'} to 10K`;assert.equal(await p.locator('.activity-next-medal').innerText(),expected);
+    if(mapped)await until(p,()=>!!document.querySelector('#d-map .leaflet-tile-loaded'),'fictional map tiles');
+    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`detail-next-${medalKind}-${theme}.png`),fullPage:true,animations:'disabled'});}
+    assert.deepEqual(errors,[]);assert(await p.locator('[data-detail-edit]').count()>=1);console.log(`Activity detail ${medalKind} ${theme}: next-medal line PASS`);await c.close();contexts.splice(contexts.indexOf(c),1);continue;
+   }
    if(!friend)await until(p,()=>!!document.querySelector('#d-soc [data-ttalk]'),'owner reactions read');
    assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no document overflow');assert.equal(await p.locator('.discovery-grid').count(),0);
    const bar=p.locator(mapped?'.detail-floating':'.detail-bar.top');assert.equal(await bar.locator('.back').innerText(),'Activity');

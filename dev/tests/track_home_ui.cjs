@@ -1,13 +1,14 @@
 // The real launch page and fictional API data; an idle native stand-in records calls without GPS/Health effects.
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),fs=require('node:fs'),path=require('node:path');
-const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS,pw='green teapot on the hill';
+const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS,pw='green teapot on the hill',medalCase=process.env.KINETTA_MEDAL_CASE||'',medalTheme=process.env.KINETTA_MEDAL_THEME||'light';
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
 (async()=>{
  cp.execFileSync('python3',[path.join(__dirname,'track_fixture.py')],{env:process.env,stdio:'inherit'});
  const b=await chromium.launch(),cleanup=[];
  try{for(const who of ['empty','runner','lifter'])for(const native of [true,false])for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
   if(process.env.KINETTA_TRACK_CASE&&process.env.KINETTA_TRACK_CASE!==`${who}-${native?'native':'browser'}-${size.width}-${theme}`)continue;
+  if(medalCase&&(who!=='empty'||native||theme!==medalTheme))continue;
   const c=await b.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});cleanup.push(c);
   const signed=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_track_'+who,password:pw,app:native}});assert.equal(signed.status(),200);
   const token=(await signed.json()).token,auth=native?{Authorization:'Bearer '+token}:{},get=url=>c.request.get(base+url,{headers:auth}),me=await(await get('/api/me')).json(),rows=await(await get('/api/interval-presets')).json(),saved=rows.find(r=>r.definition.name==='Fictional 3 / 1');
@@ -17,8 +18,14 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    const scope=JSON.stringify([base,id]);if(who==='runner')localStorage.setItem('intervals:'+scope+':selected',JSON.stringify(saved));if(who==='lifter')localStorage.setItem('kinetta.track:'+scope+':choice','10');
   },{base,token,native,root:size.root,saved,id:me.id,who});
   const p=await c.newPage(),errors=[],writes=[];p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
-  await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(q.method()==='PUT'&&u.pathname.startsWith('/api/interval-presets/'))return r.continue();return r.fulfill({json:{}});}return r.continue();});
-  await p.goto(base+'/track');const ready=()=>until(p,()=>App.pageReady&&!!document.querySelector('#track-start')&&document.querySelector('#track-explore')?.getAttribute('aria-busy')==='false','launch ready');await ready();
+  await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(q.method()==='PUT'&&u.pathname.startsWith('/api/interval-presets/'))return r.continue();return r.fulfill({json:{}});}if(medalCase&&u.pathname==='/api/sharing')return r.fulfill({json:{share_achievements:true}});if(medalCase&&u.pathname==='/api/achievements'){const ride=medalCase==='ride';return r.fulfill({json:{pending:false,tracks:[{code:ride?'sport:ride':'sport:run',value:ride?157233:medalCase==='none'?6000:9000,tiers:[]}]}});}if(medalCase&&u.pathname==='/api/activities/65201'){const ride=medalCase==='ride';return r.fulfill({json:{id:65201,sport:ride?'ride':'run',name:'Fictional saved workout',start_time:new Date().toISOString(),created:new Date().toISOString(),distance_m:ride?20000:5000,moving_s:1800,elapsed_s:1800,ascent_m:0,efforts:[],lifts:null}});}return r.continue();});
+  await p.goto(base+(medalCase?'/track?done=65201':'/track'));const ready=()=>until(p,()=>App.pageReady&&!!document.querySelector('#track-start')&&document.querySelector('#track-explore')?.getAttribute('aria-busy')==='false','launch ready');await ready();
+  if(medalCase){
+   if(medalCase==='none')await p.waitForTimeout(400);else await until(p,()=>!!document.querySelector('#track-next-medal .activity-next-medal'),'saved next medal');
+   const line=p.locator('#track-next-medal .activity-next-medal');if(medalCase==='none')assert.equal(await line.count(),0,'no line outside the close threshold');else{const metric=await p.evaluate(()=>App.me?.units==='metric');assert.equal(await line.getAttribute('href'),`/me/achievements/${medalCase==='ride'?'sport%3Aride':'sport%3Arun'}`);assert.equal(await line.innerText(),medalCase==='ride'?`${metric?'3.7 km':'2.3 mi'} to Century`:`${metric?'1 km':'0.62 mi'} to 10K`);}
+   if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/track-saved-${medalCase}-${theme}.png`,fullPage:true,animations:'disabled'});}
+   assert.deepEqual(errors,[]);assert(!writes.some(w=>!w.startsWith('/api/interval-presets/')&&w!=='/api/challenges/signup/continue'));console.log(`Saved workout ${medalCase} ${theme}: next-medal line and 25% threshold PASS`);await c.close();cleanup.pop();continue;
+  }
   assert.equal(await p.locator('h1').innerText(),'Track');assert.equal(await p.locator('#track-explore a').count(),native?4:3);assert.equal(await p.locator('#track-kind,.track-other').count(),0,'no extra global choice row');
   assert.equal(await p.locator('#track-explore').evaluate(n=>getComputedStyle(n).gridTemplateColumns.split(' ').length),2);
   assert(!/0 connected/.test(await p.locator('#track-explore').innerText()));assert.equal(await p.locator('#track-route').count(),0,'retired picker is not resurrected');
