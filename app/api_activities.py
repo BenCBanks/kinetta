@@ -152,7 +152,7 @@ def detail(aid: int, user=Depends(current_user)):
                            (SELECT count(*) FROM activities x WHERE x.route_id = a.route_id) AS route_count, {PHOTOS_SQL}, {LIFTS_SQL}
                          FROM activities a LEFT JOIN gear g ON g.id = a.gear_id LEFT JOIN routes r ON r.id = a.route_id
                          WHERE a.id = %s AND a.user_id = %s""", (aid, user['id'])).fetchone()
-        if not a: raise HTTPException(404, 'Not found')
+        if not a: raise HTTPException(404, 'This activity isn’t available.')
         # Owner detail can render every recorded section without joining gaps. Shared geometry stays
         # on the existing server-trimmed path; raw recording files never enter shared responses.
         if a.get('source') == 'track' and not {'distance_m','moving_s','elapsed_s'}.intersection(a.get('summary_overrides') or {}):
@@ -203,7 +203,7 @@ def edit(aid: int, body: ActivityEdit, user=Depends(current_user)):
     with db.connect() as c:
         profile = c.execute('SELECT share_details FROM profile WHERE user_id=%s FOR SHARE', (user['id'],)).fetchone() or {}
         a = c.execute('SELECT * FROM activities WHERE id = %s AND user_id = %s FOR UPDATE', (aid, user['id'])).fetchone()
-        if not a: raise HTTPException(404, 'Not found')
+        if not a: raise HTTPException(404, 'This activity isn’t available.')
         proposed = {**a}
         for field in ('name', 'description', 'sport_label'):
             if getattr(body, field) is not None: proposed[field] = getattr(body, field)
@@ -220,7 +220,7 @@ def edit(aid: int, body: ActivityEdit, user=Depends(current_user)):
             overrides.update(changed)
             for k in body.restore_summary:overrides.pop(k,None)
             values={**baseline,**overrides}
-            if values.get('moving_s') and values.get('elapsed_s') and values['moving_s']>values['elapsed_s']+1:raise HTTPException(400,'Moving time cannot exceed total duration')
+            if values.get('moving_s') and values.get('elapsed_s') and values['moving_s']>values['elapsed_s']+1:raise HTTPException(400,'Moving time must be no longer than elapsed time.')
             if values.get('avg_hr') and values.get('max_hr') and values['avg_hr']>values['max_hr']:raise HTTPException(400,'Average heart rate cannot exceed maximum heart rate')
             c.execute('UPDATE activities SET summary_overrides=%s,summary_original=%s WHERE id=%s AND user_id=%s',(json.dumps(overrides),json.dumps(baseline),aid,user['id']))
             corrections.apply(c,user['id'],aid,restore_records=True,clear_note=True)
@@ -517,7 +517,7 @@ def save_track(body: TrackIn, user=Depends(current_user)):
 def delete(aid: int, user=Depends(current_user)):
     with db.connect() as c:
         r = c.execute('DELETE FROM activities WHERE id = %s AND user_id = %s RETURNING route_id', (aid, user['id'])).fetchone()
-        if not r: raise HTTPException(404, 'Not found')
+        if not r: raise HTTPException(404, 'This activity isn’t available.')
         if r['route_id']:   # a route with fewer than 2 activities is no longer a matched route
             n = c.execute('SELECT count(*) AS n FROM activities WHERE route_id = %s', (r['route_id'],)).fetchone()['n']
             if n < 2:
