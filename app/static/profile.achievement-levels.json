@@ -1,0 +1,1220 @@
+{
+  "version": 2,
+  "source": "Sage/Ben 628 tier catalog v2 (2026-11-06)",
+  "unit_preference": "App.me.units",
+  "value_storage": "canonical metric values from /api/achievements",
+  "tail": {
+    "rule": "repeat last named level at integer multiples of its canonical threshold",
+    "first_multiple": 2,
+    "name": "last_name ×N",
+    "icon": "last_icon",
+    "medal_badge": "×N"
+  },
+  "tracks": {
+    "consistency": {
+      "source_track": "Consistency (weeks with a workout)",
+      "levels": [
+        {
+          "name": "Spark",
+          "canonical_value": 4,
+          "canonical_unit": "weeks",
+          "display": "weeks",
+          "display_value": 4,
+          "emoji": "✨",
+          "asset_name": "Sparkles",
+          "icon": "/static/profile.fluent-emoji/flat/sparkles_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Kindling",
+          "canonical_value": 10,
+          "canonical_unit": "weeks",
+          "display": "weeks",
+          "display_value": 10,
+          "emoji": "🪵",
+          "asset_name": "Wood",
+          "icon": "/static/profile.fluent-emoji/flat/wood_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Steady flame",
+          "canonical_value": 20,
+          "canonical_unit": "weeks",
+          "display": "weeks",
+          "display_value": 20,
+          "emoji": "🔥",
+          "asset_name": "Fire",
+          "icon": "/static/profile.fluent-emoji/flat/fire_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Bonfire",
+          "canonical_value": 52,
+          "canonical_unit": "weeks",
+          "display": "weeks",
+          "display_value": 52,
+          "emoji": "🎆",
+          "asset_name": "Fireworks",
+          "icon": "/static/profile.fluent-emoji/flat/fireworks_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Campfire circle",
+          "canonical_value": 100,
+          "canonical_unit": "weeks",
+          "display": "weeks",
+          "display_value": 100,
+          "emoji": "🏕️",
+          "asset_name": "Camping",
+          "icon": "/static/profile.fluent-emoji/flat/camping_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Volcano",
+          "canonical_value": 150,
+          "canonical_unit": "weeks",
+          "display": "weeks",
+          "display_value": 150,
+          "emoji": "🌋",
+          "asset_name": "Volcano",
+          "icon": "/static/profile.fluent-emoji/flat/volcano_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Solar flare",
+          "canonical_value": 200,
+          "canonical_unit": "weeks",
+          "display": "weeks",
+          "display_value": 200,
+          "emoji": "☀️",
+          "asset_name": "Sun",
+          "icon": "/static/profile.fluent-emoji/flat/sun_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "North Star",
+          "canonical_value": 250,
+          "canonical_unit": "weeks",
+          "display": "weeks",
+          "display_value": 250,
+          "emoji": "⭐",
+          "asset_name": "Star",
+          "icon": "/static/profile.fluent-emoji/flat/star_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Constellation",
+          "canonical_value": 300,
+          "canonical_unit": "weeks",
+          "display": "weeks",
+          "display_value": 300,
+          "emoji": "🌌",
+          "asset_name": "Milky way",
+          "icon": "/static/profile.fluent-emoji/flat/milky_way_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Galaxy",
+          "canonical_value": 350,
+          "canonical_unit": "weeks",
+          "display": "weeks",
+          "display_value": 350,
+          "emoji": "🔭",
+          "asset_name": "Telescope",
+          "icon": "/static/profile.fluent-emoji/flat/telescope_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    },
+    "years_active": {
+      "source_track": "Years active",
+      "levels": [
+        {
+          "name": "First orbit",
+          "canonical_value": 1,
+          "canonical_unit": "years",
+          "display": "years",
+          "display_value": 1,
+          "emoji": "🌍",
+          "asset_name": "Globe showing europe-africa",
+          "icon": "/static/profile.fluent-emoji/flat/globe_showing_europe-africa_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Comet",
+          "canonical_value": 2,
+          "canonical_unit": "years",
+          "display": "years",
+          "display_value": 2,
+          "emoji": "☄️",
+          "asset_name": "Comet",
+          "icon": "/static/profile.fluent-emoji/flat/comet_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Three-peat",
+          "canonical_value": 3,
+          "canonical_unit": "years",
+          "display": "years",
+          "display_value": 3,
+          "emoji": "🌙",
+          "asset_name": "Crescent moon",
+          "icon": "/static/profile.fluent-emoji/flat/crescent_moon_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Olympiad",
+          "canonical_value": 4,
+          "canonical_unit": "years",
+          "display": "years",
+          "display_value": 4,
+          "emoji": "🏟️",
+          "asset_name": "Stadium",
+          "icon": "/static/profile.fluent-emoji/flat/stadium_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "High five",
+          "canonical_value": 5,
+          "canonical_unit": "years",
+          "display": "years",
+          "display_value": 5,
+          "emoji": "🖐️",
+          "asset_name": "Hand with fingers splayed",
+          "icon": "/static/profile.fluent-emoji/flat/hand_with_fingers_splayed_flat_default.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Decade",
+          "canonical_value": 10,
+          "canonical_unit": "years",
+          "display": "years",
+          "display_value": 10,
+          "emoji": "🎖️",
+          "asset_name": "Military medal",
+          "icon": "/static/profile.fluent-emoji/flat/military_medal_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Silver jubilee",
+          "canonical_value": 25,
+          "canonical_unit": "years",
+          "display": "years",
+          "display_value": 25,
+          "emoji": "🥈",
+          "asset_name": "2nd place medal",
+          "icon": "/static/profile.fluent-emoji/flat/2nd_place_medal_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Golden jubilee",
+          "canonical_value": 50,
+          "canonical_unit": "years",
+          "display": "years",
+          "display_value": 50,
+          "emoji": "🥇",
+          "asset_name": "1st place medal",
+          "icon": "/static/profile.fluent-emoji/flat/1st_place_medal_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Century",
+          "canonical_value": 100,
+          "canonical_unit": "years",
+          "display": "years",
+          "display_value": 100,
+          "emoji": "💯",
+          "asset_name": "Hundred points",
+          "icon": "/static/profile.fluent-emoji/flat/hundred_points_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    },
+    "workouts": {
+      "source_track": "Workouts",
+      "levels": [
+        {
+          "name": "Seed",
+          "canonical_value": 10,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 10,
+          "emoji": "🌰",
+          "asset_name": "Chestnut",
+          "icon": "/static/profile.fluent-emoji/flat/chestnut_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Sprout",
+          "canonical_value": 50,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 50,
+          "emoji": "🌱",
+          "asset_name": "Seedling",
+          "icon": "/static/profile.fluent-emoji/flat/seedling_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Sapling",
+          "canonical_value": 100,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 100,
+          "emoji": "🪴",
+          "asset_name": "Potted plant",
+          "icon": "/static/profile.fluent-emoji/flat/potted_plant_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Young tree",
+          "canonical_value": 250,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 250,
+          "emoji": "🌳",
+          "asset_name": "Deciduous tree",
+          "icon": "/static/profile.fluent-emoji/flat/deciduous_tree_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Evergreen",
+          "canonical_value": 500,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 500,
+          "emoji": "🌲",
+          "asset_name": "Evergreen tree",
+          "icon": "/static/profile.fluent-emoji/flat/evergreen_tree_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Grove",
+          "canonical_value": 1000,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 1000,
+          "emoji": "🏞️",
+          "asset_name": "National park",
+          "icon": "/static/profile.fluent-emoji/flat/national_park_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Forest",
+          "canonical_value": 1500,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 1500,
+          "emoji": "🦌",
+          "asset_name": "Deer",
+          "icon": "/static/profile.fluent-emoji/flat/deer_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Old-growth forest",
+          "canonical_value": 2000,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 2000,
+          "emoji": "🦉",
+          "asset_name": "Owl",
+          "icon": "/static/profile.fluent-emoji/flat/owl_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    },
+    "active_time": {
+      "source_track": "Active time",
+      "levels": [
+        {
+          "name": "First ten hours",
+          "canonical_value": 10,
+          "canonical_unit": "hours",
+          "display": "hours",
+          "display_value": 10,
+          "emoji": "⏳",
+          "asset_name": "Hourglass not done",
+          "icon": "/static/profile.fluent-emoji/flat/hourglass_not_done_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Round the clock",
+          "canonical_value": 24,
+          "canonical_unit": "hours",
+          "display": "hours",
+          "display_value": 24,
+          "emoji": "🕛",
+          "asset_name": "Twelve oclock",
+          "icon": "/static/profile.fluent-emoji/flat/twelve_oclock_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Four days moving",
+          "canonical_value": 100,
+          "canonical_unit": "hours",
+          "display": "hours",
+          "display_value": 100,
+          "emoji": "🗓️",
+          "asset_name": "Spiral calendar",
+          "icon": "/static/profile.fluent-emoji/flat/spiral_calendar_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Six workweeks",
+          "canonical_value": 250,
+          "canonical_unit": "hours",
+          "display": "hours",
+          "display_value": 250,
+          "emoji": "💼",
+          "asset_name": "Briefcase",
+          "icon": "/static/profile.fluent-emoji/flat/briefcase_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "A season of effort",
+          "canonical_value": 500,
+          "canonical_unit": "hours",
+          "display": "hours",
+          "display_value": 500,
+          "emoji": "🍂",
+          "asset_name": "Fallen leaf",
+          "icon": "/static/profile.fluent-emoji/flat/fallen_leaf_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Half a working year",
+          "canonical_value": 1000,
+          "canonical_unit": "hours",
+          "display": "hours",
+          "display_value": 1000,
+          "emoji": "🥾",
+          "asset_name": "Hiking boot",
+          "icon": "/static/profile.fluent-emoji/flat/hiking_boot_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "A working year",
+          "canonical_value": 2000,
+          "canonical_unit": "hours",
+          "display": "hours",
+          "display_value": 2000,
+          "emoji": "🏢",
+          "asset_name": "Office building",
+          "icon": "/static/profile.fluent-emoji/flat/office_building_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Mastery",
+          "canonical_value": 10000,
+          "canonical_unit": "hours",
+          "display": "hours",
+          "display_value": 10000,
+          "emoji": "🎓",
+          "asset_name": "Graduation cap",
+          "icon": "/static/profile.fluent-emoji/flat/graduation_cap_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    },
+    "journey": {
+      "source_track": "Journey (all sports)",
+      "levels": [
+        {
+          "name": "Marathon",
+          "canonical_value": 42.195,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 42.195,
+          "emoji": "🏅",
+          "asset_name": "Sports medal",
+          "icon": "/static/profile.fluent-emoji/flat/sports_medal_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Ironman 70.3",
+          "canonical_value": 113.137,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 70.3,
+          "emoji": "🏊",
+          "asset_name": "Person swimming",
+          "icon": "/static/profile.fluent-emoji/flat/person_swimming_flat_default.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Ironman 140.6",
+          "canonical_value": 226.274,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 140.6,
+          "emoji": "🏆",
+          "asset_name": "Trophy",
+          "icon": "/static/profile.fluent-emoji/flat/trophy_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Length of Britain",
+          "canonical_value": 1406.567,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 874,
+          "emoji": "🏰",
+          "asset_name": "Castle",
+          "icon": "/static/profile.fluent-emoji/flat/castle_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Across the US",
+          "canonical_value": 4506.163,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 2800,
+          "emoji": "🌉",
+          "asset_name": "Bridge at night",
+          "icon": "/static/profile.fluent-emoji/flat/bridge_at_night_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Length of Africa",
+          "canonical_value": 8046.72,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 5000,
+          "emoji": "🦁",
+          "asset_name": "Lion",
+          "icon": "/static/profile.fluent-emoji/flat/lion_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Around Australia",
+          "canonical_value": 14484.096,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 9000,
+          "emoji": "🦘",
+          "asset_name": "Kangaroo",
+          "icon": "/static/profile.fluent-emoji/flat/kangaroo_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Around Earth",
+          "canonical_value": 40074.275,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 24901,
+          "emoji": "🌎",
+          "asset_name": "Globe showing americas",
+          "icon": "/static/profile.fluent-emoji/flat/globe_showing_americas_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "To the Moon",
+          "canonical_value": 384399.861,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 238855,
+          "emoji": "🌙",
+          "asset_name": "Crescent moon",
+          "icon": "/static/profile.fluent-emoji/flat/crescent_moon_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    },
+    "climbing": {
+      "source_track": "Climbing",
+      "levels": [
+        {
+          "name": "Ben Nevis",
+          "canonical_value": 1345.1,
+          "canonical_unit": "m",
+          "display": "ft",
+          "display_value": 4413,
+          "emoji": "⛰️",
+          "asset_name": "Mountain",
+          "icon": "/static/profile.fluent-emoji/flat/mountain_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Mount Fuji",
+          "canonical_value": 3775.9,
+          "canonical_unit": "m",
+          "display": "ft",
+          "display_value": 12388,
+          "emoji": "🗻",
+          "asset_name": "Mount fuji",
+          "icon": "/static/profile.fluent-emoji/flat/mount_fuji_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Mont Blanc",
+          "canonical_value": 4807.9,
+          "canonical_unit": "m",
+          "display": "ft",
+          "display_value": 15774,
+          "emoji": "🏔️",
+          "asset_name": "Snow-capped mountain",
+          "icon": "/static/profile.fluent-emoji/flat/snow-capped_mountain_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Kilimanjaro",
+          "canonical_value": 5895.1,
+          "canonical_unit": "m",
+          "display": "ft",
+          "display_value": 19341,
+          "emoji": "🦒",
+          "asset_name": "Giraffe",
+          "icon": "/static/profile.fluent-emoji/flat/giraffe_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Denali",
+          "canonical_value": 6190.5,
+          "canonical_unit": "m",
+          "display": "ft",
+          "display_value": 20310,
+          "emoji": "🐻",
+          "asset_name": "Bear",
+          "icon": "/static/profile.fluent-emoji/flat/bear_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Aconcagua",
+          "canonical_value": 6961.0,
+          "canonical_unit": "m",
+          "display": "ft",
+          "display_value": 22838,
+          "emoji": "🦙",
+          "asset_name": "Llama",
+          "icon": "/static/profile.fluent-emoji/flat/llama_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Everest",
+          "canonical_value": 8849.0,
+          "canonical_unit": "m",
+          "display": "ft",
+          "display_value": 29032,
+          "emoji": "🚩",
+          "asset_name": "Triangular flag",
+          "icon": "/static/profile.fluent-emoji/flat/triangular_flag_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Cruising altitude",
+          "canonical_value": 10668.0,
+          "canonical_unit": "m",
+          "display": "ft",
+          "display_value": 35000,
+          "emoji": "✈️",
+          "asset_name": "Airplane",
+          "icon": "/static/profile.fluent-emoji/flat/airplane_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Edge of the sky",
+          "canonical_value": 18897.6,
+          "canonical_unit": "m",
+          "display": "ft",
+          "display_value": 62000,
+          "emoji": "🎈",
+          "asset_name": "Balloon",
+          "icon": "/static/profile.fluent-emoji/flat/balloon_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Edge of space",
+          "canonical_value": 100000.0,
+          "canonical_unit": "m",
+          "display": "ft",
+          "display_value": 328084,
+          "emoji": "🚀",
+          "asset_name": "Rocket",
+          "icon": "/static/profile.fluent-emoji/flat/rocket_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    },
+    "lifted": {
+      "source_track": "Weight lifted",
+      "levels": [
+        {
+          "name": "A car",
+          "canonical_value": 1497,
+          "canonical_unit": "kg",
+          "display": "lb",
+          "display_value": 3300,
+          "emoji": "🚗",
+          "asset_name": "Automobile",
+          "icon": "/static/profile.fluent-emoji/flat/automobile_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "An elephant",
+          "canonical_value": 5897,
+          "canonical_unit": "kg",
+          "display": "lb",
+          "display_value": 13000,
+          "emoji": "🐘",
+          "asset_name": "Elephant",
+          "icon": "/static/profile.fluent-emoji/flat/elephant_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "A school bus",
+          "canonical_value": 11340,
+          "canonical_unit": "kg",
+          "display": "lb",
+          "display_value": 25000,
+          "emoji": "🚌",
+          "asset_name": "Bus",
+          "icon": "/static/profile.fluent-emoji/flat/bus_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "A loaded semi truck",
+          "canonical_value": 36287,
+          "canonical_unit": "kg",
+          "display": "lb",
+          "display_value": 80000,
+          "emoji": "🚛",
+          "asset_name": "Articulated lorry",
+          "icon": "/static/profile.fluent-emoji/flat/articulated_lorry_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "A blue whale",
+          "canonical_value": 149685,
+          "canonical_unit": "kg",
+          "display": "lb",
+          "display_value": 330000,
+          "emoji": "🐋",
+          "asset_name": "Whale",
+          "icon": "/static/profile.fluent-emoji/flat/whale_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Statue of Liberty",
+          "canonical_value": 204117,
+          "canonical_unit": "kg",
+          "display": "lb",
+          "display_value": 450000,
+          "emoji": "🗽",
+          "asset_name": "Statue of liberty",
+          "icon": "/static/profile.fluent-emoji/flat/statue_of_liberty_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "A jumbo jet",
+          "canonical_value": 396893,
+          "canonical_unit": "kg",
+          "display": "lb",
+          "display_value": 875000,
+          "emoji": "✈️",
+          "asset_name": "Airplane",
+          "icon": "/static/profile.fluent-emoji/flat/airplane_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "A heavy-lift rocket",
+          "canonical_value": 2041166,
+          "canonical_unit": "kg",
+          "display": "lb",
+          "display_value": 4500000,
+          "emoji": "🚀",
+          "asset_name": "Rocket",
+          "icon": "/static/profile.fluent-emoji/flat/rocket_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Eiffel Tower",
+          "canonical_value": 9979032,
+          "canonical_unit": "kg",
+          "display": "lb",
+          "display_value": 22000000,
+          "emoji": "🗼",
+          "asset_name": "Tokyo tower",
+          "icon": "/static/profile.fluent-emoji/flat/tokyo_tower_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Titanic",
+          "canonical_value": 52163123,
+          "canonical_unit": "kg",
+          "display": "lb",
+          "display_value": 115000000,
+          "emoji": "🚢",
+          "asset_name": "Ship",
+          "icon": "/static/profile.fluent-emoji/flat/ship_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    },
+    "personal_bests": {
+      "source_track": "Personal bests",
+      "levels": [
+        {
+          "name": "First record",
+          "canonical_value": 1,
+          "canonical_unit": "records",
+          "display": "records",
+          "display_value": 1,
+          "emoji": "✨",
+          "asset_name": "Sparkles",
+          "icon": "/static/profile.fluent-emoji/flat/sparkles_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "On a roll",
+          "canonical_value": 5,
+          "canonical_unit": "records",
+          "display": "records",
+          "display_value": 5,
+          "emoji": "⭐",
+          "asset_name": "Star",
+          "icon": "/static/profile.fluent-emoji/flat/star_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Record keeper",
+          "canonical_value": 10,
+          "canonical_unit": "records",
+          "display": "records",
+          "display_value": 10,
+          "emoji": "📓",
+          "asset_name": "Notebook",
+          "icon": "/static/profile.fluent-emoji/flat/notebook_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Hall of fame",
+          "canonical_value": 25,
+          "canonical_unit": "records",
+          "display": "records",
+          "display_value": 25,
+          "emoji": "🏆",
+          "asset_name": "Trophy",
+          "icon": "/static/profile.fluent-emoji/flat/trophy_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Record shelf",
+          "canonical_value": 50,
+          "canonical_unit": "records",
+          "display": "records",
+          "display_value": 50,
+          "emoji": "📚",
+          "asset_name": "Books",
+          "icon": "/static/profile.fluent-emoji/flat/books_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Record library",
+          "canonical_value": 75,
+          "canonical_unit": "records",
+          "display": "records",
+          "display_value": 75,
+          "emoji": "🏛️",
+          "asset_name": "Classical building",
+          "icon": "/static/profile.fluent-emoji/flat/classical_building_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Record constellation",
+          "canonical_value": 100,
+          "canonical_unit": "records",
+          "display": "records",
+          "display_value": 100,
+          "emoji": "🌟",
+          "asset_name": "Glowing star",
+          "icon": "/static/profile.fluent-emoji/flat/glowing_star_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Legend",
+          "canonical_value": 150,
+          "canonical_unit": "records",
+          "display": "records",
+          "display_value": 150,
+          "emoji": "👑",
+          "asset_name": "Crown",
+          "icon": "/static/profile.fluent-emoji/flat/crown_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    },
+    "sport:run": {
+      "source_track": "Running",
+      "levels": [
+        {
+          "name": "5K",
+          "canonical_value": 5,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 5,
+          "emoji": "👟",
+          "asset_name": "Running shoe",
+          "icon": "/static/profile.fluent-emoji/flat/running_shoe_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "10K",
+          "canonical_value": 10,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 10,
+          "emoji": "⏱️",
+          "asset_name": "Stopwatch",
+          "icon": "/static/profile.fluent-emoji/flat/stopwatch_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Half marathon",
+          "canonical_value": 21.0975,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 21.0975,
+          "emoji": "🏅",
+          "asset_name": "Sports medal",
+          "icon": "/static/profile.fluent-emoji/flat/sports_medal_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Marathon",
+          "canonical_value": 42.195,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 42.195,
+          "emoji": "🏆",
+          "asset_name": "Trophy",
+          "icon": "/static/profile.fluent-emoji/flat/trophy_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "50-mile ultra",
+          "canonical_value": 80.467,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 50,
+          "emoji": "⛰️",
+          "asset_name": "Mountain",
+          "icon": "/static/profile.fluent-emoji/flat/mountain_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "100 miles",
+          "canonical_value": 160.934,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 100,
+          "emoji": "💯",
+          "asset_name": "Hundred points",
+          "icon": "/static/profile.fluent-emoji/flat/hundred_points_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "250 miles",
+          "canonical_value": 402.336,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 250,
+          "emoji": "🗺️",
+          "asset_name": "World map",
+          "icon": "/static/profile.fluent-emoji/flat/world_map_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "500 miles",
+          "canonical_value": 804.672,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 500,
+          "emoji": "🧭",
+          "asset_name": "Compass",
+          "icon": "/static/profile.fluent-emoji/flat/compass_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "1,000 miles",
+          "canonical_value": 1609.344,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 1000,
+          "emoji": "🌎",
+          "asset_name": "Globe showing americas",
+          "icon": "/static/profile.fluent-emoji/flat/globe_showing_americas_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    },
+    "sport:ride": {
+      "source_track": "Riding",
+      "levels": [
+        {
+          "name": "First 10 miles",
+          "canonical_value": 16.093,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 10,
+          "emoji": "🚲",
+          "asset_name": "Bicycle",
+          "icon": "/static/profile.fluent-emoji/flat/bicycle_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "25 miles",
+          "canonical_value": 40.234,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 25,
+          "emoji": "🛣️",
+          "asset_name": "Motorway",
+          "icon": "/static/profile.fluent-emoji/flat/motorway_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Metric century",
+          "canonical_value": 100,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 100,
+          "emoji": "🏁",
+          "asset_name": "Chequered flag",
+          "icon": "/static/profile.fluent-emoji/flat/chequered_flag_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Century",
+          "canonical_value": 160.934,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 100,
+          "emoji": "💯",
+          "asset_name": "Hundred points",
+          "icon": "/static/profile.fluent-emoji/flat/hundred_points_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "250 miles",
+          "canonical_value": 402.336,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 250,
+          "emoji": "🗺️",
+          "asset_name": "World map",
+          "icon": "/static/profile.fluent-emoji/flat/world_map_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "500 miles",
+          "canonical_value": 804.672,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 500,
+          "emoji": "🏔️",
+          "asset_name": "Snow-capped mountain",
+          "icon": "/static/profile.fluent-emoji/flat/snow-capped_mountain_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "1,000 miles",
+          "canonical_value": 1609.344,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 1000,
+          "emoji": "🏆",
+          "asset_name": "Trophy",
+          "icon": "/static/profile.fluent-emoji/flat/trophy_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Coast to coast",
+          "canonical_value": 4506.163,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 2800,
+          "emoji": "🌎",
+          "asset_name": "Globe showing americas",
+          "icon": "/static/profile.fluent-emoji/flat/globe_showing_americas_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    },
+    "sport:walk-hike": {
+      "source_track": "Walking & hiking",
+      "levels": [
+        {
+          "name": "5K",
+          "canonical_value": 5,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 5,
+          "emoji": "👣",
+          "asset_name": "Footprints",
+          "icon": "/static/profile.fluent-emoji/flat/footprints_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "10K",
+          "canonical_value": 10,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 10,
+          "emoji": "🥾",
+          "asset_name": "Hiking boot",
+          "icon": "/static/profile.fluent-emoji/flat/hiking_boot_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Half marathon",
+          "canonical_value": 21.0975,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 21.0975,
+          "emoji": "🏅",
+          "asset_name": "Sports medal",
+          "icon": "/static/profile.fluent-emoji/flat/sports_medal_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Marathon",
+          "canonical_value": 42.195,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 42.195,
+          "emoji": "🏆",
+          "asset_name": "Trophy",
+          "icon": "/static/profile.fluent-emoji/flat/trophy_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "50 miles",
+          "canonical_value": 80.467,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 50,
+          "emoji": "🌲",
+          "asset_name": "Evergreen tree",
+          "icon": "/static/profile.fluent-emoji/flat/evergreen_tree_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "100 miles",
+          "canonical_value": 160.934,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 100,
+          "emoji": "⛰️",
+          "asset_name": "Mountain",
+          "icon": "/static/profile.fluent-emoji/flat/mountain_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "250 miles",
+          "canonical_value": 402.336,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 250,
+          "emoji": "🗺️",
+          "asset_name": "World map",
+          "icon": "/static/profile.fluent-emoji/flat/world_map_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "500 miles",
+          "canonical_value": 804.672,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 500,
+          "emoji": "🧭",
+          "asset_name": "Compass",
+          "icon": "/static/profile.fluent-emoji/flat/compass_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Appalachian Trail",
+          "canonical_value": 3524.463,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 2190,
+          "emoji": "🐻",
+          "asset_name": "Bear",
+          "icon": "/static/profile.fluent-emoji/flat/bear_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    },
+    "sport:swim": {
+      "source_track": "Swimming",
+      "levels": [
+        {
+          "name": "First mile",
+          "canonical_value": 1.609,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 1,
+          "emoji": "🐟",
+          "asset_name": "Fish",
+          "icon": "/static/profile.fluent-emoji/flat/fish_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Ironman swim",
+          "canonical_value": 3.862,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 2.4,
+          "emoji": "🐬",
+          "asset_name": "Dolphin",
+          "icon": "/static/profile.fluent-emoji/flat/dolphin_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Marathon swim (10K)",
+          "canonical_value": 10,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 10,
+          "emoji": "🦈",
+          "asset_name": "Shark",
+          "icon": "/static/profile.fluent-emoji/flat/shark_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "English Channel",
+          "canonical_value": 33.796,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 21,
+          "emoji": "🐢",
+          "asset_name": "Turtle",
+          "icon": "/static/profile.fluent-emoji/flat/turtle_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "50 miles",
+          "canonical_value": 80.467,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 50,
+          "emoji": "🐋",
+          "asset_name": "Whale",
+          "icon": "/static/profile.fluent-emoji/flat/whale_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "100 miles",
+          "canonical_value": 160.934,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 100,
+          "emoji": "⛵",
+          "asset_name": "Sailboat",
+          "icon": "/static/profile.fluent-emoji/flat/sailboat_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "250 miles",
+          "canonical_value": 402.336,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 250,
+          "emoji": "🌊",
+          "asset_name": "Water wave",
+          "icon": "/static/profile.fluent-emoji/flat/water_wave_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "500 miles",
+          "canonical_value": 804.672,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 500,
+          "emoji": "🌎",
+          "asset_name": "Globe showing americas",
+          "icon": "/static/profile.fluent-emoji/flat/globe_showing_americas_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    },
+    "sport:lift": {
+      "source_track": "Lift sessions",
+      "levels": [
+        {
+          "name": "First set",
+          "canonical_value": 1,
+          "canonical_unit": "sessions",
+          "display": "sessions",
+          "display_value": 1,
+          "emoji": "🏋️",
+          "asset_name": "Person lifting weights",
+          "icon": "/static/profile.fluent-emoji/flat/person_lifting_weights_flat_default.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Warmed up",
+          "canonical_value": 5,
+          "canonical_unit": "sessions",
+          "display": "sessions",
+          "display_value": 5,
+          "emoji": "🔥",
+          "asset_name": "Fire",
+          "icon": "/static/profile.fluent-emoji/flat/fire_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Ten sessions",
+          "canonical_value": 10,
+          "canonical_unit": "sessions",
+          "display": "sessions",
+          "display_value": 10,
+          "emoji": "💪",
+          "asset_name": "Flexed biceps",
+          "icon": "/static/profile.fluent-emoji/flat/flexed_biceps_flat_default.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Strong foundation",
+          "canonical_value": 25,
+          "canonical_unit": "sessions",
+          "display": "sessions",
+          "display_value": 25,
+          "emoji": "🧱",
+          "asset_name": "Brick",
+          "icon": "/static/profile.fluent-emoji/flat/brick_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Strength cycle",
+          "canonical_value": 50,
+          "canonical_unit": "sessions",
+          "display": "sessions",
+          "display_value": 50,
+          "emoji": "🔁",
+          "asset_name": "Repeat button",
+          "icon": "/static/profile.fluent-emoji/flat/repeat_button_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Power block",
+          "canonical_value": 100,
+          "canonical_unit": "sessions",
+          "display": "sessions",
+          "display_value": 100,
+          "emoji": "⚡",
+          "asset_name": "High voltage",
+          "icon": "/static/profile.fluent-emoji/flat/high_voltage_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Iron habit",
+          "canonical_value": 200,
+          "canonical_unit": "sessions",
+          "display": "sessions",
+          "display_value": 200,
+          "emoji": "⛓️",
+          "asset_name": "Chains",
+          "icon": "/static/profile.fluent-emoji/flat/chains_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Strength hall",
+          "canonical_value": 400,
+          "canonical_unit": "sessions",
+          "display": "sessions",
+          "display_value": 400,
+          "emoji": "🏛️",
+          "asset_name": "Classical building",
+          "icon": "/static/profile.fluent-emoji/flat/classical_building_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    }
+  }
+}
