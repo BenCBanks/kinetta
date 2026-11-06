@@ -67,6 +67,30 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    }
    assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(x=>!x.endsWith('/api/challenges/signup/continue')),[],'opening and reviewing the screens has no write side effects');await close(c);console.log(`Find friends ${name}: privacy, compact requests, connection-only suggestions and 44px actions PASS`);
   }
+  if(!process.env.KINETTA_FRIEND_CASE||process.env.KINETTA_FRIEND_CASE==='list'){
+   for(const state of ['empty','typical','heavy'])for(const theme of ['light','dark']){
+    const {c,p,errors,writes}=await open(state,theme);
+    await p.goto(base+'/me/friends');await until(p,()=>App.pageReady&&!!document.querySelector('#fr-own-list'),'My friends ready');
+    assert.equal(await p.locator('#fr-title').innerText(),'Friends','Me → Friends opens the friends list');assert.equal(await p.locator('.top .back').getAttribute('aria-label'),'Back to Me');
+    assert.equal(await p.locator('#fr-find').count(),0,'the friends list has no discovery search');assert.equal(await p.locator('.pym-tile').count(),0,'suggestions stay on Find friends');
+    const friendRows=p.locator('#fr-own-list .fr-friend'),expectedFriends={empty:0,typical:1,heavy:40}[state],expectedRequests={empty:0,typical:2,heavy:5}[state];
+    assert.equal(await friendRows.count(),expectedFriends,'Me → Friends shows existing friends');
+    const find=p.locator('#fr-browse'),findBox=await find.boundingBox();assert.equal(await find.getAttribute('aria-label'),'Find friends');assert.equal(await find.getAttribute('href'),'/me/friends?find=1');assert(findBox.width>=44&&findBox.height>=44,'Find friends stays a 44px action');
+    const manage=p.locator('#fr-own-list [data-manage]');assert.equal(await manage.count(),expectedFriends);assert(await manage.evaluateAll(nodes=>nodes.every(n=>{const r=n.getBoundingClientRect();return r.width>=44&&r.height>=44;})),'friend management remains reachable from each row');
+    if(expectedRequests){const row=p.locator('#fr-requests-open');assert.equal((await row.innerText()).trim(),`Requests (${expectedRequests})`);assert((await row.boundingBox()).height>=44,'Requests summary is a full-width action');}
+    else assert.equal(await p.locator('#fr-requests-open').count(),0,'no empty Requests row');
+    if(state==='empty'){
+     assert.match(await p.locator('.friend-empty').innerText(),/No friends yet/);const emptyFind=await p.locator('#fr-empty-browse').boundingBox();assert(emptyFind.width>=44&&emptyFind.height>=44,'empty state keeps a 44px Find friends action');
+    }else assert.equal(await friendRows.first().locator('.person-link').getAttribute('href'),'/people/zz_test_fc_peer00','a friend row opens that friend’s profile');
+    assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'My friends has no horizontal overflow');
+    if(out&&(state==='typical'||state==='empty'))await capture(p,`my-friends-${state}-390-${theme}`);
+    if(state==='typical'){
+     await p.locator('#fr-requests-open').click();const dialog=p.getByRole('dialog',{name:'Requests'});await dialog.waitFor();assert.equal(await dialog.locator('.fr-request').count(),1);assert.equal(await dialog.locator('[data-request-cancel]').count(),1);await closeSheet(p);
+    }
+    await find.click();await until(p,()=>App.pageReady&&!!document.querySelector('#fr-invite'),'Find friends action opens discovery');
+    assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(x=>!x.endsWith('/api/challenges/signup/continue')),[],'viewing the friends list has no write side effects');await close(c);console.log(`My friends ${state} ${theme}: list, Requests, Find friends and 44px actions PASS`);
+   }
+  }
   if(!process.env.KINETTA_FRIEND_CASE||process.env.KINETTA_FRIEND_CASE==='actions'){
    for(const theme of ['light','dark']){
     const state=theme==='light'?'typical':'empty',targetLogin=theme==='light'?'zz_test_fc_peer06':'zz_test_fc_peer07',targetName=theme==='light'?'Fictional Friend 07':'Fictional Friend 08';

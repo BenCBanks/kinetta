@@ -18,6 +18,7 @@ const scenes=fixtures=>[
  {name:'Notifications',login:'alex',route:'/me/notifications',ready:'[data-meal-reminders]',notifications:true,native:true},
  {name:'Share progress',login:'zz_test_recap_ui_typical',route:'/progress',ready:'#recap-entry',recap:true},
  {name:'Nutrition Insights',login:'zz_test_insights_typical',route:'/food?view=overview&r=30',ready:'#nt-body .insights-summary'},
+ {name:'My friends',login:'zz_test_fc_typical',route:'/me/friends',ready:'#fr-own-list'},
  {name:'Account name sheet',login:'alex',route:'/me/settings',entryReady:'#m-name',ready:'.scrim:not([inert]) #ac',modal:'name'},
  {name:'Pinned save sheet',login:'alex',route:'/me/settings',entryReady:'#m-name',ready:'.scrim:not([inert]) .sheet.pinned',modal:'pinned'},
  {name:'Quick weight sheet',login:'alex',route:'/me',entryReady:'.me-card-sections[aria-busy="false"]',ready:'#quick-weight',modal:'weight'},

@@ -854,7 +854,7 @@ route(/^\/add\/([\w-]+)$/, 'activity', async (el, code) => {
   wireBack(el, '/activity');
   let who;
   try { who = await api('/api/friend-links/' + encodeURIComponent(code)); }
-  catch (x) { el.innerHTML = `<div class="top">${backBtn('Activity')}</div><div class="card empty"><b>This invite link doesn’t work</b>${esc(x.message)}<div class="btncol"><a class="ghost" href="/me/friends">Find friends</a></div></div>`; wireBack(el, '/activity'); return; }
+  catch (x) { el.innerHTML = `<div class="top">${backBtn('Activity')}</div><div class="card empty"><b>This invite link doesn’t work</b>${esc(x.message)}<div class="btncol"><a class="ghost" href="/me/friends?find=1">Find friends</a></div></div>`; wireBack(el, '/activity'); return; }
   el.innerHTML = `<div class="top">${backBtn('Activity')}</div><div class="card empty add-friend"><b>${esc(who.name)} invited you to be friends</b>
     You’ll each see the activities the other shares with friends. You can change that or stop being friends any time.
     <div class="btncol"><button class="primary" id="af-yes">Become friends</button><a class="ghost" href="/activity">Not now</a></div></div>`;
