@@ -1347,23 +1347,30 @@ async function pFitness(body, q) {
     const box = $('#fi-body', body), pbox = $('#fi-pred', body); if (!box) return;
     const f = {...f0, days: f0.days.filter((d) => inRange(R, +d.d.slice(0, 4)))};
     rangeBar(body.progressRange, R, f0.vdot_months.length ? +f0.vdot_months[0].m.slice(0, 4) : f0.days.length ? +f0.days[0].d.slice(0, 4) : nowY);
-    const last = f0.days[f0.days.length - 1] || {fitness: 0, fatigue: 0, form: 0}, b = f.basis;
-    const predictionSourceKey = source => source && Number.isInteger(source.activity_id) && source.activity_id > 0 &&
-      Number.isFinite(Date.parse(source.start_time)) && Number.isFinite(source.distance_m) && source.distance_m > 0 &&
-      Number.isFinite(source.elapsed_s) && source.elapsed_s > 0 && typeof source.label === 'string' && source.label
-      ? JSON.stringify([source.activity_id, source.start_time, source.distance_m, source.elapsed_s, source.label]) : null;
-    const sourceKeys = f.predictions.map(p => predictionSourceKey(p.from));
-    const commonSource = sourceKeys.length && sourceKeys[0] && sourceKeys.every(k => k === sourceKeys[0]) ? f.predictions[0].from : null;
-    const predictionSource = (source, shared = false) => {
-      const text = `${shared ? 'Based on your' : 'From'} ${esc(source.label)} · ${Number.isFinite(Date.parse(source.start_time)) ? esc(fdate(source.start_time, {month:'short', day:'numeric'})) : 'date unavailable'}`;
-      return Number.isInteger(source.activity_id) && source.activity_id > 0 ? `<a class="prediction-source small" href="/activity/${source.activity_id}">${text}</a>` : `<span class="prediction-source small muted">${text}</span>`;
+    const last = f0.days[f0.days.length - 1] || {fitness: 0, fatigue: 0, form: 0};
+    const predictionSourceDetail = p => {
+      const source = p.from || {};
+      const date = Number.isFinite(Date.parse(source.start_time)) ? fdate(source.start_time, {month:'short', day:'numeric'}) : 'date unavailable';
+      const effort = source.label ? `${esc(source.label)} · ${esc(dur(source.elapsed_s))} · ${esc(date)}` : 'Source unavailable';
+      return `<li class="prediction-source"><span>${esc(p.label)}</span><span>${effort}</span></li>`;
     };
-    pbox.innerHTML = f.predictions.length ? `<div class="card fitness-predictions"><h2>Race predictions</h2>${commonSource ? predictionSource(commonSource, true) : ''}<div class="pred">${f.predictions.map((p) => {
-      // green means something (2026-10-13, Ben): the prediction beats your best ever at that distance
-      const pr = p.best_s && p.seconds < p.best_s - 1;
-      return `<div${pr ? ' class="pr"' : ''}><small class="muted">${esc(p.label)}</small><b class="num">${dur(p.seconds)}</b><small class="muted num">${U.pace(p.seconds / p.distance_m * 1000)}${U.pu()}</small>
-        ${commonSource ? '' : predictionSource(p.from)}<small class="pbest">${p.best_s ? `${pr ? 'Beats your best,' : 'Your best:'} ${esc(dur(p.best_s))}` : 'Not raced yet'}</small></div>`; }).join('')}</div>
-        <p class="small muted prediction-note">Estimates, not target paces.</p><details class="prediction-method"><summary>How estimates work</summary><p class="small muted">Uses your best efforts from the past 90 days, adjusted for endurance. Without recent long runs, it uses weekly mileage. Course, weather and race-day pacing aren’t included.</p><p class="small muted">Fastest recent effort: <a href="/activity/${b.activity_id}">${esc(b.label)} in ${esc(dur(b.elapsed_s))}</a> · ${esc(fdate(b.start_time, {month: 'short', day: 'numeric'}))}</p></details></div>`
+    const predictionBestReference = p => {
+      if (!Number.isFinite(p.best_s) || p.best_s <= 0) return 'not recorded';
+      return `${esc(dur(p.best_s))}${Number.isInteger(p.best_year) ? ` · ${p.best_year}` : ''}`;
+    };
+    pbox.innerHTML = f.predictions.length ? `<div class="card fitness-predictions">
+        <h2>Race predictions</h2><p class="small muted prediction-current">Based on current fitness</p>
+        <div class="pred">${f.predictions.map(p => `<div class="prediction-cell">
+          <small class="muted prediction-distance">${esc(p.label)}</small>
+          <b class="num prediction-time">${dur(p.seconds)}</b>
+          <small class="muted num prediction-pace">${esc(U.pace(p.seconds / p.distance_m * 1000))}${esc(U.pu())}</small>
+          <small class="muted pbest prediction-best">Best ${predictionBestReference(p)}</small>
+        </div>`).join('')}</div>
+        <p class="small muted prediction-note">Estimates, not target paces.</p>
+        <details class="prediction-method"><summary>How estimates work</summary>
+          <p class="small muted">Each estimate uses the recent effort from the past 90 days that best matches that race distance, plus your last 8 weeks of running mileage. Course, weather and race-day pacing aren’t included.</p>
+          <div class="prediction-sources"><p class="small muted">Recent efforts used</p><ul>${f.predictions.map(predictionSourceDetail).join('')}</ul></div>
+        </details></div>`
       : '<div class="card"><h2>Race predictions</h2><p class="muted">Run a mile or more in the last 90 days and predictions appear here.</p></div>';
     box.innerHTML = `<div class="card"><h2>Running fitness</h2>${f.vdot_months.length ? `<div class="bigstat">${stat('Best · 90 days', f.vdot_now || '–')}${stat(R.from || R.to ? 'Best in range' : 'Best ever', ((v) => (v.length ? Math.max(...v).toFixed(1) : '–'))(f.vdot_months.filter((m) => inRange(R, +m.m.slice(0, 4))).map((m) => m.v)))}</div><div id="p-vdot"></div>
         <p class="small muted">VDOT is a running-performance score from best efforts of a mile or longer. Higher means faster recorded performance. It is not a measured VO₂max or a guarantee of race pace.</p>` : '<p class="muted">Needs runs of a mile or longer.</p>'}</div>

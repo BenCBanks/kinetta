@@ -642,30 +642,29 @@ tr.muted td { color: var(--tx3); }
 .bigstat .stat b { font-size: var(--text-app-stat); }
 .pred { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .pred div { background: var(--card2); border-radius: var(--r3); padding: 14px 16px; } .pred b { display: block; font: 800 23px var(--numf); letter-spacing: -.02em; }
-/* green = faster than your best ever at that distance (2026-10-13); the line under it says so */
-.pred div.pr { background: var(--prog2); } .pred div.pr b { color: var(--prog); }
-.pred .pbest { display: block; margin-top: 6px; font-size: 12px; font-weight: 650; color: var(--tx3); } .pred .pr .pbest { color: var(--prog); }
-.pred .prediction-source{display:block;margin-top:6px;line-height:1.5;overflow-wrap:anywhere;}
-.card p.prediction-note{margin:16px 0 4px;}
-.prediction-method{margin-top:4px;}
-.prediction-method summary{display:flex;align-items:center;gap:8px;min-height:44px;cursor:pointer;font-size:.875rem;color:var(--tx2);list-style:none;}
-.prediction-method summary::-webkit-details-marker{display:none;}
-.prediction-method summary::after{content:'›';font-size:1.25em;transform:rotate(90deg);transition:transform .15s;}
-.prediction-method[open] summary::after{transform:rotate(-90deg);}
-.prediction-method p{margin:8px 0 12px;line-height:1.6;}
-/* One shared effort source leaves room for the fitness chart, with full-size source/help targets. */
+/* Quiet current-fitness estimates leave room for the running charts below. */
 #fi-pred > .card,#fi-body > .card { padding:16px; }
 #fi-pred .card h2,#fi-body .card h2 { font-size:max(17px,var(--text-app-card-title)); }
+.card p.prediction-note { margin:16px 0 4px; }
+.prediction-method { margin-top:4px; }
+.prediction-method summary { display:flex; align-items:center; gap:8px; min-height:44px; cursor:pointer; font-size:.875rem; color:var(--tx2); list-style:none; }
+.prediction-method summary::-webkit-details-marker { display:none; }
+.prediction-method summary::after { content:'›'; font-size:1.25em; transform:rotate(90deg); transition:transform .15s; }
+.prediction-method[open] summary::after { transform:rotate(-90deg); }
+.prediction-method p { margin:8px 0 12px; line-height:1.6; }
+.fitness-predictions .prediction-current { margin:0 0 8px; }
 .fitness-predictions .pred { gap:8px 12px; }
-.fitness-predictions .pred > div { padding:8px 0; border-top:1px solid var(--line); border-radius:0; background:transparent; }
-.fitness-predictions .pred > div.pr { background:var(--prog2); }
+.fitness-predictions .pred > .prediction-cell { display:grid; align-content:start; gap:2px; min-width:0; padding:8px 0; border-top:1px solid var(--line); border-radius:0; background:transparent; }
 .fitness-predictions .pred b { font-size:max(20px,1.5rem); font-weight:600; }
 .fitness-predictions .pred small { font-size:max(13px,.8125rem); line-height:1.35; }
-.fitness-predictions .pbest { margin-top:4px; }
-.fitness-predictions .prediction-source { display:flex; align-items:center; min-height:44px; margin:0 0 8px; font-size:max(13px,.8125rem); line-height:1.35; }
-.fitness-predictions .pred .prediction-source { margin:8px 0; }
+.fitness-predictions .pbest { margin-top:4px; font-size:max(12px,.75rem); font-weight:500; color:var(--tx2); }
 .fitness-predictions p.prediction-note { margin:8px 0 4px; }
 .fitness-predictions .prediction-method summary { font-size:max(15px,.9375rem); }
+.prediction-sources { margin-top:12px; }
+.prediction-sources > p { margin:0 0 4px; }
+.prediction-sources ul { list-style:none; margin:0; padding:0; }
+.prediction-source { display:grid; grid-template-columns:minmax(80px,auto) 1fr; gap:8px; padding:6px 0; border-top:1px solid var(--line); font-size:max(13px,.8125rem); line-height:1.4; overflow-wrap:anywhere; }
+.prediction-source span:first-child { color:var(--tx2); font-weight:500; }
 @media(max-width:360px){.fitness-predictions .pred{grid-template-columns:1fr}}
 
 
