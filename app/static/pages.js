@@ -395,38 +395,84 @@ function setupChecklist(healthConnected) {
   return `<section class="setup-tips setup-check" aria-label="Finish setting up"><div class="setup-heading"><div><h2>Finish setting up</h2><p class="small muted">${done} of ${items.length} done · skip any you don’t need</p></div><button type="button" class="ghost" data-hide-setup>Hide</button></div>
     <div class="card list"><progress max="${items.length}" value="${done}" aria-label="Setup progress">${done} of ${items.length}</progress>${items.map(row).join('')}</div></section>`;
 }
-// Private insights under the card (Ben, 30 Oct 2026): the distance chart lives on the card, so this space answers
-// "how am I doing?" from your own records only. Each row appears only when there is enough history behind it.
+// Private insights under the Me card: each row comes from the signed-in person's own activity records.
+function meInsightRow(title, value, subtitle, href) {
+  return `<a class="me-insight me-insight-row" href="${esc(href)}"><span class="me-insight-copy"><b>${esc(title)}</b><small>${esc(subtitle)}</small></span><b class="me-insight-value num">${esc(value)}</b>${svg('chev')}</a>`;
+}
 function meInsights(box, s) {
   const owner = readOwner(), live = () => box.isConnected && owner === readOwner();
-  const weeks = s.chart_weeks || [], now = weeks.at(-1), past = weeks.slice(0, -1).filter(w => w.distance_m > 0);
-  const rows = [];
+  const stats = Array.isArray(s.years) ? s.years : [], supported = ['run', 'ride', 'walk'];
+  const today = String(s.chart_today || '').slice(0, 10), currentYear = Number(today.slice(0, 4)) || new Date().getFullYear();
+  const thisYear = stats.filter(y => +y.year === currentYear), countRows = thisYear.length ? thisYear : stats;
+  const counts = {run: 0, ride: 0, walk: 0};
+  for (const y of countRows) {
+    if (supported.includes(y.sport)) counts[y.sport] += Number(y.n) || 0;
+    else if (y.sport === 'hike') counts.walk += Number(y.n) || 0;
+  }
+  const mainSports = supported.filter(sport => counts[sport] > 0).sort((a, b) => counts[b] - counts[a]);
+  const weekSeries = s.chart_weeks || [], now = weekSeries.at(-1), past = weekSeries.slice(0, -1).filter(w => +w.distance_m > 0);
+  let weekRow = '', consistencyRow = '';
   if (now && past.length >= 3) {
     // Usual = the average full week among the previous six that had any distance.
-    const usual = past.reduce((n, w) => n + w.distance_m, 0) / past.length, pct = Math.min(1, (now.distance_m || 0) / usual);
-    rows.push(`<div class="me-insight"><div class="me-insight-top"><span>This week so far</span><b class="num">${esc(U.dist(now.distance_m || 0, 1))} <small>of ${esc(U.dist(usual, 1))} ${esc(U.du())} usual week</small></b></div>
-      <div class="track" role="img" aria-label="${Math.round(pct * 100)}% of your usual week"><div class="bar" data-w="${pct.toFixed(3)}"></div></div></div>`);
+    const usual = past.reduce((n, w) => n + (+w.distance_m || 0), 0) / past.length;
+    weekRow = meInsightRow('This week', `${U.dist(+now.distance_m || 0, 1)} ${U.du()}`,
+      `of ${U.dist(usual, 1)} ${U.du()} usual week`, '/progress?sport=all');
   }
-  box.innerHTML = `<section class="card me-insights"><h2>Your insights</h2><div data-insight-rows>${rows.join('')}</div><div data-insight-more></div>
-    <a class="mileage-progress" href="/progress">View progress ${svg('chev')}</a></section>`;
-  // Runners also get recent bests and a pace trend, read from the same records the Progress pages use.
-  if (!(s.years || []).some(y => y.sport === 'run')) return;
-  const more = $('[data-insight-more]', box), month = d => fdate(d, {month: 'short', day: 'numeric'}), parts = {};
-  const paint = () => { if (live()) more.innerHTML = (parts.best || '') + (parts.pace || ''); };
-  load('/api/records?sport=run', r => {
-    const since = Date.now() - 30 * 864e5, best = (r.efforts || []).filter(e => e.top?.[0] && e.count > 1 && new Date(e.top[0].start_time) >= since).slice(-2);
-    parts.best = best.map(e => `<a class="me-insight me-insight-link" href="/activity/${e.top[0].activity_id}"><span class="me-insight-ico">${svg('trophy')}</span><span class="grow"><b>New ${esc(e.label)} best · <span class="num">${esc(dur(e.top[0].elapsed_s))}</span></b><small class="muted">${esc(month(e.top[0].start_time))}</small></span>${svg('chev')}</a>`).join('');
+  // Count completed, owner-scoped activities of every sport, including sessions without distance.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(today)) {
+    const monday = new Date(`${today}T12:00:00Z`); monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+    const starts = Array.from({length: 5}, (_, i) => { const d = new Date(monday); d.setUTCDate(d.getUTCDate() - (4 - i) * 7); return d.toISOString().slice(0, 10); });
+    const activityWeeks = new Map();
+    for (const w of s.weeks || []) { const key = String(w.week || '').slice(0, 10); activityWeeks.set(key, (activityWeeks.get(key) || 0) + (+w.n || 0)); }
+    const active = starts.filter(d => activityWeeks.get(d) > 0).length;
+    if (active) consistencyRow = meInsightRow('Consistency', `${active} of 5 weeks`, 'Weeks with an activity', '/progress/calendar');
+  }
+  box.innerHTML = '<section class="card me-insights"><h2>Your insights</h2><div data-insight-rows></div></section>';
+  const list = $('[data-insight-rows]', box), parts = {bests: '', trends: {}};
+  const paint = () => {
+    if (!live()) return;
+    const rows = [weekRow, parts.bests, ...mainSports.map(sport => parts.trends[sport]), consistencyRow]
+      .filter(Boolean).slice(0, 4);
+    list.innerHTML = rows.length ? rows.join('') : '<p class="small muted me-insights-empty">Your training insights will appear as you build a history.</p>';
+  };
+  paint();
+  if (!mainSports.length) return;
+  const mainSport = mainSports[0], month = d => fdate(d, {month: 'short', day: 'numeric'});
+  load(`/api/records?sport=${mainSport}`, r => {
+    const since = Date.now() - 30 * 864e5;
+    const best = (r.efforts || []).filter(e => e.top?.[0] && e.count > 1 && Number.isFinite(Date.parse(e.top[0].start_time)) && Date.parse(e.top[0].start_time) >= since)
+      .sort((a, b) => Date.parse(b.top[0].start_time) - Date.parse(a.top[0].start_time)).slice(0, 2);
+    if (best.length) {
+      const details = best.map(e => `${e.label} · ${dur(e.top[0].elapsed_s)} · ${month(e.top[0].start_time)}`).join('; ');
+      parts.bests = meInsightRow('New bests', String(best.length), details, `/progress?view=records&sport=${mainSport}`);
+    }
     paint();
   }).catch(() => {});
-  load('/api/progress/trends?sport=run', r => {
-    // Last three months (this one included) against the three before; at least three runs on each side.
-    const months = r.months || [], recent = months.slice(-3), before = months.slice(-6, -3);
-    const pace = list => { const d = list.reduce((n, m) => n + (+m.pd || 0), 0), t = list.reduce((n, m) => n + (+m.pt || 0), 0); return d > 0 ? t / (d / 1000) : 0; };
-    const runs = list => list.reduce((n, m) => n + m.n, 0), cur = new Date(r.today + 'T12:00').getMonth(), last = recent.at(-1)?.m;
-    if (!last || +last.slice(5) - 1 !== cur || recent.length < 3 || before.length < 3 || runs(recent) < 3 || runs(before) < 3) return;
-    const a = pace(recent), b = pace(before); if (!a || !b) return;
-    const diff = Math.round((b - a) * (U.du() === 'mi' ? 1.609344 : 1)), same = Math.abs(diff) < 3;
-    parts.pace = `<div class="me-insight"><div class="me-insight-top"><span>Run pace · last 3 months</span><b class="num">${esc(U.pace(a))} <small>${esc(U.pu())}</small></b></div><small class="muted">${same ? 'About the same as the 3 months before.' : `${Math.abs(diff)} s ${diff > 0 ? 'faster' : 'slower'} per ${U.du()} than the 3 months before.`}</small></div>`;
+  for (const sport of mainSports) load(`/api/progress/trends?sport=${sport}`, r => {
+    const months = new Map((r.months || []).map(m => [m.m, m]));
+    const nowMonth = String(r.today || today).slice(0, 7), [year, monthNo] = nowMonth.split('-').map(Number);
+    if (!year || !monthNo) return;
+    const keyAt = offset => { const d = new Date(Date.UTC(year, monthNo - 1 + offset, 1)); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; };
+    const period = offsets => offsets.map(offset => months.get(keyAt(offset)) || {n: 0, pd: 0, pt: 0});
+    const recent = period([-2, -1, 0]), before = period([-5, -4, -3]);
+    const count = list => list.reduce((n, m) => n + (+m.n || 0), 0);
+    if (count(recent) < 3 || count(before) < 3) return;
+    const value = list => {
+      const d = list.reduce((n, m) => n + (+m.pd || 0), 0), t = list.reduce((n, m) => n + (+m.pt || 0), 0);
+      return sport === 'ride' ? (t > 0 ? d / t : 0) : (d > 0 ? t / (d / 1000) : 0);
+    };
+    const current = value(recent), previous = value(before); if (!(current > 0 && previous > 0)) return;
+    let title, shown, subtitle, metric;
+    if (sport === 'ride') {
+      const delta = current - previous, unitDelta = U.speed(Math.abs(delta)), same = unitDelta < 0.1;
+      title = 'Ride speed'; shown = `${U.speed(current)} ${U.su()}`; metric = 'speed';
+      subtitle = same ? 'About the same as the prior three months' : `${unitDelta} ${U.su()} ${delta > 0 ? 'faster' : 'slower'} than before`;
+    } else {
+      const delta = Math.round((previous - current) * (U.du() === 'mi' ? 1.609344 : 1)), same = Math.abs(delta) < 3;
+      title = sport === 'run' ? 'Run pace' : 'Walk pace'; shown = `${U.pace(current)} ${U.pu()}`; metric = 'pace';
+      subtitle = same ? 'About the same as the prior three months' : `${Math.abs(delta)} sec/${U.du()} ${delta > 0 ? 'faster' : 'slower'} than before`;
+    }
+    parts.trends[sport] = meInsightRow(title, shown, subtitle, `/progress?sport=${sport}&metric=${metric}`);
     paint();
   }).catch(() => {});
 }
@@ -436,7 +482,7 @@ async function meOverview(el) {
   const me=App.me;
   el.innerHTML=MeCard.header(me)+
     '<div id="t-today"></div><div id="t-required"></div><div id="t-start"></div><div id="t-setup"></div>'+
-    '<div id="t-content"><div id="t-checkin"></div><div id="t-recap"></div><div id="t-combined-week"></div><div id="t-goals"></div><div id="t-form"></div><div id="t-insights" hidden></div></div>';
+    '<div id="t-content"><div id="t-checkin"></div><div id="t-recap"></div><div id="t-combined-week"></div><div id="t-goals"></div><div id="t-insights" hidden></div></div>';
   MeCard.mount(el,{reload:()=>render(),editOnLoad:new URLSearchParams(location.search).get('edit')==='profile'});
   if(typeof Milestones!=='undefined')Milestones.mount($('[data-me-milestones]',el),{row:true});
   const setup=$('#t-setup',el),todayRoot=$('#t-today',el),owner=readOwner();
@@ -556,12 +602,6 @@ async function meOverview(el) {
   if(typeof KitChat!=='undefined')KitChat.entry(el,'/me');
   await Promise.allSettled([
     refreshToday(),
-    load('/api/fitness?days=60',f=>{
-      if(!el.isConnected)return;const last=f.days[f.days.length-1];if(!last||!f.days.some(d=>d.fitness>0))return;
-      const form=last.form,[k,word]=form>5?['good','Fresh']:form< -15?['warn','Tired']:['','Training steadily'];
-      const mini=(label,value)=>'<span><b class="num">'+esc(value)+'</b><small>'+esc(label)+'</small></span>';
-      $('#t-form',el).innerHTML='<a class="card tap me-form" href="/progress?view=fitness"><span class="me-form-top"><span class="grow"><small>Fitness &amp; freshness</small><b class="status-word '+k+'">'+esc(word)+'</b></span>'+svg('chev')+'</span><span class="me-form-nums">'+mini('Fitness',Math.round(last.fitness))+mini('Freshness',(form>0?'+':'')+Math.round(form))+(f.vdot_now?mini('Run score',f.vdot_now):'')+'</span>'+(f.ramp_7d>8?'<span class="callout warn">Your training load jumped this week. Watch for niggles.</span>':'')+'</a>';
-    }).catch(()=>{}),
     load('/api/stats',s=>{if(el.isConnected)meInsights($('#t-insights',el),s);}).catch(()=>{}),
     load('/api/goals',g=>{if(el.isConnected)$('#t-goals',el).innerHTML=g.length?'<div class="card"><h2>Goals<a class="more" href="/me/goals">Edit</a></h2>'+g.map(goalRow).join('')+'</div>':'';}).catch(()=>{})
   ]);
@@ -1143,7 +1183,7 @@ function wireSport(el, cur) {
     if (!e.target.closest('#p-sport')) return;
     pickSheet('Sport', pickRows(PSPORTS.map(([k,n])=>[k,n,'',k==='all'?'activity':k,'c-grey']),cur), k=>{
       try { localStorage.setItem('fit.psport',k); } catch(e) { /* no storage */ }
-      const u=new URLSearchParams(location.search);u.set('sport',k);go(location.pathname+'?'+u,{replace:true});
+      const u=new URLSearchParams(location.search);u.set('sport',k);if(u.has('metric'))u.set('metric',progressMetricForSport(k,u.get('metric')));go(location.pathname+'?'+u,{replace:true});
     });
   });
 }
@@ -1173,10 +1213,23 @@ function progressFilters(el, body, html, {selector='.card'}={}) {
 function progressPeriods(period) {
   return '<div class="me-period mileage-toggle" role="group" aria-label="Totals period">'+PPERIODS.map(([k,n])=>`<button type="button" data-progress-period="${k}" aria-pressed="${period===k}">${n}</button>`).join('')+'</div>';
 }
+function progressMetricForSport(sport, metric) {
+  if (metric === 'time' || metric === 'distance') return metric;
+  if (sport === 'ride') return 'speed';
+  if (sport === 'run' || sport === 'walk') return 'pace';
+  return 'distance';
+}
+function progressMetrics(sport, metric) {
+  const choices = [['distance', 'Distance'], ['time', 'Time']];
+  if (sport === 'ride') choices.push(['speed', 'Speed']);
+  else if (sport === 'run' || sport === 'walk') choices.push(['pace', 'Pace']);
+  return `<div class="me-period progress-metric-controls" data-count="${choices.length}" role="group" aria-label="Totals metric">${choices.map(([key, label]) => `<button type="button" data-progress-metric="${key}" aria-pressed="${metric === key}">${label}</button>`).join('')}</div>`;
+}
 function wireProgressPeriods(el) {
   el.addEventListener('click', e => {
     const tableButton=e.target.closest('[data-progress-table]');
     if(tableButton){const chart=$('#m-chart',el),table=$('#m-table',el);if(!chart||!table)return;const show=table.hidden;$('#p-home-totals',el)._showTable=show;table.hidden=!show;chart.hidden=show;tableButton.setAttribute('aria-pressed',String(show));return;}
+    const metricButton=e.target.closest('[data-progress-metric]');if(metricButton){const q=new URLSearchParams(location.search);q.set('metric',metricButton.dataset.progressMetric);go('/progress?'+q,{replace:true});return;}
     const b = e.target.closest('[data-progress-period]'); if (!b) return;
     const q = new URLSearchParams(location.search); q.set('period',b.dataset.progressPeriod);
     go('/progress?'+q, {replace:true});
@@ -1234,6 +1287,7 @@ function progressTiles(box, overview=null, {ready=false}={}) {
 async function progressHome(el, q) {
   App.progressHome={owner:readOwner(),href:location.pathname+location.search};
   const sport = pSport(q), period = PPERIODS.some(p=>p[0]===q.get('period')) ? q.get('period') : 'week';
+  const viewSport=forView(sport,'totals'),metric=progressMetricForSport(viewSport,q.get('metric')||'distance');
   el.innerHTML = `<div class="top progress-heading"><h1>Progress</h1><div class="acts">${bellBtn()}</div></div>
     <div class="progress-home"><div id="p-home-totals" class="progress-home-totals">${skelChart()}</div>
     <div class="progress-pair"><a class="card progress-summary" href="/progress?view=fitness"><h2>${svg('flame')}Fitness</h2><span data-progress-fitness class="small muted">Form and race estimates →</span></a>
@@ -1244,9 +1298,9 @@ async function progressHome(el, q) {
   wireProgressFocus(el); wireProgressPeriods(el);
   Discovery.wire($('#p-explore',el),'progress',{attribute:'data-progress-feature'});
   const totals=$('#p-home-totals',el), grid=$('#p-explore',el); progressTiles(grid);
-  progressFilters(el,totals,`<h2 class="progress-totals-title">Totals</h2>${sportBtn(forView(sport,'totals'))}${progressPeriods(period)}`);
-  wireSport(el,sport);
-  q.set('sport',forView(sport,'totals'));q.set('period',period);
+  progressFilters(el,totals,`<h2 class="progress-totals-title">Totals</h2>${sportBtn(viewSport)}${progressPeriods(period)}${progressMetrics(viewSport,metric)}`);
+  wireSport(el,viewSport);
+  q.set('sport',viewSport);q.set('period',period);if(q.has('metric'))q.set('metric',metric);
   if ($('#p-combined-week',el)) combinedWeek($('#p-combined-week',el));
   const owner=readOwner(), valid=()=>el.isConnected&&owner===readOwner();
   await Promise.allSettled([
@@ -1342,11 +1396,18 @@ async function pFitness(body, q) {
   const R = getRange(q), nowY = new Date().getFullYear();
   const days = R.from ? Math.min(3650, Math.ceil((Date.now() - new Date(R.from, 0, 1)) / 864e5) + 1) : 3650;
   // The year filter stays with Running fitness; it filters the charts, not the predictions.
-  body.innerHTML = `<div id="fi-pred">${skel(1)}</div><div id="fi-body">${skel(1)}</div>`;
+  body.innerHTML = `<div id="fi-summary"></div><div id="fi-pred">${skel(1)}</div><div id="fi-body">${skel(1)}</div>`;
   await load(`/api/fitness?days=${days}`, (f0) => {
-    const box = $('#fi-body', body), pbox = $('#fi-pred', body); if (!box) return;
+    const summaryBox = $('#fi-summary', body), box = $('#fi-body', body), pbox = $('#fi-pred', body); if (!box) return;
     const f = {...f0, days: f0.days.filter((d) => inRange(R, +d.d.slice(0, 4)))};
     const last = f0.days[f0.days.length - 1] || {fitness: 0, fatigue: 0, form: 0};
+    if (summaryBox && f0.days.some(d => d.fitness > 0)) {
+      const form = last.form, [kind, word] = form > 5 ? ['good', 'Fresh'] : form < -15 ? ['warn', 'Tired'] : ['', 'Training steadily'];
+      const mini = (label, value) => `<span><b class="num">${esc(value)}</b><small>${esc(label)}</small></span>`;
+      summaryBox.innerHTML = `<section class="card me-form fitness-current" aria-label="Fitness and freshness"><span class="me-form-top"><span class="grow"><small>Fitness &amp; freshness</small><b class="status-word ${kind}">${word}</b></span></span>
+        <span class="me-form-nums">${mini('Fitness', Math.round(last.fitness))}${mini('Freshness', (form > 0 ? '+' : '') + Math.round(form))}${f0.vdot_now ? mini('Run score', f0.vdot_now) : ''}</span>
+        ${f0.ramp_7d > 8 ? '<span class="callout warn">Your training load jumped this week. Watch for niggles.</span>' : ''}</section>`;
+    }
     const predictionSourceDetail = p => {
       const source = p.from || {};
       const date = Number.isFinite(Date.parse(source.start_time)) ? fdate(source.start_time, {month:'short', day:'numeric'}) : 'date unavailable';
@@ -1464,6 +1525,7 @@ function monthSeries(firstYm, get) {   // every month from firstYm to this month
 }
 async function pMileage(body, q, {home=false}={}) {
   const sport = q.get('sport') || 'run', period = q.get('period') || 'week';
+  const metric = progressMetricForSport(sport, q.get('metric') || 'distance'), paceMetric = metric === 'pace' || metric === 'speed';
   const R = {from: null, to: null}, scoped = false;   // Totals: the period sets how far back (date ranges live on Year over year)
   let restoreTableFocus=body.contains(document.activeElement)&&document.activeElement?.matches('[data-progress-table]');
   body.innerHTML = `<div id="m-body">${skelChart()}</div>`;   // Weeks / Months / Years: the button in the row at the top
@@ -1471,12 +1533,18 @@ async function pMileage(body, q, {home=false}={}) {
     const box = $('#m-body', body); if (!box) return;
     const keys = sport === 'all' ? VKEYS : VKEYS.filter((k) => k.k === sport);
     const by = {}; for (const x of r.rows) { const o = by[x.p] = by[x.p] || {}; o[x.s] = x; }
-    if (!r.rows.length) { box.innerHTML = home ? '<div class="card empty"><p class="small muted">No activities yet. Your distance totals appear here.</p></div>' : `<div class="card empty"><b>No activities yet</b>Your mileage by week, month and year shows up here.${startCta()}</div>`; return; }
+    if (!r.rows.length) { const empty = metric === 'pace' ? 'average pace' : metric === 'speed' ? 'average speed' : metric;
+      box.innerHTML = home ? `<div class="card empty"><p class="small muted">No activities yet. Your ${empty} totals appear here.</p></div>` : `<div class="card empty"><b>No activities yet</b>Your ${empty} totals by week, month and year show up here.${startCta()}</div>`; return; }
     // every period from the first activity to today
     const today = new Date(r.today + 'T12:00'), first = new Date(r.rows[0].p + 'T12:00'), all = [];
     const start = (d) => { const x = new Date(d); if (period === 'week') x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); else if (period === 'month') x.setDate(1); else { x.setMonth(0); x.setDate(1); } return x; };
     for (let d = start(first); d <= today; ) { all.push(new Date(d)); if (period === 'week') d.setDate(d.getDate() + 7); else if (period === 'month') d.setMonth(d.getMonth() + 1); else d.setFullYear(d.getFullYear() + 1); }
     const val = (d, f = 'd') => { const o = by[ymd(d)] || {}; return keys.reduce((s, k) => s + Number((o[k.k] || {})[f] || 0), 0); };
+    const metricValue = d => { const distance = val(d, 'd'), time = val(d, 't');
+      if (metric === 'distance') return toU(distance);
+      if (metric === 'time') return time;
+      return metric === 'speed' ? (time > 0 ? distance / time : 0) : (distance > 0 ? time / (distance / 1000) : 0);
+    };
     const label = (d) => period === 'week' ? 'Week of ' + d.toLocaleDateString([], {month: 'short', day: 'numeric', year: 'numeric'}) : period === 'month' ? d.toLocaleDateString([], {month: 'long', year: 'numeric'}) : String(d.getFullYear());
     const show = scoped ? all.filter((d) => inRange(R, d.getFullYear())) : period === 'week' ? all.slice(-26) : period === 'month' ? all.slice(-24) : all;
     // A short history still draws normal-width bars (2026-10-18 UI pass): one first week was one bar across the whole
@@ -1485,20 +1553,25 @@ async function pMileage(body, q, {home=false}={}) {
     const chartDays = [...show];
     while (!scoped && chartDays.length && chartDays.length < minCols) { const d = new Date(chartDays[0]); if (period === 'week') d.setDate(d.getDate() - 7); else d.setMonth(d.getMonth() - 1); chartDays.unshift(d); }
     if (!show.length) { box.innerHTML = '<div class="card empty"><b>Nothing in this range</b>Pick other years above.</div>'; return; }
+    const pacePeriods = period === 'year' ? all : all.slice(-12), chartPeriods = paceMetric ? pacePeriods : chartDays;
     const cols = chartDays.map((d, i) => {
       const prev = chartDays[i - 1], tick = period === 'year' ? (show.length > 8 ? "'" + String(d.getFullYear()).slice(2) : String(d.getFullYear()))
         : period === 'month' ? (d.getMonth() % 3 === 0 ? d.toLocaleDateString([], {month: 'short'}) + (d.getMonth() === 0 ? " '" + String(d.getFullYear()).slice(2) : '') : '')
         : (!prev || prev.getMonth() !== d.getMonth()) && (period !== 'week' || i < chartDays.length - 1) ? d.toLocaleDateString([], {month: 'short'}) : '';
-      return {d, label: label(d), tick, partial: i === chartDays.length - 1, segs: keys.map((k) => ({k: k.k, v: toU(Number(((by[ymd(d)] || {})[k.k] || {}).d || 0))}))};
+      return {d, label: label(d), tick, partial: i === chartDays.length - 1, segs: keys.map((k) => ({k: k.k, v: metric === 'time' ? Number(((by[ymd(d)] || {})[k.k] || {}).t || 0) : toU(Number(((by[ymd(d)] || {})[k.k] || {}).d || 0))}))};
     });
     const complete = all.slice(0, -1), recent = scoped ? show.filter((d) => d < all[all.length - 1]) : period === 'week' ? complete.slice(-52) : period === 'month' ? complete.slice(-12) : complete;
-    const avg = recent.length ? recent.reduce((s, d) => s + toU(val(d)), 0) / recent.length : null;
-    const pool = scoped ? show : all, best = pool.reduce((b, d) => (val(d) > val(b) ? d : b), pool[0]);
+    const avg = paceMetric ? null : recent.length ? recent.reduce((s, d) => s + metricValue(d), 0) / recent.length : null;
+    const pool = scoped ? show : all, entries = pool.map(d => ({d, value: metricValue(d)})).filter(x => x.value > 0);
+    const bestEntry = entries.reduce((b, x) => !b || (paceMetric ? metric === 'speed' ? x.value > b.value : x.value < b.value : x.value > b.value) ? x : b, null);
     const rangeName = scoped ? (R.from === R.to ? String(R.from) : `${R.from || 'start'}–${R.to || 'now'}`) : '';
-    const word = {week: 'week', month: 'month', year: 'year'}[period], fmt = (v) => `${v >= 100 ? Math.round(v) : v.toFixed(1)} ${U.du()}`;
+    const word = {week: 'week', month: 'month', year: 'year'}[period];
+    const fmt = metric === 'distance' ? (v) => `${v >= 100 ? Math.round(v) : v.toFixed(1)} ${U.du()}` : metric === 'time' ? (v) => dur(v, true) : metric === 'speed' ? (v) => `${U.speed(v)} ${U.su()}` : (v) => `${U.pace(v)} ${U.pu()}`;
     const cur = all[all.length - 1], last = all[all.length - 2];
     const focusTable=restoreTableFocus||(body.contains(document.activeElement)&&document.activeElement?.matches('[data-progress-table]'));restoreTableFocus=false;
-    const defaultPeriodLabel = 'This ' + word, defaultPeriodValue = toU(val(cur)).toFixed(1);
+    const displayValue = value => metric === 'distance' ? value.toFixed(1) : metric === 'time' ? (value ? dur(value, true) : '–') : value ? (metric === 'speed' ? U.speed(value) : U.pace(value)) : '–';
+    const statUnit = metric === 'distance' ? U.du() : metric === 'pace' ? U.pu() : metric === 'speed' ? U.su() : '';
+    const defaultPeriodLabel = 'This ' + word, defaultPeriodValue = displayValue(metricValue(cur));
     const periodStat = index => {
       const statBox = $('.progress-total-stats .stat:first-child', box), small = $('small', statBox), value = $('b', statBox);
       if (!statBox) return;
@@ -1506,18 +1579,41 @@ async function pMileage(body, q, {home=false}={}) {
       const d = cols[index].d;
       small.textContent = period === 'week' ? d.toLocaleDateString([], {month: 'short', day: 'numeric'}) + ' week'
         : period === 'month' ? d.toLocaleDateString([], {month: 'short', year: 'numeric'}) : String(d.getFullYear());
-      value.firstChild.nodeValue = toU(val(d)).toFixed(1);
+      value.firstChild.nodeValue = displayValue(metricValue(d));
     };
+    let avgValue = avg, bestValue = bestEntry?.value ?? null;
+    if (paceMetric) {
+      const distance = chartPeriods.reduce((n, d) => n + val(d, 'd'), 0), time = chartPeriods.reduce((n, d) => n + val(d, 't'), 0);
+      avgValue = metric === 'speed' ? (time > 0 ? distance / time : null) : (distance > 0 ? time / (distance / 1000) : null);
+      const shown = chartPeriods.map(metricValue).filter(v => v > 0);
+      bestValue = shown.length ? metric === 'speed' ? Math.max(...shown) : Math.min(...shown) : null;
+    }
+    const averageLabel = paceMetric ? period === 'week' ? '12-wk avg' : period === 'month' ? '12-mo avg' : 'Year avg'
+      : metric === 'time' ? {week: 'Weekly avg', month: 'Monthly avg', year: 'Yearly avg'}[period]
+        : {week: 'Weekly avg', month: 'Monthly avg', year: 'Yearly avg'}[period];
+    const bestLabel = paceMetric ? `Fastest ${word}` : `Best ${word}`;
+    const table = metric === 'distance' || metric === 'time';
+    const chartLabel = `${metric === 'speed' ? 'Average speed' : metric === 'pace' ? 'Average pace' : metric === 'time' ? 'Activity time' : 'Distance'} by ${period}`;
     box.innerHTML = `<div class="card"><div class="stats3 progress-total-stats">
-        ${stat('This ' + word, toU(val(cur)).toFixed(1), U.du())}
-        ${home&&avg==null?'':stat({week: 'Weekly avg', month: 'Monthly avg', year: 'Yearly avg'}[period], avg == null ? '–' : avg.toFixed(1), U.du()).replace('class="stat"','class="stat progress-average"')}
-        ${stat('Best ' + word + (scoped ? ' (range)' : ''), toU(val(best)).toFixed(period === 'year' ? 0 : 1), U.du())}</div>
-        ${home?'':`<p class="small muted">${last ? `Last ${word}: ${esc(fmt(toU(val(last))))} · ` : ''}best ${esc(label(best).replace('Week of ', 'week of '))}</p>`}
-        <div class="totals-display"><div id="m-chart"${body._showTable?' hidden':''}></div><button type="button" class="totals-table-toggle" data-progress-table aria-pressed="${body._showTable===true}" aria-controls="m-table">Table</button>
+        ${stat(defaultPeriodLabel, displayValue(metricValue(cur)), statUnit)}
+        ${home&&avgValue==null?'':stat(averageLabel, avgValue == null ? '–' : displayValue(avgValue), statUnit).replace('class="stat"','class="stat progress-average"')}
+        ${stat(bestLabel + (scoped ? ' (range)' : ''), bestValue == null ? '–' : displayValue(bestValue), statUnit)}</div>
+        ${paceMetric ? `<p class="small muted progress-pace-window">${period === 'week' ? 'Weekly averages · last 12 weeks' : period === 'month' ? 'Monthly averages · last 12 months' : 'Yearly averages'}</p>` : home?'':`<p class="small muted">${last ? `Last ${word}: ${esc(fmt(metricValue(last)))} · ` : ''}best ${esc(label(bestEntry?.d || cur).replace('Week of ', 'week of '))}</p>`}
+        <div class="totals-display"><div id="m-chart"${body._showTable?' hidden':''}></div>${table?`<button type="button" class="totals-table-toggle" data-progress-table aria-pressed="${body._showTable===true}" aria-controls="m-table">Table</button>
         <div id="m-table" class="tbl-wrap"${body._showTable?'':' hidden'}><table class="tbl"><thead><tr><th>${period === 'week' ? 'Week of' : period === 'month' ? 'Month' : 'Year'}</th><th class="r">${U.du()}</th><th class="r">Time</th><th class="r">#</th><th class="r">Climb</th></tr></thead><tbody>
         ${[...show].reverse().map((d) => `<tr><td>${esc(period === 'week' ? d.toLocaleDateString([], {month: 'short', day: 'numeric', year: '2-digit'}) : period === 'month' ? d.toLocaleDateString([], {month: 'short', year: 'numeric'}) : d.getFullYear())}</td>
-          <td class="r num">${toU(val(d)).toFixed(1)}</td><td class="r num">${val(d, 't') ? dur(val(d, 't'), true) : '–'}</td><td class="r num">${val(d, 'n')}</td><td class="r num">${val(d, 'a') ? U.elev(val(d, 'a')) : '–'}</td></tr>`).join('')}</tbody></table></div></div></div>`;
-    requestAnimationFrame(() => {periodBars($('#m-chart', box), cols, {keys, fmt, yfmt: (v) => String(Math.round(v)), avg, avgLabel: period === 'year' ? 'Yearly average' + (scoped ? ` (${rangeName})` : '') : `Average ${period} (${scoped ? rangeName : 'last 12 months'})`, avgLineLabel: 'avg', avgLegend: false, height: home?165:190, distance: sport === 'all', inlineSelection: true, onSelectPeriod: periodStat});if(focusTable&&body.isConnected&&document.activeElement===document.body)$('[data-progress-table]',box)?.focus({preventScroll:true});});
+          <td class="r num">${toU(val(d)).toFixed(1)}</td><td class="r num">${val(d, 't') ? dur(val(d, 't'), true) : '–'}</td><td class="r num">${val(d, 'n')}</td><td class="r num">${val(d, 'a') ? U.elev(val(d, 'a')) : '–'}</td></tr>`).join('')}</tbody></table></div>`:''}</div></div>`;
+    requestAnimationFrame(() => {
+      if (paceMetric) {
+        const points = chartPeriods.map(d => { const value = metricValue(d); return value > 0 ? {x: new Date(d).getTime() / 864e5, y: value} : null; }).filter(Boolean);
+        dotChart($('#m-chart', box), points, {yfmt: v => metric === 'speed' ? U.speed(v) : U.pace(v), invert: metric === 'pace', line: true, height: home ? 150 : 180});
+        const svgChart = $('#m-chart svg', box); if (svgChart) svgChart.setAttribute('aria-label', `${chartLabel}; ${period === 'week' ? 'last 12 weeks' : period === 'month' ? 'last 12 months' : 'all recorded years'}`);
+      } else {
+        periodBars($('#m-chart', box), cols, {keys, fmt, yfmt: metric === 'time' ? v => dur(v, true) : v => String(Math.round(v)), avg, avgLabel: period === 'year' ? 'Yearly average' + (scoped ? ` (${rangeName})` : '') : `Average ${period} (${scoped ? rangeName : 'last 12 months'})`, avgLineLabel: 'avg', avgLegend: false, height: home?165:190, distance: sport === 'all' && metric === 'distance', inlineSelection: true, onSelectPeriod: periodStat});
+        const svgChart = $('#m-chart svg', box); if (svgChart) svgChart.setAttribute('aria-label', `${chartLabel}. Use Left and Right arrows to choose a period; press Enter or Space to select it.`);
+      }
+      if(focusTable&&body.isConnected&&document.activeElement===document.body)$('[data-progress-table]',box)?.focus({preventScroll:true});
+    });
   });
 }
 
