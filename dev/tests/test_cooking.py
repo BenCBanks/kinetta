@@ -178,7 +178,7 @@ check('not logged in -> 401', Client().get('/api/dishes')[0] == 401)
 s, m = b.post('/api/dishes', {'name': 'Test big'})
 for i in range(60): b.post(f'/api/dishes/{m["id"]}/items', {'name': f'Thing {i}', 'grams': 1, 'kcal': 1})
 s, r = b.post(f'/api/dishes/{m["id"]}/items', {'name': 'More', 'grams': 1, 'kcal': 1})
-check('61st item -> 400 with next step', s == 400 and r.get('detail') == 'A recipe can have up to 60 ingredients. Remove one before adding another.', r)
+check('61st item -> 400 with next step', s == 400 and r.get('detail') == 'This recipe can have up to 60 ingredients; remove one before adding another.', r)
 
 # ---- delete keeps logged entries; old recipe routes are gone ----
 check('delete dish', b.delete(f'/api/dishes/{kid}')[0] == 200 and b.get(f'/api/dishes/{kid}')[0] == 404)
