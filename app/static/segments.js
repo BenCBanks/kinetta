@@ -53,7 +53,7 @@ const Segments = (() => {
       const emptyMessage=term?'Try another search or sport.':filter==='mine'||filter==='near'?'':filter==='saved'?'Open a segment and tap Save to keep it here.':'Try a search or another sport.';
       box.innerHTML = rows.length ? `<div class="card list">${rows.map((r) => `<a class="row-link" href="/segments/${r.id}">${r.line ? miniRoute(r.line, r.sport) : ''}<span class="grow"><b>${esc(r.name)}</b>
           <small class="muted">${esc(sportName(r.sport))} · ${U.dist(r.distance_m)} ${U.du()}${r.ascent_m != null ? ` · ↑ ${U.elev(r.ascent_m)} ${U.eu()}` : ''}${r.audience === 'me' ? ' · only you' : ''}${r.status === 'retired' ? ' · retired' : ''}${r.saved ? ' · saved' : ''}</small></span>${svg('chev')}</a>`).join('')}</div>`
-        : `<div class="card empty${canCreate?' segment-empty':''}"><b>${emptyTitle}</b>${canCreate?`<p class="small muted">Pick a stretch from one of your activities</p><button type="button" class="primary wide" id="sg-empty-create">Create a segment</button>${filter==='near'?'<p class="small muted">Move the map to look around</p>':''}`:emptyMessage}</div>`;
+        : `<div class="card empty${canCreate?' segment-empty':''}"><b>${emptyTitle}</b>${canCreate?`<p class="small muted">Pick a stretch from one of your activities.</p><button type="button" class="primary wide" id="sg-empty-create">Create a segment</button>${filter==='near'?'<p class="small muted">Move the map to look around</p>':''}`:emptyMessage}</div>`;
       const create=$('#sg-empty-create',box);if(create)create.onclick=()=>go('/segments/new');
     };
     if (filter === 'near' && !term) {

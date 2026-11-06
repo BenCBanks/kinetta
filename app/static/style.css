@@ -3156,6 +3156,7 @@ html.keyboard-open .thread-quick-actions {display:none;}
 #sg-list .segment-empty {display:grid;justify-items:center;gap:8px;}
 #sg-list .segment-empty b {margin:0;font-size:16px;}
 #sg-list .segment-empty .small {max-width:30ch;margin:0;}
+#sg-list .segment-empty > p.small:first-of-type {margin-bottom:4px;}
 #sg-list .segment-empty .primary {width:min(100%,280px);margin:0;}
 
 .progress-home-totals #m-chart .legend { display:none; }
