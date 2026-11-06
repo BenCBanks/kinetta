@@ -21,6 +21,10 @@ function activityMonthKey(iso) {
 }
 function activityMonthName(month) { return fdate(`${month}-01T12:00:00Z`, {timeZone:'UTC',month:'long',year:'numeric'}); }
 
+// Owner achievement summaries live on the full profile; these two destinations share its worker-backed response.
+route(/^\/me\/achievements$/, 'me', async el=>ProfileLayout.achievementPage(el));
+route(/^\/me\/achievements\/([^/]+)$/, 'me', async (el,code)=>ProfileLayout.achievementPage(el,code));
+
 // The owner history is rendered by the profile route; enhance its activity-list header here so the
 // activity lane can own this control without changing the separate social/profile controller.
 async function jumpOwnerActivitiesToMonth(list, month, button) {

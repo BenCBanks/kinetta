@@ -24,9 +24,13 @@
 #person-profile .profile-activities { margin-top:12px; }
 .profile-achievements { margin-top:18px; }
 .profile-achievements h2 { margin:0 0 4px; font-size:1.125rem; }
-.profile-achievement { display:grid; grid-template-columns:22px minmax(0,1fr) auto; align-items:start; gap:8px; padding:8px 0; border-bottom:1px solid var(--line); }
+.profile-achievements h2 a { display:flex; align-items:center; justify-content:space-between; min-height:44px; color:inherit; text-decoration:none; }
+.profile-achievements h2 a:focus-visible,.profile-achievement:focus-visible,.profile-achievement-history a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
+.profile-achievements h2 a span { color:var(--tx2); font-size:1.25rem; font-weight:500; }
+.profile-achievement { display:grid; grid-template-columns:22px minmax(0,1fr) auto; align-items:start; gap:8px; min-height:44px; padding:8px 0; border-bottom:1px solid var(--line); color:inherit; text-decoration:none; }
 .profile-achievement:last-child { border-bottom:0; }
-.profile-achievement-icon { font-family:Apple Color Emoji,"Segoe UI Emoji","Noto Color Emoji",sans-serif; font-size:1.0625rem; line-height:1.35; }
+.profile-achievement-icon,.profile-achievement-page-icon { font-family:Apple Color Emoji,"Segoe UI Emoji","Noto Color Emoji",sans-serif; }
+.profile-achievement-icon { font-size:1.0625rem; line-height:1.35; }
 .profile-achievement-copy { display:flex; flex-direction:column; min-width:0; gap:1px; }
 .profile-achievement-name { font-size:1rem; line-height:1.3; font-weight:600; overflow-wrap:anywhere; }
 .profile-achievement-value { color:var(--tx2); font-size:.875rem; line-height:1.35; overflow-wrap:anywhere; }
@@ -34,6 +38,14 @@
 .profile-achievement-progress { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:3px; width:80px; margin-top:5px; }
 .profile-achievement-progress span { height:2px; background:var(--line); }
 .profile-achievement-progress .filled { background:var(--accent); }
+.profile-achievement-page-icon { margin-right:7px; font-size:1.05em; }
+.profile-achievement-history { margin:8px 0 0; padding:0; list-style:none; border-top:1px solid var(--line); }
+.profile-achievement-history li { border-bottom:1px solid var(--line); }
+.profile-achievement-history a,.profile-achievement-history-missing { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:44px; padding:6px 0; color:inherit; text-decoration:none; }
+.profile-achievement-history a>span:first-child,.profile-achievement-history-missing>span:first-child { min-width:0; overflow-wrap:anywhere; font-size:1rem; font-weight:600; }
+.profile-achievement-history time { flex:none; color:var(--tx2); font-size:.875rem; white-space:nowrap; }
+.profile-achievement-history-chevron { flex:none; color:var(--tx2); font-size:1.25rem; font-weight:500; }
+.profile-achievement-next-tier { margin:12px 0 0; color:var(--tx2); font-size:.875rem; }
 .profile-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,5.5rem),1fr)); gap:14px; margin:14px 0 4px; }
 .profile-stats .stat { min-width:0; overflow-wrap:anywhere; }
 .profile-stats .stat b { font-size:var(--text-app-stat); }

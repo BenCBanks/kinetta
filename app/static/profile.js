@@ -23,8 +23,11 @@ const ProfileLayout=(()=>{
   const hours=s=>s>=360000?`${big(Math.floor(s/3600))}h`:dur(s,true);
   const achievementIcons={consistency:'🔥',years_active:'📅',workouts:'💪',active_time:'⏱️',journey:'🌍',climbing:'⛰️',lifted:'🏋️',personal_bests:'🏅','sport:run':'🏃','sport:ride':'🚴','sport:walk-hike':'🥾','sport:swim':'🏊','sport:lift':'🏋️'};
   const achievementNumber=n=>Number.isFinite(Number(n))?Number(n).toLocaleString(undefined,{maximumFractionDigits:1}):'—';
+  const achievementDay=track=>(track.tiers||[]).reduce((day,tier)=>String(tier.day||'')>day?String(tier.day):day,'')||String(track.day||'');
+  function startedAchievements(data){return (Array.isArray(data?.tracks)?data.tracks:[]).filter(t=>t&&Array.isArray(t.tiers)&&t.tiers.length>0).sort((a,b)=>achievementDay(b).localeCompare(achievementDay(a))||Number(b.level)-Number(a.level));}
+  const achievementHref=track=>'/me/achievements/'+encodeURIComponent(track.code);
   function achievementValue(track){
-    const latest=track.tiers?.at(-1),value=achievementNumber(track.display_value),unit=track.display_unit||'';
+    const latest=track.tiers?.at(-1),raw=Number(track.display_value),value=track.code==='journey'&&Number.isFinite(raw)?Math.round(raw).toLocaleString():achievementNumber(track.display_value),unit=track.display_unit||'';
     if(track.code==='journey')return `${latest?.label||track.label} · ${value} ${unit}`.trim();
     if(track.code==='climbing')return latest?.label||`${value} ${unit}`.trim();
     const suffix=['workouts','personal_bests','sport:lift'].includes(track.code)?'':unit;
@@ -37,24 +40,55 @@ const ProfileLayout=(()=>{
     const filled=Math.floor(ratio*4);
     return `<div class="profile-achievement-progress" role="img" aria-label="Next ${esc(next?.label||'landmark')}">${[0,1,2,3].map(i=>`<span${i<filled?' class="filled"':''}></span>`).join('')}</div>`;
   }
+  function achievementRow(track){
+    const next=track.next,journey=track.code==='journey',climbing=track.code==='climbing';
+    const nextText=next&&!journey?`<span class="profile-achievement-next">next ${esc(climbing?next.label:achievementNumber(next.display_threshold))}</span>`:'';
+    return `<a class="profile-achievement" role="listitem" href="${esc(achievementHref(track))}" data-achievement-code="${esc(track.code)}"><span class="profile-achievement-icon" aria-hidden="true">${achievementIcons[track.code]||'🏅'}</span><span class="profile-achievement-copy"><span class="profile-achievement-name">${esc(track.label||track.code)}</span><span class="profile-achievement-value">${esc(achievementValue(track))}</span>${journey&&next?achievementProgress(track):''}</span>${nextText}</a>`;
+  }
   function achievementPanel(data){
-    const latestDay=track=>(track.tiers||[]).reduce((day,tier)=>String(tier.day||'')>day?String(tier.day):day,'')||String(track.day||'');
-    const tracks=(Array.isArray(data?.tracks)?data.tracks:[]).filter(t=>t&&Array.isArray(t.tiers)&&t.tiers.length&&Number(t.level)>0)
-      .sort((a,b)=>latestDay(b).localeCompare(latestDay(a))).slice(0,4);
+    const tracks=startedAchievements(data).slice(0,4);
     if(!tracks.length)return '';
-    return `<section class="profile-achievements" aria-label="Achievements"><h2>Achievements</h2><div class="profile-achievement-list" role="list">${tracks.map(track=>{
-      const next=track.next,journey=track.code==='journey',climbing=track.code==='climbing',nextText=next&&!journey?`<span class="profile-achievement-next">next ${esc(climbing?next.label:achievementNumber(next.display_threshold))}</span>`:'';
-      return `<div class="profile-achievement" role="listitem" data-achievement-code="${esc(track.code)}"><span class="profile-achievement-icon" aria-hidden="true">${achievementIcons[track.code]||'🏅'}</span><span class="profile-achievement-copy"><span class="profile-achievement-name">${esc(track.label||track.code)}</span><span class="profile-achievement-value">${esc(achievementValue(track))}</span>${journey&&next?achievementProgress(track):''}</span>${nextText}</div>`;
-    }).join('')}</div></section>`;
+    return `<section class="profile-achievements" aria-label="Achievements"><h2><a href="/me/achievements">Achievements <span aria-hidden="true">›</span></a></h2><div class="profile-achievement-list" role="list">${tracks.map(achievementRow).join('')}</div></section>`;
   }
   function mountAchievements(box,r){
     if(r?.mine!==true)return;
-    const owner=readOwner();
+    const owner=readOwner(),generation=Symbol('achievements');box._achievementMount=generation;
     api('/api/achievements').then(data=>{
-      if(!box.isConnected||owner!==readOwner()||r.mine!==true)return;
-      const panel=achievementPanel(data);
-      if(panel)box.insertAdjacentHTML('beforeend',panel);
+      if(!box.isConnected||owner!==readOwner()||box._achievementMount!==generation||r.mine!==true)return;
+      box.querySelector('.profile-achievements')?.remove();
+      const panel=achievementPanel(data);if(!panel)return;
+      const activities=box.querySelector('.profile-activities');
+      if(activities)activities.insertAdjacentHTML('beforebegin',panel);else box.insertAdjacentHTML('beforeend',panel);
     }).catch(()=>{});
+  }
+  function achievementPage(el,requestedCode=''){
+    const owner=readOwner(),code=requestedCode?decodeURIComponent(requestedCode):'',profile=profileHref(App.me),active=()=>el.isConnected&&owner===readOwner();
+    el.innerHTML=`<div class="top">${backBtn('Profile')}</div><div id="profile-achievement-page" aria-busy="true"><h1>${code?'Achievement history':'Achievements'}</h1><p class="small muted">Loading…</p></div>`;
+    wireBack(el,profile);
+    const box=$('#profile-achievement-page',el);
+    api('/api/achievements').then(data=>{
+      if(!active()||!box.isConnected)return;
+      const tracks=startedAchievements(data),track=code?tracks.find(t=>t.code===code):null;
+      if(code&&!track){box.innerHTML='<h1>Achievements</h1><p class="small muted">This track has no earned tiers yet.</p>';box.setAttribute('aria-busy','false');return;}
+      if(!code){
+        box.innerHTML=`<h1>Achievements</h1>${tracks.length?`<div class="profile-achievement-list" role="list">${tracks.map(achievementRow).join('')}</div>`:'<p class="small muted">No earned achievements yet.</p>'}`;
+        box.setAttribute('aria-busy','false');return;
+      }
+      const tiers=[...(track.tiers||[])].sort((a,b)=>String(b.day||'').localeCompare(String(a.day||''))||Number(b.rank)-Number(a.rank));
+      const rows=tiers.map(tier=>{
+        const day=String(tier.day||''),date=day?fdate(day+'T12:00',{month:'short',day:'numeric',year:'numeric'}):'';
+        const id=Number(tier.activity_id),href=Number.isSafeInteger(id)&&id>0?`/activity/${id}`:'';
+        const label=esc(tier.label||track.label||'Achievement');
+        return `<li>${href?`<a href="${href}"><span>${label}</span><time datetime="${esc(day)}">${esc(date)}</time><span class="profile-achievement-history-chevron" aria-hidden="true">›</span></a>`:`<span class="profile-achievement-history-missing"><span>${label}</span><time datetime="${esc(day)}">${esc(date)}</time></span>`}</li>`;
+      }).join('');
+      box.innerHTML=`<h1><span class="profile-achievement-page-icon" aria-hidden="true">${achievementIcons[track.code]||'🏅'}</span>${esc(track.label||track.code)}</h1><ol class="profile-achievement-history">${rows}</ol>${track.next?.label?`<p class="profile-achievement-next-tier">Next: ${esc(track.next.label)}</p>`:''}`;
+      box.setAttribute('aria-busy','false');
+    }).catch(error=>{
+      if(!active()||!box.isConnected)return;
+      box.innerHTML=`<h1>Achievements</h1><p class="small err" role="alert">${esc(error?.message||'Achievements are unavailable.')}</p><button class="ghost" type="button" data-achievement-retry>Try again</button>`;
+      box.setAttribute('aria-busy','false');
+      $('[data-achievement-retry]',box).onclick=()=>achievementPage(el,requestedCode);
+    });
   }
   function numbers(row,selected){
     return selected.map(key=>{
@@ -89,7 +123,7 @@ const ProfileLayout=(()=>{
     if(chart)mileageChart(chart,r.mileage||{},'days',{shared:true});
     feedMaps(box);wireCheers(box);mountAchievements(box,r);
   }
-  return {defaults,normalize,singlePeriod,numbers,content,mount,distance,hours,labels:{sections,stats},sports};
+  return {defaults,normalize,singlePeriod,numbers,content,mount,distance,hours,labels:{sections,stats},sports,achievementPage};
 })();
 
 // Me leads with the card friends see, then a private dashboard (owner-approved mockup, 29 October 2026). The card uses the
