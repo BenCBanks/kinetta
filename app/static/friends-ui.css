@@ -19,6 +19,7 @@
 .friends-page .friend-request-summary svg { width:16px;height:16px;flex:none;color:var(--tx2); }
 .friends-page .sec-head { font-size:var(--text-app-section);margin:14px 0 8px; }
 .friends-page .person { gap:8px;padding:8px 0;min-height:56px; }
+.friends-page #fr-found > .person { border:0;background:none;box-shadow:none; }
 .friends-page .person-link { gap:8px; }
 .friends-page .person-link .av { width:30px;height:30px;font-size:.8125rem;flex:none; }
 .friends-page .person-link .grow { min-width:0; }

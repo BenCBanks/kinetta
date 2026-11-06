@@ -62,7 +62,7 @@ const FriendsUI=(()=>{
   const btnFor=p=>p.status==='friends'?status('Friends'):p.status==='sent'||p.status==='incoming'?status('Requested'):`<button type="button" class="search-add" data-add="${esc(p.login)}" aria-label="Add ${esc(p.name)} as a friend">${svg('plus')}</button>`;
   const drawResults=(rows,pending=false)=>{
     rows=rows.filter(p=>p.login!==App.me.login);
-    found.innerHTML=`${rows.length||pending?'<h2 class="sec-head">People</h2>':''}<div class="card list">${rows.length?rows.map(p=>person(p,btnFor(p))).join(''):pending?'<p class="small muted">Searching…</p>':'<p class="small muted">No people found. Try their full username, or check the spelling.</p>'}</div>`;
+    found.innerHTML=rows.length?rows.map(p=>person(p,btnFor(p))).join(''):pending?'<p class="small muted">Searching…</p>':'<p class="small muted">No people found. Try their full username, or check the spelling.</p>';
     $$('[data-add]',found).forEach(button=>button.onclick=async()=>{
       if(!live()||button.disabled)return;const label=button.getAttribute('aria-label');button.disabled=true;button.classList.add('is-pending');button.setAttribute('aria-busy','true');button.setAttribute('aria-label',label.replace(/^Add /,'Sending request to '));
       try{const r=await api('/api/friends',json('POST',{login:button.dataset.add}));if(!live())return;toast(r.status==='friends'?`You and ${r.name} are friends now`:`Request sent to ${r.name}`);await refresh();}

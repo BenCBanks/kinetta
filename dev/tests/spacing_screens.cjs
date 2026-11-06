@@ -23,8 +23,8 @@ const scenes=fixtures=>[
  {name:'Quick weight sheet',login:'alex',route:'/me',entryReady:'.me-card-sections[aria-busy="false"]',ready:'#quick-weight',modal:'weight'},
  {name:'Share card choices',login:'alex',route:'/me',entryReady:'.me-card-sections[aria-busy="false"]',ready:'#card-achievements',modal:'share-card'},
  {name:'Public link confirmation',login:'alex',route:'/me',entryReady:'.me-card-sections[aria-busy="false"]',ready:'#card-rotate',modal:'card'},
- {name:'Remove friend confirmation',login:'zz_test_fc_typical',route:'/me/friends',entryReady:'#fr-own-list',ready:'[data-confirm]',modal:'remove'},
- {name:'Block friend confirmation',login:'zz_test_fc_typical',route:'/me/friends',entryReady:'#fr-own-list',ready:'[data-confirm]',modal:'block'},
+ {name:'Remove friend confirmation',login:'zz_test_fc_typical',route:'/people/zz_test_fc_peer00',entryReady:'#person-profile [data-person-manage]',ready:'[data-confirm]',modal:'remove'},
+ {name:'Block friend confirmation',login:'zz_test_fc_typical',route:'/people/zz_test_fc_peer00',entryReady:'#person-profile [data-person-manage]',ready:'[data-confirm]',modal:'block'},
  {name:'Activity photo viewer',login:'zz_test_detail_owner',route:'/activity/'+fixtures.detail.run,entryReady:'[data-media-photo]',ready:'.ph-view',modal:'photo'},
  {name:'Activity full map',login:'zz_test_detail_owner',route:'/activity/'+fixtures.detail.run,entryReady:'.detail-map-hero .leaflet-tile-loaded',ready:'.map.full',modal:'map'},
 ];
@@ -55,10 +55,13 @@ async function modalState(page,kind){
  else if(kind==='card'){await page.evaluate(()=>KinettaCard.open());await page.locator('#card-new').click();}
  else if(kind==='photo')await page.locator('[data-media-photo]').first().click();
  else if(kind==='map')await page.locator('.detail-map-hero .map-full').click();
+ else if(kind==='remove'||kind==='block'){
+  await page.locator('#person-profile [data-person-manage]').click();
+  await page.locator(kind==='remove'?'[data-remove]':'[data-block]').click();
+ }
  else await page.evaluate(kind=>{
-  if(kind==='remove'||kind==='block')friendChangeSheet({name:'Fictional friend',login:'zz_test_fc_peer00'},kind==='block',()=>{});
   // Prepared content verifies the shared pinned header without invoking a page-specific save.
-  else sheet('Details','<form class="form" id="spacing-pinned"><label>Name<input value="Fictional draft"></label></form>',null,{save:'spacing-pinned'});
+  sheet('Details','<form class="form" id="spacing-pinned"><label>Name<input value="Fictional draft"></label></form>',null,{save:'spacing-pinned'});
  },kind);
 }
 module.exports={scenes,initialize,notificationState,modalState};
