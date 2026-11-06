@@ -7,10 +7,10 @@ on:
     - cron: "15 5 * * *"
   push:
     branches: [main]
-    paths: ["app/static/**", "dev/demo/**", "dev/screenshots/**"]
+    paths: ["app/static/**", "dev/demo/**", "dev/screenshots/**", "dev/tests/map_feedback_ui.cjs"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
-    paths: ["dev/screenshots/**", ".github/workflows/screenshots.yml"]
+    paths: ["dev/screenshots/**", "dev/tests/map_feedback_ui.cjs", ".github/workflows/screenshots.yml"]
   workflow_dispatch:
 permissions:
   contents: write
