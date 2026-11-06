@@ -17,5 +17,5 @@ assert(escaped.includes('5K &lt;script&gt;'));assert(escaped.includes('track &am
 assert(helpers.source({label:'5K',from:{}}).includes('Source unavailable'));
 assert.equal(helpers.best({best_s:1170,best_year:2024}),'19:30 · 2024');
 assert.equal(helpers.best({best_s:1170,best_year:null}),'19:30');
-assert.equal(helpers.best({best_s:null,best_year:null}),'not recorded');
+assert.equal(helpers.best({best_s:null,best_year:null}),null);
 console.log('Prediction detail: quiet dated best, missing reference, escaped plain-text sources and invalid-source fallback PASS');

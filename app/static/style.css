@@ -652,7 +652,10 @@ tr.muted td { color: var(--tx3); }
 .prediction-method summary::after { content:'›'; font-size:1.25em; transform:rotate(90deg); transition:transform .15s; }
 .prediction-method[open] summary::after { transform:rotate(-90deg); }
 .prediction-method p { margin:8px 0 12px; line-height:1.6; }
-.fitness-predictions .prediction-current { margin:0 0 8px; }
+.fitness-running-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
+.fitness-running-heading h2 { margin:0; }
+.fitness-running-heading .rng { margin:0; }
+.fitness-running-heading .range-btn { font-size:max(15px,.9375rem); }
 .fitness-predictions .pred { gap:8px 12px; }
 .fitness-predictions .pred > .prediction-cell { display:grid; align-content:start; gap:2px; min-width:0; padding:8px 0; border-top:1px solid var(--line); border-radius:0; background:transparent; }
 .fitness-predictions .pred b { font-size:max(20px,1.5rem); font-weight:600; }
