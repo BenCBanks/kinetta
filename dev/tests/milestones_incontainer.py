@@ -24,6 +24,12 @@ class Milestones(unittest.TestCase):
  def activity(self,days=0,sport='run',distance=10000,uid=None,source='manual',device=None):
   at=(self.now-dt.timedelta(hours=2)).astimezone(M.ZoneInfo('America/New_York'))-dt.timedelta(days=days)
   with db.connect() as c:return c.execute("INSERT INTO activities(user_id,sport,name,start_time,distance_m,moving_s,elapsed_s,source,device,visibility) VALUES(%s,%s,'PRIVATE WORKOUT TITLE',%s,%s,3600,3600,%s,%s,'me') RETURNING id",(uid or self.ids[0],sport,at,distance,source,device)).fetchone()['id']
+ def lifted_activity(self,days,kg):
+  aid=self.activity(days=days,sport='workout',distance=0)
+  with db.connect() as c:
+   exercise=c.execute("INSERT INTO exercises(user_id,name,kind) VALUES(%s,'Fictional achievement lift','weight') ON CONFLICT(user_id,name) DO UPDATE SET kind=excluded.kind RETURNING id",(self.ids[0],)).fetchone()['id']
+   c.execute('INSERT INTO lift_sets(user_id,activity_id,exercise_id,pos,n,reps,kg,done,warmup) VALUES(%s,%s,%s,0,1,100,%s,true,false)',(self.ids[0],aid,exercise,kg))
+  return aid
  def process(self,uid=None):
   with patch('app.notify._push_later'):
    until=time.monotonic()+5
@@ -132,6 +138,28 @@ class Milestones(unittest.TestCase):
   self.assertEqual(workout['value'],10,'A later edit or deletion must not reduce lifetime progress')
   self.assertEqual(workout['level'],1)
   self.assertIn('track:workouts:1',[tier['code'] for tier in workout['history']])
+
+ def test_v2_history_uses_exact_crossing_dates_and_legacy_dates_after_deletion(self):
+  activities=[self.lifted_activity(days,kg) for days,kg in ((8,1000),(5,1000),(2,50),(1,1000))]
+  self.process()
+  response=self.clients[0].get('/api/achievement-history/lifted');self.assertEqual(response.status_code,200,response.text)
+  tiers=response.json()['tiers'];names=[row['name'] for row in tiers]
+  self.assertEqual(names,['A car','An elephant','A school bus','A loaded semi truck','A blue whale','Statue of Liberty'])
+  statue=next(row for row in tiers if row['name']=='Statue of Liberty')
+  expected=(self.now-dt.timedelta(hours=2)-dt.timedelta(days=2)).astimezone(M.ZoneInfo('America/New_York')).date().isoformat()
+  self.assertEqual(statue['day'],expected,'the v2 level date is when the cumulative total first passed 204,117 kg')
+  self.assertEqual(statue['activity_id'],activities[2])
+  self.assertEqual(statue['date_source'],'activity')
+  self.assertEqual(self.clients[1].get('/api/achievement-history/lifted').json()['tiers'],[],'history remains private to its owner')
+  with db.connect() as c:
+   saved=c.execute("SELECT day FROM milestones WHERE user_id=%s AND kind='track' AND details->>'track'='lifted' AND (details->>'threshold')::double precision=300000",(self.ids[0],)).fetchone()
+   self.assertIsNotNone(saved,'the worker keeps the legacy crossing date')
+   c.execute('DELETE FROM activities WHERE user_id=%s AND id=ANY(%s)',(self.ids[0],activities))
+  fallback=self.clients[0].get('/api/achievement-history/lifted');self.assertEqual(fallback.status_code,200,fallback.text)
+  statue=next(row for row in fallback.json()['tiers'] if row['name']=='Statue of Liberty')
+  self.assertEqual(statue['day'],saved['day'].isoformat(),'a durable legacy milestone supplies the date after source deletion')
+  self.assertEqual(statue['date_source'],'legacy')
+  self.assertIsNone(statue['activity_id'],'a deleted activity does not leave a dead history link')
  def test_units_are_the_account_units_and_nonstandard_efforts_are_excluded(self):
   with db.connect() as c:c.execute("UPDATE profile SET units='imperial' WHERE user_id=%s",(self.ids[0],))
   aid=self.activity(distance=161000);self.process();items=self.items();year=[x for x in items if x['kind']=='year_distance'];self.assertEqual(year[0]['details']['unit'],'mi');self.assertIn('100 miles',year[0]['title'])

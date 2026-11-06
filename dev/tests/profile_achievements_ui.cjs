@@ -17,6 +17,19 @@ assert.equal(catalog.tail.first_multiple,2);
 
 const makeTrack=(code,label,level,value,displayValue,displayUnit,tiers,next)=>({code,label,level,value,display_value:displayValue,display_unit:displayUnit,tiers,next});
 const tier=(rank,label,threshold,day,activity_id)=>({rank,label,title:label,threshold,unit:'count',day,activity_id});
+const catalogValue=level=>{
+ const value=Number(level.canonical_value)||0;
+ return level.canonical_unit==='km'?value*1000:level.canonical_unit==='hours'?value*3600:value;
+};
+const v2History=(code,overrides={})=>{
+ const definition=catalog.tracks[code],track=achievementFixture.tracks.find(row=>row.code===code);
+ if(!definition||!track)return{code,tiers:[],pending:false};
+ const value=Number(overrides[code]??track.value)||0;
+ const levels=definition.levels.map((level,index)=>({rank:index+1,name:level.name,threshold:catalogValue(level)})).filter(level=>level.threshold<=value);
+ const last=definition.levels.at(-1),base=catalogValue(last);let multiple=Math.max(2,Number(catalog.tail.first_multiple)||2);
+ while(base>0&&base*multiple<=value&&levels.length<10000){levels.push({rank:levels.length+1,name:`${last.name} ×${multiple}`,threshold:base*multiple});multiple++;}
+ return{code,pending:false,tiers:levels.map((level,index)=>({...level,day:new Date(Date.UTC(2026,9,1+index)).toISOString().slice(0,10),activity_id:3000+index,date_source:'activity'}))};
+};
 const stripCss='.profile-achievement-level-strip{padding:24px 16px}.profile-achievement-level-strip h1{margin:0 0 8px;font-size:1.35rem}.profile-achievement-level-strip>p{max-width:340px;margin:0 0 20px;color:var(--tx2)}.profile-achievement-level-swatches{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:8px;max-width:358px}.profile-achievement-level-swatch{--achievement-palette-base:var(--run);display:flex;flex-direction:column;align-items:center;gap:7px}.profile-achievement-level-swatch .profile-achievement-medallion{flex-basis:34px;width:34px;height:34px}.profile-achievement-level-swatch .profile-achievement-ring{inset:0}.profile-achievement-level-swatch .profile-achievement-icon{width:16px;height:16px}.profile-achievement-level-swatch small{color:var(--tx2);font-size:.7rem}.profile-achievement-level-swatch .profile-achievement-value,.profile-achievement-level-swatch .profile-achievement-level{display:none}:root[data-achievement-evidence="all-tracks"] nav.tabs,:root[data-achievement-evidence="track"] nav.tabs{display:none!important}';
 const achievementFixture={pending:false,tracks:[
  makeTrack('journey','Journey',4,6099414,3790,'mi',[
@@ -86,6 +99,10 @@ module.exports=async({browser,storageState,base,shots})=>{
     if(workouts){workouts.value=workoutValue;workouts.display_value=workoutValue;}
     for(const track of data.tracks)for(const item of track.tiers){const [shown,shownUnit]=displayHistoryTier(track.code,Number(item.threshold)||0,unitMode);item.unit=historyUnits[track.code]||item.unit;item.display_threshold=shown;item.display_unit=shownUnit;}
     return route.fulfill({json:data});
+   }
+   if(request.method()==='GET'&&url.pathname.startsWith('/api/achievement-history/')){
+    const code=decodeURIComponent(url.pathname.slice('/api/achievement-history/'.length));
+    return route.fulfill({json:v2History(code,{'journey':journeyValue,'workouts':workoutValue})});
    }
    if(!['GET','HEAD'].includes(request.method())){writes.push(url.pathname);return route.fulfill({json:{}});}
    return route.continue();
@@ -177,7 +194,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.equal(levelTone.earned,'1','earned levels stay in full colour');assert.equal(levelTone.current,'1','the current level stays in full colour');assert(Number(levelTone.locked)<1,'locked levels are dimmed');
   assert.match(await journeyLevels.innerText(),/After the named levels, the last icon repeats at each multiple\./,'the tail note sits below the Levels list');
   await assertRingText(page.locator('#profile-achievement-page'),'Journey history');
-  assert.deepEqual(await page.locator('.profile-achievement-history li a>span:first-child').allTextContents(),['4,000 km','Length of Britain','Ironman 70.3','Marathon'],'legacy history maps to v2 names by threshold or falls back to a converted amount');
+  assert.deepEqual(await page.locator('.profile-achievement-history li a>span:first-child').allTextContents(),['Across the US','Length of Britain','Ironman 140.6','Ironman 70.3','Marathon'],'history shows only crossed v2 levels in first-crossing order');
   const dateGeometry=await page.locator('.profile-achievement-history li').first().evaluate(li=>{const date=li.querySelector('time').getBoundingClientRect(),chevron=li.querySelector('.profile-achievement-history-chevron').getBoundingClientRect();return{dateRight:date.right,chevronLeft:chevron.left};});
   assert(dateGeometry.dateRight<=dateGeometry.chevronLeft+1,'history dates sit before the chevron');
   await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='track');
@@ -215,7 +232,8 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.equal(await page.locator('.profile-achievement-history-copy .profile-achievement-current').innerText(),'Level 6 · Statue of Liberty');assert.equal(await page.locator('.profile-achievement-history-copy .profile-achievement-current-value').innerText(),'661,387 lb');
   const liftedLevels=page.locator('.profile-achievement-levels ol');assert.equal(await liftedLevels.locator('li').count(),10,'the single Levels list includes the full named track');
   assert.equal(await liftedLevels.locator('li[data-level="7"] .profile-achievement-level-copy>small').innerText(),'875,000 lb','Lifted uses pounds in the existing miles preference');
-  assert.deepEqual(await page.locator('.profile-achievement-history li a>span:first-child').allTextContents(),['661,386.8 lb','A blue whale','An elephant','A car'],'unmapped old history uses the displayed amount and close thresholds get v2 names');
+  assert.deepEqual(await page.locator('.profile-achievement-history li a>span:first-child').allTextContents(),['Statue of Liberty','A blue whale','A loaded semi truck','A school bus','An elephant','A car'],'Lifted history shows each crossed v2 level, including Statue of Liberty');
+  assert.doesNotMatch(await page.locator('.profile-achievement-history').innerText(),/\d[\d,]*\.\d+\s*(?:lb|kg|mi|km|ft|m)\b/,'history never renders decimal amount fallbacks');
   await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='track');await screenshot(page,shots,`achievement-lifted-levels-390-${theme}`,{fullPage:true});await page.evaluate(()=>delete document.documentElement.dataset.achievementEvidence);
 
   const allFixtureTracks=achievementFixture.tracks;achievementFixture.tracks=allFixtureTracks.filter(track=>['lifted','sport:lift'].includes(track.code));
