@@ -49,7 +49,7 @@ html=c.preview.html({...cup,kcal:160},'Kit estimate','40 g');assert.match(html,/
 c.kitChatOn=()=>false;c.kitFoodWords=s=>s||'';c.dayLabel=()=> 'Today';c.choices=()=>'<p>Choose another food</p>';c.removableFood=()=>true;c.removeButtonMarkup=floating=>`<button data-unlogged-remove${floating?' class="thread-remove-floating"':''}>×</button>`;
 vm.runInContext(thread.slice(thread.indexOf('  function changedNumbers('),thread.indexOf('  function previewRows(')),c);
 html=c.replyHtml({id:1,state:'answered',result:{review_only:true}},{entries:[],result:{kind:'preview',meal:'lunch',day:'2026-11-02',pending_count:1,can_resolve:true,parts:[part,{index:1,status:'unknown',entries:[]}]}});
-assert.match(html,/Fictional &lt;penne&gt;/);assert.match(html,/Checking the other foods/);assert(!html.includes('thread-thinking'),'a spinner does not hide a resolved source');assert.equal((html.match(/data-unlogged-remove/g)||[]).length,1,'the single-food card has one whole-card remove control');assert(!html.includes('data-remove-food'),'a single-food card hides its per-food ×');
+assert.match(html,/Fictional &lt;penne&gt;/);assert.match(html,/Checking the other foods/);assert(!html.includes('thread-thinking'),'a spinner does not hide a resolved source');assert.equal((html.match(/data-unlogged-remove/g)||[]).length,0,'the single-food card has no wasted close row');assert.equal((html.match(/data-remove-food/g)||[]).length,1,'the single-food card keeps its remove control on the food title row');
 console.log('Partial food resolution: ready numbers remain visible with a working status PASS');
 
 c.aiCan=()=>false;c.aiOffer=()=>false;

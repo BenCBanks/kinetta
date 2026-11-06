@@ -113,12 +113,11 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    assert.equal(await p.locator('.keyboard-done,.keyboard-done-bar').count(),0);assert(Number.parseFloat(await p.locator('#thread-text').evaluate(n=>getComputedStyle(n).fontSize))>=16);
    await p.locator('.thread-heading .back').click();await ready();assert.equal(new URL(p.url()).searchParams.get('d'),past);await p.locator('.meal-breakfast [data-add]').click();await until(p,()=>App.pageReady&&!!document.querySelector('#thread-text'),'return to draft');assert.equal(await p.locator('#thread-text').inputValue(),draft);await p.locator('#thread-text').fill('');
    if(who==='typical'){
-    // Entered numbers cannot call a catalog/model. The final explicit confirmation must keep the chosen day.
+    // Entered numbers cannot call a catalog/model. One-tap Add keeps the chosen day.
     await p.locator('#thread-plus').click();await p.locator('.sheet .thread-tools button',{hasText:'Manual'}).click();await p.waitForSelector('#ty');
     await p.locator('#ty [name=name]').fill('Fictional past-day meal');await p.locator('#ty [name=kcal]').fill('180');await p.locator('#ty [name=protein_g]').fill('10');await p.locator('#ty button.primary').click();
     await until(p,()=>!!document.querySelector('#thread-review:not([hidden]):not([disabled])'),'ready for review');
-    await p.goto(base+'/food/describe');await until(p,()=>App.pageReady&&!!document.querySelector('#thread-review:not([hidden]):not([disabled])'),'resume review without date in URL');await p.locator('#thread-review').click();await p.waitForSelector('#food-final-review');assert.match(await p.locator('.review-where').innerText(),/Yesterday/);
-    await p.locator('#review-confirm').click();await p.waitForSelector('#food-final-review',{state:'detached'});
+    await p.goto(base+'/food/describe');await until(p,()=>App.pageReady&&!!document.querySelector('#thread-review:not([hidden]):not([disabled])'),'resume review without date in URL');await p.locator('#thread-review-add').click();await until(p,()=>document.querySelector('#toast')?.textContent.includes('Added to Breakfast'),'quick Add keeps the selected day and meal');
     const day=await c.request.get(base+'/api/food/day?d='+past);assert.equal(day.status(),200);const savedDay=await day.json(),entries=savedDay.entries.filter(e=>e.name==='Fictional past-day meal');assert.equal(savedDay.day,past);assert(entries.some(e=>e.meal==='breakfast'),'confirmed food is on the selected day and meal');
     const today=await(await c.request.get(base+'/api/food/day')).json();assert(!today.entries.some(e=>e.name==='Fictional past-day meal'),'past-day food cannot appear in today’s log');
    }

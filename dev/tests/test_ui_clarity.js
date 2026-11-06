@@ -37,7 +37,8 @@ console.log('Food chat: Search tool label PASS');
  for(const tool of ['data-tool="snap"','data-tool="library"','data-tool="scan"','id="thread-search"','id="thread-usuals"','id="thread-recipes"','id="thread-manual-add"'])
   assert(menu.includes(tool),tool+' lives in the + menu');
  const bar=markup.slice(markup.indexOf('class="thread-compose-row"'),markup.indexOf('id="thread-status"'));
- assert.match(bar,/id="thread-plus"[^>]*aria-expanded="false"/);assert.match(bar,/id="thread-text"/);assert.match(bar,/id="thread-send" aria-label="Send"/);
+ assert.match(bar,/id="thread-plus"[^>]*aria-expanded="false"/);assert.match(bar,/id="thread-text"/);assert.match(bar,/id="thread-send" aria-label="Send message"/);
+ assert.match(thread,/send\.setAttribute\('aria-label','Send message'\)/,'sending describes only a message');
  assert.match(markup,/id="thread-settings" aria-label="Food chat settings"/);
  assert.match(thread,/data-more aria-label="More food options"/);assert.match(thread,/class="thread-food" data-entry=/,'tap a logged food to edit it');
  console.log('Food chat: one bar (+, text, send), every tool in the + menu, labelled ⋯ controls, tap-to-edit foods PASS');
