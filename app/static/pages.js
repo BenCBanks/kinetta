@@ -298,7 +298,7 @@ function combinedWeekHtml(w) {
   if(w.seconds>0)stats.push(stat('Time',dur(w.seconds)));
   const food=w.days_logged?`${w.days_logged} of 7 days with food logged.`:'Your food consistency will appear as you log meals.';
   const protein=w.days_logged&&w.protein_target?`${w.protein_days_reached?`${w.protein_days_reached} ${w.protein_days_reached===1?'day':'days'} reached`:'No logged days reached'} your current ${r0(w.protein_target)} g protein target.${w.protein_days_unknown?` ${w.protein_days_unknown} logged ${w.protein_days_unknown===1?'day has':'days have'} unknown protein.`:''}`:'';
-  return `<details class="card combined-week"><summary>Your week in review</summary><p class="small muted">${esc(dayLabel(w.start))} – ${esc(dayLabel(w.end))} · last 7 completed days</p>${stats.length?`<div class="stats3">${stats.join('')}</div>`:'<p>No workouts recorded in this week. Distance and time appear with your workouts.</p>'}<p>${food}</p>${protein?`<p>${protein}</p>`:''}${w.days_logged?'<p class="small muted">Food logged does not mean the whole day is complete. Protein compares known recorded amounts with your current target.</p>':''}<a class="linkbtn" href="${w.days_logged?'/food?view=overview':'/food/describe'}">${w.days_logged?'Food review':'Log food'}</a>${w.workouts?` <a class="linkbtn" href="${profileHref(App.me)}">Your workouts</a>`:''}</details>`;
+  return `<details class="card combined-week"><summary>Your week in review</summary><p class="small muted">${esc(dayLabel(w.start))} – ${esc(dayLabel(w.end))} · last 7 completed days</p>${stats.length?`<div class="stats3">${stats.join('')}</div>`:'<p>No workouts recorded in this week. Distance and time appear with your workouts.</p>'}<p>${food}</p>${protein?`<p>${protein}</p>`:''}<a class="linkbtn" href="${w.days_logged?'/food?view=overview':'/food/describe'}">${w.days_logged?'Food review':'Log food'}</a>${w.workouts?` <a class="linkbtn" href="${profileHref(App.me)}">Your workouts</a>`:''}</details>`;
 }
 function combinedWeek(box) {
   if(!box)return;const owner=readOwner();
@@ -399,11 +399,10 @@ function meInsights(box, s) {
   if (now && past.length >= 3) {
     // Usual = the average full week among the previous six that had any distance.
     const usual = past.reduce((n, w) => n + w.distance_m, 0) / past.length, pct = Math.min(1, (now.distance_m || 0) / usual);
-    rows.push(`<div class="me-insight"><div class="me-insight-top"><span>This week so far</span><b class="num">${esc(U.dist(now.distance_m || 0, 1))} <small>of your usual ${esc(U.dist(usual, 1))} ${esc(U.du())}</small></b></div>
-      <div class="track" role="img" aria-label="${Math.round(pct * 100)}% of your usual week"><div class="bar" data-w="${pct.toFixed(3)}"></div></div><small class="muted">Usual is your average week over the last ${past.length} active weeks.</small></div>`);
+    rows.push(`<div class="me-insight"><div class="me-insight-top"><span>This week so far</span><b class="num">${esc(U.dist(now.distance_m || 0, 1))} <small>of ${esc(U.dist(usual, 1))} ${esc(U.du())} usual week</small></b></div>
+      <div class="track" role="img" aria-label="${Math.round(pct * 100)}% of your usual week"><div class="bar" data-w="${pct.toFixed(3)}"></div></div></div>`);
   }
-  const chips = [s.day_streak > 1 ? `<span class="achievement">${svg('flame')}${s.day_streak}-day streak</span>` : '', s.week_streak > 1 ? `<span class="achievement">${svg('trophy')}${s.week_streak}-week streak</span>` : ''].join('');
-  box.innerHTML = `<section class="card me-insights"><h2>Your insights</h2><div data-insight-rows>${rows.join('')}</div><div data-insight-more></div>${chips ? `<div class="achievement-row">${chips}</div>` : ''}
+  box.innerHTML = `<section class="card me-insights"><h2>Your insights</h2><div data-insight-rows>${rows.join('')}</div><div data-insight-more></div>
     <a class="mileage-progress" href="/progress">View progress ${svg('chev')}</a></section>`;
   // Runners also get recent bests and a pace trend, read from the same records the Progress pages use.
   if (!(s.years || []).some(y => y.sport === 'run')) return;
