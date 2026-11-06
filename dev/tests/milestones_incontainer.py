@@ -96,6 +96,42 @@ class Milestones(unittest.TestCase):
   self.process();items=[x for x in self.items() if x['kind']=='activity_weeks'];self.assertEqual(len(items),1);self.assertEqual(items[0]['details']['amount'],4)
   with db.connect() as c:c.execute("DELETE FROM activities WHERE user_id=%s AND start_time<%s AND start_time>%s",(self.ids[0],self.now-dt.timedelta(days=6),self.now-dt.timedelta(days=9)))
   self.process();self.assertFalse(any(x['kind']=='activity_weeks' for x in self.items()))
+ def test_achievement_tracks_backfill_once_owner_and_keep_best_state(self):
+  activity_ids=[self.activity(days=30,distance=5_000_000) for _ in range(10)]
+  self.process()
+  response=self.clients[0].get('/api/achievements');self.assertEqual(response.status_code,200,response.text)
+  self.assertFalse(response.json()['pending'])
+  states={row['code']:row for row in response.json()['tracks']}
+  self.assertEqual(states['journey']['level'],7)
+  self.assertEqual(states['journey']['value_m'],50_000_000)
+  self.assertEqual(states['journey']['next']['label'],'Around the world ×2')
+  self.assertEqual(states['workouts']['value'],10)
+  self.assertEqual(states['workouts']['next']['threshold'],50)
+  self.assertEqual(next(tier['rank'] for tier in states['workouts']['history'] if tier['code']=='track:workouts:1'),1)
+  self.assertEqual(states['active_time']['value_s'],36_000)
+  self.assertEqual(states['active_time']['next']['threshold'],50*3600)
+  self.assertNotIn('personal_bests',states,'No personal-best event means that track has not started')
+  with db.connect() as c:
+   tiers=c.execute('''SELECT id,code,activity_id,silent FROM milestones
+                      WHERE user_id=%s AND kind='track' AND valid ORDER BY code''',(self.ids[0],)).fetchall()
+  self.assertTrue(tiers)
+  self.assertTrue(all(row['silent'] for row in tiers),'Imported history must backfill without a bell')
+  self.assertEqual(len(tiers),len({row['code'] for row in tiers}))
+  first_ids={row['code']:row['id'] for row in tiers}
+  self.process()
+  with db.connect() as c:
+   after=c.execute('''SELECT id,code FROM milestones WHERE user_id=%s AND kind='track' AND valid ORDER BY code''',(self.ids[0],)).fetchall()
+  self.assertEqual(first_ids,{row['code']:row['id'] for row in after},'Reprocessing must not duplicate or replace a tier')
+  self.assertEqual(self.clients[1].get('/api/achievements').json()['tracks'],[],
+                   'A second account must not see the first owner’s track rows')
+  with db.connect() as c:
+   c.execute('DELETE FROM activities WHERE user_id=%s AND id=ANY(%s)',(self.ids[0],activity_ids[:5]))
+  self.process()
+  updated=self.clients[0].get('/api/achievements').json()
+  workout=next(row for row in updated['tracks'] if row['code']=='workouts')
+  self.assertEqual(workout['value'],10,'A later edit or deletion must not reduce lifetime progress')
+  self.assertEqual(workout['level'],1)
+  self.assertIn('track:workouts:1',[tier['code'] for tier in workout['history']])
  def test_units_are_the_account_units_and_nonstandard_efforts_are_excluded(self):
   with db.connect() as c:c.execute("UPDATE profile SET units='imperial' WHERE user_id=%s",(self.ids[0],))
   aid=self.activity(distance=161000);self.process();items=self.items();year=[x for x in items if x['kind']=='year_distance'];self.assertEqual(year[0]['details']['unit'],'mi');self.assertIn('100 miles',year[0]['title'])
