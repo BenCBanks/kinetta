@@ -264,9 +264,8 @@ function feedCard(a,options={}){
     const p=a.owner,name=esc(p.name||p.login),track=a.is_track?svg('globe','achievement-moment-track'):'',extra=a.extra_count?` and ${a.extra_count} more`:'';
     return `<article class="card achievement-moment" data-feed-key="${esc(feedRowKey(a))}"><div class="achievement-moment-body">
       <a class="post-av" href="${profileHref(p)}" aria-label="${name}’s profile">${avatar(p)}</a><div class="achievement-moment-copy">
-        <p><a class="achievement-moment-name" href="${profileHref(p)}">${name}</a> reached ${esc(a.title)}${track}${extra}</p>
-        <time datetime="${esc(a.start_time)}">${esc(when(a.start_time))}</time></div></div>
-      <div class="post-ft">${reactionButtons(null,a,false,true,{owner:p.login,week:a.week_start})}</div></article>`;
+        <p><a class="achievement-moment-name" href="${profileHref(p)}">${name}</a> reached ${esc(a.title)}${track}${extra}</p></div></div>
+      <div class="post-ft"><time class="achievement-moment-time" datetime="${esc(a.start_time)}">${esc(when(a.start_time))}</time>${reactionButtons(null,a,false,true,{owner:p.login,week:a.week_start})}</div></article>`;
   }
   return postCard(a,options).replace('<article class="card post','<article data-feed-key="'+esc(feedRowKey(a))+'" class="card post');
 }
