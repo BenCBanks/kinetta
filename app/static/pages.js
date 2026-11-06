@@ -21,6 +21,10 @@ function activityMonthKey(iso) {
 }
 function activityMonthName(month) { return fdate(`${month}-01T12:00:00Z`, {timeZone:'UTC',month:'long',year:'numeric'}); }
 
+// Owner achievement summaries live on the full profile; these two destinations share its worker-backed response.
+route(/^\/me\/achievements$/, 'me', async el=>ProfileLayout.achievementPage(el));
+route(/^\/me\/achievements\/([^/]+)$/, 'me', async (el,code)=>ProfileLayout.achievementPage(el,code));
+
 // The owner history is rendered by the profile route; enhance its activity-list header here so the
 // activity lane can own this control without changing the separate social/profile controller.
 async function jumpOwnerActivitiesToMonth(list, month, button) {
@@ -218,12 +222,13 @@ function wireCardTaps(box) {
 }
 const backBtn = (label = 'Me') => `<button class="back" data-back>${svg('back')}${esc(label)}</button>`;
 IC.settings = '<path d="m9 3-.6 2.3-2 .9-2.2-.6-1.5 2.6 1.6 1.7-.2 2.2-1.7 1.6 1.5 2.6 2.3-.6 1.8 1.3.5 2.3h3l.6-2.3 2-.9 2.2.6 1.5-2.6-1.6-1.7.2-2.2 1.7-1.6-1.5-2.6-2.3.6-1.8-1.3L12 3z"/><circle cx="10.5" cy="11" r="3"/>';
-function wireBack(el, fallback) {
+function wireBack(el, fallback, labelForDestination) {
   el.classList.add('has-back');
   el._backFallback=fallback; // Keep the page's parent if a missing-record response replaces its header.
   const owner=readOwner(),destination=BackNavigation.destination(history.state,location.pathname+location.search,fallback,owner,{historyLength:history.length});
+  const label=typeof labelForDestination==='function'?labelForDestination(destination):destination.label;
   $$('[data-back]',el).forEach(button=>{
-    button.innerHTML=`${svg('back')}<span>${esc(destination.label)}</span>`;button.setAttribute('aria-label','Back to '+destination.label);
+    button.innerHTML=`${svg('back')}<span>${esc(label)}</span>`;button.setAttribute('aria-label','Back to '+label);
     button.onclick=()=>{if(!el.isConnected||owner!==readOwner())return;destination.history?history.back():go(destination.path,{replace:true});};
   });
 }

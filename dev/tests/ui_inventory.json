@@ -481,6 +481,22 @@
       ]
     },
     {
+      "id": "pages-achievements",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/me\\/achievements$/",
+      "paths": [
+        "/me/achievements"
+      ]
+    },
+    {
+      "id": "pages-achievement-history",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/me\\/achievements\\/([^/]+)$/",
+      "paths": [
+        "/me/achievements/{track}"
+      ]
+    },
+    {
       "id": "pages-private-history",
       "source": "app/static/pages.js",
       "pattern": "/^\\/me\\/activities$/",
