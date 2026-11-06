@@ -86,10 +86,13 @@ for(const size of [{width:320,height:667,root:16},{width:390,height:844,root:16}
  if(size.width===390)await require('./milestone_picture_ui.cjs')(p,theme,out);
  await p.waitForSelector('.me-insights',{timeout:15000});
  assert.equal(await p.locator('#me-distance, .mileage-heading').count(),0,'no second distance chart on Me');
- assert.match(await p.locator('.me-insights').innerText(),/This week so far[\s\S]*of [\d.,]+ (?:mi|km) usual week/);
- assert.equal(await p.locator('.me-insights a[href^="/progress"]').count(),1);
- // The week bar is drawn to scale inside its track (not squashed to a sliver).
- const [bar,track]=await p.$$eval('.me-insights .track, .me-insights .track .bar',e=>e.map(x=>x.getBoundingClientRect().width).reverse());assert(track>100&&bar<=track,'week track spans the card');
+ assert.equal(await p.locator('.me-form').count(),0,'Fitness & freshness has moved off Me');
+ assert.match(await p.locator('.me-insights').innerText(),/This week[\s\S]*of [\d.,]+ (?:mi|km) usual week/);
+ const insightRows=p.locator('.me-insight-row');assert(await insightRows.count()>0&&await insightRows.count()<=4,'Me shows only applicable insights, capped at four');
+ assert(await insightRows.evaluateAll(rows=>rows.every(row=>row.getAttribute('href')?.startsWith('/progress')&&row.querySelector('.me-insight-copy b')?.textContent.trim()&&row.querySelector('.me-insight-copy small')?.textContent.trim()&&row.querySelector('.me-insight-value')?.textContent.trim())), 'each insight has a title, quiet subtitle, bold right value and Progress destination');
+ assert(await insightRows.evaluateAll(rows=>rows.every(row=>row.getBoundingClientRect().height>=44)),'insight rows retain 44px tap targets');
+ const insightGaps=await insightRows.evaluateAll(rows=>rows.slice(1).map((row,i)=>row.getBoundingClientRect().top-rows[i].getBoundingClientRect().bottom));assert(insightGaps.every(gap=>Math.abs(gap-8)<.5),'insight rows keep 8px gaps between tap targets');
+ await shot('me-insights');
  assert.equal(await p.locator('.me-card .me-period,.me-distance.days').count(),0,'Days / Weeks and daily bars are removed from Me');
  await p.locator('.me-card a.me-friends-link').click();await p.waitForURL('**/me/friends');await until(p,()=>App.pageReady,'inline friends destination');await p.goto(base+'/me');await until(p,()=>App.pageReady,'Me return');await settled();
  if(size.width===390&&size.root===16&&theme==='light'){

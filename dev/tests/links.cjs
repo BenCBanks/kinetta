@@ -34,7 +34,7 @@ const collect=p=>p.evaluate(()=>[...document.querySelectorAll('a[href],[data-hre
     ]);
     for(const link of await collect(f.p))add(link,scene.login);
     if(scene.name==='Me'){
-     const anchor=f.p.locator('a.mileage-progress').first();await anchor.waitFor();const original=await anchor.getAttribute('href');
+     const anchor=f.p.locator('a.me-insight-row[href^="/progress"]').first();await anchor.waitFor();const original=await anchor.getAttribute('href');
      await anchor.evaluate(n=>n.setAttribute('href','/progress?view=training'));
      const bad=(await collect(f.p)).find(link=>link.href==='/progress?view=training');assert(bad,'Real rendered link was deliberately broken');
      assert.throws(()=>add(bad,scene.login),error=>{broken=error.message;return /unsupported view=training/.test(broken);});

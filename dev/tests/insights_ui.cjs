@@ -49,10 +49,9 @@ const ready=p=>until(p,()=>(typeof App !== "undefined" && App.pageReady)&&!!docu
  await p.evaluate(()=>go('/food?view=weight&from=progress'));await until(p,()=>!!document.querySelector('.wform input'));assert.equal(await p.locator('.wform input').isVisible(),true);assert.equal(new URL(p.url()).pathname,'/progress/weight');assert.equal(await p.locator('nav.tabs [aria-current=page]').getAttribute('data-tab'),'progress');
  await p.evaluate(()=>go('/food?view=overview'));await ready(p);if(state!=='empty'){await p.locator('.insights-chart').click();await until(p,()=>(typeof App !== "undefined" && App.pageReady)&&!!document.querySelector('#nt-energychart svg'));assert.match(await p.locator('#nt-energychart .legend').innerText(),/Burned/);}
  if(state==='typical'&&size.width===390){
- await p.evaluate(()=>go('/me'));await until(p,()=>(typeof App !== "undefined" && App.pageReady)&&!!document.querySelector('.me-insights .mileage-progress'));
- const view=p.locator('.me-insights .mileage-progress');assert.equal(await view.getAttribute('href'),'/progress');
+ await p.evaluate(()=>go('/me'));await until(p,()=>(typeof App !== "undefined" && App.pageReady)&&!!document.querySelector('.me-insights .me-insights-empty'));
+ assert.equal(await p.locator('.me-insights .me-insight-row').count(),0,'nutrition history alone does not create activity insights');
  if(out)await p.locator('.me-insights').screenshot({path:`${out}/me-insights-${theme}.png`});
- await view.click();await until(p,()=>(typeof App !== "undefined" && App.pageReady)&&!!document.querySelector('.progress-home-totals'));assert.equal(new URL(p.url()).pathname,'/progress');assert.equal(new URL(p.url()).searchParams.get('view'),null);
  }
  assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);await c.close();}
  }
