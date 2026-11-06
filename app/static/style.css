@@ -1537,6 +1537,7 @@ html.keyboard-open nav.tabs { display: none; }
 
 .progress-home-totals #m-table { margin-top:8px; max-width:100%; overflow-x:auto; }
 .progress-home-totals .totals-display { display:grid; grid-template-columns:minmax(0,1fr) minmax(44px,max-content); gap:0 8px; align-items:end; }
+.progress-home-totals .totals-display > #m-chart:only-child { grid-column:1/-1; }
 .progress-home-totals .totals-table-toggle { grid-column:2; min-width:44px; min-height:44px; padding:0; border:0; background:none; color:var(--accent); font-size:max(15px,.9375rem); }
 .progress-home-totals .totals-table-toggle[aria-pressed="true"] { text-decoration:underline; text-underline-offset:4px; }
 .progress-home-totals #m-table { grid-column:1/-1; }

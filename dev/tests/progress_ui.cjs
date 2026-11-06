@@ -8,7 +8,15 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
  const b=await chromium.launch(),cleanup=[];
  try{
  for(const who of ['empty','runner','food']){
-  const login=await b.newContext();const signed=await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_overview_'+who,password:'green teapot on the hill'}});assert.equal(signed.status(),200,'fixture login: '+await signed.text());const state=await login.storageState();cleanup.push(login);
+  const login=await b.newContext();const signed=await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_overview_'+who,password:'green teapot on the hill'}});assert.equal(signed.status(),200,'fixture login: '+await signed.text());cleanup.push(login);
+  const overviewResponse=await login.request.get(base+'/api/progress/overview');assert.equal(overviewResponse.status(),200,'fixture date: '+await overviewResponse.text());let overviewFixture=await overviewResponse.json(),fixtureToday=overviewFixture.today;assert.match(fixtureToday,/^\d{4}-\d{2}-\d{2}$/,'fixture exposes its account-local current date');
+  if(who==='runner'){
+   assert(overviewFixture.record?.start_time,'runner fixture provides its dated 5K record');
+   assert.equal(new Date(overviewFixture.record.start_time).toLocaleDateString('sv-SE',{timeZone:'Pacific/Kiritimati'}),fixtureToday,'backend record matches its original UTC+14 account day');
+   const timezoneUpdate=await login.request.put(base+'/api/profile',{headers:{Origin:base},data:{tz:'UTC'}});assert.equal(timezoneUpdate.status(),200,'browser fixture uses UTC so Records and Pace share a timezone');
+   const utcOverview=await login.request.get(base+'/api/progress/overview');assert.equal(utcOverview.status(),200,'UTC fixture date: '+await utcOverview.text());overviewFixture=await utcOverview.json();fixtureToday=overviewFixture.today;
+  }
+  const state=await login.storageState();
   for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
    if(process.env.KINETTA_PROGRESS_CASE&&process.env.KINETTA_PROGRESS_CASE!==`${who}-${size.width}-${theme}`)continue;
    const c=await b.newContext({storageState:state,viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];let notificationCount=0;
@@ -37,7 +45,13 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    assert.equal(await p.locator('[data-progress-metric]').count(),3,'Run totals offer Distance, Time and Pace');assert.equal(await p.locator('[data-progress-metric="distance"]').getAttribute('aria-pressed'),'true','Distance remains the default metric');
    for(const btn of await p.locator('[data-progress-metric]').all())assert((await btn.boundingBox()).height>=44,'metric choices keep 44px targets');
    if(who==='empty'){assert.equal(await p.locator('[data-progress-table]').count(),0,'empty Totals has no dead Table action');assert(!/0 (activities mapped|loops|segment bests)/.test(await p.locator('#p-explore').innerText()));assert.equal(await p.locator('.progress-new:not(.seen)').count(),8);}
-   if(who==='runner'){assert.match(await p.locator('#p-explore a').first().innerText(),/Heatmap[\s\S]*2 activities mapped/);assert.equal(await p.locator('[data-progress-feature="heatmap"] .progress-new:not(.seen)').count(),0);assert.match(await p.locator('[data-progress-record]').innerText(),/5K/);}
+   if(who==='runner'){
+    assert.match(await p.locator('#p-explore a').first().innerText(),/Heatmap[\s\S]*2 activities mapped/);assert.equal(await p.locator('[data-progress-feature="heatmap"] .progress-new:not(.seen)').count(),0);assert.match(await p.locator('[data-progress-record]').innerText(),/5K/);
+    const record=overviewFixture.record;assert(record?.start_time,'runner fixture provides its dated 5K record');
+    const recordDay=await p.evaluate(start=>new Date(start).toLocaleDateString('sv-SE',{timeZone:App.me.tz}),record.start_time);assert(recordDay<=fixtureToday,`record date is not after the account-local Progress fixture day: ${recordDay} <= ${fixtureToday}`);
+    const expected=await p.evaluate(start=>new Date(start).toLocaleDateString([],{timeZone:App.me.tz,month:'short',day:'numeric',year:'numeric'}),record.start_time);
+    assert.equal((await p.locator('[data-progress-record] small').innerText()).trim(),expected,'Records card uses the matching account-local fixture date');
+   }
    if(who==='food'){assert.match(await p.locator('[data-progress-food]').innerText(),/Protein goal 1 of 7 days.*weight/);}
    if(size.root===16){const height=(await p.locator('#p-home-totals .card').first().boundingBox()).height;assert(height<=(who==='empty'||who==='food'?150:330),'compact totals: '+height);assert.equal(await p.locator('.progress-grid').evaluate(n=>getComputedStyle(n).gridTemplateColumns.split(' ').length),2);if(who==='runner')assert.match(await p.locator('[data-progress-fitness]').innerText(),/(Fresh|Tired|Training steadily)[\s\S]*estimate/);assert.equal(await p.locator('#p-home-totals .legend').isVisible().catch(()=>false),false,'home average is labelled once');}
    if(who==='runner')await until(p,()=>document.querySelectorAll('#p-home-totals .stats3 .stat>b').length===3,'three loaded overview values');
@@ -78,15 +92,16 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     const monday=day=>{const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-((d.getUTCDay()+6)%7));return d.toISOString().slice(0,10);};
     const addDays=(day,n)=>{const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);};
     await c.route('**/api/progress/volume?*',r=>{const period=new URL(r.request().url()).searchParams.get('period'),rows=[];
-     if(period==='week'){const start=monday('2026-11-06');for(let i=11;i>=0;i--){const p=addDays(start,-i*7),d=5200+i*180,t=d/1000*(440-i*2);rows.push({p,s:'run',d,t,n:2,a:0});const rd=22000+i*450;rows.push({p,s:'ride',d:rd,t:rd/(7+i*.04),n:1,a:0});}}
-     else if(period==='month'){for(let i=11;i>=0;i--){const date=new Date(Date.UTC(2026,10-i,1)),p=date.toISOString().slice(0,10),d=16000+i*700,t=d/1000*(438-i*2);rows.push({p,s:'run',d,t,n:8,a:0});const rd=68000+i*3000;rows.push({p,s:'ride',d:rd,t:rd/(7+i*.05),n:4,a:0});}}
+     if(period==='week'){const start=monday(fixtureToday);for(let i=11;i>=0;i--){const p=addDays(start,-i*7),d=5200+i*180,t=d/1000*(440-i*2);rows.push({p,s:'run',d,t,n:2,a:0});const rd=22000+i*450;rows.push({p,s:'ride',d:rd,t:rd/(7+i*.04),n:1,a:0});}}
+     else if(period==='month'){const [year,month]=fixtureToday.split('-').map(Number);for(let i=11;i>=0;i--){const date=new Date(Date.UTC(year,month-1-i,1)),p=date.toISOString().slice(0,10),d=16000+i*700,t=d/1000*(438-i*2);rows.push({p,s:'run',d,t,n:8,a:0});const rd=68000+i*3000;rows.push({p,s:'ride',d:rd,t:rd/(7+i*.05),n:4,a:0});}}
      else rows.push({p:'2026-01-01',s:'run',d:120000,t:52000,n:30,a:0});
-     return r.fulfill({json:{period,today:'2026-11-06',rows}});
+     return r.fulfill({json:{period,today:fixtureToday,rows}});
     });
     await p.evaluate(()=>{for(const period of ['week','month']){const path=`/api/progress/volume?period=${period}`;App.cache.delete(path);localStorage.removeItem('fit.c:'+path);}});
     await p.evaluate(()=>go('/progress?sport=run&metric=pace'));await ready();await p.locator('#m-chart svg').waitFor();
-    assert.equal(await p.locator('[data-progress-metric="pace"]').getAttribute('aria-pressed'),'true');assert.equal(await p.locator('#m-chart .dotp').count(),12,'weekly pace chart covers 12 weeks');assert.match(await p.locator('#m-chart svg').getAttribute('aria-label'),/last 12 weeks/);assert.match(await p.locator('.progress-pace-window').innerText(),/Weekly averages · last 12 weeks/);assert.equal(await p.locator('[data-progress-table]').count(),0,'pace chart has no distance table');await fits('weekly pace');await shot('pace-week');
-    await p.locator('[data-progress-period="month"]').click();await ready();await p.locator('#m-chart svg').waitFor();assert.equal(await p.locator('#m-chart .dotp').count(),12,'monthly pace chart covers 12 months');assert.match(await p.locator('#m-chart svg').getAttribute('aria-label'),/last 12 months/);await shot('pace-month');
+    const assertPacePlotWidth=async label=>{const g=await p.locator('#m-chart svg').evaluate(svg=>{const line=svg.querySelector('.dotline'),rect=svg.getBoundingClientRect(),card=svg.closest('.card').getBoundingClientRect(),view=svg.viewBox.baseVal,last=line.points[line.points.numberOfItems-1].x;return{rightGap:card.right-(rect.left+last/view.width*rect.width),cardWidth:card.width,svgWidth:rect.width};});assert(g.rightGap<=32,`${label} pace plot fills its card: ${JSON.stringify(g)}`);};
+    assert.equal(await p.locator('[data-progress-metric="pace"]').getAttribute('aria-pressed'),'true');assert.equal(await p.locator('#m-chart .dotp').count(),12,'weekly pace chart covers 12 weeks');assert.match(await p.locator('#m-chart svg').getAttribute('aria-label'),/last 12 weeks/);assert.match(await p.locator('.progress-pace-window').innerText(),/Weekly averages · last 12 weeks/);assert.equal(await p.locator('[data-progress-table]').count(),0,'pace chart has no distance table');await assertPacePlotWidth('weekly');await fits('weekly pace');await shot('pace-week');
+    await p.locator('[data-progress-period="month"]').click();await ready();await p.locator('#m-chart svg').waitFor();assert.equal(await p.locator('#m-chart .dotp').count(),12,'monthly pace chart covers 12 months');assert.match(await p.locator('#m-chart svg').getAttribute('aria-label'),/last 12 months/);await assertPacePlotWidth('monthly');await shot('pace-month');
     await p.locator('#p-sport').click();await p.locator('[data-pk="ride"]').click();await ready();assert.equal(await p.locator('[data-progress-metric="speed"]').getAttribute('aria-pressed'),'true','sport change maps pace to speed for rides');await p.locator('[data-progress-metric="speed"]').click();await ready();assert.match(await p.locator('#m-chart svg').getAttribute('aria-label'),/Average speed/);assert.equal(await p.locator('#m-chart .dotp').count(),12);
     await p.locator('#p-sport').click();await p.locator('[data-pk="all"]').click();await ready();assert.equal(await p.locator('[data-progress-metric]').count(),2,'mixed sports do not offer a combined pace');assert.equal(await p.locator('[data-progress-metric="distance"]').getAttribute('aria-pressed'),'true','unsupported speed resets to distance');await fits('all-sports totals');
    }
