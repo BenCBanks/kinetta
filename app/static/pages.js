@@ -311,7 +311,7 @@ function combinedWeek(box) {
     if(!box.isConnected||owner!==readOwner())return;const w=data.week;
     box.innerHTML=combinedWeekHtml(w);
     if(new URLSearchParams(location.search).get('review')==='week')$('details',box).open=true;
-  }).catch(()=>{if(box.isConnected&&owner===readOwner()){if(!box.innerHTML)box.innerHTML='<p class="small muted">Your week could not load.</p>';const b=document.createElement('button');b.className='linkbtn combined-week-retry';b.textContent='Retry weekly summary';b.onclick=()=>{b.remove();combinedWeek(box);};box.append(b);}});
+  }).catch(()=>{if(box.isConnected&&owner===readOwner()){if(!box.innerHTML)box.innerHTML='<p class="small muted">Your weekly summary couldn’t load.</p>';const b=document.createElement('button');b.className='linkbtn combined-week-retry';b.textContent='Try again.';b.onclick=()=>{b.remove();combinedWeek(box);};box.append(b);}});
 }
 function workoutEnergy(box,aid) {
   const owner=readOwner();load('/api/activity-food',data=>{
@@ -1798,7 +1798,7 @@ route(/^\/me\/settings$/, 'me', async (el) => {
       let shortcuts=0;try{shortcuts=await Native.foodEntryPendingCount?.()||0;}catch(e){if(valid())toast(e.message);return;}
       if (!valid()) return;
       const n = Q.mine().length + chat + shortcuts;
-      if (n && !confirm(`${n} item${n > 1 ? 's' : ''} saved offline haven't been sent yet and will be lost. Log out anyway?`)) return;
+      if (n && !confirm(`${n} unsynced item${n === 1 ? '' : 's'} saved on this phone will be deleted if you log out. Log out?`)) return;
       if (typeof FoodThread!=='undefined'){try{await FoodThread.eraseDevice();}catch(e){if(valid())toast('Could not remove unsent food photos from this phone. Retry logout to finish clearing them.');return;}}
       if (!valid()) return;
       if(typeof KitChat!=='undefined')KitChat.eraseDevice();

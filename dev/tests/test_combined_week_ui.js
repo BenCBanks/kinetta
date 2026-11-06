@@ -1,10 +1,19 @@
 'use strict';
-const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');const s=fs.readFileSync('app/static/pages.js','utf8');const c={App:{me:{login:'zz_test_week'}},profileHref:p=>'/people/'+p.login,stat:(label,value,unit='')=>`[${label}:${value}${unit}]`,U:{dist:n=>n/1000,du:()=> 'km'},dur:s=>s+' seconds',esc:String,dayLabel:String,r0:Math.round};vm.createContext(c);vm.runInContext(s.slice(s.indexOf('function combinedWeekHtml'),s.indexOf('function combinedWeek(box)')),c);
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');const s=fs.readFileSync('app/static/pages.js','utf8');const c={App:{me:{login:'zz_test_week'}},profileHref:p=>'/people/'+p.login,stat:(label,value,unit='')=>`[${label}:${value}${unit}]`,U:{dist:n=>n/1000,du:()=> 'km'},dur:s=>s+' seconds',esc:String,dayLabel:String,r0:Math.round};vm.createContext(c);vm.runInContext(s.slice(s.indexOf('function combinedWeekHtml'),s.indexOf('function workoutEnergy(box,aid)')),c);
 const empty={start:'2026-10-10',end:'2026-10-16',workouts:0,distance_m:0,seconds:0,days_logged:0,protein_target:110,protein_days_reached:0,protein_days_unknown:0};let h=c.combinedWeekHtml(empty);assert(!h.includes('[Distance:')&&!h.includes('[Time:')&&!h.includes('[Workouts:'));assert(h.includes('will appear as you log meals'));assert(h.includes('Log food'));assert(!h.includes('0 days reached'));
 h=c.combinedWeekHtml({...empty,workouts:1,seconds:1800});assert(h.includes('[Workouts:1]')&&h.includes('[Time:1800 seconds]'));assert(!h.includes('[Distance:'));assert(h.includes('href="/people/zz_test_week"'),'week review opens the canonical owner history');
 h=c.combinedWeekHtml({...empty,days_logged:2,protein_days_unknown:1});assert(h.includes('2 of 7 days with food logged.'));assert(h.includes('No logged days reached'));assert(h.includes('1 logged day has unknown protein.'));assert(!h.includes('[Distance:'));
 h=c.combinedWeekHtml({...empty,workouts:2,distance_m:5000,seconds:1800,days_logged:3,protein_days_reached:2});assert(h.includes('[Distance:5km]')&&h.includes('2 days reached'));
 console.log('Combined week actual renderer: empty/no-distance/no-time statistics omitted, useful start action, food-only/workout-only/unknown protein and populated numbers PASS');
-c.readOwner=()=> 'A';c.homeCalories=n=>Math.round(n/5)*5;let item={id:1,kcal:538,source:'healthkit',estimated:false};c.load=(path,fn)=>Promise.resolve(fn({today:{items:[item],day_burn:2500,included_in_day_burn:true,food_href:'/food'}}));vm.runInContext(s.slice(s.indexOf('function workoutEnergy('),s.indexOf('function workoutSyncStatus')),c);
-const box={isConnected:true,innerHTML:''};c.workoutEnergy(box,1);assert(box.innerHTML.includes('+540 kcal burned'));assert(box.innerHTML.includes('Recorded calories from the Health app.'));item={...item,kcal:0,estimated:true};c.workoutEnergy(box,1);assert(box.innerHTML.includes('Calories are unavailable'));assert(!box.innerHTML.includes('+0 kcal'));
-console.log('Own workout energy actual renderer: nearest5kcal/source label and unavailable calories instead of empty0 PASS');
+async function failedWeekCopy(){
+ c.readOwner=()=> 'zz_test_week';c.location={search:''};c.URLSearchParams=URLSearchParams;c.document={createElement:tag=>({tag,remove(){this.removed=true;}})};c.$=()=>({});c.load=()=>Promise.reject(Error('Fictional unavailable summary'));
+ const failed={isConnected:true,innerHTML:'',append(button){this.retry=button;}};c.combinedWeek(failed);await new Promise(resolve=>setImmediate(resolve));
+ assert.match(failed.innerHTML,/Your weekly summary couldn’t load\./);assert.equal(failed.retry.textContent,'Try again.');assert.equal(failed.retry.className,'linkbtn combined-week-retry');
+ console.log('Combined week failed-load copy and retry action PASS');
+}
+(async()=>{
+ await failedWeekCopy();
+ c.readOwner=()=> 'A';c.homeCalories=n=>Math.round(n/5)*5;let item={id:1,kcal:538,source:'healthkit',estimated:false};c.load=(path,fn)=>Promise.resolve(fn({today:{items:[item],day_burn:2500,included_in_day_burn:true,food_href:'/food'}}));vm.runInContext(s.slice(s.indexOf('function workoutEnergy('),s.indexOf('function workoutSyncStatus')),c);
+ const box={isConnected:true,innerHTML:''};c.workoutEnergy(box,1);assert(box.innerHTML.includes('+540 kcal burned'));assert(box.innerHTML.includes('Recorded calories from the Health app.'));item={...item,kcal:0,estimated:true};c.workoutEnergy(box,1);assert(box.innerHTML.includes('Calories are unavailable'));assert(!box.innerHTML.includes('+0 kcal'));
+ console.log('Own workout energy actual renderer: nearest5kcal/source label and unavailable calories instead of empty0 PASS');
+})().catch(error=>{console.error(error);process.exitCode=1});
