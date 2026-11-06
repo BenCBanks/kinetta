@@ -511,7 +511,7 @@ def item_add(did: int, body: ItemIn, user=Depends(current_user)):
         dish=_get(c,user['id'],did,lock=True);items=dish['items']
         if not body.name.strip():raise HTTPException(400,'Name the food you are adding.')
         if body.grams is None and body.kcal is None:raise HTTPException(400,'Enter calories for this amount of food.')
-        if len(items) >= MAX_ITEMS: raise HTTPException(400, f'A recipe can have up to {MAX_ITEMS} ingredients. Remove one before adding another.')
+        if len(items) >= MAX_ITEMS: raise HTTPException(400, f'This recipe can have up to {MAX_ITEMS} ingredients; remove one before adding another.')
         item = {'id': secrets.token_hex(4), 'name': body.name.strip(), 'grams': _r(body.grams), **(_item_values(per100,body.grams) if per100 else {k:getattr(body,k) for k in NUM}),
                 'per100': per100, 'source': body.source, 'ref': body.ref}
         return _view(c, user['id'], _save_items(c, user['id'], did, items + [item]))
@@ -531,7 +531,7 @@ def _add_recipe_item(c, uid, did, recipe_id, grams=None, mode='grams'):
     dish = _get(c, uid, did, lock=True)
     source = next((r for r in _recent_own(c, uid, exclude=did) if r['id'] == recipe_id), None)
     if source is None:
-        raise HTTPException(404, 'Recipe not found or no longer recent.')
+        raise HTTPException(404, 'This recipe isn’t in your recent list; choose another recipe.')
     per100 = source['per_100g']
     # A sum of ingredient weights is only an estimate of a finished recipe. A copied recipe
     # needs the cook's measured whole weight so its calories per gram remain trustworthy.
@@ -543,7 +543,7 @@ def _add_recipe_item(c, uid, did, recipe_id, grams=None, mode='grams'):
     if not grams or not 0 < grams < 20000:
         raise HTTPException(400, 'Enter a recipe amount in grams below 20,000.')
     if len(dish['items']) >= MAX_ITEMS:
-        raise HTTPException(400, f'A recipe can have up to {MAX_ITEMS} ingredients. Remove one before adding another.')
+        raise HTTPException(400, f'This recipe can have up to {MAX_ITEMS} ingredients; remove one before adding another.')
     item = {'id': secrets.token_hex(4), 'name': source['name'], 'grams': grams,
             **_item_values(per100, grams), 'per100': per100, 'source': 'recipe',
             'ref': {'recipe_id': source['id']}}
