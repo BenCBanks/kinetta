@@ -91,8 +91,8 @@ if P: check('predictions slow down with distance', all(P[i]['seconds'] / P[i]['d
 # the effort behind each prediction carries its date (2026-10-26: the phone showed "Invalid Date" without it)
 if P: check('predictions name the date they are based on', all(x['from'].get('start_time') for x in P), P)
 if P: check('prediction provenance keeps source distance and time', all(x['from'].get('distance_m',0)>0 and x['from'].get('elapsed_s',0)>0 and x['from'].get('activity_id',0)>0 for x in P), P)
-# each prediction carries your best ever at that distance (None if you never ran that far), which the green tile compares against
-if P: check('predictions carry the best at each distance', all('best_s' in x for x in P) and all(x['best_s'] is None or x['best_s'] > 0 for x in P), P)
+# each prediction carries its all-time best and local year for a quiet reference; no exact-distance best is None
+if P: check('predictions carry best reference and year', all('best_s' in x and 'best_year' in x for x in P) and all(x['best_s'] is None or x['best_s'] > 0 for x in P), P)
 
 for a in p.get('/api/activities?limit=20')[1]:
     if a['name'] == 'zz plan run': p.delete(f"/api/activities/{a['id']}")

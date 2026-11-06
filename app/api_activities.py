@@ -674,12 +674,16 @@ def fitness(days: int = 365, user=Depends(current_user)):
     # each race from its best-suited effort, slowed for long races on low mileage (2026-10-12, plans.run_predictions)
     with db.connect() as c:
         preds = plans.run_predictions(c, user['id'], ((5000, '5K'), (10000, '10K'), (21097.5, 'Half marathon'), (42195, 'Marathon'))) if current else []
-        # your all-time best at each race distance (2026-10-13): the tile turns green when the prediction beats it
-        bests = {r['label']: r['s'] for r in c.execute("""SELECT label, min(elapsed_s) AS s FROM best_efforts WHERE user_id = %s
-            AND sport = 'run' AND label = ANY(%s) GROUP BY 1""", (user['id'], [p['label'] for p in preds])).fetchall()}
+        # Keep the all-time best as a dated reference beside the current-fitness estimate.
+        bests = {r['label']: r for r in c.execute("""SELECT DISTINCT ON (label) label, elapsed_s AS s,
+            EXTRACT(YEAR FROM (start_time AT TIME ZONE %s))::int AS year FROM best_efforts WHERE user_id = %s
+            AND sport = 'run' AND label = ANY(%s) ORDER BY label, elapsed_s, start_time DESC""",
+            (tz, user['id'], [p['label'] for p in preds])).fetchall()}
     for p in preds:
         f = p.pop('from'); p['from'] = {k: f[k] for k in ('label', 'activity_id', 'start_time', 'distance_m', 'elapsed_s')}
-        p['best_s'] = bests.get(p['label'])
+        best = bests.get(p['label'])
+        p['best_s'] = best['s'] if best else None
+        p['best_year'] = best['year'] if best else None
     months = {}
     for e in effs: months[e['m']] = max(months.get(e['m'], 0), e['vdot'])
     ramp = None

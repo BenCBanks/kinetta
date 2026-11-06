@@ -1,19 +1,21 @@
-// Render the production prediction block: shared provenance only for the same complete effort.
+// Prediction references are quiet, local-year bests; provenance stays inside the explanation.
 'use strict';
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
-const source=fs.readFileSync('app/static/pages.js','utf8'),start=source.indexOf('    const predictionSourceKey'),end=source.indexOf('\n    box.innerHTML',start),block='(()=>{'+source.slice(start,end)+'})()';
+const source=fs.readFileSync('app/static/pages.js','utf8'),start=source.indexOf('    const predictionSourceDetail ='),end=source.indexOf('\n    pbox.innerHTML',start),block=source.slice(start,end);
 assert(start>=0&&end>start);
-const from={activity_id:7,label:'5K',distance_m:5000,elapsed_s:1200,start_time:'2026-10-01T10:00:00Z'},base={label:'5K',seconds:1200,distance_m:5000,best_s:1300,from};
-const c={pbox:{},f:{predictions:[]},b:{activity_id:42,label:'10K',elapsed_s:2500,start_time:'2026-10-02'},esc:String,dur:n=>n+' seconds',fdate:d=>d,U:{pace:n=>n+' pace',pu:()=>'/km'}};
-vm.createContext(c);
-function render(rows){c.f.predictions=structuredClone(rows);const before=JSON.stringify(c.f.predictions);vm.runInContext(block,c);assert.equal(JSON.stringify(c.f.predictions),before,'presentation does not mutate predictions');return c.pbox.innerHTML;}
-const count=html=>(html.match(/class="prediction-source/g)||[]).length;
-const shared=render([base,{...base,label:'10K',distance_m:10000,seconds:2500}]);
-assert.equal(count(shared),1);assert.match(shared,/Based on your 5K/);assert(shared.includes('href="/activity/7"'));assert(shared.includes('href="/activity/42"'),'fastest-effort help keeps its separate source');
-for(const change of [{activity_id:8},{distance_m:10000},{elapsed_s:1210},{start_time:'2026-10-01T11:00:00Z'}]){
- const html=render([base,{...base,from:{...from,...change}}]);assert.equal(count(html),2);assert(!html.includes('Based on your'),'different IDs, efforts and full timestamps stay separate');
-}
-const incomplete=render([base,{...base,from:{label:'5K',start_time:from.start_time,activity_id:7}}]);assert.equal(count(incomplete),2);assert(!incomplete.includes('Based on your'),'old cached provenance is not assumed equal');
-const html=render([base]);assert.match(html,/<details class="prediction-method"><summary>How estimates work<\/summary>/);assert(!/<details[^>]*\bopen\b/.test(html));for(const text of ['Estimates, not target paces.','1200 seconds','1300 seconds','90 days','Beats your best'])assert(html.includes(text),text);
-const empty=render([]);assert(empty.includes('Run a mile or more'));assert(!empty.includes('<details'));
-console.log('Predictions: complete shared provenance once; mixed/same-date/different-ID/effort/cache cases retain sources; values, green best, collapsed caveat and empty state PASS');
+const context={
+  esc:s=>String(s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])),
+  dur:n=>Math.floor(n/60)+':'+String(Math.round(n%60)).padStart(2,'0'),
+  fdate:()=> 'Oct 2'
+};
+const helpers=vm.runInNewContext('(()=>{'+block+';return {source:predictionSourceDetail,best:predictionBestReference};})()',context);
+const sourceHtml=helpers.source({label:'5K',from:{label:'5K',elapsed_s:1200,start_time:'2026-10-01T10:00:00Z'}});
+assert(sourceHtml.includes('<li class="prediction-source"><span>5K</span><span>5K · 20:00 · Oct 2</span></li>'));
+assert(!sourceHtml.includes('<a'));
+const escaped=helpers.source({label:'5K <script>',from:{label:'track & field',elapsed_s:1200,start_time:'invalid'}});
+assert(escaped.includes('5K &lt;script&gt;'));assert(escaped.includes('track &amp; field'));assert(escaped.includes('date unavailable'));
+assert(helpers.source({label:'5K',from:{}}).includes('Source unavailable'));
+assert.equal(helpers.best({best_s:1170,best_year:2024}),'19:30 · 2024');
+assert.equal(helpers.best({best_s:1170,best_year:null}),'19:30');
+assert.equal(helpers.best({best_s:null,best_year:null}),null);
+console.log('Prediction detail: quiet dated best, missing reference, escaped plain-text sources and invalid-source fallback PASS');
