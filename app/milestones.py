@@ -8,13 +8,17 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter,Depends,HTTPException
 from pydantic import BaseModel
 from typing import Literal
-from . import db,recaps,analysis
+from . import db,recaps,analysis,achievement_tracks as tracks
 from .auth import current_user
 
 router=APIRouter(prefix='/api/milestones')
 FIRST_DISTANCES=((5000,'5K'),(10000,'10K'),(21097.5,'half marathon'),(42195,'marathon'))
 SPORTS={'run':'run','ride':'ride','walk':'walk','hike':'hike','swim':'swim','row':'rowing workout','ski':'ski workout','workout':'workout','other':'activity'}
 IDLE_CHECK=dt.datetime(9999,1,1,tzinfo=dt.timezone.utc)
+# A history import can contain many more earned tiers than a normal workout.
+# Keep each transaction bounded; the worker leaves the account pending and picks
+# up the next batch on its next pass.
+TRACK_BATCH_SIZE=100
 
 
 def candidates(c,uid,now,zone,units):
@@ -26,6 +30,9 @@ def candidates(c,uid,now,zone,units):
     def add(code,kind,title,rank,row,details):
         credit=recaps.garmin_source(row.get('source'),row.get('device'))
         details.setdefault('garmin_sources',[credit] if credit else [])
+        details.setdefault('label',title)
+        # Part C's feed uses the existing First rows as sport-track history.
+        details.setdefault('big',kind in ('sport','first_distance'))
         result[code]={'code':code,'kind':kind,'title':title,'rank':rank,'activity_id':row.get('id'),
           'day':row['start_time'].astimezone(zone).date(),'occurred':row['start_time'],
           'arrival':row.get('updated') or row['created'],'details':details,
@@ -84,6 +91,202 @@ def candidates(c,uid,now,zone,units):
     return result,next_check
 
 
+def _number(row, key):
+    """A finite, non-negative numeric activity field."""
+    try:
+        value = float(row.get(key) or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    return value if math.isfinite(value) and value >= 0 else 0.0
+
+
+def _completed_activity_rows(c, uid, now):
+    """Read the worker's completed activity facts in chronological order."""
+    rows=c.execute('''SELECT id,sport,start_time,created,updated,distance_m,moving_s,elapsed_s,ascent_m,
+                              source,device,lift_open
+                       FROM activities WHERE user_id=%s AND NOT lift_open
+                       ORDER BY start_time,id''',(uid,)).fetchall()
+    out=[]
+    for row in rows:
+        if row['start_time']>now:
+            continue
+        duration=_number(row,'elapsed_s') or _number(row,'moving_s')
+        if row['start_time']+dt.timedelta(seconds=duration)>now+dt.timedelta(minutes=1):
+            continue
+        out.append(row)
+    return out
+
+
+def _local_day(row, zone):
+    return row['start_time'].astimezone(zone).date()
+
+
+def _arrival(row, now):
+    return row.get('updated') or row.get('created') or now
+
+
+def _crossings(code, rows, amount, zone):
+    """Return total and the first activity that crossed every reached tier."""
+    total=0.0; seen=set(); crossing={}
+    for row in rows:
+        before=total; total+=max(0.0,float(amount(row)))
+        for tier in tracks.tiers_for(code,total):
+            if tier.threshold not in seen and tier.threshold>before:
+                seen.add(tier.threshold);crossing[tier.threshold]=row
+    return total,crossing
+
+
+def _weeks_facts(rows, zone):
+    """Best active-week run and the activity that reached each level."""
+    by_week={}
+    for row in rows:
+        week=_local_day(row,zone)-dt.timedelta(days=_local_day(row,zone).weekday())
+        by_week.setdefault(week,row)
+    best=0;streak=0;previous=None;crossing={}
+    for week in sorted(by_week):
+        streak=streak+1 if previous is not None and week-previous==dt.timedelta(days=7) else 1
+        previous=week
+        if streak>best:
+            before=best;best=streak
+            for tier in tracks.tiers_for('consistency',best):
+                if tier.threshold not in crossing and tier.threshold>before:
+                    crossing[tier.threshold]=by_week[week]
+    return float(best),crossing
+
+
+def _full_years(start, now, zone):
+    a=start.astimezone(zone);b=now.astimezone(zone)
+    years=b.year-a.year-((b.month,b.day,b.hour,b.minute,b.second,b.microsecond)<(a.month,a.day,a.hour,a.minute,a.second,a.microsecond))
+    return max(0,years)
+
+
+def _anniversary(start, years, zone):
+    local=start.astimezone(zone)
+    try:
+        return local.replace(year=local.year+years)
+    except ValueError:  # 29 February: celebrate on 28 February in non-leap years.
+        return local.replace(year=local.year+years,day=28)
+
+
+def _personal_best_events(c, uid, rows_by_id):
+    rows=c.execute('''SELECT b.id,b.activity_id,b.sport,b.distance_m,b.elapsed_s,b.start_time,
+                             a.created,a.updated,a.source,a.device
+                      FROM best_efforts b JOIN activities a ON a.id=b.activity_id AND a.user_id=b.user_id
+                      WHERE b.user_id=%s ORDER BY b.start_time,b.id''',(uid,)).fetchall()
+    best={};events=[];seen_activity=set()
+    for row in rows:
+        if row['activity_id'] not in rows_by_id:
+            continue
+        distance=_number(row,'distance_m');seconds=_number(row,'elapsed_s')
+        if distance<=0 or seconds<=0:
+            continue
+        key=(row['sport'],round(distance,6))
+        # Several standard efforts can be generated for one activity.  The
+        # fastest one for a distance is that activity's single PR event.
+        event_key=(row['activity_id'],key)
+        prior=best.get(key)
+        if event_key in seen_activity:
+            if prior is not None and seconds<prior:
+                best[key]=seconds
+            continue
+        seen_activity.add(event_key)
+        if prior is None or seconds<prior:
+            best[key]=seconds;events.append(row)
+    return events
+
+
+def _tier_item(code,tier,row,zone,now,*,occurred=None,day=None):
+    occurred=occurred or row['start_time']
+    day=day or occurred.astimezone(zone).date()
+    details={'track':code,'threshold':tier.threshold,'label':tier.label,'unit':tier.unit,
+             'big':bool(tier.big)}
+    if tier.unit=='m':details['value_m']=tier.threshold
+    elif tier.unit=='kg':details['value_kg']=tier.threshold
+    elif tier.unit=='seconds':details['value_s']=tier.threshold
+    elif tier.unit=='weeks':details['value_weeks']=tier.threshold
+    elif tier.unit=='years':details['value_years']=tier.threshold
+    elif tier.unit=='sessions':details['value_sessions']=tier.threshold
+    return {'code':f'track:{code}:{tier.rank}','kind':'track','title':tier.label,'rank':1000+tier.rank,
+            'activity_id':row.get('id') if row else None,'day':day,'occurred':occurred,
+            'arrival':_arrival(row,now) if row else now,'details':details,
+            'garmin_source':recaps.garmin_source(row) if row else None}
+
+
+def _state_item(code,value,tiers,first_row,zone,now):
+    nxt=tracks.next_tier(code,value)
+    details={'track':code,'label':tracks.track_label(code),'value':value,'unit':tracks.TRACK_UNITS.get(code,'count'),
+             'level':len(tiers),'big':False}
+    if code in ('journey','climbing','sport:run','sport:ride','sport:walk-hike','sport:swim'):
+        details['value_m']=value
+    elif code=='lifted':details['value_kg']=value
+    elif code=='active_time':details['value_s']=value
+    if nxt:
+        details['next_threshold']=nxt.threshold;details['next_label']=nxt.label;details['next_unit']=nxt.unit
+    return {'code':f'track-state:{code}','kind':'track_state','title':tracks.track_label(code),'rank':0,
+            'activity_id':None,'day':_local_day(first_row,zone),'occurred':first_row['start_time'],
+            'arrival':now,'details':details,'garmin_source':None}
+
+
+def achievement_candidates(c,uid,now,zone):
+    """Compute track state and tier rows.  Called only by the background worker."""
+    rows=_completed_activity_rows(c,uid,now)
+    if not rows:return [],[],False
+    by_id={r['id']:r for r in rows}
+    states=[];tiers=[]
+    def add(code,value,crossing,started=True):
+        if not started:return
+        reached=tracks.tiers_for(code,value)
+        states.append(_state_item(code,value,reached,rows[0],zone,now))
+        for tier in reached:
+            row=crossing.get(tier.threshold) or rows[-1]
+            tiers.append(_tier_item(code,tier,row,zone,now))
+
+    weeks,crossing=_weeks_facts(rows,zone);add('consistency',weeks,crossing)
+    years=_full_years(rows[0]['start_time'],now,zone)
+    year_crossing={}
+    for n in range(1,years+1):
+        anniversary=_anniversary(rows[0]['start_time'],n,zone)
+        row=next((r for r in rows if r['start_time'].astimezone(zone)>=anniversary),rows[0])
+        year_crossing[float(n)]=(row,anniversary)
+    reached=tracks.tiers_for('years_active',years);states.append(_state_item('years_active',years,reached,rows[0],zone,now))
+    for tier in reached:
+        row,anniversary=year_crossing[tier.threshold]
+        tiers.append(_tier_item('years_active',tier,row,zone,now,occurred=anniversary,day=anniversary.date()))
+
+    total,crossing=_crossings('workouts',rows,lambda _r:1,zone);add('workouts',total,crossing)
+    total,crossing=_crossings('active_time',rows,lambda r:_number(r,'moving_s') or _number(r,'elapsed_s'),zone);add('active_time',total,crossing)
+    total,crossing=_crossings('journey',rows,lambda r:_number(r,'distance_m'),zone);add('journey',total,crossing,total>0)
+    total,crossing=_crossings('climbing',rows,lambda r:_number(r,'ascent_m'),zone);add('climbing',total,crossing,total>0)
+
+    lift_rows=c.execute('''SELECT a.id,coalesce(sum(CASE WHEN s.done AND NOT s.warmup
+                   THEN coalesce(s.kg,0)*coalesce(s.reps,0) ELSE 0 END),0) AS volume_kg
+                 FROM activities a LEFT JOIN lift_sets s ON s.activity_id=a.id AND s.user_id=a.user_id
+                 WHERE a.user_id=%s AND NOT a.lift_open AND a.start_time<=%s
+                 GROUP BY a.id''',(uid,now)).fetchall()
+    volume={r['id']:_number(r,'volume_kg') for r in lift_rows}
+    total,crossing=_crossings('lifted',[r for r in rows if volume.get(r['id'],0)>0],lambda r:volume.get(r['id'],0),zone)
+    add('lifted',total,crossing,total>0)
+
+    sport_rows={
+        'run':[r for r in rows if r['sport']=='run'],
+        'ride':[r for r in rows if r['sport']=='ride'],
+        'walk-hike':[r for r in rows if r['sport'] in ('walk','hike')],
+        'swim':[r for r in rows if r['sport']=='swim'],
+        'lift':[r for r in rows if r['sport']=='workout' or volume.get(r['id'],0)>0],
+    }
+    for sport,subset in sport_rows.items():
+        code='sport:'+sport
+        amount=(lambda _r:1) if sport=='lift' else (lambda r:_number(r,'distance_m'))
+        total,crossing=_crossings(code,subset,amount,zone);add(code,total,crossing,bool(subset))
+
+    events=_personal_best_events(c,uid,by_id)
+    pb_crossing={}
+    for n,event in enumerate(events,1):pb_crossing[float(n)]=event
+    reached=tracks.tiers_for('personal_bests',len(events));states.append(_state_item('personal_bests',len(events),reached,rows[0],zone,now))
+    for tier in reached:tiers.append(_tier_item('personal_bests',tier,pb_crossing.get(tier.threshold) or rows[-1],zone,now))
+    return states,tiers,True
+
+
 def process(c,uid,now=None,*,push_ids=None):
     now=now or dt.datetime.now(dt.timezone.utc)
     # Erasure owns the account before personal rows. Never claim a state row before this account lock.
@@ -94,13 +297,43 @@ def process(c,uid,now=None,*,push_ids=None):
     if not state:return False
     p=c.execute('SELECT tz,units,notify FROM profile WHERE user_id=%s',(uid,)).fetchone() or {}
     zone=ZoneInfo(db.valid_tz(p.get('tz')) or db.DEFAULT_TZ);items,next_check=candidates(c,uid,now,zone,p.get('units') or 'imperial')
+    track_states,track_tiers,track_started=achievement_candidates(c,uid,now,zone)
     latest=c.execute('SELECT generation FROM milestone_state WHERE user_id=%s FOR UPDATE SKIP LOCKED',(uid,)).fetchone()
     # A concurrent save stays dirty. Discard this scan rather than publish partial history.
     if not latest or latest['generation']!=state['generation']:return False
     # Seen/share timestamps survive invalidation, backfill, edits and retries: offers never resurrect.
-    c.execute('UPDATE milestones SET valid=false WHERE user_id=%s AND shared_at IS NULL',(uid,))
+    # Track tiers are durable history: an edit can hide an unshared offer from
+    # the old milestone UI, but it must never revoke an earned tier.
+    c.execute("UPDATE milestones SET valid=false WHERE user_id=%s AND shared_at IS NULL AND kind NOT IN ('track','track_state')",(uid,))
+    existing_tracks={r['code'] for r in c.execute("SELECT code FROM milestones WHERE user_id=%s AND kind='track'",(uid,)).fetchall()}
+    missing_tracks=sorted((r for r in track_tiers if r['code'] not in existing_tracks),key=lambda r:(r['rank'],r['code']))
+    track_pending=len(missing_tracks)>TRACK_BATCH_SIZE
+    track_tiers=missing_tracks[:TRACK_BATCH_SIZE] if track_pending else missing_tracks
+    all_items=list(items.values())+track_states+track_tiers
     new=[]
-    for e in items.values():
+    for e in all_items:
+        if e['kind']=='track_state':
+            # State rows are worker output, not notification offers.  Keeping
+            # them in the existing milestones table avoids a request-time
+            # history scan and keeps account deletion/RLS behaviour unchanged.
+            c.execute('''INSERT INTO milestones(user_id,code,kind,title,rank,activity_id,day,occurred,details,garmin_source,silent)
+              VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,true)
+              ON CONFLICT(user_id,code) DO UPDATE SET title=excluded.title,rank=excluded.rank,
+                day=excluded.day,occurred=excluded.occurred,details=excluded.details,valid=true
+              WHERE milestones.kind='track_state' AND milestones.shared_at IS NULL''',
+              (uid,e['code'],e['kind'],e['title'],e['rank'],e['activity_id'],e['day'],e['occurred'],json.dumps(e['details']),e['garmin_source']))
+            continue
+        if e['kind']=='track':
+            # A tier is immutable once it exists.  In particular, a corrected
+            # or deleted source activity never creates a second copy.
+            silent=not state['fresh'] or e['occurred']<now-dt.timedelta(days=7) or e['arrival']<state['baseline_at']
+            row=c.execute('''INSERT INTO milestones(user_id,code,kind,title,rank,activity_id,day,occurred,details,garmin_source,silent)
+              VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+              ON CONFLICT(user_id,code) DO NOTHING RETURNING id,(xmax=0) AS inserted''',
+              (uid,e['code'],e['kind'],e['title'],e['rank'],e['activity_id'],e['day'],e['occurred'],json.dumps(e['details']),e['garmin_source'],
+               silent)).fetchone()
+            if row and row['inserted'] and not silent:new.append((e['rank'],row['id']))
+            continue
         silent=not state['fresh'] or e['occurred']<now-dt.timedelta(days=7) or e['arrival']<state['baseline_at']
         row=c.execute('''INSERT INTO milestones(user_id,code,kind,title,rank,activity_id,day,occurred,details,garmin_source,silent)
           VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
@@ -116,7 +349,14 @@ def process(c,uid,now=None,*,push_ids=None):
         nid=c.execute("INSERT INTO notifications(user_id,actor_id,kind,milestone_id) VALUES(%s,%s,'milestone',%s) RETURNING id",(uid,uid,mid)).fetchone()['id']
         c.execute('UPDATE milestone_state SET last_push_day=%s WHERE user_id=%s',(day,uid))
         if push_ids is not None:push_ids.append(nid)
-    c.execute('UPDATE milestone_state SET processed=%s,fresh=false,next_check=%s WHERE user_id=%s',(state['generation'],next_check,uid))
+    if track_pending:
+        # Leave one generation pending so the worker drains the next batch.
+        processed=max(0,min(state['generation']-1,state['processed']))
+        next_check=min(next_check,now+dt.timedelta(seconds=1))
+        fresh=state['fresh']
+    else:
+        processed=state['generation'];fresh=False
+    c.execute('UPDATE milestone_state SET processed=%s,fresh=%s,next_check=%s WHERE user_id=%s',(processed,fresh,next_check,uid))
     return True
 
 
@@ -142,7 +382,7 @@ def start_worker():
     worker=threading.Thread(target=loop,daemon=True);worker.start();return stop,worker
 
 
-VISIBLE="""m.valid AND NOT m.silent AND m.seen_at IS NULL AND m.occurred>=now()-interval '7 days'
+VISIBLE="""m.valid AND m.kind<>'track' AND m.kind<>'track_state' AND NOT m.silent AND m.seen_at IS NULL AND m.occurred>=now()-interval '7 days'
  AND (m.activity_id IS NULL OR EXISTS(SELECT 1 FROM activities a WHERE a.id=m.activity_id AND a.user_id=m.user_id))"""
 
 @router.get('')
