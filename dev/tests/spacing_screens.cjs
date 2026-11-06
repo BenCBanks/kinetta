@@ -2,6 +2,7 @@
 const scenes=fixtures=>[
  {name:'Me',login:'alex',route:'/me',ready:'#page:not([data-home-loading]):has(.me-card-sections[aria-busy="false"])'},
  {name:'Me Today plan',login:'zz_test_me_today',route:'/me',ready:'#t-today[data-loaded-day] [data-today-activity]',todayPlan:true},
+ {name:'Sharing & privacy',login:'alex',route:'/me/sharing',ready:'#sh-achievements'},
  {name:'Activity',login:'zz_test_feed_typical',route:'/activity',ready:'#feed-tools[aria-busy="false"]'},
  {name:'Activity detail',login:'zz_test_detail_owner',route:'/activity/'+fixtures.detail.run,ready:'.compact-detail-title'},
  {name:'Track ready',login:'zz_test_track_runner',route:'/track',ready:'#track-explore[aria-busy="false"]',native:true},

@@ -12,6 +12,7 @@ Keeping people's data safe:
    400 or 800 m) is cut off before the line leaves the server. A route too short to trim gets no map at all.
 """
 import datetime as dt
+import hashlib
 import json
 import os
 import secrets
@@ -24,7 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg import errors
 from pydantic import BaseModel, Field, field_validator
 
-from . import db, notify, reactions
+from . import api_achievements, db, notify, reactions
 from .api_account import _admin
 from .api_activities import DETAIL_TOL, PHOTOS_SQL, PREVIEW_TOL, polyline, SPEED_AVAILABLE_SQL
 from .auth import current_user
@@ -499,14 +500,15 @@ class SharingIn(BaseModel):
     details: dict | None = None
     trim_m: int | None = None
     findable: bool | None = None         # show me in friend search
+    share_achievements: bool | None = None
 
 
 @router.get('/sharing')
 def sharing(user=Depends(current_user)):
     with db.connect() as c:
-        p = c.execute('SELECT share_default, share_details, share_trim_m, findable FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
+        p = c.execute('SELECT share_default, share_details, share_trim_m, findable, share_achievements FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
     return {'default': p.get('share_default', 'everyone'), 'details': details_of(p.get('share_details')), 'trim_m': p.get('share_trim_m', 400),
-            'trims': TRIMS, 'findable': p.get('findable', True)}
+            'trims': TRIMS, 'findable': p.get('findable', True), 'share_achievements': p.get('share_achievements', False)}
 
 
 @router.put('/sharing')
@@ -518,15 +520,22 @@ def set_sharing(body: SharingIn, user=Depends(current_user)):
         if body.trim_m not in TRIMS: raise HTTPException(400, 'Choose off, 200, 400 or 800 m')
         sets['share_trim_m'] = body.trim_m
     if body.findable is not None: sets['findable'] = body.findable
-    if sets:
+    if sets or body.share_achievements is not None:
         with db.connect() as c:
-            profile = c.execute('SELECT share_details FROM profile WHERE user_id=%s FOR UPDATE', (user['id'],)).fetchone() or {}
+            profile = c.execute('SELECT share_details,share_achievements FROM profile WHERE user_id=%s FOR UPDATE', (user['id'],)).fetchone() or {}
             if body.details is not None:
                 proposed = {'share_details': _clean_details(body.details)}
                 for activity in c.execute("SELECT id,name,description,sport_label,visibility,share_details FROM activities WHERE user_id=%s AND visibility<>'me'", (user['id'],)).fetchall():
                     if details_of(proposed['share_details'], activity['share_details'])['description'] and not details_of(profile.get('share_details'), activity['share_details'])['description']:
                         community_filter.activity(c, user['id'], activity, proposed)
-            c.execute(f"UPDATE profile SET {', '.join(f'{k} = %s' for k in sets)} WHERE user_id = %s", (*sets.values(), user['id']))
+            if body.share_achievements is not None and bool(profile.get('share_achievements')) != body.share_achievements:
+                c.execute('''UPDATE profile SET share_achievements=%s,
+                             share_achievements_since=CASE WHEN %s THEN now() ELSE NULL END WHERE user_id=%s''',
+                          (body.share_achievements, body.share_achievements, user['id']))
+                if not body.share_achievements:
+                    c.execute('DELETE FROM achievement_moment_reactions WHERE owner_id=%s', (user['id'],))
+            if sets:
+                c.execute(f"UPDATE profile SET {', '.join(f'{k} = %s' for k in sets)} WHERE user_id = %s", (*sets.values(), user['id']))
     return {'ok': True}
 
 
@@ -558,9 +567,89 @@ def set_activity_sharing(aid: int, body: ActivitySharingIn, user=Depends(current
 
 
 # ---------- seeing others' activities ----------
+def _moment_sort_id(login, week_start):
+    # Negative, stable and separate from positive activity ids; the feed can page ties
+    # without exposing a source activity or using it as a reaction target.
+    digest = hashlib.sha256(f'{login}:{week_start.isoformat()}'.encode()).digest()
+    return -max(1, int.from_bytes(digest[:6], 'big'))
+
+
+def _friend_achievement_moments(c, viewer, owner_ids=None):
+    q = f'''SELECT m.user_id,m.code,m.kind,m.title,m.rank,m.activity_id,m.day,m.occurred,m.details,
+                   p.units,u.login::text AS owner_login,u.name AS owner_name,u.photo_v AS owner_photo
+            FROM milestones m JOIN profile p ON p.user_id=m.user_id JOIN users u ON u.id=m.user_id
+            WHERE m.user_id IN ({FRIEND_IDS}) AND p.share_achievements
+              AND p.share_achievements_since IS NOT NULL AND m.occurred>=p.share_achievements_since
+              AND m.valid AND m.kind IN ('track','sport','first_distance')
+              AND NOT {blocked('u.id')} AND NOT {unconfirmed('u.id')}'''
+    args = {'viewer': viewer}
+    if owner_ids is not None:
+        q += ' AND m.user_id=ANY(%(owner_ids)s)'
+        args['owner_ids'] = list(owner_ids)
+    q += ' ORDER BY m.occurred DESC,m.code'
+    grouped = {}
+    for row in c.execute(q, args).fetchall():
+        details = row.get('details') or {}
+        if row['kind'] == 'track':
+            code = details.get('track')
+            if not code: continue
+            tier = api_achievements._tier(row, code, row.get('units') or 'imperial')
+        else:
+            code = api_achievements._sport_code(details)
+            if not code: continue
+            tier = api_achievements._tier(row, code, row.get('units') or 'imperial')
+            tier['big'] = True
+        if not tier['big']: continue
+        day = row['day'] if isinstance(row['day'], dt.date) else dt.date.fromisoformat(str(row['day']))
+        week_start = day - dt.timedelta(days=day.weekday())
+        key = (row['user_id'], week_start)
+        owner = {'login': row['owner_login'], 'name': row['owner_name'] or row['owner_login'], 'photo': row['owner_photo']}
+        grouped.setdefault(key, {'owner': owner, 'tiers': []})['tiers'].append(
+            {'title': tier['title'] or tier['label'], 'occurred': row['occurred'], 'day': day, 'code': row['code']})
+
+    out = []
+    for (owner_id, week_start), group in grouped.items():
+        group['tiers'].sort(key=lambda t: (t['occurred'], t['code']), reverse=True)
+        primary = group['tiers'][0]
+        owner = group['owner']
+        out.append({'id': _moment_sort_id(owner['login'], week_start), 'kind': 'achievement_moment',
+                    'week_start': week_start.isoformat(), 'start_time': primary['occurred'], 'day': primary['day'],
+                    'title': primary['title'], 'extra_count': len(group['tiers']) - 1, 'owner': owner,
+                    '_owner_id': owner_id, '_week_start': week_start})
+    return out
+
+
+def _hydrate_moment_reactions(c, viewer, moments):
+    if not moments: return
+    owners = [m['_owner_id'] for m in moments]
+    weeks = [m['_week_start'] for m in moments]
+    rows = c.execute(f'''SELECT target.owner_id,target.week_start,r.user_id AS reactor_id,
+                                u.login::text AS login,u.name,u.photo_v AS photo,r.kind
+                         FROM unnest(%(owners)s::bigint[],%(weeks)s::date[]) AS target(owner_id,week_start)
+                         JOIN achievement_moment_reactions r ON r.owner_id=target.owner_id AND r.week_start=target.week_start
+                         JOIN users u ON u.id=r.user_id
+                         WHERE NOT {blocked('u.id')} AND NOT {unconfirmed('u.id')}
+                           AND EXISTS (SELECT 1 FROM friendships f WHERE f.status='accepted' AND
+                               ((f.requester=target.owner_id AND f.addressee=r.user_id) OR
+                                (f.addressee=target.owner_id AND f.requester=r.user_id)))
+                           AND NOT EXISTS (SELECT 1 FROM blocks b WHERE
+                               (b.user_id=target.owner_id AND b.blocked=r.user_id) OR
+                               (b.user_id=r.user_id AND b.blocked=target.owner_id))''',
+                      {'owners': owners, 'weeks': weeks, 'viewer': viewer}).fetchall()
+    by_key = {}
+    for row in rows:
+        by_key.setdefault((row['owner_id'], row['week_start']), []).append(row)
+    for moment in moments:
+        people = by_key.get((moment['_owner_id'], moment['_week_start']), [])
+        moment.update(cheers=[{k: r[k] for k in ('login','name','photo','kind')} for r in people],
+                      reactions=reactions.summary(people),
+                      my_reaction=next((r['kind'] for r in people if r['reactor_id'] == viewer), None),
+                      cheered=any(r['reactor_id'] == viewer for r in people))
+
+
 @router.get('/feed/friends')
 def friends_feed(before: dt.datetime | None = None, before_id: int | None = None, limit: int = 25, user=Depends(current_user)):
-    """Friends' activities they share with friends or everyone, newest first (page on with ?before=<start_time>)."""
+    """Friends' shared activities and opted-in big-tier moments, newest first."""
     limit = max(1, min(limit, FEED_MAX))
     q = _select() + f' WHERE a.user_id IN ({FRIEND_IDS}) AND {CAN_SEE}'
     args = _params(user['id'], PREVIEW_TOL, limit=limit)
@@ -569,7 +658,18 @@ def friends_feed(before: dt.datetime | None = None, before_id: int | None = None
         args.update(before=before,before_id=before_id or 0)
     with db.connect() as c:
         rows = c.execute(q + ' ORDER BY a.start_time DESC, a.id DESC LIMIT %(limit)s', args).fetchall()
-    return [shared_activity(r) for r in rows]
+        moments = _friend_achievement_moments(c, user['id'])
+        if before:
+            moments = [m for m in moments if m['start_time'] < before or
+                       (m['start_time'] == before and m['id'] < (before_id or 0))]
+        moments.sort(key=lambda m: (m['start_time'], m['id']), reverse=True)
+        moments = moments[:limit]
+        _hydrate_moment_reactions(c, user['id'], moments)
+    items = [shared_activity(r) for r in rows] + moments
+    items.sort(key=lambda item: (item['start_time'], item['id']), reverse=True)
+    for moment in moments:
+        moment.pop('_owner_id', None); moment.pop('_week_start', None)
+    return items[:limit]
 
 
 def _social(c, aid, viewer, owner):
@@ -618,6 +718,50 @@ class ReactionIn(BaseModel):
         kind=reactions.canonical(value)
         if kind not in reactions.KINDS:raise ValueError('Choose a reaction from the list')
         return kind
+
+
+def _visible_achievement_moment(c, viewer, owner_login, week_start):
+    confirmed(c, viewer)
+    owner = c.execute('''SELECT u.id FROM users u JOIN profile p ON p.user_id=u.id
+                         WHERE u.login=%s FOR SHARE OF p''', (owner_login.strip().lower(),)).fetchone()
+    if not owner or owner['id'] == viewer: raise HTTPException(404, 'Not found')
+    moment = next((m for m in _friend_achievement_moments(c, viewer, [owner['id']])
+                   if m['_week_start'] == week_start), None)
+    if not moment: raise HTTPException(404, 'Not found')
+    _hydrate_moment_reactions(c, viewer, [moment])
+    return moment
+
+
+def _moment_reaction_result(moment):
+    return {key: moment[key] for key in ('cheers','cheered','my_reaction','reactions')}
+
+
+@router.get('/achievement-moments/{owner_login}/{week_start}/reactions')
+def achievement_moment_reactions(owner_login: str, week_start: dt.date, user=Depends(current_user)):
+    with db.connect() as c:
+        return _moment_reaction_result(_visible_achievement_moment(c, user['id'], owner_login, week_start))
+
+
+@router.post('/achievement-moments/{owner_login}/{week_start}/reaction')
+def react_to_achievement_moment(owner_login: str, week_start: dt.date, body: ReactionIn, user=Depends(current_user)):
+    with db.connect() as c:
+        moment = _visible_achievement_moment(c, user['id'], owner_login, week_start)
+        c.execute('''INSERT INTO achievement_moment_reactions(owner_id,week_start,user_id,kind)
+                     VALUES(%s,%s,%s,%s) ON CONFLICT(owner_id,week_start,user_id)
+                     DO UPDATE SET kind=excluded.kind WHERE achievement_moment_reactions.kind<>excluded.kind''',
+                  (moment['_owner_id'], moment['_week_start'], user['id'], body.kind))
+        moment = _visible_achievement_moment(c, user['id'], owner_login, week_start)
+        return _moment_reaction_result(moment)
+
+
+@router.delete('/achievement-moments/{owner_login}/{week_start}/reaction')
+def remove_achievement_moment_reaction(owner_login: str, week_start: dt.date, user=Depends(current_user)):
+    with db.connect() as c:
+        moment = _visible_achievement_moment(c, user['id'], owner_login, week_start)
+        c.execute('DELETE FROM achievement_moment_reactions WHERE owner_id=%s AND week_start=%s AND user_id=%s',
+                  (moment['_owner_id'], moment['_week_start'], user['id']))
+        moment = _visible_achievement_moment(c, user['id'], owner_login, week_start)
+        return _moment_reaction_result(moment)
 
 
 def _react(aid,kind,user):

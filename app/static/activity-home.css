@@ -46,6 +46,14 @@
 /* Whole enlarged words fit within the existing two-column cards. */
 .feed-low .progress-grid .progress-tile { padding-inline:8px; }
 
+.achievement-moment { padding:0; overflow:hidden; }
+.achievement-moment-body { display:flex; align-items:center; gap:8px; min-width:0; padding:12px 16px; }
+.achievement-moment-copy { flex:1; min-width:0; }
+.achievement-moment-copy p { margin:0; line-height:1.4; overflow-wrap:anywhere; }
+.achievement-moment-name { color:var(--tx); font-weight:700; }
+.achievement-moment-copy time { display:block; margin-top:4px; color:var(--tx3); font-size:13px; }
+.sharing-settings .switch-row > span { font-size:max(15px,.9375rem); }
+
 /* Let title lines use the card's full width after the inline sport icon. */
 .feed-low .progress-tile-name { display:block; }
 .feed-low .progress-tile-name > svg { display:inline-block;vertical-align:-2px;margin-right:6px; }

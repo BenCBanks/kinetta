@@ -250,4 +250,49 @@ class Milestones(unittest.TestCase):
   self.process();self.assertEqual(self.items(),[])
   with db.connect() as c:c.execute("UPDATE activities SET start_time=now()-interval '2 hours',lift_open=true WHERE id=%s",(aid,))
   self.process();self.assertEqual(self.items(),[])
+ def test_achievement_moments_are_private_weekly_and_reaction_safe(self):
+  owner,friend=self.clients;owner_id,friend_id=self.ids
+  with db.connect() as c:
+   people=c.execute('SELECT id,login::text AS login FROM users WHERE id=ANY(%s)',(self.ids,)).fetchall();logins={r['id']:r['login'] for r in people}
+   c.execute("INSERT INTO friendships(requester,addressee,status,accepted) VALUES(%s,%s,'accepted',now())",(owner_id,friend_id))
+  owner_login=logins[owner_id]
+  self.assertFalse(owner.get('/api/sharing').json()['share_achievements'],'achievement sharing starts off')
+  self.assertFalse(any(row.get('kind')=='achievement_moment' for row in friend.get('/api/feed/friends').json()),'off state hides moments from the friend feed')
+  response=owner.put('/api/sharing',json={'share_achievements':True});self.assertEqual(response.status_code,200,response.text)
+  with db.connect() as c:since=c.execute('SELECT share_achievements_since FROM profile WHERE user_id=%s',(owner_id,)).fetchone()['share_achievements_since']
+  base=since-dt.timedelta(days=10);zone=M.ZoneInfo('America/New_York')
+  with db.connect() as c:c.execute('UPDATE profile SET share_achievements_since=%s WHERE user_id=%s',(since-dt.timedelta(days=12),owner_id))
+  events=[
+   ('track:journey:test:first', 'track', 'Lake Tahoe', 1, base+dt.timedelta(minutes=2), {'track':'journey','rank':1,'threshold':300000,'label':'Lake Tahoe','unit':'km','big':True}),
+   ('sport:run:test:first', 'sport', 'First run', 1, base+dt.timedelta(minutes=4), {'sport':'run','rank':1,'label':'First run','unit':'count'}),
+   ('track:journey:test:us', 'track', 'Across the US', 2, base+dt.timedelta(minutes=6), {'track':'journey','rank':2,'threshold':4500000,'label':'Across the US','unit':'km','big':True}),
+   ('track:journey:test:small', 'track', 'Small tier', 3, base+dt.timedelta(minutes=8), {'track':'journey','rank':3,'threshold':5000000,'label':'Small tier','unit':'km','big':False}),
+   ('track:journey:test:moon', 'track', 'To the Moon', 4, base+dt.timedelta(days=8), {'track':'journey','rank':4,'threshold':384400000,'label':'To the Moon','unit':'km','big':True}),
+  ]
+  with db.connect() as c:
+   c.execute("INSERT INTO milestones(user_id,code,kind,title,rank,day,occurred,details) VALUES(%s,'track:journey:test:state','track_state','Journey',0,%s,%s,%s)",
+             (owner_id,base.astimezone(zone).date(),base,psycopg.types.json.Jsonb({'track':'journey','value_m':4500000,'label':'Journey','unit':'km'})))
+   for code,kind,title,rank,occurred,details in events:
+    c.execute('INSERT INTO milestones(user_id,code,kind,title,rank,day,occurred,details) VALUES(%s,%s,%s,%s,%s,%s,%s,%s)',
+              (owner_id,code,kind,title,rank,occurred.astimezone(zone).date(),occurred,psycopg.types.json.Jsonb(details)))
+  achievements=owner.get('/api/achievements').json();journey=next(t for t in achievements['tracks'] if t['code']=='journey')
+  self.assertTrue(next(t for t in journey['tiers'] if t['title']=='Across the US')['big'],'the owner API exposes the worker big flag')
+  feed=friend.get('/api/feed/friends').json();moments=[row for row in feed if row.get('kind')=='achievement_moment']
+  self.assertEqual(len(moments),2,'multiple big tiers fold into one moment per owner per local week')
+  first_week=next(m for m in moments if m['week_start']==(base.astimezone(zone).date()-dt.timedelta(days=base.astimezone(zone).date().weekday())).isoformat())
+  self.assertEqual(first_week['title'],'Across the US');self.assertEqual(first_week['extra_count'],2,'big tiers and the sport First fold together; a small tier does not')
+  for moment in moments:
+   self.assertLess(moment['id'],0)
+   for private_key in ('activity_id','distance_m','line','calories','route_id','food','user_id'):
+    self.assertNotIn(private_key,moment,f'moment has no {private_key}')
+  path=f"/api/achievement-moments/{owner_login}/{first_week['week_start']}"
+  reacted=friend.post(path+'/reaction',json={'kind':'clap'});self.assertEqual(reacted.status_code,200,reacted.text);self.assertEqual(reacted.json()['my_reaction'],'clap')
+  profile_response=friend.get(f'/api/people/{owner_login}/profile');self.assertEqual(profile_response.status_code,200,profile_response.text);profile=profile_response.json();profile_text=json.dumps(profile)
+  self.assertNotIn('Across the US',profile_text,'friend profile JSON does not expose achievement history before its separate build')
+  response=owner.put('/api/sharing',json={'share_achievements':False});self.assertEqual(response.status_code,200,response.text)
+  self.assertFalse(any(row.get('kind')=='achievement_moment' for row in friend.get('/api/feed/friends').json()),'turning sharing off removes prior moments')
+  self.assertEqual(friend.get(path+'/reactions').status_code,404,'off moments cannot be read directly')
+  with db.connect() as c:self.assertEqual(c.execute('SELECT count(*) AS n FROM achievement_moment_reactions WHERE owner_id=%s',(owner_id,)).fetchone()['n'],0)
+  response=owner.put('/api/sharing',json={'share_achievements':True});self.assertEqual(response.status_code,200,response.text)
+  self.assertFalse(any(row.get('kind')=='achievement_moment' for row in friend.get('/api/feed/friends').json()),'re-enabling does not republish past moments')
 if __name__=='__main__':unittest.main(verbosity=2)
