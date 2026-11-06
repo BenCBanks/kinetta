@@ -66,7 +66,7 @@ async def upload(request: Request, files: list[UploadFile], user=Depends(current
             with open(p, 'wb') as out:
                 while chunk := await f.read(1024 * 1024):
                     total += len(chunk)
-                    if total > UPLOAD_MAX: raise HTTPException(413, 'Upload too large - use the server inbox for huge exports')
+                    if total > UPLOAD_MAX: raise HTTPException(413, 'This upload is too large. Ask the person who runs Kinetta to import a large export.')
                     out.write(chunk)
             if not name.lower().endswith(importer.EXTS + ('.zip',)):
                 os.remove(p); continue
@@ -462,7 +462,7 @@ def save_track(body: TrackIn, user=Depends(current_user)):
             raise HTTPException(409,'This recording was already saved with different interval results. Your draft is kept.')
         receipt=c.execute('SELECT activity_id FROM track_recording_receipts WHERE user_id=%s AND client_id=%s',(user['id'],body.client_id)).fetchone()
         if receipt:
-            if receipt['activity_id'] is None:raise HTTPException(409,'This recording was already saved and removed. It cannot be restored by retrying the upload.')
+            if receipt['activity_id'] is None:raise HTTPException(409,'This recording was saved and later deleted. Uploading it again won’t restore it.')
             if interval_result is not None and not interval_receipt:raise HTTPException(409,'This recording was already saved without intervals; review the existing activity before retrying.')
             return {'id':receipt['activity_id'],'duplicate':True}
         if interval_receipt:return {'id':interval_receipt['activity_id'],'duplicate':True}
