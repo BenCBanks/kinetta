@@ -222,7 +222,7 @@ def delete_account(body: DeleteIn, request: Request, response: Response, user=De
                 raise auth.Failed(400, 'Password is wrong')
             if me['is_admin'] and not c.execute('SELECT 1 FROM users WHERE is_admin AND id <> %s', (me['id'],)).fetchone() \
                     and c.execute('SELECT 1 FROM users WHERE id <> %s', (me['id'],)).fetchone():
-                raise HTTPException(400, "You're the admin and other people use this Kinetta, so this account can't be deleted here")
+                raise HTTPException(400, "You’re the only admin, and other people use this Kinetta, so you can’t delete this account yet. Make someone else an admin first.")
             garmin = garmin_connect._settings(c, me['id'])
             erase(c, me)
     except auth.Failed as e:
