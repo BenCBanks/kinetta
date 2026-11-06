@@ -12,6 +12,11 @@ else:
 public=a.destination/'public';index=public/'index.html';assert index.is_file()
 fixture=Path(__file__).parent
 config={'stage':a.stage,'root':a.root,'run':a.run}
+if a.stage=='header-activity' and not a.store:
+ fixture_data=json.loads(subprocess.check_output(['node','-e',"const r=require(process.argv[1])().responses;process.stdout.write(JSON.stringify({own:r['/api/activities'],friends:r['/api/feed/friends']}))",str(fixture/'appstore.cjs')],text=True))
+ if fixture_data['friends']:
+  fixture_data['friends'][0]['owner']['name']='River Friend 1 With a Long Fictional Name'
+ config['activityFeed']=fixture_data
 if a.store:config['store']=json.loads(subprocess.check_output(['node','-e','process.stdout.write(JSON.stringify(require(process.argv[1])()))',str(fixture/'appstore.cjs')],text=True))
 if a.store:
  assert a.map_config and a.map_config.is_file(),'Store scenes require the public basemap contract'
