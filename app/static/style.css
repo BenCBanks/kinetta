@@ -1882,6 +1882,7 @@ nav.tabs :is(a,button)[aria-current="page"] svg { animation: tab-pick .28s cubic
 .me-form-nums small { font-size: 13px; color: var(--tx3); }
 .me-form .callout { margin: 0; }
 .me-tools { margin-top: 24px; }
+.me-tools > .row-link { min-height: 56px; }
 
 /* Optional goal setup (#122 A): existing Evergreen controls, one main action per step. */
 /* Welcome steps after a new account (#232 F) */
