@@ -101,13 +101,13 @@
 .activity-card .post-ft:has(.emoji-reactions) { gap:0; padding-top:8px; }
 .activity-card .post-ft:has(.emoji-reactions) .emoji-reactions .reaction-shortcuts { order:4; }
 .activity-card .post-ft:has(.activity-share) .reaction-shortcuts { margin-left:auto; }
-.activity-card .post-ft .reaction-summary-emoji:nth-child(n+3) { display:none; }
 @media(max-width:360px) {
  .activity-card .post-ft:has(.emoji-reactions) { padding-inline:12px; }
  .activity-card .post-ft:has(.activity-share) { gap:8px; }
  .activity-card .post-ft:has(.activity-share) .reaction-more { margin-right:8px; }
  .activity-card .post-ft .activity-share { margin-left:0; }
  .activity-card .post-ft:has(.activity-share) .reaction-summary-emoji:nth-child(n+2) { display:none; }
+ .activity-card .post-ft:has(.activity-share) .reaction-summary-emoji:first-child .reaction-emoji { margin-left:2px; }
 }
 .activity-card .compact-media:has(.media-map) .media-controls > button[data-media-step="1"] { top:36px; }
 
