@@ -64,7 +64,7 @@ const ProfileLayout=(()=>{
   function achievementPage(el,requestedCode=''){
     const owner=readOwner(),code=requestedCode?decodeURIComponent(requestedCode):'',profile=profileHref(App.me),active=()=>el.isConnected&&owner===readOwner();
     el.innerHTML=`<div class="top">${backBtn('Profile')}</div><div id="profile-achievement-page" aria-busy="true"><h1>${code?'Achievement history':'Achievements'}</h1><p class="small muted">Loading…</p></div>`;
-    wireBack(el,profile);
+    wireBack(el,profile,destination=>/^\/me\/achievements(?:\/|$|\?)/.test(destination.path)?'Achievements':'Profile');
     const box=$('#profile-achievement-page',el);
     api('/api/achievements').then(data=>{
       if(!active()||!box.isConnected)return;
