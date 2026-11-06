@@ -25,8 +25,11 @@ async function verifyActivityMonthJump(p,out,theme,width){
  await p.goto(base+'/people/zz_test_feed_typical');await p.locator('#person-activities .activity-card').first().waitFor();
  assert.equal(await p.evaluate(()=>Intl.DateTimeFormat().resolvedOptions().timeZone),'Asia/Tokyo','browser uses the Tokyo device zone');assert.equal(await p.evaluate(()=>App.me.tz),'America/New_York','owner profile uses the New York zone');
  const header=p.locator('.profile-activity-tools'),button=p.locator('#person-month');await button.waitFor();
- await p.evaluate(()=>{document.documentElement.style.scrollBehavior='auto';});await header.evaluate(n=>n.scrollIntoView({block:'start'}));
- await until(p,()=>{const top=document.querySelector('.profile-activity-tools')?.getBoundingClientRect().top;return top!=null&&top>=-1&&top<80;},'activity header in view');assert.equal(await button.innerText(),'Month ⌄');const viewport=p.viewportSize(),buttonBox=await button.boundingBox();assert(buttonBox.x>=0&&buttonBox.x+buttonBox.width<=viewport.width&&buttonBox.y>=0&&buttonBox.y+buttonBox.height<=viewport.height,'Month control fits in the visible header at this viewport');assert(buttonBox.height>=44,'Month control keeps a 44px touch target');
+ // Achievements is fetched after the profile rows and inserted above Activities; wait for that layout shift before scrolling.
+ await p.locator('.profile-achievements').waitFor({state:'attached'});await p.evaluate(()=>document.fonts.ready);
+ await p.evaluate(()=>{document.documentElement.style.scrollBehavior='auto';});await header.evaluate(n=>n.scrollIntoView({block:'start',behavior:'instant'}));
+ await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ await until(p,()=>{const top=document.querySelector('.profile-activity-tools')?.getBoundingClientRect().top;return top!=null&&top>=-1&&top<80;},'activity header in view');assert.equal(await button.innerText(),'Month ⌄');const viewport=p.viewportSize(),buttonBox=await button.boundingBox(),headerBox=await header.boundingBox();assert(buttonBox.x>=0&&buttonBox.x+buttonBox.width<=viewport.width&&buttonBox.y>=0&&buttonBox.y+buttonBox.height<=viewport.height,'Month control fits in the visible header at this viewport: '+JSON.stringify({buttonBox,headerBox,viewport}));assert(buttonBox.height>=44,'Month control keeps a 44px touch target');
  assert.equal(await p.locator('.profile-list-filters').count(),1,'month stays in the existing list header');
  assert.equal(await button.evaluate(n=>getComputedStyle(n).backgroundColor),'rgba(0, 0, 0, 0)','Month is a plain text control, not a grey pill');
  await button.click();const sheet=p.locator('.scrim .sheet[aria-label="Month"]');await sheet.waitFor();await p.waitForTimeout(250);
