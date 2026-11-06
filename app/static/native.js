@@ -35,6 +35,14 @@ const Native = (() => {
       else if (navigator.vibrate) navigator.vibrate(kind === 'success' ? [12, 40, 12] : 10);
     } catch (x) { /* never let a buzz break a tap */ }
   };
+  // A new achievement uses the existing UIKit success feedback. Keep this iPhone-only so a web visit never vibrates.
+  N.achievementLevelUp = () => {
+    try {
+      if (!on || C.getPlatform?.() !== 'ios' || typeof P.KinettaHaptics?.tap !== 'function') return false;
+      Promise.resolve(P.KinettaHaptics.tap({kind: 'success'})).catch(() => {});
+      return true;
+    } catch (x) { return false; }
+  };
   // Signing in to Garmin inside the app (NativeWebSignIn.swift): Apple's sheet closes on a kinetta:// address and hands
   // it back here. Older app builds don't have it and fall back to Safari.
   N.signInSheet = on && !!P.KinettaWebSignIn;
