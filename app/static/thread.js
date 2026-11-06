@@ -683,7 +683,7 @@ const FoodThread = (() => {
     reuseBox.setAttribute('role','group');reuseBox.setAttribute('aria-label','Reuse your foods');
     $('.thread-compose-row',el).before(reuseBox);
     $('.thread-compose-row',el).before($('#thread-remove-notice',el));
-    ctx.reuseChips=foodReuseChips({box:reuseBox,field,live:()=>active(ctx),choose:item=>reuse(ctx,item),day:()=>ctx.historyDay,excluded:()=>{const last=[...ctx.messages].reverse().find(m=>m.kind==='reply'&&m.result?.kind==='log'&&m.entries?.length);return last?.entries.map(e=>e.name)||[];}});
+    ctx.reuseChips=foodReuseChips({box:reuseBox,field,live:()=>active(ctx),choose:item=>reuse(ctx,item),day:()=>ctx.historyDay,excluded:()=>{const current=held(ctx).foods.map(e=>e.name),last=[...ctx.messages].reverse().find(m=>m.kind==='reply'&&m.result?.kind==='log'&&m.entries?.length);return [...current,...(last?.entries.map(e=>e.name)||[])];}});
     ctx.nativeEntries=(store.get(nativeKey(owner))||[]).filter(x=>x&&x.at>Date.now()-86400000).slice(-100);
     let fitKey='';
     const grow=()=>{

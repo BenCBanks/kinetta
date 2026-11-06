@@ -16,7 +16,7 @@ function foodReuseChips({box,field,live,choose,day,excluded=()=>[]}){
         if(!live()||version!==generation)return;
         const recent=excluded();let shown=0;
         for(const item of result.items||[]){
-          if(matches(text,item.name)||recent.some(name=>matches(name,item.name)))continue;
+          if(recent.some(name=>matches(name,item.name)))continue;
           const button=document.createElement('button');button.type='button';
           const add=document.createElement('span');add.className='reuse-add-icon';add.innerHTML=svg('plus');
           const name=document.createElement('span');name.className='reuse-name';name.textContent=item.name;
