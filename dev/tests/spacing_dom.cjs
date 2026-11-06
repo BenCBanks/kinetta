@@ -7,6 +7,13 @@ function collectSpacing({screen,rules=[]}){
   const parts=[];for(let n=el;n&&n!==document.body&&parts.length<5;n=n.parentElement){if(n.id){parts.unshift('#'+CSS.escape(n.id));break;}let p=n.tagName.toLowerCase();const classes=[...n.classList].filter(c=>!['on','active','selected','ready','has-before','has-after','picked'].includes(c)).slice(0,2);if(classes.length)p+='.'+classes.map(CSS.escape).join('.');const siblings=n.parentElement?[...n.parentElement.children].filter(s=>s.tagName===n.tagName):[];if(siblings.length>1)p+=`:nth-of-type(${siblings.indexOf(n)+1})`;parts.unshift(p);}return parts.join(' > ');
  };
  const rect=el=>{const r=el.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height};};
+ const hitRect=el=>{
+  if(!el.matches('.activity-card.post .post-name'))return null;
+  const pseudo=getComputedStyle(el,'::before');if(pseudo.content==='none'||pseudo.position!=='absolute')return null;
+  const insets=['top','right','bottom','left'].map(key=>parseFloat(pseudo[key]));if(insets.some(value=>!Number.isFinite(value)))return null;
+  const r=el.getBoundingClientRect(),[top,right,bottom,left]=insets;
+  return{x:r.x+left,y:r.y+top,width:Math.max(0,r.width-left-right),height:Math.max(0,r.height-top-bottom)};
+ };
  const visible=el=>{
   const r=el.getBoundingClientRect(),s=getComputedStyle(el);if(!r.width||!r.height||s.visibility==='hidden'||s.display==='none'||+s.opacity===0)return false;
   if((r.width<=1&&r.height<=1)||el.closest('[hidden],[inert]'))return false;
@@ -24,7 +31,7 @@ function collectSpacing({screen,rules=[]}){
  for(const el of nodes){
   const original=el.matches('label')?el.querySelector('input'):el,key=selector(el),input=original?.matches('textarea,select,input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file])');
   const sentence=el.closest('p,li'),inlineLink=el.matches('a')&&getComputedStyle(el).display==='inline'&&!!sentence&&sentence.textContent.trim()!==el.textContent.trim();
-  const box=rect(el);
+  const box=hitRect(el)||rect(el);
   let left=Math.max(0,box.x),right=Math.min(innerWidth,box.x+box.width),top=Math.max(0,box.y),bottom=Math.min(innerHeight,box.y+box.height);
   for(let p=el.parentElement;p&&p!==document.body;p=p.parentElement){const s=getComputedStyle(p),r=p.getBoundingClientRect();if(/hidden|clip|auto|scroll/.test(s.overflowX)){left=Math.max(left,r.left);right=Math.min(right,r.right);}if(/hidden|clip|auto|scroll/.test(s.overflowY)){top=Math.max(top,r.top);bottom=Math.min(bottom,r.bottom);}}
   const usableRect={x:left,y:top,width:Math.max(0,right-left),height:Math.max(0,bottom-top)},fullyVisible=usableRect.width>=box.width-.02&&usableRect.height>=box.height-.02;

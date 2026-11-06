@@ -783,13 +783,11 @@ a.ntile { color: inherit; text-decoration: none; }
 
 .meal { padding-top: 12px; padding-bottom: 6px; }
 .meal h2 span { font-weight: 600; color: var(--tx3); font-size: 15px; }
-/* each meal's colour dot, and an empty meal as a dashed outline (2026-10-13) */
+/* each meal's colour dot */
 .meal > h2::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 50%; margin-right: 2px; background: var(--tx3); }
 .meal > h2 { justify-content: flex-start; } .meal > h2 > :last-child { margin-left: auto; }
 .meal-breakfast { --mc: var(--s4); } .meal-lunch { --mc: var(--s2); } .meal-dinner { --mc: var(--s1); } .meal-snacks { --mc: var(--s5); }
-.card.empty-meal { background: transparent; box-shadow: none; border: 2px dashed color-mix(in srgb, var(--tx3) 30%, transparent); }
-.empty-meal { padding: 4px 16px; }
-.empty-meal > h2 { margin: 0; min-height: 48px; }
+.nutrition-home .meal.meal-empty > h2 { margin-bottom: 0; }
 .fe { display: flex; width: 100%; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 0; min-height: 52px; border: 0; border-top: 1px solid var(--line);
   background: none; text-align: left; border-radius: 0; color: inherit; }
 .fe:first-of-type { border-top: 0; } .fe:active { opacity: .6; }
@@ -2851,7 +2849,7 @@ nav.tabs { view-transition-name: tabs; }
 .segment-detail-tabs {display:flex;gap:8px;margin:6px 0 12px}
 .segment-detail-tabs button {flex:1;min-height:44px;padding:8px;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:var(--tx2);box-shadow:none}
 .segment-detail-tabs button[aria-selected="true"] {border-bottom-color:var(--accent);color:var(--tx);font-weight:600}
-#sg-body .seg-effort .grow > b.num {font-size:15px}
+#sg-body .seg-effort .grow > b.num,#sg-body .seg-effort .seg-effort-time > b.num {font-size:15px}
 .seg-me p {margin:0 0 8px}
 .lb {list-style:none;padding:4px 14px;margin:0 0 12px}
 .lb-row {display:flex;align-items:center;gap:10px;min-height:60px;border-bottom:1px solid var(--line)}
@@ -2864,8 +2862,11 @@ nav.tabs { view-transition-name: tabs; }
 .lb-lead {color:var(--gold);font-weight:700;font-size:12px}
 .lb-more {width:36px;height:36px;color:var(--tx3)}
 .seg-efforts {list-style:none;padding:0;margin:0}
-.seg-effort {display:flex;align-items:center;gap:8px}
-.seg-effort .grow {display:grid;gap:2px;color:var(--tx);text-decoration:none}
+.seg-effort {display:flex;align-items:center;gap:8px;padding-inline:16px}
+.seg-effort .grow {display:grid;gap:2px;min-width:0;min-height:44px;align-content:center;color:var(--tx);text-decoration:none}
+.seg-effort .seg-effort-time {display:block;white-space:nowrap}
+.seg-effort .seg-effort-time > b,.seg-effort .seg-effort-time > .seg-best-label {display:inline;white-space:nowrap}
+.seg-efforts .seg-effort + .seg-effort::before {left:0}
 .seg-effort small.good {color:var(--good);font-weight:600}
 @media (max-width:360px) { .plan-bar > button span {font-size:11px} .plan-sports button svg {display:none} }
 
@@ -3142,6 +3143,9 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .progress-segment-controls .segment-filters {gap:8px;flex-wrap:nowrap;overflow-x:auto;}
 .progress-segment-controls .me-period {margin:0;flex-wrap:nowrap;gap:8px;}
 .progress-segment-controls [data-f] {min-width:44px;min-height:44px;padding:0 4px;white-space:nowrap;}
+.progress-segment-controls .segment-filters [data-f] { position:relative; min-height:44px; padding:0 4px; border:0; border-radius:0; background:transparent; box-shadow:none; color:var(--tx2); font-weight:500; }
+.progress-segment-controls .segment-filters [data-f][aria-pressed="true"] { background:transparent; color:var(--tx); font-weight:700; box-shadow:none; }
+.progress-segment-controls .segment-filters [data-f][aria-pressed="true"]::after { content:""; position:absolute; right:4px; bottom:0; left:4px; height:2px; background:var(--accent); }
 .progress-segment-controls #sg-sport {flex:none;background:none;padding-inline:4px;font-size:max(15px,.9375rem);}
 .progress-segment-controls #sg-sport>svg:first-child {display:none;}
 
