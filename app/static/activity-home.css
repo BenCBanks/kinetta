@@ -60,20 +60,12 @@
 .activity-card.post .post-hd .ph-txt { display:block; flex:1; min-width:0; }
 .activity-card.post .post-hd .post-title-link { display:flex; align-items:flex-end; min-height:44px; padding:0; color:inherit; text-decoration:none; background:none; }
 .activity-card.post .post-title { margin:0; font-size:max(17px,1.0625rem); font-weight:600; letter-spacing:0; line-height:1.25; overflow-wrap:anywhere; }
-.activity-card.post .post-hd small { position:relative; display:flex; align-items:center; flex-wrap:nowrap; column-gap:4px; margin-top:8px; color:var(--tx2); font-size:max(13px,.8125rem); line-height:1.35; white-space:nowrap; overflow:hidden; }
-/* Keep the profile hit-area before its text so the separator can follow without a gap. */
-.activity-card.post .post-name { display:inline-flex; align-items:center; vertical-align:top; flex:0 1 auto; width:auto; min-width:44px; max-width:82%; min-height:44px; margin-left:-23px; padding:0 0 0 23px; color:inherit; font-size:inherit; font-weight:500; text-decoration:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.activity-card.post .post-meta-rest { flex:1 1 auto; min-width:0; flex-wrap:nowrap; overflow:visible; }
-.activity-card.post .post-meta-date { display:block; flex:0 0 auto; width:max-content; max-width:none; min-width:0; white-space:nowrap; }
-.activity-card.post .post-meta-kind { display:block; flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.activity-card[data-href^="/activity/friends/"] .post-name { display:block; box-sizing:border-box; flex:0 0 75%; width:75%; max-width:75%; padding:0 40px 0 23px; line-height:44px; }
-.activity-card[data-href^="/activity/friends/"] .post-meta-date { position:absolute; right:0; top:50%; transform:translateY(-50%); padding-left:4px; background:transparent; }
-.activity-card[data-href^="/activity/friends/"] .post-meta-kind { display:none; }
-@media(max-width:360px) {
- .activity-card[data-href^="/activity/friends/"] .post-name { flex:0 0 calc(100% - 120px); width:calc(100% - 120px); max-width:calc(100% - 120px); padding-right:4px; }
- .activity-card[data-href^="/activity/friends/"] .post-meta-date { flex:0 0 auto; }
- .activity-card[data-href^="/activity/friends/"] .post-meta-kind { display:none; }
-}
+.activity-card.post .post-hd small { display:flex; align-items:baseline; flex-wrap:wrap; column-gap:4px; row-gap:2px; margin-top:8px; color:var(--tx2); font-size:max(13px,.8125rem); line-height:1.35; white-space:normal; min-width:0; }
+/* Keep the profile link's 44px hit area without forcing the metadata text into a tall row. */
+.activity-card.post .post-name { position:relative; display:inline-flex; align-items:baseline; flex:0 1 auto; min-width:44px; color:inherit; font-size:inherit; font-weight:500; text-decoration:none; white-space:normal; overflow-wrap:anywhere; }
+.activity-card.post .post-name::before { content:""; position:absolute; inset:-12px -4px; }
+.activity-card.post .post-meta-rest { display:contents; }
+.activity-card.post .post-meta-date,.activity-card.post .post-meta-kind { display:inline; flex:0 1 auto; min-width:0; white-space:nowrap; overflow:visible; text-overflow:clip; }
 .activity-card.post .post-name:focus-visible,.activity-card.post .post-title-link:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
 .activity-card .activity-media { width:100%; margin:0; }
 .activity-card .media-track { height:auto; border-radius:0; }
