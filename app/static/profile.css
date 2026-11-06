@@ -58,9 +58,10 @@
 .profile-achievement-ring-base,.profile-achievement-ring-progress { fill:none; }
 .profile-achievement-ring-base { stroke:rgba(255,255,255,.34); stroke-width:3; }
 .profile-achievement-ring-progress { stroke:#fff; stroke-width:3.25; stroke-linecap:round; }
-.profile-achievement-icon { display:block; flex:none; width:23px; height:23px; color:#fff; fill:currentColor; filter:drop-shadow(0 1px 1px rgba(0,0,0,.24)); }
+.profile-achievement-icon { display:block; flex:none; width:34px; height:34px; object-fit:contain; filter:drop-shadow(0 1px 1px rgba(0,0,0,.18)); }
 .profile-achievement-value { display:block; max-width:75px; color:#fff; font-size:12px; font-weight:700; line-height:1.12; text-align:center; overflow-wrap:anywhere; text-shadow:0 1px 2px rgba(0,0,0,.22); }
 .profile-achievement-level { position:absolute; top:-1px; right:-8px; min-width:39px; padding:2px 5px; border:1px solid var(--line); border-radius:999px; background:var(--bg); color:var(--tx); font-size:.6875rem; font-weight:700; line-height:1.25; white-space:nowrap; box-shadow:0 1px 3px rgba(0,0,0,.12); }
+.profile-achievement-multiple { position:absolute; right:-5px; bottom:10px; min-width:24px; padding:2px 4px; border:1px solid var(--line); border-radius:999px; background:var(--bg); color:var(--tx); font-size:.6875rem; font-weight:700; line-height:1.2; text-align:center; white-space:nowrap; box-shadow:0 1px 3px rgba(0,0,0,.12); }
 .profile-achievement-name { max-width:100px; color:var(--tx); font-size:.875rem; font-weight:650; line-height:1.2; overflow-wrap:anywhere; }
 .profile-achievement-next { max-width:108px; color:var(--tx2); font-size:.75rem; line-height:1.25; overflow-wrap:anywhere; }
 .profile-achievement.is-level-up .profile-achievement-medallion,.profile-achievement-history-head.is-level-up .profile-achievement-medallion { animation:profile-achievement-pop .58s cubic-bezier(.2,.85,.28,1.2) both; }
@@ -78,6 +79,22 @@
 .profile-achievement-history a,.profile-achievement-history-missing { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:44px; padding:6px 0; color:inherit; text-decoration:none; }
 .profile-achievement-history a>span:first-child,.profile-achievement-history-missing>span:first-child { min-width:0; overflow-wrap:anywhere; font-size:1rem; font-weight:600; }
 .profile-achievement-history time { flex:none; margin-left:auto; color:var(--tx2); font-size:.875rem; white-space:nowrap; }
+.profile-achievement-lookahead { margin:20px 0 12px; }
+.profile-achievement-lookahead h2,.profile-achievement-history-section h2 { margin:0 0 2px; font-size:1rem; }
+.profile-achievement-lookahead ol,.profile-achievement-all-levels ol { margin:0; padding:0; list-style:none; }
+.profile-achievement-level-row { display:flex; align-items:center; gap:12px; min-height:58px; padding:7px 0; border-bottom:1px solid var(--line); }
+.profile-achievement-level-row.is-upcoming { opacity:.52; }
+.profile-achievement-level-row.is-current { border-bottom-color:var(--accent); }
+.profile-achievement-level-icon { width:40px; height:40px; object-fit:contain; flex:none; }
+.profile-achievement-level-copy { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.profile-achievement-level-copy b { font-size:.9375rem; line-height:1.25; font-weight:650; overflow-wrap:anywhere; }
+.profile-achievement-level-copy small { color:var(--tx2); font-size:.8125rem; line-height:1.3; overflow-wrap:anywhere; }
+.profile-achievement-beyond { margin:8px 0 0; color:var(--tx2); font-size:.8125rem; }
+.profile-achievement-all-levels { margin:4px 0 20px; }
+.profile-achievement-all-levels summary { display:flex; align-items:center; min-height:44px; color:var(--accent); font-size:.9375rem; font-weight:600; cursor:pointer; }
+.profile-achievement-all-levels[open] summary { margin-bottom:2px; }
+.profile-achievement-history-section { margin-top:18px; }
+.profile-achievement-history-section h2 { margin-bottom:4px; }
 .profile-achievement-history-chevron { flex:none; color:var(--tx2); font-size:1.25rem; font-weight:500; }
 .profile-achievement-next-tier { margin:6px 0 0; color:var(--tx2); font-size:.8125rem; line-height:1.3; overflow-wrap:anywhere; }
 .profile-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,5.5rem),1fr)); gap:14px; margin:14px 0 4px; }
