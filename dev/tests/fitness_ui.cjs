@@ -5,9 +5,20 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
 async function until(p,fn,label){for(let i=0;i<180;i++){if(await p.evaluate(fn))return;await p.waitForTimeout(100);}throw Error(label);}
 (async()=>{
  cp.execFileSync('python3',[path.join(__dirname,'subpages_fixture.py')],{env:{...process.env,KINETTA_URL:base},stdio:'inherit'});
+ const oldBestSetup=`from app import db
+with db.connect() as c:
+    user=c.execute('SELECT id FROM users WHERE login=%s',('zz_test_subpages_typical',)).fetchone()
+    row=c.execute(\"SELECT activity_id FROM best_efforts WHERE user_id=%s AND sport='run' AND label='5K' ORDER BY start_time LIMIT 1\",(user['id'],)).fetchone()
+    assert row
+    result=c.execute(\"UPDATE best_efforts SET elapsed_s=%s,start_time=%s WHERE user_id=%s AND activity_id=%s AND sport='run' AND label='5K'\",(1170,'2024-05-01T12:00:00Z',user['id'],row['activity_id']))
+    assert result.rowcount==1
+`;
+ cp.execFileSync('docker',['compose','-p',process.env.KINETTA_PROJECT||'kinettatest','exec','-T','app','python','-c',oldBestSetup],{stdio:'inherit'});
  const b=await chromium.launch();try{
  for(const state of ['empty','typical','heavy']){
   const login=await b.newContext();assert.equal((await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_subpages_'+state,password:'green teapot on the hill'}})).status(),200);const auth=await login.storageState(),data=await(await login.request.get(base+'/api/fitness?days=3650')).json();await login.close();
+  if(state!=='empty')assert(data.predictions.every(row=>'best_year'in row),'every prediction carries a dated all-time-best reference');
+  if(state==='typical'){const five=data.predictions.find(row=>row.label==='5K');assert(five&&five.seconds>five.best_s&&five.best_s===1170&&five.best_year===2024,'slower current 5K estimate keeps the faster 2024 record as a reference');}
   for(const theme of ['light','dark'])for(const size of [{width:390,height:844,root:15},{width:390,height:844,root:16}]){
    const c=await b.newContext({storageState:auth,viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,reducedMotion:'reduce'}),p=await c.newPage(),errors=[],writes=[];
    await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);p.on('pageerror',e=>errors.push(e.message));
