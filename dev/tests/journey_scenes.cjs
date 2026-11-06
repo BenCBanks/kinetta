@@ -11,7 +11,7 @@ function journeys(fixtures){
  const cases=[
   {id:'me-profile',start:'/me',taps:['.me-card-profile-link'],end:ownList},
   {id:'me-friends',start:'/me',taps:['.me-friends-link[href]'],end:destination('/me/friends','Friends','.friends-page')},
-  {id:'me-progress',start:'/me',taps:['.mileage-progress'],end:destination('/progress','Progress','#p-explore')},
+  {id:'me-progress',start:'/me',taps:['.me-insights .me-insight-row[href="/progress/calendar"]'],end:destination('/progress/calendar','Calendar','#p-body .cal-grid')},
   {id:'activity-detail-back',start:'/activity',startReady:'#feed-tools[aria-busy=false]',action:'feedBack',end:destination('/activity','Activity','#feed-tools')},
   {id:'track-save-detail',start:'/track',native:true,action:'record',end:destination('/activity/{saved}','Fictional journey recording','.compact-detail-title')},
   {id:'track-my-activities',start:'/track',native:true,action:'uncertainSave',end:ownList},
