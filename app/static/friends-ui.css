@@ -14,6 +14,9 @@
 .friends-page .friend-action b { font-size:max(15px,.9375rem); }
 .friends-page .friend-action small { margin-top:2px;color:var(--tx2);font-size:max(13px,.8125rem); }
 .friends-page .friend-action > svg { width:16px;height:16px;flex:none;color:var(--tx2); }
+.friends-page .friend-request-summary { display:flex;align-items:center;gap:8px;width:100%;min-height:52px;margin:0 0 12px;padding:6px 0;border:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:none;color:var(--tx);font:inherit;font-size:max(15px,.9375rem);text-align:left; }
+.friends-page .friend-request-summary span { flex:1;min-width:0; }
+.friends-page .friend-request-summary svg { width:16px;height:16px;flex:none;color:var(--tx2); }
 .friends-page .sec-head { font-size:var(--text-app-section);margin:14px 0 8px; }
 .friends-page .person { gap:8px;padding:8px 0;min-height:56px; }
 .friends-page .person-link { gap:8px; }
@@ -45,7 +48,12 @@
 .friends-page .pym-row .person-link b { font-size:.9375rem; }
 .friends-page .pym-row .person-link small { color:var(--tx2);font-size:.8125rem; }
 .friends-page .pym-actions { display:flex;align-items:center;gap:8px;flex:none; }
-.friends-page .pym-row .primary.sm { min-width:64px;min-height:44px;font-size:max(15px,.9375rem); }
+.friends-page .suggestion-add,.friends-page .search-add { display:grid;place-items:center;flex:none;width:44px;min-width:44px;height:44px;min-height:44px;padding:0;border:0;border-radius:50%;background:var(--accent2);color:var(--accent); }
+.friends-page .suggestion-add svg,.friends-page .search-add svg { display:block;width:20px;height:20px; }
+.friends-page .suggestion-add:active,.friends-page .search-add:active,.friends-page .suggestion-add.is-pending,.friends-page .search-add.is-pending { background:var(--accent);color:#fff; }
+.friends-page .suggestion-add:disabled,.friends-page .search-add:disabled { opacity:1; }
+.friends-page .friend-status { display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:36px;padding:0 4px;color:var(--tx2);font-size:max(13px,.8125rem);white-space:nowrap; }
+.friends-page .friend-status > span { font-size:1rem; }
 .friends-page .pym-hide { width:44px;height:44px;min-width:44px;min-height:44px;flex:none; }
 .friend-footer { display:grid;gap:8px;border-top:1px solid var(--line);margin:16px 0 0; }
 .friend-footer > #fr-sent:empty { display:none; }

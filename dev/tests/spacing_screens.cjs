@@ -13,7 +13,7 @@ const scenes=fixtures=>[
  {name:'Nutrition day',login:'zz_test_nutrition_typical',route:'/food',ready:'#nutrition-explore[aria-busy="false"]'},
  {name:'Add food',login:'zz_test_food_compact_empty',route:'/food/describe?meal=lunch',ready:'#thread-text'},
  {name:'Recipes and foods',login:'zz_test_recipes_ui_typical',route:'/food/meals',ready:'#tm-new'},
- {name:'Friends',login:'zz_test_fc_typical',route:'/me/friends',ready:'.friends-page #fr-own-list'},
+ {name:'Friends',login:'zz_test_fc_typical',route:'/me/friends?find=1',ready:'.friends-page #fr-invite'},
  {name:'Settings',login:'alex',route:'/me/settings',ready:'#logout'},
  {name:'Notifications',login:'alex',route:'/me/notifications',ready:'[data-meal-reminders]',notifications:true,native:true},
  {name:'Share progress',login:'zz_test_recap_ui_typical',route:'/progress',ready:'#recap-entry',recap:true},

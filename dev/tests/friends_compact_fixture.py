@@ -18,11 +18,13 @@ req=[actor(f'zz_test_fc_request{i}',f'Casey Request {i+1}') for i in range(3)]
 out=[actor(f'zz_test_fc_sent{i}',f'Fictional Sent {i+1}') for i in range(2)]
 for i,c in enumerate(peers):
  ok(main['heavy'].post('/api/friends',{'login':f'zz_test_fc_peer{i:02}'}));ok(c.post('/api/friends/zz_test_fc_heavy/accept',{}))
+ if 1<=i<=6:
+  ok(c.post('/api/friends',{'login':'zz_test_fc_peer00'}));ok(peers[0].post(f'/api/friends/zz_test_fc_peer{i:02}/accept',{}))
 ok(main['typical'].post('/api/friends',{'login':'zz_test_fc_peer00'}));ok(peers[0].post('/api/friends/zz_test_fc_typical/accept',{}))
 for i,c in enumerate(req):ok(c.post('/api/friends',{'login':'zz_test_fc_heavy'}))
 ok(req[0].post('/api/friends',{'login':'zz_test_fc_typical'}))
 for state in ['typical','heavy']:
- for i,c in enumerate(out):ok(main[state].post('/api/friends',{'login':f'zz_test_fc_sent{i}'}))
+ for i,c in enumerate(out[:1] if state=='typical' else out):ok(main[state].post('/api/friends',{'login':f'zz_test_fc_sent{i}'}))
 for state,c in main.items():
  r=ok(c.get('/api/friends'));print(state,{k:len(v) for k,v in r.items() if isinstance(v,list)})
 print(json.dumps({'states':list(main)}))

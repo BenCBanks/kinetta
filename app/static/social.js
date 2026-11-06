@@ -823,9 +823,9 @@ async function suggestedPeople() {
   catch (x) { return []; }
 }
 // A row of people to add, with why, and an invite tile. Used on the Friends feed (while you have few friends) and Friends.
-function peopleRow(box, people, {title = 'People you may know', onChange, invite = true} = {}) {
+function peopleRow(box, people, {title = 'People you may know', onChange, invite = true, dismiss = true, compactAdd = false} = {}) {
   const row = (p) => `<div class="person pym-row" data-login="${esc(p.login)}"><a class="person-link" href="${profileHref(p)}">${avatar(p)}<span class="grow"><b>${esc(p.name)}</b><small>${esc(p.why)}</small></span></a>
-      <span class="pym-actions"><button type="button" class="primary sm" data-add="${esc(p.login)}">Add</button><button type="button" class="icon-btn pym-hide" data-hide="${esc(p.login)}" aria-label="Hide ${esc(p.name)}">${svg('close')}</button></span></div>`;
+      <span class="pym-actions"><button type="button" class="suggestion-add${compactAdd?' friend-circle-add':''}" data-add="${esc(p.login)}" aria-label="Add ${esc(p.name)} as a friend">${compactAdd?svg('plus'):'＋ Add'}</button>${dismiss?`<button type="button" class="icon-btn pym-hide" data-hide="${esc(p.login)}" aria-label="Hide ${esc(p.name)}">${svg('close')}</button>`:''}</span></div>`;
   if (!people.length && !invite) { box.innerHTML = ''; return; }
   box.innerHTML = `<section class="pym" aria-label="${esc(title)}"><div class="pym-head"><h2>${people.length ? esc(title) : 'Find your friends'}</h2>${invite ? '<button type="button" class="linkbtn" data-invite>Invite</button>' : ''}</div>
     ${people.length ? `<div class="pym-list">${people.map(row).join('')}</div>` : ''}</section>`;
@@ -834,14 +834,18 @@ function peopleRow(box, people, {title = 'People you may know', onChange, invite
     const hidden = hiddenPeople(); hidden.add(b.dataset.hide);
     try { store.set(hiddenKey(), [...hidden].slice(-200)); } catch { /* hiding is a convenience */ }
     b.closest('.pym-row').remove();
+    if (!box.querySelector('.pym-row')) box.parentElement.hidden = true;
   });
   $$('[data-add]', box).forEach((b) => b.onclick = async () => {
-    b.disabled = true;
+    const owner=readOwner(),live=()=>owner===readOwner()&&box.isConnected;
+    if(!live()||b.disabled)return;
+    const label=b.getAttribute('aria-label');b.disabled = true;b.classList.add('is-pending');b.setAttribute('aria-busy','true');b.setAttribute('aria-label',label.replace(/^Add /,'Sending request to '));
     try {
       const r = await api('/api/friends', json('POST', {login: b.dataset.add}));
-      b.outerHTML = `<span class="badge on">${svg('check')} ${r.status === 'friends' ? 'Friends' : 'Requested'}</span>`;
-      invalidate('/api/friends'); invalidate('/api/people/'); onChange?.();
-    } catch (x) { toast(x.message); b.disabled = false; }
+      if(!live())return;
+      b.outerHTML = `<span class="friend-status" role="status"><span aria-hidden="true">✓</span> ${r.status === 'friends' ? 'Friends' : 'Requested'}</span>`;
+      invalidate('/api/friends');invalidate('/api/people/');invalidateFeed();await onChange?.();
+    } catch (x) { if(live()){toast(x.message);b.disabled=false;b.classList.remove('is-pending');b.removeAttribute('aria-busy');b.setAttribute('aria-label',label);b.innerHTML=compactAdd?svg('plus'):'＋ Add';} }
   });
 }
 // The page an invite link opens when you're signed in: who sent it, and one button.
