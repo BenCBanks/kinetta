@@ -1,0 +1,16 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const food=fs.readFileSync('app/static/food.js','utf8'),start=food.indexOf('function sameYesterdayMealMarkup'),end=food.indexOf('async function repeatYesterdayMeal');
+const c={MEAL_NAMES:{breakfast:'Breakfast',lunch:'Lunch',dinner:'Dinner',snacks:'Snacks'},esc:value=>String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))};
+vm.createContext(c);vm.runInContext(food.slice(start,end)+'\nglobalThis.markup=sameYesterdayMealMarkup;',c);
+const yesterday='2026-11-05',today='2026-11-06',items=[{name:'Oats'},{name:'Coffee'},{name:'Berries'}];
+const current={day:today,entries:[],last_meals:{breakfast:{day:yesterday,items}}},html=c.markup(current,'breakfast',true);
+assert.match(html,/Same as yesterday · Oats, Coffee \+1/,'shows only the first two names and a remainder count');
+assert.match(html,/data-repeat-yesterday="breakfast"/);assert.match(html,/aria-label="Repeat yesterday’s breakfast: Oats, Coffee, Berries"/);
+assert.equal(c.markup({...current,day:yesterday},'breakfast',false),'','a historical day never offers the action');
+assert.equal(c.markup({...current,last_meals:{breakfast:{day:'2026-11-04',items}}},'breakfast',true),'','a meal older than yesterday never offers the action');
+assert.equal(c.markup({...current,entries:[{meal:'breakfast'}]},'breakfast',true),'','an occupied meal never offers the action');
+assert.equal(c.markup({...current,last_meals:{breakfast:{day:yesterday,items:[]}}},'breakfast',true),'','a meal without source rows never offers the action');
+const escaped=c.markup({...current,last_meals:{breakfast:{day:yesterday,items:[{name:'<img src=x>'}]}}},'breakfast',true);
+assert.match(escaped,/&lt;img src=x&gt;/);assert.doesNotMatch(escaped,/<img/);
+console.log('Same as yesterday: empty meal, exact prior day, two names +N, current-day gate and escaped names PASS');

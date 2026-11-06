@@ -65,17 +65,19 @@ import time
 reuse_uids=[];original_memory_prepare=memory.prepare;original_understand_prepare=understand.prepare
 try:
  with db.connect() as c:
-  for suffix in ('fast','chip','ambiguous','old','other','half'):
+  for suffix in ('fast','chip','ambiguous','old','other','half','yesterday','foreign_yesterday'):
    uid2=c.execute('INSERT INTO users(login,name) VALUES (%s,%s) RETURNING id',('zz_test_repeat_'+suffix,'Fictional repeat '+suffix)).fetchone()['id'];reuse_uids.append(uid2)
    c.execute("INSERT INTO profile(user_id,tz,kcal_target,protein_target,food_chat_auto_log) VALUES (%s,'UTC',2000,110,true)",(uid2,))
  repeat_day=dt.datetime.now(dt.timezone.utc).date()
- def seed_group(uid2,items,minutes_ago=5,hours_ago=0,meal='lunch'):
-  stamp=dt.datetime.now(dt.timezone.utc)-dt.timedelta(minutes=minutes_ago,hours=hours_ago);prefix=str(uuid.uuid4());ids=[]
+ def seed_group(uid2,items,minutes_ago=5,hours_ago=0,meal='lunch',day=repeat_day):
+  stamp=dt.datetime.now(dt.timezone.utc)-dt.timedelta(minutes=minutes_ago,hours=hours_ago)
+  if day!=repeat_day:stamp=dt.datetime.combine(day,dt.time(8),dt.timezone.utc)
+  prefix=str(uuid.uuid4());ids=[]
   with db.connect() as c:
    for position,(name,amount,unit,kcal) in enumerate(items,1):
     row=c.execute("""INSERT INTO food_entries(user_id,day,meal,name,amount,unit,kcal,protein_g,carbs_g,fat_g,source,ref,position,client_id,created,updated)
       VALUES (%s,%s,%s,%s,%s,%s,%s,2,18,4,'quick','{}',%s,%s,%s,%s) RETURNING id""",
-      (uid2,repeat_day,meal,name,amount,unit,kcal,position,f'{prefix}-{position:02d}',stamp,stamp)).fetchone();ids.append(row['id'])
+      (uid2,day,meal,name,amount,unit,kcal,position,f'{prefix}-{position:02d}',stamp,stamp)).fetchone();ids.append(row['id'])
   return ids
  def repeat_message(uid2,body,meal='lunch',repeat_entry_id=None,client_id=None):
   request=food_thread.MessageIn(client_id=client_id or uuid.uuid4(),body=body,day=repeat_day,meal=meal,review_only=True,draft_id=uuid.uuid4(),repeat_entry_id=repeat_entry_id)
@@ -119,6 +121,25 @@ try:
  # Candidate lookup cannot expose a different account's recent foods.
  assert food_thread.recent_reuse(repeat_day,'lunch',user={'id':other_uid})['item'] is None
  assert reuse.parse_repeat('another two pieces of toast')==(2,{'toast'}) and reuse.parse_repeat('half a piece more')==(.5,set())
+ assert reuse.parse_yesterday_meal('Same breakfast as yesterday!')=='breakfast'
+ assert reuse.parse_yesterday_meal('same as yesterday') is None
+ yesterday_day=repeat_day-dt.timedelta(days=1)
+ seed_group(reuse_uids[-2],[('Fictional oats',1,'serving',150),('Fictional coffee',1,'cup',5)],meal='breakfast',day=yesterday_day)
+ seed_group(reuse_uids[-1],[('Private fictional meal',1,'serving',300)],meal='breakfast',day=yesterday_day)
+ copied_message=repeat_message(reuse_uids[-2],'same breakfast as yesterday',meal='dinner')
+ copied=food_thread.process_message(copied_message['id'],food_thread.AnswerIn(),{'id':reuse_uids[-2]})
+ copied_receipt=copied['messages'][-1]
+ assert copied_receipt['result']['kind']=='log' and copied_receipt['result']['meal']=='breakfast'
+ assert sorted(row['name'] for row in copied_receipt['entries'])==['Fictional coffee','Fictional oats']
+ assert copied_receipt['result']['reuse_label']=="Yesterday's breakfast"
+ with db.connect() as c:
+  copied_rows=c.execute('SELECT meal,created FROM food_entries WHERE user_id=%s AND day=%s',(reuse_uids[-2],repeat_day)).fetchall()
+ assert all(row['meal']=='breakfast' and (dt.datetime.now(dt.timezone.utc)-row['created']).total_seconds()<10 for row in copied_rows),'copies use the requested meal and current logged time'
+ assert food_thread.process_message(copied_message['id'],food_thread.AnswerIn(),{'id':reuse_uids[-2]})['messages'][-1]['id']==copied_receipt['id']
+ assert logged_count(reuse_uids[-2])==4,'replayed yesterday copy is exactly once'
+ absent_message=repeat_message(other_uid,'same breakfast as yesterday')
+ absent=food_thread.process_message(absent_message['id'],food_thread.AnswerIn(),{'id':other_uid})['messages'][-1]
+ assert absent['result']['kind']=='needs' and absent['result']['text']=='No breakfast was logged yesterday.' and not absent['entries']
  print(f'Food repeat reuse: owner scope, {elapsed*1000:.0f} ms provider-free copy, scaled group, chip replay, ambiguity and stale fallback PASS')
 finally:
  memory.prepare=original_memory_prepare;understand.prepare=original_understand_prepare

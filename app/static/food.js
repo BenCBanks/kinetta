@@ -302,7 +302,7 @@ function drawDay(el, D) {
   const by = {breakfast: [], lunch: [], dinner: [], snacks: []}; for (const e of D.entries) by[e.meal].push(e);
   $('#fd-meals', el).innerHTML = Object.keys(MEAL_NAMES).map((m) => {
     const list = by[m], kc = list.reduce((s, e) => s + e.kcal, 0);
-    if (!list.length) return `<section class="card meal meal-empty meal-${m}"><h2><span>${MEAL_NAMES[m]}</span><span class="meal-actions"><button class="icon-btn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">${svg('plus')}</button></span></h2></section>`;
+    if (!list.length) return `<section class="card meal meal-empty meal-${m}"><h2><span>${MEAL_NAMES[m]}</span><span class="meal-actions"><button class="icon-btn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">${svg('plus')}</button></span></h2>${sameYesterdayMealMarkup(D,m,today)}</section>`;
     return `<section class="card meal meal-${m}"><h2><span>${MEAL_NAMES[m]}</span><span class="muted small num">${r0(kc)} kcal</span><span class="meal-actions"><button class="icon-btn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">${svg('plus')}</button><button class="icon-btn" data-more="${m}" aria-label="Edit ${MEAL_NAMES[m].toLowerCase()}">${svg('more')}</button></span></h2>
       ${list.map((e) => { const fe = `<button class="fe${e.pending ? ' pending' : ' sw-row'}" data-id="${e.id}"><span class="vh">Edit </span><div><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></div>
         <div class="r meal-calories"><b class="num">${r0(e.kcal)}</b> <small class="muted">kcal</small></div></button>`;
@@ -312,6 +312,7 @@ function drawDay(el, D) {
   }).join('') + (D.has_history ? `<div class="food-copy-action"><button type="button" class="ghost" id="fd-copy">${svg('clock')}Copy yesterday</button></div>` : '');
   $$('[data-usual-meal]',el).forEach(b=>b.onclick=()=>addSheet(D.day,b.dataset.usualMeal));
   $$('[data-add]', el).forEach((b) => b.onclick = () => describeSheet(D.day, b.dataset.add));
+  $$('[data-repeat-yesterday]',el).forEach(b=>b.onclick=()=>repeatYesterdayMeal(D,b));
   $$('[data-more]', el).forEach((b) => b.onclick = () => mealMenu(D, b.dataset.more));
   $$('.meal', el).forEach((card) => swipeRows(card, (id) => removeFoodEntry(D.entries.find((e) => String(e.id) === id), {button: $(`.sw-del[data-del="${id}"]`, card)})));
   $$('[data-id]', el).forEach((b) => b.onclick = () => {
@@ -320,6 +321,26 @@ function drawDay(el, D) {
     entrySheet(e, D.day);
   });
   const cp = $('#fd-copy', el); if (cp) cp.onclick = () => chooseYesterday(isoDay(new Date()));
+}
+function sameYesterdayMealMarkup(D,meal,today) {
+  const previous=D.last_meals?.[meal],items=previous?.items;
+  if(!today||D.entries.some(entry=>entry.meal===meal)||!Array.isArray(items)||!items.length)return '';
+  const yesterday=new Date(Date.parse(`${D.day}T00:00:00Z`)-86400000).toISOString().slice(0,10);
+  if(previous.day!==yesterday)return '';
+  const names=items.map(item=>String(item.name||'').trim()).filter(Boolean),shown=names.slice(0,2);
+  if(!shown.length)return '';
+  const label=`Same as yesterday · ${shown.map(esc).join(', ')}${names.length>2?` +${names.length-2}`:''}`;
+  return `<button type="button" class="meal-yesterday-repeat" data-repeat-yesterday="${esc(meal)}" aria-label="Repeat yesterday’s ${esc(MEAL_NAMES[meal].toLowerCase())}: ${esc(names.join(', '))}">${label}</button>`;
+}
+async function repeatYesterdayMeal(D,button) {
+  const meal=button.dataset.repeatYesterday;
+  const owner=readOwner(),source=D.last_meals?.[meal]?.items||[];
+  if(button.disabled||!source.length||D.day!==isoDay(new Date())||D.entries.some(entry=>entry.meal===meal))return;
+  button.disabled=true;
+  const items=source.map(entry=>({...entry,day:D.day,meal,entry_method:'copy_yesterday'}));
+  try{await addEntries(items,{toastText:`Added ${items.length} item${items.length===1?'':'s'}`});}
+  catch(error){if(readOwner()===owner)toast(error.message);}
+  finally{if(readOwner()===owner&&button.isConnected)button.disabled=false;}
 }
 function servingAmount(e) {
   const label = e.ref?.serving?.label?.trim();
@@ -393,7 +414,7 @@ function wireRecentSaved(body,recent,where,{afterDish=()=>{},afterMeal=()=>{}}={
   });
 }
 
-async function addEntries(items,{thread=false,restoreFrom=null,silent=false}={}) {   // each item gets a client_id, so a resend after a lost connection never doubles it
+async function addEntries(items,{thread=false,restoreFrom=null,silent=false,toastText=null}={}) {   // each item gets a client_id, so a resend after a lost connection never doubles it
   const owner=readOwner();
   if(thread&&typeof FoodThread!=='undefined'&&FoodThread.collecting()){const result=await FoodThread.stage(items);if(!silent)toast(result.queued?'Food draft saved on this phone · waiting to send':'Added for review');return result;}
   items = items.map((it) => ({...foodStorage(it), client_id: it.client_id || newId()}));
@@ -410,7 +431,7 @@ async function addEntries(items,{thread=false,restoreFrom=null,silent=false}={})
     if(location.pathname!=='/food/describe')render(); if(!silent)toast('Saved on this phone · waiting to send',r.undo); return r;
   }
   if(typeof FoodThread!=='undefined'&&r.messages){try{await FoodThread.accept(r);}catch(e){invalidate('/api/food');}}
-  refresh(); if(!silent)toast(items.length===1?`Logged ${items[0].name}`:'Meal logged',r.undo); return r;
+  refresh(); if(!silent)toast(toastText||(items.length===1?`Logged ${items[0].name}`:'Meal logged'),r.undo); return r;
 }
 // Keep the cancellation durable before removing an upload: it may already be in flight.
 function foodUploadUndo(items,owner) {

@@ -3068,7 +3068,9 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .recap-offer .acts { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }.recap-offer>div:first-child{min-width:0;flex:1}.recap-offer h2{font-size:17px;margin:0}.recap-offer p{margin:4px 0 0}.recap-offer .acts{flex:none}
 @media(max-width:360px){.recap-offer{align-items:flex-start;flex-wrap:wrap}.recap-offer .acts{margin-left:auto}}
 
-/* One quiet reuse action; meal cards keep Add as their only empty-state control. */
+/* A matching meal from yesterday sits inside the empty meal as a plain, wrapping action. */
+.meal-yesterday-repeat{display:flex;align-items:center;justify-content:flex-start;width:100%;min-width:0;min-height:44px;margin:4px 0 0;padding:4px 0;border:0;background:none;color:var(--accent);font:inherit;font-size:max(14px,.875rem);font-weight:600;line-height:1.35;text-align:left;white-space:normal;overflow-wrap:anywhere}
+.meal-yesterday-repeat:disabled{opacity:.55}
 .food-copy-action{display:flex;justify-content:center;margin:16px 0;}
 .food-copy-action .ghost{min-height:44px;max-width:100%;white-space:normal;background:var(--card);border:1px solid var(--line);font-weight:500;}
 .food-copy-action svg{width:18px;height:18px;flex:none;color:var(--tx3);}
