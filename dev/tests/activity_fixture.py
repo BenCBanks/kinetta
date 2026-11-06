@@ -2,6 +2,7 @@
 from pathlib import Path
 import os,sys,uuid,math,base64,subprocess,datetime as dt
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo
 sys.path.insert(0,'dev/tests')
 from kc import person,PW
 base=urlparse(os.environ['KINETTA_URL']);project=os.environ['KINETTA_PROJECT']
@@ -19,11 +20,15 @@ for who,count in [('typical',2),('heavy',6),('established',3)]:
   friend='friend'+str(i);ok(clients[friend].post('/api/friends',{'login':'zz_test_feed_'+who}));ok(clients[who].post('/api/friends/zz_test_feed_'+friend+'/accept'))
  ok(clients['pending'].post('/api/friends',{'login':'zz_test_feed_'+who}))
 now=dt.datetime.now(dt.timezone.utc)
+activity_timezone=ZoneInfo('America/New_York')
+local_yesterday=now.astimezone(activity_timezone).date()-dt.timedelta(days=1)
+pinned_long_friend_time=dt.datetime.combine(local_yesterday,dt.time(12,59),tzinfo=activity_timezone).astimezone(dt.timezone.utc)
 photos=['freedom-park-lake.jpg','freedom-park-bridge.jpg'];first={}
 for who in ['typical','heavy','established']+['friend'+str(i) for i in range(6)]+['blocked']:
  c=clients[who];ids=[]
  for i in range(12 if who=='heavy' else 3 if who.startswith('friend') else 2):
   when=now-dt.timedelta(hours=i*3+(1 if who.startswith('friend') else 0))
+  if who=='friend1' and i==0: when=pinned_long_friend_time
   name=['Fictional short route','Fictional long route','Fictional formerly clipped route'][i] if i<3 else 'Fictional trail session '+str(i+1)
   aid=ok(c.post('/api/activities/manual',{'sport':'run' if i%2==0 else 'walk','name':name,'start':when.isoformat(),'duration_s':1500+i*60,'distance_m':5000 if i%2==0 else 2400}))['id'];ids.append(aid)
   ok(c.put(f'/api/activities/{aid}/sharing',{'visibility':'me' if i==1 else 'friends'}))
