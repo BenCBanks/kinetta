@@ -97,6 +97,7 @@ def match_contacts(body: ContactMatchIn, user=Depends(current_user)):
     # Salted SHA-256 is not private-set-intersection: a captured hash and salt can be guessed offline because
     # emails and phone numbers have low entropy. The owner accepts this ephemeral protocol; never log, persist,
     # or include this request body in errors or reports. Access logs retain only the route and response status.
+    # Any well-formed salt is accepted; the once-per-day limit controls abuse, and salt freshness is not a security boundary.
     with db.connect() as c:
         limited = account_email.limited(c, f'contacts-check:{user["id"]}', 1, 24 * 60)
     if limited:
@@ -115,7 +116,10 @@ def match_contacts(body: ContactMatchIn, user=Depends(current_user)):
               CASE WHEN p.find_by_phone AND pc.n=1 THEN u.phone_e164 END AS phone_e164
             FROM users u JOIN profile p ON p.user_id=u.id
             LEFT JOIN phone_counts pc ON pc.phone_e164=u.phone_e164
-            WHERE u.id<>%s AND u.suspended_at IS NULL AND NOT u.needs_email_confirm""", (user['id'],)).fetchall()
+            WHERE u.id<>%s AND u.suspended_at IS NULL AND NOT u.needs_email_confirm
+              AND NOT EXISTS (SELECT 1 FROM blocks b
+                WHERE (b.user_id=%s AND b.blocked=u.id) OR (b.user_id=u.id AND b.blocked=%s))""",
+            (user['id'], user['id'], user['id'])).fetchall()
 
     matched = set()
     for row in rows:

@@ -218,6 +218,7 @@ for t in $api_tests; do python3 "$t.py"; done
 cd ../..
 
 docker compose -p "$P" exec -T app python - < dev/tests/test_contacts.py
+docker compose -p "$P" exec -T app python - < dev/tests/contacts_blocks_incontainer.py
 
 if [[ "$MODE" == --quick ]]; then echo "== quick unit/API checks passed"; exit 0; fi
 

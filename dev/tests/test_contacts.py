@@ -134,7 +134,7 @@ class Contacts(unittest.TestCase):
         self.assertIn('count(*) AS n FROM users WHERE phone_e164 IS NOT NULL', query)
         self.assertIn('pc.n=1', query)
         self.assertIn('u.id<>%s', query)
-        self.assertEqual(params, (101,))  # hashes never enter SQL parameters or persistent rows
+        self.assertEqual(params, (101, 101, 101))  # owner IDs only; hashes never enter SQL parameters or persistent rows
         self.assertEqual(self.routes[-1], '/api/contacts/match')
 
     def test_daily_limit_and_validation_errors_do_not_echo_request_values(self):
@@ -150,6 +150,16 @@ class Contacts(unittest.TestCase):
         extra = self.client.post('/api/contacts/match', json={'salt': salt, 'hashes': [], 'names': ['Fictional Contact']})
         self.assertEqual(extra.status_code, 422)
         self.assertNotIn('Fictional Contact', extra.text)
+
+    def test_invalid_match_body_does_not_use_the_daily_check(self):
+        bad = self.client.post('/api/contacts/match', json={'salt': 'short', 'hashes': []})
+        self.assertEqual(bad.status_code, 422)
+        self.assertEqual(self.limit_args, [])
+        valid = self.client.post('/api/contacts/match', json={
+            'salt': 'a' * 43, 'hashes': [{'kind': 'email', 'digest': 'b' * 64}],
+        })
+        self.assertEqual(valid.status_code, 200, valid.text)
+        self.assertEqual(self.limit_args, [('contacts-check:101', 1, 1440)])
 
     def test_request_log_keeps_route_metadata_without_body_fields(self):
         rows = []
