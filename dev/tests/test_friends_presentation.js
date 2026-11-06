@@ -2,15 +2,15 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const esc=x=>String(x).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 const c={esc,avatar:()=>'<span class="av"></span>',profileHref:p=>'/people/'+encodeURIComponent(p.login),backBtn:l=>'<button>'+esc(l)+'</button>',svg:()=>'',skel:()=>'',App:{me:{login:'zz_test_owner',name:'Fictional Owner'}}};vm.createContext(c);vm.runInContext(fs.readFileSync('app/static/friends-ui.js','utf8')+'\nglobalThis.ui=FriendsUI;',c);
-const person={login:'zz_test_<script>',name:'Fictional <img onerror="x">'},r={friends:[person],incoming:[{...person,via_card:true}],outgoing:[person]};
-assert(c.ui.matches({name:'River Runner',login:'zz_test_river'},'@ZZ_TEST_RIVER'));assert(c.ui.matches({name:'River Runner',login:'zz_test_river'},' runner '));assert(!c.ui.matches(person,'no such name'));
-for(const html of [c.ui.lists(r),c.ui.sentRows(r.outgoing)]){assert(!html.includes('<img onerror='));assert(html.includes('&lt;img'));assert(html.includes('/people/zz_test_%3Cscript%3E'));}
-const list=c.ui.lists(r);assert(list.includes('data-request-menu'));assert(!list.includes('data-blk='),'Block starts inside the request menu');assert(list.includes('data-manage='));assert(list.includes('via your card'));assert(!c.ui.lists({...r,incoming:[]}).includes('via your card'),'card origin only accompanies requests');
-assert(c.ui.sent(r.outgoing).includes('1 request sent'));assert(!c.ui.sent([]));assert(c.ui.lists({friends:[],incoming:[]}).includes('data-invite-empty'));assert(!c.ui.shell('Activity').includes('friends-challenges'),'full Challenges belongs on Activity');
-console.log('Friends presentation: escaped names, full profiles, local matching, safe request menu, collapsed sent requests and deliberate empty actions PASS');
+const person={login:'zz_test_<script>',name:'Fictional <img onerror="x">'},r={friends:[],incoming:[{...person,via_card:true}],outgoing:[{login:'zz_test_sent',name:'Fictional Sender'}]};
+const shell=c.ui.shell('Activity');assert(shell.includes('Search name or @username'));assert(shell.includes('id="fr-invite"'));assert(shell.includes('fr-requests'));assert(shell.includes('fr-suggest'));
+for(const retired of ['Your profile','Your friends will appear here','New activities:','/me/sharing','fr-own-list','fr-lists','data-invite-empty'])assert(!shell.includes(retired),`Find friends omits ${retired}`);
+const requests=c.ui.requests(r);assert(!requests.includes('<img onerror='));assert(requests.includes('&lt;img'));assert(requests.includes('/people/zz_test_%3Cscript%3E'));
+assert(requests.includes('data-request-menu'));assert(requests.includes('data-request-accept'));assert(requests.includes('data-request-decline'));assert(requests.includes('data-request-cancel'));
+assert(!requests.includes('data-blk='),'Block starts inside the request menu');assert(requests.includes('via your card'));assert.equal(c.ui.requests({incoming:[],outgoing:[]}).trim(),'');
+console.log('Find friends presentation: discovery-only shell, escaped request names, compact request actions and no profile/settings content PASS');
 
-assert(!c.ui.shell('Activity').includes('href="/me/challenges"'),'Challenge navigation belongs to Activity; Invite remains on Friends');
-assert(c.ui.shell('Activity').includes('id="fr-invite"'));
+assert(!shell.includes('href="/me/challenges"'),'Challenge navigation belongs to Activity; Invite remains on Find friends');
 const challengeRoutes=[];c.route=(pattern,tab)=>challengeRoutes.push({pattern,tab});
 vm.runInContext(fs.readFileSync('app/static/challenges.js','utf8')+'\nglobalThis.challengeUI=Challenges;',c);
 const challenge=(code,days,extra={})=>({code,member:true,target:4,unit:'days',self:{value:2,days_left:days,finished:false},...extra});

@@ -366,7 +366,7 @@ function getStarted(healthConnected = false, hasHistory = false) {
     !hasHistory ? step('/track/connections', 'watch', 'c-brand', 'Bring in workouts', 'Health app or Garmin · optional') : '',
     Native.on && hasHistory && !healthConnected ? step('/track/health', 'heart', 'c-brand', 'Connect to the Health app · optional', 'Bring in workouts and weight from the Health app') : '',
     !hasHistory ? step('/track', 'track', 'c-green', 'Record an activity', 'A run, ride, walk or lifting session with your phone.') : '',
-    !hasHistory ? step('/me/friends', 'me', 'c-brand', 'Find your friends', "See each other's runs and rides, and send cheers.") : '',
+    !hasHistory ? step('/me/friends?find=1', 'me', 'c-brand', 'Find your friends', "See each other's runs and rides, and send cheers.") : '',
     ios && !home && !Native.on && !hasHistory ? `<div class="row-link"><span class="ri c-orange">${svg('today')}</span><span class="grow">Add Kinetta to your Home Screen<small class="muted gs-sub">In Safari, tap Share, then Add to Home Screen. It opens like an app.</small></span></div>` : '',
   ].filter(Boolean);
   return rows.length ? `<section class="setup-tips"><div class="setup-heading"><h2>${hasHistory?'Finish setup':'Get started'}</h2><button type="button" class="linkbtn" data-hide-setup>Hide tips</button></div><div class="card list">${rows.join('')}</div><p class="small muted">Optional. Restore in Settings.</p></section>` : '';
@@ -384,7 +384,7 @@ function setupChecklist(healthConnected) {
     // The photo picker opens in place: the profile page no longer has its own camera badge (30 Oct 2026).
     ['photo', 'photo', 'Add a profile photo', !!me.photo],
     foodUser() ? ['nutrition', '/food/setup', 'Set a nutrition goal', !!me.kcal_target] : null,
-    ['friends', '/me/friends', 'Find friends', (me.friend_count || 0) > 0],
+    ['friends', '/me/friends?find=1', 'Find friends', (me.friend_count || 0) > 0],
   ].filter(i => i && (i[3] || !skipped.has(i[0])));
   const done = items.filter((i) => i[3]).length;
   if (done === items.length) return '';
@@ -588,7 +588,7 @@ new MutationObserver(() => { for (const b of $$('[data-w]')) { b.style.setProper
 const bellBtn = () => { const n = (App.me && App.me.notifications) || 0;
   return `<a class="icon-btn bell" href="/notifications" aria-label="Notifications${n ? `, ${n} new` : ''}">${svg('bell')}<span class="bell-dot${n > 9 ? ' many' : ''}"${n ? '' : ' hidden'}>${n > 9 ? '9+' : n || ''}</span></a>`; };
 const actTop = (search, friends) => `<div class="top"><h1>Activity</h1><div class="acts">${search ? `<button class="icon-btn" id="f-search" aria-label="Search">${svg('search')}</button>` : ''}
-    ${friends ? `<a class="icon-btn" href="/me/friends" aria-label="Find friends">${svg('people')}</a>` : ''}
+    ${friends ? `<a class="icon-btn" href="/me/friends?find=1" aria-label="Find friends">${svg('people')}</a>` : ''}
     ${bellBtn()}</div></div>`;
 route(/^\/activity$/, 'activity', async el=>{
   const q=new URLSearchParams(location.search);

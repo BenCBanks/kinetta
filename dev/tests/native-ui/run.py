@@ -142,11 +142,14 @@ for device in preferred:
       date=card['dateRects'][0];target=card['target'];assert target['right']<=date['x']+.5 or target['y']+target['height']<=date['y']+.5 or date['bottom']<=target['y']+.5,metrics
     if stage.startswith('friends-'):
      friends=metrics['friends'];assert friends['title']=='Friends' and friends['backLabel']=='Back to Me',metrics
-     assert friends['counts']==[40 if stage=='friends-heavy' else 1 if stage=='friends-typical' else 0,3 if stage=='friends-heavy' else 1 if stage=='friends-typical' else 0,3],metrics
-     assert friends['searchFont']>=16 and not friends['fullChallenges'],metrics
-     assert friends['search']['y']>=metrics['header']['bottom'],metrics
+     expected_friends=40 if stage=='friends-heavy' else 1 if stage=='friends-typical' else 0
+     expected_requests=5 if stage=='friends-heavy' else 3 if stage=='friends-typical' else 0
+     assert friends['counts']==[expected_friends,1 if expected_requests else 0,0],metrics
+     assert friends['requestLabel']==(f'Requests ({expected_requests})' if expected_requests else ''),metrics
+     assert friends['findAction'] and friends['findAction']['width']>=44 and friends['findAction']['height']>=44 and not friends['fullChallenges'],metrics
+     if friends['requestRow']:assert friends['requestRow']['height']>=44,metrics
      assert all(r['width']>=44 and r['height']>=44 for r in friends['controls']),metrics
-     if stage=='friends-empty':assert friends['empty'],metrics
+     if stage=='friends-empty':assert friends['empty'] and friends['emptyAction'] and friends['emptyAction']['width']>=44 and friends['emptyAction']['height']>=44,metrics
      if stage=='friends-heavy' and root==16:assert friends['firstFriend']['bottom']<nav['box']['y'],metrics
     if stage.startswith('activity'):
      detail=metrics['activity'];assert detail['social']['hidden'],metrics

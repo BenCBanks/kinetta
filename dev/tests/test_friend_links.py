@@ -99,15 +99,47 @@ class FriendLinks(unittest.TestCase):
 
     def test_people_you_may_know(self):
         ann, bo, cy, hid, blk = (self.person('zz_test_fl_' + n) for n in ('ann', 'bo', 'cy', 'hid', 'blk'))
-        self.person('zz_test_fl_unc', confirmed=False)
+        self.person('zz_test_fl_unc', confirmed=False); solo = self.person('zz_test_fl_solo')
+        extra = [self.person(f'zz_test_fl_mutual{i:02}') for i in range(6)]
         for a, b in [(ann, 'zz_test_fl_bo'), (cy, 'zz_test_fl_bo'), (hid, 'zz_test_fl_bo'), (blk, 'zz_test_fl_bo')]:
             a.post('/api/friends', json={'login': b})
         for who in ('ann', 'cy', 'hid', 'blk'): bo.post(f'/api/friends/zz_test_fl_{who}/accept', json={})
+        for i, c in enumerate(extra):
+            c.post('/api/friends', json={'login': 'zz_test_fl_bo'})
+            bo.post(f'/api/friends/zz_test_fl_mutual{i:02}/accept', json={})
         hid.put('/api/sharing', json={'findable': False}); ann.post('/api/people/zz_test_fl_blk/block', json={})
-        got = {p['login']: p['why'] for p in ann.get('/api/people/suggested').json() if p['login'].startswith('zz_test_fl')}
-        self.assertEqual(got.get('zz_test_fl_cy'), '1 mutual friend')
-        for gone in ('zz_test_fl_bo', 'zz_test_fl_hid', 'zz_test_fl_blk', 'zz_test_fl_unc', 'zz_test_fl_ann'): self.assertNotIn(gone, got, gone)
-        self.assertTrue(set(ann.get('/api/people/suggested').json()[0]) == {'login', 'name', 'photo', 'why'}, 'nothing else about anyone')
+        rows = ann.get('/api/people/suggested').json(); got = {p['login']: p['why'] for p in rows}
+        self.assertEqual(len(rows), 5, 'eligible mutual-friend suggestions are capped at five')
+        self.assertEqual(got.get('zz_test_fl_cy'), '1 mutual')
+        for gone in ('zz_test_fl_bo', 'zz_test_fl_hid', 'zz_test_fl_blk', 'zz_test_fl_unc', 'zz_test_fl_ann', 'zz_test_fl_solo'):
+            self.assertNotIn(gone, got, gone)
+        self.assertTrue(set(rows[0]) == {'login', 'name', 'photo', 'why'}, 'nothing else about anyone')
+
+    def test_shared_active_challenge_is_a_private_filtered_suggestion(self):
+        host, participant, hidden, ended, solo = (self.person('zz_test_fl_' + n) for n in ('host', 'participant', 'hidden', 'ended', 'solo'))
+        with db.connect() as c:
+            c.execute("UPDATE users SET email_verified_at = now() WHERE login = ANY(%s)",
+                      (['zz_test_fl_host', 'zz_test_fl_participant', 'zz_test_fl_hidden', 'zz_test_fl_ended', 'zz_test_fl_solo'],))
+        body = {'kind': 'activities', 'period': 'next_week', 'target': 4, 'unit': 'activities', 'request_id': 'friendsearch1'}
+        with patch('app.challenges.send_notice'):
+            active = host.post('/api/challenges', json=body)
+            self.assertEqual(active.status_code, 200, active.text)
+            for person in (participant, hidden):
+                joined = person.post(f"/api/challenges/{active.json()['code']}/join", json={})
+                self.assertEqual(joined.status_code, 200, joined.text)
+            ended_body = {**body, 'request_id': 'friendsearch2'}
+            closed = host.post('/api/challenges', json=ended_body)
+            self.assertEqual(closed.status_code, 200, closed.text)
+            joined = ended.post(f"/api/challenges/{closed.json()['code']}/join", json={})
+            self.assertEqual(joined.status_code, 200, joined.text)
+        hidden.put('/api/sharing', json={'findable': False})
+        with db.connect() as c:
+            c.execute('UPDATE challenges SET ended_at = now() WHERE code = %s', (closed.json()['code'],))
+        rows = {p['login']: p['why'] for p in host.get('/api/people/suggested').json()}
+        self.assertIn('zz_test_fl_participant', rows)
+        self.assertTrue(rows['zz_test_fl_participant'].startswith('In '), rows['zz_test_fl_participant'])
+        for gone in ('zz_test_fl_host', 'zz_test_fl_hidden', 'zz_test_fl_ended', 'zz_test_fl_solo'):
+            self.assertNotIn(gone, rows, gone)
 
 
 unittest.main()

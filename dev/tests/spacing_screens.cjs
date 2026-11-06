@@ -13,18 +13,19 @@ const scenes=fixtures=>[
  {name:'Nutrition day',login:'zz_test_nutrition_typical',route:'/food',ready:'#nutrition-explore[aria-busy="false"]'},
  {name:'Add food',login:'zz_test_food_compact_empty',route:'/food/describe?meal=lunch',ready:'#thread-text'},
  {name:'Recipes and foods',login:'zz_test_recipes_ui_typical',route:'/food/meals',ready:'#tm-new'},
- {name:'Friends',login:'zz_test_fc_typical',route:'/me/friends',ready:'.friends-page #fr-own-list'},
+ {name:'Friends',login:'zz_test_fc_typical',route:'/me/friends?find=1',ready:'.friends-page #fr-invite'},
  {name:'Settings',login:'alex',route:'/me/settings',ready:'#logout'},
  {name:'Notifications',login:'alex',route:'/me/notifications',ready:'[data-meal-reminders]',notifications:true,native:true},
  {name:'Share progress',login:'zz_test_recap_ui_typical',route:'/progress',ready:'#recap-entry',recap:true},
  {name:'Nutrition Insights',login:'zz_test_insights_typical',route:'/food?view=overview&r=30',ready:'#nt-body .insights-summary'},
+ {name:'My friends',login:'zz_test_fc_typical',route:'/me/friends',ready:'#fr-own-list'},
  {name:'Account name sheet',login:'alex',route:'/me/settings',entryReady:'#m-name',ready:'.scrim:not([inert]) #ac',modal:'name'},
  {name:'Pinned save sheet',login:'alex',route:'/me/settings',entryReady:'#m-name',ready:'.scrim:not([inert]) .sheet.pinned',modal:'pinned'},
  {name:'Quick weight sheet',login:'alex',route:'/me',entryReady:'.me-card-sections[aria-busy="false"]',ready:'#quick-weight',modal:'weight'},
  {name:'Share card choices',login:'alex',route:'/me',entryReady:'.me-card-sections[aria-busy="false"]',ready:'#card-achievements',modal:'share-card'},
  {name:'Public link confirmation',login:'alex',route:'/me',entryReady:'.me-card-sections[aria-busy="false"]',ready:'#card-rotate',modal:'card'},
- {name:'Remove friend confirmation',login:'zz_test_fc_typical',route:'/me/friends',entryReady:'#fr-own-list',ready:'[data-confirm]',modal:'remove'},
- {name:'Block friend confirmation',login:'zz_test_fc_typical',route:'/me/friends',entryReady:'#fr-own-list',ready:'[data-confirm]',modal:'block'},
+ {name:'Remove friend confirmation',login:'zz_test_fc_typical',route:'/people/zz_test_fc_peer00',entryReady:'#person-profile [data-person-manage]',ready:'[data-confirm]',modal:'remove'},
+ {name:'Block friend confirmation',login:'zz_test_fc_typical',route:'/people/zz_test_fc_peer00',entryReady:'#person-profile [data-person-manage]',ready:'[data-confirm]',modal:'block'},
  {name:'Activity photo viewer',login:'zz_test_detail_owner',route:'/activity/'+fixtures.detail.run,entryReady:'[data-media-photo]',ready:'.ph-view',modal:'photo'},
  {name:'Activity full map',login:'zz_test_detail_owner',route:'/activity/'+fixtures.detail.run,entryReady:'.detail-map-hero .leaflet-tile-loaded',ready:'.map.full',modal:'map'},
 ];
@@ -55,10 +56,13 @@ async function modalState(page,kind){
  else if(kind==='card'){await page.evaluate(()=>KinettaCard.open());await page.locator('#card-new').click();}
  else if(kind==='photo')await page.locator('[data-media-photo]').first().click();
  else if(kind==='map')await page.locator('.detail-map-hero .map-full').click();
+ else if(kind==='remove'||kind==='block'){
+  await page.locator('#person-profile [data-person-manage]').click();
+  await page.locator(kind==='remove'?'[data-remove]':'[data-block]').click();
+ }
  else await page.evaluate(kind=>{
-  if(kind==='remove'||kind==='block')friendChangeSheet({name:'Fictional friend',login:'zz_test_fc_peer00'},kind==='block',()=>{});
   // Prepared content verifies the shared pinned header without invoking a page-specific save.
-  else sheet('Details','<form class="form" id="spacing-pinned"><label>Name<input value="Fictional draft"></label></form>',null,{save:'spacing-pinned'});
+  sheet('Details','<form class="form" id="spacing-pinned"><label>Name<input value="Fictional draft"></label></form>',null,{save:'spacing-pinned'});
  },kind);
 }
 module.exports={scenes,initialize,notificationState,modalState};

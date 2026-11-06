@@ -396,33 +396,36 @@ def friend_remove(login: str, user=Depends(current_user)):
 
 # ---------- people you may know, and an invite link to text a friend (2026-10-25) ----------
 LINK_DAYS = 30
-SUGGEST_MAX = 12
+SUGGEST_MAX = 5
 
 
 @router.get('/people/suggested')
 def people_suggested(user=Depends(current_user)):
-    """A few people to add, with why: someone who invited you (or you them), friends of your friends, then people new
-    on Kinetta. Only people who let others find them, never blocked, unconfirmed or suspended accounts, never anyone you
-    already have a friendship or request with. A mutual-friend count, never who those friends are."""
+    """Suggest only discoverable friends-of-friends or active shared-challenge members."""
     with db.connect() as c:
         rows = c.execute("""WITH mine AS (SELECT CASE WHEN requester = %(me)s THEN addressee ELSE requester END AS id
                                           FROM friendships WHERE %(me)s IN (requester, addressee) AND status = 'accepted'),
             theirs AS (SELECT CASE WHEN f.requester = m.id THEN f.addressee ELSE f.requester END AS id, count(*) AS n
                        FROM friendships f JOIN mine m ON m.id IN (f.requester, f.addressee) WHERE f.status = 'accepted' GROUP BY 1),
-            invited AS (SELECT CASE WHEN created_by = %(me)s THEN used_by ELSE created_by END AS id,
-                               bool_or(used_by = %(me)s) AS invited_you FROM invites
-                        WHERE used_by IS NOT NULL AND %(me)s IN (created_by, used_by) GROUP BY 1)
-            SELECT u.login::text AS login, u.name, u.photo_v AS photo, coalesce(t.n, 0) AS mutual, i.invited_you,
-                   u.created > now() - interval '60 days' AS new
-            FROM users u LEFT JOIN profile p ON p.user_id = u.id LEFT JOIN theirs t ON t.id = u.id LEFT JOIN invited i ON i.id = u.id
+            shared AS (SELECT DISTINCT ON (other.user_id) other.user_id AS id, q.start_day, q.end_day, q.kind, q.target, q.unit
+                       FROM challenge_members mine_member
+                       JOIN challenges q ON q.id = mine_member.challenge_id
+                       JOIN challenge_members other ON other.challenge_id = q.id AND other.status = 'active'
+                       WHERE mine_member.user_id = %(me)s AND mine_member.status = 'active' AND other.user_id <> %(me)s
+                         AND q.ended_at IS NULL AND ((q.end_day + 1)::timestamp AT TIME ZONE q.zone) > now()
+                       ORDER BY other.user_id, q.end_day, q.created DESC)
+            SELECT u.login::text AS login, u.name, u.photo_v AS photo, coalesce(t.n, 0) AS mutual,
+                   shared.start_day, shared.end_day, shared.kind, shared.target, shared.unit
+            FROM users u LEFT JOIN profile p ON p.user_id = u.id LEFT JOIN theirs t ON t.id = u.id LEFT JOIN shared ON shared.id = u.id
             WHERE u.id <> %(me)s AND u.pw_hash IS NOT NULL AND NOT u.needs_email_confirm AND u.suspended_at IS NULL
               AND coalesce(p.findable, true) AND NOT {blocked}
               AND NOT EXISTS (SELECT 1 FROM friendships f WHERE (f.requester = %(me)s AND f.addressee = u.id) OR (f.requester = u.id AND f.addressee = %(me)s))
-              AND (i.id IS NOT NULL OR t.n > 0 OR u.created > now() - interval '60 days')
-            ORDER BY i.id IS NOT NULL DESC, coalesce(t.n, 0) DESC, u.created DESC LIMIT %(n)s""".replace('{blocked}', blocked('u.id')),
+              AND (t.n > 0 OR shared.id IS NOT NULL)
+            ORDER BY coalesce(t.n, 0) DESC, (shared.id IS NOT NULL) DESC, shared.end_day ASC NULLS LAST, lower(u.name), u.login
+            LIMIT %(n)s""".replace('{blocked}', blocked('u.id')),
                          {'me': user['id'], 'viewer': user['id'], 'n': SUGGEST_MAX}).fetchall()
-    why = lambda r: ('Invited you' if r['invited_you'] else 'You invited them') if r['invited_you'] is not None else \
-        (f"{r['mutual']} mutual friend{'s' if r['mutual'] != 1 else ''}" if r['mutual'] else 'New on Kinetta')
+    from . import challenges
+    why = lambda r: f"{r['mutual']} mutual" if r['mutual'] else f"In {challenges.title(r)}"
     return [{'login': r['login'], 'name': r['name'], 'photo': r['photo'], 'why': why(r)} for r in rows]
 
 

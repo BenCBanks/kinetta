@@ -149,6 +149,7 @@ Object.assign(IC, {
   comment: '<path d="M4 5h16v11H10l-5 4v-4H4z"/>',
   lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
   people: '<circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9.5" r="2.5"/><path d="M3 20c.8-3.5 3.2-5.5 6-5.5s5.2 2 6 5.5M15 15c2.6 0 4.6 1.6 5.5 4.5"/>',
+  'user-plus': '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.8-3.5 3.2-5.5 6-5.5 1.8 0 3.4.8 4.6 2.2M19 8v6M16 11h6"/>',
 });
 const trimName = (m) => (!m ? 'Off' : imp() ? {200: '⅛ mi', 400: '¼ mi', 800: '½ mi'}[m] : `${m} m`);
 const profileHref = (p) => `/people/${encodeURIComponent(p.login)}`;
@@ -363,17 +364,12 @@ function feedTools(el,current){
   }
   function draw(){
     if(!live())return;host.setAttribute('aria-busy',String(!ready));const low=count!=null&&count<=2;top.innerHTML=actTop(false,false);
-    $('.acts',top).insertAdjacentHTML('afterbegin',`<a class="icon-btn" href="/me/challenges" data-feed-challenges aria-label="Challenges">${svg('trophy')}</a>`);
+    $('.acts',top).insertAdjacentHTML('afterbegin',`<a class="icon-btn" href="/me/friends?find=1" aria-label="Find friends">${svg('user-plus')}</a><a class="icon-btn" href="/me/challenges" data-feed-challenges aria-label="Challenges">${svg('trophy')}</a>`);
     $('[data-feed-challenges]',top).onclick=()=>{if(live())Discovery.visit('activity','challenge');};
     if(typeof KitChat!=='undefined')KitChat.entry(el,'/activity');fitHeader();
     const summary=Challenges.summary(challenges),q=summary?.first;
     const timing=q?(q.start>isoDay(new Date())?'Starts '+new Date(q.start+'T12:00:00Z').toLocaleDateString(undefined,{timeZone:'UTC',month:'short',day:'numeric'}):q.self.complete?'Goal reached':q.self.days_left===0?'Ends today':q.self.days_left===1?'1 day left':q.self.days_left+' days left'):'';
-    host.innerHTML=`<a class="row-link feed-challenges-shortcut" data-narrow-challenges data-feed-tool="challenges" href="/me/challenges"><span class="grow">Challenges</span>${svg('chev')}</a>${summary?`<div class="feed-social-strip" aria-label="Active challenge progress"><a class="row-link challenge-summary" data-feed-tool="challenges" href="/me/challenges/${encodeURIComponent(q.code)}"><span class="ri">${svg('trophy')}</span><span class="grow"><b>${summary.count>1?summary.count+' challenges':'Challenge'}</b><small>${esc(summary.progress)} · ${esc(timing)}</small></span><span class="chev">${svg('chev')}</span></a></div>`:''}${low?'<section class="feed-low"><h2>Make Activity yours</h2><div class="progress-grid" id="feed-discovery"></div></section>':''}`;
-    const grid=$('#feed-discovery',host);if(grid){Discovery.render(grid,[
-      {id:'find',title:'Find friends',description:'People you know →',href:'/me/friends?find=1',icon:'people'},
-      {id:'invite',title:'Invite card',description:'Share your QR card →',href:'/me',icon:'share'},
-      {id:'challenge',title:'Start a challenge',description:'Do a goal together →',href:'/me/challenges',icon:'trophy'},
-      {id:'segments',title:'Public segments',description:'Opt-in course times →',href:'/progress/segments',icon:'route'}],{space:'activity',ready:true,attribute:'data-activity-feature'});Discovery.wire(grid,'activity',{attribute:'data-activity-feature'});}
+    host.innerHTML=`${low?`<a class="row-link feed-find-friends" href="/me/friends?find=1"><span class="ri">${svg('user-plus')}</span><span class="grow">Find friends</span>${svg('chev')}</a>`:''}<a class="row-link feed-challenges-shortcut" data-narrow-challenges data-feed-tool="challenges" href="/me/challenges"><span class="grow">Challenges</span>${svg('chev')}</a>${summary?`<div class="feed-social-strip" aria-label="Active challenge progress"><a class="row-link challenge-summary" data-feed-tool="challenges" href="/me/challenges/${encodeURIComponent(q.code)}"><span class="ri">${svg('trophy')}</span><span class="grow"><b>${summary.count>1?summary.count+' challenges':'Challenge'}</b><small>${esc(summary.progress)} · ${esc(timing)}</small></span><span class="chev">${svg('chev')}</span></a></div>`:''}`;
   }
   host.addEventListener('click',e=>{if(!live()||e.metaKey||e.ctrlKey||e.button>0)return;const tile=e.target.closest('[data-activity-feature],[data-feed-tool]');if(!tile)return;const id=tile.dataset.activityFeature||tile.dataset.feedTool;Discovery.visit('activity',id);
     if(id==='invite'||id==='challenge'){e.preventDefault();e.stopPropagation();if(id==='invite')KinettaCard.open();else Challenges.create();}
@@ -641,7 +637,7 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
   const own=!!App.me&&login.toLowerCase()===App.me.login.toLowerCase(),owner=readOwner(),initial=new URLSearchParams(location.search);
   let revision=0,sport=initial.get('sport')||'',term=initial.get('q')||'',deferred=null;
   const path=()=>'/api/people/'+encodeURIComponent(login)+'/profile'+(own?'?limit=1':'');
-  el.innerHTML=`<div class="top${own?' owner-profile-top':''}">${backBtn(own?'Me':'People')}<span class="profile-page-title">${own?'Your profile':'Profile'}</span>${own?'':`<a class="icon-btn" href="/me/friends?find=1" aria-label="Find people">${svg('search')}</a>`}</div><div id="person-profile">${skel(2)}</div>`;
+    el.innerHTML=`<div class="top${own?' owner-profile-top':''}">${backBtn(own?'Me':'People')}<span class="profile-page-title">${own?'Your profile':'Profile'}</span>${own?'':`<a class="icon-btn" href="/me/friends?find=1" aria-label="Find friends">${svg('user-plus')}</a>`}</div><div id="person-profile">${skel(2)}</div>`;
   const box=$('#person-profile',el),active=()=>box.isConnected&&owner===readOwner();
   if(own){el.classList.add('has-back');el._backFallback='/me';const back=$('[data-back]',el);back.setAttribute('aria-label','Back to Me');back.onclick=()=>{if(active())go('/me');};}else wireBack(el,'/me/friends');
   function address(){const q=new URLSearchParams(location.search);q.delete('preview');for(const [key,value] of [['sport',sport],['q',term]])value?q.set(key,value):q.delete(key);replacePageAddress(el,location.pathname+(q.size?'?'+q:'')+location.hash);}
@@ -781,16 +777,36 @@ async function inviteFriends() {
   if(!same())return;
   const url = link.url.startsWith('/') ? appBase() + link.url : link.url;
   const text = `Join me on Kinetta so we can follow each other's workouts.`;
-  const copySheet = () => sheet('Invite friends', `<p>Posting somewhere? <button type="button" class="linkbtn" id="iv-public-card">Use your card</button> so you approve requests.</p><p>Anyone who opens this link becomes your friend on Kinetta, so send it only to people you’d add yourself. It works for 30 days.</p>
-    <label class="form">Your invite link<input readonly value="${esc(url)}" aria-label="Invite link"></label><button type="button" class="primary wide" id="iv-copy">Copy link</button>
-    <p class="small muted" id="iv-status" role="status"></p><button type="button" class="linkbtn muted" id="iv-new">Make a new link (the old one stops working)</button>`, (b, close) => {
+  const copySheet = () => sheet('Invite friends', `<p>Anyone who opens this link becomes your friend on Kinetta. It lasts 30 days, so share it only with people you’d add yourself.</p>
+    <label class="form">Your invite link<input readonly value="${esc(url)}" aria-label="Invite link"></label>
+    <div class="btncol"><button type="button" class="primary wide" id="iv-share">Share invite link</button><button type="button" class="ghost wide" id="iv-copy">Copy link</button><button type="button" class="ghost wide" id="iv-qr">Show QR code</button></div>
+    <div class="invite-qr-code" id="iv-qr-code" hidden></div><p class="small muted" id="iv-status" role="status"></p><button type="button" class="linkbtn muted" id="iv-new">Make a new link (the old one stops working)</button>`, (b, close) => {
     const live=()=>same()&&b.isConnected;
-    $('#iv-public-card',b).onclick=()=>{if(live()){close();KinettaCard.open();}};
     const input = $('input', b); input.onclick = () => input.select();
+    $('#iv-share',b).onclick = async () => {
+      if(!live())return;
+      try {
+        if(navigator.share)await navigator.share({title:'Find friends on Kinetta',text,url});
+        else {await navigator.clipboard.writeText(`${text} ${url}`);}
+        if(live())$('#iv-status',b).textContent=navigator.share?'Invite shared':'Link copied';
+      } catch(e) { if(live()&&e.name!=='AbortError')$('#iv-status',b).textContent='Select and copy the invite link above.'; }
+    };
     $('#iv-copy', b).onclick = async () => {
       if(!live())return;
       try { await navigator.clipboard.writeText(`${text} ${url}`); if(live())$('#iv-status', b).textContent = 'Link copied'; }
       catch { if(live()){input.select();$('#iv-status', b).textContent = 'Select and copy the link above.';} }
+    };
+    $('#iv-qr',b).onclick=()=>{
+      if(!live())return;
+      const box=$('#iv-qr-code',b);box.hidden=false;
+      if(box.firstElementChild)return;
+      try {
+        const code=qrcode(0,'M');code.addData(url);code.make();const n=code.getModuleCount(),m=4,ns='http://www.w3.org/2000/svg';let path='';
+        for(let y=0;y<n;y++)for(let x=0;x<n;x++)if(code.isDark(y,x))path+=`M${x+m} ${y+m}h1v1h-1z`;
+        const graphic=document.createElementNS(ns,'svg');graphic.setAttribute('viewBox',`0 0 ${n+2*m} ${n+2*m}`);graphic.setAttribute('role','img');graphic.setAttribute('aria-label','QR code for your Kinetta invite link');
+        const background=document.createElementNS(ns,'rect');background.setAttribute('width',n+2*m);background.setAttribute('height',n+2*m);background.setAttribute('fill','#fff');
+        const marks=document.createElementNS(ns,'path');marks.setAttribute('d',path);marks.setAttribute('fill','#000');graphic.append(background,marks);box.append(graphic);
+      } catch { box.hidden=true;$('#iv-status',b).textContent='The QR code could not be shown. Copy the invite link instead.'; }
     };
     $('#iv-new', b).onclick = async () => {
       const button=$('#iv-new',b);if(!live()||button.disabled)return;button.disabled=true;
@@ -807,26 +823,29 @@ async function suggestedPeople() {
   catch (x) { return []; }
 }
 // A row of people to add, with why, and an invite tile. Used on the Friends feed (while you have few friends) and Friends.
-function peopleRow(box, people, {title = 'People you may know', onChange, invite = true} = {}) {
-  const tile = (p) => `<div class="pym-tile" data-login="${esc(p.login)}"><button type="button" class="pym-x icon-btn" data-hide="${esc(p.login)}" aria-label="Hide ${esc(p.name)}">${svg('close')}</button>
-      <a class="pym-who" href="${profileHref(p)}">${avatar(p, 'lg')}<b>${esc(p.name)}</b><small class="muted">${esc(p.why)}</small></a>
-      <button type="button" class="primary sm" data-add="${esc(p.login)}">${svg('plus')}Add</button></div>`;
+function peopleRow(box, people, {title = 'People you may know', onChange, invite = true, dismiss = true, compactAdd = false} = {}) {
+  const row = (p) => `<div class="person pym-row" data-login="${esc(p.login)}"><a class="person-link" href="${profileHref(p)}">${avatar(p)}<span class="grow"><b>${esc(p.name)}</b><small>${esc(p.why)}</small></span></a>
+      <span class="pym-actions"><button type="button" class="suggestion-add${compactAdd?' friend-circle-add':''}" data-add="${esc(p.login)}" aria-label="Add ${esc(p.name)} as a friend">${compactAdd?svg('plus'):'＋ Add'}</button>${dismiss?`<button type="button" class="icon-btn pym-hide" data-hide="${esc(p.login)}" aria-label="Hide ${esc(p.name)}">${svg('close')}</button>`:''}</span></div>`;
   if (!people.length && !invite) { box.innerHTML = ''; return; }
-  box.innerHTML = `<section class="card pym${people.length ? '' : ' pym-slim'}" aria-label="${esc(title)}"><div class="pym-head"><h2>${people.length ? esc(title) : 'Find your friends'}</h2>${invite ? '<button type="button" class="linkbtn" data-invite>Invite</button>' : ''}</div>
-    ${people.length ? `<div class="pym-track">${people.map(tile).join('')}</div>` : ''}</section>`;
+  box.innerHTML = `<section class="pym" aria-label="${esc(title)}"><div class="pym-head"><h2>${people.length ? esc(title) : 'Find your friends'}</h2>${invite ? '<button type="button" class="linkbtn" data-invite>Invite</button>' : ''}</div>
+    ${people.length ? `<div class="pym-list">${people.map(row).join('')}</div>` : ''}</section>`;
   $$('[data-invite]', box).forEach((b) => b.onclick = inviteFriends);
   $$('[data-hide]', box).forEach((b) => b.onclick = () => {
     const hidden = hiddenPeople(); hidden.add(b.dataset.hide);
     try { store.set(hiddenKey(), [...hidden].slice(-200)); } catch { /* hiding is a convenience */ }
-    b.closest('.pym-tile').remove();
+    b.closest('.pym-row').remove();
+    if (!box.querySelector('.pym-row')) box.parentElement.hidden = true;
   });
   $$('[data-add]', box).forEach((b) => b.onclick = async () => {
-    b.disabled = true;
+    const owner=readOwner(),live=()=>owner===readOwner()&&box.isConnected;
+    if(!live()||b.disabled)return;
+    const label=b.getAttribute('aria-label');b.disabled = true;b.classList.add('is-pending');b.setAttribute('aria-busy','true');b.setAttribute('aria-label',label.replace(/^Add /,'Sending request to '));
     try {
       const r = await api('/api/friends', json('POST', {login: b.dataset.add}));
-      b.outerHTML = `<span class="badge on">${svg('check')} ${r.status === 'friends' ? 'Friends' : 'Requested'}</span>`;
-      invalidate('/api/friends'); invalidate('/api/people/'); onChange?.();
-    } catch (x) { toast(x.message); b.disabled = false; }
+      if(!live())return;
+      b.outerHTML = `<span class="friend-status" role="status"><span aria-hidden="true">✓</span> ${r.status === 'friends' ? 'Friends' : 'Requested'}</span>`;
+      invalidate('/api/friends');invalidate('/api/people/');invalidateFeed();await onChange?.();
+    } catch (x) { if(live()){toast(x.message);b.disabled=false;b.classList.remove('is-pending');b.removeAttribute('aria-busy');b.setAttribute('aria-label',label);b.innerHTML=compactAdd?svg('plus'):'＋ Add';} }
   });
 }
 // The page an invite link opens when you're signed in: who sent it, and one button.
@@ -835,7 +854,7 @@ route(/^\/add\/([\w-]+)$/, 'activity', async (el, code) => {
   wireBack(el, '/activity');
   let who;
   try { who = await api('/api/friend-links/' + encodeURIComponent(code)); }
-  catch (x) { el.innerHTML = `<div class="top">${backBtn('Activity')}</div><div class="card empty"><b>This invite link doesn’t work</b>${esc(x.message)}<div class="btncol"><a class="ghost" href="/me/friends">Find friends</a></div></div>`; wireBack(el, '/activity'); return; }
+  catch (x) { el.innerHTML = `<div class="top">${backBtn('Activity')}</div><div class="card empty"><b>This invite link doesn’t work</b>${esc(x.message)}<div class="btncol"><a class="ghost" href="/me/friends?find=1">Find friends</a></div></div>`; wireBack(el, '/activity'); return; }
   el.innerHTML = `<div class="top">${backBtn('Activity')}</div><div class="card empty add-friend"><b>${esc(who.name)} invited you to be friends</b>
     You’ll each see the activities the other shares with friends. You can change that or stop being friends any time.
     <div class="btncol"><button class="primary" id="af-yes">Become friends</button><a class="ghost" href="/activity">Not now</a></div></div>`;
