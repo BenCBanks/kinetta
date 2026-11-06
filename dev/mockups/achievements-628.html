@@ -22,6 +22,12 @@
       --run: #12924f;
       --ride: #0b8798;
       --hike: #b26a10;
+      --consistency: #7055bd;
+      --bronze-metal: #a96b43;
+      --silver-metal: #8a96a2;
+      --gold-metal: #c99522;
+      --platinum-metal: #7299a1;
+      --diamond-metal: #8173ca;
       --radius-card: 18px;
     }
     [data-theme="dark"] {
@@ -40,6 +46,12 @@
       --run: #4cc98a;
       --ride: #4bc0cf;
       --hike: #e9a04e;
+      --consistency: #b29aff;
+      --bronze-metal: #cf956b;
+      --silver-metal: #c0c9d3;
+      --gold-metal: #f0cb67;
+      --platinum-metal: #a5c7ce;
+      --diamond-metal: #b4a7ff;
     }
     * { box-sizing: border-box; }
     html, body { width: 100%; height: 100%; margin: 0; }
@@ -98,6 +110,71 @@
     .medallion-icon svg { position: static; inset: auto; width: 28px; height: 28px; transform: none; overflow: visible; }
     .medallion-link b { max-width: 100%; font-size: 13px; line-height: 1.15; font-weight: 650; overflow-wrap: anywhere; }
     .medallion-link small { color: var(--secondary); font-size: 12px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+    .a1-rail { display: flex; gap: 6px; overflow-x: auto; overscroll-behavior-x: contain; padding: 2px 0 10px; scrollbar-width: none; }
+    .a1-rail::-webkit-scrollbar { display: none; }
+    .a1-track { min-width: 0; flex: 0 0 calc((100% - 12px) / 3); display: grid; justify-items: center; align-content: start; gap: 5px; scroll-snap-align: start; text-align: center; }
+    .a1-medallion { --track: var(--brand); width: 92px; height: 92px; position: relative; display: grid; place-items: center; border-radius: 50%; color: var(--track); background: color-mix(in srgb,var(--track) 10%,var(--surface)); }
+    .a1-medallion svg { position: absolute; inset: 0; width: 92px; height: 92px; transform: rotate(-90deg); }
+    .a1-medallion circle { fill: none; stroke-width: 3; }
+    .a1-medallion .ring-base { stroke: color-mix(in srgb,var(--track) 18%,transparent); }
+    .a1-medallion .ring-progress { stroke: var(--track); stroke-linecap: round; stroke-dasharray: 214; stroke-dashoffset: var(--offset,72); }
+    .a1-content { z-index: 1; display: grid; justify-items: center; gap: 2px; }
+    .a1-content svg { position: static; width: 25px; height: 25px; transform: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .a1-content b { color: var(--text); font-size: 11px; font-weight: 650; white-space: nowrap; }
+    .a1-level { position: absolute; right: -7px; bottom: 2px; z-index: 2; min-height: 23px; padding: 3px 6px; border: 1px solid var(--divider); border-radius: 12px; background: var(--surface); color: var(--text); box-shadow: 0 1px 5px rgb(0 0 0 / .14); font-size: 10px; line-height: 15px; font-weight: 700; white-space: nowrap; }
+    .a1-track > b { font-size: 13px; line-height: 1.15; font-weight: 650; }
+    .a1-next { max-width: 108px; color: var(--secondary); font-size: 11px; line-height: 1.2; }
+    .a2-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 4px; }
+    .a2-track { min-width: 0; display: grid; justify-items: center; align-content: start; gap: 4px; text-align: center; }
+    .a2-medallion { --metal: var(--gold-metal); width: 82px; height: 82px; position: relative; display: grid; place-items: center; border-radius: 50%; color: #211a15; background: linear-gradient(145deg,color-mix(in srgb,var(--metal) 75%,white) 0%,var(--metal) 49%,color-mix(in srgb,var(--metal) 78%,black) 100%); box-shadow: inset 0 1px 2px rgb(255 255 255 / .58),0 2px 5px rgb(0 0 0 / .12); }
+    .a2-medallion > svg { position: absolute; inset: 0; width: 82px; height: 82px; transform: rotate(-90deg); }
+    .a2-medallion circle { fill: none; stroke-width: 3; }
+    .a2-medallion .ring-base { stroke: rgb(255 255 255 / .54); }
+    .a2-medallion .ring-progress { stroke: rgb(40 32 26 / .82); stroke-linecap: round; stroke-dasharray: 207; stroke-dashoffset: var(--offset,72); }
+    .a2-center { z-index: 1; width: 68px; display: grid; justify-items: center; gap: 1px; }
+    .a2-center svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .a2-center small { max-width: 100%; overflow: hidden; color: currentColor; font-size: 10px; line-height: 1.1; font-weight: 700; text-overflow: clip; white-space: nowrap; }
+    .a2-track > b { max-width: 100%; font-size: 12px; line-height: 1.15; font-weight: 650; }
+    .a2-tier { color: var(--secondary); font-size: 11px; line-height: 1.1; font-weight: 650; }
+    .a2-next { min-height: 26px; color: var(--muted); font-size: 10px; line-height: 1.2; }
+    .metal-key { margin: 10px 0 2px; display: flex; justify-content: space-between; gap: 2px; }
+    .metal-key span { min-width: 0; display: grid; justify-items: center; gap: 3px; color: var(--muted); font-size: 9px; line-height: 1.1; white-space: nowrap; }
+    .metal-key i { width: 9px; height: 9px; border-radius: 50%; background: linear-gradient(145deg,color-mix(in srgb,var(--metal) 75%,white),var(--metal) 50%,color-mix(in srgb,var(--metal) 78%,black)); box-shadow: inset 0 1px 1px rgb(255 255 255 / .5); }
+    .a3-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); column-gap: 10px; row-gap: 8px; }
+    .a3-track { min-width: 0; min-height: 120px; display: grid; grid-template-rows: 112px auto; justify-items: center; align-content: start; gap: 2px; text-align: center; }
+    .a3-medallion { --track: var(--brand); width: 108px; height: 108px; position: relative; display: grid; place-items: center; border-radius: 50%; color: var(--track); background: color-mix(in srgb,var(--track) 6%,var(--surface)); }
+    .a3-medallion > svg { position: absolute; inset: 0; width: 108px; height: 108px; transform: rotate(-90deg); }
+    .a3-medallion circle { fill: none; stroke-width: 2.7; }
+    .a3-medallion .ring-base { stroke: color-mix(in srgb,var(--track) 18%,transparent); }
+    .a3-medallion .ring-progress { stroke: var(--track); stroke-linecap: round; stroke-dasharray: 289; stroke-dashoffset: var(--offset,73); }
+    .a3-center { z-index: 1; display: grid; justify-items: center; gap: 3px; }
+    .a3-center svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .a3-center b { color: var(--text); font-size: 13px; line-height: 1.05; font-weight: 700; letter-spacing: -.2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .a3-track > b { font-size: 13px; line-height: 1.15; font-weight: 650; }
+    .a3-see-all { min-height: 44px; margin-top: 0; display: flex; align-items: center; justify-content: center; gap: 4px; color: var(--brand); font-size: 14px; font-weight: 600; }
+    .icon-study-note { margin: -7px 0 12px; color: var(--muted); font-size: 12px; line-height: 1.3; }
+    .icon-style-name { display: inline-block; margin-right: 5px; color: var(--text); font-weight: 700; }
+    .icon-token { --track: var(--brand); width: 44px; height: 44px; display: grid; place-items: center; flex: 0 0 44px; border-radius: 50%; color: var(--track); background: color-mix(in srgb,var(--track) 10%,var(--surface)); }
+    .icon-token svg { width: 25px; height: 25px; }
+    .icon-set { margin-top: 6px; display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); column-gap: 3px; row-gap: 9px; }
+    .icon-set-item { min-width: 0; display: grid; justify-items: center; align-content: start; gap: 3px; text-align: center; }
+    .icon-set-item small { width: 100%; color: var(--secondary); font-size: 9px; line-height: 1.12; overflow-wrap: anywhere; }
+    .icon-set.filled-set .icon-token { color: #fff; background: var(--track); box-shadow: inset 0 1px 2px rgb(255 255 255 / .3); }
+    .glyph-i1 { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .glyph-i2 .icon-tone { fill: currentColor; opacity: .25; stroke: none; }
+    .glyph-i2 .icon-stroke { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .glyph-i3 .shape { fill: currentColor; stroke: none; }
+    .glyph-i3 .cutout { fill: none; stroke: var(--track); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .glyph-i3 .bold-line { fill: none; stroke: currentColor; stroke-width: 2.7; stroke-linecap: round; stroke-linejoin: round; }
+    .icon-token .glyph-i3 .cutout { stroke-width: 2; }
+    .medallion.icon-filled .medallion-icon .glyph-i3 circle { fill: currentColor; stroke: none; }
+    .medallion.icon-filled { background: var(--track); color: #fff; box-shadow: inset 0 1px 2px rgb(255 255 255 / .3); }
+    .medallion.icon-filled .ring-base { stroke: rgb(255 255 255 / .36); }
+    .medallion.icon-filled .ring-progress { stroke: #fff; }
+    .icon-set-landmarks { margin: 3px 0 12px; display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 2px; }
+    .icon-landmark { min-width: 0; display: grid; justify-items: center; align-content: start; gap: 2px; color: var(--brand); text-align: center; }
+    .icon-landmark svg { width: 19px; height: 19px; }
+    .icon-landmark small { width: 100%; color: var(--muted); font-size: 8px; line-height: 1.08; overflow-wrap: anywhere; }
     .journey-card { padding: 14px 16px 13px; margin-bottom: 11px; }
     .journey-label { color: var(--secondary); font-size: 13px; font-weight: 650; }
     .journey-distance { margin-top: 2px; font-size: 34px; line-height: 1.1; font-weight: 750; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
@@ -216,7 +293,20 @@
       mountain: path('<path d="m3 19 6.5-12 3.6 6.2 2-3.5L21 19H3Z"/><path d="m7.7 10.3 2.4 2.2M16 12.4l1.4 1.5"/>'),
       runner: path('<circle cx="15.5" cy="4.5" r="2"/><path d="m13 8 3.4 2.2 3 .2M13 8l-2.2 4.2 3.7 2.1 2 4.7M11 12.2l-4.7 1.2-2.8 3M14.5 14.3l-4.4 1.2-2.1 4.1"/>'),
       ride: path('<circle cx="6" cy="17" r="3.3"/><circle cx="18" cy="17" r="3.3"/><path d="m6 17 4.4-7h4.1l3.5 7H6Zm4.4-7-2-3h-2m6.2 3 2.4-3H17"/>'),
-      award: path('<path d="M8 4h8v5a4 4 0 0 1-8 0V4Z"/><path d="M8 6H5v2a4 4 0 0 0 4 4m7-6h3v2a4 4 0 0 1-4 4m-3 1v4m-4 3h8m-6-3h4l2 3H8l2-3Z"/>')
+      award: path('<path d="M8 4h8v5a4 4 0 0 1-8 0V4Z"/><path d="M8 6H5v2a4 4 0 0 0 4 4m7-6h3v2a4 4 0 0 1-4 4m-3 1v4m-4 3h8m-6-3h4l2 3H8l2-3Z"/>'),
+      consistency: path('<path d="M12 22c4.2 0 7-2.9 7-7.1 0-3.1-1.7-5.2-4.5-8.2.1 2.4-.5 3.7-1.8 4.6.1-3.3-1.2-6.3-3.6-9.3C9.2 6.5 5 9.8 5 14.8 5 19.1 7.8 22 12 22Z"/><path d="M10 18c0-1.5.8-2.7 2.7-4.1.1 1.2.6 2 1.4 2.8.8.8.5 2.1-.7 2.8"/>'),
+      years: path('<rect x="3.5" y="5" width="17" height="16" rx="2"/><path d="M7.5 3v4m9-4v4M3.5 10h17m-12 4h3m-3 3h3m3-3h3m-3 3h3"/>'),
+      workouts: path('<path d="m13.5 2-9 11h6l-.8 9 10.8-13h-6l-1-7Z"/>'),
+      activeTime: path('<circle cx="12" cy="13" r="8.3"/><path d="M12 8v5l3.4 2M9.5 2.5h5M12 2.5v2.2m6.1 1.3 1.7-1.7"/>'),
+      kettlebell: path('<path d="M8.5 9V7a3.5 3.5 0 0 1 7 0v2"/><path d="M7.2 9h9.6a2 2 0 0 1 1.9 1.5l1.6 6.1a4 4 0 0 1-3.9 5H7.6a4 4 0 0 1-3.9-5l1.6-6.1A2 2 0 0 1 7.2 9Z"/>'),
+      footprints: path('<path d="M7.1 12.2c-1.7-.2-3-2-3-4.4 0-2.3 1.1-4 2.7-4 1.7 0 2.8 1.8 2.8 4.2 0 2.5-1 4.4-2.5 4.2Zm-.3 7.1c-2.4-.5-3.6-2.2-3.3-4.1.3-1.5 1.7-2.5 3.5-2.2 2.2.4 3.5 2.2 3.1 4.1-.3 1.7-1.5 2.6-3.3 2.2Zm10.2-5c-1.6-.2-2.6-2-2.4-4.3.2-2.3 1.5-3.9 3.1-3.7 1.7.2 2.5 2.1 2.3 4.4-.2 2.5-1.3 3.9-3 3.6Zm-.1 5c-2.3-.3-3.5-1.8-3.2-3.5.3-1.7 1.8-2.6 3.5-2.4 2.1.3 3.3 1.8 3 3.6-.3 1.7-1.5 2.5-3.3 2.3Z"/>'),
+      waves: path('<path d="M3 8c2.2 0 2.2-2 4.5-2S9.8 8 12 8s2.2-2 4.5-2S18.8 8 21 8M3 13c2.2 0 2.2-2 4.5-2s2.3 2 4.5 2 2.2-2 4.5-2 2.3 2 4.5 2M3 18c2.2 0 2.2-2 4.5-2s2.3 2 4.5 2 2.2-2 4.5-2 2.3 2 4.5 2"/>'),
+      trophy: path('<path d="M8 4h8v5a4 4 0 0 1-8 0V4Z"/><path d="M8 6H5v2a4 4 0 0 0 4 4m7-6h3v2a4 4 0 0 1-4 4m-3 1v4m-4 3h8m-6-3h4l2 3H8l2-3Z"/>'),
+      medal: path('<circle cx="12" cy="9" r="5.5"/><path d="m8.7 13.5-1.2 7 4.5-2.2 4.5 2.2-1.2-7M9 9h6m-3-3v6"/>'),
+      castle: path('<path d="M4 20V9l3-3 3 3V6l2-3 2 3v3l3-3 3 3v11H4Z"/><path d="M9 20v-5h6v5M7 11h2m6 0h2m-5-4v2"/>'),
+      bridge: path('<path d="M3 19h18M5 19v-3m14 3v-3M4 15c2.5-4 5.2-6 8-6s5.5 2 8 6M8 15v4m8-4v4M3 15h18"/>'),
+      acacia: path('<path d="M12 12v9m-3 0h6"/><path d="M4 10c0-2 2-3 4-2 0-2 2-3 4-2 2-1 4 0 4 2 2-1 4 0 4 2 0 2-2 3-4 2-1 2-3 2-4 1-2 2-4 1-4-1-2 1-4 0-4-2Z"/><path d="M12 6V3"/>'),
+      crescent: path('<path d="M19.5 14.6A8.5 8.5 0 0 1 9.4 4.5 8.6 8.6 0 1 0 19.5 14.6Z"/>')
     };
     const tabs = (active) => `<nav class="tabbar" aria-label="Main navigation">
       ${[['Today','today'],['Activity','activity'],['Progress','progress'],['Nutrition','nutrition'],['Me','me']].map(([label,icon]) => `<a class="tab${label===active?' active':''}" href="#" aria-current="${label===active?'page':'false'}">${icons[icon]}<span>${label}</span></a>`).join('')}
@@ -235,6 +325,98 @@
       ${medal(icons.mountain,'var(--achievement)','90','Climbing','3 Everests')}
       ${medal(icons.runner,'var(--run)','74','Run','62.2 mi')}
     </div>`;
+    const a1Track = (glyph, color, offset, level, title, value, next) => `<a class="a1-track" href="#" aria-label="${title}, level ${level}, ${value}, next ${next}"><span class="a1-medallion" style="--track:${color};--offset:${offset}"><svg viewBox="0 0 92 92" aria-hidden="true"><circle class="ring-base" cx="46" cy="46" r="34"></circle><circle class="ring-progress" cx="46" cy="46" r="34"></circle></svg><span class="a1-content">${glyph}<b>${value}</b></span><span class="a1-level">Lv ${level}</span></span><b>${title}</b><small class="a1-next">Next · ${next}</small></a>`;
+    const directionA1 = `<section class="achievements"><div class="section-heading"><a href="#"><h2>Achievements</h2><span class="chevron" aria-hidden="true">›</span></a></div><div class="a1-rail" aria-label="Started achievement tracks">
+      ${a1Track(icons.globe,'var(--brand)','72','5','Journey','3,790 mi','Length of Africa')}
+      ${a1Track(icons.mountain,'var(--achievement)','102','3','Climbing','3 Everests','4 Everests')}
+      ${a1Track(icons.runner,'var(--run)','82','4','Run','62.2 mi','100 mi')}
+    </div></section>`;
+    const a2Track = (glyph, metal, offset, tier, title, value, next) => `<a class="a2-track" href="#" aria-label="${title}, ${tier} tier, ${value}, next ${next}"><span class="a2-medallion" style="--metal:${metal};--offset:${offset}"><svg viewBox="0 0 82 82" aria-hidden="true"><circle class="ring-base" cx="41" cy="41" r="33"></circle><circle class="ring-progress" cx="41" cy="41" r="33"></circle></svg><span class="a2-center">${glyph}<small>${value}</small></span></span><b>${title}</b><small class="a2-tier">${tier}</small><small class="a2-next">Next · ${next}</small></a>`;
+    const directionA2 = `<section class="achievements"><div class="section-heading"><a href="#"><h2>Achievements</h2><span class="chevron" aria-hidden="true">›</span></a></div><div class="a2-grid">
+      ${a2Track(icons.globe,'var(--gold-metal)','68','Gold','Journey','3,790 mi','Length of Africa')}
+      ${a2Track(icons.mountain,'var(--bronze-metal)','105','Bronze','Climbing','3 Everests','4 Everests')}
+      ${a2Track(icons.runner,'var(--silver-metal)','78','Silver','Run','62.2 mi','100 mi')}
+    </div><div class="metal-key" aria-label="Tier colors: Bronze, Silver, Gold, Platinum and Diamond for the endless tail"><span><i style="--metal:var(--bronze-metal)"></i>Bronze</span><span><i style="--metal:var(--silver-metal)"></i>Silver</span><span><i style="--metal:var(--gold-metal)"></i>Gold</span><span><i style="--metal:var(--platinum-metal)"></i>Platinum</span><span><i style="--metal:var(--diamond-metal)"></i>Diamond ∞</span></div></section>`;
+    const a3Track = (glyph, color, offset, title, value) => `<a class="a3-track" href="#" aria-label="${title}, ${value}"><span class="a3-medallion" style="--track:${color};--offset:${offset}"><svg viewBox="0 0 122 122" aria-hidden="true"><circle class="ring-base" cx="61" cy="61" r="53"></circle><circle class="ring-progress" cx="61" cy="61" r="53"></circle></svg><span class="a3-center">${glyph}<b>${value}</b></span></span><b>${title}</b></a>`;
+    const directionA3 = `<section class="achievements"><div class="section-heading"><a href="#"><h2>Achievements</h2><span class="chevron" aria-hidden="true">›</span></a></div><div class="a3-grid" aria-label="Started achievement tracks">
+      ${a3Track(icons.globe,'var(--brand)','96','Journey','3,790 mi')}
+      ${a3Track(icons.mountain,'var(--achievement)','148','Climbing','3 Everests')}
+      ${a3Track(icons.runner,'var(--run)','118','Run','62.2 mi')}
+      ${a3Track(icons.consistency,'var(--consistency)','126','Consistency','10 weeks')}
+    </div><a class="a3-see-all" href="#">See all <span class="chevron" aria-hidden="true">›</span></a></section>`;
+    const iconTone = {
+      consistency: '<path d="M12 22c4.2 0 7-2.9 7-7.1 0-3.1-1.7-5.2-4.5-8.2.1 2.4-.5 3.7-1.8 4.6.1-3.3-1.2-6.3-3.6-9.3C9.2 6.5 5 9.8 5 14.8 5 19.1 7.8 22 12 22Z"/>',
+      years: '<rect x="3.5" y="5" width="17" height="16" rx="2"/>',
+      workouts: '<path d="m13.5 2-9 11h6l-.8 9 10.8-13h-6l-1-7Z"/>',
+      activeTime: '<circle cx="12" cy="13" r="8.3"/>',
+      globe: '<circle cx="12" cy="12" r="8.7"/>',
+      mountain: '<path d="m3 19 6.5-12 3.6 6.2 2-3.5L21 19H3Z"/>',
+      kettlebell: '<path d="M8.5 9V7a3.5 3.5 0 0 1 7 0v2H8.5Zm-1.3 0h9.6a2 2 0 0 1 1.9 1.5l1.6 6.1a4 4 0 0 1-3.9 5H7.6a4 4 0 0 1-3.9-5l1.6-6.1A2 2 0 0 1 7.2 9Z"/>',
+      runner: '<circle cx="15.5" cy="4.5" r="2.3"/>',
+      ride: '<circle cx="6" cy="17" r="3.3"/><circle cx="18" cy="17" r="3.3"/>',
+      footprints: '<path d="M7.1 12.2c-1.7-.2-3-2-3-4.4 0-2.3 1.1-4 2.7-4 1.7 0 2.8 1.8 2.8 4.2 0 2.5-1 4.4-2.5 4.2Zm-.3 7.1c-2.4-.5-3.6-2.2-3.3-4.1.3-1.5 1.7-2.5 3.5-2.2 2.2.4 3.5 2.2 3.1 4.1-.3 1.7-1.5 2.6-3.3 2.2Zm10.2-5c-1.6-.2-2.6-2-2.4-4.3.2-2.3 1.5-3.9 3.1-3.7 1.7.2 2.5 2.1 2.3 4.4-.2 2.5-1.3 3.9-3 3.6Zm-.1 5c-2.3-.3-3.5-1.8-3.2-3.5.3-1.7 1.8-2.6 3.5-2.4 2.1.3 3.3 1.8 3 3.6-.3 1.7-1.5 2.5-3.3 2.3Z"/>',
+      waves: '<path d="M3 10c2.2 0 2.2-2 4.5-2s2.3 2 4.5 2 2.2-2 4.5-2 2.3 2 4.5 2v10H3V10Z"/>',
+      trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0V4Zm-3 2h3v5a4 4 0 0 1-3-4V6Zm11 0h3v1a4 4 0 0 1-3 4V6Zm-4 7v5m-4 3h8m-6-3h4l2 3H8l2-3Z"/>',
+      medal: '<circle cx="12" cy="9" r="5.5"/>'
+    };
+    const iconSolid = {
+      consistency: `${iconTone.consistency}<path class="cutout" d="M10 18c0-1.5.8-2.7 2.7-4.1.1 1.2.6 2 1.4 2.8"/>`,
+      years: `${iconTone.years}<path class="cutout" d="M7.5 3v4m9-4v4M3.5 10h17m-12 4h3m-3 3h3m3-3h3m-3 3h3"/>`,
+      workouts: iconTone.workouts,
+      activeTime: `${iconTone.activeTime}<path class="cutout" d="M12 8v5l3.4 2m-5.9-12.5h5"/>`,
+      globe: `${iconTone.globe}<path class="cutout" d="M3.6 12h16.8M12 3.3c2.4 2.3 3.7 5.2 3.7 8.7s-1.3 6.4-3.7 8.7c-2.4-2.3-3.7-5.2-3.7-8.7s1.3-6.4 3.7-8.7Z"/>`,
+      mountain: `${iconTone.mountain}<path class="cutout" d="m7.7 10.3 2.4 2.2M16 12.4l1.4 1.5"/>`,
+      kettlebell: `${iconTone.kettlebell}<path class="cutout" d="M8.5 9V7a3.5 3.5 0 0 1 7 0v2"/>`,
+      runner: `${iconTone.runner}<path class="bold-line" d="m13 8 3.4 2.2 3 .2M13 8l-2.2 4.2 3.7 2.1 2 4.7M11 12.2l-4.7 1.2-2.8 3M14.5 14.3l-4.4 1.2-2.1 4.1"/>`,
+      ride: `${iconTone.ride}<path class="bold-line" d="m6 17 4.4-7h4.1l3.5 7H6Zm4.4-7-2-3h-2m6.2 3 2.4-3H17"/>`,
+      footprints: iconTone.footprints,
+      waves: iconTone.waves,
+      trophy: `${iconTone.trophy}<path class="cutout" d="M8 6H5v2a4 4 0 0 0 4 4m7-6h3v2a4 4 0 0 1-4 4m-3 1v4"/>`
+    };
+    const glyphBody = (name) => {
+      const markup = icons[name] || icons.globe;
+      return markup.slice(markup.indexOf('>') + 1, markup.lastIndexOf('</svg>'));
+    };
+    const iconGlyph = (name, style) => {
+      const label = style === 'I4' ? 'I2' : style;
+      if (label === 'I1') return `<svg class="glyph-i1" viewBox="0 0 24 24" aria-hidden="true">${glyphBody(name)}</svg>`;
+      if (label === 'I3') return `<svg class="glyph-i3" viewBox="0 0 24 24" aria-hidden="true"><g class="shape">${iconSolid[name] || iconTone[name] || iconTone.globe}</g></svg>`;
+      return `<svg class="glyph-i2" viewBox="0 0 24 24" aria-hidden="true"><g class="icon-tone">${iconTone[name] || '<circle cx="12" cy="12" r="8.3"/>'}</g><g class="icon-stroke">${glyphBody(name)}</g></svg>`;
+    };
+    const achievementIconTracks = [
+      ['Consistency','consistency','var(--consistency)'],['Years','years','var(--brand)'],['Workouts','workouts','var(--hike)'],['Active time','activeTime','var(--achievement)'],
+      ['Journey','globe','var(--brand)'],['Climbing','mountain','var(--hike)'],['Lifted','kettlebell','var(--achievement)'],['Run','runner','var(--run)'],
+      ['Ride','ride','var(--ride)'],['Walk/hike','footprints','var(--hike)'],['Swim','waves','var(--ride)'],['Personal bests','trophy','var(--achievement)']
+    ];
+    const styleMedal = (track, style, iconName) => {
+      const [title, key, color, offset, value] = track;
+      const glyph = iconGlyph(iconName || key, style);
+      return `<a class="medallion-link" href="#" aria-label="${title}, ${value}"><span class="medallion${style === 'I3' ? ' icon-filled' : ''}" style="--track:${color};--offset:${offset}"><svg viewBox="0 0 68 68" aria-hidden="true"><circle class="ring-base" cx="34" cy="34" r="24"></circle><circle class="ring-progress" cx="34" cy="34" r="24"></circle></svg><span class="medallion-icon">${glyph}</span></span><b>${title}</b><small>${value}</small></a>`;
+    };
+    const iconStyles = {
+      I1: ['Line','Thin stroke in the track colour.'],
+      I2: ['Duotone','Phosphor Duotone style · 25% tint fill · Phosphor Icons are MIT licensed.'],
+      I3: ['Filled glyph','Solid white glyph on a fully coloured track medallion.'],
+      I4: ['Landmark icons','Journey changes to its highest reached landmark; other tracks retain I2 icons.']
+    };
+    const journeyLandmarks = [
+      ['Marathon','medal'],['Lake Tahoe','waves'],['UK','castle'],['Across the US','bridge'],['Africa','acacia'],['Around the world','globe'],['Moon','crescent']
+    ];
+    const iconsScreen = (style) => {
+      const [styleTitle, styleNote] = iconStyles[style] || iconStyles.I1;
+      const rowTracks = [
+        ['Journey','globe','var(--brand)','58','3,790 mi'],['Climbing','mountain','var(--hike)','90','3 Everests'],['Run','runner','var(--run)','74','62.2 mi']
+      ];
+      const iconNameFor = (key) => style === 'I4' && key === 'globe' ? 'bridge' : key;
+      const row = `<div class="medallions">${rowTracks.map(track => styleMedal(track, style, iconNameFor(track[1]))).join('')}</div>`;
+      const landmarks = style === 'I4' ? `<h2 class="explore-heading">Journey tier icons</h2><div class="icon-set-landmarks">${journeyLandmarks.map(([label,key]) => `<span class="icon-landmark${label === 'Across the US' ? ' current' : ''}">${iconGlyph(key,'I2')}<small>${label}</small></span>`).join('')}</div>` : '';
+      const fullSet = `<h2 class="explore-heading">Full track icon set · 12</h2><div class="icon-set${style === 'I3' ? ' filled-set' : ''}">${achievementIconTracks.map(([label,key,color]) => {
+        const iconName = key;
+        const glyphStyle = style === 'I4' ? 'I2' : style;
+        return `<span class="icon-set-item"><span class="icon-token" style="--track:${color}">${iconGlyph(iconName,glyphStyle)}</span><small>${label}</small></span>`;
+      }).join('')}</div>`;
+      return `${status}<main class="screen">${toolbar('Icons',false)}<p class="icon-study-note"><span class="icon-style-name">${style} · ${styleTitle}</span>${styleNote}</p><section class="achievements"><div class="section-heading"><h2>Achievements</h2></div>${row}</section>${landmarks}${fullSet}</main>${tabs('Me')}`;
+    };
     const achievementsHeading = `<div class="section-heading"><a href="#"><h2>Achievements</h2><span class="chevron" aria-hidden="true">›</span></a></div>`;
     const directionA = `<section class="achievements">${achievementsHeading}${largeMedallions}</section>`;
     const directionB = `<section class="achievements">${achievementsHeading}
@@ -260,7 +442,7 @@
       <a class="activity-row" href="#"><span class="sport-icon" style="color:var(--ride);background:color-mix(in srgb,var(--ride) 13%,var(--surface))">${icons.ride}</span><span class="activity-copy"><b>Creek greenway ride</b><span>Nov 3 · 18.6 mi · 1h 12m</span></span><span class="activity-arrow">›</span></a>
     </section>`;
     const profileScreen = (achievements, {title='Profile', includeActivities=true}={}) => `${status}<main class="screen">${toolbar(title)}${profileIntro}${summary}${achievements}${includeActivities?activityList:''}</main>${tabs('Me')}`;
-    const profileForDirection = (direction) => profileScreen(direction==='B'?directionB:direction==='C'?directionC:directionA);
+    const profileForDirection = (direction) => profileScreen(({A:directionA,A1:directionA1,A2:directionA2,A3:directionA3,B:directionB,C:directionC})[direction] || directionA);
     const placementProfile = () => profileScreen(compactMedallions);
     const progressScreen = () => `${status}<main class="screen">${toolbar('Progress',false)}
       <section class="progress-total card"><h2>Totals</h2><div class="total-row"><b>36.2 mi</b><small>This week</small></div><div class="periods"><strong>Week</strong><span>Month</span><span>Year</span></div><div class="progress-bars" aria-label="Weekly distance chart"><i style="height:38%"></i><i style="height:57%"></i><i style="height:48%"></i><i style="height:82%"></i><i class="current" style="height:65%"></i><i style="height:40%"></i><i style="height:12%"></i></div></section>
@@ -278,7 +460,8 @@
     </main>${tabs('Me')}`;
     const mode = params.get('mode') || 'direction';
     let markup;
-    if (mode === 'placement-profile') markup = placementProfile();
+    if (mode === 'icons') markup = iconsScreen((params.get('direction') || 'I1').toUpperCase());
+    else if (mode === 'placement-profile') markup = placementProfile();
     else if (mode === 'placement-progress') markup = progressScreen();
     else if (mode === 'placement-me') markup = meScreen();
     else markup = profileForDirection((params.get('direction') || 'A').toUpperCase());
