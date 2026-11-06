@@ -22,6 +22,18 @@
 .setup-tips>.small { margin-top:-4px; }
 .profile-page-title { flex:1; text-align:center; font-size:.9375rem; font-weight:650; }
 #person-profile .profile-activities { margin-top:12px; }
+.profile-achievements { margin-top:18px; }
+.profile-achievements h2 { margin:0 0 4px; font-size:1.125rem; }
+.profile-achievement { display:grid; grid-template-columns:22px minmax(0,1fr) auto; align-items:start; gap:8px; padding:8px 0; border-bottom:1px solid var(--line); }
+.profile-achievement:last-child { border-bottom:0; }
+.profile-achievement-icon { font-family:Apple Color Emoji,"Segoe UI Emoji","Noto Color Emoji",sans-serif; font-size:1.0625rem; line-height:1.35; }
+.profile-achievement-copy { display:flex; flex-direction:column; min-width:0; gap:1px; }
+.profile-achievement-name { font-size:1rem; line-height:1.3; font-weight:600; overflow-wrap:anywhere; }
+.profile-achievement-value { color:var(--tx2); font-size:.875rem; line-height:1.35; overflow-wrap:anywhere; }
+.profile-achievement-next { padding-top:2px; color:var(--tx3); font-size:.8125rem; line-height:1.35; text-align:right; white-space:nowrap; }
+.profile-achievement-progress { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:3px; width:80px; margin-top:5px; }
+.profile-achievement-progress span { height:2px; background:var(--line); }
+.profile-achievement-progress .filled { background:var(--accent); }
 .profile-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,5.5rem),1fr)); gap:14px; margin:14px 0 4px; }
 .profile-stats .stat { min-width:0; overflow-wrap:anywhere; }
 .profile-stats .stat b { font-size:var(--text-app-stat); }

@@ -21,6 +21,41 @@ const ProfileLayout=(()=>{
   const big=n=>Number(n).toLocaleString();
   const distance=m=>{const v=U.dist(m,1),n=Number(v);return n>=1000?n.toLocaleString(undefined,{maximumFractionDigits:1}):v;};
   const hours=s=>s>=360000?`${big(Math.floor(s/3600))}h`:dur(s,true);
+  const achievementIcons={consistency:'🔥',years_active:'📅',workouts:'💪',active_time:'⏱️',journey:'🌍',climbing:'⛰️',lifted:'🏋️',personal_bests:'🏅','sport:run':'🏃','sport:ride':'🚴','sport:walk-hike':'🥾','sport:swim':'🏊','sport:lift':'🏋️'};
+  const achievementNumber=n=>Number.isFinite(Number(n))?Number(n).toLocaleString(undefined,{maximumFractionDigits:1}):'—';
+  function achievementValue(track){
+    const latest=track.tiers?.at(-1),value=achievementNumber(track.display_value),unit=track.display_unit||'';
+    if(track.code==='journey')return `${latest?.label||track.label} · ${value} ${unit}`.trim();
+    if(track.code==='climbing')return latest?.label||`${value} ${unit}`.trim();
+    const suffix=['workouts','personal_bests','sport:lift'].includes(track.code)?'':unit;
+    return `Lv ${achievementNumber(track.level)} · ${value}${suffix?' '+suffix:''}`;
+  }
+  function achievementProgress(track){
+    const latest=track.tiers?.at(-1),next=track.next;
+    const start=Number(latest?.threshold)||0,end=Number(next?.threshold),value=Number(track.value??track.value_m??track.value_kg??track.value_s??track.value_weeks??track.value_years??track.value_sessions);
+    const ratio=Number.isFinite(end)&&end>start&&Number.isFinite(value)?Math.max(0,Math.min(1,(value-start)/(end-start))):0;
+    const filled=Math.floor(ratio*4);
+    return `<div class="profile-achievement-progress" role="img" aria-label="Next ${esc(next?.label||'landmark')}">${[0,1,2,3].map(i=>`<span${i<filled?' class="filled"':''}></span>`).join('')}</div>`;
+  }
+  function achievementPanel(data){
+    const latestDay=track=>(track.tiers||[]).reduce((day,tier)=>String(tier.day||'')>day?String(tier.day):day,'')||String(track.day||'');
+    const tracks=(Array.isArray(data?.tracks)?data.tracks:[]).filter(t=>t&&Array.isArray(t.tiers)&&t.tiers.length&&Number(t.level)>0)
+      .sort((a,b)=>latestDay(b).localeCompare(latestDay(a))).slice(0,4);
+    if(!tracks.length)return '';
+    return `<section class="profile-achievements" aria-label="Achievements"><h2>Achievements</h2><div class="profile-achievement-list" role="list">${tracks.map(track=>{
+      const next=track.next,journey=track.code==='journey',climbing=track.code==='climbing',nextText=next&&!journey?`<span class="profile-achievement-next">next ${esc(climbing?next.label:achievementNumber(next.display_threshold))}</span>`:'';
+      return `<div class="profile-achievement" role="listitem" data-achievement-code="${esc(track.code)}"><span class="profile-achievement-icon" aria-hidden="true">${achievementIcons[track.code]||'🏅'}</span><span class="profile-achievement-copy"><span class="profile-achievement-name">${esc(track.label||track.code)}</span><span class="profile-achievement-value">${esc(achievementValue(track))}</span>${journey&&next?achievementProgress(track):''}</span>${nextText}</div>`;
+    }).join('')}</div></section>`;
+  }
+  function mountAchievements(box,r){
+    if(r?.mine!==true)return;
+    const owner=readOwner();
+    api('/api/achievements').then(data=>{
+      if(!box.isConnected||owner!==readOwner()||r.mine!==true)return;
+      const panel=achievementPanel(data);
+      if(panel)box.insertAdjacentHTML('beforeend',panel);
+    }).catch(()=>{});
+  }
   function numbers(row,selected){
     return selected.map(key=>{
       if(key==='activities')return row.activities?stat('Activities',big(row.activities)):'';
@@ -52,7 +87,7 @@ const ProfileLayout=(()=>{
   function mount(box,r){
     const chart=box.querySelector('[data-profile-mileage]');
     if(chart)mileageChart(chart,r.mileage||{},'days',{shared:true});
-    feedMaps(box);wireCheers(box);
+    feedMaps(box);wireCheers(box);mountAchievements(box,r);
   }
   return {defaults,normalize,singlePeriod,numbers,content,mount,distance,hours,labels:{sections,stats},sports};
 })();
