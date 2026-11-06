@@ -15,7 +15,7 @@ map_path() {
   done <<'MAP'
 app/static/app.js,app/static/pages.js,app/static/index.html,app/static/boot.js,app/static/style.css,app/static/theme.css,app/static/fonts/*,app/static/appearance.js,app/static/back-navigation.js,app/static/keyboard.js,app/static/native.js,app/static/refresh.js,app/static/haptics.js,app/static/kit.js;core;all
 app/static/food*.js,app/static/thread*.js,app/static/cook.js,app/static/recipe-import.js,app/static/food-entry.css,app/static/nutrition.css,app/static/recipes-ui.css,app/static/insights-ui.css,app/static/vendor/zxing.min.js;food;Nutrition day,Add food,Recipes and foods,Nutrition Insights
-app/static/social.js,app/static/social-data.js,app/static/activity-detail.*,app/static/activity-home.css,app/static/friends-ui.*,app/static/challenges.*,app/static/challenge-public.js,app/static/media.js;social;Activity,Activity detail,Friends,Activity photo viewer,Activity full map
+app/static/social.js,app/static/social-data.js,app/static/activity-detail.*,app/static/activity-home.css,app/static/friends-ui.*,app/static/challenges.*,app/static/challenge-public.js,app/static/media.js;social;Activity,Activity detail,Friends,Activity photo viewer,Activity full map,Sharing & privacy
 app/static/track*.js,app/static/track-home.css,app/static/intervals.js,app/static/segments.js,app/static/maps.*,app/static/vendor/leaflet.*,app/static/vendor/protomaps-leaflet.js;track;Track ready,Activity detail,Activity full map
 app/static/lift*.js,app/static/lift-ui.css;lift;Lifting with sets,Lifting blank sets
 app/static/plan*.js,app/static/plan-ui.css,app/static/planner.js;plan;Me,Me Today plan,Track ready
@@ -25,7 +25,7 @@ app/static/admin*,app/static/feature-usage.js;admin;
 app/static/welcome.js,app/static/onboarding.js,app/static/username-availability.*;welcome;
 app/static/explore.js,app/static/guide-ui.css;guide;
 app/static/community-terms.*;community;
-app/static/cards.*,app/static/card-public.js,app/static/vendor/qrcode.js;cards;Me,Public link confirmation
+app/static/cards.*,app/static/card-public.js,app/static/vendor/qrcode.js;cards;Me,Share card choices,Public link confirmation
 app/static/standalone.css;standalone;
 app/static/sw.js,app/static/manifest.webmanifest,app/static/favicon.svg,app/static/icon*,app/static/logo*,app/static/mark.svg,app/static/vendor/*LICENSE,app/static/vendor/*notices.txt;assets;
 MAP

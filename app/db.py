@@ -1990,6 +1990,23 @@ MIGRATIONS = [
     """UPDATE cheers SET kind='clap' WHERE kind='laugh';
     UPDATE notifications SET reaction_kind='clap' WHERE reaction_kind='laugh';""",
 
+    # 98. Achievement moments are opt-in; reactions belong to the weekly moment, not a workout.
+    """ALTER TABLE profile ADD COLUMN share_achievements boolean NOT NULL DEFAULT false,
+      ADD COLUMN share_achievements_since timestamptz;
+    CREATE TABLE achievement_moment_reactions (
+      owner_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      week_start date NOT NULL,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind text NOT NULL CHECK(kind ~ '^[a-z_]{1,24}$'),
+      created timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY(owner_id,week_start,user_id), CHECK(owner_id<>user_id));
+    CREATE INDEX achievement_moment_reactions_week ON achievement_moment_reactions(week_start,owner_id);
+    ALTER TABLE achievement_moment_reactions ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_rows ON achievement_moment_reactions FOR SELECT TO fit_readers
+      USING(owner_id=fit_me() OR user_id=fit_me());
+    CREATE POLICY all_rows ON achievement_moment_reactions FOR SELECT TO fit_all_readers USING(true);
+    GRANT SELECT ON achievement_moment_reactions TO fit_readers;""",
+
 ]
 
 

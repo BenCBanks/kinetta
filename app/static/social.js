@@ -22,12 +22,13 @@ const reactionAddIcon=()=>'<svg class="reaction-add-icon" viewBox="0 0 24 24" fi
 const reactionCompact=new Intl.NumberFormat('en',{notation:'compact',maximumSignificantDigits:2});
 const reactionNumber=n=>n>=1000?reactionCompact.format(n):String(n);
 const reactionCounts=s=>{const counts={};for(const[k,n]of Object.entries(s.reactions||{clap:Array.isArray(s.cheers)?s.cheers.length:s.cheers||0})){const kind=reactionKind(k);counts[kind]=(counts[kind]||0)+(+n||0);}return counts;};
-function reactionButtons(aid,s,detail=false,compact=false){
+function reactionButtons(aid,s,detail=false,compact=false,moment=null){
   const selected=reactionKind(s.my_reaction??(s.cheered?'clap':null)),counts=reactionCounts(s),total=Object.values(counts).reduce((n,v)=>n+v,0);
   const label=REACTIONS().find(([k])=>k===selected)?.[1]||'clapping hands',triggerLabel=selected?'Your reaction: '+label+'. Change reaction':'React',triggerContent=selected?reactionMark(selected):reactionAddIcon()+'<span>React</span>';
   const attrs=REACTIONS().map(([k])=>'data-count-'+k+'="'+(counts[k]||0)+'"').join(' ');
   const choices=REACTIONS().map(([kind,label])=>'<button type="button" role="menuitemradio" aria-label="React with '+esc(label)+'" aria-checked="'+(selected===kind)+'" data-react="'+kind+'" tabindex="-1">'+reactionMark(kind)+'</button>').join('');
-  return '<div class="activity-reactions emoji-reactions'+(compact?' compact-reactions':'')+'" role="group" aria-label="Reactions" data-reaction-group data-aid="'+aid+'" data-mine="'+(selected||'')+'" '+attrs+'>'+
+  const target=moment?'data-moment-reaction-group data-moment-owner="'+esc(moment.owner)+'" data-moment-week="'+esc(moment.week)+'"':'data-reaction-group data-aid="'+aid+'"';
+  return '<div class="activity-reactions emoji-reactions'+(compact?' compact-reactions':'')+'" role="group" aria-label="Reactions" '+target+' data-mine="'+(selected||'')+'" '+attrs+'>'+
     '<div class="reaction-action"><button type="button" class="pf reaction-more" aria-label="'+esc(triggerLabel)+'" aria-haspopup="menu" aria-expanded="false">'+triggerContent+'</button></div>'+
     '<div class="reaction-shortcuts" role="group" aria-label="Reaction shortcuts"'+(total?'':' hidden')+'>'+
     '<div class="reaction-summary" hidden></div>'+
@@ -37,6 +38,7 @@ function reactionButtons(aid,s,detail=false,compact=false){
 
 function wireReactionGroup(group,aid,changed){
   if(!group||group.dataset.bound)return;group.dataset.bound='1';
+  const momentOwner=group.dataset.momentOwner,momentWeek=group.dataset.momentWeek,isMoment=!!(momentOwner&&momentWeek);
   const owner=readOwner(),active=()=>group.isConnected&&readOwner()===owner;
   const more=$('.reaction-more',group),main=more,shortcuts=$('.reaction-shortcuts',group),summary=$('.reaction-summary',group),count=$('.reaction-count',group),picker=$('.reaction-picker',group),options=$$('[data-react]',picker);
   let busy=false,state={my_reaction:group.dataset.mine||null,reactions:Object.fromEntries(REACTIONS().map(([k])=>[k,+group.getAttribute('data-count-'+k)||0]))};
@@ -80,14 +82,14 @@ function wireReactionGroup(group,aid,changed){
     more.disabled=busy;group.setAttribute('aria-busy',String(busy));
     const popular=used.slice(0,3).map(([kind])=>kind);
     const buttons=popular.map(kind=>{const n=state.reactions[kind],name=REACTIONS().find(([k])=>k===kind)?.[1]||kind;return '<button type="button" class="reaction-summary-emoji" data-summary-react="'+kind+'" aria-label="React with '+esc(name)+', '+n+' '+(n===1?'person':'people')+'" aria-pressed="'+(selected===kind)+'">'+reactionMark(kind)+'</button>';}).join('');
-    if(summary._buttons!==buttons){summary.innerHTML=buttons;summary._buttons=buttons;for(const b of $$('[data-summary-react]',summary)){const kind=b.dataset.summaryReact;cheerGesture(b,()=>choose(state.my_reaction===kind?null:kind),()=>{close();activityCheers(aid);});}}
+    if(summary._buttons!==buttons){summary.innerHTML=buttons;summary._buttons=buttons;for(const b of $$('[data-summary-react]',summary)){const kind=b.dataset.summaryReact;cheerGesture(b,()=>choose(state.my_reaction===kind?null:kind),()=>{close();isMoment?achievementMomentCheers(momentOwner,momentWeek):activityCheers(aid);});}}
     shortcuts.hidden=!total;summary.hidden=!total;for(const b of $$('[data-summary-react]',summary))b.disabled=busy;
     count.hidden=!total;const number='<span class="num">'+reactionNumber(total)+'</span>';if(count._number!==number){count.innerHTML=number;count._number=number;}
     count.setAttribute('aria-label','See who reacted, '+total);
     for(const b of options){b.setAttribute('aria-checked',String(selected===b.dataset.react));b.disabled=busy;}
   };
   group._sync=fresh=>{if(!busy&&active()){state={my_reaction:reactionKind(fresh.my_reaction),reactions:reactionCounts(fresh)};draw();}};
-  const stopWatching=SocialData.watch(aid,fresh=>{if(!active())return false;if(fresh)group._sync(fresh);});
+  const stopWatching=isMoment?null:SocialData.watch(aid,fresh=>{if(!active())return false;if(fresh)group._sync(fresh);});
   const choose=async(next)=>{
     const focused=document.activeElement,summaryKind=focused?.dataset?.summaryReact||null,restoreFocus=group.contains(focused)||picker.contains(focused),host=group.parentElement;
     close();if(busy||!active()||state.my_reaction===next)return;
@@ -95,10 +97,11 @@ function wireReactionGroup(group,aid,changed){
     if(state.my_reaction)counts[state.my_reaction]=Math.max(0,(counts[state.my_reaction]||0)-1);if(next)counts[next]=(counts[next]||0)+1;
     state={my_reaction:next,reactions:counts};draw();if(next&&typeof Haptics!=='undefined')Haptics.react();
     try{
-      let fresh=await api(`/api/activities/${aid}/reaction`,next?json('POST',{kind:next}):{method:'DELETE'});if(readOwner()!==owner)return;
-      if(!fresh.reactions)fresh=await api(`/api/activities/${aid}/social`);if(readOwner()!==owner)return;
-      SocialData.remember(aid,fresh);socialChanged(aid);if(active()){state={my_reaction:reactionKind(fresh.my_reaction),reactions:reactionCounts(fresh)};changed?.(fresh);}
-    }catch(x){if(readOwner()===owner&&[401,403,404].includes(x.status))SocialData.forget(aid);if(active()){state=was;toast(x.message);}}finally{busy=false;draw();if(restoreFocus&&readOwner()===owner&&(document.activeElement===document.body||document.activeElement===focused)){const button=active()?(summaryKind?$$('[data-summary-react]',group).find(b=>b.dataset.summaryReact===summaryKind)||main:main):host?.querySelector('.reaction-more');if(button?.isConnected)button.focus({preventScroll:true});}}
+      const path=isMoment?`/api/achievement-moments/${encodeURIComponent(momentOwner)}/${momentWeek}/reaction`:`/api/activities/${aid}/reaction`;
+      let fresh=await api(path,next?json('POST',{kind:next}):{method:'DELETE'});if(readOwner()!==owner)return;
+      if(!isMoment&&!fresh.reactions)fresh=await api(`/api/activities/${aid}/social`);if(readOwner()!==owner)return;
+      if(!isMoment){SocialData.remember(aid,fresh);socialChanged(aid);}if(active()){state={my_reaction:reactionKind(fresh.my_reaction),reactions:reactionCounts(fresh)};changed?.(fresh);}
+    }catch(x){if(!isMoment&&readOwner()===owner&&[401,403,404].includes(x.status))SocialData.forget(aid);if(active()){state=was;toast(x.message);}}finally{busy=false;draw();if(restoreFocus&&readOwner()===owner&&(document.activeElement===document.body||document.activeElement===focused)){const button=active()?(summaryKind?$$('[data-summary-react]',group).find(b=>b.dataset.summaryReact===summaryKind)||main:main):host?.querySelector('.reaction-more');if(button?.isConnected)button.focus({preventScroll:true});}}
   };
   cheerGesture(main,()=>{picker.hidden?open(true):close(true);},()=>{open();heldOpen=true;});
   // iOS keeps a held touch captured on its original button. Resolve the release
@@ -108,8 +111,8 @@ function wireReactionGroup(group,aid,changed){
   main.onpointerup=e=>{const held=heldOpen;release(e);if(held){const b=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-react]');if(b&&picker.contains(b))choose(b.dataset.react===state.my_reaction?null:b.dataset.react);}};
   main.onpointercancel=e=>{cancel(e);close();};
   main.addEventListener('keydown',e=>{if(e.key==='ArrowDown'){e.preventDefault();open(true);}});
-  SocialData.warm(count,aid);
-  count.onclick=e=>{e.preventDefault();e.stopPropagation();close();activityCheers(aid);};
+  if(!isMoment)SocialData.warm(count,aid);
+  count.onclick=e=>{e.preventDefault();e.stopPropagation();close();isMoment?achievementMomentCheers(momentOwner,momentWeek):activityCheers(aid);};
   for(const b of options){b.onclick=e=>{e.preventDefault();e.stopPropagation();choose(b.dataset.react===state.my_reaction?null:b.dataset.react);if(active())main.focus({preventScroll:true});};b.addEventListener('pointerenter',()=>{if(!picker.hidden)highlight(b);});}
   picker.addEventListener('keydown',e=>{
     const i=options.indexOf(document.activeElement),columns=+(picker.style.getPropertyValue('--reaction-columns')||4);let next=null;
@@ -209,6 +212,18 @@ function activityCheers(aid) {
   });
 }
 
+function achievementMomentCheers(owner,week){
+  const account=readOwner(),path=`/api/achievement-moments/${encodeURIComponent(owner)}/${week}/reactions`;
+  sheet('Reactions','<div class="cheers-list social-people" aria-busy="true"></div><p class="social-read-status small muted" role="status"></p>',box=>{
+    const list=$('.cheers-list',box),status=$('.social-read-status',box),current=()=>list.isConnected&&account===readOwner();
+    const refresh=async()=>{
+      try{const fresh=await api(path);if(!current())return;const html=cheersPeople(fresh.cheers);list.innerHTML=html||'<p class="small muted">No reactions yet.</p>';list.setAttribute('aria-busy','false');status.textContent='';}
+      catch(error){if(!current())return;list.setAttribute('aria-busy','false');status.innerHTML=`${esc(error.message)} <button type="button" class="linkbtn" data-retry>Retry</button>`;$('[data-retry]',status).onclick=refresh;}
+    };
+    refresh();
+  });
+}
+
 // the number on the Me tab: unread notifications (or friend requests waiting, if more); checked at most once a minute
 const Social = {
   at: 0,
@@ -243,6 +258,17 @@ const Social = {
 const FEED_N = 15;
 // Own private workouts stay visible here. Cached rows explicitly private to someone else never paint.
 const visibleFeedRows=rows=>rows.filter(a=>!a.owner||(App.me?.login&&a.owner.login===App.me.login)||a.visibility!=='me');
+const feedRowKey=a=>`${a.kind==='achievement_moment'?'moment':'activity'}:${a.id}`;
+function feedCard(a,options={}){
+  if(a.kind==='achievement_moment'){
+    const p=a.owner,name=esc(p.name||p.login),track=a.is_track?svg('globe','achievement-moment-track'):'',extra=a.extra_count?` and ${a.extra_count} more`:'';
+    return `<article class="card achievement-moment" data-feed-key="${esc(feedRowKey(a))}"><div class="achievement-moment-body">
+      <a class="post-av" href="${profileHref(p)}" aria-label="${name}’s profile">${avatar(p)}</a><div class="achievement-moment-copy">
+        <p><a class="achievement-moment-name" href="${profileHref(p)}">${name}</a> reached ${esc(a.title)}${track}${extra}</p></div></div>
+      <div class="post-ft"><time class="achievement-moment-time" datetime="${esc(a.start_time)}">${esc(when(a.start_time))}</time>${reactionButtons(null,a,false,true,{owner:p.login,week:a.week_start})}</div></article>`;
+  }
+  return postCard(a,options).replace('<article class="card post','<article data-feed-key="'+esc(feedRowKey(a))+'" class="card post');
+}
 async function feedPage(before,size=FEED_N) {
   const b=before?'&before='+encodeURIComponent(typeof before==='string'?before:before.start_time)+(before.id?'&before_id='+before.id:''):'';
   const [mine,theirs]=await Promise.all([readOnce(`/api/activities?limit=${size}${b}`),readOnce(`/api/feed/friends?limit=${size}${b}`)]);
@@ -275,19 +301,19 @@ async function homeFeed(el) {
     shown=signature;
     if(items.length&&previous.length&&list.querySelectorAll){
       // Keep unchanged cards and their maps alive. Only new or changed records replace nodes.
-      const nodes=new Map([...list.querySelectorAll(':scope > .post')].map(node=>[node.dataset.href,node]));
-      const old=new Map(previous.map(a=>[a.id,JSON.stringify(a)])),retained=new Set();let cursor=list.firstElementChild;
+      const nodes=new Map([...list.querySelectorAll(':scope > [data-feed-key]')].map(node=>[node.dataset.feedKey,node]));
+      const old=new Map(previous.map(a=>[feedRowKey(a),JSON.stringify(a)])),retained=new Set();let cursor=list.firstElementChild;
       for(const a of items){
-        const href=(a.owner?'/activity/friends/':'/activity/')+a.id;
-        let node=old.get(a.id)===JSON.stringify(a)?nodes.get(href):null;
-        if(!node){const template=document.createElement('template');template.innerHTML=postCard(a,{who:true,compact:true});node=template.content.firstElementChild;}
+        const key=feedRowKey(a);
+        let node=old.get(key)===JSON.stringify(a)?nodes.get(key):null;
+        if(!node){const template=document.createElement('template');template.innerHTML=feedCard(a,{who:true,compact:true});node=template.content.firstElementChild;}
         if(node===cursor)cursor=cursor.nextElementSibling;else list.insertBefore(node,cursor);
         retained.add(node);
       }
       for(const node of [...list.children])if(!retained.has(node))node.remove();
-    }else list.innerHTML=items.length?items.map(a=>postCard(a,{who:true,compact:true})).join(''):`<p class="feed-empty small muted">Your workouts and your friends’ shared workouts appear here.</p>`;
+    }else list.innerHTML=items.length?items.map(a=>feedCard(a,{who:true,compact:true})).join(''):`<p class="feed-empty small muted">Your workouts, friends’ shared workouts and achievement moments appear here.</p>`;
     const invite=list.querySelector?.('[data-invite-empty]');if(invite)invite.onclick=inviteFriends;
-    more.hidden=!pg.more;feedMaps(list);wireCheers(list);if(typeof cleanViews!=='undefined')cleanViews();
+    more.hidden=!pg.more;feedMaps(list);wireCheers(list);$$('[data-moment-reaction-group]',list).forEach(group=>wireReactionGroup(group));if(typeof cleanViews!=='undefined')cleanViews();
   };
   let hit=App.cache.get('feed:home');
   if(!hit){const k=kept('feed:home');if(k){hit={data:k,at:0};App.cache.set('feed:home',hit);}}
@@ -885,7 +911,7 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
   load('/api/blocks', drawBlocked, {maxAge: 0}).catch(() => {});
   const save = async (body, msg) => {
     if(sharingOwner!==readOwner()||!box.isConnected)return;
-    const controls=$$('button[data-vis],button[data-trim],#sh-d input',box);controls.forEach(b=>b.disabled=true);
+    const controls=$$('button[data-vis],button[data-trim],#sh-d input,#sh-find',box);controls.forEach(b=>b.disabled=true);
     try {
       await api('/api/sharing',json('PUT',body));if(sharingOwner!==readOwner())return;
       if(body.default){s.default=body.default;App.me.share_default=body.default;keep('/api/me',App.me);}

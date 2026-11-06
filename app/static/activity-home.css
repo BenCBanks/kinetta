@@ -46,6 +46,18 @@
 /* Whole enlarged words fit within the existing two-column cards. */
 .feed-low .progress-grid .progress-tile { padding-inline:8px; }
 
+.achievement-moment { padding:0; overflow:hidden; }
+.activity-home .achievement-moment { margin-bottom:8px; }
+.achievement-moment-body { display:flex; align-items:center; gap:8px; min-width:0; padding:6px 12px; }
+.achievement-moment-copy { flex:1; min-width:0; }
+.achievement-moment-copy p { margin:0; font-size:15px; line-height:1.2; overflow-wrap:anywhere; }
+.achievement-moment-name { color:var(--tx); font-weight:700; text-decoration:none!important; }
+.achievement-moment-track { display:inline-block; width:16px; height:16px; margin-inline:3px 2px; vertical-align:-3px; color:var(--tx2); }
+.activity-home .achievement-moment .post-ft { justify-content:space-between; gap:8px; padding:0 12px; min-height:44px; }
+.achievement-moment-time { color:var(--tx3); font-size:13px; }
+.activity-home .achievement-moment .post-ft .reaction-more { margin-right:0; }
+.sharing-settings .switch-row > span { font-size:max(15px,.9375rem); }
+
 /* Let title lines use the card's full width after the inline sport icon. */
 .feed-low .progress-tile-name { display:block; }
 .feed-low .progress-tile-name > svg { display:inline-block;vertical-align:-2px;margin-right:6px; }
