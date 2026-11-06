@@ -23,7 +23,13 @@ module.exports=async function polishChecks(p,{size,theme}){
     const active=document.querySelector(`[data-f="${filter}"]`),copy=document.querySelector('#sg-list .empty')?.innerText||'';
     return active?.getAttribute('aria-pressed')==='true'&&(filter==='mine'?/You haven’t created a segment/.test(copy):filter==='saved'?/No saved segments/.test(copy):/No segments here yet/.test(copy));
    },'segment empty state',filter);
-   const copy=await p.locator('#sg-list').innerText();assert.match(copy,filter==='mine'?/Create a segment/:filter==='saved'?/tap Save/:/Try a search/);assert.doesNotMatch(copy,/Move the map/);
+   const copy=await p.locator('#sg-list').innerText();
+   if(filter==='mine'||filter==='near'){
+    assert.match(copy,/Pick a stretch from one of your activities/);assert.equal(await p.locator('#sg-empty-create').innerText(),'Create a segment');assert((await p.locator('#sg-empty-create').boundingBox()).height>=44,'empty-state create action keeps a 44px target');
+    if(filter==='near')assert.match(copy,/Move the map to look around/);else assert.doesNotMatch(copy,/Move the map/);
+    const selected=p.locator(`[data-f="${filter}"]`);assert.equal(await selected.evaluate(n=>getComputedStyle(n).textDecorationLine),'none','selected Segments filter has no text underline');assert.equal(await selected.evaluate(n=>getComputedStyle(n,'::after').height),'2px','selected Segments filter keeps its 2px indicator');
+    await p.locator('#sg-empty-create').click();await until(()=>location.pathname==='/segments/new','empty state Create a segment opens the creation flow');await p.evaluate(filter=>go('/progress/segments?f='+filter),filter);await until(()=>document.querySelector('#sg-list .segment-empty'),'Segments empty state returns after creation-flow navigation');
+   }else{assert.match(copy,/tap Save/);assert.doesNotMatch(copy,/Move the map|Create a segment/);}
    if(filter==='mine'){
     assert.equal(await p.locator('[data-f=mine]').innerText(),'Mine');
     const targets=await p.locator('.progress-segment-controls').evaluate(n=>{const r=n.getBoundingClientRect();return [...n.querySelectorAll('[data-f]')].map(b=>{const x=b.getBoundingClientRect();return {label:b.innerText,left:x.left,right:x.right,width:x.width,height:x.height,inside:x.left>=r.left-.1&&x.right<=r.right+.1};});});assert(targets.every(x=>x.inside&&x.width>=44&&x.height>=44),'whole filter targets fit '+JSON.stringify(targets));

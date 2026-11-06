@@ -48,9 +48,13 @@ const Segments = (() => {
     const draw = (rows) => {
       if(!current())return;const box = $('#sg-list', body); if (!box) return;
       if (map) { map.group.clearLayers(); for (const r of rows) if (r.line) map.L.polyline(decode(r.line), {color: col('--route'), weight: 4}).addTo(map.group).on('click', () => go(`/segments/${r.id}`)); }
+      const canCreate=!term&&(filter==='mine'||filter==='near');
+      const emptyTitle=term?'No matching segments':filter==='saved'?'No saved segments':filter==='mine'?'You haven’t created a segment':'No segments here yet';
+      const emptyMessage=term?'Try another search or sport.':filter==='mine'||filter==='near'?'':filter==='saved'?'Open a segment and tap Save to keep it here.':'Try a search or another sport.';
       box.innerHTML = rows.length ? `<div class="card list">${rows.map((r) => `<a class="row-link" href="/segments/${r.id}">${r.line ? miniRoute(r.line, r.sport) : ''}<span class="grow"><b>${esc(r.name)}</b>
           <small class="muted">${esc(sportName(r.sport))} · ${U.dist(r.distance_m)} ${U.du()}${r.ascent_m != null ? ` · ↑ ${U.elev(r.ascent_m)} ${U.eu()}` : ''}${r.audience === 'me' ? ' · only you' : ''}${r.status === 'retired' ? ' · retired' : ''}${r.saved ? ' · saved' : ''}</small></span>${svg('chev')}</a>`).join('')}</div>`
-        : `<div class="card empty"><b>${term?'No matching segments':filter === 'saved' ? 'No saved segments' : filter === 'mine' ? 'You haven’t created a segment' : 'No segments here yet'}</b>${term ? 'Try another search or sport.' : filter==='mine' ? 'Create a segment to keep its course and your times here.' : filter==='saved' ? 'Open a segment and tap Save to keep it here.' : map&&!$('#sg-map',body).hidden ? 'Move the map, or create the first segment here.' : 'Try a search or another sport, or create a segment.'}</div>`;
+        : `<div class="card empty${canCreate?' segment-empty':''}"><b>${emptyTitle}</b>${canCreate?`<p class="small muted">Pick a stretch from one of your activities</p><button type="button" class="primary wide" id="sg-empty-create">Create a segment</button>${filter==='near'?'<p class="small muted">Move the map to look around</p>':''}`:emptyMessage}</div>`;
+      const create=$('#sg-empty-create',box);if(create)create.onclick=()=>go('/segments/new');
     };
     if (filter === 'near' && !term) {
       try {

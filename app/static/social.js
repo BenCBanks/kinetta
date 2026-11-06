@@ -81,7 +81,7 @@ function wireReactionGroup(group,aid,changed){
     if(more._content!==triggerContent){more.innerHTML=triggerContent;more._content=triggerContent;}
     more.disabled=busy;group.setAttribute('aria-busy',String(busy));
     const popular=used.slice(0,3).map(([kind])=>kind);
-    const buttons=popular.map(kind=>{const n=state.reactions[kind],name=REACTIONS().find(([k])=>k===kind)?.[1]||kind;return '<button type="button" class="reaction-summary-emoji" data-summary-react="'+kind+'" aria-label="React with '+esc(name)+', '+n+' '+(n===1?'person':'people')+'" aria-pressed="'+(selected===kind)+'">'+reactionMark(kind)+'</button>';}).join('');
+    const buttons=popular.map((kind,index)=>{const n=state.reactions[kind],name=REACTIONS().find(([k])=>k===kind)?.[1]||kind;return '<button type="button" class="reaction-summary-emoji" data-summary-react="'+kind+'" data-summary-position="'+index+'" aria-label="React with '+esc(name)+', '+n+' '+(n===1?'person':'people')+'" aria-pressed="'+(selected===kind)+'">'+reactionMark(kind)+'</button>';}).join('');
     if(summary._buttons!==buttons){summary.innerHTML=buttons;summary._buttons=buttons;for(const b of $$('[data-summary-react]',summary)){const kind=b.dataset.summaryReact;cheerGesture(b,()=>choose(state.my_reaction===kind?null:kind),()=>{close();isMoment?achievementMomentCheers(momentOwner,momentWeek):activityCheers(aid);});}}
     shortcuts.hidden=!total;summary.hidden=!total;for(const b of $$('[data-summary-react]',summary))b.disabled=busy;
     count.hidden=!total;const number='<span class="num">'+reactionNumber(total)+'</span>';if(count._number!==number){count.innerHTML=number;count._number=number;}

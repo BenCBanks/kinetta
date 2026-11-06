@@ -20,6 +20,26 @@ async function assertCardActions(card,{share,width,label}){
   const expectedEmojis=share&&width===330?1:2;assert.equal(await shortcuts.locator('.reaction-summary-emoji:visible').count(),expectedEmojis,`${label}: summary keeps ${expectedEmojis} emoji${expectedEmojis===1?'':'s'} at ${width}px`);
  }
 }
+async function verifyReactionSummary(card,page,out,theme){
+ const group=card.locator('[data-reaction-group]'),states=[
+  {count:1,reactions:{clap:6},kinds:['clap'],total:6},
+  {count:2,reactions:{clap:6,muscle:3},kinds:['clap','muscle'],total:9},
+  {count:3,reactions:{clap:6,muscle:4,fire:2},kinds:['clap','muscle','fire'],total:12},
+ ];
+ for(const state of states){
+  await group.evaluate((el,reactions)=>el._sync({my_reaction:null,reactions}),state.reactions);
+  const buttons=group.locator('.reaction-summary-emoji');await page.waitForFunction(expected=>{const rows=[...document.querySelectorAll('#ff-list .post [data-reaction-group]')],items=rows[0]?.querySelectorAll('.reaction-summary-emoji');return items&&[...items].map(b=>b.dataset.summaryReact).join(',')===expected.join(',');},state.kinds);
+  assert.deepEqual(await buttons.evaluateAll(nodes=>nodes.map(n=>n.dataset.summaryReact)),state.kinds,`${state.count} reaction types stay most-used first`);
+  assert.deepEqual(await buttons.evaluateAll(nodes=>nodes.map(n=>Number(n.dataset.summaryPosition))),state.kinds.map((_,i)=>i),'each summary button has its visual stack position');
+  assert.equal(await group.locator('.reaction-count .num').innerText(),String(state.total),'total follows all visible reactions');
+  const geometry=await buttons.evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect(),i=n.querySelector('.reaction-emoji').getBoundingClientRect(),s=getComputedStyle(n.querySelector('.reaction-emoji'));return{target:{x:r.x,right:r.right,width:r.width,height:r.height},icon:{x:i.x,right:i.right},ring:s.borderTopColor,ringWidth:s.borderTopWidth,card:getComputedStyle(n.closest('.activity-card')).backgroundColor};}));
+  assert(geometry.every(x=>x.target.width===24&&x.target.height===44),'each emoji keeps its own approved 24×44px target');assert(geometry.slice(1).every((x,i)=>x.target.x>=geometry[i].target.right-.5),'emoji hit targets remain separate');assert(geometry.slice(1).every((x,i)=>Math.abs((x.icon.x-geometry[i].icon.x)-22)<.5),'emoji badges overlap by about 2px');assert(geometry.every(x=>x.ringWidth==='2px'&&x.ring===x.card),'each emoji has a 2px ring matching its card surface');
+  const count=group.locator('.reaction-count'),countGeometry=await count.evaluate(n=>{const r=n.getBoundingClientRect(),text=n.querySelector('.num'),t=text?.getBoundingClientRect();return{target:{x:r.x,right:r.right,width:r.width,height:r.height},text:t&&{x:t.x,right:t.right},overflow:n.scrollWidth>n.clientWidth};});assert(countGeometry.target.width>=44&&countGeometry.target.height>=44,'reaction total keeps its separate 44px target');assert(countGeometry.target.right<=await page.evaluate(()=>innerWidth)+.5&&!countGeometry.overflow&&countGeometry.text?.right<=countGeometry.target.right+.5,'complete reaction total stays visible after the emoji cluster');
+  if(out&&(!process.env.KINETTA_REACTION_CAPTURE||process.env.KINETTA_REACTION_CAPTURE.split(',').includes(String(state.count)))){
+   fs.mkdirSync(out,{recursive:true});const footer=card.locator('.post-ft');await footer.evaluate(n=>n.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'}));await page.evaluate(()=>document.fonts.ready);const r=await footer.boundingBox(),viewportWidth=await page.evaluate(()=>innerWidth);assert(r&&r.x>=0&&r.x+r.width<=viewportWidth,`reaction footer stays within the ${viewportWidth}px viewport`);await page.screenshot({path:path.join(out,`reaction-summary-${state.count}-390-${theme}.png`),clip:{x:r.x,y:r.y,width:r.width,height:r.height},animations:'disabled'});
+  }
+ }
+}
 async function metadataLineTops(node){return node.evaluate(el=>{const tops=new Set(),walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);for(let t=walker.nextNode();t;t=walker.nextNode()){if(!t.textContent.trim())continue;const r=document.createRange();r.selectNodeContents(t);for(const box of r.getClientRects())tops.add(Math.round(box.top*2)/2);}return[...tops].sort((a,b)=>a-b);});}
 async function verifyActivityMonthJump(p,out,theme,width){
  await p.goto(base+'/people/zz_test_feed_typical');await p.locator('#person-activities .activity-card').first().waitFor();
@@ -102,6 +122,10 @@ async function captureAchievementMomentSharing(page,out,theme,ready){
    if(who==='typical'&&size.width===390)await captureAchievementMomentSharing(p,out,theme,ready);
    assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),['/api/sharing','/api/sharing'],'only the on/off achievement preference writes reach the API');console.log(`Achievement moment and off-by-default sharing ${size.width}px ${theme}: one weekly friend moment, separate cheer target and toggle PASS`);await c.close();continue;
   }
+  if(process.env.KINETTA_REACTION_SUMMARY_ONLY==='1'){
+   if(who==='typical'&&size.width===390){const card=p.locator('#ff-list .post').first();await card.locator('[data-reaction-group]').waitFor();await verifyReactionSummary(card,p,out,theme);}
+   assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[],'reaction summary states make no product writes');console.log(`Reaction summary ${size.width}px ${theme}: one, two and three emoji, order, ring, separate 24×44px emoji targets and 44px total target PASS`);await c.close();continue;
+  }
   assert.equal(await p.locator('h1').innerText(),'Activity');assert.equal(await p.locator('a[aria-label="Find friends"],[data-activity-feature=find]').count(),['heavy','established'].includes(who)?0:1,'low-friend discovery keeps Find friends; established accounts use Challenges');
   assert.equal(await p.locator('.feed-low').count(),['heavy','established'].includes(who)?0:1);assert.equal(await p.locator('.feed-discovery').count(),0,'old full-width duplicate is gone');
   assert((await p.locator('.feed-social-strip a').count())<=4);if(who==='empty')assert.equal(await p.locator('.feed-social-strip').count(),0);
@@ -130,7 +154,7 @@ async function captureAchievementMomentSharing(page,out,theme,ready){
    if(process.env.KINETTA_CAPTURE_ONLY==='1'&&who==='heavy'&&out){console.log(`Activity card evidence ${size.width}/${size.root} ${theme}: map, metrics, privacy and action order PASS`);await c.close();continue;}
    const mapHandle=await first.locator('.fmap').elementHandle();await p.evaluate(()=>{globalThis.feedCardFixture=document.querySelector('#ff-list .post');globalThis.feedMapFixture=feedCardFixture.querySelector('.fmap');});await p.evaluate(()=>document.querySelector('#page').refresh());await until(p,()=>globalThis.feedCardFixture===document.querySelector('#ff-list .post')&&globalThis.feedMapFixture===document.querySelector('#ff-list .post .fmap'),'unchanged refresh preserves card/map nodes');
    await media.locator('[data-media-step="1"]').click();await until(p,()=>document.querySelector('#ff-list .post [data-media-dot="1"]')?.classList.contains('current'),'carousel overlay moves');await media.locator('.media-track').focus();await p.keyboard.press('Home');await until(p,()=>document.querySelector('#ff-list .post [data-media-dot="0"]')?.classList.contains('current'),'keyboard Home returns to map');
-   const reaction=first.locator('[data-reaction-group]'),main=reaction.locator('.reaction-more'),count=reaction.locator('.reaction-count');assert.equal(await reaction.locator('.reaction-summary').count(),1,'one popular-emoji summary');assert(await reaction.locator('.reaction-more').isVisible(),'visible plus opens all choices');
+   const reaction=first.locator('[data-reaction-group]'),main=reaction.locator('.reaction-more'),count=reaction.locator('.reaction-count');assert.equal(await reaction.locator('.reaction-summary').count(),1,'one popular-emoji summary');assert(await reaction.locator('.reaction-more').isVisible(),'visible plus opens all choices');if(who==='typical'&&size.width===390)await verifyReactionSummary(first,p,out,theme);
    await count.click();await until(p,()=>document.querySelector('.cheers-list')?.textContent.toLowerCase().includes('friend'),'reaction people loaded');assert.match(await p.locator('.cheers-list').innerText(),/friend/i);await p.keyboard.press('Escape');
    assert.equal(await reaction.locator('[data-inline-react]').count(),0);await reaction.locator('.reaction-more').click();await p.locator('.reaction-picker:not([hidden]) [data-react=muscle]').click();await until(p,()=>document.querySelector('#ff-list .post .reaction-more')?.getAttribute('data-kind')==='muscle'&&document.querySelector('#ff-list .post [data-reaction-group]')?.getAttribute('aria-busy')==='false','select muscle');await main.click();await p.locator('.reaction-picker:not([hidden]) [data-react=muscle]').click();await until(p,()=>document.querySelector('#ff-list .post [data-reaction-group]')?.getAttribute('data-mine')===''&&document.querySelector('#ff-list .post [data-reaction-group]')?.getAttribute('aria-busy')==='false','remove reaction');
    await mapHandle.dispose();
