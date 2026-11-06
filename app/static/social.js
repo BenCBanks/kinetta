@@ -903,7 +903,7 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
   el.classList.add('sharing-settings');
   el.innerHTML = `<div class="top">${backBtn('Settings')}</div><h1>Sharing &amp; privacy</h1><div id="sh-body">${skel(2)}</div>`;
   wireBack(el, '/me/settings');
-  const sharingOwner=readOwner(),s = await api('/api/sharing'), box = $('#sh-body', el);
+  const sharingOwner=readOwner(),[s,contacts] = await Promise.all([api('/api/sharing'),api('/api/contacts/settings')]), box = $('#sh-body', el);
   if(!el.isConnected)return;
   box.innerHTML = `<div class="card"><h2>Who sees new activities</h2>${visSeg(s.default)}
       <p class="small muted">Applies to new activities. Older activities keep their audience; you can change it for each workout.</p></div>
@@ -911,6 +911,14 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
       <p class="small muted">Distance, time and type are always shown to that audience. Splits and laps need pace. Private notes and Kit notes are never shared.</p></div>
     <div class="card"><h2>Friend search</h2><label class="check"><input type="checkbox" id="sh-find"${s.findable ? ' checked' : ''}> Let people find me by name</label>
       <p class="small muted">Off: you don't show up when people on this Kinetta search for friends. Friends you already have, and anyone who types your exact username, can still find you.</p></div>
+    <div class="card" id="sh-contact-discovery"><h2>How people can find you</h2>
+      <div class="sharing-switches"><label class="switch-row"><span>Let people who have my email find me</span><input type="checkbox" role="switch" id="sh-find-email"${contacts.find_by_email?' checked':''}></label>
+        <label class="switch-row"><span>Let people who have my phone number find me</span><input type="checkbox" role="switch" id="sh-find-phone"${contacts.find_by_phone?' checked':''}></label></div>
+      <p class="small muted">People with your email or phone in their contacts can find your Kinetta account. Your phone is never shown on your profile.</p>
+      <p class="small muted">${contacts.email_ready?'Your confirmed email is ready for matching.':'Confirm an email in Settings → Account to be found by email.'}</p>
+      <form id="sh-contact-phone"><label class="form">Phone number<input type="tel" name="phone_e164" autocomplete="tel" inputmode="tel" maxlength="40" placeholder="+1 555 010 1234" value="${esc(contacts.phone_e164||'')}"></label>
+        <p class="small muted">Optional. Not verified. Enter the country code; this number is used only to help people find you.</p>
+        <button type="submit" class="ghost" id="sh-phone-save" disabled>Save phone number</button><p class="small muted" id="sh-contact-status" role="status" aria-live="polite"></p></form></div>
     <div class="card"><h2>Hide the start and end of your route</h2>
       <div class="seg wide trim4" role="group" aria-label="Hide the start and end">${s.trims.map((m) => `<button type="button" data-trim="${m}" aria-pressed="${m === s.trim_m}">${esc(trimName(m))}</button>`).join('')}</div>
       <p class="small muted">Shared maps leave out this much at the start and at the end, so others can't see where you live. A route too short for that is shared without a map.</p></div>
@@ -953,5 +961,32 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
     const on = e.target.checked;
     try { await api('/api/sharing', json('PUT', {findable: on})); toast(on ? 'People can find you by name' : "You're hidden from friend search"); }
     catch (x) { e.target.checked = !on; toast(x.message); }
+  };
+  for(const [field,id] of [['find_by_email','sh-find-email'],['find_by_phone','sh-find-phone']]){
+    const input=$('#'+id,box);
+    input.onchange=async()=>{
+      if(sharingOwner!==readOwner()||!box.isConnected)return;
+      const on=input.checked;input.disabled=true;
+      try{
+        const updated=await api('/api/contacts/settings',json('PUT',{[field]:on}));
+        if(sharingOwner!==readOwner()||!box.isConnected)return;
+        contacts[field]=updated[field];toast(on?'People can find you this way':"People can't find you this way");
+      }catch(x){if(sharingOwner===readOwner()&&box.isConnected){input.checked=!on;toast(x.message);}}
+      finally{if(sharingOwner===readOwner()&&box.isConnected)input.disabled=false;}
+    };
+  }
+  const phoneForm=$('#sh-contact-phone',box),phoneInput=phoneForm.elements.phone_e164,phoneSave=$('#sh-phone-save',box),phoneStatus=$('#sh-contact-status',box);
+  const updatePhoneButton=()=>{phoneSave.disabled=sharingOwner!==readOwner()||phoneInput.value.trim()===(contacts.phone_e164||'');};
+  phoneInput.oninput=updatePhoneButton;
+  phoneForm.onsubmit=async e=>{
+    e.preventDefault();if(sharingOwner!==readOwner()||!box.isConnected||phoneSave.disabled)return;
+    phoneSave.disabled=true;phoneStatus.textContent='';
+    try{
+      const updated=await api('/api/contacts/settings',json('PUT',{phone_e164:phoneInput.value.trim()||null}));
+      if(sharingOwner!==readOwner()||!box.isConnected)return;
+      contacts.phone_e164=updated.phone_e164;phoneInput.value=updated.phone_e164||'';
+      phoneStatus.textContent=contacts.phone_e164?'Phone number saved.':'Phone number removed.';
+    }catch(x){if(sharingOwner===readOwner()&&box.isConnected)phoneStatus.textContent=x.message;}
+    finally{if(sharingOwner===readOwner()&&box.isConnected)updatePhoneButton();}
   };
 });

@@ -52,6 +52,7 @@ node dev/tests/test_energy_overview.js
 node dev/tests/test_native_display.js
 node --check dev/tests/navigation_ui.cjs
 node --check dev/tests/boot_ui.cjs # real CSP/resource-failure checks run in the screenshot workflow
+node --check dev/tests/contacts_settings_ui.cjs
 node dev/tests/test_enrollment_entry.js
 node dev/tests/test_admin_logins.js
 node dev/tests/test_admin_tools.js
@@ -215,6 +216,9 @@ else
 fi
 for t in $api_tests; do python3 "$t.py"; done
 cd ../..
+
+docker compose -p "$P" exec -T app python - < dev/tests/test_contacts.py
+docker compose -p "$P" exec -T app python - < dev/tests/contacts_blocks_incontainer.py
 
 if [[ "$MODE" == --quick ]]; then echo "== quick unit/API checks passed"; exit 0; fi
 
