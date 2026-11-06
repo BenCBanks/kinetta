@@ -12,6 +12,7 @@ const {collectSpacing}=require('./spacing_dom.cjs'),{audit}=require('./spacing_g
    button{font:16px sans-serif}#faded{opacity:0}.hidden{height:1px;overflow:hidden}
    .rail{width:100px;overflow:auto}.wide{width:300px}.clip{height:12px;overflow:hidden}
    .hero-number{font-size:36px}.hero-number i{font-size:14px}
+   .activity-card.post small{font-size:13px;line-height:1.35}.activity-card.post .post-name{position:relative;display:inline-flex;min-width:44px;min-height:0;line-height:inherit}.activity-card.post .post-name::before{content:"";position:absolute;inset:0 0 -27px}
   </style>
   <details id="outer"><summary id="outer-summary">Review</summary>
    <details id="inner"><summary id="inner-summary">Hidden nested choice</summary><button id="hidden-button">Hidden</button></details>
@@ -28,9 +29,11 @@ const {collectSpacing}=require('./spacing_dom.cjs'),{audit}=require('./spacing_g
   <div class="photo-case"><button class="photo" id="photo-one">Photo one</button><button class="corner" id="corner-one">Next</button></div>
   <div class="photo-case"><button class="photo" id="photo-two">Photo two</button><button class="corner" id="corner-two">Next</button></div>
   <div id="fake-scroll"><div class="me-chart-scroll has-before"><button class="me-week">Week</button></div></div>
+  <div class="activity-card post"><small><a class="post-name" href="#">Fictional name</a></small></div>
   <span id="nested-title" style="display:block;width:40px"><b style="white-space:nowrap">Overflowing title</b></span>`);
   const snapshot=(rules=[])=>page.evaluate(collectSpacing,{screen:'collector fixture',rules});
   let s=await snapshot();
+  const pseudoTarget=s.targets.find(t=>t.key.includes('.post-name'));assert(pseudoTarget&&pseudoTarget.rect.width>=44&&pseudoTarget.rect.height>=44&&pseudoTarget.hit,'A profile link pseudo-element contributes its actual44px hit area');
   assert(s.targets.some(t=>t.key==='#outer-summary'));
   for(const key of ['#inner-summary','#hidden-button','#faded-button'])assert(!s.targets.some(t=>t.key===key),'Invisible controls stay out of measurements: '+key);
   assert.equal(s.targets.filter(t=>t.key==='#check-label').length,1,'A checkbox uses its single associated label hit area');

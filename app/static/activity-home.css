@@ -62,10 +62,10 @@
 .activity-card.post .post-title { margin:0; font-size:max(17px,1.0625rem); font-weight:600; letter-spacing:0; line-height:1.25; overflow-wrap:anywhere; }
 .activity-card.post .post-hd small { display:flex; align-items:baseline; flex-wrap:wrap; column-gap:4px; row-gap:2px; margin-top:8px; color:var(--tx2); font-size:max(13px,.8125rem); line-height:1.35; white-space:normal; min-width:0; }
 /* Keep the profile link's 44px hit area without forcing the metadata text into a tall row. */
-.activity-card.post .post-name { position:relative; display:inline-flex; align-items:baseline; flex:0 1 auto; min-width:44px; color:inherit; font-size:inherit; font-weight:500; text-decoration:none; white-space:normal; overflow-wrap:anywhere; }
-.activity-card.post .post-name::before { content:""; position:absolute; inset:-12px -4px; }
+.activity-card.post .post-name { position:relative; display:inline-flex; align-items:baseline; flex:0 1 auto; min-width:44px; min-height:0; line-height:inherit; color:inherit; font-size:inherit; font-weight:500; text-decoration:none; white-space:normal; overflow-wrap:anywhere; }
+.activity-card.post .post-name::before { content:""; position:absolute; inset:0 0 -27px; }
 .activity-card.post .post-meta-rest { display:contents; }
-.activity-card.post .post-meta-date,.activity-card.post .post-meta-kind { display:inline; flex:0 1 auto; min-width:0; white-space:nowrap; overflow:visible; text-overflow:clip; }
+.activity-card.post .post-meta-date,.activity-card.post .post-meta-kind { position:relative; z-index:1; display:inline; flex:0 1 auto; min-width:0; white-space:nowrap; }
 .activity-card.post .post-name:focus-visible,.activity-card.post .post-title-link:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
 .activity-card .activity-media { width:100%; margin:0; }
 .activity-card .media-track { height:auto; border-radius:0; }
