@@ -158,7 +158,7 @@ function device(background = null, push = null) {
 
   d.ctx.query = () => ({workouts: [workout], errors: {route: 'read failed'}});
   const cursor = d.saved.get('health.last'), uploads = d.sent.length;
-  await assert.rejects(d.n.syncHealth(), /all workout details/);
+  await assert.rejects(d.n.syncHealth(), /Some workout details couldn’t sync/);
   assert.equal(d.saved.get('health.last'), cursor);
   assert.equal(d.sent.length, uploads, 'partial plugin reads are retried before summary is stored');
   delete d.ctx.query;

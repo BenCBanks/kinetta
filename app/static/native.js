@@ -376,7 +376,7 @@ const Native = (() => {
         const r = await N.healthCall(health.queryWorkouts({startDate: new Date(a).toISOString(), endDate: new Date(Math.min(a + 7 * DAY, to)).toISOString(),
           includeHeartRate: true, includeRoute: true, includeSteps: true}), 'The Health app is taking too long to read workouts. Keep your phone unlocked and try Sync now.');
         guard();
-        if (r.errors && Object.keys(r.errors).length) throw new Error('The Health app could not read all workout details. Unlock your phone and try again.');
+        if (r.errors && Object.keys(r.errors).length) throw new Error('Some workout details couldn’t sync. Unlock your iPhone and try again.');
         const ws = (r.workouts || []).filter((w) => w.id && w.duration > 0).map(shape);
         for (let i = 0; i < ws.length; i += 10) {
           guard();
