@@ -152,7 +152,7 @@ for(const size of [{width:320,height:667,root:16},{width:390,height:844,root:16}
  await noOverflow('request profile');
  assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[]);
  console.log(`Profile card ${size.width}x${size.height}/${size.root} ${theme} PASS`);await c.close();}
-await inlineEditorChecks(b);await require('./me_polish_ui.cjs')({browser:b,storageState:st,base});await b.close();})().catch(e=>{console.error(e);process.exit(1);});
+await inlineEditorChecks(b);await require('./me_polish_ui.cjs')({browser:b,storageState:st,base});await require('./profile_achievements_ui.cjs')({browser:b,storageState:st,base,shots:out});await b.close();})().catch(e=>{console.error(e);process.exit(1);});
 
 async function inlineEditorChecks(browser){
  const cp=require('node:child_process'),path=require('node:path'),pw='green teapot on the hill';
