@@ -116,7 +116,7 @@ async function assertLoggedLineFits(locator){
    else{assert.equal(await p.locator('[data-thread-quick]:visible').count(),0,'shortcuts collapse after a message');if(who==='clarify'){assert.equal(await p.locator('[data-reply]').count(),2);assert(await p.locator('#thread-review').isHidden());}
     else{const count=who==='one'?1:who==='photo'?4:3;assert.equal(await rows.count(),count);assert.equal(await p.locator('.thread-total').count(),0,'only the sticky review total');assert(await p.locator('#thread-review').isVisible());
      const add=p.locator('#thread-review-add'),summary=p.locator('#thread-review-sum'),total=await p.locator('.thread-review-kcal').boundingBox(),addBox=await add.boundingBox(),summaryBox=await summary.boundingBox();
-     assert.equal(await add.innerText(),'Add to log');assert.match(await summary.innerText(),/^\d+ foods? · ≈ \d+ kcal$/);assert.equal(await p.locator('#thread-review-edit').count(),0,'the review bar has no Edit action');assert(addBox.width>=44&&addBox.height>=44&&summaryBox.width>=44&&summaryBox.height>=44,'summary and Add to log keep 44px targets');
+     assert.equal(await add.innerText(),'Add to log');assert.match((await summary.innerText()).replace(/\s+/g,' ').trim(),/^\d+ foods? · ≈ \d+ kcal$/);assert.equal(await p.locator('#thread-review-edit').count(),0,'the review bar has no Edit action');assert(addBox.width>=44&&addBox.height>=44&&summaryBox.width>=44&&summaryBox.height>=44,'summary and Add to log keep 44px targets');
      assert(summaryBox.x+summaryBox.width+4<=addBox.x,'food summary stays to the left of Add to log');
      assert(await p.locator('.thread-review-kcal').evaluate(n=>n.scrollWidth<=n.clientWidth+1),'calorie total never ellipsizes');
 

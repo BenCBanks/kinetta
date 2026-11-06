@@ -4,7 +4,7 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('app/static/thread.js','utf8');
 const el=()=>({hidden:true,disabled:false,textContent:'',set innerHTML(v){this.markup=v;this.textContent=v.replace(/<[^>]*>/g,'');},attrs:{},setAttribute(k,v){this.attrs[k]=v;},classList:{add(){},remove(){},toggle(){}}});
-const nodes={'#thread-review':el(),'#thread-review-add':el(),'#thread-review-edit':el(),'#thread-review-sum':el(),'#thread-send':el(),'#thread-text':{value:''}};
+const nodes={'#thread-review':el(),'#thread-review-add':el(),'#thread-review-sum':el(),'#thread-send':el(),'#thread-text':{value:''}};
 const c={Set,Number,Math,JSON,App:{me:{food_photo_itemize:true}},MEAL_NAMES:{lunch:'Lunch'},$:id=>nodes[id],active:()=>true,homeCalories:n=>String(Math.round(n)),Q:{mine:()=>[]},FoodReview:{busy:()=>false},
   esc:s=>String(s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[ch]),aiCan:()=>true,aiOffer:()=>false};
 vm.createContext(c);
@@ -24,11 +24,11 @@ assert.equal(c.held(allReady).selections,null,'an all-ready draft keeps the lega
 const mixed={...ctx,messages:[user(4),reply(4,[{...ready(220),index:0},{...question,index:1}])],visibleClients:new Set(['c4'])};
 assert.equal(JSON.stringify(c.held(mixed).selections),JSON.stringify([{message:4,parts:[0]}]),'a mixed message selects only its ready part');
 c.primary(ctx);
-assert.equal(nodes['#thread-review'].hidden,false);assert.equal(nodes['#thread-review-add'].disabled,false,'an open question never blocks ready foods');assert.equal(nodes['#thread-review-edit'].disabled,false);
+assert.equal(nodes['#thread-review'].hidden,false);assert.equal(nodes['#thread-review-add'].disabled,false,'an open question never blocks ready foods');assert.equal(nodes['#thread-review-edit'],undefined,'the review bar has no Edit action');
 assert.equal(nodes['#thread-review-sum'].textContent,'3 foods · ≈ 405 kcal');
 assert.match(nodes['#thread-review-add'].attrs['aria-label'],/1 unanswered food stays in the chat/);
 ctx.jobs=[{id:'c4',draft_id:'d1'}];c.primary(ctx);
-assert.equal(nodes['#thread-review-add'].disabled,true,'a message still sending waits');assert.equal(nodes['#thread-review-edit'].disabled,true);assert.equal(nodes['#thread-review-sum'].textContent,'Checking food…');
+assert.equal(nodes['#thread-review-add'].disabled,true,'a message still sending waits');assert.equal(nodes['#thread-review-sum'].textContent,'Checking food…');
 ctx.jobs=[];ctx.preparingReview=true;c.primary(ctx);assert.equal(nodes['#thread-review-add'].textContent,'Adding…');assert.equal(nodes['#thread-review'].attrs['aria-busy'],'true');assert.equal(nodes['#thread-review-sum'].textContent,'3 foods · ≈ 405 kcal');
 ctx.preparingReview=false;c.FoodReview.busy=()=>true;c.primary(ctx);assert.equal(nodes['#thread-review-add'].disabled,true,'a pending confirmation blocks duplicates');assert.equal(nodes['#thread-review-sum'].textContent,'3 foods · ≈ 405 kcal');c.FoodReview.busy=()=>false;
 c.Q.mine=()=>[{path:'/api/food/thread/reviews/5/confirm'}];c.primary(ctx);assert.equal(nodes['#thread-review-add'].disabled,true);assert.equal(nodes['#thread-review-sum'].textContent,'Waiting to sync');c.Q.mine=()=>[];
@@ -61,18 +61,19 @@ const unknown=c.replyHtml(root,{entries:[],result:{kind:'preview',parts:[{estima
 assert.match(unknown,/Incomplete/);assert(!unknown.includes('≈ 0 kcal'));
 console.log('all estimate cards: visible row breakdown and total even one/zero, unknown total stays incomplete PASS');
 
-// Explicit removal names each ingredient and disappears with the final food.
+// A stepper decreases to one portion, where its minus control becomes a named trash action.
 Object.assign(c,{fmtAmount:()=>"0.25 serving",source:()=>"Kit’s estimate"});
 Object.assign(c,{FoodNutrition:{macros:()=> 'Protein unknown · Carbs unknown · Fat unknown'}});
 vm.runInContext(source.slice(source.indexOf('  const nutritionAttr='),source.indexOf('  function choices(')),c);
 vm.runInContext(source.slice(source.indexOf('  function previewRows('),source.indexOf('  const queuedReview=')),c);
 const removable={index:0,status:'ready',entries:[{name:'Mayonnaise <test>',kcal:25}],drafts:[{portion:{count:.25}}],entry_drafts:[0],remove_entries:[0],remove_token:'a'.repeat(64)};
 const rows=c.previewRows(root,{parts:[removable]});
-const removedHtml=c.stepRow(rows[0]);assert.match(removedHtml,/aria-label="Remove Mayonnaise &lt;test&gt;"/);assert.match(removedHtml,/class="icon-btn thread-remove"/);assert(!removedHtml.includes('>Remove</button>'));
-assert.match(removedHtml,/data-step="-1"/);assert.match(removedHtml,/data-remove-food=/);
+const removedHtml=c.stepRow(rows[0]);assert.doesNotMatch(removedHtml,/aria-label="Remove Mayonnaise &lt;test&gt;"/);assert.doesNotMatch(removedHtml,/class="icon-btn thread-remove"/);
+assert.match(removedHtml,/data-step="-1"/);assert.match(removedHtml,/data-step="1"/);assert.doesNotMatch(removedHtml,/data-remove-food=/);
+const atOneHtml=c.stepRow({...rows[0],e:{...rows[0].e,amount:1,unit:'serving'}});assert.match(atOneHtml,/aria-label="Remove Mayonnaise &lt;test&gt;"/);assert.match(atOneHtml,/class="icon-btn thread-remove"/);assert.doesNotMatch(atOneHtml,/data-step="-1"/);assert.match(atOneHtml,/data-remove-food=/);
 ctx.messages=[user(1),reply(1,[])];c.primary(ctx);assert.equal(nodes['#thread-review'].hidden,true);
 assert.equal(c.previewRows({result:{review_only:false}},{parts:[removable]}),null,'logged/legacy rows cannot expose removal');
-console.log('estimate removal: named explicit action, portion controls retained, final-food review hidden PASS');
+console.log('estimate removal: quantity-one trash names the food, portion controls remain, final-food review hidden PASS');
 
 // Current draft foods use the sticky review total and the direct remove control; logged/legacy and incomplete cards keep their own honest total.
 c.fmtAmount=e=>`${e.amount} ${e.unit}`;
@@ -90,11 +91,11 @@ const incompleteStrip={...ctx,jobs:[],messages:[user(9),reply(9,[{index:0,status
 c.primary(incompleteStrip);
 assert.equal(nodes['#thread-review-sum'].textContent,'1 food · Incomplete','missing calories stay visibly incomplete');
 assert.equal(nodes['#thread-review-add'].disabled,true,'one-tap Add is unavailable until every selected calorie is known');
-assert.match(nodes['#thread-review-add'].attrs['aria-label'],/Edit the food details to add missing values/,'the unavailable action directs the person to Edit');
-assert.match(nodes['#thread-review-edit'].attrs['aria-label'],/add missing calories/);
+assert.match(nodes['#thread-review-add'].attrs['aria-label'],/Edit the food details to add missing values/,'the unavailable action explains how to fix the details');
+assert.equal(nodes['#thread-review-edit'],undefined,'incomplete food keeps the review bar free of an Edit action');
 incompleteStrip.messages=[user(10),reply(10,[{index:0,status:'ready',entries:[{kcal:'Infinity'}]}])];incompleteStrip.visibleClients=new Set(['c10']);c.primary(incompleteStrip);
 assert.equal(nodes['#thread-review-sum'].textContent,'1 food · Incomplete','non-finite calories also stay incomplete');assert.equal(nodes['#thread-review-add'].disabled,true);
-console.log('review strip unknown calories: incomplete summary, disabled one-tap Add, accessible Edit direction and non-finite guard PASS');
+console.log('review strip unknown calories: incomplete summary, disabled one-tap Add, accessible details direction and non-finite guard PASS');
 
 // A missing barcode stays readable and offers only actions that make sense before a food exists.
 vm.runInContext(source.slice(source.indexOf('  function missingBarcodeActions('),source.indexOf('  function replyHtml(')),c);
