@@ -17,7 +17,7 @@ const FoodReview=(()=>{
   const edited=(e,kcal)=>{if(kcal==null)return e;const original=Number(e.kcal),r=Number.isFinite(original)&&original!==0?kcal/original:null,ref={...(e.ref||{})},out={...e,kcal,ref};
     if(Array.isArray(ref.unknown_nutrients))ref.unknown_nutrients=ref.unknown_nutrients.filter(key=>key!=='kcal');
     if(r!=null)for(const k of FOOD_NUTRIENTS)if(k!=='kcal'&&e[k]!=null)out[k]=e[k]*r;return out;};
-  async function open({done=()=>{},messages,selection=null,expectedFoods,quickConfirm=false,draftId,meal,day=null,session=readOwner(),current=()=>true,location=()=>true,saveRecipe=false,draftForm=null,rememberForm=()=>{},active,accept}){
+  async function open({done=()=>{},notifySuccess=(message)=>toast(message),messages,selection=null,expectedFoods,quickConfirm=false,draftId,meal,day=null,session=readOwner(),current=()=>true,location=()=>true,saveRecipe=false,draftForm=null,rememberForm=()=>{},active,accept}){
     const owner=readOwner(),expectedSnapshot=foodSnapshot(expectedFoods),messagesSnapshot=Array.isArray(messages)?messages.slice():[],selectionSnapshot=selection?.length?selection.map(item=>({message:item.message,parts:Array.isArray(item.parts)?item.parts.slice():[]})):null,id=newId();
     const stillOwned=()=>owner===readOwner()&&session===readOwner()&&active();
     const stillCurrent=()=>stillOwned()&&current(),stillLocated=()=>stillOwned()&&location();
@@ -40,7 +40,7 @@ const FoodReview=(()=>{
           if(accepted?!stillLocated():!stillCurrent())return;
           App.cache.delete('/api/dishes');invalidate('/api/food');
           if(accepted?!stillLocated():!stillCurrent())return;
-          done(result);toast(result.queued?'Food is waiting to send. It’s not in your log yet.':`Added to ${where}`);return;
+          done(result);notifySuccess(result.queued?'Food is waiting to send. It’s not in your log yet.':`Added to ${where}`,result,prepared.id);return;
         }catch(error){
           if(!stillCurrent())return;
           if(error.payload?.changed&&error.payload.review){review=error.payload.review;initialError='Food details changed. Review the updated numbers before adding them to your log.';}
@@ -123,7 +123,7 @@ const FoodReview=(()=>{
           if((accepted?!stillLocated():!stillCurrent())||!body.isConnected)return;
           App.cache.delete('/api/dishes');invalidate('/api/food');
           if((accepted?!stillLocated():!stillCurrent())||!body.isConnected)return;close();done(result);
-          toast(result.queued?'Food is waiting to send. It’s not in your log yet.':recipe&&logging?'Recipe saved and added to your log':recipe?'Recipe saved for later':`Added to ${MEAL_NAMES[f.elements.meal.value]||'your log'}`);
+          notifySuccess(result.queued?'Food is waiting to send. It’s not in your log yet.':recipe&&logging?'Recipe saved and added to your log':recipe?'Recipe saved for later':`Added to ${MEAL_NAMES[f.elements.meal.value]||'your log'}`,result,prepared.id);
         }catch(error){
           if(!valid())return;
           if(error.payload?.changed&&error.payload.review){review=error.payload.review;kcal={};foods();draw();}

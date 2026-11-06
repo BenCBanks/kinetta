@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>Food chat design checkpoint · #638</title>
+  <link rel="stylesheet" href="/static/theme.css">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/food-entry.css">
+  <style>
+    html, body { width:100%; height:100%; overflow:hidden; }
+    body { background:var(--bg); }
+    .food-thread.mock-thread { position:fixed; inset:0; width:100%; height:100dvh; min-height:0; margin:0 auto; padding:0 16px calc(env(safe-area-inset-bottom) + 8px); display:flex; flex-direction:column; overflow:hidden; }
+    .mock-thread .thread-heading { position:sticky; top:0; z-index:5; flex:none; min-height:56px; margin:0 -16px; padding:0 12px; background:var(--bg); }
+    .mock-thread .thread-heading .back { min-width:44px; min-height:44px; gap:6px; padding:0 4px; color:var(--tx2); font-size:14px; }
+    .mock-thread .thread-heading .back svg { width:18px; height:18px; }
+    .mock-thread #thread-settings { align-self:center; }
+    .mock-thread #thread-messages { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; align-content:start; gap:14px; padding:14px 0 12px; }
+    .mock-thread .thread-day { margin:0 0 2px; padding-top:2px; }
+    .mock-thread .message-pair { display:grid; gap:8px; min-width:0; }
+    .mock-thread .thread-user { max-width:82%; margin:0 0 0 auto; }
+    .mock-thread .thread-card { max-width:100%; }
+    .mock-thread .thread-thinking { padding:10px 14px; }
+    .mock-thread .thread-typing { height:20px; }
+    .mock-thread .thread-typing span { animation:none; opacity:.68; }
+    .mock-thread .thread-ready-card { padding:10px 14px 8px; }
+    .mock-thread .ready-food { padding:10px 0; border-top:1px solid var(--line); }
+    .mock-thread .ready-food:first-child { border-top:0; }
+    .mock-thread .food-name-row { display:flex; align-items:baseline; gap:10px; min-width:0; }
+    .mock-thread .food-name { flex:1; min-width:0; min-height:32px; padding:0; border:0; background:none; color:var(--tx); font:650 1rem/1.3 var(--font); text-align:left; overflow-wrap:anywhere; }
+    .mock-thread .food-kcal { flex:none; color:var(--tx); font-size:.95rem; font-weight:650; white-space:nowrap; }
+    .mock-thread .food-controls { display:flex; align-items:center; gap:5px; min-width:0; margin-top:2px; }
+    .mock-thread .food-stepper { display:flex; align-items:center; gap:6px; min-width:0; }
+    .mock-thread .stepper-btn { width:44px; height:44px; min-width:44px; min-height:44px; padding:0; display:grid; place-items:center; border:0; border-radius:50%; background:transparent; color:var(--tx2); font-size:21px; line-height:1; }
+    .mock-thread .stepper-btn svg { width:19px; height:19px; }
+    .mock-thread .portion { min-width:86px; color:var(--tx); font-size:.9375rem; }
+    .mock-thread .estimate { margin-left:auto; color:var(--tx3); font-size:.8125rem; white-space:nowrap; }
+    .mock-thread .review-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:52px; margin:4px 0 0; padding-top:6px; border-top:1px solid var(--line); }
+    .mock-thread .review-total { min-width:0; color:var(--tx2); font-size:.875rem; font-variant-numeric:tabular-nums; }
+    .mock-thread .add-log { flex:none; min-width:44px; min-height:44px; padding:0 2px; border:0; background:none; color:var(--accent); font-size:.98rem; font-weight:650; white-space:nowrap; }
+    .mock-thread .thread-logged-row { display:flex; align-items:center; gap:7px; width:100%; min-width:0; min-height:48px; padding:4px 0; border:0; background:transparent; color:var(--tx); font-size:.9rem; line-height:1.35; text-align:left; }
+    .mock-thread .logged-check { flex:none; color:var(--tx2); font-size:1.05rem; }
+    .mock-thread .logged-foods { flex:1; min-width:0; overflow-wrap:anywhere; }
+    .mock-thread .logged-destination { flex:none; color:var(--tx2); white-space:nowrap; }
+    .mock-thread .logged-group { display:flex; align-items:center; gap:0; min-width:0; }
+    .mock-thread .logged-expand { flex:none; width:28px; min-width:28px; min-height:44px; padding:0; border:0; background:none; color:var(--tx3); font-size:16px; }
+    .mock-thread .logged-expand svg { display:block; width:16px; height:16px; margin:0 auto; }
+    .mock-thread .logged-group .thread-logged-row { flex:1; width:auto; }
+    .mock-thread .logged-group .logged-destination { flex:none; min-width:68px; min-height:44px; padding:0; border:0; background:none; color:var(--tx2); font:inherit; text-align:right; white-space:nowrap; }
+    .mock-thread .logged-details { margin:0 0 0 32px; padding:0 0 4px 10px; border-left:1px solid var(--line); color:var(--tx2); font-size:.8125rem; line-height:1.6; }
+    .mock-thread .thread-composer { flex:none; position:relative; z-index:2; margin:0; padding:6px 0 0; background:var(--bg); }
+    .mock-thread .thread-reuse { display:flex; align-items:center; gap:16px; min-height:40px; padding:0 0 4px; }
+    .mock-thread .reuse-suggestion { min-height:36px; padding:0; border:0; background:transparent; color:var(--tx2); font-size:.875rem; text-align:left; }
+    .mock-thread .thread-compose-row { border-radius:24px; }
+    .mock-thread .thread-compose-row textarea { font-size:16px; }
+    .mock-toast { position:fixed; z-index:8; left:16px; right:16px; bottom:calc(env(safe-area-inset-bottom) + 116px); display:flex; align-items:center; gap:12px; min-height:52px; max-width:430px; margin:0 auto; padding:4px 8px 4px 16px; border-radius:14px; background:var(--toast-bg); color:var(--toast-tx); box-shadow:var(--lift); font-size:.9rem; }
+    .mock-toast[hidden] { display:none; }
+    .mock-toast span { flex:1; min-width:0; }
+    .mock-toast button { flex:none; min-width:52px; min-height:44px; padding:0 8px; border:0; border-radius:8px; background:none; color:var(--toast-act); font-weight:650; }
+    @media(max-width:360px) {
+      .mock-thread .food-controls { flex-wrap:wrap; }
+      .mock-thread .estimate { margin-left:0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell food-thread mock-thread" id="thread">
+    <header class="thread-heading">
+      <a class="back" href="#" aria-label="Nutrition">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+        <span class="thread-back-label">Nutrition</span>
+      </a>
+      <button type="button" id="thread-context" class="thread-title thread-context" aria-label="Breakfast, change meal">
+        <span class="thread-context-label">Breakfast</span><span class="thread-context-chevron" aria-hidden="true">⌄</span>
+      </button>
+      <button type="button" class="icon-btn" id="thread-settings" aria-label="More food options">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
+      </button>
+    </header>
+    <section id="thread-messages" aria-live="off"></section>
+    <form class="thread-composer" id="thread-composer" onsubmit="return false">
+      <div class="thread-reuse" id="thread-reuse" role="group" aria-label="Food suggestions"></div>
+      <div class="thread-compose-row">
+        <button type="button" class="icon-btn thread-plus" aria-label="More ways to add food"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+        <textarea rows="1" aria-label="Message about your food" placeholder="What did you eat?"></textarea>
+        <button type="button" class="ghost thread-send" aria-label="Send message"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="m4 4 17 8-17 8 3-8-3-8Z"/><path d="M7 12h14"/></svg></button>
+      </div>
+    </form>
+  </main>
+  <div class="mock-toast" id="toast" role="status" aria-live="polite" hidden><span>Added to Breakfast</span><button type="button">Undo</button></div>
+  <script>
+    const trash = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7h16M9 7V4h6v3m3 0-.8 13H6.8L6 7m4 4v5m4-5v5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    const foods = {
+      one:[{name:'Apple',amount:'1 medium',kcal:95,count:1}],
+      three:[{name:'Apple',amount:'1 medium',kcal:95,count:1},{name:'Greek yogurt',amount:'1 cup',kcal:140,count:1},{name:'Granola',amount:'2 servings',kcal:405,count:2}]
+    };
+    const state = new URLSearchParams(location.search).get('state') || 'ready-one';
+    const messages = document.querySelector('#thread-messages');
+    const userText = state.includes('three') ? 'A bowl with yogurt, granola and an apple' : 'An apple';
+    const day = '<div class="thread-day">Today</div>';
+    const user = `<article class="message-pair"><div class="thread-user"><p>${userText}</p></div>`;
+    const close = '</article>';
+    function stepper(item) {
+      const action = item.count === 1
+        ? `<button type="button" class="stepper-btn" aria-label="Remove ${item.name}">${trash}</button>`
+        : `<button type="button" class="stepper-btn" aria-label="Remove one ${item.name}">−</button>`;
+      return `<div class="food-controls"><div class="food-stepper">${action}<span class="portion">${item.amount}</span><button type="button" class="stepper-btn" aria-label="Add one ${item.name}">+</button></div><span class="estimate">≈ estimate</span></div>`;
+    }
+    function readyCard(items) {
+      const total = items.reduce((sum,item)=>sum+item.kcal,0);
+      return `<div class="thread-card thread-ready-card">${items.map(item=>`<div class="ready-food"><div class="food-name-row"><button type="button" class="food-name" aria-label="${item.name}, ${item.kcal} calories, tap to edit">${item.name}</button><span class="food-kcal">${item.kcal} kcal</span></div>${stepper(item)}</div>`).join('')}<div class="review-bar"><span class="review-total">${items.length} ${items.length===1?'food':'foods'} · ≈ ${total} kcal</span><button type="button" class="add-log">Add to log</button></div></div>`;
+    }
+    function loggedRow(items, expandable=false) {
+      const content = items.length===1 ? `${items[0].name} · ${items[0].amount} · ${items[0].kcal} kcal` : `${items.length} foods · ≈ ${items.reduce((sum,item)=>sum+item.kcal,0)} kcal`;
+      const details = expandable ? `<div class="logged-details" hidden>${items.map(item=>`${item.name} · ${item.amount} · ${item.kcal} kcal`).join('<br>')}</div>` : '';
+      const row = '<button type="button" class="thread-logged-row" aria-label="Open this food entry in the diary"><span class="logged-check" aria-hidden="true">✓</span><span class="logged-foods">'+content+'</span>'+(expandable?'':'<span class="logged-destination">Breakfast ›</span>')+'</button>';
+      if (!expandable) return row;
+      return `<div><div class="logged-group">${row}<button type="button" class="logged-expand" aria-label="Expand logged foods"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" class="logged-destination" aria-label="Open this food entry in the diary">Breakfast ›</button></div>${details}</div>`;
+    }
+    if (state === 'thinking') {
+      messages.innerHTML = `${day}${user}<div class="thread-card thread-thinking"><div class="thread-typing" role="status" aria-label="Checking your food"><span></span><span></span><span></span></div></div>${close}`;
+    } else if (state === 'ready-one' || state === 'ready-three') {
+      messages.innerHTML = `${day}${user}${readyCard(state==='ready-one'?foods.one:foods.three)}${close}`;
+    } else if (state === 'logged-one' || state === 'toast') {
+      messages.innerHTML = `${day}${user}${loggedRow(foods.one)}${close}`;
+      if (state === 'toast') document.querySelector('#toast').hidden = false;
+    } else if (state === 'logged-three') {
+      messages.innerHTML = `${day}${user}${loggedRow(foods.three,true)}${close}`;
+    } else {
+      throw new Error(`Unknown preview state: ${state}`);
+    }
+    if (state !== 'thinking') {
+      document.querySelector('#thread-reuse').innerHTML = '<button type="button" class="reuse-suggestion">Pear · 100 kcal</button>';
+    }
+  </script>
+</body>
+</html>
