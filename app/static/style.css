@@ -3130,6 +3130,7 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .fitness-current { margin-bottom:12px; }
 .fitness-current .me-form-top { min-height:38px; }
 .fitness-current .me-form-nums { padding-top:10px; border-top:1px solid var(--line); }
+.me-insights [data-insight-rows] { display:grid; gap:8px; }
 .me-insights .me-insight-row { display:flex; flex-direction:row; align-items:center; justify-content:space-between; gap:10px; min-height:56px; padding:10px 0; text-decoration:none; }
 .me-insights .me-insight-row:first-child { border-top:0; }
 .me-insights .me-insight-copy { display:grid; gap:2px; min-width:0; flex:1; }

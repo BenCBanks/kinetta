@@ -437,13 +437,13 @@ function meInsights(box, s) {
   };
   paint();
   if (!mainSports.length) return;
-  const mainSport = mainSports[0], month = d => fdate(d, {month: 'short', day: 'numeric'});
+  const mainSport = mainSports[0];
   load(`/api/records?sport=${mainSport}`, r => {
     const since = Date.now() - 30 * 864e5;
     const best = (r.efforts || []).filter(e => e.top?.[0] && e.count > 1 && Number.isFinite(Date.parse(e.top[0].start_time)) && Date.parse(e.top[0].start_time) >= since)
       .sort((a, b) => Date.parse(b.top[0].start_time) - Date.parse(a.top[0].start_time)).slice(0, 2);
     if (best.length) {
-      const details = best.map(e => `${e.label} · ${dur(e.top[0].elapsed_s)} · ${month(e.top[0].start_time)}`).join('; ');
+      const details = best.map(e => `${e.label} ${dur(e.top[0].elapsed_s)}`).join(' · ');
       parts.bests = meInsightRow('New bests', String(best.length), details, `/progress?view=records&sport=${mainSport}`);
     }
     paint();
