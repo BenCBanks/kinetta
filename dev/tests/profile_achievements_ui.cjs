@@ -3,50 +3,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
 
 const makeTrack=(code,label,level,value,displayValue,displayUnit,tiers,next)=>({code,label,level,value,display_value:displayValue,display_unit:displayUnit,tiers,next});
 const tier=(rank,label,threshold,day,activity_id)=>({rank,label,title:label,threshold,unit:'count',day,activity_id});
-const stripCss='.profile-achievement-level-strip{padding:24px 16px}.profile-achievement-level-strip h1{margin:0 0 8px;font-size:1.35rem}.profile-achievement-level-strip>p{max-width:340px;margin:0 0 20px;color:var(--tx2)}.profile-achievement-level-swatches{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:8px;max-width:358px}.profile-achievement-level-swatch{display:flex;flex-direction:column;align-items:center;gap:7px}.profile-achievement-level-swatch .profile-achievement-medallion{flex-basis:34px;width:34px;height:34px}.profile-achievement-level-swatch .profile-achievement-ring{inset:0}.profile-achievement-level-swatch .profile-achievement-icon{width:16px;height:16px}.profile-achievement-level-swatch small{color:var(--tx2);font-size:.7rem}.profile-achievement-level-swatch .profile-achievement-value,.profile-achievement-level-swatch .profile-achievement-level{display:none}';
-const paletteCss=String.raw`
-:root[data-achievement-palette] .profile-achievement-medallion { --achievement-palette-base:var(--color-brand); --palette-strength:22%; }
-:root[data-achievement-palette] .profile-achievement-medallion[data-level="1"] { --palette-strength:22%; }
-:root[data-achievement-palette] .profile-achievement-medallion[data-level="2"] { --palette-strength:32%; }
-:root[data-achievement-palette] .profile-achievement-medallion[data-level="3"] { --palette-strength:42%; }
-:root[data-achievement-palette] .profile-achievement-medallion[data-level="4"] { --palette-strength:52%; }
-:root[data-achievement-palette] .profile-achievement-medallion[data-level="5"] { --palette-strength:62%; }
-:root[data-achievement-palette] .profile-achievement-medallion[data-level="6"] { --palette-strength:72%; }
-:root[data-achievement-palette] .profile-achievement-medallion[data-level="7"] { --palette-strength:84%; }
-:root[data-achievement-palette] .profile-achievement-medallion[data-level="8"] { --palette-strength:96%; }
-:root[data-achievement-palette="p2"] .profile-achievement[data-achievement-code="sport:run"] .profile-achievement-medallion,
-:root[data-achievement-palette="p2"] .profile-achievement-level-swatch[data-achievement-code="sport:run"] .profile-achievement-medallion { --achievement-palette-base:var(--run); }
-:root[data-achievement-palette="p2"] .profile-achievement[data-achievement-code="sport:ride"] .profile-achievement-medallion { --achievement-palette-base:var(--ride); }
-:root[data-achievement-palette="p2"] .profile-achievement[data-achievement-code="sport:walk-hike"] .profile-achievement-medallion { --achievement-palette-base:var(--walk); }
-:root[data-achievement-palette="p2"] .profile-achievement[data-achievement-code="sport:swim"] .profile-achievement-medallion { --achievement-palette-base:var(--swim); }
-:root[data-achievement-palette="p2"] .profile-achievement[data-achievement-code="sport:lift"] .profile-achievement-medallion,
-:root[data-achievement-palette="p2"] .profile-achievement[data-achievement-code="lifted"] .profile-achievement-medallion { --achievement-palette-base:var(--workout); }
-:root[data-achievement-palette="p2"] .profile-achievement[data-achievement-code="climbing"] .profile-achievement-medallion { --achievement-palette-base:var(--hike); }
-:root[data-achievement-palette="p1"] .profile-achievement-medallion,
-:root[data-achievement-palette="p2"] .profile-achievement-medallion { --achievement-color:color-mix(in srgb,var(--achievement-palette-base) var(--palette-strength),var(--color-canvas)); }
-:root[data-achievement-palette="p1"] .profile-achievement-ring-progress,
-:root[data-achievement-palette="p2"] .profile-achievement-ring-progress { stroke:var(--color-on-action); }
-:root[data-achievement-palette="p1"] .profile-achievement-medallion[data-level="6"],
-:root[data-achievement-palette="p1"] .profile-achievement-medallion[data-level="7"],
-:root[data-achievement-palette="p1"] .profile-achievement-medallion[data-level="8"],
-:root[data-achievement-palette="p2"] .profile-achievement-medallion[data-level="6"],
-:root[data-achievement-palette="p2"] .profile-achievement-medallion[data-level="7"],
-:root[data-achievement-palette="p2"] .profile-achievement-medallion[data-level="8"] { box-shadow:0 0 18px 2px color-mix(in srgb,var(--achievement-palette-base) 38%,transparent),0 1px 4px color-mix(in srgb,var(--achievement-palette-base) 34%,transparent); }
-:root[data-achievement-palette="p3"] .profile-achievement-medallion { --achievement-color:var(--color-soft); }
-:root[data-achievement-palette="p3"] .profile-achievement-ring-base { stroke:var(--color-outline); opacity:.65; }
-:root[data-achievement-palette="p3"] .profile-achievement-ring-progress { stroke:color-mix(in srgb,var(--color-brand-soft) calc(100% - var(--palette-strength)),var(--color-brand) var(--palette-strength)); }
-:root[data-achievement-palette="p3"] .profile-achievement-level { background:var(--color-soft); border-color:color-mix(in srgb,var(--color-brand-soft) calc(100% - var(--palette-strength)),var(--color-brand) var(--palette-strength)); color:color-mix(in srgb,var(--color-brand-soft) calc(100% - var(--palette-strength)),var(--color-brand) var(--palette-strength)); }
-:root[data-achievement-palette="p3"] .profile-achievement-medallion[data-level="6"],
-:root[data-achievement-palette="p3"] .profile-achievement-medallion[data-level="7"],
-:root[data-achievement-palette="p3"] .profile-achievement-medallion[data-level="8"] { box-shadow:0 1px 4px color-mix(in srgb,var(--color-text) 16%,transparent); }
-:root[data-achievement-palette="p3"] .profile-achievement-icon { color:var(--color-on-action); filter:drop-shadow(0 0 1px var(--color-text)) drop-shadow(0 1px 2px color-mix(in srgb,var(--color-text) 55%,transparent)); }
-:root[data-achievement-palette="p3"] .profile-achievement-value { color:var(--color-on-action); text-shadow:0 0 1px var(--color-text),0 0 2px color-mix(in srgb,var(--color-text) 70%,transparent); }
-:root[data-achievement-evidence="all-tracks"] nav.tabs { display:none !important; }
-@media(prefers-color-scheme:dark){
- :root[data-achievement-palette="p1"] .profile-achievement-medallion,
- :root[data-achievement-palette="p2"] .profile-achievement-medallion { --achievement-color:color-mix(in srgb,var(--achievement-palette-base) calc(100% - var(--palette-strength)),var(--color-canvas) var(--palette-strength)); }
-}
-`;
+const stripCss='.profile-achievement-level-strip{padding:24px 16px}.profile-achievement-level-strip h1{margin:0 0 8px;font-size:1.35rem}.profile-achievement-level-strip>p{max-width:340px;margin:0 0 20px;color:var(--tx2)}.profile-achievement-level-swatches{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:8px;max-width:358px}.profile-achievement-level-swatch{--achievement-palette-base:var(--run);display:flex;flex-direction:column;align-items:center;gap:7px}.profile-achievement-level-swatch .profile-achievement-medallion{flex-basis:34px;width:34px;height:34px}.profile-achievement-level-swatch .profile-achievement-ring{inset:0}.profile-achievement-level-swatch .profile-achievement-icon{width:16px;height:16px}.profile-achievement-level-swatch small{color:var(--tx2);font-size:.7rem}.profile-achievement-level-swatch .profile-achievement-value,.profile-achievement-level-swatch .profile-achievement-level{display:none}:root[data-achievement-evidence="all-tracks"] nav.tabs{display:none!important}';
 const achievementFixture={pending:false,tracks:[
  makeTrack('journey','Journey',4,6099414,3790,'mi',[
   tier(1,'Marathon',42195,'2026-10-10',1001),tier(2,'Lake Tahoe loop',114000,'2026-10-17',1002),
@@ -99,7 +56,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   await page.route('**/*',async route=>{
    const request=route.request(),url=new URL(request.url());
    if(url.origin!==base)return route.abort();
-   if(request.method()==='GET'&&url.pathname.endsWith('/profile.css')){const response=await route.fetch();return route.fulfill({response,body:(await response.text())+'\n'+paletteCss+'\n'+stripCss});}
+   if(request.method()==='GET'&&url.pathname.endsWith('/profile.css')){const response=await route.fetch();return route.fulfill({response,body:(await response.text())+'\n'+stripCss});}
    if(request.method()==='GET'&&url.pathname==='/api/achievements'){
     const data=JSON.parse(JSON.stringify(achievementFixture)),journey=data.tracks.find(t=>t.code==='journey');journey.tiers.at(-1).label=journeyLandmark;journey.tiers.at(-1).title=journeyLandmark;
     return route.fulfill({json:data});
@@ -126,6 +83,13 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.equal(await page.locator('.profile-achievement[data-achievement-code="climbing"] .profile-achievement-value').innerText(),'1.9 Everests','Climbing stays in Everest counts');
   const iconMap=await page.locator('.profile-achievement[data-achievement-code]').evaluateAll(nodes=>Object.fromEntries(nodes.map(n=>[n.dataset.achievementCode,n.querySelector('[data-achievement-icon]')?.dataset.achievementIcon])));
   assert.deepEqual(iconMap,{journey:'bridge',workouts:'lightning',lifted:'kettlebell','sport:run':'runner',active_time:'stopwatch',years_active:'calendar',consistency:'flame',climbing:'mountain',personal_bests:'trophy','sport:ride':'bike','sport:walk-hike':'footprints','sport:swim':'waves','sport:lift':'kettlebell'});
+  const paletteTokens={journey:'--color-brand',workouts:'--color-brand',lifted:'--color-workout','sport:run':'--color-run',active_time:'--color-brand',years_active:'--color-brand',consistency:'--color-brand',climbing:'--color-hike',personal_bests:'--color-brand','sport:ride':'--color-ride','sport:walk-hike':'--color-walk','sport:swim':'--color-swim','sport:lift':'--color-workout'};
+  const paletteMatches=await page.evaluate(expected=>{
+   const resolve=(context,token)=>{const probe=document.createElement('i');probe.style.cssText='position:absolute;visibility:hidden;pointer-events:none';probe.style.color=`var(${token})`;context.append(probe);const color=getComputedStyle(probe).color;probe.remove();return color;};
+   return Object.entries(expected).map(([code,token])=>{const card=document.querySelector(`.profile-achievement[data-achievement-code="${CSS.escape(code)}"]`);return{code,actual:resolve(card,'--achievement-palette-base'),expected:resolve(document.documentElement,token)};});
+  },paletteTokens);
+  assert.equal(paletteMatches.length,13,'every started track has a P2 palette token');
+  assert(paletteMatches.every(match=>match.actual===match.expected),`sport tracks use their existing sport colours; general tracks use brand blue: ${JSON.stringify(paletteMatches)}`);
   const kettlebell=await page.locator('.profile-achievement[data-achievement-code="lifted"] .profile-achievement-icon').evaluate(svg=>{const paths=[...svg.querySelectorAll('path')],handle=paths[0],body=paths[1],bodyShape=body?.getAttribute('d')||'';return{pathCount:paths.length,wideThickArch:handle?.getAttribute('d').includes('M3.5 11.8C3.5 5.8 6.8 2.2 12 2.2C17.2 2.2 20.5 5.8 20.5 11.8')&&handle?.getAttribute('stroke-width')==='3.5'&&handle?.getAttribute('stroke-linecap')==='round',roundBody:bodyShape.includes('M8 7.8C5.8 7.8 4.7 9.3 4 11.3'),flatBase:bodyShape.includes('h10c3 0 5.2-2.2 4.3-4.9')};});
   assert.deepEqual(kettlebell,{pathCount:2,wideThickArch:true,roundBody:true,flatBase:true},`Lifted uses a wide thick handle arch and rounded, flat-bottomed body without an inset mark: ${JSON.stringify(kettlebell)}`);
   assert.doesNotMatch(await page.locator('.profile-achievements').innerText(),/[\u{1F300}-\u{1FAFF}]/u,'achievement labels contain no emoji');
@@ -134,9 +98,10 @@ module.exports=async({browser,storageState,base,shots})=>{
   await assertRingText(profileList,'profile');
   const saved=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),key);assert.equal(saved.workouts,6,'the last seen level updates once');
   assert.equal(await page.evaluate(()=>window.__achievementVibrations),0,'a web level up does not vibrate');
+  await page.locator('.profile-achievements').scrollIntoViewIfNeeded();
+  await screenshot(page,shots,`palette-p2-profile-390-${theme}`);
   let levelUpAnimations=0;
   if(theme==='light'&&shots){
-   await page.evaluate(()=>document.documentElement.dataset.achievementPalette='p1');
    levelUpAnimations=await page.locator('.profile-achievement[data-achievement-code="workouts"]').evaluate(card=>{const animations=card.getAnimations({subtree:true});for(const animation of animations){animation.pause();animation.currentTime=300;}return animations.length;});
    assert(levelUpAnimations>=2,'the captured level-up frame pauses both medallion pop and ring fill');
   }
@@ -157,7 +122,6 @@ module.exports=async({browser,storageState,base,shots})=>{
   const gridFitsPage=await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1);
   assert(grid.overflowX==='visible'&&gridFitsPage,'the grid is vertical and does not widen the page');
   await assertRingText(list,'all-tracks grid');
-  await page.evaluate(()=>document.documentElement.dataset.achievementPalette='p1');
   await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='all-tracks');
   await screenshot(page,shots,`achievement-grid-390-${theme}`,{fullPage:true});
   await page.evaluate(()=>delete document.documentElement.dataset.achievementEvidence);
@@ -165,7 +129,6 @@ module.exports=async({browser,storageState,base,shots})=>{
   await journey.click();await page.waitForURL('**/me/achievements/journey');
   const history=page.locator('.profile-achievement-history-head');await history.waitFor();assert.equal(await history.locator('h1').innerText(),'Journey');assert.equal(await history.locator('.profile-achievement-current').innerText(),'Level 4 · 3,790 mi');
   await assertRingText(page.locator('#profile-achievement-page'),'Journey history');
-  await page.evaluate(()=>document.documentElement.dataset.achievementPalette='p1');
   const dateGeometry=await page.locator('.profile-achievement-history li').first().evaluate(li=>{const date=li.querySelector('time').getBoundingClientRect(),chevron=li.querySelector('.profile-achievement-history-chevron').getBoundingClientRect();return{dateRight:date.right,chevronLeft:chevron.left};});
   assert(dateGeometry.dateRight<=dateGeometry.chevronLeft+1,'history dates sit before the chevron');
   await screenshot(page,shots,`achievement-history-390-${theme}`);
@@ -175,35 +138,20 @@ module.exports=async({browser,storageState,base,shots})=>{
    assert.equal(await page.locator('[data-achievement-code="journey"] [data-achievement-icon]').getAttribute('data-achievement-icon'),icon,`Journey uses ${icon} at ${landmark}`);
   }
 
-  for(const palette of ['p1','p2','p3']){
-   journeyLandmark='Across the US';await page.goto(base+'/people/alex');await page.locator('.profile-achievements .profile-achievement-list').waitFor();
-   await page.evaluate(p=>{document.documentElement.dataset.achievementPalette=p;},palette);
-   const paletteColors=await page.locator('.profile-achievement[data-achievement-code="journey"] .profile-achievement-medallion').evaluate(journey=>({journey:getComputedStyle(journey).backgroundColor,run:getComputedStyle(document.querySelector('.profile-achievement[data-achievement-code="sport:run"] .profile-achievement-medallion')).backgroundColor}));
-   if(palette==='p2')assert.notEqual(paletteColors.journey,paletteColors.run,'P2 gives the sport track its existing run colour while general tracks stay brand blue');
-   else assert.equal(paletteColors.journey,paletteColors.run,`${palette.toUpperCase()} gives same-level tracks one palette family`);
-   await page.locator('.profile-achievements').scrollIntoViewIfNeeded();await screenshot(page,shots,`palette-${palette}-profile-390-${theme}`);
-   await page.evaluate(()=>{
-    const runner='<circle cx="15.5" cy="4.5" r="2.5"/><path d="m12 8 4 1 2.2 3.2 3.2 1.1-.7 2-4-1.4-2-2.4-2 2.2 3.6 2.4 2.1 5.2h-2.3l-1.7-4-4.4-2.4-2.9 3.8H4.5l3.8-5.7 3.1-3.1-1.1-.6-2.4 2.5-3.3-.5.3-2.1 2.4.3L10 9.1A3 3 0 0 1 12 8Z"/>';
-    const cards=Array.from({length:8},(_,i)=>{
-     const level=i+1,tone=level>=6?'deep':String(level);
-     return `<div class="profile-achievement-level-swatch" data-achievement-code="sport:run"><span class="profile-achievement-medallion" data-level="${level}" data-level-tone="${tone}" aria-hidden="true"><svg class="profile-achievement-ring" viewBox="0 0 104 104"><circle class="profile-achievement-ring-base" cx="52" cy="52" r="47"/><circle class="profile-achievement-ring-progress" cx="52" cy="52" r="47" stroke-dasharray="221.5 295.3" transform="rotate(-90 52 52)"/></svg><svg class="profile-achievement-icon" viewBox="0 0 24 24">${runner}</svg><span class="profile-achievement-value">49.7 mi</span><span class="profile-achievement-level">Lv ${level}</span></span><small>Lv ${level}</small></div>`;
-    }).join('');
-    document.body.innerHTML=`<main class="profile-achievement-level-strip"><h1>Run · level colours</h1><p>Fictional progression through Lv 1–8 using the selected palette.</p><div class="profile-achievement-level-swatches">${cards}</div></main>`;
-   });
-   const levelColors=await page.locator('.profile-achievement-level-swatch .profile-achievement-medallion').evaluateAll(nodes=>nodes.map(node=>({fill:getComputedStyle(node).backgroundColor,ring:getComputedStyle(node.querySelector('.profile-achievement-ring-progress')).stroke})));
-   if(palette==='p3'){
-    assert(levelColors.every(color=>color.fill===levelColors[0].fill),'P3 keeps every medallion graphite');
-    const towardBrand=await page.evaluate(()=>{
-     const ctx=document.createElement('canvas').getContext('2d'),rgb=color=>{ctx.fillStyle='#000';ctx.fillStyle=color;ctx.fillRect(0,0,1,1);return[...ctx.getImageData(0,0,1,1).data].slice(0,3);};
-     const brand=rgb(getComputedStyle(document.documentElement).getPropertyValue('--color-brand'));
-     return [...document.querySelectorAll('.profile-achievement-level-swatch .profile-achievement-ring-progress')].map(node=>{
-      const color=rgb(getComputedStyle(node).stroke);return Math.hypot(color[0]-brand[0],color[1]-brand[1],color[2]-brand[2]);
-     });
-    });
-    assert(towardBrand[7]<towardBrand[0],'P3 brand ring grows stronger toward the brand token through levels');
-   }else assert(brightness(levelColors[0].fill)>brightness(levelColors[7].fill),`${palette.toUpperCase()} medallions deepen from Lv 1 to Lv 8 in ${theme}`);
-   if(shots){fs.mkdirSync(shots,{recursive:true});await page.locator('.profile-achievement-level-strip').screenshot({path:`${shots}/palette-${palette}-levels-390-${theme}.png`,animations:'disabled'});}
-  }
+  journeyLandmark='Across the US';await page.goto(base+'/people/alex');await page.locator('.profile-achievements .profile-achievement-list').waitFor();
+  await page.evaluate(()=>{
+   const runner='<circle cx="15.5" cy="4.5" r="2.5"/><path d="m12 8 4 1 2.2 3.2 3.2 1.1-.7 2-4-1.4-2-2.4-2 2.2 3.6 2.4 2.1 5.2h-2.3l-1.7-4-4.4-2.4-2.9 3.8H4.5l3.8-5.7 3.1-3.1-1.1-.6-2.4 2.5-3.3-.5.3-2.1 2.4.3L10 9.1A3 3 0 0 1 12 8Z"/>';
+   const cards=Array.from({length:8},(_,i)=>{
+    const level=i+1,tone=level>=6?'deep':String(level);
+    return `<div class="profile-achievement-level-swatch"><span class="profile-achievement-medallion" data-level="${level}" data-level-tone="${tone}" aria-hidden="true"><svg class="profile-achievement-ring" viewBox="0 0 104 104"><circle class="profile-achievement-ring-base" cx="52" cy="52" r="47"/><circle class="profile-achievement-ring-progress" cx="52" cy="52" r="47" stroke-dasharray="221.5 295.3" transform="rotate(-90 52 52)"/></svg><svg class="profile-achievement-icon" viewBox="0 0 24 24">${runner}</svg><span class="profile-achievement-value">49.7 mi</span><span class="profile-achievement-level">Lv ${level}</span></span><small>Lv ${level}</small></div>`;
+   }).join('');
+   document.body.innerHTML=`<main class="profile-achievement-level-strip"><h1>Run · selected sport colour</h1><p>Fictional progression through Lv 1–8 in Ben’s selected P2 palette.</p><div class="profile-achievement-level-swatches">${cards}</div></main>`;
+  });
+  const levelColors=await page.locator('.profile-achievement-level-swatch .profile-achievement-medallion').evaluateAll(nodes=>nodes.map(node=>({fill:getComputedStyle(node).backgroundColor,ring:getComputedStyle(node.querySelector('.profile-achievement-ring-progress')).stroke,shadow:getComputedStyle(node).boxShadow})));
+  const levelBrightness=levelColors.map(color=>brightness(color.fill));
+  assert(levelBrightness.every((value,index)=>index===0||value<levelBrightness[index-1]),`P2 run medallions deepen at each level in ${theme}: ${JSON.stringify({levelBrightness,levelColors})}`);
+  assert(!levelColors[4].shadow.includes('18px')&&levelColors.slice(5).every(color=>color.shadow.includes('18px')),'P2 adds the soft token-coloured glow from Lv 6 onward');
+  if(shots){fs.mkdirSync(shots,{recursive:true});await page.locator('.profile-achievement-level-strip').screenshot({path:`${shots}/palette-p2-levels-390-${theme}.png`,animations:'disabled'});}
   assert.deepEqual(errors,[],`no browser errors in ${theme}`);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[],`no unmocked writes in ${theme}`);
   console.log(`Achievement medallions 390 ${theme}: profile, all tracks, history, units, icons and web haptic guard PASS`);
   await context.close();

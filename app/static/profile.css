@@ -27,19 +27,13 @@
 .profile-achievements h2 a { display:flex; align-items:center; justify-content:space-between; min-height:44px; color:inherit; text-decoration:none; }
 .profile-achievements h2 a:focus-visible,.profile-achievement:focus-visible,.profile-achievement-history a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
 .profile-achievements h2 a span { color:var(--tx2); font-size:1.25rem; font-weight:500; }
-.profile-achievement[data-achievement-code="consistency"],.profile-achievement-history-head[data-achievement-code="consistency"] { --achievement-hue:22; }
-.profile-achievement[data-achievement-code="years_active"],.profile-achievement-history-head[data-achievement-code="years_active"] { --achievement-hue:42; }
-.profile-achievement[data-achievement-code="workouts"],.profile-achievement-history-head[data-achievement-code="workouts"] { --achievement-hue:270; }
-.profile-achievement[data-achievement-code="active_time"],.profile-achievement-history-head[data-achievement-code="active_time"] { --achievement-hue:214; }
-.profile-achievement[data-achievement-code="journey"],.profile-achievement-history-head[data-achievement-code="journey"] { --achievement-hue:174; }
-.profile-achievement[data-achievement-code="climbing"],.profile-achievement-history-head[data-achievement-code="climbing"] { --achievement-hue:132; }
-.profile-achievement[data-achievement-code="lifted"],.profile-achievement-history-head[data-achievement-code="lifted"] { --achievement-hue:8; }
-.profile-achievement[data-achievement-code="personal_bests"],.profile-achievement-history-head[data-achievement-code="personal_bests"] { --achievement-hue:48; }
-.profile-achievement[data-achievement-code="sport:run"],.profile-achievement-history-head[data-achievement-code="sport:run"] { --achievement-hue:16; }
-.profile-achievement[data-achievement-code="sport:ride"],.profile-achievement-history-head[data-achievement-code="sport:ride"] { --achievement-hue:198; }
-.profile-achievement[data-achievement-code="sport:walk-hike"],.profile-achievement-history-head[data-achievement-code="sport:walk-hike"] { --achievement-hue:148; }
-.profile-achievement[data-achievement-code="sport:swim"],.profile-achievement-history-head[data-achievement-code="sport:swim"] { --achievement-hue:188; }
-.profile-achievement[data-achievement-code="sport:lift"],.profile-achievement-history-head[data-achievement-code="sport:lift"] { --achievement-hue:286; }
+.profile-achievement,.profile-achievement-history-head { --achievement-palette-base:var(--color-brand); }
+.profile-achievement[data-achievement-code="sport:run"],.profile-achievement-history-head[data-achievement-code="sport:run"] { --achievement-palette-base:var(--run); }
+.profile-achievement[data-achievement-code="sport:ride"],.profile-achievement-history-head[data-achievement-code="sport:ride"] { --achievement-palette-base:var(--ride); }
+.profile-achievement[data-achievement-code="sport:walk-hike"],.profile-achievement-history-head[data-achievement-code="sport:walk-hike"] { --achievement-palette-base:var(--walk); }
+.profile-achievement[data-achievement-code="sport:swim"],.profile-achievement-history-head[data-achievement-code="sport:swim"] { --achievement-palette-base:var(--swim); }
+.profile-achievement[data-achievement-code="sport:lift"],.profile-achievement[data-achievement-code="lifted"],.profile-achievement-history-head[data-achievement-code="sport:lift"],.profile-achievement-history-head[data-achievement-code="lifted"] { --achievement-palette-base:var(--workout); }
+.profile-achievement[data-achievement-code="climbing"],.profile-achievement-history-head[data-achievement-code="climbing"] { --achievement-palette-base:var(--hike); }
 .profile-achievement-list { display:flex; align-items:flex-start; gap:12px; overflow-x:auto; overscroll-behavior-x:contain; scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding:5px 2px 8px; }
 .profile-achievements .profile-achievement-list { margin-right:-16px; padding-inline:16px; scroll-padding-inline:16px; }
 .profile-achievement-list.is-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:start; gap:14px 8px; margin:0; overflow:visible; overscroll-behavior:initial; scroll-snap-type:none; padding:5px 0 8px; }
@@ -48,13 +42,18 @@
 .profile-achievement-list::-webkit-scrollbar { display:none; }
 .profile-achievement-list:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:4px; }
 .profile-achievement { display:flex; flex:0 0 100px; flex-direction:column; align-items:center; gap:5px; min-height:44px; padding:4px 0 6px; color:inherit; text-align:center; text-decoration:none; scroll-snap-align:start; }
-.profile-achievement-medallion { --achievement-color:hsl(var(--achievement-hue) 42% 58%); position:relative; display:flex; flex:0 0 100px; flex-direction:column; align-items:center; justify-content:center; gap:2px; width:100px; height:100px; border-radius:50%; background:var(--achievement-color); box-shadow:0 1px 3px rgba(12,20,24,.16); }
-.profile-achievement-medallion[data-level-tone="1"] { --achievement-color:hsl(var(--achievement-hue) 43% 59%); }
-.profile-achievement-medallion[data-level-tone="2"] { --achievement-color:hsl(var(--achievement-hue) 52% 55%); }
-.profile-achievement-medallion[data-level-tone="3"] { --achievement-color:hsl(var(--achievement-hue) 61% 51%); }
-.profile-achievement-medallion[data-level-tone="4"] { --achievement-color:hsl(var(--achievement-hue) 70% 47%); }
-.profile-achievement-medallion[data-level-tone="5"] { --achievement-color:hsl(var(--achievement-hue) 79% 43%); }
-.profile-achievement-medallion[data-level-tone="deep"] { --achievement-color:hsl(var(--achievement-hue) 88% 38%); box-shadow:0 0 18px 2px hsl(var(--achievement-hue) 88% 45% / .38),0 1px 4px rgba(12,20,24,.19); }
+.profile-achievement-medallion { --achievement-strength:96%; --achievement-color:color-mix(in srgb,var(--achievement-palette-base) var(--achievement-strength),var(--color-canvas)); position:relative; display:flex; flex:0 0 100px; flex-direction:column; align-items:center; justify-content:center; gap:2px; width:100px; height:100px; border-radius:50%; background:var(--achievement-color); box-shadow:0 1px 3px rgba(12,20,24,.16); }
+.profile-achievement-medallion[data-level-tone="1"] { --achievement-strength:22%; }
+.profile-achievement-medallion[data-level-tone="2"] { --achievement-strength:32%; }
+.profile-achievement-medallion[data-level-tone="3"] { --achievement-strength:42%; }
+.profile-achievement-medallion[data-level-tone="4"] { --achievement-strength:52%; }
+.profile-achievement-medallion[data-level-tone="5"] { --achievement-strength:62%; }
+.profile-achievement-medallion[data-level-tone="deep"] { --achievement-strength:96%; box-shadow:0 0 18px 2px color-mix(in srgb,var(--achievement-palette-base) 38%,transparent),0 1px 4px color-mix(in srgb,var(--achievement-palette-base) 34%,transparent); }
+.profile-achievement-medallion[data-level="6"] { --achievement-strength:72%; }
+.profile-achievement-medallion[data-level="7"] { --achievement-strength:84%; }
+.profile-achievement-medallion[data-level="8"] { --achievement-strength:96%; }
+@media (prefers-color-scheme:dark) { :root:not([data-theme="light"]) .profile-achievement-medallion { --achievement-color:color-mix(in srgb,var(--achievement-palette-base) calc(100% - var(--achievement-strength)),var(--color-canvas) var(--achievement-strength)); } }
+:root[data-theme="dark"] .profile-achievement-medallion { --achievement-color:color-mix(in srgb,var(--achievement-palette-base) calc(100% - var(--achievement-strength)),var(--color-canvas) var(--achievement-strength)); }
 .profile-achievement-ring { position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; }
 .profile-achievement-ring-base,.profile-achievement-ring-progress { fill:none; }
 .profile-achievement-ring-base { stroke:rgba(255,255,255,.34); stroke-width:3; }
