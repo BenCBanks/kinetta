@@ -6,10 +6,11 @@ from kc import person,PW
 base=urlparse(os.environ.get('KINETTA_URL','http://localhost:8798'));project=os.environ.get('KINETTA_PROJECT','kinettatest')
 assert base.hostname in ('localhost','127.0.0.1') and (project.startswith('kt-') or project=='kinettatest')
 port=subprocess.check_output(['docker','inspect','--format','{{(index (index .NetworkSettings.Ports "8000/tcp") 0).HostPort}}',project+'-app-1'],text=True).strip();assert base.port==int(port)
-for who in ('empty','one','three','photo','clarify','actions','nullable','barcode','logged','context','copy','edit','recent','recentd','untitled','multi','multid','mixed','add390l','add390d','add330l','add330d','askkit','queue','path','restored','recipe'):
- c=person('zz_test_food_compact_'+who);assert c.post('/api/account/delete',{'password':PW})[0]==200;c=person('zz_test_food_compact_'+who,'River '+who.title());ai_ok=who in ('barcode','askkit');assert c.put('/api/profile',{'tz':'UTC','ai_ok':ai_ok,'ai_adult':ai_ok})[0]==200
+for who in ('empty','one','three','photo','clarify','actions','nullable','barcode','logged','context','copy','edit','recent','recentd','untitled','multi','multid','mixed','add390l','add390d','add330l','add330d','askkit','queue','path','restored','recipe','638one','6381d','638three','6383d','638undo','638ud','638think','638dark'):
+ c=person('zz_test_food_compact_'+who);assert c.post('/api/account/delete',{'password':PW})[0]==200;c=person('zz_test_food_compact_'+who,'River '+who.title());ai_ok=who in ('barcode','askkit');timezone='America/New_York' if who.startswith('638') else 'UTC';assert c.put('/api/profile',{'tz':timezone,'ai_ok':ai_ok,'ai_adult':ai_ok})[0]==200
 script=r'''
 import datetime as dt,uuid
+from zoneinfo import ZoneInfo
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app import db,api_food as F,food_thread as T,food_thread_compose as C,food_thread_sources as S
@@ -17,13 +18,14 @@ from app.main import app
 foods=[{'name':'Fictional hot dog','amount':'2','grams':280,'kcal':550,'protein_g':20,'carbs_g':45,'fat_g':32},{'name':'Fictional diet soda','amount':'1 bottle','grams':590,'kcal':0,'protein_g':0,'carbs_g':0,'fat_g':0},{'name':'Fictional apple','amount':'1 apple','grams':150,'kcal':80,'protein_g':0,'carbs_g':21,'fat_g':0}]
 photo=[{'name':name,'amount':amount,'grams':grams,'kcal':kcal,'protein_g':protein,'carbs_g':carbs,'fat_g':fat} for name,amount,grams,kcal,protein,carbs,fat in [('Spiced rice','0.75 cup',120,160,3,35,1),('Butter chicken','1 cup',240,380,28,12,24),('Chickpeas and potato','0.5 cup',120,150,6,24,3),('Slaw and tomato','0.5 cup',60,70,1,8,4)]]
 with patch('urllib.request.urlopen',side_effect=AssertionError('No external request')):
- for who in ('one','three','photo','clarify','actions','barcode','mixed','add390l','add390d','add330l','add330d','askkit','queue','path','restored','recipe'):
+ for who in ('one','three','photo','clarify','actions','barcode','mixed','add390l','add390d','add330l','add330d','askkit','queue','path','restored','recipe','638one','6381d','638three','6383d','638undo','638ud'):
   login='zz_test_food_compact_'+who;client=TestClient(app);client.headers['Origin']='http://testserver';assert client.post('/api/login',json={'login':login,'password':'green teapot on the hill'}).status_code==200
   if who=='askkit':
    custom=client.post('/api/food/foods',json={'name':'Fictional hot dog','serving_g':140,'kcal':210,'protein_g':14,'carbs_g':20,'fat_g':8});assert custom.status_code==200,custom.text
    print(who,'saved fictional food for inline Kit entry');continue
-  draft=str(uuid.uuid4());body='Scanned product 016000157620' if who=='barcode' else 'Fictional photo result: half the rice' if who=='photo' else 'Make it two hot dogs' if who=='three' else 'A taco' if who=='clarify' else 'A fictional hot dog and a taco' if who=='mixed' else 'A fictional hot dog'
-  payload={'client_id':str(uuid.uuid4()),'draft_id':draft,'review_only':True,'body':body,'meal':'lunch','day':str(dt.datetime.now(dt.timezone.utc).date())}
+  draft=str(uuid.uuid4());body='Scanned product 016000157620' if who=='barcode' else 'Fictional photo result: half the rice' if who=='photo' else 'Make it two hot dogs' if who in ('three','638three','6383d') else 'A taco' if who=='clarify' else 'A fictional hot dog and a taco' if who=='mixed' else 'A fictional hot dog'
+  day=dt.datetime.now(ZoneInfo('America/New_York')).date() if who.startswith('638') else dt.datetime.now(dt.timezone.utc).date()
+  payload={'client_id':str(uuid.uuid4()),'draft_id':draft,'review_only':True,'body':body,'meal':'lunch','day':str(day)}
   if who=='barcode':payload.update(media='barcode',barcode='016000157620')
   response=client.post('/api/food/thread/messages',json=payload);assert response.status_code==201,response.text
   if who=='barcode':
@@ -35,7 +37,7 @@ with patch('urllib.request.urlopen',side_effect=AssertionError('No external requ
    assert result['error']['message']=="We couldn't find this barcode."
    print('barcode saved fictional not-found card')
    continue
-  m=response.json()['message'];items=photo if who=='photo' else foods[:3 if who in ('three','actions') else 1];items=[dict(x) for x in items]
+  m=response.json()['message'];items=photo if who=='photo' else foods[:3 if who in ('three','actions','638three','6383d') else 1];items=[dict(x) for x in items]
   if who=='mixed':
    custom=client.post('/api/food/foods',json={'name':'Fictional chicken taco','serving_g':140,'kcal':210,'protein_g':14,'carbs_g':20,'fat_g':8});assert custom.status_code==200,custom.text
   estimate={'items':items,'notes':'','model':'fictional-layout-standin'};drafts=S.model_drafts(estimate)
