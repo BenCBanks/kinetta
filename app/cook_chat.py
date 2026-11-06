@@ -423,7 +423,7 @@ def say(did: int, body: SayIn, user=Depends(current_user)):
             elif op == 'remove' and it and it['id'] not in removed:
                 removed.append(it['id'])
         items = [i for i in items if i['id'] not in removed] + new
-        if len(items) > D.MAX_ITEMS: raise HTTPException(400, f'A dish can have up to {D.MAX_ITEMS} ingredients')
+        if len(items) > D.MAX_ITEMS: raise HTTPException(400, f'This recipe can have up to {D.MAX_ITEMS} ingredients; remove one before adding another.')
         added = [i['id'] for i in new]
         if added or changed or removed: d = D._save_items(c, uid, did, items)
         if found is not None or new:
