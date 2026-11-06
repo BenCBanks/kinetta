@@ -145,12 +145,19 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    await p.locator('#t-today[data-loaded-day]').waitFor({state:'attached'});
    const sectionGap=await p.evaluate(()=>{const card=document.querySelector('.me-card').getBoundingClientRect(),today=document.querySelector('.me-today').getBoundingClientRect();return today.top-card.bottom;});
    assert(Math.abs(sectionGap-16)<1,`Me card and Today use a 16px section gap (${sectionGap}px)`);
-   const meCard=p.locator('.me-card'),meCardBefore=await meCard.evaluate(n=>n.outerHTML),share=p.locator('[data-card-share]');
+   const meCard=p.locator('.me-card'),share=p.locator('[data-card-share]');
+   const meCardSnapshot=()=>meCard.evaluate(n=>{
+    const copy=n.cloneNode(true);
+    // Milestones.mount is a separate async page component inside the profile card.
+    copy.querySelector('[data-me-milestones]')?.remove();
+    return copy.outerHTML;
+   });
+   const meCardBefore=await meCardSnapshot();
    const shareLabel=await share.getAttribute('aria-label');assert.equal(shareLabel,'Share your profile');
    const checkTodayState=async(state)=>{
     if(state!==todayFixture){todayFixture=state;await p.goto(base+'/me');await waitApp(p);await p.locator('#t-today[data-loaded-day]').waitFor({state:'attached'});await p.locator('.me-card-weekly .me-week').nth(11).waitFor();}
     const today=p.locator('#t-today'),section=today.locator('.me-today'),activity=today.locator('[data-today-activity]'),food=today.locator('[data-today-food]');
-    assert.equal(await meCard.evaluate(n=>n.outerHTML),meCardBefore,'Today state changes leave all Me card markup unchanged');
+    assert.equal(await meCardSnapshot(),meCardBefore,'Today state changes leave Me card markup unchanged (milestones load separately)');
     assert.equal(await share.getAttribute('aria-label'),shareLabel,'the Me card share control stays unchanged');
     assert.equal(await today.locator('.me-today-head h2').count(),state==='neither'?0:1,'Today is hidden entirely when neither source applies');
     assert.equal(await today.locator('.me-today p').count(),0,'Today has no connecting sentence or explainer line');
