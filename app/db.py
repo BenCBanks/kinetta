@@ -2007,6 +2007,12 @@ MIGRATIONS = [
     CREATE POLICY all_rows ON achievement_moment_reactions FOR SELECT TO fit_all_readers USING(true);
     GRANT SELECT ON achievement_moment_reactions TO fit_readers;""",
 
+    # 99. Optional contact discovery. Phone numbers are private account data; readers keep their existing users-column grants.
+    """ALTER TABLE users ADD COLUMN phone_e164 text CHECK(phone_e164 IS NULL OR phone_e164 ~ '^[+][1-9][0-9]{7,14}$');
+    CREATE INDEX users_phone_e164 ON users(phone_e164) WHERE phone_e164 IS NOT NULL;
+    ALTER TABLE profile ADD COLUMN find_by_email boolean NOT NULL DEFAULT true,
+      ADD COLUMN find_by_phone boolean NOT NULL DEFAULT true;""",
+
 ]
 
 

@@ -15,7 +15,7 @@ import threading
 from .auth import current_user
 from . import request_log
 from . import meal_reminders,recipe_import, api_coach, ai_release, meal_chat, admin_auth, api_admin, food_thread, admin_usage, kit_thread
-from . import api_routes_plan, api_segments, segments, route_sharing, map_config
+from . import api_routes_plan, api_segments, segments, route_sharing, map_config, api_contacts
 
 @asynccontextmanager
 async def lifespan(app):
@@ -56,6 +56,7 @@ app.include_router(api_food.router)
 app.include_router(garmin_connect.router)     # before api_connections: its /connections/{kind} would catch these
 app.include_router(api_connections.router)
 app.include_router(api_account.router)
+app.include_router(api_contacts.router)
 from . import account_email, signup, api_devices
 app.include_router(account_email.router)
 app.include_router(signup.router)

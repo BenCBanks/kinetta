@@ -65,3 +65,8 @@
 .invite-qr-code { display:grid;justify-items:center;padding:16px;background:#fff;border-radius:12px; }
 .invite-qr-code svg { display:block;width:min(260px,70vw);height:auto;shape-rendering:crispEdges; }
 @media(max-width:360px) { .friends-page .fr-request .btnrow { flex-wrap:wrap; } }
+
+/* Contact discoverability labels are longer than the other sharing switches and must wrap beside the fixed-size control. */
+.sharing-settings #sh-contact-discovery .sharing-switches .switch-row > span { flex:1;min-width:0;white-space:normal;overflow-wrap:anywhere; }
+.sharing-settings #sh-contact-discovery .sharing-switches .switch-row > input { flex:none; }
+.sharing-settings #sh-contact-phone > label.form { font-size:max(15px,.9375rem); }
