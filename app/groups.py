@@ -27,7 +27,7 @@ LONG_OUTING_SECONDS = 3600
 class GroupCreate(BaseModel):
     model_config = ConfigDict(extra='forbid')
     title: str = Field(min_length=1, max_length=80)
-    event_date: dt.date
+    event_date: dt.date | None = None
     time_zone: str = Field(min_length=1, max_length=80)
     note: str = Field('', max_length=280)
     goal_type: str
@@ -46,6 +46,11 @@ class GroupCreate(BaseModel):
     @classmethod
     def clean_note(cls, value):
         return value.strip()
+
+
+class GroupEventDate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    event_date: dt.date | None
 
 
 class MemberAction(BaseModel):
@@ -109,6 +114,18 @@ def _zone(name):
         return ZoneInfo(name)
     except (ZoneInfoNotFoundError, TypeError):
         raise HTTPException(400, 'Choose a valid time zone')
+
+
+def _validate_event_date(event_date, time_zone, now=None):
+    if event_date is None:
+        return
+    today = (now or _now()).astimezone(_zone(time_zone)).date()
+    try:
+        latest = today.replace(year=today.year + 5)
+    except ValueError:  # February 29 reaches February 28 five years later.
+        latest = today.replace(year=today.year + 5, day=28)
+    if not today <= event_date <= latest:
+        raise HTTPException(422, 'Choose an event date from today through five years from now')
 
 
 def _local_week_window(zone_name, now):
@@ -200,7 +217,10 @@ def _blocked(c, first, second):
 def _contributions(c, group, members, now=None):
     now = now or _now()
     zone = _zone(group['time_zone'])
-    end = dt.datetime.combine(group['event_date'] + dt.timedelta(days=1), dt.time.min, zone).astimezone(UTC)
+    event_date = group['event_date']
+    group_start = group['created'] if event_date is None else None
+    end = (dt.datetime.combine(event_date + dt.timedelta(days=1), dt.time.min, zone).astimezone(UTC)
+           if event_date else now)
     visible_ids = [member['user_id'] for member in members]
     if not visible_ids:
         return {}
@@ -211,10 +231,11 @@ def _contributions(c, group, members, now=None):
         'sessions': 'count(a.id)',
     }
     rows = c.execute(f'''SELECT m.user_id,coalesce({measures[group['goal_type']]},0) AS raw
-      FROM group_members m LEFT JOIN activities a ON a.user_id=m.user_id AND a.start_time>=m.joined_at
+      FROM group_members m LEFT JOIN activities a ON a.user_id=m.user_id
+        AND a.start_time>=greatest(m.joined_at,coalesce(%s::timestamptz,m.joined_at))
         AND a.start_time<least(%s::timestamptz,%s) AND NOT a.lift_open
       WHERE m.group_id=%s AND m.status='active' AND m.user_id=ANY(%s)
-      GROUP BY m.user_id''', (end, now, group['id'], visible_ids)).fetchall()
+      GROUP BY m.user_id''', (group_start, end, now, group['id'], visible_ids)).fetchall()
     divisor = (1609.344 if group['goal_unit'] == 'mi' else 1000) if group['goal_type'] == 'distance' else (
         0.3048 if group['goal_type'] == 'elevation' and group['goal_unit'] == 'ft' else 1)
     return {row['user_id']: round(float(row['raw'] or 0) / divisor, 3) for row in rows}
@@ -223,7 +244,10 @@ def _contributions(c, group, members, now=None):
 def _weekly_contributions(c, group, members, now):
     local_day, start, week_end = _local_week_window(group['time_zone'], now)
     zone = _zone(group['time_zone'])
-    event_end = dt.datetime.combine(group['event_date'] + dt.timedelta(days=1), dt.time.min, zone).astimezone(UTC)
+    event_date = group['event_date']
+    group_start = group['created'] if event_date is None else None
+    event_end = (dt.datetime.combine(event_date + dt.timedelta(days=1), dt.time.min, zone).astimezone(UTC)
+                 if event_date else now)
     end = min(week_end, event_end, now)
     visible_ids = [member['user_id'] for member in members]
     if not visible_ids or end <= start:
@@ -236,9 +260,10 @@ def _weekly_contributions(c, group, members, now):
     }
     rows = c.execute(f'''SELECT m.user_id,coalesce({measures[group['goal_type']]},0) AS raw
       FROM group_members m LEFT JOIN activities a ON a.user_id=m.user_id
-        AND a.start_time>=greatest(m.joined_at,%s::timestamptz) AND a.start_time<%s::timestamptz AND NOT a.lift_open
+        AND a.start_time>=greatest(m.joined_at,coalesce(%s::timestamptz,m.joined_at),%s::timestamptz)
+        AND a.start_time<%s::timestamptz AND NOT a.lift_open
       WHERE m.group_id=%s AND m.status='active' AND m.user_id=ANY(%s)
-      GROUP BY m.user_id''', (start, end, group['id'], visible_ids)).fetchall()
+      GROUP BY m.user_id''', (group_start, start, end, group['id'], visible_ids)).fetchall()
     divisor = (1609.344 if group['goal_unit'] == 'mi' else 1000) if group['goal_type'] == 'distance' else (
         0.3048 if group['goal_type'] == 'elevation' and group['goal_unit'] == 'ft' else 1)
     return local_day, {row['user_id']: round(float(row['raw'] or 0) / divisor, 3) for row in rows}
@@ -260,20 +285,24 @@ def _answer(c, group, uid):
     member_count = len(visible)
     zone = _zone(group['time_zone'])
     today = now.astimezone(zone).date()
-    days_to_event = max(0, (group['event_date'] - today).days)
+    event_date = group['event_date']
+    days_to_event = max(0, (event_date - today).days) if event_date else None
     week_total = round(sum(weekly.values()), 3)
     week_contributors = sum(value > 0 for value in weekly.values())
     me = next(member for member in members if member['user_id'] == uid)
     return {
-        'id': str(group['id']), 'title': group['title'], 'event_date': group['event_date'].isoformat(),
+        'id': str(group['id']), 'title': group['title'],
+        'event_date': event_date.isoformat() if event_date else None,
         'time_zone': group['time_zone'], 'note': group['note'], 'goal_type': group['goal_type'],
         'goal_target': group['goal_target'], 'goal_unit': group['goal_unit'],
         **({'total': total} if member_count >= 3 else {'your_total': contributions.get(uid, 0)}),
         **({'this_week_total': week_total, 'this_week_contributors': week_contributors}
            if member_count >= 3 else {'your_this_week_total': weekly.get(uid, 0)}),
         'week_start': (local_day - dt.timedelta(days=local_day.weekday())).isoformat(),
-        'days_to_event': days_to_event, 'weeks_to_event': (days_to_event + 6) // 7,
-        'event_state': 'upcoming' if today < group['event_date'] else 'today' if today == group['event_date'] else 'complete',
+        'days_to_event': days_to_event,
+        'weeks_to_event': (days_to_event + 6) // 7 if days_to_event is not None else None,
+        'event_state': ('ongoing' if event_date is None else
+                        'upcoming' if today < event_date else 'today' if today == event_date else 'complete'),
         'members': [{'username': m['username'], 'photo': m['photo'] or False,
                      'organizer': m['user_id'] == group['organizer_id'],
                      **({'value': contributions.get(m['user_id'], 0)} if member_count >= 3 and m['share_total']
@@ -332,6 +361,8 @@ def _weekly_reaction_rows(c, group, uid, week_start):
 
 
 def _group_recap(c, group, uid, answer, now):
+    if group['event_date'] is None:
+        return None
     today = now.astimezone(_zone(group['time_zone'])).date()
     if today <= group['event_date']:
         return None
@@ -425,9 +456,7 @@ def _group_detail(c, group, uid, answer):
 @router.post('/api/groups')
 def create_group(body: GroupCreate, request: Request, user=Depends(current_user)):
     _valid_goal(body)
-    zone = _zone(body.time_zone)
-    if body.event_date < dt.datetime.now(UTC).astimezone(zone).date():
-        raise HTTPException(400, 'Choose today or a future event date')
+    _validate_event_date(body.event_date, body.time_zone)
     with db.connect() as c:
         from . import challenges
         challenges.account_locks(c, [user['id']])
@@ -447,7 +476,7 @@ def create_group(body: GroupCreate, request: Request, user=Depends(current_user)
 def list_groups(user=Depends(current_user)):
     with db.connect() as c:
         rows = c.execute('''SELECT g.* FROM event_groups g JOIN group_members m ON m.group_id=g.id
-                            WHERE m.user_id=%s AND m.status='active' ORDER BY g.event_date,g.created''',
+                            WHERE m.user_id=%s AND m.status='active' ORDER BY g.event_date ASC NULLS LAST,g.created''',
                          (user['id'],)).fetchall()
         return [_answer(c, row, user['id']) for row in rows]
 
@@ -458,16 +487,19 @@ def group_activity_strip(user=Depends(current_user)):
         preference = c.execute('SELECT group_strip_muted FROM profile WHERE user_id=%s', (user['id'],)).fetchone()
         muted = bool(preference and preference['group_strip_muted'])
         rows = c.execute('''SELECT g.* FROM event_groups g JOIN group_members m ON m.group_id=g.id
-                            WHERE m.user_id=%s AND m.status='active' ORDER BY g.event_date,g.created''',
+                            WHERE m.user_id=%s AND m.status='active' ORDER BY g.event_date ASC NULLS LAST,g.created''',
                          (user['id'],)).fetchall()
         now = _now()
-        upcoming = [row for row in rows if row['event_date'] >= now.astimezone(_zone(row['time_zone'])).date()]
-        upcoming.sort(key=lambda row: (dt.datetime.combine(row['event_date'], dt.time.min,
-                                                           _zone(row['time_zone'])).astimezone(UTC), row['created']))
+        upcoming = [row for row in rows if row['event_date'] is None or
+                    row['event_date'] >= now.astimezone(_zone(row['time_zone'])).date()]
+        upcoming.sort(key=lambda row: (row['event_date'] is None,
+                                       dt.datetime.combine(row['event_date'], dt.time.min,
+                                                           _zone(row['time_zone'])).astimezone(UTC)
+                                       if row['event_date'] else row['created'], row['created']))
         if muted or not upcoming:
             return {'muted': muted, 'has_upcoming': bool(upcoming)}
         answer = _answer(c, upcoming[0], user['id'])
-        keys = ('id', 'title', 'event_date', 'time_zone', 'goal_type', 'goal_target', 'goal_unit',
+        keys = ('id', 'title', 'event_date', 'time_zone', 'goal_type', 'goal_target', 'goal_unit', 'event_state',
                 'member_count', 'days_to_event', 'weeks_to_event', 'total', 'your_total')
         return {'muted': False, 'has_upcoming': True, 'more_count': len(upcoming) - 1,
                 'next': {key: answer[key] for key in keys if key in answer}}
@@ -488,6 +520,21 @@ def get_group(group_id: str, user=Depends(current_user)):
         group = _group(c, group_id, user['id'])
         answer = _answer(c, group, user['id'])
         return {**answer, **_group_detail(c, group, user['id'], answer)}
+
+
+@router.patch('/api/groups/{group_id}/event-date')
+def update_group_event_date(group_id: str, body: GroupEventDate, user=Depends(current_user)):
+    with db.connect() as c:
+        group = _organizer_group(c, group_id, user['id'], lock=True)
+        if group['closed_at']:
+            raise HTTPException(409, 'This group is closed')
+        now = _now()
+        if group['event_date'] is not None and now.astimezone(_zone(group['time_zone'])).date() > group['event_date']:
+            raise HTTPException(409, 'This group has ended and its event date cannot be changed')
+        _validate_event_date(body.event_date, group['time_zone'], now)
+        updated = c.execute('UPDATE event_groups SET event_date=%s WHERE id=%s RETURNING *',
+                            (body.event_date, group['id'])).fetchone()
+        return _answer(c, updated, user['id'])
 
 
 @router.post('/api/groups/{group_id}/updates')
@@ -572,7 +619,7 @@ def group_update_reaction_people(group_id: str, update_id: int, user=Depends(cur
 
 def _current_group_week(group, now):
     local_day = now.astimezone(_zone(group['time_zone'])).date()
-    if local_day > group['event_date']:
+    if group['event_date'] is not None and local_day > group['event_date']:
         raise HTTPException(409, 'This group event has ended')
     return local_day - dt.timedelta(days=local_day.weekday())
 
