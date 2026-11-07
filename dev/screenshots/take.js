@@ -114,6 +114,7 @@ async function say(page, text) {
     // the browser keeps the server's time zone (the workflow sets TZ), or a run near midnight UTC shows an empty week
     const ctx = await browser.newContext({viewport: {width: W, height: H}, deviceScaleFactor: 2, colorScheme: scheme,
       timezoneId: process.env.TZ || 'America/New_York'});
+    let foodChatCtx = null, foodChatPage = null;
     const basemap = await (await ctx.request.get(B+'/api/map-config')).json();
     if(!['pmtiles','vector'].includes(basemap.kind))throw Error('Capture needs an operator-controlled vector basemap');
     // The public archive admits the published app origin. Adapt only CORS for this local demo;
@@ -151,15 +152,67 @@ async function say(page, text) {
     await enableKitForDemo(page);
     const ids = await page.evaluate(async () => {
       const get = async (p) => (await fetch(p)).json();
-      const acts = await get('/api/activities?limit=40'), routes = await get('/api/routes'), dishes = await get('/api/dishes');
+      const acts = await get('/api/activities?limit=40'), routes = await get('/api/routes'), dishes = await get('/api/dishes'), segments = await get('/api/segments?mine=true');
       const loop = acts.find((a) => a.sport === 'run' && a.distance_m > 4600 && a.distance_m < 4950) || acts[0];
+      const segment = segments.find((s) => s.name === 'Fictional Park Loop');
+      if (!segment) throw Error('The fictional Park Loop segment must be staged before capture');
       const coach = (await Promise.all(acts.slice(0, 40).map((a) => get('/api/activities/' + a.id)))).find((a) => a.ai_note) || loop;
-      return {FEED_ACTIVITY: acts[0].id, LATEST: '/activity/' + (acts.find(a => a.photos?.length && a.line) || acts[0]).id, RUN: '/activity/' + loop.id, COACH: '/activity/' + coach.id, ROUTE: routes.length ? '/route/' + routes.sort((x, y) => y.count - x.count)[0].id : '/progress',
+      return {FEED_ACTIVITY: acts[0].id, LATEST: '/activity/' + (acts.find(a => a.photos?.length && a.line) || acts[0]).id, RUN: '/activity/' + loop.id, COACH: '/activity/' + coach.id, ROUTE: routes.length ? '/route/' + routes.sort((x, y) => y.count - x.count)[0].id : '/progress', SEGMENT: '/segments/' + segment.id,
         DISH: '/food/cook/' + ((dishes.find((d) => d.name === 'Chicken and veg traybake') || dishes[0] || {}).id || ''),
         SQUAT: '/lift/ex/' + (((await get('/api/lifts/exercises')).mine.find((x) => x.name === 'Squat') || {}).id || '')};
     });
     for (const [name, path, opt = {}] of SHOTS) {
       if (ONLY && !ONLY.includes(name)) continue;
+      if (opt.foodChat === 'start') {
+        foodChatCtx = await browser.newContext({viewport: {width: W, height: H}, deviceScaleFactor: 2, colorScheme: scheme,
+          timezoneId: process.env.TZ || 'America/New_York', serviceWorkers: 'block'});
+        await foodChatCtx.route('**/*', route => new URL(route.request().url()).origin === B ? route.continue() : route.abort());
+        await foodChatCtx.route('**/style.css*', async route => {
+          const r = await route.fetch(), css = (await r.text())
+            .replace(/env\(safe-area-inset-top(?:,[^)]*)?\)/g, TOP + 'px').replace(/env\(safe-area-inset-bottom(?:,[^)]*)?\)/g, BOTTOM + 'px');
+          await route.fulfill({response: r, body: css});
+        });
+        foodChatPage = await foodChatCtx.newPage();
+        foodChatPage.on('pageerror', e => errors.push(`${scheme}: ${e.message}`));
+        await foodChatPage.goto(B + '/');
+        await foodChatPage.fill('input[name=login]', `zz_test_658_food_${scheme}`);
+        await foodChatPage.fill('input[name=password]', 'green teapot on the hill');
+        await foodChatPage.click('button[type=submit]');
+        await foodChatPage.waitForSelector('nav.tabs');
+        await foodChatPage.goto(B + '/food/describe?meal=dinner');
+        await foodChatPage.locator('#thread-text').waitFor();
+        await foodChatPage.fill('#thread-text', 'I had a fictional trail bar');
+        await foodChatPage.locator('#thread-send').click();
+        const ready = foodChatPage.locator('.thread-card').filter({hasText: 'Fictional trail bar'});
+        await ready.waitFor();
+        await foodChatPage.locator('#thread-review-add').waitFor({state: 'visible'});
+        if (!/180 kcal/.test(await ready.innerText())) throw Error('Fictional trail bar capture must show its saved nutrition.');
+        await foodChatPage.evaluate(() => document.activeElement.blur());
+        await foodChatPage.evaluate(chrome, scheme === 'dark');
+        await foodChatPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        await foodChatPage.screenshot({path: `${OUT}/${scheme}-${name}.png`});
+        continue;
+      }
+      if (opt.foodChat === 'repeat') {
+        if (!foodChatPage) throw Error('The food chat must be staged before its repeat capture.');
+        await foodChatPage.locator('#thread-review-add').click();
+        await foodChatPage.waitForFunction(() => document.querySelector('#toast')?.textContent.includes('Added to Dinner'), null, {timeout: 15000});
+        const another = foodChatPage.locator('#thread-another .thread-another-chip');
+        await another.waitFor({state: 'visible'});
+        if ((await another.innerText()).trim() !== 'Another Fictional trail bar?') throw Error('Repeat capture must offer the one fictional food just logged.');
+        await another.click();
+        await foodChatPage.waitForFunction(() => document.querySelectorAll('.thread-logged-card').length >= 2, null, {timeout: 15000});
+        const logged = await foodChatPage.evaluate(async () => {
+          const day = isoDay(new Date());
+          return (await (await fetch('/api/food/day?d=' + day)).json()).entries;
+        });
+        if (logged.length !== 2 || logged.some(entry => entry.name !== 'Fictional trail bar')) throw Error('One-tap repeat must add exactly one more fictional trail bar.');
+        await foodChatPage.evaluate(() => document.activeElement.blur());
+        await foodChatPage.evaluate(chrome, scheme === 'dark');
+        await foodChatPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        await foodChatPage.screenshot({path: `${OUT}/${scheme}-${name}.png`});
+        continue;
+      }
       await page.evaluate((p) => { document.querySelectorAll('.scrim').forEach((x) => x.remove()); document.body.classList.remove('has-sheet'); window.scrollTo(0, 0); go(p); }, ids[path] || path);   // no sheet left open from the shot before
       await page.waitForTimeout(1500);
       await page.evaluate(() => { window.scrollTo(0, 0); });
@@ -277,6 +330,7 @@ async function say(page, text) {
     }
     await ctx.unrouteAll({behavior:'ignoreErrors'});
     await ctx.close();
+    await foodChatCtx?.close();
   }
   } finally { await browser.close(); }
   if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
