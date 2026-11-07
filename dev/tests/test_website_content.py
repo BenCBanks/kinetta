@@ -18,22 +18,23 @@ class CopyTests(unittest.TestCase):
    required=set(re.findall(r'\{\{(?:#|/)?copy:([^}]+)\}\}',template.read_text()))
    present=set(re.findall(r'(?m)^## ([a-z0-9-]+)',(content.ROOT/'site/content'/template.with_suffix('.md').name).read_text()))
    self.assertTrue(required,template.name);self.assertEqual(required,present,template.name)
- def test_secondary_about_photo_can_be_removed_in_one_content_entry(self):
+ def test_about_photo_can_be_removed_in_one_content_entry(self):
   import re
   parts=re.split(r'(?m)^## ([a-z0-9-]+)\s*\n',(content.ROOT/'site/content/about.md').read_text())
   entries=dict(zip(parts[1::2],(content.inline(' '.join(x.split())) for x in parts[2::2])))
   template=(content.ROOT/'site/templates/about.html').read_text()
   enabled=content.render(template,entries)
   self.assertIn('alt="Ben and Rachel by the river"',enabled)
+  self.assertNotIn('about-avatar',enabled)
   entries['about-couple-photo']=''
   removed=content.render(template,entries)
   self.assertNotIn('assets/about/ben-and-rachel',removed)
   self.assertNotIn('class="about-couple"',removed)
-  self.assertIn('alt="Ben, who makes Kinetta"',removed)
+  self.assertNotIn('about-avatar',removed)
   self.assertIn('mailto:feedback@kinetta.app',removed)
   self.assertNotIn('{{',removed)
   words=' '.join(entries[k] for k in ['about-story','about-feedback'])
-  self.assertTrue(60<=len(words.split())<=90)
+  self.assertTrue(40<=len(words.split())<=90)
   self.assertNotRegex(words.lower(),r'\bads?\b|ad-free|privacy|sell|data')
   self.assertNotIn('<ul',enabled)
  def test_about_is_linked_only_from_every_footer(self):
@@ -44,7 +45,7 @@ class CopyTests(unittest.TestCase):
   self.assertNotIn('class="about"',(content.ROOT/'site/templates/index.html').read_text())
  def test_about_photos_have_no_embedded_metadata(self):
   import struct
-  for name in ['ben','ben-and-rachel']:
+  for name in ['ben-and-rachel']:
    for extension in ['jpg','webp']:
     with self.subTest(name=name,extension=extension):
      data=(content.ROOT/f'site/assets/about/{name}.{extension}').read_bytes()

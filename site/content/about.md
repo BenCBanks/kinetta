@@ -1,7 +1,7 @@
 # About us website copy
 
 Edit the text below each heading. Keep the section keys unchanged.
-To remove the secondary photo, clear the text under `about-couple-photo` and rebuild; leave the heading in place.
+To remove the photo, clear the text under `about-couple-photo` and rebuild; leave the heading in place.
 
 ## title
 
@@ -9,7 +9,7 @@ About us
 
 ## about-story
 
-We're Ben and Rachel. We built Kinetta because we were using separate apps for our workouts, routes, training plans, food and friends. Ben runs; Rachel rides, walks and tracks her food and macros. We wanted to see it all in one place.
+We're Ben and Rachel. We both train and care about eating well, so we built Kinetta to bring workouts, nutrition and friends together in one place.
 
 ## about-feedback
 
