@@ -65,7 +65,7 @@ import time
 reuse_uids=[];original_memory_prepare=memory.prepare;original_understand_prepare=understand.prepare
 try:
  with db.connect() as c:
-  for suffix in ('fast','chip','ambiguous','old','other','half','yesterday','foreign_yesterday'):
+  for suffix in ('fast','chip','ambiguous','old','other','half','daycopy','other_daycopy'):
    uid2=c.execute('INSERT INTO users(login,name) VALUES (%s,%s) RETURNING id',('zz_test_repeat_'+suffix,'Fictional repeat '+suffix)).fetchone()['id'];reuse_uids.append(uid2)
    c.execute("INSERT INTO profile(user_id,tz,kcal_target,protein_target,food_chat_auto_log) VALUES (%s,'UTC',2000,110,true)",(uid2,))
  repeat_day=dt.datetime.now(dt.timezone.utc).date()
