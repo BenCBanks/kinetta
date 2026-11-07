@@ -694,6 +694,7 @@ route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
   const wantsEdit=new URLSearchParams(location.search).get('edit')==='1';
   await load(`/api/activities/${id}`, (a) => {
     const stamp=++milestoneDraw;drawDetail(el,a);
+    Milestones.celebrate($('#d-celebration',el),id);
     // An optional celebration must not delay the workout, chart or food-energy summary.
     milestoneOffers.then(data=>{if(el.isConnected&&readOwner()===milestoneOwner&&stamp===milestoneDraw)Milestones.paint($('#d-milestones',el),data,{params:{activity_id:id}});}).catch(()=>{});
     if(!a.owner&&isoDay(new Date(a.start_time))===isoDay(new Date())){const box=document.createElement('div');box.id='workout-food-energy';el.querySelector('[data-pane="overview"]').prepend(box);workoutEnergy(box,id);}

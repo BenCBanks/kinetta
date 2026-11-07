@@ -9,6 +9,17 @@
 .milestone-preview img {display:block;width:100%;height:auto;border-radius:var(--r2);}
 .milestone-private {font-size:1rem;padding:12px;border:1px solid var(--line);border-radius:var(--r2);line-height:1.5;}
 .milestone-share-actions {flex:none;padding:8px 0 0;background:var(--bg);}
+.milestone-celebration-host:empty {display:none;}
+.milestone-celebration-host {position:relative;margin:4px 0;}
+.milestone-celebration-banner {position:relative;z-index:1;display:flex;align-items:center;min-height:44px;padding:7px 2px;color:var(--celebration-color,var(--color-brand));font-size:.9375rem;font-weight:700;line-height:1.35;overflow-wrap:anywhere;transition:opacity .24s ease;}
+.milestone-celebration-banner.is-fading {opacity:0;}
+.milestone-celebration-particles {position:absolute;z-index:2;top:0;right:8px;width:44px;height:44px;overflow:visible;pointer-events:none;}
+.milestone-celebration-particles i {position:absolute;top:50%;left:50%;width:7px;height:4px;border-radius:2px;background:var(--celebration-color,var(--color-brand));opacity:0;animation:milestone-burst .88s cubic-bezier(.18,.65,.35,1) both;}
+.milestone-celebration-particles i:nth-child(3n+1) {background:color-mix(in srgb,var(--celebration-color,var(--color-brand)) 56%,white);}
+.milestone-celebration-particles i:nth-child(3n+2) {filter:brightness(1.35);}
+.milestone-celebration-particles i:nth-child(3n) {filter:brightness(.82);}
+@keyframes milestone-burst {0% {opacity:0;transform:translate(-50%,-50%) scale(.25) rotate(0)}12% {opacity:.95}100% {opacity:0;transform:translate3d(calc(-50% + var(--burst-x)),calc(-50% + var(--burst-y)),0) rotate(var(--burst-spin)) scale(.72)}}
+@media(prefers-reduced-motion:reduce) {.milestone-celebration-banner {transition:none}.milestone-celebration-particles {display:none}}
 .scrim:has(#milestone-picture) .sheet {display:flex;flex-direction:column;overflow:hidden;}
 .scrim:has(#milestone-picture) .sheet>header,.scrim:has(#milestone-picture) .grab {flex:none;}
 .scrim:has(#milestone-picture) .sbody {display:flex;flex-direction:column;flex:1;min-height:0;}

@@ -46,7 +46,7 @@ const until=async(p,f,label)=>{for(let i=0;i<150;i++){if(await p.evaluate(f))ret
      for(const navigate of [false,true]){const late=await p.evaluate(async navigate=>{const original=api,confirmation=confirm;let finish,refreshed=0;api=(url,opts)=>url==='/api/activity-photos/-477'&&opts?.method==='DELETE'?new Promise(r=>finish=r):original(url,opts);confirm=()=>true;try{photoViewer({id:-477,photos:[{id:-477,w:1,h:1},{id:-478,w:1,h:1}]},0,true,()=>{refreshed++;render();});const pending=document.querySelector('.ph-view [data-del]').onclick();document.querySelector('.ph-view [data-x]').click();if(navigate)go('/me');finish({});await pending;return{refreshed,closed:!document.querySelector('.ph-view'),inert:root.inert};}finally{api=original;confirm=confirmation;}},navigate);assert.deepEqual(late,{refreshed:navigate?0:1,closed:true,inert:false},'Pending stand-in removal refreshes only the still-open originating page');await until(p,()=>App.pageReady,'Late removal settles');cases++;}
      await p.evaluate(()=>{photoViewer({id:-477,photos:[{id:-478,w:1,h:1}]},0,true,()=>{throw Error('Navigation must not refresh the old photo page');});go('/me');});await until(p,()=>App.pageReady,'Navigation after photo');assert.equal(await p.locator('.ph-view').count(),0,'Navigation removes the viewer and its modal ownership');assert.equal(await p.evaluate(()=>root.inert),false);cases++;
     }
-    assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);
+    assert.deepEqual(writes.filter(path=>path!=='/api/milestones/celebrate'),[]);assert.deepEqual(errors,[]);
    }finally{await c.close();}
   }
  }

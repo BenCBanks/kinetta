@@ -34,6 +34,44 @@ const Milestones=(()=>{
   const signature=(item,points)=>JSON.stringify([item.kind,item.activity_id,item.title,item.day,item.private_activity,item.details,item.garmin_source,points]);
   async function picture(item,identity=false,points=[]){return ShareArt.simplePicture({kicker:'Milestone',title:item.title,date:day(item.day),...values(item),sources:item.details.garmin_sources||[item.garmin_source].filter(Boolean),identity,routePoints:points});}
   async function mark(item,action){await api('/api/milestones/'+encodeURIComponent(item.id)+'/seen',json('POST',{action}));}
+  const celebrationPalette={
+    run:'var(--run)',ride:'var(--ride)',walk:'var(--walk)',hike:'var(--walk)',swim:'var(--swim)',workout:'var(--workout)',
+    'sport:run':'var(--run)','sport:ride':'var(--ride)','sport:walk-hike':'var(--walk)','sport:swim':'var(--swim)','sport:lift':'var(--workout)',
+    journey:'var(--color-brand)',consistency:'var(--color-brand)',years_active:'var(--color-brand)',workouts:'var(--color-brand)',
+    active_time:'var(--color-brand)',climbing:'var(--hike)',lifted:'var(--workout)',personal_bests:'var(--color-brand)'
+  };
+  function celebrationCopy(items){
+    const best=items.find(item=>item.kind==='best'),item=best||items[0];let copy;
+    if(best){const d=best.details||{},label=d.label||best.title.replace(/^New\s+|\s+best$/gi,'').trim();copy=`New best: ${label} ${dur(d.seconds||0)}`;}
+    else copy=`New medal: ${item.title}`;
+    if(items.length>1)copy+=` · ${items.length-1} more`;
+    return{copy,item};
+  }
+  function showCelebration(node,items){
+    if(!node?.isConnected||!items.length)return;
+    const {copy,item}=celebrationCopy(items),details=item.details||{},code=details.track||details.sport||'',reduced=!!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    node.classList.add('milestone-celebration-host');node.replaceChildren();node.style.setProperty('--celebration-color',celebrationPalette[code]||'var(--color-brand)');
+    const banner=document.createElement('div');banner.className='milestone-celebration-banner';banner.setAttribute('role','status');banner.textContent=copy;node.append(banner);
+    if(!reduced){
+      const particles=document.createElement('span');particles.className='milestone-celebration-particles';particles.setAttribute('aria-hidden','true');
+      for(let i=0;i<30;i++){const particle=document.createElement('i');particle.style.setProperty('--burst-x',`${Math.round((Math.random()-.5)*48)}px`);particle.style.setProperty('--burst-y',`${Math.round(Math.random()*36)}px`);particle.style.setProperty('--burst-spin',`${Math.round((Math.random()-.5)*700)}deg`);particles.append(particle);}
+      node.append(particles);
+    }
+    try{Native.achievementLevelUp?.();}catch(_){/* An optional haptic never blocks the saved activity. */}
+    const timer=setTimeout(()=>{if(!node.isConnected)return;if(!reduced)banner.classList.add('is-fading');setTimeout(()=>{if(node.isConnected){node.replaceChildren();node.classList.remove('milestone-celebration-host');node.style.removeProperty('--celebration-color');}},reduced?0:260);},3000);
+    const dispose=viewResources.get(node);viewResources.set(node,()=>{clearTimeout(timer);dispose?.();});
+  }
+  async function celebrate(node,activityId){
+    if(!node||!/^\d+$/.test(String(activityId)))return;
+    const owner=readOwner(),stamp=Symbol('milestone-celebration');node._celebrationStamp=stamp;
+    const live=()=>node.isConnected&&owner===readOwner()&&node._celebrationStamp===stamp,end=Date.now()+3000;
+    try{
+      for(;;){if(!live())return;const data=await api('/api/milestones/celebrate',json('POST',{activity_id:Number(activityId)}));if(!live())return;
+        if(!data?.pending){showCelebration(node,Array.isArray(data?.items)?data.items:[]);return;}
+        if(Date.now()+150>=end)return;await new Promise(resolve=>setTimeout(resolve,150));
+      }
+    }catch(_){/* The optional celebration never blocks the workout or its detail. */}
+  }
   function more(items,changed){
     sheet('Recent milestones',`<div class="card list milestone-list">${items.map((item,n)=>`<button type="button" class="row-link" data-milestone="${n}"><span class="grow"><b>${esc(item.title)}</b><small>${esc(day(item.day))}</small></span>${svg('chev')}</button>`).join('')}</div>`,(b,close)=>{
       const owner=readOwner();$$('[data-milestone]',b).forEach(button=>button.onclick=()=>{if(owner!==readOwner())return;const item=items[+button.dataset.milestone];close();open(item,changed);});
@@ -86,6 +124,6 @@ const Milestones=(()=>{
       draw();
     });
   }
-  return{read,mount,paint,open,picture,values,routePoints};
+  return{read,mount,paint,open,picture,values,routePoints,celebrate};
 })();
 route(/^\/me\/milestones$/,'me',()=>go('/me',{replace:true}));

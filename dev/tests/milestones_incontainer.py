@@ -46,6 +46,28 @@ class Milestones(unittest.TestCase):
   self.process();self.assertEqual(ids,[x['id'] for x in self.items(activity_id=aid)])
   for item in items:self.assertEqual(self.clients[0].post('/api/milestones/'+item['id']+'/seen',json={'action':'dismiss'}).status_code,200)
   self.process();self.assertEqual(self.items(),[])
+ def test_celebration_claim_is_once_owner_scoped_and_recent_only(self):
+  prior=self.activity(distance=5000);aid=self.activity(distance=10000)
+  with db.connect() as c:
+   c.execute("INSERT INTO best_efforts(user_id,activity_id,sport,distance_m,label,elapsed_s,start_time) SELECT user_id,id,sport,5000,'5K',1500,start_time FROM activities WHERE id=%s AND user_id=%s",(prior,self.ids[0]))
+   c.execute("INSERT INTO best_efforts(user_id,activity_id,sport,distance_m,label,elapsed_s,start_time) SELECT user_id,id,sport,5000,'5K',1400,start_time FROM activities WHERE id=%s AND user_id=%s",(aid,self.ids[0]))
+  self.process();claim=self.clients[0].post('/api/milestones/celebrate',json={'activity_id':aid});self.assertEqual(claim.status_code,200,claim.text)
+  data=claim.json();self.assertFalse(data['pending'],json.dumps(data));items=data['items'];self.assertTrue(any(row['kind']=='best' for row in items),json.dumps(items));self.assertTrue(any(row['kind'] in ('track','sport','first_distance') for row in items),json.dumps(items))
+  self.assertTrue(items);self.assertNotIn('_celebrated_at',json.dumps(items))
+  self.assertEqual(self.clients[0].post('/api/milestones/celebrate',json={'activity_id':aid}).json()['items'],[],'reopen cannot replay the same celebration')
+  self.assertEqual(self.clients[1].post('/api/milestones/celebrate',json={'activity_id':aid}).json()['items'],[],'another owner cannot claim these rows')
+  visible=self.items(activity_id=aid);self.assertTrue(visible,'celebrating does not dismiss the share/review offer')
+  self.assertNotIn('_celebrated_at',json.dumps(visible),'the server-only claim marker is omitted from milestone details')
+  with db.connect() as c:
+   self.assertGreater(c.execute("SELECT count(*) AS n FROM milestones WHERE user_id=%s AND activity_id=%s AND details ? '_celebrated_at' AND seen_at IS NULL",(self.ids[0],aid)).fetchone()['n'],0)
+   imported=self.activity(sport='ride',distance=20000,uid=self.ids[0])
+   c.execute("UPDATE activities SET created=now()-interval '49 hours',updated=now() WHERE id=%s AND user_id=%s",(imported,self.ids[0]))
+  self.process()
+  with db.connect() as c:c.execute('UPDATE milestones SET silent=false WHERE user_id=%s AND activity_id=%s',(self.ids[0],imported))
+  self.assertEqual(self.clients[0].post('/api/milestones/celebrate',json={'activity_id':imported}).json()['items'],[],'an import received over 48 hours ago cannot celebrate')
+  old=self.activity(days=3,sport='swim',distance=1000);self.process()
+  with db.connect() as c:c.execute('UPDATE milestones SET silent=false WHERE user_id=%s AND activity_id=%s',(self.ids[0],old))
+  self.assertEqual(self.clients[0].post('/api/milestones/celebrate',json={'activity_id':old}).json()['items'],[],'an activity over 48 hours old cannot celebrate')
  def test_500_old_arrivals_are_silent_and_a_current_arrival_can_celebrate(self):
   with db.connect() as c:
    c.execute("INSERT INTO activities(user_id,sport,name,start_time,distance_m,moving_s,elapsed_s,source) SELECT %s,'run','Fictional old import',now()-make_interval(days=>20+n),1000,600,600,'manual' FROM generate_series(1,500) n",(self.ids[0],))

@@ -38,7 +38,7 @@ async function fixturePage(browser,base,fixtures,sessions,scene,size,theme){
    try{
     const liftData=scene.lift?await(await c.request.get(base+'/api/activities/'+scene.lift+'/lifts')).json():null;
     await c.addInitScript(initialize,{root:size.root,native:!!scene.native,base,token:auth.token,id:auth.id,lift:scene.lift,liftData});
-    await c.route('**/*',r=>{const request=r.request(),u=new URL(request.url());if(u.origin!==base)return r.abort();if(scene.signup&&request.method()==='GET'&&u.pathname==='/api/signup')return r.fulfill({json:{open:true,full:false}});if(u.pathname==='/api/challenges/signup/continue')return r.fulfill({json:{}});if(!['GET','HEAD'].includes(request.method())){writes.push(u.pathname);return r.abort();}
+    await c.route('**/*',r=>{const request=r.request(),u=new URL(request.url());if(u.origin!==base)return r.abort();if(scene.signup&&request.method()==='GET'&&u.pathname==='/api/signup')return r.fulfill({json:{open:true,full:false}});if(u.pathname==='/api/challenges/signup/continue')return r.fulfill({json:{}});if(request.method()==='POST'&&u.pathname==='/api/milestones/celebrate')return r.fulfill({json:{items:[],pending:false}});if(!['GET','HEAD'].includes(request.method())){writes.push(u.pathname);return r.abort();}
      if(u.pathname==='/api/map-config')return r.fulfill({json:{kind:'raster',url:base+'/__spacing_tiles/{z}/{x}/{y}.png',max_zoom:17,attribution:'Demo tiles'}});
      if(u.pathname.startsWith('/__spacing_tiles/'))return r.fulfill({contentType:'image/png',body:tile});
      if(scene.recap&&u.pathname==='/api/recaps')return r.fulfill({json:fixtures.recaps.matrix.typical[u.searchParams.get('period')]});
