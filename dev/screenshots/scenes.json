@@ -103,6 +103,13 @@
     "/food"
   ],
   [
+    "nutrition-day",
+    "/food",
+    {
+      "nutritionDay": true
+    }
+  ],
+  [
     "insights",
     "/food?view=overview&r=30"
   ],
@@ -131,6 +138,27 @@
     "/me/friends"
   ],
   [
+    "friends-feed",
+    "/activity",
+    {
+      "feedCard": true
+    }
+  ],
+  [
+    "friends-group",
+    "/me/groups",
+    {
+      "groupDetail": true
+    }
+  ],
+  [
+    "friends-me",
+    "/me",
+    {
+      "meCard": true
+    }
+  ],
+  [
     "dietcoach",
     "/food?view=overview",
     {
@@ -156,8 +184,14 @@
     "/food",
     {
       "describe": [
-        "I had a hot dog from Costco and a Diet Coke",
-        "make it two hot dogs"
+        "2 eggs, toast, black coffee"
+      ],
+      "meal": "breakfast",
+      "completeMeal": true,
+      "expectFoods": [
+        "Eggs",
+        "Whole-wheat toast",
+        "Black coffee"
       ]
     }
   ],

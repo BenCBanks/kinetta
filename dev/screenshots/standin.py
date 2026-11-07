@@ -11,7 +11,13 @@ NOTE = ''   # the real estimator's short note; left empty so the website shows n
 
 
 def sample(note):
-    """Typed meal: a Costco hot dog and a Diet Coke; "two" doubles the hot dogs, like the real thing when told."""
+    """Made-up typed-meal estimates for repeatable website screenshots; no provider is called."""
+    if any(word in note for word in ('egg', 'toast', 'coffee')):
+        return [
+            {'name': 'Eggs', 'amount': '2 large', 'grams': 100, 'kcal': 144, 'protein_g': 13, 'carbs_g': 1, 'fat_g': 10, 'fiber_g': 0},
+            {'name': 'Whole-wheat toast', 'amount': '1 slice', 'grams': 40, 'kcal': 110, 'protein_g': 4, 'carbs_g': 20, 'fat_g': 2, 'fiber_g': 3},
+            {'name': 'Black coffee', 'amount': '1 cup', 'grams': 240, 'kcal': 2, 'protein_g': 0, 'carbs_g': 0, 'fat_g': 0, 'fiber_g': 0},
+        ]
     n = 2 if 'two' in note else 1
     items = []
     if 'hot dog' in note:
