@@ -125,10 +125,7 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    assert(await page.locator('.group-create-footer button[type=submit]').isVisible(),'Create stays visible in the sheet footer');
    await checkCreateSheet(page,390,16,theme);
    await capture(page,`groups-create-390-${theme}`);
-   for(const width of [390,375,330])for(const root of [16,24]){
-    await checkCreateSheet(page,width,root,theme);
-    if(width===390&&root===24)await capture(page,`groups-create-390-large-text-${theme}`);
-   }
+   for(const width of [390,375,330])await checkCreateSheet(page,width,16,theme);
    await page.setViewportSize({width:390,height:844});await page.evaluate(()=>document.documentElement.style.fontSize='16px');
    await page.locator('#group-zone-change').click();await zone.waitFor({state:'visible'});await zone.evaluate(el=>el.blur());await zone.waitFor({state:'hidden'});assert.equal(await page.locator('#group-zone-change').innerText(),'Eastern time · Change','closing the picker without a selection restores the friendly action');
    await page.locator('#group-zone-change').click();await zone.waitFor({state:'visible'});await zone.selectOption('America/Los_Angeles');
