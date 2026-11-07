@@ -35,12 +35,14 @@ def _canonical_threshold(level):
 
 
 def _levels_through(definition, value):
-    """Return named v2 levels and the catalog tail that the lifetime value reached."""
+    """Return named catalog levels and the tail that the lifetime value reached."""
     levels = []
     for rank, level in enumerate(definition.get('levels') or (), 1):
         threshold = _canonical_threshold(level)
         if threshold <= value:
-            levels.append({'rank': rank, 'name': level['name'], 'threshold': threshold})
+            levels.append({'rank': rank, 'name': level['name'], 'threshold': threshold,
+                           'quiet': bool(level.get('quiet')),
+                           **({'trigger': level['trigger']} if level.get('trigger') else {})})
     fixed = definition.get('levels') or ()
     tail = _level_catalog().get('tail') or {}
     if fixed and tail.get('rule') == 'repeat last named level at integer multiples':
@@ -53,9 +55,34 @@ def _levels_through(definition, value):
         while base > 0 and base * multiple <= value and len(levels) < 100_000:
             name = str(tail.get('name') or 'last_name ×N').replace('last_name', last['name']).replace('N', str(multiple))
             levels.append({'rank': len(levels) + 1, 'name': name,
-                           'threshold': base * multiple})
+                           'threshold': base * multiple, 'quiet': False})
             multiple += 1
     return levels
+
+
+def _catalog_level(code, threshold=None, trigger=None):
+    definition = _level_catalog().get('tracks', {}).get(code) or {}
+    fixed = definition.get('levels') or ()
+    if trigger:
+        for rank, level in enumerate(fixed, 1):
+            if level.get('trigger') == trigger:
+                return {**level, 'rank': rank, 'threshold': _canonical_threshold(level)}
+    if threshold is None:
+        return None
+    try:
+        threshold = float(threshold)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(threshold):
+        return None
+    for rank, level in enumerate(fixed, 1):
+        candidate = _canonical_threshold(level)
+        if math.isclose(candidate, threshold, rel_tol=1e-12, abs_tol=1e-6):
+            return {**level, 'rank': rank, 'threshold': candidate}
+    for level in reversed(_levels_through(definition, threshold)):
+        if math.isclose(level['threshold'], threshold, rel_tol=1e-12, abs_tol=1e-6):
+            return {**fixed[-1], **level} if fixed else level
+    return None
 
 
 def _crossings(thresholds, rows, amount):
@@ -148,7 +175,7 @@ def _legacy_history(c, user_id, code):
     """Read durable worker milestone dates to cover source activities later deleted."""
     rows = c.execute('''SELECT kind,activity_id,day,occurred,details
                         FROM milestones WHERE user_id=%s AND valid
-                          AND kind IN ('track','first_distance')
+                          AND kind IN ('track','first_distance','sport')
                         ORDER BY occurred,rank''', (user_id,)).fetchall()
     out = []
     for row in rows:
@@ -163,6 +190,11 @@ def _legacy_history(c, user_id, code):
                 threshold = float(details.get('target_m'))
             except (TypeError, ValueError):
                 continue
+        elif row.get('kind') == 'sport' and _sport_code(details, include_quiet=True) == code:
+            level = _catalog_level(code, trigger='first_activity')
+            if not level:
+                continue
+            threshold = level['threshold']
         else:
             continue
         if math.isfinite(threshold) and threshold >= 0:
@@ -193,45 +225,76 @@ def _value_fields(code, value, units):
 
 def _tier(row, code, units):
     details = dict(row.get('details') or {})
-    threshold = details.get('threshold', _raw_value(code, details))
+    kind = row.get('kind')
+    trigger = details.get('trigger')
+    catalog_level = None
+    if kind == 'sport':
+        catalog_level = _catalog_level(code, trigger='first_activity')
+        if catalog_level:
+            trigger = 'first_activity'
+    if kind == 'first_distance':
+        threshold = details.get('target_m', _raw_value(code, details))
+    else:
+        threshold = details.get('threshold', _raw_value(code, details))
     try:
         threshold = float(threshold)
     except (TypeError, ValueError):
         threshold = 0.0
-    rank = details.get('rank')
-    if rank is None and str(row.get('code', '')).startswith('track:'):
+    if kind == 'sport' and catalog_level:
+        threshold = catalog_level['threshold']
+    if catalog_level is None:
+        catalog_level = _catalog_level(code, threshold=threshold, trigger=trigger)
+    rank = catalog_level.get('rank') if catalog_level else details.get('rank')
+    if rank is None and str(row.get('code', '')).startswith(('track:', 'trackt:')):
         try:
-            rank = int(str(row['code']).rsplit(':', 1)[1])
+            suffix = str(row['code']).rsplit(':', 1)[1]
+            rank = int(suffix) if str(row['code']).startswith('track:') else None
         except (ValueError, IndexError):
             rank = row.get('rank', 0)
-    rule = tracks.Tier(int(rank if rank is not None else row.get('rank', 0) or 0), threshold,
-                       details.get('label') or row.get('title') or '',
-                       details.get('unit') or tracks.TRACK_UNITS.get(code, 'count'),
-                       bool(details.get('big')))
+    rank = int(rank if rank is not None else row.get('rank', 0) or 0)
+    label = (catalog_level or {}).get('name') or details.get('label') or row.get('title') or ''
+    unit = details.get('unit') or tracks.TRACK_UNITS.get(code, 'count')
+    quiet = bool(details.get('quiet') or (catalog_level or {}).get('quiet') or tracks.is_quiet_level(code, rank))
+    trigger = trigger or (catalog_level or {}).get('trigger') or tracks.level_trigger(code, rank)
+    details.update(track=code, rank=rank, threshold=threshold, label=label, unit=unit, quiet=quiet)
+    if trigger:
+        details['trigger'] = trigger
+    rule = tracks.Tier(rank, threshold, label, unit, bool(details.get('big')))
     item = {
         'code': row['code'],
         'rank': rule.rank,
         'label': rule.label,
-        'title': row.get('title') or rule.label,
+        'title': (rule.label if kind in ('track', 'sport') else row.get('title') or rule.label),
         'day': row.get('day'),
         'activity_id': row.get('activity_id'),
-        'big': rule.big,
+        'big': bool(rule.big and not quiet),
+        'quiet': quiet,
         'threshold': threshold,
         'unit': rule.unit,
         'details': details,
     }
+    if trigger:
+        item['trigger'] = trigger
     item.update({k: v for k, v in tracks.display_tier(code, rule, units).items()
                  if k in ('display_threshold', 'display_unit')})
     return item
 
 
-def _sport_code(details):
+def _sport_code(details, *, include_quiet=False):
     sport = details.get('sport')
     if sport in ('walk', 'hike'):
-        return 'sport:walk-hike'
-    if sport == 'workout':
-        return 'sport:lift'
-    return f'sport:{sport}' if sport in ('run', 'ride', 'swim') else None
+        code = 'sport:walk-hike'
+    elif sport == 'workout':
+        code = 'sport:lift'
+    elif sport in ('run', 'ride', 'swim'):
+        code = f'sport:{sport}'
+    else:
+        return None
+    first = _catalog_level(code, trigger='first_activity')
+    is_first_activity = details.get('target_m') is None
+    if is_first_activity and (details.get('quiet') or (first and first.get('quiet'))) and not include_quiet:
+        return None
+    return code
 
 
 @router.get('/achievements')
@@ -267,7 +330,7 @@ def achievements(user=Depends(current_user)):
     # history without recomputing bests in this request.
     for row in firsts:
         details = row.get('details') or {}
-        code = _sport_code(details)
+        code = _sport_code(details, include_quiet=True)
         if code:
             item = _tier(row, code, units)
             item['big'] = True
@@ -284,13 +347,23 @@ def achievements(user=Depends(current_user)):
             value = float(value)
         except (TypeError, ValueError):
             value = 0.0
-        next_rule = tracks.next_tier(code, value)
+        track_tiers = tiers_by_track.get(code, [])
+        catalog = _level_catalog().get('tracks', {}).get(code, {})
+        current_levels = _levels_through(catalog, value)
+        level = max((item['rank'] for item in current_levels), default=0)
+        has_first_activity = any(item.get('trigger') == 'first_activity' for item in track_tiers)
+        if has_first_activity:
+            level = max(level, 1)
+        next_value = 1.0 if has_first_activity and code in {
+            'sport:run', 'sport:ride', 'sport:walk-hike', 'sport:swim'
+        } and value < 1.0 else value
+        next_rule = tracks.next_tier(code, next_value)
         current = {
             'code': code,
             'label': details.get('label') or tracks.track_label(code),
-            'level': int(details.get('level', 0) or 0),
+            'level': level,
             'unit': details.get('unit') or tracks.TRACK_UNITS.get(code, 'count'),
-            'tiers': sorted(tiers_by_track.get(code, []), key=lambda x: (x.get('rank') or 0, x.get('day') or dt.date.min)),
+            'tiers': sorted(track_tiers, key=lambda x: (x.get('rank') or 0, x.get('day') or dt.date.min)),
             'day': row.get('day'),
         }
         current.update(_value_fields(code, value, units))
@@ -303,6 +376,7 @@ def achievements(user=Depends(current_user)):
                 'label': next_rule.label,
                 'unit': next_rule.unit,
                 'big': next_rule.big,
+                'quiet': tracks.is_quiet_level(code, next_rule.rank),
                 'display_threshold': next_item['display_threshold'],
                 'display_unit': next_item['display_unit'],
             }
@@ -313,7 +387,7 @@ def achievements(user=Depends(current_user)):
 
 @router.get('/achievement-history/{code}')
 def achievement_history(code: str, user=Depends(current_user)):
-    """Return named v2 levels with their first-crossing dates for the signed-in owner."""
+    """Return named catalog levels with their first-crossing dates for the signed-in owner."""
     definition = _level_catalog().get('tracks', {}).get(code)
     if not definition:
         raise HTTPException(status_code=404, detail='Unknown achievement track')
@@ -339,11 +413,32 @@ def achievement_history(code: str, user=Depends(current_user)):
         _total, crossings, activity_rows = _history_source(c, user['id'], code, thresholds, now, zone)
         legacy = _legacy_history(c, user['id'], code)
 
+    first_level = next(((rank, level) for rank, level in enumerate(definition.get('levels') or (), 1)
+                        if code in ('sport:run', 'sport:ride', 'sport:walk-hike', 'sport:swim')
+                        and level.get('trigger') == 'first_activity'), None)
+    first_event = None
+    if first_level:
+        first_rank, first_definition = first_level
+        first_threshold = _canonical_threshold(first_definition)
+        first_event = next((row for old_threshold, row in legacy
+                            if row.get('kind') == 'sport'
+                            and math.isclose(old_threshold, first_threshold, rel_tol=1e-12, abs_tol=1e-6)), None)
+        if first_event:
+            levels = [level for level in levels if level['rank'] != first_rank]
+            levels.append({'rank': first_rank, 'name': first_definition['name'],
+                           'threshold': first_threshold, 'quiet': bool(first_definition.get('quiet')),
+                           'trigger': 'first_activity'})
+            levels.sort(key=lambda level: level['rank'])
+
     reached = []
     for level in levels:
         threshold = level['threshold']
-        event = crossings.get(threshold)
-        source = 'activity'
+        is_first_activity = (code in ('sport:run', 'sport:ride', 'sport:walk-hike', 'sport:swim')
+                             and level.get('trigger') == 'first_activity')
+        event = first_event if is_first_activity else crossings.get(threshold)
+        source = ('activity' if event and event.get('activity_id') in activity_rows else 'legacy') if is_first_activity else 'activity'
+        if is_first_activity and event is None:
+            continue
         if event is None:
             # The worker retains milestones after an activity is removed. The
             # nearest later legacy threshold proves the v2 level was reached

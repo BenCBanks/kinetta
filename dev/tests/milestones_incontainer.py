@@ -108,14 +108,14 @@ class Milestones(unittest.TestCase):
   response=self.clients[0].get('/api/achievements');self.assertEqual(response.status_code,200,response.text)
   self.assertFalse(response.json()['pending'])
   states={row['code']:row for row in response.json()['tracks']}
-  self.assertEqual(states['journey']['level'],7)
+  self.assertEqual(states['journey']['level'],10)
   self.assertEqual(states['journey']['value_m'],50_000_000)
-  self.assertEqual(states['journey']['next']['label'],'Around the world ×2')
+  self.assertEqual(states['journey']['next']['label'],'To the Moon')
   self.assertEqual(states['workouts']['value'],10)
   self.assertEqual(states['workouts']['next']['threshold'],50)
-  self.assertEqual(next(tier['rank'] for tier in states['workouts']['history'] if tier['code']=='track:workouts:1'),1)
+  self.assertEqual(next(tier['rank'] for tier in states['workouts']['history'] if tier['threshold']==1),1)
   self.assertEqual(states['active_time']['value_s'],36_000)
-  self.assertEqual(states['active_time']['next']['threshold'],50*3600)
+  self.assertEqual(states['active_time']['next']['threshold'],24*3600)
   self.assertNotIn('personal_bests',states,'No personal-best event means that track has not started')
   with db.connect() as c:
    tiers=c.execute('''SELECT id,code,activity_id,silent FROM milestones
@@ -136,23 +136,104 @@ class Milestones(unittest.TestCase):
   updated=self.clients[0].get('/api/achievements').json()
   workout=next(row for row in updated['tracks'] if row['code']=='workouts')
   self.assertEqual(workout['value'],10,'A later edit or deletion must not reduce lifetime progress')
-  self.assertEqual(workout['level'],1)
-  self.assertIn('track:workouts:1',[tier['code'] for tier in workout['history']])
+  self.assertEqual(workout['level'],3)
+  self.assertIn('trackt:workouts:1.0',[tier['code'] for tier in workout['history']])
 
- def test_v2_history_uses_exact_crossing_dates_and_legacy_dates_after_deletion(self):
+ def test_threshold_keys_dedupe_legacy_rank_rows_and_quietly_backfill_early_levels(self):
+  for _ in range(10):self.activity(days=20,distance=0)
+  legacy_details={'track':'workouts','rank':1,'threshold':10,'label':'Seed','unit':'workouts','big':False}
+  state_details={'track':'workouts','label':'Workouts','value':10,'unit':'workouts','level':1,'big':False}
+  with db.connect() as c:
+   c.execute('''INSERT INTO milestones(user_id,code,kind,title,rank,day,occurred,details,silent)
+                VALUES(%s,'track:workouts:1','track','Seed',1001,%s,%s,%s,true)''',
+             (self.ids[0],self.now.date(),self.now,json.dumps(legacy_details)))
+   c.execute('''INSERT INTO milestones(user_id,code,kind,title,rank,day,occurred,details,silent)
+                VALUES(%s,'track-state:workouts','track_state','Workouts',0,%s,%s,%s,true)''',
+             (self.ids[0],self.now.date(),self.now,json.dumps(state_details)))
+  self.clients[0].put('/api/notifications/settings',json={'milestones':True})
+  self.process()
+  with db.connect() as c:
+   rows=c.execute('''SELECT code,details,silent FROM milestones WHERE user_id=%s AND kind='track'
+                     AND details->>'track'='workouts' ORDER BY (details->>'threshold')::double precision''',
+                  (self.ids[0],)).fetchall()
+   pushes=c.execute("SELECT count(*) AS n FROM notifications WHERE user_id=%s AND kind='milestone'",(self.ids[0],)).fetchone()['n']
+  self.assertEqual([float(row['details']['threshold']) for row in rows],[1,5,10])
+  self.assertEqual(rows[0]['code'],'trackt:workouts:1.0')
+  self.assertEqual(rows[1]['code'],'trackt:workouts:5.0')
+  self.assertEqual(rows[2]['code'],'track:workouts:1','the legacy row is preserved instead of duplicated')
+  self.assertTrue(all(row['details']['quiet'] for row in rows[:2]))
+  self.assertTrue(all(row['silent'] for row in rows[:2]),'existing users backfill early levels silently')
+  self.assertFalse(rows[2]['details'].get('quiet',False),'the existing Seed level remains loud')
+  self.assertEqual(pushes,0,'quiet early levels do not enqueue pushes')
+  self.process()
+  result=self.clients[0].get('/api/achievements').json()
+  workouts=next(track for track in result['tracks'] if track['code']=='workouts')
+  self.assertEqual({tier['threshold']:tier['rank'] for tier in workouts['tiers']},{1.0:1,5.0:2,10.0:3})
+  with db.connect() as c:
+   replay=c.execute("SELECT details->>'threshold' AS threshold FROM milestones WHERE user_id=%s AND kind='track' AND details->>'track'='workouts'",(self.ids[0],)).fetchall()
+  self.assertEqual(sorted(float(row['threshold']) for row in replay),[1,5,10],'rerunning the worker never duplicates an early threshold')
+
+ def test_deleted_early_source_activity_does_not_create_a_recent_non_silent_medal(self):
+  deleted=self.activity(days=20,distance=0)
+  for _ in range(5):self.activity(distance=0)
+  zone=M.ZoneInfo('America/New_York');old_day=(self.now-dt.timedelta(days=20)).astimezone(zone).date()
+  state_details={'track':'workouts','label':'Workouts','value':10,'unit':'workouts','level':1,'big':False}
+  legacy_details={'track':'workouts','rank':1,'threshold':10,'label':'Seed','unit':'workouts','big':False}
+  with db.connect() as c:
+   c.execute('DELETE FROM activities WHERE user_id=%s AND id=%s',(self.ids[0],deleted))
+   c.execute('''INSERT INTO milestones(user_id,code,kind,title,rank,day,occurred,details,silent)
+                VALUES(%s,'track-state:workouts','track_state','Workouts',0,%s,%s,%s,true)''',
+             (self.ids[0],old_day,self.now-dt.timedelta(days=20),json.dumps(state_details)))
+   c.execute('''INSERT INTO milestones(user_id,code,kind,title,rank,day,occurred,details,silent)
+                VALUES(%s,'track:workouts:1','track','Seed',1001,%s,%s,%s,true)''',
+             (self.ids[0],old_day,self.now-dt.timedelta(days=20),json.dumps(legacy_details)))
+  self.process()
+  with db.connect() as c:
+   early=c.execute('''SELECT details->>'threshold' AS threshold,silent,occurred FROM milestones
+                      WHERE user_id=%s AND kind='track' AND details->>'track'='workouts'
+                        AND (details->>'threshold')::double precision IN (1,5)''',(self.ids[0],)).fetchall()
+  self.assertEqual(len(early),2,'the legacy user receives both newly backfilled levels')
+  self.assertTrue(all(row['occurred']>=self.now-dt.timedelta(days=7) for row in early),'missing source dates fall back to the only recent activity')
+  self.assertTrue(all(row['silent'] for row in early),'deleted-source fallback never becomes a recent non-silent early medal')
+
+ def test_new_first_levels_stay_visible_to_owner_without_friend_or_push_moments(self):
+  with db.connect() as c:c.execute("INSERT INTO friendships(requester,addressee,status,accepted) VALUES(%s,%s,'accepted',now())",(self.ids[0],self.ids[1]))
+  self.clients[0].put('/api/sharing',json={'share_achievements':True})
+  self.clients[0].put('/api/notifications/settings',json={'milestones':True})
+  self.activity(distance=0);self.process()
+  result=self.clients[0].get('/api/achievements');self.assertEqual(result.status_code,200,result.text)
+  tracks={row['code']:row for row in result.json()['tracks']}
+  for code in ('workouts','consistency','active_time','sport:run'):
+   with self.subTest(code=code):
+    tier=next(item for item in tracks[code]['tiers'] if item['rank']==1)
+    self.assertTrue(tier['quiet'])
+  self.assertEqual(next(item for item in tracks['sport:run']['tiers'] if item['rank']==1)['trigger'],'first_activity')
+  with db.connect() as c:
+   rows=c.execute("""SELECT kind,details,silent FROM milestones WHERE user_id=%s
+                     AND ((kind='track' AND details->>'track'=ANY(%s)) OR kind='sport')""",
+                  (self.ids[0],['workouts','consistency','active_time','sport:run'])).fetchall()
+   pushes=c.execute("SELECT count(*) AS n FROM notifications WHERE user_id=%s AND kind='milestone'",(self.ids[0],)).fetchone()['n']
+  quiet_rows=[row for row in rows if row['details'].get('quiet')]
+  self.assertGreaterEqual(len(quiet_rows),4,'threshold tiers and the zero-distance First run are stored')
+  self.assertTrue(all(not row['silent'] for row in quiet_rows),'fresh quiet awards remain available in app')
+  self.assertEqual(pushes,0,'quiet awards do not enqueue pushes')
+  feed=self.clients[1].get('/api/feed/friends').json()
+  self.assertFalse(any(row.get('kind')=='achievement_moment' for row in feed),'quiet early awards stay out of the friend feed even when sharing is on')
+
+ def test_catalog_history_uses_exact_crossing_dates_and_legacy_dates_after_deletion(self):
   activities=[self.lifted_activity(days,kg) for days,kg in ((8,1000),(5,1000),(2,50),(1,1000))]
   self.process()
   response=self.clients[0].get('/api/achievement-history/lifted');self.assertEqual(response.status_code,200,response.text)
   tiers=response.json()['tiers'];names=[row['name'] for row in tiers]
-  self.assertEqual(names,['A car','An elephant','A school bus','A loaded semi truck','A blue whale','Statue of Liberty'])
+  self.assertEqual(names,['A grand piano','A car','An elephant','A school bus','A loaded semi truck','A blue whale','Statue of Liberty'])
   statue=next(row for row in tiers if row['name']=='Statue of Liberty')
   expected=(self.now-dt.timedelta(hours=2)-dt.timedelta(days=2)).astimezone(M.ZoneInfo('America/New_York')).date().isoformat()
-  self.assertEqual(statue['day'],expected,'the v2 level date is when the cumulative total first passed 204,117 kg')
+  self.assertEqual(statue['day'],expected,'the catalog level date is when the cumulative total first passed 204,117 kg')
   self.assertEqual(statue['activity_id'],activities[2])
   self.assertEqual(statue['date_source'],'activity')
   self.assertEqual(self.clients[1].get('/api/achievement-history/lifted').json()['tiers'],[],'history remains private to its owner')
   with db.connect() as c:
-   saved=c.execute("SELECT day FROM milestones WHERE user_id=%s AND kind='track' AND details->>'track'='lifted' AND (details->>'threshold')::double precision=300000",(self.ids[0],)).fetchone()
+   saved=c.execute("SELECT day FROM milestones WHERE user_id=%s AND kind='track' AND details->>'track'='lifted' AND (details->>'threshold')::double precision=204117",(self.ids[0],)).fetchone()
    self.assertIsNotNone(saved,'the worker keeps the legacy crossing date')
    c.execute('DELETE FROM activities WHERE user_id=%s AND id=ANY(%s)',(self.ids[0],activities))
   fallback=self.clients[0].get('/api/achievement-history/lifted');self.assertEqual(fallback.status_code,200,fallback.text)
@@ -291,15 +372,16 @@ class Milestones(unittest.TestCase):
   base=since-dt.timedelta(days=10);zone=M.ZoneInfo('America/New_York')
   with db.connect() as c:c.execute('UPDATE profile SET share_achievements_since=%s WHERE user_id=%s',(since-dt.timedelta(days=12),owner_id))
   events=[
-   ('track:journey:test:first', 'track', 'Lake Tahoe', 1, base+dt.timedelta(minutes=2), {'track':'journey','rank':1,'threshold':300000,'label':'Lake Tahoe','unit':'km','big':True}),
+   ('track:journey:test:marathon', 'track', 'Marathon', 3, base+dt.timedelta(minutes=2), {'track':'journey','rank':3,'threshold':42195,'label':'Marathon','unit':'km','big':True}),
    ('sport:run:test:first', 'sport', 'First run', 1, base+dt.timedelta(minutes=4), {'sport':'run','rank':1,'label':'First run','unit':'count'}),
-   ('track:journey:test:us', 'track', 'Across the US', 2, base+dt.timedelta(minutes=6), {'track':'journey','rank':2,'threshold':4500000,'label':'Across the US','unit':'km','big':True}),
-   ('track:journey:test:small', 'track', 'Small tier', 3, base+dt.timedelta(minutes=8), {'track':'journey','rank':3,'threshold':5000000,'label':'Small tier','unit':'km','big':False}),
-   ('track:journey:test:moon', 'track', 'To the Moon', 4, base+dt.timedelta(days=8), {'track':'journey','rank':4,'threshold':384400000,'label':'To the Moon','unit':'km','big':True}),
+   ('track:journey:test:ironman', 'track', 'Ironman 70.3', 4, base+dt.timedelta(minutes=6), {'track':'journey','rank':4,'threshold':113137,'label':'Ironman 70.3','unit':'km','big':True}),
+   ('track:journey:test:us', 'track', 'Across the US', 7, base+dt.timedelta(minutes=8), {'track':'journey','rank':7,'threshold':4506163,'label':'Across the US','unit':'km','big':True}),
+   ('track:journey:test:small', 'track', 'Small tier', 8, base+dt.timedelta(minutes=9), {'track':'journey','rank':8,'threshold':5000000,'label':'Small tier','unit':'km','big':False}),
+   ('track:journey:test:moon', 'track', 'To the Moon', 11, base+dt.timedelta(days=8), {'track':'journey','rank':11,'threshold':384399861,'label':'To the Moon','unit':'km','big':True}),
   ]
   with db.connect() as c:
    c.execute("INSERT INTO milestones(user_id,code,kind,title,rank,day,occurred,details) VALUES(%s,'track:journey:test:state','track_state','Journey',0,%s,%s,%s)",
-             (owner_id,base.astimezone(zone).date(),base,psycopg.types.json.Jsonb({'track':'journey','value_m':4500000,'label':'Journey','unit':'km'})))
+             (owner_id,base.astimezone(zone).date(),base,psycopg.types.json.Jsonb({'track':'journey','value_m':4506163,'label':'Journey','unit':'km'})))
    for code,kind,title,rank,occurred,details in events:
     c.execute('INSERT INTO milestones(user_id,code,kind,title,rank,day,occurred,details) VALUES(%s,%s,%s,%s,%s,%s,%s,%s)',
               (owner_id,code,kind,title,rank,occurred.astimezone(zone).date(),occurred,psycopg.types.json.Jsonb(details)))
@@ -308,7 +390,7 @@ class Milestones(unittest.TestCase):
   feed=friend.get('/api/feed/friends').json();moments=[row for row in feed if row.get('kind')=='achievement_moment']
   self.assertEqual(len(moments),2,'multiple big tiers fold into one moment per owner per local week')
   first_week=next(m for m in moments if m['week_start']==(base.astimezone(zone).date()-dt.timedelta(days=base.astimezone(zone).date().weekday())).isoformat())
-  self.assertEqual(first_week['title'],'Across the US');self.assertEqual(first_week['extra_count'],2,'big tiers and the sport First fold together; a small tier does not')
+  self.assertEqual(first_week['title'],'Across the US');self.assertEqual(first_week['extra_count'],2,'three loud catalog tiers fold together; the quiet First and small tier do not')
   self.assertTrue(first_week['is_track'],'the leading journey tier is identified for its feed icon')
   for moment in moments:
    self.assertLess(moment['id'],0)
