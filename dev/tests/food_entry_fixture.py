@@ -19,6 +19,9 @@ from app import db,api_food as F,food_thread as T,food_thread_compose as C,food_
 from app.main import app
 def login_for(who):
  return {'648fastlight':'zz_test_648_fl','648fastdark':'zz_test_648_fd','648chiplight':'zz_test_648_cl','648chipdark':'zz_test_648_cd','648amblight':'zz_test_648_al','648ambdark':'zz_test_648_ad'}.get(who,'zz_test_food_compact_'+who)
+# Same fixed instant as the browser clock: noon in the food profile's New York timezone.
+test_now=dt.datetime(2026,11,6,12,tzinfo=ZoneInfo('America/New_York'))
+today=test_now.date()
 foods=[{'name':'Fictional hot dog','amount':'2','grams':280,'kcal':550,'protein_g':20,'carbs_g':45,'fat_g':32},{'name':'Fictional diet soda','amount':'1 bottle','grams':590,'kcal':0,'protein_g':0,'carbs_g':0,'fat_g':0},{'name':'Fictional apple','amount':'1 apple','grams':150,'kcal':80,'protein_g':0,'carbs_g':21,'fat_g':0}]
 photo=[{'name':name,'amount':amount,'grams':grams,'kcal':kcal,'protein_g':protein,'carbs_g':carbs,'fat_g':fat} for name,amount,grams,kcal,protein,carbs,fat in [('Spiced rice','0.75 cup',120,160,3,35,1),('Butter chicken','1 cup',240,380,28,12,24),('Chickpeas and potato','0.5 cup',120,150,6,24,3),('Slaw and tomato','0.5 cup',60,70,1,8,4)]]
 with patch('urllib.request.urlopen',side_effect=AssertionError('No external request')):
@@ -28,7 +31,7 @@ with patch('urllib.request.urlopen',side_effect=AssertionError('No external requ
    custom=client.post('/api/food/foods',json={'name':'Fictional hot dog','serving_g':140,'kcal':210,'protein_g':14,'carbs_g':20,'fat_g':8});assert custom.status_code==200,custom.text
    print(who,'saved fictional food for inline Kit entry');continue
   draft=str(uuid.uuid4());body='Scanned product 016000157620' if who=='barcode' else 'Fictional photo result: half the rice' if who=='photo' else 'Make it two hot dogs' if who in ('three','638three','6383d') else 'A taco' if who=='clarify' else 'A fictional hot dog and a taco' if who=='mixed' else 'A fictional hot dog'
-  day=dt.datetime.now(ZoneInfo('America/New_York')).date() if who.startswith('638') else dt.datetime.now(dt.timezone.utc).date()
+  day=today
   payload={'client_id':str(uuid.uuid4()),'draft_id':draft,'review_only':True,'body':body,'meal':'lunch','day':str(day)}
   if who=='barcode':payload.update(media='barcode',barcode='016000157620')
   response=client.post('/api/food/thread/messages',json=payload);assert response.status_code==201,response.text
@@ -53,21 +56,21 @@ with patch('urllib.request.urlopen',side_effect=AssertionError('No external requ
   parts=[part]
   if who=='mixed':parts.append({'index':1,'status':'description','description':{'food':'taco','portion_only':False},'question':'What kind of taco?','replies':['1 serving Fictional chicken taco']})
   with db.connect() as c:
-   uid=c.execute('SELECT id FROM users WHERE login=%s',(login,)).fetchone()['id'];result=C.write(c,uid,T.locked_message(c,uid,m['id']),{'composed':True,'day':str(dt.datetime.now(dt.timezone.utc).date()),'meal':'lunch','parts':parts})
+   uid=c.execute('SELECT id FROM users WHERE login=%s',(login,)).fetchone()['id'];result=C.write(c,uid,T.locked_message(c,uid,m['id']),{'composed':True,'day':str(today),'meal':'lunch','parts':parts})
   reply=next(x for x in result['messages'] if x.get('reply_to')==m['id']);assert not reply['result'].get('error'),reply['result'];assert client.get('/api/food/day').json()['entries']==[]
   first=(reply['result'].get('parts') or [{}])[0].get('entries') or []
   if first and first[0].get('name')=='Fictional hot dog':assert first[0].get('amount')==2 and first[0].get('kcal')==550, f"two fictional portions keep count-matched calories: {first[0]}"
   print(who,'saved fictional stand-in ready')
 login='zz_test_food_compact_logged';client=TestClient(app);client.headers['Origin']='http://testserver';assert client.post('/api/login',json={'login':login,'password':'green teapot on the hill'}).status_code==200
-draft=str(uuid.uuid4());message=client.post('/api/food/thread/messages',json={'client_id':str(uuid.uuid4()),'draft_id':draft,'body':'Fictional logged apple','meal':'lunch','day':str(dt.datetime.now(dt.timezone.utc).date())});assert message.status_code==201,message.text
+draft=str(uuid.uuid4());message=client.post('/api/food/thread/messages',json={'client_id':str(uuid.uuid4()),'draft_id':draft,'body':'Fictional logged apple','meal':'lunch','day':str(today)});assert message.status_code==201,message.text
 m=message.json()['message'];entry={'name':'Fictional logged apple','brand':None,'amount':1,'unit':'serving','kcal':80,'protein_g':0,'carbs_g':21,'fat_g':0,'fiber_g':4,'source':'quick','ref':{}}
 with db.connect() as c:
- uid=c.execute('SELECT id FROM users WHERE login=%s',(login,)).fetchone()['id'];result=C.write(c,uid,T.locked_message(c,uid,m['id']),{'composed':True,'day':str(dt.datetime.now(dt.timezone.utc).date()),'meal':'lunch','parts':[{'index':0,'status':'ready','manual':True,'entries':[entry]}]},force=True)
+ uid=c.execute('SELECT id FROM users WHERE login=%s',(login,)).fetchone()['id'];result=C.write(c,uid,T.locked_message(c,uid,m['id']),{'composed':True,'day':str(today),'meal':'lunch','parts':[{'index':0,'status':'ready','manual':True,'entries':[entry]}]},force=True)
 reply=next(x for x in result['messages'] if x.get('reply_to')==m['id']);assert reply['entries'] and reply['result']['kind']=='log'
 print('logged saved fictional card')
 def signed(who):
  client=TestClient(app);client.headers['Origin']='http://testserver';assert client.post('/api/login',json={'login':'zz_test_food_compact_'+who,'password':'green teapot on the hill'}).status_code==200;return client
-today=dt.datetime.now(dt.timezone.utc).date();yesterday=(today-dt.timedelta(days=1)).isoformat()
+yesterday=(today-dt.timedelta(days=1)).isoformat()
 for who,day,name in [('copy',yesterday,'Fictional copied breakfast'),('edit',today.isoformat(),'Fictional editable food')]:
  client=signed(who);res=client.post('/api/food/entries',json=[{'client_id':str(uuid.uuid4()),'day':day,'meal':'breakfast','name':name,'amount':1,'unit':'serving','kcal':320,'protein_g':12,'carbs_g':44,'fat_g':9,'fiber_g':5,'source':'quick','ref':{}}]);assert res.status_code==200,res.text
 client=signed('untitled');res=client.post('/api/dishes',json={});assert res.status_code==200,res.text;did=res.json()['id'];res=client.post(f'/api/dishes/{did}/items',json={'name':'Fictional oats','grams':40,'per100':{'kcal':389,'protein_g':16.9,'carbs_g':66.3,'fat_g':6.9,'fiber_g':10.6}});assert res.status_code==200,res.text
@@ -111,7 +114,7 @@ first=client.post('/api/food/entries',json=[retry_item]);assert first.status_cod
 assert client.request('DELETE',f"/api/food/meals/{retry_meal.json()['id']}",json={}).status_code==200
 retry=client.post('/api/food/entries',json=[retry_item]);assert retry.status_code==200,retry.text;assert retry.json()['ids']==first.json()['ids'],'delete-after-write retry returns the original log id'
 print('copied/editable/recent/untitled fictional diary rows ready')
-repeat_day=dt.datetime.now(ZoneInfo('America/New_York')).date();repeat_now=dt.datetime.now(dt.timezone.utc)
+repeat_day=today;repeat_now=dt.datetime.now(dt.timezone.utc)
 repeat_groups={
  '648fastlight':[[('Fictional toast',1,'piece',120),('Fictional butter',1,'serving',40)]],
  '648fastdark':[[('Fictional toast',1,'piece',120),('Fictional butter',1,'serving',40)]],
