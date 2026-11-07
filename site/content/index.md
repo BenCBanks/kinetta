@@ -4,51 +4,35 @@ Edit the text below each heading. Keep the section keys unchanged. Supports **bo
 
 ## your-workouts-and-your-food-in-one-app-1
 
-Your workouts and your food, *in one app.*
+Your workouts. Your nutrition. One app.
 
 ## runs-rides-lifting-and-meals-tracked-together-and-kept-2
 
-Record your workouts, log your food and understand your progress in one private overview. Share the activities you choose.
+Progress, insights and Kit.
 
 ## runs-rides-and-lifting-4
 
-Runs, rides and lifting
-
-## import-runs-and-rides-from-your-watch-files-or-connect-5
-
-Record or import your workouts. Follow a plan, log lifting and see your progress over time.
+See the whole workout
 
 ## quick-food-logging-6
 
-Quick food logging
-
-## say-what-you-ate-in-your-own-words-snap-a-photo-or-sca-7
-
-Search, scan or describe your food. Save recipes, choose portions and follow your calories and macros.
+Log food with a sentence
 
 ## friends-kept-private-8
 
 Share with friends
 
-## photos-cheers-and-comments-with-route-starts-and-ends--9
+## home-progress-caption
 
-One activity feed, a profile you control, and 16 emoji reactions to cheer each other on. Your food log and body data stay private.
+Progress over time
 
-## want-to-try-it-12
+## home-insights-caption
 
-Want to *try it?*
+Understand food patterns
 
-## it-s-a-small-beta-for-now-ask-for-an-invite-13
+## home-kit-caption
 
-Open enrollment to create an account or join the waitlist, depending on availability. Have an invitation? Use its link. For iPhone, install Apple’s free TestFlight app, then [get Kinetta](https://testflight.apple.com/join/YAX1JnwB) and log in with your account. Your browser works for food, history and friends too.
-
-## beta-how-to
-
-Web and iPhone beta. Account access comes first; the iPhone app uses [TestFlight](https://testflight.apple.com/join/YAX1JnwB).
-
-## kinetta-k-n-t-from-kinetic-the-energy-of-moving-and-ki-14
-
-**kinetta** /kɪˈnɛtə/: from *kinetic*, the energy of moving, and *kin*, the people you move with.
+Ask Kit about training
 
 ## training-training-food-food-friends-friends-compare-co-17
 
