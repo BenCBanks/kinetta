@@ -170,7 +170,7 @@
 .me-showcase-medal[data-showcase-code="sport:lift"],.me-showcase-medal[data-showcase-code="lifted"] { --showcase-color:var(--workout); }
 .me-showcase-medal[data-showcase-code="climbing"] { --showcase-color:var(--hike); }
 .me-showcase-icon { display:block; width:18px; height:18px; object-fit:contain; }
-.me-showcase-streak { display:inline-flex; align-items:center; gap:3px; margin-left:1px; color:var(--tx2); font-size:.75rem; font-weight:650; line-height:1; white-space:nowrap; }
+.me-showcase-streak { display:inline-flex; align-items:center; gap:3px; margin-left:1px; color:var(--tx2); font-size:.9375rem; font-weight:650; line-height:1; white-space:nowrap; }
 .me-showcase-streak svg { display:block; width:14px; height:14px; color:var(--color-action); }
 .me-profile-chevron { display:inline-flex; align-items:center; justify-content:center; flex:none; color:var(--tx2); pointer-events:none; }
 .me-profile-chevron svg { display:block; width:20px; height:20px; }

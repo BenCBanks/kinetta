@@ -24,16 +24,17 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
  for(const size of sizes)for(const theme of themes){
   const c=await b.newContext({storageState,viewport:size,colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];
   let slotFixture='both',todayFixture='both',zeroDistanceFixture=false,seriesFixture;
-  let showcaseFixture={items:[],pinned:[],day_streak:0},sharedShowcaseEnabled=false;const sharedShowcaseRequests=[];
+  let showcaseFixture={items:[],pinned:[],day_streak:0},shareAchievementsEnabled=false;const sharedShowcaseRequests=[];
   p.on('pageerror',e=>errors.push(e.message));
   await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
   await c.route('**/api/**',async r=>{
    const q=r.request(),u=new URL(q.url());
    if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);return r.fulfill({json:{}});}
    if(u.pathname==='/api/achievements/showcase'){
-    if(u.searchParams.has('login')){sharedShowcaseRequests.push(u.searchParams.get('login'));return r.fulfill({json:sharedShowcaseEnabled?showcaseFixture:{items:[],pinned:[],day_streak:0}});}
+    if(u.searchParams.has('login')){sharedShowcaseRequests.push(u.searchParams.get('login'));return r.fulfill({json:showcaseFixture});}
     return r.fulfill({json:showcaseFixture});
    }
+   if(u.pathname==='/api/sharing')return r.fulfill({json:{share_achievements:shareAchievementsEnabled}});
    if(u.pathname==='/api/me'){const resp=await r.fetch(),j=await resp.json();j.bio='Fictional trails and weekend rides.';j.kcal_target=null;j.protein_target=null;j.units='imperial';return r.fulfill({response:resp,json:j});}
    if(u.pathname==='/api/activities'&&u.searchParams.has('limit')){
     const day=todayInNewYork(),hasActivity=['both','activity','activity-multiple','food-error'].includes(todayFixture),yesterday=todayFixture==='activity-empty';
@@ -289,6 +290,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    showcaseFixture={items:[{code:'journey',rank:4},{code:'sport:run',rank:2},{code:'workouts',rank:3}],pinned:[],day_streak:12};await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-showcase-medal').nth(2).waitFor();
    assert.equal(await p.locator('.me-showcase-medal').count(),3,'the profile card caps the Showcase at three medals');
    assert.equal(await p.locator('.me-showcase-streak').innerText(),'12','a live day streak sits beside the medals');
+   const streakFont=await p.locator('.me-showcase-streak').evaluate(n=>parseFloat(getComputedStyle(n).fontSize));assert(streakFont>=15,'the compact streak number meets the minimum readable type size ('+streakFont+'px)');
    assert.match(await p.locator('.me-showcase-row').getAttribute('aria-label'),/Showcase:.*12-day activity streak/,'the compact row has an accessible medal and streak label');
    const medalSizes=await p.locator('.me-showcase-medal').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return [r.width,r.height];}));
    assert(medalSizes.every(([width,height])=>width===28&&height===28),'Showcase medals are 28px icons '+JSON.stringify(medalSizes));
@@ -296,11 +298,11 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    const medalBox=await p.locator('.me-showcase-medal').first().boundingBox(),medalLinkHit=await p.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('.me-card-open-link'),{x:medalBox.x+medalBox.width/2,y:medalBox.y+medalBox.height/2});
    assert(medalLinkHit,'tapping a Showcase medal reaches the same whole-card profile link');
    await p.mouse.click(medalBox.x+medalBox.width/2,medalBox.y+medalBox.height/2);await p.waitForURL('**/people/alex');await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();
-   sharedShowcaseEnabled=false;await p.locator('[data-card-share]').click();await p.locator('.profile-share-preview .me-card').waitFor();
+  shareAchievementsEnabled=false;await p.locator('[data-card-share]').click();await p.locator('.profile-share-preview .me-card').waitFor();
    await p.waitForFunction(()=>document.querySelector('#profile-share-status')?.textContent==='');
    assert.equal(await p.locator('.profile-share-preview .me-showcase-medal').count(),0,'the shared profile preview hides Showcase while sharing is off');
    assert(sharedShowcaseRequests.includes('alex'),'shared preview requests the target profile Showcase');await screenshot('me-showcase-shared-off');await p.keyboard.press('Escape');
-   sharedShowcaseEnabled=true;await p.locator('[data-card-share]').click();await p.locator('.profile-share-preview .me-showcase-medal').first().waitFor();
+  shareAchievementsEnabled=true;await p.locator('[data-card-share]').click();await p.locator('.profile-share-preview .me-showcase-medal').first().waitFor();
    assert.equal(await p.locator('.profile-share-preview .me-showcase-medal').count(),3,'the shared profile preview shows the same medals when sharing is on');
    await screenshot('me-showcase-shared-on');
   }

@@ -258,10 +258,11 @@ const ProfileLayout=(()=>{
     const slot=root?.querySelector?.('[data-me-showcase]');if(!slot)return;
     const owner=readOwner(),login=r?.person?.login||r?.login||App.me?.login;
     const asShared=shared||r?.mine===false,url=asShared&&login?`/api/achievements/showcase?login=${encodeURIComponent(login)}`:'/api/achievements/showcase';
+    const ownSharedPreview=shared&&login&&App.me?.login&&String(login).toLowerCase()===String(App.me.login).toLowerCase();
     try{
-      const [data]=await Promise.all([api(url),loadAchievementCatalog()]);
+      const [data,_catalog,sharing]=await Promise.all([api(url),loadAchievementCatalog(),ownSharedPreview?api('/api/sharing'):Promise.resolve(null)]);
       if(!root.isConnected||!slot.isConnected||owner!==readOwner())return;
-      slot.innerHTML=showcaseMarkup(data);
+      slot.innerHTML=showcaseMarkup(ownSharedPreview&&sharing?.share_achievements!==true?{items:[],day_streak:0}:data);
     }catch(_){/* The optional Showcase never blocks its profile card. */}
   }
   function mountAchievements(box,r){
