@@ -4,7 +4,7 @@
 #feed-top .top .acts { gap:8px; }
 #feed-tools:empty { display:none; }
 @media(max-width:360px) {
- #feed-top .top > h1 { font-size:26px; white-space:nowrap; }
+ #feed-top .top > h1 { font-size:28px; white-space:nowrap; }
  #feed-top .top .acts { flex:none; }
 }
 .activity-home #ff-list > .post:first-child { margin-top:0; }
