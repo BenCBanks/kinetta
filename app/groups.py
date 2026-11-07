@@ -206,6 +206,7 @@ def _contributions(c, group, members, now=None):
     now = now or _now()
     zone = _zone(group['time_zone'])
     event_date = group['event_date']
+    group_start = group['created'] if event_date is None else None
     end = (dt.datetime.combine(event_date + dt.timedelta(days=1), dt.time.min, zone).astimezone(UTC)
            if event_date else now)
     visible_ids = [member['user_id'] for member in members]
@@ -219,10 +220,10 @@ def _contributions(c, group, members, now=None):
     }
     rows = c.execute(f'''SELECT m.user_id,coalesce({measures[group['goal_type']]},0) AS raw
       FROM group_members m LEFT JOIN activities a ON a.user_id=m.user_id
-        AND a.start_time>=greatest(m.joined_at,%s::timestamptz)
+        AND a.start_time>=greatest(m.joined_at,coalesce(%s::timestamptz,m.joined_at))
         AND a.start_time<least(%s::timestamptz,%s) AND NOT a.lift_open
       WHERE m.group_id=%s AND m.status='active' AND m.user_id=ANY(%s)
-      GROUP BY m.user_id''', (group['created'], end, now, group['id'], visible_ids)).fetchall()
+      GROUP BY m.user_id''', (group_start, end, now, group['id'], visible_ids)).fetchall()
     divisor = (1609.344 if group['goal_unit'] == 'mi' else 1000) if group['goal_type'] == 'distance' else (
         0.3048 if group['goal_type'] == 'elevation' and group['goal_unit'] == 'ft' else 1)
     return {row['user_id']: round(float(row['raw'] or 0) / divisor, 3) for row in rows}
@@ -232,6 +233,7 @@ def _weekly_contributions(c, group, members, now):
     local_day, start, week_end = _local_week_window(group['time_zone'], now)
     zone = _zone(group['time_zone'])
     event_date = group['event_date']
+    group_start = group['created'] if event_date is None else None
     event_end = (dt.datetime.combine(event_date + dt.timedelta(days=1), dt.time.min, zone).astimezone(UTC)
                  if event_date else now)
     end = min(week_end, event_end, now)
@@ -246,10 +248,10 @@ def _weekly_contributions(c, group, members, now):
     }
     rows = c.execute(f'''SELECT m.user_id,coalesce({measures[group['goal_type']]},0) AS raw
       FROM group_members m LEFT JOIN activities a ON a.user_id=m.user_id
-        AND a.start_time>=greatest(m.joined_at,%s::timestamptz,%s::timestamptz)
+        AND a.start_time>=greatest(m.joined_at,coalesce(%s::timestamptz,m.joined_at),%s::timestamptz)
         AND a.start_time<%s::timestamptz AND NOT a.lift_open
       WHERE m.group_id=%s AND m.status='active' AND m.user_id=ANY(%s)
-      GROUP BY m.user_id''', (group['created'], start, end, group['id'], visible_ids)).fetchall()
+      GROUP BY m.user_id''', (group_start, start, end, group['id'], visible_ids)).fetchall()
     divisor = (1609.344 if group['goal_unit'] == 'mi' else 1000) if group['goal_type'] == 'distance' else (
         0.3048 if group['goal_type'] == 'elevation' and group['goal_unit'] == 'ft' else 1)
     return local_day, {row['user_id']: round(float(row['raw'] or 0) / divisor, 3) for row in rows}
