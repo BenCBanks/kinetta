@@ -2013,6 +2013,61 @@ MIGRATIONS = [
     ALTER TABLE profile ADD COLUMN find_by_email boolean NOT NULL DEFAULT true,
       ADD COLUMN find_by_phone boolean NOT NULL DEFAULT true;""",
 
+    # 100. Private event Groups. Invite secrets are one-way hashes; memberships never expose activity rows.
+    """CREATE TABLE event_groups (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      organizer_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title text NOT NULL CHECK(length(btrim(title)) BETWEEN 1 AND 80),
+      event_date date NOT NULL,
+      time_zone text NOT NULL,
+      note text NOT NULL DEFAULT '' CHECK(length(note)<=280),
+      goal_type text NOT NULL CHECK(goal_type IN ('distance','elevation','long_outings','sessions')),
+      goal_target double precision NOT NULL CHECK(goal_target>0 AND goal_target<'Infinity'::double precision AND goal_target<=1000000),
+      goal_unit text NOT NULL,
+      invite_generation integer NOT NULL DEFAULT 0 CHECK(invite_generation>=0),
+      joining_closed boolean NOT NULL DEFAULT false,
+      closed_at timestamptz,
+      created timestamptz NOT NULL DEFAULT now(),
+      CHECK((goal_type='distance' AND goal_unit IN ('km','mi')) OR
+            (goal_type='elevation' AND goal_unit IN ('m','ft')) OR
+            (goal_type='long_outings' AND goal_unit='outings') OR
+            (goal_type='sessions' AND goal_unit='sessions')));
+    CREATE INDEX event_groups_organizer ON event_groups(organizer_id,created DESC);
+    CREATE TABLE group_members (
+      group_id uuid NOT NULL REFERENCES event_groups(id) ON DELETE CASCADE,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status text NOT NULL DEFAULT 'active' CHECK(status IN ('active','left','removed')),
+      joined_at timestamptz NOT NULL DEFAULT now(),
+      removed_invite_generation integer,
+      PRIMARY KEY(group_id,user_id),
+      CHECK((status='removed')=(removed_invite_generation IS NOT NULL)));
+    CREATE INDEX group_members_user ON group_members(user_id,status,joined_at);
+    CREATE TABLE group_invites (
+      id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      group_id uuid NOT NULL REFERENCES event_groups(id) ON DELETE CASCADE,
+      generation integer NOT NULL CHECK(generation>0),
+      token_hash bytea NOT NULL UNIQUE CHECK(octet_length(token_hash)=32),
+      created_at timestamptz NOT NULL DEFAULT now(),
+      expires_at timestamptz NOT NULL,
+      revoked_at timestamptz,
+      UNIQUE(group_id,generation));
+    CREATE INDEX group_invites_live ON group_invites(group_id,expires_at) WHERE revoked_at IS NULL;
+    ALTER TABLE event_groups ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_event_groups ON event_groups FOR SELECT TO fit_readers USING(
+      EXISTS(SELECT 1 FROM group_members m
+        WHERE m.group_id=event_groups.id AND m.user_id=fit_me() AND m.status='active'));
+    GRANT SELECT ON event_groups TO fit_readers;
+    ALTER TABLE group_members ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY own_group_membership ON group_members FOR SELECT TO fit_readers USING(user_id=fit_me());
+    GRANT SELECT ON group_members TO fit_readers;
+    ALTER TABLE group_invites ENABLE ROW LEVEL SECURITY;
+    REVOKE ALL ON group_invites FROM PUBLIC,fit_readers,fit_all_readers;
+    REVOKE ALL ON event_groups,group_members FROM PUBLIC,fit_all_readers;
+    REVOKE INSERT,UPDATE,DELETE ON event_groups,group_members FROM fit_readers;
+    ALTER TABLE reports ADD COLUMN group_id uuid REFERENCES event_groups(id) ON DELETE SET NULL;
+    ALTER TABLE reports DROP CONSTRAINT reports_kind_check;
+    ALTER TABLE reports ADD CONSTRAINT reports_kind_check CHECK(kind IN ('person','activity','comment','dish','challenge','group'));""",
+
 ]
 
 

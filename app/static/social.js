@@ -956,6 +956,135 @@ route(/^\/add\/([\w-]+)$/, 'activity', async (el, code) => {
 
 route(/^\/me\/friends$/, 'me', el=>FriendsUI.mount(el));
 
+// ---------- private event Groups (2026-11-07) ----------
+const GROUP_GOALS={distance:'Distance',elevation:'Elevation',long_outings:'Long outings',sessions:'Sessions'};
+function groupDate(value,zone){
+  const [y,m,d]=value.split('-').map(Number),date=new Date(Date.UTC(y,m-1,d,12));
+  return new Intl.DateTimeFormat(undefined,{timeZone:zone,month:'short',day:'numeric',year:'numeric'}).format(date);
+}
+function groupNumber(value){return Number(value||0).toLocaleString(undefined,{maximumFractionDigits:1});}
+function groupAmount(value,unit){return `${groupNumber(value)} ${unit}`;}
+function groupTimeZoneLabel(zone){
+  if(zone==='UTC'||zone==='Etc/UTC')return 'UTC';
+  try{const name=new Intl.DateTimeFormat('en-US',{timeZone:zone,timeZoneName:'longGeneric'}).formatToParts(new Date()).find(part=>part.type==='timeZoneName')?.value;if(name&&!/^GMT[+-]/.test(name))return name.replace(/\bTime\b/g,'time');}catch{}
+  const place=zone.split('/').at(-1).replace(/_/g,' ');return `${place} time`;
+}
+function groupTimeZonePickerLabel(zone){const place=zone.split('/').slice(1).join(' · ').replace(/_/g,' ');return place?`${place} · ${groupTimeZoneLabel(zone)}`:groupTimeZoneLabel(zone);}
+function groupTimeZoneOptions(current){
+  let zones;
+  try{zones=Intl.supportedValuesOf('timeZone');}catch{zones=['UTC','America/Los_Angeles','America/Denver','America/Chicago','America/New_York','America/Toronto','America/Vancouver','Europe/London','Europe/Paris','Asia/Tokyo','Australia/Sydney'];}
+  if(!zones.includes(current))zones.push(current);
+  return [...new Set(zones)].sort((a,b)=>groupTimeZonePickerLabel(a).localeCompare(groupTimeZonePickerLabel(b))).map(zone=>`<option value="${esc(zone)}"${zone===current?' selected':''}>${esc(groupTimeZonePickerLabel(zone))}</option>`).join('');
+}
+function groupInviteSheet(url){
+  const owner=readOwner();sheet('Invite to this group',`<p>People who open this link see only that they’re invited to a private group. They must sign in and accept.</p><p class="group-invite-link" tabindex="0">${esc(url)}</p>
+    <div class="group-invite-actions"><button type="button" class="primary wide" data-group-copy>Copy invite link</button><button type="button" class="ghost wide" data-group-share>Share invite link</button></div>
+    <button type="button" class="linkbtn wide" data-close>Done</button>`,(body,close)=>{
+      const live=()=>owner===readOwner()&&body.isConnected;
+      $('[data-group-copy]',body).onclick=async()=>{
+        try{await navigator.clipboard.writeText(url);if(live())toast('Invite link copied');}
+        catch{const field=document.createElement('textarea');field.value=url;field.setAttribute('readonly','');body.append(field);field.select();try{document.execCommand('copy');toast('Invite link copied');}catch{toast('Couldn’t copy the invite link');}field.remove();}
+      };
+      $('[data-group-share]',body).onclick=async()=>{try{if(navigator.share)await navigator.share({title:'Join my Kinetta group',url});else await navigator.clipboard.writeText(url);if(live()&&!navigator.share)toast('Invite link copied');}catch(e){if(e.name!=='AbortError'&&live())toast('Couldn’t share the invite link');}};
+      $('[data-close]',body).onclick=close;
+    });
+}
+function groupCreateSheet(done){
+  const today=new Date().toLocaleDateString('en-CA'),zone=Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';
+  sheet('Create a group',`<form class="form group-create-form" id="group-create-form"><div class="group-create-fields">
+    <label>Group name<input name="title" maxlength="80" required autocomplete="off" placeholder="Dolomites hike"></label>
+    <label>Event date<input name="event_date" type="date" min="${today}" required></label>
+    <div class="group-time-zone"><button class="group-zone-change" type="button" id="group-zone-change">${esc(groupTimeZoneLabel(zone))} · Change</button><select class="group-zone-picker" name="time_zone" aria-label="Event time zone" required hidden>${groupTimeZoneOptions(zone)}</select></div>
+    <label>Short note (optional)<textarea name="note" maxlength="280" rows="2"></textarea></label>
+    <label>Shared goal<select name="goal_type"><option value="distance">Distance</option><option value="elevation">Elevation</option><option value="long_outings">Long outings</option><option value="sessions">Sessions</option></select></label>
+    <div class="group-goal-fields"><label>Target<input name="goal_target" type="number" min="0.1" max="1000000" step="0.1" value="100" required></label><label>Units<select name="goal_unit"><option value="km">km</option><option value="mi">mi</option></select></label></div>
+    <p class="small muted">Only group members see the group. Activities, routes, food and body data stay private.</p></div>
+    <div class="group-create-footer"><button class="primary wide" type="submit">Create group</button><button class="linkbtn wide" type="button" data-close>Cancel</button></div></form>`,(body,close)=>{
+      const form=$('#group-create-form',body),kind=form.elements.goal_type,unit=form.elements.goal_unit,target=form.elements.goal_target,zoneButton=$('#group-zone-change',form),zonePicker=form.elements.time_zone;
+      const setGoal=()=>{const options=kind.value==='distance'?[['km','km'],['mi','mi']]:kind.value==='elevation'?[['m','m'],['ft','ft']]:kind.value==='long_outings'?[['outings','outings']]:[['sessions','sessions']];unit.innerHTML=options.map(([value,label])=>`<option value="${value}">${label}</option>`).join('');target.step=options[0][0]==='km'||options[0][0]==='mi'||options[0][0]==='m'||options[0][0]==='ft'?'0.1':'1';target.min=target.step;};
+      kind.onchange=setGoal;setGoal();
+      zoneButton.onclick=()=>{zonePicker.hidden=false;zoneButton.hidden=true;zonePicker.focus({preventScroll:true});try{zonePicker.showPicker?.();}catch{}};
+      const closeZonePicker=()=>{if(zonePicker.hidden)return;zoneButton.textContent=`${groupTimeZoneLabel(zonePicker.value)} · Change`;zonePicker.hidden=true;zoneButton.hidden=false;};
+      zonePicker.onchange=()=>{closeZonePicker();zoneButton.focus({preventScroll:true});};zonePicker.onblur=closeZonePicker;
+      form.onsubmit=async event=>{event.preventDefault();const submit=$('button[type=submit]',form);if(submit.disabled)return;submit.disabled=true;
+        const data={title:form.elements.title.value.trim(),event_date:form.elements.event_date.value,time_zone:zonePicker.value,note:form.elements.note.value.trim(),goal_type:kind.value,goal_target:Number(target.value),goal_unit:unit.value};
+        try{const group=await api('/api/groups',json('POST',data));if(!body.isConnected)return;close();done(group);}
+        catch(error){if(body.isConnected){toast(error.message);submit.disabled=false;}}
+      };
+      $('[data-close]',body).onclick=close;
+    });
+}
+route(/^\/me\/groups$/, 'me', async el=>{
+  el.classList.add('groups-page');el.innerHTML=`<div class="top">${backBtn('Friends')}<h1>Groups</h1><button type="button" class="linkbtn" id="group-new">Create</button></div><div id="group-list"><div class="card empty">Loading your groups…</div></div>`;wireBack(el,'/me/friends');
+  const live=()=>el.isConnected,create=()=>groupCreateSheet(group=>{go('/groups/'+encodeURIComponent(group.id),{replace:true});groupInviteSheet(group.invite_url);});
+  $('#group-new',el).onclick=create;
+  try{const groups=await api('/api/groups');if(!live())return;$('#group-list',el).innerHTML=groups.length?`<div class="card list">${groups.map(group=>`<a class="row-link group-list-row" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('calendar')}</span><span class="grow"><b>${esc(group.title)}</b><small>${esc(groupDate(group.event_date,group.time_zone))} · ${group.member_count} ${group.member_count===1?'member':'members'}</small></span>${svg('chev')}</a>`).join('')}</div>`:`<div class="group-empty"><p>Groups are private places to prepare for one event together.</p><button type="button" class="primary" id="group-empty-create">Create a group</button></div>`;
+    $('#group-empty-create',el)?.addEventListener('click',create);
+  }catch(error){if(live())$('#group-list',el).innerHTML=`<div class="card empty">${esc(error.message)}<button type="button" class="ghost" id="group-retry">Retry</button></div>`;$('#group-retry',el)?.addEventListener('click',()=>go('/me/groups',{replace:true}));}
+});
+function groupRoster(group,expanded){
+  const members=expanded?group.members:group.members.slice(0,10),rows=members.map(member=>`<div class="group-member"><span class="group-member-avatar" aria-hidden="true">${esc((member.username||'?').slice(0,1).toUpperCase())}</span><span class="group-member-name"><b>@${esc(member.username)}</b><small>${member.organizer?'Organizer':member.value!==undefined?'Sharing total':'Sharing total only'}</small></span>${member.value!==undefined?`<span class="group-member-value">${esc(groupAmount(member.value,group.goal_unit))}</span>`:''}</div>`).join('');
+  return `${rows}${!expanded&&group.member_count>10?`<button type="button" class="group-more linkbtn" data-group-more>+ ${group.member_count-10} more</button>`:''}`;
+}
+function groupGoal(group){
+  const combined=group.total!==undefined,value=Number(combined?group.total:group.your_total)||0,target=Number(group.goal_target)||0;
+  const progressMax=target||1,progressValue=Math.min(progressMax,Math.max(0,value));
+  return `<section class="group-goal card" aria-label="Shared goal"><small>${esc(GROUP_GOALS[group.goal_type]||'Shared goal')}</small><strong>${combined?'Together':'You'}: ${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}</strong><progress class="group-progress" max="${progressMax}" value="${progressValue}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}"></progress>${combined?'':'<small class="group-goal-hint">Group total appears with 3 members</small>'}</section>`;
+}
+function groupPage(el,group){
+  let expanded=false;
+  const draw=()=>{el.innerHTML=`<div class="top group-top">${backBtn('Groups')}<span></span><button type="button" class="icon-btn" id="group-options" aria-label="Group options">${svg('more')}</button></div>
+    <header class="group-title"><p class="eyebrow">Private group</p><h1>${esc(group.title)}</h1><p>${esc(groupDate(group.event_date,group.time_zone))} · ${group.days_to_event===0?'Today':`${group.days_to_event} days to go`}</p>${group.note?`<p class="group-note">${esc(group.note)}</p>`:''}</header>
+    ${groupGoal(group)}
+    <section class="group-roster card list"><h2>Members <span>${group.member_count}</span></h2><div id="group-members">${groupRoster(group,expanded)}</div></section>
+    `;
+    wireBack(el,'/me/groups');$('#group-options',el).onclick=()=>groupMenu(group,()=>go('/groups/'+encodeURIComponent(group.id),{replace:true}));$('[data-group-more]',el)?.addEventListener('click',()=>{expanded=true;draw();});
+  };
+  draw();
+}
+function groupActionSheet(title,html,handler){sheet(title,html,handler);}
+function groupMenu(group,reload){
+  const opts=[];
+  if(group.is_organizer&&!group.closed)opts.push(`<button type="button" class="row-link" data-gact="invite"><span>Invite people</span>${svg('chev')}</button>`,group.joining_closed?`<button type="button" class="row-link" data-gact="reopen"><span>Make a new invite</span>${svg('chev')}</button>`:`<button type="button" class="row-link" data-gact="stop"><span>Stop new members</span>${svg('chev')}</button>`);
+  if(group.is_organizer&&group.member_count>1)opts.push(`<button type="button" class="row-link" data-gact="transfer"><span>Transfer organizer</span>${svg('chev')}</button>`,`<button type="button" class="row-link" data-gact="remove"><span>Remove a member</span>${svg('chev')}</button>`);
+  if(group.is_organizer&&!group.closed)opts.push(`<button type="button" class="row-link danger" data-gact="close"><span>Close group</span>${svg('chev')}</button>`);
+  opts.push(`<button type="button" class="row-link" data-gact="leave"><span>Leave group</span>${svg('chev')}</button>`,`<button type="button" class="row-link" data-gact="report"><span>Report group</span>${svg('chev')}</button>`);
+  groupActionSheet('Group options',`<div class="group-options-list">${opts.join('')}</div><button type="button" class="linkbtn wide" data-close>Cancel</button>`,(body,close)=>{
+    const run=async(path,method='POST',payload={})=>{try{await api(path,json(method,payload));close();toast('Group updated');reload();}catch(error){toast(error.message);}};
+    $$('[data-gact]',body).forEach(button=>button.onclick=()=>{const action=button.dataset.gact;close();
+      if(action==='invite'||action==='reopen')api('/api/groups/'+encodeURIComponent(group.id)+'/invites',json('POST',{})).then(r=>groupInviteSheet(r.invite_url)).catch(e=>toast(e.message));
+      else if(action==='stop')run('/api/groups/'+encodeURIComponent(group.id)+'/stop-joining');
+      else if(action==='leave')groupConfirm('Leave group?','Your contribution will disappear from the group.',()=>run('/api/groups/'+encodeURIComponent(group.id)+'/leave'));
+      else if(action==='close')groupConfirm('Close group?','People can no longer join this group.',()=>run('/api/groups/'+encodeURIComponent(group.id)+'/close'));
+      else if(action==='transfer'||action==='remove')groupMemberAction(group,action==='transfer'?'Transfer organizer':'Remove a member',action==='transfer'?'transfer':'remove',reload);
+      else if(action==='report')groupReport(group);
+    });
+    $('[data-close]',body).onclick=close;
+  });
+}
+function groupConfirm(title,copy,yes){groupActionSheet(title,`<p>${esc(copy)}</p><div class="actions"><button type="button" class="ghost" data-close>Cancel</button><button type="button" class="primary" data-yes>Continue</button></div>`,(body,close)=>{$('[data-close]',body).onclick=close;$('[data-yes]',body).onclick=()=>{close();yes();};});}
+function groupMemberAction(group,title,action,reload){
+  const members=group.members.filter(m=>!m.organizer),label=action==='transfer'?'Transfer organizer':'Remove member';
+  groupActionSheet(title,`<div class="group-options-list">${members.map(m=>`<button type="button" class="row-link" data-member="${esc(m.username)}"><span>@${esc(m.username)}</span>${svg('chev')}</button>`).join('')}</div><button type="button" class="linkbtn wide" data-close>Cancel</button>`,(body,close)=>{
+    $('[data-close]',body).onclick=close;$$('[data-member]',body).forEach(button=>button.onclick=()=>{const username=button.dataset.member;close();groupConfirm(`${label}?`,`@${username} will ${action==='transfer'?'become the organizer':'be removed from this group'}.`,async()=>{try{await api(`/api/groups/${encodeURIComponent(group.id)}/${action}`,json('POST',{username}));toast('Group updated');reload();}catch(error){toast(error.message);}});});
+  });
+}
+function groupReport(group){
+  groupActionSheet('Report group',`<form class="form" id="group-report-form"><p class="small muted">The people who run this Kinetta see your report. Group members aren’t told who sent it.</p><div class="checks">${Object.entries(REPORT_WHY).map(([key,label])=>`<label class="check"><input type="radio" name="reason" value="${key}"> ${esc(label)}</label>`).join('')}</div><label>Anything else? (optional)<textarea name="note" maxlength="500" rows="2"></textarea></label><button type="submit" class="primary wide">Send report</button><button type="button" class="linkbtn wide" data-close>Cancel</button></form>`,(body,close)=>{
+    const form=$('#group-report-form',body);$('[data-close]',body).onclick=close;form.onsubmit=async event=>{event.preventDefault();const reason=form.elements.reason.value;if(!reason){toast('Choose a reason');return;}try{await api('/api/groups/'+encodeURIComponent(group.id)+'/report',json('POST',{reason,note:form.elements.note.value}));close();toast('Report sent');}catch(error){toast(error.message);}};
+  });
+}
+route(/^\/groups\/([0-9a-f-]{36})$/i,'activity',async(el,id)=>{
+  el.classList.add('group-page');el.innerHTML='<div class="card empty">Loading group…</div>';
+  try{const group=await api('/api/groups/'+encodeURIComponent(id));if(el.isConnected)groupPage(el,group);}
+  catch(error){if(el.isConnected)el.innerHTML=`<div class="top">${backBtn('Groups')}</div><div class="card empty"><b>Group not available</b><p>${esc(error.message)}</p><a class="ghost" href="/me/groups">Groups</a></div>`;wireBack(el,'/me/groups');}
+});
+route(/^\/group-invite\/([\w-]+)$/,'activity',async(el,token)=>{
+  el.classList.add('group-invite-page');el.innerHTML='<div class="card empty">Checking invite…</div>';wireBack(el,'/activity');
+  try{await api('/api/group-invites/'+encodeURIComponent(token));if(!el.isConnected)return;el.innerHTML=`<div class="top">${backBtn('Activity')}</div><section class="group-invite-card"><p class="eyebrow">Kinetta Groups</p><h1>You’re invited to a private group</h1><p>Only members can see the group. Sign in and accept to join.</p><div class="btncol"><button type="button" class="primary" id="group-accept">Accept invitation</button><a class="ghost" href="/activity">Not now</a></div></section>`;wireBack(el,'/activity');$('#group-accept',el).onclick=async event=>{const button=event.currentTarget;button.disabled=true;try{const group=await api('/api/group-invites/'+encodeURIComponent(token)+'/accept',json('POST',{}));if(el.isConnected){toast('You joined the group');go('/groups/'+encodeURIComponent(group.id),{replace:true});}}catch(error){toast(error.message);button.disabled=false;}};}
+  catch(error){if(el.isConnected)el.innerHTML=`<div class="top">${backBtn('Activity')}</div><section class="group-invite-card"><h1>This invite isn’t available</h1><p>Ask the organizer for a new group invite.</p><a class="ghost" href="/activity">Go to Activity</a></section>`;wireBack(el,'/activity');}
+});
+
 // ---------- report or block someone (App Store guideline 1.2): from their activity or one of their comments ----------
 const REPORT_WHY = {spam: 'Spam', abuse: 'Harassment or abuse', inappropriate: 'Inappropriate', other: 'Something else'};
 function reportSheet(p, what = {}, onBlocked) {

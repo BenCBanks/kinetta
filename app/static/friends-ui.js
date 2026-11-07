@@ -14,6 +14,7 @@ const FriendsUI=(()=>{
  async function mountList(el){
   el.classList.add('friends-page','friends-list-page');
   el.innerHTML=`<div class="top">${backBtn('Me')}<h1 id="fr-title">Friends</h1><a class="icon-btn" id="fr-browse" href="/me/friends?find=1" aria-label="Find friends">${svg('user-plus')}</a></div>
+    <a class="row-link friend-action" id="fr-groups" href="/me/groups"><span class="ri">${svg('calendar')}</span><span class="grow"><b>Groups</b><small>Plan an event together</small></span>${svg('chev')}</a>
     <div id="fr-list-error" role="status"></div><div id="fr-requests"></div>
     <section class="friend-own" aria-label="Your friends"><h2 class="sec-head" id="fr-own-heading">Your friends</h2><div id="fr-own-list">${skel(1)}</div></section>`;
   wireBack(el,'/me');
