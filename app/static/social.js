@@ -1026,11 +1026,16 @@ function groupRoster(group,expanded){
   const members=expanded?group.members:group.members.slice(0,10),rows=members.map(member=>`<div class="group-member"><span class="group-member-avatar" aria-hidden="true">${esc((member.username||'?').slice(0,1).toUpperCase())}</span><span class="group-member-name"><b>@${esc(member.username)}</b><small>${member.organizer?'Organizer':member.value!==undefined?'Sharing total':'Sharing total only'}</small></span>${member.value!==undefined?`<span class="group-member-value">${esc(groupAmount(member.value,group.goal_unit))}</span>`:''}</div>`).join('');
   return `${rows}${!expanded&&group.member_count>10?`<button type="button" class="group-more linkbtn" data-group-more>+ ${group.member_count-10} more</button>`:''}`;
 }
+function groupGoal(group){
+  const combined=group.total!==undefined,value=Number(combined?group.total:group.your_total)||0,target=Number(group.goal_target)||0;
+  const progressMax=target||1,progressValue=Math.min(progressMax,Math.max(0,value));
+  return `<section class="group-goal card" aria-label="Shared goal"><small>${esc(GROUP_GOALS[group.goal_type]||'Shared goal')}</small><strong>${combined?'Together':'You'}: ${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}</strong><progress class="group-progress" max="${progressMax}" value="${progressValue}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}"></progress>${combined?'':'<small class="group-goal-hint">Group total appears with 3 members</small>'}</section>`;
+}
 function groupPage(el,group){
   let expanded=false;
   const draw=()=>{el.innerHTML=`<div class="top group-top">${backBtn('Groups')}<span></span><button type="button" class="icon-btn" id="group-options" aria-label="Group options">${svg('more')}</button></div>
     <header class="group-title"><p class="eyebrow">Private group</p><h1>${esc(group.title)}</h1><p>${esc(groupDate(group.event_date,group.time_zone))} · ${group.days_to_event===0?'Today':`${group.days_to_event} days to go`}</p>${group.note?`<p class="group-note">${esc(group.note)}</p>`:''}</header>
-    <section class="group-goal card" aria-label="Shared goal"><small>${esc(GROUP_GOALS[group.goal_type]||'Shared goal')}</small><strong>Together: ${esc(groupAmount(group.total,group.goal_unit))} of ${esc(groupAmount(group.goal_target,group.goal_unit))}</strong><div class="group-progress" role="progressbar" aria-label="Group progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.min(100,Math.round(group.total/group.goal_target*100))}"><span style="width:${Math.min(100,Math.max(0,group.total/group.goal_target*100))}%"></span></div></section>
+    ${groupGoal(group)}
     <section class="group-roster card list"><h2>Members <span>${group.member_count}</span></h2><div id="group-members">${groupRoster(group,expanded)}</div></section>
     `;
     wireBack(el,'/me/groups');$('#group-options',el).onclick=()=>groupMenu(group,()=>go('/groups/'+encodeURIComponent(group.id),{replace:true}));$('[data-group-more]',el)?.addEventListener('click',()=>{expanded=true;draw();});

@@ -1,7 +1,7 @@
 'use strict';
 const GROUP_INVITE_TOKEN='0123456789abcdef0123456789abcdef';
-const GROUP_EMPTY={id:'00000000-0000-4000-8000-000000000001',title:'Fictional hiking weekend',event_date:'2026-11-14',time_zone:'America/New_York',note:'Fictional event',goal_type:'distance',goal_target:100,goal_unit:'mi',total:42,days_to_event:7,members:[{username:'alex',organizer:true,sharing_total_only:true}],member_count:1,is_organizer:true,joining_closed:false,closed:false};
-const GROUP_FULL={...GROUP_EMPTY,id:'00000000-0000-4000-8000-000000000050',members:Array.from({length:50},(_,i)=>({username:i?'fictional_member_'+String(i).padStart(2,'0'):'alex',organizer:i===0,sharing_total_only:true})),member_count:50};
+const GROUP_EMPTY={id:'00000000-0000-4000-8000-000000000001',title:'Fictional hiking weekend',event_date:'2026-11-14',time_zone:'America/New_York',note:'Fictional event',goal_type:'distance',goal_target:100,goal_unit:'mi',your_total:12,days_to_event:7,members:[{username:'alex',organizer:true,sharing_total_only:true}],member_count:1,is_organizer:true,joining_closed:false,closed:false};
+const GROUP_FULL={...GROUP_EMPTY,id:'00000000-0000-4000-8000-000000000050',total:42,members:Array.from({length:50},(_,i)=>({username:i?'fictional_member_'+String(i).padStart(2,'0'):'alex',organizer:i===0,sharing_total_only:true})),member_count:50};delete GROUP_FULL.your_total;
 const scenes=fixtures=>[
  {name:'Me',login:'alex',route:'/me',ready:'#page:not([data-home-loading]):has(.me-card-sections[aria-busy="false"])'},
  {name:'Me Today plan',login:'zz_test_me_today',route:'/me',ready:'#t-today[data-loaded-day] [data-today-activity]',todayPlan:true},

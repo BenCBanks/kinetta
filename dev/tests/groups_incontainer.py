@@ -127,7 +127,8 @@ class Groups(unittest.TestCase):
         self.activity(2, self.now - dt.timedelta(minutes=30), distance=90000, name='OUTSIDER PRIVATE')
         self.activity(1, self.now - dt.timedelta(days=5), distance=90000, name='BEFORE JOIN')
         result = self.clients[0].get('/api/groups/' + group['id']).json()
-        self.assertEqual(result['total'], 3)
+        self.assertNotIn('total', result)
+        self.assertEqual(result['your_total'], 1)
         self.assertEqual(result['goal_unit'], 'km')
         self.assertNotIn('value', result['members'][1])
         self.assertTrue(result['members'][1]['sharing_total_only'])
@@ -138,14 +139,67 @@ class Groups(unittest.TestCase):
         shared = self.clients[0].get('/api/groups/' + group['id']).json()
         self.assertEqual(shared['members'][1]['value'], 2)
         self.assertNotIn('value', shared['members'][0])
+        self.assertNotIn('total', shared)
         self.assertEqual(self.clients[2].get('/api/groups/' + group['id']).status_code, 404)
         self.assertEqual(self.clients[2].post('/api/groups/' + group['id'] + '/close', json={}).status_code, 404)
         with db.connect() as c:
             c.execute('DELETE FROM activities WHERE id=%s', (own_a,))
-        self.assertEqual(self.clients[1].get('/api/groups/' + group['id']).json()['total'], 2)
+        remaining = self.clients[1].get('/api/groups/' + group['id']).json()
+        self.assertNotIn('total', remaining)
+        self.assertEqual(remaining['your_total'], 2)
         self.assertEqual(self.clients[1].post('/api/groups/' + group['id'] + '/leave', json={}).status_code, 200)
-        self.assertEqual(self.clients[0].get('/api/groups/' + group['id']).json()['total'], 0)
+        solo = self.clients[0].get('/api/groups/' + group['id']).json()
+        self.assertNotIn('total', solo)
+        self.assertEqual(solo['your_total'], 0)
         self.assertEqual(self.clients[1].get('/api/groups/' + group['id']).status_code, 404)
+
+    def test_combined_total_requires_three_viewer_visible_members(self):
+        group, token = self.make(goal_target=1000)
+        with db.connect() as c:
+            c.execute("UPDATE group_members SET joined_at=now()-interval '2 days' WHERE group_id=%s", (group['id'],))
+        self.activity(0, self.now - dt.timedelta(hours=3), distance=12000, name='PRIVATE A')
+
+        one = self.clients[0].get('/api/groups/' + group['id']).json()
+        self.assertEqual(one['member_count'], 1)
+        self.assertNotIn('total', one)
+        self.assertEqual(one['your_total'], 12)
+
+        self.assertEqual(self.accept(token, who=1).status_code, 200)
+        with db.connect() as c:
+            c.execute("UPDATE group_members SET joined_at=now()-interval '2 days' WHERE group_id=%s", (group['id'],))
+        self.activity(1, self.now - dt.timedelta(hours=2), distance=3000, name='PRIVATE B')
+        two = self.clients[0].get('/api/groups/' + group['id']).json()
+        self.assertEqual(two['member_count'], 2)
+        self.assertNotIn('total', two)
+        self.assertEqual(two['your_total'], 12)
+
+        token = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={}).json()['invite_url'].rsplit('/', 1)[1]
+        self.assertEqual(self.accept(token, who=2).status_code, 200)
+        with db.connect() as c:
+            c.execute("UPDATE group_members SET joined_at=now()-interval '2 days' WHERE group_id=%s", (group['id'],))
+        self.activity(2, self.now - dt.timedelta(hours=1), distance=5000, name='PRIVATE C')
+        three = self.clients[0].get('/api/groups/' + group['id']).json()
+        self.assertEqual(three['member_count'], 3)
+        self.assertEqual(three['total'], 20)
+        self.assertNotIn('your_total', three)
+
+        token = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={}).json()['invite_url'].rsplit('/', 1)[1]
+        self.assertEqual(self.accept(token, who=3).status_code, 200)
+        with db.connect() as c:
+            c.execute("UPDATE group_members SET joined_at=now()-interval '2 days' WHERE group_id=%s", (group['id'],))
+        self.activity(3, self.now - dt.timedelta(minutes=30), distance=7000, name='PRIVATE D')
+        all_four = self.clients[1].get('/api/groups/' + group['id']).json()
+        self.assertEqual(all_four['member_count'], 4)
+        self.assertEqual(all_four['total'], 27)
+
+        with db.connect() as c:
+            c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)', (self.ids[0], self.ids[3]))
+        blocked_view = self.clients[0].get('/api/groups/' + group['id']).json()
+        unblocked_view = self.clients[1].get('/api/groups/' + group['id']).json()
+        self.assertEqual(blocked_view['member_count'], 3)
+        self.assertEqual(blocked_view['total'], 20)
+        self.assertEqual(unblocked_view['member_count'], 4)
+        self.assertEqual(unblocked_view['total'], 27)
 
     def test_elevation_long_outing_and_session_goal_units(self):
         elevation, _ = self.make(goal_type='elevation', goal_target=100, goal_unit='ft')
@@ -157,9 +211,9 @@ class Groups(unittest.TestCase):
         self.activity(0, self.now - dt.timedelta(hours=2), distance=1000, ascent=30.48, seconds=1200)
         self.activity(0, self.now - dt.timedelta(hours=1), distance=1000, ascent=0, seconds=3599)
         self.activity(0, self.now - dt.timedelta(minutes=30), distance=1000, ascent=0, seconds=3600)
-        self.assertEqual(self.clients[0].get('/api/groups/' + elevation['id']).json()['total'], 100)
-        self.assertEqual(self.clients[0].get('/api/groups/' + long_outings['id']).json()['total'], 1)
-        self.assertEqual(self.clients[0].get('/api/groups/' + sessions['id']).json()['total'], 3)
+        self.assertEqual(self.clients[0].get('/api/groups/' + elevation['id']).json()['your_total'], 100)
+        self.assertEqual(self.clients[0].get('/api/groups/' + long_outings['id']).json()['your_total'], 1)
+        self.assertEqual(self.clients[0].get('/api/groups/' + sessions['id']).json()['your_total'], 3)
 
     def test_block_both_directions_membership_cap_and_ineligible_account(self):
         group, token = self.make()

@@ -174,18 +174,20 @@ def _answer(c, group, uid):
     visible = [member for member in members if not _blocked(c, uid, member['user_id'])]
     contributions = _contributions(c, group, visible)
     total = round(sum(contributions.values()), 3)
+    member_count = len(visible)
     zone = _zone(group['time_zone'])
     today = dt.datetime.now(UTC).astimezone(zone).date()
     return {
         'id': str(group['id']), 'title': group['title'], 'event_date': group['event_date'].isoformat(),
         'time_zone': group['time_zone'], 'note': group['note'], 'goal_type': group['goal_type'],
         'goal_target': group['goal_target'], 'goal_unit': group['goal_unit'],
-        'total': total, 'days_to_event': max(0, (group['event_date'] - today).days),
+        **({'total': total} if member_count >= 3 else {'your_total': contributions.get(uid, 0)}),
+        'days_to_event': max(0, (group['event_date'] - today).days),
         'members': [{'username': m['username'], 'photo': m['photo'] or False,
                      'organizer': m['user_id'] == group['organizer_id'],
                      **({'value': contributions.get(m['user_id'], 0)} if m['share_total'] else {'sharing_total_only': True})}
                     for m in visible],
-        'member_count': len(visible), 'is_organizer': uid == group['organizer_id'],
+        'member_count': member_count, 'is_organizer': uid == group['organizer_id'],
         'joining_closed': bool(group['joining_closed']), 'closed': bool(group['closed_at']),
     }
 
