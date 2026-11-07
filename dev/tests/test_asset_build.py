@@ -205,5 +205,33 @@ class AssetBuildTests(unittest.TestCase):
             self.assertEqual(fourth['assets']['food-import.js'],fifth['assets']['food-import.js'])
             self.assertNotEqual(fourth['assets']['app.js'],fifth['assets']['app.js'],'the bundle map follows the lift hash')
 
+    def test_food_and_kit_lazy_urls_track_their_own_content(self):
+        with tempfile.TemporaryDirectory() as temp:
+            parent=Path(temp);source=self.tree(parent)
+            (source/'food.js').write_text('window.Food="first";\n')
+            (source/'kit.js').write_text('window.Kit="first";\n')
+            (source/'app.js').write_text("const bundles=['/static/food.js?v=__ASSET_HASH__','/static/kit.js?v=__ASSET_HASH__'];\n")
+            first=builder.build(source,parent/'first');first_app=(parent/'first/app.js').read_text()
+            first_food=re.search(r'/static/food\.js\?v=([0-9a-f]{32})',first_app).group(0)
+            first_kit=re.search(r'/static/kit\.js\?v=([0-9a-f]{32})',first_app).group(0)
+            self.assertIn(first['assets']['food.js'],first_food)
+            self.assertIn(first['assets']['kit.js'],first_kit)
+
+            (source/'food.js').write_text('window.Food="edited";\n')
+            second=builder.build(source,parent/'second');second_app=(parent/'second/app.js').read_text()
+            second_food=re.search(r'/static/food\.js\?v=([0-9a-f]{32})',second_app).group(0)
+            second_kit=re.search(r'/static/kit\.js\?v=([0-9a-f]{32})',second_app).group(0)
+            self.assertNotEqual(first_food,second_food,'a Food-only edit gets a fresh deferred URL')
+            self.assertIn(second['assets']['food.js'],second_food)
+            self.assertEqual(first_kit,second_kit,'a Food-only edit keeps Kit’s URL')
+
+            (source/'kit.js').write_text('window.Kit="edited";\n')
+            third=builder.build(source,parent/'third');third_app=(parent/'third/app.js').read_text()
+            third_food=re.search(r'/static/food\.js\?v=([0-9a-f]{32})',third_app).group(0)
+            third_kit=re.search(r'/static/kit\.js\?v=([0-9a-f]{32})',third_app).group(0)
+            self.assertEqual(second_food,third_food,'a Kit-only edit keeps Food’s URL')
+            self.assertNotEqual(second_kit,third_kit,'a Kit-only edit gets a fresh deferred URL')
+            self.assertIn(third['assets']['kit.js'],third_kit)
+
 
 if __name__=='__main__':unittest.main()

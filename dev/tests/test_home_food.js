@@ -45,7 +45,8 @@ assert.match(fs.readFileSync('app/static/kit.js','utf8'),/\br0\(/);
 assert.match(thread,/homeCalories\(/);assert.match(thread,/shrinkPhoto\(/);
 assert.doesNotMatch(homeSource,/function todayFoodCard\(/,'unused todayFoodCard stays out of food-home.js');
 const index=fs.readFileSync('app/static/index.html','utf8');
-assert(index.indexOf('/static/food-home.js?v=__ASSET_HASH__')<index.indexOf('/static/food.js?v=__ASSET_HASH__'),'food-home.js loads before food.js');
+assert(index.indexOf('/static/food-home.js?v=__ASSET_HASH__')<index.indexOf('/static/thread.js?v=__ASSET_HASH__'),'shared Food helpers load before the eager FoodThread');
+assert(!index.includes('/static/food.js?v=__ASSET_HASH__')&&!index.includes('/static/kit.js?v=__ASSET_HASH__'),'full Nutrition and Kit modules stay out of the initial script path');
 console.log('Food home boundary: shared math/date globals, Cook/Kit/Pages callsites, describe route and eager script order PASS');
 
 (async()=>{

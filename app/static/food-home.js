@@ -1,6 +1,54 @@
 // Shared Food helpers required by Me/Today and other eager app areas.
-// Keep this file before food.js until a later closed-leaf split proves a smaller eager boundary.
 'use strict';
+
+const MEAL_NAMES = {breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snacks: 'Snacks'};
+const NPROG = [['overview', 'Insights', 'Averages, insights and Kit', 'sparkle', 'c-purple'],
+  ['energy', 'Calories & weight', 'Eaten vs burned, and your running deficit', 'flame', 'c-orange'],
+  ['macros', 'Protein & macros', 'Protein, carbs and fat, and your top foods', 'progress', 'c-red'],
+  ['weight', 'Weight', 'Log a weigh-in and see your trend', 'scale', 'c-purple'],
+  ['needs', 'Calorie needs', 'What you burn, and your daily target', 'target', 'c-brand'],
+  ['weeks', 'Week by week', 'Every week in one table', 'calendar', 'c-blue'],
+  ['calendar','Food calendar','Review any logged day','calendar','c-blue']];
+
+// Keep the small contracts used by eager FoodThread and account/profile flows available
+// while the larger Nutrition and Kit route modules load on demand.
+function kitFoodWords(text){return String(text||'').replace(/\bAI estimates\b/g,'Kit’s estimates').replace(/\ban AI estimate\b/g,'Kit’s estimate').replace(/\bAI estimate\b/g,'Kit’s estimate').replace(/\bAI features\b/g,'Kit settings').replace(/\bAI\b/g,'Kit');}
+function weightAddress(query) {
+  const q=new URLSearchParams(query);q.delete('view');
+  if(!['progress','explore','me'].includes(q.get('from')))q.set('from','nutrition');
+  return '/progress/weight'+(q.size?'?'+q:'');
+}
+let weightRefresh=0;
+async function refreshWeightData(owner) {
+  if(owner!==readOwner())return false;
+  const revision=++weightRefresh,weight=App.me.weight_kg,source=App.me.weight_health_derived;
+  invalidate('/api/food');invalidate('/api/progress/overview');invalidate('/api/me');
+  try {
+    const me=await api('/api/me');
+    if(owner!==readOwner()||me.id!==App.me?.id||revision!==weightRefresh||App.me.weight_kg!==weight||App.me.weight_health_derived!==source)return false;
+    refreshMe({...App.me,weight_kg:me.weight_kg,weight_health_derived:me.weight_health_derived});return true;
+  } catch {return false;} // The weigh-in already saved; an optional profile read cannot undo it.
+}
+function guardFoodSheet(body,close,owner){const guard=e=>{if(owner===readOwner())return;e.preventDefault();e.stopImmediatePropagation();close();toast('The account changed. Open this again.');};body.addEventListener('click',guard,true);body.addEventListener('submit',guard,true);body.addEventListener('submit',e=>{for(const input of $$('.extra-inputs input',body)){const value=input.value.trim();if(value!==''&&(!Number.isFinite(Number(value.replace(',','.')))||Number(value.replace(',','.'))<0)){e.preventDefault();e.stopImmediatePropagation();input.focus();toast('Enter a positive number or zero, or leave the nutrient blank.');return;}}},true);
+  if(typeof MutationObserver!=='undefined'){const observer=new MutationObserver(()=>{if(!body.isConnected){observer.disconnect();return;}if(owner!==readOwner()){observer.disconnect();close();}});observer.observe(root,{childList:true,subtree:true});}
+}
+const KitChat = (()=>{
+  const screens={me:'me',nutrition:'nutrition',activity:'activity',progress:'progress',plan:'plan',strength:'strength',track:'track'};
+  const loadKitMethod=(name,args=[])=>loadClassicScript(KIT_ROUTE_ASSET).then(()=>KitChat[name](...args)).catch(()=>toast('Kit could not load. Check your connection and try again.'));
+  return {
+    loaded:false,
+    href(screen='me',activityId=null,question=null){const q=new URLSearchParams({from:Object.hasOwn(screens,screen)?screen:'me'});if(activityId)q.set('activity',activityId);if(question)q.set('question',question.slice(0,1500));return '/me/kit?'+q;},
+    open(...args){return loadKitMethod('open',args);},
+    entry(el,path){if(App.pageReady&&!KitChat.loaded&&typeof scheduleKitRouteWarmup==='function')scheduleKitRouteWarmup(el,path);},
+    memorySettings(){return loadKitMethod('memorySettings');},
+    savedReviews(){return loadKitMethod('savedReviews');},
+    eraseDevice(){
+      if(KitChat.loaded)return loadKitMethod('eraseDevice');
+      const owner=App.me&&JSON.stringify([Native.base||location.origin,App.me.id]);if(!owner)return;
+      try{for(const name of ['draft','pending'])localStorage.removeItem('fit.kit.'+name+':'+owner);for(const key of Object.keys(localStorage))if(key.startsWith('fit.kit.proposal:'+owner+':'))localStorage.removeItem(key);}catch{}
+    },
+  };
+})();
 
 const r0 = (v) => (v == null ? '–' : Math.round(v).toLocaleString());
 const isoDay = (d, timeZone = tz()) => d.toLocaleDateString('en-CA', {timeZone});

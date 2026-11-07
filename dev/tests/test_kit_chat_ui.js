@@ -1,6 +1,6 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');const source=fs.readFileSync('app/static/kit.js','utf8');
-const c={route(){},URLSearchParams,App:{me:{id:7}},Native:{base:'https://fictional.invalid'},location:{origin:'https://fictional.invalid'},localStorage:{removeItem(){}},Map,Set};vm.createContext(c);vm.runInContext(source+'\nglobalThis.Kit=KitChat;',c);
+const c={route(){},KitChat:{loaded:false},URLSearchParams,App:{me:{id:7}},Native:{base:'https://fictional.invalid'},location:{origin:'https://fictional.invalid'},localStorage:{removeItem(){}},Map,Set};vm.createContext(c);vm.runInContext(source+'\nglobalThis.Kit=KitChat;',c);
 assert.equal(c.Kit.href('nutrition'),'/me/kit?from=nutrition');assert.equal(c.Kit.href('activity',42),'/me/kit?from=activity&activity=42');assert.equal(c.Kit.href('javascript:bad'),'/me/kit?from=me');
 for(const group of Object.values(c.Kit.starters))assert.equal(group.length,3);
 for(const [,path] of Object.values(c.Kit.actions))assert(path.startsWith('/')&&!path.startsWith('//'));
@@ -27,7 +27,7 @@ async function testEntryVisibility(){
  vm.createContext(entryHarness);
  const relevant=source.slice(source.indexOf('  function entryRelevant('),source.indexOf('  function checkActivityEntry(')).replace('function entryRelevant','globalThis.entryRelevant=function entryRelevant');
  const check=source.slice(source.indexOf('  function checkActivityEntry('),source.indexOf('  const active=' )).replace('function checkActivityEntry','globalThis.checkActivityEntry=function checkActivityEntry');
- const entry=source.slice(source.indexOf('  function entry(el,path){'),source.indexOf('  return {mount,')).replace('function entry','globalThis.entry=function entry');
+ const entry=source.slice(source.indexOf('  function entry(el,path){'),source.indexOf('  return {loaded:true,mount,')).replace('function entry','globalThis.entry=function entry');
  vm.runInContext(relevant+'\n'+check+'\n'+entry,entryHarness);
  await entryHarness.entry(page,'/me');assert.equal(link,null,'a person with no Kit, food or activity use sees no icon');assert(entryHarness.apiCalls.includes('/api/activities?limit=1'),'activity relevance is checked with the current user’s own activity list');
  entryHarness.App.me={id:8,food_user:true};await entryHarness.entry(page,'/me');assert.equal(link.href,'/food?add=1');assert.equal(link['aria-label'],'Add food','a food user sees the icon while AI is off and opens Add food');
