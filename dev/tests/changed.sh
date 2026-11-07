@@ -19,7 +19,7 @@ app/static/social.js,app/static/social-data.js,app/static/activity-detail.*,app/
 app/static/track*.js,app/static/track-home.css,app/static/intervals.js,app/static/segments.js,app/static/maps.*,app/static/vendor/leaflet.*,app/static/vendor/protomaps-leaflet.js;track;Track ready,Activity detail,Activity full map
 app/static/lift*.js,app/static/lift-ui.css;lift;Lifting with sets,Lifting blank sets
 app/static/plan*.js,app/static/plan-ui.css,app/static/planner.js;plan;Me,Me Today plan,Track ready
-app/static/discovery.js,app/static/heatmap-ui.css,app/static/milestones.*,app/static/recaps*;progress;Progress,Fitness,Share progress
+app/static/discovery.js,app/static/heatmap-ui.css,app/static/milestones.*,app/static/recaps*,app/static/progress-routes.js;progress;Progress,Fitness,Share progress
 app/static/profile.*,app/static/notifications-ui.css,app/static/password-visibility.*,app/static/push-invitation.js,app/static/social-notifications.js;profile;Me,Settings,Notifications
 app/static/admin*,app/static/feature-usage.js;admin;
 app/static/welcome.js,app/static/onboarding.js,app/static/username-availability.*;welcome;

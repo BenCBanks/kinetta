@@ -70,6 +70,8 @@ class AssetBuildTests(unittest.TestCase):
             self.assertIn('/static/social-notifications.js?v='+result['assets']['social-notifications.js'],built_app,'the notification routes point at their own content hash')
             self.assertIn('/static/food-import.js?v='+result['assets']['food-import.js'],built_app,'the real deferred route points at Food import’s own content hash')
             self.assertIn('/static/lift-routes.js?v='+result['assets']['lift-routes.js'],built_app,'the deferred lifting routes point at their own content hash')
+            self.assertIn('/static/progress-routes.js?v='+result['assets']['progress-routes.js'],built_app,'the deferred Progress routes point at their own content hash')
+            self.assertIn('/static/segments.js?v='+result['assets']['segments.js'],built_app,'the deferred Segments routes point at their own content hash')
 
     def test_two_branches_merge_without_version_edits(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -232,6 +234,33 @@ class AssetBuildTests(unittest.TestCase):
             self.assertEqual(second_food,third_food,'a Kit-only edit keeps Food’s URL')
             self.assertNotEqual(second_kit,third_kit,'a Kit-only edit gets a fresh deferred URL')
             self.assertIn(third['assets']['kit.js'],third_kit)
+
+    def test_progress_and_segments_lazy_urls_follow_their_own_content(self):
+        with tempfile.TemporaryDirectory() as temp:
+            parent=Path(temp);source=self.tree(parent)
+            (source/'progress-routes.js').write_text('window.ProgressRoutes="first";\n')
+            (source/'segments.js').write_text('window.Segments="first";\n')
+            (source/'app.js').write_text("const bundles=['/static/progress-routes.js?v=__ASSET_HASH__','/static/segments.js?v=__ASSET_HASH__'];\n")
+            first=builder.build(source,parent/'first');app=(parent/'first/app.js').read_text()
+            progress=re.search(r'/static/progress-routes\.js\?v=([0-9a-f]{32})',app).group(0)
+            segments=re.search(r'/static/segments\.js\?v=([0-9a-f]{32})',app).group(0)
+            self.assertIn(first['assets']['progress-routes.js'],progress)
+            self.assertIn(first['assets']['segments.js'],segments)
+
+            (source/'progress-routes.js').write_text('window.ProgressRoutes="edited";\n')
+            second=builder.build(source,parent/'second');app=(parent/'second/app.js').read_text()
+            progress2=re.search(r'/static/progress-routes\.js\?v=([0-9a-f]{32})',app).group(0)
+            segments2=re.search(r'/static/segments\.js\?v=([0-9a-f]{32})',app).group(0)
+            self.assertNotEqual(progress,progress2,'a Progress-only edit gets a fresh deferred URL')
+            self.assertEqual(segments,segments2,'a Progress-only edit keeps Segments’ URL')
+
+            (source/'segments.js').write_text('window.Segments="edited";\n')
+            third=builder.build(source,parent/'third');app=(parent/'third/app.js').read_text()
+            progress3=re.search(r'/static/progress-routes\.js\?v=([0-9a-f]{32})',app).group(0)
+            segments3=re.search(r'/static/segments\.js\?v=([0-9a-f]{32})',app).group(0)
+            self.assertEqual(progress2,progress3,'a Segments-only edit keeps Progress’ URL')
+            self.assertNotEqual(segments2,segments3,'a Segments-only edit gets a fresh deferred URL')
+            self.assertIn(third['assets']['segments.js'],segments3)
 
 
 if __name__=='__main__':unittest.main()

@@ -224,7 +224,7 @@
     },
     {
       "id": "pages-6",
-      "source": "app/static/pages.js",
+      "source": "app/static/progress-routes.js",
       "pattern": "/^\\/progress\\/routes$/",
       "paths": [
         "/progress/routes"
@@ -240,7 +240,7 @@
     },
     {
       "id": "pages-8",
-      "source": "app/static/pages.js",
+      "source": "app/static/progress-routes.js",
       "pattern": "/^\\/progress\\/(trends|calendar|heatmap)$/",
       "paths": [
         "/progress/trends",
