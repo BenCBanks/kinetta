@@ -13,7 +13,9 @@ from pathlib import Path
 subprocess.run([sys.executable, str(Path(__file__).with_name('test_kit_release_standin.py'))], check=True)
 
 sys.path.insert(0,str(__import__('pathlib').Path(__file__).resolve().parents[1]))
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
 from portal_fixture import admin_headers, is_admin_path
+from app import route_geo
 
 B = os.environ.get('KINETTA_URL', 'http://localhost:8798'); G = sys.argv[1]
 PW = 'demo friend password 1'
@@ -127,4 +129,37 @@ for w, days_ago in enumerate((24, 17, 10, 3)):
         {'exercise_id': ex['Pull-up'], 'sets': [{'reps': 7 + w}, {'reps': 6 + w}]},
         {'exercise_id': ex['Plank'], 'sets': [{'secs': 45 + 15 * w}]}]})
 alex('PATCH', f"/api/lifts/exercises/{ex['Squat']}", {'note': 'Safety pins on 6'})
-print('staged: tray', tray['id'], 'soup', soup['id'])
+routes = json.loads((Path(__file__).resolve().parents[1] / 'demo' / 'routes.json').read_text())
+park = route_geo.slice_line(routes['park loop'], 400, 1100)
+segment = alex('POST', '/api/segments', {'client_id': str(uuid.uuid5(uuid.NAMESPACE_URL, 'https://kinetta.app/dev/screenshots/segments/park-loop')),
+                                         'name': 'Fictional Park Loop', 'sport': 'run', 'audience': 'me', 'source': 'map',
+                                         'line': route_geo.encode(park), 'understood_fixed': True})
+for theme in ('light', 'dark'):
+    login = f'zz_test_658_food_{theme}'
+    body = {'login': login, 'name': f'Fictional site food {theme}', 'password': 'green teapot on the hill'}
+    try:
+        alex('POST', '/api/admin/people', body)
+    except urllib.error.HTTPError as error:
+        if error.code != 409: raise
+        existing = person(login, body['password'])
+        existing('POST', '/api/account/delete', {'password': body['password']})
+        alex('POST', '/api/admin/people', body)
+    screenshot_food = person(login, body['password'])
+    screenshot_food('PUT', '/api/profile', {'tz': 'America/New_York', 'units': 'imperial', 'ai_ok': False, 'ai_adult': False})
+    # Keep this library empty so the screenshot's typed meal uses the stand-in estimator
+    # for all three foods in one review card instead of asking about saved-food portions.
+    yesterday = dt.datetime.now(ZoneInfo('America/New_York')).date() - dt.timedelta(days=1)
+    breakfast_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f'https://kinetta.app/dev/screenshots/breakfast/{theme}'))
+    screenshot_food('POST', '/api/food/entries', [{'day': str(yesterday), 'meal': 'breakfast',
+        'name': 'Greek yogurt with berries', 'amount': 1, 'unit': 'bowl', 'kcal': 225,
+        'protein_g': 18, 'carbs_g': 28, 'fat_g': 4, 'fiber_g': 5, 'client_id': breakfast_id}])
+    chat_login = f'zz_test_658_chat_{theme}'
+    chat_body = {'login': chat_login, 'name': f'Fictional site chat {theme}', 'password': 'green teapot on the hill'}
+    try:
+        alex('POST', '/api/admin/people', chat_body)
+    except urllib.error.HTTPError as error:
+        if error.code != 409: raise
+        existing = person(chat_login, chat_body['password'])
+        existing('POST', '/api/account/delete', {'password': chat_body['password']})
+        alex('POST', '/api/admin/people', chat_body)
+print('staged: tray', tray['id'], 'soup', soup['id'], 'segment', segment['id'])

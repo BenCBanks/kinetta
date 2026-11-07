@@ -2,77 +2,17 @@
 
 Edit the text below each heading. Keep the section keys unchanged. Supports **bold**, *emphasis*, `code` and [links](https://example.com). Publishing rebuilds the page automatically.
 
-## just-say-what-you-ate-we-ll-do-the-counting-1
+## food-hero
 
-Just say what you ate. *Kinetta does the counting.*
+Log food in a few words.
 
-## type-it-like-a-text-message-kinetta-works-out-the-calo-2
+## food-intro
 
-Type it like a text message. Kinetta finds the foods you’ve had before and the brands you name, adds up the calories, protein, carbs and fat, and you fix anything in plain words.
+See calories and macros, with your meals and recipes in one place.
 
-## a-hot-dog-and-a-diet-coke-from-costco-3
+## food-also
 
-a hot dog and a Diet Coke from Costco
-
-## 2-things-about-550-kcal-check-below-or-tell-me-what-to-4
-
-Ready for review: 2 foods, about **550 kcal**. Check the foods and amounts before logging.
-
-## make-it-two-hot-dogs-5
-
-make it two hot dogs
-
-## now-about-1-100-kcal-ready-to-add-to-dinner-6
-
-Updated to about **1,100 kcal**. Review food, choose Dinner and confirm to log.
-
-## or-snap-a-photo-scan-a-barcode-or-search-your-workouts-7
-
-Or snap a photo, scan a barcode or search. Example uses demo estimates.
-
-## save-a-meal-once-log-it-whenever-you-eat-it-8
-
-Build a recipe once. Log your portion.
-
-## tap-cook-a-meal-and-type-the-ingredients-like-a-text-m-9
-
-Add the ingredients once and save it as a recipe. Next time, log your portion in a couple of taps.
-
-## your-day-at-a-glance-with-honest-feedback-10
-
-Your day at a glance.
-
-## calories-and-macros-as-rings-and-your-deficit-11
-
-See eaten and remaining calories, macro totals and your targets. Open the energy breakdown to see how daily needs and recorded workouts contribute. Track weigh-ins in Progress and review food trends in Insights.
-
-## what-s-working-and-what-to-try-next-12
-
-An optional AI review of your recent food log, with suggestions based on the days you recorded.
-
-## tweaks-for-any-meal-you-cook-13
-
-Optional AI suggestions for changing a recipe’s ingredients or portions. Review the changes before using them.
-
-## story-heading-19
-
-Scan it, snap it, or just say it.
-
-## story-scan-20
-
-Scan a package. Check its protein, carbs and fat against the box, then log it.
-
-## story-snap-21
-
-Snap your plate. Review an editable meal estimate.
-
-## story-say-22
-
-Say what's different. The numbers follow.
-
-## story-note-23
-
-No AI needed: search USDA and Open Food Facts or add your own foods. Photo estimates are optional and always editable. Demo numbers shown.
+Also
 
 ## training-training-food-food-friends-friends-compare-co-16
 
@@ -85,16 +25,3 @@ Free for personal use under the [PolyForm Noncommercial License](https://github.
 ## 2026-ben-banks-name-and-logo-not-covered-by-the-licens-18
 
 © 2026 Ben Banks. Name and logo not covered by the license. Demo data in screenshots.
-
-
-## recipe-purpose-heading
-
-Save a recipe. Log it when you eat.
-
-## recipe-purpose-copy
-
-Name it first, add ingredients and save the whole recipe. Logging is optional. When you’re ready, choose the servings or weight you ate. Editing a recipe and adding food to your day each have their own clear flow.
-
-## food-insights-copy
-
-See calories and macros over time, compare logged days and explore your food patterns. Missing days stay visible so a partial log does not look like a complete one.

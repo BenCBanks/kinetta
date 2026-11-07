@@ -109,11 +109,30 @@ async function say(page, text) {
 }
 (async () => {
   const browser = await chromium.launch(), errors = [];
+  const openFoodDemo = async (login, scheme) => {
+    const context = await browser.newContext({viewport: {width: W, height: H}, deviceScaleFactor: 2, colorScheme: scheme,
+      timezoneId: process.env.TZ || 'America/New_York', serviceWorkers: 'block'});
+    await context.route('**/*', route => new URL(route.request().url()).origin === B ? route.continue() : route.abort());
+    await context.route('**/style.css*', async route => {
+      const r = await route.fetch(), css = (await r.text())
+        .replace(/env\(safe-area-inset-top(?:,[^)]*)?\)/g, TOP + 'px').replace(/env\(safe-area-inset-bottom(?:,[^)]*)?\)/g, BOTTOM + 'px');
+      await route.fulfill({response: r, body: css});
+    });
+    const page = await context.newPage();
+    page.on('pageerror', e => errors.push(`${scheme}: ${e.message}`));
+    await page.goto(B + '/');
+    await page.fill('input[name=login]', login);
+    await page.fill('input[name=password]', 'green teapot on the hill');
+    await page.click('button[type=submit]');
+    await page.waitForSelector('nav.tabs');
+    return {context, page};
+  };
   try {
   for (const scheme of ['light', 'dark']) {
     // the browser keeps the server's time zone (the workflow sets TZ), or a run near midnight UTC shows an empty week
     const ctx = await browser.newContext({viewport: {width: W, height: H}, deviceScaleFactor: 2, colorScheme: scheme,
       timezoneId: process.env.TZ || 'America/New_York'});
+    let foodChatCtx = null, foodChatPage = null, foodRepeatCtx = null, foodRepeatPage = null;
     const basemap = await (await ctx.request.get(B+'/api/map-config')).json();
     if(!['pmtiles','vector'].includes(basemap.kind))throw Error('Capture needs an operator-controlled vector basemap');
     // The public archive admits the published app origin. Adapt only CORS for this local demo;
@@ -151,15 +170,59 @@ async function say(page, text) {
     await enableKitForDemo(page);
     const ids = await page.evaluate(async () => {
       const get = async (p) => (await fetch(p)).json();
-      const acts = await get('/api/activities?limit=40'), routes = await get('/api/routes'), dishes = await get('/api/dishes');
+      const acts = await get('/api/activities?limit=40'), routes = await get('/api/routes'), dishes = await get('/api/dishes'), segments = await get('/api/segments?mine=true');
       const loop = acts.find((a) => a.sport === 'run' && a.distance_m > 4600 && a.distance_m < 4950) || acts[0];
+      const segment = segments.find((s) => s.name === 'Fictional Park Loop');
+      if (!segment) throw Error('The fictional Park Loop segment must be staged before capture');
       const coach = (await Promise.all(acts.slice(0, 40).map((a) => get('/api/activities/' + a.id)))).find((a) => a.ai_note) || loop;
-      return {FEED_ACTIVITY: acts[0].id, LATEST: '/activity/' + (acts.find(a => a.photos?.length && a.line) || acts[0]).id, RUN: '/activity/' + loop.id, COACH: '/activity/' + coach.id, ROUTE: routes.length ? '/route/' + routes.sort((x, y) => y.count - x.count)[0].id : '/progress',
+      return {FEED_ACTIVITY: acts[0].id, LATEST: '/activity/' + (acts.find(a => a.photos?.length && a.line) || acts[0]).id, RUN: '/activity/' + loop.id, COACH: '/activity/' + coach.id, ROUTE: routes.length ? '/route/' + routes.sort((x, y) => y.count - x.count)[0].id : '/progress', SEGMENT: '/segments/' + segment.id,
         DISH: '/food/cook/' + ((dishes.find((d) => d.name === 'Chicken and veg traybake') || dishes[0] || {}).id || ''),
         SQUAT: '/lift/ex/' + (((await get('/api/lifts/exercises')).mine.find((x) => x.name === 'Squat') || {}).id || '')};
     });
     for (const [name, path, opt = {}] of SHOTS) {
       if (ONLY && !ONLY.includes(name)) continue;
+      if (opt.foodChat === 'start') {
+        const demo = await openFoodDemo(`zz_test_658_chat_${scheme}`, scheme);
+        foodChatCtx = demo.context;
+        foodChatPage = demo.page;
+        await enableKitForDemo(foodChatPage);
+        await foodChatPage.goto(B + '/food/describe?meal=breakfast');
+        await foodChatPage.locator('#thread-text').waitFor();
+        await foodChatPage.fill('#thread-text', 'Greek yogurt with berries, oatmeal with banana, and a chicken salad bowl');
+        await foodChatPage.locator('#thread-send').click();
+        const ready = foodChatPage.locator('.thread-card').filter({hasText: 'Chicken salad bowl'});
+        await ready.waitFor();
+        await foodChatPage.locator('#thread-review-add').waitFor({state: 'visible'});
+        const cardText = await ready.innerText();
+        if (!['Greek yogurt with berries', 'Oatmeal with banana', 'Chicken salad bowl'].every(name => cardText.includes(name)) ||
+            await ready.locator('.thread-food').count() !== 3) throw Error('Food chat capture must show three items in one review card.');
+        if ((await foodChatPage.locator('#thread-review-add').innerText()).trim() !== 'Add to log') throw Error('Food chat capture must show Add to log.');
+        await foodChatPage.evaluate(() => document.activeElement.blur());
+        await foodChatPage.evaluate(chrome, scheme === 'dark');
+        await foodChatPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        await foodChatPage.screenshot({path: `${OUT}/${scheme}-${name}.png`});
+        continue;
+      }
+      if (opt.foodChat === 'same-yesterday') {
+        const demo = await openFoodDemo(`zz_test_658_food_${scheme}`, scheme);
+        foodRepeatCtx = demo.context;
+        foodRepeatPage = demo.page;
+        await foodRepeatPage.evaluate(() => go('/food'));
+        const shortcut = foodRepeatPage.locator('#fd-meals .meal-breakfast [data-repeat-yesterday="breakfast"]');
+        await shortcut.waitFor({state: 'visible', timeout: 15000});
+        const state = await shortcut.evaluate(button => ({
+          text: button.textContent.trim(),
+          empty: button.closest('.meal-breakfast')?.classList.contains('meal-empty'),
+          entries: button.closest('.meal-breakfast')?.querySelectorAll('.fe').length
+        }));
+        if (state.text !== 'Same as yesterday · 225 kcal' || !state.empty || state.entries !== 0) throw Error('Repeat capture must show an empty Breakfast and its Same as yesterday shortcut.');
+        await shortcut.scrollIntoViewIfNeeded();
+        await foodRepeatPage.evaluate(() => document.activeElement.blur());
+        await foodRepeatPage.evaluate(chrome, scheme === 'dark');
+        await foodRepeatPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        await foodRepeatPage.screenshot({path: `${OUT}/${scheme}-${name}.png`});
+        continue;
+      }
       await page.evaluate((p) => { document.querySelectorAll('.scrim').forEach((x) => x.remove()); document.body.classList.remove('has-sheet'); window.scrollTo(0, 0); go(p); }, ids[path] || path);   // no sheet left open from the shot before
       await page.waitForTimeout(1500);
       await page.evaluate(() => { window.scrollTo(0, 0); });
@@ -277,6 +340,8 @@ async function say(page, text) {
     }
     await ctx.unrouteAll({behavior:'ignoreErrors'});
     await ctx.close();
+    await foodChatCtx?.close();
+    await foodRepeatCtx?.close();
   }
   } finally { await browser.close(); }
   if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
