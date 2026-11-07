@@ -32,7 +32,7 @@ module.exports=()=>{
   '/api/notifications':{items:[],unread:0,push:{},push_ready:false},
   '/api/notifications/count':{unread:0,friend_requests:1},'/api/map-config':{kind:'off',attribution:'',personal_default:false},
   '/api/feed/friends':[friendActivity],'/api/lifts/sessions':[],'/api/activity-food':{week:{start:date(7),end:date(1),workouts:4,distance_m:29000,seconds:10440,days_logged:7,protein_target:110,protein_days_reached:4,protein_days_known:7,protein_days_unknown:0},today:{day:today,items:[],exercise_kcal:0,estimated:true,burn_source:'formula',day_burn:2250,included_in_day_burn:true,food_href:'/food'}},
-  '/api/setup':{needed:false},'/api/milestones':{items:[],pending:false},'/api/achievements':{pending:false,tracks:[]},'/api/recaps':{items:[]},
+  '/api/setup':{needed:false},'/api/milestones':{items:[],pending:false},'/api/achievements':{pending:false,tracks:[]},'/api/achievements/showcase':{items:[],pinned:[],day_streak:0},'/api/recaps':{items:[]},
   '/api/plans/current':{plan:null},'/api/plan/today':{plan:null},'/api/challenges':[],
   '/api/goals':[],'/api/coach/week':{enabled:false,paused:false,latest:null},'/api/connections':{garmin:{available:false}},
   '/api/features/state':{enabled:false},'/api/food/check-in':{week:today,current:null,readiness:{ready:false,reason:'Not enough complete days yet.'},history:[]},'/api/food/week':{days:[],totals:{}},
