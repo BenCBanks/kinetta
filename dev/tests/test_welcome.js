@@ -11,6 +11,7 @@ const c={App:{me:{name:'Sam Fictional',bio:''}},Native:{on:false},readOwner:()=>
   location:{search:''},URLSearchParams,replacePageAddress:(_el,href)=>{c.location.search=new URL(href,'https://example.test').search;},$$:()=>[node('#wc-next'),node('#wc-skip'),node('#wc-leave')],
   api:async(path,opts)=>{calls.push([path,opts&&opts.body]);return path==='/api/sharing'?{default:'everyone'}:path==='/api/account/inviter'?{inviter:null}:{name:'Sam Fictional'};},
   json:(m,b)=>({method:m,body:b}),esc:String,svg:()=>'',avatar:()=>'',skel:()=>'',skelFeed:()=>'',skelChart:()=>'',skelFood:()=>'',keep(){},invalidate(){},toast(){},profilePhotoSheet(){},aiExplain:()=>'Kit sends what a feature needs.',aiAdultBox:()=>'<input name=ai_adult>',pick:'everyone'};
+ c.ContactsUI={welcomeLink:()=>'<a class="contacts-welcome-link" href="/me/friends/contacts?return=welcome">Contacts on Kinetta</a>'};
 vm.createContext(c);vm.runInContext(fs.readFileSync('app/static/welcome.js','utf8'),c);
 const tick=()=>new Promise(r=>setTimeout(r,0));
 (async()=>{
@@ -36,7 +37,7 @@ const tick=()=>new Promise(r=>setTimeout(r,0));
   c.location.search='';await route(el);assert.match(el.innerHTML,/1 of 3/,'no Kit step once it is on');
   c.App.me={name:'Sam Fictional',bio:'',coach:true,ai_ok:null,ai_access:{food:{available:false,entitled:true},coach:{available:false,entitled:true}}};
   c.location.search='';await route(el);assert.match(el.innerHTML,/1 of 3/,'no Kit step when this server has no AI');
-  c.location.search='?step=workouts';await route(el);assert.match(el.innerHTML,/Bring in your workouts/);assert(!el.innerHTML.includes('Find your friends'),'No separate friends step');assert.match(el.innerHTML,/Find friends · optional/);await tick();assert.match(node('#wc-connections').innerHTML,/isn’t available/);
+  c.location.search='?step=workouts';await route(el);assert.match(el.innerHTML,/Bring in your workouts/);assert(!el.innerHTML.includes('Find your friends'),'No separate friends step');assert.match(el.innerHTML,/Find friends · optional/);assert.match(el.innerHTML,/href="\/me\/friends\/contacts\?return=welcome">Contacts on Kinetta/);await tick();assert.match(node('#wc-connections').innerHTML,/isn’t available/);
   c.location.search='?step=constructor';await route(el);assert.match(el.innerHTML,/Your profile/,'Unknown step safely falls back to profile');
   console.log('Welcome steps: Skip/Not now write nothing, unchanged steps save nothing, changed profile and audience saved, Kit offered only while off and available PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});
