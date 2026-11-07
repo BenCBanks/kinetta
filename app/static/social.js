@@ -871,8 +871,9 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
     }catch(x){if(active()&&version===revision)showError(box,x);}
     finally{if(active()&&version===revision){box.style.minHeight='';box.removeAttribute('aria-busy');}}
   }
-  if(own&&initial.has('preview'))address();
+  if(own&&initial.has('preview')&&!searchOpen)address();
   await reload(true);
+  if(searchOpen)address();
 });
 
 const friendCountText = n => n===0?'No friends yet':`${n} ${n===1?'friend':'friends'}`;

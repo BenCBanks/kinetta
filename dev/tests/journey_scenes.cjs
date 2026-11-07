@@ -26,7 +26,7 @@ function journeys(fixtures){
  for(const [url,title,ready] of settings)cases.push({id:'settings-'+url.split('/').at(-1),start:'/me/settings',taps:[`a[href="${url}"]`],end:destination(url,title,ready),back:destination('/me/settings','Settings','#logout')});
  for(const [tap,title,ready] of sheets)cases.push({id:'settings-'+tap.slice(1),start:'/me/settings',taps:[tap],end:destination('/me/settings',title,ready),close:true});
  for(const [tap,title,ready] of [['#m-kit-memory','What Kit remembers','#kit-memory-on'],['#m-kit-history','Earlier Kit reviews','#kit-saved-reviews'],['#m-ai-info','Kit & data','.sheet[aria-label="Kit & data"]']])cases.push({id:'settings-'+tap.slice(1),start:'/me/settings',taps:['#m-kit',tap],end:destination('/me/settings',title,ready),close:true});
- for(const [tab,from,title] of [['me','me','Hi,'],['activity','activity','Home'],['track','track','Track'],['progress','progress','Progress'],['food','nutrition','Nutrition']])cases.push({id:'kit-'+tab,start:'/'+tab,kit:true,startReady:tab==='activity'?'#feed-tools[aria-busy=false]':null,taps:[`a[href="/me/kit?from=${from}"]`],end:destination('/me/kit?from='+from,'Ask Kit','#kit-text'),back:destination('/'+tab,title,'#page')});
+ for(const [tab,from,title] of [['track','track','Track'],['progress','progress','Progress'],['food','nutrition','Nutrition']])cases.push({id:'kit-'+tab,start:'/'+tab,kit:true,taps:[`a[href="/me/kit?from=${from}"]`],end:destination('/me/kit?from='+from,'Ask Kit','#kit-text'),back:destination('/'+tab,title,'#page')});
  for(const note of f.notifications){
   const admin=['report','signup_admin'].includes(note.kind),edit=note.kind==='activity_ready';
   let end;

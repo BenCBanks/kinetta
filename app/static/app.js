@@ -32,7 +32,7 @@ const lazyRouteBundles = [
 ];
 let lazyRouteGeneration = 0;
 let foodWarmupScheduledOwner = null, foodWarmupOwner = null;
-const kitEntryPaths = new Set(['/me','/activity','/progress','/track','/plan','/food']);
+const kitEntryPaths = new Set(['/progress','/track','/plan','/food']);
 const kitWarmups = new Set();
 function loadClassicScript(asset) {
   if (classicScriptPromises.has(asset)) return classicScriptPromises.get(asset);

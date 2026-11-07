@@ -60,7 +60,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     assert.equal(await p.locator('#fr-find input').evaluate(n=>document.activeElement===n),true,'Find friends entry focuses search');
     if(out)await capture(p,`find-friends-empty-390-${theme}`);
     await p.goto(base+'/activity');await until(p,()=>App.pageReady&&!!document.querySelector('#ff-list')&&document.querySelector('#feed-tools')?.getAttribute('aria-busy')==='false','empty Activity ready');
-    assert.equal(await p.locator('#feed-top a[aria-label="Find friends"] svg').count(),1,'Activity header has the person-plus entry');assert.equal(await p.locator('#feed-tools .feed-find-friends').innerText(),'Find friends');assert.equal(await p.locator('#ff-list .feed-empty').count(),1,'fictional account has an empty feed');
+    const headerFind=p.locator('#feed-top a[aria-label="Find friends"]');assert.equal(await headerFind.locator('svg').count(),1,'Home header has the person-plus entry');assert.equal(await headerFind.getAttribute('href'),'/me/friends?find=1');assert.equal(await p.locator('#feed-tools .feed-find-friends').count(),0,'Find friends lives in the Home header');assert.equal(await p.locator('#ff-list .feed-empty').count(),1,'fictional account has an empty feed');
     if(out){await settle(p);fs.mkdirSync(out,{recursive:true});await p.evaluate(()=>window.scrollTo(0,0));await p.screenshot({path:path.join(out,`activity-header-find-friends-390-${theme}.png`),clip:{x:0,y:0,width:390,height:160}});await capture(p,`activity-empty-find-friends-390-${theme}`);}
     if(theme==='light'){
      await p.goto(base+'/me/friends?find=1');await until(p,()=>App.pageReady&&!!document.querySelector('#fr-invite'),'Find friends restored');
