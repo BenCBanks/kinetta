@@ -68,10 +68,19 @@ CARD_ACHIEVEMENT_CONTEXT={
     'workouts':'Workouts completed','active_time':'Active time','consistency':'Weeks with a workout',
     'years_active':'Years active','climbing':'Elevation climbed','lifted':'Weight lifted','personal_bests':'Personal bests',
 }
+CARD_FOOTER_TOP=1050
+CARD_FEATURED_ROW_HEIGHT=154
+
+def featured_row_bounds(top,count):
+    """Keep a complete featured row above the fixed card footer, or omit it."""
+    if count<=0:return None
+    available=CARD_FOOTER_TOP-top
+    if available<CARD_FEATURED_ROW_HEIGHT:return None
+    return (top,top+CARD_FEATURED_ROW_HEIGHT)
 
 def featured_achievements(c,user_id,profile):
     """Return only currently earned, owner-pinned achievements after explicit opt-in."""
-    if not profile.get('share_achievements'):return []
+    if not profile.get('share_achievements') or not profile.get('share_achievements_since'):return []
     pins=api_achievements._showcase_pins(profile.get('showcase_pins'))
     if not pins:return []
     units=profile.get('units') or 'imperial'
@@ -89,13 +98,13 @@ def featured_achievements(c,user_id,profile):
         shown,unit=achievement_tracks.display_value(code,api_achievements._raw_value(code,details),units)
         number=f'{float(shown):,.1f}'.rstrip('0').rstrip('.')
         if float(shown)==1 and unit in ('weeks','years','workouts','sessions'):unit=unit[:-1]
-        featured.append({'code':code,'rank':int(candidate['rank']),'value':f'{number} {unit}'.strip(),
+        featured.append({'code':code,'value':f'{number} {unit}'.strip(),
                          'context':CARD_ACHIEVEMENT_CONTEXT.get(code,definition.get('source_track') or achievement_tracks.track_label(code))})
     return featured
 
 def payload(c,row,request=None):
     uid=row['user_id'];chosen=period(row);out={'username':row['login'],'period':chosen,'sports':[],'stats':[],'garmin_sources':[],'allow_requests':row['allow_requests'],'url':url(row['code'],request)}
-    profile=c.execute('SELECT tz,units,share_achievements,showcase_pins FROM profile WHERE user_id=%s',(uid,)).fetchone() or {}
+    profile=c.execute('SELECT tz,units,share_achievements,share_achievements_since,showcase_pins FROM profile WHERE user_id=%s',(uid,)).fetchone() or {}
     if profile.get('share_achievements'):out['achievements']=featured_achievements(c,uid,profile)
     if row['sports']:
         out['sports']=[dict(r) for r in c.execute('''SELECT sport,count(*) AS activities FROM activities
@@ -273,13 +282,19 @@ def image(c,row,request):
             if g.textlength(str(value),font=font)<=max_width:break
             size-=2;font=ImageFont.load_default(size=size)
         g.text((x,y),str(value),font=font,fill=color)
+    def draw_centered(value,cx,y,size,color,max_width):
+        font=ImageFont.load_default(size=size)
+        while g.textlength(value,font=font)>max_width and size>14:
+            size-=1;font=ImageFont.load_default(size=size)
+        if g.textlength(value,font=font)<=max_width:
+            g.text((cx,y),value,font=font,fill=color,anchor='mt')
+            return
+        # A single unbroken word cannot wrap; clip its pixels to this achievement slot.
+        clip_width=max(1,math.ceil(max_width));clip=Image.new('RGBA',(clip_width,max(1,font.size*3)),(0,0,0,0))
+        ImageDraw.Draw(clip).text((clip_width/2,0),value,font=font,fill=color,anchor='mt')
+        im.paste(clip,(round(cx-clip_width/2),round(y)),clip)
     def centered(value,cx,y,size,color,max_width):
-        value=str(value)
-        while True:
-            font=ImageFont.load_default(size=size)
-            if g.textlength(value,font=font)<=max_width or size<=14:break
-            size-=1
-        g.text((cx,y),value,font=font,fill=color,anchor='mt')
+        draw_centered(str(value),cx,y,size,color,max_width)
     def centered_lines(value,cx,y,size,color,max_width,max_lines=2):
         words=str(value).split()
         while True:
@@ -291,7 +306,7 @@ def image(c,row,request):
             if line:lines.append(line)
             if len(lines)<=max_lines or size<=14:break
             size-=1
-        for index,line in enumerate(lines):g.text((cx,y+index*(size+3)),line,font=font,fill=color,anchor='mt')
+        for index,line in enumerate(lines):draw_centered(line,cx,y+index*(size+3),size,color,max_width)
     y=100
     if 'photo' in d:
         p=c.execute('SELECT img FROM profile_photos WHERE user_id=%s',(row['user_id'],)).fetchone()
@@ -343,14 +358,16 @@ def image(c,row,request):
         y+=135
     if d.get('achievements'):
         items=d['achievements'][:4];slot=936/len(items)
-        text('Featured achievements',72,y,26,'#646D77');y+=40
-        colors={'sport:run':'#12924F','sport:ride':'#0B8798','sport:walk-hike':'#6F8A12','sport:swim':'#2A80BD','climbing':'#B26A10','lifted':'#D9532A','sport:lift':'#D9532A'}
-        for index,item in enumerate(items):
-            center=72+slot*(index+.5)
-            achievement_medal(g,center,y,58,colors.get(item['code'],'#1F55D0'))
-            centered(item['value'],center,y+62,31,'#15191D',slot-18)
-            centered_lines(item['context'],center,y+98,20,'#4A535C',slot-18)
-        y+=154
+        bounds=featured_row_bounds(y,len(items))
+        if bounds:
+            text('Featured achievements',72,y,26,'#646D77');y+=40
+            colors={'sport:run':'#12924F','sport:ride':'#0B8798','sport:walk-hike':'#6F8A12','sport:swim':'#2A80BD','climbing':'#B26A10','lifted':'#D9532A','sport:lift':'#D9532A'}
+            for index,item in enumerate(items):
+                center=72+slot*(index+.5)
+                achievement_medal(g,center,y,58,colors.get(item['code'],'#1F55D0'))
+                centered(item['value'],center,y+62,31,'#15191D',slot-18)
+                centered_lines(item['context'],center,y+98,20,'#4A535C',slot-18)
+            y=bounds[1]
     def wrapped(value,y,size,max_lines):
         # Long configured addresses and source lists must wrap, never leave the canvas.
         while size>=18:
