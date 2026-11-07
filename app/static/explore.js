@@ -125,12 +125,12 @@ const GUIDE_ICONS = {
   "kit-training-nutrition-reviews": "sparkle",
 };
 function guideIcon(group,title,href){ return GUIDE_ICONS[guideId(title)] || 'help'; }
-route(/^\/me\/explore$/, 'me', async (el) => {
+route(/^\/me\/explore$/, 'track', async (el) => {
   el.classList.add('guide-page');
-  el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Explore Kinetta</h1>
+  el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Explore Kinetta</h1>
     <form class="searchbox guide-search" role="search"><span class="sb-ico">${svg('search')}</span><input type="search" aria-label="Search features" placeholder="Search features" autocomplete="off"><span id="guide-count" role="status"></span></form>
     <div class="guide-category-window"><div class="guide-categories" role="group" aria-label="Feature category"></div></div><div id="guide-results"></div>`;
-  wireBack(el, '/me');
+  wireBack(el, '/track');
   const owner=readOwner(),valid=()=>el.isConnected&&readOwner()===owner;
   let category = 'All';
   const catalog = FEATURE_GUIDE.filter(f=>!Native.on || !['/track/import','/food/import'].includes(f[3]));

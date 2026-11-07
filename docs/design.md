@@ -1378,10 +1378,9 @@ Charts use named series, visible units and averages, subtle fills, restrained gr
 After the completed launch/lifting/chart review, #356 adds a compact Training & progress card under Notifications. Planned workouts and Weekly summary start off and remain separate from existing social, milestone, challenge and meal controls. Show the profile time zone, a clear plan reminder time and Monday9am summary schedule. Fold longer delivery details. Keep practical labels/controls readable at330/390px, enlarged text and both themes. Enable only by explicit choice with device/server readiness; retain Off when setup becomes unavailable. Serial pending saves, visible failure recovery and owner/view guards preserve trust. A native permission refresh waits behind a pending preference save. Weekly alerts open the existing private Progress summary expanded; its current dates remain visible and no AI review is implied. See [research, timing/privacy requirements and acceptance](notification-followup.md).
 
 
-## Floating frosted navigation · 29 October 2026 (owner-selected first concept)
+## Floating frosted navigation · 29 October 2026 (updated for #700 on 7 November)
 
-The stable five tabs live in one floating rounded capsule: Me, Activity, Track, Progress and Nutrition. Keep every
-label, the existing icons and unread/recording indicators. Owner revision, 1 November: the selected tab uses accent blue plus a heavier label and icon stroke, with no background pill or outline. Preserve focus rings and pressed feedback, including solid accessibility fallbacks.
+The stable five tabs live in one floating rounded capsule: Home, Progress, Track, Nutrition and Me, with Track centered. Home is the existing Activity feed at `/activity` under its new label; Me is last and keeps its profile card first and unchanged. Settings stays on the gear at the top right of Me. Explore is linked from Track; `/me/explore` remains a working URL. Keep the existing icons and unread/recording indicators. Owner revision, 1 November: the selected tab uses accent blue plus a heavier label and icon stroke, with no background pill or outline. Preserve focus rings and pressed feedback, including solid accessibility fallbacks.
 Use a restrained translucent surface and blur in both themes; unsupported browsers keep a solid surface. Reduced
 Transparency, Increase Contrast and forced colors use a solid treatment. The iPhone bridge reads accessibility
 preferences locally, updates on changes/foreground and keeps the first paint solid until it has a valid result.
