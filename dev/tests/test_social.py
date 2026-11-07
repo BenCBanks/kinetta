@@ -25,7 +25,7 @@ alex = S(login(*ALEX))
 fr, st, pe = (S(person(w)) for w in ('zz_test_friend', 'zz_test_stranger', 'zz_test_pending'))
 people = {'zz_test_friend': fr, 'zz_test_stranger': st, 'zz_test_pending': pe}
 
-# start clean: alex shares nothing, and has no zz_test friends or requests
+# start clean: alex's activities use Only me, and there are no zz_test friends or requests
 alex.q('PUT', '/api/sharing', {'default': 'me', 'trim_m': 400})
 for a in alex.q('GET', '/api/activities?limit=100'):
     if a['visibility'] != 'me': alex.q('PUT', f"/api/activities/{a['id']}/sharing", {'visibility': 'me', 'usual_details': True})
@@ -54,8 +54,8 @@ check(st.q('GET', '/api/friends')['outgoing'] == [], 'declined request is gone')
 
 # --- sharing ---
 sh = alex.q('GET', '/api/sharing')
-check(sh['default'] == 'me' and sh['trim_m'] == 400 and sh['details'] == {'map': True, 'heart_rate': False, 'pace': True, 'splits': True,
-      'elevation': True, 'calories': False, 'description': True, 'device': True}, f'safe defaults {sh}')
+check(sh['default'] == 'me' and sh['trim_m'] == 400 and sh['share_achievements'] and sh['details'] == {'map': True, 'heart_rate': True, 'pace': True, 'splits': True,
+      'elevation': True, 'calories': False, 'description': True, 'device': True}, f'new-profile defaults {sh}')
 alex.q('PUT', '/api/sharing', {'trim_m': 300}, want=400)
 alex.q('PUT', '/api/sharing', {'details': {'password': True}}, want=400)
 feed = alex.q('GET', '/api/activities?limit=20')
@@ -81,11 +81,10 @@ st.q('GET', f'/api/activities/{a1}', want=404)   # the owner's own detail endpoi
 
 never = ('private_note', 'ai_note', 'file_path', 'file_sha256', 'user_id', 'start_pt', 'end_pt', 'geom', 'strava_id', 'source_id',
          'gear_id', 'route_id', 'tz', 'avg_power', 'avg_cad')
-for k in never + ('avg_hr', 'max_hr', 'zones', 'effort', 'calories'): check(k not in v, f'{k} absent from a friend view')
+for k in never + ('calories',): check(k not in v, f'{k} absent from a friend view')
+check('avg_hr' in v, 'new-profile heart rate is visible to the selected audience')
 check(v['line'] and v['ends_hidden'], 'map shared, ends trimmed')
-check('hr' not in (v.get('chart') or {}), 'no HR chart series')
-check(all('avg_hr' not in s for s in v.get('splits_mi', [])), 'no HR in splits')
-check('avg_hr' not in json.dumps(fr.q('GET', '/api/feed/friends')), 'no HR anywhere in the feed')
+check('avg_hr' in json.dumps(fr.q('GET', '/api/feed/friends')), 'HR follows the new-profile sharing setting in the feed')
 
 # map trimming really drops the ends: the owner's line is longer than the shared one, and the ends differ
 def decode(s):
@@ -106,13 +105,13 @@ d0, d1 = dist(full[0], part[0]), dist(full[-1], part[-1])
 print(f'trim 400 m: shared map starts {d0:.0f} m and ends {d1:.0f} m (straight line) from the real start/end')
 check(d0 > 100 and d1 > 100, 'shared map starts and ends away from the real start and end')
 
-# details: turn HR on for one activity only, then back to usual
-alex.q('PUT', f'/api/activities/{a1}/sharing', {'details': {**sh['details'], 'heart_rate': True, 'map': False}})
+# details: turn HR off for one activity only, then back to the new-profile default
+alex.q('PUT', f'/api/activities/{a1}/sharing', {'details': {**sh['details'], 'heart_rate': False, 'map': False}})
 v2 = fr.q('GET', f'/api/shared/{a1}')
-check('avg_hr' in v2 and v2['line'] is None, 'per-activity override: HR on, map off')
+check('avg_hr' not in v2 and v2['line'] is None, 'per-activity override: HR off, map off')
 so = alex.q('GET', f'/api/activities/{a1}/social'); check(so['custom'] and so['visibility'] == 'friends', 'owner sees sharing state')
 alex.q('PUT', f'/api/activities/{a1}/sharing', {'usual_details': True})
-check('avg_hr' not in fr.q('GET', f'/api/shared/{a1}'), 'back to usual: HR gone')
+check('avg_hr' in fr.q('GET', f'/api/shared/{a1}'), 'back to usual: new-profile HR default restored')
 # pace off: no pace numbers, splits or time axis
 alex.q('PUT', '/api/sharing', {'details': {'pace': False}})
 v3 = fr.q('GET', f'/api/shared/{a1}')
