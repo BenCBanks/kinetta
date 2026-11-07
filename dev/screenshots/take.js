@@ -21,7 +21,13 @@ async function enableKitForDemo(page) {
   if (!result?.ok) throw Error('Could not opt the fictional screenshot account into Kit.');
 }
 // Describe, Snap or Scan: explicit estimates use per-food stand-ins; no provider is called.
-const SAMPLE = (note) => { const n = /two/.test(note || '') ? 2 : 1;   // the correction changes the answer, like the real thing
+const SAMPLE = (note) => {
+  if (/egg|toast|coffee/i.test(note || '')) return {items: [
+    {name: 'Eggs', amount: '2 large', kcal: 144, protein_g: 13, carbs_g: 1, fat_g: 10, fiber_g: 0},
+    {name: 'Whole-wheat toast', amount: '1 slice', kcal: 110, protein_g: 4, carbs_g: 20, fat_g: 2, fiber_g: 3},
+    {name: 'Black coffee', amount: '1 cup', kcal: 2, protein_g: 0, carbs_g: 0, fat_g: 0, fiber_g: 0}
+  ], notes: 'Made-up screenshot nutrition, not a live provider response.', model: 'sample'};
+  const n = /two/.test(note || '') ? 2 : 1;   // the correction changes the answer, like the real thing
   const items = [{name: 'Hot dog', amount: String(n), kcal: 550 * n, protein_g: 20 * n, carbs_g: 45 * n, fat_g: 32 * n, fiber_g: 2 * n},
     {name: 'Diet Coke', amount: '20 fl oz', kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0}];
   return {items: items.filter(x => x.name === 'Hot dog' ? /hot dog/i.test(note || '') : /diet coke/i.test(note || '')),
@@ -310,8 +316,13 @@ async function say(page, text) {
       await page.evaluate(() => document.fonts.ready);
       // Locator/evaluate polling works under the app’s strict script policy.
       for(let n=0;n<40;n++){if(await page.evaluate(()=>!document.querySelector('.leaflet-tile-container')||document.querySelector('.leaflet-tile-loaded')))break;await page.waitForTimeout(100);}
-      if(name==='feed'){
+      if(name==='feed'||name==='friends-feed'){
         await page.locator('#feed-tools[aria-busy=false]').waitFor({state:'attached'});
+        if (opt.feedCard) {
+          const featured = page.locator(`#ff-list .post[data-href="/activity/${ids.FEED_ACTIVITY}"]`);
+          await featured.evaluate(el => window.scrollTo({top: el.getBoundingClientRect().top + scrollY - 68, behavior: 'instant'}));
+          await page.waitForTimeout(200);
+        }
         if(await page.locator('#feed-discovery').count())throw Error('Mature feed must not show discovery cards');
         const group=page.locator(`#ff-list .post[data-href="/activity/${ids.FEED_ACTIVITY}"] .post-ft [data-reaction-group][data-aid="${ids.FEED_ACTIVITY}"]`);
         await group.waitFor({state:'visible'});
@@ -343,6 +354,25 @@ async function say(page, text) {
           return rects.every(r=>r.width>0&&r.height>0&&r.left>=0&&r.right<=innerWidth&&r.top>=59&&r.bottom<=limit)
             &&Math.abs(commentRect.left-actionRect.right-8)<1&&Math.abs(buttonRect.right-contentRight)<1&&buttonRect.left>=commentRect.right;
         }))throw Error('Demo feed actions must stay left of the per-emoji counts in the captured viewport');
+      }
+      if (opt.groupDetail) {
+        const id = await page.evaluate(async () => (await api('/api/groups'))[0]?.id);
+        if (!id) throw Error('Fictional Friends group was not staged.');
+        await page.evaluate((groupId) => go('/groups/' + groupId), id);
+        const goal = page.locator('.group-goal progress');
+        await goal.waitFor({state: 'visible'});
+        const percent = await goal.evaluate(el => Math.round(Number(el.value) / Number(el.max) * 100));
+        if (percent !== 70) throw Error(`Friends group goal should be 70%, found ${percent}%.`);
+        await page.locator('#group-members .group-member').first().waitFor({state: 'visible'});
+      }
+      if (opt.meCard) {
+        await page.locator('.me-card').first().waitFor({state: 'visible'});
+        await page.locator('.me-card .me-showcase-medal').first().waitFor({state: 'visible'});
+      }
+      if (opt.nutritionDay) {
+        await page.getByText('Black coffee', {exact: true}).waitFor({state: 'visible'});
+        await page.getByText('Chicken grain bowl', {exact: true}).waitFor({state: 'visible'});
+        await page.getByText('Salmon and potatoes', {exact: true}).waitFor({state: 'visible'});
       }
       if(name==='insights'){await page.getByRole('heading',{name:'Insights',exact:true}).waitFor();await page.locator('#nt-overview-chart').waitFor();}
       if(opt.fitnessTrend){
@@ -400,10 +430,20 @@ async function say(page, text) {
       }
       if (opt.describe || opt.snap || opt.scan) {   // the food chat (2026-10-18): estimates come from dev/screenshots/standin.py
         const before = await page.evaluate(snapshotFood);
-        await chat(page, opt.scan ? 'breakfast' : opt.snap ? 'lunch' : 'dinner');
-        if (opt.describe) {      // type a meal, then correct its pending review in plain words
-          await say(page, opt.describe[0]); await page.locator('.thread-card').filter({hasText: 'Hot dog'}).filter({hasText: '550'}).first().waitFor();
-          await say(page, opt.describe[1]); await page.locator('.thread-card').filter({hasText: 'Hot dog'}).filter({hasText: '1100'}).first().waitFor();
+        await chat(page, opt.meal || (opt.scan ? 'breakfast' : opt.snap ? 'lunch' : 'dinner'));
+        if (opt.describe) {      // review a realistic multi-item breakfast in the compact #685 food chat
+          for (const text of opt.describe) await say(page, text);
+          if (opt.completeMeal) {
+            const estimate = page.getByRole('button', {name: /Estimate calories with Kit/});
+            await estimate.waitFor({state: 'visible'});
+            await estimate.click();
+            await page.locator('.thread-card').filter({hasText: 'Black coffee'}).first().waitFor({state: 'visible'});
+            await page.getByRole('button', {name: '1 serving', exact: true}).last().click();
+            await settle(page);
+          }
+          for (const food of (opt.expectFoods || [])) {
+            await page.locator('.thread-card').filter({hasText: food}).first().waitFor({state: 'visible'});
+          }
         }
         if (opt.scan) {          // what a scan finds: the product's sheet, one container, ready to add to breakfast
           await page.evaluate(async (code) => { const f = await api('/api/food/barcode/' + code); amountSheet(f, {day: isoDay(new Date()), meal: 'breakfast'}, () => {}); }, opt.scan);

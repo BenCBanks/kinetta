@@ -103,6 +103,13 @@
     "/food"
   ],
   [
+    "nutrition-day",
+    "/food",
+    {
+      "nutritionDay": true
+    }
+  ],
+  [
     "insights",
     "/food?view=overview&r=30"
   ],
@@ -129,6 +136,27 @@
   [
     "friends",
     "/me/friends"
+  ],
+  [
+    "friends-feed",
+    "/activity",
+    {
+      "feedCard": true
+    }
+  ],
+  [
+    "friends-group",
+    "/me/groups",
+    {
+      "groupDetail": true
+    }
+  ],
+  [
+    "friends-me",
+    "/me",
+    {
+      "meCard": true
+    }
   ],
   [
     "dietcoach",

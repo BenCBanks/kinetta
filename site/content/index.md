@@ -110,6 +110,58 @@ No ads
 
 Bring it all together.
 
+## home-food-heading
+
+Fuel that fits your day.
+
+## home-food-day
+
+See meals, calories and macros at a glance.
+
+## home-food-chat
+
+Log a full meal in a few words.
+
+## home-food-demo
+
+Fictional meals · Nutrition estimates are stand-ins.
+
+## home-friends-heading
+
+Celebrate every kind of progress.
+
+## home-friends-feed
+
+Routes, reactions and moments worth cheering.
+
+## home-friends-group
+
+Bring the whole crew closer to its goal.
+
+## home-friends-me
+
+Give your milestones a place to shine.
+
+## home-friends-demo
+
+Fictional people, routes, group activity and medals.
+
+## home-trust-share
+
+You choose what you share.
+
+## home-trust-export
+
+Export your data.
+
+## home-trust-ads
+
+No ads.
+
+## home-final-heading
+
+Make every week count.
+
 ## training-training-food-food-friends-friends-compare-co-17
 
 [Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [About](about) · [Privacy](privacy)

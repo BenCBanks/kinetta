@@ -514,3 +514,43 @@ header.top .signup { display:flex;align-items:center; }
   .home-insight-support { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .home-insight-support .frame { max-width: 190px; }
 }
+
+/* Food and Friends bring the app's daily choices and shared progress into the Home story. */
+.home-food, .home-friends { padding-block: 76px; overflow: hidden; }
+.home-food { background: var(--paper); }
+.home-friends { background: var(--bg); }
+.home-food .wrap, .home-friends .wrap { display: grid; gap: 30px; }
+.home-story-head { max-width: 760px; margin-inline: auto; text-align: center; }
+.home-story-head .eyebrow { display: block; margin-bottom: 12px; color: var(--brand); font-size: 13px; font-weight: 700; letter-spacing: .14em; }
+.home-story-head h2 { font-size: clamp(32px, 4.5vw, 54px); line-height: 1.04; letter-spacing: -.04em; }
+.home-story-grid { display: grid; align-items: start; gap: clamp(24px, 3vw, 48px); }
+.home-story-grid article, .home-story-grid figure { min-width: 0; margin: 0; }
+.home-story-grid figure { display: grid; justify-items: center; gap: 18px; }
+.home-story-grid .frame { max-width: 258px; background: #15191D; }
+.home-story-grid .frame img { display: block; }
+.home-story-grid h3 { max-width: 27ch; font-size: clamp(18px, 1.7vw, 21px); font-weight: 650; line-height: 1.25; text-align: center; }
+.home-food-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 790px; margin-inline: auto; }
+.home-friends-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.home-demo-label { color: var(--ink3); font-size: 13px; line-height: 1.4; text-align: center; }
+.home-disciplines { padding-block: 24px; border-block: 1px solid var(--line); }
+.home-disciplines ul, .home-trust ul { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 14px clamp(22px, 5vw, 64px); margin: 0; padding: 0; list-style: none; }
+.home-disciplines li { display: flex; align-items: center; gap: 9px; color: var(--ink2); font-size: 15px; font-weight: 600; }
+.home-disciplines svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.home-trust { padding-block: 28px; background: var(--ink); color: var(--bg); }
+.home-trust li { font-size: 15px; font-weight: 600; }
+.home-final { padding-block: 72px; text-align: center; }
+.home-final .wrap { display: grid; justify-items: center; gap: 26px; }
+.home-final h2 { max-width: 20ch; font-size: clamp(32px, 4.5vw, 52px); line-height: 1.04; letter-spacing: -.04em; }
+
+@media (max-width: 860px) {
+  .home-food, .home-friends { padding-block: 54px; }
+  .home-food .wrap, .home-friends .wrap { gap: 24px; }
+  .home-story-head { text-align: left; }
+  .home-story-grid { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: min(280px, 80vw); justify-content: start; overflow-x: auto;
+    scroll-snap-type: x mandatory; padding-bottom: 12px; margin-inline: -20px; padding-inline: 20px; scroll-padding-inline: 20px; }
+  .home-story-grid article { scroll-snap-align: start; }
+  .home-story-grid .frame { max-width: 260px; }
+  .home-disciplines ul, .home-trust ul { gap: 14px 22px; }
+  .home-disciplines li { font-size: 14px; }
+  .home-final { padding-block: 54px; }
+}
