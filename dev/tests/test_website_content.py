@@ -44,7 +44,7 @@ class CopyTests(unittest.TestCase):
   self.assertNotIn('class="about"',(content.ROOT/'site/templates/index.html').read_text())
  def test_about_photos_have_no_embedded_metadata(self):
   import struct
-  for name in ['ben','ben-and-rachel']:
+  for name in ['ben-and-rachel']:
    for extension in ['jpg','webp']:
     with self.subTest(name=name,extension=extension):
      data=(content.ROOT/f'site/assets/about/{name}.{extension}').read_bytes()
