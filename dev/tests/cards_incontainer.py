@@ -259,6 +259,37 @@ class Cards(unittest.TestCase):
   # Totals stay above the fixed footer in both selected views.
   for value,box in bounds:
    if value in ('All time','distance','workouts','time'):self.assertLess(box[3],1135,(value,box))
+ def test_shared_image_medals_are_prominent_and_centered_for_one_or_two_items(self):
+  original=cards.achievement_medal
+  for count,expected_centers in ((1,[540]),(2,[306,774])):
+   items=[{'code':'sport:run','value':'1,000 mi','context':'Total running distance'} for _ in range(count)]
+   data={'username':'fictional runner','period':'none','sports':[],'achievements':items,
+         'garmin_sources':[],'url':'https://example.test/card/fictional'}
+   with patch('app.cards.payload',return_value=data),patch('app.cards.achievement_medal',wraps=original) as medal:
+    cards.image(None,{'user_id':self.ids[0]},None)
+   self.assertEqual([call.args[1] for call in medal.call_args_list],expected_centers)
+   self.assertEqual([call.args[3] for call in medal.call_args_list],[cards.CARD_FEATURED_MEDAL_SIZE]*count)
+  self.assertEqual(cards.CARD_FEATURED_SLOT_GUTTER,24)
+ def test_shared_image_wraps_long_values_without_shrinking_the_font(self):
+  items=[{'code':'journey','value':'767,124.9 mi','context':'All-sport distance'},
+         {'code':'sport:run','value':'613,699.9 mi','context':'Total running distance'},
+         {'code':'workouts','value':'12,345,678 workouts','context':'Workouts completed'},
+         {'code':'climbing','value':'405,041,971.6 ft','context':'Elevation climbed'}]
+  data={'username':'fictional runner','period':'none','sports':[],'achievements':items,
+        'garmin_sources':[],'url':'https://example.test/card/fictional'}
+  drawn=[];original=ImageDraw.ImageDraw.text
+  def record(draw,xy,value,*args,**kwargs):
+   font=kwargs.get('font')
+   drawn.append((str(value),font.size,draw.textlength(str(value),font=font),xy[1]))
+   return original(draw,xy,value,*args,**kwargs)
+  with patch('app.cards.payload',return_value=data),patch('app.cards.ImageDraw.ImageDraw.text',new=record):
+   cards.image(None,{'user_id':self.ids[0]},None)
+  for value in ('12,345,678','workouts','405,041,971.6','ft'):
+   match=[entry for entry in drawn if entry[0]==value]
+   self.assertTrue(match,(value,drawn))
+   self.assertEqual(match[0][1],31,(value,match))
+   self.assertLessEqual(match[0][2],936/2-cards.CARD_FEATURED_SLOT_GUTTER,(value,match))
+  self.assertEqual(cards.CARD_FEATURED_CONTEXT_OFFSET,165)
  def test_worst_case_featured_row_is_dropped_before_the_fixed_footer(self):
   photo=io.BytesIO();Image.new('RGB',(80,80),'#1F55D0').save(photo,format='JPEG')
   weeks=[{'week':(dt.date(2026,1,5)+dt.timedelta(weeks=i)).isoformat(),'distance_m':10000,'activities':1,'time_s':3600} for i in range(12)]
@@ -280,8 +311,8 @@ class Cards(unittest.TestCase):
   self.assertEqual(Image.open(io.BytesIO(png)).size,(1080,1350))
   self.assertEqual(len(data['sports']),9);self.assertEqual(decisions[0][1],4)
   self.assertGreater(decisions[0][0],cards.CARD_FOOTER_TOP);self.assertIsNone(decisions[0][2])
-  self.assertEqual(cards.featured_row_bounds(896,4),(896,cards.CARD_FOOTER_TOP))
-  self.assertIsNone(cards.featured_row_bounds(897,4))
+  self.assertEqual(cards.featured_row_bounds(820,4),(820,cards.CARD_FOOTER_TOP))
+  self.assertIsNone(cards.featured_row_bounds(821,4))
   self.assertEqual(medal.call_count,0);self.assertNotIn('Featured achievements',labels)
  def test_single_long_words_are_clipped_inside_each_featured_slot(self):
   def render(value,context):
@@ -290,8 +321,12 @@ class Cards(unittest.TestCase):
          'garmin_sources':[],'url':'https://example.test/card/fictional'}
    with patch('app.cards.payload',return_value=data):png=cards.image(None,{'user_id':self.ids[0]},None)
    return Image.open(io.BytesIO(png)).convert('RGB')
-  baseline=render('1 mi','Run');long=render('9'*100,'W'*100);top=305;slot_left=81;slot_right=297
-  for y0,y1 in ((top+100,top+135),(top+135,top+154)):
+  baseline=render('1 mi','Run');long=render('9'*100,'W'*100);top=305
+  slot_left=72+cards.CARD_FEATURED_SLOT_GUTTER//2
+  slot_right=72+936//4-cards.CARD_FEATURED_SLOT_GUTTER//2
+  value_top=top+cards.CARD_FEATURED_HEADER_HEIGHT+cards.CARD_FEATURED_VALUE_OFFSET
+  context_top=top+cards.CARD_FEATURED_HEADER_HEIGHT+cards.CARD_FEATURED_CONTEXT_OFFSET
+  for y0,y1 in ((value_top,value_top+55),(context_top,context_top+55)):
    changes=[(x,y) for y in range(y0,y1) for x in range(1080) if baseline.getpixel((x,y))!=long.getpixel((x,y))]
    self.assertTrue(changes,(y0,y1))
    self.assertGreaterEqual(min(x for x,y in changes),slot_left)

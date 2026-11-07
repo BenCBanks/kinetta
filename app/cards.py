@@ -69,7 +69,12 @@ CARD_ACHIEVEMENT_CONTEXT={
     'years_active':'Years active','climbing':'Elevation climbed','lifted':'Weight lifted','personal_bests':'Personal bests',
 }
 CARD_FOOTER_TOP=1050
-CARD_FEATURED_ROW_HEIGHT=154
+CARD_FEATURED_HEADER_HEIGHT=44
+CARD_FEATURED_MEDAL_SIZE=90
+CARD_FEATURED_VALUE_OFFSET=94
+CARD_FEATURED_CONTEXT_OFFSET=165
+CARD_FEATURED_SLOT_GUTTER=24
+CARD_FEATURED_ROW_HEIGHT=230
 
 def featured_row_bounds(top,count):
     """Keep a complete featured row above the fixed card footer, or omit it."""
@@ -360,13 +365,13 @@ def image(c,row,request):
         items=d['achievements'][:4];slot=936/len(items)
         bounds=featured_row_bounds(y,len(items))
         if bounds:
-            text('Featured achievements',72,y,26,'#646D77');y+=40
+            text('Featured achievements',72,y,30,'#646D77');y+=CARD_FEATURED_HEADER_HEIGHT
             colors={'sport:run':'#12924F','sport:ride':'#0B8798','sport:walk-hike':'#6F8A12','sport:swim':'#2A80BD','climbing':'#B26A10','lifted':'#D9532A','sport:lift':'#D9532A'}
             for index,item in enumerate(items):
                 center=72+slot*(index+.5)
-                achievement_medal(g,center,y,58,colors.get(item['code'],'#1F55D0'))
-                centered(item['value'],center,y+62,31,'#15191D',slot-18)
-                centered_lines(item['context'],center,y+98,20,'#4A535C',slot-18)
+                achievement_medal(g,center,y,CARD_FEATURED_MEDAL_SIZE,colors.get(item['code'],'#1F55D0'))
+                centered_lines(item['value'],center,y+CARD_FEATURED_VALUE_OFFSET,31,'#15191D',slot-CARD_FEATURED_SLOT_GUTTER)
+                centered_lines(item['context'],center,y+CARD_FEATURED_CONTEXT_OFFSET,20,'#4A535C',slot-CARD_FEATURED_SLOT_GUTTER)
             y=bounds[1]
     def wrapped(value,y,size,max_lines):
         # Long configured addresses and source lists must wrap, never leave the canvas.
