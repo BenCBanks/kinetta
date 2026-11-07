@@ -37,24 +37,25 @@ class ContactBlocks(unittest.TestCase):
         with db.connect() as c:
             c.execute('DELETE FROM users WHERE id = ANY(%s)', ([self.owner, self.peer],))
 
-    def _match(self):
-        salt = self.client.get('/api/contacts/salt').json()['salt']
+    def _match(self, salt):
         digest = api_contacts.contact_digest(salt, 'phone', '+15550101102')
         response = self.client.post('/api/contacts/match', json={
             'salt': salt, 'hashes': [{'kind': 'phone', 'digest': digest}],
         })
         self.assertEqual(response.status_code, 200, response.text)
-        return response.json()['member_ids']
+        return response.json()['matches']
 
     def test_a_blocking_b_or_b_blocking_a_hides_the_match(self):
-        self.assertEqual(self._match(), [self.peer], 'an unblocked phone matches')
+        salt = self.client.get('/api/contacts/salt').json()['salt']
+        expected_hash = api_contacts.contact_digest(salt, 'phone', '+15550101102')
+        self.assertEqual(self._match(salt), [{'hash': expected_hash, 'member_id': self.peer}], 'an unblocked phone matches')
         with db.connect() as c:
             c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)', (self.owner, self.peer))
-        self.assertEqual(self._match(), [], 'A blocks B')
+        self.assertEqual(self._match(salt), [], 'A blocks B')
         with db.connect() as c:
             c.execute('DELETE FROM blocks WHERE user_id=%s AND blocked=%s', (self.owner, self.peer))
             c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)', (self.peer, self.owner))
-        self.assertEqual(self._match(), [], 'B blocks A')
+        self.assertEqual(self._match(salt), [], 'B blocks A')
 
 
 if __name__ == '__main__':

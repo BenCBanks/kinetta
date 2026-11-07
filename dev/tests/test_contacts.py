@@ -114,7 +114,7 @@ class Contacts(unittest.TestCase):
         self.assertEqual(bad.status_code, 400)
         self.assertNotIn('555 010 1234', bad.text)
 
-    def test_match_returns_only_unique_opted_in_member_ids_and_does_not_store_hashes(self):
+    def test_match_returns_only_matched_hash_pairs_and_does_not_store_hashes(self):
         self.db.candidates = [
             {'id': 202, 'email': 'friend@example.test', 'phone_e164': '+15550101234'},
             {'id': 303, 'email': None, 'phone_e164': None},  # duplicate phone claim was filtered in SQL
@@ -122,18 +122,26 @@ class Contacts(unittest.TestCase):
         salt = 'a' * 43
         email_hash = api_contacts.contact_digest(salt, 'email', 'friend@example.test')
         phone_hash = api_contacts.contact_digest(salt, 'phone', '+15550101234')
+        unmatched_hash = api_contacts.contact_digest(salt, 'email', 'not-a-member@example.test')
         response = self.client.post('/api/contacts/match', json={
-            'salt': salt, 'hashes': [{'kind': 'email', 'digest': email_hash}, {'kind': 'phone', 'digest': phone_hash}],
+            'salt': salt, 'hashes': [
+                {'kind': 'email', 'digest': email_hash}, {'kind': 'phone', 'digest': phone_hash},
+                {'kind': 'email', 'digest': unmatched_hash}, {'kind': 'email', 'digest': email_hash},
+            ],
         })
         self.assertEqual(response.status_code, 200, response.text)
-        self.assertEqual(response.json(), {'member_ids': [202]})  # email + phone still yields one ID
+        self.assertEqual(response.json(), {'matches': [
+            {'hash': digest, 'member_id': 202} for digest in sorted((email_hash, phone_hash))
+        ]})  # duplicate submissions collapse; both matched fields map to the same member
         self.assertNotIn('friend@example.test', response.text)
-        self.assertNotIn(email_hash, response.text)
+        self.assertNotIn(unmatched_hash, response.text)
+        self.assertTrue(all(set(match) == {'hash', 'member_id'} for match in response.json()['matches']))
         self.assertEqual(self.limit_args, [('contacts-check:101', 1, 1440)])
         query, params = next((q, p) for q, p in self.db.calls if 'WITH phone_counts AS' in q)
         self.assertIn('count(*) AS n FROM users WHERE phone_e164 IS NOT NULL', query)
         self.assertIn('pc.n=1', query)
         self.assertIn('u.id<>%s', query)
+        self.assertIn('NOT EXISTS (SELECT 1 FROM blocks', query)
         self.assertEqual(params, (101, 101, 101))  # owner IDs only; hashes never enter SQL parameters or persistent rows
         self.assertEqual(self.routes[-1], '/api/contacts/match')
 
@@ -159,6 +167,7 @@ class Contacts(unittest.TestCase):
             'salt': 'a' * 43, 'hashes': [{'kind': 'email', 'digest': 'b' * 64}],
         })
         self.assertEqual(valid.status_code, 200, valid.text)
+        self.assertEqual(valid.json(), {'matches': []})
         self.assertEqual(self.limit_args, [('contacts-check:101', 1, 1440)])
 
     def test_request_log_keeps_route_metadata_without_body_fields(self):

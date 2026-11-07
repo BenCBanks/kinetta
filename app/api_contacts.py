@@ -125,8 +125,14 @@ def match_contacts(body: ContactMatchIn, user=Depends(current_user)):
     for row in rows:
         email = row['email']
         phone = row['phone_e164']
-        if email and ('email', contact_digest(body.salt, 'email', email.strip().lower())) in wanted:
-            matched.add(row['id'])
-        if phone and ('phone', contact_digest(body.salt, 'phone', phone)) in wanted:
-            matched.add(row['id'])
-    return {'member_ids': sorted(matched)}
+        if email:
+            digest = contact_digest(body.salt, 'email', email.strip().lower())
+            if ('email', digest) in wanted:
+                matched.add((digest, row['id']))
+        if phone:
+            digest = contact_digest(body.salt, 'phone', phone)
+            if ('phone', digest) in wanted:
+                matched.add((digest, row['id']))
+    # Return only submitted hashes that matched an eligible account. The device can map these
+    # back to its local contacts; unmatched hashes and all contact details stay on the device.
+    return {'matches': [{'hash': digest, 'member_id': member_id} for digest, member_id in sorted(matched)]}
