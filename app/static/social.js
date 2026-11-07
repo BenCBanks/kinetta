@@ -287,6 +287,7 @@ function activityGroupStripHtml(data){
     ${more}</div></section>`;
 }
 function activityGroupStripLongPress(box,mute){
+  if(typeof box?.addEventListener!=='function')return;
   let timer=null,origin=null,pointerId=null,pointerType=null,suppressUntil=0,held=false;
   const inGroupLink=event=>event.target instanceof Element&&!!event.target.closest('.feed-groups-link');
   const cancel=()=>{clearTimeout(timer);timer=null;origin=null;pointerId=null;pointerType=null;};
