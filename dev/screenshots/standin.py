@@ -11,13 +11,14 @@ NOTE = ''   # the real estimator's short note; left empty so the website shows n
 
 
 def sample(note):
-    """Typed meal: a Costco hot dog and a Diet Coke; "two" doubles the hot dogs, like the real thing when told."""
-    n = 2 if 'two' in note else 1
+    """A natural typed meal with three recognizable foods and made-up nutrition."""
     items = []
-    if 'hot dog' in note:
-        items.append({'name': 'Hot dog', 'amount': str(n), 'grams': 140 * n, 'kcal': 550 * n, 'protein_g': 20 * n, 'carbs_g': 45 * n, 'fat_g': 32 * n, 'fiber_g': 2 * n})
-    if 'diet coke' in note:
-        items.append({'name': 'Diet Coke', 'amount': '1 bottle', 'grams': 590, 'kcal': 0, 'protein_g': 0, 'carbs_g': 0, 'fat_g': 0, 'fiber_g': 0})
+    if 'greek yogurt' in note and 'berries' in note:
+        items.append({'name': 'Greek yogurt with berries', 'amount': '1 bowl', 'grams': 220, 'kcal': 220, 'protein_g': 19, 'carbs_g': 27, 'fat_g': 5, 'fiber_g': 4})
+    if 'oatmeal' in note and 'banana' in note:
+        items.append({'name': 'Oatmeal with banana', 'amount': '1 bowl', 'grams': 280, 'kcal': 290, 'protein_g': 10, 'carbs_g': 56, 'fat_g': 5, 'fiber_g': 8})
+    if 'chicken salad' in note:
+        items.append({'name': 'Chicken salad bowl', 'amount': '1 bowl', 'grams': 350, 'kcal': 430, 'protein_g': 35, 'carbs_g': 30, 'fat_g': 19, 'fiber_g': 6})
     return items
 
 

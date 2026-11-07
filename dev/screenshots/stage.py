@@ -146,7 +146,9 @@ for theme in ('light', 'dark'):
         alex('POST', '/api/admin/people', body)
     screenshot_food = person(login, body['password'])
     screenshot_food('PUT', '/api/profile', {'tz': 'America/New_York', 'units': 'imperial', 'ai_ok': False, 'ai_adult': False})
-    screenshot_food('POST', '/api/food/foods', {'name': 'Fictional trail bar', 'brand': 'Screenshot stand-in',
-                                                 'serving_label': '1 bar', 'serving_g': 40, 'kcal': 180,
-                                                 'protein_g': 6, 'carbs_g': 27, 'fat_g': 5, 'fiber_g': 3})
+    yesterday = dt.datetime.now(ZoneInfo('America/New_York')).date() - dt.timedelta(days=1)
+    breakfast_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f'https://kinetta.app/dev/screenshots/breakfast/{theme}'))
+    screenshot_food('POST', '/api/food/entries', [{'day': str(yesterday), 'meal': 'breakfast',
+        'name': 'Greek yogurt with berries', 'amount': 1, 'unit': 'bowl', 'kcal': 225,
+        'protein_g': 18, 'carbs_g': 28, 'fat_g': 4, 'fiber_g': 5, 'client_id': breakfast_id}])
 print('staged: tray', tray['id'], 'soup', soup['id'], 'segment', segment['id'])
