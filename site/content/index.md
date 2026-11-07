@@ -80,7 +80,7 @@ Give your milestones a place to shine.
 
 ## home-friends-demo
 
-Fictional people, routes, group activity and medals.
+Fictional people, routes, reactions and achievement stand-ins.
 
 ## home-trust-share
 

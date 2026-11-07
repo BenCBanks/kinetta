@@ -1,6 +1,6 @@
 # Made-up social + cooking state for public screenshots, on top of dev/demo/seed.py (a throwaway install only).
 # Seven accepted friends cover running, riding and walking; their mapped activities make a lively feed with reactions,
-# comments and a shared 7-of-10 session goal. Morgan's first activity supplies a fictional shared achievement moment.
+# comments and a shared 7-of-10 session goal. Morgan's three fictional rides support the feed's achievement stand-in.
 # Sam remains a pending request. Alex has a realistic five-entry Nutrition day, compact breakfast chat data, activity
 # photos, saved dishes and lifting history. No real account, food provider or AI service is used.
 # Usage: stage.py <gpx dir from gen_gpx.py>
@@ -75,6 +75,10 @@ sam('POST', '/api/friends', {'login': 'alex'})                      # waiting fo
 for login in ('casey', 'taylor', 'morgan', 'avery', 'riley', 'quinn'):
     friends[login]('POST', '/api/friends', {'login': 'alex'})
     alex('POST', '/api/friends/' + login + '/accept')
+# Casey and Taylor can also cheer Morgan's shared ride, so the featured friend card has a real reaction cluster.
+for login in ('casey', 'taylor'):
+    friends[login]('POST', '/api/friends', {'login': 'morgan'})
+    friends['morgan']('POST', '/api/friends/' + login + '/accept')
 assert alex('GET', '/api/me')['friend_count'] >= 7
 alex('PUT', '/api/sharing', {'default': 'friends', 'share_achievements': True})
 last = [p for p in sorted(glob.glob(G + '/*running.gpx'))][-1]; raw = open(last, 'rb').read()
@@ -93,17 +97,29 @@ group = alex('POST', '/api/groups', {
 })
 group_id = group['id']
 invite = group['invite_url'].rsplit('/', 1)[1]
-group_members = ('jordan', 'casey', 'taylor', 'morgan', 'avery', 'riley')
+group_members = ('jordan', 'casey', 'taylor', 'avery', 'riley', 'quinn')
 for login in group_members:
     friends[login]('POST', '/api/group-invites/' + invite + '/accept')
 friends['morgan']('PUT', '/api/sharing', {'default': 'friends', 'share_achievements': True})
 
 recent_sports = {
     'alex': 'running', 'jordan': 'cycling', 'casey': 'running', 'taylor': 'walking',
-    'morgan': 'cycling', 'avery': 'walking', 'riley': 'running',
+    'morgan': 'cycling', 'avery': 'walking', 'riley': 'running', 'quinn': 'cycling',
 }
 # Round to the next minute so every activity is after membership and never appears as a future workout.
 target_time = dt.datetime.now(dt.timezone.utc).replace(second=0, microsecond=0) + dt.timedelta(minutes=1)
+# Keep the featured feed rows adjacent while ensuring each of the seven goal sessions happens after group membership.
+group_activity_time = dt.datetime.now(dt.timezone.utc).replace(microsecond=0) + dt.timedelta(seconds=15)
+# Morgan's first two fictional rides plus the featured ride below total more than 25 miles. They are outside the
+# Trail Crew group so its seven members still contribute exactly seven of the ten sessions.
+cycling = sorted(glob.glob(G + '/*cycling.gpx'))
+for index, (days_ago, source) in enumerate(((2, cycling[-3]), (1, cycling[-2])), 1):
+    raw = open(source, 'rb').read()
+    first = dt.datetime.fromisoformat(re.search(rb'<time>([^<]+)</time>', raw).group(1).decode().replace('Z', '+00:00'))
+    when = target_time - dt.timedelta(days=days_ago)
+    result = upload(friends['morgan'], [('morgan-achievement-' + str(index) + '-' + os.path.basename(source),
+                                          later(raw, (when - first).total_seconds() / 60))])
+    print('morgan achievement ride', result.get('added'))
 for login, sport in recent_sports.items():
     candidates = sorted(glob.glob(G + '/*' + sport + '*.gpx'))
     if not candidates:
@@ -111,7 +127,8 @@ for login, sport in recent_sports.items():
     source = candidates[-1]
     raw = open(source, 'rb').read()
     first = dt.datetime.fromisoformat(re.search(rb'<time>([^<]+)</time>', raw).group(1).decode().replace('Z', '+00:00'))
-    shifted = later(raw, (target_time - first).total_seconds() / 60)
+    activity_time = group_activity_time + (dt.timedelta(seconds=2) if login == 'morgan' else dt.timedelta())
+    shifted = later(raw, (activity_time - first).total_seconds() / 60)
     account = alex if login == 'alex' else friends[login]
     result = upload(account, [(login + '-' + os.path.basename(source), shifted)])
     print(login, 'recent', result.get('added'))
@@ -141,6 +158,15 @@ reactions = alex('GET', f"/api/activities/{mine[0]['id']}/social")['reactions']
 assert all(reactions.get(kind) == 1 for kind in ('clap', 'starstruck', 'mindblown')) and sum(reactions.values()) == 3
 jordan('POST', f"/api/activities/{mine[0]['id']}/comments", {'text': 'Strong finish on that last mile!'})
 alex('POST', f"/api/activities/{mine[0]['id']}/comments", {'text': 'Thanks! Legs felt great today.'})
+# The Friends screenshot features Morgan's ride and a three-person reaction cluster with two comments.
+morgan_activity = friends['morgan']('GET', '/api/activities?limit=1')[0]
+for account, kind in ((alex, 'clap'), (friends['casey'], 'starstruck'), (friends['taylor'], 'mindblown')):
+    account('POST', f"/api/activities/{morgan_activity['id']}/reaction", {'kind': kind})
+alex('POST', f"/api/activities/{morgan_activity['id']}/comments", {'text': 'That loop looks beautiful!'})
+friends['casey']('POST', f"/api/activities/{morgan_activity['id']}/comments", {'text': 'Adding this route to my weekend list.'})
+morgan_social = alex('GET', f"/api/activities/{morgan_activity['id']}/social")
+assert all(morgan_social['reactions'].get(kind) == 1 for kind in ('clap', 'starstruck', 'mindblown'))
+assert len(morgan_social['comments']) == 2
 jordan('POST', f"/api/activities/{mine[2]['id']}/cheer")
 for a in jordan('GET', '/api/activities?limit=4')[:3]: alex('POST', f"/api/activities/{a['id']}/cheer")
 # photos on activities (2026-10-13): Freedom Park and the Little Sugar Creek Greenway, where the demo routes run (dev/demo/photos, credits in its README)

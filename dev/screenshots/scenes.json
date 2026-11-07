@@ -5,7 +5,10 @@
   ],
   [
     "feed",
-    "/activity"
+    "/activity",
+    {
+      "feedCard": true
+    }
   ],
   [
     "profile",
@@ -141,7 +144,8 @@
     "friends-feed",
     "/activity",
     {
-      "feedCard": true
+      "feedCard": true,
+      "friendActivity": true
     }
   ],
   [
@@ -189,8 +193,8 @@
       "meal": "breakfast",
       "completeMeal": true,
       "expectFoods": [
-        "Eggs",
-        "Whole-wheat toast",
+        "2 eggs",
+        "Whole-grain toast",
         "Black coffee"
       ]
     }
