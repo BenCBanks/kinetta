@@ -41,6 +41,45 @@ const ProfileLayout=(()=>{
     footprints:'<path d="M8 13.1c-1.8-.2-3.3 1.6-3.7 4.1-.3 2.1.6 3.6 2.1 3.8 1.8.2 3.4-1.5 3.8-3.9.3-2.2-.6-3.7-2.2-4Zm-.3-3.3c1.2 0 2.1-1.7 2-3.6S8.7 3 7.5 3 5.4 4.7 5.5 6.6s.9 3.2 2.2 3.2Zm4.2 1.3c1.1-.5 1.3-2.3.5-4s-2-2.6-3.1-2.1-1.3 2.3-.5 4 2 2.6 3.1 2.1Zm7.1 2c-1.6-.5-3.1.9-3.8 3.2-.6 2.1 0 3.8 1.5 4.3 1.7.5 3.4-.9 4.1-3 .6-2.2 0-4-1.8-4.5Zm-2.4-3.4c1.1-.2 1.7-2 1.3-3.8s-1.5-3-2.7-2.7-1.8 2-1.4 3.8 1.6 2.9 2.8 2.7Z"/>'
   };
   const achievementNumber=n=>Number.isFinite(Number(n))?Number(n).toLocaleString(undefined,{maximumFractionDigits:1}):'—';
+  let achievementTextMeasure=null;
+  function achievementTextWidth(text,size,{fontFamily='sans-serif',fontWeight='700',fontStyle='normal'}={}){
+    if(!achievementTextMeasure&&typeof document!=='undefined')achievementTextMeasure=document.createElement('canvas').getContext('2d');
+    if(!achievementTextMeasure)return null;
+    achievementTextMeasure.font=`${fontStyle} ${fontWeight} ${size}px ${fontFamily}`;
+    return achievementTextMeasure.measureText(String(text??'')).width;
+  }
+  function achievementTextFontSize(text,width,{fontFamily='sans-serif',fontWeight='700',fontStyle='normal',maxFontSize=12,minFontSize=10,step=1}={}){
+    const minimum=Math.max(10,Number(minFontSize)||10),maximum=Math.max(minimum,Number(maxFontSize)||12),available=Number(width);
+    if(!Number.isFinite(available)||available<=0||achievementTextWidth(text,maximum,{fontFamily,fontWeight,fontStyle})===null)return maximum;
+    const value=String(text??''),decrement=Math.max(.5,Number(step)||1);
+    for(let size=maximum;;size=Math.max(minimum,size-decrement)){
+      if(achievementTextWidth(value,size,{fontFamily,fontWeight,fontStyle})<=available+.5||size<=minimum)return size;
+    }
+  }
+  function compactAchievementText(text){
+    const match=String(text??'').match(/^([\d,]+(?:\.\d+)?)(\s+.+)$/),value=Number(match?.[1]?.replace(/,/g,''));
+    if(!match||!Number.isFinite(value)||value<1000)return '';
+    let scale=value>=1e9?1e9:value>=1e6?1e6:1e3,suffix=scale===1e9?'b':scale===1e6?'m':'k';
+    let rounded=Number((value/scale).toFixed(value/scale<10?1:0));
+    if(rounded>=1000&&scale<1e9){scale*=1000;suffix=scale===1e9?'b':'m';rounded=Number((value/scale).toFixed(value/scale<10?1:0));}
+    return `${rounded.toLocaleString(undefined,{maximumFractionDigits:1})}${suffix}${match[2]}`;
+  }
+  function fitAchievementText(element,{minFontSize=10,step=1}={}){
+    if(!element)return 0;
+    const style=getComputedStyle(element),remembered=Number(element.dataset.fitTextMax);
+    const maxFontSize=Number.isFinite(remembered)&&remembered>0?remembered:parseFloat(style.fontSize)||12;
+    const minimum=Math.max(10,Number(minFontSize)||10),source=element.dataset.fitTextSource??element.textContent;
+    element.dataset.fitTextMax=String(maxFontSize);element.dataset.fitTextSource=source;element.textContent=source;
+    const metrics={fontFamily:style.fontFamily,fontWeight:style.fontWeight,fontStyle:style.fontStyle,maxFontSize,minFontSize:minimum,step},width=element.clientWidth;
+    let size=achievementTextFontSize(source,width,metrics);
+    if(size<=minimum){
+      const compact=compactAchievementText(source),fullWidth=achievementTextWidth(source,minimum,metrics);
+      if(compact&&compact.length<String(source).length&&fullWidth!==null&&fullWidth>width+.5){element.textContent=compact;size=minimum;}
+    }
+    element.style.fontSize=`${size}px`;
+    return size;
+  }
+  if(typeof window!=='undefined')window.KinettaTextFit=Object.freeze({fontSize:achievementTextFontSize,fitElement:fitAchievementText});
   function achievementQuantity(value,unit=''){
     const forms={week:['week','weeks'],weeks:['week','weeks'],hour:['hour','hours'],hours:['hour','hours'],h:['hour','hours'],workout:['workout','workouts'],workouts:['workout','workouts'],session:['session','sessions'],sessions:['session','sessions'],year:['year','years'],years:['year','years']};
     const label=forms[String(unit||'').toLowerCase()],shownUnit=label?(Number(value)===1?label[0]:label[1]):unit;
@@ -211,6 +250,15 @@ const ProfileLayout=(()=>{
     const names=items.map(item=>item.name),label=[names.length?`Showcase: ${names.join(', ')}`:'',hasStreak?`${streak}-day activity streak`:'' ].filter(Boolean).join('. ');
     return `<span class="me-showcase-row" role="img" aria-label="${esc(label)}">${items.map(item=>`<span class="me-showcase-medal" data-showcase-code="${esc(item.code)}" aria-hidden="true">${item.icon}</span>`).join('')}${hasStreak?`<span class="me-showcase-streak" aria-hidden="true">${svg('flame')}<span>${streak}</span></span>`:''}</span>`;
   }
+  function addAchievementCleanup(root,cleanup){
+    const previous=viewResources.get(root);
+    viewResources.set(root,Object.assign(()=>{cleanup();previous?.();},{keepVisual:previous?.keepVisual}));
+  }
+  function fitAchievementValues(root){
+    if(!root?.querySelectorAll)return;
+    const fit=()=>{if(root.isConnected)root.querySelectorAll('.profile-achievement-value').forEach(value=>window.KinettaTextFit.fitElement(value));};
+    const observer=new ResizeObserver(fit);observer.observe(root);addAchievementCleanup(root,()=>observer.disconnect());fit();document.fonts?.ready?.then(fit);
+  }
   function wireAchievementPins(box,pinnedCodes){
     if(!box.querySelector('.profile-achievement-list.is-grid'))return;
     const owner=readOwner();
@@ -252,7 +300,7 @@ const ProfileLayout=(()=>{
     document.addEventListener('click',onClick,true);box.addEventListener('pointerdown',onDown);document.addEventListener('pointermove',onMove,true);document.addEventListener('pointerup',onUp,true);document.addEventListener('pointercancel',onUp,true);
     box.addEventListener('contextmenu',onContext);box.addEventListener('keydown',onKey);
     const dispose=()=>{if(disposed)return;disposed=true;clearPress();clearTimeout(suppressTimer);document.removeEventListener('click',onClick,true);document.removeEventListener('pointermove',onMove,true);document.removeEventListener('pointerup',onUp,true);document.removeEventListener('pointercancel',onUp,true);box.removeEventListener('pointerdown',onDown);box.removeEventListener('contextmenu',onContext);box.removeEventListener('keydown',onKey);};
-    viewResources.set(box,dispose);
+    addAchievementCleanup(box,dispose);
   }
   async function mountShowcase(root,r,{shared=false}={}){
     const slot=root?.querySelector?.('[data-me-showcase]');if(!slot)return;
@@ -274,6 +322,7 @@ const ProfileLayout=(()=>{
       const levelUps=achievementLevelUps(data),panel=achievementPanel(data,levelUps);if(!panel)return;
       const activities=box.querySelector('.profile-activities');
       if(activities)activities.insertAdjacentHTML('beforebegin',panel);else box.insertAdjacentHTML('beforeend',panel);
+      fitAchievementValues(box);
       achievementLevelUpHaptic(levelUps);
     }).catch(()=>{});
   }
@@ -290,6 +339,7 @@ const ProfileLayout=(()=>{
         const levelUps=achievementLevelUps(data);
         const pinnedCodes=new Set((Array.isArray(showcase?.pinned)?showcase.pinned:[]).map(String)),groups=achievementGrid(tracks,levelUps,pinnedCodes);
         box.innerHTML=`<h1>Achievements</h1>${groups||'<p class="small muted">No earned achievements yet.</p>'}`;
+        fitAchievementValues(box);
         wireAchievementPins(box,pinnedCodes);
         achievementLevelUpHaptic(levelUps);
         box.setAttribute('aria-busy','false');return;
@@ -303,6 +353,7 @@ const ProfileLayout=(()=>{
       }).join('');
       const levelUps=achievementLevelUps(data),label=track.label||track.code,value=achievementValue(track),next=achievementNext(track),level=achievementLevel(track),current=achievementCurrentTier(track);
       box.innerHTML=`<div class="profile-achievement-history-head${levelUps.has(track.code)?' is-level-up':''}" data-achievement-code="${esc(track.code)}">${achievementMedallion(track)}<div class="profile-achievement-history-copy"><h1>${esc(label)}</h1><p class="profile-achievement-current">Level ${level}${current?` · ${esc(current.name)}`:''}</p><p class="profile-achievement-current-value">${esc(value)}</p>${next?`<p class="profile-achievement-next-tier">Next · ${esc(next)}</p>`:''}</div></div>${achievementLevelList(track,level)}<section class="profile-achievement-history-section"><h2>Earned history</h2><ol class="profile-achievement-history">${rows}</ol></section>`;
+      fitAchievementValues(box);
       achievementLevelUpHaptic(levelUps);
       box.setAttribute('aria-busy','false');
     }).catch(error=>{
