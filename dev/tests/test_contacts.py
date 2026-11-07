@@ -116,8 +116,8 @@ class Contacts(unittest.TestCase):
 
     def test_match_returns_only_matched_hash_pairs_and_does_not_store_hashes(self):
         self.db.candidates = [
-            {'id': 202, 'email': 'friend@example.test', 'phone_e164': '+15550101234'},
-            {'id': 303, 'email': None, 'phone_e164': None},  # duplicate phone claim was filtered in SQL
+            {'login': 'zz_test_friend_202', 'email': 'friend@example.test', 'phone_e164': '+15550101234'},
+            {'login': 'zz_test_duplicate_303', 'email': None, 'phone_e164': None},  # duplicate phone claim filtered in SQL
         ]
         salt = 'a' * 43
         email_hash = api_contacts.contact_digest(salt, 'email', 'friend@example.test')
@@ -131,19 +131,42 @@ class Contacts(unittest.TestCase):
         })
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json(), {'matches': [
-            {'hash': digest, 'member_id': 202} for digest in sorted((email_hash, phone_hash))
+            {'hash': digest, 'login': 'zz_test_friend_202'} for digest in sorted((email_hash, phone_hash))
         ]})  # duplicate submissions collapse; both matched fields map to the same member
         self.assertNotIn('friend@example.test', response.text)
         self.assertNotIn(unmatched_hash, response.text)
-        self.assertTrue(all(set(match) == {'hash', 'member_id'} for match in response.json()['matches']))
+        self.assertTrue(all(set(match) == {'hash', 'login'} for match in response.json()['matches']))
         self.assertEqual(self.limit_args, [('contacts-check:101', 1, 1440)])
         query, params = next((q, p) for q, p in self.db.calls if 'WITH phone_counts AS' in q)
         self.assertIn('count(*) AS n FROM users WHERE phone_e164 IS NOT NULL', query)
         self.assertIn('pc.n=1', query)
+        self.assertIn('u.login::text AS login', query)
+        self.assertIn('CASE WHEN p.find_by_email AND u.email_verified_at IS NOT NULL', query)
+        self.assertIn('CASE WHEN p.find_by_phone AND pc.n=1', query)
         self.assertIn('u.id<>%s', query)
         self.assertIn('NOT EXISTS (SELECT 1 FROM blocks', query)
         self.assertEqual(params, (101, 101, 101))  # owner IDs only; hashes never enter SQL parameters or persistent rows
         self.assertEqual(self.routes[-1], '/api/contacts/match')
+
+    def test_contact_discoverability_opt_outs_hide_even_submitted_hashes(self):
+        # The SQL projection maps identifiers to NULL when the profile opted out.
+        self.db.candidates = [
+            {'login': 'zz_test_email_opt_out', 'email': None, 'phone_e164': None},
+            {'login': 'zz_test_phone_opt_out', 'email': None, 'phone_e164': None},
+        ]
+        salt = 'c' * 43
+        email_hash = api_contacts.contact_digest(salt, 'email', 'hidden@example.test')
+        phone_hash = api_contacts.contact_digest(salt, 'phone', '+15550105555')
+        response = self.client.post('/api/contacts/match', json={
+            'salt': salt, 'hashes': [{'kind': 'email', 'digest': email_hash}, {'kind': 'phone', 'digest': phone_hash}],
+        })
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json(), {'matches': []})
+        query = next(q for q, _ in self.db.calls if 'WITH phone_counts AS' in q)
+        self.assertIn('CASE WHEN p.find_by_email', query)
+        self.assertIn('CASE WHEN p.find_by_phone', query)
+        self.assertNotIn(email_hash, response.text)
+        self.assertNotIn(phone_hash, response.text)
 
     def test_daily_limit_and_validation_errors_do_not_echo_request_values(self):
         self.limit_hit = True

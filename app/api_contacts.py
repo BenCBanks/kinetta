@@ -106,11 +106,11 @@ def match_contacts(body: ContactMatchIn, user=Depends(current_user)):
     wanted = {(item.kind, item.digest) for item in body.hashes}
     with db.connect() as c:
         # Duplicate phone claims match nobody, including when one account has opted out. Email is matched only
-        # when its owner confirmed it. Neither identifier is returned or stored; only matching account IDs leave here.
+        # when its owner confirmed it. The returned login is the existing public handle, never sequential users.id.
         rows = c.execute("""WITH phone_counts AS (
               SELECT phone_e164, count(*) AS n FROM users WHERE phone_e164 IS NOT NULL GROUP BY phone_e164
             )
-            SELECT u.id,
+            SELECT u.login::text AS login,
               CASE WHEN p.find_by_email AND u.email_verified_at IS NOT NULL
                          AND NOT u.needs_email_confirm THEN lower(u.email::text) END AS email,
               CASE WHEN p.find_by_phone AND pc.n=1 THEN u.phone_e164 END AS phone_e164
@@ -128,11 +128,11 @@ def match_contacts(body: ContactMatchIn, user=Depends(current_user)):
         if email:
             digest = contact_digest(body.salt, 'email', email.strip().lower())
             if ('email', digest) in wanted:
-                matched.add((digest, row['id']))
+                matched.add((digest, row['login']))
         if phone:
             digest = contact_digest(body.salt, 'phone', phone)
             if ('phone', digest) in wanted:
-                matched.add((digest, row['id']))
+                matched.add((digest, row['login']))
     # Return only submitted hashes that matched an eligible account. The device can map these
     # back to its local contacts; unmatched hashes and all contact details stay on the device.
-    return {'matches': [{'hash': digest, 'member_id': member_id} for digest, member_id in sorted(matched)]}
+    return {'matches': [{'hash': digest, 'login': login} for digest, login in sorted(matched)]}

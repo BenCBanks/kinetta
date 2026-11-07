@@ -15,7 +15,7 @@ map_path() {
   done <<'MAP'
 app/static/app.js,app/static/pages.js,app/static/index.html,app/static/boot.js,app/static/style.css,app/static/theme.css,app/static/fonts/*,app/static/appearance.js,app/static/back-navigation.js,app/static/keyboard.js,app/static/native.js,app/static/refresh.js,app/static/haptics.js,app/static/kit.js;core;all
 app/static/food*.js,app/static/thread*.js,app/static/cook.js,app/static/recipe-import.js,app/static/food-entry.css,app/static/nutrition.css,app/static/recipes-ui.css,app/static/insights-ui.css,app/static/vendor/zxing.min.js;food;Nutrition day,Add food,Recipes and foods,Nutrition Insights
-app/static/social.js,app/static/social-data.js,app/static/activity-detail.*,app/static/activity-home.css,app/static/friends-ui.*,app/static/challenges.*,app/static/challenge-public.js,app/static/media.js;social;Activity,Activity detail,Friends,Groups,Group create,Group empty roster,Group full roster,Invite acceptance,Activity photo viewer,Activity full map,Sharing & privacy
+app/static/social.js,app/static/social-data.js,app/static/activity-detail.*,app/static/activity-home.css,app/static/friends-ui.*,app/static/contacts-ui.*,app/static/challenges.*,app/static/challenge-public.js,app/static/media.js;social;Activity,Activity detail,Friends,Groups,Group create,Group empty roster,Group full roster,Invite acceptance,Activity photo viewer,Activity full map,Sharing & privacy
 app/static/track*.js,app/static/track-home.css,app/static/intervals.js,app/static/segments.js,app/static/maps.*,app/static/vendor/leaflet.*,app/static/vendor/protomaps-leaflet.js;track;Track ready,Activity detail,Activity full map
 app/static/lift*.js,app/static/lift-ui.css;lift;Lifting with sets,Lifting blank sets
 app/static/plan*.js,app/static/plan-ui.css,app/static/planner.js;plan;Me,Me Today plan,Track ready
@@ -130,7 +130,7 @@ for group in $group_order; do
     core) tests="navigation_ui.cjs boot_ui.cjs shell_ui.cjs asset_cache_ui.cjs" ;;
     assets) tests="asset_cache_ui.cjs" ;;
     food) tests="food_entry_ui.cjs nutrition_ui.cjs food_memory_ui.cjs recipes_compact_ui.cjs insights_ui.cjs goals_ui.cjs" ;;
-    social) tests="activity_home_ui.cjs test_weekly_recap.cjs activity_detail_ui.cjs notification_edit_ui.cjs inline_reactions_ui.cjs inline_reactions_actions.cjs friends_ui.cjs groups_ui.cjs contacts_settings_ui.cjs back_navigation_ui.cjs" ;;
+    social) tests="activity_home_ui.cjs test_weekly_recap.cjs activity_detail_ui.cjs notification_edit_ui.cjs inline_reactions_ui.cjs inline_reactions_actions.cjs friends_ui.cjs groups_ui.cjs contacts_settings_ui.cjs contacts_ui.cjs back_navigation_ui.cjs" ;;
     track) tests="track_home_ui.cjs top_chips_ui.cjs track_ready_map_ui.cjs interval_voice_ui.cjs map_ui.cjs tracking_ui.cjs edit_activity_ui.cjs map_feedback_ui.cjs" ;;
     lift) tests="lift_compact_ui.cjs lift_ui.cjs lift_lazy_route_ui.cjs" ;;
     plan) tests="plan_ui.cjs" ;;

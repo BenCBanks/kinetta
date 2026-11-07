@@ -53,6 +53,7 @@ node dev/tests/test_native_display.js
 node --check dev/tests/navigation_ui.cjs
 node --check dev/tests/boot_ui.cjs # real CSP/resource-failure checks run in the screenshot workflow
 node --check dev/tests/contacts_settings_ui.cjs
+node --check dev/tests/contacts_ui.cjs
 node dev/tests/test_enrollment_entry.js
 node dev/tests/test_admin_logins.js
 node dev/tests/test_admin_tools.js

@@ -449,6 +449,14 @@
       ]
     },
     {
+      "id": "social-contacts",
+      "source": "app/static/social.js",
+      "pattern": "/^\\/me\\/friends\\/contacts$/",
+      "paths": [
+        "/me/friends/contacts"
+      ]
+    },
+    {
       "id": "social-6",
       "source": "app/static/social-notifications.js",
       "pattern": "/^\\/notifications$/",
