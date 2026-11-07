@@ -1,10 +1,10 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const source=fs.readFileSync('app/static/food.js','utf8'),start=source.indexOf('let weightRefresh=0;'),end=source.indexOf("route(/^\\/progress\\/weight",start);
+const source=fs.readFileSync('app/static/food.js','utf8'),homeSource=fs.readFileSync('app/static/food-home.js','utf8'),start=source.indexOf('async function weightChanged(owner,box,historyOnly=false)'),end=source.indexOf("route(/^\\/progress\\/weight",start);
 (async()=>{
  let owner='account-one',resolve,invalidated=[],rendered=0;
  const c={URLSearchParams,location:{pathname:'/progress',search:''},document:{querySelector:()=>null,activeElement:{matches:()=>false}},render:()=>rendered++,App:{me:{id:1,weight_kg:75},nutritionHome:{owner:'account-one',href:'/food?d=2026-10-01'},progressHome:{owner:'account-one',href:'/progress?sport=ride&period=month'}},readOwner:()=>owner,refreshMe:me=>{c.App.me=me;c.kept=me;},invalidate:path=>invalidated.push(path),api:()=>new Promise(r=>resolve=r)};
- vm.createContext(c);vm.runInContext(source.slice(start,end),c);
+ vm.createContext(c);vm.runInContext(homeSource.slice(homeSource.indexOf('function weightAddress('),homeSource.indexOf('function guardFoodSheet(')),c);vm.runInContext(source.slice(start,end),c);
  assert.equal(c.weightAddress(new URLSearchParams('view=weight')),'/progress/weight?from=nutrition');
  assert.equal(c.weightAddress(new URLSearchParams('view=weight&from=progress')),'/progress/weight?from=progress');
  assert.equal(c.weightOrigin(new URLSearchParams('from=nutrition')).href,'/food?d=2026-10-01');

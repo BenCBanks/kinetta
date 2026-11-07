@@ -127,7 +127,7 @@ for group in $group_order; do
   esac
   tests=""
   case "$group" in
-    core) tests="navigation_ui.cjs boot_ui.cjs shell_ui.cjs asset_cache_ui.cjs" ;;
+    core) tests="navigation_ui.cjs boot_ui.cjs shell_ui.cjs asset_cache_ui.cjs lazy_route_ui.cjs" ;;
     assets) tests="asset_cache_ui.cjs" ;;
     food) tests="food_entry_ui.cjs nutrition_ui.cjs food_memory_ui.cjs recipes_compact_ui.cjs insights_ui.cjs goals_ui.cjs" ;;
     social) tests="activity_home_ui.cjs test_weekly_recap.cjs activity_detail_ui.cjs notification_edit_ui.cjs inline_reactions_ui.cjs inline_reactions_actions.cjs friends_ui.cjs groups_ui.cjs contacts_settings_ui.cjs contacts_ui.cjs back_navigation_ui.cjs" ;;

@@ -1,9 +1,6 @@
-// Source IDs remain compatible; only user-facing food copy uses the Kit name.
-function kitFoodWords(text){return String(text||'').replace(/\bAI estimates\b/g,'Kit’s estimates').replace(/\ban AI estimate\b/g,'Kit’s estimate').replace(/\bAI estimate\b/g,'Kit’s estimate').replace(/\bAI features\b/g,'Kit settings').replace(/\bAI\b/g,'Kit');}
 // Kinetta — Food log pages. Fast logging: search (own foods + recent first, then Open Food Facts + USDA),
 // barcode, quick add, photo (Gemini estimate), saved meals, copy a day. Every entry editable; deletes have Undo.
 'use strict';
-const MEAL_NAMES = {breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snacks: 'Snacks'};
 const MACROS = [['protein_g', 'Protein', 'P'], ['carbs_g', 'Carbs', 'C'], ['fat_g', 'Fat', 'F']];
 const r1 = (v) => (v == null ? '–' : (Math.round(v * 10) / 10).toString());
 // a food's numbers in full, shown when you tap it (rows show calories only; 2026-10-12: "1P 50C 1F" meant nothing)
@@ -161,13 +158,6 @@ const bdOpen = () => { try { return localStorage.getItem('fit.bd') === '1'; } ca
 // Nutrition (2026-10-12 redesign, Ben: "like you did the Progress tab"): one row of small buttons. View ▾ holds the food
 // log and the progress views (each a short page instead of one long scroll); beside it, the day (log) or the time range.
 const NLOG = [['log', 'Food log', 'What you ate, day by day', 'food', 'c-green']];
-const NPROG = [['overview', 'Insights', 'Averages, insights and Kit', 'sparkle', 'c-purple'],
-  ['energy', 'Calories & weight', 'Eaten vs burned, and your running deficit', 'flame', 'c-orange'],
-  ['macros', 'Protein & macros', 'Protein, carbs and fat, and your top foods', 'progress', 'c-red'],
-  ['weight', 'Weight', 'Log a weigh-in and see your trend', 'scale', 'c-purple'],
-  ['needs', 'Calorie needs', 'What you burn, and your daily target', 'target', 'c-brand'],
-  ['weeks', 'Week by week', 'Every week in one table', 'calendar', 'c-blue'],
-  ['calendar','Food calendar','Review any logged day','calendar','c-blue']];
 const NMORE = [['reminders', 'Meal reminders', 'Optional nudges at your usual meal times', 'bell', 'c-orange'],
   ...(!Native.on ? [['import', 'Add past days', 'Weight and calories from another app', 'upload', 'c-grey']] : [])];
 const NRANGED = ['overview', 'energy', 'macros'];
@@ -579,9 +569,6 @@ const macroInputs = (e = {}) => `<div class="mac4">
   <label>Fiber g<input name="fiber_g" inputmode="decimal" value="${e.fiber_g != null ? r1(e.fiber_g) : ''}"></label></div>${extraInputs(e)}`;
 
 // ---------- add: usuals / saved dishes / search / quick ----------
-function guardFoodSheet(body,close,owner){const guard=e=>{if(owner===readOwner())return;e.preventDefault();e.stopImmediatePropagation();close();toast('The account changed. Open this again.');};body.addEventListener('click',guard,true);body.addEventListener('submit',guard,true);body.addEventListener('submit',e=>{for(const input of $$('.extra-inputs input',body)){const value=input.value.trim();if(value!==''&&(!Number.isFinite(Number(value.replace(',','.')))||Number(value.replace(',','.'))<0)){e.preventDefault();e.stopImmediatePropagation();input.focus();toast('Enter a positive number or zero, or leave the nutrient blank.');return;}}},true);
-  if(typeof MutationObserver!=='undefined'){const observer=new MutationObserver(()=>{if(!body.isConnected){observer.disconnect();return;}if(owner!==readOwner()){observer.disconnect();close();}});observer.observe(root,{childList:true,subtree:true});}
-}
 function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
   const owner=readOwner();
   const zone=deviceTimeZone(),destination={day:day||isoDay(new Date(),zone),meal:Object.hasOwn(MEAL_NAMES,meal)?meal:guessMeal(zone)};
@@ -1173,17 +1160,6 @@ function weightCard(box) {
   load('/api/food/weights?days=3650', (w) => { W = w;if(draft===null)draw(); }).catch(() => {});
 }
 
-let weightRefresh=0;
-async function refreshWeightData(owner) {
-  if(owner!==readOwner())return false;
-  const revision=++weightRefresh,weight=App.me.weight_kg,source=App.me.weight_health_derived;
-  invalidate('/api/food');invalidate('/api/progress/overview');invalidate('/api/me');
-  try {
-    const me=await api('/api/me');
-    if(owner!==readOwner()||me.id!==App.me?.id||revision!==weightRefresh||App.me.weight_kg!==weight||App.me.weight_health_derived!==source)return false;
-    refreshMe({...App.me,weight_kg:me.weight_kg,weight_health_derived:me.weight_health_derived});return true;
-  } catch {return false;} // The weigh-in already saved; an optional profile read cannot undo it.
-}
 async function weightChanged(owner,box,historyOnly=false) {
   if(owner!==readOwner())return;
   const profile=refreshWeightData(owner);
@@ -1201,11 +1177,6 @@ async function weightHistoryChanged(owner,box){
   await weightChanged(owner,current||box,!!field&&field.value!==field.defaultValue);
 }
 
-function weightAddress(query) {
-  const q=new URLSearchParams(query);q.delete('view');
-  if(!['progress','explore','me'].includes(q.get('from')))q.set('from','nutrition');
-  return '/progress/weight'+(q.size?'?'+q:'');
-}
 function weightOrigin(query) {
   const from=query.get('from');
   if(from==='nutrition')return {label:'Nutrition',href:App.nutritionHome?.owner===readOwner()?App.nutritionHome.href:'/food'};
@@ -1349,7 +1320,6 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
 }
 
 // once every script has loaded: start can draw a screen at once from the phone's saved copy, before plan.js, social.js, cook.js run
-addEventListener('DOMContentLoaded', start);
 
 // ---------- AI review of your eating (2026-10-11, food_coach.py): the last two weeks, what's going well, what to try ----------
 function dietCoachContent(box) {

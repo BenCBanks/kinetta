@@ -10,16 +10,24 @@ const col = (name) => getComputedStyle(document.documentElement).getPropertyValu
 const App = {me: null, pageReady: false, cache: new Map(), pages: [], scroll: {}};
 const classicScriptPromises = new Map();
 const classicScriptsLoaded = new Set();
+const FOOD_ROUTE_ASSET = '/static/food.js?v=__ASSET_HASH__';
+const KIT_ROUTE_ASSET = '/static/kit.js?v=__ASSET_HASH__';
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: ['/static/welcome.js?v=__ASSET_HASH__']},
   {re: /^\/me\/explore$/, tab: 'me', scripts: ['/static/explore.js?v=__ASSET_HASH__']},
   {re: /^\/notifications$/, tab: null, scripts: ['/static/social-notifications.js?v=__ASSET_HASH__']},
   {re: /^\/me\/notifications$/, tab: 'me', scripts: ['/static/social-notifications.js?v=__ASSET_HASH__']},
-  {re: /^\/food\/import$/, tab: 'food', scripts: ['/static/food-import.js?v=__ASSET_HASH__']},
+  {re: /^\/food\/import$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, '/static/food-import.js?v=__ASSET_HASH__']},
+  {re: /^\/food(?:\/.*)?$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET]},
+  {re: /^\/progress\/weight$/, tab: 'progress', scripts: [FOOD_ROUTE_ASSET]},
+  {re: /^\/me\/kit$/, tab: 'me', scripts: [FOOD_ROUTE_ASSET, KIT_ROUTE_ASSET]},
   {re: /^\/(?:lift\/\d+|track\/lift\/\d+|lift\/history\/workout\/\d+)$/, tab: 'track', scripts: ['/static/lift-routes.js?v=__ASSET_HASH__']},
   {re: /^\/(?:lift\/ex\/\d+|lift\/history\/exercise\/\d+)$/, tab: 'progress', scripts: ['/static/lift-routes.js?v=__ASSET_HASH__']},
 ];
 let lazyRouteGeneration = 0;
+let foodWarmupScheduledOwner = null, foodWarmupOwner = null;
+const kitEntryPaths = new Set(['/me','/activity','/progress','/track','/plan','/food']);
+const kitWarmups = new Set();
 function loadClassicScript(asset) {
   if (classicScriptPromises.has(asset)) return classicScriptPromises.get(asset);
   const url = new URL(asset, location.href);
@@ -36,6 +44,54 @@ function loadClassicScript(asset) {
 }
 function loadClassicScripts(assets) {
   return assets.reduce((ready, asset) => ready.then(() => loadClassicScript(asset)), Promise.resolve());
+}
+function warmFoodRoutes() { loadClassicScript(FOOD_ROUTE_ASSET).catch(() => {}); }
+function warmFoodFromTabIntent(event) {
+  if(event.type==='pointerover'&&event.pointerType!=='mouse')return;
+  if(event.target?.closest?.('a[data-tab="food"]'))warmFoodRoutes();
+}
+document.addEventListener('touchstart',warmFoodFromTabIntent,{capture:true,passive:true});
+document.addEventListener('pointerover',warmFoodFromTabIntent,true);
+document.addEventListener('focusin',warmFoodFromTabIntent,true);
+function afterMeUseful(owner,path,callback) {
+  const check=()=>{
+    if(owner!==readOwner()||location.pathname!==path||!App.me||!App.pageReady){callback(false);return;}
+    const page=$('#page');
+    if(path==='/me'&&(!page||page.hasAttribute('data-home-loading')||!page.querySelector('.me-card-sections[aria-busy="false"]'))){setTimeout(check,200);return;}
+    callback(true);
+  };
+  check();
+}
+function scheduleFoodRouteWarmup() {
+  const owner=readOwner();
+  if(!owner||foodWarmupOwner===owner||foodWarmupScheduledOwner===owner)return;
+  foodWarmupScheduledOwner=owner;
+  afterMeUseful(owner,'/me',ready=>{
+    if(!ready){if(foodWarmupScheduledOwner===owner)foodWarmupScheduledOwner=null;return;}
+    const warm=()=>{
+      if(foodWarmupScheduledOwner===owner)foodWarmupScheduledOwner=null;
+      if(owner!==readOwner()||location.pathname!=='/me'||!App.me||!App.pageReady)return;
+      foodWarmupOwner=owner;warmFoodRoutes();
+    };
+    if(typeof requestIdleCallback==='function')requestIdleCallback(warm);
+    else setTimeout(warm,1000);
+  });
+}
+function scheduleKitRouteWarmup(el,path) {
+  if(typeof KitChat==='undefined'||KitChat.loaded||(!kitEntryPaths.has(path)&&!/^\/track\/lift\/\d+$/.test(path)))return;
+  const owner=readOwner(),key=JSON.stringify([owner,path]);if(!owner||kitWarmups.has(key))return;kitWarmups.add(key);
+  afterMeUseful(owner,path,ready=>{
+    if(!ready){kitWarmups.delete(key);return;}
+    const warm=()=>{
+      kitWarmups.delete(key);
+      if(owner!==readOwner()||!App.me||!App.pageReady||path!==location.pathname||!el?.isConnected)return;
+      loadClassicScript(KIT_ROUTE_ASSET).then(()=>{
+        if(owner===readOwner()&&App.pageReady&&path===location.pathname&&el.isConnected&&KitChat.loaded)KitChat.entry(el,path);
+      }).catch(()=>{});
+    };
+    if(typeof requestIdleCallback==='function')requestIdleCallback(warm);
+    else setTimeout(warm,1000);
+  });
 }
 // A quick tap can prefetch and open the same page before either request finishes.
 const pendingReads = new Map();
@@ -713,7 +769,9 @@ function render(options) {
   if (bundle && bundle.scripts.some((file) => !classicScriptsLoaded.has(file))) {
     const owner = readOwner(), generation = ++lazyRouteGeneration, nextPosition={key,owner,y:targetY};
     const el = lazyRouteShell(bundle.tab);
-    el.innerHTML = '<div class="boot lazy-route-loading" role="status"><p>Opening this page…</p></div>';
+    el.innerHTML = bundle.tab==='food'
+      ? `<div class="lazy-route-loading food-route-loading"><p class="vh" role="status">Loading Nutrition…</p>${skelFood()}</div>`
+      : '<div class="boot lazy-route-loading" role="status"><p>Opening this page…</p></div>';
     if (!globalSyncDone) {
       if (typeof Track !== 'undefined') Track.sync();
       if (Native.syncPush) Native.syncPush();
@@ -766,7 +824,7 @@ function render(options) {
   return Promise.resolve(result).then(() => {if(current()&&typeof FeatureUsage!=='undefined')FeatureUsage.open(path);}).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
     requestAnimationFrame(() => { if(current()&&!touched)window.scrollTo(0,targetY);interactions.abort(); });
-    if (current()) { compactSubpageHeader(el);App.pageReady = true; globalThis.CommunityTerms?.check(); if(typeof KitChat!=='undefined')KitChat.entry(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
+    if (current()) { compactSubpageHeader(el);App.pageReady = true; if(path==='/me')scheduleFoodRouteWarmup(); globalThis.CommunityTerms?.check(); if(typeof KitChat!=='undefined')KitChat.entry(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
   });
 }
 function showError(el, e) {
@@ -1862,6 +1920,8 @@ async function start() {
     $('#retry').addEventListener('click', () => { root.innerHTML = LAUNCH; start(); });
   }
 }
+// The eager shell owns startup; Food may load after DOMContentLoaded.
+addEventListener('DOMContentLoaded', start);
 // (the iPhone app has its files built in: no service worker there)
 if ('serviceWorker' in navigator && !window.Capacitor) navigator.serviceWorker.register('/sw.js').catch(() => {});
 

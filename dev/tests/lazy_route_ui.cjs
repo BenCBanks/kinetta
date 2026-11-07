@@ -82,6 +82,44 @@ async function holdFood(page,{instrument=false,blockedWrites=[]}={}){
   });
   return {release:openGate,count:()=>requests,done};
 }
+async function foodRouteFixture(browser,{hold=false,failFirst=false,instrument=false,idleGate=false}={}){
+ const context=await fixtureContext(browser);await login(context);
+ const page=await context.newPage(),assets=[],errors=[],writes=[];let heldOnce=false,releaseHeld=()=>{},signalHeld=()=>{},finishHeld=()=>{},foodAttempts=0;
+ const gate=new Promise(resolve=>{releaseHeld=resolve;}),held=new Promise(resolve=>{signalHeld=resolve;}),done=new Promise(resolve=>{finishHeld=resolve;});
+ page.on('pageerror',error=>errors.push(error.message));
+ if(idleGate)await page.addInitScript(()=>{window.__foodIdleCallbacks=[];let id=0;window.requestIdleCallback=callback=>{window.__foodIdleCallbacks.push(callback);return ++id;};window.cancelIdleCallback=()=>{};});
+ await page.route('**/*',async route=>{
+  const request=route.request(),url=new URL(request.url());
+  if(url.origin!==base)return route.abort();
+  if(['/static/food.js','/static/kit.js'].includes(url.pathname)){
+   assets.push(url.pathname);
+   if(url.pathname==='/static/food.js'){
+    foodAttempts++;
+    if(failFirst&&foodAttempts===1)return route.abort();
+    if(hold&&!heldOnce){heldOnce=true;let response,body;if(instrument){response=await route.fetch();body=await response.text();}signalHeld();await gate;
+     if(instrument){const probe='\n;(()=>{const entry=App.pages.find(page=>page.re.test("/food"));const original=entry.fn;entry.fn=(...args)=>{window.testFoodOwners.push(App.me.login);return original(...args);};})();';await route.fulfill({response,body:body+probe});}
+     else await route.continue();finishHeld();return;
+    }
+   }
+   return route.continue();
+  }
+  if(request.method()==='POST'&&url.pathname==='/api/coach/conversation/visits'){
+   writes.push(`${request.method()} ${url.pathname}`);
+   return route.fulfill({json:{visit_id:request.postDataJSON().visit_id,generation:'11111111-1111-4111-8111-111111111111',ready:true}});
+  }
+  if(request.method()==='GET'&&url.pathname==='/api/coach/conversation'){
+   return route.fulfill({json:{visit_id:url.searchParams.get('visit_id'),generation:'11111111-1111-4111-8111-111111111111',messages:[],before:null,ready:true}});
+  }
+  if(request.method()==='POST'&&/^\/api\/coach\/conversation\/visits\/[^/]+\/end$/.test(url.pathname)){
+   writes.push(`${request.method()} ${url.pathname}`);
+   return route.fulfill({json:{ok:true}});
+  }
+  if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204});
+  if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
+  return route.continue();
+ });
+ return {context,page,assets,errors,writes,held,done,release:()=>releaseHeld(),foodAttempts:()=>foodAttempts};
+}
 
 const notificationItems=[
   {id:1,kind:'monthly_summary',period_type:'month',period:'2026-10',text:'Your October summary is ready',detail:'Fictional month',link:'/notifications?summary=2026-10',created:'2026-10-31T12:00:00Z',read:true,who:{name:'Kinetta'}},
@@ -402,6 +440,79 @@ async function notificationFixture(browser,loginName=user,options={}){
     assert.equal(welcomeOwner.requests.length,1,'account change shares the same in-flight script request');
     assert.deepEqual(welcomeOwner.errors,[]);assert.deepEqual(welcomeOwner.writes,[]);
   }finally{welcomeOwner.release();await welcomeOwner.context.close();}
+
+  const foodWarm=await foodRouteFixture(browser,{idleGate:true});
+  try{
+    await foodWarm.page.goto(base+'/me');await ready(foodWarm.page,meReady,'Me before Food warm-up');
+    assert.deepEqual(foodWarm.assets,[],'Food and Kit route bundles are absent before useful Me is ready');
+    assert.deepEqual(await foodWarm.page.evaluate(()=>[typeof kitFoodWords,typeof weightAddress,typeof refreshWeightData,typeof guardFoodSheet,typeof KitChat.href,KitChat.loaded]),['function','function','function','function','function',false],'small shared Food and Kit entry seams stay eager');
+    await foodWarm.page.evaluate(()=>{window.__foodWarmCalls=0;const original=loadClassicScript;window.loadClassicScript=asset=>{if(asset===FOOD_ROUTE_ASSET)window.__foodWarmCalls++;return original(asset);};});
+    const warmed=foodWarm.page.waitForRequest(request=>new URL(request.url()).pathname==='/static/food.js');
+    await foodWarm.page.locator('a[data-tab="food"]').evaluate(tab=>{
+      const touch=new Touch({identifier:1,target:tab,clientX:1,clientY:1});
+      tab.dispatchEvent(new TouchEvent('touchstart',{bubbles:true,touches:[touch],targetTouches:[touch],changedTouches:[touch]}));
+    });
+    await warmed;await foodWarm.page.waitForFunction(()=>classicScriptsLoaded.has(FOOD_ROUTE_ASSET));
+    const tab=foodWarm.page.locator('a[data-tab="food"]');
+    await tab.evaluate(el=>el.dispatchEvent(new PointerEvent('pointerover',{bubbles:true,pointerType:'mouse'})));
+    await tab.focus();await until(foodWarm.page,()=>window.__foodWarmCalls>=3,'touch, hover and keyboard focus warm Nutrition');
+    await foodWarm.page.waitForFunction(()=>window.__foodIdleCallbacks.length>=2);
+    await foodWarm.page.evaluate(()=>window.__foodIdleCallbacks.splice(0).forEach(callback=>callback({didTimeout:false,timeRemaining:()=>50})));
+    await foodWarm.page.waitForFunction(()=>KitChat.loaded&&classicScriptsLoaded.has(KIT_ROUTE_ASSET));
+    assert.equal(foodWarm.assets.filter(path=>path==='/static/food.js').length,1,'tab intent and idle deduplicate Food loading');
+    assert.equal(foodWarm.assets.filter(path=>path==='/static/kit.js').length,1,'Kit loads after Me is ready, not on its initial path');
+    await tab.click();await ready(foodWarm.page,'#page h1','Nutrition after tab warm-up');
+    assert.equal(new URL(foodWarm.page.url()).pathname,'/food');assert.deepEqual(foodWarm.errors,[]);assert.deepEqual(foodWarm.writes,[]);
+  }finally{foodWarm.release();await foodWarm.context.close();}
+
+  const foodSkeleton=await foodRouteFixture(browser,{hold:true});
+  try{
+    await foodSkeleton.page.goto(base+'/food',{waitUntil:'domcontentloaded'});await foodSkeleton.page.locator('.food-route-loading .sk-card').first().waitFor({state:'visible'});await foodSkeleton.held;
+    assert.equal(await foodSkeleton.page.locator('.food-route-loading [role="status"]').textContent(),'Loading Nutrition…');
+    assert(await foodSkeleton.page.locator('.food-route-loading .sk-card').count()>=1,'a delayed Nutrition route shows shaped skeleton cards');
+    const finished=foodSkeleton.page.waitForEvent('requestfinished',request=>new URL(request.url()).pathname==='/static/food.js');foodSkeleton.release();await finished;
+    await ready(foodSkeleton.page,'#page h1','Nutrition after delayed route script');
+    assert.equal(new URL(foodSkeleton.page.url()).pathname,'/food');assert.deepEqual(foodSkeleton.errors,[]);assert.deepEqual(foodSkeleton.writes,[]);
+  }finally{foodSkeleton.release();await foodSkeleton.context.close();}
+
+  const foodRetry=await foodRouteFixture(browser,{failFirst:true});
+  try{
+    await foodRetry.page.goto(base+'/food',{waitUntil:'domcontentloaded'});await foodRetry.page.locator('.lazy-route-error').waitFor();
+    assert(await foodRetry.page.locator('#lazy-route-retry').isVisible(),'failed Nutrition load offers retry');
+    await foodRetry.page.locator('#lazy-route-retry').click();await ready(foodRetry.page,'#page h1','Nutrition after explicit retry');
+    assert.equal(foodRetry.foodAttempts(),2,'retry clears the rejected Food promise and requests it again');
+    assert.deepEqual(foodRetry.errors,[]);assert.deepEqual(foodRetry.writes,[]);
+  }finally{foodRetry.release();await foodRetry.context.close();}
+
+  const foodNavigation=await foodRouteFixture(browser,{hold:true});
+  try{
+    await foodNavigation.page.goto(base+'/food',{waitUntil:'domcontentloaded'});await foodNavigation.page.locator('.food-route-loading').waitFor();await foodNavigation.held;
+    await foodNavigation.page.locator('nav.tabs a[data-tab="me"]').click();await ready(foodNavigation.page,meReady,'Me after leaving a pending Nutrition load');
+    const finished=foodNavigation.page.waitForEvent('requestfinished',request=>new URL(request.url()).pathname==='/static/food.js');foodNavigation.release();await finished;await foodNavigation.page.waitForTimeout(80);
+    assert.equal(new URL(foodNavigation.page.url()).pathname,'/me','a late Food response cannot replace newer navigation');
+    assert.equal(await foodNavigation.page.locator('.food-route-loading').count(),0);assert.deepEqual(foodNavigation.errors,[]);assert.deepEqual(foodNavigation.writes,[]);
+  }finally{foodNavigation.release();await foodNavigation.context.close();}
+
+  const foodOwner=await foodRouteFixture(browser,{hold:true,instrument:true});
+  try{
+    await foodOwner.page.goto(base+'/food',{waitUntil:'domcontentloaded'});await foodOwner.page.locator('.food-route-loading').waitFor();await foodOwner.held;
+    await foodOwner.page.evaluate(()=>{window.testFoodOwners=[];});
+    await login(foodOwner.context,'zz_test_explore_typical');const meResponse=await foodOwner.context.request.get(base+'/api/me');assert.equal(meResponse.status(),200);const me=await meResponse.json();
+    await foodOwner.page.evaluate(profile=>refreshMe(profile),me);
+    await until(foodOwner.page,()=>App.me.login==='zz_test_explore_typical'&&!!document.querySelector('.food-route-loading'),'new owner holds the pending Nutrition shell');
+    foodOwner.release();await ready(foodOwner.page,'#page h1','Nutrition after account change');
+    assert.deepEqual(await foodOwner.page.evaluate(()=>window.testFoodOwners),['zz_test_explore_typical'],'Food mounts only for the current owner');
+    assert.equal(foodOwner.foodAttempts(),1,'owner change reuses the one in-flight Food script');assert.deepEqual(foodOwner.errors,[]);assert.deepEqual(foodOwner.writes,[]);
+  }finally{foodOwner.release();await foodOwner.context.close();}
+
+  const kitDirect=await foodRouteFixture(browser);
+  try{
+    await kitDirect.page.goto(base+'/me/kit',{waitUntil:'domcontentloaded'});await ready(kitDirect.page,'#kit-text','Kit after deferred direct route');
+    assert.deepEqual(kitDirect.assets.slice(0,2),['/static/food.js','/static/kit.js'],'Kit loads Food dependencies before the chat route');
+    assert.equal(await kitDirect.page.locator('#kit-load-retry').isVisible(),false,'fictional conversation startup succeeds without the retry error');
+    assert.doesNotMatch(await kitDirect.page.locator('#kit-status').textContent(),/Cannot read properties/,'Kit renders without an initialization exception');
+    assert.deepEqual(kitDirect.errors,[]);assert(kitDirect.writes.some(path=>path==='POST /api/coach/conversation/visits'),'the fictional Kit start write is intercepted by the test route');
+  }finally{kitDirect.release();await kitDirect.context.close();}
 
   console.log('Lazy routes: direct, normal navigation, retry, memoized reload, stale-path and owner guards PASS');
 }finally{await browser.close();}})().catch(error=>{console.error(error);process.exitCode=1;});
