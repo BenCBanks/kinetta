@@ -9,7 +9,7 @@ const until=async(p,fn,label)=>{for(let n=0;n<160;n++){if(await p.evaluate(fn))r
   const c=await browser.newContext({viewport:{width,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'});
   try{
    assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_food_memory_ui',password:'green teapot on the hill'}})).status(),200);
-   const p=await c.newPage(),errors=[],queries=[],reuse=[];let lose=true;
+   const p=await c.newPage(),errors=[],queries=[],reuse=[];await p.clock.setFixedTime(new Date('2026-11-06T17:00:00.000Z'));let lose=true;
    p.on('pageerror',e=>errors.push(e.message));
    await c.route('**/*',async r=>{
     const req=r.request(),u=new URL(req.url());if(u.origin!==base)return r.abort();
