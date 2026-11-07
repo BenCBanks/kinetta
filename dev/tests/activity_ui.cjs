@@ -24,7 +24,8 @@ async function ready(page){for(let i=0;i<150;i++){if(await page.evaluate(()=>App
    await c.route(base+'/api/shared/999946',r=>r.fulfill({json:shared}));
    await c.route(base+'/api/shared/999948',r=>r.fulfill({json:{...shared,id:999948,shares:{pace:false,map:false}}}));
    await c.route(base+'/api/shared/999947',r=>r.fulfill({json:{...shared,id:999947,chart:null,avg_hr:null,max_hr:null,zones:null}}));
-   const writes=[];await c.route('**/api/**',r=>{if(new URL(r.request().url()).pathname==='/api/challenges/signup/continue')return r.fulfill({json:{}});if(['GET','HEAD','OPTIONS'].includes(r.request().method()))return r.fallback();writes.push(r.request().method()+' '+r.request().url());return r.abort();});
+   // Detail views probe the once-only celebration marker; fixture it so chart inspection stays read-only.
+   const writes=[];await c.route('**/api/**',r=>{const u=new URL(r.request().url()),method=r.request().method();if(u.pathname==='/api/challenges/signup/continue')return r.fulfill({json:{}});if(u.pathname==='/api/milestones/celebrate'&&method==='POST')return r.fulfill({json:{items:[],pending:false}});if(['GET','HEAD','OPTIONS'].includes(method))return r.fallback();writes.push(method+' '+r.request().url());return r.abort();});
    await p.goto(base+'/activity/999941');await ready(p);await p.locator('#d-charts .chartbox').first().waitFor();
    assert.equal(await p.locator('[role=tab][aria-selected=true]').innerText(),'Charts');assert(await p.locator('[data-pane=overview]').isHidden());
    assert.equal(await p.locator('#d-charts .chartbox').count(),5);
