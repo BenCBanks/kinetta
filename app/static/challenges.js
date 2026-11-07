@@ -67,7 +67,7 @@ const Challenges=(()=>{
     const active=items.filter(q=>q.member&&q.self&&!q.self.finished).sort((a,b)=>(a.self.days_left??Infinity)-(b.self.days_left??Infinity));
     return active.length?{active,count:active.length,first:active[0],progress:number(active[0].self.value,active[0].unit)+' / '+total(active[0])}:null;
   }
-  const activityBack=el=>{el.classList.add('has-back');el._backFallback='/activity';return `<a class="back" href="/activity" data-back data-challenge-back aria-label="Back to Activity">${svg('back')}<span>Activity</span></a>`;};
+  const activityBack=el=>{el.classList.add('has-back');el._backFallback='/activity';return `<a class="back" href="/activity" data-back data-challenge-back aria-label="Back to Home">${svg('back')}<span>Home</span></a>`;};
   async function mount(node,{me=false}={}){
     if(!node)return;const owner=readOwner();try{const items=await api('/api/challenges');if(!node.isConnected||owner!==readOwner())return;const glance=summary(items),active=glance?.active||[];
       if(me){node.innerHTML=glance?`<div class="card list"><a class="row-link" href="/me/challenges"><span class="ri">${svg('people')}</span><span class="grow"><b>Challenges</b><small>${glance.count} active · ${glance.progress}</small></span><span class="chev">${svg('chev')}</span></a></div>`:'';return;}

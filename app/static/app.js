@@ -770,8 +770,8 @@ function render(options) {
   const key=location.pathname+location.search,routePosition=options?.routePosition;
   const useRoutePosition=routePosition?.key===key&&routePosition.owner===readOwner();
   const targetY=useRoutePosition?routePosition.y:pagePosition(key);
-  const path = location.pathname.replace(/\/+$/, '') || '/me';
-  document.title = path === '/activity' ? 'Home' : 'Kinetta';
+  const path = location.pathname.replace(/\/+$/, '') || '/activity';
+  document.title = path === '/activity' ? 'Home · Kinetta' : 'Kinetta';
   const bundle = lazyRouteBundles.find((candidate) => candidate.re.test(path));
   if (bundle && bundle.scripts.some((file) => !classicScriptsLoaded.has(file))) {
     const owner = readOwner(), generation = ++lazyRouteGeneration, nextPosition={key,owner,y:targetY};
@@ -837,7 +837,7 @@ function render(options) {
 function showError(el, e) {
   if (e && e.status === 401) return;
   if (e && e.status === 404) {
-    const href = el._backFallback || (location.pathname.startsWith('/people/') ? '/me/friends' : location.pathname.startsWith('/activity/') ? '/activity' : '/me');
+    const href = el._backFallback || (location.pathname.startsWith('/people/') ? '/me/friends' : '/activity');
     el.innerHTML = `<div class="top">${backBtn(BackNavigation.label(href))}</div><div class="boot"><h1>Not available</h1><p>This item may have been removed or is not shared with you.</p></div>`;
     wireBack(el,href); return;
   }
@@ -1684,7 +1684,7 @@ async function showJoin(token) {
     const owner=readOwner(), login=App.me.login;
     root.innerHTML=`<div class="login"><div class="form">${BRAND}<h1>Join Kinetta</h1><p>${info.inviter ? esc(info.inviter)+' invited you. ' : ''}You are signed in as @${esc(login)}. Use your existing account; no new account or friend request is created.</p><p class="err" role="alert"></p><div class="btncol"><button type="button" class="primary" id="j-accept">Accept invitation as @${esc(login)}</button><button type="button" class="ghost" id="j-cancel">Not now</button></div></div></div>`;
     const button=$('#j-accept',root),cancel=$('#j-cancel',root),live=()=>active()&&owner===readOwner()&&button.isConnected;
-    const open=()=>{store.del('kinetta.joinReturn');history.replaceState(null,'','/me');start();};
+    const open=()=>{store.del('kinetta.joinReturn');history.replaceState(null,'','/activity');start();};
     cancel.onclick=open;
     button.onclick=async()=>{
       if(button.disabled||!live())return;button.disabled=true;cancel.disabled=true;
@@ -1856,8 +1856,8 @@ async function showConfirmEmail(token) {
   // Email links open in the phone's browser. On an iPhone, offer the app itself (kinetta:// is registered by the app,
   // 27 October 2026): a same-site https link can't hand off from Safari to the app.
   const iphone = !Native.on && /iPhone|iPad|iPod/.test(navigator.userAgent);
-  root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>${esc(title)}</h1><p>${esc(text)}</p>${iphone ? '<a class="primary wide" href="kinetta://open">Open the Kinetta app</a><a class="ghost wide" href="/me" id="c-go">Continue in browser</a>' : '<a class="primary wide" href="/me" id="c-go">Open Kinetta</a>'}</div></div>`;
-  $('#c-go', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/me'); root.innerHTML = LAUNCH; start(); };
+  root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>${esc(title)}</h1><p>${esc(text)}</p>${iphone ? '<a class="primary wide" href="kinetta://open">Open the Kinetta app</a><a class="ghost wide" href="/activity" id="c-go">Continue in browser</a>' : '<a class="primary wide" href="/activity" id="c-go">Open Kinetta</a>'}</div></div>`;
+  $('#c-go', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/activity'); root.innerHTML = LAUNCH; start(); };
 }
 async function showWelcome() {
   if (Native.on) return showLogin();   // new accounts, invites and the waitlist are on the server's web page
@@ -1891,14 +1891,14 @@ async function start() {
     const invitation = /^\/join\/[A-Za-z0-9_-]{1,100}$/.test(location.pathname) ? location.pathname : pendingJoinPath();
     if (invitation) { store.set('kinetta.joinReturn',invitation);history.replaceState(null,'',invitation);return showJoin(invitation.split('/').pop()); }
     if (store.get('kinetta.getApp') && getAppFirst()) return showGetApp();
-    if (location.pathname === '/' || location.pathname === '' || location.pathname.startsWith('/join/') || location.pathname === '/beta' || location.pathname === '/signup') history.replaceState(null, '', '/me');
+    if (location.pathname === '/' || location.pathname === '' || location.pathname.startsWith('/join/') || location.pathname === '/beta' || location.pathname === '/signup') history.replaceState(null, '', '/activity');
     // logged in after opening a friend's invite link: show who it's from and let them say yes
     const friendLink = store.get('kinetta.friendLink');
-    if (friendLink) { store.del('kinetta.friendLink'); if (location.pathname === '/me') history.replaceState(null, '', '/add/' + friendLink); }
+    if (friendLink) { store.del('kinetta.friendLink'); if (['/me','/activity'].includes(location.pathname)) history.replaceState(null, '', '/add/' + friendLink); }
     const cardLink=store.get('kinetta.cardLink');
-    if(cardLink){store.del('kinetta.cardLink');if(location.pathname==='/me')history.replaceState(null,'','/card/'+encodeURIComponent(cardLink));}
+    if(cardLink){store.del('kinetta.cardLink');if(['/me','/activity'].includes(location.pathname))history.replaceState(null,'','/card/'+encodeURIComponent(cardLink));}
     const challengeLink=store.get('kinetta.challengeLink');
-    if(challengeLink){store.del('kinetta.challengeLink');if(['/me','/welcome'].includes(location.pathname))history.replaceState(null,'','/me/challenges/'+encodeURIComponent(challengeLink));}
+    if(challengeLink){store.del('kinetta.challengeLink');if(['/activity','/me','/welcome'].includes(location.pathname))history.replaceState(null,'','/me/challenges/'+encodeURIComponent(challengeLink));}
     // The first time a new account opens the iPhone app, the welcome steps lead, with Apple Health (2026-10-24)
     const seen = 'kinetta.welcomed:' + readOwner();
     if (Native.on && !store.get(seen) && App.me?.created && Date.now() - new Date(App.me.created) < 14 * 864e5 && location.pathname === '/me') history.replaceState(null, '', '/welcome');
@@ -1920,7 +1920,7 @@ async function start() {
     if (x.status === 401) { forgetKept(); showWelcome(); return; }
     if (x.offline && kept('/api/me')) {   // no connection: open with what's saved on this phone
       App.me = kept('/api/me'); netState(true);
-      if (location.pathname === '/' || location.pathname === '') history.replaceState(null, '', '/me');
+      if (location.pathname === '/' || location.pathname === '') history.replaceState(null, '', '/activity');
       render(); return;
     }
     root.innerHTML = `<div class="boot"><p>${esc(x.message)}</p><button class="ghost" id="retry">Try again</button></div>`;

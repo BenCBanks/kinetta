@@ -1,7 +1,7 @@
 // One private conversation across the app. Numbers and proposed writes remain server-validated.
 'use strict';
 Object.assign(KitChat, (() => {
-  const screens={me:['Me','/me'],nutrition:['Nutrition','/food'],activity:['Activity','/activity'],progress:['Progress','/progress'],plan:['Plan','/plan'],strength:['Track','/track'],track:['Track','/track']};
+  const screens={me:['Me','/me'],nutrition:['Nutrition','/food'],activity:['Home','/activity'],progress:['Progress','/progress'],plan:['Plan','/plan'],strength:['Track','/track'],track:['Track','/track']};
   const actions={food:['Add food','/food?add=1'],nutrition:['Nutrition','/food'],record:['Record a workout','/track'],activities:['Your activities','/me/activities'],plan:['Training plan','/plan'],progress:['Progress','/progress'],strength:['Record strength','/track'],recipes:['Recipes & foods','/food/meals'],goals:['Goals & profile','/me'],connections:['Connections','/me/connections']};
   const foodWords=/\b(?:apple|applesauce|avocado|bacon|bagel|banana|beans|beef|berries|bread|broccoli|burger|burrito|butter|cake|cereal|cheese|chicken|chips|chocolate|coffee|cookie|coke|corn|crackers|cream|cucumber|egg|eggs|fish|fries|fruit|granola|grapes|ham|hamburger|hot dogs?|juice|kale|lettuce|milk|muffin|noodles|oatmeal|onion|orange|pancake|pasta|peanut|pear|pizza|potato|quinoa|rice|salad|salmon|sandwich|sausage|smoothie|soup|spinach|steak|toast|tomato|tuna|turkey|yogurt)\b/i;
   function foodIntent(text,awaiting=false){

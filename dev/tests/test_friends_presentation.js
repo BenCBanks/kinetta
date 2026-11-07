@@ -3,14 +3,14 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const esc=x=>String(x).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 const c={esc,avatar:()=>'<span class="av"></span>',profileHref:p=>'/people/'+encodeURIComponent(p.login),backBtn:l=>'<button>'+esc(l)+'</button>',svg:()=>'',skel:()=>'',App:{me:{login:'zz_test_owner',name:'Fictional Owner'}}};vm.createContext(c);vm.runInContext(fs.readFileSync('app/static/friends-ui.js','utf8')+'\nglobalThis.ui=FriendsUI;',c);
 const person={login:'zz_test_<script>',name:'Fictional <img onerror="x">'},r={friends:[],incoming:[{...person,via_card:true}],outgoing:[{login:'zz_test_sent',name:'Fictional Sender'}]};
-const shell=c.ui.shell('Activity');assert(shell.includes('Search name or @username'));assert(shell.includes('id="fr-invite"'));assert(shell.includes('fr-requests'));assert(shell.includes('fr-suggest'));
+const shell=c.ui.shell('Home');assert(shell.includes('Search name or @username'));assert(shell.includes('id="fr-invite"'));assert(shell.includes('fr-requests'));assert(shell.includes('fr-suggest'));
 for(const retired of ['Your profile','Your friends will appear here','New activities:','/me/sharing','fr-own-list','fr-lists','data-invite-empty'])assert(!shell.includes(retired),`Find friends omits ${retired}`);
 const requests=c.ui.requests(r);assert(!requests.includes('<img onerror='));assert(requests.includes('&lt;img'));assert(requests.includes('/people/zz_test_%3Cscript%3E'));
 assert(requests.includes('data-request-menu'));assert(requests.includes('data-request-accept'));assert(requests.includes('data-request-decline'));assert(requests.includes('data-request-cancel'));
 assert(!requests.includes('data-blk='),'Block starts inside the request menu');assert(requests.includes('via your card'));assert.equal(c.ui.requests({incoming:[],outgoing:[]}).trim(),'');
 console.log('Find friends presentation: discovery-only shell, escaped request names, compact request actions and no profile/settings content PASS');
 
-assert(!shell.includes('href="/me/challenges"'),'Challenge navigation belongs to Activity; Invite remains on Find friends');
+assert(!shell.includes('href="/me/challenges"'),'Challenge navigation belongs to Home; Invite remains on Find friends');
 const challengeRoutes=[];c.route=(pattern,tab)=>challengeRoutes.push({pattern,tab});
 vm.runInContext(fs.readFileSync('app/static/challenges.js','utf8')+'\nglobalThis.challengeUI=Challenges;',c);
 const challenge=(code,days,extra={})=>({code,member:true,target:4,unit:'days',self:{value:2,days_left:days,finished:false},...extra});
@@ -20,5 +20,5 @@ const summary=c.challengeUI.summary([challenge('later',5),challenge('soon',1)]);
 assert(c.challengeUI.summary([challenge('reached',1,{self:{value:4,days_left:1,complete:true,finished:false}})]),'Reaching the target does not end a live challenge');
 assert(c.challengeUI.summary([challenge('future',8,{start:'2099-01-01'})]),'Upcoming participation stays discoverable');
 for(const registered of challengeRoutes)assert.equal(registered.tab,'activity');
-const back=c.challengeUI.activityBack({classList:{add(){} }});assert(back.includes('href="/activity"')&&back.includes('Back to Activity'));
-console.log('Challenge presentation: finished/left excluded, soonest active personal progress, reached/upcoming retained, old routes on Activity and explicit parent PASS');
+const back=c.challengeUI.activityBack({classList:{add(){} }});assert(back.includes('href="/activity"')&&back.includes('Back to Home'));
+console.log('Challenge presentation: finished/left excluded, soonest active personal progress, reached/upcoming retained, Home route and explicit parent PASS');
