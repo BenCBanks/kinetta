@@ -465,6 +465,22 @@
       ]
     },
     {
+      "id": "social-8",
+      "source": "app/static/social.js",
+      "pattern": "/^\\/me\\/groups$/",
+      "paths": [
+        "/me/groups"
+      ]
+    },
+    {
+      "id": "social-9",
+      "source": "app/static/social.js",
+      "pattern": "/^\\/group-invite\\/([\\w-]+)$/",
+      "paths": [
+        "/group-invite/{token}"
+      ]
+    },
+    {
       "id": "track-1",
       "source": "app/static/track.js",
       "pattern": "/^\\/track$/",
