@@ -165,6 +165,7 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
 .shot figcaption p { color: var(--ink2); font-size: 15.5px; margin-top: 6px; }
 .site-credit { margin-top: 16px; color: var(--ink3); font-size: 13px; }
 .also-row { display: flex; flex-wrap: wrap; gap: 10px 22px; list-style: none; margin: 0; padding: 0; color: var(--ink2); font-size: 16px; }
+.also-label { margin: 0 0 12px; color: var(--ink3); font-size: 14px; font-weight: 600; }
 .also-row li { white-space: nowrap; }
 .also-row li + li::before { content: "·"; margin-right: 22px; color: var(--ink3); }
 @media (max-width: 560px) {

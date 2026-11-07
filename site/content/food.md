@@ -10,10 +10,6 @@ Log food in a few words.
 
 See calories and macros, with your meals and recipes in one place.
 
-## food-core
-
-Log. Check. Reuse.
-
 ## food-also
 
 Also

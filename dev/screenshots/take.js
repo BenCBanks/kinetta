@@ -182,34 +182,35 @@ async function say(page, text) {
         await foodChatPage.fill('input[name=password]', 'green teapot on the hill');
         await foodChatPage.click('button[type=submit]');
         await foodChatPage.waitForSelector('nav.tabs');
-        await foodChatPage.goto(B + '/food/describe?meal=dinner');
+        await foodChatPage.goto(B + '/food/describe?meal=breakfast');
         await foodChatPage.locator('#thread-text').waitFor();
-        await foodChatPage.fill('#thread-text', 'I had a fictional trail bar');
+        await foodChatPage.fill('#thread-text', 'Greek yogurt with berries, oatmeal with banana, and a chicken salad bowl');
         await foodChatPage.locator('#thread-send').click();
-        const ready = foodChatPage.locator('.thread-card').filter({hasText: 'Fictional trail bar'});
+        const ready = foodChatPage.locator('.thread-card').filter({hasText: 'Chicken salad bowl'});
         await ready.waitFor();
         await foodChatPage.locator('#thread-review-add').waitFor({state: 'visible'});
-        if (!/180 kcal/.test(await ready.innerText())) throw Error('Fictional trail bar capture must show its saved nutrition.');
+        const cardText = await ready.innerText();
+        if (!['Greek yogurt with berries', 'Oatmeal with banana', 'Chicken salad bowl'].every(name => cardText.includes(name)) ||
+            await ready.locator('.thread-food').count() !== 3) throw Error('Food chat capture must show three items in one review card.');
+        if ((await foodChatPage.locator('#thread-review-add').innerText()).trim() !== 'Add to log') throw Error('Food chat capture must show Add to log.');
         await foodChatPage.evaluate(() => document.activeElement.blur());
         await foodChatPage.evaluate(chrome, scheme === 'dark');
         await foodChatPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         await foodChatPage.screenshot({path: `${OUT}/${scheme}-${name}.png`});
         continue;
       }
-      if (opt.foodChat === 'repeat') {
-        if (!foodChatPage) throw Error('The food chat must be staged before its repeat capture.');
-        await foodChatPage.locator('#thread-review-add').click();
-        await foodChatPage.waitForFunction(() => document.querySelector('#toast')?.textContent.includes('Added to Dinner'), null, {timeout: 15000});
-        const another = foodChatPage.locator('#thread-another .thread-another-chip');
-        await another.waitFor({state: 'visible'});
-        if ((await another.innerText()).trim() !== 'Another Fictional trail bar?') throw Error('Repeat capture must offer the one fictional food just logged.');
-        await another.click();
-        await foodChatPage.waitForFunction(() => document.querySelectorAll('.thread-logged-card').length >= 2, null, {timeout: 15000});
-        const logged = await foodChatPage.evaluate(async () => {
-          const day = isoDay(new Date());
-          return (await (await fetch('/api/food/day?d=' + day)).json()).entries;
-        });
-        if (logged.length !== 2 || logged.some(entry => entry.name !== 'Fictional trail bar')) throw Error('One-tap repeat must add exactly one more fictional trail bar.');
+      if (opt.foodChat === 'same-yesterday') {
+        if (!foodChatPage) throw Error('The food account must be staged before its repeat capture.');
+        await foodChatPage.evaluate(() => go('/food'));
+        const shortcut = foodChatPage.locator('#fd-meals .meal-breakfast [data-repeat-yesterday="breakfast"]');
+        await shortcut.waitFor({state: 'visible', timeout: 15000});
+        const state = await shortcut.evaluate(button => ({
+          text: button.textContent.trim(),
+          empty: button.closest('.meal-breakfast')?.classList.contains('meal-empty'),
+          entries: button.closest('.meal-breakfast')?.querySelectorAll('.fe').length
+        }));
+        if (state.text !== 'Same as yesterday · 225 kcal' || !state.empty || state.entries !== 0) throw Error('Repeat capture must show an empty Breakfast and its Same as yesterday shortcut.');
+        await shortcut.scrollIntoViewIfNeeded();
         await foodChatPage.evaluate(() => document.activeElement.blur());
         await foodChatPage.evaluate(chrome, scheme === 'dark');
         await foodChatPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
