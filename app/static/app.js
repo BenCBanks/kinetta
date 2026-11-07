@@ -1920,6 +1920,8 @@ async function start() {
     $('#retry').addEventListener('click', () => { root.innerHTML = LAUNCH; start(); });
   }
 }
+// The eager shell owns startup; Food may load after DOMContentLoaded.
+addEventListener('DOMContentLoaded', start);
 // (the iPhone app has its files built in: no service worker there)
 if ('serviceWorker' in navigator && !window.Capacitor) navigator.serviceWorker.register('/sw.js').catch(() => {});
 
