@@ -57,6 +57,7 @@ for(const size of [{width:320,height:667,root:16},{width:390,height:844,root:16}
  await c.addInitScript(r=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=r+'px'),size.root);
  await c.route('**/*',async r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base){blocked.add(q.url());return r.abort();}if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);return r.fulfill({json:{}});}
   if(u.pathname==='/api/me'){const response=await r.fetch(),j=await response.json();j.bio='Fictional trails and weekend rides.';if(cardLayout)j.profile_layout=cardLayout;if(cardState==='new'){j.friend_count=0;j.friend_requests=0;j.notifications=0;}return r.fulfill({response,json:j});}
+  if(u.pathname==='/api/achievements/showcase')return r.fulfill({json:{items:[],pinned:[],day_streak:0}});
   if(cardState==='new'&&u.pathname==='/api/notifications/count')return r.fulfill({json:{unread:0,friend_requests:0,friend_count:0}});
   if(cardState==='new'&&u.pathname==='/api/goals')return r.fulfill({json:[]});
   if(u.pathname==='/api/stats'){const response=await r.fetch(),j=await response.json();j.week_streak=12;return r.fulfill({response,json:j});}

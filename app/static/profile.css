@@ -36,9 +36,11 @@
 .profile-achievement[data-achievement-code="climbing"],.profile-achievement-history-head[data-achievement-code="climbing"] { --achievement-palette-base:var(--hike); }
 .profile-achievement-list { display:flex; align-items:flex-start; gap:12px; overflow-x:auto; overscroll-behavior-x:contain; scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding:5px 2px 8px; }
 .profile-achievements .profile-achievement-list { margin-right:-16px; padding-inline:16px; scroll-padding-inline:16px; }
-.profile-achievement-list.is-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:start; gap:14px 8px; margin:0; overflow:visible; overscroll-behavior:initial; scroll-snap-type:none; padding:5px 0 8px; }
+.profile-achievement-list.is-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); align-items:start; gap:14px 6px; margin:0; overflow:visible; overscroll-behavior:initial; scroll-snap-type:none; padding:5px 0 8px; }
 .profile-achievement-list.is-grid .profile-achievement { flex:none; width:100%; min-width:0; scroll-snap-align:none; }
-.profile-achievement-list.is-grid .profile-achievement-medallion { flex:0 1 100px; width:100%; max-width:100px; height:auto; aspect-ratio:1; }
+.profile-achievement-list.is-grid .profile-achievement-medallion { flex:0 1 84px; width:100%; max-width:84px; height:auto; aspect-ratio:1; }
+.profile-achievement-list.is-grid .profile-achievement-name { max-width:100%; font-size:.75rem; overflow-wrap:normal; word-break:normal; }
+.profile-achievement-list.is-grid .profile-achievement-next { max-width:100%; font-size:.6875rem; overflow-wrap:normal; word-break:normal; }
 .profile-achievement-group + .profile-achievement-group { margin-top:12px; }
 .profile-achievement-group-title { margin:20px 2px 6px; }
 .profile-achievement-list::-webkit-scrollbar { display:none; }
@@ -157,6 +159,19 @@
 .me-card-name-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0; }
 .me-card-name-heading h2 { flex:1 1 auto; min-width:0; }
 .me-card-name h2 { font-size:1.25rem; line-height:1.15; overflow-wrap:anywhere; }
+.me-showcase-slot { display:block; margin:3px 0 0; }
+.me-showcase-slot:empty { display:none; }
+.me-showcase-row { display:flex; align-items:center; gap:6px; width:max-content; min-height:28px; pointer-events:none; }
+.me-showcase-medal { --showcase-color:var(--color-brand); display:grid; flex:none; place-items:center; width:28px; height:28px; border-radius:50%; background:color-mix(in srgb,var(--showcase-color) 24%,var(--card)); }
+.me-showcase-medal[data-showcase-code="sport:run"] { --showcase-color:var(--run); }
+.me-showcase-medal[data-showcase-code="sport:ride"] { --showcase-color:var(--ride); }
+.me-showcase-medal[data-showcase-code="sport:walk-hike"] { --showcase-color:var(--walk); }
+.me-showcase-medal[data-showcase-code="sport:swim"] { --showcase-color:var(--swim); }
+.me-showcase-medal[data-showcase-code="sport:lift"],.me-showcase-medal[data-showcase-code="lifted"] { --showcase-color:var(--workout); }
+.me-showcase-medal[data-showcase-code="climbing"] { --showcase-color:var(--hike); }
+.me-showcase-icon { display:block; width:18px; height:18px; object-fit:contain; }
+.me-showcase-streak { display:inline-flex; align-items:center; gap:3px; margin-left:1px; color:var(--tx2); font-size:.9375rem; font-weight:650; line-height:1; white-space:nowrap; }
+.me-showcase-streak svg { display:block; width:14px; height:14px; color:var(--color-action); }
 .me-profile-chevron { display:inline-flex; align-items:center; justify-content:center; flex:none; color:var(--tx2); pointer-events:none; }
 .me-profile-chevron svg { display:block; width:20px; height:20px; }
 .me-card-meta { display:flex; align-items:center; flex-wrap:wrap; gap:0 8px; }

@@ -6,7 +6,8 @@ from functools import lru_cache
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from . import achievement_tracks as tracks, db, milestones as milestone_engine
 from .auth import current_user
@@ -383,6 +384,183 @@ def achievements(user=Depends(current_user)):
         current['history'] = current['tiers']
         out.append(current)
     return {'tracks': out, 'pending': pending}
+
+
+SHOWCASE_MAX = 3
+
+
+class ShowcasePinUpdate(BaseModel):
+    code: str = Field(min_length=1, max_length=80)
+    pinned: bool
+
+
+def _showcase_pins(value):
+    known = set(_level_catalog().get('tracks', {}))
+    pins = []
+    for code in value if isinstance(value, (list, tuple)) else ():
+        if isinstance(code, str) and code in known and code not in pins:
+            pins.append(code)
+        if len(pins) >= SHOWCASE_MAX:
+            break
+    return pins
+
+
+def _timestamp(value):
+    if isinstance(value, dt.datetime):
+        return value.timestamp()
+    try:
+        return dt.datetime.fromisoformat(str(value)).timestamp()
+    except (TypeError, ValueError, OverflowError):
+        return 0.0
+
+
+def _showcase_candidates(c, user_id, units):
+    """Return each currently reached catalog level, with its latest earning time."""
+    states = c.execute('''SELECT occurred,details FROM milestones
+                         WHERE user_id=%s AND kind='track_state' AND valid ORDER BY code''',
+                       (user_id,)).fetchall()
+    rows = c.execute('''SELECT code,kind,rank,activity_id,day,occurred,details FROM milestones
+                        WHERE user_id=%s AND valid AND kind IN ('track','sport','first_distance')
+                        ORDER BY occurred,rank''', (user_id,)).fetchall()
+    events = {}
+    for row in rows:
+        details = row.get('details') or {}
+        if row.get('kind') == 'track':
+            code = details.get('track')
+        else:
+            code = _sport_code(details, include_quiet=True)
+        if code not in _level_catalog().get('tracks', {}):
+            continue
+        tier = _tier(row, code, units)
+        events.setdefault(code, []).append({
+            'rank': tier['rank'],
+            'trigger': tier['details'].get('trigger'),
+            'occurred': row.get('occurred'),
+        })
+
+    candidates = {}
+    catalog = _level_catalog().get('tracks', {})
+    for state in states:
+        details = dict(state.get('details') or {})
+        code = details.get('track')
+        definition = catalog.get(code)
+        if not definition:
+            continue
+        try:
+            value = float(_raw_value(code, details))
+        except (TypeError, ValueError):
+            value = 0.0
+        if not math.isfinite(value) or value < 0:
+            value = 0.0
+        level = max((item['rank'] for item in _levels_through(definition, value)), default=0)
+        track_events = events.get(code, [])
+        first_activity = any(item['trigger'] == 'first_activity' for item in track_events)
+        if first_activity:
+            level = max(level, 1)
+        if level < 1:
+            continue
+        current_events = [item for item in track_events if item['rank'] == level]
+        occurred = max(current_events, key=lambda item: _timestamp(item.get('occurred'))).get('occurred') if current_events else state.get('occurred')
+        candidates[code] = {'code': code, 'rank': level, 'occurred': occurred}
+    return candidates
+
+
+def _showcase_payload(c, owner_id, profile):
+    pins = _showcase_pins(profile.get('showcase_pins'))
+    candidates = _showcase_candidates(c, owner_id, profile.get('units') or 'imperial')
+    by_code = candidates
+    if pins:
+        selected = [by_code[code] for code in pins if code in by_code]
+    else:
+        selected = sorted(candidates.values(), key=lambda item: (-item['rank'], -_timestamp(item['occurred']), item['code']))[:SHOWCASE_MAX]
+    return {'items': [{'code': item['code'], 'rank': item['rank']} for item in selected], 'pinned': pins}
+
+
+def _day_streak(c, user_id, tz, now=None):
+    now = now or dt.datetime.now(dt.timezone.utc)
+    zone = ZoneInfo(db.valid_tz(tz) or db.DEFAULT_TZ)
+    today = now.astimezone(zone).date()
+    days = sorted({row['start_time'].astimezone(zone).date()
+                   for row in milestone_engine._completed_activity_rows(c, user_id, now)}, reverse=True)
+    if not days or days[0] < today - dt.timedelta(days=1):
+        return 0
+    expected = days[0]
+    streak = 0
+    for day in days:
+        if day != expected:
+            break
+        streak += 1
+        expected -= dt.timedelta(days=1)
+    return streak
+
+
+def _empty_showcase():
+    return {'items': [], 'pinned': [], 'day_streak': 0}
+
+
+@router.get('/achievements/showcase')
+def achievement_showcase(login: str | None = Query(None, min_length=1, max_length=60), user=Depends(current_user)):
+    """Return the owner's Showcase, or the same minimal row to an opted-in friend."""
+    with db.connect() as c:
+        if login:
+            profile = c.execute('''SELECT u.id,p.units,p.tz,p.showcase_pins,p.share_achievements,
+                                         p.share_achievements_since,
+                                         (u.needs_email_confirm OR u.suspended_at IS NOT NULL) AS hidden
+                                  FROM users u JOIN profile p ON p.user_id=u.id
+                                  WHERE u.login=%s''', (login,)).fetchone()
+            if not profile:
+                return _empty_showcase()
+            owner_id = profile['id']
+            if owner_id != user['id']:
+                relation = c.execute('''SELECT EXISTS(
+                                           SELECT 1 FROM friendships f
+                                           WHERE f.status='accepted' AND
+                                             ((f.requester=%s AND f.addressee=%s) OR
+                                              (f.requester=%s AND f.addressee=%s))) AS friends,
+                                         EXISTS(SELECT 1 FROM blocks b WHERE
+                                           (b.user_id=%s AND b.blocked=%s) OR
+                                           (b.user_id=%s AND b.blocked=%s)) AS blocked''',
+                                     (user['id'], owner_id, owner_id, user['id'],
+                                      user['id'], owner_id, owner_id, user['id'])).fetchone()
+                if (profile.get('hidden') or not profile.get('share_achievements') or
+                        not profile.get('share_achievements_since') or not relation['friends'] or relation['blocked']):
+                    return _empty_showcase()
+        else:
+            owner_id = user['id']
+            profile = c.execute('''SELECT units,tz,showcase_pins FROM profile WHERE user_id=%s''',
+                                (owner_id,)).fetchone()
+            if not profile:
+                return _empty_showcase()
+        result = _showcase_payload(c, owner_id, profile)
+        result['day_streak'] = _day_streak(c, owner_id, profile.get('tz'))
+        return result
+
+
+@router.post('/achievements/showcase/pin')
+def update_showcase_pin(body: ShowcasePinUpdate, user=Depends(current_user)):
+    code = body.code.strip()
+    if code not in _level_catalog().get('tracks', {}):
+        raise HTTPException(400, 'Unknown achievement track')
+    with db.connect() as c:
+        profile = c.execute('''SELECT units,showcase_pins FROM profile WHERE user_id=%s FOR UPDATE''',
+                             (user['id'],)).fetchone()
+        if not profile:
+            raise HTTPException(404, 'Profile not found')
+        candidates = _showcase_candidates(c, user['id'], profile.get('units') or 'imperial')
+        pins = [item for item in _showcase_pins(profile.get('showcase_pins')) if item in candidates]
+        if body.pinned:
+            if code not in candidates:
+                raise HTTPException(409, 'Earn the medal before pinning it')
+            replaced = code not in pins and len(pins) >= SHOWCASE_MAX
+            if code not in pins:
+                if replaced:
+                    pins.pop(0)
+                pins.append(code)
+        else:
+            replaced = False
+            pins = [item for item in pins if item != code]
+        c.execute('UPDATE profile SET showcase_pins=%s WHERE user_id=%s', (pins, user['id']))
+    return {'pinned': pins, 'replaced': replaced}
 
 
 @router.get('/achievement-history/{code}')

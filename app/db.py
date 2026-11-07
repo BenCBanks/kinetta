@@ -2068,6 +2068,10 @@ MIGRATIONS = [
     ALTER TABLE reports DROP CONSTRAINT reports_kind_check;
     ALTER TABLE reports ADD CONSTRAINT reports_kind_check CHECK(kind IN ('person','activity','comment','dish','challenge','group'));""",
 
+    # 101. Ordered Showcase pins live with each owner's already row-secured profile.
+    """ALTER TABLE profile ADD COLUMN showcase_pins text[] NOT NULL DEFAULT '{}'::text[]
+      CHECK(cardinality(showcase_pins)<=3 AND array_position(showcase_pins,NULL) IS NULL);""",
+
 ]
 
 

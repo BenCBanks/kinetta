@@ -155,7 +155,7 @@ const ProfileLayout=(()=>{
     {id:'distance',title:'Distance',codes:['journey','sport:run','sport:ride','sport:walk-hike','sport:swim','climbing']},
     {id:'strength',title:'Strength',codes:['lifted','sport:lift']}
   ];
-  function achievementGrid(tracks,levelUps){
+  function achievementGrid(tracks,levelUps,pinnedCodes=new Set()){
     return achievementSections.map(section=>{
       const grouped=tracks.filter(track=>section.codes.includes(track.code)).sort((a,b)=>{
         const progress=achievementProgress(b)-achievementProgress(a);
@@ -163,7 +163,7 @@ const ProfileLayout=(()=>{
       });
       if(!grouped.length)return '';
       const id=`profile-achievement-group-${section.id}`;
-      return `<section class="profile-achievement-group" aria-labelledby="${id}"><h2 class="sec-head profile-achievement-group-title" id="${id}">${section.title}</h2><div class="profile-achievement-list is-grid" role="list" aria-labelledby="${id}">${grouped.map(track=>achievementRow(track,levelUps)).join('')}</div></section>`;
+      return `<section class="profile-achievement-group" aria-labelledby="${id}"><h2 class="sec-head profile-achievement-group-title" id="${id}">${section.title}</h2><div class="profile-achievement-list is-grid" role="list" aria-labelledby="${id}">${grouped.map(track=>achievementRow(track,levelUps,pinnedCodes)).join('')}</div></section>`;
     }).join('');
   }
   function achievementMedallion(track){
@@ -171,9 +171,9 @@ const ProfileLayout=(()=>{
     const tone=level>=6?'deep':String(level);
     return `<span class="profile-achievement-medallion" data-level="${level}" data-level-tone="${tone}" aria-hidden="true"><svg class="profile-achievement-ring" viewBox="0 0 104 104"><circle class="profile-achievement-ring-base" cx="52" cy="52" r="47"/><circle class="profile-achievement-ring-progress" cx="52" cy="52" r="47" stroke-dasharray="${ring} ${circumference.toFixed(1)}" transform="rotate(-90 52 52)"/></svg>${achievementAsset(tier)||achievementGlyph(track)}<span class="profile-achievement-value">${esc(value)}</span><span class="profile-achievement-level">Lv ${level}</span>${Number(tier?.multiple)>1?`<span class="profile-achievement-multiple">×${Number(tier.multiple)}</span>`:''}</span>`;
   }
-  function achievementRow(track,levelUps=new Set()){
-    const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),tier=achievementCurrentTier(track),value=achievementValue(track),next=achievementNext(track),up=levelUps.has(track.code),aria=`${label}, Level ${level}${tier?` ${tier.name}`:''}, ${value}${next?`. Next ${next}`:''}`;
-    return `<a class="profile-achievement${up?' is-level-up':''}" role="listitem" href="${esc(achievementHref(track))}" aria-label="${esc(aria)}" data-achievement-code="${esc(track.code)}">${achievementMedallion(track)}<span class="profile-achievement-name">${esc(label)}</span>${next?`<span class="profile-achievement-next">Next · ${esc(next)}</span>`:'<span class="profile-achievement-next">Highest tier</span>'}</a>`;
+  function achievementRow(track,levelUps=new Set(),pinnedCodes=new Set()){
+    const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),tier=achievementCurrentTier(track),value=achievementValue(track),next=achievementNext(track),up=levelUps.has(track.code),pinned=pinnedCodes.has(track.code),aria=`${label}, Level ${level}${tier?` ${tier.name}`:''}, ${value}${next?`. Next ${next}`:''}${pinned?', Pinned to profile':''}`;
+    return `<a class="profile-achievement${up?' is-level-up':''}" role="listitem" href="${esc(achievementHref(track))}" aria-label="${esc(aria)}" aria-description="Long press to ${pinned?'remove this medal from':'pin this medal to'} your profile." data-achievement-code="${esc(track.code)}" data-showcase-pinned="${pinned}">${achievementMedallion(track)}<span class="profile-achievement-name">${esc(label)}</span>${next?`<span class="profile-achievement-next">Next · ${esc(next)}</span>`:'<span class="profile-achievement-next">Highest tier</span>'}</a>`;
   }
   function achievementLevelUps(data){
     const owner=App.me?.id;if(owner==null)return new Set();
@@ -199,6 +199,72 @@ const ProfileLayout=(()=>{
     if(!tracks.length)return '';
     return `<section class="profile-achievements" aria-label="Achievements"><h2><a href="/me/achievements">Achievements <span aria-hidden="true">›</span></a></h2><div class="profile-achievement-list" role="list" aria-label="Started achievement tracks" tabindex="0">${tracks.map(track=>achievementRow(track,levelUps)).join('')}</div></section>`;
   }
+  function showcaseMarkup(data){
+    const items=(Array.isArray(data?.items)?data.items:[]).slice(0,3).map(item=>{
+      const code=String(item?.code||''),rank=Number(item?.rank);
+      if(!code||!Number.isInteger(rank)||rank<1)return null;
+      const tier=achievementTierAt(code,rank);
+      return tier?{code,name:tier.name,icon:achievementAsset(tier,'me-showcase-icon')}:null;
+    }).filter(Boolean);
+    const streak=Number(data?.day_streak),hasStreak=Number.isInteger(streak)&&streak>=2;
+    if(!items.length&&!hasStreak)return '';
+    const names=items.map(item=>item.name),label=[names.length?`Showcase: ${names.join(', ')}`:'',hasStreak?`${streak}-day activity streak`:'' ].filter(Boolean).join('. ');
+    return `<span class="me-showcase-row" role="img" aria-label="${esc(label)}">${items.map(item=>`<span class="me-showcase-medal" data-showcase-code="${esc(item.code)}" aria-hidden="true">${item.icon}</span>`).join('')}${hasStreak?`<span class="me-showcase-streak" aria-hidden="true">${svg('flame')}<span>${streak}</span></span>`:''}</span>`;
+  }
+  function wireAchievementPins(box,pinnedCodes){
+    if(!box.querySelector('.profile-achievement-list.is-grid'))return;
+    const owner=readOwner();
+    let press=null,timer=0,suppressClick=false,suppressTimer=0,disposed=false;
+    const pinAnchor=target=>{const anchor=target?.closest?.('.profile-achievement');return anchor&&box.contains(anchor)&&anchor.closest('.profile-achievement-list.is-grid')?anchor:null;};
+    const clearPress=()=>{clearTimeout(timer);timer=0;press=null;};
+    const suppress=()=>{suppressClick=true;clearTimeout(suppressTimer);suppressTimer=setTimeout(()=>{suppressClick=false;},900);};
+    const openOptions=anchor=>{
+      const code=anchor.dataset.achievementCode,pinned=pinnedCodes.has(code),replace=!pinned&&pinnedCodes.size>=3;
+      sheet('Showcase',`<div class="card list"><button type="button" class="row-link" data-showcase-pin-action><span class="grow">${pinned?'Remove from profile':'Pin to profile'}</span>${svg('chev')}</button></div>`,(body,close)=>{
+        const button=body.querySelector('[data-showcase-pin-action]');if(!button)return;
+        button.onclick=async()=>{
+          button.disabled=true;
+          try{
+            const result=await api('/api/achievements/showcase/pin',json('POST',{code,pinned:!pinned}));
+            if(!box.isConnected||owner!==readOwner())return;
+            pinnedCodes.clear();for(const item of Array.isArray(result?.pinned)?result.pinned:[])pinnedCodes.add(String(item));
+            box.querySelectorAll('.profile-achievement-list.is-grid .profile-achievement').forEach(row=>{
+              const active=pinnedCodes.has(row.dataset.achievementCode);row.dataset.showcasePinned=String(active);
+              const label=row.getAttribute('aria-label')||'';row.setAttribute('aria-label',label.replace(/, Pinned to profile$/,'')+(active?', Pinned to profile':''));
+              row.setAttribute('aria-description',`Long press to ${active?'remove this medal from':'pin this medal to'} your profile.`);
+            });
+            close();toast(result?.replaced||replace?'Pinned to profile. Oldest pin replaced.':pinned?'Removed from profile.':'Pinned to profile.');
+          }catch(error){button.disabled=false;toast(error?.message||'Showcase could not be updated.');}
+        };
+      });
+    };
+    const onDown=e=>{
+      if(e.button!==0||e.isPrimary===false)return;
+      const anchor=pinAnchor(e.target);if(!anchor)return;
+      clearPress();press={anchor,id:e.pointerId,x:e.clientX,y:e.clientY,fired:false};
+      timer=setTimeout(()=>{if(!press||!press.anchor.isConnected)return;press.fired=true;suppress();openOptions(press.anchor);},520);
+    };
+    const onMove=e=>{if(!press||e.pointerId!==press.id)return;if(Math.hypot(e.clientX-press.x,e.clientY-press.y)>9)clearPress();};
+    const onUp=e=>{if(!press||e.pointerId!==press.id)return;if(press.fired)suppress();clearPress();};
+    const onClick=e=>{if(!suppressClick)return;const anchor=pinAnchor(e.target);if(anchor){e.preventDefault();e.stopPropagation();}suppressClick=false;clearTimeout(suppressTimer);};
+    const onContext=e=>{const anchor=pinAnchor(e.target);if(anchor){e.preventDefault();suppress();openOptions(anchor);}};
+    const onKey=e=>{const anchor=pinAnchor(e.target);if(anchor&&(e.key==='ContextMenu'||e.key==='F10'&&e.shiftKey)){e.preventDefault();openOptions(anchor);}};
+    document.addEventListener('click',onClick,true);box.addEventListener('pointerdown',onDown);document.addEventListener('pointermove',onMove,true);document.addEventListener('pointerup',onUp,true);document.addEventListener('pointercancel',onUp,true);
+    box.addEventListener('contextmenu',onContext);box.addEventListener('keydown',onKey);
+    const dispose=()=>{if(disposed)return;disposed=true;clearPress();clearTimeout(suppressTimer);document.removeEventListener('click',onClick,true);document.removeEventListener('pointermove',onMove,true);document.removeEventListener('pointerup',onUp,true);document.removeEventListener('pointercancel',onUp,true);box.removeEventListener('pointerdown',onDown);box.removeEventListener('contextmenu',onContext);box.removeEventListener('keydown',onKey);};
+    viewResources.set(box,dispose);
+  }
+  async function mountShowcase(root,r,{shared=false}={}){
+    const slot=root?.querySelector?.('[data-me-showcase]');if(!slot)return;
+    const owner=readOwner(),login=r?.person?.login||r?.login||App.me?.login;
+    const asShared=shared||r?.mine===false,url=asShared&&login?`/api/achievements/showcase?login=${encodeURIComponent(login)}`:'/api/achievements/showcase';
+    const ownSharedPreview=shared&&login&&App.me?.login&&String(login).toLowerCase()===String(App.me.login).toLowerCase();
+    try{
+      const [data,_catalog,sharing]=await Promise.all([api(url),loadAchievementCatalog(),ownSharedPreview?api('/api/sharing'):Promise.resolve(null)]);
+      if(!root.isConnected||!slot.isConnected||owner!==readOwner())return;
+      slot.innerHTML=showcaseMarkup(ownSharedPreview&&sharing?.share_achievements!==true?{items:[],day_streak:0}:data);
+    }catch(_){/* The optional Showcase never blocks its profile card. */}
+  }
   function mountAchievements(box,r){
     if(r?.mine!==true)return;
     const owner=readOwner(),generation=Symbol('achievements');box._achievementMount=generation;
@@ -216,14 +282,15 @@ const ProfileLayout=(()=>{
     el.innerHTML=`<div class="top">${backBtn('Profile')}</div><div id="profile-achievement-page" aria-busy="true"><h1>${code?'Achievement history':'Achievements'}</h1><p class="small muted">Loading…</p></div>`;
     wireBack(el,profile,destination=>/^\/me\/achievements(?:\/|$|\?)/.test(destination.path)?'Achievements':'Profile');
     const box=$('#profile-achievement-page',el);
-    Promise.all([api('/api/achievements'),loadAchievementCatalog(),code?api('/api/achievement-history/'+encodeURIComponent(code)):Promise.resolve(null)]).then(([data,_catalog,historyData])=>{
+    Promise.all([api('/api/achievements'),loadAchievementCatalog(),code?api('/api/achievement-history/'+encodeURIComponent(code)):Promise.resolve(null),code?Promise.resolve({}):api('/api/achievements/showcase').catch(()=>({}))]).then(([data,_catalog,historyData,showcase])=>{
       if(!active()||!box.isConnected)return;
       const tracks=startedAchievements(data),track=code?tracks.find(t=>t.code===code):null;
       if(code&&!track){box.innerHTML='<h1>Achievements</h1><p class="small muted">This track has no earned tiers yet.</p>';box.setAttribute('aria-busy','false');return;}
       if(!code){
         const levelUps=achievementLevelUps(data);
-        const groups=achievementGrid(tracks,levelUps);
+        const pinnedCodes=new Set((Array.isArray(showcase?.pinned)?showcase.pinned:[]).map(String)),groups=achievementGrid(tracks,levelUps,pinnedCodes);
         box.innerHTML=`<h1>Achievements</h1>${groups||'<p class="small muted">No earned achievements yet.</p>'}`;
+        wireAchievementPins(box,pinnedCodes);
         achievementLevelUpHaptic(levelUps);
         box.setAttribute('aria-busy','false');return;
       }
@@ -276,9 +343,9 @@ const ProfileLayout=(()=>{
   function mount(box,r){
     const chart=box.querySelector('[data-profile-mileage]');
     if(chart)mileageChart(chart,r.mileage||{},'days',{shared:true});
-    feedMaps(box);wireCheers(box);mountAchievements(box,r);
+    mountShowcase(box,r);feedMaps(box);wireCheers(box);mountAchievements(box,r);
   }
-  return {defaults,normalize,singlePeriod,numbers,content,mount,distance,hours,labels:{sections,stats},sports,achievementPage};
+  return {defaults,normalize,singlePeriod,numbers,content,mount,mountShowcase,distance,hours,labels:{sections,stats},sports,achievementPage};
 })();
 
 // Me leads with the card friends see, then a private dashboard (owner-approved mockup, 29 October 2026). The card uses the
@@ -290,10 +357,11 @@ const MeCard=(()=>{
   // then the shared activities). Friends shares the handle row without changing its audience or destination.
   function card(p,{mine=false,pills='',friends='',link=false,milestones=false,showBio=true}={}){
     const bio=showBio?(p.bio||'').trim():'',photo=avatar(p,'lg'),name=esc(p.name||p.login),handle=`<span data-type="secondary">@${esc(p.login)}</span>`;
+    const showcase='<span class="me-showcase-slot" data-me-showcase></span>';
     const initials=((p.name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase()||'?');
     const identity=link
-      ? `<span class="me-card-profile-link"><span class="me-card-avatar">${photo}</span><span class="me-card-name"><span class="me-card-name-heading"><h2>${name}</h2><span class="me-profile-chevron" aria-hidden="true">${svg('chev')}</span></span><span class="me-card-meta">${handle}</span></span></span>${friends}`
-      : `<span class="me-card-avatar">${photo}</span><div class="me-card-name"><h2>${name}</h2><div class="me-card-meta">${handle}${friends}</div></div>`;
+      ? `<span class="me-card-profile-link"><span class="me-card-avatar">${photo}</span><span class="me-card-name"><span class="me-card-name-heading"><h2>${name}</h2><span class="me-profile-chevron" aria-hidden="true">${svg('chev')}</span></span>${showcase}<span class="me-card-meta">${handle}</span></span></span>${friends}`
+      : `<span class="me-card-avatar">${photo}</span><div class="me-card-name"><h2>${name}</h2>${showcase}<div class="me-card-meta">${handle}${friends}</div></div>`;
     const openProfile=link?`<a class="me-card-open-link" href="${profileHref(p)}" aria-label="Open my profile"></a>`:'';
     return `<section class="me-card${link?' me-card-open':''}" aria-label="${mine?'Your profile card':esc(p.name||p.login)+'’s profile card'}">${openProfile}<div class="me-card-banner">${pills}</div>
       <div class="me-card-body"><div class="me-card-id${link?' me-card-id-link':''}">${identity}</div>
@@ -320,7 +388,7 @@ const MeCard=(()=>{
       const draw=async()=>{const version=++revision;dispose();frame.hidden=false;link.disabled=true;status.textContent='Loading preview…';
         try{const r=await api('/api/people/'+encodeURIComponent(login)+'/profile?as_friend=true&preview=member&limit=1');if(!active()||version!==revision)return;
           if(r.preview!=='member'||r.profile_hidden)throw Error(r.profile_hidden?'Your profile is hidden until your account is confirmed and active.':'The preview needs a server update.');
-          previewCard(art,r);const card=$('.me-card',art);
+          previewCard(art,r);await ProfileLayout.mountShowcase(art,r,{shared:true});if(!active()||version!==revision)return;const card=$('.me-card',art);
           const fit=()=>{if(!active()||!card.isConnected||version!==revision){observer.disconnect();return;}const width=Math.max(358,frame.clientWidth/.9),scale=frame.clientWidth/width;art.style.width=width+'px';art.style.setProperty('--preview-scale',scale);$$('.me-sport-chips',art).forEach(fitSports);const height=Math.ceil(card.offsetHeight*scale)+'px';if(frame.style.height!==height)frame.style.height=height;};
           const observer=new ResizeObserver(fit);dispose=()=>observer.disconnect();observer.observe(frame);observer.observe(card);viewResources.set(frame,dispose);fit();document.fonts.ready.then(fit);
           frame.setAttribute('aria-label','Profile card preview: '+card.innerText.replace(/\s+/g,' ').trim());status.textContent='';link.disabled=false;
@@ -538,6 +606,7 @@ const MeCard=(()=>{
       sizeBio();if(focusName){card.scrollIntoView({block:'start'});name.focus({preventScroll:true});}else $('[data-show]',box)?.focus({preventScroll:true});
     }
     function finish(saved=false){editing=false;dim(false);draw();if(!data)loadCard();$('[data-card-edit]',card).focus({preventScroll:true});onEditEnd?.({saved});}
+    ProfileLayout.mountShowcase(root,data||{mine:true});
     if(data?.mine===false){draw();return {};}
     $('[data-card-edit]',card).onclick=edit;
     $('[data-card-share]',card).onclick=shareSheet;

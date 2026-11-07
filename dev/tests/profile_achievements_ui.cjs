@@ -71,7 +71,7 @@ const displayHistoryTier=(code,value,units)=>{
  return [value,historyUnits[code]||'count'];
 };
 
-const until=async(page,fn,label)=>{for(let i=0;i<150;i++){if(await page.evaluate(fn))return;await page.waitForTimeout(100);}throw Error('Timed out: '+label);};
+const until=async(page,fn,label,arg)=>{for(let i=0;i<150;i++){if(await page.evaluate(fn,arg))return;await page.waitForTimeout(100);}throw Error('Timed out: '+label);};
 const screenshot=async(page,dir,name,options={})=>{if(!dir)return;fs.mkdirSync(dir,{recursive:true});await page.screenshot({path:`${dir}/${name}.png`,animations:'disabled',...options});};
 const brightness=color=>{const channels=(color.match(/[\d.]+/g)||[]).slice(0,3).map(Number);return channels[0]*.2126+channels[1]*.7152+channels[2]*.0722;};
 const assertRingText=async(container,label)=>{
@@ -86,7 +86,7 @@ const assertRingText=async(container,label)=>{
 module.exports=async({browser,storageState,base,shots})=>{
  for(const theme of ['light','dark']){
   const context=await browser.newContext({storageState,viewport:{width:390,height:844},colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'});
-  const page=await context.newPage(),errors=[],writes=[];let journeyValue=6099414,workoutValue=1120,unitMode='imperial',unitLabelValues=null;
+  const page=await context.newPage(),errors=[],writes=[],pinRequests=[];let journeyValue=6099414,workoutValue=1120,unitMode='imperial',unitLabelValues=null,showcasePins=[];
   page.on('pageerror',e=>errors.push(e.message));
   await context.addInitScript(()=>{window.__achievementVibrations=0;const original=navigator.vibrate?.bind(navigator);navigator.vibrate=(...args)=>{window.__achievementVibrations++;return original?original(...args):false;};});
   await page.route('**/*',async route=>{
@@ -102,6 +102,13 @@ module.exports=async({browser,storageState,base,shots})=>{
     for(const item of unitLabelValues||[]){const track=data.tracks.find(row=>row.code===item.code);if(track){track.display_value=item.value;track.display_unit=item.unit;}}
     for(const track of data.tracks)for(const item of track.tiers){const [shown,shownUnit]=displayHistoryTier(track.code,Number(item.threshold)||0,unitMode);item.unit=historyUnits[track.code]||item.unit;item.display_threshold=shown;item.display_unit=shownUnit;}
     return route.fulfill({json:data});
+   }
+   if(request.method()==='GET'&&url.pathname==='/api/achievements/showcase')return route.fulfill({json:{items:[],pinned:showcasePins,day_streak:0}});
+   if(request.method()==='POST'&&url.pathname==='/api/achievements/showcase/pin'){
+    const body=request.postDataJSON();pinRequests.push(body);let replaced=false;
+    if(body.pinned){if(!showcasePins.includes(body.code)){if(showcasePins.length>=3){showcasePins.shift();replaced=true;}showcasePins.push(body.code);}}
+    else showcasePins=showcasePins.filter(code=>code!==body.code);
+    return route.fulfill({json:{pinned:showcasePins,replaced}});
    }
    if(request.method()==='GET'&&url.pathname.startsWith('/api/achievement-history/')){
     const code=decodeURIComponent(url.pathname.slice('/api/achievement-history/'.length));
@@ -185,7 +192,7 @@ module.exports=async({browser,storageState,base,shots})=>{
    const group=groups.nth(i),list=group.locator('.profile-achievement-list');
    assert.equal(await list.getAttribute('role'),'list');
    const grid=await list.evaluate(n=>{const cards=[...n.querySelectorAll('.profile-achievement')],tops=cards.map(c=>c.getBoundingClientRect().top);return{display:getComputedStyle(n).display,overflowX:getComputedStyle(n).overflowX,columns:getComputedStyle(n).gridTemplateColumns.split(/\s+/).length,firstRowSame:tops.length<3||Math.max(...tops.slice(0,3))-Math.min(...tops.slice(0,3))<1};});
-   assert.equal(grid.display,'grid','each group keeps a vertical grid');assert.equal(grid.columns,3,'each group keeps three columns');assert.equal(grid.firstRowSame,true,'each group begins with a three-column row');assert.equal(grid.overflowX,'visible','group grids do not scroll sideways');
+   assert.equal(grid.display,'grid','each group keeps a vertical grid');assert.equal(grid.columns,4,'each group uses four columns at 390px');assert.equal(grid.firstRowSame,true,'each group begins with a four-column row');assert.equal(grid.overflowX,'visible','group grids do not scroll sideways');
    groupCodes.push(await list.locator('.profile-achievement').evaluateAll(nodes=>nodes.map(n=>n.dataset.achievementCode)));
   }
   assert.deepEqual(groupCodes,[
@@ -200,6 +207,20 @@ module.exports=async({browser,storageState,base,shots})=>{
   await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='all-tracks');
   await screenshot(page,shots,`achievement-grid-390-${theme}`,{fullPage:true});
   await page.evaluate(()=>delete document.documentElement.dataset.achievementEvidence);
+  const holdToPin=async code=>{
+   const medal=page.locator('#profile-achievement-page .profile-achievement[data-achievement-code="'+code+'"]');await medal.evaluate(n=>n.scrollIntoView({block:'center',behavior:'instant'}));await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+   const rect=await medal.boundingBox();await page.mouse.move(rect.x+rect.width/2,rect.y+rect.height/2);await page.mouse.down();await page.waitForTimeout(570);await page.mouse.up();
+   const action=page.locator('[data-showcase-pin-action]');await action.waitFor();return action;
+  };
+  const waitForPin=async(code,pinned)=>{const selector='#profile-achievement-page .profile-achievement[data-achievement-code="'+code+'"]';await until(page,state=>document.querySelector(state.selector)?.dataset.showcasePinned===state.pinned,'Showcase pin update',{selector,pinned:String(pinned)});};
+  let pinAction=await holdToPin('workouts');assert.equal(await pinAction.innerText(),'Pin to profile','a long press opens the pin action');
+  await screenshot(page,shots,'achievement-pin-action-390-'+theme);await pinAction.click();await page.locator('.sheet').waitFor({state:'detached'});
+  await waitForPin('workouts',true);
+  assert.deepEqual(showcasePins,['workouts'],'pinning stores the selected track');assert.match(await page.locator('#profile-achievement-page [data-achievement-code="workouts"]').getAttribute('aria-label'),/Pinned to profile/);
+  assert.equal(new URL(page.url()).pathname,'/me/achievements','holding to pin does not open medal history');
+  for(const code of ['journey','lifted','sport:run']){pinAction=await holdToPin(code);if(code==='sport:run')assert.equal(await pinAction.innerText(),'Pin to profile');await pinAction.click();await page.locator('.sheet').waitFor({state:'detached'});await waitForPin(code,true);}
+  assert.deepEqual(showcasePins,['journey','lifted','sport:run'],'a fourth pin replaces the oldest pin');
+  assert.equal(pinRequests.length,4,'each pin action sends one owner-scoped update');
   const journey=page.locator('#profile-achievement-page [data-achievement-code="journey"]');assert.match(await journey.getAttribute('href'),/\/me\/achievements\/journey$/,'each medallion links to its history');
   await setUnits('metric');
   await journey.click();await page.waitForURL('**/me/achievements/journey');
