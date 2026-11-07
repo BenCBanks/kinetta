@@ -2,85 +2,49 @@
 
 Edit the text below each heading. Keep the section keys unchanged. Supports **bold**, *emphasis*, `code` and [links](https://example.com). Publishing rebuilds the page automatically.
 
+## home-hero-kicker
+
+One app for your whole training life.
+
 ## your-workouts-and-your-food-in-one-app-1
 
-Your workouts. Your nutrition. One app.
+Train. Fuel. Feel the difference.
 
 ## runs-rides-lifting-and-meals-tracked-together-and-kept-2
 
-Training, food and friends together, without the clutter.
+Your workouts, food and people—one clear picture.
 
-## home-core-heading
+## home-insights-heading
 
-Record, eat and connect.
+Make your next move with the full picture.
 
-## runs-rides-and-lifting-4
+## home-demo-note
 
-Record
+Fictional demo data · Kit reply is a screenshot stand-in.
 
-## quick-food-logging-6
+## home-insight-fitness
 
-Food
+Know when to push. Know when to rest.
 
-## friends-kept-private-8
+## home-insight-fuel
 
-Friends
+See training and food, day by day.
 
-## home-discipline-run
+## home-insight-kit
 
-Run
+Get a clear answer backed by your own records.
 
-## home-discipline-ride
+## home-support-routes
 
-Ride
+Find your best on every familiar route.
 
-## home-discipline-walk
+## home-support-prs
 
-Walk
+Spot new personal records over time.
 
-## home-discipline-lift
+## home-support-heatmap
 
-Lift
-
-## home-discipline-plans
-
-Plans
-
-## home-more-heading
-
-Also in Kinetta
-
-## home-progress-caption
-
-Food insights
-
-## home-insights-caption
-
-Routes & segments
-
-## home-kit-caption
-
-Kit
-
-## home-groups-caption
-
-Groups
-
-## home-trust-sharing
-
-You choose what you share
-
-## home-trust-export
-
-Export your data
-
-## home-trust-ads
-
-No ads
-
-## home-closing-heading
-
-Bring it all together.
+See your training rhythm build, day by day.
 
 ## training-training-food-food-friends-friends-compare-co-17
 

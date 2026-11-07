@@ -78,6 +78,49 @@ async function cleanFood(before) {
   for (const m of t.messages) if (m.kind === 'user' && !before.messages.includes(m.id)) await api('/api/food/thread/messages/' + m.id, {method: 'DELETE'}).catch(() => {});
   invalidate('/api/');
 }
+async function kitPaceStandin(page) {
+  return page.evaluate(async () => {
+    const [activities, fitness] = await Promise.all([
+      api('/api/activities?limit=200'), api('/api/fitness?days=60')
+    ]);
+    const today = new Date(isoDay(new Date()) + 'T00:00:00');
+    const start = days => { const d = new Date(today); d.setDate(d.getDate() - days); return d; };
+    const currentStart = start(7), previousStart = start(14);
+    const runStats = (from, to) => {
+      const runs = activities.filter(a => a.sport === 'run' && a.distance_m > 0 && a.moving_s > 0 &&
+        new Date(a.start_time) >= from && new Date(a.start_time) < to);
+      const distance = runs.reduce((n, a) => n + Number(a.distance_m), 0);
+      const moving = runs.reduce((n, a) => n + Number(a.moving_s), 0);
+      return {runs, distance, pace: distance ? moving / distance * 1609.344 : null};
+    };
+    const current = runStats(currentStart, today), previous = runStats(previousStart, currentStart);
+    if (!current.runs.length || !previous.runs.length) throw new Error('The fictional pace chat needs runs in both comparison weeks.');
+    const pace = seconds => {
+      const n = Math.round(seconds), m = Math.floor(n / 60);
+      return `${m}:${String(n % 60).padStart(2, '0')}/mi`;
+    };
+    const miles = meters => `${(meters / 1609.344).toFixed(1)} mi`;
+    const longest = [...current.runs].sort((a, b) => b.distance_m - a.distance_m)[0];
+    const currentDays = isoDay(new Date());
+    const previousDays = isoDay(currentStart);
+    const priorStartDay = isoDay(previousStart);
+    const inDays = (row, from, to) => row.d >= from && row.d < to;
+    const currentLoad = fitness.days.filter(row => inDays(row, previousDays, currentDays)).reduce((n, row) => n + Number(row.load || 0), 0);
+    const previousLoad = fitness.days.filter(row => inDays(row, priorStartDay, previousDays)).reduce((n, row) => n + Number(row.load || 0), 0);
+    const change = Math.round(previous.pace - current.pace);
+    const trend = change >= 0 ? `${change} sec/mi faster` : `${Math.abs(change)} sec/mi slower`;
+    return {
+      interpretation: `Your ${miles(longest.distance_m)} run was ${pace(longest.moving_s / longest.distance_m * 1609.344)}, but your ${current.runs.length}-run week averaged ${pace(current.pace)} — ${trend} than last week (${pace(previous.pace)}). Load was nearly unchanged (${Math.round(currentLoad)} vs ${Math.round(previousLoad)}). I can’t see weather or sleep, so I can’t explain that slower run.`,
+      facts: [
+        {label: 'Last 7 days', value: `${pace(current.pace)} · ${current.runs.length} runs`},
+        {label: 'Previous 7 days', value: `${pace(previous.pace)} · ${previous.runs.length} runs`},
+        {label: 'Training load', value: `${Math.round(currentLoad)} vs ${Math.round(previousLoad)}`}
+      ],
+      limitations: ['Weather and sleep are not recorded in this screenshot data.'],
+      actions: ['activities']
+    };
+  });
+}
 async function settle(page) {
   await page.locator('.thread-pending').first().waitFor({state: 'detached', timeout: 30000}).catch(() => {});
   await page.waitForTimeout(600);
@@ -128,6 +171,7 @@ async function say(page, text) {
       await route.fulfill({response,headers:{...response.headers(),'access-control-allow-origin':new URL(B).origin,'access-control-expose-headers':'content-range,content-length,etag'}});
     });
     const page = await ctx.newPage();
+    let kitPaceActive = false, kitStandin = null, kitTurn = null;
     await ctx.route('**/*', route => { const request=route.request(), url=new URL(request.url());
       if(url.hostname==='tile.openstreetmap.org'||url.origin!==B&&!['GET','HEAD'].includes(request.method()))return route.abort();
       return route.fallback();
@@ -144,6 +188,26 @@ async function say(page, text) {
     await page.route('**/api/food/meals-chat/products?**', route => route.fulfill({json: {query: '', foods: [], portion: null}}));
     // the combined lookup (one request for every new food): nothing in the databases, so the stand-in AI estimates them
     await page.route('**/api/food/meals-chat/lookup', route => route.fulfill({json: {results: JSON.parse(route.request().postData() || '{}').texts.map(text => ({text, query: '', kind: 'none', foods: [], portion: null}))}}));
+    // This one chat answer is a screenshot fixture built from the disposable account's real demo records; no model is called.
+    await page.route('**/api/coach/conversation/messages', async route => {
+      if (!kitPaceActive || route.request().method() !== 'POST') return route.fallback();
+      const response = await route.fetch(), message = await response.json();
+      if (!response.ok()) return route.fulfill({response});
+      kitTurn = {...message, state: 'answered', answer: kitStandin, error: null, lease: null, expires: null};
+      await route.fulfill({response, json: message});
+    });
+    await page.route('**/api/coach/conversation/messages/*/answer', async route => {
+      const id = new URL(route.request().url()).pathname.split('/').at(-2);
+      if (!kitPaceActive || !kitTurn || id !== kitTurn.client_id) return route.fallback();
+      await route.fulfill({json: kitTurn});
+    });
+    await page.route('**/api/coach/conversation?*', async route => {
+      const response = await route.fetch(), data = await response.json();
+      if (kitPaceActive && kitTurn) {
+        data.messages = (data.messages || []).map(message => message.client_id === kitTurn.client_id ? kitTurn : message);
+      }
+      await route.fulfill({response, json: data});
+    });
     page.on('pageerror', (e) => errors.push(`${scheme}: ${e.message}`));
     await page.goto(B + '/');
     await page.fill('input[name=login]', 'alex'); await page.fill('input[name=password]', 'blue kettle morning run');
@@ -194,6 +258,29 @@ async function say(page, text) {
         }))throw Error('Demo feed emoji and total must be visible in the captured viewport');
       }
       if(name==='insights'){await page.getByRole('heading',{name:'Insights',exact:true}).waitFor();await page.locator('#nt-overview-chart').waitFor();}
+      if(opt.fitnessTrend){
+        await page.locator('#p-load .chartbox svg').first().waitFor({state:'visible'});
+        await page.evaluate(()=>{
+          const tail=document.createElement('div');
+          tail.id='capture-scroll-tail';
+          tail.setAttribute('aria-hidden','true');
+          tail.style.cssText='height:180px;pointer-events:none';
+          document.body.append(tail);
+        });
+        await page.locator('#p-load').evaluate(el=>{
+          const card=el.closest('.card')||el;
+          window.scrollTo({top:Math.max(0,card.getBoundingClientRect().top+scrollY-64),behavior:'instant'});
+        });
+        const cardTop=await page.locator('#p-load').evaluate(el=>el.closest('.card').getBoundingClientRect().top);
+        if(Math.abs(cardTop-64)>12)throw Error('Fitness trend card must start below the phone status bar');
+      }
+      if(opt.recordPR){
+        await page.locator('#h-chart svg').waitFor({state:'visible'});
+        await page.locator('#h-all .record-effort').first().waitFor({state:'visible'});
+        await page.locator('#h-all .record-effort').filter({hasText:'· PR'}).first().waitFor({state:'visible'});
+      }
+      if(opt.weekReview)await page.locator('.combined-week[open]').waitFor({state:'visible'});
+      if(opt.calendar)await page.locator('.cal-grid .cd').first().waitFor({state:'visible'});
       if (opt.logDish) {      // Add food > My Recipes > the recipe: the log sheet, with a portion typed in
         await page.evaluate(() => describeSheet(isoDay(new Date()), 'dinner'));
         await page.locator('#thread-text').waitFor();
@@ -263,6 +350,16 @@ async function say(page, text) {
         await page.evaluate((x) => { document.activeElement.blur(); window.scrollTo(0, 0); window.__liftId = x; }, id);
       }
       if (name === 'coach') await page.locator('#d-kit').click();
+      if (opt.kitPace) {
+        await page.locator('#kit-composer').waitFor({state:'visible'});
+        kitStandin = await kitPaceStandin(page);
+        kitPaceActive = true;
+        await page.fill('#kit-text', 'Why was my pace down this week?');
+        await page.click('#kit-send');
+        await page.locator('#kit-messages .kit-answer').waitFor({state:'visible',timeout:30000});
+        await page.locator('#kit-messages').evaluate(el=>{el.scrollTop=el.scrollHeight;});
+        await page.evaluate(() => document.activeElement.blur());
+      }
       if (name === 'dietcoach') {
         const entry = page.locator('#nt-coach a[data-kit-entry][aria-label="Ask Kit"][href="/me/kit?from=nutrition"]');
         await entry.waitFor({state:'visible'});
@@ -281,6 +378,7 @@ async function say(page, text) {
       await page.waitForTimeout(700);
       await loadedMaps(page); await page.evaluate(chrome, scheme === 'dark'); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
       await page.screenshot({path: `${OUT}/${scheme}-${name}.png`});
+      if(opt.fitnessTrend)await page.locator('#capture-scroll-tail').evaluate(el=>el.remove());
       if (opt.lift) await page.evaluate(() => fetch('/api/activities/' + window.__liftId, {method: 'DELETE', headers: {'Content-Type': 'application/json'}}));
       // Remove only what this fictional review story added (entries, saved foods, messages) so the next pass and
       // the other screenshots start from the same demo data.

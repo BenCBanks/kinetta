@@ -48,12 +48,47 @@
     "ROUTE"
   ],
   [
+    "records-pr",
+    "/records/run/5000",
+    {
+      "recordPR": true
+    }
+  ],
+  [
     "progress",
     "/progress"
   ],
   [
     "fitness",
     "/progress?view=fitness"
+  ],
+  [
+    "fitness-trend",
+    "/progress?view=fitness",
+    {
+      "fitnessTrend": true
+    }
+  ],
+  [
+    "week-review",
+    "/progress?review=week",
+    {
+      "weekReview": true
+    }
+  ],
+  [
+    "calendar",
+    "/progress/calendar",
+    {
+      "calendar": true
+    }
+  ],
+  [
+    "kit-pace",
+    "/me/kit",
+    {
+      "kitPace": true
+    }
   ],
   [
     "plan",

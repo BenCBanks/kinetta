@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Kinetta · Your workouts and nutrition</title>
-<meta name="description" content="Training, food and friends together, without the clutter. See the Kinetta iPhone app in action.">
-<meta property="og:title" content="Kinetta: your workouts and nutrition">
-<meta property="og:description" content="Training, food and friends together, without the clutter. See the Kinetta iPhone app in action.">
+<title>Kinetta · Train. Fuel. Feel the difference.</title>
+<meta name="description" content="See your training, food and progress in one clear picture. Meet Kinetta for iPhone.">
+<meta property="og:title" content="Kinetta · Train. Fuel. Feel the difference.">
+<meta property="og:description" content="See your training, food and progress in one clear picture. Meet Kinetta for iPhone.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Kinetta">
 <meta property="og:url" content="https://kinetta.app/">
@@ -14,7 +14,7 @@
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Training, food and friends in one app.">
+<meta property="og:image:alt" content="Kinetta brings training, food and progress together.">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="canonical" href="https://kinetta.app/">
 <link rel="icon" href="assets/favicon.svg?v=4" type="image/svg+xml">
@@ -57,6 +57,7 @@
   <section class="hero home-hero">
     <div class="wrap">
       <div class="home-hero-copy">
+        <span class="eyebrow">{{copy:home-hero-kicker}}</span>
         <h1>{{copy:your-workouts-and-your-food-in-one-app-1}}</h1>
         <p class="lede">{{copy:runs-rides-lifting-and-meals-tracked-together-and-kept-2}}</p>
         <a class="btn solid" href="https://login.kinetta.app/signup">Join the iPhone beta</a>
@@ -69,43 +70,35 @@
     </div>
   </section>
 
-  <section class="home-core" aria-labelledby="home-core-heading">
+  <section class="home-insights" aria-labelledby="home-insights-heading">
     <div class="wrap">
-      <div class="home-section-title"><span class="eyebrow">Training, food and friends</span><h2 id="home-core-heading">{{copy:home-core-heading}}</h2></div>
-      <div class="shots three home-core-grid">
-        <article class="shot"><figure><div class="frame"><picture><source srcset="assets/shots/dark-activity-1x.webp 1x, assets/shots/dark-activity.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-activity-1x.webp" srcset="assets/shots/light-activity-1x.webp 1x, assets/shots/light-activity.webp 2x" alt="Fictional run with its route map, time and pace" loading="lazy" width="786" height="1704"></picture></div><figcaption>{{copy:runs-rides-and-lifting-4}}</figcaption></figure></article>
-        <article class="shot"><figure><div class="frame"><picture><source srcset="assets/shots/dark-describe-1x.webp 1x, assets/shots/dark-describe.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-describe-1x.webp" srcset="assets/shots/light-describe-1x.webp 1x, assets/shots/light-describe.webp 2x" alt="Fictional food chat review with three items and nutrition totals" loading="lazy" width="786" height="1704"></picture></div><figcaption>{{copy:quick-food-logging-6}}</figcaption></figure></article>
-        <article class="shot"><figure><div class="frame"><picture><source srcset="assets/shots/dark-friends-1x.webp 1x, assets/shots/dark-friends.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-friends-1x.webp" srcset="assets/shots/light-friends-1x.webp 1x, assets/shots/light-friends.webp 2x" alt="Fictional friends list with three members and one pending request" loading="lazy" width="786" height="1704"></picture></div><figcaption>{{copy:friends-kept-private-8}}</figcaption></figure></article>
+      <header class="home-insights-head">
+        <div><span class="eyebrow">INSIGHTS</span><h2 id="home-insights-heading">{{copy:home-insights-heading}}</h2></div>
+        <span class="home-evidence-note">{{copy:home-demo-note}}</span>
+      </header>
+      <div class="home-insight-grid">
+        <article class="home-insight">
+          <figure><div class="frame"><picture><source srcset="assets/shots/dark-fitness-trend-1x.webp 1x, assets/shots/dark-fitness-trend.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-fitness-trend-1x.webp" srcset="assets/shots/light-fitness-trend-1x.webp 1x, assets/shots/light-fitness-trend.webp 2x" alt="Fictional fitness, fatigue and form chart with a visible training trend" loading="lazy" width="786" height="1704"></picture></div><figcaption><h3>{{copy:home-insight-fitness}}</h3></figcaption></figure>
+        </article>
+        <article class="home-insight">
+          <figure><div class="frame"><picture><source srcset="assets/shots/dark-week-review-1x.webp 1x, assets/shots/dark-week-review.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-week-review-1x.webp" srcset="assets/shots/light-week-review-1x.webp 1x, assets/shots/light-week-review.webp 2x" alt="Fictional weekly training totals beside food logging and protein-goal progress" loading="lazy" width="786" height="1704"></picture></div><figcaption><h3>{{copy:home-insight-fuel}}</h3></figcaption></figure>
+        </article>
+        <article class="home-insight">
+          <figure><div class="frame"><picture><source srcset="assets/shots/dark-kit-pace-1x.webp 1x, assets/shots/dark-kit-pace.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-kit-pace-1x.webp" srcset="assets/shots/light-kit-pace-1x.webp 1x, assets/shots/light-kit-pace.webp 2x" alt="Fictional Kit chat answers why the runner’s pace seemed slower, using demo run records" loading="lazy" width="786" height="1704"></picture></div><figcaption><h3>{{copy:home-insight-kit}}</h3></figcaption></figure>
+        </article>
+      </div>
+      <div class="home-insight-support" aria-label="More ways to see your progress">
+        <article>
+          <figure><div class="frame"><picture><source srcset="assets/shots/dark-route-1x.webp 1x, assets/shots/dark-route.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-route-1x.webp" srcset="assets/shots/light-route-1x.webp 1x, assets/shots/light-route.webp 2x" alt="Fictional matched running route with 36 repeats, best time and pace trend" loading="lazy" width="786" height="1704"></picture></div><figcaption><h3>{{copy:home-support-routes}}</h3></figcaption></figure>
+        </article>
+        <article>
+          <figure><div class="frame"><picture><source srcset="assets/shots/dark-records-pr-1x.webp 1x, assets/shots/dark-records-pr.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-records-pr-1x.webp" srcset="assets/shots/light-records-pr-1x.webp 1x, assets/shots/light-records-pr.webp 2x" alt="Fictional 5K history with ten new personal records" loading="lazy" width="786" height="1704"></picture></div><figcaption><h3>{{copy:home-support-prs}}</h3></figcaption></figure>
+        </article>
+        <article>
+          <figure><div class="frame"><picture><source srcset="assets/shots/dark-calendar-1x.webp 1x, assets/shots/dark-calendar.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-calendar-1x.webp" srcset="assets/shots/light-calendar-1x.webp 1x, assets/shots/light-calendar.webp 2x" alt="Fictional calendar heatmap showing workouts and daily food-goal progress" loading="lazy" width="786" height="1704"></picture></div><figcaption><h3>{{copy:home-support-heatmap}}</h3></figcaption></figure>
+        </article>
       </div>
     </div>
-  </section>
-
-  <section class="home-discipline" aria-label="Training disciplines">
-    <div class="wrap"><ul class="home-discipline-list">
-      <li><a href="training"><svg aria-hidden="true"><use href="#i-run"/></svg><span>{{copy:home-discipline-run}}</span></a></li>
-      <li><a href="training"><svg aria-hidden="true"><use href="#i-ride"/></svg><span>{{copy:home-discipline-ride}}</span></a></li>
-      <li><a href="training"><svg aria-hidden="true"><use href="#i-walk"/></svg><span>{{copy:home-discipline-walk}}</span></a></li>
-      <li><a href="training"><svg aria-hidden="true"><use href="#i-lift"/></svg><span>{{copy:home-discipline-lift}}</span></a></li>
-      <li><a href="training"><svg aria-hidden="true"><use href="#i-plan"/></svg><span>{{copy:home-discipline-plans}}</span></a></li>
-    </ul></div>
-  </section>
-
-  <section class="home-more" aria-labelledby="home-more-heading">
-    <div class="wrap"><h2 id="home-more-heading">{{copy:home-more-heading}}</h2><nav class="home-more-links" aria-label="More Kinetta features">
-      <a href="food">{{copy:home-progress-caption}}</a><a href="training">{{copy:home-insights-caption}}</a><a href="guide">{{copy:home-kit-caption}}</a><a href="friends">{{copy:home-groups-caption}}</a>
-    </nav></div>
-  </section>
-
-  <section class="home-trust" aria-label="Your choices and data">
-    <div class="wrap"><ul>
-      <li><svg aria-hidden="true"><use href="#i-people"/></svg><span>{{copy:home-trust-sharing}}</span></li>
-      <li><svg aria-hidden="true"><use href="#i-export"/></svg><span>{{copy:home-trust-export}}</span></li>
-      <li><svg aria-hidden="true"><use href="#i-noads"/></svg><span>{{copy:home-trust-ads}}</span></li>
-    </ul><a href="privacy">Privacy policy</a></div>
-  </section>
-
-  <section class="home-final final" aria-labelledby="home-closing-heading">
-    <div class="wrap"><h2 id="home-closing-heading">{{copy:home-closing-heading}}</h2><a class="btn solid" href="https://login.kinetta.app/signup">Join the iPhone beta</a></div>
   </section>
 </main>
 <footer>

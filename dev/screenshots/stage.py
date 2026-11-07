@@ -51,6 +51,8 @@ def later(gpx, minutes):   # the same made-up route, a little later in the day
 
 alex = person('alex', 'blue kettle morning run')
 alex('PUT','/api/account',{'name':'Alex Rivera','bio':'Runs, rides and good food.'})
+# A completed week of fictional meals reaches this goal, so the combined training + food screen shows a useful trend.
+alex('PUT', '/api/food/targets', {'kcal_target': 1800, 'protein_target': 80})
 for login, name in (('jordan', 'Jordan Lee'), ('sam', 'Sam Rivera'), ('casey', 'Casey Example'), ('taylor', 'Taylor Example')):
     try: alex('POST', '/api/admin/people', {'login': login, 'name': name, 'password': PW})
     except urllib.error.HTTPError as e:

@@ -458,3 +458,46 @@ html { scroll-padding-top: 130px; }
 /* Beta entry and the short installation note below the hero actions. */
 header.top .signup { display:flex;align-items:center; }
 .beta-note { margin-top: 14px; font-size: .95rem; opacity: .85; }
+
+/* Home selling-page checkpoint: show the app's strongest insights before the feature tour. */
+.home-hero { padding-block: 52px 76px; }
+.home-hero-copy .eyebrow { display: block; margin-bottom: 18px; color: var(--brand); font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.home-hero-copy h1 { max-width: 10ch; font-size: clamp(52px, 6.2vw, 88px); line-height: .98; letter-spacing: -.055em; }
+.home-hero-copy .lede { max-width: 30ch; margin-top: 20px; font-size: clamp(18px, 2.1vw, 22px); line-height: 1.35; }
+.home-hero-copy .btn { margin-top: 28px; }
+.home-hero-shot .phone { max-width: 340px; }
+.home-insights { padding-block: 70px 76px; background: var(--ink); color: var(--bg); overflow: hidden; }
+.home-insights .wrap { display: grid; gap: 38px; }
+.home-insights-head { display: flex; justify-content: space-between; align-items: end; gap: 24px; }
+.home-insights-head .eyebrow { display: block; margin-bottom: 12px; color: var(--brand); font-size: 13px; font-weight: 700; letter-spacing: .14em; }
+.home-insights-head h2 { max-width: 20ch; font-size: clamp(30px, 4.3vw, 52px); line-height: 1.04; letter-spacing: -.04em; }
+.home-evidence-note { max-width: 32ch; padding-bottom: 4px; color: color-mix(in srgb, var(--bg) 68%, transparent); font-size: 13px; line-height: 1.4; text-align: right; }
+.home-insight-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(20px, 3vw, 42px); align-items: start; }
+.home-insight, .home-insight figure, .home-insight-support article, .home-insight-support figure { min-width: 0; margin: 0; }
+.home-insight figure, .home-insight-support figure { display: grid; justify-items: center; gap: 16px; }
+.home-insight .frame, .home-insight-support .frame { background: #15191D; }
+.home-insight .frame { max-width: 276px; }
+.home-insight h3 { max-width: 22ch; color: var(--bg); font-size: clamp(19px, 2vw, 25px); font-weight: 700; line-height: 1.2; text-align: center; }
+.home-insight-support { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; max-width: 760px; margin: 8px auto 0; }
+.home-insight-support .frame { max-width: 172px; }
+.home-insight-support h3 { max-width: 22ch; color: var(--bg); font-size: 16px; font-weight: 700; line-height: 1.25; text-align: center; }
+.home-insights .frame img { display: block; }
+@media (max-width: 860px) {
+  .home-hero { padding-block: 34px 50px; }
+  .home-hero .wrap { grid-template-columns: 1fr; gap: 28px; }
+  .home-hero-copy h1 { max-width: 11ch; font-size: clamp(48px, 12vw, 64px); }
+  .home-hero-shot .phone { max-width: min(300px, 78vw); }
+  .home-insights { padding-block: 50px 56px; }
+  .home-insights .wrap { gap: 30px; }
+  .home-insights-head { display: grid; align-items: start; gap: 12px; }
+  .home-evidence-note { text-align: left; }
+  .home-insight-grid { grid-template-columns: 1fr; gap: 34px; }
+  .home-insight .frame { max-width: min(300px, 80vw); }
+  .home-insight h3 { font-size: 22px; }
+  .home-insight-support { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 0; }
+  .home-insight-support .frame { max-width: min(170px, 38vw); }
+}
+@media (max-width: 380px) {
+  .home-insight-support { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .home-insight-support .frame { max-width: 190px; }
+}
