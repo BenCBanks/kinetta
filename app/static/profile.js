@@ -42,22 +42,40 @@ const ProfileLayout=(()=>{
   };
   const achievementNumber=n=>Number.isFinite(Number(n))?Number(n).toLocaleString(undefined,{maximumFractionDigits:1}):'—';
   let achievementTextMeasure=null;
-  function achievementTextFontSize(text,width,{fontFamily='sans-serif',fontWeight='700',fontStyle='normal',maxFontSize=12,minFontSize=8,step=1}={}){
-    const minimum=Math.max(6,Number(minFontSize)||8),maximum=Math.max(minimum,Number(maxFontSize)||12),available=Number(width);
+  function achievementTextWidth(text,size,{fontFamily='sans-serif',fontWeight='700',fontStyle='normal'}={}){
     if(!achievementTextMeasure&&typeof document!=='undefined')achievementTextMeasure=document.createElement('canvas').getContext('2d');
-    if(!achievementTextMeasure||!Number.isFinite(available)||available<=0)return maximum;
+    if(!achievementTextMeasure)return null;
+    achievementTextMeasure.font=`${fontStyle} ${fontWeight} ${size}px ${fontFamily}`;
+    return achievementTextMeasure.measureText(String(text??'')).width;
+  }
+  function achievementTextFontSize(text,width,{fontFamily='sans-serif',fontWeight='700',fontStyle='normal',maxFontSize=12,minFontSize=10,step=1}={}){
+    const minimum=Math.max(10,Number(minFontSize)||10),maximum=Math.max(minimum,Number(maxFontSize)||12),available=Number(width);
+    if(!Number.isFinite(available)||available<=0||achievementTextWidth(text,maximum,{fontFamily,fontWeight,fontStyle})===null)return maximum;
     const value=String(text??''),decrement=Math.max(.5,Number(step)||1);
     for(let size=maximum;;size=Math.max(minimum,size-decrement)){
-      achievementTextMeasure.font=`${fontStyle} ${fontWeight} ${size}px ${fontFamily}`;
-      if(achievementTextMeasure.measureText(value).width<=available+.5||size<=minimum)return size;
+      if(achievementTextWidth(value,size,{fontFamily,fontWeight,fontStyle})<=available+.5||size<=minimum)return size;
     }
   }
-  function fitAchievementText(element,{minFontSize=8,step=1}={}){
+  function compactAchievementText(text){
+    const match=String(text??'').match(/^([\d,]+(?:\.\d+)?)(\s+.+)$/),value=Number(match?.[1]?.replace(/,/g,''));
+    if(!match||!Number.isFinite(value)||value<1000)return '';
+    let scale=value>=1e9?1e9:value>=1e6?1e6:1e3,suffix=scale===1e9?'b':scale===1e6?'m':'k';
+    let rounded=Number((value/scale).toFixed(value/scale<10?1:0));
+    if(rounded>=1000&&scale<1e9){scale*=1000;suffix=scale===1e9?'b':'m';rounded=Number((value/scale).toFixed(value/scale<10?1:0));}
+    return `${rounded.toLocaleString(undefined,{maximumFractionDigits:1})}${suffix}${match[2]}`;
+  }
+  function fitAchievementText(element,{minFontSize=10,step=1}={}){
     if(!element)return 0;
     const style=getComputedStyle(element),remembered=Number(element.dataset.fitTextMax);
     const maxFontSize=Number.isFinite(remembered)&&remembered>0?remembered:parseFloat(style.fontSize)||12;
-    element.dataset.fitTextMax=String(maxFontSize);
-    const size=achievementTextFontSize(element.textContent,element.clientWidth,{fontFamily:style.fontFamily,fontWeight:style.fontWeight,fontStyle:style.fontStyle,maxFontSize,minFontSize,step});
+    const minimum=Math.max(10,Number(minFontSize)||10),source=element.dataset.fitTextSource??element.textContent;
+    element.dataset.fitTextMax=String(maxFontSize);element.dataset.fitTextSource=source;element.textContent=source;
+    const metrics={fontFamily:style.fontFamily,fontWeight:style.fontWeight,fontStyle:style.fontStyle,maxFontSize,minFontSize:minimum,step},width=element.clientWidth;
+    let size=achievementTextFontSize(source,width,metrics);
+    if(size<=minimum){
+      const compact=compactAchievementText(source),fullWidth=achievementTextWidth(source,minimum,metrics);
+      if(compact&&compact.length<String(source).length&&fullWidth!==null&&fullWidth>width+.5){element.textContent=compact;size=minimum;}
+    }
     element.style.fontSize=`${size}px`;
     return size;
   }

@@ -80,7 +80,7 @@ const assertRingText=async(container,label)=>{
   return{code:node.closest('[data-achievement-code]')?.dataset.achievementCode||'history',text:node.textContent.trim(),fontSize:parseFloat(getComputedStyle(node).fontSize),lines:new Set(rects.map(r=>Math.round(r.top*2)/2)).size,fits:node.scrollWidth<=node.clientWidth+1&&rects.every(r=>r.left>=badge.left-1&&r.right<=badge.right+1&&r.top>=badge.top-1&&r.bottom<=badge.bottom+1)};
  }));
  assert(metrics.length,`${label} includes medallion values`);
- assert(metrics.every(m=>m.fontSize>=8&&m.lines<=2&&m.fits),`${label} values stay within the medal without clipping: ${JSON.stringify(metrics)}`);
+ assert(metrics.every(m=>m.fontSize>=10&&m.lines<=2&&m.fits),`${label} values stay within the medal at 10px or larger: ${JSON.stringify(metrics)}`);
 };
 const assertLargeTextFit=async(container,label)=>{
  const metrics=await container.locator('.profile-achievement-value').evaluateAll(nodes=>nodes.map(node=>{
@@ -89,8 +89,30 @@ const assertLargeTextFit=async(container,label)=>{
   return{fontSize,width:node.clientWidth,scrollWidth:node.scrollWidth,lines:new Set(rects.map(r=>Math.round(r.top*2)/2)).size,fits:rects.every(r=>r.left>=badge.left-1&&r.right<=badge.right+1&&r.top>=badge.top-1&&r.bottom<=badge.bottom+1)};
  }));
  assert(metrics.length,`${label} includes medallion values`);
- assert(metrics.every(m=>m.fontSize>=8&&m.fontSize<=22&&m.scrollWidth<=m.width+1&&m.lines<=2&&m.fits),`${label} values fit at large text: ${JSON.stringify(metrics)}`);
+ assert(metrics.every(m=>m.fontSize>=10&&m.fontSize<=22&&m.scrollWidth<=m.width+1&&m.lines<=2&&m.fits),`${label} values fit at large text without going below 10px: ${JSON.stringify(metrics)}`);
  assert(metrics.some(m=>m.fontSize<22),`${label} scales a long value down in steps`);
+};
+const assertCompactFallback=async(page,label)=>{
+ const result=await page.evaluate(()=>{const value=document.createElement('span');value.className='profile-achievement-value';value.style.width='50px';value.textContent='1,120 workouts';document.body.append(value);const fontSize=window.KinettaTextFit.fitElement(value),result={fontSize,text:value.textContent,source:value.dataset.fitTextSource};value.remove();return result;});
+ assert.equal(result.text,'1.1k workouts',`${label} abbreviates when the full value would need text below 10px`);
+ assert.equal(result.source,'1,120 workouts',`${label} preserves the complete source value for later resizing`);
+ assert(result.fontSize>=10,`${label} never uses text below 10px`);
+};
+const assert330AchievementViews=async(page,base,setUnits,theme,shots)=>{
+ await page.setViewportSize({width:330,height:844});await setUnits('metric');
+ await page.goto(base+'/people/alex');await page.locator('.profile-achievements .profile-achievement-list').waitFor();
+ await assertRingText(page.locator('.profile-achievements'),'330px profile');await screenshot(page,shots,`achievement-profile-330-${theme}`);
+ await assertLargeTextFit(page.locator('.profile-achievements'),'330px large-text profile');await assertCompactFallback(page,'330px profile');
+ assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'330px profile has no page-level horizontal overflow');
+ await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+ await assertRingText(page.locator('#profile-achievement-page'),'330px achievements grid');await screenshot(page,shots,`achievement-grid-330-${theme}`);
+ await assertLargeTextFit(page.locator('#profile-achievement-page'),'330px large-text achievements grid');
+ await page.goto(base+'/me/achievements/journey');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+ assert.equal(await page.locator('.profile-achievement-history-copy .profile-achievement-current-value').innerText(),'6,099.4 km','the long history value stays in metric units');
+ await assertRingText(page.locator('#profile-achievement-page'),'330px track history');await screenshot(page,shots,`achievement-history-330-${theme}`);
+ await assertLargeTextFit(page.locator('#profile-achievement-page'),'330px large-text track history');
+ assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'330px track history has no page-level horizontal overflow');
+ console.log(`Achievement medallions 330 ${theme}: profile, grid and track history fit normal and large text`);
 };
 
 module.exports=async({browser,storageState,base,shots})=>{
@@ -166,11 +188,12 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.equal(await page.locator('.profile-achievement[data-achievement-code="workouts"] .profile-achievement-medallion').getAttribute('data-level-tone'),'deep','level eight uses the saturated tone');
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'the profile rail does not widen the page');
   await assertRingText(profileList,'profile');
+  assert.match(await page.locator('.profile-achievement[data-achievement-code="workouts"]').getAttribute('aria-label'),/1,120 workouts/,'the accessible label keeps the full workout count');
   const saved=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),key);assert.equal(saved.workouts,8,'the migrated level updates once');
   assert.equal(await page.evaluate(()=>window.__achievementVibrations),0,'a web level up does not vibrate');
   await page.locator('.profile-achievements').scrollIntoViewIfNeeded();
   await screenshot(page,shots,`achievement-profile-390-${theme}`);
-  if(process.env.KINETTA_ACHIEVEMENT_FIT_ONLY==='1'){await context.close();continue;}
+  if(process.env.KINETTA_ACHIEVEMENT_FIT_ONLY==='1'){await assert330AchievementViews(page,base,setUnits,theme,shots);await context.close();continue;}
   let levelUpAnimations=0;
   if(theme==='light'&&shots){
    levelUpAnimations=await page.locator('.profile-achievement[data-achievement-code="workouts"]').evaluate(card=>{const animations=card.getAnimations({subtree:true});for(const animation of animations){animation.pause();animation.currentTime=300;}return animations.length;});
@@ -333,15 +356,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert(levelBrightness.every((value,index)=>index===0||value<levelBrightness[index-1]),`P2 run medallions deepen at each level in ${theme}: ${JSON.stringify({levelBrightness,levelColors})}`);
   assert(!levelColors[4].shadow.includes('18px')&&levelColors.slice(5).every(color=>color.shadow.includes('18px')),'P2 adds the soft token-coloured glow from Lv 6 onward');
   if(shots){fs.mkdirSync(shots,{recursive:true});await page.locator('.profile-achievement-level-strip').screenshot({path:`${shots}/palette-p2-levels-390-${theme}.png`,animations:'disabled'});}
-  await page.setViewportSize({width:330,height:844});await setUnits('metric');
-  await page.goto(base+'/people/alex');await page.locator('.profile-achievements .profile-achievement-list').waitFor();
-  await assertRingText(page.locator('.profile-achievements'),'330px profile');await assertLargeTextFit(page.locator('.profile-achievements'),'330px large-text profile');
-  await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
-  await assertRingText(page.locator('#profile-achievement-page'),'330px achievements grid');await assertLargeTextFit(page.locator('#profile-achievement-page'),'330px large-text achievements grid');
-  await page.goto(base+'/me/achievements/journey');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
-  assert.equal(await page.locator('.profile-achievement-history-copy .profile-achievement-current-value').innerText(),'6,099.4 km','the long history value stays in metric units');
-  await assertRingText(page.locator('#profile-achievement-page'),'330px track history');await assertLargeTextFit(page.locator('#profile-achievement-page'),'330px large-text track history');
-  console.log(`Achievement medallions 330 ${theme}: profile, grid and history fit normal and large text`);
+  await assert330AchievementViews(page,base,setUnits,theme,shots);
   assert.deepEqual(errors,[],`no browser errors in ${theme}`);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[],`no unmocked writes in ${theme}`);
   console.log(`Achievement medallions 390 ${theme}: profile, all tracks, history, units, icons and web haptic guard PASS`);
   await context.close();
