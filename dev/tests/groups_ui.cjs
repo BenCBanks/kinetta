@@ -5,7 +5,7 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',shots=process.env.KI
 const token='0123456789abcdef0123456789abcdef',idEmpty='00000000-0000-4000-8000-000000000001',idTwo='00000000-0000-4000-8000-000000000002',idThree='00000000-0000-4000-8000-000000000004',idFull='00000000-0000-4000-8000-000000000050',idLongGoal='00000000-0000-4000-8000-000000000003',idLongOwnGoal='00000000-0000-4000-8000-000000000005',idSix='00000000-0000-4000-8000-000000000006',idTen='00000000-0000-4000-8000-000000000010';
 const empty={id:idEmpty,title:'Dolomites hike',event_date:'2026-11-14',time_zone:'America/New_York',note:'Fictional event weekend',goal_type:'distance',goal_target:600,goal_unit:'mi',your_total:12,your_this_week_total:12,days_to_event:7,weeks_to_event:1,members:[{username:'alex',organizer:true,sharing_total_only:true}],member_count:1,is_organizer:true,joining_closed:false,closed:false};
 const two={...empty,id:idTwo,members:[...empty.members,{username:'fictional_friend',organizer:false,sharing_total_only:true}],member_count:2};
-const three={...empty,id:idThree,total:214,this_week_total:38,this_week_contributors:3,members:[...empty.members,{username:'fictional_friend',organizer:false,sharing_total_only:true},{username:'fictional_member',organizer:false,sharing_total_only:true}],member_count:3};delete three.your_total;delete three.your_this_week_total;
+const three={...empty,id:idThree,total:214,this_week_total:38,this_week_contributors:3,members:[{username:'alex',organizer:true,value:12},{username:'fictional_friend',organizer:false,value:38},{username:'fictional_member',organizer:false,value:164}],member_count:3};delete three.your_total;delete three.your_this_week_total;
 const full={...three,id:idFull,members:Array.from({length:50},(_,i)=>({username:`fictional_member_${String(i+1).padStart(2,'0')}`,organizer:i===0,sharing_total_only:true})),member_count:50};
 const longGoal={...three,id:idLongGoal,goal_type:'sessions',goal_target:600,goal_unit:'sessions'};
 const longOwnGoal={...empty,id:idLongOwnGoal,goal_type:'sessions',goal_target:600,goal_unit:'sessions',your_total:214};
@@ -27,11 +27,11 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
  async function open(theme,width=390,stripState='none'){
   const context=await browser.newContext({viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'});contexts.push(context);
   const login=await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});assert.equal(login.status(),200,'isolated demo account login');
-  const postedGroups=[];let stripData={...stripFixtures[stripState]};
+  const postedGroups=[],stripPosts=[];let stripData={...stripFixtures[stripState]};
   await context.route('**/api/**',async route=>{
    const req=route.request(),url=new URL(req.url()),method=req.method(),p=url.pathname;
    if(p==='/api/groups/activity-strip'&&method==='GET')return route.fulfill({json:stripData});
-   if(p==='/api/groups/activity-strip'&&method==='POST'){stripData={...stripData,muted:req.postDataJSON().muted};return route.fulfill({json:{muted:stripData.muted}});}
+   if(p==='/api/groups/activity-strip'&&method==='POST'){stripPosts.push(req.postDataJSON());stripData={...stripData,muted:req.postDataJSON().muted};return route.fulfill({json:{muted:stripData.muted}});}
    if(p==='/api/groups'&&method==='GET')return route.fulfill({json:[]});
    if(p==='/api/groups'&&method==='POST'){postedGroups.push(req.postDataJSON());return route.fulfill({json:{...empty,invite_url:`https://example.test/group-invite/${token}`}});}
    if(p===`/api/group-invites/${token}`&&method==='GET')return route.fulfill({json:{available:true}});
@@ -49,22 +49,26 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
   });
   const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize='16px'));
-  return{context,page,errors,postedGroups};
+  return{context,page,errors,postedGroups,stripPosts,stripState:()=>stripData};
  }
  try{
   for(const theme of ['light','dark']){
-   let context,page,errors,postedGroups;
+   let context,page,errors,postedGroups,stripPosts,stripState;
    ({context,page,errors}=await open(theme,390,'one'));await page.goto(base+'/activity');await waitActivity(page);
-   assert.match(await page.locator('#activity-groups-strip').innerText(),/Dolomites hike · Dec 14 · 31 weeks to go/);assert.match(await page.locator('#activity-groups-strip').innerText(),/Together: 214 mi of 600 mi/);
-   const oneStrip=await page.locator('#activity-groups-strip').evaluate(el=>({width:el.clientWidth,scrollWidth:el.scrollWidth,viewport:innerWidth,mute:el.querySelector('[data-group-strip-mute]').getBoundingClientRect().toJSON()}));assert(oneStrip.scrollWidth<=oneStrip.width+1&&oneStrip.mute.right<=oneStrip.viewport+1&&oneStrip.mute.width>=44&&oneStrip.mute.height>=44,`one-group strip fits with a 44px mute target at 390px (${theme}): ${JSON.stringify(oneStrip)}`);
+   assert.match(await page.locator('#activity-groups-strip').innerText(),/Dolomites hike · 31 wk to go/);assert.doesNotMatch(await page.locator('#activity-groups-strip').innerText(),/Dec 14/);assert.match(await page.locator('#activity-groups-strip').innerText(),/Together: 214 mi of 600 mi/);
+   assert.equal(await page.locator('[data-group-strip-mute]').count(),0,'the Activity strip has no separate Mute control');
+   const titleLayout=await page.locator('.feed-groups-copy b').evaluate(el=>{const s=getComputedStyle(el),r=el.getBoundingClientRect();return{height:r.height,lineHeight:parseFloat(s.lineHeight),width:el.clientWidth,scrollWidth:el.scrollWidth,scrollHeight:el.scrollHeight,textOverflow:s.textOverflow,whiteSpace:s.whiteSpace};});assert(titleLayout.height<=titleLayout.lineHeight*1.2&&titleLayout.scrollWidth<=titleLayout.width+1,`short Activity title stays on one line at 390px (${theme}): ${JSON.stringify(titleLayout)}`);
+   const oneStrip=await page.locator('#activity-groups-strip').evaluate(el=>({width:el.clientWidth,scrollWidth:el.scrollWidth,actions:el.querySelectorAll('button').length}));assert(oneStrip.scrollWidth<=oneStrip.width+1&&oneStrip.actions===0,`one-group strip fits without a secondary action (${theme}): ${JSON.stringify(oneStrip)}`);
    await capture(page,`activity-groups-one-390-${theme}`,null,{fullPage:false});
-   await page.locator('[data-group-strip-mute]').click();await page.locator('[data-group-strip-show]').waitFor();assert.equal(await page.locator('#activity-groups-strip').innerText(),'Group strip is hidden\nShow');
+   const groupLink=page.locator('.feed-groups-link');await groupLink.dispatchEvent('pointerdown',{pointerId:71,pointerType:'touch',isPrimary:true,button:0,buttons:1,clientX:120,clientY:200});await page.waitForTimeout(600);await page.locator('#activity-groups-strip').dispatchEvent('pointerup',{pointerId:71,pointerType:'touch',isPrimary:true,button:0,buttons:0,clientX:120,clientY:200});await page.locator('[data-group-strip-show]').waitFor();assert.equal(await page.locator('#activity-groups-strip').innerText(),'Group strip is hidden\nShow');
+   assert.equal(new URL(page.url()).pathname,'/activity','long-press mutes without following the group link');
    assert.equal(await page.locator('.feed-groups-link').count(),0,'muting hides event details');await capture(page,`activity-groups-muted-390-${theme}`,null,{fullPage:false});
-   await page.locator('[data-group-strip-show]').click();await page.locator('[data-group-strip-mute]').waitFor();assert.equal(await page.locator('.feed-groups-link').count(),1,'Show restores the strip');assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
+   await page.locator('[data-group-strip-show]').click();await page.locator('.feed-groups-link').waitFor();assert.equal(await page.locator('[data-group-strip-mute]').count(),0);assert.equal(await page.locator('.feed-groups-link').count(),1,'Show restores the strip');assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors}=await open(theme,390,'more'));await page.goto(base+'/activity');await waitActivity(page);
    assert.equal(await page.locator('.feed-groups-more').innerText(),'+1');assert.equal(await page.locator('.feed-groups-more').getAttribute('href'),'/me/groups');
-   const moreStrip=await page.locator('#activity-groups-strip').evaluate(el=>({width:el.clientWidth,scrollWidth:el.scrollWidth,viewport:innerWidth,mute:el.querySelector('[data-group-strip-mute]').getBoundingClientRect().toJSON(),more:el.querySelector('.feed-groups-more').getBoundingClientRect().toJSON()}));assert(moreStrip.scrollWidth<=moreStrip.width+1&&moreStrip.mute.right<=moreStrip.viewport+1&&moreStrip.mute.width>=44&&moreStrip.mute.height>=44&&moreStrip.more.width>=44&&moreStrip.more.height>=44,`multi-group strip fits with 44px action targets at 390px (${theme}): ${JSON.stringify(moreStrip)}`);
+   const moreTitleLayout=await page.locator('.feed-groups-copy b').evaluate(el=>{const s=getComputedStyle(el),r=el.getBoundingClientRect();return{height:r.height,lineHeight:parseFloat(s.lineHeight),width:el.clientWidth,scrollWidth:el.scrollWidth};});assert(moreTitleLayout.height<=moreTitleLayout.lineHeight*1.2&&moreTitleLayout.scrollWidth<=moreTitleLayout.width+1,`short title stays on one line with +1 at 390px (${theme}): ${JSON.stringify(moreTitleLayout)}`);
+   const moreStrip=await page.locator('#activity-groups-strip').evaluate(el=>({width:el.clientWidth,scrollWidth:el.scrollWidth,actions:el.querySelectorAll('button').length,more:el.querySelector('.feed-groups-more').getBoundingClientRect().toJSON()}));assert(moreStrip.scrollWidth<=moreStrip.width+1&&moreStrip.actions===0&&moreStrip.more.width>=44&&moreStrip.more.height>=44,`multi-group strip fits with only the separate 44px +N action (${theme}): ${JSON.stringify(moreStrip)}`);
    await capture(page,`activity-groups-plus-one-390-${theme}`,null,{fullPage:false});assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors}=await open(theme,390,'none'));await page.goto(base+'/activity');await waitActivity(page);
@@ -96,35 +100,43 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    assert.equal(await page.locator('.group-title h1').innerText(),'Dolomites hike');assert.equal(await page.locator('.group-goal>strong').innerText(),'You: 12 mi of 600 mi');assert.equal(await page.locator('.group-week').innerText(),'This week · You: 12 mi');assert.equal(await page.locator('.group-goal-hint').innerText(),'Group totals appear with 3 members');assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors}=await open(theme));await page.goto(base+groupUrl(idEmpty));await page.locator('.group-roster').waitFor();
-   assert.equal(await page.locator('.group-member').count(),1);assert.equal(await page.locator('.group-goal>strong').innerText(),'You: 12 mi of 600 mi');assert.equal(await page.locator('.group-week').innerText(),'This week · You: 12 mi');
+   assert.equal(await page.locator('.group-member').count(),1);assert.equal(await page.locator('.group-goal>strong').innerText(),'You: 12 mi of 600 mi');assert.equal(await page.locator('.group-week').innerText(),'This week · You: 12 mi');assert.equal(await page.locator('.group-member-private-note').innerText(),'Some members keep their amount private');assert.equal(await page.locator('.group-member').filter({hasText:'Sharing total only'}).count(),0);
    const oneBar=await page.locator('.group-progress').evaluate(el=>el.value/el.max*100);assert(Math.abs(oneBar-2)<1,`one-member bar uses only own progress (${theme})`);
    assert.equal(await page.locator('.group-privacy').count(),0,'the shell does not repeat the privacy sentence');assert(!/Only members can see this group/.test(await page.locator('.group-page').innerText()));
    assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'group shell fits the phone');
    await capture(page,`groups-shell-one-member-390-${theme}`);assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors}=await open(theme));await page.goto(base+groupUrl(idTwo));await page.locator('.group-roster').waitFor();
-   assert.equal(await page.locator('.group-member').count(),2);assert.equal(await page.locator('.group-goal>strong').innerText(),'You: 12 mi of 600 mi');assert.equal(await page.locator('.group-week').innerText(),'This week · You: 12 mi');assert.equal(await page.locator('.group-goal-hint').innerText(),'Group totals appear with 3 members');
+   assert.equal(await page.locator('.group-member').count(),2);assert.equal(await page.locator('.group-goal>strong').innerText(),'You: 12 mi of 600 mi');assert.equal(await page.locator('.group-week').innerText(),'This week · You: 12 mi');assert.equal(await page.locator('.group-goal-hint').innerText(),'Group totals appear with 3 members');assert.equal(await page.locator('.group-member-private-note').innerText(),'Some members keep their amount private');
    const twoBar=await page.locator('.group-progress').evaluate(el=>el.value/el.max*100);assert(Math.abs(twoBar-2)<1,`two-member bar uses only own progress (${theme})`);
    await capture(page,`groups-shell-two-members-390-${theme}`);assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
-   ({context,page,errors}=await open(theme));await page.goto(base+groupUrl(idThree));await page.locator('.group-roster').waitFor();
+   ({context,page,errors,stripPosts,stripState}=await open(theme,390,'one'));await page.goto(base+groupUrl(idThree));await page.locator('.group-roster').waitFor();
    assert.equal(await page.locator('.group-member').count(),3);assert.equal(await page.locator('.group-goal>strong').innerText(),'Together: 214 mi of 600 mi');assert.equal(await page.locator('.group-week').innerText(),'This week · +38 mi from 3 of 3 people');assert.equal(await page.locator('.group-goal-hint').count(),0);
    const threeFill=await page.locator('.group-progress').evaluate(el=>el.value/el.max*100);assert(Math.abs(threeFill-214/600*100)<1,`three-member bar uses the combined total (${theme})`);
-   await capture(page,`groups-shell-three-members-390-${theme}`);assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
+   assert.equal(await page.locator('.group-member-private-note').count(),0,'fully shared members need no privacy note');assert.equal(await page.locator('.group-member-value').count(),3,'shared amounts appear on member rows');assert.equal(await page.locator('.group-member').filter({hasText:'Sharing total only'}).count(),0,'rows do not repeat sharing labels');
+   await capture(page,`groups-shell-three-members-390-${theme}`);
+   await page.locator('#group-options').click();const muteOption=page.locator('[data-gact="mute-strip"]');assert.equal(await muteOption.innerText(),'Mute Activity strip');await capture(page,`groups-options-mute-390-${theme}`,'.scrim');
+   const muteResponse=page.waitForResponse(r=>r.url().endsWith('/api/groups/activity-strip')&&r.request().method()==='POST');await muteOption.click();assert.equal((await (await muteResponse).json()).muted,true,'group overflow mutes the Activity strip');assert.equal(stripPosts.at(-1).muted,true);assert.equal(stripState().muted,true);
+   await page.goto(base+'/activity');await waitActivity(page);assert.equal(await page.locator('.feed-groups-muted').count(),1,'the overflow action hides the Activity strip');assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors}=await open(theme));await page.goto(base+groupUrl(idSix));await page.locator('.group-week').waitFor();
    assert.equal(await page.locator('.group-week').innerText(),'This week · +38 mi from 4 of 6 people');await capture(page,`groups-weekly-six-members-390-${theme}`);assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors}=await open(theme));await page.goto(base+groupUrl(idTen));await page.locator('.group-roster').waitFor();
-   assert.equal(await page.locator('.group-member').count(),10);assert.equal(await page.locator('.group-week').innerText(),'This week · +38 mi from 4 of 10 people');await capture(page,`groups-roster-ten-390-${theme}`);assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
+   assert.equal(await page.locator('.group-member').count(),10);assert.equal(await page.locator('.group-week').innerText(),'This week · +38 mi from 4 of 10 people');assert.equal(await page.locator('.group-member-private-note').count(),1);await capture(page,`groups-roster-ten-390-${theme}`);assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors}=await open(theme));await page.goto(base+groupUrl(idFull));await page.locator('[data-group-more]').waitFor();
    assert.equal(await page.locator('.group-member').count(),10);assert.equal(await page.locator('[data-group-more]').innerText(),'+ 40 more');
    await page.locator('[data-group-more]').click();assert.equal(await page.locator('.group-member').count(),50);assert.equal(await page.locator('[data-group-more]').count(),0);
-   assert.match(await page.locator('.group-member').nth(1).innerText(),/Sharing total only/);
+   assert.equal(await page.locator('.group-member').filter({hasText:'Sharing total only'}).count(),0,'private amounts are not repeated on roster rows');assert.equal(await page.locator('.group-member-private-note').count(),1,'one quiet note explains private amounts');
    assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'full roster fits the phone');
    await page.evaluate(()=>window.scrollTo(0,0));await capture(page,`groups-roster-full-390-${theme}`,'.group-roster',{hideChrome:true});assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
    console.log(`Groups ${theme}: create, generic invite/accept, empty and full roster states pass`);
+  }
+  for(const theme of ['light','dark']){
+   const {context,page}=await open(theme,330,'one');await page.goto(base+'/activity');await waitActivity(page);const title=page.locator('.feed-groups-copy b');assert.match(await title.innerText(),/Dolomites hike · 31 wk to go/);
+   const layout=await title.evaluate(el=>{const s=getComputedStyle(el),r=el.getBoundingClientRect();return{height:r.height,lineHeight:parseFloat(s.lineHeight),width:el.clientWidth,scrollWidth:el.scrollWidth,scrollHeight:el.scrollHeight,textOverflow:s.textOverflow,whiteSpace:s.whiteSpace};});assert(layout.height>=layout.lineHeight*0.9&&layout.scrollWidth<=layout.width+1&&layout.scrollHeight<=Math.ceil(layout.height)+1,`Activity title wraps cleanly at 330px (${theme}): ${JSON.stringify(layout)}`);assert.notEqual(layout.textOverflow,'ellipsis');assert.equal(layout.whiteSpace,'normal');await capture(page,`activity-groups-one-330-${theme}`,null,{fullPage:false});await context.close();contexts.splice(contexts.indexOf(context),1);
   }
   const {context,page}=await open('light',330);await page.goto(base+groupUrl(idFull));await page.locator('[data-group-more]').click();assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'full roster has no horizontal overflow at 330px');await context.close();contexts.splice(contexts.indexOf(context),1);
   for(const theme of ['light','dark']){

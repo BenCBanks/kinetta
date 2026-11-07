@@ -277,18 +277,32 @@ async function feedPage(before,size=FEED_N) {
   return {rows,more:all.length>size||mine.length===size||theirs.length===size,friends:rows.filter(a=>a.owner).length};
 }
 
-function groupStripDate(value,zone){
-  const [y,m,d]=value.split('-').map(Number),date=new Date(Date.UTC(y,m-1,d,12));
-  return new Intl.DateTimeFormat(undefined,{timeZone:zone,month:'short',day:'numeric'}).format(date);
-}
 function activityGroupStripHtml(data){
   const group=data.next,combined=group.total!==undefined,value=Number(combined?group.total:group.your_total)||0,target=Number(group.goal_target)||0;
   const progress=Math.min(target||1,Math.max(0,value)),weeks=group.weeks_to_event||0;
-  const timing=group.days_to_event===0?'Event today':`${weeks} ${weeks===1?'week':'weeks'} to go`;
+  const timing=group.days_to_event===0?'Event today':`${weeks} ${weeks===1?'week':'wk'} to go`;
   const more=data.more_count?`<a class="feed-groups-more" href="/me/groups" aria-label="See ${data.more_count} more ${data.more_count===1?'group':'groups'}">+${data.more_count}</a>`:'';
   return `<section class="feed-social-strip feed-groups-strip" aria-label="Next group event"><div class="feed-groups-row">
-    <a class="row-link feed-groups-link" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('calendar')}</span><span class="grow feed-groups-copy"><b>${esc(group.title)} · ${esc(groupStripDate(group.event_date,group.time_zone))} · ${esc(timing)}</b><small>${combined?'Together':'You'}: ${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}</small><progress class="feed-group-progress" max="${target||1}" value="${progress}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}"></progress></span><span class="chev">${svg('chev')}</span></a>
-    ${more}<button type="button" class="linkbtn feed-groups-mute" data-group-strip-mute>Mute</button></div></section>`;
+    <a class="row-link feed-groups-link" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('calendar')}</span><span class="grow feed-groups-copy"><b>${esc(group.title)} · ${esc(timing)}</b><small>${combined?'Together':'You'}: ${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}</small><progress class="feed-group-progress" max="${target||1}" value="${progress}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}"></progress></span><span class="chev">${svg('chev')}</span></a>
+    ${more}</div></section>`;
+}
+function activityGroupStripLongPress(box,mute){
+  let timer=null,origin=null,pointerId=null,pointerType=null,suppressUntil=0,held=false;
+  const inGroupLink=event=>event.target instanceof Element&&!!event.target.closest('.feed-groups-link');
+  const cancel=()=>{clearTimeout(timer);timer=null;origin=null;pointerId=null;pointerType=null;};
+  const fire=()=>{if(held)return;held=true;suppressUntil=Date.now()+1000;clearTimeout(timer);timer=null;mute();};
+  const down=event=>{
+    if(!inGroupLink(event)||event.target.closest('.feed-groups-more,[data-group-strip-show]')||event.isPrimary===false||event.button!==0)return;
+    cancel();held=false;suppressUntil=0;origin={x:event.clientX,y:event.clientY};pointerId=event.pointerId;pointerType=event.pointerType;
+    timer=setTimeout(()=>{if(box.isConnected&&origin)fire();},500);
+  };
+  const move=event=>{if(!held&&origin&&event.pointerId===pointerId&&Math.hypot(event.clientX-origin.x,event.clientY-origin.y)>10)cancel();};
+  const end=event=>{if(pointerId!==null&&event.pointerId!==pointerId)return;clearTimeout(timer);timer=null;if(held)suppressUntil=Date.now()+1000;origin=null;pointerId=null;pointerType=null;};
+  const click=event=>{if(!inGroupLink(event)||event.detail===0||!(held||Date.now()<suppressUntil))return;event.preventDefault();event.stopPropagation();held=false;suppressUntil=0;};
+  const context=event=>{if(!inGroupLink(event))return;if(origin&&pointerType!=='mouse'){event.preventDefault();fire();}else if(Date.now()<suppressUntil)event.preventDefault();};
+  box.addEventListener('pointerdown',down);box.addEventListener('click',click,true);box.addEventListener('contextmenu',context);
+  document.addEventListener('pointermove',move,true);document.addEventListener('pointerup',end,true);document.addEventListener('pointercancel',end,true);
+  viewResources.set(box,()=>{cancel();box.removeEventListener('pointerdown',down);box.removeEventListener('click',click,true);box.removeEventListener('contextmenu',context);document.removeEventListener('pointermove',move,true);document.removeEventListener('pointerup',end,true);document.removeEventListener('pointercancel',end,true);});
 }
 async function activityGroupStrip(box,owner){
   const live=()=>box?.isConnected&&owner===readOwner();
@@ -297,7 +311,7 @@ async function activityGroupStrip(box,owner){
     try{
       const data=await api('/api/groups/activity-strip');if(!live())return;
       if(data.muted&&data.has_upcoming)box.innerHTML='<div class="feed-groups-muted"><span class="small muted">Group strip is hidden</span><button type="button" class="linkbtn" data-group-strip-show>Show</button></div>';
-      else if(data.next){box.innerHTML=activityGroupStripHtml(data);$('[data-group-strip-mute]',box).onclick=()=>change(true);}
+      else if(data.next)box.innerHTML=activityGroupStripHtml(data);
       else box.replaceChildren();
       box.dataset.loaded='true';
       $('[data-group-strip-show]',box)?.addEventListener('click',()=>change(false));
@@ -305,9 +319,10 @@ async function activityGroupStrip(box,owner){
   }
   async function change(muted){
     if(!live())return;
-    try{await api('/api/groups/activity-strip',json('POST',{muted}));if(live()){await draw();$(`[data-group-strip-${muted?'show':'mute'}]`,box)?.focus({preventScroll:true});}}
+    try{await api('/api/groups/activity-strip',json('POST',{muted}));if(live()){await draw();$(muted?'[data-group-strip-show]':'.feed-groups-link',box)?.focus({preventScroll:true});}}
     catch(error){if(live())toast(error.message);}
   }
+  activityGroupStripLongPress(box,()=>change(true));
   return draw();
 }
 
@@ -1058,7 +1073,7 @@ route(/^\/me\/groups$/, 'me', async el=>{
   }catch(error){if(live())$('#group-list',el).innerHTML=`<div class="card empty">${esc(error.message)}<button type="button" class="ghost" id="group-retry">Retry</button></div>`;$('#group-retry',el)?.addEventListener('click',()=>go('/me/groups',{replace:true}));}
 });
 function groupRoster(group,expanded){
-  const members=expanded?group.members:group.members.slice(0,10),rows=members.map(member=>`<div class="group-member"><span class="group-member-avatar" aria-hidden="true">${esc((member.username||'?').slice(0,1).toUpperCase())}</span><span class="group-member-name"><b>@${esc(member.username)}</b><small>${member.organizer?'Organizer':member.value!==undefined?'Sharing total':'Sharing total only'}</small></span>${member.value!==undefined?`<span class="group-member-value">${esc(groupAmount(member.value,group.goal_unit))}</span>`:''}</div>`).join('');
+  const members=expanded?group.members:group.members.slice(0,10),rows=members.map(member=>`<div class="group-member"><span class="group-member-avatar" aria-hidden="true">${esc((member.username||'?').slice(0,1).toUpperCase())}</span><span class="group-member-name"><b>@${esc(member.username)}</b>${member.organizer?'<small>Organizer</small>':''}</span>${member.value!==undefined?`<span class="group-member-value">${esc(groupAmount(member.value,group.goal_unit))}</span>`:''}</div>`).join('');
   return `${rows}${!expanded&&group.member_count>10?`<button type="button" class="group-more linkbtn" data-group-more>+ ${group.member_count-10} more</button>`:''}`;
 }
 function groupGoal(group){
@@ -1073,7 +1088,7 @@ function groupPage(el,group){
   const draw=()=>{const weeks=group.weeks_to_event??Math.ceil(group.days_to_event/7),timing=group.days_to_event===0?'Event today':`${weeks} ${weeks===1?'week':'weeks'} to go`;el.innerHTML=`<div class="top group-top">${backBtn('Groups')}<span></span><button type="button" class="icon-btn" id="group-options" aria-label="Group options">${svg('more')}</button></div>
     <header class="group-title"><p class="eyebrow">Private group</p><h1>${esc(group.title)}</h1><p>${esc(groupDate(group.event_date,group.time_zone))} · ${esc(timing)}</p>${group.note?`<p class="group-note">${esc(group.note)}</p>`:''}</header>
     ${groupGoal(group)}
-    <section class="group-roster card list"><h2>Members <span>${group.member_count}</span></h2><div id="group-members">${groupRoster(group,expanded)}</div></section>
+    <section class="group-roster card list"><h2>Members <span>${group.member_count}</span></h2>${group.members.some(member=>member.sharing_total_only)?'<p class="group-member-private-note">Some members keep their amount private</p>':''}<div id="group-members">${groupRoster(group,expanded)}</div></section>
     `;
     wireBack(el,'/me/groups');$('#group-options',el).onclick=()=>groupMenu(group,()=>go('/groups/'+encodeURIComponent(group.id),{replace:true}));$('[data-group-more]',el)?.addEventListener('click',()=>{expanded=true;draw();});
   };
@@ -1085,6 +1100,7 @@ function groupMenu(group,reload){
   if(group.is_organizer&&!group.closed)opts.push(`<button type="button" class="row-link" data-gact="invite"><span>Invite people</span>${svg('chev')}</button>`,group.joining_closed?`<button type="button" class="row-link" data-gact="reopen"><span>Make a new invite</span>${svg('chev')}</button>`:`<button type="button" class="row-link" data-gact="stop"><span>Stop new members</span>${svg('chev')}</button>`);
   if(group.is_organizer&&group.member_count>1)opts.push(`<button type="button" class="row-link" data-gact="transfer"><span>Transfer organizer</span>${svg('chev')}</button>`,`<button type="button" class="row-link" data-gact="remove"><span>Remove a member</span>${svg('chev')}</button>`);
   if(group.is_organizer&&!group.closed)opts.push(`<button type="button" class="row-link danger" data-gact="close"><span>Close group</span>${svg('chev')}</button>`);
+  opts.push(`<button type="button" class="row-link" data-gact="mute-strip"><span>Mute Activity strip</span>${svg('chev')}</button>`);
   opts.push(`<button type="button" class="row-link" data-gact="leave"><span>Leave group</span>${svg('chev')}</button>`,`<button type="button" class="row-link" data-gact="report"><span>Report group</span>${svg('chev')}</button>`);
   groupActionSheet('Group options',`<div class="group-options-list">${opts.join('')}</div><button type="button" class="linkbtn wide" data-close>Cancel</button>`,(body,close)=>{
     const run=async(path,method='POST',payload={})=>{try{await api(path,json(method,payload));close();toast('Group updated');reload();}catch(error){toast(error.message);}};
@@ -1094,6 +1110,7 @@ function groupMenu(group,reload){
       else if(action==='leave')groupConfirm('Leave group?','Your contribution will disappear from the group.',()=>run('/api/groups/'+encodeURIComponent(group.id)+'/leave'));
       else if(action==='close')groupConfirm('Close group?','People can no longer join this group.',()=>run('/api/groups/'+encodeURIComponent(group.id)+'/close'));
       else if(action==='transfer'||action==='remove')groupMemberAction(group,action==='transfer'?'Transfer organizer':'Remove a member',action==='transfer'?'transfer':'remove',reload);
+      else if(action==='mute-strip')api('/api/groups/activity-strip',json('POST',{muted:true})).then(()=>toast('Activity strip hidden')).catch(error=>toast(error.message));
       else if(action==='report')groupReport(group);
     });
     $('[data-close]',body).onclick=close;
