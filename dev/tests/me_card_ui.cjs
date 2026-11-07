@@ -27,6 +27,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   let showcaseFixture={items:[],pinned:[],day_streak:0},shareAchievementsEnabled=false,showcasePins=[],pinOrderRequests=[],failFeatureSave=false;const sharedShowcaseRequests=[];
   const featureTrack=(code,label,value,display_unit)=>({code,label,value,display_value:value,display_unit,tiers:[{rank:1,day:'2026-11-06'}]});
   const featuredFixture={pending:false,tracks:[featureTrack('journey','Journey',6099414,'mi'),featureTrack('workouts','Workouts',1120,'workouts'),featureTrack('lifted','Lifted',300000,'lb'),featureTrack('sport:run','Run',80000,'mi'),featureTrack('active_time','Active time',3960000,'h'),featureTrack('climbing','Climbing',17000,'ft'),featureTrack('consistency','Consistency',22,'weeks')]};
+  const earnedFixture=['journey','workouts','lifted','sport:run','climbing','consistency'].map(code=>({code,rank:1}));
   p.on('pageerror',e=>errors.push(e.message));
   await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
   await c.route('**/api/**',async r=>{
@@ -43,7 +44,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    if(u.pathname==='/api/achievements')return r.fulfill({json:featuredFixture});
    if(u.pathname==='/api/achievements/showcase'){
     if(u.searchParams.has('login')){sharedShowcaseRequests.push(u.searchParams.get('login'));return r.fulfill({json:showcaseFixture});}
-    return r.fulfill({json:{...showcaseFixture,pinned:showcasePins}});
+    return r.fulfill({json:{...showcaseFixture,pinned:showcasePins,available:earnedFixture}});
    }
    if(u.pathname==='/api/sharing')return r.fulfill({json:{share_achievements:shareAchievementsEnabled}});
    if(u.pathname==='/api/me'){const resp=await r.fetch(),j=await resp.json();j.bio='Fictional trails and weekend rides.';j.kcal_target=null;j.protein_target=null;j.units='imperial';return r.fulfill({response:resp,json:j});}
@@ -93,6 +94,8 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    const list=p.locator('[data-featured-list]');await list.waitFor();await p.waitForFunction(()=>document.querySelector('[data-featured-list]')?.getAttribute('aria-busy')==='false');await list.scrollIntoViewIfNeeded();
    const selected=()=>p.locator('.me-featured-selected [data-featured-toggle]');
    assert.deepEqual(await selected().evaluateAll(nodes=>nodes.map(n=>n.dataset.featuredToggle)),['journey','workouts','lifted'],`Edit profile shows the saved featured order: ${await list.innerText()}; page errors: ${JSON.stringify(errors)}`);
+   assert.equal(await p.locator('.me-featured-editor [data-featured-toggle="active_time"]').count(),0,'the editor offers only tracks in the server earned set');
+   assert.match(await p.locator('.me-editor-featured-note').innerText(),/save immediately; Cancel won't undo them/i,'the copy explains featured changes save immediately');
    const heights=await list.locator('.me-featured-choice,.me-featured-order .icon-btn').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().height));
    assert(heights.length&&heights.every(height=>height>=44),'featured choices and reorder controls have 44px targets '+JSON.stringify(heights));
    assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${size.width}px featured editor has no page overflow`);
@@ -101,7 +104,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    const waitSave=()=>p.waitForResponse(response=>response.url()===base+'/api/achievements/showcase/pins'&&response.request().method()==='PUT');
    let response=waitSave();await p.locator('[data-featured-toggle="sport:run"]').click();assert.equal((await response).status(),200);
    assert.deepEqual(pinOrderRequests.at(-1),['journey','workouts','lifted','sport:run'],'adding an earned achievement saves all four ordered pins');
-   assert.equal(await selected().count(),4);assert.equal(await p.locator('[data-featured-toggle="active_time"]').isDisabled(),true,'the fifth achievement is disabled at the limit');
+   assert.equal(await selected().count(),4);assert.equal(await p.locator('[data-featured-toggle="consistency"]').isDisabled(),true,'the fifth earned achievement is disabled at the limit');
    response=waitSave();await p.locator('[data-featured-move="workouts"][data-step="-1"]').click();assert.equal((await response).status(),200);
    assert.deepEqual(await selected().evaluateAll(nodes=>nodes.map(n=>n.dataset.featuredToggle)),['workouts','journey','lifted','sport:run'],'move controls save the new order');
    response=waitSave();await p.locator('.me-featured-selected [data-featured-toggle="lifted"]').click();assert.equal((await response).status(),200);

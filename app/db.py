@@ -2143,7 +2143,7 @@ MIGRATIONS = [
     """ALTER TABLE event_groups ALTER COLUMN event_date DROP NOT NULL;""",
 
     # 106. Allow four featured achievements; leave each owner's existing ordered pins unchanged.
-    """ALTER TABLE profile DROP CONSTRAINT profile_showcase_pins_check;
+    """ALTER TABLE profile DROP CONSTRAINT IF EXISTS profile_showcase_pins_check;
     ALTER TABLE profile ADD CONSTRAINT profile_showcase_pins_check
       CHECK(cardinality(showcase_pins)<=4 AND array_position(showcase_pins,NULL) IS NULL);""",
 

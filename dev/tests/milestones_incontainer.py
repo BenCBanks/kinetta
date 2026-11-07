@@ -269,6 +269,9 @@ class Milestones(unittest.TestCase):
   path=f'/api/achievements/showcase?login={login}'
   own=owner.get('/api/achievements/showcase');self.assertEqual(own.status_code,200,own.text)
   self.assertEqual([item['code'] for item in own.json()['items']],['climbing','sport:run','journey','workouts'])
+  self.assertEqual(own.json()['available'],[{'code':code,'rank':rank} for code,rank in
+                                             (('climbing',6),('consistency',1),('journey',5),('sport:run',5),('workouts',5))],
+                   'the owner editor receives exactly the server-computed earned set')
   self.assertEqual(own.json()['day_streak'],3)
   self.assertEqual(viewer.get(path).json(),{'items':[],'pinned':[],'day_streak':0},'sharing starts off for friends')
   self.assertEqual(viewer.post('/api/achievements/showcase/pin',json={'code':'workouts','pinned':True}).status_code,409,
@@ -284,14 +287,16 @@ class Milestones(unittest.TestCase):
   reordered=['consistency','climbing','sport:run','journey']
   response=owner.put('/api/achievements/showcase/pins',json={'pinned':reordered})
   self.assertEqual(response.status_code,200,response.text);self.assertEqual(response.json(),{'pinned':reordered})
-  self.assertEqual(owner.put('/api/achievements/showcase/pins',json={'pinned':reordered+['workouts']}).status_code,400,
-                   'the ordered editor cannot exceed four pins')
+  self.assertEqual(owner.put('/api/achievements/showcase/pins',json={'pinned':reordered+['workouts']}).status_code,422,
+                   'the request model rejects five pins before business validation')
+  self.assertEqual(owner.put('/api/achievements/showcase/pins',json={'pinned':['x'*81]}).status_code,422,
+                   'the request model rejects oversized achievement codes')
   self.assertEqual(owner.put('/api/achievements/showcase/pins',json={'pinned':['journey','journey']}).status_code,400,
                    'the ordered editor rejects duplicates')
   self.assertEqual(viewer.put('/api/achievements/showcase/pins',json={'pinned':['journey']}).status_code,409,
                    'another owner cannot feature achievements they have not earned')
   self.assertEqual([item['code'] for item in owner.get('/api/achievements/showcase').json()['items']],reordered)
-  self.assertEqual(viewer.get('/api/achievements/showcase').json(),{'items':[],'pinned':[],'day_streak':0},
+  self.assertEqual(viewer.get('/api/achievements/showcase').json(),{'items':[],'pinned':[],'day_streak':0,'available':[]},
                    'the viewer’s own profile never inherits another user’s pins or streak')
   with db.connect() as c:
    c.execute("INSERT INTO friendships(requester,addressee,status,accepted) VALUES(%s,%s,'accepted',now())",(owner_id,viewer_id))
@@ -300,6 +305,7 @@ class Milestones(unittest.TestCase):
   self.assertEqual(shared.json(),{'items':[{'code':'consistency','rank':1},{'code':'climbing','rank':6},
                                            {'code':'sport:run','rank':5},{'code':'journey','rank':5}],
                                   'pinned':reordered,'day_streak':3})
+  self.assertNotIn('available',shared.json(),'friend responses do not expose the full earned set')
   self.assertNotIn('activity_id',shared.text);self.assertNotIn('user_id',shared.text)
   for code in ('journey','sport:run','climbing','consistency'):
    response=owner.post('/api/achievements/showcase/pin',json={'code':code,'pinned':False})

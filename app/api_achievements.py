@@ -4,6 +4,7 @@ import json
 import math
 from functools import lru_cache
 from pathlib import Path
+from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -395,7 +396,7 @@ class ShowcasePinUpdate(BaseModel):
 
 
 class ShowcasePinsUpdate(BaseModel):
-    pinned: list[str]
+    pinned: list[Annotated[str, Field(min_length=1, max_length=80)]] = Field(max_length=SHOWCASE_MAX)
 
 
 def _showcase_pins(value):
@@ -469,7 +470,7 @@ def _showcase_candidates(c, user_id, units):
     return candidates
 
 
-def _showcase_payload(c, owner_id, profile):
+def _showcase_payload(c, owner_id, profile, include_available=False):
     pins = _showcase_pins(profile.get('showcase_pins'))
     candidates = _showcase_candidates(c, owner_id, profile.get('units') or 'imperial')
     by_code = candidates
@@ -477,7 +478,10 @@ def _showcase_payload(c, owner_id, profile):
         selected = [by_code[code] for code in pins if code in by_code]
     else:
         selected = sorted(candidates.values(), key=lambda item: (-item['rank'], -_timestamp(item['occurred']), item['code']))[:SHOWCASE_MAX]
-    return {'items': [{'code': item['code'], 'rank': item['rank']} for item in selected], 'pinned': pins}
+    result = {'items': [{'code': item['code'], 'rank': item['rank']} for item in selected], 'pinned': pins}
+    if include_available:
+        result['available'] = [{'code': code, 'rank': candidates[code]['rank']} for code in sorted(candidates)]
+    return result
 
 
 def _day_streak(c, user_id, tz, now=None):
@@ -535,7 +539,7 @@ def achievement_showcase(login: str | None = Query(None, min_length=1, max_lengt
                                 (owner_id,)).fetchone()
             if not profile:
                 return _empty_showcase()
-        result = _showcase_payload(c, owner_id, profile)
+        result = _showcase_payload(c, owner_id, profile, include_available=owner_id == user['id'])
         result['day_streak'] = _day_streak(c, owner_id, profile.get('tz'))
         return result
 

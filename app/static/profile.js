@@ -136,9 +136,10 @@ const ProfileLayout=(()=>{
   }
   const achievementDay=track=>(track.tiers||[]).reduce((day,tier)=>String(tier.day||'')>day?String(tier.day):day,'')||String(track.day||'');
   function startedAchievements(data){return (Array.isArray(data?.tracks)?data.tracks:[]).filter(t=>t&&Array.isArray(t.tiers)&&t.tiers.length>0).sort((a,b)=>achievementDay(b).localeCompare(achievementDay(a))||achievementLevel(b)-achievementLevel(a));}
-  async function featuredOptions(){
-    await loadAchievementCatalog();const data=await api('/api/achievements');
-    return startedAchievements(data).map(track=>{
+  async function featuredOptions(data,available){
+    await loadAchievementCatalog();
+    const eligible=new Set((Array.isArray(available)?available:[]).map(item=>item?.code).filter(code=>typeof code==='string'));
+    return startedAchievements(data).filter(track=>eligible.has(track.code)).map(track=>{
       const level=achievementLevel(track),tier=achievementCurrentTier(track);
       return {code:track.code,label:track.code==='sport:lift'?'Lift sessions':track.label||track.code,
         detail:`Level ${level}${tier?.name?` · ${tier.name}`:''}`,icon:achievementAsset(tier,'me-featured-icon')};
@@ -626,7 +627,7 @@ const MeCard=(()=>{
         <p class="small muted me-editor-privacy">Your name, photo and bio are visible to people who find your profile.</p>
         <h3 id="card-period-label">Period</h3><div class="me-chips" data-card-period role="group" aria-labelledby="card-period-label"></div>
         <h3>Sections</h3><div class="me-editor-sections" data-card-sections></div>
-        <h3 id="card-featured-label">Featured achievements <span>· up to 4</span></h3><p class="small muted me-editor-featured-note">Choose achievements you’ve earned. Use the arrows to set their order.</p>
+        <h3 id="card-featured-label">Featured achievements <span>· up to 4</span></h3><p class="small muted me-editor-featured-note">Choose achievements you've earned. Featured changes save immediately; Cancel won't undo them. Use the arrows to set their order.</p>
         <div class="me-featured-editor" data-featured-list aria-labelledby="card-featured-label" aria-busy="true"><p class="small muted">Loading achievements…</p></div>
         <h3>Headline numbers <span>· up to 3</span></h3><div class="me-chips" data-card-stats></div>
         <h3>Featured sports <span>· up to 3 · none = all</span></h3><div class="me-chips" data-card-sports></div></form>`;
@@ -659,8 +660,9 @@ const MeCard=(()=>{
       const loadFeatured=async()=>{
         featuredTarget.setAttribute('aria-busy','true');featuredTarget.innerHTML='<p class="small muted">Loading achievements…</p>';
         try{
-          const [options,showcase]=await Promise.all([ProfileLayout.featuredOptions(),api('/api/achievements/showcase')]);if(!valid())return;
-          featuredTracks=options;const earned=new Set(featuredTracks.map(track=>track.code));
+          const [data,showcase]=await Promise.all([api('/api/achievements'),api('/api/achievements/showcase')]);if(!valid())return;
+          featuredTracks=await ProfileLayout.featuredOptions(data,showcase?.available);if(!valid())return;
+          const earned=new Set(featuredTracks.map(track=>track.code));
           featuredPins=(Array.isArray(showcase?.pinned)?showcase.pinned:[]).map(String).filter((code,index,list)=>earned.has(code)&&list.indexOf(code)===index).slice(0,FEATURED_ACHIEVEMENT_LIMIT);
           renderFeatured();
         }catch(error){
