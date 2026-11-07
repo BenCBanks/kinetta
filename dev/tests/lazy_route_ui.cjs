@@ -34,6 +34,7 @@ async function welcomeFixture(browser,loginName=user,{failFirst=false,hold=false
    if(hold&&!heldOnce){heldOnce=true;finishHeld();await held;}
    return route.continue();
   }
+  if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204});
   if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
   return route.continue();
  });
