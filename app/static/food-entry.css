@@ -89,7 +89,7 @@
 #am .am-sub { margin:0 0 4px; }
 @media(max-width:360px) {
   .food-thread .compact-food { column-gap:2px;padding-right:2px;padding-left:2px; }
-  .compact-food .compact-food-title .tf-inspect strong { font-size:.8125rem; }
+  .compact-food .compact-food-title .tf-inspect strong { font-size:.75rem; }
   .compact-food .tf-kcal { font-size:.8125rem; }
   .compact-food .tf-kcal small { font-size:.6875rem; }
   .compact-food .compact-food-meta { gap:3px; }
