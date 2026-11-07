@@ -11,7 +11,7 @@
     TrackNative.locate=async()=>{if(cfg.store)return cfg.store.position;throw Error('Native header fixture blocked GPS reads');};
   }
   if(cfg.recording){TrackNative.supported=false;TrackNative.call=()=>Promise.reject(Error('Native UI fixture blocked GPS controls'));}
-  const rect=selector=>{const e=document.querySelector(selector);if(!e)return null;const r=e.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};
+  const rect=selector=>{const e=typeof selector==='string'?document.querySelector(selector):selector;if(!e)return null;const r=e.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};
   function paintedMap(scope=document){
     return [...scope.querySelectorAll('canvas.leaflet-tile-loaded')].some(c=>{try{
       const b=c.getBoundingClientRect(),m=c.closest('.leaflet-container').getBoundingClientRect(),x=Math.max(0,b.x,m.x),y=Math.max(0,b.y,m.y),right=Math.min(innerWidth,b.right,m.right),bottom=Math.min(innerHeight,b.bottom,m.bottom);
