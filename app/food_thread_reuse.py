@@ -8,7 +8,7 @@ from . import db, food_thread, food_thread_log as engine, meal_chat
 
 WINDOW = dt.timedelta(minutes=30)
 REPEAT = re.compile(r'^(?:another|one more|again|same(?: as)?|a second)\b(.*)$')
-YESTERDAY_MEAL = re.compile(r'^same\s+(breakfast|lunch|dinner|snacks?)\s+as\s+yesterday$')
+YESTERDAY_MEAL = re.compile(r'^same\s+(breakfast|lunch|dinner|snacks?)\s+as\s+yesterday[.!?]*$')
 HALF_MORE = re.compile(r'^half\s+(?:a\s+)?(?:piece|slice|portion|serving|cup|bite|spoonful)\s+more\b(.*)$')
 COUNTS = {**meal_chat.COUNTS, **meal_chat.SHARES}
 QUANTITY_WORDS = {'and', 'a', 'an', 'half'}

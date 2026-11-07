@@ -329,8 +329,10 @@ function sameYesterdayMealMarkup(D,meal,today) {
   if(previous.day!==yesterday)return '';
   const names=items.map(item=>String(item.name||'').trim()).filter(Boolean),shown=names.slice(0,2);
   if(!shown.length)return '';
-  const label=`Same as yesterday · ${shown.map(esc).join(', ')}${names.length>2?` +${names.length-2}`:''}`;
-  return `<button type="button" class="meal-yesterday-repeat" data-repeat-yesterday="${esc(meal)}" aria-label="Repeat yesterday’s ${esc(MEAL_NAMES[meal].toLowerCase())}: ${esc(names.join(', '))}">${label}</button>`;
+  const calories=Number.isFinite(previous.kcal)?`${r0(previous.kcal)} kcal`:null;
+  const label=`Same as yesterday · ${calories||`${shown.map(esc).join(', ')}${names.length>2?` +${names.length-2}`:''}`}`;
+  const accessible=calories?`${calories}. ${names.join(', ')}`:names.join(', ');
+  return `<button type="button" class="meal-yesterday-repeat" data-repeat-yesterday="${esc(meal)}" aria-label="Repeat yesterday’s ${esc(MEAL_NAMES[meal].toLowerCase())}: ${esc(accessible)}">${label}</button>`;
 }
 async function repeatYesterdayMeal(D,button) {
   const meal=button.dataset.repeatYesterday;

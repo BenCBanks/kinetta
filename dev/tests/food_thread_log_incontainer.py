@@ -60,7 +60,7 @@ finally:
 
 # Recent "another one" fast path: owner-scoped, grouped, scaled, choice-bound and provider-free.
 from fastapi import Response
-from app import food_thread_reuse as reuse, food_memory_understand as memory, food_thread_understand as understand
+from app import food_thread_reuse as reuse, food_memory_understand as memory, food_thread_understand as understand, api_food
 import time
 reuse_uids=[];original_memory_prepare=memory.prepare;original_understand_prepare=understand.prepare
 try:
@@ -85,7 +85,7 @@ try:
  def logged_count(uid2):
   with db.connect() as c:return c.execute('SELECT count(*) AS n FROM food_entries WHERE user_id=%s',(uid2,)).fetchone()['n']
  def no_model(*args,**kwargs):raise AssertionError('Recent repeat reached food-memory or food-understanding preparation')
- fast_uid,chip_uid,amb_uid,old_uid,other_uid,half_uid=reuse_uids
+ fast_uid,chip_uid,amb_uid,old_uid,other_uid,half_uid=reuse_uids[:6]
  source=seed_group(fast_uid,[('Fictional toast',1,'piece',120),('Fictional butter',1,'serving',40)])
  message=repeat_message(fast_uid,'I had another two pieces of toast')
  memory.prepare=no_model;understand.prepare=no_model
@@ -126,6 +126,11 @@ try:
  yesterday_day=repeat_day-dt.timedelta(days=1)
  seed_group(reuse_uids[-2],[('Fictional oats',1,'serving',150),('Fictional coffee',1,'cup',5)],meal='breakfast',day=yesterday_day)
  seed_group(reuse_uids[-1],[('Private fictional meal',1,'serving',300)],meal='breakfast',day=yesterday_day)
+ with db.connect() as c:
+  own=api_food._last_meals(c,reuse_uids[-2],repeat_day)
+  foreign=api_food._last_meals(c,other_uid,repeat_day)
+ assert own['breakfast']['day']==yesterday_day.isoformat() and {row['name'] for row in own['breakfast']['items']}=={'Fictional oats','Fictional coffee'}
+ assert 'breakfast' not in foreign,'yesterday meals are returned only from the caller’s own diary'
  copied_message=repeat_message(reuse_uids[-2],'same breakfast as yesterday',meal='dinner')
  copied=food_thread.process_message(copied_message['id'],food_thread.AnswerIn(),{'id':reuse_uids[-2]})
  copied_receipt=copied['messages'][-1]
