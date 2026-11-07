@@ -3,7 +3,7 @@
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',shots=process.env.KINETTA_SHOTS;
 const token='0123456789abcdef0123456789abcdef',idEmpty='00000000-0000-4000-8000-000000000001',idTwo='00000000-0000-4000-8000-000000000002',idThree='00000000-0000-4000-8000-000000000004',idFull='00000000-0000-4000-8000-000000000050',idLongGoal='00000000-0000-4000-8000-000000000003',idLongOwnGoal='00000000-0000-4000-8000-000000000005',idSix='00000000-0000-4000-8000-000000000006',idTen='00000000-0000-4000-8000-000000000010';
-const idUpdates='00000000-0000-4000-8000-000000000011',idEventDay='00000000-0000-4000-8000-000000000012',idRecap='00000000-0000-4000-8000-000000000013';
+const idUpdates='00000000-0000-4000-8000-000000000011',idEventDay='00000000-0000-4000-8000-000000000012',idRecap='00000000-0000-4000-8000-000000000013',idOngoing='00000000-0000-4000-8000-000000000014';
 const empty={id:idEmpty,title:'Dolomites hike',event_date:'2026-11-14',time_zone:'America/New_York',note:'Fictional event weekend',goal_type:'distance',goal_target:600,goal_unit:'mi',your_total:12,your_this_week_total:12,days_to_event:7,weeks_to_event:1,event_state:'upcoming',weekly_reaction:{my_reaction:null,reactions:{}},updates:[],recap_consent:false,notifications_muted:false,members:[{username:'alex',organizer:true,sharing_total_only:true}],member_count:1,is_organizer:true,joining_closed:false,closed:false};
 const two={...empty,id:idTwo,members:[...empty.members,{username:'fictional_friend',organizer:false,sharing_total_only:true}],member_count:2};
 const three={...empty,id:idThree,total:214,this_week_total:38,this_week_contributors:3,members:[{username:'alex',organizer:true,value:12},{username:'fictional_friend',organizer:false,value:38},{username:'fictional_member',organizer:false,value:164}],member_count:3};delete three.your_total;delete three.your_this_week_total;
@@ -18,8 +18,10 @@ const updatesGroup={...three,id:idUpdates,updates:[
 ]};
 const eventDay={...empty,id:idEventDay,event_state:'today',days_to_event:0,weeks_to_event:0,event_date:'2026-11-07'};
 const recapGroup={...three,id:idRecap,event_state:'complete',days_to_event:0,weeks_to_event:0,event_date:'2026-11-02',recap:{event_date:'2026-11-02',total:214,participants:['alex','fictional_friend']},updates:[]};
+const ongoingGroup={...empty,id:idOngoing,event_date:null,event_state:'ongoing',days_to_event:null,weeks_to_event:null,your_total:12,your_this_week_total:12,members:[...empty.members,{username:'fictional_friend',organizer:false,sharing_total_only:true}],member_count:2,updates:[{id:7010,username:'fictional_friend',name:'Fictional friend',photo:false,text:'Fictional trail notes are ready.',created:'2026-11-07T11:40:00Z',can_delete:false,can_report:true,my_reaction:null,reactions:{clap:1}}]};
 const stripGroup={id:idThree,title:'Dolomites hike',event_date:'2026-12-14',time_zone:'America/New_York',goal_target:600,goal_unit:'mi',total:214,member_count:6,days_to_event:217,weeks_to_event:31};
-const stripFixtures={one:{muted:false,has_upcoming:true,more_count:0,next:stripGroup},more:{muted:false,has_upcoming:true,more_count:1,next:stripGroup},none:{muted:false,has_upcoming:false}};
+const ongoingStripGroup={id:idOngoing,title:'Fictional trail club',event_date:null,time_zone:'America/New_York',goal_type:'distance',goal_target:100,goal_unit:'km',your_total:12,member_count:2,days_to_event:null,weeks_to_event:null,event_state:'ongoing'};
+const stripFixtures={one:{muted:false,has_upcoming:true,more_count:0,next:stripGroup},more:{muted:false,has_upcoming:true,more_count:1,next:stripGroup},ongoing:{muted:false,has_upcoming:true,more_count:0,next:ongoingStripGroup},none:{muted:false,has_upcoming:false}};
 const groupUrl=id=>`/groups/${id}`;
 async function settle(page){await page.evaluate(async()=>{await document.fonts.ready;const a=[...document.querySelectorAll('.scrim,.sheet')].flatMap(x=>x.getAnimations());await Promise.all(a.map(x=>x.finished.catch(()=>{})));});}
 async function waitActivity(page){await page.locator('#activity-groups-strip[data-loaded="true"]').waitFor({state:'attached'});await page.locator('#ff-list .post').first().waitFor();}
@@ -50,13 +52,13 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
  async function open(theme,width=390,stripState='none'){
   const context=await browser.newContext({viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'});contexts.push(context);
   const login=await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});assert.equal(login.status(),200,'isolated demo account login');
-  const postedGroups=[],postedUpdates=[],groupPreferences=[],stripPosts=[];let stripData={...stripFixtures[stripState]},updatesState={...updatesGroup,updates:updatesGroup.updates.map(row=>({...row}))};
+  const postedGroups=[],postedUpdates=[],groupPreferences=[],stripPosts=[],groupDateChanges=[];let stripData={...stripFixtures[stripState]},updatesState={...updatesGroup,updates:updatesGroup.updates.map(row=>({...row}))},ongoingState={...ongoingGroup,updates:ongoingGroup.updates.map(row=>({...row}))};
   await context.route('**/api/**',async route=>{
    const req=route.request(),url=new URL(req.url()),method=req.method(),p=url.pathname;
    if(p==='/api/groups/activity-strip'&&method==='GET')return route.fulfill({json:stripData});
    if(p==='/api/groups/activity-strip'&&method==='POST'){stripPosts.push(req.postDataJSON());stripData={...stripData,muted:req.postDataJSON().muted};return route.fulfill({json:{muted:stripData.muted}});}
    if(p==='/api/groups'&&method==='GET')return route.fulfill({json:[]});
-   if(p==='/api/groups'&&method==='POST'){postedGroups.push(req.postDataJSON());return route.fulfill({json:{...empty,invite_url:`https://example.test/group-invite/${token}`}});}
+   if(p==='/api/groups'&&method==='POST'){const body=req.postDataJSON();postedGroups.push(body);const group=body.event_date===null?ongoingGroup:empty;return route.fulfill({json:{...group,invite_url:`https://example.test/group-invite/${token}`}});}
    if(p===`/api/group-invites/${token}`&&method==='GET')return route.fulfill({json:{available:true}});
    if(p===`/api/group-invites/${token}/accept`&&method==='POST')return route.fulfill({json:{...two,id:idEmpty}});
    if(p===`/api/groups/${idEmpty}`&&method==='GET')return route.fulfill({json:empty});
@@ -78,12 +80,18 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    if(p===`/api/groups/${idUpdates}/updates/7001/reactions`&&method==='GET')return route.fulfill({json:{cheers:[{login:'fictional_member',name:'Fictional member',photo:false,kind:'clap'}]}});
    if(p===`/api/groups/${idUpdates}/notifications`&&method==='POST'){groupPreferences.push({kind:'notifications',...req.postDataJSON()});updatesState.notifications_muted=req.postDataJSON().muted;return route.fulfill({json:{muted:updatesState.notifications_muted}});}
    if(p===`/api/groups/${idUpdates}/recap-consent`&&method==='POST'){groupPreferences.push({kind:'recap',...req.postDataJSON()});updatesState.recap_consent=req.postDataJSON().consent;return route.fulfill({json:{consent:updatesState.recap_consent}});}
+   if(p===`/api/groups/${idOngoing}`&&method==='GET')return route.fulfill({json:ongoingState});
+   if(p===`/api/groups/${idOngoing}/event-date`&&method==='PATCH'){
+    const body=req.postDataJSON();groupDateChanges.push(body);const date=body.event_date;
+    ongoingState={...ongoingState,event_date:date,event_state:date?'upcoming':'ongoing',days_to_event:date?7:null,weeks_to_event:date?1:null};
+    return route.fulfill({json:ongoingState});
+   }
    if(p.startsWith('/api/groups/')&&method==='POST')return route.fulfill({json:{ok:true,invite_url:`https://example.test/group-invite/${token}`}});
    return route.continue();
   });
   const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize='16px'));
-  return{context,page,errors,postedGroups,postedUpdates,groupPreferences,stripPosts,stripState:()=>stripData,updatesState:()=>updatesState};
+  return{context,page,errors,postedGroups,postedUpdates,groupPreferences,stripPosts,stripState:()=>stripData,updatesState:()=>updatesState,groupDateChanges,ongoingState:()=>ongoingState};
  }
  try{
   for(const theme of ['light','dark']){
@@ -109,6 +117,11 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    assert.equal(await page.locator('.feed-groups-strip').count(),0,'no strip is shown without an upcoming group');assert.equal(await page.locator('#activity-groups-strip').innerText(),'');
    await capture(page,`activity-groups-none-390-${theme}`,null,{fullPage:false});assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
+   ({context,page,errors}=await open(theme,390,'ongoing'));await page.goto(base+'/activity');await waitActivity(page);
+   assert.match(await page.locator('.feed-groups-copy b').innerText(),/Fictional trail club · All time/);assert.match(await page.locator('.feed-groups-copy small').innerText(),/You: 12 km of 100 km/);
+   assert.equal(await page.locator('.feed-groups-strip').getAttribute('aria-label'),'Group goal','ongoing groups do not present an event countdown');assert.doesNotMatch(await page.locator('.feed-groups-strip').innerText(),/week to go|Event today/);
+   await capture(page,`activity-groups-ongoing-390-${theme}`,null,{fullPage:false});assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
+
    ({context,page,errors,postedGroups}=await open(theme));
    await page.goto(base+'/me/friends?find=1');await page.locator('#fr-groups-shortcut').waitFor();await page.waitForFunction(()=>document.querySelector('#fr-groups-count')?.textContent==='0 active groups');
    assert.equal(await page.locator('#fr-groups-discover').getAttribute('href'),'/me/groups');assert.equal(await page.locator('#fr-group-create').getAttribute('href'),'/me/groups?create=1','Create opens the group sheet directly');
@@ -123,17 +136,40 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    assert.equal(await page.locator('#group-zone-change').innerText(),'Eastern time · Change');assert(!/America\/New_York/.test(await page.locator('#group-create-form').innerText()),'the create sheet shows a friendly zone label');
    assert.match(await page.locator('#group-create-form').innerText(),/Only group members see the group/,'the privacy note stays on the create sheet');
    assert(await page.locator('.group-create-footer button[type=submit]').isVisible(),'Create stays visible in the sheet footer');
+    const createDate=page.locator('[name=event_date]'),clearCreateDate=page.locator('#group-create-form [data-group-date-clear]');
+    assert.match(await createDate.locator('xpath=..').innerText(),/Event date \(optional\)/);assert.equal(await createDate.inputValue(),'','new groups start without an event date');assert.equal(await clearCreateDate.isVisible(),false,'the clear control stays hidden until a date is entered');
    await checkCreateSheet(page,390,16,theme);
-   await capture(page,`groups-create-390-${theme}`);
-   for(const width of [390,375,330])await checkCreateSheet(page,width,16,theme);
+    await capture(page,`groups-create-no-date-390-${theme}`);
+    for(const width of [390,375,330]){await checkCreateSheet(page,width,16,theme);if(width===330)await capture(page,`groups-create-no-date-330-${theme}`);}
    await page.setViewportSize({width:390,height:844});await page.evaluate(()=>document.documentElement.style.fontSize='16px');
+    await createDate.fill('2026-11-21');await clearCreateDate.waitFor({state:'visible'});await clearCreateDate.click();assert.equal(await createDate.inputValue(),'');assert.equal(await clearCreateDate.isVisible(),false,'Clear date removes the value and hides itself');
    await page.locator('#group-zone-change').click();await zone.waitFor({state:'visible'});await zone.evaluate(el=>el.blur());await zone.waitFor({state:'hidden'});assert.equal(await page.locator('#group-zone-change').innerText(),'Eastern time · Change','closing the picker without a selection restores the friendly action');
    await page.locator('#group-zone-change').click();await zone.waitFor({state:'visible'});await zone.selectOption('America/Los_Angeles');
    assert.equal(await page.locator('#group-zone-change').innerText(),'Pacific time · Change','the picker returns to a friendly label');assert.equal(await zone.isVisible(),false,'the picker closes after choosing a zone');
-   await page.locator('[name=title]').fill('Fictional Alpine Weekend');await page.locator('[name=event_date]').fill('2026-11-21');
+    await page.locator('[name=title]').fill('Fictional Alpine Weekend');
    await page.locator('#group-create-form button[type=submit]').click();await page.locator('[data-group-copy]').waitFor();assert.equal(postedGroups.at(-1).time_zone,'America/Los_Angeles','the selected zone is submitted');
+    assert.equal(postedGroups.at(-1).event_date,null,'the Create form submits an empty date as null');
    assert.equal(await page.locator('.group-invite-actions button').count(),2,'The organizer can copy or share the private link');
    await page.keyboard.press('Escape');await context.close();contexts.splice(contexts.indexOf(context),1);
+
+    ({context,page,errors,groupDateChanges,ongoingState}=await open(theme));await page.goto(base+groupUrl(idOngoing));await page.locator('.group-roster').waitFor();
+    assert.equal(await page.locator('.group-title>p:nth-of-type(2)').innerText(),'Distance · You: 12 mi');assert.equal(await page.locator('.group-goal-period').innerText(),'All time');
+    assert.equal(await page.locator('.group-event-day,.group-recap').count(),0);assert.equal(await page.locator('.group-total-note,.group-member-value').count(),0,'two members do not reveal combined or individual amounts');
+    assert.equal(await page.locator('[data-group-update="7010"] p').innerText(),'Fictional trail notes are ready.');
+    await capture(page,`groups-ongoing-390-${theme}`);
+    await page.locator('#group-options').click();assert.equal(await page.locator('[data-gact="recap-consent"]').count(),0,'dateless groups have no recap-consent prompt');
+    await page.locator('[data-gact="event-date"]').click();const editDate=page.locator('#group-event-date-form [name=event_date]'),clearEditDate=page.locator('#group-event-date-form [data-group-date-clear]');
+    assert.equal(await editDate.inputValue(),'');assert.equal(await clearEditDate.isVisible(),false);assert.match(await page.locator('#group-event-date-form').innerText(),/Clear the date for an ongoing goal/);
+    await capture(page,`groups-edit-date-390-${theme}`);await editDate.fill('2026-11-14');
+    const addDate=page.waitForResponse(r=>r.url().endsWith('/api/groups/'+idOngoing+'/event-date')&&r.request().method()==='PATCH');await page.locator('#group-event-date-form button[type=submit]').click();assert.equal((await addDate).status(),200);
+    await page.locator('.group-event-day').waitFor({state:'detached'});await page.waitForFunction(()=>!document.querySelector('.group-goal-period')&&document.querySelector('.group-title>p:nth-of-type(2)')?.textContent.includes('week to go'));
+    assert.equal(groupDateChanges.at(-1).event_date,'2026-11-14');assert.equal(await page.locator('[data-group-update="7010"]').count(),1);await capture(page,`groups-dated-390-${theme}`);
+    await page.locator('#group-options').click();assert.equal(await page.locator('[data-gact="recap-consent"]').count(),1,'adding a date enables recap consent');await page.locator('[data-close]').last().click();
+    await page.locator('#group-options').click();await page.locator('[data-gact="event-date"]').click();await editDate.waitFor();await clearEditDate.click();assert.equal(await editDate.inputValue(),'');
+    const clearDate=page.waitForResponse(r=>r.url().endsWith('/api/groups/'+idOngoing+'/event-date')&&r.request().method()==='PATCH');await page.locator('#group-event-date-form button[type=submit]').click();assert.equal((await clearDate).status(),200);
+    await page.locator('.group-goal-period').waitFor();assert.equal(await page.locator('.group-title>p:nth-of-type(2)').innerText(),'Distance · You: 12 mi');assert.equal(await page.locator('[data-group-update="7010"]').count(),1);
+    assert.equal(ongoingState().updates[0].reactions.clap,1,'changing the date preserves existing update reactions');assert.equal(await page.locator('.group-recap').count(),0);
+    assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors}=await open(theme));await page.goto(base+`/group-invite/${token}`);await page.locator('#group-accept').waitFor();
    assert.match(await page.locator('.group-invite-card').innerText(),/You’re invited to a private group/);assert(!/Dolomites|fictional_member/.test(await page.locator('.group-invite-card').innerText()));
@@ -196,6 +232,8 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
   for(const theme of ['light','dark']){
    const {context,page}=await open(theme,330,'one');await page.goto(base+'/activity');await waitActivity(page);const title=page.locator('.feed-groups-copy b');assert.match(await title.innerText(),/Dolomites hike · 31 wk to go/);
    const layout=await title.evaluate(el=>{const s=getComputedStyle(el),r=el.getBoundingClientRect();return{height:r.height,lineHeight:parseFloat(s.lineHeight),width:el.clientWidth,scrollWidth:el.scrollWidth,scrollHeight:el.scrollHeight,textOverflow:s.textOverflow,whiteSpace:s.whiteSpace};});assert(layout.height>=layout.lineHeight*0.9&&layout.scrollWidth<=layout.width+1&&layout.scrollHeight<=Math.ceil(layout.height)+1,`Activity title wraps cleanly at 330px (${theme}): ${JSON.stringify(layout)}`);assert.notEqual(layout.textOverflow,'ellipsis');assert.equal(layout.whiteSpace,'normal');await capture(page,`activity-groups-one-330-${theme}`,null,{fullPage:false});await context.close();contexts.splice(contexts.indexOf(context),1);
+   const ongoing=await open(theme,330);await ongoing.page.goto(base+groupUrl(idOngoing));await ongoing.page.locator('.group-roster').waitFor();assert(!(await ongoing.page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'ongoing group fits at 330px');await capture(ongoing.page,`groups-ongoing-330-${theme}`);
+   await ongoing.page.locator('#group-options').click();await ongoing.page.locator('[data-gact="event-date"]').click();await ongoing.page.locator('#group-event-date-form [name=event_date]').fill('2026-11-14');const add=ongoing.page.waitForResponse(r=>r.url().endsWith('/api/groups/'+idOngoing+'/event-date')&&r.request().method()==='PATCH');await ongoing.page.locator('#group-event-date-form button[type=submit]').click();assert.equal((await add).status(),200);await ongoing.page.waitForFunction(()=>!document.querySelector('.group-goal-period')&&document.querySelector('.group-title>p:nth-of-type(2)')?.textContent.includes('week to go'));assert(!(await ongoing.page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'dated group fits at 330px');await capture(ongoing.page,`groups-dated-330-${theme}`);assert.deepEqual(ongoing.errors,[]);await ongoing.context.close();contexts.splice(contexts.indexOf(ongoing.context),1);
   }
   const {context,page}=await open('light',330);await page.goto(base+groupUrl(idFull));await page.locator('[data-group-more]').click();assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'full roster has no horizontal overflow at 330px');await context.close();contexts.splice(contexts.indexOf(context),1);
   for(const theme of ['light','dark']){

@@ -266,6 +266,92 @@ class Groups(unittest.TestCase):
         self.assertEqual(unblocked_view['this_week_total'], 27)
         self.assertEqual(unblocked_view['this_week_contributors'], 4)
 
+    def test_ongoing_group_date_can_be_added_and_cleared(self):
+        zone = ZoneInfo('America/New_York')
+        body = {'title': 'Fictional trail club', 'time_zone': 'America/New_York',
+                'note': 'Fictional weekly trail goal', 'goal_type': 'distance',
+                'goal_target': 100, 'goal_unit': 'km'}
+        created = self.clients[0].post('/api/groups', json=body)
+        self.assertEqual(created.status_code, 200, created.text)
+        group = created.json()
+        self.assertIsNone(group['event_date'])
+        self.assertEqual(group['event_state'], 'ongoing')
+        self.assertIsNone(group['days_to_event'])
+        self.assertIsNone(group['weeks_to_event'])
+        self.assertNotIn('total', group)
+        self.assertEqual(group['your_total'], 0)
+
+        with db.connect() as c:
+            created_at = c.execute('SELECT created FROM event_groups WHERE id=%s',
+                                   (group['id'],)).fetchone()['created']
+            c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s',
+                      (created_at - dt.timedelta(days=10), group['id']))
+        self.activity(0, created_at - dt.timedelta(seconds=1), distance=3000, name='BEFORE GROUP')
+        self.activity(0, created_at + dt.timedelta(seconds=1), distance=12000, name='AFTER GROUP')
+        later = created_at + dt.timedelta(seconds=2)
+        with patch('app.groups._now', return_value=later):
+            ongoing = self.clients[0].get('/api/groups/' + group['id']).json()
+            strip = self.clients[0].get('/api/groups/activity-strip').json()
+        self.assertEqual(ongoing['event_state'], 'ongoing')
+        self.assertEqual(ongoing['your_total'], 12, 'ongoing totals begin at group creation')
+        self.assertNotIn('total', ongoing)
+        self.assertTrue(all('value' not in member for member in ongoing['members']))
+        self.assertNotIn('recap', ongoing)
+        self.assertTrue(strip['has_upcoming'])
+        self.assertEqual(strip['next']['id'], group['id'])
+        self.assertIsNone(strip['next']['event_date'])
+        self.assertIsNone(strip['next']['days_to_event'])
+        self.assertIsNone(strip['next']['weeks_to_event'])
+        self.assertEqual(strip['next']['event_state'], 'ongoing')
+        self.assertNotIn('total', strip['next'])
+
+        token = group['invite_url'].rsplit('/', 1)[1]
+        self.assertEqual(self.accept(token, who=1).status_code, 200)
+        denied = self.clients[1].patch(f"/api/groups/{group['id']}/event-date",
+                                       json={'event_date': (self.now.astimezone(zone).date() + dt.timedelta(days=40)).isoformat()})
+        self.assertEqual(denied.status_code, 404, 'only the organizer can edit the date')
+
+        update = self.clients[1].post(f"/api/groups/{group['id']}/updates",
+                                      json={'text': 'Fictional trail notes are ready.'})
+        self.assertEqual(update.status_code, 200, update.text)
+        update_id = update.json()['id']
+        reaction_kind = groups.reactions.KINDS[0]
+        reaction = self.clients[0].post(f"/api/groups/{group['id']}/updates/{update_id}/reaction",
+                                        json={'kind': reaction_kind})
+        self.assertEqual(reaction.status_code, 200, reaction.text)
+
+        event_date = self.now.astimezone(zone).date() + dt.timedelta(days=40)
+        with patch('app.groups._now', return_value=later):
+            added = self.clients[0].patch(f"/api/groups/{group['id']}/event-date",
+                                          json={'event_date': event_date.isoformat()})
+        self.assertEqual(added.status_code, 200, added.text)
+        self.assertEqual(added.json()['event_date'], event_date.isoformat())
+        self.assertEqual(added.json()['event_state'], 'upcoming')
+
+        with patch('app.groups._now', return_value=later):
+            cleared = self.clients[0].patch(f"/api/groups/{group['id']}/event-date",
+                                            json={'event_date': None})
+            ongoing = self.clients[0].get('/api/groups/' + group['id']).json()
+        self.assertEqual(cleared.status_code, 200, cleared.text)
+        self.assertIsNone(cleared.json()['event_date'])
+        self.assertEqual(cleared.json()['event_state'], 'ongoing')
+        self.assertIsNone(cleared.json()['days_to_event'])
+        self.assertIsNone(cleared.json()['weeks_to_event'])
+        self.assertEqual(ongoing['your_total'], 12)
+        self.assertNotIn('total', ongoing)
+        self.assertNotIn('recap', ongoing)
+        self.assertEqual(len(ongoing['updates']), 1, 'clearing a date preserves group updates')
+        self.assertEqual(ongoing['updates'][0]['id'], update_id)
+        self.assertEqual(ongoing['updates'][0]['reactions'][reaction_kind], 1,
+                         'clearing a date preserves update reactions')
+        with db.connect() as c:
+            notices = c.execute("""SELECT user_id,kind FROM notifications
+                WHERE group_id=%s AND kind IN ('group_update','group_cheer')""",
+                                (group['id'],)).fetchall()
+        self.assertCountEqual([(row['user_id'], row['kind']) for row in notices],
+                              [(self.ids[0], 'group_update'), (self.ids[1], 'group_cheer')],
+                              'ongoing groups still send update and cheer notices')
+
     def test_elevation_long_outing_and_session_goal_units(self):
         elevation, _ = self.make(goal_type='elevation', goal_target=100, goal_unit='ft')
         long_outings, _ = self.make(goal_type='long_outings', goal_target=1, goal_unit='outings')

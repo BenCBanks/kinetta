@@ -2139,6 +2139,9 @@ MIGRATIONS = [
     UPDATE group_weekly_reactions SET kind=CASE kind WHEN 'hike' THEN 'mountain' WHEN 'lift' THEN 'muscle' END
        WHERE kind IN ('hike','lift');""",
 
+    # 105. Ongoing groups have no fixed event date.
+    """ALTER TABLE event_groups ALTER COLUMN event_date DROP NOT NULL;""",
+
 ]
 
 

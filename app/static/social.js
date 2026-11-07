@@ -279,10 +279,10 @@ async function feedPage(before,size=FEED_N) {
 
 function activityGroupStripHtml(data){
   const group=data.next,combined=group.total!==undefined,value=Number(combined?group.total:group.your_total)||0,target=Number(group.goal_target)||0;
-  const progress=Math.min(target||1,Math.max(0,value)),weeks=group.weeks_to_event||0;
-  const timing=group.days_to_event===0?'Event today':`${weeks} ${weeks===1?'week':'wk'} to go`;
+  const progress=Math.min(target||1,Math.max(0,value)),ongoing=group.event_state==='ongoing'||group.event_date==null, weeks=group.weeks_to_event||0;
+  const timing=ongoing?'All time':group.days_to_event===0?'Event today':`${weeks} ${weeks===1?'week':'wk'} to go`;
   const more=data.more_count?`<a class="feed-groups-more" href="/me/groups" aria-label="See ${data.more_count} more ${data.more_count===1?'group':'groups'}">+${data.more_count}</a>`:'';
-  return `<section class="feed-social-strip feed-groups-strip" aria-label="Next group event"><div class="feed-groups-row">
+  return `<section class="feed-social-strip feed-groups-strip" aria-label="${ongoing?'Group goal':'Next group event'}"><div class="feed-groups-row">
     <a class="row-link feed-groups-link" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('calendar')}</span><span class="grow feed-groups-copy"><b>${esc(group.title)} · ${esc(timing)}</b><small>${combined?'Together':'You'}: ${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}</small><progress class="feed-group-progress" max="${target||1}" value="${progress}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}"></progress></span><span class="chev">${svg('chev')}</span></a>
     ${more}</div></section>`;
 }
@@ -1045,25 +1045,43 @@ function groupCreateSheet(done){
   const today=new Date().toLocaleDateString('en-CA'),zone=Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';
   sheet('Create a group',`<form class="form group-create-form" id="group-create-form"><div class="group-create-fields">
     <label>Group name<input name="title" maxlength="80" required autocomplete="off" placeholder="Dolomites hike"></label>
-    <label>Event date<input name="event_date" type="date" min="${today}" required></label>
+    <label>Event date (optional)<input name="event_date" type="date" min="${today}"></label><button class="group-date-clear" type="button" data-group-date-clear hidden>Clear date</button>
     <div class="group-time-zone"><button class="group-zone-change" type="button" id="group-zone-change">${esc(groupTimeZoneLabel(zone))} · Change</button><select class="group-zone-picker" name="time_zone" aria-label="Event time zone" required hidden>${groupTimeZoneOptions(zone)}</select></div>
     <label>Short note (optional)<textarea name="note" maxlength="280" rows="2"></textarea></label>
     <label>Shared goal<select name="goal_type"><option value="distance">Distance</option><option value="elevation">Elevation</option><option value="long_outings">Long outings</option><option value="sessions">Sessions</option></select></label>
     <div class="group-goal-fields"><label>Target<input name="goal_target" type="number" min="0.1" max="1000000" step="0.1" value="100" required></label><label>Units<select name="goal_unit"><option value="km">km</option><option value="mi">mi</option></select></label></div>
     <p class="small muted">Only group members see the group. Activities, routes, food and body data stay private.</p></div>
     <div class="group-create-footer"><button class="primary wide" type="submit">Create group</button><button class="linkbtn wide" type="button" data-close>Cancel</button></div></form>`,(body,close)=>{
-      const form=$('#group-create-form',body),kind=form.elements.goal_type,unit=form.elements.goal_unit,target=form.elements.goal_target,zoneButton=$('#group-zone-change',form),zonePicker=form.elements.time_zone;
+      const form=$('#group-create-form',body),kind=form.elements.goal_type,unit=form.elements.goal_unit,target=form.elements.goal_target,zoneButton=$('#group-zone-change',form),zonePicker=form.elements.time_zone,date=form.elements.event_date,clearDate=$('[data-group-date-clear]',form);
       const setGoal=()=>{const options=kind.value==='distance'?[['km','km'],['mi','mi']]:kind.value==='elevation'?[['m','m'],['ft','ft']]:kind.value==='long_outings'?[['outings','outings']]:[['sessions','sessions']];unit.innerHTML=options.map(([value,label])=>`<option value="${value}">${label}</option>`).join('');target.step=options[0][0]==='km'||options[0][0]==='mi'||options[0][0]==='m'||options[0][0]==='ft'?'0.1':'1';target.min=target.step;};
       kind.onchange=setGoal;setGoal();
+      const syncDateClear=()=>{clearDate.hidden=!date.value;};date.oninput=syncDateClear;date.onchange=syncDateClear;
+      clearDate.onclick=()=>{date.value='';syncDateClear();date.focus({preventScroll:true});};
       zoneButton.onclick=()=>{zonePicker.hidden=false;zoneButton.hidden=true;zonePicker.focus({preventScroll:true});try{zonePicker.showPicker?.();}catch{}};
       const closeZonePicker=()=>{if(zonePicker.hidden)return;zoneButton.textContent=`${groupTimeZoneLabel(zonePicker.value)} · Change`;zonePicker.hidden=true;zoneButton.hidden=false;};
       zonePicker.onchange=()=>{closeZonePicker();zoneButton.focus({preventScroll:true});};zonePicker.onblur=closeZonePicker;
       form.onsubmit=async event=>{event.preventDefault();const submit=$('button[type=submit]',form);if(submit.disabled)return;submit.disabled=true;
-        const data={title:form.elements.title.value.trim(),event_date:form.elements.event_date.value,time_zone:zonePicker.value,note:form.elements.note.value.trim(),goal_type:kind.value,goal_target:Number(target.value),goal_unit:unit.value};
+        const data={title:form.elements.title.value.trim(),event_date:date.value||null,time_zone:zonePicker.value,note:form.elements.note.value.trim(),goal_type:kind.value,goal_target:Number(target.value),goal_unit:unit.value};
         try{const group=await api('/api/groups',json('POST',data));if(!body.isConnected)return;close();done(group);}
         catch(error){if(body.isConnected){toast(error.message);submit.disabled=false;}}
       };
       $('[data-close]',body).onclick=close;
+    });
+}
+function groupEventDateSheet(group,reload){
+  sheet('Edit event date',`<form class="form group-create-form" id="group-event-date-form"><div class="group-create-fields">
+    <label>Event date (optional)<input name="event_date" type="date" value="${esc(group.event_date||'')}"></label>
+    <button class="group-date-clear" type="button" data-group-date-clear${group.event_date?'':' hidden'}>Clear date</button>
+    <p class="small muted">Clear the date for an ongoing goal. Its total starts with this group.</p>
+    </div><div class="group-create-footer"><button class="primary wide" type="submit">Save</button><button class="linkbtn wide" type="button" data-close>Cancel</button></div></form>`,(body,close)=>{
+      const form=$('#group-event-date-form',body),date=form.elements.event_date,clearDate=$('[data-group-date-clear]',form);
+      const syncDateClear=()=>{clearDate.hidden=!date.value;};date.oninput=syncDateClear;date.onchange=syncDateClear;
+      clearDate.onclick=()=>{date.value='';syncDateClear();date.focus({preventScroll:true});};
+      $('[data-close]',body).onclick=close;
+      form.onsubmit=async event=>{event.preventDefault();const save=$('button[type=submit]',form);if(save.disabled)return;save.disabled=true;
+        try{await api(`/api/groups/${encodeURIComponent(group.id)}/event-date`,json('PATCH',{event_date:date.value||null}));close();toast('Group updated');reload();}
+        catch(error){if(body.isConnected){toast(error.message);save.disabled=false;}}
+      };
     });
 }
 route(/^\/me\/groups$/, 'me', async el=>{
@@ -1072,7 +1090,7 @@ route(/^\/me\/groups$/, 'me', async el=>{
   const live=()=>el.isConnected,create=()=>groupCreateSheet(group=>{go('/groups/'+encodeURIComponent(group.id),{replace:true});groupInviteSheet(group.invite_url);});
   $('#group-new',el).onclick=create;
   if(createRequested){const address=new URL(location.href);address.searchParams.delete('create');replacePageAddress(el,address.pathname+address.search+address.hash);create();}
-  try{const groups=await api('/api/groups');if(!live())return;$('#group-list',el).innerHTML=groups.length?`<div class="card list">${groups.map(group=>`<a class="row-link group-list-row" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('calendar')}</span><span class="grow"><b>${esc(group.title)}</b><small>${esc(groupDate(group.event_date,group.time_zone))} · ${group.member_count} ${group.member_count===1?'member':'members'}</small></span>${svg('chev')}</a>`).join('')}</div>`:`<div class="group-empty"><p>Groups are private places to prepare for one event together.</p><button type="button" class="primary" id="group-empty-create">Create a group</button></div>`;
+  try{const groups=await api('/api/groups');if(!live())return;$('#group-list',el).innerHTML=groups.length?`<div class="card list">${groups.map(group=>`<a class="row-link group-list-row" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('calendar')}</span><span class="grow"><b>${esc(group.title)}</b><small>${group.event_date?`${esc(groupDate(group.event_date,group.time_zone))} · `:'All time · '}${group.member_count} ${group.member_count===1?'member':'members'}</small></span>${svg('chev')}</a>`).join('')}</div>`:`<div class="group-empty"><p>Groups are private places to work toward a shared goal.</p><button type="button" class="primary" id="group-empty-create">Create a group</button></div>`;
     $('#group-empty-create',el)?.addEventListener('click',create);
   }catch(error){if(live())$('#group-list',el).innerHTML=`<div class="card empty">${esc(error.message)}<button type="button" class="ghost" id="group-retry">Retry</button></div>`;$('#group-retry',el)?.addEventListener('click',()=>go('/me/groups',{replace:true}));}
 });
@@ -1145,14 +1163,17 @@ function groupGoal(group){
   const week=group.this_week_total!==undefined?`This week · +${groupNumber(group.this_week_total)} ${group.goal_unit} from ${group.this_week_contributors} of ${group.member_count} people`:`This week · You: ${groupAmount(group.your_this_week_total,group.goal_unit)}`;
   const weekHtml=group.this_week_total!==undefined||group.your_this_week_total!==undefined?`<small class="group-week">${esc(week)}</small>`:'';
   const weeklyCheer=group.event_state!=='complete'&&!group.closed?`<div class="group-week-cheer">${reactionButtons(null,group.weekly_reaction||{},false,true,null,{id:group.id})}</div>`:'';
-  return `<section class="group-goal card" aria-label="Shared goal"><small>${esc(GROUP_GOALS[group.goal_type]||'Shared goal')}</small><strong>${combined?'Together':'You'}: ${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}</strong><progress class="group-progress" max="${progressMax}" value="${progressValue}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}"></progress>${weekHtml}${combined?'<small class="group-total-note">Your activity counts toward group totals.</small>':''}${weeklyCheer}${combined?'':'<small class="group-goal-hint">Group totals appear with 3 members</small>'}</section>`;
+  return `<section class="group-goal card" aria-label="Shared goal"><small>${esc(GROUP_GOALS[group.goal_type]||'Shared goal')}</small>${group.event_state==='ongoing'?'<small class="group-goal-period">All time</small>':''}<strong>${combined?'Together':'You'}: ${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}</strong><progress class="group-progress" max="${progressMax}" value="${progressValue}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}"></progress>${weekHtml}${combined?'<small class="group-total-note">Your activity counts toward group totals.</small>':''}${weeklyCheer}${combined?'':'<small class="group-goal-hint">Group totals appear with 3 members</small>'}</section>`;
 }
 function groupPage(el,group){
-  group={...group,event_state:group.event_state||((group.days_to_event||0)===0?'today':'upcoming'),updates:group.updates||[],weekly_reaction:group.weekly_reaction||{my_reaction:null,reactions:{}}};
+  group={...group,event_state:group.event_state||(group.event_date==null?'ongoing':(group.days_to_event||0)===0?'today':'upcoming'),updates:group.updates||[],weekly_reaction:group.weekly_reaction||{my_reaction:null,reactions:{}}};
   let expanded=false;
   const reload=async()=>{invalidate('/api/groups/'+encodeURIComponent(group.id));try{const fresh=await api('/api/groups/'+encodeURIComponent(group.id));if(el.isConnected)groupPage(el,fresh);}catch(error){if(el.isConnected)toast(error.message);}};
-  const draw=()=>{const weeks=group.weeks_to_event??Math.ceil(group.days_to_event/7),timing=group.event_state==='today'?"Today’s the day":group.event_state==='complete'?'Event complete':`${weeks} ${weeks===1?'week':'weeks'} to go`;el.innerHTML=`<div class="top group-top">${backBtn('Groups')}<span></span><button type="button" class="icon-btn" id="group-options" aria-label="Group options">${svg('more')}</button></div>
-    <header class="group-title"><p class="eyebrow">Private group</p><h1>${esc(group.title)}</h1><p>${esc(groupDate(group.event_date,group.time_zone))} · ${esc(timing)}</p>${group.note?`<p class="group-note">${esc(group.note)}</p>`:''}</header>
+  const draw=()=>{const weeks=group.weeks_to_event??Math.ceil(group.days_to_event/7),timing=group.event_state==='today'?"Today’s the day":group.event_state==='complete'?'Event complete':`${weeks} ${weeks===1?'week':'weeks'} to go`;
+    const total=group.total!==undefined?`Together: ${groupAmount(group.total,group.goal_unit)}`:`You: ${groupAmount(group.your_total,group.goal_unit)}`;
+    const summary=group.event_state==='ongoing'?`${GROUP_GOALS[group.goal_type]||'Shared goal'} · ${total}`:`${groupDate(group.event_date,group.time_zone)} · ${timing}`;
+    el.innerHTML=`<div class="top group-top">${backBtn('Groups')}<span></span><button type="button" class="icon-btn" id="group-options" aria-label="Group options">${svg('more')}</button></div>
+    <header class="group-title"><p class="eyebrow">Private group</p><h1>${esc(group.title)}</h1><p>${esc(summary)}</p>${group.note?`<p class="group-note">${esc(group.note)}</p>`:''}</header>
     ${groupGoal(group)}
     ${group.event_state==='today'?'<section class="group-event-day card">Today’s the day</section>':group.event_state==='complete'?groupRecapCard(group):''}
     <section class="group-roster card list"><h2>Members <span>${group.member_count}</span></h2>${group.members.some(member=>member.sharing_total_only)?'<p class="group-member-private-note">Some members keep their amount private</p>':''}<div id="group-members">${groupRoster(group,expanded)}</div></section>
@@ -1169,16 +1190,18 @@ function groupPage(el,group){
 function groupActionSheet(title,html,handler){sheet(title,html,handler);}
 function groupMenu(group,reload){
   const opts=[];
+  if(group.is_organizer&&!group.closed)opts.push('<button type="button" class="row-link" data-gact="event-date"><span>Edit event date</span>'+svg('chev')+'</button>');
   if(group.is_organizer&&!group.closed)opts.push(`<button type="button" class="row-link" data-gact="invite"><span>Invite people</span>${svg('chev')}</button>`,group.joining_closed?`<button type="button" class="row-link" data-gact="reopen"><span>Make a new invite</span>${svg('chev')}</button>`:`<button type="button" class="row-link" data-gact="stop"><span>Stop new members</span>${svg('chev')}</button>`);
   if(group.is_organizer&&group.member_count>1)opts.push(`<button type="button" class="row-link" data-gact="transfer"><span>Transfer organizer</span>${svg('chev')}</button>`,`<button type="button" class="row-link" data-gact="remove"><span>Remove a member</span>${svg('chev')}</button>`);
   if(group.is_organizer&&!group.closed)opts.push(`<button type="button" class="row-link danger" data-gact="close"><span>Close group</span>${svg('chev')}</button>`);
-  opts.push(`<button type="button" class="row-link" data-gact="recap-consent"><span>${group.recap_consent?'Remove my name from the event recap':'Include my name in the event recap'}</span>${svg('chev')}</button>`);
+  if(group.event_date)opts.push(`<button type="button" class="row-link" data-gact="recap-consent"><span>${group.recap_consent?'Remove my name from the event recap':'Include my name in the event recap'}</span>${svg('chev')}</button>`);
   opts.push(`<button type="button" class="row-link" data-gact="notifications"><span>${group.notifications_muted?'Unmute group notifications':'Mute group notifications'}</span>${svg('chev')}</button>`,`<button type="button" class="row-link" data-gact="mute-strip"><span>Mute Activity strip</span>${svg('chev')}</button>`);
   opts.push(`<button type="button" class="row-link" data-gact="leave"><span>Leave group</span>${svg('chev')}</button>`,`<button type="button" class="row-link" data-gact="report"><span>Report group</span>${svg('chev')}</button>`);
   groupActionSheet('Group options',`<div class="group-options-list">${opts.join('')}</div><button type="button" class="linkbtn wide" data-close>Cancel</button>`,(body,close)=>{
     const run=async(path,method='POST',payload={})=>{try{await api(path,json(method,payload));close();toast('Group updated');reload();}catch(error){toast(error.message);}};
     $$('[data-gact]',body).forEach(button=>button.onclick=()=>{const action=button.dataset.gact;close();
       if(action==='invite'||action==='reopen')api('/api/groups/'+encodeURIComponent(group.id)+'/invites',json('POST',{})).then(r=>groupInviteSheet(r.invite_url)).catch(e=>toast(e.message));
+      else if(action==='event-date')groupEventDateSheet(group,reload);
       else if(action==='stop')run('/api/groups/'+encodeURIComponent(group.id)+'/stop-joining');
       else if(action==='leave')groupConfirm('Leave group?','Your contribution will disappear from the group.',()=>run('/api/groups/'+encodeURIComponent(group.id)+'/leave'));
       else if(action==='close')groupConfirm('Close group?','People can no longer join this group.',()=>run('/api/groups/'+encodeURIComponent(group.id)+'/close'));
