@@ -7,7 +7,7 @@ function fixture({mine=true,search='?edit=1&tab=overview',delay=false}={}){
  const events=[],location={pathname:'/activity/42',search,hash:'#details'},el={isConnected:true};
  const row={id:42,owner:mine?null:{login:'other'},start_time:'2020-01-01T12:00:00Z'};
  const c={closeActivityEditor:()=>true,URLSearchParams,Date,location,history:{state:{demo:true},replaceState(state,unused,href){events.push('consume');const url=new URL(href,'https://example.test');Object.assign(location,{pathname:url.pathname,search:url.search,hash:url.hash});}},
-  readOwner:()=>owner,Milestones:{read:async()=>({items:[]}),paint(){}},drawDetail(){draw++;},$:()=>({}),isoDay:d=>d.toISOString().slice(0,10),
+  readOwner:()=>owner,Milestones:{read:async()=>({items:[]}),paint(){},celebrate(){}},drawDetail(){draw++;},$:()=>({}),isoDay:d=>d.toISOString().slice(0,10),
   editActivity(a){assert.equal(a.id,42);assert(!new URLSearchParams(location.search).has('edit'),'Consume before opening');events.push('open');open++;},
   load:async(path,render)=>{if(delay){await new Promise(resolve=>pending=()=>{render(row);resolve();});}else{render(row);render({...row,name:'Fresh version'});}},
  };

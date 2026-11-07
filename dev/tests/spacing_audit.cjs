@@ -65,7 +65,7 @@ const report=path.resolve(process.env.KINETTA_SPACING_REPORT||'/tmp/'+project+'-
     if(pictures){fs.mkdirSync(pictures,{recursive:true});await p.evaluate(todayPlan=>{const section=todayPlan&&document.querySelector('#t-today .me-today');window.scrollTo(0,section?Math.max(0,window.scrollY+section.getBoundingClientRect().top-96):0);const sheet=document.querySelector('.scrim:not([inert]):not(.is-closing) .sheet'),body=sheet?.querySelector(':scope > .sbody'),el=body&&body.scrollHeight>body.clientHeight+1?body:sheet;el?.scrollTo(0,0);},!!scene.todayPlan);await settle(p);await p.screenshot({path:path.join(pictures,scene.name.replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'-'+size.width+'-'+theme+'.png')});}
     const {violations,exceptionsUsed}=combineMeasurements(measurements,rules);
     results.push({screen:scene.name,width:size.width,root:size.root,theme,violations,exceptionsUsed});
-    const expectedWrites=scene.name==='Activity detail'?new Set(['/api/milestones/celebrate']):new Set();
+    const expectedWrites=['Activity detail','Activity photo viewer','Activity full map'].includes(scene.name)?new Set(['/api/milestones/celebrate']):new Set();
     const unexpectedWrites=writes.filter(path=>!expectedWrites.has(path));
     if(pageErrors.length||unexpectedWrites.length)errors.push({screen:scene.name,width:size.width,theme,pageErrors,writes:unexpectedWrites});
     console.log(`${scene.name} ${size.width}/${size.root} ${theme}: ${violations.length} violations`);
