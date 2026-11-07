@@ -17,8 +17,19 @@ manifest=plistlib.loads((ROOT/'ios/App/App/PrivacyInfo.xcprivacy').read_bytes())
 rows={r['NSPrivacyCollectedDataType'].removeprefix('NSPrivacyCollectedDataType'):r for r in manifest['NSPrivacyCollectedDataTypes']}
 assert len(rows)==len(manifest['NSPrivacyCollectedDataTypes']),'Duplicate category'
 assert {'EmailAddress','DeviceID','Contacts','OtherDataTypes','OtherDiagnosticData','SearchHistory'}<=rows.keys()
-for row in rows.values():
-    assert row['NSPrivacyCollectedDataTypeLinked'] and not row['NSPrivacyCollectedDataTypeTracking']
+info=plistlib.loads((ROOT/'ios/App/App/Info.plist').read_bytes())
+contacts_permission=info.get('NSContactsUsageDescription','').lower()
+if contacts_permission:
+    assert {'PhoneNumber'}<=rows.keys()
+    assert rows['Contacts']['NSPrivacyCollectedDataTypeLinked'] is False
+    assert rows['PhoneNumber']['NSPrivacyCollectedDataTypeLinked'] is True
+    assert all(term in contacts_permission for term in ('contacts','salted','phone','stay on your phone'))
+else:
+    # Before native address-book access, Contacts described the linked social graph.
+    assert rows['Contacts']['NSPrivacyCollectedDataTypeLinked'] is True
+for name,row in rows.items():
+    assert not row['NSPrivacyCollectedDataTypeTracking'],name
+    if name!='Contacts': assert row['NSPrivacyCollectedDataTypeLinked'],name
 for name in ('Health','Fitness','UserID','ProductInteraction'):
     assert 'NSPrivacyCollectedDataTypePurposeAnalytics' in rows[name]['NSPrivacyCollectedDataTypePurposes'],name
 assert manifest['NSPrivacyTracking'] is False and not manifest['NSPrivacyTrackingDomains']
