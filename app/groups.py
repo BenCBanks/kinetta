@@ -116,6 +116,18 @@ def _zone(name):
         raise HTTPException(400, 'Choose a valid time zone')
 
 
+def _validate_event_date(event_date, time_zone, now=None):
+    if event_date is None:
+        return
+    today = (now or _now()).astimezone(_zone(time_zone)).date()
+    try:
+        latest = today.replace(year=today.year + 5)
+    except ValueError:  # February 29 reaches February 28 five years later.
+        latest = today.replace(year=today.year + 5, day=28)
+    if not today <= event_date <= latest:
+        raise HTTPException(422, 'Choose an event date from today through five years from now')
+
+
 def _local_week_window(zone_name, now):
     zone = _zone(zone_name)
     local_day = now.astimezone(zone).date()
@@ -444,9 +456,7 @@ def _group_detail(c, group, uid, answer):
 @router.post('/api/groups')
 def create_group(body: GroupCreate, request: Request, user=Depends(current_user)):
     _valid_goal(body)
-    zone = _zone(body.time_zone)
-    if body.event_date is not None and body.event_date < dt.datetime.now(UTC).astimezone(zone).date():
-        raise HTTPException(400, 'Choose today or a future event date')
+    _validate_event_date(body.event_date, body.time_zone)
     with db.connect() as c:
         from . import challenges
         challenges.account_locks(c, [user['id']])
@@ -518,6 +528,10 @@ def update_group_event_date(group_id: str, body: GroupEventDate, user=Depends(cu
         group = _organizer_group(c, group_id, user['id'], lock=True)
         if group['closed_at']:
             raise HTTPException(409, 'This group is closed')
+        now = _now()
+        if group['event_date'] is not None and now.astimezone(_zone(group['time_zone'])).date() > group['event_date']:
+            raise HTTPException(409, 'This group has ended and its event date cannot be changed')
+        _validate_event_date(body.event_date, group['time_zone'], now)
         updated = c.execute('UPDATE event_groups SET event_date=%s WHERE id=%s RETURNING *',
                             (body.event_date, group['id'])).fetchone()
         return _answer(c, updated, user['id'])

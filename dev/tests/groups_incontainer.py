@@ -352,6 +352,59 @@ class Groups(unittest.TestCase):
                               [(self.ids[0], 'group_update'), (self.ids[1], 'group_cheer')],
                               'ongoing groups still send update and cheer notices')
 
+    def test_event_date_bounds_are_local_and_enforced_on_create_and_patch(self):
+        zone = 'America/Los_Angeles'
+        fixed_now = dt.datetime(2026, 1, 1, 1, 0, tzinfo=dt.timezone.utc)
+        today = fixed_now.astimezone(ZoneInfo(zone)).date()
+        latest = today.replace(year=today.year + 5)
+        self.assertEqual(today, dt.date(2025, 12, 31), 'bounds use the group time zone, not UTC')
+        body = {'title': 'Fictional date-bound group', 'time_zone': zone,
+                'note': 'Fictional bounded event', 'goal_type': 'distance',
+                'goal_target': 10, 'goal_unit': 'km'}
+        rejected_dates = (today - dt.timedelta(days=1), latest + dt.timedelta(days=1), dt.date.max)
+        with patch('app.groups._now', return_value=fixed_now):
+            for event_date in rejected_dates:
+                created = self.clients[0].post('/api/groups', json=body | {'event_date': event_date.isoformat()})
+                self.assertEqual(created.status_code, 422, f'create rejects {event_date}')
+            for event_date in (today, latest):
+                created = self.clients[0].post('/api/groups', json=body | {'event_date': event_date.isoformat()})
+                self.assertEqual(created.status_code, 200, created.text)
+                self.assertEqual(created.json()['event_date'], event_date.isoformat())
+
+            ongoing = self.clients[0].post('/api/groups', json=body)
+            self.assertEqual(ongoing.status_code, 200, ongoing.text)
+            group_id = ongoing.json()['id']
+            for event_date in rejected_dates:
+                updated = self.clients[0].patch(f'/api/groups/{group_id}/event-date',
+                                                 json={'event_date': event_date.isoformat()})
+                self.assertEqual(updated.status_code, 422, f'PATCH rejects {event_date}')
+            for event_date in (today, latest):
+                updated = self.clients[0].patch(f'/api/groups/{group_id}/event-date',
+                                                 json={'event_date': event_date.isoformat()})
+                self.assertEqual(updated.status_code, 200, updated.text)
+                self.assertEqual(updated.json()['event_date'], event_date.isoformat())
+
+    def test_completed_group_event_date_cannot_be_changed(self):
+        group, _ = self.make()
+        zone = ZoneInfo(group['time_zone'])
+        today = self.now.astimezone(zone).date()
+        completed_date = today - dt.timedelta(days=1)
+        with db.connect() as c:
+            c.execute('UPDATE event_groups SET event_date=%s WHERE id=%s', (completed_date, group['id']))
+
+        future_date = today + dt.timedelta(days=30)
+        with patch('app.groups._now', return_value=self.now):
+            complete = self.clients[0].get(f"/api/groups/{group['id']}")
+            self.assertEqual(complete.status_code, 200, complete.text)
+            self.assertEqual(complete.json()['event_state'], 'complete')
+            changed = self.clients[0].patch(f"/api/groups/{group['id']}/event-date",
+                                            json={'event_date': future_date.isoformat()})
+        self.assertEqual(changed.status_code, 409, changed.text)
+        with db.connect() as c:
+            self.assertEqual(c.execute('SELECT event_date FROM event_groups WHERE id=%s',
+                                       (group['id'],)).fetchone()['event_date'], completed_date,
+                             'a completed group keeps its original event date')
+
     def test_elevation_long_outing_and_session_goal_units(self):
         elevation, _ = self.make(goal_type='elevation', goal_target=100, goal_unit='ft')
         long_outings, _ = self.make(goal_type='long_outings', goal_target=1, goal_unit='outings')
