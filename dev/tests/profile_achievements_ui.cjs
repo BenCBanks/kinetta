@@ -138,7 +138,7 @@ module.exports=async({browser,storageState,base,shots})=>{
    if(request.method()==='GET'&&url.pathname==='/api/achievements/showcase')return route.fulfill({json:{items:[],pinned:showcasePins,day_streak:0}});
    if(request.method()==='POST'&&url.pathname==='/api/achievements/showcase/pin'){
     const body=request.postDataJSON();pinRequests.push(body);let replaced=false;
-    if(body.pinned){if(!showcasePins.includes(body.code)){if(showcasePins.length>=3){showcasePins.shift();replaced=true;}showcasePins.push(body.code);}}
+    if(body.pinned){if(!showcasePins.includes(body.code)){if(showcasePins.length>=4){showcasePins.shift();replaced=true;}showcasePins.push(body.code);}}
     else showcasePins=showcasePins.filter(code=>code!==body.code);
     return route.fulfill({json:{pinned:showcasePins,replaced}});
    }

@@ -386,12 +386,16 @@ def achievements(user=Depends(current_user)):
     return {'tracks': out, 'pending': pending}
 
 
-SHOWCASE_MAX = 3
+SHOWCASE_MAX = 4
 
 
 class ShowcasePinUpdate(BaseModel):
     code: str = Field(min_length=1, max_length=80)
     pinned: bool
+
+
+class ShowcasePinsUpdate(BaseModel):
+    pinned: list[str]
 
 
 def _showcase_pins(value):
@@ -561,6 +565,26 @@ def update_showcase_pin(body: ShowcasePinUpdate, user=Depends(current_user)):
             pins = [item for item in pins if item != code]
         c.execute('UPDATE profile SET showcase_pins=%s WHERE user_id=%s', (pins, user['id']))
     return {'pinned': pins, 'replaced': replaced}
+
+
+@router.put('/achievements/showcase/pins')
+def update_showcase_pins(body: ShowcasePinsUpdate, user=Depends(current_user)):
+    pins = [code.strip() for code in body.pinned]
+    if len(pins) > SHOWCASE_MAX:
+        raise HTTPException(400, 'Choose up to four achievements')
+    if len(pins) != len(set(pins)):
+        raise HTTPException(400, 'Choose each achievement only once')
+    if any(code not in _level_catalog().get('tracks', {}) for code in pins):
+        raise HTTPException(400, 'Unknown achievement track')
+    with db.connect() as c:
+        profile = c.execute('SELECT units FROM profile WHERE user_id=%s FOR UPDATE', (user['id'],)).fetchone()
+        if not profile:
+            raise HTTPException(404, 'Profile not found')
+        candidates = _showcase_candidates(c, user['id'], profile.get('units') or 'imperial')
+        if any(code not in candidates for code in pins):
+            raise HTTPException(409, 'Earn each achievement before featuring it')
+        c.execute('UPDATE profile SET showcase_pins=%s WHERE user_id=%s', (pins, user['id']))
+    return {'pinned': pins}
 
 
 @router.get('/achievement-history/{code}')
