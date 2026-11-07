@@ -41,7 +41,7 @@ class Groups(unittest.TestCase):
 
     def tearDown(self):
         with db.connect() as c:
-            c.execute("DELETE FROM auth_attempts WHERE key LIKE 'group-accept-%'")
+            c.execute("DELETE FROM auth_attempts WHERE key LIKE 'group-accept-%' OR key LIKE 'group-invite-ip:%'")
             for uid in self.ids:
                 c.execute('DELETE FROM users WHERE id=%s', (uid,))
         for client in self.clients:
@@ -79,7 +79,7 @@ class Groups(unittest.TestCase):
             self.assertNotIn(original.encode(), bytes(stored))
         preview = self.anon.get('/api/group-invites/' + original)
         self.assertEqual(preview.status_code, 200)
-        self.assertEqual(preview.json(), {'message': "You're invited to a private group."})
+        self.assertEqual(preview.json(), {'available': True})
         self.assertNotIn(group['title'], preview.text)
         self.assertEqual(self.clients[1].get('/api/groups/' + group['id']).status_code, 404)
         accepted = self.accept(original)
@@ -98,6 +98,24 @@ class Groups(unittest.TestCase):
         expired = self.accept(replacement, who=3)
         self.assertEqual(expired.status_code, 404)
         self.assertEqual(expired.json(), unknown.json())
+
+    def test_left_and_removed_members_cannot_reuse_invites(self):
+        group, original = self.make()
+        self.assertEqual(self.accept(original).status_code, 200)
+        self.assertEqual(self.clients[1].post('/api/groups/' + group['id'] + '/leave', json={}).status_code, 200)
+        rotated = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={}).json()['invite_url'].rsplit('/', 1)[1]
+        stale = self.accept(original, who=1)
+        unknown = self.accept('0' * 32, who=1)
+        self.assertEqual(stale.status_code, 404)
+        self.assertEqual(stale.json(), unknown.json())
+        self.assertEqual(self.accept(rotated, who=1).status_code, 200)
+        login = self.clients[1].get('/api/me').json()['login']
+        removed = self.clients[0].post('/api/groups/' + group['id'] + '/remove', json={'username': login})
+        self.assertEqual(removed.status_code, 200)
+        refused = self.accept(rotated, who=1)
+        unknown = self.accept('0' * 32, who=1)
+        self.assertEqual(refused.status_code, 404)
+        self.assertEqual(refused.json(), unknown.json())
 
     def test_aggregate_is_members_own_rows_and_updates_on_delete_and_leave(self):
         group, _ = self.make()
@@ -228,13 +246,13 @@ class Groups(unittest.TestCase):
 
     def test_accept_limits_user_and_ip(self):
         with db.connect() as c:
-            c.execute("DELETE FROM auth_attempts WHERE key LIKE 'group-accept-%'")
+            c.execute("DELETE FROM auth_attempts WHERE key LIKE 'group-accept-%' OR key LIKE 'group-invite-ip:%'")
         with patch('app.groups.auth.client_ip', side_effect=[f'fictional-user-ip-{i}' for i in range(11)]):
             for _ in range(10):
                 self.assertEqual(self.accept('bad-token', who=1).status_code, 404)
             self.assertEqual(self.accept('bad-token', who=1).status_code, 429)
         with db.connect() as c:
-            c.execute("DELETE FROM auth_attempts WHERE key LIKE 'group-accept-%'")
+            c.execute("DELETE FROM auth_attempts WHERE key LIKE 'group-accept-%' OR key LIKE 'group-invite-ip:%'")
         request = object()
         with patch('app.groups.auth.client_ip', return_value='fictional-shared-ip'):
             for uid in range(10000, 10040):
@@ -244,9 +262,21 @@ class Groups(unittest.TestCase):
             self.assertEqual(raised.exception.status_code, 429)
             ip_hash = hashlib.sha256(b'fictional-shared-ip').hexdigest()
         with db.connect() as c:
-            keys = [row['key'] for row in c.execute("SELECT key FROM auth_attempts WHERE key LIKE 'group-accept-ip:%'").fetchall()]
-        self.assertIn('group-accept-ip:' + ip_hash, keys)
+            keys = [row['key'] for row in c.execute("SELECT key FROM auth_attempts WHERE key LIKE 'group-invite-ip:%'").fetchall()]
+        self.assertIn('group-invite-ip:' + ip_hash, keys)
         self.assertNotIn('fictional-shared-ip', '\n'.join(keys))
+        with db.connect() as c:
+            c.execute("DELETE FROM auth_attempts WHERE key LIKE 'group-accept-%' OR key LIKE 'group-invite-ip:%'")
+        with patch('app.groups.auth.client_ip', return_value='fictional-preview-ip'):
+            for _ in range(40):
+                self.assertEqual(self.anon.get('/api/group-invites/' + '0' * 32).status_code, 404)
+            limited = self.anon.get('/api/group-invites/' + '0' * 32)
+            self.assertEqual(limited.status_code, 429)
+            self.assertEqual(limited.json(), {'detail': 'Too many invite attempts. Wait 15 minutes.'})
+        with db.connect() as c:
+            keys = [row['key'] for row in c.execute("SELECT key FROM auth_attempts WHERE key LIKE 'group-invite-ip:%'").fetchall()]
+        self.assertIn('group-invite-ip:' + hashlib.sha256(b'fictional-preview-ip').hexdigest(), keys)
+        self.assertNotIn('fictional-preview-ip', '\n'.join(keys))
 
 
 unittest.main()

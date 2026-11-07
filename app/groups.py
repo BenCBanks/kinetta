@@ -227,18 +227,30 @@ def get_group(group_id: str, user=Depends(current_user)):
 
 
 @router.get('/api/group-invites/{token}')
-def invite_preview(token: str):
+def invite_preview(token: str, request: Request):
+    _limit_invite_preview(request)
     with db.connect() as c:
         _invite(c, token)
-    return {'message': "You're invited to a private group."}
+    return {'available': True}
+
+
+def _limit_invite_ip(c, request):
+    ip = auth.client_ip(request)
+    ip_hash = hashlib.sha256(ip.encode('utf-8')).hexdigest()
+    return account_email.limited(c, f'group-invite-ip:{ip_hash}', 40, 15)
+
+
+def _limit_invite_preview(request):
+    with db.connect() as c:
+        by_ip = _limit_invite_ip(c, request)
+    if by_ip:
+        raise HTTPException(429, 'Too many invite attempts. Wait 15 minutes.')
 
 
 def _limit_accept(request, uid):
-    ip = auth.client_ip(request)
-    ip_hash = hashlib.sha256(ip.encode('utf-8')).hexdigest()
     with db.connect() as c:
         by_user = account_email.limited(c, f'group-accept-user:{uid}', 10, 15)
-        by_ip = account_email.limited(c, f'group-accept-ip:{ip_hash}', 40, 15)
+        by_ip = _limit_invite_ip(c, request)
     if by_user or by_ip:
         raise HTTPException(429, 'Too many invite attempts. Wait 15 minutes.')
 
