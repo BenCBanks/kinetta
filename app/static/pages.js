@@ -631,6 +631,7 @@ const actTop = (search, friends) => `<div class="top"><h1>Home</h1><div class="a
 route(/^\/activity$/, 'activity', async el=>{
   const q=new URLSearchParams(location.search);
   if(q.get('view')==='mine'){q.delete('view');return go('/me/activities'+(q.toString()?'?'+q:''),{replace:true});}
+  if(q.get('view')==='groups')return homeGroups(el);
   return homeFeed(el);
 });
 route(/^\/me\/activities$/, 'me', () => go(profileHref(App.me)+location.search+location.hash,{replace:true}));

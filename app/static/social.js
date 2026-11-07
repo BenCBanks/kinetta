@@ -438,7 +438,6 @@ async function homeGroups(el) {
 }
 async function homeFeed(el) {
   el.classList?.add('activity-home');
-  if(new URLSearchParams(location.search).get('view')==='groups')return homeGroups(el);
   el.innerHTML=`<div id="feed-top">${actTop(true,true)}</div>${homeViewSwitch('feed')}<div id="activity-groups-strip"></div><div id="weekly-recap"></div><div id="feed-tools"></div>
     <div class="feed-list" id="ff-list">${skelFeed(3)}</div><button type="button" class="ghost feed-more" id="ff-more" hidden>Show more</button>`;
   const list=$('#ff-list',el),more=$('#ff-more',el),recap=$('#weekly-recap',el),groupStrip=$('#activity-groups-strip',el),account=readOwner();
