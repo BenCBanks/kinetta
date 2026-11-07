@@ -37,5 +37,5 @@
 .contacts-invites > summary { display:flex;align-items:center;gap:8px;min-height:48px;color:var(--accent);font-weight:600;cursor:pointer; }
 .contacts-invites > summary span { margin-left:auto;color:var(--tx2);font-size:14px;font-weight:500; }
 .contacts-invite { flex:none;min-height:44px;padding:6px 4px; }
-.contacts-cache-remove { display:flex;min-height:44px;align-items:center;padding:8px 0; }
+.contacts-cache-remove { display:flex;min-height:44px;align-items:center;margin-top:8px;padding:8px 0; }
 .welcome .contacts-welcome-link { display:flex;align-items:center;min-height:44px;margin:8px 0; }
