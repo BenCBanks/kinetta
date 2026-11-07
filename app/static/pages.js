@@ -598,7 +598,6 @@ async function meOverview(el) {
   const scheduleMidnight=()=>{clearTimeout(midnightTimer);const now=new Date(),next=new Date(now);next.setHours(24,0,0,250);midnightTimer=setTimeout(()=>{refreshToday();scheduleMidnight();},Math.max(1000,next-now));};
   document.addEventListener('food:changed',onFoodChanged);document.addEventListener('visibilitychange',onVisible);window.addEventListener('pageshow',onVisible);
   scheduleMidnight();viewResources.set(todayRoot,()=>{clearTimeout(midnightTimer);document.removeEventListener('food:changed',onFoodChanged);document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('pageshow',onVisible);});
-  if(typeof KitChat!=='undefined')KitChat.entry(el,'/me');
   await Promise.allSettled([
     refreshToday(),
     load('/api/stats',s=>{if(el.isConnected)meInsights($('#t-insights',el),s);}).catch(()=>{}),
@@ -626,7 +625,7 @@ new MutationObserver(() => { for (const b of $$('[data-w]')) { b.style.setProper
 // the bell (2026-10-12: on Today, Activity, Progress and Nutrition), with the unread count; it opens the list only
 const bellBtn = () => { const n = (App.me && App.me.notifications) || 0;
   return `<a class="icon-btn bell" href="/notifications" aria-label="Notifications${n ? `, ${n} new` : ''}">${svg('bell')}<span class="bell-dot${n > 9 ? ' many' : ''}"${n ? '' : ' hidden'}>${n > 9 ? '9+' : n || ''}</span></a>`; };
-const actTop = (search, friends) => `<div class="top"><h1>Home</h1><div class="acts">${search ? `<button class="icon-btn" id="f-search" aria-label="Search">${svg('search')}</button>` : ''}
+const actTop = (search, friends) => `<div class="top"><h1>Home</h1><div class="acts">${search ? `<a class="icon-btn" href="/me/activities?search=1" aria-label="Search">${svg('search')}</a>` : ''}
     ${friends ? `<a class="icon-btn" href="/me/friends?find=1" aria-label="Find friends">${svg('people')}</a>` : ''}
     ${bellBtn()}</div></div>`;
 route(/^\/activity$/, 'activity', async el=>{

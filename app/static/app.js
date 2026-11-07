@@ -90,9 +90,9 @@ function scheduleKitRouteWarmup(el,path) {
     if(!ready){kitWarmups.delete(key);return;}
     const warm=()=>{
       kitWarmups.delete(key);
-      if(owner!==readOwner()||!App.me||!App.pageReady||path!==location.pathname||!el?.isConnected)return;
+      if(owner!==readOwner()||!App.me||!App.pageReady||path!==location.pathname||path==='/activity'||path==='/me'||!el?.isConnected)return;
       loadClassicScript(KIT_ROUTE_ASSET).then(()=>{
-        if(owner===readOwner()&&App.pageReady&&path===location.pathname&&el.isConnected&&KitChat.loaded)KitChat.entry(el,path);
+        if(owner===readOwner()&&App.pageReady&&path===location.pathname&&path!=='/activity'&&path!=='/me'&&el.isConnected&&KitChat.loaded)KitChat.entry(el,path);
       }).catch(()=>{});
     };
     if(typeof requestIdleCallback==='function')requestIdleCallback(warm);
@@ -826,12 +826,12 @@ function render(options) {
   let touched=false;const interactions=new AbortController();
   for(const event of ['touchstart','wheel','pointerdown','keydown'])window.addEventListener(event,()=>{touched=true;},{passive:true,signal:interactions.signal});
   const result=page.fn(el,...m.slice(1));compactSubpageHeader(el);
-  if(typeof KitChat!=='undefined')KitChat.entry(el,path);
+  if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path);
   requestAnimationFrame(()=>{if(current()&&!touched)window.scrollTo(0,targetY);});
   return Promise.resolve(result).then(() => {if(current()&&typeof FeatureUsage!=='undefined')FeatureUsage.open(path);}).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
     requestAnimationFrame(() => { if(current()&&!touched)window.scrollTo(0,targetY);interactions.abort(); });
-    if (current()) { compactSubpageHeader(el);App.pageReady = true; if(path==='/me')scheduleFoodRouteWarmup(); globalThis.CommunityTerms?.check(); if(typeof KitChat!=='undefined')KitChat.entry(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
+    if (current()) { compactSubpageHeader(el);App.pageReady = true; if(path==='/me')scheduleFoodRouteWarmup(); globalThis.CommunityTerms?.check(); if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
   });
 }
 function showError(el, e) {

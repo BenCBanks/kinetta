@@ -1870,6 +1870,14 @@ badge stays within its target even when that target is 44px. The browser navigat
 both themes, normal/enlarged text, label bounds, target size, gaps, contrast, keyboard drafts and content
 clearance before merge. The existing screenshot workflow also runs when that navigation test changes.
 
+## Home header and Feed/Groups switch · 7 November 2026 (#700 PR 2)
+
+Home keeps Search, Find friends and Notifications in its header, each with a 44px target. Search opens the existing
+activity history with its search field visible. Feed | Groups is a text switch with an underline on the selected view;
+Groups uses `/activity?view=groups`, keeps Home selected, and reuses the private Groups list and Create flow. Browser
+Back/Forward and direct links restore the selected Home view. Me keeps only the Settings gear in its header; its card
+remains first and unchanged.
+
 
 ## Shared subpage headers and modal ownership · 2 November 2026 (#477/#485)
 
@@ -1902,7 +1910,7 @@ and missing charts offer actions that are actually available.
 
 Me and the owner profile share one card; a named avatar/name/handle link with a chevron after the name opens the full profile, while chart bars, Edit, Share and Friends controls keep their own actions. The Me card leads with the selected week and a 12-week chart; all-time totals, sports and bio stay on the full profile. The owner profile starts at You with all personal activities, including locked private rows. The Share sheet renders the entire non-interactive Everyone card at full content width, including the chart and sports, with the owner-only privacy note omitted from the miniature and explained in the sheet. It scales to fit one screen at 390×844; at narrow widths or enlarged text the preview scrolls while both actions stay pinned below it. The Preview label sits above it; equal-size filled Share profile link and outlined Public card & QR actions follow. Public card settings remain independently reachable when the profile preview cannot load. The separate preview mode and its entrance are removed; the ordinary card/history has no preview controls. Sport/search stay with that list, and old history addresses retain their filters. A pending refresh preserves an open editor draft.
 
-The lock note says private workouts count but stay hidden; the complete plain explanation that friends see totals is available to assistive technology. Settings keeps a compact Kit row; its sheet contains consent, explanation, memory and earlier reviews. Log out has its own final card below account deletion. Activity keeps full-sized Notifications and Kit controls. When the header is too narrow, Challenges moves to a plain row below it; Friends is available on Challenges. Narrow activity metadata keeps time, sport and lock together and omits the route label. Empty Gear, Goals and Challenges lead with one first action; presets only prepare the existing confirmation form. Sharing uses plain audience choices and switch rows. Imports lead with file/paste actions and fold format help. Routes and Years use concise one-row headers.
+The lock note says private workouts count but stay hidden; the complete plain explanation that friends see totals is available to assistive technology. Settings keeps a compact Kit row; its sheet contains consent, explanation, memory and earlier reviews. Log out has its own final card below account deletion. Home keeps full-sized Search, Find friends and Notifications actions; Challenges stays in a plain row below the Home header. Narrow activity metadata keeps time, sport and lock together and omits the route label. Empty Gear, Goals and Challenges lead with one first action; presets only prepare the existing confirmation form. Sharing uses plain audience choices and switch rows. Imports lead with file/paste actions and fold format help. Routes and Years use concise one-row headers.
 
 Kit uses one small, unfilled 44px header icon (Claude review, 2 November); Insights keeps it beside its existing range control. Unavailable chat has no entrance or generation/retry action; saved reviews and individual notes remain readable. Empty-chat suggestions sit under the header, with provider disclosure and the keyboard-aware composer retained. Segment browsing/drawing share this account’s remembered or recent GPS area, then already-permitted location; otherwise they offer search/Locate without requesting permission or inventing an area. Late responses preserve user input and account isolation.
 

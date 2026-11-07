@@ -233,6 +233,11 @@ Depth starts on Home. Own and shared activity routes keep different audiences; p
 flowchart LR
  Activity["Home · /activity · 0"] -->|Own card · 1| Detail["Own activity · /activity/:id"]
  Activity -->|Shared card · 1| SharedDetail["Shared activity · /activity/friends/:id"]
+ Activity -->|Search · 1| History["Your activity history · /me/activities?search=1"]
+ Activity -->|Groups · 1| HomeGroups["Home Groups · /activity?view=groups"]
+ HomeGroups -->|Feed · 1| Activity
+ HomeGroups -->|Create · 2| GroupCreate["Private group form"]
+ HomeGroups -->|Group · 2| GroupDetail["Private group · /groups/:id"]
  Activity -->|Trophy · 1| Challenges["Challenges · /me/challenges"]
  Activity -->|Featured challenge · 1| Challenge["Challenge · /me/challenges/:code"]
  Challenges -->|Choose · 2| Challenge
