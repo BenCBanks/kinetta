@@ -9,7 +9,7 @@ About us
 
 ## about-story
 
-We're Ben and Rachel. We built Kinetta because we were using separate apps for our workouts, routes, training plans, food and friends. Ben runs; Rachel rides, walks and tracks her food and macros. We wanted to see it all in one place.
+We're Ben and Rachel. We both train and care about eating well, so we built Kinetta to bring workouts, nutrition and friends together in one place.
 
 ## about-feedback
 
