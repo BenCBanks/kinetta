@@ -110,6 +110,11 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    await capture(page,`activity-groups-none-390-${theme}`,null,{fullPage:false});assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors,postedGroups}=await open(theme));
+   await page.goto(base+'/me/friends?find=1');await page.locator('#fr-groups-shortcut').waitFor();await page.waitForFunction(()=>document.querySelector('#fr-groups-count')?.textContent==='0 active groups');
+   assert.equal(await page.locator('#fr-groups-discover').getAttribute('href'),'/me/groups');assert.equal(await page.locator('#fr-group-create').getAttribute('href'),'/me/groups?create=1','Create opens the group sheet directly');
+   await capture(page,`friends-groups-row-390-${theme}`);await page.locator('#fr-group-create').click();await page.getByLabel('Group name').waitFor();
+   assert.equal(new URL(page.url()).pathname,'/me/groups');assert.equal(new URL(page.url()).search,'','the one-time Create query is removed while its sheet is open');
+   await page.locator('.group-create-footer [data-close]').click();await page.locator('#group-create-form').waitFor({state:'detached'});
    await page.goto(base+'/me/friends');await page.locator('#fr-groups').waitFor();await page.locator('#fr-groups').click();await page.waitForURL('**/me/groups');
    await page.waitForFunction(()=>App.pageReady&&!!document.querySelector('#group-new'));
    await page.locator('#group-new').click();await page.getByLabel('Group name').waitFor();

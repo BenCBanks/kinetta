@@ -6,6 +6,9 @@
 .friends-page .people-search input { width:100%;font-size:max(16px,1rem); }
 .friends-page #fr-status { margin:6px 0 0; }
 .friends-page #fr-status:empty { display:none; }
+.friends-page .friends-groups-shortcut { display:flex;align-items:center;gap:12px;min-width:0;margin:8px 0 14px; }
+.friends-page .friends-groups-shortcut #fr-groups-discover { flex:1;min-width:0;width:auto;margin:0; }
+.friends-page .friends-groups-shortcut #fr-group-create { display:inline-flex;align-items:center;justify-content:center;flex:none;min-width:44px;min-height:44px;padding:8px 0 8px 8px;white-space:nowrap;font-weight:650; }
 .friends-page .friend-action { display:flex;align-items:center;gap:12px;width:100%;min-height:60px;margin:8px 0 14px;padding:8px 0;color:var(--tx);text-align:left; }
 .friends-page .friend-action .ri { width:24px;height:24px;flex:none;color:var(--accent); }
 .friends-page .friend-action .ri svg { width:22px;height:22px; }

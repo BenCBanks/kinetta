@@ -6,6 +6,7 @@ const FriendsUI=(()=>{
  const status=label=>`<span class="friend-status" role="status"><span aria-hidden="true">✓</span> ${label}</span>`;
  const shell=back=>`<div class="top">${backBtn(back)}<h1 id="fr-title">Find friends</h1></div>
    <section id="fr-discover" class="friend-discovery" aria-label="Find people"><form class="searchbox people-search" id="fr-find" role="search"><span class="sb-ico">${svg('search')}</span><input type="search" name="q" placeholder="Search name or @username" aria-label="Search name or @username" maxlength="60" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="search"><button type="button" class="icon-btn" id="fr-clear" aria-label="Clear search" hidden>${svg('close')}</button></form><p class="small muted" id="fr-status" role="status" aria-live="polite"></p></section>
+   <div class="friends-groups-shortcut" id="fr-groups-shortcut"><a class="row-link friend-action" id="fr-groups-discover" href="/me/groups"><span class="ri">${svg('calendar')}</span><span class="grow"><b>Groups</b><small id="fr-groups-count" aria-live="polite">Your private groups</small></span>${svg('chev')}</a><a class="linkbtn" id="fr-group-create" href="/me/groups?create=1" aria-label="Create a group">Create</a></div>
    <div id="fr-found"></div><div id="fr-list-error" role="status"></div>
    <button type="button" class="row-link friend-action" id="fr-invite"><span class="ri">${svg('share')}</span><span class="grow"><b>Invite friends</b><small>Share a link or QR code</small></span>${svg('chev')}</button>
    <div id="fr-requests"></div><section class="friend-more" hidden><div id="fr-suggest"></div></section>`;
@@ -65,10 +66,15 @@ const FriendsUI=(()=>{
   el.classList.add('friends-page');el.innerHTML=shell('Me');wireBack(el,'/me');
   const pageOwner=readOwner(),live=()=>pageOwner===readOwner()&&el.isConnected;
   let currentFriends=null,friendLoadVersion=0,searchVersion=0,timer,last=null,people=[],known=[];
-  const requests=$('#fr-requests',el),found=$('#fr-found',el),form=$('#fr-find',el),input=form.elements.q,clear=$('#fr-clear',el),statusText=$('#fr-status',el),suggest=$('#fr-suggest',el),error=$('#fr-list-error',el);
+  const requests=$('#fr-requests',el),found=$('#fr-found',el),form=$('#fr-find',el),input=form.elements.q,clear=$('#fr-clear',el),statusText=$('#fr-status',el),suggest=$('#fr-suggest',el),error=$('#fr-list-error',el),groupCount=$('#fr-groups-count',el);
   const initial=new URLSearchParams(location.search);input.value=initial.get('q')||'';
   const who=login=>(people.find(p=>p.login===login)||{}).name||login;
   $('#fr-invite',el).onclick=inviteFriends;
+  async function loadGroupCount(){
+    try{const groups=await api('/api/groups');if(!live())return;const count=groups.filter(group=>!group.closed).length;groupCount.textContent=`${count} active ${count===1?'group':'groups'}`;}
+    catch{if(live())groupCount.textContent='Your private groups';}
+  }
+  loadGroupCount();
   function drawRequestRow(r){
     const count=r.incoming.length+r.outgoing.length;
     requests.innerHTML=count?`<button type="button" class="row-link friend-request-summary" id="fr-requests-open"><span>Requests (${count})</span>${svg('chev')}</button>`:'';

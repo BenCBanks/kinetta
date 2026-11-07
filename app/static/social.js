@@ -1068,9 +1068,11 @@ function groupCreateSheet(done){
     });
 }
 route(/^\/me\/groups$/, 'me', async el=>{
+  const createRequested=new URLSearchParams(location.search).get('create')==='1';
   el.classList.add('groups-page');el.innerHTML=`<div class="top">${backBtn('Friends')}<h1>Groups</h1><button type="button" class="linkbtn" id="group-new">Create</button></div><div id="group-list"><div class="card empty">Loading your groups…</div></div>`;wireBack(el,'/me/friends');
   const live=()=>el.isConnected,create=()=>groupCreateSheet(group=>{go('/groups/'+encodeURIComponent(group.id),{replace:true});groupInviteSheet(group.invite_url);});
   $('#group-new',el).onclick=create;
+  if(createRequested){const address=new URL(location.href);address.searchParams.delete('create');replacePageAddress(el,address.pathname+address.search+address.hash);create();}
   try{const groups=await api('/api/groups');if(!live())return;$('#group-list',el).innerHTML=groups.length?`<div class="card list">${groups.map(group=>`<a class="row-link group-list-row" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('calendar')}</span><span class="grow"><b>${esc(group.title)}</b><small>${esc(groupDate(group.event_date,group.time_zone))} · ${group.member_count} ${group.member_count===1?'member':'members'}</small></span>${svg('chev')}</a>`).join('')}</div>`:`<div class="group-empty"><p>Groups are private places to prepare for one event together.</p><button type="button" class="primary" id="group-empty-create">Create a group</button></div>`;
     $('#group-empty-create',el)?.addEventListener('click',create);
   }catch(error){if(live())$('#group-list',el).innerHTML=`<div class="card empty">${esc(error.message)}<button type="button" class="ghost" id="group-retry">Retry</button></div>`;$('#group-retry',el)?.addEventListener('click',()=>go('/me/groups',{replace:true}));}
