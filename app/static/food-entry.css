@@ -3,7 +3,11 @@
 .food-thread .thread-remove-unlogged {display:grid;place-items:center;flex:none;width:44px;min-width:44px;height:44px;min-height:44px;margin:0;padding:0;border:0;border-radius:0;background:transparent;color:var(--tx2);font:400 18px/1 var(--font);}
 .food-thread .thread-remove-unlogged:active {transform:scale(.94);}
 .food-thread .thread-remove-floating {position:absolute;z-index:1;top:3px;right:3px;}
-.food-thread .thread-card:has(> .thread-remove-floating) {padding-top:48px;}
+.food-thread .thread-pending-card:has(> .thread-remove-floating) {padding-top:48px;}
+.food-thread .thread-card:has(> .thread-updated):has(> .thread-remove-floating):not(:has(.thread-food)) {display:flex;align-items:center;gap:8px;min-height:44px;padding:0 4px 0 12px;}
+.food-thread .thread-card:has(> .thread-updated):has(> .thread-remove-floating):not(:has(.thread-food)) > .thread-remove-floating {position:static;order:2;margin:0 0 0 auto;}
+.food-thread .thread-card:has(> .thread-updated):has(> .thread-remove-floating):not(:has(.thread-food)) > .thread-updated,.food-thread .thread-card:has(> .thread-updated):has(> .thread-remove-floating):not(:has(.thread-food)) > .thread-actions {display:none;}
+.food-thread .thread-card:has(> .thread-updated):has(> .thread-remove-floating):not(:has(.thread-food)) > p:not(.thread-updated) {flex:1;min-width:0;margin:0;}
 .food-thread .compact-thread-card .thread-remove-unlogged {position:static;margin:0 -8px 0 0;}
 .food-thread .thread-logged-card {max-width:100%;padding:4px 10px;}
 .food-thread .thread-logged-card.thread-logged-repeat {max-width:100%;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;}
@@ -46,9 +50,9 @@
 .food-thread .thread-review-strip[hidden] {display:none;}
 .food-thread .thread-review-strip > button {display:flex;align-items:center;flex:none;min-width:44px;height:44px;min-height:44px;margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;white-space:nowrap;}
 .food-thread .thread-review-sum {flex:1!important;justify-content:flex-start;gap:4px;min-width:0;overflow:hidden;color:var(--tx2);font:500 .8125rem/1.2 var(--font);text-align:left;font-variant-numeric:tabular-nums;}
-.food-thread .thread-review-add {justify-content:flex-end;color:var(--accent);font:650 1rem/1.2 var(--font);text-align:right;}
+.food-thread .thread-review-add {justify-content:center;min-width:96px;padding:0 4px;color:var(--accent);font:700 1rem/1.2 var(--font);text-align:center;}
 .food-thread .thread-review-strip > button:disabled {color:var(--tx2);cursor:default;}
-.food-thread .thread-review-strip #thread-review-sum {display:flex;align-items:baseline;white-space:nowrap;}
+.food-thread .thread-review-strip #thread-review-sum {display:flex;align-items:center;white-space:nowrap;}
 .food-thread .thread-review-count {min-width:0;white-space:nowrap;}
 .food-thread .thread-review-kcal {flex:none;white-space:nowrap;}
 .food-thread .thread-review-strip:focus-within {outline:none;}
@@ -59,17 +63,18 @@
 @media(prefers-reduced-motion:reduce) {#thread-messages article.thread-removing {transition:none;}}
 .food-thread .compact-thread-card { max-width:100%; padding:0 12px 8px; }
 .compact-thread-card .thread-actions:empty { display:none; }
-.food-thread .compact-food { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:0 6px; padding:0; }
-.compact-food .compact-food-title { display:flex;align-items:flex-start;gap:4px;min-width:0; }
+.food-thread .compact-food { display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-rows:minmax(44px,auto) auto; align-content:start; align-items:center; gap:8px 6px; min-height:0; padding:0; }
+.compact-food .compact-food-title { display:flex;align-items:center;gap:4px;min-width:0;min-height:44px; }
 .compact-food .tf-inspect { min-width:0; }
 .compact-food .compact-food-title .tf-inspect { flex:1; }
-.compact-food .tf-kcal { align-self:start; padding-top:8px; }
-.compact-food .thread-food-controls { grid-column:1/-1; display:flex; align-items:center; gap:4px; min-width:0; }
+.compact-food .tf-kcal { align-self:center; padding-top:0; }
+.compact-food .thread-food-controls { grid-column:1/-1; display:flex; align-items:center; align-self:start; gap:4px; min-width:0; min-height:44px; }
 .compact-food .thread-stepper { flex:1; min-width:0; gap:0; margin:0; }
-.food-thread .compact-food .thread-stepper .icon-btn { border:0; border-radius:8px; background:transparent; color:var(--tx); flex:none; }
+.compact-food .thread-stepper .icon-btn { flex:none; }
 .compact-food .thread-amount { flex:1; min-width:0; min-height:44px; padding:0 2px; border:0; background:transparent; color:var(--tx); font-size:.875rem; overflow-wrap:anywhere; }
 .compact-food .tf-source { max-width:30%; font-size:.75rem; line-height:1.3; }
 .food-thread .compact-thread-card .thread-remove { flex:none; min-width:44px; width:44px; height:44px; margin:0; padding:0; color:var(--tx2); }
+.food-thread .compact-food .thread-stepper .thread-remove { color:var(--accent); }
 .compact-food .tf-notes { grid-column:1/-1; margin-bottom:8px; }
 .am-control-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
 .am-control-row .am-amt { flex:1; min-width:150px; margin:0; gap:4px; }
@@ -120,7 +125,8 @@
 .food-thread:not(.kit-chat) .thread-heading > #thread-context { grid-column:2; }
 .food-thread:not(.kit-chat) .thread-heading > .back {align-self:center;display:flex;align-items:center;min-height:44px;line-height:1.2;}
 .food-thread:not(.kit-chat) .thread-heading .thread-back-label {line-height:1.2;}
-.food-thread:not(.kit-chat) #thread-messages {padding-top:56px;scroll-padding-top:56px;}
+.food-thread:not(.kit-chat) #thread-messages {padding-top:8px;scroll-padding-top:8px;}
+.food-thread:not(.kit-chat) #thread-messages .thread-day {margin-top:0;}
 /* Ask Kit hides the standalone navigation header; its existing destination control becomes the food-card caption. */
 .kit-chat .kit-food-inline > .thread-heading {display:flex!important;align-items:center;justify-content:center;min-height:44px;margin:0;padding:0 8px;}
 .kit-chat .kit-food-inline > .thread-heading > :not(#thread-context) {display:none!important;}
