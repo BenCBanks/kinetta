@@ -2147,6 +2147,11 @@ MIGRATIONS = [
     ALTER TABLE profile ADD CONSTRAINT profile_showcase_pins_check
       CHECK(cardinality(showcase_pins)<=4 AND array_position(showcase_pins,NULL) IS NULL);""",
 
+    # 107. New profiles share achievements and heart rate by default; existing profile values are untouched.
+    """ALTER TABLE profile ALTER COLUMN share_details SET DEFAULT '{"heart_rate": true}'::jsonb,
+      ALTER COLUMN share_achievements SET DEFAULT true,
+      ALTER COLUMN share_achievements_since SET DEFAULT now();""",
+
 ]
 
 
