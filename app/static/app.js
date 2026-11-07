@@ -24,6 +24,7 @@ const lazyRouteBundles = [
   {re: /^\/progress\/weight$/, tab: 'progress', scripts: [FOOD_ROUTE_ASSET]},
   {re: /^\/progress\/(?:routes|trends|calendar|heatmap)$/, tab: 'progress', scripts: [PROGRESS_ROUTE_ASSET]},
   {re: /^\/(?:progress\/segments|segments(?:\/(?:review|new|\d+))?)$/, tab: 'progress', scripts: [SEGMENTS_ROUTE_ASSET]},
+  {re: /^\/activity\/\d+$/, tab: 'activity', scripts: [SEGMENTS_ROUTE_ASSET]},
   {re: /^\/me\/sharing$/, tab: 'me', scripts: [SEGMENTS_ROUTE_ASSET]},
   {re: /^\/me\/kit$/, tab: 'me', scripts: [FOOD_ROUTE_ASSET, KIT_ROUTE_ASSET]},
   {re: /^\/(?:lift\/\d+|track\/lift\/\d+|lift\/history\/workout\/\d+)$/, tab: 'track', scripts: ['/static/lift-routes.js?v=__ASSET_HASH__']},
