@@ -204,7 +204,7 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
   const scrollContext=await fixtureContext(browser);
   try{
     await login(scrollContext);const page=await scrollContext.newPage();
-    await page.goto(base+'/track');await ready(page);
+    await page.goto(base+'/track');await ready(page,'#track-explore');
     await page.evaluate(()=>{App.scroll['/me/explore']=120;});
     await page.locator('#track-explore a[href="/me/explore"]').click();
     await ready(page,'#guide-results details','deferred Explore with saved scroll');
@@ -215,7 +215,7 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
   try{
     await login(navigationContext);const page=await navigationContext.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
     const delayed=await holdExplore(page);
-    await page.goto(base+'/track');await ready(page);
+    await page.goto(base+'/track');await ready(page,'#track-explore');
     await page.evaluate(()=>{
       const old=document.querySelector('#page');window.delayedOldPage=old;window.delayedOldPageCleaned=false;
       viewResources.set(old,()=>{window.delayedOldPageCleaned=true;});
@@ -235,7 +235,7 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
   try{
     await login(accountContext);const page=await accountContext.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
     const delayed=await holdExplore(page,{instrument:true});
-    await page.goto(base+'/track');await ready(page);
+    await page.goto(base+'/track');await ready(page,'#track-explore');
     await page.evaluate(()=>{
       window.testExploreOwners=[];window.testDeferredPositions=[];
       const original=render;

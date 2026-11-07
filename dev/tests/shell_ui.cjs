@@ -29,7 +29,7 @@ const until=async(p,f,label)=>{for(let i=0;i<150;i++){if(await p.evaluate(f))ret
       if(url==='/food/meals'){await p.locator('#tm-new').click();await p.locator('#tm-food').waitFor();await p.keyboard.press('Escape');}
       await shot('header-'+url.replace(/\W+/g,'-'));cases++;
      }
-     await ready('/activity');const rootTitle=await p.evaluate(collectSpacing,{screen:'tab root',rules:[]});assert(rootTitle.texts.some(t=>t.text==='Activity'&&t.role==='title'&&t.font>=size.root*28/16),'Tab roots retain the larger page-title contract');
+     await ready('/activity');const rootTitle=await p.evaluate(collectSpacing,{screen:'tab root',rules:[]});assert(rootTitle.texts.some(t=>t.text==='Home'&&t.role==='title'&&t.font>=size.root*28/16),'Tab roots retain the larger page-title contract');
      await ready('/me/settings');await p.locator('#m-name').click();await p.locator('#ac input').fill('Fictional unsaved draft');
      assert(await p.evaluate(()=>root.inert),'Sheet background is inert');assert((await p.locator('#ac .primary').boundingBox()).height>=44,'Shared form footer is 44px');await shot('name-sheet');
      await p.evaluate(()=>sheet('Additional review','<button type="button" id="shell-nested">Nested action</button>'));
