@@ -59,11 +59,30 @@ class GroupReport(BaseModel):
     note: str | None = Field(None, max_length=500)
 
 
+class GroupStripPreference(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    muted: bool
+
+
+def _now():
+    return dt.datetime.now(UTC)
+
+
 def _zone(name):
     try:
         return ZoneInfo(name)
     except (ZoneInfoNotFoundError, TypeError):
         raise HTTPException(400, 'Choose a valid time zone')
+
+
+def _local_week_window(zone_name, now):
+    zone = _zone(zone_name)
+    local_day = now.astimezone(zone).date()
+    monday = local_day - dt.timedelta(days=local_day.weekday())
+    next_monday = monday + dt.timedelta(days=7)
+    start = dt.datetime.combine(monday, dt.time.min, zone).astimezone(UTC)
+    end = dt.datetime.combine(next_monday, dt.time.min, zone).astimezone(UTC)
+    return local_day, start, end
 
 
 def _group_id(value):
@@ -142,7 +161,8 @@ def _blocked(c, first, second):
                           (first, second, second, first)).fetchone())
 
 
-def _contributions(c, group, members):
+def _contributions(c, group, members, now=None):
+    now = now or _now()
     zone = _zone(group['time_zone'])
     end = dt.datetime.combine(group['event_date'] + dt.timedelta(days=1), dt.time.min, zone).astimezone(UTC)
     visible_ids = [member['user_id'] for member in members]
@@ -158,10 +178,34 @@ def _contributions(c, group, members):
       FROM group_members m LEFT JOIN activities a ON a.user_id=m.user_id AND a.start_time>=m.joined_at
         AND a.start_time<least(%s::timestamptz,%s) AND NOT a.lift_open
       WHERE m.group_id=%s AND m.status='active' AND m.user_id=ANY(%s)
-      GROUP BY m.user_id''', (end, dt.datetime.now(UTC), group['id'], visible_ids)).fetchall()
+      GROUP BY m.user_id''', (end, now, group['id'], visible_ids)).fetchall()
     divisor = (1609.344 if group['goal_unit'] == 'mi' else 1000) if group['goal_type'] == 'distance' else (
         0.3048 if group['goal_type'] == 'elevation' and group['goal_unit'] == 'ft' else 1)
     return {row['user_id']: round(float(row['raw'] or 0) / divisor, 3) for row in rows}
+
+
+def _weekly_contributions(c, group, members, now):
+    local_day, start, week_end = _local_week_window(group['time_zone'], now)
+    zone = _zone(group['time_zone'])
+    event_end = dt.datetime.combine(group['event_date'] + dt.timedelta(days=1), dt.time.min, zone).astimezone(UTC)
+    end = min(week_end, event_end, now)
+    visible_ids = [member['user_id'] for member in members]
+    if not visible_ids or end <= start:
+        return local_day, {}
+    measures = {
+        'distance': "sum(a.distance_m) FILTER(WHERE a.distance_m>0 AND a.distance_m<'Infinity'::real)",
+        'elevation': "sum(a.ascent_m) FILTER(WHERE a.ascent_m>0 AND a.ascent_m<'Infinity'::real)",
+        'long_outings': f"count(a.id) FILTER(WHERE coalesce(a.moving_s,a.elapsed_s,0)>={LONG_OUTING_SECONDS})",
+        'sessions': 'count(a.id)',
+    }
+    rows = c.execute(f'''SELECT m.user_id,coalesce({measures[group['goal_type']]},0) AS raw
+      FROM group_members m LEFT JOIN activities a ON a.user_id=m.user_id
+        AND a.start_time>=greatest(m.joined_at,%s::timestamptz) AND a.start_time<%s::timestamptz AND NOT a.lift_open
+      WHERE m.group_id=%s AND m.status='active' AND m.user_id=ANY(%s)
+      GROUP BY m.user_id''', (start, end, group['id'], visible_ids)).fetchall()
+    divisor = (1609.344 if group['goal_unit'] == 'mi' else 1000) if group['goal_type'] == 'distance' else (
+        0.3048 if group['goal_type'] == 'elevation' and group['goal_unit'] == 'ft' else 1)
+    return local_day, {row['user_id']: round(float(row['raw'] or 0) / divisor, 3) for row in rows}
 
 
 def _answer(c, group, uid):
@@ -172,17 +216,25 @@ def _answer(c, group, uid):
                            WHERE m.group_id=%s AND m.status='active' AND NOT u.needs_email_confirm
                              AND u.suspended_at IS NULL ORDER BY m.joined_at,m.user_id''', (group['id'],)).fetchall()
     visible = [member for member in members if not _blocked(c, uid, member['user_id'])]
-    contributions = _contributions(c, group, visible)
+    now = _now()
+    contributions = _contributions(c, group, visible, now)
+    local_day, weekly = _weekly_contributions(c, group, visible, now)
     total = round(sum(contributions.values()), 3)
     member_count = len(visible)
     zone = _zone(group['time_zone'])
-    today = dt.datetime.now(UTC).astimezone(zone).date()
+    today = now.astimezone(zone).date()
+    days_to_event = max(0, (group['event_date'] - today).days)
+    week_total = round(sum(weekly.values()), 3)
+    week_contributors = sum(value > 0 for value in weekly.values())
     return {
         'id': str(group['id']), 'title': group['title'], 'event_date': group['event_date'].isoformat(),
         'time_zone': group['time_zone'], 'note': group['note'], 'goal_type': group['goal_type'],
         'goal_target': group['goal_target'], 'goal_unit': group['goal_unit'],
         **({'total': total} if member_count >= 3 else {'your_total': contributions.get(uid, 0)}),
-        'days_to_event': max(0, (group['event_date'] - today).days),
+        **({'this_week_total': week_total, 'this_week_contributors': week_contributors}
+           if member_count >= 3 else {'your_this_week_total': weekly.get(uid, 0)}),
+        'week_start': (local_day - dt.timedelta(days=local_day.weekday())).isoformat(),
+        'days_to_event': days_to_event, 'weeks_to_event': (days_to_event + 6) // 7,
         'members': [{'username': m['username'], 'photo': m['photo'] or False,
                      'organizer': m['user_id'] == group['organizer_id'],
                      **({'value': contributions.get(m['user_id'], 0)} if m['share_total'] else {'sharing_total_only': True})}
@@ -220,6 +272,36 @@ def list_groups(user=Depends(current_user)):
                             WHERE m.user_id=%s AND m.status='active' ORDER BY g.event_date,g.created''',
                          (user['id'],)).fetchall()
         return [_answer(c, row, user['id']) for row in rows]
+
+
+@router.get('/api/groups/activity-strip')
+def group_activity_strip(user=Depends(current_user)):
+    with db.connect() as c:
+        preference = c.execute('SELECT group_strip_muted FROM profile WHERE user_id=%s', (user['id'],)).fetchone()
+        muted = bool(preference and preference['group_strip_muted'])
+        rows = c.execute('''SELECT g.* FROM event_groups g JOIN group_members m ON m.group_id=g.id
+                            WHERE m.user_id=%s AND m.status='active' ORDER BY g.event_date,g.created''',
+                         (user['id'],)).fetchall()
+        now = _now()
+        upcoming = [row for row in rows if row['event_date'] >= now.astimezone(_zone(row['time_zone'])).date()]
+        upcoming.sort(key=lambda row: (dt.datetime.combine(row['event_date'], dt.time.min,
+                                                           _zone(row['time_zone'])).astimezone(UTC), row['created']))
+        if muted or not upcoming:
+            return {'muted': muted, 'has_upcoming': bool(upcoming)}
+        answer = _answer(c, upcoming[0], user['id'])
+        keys = ('id', 'title', 'event_date', 'time_zone', 'goal_type', 'goal_target', 'goal_unit',
+                'member_count', 'days_to_event', 'weeks_to_event', 'total', 'your_total')
+        return {'muted': False, 'has_upcoming': True, 'more_count': len(upcoming) - 1,
+                'next': {key: answer[key] for key in keys if key in answer}}
+
+
+@router.post('/api/groups/activity-strip')
+def set_group_activity_strip(body: GroupStripPreference, user=Depends(current_user)):
+    with db.connect() as c:
+        c.execute('''INSERT INTO profile(user_id,group_strip_muted) VALUES(%s,%s)
+                     ON CONFLICT(user_id) DO UPDATE SET group_strip_muted=EXCLUDED.group_strip_muted''',
+                  (user['id'], body.muted))
+    return {'muted': body.muted}
 
 
 @router.get('/api/groups/{group_id}')

@@ -83,6 +83,7 @@
 .group-title .group-note {margin-top:10px!important;color:var(--tx)!important;}
 .group-goal {display:grid;gap:7px;}
 .group-goal>small {color:var(--tx3);font-size:13px;}
+.group-goal>.group-week {color:var(--tx2);font-size:14px;line-height:1.35;overflow-wrap:anywhere;}
 .group-goal>.group-goal-hint {font-size:13px;line-height:1.35;}
 .group-goal>strong {min-width:0;font-size:16px;line-height:1.25;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;}
 .group-progress {display:block;width:100%;height:7px;margin:0;border:0;border-radius:999px;background:var(--line);color:var(--accent);overflow:hidden;appearance:none;-webkit-appearance:none;}
@@ -91,6 +92,7 @@
 .group-progress::-moz-progress-bar {border-radius:inherit;background:var(--accent);}
 .group-roster>h2 {display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 4px;font-size:17px;}
 .group-roster>h2 span {color:var(--tx3);font-size:16px;font-weight:550;}
+.group-member-private-note {margin:0 0 4px;color:var(--tx3);font-size:15px;line-height:1.4;}
 .group-member {display:flex;align-items:center;gap:11px;min-height:56px;padding:8px 0;border-top:1px solid var(--line);}
 .group-member-avatar {display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:50%;background:var(--card2);color:var(--tx2);font-size:15px;font-weight:700;}
 .group-member-name {display:grid;gap:2px;flex:1;min-width:0;}
@@ -126,7 +128,7 @@
 .group-options-list .row-link.danger {color:var(--alert);}
 @media(max-width:360px) {
  .group-title h1,.group-invite-card h1 {font-size:28px;}
- .group-goal>strong {font-size:16px;}
+ .group-goal>strong {max-width:calc(100% - 8px);font-size:16px;}
  .group-goal-fields {grid-template-columns:minmax(0,1fr) minmax(75px,.7fr);gap:8px;}
  .group-create-form label {margin-bottom:5px;}
  .group-time-zone {margin-top:8px;}

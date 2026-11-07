@@ -2071,6 +2071,8 @@ MIGRATIONS = [
     # 101. Ordered Showcase pins live with each owner's already row-secured profile.
     """ALTER TABLE profile ADD COLUMN showcase_pins text[] NOT NULL DEFAULT '{}'::text[]
       CHECK(cardinality(showcase_pins)<=3 AND array_position(showcase_pins,NULL) IS NULL);""",
+    # 102. Per-account preference for the Activity Groups strip. The existing profile RLS policy remains in force.
+    """ALTER TABLE profile ADD COLUMN group_strip_muted boolean NOT NULL DEFAULT false;""",
 
 ]
 
