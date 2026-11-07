@@ -76,11 +76,21 @@ const screenshot=async(page,dir,name,options={})=>{if(!dir)return;fs.mkdirSync(d
 const brightness=color=>{const channels=(color.match(/[\d.]+/g)||[]).slice(0,3).map(Number);return channels[0]*.2126+channels[1]*.7152+channels[2]*.0722;};
 const assertRingText=async(container,label)=>{
  const metrics=await container.locator('.profile-achievement-value').evaluateAll(nodes=>nodes.map(node=>{
-  const range=document.createRange();range.selectNodeContents(node);const rects=[...range.getClientRects()];
-  return{code:node.closest('[data-achievement-code]')?.dataset.achievementCode||'history',text:node.textContent.trim(),fontSize:parseFloat(getComputedStyle(node).fontSize),lines:new Set(rects.map(r=>Math.round(r.top*2)/2)).size};
+  const range=document.createRange();range.selectNodeContents(node);const rects=[...range.getClientRects()],badge=node.closest('.profile-achievement-medallion').getBoundingClientRect();
+  return{code:node.closest('[data-achievement-code]')?.dataset.achievementCode||'history',text:node.textContent.trim(),fontSize:parseFloat(getComputedStyle(node).fontSize),lines:new Set(rects.map(r=>Math.round(r.top*2)/2)).size,fits:node.scrollWidth<=node.clientWidth+1&&rects.every(r=>r.left>=badge.left-1&&r.right<=badge.right+1&&r.top>=badge.top-1&&r.bottom<=badge.bottom+1)};
  }));
  assert(metrics.length,`${label} includes medallion values`);
- assert(metrics.every(m=>m.fontSize>=12&&m.lines<=2),`${label} values are at least 12px and at most two lines: ${JSON.stringify(metrics)}`);
+ assert(metrics.every(m=>m.fontSize>=8&&m.lines<=2&&m.fits),`${label} values stay within the medal without clipping: ${JSON.stringify(metrics)}`);
+};
+const assertLargeTextFit=async(container,label)=>{
+ const metrics=await container.locator('.profile-achievement-value').evaluateAll(nodes=>nodes.map(node=>{
+  node.style.fontSize='22px';delete node.dataset.fitTextMax;const fontSize=window.KinettaTextFit.fitElement(node),range=document.createRange();range.selectNodeContents(node);
+  const badge=node.closest('.profile-achievement-medallion').getBoundingClientRect(),rects=[...range.getClientRects()];
+  return{fontSize,width:node.clientWidth,scrollWidth:node.scrollWidth,lines:new Set(rects.map(r=>Math.round(r.top*2)/2)).size,fits:rects.every(r=>r.left>=badge.left-1&&r.right<=badge.right+1&&r.top>=badge.top-1&&r.bottom<=badge.bottom+1)};
+ }));
+ assert(metrics.length,`${label} includes medallion values`);
+ assert(metrics.every(m=>m.fontSize>=8&&m.fontSize<=22&&m.scrollWidth<=m.width+1&&m.lines<=2&&m.fits),`${label} values fit at large text: ${JSON.stringify(metrics)}`);
+ assert(metrics.some(m=>m.fontSize<22),`${label} scales a long value down in steps`);
 };
 
 module.exports=async({browser,storageState,base,shots})=>{
@@ -160,6 +170,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.equal(await page.evaluate(()=>window.__achievementVibrations),0,'a web level up does not vibrate');
   await page.locator('.profile-achievements').scrollIntoViewIfNeeded();
   await screenshot(page,shots,`achievement-profile-390-${theme}`);
+  if(process.env.KINETTA_ACHIEVEMENT_FIT_ONLY==='1'){await context.close();continue;}
   let levelUpAnimations=0;
   if(theme==='light'&&shots){
    levelUpAnimations=await page.locator('.profile-achievement[data-achievement-code="workouts"]').evaluate(card=>{const animations=card.getAnimations({subtree:true});for(const animation of animations){animation.pause();animation.currentTime=300;}return animations.length;});
@@ -322,10 +333,20 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert(levelBrightness.every((value,index)=>index===0||value<levelBrightness[index-1]),`P2 run medallions deepen at each level in ${theme}: ${JSON.stringify({levelBrightness,levelColors})}`);
   assert(!levelColors[4].shadow.includes('18px')&&levelColors.slice(5).every(color=>color.shadow.includes('18px')),'P2 adds the soft token-coloured glow from Lv 6 onward');
   if(shots){fs.mkdirSync(shots,{recursive:true});await page.locator('.profile-achievement-level-strip').screenshot({path:`${shots}/palette-p2-levels-390-${theme}.png`,animations:'disabled'});}
+  await page.setViewportSize({width:330,height:844});await setUnits('metric');
+  await page.goto(base+'/people/alex');await page.locator('.profile-achievements .profile-achievement-list').waitFor();
+  await assertRingText(page.locator('.profile-achievements'),'330px profile');await assertLargeTextFit(page.locator('.profile-achievements'),'330px large-text profile');
+  await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+  await assertRingText(page.locator('#profile-achievement-page'),'330px achievements grid');await assertLargeTextFit(page.locator('#profile-achievement-page'),'330px large-text achievements grid');
+  await page.goto(base+'/me/achievements/journey');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+  assert.equal(await page.locator('.profile-achievement-history-copy .profile-achievement-current-value').innerText(),'6,099.4 km','the long history value stays in metric units');
+  await assertRingText(page.locator('#profile-achievement-page'),'330px track history');await assertLargeTextFit(page.locator('#profile-achievement-page'),'330px large-text track history');
+  console.log(`Achievement medallions 330 ${theme}: profile, grid and history fit normal and large text`);
   assert.deepEqual(errors,[],`no browser errors in ${theme}`);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[],`no unmocked writes in ${theme}`);
   console.log(`Achievement medallions 390 ${theme}: profile, all tracks, history, units, icons and web haptic guard PASS`);
   await context.close();
  }
+ if(process.env.KINETTA_ACHIEVEMENT_FIT_ONLY==='1')return;
  const nativeContext=await browser.newContext(),nativePage=await nativeContext.newPage();
  await nativeContext.addInitScript(()=>{
   window.__achievementHaptics=[];
