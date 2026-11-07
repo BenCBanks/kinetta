@@ -22,13 +22,12 @@ async function runTheme(browser,theme){
   window.__contactsScenario='explain';window.__contactsPluginCalls=0;
   window.__contactsShares=[];
   Object.defineProperty(navigator,'share',{configurable:true,value:async options=>{window.__contactsShares.push(options);}});
-  const contacts=[
-   {id:'fictional-contact-1',name:'Jordan Lee',hashes:[{kind:'email',digest:'a'.repeat(64)}]},
-   {id:'fictional-contact-2',name:'Maya Chen',hashes:[{kind:'phone',digest:'b'.repeat(64)}]},
-   {id:'fictional-contact-3',name:'Taylor Brooks',hashes:[{kind:'email',digest:'c'.repeat(64)}]},
-  ];
   window.Capacitor={isNativePlatform:()=>false,getPlatform:()=> 'ios',Plugins:{KinettaContacts:{
-   hashContacts:async()=>{window.__contactsPluginCalls++;return{permission:window.__contactsScenario==='limited'?'limited':'authorized',contacts,hashes:contacts.flatMap(c=>c.hashes),truncated:false};},
+   hashContacts:async()=>{window.__contactsPluginCalls++;const contacts=[
+    {id:'fictional-contact-1',name:'Jordan Lee',hashes:[{kind:'email',digest:'a'.repeat(64)}]},
+    {id:'fictional-contact-2',name:'Maya Chen',hashes:[{kind:'phone',digest:'b'.repeat(64)}]},
+    {id:'fictional-contact-3',name:'Taylor Brooks',hashes:[{kind:'email',digest:'c'.repeat(64)}]},
+   ];const batch={permission:window.__contactsScenario==='limited'?'limited':'authorized',contacts,hashes:contacts.flatMap(c=>c.hashes),truncated:false};window.__contactsLastBatch=batch;return batch;},
    openSettings:async()=>({}),
   }}};
  });
@@ -38,6 +37,7 @@ async function runTheme(browser,theme){
   if(url.pathname==='/api/contacts/salt') {saltCalls++;return route.fulfill({json:{salt}});}
   if(url.pathname==='/api/contacts/match'){
    const body=request.postDataJSON();matchBodies.push(body);
+   if(scenario==='rate-limited')return route.fulfill({status:429,json:{error:'Contacts were checked in the last 24 hours. Try again tomorrow.'}});
    if(scenario==='empty')return route.fulfill({json:{matches:[]}});
    return route.fulfill({json:{matches:[{hash:'a'.repeat(64),login:'jordanfit'},{hash:'b'.repeat(64),login:'mayaride'}]}});
   }
@@ -88,6 +88,8 @@ async function runTheme(browser,theme){
  await enter('results');
  await page.locator('#contacts-continue').click();await page.getByRole('heading',{name:'On Kinetta',exact:true}).waitFor();
  assert.equal(await page.locator('.contacts-matched-list .contacts-person').count(),2,`only matching local contacts appear: ${await page.locator('.contacts-content').innerText()}`);
+ assert.equal(await page.locator('#contacts-check-again').count(),0,'a successful daily check has no repeat action');
+ assert.equal(await page.locator('.contacts-next-check').innerText(),'You can check again tomorrow');
  assert.deepEqual(await page.locator('.contacts-matched-list .contacts-person-copy b').allTextContents(),['Jordan Lee','Maya Chen']);
  assert.equal(await page.locator('.contacts-add').count(),2,'each result has a one-tap Add friend action');
  assert.equal(await page.locator('.contacts-invites').count(),1,`unmatched contacts remain an on-device invitation list: ${await page.locator('.contacts-content').innerText()}`);
@@ -107,6 +109,16 @@ async function runTheme(browser,theme){
  const share=await page.evaluate(()=>window.__contactsShares.at(-1));
  assert.equal(share.url,'https://login.kinetta.app/add/fictional-invite');assert.equal(Object.hasOwn(share,'recipients'),false,'the share sheet leaves recipient selection to iOS');
  assert(!JSON.stringify(share).includes('Taylor Brooks'),'contact details are not placed in the invite share payload');
+ await page.locator('#contacts-done').click();await page.waitForURL('**/me/friends?find=1');
+ await page.locator('#contacts-entry').waitFor();
+ assert.equal(await page.locator('#contacts-entry').count(),1,'Done returns to Find friends');
+ assert.deepEqual(await page.evaluate(()=>({contacts:window.__contactsLastBatch.contacts.length,hashes:window.__contactsLastBatch.hashes.length})),{contacts:0,hashes:0},'leaving the screen scrubs contact names, IDs and hashes from transient memory');
+ await enter('rate-limited');await page.locator('#contacts-continue').click();await page.getByRole('heading',{name:'On Kinetta',exact:true}).waitFor();
+ assert.equal(await page.locator('.contacts-matched-list .contacts-person').count(),2,'429 shows saved matches when available');
+ assert.equal(await page.locator('.contacts-next-check').innerText(),'You can check again tomorrow');
+ assert.equal(await page.locator('#contacts-check-again').count(),0,'429 has no retry button');
+ assert.equal(await page.getByRole('alert').count(),0,'429 is shown as a quiet availability line rather than an error');
+ await capture('contacts-rate-limited');
  await page.goto(base+'/me/sharing');await page.locator('#contacts-cache-remove').waitFor();
  await page.locator('#contacts-cache-remove').click();
  assert.equal(await page.evaluate(prefix=>Object.keys(localStorage).filter(key=>key.startsWith(prefix)).length,'kinetta.contacts.matches:'),0,'Me → Sharing & privacy clears the local match cache');
@@ -114,9 +126,9 @@ async function runTheme(browser,theme){
  await enter('empty');await page.locator('#contacts-continue').click();await page.getByRole('heading',{name:'No one found yet'}).waitFor();
  assert.equal(await page.locator('.contacts-matched-list .contacts-person').count(),0,'unmatched contact names are not shown as Kinetta accounts');
  await capture('contacts-empty');
- assert.deepEqual(matchBodies.map(body=>Object.keys(body).sort()),[['hashes','salt'],['hashes','salt'],['hashes','salt']]);
+ assert.deepEqual(matchBodies.map(body=>Object.keys(body).sort()),[['hashes','salt'],['hashes','salt'],['hashes','salt'],['hashes','salt']]);
  assert(matchBodies.every(body=>JSON.stringify(body).includes('digest')&&!JSON.stringify(body).includes('Jordan Lee')),'the server receives hashes only, never local contact details');
- assert.equal(saltCalls,3,'each explicit Contacts check gets a salt');
+ assert.equal(saltCalls,4,'each explicit Contacts check gets a salt');
  assert.deepEqual(errors,[]);
  await context.close();
 }
@@ -125,5 +137,5 @@ async function runTheme(browser,theme){
  const browser=await chromium.launch({headless:true});
  try{for(const theme of ['light','dark'])await runTheme(browser,theme);}
  finally{await browser.close();}
- console.log('Contacts screen: permission, limited access, matched results, opt-out empty state, local-only details and one-tap Add friend PASS');
+ console.log('Contacts screen: permission, rate limit, cache cleanup, matched results, local-only invites and one-tap Add friend PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});

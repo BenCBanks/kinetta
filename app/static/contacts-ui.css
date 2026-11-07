@@ -15,6 +15,7 @@
 .contacts-status { color:var(--danger)!important; }
 .contacts-actions { display:grid;gap:4px;margin:26px 0 0; }
 .contacts-actions button { min-height:48px;white-space:normal; }
+.contacts-next-check { margin:0;padding:10px 0;color:var(--tx2);font-size:14px;line-height:1.4;text-align:center; }
 .contacts-loading { min-height:150px;padding-top:44px;color:var(--tx2);text-align:center; }
 .contacts-section-title { margin:18px 0 8px;font-size:var(--text-app-section); }
 .contacts-note { color:var(--tx2);font-size:14px;line-height:1.4; }

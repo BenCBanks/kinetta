@@ -37,7 +37,35 @@ const ContactsUI = (() => {
 
   function mount(el) {
     el.classList.add('contacts-page');
-    const owner = readOwner(), live = () => el.isConnected && owner === readOwner();
+    const owner = readOwner();
+    const transient = {batch:null, hashMap:null, rows:null, contacts:null, current:null, invitations:null, statuses:null};
+    const discardHashes = batch => {
+      if (Array.isArray(batch?.hashes)) batch.hashes.length = 0;
+      for (const contact of batch?.contacts || []) if (Array.isArray(contact.hashes)) contact.hashes.length = 0;
+    };
+    const discardBatch = batch => {
+      if (!batch || typeof batch !== 'object') return;
+      discardHashes(batch);
+      for (const contact of batch.contacts || []) {
+        if (!contact || typeof contact !== 'object') continue;
+        contact.id = ''; contact.name = '';
+      }
+      if (Array.isArray(batch.contacts)) batch.contacts.length = 0;
+    };
+    let disposed = false;
+    const live = () => !disposed && el.isConnected && owner === readOwner();
+    viewResources.set(el, () => {
+      if (disposed) return;
+      disposed = true;
+      discardBatch(transient.batch);
+      transient.batch = null;
+      transient.hashMap?.clear(); transient.hashMap = null;
+      transient.contacts?.clear(); transient.contacts = null;
+      transient.statuses?.clear(); transient.statuses = null;
+      for (const rows of [transient.rows, transient.current, transient.invitations]) rows?.splice(0);
+      transient.rows = transient.current = transient.invitations = null;
+      el.replaceChildren();
+    });
     const returnTo = new URLSearchParams(location.search).get('return') === 'welcome' ? '/welcome?step=workouts' : '/me/friends?find=1';
     const back = () => go(returnTo);
     const frame = (body, actions = '') => {
@@ -78,7 +106,8 @@ const ContactsUI = (() => {
         const {salt} = await api('/api/contacts/salt');
         if (!live()) return;
         const batch = await plugin().hashContacts({salt});
-        if (!live()) return;
+        if (!live()) { discardBatch(batch); return; }
+        transient.batch = batch;
         if (batch.permission === 'limited') return limited(batch, salt);
         if (batch.permission !== 'authorized') return permissionOff(batch.permission);
         await check(batch, salt);
@@ -109,16 +138,19 @@ const ContactsUI = (() => {
     async function check(batch, salt) {
       if (!live()) return;
       const local = contactMap(batch), send = $('#contacts-check-selected', el) || $('#contacts-continue', el);
+      transient.hashMap = local;
       if (send) { send.disabled = true; send.textContent = 'Checking…'; }
       frame('<section class="contacts-loading" role="status">Checking your contacts…</section>');
       if (!(batch.hashes || []).length) {
+        discardHashes(batch); local.clear(); transient.hashMap = null;
+        transient.rows = [];
         saveMatches([]);
-        return renderMatches(batch, [], false);
+        return renderMatches(batch, transient.rows);
       }
       try {
         const response = await api('/api/contacts/match', json('POST', {salt, hashes: batch.hashes || []}));
         if (!live()) return;
-        const rows = [], seen = new Set();
+        const rows = [], seen = new Set(); transient.rows = rows;
         for (const match of response.matches || []) {
           const contact = local.get(match.hash);
           if (!contact || typeof match.login !== 'string' || !match.login || seen.has(match.login)) continue;
@@ -127,15 +159,20 @@ const ContactsUI = (() => {
         const names = new Map((batch.contacts || []).map(contact => [String(contact.id), contact.name || 'Contact']));
         rows.sort((a, b) => names.get(a.contactId).localeCompare(names.get(b.contactId)) || a.login.localeCompare(b.login));
         saveMatches(rows);
-        await renderMatches(batch, rows, false);
+        response.matches?.splice(0); names.clear(); seen.clear();
+        discardHashes(batch); local.clear(); transient.hashMap = null;
+        await renderMatches(batch, rows);
       } catch (error) {
         if (!live()) return;
         if (error.status === 429) {
-          const present = new Map((batch.contacts || []).map(contact => [String(contact.id), contact]));
+          const present = new Set((batch.contacts || []).map(contact => String(contact.id)));
           const cached = savedMatches().filter(row => present.has(String(row.contactId)));
+          present.clear(); transient.rows = cached;
           saveMatches(cached);
-          return renderMatches(batch, cached, true, error.message);
+          discardHashes(batch); local.clear(); transient.hashMap = null;
+          return renderMatches(batch, cached, {cached:true, rateLimited:true});
         }
+        discardHashes(batch); local.clear(); transient.hashMap = null;
         message('Could not check contacts', 'Try again when you have a connection.',
           `<button type="button" class="primary wide" id="contacts-retry">Try again</button><button type="button" class="linkbtn wide" id="contacts-not-now">Not now</button>`);
         $('#contacts-retry', el).onclick = () => begin();
@@ -143,11 +180,12 @@ const ContactsUI = (() => {
       }
     }
 
-    async function renderMatches(batch, rows, cached, note = '') {
-      const contacts = new Map((batch.contacts || []).map(contact => [String(contact.id), contact]));
-      const current = rows.map(row => ({...row, contact: contacts.get(String(row.contactId))})).filter(row => row.contact);
+    async function renderMatches(batch, rows, {cached = false, rateLimited = false} = {}) {
+      const contacts = new Map((batch.contacts || []).map(contact => [String(contact.id), contact])); transient.contacts = contacts;
+      const current = rows.map(row => ({...row, contact: contacts.get(String(row.contactId))})).filter(row => row.contact); transient.current = current;
       const matchedContacts = new Set(current.map(row => String(row.contactId)));
-      const inviteContacts = (batch.contacts || []).filter(contact => !matchedContacts.has(String(contact.id)));
+      const inviteContacts = (batch.contacts || []).filter(contact => !matchedContacts.has(String(contact.id))); transient.invitations = inviteContacts;
+      matchedContacts.clear();
       let relations = {friends: [], incoming: [], outgoing: []};
       try { relations = await api('/api/friends'); } catch { /* Keep Add available if relation status is temporarily unavailable. */ }
       if (!live()) return;
@@ -155,7 +193,7 @@ const ContactsUI = (() => {
         ...(relations.friends || []).map(person => [person.login, 'friends']),
         ...(relations.incoming || []).map(person => [person.login, 'incoming']),
         ...(relations.outgoing || []).map(person => [person.login, 'sent']),
-      ]);
+      ]); transient.statuses = statuses;
       const status = login => statuses.get(login);
       const resultRows = current.map(row => {
         const name = row.contact.name || 'Contact', relation = status(row.login);
@@ -166,13 +204,14 @@ const ContactsUI = (() => {
           <span class="contacts-person-copy"><b>${esc(name)}</b><small>@${esc(row.login)}</small></span>${action}</div>`;
       }).join('');
       const body = current.length
-        ? `<h2 class="contacts-section-title">On Kinetta</h2>${note ? `<p class="contacts-note" role="status">${esc(note)}</p>` : cached ? '<p class="contacts-note" role="status">Showing your saved matches.</p>' : ''}<div class="contacts-list contacts-matched-list" role="list">${resultRows}</div>`
+        ? `<h2 class="contacts-section-title">On Kinetta</h2>${cached ? '<p class="contacts-note" role="status">Showing your saved matches.</p>' : ''}<div class="contacts-list contacts-matched-list" role="list">${resultRows}</div>`
+        : rateLimited
+          ? `<section class="contacts-empty"><h2>No saved matches</h2><p>There are no previous results saved on this iPhone.</p></section>`
         : `<section class="contacts-empty"><h2>No one found yet</h2><p>None of these contacts matched an account that can be found by email or phone.</p><a class="linkbtn" href="/me/friends?find=1">Search by name or username</a></section>`;
       const invitations = inviteContacts.length
         ? `<details class="contacts-invites"><summary>Not on Kinetta <span>${inviteContacts.length}</span></summary><div class="contacts-list" role="list">${inviteContacts.map(contact => `<div class="contacts-person"><span class="contacts-avatar" aria-hidden="true">${esc((contact.name || 'Contact').trim().slice(0,1).toUpperCase() || '?')}</span><span class="contacts-person-copy"><b>${esc(contact.name || 'Contact')}</b></span><button type="button" class="contacts-invite linkbtn" data-invite-contact="${esc(contact.id)}" data-invite-name="${esc(contact.name || 'Contact')}">Invite</button></div>`).join('')}</div></details>`
         : '';
-      frame(body + invitations, `<div class="contacts-actions"><button type="button" class="linkbtn wide" id="contacts-check-again">Check again</button><button type="button" class="linkbtn wide" id="contacts-done">Done</button></div>`);
-      $('#contacts-check-again', el).onclick = () => begin();
+      frame(body + invitations, `<div class="contacts-actions"><p class="contacts-next-check" role="status">You can check again tomorrow</p><button type="button" class="linkbtn wide" id="contacts-done">Done</button></div>`);
       $('#contacts-done', el).onclick = back;
       el.querySelectorAll('.contacts-add').forEach(button => {
         button.onclick = async () => {
