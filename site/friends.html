@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Friends · Kinetta</title>
-<meta name="description" content="See workouts your approved friends share, with photos, cheers and comments. You choose who sees each activity, and shared maps leave out route starts and ends.">
+<meta name="description" content="See workouts your friends share, with photos, cheers and comments.">
 <meta property="og:title" content="Friends · Kinetta">
-<meta property="og:description" content="See workouts your approved friends share, with photos, cheers and comments. You choose who sees each activity, and shared maps leave out route starts and ends.">
+<meta property="og:description" content="See workouts your friends share, with photos, cheers and comments.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Kinetta">
 <meta property="og:url" content="https://kinetta.app/friends">
@@ -23,7 +23,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="assets/theme.css?v=9">
-<link rel="stylesheet" href="assets/site.css?v=22">
+<link rel="stylesheet" href="assets/site.css?v=23">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -48,42 +48,36 @@
 </header>
 
 <main id="main">
-  <section class="pagehead">
+  <section class="pagehead friends-pagehead">
     <div class="wrap">
       <span class="eyebrow">Friends</span>
-      <h1>Keep up with <em>your friends’ workouts.</em></h1>
-      <p class="lede">Build your profile, find people you know and see your activities together. Send cheers or leave a comment.</p>
+      <h1>Your people, in motion.</h1>
+      <p class="lede">Share workouts, cheer each other on, and catch up through training.</p>
     </div>
   </section>
-  <section class="band" id="friends" aria-labelledby="fr-h">
+  <section class="band friends-gallery" aria-labelledby="friends-gallery-heading">
     <div class="wrap">
-      <div class="spot">
-        <div>
-          <span class="eyebrow">The feed</span>
-          <h2 id="fr-h" class="spot-h">Your workouts and theirs, in one feed.</h2>
-          <p>Runs, rides, walks and other shared activities, newest first. New accounts share new activities with everyone on Kinetta by default. Choose approved friends or Only me in the welcome steps or Settings → Sharing &amp; privacy. Existing accounts and activities keep their saved choices.</p>
-          <ul>
-            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>You choose what to share</b>: your food log always stays private</span></li>
-            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Trim your route</b>: choose how much of the start and end to hide</span></li>
-            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>You pick the details</b>: pace, heart rate, calories</span></li>
-            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Photos</b>: shown to whoever can see that activity</span></li>
-            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>See who cheered</b>: faces and names</span></li>
-            <li><svg aria-hidden="true"><use href="#oval"/></svg><span><b>Share a workout card</b>: export a picture of the route and numbers to a chat</span></li>
-          </ul>
-        </div>
-        <div class="pair">
-          <div class="frame"><picture><source srcset="assets/shots/dark-feed-1x.webp 1x, assets/shots/dark-feed.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-feed-1x.webp" srcset="assets/shots/light-feed-1x.webp 1x, assets/shots/light-feed.webp 2x" alt="The Activity feed: your lunch run on a matched route, with its map and photos" loading="lazy" width="786" height="1704"></picture></div>
-          <div class="frame"><picture><source srcset="assets/shots/dark-photos-1x.webp 1x, assets/shots/dark-photos.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-photos-1x.webp" srcset="assets/shots/light-photos-1x.webp 1x, assets/shots/light-photos.webp 2x" alt="A lunch run after swiping from its map to a Freedom Park photo; the Map shortcut returns to the route" loading="lazy" width="786" height="1704"></picture></div>
-          <p class="credit">Photos of Freedom Park, Charlotte: James Willamor and City Dweller 2, <a href="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA</a>, via Wikimedia Commons.</p>
-        </div>
+      <div class="head"><h2 id="friends-gallery-heading">See what friends are doing.</h2><p>Runs, rides, walks and strength sessions appear together. Set an audience for each activity; reactions and comments follow it.</p></div>
+      <div class="shots four" aria-label="Friends features">
+        <article class="shot"><figure><div class="frame"><picture><source srcset="assets/shots/dark-feed-1x.webp 1x, assets/shots/dark-feed.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-feed-1x.webp" srcset="assets/shots/light-feed-1x.webp 1x, assets/shots/light-feed.webp 2x" alt="Fictional activity feed with shared workouts, a route map and friends’ reactions" loading="lazy" width="786" height="1704"></picture></div><figcaption><h3>The feed</h3></figcaption></figure></article>
+        <article class="shot"><figure><div class="frame"><picture><source srcset="assets/shots/dark-photos-1x.webp 1x, assets/shots/dark-photos.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-photos-1x.webp" srcset="assets/shots/light-photos-1x.webp 1x, assets/shots/light-photos.webp 2x" alt="Fictional shared run with a map and a park photo" loading="lazy" width="786" height="1704"></picture></div><figcaption><h3>Map and photos</h3></figcaption></figure></article>
+        <article class="shot"><figure><div class="frame"><picture><source srcset="assets/shots/dark-profile-1x.webp 1x, assets/shots/dark-profile.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-profile-1x.webp" srcset="assets/shots/light-profile-1x.webp 1x, assets/shots/light-profile.webp 2x" alt="Fictional profile with a chosen photo, bio and weekly totals" loading="lazy" width="786" height="1704"></picture></div><figcaption><h3>Build your profile</h3></figcaption></figure></article>
+        <article class="shot"><figure><div class="frame"><picture><source srcset="assets/shots/dark-friends-1x.webp 1x, assets/shots/dark-friends.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-friends-1x.webp" srcset="assets/shots/light-friends-1x.webp 1x, assets/shots/light-friends.webp 2x" alt="Fictional friends list with three members and one pending request" loading="lazy" width="786" height="1704"></picture></div><figcaption><h3>Find your people</h3></figcaption></figure></article>
       </div>
+      <p class="site-credit">Photos of Freedom Park, Charlotte: James Willamor and City Dweller 2, <a href="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA</a>, via Wikimedia Commons.</p>
     </div>
   </section>
-  <section class="band" aria-labelledby="profile-h"><div class="wrap"><div class="spot"><div><span class="eyebrow">Your profile</span><h2 id="profile-h" class="spot-h">A profile that feels like you.</h2><p>Your profile card sits at the top of Me, exactly as your friends see it. Edit it in place: choose your photo, bio, headline statistics and featured sports, and show the sections you want in your own order. Totals count all your workouts, while private ones never show their details. Open your full profile to preview what other members see. Profiles require a Kinetta login.</p><h3>Your dashboard stays private.</h3><p>Below your card, a clear line marks where your private dashboard begins: your training, food and progress together. Food logs, body data and Kit conversations stay private, and optional setup is one checklist you can hide.</p><h3>A little momentum, together.</h3><p>Review a milestone, share a recap or invite people to a small challenge. Joining a challenge is separate from becoming friends. You choose when to share. An optional public card and QR code help people find you; cards start off and friend requests need your approval.</p><a class="btn line" href="guide">Explore sharing and challenges</a></div><div class="pair solo"><div class="frame"><picture><source srcset="assets/shots/dark-profile-1x.webp 1x, assets/shots/dark-profile.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-profile-1x.webp" srcset="assets/shots/light-profile-1x.webp 1x, assets/shots/light-profile.webp 2x" alt="Fictional shared profile with audience preview and shared progress; private food and body data stay separate" loading="lazy" width="786" height="1704"></picture></div></div></div></div></section>
+  <section class="band friends-summary" aria-label="Profiles and sharing">
+    <div class="wrap">
+      <article><h2>Profiles with room to move.</h2><p>Choose a photo, bio, headline stats and sports. Friends see the profile card; activity details follow the audience you set.</p></article>
+      <article><h2>Your account, your call.</h2><p>Food logs, body details and Kit conversations are visible only to you.</p></article>
+      <article><h2>A little momentum, together.</h2><p>Cheer, comment, share a recap, or invite friends to a small challenge.</p></article>
+    </div>
+  </section>
   <section class="band next" aria-label="Next">
     <div class="wrap">
       <a class="on" href="compare"><small>Next: Compare</small><span>Training and food together ›</span></a>
-      <a class="btn solid" href="https://login.kinetta.app/signup">Join beta</a>
+      <a class="btn solid" href="https://login.kinetta.app/signup">Join the iPhone beta</a>
     </div>
   </section>
 </main>
@@ -92,8 +86,8 @@
   <div class="wrap">
     <picture><source srcset="assets/logo-dark.svg?v=4" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg?v=4" alt="Kinetta" width="124" height="20"></picture>
     <div>
-      <p><a href="training">Training</a> · <a href="food">Food</a> · <a href="friends">Friends</a> · <a href="compare">Compare</a> · <a href="guide">Feature guide</a> · <a href="privacy">Privacy policy</a> · <a href="terms">Terms of Use</a> · <a href="mailto:feedback@kinetta.app">Contact</a> · <a href="https://github.com/BenCBanks/kinetta">GitHub</a> · <a href="about">About us</a></p>
-      <p>Free for personal use under the <a href="https://github.com/BenCBanks/kinetta/blob/main/LICENSE">PolyForm Noncommercial License</a>; commercial licenses on request.</p>
+      <p><a href="training">Training</a> · <a href="food">Food</a> · <a href="friends">Friends</a> · <a href="compare">Compare</a> · <a href="about">About</a> · <a href="privacy">Privacy</a></p>
+      <p>Source available under the <a href="https://github.com/BenCBanks/kinetta/blob/main/LICENSE">PolyForm Noncommercial License</a>; commercial use needs a separate license.</p>
       <p>© 2026 Ben Banks. Name and logo not covered by the license. Demo data in screenshots.</p>
     </div>
   </div>

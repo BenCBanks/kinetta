@@ -4,19 +4,19 @@ Edit the text below each heading. Keep the section keys unchanged. Supports **bo
 
 ## your-friends-workouts-and-yours-1
 
-Keep up with *your friends’ workouts.*
+Your people, in motion.
 
 ## find-friends-by-name-see-their-runs-send-them-cheers-2
 
-Build your profile, find people you know and see your activities together. Send cheers or leave a comment.
+Share workouts, cheer each other on, and catch up through training.
 
 ## see-who-s-out-there-today-3
 
-Your workouts and theirs, in one feed.
+See what friends are doing.
 
 ## your-runs-and-theirs-newest-first-4
 
-Runs, rides, walks and other shared activities, newest first. New accounts share new activities with everyone on Kinetta by default. Choose approved friends or Only me in the welcome steps or Settings → Sharing & privacy. Existing accounts and activities keep their saved choices.
+Runs, rides, walks and strength sessions appear together. Set an audience for each activity; reactions and comments follow it.
 
 ## photos-of-freedom-park-charlotte-james-willamor-and-ci-5
 
@@ -24,32 +24,31 @@ Photos of Freedom Park, Charlotte: James Willamor and City Dweller 2, [CC BY-SA]
 
 ## training-training-food-food-friends-friends-compare-co-6
 
-[Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [Feature guide](guide) · [Privacy policy](privacy) · [Terms of Use](terms) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta)
+[Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [About](about) · [Privacy](privacy)
 
 ## free-for-personal-use-under-the-polyform-noncommercial-7
 
-Free for personal use under the [PolyForm Noncommercial License](https://github.com/BenCBanks/kinetta/blob/main/LICENSE); commercial licenses on request.
+Source available under the [PolyForm Noncommercial License](https://github.com/BenCBanks/kinetta/blob/main/LICENSE); commercial use needs a separate license.
 
 ## 2026-ben-banks-name-and-logo-not-covered-by-the-licens-8
 
 © 2026 Ben Banks. Name and logo not covered by the license. Demo data in screenshots.
 
-
 ## profile-heading
 
-A profile that feels like you.
+Profiles with room to move.
 
 ## profile-copy
 
-Your profile card sits at the top of Me, exactly as your friends see it. Edit it in place: choose your photo, bio, headline statistics and featured sports, and show the sections you want in your own order. Totals count all your workouts, while private ones never show their details. Open your full profile to preview what other members see. Profiles require a Kinetta login.
+Choose a photo, bio, headline stats and sports. Friends see the profile card; activity details follow the audience you set.
 
 ## private-overview-heading
 
-Your dashboard stays private.
+Your account, your call.
 
 ## private-overview-copy
 
-Below your card, a clear line marks where your private dashboard begins: your training, food and progress together. Food logs, body data and Kit conversations stay private, and optional setup is one checklist you can hide.
+Food logs, body details and Kit conversations are visible only to you.
 
 ## motivation-heading
 
@@ -57,4 +56,4 @@ A little momentum, together.
 
 ## motivation-copy
 
-Review a milestone, share a recap or invite people to a small challenge. Joining a challenge is separate from becoming friends. You choose when to share. An optional public card and QR code help people find you; cards start off and friend requests need your approval.
+Cheer, comment, share a recap, or invite friends to a small challenge.

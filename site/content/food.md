@@ -80,7 +80,7 @@ No AI needed: search USDA and Open Food Facts or add your own foods. Photo estim
 
 ## free-for-personal-use-under-the-polyform-noncommercial-17
 
-Free for personal use under the [PolyForm Noncommercial License](https://github.com/BenCBanks/kinetta/blob/main/LICENSE); commercial licenses on request.
+Source available under the [PolyForm Noncommercial License](https://github.com/BenCBanks/kinetta/blob/main/LICENSE); commercial use needs a separate license.
 
 ## 2026-ben-banks-name-and-logo-not-covered-by-the-licens-18
 
