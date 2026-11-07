@@ -24,9 +24,9 @@ with db.connect() as c:
                  (%s,'test-sharing:journey-state','track_state','Journey',0,%s,%s,%s)''',
               (owner_id, day, occurred, Jsonb({'track':'journey','value_m':6800000,'label':'Journey','unit':'km'})))
     c.execute('''INSERT INTO milestones(user_id,code,kind,title,rank,day,occurred,details) VALUES
-                 (%s,'test-sharing:journey-big','track','Across the US',1,%s,%s,%s),
-                 (%s,'test-sharing:climbing-big','track','2 Everests',2,%s,%s,%s)''',
-              (owner_id, day, occurred, Jsonb({'track':'journey','rank':1,'threshold':4500000,'label':'Across the US','unit':'km','big':True}),
-               owner_id, day, occurred, Jsonb({'track':'climbing','rank':2,'threshold':17698,'label':'2 Everests','unit':'m','big':True})))
+                 (%s,'test-sharing:journey-big','track','Across the US',7,%s,%s,%s),
+                 (%s,'test-sharing:climbing-big','track','Cruising altitude',10,%s,%s,%s)''',
+              (owner_id, day, occurred, Jsonb({'track':'journey','rank':7,'threshold':4506163,'label':'Across the US','unit':'km','big':True}),
+               owner_id, day, occurred, Jsonb({'track':'climbing','rank':10,'threshold':10668,'label':'Cruising altitude','unit':'m','big':True})))
     c.execute("UPDATE users SET name='River Friend 1 With a Long Fictional Name' WHERE id=%s", (owner_id,))
 print('Fictional big-tier moment ready for the 390px Activity capture.')
