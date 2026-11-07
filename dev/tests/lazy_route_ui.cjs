@@ -103,6 +103,17 @@ async function foodRouteFixture(browser,{hold=false,failFirst=false,instrument=f
    }
    return route.continue();
   }
+  if(request.method()==='POST'&&url.pathname==='/api/coach/conversation/visits'){
+   writes.push(`${request.method()} ${url.pathname}`);
+   return route.fulfill({json:{visit_id:request.postDataJSON().visit_id,generation:'11111111-1111-4111-8111-111111111111',ready:true}});
+  }
+  if(request.method()==='GET'&&url.pathname==='/api/coach/conversation'){
+   return route.fulfill({json:{visit_id:url.searchParams.get('visit_id'),generation:'11111111-1111-4111-8111-111111111111',messages:[],before:null,ready:true}});
+  }
+  if(request.method()==='POST'&&/^\/api\/coach\/conversation\/visits\/[^/]+\/end$/.test(url.pathname)){
+   writes.push(`${request.method()} ${url.pathname}`);
+   return route.fulfill({json:{ok:true}});
+  }
   if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204});
   if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
   return route.continue();
@@ -437,11 +448,15 @@ async function notificationFixture(browser,loginName=user,options={}){
     assert.deepEqual(await foodWarm.page.evaluate(()=>[typeof kitFoodWords,typeof weightAddress,typeof refreshWeightData,typeof guardFoodSheet,typeof KitChat.href,KitChat.loaded]),['function','function','function','function','function',false],'small shared Food and Kit entry seams stay eager');
     await foodWarm.page.evaluate(()=>{window.__foodWarmCalls=0;const original=loadClassicScript;window.loadClassicScript=asset=>{if(asset===FOOD_ROUTE_ASSET)window.__foodWarmCalls++;return original(asset);};});
     const warmed=foodWarm.page.waitForRequest(request=>new URL(request.url()).pathname==='/static/food.js');
-    await foodWarm.page.locator('a[data-tab="food"]').evaluate(tab=>tab.dispatchEvent(new Event('touchstart',{bubbles:true})));
+    await foodWarm.page.locator('a[data-tab="food"]').evaluate(tab=>{
+      const touch=new Touch({identifier:1,target:tab,clientX:1,clientY:1});
+      tab.dispatchEvent(new TouchEvent('touchstart',{bubbles:true,touches:[touch],targetTouches:[touch],changedTouches:[touch]}));
+    });
     await warmed;await foodWarm.page.waitForFunction(()=>classicScriptsLoaded.has(FOOD_ROUTE_ASSET));
     const tab=foodWarm.page.locator('a[data-tab="food"]');
     await tab.evaluate(el=>el.dispatchEvent(new PointerEvent('pointerover',{bubbles:true,pointerType:'mouse'})));
     await tab.focus();await until(foodWarm.page,()=>window.__foodWarmCalls>=3,'touch, hover and keyboard focus warm Nutrition');
+    await foodWarm.page.waitForFunction(()=>window.__foodIdleCallbacks.length>=2);
     await foodWarm.page.evaluate(()=>window.__foodIdleCallbacks.splice(0).forEach(callback=>callback({didTimeout:false,timeRemaining:()=>50})));
     await foodWarm.page.waitForFunction(()=>KitChat.loaded&&classicScriptsLoaded.has(KIT_ROUTE_ASSET));
     assert.equal(foodWarm.assets.filter(path=>path==='/static/food.js').length,1,'tab intent and idle deduplicate Food loading');
@@ -494,6 +509,8 @@ async function notificationFixture(browser,loginName=user,options={}){
   try{
     await kitDirect.page.goto(base+'/me/kit',{waitUntil:'domcontentloaded'});await ready(kitDirect.page,'#kit-text','Kit after deferred direct route');
     assert.deepEqual(kitDirect.assets.slice(0,2),['/static/food.js','/static/kit.js'],'Kit loads Food dependencies before the chat route');
+    assert.equal(await kitDirect.page.locator('#kit-load-retry').isVisible(),false,'fictional conversation startup succeeds without the retry error');
+    assert.doesNotMatch(await kitDirect.page.locator('#kit-status').textContent(),/Cannot read properties/,'Kit renders without an initialization exception');
     assert.deepEqual(kitDirect.errors,[]);assert(kitDirect.writes.some(path=>path==='POST /api/coach/conversation/visits'),'the fictional Kit start write is intercepted by the test route');
   }finally{kitDirect.release();await kitDirect.context.close();}
 
