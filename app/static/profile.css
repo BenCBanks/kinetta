@@ -137,7 +137,7 @@
 .me-card-open-link { position:absolute; inset:0; z-index:1; display:block; color:rgba(255,255,255,.82); text-decoration:none; border-radius:20px; }
 .me-card-open-link > svg { position:absolute; top:10px; right:12px; width:18px; height:18px; }
 .me-card-open-link:focus-visible { outline:2px solid var(--accent); outline-offset:-4px; }
-.me-card-open :is(a,button,input,select,[tabindex]:not([tabindex="-1"])):not(.me-card-open-link) { position:relative; z-index:2; }
+.me-card-open :is(a,button,input,select,[tabindex]:not([tabindex="-1"]),[data-week-label]):not(.me-card-open-link) { position:relative; z-index:2; }
 .me-card.editing { outline:2px solid var(--btn); outline-offset:2px; }
 .me-card-banner { min-height:64px; padding:10px 10px 0; display:flex; justify-content:flex-end; align-items:flex-start; gap:8px; background:linear-gradient(135deg, var(--color-action), var(--color-brand) 60%, var(--color-ride)); }
 .me-card-banner.hidden-tools>* { visibility:hidden; }

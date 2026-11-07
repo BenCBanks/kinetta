@@ -149,6 +149,16 @@
     "minimumHeight": 44,
     "maximumHeight": 44,
     "followup": "https://github.com/BenCBanks/kinetta/issues/545",
-    "reason": "Owner-approved #545 puts 20px reaction marks 4px apart. Splitting at the midpoint gives each mark its own 24×44px hit area; the total keeps a separate default 44×44px target. Focused browser checks verify all shortcut boxes are disjoint and each mark and the total receives its own tap. This is the only target-width exception."
+    "reason": "Owner-approved #545 puts 20px reaction marks 4px apart. Splitting at the midpoint gives each mark its own 24\u00d744px hit area; the total keeps a separate default 44\u00d744px target. Focused browser checks verify all shortcut boxes are disjoint and each mark and the total receives its own tap. This is the only target-width exception."
+  },
+  {
+    "id": "me-card-profile-link-over-controls",
+    "selector": ".me-card-open-link",
+    "withSelector": ".me-card-open :is(button,a:not(.me-card-open-link),[data-week-label])",
+    "within": ".me-card",
+    "metric": "overlap",
+    "kind": "intentional-overlay",
+    "maximum": 44,
+    "reason": "The approved whole-card profile link covers the Me card; existing edit, share, friends, week and medal controls stay above it. Only these same-card pairs are excepted, and reachability checks still require both hit areas exposed."
   }
 ]
