@@ -276,9 +276,9 @@
           "canonical_unit": "workouts",
           "display": "workouts",
           "display_value": 50,
-          "emoji": "🫘",
-          "asset_name": "Beans",
-          "icon": "/static/profile.fluent-emoji/flat/beans_flat.svg?v=__ASSET_HASH__"
+          "emoji": "🌱",
+          "asset_name": "Seedling",
+          "icon": "/static/profile.fluent-emoji/flat/seedling_flat.svg?v=__ASSET_HASH__"
         },
         {
           "name": "Sapling",

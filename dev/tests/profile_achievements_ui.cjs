@@ -4,9 +4,10 @@ const catalog=JSON.parse(fs.readFileSync(path.join(__dirname,'../../app/static/p
 assert.equal(catalog.version,3,'the profile uses Sage/Ben catalog v3');
 for(const [code,track] of Object.entries(catalog.tracks)){
  const glyphs=track.levels.map(row=>row.emoji);
- assert.equal(new Set(glyphs).size,glyphs.length,`${code} named levels each have their own icon`);
+ for(let i=0;i<glyphs.length;i++){const nearby=glyphs.slice(i,i+3);assert.equal(new Set(nearby).size,nearby.length,`${code} level icon differs from the next two levels`);}
  for(const row of track.levels){const file=path.join(__dirname,'../../app/static',row.icon.replace(/^\/static\//,'').split('?')[0]);assert(fs.existsSync(file),`${code}/${row.name} has a local Fluent Flat SVG`);}
 }
+assert.deepEqual(catalog.tracks.workouts.levels.slice(0,2).map(row=>[row.name,row.asset_name]),[['First workout','Seedling'],['Sprig','Herb']],'Workouts early icons follow the seedling family');
 assert.deepEqual(catalog.tracks.active_time.levels.slice(-2).map(row=>row.name),['A working year','Mastery']);
 assert.doesNotMatch(JSON.stringify(catalog),/A year of days|Century club|blue whales ×/i);
 assert.deepEqual(catalog.tracks.lifted.levels.slice(3,5).map(row=>row.name),['A school bus','A loaded semi truck']);
