@@ -11,7 +11,7 @@ the successful resource view. Old addresses are checked as redirects. Eight sign
 | Area | States and actual interactions |
 | --- | --- |
 | Startup and entry | Cold/warm opening; failed required script and Reload; delayed API; login/logout; invitation/signup/waitlist; confirmation/reset errors; first-use welcome |
-| Stable five tabs | Me → Activity → Track → Progress → Nutrition and back; correct selected tab; responsive shell; scroll restoration; interrupted/reordered reads |
+| Stable five tabs | Home → Progress → Track → Nutrition → Me and back; correct selected tab; responsive shell; scroll restoration; interrupted/reordered reads; Explore opens from Track and keeps its old URL |
 | Me and settings | Conditional food-first home, empty home, profile, friends/challenges/milestones, gear/goals, account/body/privacy/AI/notification/device sheets; cancel and validation |
 | Activity and recording | Own/shared detail, charts/details/splits/efforts, missing GPS/speed/HR sharing, photos/maps/failure retry, recording start/pause/resume/finish/discard and interval controls |
 | Progress | Mileage period/sport/date changes, records/history, fitness/chart gestures/reset, collapsed/expanded prediction help, lifting/exercise history, calendar, matched routes, personal heatmap and segments |

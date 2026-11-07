@@ -4,17 +4,17 @@ The pre-launch walkthrough (#472) builds this map one tab at a time. Me was insp
 
 Depth counts taps after selecting the tab. Opening a disclosure and then its Open link counts as two taps. Sheet depth is included. Scrolling does not add taps. A node can have several entrances; depths below use the shortest entrance available in the inspected state.
 
-## Me and the five-tab spine
+## Home-first tabs and the Me card
 
 The boundary nodes lead to other tabs; their owned flows appear below as each slice is reviewed.
 
 ```mermaid
 flowchart LR
-  Tabs["Five tabs"] --> Me["Me · 0 taps"]
-  Tabs --> Activity["Activity · see audited flow below"]
-  Tabs --> Track["Track · see audited flow below"]
+  Tabs["Five tabs"] --> Activity["Home · /activity · see audited feed below"]
   Tabs --> Progress["Progress · see audited flow below"]
+  Tabs --> Track["Track · see audited flow below"]
   Tabs --> Nutrition["Nutrition · see audited flow below"]
+  Tabs --> Me["Me · see audited private dashboard below"]
   Signup["Sign-up and welcome · see flow below"]
 
   Me -->|Settings icon · 1| Settings["Settings · /me/settings"]
@@ -28,7 +28,7 @@ flowchart LR
   Me -->|See all milestones · 1 when present| MilestoneList["Recent milestones sheet"]
   Me -->|Set a goal · 1 when empty| GoalEdit
   MilestoneLegacy["Legacy /me/milestones"] -.-> Me
-  Me -->|Explore · 1| Explore["Explore Kinetta · /me/explore"]
+  Track -->|Explore · 1| Explore["Explore Kinetta · /me/explore (legacy URL)"]
   Me -->|Edit · 1| Editor["Inline card editor"]
   Me -->|Share · 1| ShareMenu["Share your profile sheet"]
   Me -->|Monthly recap Share · 1 when present| Recap["Share progress sheet"]

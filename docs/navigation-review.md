@@ -6,7 +6,7 @@ Regular page Back controls use the previous app entry when its account and local
 
 | Page or route family | Named parent when no previous app entry is known |
 | --- | --- |
-| Me, Activity, Track, Progress home, Nutrition home | Main tabs; no page Back is needed |
+| Home, Progress, Track, Nutrition, Me | Main tabs; no page Back is needed |
 | `/today` | Existing redirect to Me |
 | `/me/activities` (including sport/search) | Me |
 | `/activity/{activity}` (all analysis tabs) | Activity; both floating/sticky controls share the destination |
@@ -40,7 +40,7 @@ Regular page Back controls use the previous app entry when its account and local
 | `/me/devices` | Settings |
 | `/me/sharing`, `/me/notifications` | Settings |
 | `/notifications` | Me through the existing Today alias |
-| `/me/explore` | Me |
+| `/me/explore` | Track (legacy URL) |
 | `/me/milestones` | Legacy redirect to Me; recent milestones use the card and a sheet |
 | `/food/meals` | Nutrition |
 | `/food/cook/{recipe}` | Recipes for the owner, Nutrition for a shared recipe |
