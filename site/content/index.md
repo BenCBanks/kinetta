@@ -8,39 +8,87 @@ Your workouts. Your nutrition. One app.
 
 ## runs-rides-lifting-and-meals-tracked-together-and-kept-2
 
-Progress, insights and Kit.
+Training, food and friends together, without the clutter.
+
+## home-core-heading
+
+Record, eat and connect.
 
 ## runs-rides-and-lifting-4
 
-See the whole workout
+Record
 
 ## quick-food-logging-6
 
-Log food with a sentence
+Food
 
 ## friends-kept-private-8
 
-Share with friends
+Friends
+
+## home-discipline-run
+
+Run
+
+## home-discipline-ride
+
+Ride
+
+## home-discipline-walk
+
+Walk
+
+## home-discipline-lift
+
+Lift
+
+## home-discipline-plans
+
+Plans
+
+## home-more-heading
+
+Also in Kinetta
 
 ## home-progress-caption
 
-Progress over time
+Food insights
 
 ## home-insights-caption
 
-Understand food patterns
+Routes & segments
 
 ## home-kit-caption
 
-Ask Kit about training
+Kit
+
+## home-groups-caption
+
+Groups
+
+## home-trust-sharing
+
+You choose what you share
+
+## home-trust-export
+
+Export your data
+
+## home-trust-ads
+
+No ads
+
+## home-closing-heading
+
+Bring it all together.
 
 ## training-training-food-food-friends-friends-compare-co-17
 
-[Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [Feature guide](guide) · [Privacy policy](privacy) · [Terms of Use](terms) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta)
+[Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [About](about) · [Privacy](privacy)
 
 ## free-for-personal-use-under-the-polyform-noncommercial-18
 
-Free for personal use under the [PolyForm Noncommercial License](https://github.com/BenCBanks/kinetta/blob/main/LICENSE); commercial licenses on request.
+Source available under the [PolyForm Noncommercial License](https://github.com/BenCBanks/kinetta/blob/main/LICENSE); commercial use needs a separate license.
 
 ## 2026-ben-banks-name-and-logo-not-covered-by-the-licens-19
 
