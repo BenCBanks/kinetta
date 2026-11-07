@@ -183,9 +183,11 @@ const ProfileLayout=(()=>{
     try{legacy=JSON.parse(localStorage.getItem(legacyKey)||'null');if(!legacy||typeof legacy!=='object'||Array.isArray(legacy))legacy=null;}catch(_){legacy=null;}
     const migrating=!previous&&!!legacy;if(migrating)previous=legacy;
     const latest={...(previous||{})},up=new Set();
+    const insertedV3Levels={consistency:2,workouts:2,active_time:2,journey:2,climbing:2,lifted:1,'sport:run':2,'sport:ride':2,'sport:walk-hike':2,'sport:swim':2};
     for(const track of Array.isArray(data?.tracks)?data.tracks:[]){
       if(!track?.code)continue;const level=achievementLevel(track),had=previous&&Object.prototype.hasOwnProperty.call(previous,track.code),before=Number(previous?.[track.code]);
-      if(!migrating&&had&&Number.isFinite(before)&&level>before)up.add(track.code);
+      const baseline=migrating&&Number.isFinite(before)?before+(insertedV3Levels[track.code]||0):before;
+      if(had&&Number.isFinite(baseline)&&level>baseline)up.add(track.code);
       latest[track.code]=migrating?level:Math.max(Number.isFinite(before)?before:0,level);
     }
     try{localStorage.setItem(key,JSON.stringify(latest));}catch(_){/* animation is optional when storage is unavailable */}
