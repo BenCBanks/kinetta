@@ -1,10 +1,8 @@
 """Fictional own history for reuse chips; no provider or live account data."""
-import datetime as dt
-from zoneinfo import ZoneInfo
 from kc import person
 c=person('zz_test_food_memory_ui','Casey Example')
-status,me=c.get('/api/me');assert status==200
-day=str(dt.datetime.now(ZoneInfo(me['tz'])).date())
+status,_=c.put('/api/profile',{'tz':'America/New_York'});assert status==200
+day='2026-11-06'
 status,rows=c.get('/api/food/day?d='+day);assert status==200
 names={row['name'] for row in rows['entries']}
 for row in rows['entries']:
