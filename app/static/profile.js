@@ -260,6 +260,25 @@ const ProfileLayout=(()=>{
     const names=items.map(item=>item.name),label=[names.length?`Showcase: ${names.join(', ')}`:'',hasStreak?`${streak}-day activity streak`:'' ].filter(Boolean).join('. ');
     return `<span class="me-showcase-row" role="img" aria-label="${esc(label)}">${items.map(item=>`<span class="me-showcase-medal" data-showcase-code="${esc(item.code)}" aria-hidden="true">${item.icon}</span>`).join('')}${hasStreak?`<span class="me-showcase-streak" aria-hidden="true">${svg('flame')}<span>${streak}</span></span>`:''}</span>`;
   }
+  function showcaseStreakMarkup(data){
+    const streak=Number(data?.day_streak);if(!Number.isInteger(streak)||streak<2)return '';
+    return `<span class="me-showcase-row" role="img" aria-label="${streak}-day activity streak"><span class="me-showcase-streak" aria-hidden="true">${svg('flame')}<span>${streak}</span></span></span>`;
+  }
+  const featuredContexts={journey:'All-sport distance','sport:run':'Total running distance','sport:ride':'Total cycling distance','sport:walk-hike':'Walking & hiking distance','sport:swim':'Total swimming distance','sport:lift':'Lift sessions',workouts:'Workouts completed',active_time:'Active time',consistency:'Weeks with a workout',years_active:'Years active',climbing:'Elevation climbed',lifted:'Weight lifted',personal_bests:'Personal bests'};
+  function featuredShowcaseMarkup(showcase,achievementData){
+    const pinned=new Set((Array.isArray(showcase?.pinned)?showcase.pinned:[]).map(String)),tracks=new Map((Array.isArray(achievementData?.tracks)?achievementData.tracks:[]).map(track=>[String(track?.code||''),track]));
+    const items=(Array.isArray(showcase?.items)?showcase.items:[]).filter(item=>pinned.has(String(item?.code||''))).slice(0,4).map(item=>{
+      const code=String(item?.code||''),rank=Number(item?.rank),track=tracks.get(code);
+      if(!code||!Number.isInteger(rank)||rank<1||!track)return null;
+      const tier=achievementTierAt(code,rank),value=achievementValue(track),context=featuredContexts[code]||track.label||code;
+      return tier&&value?{code,name:tier.name,value,context,icon:achievementAsset(tier,'me-featured-icon')}:null;
+    }).filter(Boolean);
+    if(!items.length)return '';
+    return `<div class="me-featured-achievements" role="group" aria-label="Featured achievements"><h3 class="me-featured-title">Featured achievements</h3><div class="me-featured-grid count-${items.length}" role="list">${items.map(item=>`<div class="me-featured-item" role="listitem" data-showcase-code="${esc(item.code)}" aria-label="${esc(`${item.name}, ${item.value}, ${item.context}`)}"><span class="me-featured-medal" data-showcase-code="${esc(item.code)}" aria-hidden="true">${item.icon}</span><b class="me-featured-value">${esc(item.value)}</b><span class="me-featured-context">${esc(item.context)}</span></div>`).join('')}</div></div>`;
+  }
+  function fitFeaturedValues(root){
+    root.querySelectorAll('.me-featured-value').forEach(value=>window.KinettaTextFit?.fitElement(value,{minFontSize:12}));
+  }
   function addAchievementCleanup(root,cleanup){
     const previous=viewResources.get(root);
     viewResources.set(root,Object.assign(()=>{cleanup();previous?.();},{keepVisual:previous?.keepVisual}));
@@ -312,7 +331,20 @@ const ProfileLayout=(()=>{
     const dispose=()=>{if(disposed)return;disposed=true;clearPress();clearTimeout(suppressTimer);document.removeEventListener('click',onClick,true);document.removeEventListener('pointermove',onMove,true);document.removeEventListener('pointerup',onUp,true);document.removeEventListener('pointercancel',onUp,true);box.removeEventListener('pointerdown',onDown);box.removeEventListener('contextmenu',onContext);box.removeEventListener('keydown',onKey);};
     addAchievementCleanup(box,dispose);
   }
-  async function mountShowcase(root,r,{shared=false}={}){
+  async function mountShowcase(root,r,{shared=false,featured=false}={}){
+    if(featured){
+      const featureSlot=root?.querySelector?.('[data-me-featured]'),streakSlot=root?.querySelector?.('[data-me-showcase-streak]');
+      if(!featureSlot&&!streakSlot)return;
+      if(featureSlot?.dataset.loaded==='true'&&(!streakSlot||streakSlot.dataset.loaded==='true'))return;
+      const owner=readOwner();if(featureSlot)featureSlot.dataset.loading='true';
+      try{
+        const [data,_catalog,achievements,sharing]=await Promise.all([api('/api/achievements/showcase'),loadAchievementCatalog(),api('/api/achievements'),api('/api/sharing')]);
+        if(!root.isConnected||owner!==readOwner()||featureSlot&&!featureSlot.isConnected||streakSlot&&!streakSlot.isConnected)return;
+        if(streakSlot){streakSlot.innerHTML=showcaseStreakMarkup(data);streakSlot.dataset.loaded='true';}
+        if(featureSlot){featureSlot.innerHTML=sharing?.share_achievements===true?featuredShowcaseMarkup(data,achievements):'';fitFeaturedValues(featureSlot);featureSlot.dataset.loading='';featureSlot.dataset.loaded='true';}
+      }catch(_){if(featureSlot)featureSlot.dataset.loading='';/* Achievements never block the Me card. */}
+      return;
+    }
     const slot=root?.querySelector?.('[data-me-showcase]');if(!slot)return;
     const owner=readOwner(),login=r?.person?.login||r?.login||App.me?.login;
     const asShared=shared||r?.mine===false,url=asShared&&login?`/api/achievements/showcase?login=${encodeURIComponent(login)}`:'/api/achievements/showcase';
@@ -418,7 +450,7 @@ const MeCard=(()=>{
   // then the shared activities). Friends shares the handle row without changing its audience or destination.
   function card(p,{mine=false,pills='',friends='',link=false,milestones=false,showBio=true}={}){
     const bio=showBio?(p.bio||'').trim():'',photo=avatar(p,'lg'),name=esc(p.name||p.login),handle=`<span data-type="secondary">@${esc(p.login)}</span>`;
-    const showcase='<span class="me-showcase-slot" data-me-showcase></span>';
+    const showcase=mine?'<span class="me-showcase-streak-slot" data-me-showcase-streak></span>':'<span class="me-showcase-slot" data-me-showcase></span>';
     const initials=((p.name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase()||'?');
     const identity=link
       ? `<span class="me-card-profile-link"><span class="me-card-avatar">${photo}</span><span class="me-card-name"><span class="me-card-name-heading"><h2>${name}</h2><span class="me-profile-chevron" aria-hidden="true">${svg('chev')}</span></span>${showcase}<span class="me-card-meta">${handle}</span></span></span>${friends}`
@@ -487,7 +519,7 @@ const MeCard=(()=>{
     return {distance:distance>0?U.dist(distance,1):'0',activities:workouts.toLocaleString(),time:time>0?(time>=3600?dur(time,true):`${Math.floor(time/60)}m`):'0m'};
   }
   function weeklyCard(r){
-    if(!r.overview?.activities&&!r.shared_count)return `<div class="me-card-empty"><p>${r.mine===false?'No workouts to show yet.':'Your totals appear here once you have workouts.'}</p>${r.mine===false?"":'<a class="ghost wide" href="/me/goals?new=1">Set a goal</a>'}</div>`;
+    if(!r.overview?.activities&&!r.shared_count)return `<div class="me-card-empty"><p>${r.mine===false?'No workouts to show yet.':'Your totals appear here once you have workouts.'}</p>${r.mine===false?"":'<a class="ghost wide" href="/me/goals?new=1">Set a goal</a>'}</div><div class="me-featured-slot" data-me-featured></div>`;
     const weeks=(r.mileage?.weeks||[]).slice(-12),current=weeks.find(w=>w.today)||weeks.at(-1)||{distance_m:0,activities:0,time_s:0},values=weekMetrics(current);
     const month=(week,index)=>{
       const start=new Date(week.d+'T12:00'),end=new Date((week.end||week.d)+'T12:00');
@@ -504,7 +536,7 @@ const MeCard=(()=>{
     const streakSlot=Number.isInteger(streak)&&streak>=2?`<span class="me-week-streak" data-week-streak="${streak}" role="img" aria-label="🔥 ${streak} weeks">${svg('flame')}<span aria-hidden="true">${streak} weeks</span></span>`:'';
     return `<div class="me-card-sec me-card-weekly"><div class="me-card-head"><div class="me-card-label" data-week-label aria-live="polite"><span>This week</span></div>${streakSlot}</div>
       <dl class="me-card-numbers me-numbers-3"><div data-week-stat="distance"><dd><b class="me-metric-value" data-type="stat" data-week-value="distance">${esc(values.distance)}</b></dd><dt data-type="secondary">Distance <small>(${esc(U.du())})</small></dt></div><div data-week-stat="activities"><dd><b class="me-metric-value" data-type="stat" data-week-value="activities">${esc(values.activities)}</b></dd><dt data-type="secondary">Workouts</dt></div><div data-week-stat="time"><dd><b class="me-metric-value" data-type="stat" data-week-value="time">${esc(values.time)}</b></dd><dt data-type="secondary">Time</dt></div></dl>
-      ${chart}${closeTo}</div>`;
+      ${chart}${closeTo}</div><div class="me-featured-slot" data-me-featured></div>`;
   }
   function sections(r,layout,full){
     if(!r.overview?.activities&&!r.shared_count)return `<div class="me-card-empty"><p>${r.mine===false?'No workouts to show yet.':'Your totals appear here once you have workouts.'}</p>${r.mine===false||full?'':'<a class="ghost wide" href="/me/goals?new=1">Set a goal</a>'}</div>`;
@@ -594,7 +626,7 @@ const MeCard=(()=>{
       const cleanup=chartCleanup,dispose=()=>{cleanup();wrap.removeEventListener('pointerdown',onDown);wrap.removeEventListener('click',onClick);document.removeEventListener('pointermove',onMove,true);document.removeEventListener('pointerup',onUp,true);document.removeEventListener('pointercancel',onCancel,true);document.removeEventListener('click',outside,true);clearTimeout(ignoreTimer);};chartCleanup=dispose;viewResources.set(wrap,dispose);
     };
     const periods=()=>$$('[data-period]',box).forEach(b=>b.onclick=()=>{if(b.dataset.period===period)return;period=b.dataset.period;draw();$(`[data-period="${period}"]`,box)?.focus({preventScroll:true});});
-    const draw=()=>{if(!live()||editing||!data)return;chartCleanup();box.setAttribute('aria-busy','false');box.innerHTML=full?sections(data,ProfileLayout.normalize(data.mine===false?data.layout:App.me.profile_layout||data.layout),true):weeklyCard(data);bars();if(full){weekTaps();periods();}else weeklyTaps();};
+    const draw=()=>{if(!live()||editing||!data)return;chartCleanup();box.setAttribute('aria-busy','false');box.innerHTML=full?sections(data,ProfileLayout.normalize(data.mine===false?data.layout:App.me.profile_layout||data.layout),true):weeklyCard(data);bars();if(full){weekTaps();periods();}else{weeklyTaps();if(data.mine!==false)ProfileLayout.mountShowcase(root,data,{featured:true});}};
     const loadCard=async()=>{
       try{
         const profileRead=api('/api/people/'+encodeURIComponent(App.me.login)+'/profile?as_friend=true&preview=friend&limit=1');
@@ -717,8 +749,7 @@ const MeCard=(()=>{
       sizeBio();if(focusName){card.scrollIntoView({block:'start'});name.focus({preventScroll:true});}else $('[data-show]',box)?.focus({preventScroll:true});
     }
     function finish(saved=false){editing=false;dim(false);draw();if(!data)loadCard();$('[data-card-edit]',card).focus({preventScroll:true});onEditEnd?.({saved});}
-    ProfileLayout.mountShowcase(root,data||{mine:true});
-    if(data?.mine===false){draw();return {};}
+    if(data?.mine===false){ProfileLayout.mountShowcase(root,data);draw();return {};}
     $('[data-card-edit]',card).onclick=edit;
     $('[data-card-share]',card).onclick=shareSheet;
     if(data)draw();else loadCard();

@@ -38,6 +38,23 @@ class Cards(unittest.TestCase):
   page=self.guest.get('/card/'+self.code);self.assertEqual(page.status_code,200);self.assertIn('noindex',page.headers['x-robots-tag']);self.assertIn('og:image',page.text);self.assertIn('/image.png',page.text)
   for secret in ('SECRET REAL','SECRET ACTIVITY','SECRET NOTE','avg_hr','calories','weight','bio'):self.assertNotIn(secret,page.text+json.dumps(d))
   pic=self.guest.get('/card/'+self.code+'/image.png');self.assertEqual(pic.status_code,200);self.assertEqual(Image.open(io.BytesIO(pic.content)).size,(1080,1350));self.assertEqual(pic.headers['cache-control'],'no-store')
+ def test_public_achievements_are_only_pinned_and_revocable(self):
+  self.enable()
+  run_state={'track':'sport:run','label':'Run','value_m':1609344,'unit':'m'}
+  journey_state={'track':'journey','label':'Journey','value_m':2000000,'unit':'m'}
+  with db.connect() as c:
+   c.execute('UPDATE profile SET share_achievements=true,showcase_pins=%s::jsonb WHERE user_id=%s',(json.dumps(['sport:run']),self.ids[0]))
+   for code,title,details in [('sport:run','Run',run_state),('journey','Journey',journey_state)]:
+    c.execute('''INSERT INTO milestones(user_id,code,kind,title,rank,day,occurred,details)
+                 VALUES(%s,%s,'track_state',%s,0,current_date,now(),%s)''',(self.ids[0],'track-state:'+code,title,json.dumps(details)))
+  public=self.guest.get('/api/cards/'+self.code).json();self.assertEqual(public['achievements'],[{'code':'sport:run','rank':11,'value':'1,000 mi','context':'Total running distance'}])
+  on_image=self.guest.get('/card/'+self.code+'/image.png').content
+  with db.connect() as c:c.execute('UPDATE profile SET showcase_pins=%s::jsonb WHERE user_id=%s',(json.dumps([]),self.ids[0]))
+  no_pins=self.guest.get('/api/cards/'+self.code).json();self.assertEqual(no_pins['achievements'],[],'un-pinned earned tracks never become public defaults')
+  unpinned_image=self.guest.get('/card/'+self.code+'/image.png').content;self.assertNotEqual(on_image,unpinned_image)
+  with db.connect() as c:c.execute('UPDATE profile SET showcase_pins=%s::jsonb,share_achievements=false WHERE user_id=%s',(json.dumps(['sport:run']),self.ids[0]))
+  revoked=self.guest.get('/api/cards/'+self.code).json();self.assertNotIn('achievements',revoked)
+  off_image=self.guest.get('/card/'+self.code+'/image.png').content;self.assertNotEqual(on_image,off_image,'turning sharing off immediately removes featured items from the PNG')
  def test_week_and_all_time_choices_are_persisted_in_owner_and_public_preview(self):
   weekly=self.enable()['preview'];self.assertEqual(weekly['period'],'this_week');self.assertEqual(weekly['weekly']['activities'],1)
   all_time=self.enable(period='all_time')['preview'];self.assertEqual(all_time['period'],'all_time');self.assertEqual(all_time['all_time']['activities'],1);self.assertAlmostEqual(all_time['all_time']['distance_m'],10000)

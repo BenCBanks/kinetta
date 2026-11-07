@@ -24,7 +24,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
  for(const size of sizes)for(const theme of themes){
   const c=await b.newContext({storageState,viewport:size,colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];
   let slotFixture='both',todayFixture='both',zeroDistanceFixture=false,seriesFixture;
-  let showcaseFixture={items:[],pinned:[],day_streak:0},shareAchievementsEnabled=false,showcasePins=[],pinOrderRequests=[],failFeatureSave=false;const sharedShowcaseRequests=[];
+  let showcaseFixture={items:[],pinned:[],day_streak:0},shareAchievementsEnabled=false,showcasePins=[],pinOrderRequests=[],failFeatureSave=false,achievementFixture={tracks:[]};const sharedShowcaseRequests=[];
   const featureTrack=(code,label,value,display_unit)=>({code,label,value,display_value:value,display_unit,tiers:[{rank:1,day:'2026-11-06'}]});
   const featuredFixture={pending:false,tracks:[featureTrack('journey','Journey',6099414,'mi'),featureTrack('workouts','Workouts',1120,'workouts'),featureTrack('lifted','Lifted',300000,'lb'),featureTrack('sport:run','Run',80000,'mi'),featureTrack('active_time','Active time',3960000,'h'),featureTrack('climbing','Climbing',17000,'ft'),featureTrack('consistency','Consistency',22,'weeks')]};
   const earnedFixture=['journey','workouts','lifted','sport:run','climbing','consistency'].map(code=>({code,rank:1}));
@@ -41,7 +41,10 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
     else showcasePins=showcasePins.filter(code=>code!==body.code);return r.fulfill({json:{pinned:showcasePins,replaced}});
    }
    if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);return r.fulfill({json:{}});}
-   if(u.pathname==='/api/achievements')return r.fulfill({json:featuredFixture});
+   if(u.pathname==='/api/achievements'){
+    const replacements=new Map(achievementFixture.tracks.map(track=>[track.code,track]));
+    return r.fulfill({json:{...featuredFixture,tracks:featuredFixture.tracks.map(track=>({...track,...(replacements.get(track.code)||{})}))}});
+   }
    if(u.pathname==='/api/achievements/showcase'){
     if(u.searchParams.has('login')){sharedShowcaseRequests.push(u.searchParams.get('login'));return r.fulfill({json:showcaseFixture});}
     return r.fulfill({json:{...showcaseFixture,pinned:showcasePins,available:earnedFixture}});
@@ -319,25 +322,37 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    await screenshot('me-card-zero-distance-workouts');
   }
   if(size.width===390&&size.root===16){
-   assert.equal(await p.locator('.me-showcase-medal').count(),0,'an empty Showcase has no medal row');
+   await p.locator('[data-me-featured][data-loaded="true"]').waitFor();
+   assert.equal(await p.locator('.me-featured-item').count(),0,'an empty or unshared Showcase has no featured section');
    assert.equal(await p.locator('.me-showcase-streak').count(),0,'an inactive day streak stays hidden');
-   await screenshot('me-showcase-zero-medals');
-   showcaseFixture={items:[{code:'sport:run',rank:2}],pinned:[],day_streak:1};await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();
-   assert.equal(await p.locator('.me-showcase-medal').count(),1,'a single earned medal appears on the Me card');
+   await screenshot('me-featured-zero');
+   showcaseFixture={items:[{code:'sport:run',rank:2}],pinned:['sport:run'],day_streak:1};showcasePins=['sport:run'];achievementFixture={tracks:[{code:'sport:run',label:'Run',display_value:11427.5,display_unit:'mi'}]};shareAchievementsEnabled=true;await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();await p.locator('[data-me-featured][data-loaded="true"]').waitFor();
+   assert.equal(await p.locator('.me-featured-item').count(),1,'a single pinned achievement appears below the weekly chart');
+   assert.equal(await p.locator('.me-featured-title').innerText(),'Featured achievements');
+   assert.equal(await p.locator('.me-featured-value').innerText(),'11,427.5 mi');assert.equal(await p.locator('.me-featured-context').innerText(),'Total running distance');
    assert.equal(await p.locator('.me-showcase-streak').count(),0,'a one-day streak stays hidden');
-   await screenshot('me-showcase-one-medal');
-   showcaseFixture={items:[{code:'journey',rank:4},{code:'sport:run',rank:2},{code:'workouts',rank:3},{code:'climbing',rank:3}],pinned:[],day_streak:12};await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-showcase-medal').nth(3).waitFor();
-   assert.equal(await p.locator('.me-showcase-medal').count(),4,'the profile card shows four featured medals');
+   const onePlacement=await p.locator('.me-featured-achievements').evaluate(n=>{const item=n.querySelector('.me-featured-item').getBoundingClientRect(),chart=n.closest('.me-card-sections').querySelector('.me-card-weekly').getBoundingClientRect();return{itemTop:item.top,chartBottom:chart.bottom,medal:n.querySelector('.me-featured-medal').getBoundingClientRect().width};});
+   assert(onePlacement.itemTop>onePlacement.chartBottom&&onePlacement.medal===48,'one approved-size medal is centered below the weekly chart '+JSON.stringify(onePlacement));await screenshot('me-featured-one');
+   const featuredItems=[{code:'journey',rank:4},{code:'sport:run',rank:2},{code:'workouts',rank:3},{code:'climbing',rank:3}],featuredTracks=[{code:'journey',label:'Journey',display_value:27111,display_unit:'mi'},{code:'sport:run',label:'Run',display_value:11427.5,display_unit:'mi'},{code:'workouts',label:'Workouts',display_value:12345,display_unit:'workouts'},{code:'climbing',label:'Climbing',display_value:12210,display_unit:'ft'}];
+   achievementFixture={tracks:featuredTracks};showcasePins=['sport:run'];await screenshot('me-showcase-one-medal');
+   for(const count of [2,3]){showcasePins=featuredItems.slice(0,count).map(item=>item.code);showcaseFixture={items:featuredItems.slice(0,count),pinned:showcasePins,day_streak:12};await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();await p.locator('.me-featured-item').nth(count-1).waitFor();assert.equal(await p.locator('.me-featured-item').count(),count,`${count} pinned achievements fit in the row`);await screenshot(`me-featured-${count}-${theme}`);}
+   showcasePins=featuredItems.map(item=>item.code);showcaseFixture={items:featuredItems,pinned:showcasePins,day_streak:12};await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();await p.locator('.me-featured-item').nth(3).waitFor();
+   assert.equal(await p.locator('.me-featured-item').count(),4,'all four pinned achievements fit in one row');
    assert.equal(await p.locator('.me-showcase-streak').innerText(),'12','a live day streak sits beside the medals');
    const streakFont=await p.locator('.me-showcase-streak').evaluate(n=>parseFloat(getComputedStyle(n).fontSize));assert(streakFont>=15,'the compact streak number meets the minimum readable type size ('+streakFont+'px)');
-   assert.match(await p.locator('.me-showcase-row').getAttribute('aria-label'),/Showcase:.*12-day activity streak/,'the compact row has an accessible medal and streak label');
-   const medalSizes=await p.locator('.me-showcase-medal').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return [r.width,r.height];}));
-   assert(medalSizes.every(([width,height])=>width===28&&height===28),'Showcase medals are 28px icons '+JSON.stringify(medalSizes));
+   const grid=await p.locator('.me-featured-grid').evaluate(n=>{const box=n.getBoundingClientRect(),nodes=[...n.children],items=nodes.map(x=>x.getBoundingClientRect()),medals=nodes.map(x=>x.querySelector('.me-featured-medal').getBoundingClientRect());return{cols:getComputedStyle(n).gridTemplateColumns,centers:medals.map(x=>x.x+x.width/2),medalSizes:medals.map(x=>[x.width,x.height]),box:{left:box.left,right:box.right},items:items.map(x=>({left:x.left,right:x.right}))};});
+   assert(grid.centers.every((x,i)=>!i||x>grid.centers[i-1])&&Math.abs((grid.centers[1]-grid.centers[0])-(grid.centers[2]-grid.centers[1]))<1&&Math.abs((grid.centers[2]-grid.centers[1])-(grid.centers[3]-grid.centers[2]))<1&&grid.items.every(x=>x.left>=grid.box.left-1&&x.right<=grid.box.right+1)&&grid.medalSizes.every(([w,h])=>w===48&&h===48),'featured medals keep the approved 48px size, spacing and bounds '+JSON.stringify(grid));
+   const fitted=await p.locator('.me-featured-value,.me-featured-context').evaluateAll(nodes=>nodes.every(n=>n.scrollWidth<=n.clientWidth+1&&!/…|\.\.\./.test(n.textContent)));assert(fitted,'long achievement values and contexts wrap without clipping or ellipsis');
+   assert.equal(await p.locator('.me-featured-value').nth(2).getAttribute('data-fit-text-source'),'12,345 workouts');assert.doesNotMatch(await p.locator('.me-featured-value').last().innerText(),/…|\.\.\./);await screenshot(`me-featured-four-${theme}`);
+   const showcaseMedals=p.locator('.me-showcase-medal');assert.equal(await showcaseMedals.count(),4,'the profile card keeps the four existing Showcase icons');
+   const smallMedalSizes=await showcaseMedals.evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return [r.width,r.height];}));assert(smallMedalSizes.every(([w,h])=>w===28&&h===28),'Showcase icons remain 28px '+JSON.stringify(smallMedalSizes));
    await screenshot('me-showcase-four-medals-streak');
-   const medalBox=await p.locator('.me-showcase-medal').first().boundingBox(),medalLinkHit=await p.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('.me-card-open-link'),{x:medalBox.x+medalBox.width/2,y:medalBox.y+medalBox.height/2});
-   assert(medalLinkHit,'tapping a Showcase medal reaches the same whole-card profile link');
-   await p.mouse.click(medalBox.x+medalBox.width/2,medalBox.y+medalBox.height/2);await p.waitForURL('**/people/alex');await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();
-  shareAchievementsEnabled=false;await p.locator('[data-card-share]').click();await p.locator('.profile-share-preview .me-card').waitFor();
+   const medalBox=await p.locator('.me-featured-medal').first().boundingBox(),medalLinkHit=await p.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('.me-card-open-link'),{x:medalBox.x+medalBox.width/2,y:medalBox.y+medalBox.height/2});assert(medalLinkHit,'a featured medal keeps the existing whole-card profile link');
+   const showcaseBox=await showcaseMedals.first().boundingBox(),showcaseLinkHit=await p.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('.me-card-open-link'),{x:showcaseBox.x+showcaseBox.width/2,y:showcaseBox.y+showcaseBox.height/2});assert(showcaseLinkHit,'a Showcase icon keeps the existing whole-card profile link');
+   await p.mouse.click(showcaseBox.x+showcaseBox.width/2,showcaseBox.y+showcaseBox.height/2);await p.waitForURL('**/people/alex');await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();
+   shareAchievementsEnabled=false;await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();await p.locator('[data-me-featured][data-loaded="true"]').waitFor({state:'attached'});
+   assert.equal(await p.locator('.me-featured-item').count(),0,'turning sharing off removes the featured section');await screenshot(`me-featured-sharing-off-${theme}`);
+   await p.locator('[data-card-share]').click();await p.locator('.profile-share-preview .me-card').waitFor();
    await p.waitForFunction(()=>document.querySelector('#profile-share-status')?.textContent==='');
    assert.equal(await p.locator('.profile-share-preview .me-showcase-medal').count(),0,'the shared profile preview hides Showcase while sharing is off');
    assert(sharedShowcaseRequests.includes('alex'),'shared preview requests the target profile Showcase');await screenshot('me-showcase-shared-off');await p.keyboard.press('Escape');

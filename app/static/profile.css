@@ -172,6 +172,26 @@
 .me-showcase-icon { display:block; width:18px; height:18px; object-fit:contain; }
 .me-showcase-streak { display:inline-flex; align-items:center; gap:3px; margin-left:1px; color:var(--tx2); font-size:.9375rem; font-weight:650; line-height:1; white-space:nowrap; }
 .me-showcase-streak svg { display:block; width:14px; height:14px; color:var(--color-action); }
+.me-showcase-streak-slot { display:block; margin:3px 0 0; }
+.me-showcase-streak-slot:empty,.me-featured-slot:empty { display:none; }
+.me-featured-achievements { min-width:0; }
+.me-featured-title { margin:0 0 8px; color:var(--tx2); font-size:max(13px,.8125rem); line-height:1.2; font-weight:500; }
+.me-featured-grid { display:grid; align-items:start; text-align:center; gap:8px; }
+.me-featured-grid.count-1 { grid-template-columns:minmax(0,1fr); }
+.me-featured-grid.count-2 { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.me-featured-grid.count-3 { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.me-featured-grid.count-4 { grid-template-columns:repeat(4,minmax(0,1fr)); }
+.me-featured-item { display:flex; min-width:0; flex-direction:column; align-items:center; gap:4px; }
+.me-featured-medal { --featured-color:var(--color-brand); display:grid; place-items:center; width:48px; height:48px; flex:none; border-radius:50%; background:color-mix(in srgb,var(--featured-color) 18%,var(--card)); }
+.me-featured-medal[data-showcase-code="sport:run"] { --featured-color:var(--run); }
+.me-featured-medal[data-showcase-code="sport:ride"] { --featured-color:var(--ride); }
+.me-featured-medal[data-showcase-code="sport:walk-hike"] { --featured-color:var(--walk); }
+.me-featured-medal[data-showcase-code="sport:swim"] { --featured-color:var(--swim); }
+.me-featured-medal[data-showcase-code="sport:lift"],.me-featured-medal[data-showcase-code="lifted"] { --featured-color:var(--workout); }
+.me-featured-medal[data-showcase-code="climbing"] { --featured-color:var(--hike); }
+.me-featured-icon { display:block; width:36px; height:36px; object-fit:contain; }
+.me-featured-value { display:block; max-width:100%; color:var(--tx); font-size:clamp(12px,3.5cqw,15px); line-height:1.2; font-weight:700; font-variant-numeric:tabular-nums; overflow-wrap:break-word; }
+.me-featured-context { max-width:100%; color:var(--tx2); font-size:clamp(12px,3.2cqw,13px); line-height:1.2; overflow-wrap:break-word; }
 .me-profile-chevron { display:inline-flex; align-items:center; justify-content:center; flex:none; color:var(--tx2); pointer-events:none; }
 .me-profile-chevron svg { display:block; width:20px; height:20px; }
 .me-card-meta { display:flex; align-items:center; flex-wrap:wrap; gap:0 8px; }

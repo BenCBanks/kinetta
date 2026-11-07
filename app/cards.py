@@ -3,6 +3,7 @@ import datetime as dt
 import html
 import io
 import json
+import math
 import os
 import secrets
 import threading
@@ -13,7 +14,7 @@ from fastapi import APIRouter,Depends,HTTPException,Request,Response
 from fastapi.responses import HTMLResponse
 from PIL import Image,ImageDraw,ImageFont,ImageOps
 from pydantic import BaseModel,ConfigDict,Field,StrictBool,model_validator
-from . import db,auth,recaps,signup,account_email,notify
+from . import db,auth,recaps,signup,account_email,notify,achievement_tracks,api_achievements
 from .auth import current_user
 
 router=APIRouter()
@@ -61,13 +62,46 @@ def period(row):
     # Old metric selections keep the new default until the owner picks a period.
     return saved[0] if len(saved)==1 and saved[0] in PERIODS else 'this_week'
 
+CARD_ACHIEVEMENT_CONTEXT={
+    'journey':'All-sport distance','sport:run':'Total running distance','sport:ride':'Total cycling distance',
+    'sport:walk-hike':'Walking & hiking distance','sport:swim':'Total swimming distance','sport:lift':'Lift sessions',
+    'workouts':'Workouts completed','active_time':'Active time','consistency':'Weeks with a workout',
+    'years_active':'Years active','climbing':'Elevation climbed','lifted':'Weight lifted','personal_bests':'Personal bests',
+}
+
+def featured_achievements(c,user_id,profile):
+    """Return only currently earned, owner-pinned achievements after explicit opt-in."""
+    if not profile.get('share_achievements'):return []
+    pins=api_achievements._showcase_pins(profile.get('showcase_pins'))
+    if not pins:return []
+    units=profile.get('units') or 'imperial'
+    candidates=api_achievements._showcase_candidates(c,user_id,units)
+    rows=c.execute("SELECT details FROM milestones WHERE user_id=%s AND kind='track_state' AND valid",(user_id,)).fetchall()
+    states={}
+    for row in rows:
+        details=row.get('details') or {};code=details.get('track')
+        if isinstance(code,str):states[code]=details
+    catalog=api_achievements._level_catalog().get('tracks',{})
+    featured=[]
+    for code in pins:
+        candidate=candidates.get(code);details=states.get(code);definition=catalog.get(code)
+        if not candidate or not details or not definition:continue
+        shown,unit=achievement_tracks.display_value(code,api_achievements._raw_value(code,details),units)
+        number=f'{float(shown):,.1f}'.rstrip('0').rstrip('.')
+        if float(shown)==1 and unit in ('weeks','years','workouts','sessions'):unit=unit[:-1]
+        featured.append({'code':code,'rank':int(candidate['rank']),'value':f'{number} {unit}'.strip(),
+                         'context':CARD_ACHIEVEMENT_CONTEXT.get(code,definition.get('source_track') or achievement_tracks.track_label(code))})
+    return featured
+
 def payload(c,row,request=None):
     uid=row['user_id'];chosen=period(row);out={'username':row['login'],'period':chosen,'sports':[],'stats':[],'garmin_sources':[],'allow_requests':row['allow_requests'],'url':url(row['code'],request)}
+    profile=c.execute('SELECT tz,units,share_achievements,showcase_pins FROM profile WHERE user_id=%s',(uid,)).fetchone() or {}
+    if profile.get('share_achievements'):out['achievements']=featured_achievements(c,uid,profile)
     if row['sports']:
         out['sports']=[dict(r) for r in c.execute('''SELECT sport,count(*) AS activities FROM activities
           WHERE user_id=%s AND NOT lift_open GROUP BY sport ORDER BY activities DESC,sport''',(uid,)).fetchall() if r['sport'] in SPORTS]
     if chosen!='none':
-        profile=c.execute('SELECT tz,units FROM profile WHERE user_id=%s',(uid,)).fetchone() or {};imperial=profile.get('units')=='imperial'
+        imperial=profile.get('units')=='imperial'
         zone=db.valid_tz(profile.get('tz')) or db.DEFAULT_TZ
     if chosen=='this_week':
         current=recaps.facts(c,uid,'this_week');first=current['start']-dt.timedelta(weeks=11);end=current['end']
@@ -219,6 +253,17 @@ def flame_icon(g,x,y,size=24):
     g.polygon([(x+a*s,y+b*s) for a,b in outer],fill='#F0642B')
     g.polygon([(x+a*s,y+b*s) for a,b in inner],fill='#FFC247')
 
+def achievement_medal(g,cx,y,size=58,color='#1F55D0'):
+    s=size/58
+    g.polygon([(cx-16*s,y+34*s),(cx-10*s,y+55*s),(cx,y+47*s),(cx+10*s,y+55*s),(cx+16*s,y+34*s)],fill=color)
+    g.ellipse((cx-22*s,y,cx+22*s,y+44*s),fill='#FFFFFF',outline=color,width=max(2,round(3*s)))
+    g.ellipse((cx-16*s,y+6*s,cx+16*s,y+38*s),fill='#F5F8FF',outline=color,width=max(1,round(1.5*s)))
+    points=[]
+    for i in range(10):
+        radius=(11 if i%2==0 else 5)*s;angle=-math.pi/2+i*math.pi/5
+        points.append((cx+math.cos(angle)*radius,y+22*s+math.sin(angle)*radius))
+    g.polygon(points,fill='#D89B24')
+
 
 def image(c,row,request):
     d=payload(c,row,request);im=Image.new('RGB',(1080,1350),'#FFFFFF');g=ImageDraw.Draw(im)
@@ -228,6 +273,25 @@ def image(c,row,request):
             if g.textlength(str(value),font=font)<=max_width:break
             size-=2;font=ImageFont.load_default(size=size)
         g.text((x,y),str(value),font=font,fill=color)
+    def centered(value,cx,y,size,color,max_width):
+        value=str(value)
+        while True:
+            font=ImageFont.load_default(size=size)
+            if g.textlength(value,font=font)<=max_width or size<=14:break
+            size-=1
+        g.text((cx,y),value,font=font,fill=color,anchor='mt')
+    def centered_lines(value,cx,y,size,color,max_width,max_lines=2):
+        words=str(value).split()
+        while True:
+            font=ImageFont.load_default(size=size);lines=[];line=''
+            for word in words:
+                candidate=(line+' '+word).strip()
+                if line and g.textlength(candidate,font=font)>max_width:lines.append(line);line=word
+                else:line=candidate
+            if line:lines.append(line)
+            if len(lines)<=max_lines or size<=14:break
+            size-=1
+        for index,line in enumerate(lines):g.text((cx,y+index*(size+3)),line,font=font,fill=color,anchor='mt')
     y=100
     if 'photo' in d:
         p=c.execute('SELECT img FROM profile_photos WHERE user_id=%s',(row['user_id'],)).fetchone()
@@ -277,6 +341,16 @@ def image(c,row,request):
         for i,(value,label) in enumerate([(f'{distance:.1f} {unit}','distance'),(f"{totals['activities']:,}",'workouts'),(duration,'time')]):
             x=72+i*312;text(value,x,y,48,max_width=292);text(label,x,y+56,22,'#4A535C',max_width=292)
         y+=135
+    if d.get('achievements'):
+        items=d['achievements'][:4];slot=936/len(items)
+        text('Featured achievements',72,y,26,'#646D77');y+=40
+        colors={'sport:run':'#12924F','sport:ride':'#0B8798','sport:walk-hike':'#6F8A12','sport:swim':'#2A80BD','climbing':'#B26A10','lifted':'#D9532A','sport:lift':'#D9532A'}
+        for index,item in enumerate(items):
+            center=72+slot*(index+.5)
+            achievement_medal(g,center,y,58,colors.get(item['code'],'#1F55D0'))
+            centered(item['value'],center,y+62,31,'#15191D',slot-18)
+            centered_lines(item['context'],center,y+98,20,'#4A535C',slot-18)
+        y+=154
     def wrapped(value,y,size,max_lines):
         # Long configured addresses and source lists must wrap, never leave the canvas.
         while size>=18:
@@ -300,10 +374,12 @@ def image(c,row,request):
     out=io.BytesIO();im.save(out,format='PNG');return out.getvalue()
 
 def cached_result(c,row,request,kind='picture'):
-    profile=c.execute('SELECT tz,units FROM profile WHERE user_id=%s',(row['user_id'],)).fetchone() or {}
+    profile=c.execute('SELECT tz,units,share_achievements,share_achievements_since,showcase_pins FROM profile WHERE user_id=%s',(row['user_id'],)).fetchone() or {}
     state=c.execute('SELECT generation FROM milestone_state WHERE user_id=%s',(row['user_id'],)).fetchone()
     zone=ZoneInfo(db.valid_tz(profile.get('tz')) or db.DEFAULT_TZ)
+    pins=profile.get('showcase_pins') or ()
     key=(kind,row['code'],row['updated'],row['login'],row['photo_v'],profile.get('tz'),profile.get('units'),
+         bool(profile.get('share_achievements')),profile.get('share_achievements_since'),tuple(pins) if isinstance(pins,(list,tuple)) else str(pins),
          state['generation'] if state else 0,dt.datetime.now(zone).date(),url(row['code'],request))
     def get():
         with _picture_lock:
