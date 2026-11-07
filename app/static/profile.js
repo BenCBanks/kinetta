@@ -41,9 +41,10 @@ const ProfileLayout=(()=>{
     footprints:'<path d="M8 13.1c-1.8-.2-3.3 1.6-3.7 4.1-.3 2.1.6 3.6 2.1 3.8 1.8.2 3.4-1.5 3.8-3.9.3-2.2-.6-3.7-2.2-4Zm-.3-3.3c1.2 0 2.1-1.7 2-3.6S8.7 3 7.5 3 5.4 4.7 5.5 6.6s.9 3.2 2.2 3.2Zm4.2 1.3c1.1-.5 1.3-2.3.5-4s-2-2.6-3.1-2.1-1.3 2.3-.5 4 2 2.6 3.1 2.1Zm7.1 2c-1.6-.5-3.1.9-3.8 3.2-.6 2.1 0 3.8 1.5 4.3 1.7.5 3.4-.9 4.1-3 .6-2.2 0-4-1.8-4.5Zm-2.4-3.4c1.1-.2 1.7-2 1.3-3.8s-1.5-3-2.7-2.7-1.8 2-1.4 3.8 1.6 2.9 2.8 2.7Z"/>'
   };
   const achievementNumber=n=>Number.isFinite(Number(n))?Number(n).toLocaleString(undefined,{maximumFractionDigits:1}):'—';
-  const achievementTextMeasure=document.createElement('canvas').getContext('2d');
+  let achievementTextMeasure=null;
   function achievementTextFontSize(text,width,{fontFamily='sans-serif',fontWeight='700',fontStyle='normal',maxFontSize=12,minFontSize=8,step=1}={}){
     const minimum=Math.max(6,Number(minFontSize)||8),maximum=Math.max(minimum,Number(maxFontSize)||12),available=Number(width);
+    if(!achievementTextMeasure&&typeof document!=='undefined')achievementTextMeasure=document.createElement('canvas').getContext('2d');
     if(!achievementTextMeasure||!Number.isFinite(available)||available<=0)return maximum;
     const value=String(text??''),decrement=Math.max(.5,Number(step)||1);
     for(let size=maximum;;size=Math.max(minimum,size-decrement)){
@@ -60,7 +61,7 @@ const ProfileLayout=(()=>{
     element.style.fontSize=`${size}px`;
     return size;
   }
-  window.KinettaTextFit=Object.freeze({fontSize:achievementTextFontSize,fitElement:fitAchievementText});
+  if(typeof window!=='undefined')window.KinettaTextFit=Object.freeze({fontSize:achievementTextFontSize,fitElement:fitAchievementText});
   function achievementQuantity(value,unit=''){
     const forms={week:['week','weeks'],weeks:['week','weeks'],hour:['hour','hours'],hours:['hour','hours'],h:['hour','hours'],workout:['workout','workouts'],workouts:['workout','workouts'],session:['session','sessions'],sessions:['session','sessions'],year:['year','years'],years:['year','years']};
     const label=forms[String(unit||'').toLowerCase()],shownUnit=label?(Number(value)===1?label[0]:label[1]):unit;
