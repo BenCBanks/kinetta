@@ -794,6 +794,7 @@ class KinettaBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(KinettaDisplayPreferencesPlugin())
         bridge?.registerPluginInstance(KinettaWebSignInPlugin())
         bridge?.registerPluginInstance(KinettaActivitySharePlugin())
+        bridge?.registerPluginInstance(KinettaContactsPlugin())
         webView?.scrollView.keyboardDismissMode = .interactive
         // No native rubber-band on the page itself: pulling past the top opened a blank gap with no spinner.
         // The app's own pull-to-refresh moves the page on the home tabs; inner scrolling areas keep their bounce.

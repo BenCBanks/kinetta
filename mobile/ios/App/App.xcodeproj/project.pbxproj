@@ -11,6 +11,8 @@
 		AB2700000000000000000010 /* IntervalState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2700000000000000000000 /* IntervalState.swift */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
+		E64400000000000000000001 /* ContactMatchCore in Frameworks */ = {isa = PBXBuildFile; productRef = E64400000000000000000005 /* ContactMatchCore */; };
+		E64400000000000000000002 /* NativeContacts.swift in Sources */ = {isa = PBXBuildFile; fileRef = E64400000000000000000003 /* NativeContacts.swift */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
 		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
 		504EC30D1FED79650016851F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30B1FED79650016851F /* Main.storyboard */; };
@@ -62,6 +64,7 @@
 		AB1700000000000000000000 /* HealthRestingEnergy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthRestingEnergy.swift; sourceTree = "<group>"; };
 		AB1800000000000000000000 /* NativeHaptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeHaptics.swift; sourceTree = "<group>"; };
 		AD2900000000000000000000 /* NativeDisplayPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeDisplayPreferences.swift; sourceTree = "<group>"; };
+		E64400000000000000000003 /* NativeContacts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeContacts.swift; sourceTree = "<group>"; };
 		AB2200000000000000000000 /* NativeWebSignIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeWebSignIn.swift; sourceTree = "<group>"; };
 		AB2300000000000000000000 /* NativeActivityShare.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeActivityShare.swift; sourceTree = "<group>"; };
 		AB1900000000000000000000 /* HealthFoodState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthFoodState.swift; sourceTree = "<group>"; };
@@ -80,6 +83,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
+				E64400000000000000000001 /* ContactMatchCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -122,6 +126,7 @@
 				AB1700000000000000000000 /* HealthRestingEnergy.swift */,
 				AB1800000000000000000000 /* NativeHaptics.swift */,
 				AD2900000000000000000000 /* NativeDisplayPreferences.swift */,
+				E64400000000000000000003 /* NativeContacts.swift */,
 				AB2200000000000000000000 /* NativeWebSignIn.swift */,
 				AB2300000000000000000000 /* NativeActivityShare.swift */,
 				AB1600000000000000000001 /* NativeTrack.swift */,
@@ -158,6 +163,7 @@
 			name = App;
 			packageProductDependencies = (
 				4D22ABE82AF431CB00220026 /* CapApp-SPM */,
+				E64400000000000000000005 /* ContactMatchCore */,
 			);
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
@@ -191,6 +197,7 @@
 			mainGroup = 504EC2FB1FED79650016851F;
 			packageReferences = (
 				D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */,
+				E64400000000000000000004 /* XCLocalSwiftPackageReference "ContactMatchCore" */,
 			);
 			productRefGroup = 504EC3051FED79650016851F /* Products */;
 			projectDirPath = "";
@@ -239,6 +246,7 @@
 				AD2900000000000000000010 /* NativeDisplayPreferences.swift in Sources */,
 				AB2200000000000000000010 /* NativeWebSignIn.swift in Sources */,
 				AB2300000000000000000010 /* NativeActivityShare.swift in Sources */,
+				E64400000000000000000002 /* NativeContacts.swift in Sources */,
 				AB1600000000000000000011 /* NativeTrack.swift in Sources */,
 				AB1600000000000000000010 /* TrackRecordingState.swift in Sources */,
 				AB2700000000000000000011 /* NativeIntervalAlerts.swift in Sources */,
@@ -453,6 +461,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = "CapApp-SPM";
 		};
+		E64400000000000000000004 /* XCLocalSwiftPackageReference "ContactMatchCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "ContactMatchCore";
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -460,6 +472,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */;
 			productName = "CapApp-SPM";
+		};
+		E64400000000000000000005 /* ContactMatchCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E64400000000000000000004 /* XCLocalSwiftPackageReference "ContactMatchCore" */;
+			productName = ContactMatchCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

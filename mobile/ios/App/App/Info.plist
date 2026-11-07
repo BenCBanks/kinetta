@@ -57,6 +57,8 @@
 	<string>Record your route during an activity you start in Track, including while the screen is locked or you use another app.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Kinetta uses the camera to scan barcodes and food labels, take photos of meals, and add photos to your activities and profile.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>Kinetta checks your contacts for Kinetta accounts. It sends salted email and phone hashes; names and contact details stay on your phone.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Kinetta lets you choose photos for your meals, your activities and your profile picture.</string>
 	<key>UILaunchStoryboardName</key>

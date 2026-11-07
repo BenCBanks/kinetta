@@ -88,6 +88,8 @@ jobs:
           cache: npm
           cache-dependency-path: mobile/package-lock.json
       - run: npm ci
+      - name: Test on-device contact normalization and hashing
+        run: swift test --package-path ios/App/ContactMatchCore
       # copies app/static into the app and writes the native project's plugin list
       - run: npm run sync
       - name: Test compatible saved-workout notification destinations
