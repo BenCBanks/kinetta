@@ -1,5 +1,5 @@
-// Homepage screenshots (site/assets/shots): every shot in light and dark, at an iPhone 16's screen size (393 x 852 at 2x =
-// 786 x 1704), from a throwaway install with dev/demo/seed.py + dev/screenshots/stage.py loaded. Usage: node take.js <out dir> [base url]
+// Homepage screenshots (site/assets/shots): light and dark at an iPhone 16's screen size (393 x 852 at 2x =
+// 786 x 1704), from a throwaway install with dev/demo/seed.py + dev/screenshots/stage.py loaded. The Home Food chat uses a compact staged viewport. Usage: node take.js <out dir> [base url]
 // Writes PNGs; to_webp.py turns them into the site's .webp files. Maps use the operator-configured tile/archive source; never bulk-fetch the public OSM tile service.
 // Like a real iPhone (2026-10-13): the app gets the status bar's 59 px at the top and the home bar's 34 px at the bottom
 // (its stylesheet's safe-area values are filled in), and a status bar with the Dynamic Island and the home bar are drawn over it.
@@ -508,6 +508,22 @@ async function say(page, text) {
           image.style.cssText = 'display:block;width:1.25em;height:1.25em;object-fit:contain'; icon.replaceChildren(image);
         }
       }, REACTION_EMOJI);
+      if (name === 'describe') {
+        // Marketing crop: keep the actual chat rows, total, suggestions and composer together without the unused
+        // flex-fill space from a full-height conversation. This affects only this capture page, not app CSS.
+        const height = await page.evaluate(() => {
+          const messages = document.querySelector('#thread-messages'), composer = document.querySelector('#thread-composer');
+          if (!messages || !composer) throw new Error('The staged Food chat needs its message list and composer.');
+          messages.style.flex = '0 0 auto'; messages.style.maxHeight = 'none'; messages.style.overflowY = 'visible';
+          const empty = document.querySelector('#thread-empty');
+          if (empty && messages.querySelector('article')) empty.style.display = 'none';
+          return Math.max(540, Math.ceil(composer.getBoundingClientRect().bottom + 48));
+        });
+        if (height >= H) throw new Error(`The compact Food chat crop should be shorter than ${H}px; measured ${height}px.`);
+        await page.setViewportSize({width: W, height});
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.waitForTimeout(120);
+      }
       await page.evaluate(chrome, scheme === 'dark'); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
       await page.screenshot({path: `${OUT}/${scheme}-${name}.png`});
       if (name === 'kit-pace' && kitUiState) {

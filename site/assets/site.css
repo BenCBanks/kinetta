@@ -465,7 +465,7 @@ header.top .signup { display:flex;align-items:center; }
 .home-hero-copy h1 { max-width: 10ch; font-size: clamp(52px, 6.2vw, 88px); line-height: .98; letter-spacing: -.055em; }
 .home-hero-copy .lede { max-width: 30ch; margin-top: 20px; font-size: clamp(18px, 2.1vw, 22px); line-height: 1.35; }
 .home-hero-copy .btn { margin-top: 28px; }
-.home-hero-shot .phone { max-width: 340px; }
+.home-hero-shot .phone { max-width: 320px; }
 .home-insights { padding-block: 70px 76px; background: var(--ink); color: var(--bg); overflow: hidden; }
 .home-insights .wrap { display: grid; gap: 38px; }
 .home-insights-head { display: flex; justify-content: space-between; align-items: end; gap: 24px; }
@@ -478,8 +478,8 @@ header.top .signup { display:flex;align-items:center; }
 .home-insight .frame, .home-insight-support .frame { background: #15191D; }
 .home-insight .frame { max-width: 276px; }
 .home-insight h3 { max-width: 22ch; color: var(--bg); font-size: clamp(19px, 2vw, 25px); font-weight: 700; line-height: 1.2; text-align: center; }
-.home-insight-support { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; max-width: 760px; margin: 8px auto 0; }
-.home-insight-support .frame { max-width: 172px; }
+.home-insight-support { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; max-width: 860px; margin: 8px auto 0; align-items: start; }
+.home-insight-support .frame { max-width: 264px; }
 .home-insight-support h3 { max-width: 22ch; color: var(--bg); font-size: 16px; font-weight: 700; line-height: 1.25; text-align: center; }
 .home-insights .frame img { display: block; }
 @media (max-width: 860px) {
@@ -494,12 +494,13 @@ header.top .signup { display:flex;align-items:center; }
   .home-insight-grid { grid-template-columns: 1fr; gap: 34px; }
   .home-insight .frame { max-width: min(300px, 80vw); }
   .home-insight h3 { font-size: 22px; }
-  .home-insight-support { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 0; }
-  .home-insight-support .frame { max-width: min(170px, 38vw); }
+  .home-insight-support { display: flex; gap: 16px; width: calc(100% + 40px); max-width: none; margin: 0 -20px; padding: 0 20px 8px; overflow-x: auto; overscroll-behavior-inline: contain; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .home-insight-support::-webkit-scrollbar { display: none; }
+  .home-insight-support article { flex: 0 0 min(176px, 46vw); scroll-snap-align: start; }
+  .home-insight-support .frame { max-width: 100%; }
 }
 @media (max-width: 380px) {
-  .home-insight-support { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .home-insight-support .frame { max-width: 190px; }
+  .home-insight-support article { flex-basis: min(166px, 52vw); }
 }
 
 /* Food and Friends bring the app's daily choices and shared progress into the Home story. */
@@ -513,7 +514,7 @@ header.top .signup { display:flex;align-items:center; }
 .home-story-grid { display: grid; align-items: start; gap: clamp(24px, 3vw, 48px); }
 .home-story-grid article, .home-story-grid figure { min-width: 0; margin: 0; }
 .home-story-grid figure { display: grid; justify-items: center; gap: 18px; }
-.home-story-grid .frame { max-width: 258px; background: #15191D; }
+.home-story-grid .frame { max-width: 264px; background: #15191D; }
 .home-story-grid .frame img { display: block; }
 .home-story-grid h3 { max-width: 27ch; font-size: clamp(18px, 1.7vw, 21px); font-weight: 650; line-height: 1.25; text-align: center; }
 .home-food-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 790px; margin-inline: auto; }

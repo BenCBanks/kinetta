@@ -143,9 +143,10 @@ today = local_today
 for entry in alex('GET', '/api/food/day?d=' + str(today))['entries']:
     alex('DELETE', '/api/food/entries/' + str(entry['id']))
 alex('POST', '/api/food/entries', [
-    {'day': str(today), 'meal': 'breakfast', 'name': '2 eggs', 'amount': 2, 'unit': 'large', 'kcal': 144, 'protein_g': 13, 'carbs_g': 1, 'fat_g': 10, 'source': 'quick'},
-    {'day': str(today), 'meal': 'breakfast', 'name': 'Whole-grain toast', 'amount': 1, 'unit': 'slice', 'kcal': 110, 'protein_g': 4, 'carbs_g': 20, 'fat_g': 2, 'source': 'quick'},
-    {'day': str(today), 'meal': 'breakfast', 'name': 'Black coffee', 'amount': 1, 'unit': 'cup', 'kcal': 2, 'protein_g': 0, 'carbs_g': 0, 'fat_g': 0, 'source': 'quick'},
+    # Fictional Kit estimates let the describe-chat scene reuse this realistic meal without repeated "Your numbers" labels.
+    {'day': str(today), 'meal': 'breakfast', 'name': '2 eggs', 'amount': 2, 'unit': 'large', 'kcal': 144, 'protein_g': 13, 'carbs_g': 1, 'fat_g': 10, 'source': 'ai', 'ref': {'origin': 'ai'}},
+    {'day': str(today), 'meal': 'breakfast', 'name': 'Whole-grain toast', 'amount': 1, 'unit': 'slice', 'kcal': 110, 'protein_g': 4, 'carbs_g': 20, 'fat_g': 2, 'source': 'ai', 'ref': {'origin': 'ai'}},
+    {'day': str(today), 'meal': 'breakfast', 'name': 'Black coffee', 'amount': 1, 'unit': 'cup', 'kcal': 2, 'protein_g': 0, 'carbs_g': 0, 'fat_g': 0, 'source': 'ai', 'ref': {'origin': 'ai'}},
     {'day': str(today), 'meal': 'lunch', 'name': 'Chicken grain bowl', 'amount': 1, 'unit': 'bowl', 'kcal': 560, 'protein_g': 42, 'carbs_g': 56, 'fat_g': 16, 'source': 'quick'},
     {'day': str(today), 'meal': 'dinner', 'name': 'Salmon and potatoes', 'amount': 1, 'unit': 'plate', 'kcal': 620, 'protein_g': 38, 'carbs_g': 48, 'fat_g': 27, 'source': 'quick'},
 ])
