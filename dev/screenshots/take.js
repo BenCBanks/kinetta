@@ -171,12 +171,12 @@ async function say(page, text) {
         if(await page.locator('#feed-discovery').count())throw Error('Mature feed must not show discovery cards');
         const group=page.locator(`#ff-list .post[data-href="/activity/${ids.FEED_ACTIVITY}"] .post-ft [data-reaction-group][data-aid="${ids.FEED_ACTIVITY}"]`);
         await group.waitFor({state:'visible'});
-        for(const kind of ['clap','muscle','fire'])if(await group.getAttribute(`data-count-${kind}`)!=='1')throw Error(`Demo feed must have one ${kind} reaction on the same card`);
+        for(const kind of ['clap','starstruck','mindblown'])if(await group.getAttribute(`data-count-${kind}`)!=='1')throw Error(`Demo feed must have one ${kind} reaction on the same card`);
         const summary=group.locator('.reaction-summary .reaction-summary-emoji');
         await summary.first().waitFor({state:'visible'});
         const kinds=await summary.evaluateAll(nodes=>nodes.map(node=>node.getAttribute('data-summary-react')));
         const shown=await summary.locator('.reaction-emoji').allTextContents();
-        if(kinds.length!==3||!['clap','muscle','fire'].every(kind=>kinds.includes(kind))||shown.length!==3||!['👏','💪','🔥'].every(value=>shown.includes(value))||await group.locator('.reaction-count .num').textContent()!=='3')throw Error('Demo feed must show three distinct reaction buttons and a total of 3');
+        if(kinds.length!==3||!['clap','starstruck','mindblown'].every(kind=>kinds.includes(kind))||shown.length!==3||!['👏','🤩','🤯'].every(value=>shown.includes(value))||await group.locator('.reaction-count .num').textContent()!=='3')throw Error('Demo feed must show three distinct native emoji and a total of 3');
         if(!await group.locator('.reaction-count').evaluate(el=>{
           const limit=document.querySelector('nav.tabs').getBoundingClientRect().top;
           return [...el.querySelectorAll('.reaction-emoji,.num')].every(node=>{const r=node.getBoundingClientRect();return r.width>0&&r.height>0&&r.left>=0&&r.right<=innerWidth&&r.top>=59&&r.bottom<=limit;});

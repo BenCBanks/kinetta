@@ -6,11 +6,11 @@ CHOICES=(
     ('hands','raised hands','🙌'), ('wow','surprise','😮'), ('bolt','fast','⚡'),
     ('gold','gold medal','🥇'), ('hundred','hundred points','💯'),
     ('run','running','🏃'), ('ride','cycling','🚴'), ('swim','swimming','🏊'),
-    ('hike','hiking','🥾'), ('lift','barbell',None), ('mountain','mountain','⛰️'),
+    ('starstruck','star-struck','🤩'), ('mindblown','mind blown','🤯'), ('mountain','mountain','⛰️'),
 )
 KINDS=tuple(row[0] for row in CHOICES)
 EMOJI={kind:emoji for kind,_,emoji in CHOICES}
-LEGACY={'cheer':'clap','strong':'muscle','applause':'fire','laugh':'clap'}
+LEGACY={'cheer':'clap','strong':'muscle','applause':'fire','laugh':'clap','hike':'mountain','lift':'muscle','🥾':'mountain'}
 
 def canonical(kind):
     return LEGACY.get(kind,next((key for key,_,emoji in CHOICES if emoji is not None and emoji==kind),kind))

@@ -2127,6 +2127,18 @@ MIGRATIONS = [
     CREATE UNIQUE INDEX notifications_group_latest ON notifications(user_id,group_id)
       WHERE group_id IS NOT NULL AND kind IN ('group_update','group_cheer');""",
 
+    # 104. Replace the non-emoji hiking and barbell keys across every stored reaction surface.
+    """UPDATE cheers SET kind=CASE kind WHEN 'hike' THEN 'mountain' WHEN 'lift' THEN 'muscle' END
+       WHERE kind IN ('hike','lift');
+    UPDATE notifications SET reaction_kind=CASE reaction_kind WHEN 'hike' THEN 'mountain' WHEN 'lift' THEN 'muscle' END
+       WHERE reaction_kind IN ('hike','lift');
+    UPDATE achievement_moment_reactions SET kind=CASE kind WHEN 'hike' THEN 'mountain' WHEN 'lift' THEN 'muscle' END
+       WHERE kind IN ('hike','lift');
+    UPDATE group_update_reactions SET kind=CASE kind WHEN 'hike' THEN 'mountain' WHEN 'lift' THEN 'muscle' END
+       WHERE kind IN ('hike','lift');
+    UPDATE group_weekly_reactions SET kind=CASE kind WHEN 'hike' THEN 'mountain' WHEN 'lift' THEN 'muscle' END
+       WHERE kind IN ('hike','lift');""",
+
 ]
 
 

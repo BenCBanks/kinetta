@@ -77,11 +77,11 @@ ago = max(now - dt.timedelta(hours=2.5), now.replace(hour=0, minute=0, second=0,
 print('alex today', upload(alex, [('today-running.gpx', later(raw, (ago - t0).total_seconds() // 60))]).get('added'))
 mine = alex('GET', '/api/activities?limit=8')
 for a in mine: alex('PUT', f"/api/activities/{a['id']}/sharing", {'visibility': 'friends'})
-# Three friends on the same newest card show the real curated emoji and total in both capture themes.
-for friend, kind in ((jordan, 'clap'), (person('casey', PW), 'muscle'), (person('taylor', PW), 'fire')):
+# Three friends on the same newest card show the new native emoji and total in both capture themes.
+for friend, kind in ((jordan, 'clap'), (person('casey', PW), 'starstruck'), (person('taylor', PW), 'mindblown')):
     friend('POST', f"/api/activities/{mine[0]['id']}/reaction", {'kind': kind})
 reactions = alex('GET', f"/api/activities/{mine[0]['id']}/social")['reactions']
-assert all(reactions.get(kind) == 1 for kind in ('clap', 'muscle', 'fire')) and sum(reactions.values()) == 3
+assert all(reactions.get(kind) == 1 for kind in ('clap', 'starstruck', 'mindblown')) and sum(reactions.values()) == 3
 jordan('POST', f"/api/activities/{mine[0]['id']}/comments", {'text': 'Strong finish on that last mile!'})
 alex('POST', f"/api/activities/{mine[0]['id']}/comments", {'text': 'Thanks! Legs felt great today.'})
 jordan('POST', f"/api/activities/{mine[2]['id']}/cheer")
