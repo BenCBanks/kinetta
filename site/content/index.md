@@ -2,17 +2,21 @@
 
 Edit the text below each heading. Keep the section keys unchanged. Supports **bold**, *emphasis*, `code` and [links](https://example.com). Publishing rebuilds the page automatically.
 
+## home-hero-kicker
+
+One app for your whole training life.
+
 ## your-workouts-and-your-food-in-one-app-1
 
-Your workouts. Your nutrition. One app.
+Train. Fuel. Feel the difference.
 
 ## runs-rides-lifting-and-meals-tracked-together-and-kept-2
 
-Training, food and friends together, without the clutter.
+Your workouts, food and people—one clear picture.
 
-## home-core-heading
+## home-insights-heading
 
-Record, eat and connect.
+Make your next move with the full picture.
 
 ## home-progress-description
 
@@ -28,7 +32,7 @@ Ask Kit for optional notes on workouts, training and recovery.
 
 ## runs-rides-and-lifting-4
 
-Record
+Fictional demo data · Kit reply is a screenshot stand-in.
 
 ## home-workout-description
 
@@ -36,7 +40,7 @@ Review each route, pace, splits and heart rate after a workout.
 
 ## quick-food-logging-6
 
-Food
+Know when to push. Know when to rest.
 
 ## home-food-description
 
@@ -44,21 +48,21 @@ Describe a meal, then review each food and amount before logging.
 
 ## friends-kept-private-8
 
-Friends
+See training and food, day by day.
 
-## home-discipline-run
+## home-insight-kit
 
-Run
+Get a clear answer backed by your own records.
 
-## home-discipline-ride
+## home-support-routes
 
-Ride
+Find your best on every familiar route.
 
-## home-discipline-walk
+## home-support-prs
 
-Walk
+Spot new personal records over time.
 
-## home-discipline-lift
+## home-support-heatmap
 
 Lift
 
