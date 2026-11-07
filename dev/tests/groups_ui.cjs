@@ -23,6 +23,22 @@ const stripFixtures={one:{muted:false,has_upcoming:true,more_count:0,next:stripG
 const groupUrl=id=>`/groups/${id}`;
 async function settle(page){await page.evaluate(async()=>{await document.fonts.ready;const a=[...document.querySelectorAll('.scrim,.sheet')].flatMap(x=>x.getAnimations());await Promise.all(a.map(x=>x.finished.catch(()=>{})));});}
 async function waitActivity(page){await page.locator('#activity-groups-strip[data-loaded="true"]').waitFor({state:'attached'});await page.locator('#ff-list .post').first().waitFor();}
+async function checkCreateSheet(page,width,root,theme){
+ await page.setViewportSize({width,height:844});
+ await page.evaluate(size=>{document.documentElement.style.fontSize=size+'px';},root);
+ const layout=await page.evaluate(()=>{
+  const box=element=>{const r=element.getBoundingClientRect();return{x:r.x,right:r.right,width:r.width};};
+  const fields=document.querySelector('.group-create-fields'),date=document.querySelector('[name=event_date]'),name=document.querySelector('[name=title]'),grid=document.querySelector('.group-goal-fields');
+  return{viewport:innerWidth,documentWidth:document.documentElement.scrollWidth,fields:{...box(fields),clientWidth:fields.clientWidth,scrollWidth:fields.scrollWidth},date:box(date),name:box(name),grid:box(grid),labels:[...document.querySelectorAll('.group-create-fields>label')].map(label=>({text:label.childNodes[0]?.textContent.trim(),...box(label)}))};
+ });
+ assert(layout.documentWidth<=width+1,`Groups create sheet has no page overflow at ${width}px / ${root}px (${theme}): ${JSON.stringify(layout)}`);
+ assert(layout.fields.scrollWidth<=layout.fields.clientWidth+1,`Groups fields have no horizontal scroll at ${width}px / ${root}px (${theme}): ${JSON.stringify(layout)}`);
+ assert(layout.date.x>=layout.fields.x-1&&layout.date.right<=layout.fields.right+1,`Event date remains inside the fields at ${width}px / ${root}px (${theme}): ${JSON.stringify(layout)}`);
+ assert(Math.abs(layout.date.width-layout.name.width)<=1,`Event date matches the name field width at ${width}px / ${root}px (${theme}): ${JSON.stringify(layout)}`);
+ assert(layout.grid.x>=layout.fields.x-1&&layout.grid.right<=layout.fields.right+1,`Goal grid remains inside the fields at ${width}px / ${root}px (${theme}): ${JSON.stringify(layout)}`);
+ assert(layout.labels.every(label=>label.x>=layout.fields.x-1&&label.right<=layout.fields.right+1),`Every Groups label remains visible at ${width}px / ${root}px (${theme}): ${JSON.stringify(layout)}`);
+ return layout;
+}
 async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
  if(!shots)return;await settle(page);fs.mkdirSync(shots,{recursive:true});const file=path.join(shots,name+'.png');
  if(hideChrome)await page.evaluate(()=>document.querySelectorAll('.group-top,nav.tabs').forEach(node=>{node.dataset.captureVisibility=node.style.visibility;node.style.visibility='hidden';}));
@@ -102,8 +118,13 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    assert.equal(await page.locator('#group-zone-change').innerText(),'Eastern time · Change');assert(!/America\/New_York/.test(await page.locator('#group-create-form').innerText()),'the create sheet shows a friendly zone label');
    assert.match(await page.locator('#group-create-form').innerText(),/Only group members see the group/,'the privacy note stays on the create sheet');
    assert(await page.locator('.group-create-footer button[type=submit]').isVisible(),'Create stays visible in the sheet footer');
-   assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'create sheet fits the phone');
+   await checkCreateSheet(page,390,16,theme);
    await capture(page,`groups-create-390-${theme}`);
+   for(const width of [390,375,330])for(const root of [16,24]){
+    await checkCreateSheet(page,width,root,theme);
+    if(width===390&&root===24)await capture(page,`groups-create-390-large-text-${theme}`);
+   }
+   await page.setViewportSize({width:390,height:844});await page.evaluate(()=>document.documentElement.style.fontSize='16px');
    await page.locator('#group-zone-change').click();await zone.waitFor({state:'visible'});await zone.evaluate(el=>el.blur());await zone.waitFor({state:'hidden'});assert.equal(await page.locator('#group-zone-change').innerText(),'Eastern time · Change','closing the picker without a selection restores the friendly action');
    await page.locator('#group-zone-change').click();await zone.waitFor({state:'visible'});await zone.selectOption('America/Los_Angeles');
    assert.equal(await page.locator('#group-zone-change').innerText(),'Pacific time · Change','the picker returns to a friendly label');assert.equal(await zone.isVisible(),false,'the picker closes after choosing a zone');

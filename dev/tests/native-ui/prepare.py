@@ -1,7 +1,7 @@
 """Instrument a disposable unsigned Simulator bundle; never modify source or the original build."""
 import argparse,json,shutil,subprocess,uuid
 from pathlib import Path
-p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('destination',type=Path);p.add_argument('--stage',choices=['recipe','review','food','track-live','track-review','track-map','activity','activity-sticky','activity-empty','activity-map','friends-empty','friends-typical','friends-heavy','header-me','header-activity','header-track','header-progress','header-food'],required=True);p.add_argument('--store',action='store_true');p.add_argument('--map-config',type=Path);p.add_argument('--root',type=int,default=16);p.add_argument('--run',required=True);p.add_argument('--update',action='store_true');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('destination',type=Path);p.add_argument('--stage',choices=['recipe','review','food','track-live','track-review','track-map','activity','activity-sticky','activity-empty','activity-map','friends-empty','friends-typical','friends-heavy','groups-create','header-me','header-activity','header-track','header-progress','header-food'],required=True);p.add_argument('--store',action='store_true');p.add_argument('--map-config',type=Path);p.add_argument('--root',type=int,default=16);p.add_argument('--run',required=True);p.add_argument('--update',action='store_true');a=p.parse_args()
 assert a.source.suffix=='.app' and a.source.is_dir()
 assert a.destination.suffix=='.app' and a.destination.resolve()!=a.source.resolve()
 if a.update:
@@ -23,6 +23,7 @@ if a.store:
  config['store']['responses']['/api/map-config']=json.loads(a.map_config.read_text())
  config['store']['mapUrl']=config['store']['responses']['/api/map-config']['url']
 if a.stage.startswith('header-'):config['headerPage']=a.stage.removeprefix('header-')
+if a.stage.startswith('groups-'):config['groups']=True
 if a.stage.startswith('friends-'):
  config['friends']=json.loads(subprocess.check_output(['node','-e','process.stdout.write(JSON.stringify(require(process.argv[1])(process.argv[2])))',str(fixture.parents[1]/'demo/friends.cjs'),a.stage.removeprefix('friends-')],text=True))
 if a.stage.startswith('activity'):
