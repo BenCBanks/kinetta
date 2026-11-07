@@ -192,7 +192,7 @@ Email [feedback@kinetta.app](mailto:feedback@kinetta.app). We'll never ask for y
 
 ## free-for-personal-use-under-the-polyform-noncommercial-56
 
-Free for personal use under the [PolyForm Noncommercial License](https://github.com/BenCBanks/kinetta/blob/main/LICENSE); commercial licenses on request.
+Source available under the [PolyForm Noncommercial License](https://github.com/BenCBanks/kinetta/blob/main/LICENSE); commercial use needs a separate license.
 
 ## 2026-ben-banks-name-and-logo-not-covered-by-the-licens-57
 
