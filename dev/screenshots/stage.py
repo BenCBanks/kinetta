@@ -146,6 +146,15 @@ for theme in ('light', 'dark'):
         alex('POST', '/api/admin/people', body)
     screenshot_food = person(login, body['password'])
     screenshot_food('PUT', '/api/profile', {'tz': 'America/New_York', 'units': 'imperial', 'ai_ok': False, 'ai_adult': False})
+    for food in (
+        {'name': 'Greek yogurt with berries', 'serving_label': '1 bowl', 'serving_g': 220, 'kcal': 225,
+         'protein_g': 18, 'carbs_g': 28, 'fat_g': 4, 'fiber_g': 5},
+        {'name': 'Oatmeal with banana', 'serving_label': '1 bowl', 'serving_g': 280, 'kcal': 290,
+         'protein_g': 10, 'carbs_g': 56, 'fat_g': 5, 'fiber_g': 8},
+        {'name': 'Chicken salad bowl', 'serving_label': '1 bowl', 'serving_g': 350, 'kcal': 430,
+         'protein_g': 35, 'carbs_g': 30, 'fat_g': 19, 'fiber_g': 6},
+    ):
+        screenshot_food('POST', '/api/food/foods', food)
     yesterday = dt.datetime.now(ZoneInfo('America/New_York')).date() - dt.timedelta(days=1)
     breakfast_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f'https://kinetta.app/dev/screenshots/breakfast/{theme}'))
     screenshot_food('POST', '/api/food/entries', [{'day': str(yesterday), 'meal': 'breakfast',
