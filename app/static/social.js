@@ -225,10 +225,10 @@ function achievementMomentCheers(owner,week){
   });
 }
 
-// the number on the Me tab: unread notifications (or friend requests waiting, if more); checked at most once a minute
+// the number on the Me tab: friend requests waiting; unread notifications belong to the Home bell
 const Social = {
   at: 0,
-  count: () => Math.max((App.me && App.me.notifications) || 0, (App.me && App.me.friend_requests) || 0),
+  count: () => Number.isInteger(App.me?.friend_requests) ? App.me.friend_requests : 0,
   badge() {
     const a = $('nav.tabs a[data-tab="me"]'); if (!a) return;
     const n = Social.count(); let b = $('.tab-n', a);
@@ -240,7 +240,7 @@ const Social = {
     $$('.bell-dot').forEach((d) => { d.hidden = !un; d.classList.toggle('many',un>9); d.textContent = un > 9 ? '9+' : un || ''; });
     if (!n) { if (b) b.remove(); return; }
     if (!b) { b = document.createElement('span'); b.className = 'tab-n'; a.append(b); }
-    b.innerHTML = `${n > 9 ? '9+' : n}<span class="vh"> new notification${n > 1 ? 's' : ''}</span>`;
+    b.innerHTML = `${n > 9 ? '9+' : n}<span class="vh"> new friend request${n === 1 ? '' : 's'}</span>`;
   },
   refresh() {
     Social.badge();
