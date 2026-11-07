@@ -1,0 +1,41 @@
+.contacts-page { padding-bottom:calc(env(safe-area-inset-bottom) + var(--tab-h) + 28px); }
+.contacts-page > .top { gap:8px; }
+.contacts-page > .top h1 { flex:1;min-width:0;margin:0;font-size:var(--text-app-title);overflow-wrap:anywhere; }
+.contacts-page .contacts-content { max-width:560px;margin:0 auto; }
+.contacts-entry { display:flex;align-items:center;gap:12px;width:100%;min-height:56px;margin:4px 0 12px;padding:6px 0;color:var(--tx);text-align:left; }
+.contacts-entry .ri { width:24px;height:24px;flex:none;color:var(--accent); }
+.contacts-entry .ri svg,.contacts-entry > svg { width:20px;height:20px; }
+.contacts-entry .grow { min-width:0; }
+.contacts-entry b { font-size:max(15px,.9375rem); }
+.contacts-entry > svg { flex:none;color:var(--tx2); }
+.contacts-intro,.contacts-state,.contacts-empty { padding:30px 0 10px; }
+.contacts-intro h2,.contacts-state h2,.contacts-empty h2 { margin:0 0 12px;font-size:24px;line-height:1.2;letter-spacing:-.02em; }
+.contacts-intro p,.contacts-state p,.contacts-empty p { margin:8px 0;color:var(--tx2);font-size:16px;line-height:1.5; }
+.contacts-intro .contacts-private { color:var(--tx);font-weight:600; }
+.contacts-status { color:var(--danger)!important; }
+.contacts-actions { display:grid;gap:4px;margin:26px 0 0; }
+.contacts-actions button { min-height:48px;white-space:normal; }
+.contacts-next-check { margin:0;padding:10px 0;color:var(--tx2);font-size:14px;line-height:1.4;text-align:center; }
+.contacts-loading { min-height:150px;padding-top:44px;color:var(--tx2);text-align:center; }
+.contacts-section-title { margin:18px 0 8px;font-size:var(--text-app-section); }
+.contacts-note { color:var(--tx2);font-size:14px;line-height:1.4; }
+.contacts-list { display:grid; }
+.contacts-person { display:flex;align-items:center;gap:10px;min-height:64px;padding:8px 0; }
+.contacts-avatar { display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:50%;background:var(--card2);color:var(--tx2);font-size:16px;font-weight:650; }
+.contacts-person-copy { display:grid;flex:1;min-width:0;gap:2px; }
+.contacts-person-copy b,.contacts-person-copy small { overflow-wrap:anywhere; }
+.contacts-person-copy b { font-size:15px;line-height:1.25; }
+.contacts-person-copy small { color:var(--tx2);font-size:13px;line-height:1.25; }
+.contacts-add { display:grid;place-items:center;flex:none;width:44px;height:44px;padding:0;border:0;border-radius:50%;background:var(--accent2);color:var(--accent); }
+.contacts-add svg { width:20px;height:20px; }
+.contacts-add:active { background:var(--accent);color:#fff; }
+.contacts-add:disabled { opacity:1; }
+.contacts-friend-status { flex:none;padding:0 4px;color:var(--tx2);font-size:14px;white-space:nowrap; }
+.contacts-empty { padding-top:30px; }
+.contacts-empty .linkbtn { display:inline-flex;align-items:center;min-height:44px;margin-top:6px; }
+.contacts-invites { margin:12px 0 4px;border-top:1px solid var(--line); }
+.contacts-invites > summary { display:flex;align-items:center;gap:8px;min-height:48px;color:var(--accent);font-weight:600;cursor:pointer; }
+.contacts-invites > summary span { margin-left:auto;color:var(--tx2);font-size:14px;font-weight:500; }
+.contacts-invite { flex:none;min-height:44px;padding:6px 4px; }
+.contacts-cache-remove { display:flex;min-height:44px;align-items:center;margin-top:8px;padding:8px 0; }
+.welcome .contacts-welcome-link { display:flex;align-items:center;min-height:44px;margin:8px 0; }

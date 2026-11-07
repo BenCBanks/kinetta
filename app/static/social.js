@@ -1005,7 +1005,8 @@ route(/^\/add\/([\w-]+)$/, 'activity', async (el, code) => {
   };
 });
 
-route(/^\/me\/friends$/, 'me', el=>FriendsUI.mount(el));
+route(/^\/me\/friends\/contacts$/, 'me', el=>ContactsUI.mount(el));
+route(/^\/me\/friends$/, 'me', async el=>{const find=new URLSearchParams(location.search).has('find')||new URLSearchParams(location.search).has('q');await FriendsUI.mount(el);if(find)ContactsUI.addEntry(el);});
 
 // ---------- private event Groups (2026-11-07) ----------
 const GROUP_GOALS={distance:'Distance',elevation:'Elevation',long_outings:'Long outings',sessions:'Sessions'};
@@ -1193,6 +1194,7 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
       <p class="small muted">Shared maps leave out this much at the start and at the end, so others can't see where you live. A route too short for that is shared without a map.</p></div>
     <div id="sh-segments"></div>
     <div class="card list" id="sh-blocked"><h2>Blocked people</h2><p class="small muted">Loading…</p></div>`;
+  ContactsUI.addPrivacyRemoval(box);
   if (typeof Segments !== 'undefined' && $('#sh-segments', box)) Segments.settingsRow($('#sh-segments', box));
   const drawBlocked = (rows) => {
     const b = $('#sh-blocked', box); if (!b) return;
