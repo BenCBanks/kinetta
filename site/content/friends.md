@@ -2,23 +2,19 @@
 
 Edit the text below each heading. Keep the section keys unchanged. Supports **bold**, *emphasis*, `code` and [links](https://example.com). Publishing rebuilds the page automatically.
 
-## your-friends-workouts-and-yours-1
+## friends-hero
 
-Keep up with *your friends’ workouts.*
+Your friends’ workouts, together.
 
-## find-friends-by-name-see-their-runs-send-them-cheers-2
+## friends-intro
 
-Find friends, share workouts, and send cheers or comments.
+Share activities, cheer each other on, and catch up through training.
 
-## see-who-s-out-there-today-3
+## friends-gallery
 
-Your workouts and theirs, in one feed.
+Catch up in a few taps.
 
-## your-runs-and-theirs-newest-first-4
-
-See shared workouts newest first; new accounts share with everyone; saved choices stay unchanged.
-
-## photos-of-freedom-park-charlotte-james-willamor-and-ci-5
+## friends-photo-credit
 
 Photos of Freedom Park, Charlotte: James Willamor and City Dweller 2, [CC BY-SA](https://creativecommons.org/licenses/by-sa/4.0), via Wikimedia Commons.
 
@@ -33,28 +29,3 @@ Free for personal use under the [PolyForm Noncommercial License](https://github.
 ## 2026-ben-banks-name-and-logo-not-covered-by-the-licens-8
 
 © 2026 Ben Banks. Name and logo not covered by the license. Demo data in screenshots.
-
-
-## profile-heading
-
-A profile that feels like you.
-
-## profile-copy
-
-Choose your photo, bio, stats and sports; preview your card as friends see it.
-
-## private-overview-heading
-
-Your dashboard stays private.
-
-## private-overview-copy
-
-Only you see your food logs, body data and Kit conversations.
-
-## motivation-heading
-
-A little momentum, together.
-
-## motivation-copy
-
-Share recaps, celebrate milestones or invite friends to challenges; you choose what to share.
