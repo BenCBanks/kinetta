@@ -245,6 +245,8 @@ class Groups(unittest.TestCase):
         all_four = self.clients[1].get('/api/groups/' + group['id']).json()
         self.assertEqual(all_four['member_count'], 4)
         self.assertEqual(all_four['total'], 27)
+        self.assertEqual(all_four['this_week_total'], 27)
+        self.assertEqual(all_four['this_week_contributors'], 4)
 
         with db.connect() as c:
             c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)', (self.ids[0], self.ids[3]))
@@ -252,8 +254,12 @@ class Groups(unittest.TestCase):
         unblocked_view = self.clients[1].get('/api/groups/' + group['id']).json()
         self.assertEqual(blocked_view['member_count'], 3)
         self.assertEqual(blocked_view['total'], 20)
+        self.assertEqual(blocked_view['this_week_total'], 20)
+        self.assertEqual(blocked_view['this_week_contributors'], 3)
         self.assertEqual(unblocked_view['member_count'], 4)
         self.assertEqual(unblocked_view['total'], 27)
+        self.assertEqual(unblocked_view['this_week_total'], 27)
+        self.assertEqual(unblocked_view['this_week_contributors'], 4)
 
     def test_elevation_long_outing_and_session_goal_units(self):
         elevation, _ = self.make(goal_type='elevation', goal_target=100, goal_unit='ft')

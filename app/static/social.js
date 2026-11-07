@@ -277,6 +277,40 @@ async function feedPage(before,size=FEED_N) {
   return {rows,more:all.length>size||mine.length===size||theirs.length===size,friends:rows.filter(a=>a.owner).length};
 }
 
+function groupStripDate(value,zone){
+  const [y,m,d]=value.split('-').map(Number),date=new Date(Date.UTC(y,m-1,d,12));
+  return new Intl.DateTimeFormat(undefined,{timeZone:zone,month:'short',day:'numeric'}).format(date);
+}
+function activityGroupStripHtml(data){
+  const group=data.next,combined=group.total!==undefined,value=Number(combined?group.total:group.your_total)||0,target=Number(group.goal_target)||0;
+  const progress=Math.min(target||1,Math.max(0,value)),weeks=group.weeks_to_event||0;
+  const timing=group.days_to_event===0?'Event today':`${weeks} ${weeks===1?'week':'weeks'} to go`;
+  const more=data.more_count?`<a class="feed-groups-more" href="/me/groups" aria-label="See ${data.more_count} more ${data.more_count===1?'group':'groups'}">+${data.more_count}</a>`:'';
+  return `<section class="feed-social-strip feed-groups-strip" aria-label="Next group event"><div class="feed-groups-row">
+    <a class="row-link feed-groups-link" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('calendar')}</span><span class="grow feed-groups-copy"><b>${esc(group.title)} · ${esc(groupStripDate(group.event_date,group.time_zone))} · ${esc(timing)}</b><small>${combined?'Together':'You'}: ${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}</small><progress class="feed-group-progress" max="${target||1}" value="${progress}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}"></progress></span><span class="chev">${svg('chev')}</span></a>
+    ${more}<button type="button" class="linkbtn feed-groups-mute" data-group-strip-mute>Mute</button></div></section>`;
+}
+async function activityGroupStrip(box,owner){
+  const live=()=>box?.isConnected&&owner===readOwner();
+  async function draw(){
+    if(!live())return;
+    try{
+      const data=await api('/api/groups/activity-strip');if(!live())return;
+      if(data.muted&&data.has_upcoming)box.innerHTML='<div class="feed-groups-muted"><span class="small muted">Group strip is hidden</span><button type="button" class="linkbtn" data-group-strip-show>Show</button></div>';
+      else if(data.next){box.innerHTML=activityGroupStripHtml(data);$('[data-group-strip-mute]',box).onclick=()=>change(true);}
+      else box.replaceChildren();
+      box.dataset.loaded='true';
+      $('[data-group-strip-show]',box)?.addEventListener('click',()=>change(false));
+    }catch(_){if(live()){box.replaceChildren();box.dataset.loaded='true';}}
+  }
+  async function change(muted){
+    if(!live())return;
+    try{await api('/api/groups/activity-strip',json('POST',{muted}));if(live()){await draw();$(`[data-group-strip-${muted?'show':'mute'}]`,box)?.focus({preventScroll:true});}}
+    catch(error){if(live())toast(error.message);}
+  }
+  return draw();
+}
+
 // The offer window uses the signed-in account's civil clock; the recap itself reuses Monday–Sunday dates.
 function weeklyRecapWindow(now=new Date(),zone=tz()){
   const parts=new Intl.DateTimeFormat('en-US',{timeZone:zone,weekday:'short',hour:'2-digit',hourCycle:'h23'}).formatToParts(now),get=k=>parts.find(p=>p.type===k)?.value;
@@ -373,9 +407,10 @@ function warmFeed() {
 }
 async function homeFeed(el) {
   el.classList?.add('activity-home');
-  el.innerHTML=`<div id="feed-top">${actTop(false,false)}</div><div id="weekly-recap"></div><div id="feed-tools"></div>
+  el.innerHTML=`<div id="feed-top">${actTop(false,false)}</div><div id="activity-groups-strip"></div><div id="weekly-recap"></div><div id="feed-tools"></div>
     <div class="feed-list" id="ff-list">${skelFeed(3)}</div><button type="button" class="ghost feed-more" id="ff-more" hidden>Show more</button>`;
-  const list=$('#ff-list',el),more=$('#ff-more',el),recap=$('#weekly-recap',el),account=readOwner();
+  const list=$('#ff-list',el),more=$('#ff-more',el),recap=$('#weekly-recap',el),groupStrip=$('#activity-groups-strip',el),account=readOwner();
+  void activityGroupStrip(groupStrip,account);
   void weeklyRecapOffer(recap);
   let items=[],shown=null,pageRevision=0;
   const active=()=>account===readOwner()&&list.isConnected,tools=feedTools(el,()=>account===readOwner()&&list.isConnected);
@@ -417,7 +452,7 @@ async function homeFeed(el) {
     App.cache.set('feed:home',{data:pg,at:Date.now()});keepFeed(pg);draw(pg);
   };
   // Pull-to-refresh uses this read-only hook instead of replacing the entire page.
-  el.refresh=()=>Promise.all([revalidate(),tools.refresh(),weeklyRecapOffer(recap)]);
+  el.refresh=()=>Promise.all([revalidate(),tools.refresh(),weeklyRecapOffer(recap),activityGroupStrip(groupStrip,account)]);
   more.onclick=async()=>{
     if(more.disabled||!active()||!items.length)return;
     const epoch=readEpoch('feed:home');pageRevision++;more.disabled=true;more.textContent='Loading…';
@@ -1029,12 +1064,14 @@ function groupRoster(group,expanded){
 function groupGoal(group){
   const combined=group.total!==undefined,value=Number(combined?group.total:group.your_total)||0,target=Number(group.goal_target)||0;
   const progressMax=target||1,progressValue=Math.min(progressMax,Math.max(0,value));
-  return `<section class="group-goal card" aria-label="Shared goal"><small>${esc(GROUP_GOALS[group.goal_type]||'Shared goal')}</small><strong>${combined?'Together':'You'}: ${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}</strong><progress class="group-progress" max="${progressMax}" value="${progressValue}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}"></progress>${combined?'':'<small class="group-goal-hint">Group total appears with 3 members</small>'}</section>`;
+  const week=group.this_week_total!==undefined?`This week · +${groupNumber(group.this_week_total)} ${group.goal_unit} from ${group.this_week_contributors} of ${group.member_count} people`:`This week · You: ${groupAmount(group.your_this_week_total,group.goal_unit)}`;
+  const weekHtml=group.this_week_total!==undefined||group.your_this_week_total!==undefined?`<small class="group-week">${esc(week)}</small>`:'';
+  return `<section class="group-goal card" aria-label="Shared goal"><small>${esc(GROUP_GOALS[group.goal_type]||'Shared goal')}</small><strong>${combined?'Together':'You'}: ${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}</strong><progress class="group-progress" max="${progressMax}" value="${progressValue}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}"></progress>${weekHtml}${combined?'':'<small class="group-goal-hint">Group totals appear with 3 members</small>'}</section>`;
 }
 function groupPage(el,group){
   let expanded=false;
-  const draw=()=>{el.innerHTML=`<div class="top group-top">${backBtn('Groups')}<span></span><button type="button" class="icon-btn" id="group-options" aria-label="Group options">${svg('more')}</button></div>
-    <header class="group-title"><p class="eyebrow">Private group</p><h1>${esc(group.title)}</h1><p>${esc(groupDate(group.event_date,group.time_zone))} · ${group.days_to_event===0?'Today':`${group.days_to_event} days to go`}</p>${group.note?`<p class="group-note">${esc(group.note)}</p>`:''}</header>
+  const draw=()=>{const weeks=group.weeks_to_event??Math.ceil(group.days_to_event/7),timing=group.days_to_event===0?'Event today':`${weeks} ${weeks===1?'week':'weeks'} to go`;el.innerHTML=`<div class="top group-top">${backBtn('Groups')}<span></span><button type="button" class="icon-btn" id="group-options" aria-label="Group options">${svg('more')}</button></div>
+    <header class="group-title"><p class="eyebrow">Private group</p><h1>${esc(group.title)}</h1><p>${esc(groupDate(group.event_date,group.time_zone))} · ${esc(timing)}</p>${group.note?`<p class="group-note">${esc(group.note)}</p>`:''}</header>
     ${groupGoal(group)}
     <section class="group-roster card list"><h2>Members <span>${group.member_count}</span></h2><div id="group-members">${groupRoster(group,expanded)}</div></section>
     `;
