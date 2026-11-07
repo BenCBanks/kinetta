@@ -838,8 +838,9 @@ function showError(el, e) {
   if (e && e.status === 401) return;
   if (e && e.status === 404) {
     const href = el._backFallback || (location.pathname.startsWith('/people/') ? '/me/friends' : '/activity');
-    el.innerHTML = `<div class="top">${backBtn(BackNavigation.label(href))}</div><div class="boot"><h1>Not available</h1><p>This item may have been removed or is not shared with you.</p></div>`;
-    wireBack(el,href); return;
+    const fallbackLabel = /^\/activity\/(?:friends\/)?\d+$/.test(location.pathname) ? 'Activity' : BackNavigation.label(href);
+    el.innerHTML = `<div class="top">${backBtn(fallbackLabel)}</div><div class="boot"><h1>Not available</h1><p>This item may have been removed or is not shared with you.</p></div>`;
+    wireBack(el,href,destination=>destination.history?destination.label:fallbackLabel); return;
   }
   el.innerHTML = `<div class="boot"><p>${esc(e && e.message || 'Something went wrong')}</p><button class="ghost" id="retry">Try again</button></div>`;
   $('#retry', el).onclick = () => { invalidate('/api/'); render(); };

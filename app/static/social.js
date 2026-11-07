@@ -539,7 +539,7 @@ function drawShared(el, a) {
     ${a.ends_hidden?'<p class="small muted map-note">The start and end of the route are hidden.</p>':''}${activityTabs(panes)}${mine?'':`<p class="center"><button class="linkbtn muted" id="s-rb">Report or block ${esc(a.owner.name)}</button></p>`}`;
   let redrawCharts = null;
   wireActivityTabs(el, key => { if (key === 'charts') redrawCharts?.(); });
-  ActivityDetail.wire(el,a,{mine:false,back:mine?`/activity/${a.id}`:'/activity'});
+  ActivityDetail.wire(el,a,{mine:false,back:mine?`/activity/${a.id}`:'/activity',fallbackLabel:mine?'Your activity':'Activity'});
   if (!mine) $('#s-rb', el).onclick = () => reportSheet(a.owner, {activity_id: a.id});
   if (a.line) {
     const box = $('#s-map', el); let m = null;

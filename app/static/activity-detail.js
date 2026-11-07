@@ -141,8 +141,8 @@ const ActivityDetail=(()=>{
   const bar=sticky=>`<header class="detail-bar ${mapped?(sticky?'detail-sticky':'detail-floating'):'top'}"${sticky?' hidden':''}><button type="button" class="back" data-back aria-label="Back to ${esc(backLabel)}">${svg('back')}<span>${esc(backLabel)}</span></button>${sticky?`<b class="detail-bar-title">${esc(a.name)}</b>`:''}<div class="acts">${mine?`<button type="button" class="icon-btn"${sticky?'':' id="d-send"'} data-detail-share aria-label="Share activity">${svg('share')}</button><button type="button" class="icon-btn"${sticky?'':' id="d-edit"'} data-detail-edit aria-label="Edit activity">${svg('edit')}</button>`:''}</div></header>`;
   return {floating:bar(false),sticky:mapped?bar(true):''};
  }
- function wire(root,a,{mine=true,back='/activity'}={}){
-  wireBack(root,back);const first=$('[data-back]',root);$$('[data-back]',root).forEach(button=>button.onclick=first.onclick);
+ function wire(root,a,{mine=true,back='/activity',fallbackLabel='Activity'}={}){
+  wireBack(root,back,destination=>destination.history?destination.label:fallbackLabel);const first=$('[data-back]',root);$$('[data-back]',root).forEach(button=>button.onclick=first.onclick);
   if(mine){$$('[data-detail-share]',root).forEach(button=>button.onclick=()=>shareOut(a));$$('[data-detail-edit]',root).forEach(button=>button.onclick=()=>editActivity(a));paintNextMedal($('#d-next-medal',root),a);}
   $$('[data-detail-tab]',root).forEach(button=>button.onclick=()=>{const tab=$(`[data-dt="${button.dataset.detailTab}"]`,root);tab?.click();tab?.scrollIntoView({block:'nearest'});});
   const hero=$('.detail-map-hero',root),sticky=$('.detail-sticky',root);
