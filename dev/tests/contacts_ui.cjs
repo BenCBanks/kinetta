@@ -57,22 +57,30 @@ async function runTheme(browser,theme){
  assert.equal(login.status(),200,'fictional demo login');
  const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
  const capture=async name=>{
-  if(!out)return;
-  fs.mkdirSync(out,{recursive:true});await page.evaluate(()=>document.fonts.ready.then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))));
+  await page.evaluate(()=>document.fonts.ready.then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))));
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,`${name} has no horizontal overflow at 390px`);
   const title=page.locator('.contacts-page > .top h1');
-  assert.equal(await title.innerText(),'Contacts',`${name} uses the short Contacts title`);
-  assert.equal(await title.evaluate(node=>node.scrollWidth<=node.clientWidth+1),true,`${name} title fits without clipping`);
-  await page.screenshot({path:path.join(out,`${name}-390-${theme}.png`),animations:'disabled'});
+  assert.equal(await title.innerText(),'Find friends',`${name} uses the Find friends title`);
+  assert.equal(await title.evaluate(node=>node.scrollWidth<=node.clientWidth+1),true,`${name} title fits without clipping at 390px`);
+  await page.setViewportSize({width:330,height:667});
+  await page.evaluate(()=>document.fonts.ready.then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))));
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,`${name} has no horizontal overflow at 330px`);
+  assert.equal(await title.evaluate(node=>node.scrollWidth<=node.clientWidth+1),true,`${name} title fits without clipping at 330px`);
+  await page.setViewportSize({width:390,height:844});
+  await page.evaluate(()=>document.fonts.ready.then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))));
+  if(out){fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,`${name}-390-${theme}.png`),animations:'disabled'});}
  };
  const enter=async mode=>{
   scenario=mode;await page.goto(base+'/me/friends?find=1');await page.locator('#contacts-entry').waitFor();
+  assert.equal(await page.locator('#contacts-entry').innerText(),'Find friends with contacts','Friends links into the single Find friends feature');
   await page.evaluate(mode=>window.__contactsScenario=mode,mode);
   await page.locator('#contacts-entry').click();await page.locator('#contacts-continue').waitFor();
  };
 
  await enter('explain');
- assert.equal(await page.locator('.contacts-intro').innerText().then(text=>text.includes('names and contact details stay on your iPhone')),true,'permission explanation precedes the native prompt');
+ assert.equal(await page.locator('.contacts-intro h2').innerText(),'Find friends','the explainer and screen share the feature name');
+ assert.equal(await page.locator('#contacts-continue').innerText(),'Continue');assert.equal(await page.locator('#contacts-not-now').innerText(),'Not now');
+ assert.equal(await page.locator('.contacts-intro p').first().innerText(),'See which of your contacts use Kinetta. We compare salted email and phone hashes; names and contact details stay on your iPhone.');
  assert.equal(await page.evaluate(()=>window.__contactsPluginCalls),0,'opening the screen does not request Contacts access');
  assert.equal(saltCalls,0,'opening the screen does not request a salt');
  await capture('contacts-explainer');
@@ -128,7 +136,7 @@ async function runTheme(browser,theme){
  await page.locator('#contacts-cache-remove').click();
  assert.equal(await page.evaluate(prefix=>Object.keys(localStorage).filter(key=>key.startsWith(prefix)).length,'kinetta.contacts.matches:'),0,'Me → Sharing & privacy clears the local match cache');
 
- await enter('empty');await page.locator('#contacts-continue').click();await page.getByRole('heading',{name:'No one found yet'}).waitFor();
+ await enter('empty');await page.locator('#contacts-continue').click();await page.getByRole('heading',{name:'No friends found yet'}).waitFor();
  assert.equal(await page.locator('.contacts-matched-list .contacts-person').count(),0,'unmatched contact names are not shown as Kinetta accounts');
  await capture('contacts-empty');
  assert.deepEqual(matchBodies.map(body=>Object.keys(body).sort()),[['hashes','salt'],['hashes','salt'],['hashes','salt'],['hashes','salt'],['hashes','salt']]);
