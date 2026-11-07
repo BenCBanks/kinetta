@@ -24,6 +24,8 @@ NOTICE_VISIBLE += " AND (n.kind<>'milestone' OR EXISTS(SELECT 1 FROM milestones 
 
 NOTICE_VISIBLE += " AND (n.challenge_id IS NULL OR EXISTS(SELECT 1 FROM challenges cq JOIN users cu ON cu.id=cq.user_id JOIN challenge_members cv ON cv.challenge_id=cq.id AND cv.user_id=n.user_id AND cv.status='active' JOIN challenge_members ca ON ca.challenge_id=cq.id AND ca.user_id=n.actor_id AND ca.status='active' WHERE cq.id=n.challenge_id AND NOT cu.needs_email_confirm AND cu.suspended_at IS NULL))"
 
+NOTICE_VISIBLE += " AND (n.group_id IS NULL OR (n.kind IN ('group_update','group_cheer') AND EXISTS(SELECT 1 FROM group_members gm WHERE gm.group_id=n.group_id AND gm.user_id=n.user_id AND gm.status='active' AND NOT gm.notifications_muted) AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.user_id=n.user_id AND b.blocked=n.actor_id) OR (b.user_id=n.actor_id AND b.blocked=n.user_id))))"
+
 NOTICE_VISIBLE += " AND (n.kind<>'activity_ready' OR EXISTS(SELECT 1 FROM activities own WHERE own.id=n.activity_id AND own.user_id=n.user_id))"
 
 NOTICE_VISIBLE += " AND (n.kind<>'signup_admin' OR EXISTS(SELECT 1 FROM users admin WHERE admin.id=n.user_id AND admin.is_admin AND admin.suspended_at IS NULL))"
@@ -298,6 +300,7 @@ def summary_tick(now=None):
 
 # ---------- reading: the words are made here ----------
 _LIST = """SELECT n.id, n.kind, n.reaction_kind, n.created, n.read_at IS NOT NULL AS read, n.activity_id, n.dish_id, n.user_id,n.challenge_id,q.code AS challenge_code,
+             n.group_id,g.title AS group_title,
              u.login::text AS login, u.name, u.photo_v AS photo, recipient.name AS recipient_name,
              a.name AS activity, a.user_id AS activity_owner, a.updated, a.start_time, a.lift_open, a.distance_m::double precision AS distance_m, a.moving_s, a.elapsed_s, a.sport, a.sub_sport, a.sport_label,
              (a.sport='workout' AND EXISTS(SELECT 1 FROM lift_sets ls WHERE ls.activity_id=a.id AND ls.user_id=n.user_id)) AS has_lifts,
@@ -305,7 +308,7 @@ _LIST = """SELECT n.id, n.kind, n.reaction_kind, n.created, n.read_at IS NOT NUL
            FROM notifications n JOIN users u ON u.id = n.actor_id LEFT JOIN profile p ON p.user_id = n.user_id
            JOIN users recipient ON recipient.id=n.user_id LEFT JOIN milestone_state ms ON ms.user_id=n.user_id
            LEFT JOIN milestones m ON m.id=n.milestone_id AND m.user_id=n.user_id AND m.valid
-           LEFT JOIN activities a ON a.id = n.activity_id LEFT JOIN dishes d ON d.id = n.dish_id LEFT JOIN comments cm ON cm.id = n.comment_id LEFT JOIN challenges q ON q.id=n.challenge_id"""
+           LEFT JOIN activities a ON a.id = n.activity_id LEFT JOIN dishes d ON d.id = n.dish_id LEFT JOIN comments cm ON cm.id = n.comment_id LEFT JOIN challenges q ON q.id=n.challenge_id LEFT JOIN event_groups g ON g.id=n.group_id"""
 
 
 def _words(r):
@@ -322,6 +325,11 @@ def _words(r):
     if r['kind'].startswith('challenge_'):
         text={'challenge_join':'@'+r['login']+' joined your challenge','challenge_reminder':'Three days left in your challenge','challenge_finished':'Your challenge finish picture is ready'}[r['kind']]
         return text,'/me/challenges/'+r['challenge_code']
+    if r['kind'] in {'group_update','group_cheer'}:
+        who = notification_words.clean(r['name'],40)
+        title = notification_words.clean(r.get('group_title') or 'your group',80)
+        action = 'posted an update' if r['kind'] == 'group_update' else 'cheered'
+        return f'{who} {action} in {title}', f"/groups/{r['group_id']}"
     who, act = notification_words.clean(r['name'],40), notification_words.clean(r['activity'] or 'activity',90)
     if r['kind'] == 'activity_ready':
         title,body=notification_words.activity(r)

@@ -2074,6 +2074,59 @@ MIGRATIONS = [
     # 102. Per-account preference for the Activity Groups strip. The existing profile RLS policy remains in force.
     """ALTER TABLE profile ADD COLUMN group_strip_muted boolean NOT NULL DEFAULT false;""",
 
+    # 103. Member-only Group updates and cheers; recap names and in-app notices are opt-in and group-scoped.
+    """ALTER TABLE group_members ADD COLUMN recap_consent boolean NOT NULL DEFAULT false,
+      ADD COLUMN notifications_muted boolean NOT NULL DEFAULT false;
+    CREATE TABLE group_updates (
+      id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      group_id uuid NOT NULL REFERENCES event_groups(id) ON DELETE CASCADE,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      text text NOT NULL CHECK(length(btrim(text)) BETWEEN 1 AND 200),
+      created timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX group_updates_newest ON group_updates(group_id,created DESC,id DESC);
+    CREATE TABLE group_update_reactions (
+      update_id bigint NOT NULL REFERENCES group_updates(id) ON DELETE CASCADE,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind text NOT NULL CHECK(kind ~ '^[a-z_]{1,24}$'),
+      created timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY(update_id,user_id));
+    CREATE TABLE group_weekly_reactions (
+      group_id uuid NOT NULL REFERENCES event_groups(id) ON DELETE CASCADE,
+      week_start date NOT NULL,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      kind text NOT NULL CHECK(kind ~ '^[a-z_]{1,24}$'),
+      created timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY(group_id,week_start,user_id));
+    CREATE FUNCTION fit_group_blocked(target bigint) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public
+      AS $$ SELECT EXISTS(SELECT 1 FROM blocks WHERE (user_id=fit_me() AND blocked=target) OR
+        (user_id=target AND blocked=fit_me())) $$;
+    REVOKE ALL ON FUNCTION fit_group_blocked(bigint) FROM PUBLIC;
+    GRANT EXECUTE ON FUNCTION fit_group_blocked(bigint) TO fit_readers;
+    ALTER TABLE group_updates ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY active_group_updates ON group_updates FOR SELECT TO fit_readers USING(
+      EXISTS(SELECT 1 FROM group_members m WHERE m.group_id=group_updates.group_id
+        AND m.user_id=fit_me() AND m.status='active') AND NOT fit_group_blocked(group_updates.user_id));
+    ALTER TABLE group_update_reactions ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY active_group_update_reactions ON group_update_reactions FOR SELECT TO fit_readers USING(
+      EXISTS(SELECT 1 FROM group_updates u JOIN group_members m ON m.group_id=u.group_id
+        WHERE u.id=group_update_reactions.update_id AND m.user_id=fit_me() AND m.status='active')
+      AND NOT fit_group_blocked(group_update_reactions.user_id));
+    ALTER TABLE group_weekly_reactions ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY active_group_weekly_reactions ON group_weekly_reactions FOR SELECT TO fit_readers USING(
+      EXISTS(SELECT 1 FROM group_members m WHERE m.group_id=group_weekly_reactions.group_id
+        AND m.user_id=fit_me() AND m.status='active') AND NOT fit_group_blocked(group_weekly_reactions.user_id));
+    REVOKE ALL ON group_updates,group_update_reactions,group_weekly_reactions FROM PUBLIC,fit_readers,fit_all_readers;
+    GRANT SELECT ON group_updates,group_update_reactions,group_weekly_reactions TO fit_readers;
+    ALTER TABLE notifications ADD COLUMN group_id uuid REFERENCES event_groups(id) ON DELETE CASCADE,
+      ADD COLUMN group_update_id bigint REFERENCES group_updates(id) ON DELETE CASCADE,
+      ADD COLUMN group_week_start date,
+      ADD CONSTRAINT notifications_group_fields CHECK(
+        (group_id IS NULL AND group_update_id IS NULL AND group_week_start IS NULL) OR
+        (group_id IS NOT NULL AND ((kind='group_update' AND group_update_id IS NOT NULL AND group_week_start IS NULL) OR
+          (kind='group_cheer' AND (group_update_id IS NOT NULL)<>(group_week_start IS NOT NULL)))));
+    CREATE UNIQUE INDEX notifications_group_latest ON notifications(user_id,group_id)
+      WHERE group_id IS NOT NULL AND kind IN ('group_update','group_cheer');""",
+
 ]
 
 
