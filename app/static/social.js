@@ -11,13 +11,12 @@ const REACTION_FALLBACK=[
   ['clap','clapping hands','👏'],['muscle','flexed biceps','💪'],['fire','fire','🔥'],['heart','heart','❤️'],
   ['party','celebration','🎉'],['hands','raised hands','🙌'],['wow','surprise','😮'],['bolt','fast','⚡'],
   ['gold','gold medal','🥇'],['hundred','hundred points','💯'],['run','running','🏃'],['ride','cycling','🚴'],
-  ['swim','swimming','🏊'],['hike','hiking','🥾'],['lift','barbell',null],['mountain','mountain','⛰️'],
+  ['swim','swimming','🏊'],['starstruck','star-struck','🤩'],['mindblown','mind blown','🤯'],['mountain','mountain','⛰️'],
 ];
 const REACTIONS=()=>App.me?.reaction_choices||REACTION_FALLBACK;
 let closeReactionPicker = null;
-const reactionKind=k=>({cheer:'clap',strong:'muscle',applause:'fire',laugh:'clap'})[k]||k;
-const BARBELL_MARK='<svg class="reaction-barbell" viewBox="0 0 24 24" fill="none" stroke-linecap="round" aria-hidden="true"><path class="reaction-barbell-bar" d="M7 12h10"/><path class="reaction-barbell-plates" d="M4 9v6M7 6v12M17 6v12M20 9v6"/></svg>';
-const reactionMark=kind=>{const key=reactionKind(kind),icon=key==='lift'?BARBELL_MARK:esc(REACTIONS().find(([k])=>k===key)?.[2]||'👏');return '<span class="reaction-emoji" data-type="glyph" aria-hidden="true">'+icon+'</span>';};
+const reactionKind=k=>({cheer:'clap',strong:'muscle',applause:'fire',laugh:'clap',hike:'mountain',lift:'muscle','🥾':'mountain'})[k]||k;
+const reactionMark=kind=>'<span class="reaction-emoji" data-type="glyph" aria-hidden="true">'+esc(REACTIONS().find(([k])=>k===reactionKind(kind))?.[2]||'👏')+'</span>';
 const reactionAddIcon=()=>'<svg class="reaction-add-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="13" r="7.5"/><path d="M6.5 14.5c.7 1 1.6 1.5 2.5 1.5s1.8-.5 2.5-1.5"/><path d="M6.5 10h.01 M11.5 10h.01"/><path d="M18.5 3.5v6 M15.5 6.5h6"/></svg>';
 const reactionCompact=new Intl.NumberFormat('en',{notation:'compact',maximumSignificantDigits:2});
 const reactionNumber=n=>n>=1000?reactionCompact.format(n):String(n);

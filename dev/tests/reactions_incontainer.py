@@ -30,11 +30,13 @@ class Reactions(unittest.TestCase):
   with db.connect() as c:return c.execute('SELECT id,reaction_kind,cancelled FROM notifications WHERE activity_id=%s ORDER BY id',(self.aid,)).fetchall()
  def test_catalog_and_all_approved_choices(self):
   catalog=self.actor.get('/api/me').json()['reaction_choices']
-  expected={'👏','💪','🔥','❤️','🎉','🙌','😮','⚡','🥇','💯','🏃','🚴','🏊','🥾',None,'⛰️'}
+  expected={'👏','💪','🔥','❤️','🎉','🙌','😮','⚡','🥇','💯','🏃','🚴','🏊','🤩','🤯','⛰️'}
   self.assertEqual(len(catalog),16);self.assertEqual({row[2] for row in catalog},expected)
   self.assertEqual(len({row[0] for row in catalog}),16);self.assertTrue(all(row[1] for row in catalog))
   self.assertEqual(dict((kind,label) for kind,label,_ in catalog)['bolt'],'fast')
-  self.assertEqual(dict((kind,label) for kind,label,_ in catalog)['lift'],'barbell')
+  labels=dict((kind,label) for kind,label,_ in catalog)
+  self.assertEqual(labels['starstruck'],'star-struck');self.assertEqual(labels['mindblown'],'mind blown')
+  self.assertTrue(all(emoji for _,_,emoji in catalog),'every reaction uses a native emoji')
   self.assertNotIn('laugh',{row[0] for row in catalog});self.assertEqual(reactions.LEGACY['laugh'],'clap')
   self.assertEqual(reactions.canonical('laugh'),'clap');self.assertIsNone(reactions.canonical(None))
   for kind,label,emoji in catalog:
@@ -48,12 +50,13 @@ class Reactions(unittest.TestCase):
   with db.connect() as c:
    stored=c.execute('SELECT kind FROM cheers WHERE activity_id=%s AND user_id=%s',(self.aid,self.ids[1])).fetchone()
   self.assertEqual(stored['kind'],catalog[-1][0])
- def test_lift_notification_uses_barbell_word(self):
-  text,link=notify._words({'kind':'cheer','name':'Alex','activity':'workout','activity_id':7,'reaction_kind':'lift'})
-  self.assertEqual(text,'Alex reacted with a barbell to your workout');self.assertEqual(link,'/activity/7')
+ def test_emoji_reaction_notifications_read_naturally(self):
+  for kind,emoji in [('starstruck','🤩'),('mindblown','🤯')]:
+   text,link=notify._words({'kind':'cheer','name':'Alex','activity':'workout','activity_id':7,'reaction_kind':kind})
+   self.assertEqual(text,f'Alex reacted {emoji} to your workout');self.assertEqual(link,'/activity/7')
  def test_replace_retry_and_legacy(self):
   self.assertEqual(self.actor.post(self.path+'/cheer').json()['my_reaction'],'clap')
-  for legacy,kind in [('cheer','clap'),('strong','muscle'),('applause','fire'),('laugh','clap')]:
+  for legacy,kind in [('cheer','clap'),('strong','muscle'),('applause','fire'),('laugh','clap'),('hike','mountain'),('lift','muscle'),('🥾','mountain')]:
    r=self.actor.post(self.path+'/reaction',json={'kind':legacy});self.assertEqual(r.status_code,200,r.text);data=r.json()
    self.assertEqual(data['my_reaction'],kind);self.assertTrue(data['cheered']);self.assertEqual(len(data['cheers']),1)
    self.assertEqual(data['reactions'][kind],1);self.assertEqual(sum(data['reactions'].values()),1)
