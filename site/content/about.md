@@ -1,7 +1,7 @@
 # About us website copy
 
 Edit the text below each heading. Keep the section keys unchanged.
-To remove the secondary photo, clear the text under `about-couple-photo` and rebuild; leave the heading in place.
+To remove the photo, clear the text under `about-couple-photo` and rebuild; leave the heading in place.
 
 ## title
 
