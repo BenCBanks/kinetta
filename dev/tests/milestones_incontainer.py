@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 import psycopg
 from psycopg import sql
 from psycopg.rows import dict_row
-from app import db,auth,milestones as M,notify,api_mydata
+from app import db,auth,milestones as M,notify,api_mydata,api_achievements
 from app.main import app
 
 class Milestones(unittest.TestCase):
@@ -39,6 +39,16 @@ class Milestones(unittest.TestCase):
     # The running app can already own this coalesced job; keep the real worker claim intact.
     time.sleep(.02)
    self.fail('Milestone work did not settle within five seconds')
+ def seed_showcase_track(self,uid,code,rank,occurred):
+  level=api_achievements._level_catalog()['tracks'][code]['levels'][rank-1]
+  value=api_achievements._canonical_threshold(level)
+  zone=M.ZoneInfo('America/New_York')
+  details={'track':code,'value':value}
+  with db.connect() as c:
+   c.execute('''INSERT INTO milestones(user_id,code,kind,title,rank,day,occurred,details)
+                VALUES(%s,%s,'track_state',%s,0,%s,%s,%s)''',
+             (uid,f'zz-showcase:{uuid.uuid4().hex}:{code}:state',code,occurred.astimezone(zone).date(),occurred,
+              psycopg.types.json.Jsonb(details)))
  def items(self,**params):
   r=self.clients[0].get('/api/milestones',params=params);self.assertEqual(r.status_code,200,r.text);return r.json()['items']
  def test_fixed_firsts_priorities_private_warning_and_once_only(self):
@@ -241,6 +251,63 @@ class Milestones(unittest.TestCase):
   self.assertEqual(pushes,0,'quiet awards do not enqueue pushes')
   feed=self.clients[1].get('/api/feed/friends').json()
   self.assertFalse(any(row.get('kind')=='achievement_moment' for row in feed),'quiet early awards stay out of the friend feed even when sharing is on')
+
+ def test_showcase_pins_owner_scope_friend_sharing_and_live_day_streak(self):
+  owner_id,viewer_id=self.ids
+  owner,viewer=self.clients
+  base=self.now-dt.timedelta(days=2)
+  # Higher levels rank first; equal levels use their most recent reached date.
+  for code,rank,hours in (('climbing',6,1),('sport:run',5,4),('journey',5,3),('workouts',5,2)):
+   self.seed_showcase_track(owner_id,code,rank,base+dt.timedelta(hours=hours))
+  zone=M.ZoneInfo('America/New_York');last=self.now.astimezone(zone)-dt.timedelta(hours=1)
+  with db.connect() as c:
+   for day in range(3):
+    at=last-dt.timedelta(days=day)
+    c.execute('''INSERT INTO activities(user_id,sport,name,start_time,distance_m,moving_s,elapsed_s,source)
+                 VALUES(%s,'run','Fictional Showcase streak',%s,1000,60,60,'manual')''',(owner_id,at))
+   login=c.execute('SELECT login::text AS login FROM users WHERE id=%s',(owner_id,)).fetchone()['login']
+  path=f'/api/achievements/showcase?login={login}'
+  own=owner.get('/api/achievements/showcase');self.assertEqual(own.status_code,200,own.text)
+  self.assertEqual([item['code'] for item in own.json()['items']],['climbing','sport:run','journey'])
+  self.assertEqual(own.json()['day_streak'],3)
+  self.assertEqual(viewer.get(path).json(),{'items':[],'pinned':[],'day_streak':0},'sharing starts off for friends')
+  self.assertEqual(viewer.post('/api/achievements/showcase/pin',json={'code':'workouts','pinned':True}).status_code,409,
+                   'another owner cannot pin the first owner’s medal')
+  self.assertEqual(owner.post('/api/achievements/showcase/pin',json={'code':'not-a-track','pinned':True}).status_code,400)
+  for code in ('workouts','journey','sport:run'):
+   response=owner.post('/api/achievements/showcase/pin',json={'code':code,'pinned':True})
+   self.assertEqual(response.status_code,200,response.text)
+  replaced=owner.post('/api/achievements/showcase/pin',json={'code':'climbing','pinned':True})
+  self.assertEqual(replaced.json(),{'pinned':['journey','sport:run','climbing'],'replaced':True})
+  replay=owner.post('/api/achievements/showcase/pin',json={'code':'climbing','pinned':True})
+  self.assertEqual(replay.json(),{'pinned':['journey','sport:run','climbing'],'replaced':False},'rerunning a pin never duplicates it')
+  self.assertEqual([item['code'] for item in owner.get('/api/achievements/showcase').json()['items']],['journey','sport:run','climbing'])
+  self.assertEqual(viewer.get('/api/achievements/showcase').json(),{'items':[],'pinned':[],'day_streak':0},
+                   'the viewer’s own profile never inherits another user’s pins or streak')
+  with db.connect() as c:
+   c.execute("INSERT INTO friendships(requester,addressee,status,accepted) VALUES(%s,%s,'accepted',now())",(owner_id,viewer_id))
+  self.assertEqual(owner.put('/api/sharing',json={'share_achievements':True}).status_code,200)
+  shared=viewer.get(path);self.assertEqual(shared.status_code,200,shared.text)
+  self.assertEqual(shared.json(),{'items':[{'code':'journey','rank':5},{'code':'sport:run','rank':5},{'code':'climbing','rank':6}],
+                                  'pinned':['journey','sport:run','climbing'],'day_streak':3})
+  self.assertNotIn('activity_id',shared.text);self.assertNotIn('user_id',shared.text)
+  for code in ('journey','sport:run','climbing'):
+   response=owner.post('/api/achievements/showcase/pin',json={'code':code,'pinned':False})
+   self.assertEqual(response.status_code,200,response.text)
+  automatic=owner.get('/api/achievements/showcase').json()
+  self.assertEqual(automatic['pinned'],[],'removing the last pin restores automatic selection')
+  self.assertEqual([item['code'] for item in automatic['items']],['climbing','sport:run','journey'])
+  self.assertEqual(viewer.get(path).json()['pinned'],[],'friends see the same unpinned automatic Showcase')
+  with db.connect() as c:c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)',(viewer_id,owner_id))
+  self.assertEqual(viewer.get(path).json(),{'items':[],'pinned':[],'day_streak':0},'blocking hides the friend Showcase')
+  with db.connect() as c:c.execute('DELETE FROM blocks WHERE user_id=%s AND blocked=%s',(viewer_id,owner_id))
+  self.assertEqual(owner.put('/api/sharing',json={'share_achievements':False}).status_code,200)
+  self.assertEqual(viewer.get(path).json(),{'items':[],'pinned':[],'day_streak':0},'turning sharing off hides pins and streak')
+  with db.connect() as c:
+   c.execute('DELETE FROM activities WHERE user_id=%s',(owner_id,))
+   c.execute('''INSERT INTO activities(user_id,sport,name,start_time,distance_m,moving_s,elapsed_s,source)
+                VALUES(%s,'run','Fictional stale streak',%s,1000,60,60,'manual')''',(owner_id,self.now-dt.timedelta(days=3)))
+  self.assertEqual(owner.get('/api/achievements/showcase').json()['day_streak'],0,'a streak older than yesterday is no longer current')
 
  def test_catalog_history_uses_exact_crossing_dates_and_legacy_dates_after_deletion(self):
   activities=[self.lifted_activity(days,kg) for days,kg in ((8,1000),(5,1000),(2,50),(1,1000))]
