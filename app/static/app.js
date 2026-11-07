@@ -12,6 +12,8 @@ const classicScriptPromises = new Map();
 const classicScriptsLoaded = new Set();
 const FOOD_ROUTE_ASSET = '/static/food.js?v=__ASSET_HASH__';
 const KIT_ROUTE_ASSET = '/static/kit.js?v=__ASSET_HASH__';
+const PROGRESS_ROUTE_ASSET = '/static/progress-routes.js?v=__ASSET_HASH__';
+const SEGMENTS_ROUTE_ASSET = '/static/segments.js?v=__ASSET_HASH__';
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: ['/static/welcome.js?v=__ASSET_HASH__']},
   {re: /^\/me\/explore$/, tab: 'me', scripts: ['/static/explore.js?v=__ASSET_HASH__']},
@@ -20,6 +22,9 @@ const lazyRouteBundles = [
   {re: /^\/food\/import$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, '/static/food-import.js?v=__ASSET_HASH__']},
   {re: /^\/food(?:\/.*)?$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET]},
   {re: /^\/progress\/weight$/, tab: 'progress', scripts: [FOOD_ROUTE_ASSET]},
+  {re: /^\/progress\/(?:routes|trends|calendar|heatmap)$/, tab: 'progress', scripts: [PROGRESS_ROUTE_ASSET]},
+  {re: /^\/(?:progress\/segments|segments(?:\/(?:review|new|\d+))?)$/, tab: 'progress', scripts: [SEGMENTS_ROUTE_ASSET]},
+  {re: /^\/me\/sharing$/, tab: 'me', scripts: [SEGMENTS_ROUTE_ASSET]},
   {re: /^\/me\/kit$/, tab: 'me', scripts: [FOOD_ROUTE_ASSET, KIT_ROUTE_ASSET]},
   {re: /^\/(?:lift\/\d+|track\/lift\/\d+|lift\/history\/workout\/\d+)$/, tab: 'track', scripts: ['/static/lift-routes.js?v=__ASSET_HASH__']},
   {re: /^\/(?:lift\/ex\/\d+|lift\/history\/exercise\/\d+)$/, tab: 'progress', scripts: ['/static/lift-routes.js?v=__ASSET_HASH__']},

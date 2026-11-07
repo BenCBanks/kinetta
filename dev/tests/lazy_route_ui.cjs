@@ -161,6 +161,25 @@ async function notificationFixture(browser,loginName=user,options={}){
   await page.clock.install({time:new Date('2026-11-05T12:00:00Z')});
   const routes=await notificationRoutes(context,options);return {context,page,errors,routes};
 }
+async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
+ const context=await fixtureContext(browser);await login(context,loginName);
+ const page=await context.newPage(),assets=[],errors=[],writes=[];let heldOnce=false,releaseHeld=()=>{},signalHeld=()=>{};
+ const gate=new Promise(resolve=>{releaseHeld=resolve;}),held=new Promise(resolve=>{signalHeld=resolve;});
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.route('**/*',async route=>{
+  const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
+  if(['/static/progress-routes.js','/static/segments.js'].includes(url.pathname)){
+   assets.push(url.pathname);const attempts=assets.filter(path=>path===url.pathname).length;
+   if(fail===url.pathname&&attempts===1)return route.abort();
+   if(hold===url.pathname&&!heldOnce){heldOnce=true;signalHeld();await gate;}
+   return route.continue();
+  }
+  if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204});
+  if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
+  return route.continue();
+ });
+ return {context,page,assets,errors,writes,held,release:()=>releaseHeld()};
+}
 (async()=>{const browser=await chromium.launch();try{
   const context=await fixtureContext(browser);
   try{
@@ -187,7 +206,7 @@ async function notificationFixture(browser,loginName=user,options={}){
     await login(scrollContext);const page=await scrollContext.newPage();
     await page.goto(base+'/me');await ready(page,meReady);
     await page.evaluate(()=>{App.scroll['/me/explore']=120;});
-    await page.locator('a[href="/me/explore"]').click();await page.locator('.lazy-route-loading').waitFor();
+    await page.locator('a[href="/me/explore"]').click();
     await ready(page,'#guide-results details','deferred Explore with saved scroll');
     assert.equal(await page.evaluate(()=>scrollY),120,'the deferred render restores the saved route position once');
   }finally{await scrollContext.close();}
@@ -513,6 +532,74 @@ async function notificationFixture(browser,loginName=user,options={}){
     assert.doesNotMatch(await kitDirect.page.locator('#kit-status').textContent(),/Cannot read properties/,'Kit renders without an initialization exception');
     assert.deepEqual(kitDirect.errors,[]);assert(kitDirect.writes.some(path=>path==='POST /api/coach/conversation/visits'),'the fictional Kit start write is intercepted by the test route');
   }finally{kitDirect.release();await kitDirect.context.close();}
+
+  const progressMe=await progressFixture(browser);
+  try{
+    await progressMe.page.goto(base+'/me');await ready(progressMe.page,meReady,'Me before Progress and Segments routes');
+    assert.deepEqual(progressMe.assets,[],'secondary Progress routes and Segments are absent from initial Me');
+    assert.equal(await progressMe.page.locator('script[src*="/static/segments.js"]').count(),0,'Segments has no eager script tag');
+    assert.equal(await progressMe.page.evaluate(()=>App.pages.some(item=>item.re.test('/progress/trends'))),false,'secondary Progress routes register only after their bundle loads');
+  }finally{await progressMe.context.close();}
+
+  const directProgress=[
+    ['/progress/routes','/progress/routes','/static/progress-routes.js'],
+    ['/progress/trends','/progress/trends','/static/progress-routes.js'],
+    ['/progress/calendar','/progress/calendar','/static/progress-routes.js'],
+    ['/progress/heatmap','/progress/heatmap','/static/progress-routes.js'],
+    ['/progress/segments','/progress/segments','/static/segments.js'],
+    ['/progress/weight','/progress/weight',null],
+    ['/me/sharing','/me/sharing','/static/segments.js'],
+    ['/segments','/progress/segments','/static/segments.js'],
+    ['/segments/new','/segments/new','/static/segments.js'],
+    ['/segments/review','/progress/segments','/static/segments.js'],
+    ['/segments/999999','/segments/999999','/static/segments.js'],
+  ];
+  for(const [path,expected,asset] of directProgress){
+    const fixture=await progressFixture(browser);
+    try{
+      await fixture.page.goto(base+path,{waitUntil:'domcontentloaded'});
+      if(path==='/segments/999999')await until(fixture.page,()=>App.pageReady&&/Segment not found/.test(document.querySelector('#page')?.textContent||''),`direct ${path} not-found route`);
+      else await ready(fixture.page,'#page h1',`direct ${path}`);
+      assert.equal(new URL(fixture.page.url()).pathname,expected,`${path} keeps its route (or expected Segments redirect)`);
+      assert.equal(asset?fixture.assets.filter(file=>file===asset).length:0,asset?1:0,`${path} requests only its required lazy asset once`);
+      assert.deepEqual(fixture.errors,[],`${path} has no page errors`);assert.deepEqual(fixture.writes,[],`${path} makes no unapproved writes`);
+    }finally{await fixture.context.close();}
+  }
+
+  const progressHistory=await progressFixture(browser);
+  try{
+    await progressHistory.page.goto(base+'/me');await ready(progressHistory.page,meReady,'Me before history navigation');
+    await progressHistory.page.evaluate(()=>go('/progress/routes'));await ready(progressHistory.page,'#page h1','Progress routes after in-app navigation');
+    await progressHistory.page.evaluate(()=>go('/progress/segments'));await ready(progressHistory.page,'#page h1','Segments after in-app navigation');
+    await progressHistory.page.evaluate(()=>history.back());await until(progressHistory.page,p=>App.pageReady&&location.pathname===p&&!!document.querySelector('#page h1'),'browser Back restores Progress routes','/progress/routes');
+    await progressHistory.page.evaluate(()=>history.back());await until(progressHistory.page,p=>App.pageReady&&location.pathname===p&&!!document.querySelector('.me-card-sections'),'browser Back restores Me','/me');
+    await progressHistory.page.evaluate(()=>history.forward());await until(progressHistory.page,p=>App.pageReady&&location.pathname===p&&!!document.querySelector('#page h1'),'browser Forward restores Progress routes','/progress/routes');
+    await progressHistory.page.evaluate(()=>history.forward());await until(progressHistory.page,p=>App.pageReady&&location.pathname===p&&!!document.querySelector('#page h1'),'browser Forward restores Segments','/progress/segments');
+    assert.equal(progressHistory.assets.filter(file=>file==='/static/progress-routes.js').length,1,'history reuses the loaded Progress routes');
+    assert.equal(progressHistory.assets.filter(file=>file==='/static/segments.js').length,1,'history reuses the loaded Segments bundle');
+    assert.deepEqual(progressHistory.errors,[]);assert.deepEqual(progressHistory.writes,[]);
+  }finally{await progressHistory.context.close();}
+
+  for(const [path,asset] of [['/progress/trends','/static/progress-routes.js'],['/progress/segments','/static/segments.js']]){
+    const retry=await progressFixture(browser,{fail:asset});
+    try{
+      await retry.page.goto(base+path,{waitUntil:'domcontentloaded'});await retry.page.locator('.lazy-route-error').waitFor();
+      assert.equal(new URL(retry.page.url()).pathname,path,'a failed direct deep link stays on its route');
+      await retry.page.locator('#lazy-route-retry').click();await ready(retry.page,'#page h1',`${path} after explicit retry`);
+      assert.equal(retry.assets.filter(file=>file===asset).length,2,`${path} retries its failed lazy asset`);
+      assert.deepEqual(retry.errors,[]);assert.deepEqual(retry.writes,[]);
+    }finally{await retry.context.close();}
+  }
+
+  const progressStale=await progressFixture(browser,{hold:'/static/segments.js'});
+  try{
+    await progressStale.page.goto(base+'/progress/segments',{waitUntil:'domcontentloaded'});await progressStale.page.locator('.lazy-route-loading').waitFor();await progressStale.held;
+    await progressStale.page.locator('nav.tabs a[data-tab="me"]').click();await ready(progressStale.page,meReady,'Me while Segments is loading');
+    progressStale.release();await progressStale.page.waitForTimeout(100);
+    assert.equal(new URL(progressStale.page.url()).pathname,'/me','a late Segments bundle cannot replace newer navigation');
+    assert.equal(await progressStale.page.locator('#sg-list').count(),0);assert.deepEqual(progressStale.errors,[]);assert.deepEqual(progressStale.writes,[]);
+  }finally{progressStale.release();await progressStale.context.close();}
+  console.log('Progress/Segments lazy routes: cold deep links, back/forward, retries and stale navigation PASS');
 
   console.log('Lazy routes: direct, normal navigation, retry, memoized reload, stale-path and owner guards PASS');
 }finally{await browser.close();}})().catch(error=>{console.error(error);process.exitCode=1;});
