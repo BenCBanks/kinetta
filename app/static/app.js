@@ -771,6 +771,7 @@ function render(options) {
   const useRoutePosition=routePosition?.key===key&&routePosition.owner===readOwner();
   const targetY=useRoutePosition?routePosition.y:pagePosition(key);
   const path = location.pathname.replace(/\/+$/, '') || '/me';
+  document.title = path === '/activity' ? 'Home' : 'Kinetta';
   const bundle = lazyRouteBundles.find((candidate) => candidate.re.test(path));
   if (bundle && bundle.scripts.some((file) => !classicScriptsLoaded.has(file))) {
     const owner = readOwner(), generation = ++lazyRouteGeneration, nextPosition={key,owner,y:targetY};

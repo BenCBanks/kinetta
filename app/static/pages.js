@@ -626,7 +626,7 @@ new MutationObserver(() => { for (const b of $$('[data-w]')) { b.style.setProper
 // the bell (2026-10-12: on Today, Activity, Progress and Nutrition), with the unread count; it opens the list only
 const bellBtn = () => { const n = (App.me && App.me.notifications) || 0;
   return `<a class="icon-btn bell" href="/notifications" aria-label="Notifications${n ? `, ${n} new` : ''}">${svg('bell')}<span class="bell-dot${n > 9 ? ' many' : ''}"${n ? '' : ' hidden'}>${n > 9 ? '9+' : n || ''}</span></a>`; };
-const actTop = (search, friends) => `<div class="top"><h1>Activity</h1><div class="acts">${search ? `<button class="icon-btn" id="f-search" aria-label="Search">${svg('search')}</button>` : ''}
+const actTop = (search, friends) => `<div class="top"><h1>Home</h1><div class="acts">${search ? `<button class="icon-btn" id="f-search" aria-label="Search">${svg('search')}</button>` : ''}
     ${friends ? `<a class="icon-btn" href="/me/friends?find=1" aria-label="Find friends">${svg('people')}</a>` : ''}
     ${bellBtn()}</div></div>`;
 route(/^\/activity$/, 'activity', async el=>{

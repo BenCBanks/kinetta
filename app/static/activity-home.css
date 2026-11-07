@@ -3,6 +3,10 @@
 #feed-top .top { margin-bottom:0; }
 #feed-top .top .acts { gap:8px; }
 #feed-tools:empty { display:none; }
+@media(max-width:360px) {
+ #feed-top .top > h1 { font-size:26px; white-space:nowrap; }
+ #feed-top .top .acts { flex:none; }
+}
 .activity-home #ff-list > .post:first-child { margin-top:0; }
 .weekly-recap { display:flex; flex-direction:column; align-items:stretch; gap:8px; margin:0 0 12px; }
 .weekly-recap-copy { width:100%; min-width:0; }

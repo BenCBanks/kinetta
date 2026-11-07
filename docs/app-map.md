@@ -1,6 +1,6 @@
 # Kinetta app map
 
-The pre-launch walkthrough (#472) builds this map one tab at a time. Me was inspected at `8cb2c01`, and Activity and Track at `7d0b3d6`. #421 updates the first-Goal entrance and folds milestones into the card. Track’s native recording and Health visuals used browser stand-ins; physical-device behavior is not verified. Progress was inspected at `fe929ab`; Nutrition and sign-up at `9e94178` (identical application code, with the intervening map update). Prepared enrollment, recovery, Terms and native welcome states are labelled below; they do not establish email delivery, consent, installation or device behavior. Routes use placeholders and contain no account data.
+The pre-launch walkthrough (#472) builds this map one tab at a time. Me was inspected at `8cb2c01`, and Home and Track at `7d0b3d6`. #421 updates the first-Goal entrance and folds milestones into the card. Track’s native recording and Health visuals used browser stand-ins; physical-device behavior is not verified. Progress was inspected at `fe929ab`; Nutrition and sign-up at `9e94178` (identical application code, with the intervening map update). Prepared enrollment, recovery, Terms and native welcome states are labelled below; they do not establish email delivery, consent, installation or device behavior. Routes use placeholders and contain no account data.
 
 Depth counts taps after selecting the tab. Opening a disclosure and then its Open link counts as two taps. Sheet depth is included. Scrolling does not add taps. A node can have several entrances; depths below use the shortest entrance available in the inspected state.
 
@@ -192,7 +192,7 @@ flowchart LR
   GuidePage15["/progress/routes · first destination only"]
   GuidePage16["/progress/heatmap · first destination only"]
   GuidePage17["/progress/trends · first destination only"]
-  GuidePage18["/activity · first destination only"]
+  GuidePage18["Home · /activity · first destination only"]
   Kit -->|More · 4 through Explore| KitMenu["Kit chat settings sheet"]
   Kit -->|Memory · 4 through Explore| Memory
   KitMenu -->|Memory · 5 through Explore, or 2 via Settings| Memory
@@ -205,7 +205,7 @@ flowchart LR
 
 The Me walkthrough covers Me pages and sheets. A link into another tab is checked through its first destination and return; activity-card internals and those tabs' full journeys belong to their later slices. The map will expand with each reviewed slice.
 
-Observed return exceptions: Explore's four Add-food entries and four Nutrition view links first return to Nutrition; Challenges returns to Activity; Ask Kit returns to Me. The Kit permissions link currently points to Me's old `#ai` location. Returning to a parent tab is the accepted navigation behaviour. The stale Kit permissions destination is tracked in #418.
+Observed return exceptions: Explore's four Add-food entries and four Nutrition view links first return to Nutrition; Challenges returns to Home; Ask Kit returns to Me. The Kit permissions link currently points to Me's old `#ai` location. Returning to a parent tab is the accepted navigation behaviour. The stale Kit permissions destination is tracked in #418.
 
 ## Me page summary
 
@@ -225,13 +225,13 @@ The entrance depends on account state: an empty card offers direct Goal setup; e
 
 Speed Check and its Settings link are retired by #486; old `/me/speed` links redirect to Settings. The direct first-Goal entrance and milestone footer are implemented in #421. Kit permissions/history depth belongs to #418. Ben approved folding Recent milestones into Me: one latest offer, a See all sheet and no empty row. Old page links redirect to Me. Private history and shared profiles retain separate entrances, as do signed-in profile links and public card/QR sharing.
 
-## Activity
+## Home feed
 
-Depth starts on Activity. Own and shared activity routes keep different audiences; panes and sheets are not extra pages.
+Depth starts on Home. Own and shared activity routes keep different audiences; panes and sheets are not extra pages.
 
 ```mermaid
 flowchart LR
- Activity["Activity · /activity · 0"] -->|Own card · 1| Detail["Own activity · /activity/:id"]
+ Activity["Home · /activity · 0"] -->|Own card · 1| Detail["Own activity · /activity/:id"]
  Activity -->|Shared card · 1| SharedDetail["Shared activity · /activity/friends/:id"]
  Activity -->|Trophy · 1| Challenges["Challenges · /me/challenges"]
  Activity -->|Featured challenge · 1| Challenge["Challenge · /me/challenges/:code"]
@@ -341,7 +341,7 @@ flowchart LR
  TrackReview -.->|Unconfirmed save, source-only| Retry["Retry save or own activity history"]
 ```
 
-The Activity and Track slices found no additional Speed Check entrance. The browser-only Health explanation is agreed to fold into Connections in the later shell batch, while full iPhone Health settings and independent consent scopes stay distinct. The application is unchanged by this map. Known layout and copy findings are tracked separately from this map.
+The Home and Track slices found no additional Speed Check entrance. The browser-only Health explanation is agreed to fold into Connections in the later shell batch, while full iPhone Health settings and independent consent scopes stay distinct. The application is unchanged by this map. Known layout and copy findings are tracked separately from this map.
 
 
 ## Progress
