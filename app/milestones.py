@@ -475,12 +475,36 @@ def start_worker():
 VISIBLE="""m.valid AND m.kind<>'track' AND m.kind<>'track_state' AND NOT m.silent AND m.seen_at IS NULL AND m.occurred>=now()-interval '7 days'
  AND (m.activity_id IS NULL OR EXISTS(SELECT 1 FROM activities a WHERE a.id=m.activity_id AND a.user_id=m.user_id))"""
 
+class Celebrate(BaseModel):
+    activity_id:int
+
+@router.post('/celebrate')
+def celebrate(body:Celebrate,user=Depends(current_user)):
+    if body.activity_id<=0:raise HTTPException(400,'Activity not found')
+    with db.connect() as c:
+        c.execute('SELECT id FROM users WHERE id=%s FOR KEY SHARE',(user['id'],))
+        state=c.execute('''SELECT generation>processed OR next_check<=now() AS pending
+                           FROM milestone_state WHERE user_id=%s''',(user['id'],)).fetchone()
+        if state and state['pending']:return {'items':[],'pending':True}
+        rows=c.execute('''UPDATE milestones AS m
+          SET details=(m.details-'_celebrated_at')||jsonb_build_object('_celebrated_at',now())
+          WHERE m.user_id=%s AND m.activity_id=%s AND m.kind IN ('best','track','sport','first_distance')
+            AND m.valid AND NOT m.silent AND m.seen_at IS NULL
+            AND m.occurred>=now()-interval '48 hours'
+            AND m.details->>'_celebrated_at' IS NULL
+            AND EXISTS(SELECT 1 FROM activities a WHERE a.id=m.activity_id AND a.user_id=m.user_id
+                       AND NOT a.lift_open AND a.created>=now()-interval '48 hours')
+          RETURNING m.code,m.kind,m.title,m.rank,m.details-'_celebrated_at' AS details''',
+          (user['id'],body.activity_id)).fetchall()
+    rows.sort(key=lambda row:(row['rank'],row['title']),reverse=True)
+    return {'items':rows,'pending':False}
+
 @router.get('')
 def recent(activity_id:int|None=None,day:dt.date|None=None,milestone_id:UUID|None=None,user=Depends(current_user)):
     with db.connect() as c:
         state=c.execute('SELECT generation>processed OR next_check<=now() AS pending FROM milestone_state WHERE user_id=%s',(user['id'],)).fetchone()
         if state and state['pending']:return {'items':[],'pending':True}
-        rows=c.execute('''SELECT m.id,m.kind,m.title,m.rank,m.activity_id,m.day,m.occurred,m.details,m.garmin_source,
+        rows=c.execute('''SELECT m.id,m.kind,m.title,m.rank,m.activity_id,m.day,m.occurred,m.details-'_celebrated_at' AS details,m.garmin_source,
           coalesce(a.visibility='me',false) AS private_activity FROM milestones m
           LEFT JOIN activities a ON a.id=m.activity_id AND a.user_id=m.user_id
           WHERE m.user_id=%s AND '''+VISIBLE+''' AND (%s::bigint IS NULL OR m.activity_id=%s)
