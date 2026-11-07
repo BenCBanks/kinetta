@@ -4,4 +4,4 @@ Vendored from [microsoft/fluentui-emoji](https://github.com/microsoft/fluentui-e
 
 Achievement names, canonical thresholds, display hints, Unicode glyphs, and asset paths are kept together in `../profile.achievement-levels.json` so the tier catalog can be edited in one place.
 
-Compatibility choices for names proposed in Wren v1: `Campfire` → **Camping** (catalog glyph 🏕️); `Dumbbell` and `Kettlebell` → **Person lifting weights** (catalog glyph 🏋️); `Bridge` → **Bridge at night** (glyph 🌉). `Strength cycle` uses the exact 🔁 glyph and Fluent **Repeat button**. The selected Flat asset metadata matched all 86 distinct v2 Unicode glyphs.
+Compatibility choices for names proposed in Wren v1: `Campfire` → **Camping** (catalog glyph 🏕️); `Dumbbell` and `Kettlebell` → **Person lifting weights** (catalog glyph 🏋️); `Bridge` → **Bridge at night** (glyph 🌉). `Strength cycle` uses the exact 🔁 glyph and Fluent **Repeat button**. Catalog asset paths are checked against this vendored release.

@@ -61,15 +61,19 @@ const ProfileLayout=(()=>{
   function achievementTierAt(code,level){
     const def=achievementCatalog?.tracks?.[code],n=Math.max(1,Math.floor(Number(level)||1));if(!def)return null;
     if(!Array.isArray(def.levels)||!def.levels.length)return null;
-    if(n<=def.levels.length)return {...def.levels[n-1],level:n,threshold:achievementCanonicalThreshold(def.levels[n-1]),multiple:1};
+    const displayName=tier=>App.me?.units==='metric'&&tier?.name==='First mile'&&tier?.display==='mi'?'First 1.6 km':tier?.name;
+    if(n<=def.levels.length)return {...def.levels[n-1],name:displayName(def.levels[n-1]),level:n,threshold:achievementCanonicalThreshold(def.levels[n-1]),multiple:1};
     const last=def.levels.at(-1),multiple=n-def.levels.length+1;
-    return {...last,level:n,name:`${last.name} ×${multiple}`,threshold:achievementCanonicalThreshold(last)*multiple,
+    return {...last,level:n,name:`${displayName(last)} ×${multiple}`,threshold:achievementCanonicalThreshold(last)*multiple,
       canonical_value:Number(last.canonical_value)*multiple,display_value:Number(last.display_value)*multiple,multiple};
   }
   function achievementLevel(track){
     const def=achievementDefinition(track);if(!def)return Math.max(0,Math.round(Number(track.level)||track.tiers?.length||0));
-    const value=achievementRawValue(track);let level=0;
-    for(const tier of def.levels){if(achievementCanonicalThreshold(tier)<=value+1e-7)level++;else break;}
+    const value=achievementRawValue(track),firstActivityEarned=(track.tiers||[]).some(tier=>tier.trigger==='first_activity');let level=0;
+    for(const tier of def.levels){
+      if(tier.trigger==='first_activity'&&firstActivityEarned){level++;continue;}
+      if(achievementCanonicalThreshold(tier)<=value+1e-7)level++;else break;
+    }
     if(level===def.levels.length){const last=achievementCanonicalThreshold(def.levels.at(-1));
       if(last>0&&value>=last)level+=Math.max(0,Math.floor((value+1e-7)/last)-1);}
     return level;
@@ -117,6 +121,7 @@ const ProfileLayout=(()=>{
   function achievementThresholdText(track,tier){
     const raw=Number(tier?.canonical_value)||0,hint=Number(tier?.display_value),canonicalUnit=tier?.canonical_unit||'',code=track.code,imperial=App.me?.units!=='metric';
     const exact=n=>Number.isFinite(n)?n.toLocaleString(undefined,{maximumFractionDigits:4}):'—';
+    if(tier?.trigger==='first_activity')return 'First activity';
     if(['journey','sport:run','sport:ride','sport:walk-hike','sport:swim'].includes(code)){
       const km=canonicalUnit==='km'?raw:raw/1000;
       const value=imperial?(tier?.display==='mi'&&Number.isFinite(hint)?hint:km*1000/1609.344):km,unit=imperial?'mi':'km';
@@ -172,13 +177,16 @@ const ProfileLayout=(()=>{
   }
   function achievementLevelUps(data){
     const owner=App.me?.id;if(owner==null)return new Set();
-    const key=`kinetta.achievement-levels.v2:${Native.base||location.origin}:${owner}`;let previous=null;
+    const scope=`${Native.base||location.origin}:${owner}`,key=`kinetta.achievement-levels.v3:${scope}`,legacyKey=`kinetta.achievement-levels.v2:${scope}`;
+    let previous=null,legacy=null;
     try{previous=JSON.parse(localStorage.getItem(key)||'null');if(!previous||typeof previous!=='object'||Array.isArray(previous))previous=null;}catch(_){previous=null;}
+    try{legacy=JSON.parse(localStorage.getItem(legacyKey)||'null');if(!legacy||typeof legacy!=='object'||Array.isArray(legacy))legacy=null;}catch(_){legacy=null;}
+    const migrating=!previous&&!!legacy;if(migrating)previous=legacy;
     const latest={...(previous||{})},up=new Set();
     for(const track of Array.isArray(data?.tracks)?data.tracks:[]){
       if(!track?.code)continue;const level=achievementLevel(track),had=previous&&Object.prototype.hasOwnProperty.call(previous,track.code),before=Number(previous?.[track.code]);
-      if(had&&Number.isFinite(before)&&level>before)up.add(track.code);
-      latest[track.code]=Math.max(Number.isFinite(before)?before:0,level);
+      if(!migrating&&had&&Number.isFinite(before)&&level>before)up.add(track.code);
+      latest[track.code]=migrating?level:Math.max(Number.isFinite(before)?before:0,level);
     }
     try{localStorage.setItem(key,JSON.stringify(latest));}catch(_){/* animation is optional when storage is unavailable */}
     return up;
@@ -221,7 +229,7 @@ const ProfileLayout=(()=>{
       const rows=tiers.map(tier=>{
         const day=String(tier.day||''),date=day?fdate(day+'T12:00',{month:'short',day:'numeric',year:'numeric'}):'';
         const id=Number(tier.activity_id),href=Number.isSafeInteger(id)&&id>0?`/activity/${id}`:'';
-        const label=esc(tier.name||'Achievement level');
+        const label=esc(achievementTierAt(code,Number(tier.rank))?.name||tier.name||'Achievement level');
         return `<li>${href?`<a href="${href}"><span>${label}</span><time datetime="${esc(day)}">${esc(date)}</time><span class="profile-achievement-history-chevron" aria-hidden="true">›</span></a>`:`<span class="profile-achievement-history-missing"><span>${label}</span><time datetime="${esc(day)}">${esc(date)}</time></span>`}</li>`;
       }).join('');
       const levelUps=achievementLevelUps(data),label=track.label||track.code,value=achievementValue(track),next=achievementNext(track),level=achievementLevel(track),current=achievementCurrentTier(track);

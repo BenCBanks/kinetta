@@ -33,6 +33,12 @@ def candidates(c,uid,now,zone,units):
         details.setdefault('label',title)
         # Part C's feed uses the existing First rows as sport-track history.
         details.setdefault('big',kind in ('sport','first_distance'))
+        if kind=='sport':
+            sport=details.get('sport')
+            track_code='sport:walk-hike' if sport in ('walk','hike') else f'sport:{sport}'
+            if tracks.level_trigger(track_code,1)=='first_activity':
+                details['quiet']=tracks.is_quiet_level(track_code,1)
+                details['trigger']='first_activity'
         result[code]={'code':code,'kind':kind,'title':title,'rank':rank,'activity_id':row.get('id'),
           'day':row['start_time'].astimezone(zone).date(),'occurred':row['start_time'],
           'arrival':row.get('updated') or row['created'],'details':details,
@@ -199,14 +205,16 @@ def _tier_item(code,tier,row,zone,now,*,occurred=None,day=None):
     occurred=occurred or row['start_time']
     day=day or occurred.astimezone(zone).date()
     details={'track':code,'rank':tier.rank,'threshold':tier.threshold,'label':tier.label,'unit':tier.unit,
-             'big':bool(tier.big)}
+             'big':bool(tier.big),'quiet':tracks.is_quiet_level(code,tier.rank)}
+    trigger=tracks.level_trigger(code,tier.rank)
+    if trigger:details['trigger']=trigger
     if tier.unit=='m':details['value_m']=tier.threshold
     elif tier.unit=='kg':details['value_kg']=tier.threshold
     elif tier.unit=='seconds':details['value_s']=tier.threshold
     elif tier.unit=='weeks':details['value_weeks']=tier.threshold
     elif tier.unit=='years':details['value_years']=tier.threshold
     elif tier.unit=='sessions':details['value_sessions']=tier.threshold
-    return {'code':f'track:{code}:{tier.rank}','kind':'track','title':tier.label,'rank':1000+tier.rank,
+    return {'code':f'trackt:{code}:{float(tier.threshold)!r}','kind':'track','title':tier.label,'rank':1000+tier.rank,
             'activity_id':row.get('id') if row else None,'day':day,'occurred':occurred,
             'arrival':_arrival(row,now) if row else now,'details':details,
             'garmin_source':recaps.garmin_source(row.get('source'),row.get('device')) if row else None}
@@ -215,7 +223,9 @@ def _tier_item(code,tier,row,zone,now,*,occurred=None,day=None):
 def _state_item(code,value,tiers,first_row,zone,now):
     nxt=tracks.next_tier(code,value)
     details={'track':code,'label':tracks.track_label(code),'value':value,'unit':tracks.TRACK_UNITS.get(code,'count'),
-             'level':len(tiers),'big':False}
+             'level':max((tier.rank for tier in tiers),default=0),'big':False}
+    if code in {f'sport:{sport}' for sport in tracks.SPORT_FIRST_ACTIVITY_LABELS}:
+        details['level']=max(details['level'],1)
     if code in ('journey','climbing','sport:run','sport:ride','sport:walk-hike','sport:swim'):
         details['value_m']=value
     elif code=='lifted':details['value_kg']=value
@@ -256,7 +266,7 @@ def _preserve_track_progress(c,uid,states):
             if nxt:
                 details['next_threshold']=nxt.threshold;details['next_label']=nxt.label;details['next_unit']=nxt.unit
         details['level']=max(int(details.get('level',0) or 0),int(old_details.get('level',0) or 0),
-                             len(tracks.tiers_for(code,value)))
+                             max((tier.rank for tier in tracks.tiers_for(code,value)),default=0))
 
 
 def achievement_candidates(c,uid,now,zone):
@@ -270,6 +280,10 @@ def achievement_candidates(c,uid,now,zone):
         reached=tracks.tiers_for(code,value)
         states.append(_state_item(code,value,reached,rows[0],zone,now))
         for tier in reached:
+            # The existing sport First milestone is the durable catalog row for
+            # this trigger, including distance-free indoor sessions.
+            if tracks.level_trigger(code,tier.rank)=='first_activity':
+                continue
             row=crossing.get(tier.threshold) or rows[-1]
             tiers.append(_tier_item(code,tier,row,zone,now))
 
@@ -339,12 +353,49 @@ def process(c,uid,now=None,*,push_ids=None):
     # Track tiers are durable history: an edit can hide an unshared offer from
     # the old milestone UI, but it must never revoke an earned tier.
     c.execute("UPDATE milestones SET valid=false WHERE user_id=%s AND shared_at IS NULL AND kind NOT IN ('track','track_state')",(uid,))
-    existing_tracks={r['code'] for r in c.execute("SELECT code FROM milestones WHERE user_id=%s AND kind='track'",(uid,)).fetchall()}
-    missing_tracks=sorted((r for r in track_tiers if r['code'] not in existing_tracks),key=lambda r:(r['rank'],r['code']))
+    existing_track_thresholds=set()
+    for saved in c.execute("SELECT details FROM milestones WHERE user_id=%s AND kind='track'",(uid,)).fetchall():
+        details=saved.get('details') or {}
+        try:threshold=float(details.get('threshold'))
+        except (TypeError,ValueError):continue
+        track=details.get('track')
+        if track and math.isfinite(threshold):existing_track_thresholds.add((track,threshold))
+    existing_state_values={}
+    for saved in c.execute("SELECT details FROM milestones WHERE user_id=%s AND kind='track_state' AND valid",(uid,)).fetchall():
+        details=saved.get('details') or {};track=details.get('track')
+        if not track:continue
+        try:value=float(details.get('value',0) or 0)
+        except (TypeError,ValueError):continue
+        if math.isfinite(value):existing_state_values[track]=value
+    missing_tracks=[]
+    for item in track_tiers:
+        details=item.get('details') or {}
+        try:key=(details.get('track'),float(details.get('threshold')))
+        except (TypeError,ValueError):continue
+        if key not in existing_track_thresholds:missing_tracks.append(item)
+    missing_tracks.sort(key=lambda r:(r['rank'],r['code']))
     track_pending=len(missing_tracks)>TRACK_BATCH_SIZE
     track_tiers=missing_tracks[:TRACK_BATCH_SIZE] if track_pending else missing_tracks
     all_items=list(items.values())+track_states+track_tiers
     new=[]
+
+    def quiet_backfill(item):
+        details=item.get('details') or {}
+        if not details.get('quiet'):return False
+        if item.get('kind')=='track':
+            code=details.get('track')
+            try:threshold=float(details.get('threshold'))
+            except (TypeError,ValueError):return False
+            previous=existing_state_values.get(code)
+            if previous is not None and previous>=threshold:return True
+            return any(saved_code==code and saved_threshold>threshold
+                       for saved_code,saved_threshold in existing_track_thresholds)
+        if item.get('kind')=='sport' and details.get('trigger')=='first_activity':
+            sport=details.get('sport')
+            code='sport:walk-hike' if sport in ('walk','hike') else f'sport:{sport}'
+            return code in existing_state_values or any(saved_code==code for saved_code,_ in existing_track_thresholds)
+        return False
+
     for e in all_items:
         if e['kind']=='track_state':
             # State rows are worker output, not notification offers.  Keeping
@@ -361,21 +412,25 @@ def process(c,uid,now=None,*,push_ids=None):
             # A tier is immutable once it exists.  In particular, a corrected
             # or deleted source activity never creates a second copy.
             silent=not state['fresh'] or e['occurred']<now-dt.timedelta(days=7) or e['arrival']<state['baseline_at']
+            silent=silent or quiet_backfill(e)
             row=c.execute('''INSERT INTO milestones(user_id,code,kind,title,rank,activity_id,day,occurred,details,garmin_source,silent)
               VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
               ON CONFLICT(user_id,code) DO NOTHING RETURNING id,(xmax=0) AS inserted''',
               (uid,e['code'],e['kind'],e['title'],e['rank'],e['activity_id'],e['day'],e['occurred'],json.dumps(e['details']),e['garmin_source'],
                silent)).fetchone()
-            if row and row['inserted'] and not silent:new.append((e['rank'],row['id']))
+            if row and row['inserted'] and not silent and not e['details'].get('quiet'):
+                new.append((e['rank'],row['id']))
             continue
         silent=not state['fresh'] or e['occurred']<now-dt.timedelta(days=7) or e['arrival']<state['baseline_at']
+        silent=silent or quiet_backfill(e)
         row=c.execute('''INSERT INTO milestones(user_id,code,kind,title,rank,activity_id,day,occurred,details,garmin_source,silent)
           VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
           ON CONFLICT(user_id,code) DO UPDATE SET valid=true,activity_id=excluded.activity_id,day=excluded.day,
             occurred=excluded.occurred,details=excluded.details,garmin_source=excluded.garmin_source
           WHERE milestones.shared_at IS NULL
           RETURNING id,(xmax=0) AS inserted''',(uid,e['code'],e['kind'],e['title'],e['rank'],e['activity_id'],e['day'],e['occurred'],json.dumps(e['details']),e['garmin_source'],silent)).fetchone()
-        if row and row['inserted'] and not silent:new.append((e['rank'],row['id']))
+        if row and row['inserted'] and not silent and not e['details'].get('quiet'):
+            new.append((e['rank'],row['id']))
     day=now.astimezone(zone).date()
     from . import notify
     if new and notify._prefs(p.get('notify'))['milestones'] and state['last_push_day']!=day:
