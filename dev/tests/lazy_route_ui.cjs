@@ -20,6 +20,25 @@ async function ready(page,selector,label=`page ready with ${selector}`){await un
 async function fixtureContext(browser){return browser.newContext({viewport:{width:390,height:844},colorScheme:'light',serviceWorkers:'block',isMobile:true,hasTouch:true,reducedMotion:'reduce'});}
 async function filterRequests(page,explore){await page.route('**/*',async route=>{const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();if(url.pathname==='/static/explore.js')return explore(route);if(!['GET','HEAD'].includes(request.method()))return route.abort();return route.continue();});}
 async function filterFoodRequests(page,food,blockedWrites=[]){await page.route('**/*',async route=>{const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();if(url.pathname==='/static/food-import.js')return food(route);if(!['GET','HEAD'].includes(request.method())){if(!(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue'))blockedWrites.push(`${request.method()} ${url.pathname}`);return route.abort();}return route.continue();});}
+async function welcomeFixture(browser,loginName=user,{failFirst=false,hold=false}={}){
+ const context=await fixtureContext(browser);await login(context,loginName);
+ const page=await context.newPage(),requests=[],writes=[],errors=[];let releaseHeld=()=>{},finishHeld=()=>{},heldOnce=false;
+ const held=new Promise(resolve=>{releaseHeld=resolve;}),done=new Promise(resolve=>{finishHeld=resolve;});
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.route('**/*',async route=>{
+  const request=route.request(),url=new URL(request.url());
+  if(url.origin!==base)return route.abort();
+  if(url.pathname==='/static/welcome.js'){
+   requests.push(url.href);
+   if(failFirst&&requests.length===1)return route.abort();
+   if(hold&&!heldOnce){heldOnce=true;finishHeld();await held;}
+   return route.continue();
+  }
+  if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
+  return route.continue();
+ });
+ return {context,page,requests,writes,errors,release:()=>releaseHeld(),done};
+}
 async function holdExplore(page,{instrument=false}={}){
   let openGate,finishRequest;
   const gate=new Promise(resolve=>{openGate=resolve;}),done=new Promise(resolve=>{finishRequest=resolve;});
@@ -322,5 +341,66 @@ async function notificationFixture(browser,loginName=user,options={}){
     assert.deepEqual(staleOwner.errors,[]);assert.deepEqual(staleOwner.routes.writes,[]);
   }finally{staleOwner.routes.release();await staleOwner.context.close();}
 
-  console.log('Lazy route: own asset hash, direct link, retry, one-time scroll, old-page cleanup, pending navigation and account guard PASS');
+  const welcomeInitial=await welcomeFixture(browser);
+  try{
+    await welcomeInitial.page.goto(base+'/me');await welcomeInitial.page.locator(meReady).waitFor();
+    assert.equal(welcomeInitial.requests.length,0,'Welcome is absent from the initial Me request path');
+    assert.equal(await welcomeInitial.page.locator('script[src*="/static/welcome.js"]').count(),0,'Me has no eager Welcome script tag');
+    await welcomeInitial.page.evaluate(()=>go('/welcome?step=profile'));await welcomeInitial.page.locator('.lazy-route-loading').waitFor();
+    await until(welcomeInitial.page,()=>!!document.querySelector('#wc-form'),'Welcome after normal Me navigation');
+    assert.equal(welcomeInitial.requests.length,1,'normal navigation loads Welcome once');
+    assert.match(new URL(welcomeInitial.requests[0]).searchParams.get('v')||'',/^[0-9a-f]{32}$/,'Welcome uses its build-stamped URL');
+    await welcomeInitial.page.evaluate(()=>go('/me'));await welcomeInitial.page.locator(meReady).waitFor();
+    await welcomeInitial.page.evaluate(()=>go('/welcome?step=profile'));await until(welcomeInitial.page,()=>!!document.querySelector('#wc-form'),'Welcome reopened');
+    assert.equal(welcomeInitial.requests.length,1,'reopening uses the loaded Welcome script');
+    assert.deepEqual(welcomeInitial.errors,[]);assert.deepEqual(welcomeInitial.writes,[]);
+  }finally{await welcomeInitial.context.close();}
+
+  const welcomeDirect=await welcomeFixture(browser);
+  try{
+    await welcomeDirect.page.goto(base+'/welcome?step=profile',{waitUntil:'domcontentloaded'});
+    await until(welcomeDirect.page,()=>!!document.querySelector('#wc-form'),'cold direct Welcome route');
+    assert.equal(new URL(welcomeDirect.page.url()).pathname,'/welcome','cold direct path stays on Welcome');
+    assert.equal(welcomeDirect.requests.length,1,'cold direct path loads the Welcome script once');
+    assert.deepEqual(welcomeDirect.errors,[]);assert.deepEqual(welcomeDirect.writes,[]);
+  }finally{await welcomeDirect.context.close();}
+
+  const welcomeRetry=await welcomeFixture(browser,user,{failFirst:true});
+  try{
+    await welcomeRetry.page.goto(base+'/welcome?step=profile',{waitUntil:'domcontentloaded'});await welcomeRetry.page.locator('.lazy-route-error').waitFor();
+    assert.equal(new URL(welcomeRetry.page.url()).pathname,'/welcome','a failed Welcome bundle does not fall back to Me');
+    assert(await welcomeRetry.page.locator('#lazy-route-retry').isVisible());assert.equal(welcomeRetry.requests.length,1);
+    await welcomeRetry.page.locator('#lazy-route-retry').click();await until(welcomeRetry.page,()=>!!document.querySelector('#wc-form'),'Welcome after explicit retry');
+    assert.equal(welcomeRetry.requests.length,2,'retry clears the rejected promise and fetches Welcome again');
+    assert.deepEqual(welcomeRetry.errors,[]);assert.deepEqual(welcomeRetry.writes,[]);
+  }finally{await welcomeRetry.context.close();}
+
+  const welcomeNavigation=await welcomeFixture(browser,user,{hold:true});
+  try{
+    await welcomeNavigation.page.goto(base+'/welcome?step=profile',{waitUntil:'domcontentloaded'});await welcomeNavigation.page.locator('.lazy-route-loading').waitFor();await welcomeNavigation.done;
+    await welcomeNavigation.page.locator('nav.tabs a[data-tab="me"]').click();await welcomeNavigation.page.locator(meReady).waitFor();
+    welcomeNavigation.release();await welcomeNavigation.page.waitForTimeout(100);
+    assert.equal(new URL(welcomeNavigation.page.url()).pathname,'/me','late Welcome response cannot replace a newer route');
+    assert.equal(await welcomeNavigation.page.locator('#wc-form').count(),0);
+    await welcomeNavigation.page.evaluate(()=>go('/welcome?step=profile'));await until(welcomeNavigation.page,()=>!!document.querySelector('#wc-form'),'Welcome after leaving during load');
+    assert.equal(welcomeNavigation.requests.length,1,'the completed in-flight Welcome bundle is reused');
+    assert.deepEqual(welcomeNavigation.errors,[]);assert.deepEqual(welcomeNavigation.writes,[]);
+  }finally{welcomeNavigation.release();await welcomeNavigation.context.close();}
+
+  const welcomeOwner=await welcomeFixture(browser,user,{hold:true});
+  try{
+    await welcomeOwner.page.goto(base+'/welcome?step=profile',{waitUntil:'domcontentloaded'});await welcomeOwner.page.locator('.lazy-route-loading').waitFor();await welcomeOwner.done;
+    const oldName=await welcomeOwner.page.evaluate(()=>App.me.name);
+    await login(welcomeOwner.context,'zz_test_explore_typical');
+    const meResponse=await welcomeOwner.context.request.get(base+'/api/me');assert.equal(meResponse.status(),200);const me=await meResponse.json();
+    await welcomeOwner.page.evaluate(profile=>refreshMe(profile),me);
+    await until(welcomeOwner.page,()=>App.me?.login==='zz_test_explore_typical'&&!!document.querySelector('.lazy-route-loading'),'new fictional owner holds the Welcome route');
+    welcomeOwner.release();await welcomeOwner.page.locator('#wc-form').waitFor();
+    const visibleName=await welcomeOwner.page.locator('#wc-form [name="name"]').inputValue();
+    assert.equal(visibleName,me.name,'Welcome renders the current owner after a delayed load');assert.notEqual(visibleName,oldName,'the previous owner’s profile does not leak');
+    assert.equal(welcomeOwner.requests.length,1,'account change shares the same in-flight script request');
+    assert.deepEqual(welcomeOwner.errors,[]);assert.deepEqual(welcomeOwner.writes,[]);
+  }finally{welcomeOwner.release();await welcomeOwner.context.close();}
+
+  console.log('Lazy routes: direct, normal navigation, retry, memoized reload, stale-path and owner guards PASS');
 }finally{await browser.close();}})().catch(error=>{console.error(error);process.exitCode=1;});
