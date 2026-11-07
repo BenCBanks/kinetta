@@ -6,8 +6,8 @@ async function until(page,fn,label){for(let i=0;i<120;i++){if(await page.evaluat
 (async()=>{
  const setup=cp.execFileSync('python3',[path.join(__dirname,'activity_detail_fixture.py')],{env:process.env,encoding:'utf8'}),ids=JSON.parse(setup.trim().split('\n').at(-1));console.log(setup.trim().split('\n')[0]);
  const browser=await chromium.launch(),contexts=[];
- async function open(surface,theme,{reduce=false,capture=false}={}){
-  const c=await browser.newContext({viewport:{width:390,height:844},colorScheme:theme,reducedMotion:reduce?'reduce':'no-preference',serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});contexts.push(c);
+ async function open(surface,theme,{reduce=false,capture=false,width=390}={}){
+  const c=await browser.newContext({viewport:{width,height:844},colorScheme:theme,reducedMotion:reduce?'reduce':'no-preference',serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});contexts.push(c);
   assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_detail_owner',password:pw}})).status(),200);
   const page=await c.newPage(),errors=[],writes=[];let claims=0;
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
@@ -26,6 +26,8 @@ async function until(page,fn,label){for(let i=0;i<120;i++){if(await page.evaluat
   assert.equal(await page.locator('.milestone-celebration-banner').getAttribute('role'),'status');
   assert.equal(await page.locator('.milestone-celebration-host').evaluate(n=>n.style.getPropertyValue('--celebration-color')),'var(--run)');
   assert(!/[…]|\.\.\./.test(await banner.innerText()),'the celebration never truncates its message');
+  const geometry=await banner.evaluate(el=>{const r=el.getBoundingClientRect();return{left:r.left,right:r.right,client:el.clientWidth,scroll:el.scrollWidth,page:document.documentElement.scrollWidth,viewport:innerWidth};});
+  assert(geometry.left>=0&&geometry.right<=geometry.viewport+1&&geometry.scroll<=geometry.client+1&&geometry.page<=geometry.viewport+1,'banner and page stay unclipped: '+JSON.stringify(geometry));
   if(capture){fs.mkdirSync(out,{recursive:true});await page.waitForTimeout(120);await page.screenshot({path:path.join(out,`celebration-${surface}-${theme}.png`)});}
   if(surface==='detail'&&!reduce){
    await page.evaluate(id=>Milestones.celebrate(document.querySelector('#d-celebration'),id),ids.run);
@@ -40,6 +42,7 @@ async function until(page,fn,label){for(let i=0;i<120;i++){if(await page.evaluat
   for(const theme of ['light','dark']){const result=await open('detail',theme,{capture:true});await result.c.close();contexts.splice(contexts.indexOf(result.c),1);}
   for(const theme of ['light','dark']){const result=await open('saved',theme,{capture:true});await result.c.close();contexts.splice(contexts.indexOf(result.c),1);}
   const reduced=await open('detail','light',{reduce:true});await reduced.c.close();contexts.splice(contexts.indexOf(reduced.c),1);
+  const narrow=await open('detail','dark',{width:330});await narrow.c.close();contexts.splice(contexts.indexOf(narrow.c),1);
   console.log('Milestone celebration: detail/saved light/dark, one-shot replay, 30 medal-colour particles, Reduce Motion and three-second status PASS');
  }finally{
   for(const c of contexts)await c.close();

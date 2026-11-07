@@ -47,10 +47,12 @@ class Milestones(unittest.TestCase):
   for item in items:self.assertEqual(self.clients[0].post('/api/milestones/'+item['id']+'/seen',json={'action':'dismiss'}).status_code,200)
   self.process();self.assertEqual(self.items(),[])
  def test_celebration_claim_is_once_owner_scoped_and_recent_only(self):
-  aid=self.activity(distance=5000)
-  with db.connect() as c:c.execute("INSERT INTO best_efforts(user_id,activity_id,sport,distance_m,label,elapsed_s,start_time) SELECT user_id,id,sport,5000,'5K',1400,start_time FROM activities WHERE id=%s AND user_id=%s",(aid,self.ids[0]))
+  prior=self.activity(distance=5000);aid=self.activity(distance=10000)
+  with db.connect() as c:
+   c.execute("INSERT INTO best_efforts(user_id,activity_id,sport,distance_m,label,elapsed_s,start_time) SELECT user_id,id,sport,5000,'5K',1500,start_time FROM activities WHERE id=%s AND user_id=%s",(prior,self.ids[0]))
+   c.execute("INSERT INTO best_efforts(user_id,activity_id,sport,distance_m,label,elapsed_s,start_time) SELECT user_id,id,sport,5000,'5K',1400,start_time FROM activities WHERE id=%s AND user_id=%s",(aid,self.ids[0]))
   self.process();claim=self.clients[0].post('/api/milestones/celebrate',json={'activity_id':aid});self.assertEqual(claim.status_code,200,claim.text)
-  items=claim.json()['items'];self.assertTrue(any(row['kind']=='best' for row in items));self.assertTrue(any(row['kind']=='track' for row in items))
+  data=claim.json();self.assertFalse(data['pending'],json.dumps(data));items=data['items'];self.assertTrue(any(row['kind']=='best' for row in items),json.dumps(items));self.assertTrue(any(row['kind'] in ('track','sport','first_distance') for row in items),json.dumps(items))
   self.assertTrue(items);self.assertNotIn('_celebrated_at',json.dumps(items))
   self.assertEqual(self.clients[0].post('/api/milestones/celebrate',json={'activity_id':aid}).json()['items'],[],'reopen cannot replay the same celebration')
   self.assertEqual(self.clients[1].post('/api/milestones/celebrate',json={'activity_id':aid}).json()['items'],[],'another owner cannot claim these rows')
