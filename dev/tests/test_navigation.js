@@ -31,13 +31,16 @@ const app=fs.readFileSync('app/static/app.js','utf8');
  assert.equal(data.get(key).activeMs,60000,'navigation never invents recording time');
  console.log('navigation recorder: real paused draft restored, cross-account isolated, elapsed time preserved PASS');
 }
-// Activity-first tabs (#164): original order, Track in the centre, no shared Log sheet; the recording dot marks Track.
+// Home-first tabs (#700): Track stays centred; Me is last; no shared Log sheet; the recording dot marks Track.
 {
  const tabs=JSON.parse(JSON.stringify(vm.runInNewContext(app.match(/const TABS = (\[.*?\]);/)[1])));
- assert.deepEqual(tabs.map(t=>t[0]),['me','activity','track','progress','food']);assert.deepEqual(tabs.map(t=>t[1]),['Me','Activity','Track','Progress','Nutrition']);
+ assert.deepEqual(tabs.map(t=>t[0]),['activity','progress','track','food','me']);assert.deepEqual(tabs.map(t=>t[1]),['Home','Progress','Track','Nutrition','Me']);
  assert(!/quickLogSheet|data-quick-log/.test(app),'the shared Log sheet is gone');
- const track=fs.readFileSync('app/static/track.js','utf8');assert.match(track,/nav\.tabs \[data-tab="track"\]/);
- console.log('navigation tabs: Me, Activity, Track, Progress, Nutrition; no Log sheet; recording dot on Track PASS');
+ const track=fs.readFileSync('app/static/track.js','utf8'),me=fs.readFileSync('app/static/pages.js','utf8'),explore=fs.readFileSync('app/static/explore.js','utf8');
+ assert.match(track,/nav\.tabs \[data-tab="track"\]/);assert.match(track,/title:'Explore Kinetta'.*href:'\/me\/explore'/);
+ assert(!me.includes('href="/me/explore"'),'Explore is no longer listed under Me');assert(explore.includes("route(/^\\/me\\/explore$/, 'track'"),'the legacy Explore URL selects Track');
+ assert.match(explore,/backBtn\('Track'\)/);assert.match(explore,/wireBack\(el, '\/track'\)/);
+ console.log('navigation tabs: Home, Progress, Track, Nutrition, Me; Explore under Track; no Log sheet PASS');
 }
 // Fixed legacy URL contract, checked against the app's registered route patterns.
 {

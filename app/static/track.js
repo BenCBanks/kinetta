@@ -524,7 +524,7 @@ const Track = (() => {
       <div class="track-go"><button class="${outdoor.length?'round-btn start':'primary wide'}" id="track-start"><span>Start</span></button></div>
       <p class="small danger" id="track-ready-error" role="alert"></p><p class="small muted" id="track-guidance"></p>
       </form>
-      <div id="track-open-lift"></div><section class="track-tools compact-track-tools" aria-labelledby="track-tools-h"><h2 class="sec-head" id="track-tools-h">Other ways to add</h2><div id="track-explore" class="progress-grid"></div></section>`;
+      <div id="track-open-lift"></div><section class="track-tools compact-track-tools" aria-labelledby="track-tools-h"><h2 class="sec-head" id="track-tools-h">Track tools</h2><div id="track-explore" class="progress-grid"></div></section>`;
     if(doneId){Milestones.celebrate($('#track-celebration',el),doneId);ActivityDetail.nextMedalForId($('#track-next-medal',el),doneId);}
     let view=null,dot=null,located=false,here=null,loadingMap=false,centred=false,readyFollow=true;const readyOwner=readOwner(),readyLive=()=>renderRevision===drawRevision&&el.isConnected&&readyOwner===readOwner()&&!session;
     const quickRow=$('.track-sport-row',el),quickBox=$('.track-quick',el),more=$('#track-other',el),quickButtons=$$('[data-quick]',el);
@@ -624,6 +624,7 @@ const Track = (() => {
     if(typeof Discovery==='undefined')return;let connections=null,health=null,settled=false;
     const draw=()=>{if(!current())return;const count=(connections?['apple','garmin_connect'].filter(k=>connections[k]).length:0)+(health?.on?1:0);
       const items=[...(Native.on?[{id:'health',title:'Health app',icon:'heart',href:'/track/health',description:health?.on===false?'Off · Set up →':'Bring in workouts →',teaser:Native.syncing?'Syncing…':health?.error?'Check sync →':health?.on?(health.at?'Synced '+when(health.at):'Sync is on'):''}]:[]),
+        {id:'explore',title:'Explore Kinetta',icon:'search',href:'/me/explore',description:'Routes, segments and more →'},
         {id:'past',title:'Log past',icon:'calendar',href:'/track?past=1',description:'Add a workout →'},
         {id:'import',title:'Import history',icon:'upload',href:'/track/import',description:Native.on?'Use your browser →':'Bring in old workouts →'},
         {id:'connections',title:'Connections',icon:'watch',href:'/track/connections',description:'Connect your apps →',teaser:count?`${count} connected`:''}];

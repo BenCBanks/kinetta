@@ -16,7 +16,7 @@ const PROGRESS_ROUTE_ASSET = '/static/progress-routes.js?v=__ASSET_HASH__';
 const SEGMENTS_ROUTE_ASSET = '/static/segments.js?v=__ASSET_HASH__';
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: ['/static/welcome.js?v=__ASSET_HASH__']},
-  {re: /^\/me\/explore$/, tab: 'me', scripts: ['/static/explore.js?v=__ASSET_HASH__']},
+  {re: /^\/me\/explore$/, tab: 'track', scripts: ['/static/explore.js?v=__ASSET_HASH__']},
   {re: /^\/notifications$/, tab: null, scripts: ['/static/social-notifications.js?v=__ASSET_HASH__']},
   {re: /^\/me\/notifications$/, tab: 'me', scripts: ['/static/social-notifications.js?v=__ASSET_HASH__']},
   {re: /^\/food\/import$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, '/static/food-import.js?v=__ASSET_HASH__']},
@@ -624,8 +624,8 @@ function sheet(title, html, onMount, opts = {}) {
 IC.mail = '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>';
 IC.paste = '<rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/>';
 IC.track = '<circle cx="12" cy="10" r="3"/><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/>';
-// Owner decision 2026-10-18 (#164): back to the original activity-first order; the shared ＋ Log tab is gone (food has one home, Nutrition).
-const TABS = [['me', 'Me'], ['activity', 'Activity'], ['track', 'Track'], ['progress', 'Progress'], ['food', 'Nutrition']];   // Me is home: first, and where the app opens
+// Owner decision #700 (7 Nov 2026): Home renames the Activity tab and moves first; Me moves last. Keep Track centred.
+const TABS = [['activity', 'Home'], ['progress', 'Progress'], ['track', 'Track'], ['food', 'Nutrition'], ['me', 'Me']];
 function route(re, tab, fn) { App.pages.push({re, tab, fn}); }
 function go(path, {replace = false} = {}) {
   App.scroll[location.pathname + location.search] = scrollY;
@@ -770,7 +770,8 @@ function render(options) {
   const key=location.pathname+location.search,routePosition=options?.routePosition;
   const useRoutePosition=routePosition?.key===key&&routePosition.owner===readOwner();
   const targetY=useRoutePosition?routePosition.y:pagePosition(key);
-  const path = location.pathname.replace(/\/+$/, '') || '/me';
+  const path = location.pathname.replace(/\/+$/, '') || '/activity';
+  document.title = path === '/activity' ? 'Home · Kinetta' : 'Kinetta';
   const bundle = lazyRouteBundles.find((candidate) => candidate.re.test(path));
   if (bundle && bundle.scripts.some((file) => !classicScriptsLoaded.has(file))) {
     const owner = readOwner(), generation = ++lazyRouteGeneration, nextPosition={key,owner,y:targetY};
@@ -836,9 +837,10 @@ function render(options) {
 function showError(el, e) {
   if (e && e.status === 401) return;
   if (e && e.status === 404) {
-    const href = el._backFallback || (location.pathname.startsWith('/people/') ? '/me/friends' : location.pathname.startsWith('/activity/') ? '/activity' : '/me');
-    el.innerHTML = `<div class="top">${backBtn(BackNavigation.label(href))}</div><div class="boot"><h1>Not available</h1><p>This item may have been removed or is not shared with you.</p></div>`;
-    wireBack(el,href); return;
+    const href = el._backFallback || (location.pathname.startsWith('/people/') ? '/me/friends' : '/activity');
+    const fallbackLabel = /^\/activity\/(?:friends\/)?\d+$/.test(location.pathname) ? 'Activity' : BackNavigation.label(href);
+    el.innerHTML = `<div class="top">${backBtn(fallbackLabel)}</div><div class="boot"><h1>Not available</h1><p>This item may have been removed or is not shared with you.</p></div>`;
+    wireBack(el,href,destination=>destination.history?destination.label:fallbackLabel); return;
   }
   el.innerHTML = `<div class="boot"><p>${esc(e && e.message || 'Something went wrong')}</p><button class="ghost" id="retry">Try again</button></div>`;
   $('#retry', el).onclick = () => { invalidate('/api/'); render(); };
@@ -1683,7 +1685,7 @@ async function showJoin(token) {
     const owner=readOwner(), login=App.me.login;
     root.innerHTML=`<div class="login"><div class="form">${BRAND}<h1>Join Kinetta</h1><p>${info.inviter ? esc(info.inviter)+' invited you. ' : ''}You are signed in as @${esc(login)}. Use your existing account; no new account or friend request is created.</p><p class="err" role="alert"></p><div class="btncol"><button type="button" class="primary" id="j-accept">Accept invitation as @${esc(login)}</button><button type="button" class="ghost" id="j-cancel">Not now</button></div></div></div>`;
     const button=$('#j-accept',root),cancel=$('#j-cancel',root),live=()=>active()&&owner===readOwner()&&button.isConnected;
-    const open=()=>{store.del('kinetta.joinReturn');history.replaceState(null,'','/me');start();};
+    const open=()=>{store.del('kinetta.joinReturn');history.replaceState(null,'','/activity');start();};
     cancel.onclick=open;
     button.onclick=async()=>{
       if(button.disabled||!live())return;button.disabled=true;cancel.disabled=true;
@@ -1855,8 +1857,8 @@ async function showConfirmEmail(token) {
   // Email links open in the phone's browser. On an iPhone, offer the app itself (kinetta:// is registered by the app,
   // 27 October 2026): a same-site https link can't hand off from Safari to the app.
   const iphone = !Native.on && /iPhone|iPad|iPod/.test(navigator.userAgent);
-  root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>${esc(title)}</h1><p>${esc(text)}</p>${iphone ? '<a class="primary wide" href="kinetta://open">Open the Kinetta app</a><a class="ghost wide" href="/me" id="c-go">Continue in browser</a>' : '<a class="primary wide" href="/me" id="c-go">Open Kinetta</a>'}</div></div>`;
-  $('#c-go', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/me'); root.innerHTML = LAUNCH; start(); };
+  root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>${esc(title)}</h1><p>${esc(text)}</p>${iphone ? '<a class="primary wide" href="kinetta://open">Open the Kinetta app</a><a class="ghost wide" href="/activity" id="c-go">Continue in browser</a>' : '<a class="primary wide" href="/activity" id="c-go">Open Kinetta</a>'}</div></div>`;
+  $('#c-go', root).onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/activity'); root.innerHTML = LAUNCH; start(); };
 }
 async function showWelcome() {
   if (Native.on) return showLogin();   // new accounts, invites and the waitlist are on the server's web page
@@ -1890,14 +1892,14 @@ async function start() {
     const invitation = /^\/join\/[A-Za-z0-9_-]{1,100}$/.test(location.pathname) ? location.pathname : pendingJoinPath();
     if (invitation) { store.set('kinetta.joinReturn',invitation);history.replaceState(null,'',invitation);return showJoin(invitation.split('/').pop()); }
     if (store.get('kinetta.getApp') && getAppFirst()) return showGetApp();
-    if (location.pathname === '/' || location.pathname === '' || location.pathname.startsWith('/join/') || location.pathname === '/beta' || location.pathname === '/signup') history.replaceState(null, '', '/me');
+    if (location.pathname === '/' || location.pathname === '' || location.pathname.startsWith('/join/') || location.pathname === '/beta' || location.pathname === '/signup') history.replaceState(null, '', '/activity');
     // logged in after opening a friend's invite link: show who it's from and let them say yes
     const friendLink = store.get('kinetta.friendLink');
-    if (friendLink) { store.del('kinetta.friendLink'); if (location.pathname === '/me') history.replaceState(null, '', '/add/' + friendLink); }
+    if (friendLink) { store.del('kinetta.friendLink'); if (['/me','/activity'].includes(location.pathname)) history.replaceState(null, '', '/add/' + friendLink); }
     const cardLink=store.get('kinetta.cardLink');
-    if(cardLink){store.del('kinetta.cardLink');if(location.pathname==='/me')history.replaceState(null,'','/card/'+encodeURIComponent(cardLink));}
+    if(cardLink){store.del('kinetta.cardLink');if(['/me','/activity'].includes(location.pathname))history.replaceState(null,'','/card/'+encodeURIComponent(cardLink));}
     const challengeLink=store.get('kinetta.challengeLink');
-    if(challengeLink){store.del('kinetta.challengeLink');if(['/me','/welcome'].includes(location.pathname))history.replaceState(null,'','/me/challenges/'+encodeURIComponent(challengeLink));}
+    if(challengeLink){store.del('kinetta.challengeLink');if(['/activity','/me','/welcome'].includes(location.pathname))history.replaceState(null,'','/me/challenges/'+encodeURIComponent(challengeLink));}
     // The first time a new account opens the iPhone app, the welcome steps lead, with Apple Health (2026-10-24)
     const seen = 'kinetta.welcomed:' + readOwner();
     if (Native.on && !store.get(seen) && App.me?.created && Date.now() - new Date(App.me.created) < 14 * 864e5 && location.pathname === '/me') history.replaceState(null, '', '/welcome');
@@ -1919,7 +1921,7 @@ async function start() {
     if (x.status === 401) { forgetKept(); showWelcome(); return; }
     if (x.offline && kept('/api/me')) {   // no connection: open with what's saved on this phone
       App.me = kept('/api/me'); netState(true);
-      if (location.pathname === '/' || location.pathname === '') history.replaceState(null, '', '/me');
+      if (location.pathname === '/' || location.pathname === '') history.replaceState(null, '', '/activity');
       render(); return;
     }
     root.innerHTML = `<div class="boot"><p>${esc(x.message)}</p><button class="ghost" id="retry">Try again</button></div>`;

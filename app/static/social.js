@@ -516,7 +516,7 @@ function feedTools(el,current){
 
 // ---------- someone else's activity (read-only); for your own: what others see ----------
 route(/^\/activity\/friends\/(\d+)$/, 'activity', async (el, id) => {
-  el.innerHTML = `<div class="top">${backBtn('Activity')}</div>${skel(1)}<div class="sk block"></div>`;
+  el.innerHTML = `<div class="top">${backBtn('Home')}</div>${skel(1)}<div class="sk block"></div>`;
   wireBack(el, '/activity');
   await load(`/api/shared/${id}`, (a) => drawShared(el, a), {maxAge: 30000});
 });
@@ -539,7 +539,7 @@ function drawShared(el, a) {
     ${a.ends_hidden?'<p class="small muted map-note">The start and end of the route are hidden.</p>':''}${activityTabs(panes)}${mine?'':`<p class="center"><button class="linkbtn muted" id="s-rb">Report or block ${esc(a.owner.name)}</button></p>`}`;
   let redrawCharts = null;
   wireActivityTabs(el, key => { if (key === 'charts') redrawCharts?.(); });
-  ActivityDetail.wire(el,a,{mine:false,back:mine?`/activity/${a.id}`:'/activity'});
+  ActivityDetail.wire(el,a,{mine:false,back:mine?`/activity/${a.id}`:'/activity',fallbackLabel:mine?'Your activity':'Activity'});
   if (!mine) $('#s-rb', el).onclick = () => reportSheet(a.owner, {activity_id: a.id});
   if (a.line) {
     const box = $('#s-map', el); let m = null;
@@ -986,12 +986,12 @@ function peopleRow(box, people, {title = 'People you may know', onChange, invite
 }
 // The page an invite link opens when you're signed in: who sent it, and one button.
 route(/^\/add\/([\w-]+)$/, 'activity', async (el, code) => {
-  el.innerHTML = `<div class="top">${backBtn('Activity')}</div>${skel(1)}`;
+  el.innerHTML = `<div class="top">${backBtn('Home')}</div>${skel(1)}`;
   wireBack(el, '/activity');
   let who;
   try { who = await api('/api/friend-links/' + encodeURIComponent(code)); }
-  catch (x) { el.innerHTML = `<div class="top">${backBtn('Activity')}</div><div class="card empty"><b>This invite link doesn’t work</b>${esc(x.message)}<div class="btncol"><a class="ghost" href="/me/friends?find=1">Find friends</a></div></div>`; wireBack(el, '/activity'); return; }
-  el.innerHTML = `<div class="top">${backBtn('Activity')}</div><div class="card empty add-friend"><b>${esc(who.name)} invited you to be friends</b>
+  catch (x) { el.innerHTML = `<div class="top">${backBtn('Home')}</div><div class="card empty"><b>This invite link doesn’t work</b>${esc(x.message)}<div class="btncol"><a class="ghost" href="/me/friends?find=1">Find friends</a></div></div>`; wireBack(el, '/activity'); return; }
+  el.innerHTML = `<div class="top">${backBtn('Home')}</div><div class="card empty add-friend"><b>${esc(who.name)} invited you to be friends</b>
     You’ll each see the activities the other shares with friends. You can change that or stop being friends any time.
     <div class="btncol"><button class="primary" id="af-yes">Become friends</button><a class="ghost" href="/activity">Not now</a></div></div>`;
   wireBack(el, '/activity');
@@ -1233,8 +1233,8 @@ route(/^\/groups\/([0-9a-f-]{36})$/i,'activity',async(el,id)=>{
 });
 route(/^\/group-invite\/([\w-]+)$/,'activity',async(el,token)=>{
   el.classList.add('group-invite-page');el.innerHTML='<div class="card empty">Checking invite…</div>';wireBack(el,'/activity');
-  try{await api('/api/group-invites/'+encodeURIComponent(token));if(!el.isConnected)return;el.innerHTML=`<div class="top">${backBtn('Activity')}</div><section class="group-invite-card"><p class="eyebrow">Kinetta Groups</p><h1>You’re invited to a private group</h1><p>Only members can see the group. Sign in and accept to join.</p><div class="btncol"><button type="button" class="primary" id="group-accept">Accept invitation</button><a class="ghost" href="/activity">Not now</a></div></section>`;wireBack(el,'/activity');$('#group-accept',el).onclick=async event=>{const button=event.currentTarget;button.disabled=true;try{const group=await api('/api/group-invites/'+encodeURIComponent(token)+'/accept',json('POST',{}));if(el.isConnected){toast('You joined the group');go('/groups/'+encodeURIComponent(group.id),{replace:true});}}catch(error){toast(error.message);button.disabled=false;}};}
-  catch(error){if(el.isConnected)el.innerHTML=`<div class="top">${backBtn('Activity')}</div><section class="group-invite-card"><h1>This invite isn’t available</h1><p>Ask the organizer for a new group invite.</p><a class="ghost" href="/activity">Go to Activity</a></section>`;wireBack(el,'/activity');}
+  try{await api('/api/group-invites/'+encodeURIComponent(token));if(!el.isConnected)return;el.innerHTML=`<div class="top">${backBtn('Home')}</div><section class="group-invite-card"><p class="eyebrow">Kinetta Groups</p><h1>You’re invited to a private group</h1><p>Only members can see the group. Sign in and accept to join.</p><div class="btncol"><button type="button" class="primary" id="group-accept">Accept invitation</button><a class="ghost" href="/activity">Not now</a></div></section>`;wireBack(el,'/activity');$('#group-accept',el).onclick=async event=>{const button=event.currentTarget;button.disabled=true;try{const group=await api('/api/group-invites/'+encodeURIComponent(token)+'/accept',json('POST',{}));if(el.isConnected){toast('You joined the group');go('/groups/'+encodeURIComponent(group.id),{replace:true});}}catch(error){toast(error.message);button.disabled=false;}};}
+  catch(error){if(el.isConnected)el.innerHTML=`<div class="top">${backBtn('Home')}</div><section class="group-invite-card"><h1>This invite isn’t available</h1><p>Ask the organizer for a new group invite.</p><a class="ghost" href="/activity">Go to Home</a></section>`;wireBack(el,'/activity');}
 });
 
 // ---------- report or block someone (App Store guideline 1.2): from their activity or one of their comments ----------

@@ -154,7 +154,7 @@ async function captureAchievementMomentSharing(page,out,theme,ready){
    if(who==='typical'&&size.width===390){const card=p.locator('#ff-list .post').first();await card.locator('[data-reaction-group]').waitFor();await verifyReactionSummary(card,p,out,theme);}
    assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[],'reaction summary states make no product writes');console.log(`Reaction summary ${size.width}px ${theme}: one, two and three emoji, order, ring, separate 24×44px emoji targets and 44px total target PASS`);await c.close();continue;
   }
-  assert.equal(await p.locator('h1').innerText(),'Activity');assert.equal(await p.locator('#feed-top a[aria-label="Find friends"]').count(),1,'Find friends stays in the Activity header for every account');
+  assert.equal(await p.locator('h1').innerText(),'Home');assert.equal(await p.locator('#feed-top a[aria-label="Find friends"]').count(),1,'Find friends stays in the Home header for every account');
   const lowFriends=!['heavy','established'].includes(who),findRow=p.locator('#feed-tools .feed-find-friends');assert.equal(await findRow.count(),lowFriends?1:0,'low-friend empty feeds show one Find friends row');assert.equal(await p.locator('#feed-tools .feed-low, #feed-tools #feed-discovery, .feed-discovery').count(),0,'old discovery grid stays removed');
   assert((await p.locator('.feed-social-strip a').count())<=4);if(who==='empty')assert.equal(await p.locator('.feed-social-strip').count(),0);
   if(lowFriends){assert.equal((await findRow.innerText()).trim(),'Find friends');assert.equal(await findRow.getAttribute('href'),'/me/friends?find=1');const rowBox=await findRow.boundingBox();assert(rowBox&&rowBox.height>=44,'empty-feed Find friends row keeps a 44px target');}
@@ -206,12 +206,12 @@ async function captureAchievementMomentSharing(page,out,theme,ready){
   if(who==='established'&&size.width===390&&theme==='light'){
    await c.route('**/api/challenges',r=>r.fulfill({status:503,json:{detail:'Fictional challenge read unavailable'}}),{times:1});await p.evaluate(()=>document.querySelector('#page').refresh());await ready();assert.equal(await p.locator('[data-feed-challenges]').count(),1);assert.equal(await p.locator('.feed-social-strip').count(),0);
   }
-  await p.locator('[data-feed-challenges]:visible,[data-narrow-challenges]:visible').click();await until(p,()=>App.pageReady&&!!document.querySelector('#challenge-list .card.list,#challenge-first'),'challenge list data settled');const create=p.locator('#challenge-first:visible, #challenge-start:visible');await create.waitFor();assert.equal(await p.locator('#challenge-friends').getAttribute('href'),'/me/friends?find=1','Friends is reachable through Challenges');assert.equal(await p.locator('[data-challenge-back]').innerText(),'Activity');assert.equal(await p.locator('[data-challenge-back]').getAttribute('href'),'/activity');assert.equal(await p.locator('nav.tabs a[data-tab=activity]').getAttribute('aria-current'),'page');
+  await p.locator('[data-feed-challenges]:visible,[data-narrow-challenges]:visible').click();await until(p,()=>App.pageReady&&!!document.querySelector('#challenge-list .card.list,#challenge-first'),'challenge list data settled');const create=p.locator('#challenge-first:visible, #challenge-start:visible');await create.waitFor();assert.equal(await p.locator('#challenge-friends').getAttribute('href'),'/me/friends?find=1','Friends is reachable through Challenges');assert.equal(await p.locator('[data-challenge-back]').innerText(),'Home');assert.equal(await p.locator('[data-challenge-back]').getAttribute('href'),'/activity');assert.equal(await p.locator('nav.tabs a[data-tab=activity]').getAttribute('aria-current'),'page');
   await create.click();await p.locator('.challenge-templates').waitFor();await p.keyboard.press('Escape');
   if(who==='heavy'){
    const goals=await(await c.request.get(base+'/api/challenges')).json();for(const goal of goals){const range=await p.evaluate(q=>Challenges.dateRange(q),goal);assert((await p.locator('#challenge-list a[href$="'+goal.code+'"]').innerText()).includes(range),'Challenge rows retain their single period');}
    await p.locator('#challenge-start').click();await p.locator('[data-challenge-kind=activities]').click();await p.locator('#challenge-create').waitFor();assert.equal((await p.locator('#challenge-create').innerText()).match(/10 minutes/g).length,1,'One clear minimum-workout explanation');await p.keyboard.press('Escape');
-   await p.locator('#challenge-list a').first().click();await p.locator('#challenge-refresh').waitFor();assert.equal(await p.locator('[data-challenge-back]').innerText(),'Activity');
+   await p.locator('#challenge-list a').first().click();await p.locator('#challenge-refresh').waitFor();assert.equal(await p.locator('[data-challenge-back]').innerText(),'Home');
    assert.doesNotMatch(await p.locator('.challenge-title').innerText(),/\b20\d\d\b/);assert.equal(await p.locator('.challenge-dates').innerText(),await p.evaluate(q=>Challenges.dateRange(q),goals[0]),'One compact date range');
    assert(await p.locator('.challenge-title').evaluate(n=>{const s=getComputedStyle(n);return parseFloat(s.fontSize)>=28&&n.scrollHeight<=parseFloat(s.lineHeight)*2+1;}),'Complete challenge title fits two lines at approved size');
 
@@ -224,7 +224,7 @@ async function captureAchievementMomentSharing(page,out,theme,ready){
    await p.goto(base+'/me/challenges/'+code);await p.locator('#challenge-invite').waitFor();
    if(size.width===390&&theme==='light'){
     const code=new URL(p.url()).pathname.split('/').at(-1);
-    await p.goto(base+'/me/challenges/'+code);await p.locator('#challenge-refresh').waitFor();assert.equal(await p.locator('[data-challenge-back]').innerText(),'Activity');assert.equal(await p.locator('nav.tabs a[data-tab=activity]').getAttribute('aria-current'),'page');
+    await p.goto(base+'/me/challenges/'+code);await p.locator('#challenge-refresh').waitFor();assert.equal(await p.locator('[data-challenge-back]').innerText(),'Home');assert.equal(await p.locator('nav.tabs a[data-tab=activity]').getAttribute('aria-current'),'page');
     await p.goto(base+'/challenge/'+code);await p.getByRole('link',{name:'Open challenge',exact:true}).click();await p.locator('#challenge-refresh').waitFor();assert.equal(await p.locator('[data-challenge-back]').getAttribute('href'),'/activity');
    }
   }
