@@ -4,14 +4,14 @@
   const cfg=globalThis.KinettaUIFixture;
   Native.autoSync=()=>Promise.resolve();Native.resumeFoodEntry=()=>Promise.resolve();
   if(cfg.store){Native.setBadge=()=>Promise.resolve();Native.haptic=()=>{};Challenges.resumeSignup=()=>Promise.resolve();}
-  if(cfg.headerPage||cfg.store){
+  if(cfg.headerPage||cfg.store||cfg.groups){
     // Measure the real native layout without reading Health/GPS or registering alerts.
     Native.syncPush=()=>Promise.resolve();Native.healthOn=Native.foodHealthOn=async()=>false;Native.healthStatus=async()=>null;
     TrackNative.call=async method=>{if(method==='status')return {session:null};throw Error('Native header fixture blocked recording controls');};
     TrackNative.locate=async()=>{if(cfg.store)return cfg.store.position;throw Error('Native header fixture blocked GPS reads');};
   }
   if(cfg.recording){TrackNative.supported=false;TrackNative.call=()=>Promise.reject(Error('Native UI fixture blocked GPS controls'));}
-  const rect=selector=>{const e=document.querySelector(selector);if(!e)return null;const r=e.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};
+  const rect=selector=>{const e=typeof selector==='string'?document.querySelector(selector):selector;if(!e)return null;const r=e.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};
   function paintedMap(scope=document){
     return [...scope.querySelectorAll('canvas.leaflet-tile-loaded')].some(c=>{try{
       const b=c.getBoundingClientRect(),m=c.closest('.leaflet-container').getBoundingClientRect(),x=Math.max(0,b.x,m.x),y=Math.max(0,b.y,m.y),right=Math.min(innerWidth,b.right,m.right),bottom=Math.min(innerHeight,b.bottom,m.bottom);
@@ -34,10 +34,11 @@
   }
   async function capture(){
     for(let n=0;n<150;n++){
-      if(cfg.headerPage?(App.pageReady&&document.querySelector('#page h1')):cfg.friends?(App.pageReady&&document.querySelector('#fr-own-list')):cfg.activity?(App.pageReady&&document.querySelector('.compact-detail-title')):cfg.recording?document.querySelector(cfg.stage==='track-review'?'#track-photos-add:not(:disabled)':'#track-lap'):cfg.stage==='food'?document.querySelector('#thread-text'):document.querySelector('#dk-name'))break;
+      if(cfg.groups?(App.pageReady&&document.querySelector('#group-new')):cfg.headerPage?(App.pageReady&&document.querySelector('#page h1')):cfg.friends?(App.pageReady&&document.querySelector('#fr-own-list')):cfg.activity?(App.pageReady&&document.querySelector('.compact-detail-title')):cfg.recording?document.querySelector(cfg.stage==='track-review'?'#track-photos-add:not(:disabled)':'#track-lap'):cfg.stage==='food'?document.querySelector('#thread-text'):document.querySelector('#dk-name'))break;
       await new Promise(ok=>setTimeout(ok,100));
     }
     if(cfg.activity){let socialReady=false;for(let n=0;n<150;n++){const box=document.querySelector('#d-soc'),requested=cfg.requests.includes('/api/activities/1/social'),hasContent=cfg.activity.social.cheers.length||cfg.activity.social.comments.length;socialReady=!!box&&requested&&(hasContent?!box.hidden:box.hidden);if(socialReady)break;await new Promise(ok=>setTimeout(ok,100));}if(!socialReady)throw Error('Owner activity empty-social state did not finish loading');}
+    if(cfg.groups){document.querySelector('#group-new')?.click();let ready=false;for(let n=0;n<150;n++){ready=!!document.querySelector('#group-create-form');if(ready)break;await new Promise(ok=>setTimeout(ok,100));}if(!ready)throw Error('Groups create form did not open');}
     if(cfg.store&&cfg.activity)document.querySelector('[data-dt=charts]')?.click();
     if(cfg.stage==='review')finishDish(cfg.dish);
     if(cfg.stage==='track-map')document.querySelector('#track-map-wrap .map-full')?.click();
@@ -63,6 +64,7 @@
       items:[...nav.querySelectorAll('a')].map(a=>({text:a.querySelector('span').textContent,selected:a.getAttribute('aria-current')==='page',box:(()=>{const r=a.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})(),label:(()=>{const r=a.querySelector('span').getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})()}))};
     const field=document.querySelector('#thread-text'),fieldSize=field?{...rect('#thread-text'),scrollHeight:field.scrollHeight,clientHeight:field.clientHeight}:null;
     const result={fixture:true,store:!!cfg.store,blocked:cfg.blocked,bodyText:cfg.store?document.querySelector('#page')?.innerText:null,display:cfg.displayDiagnostics(),navigation,field:fieldSize,run:cfg.run,stage:cfg.stage,root:cfg.root,theme:matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light',native:Native.on,viewport:{width:innerWidth,height:innerHeight,offset:visualViewport?.offsetTop||0},safeTop,safeBottom,back:rect(cfg.stage==='food'?'.thread-heading .back':'.top .back'),header:rect(cfg.stage==='food'?'.thread-heading':'.top'),name:rect('#dk-name'),content:rect('.recipe-content'),composer:rect(cfg.stage==='food'?'#thread-composer':'#dk-add'),review:rect('#recipe-finish'),overflow:document.documentElement.scrollWidth>innerWidth+1,status:document.querySelector('#thread-status')?.textContent||'',errors:cfg.errors,requests:cfg.requests};
+    if(cfg.groups){const fields=document.querySelector('.group-create-fields');result.groups={fields:{...rect('.group-create-fields'),clientWidth:fields.clientWidth,scrollWidth:fields.scrollWidth},date:rect('[name=event_date]'),name:rect('[name=title]'),grid:rect('.group-goal-fields'),labels:[...document.querySelectorAll('.group-create-fields>label')].map(label=>rect(label))};}
     if(cfg.headerPage){
       const title=document.querySelector('#page h1'),shell=document.querySelector('#page'),header=title.closest('.top,.me-top'),glyph=document.createRange();glyph.selectNodeContents(title);
       const g=glyph.getBoundingClientRect(),css=getComputedStyle(shell),h=getComputedStyle(header);

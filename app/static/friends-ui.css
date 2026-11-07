@@ -6,6 +6,9 @@
 .friends-page .people-search input { width:100%;font-size:max(16px,1rem); }
 .friends-page #fr-status { margin:6px 0 0; }
 .friends-page #fr-status:empty { display:none; }
+.friends-page .friends-groups-shortcut { display:flex;align-items:center;gap:12px;min-width:0;margin:8px 0 14px; }
+.friends-page .friends-groups-shortcut #fr-groups-discover { flex:1;min-width:0;width:auto;margin:0; }
+.friends-page .friends-groups-shortcut #fr-group-create { display:inline-flex;align-items:center;justify-content:center;flex:none;min-width:44px;min-height:44px;padding:8px 0 8px 8px;white-space:nowrap;font-weight:650; }
 .friends-page .friend-action { display:flex;align-items:center;gap:12px;width:100%;min-height:60px;margin:8px 0 14px;padding:8px 0;color:var(--tx);text-align:left; }
 .friends-page .friend-action .ri { width:24px;height:24px;flex:none;color:var(--accent); }
 .friends-page .friend-action .ri svg { width:22px;height:22px; }
@@ -110,18 +113,20 @@
 .group-invite-card .btncol {margin-top:22px;}
 .sheet:has(#group-create-form) {display:flex;flex-direction:column;overflow:hidden;padding-bottom:0;}
 .sheet:has(#group-create-form)>:is(.grab,header) {flex:none;}
-.sheet:has(#group-create-form)>.sbody {display:flex;flex:1;min-height:0;overflow:hidden;}
-.group-create-form {display:flex;flex:1;min-height:0;flex-direction:column;gap:0;}
-.group-create-fields {flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:8px;}
+.sheet:has(#group-create-form)>.sbody {display:flex;flex:1;min-width:0;max-width:100%;min-height:0;overflow:hidden;}
+.group-create-form {display:flex;flex:1;min-width:0;max-width:100%;min-height:0;flex-direction:column;gap:0;}
+.group-create-fields {flex:1;min-width:0;max-width:100%;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;padding-bottom:8px;}
 .group-create-form label {display:block;min-width:0;margin:0 0 8px;}
-.group-create-form input,.group-create-form select,.group-create-form textarea {display:block;width:100%;min-height:44px;margin-top:4px;font-size:16px;}
+.group-create-form input,.group-create-form select,.group-create-form textarea {display:block;width:100%;min-width:0;max-width:100%;min-height:44px;margin-top:4px;box-sizing:border-box;font-size:16px;}
+.group-create-form input[type=date] {-webkit-appearance:none;appearance:none;min-width:0;max-width:100%;width:100%;}
 .group-time-zone {display:flex;align-items:center;min-height:44px;margin:0 0 4px;}
 .group-zone-change {min-height:44px;padding:0;border:0;background:none;color:var(--accent);font:inherit;font-size:15px;text-align:left;}
 .group-time-zone [hidden] {display:none!important;}
 .group-create-form textarea {min-height:58px;}
 .group-create-footer {display:grid;flex:none;gap:8px;padding:8px 0 calc(env(safe-area-inset-bottom) + 8px);border-top:1px solid var(--line);background:var(--bg);}
 .group-create-footer :is(button,a) {min-height:44px;}
-.group-goal-fields {display:grid;grid-template-columns:minmax(0,1fr) minmax(80px,.7fr);gap:12px;}
+.group-goal-fields {display:grid;min-width:0;max-width:100%;grid-template-columns:minmax(0,1fr) minmax(0,.7fr);gap:12px;}
+.group-goal-fields>label {min-width:0;max-width:100%;}
 .group-create-form .small {margin:3px 0 8px;line-height:1.45;}
 .group-invite-actions {display:grid;gap:8px;margin:18px 0 8px;}
 .group-invite-link {margin:10px 0!important;padding:8px 0;color:var(--tx3);font-size:13px;overflow-wrap:anywhere;user-select:text;}
@@ -154,7 +159,7 @@
 @media(max-width:360px) {
  .group-title h1,.group-invite-card h1 {font-size:28px;}
  .group-goal>strong {max-width:calc(100% - 8px);font-size:16px;}
- .group-goal-fields {grid-template-columns:minmax(0,1fr) minmax(75px,.7fr);gap:8px;}
+ .group-goal-fields {grid-template-columns:minmax(0,1fr) minmax(0,.7fr);gap:8px;}
  .group-create-form label {margin-bottom:5px;}
  .group-time-zone {margin-top:8px;}
 }

@@ -28,6 +28,8 @@ Activity detail adds ten cases per phone: mapped, scrolled sticky header, sparse
 
 Friends adds eight cases per phone: an empty list, one friend with requests, and forty friends with requests in both themes, plus the long list with enlarged text. Each phone now requires thirty-eight captures. Me → Friends must show the saved list, keep the Find friends action and Requests summary reachable, and retain 44px manage targets without overflow. Search, suggestions and invite are measured on the separate Find friends screen in the browser suite. Fictional read-only API people come from `dev/demo/friends.cjs`; request/search actions run against guarded API accounts. Physical keyboard and VoiceOver acceptance remain separate.
 
+Groups adds the real Create a group sheet on both Simulator phones, in light/dark and normal/large text. The isolated fixture returns an empty group list and opens the sheet without submitting it. Measurements assert that the native event-date input matches the name field, and that the date, goal grid and labels stay within the scroll field with no horizontal overflow.
+
 
 Display-bridge diagnostics are injected before the fixture's network stand-ins, only in the disposable Simulator
 bundle. A forwarding observer around the two relevant plugin entries records actual getState call timing, result
@@ -51,7 +53,7 @@ semantics, the real production timeout, missing/malformed/rejected bridges and o
 The five `header-*` fixtures measure Me, Activity, Track, Progress and Nutrition in each theme. They retain the
 production layout and record shell/header/title and text-glyph bounds alongside actual UIKit window, status-bar,
 WebView frame and scroll insets. Health/GPS reads and push registration are replaced by explicit stand-ins; the
-display bridge and WebView geometry remain real. Each phone now has 48 captures. The regression requires all five headers to start at the measured native safe
+display bridge and WebView geometry remain real. With Groups added, each phone now has 52 captures. The regression requires all five headers to start at the measured native safe
 area, title positions to agree within 2pt, and visible header controls to retain 44px targets below the status
 area. It also rejects unexpected WebView/content insets. Browser fixture checks are separate from actual
 Simulator evidence; the earlier extra 10pt shell gap fails this check on both phones and in both themes.

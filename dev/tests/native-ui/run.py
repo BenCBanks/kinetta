@@ -73,7 +73,7 @@ for device in preferred:
   installed=None;recovered=False
   for theme in (('light',) if a.store else ('light','dark')):
    sim('ui',udid,'appearance',theme)
-   stages=[('header-me',16),('activity',16),('header-track',16),('header-food',16),('food',16),('header-progress',16),('header-activity',16)] if a.store else [(name,16) for name in ['header-me','header-activity','header-track','header-progress','header-food']]+[('recipe',16),('review',16),('food',16),('recipe',24),('food',24),('track-live',16),('track-map',16),('track-review',16),('track-live',24),('track-review',24),('activity',16),('activity-sticky',16),('activity-empty',16),('activity-map',16),('activity',24),('friends-empty',16),('friends-typical',16),('friends-heavy',16),('friends-heavy',24)]
+   stages=[('header-me',16),('activity',16),('header-track',16),('header-food',16),('food',16),('header-progress',16),('header-activity',16)] if a.store else [(name,16) for name in ['header-me','header-activity','header-track','header-progress','header-food']]+[('recipe',16),('review',16),('food',16),('recipe',24),('food',24),('track-live',16),('track-map',16),('track-review',16),('track-live',24),('track-review',24),('activity',16),('activity-sticky',16),('activity-empty',16),('activity-map',16),('activity',24),('friends-empty',16),('friends-typical',16),('friends-heavy',16),('friends-heavy',24),('groups-create',16)]
    for stage,root in stages:
     diagnostics['phase']=f'{theme} {stage} root={root}';(a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
     print(f'Native UI: {device["name"]} {theme} {stage} root={root}',flush=True)
@@ -105,7 +105,7 @@ for device in preferred:
     assert not metrics['errors'] and not metrics['overflow'] and not metrics['status'],metrics
     nav=metrics['navigation']
     assert nav['ready'],'Actual UIKit display-preference bridge must respond: '+json.dumps(metrics.get('display',{}),sort_keys=True)
-    assert nav['visible']==(stage in ('activity','activity-sticky','activity-empty') or stage.startswith(('friends-','header-'))),metrics
+    assert nav['visible']==(stage in ('activity','activity-sticky','activity-empty') or stage.startswith(('friends-','groups-','header-'))),metrics
     if a.store:
      raw=capture.read_bytes();dimensions=run('sips','-g','pixelWidth','-g','pixelHeight',str(capture))
      assert raw[:3]==b'\xff\xd8\xff' and re.search(r'pixelWidth: 1320\b',dimensions) and re.search(r'pixelHeight: 2868\b',dimensions),'Store JPEG must be native1320x2868, no alpha or resizing'
@@ -151,6 +151,13 @@ for device in preferred:
      assert all(r['width']>=44 and r['height']>=44 for r in friends['controls']),metrics
      if stage=='friends-empty':assert friends['empty'] and friends['emptyAction'] and friends['emptyAction']['width']>=44 and friends['emptyAction']['height']>=44,metrics
      if stage=='friends-heavy' and root==16:assert friends['firstFriend']['bottom']<nav['box']['y'],metrics
+    if stage.startswith('groups-'):
+     groups=metrics['groups'];fields=groups['fields'];date=groups['date'];name=groups['name'];grid=groups['grid']
+     assert fields and fields['scrollWidth']<=fields['clientWidth']+1,metrics
+     assert date and name and abs(date['width']-name['width'])<=1,metrics
+     assert date['x']>=fields['x']-.5 and date['right']<=fields['right']+.5,metrics
+     assert grid and grid['x']>=fields['x']-.5 and grid['right']<=fields['right']+.5,metrics
+     assert all(r and r['x']>=fields['x']-.5 and r['right']<=fields['right']+.5 for r in groups['labels']),metrics
     if stage.startswith('activity'):
      detail=metrics['activity'];assert detail['social']['hidden'],metrics
      if stage=='activity-map':
@@ -190,5 +197,5 @@ for device in preferred:
   if udid:sim('shutdown',udid,check=False,timeout=20);sim('delete',udid,check=False,timeout=20)
 import shutil
 shutil.rmtree(a.output/'KinettaLayout.app',ignore_errors=True)
-assert len(results)==(7 if a.store else 48*len(preferred)),'Every selected phone needs all forty-eight layout cases'
+assert len(results)==(7 if a.store else 50*len(preferred)),'Every selected phone needs all fifty layout cases'
 print(f'PASS {len(results)} actual native WebView layout captures with fictional API stand-ins; physical device checks remain separate')
