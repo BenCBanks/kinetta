@@ -1,5 +1,6 @@
 // Profile presentation is separate from audiences. Every number here is already filtered by the server.
 'use strict';
+const FEATURED_ACHIEVEMENT_LIMIT=4;
 const ProfileLayout=(()=>{
   const sections={recent:'Recent progress',mileage:'Distance chart',totals:'All-time totals',sports:'Sports',activities:'Activities'};
   const stats={activities:'Activities',distance:'Distance',time:'Time',active_days:'Active days'};
@@ -135,6 +136,15 @@ const ProfileLayout=(()=>{
   }
   const achievementDay=track=>(track.tiers||[]).reduce((day,tier)=>String(tier.day||'')>day?String(tier.day):day,'')||String(track.day||'');
   function startedAchievements(data){return (Array.isArray(data?.tracks)?data.tracks:[]).filter(t=>t&&Array.isArray(t.tiers)&&t.tiers.length>0).sort((a,b)=>achievementDay(b).localeCompare(achievementDay(a))||achievementLevel(b)-achievementLevel(a));}
+  async function featuredOptions(data,available){
+    await loadAchievementCatalog();
+    const eligible=new Set((Array.isArray(available)?available:[]).map(item=>item?.code).filter(code=>typeof code==='string'));
+    return startedAchievements(data).filter(track=>eligible.has(track.code)).map(track=>{
+      const level=achievementLevel(track),tier=achievementCurrentTier(track);
+      return {code:track.code,label:track.code==='sport:lift'?'Lift sessions':track.label||track.code,
+        detail:`Level ${level}${tier?.name?` · ${tier.name}`:''}`,icon:achievementAsset(tier,'me-featured-icon')};
+    });
+  }
   const achievementHref=track=>'/me/achievements/'+encodeURIComponent(track.code);
   function achievementJourneyGlyph(track){
     const label=String(track.tiers?.at(-1)?.label||track.label||'').toLowerCase();
@@ -239,7 +249,7 @@ const ProfileLayout=(()=>{
     return `<section class="profile-achievements" aria-label="Achievements"><h2><a href="/me/achievements">Achievements <span aria-hidden="true">›</span></a></h2><div class="profile-achievement-list" role="list" aria-label="Started achievement tracks" tabindex="0">${tracks.map(track=>achievementRow(track,levelUps)).join('')}</div></section>`;
   }
   function showcaseMarkup(data){
-    const items=(Array.isArray(data?.items)?data.items:[]).slice(0,3).map(item=>{
+    const items=(Array.isArray(data?.items)?data.items:[]).slice(0,FEATURED_ACHIEVEMENT_LIMIT).map(item=>{
       const code=String(item?.code||''),rank=Number(item?.rank);
       if(!code||!Number.isInteger(rank)||rank<1)return null;
       const tier=achievementTierAt(code,rank);
@@ -267,7 +277,7 @@ const ProfileLayout=(()=>{
     const clearPress=()=>{clearTimeout(timer);timer=0;press=null;};
     const suppress=()=>{suppressClick=true;clearTimeout(suppressTimer);suppressTimer=setTimeout(()=>{suppressClick=false;},900);};
     const openOptions=anchor=>{
-      const code=anchor.dataset.achievementCode,pinned=pinnedCodes.has(code),replace=!pinned&&pinnedCodes.size>=3;
+      const code=anchor.dataset.achievementCode,pinned=pinnedCodes.has(code),replace=!pinned&&pinnedCodes.size>=FEATURED_ACHIEVEMENT_LIMIT;
       sheet('Showcase',`<div class="card list"><button type="button" class="row-link" data-showcase-pin-action><span class="grow">${pinned?'Remove from profile':'Pin to profile'}</span>${svg('chev')}</button></div>`,(body,close)=>{
         const button=body.querySelector('[data-showcase-pin-action]');if(!button)return;
         button.onclick=async()=>{
@@ -396,7 +406,7 @@ const ProfileLayout=(()=>{
     if(chart)mileageChart(chart,r.mileage||{},'days',{shared:true});
     mountShowcase(box,r);feedMaps(box);wireCheers(box);mountAchievements(box,r);
   }
-  return {defaults,normalize,singlePeriod,numbers,content,mount,mountShowcase,distance,hours,labels:{sections,stats},sports,achievementPage};
+  return {defaults,normalize,singlePeriod,numbers,content,mount,mountShowcase,featuredOptions,distance,hours,labels:{sections,stats},sports,achievementPage};
 })();
 
 // Me leads with the card friends see, then a private dashboard (owner-approved mockup, 29 October 2026). The card uses the
@@ -606,6 +616,7 @@ const MeCard=(()=>{
       const start={name:App.me.name||'',bio:App.me.bio||'',layout:ProfileLayout.singlePeriod(App.me.profile_layout||data?.layout)};
       const value=structuredClone(start.layout),{sections:names,stats}=ProfileLayout.labels;
       let chosenPeriod=value.sections.includes('recent')?'recent':'totals',order=[...value.sections,...Object.keys(names).filter(k=>!value.sections.includes(k))].filter(k=>k!=='recent'&&k!=='totals'||k===chosenPeriod),busy=false;
+      let featuredTracks=[],featuredPins=[],featuredBusy=false;
       const sectionName=k=>k==='recent'||k==='totals'?'Numbers':names[k];
       const chip=(group,id,label,on)=>`<button type="button" class="me-chip" data-${group}="${esc(id)}" aria-pressed="${on}">${esc(label)}</button>`;
       box.innerHTML=`<form class="me-card-editor" novalidate>
@@ -616,11 +627,59 @@ const MeCard=(()=>{
         <p class="small muted me-editor-privacy">Your name, photo and bio are visible to people who find your profile.</p>
         <h3 id="card-period-label">Period</h3><div class="me-chips" data-card-period role="group" aria-labelledby="card-period-label"></div>
         <h3>Sections</h3><div class="me-editor-sections" data-card-sections></div>
+        <h3 id="card-featured-label">Featured achievements <span>· up to 4</span></h3><p class="small muted me-editor-featured-note">Choose achievements you've earned. Featured changes save immediately; Cancel won't undo them. Use the arrows to set their order.</p>
+        <div class="me-featured-editor" data-featured-list aria-labelledby="card-featured-label" aria-busy="true"><p class="small muted">Loading achievements…</p></div>
         <h3>Headline numbers <span>· up to 3</span></h3><div class="me-chips" data-card-stats></div>
         <h3>Featured sports <span>· up to 3 · none = all</span></h3><div class="me-chips" data-card-sports></div></form>`;
       const form=$('form',box),name=form.elements.name,bio=form.elements.bio,save=$('[data-card-save]',box),status=$('[data-card-status]',box),nameError=$('#card-name-error',box);
       const dirty=()=>name.value!==start.name||bio.value!==start.bio||JSON.stringify(value)!==JSON.stringify(start.layout);
-      const changed=text=>{save.disabled=busy||!dirty();if(text)status.textContent=text;};
+      const changed=text=>{save.disabled=busy||featuredBusy||!dirty();if(text)status.textContent=text;};
+      const featuredTarget=$('[data-featured-list]',box),featuredLabel=track=>track.label||track.code;
+      const renderFeatured=()=>{
+        const byCode=new Map(featuredTracks.map(track=>[track.code,track])),selected=new Set(featuredPins),details=track=>esc(track.detail||'');
+        const selectedRows=featuredPins.map((code,index)=>{
+          const track=byCode.get(code);if(!track)return '';const label=featuredLabel(track);
+          return `<div class="me-featured-row" role="listitem"><button type="button" class="me-featured-choice" data-featured-toggle="${esc(code)}" aria-pressed="true" aria-label="Remove ${esc(label)} from featured achievements"${featuredBusy?' disabled':''}><span class="me-featured-position">${index+1}</span>${track.icon||''}<span class="me-featured-copy"><b>${esc(label)}</b><small>${details(track)}</small></span></button><span class="me-featured-order" role="group" aria-label="Reorder ${esc(label)}"><button type="button" class="icon-btn me-featured-move-up" data-featured-move="${esc(code)}" data-step="-1" aria-label="Move ${esc(label)} up"${index===0||featuredBusy?' disabled':''}>${svg('down')}</button><button type="button" class="icon-btn" data-featured-move="${esc(code)}" data-step="1" aria-label="Move ${esc(label)} down"${index===featuredPins.length-1||featuredBusy?' disabled':''}>${svg('down')}</button></span></div>`;
+        }).join('');
+        const choices=featuredTracks.filter(track=>!selected.has(track.code)).map(track=>{
+          const label=featuredLabel(track),disabled=featuredBusy||featuredPins.length>=FEATURED_ACHIEVEMENT_LIMIT;
+          return `<button type="button" class="me-featured-choice" data-featured-toggle="${esc(track.code)}" aria-pressed="false" aria-label="Feature ${esc(label)}"${disabled?' disabled':''}>${track.icon||''}<span class="me-featured-copy"><b>${esc(label)}</b><small>${details(track)}</small></span><span class="me-featured-add">Add</span></button>`;
+        }).join('');
+        featuredTarget.setAttribute('aria-busy','false');
+        if(!featuredTracks.length){featuredTarget.innerHTML='<p class="small muted">No achievements to feature yet.</p>';return;}
+        featuredTarget.innerHTML=`${selectedRows?`<div class="me-featured-selected" role="list" aria-label="Featured achievements in order">${selectedRows}</div>`:'<p class="small muted">None featured.</p>'}<div class="me-featured-choices" role="group" aria-label="Choose achievements to feature">${choices}</div>`;
+        $$('[data-featured-toggle]',featuredTarget).forEach(button=>button.onclick=()=>{
+          if(!valid()||featuredBusy)return;const code=button.dataset.featuredToggle,next=featuredPins.includes(code)?featuredPins.filter(item=>item!==code):featuredPins.length<FEATURED_ACHIEVEMENT_LIMIT?[...featuredPins,code]:null;
+          if(next)saveFeatured(next);
+        });
+        $$('[data-featured-move]',featuredTarget).forEach(button=>button.onclick=()=>{
+          if(!valid()||featuredBusy)return;const next=[...featuredPins],i=next.indexOf(button.dataset.featuredMove),j=i+Number(button.dataset.step);
+          if(j<0||j>=next.length)return;[next[i],next[j]]=[next[j],next[i]];saveFeatured(next);
+        });
+      };
+      const loadFeatured=async()=>{
+        featuredTarget.setAttribute('aria-busy','true');featuredTarget.innerHTML='<p class="small muted">Loading achievements…</p>';
+        try{
+          const [data,showcase]=await Promise.all([api('/api/achievements'),api('/api/achievements/showcase')]);if(!valid())return;
+          featuredTracks=await ProfileLayout.featuredOptions(data,showcase?.available);if(!valid())return;
+          const earned=new Set(featuredTracks.map(track=>track.code));
+          featuredPins=(Array.isArray(showcase?.pinned)?showcase.pinned:[]).map(String).filter((code,index,list)=>earned.has(code)&&list.indexOf(code)===index).slice(0,FEATURED_ACHIEVEMENT_LIMIT);
+          renderFeatured();
+        }catch(error){
+          if(!valid())return;featuredTarget.setAttribute('aria-busy','false');featuredTarget.innerHTML=`<p class="small err" role="alert">${esc(error?.message||'Achievements are unavailable.')} <button type="button" class="linkbtn" data-featured-retry>Try again</button></p>`;
+          $('[data-featured-retry]',featuredTarget).onclick=loadFeatured;
+        }
+      };
+      const saveFeatured=async next=>{
+        if(!valid()||featuredBusy)return;featuredBusy=true;changed();renderFeatured();$('[data-card-cancel]',box).disabled=true;status.textContent='Saving featured achievements…';
+        try{
+          const result=await api('/api/achievements/showcase/pins',json('PUT',{pinned:next}));if(!valid())return;
+          featuredPins=Array.isArray(result?.pinned)?result.pinned:next;featuredBusy=false;invalidate('/api/achievements/showcase');ProfileLayout.mountShowcase(root,data||{mine:true});
+          $('[data-card-cancel]',box).disabled=busy;renderFeatured();changed('Featured achievements saved.');
+        }catch(error){
+          if(!valid())return;featuredBusy=false;$('[data-card-cancel]',box).disabled=busy;renderFeatured();changed(error?.message||'Featured achievements could not be saved.');
+        }
+      };
       const sizeBio=()=>{bio.style.height='auto';const style=getComputedStyle(bio),line=parseFloat(style.lineHeight)||22,padding=parseFloat(style.paddingTop)+parseFloat(style.paddingBottom)+2;bio.style.height=Math.max(line*2+padding,Math.min(bio.scrollHeight,line*3+padding))+'px';};
       const rows=focus=>{
         $('[data-card-sections]',box).innerHTML=order.map((k,i)=>{const on=value.sections.includes(k);return `<div class="me-edit-row${on?'':' off'}"><label class="me-section-toggle switch-row"><span>${sectionName(k)}</span><input type="checkbox" role="switch" data-show="${k}" aria-label="Show ${sectionName(k)}"${on?' checked':''}></label><button type="button" class="icon-btn" data-move="${k}" data-step="-1" aria-label="Move ${sectionName(k)} up"${i?'':' disabled'}><span class="profile-up">${svg('down')}</span></button><button type="button" class="icon-btn" data-move="${k}" data-step="1" aria-label="Move ${sectionName(k)} down"${i===order.length-1?' disabled':''}>${svg('down')}</button></div>`;}).join('');
@@ -641,9 +700,9 @@ const MeCard=(()=>{
       bio.oninput=()=>{$('[data-card-bio-count]',box).textContent=bio.value.length+'/280';sizeBio();changed();};
       $('[data-card-photo]',box).onclick=()=>{if(!valid())return;profilePhotoSheet(()=>{if(!valid())return;const photo=$('[data-card-photo]',box);photo.innerHTML=avatar(App.me,'lg')+'<small>Change</small>';const original=$('.me-card-id .me-card-avatar',card);if(original)original.innerHTML=avatar(App.me,'lg');invalidate('/api/me');invalidate('/api/people/');keep('/api/me',App.me);status.textContent='Photo saved. Your other edits are kept.';});};
       const close=()=>{finish();if(fromSettings&&live())go('/me',{replace:true});};
-      const cancel=$('[data-card-cancel]',box);cancel.onclick=()=>{if(valid()&&!busy&&(!dirty()||confirm('Discard your changes?')))close();};
+      const cancel=$('[data-card-cancel]',box);cancel.onclick=()=>{if(valid()&&!busy&&!featuredBusy&&(!dirty()||confirm('Discard your changes?')))close();};
       form.onsubmit=async e=>{
-        e.preventDefault();if(!valid()||busy||!dirty())return;
+        e.preventDefault();if(!valid()||busy||featuredBusy||!dirty())return;
         const trimmed=name.value.trim();if(!trimmed||trimmed.length>60){nameError.textContent='Enter a name between 1 and 60 characters.';name.setAttribute('aria-invalid','true');name.focus();return;}
         const body={name:trimmed,bio:bio.value.trim(),profile_layout:ProfileLayout.singlePeriod(value)};
         busy=true;cancel.disabled=true;save.disabled=true;save.textContent='Saving…';status.textContent='';
@@ -654,6 +713,7 @@ const MeCard=(()=>{
           if(valid()){finish(true);toast('Card saved');if(fromSettings)go('/me',{replace:true});else (onSaved||reload)?.();}
         }catch(x){if(valid()){status.textContent=x.message;save.textContent='Save';busy=false;cancel.disabled=false;changed();}}
       };
+      loadFeatured();
       sizeBio();if(focusName){card.scrollIntoView({block:'start'});name.focus({preventScroll:true});}else $('[data-show]',box)?.focus({preventScroll:true});
     }
     function finish(saved=false){editing=false;dim(false);draw();if(!data)loadCard();$('[data-card-edit]',card).focus({preventScroll:true});onEditEnd?.({saved});}

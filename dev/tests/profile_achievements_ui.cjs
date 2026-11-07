@@ -138,7 +138,7 @@ module.exports=async({browser,storageState,base,shots})=>{
    if(request.method()==='GET'&&url.pathname==='/api/achievements/showcase')return route.fulfill({json:{items:[],pinned:showcasePins,day_streak:0}});
    if(request.method()==='POST'&&url.pathname==='/api/achievements/showcase/pin'){
     const body=request.postDataJSON();pinRequests.push(body);let replaced=false;
-    if(body.pinned){if(!showcasePins.includes(body.code)){if(showcasePins.length>=3){showcasePins.shift();replaced=true;}showcasePins.push(body.code);}}
+    if(body.pinned){if(!showcasePins.includes(body.code)){if(showcasePins.length>=4){showcasePins.shift();replaced=true;}showcasePins.push(body.code);}}
     else showcasePins=showcasePins.filter(code=>code!==body.code);
     return route.fulfill({json:{pinned:showcasePins,replaced}});
    }
@@ -253,8 +253,11 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.deepEqual(showcasePins,['workouts'],'pinning stores the selected track');assert.match(await page.locator('#profile-achievement-page [data-achievement-code="workouts"]').getAttribute('aria-label'),/Pinned to profile/);
   assert.equal(new URL(page.url()).pathname,'/me/achievements','holding to pin does not open medal history');
   for(const code of ['journey','lifted','sport:run']){pinAction=await holdToPin(code);if(code==='sport:run')assert.equal(await pinAction.innerText(),'Pin to profile');await pinAction.click();await page.locator('.sheet').waitFor({state:'detached'});await waitForPin(code,true);}
-  assert.deepEqual(showcasePins,['journey','lifted','sport:run'],'a fourth pin replaces the oldest pin');
-  assert.equal(pinRequests.length,4,'each pin action sends one owner-scoped update');
+  assert.deepEqual(showcasePins,['workouts','journey','lifted','sport:run'],'four featured pins fit the limit');
+  pinAction=await holdToPin('consistency');assert.equal(await pinAction.innerText(),'Pin to profile');await pinAction.click();await page.locator('.sheet').waitFor({state:'detached'});
+  await waitForPin('consistency',true);await waitForPin('workouts',false);
+  assert.deepEqual(showcasePins,['journey','lifted','sport:run','consistency'],'a fifth pin replaces the oldest pin');
+  assert.equal(pinRequests.length,5,'each pin action sends one owner-scoped update');
   const journey=page.locator('#profile-achievement-page [data-achievement-code="journey"]');assert.match(await journey.getAttribute('href'),/\/me\/achievements\/journey$/,'each medallion links to its history');
   await setUnits('metric');
   await journey.click();await page.waitForURL('**/me/achievements/journey');

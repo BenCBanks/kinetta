@@ -1275,6 +1275,8 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
       <p class="small muted">Applies to new activities. Older activities keep their audience; you can change it for each workout.</p></div>
     <div class="card"><h2>What others see</h2><form class="sharing-switches" id="sh-d">${Object.entries(DETAIL_NAMES).map(([key,name])=>`<label class="switch-row"><span>${esc(name)}</span><input type="checkbox" role="switch" name="${key}"${s.details[key]?' checked':''}></label>`).join('')}</form>
       <p class="small muted">Distance, time and type are always shown to that audience. Splits and laps need pace. Private notes and Kit notes are never shared.</p></div>
+    <div class="card" id="sh-achievements-card"><label class="switch-row"><span>Share achievements</span><input type="checkbox" role="switch" id="sh-achievements" aria-describedby="sh-achievements-help"${s.share_achievements?' checked':''}></label>
+      <p class="small muted" id="sh-achievements-help">Friends can see your achievements and the ones you feature.</p></div>
     <div class="card"><h2>Friend search</h2><label class="check"><input type="checkbox" id="sh-find"${s.findable ? ' checked' : ''}> Let people find me by name</label>
       <p class="small muted">Off: you don't show up when people on this Kinetta search for friends. Friends you already have, and anyone who types your exact username, can still find you.</p></div>
     <div class="card" id="sh-contact-discovery"><h2>How people can find you</h2>
@@ -1305,24 +1307,26 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
   load('/api/blocks', drawBlocked, {maxAge: 0}).catch(() => {});
   const save = async (body, msg) => {
     if(sharingOwner!==readOwner()||!box.isConnected)return;
-    const controls=$$('button[data-vis],button[data-trim],#sh-d input,#sh-find',box);controls.forEach(b=>b.disabled=true);
+    const controls=$$('button[data-vis],button[data-trim],#sh-d input,#sh-find,#sh-achievements',box);controls.forEach(b=>b.disabled=true);
     try {
       await api('/api/sharing',json('PUT',body));if(sharingOwner!==readOwner())return;
       if(body.default){s.default=body.default;App.me.share_default=body.default;keep('/api/me',App.me);}
       if(body.trim_m!==undefined)s.trim_m=body.trim_m;
       if(body.details)s.details=body.details;
+      if(body.share_achievements!==undefined)s.share_achievements=body.share_achievements;
       invalidate('/api/');if(box.isConnected)toast(msg);
     }catch(x){
       if(sharingOwner===readOwner()&&box.isConnected){
         $$('[data-vis]',box).forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.vis===s.default)));
         $$('[data-trim]',box).forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.trim===s.trim_m)));
-        $$('input',f).forEach(b=>b.checked=!!s.details[b.name]);toast(x.message);
+        $$('input',f).forEach(b=>b.checked=!!s.details[b.name]);$('#sh-achievements',box).checked=!!s.share_achievements;toast(x.message);
       }
     }finally{if(sharingOwner===readOwner()&&box.isConnected)controls.forEach(b=>b.disabled=false);}
   };
   wireSeg(box, 'vis', (v) => save({default: v}, `New activities: ${VIS[v].toLowerCase()}`));
   wireSeg(box, 'trim', (m) => save({trim_m: +m}, m === '0' ? 'Maps show the whole route' : `Maps hide the first and last ${trimName(+m)}`));
   const f = $('#sh-d', box); f.onchange = () => save({details: readChecks(f)}, 'Saved');
+  $('#sh-achievements',box).onchange=e=>save({share_achievements:e.target.checked},'Saved');
   $('#sh-find', box).onchange = async (e) => {
     if(sharingOwner!==readOwner()||!box.isConnected)return;
     const on = e.target.checked;
