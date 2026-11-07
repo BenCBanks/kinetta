@@ -282,9 +282,10 @@ const MeCard=(()=>{
     const bio=showBio?(p.bio||'').trim():'',photo=avatar(p,'lg'),name=esc(p.name||p.login),handle=`<span data-type="secondary">@${esc(p.login)}</span>`;
     const initials=((p.name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase()||'?');
     const identity=link
-      ? `<a class="me-card-profile-link" href="${profileHref(p)}" aria-label="View your full profile: ${esc(initials)}${name}, ${handle.replace(/<[^>]*>/g,'')}"><span class="me-card-avatar">${photo}</span><span class="me-card-name"><h2>${name} <span class="me-profile-chevron" data-type="glyph" aria-hidden="true">›</span></h2><span class="me-card-meta">${handle}</span></span></a>${friends}`
+      ? `<span class="me-card-profile-link"><span class="me-card-avatar">${photo}</span><span class="me-card-name"><span class="me-card-name-heading"><h2>${name}</h2><span class="me-profile-chevron" aria-hidden="true">${svg('chev')}</span></span><span class="me-card-meta">${handle}</span></span></span>${friends}`
       : `<span class="me-card-avatar">${photo}</span><div class="me-card-name"><h2>${name}</h2><div class="me-card-meta">${handle}${friends}</div></div>`;
-    return `<section class="me-card" aria-label="${mine?'Your profile card':esc(p.name||p.login)+'’s profile card'}"><div class="me-card-banner">${pills}</div>
+    const openProfile=link?`<a class="me-card-open-link" href="${profileHref(p)}" aria-label="Open my profile"></a>`:'';
+    return `<section class="me-card${link?' me-card-open':''}" aria-label="${mine?'Your profile card':esc(p.name||p.login)+'’s profile card'}">${openProfile}<div class="me-card-banner">${pills}</div>
       <div class="me-card-body"><div class="me-card-id${link?' me-card-id-link':''}">${identity}</div>
         ${bio?bio.length>140?`<details class="me-about"><summary>About me</summary><p>${esc(bio)}</p></details>`:`<p class="me-profile-bio">${esc(bio)}</p>`:''}
         <div class="me-card-sections" aria-busy="true">${skel(1)}</div>
