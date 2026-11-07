@@ -93,6 +93,14 @@ def facts(c,uid,period,now=None,offset=0):
       WHERE start_time>=%s AND visibility<>'me' AND (prior IS NULL OR elapsed_s<prior)
       ORDER BY start_time DESC,elapsed_s LIMIT 1''',(uid,hi,lo)).fetchall()
     highlights.extend({'kind':'record','sport':r['sport'],'label':r['label'],'elapsed_s':r['elapsed_s']} for r in records)
+    # The Activity feed is already private to its owner, so it can show a private PR.
+    # Keep it separate from `highlights`, which is deliberately safe to put in a shared picture.
+    owner_best_effort=c.execute('''SELECT sport,label,elapsed_s FROM (
+        SELECT b.sport,b.label,b.elapsed_s,b.start_time,
+          min(b.elapsed_s) OVER(PARTITION BY b.sport,b.distance_m ORDER BY b.start_time,b.activity_id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS prior
+        FROM best_efforts b WHERE b.user_id=%s AND b.start_time<%s) x
+      WHERE start_time>=%s AND (prior IS NULL OR elapsed_s<prior)
+      ORDER BY start_time DESC,elapsed_s LIMIT 1''',(uid,hi,lo)).fetchone()
     food=c.execute(f'''SELECT day,count(*) AS entries,
          CASE WHEN bool_or({energy.unknown_sql('protein_g')}) THEN NULL ELSE sum(protein_g) END AS protein
        FROM food_entries WHERE user_id=%s AND day>=%s AND day<%s GROUP BY day''',(uid,start,end)).fetchall()
@@ -106,7 +114,7 @@ def facts(c,uid,period,now=None,offset=0):
     return {'period':period,'start':start,'end':end,'today':today,'tz':tz,'units':profile.get('units') or 'imperial',
       'activities':len(rows),'active_days':len(days),'distance_m':sum(d['distance_m'] for d in days.values()),
       'time_s':sum(d['time_s'] for d in days.values()),'top_sport':max(sports,key=sports.get) if sports else None,
-      'days':list(days.values()),'highlights':highlights[:2],'streak_weeks':streak,
+      'days':list(days.values()),'highlights':highlights[:2],'owner_best_effort':owner_best_effort,'streak_weeks':streak,
       'food':{'logged_days':len(food),'protein_goal_days':protein_days},'garmin_sources':sorted(sources),
       'monthly_offer':kind=='month' and back==1 and today.day<=7 and (len(rows)>=3 or len(food)>=7),
       'offset':offset}

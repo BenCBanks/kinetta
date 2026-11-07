@@ -49,7 +49,7 @@ class Recaps(unittest.TestCase):
         shared=self.activity('2026-11-02T12:00:00Z',distance=5000)
         with db.connect() as c:
             for aid,seconds in [(hidden,1400),(shared,1500)]:c.execute("INSERT INTO best_efforts(user_id,activity_id,sport,distance_m,label,elapsed_s,start_time) SELECT user_id,id,'run',5000,'5K',%s,start_time FROM activities WHERE id=%s",(seconds,aid))
-        d=self.facts();self.assertEqual(d['distance_m'],15000);self.assertEqual(d['highlights'],[{'kind':'longest','sport':'run','distance_m':5000}]);self.assertEqual(d['garmin_sources'],['Garmin Forerunner 965']);self.assertNotIn('PRIVATE ACTIVITY TITLE',str(d))
+        d=self.facts();self.assertEqual(d['distance_m'],15000);self.assertEqual(d['highlights'],[{'kind':'longest','sport':'run','distance_m':5000}]);self.assertEqual(d['owner_best_effort'],{'sport':'run','label':'5K','elapsed_s':1400});self.assertEqual(d['garmin_sources'],['Garmin Forerunner 965']);self.assertNotIn('PRIVATE ACTIVITY TITLE',str(d))
     def test_food_consistency_is_days_not_streaks_or_intake(self):
         with db.connect() as c:
             for day,protein in [('2026-10-01',160),('2026-10-05',149),('2026-10-20',150),('2026-10-24',None),('2026-10-25',160),('2026-10-27',160),('2026-10-31',160)]:
