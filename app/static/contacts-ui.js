@@ -212,7 +212,7 @@ const ContactsUI = (() => {
         ? `<details class="contacts-invites"><summary>Not on Kinetta <span>${inviteContacts.length}</span></summary><div class="contacts-list" role="list">${inviteContacts.map(contact => `<div class="contacts-person"><span class="contacts-avatar" aria-hidden="true">${esc((contact.name || 'Contact').trim().slice(0,1).toUpperCase() || '?')}</span><span class="contacts-person-copy"><b>${esc(contact.name || 'Contact')}</b></span><button type="button" class="contacts-invite linkbtn" data-invite-contact="${esc(contact.id)}" data-invite-name="${esc(contact.name || 'Contact')}">Invite</button></div>`).join('')}</div></details>`
         : '';
       frame(body + invitations, `<div class="contacts-actions"><p class="contacts-next-check" role="status">You can check again tomorrow</p><button type="button" class="linkbtn wide" id="contacts-done">Done</button></div>`);
-      $('#contacts-done', el).onclick = back;
+      $('#contacts-done', el).onclick = () => go('/me/friends?find=1');
       el.querySelectorAll('.contacts-add').forEach(button => {
         button.onclick = async () => {
           if (!live() || button.disabled) return;

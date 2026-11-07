@@ -113,6 +113,11 @@ async function runTheme(browser,theme){
  await page.locator('#contacts-entry').waitFor();
  assert.equal(await page.locator('#contacts-entry').count(),1,'Done returns to Find friends');
  assert.deepEqual(await page.evaluate(()=>({contacts:window.__contactsLastBatch.contacts.length,hashes:window.__contactsLastBatch.hashes.length})),{contacts:0,hashes:0},'leaving the screen scrubs contact names, IDs and hashes from transient memory');
+ await page.goto(base+'/me/friends/contacts?return=welcome');await page.locator('#contacts-continue').waitFor();
+ await page.locator('#contacts-continue').click();await page.getByRole('heading',{name:'On Kinetta',exact:true}).waitFor();
+ await page.locator('#contacts-done').click();await page.waitForURL('**/me/friends?find=1');
+ await page.locator('#contacts-entry').waitFor();
+ assert.equal(await page.locator('#contacts-entry').count(),1,'Done returns to Find friends when Contacts was opened from Welcome');
  await enter('rate-limited');await page.locator('#contacts-continue').click();await page.getByRole('heading',{name:'On Kinetta',exact:true}).waitFor();
  assert.equal(await page.locator('.contacts-matched-list .contacts-person').count(),2,'429 shows saved matches when available');
  assert.equal(await page.locator('.contacts-next-check').innerText(),'You can check again tomorrow');
@@ -126,9 +131,9 @@ async function runTheme(browser,theme){
  await enter('empty');await page.locator('#contacts-continue').click();await page.getByRole('heading',{name:'No one found yet'}).waitFor();
  assert.equal(await page.locator('.contacts-matched-list .contacts-person').count(),0,'unmatched contact names are not shown as Kinetta accounts');
  await capture('contacts-empty');
- assert.deepEqual(matchBodies.map(body=>Object.keys(body).sort()),[['hashes','salt'],['hashes','salt'],['hashes','salt'],['hashes','salt']]);
+ assert.deepEqual(matchBodies.map(body=>Object.keys(body).sort()),[['hashes','salt'],['hashes','salt'],['hashes','salt'],['hashes','salt'],['hashes','salt']]);
  assert(matchBodies.every(body=>JSON.stringify(body).includes('digest')&&!JSON.stringify(body).includes('Jordan Lee')),'the server receives hashes only, never local contact details');
- assert.equal(saltCalls,4,'each explicit Contacts check gets a salt');
+ assert.equal(saltCalls,5,'each explicit Contacts check gets a salt');
  assert.deepEqual(errors,[]);
  await context.close();
 }
