@@ -85,6 +85,7 @@
 .group-goal>small {color:var(--tx3);font-size:13px;}
 .group-goal>.group-week {color:var(--tx2);font-size:14px;line-height:1.35;overflow-wrap:anywhere;}
 .group-goal>.group-goal-hint {font-size:13px;line-height:1.35;}
+.group-goal>.group-total-note {color:var(--tx3);font-size:13px;line-height:1.35;}
 .group-week-cheer {min-width:0;margin-top:1px;}
 .group-goal>strong {min-width:0;font-size:16px;line-height:1.25;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;}
 .group-progress {display:block;width:100%;height:7px;margin:0;border:0;border-radius:999px;background:var(--line);color:var(--accent);overflow:hidden;appearance:none;-webkit-appearance:none;}
