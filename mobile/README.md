@@ -12,7 +12,15 @@ inside the app lives in `app/static/native.js` (it does nothing in a browser):
 
 Plugins: [`capacitor-health`](https://github.com/mley/capacitor-health) (HealthKit, later Health Connect) and
 `@capacitor/preferences` (keeps the server address and login). Both come in through Swift Package Manager; there is
-no CocoaPods.
+no CocoaPods. The native `KinettaContacts` plugin reads only a contact's name, email addresses and phone numbers after
+an explicit call. `ContactMatchCore` uses [PhoneNumberKit 4.3.0](https://github.com/marmelroy/PhoneNumberKit/blob/4.3.0/LICENSE)
+(MIT) to normalize email and region-aware E.164 phone numbers, then returns at most 2,000 per-request salted SHA-256
+hashes with a local name/id mapping. The caller gets a fresh salt from `/api/contacts/salt`
+and sends only `{salt, hashes}` to `/api/contacts/match`; it must never send the local contact mapping. Raw contact email
+addresses, contact phone numbers, names and local identifiers are never sent; the separate optional account phone
+number is stored by `/api/contacts/settings` for matching and recovery. The plugin does not save an address book or run
+in the background. Call it only after a pre-permission explanation and explicit action. The Contacts permission
+string describes this flow; the web feature owns match-result caching and must not retain unmatched contacts.
 
 ## Build
 
