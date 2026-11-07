@@ -32,7 +32,7 @@ async function until(page,fn,label){for(let i=0;i<120;i++){if(await page.evaluat
       const after=(await(await single.context.request.get(base+'/api/food/thread')).json()).messages.find(message=>message.reply_to===single.root.id);
       const remaining=(after?.result?.parts||[]).flatMap(part=>part.entries||[]);
       assert.equal(remaining.length,0,'the server draft no longer contains the removed food');
-      assert.equal((await(await single.context.request.get(base+'/api/food/day')).json()).entries.length,0,'removal does not create a diary row');
+      assert.equal((await(await single.context.request.get(base+'/api/food/day?d='+single.root.local_day)).json()).entries.length,0,'removal does not create a diary row');
       assert.deepEqual(single.errors,[],'single-food removal has no browser errors');await single.context.close();contexts.splice(contexts.indexOf(single.context),1);
       console.log(`Food removal ${theme}: minus becomes quantity-one trash and removes the draft food PASS`);
     }
