@@ -27,7 +27,7 @@ const until=async(p,fn,label,arg)=>{for(let n=0;n<150;n++){if(await p.evaluate(f
   },{root:size.root,native,base,token,pending});
   const page=await context.newPage(),errors=[],writes=[],responses=[];
   page.on('pageerror',e=>errors.push(e.message));page.on('response',r=>{if(new URL(r.url()).pathname===`/api/activities/${id}`)responses.push(r.status());});
-  await context.route('**/*',route=>{const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();if(!['GET','HEAD'].includes(request.method())){writes.push(url.pathname);return route.fulfill({json:{unread:0}});}return route.continue();});
+  await context.route('**/*',route=>{const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();if(request.method()==='POST'&&url.pathname==='/api/milestones/celebrate')return route.fulfill({json:{items:[],pending:false}});if(!['GET','HEAD'].includes(request.method())){writes.push(url.pathname);return route.fulfill({json:{unread:0}});}return route.continue();});
   return {context,page,errors,writes,responses};
  }
  try{

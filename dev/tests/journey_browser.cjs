@@ -34,6 +34,7 @@ async function context(browser,base,fixtures,sessions,test,theme='light'){
   if(u.pathname.startsWith('/__journey_tiles/'))return route.fulfill({contentType:'image/png',body:tile});
   if(current.action==='feedBack'&&method==='GET'&&u.pathname==='/api/challenges'&&++toolsReads>1)await new Promise(resolve=>setTimeout(resolve,250));
   if(u.pathname==='/api/challenges/signup/continue')return route.fulfill({json:{}});
+  if(method==='POST'&&u.pathname==='/api/milestones/celebrate')return route.fulfill({json:{items:[],pending:false}});
   if(current.id?.startsWith('notification-')&&u.pathname==='/api/notifications')return route.fulfill({json:{items:fixtures.journey.notifications,unread:0,push:{},push_ready:false}});
   if(current.kit&&u.pathname==='/api/me'){
    const response=await route.fetch({maxRedirects:0});assert.equal(response.status(),200,'Own account never redirects');const me=await response.json();return route.fulfill({response,json:{...me,kit_chat:true,ai_ok:true,ai_paused:false,coach:true,ai_access:{...me.ai_access,coach:{available:true,entitled:true}}}});
