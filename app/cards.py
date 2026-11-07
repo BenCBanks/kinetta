@@ -72,9 +72,11 @@ CARD_FOOTER_TOP=1050
 CARD_FEATURED_HEADER_HEIGHT=44
 CARD_FEATURED_MEDAL_SIZE=90
 CARD_FEATURED_VALUE_OFFSET=94
+CARD_FEATURED_UNIT_OFFSET=36
+CARD_FEATURED_UNIT_SIZE=22
 CARD_FEATURED_CONTEXT_OFFSET=165
 CARD_FEATURED_SLOT_GUTTER=24
-CARD_FEATURED_ROW_HEIGHT=230
+CARD_FEATURED_ROW_HEIGHT=256
 
 def featured_row_bounds(top,count):
     """Keep a complete featured row above the fixed card footer, or omit it."""
@@ -312,6 +314,16 @@ def image(c,row,request):
             if len(lines)<=max_lines or size<=14:break
             size-=1
         for index,line in enumerate(lines):draw_centered(line,cx,y+index*(size+3),size,color,max_width)
+    def featured_value(value,cx,y,size,max_width):
+        value=str(value);font=ImageFont.load_default(size=size)
+        if g.textlength(value,font=font)<=max_width:
+            centered(value,cx,y,size,'#15191D',max_width);return
+        number,separator,unit=value.partition(' ');unit_font=ImageFont.load_default(size=CARD_FEATURED_UNIT_SIZE)
+        if separator and g.textlength(number,font=font)<=max_width and g.textlength(unit,font=unit_font)<=max_width:
+            centered(number,cx,y,size,'#15191D',max_width)
+            centered(unit,cx,y+CARD_FEATURED_UNIT_OFFSET,CARD_FEATURED_UNIT_SIZE,'#15191D',max_width)
+            return
+        centered_lines(value,cx,y,size,'#15191D',max_width)
     y=100
     if 'photo' in d:
         p=c.execute('SELECT img FROM profile_photos WHERE user_id=%s',(row['user_id'],)).fetchone()
@@ -370,7 +382,7 @@ def image(c,row,request):
             for index,item in enumerate(items):
                 center=72+slot*(index+.5)
                 achievement_medal(g,center,y,CARD_FEATURED_MEDAL_SIZE,colors.get(item['code'],'#1F55D0'))
-                centered_lines(item['value'],center,y+CARD_FEATURED_VALUE_OFFSET,31,'#15191D',slot-CARD_FEATURED_SLOT_GUTTER)
+                featured_value(item['value'],center,y+CARD_FEATURED_VALUE_OFFSET,31,slot-CARD_FEATURED_SLOT_GUTTER)
                 centered_lines(item['context'],center,y+CARD_FEATURED_CONTEXT_OFFSET,20,'#4A535C',slot-CARD_FEATURED_SLOT_GUTTER)
             y=bounds[1]
     def wrapped(value,y,size,max_lines):

@@ -284,12 +284,38 @@ class Cards(unittest.TestCase):
    return original(draw,xy,value,*args,**kwargs)
   with patch('app.cards.payload',return_value=data),patch('app.cards.ImageDraw.ImageDraw.text',new=record):
    cards.image(None,{'user_id':self.ids[0]},None)
-  for value in ('12,345,678','workouts','405,041,971.6','ft'):
+  expected_sizes={'12,345,678':31,'workouts':cards.CARD_FEATURED_UNIT_SIZE,
+                  '405,041,971.6':31,'ft':cards.CARD_FEATURED_UNIT_SIZE}
+  for value,size in expected_sizes.items():
    match=[entry for entry in drawn if entry[0]==value]
    self.assertTrue(match,(value,drawn))
-   self.assertEqual(match[0][1],31,(value,match))
+   self.assertEqual(match[0][1],size,(value,match))
    self.assertLessEqual(match[0][2],936/2-cards.CARD_FEATURED_SLOT_GUTTER,(value,match))
-  self.assertEqual(cards.CARD_FEATURED_CONTEXT_OFFSET,165)
+  unit_y=[entry[3] for entry in drawn if entry[0]=='ft']
+  self.assertEqual(unit_y,[305+cards.CARD_FEATURED_HEADER_HEIGHT+cards.CARD_FEATURED_VALUE_OFFSET+cards.CARD_FEATURED_UNIT_OFFSET])
+  context_y=305+cards.CARD_FEATURED_HEADER_HEIGHT+cards.CARD_FEATURED_CONTEXT_OFFSET
+  self.assertLess(unit_y[0]+cards.CARD_FEATURED_UNIT_SIZE,context_y)
+ def test_two_line_label_fits_the_reserved_featured_row(self):
+  items=[{'code':'journey','value':'1 mi','context':'All-sport distance'},
+         {'code':'sport:walk-hike','value':'1 mi','context':'Walking & hiking distance'},
+         {'code':'workouts','value':'1 workout','context':'Workouts completed'},
+         {'code':'climbing','value':'1 ft','context':'Elevation climbed'}]
+  data={'username':'fictional runner','period':'none','sports':[],'achievements':items,
+        'garmin_sources':[],'url':'https://example.test/card/fictional'}
+  label_boxes=[];original=ImageDraw.ImageDraw.text;row_top=305
+  def record(draw,xy,value,*args,**kwargs):
+   if str(value) in ('Walking & hiking','distance'):
+    label_boxes.append((str(value),draw.textbbox(xy,str(value),font=kwargs.get('font'),anchor=kwargs.get('anchor'))))
+   return original(draw,xy,value,*args,**kwargs)
+  with patch('app.cards.payload',return_value=data),patch('app.cards.ImageDraw.ImageDraw.text',new=record):
+   cards.image(None,{'user_id':self.ids[0]},None)
+  self.assertEqual([label for label,_ in label_boxes],['Walking & hiking','distance'])
+  drawn_bottom=max(box[3] for _,box in label_boxes)
+  self.assertGreater(drawn_bottom-row_top,230)
+  self.assertLessEqual(drawn_bottom-row_top,cards.CARD_FEATURED_ROW_HEIGHT)
+  self.assertEqual(cards.CARD_FEATURED_ROW_HEIGHT,256)
+  self.assertEqual(cards.featured_row_bounds(794,4),(794,cards.CARD_FOOTER_TOP))
+  self.assertIsNone(cards.featured_row_bounds(795,4))
  def test_worst_case_featured_row_is_dropped_before_the_fixed_footer(self):
   photo=io.BytesIO();Image.new('RGB',(80,80),'#1F55D0').save(photo,format='JPEG')
   weeks=[{'week':(dt.date(2026,1,5)+dt.timedelta(weeks=i)).isoformat(),'distance_m':10000,'activities':1,'time_s':3600} for i in range(12)]
@@ -311,8 +337,8 @@ class Cards(unittest.TestCase):
   self.assertEqual(Image.open(io.BytesIO(png)).size,(1080,1350))
   self.assertEqual(len(data['sports']),9);self.assertEqual(decisions[0][1],4)
   self.assertGreater(decisions[0][0],cards.CARD_FOOTER_TOP);self.assertIsNone(decisions[0][2])
-  self.assertEqual(cards.featured_row_bounds(820,4),(820,cards.CARD_FOOTER_TOP))
-  self.assertIsNone(cards.featured_row_bounds(821,4))
+  self.assertEqual(cards.featured_row_bounds(794,4),(794,cards.CARD_FOOTER_TOP))
+  self.assertIsNone(cards.featured_row_bounds(795,4))
   self.assertEqual(medal.call_count,0);self.assertNotIn('Featured achievements',labels)
  def test_single_long_words_are_clipped_inside_each_featured_slot(self):
   def render(value,context):
