@@ -21,7 +21,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
  assert.match(food,/const fresh = !D\.has_history && !D\.entries\.length && goal == null;/);
  assert.match(food,/D\.has_history \? `<div class="food-copy-action"/,'One quiet Copy yesterday button is available with food history');
  assert.doesNotMatch(food,/data-usual-meal=/,'Usuals stays in Add food');
- assert.doesNotMatch(food,/data-yesterday-meal=/,'Empty meals do not repeat the copy action');
+ assert.match(food,/sameYesterdayMealMarkup\(D,m,today\)/,'only an empty meal with yesterday data gets a repeat action');
+ assert.doesNotMatch(food,/data-yesterday-meal=/,'the old copy action is not restored inside every meal');
  assert.equal((food.match(/id="fd-copy"/g)||[]).length,1,'Only one copy button is rendered');
  assert.doesNotMatch(food,/Reminders · optional|edit or create/,'no run-on link line');
  assert.match(food,/\['reminders', 'Meal reminders'/,'reminders moved into More');

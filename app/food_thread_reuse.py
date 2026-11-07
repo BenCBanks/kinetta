@@ -8,6 +8,7 @@ from . import db, food_thread, food_thread_log as engine, meal_chat
 
 WINDOW = dt.timedelta(minutes=30)
 REPEAT = re.compile(r'^(?:another|one more|again|same(?: as)?|a second)\b(.*)$')
+YESTERDAY_MEAL = re.compile(r'^same\s+(breakfast|lunch|dinner|snacks?)\s+as\s+yesterday[.!?]*$')
 HALF_MORE = re.compile(r'^half\s+(?:a\s+)?(?:piece|slice|portion|serving|cup|bite|spoonful)\s+more\b(.*)$')
 COUNTS = {**meal_chat.COUNTS, **meal_chat.SHARES}
 QUANTITY_WORDS = {'and', 'a', 'an', 'half'}
@@ -51,6 +52,14 @@ def parse_repeat(text):
     if not (scale > 0 and scale <= 100):
         return None
     return scale, words
+
+
+def parse_yesterday_meal(text):
+    """Recognize the explicit meal-copy phrase without involving food understanding."""
+    match = YESTERDAY_MEAL.fullmatch(meal_chat.norm(text).strip())
+    if not match:
+        return None
+    return meal_chat.MEAL_WORDS.get(match.group(1), match.group(1))
 
 
 def _root_id(row):
@@ -163,6 +172,27 @@ def _copy(c, uid, message, group, day, meal, scale):
     return refs.choose(c, uid, message, result)
 
 
+def _copy_yesterday_meal(c, uid, message, meal):
+    from . import food_thread_refs as refs
+    day = message['local_day']
+    source_day = day - dt.timedelta(days=1)
+    rows = c.execute('''SELECT * FROM food_entries WHERE user_id=%s AND day=%s AND meal=%s
+                        ORDER BY position,id FOR UPDATE''', (uid, source_day, meal)).fetchall()
+    if not rows:
+        return food_thread.finish_reply(c, uid, message, {
+            'kind': 'needs', 'text': f'No {meal} was logged yesterday.', 'choices': [],
+            'day': str(day), 'meal': meal, 'source': 'your food log',
+            'as_of': dt.datetime.now(dt.timezone.utc).isoformat()})
+    copied = {'kind': 'needs', 'day': str(day), 'meal': meal,
+              'reference': {'kind': 'copy', 'ids': [int(row['id']) for row in rows],
+                            'expected': refs.stamp(rows), 'scale': 1},
+              'same_as': max(row['created'] for row in rows).isoformat(),
+              'reuse_label': f"Yesterday's {meal}", 'source': 'your food log'}
+    if (food_thread.preferences(c, uid) or {}).get('auto_log', True):
+        copied['fast_reuse'] = True
+    return refs.choose(c, uid, message, copied)
+
+
 def process(uid, mid):
     from . import food_thread_refs as refs
     with db.connect() as c:
@@ -171,9 +201,22 @@ def process(uid, mid):
         if not probe:
             return None
         metadata = probe.get('result') or {}
+        if probe['kind'] != 'user' or (metadata.get('input') or {}).get('kind', 'text') != 'text':
+            return None
+        yesterday_meal = parse_yesterday_meal(probe['body'])
+        if yesterday_meal:
+            if probe['state'] == 'answered':
+                message = engine.locked_message(c, uid, mid)
+                return food_thread.answer_with(c, uid, message)
+            if probe['state'] != 'pending':
+                return None
+            message = engine.locked_message(c, uid, mid)
+            if message['state'] != 'pending':
+                return food_thread.answer_with(c, uid, message) if message['state'] == 'answered' else None
+            return _copy_yesterday_meal(c, uid, message, yesterday_meal)
         parsed = parse_repeat(probe['body'])
         repeat_entry_id = metadata.get('repeat_entry_id')
-        if not parsed or probe['kind'] != 'user' or (metadata.get('input') or {}).get('kind', 'text') != 'text':
+        if not parsed:
             return None
         if probe['state'] == 'answered':
             message = engine.locked_message(c, uid, mid)

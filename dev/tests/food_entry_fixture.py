@@ -6,10 +6,10 @@ from kc import person,PW
 base=urlparse(os.environ.get('KINETTA_URL','http://localhost:8798'));project=os.environ.get('KINETTA_PROJECT','kinettatest')
 assert base.hostname in ('localhost','127.0.0.1') and (project.startswith('kt-') or project=='kinettatest')
 def login_for(who):
- return {'648fastlight':'zz_test_648_fl','648fastdark':'zz_test_648_fd','648chiplight':'zz_test_648_cl','648chipdark':'zz_test_648_cd','648amblight':'zz_test_648_al','648ambdark':'zz_test_648_ad'}.get(who,'zz_test_food_compact_'+who)
+ return {'648fastlight':'zz_test_648_fl','648fastdark':'zz_test_648_fd','648chiplight':'zz_test_648_cl','648chipdark':'zz_test_648_cd','648amblight':'zz_test_648_al','648ambdark':'zz_test_648_ad','655chiplight':'zz_test_655_cl','655chipdark':'zz_test_655_cd','655occupied':'zz_test_655_occ','655past':'zz_test_655_past','655chat':'zz_test_655_chat','655none':'zz_test_655_none'}.get(who,'zz_test_food_compact_'+who)
 port=subprocess.check_output(['docker','inspect','--format','{{(index (index .NetworkSettings.Ports "8000/tcp") 0).HostPort}}',project+'-app-1'],text=True).strip();assert base.port==int(port)
-for who in ('empty','one','three','photo','clarify','actions','nullable','barcode','logged','context','copy','edit','recent','recentd','untitled','multi','multid','mixed','add390l','add390d','add330l','add330d','askkit','queue','path','restored','recipe','638one','6381d','638three','6383d','638undo','638ud','638think','638dark','648fastlight','648fastdark','648chiplight','648chipdark','648amblight','648ambdark'):
- c=person(login_for(who));assert c.post('/api/account/delete',{'password':PW})[0]==200;c=person(login_for(who),'River '+who.title());ai_ok=who in ('barcode','askkit');timezone='America/New_York' if who.startswith(('638','648')) else 'UTC';assert c.put('/api/profile',{'tz':timezone,'ai_ok':ai_ok,'ai_adult':ai_ok})[0]==200
+for who in ('empty','one','three','photo','clarify','actions','nullable','barcode','logged','context','copy','edit','recent','recentd','untitled','multi','multid','mixed','add390l','add390d','add330l','add330d','askkit','queue','path','restored','recipe','638one','6381d','638three','6383d','638undo','638ud','638think','638dark','648fastlight','648fastdark','648chiplight','648chipdark','648amblight','648ambdark','655chiplight','655chipdark','655occupied','655past','655chat','655none'):
+ c=person(login_for(who));assert c.post('/api/account/delete',{'password':PW})[0]==200;c=person(login_for(who),'River '+who.title());ai_ok=who in ('barcode','askkit');timezone='America/New_York' if who.startswith(('638','648','655')) else 'UTC';assert c.put('/api/profile',{'tz':timezone,'ai_ok':ai_ok,'ai_adult':ai_ok})[0]==200
 script=r'''
 import datetime as dt,uuid
 from zoneinfo import ZoneInfo
@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 from app import db,api_food as F,food_thread as T,food_thread_compose as C,food_thread_sources as S
 from app.main import app
 def login_for(who):
- return {'648fastlight':'zz_test_648_fl','648fastdark':'zz_test_648_fd','648chiplight':'zz_test_648_cl','648chipdark':'zz_test_648_cd','648amblight':'zz_test_648_al','648ambdark':'zz_test_648_ad'}.get(who,'zz_test_food_compact_'+who)
+ return {'648fastlight':'zz_test_648_fl','648fastdark':'zz_test_648_fd','648chiplight':'zz_test_648_cl','648chipdark':'zz_test_648_cd','648amblight':'zz_test_648_al','648ambdark':'zz_test_648_ad','655chiplight':'zz_test_655_cl','655chipdark':'zz_test_655_cd','655occupied':'zz_test_655_occ','655past':'zz_test_655_past','655chat':'zz_test_655_chat'}.get(who,'zz_test_food_compact_'+who)
 # Same fixed instant as the browser clock: noon in the food profile's New York timezone.
 test_now=dt.datetime(2026,11,6,12,tzinfo=ZoneInfo('America/New_York'))
 today=test_now.date()
@@ -133,5 +133,26 @@ for who,groups in repeat_groups.items():
                  VALUES (%s,%s,'lunch',%s,%s,%s,%s,2,18,4,'quick','{}',%s,%s,%s,%s)""",
               (uid,repeat_day,name,amount,unit,kcal,index,f'{group_id}-{index:02d}',created,created))
 print('recent fictional repeat groups ready')
+same_yesterday={
+ '655chiplight':(1,[('Oats',1,'serving',150),('Coffee',1,'cup',5),('Berries',1,'cup',70)]),
+ '655chipdark':(1,[('Oats',1,'serving',150),('Coffee',1,'cup',5),('Berries',1,'cup',70)]),
+ '655occupied':(1,[('Oats',1,'serving',150),('Coffee',1,'cup',5)]),
+ '655past':(2,[('Oats',1,'serving',150)]),
+ '655chat':(1,[('Oats',1,'serving',150),('Coffee',1,'cup',5)]),
+}
+for who,(days_ago,items) in same_yesterday.items():
+ with db.connect() as c:
+  uid=c.execute('SELECT id FROM users WHERE login=%s',(login_for(who),)).fetchone()['id'];source_day=repeat_day-dt.timedelta(days=days_ago)
+  for position,(name,amount,unit,kcal) in enumerate(items,1):
+   created=dt.datetime.combine(source_day,dt.time(8+position-1),dt.timezone.utc)
+   c.execute("""INSERT INTO food_entries(user_id,day,meal,name,amount,unit,kcal,protein_g,carbs_g,fat_g,source,ref,position,client_id,created,updated)
+                VALUES (%s,%s,'breakfast',%s,%s,%s,%s,4,20,3,'quick','{}',%s,%s,%s,%s)""",
+             (uid,source_day,name,amount,unit,kcal,position,str(uuid.uuid4()),created,created))
+  if who=='655occupied':
+   created=dt.datetime.now(dt.timezone.utc)
+   c.execute("""INSERT INTO food_entries(user_id,day,meal,name,amount,unit,kcal,protein_g,carbs_g,fat_g,source,ref,position,client_id,created,updated)
+                VALUES (%s,%s,'breakfast',%s,1,'piece',100,1,25,0,'quick','{}',1,%s,%s,%s)""",
+             (uid,repeat_day,"Today's banana",str(uuid.uuid4()),created,created))
+print('yesterday-meal fictional fixtures ready')
 '''
 subprocess.run(['docker','exec','-i',project+'-app-1','python','-'],input=script,text=True,check=True)
