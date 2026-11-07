@@ -85,7 +85,7 @@ const assertRingText=async(container,label)=>{
 module.exports=async({browser,storageState,base,shots})=>{
  for(const theme of ['light','dark']){
   const context=await browser.newContext({storageState,viewport:{width:390,height:844},colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'});
-  const page=await context.newPage(),errors=[],writes=[];let journeyValue=6099414,workoutValue=1120,unitMode='imperial';
+  const page=await context.newPage(),errors=[],writes=[];let journeyValue=6099414,workoutValue=1120,unitMode='imperial',unitLabelValues=null;
   page.on('pageerror',e=>errors.push(e.message));
   await context.addInitScript(()=>{window.__achievementVibrations=0;const original=navigator.vibrate?.bind(navigator);navigator.vibrate=(...args)=>{window.__achievementVibrations++;return original?original(...args):false;};});
   await page.route('**/*',async route=>{
@@ -98,6 +98,7 @@ module.exports=async({browser,storageState,base,shots})=>{
     if(journey){journey.value=journeyValue;journey.display_value=unitMode==='imperial'?journeyValue/1609.344:journeyValue/1000;journey.display_unit=unitMode==='imperial'?'mi':'km';}
     if(workouts){workouts.value=workoutValue;workouts.display_value=workoutValue;}
     for(const track of data.tracks)if(['journey','sport:run','sport:ride','sport:walk-hike','sport:swim'].includes(track.code)){const value=Number(track.value)||0;track.display_value=unitMode==='imperial'?value/1609.344:value/1000;track.display_unit=unitMode==='imperial'?'mi':'km';}
+    for(const item of unitLabelValues||[]){const track=data.tracks.find(row=>row.code===item.code);if(track){track.display_value=item.value;track.display_unit=item.unit;}}
     for(const track of data.tracks)for(const item of track.tiers){const [shown,shownUnit]=displayHistoryTier(track.code,Number(item.threshold)||0,unitMode);item.unit=historyUnits[track.code]||item.unit;item.display_threshold=shown;item.display_unit=shownUnit;}
     return route.fulfill({json:data});
    }
@@ -161,6 +162,18 @@ module.exports=async({browser,storageState,base,shots})=>{
    await page.locator('.profile-achievement[data-achievement-code="workouts"]').evaluate(card=>card.getAnimations({subtree:true}).forEach(animation=>animation.cancel()));
   }
 
+  unitLabelValues=[['consistency',1,'weeks'],['active_time',1,'h'],['workouts',1,'workouts'],['sport:lift',1,'sessions'],['years_active',1,'years']].map(([code,value,unit])=>({code,value,unit}));
+  await page.goto(base+'/people/alex');await page.locator('.profile-achievements .profile-achievement-list').waitFor();
+  for(const [code,label] of [['consistency','1 week'],['active_time','1 hour'],['workouts','1 workout'],['sport:lift','1 session'],['years_active','1 year']]){
+   assert.equal(await page.locator(`.profile-achievement[data-achievement-code="${code}"] .profile-achievement-value`).innerText(),label,`${code} uses its singular unit`);
+  }
+  unitLabelValues=[['consistency',2,'weeks'],['active_time',2,'h'],['workouts',2,'workouts'],['sport:lift',2,'sessions'],['years_active',2,'years']].map(([code,value,unit])=>({code,value,unit}));
+  await page.goto(base+'/people/alex');await page.locator('.profile-achievements .profile-achievement-list').waitFor();
+  for(const [code,label] of [['consistency','2 weeks'],['active_time','2 hours'],['workouts','2 workouts'],['sport:lift','2 sessions'],['years_active','2 years']]){
+   assert.equal(await page.locator(`.profile-achievement[data-achievement-code="${code}"] .profile-achievement-value`).innerText(),label,`${code} uses its plural unit`);
+  }
+  unitLabelValues=null;
+
   await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
   const groups=page.locator('#profile-achievement-page .profile-achievement-group');
   assert.equal(await groups.count(),3,'started tracks are grouped into Overall, Distance and Strength');
@@ -212,6 +225,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   await setUnits('imperial');
   await page.goto(base+'/me/achievements/sport%3Arun');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
   const runningLevels=page.locator('.profile-achievement-levels ol');
+  assert.equal(await runningLevels.locator('li[data-level="2"] .profile-achievement-level-title b').innerText(),'First mile','imperial keeps Wren’s canonical Run name');
   for(const [level,name,distance] of [[3,'5K','3.1 mi'],[4,'10K','6.2 mi'],[5,'Half marathon','13.1 mi'],[6,'Marathon','26.2 mi']]){
    assert.equal(await runningLevels.locator(`li[data-level="${level}"] .profile-achievement-level-title b`).innerText(),name,`${name} keeps its race name in miles mode`);
    assert.equal(await runningLevels.locator(`li[data-level="${level}"] .profile-achievement-level-copy>small`).innerText(),distance,`${name} shows its converted distance in miles`);
@@ -261,6 +275,9 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.match(await earlyShowcase.locator('[data-achievement-code="sport:run"]').getAttribute('aria-label'),/First 1\.6 km/,'the run medal uses its metric display name');
   assert.equal(await earlyShowcase.locator('[data-achievement-code="sport:run"] .profile-achievement-value').innerText(),'1.6 km','the run medal value follows the metric preference');
   assert.match(await earlyShowcase.locator('[data-achievement-code="workouts"]').getAttribute('aria-label'),/First workout/,'the first workout is recognized as its own level');
+  assert.equal(await earlyShowcase.locator('[data-achievement-code="workouts"] [data-achievement-icon]').getAttribute('data-achievement-icon'),'Seedling','the first Workouts medal uses the seedling art');
+  assert.equal(catalog.tracks.workouts.levels[0].asset_name,'Seedling','the First workout icon is the approved catalog override');
+  assert.equal(catalog.tracks.workouts.levels[3].asset_name,'Beans','the later Sprout keeps the icon sequence unique');
   if(shots){fs.mkdirSync(shots,{recursive:true});await earlyShowcase.screenshot({path:`${shots}/achievement-early-showcase-390-${theme}.png`,animations:'disabled'});}
   achievementFixture.tracks=allFixtureTracks;
   const allFixtureTracksForFilter=achievementFixture.tracks;achievementFixture.tracks=allFixtureTracksForFilter.filter(track=>['lifted','sport:lift'].includes(track.code));

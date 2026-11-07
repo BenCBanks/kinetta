@@ -280,9 +280,10 @@ def achievement_candidates(c,uid,now,zone):
         reached=tracks.tiers_for(code,value)
         states.append(_state_item(code,value,reached,rows[0],zone,now))
         for tier in reached:
-            # The existing sport First milestone is the durable catalog row for
-            # this trigger, including distance-free indoor sessions.
-            if tracks.level_trigger(code,tier.rank)=='first_activity':
+            # Sport First rows are already durable catalog rows, including
+            # distance-free indoor sessions. Count-based First tiers still
+            # need their own threshold-keyed track row.
+            if code.startswith('sport:') and tracks.level_trigger(code,tier.rank)=='first_activity':
                 continue
             row=crossing.get(tier.threshold) or rows[-1]
             tiers.append(_tier_item(code,tier,row,zone,now))

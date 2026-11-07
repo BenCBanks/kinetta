@@ -41,6 +41,11 @@ const ProfileLayout=(()=>{
     footprints:'<path d="M8 13.1c-1.8-.2-3.3 1.6-3.7 4.1-.3 2.1.6 3.6 2.1 3.8 1.8.2 3.4-1.5 3.8-3.9.3-2.2-.6-3.7-2.2-4Zm-.3-3.3c1.2 0 2.1-1.7 2-3.6S8.7 3 7.5 3 5.4 4.7 5.5 6.6s.9 3.2 2.2 3.2Zm4.2 1.3c1.1-.5 1.3-2.3.5-4s-2-2.6-3.1-2.1-1.3 2.3-.5 4 2 2.6 3.1 2.1Zm7.1 2c-1.6-.5-3.1.9-3.8 3.2-.6 2.1 0 3.8 1.5 4.3 1.7.5 3.4-.9 4.1-3 .6-2.2 0-4-1.8-4.5Zm-2.4-3.4c1.1-.2 1.7-2 1.3-3.8s-1.5-3-2.7-2.7-1.8 2-1.4 3.8 1.6 2.9 2.8 2.7Z"/>'
   };
   const achievementNumber=n=>Number.isFinite(Number(n))?Number(n).toLocaleString(undefined,{maximumFractionDigits:1}):'—';
+  function achievementQuantity(value,unit=''){
+    const forms={week:['week','weeks'],weeks:['week','weeks'],hour:['hour','hours'],hours:['hour','hours'],h:['hour','hours'],workout:['workout','workouts'],workouts:['workout','workouts'],session:['session','sessions'],sessions:['session','sessions'],year:['year','years'],years:['year','years']};
+    const label=forms[String(unit||'').toLowerCase()],shownUnit=label?(Number(value)===1?label[0]:label[1]):unit;
+    return `${achievementNumber(value)}${shownUnit?' '+shownUnit:''}`;
+  }
   let achievementCatalog=null,achievementCatalogPromise=null;
   function loadAchievementCatalog(){
     if(achievementCatalog)return Promise.resolve(achievementCatalog);
@@ -108,15 +113,13 @@ const ProfileLayout=(()=>{
     return `<svg class="profile-achievement-icon" data-achievement-icon="${icon}" viewBox="0 0 24 24" aria-hidden="true">${achievementGlyphs[icon]||achievementGlyphs.trophy}</svg>`;
   }
   function achievementValue(track){
-    const value=achievementNumber(track.display_value),unit=track.display_unit||'';
-    return `${value}${unit?' '+unit:''}`;
+    return achievementQuantity(track.display_value,track.display_unit||'');
   }
   function achievementNext(track){
     const tier=achievementTierAt(track.code,achievementLevel(track)+1);if(tier)return tier.name;
     const next=track.next;if(!next)return '';
     if(['journey','climbing','lifted'].includes(track.code)&&next.label)return next.label;
-    const value=achievementNumber(next.display_threshold),unit=next.display_unit||'';
-    return `${value}${unit?' '+unit:''}`;
+    return achievementQuantity(next.display_threshold,next.display_unit||'');
   }
   function achievementThresholdText(track,tier){
     const raw=Number(tier?.canonical_value)||0,hint=Number(tier?.display_value),canonicalUnit=tier?.canonical_unit||'',code=track.code,imperial=App.me?.units!=='metric';
@@ -129,13 +132,10 @@ const ProfileLayout=(()=>{
     }
     if(code==='climbing')return `${achievementNumber(imperial&&Number.isFinite(hint)?hint:raw)} ${imperial?'ft':'m'}`;
     if(code==='lifted')return `${achievementNumber(imperial&&Number.isFinite(hint)?hint:raw)} ${imperial?'lb':'kg'}`;
-    if(code==='active_time')return `${achievementNumber(Number.isFinite(hint)?hint:canonicalUnit==='hours'?raw:raw/3600)} h`;
+    if(code==='active_time')return achievementQuantity(Number.isFinite(hint)?hint:canonicalUnit==='hours'?raw:raw/3600,'hours');
     const value=Number.isFinite(hint)?hint:Number(tier?.canonical_value)||0;
-    if(code==='consistency')return `${achievementNumber(value)} ${value===1?'week':'weeks'}`;
-    if(code==='years_active')return `${achievementNumber(value)} ${value===1?'year':'years'}`;
     if(code==='personal_bests')return `${achievementNumber(value)} ${value===1?'personal best':'personal bests'}`;
-    if(code==='sport:lift')return `${achievementNumber(value)} ${value===1?'session':'sessions'}`;
-    return `${achievementNumber(value)} ${canonicalUnit}`;
+    return achievementQuantity(value,canonicalUnit);
   }
   function achievementLevelRow(track,tier,currentLevel){
     const state=tier.level===currentLevel?'is-current':tier.level<currentLevel?'is-earned':'is-upcoming',status=tier.level===currentLevel?'Current level':tier.level<currentLevel?'Earned':'Coming up';
