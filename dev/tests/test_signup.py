@@ -103,6 +103,47 @@ class Signup(unittest.TestCase):
         self.assertEqual(new.post('/api/friends', json={'login': 'zz_test_su_old'}).status_code, 200)
         self.assertEqual(new.post(f'/api/activities/{oid}/comments', json={'text': 'hello'}).status_code, 200)
 
+    def test_new_profiles_use_public_sharing_defaults_without_changing_saved_choices(self):
+        self.env(KINETTA_SIGNUP='open')
+        existing = client()
+        self.assertEqual(existing.post('/api/signup', json=form('zz_test_su_defaults_existing')).status_code, 200)
+        with db.connect() as c:
+            existing_id = c.execute("SELECT id FROM users WHERE login='zz_test_su_defaults_existing'").fetchone()['id']
+            c.execute("UPDATE profile SET share_default='friends',share_details='{}',share_achievements=false,share_achievements_since=NULL,findable=false WHERE user_id=%s", (existing_id,))
+        existing_choices = existing.get('/api/sharing').json()
+        self.assertEqual(existing_choices['default'], 'friends')
+        self.assertFalse(existing_choices['details']['heart_rate'] or existing_choices['share_achievements'] or existing_choices['findable'])
+
+        import secrets
+        token = secrets.token_urlsafe(24)
+        token_hash = auth.token_hash(token)
+        with db.connect() as c:
+            c.execute("INSERT INTO invites (token_hash, expires) VALUES (%s, now() + interval '1 day')", (token_hash,))
+        def delete_invite():
+            with db.connect() as c: c.execute('DELETE FROM invites WHERE token_hash=%s', (token_hash,))
+        self.addCleanup(delete_invite)
+
+        accounts = (
+            ('/api/signup', 'zz_test_su_defaults_email', form('zz_test_su_defaults_email')),
+            ('/api/join', 'zz_test_su_defaults_invite', form('zz_test_su_defaults_invite', token=token)),
+        )
+        for endpoint, login, body in accounts:
+            account = client(); response = account.post(endpoint, json=body)
+            self.assertEqual(response.status_code, 200, (endpoint, response.text))
+            sharing = account.get('/api/sharing').json()
+            self.assertEqual(sharing['default'], 'everyone', (endpoint, sharing))
+            self.assertTrue(sharing['details']['heart_rate'], (endpoint, sharing['details']))
+            self.assertFalse(sharing['details']['calories'], (endpoint, sharing['details']))
+            self.assertTrue(sharing['share_achievements'] and sharing['findable'], (endpoint, sharing))
+            with db.connect() as c:
+                stored = c.execute('''SELECT p.share_details,p.share_achievements_since IS NOT NULL AS since_set,u.needs_email_confirm
+                                      FROM profile p JOIN users u ON u.id=p.user_id WHERE u.login=%s''', (login,)).fetchone()
+            self.assertTrue(stored['share_details']['heart_rate'] and stored['since_set'], (endpoint, stored))
+            if endpoint == '/api/signup':
+                self.assertTrue(stored['needs_email_confirm'], 'sharing defaults do not bypass email confirmation')
+
+        self.assertEqual(existing.get('/api/sharing').json(), existing_choices, 'new accounts do not change saved choices on existing profiles')
+
     def test_shared_strict_age_confirmation(self):
         self.env(KINETTA_SIGNUP='open')
         with db.connect() as c:
