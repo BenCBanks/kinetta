@@ -16,7 +16,7 @@ const PROGRESS_ROUTE_ASSET = '/static/progress-routes.js?v=__ASSET_HASH__';
 const SEGMENTS_ROUTE_ASSET = '/static/segments.js?v=__ASSET_HASH__';
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: ['/static/welcome.js?v=__ASSET_HASH__']},
-  {re: /^\/me\/explore$/, tab: 'me', scripts: ['/static/explore.js?v=__ASSET_HASH__']},
+  {re: /^\/me\/explore$/, tab: 'track', scripts: ['/static/explore.js?v=__ASSET_HASH__']},
   {re: /^\/notifications$/, tab: null, scripts: ['/static/social-notifications.js?v=__ASSET_HASH__']},
   {re: /^\/me\/notifications$/, tab: 'me', scripts: ['/static/social-notifications.js?v=__ASSET_HASH__']},
   {re: /^\/food\/import$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, '/static/food-import.js?v=__ASSET_HASH__']},
@@ -624,8 +624,8 @@ function sheet(title, html, onMount, opts = {}) {
 IC.mail = '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>';
 IC.paste = '<rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/>';
 IC.track = '<circle cx="12" cy="10" r="3"/><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/>';
-// Owner decision 2026-10-18 (#164): back to the original activity-first order; the shared ＋ Log tab is gone (food has one home, Nutrition).
-const TABS = [['me', 'Me'], ['activity', 'Activity'], ['track', 'Track'], ['progress', 'Progress'], ['food', 'Nutrition']];   // Me is home: first, and where the app opens
+// Owner decision #700 (7 Nov 2026): Home renames the Activity tab and moves first; Me moves last. Keep Track centred.
+const TABS = [['activity', 'Home'], ['progress', 'Progress'], ['track', 'Track'], ['food', 'Nutrition'], ['me', 'Me']];
 function route(re, tab, fn) { App.pages.push({re, tab, fn}); }
 function go(path, {replace = false} = {}) {
   App.scroll[location.pathname + location.search] = scrollY;
@@ -771,6 +771,7 @@ function render(options) {
   const useRoutePosition=routePosition?.key===key&&routePosition.owner===readOwner();
   const targetY=useRoutePosition?routePosition.y:pagePosition(key);
   const path = location.pathname.replace(/\/+$/, '') || '/me';
+  document.title = path === '/activity' ? 'Home' : 'Kinetta';
   const bundle = lazyRouteBundles.find((candidate) => candidate.re.test(path));
   if (bundle && bundle.scripts.some((file) => !classicScriptsLoaded.has(file))) {
     const owner = readOwner(), generation = ++lazyRouteGeneration, nextPosition={key,owner,y:targetY};

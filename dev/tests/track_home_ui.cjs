@@ -32,7 +32,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/track-saved-${medalCase}-${theme}.png`,fullPage:true,animations:'disabled'});}
    assert.deepEqual(errors,[]);assert(!writes.some(w=>!w.startsWith('/api/interval-presets/')&&w!=='/api/challenges/signup/continue'));console.log(`Saved workout ${medalCase} ${theme}: next-medal line and 25% threshold PASS`);await c.close();cleanup.pop();continue;
   }
-  assert.equal(await p.locator('h1').innerText(),'Track');assert.equal(await p.locator('#track-explore a').count(),native?4:3);assert.equal(await p.locator('#track-kind,.track-other').count(),0,'no extra global choice row');
+  assert.equal(await p.locator('h1').innerText(),'Track');assert.equal(await p.locator('#track-explore a').count(),native?5:4);assert.equal(await p.locator('#track-kind,.track-other').count(),0,'no extra global choice row');
   assert.equal(await p.locator('#track-explore').evaluate(n=>getComputedStyle(n).gridTemplateColumns.split(' ').length),2);
   assert(!/0 connected/.test(await p.locator('#track-explore').innerText()));assert.equal(await p.locator('#track-route').count(),0,'retired picker is not resurrected');
   for(const button of await p.locator('.track-quick button,.track-recording-options button').all())if(await button.isVisible()){const r=await button.boundingBox();assert(r.height>=44,'44px control');}
