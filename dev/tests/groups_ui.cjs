@@ -1,9 +1,10 @@
-// Fictional group fixtures. Captures group progress, Activity strip states, create/invite, and roster sizes.
+// Fictional group fixtures. Captures group progress, Activity strip, updates, event day, recap and roster states.
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',shots=process.env.KINETTA_SHOTS;
 const token='0123456789abcdef0123456789abcdef',idEmpty='00000000-0000-4000-8000-000000000001',idTwo='00000000-0000-4000-8000-000000000002',idThree='00000000-0000-4000-8000-000000000004',idFull='00000000-0000-4000-8000-000000000050',idLongGoal='00000000-0000-4000-8000-000000000003',idLongOwnGoal='00000000-0000-4000-8000-000000000005',idSix='00000000-0000-4000-8000-000000000006',idTen='00000000-0000-4000-8000-000000000010';
-const empty={id:idEmpty,title:'Dolomites hike',event_date:'2026-11-14',time_zone:'America/New_York',note:'Fictional event weekend',goal_type:'distance',goal_target:600,goal_unit:'mi',your_total:12,your_this_week_total:12,days_to_event:7,weeks_to_event:1,members:[{username:'alex',organizer:true,sharing_total_only:true}],member_count:1,is_organizer:true,joining_closed:false,closed:false};
+const idUpdates='00000000-0000-4000-8000-000000000011',idEventDay='00000000-0000-4000-8000-000000000012',idRecap='00000000-0000-4000-8000-000000000013';
+const empty={id:idEmpty,title:'Dolomites hike',event_date:'2026-11-14',time_zone:'America/New_York',note:'Fictional event weekend',goal_type:'distance',goal_target:600,goal_unit:'mi',your_total:12,your_this_week_total:12,days_to_event:7,weeks_to_event:1,event_state:'upcoming',weekly_reaction:{my_reaction:null,reactions:{}},updates:[],recap_consent:false,notifications_muted:false,members:[{username:'alex',organizer:true,sharing_total_only:true}],member_count:1,is_organizer:true,joining_closed:false,closed:false};
 const two={...empty,id:idTwo,members:[...empty.members,{username:'fictional_friend',organizer:false,sharing_total_only:true}],member_count:2};
 const three={...empty,id:idThree,total:214,this_week_total:38,this_week_contributors:3,members:[{username:'alex',organizer:true,value:12},{username:'fictional_friend',organizer:false,value:38},{username:'fictional_member',organizer:false,value:164}],member_count:3};delete three.your_total;delete three.your_this_week_total;
 const full={...three,id:idFull,members:Array.from({length:50},(_,i)=>({username:`fictional_member_${String(i+1).padStart(2,'0')}`,organizer:i===0,sharing_total_only:true})),member_count:50};
@@ -11,6 +12,12 @@ const longGoal={...three,id:idLongGoal,goal_type:'sessions',goal_target:600,goal
 const longOwnGoal={...empty,id:idLongOwnGoal,goal_type:'sessions',goal_target:600,goal_unit:'sessions',your_total:214};
 const six={...three,id:idSix,members:Array.from({length:6},(_,i)=>({username:i?'fictional_member_'+i:'alex',organizer:i===0,sharing_total_only:true})),member_count:6,this_week_contributors:4};
 const ten={...six,id:idTen,members:Array.from({length:10},(_,i)=>({username:i?'fictional_member_'+i:'alex',organizer:i===0,sharing_total_only:true})),member_count:10};
+const updatesGroup={...three,id:idUpdates,updates:[
+ {id:7001,username:'fictional_friend',name:'Fictional friend',photo:false,text:'Water stop is set for the trailhead.',created:'2026-11-07T11:40:00Z',can_delete:false,can_report:true,my_reaction:null,reactions:{}},
+ {id:7002,username:'fictional_member',name:'Fictional member',photo:false,text:'I’ll bring the printed route notes.',created:'2026-11-07T11:20:00Z',can_delete:false,can_report:true,my_reaction:'clap',reactions:{clap:1}}
+]};
+const eventDay={...empty,id:idEventDay,event_state:'today',days_to_event:0,weeks_to_event:0,event_date:'2026-11-07'};
+const recapGroup={...three,id:idRecap,event_state:'complete',days_to_event:0,weeks_to_event:0,event_date:'2026-11-02',recap:{event_date:'2026-11-02',total:214,participants:['alex','fictional_friend']},updates:[]};
 const stripGroup={id:idThree,title:'Dolomites hike',event_date:'2026-12-14',time_zone:'America/New_York',goal_target:600,goal_unit:'mi',total:214,member_count:6,days_to_event:217,weeks_to_event:31};
 const stripFixtures={one:{muted:false,has_upcoming:true,more_count:0,next:stripGroup},more:{muted:false,has_upcoming:true,more_count:1,next:stripGroup},none:{muted:false,has_upcoming:false}};
 const groupUrl=id=>`/groups/${id}`;
@@ -27,7 +34,7 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
  async function open(theme,width=390,stripState='none'){
   const context=await browser.newContext({viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'});contexts.push(context);
   const login=await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});assert.equal(login.status(),200,'isolated demo account login');
-  const postedGroups=[],stripPosts=[];let stripData={...stripFixtures[stripState]};
+  const postedGroups=[],postedUpdates=[],groupPreferences=[],stripPosts=[];let stripData={...stripFixtures[stripState]},updatesState={...updatesGroup,updates:updatesGroup.updates.map(row=>({...row}))};
   await context.route('**/api/**',async route=>{
    const req=route.request(),url=new URL(req.url()),method=req.method(),p=url.pathname;
    if(p==='/api/groups/activity-strip'&&method==='GET')return route.fulfill({json:stripData});
@@ -44,16 +51,27 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    if(p===`/api/groups/${idLongOwnGoal}`&&method==='GET')return route.fulfill({json:longOwnGoal});
    if(p===`/api/groups/${idSix}`&&method==='GET')return route.fulfill({json:six});
    if(p===`/api/groups/${idTen}`&&method==='GET')return route.fulfill({json:ten});
+   if(p===`/api/groups/${idUpdates}`&&method==='GET')return route.fulfill({json:updatesState});
+   if(p===`/api/groups/${idEventDay}`&&method==='GET')return route.fulfill({json:eventDay});
+   if(p===`/api/groups/${idRecap}`&&method==='GET')return route.fulfill({json:recapGroup});
+   if(p===`/api/groups/${idUpdates}/updates`&&method==='POST'){
+    const body=req.postDataJSON(),row={id:7003,username:'alex',name:'Alex Rivera',photo:false,text:body.text,created:new Date().toISOString(),can_delete:true,can_report:false,my_reaction:null,reactions:{}};
+    postedUpdates.push(body);updatesState.updates.unshift(row);return route.fulfill({json:row});
+   }
+   if(p===`/api/groups/${idUpdates}/updates/7001/reaction`&&method==='POST')return route.fulfill({json:{my_reaction:'heart',reactions:{clap:1,heart:1}}});
+   if(p===`/api/groups/${idUpdates}/updates/7001/reactions`&&method==='GET')return route.fulfill({json:{cheers:[{login:'fictional_member',name:'Fictional member',photo:false,kind:'clap'}]}});
+   if(p===`/api/groups/${idUpdates}/notifications`&&method==='POST'){groupPreferences.push({kind:'notifications',...req.postDataJSON()});updatesState.notifications_muted=req.postDataJSON().muted;return route.fulfill({json:{muted:updatesState.notifications_muted}});}
+   if(p===`/api/groups/${idUpdates}/recap-consent`&&method==='POST'){groupPreferences.push({kind:'recap',...req.postDataJSON()});updatesState.recap_consent=req.postDataJSON().consent;return route.fulfill({json:{consent:updatesState.recap_consent}});}
    if(p.startsWith('/api/groups/')&&method==='POST')return route.fulfill({json:{ok:true,invite_url:`https://example.test/group-invite/${token}`}});
    return route.continue();
   });
   const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize='16px'));
-  return{context,page,errors,postedGroups,stripPosts,stripState:()=>stripData};
+  return{context,page,errors,postedGroups,postedUpdates,groupPreferences,stripPosts,stripState:()=>stripData,updatesState:()=>updatesState};
  }
  try{
   for(const theme of ['light','dark']){
-   let context,page,errors,postedGroups,stripPosts,stripState;
+   let context,page,errors,postedGroups,postedUpdates,groupPreferences,updatesState,stripPosts,stripState;
    ({context,page,errors}=await open(theme,390,'one'));await page.goto(base+'/activity');await waitActivity(page);
    assert.match(await page.locator('#activity-groups-strip').innerText(),/Dolomites hike · 31 wk to go/);assert.doesNotMatch(await page.locator('#activity-groups-strip').innerText(),/Dec 14/);assert.match(await page.locator('#activity-groups-strip').innerText(),/Together: 214 mi of 600 mi/);
    assert.equal(await page.locator('[data-group-strip-mute]').count(),0,'the Activity strip has no separate Mute control');
@@ -119,6 +137,23 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    await page.locator('#group-options').click();const muteOption=page.locator('[data-gact="mute-strip"]');assert.equal(await muteOption.innerText(),'Mute Activity strip');await capture(page,`groups-options-mute-390-${theme}`,'.scrim');
    const muteResponse=page.waitForResponse(r=>r.url().endsWith('/api/groups/activity-strip')&&r.request().method()==='POST');await muteOption.click();assert.equal((await (await muteResponse).json()).muted,true,'group overflow mutes the Activity strip');assert.equal(stripPosts.at(-1).muted,true);assert.equal(stripState().muted,true);
    await page.goto(base+'/activity');await waitActivity(page);assert.equal(await page.locator('.feed-groups-muted').count(),1,'the overflow action hides the Activity strip');assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
+
+   ({context,page,errors,postedUpdates,groupPreferences,updatesState}=await open(theme));await page.goto(base+groupUrl(idUpdates));await page.locator('.group-updates').waitFor();
+   assert.deepEqual(await page.locator('[data-group-update]').evaluateAll(nodes=>nodes.map(node=>node.dataset.groupUpdate)),['7001','7002'],'updates are newest first');
+   assert.equal(await page.locator('#group-update-text').getAttribute('maxlength'),'200');assert.equal(await page.locator('[data-group-recap-image]').count(),0,'recap art is not prepared until the person taps Share');
+   assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'update page fits the phone');
+   await page.evaluate(()=>{const r=document.querySelector('.group-updates').getBoundingClientRect();window.scrollTo(0,r.top+scrollY-130);});await capture(page,`groups-updates-390-${theme}`,'.group-updates');
+   await page.locator('[data-update-options="7001"]').click();assert.equal(await page.locator('[data-update-action="report"]').innerText(),'Report update');assert.equal(await page.locator('[data-update-action="delete"]').count(),0,'only an author or organizer can delete');await page.locator('[data-close]').last().click();
+   await page.locator('[data-group-update="7001"] .reaction-more').click();const heart=page.locator('[role="menuitemradio"][data-react="heart"]').last();await heart.waitFor({state:'visible'});const reactionResponse=page.waitForResponse(r=>r.url().endsWith('/updates/7001/reaction')&&r.request().method()==='POST');await heart.click();assert.equal((await reactionResponse).status(),200);
+   const reportButton=page.locator('[data-update-options="7001"]');await reportButton.click();await page.locator('[data-update-action="report"]').click();await page.locator('#group-update-report-form').waitFor();assert.match(await page.locator('#group-update-report-form').innerText(),/aren’t told who sent it/);await page.locator('[data-close]').last().click();
+   await page.locator('#group-update-text').fill('Alex has the trail notes.');await page.locator('.group-update-form button[type=submit]').click();await page.locator('[data-group-update="7003"]').waitFor();assert.equal(postedUpdates[0].text,'Alex has the trail notes.');assert.equal(await page.locator('[data-group-update="7003"] p').innerText(),'Alex has the trail notes.');
+   await page.locator('#group-options').click();assert.equal(await page.locator('[data-gact="notifications"]').innerText(),'Mute group notifications');assert.equal(await page.locator('[data-gact="recap-consent"]').innerText(),'Include my name in the event recap');
+   const muteGroupResponse=page.waitForResponse(r=>r.url().endsWith('/api/groups/'+idUpdates+'/notifications')&&r.request().method()==='POST');await page.locator('[data-gact="notifications"]').click();assert.equal((await muteGroupResponse).status(),200);assert.deepEqual(groupPreferences[0],{kind:'notifications',muted:true});
+   await page.locator('#group-options').click();const consentResponse=page.waitForResponse(r=>r.url().endsWith('/api/groups/'+idUpdates+'/recap-consent')&&r.request().method()==='POST');await page.locator('[data-gact="recap-consent"]').click();assert.equal((await consentResponse).status(),200);assert.equal(updatesState().recap_consent,true);assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
+
+   ({context,page,errors}=await open(theme));await page.goto(base+groupUrl(idEventDay));assert.equal(await page.locator('.group-event-day').innerText(),'Today’s the day');assert.equal(await page.locator('.group-recap').count(),0);await capture(page,`groups-event-day-390-${theme}`,'.group-event-day');assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
+
+   ({context,page,errors}=await open(theme));await page.goto(base+groupUrl(idRecap));await page.locator('.group-recap').waitFor();assert.equal(await page.locator('.group-recap>strong').innerText(),'Together: 214 mi');assert.match(await page.locator('.group-recap-names').innerText(),/@alex · @fictional_friend/);await capture(page,`groups-recap-390-${theme}`,'.group-recap');await page.locator('[data-group-recap-share]').click();await page.locator('[data-group-recap-image]:visible').waitFor();assert.equal(await page.locator('[data-group-recap-send]').isEnabled(),true);await capture(page,`groups-recap-share-390-${theme}`,'.scrim');assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors}=await open(theme));await page.goto(base+groupUrl(idSix));await page.locator('.group-week').waitFor();
    assert.equal(await page.locator('.group-week').innerText(),'This week · +38 mi from 4 of 6 people');await capture(page,`groups-weekly-six-members-390-${theme}`);assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);

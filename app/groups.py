@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from . import account_email, auth, community_filter, db, notify
+from . import account_email, auth, community_filter, db, notify, reactions
 from .auth import current_user
 
 router = APIRouter()
@@ -60,6 +60,42 @@ class GroupReport(BaseModel):
 
 
 class GroupStripPreference(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    muted: bool
+
+
+class GroupUpdateCreate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    text: str = Field(min_length=1, max_length=200)
+
+    @field_validator('text')
+    @classmethod
+    def clean_text(cls, value):
+        value = value.strip()
+        if not value:
+            raise ValueError('Write an update first')
+        return value
+
+
+class GroupReaction(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    kind: str = Field(min_length=1, max_length=32)
+
+    @field_validator('kind')
+    @classmethod
+    def allowed_kind(cls, value):
+        kind = reactions.canonical(value)
+        if kind not in reactions.KINDS:
+            raise ValueError('Choose a reaction from the list')
+        return kind
+
+
+class GroupRecapConsent(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    consent: bool
+
+
+class GroupNotificationPreference(BaseModel):
     model_config = ConfigDict(extra='forbid')
     muted: bool
 
@@ -209,7 +245,8 @@ def _weekly_contributions(c, group, members, now):
 
 
 def _answer(c, group, uid):
-    members = c.execute('''SELECT m.user_id,m.joined_at,u.login::text AS username,u.photo_v AS photo,
+    members = c.execute('''SELECT m.user_id,m.joined_at,m.recap_consent,m.notifications_muted,
+                                  u.login::text AS username,u.photo_v AS photo,
                                   coalesce(p.share_achievements,false) AS share_total
                            FROM group_members m JOIN users u ON u.id=m.user_id
                            LEFT JOIN profile p ON p.user_id=u.id
@@ -226,6 +263,7 @@ def _answer(c, group, uid):
     days_to_event = max(0, (group['event_date'] - today).days)
     week_total = round(sum(weekly.values()), 3)
     week_contributors = sum(value > 0 for value in weekly.values())
+    me = next(member for member in members if member['user_id'] == uid)
     return {
         'id': str(group['id']), 'title': group['title'], 'event_date': group['event_date'].isoformat(),
         'time_zone': group['time_zone'], 'note': group['note'], 'goal_type': group['goal_type'],
@@ -235,13 +273,153 @@ def _answer(c, group, uid):
            if member_count >= 3 else {'your_this_week_total': weekly.get(uid, 0)}),
         'week_start': (local_day - dt.timedelta(days=local_day.weekday())).isoformat(),
         'days_to_event': days_to_event, 'weeks_to_event': (days_to_event + 6) // 7,
+        'event_state': 'upcoming' if today < group['event_date'] else 'today' if today == group['event_date'] else 'complete',
         'members': [{'username': m['username'], 'photo': m['photo'] or False,
                      'organizer': m['user_id'] == group['organizer_id'],
-                     **({'value': contributions.get(m['user_id'], 0)} if m['share_total'] else {'sharing_total_only': True})}
+                     **({'value': contributions.get(m['user_id'], 0)} if member_count >= 3 and m['share_total']
+                        else {'sharing_total_only': True} if not m['share_total'] else {})}
                     for m in visible],
         'member_count': member_count, 'is_organizer': uid == group['organizer_id'],
+        'recap_consent': bool(me['recap_consent']), 'notifications_muted': bool(me['notifications_muted']),
         'joining_closed': bool(group['joining_closed']), 'closed': bool(group['closed_at']),
     }
+
+
+def _reaction_summary(rows, uid):
+    counts = {kind: 0 for kind in reactions.KINDS}
+    mine = None
+    for row in rows:
+        if row['kind'] in counts:
+            counts[row['kind']] += 1
+        if row['user_id'] == uid:
+            mine = row['kind']
+    return {'my_reaction': mine, 'reactions': counts}
+
+
+def _group_updates(c, group, uid):
+    updates = c.execute('''SELECT u.id,u.user_id,u.text,u.created,p.login::text AS username,p.name,p.photo_v AS photo
+        FROM group_updates u JOIN users p ON p.id=u.user_id
+        WHERE u.group_id=%s AND NOT p.needs_email_confirm AND p.suspended_at IS NULL
+          AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.user_id=%s AND b.blocked=u.user_id)
+            OR (b.user_id=u.user_id AND b.blocked=%s))
+        ORDER BY u.created DESC,u.id DESC LIMIT 30''', (group['id'], uid, uid)).fetchall()
+    if not updates:
+        return []
+    ids = [row['id'] for row in updates]
+    reactions_by_id = {update_id: [] for update_id in ids}
+    rows = c.execute('''SELECT r.update_id,r.user_id,r.kind FROM group_update_reactions r
+        JOIN group_updates u ON u.id=r.update_id
+        JOIN group_members m ON m.group_id=u.group_id AND m.user_id=r.user_id AND m.status='active'
+        JOIN users p ON p.id=r.user_id AND NOT p.needs_email_confirm AND p.suspended_at IS NULL
+        WHERE r.update_id=ANY(%s) AND NOT EXISTS(SELECT 1 FROM blocks b
+          WHERE (b.user_id=%s AND b.blocked=r.user_id) OR (b.user_id=r.user_id AND b.blocked=%s))''',
+                       (ids, uid, uid)).fetchall()
+    for row in rows:
+        reactions_by_id[row['update_id']].append(row)
+    return [{'id': row['id'], 'username': row['username'], 'name': row['name'], 'photo': row['photo'] or False,
+             'text': row['text'], 'created': row['created'], 'can_delete': row['user_id'] == uid or uid == group['organizer_id'],
+             'can_report': row['user_id'] != uid,
+             **_reaction_summary(reactions_by_id[row['id']], uid)} for row in updates]
+
+
+def _weekly_reaction_rows(c, group, uid, week_start):
+    return c.execute('''SELECT r.user_id,r.kind FROM group_weekly_reactions r
+        JOIN group_members m ON m.group_id=r.group_id AND m.user_id=r.user_id AND m.status='active'
+        JOIN users p ON p.id=r.user_id AND NOT p.needs_email_confirm AND p.suspended_at IS NULL
+        WHERE r.group_id=%s AND r.week_start=%s AND NOT EXISTS(SELECT 1 FROM blocks b
+          WHERE (b.user_id=%s AND b.blocked=r.user_id) OR (b.user_id=r.user_id AND b.blocked=%s))''',
+                       (group['id'], week_start, uid, uid)).fetchall()
+
+
+def _group_recap(c, group, uid, answer, now):
+    today = now.astimezone(_zone(group['time_zone'])).date()
+    if today <= group['event_date']:
+        return None
+    members = c.execute('''SELECT m.user_id,m.joined_at,m.recap_consent,u.login::text AS username
+        FROM group_members m JOIN users u ON u.id=m.user_id
+        WHERE m.group_id=%s AND m.status='active' AND NOT u.needs_email_confirm AND u.suspended_at IS NULL''',
+                        (group['id'],)).fetchall()
+    visible = [member for member in members if not _blocked(c, uid, member['user_id'])]
+    contributions = _contributions(c, group, visible, now)
+    participants = [member['username'] for member in visible
+                    if member['recap_consent'] and contributions.get(member['user_id'], 0) > 0]
+    return {'event_date': group['event_date'].isoformat(), 'participants': participants,
+            **({'total': answer['total']} if 'total' in answer else {'your_total': answer['your_total']})}
+
+
+def _group_notice(c, group_id, recipient, actor, kind, update_id=None, week_start=None):
+    if recipient == actor or _blocked(c, recipient, actor):
+        return
+    member = c.execute('''SELECT notifications_muted FROM group_members
+                          WHERE group_id=%s AND user_id=%s AND status='active' ''', (group_id, recipient)).fetchone()
+    if not member or member['notifications_muted']:
+        return
+    c.execute('''INSERT INTO notifications(user_id,kind,actor_id,group_id,group_update_id,group_week_start)
+        VALUES(%s,%s,%s,%s,%s,%s)
+        ON CONFLICT(user_id,group_id) WHERE group_id IS NOT NULL AND kind IN ('group_update','group_cheer')
+        DO UPDATE SET kind=EXCLUDED.kind,actor_id=EXCLUDED.actor_id,group_update_id=EXCLUDED.group_update_id,
+          group_week_start=EXCLUDED.group_week_start,created=now(),read_at=NULL,cancelled=false,push_pending=false''',
+                 (recipient, kind, actor, group_id, update_id, week_start))
+
+
+def _group_notice_members(c, group_id, actor, kind, update_id=None, week_start=None):
+    members = c.execute('''SELECT m.user_id FROM group_members m JOIN users u ON u.id=m.user_id
+        WHERE m.group_id=%s AND m.status='active' AND NOT u.needs_email_confirm AND u.suspended_at IS NULL''',
+                        (group_id,)).fetchall()
+    for member in members:
+        _group_notice(c, group_id, member['user_id'], actor, kind, update_id, week_start)
+
+
+def _group_reaction_people(c, group, uid, update_id=None, week_start=None):
+    if update_id is not None:
+        rows = c.execute('''SELECT u.login::text AS login,u.name,u.photo_v AS photo,r.kind,r.user_id
+            FROM group_update_reactions r JOIN group_updates x ON x.id=r.update_id
+            JOIN group_members m ON m.group_id=x.group_id AND m.user_id=r.user_id AND m.status='active'
+            JOIN users u ON u.id=r.user_id AND NOT u.needs_email_confirm AND u.suspended_at IS NULL
+            WHERE r.update_id=%s AND NOT EXISTS(SELECT 1 FROM blocks b
+              WHERE (b.user_id=%s AND b.blocked=r.user_id) OR (b.user_id=r.user_id AND b.blocked=%s))
+            ORDER BY r.created,r.user_id''', (update_id, uid, uid)).fetchall()
+    else:
+        rows = c.execute('''SELECT u.login::text AS login,u.name,u.photo_v AS photo,r.kind,r.user_id
+            FROM group_weekly_reactions r JOIN group_members m ON m.group_id=r.group_id
+              AND m.user_id=r.user_id AND m.status='active'
+            JOIN users u ON u.id=r.user_id AND NOT u.needs_email_confirm AND u.suspended_at IS NULL
+            WHERE r.group_id=%s AND r.week_start=%s AND NOT EXISTS(SELECT 1 FROM blocks b
+              WHERE (b.user_id=%s AND b.blocked=r.user_id) OR (b.user_id=r.user_id AND b.blocked=%s))
+            ORDER BY r.created,r.user_id''', (group['id'], week_start, uid, uid)).fetchall()
+    return [{'login': row['login'], 'name': row['name'], 'photo': row['photo'] or False, 'kind': row['kind']}
+            for row in rows]
+
+
+def _update_reaction_rows(c, group, uid, update_id):
+    return c.execute('''SELECT r.user_id,r.kind FROM group_update_reactions r
+        JOIN group_updates u ON u.id=r.update_id
+        JOIN group_members m ON m.group_id=u.group_id AND m.user_id=r.user_id AND m.status='active'
+        JOIN users p ON p.id=r.user_id AND NOT p.needs_email_confirm AND p.suspended_at IS NULL
+        WHERE r.update_id=%s AND NOT EXISTS(SELECT 1 FROM blocks b
+          WHERE (b.user_id=%s AND b.blocked=r.user_id) OR (b.user_id=r.user_id AND b.blocked=%s))''',
+                       (update_id, uid, uid)).fetchall()
+
+
+def _visible_update(c, group, uid, update_id):
+    row = c.execute('''SELECT u.id,u.user_id,u.text,u.created,p.login::text AS username
+        FROM group_updates u JOIN users p ON p.id=u.user_id
+        WHERE u.id=%s AND u.group_id=%s AND NOT p.needs_email_confirm AND p.suspended_at IS NULL
+          AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.user_id=%s AND b.blocked=u.user_id)
+            OR (b.user_id=u.user_id AND b.blocked=%s))''', (update_id, group['id'], uid, uid)).fetchone()
+    if not row:
+        raise HTTPException(404, 'Group update not found')
+    return row
+
+
+def _group_detail(c, group, uid, answer):
+    updates = _group_updates(c, group, uid)
+    week_start = dt.date.fromisoformat(answer['week_start'])
+    weekly_rows = _weekly_reaction_rows(c, group, uid, week_start)
+    result = {'updates': updates, 'weekly_reaction': _reaction_summary(weekly_rows, uid)}
+    if answer['event_state'] == 'complete':
+        result['recap'] = _group_recap(c, group, uid, answer, _now())
+    return result
 
 
 @router.post('/api/groups')
@@ -307,7 +485,151 @@ def set_group_activity_strip(body: GroupStripPreference, user=Depends(current_us
 @router.get('/api/groups/{group_id}')
 def get_group(group_id: str, user=Depends(current_user)):
     with db.connect() as c:
-        return _answer(c, _group(c, group_id, user['id']), user['id'])
+        group = _group(c, group_id, user['id'])
+        answer = _answer(c, group, user['id'])
+        return {**answer, **_group_detail(c, group, user['id'], answer)}
+
+
+@router.post('/api/groups/{group_id}/updates')
+def create_group_update(group_id: str, body: GroupUpdateCreate, user=Depends(current_user)):
+    with db.connect() as c:
+        group = _group(c, group_id, user['id'], lock=True)
+        if group['closed_at']:
+            raise HTTPException(409, 'This group is closed')
+        from . import challenges
+        challenges.confirmed_for_challenge(c, user['id'])
+        community_filter.public(c, user['id'], ('group update', body.text))
+        from .signup import social_action
+        social_action(c, user['id'], 'comment')
+        row = c.execute('''INSERT INTO group_updates(group_id,user_id,text) VALUES(%s,%s,%s) RETURNING id''',
+                        (group['id'], user['id'], body.text)).fetchone()
+        _group_notice_members(c, group['id'], user['id'], 'group_update', update_id=row['id'])
+        return next(update for update in _group_updates(c, group, user['id']) if update['id'] == row['id'])
+
+
+@router.delete('/api/groups/{group_id}/updates/{update_id}')
+def delete_group_update(group_id: str, update_id: int, user=Depends(current_user)):
+    with db.connect() as c:
+        group = _group(c, group_id, user['id'], lock=True)
+        row = _visible_update(c, group, user['id'], update_id)
+        if row['user_id'] != user['id'] and group['organizer_id'] != user['id']:
+            raise HTTPException(404, 'Group update not found')
+        c.execute('DELETE FROM group_updates WHERE id=%s AND group_id=%s', (update_id, group['id']))
+    return {'ok': True}
+
+
+@router.post('/api/groups/{group_id}/updates/{update_id}/report')
+def report_group_update(group_id: str, update_id: int, body: GroupReport, user=Depends(current_user)):
+    with db.connect() as c:
+        group = _group(c, group_id, user['id'])
+        update = _visible_update(c, group, user['id'], update_id)
+        if update['user_id'] == user['id']:
+            raise HTTPException(400, "You can't report your own update")
+        if c.execute("SELECT count(*) AS n FROM reports WHERE reporter=%s AND status='open'", (user['id'],)).fetchone()['n'] >= 20:
+            raise HTTPException(429, 'You have a lot of reports waiting - the admins will get to them')
+        what = f'Group update in {group["title"]} by @{update["username"]}: "{update["text"]}"'
+        rid = c.execute('''INSERT INTO reports(reporter,person,kind,what,reason,note,group_id)
+            VALUES(%s,%s,'group',%s,%s,%s,%s) RETURNING id''',
+                        (user['id'], update['user_id'], what[:1000], body.reason,
+                         (body.note or '').strip() or None, group['id'])).fetchone()['id']
+        for admin in c.execute('SELECT id FROM users WHERE is_admin AND id<>%s', (user['id'],)).fetchall():
+            notify.add(c, admin['id'], 'report', user['id'])
+    return {'ok': True, 'id': rid}
+
+
+@router.post('/api/groups/{group_id}/updates/{update_id}/reaction')
+def react_to_group_update(group_id: str, update_id: int, body: GroupReaction, user=Depends(current_user)):
+    with db.connect() as c:
+        group = _group(c, group_id, user['id'])
+        if group['closed_at']:
+            raise HTTPException(409, 'This group is closed')
+        update = _visible_update(c, group, user['id'], update_id)
+        changed = c.execute('''INSERT INTO group_update_reactions(update_id,user_id,kind) VALUES(%s,%s,%s)
+            ON CONFLICT(update_id,user_id) DO UPDATE SET kind=EXCLUDED.kind
+            WHERE group_update_reactions.kind<>EXCLUDED.kind RETURNING user_id''',
+                            (update_id, user['id'], body.kind)).fetchone()
+        if changed:
+            _group_notice(c, group['id'], update['user_id'], user['id'], 'group_cheer', update_id=update_id)
+        return _reaction_summary(_update_reaction_rows(c, group, user['id'], update_id), user['id'])
+
+
+@router.delete('/api/groups/{group_id}/updates/{update_id}/reaction')
+def remove_group_update_reaction(group_id: str, update_id: int, user=Depends(current_user)):
+    with db.connect() as c:
+        group = _group(c, group_id, user['id'])
+        _visible_update(c, group, user['id'], update_id)
+        c.execute('DELETE FROM group_update_reactions WHERE update_id=%s AND user_id=%s', (update_id, user['id']))
+        return _reaction_summary(_update_reaction_rows(c, group, user['id'], update_id), user['id'])
+
+
+@router.get('/api/groups/{group_id}/updates/{update_id}/reactions')
+def group_update_reaction_people(group_id: str, update_id: int, user=Depends(current_user)):
+    with db.connect() as c:
+        group = _group(c, group_id, user['id'])
+        _visible_update(c, group, user['id'], update_id)
+        return {'cheers': _group_reaction_people(c, group, user['id'], update_id=update_id)}
+
+
+def _current_group_week(group, now):
+    local_day = now.astimezone(_zone(group['time_zone'])).date()
+    if local_day > group['event_date']:
+        raise HTTPException(409, 'This group event has ended')
+    return local_day - dt.timedelta(days=local_day.weekday())
+
+
+@router.post('/api/groups/{group_id}/weekly-reaction')
+def react_to_group_week(group_id: str, body: GroupReaction, user=Depends(current_user)):
+    with db.connect() as c:
+        group = _group(c, group_id, user['id'])
+        if group['closed_at']:
+            raise HTTPException(409, 'This group is closed')
+        week_start = _current_group_week(group, _now())
+        changed = c.execute('''INSERT INTO group_weekly_reactions(group_id,week_start,user_id,kind)
+            VALUES(%s,%s,%s,%s) ON CONFLICT(group_id,week_start,user_id) DO UPDATE SET kind=EXCLUDED.kind
+            WHERE group_weekly_reactions.kind<>EXCLUDED.kind RETURNING user_id''',
+                            (group['id'], week_start, user['id'], body.kind)).fetchone()
+        if changed:
+            _group_notice_members(c, group['id'], user['id'], 'group_cheer', week_start=week_start)
+        return _reaction_summary(_weekly_reaction_rows(c, group, user['id'], week_start), user['id'])
+
+
+@router.delete('/api/groups/{group_id}/weekly-reaction')
+def remove_group_week_reaction(group_id: str, user=Depends(current_user)):
+    with db.connect() as c:
+        group = _group(c, group_id, user['id'])
+        week_start = _current_group_week(group, _now())
+        c.execute('DELETE FROM group_weekly_reactions WHERE group_id=%s AND week_start=%s AND user_id=%s',
+                  (group['id'], week_start, user['id']))
+        return _reaction_summary(_weekly_reaction_rows(c, group, user['id'], week_start), user['id'])
+
+
+@router.get('/api/groups/{group_id}/weekly-reactions')
+def group_week_reaction_people(group_id: str, user=Depends(current_user)):
+    with db.connect() as c:
+        group = _group(c, group_id, user['id'])
+        week_start = _current_group_week(group, _now())
+        return {'cheers': _group_reaction_people(c, group, user['id'], week_start=week_start)}
+
+
+@router.post('/api/groups/{group_id}/recap-consent')
+def set_group_recap_consent(group_id: str, body: GroupRecapConsent, user=Depends(current_user)):
+    with db.connect() as c:
+        group = _group(c, group_id, user['id'])
+        c.execute('UPDATE group_members SET recap_consent=%s WHERE group_id=%s AND user_id=%s AND status=\'active\'',
+                  (body.consent, group['id'], user['id']))
+    return {'consent': body.consent}
+
+
+@router.post('/api/groups/{group_id}/notifications')
+def set_group_notification_mute(group_id: str, body: GroupNotificationPreference, user=Depends(current_user)):
+    with db.connect() as c:
+        group = _group(c, group_id, user['id'], lock=True)
+        c.execute('UPDATE group_members SET notifications_muted=%s WHERE group_id=%s AND user_id=%s',
+                  (body.muted, group['id'], user['id']))
+        if body.muted:
+            c.execute("DELETE FROM notifications WHERE user_id=%s AND group_id=%s AND kind IN ('group_update','group_cheer')",
+                      (user['id'], group['id']))
+    return {'muted': body.muted}
 
 
 @router.get('/api/group-invites/{token}')
@@ -431,6 +753,7 @@ def remove_member(group_id: str, body: MemberAction, user=Depends(current_user))
             raise HTTPException(404, 'Group member not found')
         c.execute("UPDATE group_members SET status='removed',removed_invite_generation=%s WHERE group_id=%s AND user_id=%s",
                   (group['invite_generation'], group['id'], target['id']))
+        c.execute('DELETE FROM notifications WHERE user_id=%s AND group_id=%s', (target['id'], group['id']))
     return {'ok': True}
 
 
@@ -446,6 +769,7 @@ def leave_group(group_id: str, user=Depends(current_user)):
             c.execute('UPDATE group_invites SET revoked_at=now() WHERE group_id=%s AND revoked_at IS NULL', (group['id'],))
         c.execute("UPDATE group_members SET status='left',removed_invite_generation=NULL WHERE group_id=%s AND user_id=%s",
                   (group['id'], user['id']))
+        c.execute('DELETE FROM notifications WHERE user_id=%s AND group_id=%s', (user['id'], group['id']))
     return {'ok': True}
 
 

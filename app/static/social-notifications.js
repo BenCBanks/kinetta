@@ -2,7 +2,7 @@
 // 2026-10-12 (Ben): the bell shows only your notifications; phone-notification settings live in Me > Settings
 // (/me/notifications). /notifications lights no tab (it opens from several).
 const PUSH_NAMES = {friends: 'Friend requests', cheers: 'Cheers & reactions', comments: 'Comments', dishes: 'Shared meals', activities: 'New workouts', milestones:'Milestones (at most one a day)',challenge_joins:'Someone joins your challenge',challenge_reminders:'Challenge reminders',challenge_finished:'Challenge finish pictures'};
-const NOTE_ICON = {friend_request: 'people', friend_accepted: 'people', cheer: 'cheer', comment: 'comment', dish_shared: 'pot', activity_ready: 'check', streak_reminder:'check', report: 'lock', monthly_summary:'calendar'};
+const NOTE_ICON = {friend_request: 'people', friend_accepted: 'people', cheer: 'cheer', group_update:'people', group_cheer:'cheer', comment: 'comment', dish_shared: 'pot', activity_ready: 'check', streak_reminder:'check', report: 'lock', monthly_summary:'calendar'};
 // One notification (2026-10-23, Ben: the list felt scrunched): the person's name in bold, a quoted comment on its own
 // quieter line, a short time, and a dot for new ones instead of tinted rows.
 function noteRow(n) {

@@ -184,7 +184,8 @@ class Groups(unittest.TestCase):
         with db.connect() as c:
             c.execute('UPDATE profile SET share_achievements=true WHERE user_id=%s', (self.ids[1],))
         shared = self.clients[0].get('/api/groups/' + group['id']).json()
-        self.assertEqual(shared['members'][1]['value'], 2)
+        self.assertNotIn('value', shared['members'][1], 'a consented row amount stays hidden below the privacy floor')
+        self.assertNotIn('sharing_total_only', shared['members'][1], 'the floor is not presented as a member privacy choice')
         self.assertNotIn('value', shared['members'][0])
         self.assertNotIn('total', shared)
         self.assertEqual(self.clients[2].get('/api/groups/' + group['id']).status_code, 404)
@@ -216,11 +217,14 @@ class Groups(unittest.TestCase):
         self.assertEqual(self.accept(token, who=1).status_code, 200)
         with db.connect() as c:
             c.execute("UPDATE group_members SET joined_at=now()-interval '2 days' WHERE group_id=%s", (group['id'],))
+            c.execute('UPDATE profile SET share_achievements=true WHERE user_id=%s', (self.ids[1],))
         self.activity(1, self.now - dt.timedelta(hours=2), distance=3000, name='PRIVATE B')
         two = self.clients[0].get('/api/groups/' + group['id']).json()
         self.assertEqual(two['member_count'], 2)
         self.assertNotIn('total', two)
         self.assertEqual(two['your_total'], 12)
+        self.assertTrue(all('value' not in member for member in two['members']),
+                        'no member row amounts are returned below the three-visible-member floor')
         self.assertNotIn('this_week_total', two)
         self.assertEqual(two['your_this_week_total'], 12)
 
@@ -236,6 +240,7 @@ class Groups(unittest.TestCase):
         self.assertEqual(three['this_week_total'], 20)
         self.assertEqual(three['this_week_contributors'], 3)
         self.assertNotIn('your_this_week_total', three)
+        self.assertEqual(three['members'][1]['value'], 3, 'shared member amounts appear once three members are visible')
 
         token = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={}).json()['invite_url'].rsplit('/', 1)[1]
         self.assertEqual(self.accept(token, who=3).status_code, 200)
@@ -324,7 +329,13 @@ class Groups(unittest.TestCase):
 
     def test_fifty_member_limit_and_rls_guessed_ids_read_and_write(self):
         group, token = self.make()
+        week_start = self.now.date() - dt.timedelta(days=self.now.weekday())
         with db.connect() as c:
+            update_id = c.execute("INSERT INTO group_updates(group_id,user_id,text) VALUES(%s,%s,'Fictional update') RETURNING id",
+                                   (group['id'], self.ids[0])).fetchone()['id']
+            c.execute("INSERT INTO group_update_reactions(update_id,user_id,kind) VALUES(%s,%s,'clap')", (update_id, self.ids[0]))
+            c.execute("INSERT INTO group_weekly_reactions(group_id,week_start,user_id,kind) VALUES(%s,%s,%s,'clap')",
+                      (group['id'], week_start, self.ids[0]))
             for _ in range(48):
                 login = 'zz_test_gr_' + uuid.uuid4().hex[:12]
                 uid = c.execute("INSERT INTO users(login,name,pw_hash) VALUES(%s,'Fictional member',%s) RETURNING id",
@@ -341,18 +352,36 @@ class Groups(unittest.TestCase):
             c.execute(sql.SQL('CREATE ROLE {} LOGIN PASSWORD {}').format(sql.Identifier(role), sql.Literal(password)))
             c.execute(sql.SQL('GRANT fit_readers TO {}').format(sql.Identifier(role)))
             c.execute('UPDATE users SET sql_role=%s WHERE id=%s', (role, self.ids[2]))
-            for table in ('event_groups', 'group_members', 'group_invites'):
+            new_tables = ('group_updates', 'group_update_reactions', 'group_weekly_reactions')
+            for table in ('event_groups', 'group_members', 'group_invites', *new_tables):
                 self.assertTrue(c.execute('SELECT relrowsecurity FROM pg_class WHERE relname=%s', (table,)).fetchone()['relrowsecurity'])
+            for table in new_tables:
+                self.assertTrue(c.execute("SELECT has_table_privilege('fit_readers',%s,'SELECT') AS allowed", (table,)).fetchone()['allowed'])
+                self.assertFalse(c.execute("SELECT has_table_privilege('fit_readers',%s,'INSERT') AS allowed", (table,)).fetchone()['allowed'])
         try:
             with psycopg.connect(db._conninfo(role, password), row_factory=dict_row) as reader:
                 self.assertEqual(reader.execute('SELECT id FROM event_groups WHERE id=%s', (group['id'],)).fetchall(), [])
                 self.assertEqual(reader.execute('SELECT user_id FROM group_members WHERE group_id=%s', (group['id'],)).fetchall(), [])
+                self.assertEqual(reader.execute('SELECT id FROM group_updates WHERE id=%s', (update_id,)).fetchall(), [])
+                self.assertEqual(reader.execute('SELECT update_id FROM group_update_reactions WHERE update_id=%s', (update_id,)).fetchall(), [])
+                self.assertEqual(reader.execute('SELECT group_id FROM group_weekly_reactions WHERE group_id=%s', (group['id'],)).fetchall(), [])
                 with self.assertRaises(psycopg.errors.InsufficientPrivilege):
                     with reader.transaction(): reader.execute('SELECT token_hash FROM group_invites')
                 for statement in ('UPDATE event_groups SET title=\'Guessed\' WHERE id=%s',
-                                  'DELETE FROM group_members WHERE group_id=%s'):
+                                  'DELETE FROM group_members WHERE group_id=%s',
+                                  'UPDATE group_updates SET text=\'Guessed\' WHERE id=%s',
+                                  'DELETE FROM group_update_reactions WHERE update_id=%s',
+                                  'INSERT INTO group_weekly_reactions(group_id,week_start,user_id,kind) VALUES(%s,%s,%s,\'heart\')'):
                     with self.assertRaises(psycopg.errors.InsufficientPrivilege):
-                        with reader.transaction(): reader.execute(statement, (group['id'],))
+                        with reader.transaction():
+                            if 'group_weekly_reactions' in statement:
+                                reader.execute(statement, (group['id'], week_start, self.ids[2]))
+                            elif 'group_updates' in statement:
+                                reader.execute(statement, (update_id,))
+                            elif 'group_update_reactions' in statement:
+                                reader.execute(statement, (update_id,))
+                            else:
+                                reader.execute(statement, (group['id'],))
         finally:
             with db.connect() as c:
                 c.execute('UPDATE users SET sql_role=NULL WHERE id=%s', (self.ids[2],))
@@ -391,6 +420,122 @@ class Groups(unittest.TestCase):
             keys = [row['key'] for row in c.execute("SELECT key FROM auth_attempts WHERE key LIKE 'group-invite-ip:%'").fetchall()]
         self.assertIn('group-invite-ip:' + hashlib.sha256(b'fictional-preview-ip').hexdigest(), keys)
         self.assertNotIn('fictional-preview-ip', '\n'.join(keys))
+
+    def test_updates_cheers_reports_and_muted_group_notices(self):
+        group, token = self.make()
+        self.assertEqual(self.accept(token, who=1).status_code, 200)
+        self.assertEqual(self.accept(token, who=2).status_code, 200)
+        root = f"/api/groups/{group['id']}"
+        updates = root + '/updates'
+
+        created = self.clients[0].post(updates, json={'text': '  Fictional trail looks good.  '})
+        self.assertEqual(created.status_code, 200, created.text)
+        first = created.json()
+        self.assertEqual(first['text'], 'Fictional trail looks good.')
+        self.assertEqual(self.clients[0].post(updates, json={'text': ' '}).status_code, 422)
+        self.assertEqual(self.clients[0].post(updates, json={'text': 'x' * 201}).status_code, 422)
+        self.assertEqual(self.clients[3].post(updates, json={'text': 'Not a member'}).status_code, 404)
+
+        second = self.clients[1].post(updates, json={'text': 'Fictional weather looks clear.'})
+        self.assertEqual(second.status_code, 200, second.text)
+        listed = self.clients[2].get(root).json()['updates']
+        self.assertEqual([row['text'] for row in listed[:2]],
+                         ['Fictional weather looks clear.', 'Fictional trail looks good.'])
+
+        reacted = self.clients[1].post(updates + f"/{first['id']}/reaction", json={'kind': 'heart'})
+        self.assertEqual(reacted.status_code, 200, reacted.text)
+        self.assertEqual(reacted.json()['my_reaction'], 'heart')
+        self.assertEqual(reacted.json()['reactions']['heart'], 1)
+        people = self.clients[0].get(updates + f"/{first['id']}/reactions").json()['cheers']
+        self.assertEqual([row['login'] for row in people], [self.clients[1].get('/api/me').json()['login']])
+
+        report = self.clients[2].post(updates + f"/{first['id']}/report", json={'reason': 'other', 'note': 'Fictional report'})
+        self.assertEqual(report.status_code, 200, report.text)
+        self.assertEqual(self.clients[0].post(updates + f"/{first['id']}/report", json={'reason': 'other'}).status_code, 400)
+        self.assertEqual(self.clients[2].delete(updates + f"/{first['id']}").status_code, 404,
+                         'a non-author non-organizer cannot delete an update')
+
+        weekly = self.clients[1].post(root + '/weekly-reaction', json={'kind': 'clap'})
+        self.assertEqual(weekly.status_code, 200, weekly.text)
+        self.assertEqual(weekly.json()['my_reaction'], 'clap')
+        with db.connect() as c:
+            for uid in self.ids[:3]:
+                count = c.execute("SELECT count(*) AS n FROM notifications WHERE user_id=%s AND group_id=%s AND kind IN ('group_update','group_cheer')",
+                                  (uid, group['id'])).fetchone()['n']
+                self.assertLessEqual(count, 1, 'only one current group notice is stored per member')
+            owner_notice = c.execute("SELECT kind,group_week_start FROM notifications WHERE user_id=%s AND group_id=%s AND kind IN ('group_update','group_cheer')",
+                                     (self.ids[0], group['id'])).fetchone()
+            self.assertEqual(owner_notice['kind'], 'group_cheer')
+            self.assertIsNotNone(owner_notice['group_week_start'])
+
+        muted = self.clients[2].post(root + '/notifications', json={'muted': True})
+        self.assertEqual(muted.json(), {'muted': True})
+        with db.connect() as c:
+            self.assertEqual(c.execute("SELECT notifications_muted FROM group_members WHERE group_id=%s AND user_id=%s",
+                                        (group['id'], self.ids[2])).fetchone()['notifications_muted'], True)
+            self.assertEqual(c.execute("SELECT count(*) AS n FROM notifications WHERE user_id=%s AND group_id=%s",
+                                       (self.ids[2], group['id'])).fetchone()['n'], 0)
+
+        new_update = self.clients[0].post(updates, json={'text': 'Another fictional update.'})
+        self.assertEqual(new_update.status_code, 200, new_update.text)
+        with db.connect() as c:
+            self.assertEqual(c.execute("SELECT count(*) AS n FROM notifications WHERE user_id=%s AND group_id=%s",
+                                       (self.ids[2], group['id'])).fetchone()['n'], 0,
+                         'muted members do not receive new in-app group notices')
+        self.assertEqual(self.clients[0].delete(updates + f"/{second.json()['id']}").status_code, 200,
+                         'the organizer can remove a member update')
+
+    def test_recap_consent_and_amount_floor_follow_visible_members(self):
+        zone = ZoneInfo('America/New_York')
+        event_date = self.now.astimezone(zone).date() - dt.timedelta(days=2)
+        event_start = dt.datetime.combine(event_date, dt.time(12), zone).astimezone(dt.timezone.utc)
+        group, token = self.make()
+        with db.connect() as c:
+            c.execute('UPDATE event_groups SET event_date=%s WHERE id=%s', (event_date, group['id']))
+        self.assertEqual(self.accept(token, who=1).status_code, 200)
+        with db.connect() as c:
+            c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s',
+                      (event_start - dt.timedelta(days=1), group['id']))
+            c.execute('UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)', (self.ids[:3],))
+        self.activity(0, event_start + dt.timedelta(hours=1), distance=1000)
+        self.activity(1, event_start + dt.timedelta(hours=2), distance=2000)
+        self.assertEqual(self.clients[0].post(f"/api/groups/{group['id']}/recap-consent", json={'consent': True}).json(),
+                         {'consent': True})
+        self.assertEqual(self.clients[1].post(f"/api/groups/{group['id']}/recap-consent", json={'consent': True}).json(),
+                         {'consent': True})
+
+        two = self.clients[0].get(f"/api/groups/{group['id']}").json()
+        self.assertEqual(two['event_state'], 'complete')
+        self.assertEqual(two['member_count'], 2)
+        self.assertNotIn('total', two)
+        self.assertEqual(two['recap']['your_total'], 1)
+        self.assertNotIn('total', two['recap'])
+        self.assertTrue(all('value' not in member for member in two['members']),
+                        'shared member rows still withhold amounts below three visible members')
+        self.assertEqual(two['recap']['participants'], [self.clients[i].get('/api/me').json()['login'] for i in (0, 1)])
+
+        self.assertEqual(self.accept(token, who=2).status_code, 200)
+        with db.connect() as c:
+            c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s AND user_id=%s',
+                      (event_start - dt.timedelta(days=1), group['id'], self.ids[2]))
+        self.activity(2, event_start + dt.timedelta(hours=3), distance=3000)
+        three = self.clients[0].get(f"/api/groups/{group['id']}").json()
+        self.assertEqual(three['member_count'], 3)
+        self.assertEqual(three['total'], 6)
+        self.assertEqual(three['recap']['total'], 6)
+        self.assertEqual([member['value'] for member in three['members']], [1, 2, 3])
+        self.assertEqual(three['recap']['participants'], [self.clients[i].get('/api/me').json()['login'] for i in (0, 1)],
+                         'the recap names only members who opted in')
+
+        with db.connect() as c:
+            c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)', (self.ids[0], self.ids[1]))
+        blocked_view = self.clients[0].get(f"/api/groups/{group['id']}").json()
+        self.assertEqual(blocked_view['member_count'], 2)
+        self.assertNotIn('total', blocked_view)
+        self.assertNotIn('total', blocked_view['recap'])
+        self.assertEqual(blocked_view['recap']['your_total'], 1)
+        self.assertTrue(all('value' not in member for member in blocked_view['members']))
+        self.assertEqual(blocked_view['recap']['participants'], [self.clients[0].get('/api/me').json()['login']])
 
 
 unittest.main()
