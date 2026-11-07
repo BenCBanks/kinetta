@@ -78,11 +78,21 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   assert(Math.abs(linkBox.x-cardBox.x)<1&&Math.abs(linkBox.y-cardBox.y)<1&&Math.abs(linkBox.width-cardBox.width)<1&&Math.abs(linkBox.height-cardBox.height)<1,'the profile target covers the whole Me card');
   const identity=p.locator('.me-card-profile-link');
   assert.equal(await identity.locator('.me-card-avatar').count(),1);assert.equal(await identity.locator('h2').innerText(),'Alex Rivera');
-  assert.equal(await identity.locator('.me-card-meta').innerText(),'@alex');assert.equal(await p.locator('.me-profile-chevron').count(),0,'the arrow appears once at the card corner');
-  const arrow=await profileLink.locator('svg').boundingBox();
-  assert(arrow.x+arrow.width<=cardBox.x+cardBox.width-10&&arrow.y>=cardBox.y+9&&arrow.y<=cardBox.y+11,'muted arrow sits at the card top-right');
+  assert.equal(await identity.locator('.me-card-meta').innerText(),'@alex');
+  const chevron=p.locator('.me-profile-chevron'),arrow=await chevron.locator('svg').boundingBox(),heading=await p.locator('.me-card-name-heading').boundingBox(),title=await identity.locator('h2').boundingBox();
+  assert.equal(await chevron.count(),1,'one decorative chevron sits beside the owner name');
+  const chevronStyle=await chevron.evaluate(n=>({color:getComputedStyle(n).color,background:getComputedStyle(n).backgroundColor,border:getComputedStyle(n).borderWidth,pointer:getComputedStyle(n).pointerEvents}));
+  assert(Math.abs(arrow.width-20)<.1&&Math.abs(arrow.height-20)<.1,'the profile chevron is about 20px');
+  assert(arrow.x+arrow.width<=heading.x+heading.width+.5&&arrow.x+arrow.width>=heading.x+heading.width-22,'the chevron is at the right end of the name row '+JSON.stringify({arrow,heading,title}));
+  assert(Math.abs(arrow.y+arrow.height/2-(title.y+title.height/2))<2,'the chevron is level with Alex Rivera');
+  assert(chevronStyle.color!=='rgb(255, 255, 255)'&&chevronStyle.background==='rgba(0, 0, 0, 0)'&&chevronStyle.border==='0px'&&chevronStyle.pointer==='none','the chevron is mid-grey, unboxed and decorative '+JSON.stringify(chevronStyle));
+  const arrowHit=await p.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('.me-card-open-link'),{x:arrow.x+arrow.width/2,y:arrow.y+arrow.height/2});
+  assert(arrowHit,'tapping the decorative chevron reaches the whole-card profile link');
   assert.equal(await p.locator('.me-card-id > .me-friends-link').count(),1,'friend navigation remains a separate link');
   assert.equal(await profileLink.locator('.me-friends-link').count(),0,'friend navigation is not nested inside the profile link');
+  for(const [selector,label] of [['.me-card-banner [data-card-edit]','Edit'],['.me-card-banner [data-card-share]','Share'],['.me-card-id > .me-friends-link .me-friends-count','friends'],['.me-card-id > .me-friends-link .badge.alert','waiting chip'],['.me-card .me-milestone-all','See all']]){
+   const target=p.locator(selector).first();if(await target.count()&&await target.isVisible()){const box=await target.boundingBox(),cardLinkAtCenter=await p.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('.me-card-open-link'),{x:box.x+box.width/2,y:box.y+box.height/2});assert(!cardLinkAtCenter,`${label} remains its own tap target above the profile link`);}
+  }
   assert.equal(await p.locator('.me-divider').count(),0,'no hairline divider separates the Me card and Today');
   await weeks.first().waitFor();assert.equal(await weeks.count(),12,'Me has one 12-week chart');
   assert.equal(await p.locator('.me-period,.me-distance.days,.me-card-figures,.me-card-note,.me-sport-chips,.me-profile-bio,.me-about').count(),0,'Me hides the Days toggle, daily chart, bio, all-time totals, sport rows and privacy footer');
