@@ -7,7 +7,7 @@ if dev/tests/changed.sh --check-files app/static/new-unmapped-screen.js >/dev/nu
   echo "An unmapped app/static path passed the changed-screen gate." >&2
   exit 1
 fi
-for mapping in 'explore.js:guide' 'username-availability.css:welcome' 'cards.css:cards' 'milestones.js:progress' 'fonts/source-serif-4.woff2:core' 'standalone.css:standalone'; do
+for mapping in 'explore.js:guide' 'username-availability.css:welcome' 'cards.css:cards' 'milestones.js:progress' 'progress-routes.js:progress' 'fonts/source-serif-4.woff2:core' 'standalone.css:standalone'; do
   path="app/static/${mapping%%:*}"; group="${mapping#*:}"
   output="$(dev/tests/changed.sh --check-files "$path")"
   [[ "$output" == *"-> $group"* ]] || { echo "$path did not select $group." >&2; exit 1; }
