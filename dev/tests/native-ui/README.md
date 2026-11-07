@@ -50,7 +50,7 @@ and [runtime proxy](https://github.com/ionic-team/capacitor/blob/8.5.3/core/src/
 Run node dev/tests/test_native_display_diagnostics.js and python3 dev/tests/test_native_display_copy.py for observer
 semantics, the real production timeout, missing/malformed/rejected bridges and original/disposable-bundle isolation.
 
-The five `header-*` fixtures measure Me, Activity, Track, Progress and Nutrition in each theme. They retain the
+The five `header-*` fixtures measure Me, Home, Track, Progress and Nutrition in each theme. They retain the
 production layout and record shell/header/title and text-glyph bounds alongside actual UIKit window, status-bar,
 WebView frame and scroll insets. Health/GPS reads and push registration are replaced by explicit stand-ins; the
 display bridge and WebView geometry remain real. With Groups added, each phone now has 52 captures. The regression requires all five headers to start at the measured native safe

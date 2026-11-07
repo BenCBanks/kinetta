@@ -118,7 +118,7 @@ for device in preferred:
     if nav['visible']:
      box=nav['box'];assert box['x']>=8 and box['x']+box['width']<=metrics['viewport']['width']-8,metrics
      assert box['bottom']<metrics['viewport']['height'],metrics
-     assert [item['text'] for item in nav['items']]==['Me','Activity','Track','Progress','Nutrition'],metrics
+     assert [item['text'] for item in nav['items']]==['Home','Progress','Track','Nutrition','Me'],metrics
      assert sum(item['selected'] for item in nav['items'])==1,metrics
      for item in nav['items']:
       target,label=item['box'],item['label']
