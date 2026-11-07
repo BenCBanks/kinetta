@@ -279,6 +279,9 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    await screenshot('me-card-zero-distance-workouts');
   }
   if(size.width===390&&size.root===16){
+   assert.equal(await p.locator('.me-showcase-medal').count(),0,'an empty Showcase has no medal row');
+   assert.equal(await p.locator('.me-showcase-streak').count(),0,'an inactive day streak stays hidden');
+   await screenshot('me-showcase-zero-medals');
    showcaseFixture={items:[{code:'sport:run',rank:2}],pinned:[],day_streak:1};await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();
    assert.equal(await p.locator('.me-showcase-medal').count(),1,'a single earned medal appears on the Me card');
    assert.equal(await p.locator('.me-showcase-streak').count(),0,'a one-day streak stays hidden');
