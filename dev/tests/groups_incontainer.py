@@ -4,6 +4,7 @@ import hashlib
 import uuid
 import unittest
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 import psycopg
 from psycopg import sql
@@ -48,10 +49,9 @@ class Groups(unittest.TestCase):
             client.close()
         self.anon.close()
 
-    def make(self, who=0, goal_type='distance', goal_target=50, goal_unit='km'):
-        zone = 'America/New_York'
-        today = self.now.astimezone(dt.timezone(dt.timedelta(hours=-5))).date()
-        body = {'title': 'Fictional Alpine Weekend', 'event_date': str(today + dt.timedelta(days=40)),
+    def make(self, who=0, goal_type='distance', goal_target=50, goal_unit='km', zone='America/New_York', event_date=None):
+        today = self.now.astimezone(ZoneInfo(zone)).date()
+        body = {'title': 'Fictional Alpine Weekend', 'event_date': str(event_date or today + dt.timedelta(days=40)),
                 'time_zone': zone, 'note': 'Fictional event note', 'goal_type': goal_type,
                 'goal_target': goal_target, 'goal_unit': goal_unit}
         response = self.clients[who].post('/api/groups', json=body)
@@ -98,6 +98,53 @@ class Groups(unittest.TestCase):
         expired = self.accept(replacement, who=3)
         self.assertEqual(expired.status_code, 404)
         self.assertEqual(expired.json(), unknown.json())
+
+    def test_activity_strip_is_member_scoped_and_mute_is_per_account(self):
+        first, _ = self.make()
+        second, _ = self.make()
+        other_account_group, _ = self.make(who=1)
+        with db.connect() as c:
+            c.execute('UPDATE event_groups SET event_date=event_date+1 WHERE id=%s', (second['id'],))
+        initial = self.clients[0].get('/api/groups/activity-strip').json()
+        self.assertFalse(initial['muted'])
+        self.assertTrue(initial['has_upcoming'])
+        self.assertEqual(initial['more_count'], 1)
+        self.assertEqual(initial['next']['id'], first['id'])
+        self.assertNotIn('members', initial['next'])
+        self.assertNotIn('this_week_total', initial['next'])
+
+        muted = self.clients[0].post('/api/groups/activity-strip', json={'muted': True})
+        self.assertEqual(muted.json(), {'muted': True})
+        hidden = self.clients[0].get('/api/groups/activity-strip').json()
+        self.assertEqual(hidden, {'muted': True, 'has_upcoming': True})
+        other = self.clients[1].get('/api/groups/activity-strip').json()
+        self.assertFalse(other['muted'])
+        self.assertEqual(other['next']['id'], other_account_group['id'])
+        self.assertEqual(self.clients[0].post('/api/groups/activity-strip', json={'muted': False}).json(),
+                         {'muted': False})
+        self.assertFalse(self.clients[0].get('/api/groups/activity-strip').json()['muted'])
+
+    def test_weekly_contribution_boundaries_follow_event_zone_monday_to_sunday(self):
+        fixed_now = dt.datetime(2026, 11, 1, 7, 30, tzinfo=dt.timezone.utc)
+        event_date = fixed_now.astimezone(ZoneInfo('America/Los_Angeles')).date() + dt.timedelta(days=40)
+        with patch('app.groups._now', return_value=fixed_now):
+            group, _ = self.make(zone='America/Los_Angeles', event_date=event_date)
+        local_day, start, end = groups._local_week_window('America/Los_Angeles', fixed_now)
+        self.assertEqual(local_day, dt.date(2026, 11, 1))
+        self.assertEqual(start, dt.datetime(2026, 10, 26, 7, 0, tzinfo=dt.timezone.utc))
+        self.assertEqual(end, dt.datetime(2026, 11, 2, 8, 0, tzinfo=dt.timezone.utc))
+        self.assertEqual(end - start, dt.timedelta(hours=169), 'the daylight-saving transition remains local-time aligned')
+        with db.connect() as c:
+            c.execute("UPDATE group_members SET joined_at='2025-01-01T00:00:00Z' WHERE group_id=%s", (group['id'],))
+        self.activity(0, start - dt.timedelta(seconds=1), distance=9000, name='PREVIOUS WEEK')
+        self.activity(0, start, distance=1000, name='MONDAY START')
+        self.activity(0, fixed_now - dt.timedelta(seconds=1), distance=2000, name='CURRENT WEEK')
+        self.activity(0, fixed_now, distance=7000, name='AT CURRENT TIME')
+        with patch('app.groups._now', return_value=fixed_now):
+            result = self.clients[0].get('/api/groups/' + group['id']).json()
+        self.assertEqual(result['week_start'], '2026-10-26')
+        self.assertEqual(result['your_this_week_total'], 3)
+        self.assertNotIn('this_week_total', result)
 
     def test_left_and_removed_members_cannot_reuse_invites(self):
         group, original = self.make()
@@ -163,6 +210,8 @@ class Groups(unittest.TestCase):
         self.assertEqual(one['member_count'], 1)
         self.assertNotIn('total', one)
         self.assertEqual(one['your_total'], 12)
+        self.assertNotIn('this_week_total', one)
+        self.assertEqual(one['your_this_week_total'], 12)
 
         self.assertEqual(self.accept(token, who=1).status_code, 200)
         with db.connect() as c:
@@ -172,6 +221,8 @@ class Groups(unittest.TestCase):
         self.assertEqual(two['member_count'], 2)
         self.assertNotIn('total', two)
         self.assertEqual(two['your_total'], 12)
+        self.assertNotIn('this_week_total', two)
+        self.assertEqual(two['your_this_week_total'], 12)
 
         token = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={}).json()['invite_url'].rsplit('/', 1)[1]
         self.assertEqual(self.accept(token, who=2).status_code, 200)
@@ -182,6 +233,9 @@ class Groups(unittest.TestCase):
         self.assertEqual(three['member_count'], 3)
         self.assertEqual(three['total'], 20)
         self.assertNotIn('your_total', three)
+        self.assertEqual(three['this_week_total'], 20)
+        self.assertEqual(three['this_week_contributors'], 3)
+        self.assertNotIn('your_this_week_total', three)
 
         token = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={}).json()['invite_url'].rsplit('/', 1)[1]
         self.assertEqual(self.accept(token, who=3).status_code, 200)
