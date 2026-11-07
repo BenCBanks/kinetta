@@ -19,6 +19,7 @@ assert.throws(()=>check('/people/another_person','Your profile'),/your profile/)
 assert.throws(()=>check('/people/another_person','View my activities'),/own activity list/);
 assert.equal(check('/me/activities').canonical,'/people/zz_test_owner');
 assert.equal(check('/activity?view=mine').canonical,'/people/zz_test_owner');
+assert.equal(check('/activity?view=groups','Groups').heading,'Home');
 assert.equal(check('/people/zz_test_owner','View my activities').heading,'Your profile');
 assert.equal(check('/me?setup=body').canonical,'/me/settings');assert.equal(check('/me?setup=body').dialog.ready,'#m-form');
 assert.equal(check('/track?past=1').dialog.ready,'#ma');assert.equal(check('/track?past=1').heading,'Add an activity');
