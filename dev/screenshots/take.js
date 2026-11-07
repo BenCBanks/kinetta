@@ -109,12 +109,30 @@ async function say(page, text) {
 }
 (async () => {
   const browser = await chromium.launch(), errors = [];
+  const openFoodDemo = async (login, scheme) => {
+    const context = await browser.newContext({viewport: {width: W, height: H}, deviceScaleFactor: 2, colorScheme: scheme,
+      timezoneId: process.env.TZ || 'America/New_York', serviceWorkers: 'block'});
+    await context.route('**/*', route => new URL(route.request().url()).origin === B ? route.continue() : route.abort());
+    await context.route('**/style.css*', async route => {
+      const r = await route.fetch(), css = (await r.text())
+        .replace(/env\(safe-area-inset-top(?:,[^)]*)?\)/g, TOP + 'px').replace(/env\(safe-area-inset-bottom(?:,[^)]*)?\)/g, BOTTOM + 'px');
+      await route.fulfill({response: r, body: css});
+    });
+    const page = await context.newPage();
+    page.on('pageerror', e => errors.push(`${scheme}: ${e.message}`));
+    await page.goto(B + '/');
+    await page.fill('input[name=login]', login);
+    await page.fill('input[name=password]', 'green teapot on the hill');
+    await page.click('button[type=submit]');
+    await page.waitForSelector('nav.tabs');
+    return {context, page};
+  };
   try {
   for (const scheme of ['light', 'dark']) {
     // the browser keeps the server's time zone (the workflow sets TZ), or a run near midnight UTC shows an empty week
     const ctx = await browser.newContext({viewport: {width: W, height: H}, deviceScaleFactor: 2, colorScheme: scheme,
       timezoneId: process.env.TZ || 'America/New_York'});
-    let foodChatCtx = null, foodChatPage = null;
+    let foodChatCtx = null, foodChatPage = null, foodRepeatCtx = null, foodRepeatPage = null;
     const basemap = await (await ctx.request.get(B+'/api/map-config')).json();
     if(!['pmtiles','vector'].includes(basemap.kind))throw Error('Capture needs an operator-controlled vector basemap');
     // The public archive admits the published app origin. Adapt only CORS for this local demo;
@@ -164,21 +182,10 @@ async function say(page, text) {
     for (const [name, path, opt = {}] of SHOTS) {
       if (ONLY && !ONLY.includes(name)) continue;
       if (opt.foodChat === 'start') {
-        foodChatCtx = await browser.newContext({viewport: {width: W, height: H}, deviceScaleFactor: 2, colorScheme: scheme,
-          timezoneId: process.env.TZ || 'America/New_York', serviceWorkers: 'block'});
-        await foodChatCtx.route('**/*', route => new URL(route.request().url()).origin === B ? route.continue() : route.abort());
-        await foodChatCtx.route('**/style.css*', async route => {
-          const r = await route.fetch(), css = (await r.text())
-            .replace(/env\(safe-area-inset-top(?:,[^)]*)?\)/g, TOP + 'px').replace(/env\(safe-area-inset-bottom(?:,[^)]*)?\)/g, BOTTOM + 'px');
-          await route.fulfill({response: r, body: css});
-        });
-        foodChatPage = await foodChatCtx.newPage();
-        foodChatPage.on('pageerror', e => errors.push(`${scheme}: ${e.message}`));
-        await foodChatPage.goto(B + '/');
-        await foodChatPage.fill('input[name=login]', `zz_test_658_food_${scheme}`);
-        await foodChatPage.fill('input[name=password]', 'green teapot on the hill');
-        await foodChatPage.click('button[type=submit]');
-        await foodChatPage.waitForSelector('nav.tabs');
+        const demo = await openFoodDemo(`zz_test_658_chat_${scheme}`, scheme);
+        foodChatCtx = demo.context;
+        foodChatPage = demo.page;
+        await enableKitForDemo(foodChatPage);
         await foodChatPage.goto(B + '/food/describe?meal=breakfast');
         await foodChatPage.locator('#thread-text').waitFor();
         await foodChatPage.fill('#thread-text', 'Greek yogurt with berries, oatmeal with banana, and a chicken salad bowl');
@@ -197,9 +204,11 @@ async function say(page, text) {
         continue;
       }
       if (opt.foodChat === 'same-yesterday') {
-        if (!foodChatPage) throw Error('The food account must be staged before its repeat capture.');
-        await foodChatPage.evaluate(() => go('/food'));
-        const shortcut = foodChatPage.locator('#fd-meals .meal-breakfast [data-repeat-yesterday="breakfast"]');
+        const demo = await openFoodDemo(`zz_test_658_food_${scheme}`, scheme);
+        foodRepeatCtx = demo.context;
+        foodRepeatPage = demo.page;
+        await foodRepeatPage.evaluate(() => go('/food'));
+        const shortcut = foodRepeatPage.locator('#fd-meals .meal-breakfast [data-repeat-yesterday="breakfast"]');
         await shortcut.waitFor({state: 'visible', timeout: 15000});
         const state = await shortcut.evaluate(button => ({
           text: button.textContent.trim(),
@@ -208,10 +217,10 @@ async function say(page, text) {
         }));
         if (state.text !== 'Same as yesterday · 225 kcal' || !state.empty || state.entries !== 0) throw Error('Repeat capture must show an empty Breakfast and its Same as yesterday shortcut.');
         await shortcut.scrollIntoViewIfNeeded();
-        await foodChatPage.evaluate(() => document.activeElement.blur());
-        await foodChatPage.evaluate(chrome, scheme === 'dark');
-        await foodChatPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-        await foodChatPage.screenshot({path: `${OUT}/${scheme}-${name}.png`});
+        await foodRepeatPage.evaluate(() => document.activeElement.blur());
+        await foodRepeatPage.evaluate(chrome, scheme === 'dark');
+        await foodRepeatPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        await foodRepeatPage.screenshot({path: `${OUT}/${scheme}-${name}.png`});
         continue;
       }
       await page.evaluate((p) => { document.querySelectorAll('.scrim').forEach((x) => x.remove()); document.body.classList.remove('has-sheet'); window.scrollTo(0, 0); go(p); }, ids[path] || path);   // no sheet left open from the shot before
@@ -332,6 +341,7 @@ async function say(page, text) {
     await ctx.unrouteAll({behavior:'ignoreErrors'});
     await ctx.close();
     await foodChatCtx?.close();
+    await foodRepeatCtx?.close();
   }
   } finally { await browser.close(); }
   if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
