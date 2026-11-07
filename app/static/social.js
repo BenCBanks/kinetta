@@ -964,6 +964,18 @@ function groupDate(value,zone){
 }
 function groupNumber(value){return Number(value||0).toLocaleString(undefined,{maximumFractionDigits:1});}
 function groupAmount(value,unit){return `${groupNumber(value)} ${unit}`;}
+function groupTimeZoneLabel(zone){
+  if(zone==='UTC'||zone==='Etc/UTC')return 'UTC';
+  try{const name=new Intl.DateTimeFormat('en-US',{timeZone:zone,timeZoneName:'longGeneric'}).formatToParts(new Date()).find(part=>part.type==='timeZoneName')?.value;if(name&&!/^GMT[+-]/.test(name))return name.replace(/\bTime\b/g,'time');}catch{}
+  const place=zone.split('/').at(-1).replace(/_/g,' ');return `${place} time`;
+}
+function groupTimeZonePickerLabel(zone){const place=zone.split('/').slice(1).join(' · ').replace(/_/g,' ');return place?`${place} · ${groupTimeZoneLabel(zone)}`:groupTimeZoneLabel(zone);}
+function groupTimeZoneOptions(current){
+  let zones;
+  try{zones=Intl.supportedValuesOf('timeZone');}catch{zones=['UTC','America/Los_Angeles','America/Denver','America/Chicago','America/New_York','America/Toronto','America/Vancouver','Europe/London','Europe/Paris','Asia/Tokyo','Australia/Sydney'];}
+  if(!zones.includes(current))zones.push(current);
+  return [...new Set(zones)].sort((a,b)=>groupTimeZonePickerLabel(a).localeCompare(groupTimeZonePickerLabel(b))).map(zone=>`<option value="${esc(zone)}"${zone===current?' selected':''}>${esc(groupTimeZonePickerLabel(zone))}</option>`).join('');
+}
 function groupInviteSheet(url){
   const owner=readOwner();sheet('Invite to this group',`<p>People who open this link see only that they’re invited to a private group. They must sign in and accept.</p><p class="group-invite-link" tabindex="0">${esc(url)}</p>
     <div class="group-invite-actions"><button type="button" class="primary wide" data-group-copy>Copy invite link</button><button type="button" class="ghost wide" data-group-share>Share invite link</button></div>
@@ -982,17 +994,20 @@ function groupCreateSheet(done){
   sheet('Create a group',`<form class="form group-create-form" id="group-create-form"><div class="group-create-fields">
     <label>Group name<input name="title" maxlength="80" required autocomplete="off" placeholder="Dolomites hike"></label>
     <label>Event date<input name="event_date" type="date" min="${today}" required></label>
-    <label>Event time zone<input name="time_zone" maxlength="80" value="${esc(zone)}" required></label>
+    <div class="group-time-zone"><button class="group-zone-change" type="button" id="group-zone-change">${esc(groupTimeZoneLabel(zone))} · Change</button><select class="group-zone-picker" name="time_zone" aria-label="Event time zone" required hidden>${groupTimeZoneOptions(zone)}</select></div>
     <label>Short note (optional)<textarea name="note" maxlength="280" rows="2"></textarea></label>
     <label>Shared goal<select name="goal_type"><option value="distance">Distance</option><option value="elevation">Elevation</option><option value="long_outings">Long outings</option><option value="sessions">Sessions</option></select></label>
     <div class="group-goal-fields"><label>Target<input name="goal_target" type="number" min="0.1" max="1000000" step="0.1" value="100" required></label><label>Units<select name="goal_unit"><option value="km">km</option><option value="mi">mi</option></select></label></div>
     <p class="small muted">Only group members see the group. Activities, routes, food and body data stay private.</p></div>
     <div class="group-create-footer"><button class="primary wide" type="submit">Create group</button><button class="linkbtn wide" type="button" data-close>Cancel</button></div></form>`,(body,close)=>{
-      const form=$('#group-create-form',body),kind=form.elements.goal_type,unit=form.elements.goal_unit,target=form.elements.goal_target;
+      const form=$('#group-create-form',body),kind=form.elements.goal_type,unit=form.elements.goal_unit,target=form.elements.goal_target,zoneButton=$('#group-zone-change',form),zonePicker=form.elements.time_zone;
       const setGoal=()=>{const options=kind.value==='distance'?[['km','km'],['mi','mi']]:kind.value==='elevation'?[['m','m'],['ft','ft']]:kind.value==='long_outings'?[['outings','outings']]:[['sessions','sessions']];unit.innerHTML=options.map(([value,label])=>`<option value="${value}">${label}</option>`).join('');target.step=options[0][0]==='km'||options[0][0]==='mi'||options[0][0]==='m'||options[0][0]==='ft'?'0.1':'1';target.min=target.step;};
       kind.onchange=setGoal;setGoal();
+      zoneButton.onclick=()=>{zonePicker.hidden=false;zoneButton.hidden=true;zonePicker.focus({preventScroll:true});try{zonePicker.showPicker?.();}catch{}};
+      const closeZonePicker=()=>{if(zonePicker.hidden)return;zoneButton.textContent=`${groupTimeZoneLabel(zonePicker.value)} · Change`;zonePicker.hidden=true;zoneButton.hidden=false;};
+      zonePicker.onchange=()=>{closeZonePicker();zoneButton.focus({preventScroll:true});};zonePicker.onblur=closeZonePicker;
       form.onsubmit=async event=>{event.preventDefault();const submit=$('button[type=submit]',form);if(submit.disabled)return;submit.disabled=true;
-        const data={title:form.elements.title.value.trim(),event_date:form.elements.event_date.value,time_zone:form.elements.time_zone.value.trim(),note:form.elements.note.value.trim(),goal_type:kind.value,goal_target:Number(target.value),goal_unit:unit.value};
+        const data={title:form.elements.title.value.trim(),event_date:form.elements.event_date.value,time_zone:zonePicker.value,note:form.elements.note.value.trim(),goal_type:kind.value,goal_target:Number(target.value),goal_unit:unit.value};
         try{const group=await api('/api/groups',json('POST',data));if(!body.isConnected)return;close();done(group);}
         catch(error){if(body.isConnected){toast(error.message);submit.disabled=false;}}
       };
@@ -1017,7 +1032,7 @@ function groupPage(el,group){
     <header class="group-title"><p class="eyebrow">Private group</p><h1>${esc(group.title)}</h1><p>${esc(groupDate(group.event_date,group.time_zone))} · ${group.days_to_event===0?'Today':`${group.days_to_event} days to go`}</p>${group.note?`<p class="group-note">${esc(group.note)}</p>`:''}</header>
     <section class="group-goal card" aria-label="Shared goal"><small>${esc(GROUP_GOALS[group.goal_type]||'Shared goal')}</small><strong>Together: ${esc(groupAmount(group.total,group.goal_unit))} of ${esc(groupAmount(group.goal_target,group.goal_unit))}</strong><div class="group-progress" role="progressbar" aria-label="Group progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.min(100,Math.round(group.total/group.goal_target*100))}"><span style="width:${Math.min(100,Math.max(0,group.total/group.goal_target*100))}%"></span></div></section>
     <section class="group-roster card list"><h2>Members <span>${group.member_count}</span></h2><div id="group-members">${groupRoster(group,expanded)}</div></section>
-    <p class="group-privacy small muted">Only members can see this group. Activities, routes, plans, food and body data stay private.</p>`;
+    `;
     wireBack(el,'/me/groups');$('#group-options',el).onclick=()=>groupMenu(group,()=>go('/groups/'+encodeURIComponent(group.id),{replace:true}));$('[data-group-more]',el)?.addEventListener('click',()=>{expanded=true;draw();});
   };
   draw();

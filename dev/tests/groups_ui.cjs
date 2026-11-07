@@ -2,9 +2,10 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',shots=process.env.KINETTA_SHOTS;
-const token='0123456789abcdef0123456789abcdef',idEmpty='00000000-0000-4000-8000-000000000001',idFull='00000000-0000-4000-8000-000000000050';
+const token='0123456789abcdef0123456789abcdef',idEmpty='00000000-0000-4000-8000-000000000001',idFull='00000000-0000-4000-8000-000000000050',idLongGoal='00000000-0000-4000-8000-000000000003';
 const empty={id:idEmpty,title:'Dolomites hike',event_date:'2026-11-14',time_zone:'America/New_York',note:'Fictional event weekend',goal_type:'distance',goal_target:600,goal_unit:'mi',total:214,days_to_event:7,members:[{username:'alex',organizer:true,sharing_total_only:true}],member_count:1,is_organizer:true,joining_closed:false,closed:false};
 const full={...empty,id:idFull,members:Array.from({length:50},(_,i)=>({username:`fictional_member_${String(i+1).padStart(2,'0')}`,organizer:i===0,sharing_total_only:true})),member_count:50};
+const longGoal={...empty,id:idLongGoal,goal_type:'sessions',goal_target:600,goal_unit:'sessions'};
 const groupUrl=id=>`/groups/${id}`;
 async function settle(page){await page.evaluate(async()=>{await document.fonts.ready;const a=[...document.querySelectorAll('.scrim,.sheet')].flatMap(x=>x.getAnimations());await Promise.all(a.map(x=>x.finished.catch(()=>{})));});}
 async function capture(page,name,selector,{hideChrome=false}={}){
@@ -18,33 +19,41 @@ async function capture(page,name,selector,{hideChrome=false}={}){
  async function open(theme,width=390){
   const context=await browser.newContext({viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'});contexts.push(context);
   const login=await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});assert.equal(login.status(),200,'isolated demo account login');
+  const postedGroups=[];
   await context.route('**/api/**',async route=>{
    const req=route.request(),url=new URL(req.url()),method=req.method(),p=url.pathname;
    if(p==='/api/groups'&&method==='GET')return route.fulfill({json:[]});
-   if(p==='/api/groups'&&method==='POST')return route.fulfill({json:{...empty,invite_url:`https://example.test/group-invite/${token}`}});
+   if(p==='/api/groups'&&method==='POST'){postedGroups.push(req.postDataJSON());return route.fulfill({json:{...empty,invite_url:`https://example.test/group-invite/${token}`}});}
    if(p===`/api/group-invites/${token}`&&method==='GET')return route.fulfill({json:{available:true}});
    if(p===`/api/group-invites/${token}/accept`&&method==='POST')return route.fulfill({json:{...empty,member_count:2,members:[...empty.members,{username:'fictional_friend',organizer:false,sharing_total_only:true}]}});
    if(p===`/api/groups/${idEmpty}`&&method==='GET')return route.fulfill({json:empty});
    if(p===`/api/groups/${idFull}`&&method==='GET')return route.fulfill({json:full});
+   if(p===`/api/groups/${idLongGoal}`&&method==='GET')return route.fulfill({json:longGoal});
    if(p.startsWith('/api/groups/')&&method==='POST')return route.fulfill({json:{ok:true,invite_url:`https://example.test/group-invite/${token}`}});
    return route.continue();
   });
   const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize='16px'));
-  return{context,page,errors};
+  return{context,page,errors,postedGroups};
  }
  try{
   for(const theme of ['light','dark']){
-   let {context,page,errors}=await open(theme);
+   let {context,page,errors,postedGroups}=await open(theme);
    await page.goto(base+'/me/friends');await page.locator('#fr-groups').waitFor();await page.locator('#fr-groups').click();await page.waitForURL('**/me/groups');
    await page.waitForFunction(()=>App.pageReady&&!!document.querySelector('#group-new'));
    await page.locator('#group-new').click();await page.getByLabel('Group name').waitFor();
-   assert.equal(await page.locator('#group-create-form').count(),1);assert.equal(await page.locator('[name=time_zone]').inputValue(),'America/New_York');
+   const zone=page.locator('[name=time_zone]');
+   assert.equal(await page.locator('#group-create-form').count(),1);assert.equal(await zone.inputValue(),'America/New_York');assert.equal(await zone.isVisible(),false,'the IANA zone picker stays hidden until Change');
+   assert.equal(await page.locator('#group-zone-change').innerText(),'Eastern time · Change');assert(!/America\/New_York/.test(await page.locator('#group-create-form').innerText()),'the create sheet shows a friendly zone label');
+   assert.match(await page.locator('#group-create-form').innerText(),/Only group members see the group/,'the privacy note stays on the create sheet');
    assert(await page.locator('.group-create-footer button[type=submit]').isVisible(),'Create stays visible in the sheet footer');
    assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'create sheet fits the phone');
    await capture(page,`groups-create-390-${theme}`);
+   await page.locator('#group-zone-change').click();await zone.waitFor({state:'visible'});await zone.evaluate(el=>el.blur());await zone.waitFor({state:'hidden'});assert.equal(await page.locator('#group-zone-change').innerText(),'Eastern time · Change','closing the picker without a selection restores the friendly action');
+   await page.locator('#group-zone-change').click();await zone.waitFor({state:'visible'});await zone.selectOption('America/Los_Angeles');
+   assert.equal(await page.locator('#group-zone-change').innerText(),'Pacific time · Change','the picker returns to a friendly label');assert.equal(await zone.isVisible(),false,'the picker closes after choosing a zone');
    await page.locator('[name=title]').fill('Fictional Alpine Weekend');await page.locator('[name=event_date]').fill('2026-11-21');
-   await page.locator('#group-create-form button[type=submit]').click();await page.locator('[data-group-copy]').waitFor();
+   await page.locator('#group-create-form button[type=submit]').click();await page.locator('[data-group-copy]').waitFor();assert.equal(postedGroups.at(-1).time_zone,'America/Los_Angeles','the selected zone is submitted');
    assert.equal(await page.locator('.group-invite-actions button').count(),2,'The organizer can copy or share the private link');
    await page.keyboard.press('Escape');await context.close();contexts.splice(contexts.indexOf(context),1);
 
@@ -55,6 +64,7 @@ async function capture(page,name,selector,{hideChrome=false}={}){
 
    ({context,page,errors}=await open(theme));await page.goto(base+groupUrl(idEmpty));await page.locator('.group-roster').waitFor();
    assert.equal(await page.locator('.group-member').count(),1);assert.match(await page.locator('.group-page').innerText(),/Together: 214 mi of 600 mi/);
+   assert.equal(await page.locator('.group-privacy').count(),0,'the shell does not repeat the privacy sentence');assert(!/Only members can see this group/.test(await page.locator('.group-page').innerText()));
    assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'group shell fits the phone');
    await capture(page,`groups-shell-empty-roster-390-${theme}`);assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
@@ -67,5 +77,12 @@ async function capture(page,name,selector,{hideChrome=false}={}){
    console.log(`Groups ${theme}: create, generic invite/accept, empty and full roster states pass`);
   }
   const {context,page}=await open('light',330);await page.goto(base+groupUrl(idFull));await page.locator('[data-group-more]').click();assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'full roster has no horizontal overflow at 330px');await context.close();contexts.splice(contexts.indexOf(context),1);
+  for(const theme of ['light','dark']){
+   const {context,page}=await open(theme,330);await page.goto(base+groupUrl(idLongGoal));const goal=page.locator('.group-goal>strong');
+   assert.equal(await goal.innerText(),'Together: 214 sessions of 600 sessions');
+   const layout=await goal.evaluate(el=>{const style=getComputedStyle(el),rect=el.getBoundingClientRect();return{height:rect.height,lineHeight:parseFloat(style.lineHeight),width:el.clientWidth,scrollWidth:el.scrollWidth,scrollHeight:el.scrollHeight,textOverflow:style.textOverflow,whiteSpace:style.whiteSpace};});
+   assert(layout.height>=layout.lineHeight*1.8,`long-unit goal wraps at 330px (${theme})`);assert(layout.scrollWidth<=layout.width+1,`long-unit goal is not clipped horizontally (${theme})`);assert(layout.scrollHeight<=Math.ceil(layout.height)+1,`long-unit goal is not clipped vertically (${theme})`);assert.notEqual(layout.textOverflow,'ellipsis');assert.equal(layout.whiteSpace,'normal');
+   await capture(page,`groups-goal-long-units-330-${theme}`,'.group-goal');await context.close();contexts.splice(contexts.indexOf(context),1);
+  }
  }finally{for(const context of contexts)await context.close();await browser.close();}
 })().catch(error=>{console.error(error);process.exit(1);});
