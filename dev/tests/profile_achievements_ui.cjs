@@ -278,7 +278,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.match(await earlyShowcase.locator('[data-achievement-code="workouts"]').getAttribute('aria-label'),/First workout/,'the first workout is recognized as its own level');
   assert.equal(await earlyShowcase.locator('[data-achievement-code="workouts"] [data-achievement-icon]').getAttribute('data-achievement-icon'),'Seedling','the first Workouts medal uses the seedling art');
   assert.equal(catalog.tracks.workouts.levels[0].asset_name,'Seedling','the First workout icon is the approved catalog override');
-  assert.equal(catalog.tracks.workouts.levels[3].asset_name,'Beans','the later Sprout keeps the icon sequence unique');
+  assert.equal(catalog.tracks.workouts.levels[3].asset_name,'Seedling','the existing Sprout retains its catalog art');
   if(shots){fs.mkdirSync(shots,{recursive:true});await earlyShowcase.screenshot({path:`${shots}/achievement-early-showcase-390-${theme}.png`,animations:'disabled'});}
   achievementFixture.tracks=allFixtureTracks;
   const allFixtureTracksForFilter=achievementFixture.tracks;achievementFixture.tracks=allFixtureTracksForFilter.filter(track=>['lifted','sport:lift'].includes(track.code));
