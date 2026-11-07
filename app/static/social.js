@@ -276,6 +276,90 @@ async function feedPage(before,size=FEED_N) {
   const all=visibleFeedRows(mine.concat(theirs)).sort((x,y)=>new Date(y.start_time)-new Date(x.start_time)||y.id-x.id),rows=all.slice(0,size);
   return {rows,more:all.length>size||mine.length===size||theirs.length===size,friends:rows.filter(a=>a.owner).length};
 }
+
+// The offer window uses the signed-in account's civil clock; the recap itself reuses Monday–Sunday dates.
+function weeklyRecapWindow(now=new Date(),zone=tz()){
+  const parts=new Intl.DateTimeFormat('en-US',{timeZone:zone,weekday:'short',hour:'2-digit',hourCycle:'h23'}).formatToParts(now),get=k=>parts.find(p=>p.type===k)?.value;
+  const date=new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now),part=k=>date.find(p=>p.type===k)?.value;
+  const today=`${part('year')}-${part('month')}-${part('day')}`,weekday=get('weekday'),hour=Number(get('hour')),offset=weekday==='Mon'?1:0;
+  return {visible:weekday==='Mon'||weekday==='Sun'&&hour>=18,start:Recaps.startFor('week',today,offset),offset};
+}
+function weeklyRecapDismissKey(server,account,start){return `fit.weekly-recap:${server}:${account}:${start}`;}
+function weeklyRecapUsual(rows,start){
+  const weeks=new Map();for(const row of rows||[]){const day=String(row.p||'').slice(0,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||day>=start)continue;
+    const week=weeks.get(day)||{start:day,distance_m:0,time_s:0,activities:0};week.distance_m+=Number(row.d)||0;week.time_s+=Number(row.t)||0;week.activities+=Number(row.n)||0;weeks.set(day,week);}
+  const past=[...weeks.values()].filter(w=>w.distance_m>0).sort((a,b)=>a.start.localeCompare(b.start)).slice(-6);
+  return past.length>=3?{weeks:past.length,distance_m:past.reduce((n,w)=>n+w.distance_m,0)/past.length,time_s:past.reduce((n,w)=>n+w.time_s,0)/past.length}:null;
+}
+function weeklyRecapDays(data){
+  const names=[['Mon','Monday'],['Tue','Tuesday'],['Wed','Wednesday'],['Thu','Thursday'],['Fri','Friday'],['Sat','Saturday'],['Sun','Sunday']],active=new Map((data.days||[]).map(row=>[String(row.day).slice(0,10),Number(row.activities)>0])),start=new Date(data.start+'T12:00:00Z');
+  return Array.from({length:7},(_,i)=>{const day=new Date(start);day.setUTCDate(day.getUTCDate()+i);const iso=day.toISOString().slice(0,10);return{day:iso,label:names[i][0],name:names[i][1],active:active.get(iso)===true};});
+}
+function weeklyRecapMedals(data,catalog,start,end){
+  return (data?.tracks||[]).flatMap(track=>(track.tiers||[]).filter(tier=>String(tier.day||'')>=start&&String(tier.day||'')<end).map(tier=>{
+    const level=(catalog?.tracks?.[track.code]?.levels||[])[Math.max(0,Number(tier.rank)-1)];
+    return {day:String(tier.day),rank:Number(tier.rank)||0,label:String(tier.name||level?.name||track.label||'Medal'),icon:typeof level?.icon==='string'?level.icon:''};
+  })).sort((a,b)=>a.day.localeCompare(b.day)||a.rank-b.rank);
+}
+function weeklyRecapDateLabel(start,end){
+  const first=new Date(start+'T12:00:00Z'),last=new Date(end+'T12:00:00Z');last.setUTCDate(last.getUTCDate()-1);
+  const fmt=d=>d.toLocaleDateString(undefined,{timeZone:'UTC',month:'short',day:'numeric'});return `${fmt(first)}–${fmt(last)}`;
+}
+function weeklyRecapHtml(data,usual,medals){
+  const best=data.owner_best_effort,days=weeklyRecapDays(data),shown=medals.slice(0,3),extra=medals.length-shown.length;
+  return `<section class="card recap-offer weekly-recap" data-weekly-recap data-start="${esc(data.start)}"><div class="weekly-recap-copy">
+    <div class="weekly-recap-head"><div><h2>Your week</h2><p class="small muted">${esc(weeklyRecapDateLabel(data.start,data.end))}</p></div><div class="weekly-recap-actions"><button type="button" class="linkbtn" data-weekly-recap-share>Share</button><button type="button" class="icon-btn" data-weekly-recap-dismiss aria-label="Dismiss this week’s recap">${svg('close')}</button></div></div>
+    <div class="weekly-recap-metrics"><div><b class="num">${esc(U.dist(data.distance_m||0,1))} ${esc(U.du())}</b><small>Distance${usual?` · ${esc(U.dist(usual.distance_m,1))} ${esc(U.du())} usual`:''}</small></div><div><b class="num">${esc(dur(data.time_s||0,true))}</b><small>Time${usual?` · ${esc(dur(usual.time_s,true))} usual`:''}</small></div></div>
+    ${best||shown.length?`<div class="weekly-recap-highlights">${best?`<p class="weekly-recap-best"><b>Best effort</b> · ${esc(best.label)} · ${esc(dur(best.elapsed_s,true))}</p>`:''}${shown.length?`<div class="weekly-recap-medals" role="list" aria-label="New medals this week">${shown.map(m=>`<span class="weekly-recap-medal" role="listitem" aria-label="${esc(m.label)}"><img src="${esc(m.icon)}" alt="" aria-hidden="true" loading="eager" decoding="async"><span>${esc(m.label)}</span></span>`).join('')}${extra?`<span class="weekly-recap-medal-more">+${extra} more</span>`:''}</div>`:''}</div>`:''}
+    <div class="weekly-recap-days" role="group" aria-label="Activity days, Monday to Sunday">${days.map(d=>`<span class="weekly-recap-day" aria-label="${d.name}: ${d.active?'workout':'no workout'}"><small aria-hidden="true">${d.label}</small><i class="${d.active?'is-active':''}" aria-hidden="true"></i></span>`).join('')}</div>
+  </div></section>`;
+}
+let weeklyRecapCatalogPromise=null;
+function weeklyRecapCatalog(){
+  if(!weeklyRecapCatalogPromise)weeklyRecapCatalogPromise=fetch((Native.base||'')+'/static/profile.achievement-levels.json?v=__ASSET_HASH__',{credentials:Native.on?'omit':'same-origin',headers:Native.headers()}).then(r=>r.ok?r.json():{}).catch(()=>({}));
+  return weeklyRecapCatalogPromise;
+}
+function weeklyRecapPicture(data,usual,medals,days){
+  return (async()=>{
+    await document.fonts.ready;const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;
+    const g=canvas.getContext('2d'),p=ShareArt.palette(),gradient=g.createLinearGradient(0,0,1080,1350);gradient.addColorStop(0,col('--share-action'));gradient.addColorStop(1,col('--share-brand'));
+    g.fillStyle=gradient;g.fillRect(0,0,1080,1350);g.fillStyle=p.bg;g.beginPath();g.roundRect(54,48,972,1254,32);g.fill();
+    ShareArt.text(g,'Your week',92,145,62,{color:p.text,max:896,weight:750});ShareArt.text(g,weeklyRecapDateLabel(data.start,data.end),92,205,32,{color:p.muted,max:896});
+    g.strokeStyle=p.line;g.lineWidth=2;g.beginPath();g.moveTo(92,244);g.lineTo(988,244);g.stroke();
+    ShareArt.text(g,`${U.dist(data.distance_m||0,1)} ${U.du()}`,92,360,100,{color:p.text,max:896,weight:800});ShareArt.text(g,'Distance',92,410,30,{color:p.muted,max:896});
+    ShareArt.text(g,dur(data.time_s||0,true),92,540,92,{color:p.text,max:896,weight:800});ShareArt.text(g,'Time',92,590,30,{color:p.muted,max:896});
+    if(usual)ShareArt.text(g,`Usual week · ${U.dist(usual.distance_m,1)} ${U.du()} · ${dur(usual.time_s,true)}`,92,665,31,{color:p.soft,max:896});
+    let y=755;
+    if(data.owner_best_effort){ShareArt.text(g,'Best effort',92,y,29,{color:p.muted,max:896});ShareArt.text(g,`${data.owner_best_effort.label} · ${dur(data.owner_best_effort.elapsed_s,true)}`,92,y+58,42,{color:p.text,max:896,weight:650});y+=142;}
+    if(medals.length){ShareArt.text(g,'New medals',92,y,29,{color:p.muted,max:896});const items=medals.slice(0,3),images=await Promise.all(items.map(m=>new Promise(resolve=>{if(!m.icon){resolve(null);return;}const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>resolve(null);im.src=(Native.base||'')+m.icon;})));
+      const width=896/items.length;items.forEach((m,i)=>{const x=92+i*width;if(images[i])g.drawImage(images[i],x,y+24,46,46);else{g.fillStyle=p.blue;g.beginPath();g.arc(x+23,y+47,22,0,Math.PI*2);g.fill();}for(const [line,n] of ShareArt.lines(g,m.label,width-70,27).slice(0,2).entries())ShareArt.text(g,n,x+58,y+58+line*31,27,{color:p.text,max:width-70});});
+      if(medals.length>items.length)ShareArt.text(g,`+${medals.length-items.length} more`,92,y+112,24,{color:p.muted,max:896});y+=160;}
+    ShareArt.text(g,'Activity days',92,Math.min(y+34,1020),29,{color:p.muted,max:896});const dx=896/7,base=Math.min(y+104,1114);
+    days.forEach((d,i)=>{const x=92+dx*(i+.5);ShareArt.text(g,d.label,x,base+58,22,{color:p.muted,max:dx,align:'center'});g.fillStyle=d.active?p.blue:p.line;g.beginPath();g.arc(x,base+4,12,0,Math.PI*2);g.fill();});
+    g.strokeStyle=p.line;g.beginPath();g.moveTo(92,1228);g.lineTo(988,1228);g.stroke();drawMark(g,112,1278,44,p.blue);ShareArt.text(g,'Kinetta',154,1287,28,{color:p.text});ShareArt.text(g,'kinetta.app',988,1285,24,{color:p.muted,align:'right'});
+    return ShareArt.blob(canvas);
+  })();
+}
+function openWeeklyRecapShare(box,data,usual,medals,days){
+  const owner=readOwner();sheet('Share your week',`<div class="weekly-recap-share-stage"><img data-weekly-recap-share-image alt="Weekly recap picture" hidden></div><p class="small muted" data-weekly-recap-share-status role="status">Preparing your picture…</p><button type="button" class="primary wide" data-weekly-recap-share-send disabled>Share</button>`,(body,close)=>{
+    const live=()=>owner===readOwner()&&box.isConnected&&body.isConnected,image=$('[data-weekly-recap-share-image]',body),status=$('[data-weekly-recap-share-status]',body),button=$('[data-weekly-recap-share-send]',body);let picture=null;
+    weeklyRecapPicture(data,usual,medals,days).then(blob=>{if(!live())return;picture=blob;const parts=[`Your week, ${weeklyRecapDateLabel(data.start,data.end)}.`,`${U.dist(data.distance_m||0,1)} ${U.du()} distance.`,`${dur(data.time_s||0,true)} time.`,usual?`Usual week: ${U.dist(usual.distance_m,1)} ${U.du()} and ${dur(usual.time_s,true)}.`:null,data.owner_best_effort?`Best effort: ${data.owner_best_effort.label}, ${dur(data.owner_best_effort.elapsed_s,true)}.`:null,...medals.map(m=>`New medal: ${m.label}.`)];image.alt=parts.filter(Boolean).join(' ');image.src=URL.createObjectURL(blob);image.hidden=false;status.textContent='Your week picture is ready.';button.disabled=false;}).catch(error=>{if(live())status.textContent=error.message||'Couldn’t make this picture.';});
+    button.onclick=async()=>{if(!picture||button.disabled||!live())return;button.disabled=true;status.textContent='Opening share options…';try{await ShareArt.deliver(picture,`kinetta-week-${data.start}.png`,live);if(live())status.textContent='';}catch(error){if(live()){status.textContent=error.message||'Couldn’t share this picture.';button.disabled=false;}}};
+  });
+}
+async function weeklyRecapOffer(box){
+  if(!box||!box.isConnected||!App.me)return;const owner=readOwner(),zone=tz(),window=weeklyRecapWindow(new Date(),zone);if(!window.visible)return;
+  const key=weeklyRecapDismissKey(serverKey(),App.me.id,window.start);if(store.get(key))return;
+  try{
+    const [data,volume,achievements]=await Promise.all([api(`/api/recaps?period=week&offset=${window.offset}`),api('/api/progress/volume?period=week'),api('/api/achievements')]);
+    if(!box.isConnected||owner!==readOwner()||zone!==tz()||data.tz!==zone||data.start!==window.start||Number(data.activities)<=0)return;
+    const usual=weeklyRecapUsual(volume.rows,data.start);let medals=weeklyRecapMedals(achievements,null,data.start,data.end);if(medals.length)medals=weeklyRecapMedals(achievements,await weeklyRecapCatalog(),data.start,data.end);
+    if(!box.isConnected||owner!==readOwner()||zone!==tz()||store.get(key))return;
+    const days=weeklyRecapDays(data);box.innerHTML=weeklyRecapHtml(data,usual,medals);
+    const card=$('[data-weekly-recap]',box),dismiss=$('[data-weekly-recap-dismiss]',card),share=$('[data-weekly-recap-share]',card),live=()=>card.isConnected&&owner===readOwner();
+    dismiss.onclick=()=>{if(!live())return;store.set(key,'dismissed');box.replaceChildren();};share.onclick=()=>{if(live())openWeeklyRecapShare(box,data,usual,medals,days);};
+  }catch(_){/* The recap is optional; feed access must remain useful if one of its reads is offline. */}
+}
 // Persist only a small opening view; deeper browsing stays in this account's memory cache.
 function keepFeed(pg){
   const rows=pg.rows.slice(0,FEED_N);
@@ -289,9 +373,10 @@ function warmFeed() {
 }
 async function homeFeed(el) {
   el.classList?.add('activity-home');
-  el.innerHTML=`<div id="feed-top">${actTop(false,false)}</div><div id="feed-tools"></div>
+  el.innerHTML=`<div id="feed-top">${actTop(false,false)}</div><div id="weekly-recap"></div><div id="feed-tools"></div>
     <div class="feed-list" id="ff-list">${skelFeed(3)}</div><button type="button" class="ghost feed-more" id="ff-more" hidden>Show more</button>`;
-  const list=$('#ff-list',el),more=$('#ff-more',el),account=readOwner();
+  const list=$('#ff-list',el),more=$('#ff-more',el),recap=$('#weekly-recap',el),account=readOwner();
+  void weeklyRecapOffer(recap);
   let items=[],shown=null,pageRevision=0;
   const active=()=>account===readOwner()&&list.isConnected,tools=feedTools(el,()=>account===readOwner()&&list.isConnected);
   const draw=pg=>{
@@ -332,7 +417,7 @@ async function homeFeed(el) {
     App.cache.set('feed:home',{data:pg,at:Date.now()});keepFeed(pg);draw(pg);
   };
   // Pull-to-refresh uses this read-only hook instead of replacing the entire page.
-  el.refresh=()=>Promise.all([revalidate(),tools.refresh()]);
+  el.refresh=()=>Promise.all([revalidate(),tools.refresh(),weeklyRecapOffer(recap)]);
   more.onclick=async()=>{
     if(more.disabled||!active()||!items.length)return;
     const epoch=readEpoch('feed:home');pageRevision++;more.disabled=true;more.textContent='Loading…';

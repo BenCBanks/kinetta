@@ -149,6 +149,7 @@ node dev/tests/test_semantic_colours.js
 node dev/tests/test_card_taps.js
 node dev/tests/test_ui_state.js
 node dev/tests/test_social_profiles_ui.js
+node dev/tests/test_weekly_recap.cjs
 node dev/tests/test_profile_layout.js
 node dev/tests/test_onboarding.js
 node dev/tests/test_welcome.js
