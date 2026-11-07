@@ -1,7 +1,7 @@
 // Real owner/friend APIs and fictional demo geometry. No provider, device or sharing effects.
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),path=require('node:path');
-const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill',out=process.env.KINETTA_EVIDENCE,fs=require('node:fs'),medalKind=process.env.KINETTA_MEDAL_CASE||'',medalTheme=process.env.KINETTA_MEDAL_THEME||'light';
+const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill',out=process.env.KINETTA_EVIDENCE,fs=require('node:fs'),medalKind=process.env.KINETTA_MEDAL_CASE||'',medalTheme=process.env.KINETTA_MEDAL_THEME||'light',medalWidth=Number(process.env.KINETTA_MEDAL_WIDTH)||390;
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
 (async()=>{
  const output=cp.execFileSync('python3',[path.join(__dirname,'activity_detail_fixture.py')],{env:process.env,encoding:'utf8'});console.log(output.trim());const ids=JSON.parse(output.trim().split('\n').at(-1));
@@ -15,13 +15,15 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   await p.goto(base+(friend?'/activity/friends/':'/activity/')+id+(comments?'?tab=comments':''));await until(p,()=>App.pageReady&&!!document.querySelector('.compact-detail-title'),'detail ready');return{c,p,id,errors,writes,friend};
  }
  try{
-  for(const kind of ['run','treadmill','ride','lifting','empty','friend'])for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
+  for(const kind of ['run','treadmill','ride','lifting','empty','friend'])for(const size of (medalKind?[{width:390,height:844,root:16},{width:330,height:667,root:16}]:[{width:390,height:844,root:16}]))for(const theme of ['light','dark']){
    const name=`${kind}-${size.width}-${theme}`;if(process.env.KINETTA_DETAIL_CASE&&process.env.KINETTA_DETAIL_CASE!==name)continue;
-   if(medalKind&&(kind!==medalKind||theme!==medalTheme))continue;
+   if(medalKind&&(kind!==medalKind||theme!==medalTheme||size.width!==medalWidth))continue;
    const {c,p,errors,writes,friend}=await open(kind,theme,size),mapped=['run','ride','friend'].includes(kind);
    if(medalKind){
     await until(p,()=>!!document.querySelector('.activity-next-medal'),'detail next medal');
-    const metric=await p.evaluate(()=>App.me?.units==='metric'),expected=medalKind==='ride'?`${metric?'3.7 km':'2.3 mi'} to Century`:`${metric?'1 km':'0.62 mi'} to 10K`;assert.equal(await p.locator('.activity-next-medal').innerText(),expected);
+    const line=p.locator('.activity-next-medal'),copy=line.locator('.activity-next-medal-copy'),metric=await p.evaluate(()=>App.me?.units==='metric'),remaining=medalKind==='ride'?(metric?'3.7 km':'2.3 mi'):(metric?'1 km':'0.62 mi'),level=medalKind==='ride'?'Century':'10K',full=`${remaining} to your ${level} medal`,compact=`${remaining} to ${level}`,actual=await copy.innerText(),fullFits=await copy.evaluate((el,text)=>{const link=el.closest('a'),tight=link.classList.contains('is-tight'),font=link.style.fontSize,before=el.textContent;link.classList.remove('is-tight');link.style.removeProperty('font-size');el.textContent=text;const fits=el.scrollWidth<=el.clientWidth+1;el.textContent=before;if(tight)link.classList.add('is-tight');if(font)link.style.fontSize=font;return fits;},full);assert.equal(actual,fullFits?full:compact,'keeps the expanded medal copy only when it fits at '+size.width+'px');
+    const fit=await p.locator('#d-next-medal').evaluate(box=>{const link=box.querySelector('.activity-next-medal'),copy=link.querySelector('.activity-next-medal-copy'),r=link.getBoundingClientRect(),b=box.getBoundingClientRect(),s=getComputedStyle(copy);return{width:copy.clientWidth,scroll:copy.scrollWidth,height:copy.getBoundingClientRect().height,lineHeight:parseFloat(s.lineHeight),whiteSpace:s.whiteSpace,ellipsis:s.textOverflow==='ellipsis'||/[…]|\.\.\./.test(copy.textContent),inside:r.left>=b.left-1&&r.right<=b.right+1,boxWidth:box.clientWidth,boxScroll:box.scrollWidth,documentWidth:document.documentElement.scrollWidth,viewport:innerWidth};});assert(fit.scroll<=fit.width+1&&fit.height<=fit.lineHeight+1&&fit.whiteSpace==='nowrap'&&!fit.ellipsis&&fit.inside&&fit.boxScroll<=fit.boxWidth+1&&fit.documentWidth<=fit.viewport+1,'detail medal text stays on one unclipped line at '+size.width+'px: '+JSON.stringify(fit));
+    const iconPath=new URL(await line.locator('img').getAttribute('src'),base).pathname;assert(iconPath.endsWith(medalKind==='ride'?'/hundred_points_flat.svg':'/sports_medal_flat.svg'),'uses the catalog Fluent medal art');assert.equal(await line.getAttribute('aria-label'),actual);
     if(mapped)await until(p,()=>!!document.querySelector('#d-map .leaflet-tile-loaded'),'fictional map tiles');
     if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`detail-next-${medalKind}-${theme}.png`),fullPage:true,animations:'disabled'});}
     assert.deepEqual(errors,[]);assert(await p.locator('[data-detail-edit]').count()>=1);console.log(`Activity detail ${medalKind} ${theme}: next-medal line PASS`);await c.close();contexts.splice(contexts.indexOf(c),1);continue;

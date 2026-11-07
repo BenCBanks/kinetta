@@ -65,6 +65,25 @@ const ActivityDetail=(()=>{
   if(code==='sport:lift')return `${count} ${Math.ceil(value-1e-9)===1?'session':'sessions'}`;
   return `${count} workouts`;
  }
+ function medalIcon(catalog,track,tier){
+  const medalLevel=levels=>(Array.isArray(levels)?levels:[]).find(level=>String(level.asset_name||'').toLowerCase()==='sports medal');
+  const medal=medalLevel(catalog?.tracks?.[track?.code]?.levels)||medalLevel(Object.values(catalog?.tracks||{}).flatMap(item=>item.levels||[]));
+  const timer=/^(?:stopwatch|timer)$/i.test(String(tier?.asset_name||''));
+  return (timer?medal?.icon:tier?.icon)||medal?.icon||tier?.icon||'';
+ }
+ function fitMedalCopy(link,full,compact){
+  const copy=link.querySelector('.activity-next-medal-copy');if(!copy)return;
+  copy.textContent=full;link.classList.remove('is-tight');link.style.removeProperty('font-size');
+  if(copy.clientWidth&&copy.scrollWidth>copy.clientWidth+1)copy.textContent=compact;
+  if(copy.clientWidth&&copy.scrollWidth>copy.clientWidth+1){
+   link.classList.add('is-tight');
+   for(let i=0;i<4&&copy.scrollWidth>copy.clientWidth+1;i++){
+    const size=parseFloat(getComputedStyle(link).fontSize)||13;
+    link.style.fontSize=`${Math.max(8,size*copy.clientWidth/copy.scrollWidth-.15)}px`;
+   }
+  }
+  link.setAttribute('aria-label',copy.textContent);
+ }
  function recent(a){
   const created=Date.parse(a.created||a.start_time||'');return Number.isFinite(created)&&created<=Date.now()+60_000&&Date.now()-created<=86_400_000;
  }
@@ -91,9 +110,14 @@ const ActivityDetail=(()=>{
     return {track,tier,remaining,ratio:remaining/beforeGap};
    }).filter(Boolean).sort((left,right)=>left.ratio-right.ratio||left.track.code.localeCompare(right.track.code));
    if(!live()||!candidates.length)return;
-   const best=candidates[0],text=`${remainingText(best.track.code,best.remaining)} to ${best.tier.name}`;
-   const href=`/me/achievements/${encodeURIComponent(best.track.code)}`;
-   node.innerHTML=`<a class="activity-next-medal" href="${esc(href)}" aria-label="${esc(text)}"><span>${esc(text)}</span><img src="${esc(best.tier.icon||'')}" alt="" aria-hidden="true" loading="lazy" decoding="async"></a>`;
+   const best=candidates[0],remaining=remainingText(best.track.code,best.remaining),full=`${remaining} to your ${best.tier.name} medal`,compact=`${remaining} to ${best.tier.name}`;
+   const href=`/me/achievements/${encodeURIComponent(best.track.code)}`,icon=medalIcon(catalog,best.track,best.tier);
+   node.innerHTML=`<a class="activity-next-medal" href="${esc(href)}"><span class="activity-next-medal-copy"></span><img src="${esc(icon)}" alt="" aria-hidden="true" loading="lazy" decoding="async"></a>`;
+   const link=node.querySelector('.activity-next-medal'),fit=()=>fitMedalCopy(link,full,compact);fit();
+   if(typeof ResizeObserver==='function'){
+    const observer=new ResizeObserver(fit);observer.observe(node);const dispose=viewResources.get(node);
+    viewResources.set(node,()=>{observer.disconnect();dispose?.();});
+   }
   }catch(_){/* The workout remains available if optional achievement data is unavailable. */}
  }
  async function nextMedalForId(node,id){
