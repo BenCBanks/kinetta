@@ -432,7 +432,7 @@ function meInsights(box, s) {
   const paint = () => {
     if (!live()) return;
     const rows = [weekRow, parts.bests, ...mainSports.map(sport => parts.trends[sport]), consistencyRow]
-      .filter(Boolean).slice(0, 4);
+      .filter(Boolean).slice(0, 3);
     list.innerHTML = rows.length ? rows.join('') : '<p class="small muted me-insights-empty">Your training insights will appear as you build a history.</p>';
   };
   paint();
@@ -481,8 +481,9 @@ route(/^\/today$/, 'me', async () => go('/me', {replace: true}));
 async function meOverview(el) {
   const me=App.me;
   el.innerHTML=MeCard.header(me)+
-    '<div id="t-today"></div><div id="t-required"></div><div id="t-start"></div><div id="t-setup"></div>'+
-    '<div id="t-content"><div id="t-checkin"></div><div id="t-recap"></div><div id="t-combined-week"></div><div id="t-goals"></div><div id="t-insights" hidden></div></div>';
+    '<div id="t-required"></div><div id="t-today"></div>'+
+    '<div id="t-content"><div id="t-checkin"></div><div id="t-recap"></div><div id="t-goals"></div><div id="t-insights" hidden></div></div>'+
+    '<div id="t-start"></div><div id="t-setup"></div>';
   MeCard.mount(el,{reload:()=>render(),editOnLoad:new URLSearchParams(location.search).get('edit')==='profile'});
   if(typeof Milestones!=='undefined')Milestones.mount($('[data-me-milestones]',el),{row:true});
   const setup=$('#t-setup',el),todayRoot=$('#t-today',el),owner=readOwner();
@@ -491,11 +492,10 @@ async function meOverview(el) {
   let foodHistory=null,activityHistory=null,activePlan=null,healthConnected=false,checkinStarted=false;
   const drawSetup=()=>{
     if(!el.isConnected||foodHistory===null||activityHistory===null||activePlan===null)return;
-    const missing=['weight_kg','height_cm','sex','birth_year'].filter(k=>!App.me[k]),fresh=!(activityHistory||foodHistory||activePlan);
+    const fresh=!(activityHistory||foodHistory||activePlan);
     $('#t-insights',el).hidden=fresh;
     $('#t-start',el).innerHTML=fresh?getStarted(healthConnected,false):'';
-    setup.innerHTML=(fresh?'':getStarted(healthConnected,true))+(!App.me.setup_hidden&&missing.length&&App.me.kcal_target?
-      '<a class="card tap setup-body" href="/me?setup=body"><span>'+svg('heart')+'</span><div><b>Make your estimates more personal</b><p>Add '+esc(missing.map(k=>({weight_kg:'weight',height_cm:'height',sex:'sex',birth_year:'birth year'}[k])).join(', '))+' for better calorie-needs and effort estimates.</p><small>Private body settings · optional, editable any time</small></div>'+svg('chev')+'</a>':'');
+    setup.innerHTML=fresh?'':getStarted(healthConnected,true);
     const photo=$('[data-setup-photo]',setup);if(photo)photo.onclick=()=>profilePhotoSheet(()=>{invalidate('/api/me');keep('/api/me',App.me);render();});
     $$('[data-setup-skip]',setup).forEach(button=>button.onclick=async()=>{
       if(button.disabled)return;const account=readOwner(),next=[...new Set([...(App.me.setup_skipped||[]),button.dataset.setupSkip])];button.disabled=true;
@@ -592,8 +592,7 @@ async function meOverview(el) {
     const add=$('[data-today-add]',todayRoot);if(add)add.onclick=()=>describeSheet(day,guessMeal());
     if(foodData?.entries?.length){
       if(!checkinStarted){checkinStarted=true;weeklyCheckinCard($('#t-checkin',el),{home:true}).catch(()=>{});}
-      combinedWeek($('#t-combined-week',el));
-    }else if(!todayFoodUser||foodData){$('#t-checkin',el).innerHTML='';$('#t-combined-week',el).innerHTML='';checkinStarted=false;}
+    }else if(!todayFoodUser||foodData){$('#t-checkin',el).innerHTML='';checkinStarted=false;}
   };
   const onFoodChanged=()=>refreshToday(),onVisible=()=>{if(!document.hidden)refreshToday();};
   const scheduleMidnight=()=>{clearTimeout(midnightTimer);const now=new Date(),next=new Date(now);next.setHours(24,0,0,250);midnightTimer=setTimeout(()=>{refreshToday();scheduleMidnight();},Math.max(1000,next-now));};
@@ -1289,12 +1288,11 @@ async function progressHome(el, q) {
   const sport = pSport(q), period = PPERIODS.some(p=>p[0]===q.get('period')) ? q.get('period') : 'week';
   const viewSport=forView(sport,'totals'),metric=progressMetricForSport(viewSport,q.get('metric')||'distance');
   el.innerHTML = `<div class="top progress-heading"><h1>Progress</h1><div class="acts">${bellBtn()}</div></div>
-    <div class="progress-home"><div id="p-home-totals" class="progress-home-totals">${skelChart()}</div>
+    <div class="progress-home"><div id="p-combined-week"></div><div id="p-home-totals" class="progress-home-totals">${skelChart()}</div>
     <div class="progress-pair"><a class="card progress-summary" href="/progress?view=fitness"><h2>${svg('flame')}Fitness</h2><span data-progress-fitness class="small muted">Form and race estimates →</span></a>
     <a class="card progress-summary" href="/progress?view=records"><h2>${svg('trophy')}Records</h2><span data-progress-record class="small muted">Your fastest times, after a timed run</span></a></div>
     <h2 class="sec-head">Explore your progress</h2><div class="progress-grid" id="p-explore"></div>
-    ${foodUser()?'<a class="card progress-food-summary" href="/food?view=overview&from=progress"><h2>Food &amp; weight '+svg('chev')+'</h2><span class="small muted" data-progress-food>See your protein goals and weight trend →</span></a>':''}
-    ${q.get('review')==='week'?'<div id="p-combined-week"></div>':''}</div>`;
+    ${foodUser()?'<a class="card progress-food-summary" href="/food?view=overview&from=progress"><h2>Food &amp; weight '+svg('chev')+'</h2><span class="small muted" data-progress-food>See your protein goals and weight trend →</span></a>':''}</div>`;
   wireProgressFocus(el); wireProgressPeriods(el);
   Discovery.wire($('#p-explore',el),'progress',{attribute:'data-progress-feature'});
   const totals=$('#p-home-totals',el), grid=$('#p-explore',el); progressTiles(grid);
@@ -1803,7 +1801,7 @@ route(/^\/me$/, 'me', async (el) => {
   const me = App.me, ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
   el.innerHTML = `<div id="me-overview"></div>
-    <div class="card list me-tools">${row('a', `href="${profileHref(App.me)}"`, 'activity', 'c-brand', 'Your profile<small class="muted">All your activities, including private ones</small>')}${row('a', 'href="/plan"', 'calendar', 'c-brand', 'Training plan')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>`;
+    <div class="card list me-tools">${row('a', `href="${profileHref(App.me)}"`, 'activity', 'c-brand', 'See full profile')}${row('a', 'href="/plan"', 'calendar', 'c-brand', 'Training plan')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', 'href="/me/explore"', 'help', 'c-brand', 'Explore Kinetta')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>`;
   el.insertAdjacentHTML('beforeend','<div id="me-challenges"></div>');Challenges.mount($('#me-challenges',el),{me:true});
   meOverview($('#me-overview', el)).catch((e) => showError($('#me-overview', el), e));
 });
@@ -1823,10 +1821,11 @@ route(/^\/me\/settings$/, 'me', async (el) => {
     <h2 class="sec-head">Connections &amp; notifications</h2>
     <div class="card list">${row('a', 'href="/track/connections"', 'watch', 'c-brand', 'Connections')}
       ${row('a', 'href="/me/notifications"', 'bell', 'c-orange', 'Notifications')}<label class="row-link switch-row"><span class="ri c-brand">${svg('help')}</span><span class="grow">Show setup tips<small class="muted">Optional connection and profile reminders</small></span><input type="checkbox" role="switch" id="m-setup-tips"${me.setup_hidden?'':' checked'}></label>${(me.setup_skipped||[]).length?'<button type="button" class="row-link" id="m-setup-unskip"><span class="ri c-brand">'+svg('check')+'</span><span class="grow">Bring back skipped setup steps</span></button>':''}</div>
-    <h2 class="sec-head">Units &amp; body</h2>
+    <h2 class="sec-head">Units</h2>
     <div class="card list"><div class="row-link static"><span class="ri c-grey">${svg('ruler')}</span><span class="grow">Units</span><div class="seg" role="group" aria-label="Units">
-        <button data-u="imperial" aria-pressed="${me.units === 'imperial'}">mi · lb</button><button data-u="metric" aria-pressed="${me.units === 'metric'}">km · kg</button></div></div>
-      ${row('button', 'id="m-body"', 'heart', 'c-red', 'Body & heart rate', esc([me.max_hr ? `Max HR ${me.max_hr}` : '', me.weight_kg ? `${Math.round(U.weight(me.weight_kg))} ${imp() ? 'lb' : 'kg'}` : ''].filter(Boolean).join(' · ') || 'Set up'))}</div>
+        <button data-u="imperial" aria-pressed="${me.units === 'imperial'}">mi · lb</button><button data-u="metric" aria-pressed="${me.units === 'metric'}">km · kg</button></div></div></div>
+    <h2 class="sec-head">Body</h2>
+    <div class="card list">${row('button', 'id="m-body"', 'heart', 'c-red', 'Body & heart rate', esc([me.max_hr ? `Max HR ${me.max_hr}` : '', me.weight_kg ? `${Math.round(U.weight(me.weight_kg))} ${imp() ? 'lb' : 'kg'}` : ''].filter(Boolean).join(' · ') || 'Set up'))}</div>
     <div class="card list" id="ai">${row('button','type="button" id="m-kit"','sparkle','c-green','Kit',me.ai_paused?'Paused':me.ai_ok?'On':'Off')}</div>
     <h2 class="sec-head">Help</h2>
     <div class="card list">${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help &amp; contact')}</div>

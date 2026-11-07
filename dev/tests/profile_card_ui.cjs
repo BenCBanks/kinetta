@@ -115,7 +115,7 @@ for(const size of [{width:320,height:667,root:16},{width:390,height:844,root:16}
  await cardChecks(p,size);
  assert.equal(await p.locator('[data-me-milestones]').count(),0,'private milestone row is absent from full profiles');
  assert.equal(await p.locator('.profile-page-title').innerText(),'Your profile');
- assert.equal(await p.locator('#person-profile .me-card-profile-link,.me-card .me-profile-chevron').count(),0,'the full profile does not link back to itself');
+ assert.equal(await p.locator('#person-profile .me-card-open-link,.me-card .me-profile-chevron').count(),0,'the full profile does not link back to itself');
  assert.equal(await p.locator('#person-profile .me-card [data-card-edit]').count(),1);assert.equal(await p.locator('#person-profile .me-card [data-card-share]').count(),1);
  assert.equal(await p.locator('#pf-card, #pf-edit-profile, #pf-share').count(),0,'old profile parts are gone');
  assert.equal(await p.locator('#person-profile .me-card-row').count(),0,'no link row back to the same page');
@@ -131,7 +131,7 @@ for(const size of [{width:320,height:667,root:16},{width:390,height:844,root:16}
  assert(await privacy.evaluate(n=>n.scrollWidth<=n.clientWidth+1),'privacy note remains one line without clipping');
  if(size.width===390&&size.root===16)assert(await privacyVisible.evaluate(n=>{const r=document.createRange();r.selectNodeContents(n);return r.getClientRects().length===1;}),'Share privacy note fits on one line at 390px');
  const preview=share.locator('.profile-share-art');assert(await preview.evaluate(n=>n.inert),'recipient miniature cannot receive input');
- assert.equal(await preview.locator('.me-card-profile-link,.me-profile-chevron').count(),0,'the Share miniature has no misleading self-profile link');
+ assert.equal(await preview.locator('.me-card-open-link,.me-profile-chevron').count(),0,'the Share miniature has no misleading self-profile link');
  assert.equal(await preview.locator('.me-card-figures[data-card-period=totals] .me-metric-value').first().innerText(),'77','Share preview renders the public-member total, not the owner total');
  assert.equal(await preview.locator('.me-sport-chip .me-sport-ico[data-sport=run]').count(),1,'Share preview includes only audience-filtered sports');
  assert.doesNotMatch(await share.innerText(),/See what others see|Previewing as|View full profile/);if(size.width===390)await shot('profile-share-preview');
