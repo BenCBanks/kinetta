@@ -331,5 +331,7 @@ docker compose -p "$P" exec -T app python - < dev/tests/milestones_incontainer.p
 
 echo "== aggregate challenge privacy and lifecycle"
 docker compose -p "$P" exec -T app python - < dev/tests/challenges_incontainer.py
+echo "== private group invitations, RLS, lifecycle and aggregate privacy"
+docker compose -p "$P" exec -T app python - < dev/tests/groups_incontainer.py
 
 echo "== all passed"
