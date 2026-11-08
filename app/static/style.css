@@ -2274,20 +2274,15 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .emoji-reactions .reaction-more {order:1;flex:none;min-width:44px;min-height:44px;justify-content:flex-start;gap:6px;padding:0;margin-right:16px;font-size:15px;font-weight:500;color:var(--tx2);}
 .emoji-reactions .reaction-more>svg {flex:none;width:20px;height:20px;}
 .emoji-reactions .reaction-more .reaction-emoji {font-size:22px;}
+.emoji-reactions .reaction-more[data-kind]:not([data-kind=""]) .reaction-emoji {display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:1.5px solid var(--accent);border-radius:50%;font-size:24px;line-height:1;}
 .emoji-reactions .reaction-more:active,.emoji-reactions .reaction-count:active,.activity-comments:active {background:none;opacity:.72;}
-.emoji-reactions .reaction-shortcuts {order:3;display:flex;flex:none;align-items:center;gap:4px;margin-left:auto;}
-.emoji-reactions .reaction-shortcuts[hidden] {display:none;}
-.emoji-reactions .reaction-summary {display:flex;align-items:center;gap:0;min-height:44px;overflow:visible;}
-.emoji-reactions .reaction-summary[hidden] {display:none;}
-.emoji-reactions .reaction-summary-emoji {position:relative;z-index:0;display:flex;flex:none;align-items:center;justify-content:flex-start;width:24px;min-width:24px;height:44px;padding:0;margin:0;border:0;border-radius:0;background:none;color:var(--tx2);}
-.emoji-reactions .reaction-summary-emoji:active {background:none;opacity:.72;}
-.emoji-reactions .reaction-summary-emoji:focus-visible {z-index:5;outline:2px solid var(--accent);outline-offset:2px;border-radius:4px;}
-.emoji-reactions .reaction-summary-emoji .reaction-emoji {display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;margin-left:2px;border:2px solid var(--card);border-radius:50%;background:var(--card);font-size:20px;line-height:1;}
-.emoji-reactions .reaction-summary-emoji:first-child:nth-last-child(2) .reaction-emoji {margin-left:7px;}
-.emoji-reactions .reaction-summary-emoji:first-child:nth-last-child(3) .reaction-emoji {margin-left:13px;}
-.emoji-reactions .reaction-summary-emoji:nth-child(2):nth-last-child(2) .reaction-emoji {margin-left:8px;}
-.emoji-reactions .reaction-count {order:4;display:flex;flex:none;align-items:center;justify-content:flex-start;min-width:44px;height:44px;min-height:44px;padding:0;margin:0;}
+.emoji-reactions .reaction-summary {display:flex;align-items:center;overflow:visible;}
+.emoji-reactions .reaction-summary-emoji {position:relative;display:inline-flex;flex:none;align-items:center;justify-content:center;width:18px;height:18px;margin-left:-6px;border-radius:50%;background:var(--card);}
+.emoji-reactions .reaction-summary-emoji:first-child {margin-left:0;}
+.emoji-reactions .reaction-summary-emoji .reaction-emoji {display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border:1.5px solid var(--card);border-radius:50%;background:var(--card);font-size:18px;line-height:1;}
+.emoji-reactions .reaction-count {order:3;display:flex;flex:none;align-items:center;justify-content:flex-start;gap:6px;min-width:44px;height:44px;min-height:44px;padding:0;margin:0 0 0 auto;color:var(--tx2);font-size:15px;}
 .emoji-reactions .reaction-count[hidden] {display:none;}
+.emoji-reactions .reaction-count .num {font-size:15px;color:var(--tx2);}
 .reaction-emoji {font-family:Apple Color Emoji,Segoe UI Emoji,Noto Color Emoji,sans-serif;font-size:1.25rem;line-height:1;}
 .activity-comments {order:2;display:flex;align-items:center;justify-content:center;gap:4px;min-width:44px;min-height:44px;padding:0;margin:0;}
 .activity-comments>svg {width:20px;height:20px;flex:none;}
@@ -2302,15 +2297,18 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .reaction-picker button:hover,.reaction-picker button:focus-visible,.reaction-picker button[aria-checked="true"],.reaction-picker button.is-highlighted {background:color-mix(in srgb,var(--accent) 12%,var(--card));outline:none;}
 .reaction-sheet {padding-bottom:calc(env(safe-area-inset-bottom) + 12px);}
 .reaction-sheet header {margin-bottom:0;}
-.reaction-filters {display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px;}
+.reaction-filters {display:flex;flex-wrap:nowrap;gap:8px;margin:0 -4px 8px;padding:0 4px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;}
+.reaction-filters::-webkit-scrollbar {display:none;}
 .reaction-filters:empty,.reaction-sheet .social-read-status:empty {display:none;}
-.reaction-filters button {display:flex;align-items:center;gap:4px;min-width:44px;min-height:44px;padding:0;background:none;border:0;border-radius:0;color:var(--tx2);}
-.reaction-filters button[aria-pressed="true"] {color:var(--accent);text-decoration:underline;text-underline-offset:4px;}
+.reaction-filters button {display:flex;flex:none;align-items:center;gap:4px;min-width:44px;min-height:44px;padding:0 4px;background:none;border:0;border-radius:0;color:var(--tx2);white-space:nowrap;}
+.reaction-filters button[aria-selected="true"] {color:var(--accent);text-decoration:underline;text-underline-offset:4px;}
 .reaction-filters .reaction-emoji,.cheers-list .reaction-emoji {font-size:1rem;}
-.reaction-sheet .reaction-person {height:44px;min-height:44px;padding:0;gap:10px;}
+.reaction-sheet .reaction-person {display:flex;align-items:center;height:56px;min-height:56px;padding:0;gap:10px;}
 .reaction-person .av {width:28px;height:28px;min-width:28px;font-size:12px;}
 .reaction-person>b {flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:1rem;}
 .reaction-person>[role="img"] {flex:none;}
+.reaction-person .reaction-remove {flex:none;min-width:44px;min-height:44px;padding:0 4px;font-size:14px;}
+.group-update>.emoji-reactions,.group-week-cheer>.emoji-reactions,.social-reactions:has(.emoji-reactions) {display:flex;align-items:center;width:100%;min-height:44px;}
 .t-row:has(.activity-reactions) {flex-wrap:wrap;}
 .t-soc:has(.activity-reactions) {flex:1 0 100%;flex-wrap:nowrap;margin:0;max-width:100%;gap:8px;}
 .post-profile .ph-txt small,.post-hd .ph-txt small {display:flex;align-items:center;flex-wrap:wrap;column-gap:8px;row-gap:0;margin-top:4px;white-space:normal;overflow:visible;}

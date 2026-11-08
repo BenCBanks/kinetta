@@ -316,13 +316,14 @@ def _answer(c, group, uid):
 
 def _reaction_summary(rows, uid):
     counts = {kind: 0 for kind in reactions.KINDS}
-    mine = None
+    mine = None;order=[]
     for row in rows:
         if row['kind'] in counts:
             counts[row['kind']] += 1
+            if row['kind'] not in order:order.append(row['kind'])
         if row['user_id'] == uid:
             mine = row['kind']
-    return {'my_reaction': mine, 'reactions': counts}
+    return {'my_reaction': mine, 'reactions': counts,'reaction_order':order}
 
 
 def _group_updates(c, group, uid):
@@ -336,12 +337,13 @@ def _group_updates(c, group, uid):
         return []
     ids = [row['id'] for row in updates]
     reactions_by_id = {update_id: [] for update_id in ids}
-    rows = c.execute('''SELECT r.update_id,r.user_id,r.kind FROM group_update_reactions r
+    rows = c.execute('''SELECT r.update_id,r.user_id,r.kind,r.created FROM group_update_reactions r
         JOIN group_updates u ON u.id=r.update_id
         JOIN group_members m ON m.group_id=u.group_id AND m.user_id=r.user_id AND m.status='active'
         JOIN users p ON p.id=r.user_id AND NOT p.needs_email_confirm AND p.suspended_at IS NULL
         WHERE r.update_id=ANY(%s) AND NOT EXISTS(SELECT 1 FROM blocks b
-          WHERE (b.user_id=%s AND b.blocked=r.user_id) OR (b.user_id=r.user_id AND b.blocked=%s))''',
+          WHERE (b.user_id=%s AND b.blocked=r.user_id) OR (b.user_id=r.user_id AND b.blocked=%s))
+        ORDER BY r.created,r.user_id''',
                        (ids, uid, uid)).fetchall()
     for row in rows:
         reactions_by_id[row['update_id']].append(row)
@@ -352,11 +354,12 @@ def _group_updates(c, group, uid):
 
 
 def _weekly_reaction_rows(c, group, uid, week_start):
-    return c.execute('''SELECT r.user_id,r.kind FROM group_weekly_reactions r
+    return c.execute('''SELECT r.user_id,r.kind,r.created FROM group_weekly_reactions r
         JOIN group_members m ON m.group_id=r.group_id AND m.user_id=r.user_id AND m.status='active'
         JOIN users p ON p.id=r.user_id AND NOT p.needs_email_confirm AND p.suspended_at IS NULL
         WHERE r.group_id=%s AND r.week_start=%s AND NOT EXISTS(SELECT 1 FROM blocks b
-          WHERE (b.user_id=%s AND b.blocked=r.user_id) OR (b.user_id=r.user_id AND b.blocked=%s))''',
+          WHERE (b.user_id=%s AND b.blocked=r.user_id) OR (b.user_id=r.user_id AND b.blocked=%s))
+        ORDER BY r.created,r.user_id''',
                        (group['id'], week_start, uid, uid)).fetchall()
 
 
@@ -423,12 +426,13 @@ def _group_reaction_people(c, group, uid, update_id=None, week_start=None):
 
 
 def _update_reaction_rows(c, group, uid, update_id):
-    return c.execute('''SELECT r.user_id,r.kind FROM group_update_reactions r
+    return c.execute('''SELECT r.user_id,r.kind,r.created FROM group_update_reactions r
         JOIN group_updates u ON u.id=r.update_id
         JOIN group_members m ON m.group_id=u.group_id AND m.user_id=r.user_id AND m.status='active'
         JOIN users p ON p.id=r.user_id AND NOT p.needs_email_confirm AND p.suspended_at IS NULL
         WHERE r.update_id=%s AND NOT EXISTS(SELECT 1 FROM blocks b
-          WHERE (b.user_id=%s AND b.blocked=r.user_id) OR (b.user_id=r.user_id AND b.blocked=%s))''',
+          WHERE (b.user_id=%s AND b.blocked=r.user_id) OR (b.user_id=r.user_id AND b.blocked=%s))
+        ORDER BY r.created,r.user_id''',
                        (update_id, uid, uid)).fetchall()
 
 

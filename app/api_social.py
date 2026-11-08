@@ -149,7 +149,8 @@ def shared_activity(r):
     out['owner'] = {'login': r['owner_login'], 'name': r['owner_name'], 'photo': r['owner_photo']}
     out['photos'] = r['photos']    # photos follow the activity: whoever sees it sees them (api_photos.py)
     out['shares'] = d
-    out.update(cheers=r['cheer_n'], cheered=r['cheered'], comments=r['comment_n'],reactions=r['reactions'],my_reaction=r['my_reaction'])
+    out.update(cheers=r['cheer_n'], cheered=r['cheered'], comments=r['comment_n'],reactions=r['reactions'],
+               reaction_order=r['reaction_order'],my_reaction=r['my_reaction'])
     return out
 
 
@@ -639,7 +640,8 @@ def _hydrate_moment_reactions(c, viewer, moments):
                                 (f.addressee=target.owner_id AND f.requester=r.user_id)))
                            AND NOT EXISTS (SELECT 1 FROM blocks b WHERE
                                (b.user_id=target.owner_id AND b.blocked=r.user_id) OR
-                               (b.user_id=r.user_id AND b.blocked=target.owner_id))''',
+                               (b.user_id=r.user_id AND b.blocked=target.owner_id))
+                         ORDER BY r.created,r.user_id''',
                       {'owners': owners, 'weeks': weeks, 'viewer': viewer}).fetchall()
     by_key = {}
     for row in rows:
@@ -648,6 +650,7 @@ def _hydrate_moment_reactions(c, viewer, moments):
         people = by_key.get((moment['_owner_id'], moment['_week_start']), [])
         moment.update(cheers=[{k: r[k] for k in ('login','name','photo','kind')} for r in people],
                       reactions=reactions.summary(people),
+                      reaction_order=reactions.order(people),
                       my_reaction=next((r['kind'] for r in people if r['reactor_id'] == viewer), None),
                       cheered=any(r['reactor_id'] == viewer for r in people))
 
@@ -679,13 +682,14 @@ def friends_feed(before: dt.datetime | None = None, before_id: int | None = None
 
 def _social(c, aid, viewer, owner):
     cheers = c.execute(f"""SELECT u.login::text AS login, u.name, u.photo_v AS photo, ch.kind FROM cheers ch JOIN users u ON u.id = ch.user_id
-                           WHERE ch.activity_id = %(aid)s AND NOT {blocked('u.id')} AND NOT {unconfirmed('u.id')} ORDER BY ch.created""", {'aid': aid, 'viewer': viewer}).fetchall()
+                           WHERE ch.activity_id = %(aid)s AND NOT {blocked('u.id')} AND NOT {unconfirmed('u.id')} ORDER BY ch.created,ch.user_id""", {'aid': aid, 'viewer': viewer}).fetchall()
     comments = c.execute(f"""SELECT cm.id, cm.text, cm.created, u.login::text AS login, u.name, u.photo_v AS photo,
                               (cm.user_id = %(viewer)s OR %(owner)s) AS can_delete
                             FROM comments cm JOIN users u ON u.id = cm.user_id WHERE cm.activity_id = %(aid)s AND NOT {blocked('u.id')} AND NOT {unconfirmed('u.id')}
                             ORDER BY cm.created, cm.id""", {'viewer': viewer, 'owner': owner == viewer, 'aid': aid}).fetchall()
     mine=c.execute('SELECT kind FROM cheers WHERE activity_id=%s AND user_id=%s',(aid,viewer)).fetchone()
-    return {'mine':owner==viewer,'cheers':cheers,'cheered':bool(mine),'my_reaction':mine['kind'] if mine else None,'reactions':reactions.summary(cheers),'comments':comments}
+    return {'mine':owner==viewer,'cheers':cheers,'cheered':bool(mine),'my_reaction':mine['kind'] if mine else None,
+            'reactions':reactions.summary(cheers),'reaction_order':reactions.order(cheers),'comments':comments}
 
 
 @router.get('/shared/{aid}')
@@ -738,7 +742,7 @@ def _visible_achievement_moment(c, viewer, owner_login, week_start):
 
 
 def _moment_reaction_result(moment):
-    return {key: moment[key] for key in ('cheers','cheered','my_reaction','reactions')}
+    return {key: moment[key] for key in ('cheers','cheered','my_reaction','reactions','reaction_order')}
 
 
 @router.get('/achievement-moments/{owner_login}/{week_start}/reactions')
