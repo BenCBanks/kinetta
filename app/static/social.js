@@ -213,7 +213,10 @@ function reactionPeopleSheet({initial=null,load,watch=null,removeMine=null}){
       for(const button of $$('[data-remove-reaction]',list))button.onclick=async event=>{
         event.preventDefault();event.stopPropagation();if(!current()||button.disabled)return;button.disabled=true;
         const result=await removeMine?.();if(!current())return;
-        if(result){draw(result);status.textContent='';$(`[data-reaction-filter="${filter||''}"]`,filters)?.focus({preventScroll:true});}else button.disabled=false;
+        if(Array.isArray(result?.cheers)){draw(result);status.textContent='';}else await refresh();
+        if(!current())return;
+        ($(`[data-reaction-filter="${filter||''}"]`,filters)||$('button',filters))?.focus({preventScroll:true});
+        if(button.isConnected)button.disabled=false;
       };
     };
     if(initial)draw(initial);

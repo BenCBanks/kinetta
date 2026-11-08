@@ -29,7 +29,7 @@ def columns(viewer):
       (SELECT ch.kind FROM cheers ch WHERE ch.activity_id=a.id AND ch.user_id={viewer}) AS my_reaction"""
 
 def summary(people):
-    return {kind:sum(p['kind']==kind for p in people) for kind in KINDS}
+    return {kind:sum(canonical(p['kind'])==kind for p in people) for kind in KINDS}
 
 def order(people):
     """Emoji kinds in first-use order; the caller supplies the already-visible people list."""
