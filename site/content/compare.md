@@ -8,7 +8,7 @@ Workouts and food, *tracked together.*
 
 ## others-charge-160-a-year-for-these-kinetta-doesn-t-2
 
-If you use separate apps for training and food, here’s what you can keep in Kinetta. The hosted beta is free while we test and improve it.
+See how Kinetta brings training and food history together from separate apps.
 
 ## us-prices-from-strava-https-www-strava-com-subscribe-a-3
 
