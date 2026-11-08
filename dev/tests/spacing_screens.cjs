@@ -30,7 +30,7 @@ const scenes=fixtures=>[
  {name:'Account name sheet',login:'alex',route:'/me/settings',entryReady:'#m-name',ready:'.scrim:not([inert]) #ac',modal:'name'},
  {name:'Pinned save sheet',login:'alex',route:'/me/settings',entryReady:'#m-name',ready:'.scrim:not([inert]) .sheet.pinned',modal:'pinned'},
  {name:'Quick weight sheet',login:'alex',route:'/me',entryReady:'.me-card-sections[aria-busy="false"]',ready:'#quick-weight',modal:'weight'},
- {name:'Share card choices',login:'alex',route:'/me',entryReady:'.me-card-sections[aria-busy="false"]',ready:'#card-achievements',modal:'share-card'},
+ {name:'Share card choices',login:'alex',route:'/me',entryReady:'.me-card-sections[aria-busy="false"]',ready:'#card-photo',modal:'share-card'},
  {name:'Public link confirmation',login:'alex',route:'/me',entryReady:'.me-card-sections[aria-busy="false"]',ready:'#card-rotate',modal:'card'},
  {name:'Remove friend confirmation',login:'zz_test_fc_typical',route:'/people/zz_test_fc_peer00',entryReady:'#person-profile [data-person-manage]',ready:'[data-confirm]',modal:'remove'},
  {name:'Block friend confirmation',login:'zz_test_fc_typical',route:'/people/zz_test_fc_peer00',entryReady:'#person-profile [data-person-manage]',ready:'[data-confirm]',modal:'block'},

@@ -1,7 +1,6 @@
 """Friends, sharing, hidden map ends, the friends feed, cheers and comments (api_social.py). Runs on the demo data:
 alex shares with friends after stage.py, so it first puts alex back to "only me"."""
-import json, math, sys, urllib.parse
-from app import db
+import json, math, os, subprocess, sys, urllib.parse
 from kc import ALEX, Client, login, person, PW
 
 ok_n = 0
@@ -27,12 +26,20 @@ fr, st, pe = (S(person(w)) for w in ('zz_test_friend', 'zz_test_stranger', 'zz_t
 people = {'zz_test_friend': fr, 'zz_test_stranger': st, 'zz_test_pending': pe}
 noprofile = S(person('zz_test_profileless_hr'))
 profileless_id = noprofile.q('GET', '/api/me')['id']
+prepare_profileless = '''import sys
+from app import db
+uid=int(sys.argv[1])
 with db.connect() as c:
-    c.execute('DELETE FROM profile WHERE user_id=%s', (profileless_id,))
-    profileless_activity = c.execute('''INSERT INTO activities
+    c.execute('DELETE FROM profile WHERE user_id=%s',(uid,))
+    aid=c.execute("""INSERT INTO activities
         (user_id,sport,name,start_time,source,visibility,distance_m,moving_s,elapsed_s,avg_hr)
         VALUES(%s,'run','Fictional profileless run',now(),'manual','everyone',5000,900,900,148)
-        RETURNING id''', (profileless_id,)).fetchone()['id']
+        RETURNING id""",(uid,)).fetchone()['id']
+print(aid)'''
+project = os.environ.get('KINETTA_PROJECT', 'kinettatest')
+profileless_activity = int(subprocess.check_output(
+    ['docker', 'compose', '-p', project, 'exec', '-T', 'app', 'python', '-c', prepare_profileless, str(profileless_id)],
+    text=True).strip())
 profileless_sharing = noprofile.q('GET', '/api/sharing')
 check(not profileless_sharing['details']['heart_rate'] and not profileless_sharing['share_achievements'],
       'missing profile row keeps heart-rate and achievement sharing off')
@@ -133,6 +140,9 @@ check(d0 > 100 and d1 > 100, 'shared map starts and ends away from the real star
 alex.q('PUT', f'/api/activities/{a1}/sharing', {'details': {**sh['details'], 'heart_rate': False, 'map': False}})
 v2 = fr.q('GET', f'/api/shared/{a1}')
 check('avg_hr' not in v2 and v2['line'] is None, 'per-activity override: HR off, map off')
+alex.q('PUT', f'/api/activities/{a1}/sharing', {'details': {'map': True}})
+v2 = fr.q('GET', f'/api/shared/{a1}')
+check('avg_hr' not in v2 and v2['line'], 'partial per-activity details preserve the stored heart-rate choice')
 so = alex.q('GET', f'/api/activities/{a1}/social'); check(so['custom'] and so['visibility'] == 'friends', 'owner sees sharing state')
 alex.q('PUT', f'/api/activities/{a1}/sharing', {'usual_details': True})
 check('avg_hr' in fr.q('GET', f'/api/shared/{a1}'), 'back to usual: new-profile HR default restored')
@@ -199,5 +209,5 @@ alex.q('PUT', '/api/sharing', {'default': 'me'})
 for i in (short, n2): alex.q('DELETE', f'/api/activities/{i}')
 for i in (a1, a2): alex.q('PUT', f'/api/activities/{i}/sharing', {'visibility': 'me'})
 alex.q('DELETE', '/api/friends/zz_test_pending')
-noprofile.q('DELETE', '/api/account/delete', {'password': PW})
+noprofile.q('POST', '/api/account/delete', {'password': PW})
 print(f'friends and sharing: {ok_n} checks passed')

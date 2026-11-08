@@ -558,7 +558,7 @@ def set_activity_sharing(aid: int, body: ActivitySharingIn, user=Depends(current
     sets, args = [], []
     if body.visibility is not None: sets.append('visibility = %s'); args.append(body.visibility)
     if body.usual_details: sets.append('share_details = NULL')
-    elif body.details is not None: sets.append('share_details = %s'); args.append(json.dumps(_clean_details(body.details)))
+    elif body.details is not None: sets.append('share_details = %s')
     with db.connect() as c:
         profile = c.execute('SELECT share_details FROM profile WHERE user_id=%s FOR SHARE', (user['id'],)).fetchone() or {}
         activity = c.execute('SELECT id,name,description,sport_label,visibility,share_details FROM activities WHERE id=%s AND user_id=%s FOR UPDATE', (aid,user['id'])).fetchone()
@@ -566,7 +566,11 @@ def set_activity_sharing(aid: int, body: ActivitySharingIn, user=Depends(current
         proposed = {**activity}
         if body.visibility is not None: proposed['visibility'] = body.visibility
         if body.usual_details: proposed['share_details'] = None
-        elif body.details is not None: proposed['share_details'] = _clean_details(body.details)
+        elif body.details is not None:
+            details = details_of(profile.get('share_details'), activity.get('share_details'))
+            details.update(_clean_details(body.details))
+            proposed['share_details'] = details
+            args.append(json.dumps(details))
         community_filter.activity(c, user['id'], proposed, profile, publishing=activity['visibility']=='me')
         if not c.execute(f"UPDATE activities SET {', '.join(sets or ['id = id'])} WHERE id = %s AND user_id = %s RETURNING id",
                          (*args, aid, user['id'])).fetchone():
