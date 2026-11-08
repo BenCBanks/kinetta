@@ -14,12 +14,16 @@ const FOOD_ROUTE_ASSET = '/static/food.js?v=__ASSET_HASH__';
 const KIT_ROUTE_ASSET = '/static/kit.js?v=__ASSET_HASH__';
 const PROGRESS_ROUTE_ASSET = '/static/progress-routes.js?v=__ASSET_HASH__';
 const SEGMENTS_ROUTE_ASSET = '/static/segments.js?v=__ASSET_HASH__';
+const COOK_ROUTE_ASSET = '/static/cook.js?v=__ASSET_HASH__';
+const RECIPE_IMPORT_ROUTE_ASSET = '/static/recipe-import.js?v=__ASSET_HASH__';
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: ['/static/welcome.js?v=__ASSET_HASH__']},
   {re: /^\/me\/explore$/, tab: 'track', scripts: ['/static/explore.js?v=__ASSET_HASH__']},
   {re: /^\/notifications$/, tab: null, scripts: ['/static/social-notifications.js?v=__ASSET_HASH__']},
   {re: /^\/me\/notifications$/, tab: 'me', scripts: ['/static/social-notifications.js?v=__ASSET_HASH__']},
   {re: /^\/food\/import$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, '/static/food-import.js?v=__ASSET_HASH__']},
+  {re: /^\/food\/cook\/\d+$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, COOK_ROUTE_ASSET]},
+  {re: /^\/food\/recipe-link$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, COOK_ROUTE_ASSET, RECIPE_IMPORT_ROUTE_ASSET]},
   {re: /^\/food(?:\/.*)?$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET]},
   {re: /^\/progress\/weight$/, tab: 'progress', scripts: [FOOD_ROUTE_ASSET]},
   {re: /^\/progress\/(?:routes|trends|calendar|heatmap)$/, tab: 'progress', scripts: [PROGRESS_ROUTE_ASSET]},
@@ -50,6 +54,31 @@ function loadClassicScript(asset) {
 }
 function loadClassicScripts(assets) {
   return assets.reduce((ready, asset) => ready.then(() => loadClassicScript(asset)), Promise.resolve());
+}
+let pendingDishEntry = null;
+async function newDish(btn, where = null) {
+  if (!App.me || btn?.disabled) return pendingDishEntry;
+  if (pendingDishEntry) return pendingDishEntry;
+  const owner = readOwner();
+  if (btn) btn.disabled = true;
+  const task = (async () => {
+    try { await loadClassicScript(COOK_ROUTE_ASSET); }
+    catch (_) {
+      if (btn) btn.disabled = false;
+      if (owner === readOwner() && App.me) toast('Recipe tools could not load. Check your connection and try again.');
+      return;
+    }
+    if (owner !== readOwner() || !App.me) return;
+    if (btn) btn.disabled = false;
+    if (typeof createDish !== 'function') {
+      toast('Recipe tools could not open. Try again.');
+      return;
+    }
+    return createDish(btn, where);
+  })();
+  pendingDishEntry = task;
+  try { return await task; }
+  finally { if (pendingDishEntry === task) pendingDishEntry = null; }
 }
 function warmFoodRoutes() { loadClassicScript(FOOD_ROUTE_ASSET).catch(() => {}); }
 function warmFoodFromTabIntent(event) {

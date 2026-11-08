@@ -14,7 +14,7 @@ Object.assign(IC, {minus: '<path d="M5 12h14"/>', send: '<path d="M12 19V5M6 11l
 const listOf = (xs) => xs.slice(0, 3).join(', ') + (xs.length > 3 ? ` and ${xs.length - 3} more` : '');
 
 // Deliberate recipe creation opens its own ingredient editor and keeps food-chat drafts separate.
-async function newDish(btn,where=null){
+async function createDish(btn,where=null){
   const owner=readOwner();if(btn?.disabled)return;if(btn)btn.disabled=true;
   try{
     // The ingredient editor never resolves a new recipe through saved meal matches.

@@ -82,27 +82,30 @@ async function holdFood(page,{instrument=false,blockedWrites=[]}={}){
   });
   return {release:openGate,count:()=>requests,done};
 }
-async function foodRouteFixture(browser,{hold=false,failFirst=false,instrument=false,idleGate=false}={}){
+async function foodRouteFixture(browser,{hold=false,failFirst=false,instrument=false,idleGate=false,holdAsset=null,failAsset=null,fakeDishCreation=false}={}){
  const context=await fixtureContext(browser);await login(context);
- const page=await context.newPage(),assets=[],errors=[],writes=[];let heldOnce=false,releaseHeld=()=>{},signalHeld=()=>{},finishHeld=()=>{},foodAttempts=0;
+ const page=await context.newPage(),assets=[],errors=[],writes=[],attempts=new Map();let heldOnce=false,releaseHeld=()=>{},signalHeld=()=>{},finishHeld=()=>{},dishCreations=0;
+ const heldPath=holdAsset||(hold?'/static/food.js':null),failedPath=failAsset||(failFirst?'/static/food.js':null);
  const gate=new Promise(resolve=>{releaseHeld=resolve;}),held=new Promise(resolve=>{signalHeld=resolve;}),done=new Promise(resolve=>{finishHeld=resolve;});
  page.on('pageerror',error=>errors.push(error.message));
  if(idleGate)await page.addInitScript(()=>{window.__foodIdleCallbacks=[];let id=0;window.requestIdleCallback=callback=>{window.__foodIdleCallbacks.push(callback);return ++id;};window.cancelIdleCallback=()=>{};});
  await page.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url());
   if(url.origin!==base)return route.abort();
-  if(['/static/food.js','/static/kit.js'].includes(url.pathname)){
+  if(['/static/food.js','/static/kit.js','/static/cook.js','/static/recipe-import.js'].includes(url.pathname)){
    assets.push(url.pathname);
-   if(url.pathname==='/static/food.js'){
-    foodAttempts++;
-    if(failFirst&&foodAttempts===1)return route.abort();
-    if(hold&&!heldOnce){heldOnce=true;let response,body;if(instrument){response=await route.fetch();body=await response.text();}signalHeld();await gate;
-     if(instrument){const probe='\n;(()=>{const entry=App.pages.find(page=>page.re.test("/food"));const original=entry.fn;entry.fn=(...args)=>{window.testFoodOwners.push(App.me.login);return original(...args);};})();';await route.fulfill({response,body:body+probe});}
+   const count=(attempts.get(url.pathname)||0)+1;attempts.set(url.pathname,count);
+   if(url.pathname===failedPath&&count===1)return route.abort();
+   if(url.pathname===heldPath&&!heldOnce){heldOnce=true;let response,body;if(instrument&&url.pathname==='/static/food.js'){response=await route.fetch();body=await response.text();}signalHeld();await gate;
+     if(instrument&&url.pathname==='/static/food.js'){const probe='\n;(()=>{const entry=App.pages.find(page=>page.re.test("/food"));const original=entry.fn;entry.fn=(...args)=>{window.testFoodOwners.push(App.me.login);return original(...args);};})();';await route.fulfill({response,body:body+probe});}
      else await route.continue();finishHeld();return;
-    }
    }
    return route.continue();
   }
+  if(fakeDishCreation&&request.method()==='POST'&&url.pathname==='/api/dishes'){
+   dishCreations++;return route.fulfill({status:201,json:{id:900001}});
+  }
+  if(fakeDishCreation&&request.method()==='GET'&&url.pathname==='/api/dishes/900001')return route.fulfill({status:404,json:{error:'Fictional recipe not found'}});
   if(request.method()==='POST'&&url.pathname==='/api/coach/conversation/visits'){
    writes.push(`${request.method()} ${url.pathname}`);
    return route.fulfill({json:{visit_id:request.postDataJSON().visit_id,generation:'11111111-1111-4111-8111-111111111111',ready:true}});
@@ -118,7 +121,7 @@ async function foodRouteFixture(browser,{hold=false,failFirst=false,instrument=f
   if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
   return route.continue();
  });
- return {context,page,assets,errors,writes,held,done,release:()=>releaseHeld(),foodAttempts:()=>foodAttempts};
+ return {context,page,assets,errors,writes,held,done,release:()=>releaseHeld(),foodAttempts:()=>attempts.get('/static/food.js')||0,assetAttempts:path=>attempts.get(path)||0,dishCreations:()=>dishCreations};
 }
 
 const notificationItems=[
@@ -538,6 +541,91 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
     assert.doesNotMatch(await kitDirect.page.locator('#kit-status').textContent(),/Cannot read properties/,'Kit renders without an initialization exception');
     assert.deepEqual(kitDirect.errors,[]);assert(kitDirect.writes.some(path=>path==='POST /api/coach/conversation/visits'),'the fictional Kit start write is intercepted by the test route');
   }finally{kitDirect.release();await kitDirect.context.close();}
+
+  const cookInitial=await foodRouteFixture(browser);
+  try{
+    await cookInitial.page.goto(base+'/me');await ready(cookInitial.page,meReady,'Me before opening Cook');
+    assert.equal(await cookInitial.page.locator('script[src*="/static/cook.js"]').count(),0,'Cook has no eager script tag');
+    assert.equal(await cookInitial.page.locator('script[src*="/static/recipe-import.js"]').count(),0,'recipe import has no eager script tag');
+    assert.equal(cookInitial.assets.some(path=>path==='/static/cook.js'||path==='/static/recipe-import.js'),false,'Cook and recipe import stay off the useful-Me path');
+  }finally{cookInitial.release();await cookInitial.context.close();}
+
+  const cookDirect=await foodRouteFixture(browser);
+  try{
+    await cookDirect.page.goto(base+'/food/cook/999999',{waitUntil:'domcontentloaded'});await ready(cookDirect.page,'.recipe-page .empty','cold direct Cook route');
+    assert.equal(new URL(cookDirect.page.url()).pathname,'/food/cook/999999');
+    assert.deepEqual(cookDirect.assets,['/static/food.js','/static/cook.js'],'Cook loads Food helpers before its route module once');
+    const url=await cookDirect.page.locator('script[src*="/static/cook.js"]').evaluate(el=>el.src);
+    assert.match(new URL(url).searchParams.get('v')||'',/^[0-9a-f]{32}$/,'Cook uses its own content hash');
+    assert.deepEqual(cookDirect.errors,[]);assert.deepEqual(cookDirect.writes,[]);
+  }finally{cookDirect.release();await cookDirect.context.close();}
+
+  const cookLoading=await foodRouteFixture(browser,{holdAsset:'/static/cook.js'});
+  try{
+    await cookLoading.page.goto(base+'/food/cook/999999',{waitUntil:'domcontentloaded'});await cookLoading.page.locator('.food-route-loading').waitFor();await cookLoading.held;
+    assert.equal(new URL(cookLoading.page.url()).pathname,'/food/cook/999999');
+    assert.equal(await cookLoading.page.evaluate(()=>App.pageReady),false,'Cook waits behind the existing Food loading shell');
+    assert.equal(await cookLoading.page.locator('.recipe-page').count(),0,'no fallback page flashes before Cook is registered');
+    cookLoading.release();await cookLoading.done;await ready(cookLoading.page,'.recipe-page .empty','Cook after delayed bundle');
+    assert.deepEqual(cookLoading.errors,[]);assert.deepEqual(cookLoading.writes,[]);
+  }finally{cookLoading.release();await cookLoading.context.close();}
+
+  const cookRetry=await foodRouteFixture(browser,{failAsset:'/static/cook.js'});
+  try{
+    await cookRetry.page.goto(base+'/food/cook/999999',{waitUntil:'domcontentloaded'});await cookRetry.page.locator('.lazy-route-error').waitFor();
+    assert.equal(new URL(cookRetry.page.url()).pathname,'/food/cook/999999');assert(await cookRetry.page.locator('#lazy-route-retry').isVisible());
+    await cookRetry.page.locator('#lazy-route-retry').click();await ready(cookRetry.page,'.recipe-page .empty','Cook after explicit retry');
+    assert.equal(cookRetry.assetAttempts('/static/food.js'),1);assert.equal(cookRetry.assetAttempts('/static/cook.js'),2);
+    assert.deepEqual(cookRetry.errors,[]);assert.deepEqual(cookRetry.writes,[]);
+  }finally{cookRetry.release();await cookRetry.context.close();}
+
+  const recipeDirect=await foodRouteFixture(browser,{fakeDishCreation:true});
+  try{
+    await recipeDirect.page.goto(base+'/food/recipe-link',{waitUntil:'domcontentloaded'});await ready(recipeDirect.page,'#recipe-url-form','cold direct recipe-import route');
+    assert.equal(new URL(recipeDirect.page.url()).pathname,'/food/recipe-link');
+    assert.deepEqual(recipeDirect.assets,['/static/food.js','/static/cook.js','/static/recipe-import.js'],'recipe import loads Food and Cook dependencies first');
+    assert.equal(await recipeDirect.page.evaluate(()=>typeof newDish==='function'&&typeof RECIPE_SOURCE_LABELS==='object'),true,'recipe creation helpers are ready on first open');
+    const url=await recipeDirect.page.locator('script[src*="/static/recipe-import.js"]').evaluate(el=>el.src);
+    assert.match(new URL(url).searchParams.get('v')||'',/^[0-9a-f]{32}$/,'recipe import uses its own content hash');
+    await recipeDirect.page.locator('#recipe-type').click();await ready(recipeDirect.page,'.recipe-page .empty','Cook after create from recipe import');
+    assert.equal(recipeDirect.dishCreations(),1,'the first action creates one fictional recipe');
+    assert.equal(recipeDirect.assetAttempts('/static/cook.js'),1,'Cook is not requested twice');
+    assert.equal(recipeDirect.assetAttempts('/static/recipe-import.js'),1);
+    assert.deepEqual(recipeDirect.errors,[]);assert.deepEqual(recipeDirect.writes,[]);
+  }finally{recipeDirect.release();await recipeDirect.context.close();}
+
+  const recipeRetry=await foodRouteFixture(browser,{failAsset:'/static/recipe-import.js'});
+  try{
+    await recipeRetry.page.goto(base+'/food/recipe-link',{waitUntil:'domcontentloaded'});await recipeRetry.page.locator('.lazy-route-error').waitFor();
+    assert.equal(new URL(recipeRetry.page.url()).pathname,'/food/recipe-link');assert(await recipeRetry.page.locator('#lazy-route-retry').isVisible());
+    await recipeRetry.page.locator('#lazy-route-retry').click();await ready(recipeRetry.page,'#recipe-url-form','recipe import after explicit retry');
+    assert.equal(recipeRetry.assetAttempts('/static/food.js'),1);assert.equal(recipeRetry.assetAttempts('/static/cook.js'),1);assert.equal(recipeRetry.assetAttempts('/static/recipe-import.js'),2);
+    assert.deepEqual(recipeRetry.errors,[]);assert.deepEqual(recipeRetry.writes,[]);
+  }finally{recipeRetry.release();await recipeRetry.context.close();}
+
+  const recipeLoading=await foodRouteFixture(browser,{holdAsset:'/static/recipe-import.js'});
+  try{
+    await recipeLoading.page.goto(base+'/food/recipe-link',{waitUntil:'domcontentloaded'});await recipeLoading.page.locator('.food-route-loading').waitFor();await recipeLoading.held;
+    assert.equal(new URL(recipeLoading.page.url()).pathname,'/food/recipe-link');
+    assert.equal(await recipeLoading.page.evaluate(()=>App.pageReady),false,'recipe import waits behind the existing Food loading shell');
+    assert.equal(await recipeLoading.page.locator('#recipe-url-form').count(),0,'the form waits for its module');
+    recipeLoading.release();await recipeLoading.done;await ready(recipeLoading.page,'#recipe-url-form','recipe import after delayed bundle');
+    assert.deepEqual(recipeLoading.errors,[]);assert.deepEqual(recipeLoading.writes,[]);
+  }finally{recipeLoading.release();await recipeLoading.context.close();}
+
+  const cookFirstTap=await foodRouteFixture(browser,{holdAsset:'/static/cook.js',fakeDishCreation:true});
+  try{
+    await cookFirstTap.page.goto(base+'/food/meals');await ready(cookFirstTap.page,'#tm-new','Recipes & foods with New action');
+    await cookFirstTap.page.locator('#tm-new').click();await cookFirstTap.page.locator('#tm-dish').click();await cookFirstTap.held;
+    assert.equal(new URL(cookFirstTap.page.url()).pathname,'/food/meals','the first recipe tap stays on the current route while Cook loads');
+    assert.equal(await cookFirstTap.page.locator('.lazy-route-loading').count(),0,'the action does not flash a fallback route');
+    assert.equal(cookFirstTap.dishCreations(),0,'creation waits for Cook');
+    cookFirstTap.release();await cookFirstTap.done;await ready(cookFirstTap.page,'.recipe-page .empty','Cook opened from New on first tap');
+    assert.equal(cookFirstTap.dishCreations(),1);assert.equal(cookFirstTap.assetAttempts('/static/cook.js'),1,'the first tap loads Cook exactly once');
+    assert.deepEqual(cookFirstTap.errors,[]);assert.deepEqual(cookFirstTap.writes,[]);
+  }finally{cookFirstTap.release();await cookFirstTap.context.close();}
+
+  console.log('Cook and recipe-import lazy routes: first tap, dependencies, retry and no duplicate loads PASS');
 
   const progressMe=await progressFixture(browser);
   try{
