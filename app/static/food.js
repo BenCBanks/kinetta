@@ -579,7 +579,7 @@ function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
     .map(([k, n]) => `<button type="button" data-t="${k}" aria-pressed="${k===tab}">${n}</button>`).join('')}</div>
     <div id="as-body"></div>`, (b, close) => {
     guardFoodSheet(b,close,owner);
-    const panel=b.closest('.sheet'),dialogTitle=$('header h2',panel),done=$('header [data-close]',panel);
+    const panel=b.closest('.sheet'),dialogTitle=$('header h2',panel);
     panel.classList.add('choose-food-multi');
     const updateTitle=()=>{const title=batchItems.length?`Choose food · ${batchItems.length} added`:'Choose food';dialogTitle.textContent=title;panel.setAttribute('aria-label',title);};
     const finishBatch=()=>{
@@ -591,7 +591,6 @@ function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
       toast(message,foodUploadUndo(batchItems,owner));
     };
     const updateDone=()=>{if(done)done.disabled=pendingAdds>0;};
-    if(done){done.removeAttribute('data-close');done.className='sheet-text-btn food-multi-done';done.type='button';done.textContent='Done';done.onclick=()=>{batchClosed=true;close();finishBatch();};}
     if(typeof MutationObserver!=='undefined'){
       const observer=new MutationObserver(()=>{if(!panel.isConnected){batchClosed=true;observer.disconnect();finishBatch();}});
       observer.observe(document.body,{childList:true,subtree:true});
@@ -625,7 +624,7 @@ function addSheet(day, meal, find = '', tab = find ? 'search' : 'usuals') {
     $$('[data-t]', b).forEach((x) => x.onclick = () => show(x.dataset.t));
     show(tab);
     if (find) { const q = $('#as-body input[type=search]', b); if (q) { q.value = find; q.oninput(); } }
-  });
+  },{flow:'auto'});
 }
 const foodRow = (f, i) => `<button class="fe" data-i="${i}"><div><b>${esc(f.name)}</b><small class="muted">${esc([f.brand, f.serving && f.serving.label, f.source === 'usda' ? 'USDA' : f.source === 'off' ? 'Open Food Facts' : f.origin==='ai'?'Kit’s estimate'+(f.origin_edited?' · Edited':''):f.origin==='label'?'Nutrition label':f.source === 'custom' ? 'My food' : ''].filter(Boolean).join(' · '))}</small></div>
   <div class="r kcal-line"><b class="num">${r0(f.per_serving ? f.per_serving.kcal : f.per100 && f.serving ? f.per100.kcal * (f.serving.g || 100) / 100 : f.kcal)}</b><span> kcal</span></div></button>`;
@@ -711,7 +710,7 @@ async function tUsuals(body, where, close, addUsual=null) {
         fat_g:l.fat_g,fiber_g:l.fiber_g,...Object.fromEntries(EXTRA_NUTRIENTS.map(([k])=>[k,l[k]??null])),source:'recent',ref:l.ref||null};
       if(addUsual){addUsual(x,entry,l.name,x.getAttribute('aria-label'));return;}
       x.disabled = true;
-      try { const result=await addEntries([entry],{thread:location.pathname==='/food/describe'}); close(); toast(result.held?'Usual amount added for review':result.queued?'Saved on this phone · waiting to send':`Added ${l.name} to ${MEAL_NAMES[w.meal].toLowerCase()}`,result.undo); }
+      try { const result=await addEntries([entry],{thread:location.pathname==='/food/describe'}); close.closeAll?.(true);if(!close.closeAll)close();toast(result.held?'Usual amount added for review':result.queued?'Saved on this phone · waiting to send':`Added ${l.name} to ${MEAL_NAMES[w.meal].toLowerCase()}`,result.undo); }
       catch (e) { toast(e.message); x.disabled = false; }
     });
   } catch (x) { body.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
@@ -767,7 +766,7 @@ function drawRecipeLibrary(body,dishes,meals,foods,where,close,again){
     ${meals.length?`<section class="library-section"><h2>Saved combinations</h2>${meals.map((m,i)=>`<button type="button" class="fe" data-meal="${i}" data-library-name="${esc(m.name.toLowerCase())}"><div><b>${esc(m.name)}</b><small>${esc(preview(m.items))}</small></div><span class="num">${m.totals.kcal==null?'Calories unknown':r0(m.totals.kcal)+' kcal'}</span></button>`).join('')}</section>`:''}</div>
     <section class="library-section" id="library-foods"><h2>My foods</h2>${foods.map((f,i)=>`<div class="meal-library-row" data-library-name="${esc(f.name.toLowerCase())}">${foodRow(f,i)}<button type="button" class="icon-btn" data-edit-food="${i}" aria-label="Edit ${esc(f.name)}">${svg('edit')}</button></div>`).join('')}${!foods.length?'<p class="small muted">No saved foods yet.</p>':''}</section>
     ${!dishes.length&&!meals.length?'<p class="small muted">No recipes yet. Choose New to create one.</p>':''}<p id="tm-no-match" class="small muted" hidden>No matching recipes or foods.</p><button type="button" class="linkbtn library-log" id="tm-describe">Log food</button>`;
-  $('#tm-describe',body).onclick=()=>{const w=where();close();describeSheet(w.day,w.meal);};
+  $('#tm-describe',body).onclick=()=>{const w=where();close.closeAll?.(true);if(!close.closeAll)close();describeSheet(w.day,w.meal);};
   $('#tm-new',body.closest('#page')).disabled=false;
   $('#tm-new',body.closest('#page')).onclick=()=>sheet('New',`<div class="btncol"><button type="button" class="ghost" id="tm-dish">${svg('plus')}New recipe</button><button type="button" class="ghost" id="tm-link">Recipe from a link</button><button type="button" class="ghost" id="tm-food">${svg('edit')}New food</button></div>`,(b,end)=>{
     $('#tm-dish',b).onclick=e=>{const button=e.currentTarget;end();newDish(button);};$('#tm-link',b).onclick=()=>{end();go('/food/recipe-link');};$('#tm-food',b).onclick=()=>{end();return foodEditor(null,again);};
@@ -815,13 +814,13 @@ function savedSheet(m, w, closeParent, after) {
       const sc = (v) => (v == null ? null : v * k);
       const items = m.items.map((it) => ({...it, ...w, amount: it.amount * k, kcal: sc(it.kcal), protein_g: sc(it.protein_g), carbs_g: sc(it.carbs_g), fat_g: sc(it.fat_g), fiber_g: sc(it.fiber_g),...Object.fromEntries(EXTRA_NUTRIENTS.map(([key])=>[key,sc(it[key])])),ref: {...(it.ref||{}),saved_meal_id:m.id,saved_meal_factor:k}, source: 'meal'}));
       App.cache.delete('/api/food/meals');
-      try { const result=await addEntries(items,{thread:location.pathname==='/food/describe'}); close(); closeParent(); toast(`Added ${m.name}`,result.undo); } catch (x) { toast(x.message); }
+      try { const result=await addEntries(items,{thread:location.pathname==='/food/describe'}); close.closeAll?.(true);if(!close.closeAll){close();closeParent();}toast(`Added ${m.name}`,result.undo); } catch (x) { toast(x.message); }
     };
     $('#sv-del', b).onclick = async () => {
       if (!confirm(`Delete “${m.name}” from Saved combinations? Food already in your food log will stay.`)) return;
       try { await api(`/api/food/meals/${m.id}`, {method: 'DELETE'}); close(); toast('Saved combination deleted.'); after(); } catch (x) { toast(x.message); }
     };
-    const ai = $('#sv-ai', b); if (ai) ai.onclick = () => {if(!kitChatOn()){mealCoach(m);return;}close();closeParent();KitChat.open('nutrition',null,`Help me review the saved meal “${m.name}”. Check its stored foods and nutrition.`);};
+    const ai = $('#sv-ai', b); if (ai) ai.onclick = () => {if(!kitChatOn()){mealCoach(m);return;}close.closeAll?.(true);if(!close.closeAll){close();closeParent();}KitChat.open('nutrition',null,`Help me review the saved meal “${m.name}”. Check its stored foods and nutrition.`);};
   });
 }
 function tQuick(body, where, close) {
@@ -839,7 +838,7 @@ function tQuick(body, where, close) {
     it.kcal = f.kcal.value.trim() ? n(f.kcal) : Math.round(it.protein_g * 4 + it.carbs_g * 4 + it.fat_g * 9);
     if (!it.kcal && !it.protein_g) { toast('Enter calories or macros'); return; }
     button.disabled=true;
-    try { const result=await addEntries([{...it, ...where(),entry_method:'manual'}],{thread:location.pathname==='/food/describe'}); close(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${it.name}`,result.undo); } catch (x) { toast(x.message);button.disabled=false; }
+    try { const result=await addEntries([{...it, ...where(),entry_method:'manual'}],{thread:location.pathname==='/food/describe'}); close.closeAll?.(true);if(!close.closeAll)close();toast(result.queued?'Saved on this phone · waiting to send':`Added ${it.name}`,result.undo); } catch (x) { toast(x.message);button.disabled=false; }
   };
 }
 
@@ -876,13 +875,13 @@ function amountSheet(f, w, closeParent, onEditFood) {
       portion.step(st * +x.dataset.step);fm.amount.value=portion.format();calc();     // minus never goes to zero (or up)
     });
     $('.am-units',fm).onchange=ev=>{portion.select(ev.target.value);fm.unit.value=portion.unit;fm.amount.value=portion.format();$('#am-u',fm).textContent=uName(portion.unit);calc();};
-    if (onEditFood) $('#am-edit', b).onclick = () => { close(); onEditFood(); };
+    if (onEditFood) $('#am-edit', b).onclick = () => { onEditFood(); };
     fm.onsubmit = async (e) => {
       e.preventDefault(); const a = portion.amount; if (!(a > 0)) { toast('Enter an amount'); return; }
       const v = calc();
       const ref = {...(f.dish_id?{dish_id:f.dish_id,weight_g:f.weight_g,dish_kcal:f.dish_kcal}:{}),origin:f.origin,origin_notes:f.origin_notes,origin_model:f.origin_model,origin_edited:f.origin_edited,origin_ref:f.origin_ref,unknown_nutrients:f.unknown_nutrients||f._last?.ref?.unknown_nutrients,source: f.source, id: f.id, per100: f.per100 || null, per_serving: f.per_serving || null, serving: f.serving || null};
       try { const result=await addEntries([{...w, name: nm || br || f.name, brand: f.brand || null, amount: a, unit: startUnit, ...v, source: f.source === 'recent' ? 'recent' : f.source || 'search', entry_method:f.entry_method||'search', ref}],{thread:location.pathname==='/food/describe'});
-        if(owner!==readOwner())return;portion.remember();close(); closeParent(); toast(result.queued?'Saved on this phone · waiting to send':`Added ${title}`,result.undo); } catch (x) { toast(x.message); }
+        if(owner!==readOwner())return;portion.remember();close.closeAll?.(true);if(!close.closeAll){close();closeParent();}toast(result.queued?'Saved on this phone · waiting to send':`Added ${title}`,result.undo); } catch (x) { toast(x.message); }
     };
   });
 }
@@ -927,7 +926,7 @@ async function reviewFoodPhotos(files,confirm,{label=false,recipe=false,descript
   sheet(recipe?'Review recipe screenshots':label?'Photos of one ingredient':'Review your food photos','<div id="photo-selection"></div>',(root,close)=>{
     const box=$('#photo-selection',root),draw=()=>{box.innerHTML='<p>'+(recipe?'Choose views of one recipe, including its ingredients and nutrition. Kit will read them into a draft; check servings and numbers before saving.':label?'Use several views of the same package, including its nutrition panel. Add different ingredients separately.':'Use several views of one meal. Check the estimate so each food is counted once.')+'</p><p>Up to 6 photos. Photos stay on this screen until you continue.</p><div class="photo-selection">'+photos.map((p,i)=>`<div><img class="ql-img" src="${p}" alt="Selected photo ${i+1}"><button type="button" class="ghost" data-remove-photo="${i}" aria-label="Remove photo ${i+1}">Remove</button></div>`).join('')+'</div>'+(description!==null?`<label class="photo-description" for="photos-description">Describe this food <span class="muted">(optional)</span><textarea id="photos-description" rows="3" maxlength="4000" placeholder="For example, a 6-inch turkey sub with cheese and mayo; I ate half.">${esc(note)}</textarea></label><p class="small muted">Every estimate shows its food breakdown and total. Your photo appears temporarily in the chat, then disappears when you log the food or clear the chat.</p><p class="small muted">Kit estimates portions and hidden ingredients. Check the assumptions before logging.</p>`:'')+'<button class="primary wide" id="photos-use" '+(!photos.length?'disabled':'')+'>'+(recipe?'Read recipe screenshots':label?'Read these photos':description!==null?'Estimate with Kit':'Use these photos')+'</button>';
       const field=$('#photos-description',box);if(field)field.oninput=()=>{note=field.value;};
-      $$('[data-remove-photo]',box).forEach(b=>b.onclick=()=>{photos.splice(+b.dataset.removePhoto,1);draw()});$('#photos-use',box).onclick=()=>{if(!active())return;close();confirm(photos.slice(),{note:note.trim(),itemize})};};draw();
+      $$('[data-remove-photo]',box).forEach(b=>b.onclick=()=>{photos.splice(+b.dataset.removePhoto,1);draw()});$('#photos-use',box).onclick=()=>{if(!active())return;close.closeAll?.(true);if(!close.closeAll)close();confirm(photos.slice(),{note:note.trim(),itemize})};};draw();
   });
 }
 route(/^\/food\/describe$/, 'food', (el) => {
@@ -944,14 +943,14 @@ function scanSheet(day, meal, onFound, onCode) {
     <div class="thread-actions" id="sc-actions" hidden><button type="button" class="primary wide" id="sc-enter-nutrition">Enter nutrition</button></div>`, async (b, close) => {
     const v = $('#sc-v', b), msg = $('#sc-msg', b);
     const found = async (code) => {
-      stop(); if(onCode){close();onCode(String(code));return;}
+      stop(); if(onCode){close.closeAll?.(true);if(!close.closeAll)close();onCode(String(code));return;}
       const retry=$('#sc-lookup',b),actions=$('#sc-actions',b),enter=$('#sc-enter-nutrition',b),field=$('#sc-f input',b);
       if(actions)actions.hidden=true;if(retry)retry.textContent='Look up';if(field)field.value=String(code);
       msg.textContent='Looking up this barcode…';
-      try { const f = await api(`/api/food/barcode/${code}`); close(); if (onFound) onFound(f); else amountSheet({...f,entry_method:"barcode"}, {day, meal}, () => {}); }
+      try { const f = await api(`/api/food/barcode/${code}`); if(close.flow){msg.textContent='Barcode found. Enter another number to look up a different food.';if(onFound)onFound(f);else amountSheet({...f,entry_method:"barcode"},{day,meal},()=>{});}else{close();if(onFound)onFound(f);else amountSheet({...f,entry_method:"barcode"},{day,meal},()=>{});} }
       catch (x) {
         if(retry)retry.textContent='Try again';
-        if(x.status===404){msg.textContent="We couldn't find this barcode.";msg.classList.remove('small','muted');if(actions)actions.hidden=false;if(enter)enter.onclick=()=>{close();foodEditor({name:'',barcode:String(code),serving:{label:'1 serving'}},null);};}
+        if(x.status===404){msg.textContent="We couldn't find this barcode.";msg.classList.remove('small','muted');if(actions)actions.hidden=false;if(enter)enter.onclick=()=>{if(!close.flow)close();foodEditor({name:'',barcode:String(code),serving:{label:'1 serving'}},null);};}
         else msg.textContent=x.status===502?"We couldn't reach the food database. Try again.":x.message;
       }
     };

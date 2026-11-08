@@ -630,7 +630,7 @@ function typeSheet(name, grams, done) {
           const value=values[key];if(value==null)continue;
           if(!Number.isFinite(value)||value<0||value>limit||(key==='grams'&&value===0))throw Object.assign(Error(key==='grams'?'Enter a weight above zero and up to 30,000 g, or leave it blank.':'Enter a number from 0 to '+limit.toLocaleString()+' for this amount of food.'),{field:key});
         }
-        if (await done(values)) close();else btn.disabled=false;
+        if (await done(values)) close.closeAll?.(true);else btn.disabled=false;
       } catch (error) {
         $('#ty-error',b).textContent=error.message;btn.disabled=false;
         const field=f.elements[error.field];if(field){field.setAttribute('aria-invalid','true');field.setAttribute('aria-describedby','ty-error');field.oninput=()=>field.removeAttribute('aria-invalid');field.focus();}

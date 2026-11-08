@@ -389,6 +389,9 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .sheet .grab, .sheet header { touch-action: none; }
 .sheet header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
 .sheet header h2 { font-size: var(--text-app-section); font-weight: 700; letter-spacing: -.025em; }
+.sheet:has([data-sheet-back]) > header { display: grid; grid-template-columns: 44px minmax(0,1fr) 44px; gap: 8px; }
+.sheet:has([data-sheet-back]) > header h2 { min-width: 0; text-align: center; }
+.sheet header .sheet-flow-back { width: 44px; height: 44px; background: transparent; box-shadow: none; }
 .sheet.settle { transition: transform .16s ease-out; }
 .scrim.is-closing { pointer-events:none; animation:fade-out .16s ease-in both; }
 .scrim.is-closing .sheet { animation:sheet-out .16s cubic-bezier(.4,0,1,1) both; }

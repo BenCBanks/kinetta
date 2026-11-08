@@ -702,8 +702,8 @@ const FoodThread = (() => {
     // + opens the tools as an ordinary bottom sheet (owner: the inline panel looked out of place). The tool
     // buttons keep living in the hidden menu, so the sheet shows clones that click the real ones.
     const menu=$('#thread-menu',el),plus=$('#thread-plus',el),openMenu=open=>{if(!open)return;Native.haptic('selection');field.blur();
-      sheet('Add food',`<div class="thread-tools thread-tools-sheet">${$$('.thread-tools button',menu).map((b,i)=>`<button type="button" data-clone="${i}">${b.innerHTML}</button>`).join('')}</div>`,(b,close)=>{
-        $$('[data-clone]',b).forEach(x=>x.onclick=()=>{close();const target=$$('.thread-tools button',menu)[+x.dataset.clone];setTimeout(()=>target.click(),0);});});};
+      sheet('Add food',`<div class="thread-tools thread-tools-sheet">${$$('.thread-tools button',menu).map((b,i)=>`<button type="button" data-clone="${i}">${b.innerHTML}</button>`).join('')}</div>`,(b)=>{
+        $$('[data-clone]',b).forEach(x=>x.onclick=()=>{$$('.thread-tools button',menu)[+x.dataset.clone].click();});},{flow:'new'});};
     plus.onclick=()=>openMenu(true);
     $('#thread-review-add',el).onclick=()=>review(ctx,{allowUnsent:true,quickConfirm:!ctx.reviewForm&&!ctx.saveRecipe});
     $('#thread-review-sum',el).onclick=()=>review(ctx,{allowUnsent:true});

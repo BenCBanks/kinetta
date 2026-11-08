@@ -610,7 +610,51 @@ const ModalStack = (() => {
     else if(!event.shiftKey&&(document.activeElement===last||!node.contains(document.activeElement))){event.preventDefault();first.focus();}
   }
   if(typeof MutationObserver!=='undefined')new MutationObserver(sync).observe(document.body,{childList:true});
-  return {open,isTop,trap};
+  return {open,isTop,trap,top};
+})();
+const SheetHistory = (() => {
+  const field='kinettaSheetFlow';let nextId=0,skipPop=0;
+  const top=()=>ModalStack.top()?._sheetFlow||null;
+  const create=()=>({id:`sheet-${++nextId}`,path:location.pathname+location.search,items:[],active:true,ending:false,pendingBack:0});
+  const depth=flow=>flow.items.length-1;
+  function add(flow,node,closeStep){
+    const step=flow.items.length,entry={node,step,closeStep};flow.items.push(entry);node._sheetFlow=flow;node._sheetStep=step;
+    if(step>0)history.pushState({...history.state,[field]:{id:flow.id,step}},'',location.href);
+    return entry;
+  }
+  function closed(flow,entry,fromPop){
+    if(!flow||!entry)return;
+    const at=flow.items.indexOf(entry);if(at<0)return;
+    const wasTop=at===flow.items.length-1;flow.items.splice(at,1);
+    if(!flow.items.length)flow.active=false;
+    if(wasTop&&at>0&&!fromPop&&!flow.ending&&flow.active){flow.pendingBack++;history.back();}
+  }
+  function closeAll(flow,force=false,cleanHistory=true){
+    if(!flow?.active)return true;
+    const state=history.state?.[field],stateDepth=state?.id===flow.id?Number(state.step)||0:depth(flow),pending=flow.pendingBack;
+    if(!force&&flow.items.some(item=>item.node._sheetCanClose&&!item.node._sheetCanClose()))return false;
+    flow.ending=true;
+    for(const item of [...flow.items].reverse())item.closeStep(true,true);
+    flow.active=false;flow.ending=false;flow.pendingBack=0;
+    if(cleanHistory){const back=Math.max(0,stateDepth-pending);skipPop+=pending+(back?1:0);if(back)history.go(-back);}
+    return true;
+  }
+  function back(flow){if(flow?.active&&depth(flow)>0)history.back();}
+  function pop(event){
+    if(skipPop){skipPop--;return true;}
+    const flow=top();if(!flow?.active)return false;
+    if(location.pathname+location.search!==flow.path){closeAll(flow,true,false);return false;}
+    if(flow.pendingBack){flow.pendingBack--;return true;}
+    const marker=event.state?.[field],target=marker?.id===flow.id?Number(marker.step)||0:0;
+    if(depth(flow)>0){
+      if(target>=depth(flow))return false;
+      while(depth(flow)>target){const item=flow.items.at(-1);if(!item.closeStep(false,true)){skipPop++;history.forward();return true;}}
+      return true;
+    }
+    if(marker?.id===flow.id&&target===0)return true;
+    closeAll(flow,true,false);return false;
+  }
+  return {top,create,depth,add,closed,closeAll,back,pop};
 })();
 function sheet(title, html, onMount, opts = {}) {
   $$('.scrim.is-closing').forEach(el => el.remove());
@@ -618,14 +662,17 @@ function sheet(title, html, onMount, opts = {}) {
   const notice = $('#toast');
   if (notice && !$('button', notice)) notice.classList.remove('on'); // an old hint must not cover the new sheet; retain Undo
   const prev = document.activeElement;
+  const inherited=SheetHistory.top(),flow=opts.flow==='new'?SheetHistory.create():opts.flow==='auto'?(inherited||SheetHistory.create()):opts.flow===false?null:inherited;
+  const flowStep=flow?SheetHistory.depth(flow)+1:-1;
   const s = document.createElement('div'); s.className = 'scrim';
   const head = opts.save ? `<button type="button" class="sheet-text-btn" data-close>Cancel</button><h2>${esc(title)}</h2><button type="submit" class="sheet-text-btn save" form="${esc(opts.save)}">Save</button>`
-    : `<h2>${esc(title)}</h2><button class="icon-btn" data-close aria-label="Close">${svg('close')}</button>`;
+    : `${flowStep>0?`<button type="button" class="icon-btn sheet-flow-back" data-sheet-back aria-label="Back">${svg('back')}</button>`:''}<h2>${esc(title)}</h2><button class="icon-btn" data-close aria-label="Close">${svg('close')}</button>`;
   s.innerHTML = `<div class="sheet${opts.save ? ' pinned' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="grab"></div>
     <header>${head}</header><div class="sbody">${html}</div></div>`;
   let closing = false;
-  const close = (force) => {
-    if (closing) return;
+  let flowEntry=null;
+  const close = (force=false,fromPop=false) => {
+    if (closing) return true;
     if (force !== true && opts.canClose && !opts.canClose()) { if (sh.style.transform) settle(false); return; }
     closing = true;
     document.removeEventListener('keydown', onKey); removeEventListener('mousemove', onMove); removeEventListener('mouseup', onUp); unfit();
@@ -645,33 +692,46 @@ function sheet(title, html, onMount, opts = {}) {
       const timer = setTimeout(remove, 220); // background tabs and interrupted animations still clean up
     }
     if (prev && prev.isConnected && prev.focus) prev.focus({preventScroll: true});
+    SheetHistory.closed(flow,flowEntry,fromPop);
+    return true;
   };
   const onKey = (e) => {
     if (!ModalStack.isTop(s)) return;
-    if (e.key === 'Escape') { e.preventDefault(); close(); }
+    if (e.key === 'Escape') { e.preventDefault(); if(flow&&flowStep>0)SheetHistory.back(flow);else if(flow)SheetHistory.closeAll(flow);else close(); }
     ModalStack.trap(e,s);
   };
-  s.addEventListener('click', (e) => { if (e.target === s || e.target.closest('[data-close]')) close(); });
+  s.addEventListener('click', (e) => {
+    if(e.target===s){if(flow)SheetHistory.closeAll(flow);else close();return;}
+    if(e.target.closest('[data-sheet-back]')){SheetHistory.back(flow);return;}
+    if(e.target.closest('[data-close]')){
+      if(flow&&opts.save&&flowStep>0)SheetHistory.back(flow);
+      else if(flow)SheetHistory.closeAll(flow);
+      else close();
+    }
+  });
   // swipe down to dismiss (2026-10-09): from the grab bar / header, or anywhere in the body while it is scrolled to
   // the top (like iOS sheets). Touch events with preventDefault, because pointer events are cancelled once iOS
   // decides the finger is scrolling. Mouse: drag the grab bar / header.
   const sh = $('.sheet', s);   // the sheet itself is the scroll container
   sh.requestClose=()=>{close();return closing;};
   let ty = null, dy = 0, dragging = false, fromTop = false;
-  const settle = (shut) => { if (shut) { close(); return; } sh.classList.add('settle'); sh.style.transform = ''; setTimeout(() => sh.classList.remove('settle'), 200); };
+  let edgeStart=null,edgeDx=0,edgeDy=0,edgeBack=false;
+  const settle = (shut) => { if (shut) { if(flow)SheetHistory.closeAll(flow);else close(); return; } sh.classList.add('settle'); sh.style.transform = ''; setTimeout(() => sh.classList.remove('settle'), 200); };
   sh.addEventListener('touchstart', (e) => {
-    if (e.touches.length !== 1 || e.target.closest('textarea, input[type=range], .tblwrap, .hgrid, .chips, .social-sheet .comments, .fitness-inspect .chartbox')) { ty = null; return; }
-    ty = e.touches[0].clientY; dy = 0; dragging = false;
+    if (e.touches.length !== 1 || e.target.closest('button, a, input, select, textarea, [contenteditable="true"], .tblwrap, .hgrid, .chips, .social-sheet .comments, .fitness-inspect .chartbox')) { ty = null; return; }
+    const touch=e.touches[0];edgeStart=flow&&flowStep>0&&touch.clientX<=24?{x:touch.clientX,y:touch.clientY}:null;edgeDx=edgeDy=0;edgeBack=false;
+    ty = touch.clientY; dy = 0; dragging = false;
     fromTop = !!e.target.closest('.grab, header') || sh.scrollTop <= 0;
   }, {passive: true});
   sh.addEventListener('touchmove', (e) => {
+    if(edgeStart){const touch=e.touches[0];edgeDx=touch.clientX-edgeStart.x;edgeDy=touch.clientY-edgeStart.y;if(edgeDx>8&&edgeDx>Math.abs(edgeDy)){edgeBack=true;e.preventDefault();}if(edgeBack)return;}
     if (ty == null || !fromTop) return;
     dy = e.touches[0].clientY - ty;
     if (!dragging && dy > 8 && (e.target.closest('.grab, header') || sh.scrollTop <= 0)) { dragging = true; sh.classList.remove('settle'); }
     if (dragging) { e.preventDefault(); sh.style.transform = `translateY(${Math.max(0, dy)}px)`; }
   }, {passive: false});
-  sh.addEventListener('touchend', () => { if (dragging) settle(dy > 90); ty = null; dragging = false; });
-  sh.addEventListener('touchcancel', () => { if (dragging) settle(false); ty = null; dragging = false; });
+  sh.addEventListener('touchend', () => { if(edgeBack&&edgeDx>72&&edgeDx>Math.abs(edgeDy)*1.2)SheetHistory.back(flow);else if (dragging) settle(dy > 90); edgeStart=null;edgeBack=false;ty = null; dragging = false; });
+  sh.addEventListener('touchcancel', () => { if(edgeBack)sh.style.transform='';else if (dragging) settle(false);edgeStart=null;edgeBack=false;ty = null; dragging = false; });
   let my = null;
   sh.addEventListener('mousedown', (e) => { if (e.target.closest('.grab, header') && !e.target.closest('button')) my = e.clientY; });
   const onMove = (e) => { if (my != null && e.clientY - my > 0) sh.style.transform = `translateY(${e.clientY - my}px)`; };
@@ -694,11 +754,12 @@ function sheet(title, html, onMount, opts = {}) {
   addEventListener('kinetta:keyboard', fit); fit();
   document.addEventListener('keydown', onKey);
   document.body.append(s); const releaseModal=ModalStack.open(s); document.body.classList.add('has-sheet');
+  if(flow){s._sheetCanClose=()=>!opts.canClose||opts.canClose();flowEntry=SheetHistory.add(flow,s,(force,fromPop)=>close(force,fromPop));}
+  const closeNow=()=>close(true);closeNow.flow=flow;closeNow.back=()=>SheetHistory.back(flow);closeNow.closeAll=(force=true)=>flow?SheetHistory.closeAll(flow,force):close(true);
   // phones: a text box waits for a tap (a focused box pops up the keyboard over the sheet); buttons still take focus
   const first = $('input, select, textarea, button:not([data-close])', $('.sbody', s));
   // (2026-10-12: a select too - iOS opened the meal picker as soon as Add food appeared)
   if (first && !(first.matches('input, textarea, select') && matchMedia('(pointer: coarse)').matches)) first.focus({preventScroll: true});
-  const closeNow = () => close(true);
   if (onMount) onMount($('.sbody', s), closeNow);
   return closeNow;
 }
@@ -943,7 +1004,7 @@ document.addEventListener('pointerdown', (e) => {
   const a = e.target.closest('a'); if(a?.dataset.prefetch)prefetch(a.dataset.prefetch);else if(a)warmDestination(a.getAttribute('href'));
 }, {passive: true});
 document.addEventListener('focusin',e=>{const a=e.target.closest('a');if(a)warmDestination(a.getAttribute('href'));});
-window.addEventListener('popstate', () => { if (App.mediaMapBack?.()) return; slide('back', App.lastPath || ''); });
+window.addEventListener('popstate', (event) => { if (SheetHistory.pop(event)) return; if (App.mediaMapBack?.()) return; slide('back', App.lastPath || ''); });
 document.addEventListener('visibilitychange', () => {
   if(document.hidden){App.hiddenAt=Date.now();return;}
   if(!App.me)return;Q.flush().catch(e=>toast(e.message));
