@@ -34,7 +34,7 @@ from .admin_auth import admin_user, audit
 
 router = APIRouter(prefix='/api')
 VISIBILITY = ('me', 'friends', 'everyone')
-# The details a person picks, and the defaults: map on (trimmed), heart rate and calories off, the rest on.
+# Conservative fallback for absent profile rows/settings; migration 107 stores heart-rate sharing on new profile rows.
 DETAILS = {'map': True, 'heart_rate': False, 'pace': True, 'splits': True, 'elevation': True, 'calories': False,
            'description': True, 'device': True}
 TRIMS = (0, 200, 400, 800)
@@ -93,7 +93,7 @@ def details_of(person=None, activity=None):
 def _clean_details(v):
     if not isinstance(v, dict) or not set(v) <= set(DETAILS) or not all(isinstance(x, bool) for x in v.values()):
         raise HTTPException(400, 'Unknown detail')
-    return details_of(v)
+    return dict(v)
 
 
 # Someone else's view of an activity: one query for the feed and the detail page. The map is cut here: the line is
@@ -518,8 +518,9 @@ def sharing(user=Depends(current_user)):
 @router.put('/sharing')
 def set_sharing(body: SharingIn, user=Depends(current_user)):
     sets = {}
+    details_update = _clean_details(body.details) if body.details is not None else None
     if body.default is not None: sets['share_default'] = body.default
-    if body.details is not None: sets['share_details'] = json.dumps(_clean_details(body.details))
+    if details_update is not None: sets['share_details'] = json.dumps(details_update)
     if body.trim_m is not None:
         if body.trim_m not in TRIMS: raise HTTPException(400, 'Choose off, 200, 400 or 800 m')
         sets['share_trim_m'] = body.trim_m
@@ -527,8 +528,11 @@ def set_sharing(body: SharingIn, user=Depends(current_user)):
     if sets or body.share_achievements is not None:
         with db.connect() as c:
             profile = c.execute('SELECT share_details,share_achievements FROM profile WHERE user_id=%s FOR UPDATE', (user['id'],)).fetchone() or {}
-            if body.details is not None:
-                proposed = {'share_details': _clean_details(body.details)}
+            if details_update is not None:
+                merged_details = details_of(profile.get('share_details'))
+                merged_details.update(details_update)
+                sets['share_details'] = json.dumps(merged_details)
+                proposed = {'share_details': merged_details}
                 for activity in c.execute("SELECT id,name,description,sport_label,visibility,share_details FROM activities WHERE user_id=%s AND visibility<>'me'", (user['id'],)).fetchall():
                     if details_of(proposed['share_details'], activity['share_details'])['description'] and not details_of(profile.get('share_details'), activity['share_details'])['description']:
                         community_filter.activity(c, user['id'], activity, proposed)
@@ -554,7 +558,7 @@ def set_activity_sharing(aid: int, body: ActivitySharingIn, user=Depends(current
     sets, args = [], []
     if body.visibility is not None: sets.append('visibility = %s'); args.append(body.visibility)
     if body.usual_details: sets.append('share_details = NULL')
-    elif body.details is not None: sets.append('share_details = %s'); args.append(json.dumps(_clean_details(body.details)))
+    elif body.details is not None: sets.append('share_details = %s')
     with db.connect() as c:
         profile = c.execute('SELECT share_details FROM profile WHERE user_id=%s FOR SHARE', (user['id'],)).fetchone() or {}
         activity = c.execute('SELECT id,name,description,sport_label,visibility,share_details FROM activities WHERE id=%s AND user_id=%s FOR UPDATE', (aid,user['id'])).fetchone()
@@ -562,7 +566,11 @@ def set_activity_sharing(aid: int, body: ActivitySharingIn, user=Depends(current
         proposed = {**activity}
         if body.visibility is not None: proposed['visibility'] = body.visibility
         if body.usual_details: proposed['share_details'] = None
-        elif body.details is not None: proposed['share_details'] = _clean_details(body.details)
+        elif body.details is not None:
+            details = details_of(profile.get('share_details'), activity.get('share_details'))
+            details.update(_clean_details(body.details))
+            proposed['share_details'] = details
+            args.append(json.dumps(details))
         community_filter.activity(c, user['id'], proposed, profile, publishing=activity['visibility']=='me')
         if not c.execute(f"UPDATE activities SET {', '.join(sets or ['id = id'])} WHERE id = %s AND user_id = %s RETURNING id",
                          (*args, aid, user['id'])).fetchone():

@@ -32,7 +32,7 @@ class Groups(unittest.TestCase):
                     VALUES(%s,'Fictional member',%s,now()-interval '1 year') RETURNING id''',
                                 (login, self.password)).fetchone()['id']
                 self.ids.append(uid)
-                c.execute("INSERT INTO profile(user_id,tz,units) VALUES(%s,'America/New_York','metric')", (uid,))
+                c.execute("INSERT INTO profile(user_id,tz,units,share_achievements,share_achievements_since) VALUES(%s,'America/New_York','metric',false,NULL)", (uid,))
                 token = auth.new_session(c, uid, 'fictional group test')
                 client = TestClient(app)
                 client.headers.update({'Origin': 'http://testserver', 'Content-Type': 'application/json'})
@@ -123,6 +123,27 @@ class Groups(unittest.TestCase):
         self.assertEqual(self.clients[0].post('/api/groups/activity-strip', json={'muted': False}).json(),
                          {'muted': False})
         self.assertFalse(self.clients[0].get('/api/groups/activity-strip').json()['muted'])
+
+    def test_activity_strip_update_does_not_create_a_missing_profile(self):
+        login = 'zz_test_gr_missing_' + uuid.uuid4().hex[:12]
+        with db.connect() as c:
+            uid = c.execute("INSERT INTO users(login,name,pw_hash) VALUES(%s,'Fictional member',%s) RETURNING id",
+                            (login, self.password)).fetchone()['id']
+            token = auth.new_session(c, uid, 'fictional missing-profile test')
+            self.assertIsNone(c.execute('SELECT 1 FROM profile WHERE user_id=%s', (uid,)).fetchone())
+        client = TestClient(app)
+        client.headers.update({'Origin': 'http://testserver', 'Content-Type': 'application/json'})
+        client.cookies.set(auth.COOKIE, token)
+        try:
+            response = client.post('/api/groups/activity-strip', json={'muted': True})
+            self.assertEqual(response.status_code, 200, response.text)
+            with db.connect() as c:
+                self.assertIsNone(c.execute('SELECT 1 FROM profile WHERE user_id=%s', (uid,)).fetchone(),
+                                  'a profile preference write never creates sharing defaults for an existing account')
+        finally:
+            with db.connect() as c:
+                c.execute('DELETE FROM users WHERE id=%s', (uid,))
+            client.close()
 
     def test_weekly_contribution_boundaries_follow_event_zone_monday_to_sunday(self):
         fixed_now = dt.datetime(2026, 11, 1, 7, 30, tzinfo=dt.timezone.utc)

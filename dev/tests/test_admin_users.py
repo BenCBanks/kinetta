@@ -1,5 +1,5 @@
 """Admin user management (#233 A–D) and database-backed sign-in limits; the mail provider is a stand-in."""
-import base64, datetime as dt, os, unittest
+import base64, datetime as dt, os, subprocess, sys, unittest
 from unittest.mock import patch
 import httpx
 from fastapi.testclient import TestClient
@@ -68,6 +68,18 @@ class AdminUsers(unittest.TestCase):
         self.assertEqual([x['login'] for x in admins], ['zz_test_au_admin'])
         self.assertEqual(self.a.get('/api/admin/people?status=bogus').status_code, 422)
         member, _ = self.login(); self.assertEqual(member.get('/api/admin/people').status_code, 403, 'an app login is not a portal session')
+
+    def test_cli_users_add_uses_new_profile_defaults(self):
+        login = 'zz_test_au_cli_added'
+        result = subprocess.run([sys.executable, '-m', 'app.users', 'add', login, 'CLI Added'],
+                                capture_output=True, text=True, check=True)
+        self.assertIn('added ' + login, result.stdout)
+        with db.connect() as c:
+            profile = c.execute('''SELECT p.share_default,p.share_details,p.share_achievements,
+                                          p.share_achievements_since IS NOT NULL AS since_set
+                                   FROM profile p JOIN users u ON u.id=p.user_id WHERE u.login=%s''', (login,)).fetchone()
+        self.assertEqual(profile['share_default'], 'everyone')
+        self.assertTrue(profile['share_details']['heart_rate'] and profile['share_achievements'] and profile['since_set'], profile)
 
     def test_account_page_has_support_information_only(self):
         c, _ = self.login()

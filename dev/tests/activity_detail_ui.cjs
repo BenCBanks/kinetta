@@ -40,7 +40,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     const chart=await p.locator('#d-charts').boundingBox(),nav=await p.locator('nav.tabs').boundingBox();assert(chart.y<nav.y,'The first chart starts above the tabs: '+JSON.stringify({chart,nav}));
    }
 
-   if(friend){assert.equal(await p.locator('[data-detail-share],[data-detail-edit],#d-kit,.detail-highlights,#d-milestones').count(),0);assert(!/Only me|Friends|Cadence|Avg HR|Calories/.test(await p.locator('.d-title').innerText()),'only permitted friend fields');assert(await p.locator('.detail-owner').isVisible());assert(await p.locator('#s-rb').isVisible());}
+   if(friend){assert.equal(await p.locator('[data-detail-share],[data-detail-edit],#d-kit,.detail-highlights,#d-milestones').count(),0);assert(!/Only me|Friends|Cadence|Calories/.test(await p.locator('.d-title').innerText()),'only permitted friend fields');assert.match(await p.locator('.d-title').innerText(),/Avg HR/,'heart rate appears for the sharing preference');assert(await p.locator('.detail-owner').isVisible());assert(await p.locator('#s-rb').isVisible());}
    else assert.equal(await p.locator('#d-soc').isVisible(),false,'an empty owner activity hides its social footer');
    if(mapped){
     const map=p.locator(friend?'#s-map':'#d-map');await until(p,()=>!!document.querySelector('.leaflet-container'),'actual Leaflet');const hero=await p.locator('.detail-map-hero').boundingBox();assert(Math.abs(hero.x)<1&&Math.abs(hero.y)<1&&Math.abs(hero.width-size.width)<1,'full bleed top map');assert(hero.height<=size.height*.41,'about 38% viewport map');assert.equal(await map.locator('.leaflet-control-zoom').count(),0,'coarse pointer uses pinch');

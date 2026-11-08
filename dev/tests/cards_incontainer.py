@@ -34,7 +34,9 @@ class Cards(unittest.TestCase):
   self.assertEqual(self.guest.put('/api/card',json={'enabled':True}).status_code,401)
   self.assertEqual(self.clients[0].put('/api/card',json={'enabled':True,'user_id':self.ids[1]}).status_code,422)
  def test_anonymous_preview_and_png_never_disclose_unselected_private_fields(self):
-  self.enable();d=self.guest.get('/api/cards/'+self.code).json();self.assertEqual(set(d),{'username','period','weekly','sports','stats','garmin_sources','allow_requests','url'});self.assertEqual(d['period'],'this_week');self.assertEqual(d['sports'],[{'sport':'run','activities':1}])
+  self.enable()
+  with db.connect() as c:c.execute('UPDATE profile SET share_achievements=false,share_achievements_since=NULL WHERE user_id=%s',(self.ids[0],))
+  d=self.guest.get('/api/cards/'+self.code).json();self.assertEqual(set(d),{'username','period','weekly','sports','stats','garmin_sources','allow_requests','url'});self.assertEqual(d['period'],'this_week');self.assertEqual(d['sports'],[{'sport':'run','activities':1}])
   page=self.guest.get('/card/'+self.code);self.assertEqual(page.status_code,200);self.assertIn('noindex',page.headers['x-robots-tag']);self.assertIn('og:image',page.text);self.assertIn('/image.png',page.text)
   for secret in ('SECRET REAL','SECRET ACTIVITY','SECRET NOTE','avg_hr','calories','weight','bio'):self.assertNotIn(secret,page.text+json.dumps(d))
   pic=self.guest.get('/card/'+self.code+'/image.png');self.assertEqual(pic.status_code,200);self.assertEqual(Image.open(io.BytesIO(pic.content)).size,(1080,1350));self.assertEqual(pic.headers['cache-control'],'no-store')
