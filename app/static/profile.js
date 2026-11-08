@@ -114,9 +114,9 @@ const ProfileLayout=(()=>{
   }
   function achievementLevel(track){
     const def=achievementDefinition(track);if(!def)return Math.max(0,Math.round(Number(track.level)||track.tiers?.length||0));
-    const value=achievementRawValue(track),firstActivityEarned=(track.tiers||[]).some(tier=>tier.trigger==='first_activity');let level=0;
+    const value=achievementRawValue(track),firstActivityEarned=value>0||(track.tiers||[]).some(tier=>tier.trigger==='first_activity');let level=0;
     for(const tier of def.levels){
-      if(tier.trigger==='first_activity'&&firstActivityEarned){level++;continue;}
+      if(tier.trigger==='first_activity'){if(firstActivityEarned)level++;else break;continue;}
       if(achievementCanonicalThreshold(tier)<=value+1e-7)level++;else break;
     }
     if(level===def.levels.length){const last=achievementCanonicalThreshold(def.levels.at(-1));
@@ -124,10 +124,18 @@ const ProfileLayout=(()=>{
     return level;
   }
   function achievementCurrentTier(track){const level=achievementLevel(track);return level?achievementTierAt(track.code,level):null;}
-  function achievementLevelsThrough(track,through){
-    const def=achievementDefinition(track);if(!def)return[];
-    const end=Math.min(250,Math.max(def.levels.length,Math.floor(Number(through)||0)+3));
-    return Array.from({length:end},(_,i)=>achievementTierAt(track.code,i+1)).filter(Boolean);
+  function achievementLevels(track){
+    const def=achievementDefinition(track);return def?.levels?.map((_,i)=>achievementTierAt(track.code,i+1))||[];
+  }
+  const achievementLabels={consistency:'Consistency',years_active:'Years active',workouts:'Workouts',active_time:'Active time',journey:'Journey',climbing:'Climbing',lifted:'Lifted',personal_bests:'Personal bests','sport:run':'Run','sport:ride':'Ride','sport:walk-hike':'Walk & hike','sport:swim':'Swim','sport:lift':'Lift sessions'};
+  function emptyAchievementTrack(code){
+    const def=achievementCatalog?.tracks?.[code];if(!def?.levels?.length)return null;
+    const imperial=App.me?.units!=='metric',unit=({journey:imperial?'mi':'km','sport:run':imperial?'mi':'km','sport:ride':imperial?'mi':'km','sport:walk-hike':imperial?'mi':'km','sport:swim':imperial?'mi':'km',climbing:imperial?'ft':'m',lifted:imperial?'lb':'kg',active_time:'hours'})[code]||def.levels[0].canonical_unit||'';
+    return{code,label:achievementLabels[code]||code,value:0,display_value:0,display_unit:unit,tiers:[]};
+  }
+  function overviewAchievementTracks(data){
+    const byCode=new Map((Array.isArray(data?.tracks)?data.tracks:[]).filter(track=>track?.code).map(track=>[track.code,track]));
+    return Object.keys(achievementCatalog?.tracks||{}).map(code=>byCode.get(code)||emptyAchievementTrack(code)).filter(Boolean);
   }
   function achievementAsset(tier,className='profile-achievement-icon'){
     if(!tier?.icon)return '';
@@ -186,17 +194,56 @@ const ProfileLayout=(()=>{
     if(code==='personal_bests')return `${achievementNumber(value)} ${value===1?'personal best':'personal bests'}`;
     return achievementQuantity(value,canonicalUnit);
   }
-  function achievementLevelRow(track,tier,currentLevel){
-    const state=tier.level===currentLevel?'is-current':tier.level<currentLevel?'is-earned':'is-upcoming',status=tier.level===currentLevel?'Current level':tier.level<currentLevel?'Earned':'Coming up';
-    return `<li class="profile-achievement-level-row ${state}" data-level="${tier.level}" aria-label="Level ${tier.level}, ${esc(tier.name)}, ${esc(achievementThresholdText(track,tier))}, ${status}">${achievementAsset(tier,'profile-achievement-level-icon')}<span class="profile-achievement-level-copy"><span class="profile-achievement-level-title"><b>${esc(tier.name)}</b>${tier.level===currentLevel?'<small class="profile-achievement-level-here">You are here</small>':''}</span><small>${esc(achievementThresholdText(track,tier))}</small></span></li>`;
+  function achievementRemainingText(track,tier){
+    if(tier?.trigger==='first_activity')return 'First activity to go';
+    const raw=Math.max(0,Number(tier?.threshold)-achievementRawValue(track)),imperial=App.me?.units!=='metric',code=track.code;
+    let value=raw,unit=achievementDefinition(track)?.levels?.[0]?.canonical_unit||'';
+    if(['journey','sport:run','sport:ride','sport:walk-hike','sport:swim'].includes(code)){value=raw/(imperial?1609.344:1000);unit=imperial?'mi':'km';}
+    else if(code==='climbing'){value=raw*(imperial?3.28084:1);unit=imperial?'ft':'m';}
+    else if(code==='lifted'){value=raw*(imperial?2.2046226218:1);unit=imperial?'lb':'kg';}
+    else if(code==='active_time'){value=raw/3600;unit='hours';}
+    if(code==='personal_bests')return `${achievementNumber(value)} ${value===1?'personal best':'personal bests'} to go`;
+    return `${achievementQuantity(value,unit)} to go`;
   }
-  function achievementLevelList(track,level){
-    const tiers=achievementLevelsThrough(track,level);
-    return `<section class="profile-achievement-levels" aria-labelledby="profile-achievement-levels-title"><h2 class="sec-head" id="profile-achievement-levels-title">Levels</h2><ol>${tiers.map(tier=>achievementLevelRow(track,tier,level)).join('')}</ol>${achievementCatalog?.tail?'<p class="profile-achievement-tail-note">After the named levels, the last icon repeats at each multiple.</p>':''}</section>`;
+  function achievementLevelRow(track,tier,currentLevel,earnedDays=new Map()){
+    const state=tier.level===currentLevel?'is-current':tier.level<currentLevel?'is-earned':'is-upcoming',status=tier.level===currentLevel?'Current level':tier.level<currentLevel?'Earned':'Coming up';
+    const day=earnedDays.get(tier.level)||'',date=day?fdate(day+'T12:00',{month:'short',day:'numeric'}):'';
+    let meta='';
+    if(tier.level<=currentLevel)meta=date?`<time datetime="${esc(day)}">${esc(date)}</time>`:'<span>Earned</span>';
+    else if(tier.level===currentLevel+1){
+      const progress=Math.round(achievementProgress(track)*100),remaining=achievementRemainingText(track,tier);
+      meta=`<span class="profile-achievement-level-progress"><span class="profile-achievement-level-progressbar" role="progressbar" aria-label="Progress to Level ${tier.level}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span style="width:${progress}%"></span></span><small>${esc(remaining)}</small></span>`;
+    }
+    const threshold=achievementThresholdText(track,tier),name=`Level ${tier.level} · ${threshold}`;
+    return `<li class="profile-achievement-level-row ${state}" data-level="${tier.level}" aria-label="Level ${tier.level}, ${esc(tier.name)}, ${esc(threshold)}, ${status}${date?`, earned ${esc(date)}`:''}">${achievementAsset(tier,'profile-achievement-level-icon')}<span class="profile-achievement-level-copy"><span class="profile-achievement-level-title"><b>${esc(name)}</b></span><small>${esc(tier.name)}${tier.level===currentLevel?' · Current':''}</small></span><span class="profile-achievement-level-meta">${meta}</span></li>`;
+  }
+  function achievementLevelList(track,level,historyData){
+    const named=achievementLevels(track),count=named.length,tailOpen=Boolean(achievementCatalog?.tail),earnedDays=new Map((Array.isArray(historyData?.tiers)?historyData.tiers:[]).map(tier=>[Number(tier.rank),String(tier.day||'')]).filter(([rank,day])=>Number.isInteger(rank)&&rank>0&&day));
+    const focus=level>count?[level+1,level,level-1]:level>0?[level+1,level,level-1]:[1,2,3],preview=Array.from(new Set(focus)).filter(n=>n>0).map(n=>achievementTierAt(track.code,n)).filter(Boolean);
+    const tailStart=Math.max(count+1,level>count?level-2:count+1),tailEnd=Math.max(count+10,level>count?level+10:count+10);
+    const tailRows=tailOpen?Array.from({length:tailEnd-tailStart+1},(_,i)=>achievementTierAt(track.code,tailStart+i)).filter(Boolean):[];
+    return `<section class="profile-achievement-levels" aria-labelledby="profile-achievement-levels-title"><h2 class="sec-head" id="profile-achievement-levels-title">Levels</h2><ol class="profile-achievement-level-preview" aria-label="Levels near your progress">${preview.map(tier=>achievementLevelRow(track,tier,level,earnedDays)).join('')}</ol>${count>preview.filter(tier=>tier.level<=count).length?`<button class="profile-achievement-more" type="button" data-achievement-show-all aria-expanded="false">Show all ${count} levels</button>`:''}<div class="profile-achievement-level-all" hidden><ol class="profile-achievement-named-levels" aria-label="Named achievement levels">${named.map(tier=>achievementLevelRow(track,tier,level,earnedDays)).join('')}</ol>${tailRows.length?`<ol class="profile-achievement-tail-levels" aria-label="Repeating levels">${tailRows.map(tier=>achievementLevelRow(track,tier,level,earnedDays)).join('')}</ol><button class="profile-achievement-more" type="button" data-achievement-show-more data-next-level="${tailEnd+1}">Show 10 more</button><p class="profile-achievement-tail-note">After the named levels, the last icon repeats at each multiple.</p>`:''}</div></section>`;
+  }
+  function wireAchievementLevelList(box,track,level,historyData){
+    const section=box.querySelector('.profile-achievement-levels');if(!section)return;
+    const showAll=section.querySelector('[data-achievement-show-all]'),all=section.querySelector('.profile-achievement-level-all');
+    const preview=section.querySelector('.profile-achievement-level-preview');
+    if(showAll&&all&&preview)showAll.addEventListener('click',()=>{
+      const expanded=all.hidden;
+      all.hidden=!expanded;preview.hidden=expanded;
+      showAll.setAttribute('aria-expanded',String(expanded));
+      showAll.textContent=expanded?'Show fewer':'Show all '+achievementLevels(track).length+' levels';
+    });
+    const more=section.querySelector('[data-achievement-show-more]');
+    if(more)more.addEventListener('click',()=>{
+      const start=Number(more.dataset.nextLevel),earnedDays=new Map((Array.isArray(historyData?.tiers)?historyData.tiers:[]).map(row=>[Number(row.rank),String(row.day||'')])),tiers=Array.from({length:10},(_,i)=>achievementTierAt(track.code,start+i)).filter(Boolean),list=section.querySelector('.profile-achievement-tail-levels');
+      list.insertAdjacentHTML('beforeend',tiers.map(tier=>achievementLevelRow(track,tier,level,earnedDays)).join(''));
+      more.dataset.nextLevel=String(start+10);more.focus({preventScroll:true});
+    });
   }
   function achievementProgress(track){
     const level=achievementLevel(track),current=achievementTierAt(track.code,level),next=achievementTierAt(track.code,level+1);
-    const start=Number(current?.threshold)||0,end=Number(next?.threshold),value=achievementRawValue(track);
+    const start=level?Number(current?.threshold)||0:0,end=Number(next?.threshold),value=achievementRawValue(track);
     return Number.isFinite(end)&&end>start&&Number.isFinite(value)?Math.max(0,Math.min(1,(value-start)/(end-start))):0;
   }
   const achievementSections=[
@@ -212,17 +259,19 @@ const ProfileLayout=(()=>{
       });
       if(!grouped.length)return '';
       const id=`profile-achievement-group-${section.id}`;
-      return `<section class="profile-achievement-group" aria-labelledby="${id}"><h2 class="sec-head profile-achievement-group-title" id="${id}">${section.title}</h2><div class="profile-achievement-list is-grid" role="list" aria-labelledby="${id}">${grouped.map(track=>achievementRow(track,levelUps,pinnedCodes)).join('')}</div></section>`;
+      return `<section class="profile-achievement-group" aria-labelledby="${id}"><h2 class="sec-head profile-achievement-group-title" id="${id}">${section.title}</h2><div class="profile-achievement-list is-grid" role="list" aria-labelledby="${id}">${grouped.map(track=>achievementRow(track,levelUps,pinnedCodes,true)).join('')}</div></section>`;
     }).join('');
   }
   function achievementMedallion(track){
-    const ratio=achievementProgress(track),circumference=2*Math.PI*47,ring=(ratio*circumference).toFixed(1),level=achievementLevel(track),value=achievementValue(track),tier=achievementCurrentTier(track);
+    const ratio=achievementProgress(track),circumference=2*Math.PI*47,ring=(ratio*circumference).toFixed(1),level=achievementLevel(track),value=achievementValue(track),tier=achievementCurrentTier(track)||achievementTierAt(track.code,1);
     const tone=level>=6?'deep':String(level);
     return `<span class="profile-achievement-medallion" data-level="${level}" data-level-tone="${tone}" aria-hidden="true"><svg class="profile-achievement-ring" viewBox="0 0 104 104"><circle class="profile-achievement-ring-base" cx="52" cy="52" r="47"/><circle class="profile-achievement-ring-progress" cx="52" cy="52" r="47" stroke-dasharray="${ring} ${circumference.toFixed(1)}" transform="rotate(-90 52 52)"/></svg>${achievementAsset(tier)||achievementGlyph(track)}<span class="profile-achievement-value">${esc(value)}</span><span class="profile-achievement-level">Lv ${level}</span>${Number(tier?.multiple)>1?`<span class="profile-achievement-multiple">×${Number(tier.multiple)}</span>`:''}</span>`;
   }
-  function achievementRow(track,levelUps=new Set(),pinnedCodes=new Set()){
-    const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),tier=achievementCurrentTier(track),value=achievementValue(track),next=achievementNext(track),up=levelUps.has(track.code),pinned=pinnedCodes.has(track.code),aria=`${label}, Level ${level}${tier?` ${tier.name}`:''}, ${value}${next?`. Next ${next}`:''}${pinned?', Pinned to profile':''}`;
-    return `<a class="profile-achievement${up?' is-level-up':''}" role="listitem" href="${esc(achievementHref(track))}" aria-label="${esc(aria)}" aria-description="Long press to ${pinned?'remove this medal from':'pin this medal to'} your profile." data-achievement-code="${esc(track.code)}" data-showcase-pinned="${pinned}">${achievementMedallion(track)}<span class="profile-achievement-name">${esc(label)}</span>${next?`<span class="profile-achievement-next">Next · ${esc(next)}</span>`:'<span class="profile-achievement-next">Highest tier</span>'}</a>`;
+  function achievementRow(track,levelUps=new Set(),pinnedCodes=new Set(),showLevelCount=false){
+    const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),tier=achievementCurrentTier(track),value=achievementValue(track),next=achievementNext(track),up=levelUps.has(track.code),pinned=pinnedCodes.has(track.code),canPin=Array.isArray(track.tiers)&&track.tiers.length>0,aria=`${label}, Level ${level}${tier?` ${tier.name}`:''}, ${value}${next?`. Next ${next}`:''}${pinned?', Pinned to profile':''}`;
+    const count=showLevelCount?`<span class="profile-achievement-progress-count">Level ${level}${achievementCatalog?.tail?'':` of ${achievementDefinition(track)?.levels?.length||0}`}</span>`:'';
+    const description=showLevelCount&&!canPin?'Not started yet. Open to see every level.':`Long press to ${pinned?'remove this medal from':'pin this medal to'} your profile.`;
+    return `<a class="profile-achievement${up?' is-level-up':''}" role="listitem" href="${esc(achievementHref(track))}" aria-label="${esc(aria)}" aria-description="${esc(description)}" data-achievement-code="${esc(track.code)}" data-showcase-pinned="${pinned}" data-showcase-eligible="${canPin}">${achievementMedallion(track)}<span class="profile-achievement-name">${esc(label)}</span>${count}${next?`<span class="profile-achievement-next">Next · ${esc(next)}</span>`:'<span class="profile-achievement-next">Highest tier</span>'}</a>`;
   }
   function achievementLevelUps(data){
     const owner=App.me?.id;if(owner==null)return new Set();
@@ -292,7 +341,7 @@ const ProfileLayout=(()=>{
     if(!box.querySelector('.profile-achievement-list.is-grid'))return;
     const owner=readOwner();
     let press=null,timer=0,suppressClick=false,suppressTimer=0,disposed=false;
-    const pinAnchor=target=>{const anchor=target?.closest?.('.profile-achievement');return anchor&&box.contains(anchor)&&anchor.closest('.profile-achievement-list.is-grid')?anchor:null;};
+    const pinAnchor=target=>{const anchor=target?.closest?.('.profile-achievement');return anchor&&box.contains(anchor)&&anchor.closest('.profile-achievement-list.is-grid')&&anchor.dataset.showcaseEligible==='true'?anchor:null;};
     const clearPress=()=>{clearTimeout(timer);timer=0;press=null;};
     const suppress=()=>{suppressClick=true;clearTimeout(suppressTimer);suppressTimer=setTimeout(()=>{suppressClick=false;},900);};
     const openOptions=anchor=>{
@@ -375,11 +424,11 @@ const ProfileLayout=(()=>{
     const box=$('#profile-achievement-page',el);
     Promise.all([api('/api/achievements'),loadAchievementCatalog(),code?api('/api/achievement-history/'+encodeURIComponent(code)):Promise.resolve(null),code?Promise.resolve({}):api('/api/achievements/showcase').catch(()=>({}))]).then(([data,_catalog,historyData,showcase])=>{
       if(!active()||!box.isConnected)return;
-      const tracks=startedAchievements(data),track=code?tracks.find(t=>t.code===code):null;
+      const tracks=startedAchievements(data),track=code?(tracks.find(t=>t.code===code)||emptyAchievementTrack(code)):null;
       if(code&&!track){box.innerHTML='<h1>Achievements</h1><p class="small muted">This track has no earned tiers yet.</p>';box.setAttribute('aria-busy','false');return;}
       if(!code){
-        const levelUps=achievementLevelUps(data);
-        const pinnedCodes=new Set((Array.isArray(showcase?.pinned)?showcase.pinned:[]).map(String)),groups=achievementGrid(tracks,levelUps,pinnedCodes);
+        const levelUps=achievementLevelUps(data),overviewTracks=overviewAchievementTracks(data);
+        const pinnedCodes=new Set((Array.isArray(showcase?.pinned)?showcase.pinned:[]).map(String)),groups=achievementGrid(overviewTracks,levelUps,pinnedCodes);
         box.innerHTML=`<h1>Achievements</h1>${groups||'<p class="small muted">No earned achievements yet.</p>'}`;
         fitAchievementValues(box);
         wireAchievementPins(box,pinnedCodes);
@@ -394,7 +443,8 @@ const ProfileLayout=(()=>{
         return `<li>${href?`<a href="${href}"><span>${label}</span><time datetime="${esc(day)}">${esc(date)}</time><span class="profile-achievement-history-chevron" aria-hidden="true">›</span></a>`:`<span class="profile-achievement-history-missing"><span>${label}</span><time datetime="${esc(day)}">${esc(date)}</time></span>`}</li>`;
       }).join('');
       const levelUps=achievementLevelUps(data),label=track.label||track.code,value=achievementValue(track),next=achievementNext(track),level=achievementLevel(track),current=achievementCurrentTier(track);
-      box.innerHTML=`<div class="profile-achievement-history-head${levelUps.has(track.code)?' is-level-up':''}" data-achievement-code="${esc(track.code)}">${achievementMedallion(track)}<div class="profile-achievement-history-copy"><h1>${esc(label)}</h1><p class="profile-achievement-current">Level ${level}${current?` · ${esc(current.name)}`:''}</p><p class="profile-achievement-current-value">${esc(value)}</p>${next?`<p class="profile-achievement-next-tier">Next · ${esc(next)}</p>`:''}</div></div>${achievementLevelList(track,level)}<section class="profile-achievement-history-section"><h2>Earned history</h2><ol class="profile-achievement-history">${rows}</ol></section>`;
+      box.innerHTML=`<div class="profile-achievement-history-head${levelUps.has(track.code)?' is-level-up':''}" data-achievement-code="${esc(track.code)}">${achievementMedallion(track)}<div class="profile-achievement-history-copy"><h1>${esc(label)}</h1><p class="profile-achievement-current">Level ${level}${current?` · ${esc(current.name)}`:''}</p><p class="profile-achievement-current-value">${esc(value)}</p>${next?`<p class="profile-achievement-next-tier">Next · ${esc(next)}</p>`:''}</div></div>${achievementLevelList(track,level,historyData)}<section class="profile-achievement-history-section"><h2>Earned history</h2><ol class="profile-achievement-history">${rows}</ol></section>`;
+      wireAchievementLevelList(box,track,level,historyData);
       fitAchievementValues(box);
       achievementLevelUpHaptic(levelUps);
       box.setAttribute('aria-busy','false');
