@@ -37,6 +37,8 @@ function swipeRows(el, onRemove) {
     $('.sw-del', sw).onclick = () => onRemove($('.sw-del', sw).dataset.del);
   });
 }
+// Shared by Food's recipe chooser while the larger Cook editor stays deferred.
+const listOf = (xs) => xs.slice(0, 3).join(', ') + (xs.length > 3 ? ` and ${xs.length - 3} more` : '');
 const col = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888';   // real colour for SVG attributes
 const App = {me: null, pageReady: false, cache: new Map(), pages: [], scroll: {}};
 const classicScriptPromises = new Map();
@@ -111,6 +113,26 @@ async function loadNewDish(btn, where = null) {
   try { return await task; }
   finally { if (pendingDishEntry === task) pendingDishEntry = null; }
 }
+function callLazyCookHelper(name, args, onFailure = null) {
+  if (!App.me) return;
+  const owner = readOwner();
+  return loadClassicScript(COOK_ROUTE_ASSET).then(() => {
+    if (owner !== readOwner() || !App.me) return;
+    const action = window[name];
+    if (typeof action !== 'function' || action === lazyCookHelpers[name]) throw new Error('Recipe tools could not open.');
+    return action(...args);
+  }).catch(() => {
+    if (owner !== readOwner() || !App.me) return;
+    try { onFailure?.(); } catch (_) { /* preserve the visible retry path */ }
+    toast('Recipe tools could not load. Check your connection and try again.');
+  });
+}
+const lazyCookHelpers = {
+  typeSheet: (...args) => callLazyCookHelper('typeSheet', args),
+  dishLogSheet: (...args) => callLazyCookHelper('dishLogSheet', args, () => args[3]?.onQuickFinish?.()),
+  knownSheet: (...args) => callLazyCookHelper('knownSheet', args),
+};
+Object.assign(window, lazyCookHelpers);
 window.newDish = loadNewDish;
 function warmFoodRoutes() { loadClassicScript(FOOD_ROUTE_ASSET).catch(() => {}); }
 function warmFoodFromTabIntent(event) {

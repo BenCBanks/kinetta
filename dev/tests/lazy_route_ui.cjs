@@ -646,6 +646,19 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
     assert.deepEqual(cookFirstTapRetry.errors,[]);assert.deepEqual(cookFirstTapRetry.writes,[]);
   }finally{cookFirstTapRetry.release();await cookFirstTapRetry.context.close();}
 
+  const cookManualRetry=await foodRouteFixture(browser,{failAsset:'/static/cook.js'});
+  try{
+    await cookManualRetry.page.goto(base+'/food/describe',{waitUntil:'domcontentloaded'});await ready(cookManualRetry.page,'#thread-plus','Food chat with deferred Cook');
+    assert.equal(cookManualRetry.assetAttempts('/static/cook.js'),0,'Cook stays deferred until a Cook helper is needed');
+    const tapManual=async()=>{await cookManualRetry.page.locator('#thread-plus').click();await cookManualRetry.page.locator('.thread-tools-sheet button').filter({hasText:'Manual'}).click();};
+    await tapManual();await cookManualRetry.page.locator('#toast.on').waitFor();
+    assert.match(await cookManualRetry.page.locator('#toast').innerText(),/Recipe tools could not load.*try again/i,'failed Manual tap tells the person to retry');
+    assert.equal(cookManualRetry.assetAttempts('/static/cook.js'),1,'Manual makes one first Cook request');
+    await tapManual();await ready(cookManualRetry.page,'#ty','manual food form after Cook retry');
+    assert.equal(cookManualRetry.assetAttempts('/static/cook.js'),2,'Manual retries the failed Cook request once');
+    assert.deepEqual(cookManualRetry.errors,[]);assert.deepEqual(cookManualRetry.writes,[]);
+  }finally{cookManualRetry.release();await cookManualRetry.context.close();}
+
   console.log('Cook and recipe-import lazy routes: first tap, dependencies, retry and no duplicate loads PASS');
 
   const progressMe=await progressFixture(browser);

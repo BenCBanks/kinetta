@@ -11,8 +11,6 @@ const RECIPE_SOURCE_LABELS=Object.freeze({site:'Published by site',ingredients:'
 const gfmt = (g) => (g == null ? '–' : `${Math.round(g).toLocaleString()} g`);
 Object.assign(IC, {minus: '<path d="M5 12h14"/>', send: '<path d="M12 19V5M6 11l6-6 6 6"/>', bookmark: '<path d="M6 3.5h12v17l-6-4.5-6 4.5z"/>', recipe: '<path d="M6 3h13v18H8a4 4 0 0 0-4 2V5a2 2 0 0 1 2-2z"/><path d="M8 8h7M8 12h7M8 16h5"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><circle cx="12" cy="16.8" r=".6" fill="currentColor"/>'});
-const listOf = (xs) => xs.slice(0, 3).join(', ') + (xs.length > 3 ? ` and ${xs.length - 3} more` : '');
-
 // Deliberate recipe creation opens its own ingredient editor and keeps food-chat drafts separate.
 async function newDish(btn,where=null){
   const owner=readOwner();if(btn?.disabled)return;if(btn)btn.disabled=true;
