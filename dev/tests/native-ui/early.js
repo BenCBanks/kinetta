@@ -19,8 +19,10 @@
       requests.push(p);let data;
       if(cfg.store){
         const method=options.method||input?.method||'GET',key=p.startsWith('/api/food/thread/reviews/draft/')?'/api/food/thread':p;
-        if(method!=='GET'||!Object.hasOwn(cfg.store.responses,key)){cfg.blocked.push(method+' '+p);throw Error('Store fixture blocked unexpected request');}
-        const data=structuredClone(cfg.store.responses[key]);
+        const responseKey=method==='GET'?key:`${method} ${p}`;
+        const allowed=method==='GET'||(method==='POST'&&p==='/api/milestones/celebrate');
+        if(!allowed||!Object.hasOwn(cfg.store.responses,responseKey)){cfg.blocked.push(method+' '+p);throw Error('Store fixture blocked unexpected request');}
+        const data=structuredClone(cfg.store.responses[responseKey]);
         if(key==='/api/food/thread'){const draft=p.split('/').at(-1);for(const m of data.messages)if(m.kind==='user'){m.captured_at=m.created;m.result={...m.result,draft_id:draft,kind:'log'};}}
         return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
       }
