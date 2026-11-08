@@ -86,6 +86,11 @@ def limited(c, key, most, minutes):
     return n >= most
 
 
+def email_recovery_limited(c, uid):
+    """Resend and forgot share one per-account budget so neither path can double the sends."""
+    return limited(c, f'email-recovery:{uid}', 3, 60)
+
+
 def send(to, subject, text):
     """One plain-text message through the configured provider. Returns False (never raises) when it couldn't be sent."""
     cfg = admin_mail.settings()
@@ -229,7 +234,7 @@ def resend_confirmation(body: ResendConfirmationIn, request: Request, background
         u = c.execute(f'''SELECT id, name, email FROM users WHERE {col} = %s
                           AND email_verified_at IS NULL AND needs_email_confirm AND email IS NOT NULL
                           AND suspended_at IS NULL''', (who,)).fetchone()
-        if u and not limited(c, f"confirm-resend:{u['id']}", 3, 60) and mail_ready():
+        if u and not email_recovery_limited(c, u['id']) and mail_ready():
             confirmation(background, c, u['id'], u['name'], u['email'], welcome=True)
     return {'ok': True, 'message': RESEND_SENT}
 
@@ -249,9 +254,9 @@ def forgot(body: ForgotIn, request: Request, background: BackgroundTasks):
                                  email_verified_at IS NOT NULL AS email_confirmed, needs_email_confirm
                           FROM users WHERE {col} = %s AND suspended_at IS NULL''',
                       (who,)).fetchone()
-        # at most 3 links an hour per account, without telling the asker whether that's why nothing arrived
+        # Resend and reset share at most three links an hour per account; the answer never says why nothing arrived.
         can_reset = u and u['email'] and (u['email_confirmed'] or u['needs_email_confirm'])
-        if can_reset and not limited(c, f"forgot:{u['id']}", 3, 60) and mail_ready():
+        if can_reset and not email_recovery_limited(c, u['id']) and mail_ready():
             send_reset(background, c, u, pending=not u['email_confirmed'])
     return {'ok': True, 'message': SENT}
 
@@ -289,6 +294,10 @@ def reset(body: ResetIn, request: Request, background: BackgroundTasks):
         # Keep the email-reservation lock before user/token locks, as in email confirmation.
         reservation_lock(c)
         r = _open(c, body.token, 'reset_password', lock_user=True)
+        # A pending reset link proves ownership of the address it was sent to. It cannot reset an account
+        # after that account's email has changed to someone else's address.
+        if r['email'] and (not r['current'] or _clean_email(r['email']) != _clean_email(r['current'])):
+            raise HTTPException(404, 'This link has expired or was already used. Ask for a new one.')
         auth.check_new_password(body.password, r['login'])
         if (r['email'] and r['current'] and not r['email_confirmed'] and r['needs_email_confirm']
                 and _clean_email(r['email']) == _clean_email(r['current'])):
@@ -311,10 +320,12 @@ def reset(body: ResetIn, request: Request, background: BackgroundTasks):
         # every phone, browser and admin portal session ends: whoever had the old password is out
         for t in ('sessions', 'admin_sessions', 'admin_challenges'): c.execute(f'DELETE FROM {t} WHERE user_id = %s', (r['user_id'],))
         if email_confirmed:
-            _join_signup_friend(c, r['user_id'])
-    challenge_joined = _consume_signup(r['user_id']) if email_confirmed else None
+            # A reset link proves inbox ownership, not consent to choices made on the signup form.
+            # Remove them so the background signup worker cannot apply them later.
+            c.execute('UPDATE profile SET friend_link=NULL WHERE user_id=%s', (r['user_id'],))
+            c.execute("DELETE FROM signup_join_intents WHERE user_id=%s AND kind IN ('card','challenge')", (r['user_id'],))
     password_changed(background, r['current'], r['name'], r['login'])
-    if email_confirmed: return {'ok': True, 'email_confirmed': True, 'challenge_joined': challenge_joined}
+    if email_confirmed: return {'ok': True, 'email_confirmed': True}
     return {'ok': True}
 
 

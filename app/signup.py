@@ -102,7 +102,7 @@ def signup(body: SignupIn, request: Request, response: Response, background: Bac
         c.execute('LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE')     # the cap holds even for simultaneous signups
         s = state(c)
         if not s['open'] and not s['full']: raise HTTPException(404, 'Not found')
-        pending = c.execute('''SELECT 1 FROM users WHERE lower(email::text) = lower(%s)
+        pending = c.execute('''SELECT 1 FROM users WHERE email = %s
                                AND email_verified_at IS NULL AND needs_email_confirm AND suspended_at IS NULL''',
                             (email,)).fetchone()
         if pending:

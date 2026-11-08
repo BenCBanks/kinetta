@@ -197,9 +197,15 @@ def login(body: Login, request: Request, response: Response, background: Backgro
             if not u or not ok: raise auth.Failed(401, 'Wrong name or password')
             # said only after the right password, so it never reveals who has an account (#233)
             if u['suspended_at']: raise HTTPException(403, 'This account is suspended. Reply to any email from Kinetta, or ask the person who runs it.')
-            if u['needs_email_confirm'] and not u['email_confirmed']:
-                raise HTTPException(409, {'code': 'email_waiting_for_confirmation',
-                                          'message': 'This account is waiting for email confirmation.'})
+            if '@' in who and u['needs_email_confirm'] and not u['email_confirmed']:
+                if account_email.mail_ready():
+                    code = 'email_waiting_for_confirmation'
+                    message = 'This account is waiting for email confirmation.'
+                else:
+                    code = 'email_confirmation_unavailable'
+                    message = ('Email confirmation is pending, but email is not available on this Kinetta. '
+                               'Sign in with your @username or ask the person who runs it for help.')
+                raise HTTPException(409, {'code': code, 'message': message})
             if u['password_change_expires']:
                 return admin_passwords.challenge(c, u['id'], u['password_change_expires'])
             token = auth.new_session(c, u['id'], request.headers.get('user-agent'),channel='app' if body.app else 'web', app_version=request.headers.get('x-kinetta-version') if body.app else None)

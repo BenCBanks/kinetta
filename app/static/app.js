@@ -1520,7 +1520,7 @@ function showLogin(msg = '') {
         $('#l-reset',recovery).onclick=ev=>{ev.preventDefault();showForgot(f.login.value.trim());};
       }
       b.disabled = false; b.textContent = 'Log in';
-      if(x.code!=='email_waiting_for_confirmation')f.password.select();
+      if(!['email_waiting_for_confirmation','email_confirmation_unavailable'].includes(x.code))f.password.select();
     }
   });
 }
@@ -1568,17 +1568,16 @@ function attachConfirmationResend(button,status,identifier) {
     finally{button.disabled=false;}
   };
 }
-function enrollmentEmailError(input, message, pending=false) {
+function enrollmentEmailError(input, message, resetOnly=false) {
   const label=input.closest('label'),hint=input.form.querySelector('#enrollment-email-help');if(hint)hint.hidden=true;let note=label.nextElementSibling;
   if (!note?.classList.contains('field-err')) { note=document.createElement('p');note.className='field-err';label.after(note); }
   note.id='enrollment-email-exists';note.setAttribute('role','status');note.setAttribute('aria-live','polite');
   input.setAttribute('aria-describedby',[...(input.getAttribute('aria-describedby')||'').split(/\s+/).filter(x=>x&&x!==note.id),note.id].join(' '));
   input.addEventListener('input',()=>{note.remove();if(hint)hint.hidden=false;input.removeAttribute('aria-invalid');const ids=(input.getAttribute('aria-describedby')||'').split(/\s+/).filter(x=>x&&x!==note.id);if(ids.length)input.setAttribute('aria-describedby',ids.join(' '));else input.removeAttribute('aria-describedby');},{once:true});
-  note.innerHTML=esc(message)+`<span class="enrollment-email-links"><a href="/" data-email-login>Log in</a>${pending?'<button type="button" class="text-link" data-email-resend>Resend confirmation email</button>':''}<a href="/forgot-password" data-email-reset>Reset password</a></span>${pending?'<span class="resend-status small" role="status" aria-live="polite"></span>':''}`;
+  note.innerHTML=esc(message)+`<span class="enrollment-email-links">${resetOnly?'':'<a href="/" data-email-login>Log in</a>'}<a href="/forgot-password" data-email-reset>Reset password</a></span>`;
   const email=input.value.trim();
-  $('[data-email-login]',note).onclick=e=>{e.preventDefault();rememberJoinPath();history.replaceState(null,'',pendingJoinPath()||'/');showLogin();$('input[name=login]',root).value=email;};
+  const login=$('[data-email-login]',note);if(login)login.onclick=e=>{e.preventDefault();rememberJoinPath();history.replaceState(null,'',pendingJoinPath()||'/');showLogin();$('input[name=login]',root).value=email;};
   $('[data-email-reset]',note).onclick=e=>{e.preventDefault();rememberJoinPath();showForgot(email);};
-  if(pending)attachConfirmationResend($('[data-email-resend]',note),$('.resend-status',note),()=>input.value.trim());
   input.setAttribute('aria-invalid','true');input.focus({preventScroll:true});note.scrollIntoView({block:'center',behavior:'smooth'});
 }
 
