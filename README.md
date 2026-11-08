@@ -17,7 +17,6 @@ Kinetta is a made-up word: *kinetic*, for the energy of moving every day, and *k
 It started as one family's replacement for Strava and a food-tracking app. New accounts share activities and achievements
 with everyone signed in to their Kinetta server by default; each person can change that in Settings → Sharing & privacy. Existing
 accounts keep their saved choices. Food and body records stay in the account unless an owner chooses to share a summary.
-Nothing is sold or used for ads.
 
 ## What it does
 
