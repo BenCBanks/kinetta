@@ -138,6 +138,15 @@ group_state = alex('GET', '/api/groups/' + group_id)
 assert group_state['member_count'] == 7 and group_state.get('total') == 7, 'The screenshot group must show 7 of 10 sessions.'
 alex('POST', '/api/groups/' + group_id + '/updates', {'text': 'Seven sessions in. Keep the momentum going!'})
 
+# Feature earned fictional medals so the marketing screenshot shows the current Me card, not an empty showcase.
+showcase = alex('GET', '/api/achievements/showcase')
+available = {str(item.get('code')) for item in showcase.get('available', [])}
+featured = [code for code in ('journey', 'sport:run', 'workouts', 'consistency') if code in available]
+if len(featured) != 4:
+    raise RuntimeError('The fictional Me card needs four earned medals to feature.')
+pinned = alex('PUT', '/api/achievements/showcase/pins', {'pinned': featured})
+assert pinned.get('pinned') == featured, 'The screenshot Me card should feature four earned medals.'
+
 # Nutrition day fixture: a clear ring and three meal groups with fictional entries.
 today = local_today
 for entry in alex('GET', '/api/food/day?d=' + str(today))['entries']:

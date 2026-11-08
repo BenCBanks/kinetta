@@ -11,6 +11,13 @@
     }
   ],
   [
+    "home-groups",
+    "/activity?view=groups",
+    {
+      "homeGroups": true
+    }
+  ],
+  [
     "profile",
     "/people/alex"
   ],
