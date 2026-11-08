@@ -72,6 +72,7 @@ const displayHistoryTier=(code,value,units)=>{
 };
 
 const until=async(page,fn,label,arg)=>{for(let i=0;i<150;i++){if(await page.evaluate(fn,arg))return;await page.waitForTimeout(100);}throw Error('Timed out: '+label);};
+const waitForHistoryTrack=async(page,code,label)=>{await page.locator('#profile-achievement-page .profile-achievement-history-head').waitFor({state:'visible'});await until(page,expected=>document.querySelector('#profile-achievement-page .profile-achievement-history-head')?.dataset.achievementCode===expected,label,code);await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();};
 const screenshot=async(page,dir,name,options={})=>{if(!dir)return;fs.mkdirSync(dir,{recursive:true});await page.screenshot({path:`${dir}/${name}.png`,animations:'disabled',...options});};
 const expandAchievementLevels=async page=>{const button=page.locator('.profile-achievement-levels [data-achievement-show-all]');if(await button.count())await button.click();};
 const brightness=color=>{const channels=(color.match(/[\d.]+/g)||[]).slice(0,3).map(Number);return channels[0]*.2126+channels[1]*.7152+channels[2]*.0722;};
@@ -303,7 +304,8 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.equal(await page.locator('.profile-achievement-named-levels li[data-level="2"] .profile-achievement-level-title b').innerText(),'Level 2 · 1.6 km','the metric mile threshold uses the requested rounded value');
   assert.equal(await page.locator('.profile-achievement-named-levels li[data-level="2"] .profile-achievement-level-copy>small').innerText(),'First 1.6 km','the rounded metric mile name is clear');
   await setUnits('imperial');
-  await page.goto(base+'/me/achievements/sport%3Arun');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();await expandAchievementLevels(page);
+  await page.goto(base+'/me');await until(page,()=>App.pageReady&&App.me?.units==='imperial','imperial profile before checking the canonical Run level name');
+  await page.evaluate(()=>go('/me/achievements/sport%3Arun'));await waitForHistoryTrack(page,'sport:run','imperial Run history');await expandAchievementLevels(page);
   const runningLevels=page.locator('.profile-achievement-named-levels');
   assert.equal(await runningLevels.locator('li[data-level="2"] .profile-achievement-level-copy>small').innerText(),'First mile','imperial keeps Wren’s canonical Run name');
   for(const [level,name,distance] of [[3,'5K','3.1 mi'],[4,'10K','6.2 mi'],[5,'Half marathon','13.1 mi'],[6,'Marathon','26.2 mi']]){
@@ -387,6 +389,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   ];
   for(const width of [390,330]){
    await page.setViewportSize({width,height:844});await setUnits('imperial');
+   await page.goto(base+'/me');await until(page,()=>App.pageReady&&App.me?.units==='imperial','imperial profile before achievement ladder captures');
    for(const state of captureCases){
     achievementFixture.tracks=JSON.parse(JSON.stringify(allFixtureTracks));workoutValue=1120;journeyValue=6099414;unitLabelValues=null;
     if(state.empty)achievementFixture.tracks=achievementFixture.tracks.filter(track=>track.code!==state.code);
@@ -397,7 +400,7 @@ module.exports=async({browser,storageState,base,shots})=>{
      row.display_unit=state.code==='climbing'?(unitMode==='imperial'?'ft':'m'):row.display_unit;
      if(state.workouts)workoutValue=state.workouts;
     }
-    await page.goto(base+'/me/achievements/'+encodeURIComponent(state.code));await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+    await page.evaluate(code=>{invalidate('/api/');go('/me/achievements/'+encodeURIComponent(code));},state.code);await waitForHistoryTrack(page,state.code,state.name+' achievement history');
     const level=Number(await page.locator('.profile-achievement-history-head .profile-achievement-medallion').getAttribute('data-level'));
     if(state.empty)assert.equal(level,0,'the new-track capture has no earned levels');
     if(state.nearTop)assert.equal(level,catalog.tracks[state.code].levels.length-1,'the near-top capture is one level below the named maximum');
@@ -443,7 +446,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   await assert330AchievementViews(page,base,setUnits,theme,shots);
   assert.deepEqual(errors,[],`no browser errors in ${theme}`);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[],`no unmocked writes in ${theme}`);
   console.log(`Achievement medallions 390 ${theme}: profile, all tracks, history, units, icons and web haptic guard PASS`);
-  await context.close();
+  await page.unrouteAll({behavior:'ignoreErrors'});await context.close();
  }
  if(process.env.KINETTA_ACHIEVEMENT_FIT_ONLY==='1')return;
  const nativeContext=await browser.newContext(),nativePage=await nativeContext.newPage();
