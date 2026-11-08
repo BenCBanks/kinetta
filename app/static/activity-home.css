@@ -144,17 +144,14 @@
 .activity-card .post-summary .post-lifts,.activity-card .post-summary .badges { margin:6px 0 0; padding:0; }
 .activity-card .post-ft .activity-share { order:3; display:flex; align-items:center; justify-content:center; flex:none; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; margin:0 0 0 16px; background:none; border-color:transparent; box-shadow:none; }
 .activity-card .post-ft:has(.activity-share) .emoji-reactions .reaction-count { margin-left:0; }
-.activity-card .post-ft:has(.emoji-reactions) .reaction-more { margin-right:16px; }
+.activity-card .post-ft:has(.emoji-reactions) .reaction-more { margin-right:8px; }
 .activity-card .post-ft:has(.emoji-reactions) { gap:0; padding-top:8px; }
-.activity-card .post-ft:has(.emoji-reactions) .emoji-reactions .reaction-shortcuts { order:4; }
-.activity-card .post-ft:has(.activity-share) .reaction-shortcuts { margin-left:auto; }
+.activity-card .post-ft:has(.emoji-reactions) .emoji-reactions .reaction-count { order:2; }
 @media(max-width:360px) {
  .activity-card .post-ft:has(.emoji-reactions) { padding-inline:12px; }
  .activity-card .post-ft:has(.activity-share) { gap:8px; }
- .activity-card .post-ft:has(.activity-share) .reaction-more { margin-right:8px; }
+ .activity-card .post-ft:has(.activity-share) .reaction-more { margin-right:0; }
  .activity-card .post-ft .activity-share { margin-left:0; }
- .activity-card .post-ft:has(.activity-share) .reaction-summary-emoji:nth-child(n+2) { display:none; }
- .activity-card .post-ft:has(.activity-share) .reaction-summary-emoji:first-child .reaction-emoji { margin-left:2px; }
 }
 .activity-card .compact-media:has(.media-map) .media-controls > button[data-media-step="1"] { top:36px; }
 

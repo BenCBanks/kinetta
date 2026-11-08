@@ -87,7 +87,7 @@ function wireReactionGroup(group,aid,changed){
     if(more._content!==triggerContent){more.innerHTML=triggerContent;more._content=triggerContent;}
     more.disabled=busy;group.setAttribute('aria-busy',String(busy));
     const popular=used.slice(0,3).map(([kind])=>kind);
-    const marks=popular.map((kind,index)=>'<span class="reaction-summary-emoji" data-summary-position="'+index+'">'+reactionMark(kind)+'</span>').join('');
+    const marks=popular.map(kind=>'<span class="reaction-summary-emoji">'+reactionMark(kind)+'</span>').join('');
     if(summary._marks!==marks){summary.innerHTML=marks;summary._marks=marks;}
     count.hidden=!total;count.disabled=busy;const number=total?reactionNumber(total):'';if(count._number!==number){$('.num',count).textContent=number;count._number=number;}
     count.setAttribute('aria-label','See who reacted, '+total);
