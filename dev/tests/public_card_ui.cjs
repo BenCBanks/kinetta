@@ -18,10 +18,9 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
    await p.waitForTimeout(100);
   }throw Error('Card picture and settings did not settle');};
   await settled();assert.match(await p.title(),/Kinetta/);assert.equal(new URL(p.url()).pathname,'/me');
-  assert.equal(await p.locator('#card-achievements').count(),0,'public Share card settings do not offer achievements');
   for(const x of [enabled,photo,sports,requests,thisWeek])assert(await x.isChecked());assert(!(await allTime.isChecked()));assert(!(await none.isChecked()));
   const setting=await c.request.get(base+'/api/card'),data=await setting.json();
-  assert.equal(data.period,'this_week');assert.equal(data.preview.period,'this_week');assert(!Object.hasOwn(data.preview,'achievements'),'owner preview contains no public achievement data');
+  assert.equal(data.period,'this_week');assert.equal(data.preview.period,'this_week');
   assert(data.preview.sports.every(s=>s.activities>0));assert.match(await p.locator('#card-picture').getAttribute('alt'),/all-time activities/);
   const anonymous=await browser.newContext();assert((await anonymous.request.get(data.url)).ok());const cardCode=new URL(data.url).pathname.split('/').pop();
   const publicPage=await anonymous.newPage(),publicErrors=[];publicPage.on('pageerror',e=>publicErrors.push(e.message));
@@ -50,6 +49,12 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
   await sports.uncheck();await settled();assert(!(await sports.isChecked()));assert.equal((await(await c.request.get(base+'/api/card')).json()).preview.sports.length,0);
   const hidden=await(await c.request.get(base+'/api/card/image.png')).body();assert(!first.equals(hidden));
   await sports.check();await settled();assert(await sports.isChecked());
+  const achievements=p.locator('#card-achievements'),sharingBefore=(await(await c.request.get(base+'/api/sharing')).json()).share_achievements;
+  await achievements.uncheck();await settled();const hiddenAchievements=(await(await c.request.get(base+'/api/card')).json()).preview;
+  assert(!('achievements' in hiddenAchievements),'the owner preview omits featured items when achievement sharing is off');
+  await achievements.check();await settled();const sharedAchievements=(await(await c.request.get(base+'/api/card')).json()).preview;
+  assert(Array.isArray(sharedAchievements.achievements),'the opted-in owner preview returns only featured achievements');
+  if(sharingBefore)await achievements.check();else await achievements.uncheck();await settled();
   await enabled.uncheck();await settled();assert(await p.locator('#card-share').isDisabled());assert.equal((await anonymous.request.get(data.url)).status(),404);
   await p.reload();await p.locator('[data-card-share]').click();await p.locator('[data-share-card]').click();await settled();assert(!(await enabled.isChecked()),'off survives returning to the sheet');
   await enabled.check();await settled();assert((await anonymous.request.get(data.url)).ok());
