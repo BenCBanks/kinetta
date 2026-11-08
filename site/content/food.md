@@ -8,7 +8,7 @@ Just say what you ate. *Kinetta does the counting.*
 
 ## type-it-like-a-text-message-kinetta-works-out-the-calo-2
 
-Type it like a text message. Kinetta finds the foods you’ve had before and the brands you name, adds up the calories, protein, carbs and fat, and you fix anything in plain words.
+Describe meals naturally; Kinetta finds familiar foods, totals macros, and lets you correct portions.
 
 ## a-hot-dog-and-a-diet-coke-from-costco-3
 
@@ -36,7 +36,7 @@ Build a recipe once. Log your portion.
 
 ## tap-cook-a-meal-and-type-the-ingredients-like-a-text-m-9
 
-Add the ingredients once and save it as a recipe. Next time, log your portion in a couple of taps.
+Save ingredients as a recipe, then log your serving in a couple of taps.
 
 ## your-day-at-a-glance-with-honest-feedback-10
 
@@ -44,15 +44,15 @@ Your day at a glance.
 
 ## calories-and-macros-as-rings-and-your-deficit-11
 
-See eaten and remaining calories, macro totals and your targets. Open the energy breakdown to see how daily needs and recorded workouts contribute. Track weigh-ins in Progress and review food trends in Insights.
+Compare calories and macros with targets; see workout energy, weigh-ins and food trends.
 
 ## what-s-working-and-what-to-try-next-12
 
-An optional AI review of your recent food log, with suggestions based on the days you recorded.
+Get optional suggestions based on the foods and days you’ve recorded.
 
 ## tweaks-for-any-meal-you-cook-13
 
-Optional AI suggestions for changing a recipe’s ingredients or portions. Review the changes before using them.
+Review optional ingredient and portion ideas before changing a saved recipe.
 
 ## story-heading-19
 
@@ -60,7 +60,7 @@ Scan it, snap it, or just say it.
 
 ## story-scan-20
 
-Scan a package. Check its protein, carbs and fat against the box, then log it.
+Check package protein, carbs and fat before logging your serving.
 
 ## story-snap-21
 
@@ -72,7 +72,7 @@ Say what's different. The numbers follow.
 
 ## story-note-23
 
-No AI needed: search USDA and Open Food Facts or add your own foods. Photo estimates are optional and always editable. Demo numbers shown.
+Search food databases or add your own; photo estimates stay optional and editable.
 
 ## training-training-food-food-friends-friends-compare-co-16
 
@@ -93,8 +93,8 @@ Save a recipe. Log it when you eat.
 
 ## recipe-purpose-copy
 
-Name it first, add ingredients and save the whole recipe. Logging is optional. When you’re ready, choose the servings or weight you ate. Editing a recipe and adding food to your day each have their own clear flow.
+Save ingredients as a recipe; choose servings or weight when logging your meal.
 
 ## food-insights-copy
 
-See calories and macros over time, compare logged days and explore your food patterns. Missing days stay visible so a partial log does not look like a complete one.
+Compare logged days, track calorie and macro patterns, and see missing days.
