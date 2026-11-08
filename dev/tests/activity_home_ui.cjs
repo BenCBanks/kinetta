@@ -18,19 +18,14 @@ async function captureWeeklyRecap(p,out,theme,setScenario,ready,width){
  await p.keyboard.press('Escape');await p.locator('.scrim').waitFor({state:'detached'});await card.locator('[data-weekly-recap-dismiss]').click();assert.equal(await card.count(),0,'dismiss removes this week’s card');await p.reload();await ready();await p.waitForTimeout(100);assert.equal(await p.locator('#weekly-recap [data-weekly-recap]').count(),0,'dismissal persists after reload');
 }
 async function assertCardActions(card,{share,width,label}){
- const footer=card.locator('.post-ft'),react=card.locator('.reaction-more'),comment=card.locator('.activity-comments'),shareButton=card.locator('.post-ft [data-share-picture]');
- const reactBox=await react.boundingBox(),commentBox=await comment.boundingBox(),footerBox=await footer.boundingBox();
- assert(Math.abs(commentBox.x-reactBox.x-reactBox.width-16)<1,`${label}: Comment follows React by 16px`);
+ const footer=card.locator('.post-ft'),react=card.locator('.reaction-more'),count=card.locator('.reaction-count'),comment=card.locator('.activity-comments'),shareButton=card.locator('.post-ft [data-share-picture]');
+ const reactBox=await react.boundingBox(),commentBox=await comment.boundingBox(),footerBox=await footer.boundingBox(),hasSummary=await count.isVisible();
  assert.equal(await shareButton.count(),share?1:0,`${label}: Share matches ownership`);
- let trailing=commentBox.x+commentBox.width;
- if(share){const shareBox=await shareButton.boundingBox(),expectedGap=width===330?8:16;assert(Math.abs(shareBox.x-trailing-expectedGap)<1,`${label}: Share follows Comment by ${expectedGap}px`);trailing=shareBox.x+shareBox.width;}
- const shortcuts=card.locator('.reaction-shortcuts');
- if(await shortcuts.isVisible()){
-  const summary=await shortcuts.boundingBox(),padding=await footer.evaluate(n=>parseFloat(getComputedStyle(n).paddingRight)||0);
-  assert(summary.x-trailing>=7.5,`${label}: reaction summary has an 8px gap from the last action`);
-  assert(Math.abs(summary.x+summary.width-footerBox.x-footerBox.width+padding)<1,`${label}: reaction summary sits at the trailing content edge`);
-  const expectedEmojis=share&&width===330?1:2;assert.equal(await shortcuts.locator('.reaction-summary-emoji:visible').count(),expectedEmojis,`${label}: summary keeps ${expectedEmojis} emoji${expectedEmojis===1?'':'s'} at ${width}px`);
- }
+ const padding=await footer.evaluate(n=>parseFloat(getComputedStyle(n).paddingRight)||0),contentRight=footerBox.x+footerBox.width-padding;
+ assert(Math.abs(commentBox.x+commentBox.width-contentRight)<1,`${label}: Comments stays at the far right`);
+ let left=reactBox.x+reactBox.width;
+ if(hasSummary){const summaryBox=await count.boundingBox();assert(Math.abs(summaryBox.x-left-8)<1,`${label}: summary follows React by 8px`);left=summaryBox.x+summaryBox.width;const emojis=count.locator('.reaction-summary-emoji');assert(await emojis.count()<=3,`${label}: summary caps at three emojis`);const gaps=await emojis.evaluateAll(nodes=>nodes.slice(1).map((node,index)=>node.getBoundingClientRect().left-nodes[index].getBoundingClientRect().right));assert(gaps.every(gap=>gap>=3.5&&gap<=4.5),`${label}: emojis stay separate with four-pixel gaps`);}
+ if(share){const shareBox=await shareButton.boundingBox();assert(shareBox.x>=left+7.5,`${label}: Share stays after the reaction group`);assert(shareBox.x+shareBox.width<=commentBox.x,`${label}: Share stays before Comments`);}
 }
 async function verifyReactionSummary(card,page,out,theme){
  const group=card.locator('[data-reaction-group]'),states=[
@@ -40,13 +35,12 @@ async function verifyReactionSummary(card,page,out,theme){
  ];
  for(const state of states){
   await group.evaluate((el,reactions)=>el._sync({my_reaction:null,reactions}),state.reactions);
-  const buttons=group.locator('.reaction-summary-emoji');await page.waitForFunction(expected=>{const rows=[...document.querySelectorAll('#ff-list .post [data-reaction-group]')],items=rows[0]?.querySelectorAll('.reaction-summary-emoji');return items&&[...items].map(b=>b.dataset.summaryReact).join(',')===expected.join(',');},state.kinds);
-  assert.deepEqual(await buttons.evaluateAll(nodes=>nodes.map(n=>n.dataset.summaryReact)),state.kinds,`${state.count} reaction types stay most-used first`);
-  assert.deepEqual(await buttons.evaluateAll(nodes=>nodes.map(n=>Number(n.dataset.summaryPosition))),state.kinds.map((_,i)=>i),'each summary button has its visual stack position');
+  const buttons=group.locator('.reaction-summary-emoji'),expectedEmojis=await page.evaluate(kinds=>kinds.map(kind=>App.me.reaction_choices.find(row=>row[0]===kind)?.[2]),state.kinds);await page.waitForFunction(expected=>{const items=[...document.querySelector('#ff-list .post [data-reaction-group]')?.querySelectorAll('.reaction-summary-emoji')||[]];return JSON.stringify(items.map(node=>node.textContent.trim()))===JSON.stringify(expected);},expectedEmojis);
+  assert.deepEqual(await buttons.evaluateAll(nodes=>nodes.map(n=>n.textContent.trim())),expectedEmojis,`${state.count} reaction types stay most-used first`);
   assert.equal(await group.locator('.reaction-count .num').innerText(),String(state.total),'total follows all visible reactions');
-  const geometry=await buttons.evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect(),i=n.querySelector('.reaction-emoji').getBoundingClientRect(),s=getComputedStyle(n.querySelector('.reaction-emoji'));return{target:{x:r.x,right:r.right,width:r.width,height:r.height},icon:{x:i.x,right:i.right,width:i.width,height:i.height},ring:s.borderTopColor,ringWidth:s.borderTopWidth,card:getComputedStyle(n.closest('.activity-card')).backgroundColor};}));
-  assert(geometry.every(x=>x.target.width===24&&x.target.height===44),'each emoji keeps its own approved 24×44px target');assert(geometry.slice(1).every((x,i)=>x.target.x>=geometry[i].target.right-.5),'emoji hit targets remain separate');assert(geometry.every(x=>x.icon.width===20&&x.icon.height===20),'20px emoji badges keep their full size');assert(geometry.slice(1).every((x,i)=>{const overlap=geometry[i].icon.right-x.icon.x;return overlap>=.5&&overlap<=2.5;}),'20px emoji badges overlap through margins by about 2px');assert(geometry.every(x=>x.ringWidth==='2px'&&x.ring===x.card),'each emoji has a 2px ring matching its card surface: '+JSON.stringify(geometry));
-  const count=group.locator('.reaction-count'),countGeometry=await count.evaluate(n=>{const r=n.getBoundingClientRect(),text=n.querySelector('.num'),t=text?.getBoundingClientRect();return{target:{x:r.x,right:r.right,width:r.width,height:r.height},text:t&&{x:t.x,right:t.right},overflow:n.scrollWidth>n.clientWidth};});assert(countGeometry.target.width>=44&&countGeometry.target.height>=44,'reaction total keeps its separate 44px target');assert(countGeometry.target.right<=await page.evaluate(()=>innerWidth)+.5&&!countGeometry.overflow&&countGeometry.text?.right<=countGeometry.target.right+.5,'complete reaction total stays visible after the emoji cluster');
+  const geometry=await buttons.evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect(),i=n.querySelector('.reaction-emoji').getBoundingClientRect(),s=getComputedStyle(n.querySelector('.reaction-emoji'));return{target:{x:r.x,right:r.right,width:r.width,height:r.height},icon:{x:i.x,right:i.right,width:i.width,height:i.height},font:s.fontSize,border:s.borderTopWidth,background:s.backgroundColor};}));
+  assert(geometry.every(x=>x.target.width===21&&x.target.height===21),'each visual emoji uses its 21px layout slot');assert(geometry.every(x=>x.icon.width===21&&x.icon.height===21&&x.font==='18px'),'emoji marks stay 18px');assert(geometry.slice(1).every((x,i)=>{const gap=x.icon.x-geometry[i].icon.right;return gap>=3.5&&gap<=4.5;}),'emoji marks have a four-pixel gap with no overlap');assert(geometry.every(x=>x.border==='0px'&&x.background==='rgba(0, 0, 0, 0)'),'emoji marks have no border or circle fill');
+  const count=group.locator('.reaction-count'),countGeometry=await count.evaluate(n=>{const r=n.getBoundingClientRect(),text=n.querySelector('.num'),t=text?.getBoundingClientRect();return{target:{x:r.x,right:r.right,width:r.width,height:r.height},text:t&&{x:t.x,right:t.right},overflow:n.scrollWidth>n.clientWidth};});assert(countGeometry.target.width>=44&&countGeometry.target.height===44,'emoji cluster and total share one 44px target');assert(countGeometry.target.right<=await page.evaluate(()=>innerWidth)+.5&&!countGeometry.overflow&&countGeometry.text?.right<=countGeometry.target.right+.5,'complete reaction total stays visible after the emoji cluster');
   if(out&&(!process.env.KINETTA_REACTION_CAPTURE||process.env.KINETTA_REACTION_CAPTURE.split(',').includes(String(state.count)))){
    fs.mkdirSync(out,{recursive:true});const footer=card.locator('.post-ft');await footer.evaluate(n=>n.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'}));await page.evaluate(()=>document.fonts.ready);const r=await footer.boundingBox(),viewportWidth=await page.evaluate(()=>innerWidth);assert(r&&r.x>=0&&r.x+r.width<=viewportWidth,`reaction footer stays within the ${viewportWidth}px viewport`);await page.screenshot({path:path.join(out,`reaction-summary-${state.count}-390-${theme}.png`),clip:{x:r.x,y:r.y,width:r.width,height:r.height},animations:'disabled'});
   }
@@ -152,7 +146,7 @@ async function captureAchievementMomentSharing(page,out,theme,ready){
   }
   if(process.env.KINETTA_REACTION_SUMMARY_ONLY==='1'){
    if(who==='typical'&&size.width===390){const card=p.locator('#ff-list .post').first();await card.locator('[data-reaction-group]').waitFor();await verifyReactionSummary(card,p,out,theme);}
-   assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[],'reaction summary states make no product writes');console.log(`Reaction summary ${size.width}px ${theme}: one, two and three emoji, order, ring, separate 24×44px emoji targets and 44px total target PASS`);await c.close();continue;
+   assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[],'reaction summary states make no product writes');console.log(`Reaction summary ${size.width}px ${theme}: one, two and three emoji, popularity order, four-pixel gaps and one total target PASS`);await c.close();continue;
   }
   assert.equal(await p.locator('h1').innerText(),'Home');
   const lowFriends=!['heavy','established'].includes(who),findHeader=p.locator('#feed-top a[aria-label="Find friends"]');assert.equal(await findHeader.count(),1,'Find friends stays in the Home header for every account');assert.equal(await p.locator('#feed-tools .feed-find-friends').count(),0,'Find friends is no longer repeated in the feed tools');assert.equal(await p.locator('#feed-tools .feed-low, #feed-tools #feed-discovery, .feed-discovery').count(),0,'old discovery grid stays removed');

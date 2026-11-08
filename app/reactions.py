@@ -23,7 +23,14 @@ def columns(viewer):
     counts=','.join(f"'{kind}',count(*) FILTER(WHERE ch.kind='{kind}')" for kind in KINDS)
     return f"""(SELECT jsonb_build_object({counts})
       FROM cheers ch WHERE ch.activity_id=a.id AND {visible(viewer)}) AS reactions,
+      (SELECT COALESCE(jsonb_agg(first_kind.kind ORDER BY first_kind.first_use,first_kind.first_user),'[]'::jsonb)
+       FROM (SELECT ch.kind,min(ch.created) AS first_use,min(ch.user_id) AS first_user FROM cheers ch
+         WHERE ch.activity_id=a.id AND {visible(viewer)} GROUP BY ch.kind) first_kind) AS reaction_order,
       (SELECT ch.kind FROM cheers ch WHERE ch.activity_id=a.id AND ch.user_id={viewer}) AS my_reaction"""
 
 def summary(people):
-    return {kind:sum(p['kind']==kind for p in people) for kind in KINDS}
+    return {kind:sum(canonical(p['kind'])==kind for p in people) for kind in KINDS}
+
+def order(people):
+    """Emoji kinds in first-use order; the caller supplies the already-visible people list."""
+    return list(dict.fromkeys(canonical(person['kind']) for person in people if canonical(person['kind']) in KINDS))

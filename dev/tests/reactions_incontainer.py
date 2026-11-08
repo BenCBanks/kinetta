@@ -50,6 +50,12 @@ class Reactions(unittest.TestCase):
   with db.connect() as c:
    stored=c.execute('SELECT kind FROM cheers WHERE activity_id=%s AND user_id=%s',(self.aid,self.ids[1])).fetchone()
   self.assertEqual(stored['kind'],catalog[-1][0])
+ def test_summary_and_order_canonicalize_legacy_kinds(self):
+  people=[{'kind':kind} for kind in ('laugh','clap','strong','muscle','🥾','mountain')]
+  counts=reactions.summary(people)
+  self.assertEqual((counts['clap'],counts['muscle'],counts['mountain']),(2,2,2))
+  self.assertEqual(sum(counts.values()),len(people))
+  self.assertEqual(reactions.order(people),['clap','muscle','mountain'])
  def test_emoji_reaction_notifications_read_naturally(self):
   for kind,emoji in [('starstruck','🤩'),('mindblown','🤯')]:
    text,link=notify._words({'kind':'cheer','name':'Alex','activity':'workout','activity_id':7,'reaction_kind':kind})
