@@ -160,10 +160,9 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   assert.equal(await p.locator('.me-week-streak svg').count(),1,'streak flame remains visible without relying on a device emoji font');
   const streakLayout=await p.locator('.me-week-streak').evaluate(node=>({right:node.getBoundingClientRect().right,headRight:node.parentElement.getBoundingClientRect().right,textAlign:getComputedStyle(node).textAlign}));
   assert(Math.abs(streakLayout.right-streakLayout.headRight)<1&&streakLayout.textAlign==='right','streak is right-aligned in the This week row');
-  await p.locator('.me-top .bell-dot').waitFor({state:'visible'});assert.equal(await p.locator('.me-top .bell-dot').innerText(),'6');
-  const bell=await p.locator('.me-top .bell').evaluate(node=>{const icon=node.querySelector('svg').getBoundingClientRect(),badge=node.querySelector('.bell-dot').getBoundingClientRect();return{visible:!node.querySelector('.bell-dot').hidden,text:node.querySelector('.bell-dot').textContent.trim(),icon:{left:icon.left,right:icon.right,top:icon.top,bottom:icon.bottom},badge:{left:badge.left,right:badge.right,top:badge.top,bottom:badge.bottom},overlap:{x:Math.min(icon.right,badge.right)-Math.max(icon.left,badge.left),y:Math.min(icon.bottom,badge.bottom)-Math.max(icon.top,badge.top)}};});
-  assert(bell.visible&&bell.text==='6','fictional unread count is shown on the Me bell');
-  assert(bell.overlap.x>0&&bell.overlap.y>0&&bell.overlap.x<=4.5&&bell.overlap.y<=4.5,'unread badge overlaps only the bell glyph’s top-right corner');
+  await p.waitForFunction(()=>typeof App!=='undefined'&&App.me?.notifications===6);
+  assert.equal(await p.locator('.me-top a[aria-label="Settings"]').count(),1,'Me header shows Settings');
+  assert.equal(await p.locator('.me-top .bell').count(),0,'the notification bell belongs to Home, not the Me header');
 
   const chartState=()=>chart.evaluate(n=>({left:n.scrollLeft,max:n.scrollWidth-n.clientWidth,atEnd:n.scrollWidth-n.clientWidth-n.scrollLeft<1}));
   const checkChart=async()=>{
@@ -269,7 +268,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   const current=weeks.last();assert((await chartState()).atEnd,'This week is visible at the right edge');
   if(size.width===390&&size.root===16)await screenshot('me-card-current-week');
   if(size.width===390&&size.root===16&&theme==='light'){
-   if(out)await p.locator('.me-top').screenshot({path:`${out}/bell-badge-${size.width}-${theme}.png`,animations:'disabled'});
+   if(out)await p.locator('.me-top').screenshot({path:`${out}/me-header-${size.width}-${theme}.png`,animations:'disabled'});
    await profileLink.click();await p.waitForURL('**/people/alex');await p.locator('#person-profile').waitFor();
    await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();
   }
