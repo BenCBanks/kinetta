@@ -38,9 +38,12 @@ async function runTheme(browser,theme){
   await page.locator('a[href="/me/sharing"]').waitFor();
   await page.locator('a[href="/me/sharing"]').click();
   await page.locator('#sh-contact-discovery').waitFor();
+  const disclosure=page.locator('#sharing-default-disclosure');
+  assert.equal(await disclosure.innerText(),'Your activities and achievements are visible to everyone on Kinetta by default. Change this any time in Settings > Sharing & privacy.','first Sharing & privacy visit shows the disclosure once');
+  if(out){fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,'sharing-disclosure-first-390-'+theme+'.png'),animations:'disabled'});}
   const achievementsCard=page.locator('#sh-achievements-card'),achievementsSwitch=page.locator('#sh-achievements');
   assert.equal(await achievementsSwitch.isChecked(),false,'achievement sharing starts off in the settings fixture');
-  assert.equal(await page.locator('#sh-achievements-help').innerText(),'Friends can see your achievements and the ones you feature.');
+  assert.equal(await page.locator('#sh-achievements-help').innerText(),'When sharing is on, everyone signed in can see your achievements and the ones you feature.');
   const frameAchievements=async()=>page.evaluate(()=>{const el=document.querySelector('#sh-achievements-card');window.scrollTo({top:window.scrollY+el.getBoundingClientRect().top-100,behavior:'instant'});});
   await page.evaluate(()=>document.fonts.ready.then(()=>true));
   const achievementGeometry=await achievementsCard.locator('.switch-row').evaluate(row=>{const text=row.querySelector('span'),control=row.querySelector('input'),box=control.getBoundingClientRect(),r=row.getBoundingClientRect();return{height:r.height,textFits:text.scrollWidth<=text.clientWidth+1,controlInside:box.left>=r.left-1&&box.right<=r.right+1};});
@@ -60,6 +63,7 @@ async function runTheme(browser,theme){
   assert.deepEqual(sharingOnResponse.request().postDataJSON(),{share_achievements:true});
   assert.equal(await achievementsSwitch.isChecked(),true,'turning the setting on updates the switch');
   await page.reload();await page.locator('#sh-contact-discovery').waitFor();
+  assert.equal(await page.locator('#sharing-default-disclosure').count(),0,'the disclosure is not repeated after the first visit');
   assert.equal(await achievementsSwitch.isChecked(),true,'the settings switch reads the shared API value after reload');
   await frameAchievements();
   if(out){fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,`sharing-achievements-on-390-${theme}.png`),animations:'disabled'});}

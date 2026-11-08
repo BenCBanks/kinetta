@@ -508,7 +508,7 @@ def _empty_showcase():
 
 @router.get('/achievements/showcase')
 def achievement_showcase(login: str | None = Query(None, min_length=1, max_length=60), user=Depends(current_user)):
-    """Return the owner's Showcase, or the same minimal row to an opted-in friend."""
+    """Return the owner's Showcase to an opted-in signed-in viewer, unless blocked or hidden."""
     with db.connect() as c:
         if login:
             profile = c.execute('''SELECT u.id,p.units,p.tz,p.showcase_pins,p.share_achievements,
@@ -520,18 +520,12 @@ def achievement_showcase(login: str | None = Query(None, min_length=1, max_lengt
                 return _empty_showcase()
             owner_id = profile['id']
             if owner_id != user['id']:
-                relation = c.execute('''SELECT EXISTS(
-                                           SELECT 1 FROM friendships f
-                                           WHERE f.status='accepted' AND
-                                             ((f.requester=%s AND f.addressee=%s) OR
-                                              (f.requester=%s AND f.addressee=%s))) AS friends,
-                                         EXISTS(SELECT 1 FROM blocks b WHERE
+                relation = c.execute('''SELECT EXISTS(SELECT 1 FROM blocks b WHERE
                                            (b.user_id=%s AND b.blocked=%s) OR
                                            (b.user_id=%s AND b.blocked=%s)) AS blocked''',
-                                     (user['id'], owner_id, owner_id, user['id'],
-                                      user['id'], owner_id, owner_id, user['id'])).fetchone()
+                                     (user['id'], owner_id, owner_id, user['id'])).fetchone()
                 if (profile.get('hidden') or not profile.get('share_achievements') or
-                        not profile.get('share_achievements_since') or not relation['friends'] or relation['blocked']):
+                        not profile.get('share_achievements_since') or relation['blocked']):
                     return _empty_showcase()
         else:
             owner_id = user['id']

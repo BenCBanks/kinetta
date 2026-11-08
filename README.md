@@ -15,7 +15,7 @@ Activity tracking + food and health: runs, rides, walks, lifting, training plans
 Kinetta is a made-up word: *kinetic*, for the energy of moving every day, and *kin*, for the people you move with.
 
 It started as one family's replacement for Strava and a food-tracking app. New accounts share activities and achievements
-with everyone on their Kinetta server by default; each person can change that in Sharing & privacy. Food and body records
+with everyone signed in to their Kinetta server by default; each person can change that in Sharing & privacy. Food and body records
 stay in the account, and nothing is sold or used for ads.
 
 ## What it does
@@ -35,7 +35,7 @@ stay in the account, and nothing is sold or used for ads.
 - Calories and macros against your targets, a weight trend and a running calorie deficit
 
 **For your people**
-- Each person has their own account. New accounts share activities and achievements with everyone on their Kinetta server; change this any time in Settings → Sharing & privacy. Existing accounts keep their saved choices.
+- Each person has their own account. New accounts share activities and achievements with everyone signed in to their Kinetta server; change this any time in Settings → Sharing & privacy. Existing accounts keep their saved choices.
 - Invite someone with a link: they pick their own username and password
 - Works on any phone as an app on the home screen, also offline for logging food
 - Optional AI coach notes and food estimates (off until you turn them on)

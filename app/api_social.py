@@ -34,8 +34,8 @@ from .admin_auth import admin_user, audit
 
 router = APIRouter(prefix='/api')
 VISIBILITY = ('me', 'friends', 'everyone')
-# The details a person picks, and the defaults: map on (trimmed), heart rate and calories off, the rest on.
-DETAILS = {'map': True, 'heart_rate': False, 'pace': True, 'splits': True, 'elevation': True, 'calories': False,
+# Defaults for new profiles; migration 107 keeps existing profiles' prior heart-rate choice when it was unset.
+DETAILS = {'map': True, 'heart_rate': True, 'pace': True, 'splits': True, 'elevation': True, 'calories': False,
            'description': True, 'device': True}
 TRIMS = (0, 200, 400, 800)
 MIN_SHOWN_M = 200          # after trimming, at least this much route must be left, or no map is shared
@@ -512,7 +512,7 @@ def sharing(user=Depends(current_user)):
     with db.connect() as c:
         p = c.execute('SELECT share_default, share_details, share_trim_m, findable, share_achievements FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
     return {'default': p.get('share_default', 'everyone'), 'details': details_of(p.get('share_details')), 'trim_m': p.get('share_trim_m', 400),
-            'trims': TRIMS, 'findable': p.get('findable', True), 'share_achievements': p.get('share_achievements', False)}
+            'trims': TRIMS, 'findable': p.get('findable', True), 'share_achievements': p.get('share_achievements', True)}
 
 
 @router.put('/sharing')

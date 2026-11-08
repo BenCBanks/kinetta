@@ -512,9 +512,7 @@ def group_activity_strip(user=Depends(current_user)):
 @router.post('/api/groups/activity-strip')
 def set_group_activity_strip(body: GroupStripPreference, user=Depends(current_user)):
     with db.connect() as c:
-        c.execute('''INSERT INTO profile(user_id,group_strip_muted) VALUES(%s,%s)
-                     ON CONFLICT(user_id) DO UPDATE SET group_strip_muted=EXCLUDED.group_strip_muted''',
-                  (user['id'], body.muted))
+        c.execute('UPDATE profile SET group_strip_muted=%s WHERE user_id=%s', (body.muted, user['id']))
     return {'muted': body.muted}
 
 

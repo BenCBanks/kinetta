@@ -15,7 +15,7 @@ class Milestones(unittest.TestCase):
   self.ids=[];self.clients=[];self.now=dt.datetime.now(dt.timezone.utc)
   with db.connect() as c:
    for _ in range(2):
-    uid=c.execute('INSERT INTO users(login,name,pw_hash) VALUES(%s,%s,%s) RETURNING id',('zz_test_milestone_'+uuid.uuid4().hex[:12],'PRIVATE REAL NAME',self.pw)).fetchone()['id'];self.ids.append(uid);c.execute("INSERT INTO profile(user_id,tz,units) VALUES(%s,'America/New_York','metric')",(uid,));token=auth.new_session(c,uid,'fictional milestones');client=TestClient(app);client.headers.update({'Origin':'http://testserver','Content-Type':'application/json'});client.cookies.set(auth.COOKIE,token);self.clients.append(client)
+    uid=c.execute('INSERT INTO users(login,name,pw_hash) VALUES(%s,%s,%s) RETURNING id',('zz_test_milestone_'+uuid.uuid4().hex[:12],'PRIVATE REAL NAME',self.pw)).fetchone()['id'];self.ids.append(uid);c.execute("INSERT INTO profile(user_id,tz,units,share_details,share_achievements,share_achievements_since) VALUES(%s,'America/New_York','metric',jsonb_build_object('heart_rate',false),false,NULL)",(uid,));token=auth.new_session(c,uid,'fictional milestones');client=TestClient(app);client.headers.update({'Origin':'http://testserver','Content-Type':'application/json'});client.cookies.set(auth.COOKIE,token);self.clients.append(client)
  def tearDown(self):
   from app.api_account import erase,erase_files
   with db.connect() as c:
@@ -273,7 +273,7 @@ class Milestones(unittest.TestCase):
                                              (('climbing',6),('consistency',1),('journey',5),('sport:run',5),('workouts',5))],
                    'the owner editor receives exactly the server-computed earned set')
   self.assertEqual(own.json()['day_streak'],3)
-  self.assertEqual(viewer.get(path).json(),{'items':[],'pinned':[],'day_streak':0},'sharing starts off for friends')
+  self.assertEqual(viewer.get(path).json(),{'items':[],'pinned':[],'day_streak':0},'sharing off hides the showcase from a non-friend')
   self.assertEqual(viewer.post('/api/achievements/showcase/pin',json={'code':'workouts','pinned':True}).status_code,409,
                    'another owner cannot pin the first owner’s medal')
   self.assertEqual(owner.post('/api/achievements/showcase/pin',json={'code':'not-a-track','pinned':True}).status_code,400)
@@ -298,24 +298,28 @@ class Milestones(unittest.TestCase):
   self.assertEqual([item['code'] for item in owner.get('/api/achievements/showcase').json()['items']],reordered)
   self.assertEqual(viewer.get('/api/achievements/showcase').json(),{'items':[],'pinned':[],'day_streak':0,'available':[]},
                    'the viewer’s own profile never inherits another user’s pins or streak')
-  with db.connect() as c:
-   c.execute("INSERT INTO friendships(requester,addressee,status,accepted) VALUES(%s,%s,'accepted',now())",(owner_id,viewer_id))
   self.assertEqual(owner.put('/api/sharing',json={'share_achievements':True}).status_code,200)
   shared=viewer.get(path);self.assertEqual(shared.status_code,200,shared.text)
-  self.assertEqual(shared.json(),{'items':[{'code':'consistency','rank':1},{'code':'climbing','rank':6},
-                                           {'code':'sport:run','rank':5},{'code':'journey','rank':5}],
-                                  'pinned':reordered,'day_streak':3})
-  self.assertNotIn('available',shared.json(),'friend responses do not expose the full earned set')
+  expected={'items':[{'code':'consistency','rank':1},{'code':'climbing','rank':6},
+                     {'code':'sport:run','rank':5},{'code':'journey','rank':5}],
+            'pinned':reordered,'day_streak':3}
+  self.assertEqual(shared.json(),expected,'a non-friend can read only the opted-in showcase')
+  self.assertNotIn('available',shared.json(),'other viewers do not receive the full earned set')
   self.assertNotIn('activity_id',shared.text);self.assertNotIn('user_id',shared.text)
+  self.assertFalse(any(row.get('kind')=='achievement_moment' for row in viewer.get('/api/feed/friends').json()),
+                   'showcases are public to signed-in viewers while feed moments remain friends-only')
+  with db.connect() as c:
+   c.execute("INSERT INTO friendships(requester,addressee,status,accepted) VALUES(%s,%s,'accepted',now())",(owner_id,viewer_id))
+  self.assertEqual(viewer.get(path).json(),expected,'a friend receives the same minimal showcase')
   for code in ('journey','sport:run','climbing','consistency'):
    response=owner.post('/api/achievements/showcase/pin',json={'code':code,'pinned':False})
    self.assertEqual(response.status_code,200,response.text)
   automatic=owner.get('/api/achievements/showcase').json()
   self.assertEqual(automatic['pinned'],[],'removing the last pin restores automatic selection')
   self.assertEqual([item['code'] for item in automatic['items']],['climbing','sport:run','journey','workouts'])
-  self.assertEqual(viewer.get(path).json()['pinned'],[],'friends see the same unpinned automatic Showcase')
+  self.assertEqual(viewer.get(path).json()['pinned'],[],'signed-in viewers see the same unpinned automatic Showcase')
   with db.connect() as c:c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)',(viewer_id,owner_id))
-  self.assertEqual(viewer.get(path).json(),{'items':[],'pinned':[],'day_streak':0},'blocking hides the friend Showcase')
+  self.assertEqual(viewer.get(path).json(),{'items':[],'pinned':[],'day_streak':0},'blocking hides the Showcase')
   with db.connect() as c:c.execute('DELETE FROM blocks WHERE user_id=%s AND blocked=%s',(viewer_id,owner_id))
   self.assertEqual(owner.put('/api/sharing',json={'share_achievements':False}).status_code,200)
   self.assertEqual(viewer.get(path).json(),{'items':[],'pinned':[],'day_streak':0},'turning sharing off hides pins and streak')

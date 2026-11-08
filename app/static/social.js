@@ -1305,12 +1305,14 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
   wireBack(el, '/me/settings');
   const sharingOwner=readOwner(),[s,contacts] = await Promise.all([api('/api/sharing'),api('/api/contacts/settings')]), box = $('#sh-body', el);
   if(!el.isConnected)return;
+  const disclosureKey='kinetta.sharing-disclosure:'+(Native.base||location.origin)+':'+(App.me?.id||'account');
+  const showDisclosure=!store.get(disclosureKey);
   box.innerHTML = `<div class="card"><h2>Who sees new activities</h2>${visSeg(s.default)}
       <p class="small muted">Applies to new activities. Older activities keep their audience; you can change it for each workout.</p></div>
     <div class="card"><h2>What others see</h2><form class="sharing-switches" id="sh-d">${Object.entries(DETAIL_NAMES).map(([key,name])=>`<label class="switch-row"><span>${esc(name)}</span><input type="checkbox" role="switch" name="${key}"${s.details[key]?' checked':''}></label>`).join('')}</form>
       <p class="small muted">Distance, time and type are always shown to that audience. Splits and laps need pace. Private notes and Kit notes are never shared.</p></div>
     <div class="card" id="sh-achievements-card"><label class="switch-row"><span>Share achievements</span><input type="checkbox" role="switch" id="sh-achievements" aria-describedby="sh-achievements-help"${s.share_achievements?' checked':''}></label>
-      <p class="small muted" id="sh-achievements-help">Friends can see your achievements and the ones you feature.</p></div>
+      <p class="small muted" id="sh-achievements-help">When sharing is on, everyone signed in can see your achievements and the ones you feature.</p></div>
     <div class="card"><h2>Friend search</h2><label class="check"><input type="checkbox" id="sh-find"${s.findable ? ' checked' : ''}> Let people find me by name</label>
       <p class="small muted">Off: you don't show up when people on this Kinetta search for friends. Friends you already have, and anyone who types your exact username, can still find you.</p></div>
     <div class="card" id="sh-contact-discovery"><h2>How people can find you</h2>
@@ -1326,6 +1328,10 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
       <p class="small muted">Shared maps leave out this much at the start and at the end, so others can't see where you live. A route too short for that is shared without a map.</p></div>
     <div id="sh-segments"></div>
     <div class="card list" id="sh-blocked"><h2>Blocked people</h2><p class="small muted">Loading…</p></div>`;
+  if(showDisclosure){
+    box.insertAdjacentHTML('afterbegin','<p class="small muted" id="sharing-default-disclosure">Your activities and achievements are visible to everyone on Kinetta by default. Change this any time in Settings &gt; Sharing &amp; privacy.</p>');
+    store.set(disclosureKey,true);
+  }
   ContactsUI.addPrivacyRemoval(box);
   if (typeof Segments !== 'undefined' && $('#sh-segments', box)) Segments.settingsRow($('#sh-segments', box));
   const drawBlocked = (rows) => {

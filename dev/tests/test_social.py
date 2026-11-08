@@ -26,6 +26,8 @@ fr, st, pe = (S(person(w)) for w in ('zz_test_friend', 'zz_test_stranger', 'zz_t
 people = {'zz_test_friend': fr, 'zz_test_stranger': st, 'zz_test_pending': pe}
 
 # start clean: alex's activities use Only me, and there are no zz_test friends or requests
+alex.q('PUT', '/api/sharing', {'details': {'map': True, 'heart_rate': True, 'pace': True, 'splits': True,
+                                            'elevation': True, 'calories': False, 'description': True, 'device': True}})
 alex.q('PUT', '/api/sharing', {'default': 'me', 'trim_m': 400})
 for a in alex.q('GET', '/api/activities?limit=100'):
     if a['visibility'] != 'me': alex.q('PUT', f"/api/activities/{a['id']}/sharing", {'visibility': 'me', 'usual_details': True})
@@ -61,7 +63,7 @@ alex.q('PUT', '/api/sharing', {'details': {'password': True}}, want=400)
 feed = alex.q('GET', '/api/activities?limit=20')
 # the newest few carry the demo's cheers and comments: the first three with a map and nothing on them yet
 a1, a2, a3 = [x['id'] for x in feed if x['line'] and not x['cheers'] and not x['comments']][:3]
-check(all(s.q('GET', f'/api/shared/{a1}', want=404) for s in (fr, st, pe)), 'private by default: nobody sees it')
+check(all(s.q('GET', f'/api/shared/{a1}', want=404) for s in (fr, st, pe)), 'sharing off: nobody sees the activity')
 alex.q('PUT', f'/api/activities/{a1}/sharing', {'visibility': 'friends'})
 alex.q('PUT', f'/api/activities/{a2}/sharing', {'visibility': 'everyone'})
 own_rows=alex.q('GET','/api/activities?limit=100')

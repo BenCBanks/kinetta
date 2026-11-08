@@ -109,7 +109,7 @@ class Signup(unittest.TestCase):
         self.assertEqual(existing.post('/api/signup', json=form('zz_test_su_defaults_existing')).status_code, 200)
         with db.connect() as c:
             existing_id = c.execute("SELECT id FROM users WHERE login='zz_test_su_defaults_existing'").fetchone()['id']
-            c.execute("UPDATE profile SET share_default='friends',share_details='{}',share_achievements=false,share_achievements_since=NULL,findable=false WHERE user_id=%s", (existing_id,))
+            c.execute("UPDATE profile SET share_default='friends',share_details=jsonb_build_object('heart_rate',false),share_achievements=false,share_achievements_since=NULL,findable=false WHERE user_id=%s", (existing_id,))
         existing_choices = existing.get('/api/sharing').json()
         self.assertEqual(existing_choices['default'], 'friends')
         self.assertFalse(existing_choices['details']['heart_rate'] or existing_choices['share_achievements'] or existing_choices['findable'])
@@ -143,6 +143,28 @@ class Signup(unittest.TestCase):
                 self.assertTrue(stored['needs_email_confirm'], 'sharing defaults do not bypass email confirmation')
 
         self.assertEqual(existing.get('/api/sharing').json(), existing_choices, 'new accounts do not change saved choices on existing profiles')
+
+    def test_migration_107_preserves_existing_heart_rate_choices(self):
+        logins = ('zz_test_su_migration_missing', 'zz_test_su_migration_true', 'zz_test_su_migration_false')
+        try:
+            with db.connect() as c:
+                ids = []
+                for login in logins:
+                    uid = c.execute('INSERT INTO users(login,name) VALUES(%s,%s) RETURNING id',
+                                    (login, 'Fictional migration test')).fetchone()['id']
+                    ids.append(uid)
+                c.execute("INSERT INTO profile(user_id,share_details) VALUES(%s,'{}'::jsonb)", (ids[0],))
+                c.execute("INSERT INTO profile(user_id,share_details) VALUES(%s,'{\"heart_rate\":true}'::jsonb)", (ids[1],))
+                c.execute("INSERT INTO profile(user_id,share_details) VALUES(%s,'{\"heart_rate\":false}'::jsonb)", (ids[2],))
+                for statement in db.MIGRATIONS[106].split(';'):
+                    if statement.strip():
+                        c.execute(statement)
+                values = [row['share_details']['heart_rate'] for row in c.execute(
+                    'SELECT share_details FROM profile WHERE user_id=ANY(%s)', (ids,)).fetchall()]
+                self.assertCountEqual(values, [False, True, False])
+        finally:
+            with db.connect() as c:
+                c.execute('DELETE FROM users WHERE login::text=ANY(%s)', (list(logins),))
 
     def test_shared_strict_age_confirmation(self):
         self.env(KINETTA_SIGNUP='open')
@@ -316,6 +338,12 @@ class Signup(unittest.TestCase):
         admin.cookies.set(admin_auth.COOKIE,token,path='/api');admin.headers['X-Admin-CSRF']=admin_auth.csrf(token)
         r=admin.post('/api/admin/people',json={'name':'Fixture Member','login':'zz_test_su_created','password':PW})
         self.assertEqual(r.status_code,200,r.text)
+        with db.connect() as c:
+            created=c.execute('''SELECT p.share_default,p.share_details,p.share_achievements,
+                                         p.share_achievements_since IS NOT NULL AS since_set
+                                  FROM profile p JOIN users u ON u.id=p.user_id WHERE u.login='zz_test_su_created' ''').fetchone()
+        self.assertEqual(created['share_default'],'everyone')
+        self.assertTrue(created['share_details']['heart_rate'] and created['share_achievements'] and created['since_set'],created)
 
     def test_failed_token_paths_keep_durable_shared_counters(self):
         self.env();person,uid=self.member('tokens')
