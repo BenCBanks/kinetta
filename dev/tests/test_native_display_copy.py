@@ -10,18 +10,20 @@ PREPARE=ROOT/'dev/tests/native-ui/prepare.py'
 
 
 class DisplayCopyTests(unittest.TestCase):
-    def test_store_fixture_allows_only_the_noop_celebration_post(self):
+    def test_store_fixture_serves_home_group_strip_and_only_noop_celebration_post(self):
         node = r'''const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const config={stage:'activity',store:{now:'2026-11-02T12:00:00Z',responses:{'POST /api/milestones/celebrate':{items:[],pending:false}}}};
+const config={stage:'activity',store:require(process.argv[2])()};
 const context=vm.createContext({KinettaUIFixture:config,addEventListener(){},document:{documentElement:{style:{}}},history:{replaceState(){}},localStorage:{clear(){}},location:{origin:'https://example.test',href:'https://example.test/'},performance:{now:()=>0},fetch:async()=>{throw Error('native network blocked')},Response,URL,structuredClone});
 vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);
 (async()=>{
+  const strip=await vm.runInContext("fetch('/api/groups/activity-strip').then(r=>r.json())",context);
+  assert.deepEqual(strip,{muted:false,has_upcoming:false});
   const result=await vm.runInContext("fetch('/api/milestones/celebrate',{method:'POST'}).then(r=>r.json())",context);
   assert.deepEqual(result,{items:[],pending:false});
   await assert.rejects(vm.runInContext("fetch('/api/password/reset',{method:'POST'})",context),/Store fixture blocked unexpected request/);
   assert.deepEqual(Array.from(config.blocked),['POST /api/password/reset']);
 })().catch(e=>{console.error(e);process.exitCode=1;});'''
-        result=subprocess.run(['node','-e',node,str(ROOT/'dev/tests/native-ui/early.js')],cwd=ROOT,capture_output=True,text=True,timeout=10)
+        result=subprocess.run(['node','-e',node,str(ROOT/'dev/tests/native-ui/early.js'),str(ROOT/'dev/tests/native-ui/appstore.cjs')],cwd=ROOT,capture_output=True,text=True,timeout=10)
         self.assertEqual(result.returncode,0,result.stderr)
 
     def test_original_and_update_keep_fixture_isolation(self):
