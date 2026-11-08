@@ -21,7 +21,7 @@ This account contains fictional workouts, food, a recipe and a fictional friend.
 For a build that includes #724 and #725:
 
 - Navigation: confirm the five tabs are Home, Progress, Track, Nutrition and Me. Home opens to Feed; switch to Groups from the Home header.
-- Reactions: in Feed or Groups, check the compact emoji stack and total. Open it to inspect the people list and All/emoji filters; add or remove your reaction.
+- Reactions: in Feed or Groups, check the emoji row and total. Open it to inspect the people list and All/emoji filters; add or remove your reaction.
 - Add food: advance to a later Nutrition sheet, then tap the back chevron to return one step. Check that your search text and scroll position remain; X should still close the flow.
 
 - Community safety: activity/comment menus offer Report; profile menus offer Block. Submitted public text is filtered. The [Terms of Use](https://kinetta.app/terms), version 2026-11-01-v1, supply the EULA reference; the owner must enter the reviewed custom agreement in App Store Connect. Check the submitted build’s active agreement settings separately.
