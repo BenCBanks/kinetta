@@ -2,6 +2,7 @@
 'use strict';
 const assert=require('node:assert/strict');
 const {initialize,notificationState,modalState}=require('./spacing_screens.cjs');
+const {seedWeeklyRecapDismissal}=require('./weekly_recap_fixture.cjs');
 const tile=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64');
 async function until(p,fn,label,timeout=30000){
  const deadline=Date.now()+timeout;
@@ -28,7 +29,7 @@ async function fixtureSessions(browser,base,selected){
   for(const scene of selected){if(scene.signup)continue;assert(scene.login==='alex'||scene.login.startsWith('zz_test_'),'Fictional fixture accounts only');const key=scene.login+(scene.native?':native':'');if(sessions.has(key))continue;const c=await browser.newContext();try{
    const response=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:scene.login,password:scene.login==='alex'?'blue kettle morning run':'green teapot on the hill',app:!!scene.native}});assert.equal(response.status(),200,'Fixture login');
    const token=(await response.json()).token,headers=scene.native?{Authorization:'Bearer '+token}:{},me=await(await c.request.get(base+'/api/me',{headers})).json();
-   sessions.set(key,{token,id:me.id,storageState:await c.storageState()});
+   sessions.set(key,{token,id:me.id,tz:me.tz,storageState:await c.storageState()});
   }finally{await c.close();}}
  return sessions;
 }
@@ -38,6 +39,7 @@ async function fixturePage(browser,base,fixtures,sessions,scene,size,theme){
    try{
     const liftData=scene.lift?await(await c.request.get(base+'/api/activities/'+scene.lift+'/lifts')).json():null;
     await c.addInitScript(initialize,{root:size.root,native:!!scene.native,base,token:auth.token,id:auth.id,lift:scene.lift,liftData});
+    if(scene.dismissWeeklyRecap)await seedWeeklyRecapDismissal(c,{id:auth.id,tz:auth.tz},base);
     await c.route('**/*',r=>{const request=r.request(),u=new URL(request.url());if(u.origin!==base)return r.abort();if(scene.signup&&request.method()==='GET'&&u.pathname==='/api/signup')return r.fulfill({json:{open:true,full:false}});if(u.pathname==='/api/challenges/signup/continue')return r.fulfill({json:{}});if(request.method()==='POST'&&u.pathname==='/api/milestones/celebrate')return r.fulfill({json:{items:[],pending:false}});if(!['GET','HEAD'].includes(request.method())){writes.push(u.pathname);return r.abort();}
      if(scene.groups&&u.pathname==='/api/groups')return r.fulfill({json:[]});
      if(scene.group==='empty'&&u.pathname==='/api/groups/00000000-0000-4000-8000-000000000001')return r.fulfill({json:require('./spacing_screens.cjs').GROUP_EMPTY});
