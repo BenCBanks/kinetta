@@ -121,7 +121,7 @@ const Recaps=(()=>{
     const food=o.food?[`Logged food ${d.food.logged_days} of ${Math.round((Date.parse(d.end)-Date.parse(d.start))/86400000)} days`,...(d.food.protein_goal_days!==null?[`Met protein goal ${d.food.protein_goal_days} days`]:[])]:[];
     const activityShown=o.totals||o.calendar||o.highlights||o.streak&&d.streak_weeks>=2;
     const credits=activityShown&&d.garmin_sources.length?'Includes data from '+d.garmin_sources.join(', '):'';
-    const alt=[title,hero&&hero.value+' '+hero.label,o.totals&&secondary,o.calendar&&d.activities>0&&'Activity calendar',...highlights,o.streak&&d.streak_weeks>=2&&`${d.streak_weeks} active weeks in a row`,...food,credits].filter(Boolean).join('. ');
+    const alt=[title,hero&&hero.value+' '+hero.label,o.totals&&secondary,o.calendar&&d.activities>0&&'Activity chart',...highlights,o.streak&&d.streak_weeks>=2&&`${d.streak_weeks} active weeks in a row`,...food,credits].filter(Boolean).join('. ');
     return {title,hero,secondary,highlights,food,credits,alt};
   }
   const recapKey=(period,offset,start,zone)=>`/api/recaps?period=${period}&offset=${offset}&start=${start}&tz=${encodeURIComponent(zone)}`;
