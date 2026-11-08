@@ -272,12 +272,17 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
 
   const foodMenuContext=await fixtureContext(browser);
   try{
-    await login(foodMenuContext);const page=await foodMenuContext.newPage(),assets=[],blockedWrites=[];
+    await login(foodMenuContext);const page=await foodMenuContext.newPage(),assets=[],cookAssets=[],blockedWrites=[],errors=[];
+    page.on('pageerror',error=>errors.push(error.message));
+    page.on('request',request=>{if(new URL(request.url()).pathname==='/static/cook.js')cookAssets.push(request.url());});
     await filterFoodRequests(page,route=>{assets.push(route.request().url());return route.continue();},blockedWrites);
     await page.goto(base+'/food');await ready(page,'a[href="/food/import"]','Food home with Add past days link');
+    assert.equal(await page.evaluate(()=>typeof swipeRows==='function'),true,'Food keeps its shared row-swipe helper without eager Cook');
+    assert.equal(cookAssets.length,0,'the Food home helper does not load Cook');
     await page.locator('a[href="/food/import"]').click();await ready(page,'#hi-pick','Food import opened from Nutrition');
     assert.equal(new URL(page.url()).pathname,'/food/import');assert.equal(assets.length,1,'the Nutrition menu link loads Food import once');
-    assert.deepEqual(blockedWrites,[],'menu navigation attempts no writes');
+    assert.equal(cookAssets.length,0,'Food import also leaves Cook deferred');
+    assert.deepEqual(blockedWrites,[],'menu navigation attempts no writes');assert.deepEqual(errors,[]);
   }finally{await foodMenuContext.close();}
 
   const foodRetryContext=await fixtureContext(browser);
@@ -624,6 +629,22 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
     assert.equal(cookFirstTap.dishCreations(),1);assert.equal(cookFirstTap.assetAttempts('/static/cook.js'),1,'the first tap loads Cook exactly once');
     assert.deepEqual(cookFirstTap.errors,[]);assert.deepEqual(cookFirstTap.writes,[]);
   }finally{cookFirstTap.release();await cookFirstTap.context.close();}
+
+  const cookFirstTapRetry=await foodRouteFixture(browser,{failAsset:'/static/cook.js',fakeDishCreation:true});
+  try{
+    await cookFirstTapRetry.page.goto(base+'/food/meals');await ready(cookFirstTapRetry.page,'#tm-new','Recipes & foods with New action');
+    await cookFirstTapRetry.page.locator('#tm-new').click();await cookFirstTapRetry.page.locator('#tm-dish').click();
+    await cookFirstTapRetry.page.locator('#toast.on').waitFor();
+    assert.match(await cookFirstTapRetry.page.locator('#toast').innerText(),/Recipe tools could not load.*try again/i,'failed first tap explains how to retry');
+    assert.equal(new URL(cookFirstTapRetry.page.url()).pathname,'/food/meals');
+    assert.equal(await cookFirstTapRetry.page.locator('#tm-new').isEnabled(),true,'New remains enabled after Cook fails');
+    assert.equal(cookFirstTapRetry.dishCreations(),0,'a failed load does not start recipe creation');
+    await cookFirstTapRetry.page.locator('#tm-new').click();await cookFirstTapRetry.page.locator('#tm-dish').click();
+    await ready(cookFirstTapRetry.page,'.recipe-page .empty','Cook opened after retry from New');
+    assert.equal(cookFirstTapRetry.assetAttempts('/static/cook.js'),2,'the second tap retries the failed Cook request once');
+    assert.equal(cookFirstTapRetry.dishCreations(),1,'retry creates one fictional recipe');
+    assert.deepEqual(cookFirstTapRetry.errors,[]);assert.deepEqual(cookFirstTapRetry.writes,[]);
+  }finally{cookFirstTapRetry.release();await cookFirstTapRetry.context.close();}
 
   console.log('Cook and recipe-import lazy routes: first tap, dependencies, retry and no duplicate loads PASS');
 

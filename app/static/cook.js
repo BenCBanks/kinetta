@@ -392,38 +392,6 @@ function dishLogSheet(d, w, done, {chooseMeal=false,quickPortion=null,onQuickFin
     if(quickPortion)setTimeout(()=>{const scrim=f.closest('.scrim');if(f.isConnected&&scrim&&!scrim.inert&&!scrim.classList.contains('is-closing')){f.requestSubmit();if(!quickSubmitting)onQuickFinish();}else onQuickFinish();},0);
   });
 }
-// Swipe an ingredient left to show Remove (2026-10-12). The name stays put (so you can see what you're removing); the
-// Remove button slides in over the calories, which fade out. A tap on an open row just closes it.
-function swipeRows(el, onRemove) {
-  const W = 96;
-  const place = (sw, px, anim) => {     // px = how far the button is out, 0..W
-    const del = $('.sw-del', sw), r = $('.sw-row .r', sw);
-    del.style.transition = r.style.transition = anim ? '' : 'none';
-    del.style.width = `${px}px`; r.style.opacity = String(Math.max(0, 1 - px / (W * 0.6)));
-  };
-  const closeAll = (but) => $$('.swipe.open', el).forEach((x) => { if (x !== but) { x.classList.remove('open'); place(x, 0, true); } });
-  $$('.swipe', el).forEach((sw) => {
-    const row = $('.sw-row', sw);
-    let x0 = 0, y0 = 0, base = 0, px = 0, drag = false, down = false, moved = false;
-    row.addEventListener('pointerdown', (e) => { down = true; drag = moved = false; x0 = e.clientX; y0 = e.clientY; base = sw.classList.contains('open') ? W : 0; px = base; });
-    row.addEventListener('pointermove', (e) => {
-      if (!down) return;
-      const mx = e.clientX - x0, my = e.clientY - y0;
-      if (!drag && Math.abs(mx) > 8 && Math.abs(mx) > Math.abs(my) * 1.3) { drag = moved = true; closeAll(sw); try { row.setPointerCapture(e.pointerId); } catch (x) { /* fine */ } }
-      if (!drag) { if (Math.abs(my) > 8) down = false; return; }
-      px = Math.max(0, Math.min(W + 16, base - mx)); place(sw, px, false);
-    });
-    const end = () => {
-      if (!down) return; down = false; if (!drag) return;
-      const open = px > W / 2; sw.classList.toggle('open', open); place(sw, open ? W : 0, true);
-    };
-    row.addEventListener('pointerup', end); row.addEventListener('pointercancel', end);
-    row.addEventListener('click', (e) => {     // after a swipe, or on an open row: no item sheet
-      if (moved || sw.classList.contains('open')) { e.stopImmediatePropagation(); e.preventDefault(); if (!moved) { sw.classList.remove('open'); place(sw, 0, true); } moved = false; }
-    }, true);
-    $('.sw-del', sw).onclick = () => onRemove($('.sw-del', sw).dataset.del);
-  });
-}
 // Add from a photo of the nutrition label (2026-10-12): the AI reads the label, then you say how much went in
 function labelButton(el, d, set) {
   const file = $('#dk-label-file', el);
