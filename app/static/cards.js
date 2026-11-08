@@ -16,10 +16,10 @@ const KinettaCard=(()=>{
       const closeSelf=()=>close();App.closeActivityShare=closeSelf;
       viewResources.set(b,()=>{seq++;if(imageURL)URL.revokeObjectURL(imageURL);if(App.closeActivityShare===closeSelf)delete App.closeActivityShare;});
       const values=()=>({enabled:$('#card-enabled',b).checked,photo:$('#card-photo',b).checked,sports:$('#card-sports',b).checked,allow_requests:$('#card-requests',b).checked,period:$('input[name="card-period"]:checked',b).value});
-      async function refresh(save=false,newLink=false){
+      async function refresh(save=false,newLink=false,reload=false){
         if(busy)return;busy=true;blob=null;$('#card-retry',b).hidden=true;disable(true);status.textContent=save?'Saving…':'Loading picture…';const version=++seq;
-        try{if(save)data=await api(newLink?'/api/card/new':'/api/card',newLink?{method:'POST'}:json('PUT',values()));if(!live()||version!==seq)return;
-          blob=await picture(owner);if(!live()||version!==seq)return;if(imageURL)URL.revokeObjectURL(imageURL);imageURL=URL.createObjectURL(blob);img.src=imageURL;img.alt='@'+data.preview.username+' on Kinetta. '+[...data.preview.sports.map(s=>(SPORT_NAMES[s.sport]||s.sport)+': '+Number(s.activities).toLocaleString()+' all-time activities'),...data.preview.stats.map(s=>s.value+' '+s.label)].join('. ');status.textContent=data.enabled?'Your card is active.':'Your card is off. Only you can see this preview.';$('#card-counts',b).textContent=`Joined through your card: ${data.joined} · Requests waiting: ${data.waiting}`;
+        try{if(save)data=await api(newLink?'/api/card/new':'/api/card',newLink?{method:'POST'}:json('PUT',values()));else if(reload)data=await api('/api/card');if(!live()||version!==seq)return;
+          blob=await picture(owner);if(!live()||version!==seq)return;if(imageURL)URL.revokeObjectURL(imageURL);imageURL=URL.createObjectURL(blob);img.src=imageURL;img.alt='@'+data.preview.username+' on Kinetta. '+[...data.preview.sports.map(s=>(SPORT_NAMES[s.sport]||s.sport)+': '+Number(s.activities).toLocaleString()+' all-time activities'),...data.preview.stats.map(s=>s.value+' '+s.label),...(data.preview.achievements||[]).map(a=>a.value+' '+a.context)].join('. ');status.textContent=data.enabled?'Your card is active.':'Your card is off. Only you can see this preview.';$('#card-counts',b).textContent=`Joined through your card: ${data.joined} · Requests waiting: ${data.waiting}`;
         }catch(e){if(live()){status.textContent=e.message;$('#card-retry',b).hidden=false;$('#card-enabled',b).checked=data.enabled;$('#card-photo',b).checked=data.photo;$('#card-sports',b).checked=data.sports;$('#card-requests',b).checked=data.allow_requests;$(`input[name="card-period"][value="${data.period}"]`,b).checked=true;}}
         finally{busy=false;if(live())disable(false);}
       }
@@ -29,7 +29,7 @@ const KinettaCard=(()=>{
         if(busy||!live())return;const on=e.target.checked;busy=true;disable(true);
         try{await api('/api/sharing',json('PUT',{share_achievements:on}));if(!live())return;sharing.share_achievements=on;invalidate('/api/');invalidateFeed();status.textContent='Saved.';}
         catch(error){if(live()){e.target.checked=!!sharing.share_achievements;status.textContent=error.message;}}
-        finally{busy=false;if(live())disable(false);}
+        finally{busy=false;if(live()){if(sharing.share_achievements===on)await refresh(false,false,true);else disable(false);}}
       };
       $('#card-share',b).onclick=async()=>{if(busy||!blob||!data.enabled)return;busy=true;disable(true);try{await ShareArt.deliver(blob,'kinetta-card.png',live,data.url);}catch(e){if(live()&&e.name!=='AbortError')status.textContent=e.message;}finally{busy=false;if(live())disable(false);}};
       $('#card-copy',b).onclick=async()=>{try{await navigator.clipboard.writeText(data.url);if(live())toast('Card link copied');}catch(e){if(live())sheet('Your card link',`<label class="form">Copy this link<input readonly value="${esc(data.url)}" aria-label="Card link"></label>`,(root,done)=>{guardFoodSheet(root,done,owner);$('input',root).select();});}};

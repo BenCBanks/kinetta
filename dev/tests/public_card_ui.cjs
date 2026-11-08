@@ -49,6 +49,12 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
   await sports.uncheck();await settled();assert(!(await sports.isChecked()));assert.equal((await(await c.request.get(base+'/api/card')).json()).preview.sports.length,0);
   const hidden=await(await c.request.get(base+'/api/card/image.png')).body();assert(!first.equals(hidden));
   await sports.check();await settled();assert(await sports.isChecked());
+  const achievements=p.locator('#card-achievements'),sharingBefore=(await(await c.request.get(base+'/api/sharing')).json()).share_achievements;
+  await achievements.uncheck();await settled();const hiddenAchievements=(await(await c.request.get(base+'/api/card')).json()).preview;
+  assert(!('achievements' in hiddenAchievements),'the owner preview omits featured items when achievement sharing is off');
+  await achievements.check();await settled();const sharedAchievements=(await(await c.request.get(base+'/api/card')).json()).preview;
+  assert(Array.isArray(sharedAchievements.achievements),'the opted-in owner preview returns only featured achievements');
+  if(sharingBefore)await achievements.check();else await achievements.uncheck();await settled();
   await enabled.uncheck();await settled();assert(await p.locator('#card-share').isDisabled());assert.equal((await anonymous.request.get(data.url)).status(),404);
   await p.reload();await p.locator('[data-card-share]').click();await p.locator('[data-share-card]').click();await settled();assert(!(await enabled.isChecked()),'off survives returning to the sheet');
   await enabled.check();await settled();assert((await anonymous.request.get(data.url)).ok());

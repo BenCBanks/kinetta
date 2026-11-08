@@ -1,5 +1,5 @@
 """Public-card field allowlists, revocation, explicit friendship and signup boundaries using fictional SQL."""
-import io,json,uuid,unittest
+import datetime as dt,io,json,uuid,unittest
 from unittest.mock import patch
 from PIL import Image,ImageDraw
 from fastapi.testclient import TestClient
@@ -38,6 +38,26 @@ class Cards(unittest.TestCase):
   page=self.guest.get('/card/'+self.code);self.assertEqual(page.status_code,200);self.assertIn('noindex',page.headers['x-robots-tag']);self.assertIn('og:image',page.text);self.assertIn('/image.png',page.text)
   for secret in ('SECRET REAL','SECRET ACTIVITY','SECRET NOTE','avg_hr','calories','weight','bio'):self.assertNotIn(secret,page.text+json.dumps(d))
   pic=self.guest.get('/card/'+self.code+'/image.png');self.assertEqual(pic.status_code,200);self.assertEqual(Image.open(io.BytesIO(pic.content)).size,(1080,1350));self.assertEqual(pic.headers['cache-control'],'no-store')
+ def test_public_achievements_are_only_pinned_and_revocable(self):
+  self.enable()
+  run_state={'track':'sport:run','label':'Run','value_m':1609344,'unit':'m'}
+  journey_state={'track':'journey','label':'Journey','value_m':2000000,'unit':'m'}
+  with db.connect() as c:
+   c.execute('UPDATE profile SET share_achievements=true,share_achievements_since=now(),showcase_pins=%s WHERE user_id=%s',(['sport:run'],self.ids[0]))
+   for code,title,details in [('sport:run','Run',run_state),('journey','Journey',journey_state)]:
+    c.execute('''INSERT INTO milestones(user_id,code,kind,title,rank,day,occurred,details)
+                 VALUES(%s,%s,'track_state',%s,0,current_date,now(),%s)''',(self.ids[0],'track-state:'+code,title,json.dumps(details)))
+  public=self.guest.get('/api/cards/'+self.code).json();self.assertEqual(public['achievements'],[{'code':'sport:run','value':'1,000 mi','context':'Total running distance'}]);self.assertNotIn('rank',public['achievements'][0])
+  on_image=self.guest.get('/card/'+self.code+'/image.png').content
+  with db.connect() as c:c.execute('UPDATE profile SET share_achievements_since=NULL WHERE user_id=%s',(self.ids[0],))
+  missing_since=self.guest.get('/api/cards/'+self.code).json();self.assertEqual(missing_since['achievements'],[],'the public card needs both the switch and its opt-in timestamp')
+  with db.connect() as c:c.execute('UPDATE profile SET share_achievements_since=now() WHERE user_id=%s',(self.ids[0],))
+  with db.connect() as c:c.execute('UPDATE profile SET showcase_pins=%s WHERE user_id=%s',([],self.ids[0]))
+  no_pins=self.guest.get('/api/cards/'+self.code).json();self.assertEqual(no_pins['achievements'],[],'un-pinned earned tracks never become public defaults')
+  unpinned_image=self.guest.get('/card/'+self.code+'/image.png').content;self.assertNotEqual(on_image,unpinned_image)
+  with db.connect() as c:c.execute('UPDATE profile SET showcase_pins=%s,share_achievements=false WHERE user_id=%s',(['sport:run'],self.ids[0]))
+  revoked=self.guest.get('/api/cards/'+self.code).json();self.assertNotIn('achievements',revoked)
+  off_image=self.guest.get('/card/'+self.code+'/image.png').content;self.assertNotEqual(on_image,off_image,'turning sharing off immediately removes featured items from the PNG')
  def test_week_and_all_time_choices_are_persisted_in_owner_and_public_preview(self):
   weekly=self.enable()['preview'];self.assertEqual(weekly['period'],'this_week');self.assertEqual(weekly['weekly']['activities'],1)
   all_time=self.enable(period='all_time')['preview'];self.assertEqual(all_time['period'],'all_time');self.assertEqual(all_time['all_time']['activities'],1);self.assertAlmostEqual(all_time['all_time']['distance_m'],10000)
@@ -239,6 +259,104 @@ class Cards(unittest.TestCase):
   # Totals stay above the fixed footer in both selected views.
   for value,box in bounds:
    if value in ('All time','distance','workouts','time'):self.assertLess(box[3],1135,(value,box))
+ def test_shared_image_medals_are_prominent_and_centered_for_one_or_two_items(self):
+  original=cards.achievement_medal
+  for count,expected_centers in ((1,[540]),(2,[306,774])):
+   items=[{'code':'sport:run','value':'1,000 mi','context':'Total running distance'} for _ in range(count)]
+   data={'username':'fictional runner','period':'none','sports':[],'achievements':items,
+         'garmin_sources':[],'url':'https://example.test/card/fictional'}
+   with patch('app.cards.payload',return_value=data),patch('app.cards.achievement_medal',wraps=original) as medal:
+    cards.image(None,{'user_id':self.ids[0]},None)
+   self.assertEqual([call.args[1] for call in medal.call_args_list],expected_centers)
+   self.assertEqual([call.args[3] for call in medal.call_args_list],[cards.CARD_FEATURED_MEDAL_SIZE]*count)
+  self.assertEqual(cards.CARD_FEATURED_SLOT_GUTTER,24)
+ def test_shared_image_wraps_long_values_without_shrinking_the_font(self):
+  items=[{'code':'journey','value':'767,124.9 mi','context':'All-sport distance'},
+         {'code':'sport:run','value':'613,699.9 mi','context':'Total running distance'},
+         {'code':'workouts','value':'12,345,678 workouts','context':'Workouts completed'},
+         {'code':'climbing','value':'405,041,971.6 ft','context':'Elevation climbed'}]
+  data={'username':'fictional runner','period':'none','sports':[],'achievements':items,
+        'garmin_sources':[],'url':'https://example.test/card/fictional'}
+  drawn=[];original=ImageDraw.ImageDraw.text
+  def record(draw,xy,value,*args,**kwargs):
+   font=kwargs.get('font')
+   drawn.append((str(value),font.size,draw.textlength(str(value),font=font),xy[1]))
+   return original(draw,xy,value,*args,**kwargs)
+  with patch('app.cards.payload',return_value=data),patch('app.cards.ImageDraw.ImageDraw.text',new=record):
+   cards.image(None,{'user_id':self.ids[0]},None)
+  expected_sizes={'12,345,678':31,'workouts':cards.CARD_FEATURED_UNIT_SIZE,
+                  '405,041,971.6':31,'ft':cards.CARD_FEATURED_UNIT_SIZE}
+  for value,size in expected_sizes.items():
+   match=[entry for entry in drawn if entry[0]==value]
+   self.assertTrue(match,(value,drawn))
+   self.assertEqual(match[0][1],size,(value,match))
+   self.assertLessEqual(match[0][2],936/2-cards.CARD_FEATURED_SLOT_GUTTER,(value,match))
+  unit_y=[entry[3] for entry in drawn if entry[0]=='ft']
+  self.assertEqual(unit_y,[305+cards.CARD_FEATURED_HEADER_HEIGHT+cards.CARD_FEATURED_VALUE_OFFSET+cards.CARD_FEATURED_UNIT_OFFSET])
+  context_y=305+cards.CARD_FEATURED_HEADER_HEIGHT+cards.CARD_FEATURED_CONTEXT_OFFSET
+  self.assertLess(unit_y[0]+cards.CARD_FEATURED_UNIT_SIZE,context_y)
+ def test_two_line_label_fits_the_reserved_featured_row(self):
+  items=[{'code':'journey','value':'1 mi','context':'All-sport distance'},
+         {'code':'sport:walk-hike','value':'1 mi','context':'Walking & hiking distance'},
+         {'code':'workouts','value':'1 workout','context':'Workouts completed'},
+         {'code':'climbing','value':'1 ft','context':'Elevation climbed'}]
+  data={'username':'fictional runner','period':'none','sports':[],'achievements':items,
+        'garmin_sources':[],'url':'https://example.test/card/fictional'}
+  label_boxes=[];original=ImageDraw.ImageDraw.text;row_top=305
+  def record(draw,xy,value,*args,**kwargs):
+   if str(value) in ('Walking & hiking','distance'):
+    label_boxes.append((str(value),draw.textbbox(xy,str(value),font=kwargs.get('font'),anchor=kwargs.get('anchor'))))
+   return original(draw,xy,value,*args,**kwargs)
+  with patch('app.cards.payload',return_value=data),patch('app.cards.ImageDraw.ImageDraw.text',new=record):
+   cards.image(None,{'user_id':self.ids[0]},None)
+  self.assertEqual([label for label,_ in label_boxes],['Walking & hiking','distance'])
+  drawn_bottom=max(box[3] for _,box in label_boxes)
+  self.assertGreater(drawn_bottom-row_top,230)
+  self.assertLessEqual(drawn_bottom-row_top,cards.CARD_FEATURED_ROW_HEIGHT)
+  self.assertEqual(cards.CARD_FEATURED_ROW_HEIGHT,256)
+  self.assertEqual(cards.featured_row_bounds(794,4),(794,cards.CARD_FOOTER_TOP))
+  self.assertIsNone(cards.featured_row_bounds(795,4))
+ def test_worst_case_featured_row_is_dropped_before_the_fixed_footer(self):
+  photo=io.BytesIO();Image.new('RGB',(80,80),'#1F55D0').save(photo,format='JPEG')
+  weeks=[{'week':(dt.date(2026,1,5)+dt.timedelta(weeks=i)).isoformat(),'distance_m':10000,'activities':1,'time_s':3600} for i in range(12)]
+  data={'username':'fictional runner','photo':'/photo','sports':[{'sport':sport,'activities':9} for sport in cards.SPORTS],
+        'period':'this_week','weekly':{'unit':'mi','streak_weeks':4,'distance_m':10000,'activities':9,'time_s':3600,'weeks':weeks},
+        'achievements':[{'code':'sport:run','value':'1,000 mi','context':'Total running distance'} for _ in range(4)],
+        'garmin_sources':['Garmin Forerunner 265'],'url':'https://example.test/card/fictional'}
+  class Cursor:
+   def fetchone(self):return {'img':photo.getvalue()}
+  class Connection:
+   def execute(self,*args):return Cursor()
+  decisions=[];labels=[];layout=cards.featured_row_bounds;draw_text=ImageDraw.ImageDraw.text
+  def measure(top,count):
+   result=layout(top,count);decisions.append((top,count,result));return result
+  def record(draw,xy,value,*args,**kwargs):
+   labels.append(str(value));return draw_text(draw,xy,value,*args,**kwargs)
+  with patch('app.cards.payload',return_value=data),patch('app.cards.featured_row_bounds',side_effect=measure),patch('app.cards.achievement_medal') as medal,patch('app.cards.ImageDraw.ImageDraw.text',new=record):
+   png=cards.image(Connection(),{'user_id':self.ids[0]},None)
+  self.assertEqual(Image.open(io.BytesIO(png)).size,(1080,1350))
+  self.assertEqual(len(data['sports']),9);self.assertEqual(decisions[0][1],4)
+  self.assertGreater(decisions[0][0],cards.CARD_FOOTER_TOP);self.assertIsNone(decisions[0][2])
+  self.assertEqual(cards.featured_row_bounds(794,4),(794,cards.CARD_FOOTER_TOP))
+  self.assertIsNone(cards.featured_row_bounds(795,4))
+  self.assertEqual(medal.call_count,0);self.assertNotIn('Featured achievements',labels)
+ def test_single_long_words_are_clipped_inside_each_featured_slot(self):
+  def render(value,context):
+   items=[{'code':'sport:run','value':value,'context':context}]+[{'code':'sport:run','value':'','context':''} for _ in range(3)]
+   data={'username':'fictional runner','period':'none','sports':[],'achievements':items,
+         'garmin_sources':[],'url':'https://example.test/card/fictional'}
+   with patch('app.cards.payload',return_value=data):png=cards.image(None,{'user_id':self.ids[0]},None)
+   return Image.open(io.BytesIO(png)).convert('RGB')
+  baseline=render('1 mi','Run');long=render('9'*100,'W'*100);top=305
+  slot_left=72+cards.CARD_FEATURED_SLOT_GUTTER//2
+  slot_right=72+936//4-cards.CARD_FEATURED_SLOT_GUTTER//2
+  value_top=top+cards.CARD_FEATURED_HEADER_HEIGHT+cards.CARD_FEATURED_VALUE_OFFSET
+  context_top=top+cards.CARD_FEATURED_HEADER_HEIGHT+cards.CARD_FEATURED_CONTEXT_OFFSET
+  for y0,y1 in ((value_top,value_top+55),(context_top,context_top+55)):
+   changes=[(x,y) for y in range(y0,y1) for x in range(1080) if baseline.getpixel((x,y))!=long.getpixel((x,y))]
+   self.assertTrue(changes,(y0,y1))
+   self.assertGreaterEqual(min(x for x,y in changes),slot_left)
+   self.assertLess(max(x for x,y in changes),slot_right)
  def test_picture_cache_has_bounded_entries_and_render_concurrency(self):
   import threading,time
   from concurrent.futures import ThreadPoolExecutor

@@ -160,5 +160,23 @@
     "kind": "intentional-overlay",
     "maximum": 44,
     "reason": "The approved whole-card profile link covers the Me card; existing edit, share, friends, week and medal controls stay above it. Only these same-card pairs are excepted, and reachability checks still require both hit areas exposed."
+  },
+  {
+    "id": "me-featured-heading-type",
+    "selector": ".me-featured-achievements .me-featured-title",
+    "metric": "font-min",
+    "kind": "approved-type",
+    "minimum": 13,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/689",
+    "reason": "Ben approved the current #689 featured section size. Keep its 13px heading with the 48px medals; only this heading gets the lower bound, while clipping and all other text sizes remain audited."
+  },
+  {
+    "id": "me-featured-medal-copy-type",
+    "selector": ".me-featured-achievements .me-featured-value,.me-featured-achievements .me-featured-context",
+    "metric": "font-min",
+    "kind": "approved-type",
+    "minimum": 12,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/689",
+    "reason": "Ben approved the current #689 featured section size. Keep its 12px values and context labels with the 48px medals; clipping and every other text minimum remain audited."
   }
 ]
