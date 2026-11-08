@@ -143,10 +143,10 @@
 .activity-card .post-extra > .post-lifts,.activity-card .post-extra > .badges { margin:0; padding:0 14px 8px; }
 .activity-card .post-summary .post-lifts,.activity-card .post-summary .badges { margin:6px 0 0; padding:0; }
 .activity-card .post-ft .activity-share { order:3; display:flex; align-items:center; justify-content:center; flex:none; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; margin:0 0 0 16px; background:none; border-color:transparent; box-shadow:none; }
-.activity-card .post-ft:has(.activity-share) .emoji-reactions .reaction-count { margin-left:0; }
+.activity-card .post-ft:has(.activity-share) .emoji-reactions .reaction-count { margin-left:auto; }
 .activity-card .post-ft:has(.emoji-reactions) .reaction-more { margin-right:8px; }
 .activity-card .post-ft:has(.emoji-reactions) { gap:0; padding-top:8px; }
-.activity-card .post-ft:has(.emoji-reactions) .emoji-reactions .reaction-count { order:2; }
+.activity-card .post-ft:has(.emoji-reactions) .emoji-reactions .reaction-count { order:4; }
 @media(max-width:360px) {
  .activity-card .post-ft:has(.emoji-reactions) { padding-inline:12px; }
  .activity-card .post-ft:has(.activity-share) { gap:8px; }

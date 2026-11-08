@@ -77,7 +77,7 @@ ago = max(now - dt.timedelta(hours=2.5), now.replace(hour=0, minute=0, second=0,
 print('alex today', upload(alex, [('today-running.gpx', later(raw, (ago - t0).total_seconds() // 60))]).get('added'))
 mine = alex('GET', '/api/activities?limit=8')
 for a in mine: alex('PUT', f"/api/activities/{a['id']}/sharing", {'visibility': 'friends'})
-# Three friends on the same newest card show the new native emoji and total in both capture themes.
+# Three friends on the same newest card show native emoji with individual counts in both capture themes.
 for friend, kind in ((jordan, 'clap'), (person('casey', PW), 'starstruck'), (person('taylor', PW), 'mindblown')):
     friend('POST', f"/api/activities/{mine[0]['id']}/reaction", {'kind': kind})
 reactions = alex('GET', f"/api/activities/{mine[0]['id']}/social")['reactions']

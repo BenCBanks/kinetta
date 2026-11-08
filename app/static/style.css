@@ -2278,18 +2278,18 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .emoji-reactions .reaction-more>svg {flex:none;width:20px;height:20px;}
 .emoji-reactions .reaction-more .reaction-emoji {font-size:22px;}
 .emoji-reactions .reaction-more:active,.emoji-reactions .reaction-count:active,.activity-comments:active {background:none;opacity:.72;}
-.emoji-reactions .reaction-summary {display:flex;align-items:center;gap:4px;overflow:visible;}
-.emoji-reactions .reaction-summary-emoji {display:inline-flex;flex:none;align-items:center;justify-content:center;width:21px;height:21px;}
-.emoji-reactions .reaction-summary-emoji .reaction-emoji {display:inline-flex;align-items:center;justify-content:center;width:21px;height:21px;font-size:18px;line-height:1;}
-.emoji-reactions .reaction-count {order:2;display:flex;flex:none;align-items:center;justify-content:flex-start;gap:6px;min-width:44px;height:44px;min-height:44px;padding:0;margin:0;color:var(--tx2);font-size:15px;}
+.emoji-reactions .reaction-summary {display:flex;align-items:center;gap:8px;overflow:visible;white-space:nowrap;}
+.emoji-reactions .reaction-summary-emoji {display:inline-flex;flex:none;align-items:center;gap:3px;white-space:nowrap;}
+.emoji-reactions .reaction-summary-emoji .reaction-emoji {display:inline-flex;align-items:center;justify-content:center;font-size:18px;line-height:1;}
+.emoji-reactions .reaction-summary-count,.emoji-reactions .reaction-summary-more {font-size:15px;line-height:1.2;font-variant-numeric:tabular-nums;color:var(--tx2);}
+.emoji-reactions .reaction-count {order:4;display:flex;flex:none;align-items:center;justify-content:flex-end;min-width:44px;height:44px;min-height:44px;padding:0;margin:0 0 0 auto;color:var(--tx2);font-size:15px;}
 .emoji-reactions .reaction-count[hidden] {display:none;}
-.emoji-reactions .reaction-count .num {font-size:15px;color:var(--tx2);}
 .reaction-emoji {font-family:Apple Color Emoji,Segoe UI Emoji,Noto Color Emoji,sans-serif;font-size:1.25rem;line-height:1;}
-.activity-comments {order:5;display:flex;align-items:center;justify-content:center;gap:4px;min-width:44px;min-height:44px;padding:0;margin:0 0 0 auto;}
+.activity-comments {order:2;display:flex;align-items:center;justify-content:center;gap:4px;min-width:44px;min-height:44px;padding:0;margin:0;}
 .activity-comments>svg {width:20px;height:20px;flex:none;}
 .activity-comments .num[hidden] {display:none;}
 .post-ft .num,.detail-social .num {font-size:max(15px,.75rem);line-height:1.2;}
-.post-ft:has(.emoji-reactions) .activity-share {order:4;min-width:44px;height:44px;margin-left:8px;padding:0;display:flex;align-items:center;justify-content:center;}
+.post-ft:has(.emoji-reactions) .activity-share {order:3;min-width:44px;height:44px;margin:0 0 0 8px;padding:0;display:flex;align-items:center;justify-content:center;}
 .post-ft:has(.emoji-reactions) .activity-share>svg {width:20px;height:20px;}
 .post-hd .activity-share {width:44px;min-width:44px;height:44px;padding:0;justify-content:center;margin-left:auto;}
 .post-hd .activity-share>svg {width:20px;height:20px;}
