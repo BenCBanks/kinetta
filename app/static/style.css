@@ -2752,6 +2752,7 @@ nav.tabs { view-transition-name: tabs; }
 .has-back > .top.over .back, .has-back > .top.over .icon-btn {background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none}
 .me-settings {margin-top:20px}
 .shell .top.subpage-header {display:grid;grid-template-columns:minmax(82px,1fr) auto minmax(82px,1fr);align-items:center;gap:8px;border-bottom:0;margin-bottom:12px;}
+.shell .top.subpage-header.weight-heading {grid-template-columns:max-content minmax(0,1fr) max-content;}
 .shell .top.subpage-header > h1 {grid-column:2;justify-self:stretch;min-width:0;max-width:100%;margin:0;overflow:hidden;font:600 var(--text-nav-title)/1.2 var(--font);letter-spacing:-.02em;text-align:center;text-overflow:ellipsis;white-space:nowrap;}
 .subpage-header .back,.subpage-header .progress-back {flex:none;justify-self:start;width:max-content;min-width:44px;max-width:100%;height:44px;padding:0;justify-content:flex-start;gap:4px;overflow:hidden;white-space:nowrap;background:transparent;box-shadow:none;}
 .subpage-header .back svg,.subpage-header .progress-back svg {width:20px;height:20px;}
@@ -2761,6 +2762,7 @@ nav.tabs { view-transition-name: tabs; }
 .subpage-header > .icon-btn:not(.progress-back),.subpage-header > .ghost,.subpage-header > .primary,.subpage-header > .linkbtn {grid-column:3;justify-self:end;}
 @media (max-width:420px) {.shell .top.subpage-header {margin-inline:-8px;padding-inline:8px;}}
 @media (max-width:360px) {.shell .top.subpage-header {grid-template-columns:minmax(44px,1fr) auto minmax(44px,1fr);}.shell .top.subpage-header .back,.shell .top.subpage-header .progress-back {gap:0;}.subpage-header .back > .vh,.subpage-header .progress-back > .back-label {max-width:calc(100% - 20px);}}
+@media (max-width:360px) {.shell .top.subpage-header.weight-heading {grid-template-columns:116px minmax(0,1fr) max-content;}.shell .top.subpage-header.weight-heading > .back {width:116px;white-space:normal;}.shell .top.subpage-header.weight-heading > .back > .vh {max-width:calc(100% - 24px);overflow:visible;text-overflow:clip;white-space:normal;line-height:1.1;}}
 
 .has-back > .top.subpage-header {border-bottom:0;}
 /* Fitness charts keep full numeric readouts in a full-height, keyboard-accessible sheet. */

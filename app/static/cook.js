@@ -178,12 +178,12 @@ function plusMenu(el, d, set) {
     <button class="ghost" id="pm-search">${svg('search')}Search the food database</button>
     <button class="ghost" id="pm-known">${svg('edit')}Manually add a food</button>
     <button class="ghost recipe-source-entry" id="pm-recipes">Recipes${svg('chev')}</button></div>`, (b, close) => {
-    $('#pm-scan', b).onclick = () => { close(); scanSheet(null, null, (f) => foodToDish(d, f, set)); };
-    const label = $('#pm-label', b); if (label) label.onclick = () => { close(); el._label(); };
-    $('#pm-search', b).onclick = () => { close(); el._search && el._search(); };
-    $('#pm-known', b).onclick = () => { close(); manualDishFood(d,set); };
-    $('#pm-recipes', b).onclick = () => { close(); recentRecipesSheet(d,set); };
-  });
+    $('#pm-scan', b).onclick = () => scanSheet(null, null, (f) => foodToDish(d, f, set));
+    const label = $('#pm-label', b); if (label) label.onclick = () => el._label();
+    $('#pm-search', b).onclick = () => el._search && el._search();
+    $('#pm-known', b).onclick = () => manualDishFood(d,set);
+    $('#pm-recipes', b).onclick = () => recentRecipesSheet(d,set);
+  },{flow:'auto'});
 }
 
 function recipeChoiceList(title, recipes, choose) {
@@ -202,7 +202,7 @@ function recentRecipesSheet(d,set) {
         const recipes=await api(`/api/dishes/recent-own?exclude=${encodeURIComponent(d.id)}`);if(!live())return;
         if(!recipes.length){box.innerHTML='<p class="small muted">No recent recipes.</p>';return;}
         box.innerHTML=`<div class="recipe-choice-list">${recipes.map((r,i)=>`<button type="button" class="recipe-choice-row" data-recent-recipe="${i}"><span>${esc(r.name)}</span>${svg('chev')}</button>`).join('')}</div>`;
-        $$('[data-recent-recipe]',box).forEach(button=>button.onclick=()=>{const recipe=recipes[+button.dataset.recentRecipe];close();recipeAmountSheet(d,recipe,set);});
+        $$('[data-recent-recipe]',box).forEach(button=>button.onclick=()=>{const recipe=recipes[+button.dataset.recentRecipe];recipeAmountSheet(d,recipe,set);});
       }catch(_){
         if(!live())return;box.innerHTML='<p class="small" role="alert">Couldn\'t load your recipes.</p><button type="button" class="linkbtn recipe-try-again" id="recent-recipes-retry">Try again</button>';
         $('#recent-recipes-retry',box).onclick=load;
@@ -242,7 +242,7 @@ function recipeAmountSheet(d,recipe,set,{chatMessage=null,initialGrams=null}={})
       try{
         const result=await api(`/api/dishes/${d.id}/items/recipe`,json('POST',body));if(!live())return;
         if(chatMessage){chatMessage.text=`Added ${recipe.name.toLowerCase()} (${gfmt(result.grams)}).`;chatMessage.added=result.added;delete chatMessage.clarification;}
-        set(result.dish);close();if(!chatMessage)toast(`Added ${recipe.name}`);
+        set(result.dish);close.closeAll?.(true);if(!close.closeAll)close();if(!chatMessage)toast(`Added ${recipe.name}`);
       }catch(x){
         if(!live())return;error.textContent=x.message;error.hidden=false;busy=false;$$('[data-recipe-mode],#recipe-one-cup',b).forEach(button=>button.disabled=false);update();
       }
@@ -434,7 +434,7 @@ function labelButton(el, d, set) {
               kcal: S.kcal, protein_g: S.protein_g, carbs_g: S.carbs_g, fat_g: S.fat_g, fiber_g: S.fiber_g, ...Object.fromEntries(EXTRA_NUTRIENTS.map(([k])=>[k,S[k]??null])), favorite: false}));
             invalidate('/api/food/foods');
           }
-          close(); toast(`Added ${name}: ${gfmt(g)}${f.save.checked ? ', saved to My foods' : ''}`);
+          close.closeAll?.(true);if(!close.closeAll)close();toast(`Added ${name}: ${gfmt(g)}${f.save.checked ? ', saved to My foods' : ''}`);
         } catch (x) { toast(x.message); sb.disabled = false; }
       };
     });
@@ -630,7 +630,7 @@ function typeSheet(name, grams, done) {
           const value=values[key];if(value==null)continue;
           if(!Number.isFinite(value)||value<0||value>limit||(key==='grams'&&value===0))throw Object.assign(Error(key==='grams'?'Enter a weight above zero and up to 30,000 g, or leave it blank.':'Enter a number from 0 to '+limit.toLocaleString()+' for this amount of food.'),{field:key});
         }
-        if (await done(values)) close.closeAll?.(true);else btn.disabled=false;
+        if (await done(values)) close();else btn.disabled=false;
       } catch (error) {
         $('#ty-error',b).textContent=error.message;btn.disabled=false;
         const field=f.elements[error.field];if(field){field.setAttribute('aria-invalid','true');field.setAttribute('aria-describedby','ty-error');field.oninput=()=>field.removeAttribute('aria-invalid');field.focus();}

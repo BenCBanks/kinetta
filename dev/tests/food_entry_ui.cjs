@@ -471,7 +471,7 @@ await p.goto(base+'/me/kit?from=nutrition');await until(p,()=>typeof App!=='unde
    console.log('Same as yesterday: exact-day empty meal chip, provider-free chat repeat, one-tap copy and Undo PASS');
   }
   if(process.env.KINETTA_FOOD_CASE==='back-flow')for(const theme of ['light','dark']){
-   const {c,p,errors}=await open('empty',theme,{width:390,height:844,root:16});
+   const {c,p,errors}=await open('empty',theme,{width:390,height:844,root:16});assert.equal(await p.locator('.thread-heading .back').getAttribute('aria-label'),'Back to Nutrition','Food chat exposes its page-level Back destination');
    const searchFoods=Array.from({length:20},(_,i)=>({id:900+i,name:`Fictional oats ${i+1}`,brand:'Demo kitchen',source:'usda',per100:{kcal:389,protein_g:16.9,carbs_g:66.3,fat_g:6.9,fiber_g:10.6},per_serving:{kcal:156,protein_g:6.8,carbs_g:26.5,fat_g:2.8,fiber_g:4.2},serving:{label:'40 g',g:40}}));
    await p.route('**/api/food/search*',r=>{const source=new URL(r.request().url()).searchParams.get('sources');return r.fulfill({json:source==='mine'?{mine:[],recent:[]}:{usda:searchFoods,off:[]}});});
    const capture=async state=>{if(!process.env.SHOT_DIR)return;fs.mkdirSync(process.env.SHOT_DIR,{recursive:true});await p.screenshot({path:path.join(process.env.SHOT_DIR,`722-${state}-390-${theme}.png`)});};
