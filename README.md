@@ -6,7 +6,7 @@
 </p>
 
 <p align="center"><b>Your workouts and your food, in one app.</b><br>
-Activity tracking + food and health: runs, rides, walks, lifting, training plans, calories and macros. Choose who sees your activities and achievements.</p>
+Activity tracking + food and health: runs, rides, walks, lifting, training plans, calories and macros. You choose what you share.</p>
 
 <p align="center"><a href="https://login.kinetta.app/beta">Join the beta</a> · <a href="https://kinetta.app">kinetta.app</a></p>
 
@@ -15,8 +15,8 @@ Activity tracking + food and health: runs, rides, walks, lifting, training plans
 Kinetta is a made-up word: *kinetic*, for the energy of moving every day, and *kin*, for the people you move with.
 
 It started as one family's replacement for Strava and a food-tracking app. New accounts share activities and achievements
-with everyone signed in to their Kinetta server by default; each person can change that in Sharing & privacy. Food and body records
-stay in the account, and nothing is sold or used for ads.
+with everyone signed in to their Kinetta server by default; each person can change that in Settings → Sharing & privacy. Existing
+accounts keep their saved choices. Food and body records stay in the account unless an owner chooses to share a summary.
 
 ## What it does
 
@@ -35,7 +35,7 @@ stay in the account, and nothing is sold or used for ads.
 - Calories and macros against your targets, a weight trend and a running calorie deficit
 
 **For your people**
-- Each person has their own account. New accounts share activities and achievements with everyone signed in to their Kinetta server; change this any time in Settings → Sharing & privacy. Existing accounts keep their saved choices.
+- Each person has their own account. New accounts share activities and achievements with everyone signed in to their Kinetta server by default; change this in Settings → Sharing & privacy. Existing accounts keep their saved choices.
 - Invite someone with a link: they pick their own username and password
 - Works on any phone as an app on the home screen, also offline for logging food
 - Optional AI coach notes and food estimates (off until you turn them on)
@@ -60,9 +60,12 @@ for how changes are made.
 
 ## Privacy
 
-- Activities and achievements are shown to their selected audience. New accounts share activities and achievements with everyone on their Kinetta server by default; heart rate is shared with that audience, while calories are not. Food, weight and body details stay with the account unless someone deliberately shares a summary. Every request is checked against the logged-in person, and the database enforces account boundaries with row-level security.
-- Nothing is sent anywhere except what you turn on: food search sends the search words, barcode lookups the
-  barcode, and the optional AI features send that person's own numbers (or food photo) to the AI provider whose key you set.
+- Activities and achievements are visible to their selected audience. New accounts share them with everyone signed in to their
+  Kinetta server by default; heart rate is shared with that audience, while calories are not. Existing accounts keep their saved
+  choices. Food, weight and body details stay with the account unless an owner chooses to share a summary. Requests are checked
+  against the signed-in person, and the database enforces account boundaries with row-level security.
+- External services receive only data needed for features you turn on: food searches send search words, barcode lookups send
+  the barcode, and optional AI features send the person's own numbers (or food photo) to the configured provider.
 - Be honest with your people: **whoever runs the server can technically read the database**. Kinetta is meant for
   people who trust each other, such as a family, friends or a running club.
 
@@ -82,8 +85,8 @@ Kinetta is **source-available** under the **[PolyForm Noncommercial License 1.0.
 - **Not for commercial use without a license.** Selling it, offering it as a paid or hosted service, or using it in or
   for a business needs a commercial license from the author. Ask about one by opening an issue or through kinetta.app.
 
-Versions published before October 11, 2026 (up to commit `69a0169`) were released under the GNU AGPL-3.0, and copies of
-those versions stay under that license. Everything after that is under the PolyForm Noncommercial License.
+Previously published versions keep the license that accompanied them. Current versions are under the PolyForm
+Noncommercial License 1.0.0.
 
 The name **Kinetta** and the Kinetta logo are not covered by the code license. Please don't use them for your own
 fork or product without permission.
