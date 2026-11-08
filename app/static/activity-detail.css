@@ -30,7 +30,7 @@
 .detail-secondary .stat b { display:block; font-size:1.25rem; white-space:normal; overflow-wrap:anywhere; }
 .detail-secondary .stat small { font-size:.8125rem; text-transform:none; }
 .detail-secondary .stat i { font-size:.8125rem; margin-left:2px; font-style:normal; font-weight:400; }
-.detail-highlights { display:flex; flex-wrap:wrap; gap:8px 10px; margin-top:4px; }
+.detail-highlights { display:flex; flex-wrap:wrap; gap:8px 10px; margin-top:8px; }
 .detail-highlight { display:inline-flex; align-items:center; gap:4px; min-height:44px; min-width:0; padding:0; border:0; background:none; color:var(--accent); font-size:.8125rem; text-align:left; overflow-wrap:anywhere; }
 .detail-highlight svg { flex:none; width:16px; height:16px; }
 .detail-social { display:flex; align-items:center; gap:8px; margin-top:0; }

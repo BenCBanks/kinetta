@@ -21,6 +21,7 @@ try:
     defaults=req(owner,'GET','/api/me')
     assert defaults['profile_layout']['sections']==['recent','mileage','totals','sports','activities']
     assert defaults['setup_hidden'] is False
+    req(owner,'PUT','/api/sharing',{'details':{'heart_rate':False}})
     layout={'sections':['activities','recent','sports'],'stats':['active_days','time'],'sports':['ride','run']}
     req(owner,'PUT','/api/account',{'name':'Layout Fixture','bio':'Draft saved together','profile_layout':layout})
     saved=req(owner,'GET','/api/me')
