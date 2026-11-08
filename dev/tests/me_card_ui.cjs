@@ -96,6 +96,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();await p.locator('[data-card-edit]').click();
    const list=p.locator('[data-featured-list]');await list.waitFor();await p.waitForFunction(()=>document.querySelector('[data-featured-list]')?.getAttribute('aria-busy')==='false');await list.scrollIntoViewIfNeeded();
    const selected=()=>p.locator('.me-featured-selected [data-featured-toggle]');
+   const waitForSelected=expected=>p.waitForFunction(expected=>JSON.stringify([...document.querySelectorAll('.me-featured-selected [data-featured-toggle]')].map(n=>n.dataset.featuredToggle))===JSON.stringify(expected),expected,{timeout:5000});
    assert.deepEqual(await selected().evaluateAll(nodes=>nodes.map(n=>n.dataset.featuredToggle)),['journey','workouts','lifted'],`Edit profile shows the saved featured order: ${await list.innerText()}; page errors: ${JSON.stringify(errors)}`);
    assert.equal(await p.locator('.me-featured-editor [data-featured-toggle="active_time"]').count(),0,'the editor offers only tracks in the server earned set');
    assert.match(await p.locator('.me-editor-featured-note').innerText(),/save immediately; Cancel won't undo them/i,'the copy explains featured changes save immediately');
@@ -106,11 +107,14 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    if(checkpoint)return;
    const waitSave=()=>p.waitForResponse(response=>response.url()===base+'/api/achievements/showcase/pins'&&response.request().method()==='PUT');
    let response=waitSave();await p.locator('[data-featured-toggle="sport:run"]').click();assert.equal((await response).status(),200);
+   await waitForSelected(['journey','workouts','lifted','sport:run']);
    assert.deepEqual(pinOrderRequests.at(-1),['journey','workouts','lifted','sport:run'],'adding an earned achievement saves all four ordered pins');
    assert.equal(await selected().count(),4);assert.equal(await p.locator('[data-featured-toggle="consistency"]').isDisabled(),true,'the fifth earned achievement is disabled at the limit');
    response=waitSave();await p.locator('[data-featured-move="workouts"][data-step="-1"]').click();assert.equal((await response).status(),200);
+   await waitForSelected(['workouts','journey','lifted','sport:run']);
    assert.deepEqual(await selected().evaluateAll(nodes=>nodes.map(n=>n.dataset.featuredToggle)),['workouts','journey','lifted','sport:run'],'move controls save the new order');
    response=waitSave();await p.locator('.me-featured-selected [data-featured-toggle="lifted"]').click();assert.equal((await response).status(),200);
+   await waitForSelected(['workouts','journey','sport:run']);
    assert.deepEqual(await selected().evaluateAll(nodes=>nodes.map(n=>n.dataset.featuredToggle)),['workouts','journey','sport:run'],'a selected achievement can be removed');
    failFeatureSave=true;response=waitSave();await p.locator('[data-featured-toggle="climbing"]').click();assert.equal((await response).status(),503);
    await p.waitForFunction(()=>document.querySelector('[data-card-status]')?.textContent==='Fictional save failure');
