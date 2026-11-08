@@ -202,6 +202,8 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    const sectionGap=await p.evaluate(()=>{const card=document.querySelector('.me-card').getBoundingClientRect(),today=document.querySelector('.me-today').getBoundingClientRect();return today.top-card.bottom;});
    assert(Math.abs(sectionGap-16)<1,`Me card and Today use a 16px section gap (${sectionGap}px)`);
    const meCard=p.locator('.me-card'),share=p.locator('[data-card-share]');
+   const waitFeatured=()=>meCard.locator('[data-me-featured][data-loaded="true"]').waitFor({state:'attached'});
+   await waitFeatured();
    const meCardSnapshot=()=>meCard.evaluate(n=>{
     const copy=n.cloneNode(true);
     // Milestones.mount is a separate async page component inside the profile card.
@@ -211,7 +213,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    const meCardBefore=await meCardSnapshot();
    const shareLabel=await share.getAttribute('aria-label');assert.equal(shareLabel,'Share your profile');
    const checkTodayState=async(state)=>{
-    if(state!==todayFixture){todayFixture=state;await p.goto(base+'/me');await waitApp(p);await p.locator('#t-today[data-loaded-day]').waitFor({state:'attached'});await p.locator('.me-card-weekly .me-week').nth(11).waitFor();}
+    if(state!==todayFixture){todayFixture=state;await p.goto(base+'/me');await waitApp(p);await p.locator('#t-today[data-loaded-day]').waitFor({state:'attached'});await p.locator('.me-card-weekly .me-week').nth(11).waitFor();await waitFeatured();}
     const today=p.locator('#t-today'),section=today.locator('.me-today'),activity=today.locator('[data-today-activity]'),food=today.locator('[data-today-food]');
     assert.equal(await meCardSnapshot(),meCardBefore,'Today state changes leave Me card markup unchanged (milestones load separately)');
     assert.equal(await share.getAttribute('aria-label'),shareLabel,'the Me card share control stays unchanged');
