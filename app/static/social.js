@@ -32,7 +32,9 @@ function orderedReactionKinds(state){
 function reactionSummary(state){
   const used=orderedReactionKinds(state),shown=used.slice(0,3),extra=used.length-shown.length;
   const html=shown.map(([kind,label])=>'<span class="reaction-summary-emoji" data-summary-kind="'+esc(kind)+'">'+reactionMark(kind)+'<span class="reaction-summary-count">'+reactionNumber(state.reactions[kind])+'</span></span>').join('')+(extra?'<span class="reaction-summary-more">+'+extra+'</span>':'');
-  const label=used.length?'See who reacted: '+used.map(([kind,name])=>name+' '+reactionNumber(state.reactions[kind])).join(', '):'See who reacted';
+  const visible=shown.map(([kind,,emoji])=>emoji+reactionNumber(state.reactions[kind])).join('')+(extra?'+'+extra:'');
+  const names=used.map(([kind,name])=>name+' '+reactionNumber(state.reactions[kind])).join(', ');
+  const label=used.length?'See who reacted: '+visible+' ('+names+')':'See who reacted';
   return{used,html,label};
 }
 function reactionButtons(aid,s,detail=false,compact=false,moment=null,groupTarget=null){

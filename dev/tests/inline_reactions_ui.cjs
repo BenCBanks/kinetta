@@ -62,7 +62,7 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
     }
     if(phase==='after'){
      const card=p.locator('article.post').filter({hasText:'Fictional mixed run'});await card.evaluate(n=>n.querySelector('[data-reaction-group]')._sync({my_reaction:'muscle',reactions:{clap:999999,muscle:1234567,fire:12000}}));
-     const group=card.locator('[data-reaction-group]');assert.equal(await group.locator('.reaction-more').getAttribute('aria-label'),'Your reaction: flexed biceps. Change reaction');assert.equal(await group.locator('.reaction-count').getAttribute('aria-label'),'See who reacted: flexed biceps 1.2M, clapping hands 1M, fire 12K');
+     const group=card.locator('[data-reaction-group]');assert.equal(await group.locator('.reaction-more').getAttribute('aria-label'),'Your reaction: flexed biceps. Change reaction');assert.equal(await group.locator('.reaction-count').getAttribute('aria-label'),'See who reacted: 💪1.2M👏1M🔥12K (flexed biceps 1.2M, clapping hands 1M, fire 12K)');
      const numbers=await group.locator('.num:visible').evaluateAll(ns=>ns.map(n=>{const ink=document.createRange();ink.selectNodeContents(n);const a=ink.getBoundingClientRect(),b=n.closest('button').getBoundingClientRect();return{value:n.textContent,ink:{left:a.left,right:a.right},target:{left:b.left,right:b.right},font:getComputedStyle(n).fontSize};}));assert(numbers.every(n=>n.ink.left>=n.target.left-.5&&n.ink.right<=n.target.right+.5),'Large displayed counts fit their whole targets: '+JSON.stringify({size,theme,numbers}));
     }
     assert.deepEqual(errors,[]);
