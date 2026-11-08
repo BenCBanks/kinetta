@@ -152,8 +152,8 @@ function manualDishFood(d,set,opts={}){
         // manual form first; the final choice closes the whole flow below.
         finish();
         sheet('Choose recipe nutrition',`<p>You added this food as an ingredient. This recipe still uses its saved total instead of adding up its ingredients.</p><div class="actions"><button type="button" class="ghost" id="manual-keep-total">Keep that total</button><button type="button" class="primary" id="manual-use-ingredients">Use ingredient totals</button></div>`,(b,close)=>{
-        guardFoodSheet(b,close,readOwner());$('#manual-keep-total',b).onclick=()=>close.closeAll?.(true);
-        $('#manual-use-ingredients',b).onclick=async e=>{e.target.disabled=true;try{set(await api(`/api/dishes/${d.id}`,json('PATCH',{...Object.fromEntries(FOOD_NUTRIENTS.map(k=>['known_'+k,null])),use_ingredients:true})));close.closeAll?.(true);}catch(x){toast(x.message);e.target.disabled=false;}};
+        guardFoodSheet(b,close,readOwner());$('#manual-keep-total',b).onclick=()=>close.closeAll(true);
+        $('#manual-use-ingredients',b).onclick=async e=>{e.target.disabled=true;try{set(await api(`/api/dishes/${d.id}`,json('PATCH',{...Object.fromEntries(FOOD_NUTRIENTS.map(k=>['known_'+k,null])),use_ingredients:true})));close.closeAll(true);}catch(x){toast(x.message);e.target.disabled=false;}};
         },{flow:'auto'});
         return false;
       }
@@ -187,8 +187,8 @@ function plusMenu(el, d, set) {
     <button class="ghost" id="pm-known">${svg('edit')}Manually add a food</button>
     <button class="ghost recipe-source-entry" id="pm-recipes">Recipes${svg('chev')}</button></div>`, (b, close) => {
     $('#pm-scan', b).onclick = () => scanSheet(null, null, (f) => foodToDish(d, f, set));
-    const label = $('#pm-label', b); if (label) label.onclick = () => { close.closeAll?.(true); if (!close.closeAll) close(); el._label(); };
-    $('#pm-search', b).onclick = () => { close.closeAll?.(true); if (!close.closeAll) close(); el._search && el._search(); };
+    const label = $('#pm-label', b); if (label) label.onclick = () => { close.closeAll(true); el._label(); };
+    $('#pm-search', b).onclick = () => { close.closeAll(true); el._search && el._search(); };
     $('#pm-known', b).onclick = () => manualDishFood(d,set,{flow:'auto'});
     $('#pm-recipes', b).onclick = () => recentRecipesSheet(d,set);
   },{flow:'auto'});
@@ -250,7 +250,7 @@ function recipeAmountSheet(d,recipe,set,{chatMessage=null,initialGrams=null}={})
       try{
         const result=await api(`/api/dishes/${d.id}/items/recipe`,json('POST',body));if(!live())return;
         if(chatMessage){chatMessage.text=`Added ${recipe.name.toLowerCase()} (${gfmt(result.grams)}).`;chatMessage.added=result.added;delete chatMessage.clarification;}
-        set(result.dish);close.closeAll?.(true);if(!close.closeAll)close();if(!chatMessage)toast(`Added ${recipe.name}`);
+        set(result.dish);close.closeAll(true);if(!chatMessage)toast(`Added ${recipe.name}`);
       }catch(x){
         if(!live())return;error.textContent=x.message;error.hidden=false;busy=false;$$('[data-recipe-mode],#recipe-one-cup',b).forEach(button=>button.disabled=false);update();
       }
@@ -303,10 +303,10 @@ function foodToDish(d, f, set) {
       const sb = $('button.primary', fm); sb.disabled = true;
       try {
         set(await api(`/api/dishes/${d.id}/items`, json('POST', {name: [f.brand, f.name].filter(Boolean).join(' ').slice(0, 200), grams: g, per100: p, source: f.source || 'off', ref: f.id ? {id: f.id} : null})));
-        close.closeAll?.(true);if(!close.closeAll)close(); toast(`Added ${f.name}: ${gfmt(g)}`);
+        close.closeAll(true); toast(`Added ${f.name}: ${gfmt(g)}`);
       } catch (x) { toast(x.message); sb.disabled = false; }
     };
-  },{flow:'auto'});
+  });
 }
 // Log a dish (Add food > Saved Dishes, or a friend's dish). One question only, the way the dish is measured (Ben,
 // 2026-10-12): by servings -> how many servings (½ steps); by weight -> your portion in grams. w = {day, meal} from Add food.
@@ -442,7 +442,7 @@ function labelButton(el, d, set) {
               kcal: S.kcal, protein_g: S.protein_g, carbs_g: S.carbs_g, fat_g: S.fat_g, fiber_g: S.fiber_g, ...Object.fromEntries(EXTRA_NUTRIENTS.map(([k])=>[k,S[k]??null])), favorite: false}));
             invalidate('/api/food/foods');
           }
-          close.closeAll?.(true);if(!close.closeAll)close();toast(`Added ${name}: ${gfmt(g)}${f.save.checked ? ', saved to My foods' : ''}`);
+          close.closeAll(true);toast(`Added ${name}: ${gfmt(g)}${f.save.checked ? ', saved to My foods' : ''}`);
         } catch (x) { toast(x.message); sb.disabled = false; }
       };
     });
@@ -638,7 +638,7 @@ function typeSheet(name, grams, done, opts = {}) {
           const value=values[key];if(value==null)continue;
           if(!Number.isFinite(value)||value<0||value>limit||(key==='grams'&&value===0))throw Object.assign(Error(key==='grams'?'Enter a weight above zero and up to 30,000 g, or leave it blank.':'Enter a number from 0 to '+limit.toLocaleString()+' for this amount of food.'),{field:key});
         }
-        if (await done(values,close)){close.closeAll?.(true);if(!close.closeAll)close();}else btn.disabled=false;
+        if (await done(values,close)){close.closeAll(true);}else btn.disabled=false;
       } catch (error) {
         $('#ty-error',b).textContent=error.message;btn.disabled=false;
         const field=f.elements[error.field];if(field){field.setAttribute('aria-invalid','true');field.setAttribute('aria-describedby','ty-error');field.oninput=()=>field.removeAttribute('aria-invalid');field.focus();}

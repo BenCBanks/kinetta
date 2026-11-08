@@ -706,7 +706,7 @@ const FoodThread = (() => {
         $$('[data-clone]',b).forEach(x=>x.onclick=()=>{const target=$$('.thread-tools button',menu)[+x.dataset.clone];
           // Camera and Photo hand control to the native picker. Close the flow first so
           // cancelling that picker cannot strand an inert Add food sheet underneath it.
-          if(target?.dataset.tool==='snap'||target?.dataset.tool==='library'){close.closeAll?.(true);if(!close.closeAll)close();}
+          if(target?.dataset.tool==='snap'||target?.dataset.tool==='library'){close.closeAll(true);}
           target?.click();
         });},{flow:'new'});};
     plus.onclick=()=>openMenu(true);
