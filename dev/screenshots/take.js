@@ -181,11 +181,14 @@ async function say(page, text) {
         const emojiNodes=summary.locator('.reaction-summary-emoji .reaction-emoji'),counts=summary.locator('.reaction-summary-count');
         await react.waitFor({state:'visible'});await emojiNodes.first().waitFor({state:'visible'});
         const kinds=(await group.getAttribute('data-reaction-order')||'').split(',').filter(Boolean);
-        const shown=await emojiNodes.allTextContents(),values=await counts.allTextContents(),comment=group.locator('.activity-comments');
+        const shown=await emojiNodes.allTextContents(),values=await counts.allTextContents();
         const reactLabel=await react.getAttribute('aria-label'),reactText=(await react.innerText()).trim();
         if(reactLabel!=='React'||reactText!=='React'||!await summaryButton.isVisible()||kinds.length!==3||!['clap','starstruck','mindblown'].every(kind=>kinds.includes(kind))||shown.length!==3||!['👏','🤩','🤯'].every(value=>shown.includes(value))||values.length!==3||values.some(value=>value.trim()!=='1')||await summaryButton.locator('.num').count())throw Error('Demo feed must show React and each of three native emoji with its own count');
         if(!await group.evaluate(el=>{
-          const action=el.querySelector('.reaction-more'),comments=el.querySelector('.activity-comments'),button=el.querySelector('.reaction-count'),footer=el.closest('.post-ft'),style=getComputedStyle(footer),contentRight=footer.getBoundingClientRect().right-(parseFloat(style.paddingRight)||0);
+          const footer=el.closest('.post-ft');
+          const action=footer?.querySelector('.reaction-more'),comments=footer?.querySelector('.activity-comments'),button=el.querySelector('.reaction-count');
+          if(!footer||!action||!comments||!button)return false;
+          const style=getComputedStyle(footer),contentRight=footer.getBoundingClientRect().right-(parseFloat(style.paddingRight)||0);
           const rects=[action,comments,button].map(node=>node.getBoundingClientRect()),actionRect=rects[0],commentRect=rects[1],buttonRect=rects[2];
           const limit=document.querySelector('nav.tabs').getBoundingClientRect().top;
           return rects.every(r=>r.width>0&&r.height>0&&r.left>=0&&r.right<=innerWidth&&r.top>=59&&r.bottom<=limit)
