@@ -12,7 +12,7 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
   if(process.env.THEME&&process.env.THEME!==theme||process.env.WIDTH&&Number(process.env.WIDTH)!==width)continue;
   const c=await browser.newContext({viewport:{width,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true});
   try{
-   const p=await c.newPage(),errors=[],checks=[],signups=[],accepts=[],joins=[];let oldRelease=null,saveRelease=null,saveFailure=true,closed=true;
+   const p=await c.newPage(),errors=[],checks=[],signups=[],accepts=[],joins=[],resends=[],forgot=[];let oldRelease=null,saveRelease=null,saveFailure=true,closed=true;
    p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!m.text().startsWith('Failed to load resource'))errors.push(m.text());});
    await c.route('**/*',async r=>{
     const request=r.request(),u=new URL(request.url());if(u.origin!==base)return r.abort();
@@ -22,9 +22,17 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
      if(value==='old_choice')return new Promise(resolve=>{oldRelease=()=>r.fulfill({json:{login:value,available:false,reason:'taken',suggestion:'old_choice2'}}).catch(()=>{}).then(resolve);});
      return r.fulfill({json:value==='taken_name'?{login:value,available:false,reason:'taken',suggestion:'taken_name2'}:value==='admin'?{login:value,available:false,reason:'reserved',message:'That username is reserved. Choose another.'}:{login:value.trim().toLowerCase(),available:true}});
     }
-    if(u.pathname==='/api/signup'&&request.method()==='POST'){signups.push(request.postDataJSON());return r.fulfill({status:409,json:{detail:{code:'email_exists',message:"There's already a Kinetta account with this email"}}});}
+    if(u.pathname==='/api/signup'&&request.method()==='POST'){
+     const body=request.postDataJSON();signups.push(body);
+     if(body.email==='fresh@example.invalid')return r.fulfill({json:{ok:true,pending:body.email,login:'fictional_casey'}});
+     const pending=body.email==='pending@example.invalid';return r.fulfill({status:409,json:{detail:{code:pending?'email_waiting_for_confirmation':'email_exists',message:pending?'This email is waiting for confirmation.':"There's already a Kinetta account with this email"}}});
+    }
+    if(u.pathname==='/api/account/email/resend'&&request.method()==='POST'){resends.push(request.postDataJSON());return r.fulfill({json:{ok:true,message:'If that account is waiting for confirmation, we’ve sent a new link. Check your inbox and spam folder.'}});}
+    if(u.pathname==='/api/password/forgot'&&request.method()==='POST'){forgot.push(request.postDataJSON());return r.fulfill({json:{ok:true,message:'If that matches an account, we’ve sent a link to reset the password. Check your inbox and spam folder.'}});}
     if(u.pathname==='/api/login'){
-     const body=request.postDataJSON();assert.equal(body.login,login);assert.equal(body.password,password);
+     const body=request.postDataJSON();
+     if(body.login==='pending@example.invalid')return r.fulfill({status:409,json:{detail:{code:'email_waiting_for_confirmation',message:'This account is waiting for email confirmation.'}}});
+     assert.equal(body.login,login);assert.equal(body.password,password);
      const response=await c.request.post(base+'/api/login',{headers:{Origin:base},data:body});return r.fulfill({response});
     }
     if(u.pathname==='/api/join/'+token)return r.fulfill({json:{email:true,inviter:'@casey',card:null,challenge:null}});
@@ -41,7 +49,14 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
    const fit=async()=>assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'No horizontal overflow');
    await p.goto(base+fixture.friend_path);await p.locator('#iv-login').waitFor();assert.equal(await p.locator('#iv-signup').count(),0);assert(!((await p.locator('.form').innerText()).includes('Create an account')));assert.match(await p.locator('.form').innerText(),/account invitation/);
    assert(await p.evaluate(w=>{const h=document.querySelector('h1').getBoundingClientRect(),body=document.querySelector('.form>p').getBoundingClientRect();return document.documentElement.scrollWidth<=w+1&&h.left>=0&&h.right<=w&&body.left>=0&&body.right<=w;},width),'Long inviter heading and body stay within viewport');await shot('friend-invitation-closed');closed=false;cases++;
-   await p.goto(base+'/signup');await p.locator('details.username-choice').waitFor();assert.equal(checks.length,0,'No checks before typing');
+   await p.evaluate(()=>store.del('kinetta.friendLink'));await p.goto(base+'/signup');await p.locator('details.username-choice').waitFor();assert.equal(checks.length,0,'No checks before typing');
+   const passwordField=p.locator('input[name=password]'),passwordToggle=p.locator('.password-visibility-button');
+   assert.equal(await passwordToggle.count(),1,'Signup has one show-password control');
+   assert.equal(await p.locator('.password-toggle').count(),0,'Signup does not add a duplicate password control');
+   const eye=await passwordToggle.boundingBox();assert(eye.width>=44&&eye.height>=44,'Show-password control meets the touch target');
+   await shot('signup-form');await passwordField.fill('fictional long passphrase');
+   await passwordField.evaluate(n=>n.setSelectionRange(2,9,'forward'));await passwordToggle.tap();assert.equal(await passwordField.getAttribute('type'),'text');assert.equal(await passwordField.inputValue(),'fictional long passphrase');assert(await passwordField.evaluate(n=>n===document.activeElement&&n.selectionStart===2&&n.selectionEnd===9));assert.equal(await passwordToggle.getAttribute('aria-pressed'),'true');
+   await passwordToggle.tap();assert.equal(await passwordField.getAttribute('type'),'password');assert.equal(await passwordToggle.getAttribute('aria-label'),'Show password');
    await p.locator('details.username-choice summary').click();const field=p.locator('input[name=login]');
    await field.fill('a');await p.waitForTimeout(100);await field.fill('available_name');await p.waitForTimeout(150);assert.equal(checks.length,0,'400ms debounce');
    await until(p,()=>document.querySelector('.username-status')?.textContent.includes('Available'),'Available feedback');assert.equal(checks.length,1);
@@ -49,9 +64,18 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
    await field.fill('taken_name');assert.equal(await p.locator('.username-status').textContent(),'');await until(p,()=>document.querySelector('.username-status')?.textContent.includes('Try @taken_name2'),'Taken suggestion');await shot('signup-taken');cases+=2;
    await field.fill('old_choice');for(let n=0;n<100&&!oldRelease;n++)await p.waitForTimeout(20);assert(oldRelease);
    await field.fill('new_choice');await until(p,()=>document.querySelector('.username-status')?.textContent.includes('@new_choice'),'Newer availability');await oldRelease();await p.waitForTimeout(100);assert.match(await p.locator('.username-status').textContent(),/@new_choice/);assert(await field.evaluate(n=>n===window.originalUsername));cases++;
-   await p.locator('input[name=name]').fill('Casey Example');await p.locator('input[name=email]').fill('registered@example.invalid');await p.locator('input[name=password]').fill('fictional long passphrase');await p.locator('input[name=age_ok]').check();
-   await p.locator('button[type=submit]').click();await p.locator('[data-email-login]').waitFor();assert.equal(signups.length,1);assert.equal(signups[0].login,'new_choice');assert.equal(await p.locator('input[name=password]').inputValue(),'fictional long passphrase');assert.equal(await p.locator('#enrollment-email-exists').getAttribute('aria-live'),'polite');await shot('signup-email-exists');await fit();cases++;
-   await p.locator('[data-email-login]').click();await p.locator('input[name=login]').waitFor();assert.equal(await p.locator('input[name=login]').inputValue(),'registered@example.invalid');cases++;
+   await p.locator('input[name=name]').fill('Casey Example');await p.locator('input[name=email]').fill('pending@example.invalid');await p.locator('input[name=password]').fill('fictional long passphrase');await p.locator('input[name=age_ok]').check();
+   await p.locator('button[type=submit]').click();await p.locator('[data-email-resend]').waitFor();assert.equal(signups.length,1);assert.equal(signups[0].login,'new_choice');assert.equal(await p.locator('input[name=password]').inputValue(),'fictional long passphrase');assert.equal(await p.locator('#enrollment-email-exists').getAttribute('aria-live'),'polite');assert.equal(await p.locator('[data-email-reset]').count(),1);await shot('signup-email-pending');await fit();cases++;
+   await p.locator('[data-email-resend]').click();await p.locator('.resend-status').filter({hasText:'we’ve sent a new link'}).waitFor();assert.deepEqual(resends.at(-1),{login:'pending@example.invalid'});
+   await p.locator('[data-email-reset]').click();await p.locator('input[name=login]').waitFor();assert.equal(await p.locator('input[name=login]').inputValue(),'pending@example.invalid');assert.equal(forgot.length,0);cases++;
+   await p.goto(base+'/signup');await p.locator('details.username-choice').waitFor();
+   await p.locator('input[name=name]').fill('New Member');await p.locator('input[name=email]').fill('fresh@example.invalid');await p.locator('input[name=password]').fill('fictional long passphrase');await p.locator('input[name=age_ok]').check();
+   await p.locator('button[type=submit]').click();await p.locator('#signup-continue').waitFor();assert.match(await p.locator('.signup-login-note').innerText(),/@fictional_casey/);assert.match(await p.locator('.signup-login-note').innerText(),/Log in with your email or @fictional_casey/);await shot('signup-confirmation');await fit();cases++;
+   await p.locator('#signup-resend').click();await p.locator('#signup-resend-status').filter({hasText:'we’ve sent a new link'}).waitFor();assert.deepEqual(resends.at(-1),{login:'fresh@example.invalid'});
+   await p.goto(base+'/');await p.locator('input[name=login]').waitFor();await p.locator('input[name=login]').fill('pending@example.invalid');await p.locator('input[name=password]').fill('fictional long passphrase');
+   await p.locator('button[type=submit]').click();await p.locator('#l-resend').waitFor();assert.equal(await p.locator('#l-reset').count(),1);await shot('login-pending');await fit();cases++;
+   await p.locator('#l-resend').click();await p.locator('#l-recovery-status').filter({hasText:'we’ve sent a new link'}).waitFor();assert.deepEqual(resends.at(-1),{login:'pending@example.invalid'});
+   await p.locator('#l-reset').click();await p.locator('input[name=login]').waitFor();assert.equal(await p.locator('input[name=login]').inputValue(),'pending@example.invalid');cases++;
    // Password-recovery navigation keeps only the validated local invitation origin.
    await p.goto(base+'/join/'+token);await p.locator('#j-login').waitFor();assert.equal(accepts.length,0);
    await p.locator('input[name=name]').fill('Invite Example');await p.locator('input[name=email]').fill('invited@example.invalid');await p.locator('input[name=password]').fill(password);

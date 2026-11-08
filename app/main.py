@@ -188,14 +188,18 @@ def login(body: Login, request: Request, response: Response, background: Backgro
         raise HTTPException(429, 'Too many tries - wait 15 minutes')
     try:
         with db.connect() as c:
-            # a username, or the account's confirmed email (2026-10-24)
+            # a username, or an email. A pending-signup email is checked here too so a correct password can
+            # get a confirmation offer; unknown emails and wrong passwords still follow the normal 401 path.
             who = body.login.strip()
-            u = c.execute(('SELECT id, name, pw_hash, suspended_at, password_change_expires FROM users WHERE email = %s AND email_verified_at IS NOT NULL' if '@' in who
-                           else 'SELECT id, name, pw_hash, suspended_at, password_change_expires FROM users WHERE login = %s'), (who,)).fetchone()
+            u = c.execute(('SELECT id, name, pw_hash, suspended_at, password_change_expires, email_verified_at IS NOT NULL AS email_confirmed, needs_email_confirm FROM users WHERE email = %s AND (email_verified_at IS NOT NULL OR needs_email_confirm)' if '@' in who
+                           else 'SELECT id, name, pw_hash, suspended_at, password_change_expires, email_verified_at IS NOT NULL AS email_confirmed, needs_email_confirm FROM users WHERE login = %s'), (who,)).fetchone()
             ok = auth.check_pw(u['pw_hash'] if u else None, body.password)   # always hash-checks (same timing)
             if not u or not ok: raise auth.Failed(401, 'Wrong name or password')
             # said only after the right password, so it never reveals who has an account (#233)
             if u['suspended_at']: raise HTTPException(403, 'This account is suspended. Reply to any email from Kinetta, or ask the person who runs it.')
+            if u['needs_email_confirm'] and not u['email_confirmed']:
+                raise HTTPException(409, {'code': 'email_waiting_for_confirmation',
+                                          'message': 'This account is waiting for email confirmation.'})
             if u['password_change_expires']:
                 return admin_passwords.challenge(c, u['id'], u['password_change_expires'])
             token = auth.new_session(c, u['id'], request.headers.get('user-agent'),channel='app' if body.app else 'web', app_version=request.headers.get('x-kinetta-version') if body.app else None)

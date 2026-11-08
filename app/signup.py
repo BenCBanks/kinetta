@@ -102,6 +102,12 @@ def signup(body: SignupIn, request: Request, response: Response, background: Bac
         c.execute('LOCK TABLE users IN SHARE ROW EXCLUSIVE MODE')     # the cap holds even for simultaneous signups
         s = state(c)
         if not s['open'] and not s['full']: raise HTTPException(404, 'Not found')
+        pending = c.execute('''SELECT 1 FROM users WHERE lower(email::text) = lower(%s)
+                               AND email_verified_at IS NULL AND needs_email_confirm AND suspended_at IS NULL''',
+                            (email,)).fetchone()
+        if pending:
+            raise HTTPException(409, {'code': 'email_waiting_for_confirmation',
+                                      'message': 'This email is waiting for confirmation.'})
         account_email.require_available(c, email)
         if s['full']: raise HTTPException(409, {'code': 'full', 'message': 'Kinetta is full for now. Join the waitlist and we’ll let you know when there’s room.'})
         uid = _create(c, body)
