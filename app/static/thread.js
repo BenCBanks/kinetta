@@ -702,15 +702,20 @@ const FoodThread = (() => {
     // + opens the tools as an ordinary bottom sheet (owner: the inline panel looked out of place). The tool
     // buttons keep living in the hidden menu, so the sheet shows clones that click the real ones.
     const menu=$('#thread-menu',el),plus=$('#thread-plus',el),openMenu=open=>{if(!open)return;Native.haptic('selection');field.blur();
-      sheet('Add food',`<div class="thread-tools thread-tools-sheet">${$$('.thread-tools button',menu).map((b,i)=>`<button type="button" data-clone="${i}">${b.innerHTML}</button>`).join('')}</div>`,(b)=>{
-        $$('[data-clone]',b).forEach(x=>x.onclick=()=>{$$('.thread-tools button',menu)[+x.dataset.clone].click();});},{flow:'new'});};
+      sheet('Add food',`<div class="thread-tools thread-tools-sheet">${$$('.thread-tools button',menu).map((b,i)=>`<button type="button" data-clone="${i}">${b.innerHTML}</button>`).join('')}</div>`,(b,close)=>{
+        $$('[data-clone]',b).forEach(x=>x.onclick=()=>{const target=$$('.thread-tools button',menu)[+x.dataset.clone];
+          // Camera and Photo hand control to the native picker. Close the flow first so
+          // cancelling that picker cannot strand an inert Add food sheet underneath it.
+          if(target?.dataset.tool==='snap'||target?.dataset.tool==='library'){close.closeAll?.(true);if(!close.closeAll)close();}
+          target?.click();
+        });},{flow:'new'});};
     plus.onclick=()=>openMenu(true);
     $('#thread-review-add',el).onclick=()=>review(ctx,{allowUnsent:true,quickConfirm:!ctx.reviewForm&&!ctx.saveRecipe});
     $('#thread-review-sum',el).onclick=()=>review(ctx,{allowUnsent:true});
     $('#thread-manual-add',el).onclick=()=>typeSheet('', '', async values=>{
       const {grams,...nutrition}=values;
       await stage([{...nutrition,day:ctx.day||isoDay(new Date()),meal:ctx.meal||'snacks',amount:grams||1,unit:grams?'g':'serving',source:'quick'}]);return true;
-    });
+    },{flow:'auto'});
     const field=$('#thread-text',el);field.value=String(store.get(draftKey(owner))||'');
     const reuseBox=document.createElement('div');reuseBox.className='thread-reuse';reuseBox.hidden=true;
     reuseBox.setAttribute('role','group');reuseBox.setAttribute('aria-label','Reuse your foods');

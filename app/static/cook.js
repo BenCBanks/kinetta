@@ -144,15 +144,23 @@ function drawDish(el, d) {
 
 }
 
-function manualDishFood(d,set){
-  typeSheet('', '', async body=>{
+function manualDishFood(d,set,opts={}){
+  typeSheet('', '', async (body,finish)=>{
     try {const fresh=await api(`/api/dishes/${d.id}/items`,json('POST',body));set(fresh);toast('Food added to the recipe');
-      if(d.known.kcal!=null)sheet('Choose recipe nutrition',`<p>You added this food as an ingredient. This recipe still uses its saved total instead of adding up its ingredients.</p><div class="actions"><button type="button" class="ghost" id="manual-keep-total">Keep that total</button><button type="button" class="primary" id="manual-use-ingredients">Use ingredient totals</button></div>`,(b,close)=>{
-        guardFoodSheet(b,close,readOwner());$('#manual-keep-total',b).onclick=close;
-        $('#manual-use-ingredients',b).onclick=async e=>{e.target.disabled=true;try{set(await api(`/api/dishes/${d.id}`,json('PATCH',{...Object.fromEntries(FOOD_NUTRIENTS.map(k=>['known_'+k,null])),use_ingredients:true})));close();}catch(x){toast(x.message);e.target.disabled=false;}};
-      });return true;}
+      if(d.known.kcal!=null){
+        // The nutrition choice is the next step in this flow. Close only the
+        // manual form first; the final choice closes the whole flow below.
+        finish();
+        sheet('Choose recipe nutrition',`<p>You added this food as an ingredient. This recipe still uses its saved total instead of adding up its ingredients.</p><div class="actions"><button type="button" class="ghost" id="manual-keep-total">Keep that total</button><button type="button" class="primary" id="manual-use-ingredients">Use ingredient totals</button></div>`,(b,close)=>{
+        guardFoodSheet(b,close,readOwner());$('#manual-keep-total',b).onclick=()=>close.closeAll?.(true);
+        $('#manual-use-ingredients',b).onclick=async e=>{e.target.disabled=true;try{set(await api(`/api/dishes/${d.id}`,json('PATCH',{...Object.fromEntries(FOOD_NUTRIENTS.map(k=>['known_'+k,null])),use_ingredients:true})));close.closeAll?.(true);}catch(x){toast(x.message);e.target.disabled=false;}};
+        },{flow:'auto'});
+        return false;
+      }
+      return true;
+    }
     catch(e){toast(e.message);return false;}
-  });
+  },opts);
 }
 function finishDish(d){
   const owner=readOwner();
@@ -179,9 +187,9 @@ function plusMenu(el, d, set) {
     <button class="ghost" id="pm-known">${svg('edit')}Manually add a food</button>
     <button class="ghost recipe-source-entry" id="pm-recipes">Recipes${svg('chev')}</button></div>`, (b, close) => {
     $('#pm-scan', b).onclick = () => scanSheet(null, null, (f) => foodToDish(d, f, set));
-    const label = $('#pm-label', b); if (label) label.onclick = () => el._label();
-    $('#pm-search', b).onclick = () => el._search && el._search();
-    $('#pm-known', b).onclick = () => manualDishFood(d,set);
+    const label = $('#pm-label', b); if (label) label.onclick = () => { close.closeAll?.(true); if (!close.closeAll) close(); el._label(); };
+    $('#pm-search', b).onclick = () => { close.closeAll?.(true); if (!close.closeAll) close(); el._search && el._search(); };
+    $('#pm-known', b).onclick = () => manualDishFood(d,set,{flow:'auto'});
     $('#pm-recipes', b).onclick = () => recentRecipesSheet(d,set);
   },{flow:'auto'});
 }
@@ -209,7 +217,7 @@ function recentRecipesSheet(d,set) {
       }
     };
     load();
-  });
+  },{flow:'auto'});
 }
 
 function recipeAmountSheet(d,recipe,set,{chatMessage=null,initialGrams=null}={}) {
@@ -254,7 +262,7 @@ function recipeAmountSheet(d,recipe,set,{chatMessage=null,initialGrams=null}={})
       if(Number.isFinite(cupGrams)&&cupGrams>0&&cupGrams<20000){input.value=String(cupGrams);update();add('grams');return;}
       question.textContent='How many grams was that cup?';input.focus();
     };
-  });
+  },{flow:'auto'});
 }
 
 function recipeSourceHtml(d) {
@@ -273,7 +281,7 @@ function openRecipeSource(id,name,owner=readOwner()) {
       catch(e){if(!live())return;if(e.status===404)box.innerHTML='<div class="empty"><b>This recipe is no longer available</b><p>Ingredients already copied from it stay in your recipe.</p></div>';else box.innerHTML='<p class="small" role="alert">Couldn\'t open this recipe.</p><button type="button" class="linkbtn" id="recipe-source-retry">Try again</button>';const retry=$('#recipe-source-retry',box);if(retry)retry.onclick=load;}
     };
     load();
-  });
+  },{flow:'auto'});
 }
 
 // a scanned product: how much of it went in (grams, servings or the whole package), then it's an ingredient
@@ -295,10 +303,10 @@ function foodToDish(d, f, set) {
       const sb = $('button.primary', fm); sb.disabled = true;
       try {
         set(await api(`/api/dishes/${d.id}/items`, json('POST', {name: [f.brand, f.name].filter(Boolean).join(' ').slice(0, 200), grams: g, per100: p, source: f.source || 'off', ref: f.id ? {id: f.id} : null})));
-        close(); toast(`Added ${f.name}: ${gfmt(g)}`);
+        close.closeAll?.(true);if(!close.closeAll)close(); toast(`Added ${f.name}: ${gfmt(g)}`);
       } catch (x) { toast(x.message); sb.disabled = false; }
     };
-  });
+  },{flow:'auto'});
 }
 // Log a dish (Add food > Saved Dishes, or a friend's dish). One question only, the way the dish is measured (Ben,
 // 2026-10-12): by servings -> how many servings (½ steps); by weight -> your portion in grams. w = {day, meal} from Add food.
@@ -438,7 +446,7 @@ function labelButton(el, d, set) {
         } catch (x) { toast(x.message); sb.disabled = false; }
       };
     });
-    },{label:true,active});
+    },{flow:'auto',label:true,active});
   };
 }
 // remove an ingredient, with Undo (it goes back at the end of the list)
@@ -583,7 +591,7 @@ async function searchFlow(el, d, set, text) {
     catch (x) { toast(x.message); return false; }
     finally { busy = false;if(live())$('#dk-cancel-match',box).disabled=false; }
   };
-  $('#dk-type', box).onclick = () => typeSheet(q, gIn.value, add);
+  $('#dk-type', box).onclick = () => typeSheet(q, gIn.value, add, {flow:'auto'});
   if (!g0) gIn.focus();
   const foods = [];
   const draw = (groups) => {
@@ -609,7 +617,7 @@ async function searchFlow(el, d, set, text) {
     draw([['Yours', local.mine.concat(recent)], ['USDA', ext.usda], ['Open Food Facts', ext.off]]);
   } catch (x) { if (live()) res.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
 }
-function typeSheet(name, grams, done) {
+function typeSheet(name, grams, done, opts = {}) {
   sheet('Manually add a food', `<form class="form" id="ty"><label>Food name<input name="name" value="${esc(name)}" maxlength="120" required></label>
     <div class="two"><label>Weight (g)<input name="grams" inputmode="decimal" value="${esc(grams)}" placeholder="Optional"></label><label>Calories<input name="kcal" inputmode="decimal" required></label></div>
     <div class="two"><label>Protein (g)<input name="protein_g" inputmode="decimal"></label><label>Carbs (g)<input name="carbs_g" inputmode="decimal"></label></div>
@@ -630,13 +638,13 @@ function typeSheet(name, grams, done) {
           const value=values[key];if(value==null)continue;
           if(!Number.isFinite(value)||value<0||value>limit||(key==='grams'&&value===0))throw Object.assign(Error(key==='grams'?'Enter a weight above zero and up to 30,000 g, or leave it blank.':'Enter a number from 0 to '+limit.toLocaleString()+' for this amount of food.'),{field:key});
         }
-        if (await done(values)) close();else btn.disabled=false;
+        if (await done(values,close)){close.closeAll?.(true);if(!close.closeAll)close();}else btn.disabled=false;
       } catch (error) {
         $('#ty-error',b).textContent=error.message;btn.disabled=false;
         const field=f.elements[error.field];if(field){field.setAttribute('aria-invalid','true');field.setAttribute('aria-describedby','ty-error');field.oninput=()=>field.removeAttribute('aria-invalid');field.focus();}
       }
     };
-  });
+  },opts);
 }
 function itemSheet(d, it, set) {
   sheet(it.name, `<form class="form" id="it"><label>Weight<span class="gfield"><input name="g" inputmode="decimal" value="${it.grams==null?'':Math.round(it.grams * 10) / 10}" required><span>g</span></span></label>

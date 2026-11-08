@@ -128,7 +128,9 @@ function callLazyCookHelper(name, args, onFailure = null) {
   });
 }
 const lazyCookHelpers = {
-  typeSheet: (...args) => callLazyCookHelper('typeSheet', args),
+  // A failed deferred helper leaves the Add food flow on screen. Drop that stale
+  // flow so the same tap can retry instead of being intercepted by its scrim.
+  typeSheet: (...args) => callLazyCookHelper('typeSheet', args, () => SheetHistory.closeAll(SheetHistory.top(), true)),
   dishLogSheet: (...args) => callLazyCookHelper('dishLogSheet', args, () => args[3]?.onQuickFinish?.()),
   knownSheet: (...args) => callLazyCookHelper('knownSheet', args),
 };
@@ -613,47 +615,49 @@ const ModalStack = (() => {
   return {open,isTop,trap,top};
 })();
 const SheetHistory = (() => {
-  const field='kinettaSheetFlow';let nextId=0,skipPop=0;
   const top=()=>ModalStack.top()?._sheetFlow||null;
-  const create=()=>({id:`sheet-${++nextId}`,path:location.pathname+location.search,items:[],active:true,ending:false,pendingBack:0});
+  const create=()=>({items:[],active:true,ending:false,backing:false,backTimer:null,restoreScroll:null});
   const depth=flow=>flow.items.length-1;
   function add(flow,node,closeStep){
     const step=flow.items.length,entry={node,step,closeStep};flow.items.push(entry);node._sheetFlow=flow;node._sheetStep=step;
-    if(step>0)history.pushState({...history.state,[field]:{id:flow.id,step}},'',location.href);
     return entry;
   }
-  function closed(flow,entry,fromPop){
+  function closed(flow,entry){
     if(!flow||!entry)return;
-    const at=flow.items.indexOf(entry);if(at<0)return;
-    const wasTop=at===flow.items.length-1;flow.items.splice(at,1);
+    const at=flow.items.indexOf(entry);if(at<0)return;flow.items.splice(at,1);
     if(!flow.items.length)flow.active=false;
-    if(wasTop&&at>0&&!fromPop&&!flow.ending&&flow.active){flow.pendingBack++;history.back();}
   }
-  function closeAll(flow,force=false,cleanHistory=true){
+  function closeAll(flow,force=false){
     if(!flow?.active)return true;
-    const state=history.state?.[field],stateDepth=state?.id===flow.id?Number(state.step)||0:depth(flow),pending=flow.pendingBack;
     if(!force&&flow.items.some(item=>item.node._sheetCanClose&&!item.node._sheetCanClose()))return false;
+    if(flow.backTimer){clearTimeout(flow.backTimer);flow.backTimer=null;}
+    flow.backing=false;flow.restoreScroll=null;
     flow.ending=true;
     for(const item of [...flow.items].reverse())item.closeStep(true,true);
-    flow.active=false;flow.ending=false;flow.pendingBack=0;
-    if(cleanHistory){const back=Math.max(0,stateDepth-pending);skipPop+=pending+(back?1:0);if(back)history.go(-back);}
+    flow.active=false;flow.ending=false;
     return true;
   }
-  function back(flow){if(flow?.active&&depth(flow)>0)history.back();}
-  function pop(event){
-    if(skipPop){skipPop--;return true;}
-    const flow=top();if(!flow?.active)return false;
-    if(location.pathname+location.search!==flow.path){closeAll(flow,true,false);return false;}
-    if(flow.pendingBack){flow.pendingBack--;return true;}
-    const marker=event.state?.[field],target=marker?.id===flow.id?Number(marker.step)||0:0;
-    if(depth(flow)>0){
-      if(target>=depth(flow))return false;
-      while(depth(flow)>target){const item=flow.items.at(-1);if(!item.closeStep(false,true)){skipPop++;history.forward();return true;}}
-      return true;
+  function back(flow){
+    if(!flow?.active||depth(flow)<=0)return false;
+    if(flow.backing){
+      const saved=flow.restoreScroll;if(saved?.node?.isConnected)saved.node.scrollTop=saved.top;
+      return false;
     }
-    if(marker?.id===flow.id&&target===0)return true;
-    closeAll(flow,true,false);return false;
+    const parent=flow.items.at(-2)?.node?.querySelector('.sheet');flow.restoreScroll=parent?{node:parent,top:parent.scrollTop}:null;
+    flow.backing=true;
+    const result=flow.items.at(-1).closeStep(false,false);
+    if(result===true){
+      // closeStep removes the entry immediately, while the sheet animation still
+      // runs. Ignore another tap/Escape during that interval so it cannot pop the
+      // newly exposed parent as well.
+      requestAnimationFrame(()=>{const saved=flow.restoreScroll;if(saved?.node?.isConnected)saved.node.scrollTop=saved.top;});
+      flow.backTimer=setTimeout(()=>{flow.backTimer=null;flow.backing=false;flow.restoreScroll=null;},260);
+    }else {flow.backing=false;flow.restoreScroll=null;}
+    return result;
   }
+  // Sheets deliberately do not add browser history entries. Browser Back keeps its normal route behavior;
+  // the in-memory stack handles only the explicit chevron, Escape, scrim and swipe gestures.
+  function pop(){return false;}
   return {top,create,depth,add,closed,closeAll,back,pop};
 })();
 function sheet(title, html, onMount, opts = {}) {
@@ -662,7 +666,7 @@ function sheet(title, html, onMount, opts = {}) {
   const notice = $('#toast');
   if (notice && !$('button', notice)) notice.classList.remove('on'); // an old hint must not cover the new sheet; retain Undo
   const prev = document.activeElement;
-  const inherited=SheetHistory.top(),flow=opts.flow==='new'?SheetHistory.create():opts.flow==='auto'?(inherited||SheetHistory.create()):opts.flow===false?null:inherited;
+  const inherited=SheetHistory.top(),flow=opts.flow==='new'?SheetHistory.create():opts.flow==='auto'?(inherited||SheetHistory.create()):null;
   const flowStep=flow?SheetHistory.depth(flow)+1:-1;
   const s = document.createElement('div'); s.className = 'scrim';
   const head = opts.save ? `<button type="button" class="sheet-text-btn" data-close>Cancel</button><h2>${esc(title)}</h2><button type="submit" class="sheet-text-btn save" form="${esc(opts.save)}">Save</button>`
@@ -692,7 +696,7 @@ function sheet(title, html, onMount, opts = {}) {
       const timer = setTimeout(remove, 220); // background tabs and interrupted animations still clean up
     }
     if (prev && prev.isConnected && prev.focus) prev.focus({preventScroll: true});
-    SheetHistory.closed(flow,flowEntry,fromPop);
+    SheetHistory.closed(flow,flowEntry);
     return true;
   };
   const onKey = (e) => {
@@ -718,8 +722,8 @@ function sheet(title, html, onMount, opts = {}) {
   let edgeStart=null,edgeDx=0,edgeDy=0,edgeBack=false;
   const settle = (shut) => { if (shut) { if(flow)SheetHistory.closeAll(flow);else close(); return; } sh.classList.add('settle'); sh.style.transform = ''; setTimeout(() => sh.classList.remove('settle'), 200); };
   sh.addEventListener('touchstart', (e) => {
-    if (e.touches.length !== 1 || e.target.closest('button, a, input, select, textarea, [contenteditable="true"], .tblwrap, .hgrid, .chips, .social-sheet .comments, .fitness-inspect .chartbox')) { ty = null; return; }
-    const touch=e.touches[0];edgeStart=flow&&flowStep>0&&touch.clientX<=24?{x:touch.clientX,y:touch.clientY}:null;edgeDx=edgeDy=0;edgeBack=false;
+    const touch=e.touches[0];edgeStart=flow&&flowStep>0&&e.touches.length===1&&touch.clientX<=24?{x:touch.clientX,y:touch.clientY}:null;edgeDx=edgeDy=0;edgeBack=false;
+    if (e.touches.length !== 1 || e.target.closest('input, select, textarea, [contenteditable="true"], .tblwrap, .hgrid, .chips, .social-sheet .comments, .fitness-inspect .chartbox')) { ty = null; return; }
     ty = touch.clientY; dy = 0; dragging = false;
     fromTop = !!e.target.closest('.grab, header') || sh.scrollTop <= 0;
   }, {passive: true});
