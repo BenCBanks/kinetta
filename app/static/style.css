@@ -3214,14 +3214,12 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .seg-rules > summary svg { flex:none; width:16px; height:16px; margin-left:auto; }
 .seg-rules[open] > summary svg { transform:rotate(90deg); }
 
-/* Move Challenges below the header only when the full-size actions cannot fit beside the title. */
+/* Keep Challenges available below the Home header at every width. */
 .activity-home #feed-top .top,.activity-home #feed-top .acts {flex-wrap:nowrap;}
-.feed-challenges-shortcut {display:none;margin-bottom:12px;}
+.feed-challenges-shortcut {display:flex;margin-bottom:12px;}
 .activity-home #feed-tools .feed-find-friends {min-height:56px;margin-bottom:8px;gap:8px;border-top:0;}
 .activity-home #feed-tools .feed-find-friends .ri {display:grid;place-items:center;width:24px;height:24px;flex:none;color:var(--accent);}
 .activity-home #feed-tools .feed-find-friends .ri svg {width:22px;height:22px;}
-.activity-home[data-compact-actions] [data-feed-challenges] {display:none;}
-.activity-home[data-compact-actions] .feed-challenges-shortcut {display:flex;}
 @media(max-width:360px) {
  .activity-home .post-hd.post-profile {display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:8px;}
  .activity-home .post-hd>.post-av {grid-column:1;grid-row:1;}

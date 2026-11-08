@@ -1,8 +1,14 @@
 /* The social launch tools and compact feed; profile/activity-detail controls keep their own layout. */
-#feed-top { margin-bottom:16px; }
+#feed-top { margin-bottom:0; }
 #feed-top .top { margin-bottom:0; }
 #feed-top .top .acts { gap:8px; }
 #feed-tools:empty { display:none; }
+.home-view-switch { display:flex; align-items:stretch; gap:20px; min-height:48px; margin:0 0 12px; }
+.home-view-switch a { display:inline-flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; padding:0 2px; border-bottom:2px solid transparent; color:var(--tx2); font-size:15px; font-weight:550; text-decoration:none; }
+.home-view-switch a[aria-current="page"] { border-bottom-color:var(--accent); color:var(--tx); font-weight:700; }
+.home-groups-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:44px; margin:4px 0 12px; }
+.home-groups-heading h2 { margin:0; font-size:var(--text-app-section); }
+.home-groups-heading #home-group-new { min-height:44px; }
 @media(max-width:360px) {
  #feed-top .top > h1 { font-size:28px; white-space:nowrap; }
  #feed-top .top .acts { flex:none; }

@@ -475,12 +475,18 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
     const tab=foodWarm.page.locator('a[data-tab="food"]');
     await tab.evaluate(el=>el.dispatchEvent(new PointerEvent('pointerover',{bubbles:true,pointerType:'mouse'})));
     await tab.focus();await until(foodWarm.page,()=>window.__foodWarmCalls>=3,'touch, hover and keyboard focus warm Nutrition');
-    await foodWarm.page.waitForFunction(()=>window.__foodIdleCallbacks.length>=2);
+    await foodWarm.page.waitForFunction(()=>window.__foodIdleCallbacks.length>=1);
+    assert.equal(await foodWarm.page.evaluate(()=>window.__foodIdleCallbacks.length),1,'Me schedules only the Nutrition warm-up; Kit is not needed in its header');
+    await foodWarm.page.evaluate(()=>window.__foodIdleCallbacks.splice(0).forEach(callback=>callback({didTimeout:false,timeRemaining:()=>50})));
+    await foodWarm.page.waitForFunction(()=>classicScriptsLoaded.has(FOOD_ROUTE_ASSET));
+    assert.equal(await foodWarm.page.evaluate(()=>KitChat.loaded),false,'Kit stays deferred on Me');
+    assert.equal(foodWarm.assets.filter(path=>path==='/static/kit.js').length,0,'Me does not fetch the Kit bundle');
+    await tab.click();await ready(foodWarm.page,'#page h1','Nutrition after tab warm-up');
+    await foodWarm.page.waitForFunction(()=>window.__foodIdleCallbacks.length>=1);
     await foodWarm.page.evaluate(()=>window.__foodIdleCallbacks.splice(0).forEach(callback=>callback({didTimeout:false,timeRemaining:()=>50})));
     await foodWarm.page.waitForFunction(()=>KitChat.loaded&&classicScriptsLoaded.has(KIT_ROUTE_ASSET));
     assert.equal(foodWarm.assets.filter(path=>path==='/static/food.js').length,1,'tab intent and idle deduplicate Food loading');
     assert.equal(foodWarm.assets.filter(path=>path==='/static/kit.js').length,1,'Kit loads after Me is ready, not on its initial path');
-    await tab.click();await ready(foodWarm.page,'#page h1','Nutrition after tab warm-up');
     assert.equal(new URL(foodWarm.page.url()).pathname,'/food');assert.deepEqual(foodWarm.errors,[]);assert.deepEqual(foodWarm.writes,[]);
   }finally{foodWarm.release();await foodWarm.context.close();}
 

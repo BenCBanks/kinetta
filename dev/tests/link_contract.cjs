@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const views={
  '/progress':{fitness:'Fitness',records:'Records',lifting:'Lifting',totals:'Progress',mileage:'Progress',trends:'Years',calendar:'Calendar',routes:'Routes',segments:'Segments',heatmap:'Heatmap',plan:'Training plan'},
  '/food':{log:'Nutrition',overview:'Insights',trends:'Insights',energy:'Calories & weight',macros:'Protein & macros',weight:'Weight',needs:'Calorie needs',weeks:'Insights',calendar:'Food calendar'},
- '/activity':{mine:'Your activities'},
+ '/activity':{mine:'Your activities',groups:'Home'},
 };
 const foodProgressViews=new Set(['overview','energy','macros','weight','needs','weeks','calendar']);
 const redirects={'/today':'/me','/me/connections':'/track/connections','/me/health':'/track/health','/me/import':'/track/import','/me/speed':'/me/settings','/me/milestones':'/me','/segments':'/progress/segments','/food/trends':'/food','/food/weight':'/progress/weight'};

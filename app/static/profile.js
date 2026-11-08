@@ -498,7 +498,7 @@ const MeCard=(()=>{
     return `<a class="me-friends-link" href="/me/friends"><span class="me-friends-count"><span data-friend-count>${Number.isInteger(count)?friendCountText(count):'Friends'}</span>${svg('chev')}</span><span class="badge alert" data-friend-waiting${pending?'':' hidden'}>${pending} waiting</span></a>`;
   }
   function header(me){
-    return `<header class="me-top"><h1>Hi, ${esc(firstName(me))}</h1><div class="me-profile-tools">${bellBtn()}<a class="icon-btn" href="/me/settings" aria-label="Settings">${svg('settings')}</a></div></header>
+    return `<header class="me-top"><h1>Hi, ${esc(firstName(me))}</h1><div class="me-profile-tools"><a class="icon-btn" href="/me/settings" aria-label="Settings">${svg('settings')}</a></div></header>
     ${card(me,{mine:true,link:true,pills:ownPills(),friends:ownFriends(me.friend_count),milestones:true,showBio:false})}`;
   }
   // One distance chart, on the card, with a tiny Days / Weeks switch (Ben, 30 Oct 2026: no second chart below it).
