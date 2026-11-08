@@ -61,8 +61,7 @@ function chrome(dark) {
   hb.innerHTML = `<rect x="${W / 2 - 67}" y="0" width="134" height="5" rx="2.5" fill="${c}"/>`;
   document.body.append(sb, hb);
 }
-// The food chat: open it for a meal with the demo account's AI consent on (the estimates are stand-ins), send a message,
-// and wait until nothing is pending on this phone.
+// Other capture scenes can send a made-up message and use the local estimator stand-in.
 async function chat(page, meal) {
   await page.evaluate(async (m) => { await api('/api/profile', json('PUT', {ai_ok: true, ai_adult: true})); App.me.ai_ok = true; go('/food/describe?meal=' + m); }, meal);
   await page.locator('#thread-text').waitFor();
@@ -184,17 +183,30 @@ async function say(page, text) {
     });
     for (const [name, path, opt = {}] of SHOTS) {
       if (ONLY && !ONLY.includes(name)) continue;
-      if (opt.foodChat === 'start') {
+      if (opt.foodChat === 'ready') {
         const demo = await openFoodDemo(`zz_test_658_chat_${scheme}`, scheme);
         foodChatCtx = demo.context;
         foodChatPage = demo.page;
         await enableKitForDemo(foodChatPage);
         await foodChatPage.goto(B + '/food/describe?meal=breakfast');
         await foodChatPage.locator('#thread-text').waitFor();
-        await foodChatPage.fill('#thread-text', 'Greek yogurt with berries, oatmeal with banana, and a chicken salad bowl');
-        await foodChatPage.locator('#thread-send').click();
+        const fixtureDraftId = await foodChatPage.evaluate(async () => {
+          const payload = await fetch('/api/food/thread?limit=100').then(r => r.json());
+          const message = [...(payload.messages || [])].reverse().find(m => m.kind === 'user' &&
+            m.body === 'Greek yogurt with berries, oatmeal with banana, and a chicken salad bowl');
+          const reply = message && payload.messages.find(m => m.kind === 'reply' && m.reply_to === message.id);
+          const draftId = reply?.result?.draft_id;
+          const key = Object.keys(localStorage).find(name => name.startsWith('fit.food.review.draft:'));
+          if (!draftId || !key) throw Error('Could not find the staged Food chat draft for this fictional account.');
+          const saved = JSON.parse(localStorage.getItem(key) || '{}');
+          localStorage.setItem(key, JSON.stringify({...saved, id: draftId, meal: 'breakfast', active: true}));
+          return draftId;
+        });
+        if (!fixtureDraftId) throw Error('Food screenshot fixture has no prepared review draft.');
+        // FoodThread reads one active draft from device storage. Mount again after matching it to the seeded card.
+        await foodChatPage.goto(B + '/food/describe?meal=breakfast');
         const ready = foodChatPage.locator('.thread-card').filter({hasText: 'Chicken salad bowl'});
-        await ready.waitFor();
+        await ready.waitFor({timeout: 15000});
         await foodChatPage.locator('#thread-review-add').waitFor({state: 'visible'});
         const cardText = await ready.innerText();
         if (!['Greek yogurt with berries', 'Oatmeal with banana', 'Chicken salad bowl'].every(name => cardText.includes(name)) ||

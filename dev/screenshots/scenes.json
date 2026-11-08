@@ -124,7 +124,7 @@
     "describe",
     "/food",
     {
-      "foodChat": "start"
+      "foodChat": "ready"
     }
   ],
   [

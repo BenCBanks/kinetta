@@ -8,6 +8,7 @@
 from zoneinfo import ZoneInfo
 import datetime as dt, glob, http.cookiejar, json, os, re, subprocess, sys, time, urllib.request, uuid
 from pathlib import Path
+from urllib.parse import urlsplit
 
 # Keep the screenshot-only Kit report and its repository boundary checked in CI.
 subprocess.run([sys.executable, str(Path(__file__).with_name('test_kit_release_standin.py'))], check=True)
@@ -169,4 +170,14 @@ for theme in ('light', 'dark'):
         existing = person(chat_login, chat_body['password'])
         existing('POST', '/api/account/delete', {'password': chat_body['password']})
         alex('POST', '/api/admin/people', chat_body)
+
+# A prepared three-food review keeps the browser screenshot deterministic. The
+# helper writes only to the disposable screenshot app and uses fictional values.
+port = urlsplit(B).port
+if not port: raise RuntimeError('Screenshot app URL must include its local port')
+rows = subprocess.check_output(['docker', 'ps', '--filter', f'publish={port}', '--format', '{{.ID}} {{.Names}}'], text=True).splitlines()
+apps = [row.split()[0] for row in rows if len(row.split()) == 2 and row.split()[1].endswith('-app-1')]
+if len(apps) != 1: raise RuntimeError('Could not identify the disposable screenshot app container')
+fixture = os.environ.get('KINETTA_SCREENSHOT_FOOD_FIXTURE', '/standin/food_chat_fixture.py')
+subprocess.run(['docker', 'exec', apps[0], 'python', fixture], check=True)
 print('staged: tray', tray['id'], 'soup', soup['id'], 'segment', segment['id'])
