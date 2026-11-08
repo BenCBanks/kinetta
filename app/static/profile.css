@@ -99,7 +99,7 @@
 .profile-achievement-level-row.is-upcoming .profile-achievement-level-copy b,.profile-achievement-level-row.is-upcoming .profile-achievement-level-copy small { color:var(--tx2); }
 .profile-achievement-level-meta { display:flex; flex:0 0 94px; align-items:flex-end; flex-direction:column; gap:3px; min-width:0; color:var(--tx2); font-size:.75rem; line-height:1.15; text-align:right; }
 .profile-achievement-level-meta time { white-space:nowrap; }
-.profile-achievement-level-progress { display:flex; width:100%; flex-direction:column; align-items:flex-end; gap:3px; }
+.profile-achievement-level-progress { display:flex; width:100%; flex-direction:column; align-items:flex-end; gap:3px; margin-top:3px; }
 .profile-achievement-level-progressbar { display:block; width:min(100%,84px); height:3px; overflow:hidden; border-radius:2px; background:var(--line); }
 .profile-achievement-level-progressbar>span { display:block; height:100%; border-radius:inherit; background:var(--accent); }
 .profile-achievement-level-progress small { max-width:100%; color:var(--tx2); font-size:.75rem; line-height:1.15; overflow-wrap:anywhere; }
