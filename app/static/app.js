@@ -87,7 +87,7 @@ function loadClassicScripts(assets) {
   return assets.reduce((ready, asset) => ready.then(() => loadClassicScript(asset)), Promise.resolve());
 }
 let pendingDishEntry = null;
-async function newDish(btn, where = null) {
+async function loadNewDish(btn, where = null) {
   if (!App.me || btn?.disabled) return pendingDishEntry;
   if (pendingDishEntry) return pendingDishEntry;
   const owner = readOwner();
@@ -101,16 +101,17 @@ async function newDish(btn, where = null) {
     }
     if (owner !== readOwner() || !App.me) return;
     if (btn) btn.disabled = false;
-    if (typeof createDish !== 'function') {
+    if (window.newDish === loadNewDish) {
       toast('Recipe tools could not open. Try again.');
       return;
     }
-    return createDish(btn, where);
+    return window.newDish(btn, where);
   })();
   pendingDishEntry = task;
   try { return await task; }
   finally { if (pendingDishEntry === task) pendingDishEntry = null; }
 }
+window.newDish = loadNewDish;
 function warmFoodRoutes() { loadClassicScript(FOOD_ROUTE_ASSET).catch(() => {}); }
 function warmFoodFromTabIntent(event) {
   if(event.type==='pointerover'&&event.pointerType!=='mouse')return;
