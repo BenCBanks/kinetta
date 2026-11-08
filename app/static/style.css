@@ -168,6 +168,12 @@ details.fold-row[open] { padding-bottom: 12px; }
 .invite-landing h1 { overflow-wrap:anywhere; }
 .login .primary { min-height: 46px; }
 .login .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.text-link { display: inline-flex; align-items: center; min-height: 44px; padding: 4px 0; border: 0; background: transparent; color: var(--accent); font: inherit; text-align: left; text-decoration: underline; }
+.login-recovery, .enrollment-email-links { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; }
+.login-recovery a, .enrollment-email-links a { display: inline-flex; align-items: center; min-height: 44px; }
+.login-recovery-status:empty, .resend-status:empty { display: none; }
+.signup-login-note { overflow-wrap: anywhere; }
+.signup-reset { justify-self: start; min-height: 44px; display: inline-flex; align-items: center; }
 .brand { display: block; margin: 0 0 22px; } .brand img { display: block; width: 190px; height: auto; }
 
 /* ---------- shell: page, header, tab bar ---------- */

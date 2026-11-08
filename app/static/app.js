@@ -1485,6 +1485,7 @@ function showLogin(msg = '') {
     <label>Email or username<input name="login" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" enterkeyhint="next" required></label>
     <label>Password<input name="password" type="password" autocomplete="current-password" enterkeyhint="go" required></label>
     <p class="err" role="alert">${esc(msg)}</p>
+    <div class="login-recovery" id="l-recovery" hidden></div><p class="login-recovery-status small" id="l-recovery-status" role="status" aria-live="polite"></p>
     <button class="primary" type="submit">Log in</button>
     <p class="small"><a href="/forgot-password" id="l-forgot">Forgot password?</a></p>
     <p class="small muted login-new" aria-live="polite"></p></form></div>`;
@@ -1505,11 +1506,22 @@ function showLogin(msg = '') {
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
     const b = $('button[type=submit]', f), err = $('.err', f);
+    const recovery=$('#l-recovery',f),recoveryStatus=$('#l-recovery-status',f);
     const login = f.login.value.trim(), password = f.password.value;
     if (!login || !password) { err.textContent = 'Enter your email (or username) and your password.'; return; }
-    b.disabled = true; b.textContent = 'Logging in…'; err.textContent = '';
+    b.disabled = true; b.textContent = 'Logging in…'; err.textContent = ''; recovery.hidden=true;recovery.replaceChildren();recoveryStatus.textContent='';
     try { const r=Native.on?await Native.login(f.server.value, login, password):await api('/api/login', json('POST', {login, password}));if(r.password_change_required){showTemporaryPassword(r.change_token);return;}store.del('kinetta.getApp');await start(); }
-    catch (x) { err.textContent = x.message; b.disabled = false; b.textContent = 'Log in'; f.password.select(); }
+    catch (x) {
+      err.textContent = x.message;
+      if(x.code==='email_waiting_for_confirmation'){
+        recovery.hidden=false;
+        recovery.innerHTML='<button type="button" class="text-link" id="l-resend">Resend confirmation email</button><a href="/forgot-password" id="l-reset">Reset password</a>';
+        attachConfirmationResend($('#l-resend',recovery),recoveryStatus,()=>f.login.value.trim());
+        $('#l-reset',recovery).onclick=ev=>{ev.preventDefault();showForgot(f.login.value.trim());};
+      }
+      b.disabled = false; b.textContent = 'Log in';
+      if(!['email_waiting_for_confirmation','email_confirmation_unavailable'].includes(x.code))f.password.select();
+    }
   });
 }
 // A fallback credential grants only this short-lived change step, never an app session.
@@ -1544,15 +1556,27 @@ function pendingJoinPath() {
 function rememberJoinPath() {
   if (/^\/join\/[A-Za-z0-9_-]{1,100}$/.test(location.pathname)) store.set('kinetta.joinReturn',location.pathname);
 }
-function enrollmentEmailError(input, message) {
+function attachConfirmationResend(button,status,identifier) {
+  if(!button||!status)return;
+  button.onclick=async e=>{
+    e.preventDefault();if(button.disabled)return;
+    const login=typeof identifier==='function'?identifier():identifier;
+    if(!login?.trim()){status.textContent='Enter your email or username first.';return;}
+    button.disabled=true;status.textContent='';
+    try{const r=await api('/api/account/email/resend',json('POST',{login:login.trim()}));status.textContent=r.message;}
+    catch(x){status.textContent=x.message;}
+    finally{button.disabled=false;}
+  };
+}
+function enrollmentEmailError(input, message, resetOnly=false) {
   const label=input.closest('label'),hint=input.form.querySelector('#enrollment-email-help');if(hint)hint.hidden=true;let note=label.nextElementSibling;
   if (!note?.classList.contains('field-err')) { note=document.createElement('p');note.className='field-err';label.after(note); }
   note.id='enrollment-email-exists';note.setAttribute('role','status');note.setAttribute('aria-live','polite');
   input.setAttribute('aria-describedby',[...(input.getAttribute('aria-describedby')||'').split(/\s+/).filter(x=>x&&x!==note.id),note.id].join(' '));
   input.addEventListener('input',()=>{note.remove();if(hint)hint.hidden=false;input.removeAttribute('aria-invalid');const ids=(input.getAttribute('aria-describedby')||'').split(/\s+/).filter(x=>x&&x!==note.id);if(ids.length)input.setAttribute('aria-describedby',ids.join(' '));else input.removeAttribute('aria-describedby');},{once:true});
-  note.innerHTML=esc(message)+'.<span class="enrollment-email-links"><a href="/" data-email-login>Log in</a><a href="/forgot-password" data-email-reset>Reset password</a></span>';
+  note.innerHTML=esc(message)+`<span class="enrollment-email-links">${resetOnly?'':'<a href="/" data-email-login>Log in</a>'}<a href="/forgot-password" data-email-reset>Reset password</a></span>`;
   const email=input.value.trim();
-  $('[data-email-login]',note).onclick=e=>{e.preventDefault();rememberJoinPath();history.replaceState(null,'',pendingJoinPath()||'/');showLogin();$('input[name=login]',root).value=email;};
+  const login=$('[data-email-login]',note);if(login)login.onclick=e=>{e.preventDefault();rememberJoinPath();history.replaceState(null,'',pendingJoinPath()||'/');showLogin();$('input[name=login]',root).value=email;};
   $('[data-email-reset]',note).onclick=e=>{e.preventDefault();rememberJoinPath();showForgot(email);};
   input.setAttribute('aria-invalid','true');input.focus({preventScroll:true});note.scrollIntoView({block:'center',behavior:'smooth'});
 }
@@ -1613,14 +1637,29 @@ function showNewAccount({title, intro, button, send, signup = false, ageConfirm 
     if (f.password.value.length < 10) return fieldErr('password', `Use at least 10 characters for your password (you have ${f.password.value.length}).`);
     if (ageConfirm && !f.age_ok.checked) return fieldErr('age_ok', 'Kinetta is for people 16 or older. Tick the box to continue.');
     b.disabled = true; fieldErr(null, '');
-    try { const termsVersion = agreement ? await agreement() : null; await send({terms_version: termsVersion, ...(ageConfirm ? {age_ok:f.age_ok.checked} : {}), name: f.name.value, password: f.password.value, share_default:f.elements.share_default.value, ...phoneDefaults(),
+    try { const termsVersion = agreement ? await agreement() : null; const result=await send({terms_version: termsVersion, ...(ageConfirm ? {age_ok:f.age_ok.checked} : {}), name: f.name.value, password: f.password.value, share_default:f.elements.share_default.value, ...phoneDefaults(),
         ...(pick ? {login: f.login.value.trim().toLowerCase()} : {email: f.email.value.trim(), ...(f.login.value.trim() ? {login:f.login.value.trim().toLowerCase()} : {})}),
         ...(signup ? {website: f.website.value} : {}),...(card?{card_code:card.code||store.get('kinetta.cardLink'),card_request:!!f.card_request?.checked}:{}),...(challenge?{challenge_code:challenge.code,challenge_join:!!f.challenge_join?.checked}:{})});
+      if(signup&&result?.pending&&result?.login)return showSignupPending(result);
       // On an iPhone browser, a new account goes to the iPhone app, not this browser view (Ben, 2026-10-24)
       if (getAppFirst()) { store.set('kinetta.getApp', '1'); history.replaceState(null, '', '/'); return showGetApp(); }
       history.replaceState(null, '', '/welcome'); await start(); }
-    catch (x) { if(x.code==='email_exists'&&email)enrollmentEmailError(f.email,x.message);else {const field=fieldOf(x.message||'');if(field==='login')username?.error('');fieldErr(field,x.message);} b.disabled = false; }
+    catch (x) { if(x.code==='email_waiting_for_confirmation'&&email)enrollmentEmailError(f.email,x.message,true);else if(x.code==='email_exists'&&email)enrollmentEmailError(f.email,x.message);else {const field=fieldOf(x.message||'');if(field==='login')username?.error('');fieldErr(field,x.message);} b.disabled = false; }
   });
+}
+function showSignupPending(result) {
+  const email=String(result.pending||''),login=String(result.login||''),phone=getAppFirst();
+  history.replaceState(null,'','/signup');
+  root.innerHTML=`<div class="login"><div class="form">${BRAND}<h1>Check your email</h1>
+    <p>We sent a confirmation link to <b>${esc(email)}</b>. Open it to confirm your email.</p>
+    <p class="small muted signup-login-note">You’re signed in as <b>@${esc(login)}</b>. Log in with your email or @${esc(login)}.</p>
+    <button type="button" class="primary wide" id="signup-resend">Resend confirmation email</button>
+    <p class="small muted resend-status" id="signup-resend-status" role="status" aria-live="polite"></p>
+    <a class="ghost wide" href="/welcome" id="signup-continue">${phone?'Continue to the iPhone app':'Continue to Kinetta'}</a>
+    <a class="small signup-reset" href="/forgot-password" id="signup-reset">Reset password</a></div></div>`;
+  attachConfirmationResend($('#signup-resend',root),$('#signup-resend-status',root),email);
+  $('#signup-reset',root).onclick=e=>{e.preventDefault();showForgot(email);};
+  $('#signup-continue',root).onclick=e=>{e.preventDefault();if(phone)return showGetApp();history.replaceState(null,'','/welcome');start();};
 }
 // An iPhone (or iPad) browser, outside the app: new accounts are sent to the iPhone app instead.
 const getAppFirst = () => !Native.on && /iPhone|iPad|iPod/.test(navigator.userAgent);
@@ -1744,7 +1783,7 @@ async function showSignup(friendLink = store.get('kinetta.friendLink')) {
     send: async (body) => {
       if(card)body={...body,card_code:cardCode};
       if (friendLink) body = {...body, friend_link: friendLink};
-      try { if (Native.on) await Native.signup(body); else await api('/api/signup', json('POST', body)); if (friendLink) store.del('kinetta.friendLink'); }
+      try { const result=Native.on?await Native.signup(body):await api('/api/signup', json('POST', body)); if (friendLink) store.del('kinetta.friendLink'); return result; }
       catch (x) { if (x.status === 409 && x.code === 'full') { history.replaceState(null, '', '/beta'); showBeta(true); return new Promise(() => {}); } throw x; }
     }});
   const back = $('#s-login', root); if (back) back.onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '/'); showLogin(); };
@@ -1797,7 +1836,7 @@ async function showBeta(full = false) {
 function backToLogin(msg = '') { history.replaceState(null, '', pendingJoinPath() || '/'); showLogin(msg); }
 function showForgot(prefill = '') {
   root.innerHTML = `<div class="login"><form novalidate>
-    <div>${BRAND}<h1>Forgot your password?</h1><p>Enter your username or email. If your account has a confirmed email, we'll send a link to choose a new password.</p></div>
+    <div>${BRAND}<h1>Forgot your password?</h1><p>Enter your username or email. If that matches an account, we’ll send a link to choose a new password.</p></div>
     <label>Username or email<input name="login" autocomplete="username" autocapitalize="none" spellcheck="false" enterkeyhint="send" required value="${esc(prefill)}"></label>
     <p class="err" role="alert"></p>
     <button class="primary" type="submit">Send the link</button>
@@ -1812,7 +1851,7 @@ function showForgot(prefill = '') {
     try {
       const r = await api('/api/password/forgot', json('POST', {login}));
       root.innerHTML = `<div class="login"><div class="form">${BRAND}<h1>Check your email</h1><p>${esc(r.message)}</p>
-        <p class="small muted">The link works for an hour. No email? Your account may not have a confirmed email yet: ask the person who runs this Kinetta to reset your password.</p>
+        <p class="small muted">The link works for an hour. If it doesn’t arrive, check your spam folder or try Resend confirmation from the login screen.</p>
         <a class="primary wide" href="/" id="f-done">Back to log in</a></div></div>`;
       $('#f-done', root).onclick = (ev) => { ev.preventDefault(); backToLogin(); };
     } catch (x) { err.textContent = x.message; b.disabled = false; }
@@ -1843,7 +1882,7 @@ async function showReset(token) {
     const b = $('button[type=submit]', f), err = $('.err', f);
     if (f.password.value.length < 10) { err.textContent = 'Use at least 10 characters for your password.'; return; }
     b.disabled = true; err.textContent = '';
-    try { await api('/api/password/reset', json('POST', {token, password: f.password.value})); if(!active())return;forgetKept(); backToLogin('Password changed. Log in with your new password.'); }
+    try { const r=await api('/api/password/reset', json('POST', {token, password: f.password.value})); if(!active())return;if(r.challenge_joined)store.set('kinetta.challengeLink',r.challenge_joined);forgetKept(); backToLogin(r.email_confirmed?'Password changed and your email is confirmed. Log in with your email or username.':'Password changed. Log in with your new password.'); }
     catch (x) { if(active()){err.textContent = x.message; b.disabled = false;} }
   });
 }

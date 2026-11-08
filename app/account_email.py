@@ -19,7 +19,8 @@ from .auth import current_user
 
 router = APIRouter()
 VERIFY_HOURS, RESET_MINUTES = 24, 60
-SENT = 'If that matches an account with a confirmed email, we’ve sent a link to reset the password. Check your inbox and spam folder.'
+SENT = 'If that matches an account, we’ve sent a link to reset the password. Check your inbox and spam folder.'
+RESEND_SENT = 'If that account is waiting for confirmation, we’ve sent a new link. Check your inbox and spam folder.'
 
 
 def _clean_email(v):
@@ -85,6 +86,11 @@ def limited(c, key, most, minutes):
     return n >= most
 
 
+def email_recovery_limited(c, uid):
+    """Resend and forgot share one per-account budget so neither path can double the sends."""
+    return limited(c, f'email-recovery:{uid}', 3, 60)
+
+
 def send(to, subject, text):
     """One plain-text message through the configured provider. Returns False (never raises) when it couldn't be sent."""
     cfg = admin_mail.settings()
@@ -109,7 +115,8 @@ def _open(c, token, kind, *, lock_user=False):
     if lock_user:
         seed = c.execute("SELECT user_id FROM account_tokens WHERE token_hash=%s AND kind=%s", (auth.token_hash(token or ''),kind)).fetchone()
         if seed: c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE', (seed['user_id'],))
-    r = c.execute("""SELECT t.token_hash, t.user_id, t.email, u.login::text AS login, u.name, u.email AS current
+    r = c.execute("""SELECT t.token_hash, t.user_id, t.email, u.login::text AS login, u.name, u.email AS current,
+                            u.email_verified_at IS NOT NULL AS email_confirmed, u.needs_email_confirm, u.signup_guard
                      FROM account_tokens t JOIN users u ON u.id = t.user_id
                      WHERE t.token_hash = %s AND t.kind = %s AND t.used_at IS NULL AND t.expires > now() FOR UPDATE OF t""",
                   (auth.token_hash(token or ''), kind)).fetchone()
@@ -203,16 +210,8 @@ def confirm_email(body: TokenIn, request: Request, background: BackgroundTasks):
         except errors.UniqueViolation:
             email_exists()
         c.execute('UPDATE account_tokens SET used_at = now() WHERE token_hash = %s', (r['token_hash'],))
-        link = (c.execute('SELECT friend_link FROM profile WHERE user_id = %s', (r['user_id'],)).fetchone() or {}).get('friend_link')
-        if link:     # signed up through a friend's invite link: friends now (an expired link just doesn't apply)
-            from .api_social import join_by_link
-            try:
-                with c.transaction(): join_by_link(c, r['user_id'], link)
-            except HTTPException: pass
-            c.execute('UPDATE profile SET friend_link = NULL WHERE user_id = %s', (r['user_id'],))
-    from . import cards,challenges
-    with db.connect() as c:cards.consume_signup(c,r['user_id'])
-    with db.connect() as c:joined=challenges.consume_signup(c,r['user_id'])
+        _join_signup_friend(c, r['user_id'])
+    joined = _consume_signup(r['user_id'])
     if r['current'] and r['current'].lower() != r['email'].lower():
         background.add_task(send, r['current'], 'Your Kinetta email was changed',
             f"Hi {r['name']},\n\nThe email on your Kinetta account ({r['login']}) is now {r['email']}. "
@@ -220,9 +219,29 @@ def confirm_email(body: TokenIn, request: Request, background: BackgroundTasks):
     return {'ok': True, 'email': r['email'],'challenge_joined':joined}
 
 
+# ---------- resend confirmation ----------
+class ResendConfirmationIn(BaseModel):
+    login: str = Field(max_length=120)      # email or username; the response never says whether either matched
+
+
+@router.post('/api/account/email/resend')
+def resend_confirmation(body: ResendConfirmationIn, request: Request, background: BackgroundTasks):
+    who = body.login.strip()
+    with db.connect() as c:
+        if limited(c, 'confirm-resend-ip:' + auth.client_ip(request), 10, 15):
+            raise HTTPException(429, 'Too many tries - wait 15 minutes')
+        col = 'email' if '@' in who else 'login'
+        u = c.execute(f'''SELECT id, name, email FROM users WHERE {col} = %s
+                          AND email_verified_at IS NULL AND needs_email_confirm AND email IS NOT NULL
+                          AND suspended_at IS NULL''', (who,)).fetchone()
+        if u and not email_recovery_limited(c, u['id']) and mail_ready():
+            confirmation(background, c, u['id'], u['name'], u['email'], welcome=True)
+    return {'ok': True, 'message': RESEND_SENT}
+
+
 # ---------- forgot password ----------
 class ForgotIn(BaseModel):
-    login: str = Field(max_length=120)      # a username or a confirmed email
+    login: str = Field(max_length=120)      # a username or email
 
 
 @router.post('/api/password/forgot')
@@ -231,16 +250,21 @@ def forgot(body: ForgotIn, request: Request, background: BackgroundTasks):
     with db.connect() as c:
         if limited(c, 'forgot-ip:' + auth.client_ip(request), 10, 15): raise HTTPException(429, 'Too many tries - wait 15 minutes')
         col = 'email' if '@' in who else 'login'
-        u = c.execute(f'SELECT id, name, login::text AS login, email FROM users WHERE {col} = %s AND email_verified_at IS NOT NULL AND suspended_at IS NULL',
+        u = c.execute(f'''SELECT id, name, login::text AS login, email,
+                                 email_verified_at IS NOT NULL AS email_confirmed, needs_email_confirm
+                          FROM users WHERE {col} = %s AND suspended_at IS NULL''',
                       (who,)).fetchone()
-        # at most 3 links an hour per account, without telling the asker whether that's why nothing arrived
-        if u and not limited(c, f"forgot:{u['id']}", 3, 60) and mail_ready(): send_reset(background, c, u)
+        # Resend and reset share at most three links an hour per account; the answer never says why nothing arrived.
+        can_reset = u and u['email'] and (u['email_confirmed'] or u['needs_email_confirm'])
+        if can_reset and not email_recovery_limited(c, u['id']) and mail_ready():
+            send_reset(background, c, u, pending=not u['email_confirmed'])
     return {'ok': True, 'message': SENT}
 
 
-def send_reset(background, c, u, by_admin=False):
-    """A single-use reset link to the account's confirmed email (u: id, name, login, email)."""
-    token = _token(c, u['id'], 'reset_password', RESET_MINUTES)
+def send_reset(background, c, u, by_admin=False, pending=False):
+    """A single-use reset link to the account's email (u: id, name, login, email)."""
+    # Bind pending resets to the address that received the proof-of-ownership link.
+    token = _token(c, u['id'], 'reset_password', RESET_MINUTES, u['email'] if pending else None)
     who = "We're sending you a link to reset" if by_admin else 'Someone (hopefully you) asked to reset'
     background.add_task(send, u['email'], 'Reset your Kinetta password',
         f"Hi {u['name']},\n\n{who} the password for your Kinetta account ({u['login']}). "
@@ -265,16 +289,61 @@ def reset_info(token: str, request: Request):
 @router.post('/api/password/reset')
 def reset(body: ResetIn, request: Request, background: BackgroundTasks):
     token_limit(request, 'reset-ip:', 30)
+    email_confirmed = False
     with db.connect() as c:
-        r = _open(c, body.token, 'reset_password')
+        # Keep the email-reservation lock before user/token locks, as in email confirmation.
+        reservation_lock(c)
+        r = _open(c, body.token, 'reset_password', lock_user=True)
+        # A pending reset link proves ownership of the address it was sent to. It cannot reset an account
+        # after that account's email has changed to someone else's address.
+        if r['email'] and (not r['current'] or _clean_email(r['email']) != _clean_email(r['current'])):
+            raise HTTPException(404, 'This link has expired or was already used. Ask for a new one.')
         auth.check_new_password(body.password, r['login'])
-        c.execute('UPDATE users SET pw_hash = %s, password_change_expires = NULL WHERE id = %s', (auth.hash_pw(body.password), r['user_id']))
+        if (r['email'] and r['current'] and not r['email_confirmed'] and r['needs_email_confirm']
+                and _clean_email(r['email']) == _clean_email(r['current'])):
+            require_available(c, r['email'], r['user_id'], confirmation=True)
+            email_confirmed = True
+        try:
+            c.execute('''UPDATE users SET pw_hash = %s, password_change_expires = NULL,
+                         email_verified_at = CASE WHEN %s THEN now() ELSE email_verified_at END,
+                         needs_email_confirm = CASE WHEN %s THEN false ELSE needs_email_confirm END,
+                         signup_confirmed_at = CASE WHEN %s AND signup_guard AND signup_confirmed_at IS NULL THEN now() ELSE signup_confirmed_at END
+                         WHERE id = %s''', (auth.hash_pw(body.password), email_confirmed, email_confirmed,
+                                            email_confirmed, r['user_id']))
+        except errors.UniqueViolation:
+            if email_confirmed: email_exists()
+            raise
         c.execute('DELETE FROM account_password_changes WHERE user_id=%s', (r['user_id'],))
         c.execute('UPDATE account_tokens SET used_at = now() WHERE token_hash = %s', (r['token_hash'],))
+        if email_confirmed:
+            c.execute("UPDATE account_tokens SET used_at = now() WHERE user_id=%s AND kind='verify_email' AND used_at IS NULL", (r['user_id'],))
         # every phone, browser and admin portal session ends: whoever had the old password is out
         for t in ('sessions', 'admin_sessions', 'admin_challenges'): c.execute(f'DELETE FROM {t} WHERE user_id = %s', (r['user_id'],))
+        if email_confirmed:
+            # A reset link proves inbox ownership, not consent to choices made on the signup form.
+            # Remove them so the background signup worker cannot apply them later.
+            c.execute('UPDATE profile SET friend_link=NULL WHERE user_id=%s', (r['user_id'],))
+            c.execute("DELETE FROM signup_join_intents WHERE user_id=%s AND kind IN ('card','challenge')", (r['user_id'],))
     password_changed(background, r['current'], r['name'], r['login'])
+    if email_confirmed: return {'ok': True, 'email_confirmed': True}
     return {'ok': True}
+
+
+def _join_signup_friend(c, uid):
+    link = (c.execute('SELECT friend_link FROM profile WHERE user_id = %s', (uid,)).fetchone() or {}).get('friend_link')
+    if not link: return
+    from .api_social import join_by_link
+    try:
+        with c.transaction(): join_by_link(c, uid, link)
+    except HTTPException:
+        pass
+    c.execute('UPDATE profile SET friend_link = NULL WHERE user_id = %s', (uid,))
+
+
+def _consume_signup(uid):
+    from . import cards, challenges
+    with db.connect() as c: cards.consume_signup(c, uid)
+    with db.connect() as c: return challenges.consume_signup(c, uid)
 
 
 def password_changed(background, email, name, login):
