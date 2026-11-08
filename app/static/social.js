@@ -29,15 +29,21 @@ function orderedReactionKinds(state){
   const first=new Map(reactionOrder(state).map((kind,index)=>[kind,index]));
   return REACTIONS().filter(([kind])=>state.reactions[kind]>0).sort((a,b)=>(state.reactions[b[0]]-state.reactions[a[0]])||((first.get(a[0])??Infinity)-(first.get(b[0])??Infinity)));
 }
+function reactionSummary(state){
+  const used=orderedReactionKinds(state),shown=used.slice(0,3),extra=used.length-shown.length;
+  const html=shown.map(([kind,label])=>'<span class="reaction-summary-emoji" data-summary-kind="'+esc(kind)+'">'+reactionMark(kind)+'<span class="reaction-summary-count">'+reactionNumber(state.reactions[kind])+'</span></span>').join('')+(extra?'<span class="reaction-summary-more">+'+extra+'</span>':'');
+  const label=used.length?'See who reacted: '+used.map(([kind,name])=>name+' '+reactionNumber(state.reactions[kind])).join(', '):'See who reacted';
+  return{used,html,label};
+}
 function reactionButtons(aid,s,detail=false,compact=false,moment=null,groupTarget=null){
-  const selected=reactionKind(s.my_reaction??(s.cheered?'clap':null)),counts=reactionCounts(s),total=Object.values(counts).reduce((n,v)=>n+v,0);
+  const selected=reactionKind(s.my_reaction??(s.cheered?'clap':null)),counts=reactionCounts(s),summary=reactionSummary({...s,reactions:counts});
   const label=REACTIONS().find(([k])=>k===selected)?.[1]||'clapping hands',triggerLabel=selected?'Your reaction: '+label+'. Change reaction':'React',triggerContent=selected?reactionMark(selected):reactionAddIcon()+'<span>React</span>';
   const attrs=REACTIONS().map(([k])=>'data-count-'+k+'="'+(counts[k]||0)+'"').join(' ');
   const choices=REACTIONS().map(([kind,label])=>'<button type="button" role="menuitemradio" aria-label="React with '+esc(label)+'" aria-checked="'+(selected===kind)+'" data-react="'+kind+'" tabindex="-1">'+reactionMark(kind)+'</button>').join('');
   const target=groupTarget?'data-group-reaction-group data-group-id="'+esc(groupTarget.id)+'" '+(groupTarget.updateId?'data-group-update-id="'+esc(groupTarget.updateId)+'"':'data-group-week="1"'):moment?'data-moment-reaction-group data-moment-owner="'+esc(moment.owner)+'" data-moment-week="'+esc(moment.week)+'"':'data-reaction-group data-aid="'+aid+'"';
   return '<div class="activity-reactions emoji-reactions'+(compact?' compact-reactions':'')+'" role="group" aria-label="Reactions" '+target+' data-mine="'+(selected||'')+'" data-reaction-order="'+reactionOrder(s).join(',')+'" '+attrs+'>'+
     '<div class="reaction-action"><button type="button" class="pf reaction-more" aria-label="'+esc(triggerLabel)+'" aria-haspopup="menu" aria-expanded="false">'+triggerContent+'</button></div>'+
-    '<button type="button" class="pf reaction-count" aria-label="See who reacted" aria-haspopup="dialog"'+(total?'':' hidden')+'><span class="reaction-summary" aria-hidden="true"></span><span class="num">'+(total?reactionNumber(total):'')+'</span></button>'+
+    '<button type="button" class="pf reaction-count" aria-label="'+esc(summary.label)+'" aria-haspopup="dialog"'+(summary.used.length?'':' hidden')+'><span class="reaction-summary" aria-hidden="true">'+summary.html+'</span></button>'+
     '<div class="reaction-picker" role="menu" aria-label="Choose a reaction" hidden><div class="reaction-options">'+choices+'</div></div></div>';
 }
 
@@ -79,18 +85,15 @@ function wireReactionGroup(group,aid,changed){
   const draw=()=>{
     if(!active())return;
     const selected=state.my_reaction,label=REACTIONS().find(([k])=>k===selected)?.[1]||'clapping hands';
-    const used=orderedReactionKinds(state),total=used.reduce((n,[k])=>n+state.reactions[k],0);
     group.dataset.mine=selected||'';group.dataset.reactionOrder=reactionOrder(state).join(',');more.dataset.kind=selected||'';
     const triggerLabel=selected?`Your reaction: ${label}. Change reaction`:'React';
     more.setAttribute('aria-label',triggerLabel);
     const triggerContent=selected?reactionMark(selected):`${reactionAddIcon()}<span>React</span>`;
     if(more._content!==triggerContent){more.innerHTML=triggerContent;more._content=triggerContent;}
     more.disabled=busy;group.setAttribute('aria-busy',String(busy));
-    const popular=used.slice(0,3).map(([kind])=>kind);
-    const marks=popular.map(kind=>'<span class="reaction-summary-emoji">'+reactionMark(kind)+'</span>').join('');
-    if(summary._marks!==marks){summary.innerHTML=marks;summary._marks=marks;}
-    count.hidden=!total;count.disabled=busy;const number=total?reactionNumber(total):'';if(count._number!==number){$('.num',count).textContent=number;count._number=number;}
-    count.setAttribute('aria-label','See who reacted, '+total);
+    const compact=reactionSummary(state);
+    if(summary._marks!==compact.html){summary.innerHTML=compact.html;summary._marks=compact.html;}
+    count.hidden=!compact.used.length;count.disabled=busy;count.setAttribute('aria-label',compact.label);
     for(const b of options){b.setAttribute('aria-checked',String(selected===b.dataset.react));b.disabled=busy;}
   };
   group._sync=fresh=>{if(!busy&&active()){state={my_reaction:reactionKind(fresh.my_reaction),reactions:reactionCounts(fresh),reaction_order:reactionOrder(fresh)};draw();}};
