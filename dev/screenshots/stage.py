@@ -178,6 +178,15 @@ if not port: raise RuntimeError('Screenshot app URL must include its local port'
 rows = subprocess.check_output(['docker', 'ps', '--filter', f'publish={port}', '--format', '{{.ID}} {{.Names}}'], text=True).splitlines()
 apps = [row.split()[0] for row in rows if len(row.split()) == 2 and row.split()[1].endswith('-app-1')]
 if len(apps) != 1: raise RuntimeError('Could not identify the disposable screenshot app container')
-fixture = os.environ.get('KINETTA_SCREENSHOT_FOOD_FIXTURE', '/standin/food_chat_fixture.py')
-subprocess.run(['docker', 'exec', apps[0], 'python', fixture], check=True)
+fixture = os.environ.get('KINETTA_SCREENSHOT_FOOD_FIXTURE')
+copied_fixture = fixture is None
+if copied_fixture:
+    fixture = f'/tmp/kinetta-food-chat-fixture-{os.getpid()}.py'
+    source = Path(__file__).with_name('food_chat_fixture.py')
+    subprocess.run(['docker', 'cp', str(source), f'{apps[0]}:{fixture}'], check=True)
+try:
+    subprocess.run(['docker', 'exec', apps[0], 'python', fixture], check=True)
+finally:
+    if copied_fixture:
+        subprocess.run(['docker', 'exec', apps[0], 'rm', '-f', fixture], check=False)
 print('staged: tray', tray['id'], 'soup', soup['id'], 'segment', segment['id'])

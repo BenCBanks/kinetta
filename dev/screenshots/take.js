@@ -195,9 +195,9 @@ async function say(page, text) {
           const message = [...(payload.messages || [])].reverse().find(m => m.kind === 'user' &&
             m.body === 'Greek yogurt with berries, oatmeal with banana, and a chicken salad bowl');
           const reply = message && payload.messages.find(m => m.kind === 'reply' && m.reply_to === message.id);
-          const draftId = reply?.result?.draft_id;
+          const draftId = message?.result?.draft_id;
           const key = Object.keys(localStorage).find(name => name.startsWith('fit.food.review.draft:'));
-          if (!draftId || !key) throw Error('Could not find the staged Food chat draft for this fictional account.');
+          if (!draftId || reply?.result?.kind !== 'preview' || !key) throw Error('Could not find the staged Food chat draft for this fictional account.');
           const saved = JSON.parse(localStorage.getItem(key) || '{}');
           localStorage.setItem(key, JSON.stringify({...saved, id: draftId, meal: 'breakfast', active: true}));
           return draftId;
