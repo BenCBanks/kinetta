@@ -86,12 +86,12 @@ def featured_row_bounds(top,count):
     return (top,top+CARD_FEATURED_ROW_HEIGHT)
 
 def featured_achievements(c,user_id,profile):
-    """Return only currently earned, owner-pinned achievements after explicit opt-in."""
+    """Return the owner's pinned achievements, or the server's automatic top four."""
     if not profile.get('share_achievements') or not profile.get('share_achievements_since'):return []
     pins=api_achievements._showcase_pins(profile.get('showcase_pins'))
-    if not pins:return []
     units=profile.get('units') or 'imperial'
     candidates=api_achievements._showcase_candidates(c,user_id,units)
+    selected_codes=pins or [item['code'] for item in sorted(candidates.values(),key=lambda item:(-item['rank'],-api_achievements._timestamp(item['occurred']),item['code']))[:api_achievements.SHOWCASE_MAX]]
     rows=c.execute("SELECT details FROM milestones WHERE user_id=%s AND kind='track_state' AND valid",(user_id,)).fetchall()
     states={}
     for row in rows:
@@ -99,7 +99,7 @@ def featured_achievements(c,user_id,profile):
         if isinstance(code,str):states[code]=details
     catalog=api_achievements._level_catalog().get('tracks',{})
     featured=[]
-    for code in pins:
+    for code in selected_codes:
         candidate=candidates.get(code);details=states.get(code);definition=catalog.get(code)
         if not candidate or not details or not definition:continue
         shown,unit=achievement_tracks.display_value(code,api_achievements._raw_value(code,details),units)

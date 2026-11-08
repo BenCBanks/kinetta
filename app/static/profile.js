@@ -316,14 +316,17 @@ const ProfileLayout=(()=>{
   const featuredContexts={journey:'All-sport distance','sport:run':'Total running distance','sport:ride':'Total cycling distance','sport:walk-hike':'Walking & hiking distance','sport:swim':'Total swimming distance','sport:lift':'Lift sessions',workouts:'Workouts completed',active_time:'Active time',consistency:'Weeks with a workout',years_active:'Years active',climbing:'Elevation climbed',lifted:'Weight lifted',personal_bests:'Personal bests'};
   function featuredShowcaseMarkup(showcase,achievementData){
     const pinned=new Set((Array.isArray(showcase?.pinned)?showcase.pinned:[]).map(String)),tracks=new Map((Array.isArray(achievementData?.tracks)?achievementData.tracks:[]).map(track=>[String(track?.code||''),track]));
-    const items=(Array.isArray(showcase?.items)?showcase.items:[]).filter(item=>pinned.has(String(item?.code||''))).slice(0,4).map(item=>{
+    // The server's item order is the automatic top-four selection when no pins exist.
+    // Once someone pins anything, the server returns that ordered set instead.
+    const items=(Array.isArray(showcase?.items)?showcase.items:[]).filter(item=>!pinned.size||pinned.has(String(item?.code||''))).slice(0,4).map(item=>{
       const code=String(item?.code||''),rank=Number(item?.rank),track=tracks.get(code);
       if(!code||!Number.isInteger(rank)||rank<1||!track)return null;
       const tier=achievementTierAt(code,rank),value=achievementValue(track),context=featuredContexts[code]||track.label||code;
       return tier&&value?{code,name:tier.name,value,context,icon:achievementAsset(tier,'me-featured-icon')}:null;
     }).filter(Boolean);
-    if(!items.length)return '';
-    return `<div class="me-featured-achievements" role="group" aria-label="Featured achievements"><h3 class="me-featured-title">Featured achievements</h3><div class="me-featured-grid count-${items.length}" role="list">${items.map(item=>`<div class="me-featured-item" role="listitem" data-showcase-code="${esc(item.code)}" aria-label="${esc(`${item.name}, ${item.value}, ${item.context}`)}"><span class="me-featured-medal" data-showcase-code="${esc(item.code)}" aria-hidden="true">${item.icon}</span><b class="me-featured-value">${esc(item.value)}</b><span class="me-featured-context">${esc(item.context)}</span></div>`).join('')}</div></div>`;
+    const heading='<h3 class="me-featured-title"><span>Featured achievements</span><a href="/me/achievements">Achievements <span aria-hidden="true">›</span></a></h3>';
+    const grid=items.length?`<div class="me-featured-grid count-${items.length}" role="list">${items.map(item=>`<div class="me-featured-item" role="listitem" data-showcase-code="${esc(item.code)}" aria-label="${esc(`${item.name}, ${item.value}, ${item.context}`)}"><span class="me-featured-medal" data-showcase-code="${esc(item.code)}" aria-hidden="true">${item.icon}</span><b class="me-featured-value">${esc(item.value)}</b><span class="me-featured-context">${esc(item.context)}</span></div>`).join('')}</div>`:'';
+    return `<div class="me-featured-achievements" role="group" aria-label="Featured achievements">${heading}${grid}</div>`;
   }
   function fitFeaturedValues(root){
     root.querySelectorAll('.me-featured-value').forEach(value=>window.KinettaTextFit?.fitElement(value,{minFontSize:12}));
@@ -695,7 +698,7 @@ const MeCard=(()=>{
     function edit({focusName=false,fromSettings=false}={}){
       if(!live()||editing)return;chartCleanup();editing=true;dim(true);
       const revision=++editRevision,valid=()=>live()&&editing&&revision===editRevision;
-      const start={name:App.me.name||'',bio:App.me.bio||'',layout:ProfileLayout.singlePeriod(App.me.profile_layout||data?.layout)};
+      const start={name:App.me.name||'',bio:App.me.bio||'',layout:ProfileLayout.singlePeriod(App.me.profile_layout||data?.layout),featuredPins:[]};
       const value=structuredClone(start.layout),{sections:names,stats}=ProfileLayout.labels;
       let chosenPeriod=value.sections.includes('recent')?'recent':'totals',order=[...value.sections,...Object.keys(names).filter(k=>!value.sections.includes(k))].filter(k=>k!=='recent'&&k!=='totals'||k===chosenPeriod),busy=false;
       let featuredTracks=[],featuredPins=[],featuredBusy=false;
@@ -709,12 +712,12 @@ const MeCard=(()=>{
         <p class="small muted me-editor-privacy">Your name, photo and bio are visible to people who find your profile.</p>
         <h3 id="card-period-label">Period</h3><div class="me-chips" data-card-period role="group" aria-labelledby="card-period-label"></div>
         <h3>Sections</h3><div class="me-editor-sections" data-card-sections></div>
-        <h3 id="card-featured-label">Featured achievements <span>· up to 4</span></h3><p class="small muted me-editor-featured-note">Choose achievements you've earned. Featured changes save immediately; Cancel won't undo them. Use the arrows to set their order.</p>
+        <h3 id="card-featured-label">Featured achievements <span>· up to 4</span></h3><p class="small muted me-editor-featured-note">Choose achievements you've earned. Changes save with your profile; Cancel discards them. Use the arrows to set their order.</p>
         <div class="me-featured-editor" data-featured-list aria-labelledby="card-featured-label" aria-busy="true"><p class="small muted">Loading achievements…</p></div>
         <h3>Headline numbers <span>· up to 3</span></h3><div class="me-chips" data-card-stats></div>
         <h3>Featured sports <span>· up to 3 · none = all</span></h3><div class="me-chips" data-card-sports></div></form>`;
       const form=$('form',box),name=form.elements.name,bio=form.elements.bio,save=$('[data-card-save]',box),status=$('[data-card-status]',box),nameError=$('#card-name-error',box);
-      const dirty=()=>name.value!==start.name||bio.value!==start.bio||JSON.stringify(value)!==JSON.stringify(start.layout);
+      const dirty=()=>name.value!==start.name||bio.value!==start.bio||JSON.stringify(value)!==JSON.stringify(start.layout)||JSON.stringify(featuredPins)!==JSON.stringify(start.featuredPins);
       const changed=text=>{save.disabled=busy||featuredBusy||!dirty();if(text)status.textContent=text;};
       const featuredTarget=$('[data-featured-list]',box),featuredLabel=track=>track.label||track.code;
       const renderFeatured=()=>{
@@ -732,11 +735,11 @@ const MeCard=(()=>{
         featuredTarget.innerHTML=`${selectedRows?`<div class="me-featured-selected" role="list" aria-label="Featured achievements in order">${selectedRows}</div>`:'<p class="small muted">None featured.</p>'}<div class="me-featured-choices" role="group" aria-label="Choose achievements to feature">${choices}</div>`;
         $$('[data-featured-toggle]',featuredTarget).forEach(button=>button.onclick=()=>{
           if(!valid()||featuredBusy)return;const code=button.dataset.featuredToggle,next=featuredPins.includes(code)?featuredPins.filter(item=>item!==code):featuredPins.length<FEATURED_ACHIEVEMENT_LIMIT?[...featuredPins,code]:null;
-          if(next)saveFeatured(next);
+          if(next){featuredPins=next;renderFeatured();changed('Featured achievements updated.');}
         });
         $$('[data-featured-move]',featuredTarget).forEach(button=>button.onclick=()=>{
           if(!valid()||featuredBusy)return;const next=[...featuredPins],i=next.indexOf(button.dataset.featuredMove),j=i+Number(button.dataset.step);
-          if(j<0||j>=next.length)return;[next[i],next[j]]=[next[j],next[i]];saveFeatured(next);
+          if(j<0||j>=next.length)return;[next[i],next[j]]=[next[j],next[i]];featuredPins=next;renderFeatured();changed('Featured achievements reordered.');
         });
       };
       const loadFeatured=async()=>{
@@ -746,20 +749,10 @@ const MeCard=(()=>{
           featuredTracks=await ProfileLayout.featuredOptions(data,showcase?.available);if(!valid())return;
           const earned=new Set(featuredTracks.map(track=>track.code));
           featuredPins=(Array.isArray(showcase?.pinned)?showcase.pinned:[]).map(String).filter((code,index,list)=>earned.has(code)&&list.indexOf(code)===index).slice(0,FEATURED_ACHIEVEMENT_LIMIT);
-          renderFeatured();
+          start.featuredPins=[...featuredPins];renderFeatured();changed();
         }catch(error){
           if(!valid())return;featuredTarget.setAttribute('aria-busy','false');featuredTarget.innerHTML=`<p class="small err" role="alert">${esc(error?.message||'Achievements are unavailable.')} <button type="button" class="linkbtn" data-featured-retry>Try again</button></p>`;
           $('[data-featured-retry]',featuredTarget).onclick=loadFeatured;
-        }
-      };
-      const saveFeatured=async next=>{
-        if(!valid()||featuredBusy)return;featuredBusy=true;changed();renderFeatured();$('[data-card-cancel]',box).disabled=true;status.textContent='Saving featured achievements…';
-        try{
-          const result=await api('/api/achievements/showcase/pins',json('PUT',{pinned:next}));if(!valid())return;
-          featuredPins=Array.isArray(result?.pinned)?result.pinned:next;featuredBusy=false;invalidate('/api/achievements/showcase');ProfileLayout.mountShowcase(root,data||{mine:true});
-          $('[data-card-cancel]',box).disabled=busy;renderFeatured();changed('Featured achievements saved.');
-        }catch(error){
-          if(!valid())return;featuredBusy=false;$('[data-card-cancel]',box).disabled=busy;renderFeatured();changed(error?.message||'Featured achievements could not be saved.');
         }
       };
       const sizeBio=()=>{bio.style.height='auto';const style=getComputedStyle(bio),line=parseFloat(style.lineHeight)||22,padding=parseFloat(style.paddingTop)+parseFloat(style.paddingBottom)+2;bio.style.height=Math.max(line*2+padding,Math.min(bio.scrollHeight,line*3+padding))+'px';};
@@ -787,13 +780,20 @@ const MeCard=(()=>{
         e.preventDefault();if(!valid()||busy||featuredBusy||!dirty())return;
         const trimmed=name.value.trim();if(!trimmed||trimmed.length>60){nameError.textContent='Enter a name between 1 and 60 characters.';name.setAttribute('aria-invalid','true');name.focus();return;}
         const body={name:trimmed,bio:bio.value.trim(),profile_layout:ProfileLayout.singlePeriod(value)};
-        busy=true;cancel.disabled=true;save.disabled=true;save.textContent='Saving…';status.textContent='';
+        const savePins=JSON.stringify(featuredPins)!==JSON.stringify(start.featuredPins);busy=true;featuredBusy=savePins;cancel.disabled=true;save.disabled=true;save.textContent='Saving…';status.textContent='';renderFeatured();
         try{
-          const account=await api('/api/account',json('PUT',body));if(owner!==readOwner())return;
-          App.me.name=account.name??body.name;App.me.bio=account.bio??body.bio;App.me.profile_layout=account.profile_layout||body.profile_layout;
-          invalidate('/api/me');invalidate('/api/people/');invalidateFeed();keep('/api/me',App.me);
+          if(name.value!==start.name||bio.value!==start.bio||JSON.stringify(value)!==JSON.stringify(start.layout)){
+            const account=await api('/api/account',json('PUT',body));if(owner!==readOwner())return;
+            App.me.name=account.name??body.name;App.me.bio=account.bio??body.bio;App.me.profile_layout=account.profile_layout||body.profile_layout;
+            start.name=App.me.name;start.bio=App.me.bio;start.layout=ProfileLayout.singlePeriod(App.me.profile_layout||body.profile_layout);
+            invalidate('/api/me');invalidate('/api/people/');invalidateFeed();keep('/api/me',App.me);
+          }
+          if(savePins){
+            const result=await api('/api/achievements/showcase/pins',json('PUT',{pinned:featuredPins}));if(!valid())return;
+            featuredPins=Array.isArray(result?.pinned)?result.pinned:[...featuredPins];start.featuredPins=[...featuredPins];invalidate('/api/achievements/showcase');
+          }
           if(valid()){finish(true);toast('Card saved');if(fromSettings)go('/me',{replace:true});else (onSaved||reload)?.();}
-        }catch(x){if(valid()){status.textContent=x.message;save.textContent='Save';busy=false;cancel.disabled=false;changed();}}
+        }catch(x){if(valid()){status.textContent=x.message;save.textContent='Save';busy=false;featuredBusy=false;cancel.disabled=false;renderFeatured();changed();}}
       };
       loadFeatured();
       sizeBio();if(focusName){card.scrollIntoView({block:'start'});name.focus({preventScroll:true});}else $('[data-show]',box)?.focus({preventScroll:true});

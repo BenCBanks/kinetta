@@ -40,7 +40,7 @@ class Cards(unittest.TestCase):
   page=self.guest.get('/card/'+self.code);self.assertEqual(page.status_code,200);self.assertIn('noindex',page.headers['x-robots-tag']);self.assertIn('og:image',page.text);self.assertIn('/image.png',page.text)
   for secret in ('SECRET REAL','SECRET ACTIVITY','SECRET NOTE','avg_hr','calories','weight','bio'):self.assertNotIn(secret,page.text+json.dumps(d))
   pic=self.guest.get('/card/'+self.code+'/image.png');self.assertEqual(pic.status_code,200);self.assertEqual(Image.open(io.BytesIO(pic.content)).size,(1080,1350));self.assertEqual(pic.headers['cache-control'],'no-store')
- def test_public_achievements_are_only_pinned_and_revocable(self):
+ def test_public_achievements_use_pins_or_automatic_top_four_and_revocable(self):
   self.enable()
   run_state={'track':'sport:run','label':'Run','value_m':1609344,'unit':'m'}
   journey_state={'track':'journey','label':'Journey','value_m':2000000,'unit':'m'}
@@ -55,7 +55,7 @@ class Cards(unittest.TestCase):
   missing_since=self.guest.get('/api/cards/'+self.code).json();self.assertEqual(missing_since['achievements'],[],'the public card needs both the switch and its opt-in timestamp')
   with db.connect() as c:c.execute('UPDATE profile SET share_achievements_since=now() WHERE user_id=%s',(self.ids[0],))
   with db.connect() as c:c.execute('UPDATE profile SET showcase_pins=%s WHERE user_id=%s',([],self.ids[0]))
-  no_pins=self.guest.get('/api/cards/'+self.code).json();self.assertEqual(no_pins['achievements'],[],'un-pinned earned tracks never become public defaults')
+  no_pins=self.guest.get('/api/cards/'+self.code).json();self.assertEqual({item['code'] for item in no_pins['achievements']},{'sport:run','journey'},'un-pinned earned tracks use the server automatic defaults')
   unpinned_image=self.guest.get('/card/'+self.code+'/image.png').content;self.assertNotEqual(on_image,unpinned_image)
   with db.connect() as c:c.execute('UPDATE profile SET showcase_pins=%s,share_achievements=false WHERE user_id=%s',(['sport:run'],self.ids[0]))
   revoked=self.guest.get('/api/cards/'+self.code).json();self.assertNotIn('achievements',revoked)
