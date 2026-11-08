@@ -1,5 +1,5 @@
 """Open signup with an email, the account cap and new-account restrictions (#232 D); the mail provider is a stand-in."""
-import base64, os, re, threading, unittest
+import base64, json, os, re, threading, unittest
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 import httpx
@@ -153,15 +153,38 @@ class Signup(unittest.TestCase):
                     uid = c.execute('INSERT INTO users(login,name) VALUES(%s,%s) RETURNING id',
                                     (login, 'Fictional migration test')).fetchone()['id']
                     ids.append(uid)
-                c.execute("INSERT INTO profile(user_id,share_details) VALUES(%s,'{}'::jsonb)", (ids[0],))
-                c.execute("INSERT INTO profile(user_id,share_details) VALUES(%s,'{\"heart_rate\":true}'::jsonb)", (ids[1],))
-                c.execute("INSERT INTO profile(user_id,share_details) VALUES(%s,'{\"heart_rate\":false}'::jsonb)", (ids[2],))
-                for statement in db.MIGRATIONS[106].split(';'):
-                    if statement.strip():
-                        c.execute(statement)
-                values = [row['share_details']['heart_rate'] for row in c.execute(
-                    'SELECT share_details FROM profile WHERE user_id=ANY(%s)', (ids,)).fetchall()]
-                self.assertCountEqual(values, [False, True, False])
+                choices = [
+                    ({'pace': True}, False, None, False, 'friends'),
+                    ({'heart_rate': True, 'pace': False}, True, 'now()', True, 'everyone'),
+                    ({'heart_rate': False}, False, None, True, 'me'),
+                ]
+                for uid, (details, achievements, since, findable, audience) in zip(ids, choices):
+                    if since == 'now()':
+                        c.execute('''INSERT INTO profile(user_id,share_details,share_achievements,share_achievements_since,findable,share_default)
+                                     VALUES(%s,%s::jsonb,%s,now(),%s,%s)''',
+                                  (uid, json.dumps(details), achievements, findable, audience))
+                    else:
+                        c.execute('''INSERT INTO profile(user_id,share_details,share_achievements,share_achievements_since,findable,share_default)
+                                     VALUES(%s,%s::jsonb,%s,%s,%s,%s)''',
+                                  (uid, json.dumps(details), achievements, since, findable, audience))
+                before = {row['user_id']: row for row in c.execute(
+                    'SELECT user_id,share_details,share_achievements,share_achievements_since,findable,share_default FROM profile WHERE user_id=ANY(%s)',
+                    (ids,)).fetchall()}
+                c.execute('SAVEPOINT migration_107_fixture')
+                try:
+                    for statement in db.MIGRATIONS[106].split(';'):
+                        if statement.strip():
+                            c.execute(statement)
+                    after = {row['user_id']: row for row in c.execute(
+                        'SELECT user_id,share_details,share_achievements,share_achievements_since,findable,share_default FROM profile WHERE user_id=ANY(%s)',
+                        (ids,)).fetchall()}
+                    self.assertEqual([after[uid]['share_details']['heart_rate'] for uid in ids], [False, True, False])
+                    for uid in ids:
+                        for field in ('share_achievements', 'share_achievements_since', 'findable', 'share_default'):
+                            self.assertEqual(after[uid][field], before[uid][field], (uid, field))
+                        self.assertEqual(after[uid]['share_details'].get('pace'), before[uid]['share_details'].get('pace'))
+                finally:
+                    c.execute('ROLLBACK TO SAVEPOINT migration_107_fixture')
         finally:
             with db.connect() as c:
                 c.execute('DELETE FROM users WHERE login::text=ANY(%s)', (list(logins),))

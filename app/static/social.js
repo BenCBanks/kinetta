@@ -1305,9 +1305,8 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
   wireBack(el, '/me/settings');
   const sharingOwner=readOwner(),[s,contacts] = await Promise.all([api('/api/sharing'),api('/api/contacts/settings')]), box = $('#sh-body', el);
   if(!el.isConnected)return;
-  const disclosureKey='kinetta.sharing-disclosure:'+(Native.base||location.origin)+':'+(App.me?.id||'account');
-  const showDisclosure=!store.get(disclosureKey);
-  box.innerHTML = `<div class="card"><h2>Who sees new activities</h2>${visSeg(s.default)}
+  box.innerHTML = `<p class="small muted" id="sharing-default-disclosure">New accounts share activities and achievements with everyone signed in. You can change this here any time.</p>
+    <div class="card"><h2>Who sees new activities</h2>${visSeg(s.default)}
       <p class="small muted">Applies to new activities. Older activities keep their audience; you can change it for each workout.</p></div>
     <div class="card"><h2>What others see</h2><form class="sharing-switches" id="sh-d">${Object.entries(DETAIL_NAMES).map(([key,name])=>`<label class="switch-row"><span>${esc(name)}</span><input type="checkbox" role="switch" name="${key}"${s.details[key]?' checked':''}></label>`).join('')}</form>
       <p class="small muted">Distance, time and type are always shown to that audience. Splits and laps need pace. Private notes and Kit notes are never shared.</p></div>
@@ -1328,10 +1327,6 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
       <p class="small muted">Shared maps leave out this much at the start and at the end, so others can't see where you live. A route too short for that is shared without a map.</p></div>
     <div id="sh-segments"></div>
     <div class="card list" id="sh-blocked"><h2>Blocked people</h2><p class="small muted">Loading…</p></div>`;
-  if(showDisclosure){
-    box.insertAdjacentHTML('afterbegin','<p class="small muted" id="sharing-default-disclosure">Your activities and achievements are visible to everyone on Kinetta by default. Change this any time in Settings &gt; Sharing &amp; privacy.</p>');
-    store.set(disclosureKey,true);
-  }
   ContactsUI.addPrivacyRemoval(box);
   if (typeof Segments !== 'undefined' && $('#sh-segments', box)) Segments.settingsRow($('#sh-segments', box));
   const drawBlocked = (rows) => {

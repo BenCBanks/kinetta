@@ -34,8 +34,8 @@ from .admin_auth import admin_user, audit
 
 router = APIRouter(prefix='/api')
 VISIBILITY = ('me', 'friends', 'everyone')
-# Defaults for new profiles; migration 107 keeps existing profiles' prior heart-rate choice when it was unset.
-DETAILS = {'map': True, 'heart_rate': True, 'pace': True, 'splits': True, 'elevation': True, 'calories': False,
+# Conservative fallback for absent profile rows/settings; migration 107 stores heart-rate sharing on new profile rows.
+DETAILS = {'map': True, 'heart_rate': False, 'pace': True, 'splits': True, 'elevation': True, 'calories': False,
            'description': True, 'device': True}
 TRIMS = (0, 200, 400, 800)
 MIN_SHOWN_M = 200          # after trimming, at least this much route must be left, or no map is shared
@@ -93,7 +93,7 @@ def details_of(person=None, activity=None):
 def _clean_details(v):
     if not isinstance(v, dict) or not set(v) <= set(DETAILS) or not all(isinstance(x, bool) for x in v.values()):
         raise HTTPException(400, 'Unknown detail')
-    return details_of(v)
+    return dict(v)
 
 
 # Someone else's view of an activity: one query for the feed and the detail page. The map is cut here: the line is
@@ -512,14 +512,15 @@ def sharing(user=Depends(current_user)):
     with db.connect() as c:
         p = c.execute('SELECT share_default, share_details, share_trim_m, findable, share_achievements FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
     return {'default': p.get('share_default', 'everyone'), 'details': details_of(p.get('share_details')), 'trim_m': p.get('share_trim_m', 400),
-            'trims': TRIMS, 'findable': p.get('findable', True), 'share_achievements': p.get('share_achievements', True)}
+            'trims': TRIMS, 'findable': p.get('findable', True), 'share_achievements': p.get('share_achievements', False)}
 
 
 @router.put('/sharing')
 def set_sharing(body: SharingIn, user=Depends(current_user)):
     sets = {}
+    details_update = _clean_details(body.details) if body.details is not None else None
     if body.default is not None: sets['share_default'] = body.default
-    if body.details is not None: sets['share_details'] = json.dumps(_clean_details(body.details))
+    if details_update is not None: sets['share_details'] = json.dumps(details_update)
     if body.trim_m is not None:
         if body.trim_m not in TRIMS: raise HTTPException(400, 'Choose off, 200, 400 or 800 m')
         sets['share_trim_m'] = body.trim_m
@@ -527,8 +528,11 @@ def set_sharing(body: SharingIn, user=Depends(current_user)):
     if sets or body.share_achievements is not None:
         with db.connect() as c:
             profile = c.execute('SELECT share_details,share_achievements FROM profile WHERE user_id=%s FOR UPDATE', (user['id'],)).fetchone() or {}
-            if body.details is not None:
-                proposed = {'share_details': _clean_details(body.details)}
+            if details_update is not None:
+                merged_details = details_of(profile.get('share_details'))
+                merged_details.update(details_update)
+                sets['share_details'] = json.dumps(merged_details)
+                proposed = {'share_details': merged_details}
                 for activity in c.execute("SELECT id,name,description,sport_label,visibility,share_details FROM activities WHERE user_id=%s AND visibility<>'me'", (user['id'],)).fetchall():
                     if details_of(proposed['share_details'], activity['share_details'])['description'] and not details_of(profile.get('share_details'), activity['share_details'])['description']:
                         community_filter.activity(c, user['id'], activity, proposed)

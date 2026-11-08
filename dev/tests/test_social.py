@@ -1,7 +1,8 @@
 """Friends, sharing, hidden map ends, the friends feed, cheers and comments (api_social.py). Runs on the demo data:
 alex shares with friends after stage.py, so it first puts alex back to "only me"."""
 import json, math, sys, urllib.parse
-from kc import ALEX, Client, login, person
+from app import db
+from kc import ALEX, Client, login, person, PW
 
 ok_n = 0
 
@@ -24,6 +25,19 @@ class S:
 alex = S(login(*ALEX))
 fr, st, pe = (S(person(w)) for w in ('zz_test_friend', 'zz_test_stranger', 'zz_test_pending'))
 people = {'zz_test_friend': fr, 'zz_test_stranger': st, 'zz_test_pending': pe}
+noprofile = S(person('zz_test_profileless_hr'))
+profileless_id = noprofile.q('GET', '/api/me')['id']
+with db.connect() as c:
+    c.execute('DELETE FROM profile WHERE user_id=%s', (profileless_id,))
+    profileless_activity = c.execute('''INSERT INTO activities
+        (user_id,sport,name,start_time,source,visibility,distance_m,moving_s,elapsed_s,avg_hr)
+        VALUES(%s,'run','Fictional profileless run',now(),'manual','everyone',5000,900,900,148)
+        RETURNING id''', (profileless_id,)).fetchone()['id']
+profileless_sharing = noprofile.q('GET', '/api/sharing')
+check(not profileless_sharing['details']['heart_rate'] and not profileless_sharing['share_achievements'],
+      'missing profile row keeps heart-rate and achievement sharing off')
+profileless_view = fr.q('GET', f'/api/shared/{profileless_activity}')
+check('avg_hr' not in profileless_view, 'profileless owner heart rate is not shared')
 
 # start clean: alex's activities use Only me, and there are no zz_test friends or requests
 alex.q('PUT', '/api/sharing', {'details': {'map': True, 'heart_rate': True, 'pace': True, 'splits': True,
@@ -58,6 +72,14 @@ check(st.q('GET', '/api/friends')['outgoing'] == [], 'declined request is gone')
 sh = alex.q('GET', '/api/sharing')
 check(sh['default'] == 'me' and sh['trim_m'] == 400 and sh['share_achievements'] and sh['details'] == {'map': True, 'heart_rate': True, 'pace': True, 'splits': True,
       'elevation': True, 'calories': False, 'description': True, 'device': True}, f'new-profile defaults {sh}')
+for keep_heart_rate in (True, False):
+    details = {**sh['details'], 'heart_rate': keep_heart_rate}
+    alex.q('PUT', '/api/sharing', {'details': details})
+    alex.q('PUT', '/api/sharing', {'details': {'pace': False}})
+    partial = alex.q('GET', '/api/sharing')['details']
+    check(partial['heart_rate'] is keep_heart_rate and partial['pace'] is False,
+          f'partial detail update preserves stored heart-rate choice {keep_heart_rate}')
+alex.q('PUT', '/api/sharing', {'details': sh['details']})
 alex.q('PUT', '/api/sharing', {'trim_m': 300}, want=400)
 alex.q('PUT', '/api/sharing', {'details': {'password': True}}, want=400)
 feed = alex.q('GET', '/api/activities?limit=20')
@@ -177,4 +199,5 @@ alex.q('PUT', '/api/sharing', {'default': 'me'})
 for i in (short, n2): alex.q('DELETE', f'/api/activities/{i}')
 for i in (a1, a2): alex.q('PUT', f'/api/activities/{i}/sharing', {'visibility': 'me'})
 alex.q('DELETE', '/api/friends/zz_test_pending')
+noprofile.q('DELETE', '/api/account/delete', {'password': PW})
 print(f'friends and sharing: {ok_n} checks passed')
