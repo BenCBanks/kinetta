@@ -2271,23 +2271,26 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .activity-reactions .pf,.activity-comments,.post-hd .activity-share {background:none;border-color:transparent;box-shadow:none;min-height:44px;}
 .post-ft:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;gap:0;padding:3px 16px;min-height:44px;}
 .detail-social:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;gap:0;padding:0;margin-top:0;min-height:44px;}
-.emoji-reactions .reaction-more {order:1;flex:none;min-width:44px;min-height:44px;justify-content:flex-start;gap:6px;padding:0;margin-right:16px;font-size:15px;font-weight:500;color:var(--tx2);}
+.emoji-reactions .reaction-more {order:1;flex:none;min-width:44px;min-height:44px;justify-content:flex-start;gap:6px;padding:0;margin-right:8px;font-size:15px;font-weight:500;color:var(--tx2);}
 .emoji-reactions .reaction-more>svg {flex:none;width:20px;height:20px;}
 .emoji-reactions .reaction-more .reaction-emoji {font-size:22px;}
-.emoji-reactions .reaction-more[data-kind]:not([data-kind=""]) .reaction-emoji {display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:1.5px solid var(--accent);border-radius:50%;font-size:24px;line-height:1;}
 .emoji-reactions .reaction-more:active,.emoji-reactions .reaction-count:active,.activity-comments:active {background:none;opacity:.72;}
 .emoji-reactions .reaction-summary {display:flex;align-items:center;overflow:visible;}
-.emoji-reactions .reaction-summary-emoji {position:relative;display:inline-flex;flex:none;align-items:center;justify-content:center;width:18px;height:18px;margin-left:-6px;border-radius:50%;background:var(--card);}
+.emoji-reactions .reaction-summary-emoji {position:relative;z-index:1;display:inline-flex;flex:none;align-items:center;justify-content:center;width:21px;height:21px;margin-left:-6px;}
 .emoji-reactions .reaction-summary-emoji:first-child {margin-left:0;}
-.emoji-reactions .reaction-summary-emoji .reaction-emoji {display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border:1.5px solid var(--card);border-radius:50%;background:var(--card);font-size:18px;line-height:1;}
-.emoji-reactions .reaction-count {order:3;display:flex;flex:none;align-items:center;justify-content:flex-start;gap:6px;min-width:44px;height:44px;min-height:44px;padding:0;margin:0 0 0 auto;color:var(--tx2);font-size:15px;}
+.emoji-reactions .reaction-summary-emoji[data-summary-position="0"] {z-index:3;}
+.emoji-reactions .reaction-summary-emoji[data-summary-position="1"] {z-index:2;}
+.emoji-reactions .reaction-summary-emoji .reaction-emoji {display:inline-flex;align-items:center;justify-content:center;width:21px;height:21px;font-size:18px;line-height:1;-webkit-text-stroke:.75px var(--card);paint-order:stroke fill;}
+.emoji-reactions .reaction-count {order:2;display:flex;flex:none;align-items:center;justify-content:flex-start;gap:6px;min-width:44px;height:44px;min-height:44px;padding:0;margin:0;color:var(--tx2);font-size:15px;}
 .emoji-reactions .reaction-count[hidden] {display:none;}
 .emoji-reactions .reaction-count .num {font-size:15px;color:var(--tx2);}
 .reaction-emoji {font-family:Apple Color Emoji,Segoe UI Emoji,Noto Color Emoji,sans-serif;font-size:1.25rem;line-height:1;}
-.activity-comments {order:2;display:flex;align-items:center;justify-content:center;gap:4px;min-width:44px;min-height:44px;padding:0;margin:0;}
+.activity-comments {order:5;display:flex;align-items:center;justify-content:center;gap:4px;min-width:44px;min-height:44px;padding:0;margin:0 0 0 auto;}
 .activity-comments>svg {width:20px;height:20px;flex:none;}
 .activity-comments .num[hidden] {display:none;}
 .post-ft .num,.detail-social .num {font-size:max(15px,.75rem);line-height:1.2;}
+.post-ft:has(.emoji-reactions) .activity-share {order:4;min-width:44px;height:44px;margin-left:8px;padding:0;display:flex;align-items:center;justify-content:center;}
+.post-ft:has(.emoji-reactions) .activity-share>svg {width:20px;height:20px;}
 .post-hd .activity-share {width:44px;min-width:44px;height:44px;padding:0;justify-content:center;margin-left:auto;}
 .post-hd .activity-share>svg {width:20px;height:20px;}
 /* Full rows share the card's content edges; narrow cards use four columns. */
