@@ -15,14 +15,23 @@ def admin_headers(base):
         if token:headers['Cookie']='kinetta_admin='+token
         r=urllib.request.Request(base+'/api/admin'+route,headers=headers,data=json.dumps(body).encode() if body is not None else None)
         with op.open(r) as response:return json.loads(response.read()),response
+    def totp_code(seed,counter):
+        digest=hmac.new(seed,struct.pack('>Q',counter),hashlib.sha1).digest();offset=digest[-1]&15
+        return f'{(struct.unpack(">I",digest[offset:offset+4])[0]&0x7fffffff)%1000000:06}'
     jar=http.cookiejar.CookieJar();op=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
     if state.get('token'):
         try:
             r,_=req('/me',token=state['token']);return {'Cookie':'kinetta_admin='+state['token'],'X-Admin-CSRF':r['csrf']}
         except urllib.error.HTTPError:pass
     r,_=req('/login',{'login':'alex','password':'blue kettle morning run'})
+    setup_key=None;counter=None
     if r['enrollment']:
-        seed=base64.b32decode(r['setup_key']);counter=int(time.time()//30);d=hmac.new(seed,struct.pack('>Q',counter),hashlib.sha1).digest();o=d[-1]&15;code=f'{(struct.unpack(">I",d[o:o+4])[0]&0x7fffffff)%1000000:06}'
+        setup_key=r['setup_key'];seed=base64.b32decode(setup_key);counter=int(time.time()//30);code=totp_code(seed,counter)
+    elif state.get('totp_seed'):
+        seed=base64.b32decode(state['totp_seed']);last_counter=int(state.get('last_counter',-1));counter=int(time.time()//30)
+        while counter<=last_counter:
+            time.sleep(max(0.05,(last_counter+1)*30-time.time()+0.05));counter=int(time.time()//30)
+        code=totp_code(seed,counter)
     else:
         codes=state.get('codes',[])
         if not codes:raise RuntimeError('Recreate the isolated demo server: test MFA recovery codes exhausted.')
@@ -31,7 +40,10 @@ def admin_headers(base):
         with os.fdopen(fd,'w') as f:json.dump(state,f)
     r,_=req('/verify',{'code':code})
     token=next(c.value for c in jar if c.name=='kinetta_admin')
-    state={'token':token,'codes':r.get('recovery_codes') or state.get('codes',[])}
+    saved_seed=setup_key or state.get('totp_seed')
+    state={'token':token,'codes':state.get('codes',[])}
+    if saved_seed:state['totp_seed']=saved_seed
+    if counter is not None:state['last_counter']=counter
     fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600)
     with os.fdopen(fd,'w') as f:json.dump(state,f)
     r,_=req('/me',token=token)
