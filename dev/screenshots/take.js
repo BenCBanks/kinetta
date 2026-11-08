@@ -343,6 +343,10 @@ async function say(page, text) {
         const actual=(await title.innerText()).trim();
         if(actual!==ids.RUN_NAME)throw Error(`Activity detail keeps its recorded name "${ids.RUN_NAME}" (default names such as "Morning Run" are preserved), got "${actual}"`);
       }
+      if (opt.homeGroups) {
+        await page.locator('.home-view-switch a[href="/activity?view=groups"][aria-current="page"]').waitFor({state:'visible'});
+        await page.locator('#home-group-list .group-list-row').first().waitFor({state:'visible'});
+      }
       await page.evaluate(() => { window.scrollTo(0, 0); });
       await page.evaluate(() => document.fonts.ready);
       // Locator/evaluate polling works under the app’s strict script policy.
@@ -431,7 +435,9 @@ async function say(page, text) {
       }
       if (opt.meCard) {
         await page.locator('.me-card').first().waitFor({state: 'visible'});
-        await page.locator('.me-card .me-showcase-medal').first().waitFor({state: 'visible'});
+        const medals = page.locator('.me-card .me-featured-medal');
+        await medals.first().waitFor({state: 'visible'});
+        if (await medals.count() !== 4) throw Error('The fictional Me card should show four featured medals.');
       }
       if (opt.nutritionDay) {
         await page.getByText('Black coffee', {exact: true}).waitFor({state: 'visible'});
