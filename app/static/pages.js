@@ -425,7 +425,7 @@ function meInsights(box, s) {
     const activityWeeks = new Map();
     for (const w of s.weeks || []) { const key = String(w.week || '').slice(0, 10); activityWeeks.set(key, (activityWeeks.get(key) || 0) + (+w.n || 0)); }
     const active = starts.filter(d => activityWeeks.get(d) > 0).length;
-    if (active) consistencyRow = meInsightRow('Consistency', `${active} of 5 weeks`, 'Weeks with an activity', '/progress/calendar');
+    if (active) consistencyRow = meInsightRow('Consistency', `${active} of 5 weeks`, 'Weeks with an activity', appFeatureEnabled('progress_calendar') ? '/progress/calendar' : '/progress');
   }
   box.innerHTML = '<section class="card me-insights"><h2>Your insights</h2><div data-insight-rows></div></section>';
   const list = $('[data-insight-rows]', box), parts = {bests: '', trends: {}};
@@ -754,7 +754,7 @@ function drawDetail(el, a) {
       ${a.private_note ? `<div class="card"><h2>Private note</h2><p class="small">${esc(a.private_note)}</p></div>` : ''}
       ${ins.length ? `<div class="card"><h2>Insights</h2>${ins.map(([k, t, d]) => `<div class="insight"><span class="dot ${k}"></span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></div>`).join('')}</div>` : ''}
       ${a.route_id ? `<a class="card tap" href="/route/${a.route_id}" data-prefetch="/api/routes/${a.route_id}"><h2>${esc(a.route_name)}<span class="more">Compare ›</span></h2><p>Matched route · ${a.route_count} activities. See your trend on this route.</p></a>` : ''}
-      ${a.line ? '<div id="d-segments"></div>' : ''}`,
+      ${a.line && appFeatureEnabled('progress_segments') ? '<div id="d-segments"></div>' : ''}`,
     splits: `${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}
       ${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}`,
     charts: `${activitySamples(a) ? '<div class="card activity-chart-card"><div id="d-charts" class="activity-charts"></div></div>' : ''}
@@ -771,7 +771,7 @@ function drawDetail(el, a) {
   let drawCharts = null;
   wireActivityTabs(el, key => { if (key === 'charts' && drawCharts) { requestAnimationFrame(drawCharts); drawCharts = null; } });
   ActivityDetail.wire(el,a);
-  const segBox = $('#d-segments', el); if (segBox) lazy(segBox, () => Segments.activityCard(segBox, a.id));   // segment times, routes and segments from this activity (#278)
+  const segBox = appFeatureEnabled('progress_segments') ? $('#d-segments', el) : null; if (segBox) lazy(segBox, () => Segments.activityCard(segBox, a.id));   // segment times, routes and segments from this activity (#278)
   const addMap=$('#d-add-map',el);if(addMap&&Native.on)addMap.remove();if(addMap&&!Native.on)addMap.onclick=()=>sheet('Add the original map',`<p>Some apps send a workout summary to the Health app without its GPS route. Your workout summary is already here.</p><p>For a Garmin recording:</p><ol><li>Open the matching activity on the Garmin Connect website.</li><li>Choose the settings gear, then <b>Export Original</b>.</li><li>Upload the downloaded ZIP or FIT file here.</li></ol><p class="small muted">Kinetta matches the sport, start time and distance. A matching file adds the map to this workout without making a second activity. Your edited title and numbers stay.</p><a class="primary wide" href="/track/import?map_for=${a.id}">Upload the original file</a>`,(body,close)=>{body.classList.add('activity-map-help');body.querySelector('a').onclick=()=>close();});
   if(a.has_intervals)globalThis.Intervals?.history($('#activity-interval-history',el),a.id);
   ownSocial(el, a);
@@ -1165,6 +1165,8 @@ const PVIEWS = [['fitness', 'Fitness', 'Race predictions, fitness and form', 'fl
 const PMORE = [['trends', 'Year over year', 'Pace, heart rate and distance, year by year', 'progress', 'c-blue'],
   ['calendar', 'Calendar', 'Training and eating, day by day', 'calendar', 'c-orange'], ['routes', 'Matched routes', 'Compare the loops you have recorded more than once', 'activity', 'c-green'], ['segments', 'Segments', 'Your fixed courses, personal times and leaderboards', 'route', 'c-green'],
   ['heatmap', 'Heatmap', "Everywhere you've been", 'globe', 'c-brand'], ['plan', 'Training plan', '5K to marathon, built around your runs', 'target', 'c-purple']];
+const progressFeature = {calendar: 'progress_calendar', segments: 'progress_segments'};
+const progressItemEnabled = ([id]) => !progressFeature[id] || appFeatureEnabled(progressFeature[id]);
 const PPERIODS = [['week', 'Week'], ['month', 'Month'], ['year', 'Year']];
 function pSport(q) {
   let s = q.get('sport'); if (!s) try { s = localStorage.getItem('fit.psport'); } catch (e) { /* no storage */ }
@@ -1248,7 +1250,7 @@ function foodProgress(el,q) {
   return go('/food?'+target,{replace:true});
 }
 function pHead(el, view, filters) {
-  const v = [...PVIEWS, ...PMORE].find(m => m[0] === view);
+  const v = [...PVIEWS, ...PMORE.filter(progressItemEnabled)].find(m => m[0] === view);
   el.innerHTML = `<div class="top progress-heading"><h1>${esc(({routes:'Routes',trends:'Years'})[view]||v?.[1]||'Progress')}</h1><div class="acts"><button type="button" class="icon-btn" id="recap-entry" aria-label="Share a progress picture">${svg('share')}</button>${bellBtn()}</div></div><div id="p-body">${skelChart()}</div>`;
   progressBack(el); progressVisit(view); wireProgressFocus(el);
   $('#recap-entry',el).onclick=()=>Recaps.open('this_month');
@@ -1281,7 +1283,7 @@ function progressTeasers(o) {
 }
 function progressTiles(box, overview=null, {ready=false}={}) {
   const teasers=overview?progressTeasers(overview):{};
-  const items=PEXPLORE.map(([id,title,description,icon])=>({id,title,description,icon,teaser:teasers[id],href:id==='plan'?'/plan':id==='lifting'?'/progress?view=lifting':'/progress/'+id}));
+  const items=PEXPLORE.filter(progressItemEnabled).map(([id,title,description,icon])=>({id,title,description,icon,teaser:teasers[id],href:id==='plan'?'/plan':id==='lifting'?'/progress?view=lifting':'/progress/'+id}));
   Discovery.render(box,items,{space:'progress',ready,attribute:'data-progress-feature'});
 }
 async function progressHome(el, q) {
@@ -1324,7 +1326,7 @@ route(/^\/progress$/, 'progress', async (el) => {
   if (q.get('section') === 'food') return foodProgress(el,q);
   if (!q.has('view')) return progressHome(el,q);
   const v0 = q.get('view') || 'totals';
-  if(['totals','mileage'].includes(v0)||!PVIEWS.some(p=>p[0]===v0)&&!PMORE.some(p=>p[0]===v0)){q.delete('view');return go('/progress'+(q.size?'?'+q:''),{replace:true});}
+  if(['totals','mileage'].includes(v0)||!PVIEWS.some(p=>p[0]===v0)&&!PMORE.some(m=>progressItemEnabled(m)&&m[0]===v0)){q.delete('view');return go('/progress'+(q.size?'?'+q:''),{replace:true});}
   if (v0 === 'plan') return go('/plan', {replace: true});
   if (PMORE.some((m) => m[0] === v0)) { q.delete('view'); return go(`/progress/${v0}${q.toString() ? '?' + q : ''}`, {replace: true}); }   // old addresses
   const view = v0 === 'mileage' ? 'totals' : PVIEWS.some((p) => p[0] === v0) ? v0 : 'totals', sport = pSport(q);
@@ -1337,6 +1339,7 @@ route(/^\/progress$/, 'progress', async (el) => {
   await ({totals: pMileage, fitness: pFitness, records: pRecords, lifting: pLifting}[view])($('#p-body', el), q);
 });
 route(/^\/progress\/segments$/, 'progress', async el => {
+  if (!appFeatureEnabled('progress_segments')) return go('/progress', {replace: true});
   pHead(el,'segments','');$('#recap-entry',el).remove();$('.acts',el).insertAdjacentHTML('afterbegin','<a class="linkbtn" href="/segments/new" aria-label="New segment">New</a>');const body=$('#p-body',el),pending=Segments.list(body);
   // Segments owns its map/search logic; contain the existing options without changing that logic.
   const panel=document.createElement('section');panel.className='card progress-segment-controls';

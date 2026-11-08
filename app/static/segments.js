@@ -352,11 +352,12 @@ const Segments = (() => {
   return {list, review, reviewPage, page, activityCard, settingsRow, pending: null};
 })();
 
-route(/^\/segments$/, 'progress', async () => go('/progress/segments', {replace: true}));
-route(/^\/segments\/review$/, 'progress', (el) => Segments.reviewPage(el));
+route(/^\/segments$/, 'progress', async () => appFeatureEnabled('progress_segments') ? go('/progress/segments', {replace: true}) : go('/progress', {replace: true}));
+route(/^\/segments\/review$/, 'progress', (el) => appFeatureEnabled('progress_segments') ? Segments.reviewPage(el) : go('/progress', {replace: true}));
 route(/^\/segments\/new$/, 'progress', async (el) => {
+  if (!appFeatureEnabled('progress_segments')) return go('/progress', {replace: true});
   if (await Planner.unavailable(el, {mode: 'segment', title: 'New segment', back: 'Segments', backHref: '/progress/segments'})) return;
   Planner.open(el, {mode: 'segment', title: 'New segment', key: 'segment-new', back: 'Segments', backHref: '/progress/segments',
     onSave: (st) => Segments.review({sport: st.sport, line: Plan.enc(st.line), source: 'map', ...(Segments.pending ? {name: Segments.pending.name, description: Segments.pending.description, audience: Segments.pending.audience, draftId: Segments.pending.draftId, clientId: Segments.pending.clientId} : {})})});
 });
-route(/^\/segments\/(\d+)$/, 'progress', (el, id) => Segments.page(el, +id));
+route(/^\/segments\/(\d+)$/, 'progress', (el, id) => appFeatureEnabled('progress_segments') ? Segments.page(el, +id) : go('/progress', {replace: true}));
