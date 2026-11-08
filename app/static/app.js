@@ -6,6 +6,39 @@ const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const root = $('#app');
+// Shared by the lazy Food and Cook bundles; keep their swipe interaction available without loading either bundle eagerly.
+function swipeRows(el, onRemove) {
+  const W = 96;
+  const place = (sw, px, anim) => {
+    const del = $('.sw-del', sw), r = $('.sw-row .r', sw);
+    del.style.transition = r.style.transition = anim ? '' : 'none';
+    del.style.width = `${px}px`; r.style.opacity = String(Math.max(0, 1 - px / (W * 0.6)));
+  };
+  const closeAll = (but) => $$('.swipe.open', el).forEach((x) => { if (x !== but) { x.classList.remove('open'); place(x, 0, true); } });
+  $$('.swipe', el).forEach((sw) => {
+    const row = $('.sw-row', sw);
+    let x0 = 0, y0 = 0, base = 0, px = 0, drag = false, down = false, moved = false;
+    row.addEventListener('pointerdown', (e) => { down = true; drag = moved = false; x0 = e.clientX; y0 = e.clientY; base = sw.classList.contains('open') ? W : 0; px = base; });
+    row.addEventListener('pointermove', (e) => {
+      if (!down) return;
+      const mx = e.clientX - x0, my = e.clientY - y0;
+      if (!drag && Math.abs(mx) > 8 && Math.abs(mx) > Math.abs(my) * 1.3) { drag = moved = true; closeAll(sw); try { row.setPointerCapture(e.pointerId); } catch (x) { /* fine */ } }
+      if (!drag) { if (Math.abs(my) > 8) down = false; return; }
+      px = Math.max(0, Math.min(W + 16, base - mx)); place(sw, px, false);
+    });
+    const end = () => {
+      if (!down) return; down = false; if (!drag) return;
+      const open = px > W / 2; sw.classList.toggle('open', open); place(sw, open ? W : 0, true);
+    };
+    row.addEventListener('pointerup', end); row.addEventListener('pointercancel', end);
+    row.addEventListener('click', (e) => {
+      if (moved || sw.classList.contains('open')) { e.stopImmediatePropagation(); e.preventDefault(); if (!moved) { sw.classList.remove('open'); place(sw, 0, true); } moved = false; }
+    }, true);
+    $('.sw-del', sw).onclick = () => onRemove($('.sw-del', sw).dataset.del);
+  });
+}
+// Shared by Food's recipe chooser while the larger Cook editor stays deferred.
+const listOf = (xs) => xs.slice(0, 3).join(', ') + (xs.length > 3 ? ` and ${xs.length - 3} more` : '');
 const col = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888';   // real colour for SVG attributes
 const App = {me: null, pageReady: false, cache: new Map(), pages: [], scroll: {}};
 const classicScriptPromises = new Map();
@@ -14,12 +47,16 @@ const FOOD_ROUTE_ASSET = '/static/food.js?v=__ASSET_HASH__';
 const KIT_ROUTE_ASSET = '/static/kit.js?v=__ASSET_HASH__';
 const PROGRESS_ROUTE_ASSET = '/static/progress-routes.js?v=__ASSET_HASH__';
 const SEGMENTS_ROUTE_ASSET = '/static/segments.js?v=__ASSET_HASH__';
+const COOK_ROUTE_ASSET = '/static/cook.js?v=__ASSET_HASH__';
+const RECIPE_IMPORT_ROUTE_ASSET = '/static/recipe-import.js?v=__ASSET_HASH__';
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: ['/static/welcome.js?v=__ASSET_HASH__']},
   {re: /^\/me\/explore$/, tab: 'track', scripts: ['/static/explore.js?v=__ASSET_HASH__']},
   {re: /^\/notifications$/, tab: null, scripts: ['/static/social-notifications.js?v=__ASSET_HASH__']},
   {re: /^\/me\/notifications$/, tab: 'me', scripts: ['/static/social-notifications.js?v=__ASSET_HASH__']},
   {re: /^\/food\/import$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, '/static/food-import.js?v=__ASSET_HASH__']},
+  {re: /^\/food\/cook\/\d+$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, COOK_ROUTE_ASSET]},
+  {re: /^\/food\/recipe-link$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, COOK_ROUTE_ASSET, RECIPE_IMPORT_ROUTE_ASSET]},
   {re: /^\/food(?:\/.*)?$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET]},
   {re: /^\/progress\/weight$/, tab: 'progress', scripts: [FOOD_ROUTE_ASSET]},
   {re: /^\/progress\/(?:routes|trends|calendar|heatmap)$/, tab: 'progress', scripts: [PROGRESS_ROUTE_ASSET]},
@@ -51,6 +88,52 @@ function loadClassicScript(asset) {
 function loadClassicScripts(assets) {
   return assets.reduce((ready, asset) => ready.then(() => loadClassicScript(asset)), Promise.resolve());
 }
+let pendingDishEntry = null;
+async function loadNewDish(btn, where = null) {
+  if (!App.me || btn?.disabled) return pendingDishEntry;
+  if (pendingDishEntry) return pendingDishEntry;
+  const owner = readOwner();
+  if (btn) btn.disabled = true;
+  const task = (async () => {
+    try { await loadClassicScript(COOK_ROUTE_ASSET); }
+    catch (_) {
+      if (btn) btn.disabled = false;
+      if (owner === readOwner() && App.me) toast('Recipe tools could not load. Check your connection and try again.');
+      return;
+    }
+    if (owner !== readOwner() || !App.me) return;
+    if (btn) btn.disabled = false;
+    if (window.newDish === loadNewDish) {
+      toast('Recipe tools could not open. Try again.');
+      return;
+    }
+    return window.newDish(btn, where);
+  })();
+  pendingDishEntry = task;
+  try { return await task; }
+  finally { if (pendingDishEntry === task) pendingDishEntry = null; }
+}
+function callLazyCookHelper(name, args, onFailure = null) {
+  if (!App.me) return;
+  const owner = readOwner();
+  return loadClassicScript(COOK_ROUTE_ASSET).then(() => {
+    if (owner !== readOwner() || !App.me) return;
+    const action = window[name];
+    if (typeof action !== 'function' || action === lazyCookHelpers[name]) throw new Error('Recipe tools could not open.');
+    return action(...args);
+  }).catch(() => {
+    if (owner !== readOwner() || !App.me) return;
+    try { onFailure?.(); } catch (_) { /* preserve the visible retry path */ }
+    toast('Recipe tools could not load. Check your connection and try again.');
+  });
+}
+const lazyCookHelpers = {
+  typeSheet: (...args) => callLazyCookHelper('typeSheet', args),
+  dishLogSheet: (...args) => callLazyCookHelper('dishLogSheet', args, () => args[3]?.onQuickFinish?.()),
+  knownSheet: (...args) => callLazyCookHelper('knownSheet', args),
+};
+Object.assign(window, lazyCookHelpers);
+window.newDish = loadNewDish;
 function warmFoodRoutes() { loadClassicScript(FOOD_ROUTE_ASSET).catch(() => {}); }
 function warmFoodFromTabIntent(event) {
   if(event.type==='pointerover'&&event.pointerType!=='mouse')return;

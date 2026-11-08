@@ -69,9 +69,13 @@ class AssetBuildTests(unittest.TestCase):
             self.assertIn('/static/explore.js?v='+result['assets']['explore.js'],built_app,'the real deferred route points at Explore’s own content hash')
             self.assertIn('/static/social-notifications.js?v='+result['assets']['social-notifications.js'],built_app,'the notification routes point at their own content hash')
             self.assertIn('/static/food-import.js?v='+result['assets']['food-import.js'],built_app,'the real deferred route points at Food import’s own content hash')
+            self.assertIn('/static/cook.js?v='+result['assets']['cook.js'],built_app,'the deferred Cook route points at its own content hash')
+            self.assertIn('/static/recipe-import.js?v='+result['assets']['recipe-import.js'],built_app,'the deferred recipe-import route points at its own content hash')
             self.assertIn('/static/lift-routes.js?v='+result['assets']['lift-routes.js'],built_app,'the deferred lifting routes point at their own content hash')
             self.assertIn('/static/progress-routes.js?v='+result['assets']['progress-routes.js'],built_app,'the deferred Progress routes point at their own content hash')
             self.assertIn('/static/segments.js?v='+result['assets']['segments.js'],built_app,'the deferred Segments routes point at their own content hash')
+            self.assertNotIn('/static/cook.js?v=',html,'Cook is not an eager HTML script')
+            self.assertNotIn('/static/recipe-import.js?v=',html,'recipe import is not an eager HTML script')
 
     def test_two_branches_merge_without_version_edits(self):
         with tempfile.TemporaryDirectory() as temp:
