@@ -1935,3 +1935,11 @@ Numbers come from the shared `U` helpers in `app.js`, so cards, detail, tables, 
 - **Pace** is m:ss per mi/km and rolls over correctly (7:59.5 is 8:00; never ":60").
 - **Elevation** whole numbers; **weight** one decimal.
 - **Table headers name their unit** ("Pace /mi", "Elev ft", "HR bpm", "Eaten kcal").
+### No grey pills on Settings, Progress and Nutrition · 9 November 2026 (#764, owner decision)
+
+- **Pickers are text.** The sport, year-range, day and time-range pickers (`.range-btn`) are plain text with a neutral leading icon and their chevron: no grey pill fill, shadow or radius, still 44px tall.
+- **Text actions stay text.** Nutrition's Goals and Copy yesterday are Kinetta-blue text actions with no box or outline.
+- **Units** in Settings use the same underlined text choice as the Totals period (selected = accent text and underline), not a grey segmented track.
+- **Explore your progress / Explore your food** are plain full-width rows: neutral icon, name, one line of detail, a trailing chevron and a hairline (`.progress-grid.explore-list`). Track tools and the Activity discovery tiles are unchanged for now.
+- **Icons are neutral.** Nutrition detail links and Explore rows use secondary-text icons; colour stays for meaning (selection, actions, sport/series).
+- **Energy balance is neutral.** A deficit or surplus is plain text, never green or red.
