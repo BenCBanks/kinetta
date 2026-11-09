@@ -7,7 +7,7 @@ const Discovery=(()=>{
   function render(box,items,{space,ready=false,attribute='data-discovery-feature'}={}){
     box.setAttribute('aria-busy',String(!ready));
     const visited=seen(space),ordered=[...items.filter(x=>x.teaser),...items.filter(x=>!x.teaser)];
-    box.innerHTML=ordered.map(({id,title,description,icon,href,teaser})=>`<a class="card progress-tile" href="${esc(href)}" ${attribute}="${esc(id)}"><span class="progress-tile-name">${svg(icon)}<b>${esc(title)}</b><span class="progress-new${ready&&!teaser&&!visited.includes(id)?'':' seen'}"${ready&&!teaser&&!visited.includes(id)?' aria-label="New feature"':' aria-hidden="true"'}>New</span></span><span class="small muted">${esc((teaser||description).replace(/ →$/,'\u00a0→'))}</span></a>`).join('');
+    box.innerHTML=ordered.map(({id,title,description,icon,href,teaser})=>`<a class="card progress-tile" href="${esc(href)}" ${attribute}="${esc(id)}"><span class="progress-tile-name">${svg(icon)}<b>${esc(title)}</b><span class="progress-new${ready&&!teaser&&!visited.includes(id)?'':' seen'}"${ready&&!teaser&&!visited.includes(id)?' aria-label="New feature"':' aria-hidden="true"'}>New</span></span><span class="small muted">${esc((teaser||description).replace(/\s*→$/,''))}</span></a>`).join('');
   }
   function wire(box,space,{attribute='data-discovery-feature'}={}){
     const owner=readOwner();box.addEventListener('click',e=>{const tile=e.target.closest('['+attribute+']');if(tile&&box.contains(tile)&&box.isConnected&&owner===readOwner())visit(space,tile.getAttribute(attribute));});
