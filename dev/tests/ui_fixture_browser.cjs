@@ -2,7 +2,7 @@
 'use strict';
 const assert=require('node:assert/strict');
 const {initialize,notificationState,modalState}=require('./spacing_screens.cjs');
-const {seedWeeklyRecapDismissal}=require('./weekly_recap_fixture.cjs');
+const {seedWeeklyRecapDismissal,personaClockInstant}=require('./weekly_recap_fixture.cjs');
 const tile=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64');
 async function until(p,fn,label,timeout=30000){
  const deadline=Date.now()+timeout;
@@ -35,11 +35,11 @@ async function fixtureSessions(browser,base,selected){
 }
 async function fixturePage(browser,base,fixtures,sessions,scene,size,theme){
  assert(['localhost','127.0.0.1'].includes(new URL(base).hostname),'Disposable local server only');
-   const auth=scene.signup?{id:null,storageState:{cookies:[],origins:[]}}:sessions.get(scene.login+(scene.native?':native':'')),c=await browser.newContext({storageState:auth.storageState,viewport:{width:size.width,height:size.height},colorScheme:theme,serviceWorkers:'block',reducedMotion:'reduce',isMobile:true,hasTouch:true,timezoneId:'UTC'}),writes=[],pageErrors=[];
+   const auth=scene.signup?{id:null,storageState:{cookies:[],origins:[]}}:sessions.get(scene.login+(scene.native?':native':'')),clockMode=process.env.KINETTA_SPACING_CLOCK,clockTime=clockMode?personaClockInstant(clockMode,auth.tz||'UTC'):scene.dismissWeeklyRecap?new Date():null,c=await browser.newContext({storageState:auth.storageState,viewport:{width:size.width,height:size.height},colorScheme:theme,serviceWorkers:'block',reducedMotion:'reduce',isMobile:true,hasTouch:true,timezoneId:clockMode?(auth.tz||'UTC'):'UTC'}),writes=[],pageErrors=[];
    try{
     const liftData=scene.lift?await(await c.request.get(base+'/api/activities/'+scene.lift+'/lifts')).json():null;
     await c.addInitScript(initialize,{root:size.root,native:!!scene.native,base,token:auth.token,id:auth.id,lift:scene.lift,liftData});
-    if(scene.dismissWeeklyRecap)await seedWeeklyRecapDismissal(c,{id:auth.id,tz:auth.tz},base);
+    if(scene.dismissWeeklyRecap)await seedWeeklyRecapDismissal(c,{id:auth.id,tz:auth.tz},base,clockTime);
     await c.route('**/*',r=>{const request=r.request(),u=new URL(request.url());if(u.origin!==base)return r.abort();if(scene.signup&&request.method()==='GET'&&u.pathname==='/api/signup')return r.fulfill({json:{open:true,full:false}});if(u.pathname==='/api/challenges/signup/continue')return r.fulfill({json:{}});if(request.method()==='POST'&&u.pathname==='/api/milestones/celebrate')return r.fulfill({json:{items:[],pending:false}});if(!['GET','HEAD'].includes(request.method())){writes.push(u.pathname);return r.abort();}
      if(scene.groups&&u.pathname==='/api/groups')return r.fulfill({json:[]});
      if(scene.group==='empty'&&u.pathname==='/api/groups/00000000-0000-4000-8000-000000000001')return r.fulfill({json:require('./spacing_screens.cjs').GROUP_EMPTY});
@@ -52,7 +52,7 @@ async function fixturePage(browser,base,fixtures,sessions,scene,size,theme){
      if(scene.notifications&&u.pathname==='/api/food/reminders')return r.fulfill({json:{enabled:true,tz:'UTC',push_ready:true,device_ready:true,times:['breakfast','lunch','dinner'].map(meal=>({meal,ready:true,time:'12:15'}))}});
      return r.continue();
     });
-    const p=await c.newPage();p.on('pageerror',e=>pageErrors.push(e.message));if(scene.recap)await p.clock.setFixedTime(new Date(fixtures.recaps.now));
+    const p=await c.newPage();p.on('pageerror',e=>pageErrors.push(e.message));if(clockTime)await p.clock.setFixedTime(clockTime);if(scene.recap)await p.clock.setFixedTime(new Date(fixtures.recaps.now));
     await p.goto(base+scene.route);if(!scene.signup)await until(p,()=>typeof App!=='undefined'&&App.pageReady,'Page route settles');await p.locator(scene.entryReady||scene.ready).first().waitFor({state:'attached'});
     if(scene.name==='Progress'){assert.deepEqual(await p.evaluate(()=>App.me?.feature_flags),{progress_calendar:false,progress_segments:false},'spacing/accessibility Progress fixture uses the default-off flags');assert.equal(await p.locator('[data-progress-feature="calendar"],[data-progress-feature="segments"]').count(),0,'audit Progress scene has no disabled Calendar or Segments links');}
     if(scene.modal){await modalState(p,scene.modal);await p.locator(scene.ready).first().waitFor({state:'attached'});}
