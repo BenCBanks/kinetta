@@ -29,7 +29,7 @@ const v2History=(code,overrides={})=>{
  const levels=definition.levels.map((level,index)=>({rank:index+1,name:level.name,threshold:catalogValue(level)})).filter(level=>level.threshold<=value);
  const last=definition.levels.at(-1),base=catalogValue(last);let multiple=Math.max(2,Number(catalog.tail.first_multiple)||2);
  while(base>0&&base*multiple<=value&&levels.length<10000){levels.push({rank:levels.length+1,name:`${last.name} ×${multiple}`,threshold:base*multiple});multiple++;}
- return{code,pending:false,tiers:levels.map((level,index)=>({...level,day:new Date(Date.UTC(2026,9,1+index)).toISOString().slice(0,10),activity_id:3000+index,date_source:'activity'}))};
+ return{code,pending:false,tiers:levels.map((level,index)=>({...level,day:code==='journey'&&level.rank===1?`${new Date().getFullYear()-1}-10-01`:new Date(Date.UTC(2026,9,1+index)).toISOString().slice(0,10),activity_id:code==='journey'&&level.rank===2?null:3000+index,date_source:'activity'}))};
 };
 const stripCss='.profile-achievement-level-strip{padding:24px 16px}.profile-achievement-level-strip h1{margin:0 0 8px;font-size:1.35rem}.profile-achievement-level-strip>p{max-width:340px;margin:0 0 20px;color:var(--tx2)}.profile-achievement-level-swatches{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:8px;max-width:358px}.profile-achievement-level-swatch{--achievement-palette-base:var(--run);display:flex;flex-direction:column;align-items:center;gap:7px}.profile-achievement-level-swatch .profile-achievement-medallion{flex-basis:34px;width:34px;height:34px}.profile-achievement-level-swatch .profile-achievement-ring{inset:0}.profile-achievement-level-swatch .profile-achievement-icon{width:16px;height:16px}.profile-achievement-level-swatch small{color:var(--tx2);font-size:.7rem}.profile-achievement-level-swatch .profile-achievement-value,.profile-achievement-level-swatch .profile-achievement-level{display:none}:root[data-achievement-evidence="all-tracks"] nav.tabs,:root[data-achievement-evidence="track"] nav.tabs{display:none!important}';
 const achievementFixture={pending:false,tracks:[
@@ -95,12 +95,17 @@ const assertLargeTextFit=async(container,label)=>{
  assert(metrics.some(m=>m.fontSize<22),`${label} scales a long value down in steps`);
 };
 const assertAchievementGridTextFit=async(container,label)=>{
- const metrics=await container.locator('.profile-achievement-name,.profile-achievement-progress-count,.profile-achievement-next').evaluateAll(nodes=>nodes.map(node=>{
-  const range=document.createRange();range.selectNodeContents(node);const card=node.closest('.profile-achievement').getBoundingClientRect(),rects=[...range.getClientRects()];
-  return{text:node.textContent.trim(),fits:node.scrollWidth<=node.clientWidth+1&&rects.every(rect=>rect.left>=card.left-1&&rect.right<=card.right+1)};
+ const metrics=await container.locator('.profile-achievement-name,.profile-achievement-next').evaluateAll(nodes=>nodes.map(node=>{
+  const range=document.createRange();range.selectNodeContents(node);const card=node.closest('.profile-achievement').getBoundingClientRect(),rects=[...range.getClientRects()],style=getComputedStyle(node),ellipsized=node.classList.contains('profile-achievement-next');
+  return{text:node.textContent.trim(),fits:ellipsized?style.whiteSpace==='nowrap'&&style.textOverflow==='ellipsis'&&style.overflow==='hidden'&&node.clientWidth>0:node.scrollWidth<=node.clientWidth+1&&rects.every(rect=>rect.left>=card.left-1&&rect.right<=card.right+1)};
  }));
  assert(metrics.length,`${label} includes achievement labels`);
  assert(metrics.every(row=>row.fits),`${label} labels stay inside their medal columns: ${JSON.stringify(metrics.filter(row=>!row.fits))}`);
+};
+const assertProgressWidths=async(container,label)=>{
+ const metrics=await container.locator('[data-achievement-progress]').evaluateAll(nodes=>nodes.map(bar=>{const track=bar.getBoundingClientRect(),fill=bar.querySelector('[data-progress-fill]').getBoundingClientRect(),value=Number(bar.getAttribute('aria-valuenow'));return{value,track:track.width,fill:fill.width,expected:track.width*value/100};}));
+ assert(metrics.length,`${label} has progress bars`);
+ assert(metrics.every(row=>Math.abs(row.fill-row.expected)<=1.25),`${label} fills match their accessible progress values: ${JSON.stringify(metrics.filter(row=>Math.abs(row.fill-row.expected)>1.25))}`);
 };
 const assertCompactFallback=async(page,label)=>{
  const result=await page.evaluate(()=>{const value=document.createElement('span');value.className='profile-achievement-value';value.style.width='50px';value.textContent='1,120 workouts';document.body.append(value);const fontSize=window.KinettaTextFit.fitElement(value),result={fontSize,text:value.textContent,source:value.dataset.fitTextSource};value.remove();return result;});
@@ -223,19 +228,27 @@ module.exports=async({browser,storageState,base,shots})=>{
   }
   unitLabelValues=[['consistency',2,'weeks'],['active_time',2,'h'],['workouts',2,'workouts'],['sport:lift',2,'sessions'],['years_active',2,'years']].map(([code,value,unit])=>({code,value,unit}));
   await page.goto(base+'/people/alex');await page.locator('.profile-achievements .profile-achievement-list').waitFor();
-  for(const [code,label] of [['consistency','2 weeks'],['active_time','2 hours'],['workouts','2 workouts'],['sport:lift','2 sessions'],['years_active','2 years']]){
-   assert.equal(await page.locator(`.profile-achievement[data-achievement-code="${code}"] .profile-achievement-value`).innerText(),label,`${code} uses its plural unit`);
+  for(const [code,medal,accessible] of [['consistency','2 weeks','2 weeks'],['active_time','2 hours','2 hours'],['workouts','2','2 workouts'],['sport:lift','2','2 sessions'],['years_active','2 years','2 years']]){
+   const row=page.locator(`.profile-achievement[data-achievement-code="${code}"]`);assert.equal(await row.locator('.profile-achievement-value').innerText(),medal,`${code} keeps its medal label compact`);assert.match(await row.getAttribute('aria-label'),new RegExp(accessible.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')),`${code} retains its full spoken unit`);
   }
   unitLabelValues=null;
 
-  await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+  await page.goto(base+'/people/alex');await page.locator('.profile-achievements h2 a').waitFor();
+  await page.locator('.profile-achievements h2 a').click();await page.waitForURL('**/me/achievements');
+  await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
   const groups=page.locator('#profile-achievement-page .profile-achievement-group');
   assert.equal(await groups.count(),3,'started tracks are grouped into Overall, Distance and Strength');
   assert.deepEqual(await groups.locator('.profile-achievement-group-title').allTextContents(),['Overall','Distance','Strength'],'group headings use the requested order');
   assert.equal(await page.locator('#profile-achievement-page .profile-achievement').count(),13,'See all opens every started track');
-  assert.equal(await page.locator('#profile-achievement-page .profile-achievement-progress-count').count(),13,'the overview gives every track a progress count');
-  assert.equal(await page.locator('#profile-achievement-page [data-achievement-code="workouts"] .profile-achievement-progress-count').innerText(),'Level 8 of 10','the overview shows the current level against its named catalog');
+  assert.equal(await page.locator('#profile-achievement-page .profile-achievement-progress-count').count(),0,'the overview avoids repeating the medal level badge');
+  assert.doesNotMatch(await page.locator('#profile-achievement-page [data-achievement-code="workouts"]').getAttribute('aria-label'),/Level 8 of 10/,'open-ended tracks do not claim a false maximum');
   assert.equal(await page.locator('#profile-achievement-page .profile-achievement-overview-progress[role="progressbar"]').count(),13,'every track shows progress to its next level');
+  await assertProgressWidths(page.locator('#profile-achievement-page'),'390px achievements overview');
+  const workoutsProgress=await page.locator('#profile-achievement-page [data-achievement-code="workouts"] .profile-achievement-overview-progress').evaluate(bar=>({track:bar.getBoundingClientRect().width,fill:bar.querySelector('[data-progress-fill]').getBoundingClientRect().width,value:Number(bar.getAttribute('aria-valuenow'))}));
+  assert(workoutsProgress.value>0&&workoutsProgress.value<100&&workoutsProgress.fill<workoutsProgress.track-1,'the Workouts progress bar is visibly partial');
+  assert.equal(await page.locator('#profile-achievement-page [data-achievement-code="active_time"] .profile-achievement-value').innerText(),'1.1k h','long time values use a compact medal label');
+  assert.equal(await page.locator('#profile-achievement-page [data-achievement-code="lifted"] .profile-achievement-value').innerText(),'661k lb','long strength values use a compact medal label');
+  assert.equal(await page.locator('#profile-achievement-page [data-achievement-code="sport:lift"] .profile-achievement-value').innerText(),'22','session medals show a clear number only');
   const groupCodes=[];
   for(let i=0;i<await groups.count();i++){
    const group=groups.nth(i),list=group.locator('.profile-achievement-list');
@@ -250,6 +263,8 @@ module.exports=async({browser,storageState,base,shots})=>{
    ['sport:lift','lifted']
   ],'each section sorts tracks by most progress first, without changing the profile rail');
   await assertAchievementGridTextFit(page.locator('#profile-achievement-page'),'390px achievements grid');
+  const gridCells=await page.locator('#profile-achievement-page .profile-achievement-list.is-grid .profile-achievement').evaluateAll(nodes=>nodes.map(node=>({height:node.getBoundingClientRect().height,next:getComputedStyle(node.querySelector('.profile-achievement-next')).whiteSpace,overflow:getComputedStyle(node.querySelector('.profile-achievement-next')).textOverflow})));
+  assert(gridCells.every(cell=>Math.abs(cell.height-gridCells[0].height)<1),'achievement grid cells keep even heights');assert(gridCells.every(cell=>cell.next==='nowrap'&&cell.overflow==='ellipsis'),'the next-level caption stays on one ellipsized line');
   assert.equal(await page.locator('#profile-achievement-page [data-achievement-code="sport:lift"] .profile-achievement-name').innerText(),'Lift sessions','the grouped grid uses the requested Lift sessions track name');
   const gridFitsPage=await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1);
   assert(gridFitsPage,'the grouped grid does not widen the page');
@@ -276,31 +291,40 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.equal(pinRequests.length,5,'each pin action sends one owner-scoped update');
   const journey=page.locator('#profile-achievement-page [data-achievement-code="journey"]');assert.match(await journey.getAttribute('href'),/\/me\/achievements\/journey$/,'each medallion links to its history');
   await setUnits('metric');
-  await journey.click();await page.waitForURL('**/me/achievements/journey');
-  assert.equal(await page.locator('[data-back]').innerText(),'Achievements','the track ladder back button names the overview');
+  await journey.click();await waitForHistoryTrack(page,'journey','Journey history');
+  assert.equal(await page.locator('[data-back]:visible').last().innerText(),'Achievements','the track ladder back button names the overview');
   const history=page.locator('.profile-achievement-history-head');await history.waitFor();assert.equal(await history.locator('h1').innerText(),'Journey');assert.equal(await page.locator('.profile-achievement-current').innerText(),'Level 7 · Across the US');assert.equal(await page.locator('.profile-achievement-current-value').innerText(),'6,099.4 km','the amount appears on its own header line');
   const journeyLevels=page.locator('.profile-achievement-levels');assert.equal(await journeyLevels.locator('h2').innerText(),'Levels');
   const namedJourneyLevels=journeyLevels.locator('.profile-achievement-named-levels');
   assert.deepEqual(await namedJourneyLevels.locator('li').evaluateAll(nodes=>nodes.map(n=>n.dataset.level)),Array.from({length:11},(_,i)=>String(i+1)),'the full named ladder is visible in level order');
   assert.equal(await journeyLevels.locator('[data-achievement-show-all]').count(),0,'the ladder has no hidden-level toggle');
   assert(await namedJourneyLevels.locator('li.is-next [role="progressbar"]').count(),'the next level is highlighted with progress');
-  assert.match(await namedJourneyLevels.locator('li.is-next [role="progressbar"]+small').innerText(),/to go$/,'the next level says how much remains');
+  assert.match(await namedJourneyLevels.locator('li.is-next [role="progressbar"]+small').innerText(),/left$/,'the next level says how much remains without a dangling word');
+  await assertProgressWidths(journeyLevels,'Journey next-level progress');
   const progressSpacing=await namedJourneyLevels.locator('li.is-next [role="progressbar"]').evaluate(bar=>parseFloat(getComputedStyle(bar.parentElement).marginTop));
   assert(progressSpacing>=3,'the next-level progress bar has room above it');
   assert(await namedJourneyLevels.locator('li.is-current time').count(),'an earned row shows its date');
   assert.equal(await namedJourneyLevels.locator('li.is-earned a[href="/activity/3000"]').count(),1,'earned levels link to their activity');
+  const linkedEarned=namedJourneyLevels.locator('li[data-level="1"] a');
+  assert.equal(await linkedEarned.getAttribute('aria-label'),`Level 1, Round the town, earned Oct 1, ${new Date().getFullYear()-1}`,'activity links announce the earned level and its prior-year date');
+  assert.equal(await namedJourneyLevels.locator('li[data-level="1"]').getAttribute('aria-label'),null,'the row does not override its link name');
+  const noActivity=namedJourneyLevels.locator('li[data-level="2"]');
+  assert.equal(await noActivity.locator('a').count(),0,'an earned level without activity_id stays noninteractive');
+  assert.equal(await noActivity.locator('.profile-achievement-history-chevron').count(),0,'a non-link earned row has no chevron');
+  assert.match(await noActivity.locator('time').innerText(),/Oct 2/,'a non-link earned row still shows its date');
   assert.equal(await namedJourneyLevels.locator('li.is-current').count(),1,'the reached level has a subtle current marker');
-  const levelTone=await journeyLevels.evaluate(list=>({earned:getComputedStyle(list.querySelector('.profile-achievement-named-levels li.is-earned')).opacity,current:getComputedStyle(list.querySelector('.profile-achievement-named-levels li.is-current')).opacity,locked:getComputedStyle(list.querySelector('.profile-achievement-named-levels li.is-upcoming')).opacity,earnedColor:getComputedStyle(list.querySelector('.profile-achievement-named-levels li.is-current .profile-achievement-level-copy b')).color,lockedColor:getComputedStyle(list.querySelector('.profile-achievement-named-levels li.is-upcoming .profile-achievement-level-copy b')).color}));
-  assert.equal(levelTone.earned,'1','earned levels stay in full colour');assert.equal(levelTone.current,'1','the current level stays in full colour');assert.equal(levelTone.locked,'1','locked rows keep their full layout and icons');assert.notEqual(levelTone.lockedColor,levelTone.earnedColor,'only the text colour dims for later levels');
-  assert.match(await journeyLevels.innerText(),/After the named levels, the last icon repeats at each multiple\./,'the tail note sits below the Levels list');
+  const levelTone=await journeyLevels.evaluate(list=>({earned:getComputedStyle(list.querySelector('.profile-achievement-named-levels li.is-earned')).opacity,current:getComputedStyle(list.querySelector('.profile-achievement-named-levels li.is-current')).opacity,locked:getComputedStyle(list.querySelector('.profile-achievement-named-levels li.is-upcoming')).opacity,earnedColor:getComputedStyle(list.querySelector('.profile-achievement-named-levels li.is-current .profile-achievement-level-copy b')).color,lockedColor:getComputedStyle(list.querySelector('.profile-achievement-named-levels li.is-upcoming .profile-achievement-level-copy b')).color,nextColor:getComputedStyle(list.querySelector('.profile-achievement-named-levels li.is-next b')).color,bodyColor:getComputedStyle(document.querySelector('#profile-achievement-page')).color,currentBackground:getComputedStyle(list.querySelector('.profile-achievement-named-levels li.is-current')).backgroundColor,currentBorder:getComputedStyle(list.querySelector('.profile-achievement-named-levels li.is-current')).borderLeftWidth}));
+  assert.equal(levelTone.earned,'1','earned levels stay in full colour');assert.equal(levelTone.current,'1','the current level stays in full colour');assert.equal(levelTone.locked,'1','locked rows keep their full layout and icons');assert.notEqual(levelTone.lockedColor,levelTone.earnedColor,'only the text colour dims for later levels');assert.equal(levelTone.nextColor,levelTone.bodyColor,'the next level does not use link-blue text');assert.notEqual(levelTone.currentBackground,'rgba(0, 0, 0, 0)','the current level has a subtle tinted row');assert.equal(levelTone.currentBorder,'3px','the current row has a clear left marker');
+  assert.equal(await journeyLevels.locator('.profile-achievement-tail-levels li').count(),0,'repeating levels wait until all named levels are earned');
   await assertRingText(page.locator('#profile-achievement-page'),'Journey history');
-  assert.equal(await namedJourneyLevels.locator('li.is-earned a').count(),6,'each earned catalog level links from its ladder row');
+  assert.equal(await namedJourneyLevels.locator('li.is-earned a').count(),5,'earned levels without activity IDs stay out of the link count');
   assert.equal(await journeyLevels.locator('.profile-achievement-history-section').count(),0,'earned levels appear once in the complete ladder');
+  assert.doesNotMatch(await namedJourneyLevels.innerText(),/\d[\d,]*\.\d{2,}/,'level amounts never show more than one decimal place');
   await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='track');
   await screenshot(page,shots,`achievement-history-390-${theme}`,{fullPage:true});
   await page.evaluate(()=>delete document.documentElement.dataset.achievementEvidence);
   const fixedMarathon=page.locator('.profile-achievement-named-levels li[data-level="3"]');
-  assert.equal(await fixedMarathon.locator('b').innerText(),'Level 3 · 42.195 km','the race threshold stays fixed in metric mode');
+  assert.equal(await fixedMarathon.locator('b').innerText(),'Level 3 · 42.2 km','the race threshold uses at most one decimal in metric mode');
   assert.equal(await fixedMarathon.locator('small').innerText(),'Marathon','the fixed race name stays clear');
   await page.goto(base+'/me/achievements/sport%3Arun');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();await expandAchievementLevels(page);
   assert.equal(await page.locator('.profile-achievement-named-levels li[data-level="2"] .profile-achievement-level-title b').innerText(),'Level 2 · 1.6 km','the metric mile threshold uses the requested rounded value');
@@ -334,8 +358,9 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-multiple').innerText(),'×2','the medal shows the tail multiplier badge');
   assert.equal(await page.locator('.profile-achievement-tail-levels li[data-level="12"] .profile-achievement-level-copy>small').innerText(),'Old-growth forest ×3');
   await expandAchievementLevels(page);
-  const initialTailRows=await page.locator('.profile-achievement-tail-levels li').count();assert.equal(initialTailRows,11,'the open tail shows the current level and next ten without an unbounded list');
-  await page.locator('[data-achievement-show-more]').click();assert.equal(await page.locator('.profile-achievement-tail-levels li').count(),initialTailRows+10,'Show 10 more appends a bounded tail page');
+  const initialTailRows=await page.locator('.profile-achievement-tail-levels li').count();assert.equal(initialTailRows,4,'the open tail starts at the current level and shows the next three');
+  assert.equal(await page.locator('[data-achievement-show-more]').innerText(),'Show more');
+  await page.locator('[data-achievement-show-more]').click();assert.equal(await page.locator('.profile-achievement-tail-levels li').count(),initialTailRows+4,'Show more appends four levels');
 
   workoutValue=1120;journeyValue=6099414;await setUnits('imperial');await page.goto(base+'/me/achievements/lifted');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
   assert.equal(await page.locator('.profile-achievement-history-copy .profile-achievement-current').innerText(),'Level 7 · Statue of Liberty');assert.equal(await page.locator('.profile-achievement-history-copy .profile-achievement-current-value').innerText(),'661,387 lb');
@@ -343,7 +368,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   const liftedLevels=page.locator('.profile-achievement-named-levels');assert.equal(await liftedLevels.locator('li').count(),11,'the named ladder includes every level without rendering an endless tail');
   assert.equal(await liftedLevels.locator('li[data-level="8"] .profile-achievement-level-title b').innerText(),'Level 8 · 875,000 lb','Lifted uses pounds in the existing miles preference');
   assert.equal(await liftedLevels.locator('li.is-earned a').count(),6,'earned Lifted levels link to their activities from the ladder');
-  assert.doesNotMatch(await liftedLevels.innerText(),/\d[\d,]*\.\d+\s*(?:lb|kg|mi|km|ft|m)\b/,'the ladder never renders decimal amount fallbacks');
+  assert.doesNotMatch(await liftedLevels.innerText(),/NaN|undefined/,'the ladder does not render malformed targets');
   await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='track');await screenshot(page,shots,`achievement-lifted-levels-390-${theme}`,{fullPage:true});await page.evaluate(()=>delete document.documentElement.dataset.achievementEvidence);
 
   const allFixtureTracks=achievementFixture.tracks;
@@ -370,8 +395,11 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.equal(catalog.tracks.workouts.levels[3].asset_name,'Seedling','the existing Sprout retains its catalog art');
   if(shots){fs.mkdirSync(shots,{recursive:true});await earlyShowcase.screenshot({path:`${shots}/achievement-early-showcase-390-${theme}.png`,animations:'disabled'});}
   await page.goto(base+'/me/achievements/years_active');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
-  assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-current').innerText(),'Level 0','a new track starts at Level 0');
+  assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-current').innerText(),'Not started','a new track clearly says it has not started');
+  assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-current-value').count(),0,'a new track does not show a zero value');
+  assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-level').count(),0,'a new track does not show a level badge');
   assert.equal(await page.locator('.profile-achievement-history-head [data-achievement-icon]').getAttribute('data-achievement-icon'),catalog.tracks.years_active.levels[0].asset_name,'a new track uses the first catalog medal');
+  assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-medallion').evaluate(node=>getComputedStyle(node).filter),'grayscale(1)','the new-track page greys its medal');
   assert.equal(await page.locator('.profile-achievement-named-levels li').count(),catalog.tracks.years_active.levels.length,'an unstarted deep link opens with its full catalog ladder visible');
   assert.equal(await page.locator('.profile-achievement-named-levels li.is-next').getAttribute('data-level'),'1','the first level is highlighted as the next goal');
   achievementFixture.tracks=allFixtureTracks;
@@ -381,11 +409,16 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.equal(await page.locator('.profile-achievement-group .profile-achievement').count(),13,'the overview includes started and new tracks');
   const unstarted=page.locator('#profile-achievement-page [data-achievement-code="workouts"]');
   assert(await unstarted.evaluate(node=>node.classList.contains('is-unstarted')),'catalog-only tracks are shown quietly');
-  assert.equal(await unstarted.locator('.profile-achievement-next').innerText(),`Start: ${catalog.tracks.workouts.levels[0].name}`,'an unstarted track says how to begin');
-  assert.equal(await unstarted.locator('.profile-achievement-overview-progress').getAttribute('aria-valuenow'),'0','an unstarted track starts at zero progress');
+  assert.equal(await unstarted.locator('.profile-achievement-next').innerText(),'Not started','an unstarted track has one clear status label');
+  assert.equal(await unstarted.locator('.profile-achievement-overview-progress').count(),0,'an unstarted track has no progress bar');
+  assert.equal(await unstarted.locator('.profile-achievement-progress-count').count(),0,'an unstarted track has no duplicate level text');
+  assert.equal(await unstarted.locator('.profile-achievement-level').count(),0,'an unstarted track has no level badge');
+  assert.equal(await unstarted.locator('.profile-achievement-value').count(),0,'an unstarted track has no medal value');
   assert.match(await unstarted.getAttribute('aria-description'),/Start with First workout/,'the start cue is announced to assistive technology');
   assert.equal(await unstarted.locator('.profile-achievement-medallion').evaluate(node=>getComputedStyle(node).filter),'grayscale(1)','an unstarted medal is greyed quietly');
   await assertAchievementGridTextFit(page.locator('#profile-achievement-page'),'390px catalog with unstarted tracks');
+  await setUnits('imperial');await page.goto(base+'/me');await until(page,()=>App.pageReady&&App.me?.units==='imperial','imperial units before the unstarted overview capture');
+  await page.evaluate(()=>go('/me/achievements'));await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
   await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='all-tracks');
   await screenshot(page,shots,`achievement-grid-unstarted-390-${theme}`,{fullPage:true});
   await page.evaluate(()=>delete document.documentElement.dataset.achievementEvidence);
@@ -412,12 +445,16 @@ module.exports=async({browser,storageState,base,shots})=>{
      row.display_unit=state.code==='climbing'?(unitMode==='imperial'?'ft':'m'):row.display_unit;
      if(state.workouts)workoutValue=state.workouts;
     }
-    await page.evaluate(code=>{invalidate('/api/');go('/me/achievements/'+encodeURIComponent(code));},state.code);await waitForHistoryTrack(page,state.code,state.name+' achievement history');
+    await page.evaluate(()=>{invalidate('/api/');go('/me/achievements');});await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+    await page.locator('#profile-achievement-page [data-achievement-code="'+state.code+'"]').click();await waitForHistoryTrack(page,state.code,state.name+' achievement history');
+    assert.equal(await page.locator('[data-back]:visible').last().innerText(),'Achievements',`${state.name} opens from the catalog and returns to Achievements`);
     const level=Number(await page.locator('.profile-achievement-history-head .profile-achievement-medallion').getAttribute('data-level'));
     if(state.empty)assert.equal(level,0,'the new-track capture has no earned levels');
     if(state.nearTop)assert.equal(level,catalog.tracks[state.code].levels.length-1,'the near-top capture is one level below the named maximum');
+    if(state.name==='many-level')assert.equal(await page.locator('.profile-achievement-tail-levels li').count(),0,'the open tail stays hidden before all named levels are earned');
     const ladder=page.locator('.profile-achievement-named-levels li');assert.equal(await ladder.count(),catalog.tracks[state.code].levels.length,`${state.name} shows every named level immediately`);
-    await assertRingText(page.locator('#profile-achievement-page'),String(width)+'px '+state.name+' track');
+    if(state.empty){assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-value').count(),0,'the new-track medal has no value');assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-level').count(),0,'the new-track medal has no level badge');assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-medallion').evaluate(node=>getComputedStyle(node).filter),'grayscale(1)','an unstarted track page greys the medal');}
+    else await assertRingText(page.locator('#profile-achievement-page'),String(width)+'px '+state.name+' track');
     assert.equal(await ladder.first().evaluate(row=>getComputedStyle(row).minHeight),'44px','achievement rows keep a 44px minimum');
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${width}px ${state.name} has no horizontal overflow`);
     await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='track');
@@ -430,8 +467,8 @@ module.exports=async({browser,storageState,base,shots})=>{
      await screenshot(page,shots,`achievement-ladder-expanded-${state.name}-390-${theme}`,{fullPage:true});
      await page.evaluate(()=>delete document.documentElement.dataset.achievementEvidence);
      if(state.name==='open-ended'){
-      const tail=page.locator('.profile-achievement-tail-levels li'),initial=await tail.count();assert(initial<=13&&initial>=10,'open-ended ladders keep the repeating tail bounded');
-      await page.locator('[data-achievement-show-more]').click();assert.equal(await tail.count(),initial+10,'the tail control appends exactly ten levels');
+      const tail=page.locator('.profile-achievement-tail-levels li'),initial=await tail.count();assert.equal(initial,4,'open-ended ladders show the current tail level and next three');
+      await page.locator('[data-achievement-show-more]').click();assert.equal(await tail.count(),initial+4,'the tail control appends exactly four levels');
       await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='track');
       await screenshot(page,shots,`achievement-ladder-tail-more-390-${theme}`,{fullPage:true});
       await page.evaluate(()=>delete document.documentElement.dataset.achievementEvidence);
