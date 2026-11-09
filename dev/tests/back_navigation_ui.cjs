@@ -55,6 +55,29 @@ async function changed(p,action){await p.evaluate(()=>globalThis.navPreviousPage
    await p.route('**/api/groups**',r=>{const q=r.request(),path=new URL(q.url()).pathname;if(q.method()==='GET'&&path==='/api/groups')return r.fulfill({json:[group]});if(q.method()==='GET'&&path==='/api/groups/'+groupId)return r.fulfill({json:group});return r.continue();});
    await changed(p,()=>p.evaluate(()=>go('/me/friends')));await changed(p,()=>p.evaluate(()=>go('/me/groups')));assert.equal(await visibleBack(p).innerText(),'Friends','Groups list names Friends as its parent');await changed(p,()=>p.locator('.group-list-row').click());await until(p,path=>App.pageReady&&location.pathname===path&&!!document.querySelector('.group-title'),'group detail',groupPath);assert.equal(await visibleBack(p).innerText(),'Groups','group detail names its list parent');await changed(p,()=>visibleBack(p).click());assert.equal(new URL(p.url()).pathname,'/me/groups');await p.goto(base+groupPath);await until(p,path=>App.pageReady&&location.pathname===path&&!!document.querySelector('.group-title'),'direct group detail',groupPath);assert.equal(await visibleBack(p).innerText(),'Groups','direct detail names its list parent');assert.deepEqual(errors,[]);await close(c);console.log('Groups Back: Friends list, detail history and direct detail PASS '+theme);
   }
+  if(!process.env.KINETTA_NAV_CASE||process.env.KINETTA_NAV_CASE==='failures')for(const theme of ['light','dark']){
+   const {c,p,errors}=await open('feed',theme,{width:390,height:844,root:16});
+   await changed(p,()=>p.locator('nav.tabs a[data-tab="me"]').click());
+   const dest='/activity/'+ids.run;let allowActivity=false;
+   await p.route(`**/api/activities/${ids.run}`,route=>{
+    if(route.request().method()==='GET'&&!allowActivity)return route.fulfill({status:500,contentType:'application/json',body:JSON.stringify({detail:'Fictional internal trace marker'} )});
+    return route.continue();
+   });
+   await changed(p,()=>p.evaluate(path=>go(path),dest));await p.locator('#retry').waitFor();
+   const failedPage=await p.locator('#page').innerText();assert.match(failedPage,/Couldn't load this\. Check your connection and try again\./);assert(!failedPage.includes('Fictional internal trace marker')&&!failedPage.includes('Error 500'));
+   assert.equal(await p.locator('#page > .top').count(),1,'failed page keeps its top bar');assert.equal(await visibleBack(p).innerText(),'Me','failed pushed page keeps its original Back destination');
+   if(process.env.KINETTA_ERROR_SHOTS){fs.mkdirSync(process.env.KINETTA_ERROR_SHOTS,{recursive:true});await p.screenshot({path:path.join(process.env.KINETTA_ERROR_SHOTS,'failed-page-500-390-'+theme+'.png'),animations:'disabled'});}
+   allowActivity=true;await p.locator('#retry').click();await until(p,()=>App.pageReady&&!!document.querySelector('.compact-detail-title'),'retry failed activity page');
+   await visibleBack(p).click();await until(p,()=>App.pageReady&&location.pathname==='/me','Back returns from failed page');assert.deepEqual(errors,[]);await close(c);
+   const tab=await open('feed',theme,{width:390,height:844,root:16});
+   await tab.p.route('**/static/food.js*',route=>route.abort());
+   await tab.p.locator('nav.tabs a[data-tab="food"]').click();await tab.p.locator('#retry').waitFor();
+   const failedTab=await tab.p.locator('#page').innerText();assert.match(failedTab,/Couldn't load this\. Check your connection and try again\./);assert(!failedTab.includes('Error 500'));
+   assert.equal(await tab.p.locator('nav.tabs a:visible').count(),5,'offline Nutrition keeps all tabs');assert.equal(await tab.p.locator('nav.tabs [data-tab="food"]').getAttribute('aria-current'),'page','failed tab remains selected');
+   if(process.env.KINETTA_ERROR_SHOTS){fs.mkdirSync(process.env.KINETTA_ERROR_SHOTS,{recursive:true});await tab.p.screenshot({path:path.join(process.env.KINETTA_ERROR_SHOTS,'offline-tab-390-'+theme+'.png'),animations:'disabled'});}
+   await tab.p.unroute('**/static/food.js*');await tab.p.locator('nav.tabs a[data-tab="me"]').click();await until(tab.p,()=>App.pageReady&&location.pathname==='/me','tabs work after offline load');assert.deepEqual(tab.errors,[]);await close(tab.c);
+   console.log('Failed pages '+theme+': 500 is plain, Retry and original Back work; offline tab keeps navigation');
+  }
   if(!process.env.KINETTA_NAV_CASE||process.env.KINETTA_NAV_CASE==='errors')for(const kind of ['activity','route','exercise','people'])for(const theme of ['light','dark']){
    const {c,p,errors}=await open('activity',theme,{width:390,height:844,root:16}),dest={activity:'/activity/999999999',route:'/route/999999999',exercise:'/lift/ex/999999999',people:'/people/zz_test_missing_navigation_394'}[kind],parent={activity:'Activity',route:'Routes',exercise:'Lifting',people:'Friends'}[kind];
    await p.goto(base+dest);await until(p,()=>App.pageReady&&document.body.textContent.includes('Not available'),'missing record');assert.equal(await visibleBack(p).innerText(),parent);assert.equal(await visibleBack(p).getAttribute('aria-label'),'Back to '+parent);assert(!/Go back/.test(await p.locator('#page').innerText()));

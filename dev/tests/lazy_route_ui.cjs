@@ -222,9 +222,9 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
   try{
     await login(retryContext);const page=await retryContext.newPage(),errors=[];let requests=0;page.on('pageerror',error=>errors.push(error.message));
     await filterRequests(page,route=>{requests++;return requests===1?route.abort():route.continue();});
-    await page.goto(base+'/me/explore',{waitUntil:'domcontentloaded'});await page.locator('.lazy-route-error').waitFor();
-    assert.equal(new URL(page.url()).pathname,'/me/explore','a failed bundle keeps the legacy Explore URL');assert.equal(await page.locator('nav.tabs a[data-tab="track"][aria-current="page"]').count(),1,'the failed page remains in Track');assert(await page.locator('#lazy-route-retry').isVisible());
-    await page.locator('#lazy-route-retry').click();await ready(page,'#guide-results details','Explore after explicit retry');assert.equal(requests,2,'retry clears the failed promise and requests the bundle again');assert.deepEqual(errors,[]);
+    await page.goto(base+'/me/explore',{waitUntil:'domcontentloaded'});await page.locator('.load-error').waitFor();
+    assert.equal(new URL(page.url()).pathname,'/me/explore','a failed bundle keeps the legacy Explore URL');assert.equal(await page.locator('nav.tabs a[data-tab="track"][aria-current="page"]').count(),1,'the failed page remains in Track');assert(await page.locator('#retry').isVisible());
+    await page.locator('#retry').click();await ready(page,'#guide-results details','Explore after explicit retry');assert.equal(requests,2,'retry clears the failed promise and requests the bundle again');assert.deepEqual(errors,[]);
   }finally{await retryContext.close();}
 
   const scrollContext=await fixtureContext(browser);
@@ -312,9 +312,9 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
   try{
     await login(foodRetryContext);const page=await foodRetryContext.newPage(),errors=[],blockedWrites=[];let requests=0;page.on('pageerror',error=>errors.push(error.message));
     await filterFoodRequests(page,route=>{requests++;return requests===1?route.abort():route.continue();},blockedWrites);
-    await page.goto(base+'/food/import',{waitUntil:'domcontentloaded'});await page.locator('.lazy-route-error').waitFor();
-    assert.equal(new URL(page.url()).pathname,'/food/import');assert(await page.locator('#lazy-route-retry').isVisible());
-    await page.locator('#lazy-route-retry').click();await ready(page,'#hi-pick','Food import after explicit retry');
+    await page.goto(base+'/food/import',{waitUntil:'domcontentloaded'});await page.locator('.load-error').waitFor();
+    assert.equal(new URL(page.url()).pathname,'/food/import');assert(await page.locator('#retry').isVisible());
+    await page.locator('#retry').click();await ready(page,'#hi-pick','Food import after explicit retry');
     assert.equal(requests,2,'retry requests Food import again after a failed bundle');assert.deepEqual(blockedWrites,[]);assert.deepEqual(errors,[]);
   }finally{await foodRetryContext.close();}
 
@@ -402,8 +402,8 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
 
   const retry=await notificationFixture(browser,user,{failFirst:true});
   try{
-    await retry.page.goto(base+'/notifications',{waitUntil:'domcontentloaded'});await retry.page.locator('.lazy-route-error').waitFor();
-    assert.equal(retry.routes.scriptRequests.length,1);await retry.page.locator('#lazy-route-retry').click();
+    await retry.page.goto(base+'/notifications',{waitUntil:'domcontentloaded'});await retry.page.locator('.load-error').waitFor();
+    assert.equal(retry.routes.scriptRequests.length,1);await retry.page.locator('#retry').click();
     await ready(retry.page,'#nt-list','notification list after explicit retry');assert.equal(retry.routes.scriptRequests.length,2,'failed notification bundle is requested again');
     assert.deepEqual(retry.errors,[]);assert.deepEqual(retry.routes.writes,[]);
   }finally{await retry.context.close();}
@@ -456,10 +456,10 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
 
   const welcomeRetry=await welcomeFixture(browser,user,{failFirst:true});
   try{
-    await welcomeRetry.page.goto(base+'/welcome?step=profile',{waitUntil:'domcontentloaded'});await welcomeRetry.page.locator('.lazy-route-error').waitFor();
+    await welcomeRetry.page.goto(base+'/welcome?step=profile',{waitUntil:'domcontentloaded'});await welcomeRetry.page.locator('.load-error').waitFor();
     assert.equal(new URL(welcomeRetry.page.url()).pathname,'/welcome','a failed Welcome bundle does not fall back to Me');
-    assert(await welcomeRetry.page.locator('#lazy-route-retry').isVisible());assert.equal(welcomeRetry.requests.length,1);
-    await welcomeRetry.page.locator('#lazy-route-retry').click();await until(welcomeRetry.page,()=>!!document.querySelector('#wc-form'),'Welcome after explicit retry');
+    assert(await welcomeRetry.page.locator('#retry').isVisible());assert.equal(welcomeRetry.requests.length,1);
+    await welcomeRetry.page.locator('#retry').click();await until(welcomeRetry.page,()=>!!document.querySelector('#wc-form'),'Welcome after explicit retry');
     assert.equal(welcomeRetry.requests.length,2,'retry clears the rejected promise and fetches Welcome again');
     assert.deepEqual(welcomeRetry.errors,[]);assert.deepEqual(welcomeRetry.writes,[]);
   }finally{await welcomeRetry.context.close();}
@@ -533,9 +533,9 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
 
   const foodRetry=await foodRouteFixture(browser,{failFirst:true});
   try{
-    await foodRetry.page.goto(base+'/food',{waitUntil:'domcontentloaded'});await foodRetry.page.locator('.lazy-route-error').waitFor();
-    assert(await foodRetry.page.locator('#lazy-route-retry').isVisible(),'failed Nutrition load offers retry');
-    await foodRetry.page.locator('#lazy-route-retry').click();await ready(foodRetry.page,'#page h1','Nutrition after explicit retry');
+    await foodRetry.page.goto(base+'/food',{waitUntil:'domcontentloaded'});await foodRetry.page.locator('.load-error').waitFor();
+    assert(await foodRetry.page.locator('#retry').isVisible(),'failed Nutrition load offers retry');
+    await foodRetry.page.locator('#retry').click();await ready(foodRetry.page,'#page h1','Nutrition after explicit retry');
     assert.equal(foodRetry.foodAttempts(),2,'retry clears the rejected Food promise and requests it again');
     assert.deepEqual(foodRetry.errors,[]);assert.deepEqual(foodRetry.writes,[]);
   }finally{foodRetry.release();await foodRetry.context.close();}
@@ -600,9 +600,9 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
 
   const cookRetry=await foodRouteFixture(browser,{failAsset:'/static/cook.js'});
   try{
-    await cookRetry.page.goto(base+'/food/cook/999999',{waitUntil:'domcontentloaded'});await cookRetry.page.locator('.lazy-route-error').waitFor();
-    assert.equal(new URL(cookRetry.page.url()).pathname,'/food/cook/999999');assert(await cookRetry.page.locator('#lazy-route-retry').isVisible());
-    await cookRetry.page.locator('#lazy-route-retry').click();await ready(cookRetry.page,'.recipe-page .empty','Cook after explicit retry');
+    await cookRetry.page.goto(base+'/food/cook/999999',{waitUntil:'domcontentloaded'});await cookRetry.page.locator('.load-error').waitFor();
+    assert.equal(new URL(cookRetry.page.url()).pathname,'/food/cook/999999');assert(await cookRetry.page.locator('#retry').isVisible());
+    await cookRetry.page.locator('#retry').click();await ready(cookRetry.page,'.recipe-page .empty','Cook after explicit retry');
     assert.equal(cookRetry.assetAttempts('/static/food.js'),1);assert.equal(cookRetry.assetAttempts('/static/cook.js'),2);
     assert.deepEqual(cookRetry.errors,[]);assert.deepEqual(cookRetry.writes,[]);
   }finally{cookRetry.release();await cookRetry.context.close();}
@@ -624,9 +624,9 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
 
   const recipeRetry=await foodRouteFixture(browser,{failAsset:'/static/recipe-import.js'});
   try{
-    await recipeRetry.page.goto(base+'/food/recipe-link',{waitUntil:'domcontentloaded'});await recipeRetry.page.locator('.lazy-route-error').waitFor();
-    assert.equal(new URL(recipeRetry.page.url()).pathname,'/food/recipe-link');assert(await recipeRetry.page.locator('#lazy-route-retry').isVisible());
-    await recipeRetry.page.locator('#lazy-route-retry').click();await ready(recipeRetry.page,'#recipe-url-form','recipe import after explicit retry');
+    await recipeRetry.page.goto(base+'/food/recipe-link',{waitUntil:'domcontentloaded'});await recipeRetry.page.locator('.load-error').waitFor();
+    assert.equal(new URL(recipeRetry.page.url()).pathname,'/food/recipe-link');assert(await recipeRetry.page.locator('#retry').isVisible());
+    await recipeRetry.page.locator('#retry').click();await ready(recipeRetry.page,'#recipe-url-form','recipe import after explicit retry');
     assert.equal(recipeRetry.assetAttempts('/static/food.js'),1);assert.equal(recipeRetry.assetAttempts('/static/cook.js'),1);assert.equal(recipeRetry.assetAttempts('/static/recipe-import.js'),2);
     assert.deepEqual(recipeRetry.errors,[]);assert.deepEqual(recipeRetry.writes,[]);
   }finally{recipeRetry.release();await recipeRetry.context.close();}
@@ -768,9 +768,9 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
   for(const [path,asset] of [['/progress/trends','/static/progress-routes.js'],['/progress/segments','/static/planner.js'],['/progress/segments','/static/segments.js']]){
     const retry=await progressFixture(browser,{fail:asset});
     try{
-      await retry.page.goto(base+path,{waitUntil:'domcontentloaded'});await retry.page.locator('.lazy-route-error').waitFor();
+      await retry.page.goto(base+path,{waitUntil:'domcontentloaded'});await retry.page.locator('.load-error').waitFor();
       assert.equal(new URL(retry.page.url()).pathname,path,'a failed direct deep link stays on its route');
-      await retry.page.locator('#lazy-route-retry').click();await ready(retry.page,'#page h1',`${path} after explicit retry`);
+      await retry.page.locator('#retry').click();await ready(retry.page,'#page h1',`${path} after explicit retry`);
       assert.equal(new URL(retry.page.url()).pathname,path,`${path} stays on its feature-on route after retry`);
       assert.equal(retry.assets.filter(file=>file===asset).length,2,`${path} retries its failed lazy asset`);
       if(asset==='/static/planner.js')assert.equal(retry.assets.filter(file=>file==='/static/segments.js').length,1,'Planner retry still loads Segments once after its dependency succeeds');

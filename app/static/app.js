@@ -981,16 +981,14 @@ function render(options) {
     loadClassicScripts(bundle.scripts).then(() => {
       if (!current()) return;
       if (!App.pages.some((page) => page.re.test(path))) {
-        el.innerHTML = '<div class="boot lazy-route-error"><p role="status">This page could not open. Reload Kinetta and try again.</p><button class="ghost" id="lazy-route-reload">Reload</button></div>';
-        $('#lazy-route-reload', el).onclick = () => location.reload();
+        showError(el, {status: 503}, {retry: () => location.reload()});
         App.pageReady = true;
         return;
       }
       render({globalSyncDone: true,routePosition:nextPosition});
-    }).catch(() => {
+    }).catch(error => {
       if (!current()) return;
-      el.innerHTML = '<div class="boot lazy-route-error"><p role="status">This page could not load. Check your connection, then try again.</p><button class="ghost" id="lazy-route-retry">Try again</button></div>';
-      $('#lazy-route-retry', el).onclick = () => render({globalSyncDone:true,routePosition:nextPosition});
+      showError(el, error, {retry: () => render({globalSyncDone:true,routePosition:nextPosition})});
       App.pageReady = true;
     });
     return;
@@ -1027,16 +1025,37 @@ function render(options) {
     if (current()) { compactSubpageHeader(el);App.pageReady = true; if(path==='/me')scheduleFoodRouteWarmup(); globalThis.CommunityTerms?.check(); if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
   });
 }
-function showError(el, e) {
+function loadErrorCopy(e) {
+  if (e && e.status === 403) return "This item isn't available to you.";
+  if (e && e.status === 404) return 'This item may have been removed or is not shared with you.';
+  if (e && e.status === 429) return 'Too many requests. Wait a moment, then try again.';
+  return "Couldn't load this. Check your connection and try again.";
+}
+function showError(el, e, {retry} = {}) {
   if (e && e.status === 401) return;
-  if (e && e.status === 404) {
+  if (e && e.status === 404 && !el.closest?.('.sheet')) {
     const href = el._backFallback || (location.pathname.startsWith('/people/') ? '/me/friends' : '/activity');
     const fallbackLabel = /^\/activity\/(?:friends\/)?\d+$/.test(location.pathname) ? 'Activity' : BackNavigation.label(href);
     el.innerHTML = `<div class="top">${backBtn(fallbackLabel)}</div><div class="boot"><h1>Not available</h1><p>This item may have been removed or is not shared with you.</p></div>`;
     wireBack(el,href,destination=>destination.history?destination.label:fallbackLabel); return;
   }
-  el.innerHTML = `<div class="boot"><p>${esc(e && e.message || 'Something went wrong')}</p><button class="ghost" id="retry">Try again</button></div>`;
-  $('#retry', el).onclick = () => { invalidate('/api/'); render(); };
+  const isPage = el === $('#page'), path = location.pathname.replace(/\/+$/, '') || '/activity';
+  let top = isPage ? el.querySelector(':scope > .top,:scope > .me-top') : null, wireFallback = null;
+  if (isPage && !top && !TABS.some(([tab]) => path === '/' + tab)) {
+    const fallback = el._backFallback || (path.startsWith('/people/') ? '/me/friends' : '/activity');
+    const destination = BackNavigation.destination(history.state, location.pathname + location.search, fallback, readOwner(), {historyLength: history.length});
+    top = document.createElement('div'); top.className = 'top'; top.innerHTML = backBtn(destination.label);
+    wireFallback = destination.path;
+  }
+  const error = document.createElement('div'); error.className = 'boot load-error';
+  error.innerHTML = `<p role="alert">${esc(loadErrorCopy(e))}</p><button class="ghost" id="retry">Try again</button>`;
+  if (isPage) el.replaceChildren(...(top ? [top] : []), error);
+  else el.innerHTML = error.outerHTML;
+  if (wireFallback) wireBack(el, wireFallback);
+  $('#retry', el).onclick = () => {
+    if (retry) retry();
+    else { invalidate('/api/'); render(); }
+  };
 }
 // in-app links: <a href="/..."> navigate without reloading; prefetch on press for instant pages
 document.addEventListener('click', (e) => {

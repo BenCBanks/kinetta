@@ -150,7 +150,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     const {c,p,errors}=await open('new',theme,{width:390,height:844,root:16}),failed=999999901;
     await c.route(`**/api/lifts/exercises/${failed}`,r=>r.fulfill({status:503,json:{detail:'Fictional history temporarily unavailable'}}),{times:1});
     await p.evaluate(id=>go(`/lift/history/exercise/${id}`),failed);await until(p,id=>location.pathname===`/lift/history/exercise/${id}`,'failed exercise history route',failed);
-    await p.locator('#retry').waitFor();assert((await p.locator('#page').innerText()).includes('Fictional history temporarily unavailable'));
+    await p.locator('#retry').waitFor();const errorText=await p.locator('#page .load-error').innerText();assert(errorText.includes("Couldn't load this. Check your connection and try again."));assert.doesNotMatch(errorText,/Fictional history temporarily unavailable|503/);
     await p.waitForTimeout(450);await shot(p,`history-error-390-${theme}`);assert.deepEqual(errors,[]);
     console.log(`Lifting history 390/${theme}: failed read shows retry instead of a stuck skeleton PASS`);
     await c.close();contexts.splice(contexts.indexOf(c),1);
