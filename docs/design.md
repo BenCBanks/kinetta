@@ -1926,3 +1926,12 @@ The 16-choice catalog, complete 4×4 phone / 2×8 wide grid, keyboard focus, lon
 - **One confirm sheet.** Every "are you sure?" uses the shared `confirmSheet()` bottom sheet, never the browser's `confirm()` box: a short question as the title, one plain line on what happens, Cancel on the left and the named action on the right (red when it removes or ends something). Both buttons are at least 44px. It is an `alertdialog` described by its body line, with no header X, so Cancel is the only cancel button; Escape, the scrim and a swipe also keep things as they were. Closing an editor with unsaved changes asks "Discard your changes?" with Keep editing / Discard.
 - **Folded sections look tappable.** A fold that opens in place (Your week in review, Your weekly check-in, Your week in food, Week by week) is a 44px row in body text with a trailing chevron (silent to screen readers) that turns down when open (`details.chev-row`), not accent-coloured text that reads as a link.
 - **Fitness names.** One name each: **Form** (fitness minus fatigue; never "freshness") and **Run score** (the VDOT formula is named only in the Explore guide; the running card's headline reads “Run score · 90 days”). Raw internals such as the weekly ramp number are not shown; a fast rise gives one plain warning on the summary card.
+
+### One number policy · 9 November 2026 (#765, owner agreed)
+
+Numbers come from the shared `U` helpers in `app.js`, so cards, detail, tables, charts and share pictures match.
+- **Distance** at most one decimal ("4.1 mi"), whole numbers from 100, thousands separators ("1,235 mi"). Live recording may still show two decimals while a workout is in progress.
+- **Durations**: summaries and hero numbers use hours and minutes (`U.time`: "1h 7m", "3h", "20m"; under a minute "45s"). Seconds stay for records, best efforts, splits, laps, intervals and predictions (`dur`: "1:07:03").
+- **Pace** is m:ss per mi/km and rolls over correctly (7:59.5 is 8:00; never ":60").
+- **Elevation** whole numbers; **weight** one decimal.
+- **Table headers name their unit** ("Pace /mi", "Elev ft", "HR bpm", "Eaten kcal").

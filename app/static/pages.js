@@ -129,12 +129,12 @@ function postMapMetrics(a) {
   const r=rate(a);
   if(a.owner) {
     if(a.distance_m&&a.moving_s&&a.shares?.pace&&r.label!=='Time') rows.push([r.label,r.v,r.u]);
-    rows.push(['Time',dur(a.moving_s||a.elapsed_s),'']);
+    rows.push(['Time',U.time(a.moving_s||a.elapsed_s),'']);
     if(rows.length<3&&a.ascent_m)rows.push(['Elevation',U.elev(a.ascent_m),U.eu()]);
   } else {
     if(a.distance_m&&r.label!=='Time')rows.push([r.label,r.v,r.u]);
     else if(a.distance_m&&a.avg_hr)rows.push(['Avg HR',Math.round(a.avg_hr),'bpm']);
-    if(a.distance_m)rows.push(['Time',dur(a.moving_s||a.elapsed_s),'']);
+    if(a.distance_m)rows.push(['Time',U.time(a.moving_s||a.elapsed_s),'']);
   }
   if(!rows.length)return '';
   return `<div class="post-map-metrics" role="group" aria-label="Activity metrics">${rows.slice(0,3).map(([label,value,unit])=>`<div class="post-map-metric"><span class="vh">${esc(label)}</span><b>${esc(value)}${unit?`<i>${esc(unit)}</i>`:''}</b></div>`).join('')}</div>`;
@@ -959,7 +959,7 @@ function sharePicture(id, known) {
       const trimValue=state=>state.hideEnds?savedTrim:0,date=fdate(activity.start_time,{weekday:'short',month:'short',day:'numeric',year:'numeric'}),name=(activity.name||'activity').replace(/[^\w -]+/g,'').trim()||'activity';
       const items=[{label:'Activity card',filename:`${name}.png`,controls,build:state=>routePicture(safe,hasLine?trimValue(state):0,details)}];
       if(hasLine)items.push({label:'Route map',filename:`${name}-route.png`,controls,build:state=>{const trim=trimValue(state),routePoints=trimRoute(decode(line),trim);return ShareArt.simplePicture({kicker:'Route map',title:activity.name,date,value:'Route',routePoints,routeTrimmed:trim>0});}});
-      const rateInfo=rate(activity),statsFacts=[`Time: ${dur(activity.moving_s||activity.elapsed_s)}`];
+      const rateInfo=rate(activity),statsFacts=[`Time: ${U.time(activity.moving_s||activity.elapsed_s)}`];
       if(details.pace&&rateInfo.label!=='Time')statsFacts.push(`${rateInfo.label}: ${rateInfo.v} ${rateInfo.u}`);
       if(details.heart_rate&&activity.avg_hr)statsFacts.push(`Average heart rate: ${Math.round(activity.avg_hr)} bpm`);
       if(details.elevation&&activity.ascent_m)statsFacts.push(`Climb: ${App.me?.units==='metric'?Math.round(activity.ascent_m)+' m':Math.round(activity.ascent_m*3.28084)+' ft'}`);
@@ -1022,7 +1022,7 @@ async function routePicture(a, trim, details={}) {
   const hue = PIC.route, M = 48, PAD = 44, SAFE_TOP = 40, SAFE_BOTTOM = M;
   // the numbers: time and pace (or speed) first, then distance; without distance, heart rate or calories
   const r = rate(a), cells = [];
-  cells.push(['Time', dur(a.moving_s || a.elapsed_s), '']);
+  cells.push(['Time', U.time(a.moving_s || a.elapsed_s), '']);
   if (details.pace!==false&&a.distance_m && a.moving_s && r.label!=='Time') cells.push([r.label, r.v, r.u]);
   if (a.distance_m) cells.push(['Distance', U.dist(a.distance_m), U.du()]);
   if (cells.length < 3 && details.heart_rate && a.avg_hr) cells.push(['Avg heart rate', String(Math.round(a.avg_hr)), 'bpm']);

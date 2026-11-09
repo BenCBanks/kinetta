@@ -8,7 +8,7 @@ function fixture(social=sharing){
  const calls={route:[],simple:[],api:[]},ctx={owner:'zz_test_owner_a',App:{me:{units:'metric'}},SPORT_NAMES:{run:'Run'},readOwner:()=>ctx.owner,
    api:async url=>{calls.api.push(url);return url.endsWith('/social')?{...social,details:{...social.details}}:{...activity};},
    decode:()=>[[40,-75],[40.05,-75.05],[40.1,-75.1]],trimRoute:(points,metres)=>metres?points.slice(1,-1):points,
-   rate:()=>({label:'Pace',v:'5:00',u:'/km'}),dur:n=>n+' seconds',fdate:()=> 'Oct 23, 2026',U:{dist:n=>n+' km',du:()=> 'km'},
+   rate:()=>({label:'Pace',v:'5:00',u:'/km'}),dur:n=>n+' seconds',fdate:()=> 'Oct 23, 2026',U:{dist:n=>n+' km',du:()=> 'km',time:n=>n+' seconds'},
    routePicture:async(...args)=>{calls.route.push(args);return new Blob(['activity']);},
    ShareArt:{simplePicture:async options=>{calls.simple.push(options);return{blob:new Blob(['simple']),alt:'Fictional picture'};}},
    ShareSheet:{open:options=>{ctx.options=options;}},toast:message=>{ctx.toast=message;}};

@@ -641,7 +641,7 @@ route(/^\/activity\/friends\/(\d+)$/, 'activity', async (el, id) => {
 const SHARED_SERIES = ['speed','hr','alt'];
 function drawShared(el, a) {
   const mine = a.social.mine, sh = a.shares, r = rate(a);
-  const hero = (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Moving time', dur(a.moving_s || a.elapsed_s)) +
+  const hero = (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Moving time', U.time(a.moving_s || a.elapsed_s)) +
     (a.distance_m && sh.pace && r.label !== 'Time' ? stat(r.label, r.v, r.u) : '');
   const splits = imp() ? a.splits_mi : a.splits_km;
   const details = sportStats(a);
