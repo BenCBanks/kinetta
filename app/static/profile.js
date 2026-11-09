@@ -212,7 +212,7 @@ const ProfileLayout=(()=>{
     const date=day?fdate(day+'T12:00',dateOptions):'',activityId=Number(earned.activity_id),href=Number.isSafeInteger(activityId)&&activityId>0?`/activity/${activityId}`:'';
     let meta='';
     if(tier.level<=currentLevel){const earnedTime=date?`<time datetime="${esc(day)}">${esc(date)}</time>`:'<span>Earned</span>';meta=`<span class="profile-achievement-level-earned">${earnedTime}${href?'<span class="profile-achievement-history-chevron" aria-hidden="true">›</span>':''}</span>`;}
-    else if(next){
+    else if(next&&achievementTrackStarted(track)){
       const progress=Math.round(achievementProgress(track)*100),remaining=achievementRemainingText(track,tier);
       meta=`<span class="profile-achievement-level-progress"><span class="profile-achievement-level-progressbar" role="progressbar" data-achievement-progress aria-label="Progress to Level ${tier.level}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span data-progress-fill></span></span><small>${esc(remaining)}</small></span>`;
     }
