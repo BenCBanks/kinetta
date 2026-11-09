@@ -1,18 +1,13 @@
 // Map editor and geometry tools for fixed segments.
 'use strict';
 Object.assign(IC, {
-  up: '<path d="M7 14l5-5 5 5"/>',
-  flag: '<path d="M5 21V4"/><path d="M5 4h12l-2.5 4L17 12H5"/>',
   alert: '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.5"/>',
-  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
   undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
   redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>',
-  route: '<circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.5 19H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.5"/>',
   snap: '<path d="M4 18c4-1 3-9 8-10s4 7 8 6"/><circle cx="4" cy="18" r="1.6"/><circle cx="20" cy="14" r="1.6"/>',
   straight: '<path d="M5 19 19 5"/><circle cx="5" cy="19" r="1.6"/><circle cx="19" cy="5" r="1.6"/>',
   locate: '<circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7.5"/>',
   fit: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
-  list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
 });
 const PLAN_SPORTS = [['run', 'Run'], ['walk', 'Walk'], ['hike', 'Hike'], ['ride', 'Ride']];
 const Plan = {
@@ -44,11 +39,9 @@ const Plan = {
   bearing(a, b) { const r = Math.PI / 180, y = Math.sin((b[1] - a[1]) * r) * Math.cos(b[0] * r), x = Math.cos(a[0] * r) * Math.sin(b[0] * r) - Math.sin(a[0] * r) * Math.cos(b[0] * r) * Math.cos((b[1] - a[1]) * r); return (Math.atan2(y, x) / r + 360) % 360; },
 };
 
-// Remove retired route snapshots together with this account’s segment drafts.
-const planDraftKey = key => App.me ? `kinetta.planDraft:${serverKey()}:${App.me.id}:${key}` : null;
 // Shared default for browsing and drawing segments. Never reuse another account’s old global region.
 const MapArea = {
-  key:()=>App.me?`kinetta.mapArea:${serverKey()}:${App.me.id}`:null,
+  key:mapAreaKey,
   valid:p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)&&Math.abs(p[0])<=90&&Math.abs(p[1])<=180,
   remember(p,owner){const key=this.key();if(key&&owner===readOwner()&&this.valid(p))store.set(key,p);},
   async recent(){
@@ -64,15 +57,6 @@ const MapArea = {
     }}catch{/* No area is an honest empty state, not an invented location. */}return null;
   }
 };
-// Erase device drafts only for this signed-in account/server. Legacy geometry stays in account exports.
-function clearSegmentDrafts() {
-  if(!App.me)return;
-  const prefix=planDraftKey(''),server=serverKey(),id=App.me.id;
-  for(const k of Object.keys(localStorage))if(k.startsWith(prefix)||k===MapArea.key()||k===`kinetta.trackRoute:${server}:${id}`||k===`kinetta.routeDownloads:${JSON.stringify([Native.base||location.origin,id])}`)localStorage.removeItem(k);
-  sessionStorage.removeItem(`kinetta.segmentReview:${server}:${id}`);
-  if(typeof Segments!=='undefined')Segments.pending=null;
-}
-
 // ---------- the map editor ----------
 const Planner = (() => {
   let S = null;      // {mode, key, sport, waypoints, legs[{mode, line, pts, rev, state}], snap, name, description, routeId, baseVersion, clientId}

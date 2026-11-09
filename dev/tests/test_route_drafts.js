@@ -2,12 +2,18 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync('app/static/planner.js','utf8');
+const appSource=fs.readFileSync('app/static/app.js','utf8');
 const localStorage={},sessionStorage={removeItem(k){delete this[k]}};
 Object.defineProperty(localStorage,'removeItem',{enumerable:false,value(k){delete this[k]}});
 const c={App:{me:{id:1}},Native:{base:''},location:{origin:'https://example.test'},server:'first',serverKey:()=>c.server,localStorage,sessionStorage,Segments:{pending:{}},store:{
  get(k){return localStorage[k]?JSON.parse(localStorage[k]):null},set(k,v){localStorage[k]=JSON.stringify(v)},del(k){delete localStorage[k]}}};
-vm.createContext(c);vm.runInContext(source.slice(source.indexOf('const planDraftKey'),source.indexOf('// ---------- the map editor')),c);
-vm.runInContext('this.draftKey=planDraftKey',c);
+vm.createContext(c);
+vm.runInContext(appSource.slice(appSource.indexOf('function planDraftKey'),appSource.indexOf('let pendingDishEntry')),c);
+vm.runInContext(source.slice(source.indexOf('// Shared default for browsing'),source.indexOf('// ---------- the map editor')),c);
+vm.runInContext('this.draftKey=planDraftKey;this.area=MapArea',c);
+assert.equal(c.planDraftKey('segment-new'),'kinetta.planDraft:first:1:segment-new');
+assert.equal(c.mapAreaKey(),'kinetta.mapArea:first:1');
+assert.equal(c.area.key(),c.mapAreaKey(),'Planner uses the eager shared map-area key builder');
 const own=c.draftKey('segment-new');c.store.set(own,{name:'Fictional segment draft'});
 sessionStorage['kinetta.segmentReview:first:1']='private segment';
 c.App.me={id:2};const other=c.draftKey('segment-new');c.store.set(other,{name:'Other draft'});
