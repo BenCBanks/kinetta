@@ -26,6 +26,7 @@ const report=path.resolve(process.env.KINETTA_SPACING_REPORT||'/tmp/'+project+'-
     if(scene.todayPlan){
      const row=p.locator('#t-today [data-today-activity]'),title=row.locator('.me-today-copy > b');
      assert.equal(await row.count(),1,'The deterministic Me Today fixture renders its planned activity row');
+     assert.equal(await p.locator('#t-today').getAttribute('data-loaded-day'),fixtures.me_today.today,'The Me Today fixture and its page clock use the same day');
      assert.equal(await title.count(),1,'The planned activity row has a visible title');
      assert.equal(await row.locator('.me-today-copy > small').innerText(),'On your plan','The activity row is from the active plan');
      assert.equal(await row.getAttribute('href'),'/plan','Tapping the planned activity opens the plan');

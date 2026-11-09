@@ -35,7 +35,7 @@ async function fixtureSessions(browser,base,selected){
 }
 async function fixturePage(browser,base,fixtures,sessions,scene,size,theme){
  assert(['localhost','127.0.0.1'].includes(new URL(base).hostname),'Disposable local server only');
-   const auth=scene.signup?{id:null,storageState:{cookies:[],origins:[]}}:sessions.get(scene.login+(scene.native?':native':'')),clockMode=process.env.KINETTA_SPACING_CLOCK,clockTime=clockMode?personaClockInstant(clockMode,auth.tz||'UTC'):scene.dismissWeeklyRecap?new Date():null,c=await browser.newContext({storageState:auth.storageState,viewport:{width:size.width,height:size.height},colorScheme:theme,serviceWorkers:'block',reducedMotion:'reduce',isMobile:true,hasTouch:true,timezoneId:clockMode?(auth.tz||'UTC'):'UTC'}),writes=[],pageErrors=[];
+   const auth=scene.signup?{id:null,storageState:{cookies:[],origins:[]}}:sessions.get(scene.login+(scene.native?':native':'')),clockMode=process.env.KINETTA_SPACING_CLOCK,clockTime=clockMode?personaClockInstant(clockMode,auth.tz||'UTC'):scene.todayPlan&&fixtures.me_today?.now?new Date(fixtures.me_today.now):scene.dismissWeeklyRecap?new Date():null,c=await browser.newContext({storageState:auth.storageState,viewport:{width:size.width,height:size.height},colorScheme:theme,serviceWorkers:'block',reducedMotion:'reduce',isMobile:true,hasTouch:true,timezoneId:clockMode?(auth.tz||'UTC'):'UTC'}),writes=[],pageErrors=[];
    try{
     const liftData=scene.lift?await(await c.request.get(base+'/api/activities/'+scene.lift+'/lifts')).json():null;
     await c.addInitScript(initialize,{root:size.root,native:!!scene.native,base,token:auth.token,id:auth.id,lift:scene.lift,liftData});
