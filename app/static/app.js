@@ -91,14 +91,17 @@ function loadClassicScript(asset) {
 function loadClassicScripts(assets) {
   return assets.reduce((ready, asset) => ready.then(() => loadClassicScript(asset)), Promise.resolve());
 }
+// Shared with the deferred Planner so cleanup and map browsing use one owner-scoped key format.
+function planDraftKey(key) { return App.me ? `kinetta.planDraft:${serverKey()}:${App.me.id}:${key}` : null; }
+function mapAreaKey() { return App.me ? `kinetta.mapArea:${serverKey()}:${App.me.id}` : null; }
 // Account deletion must clear route and segment drafts even though the map editor is deferred.
 // Keep this small eager cleanup owner-scoped; the full Planner bundle remains route-only.
 function clearSegmentDrafts() {
   if (!App.me) return;
   const server = serverKey(), id = App.me.id;
-  const prefix = `kinetta.planDraft:${server}:${id}:`;
+  const prefix = planDraftKey(''), area = mapAreaKey();
   for (const key of Object.keys(localStorage)) {
-    if (key.startsWith(prefix) || key === `kinetta.mapArea:${server}:${id}` ||
+    if (key.startsWith(prefix) || key === area ||
         key === `kinetta.trackRoute:${server}:${id}` ||
         key === `kinetta.routeDownloads:${JSON.stringify([Native.base || location.origin, id])}`) localStorage.removeItem(key);
   }
@@ -555,6 +558,11 @@ const IC = {
   workout: '<path d="M6 8v8M18 8v8M3 10v4M21 10v4M6 12h12"/>',
   trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M9 20h6M10 17h4"/>',
   calendar: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>', down: '<path d="M7 10l5 5 5-5"/>',
+  route: '<circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.5 19H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.5"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
+  list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
+  up: '<path d="M7 14l5-5 5 5"/>',
+  flag: '<path d="M5 21V4"/><path d="M5 4h12l-2.5 4L17 12H5"/>',
   flame: '<path d="M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-6 1-9z"/>', other: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
 };
 Object.assign(IC, {   // 2026-10-11 redesign: Me list icons, feed footers

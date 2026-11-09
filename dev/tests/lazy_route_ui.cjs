@@ -184,6 +184,28 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
  });
  return {context,page,assets,errors,writes,held,release:()=>releaseHeld()};
 }
+async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
+ const context=await fixtureContext(browser);await login(context);
+ const page=await context.newPage(),assets=[],errors=[],writes=[];let plannerAttempts=0;
+ const activityId='987654321',line='_p~iF~ps|U_ulLnnqC_mqNvxq`@';
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.route('**/*',async route=>{
+  const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
+  if(['/static/planner.js','/static/segments.js'].includes(url.pathname)){
+   assets.push(url.pathname);
+   if(url.pathname==='/static/planner.js'&&++plannerAttempts===1&&failPlannerFirst)return route.abort();
+   return route.continue();
+  }
+  if(url.pathname===`/api/activities/${activityId}/segment-efforts`)return route.fulfill({json:{processing:false,efforts:[],assistance:'unassisted',assistance_revision:1,excluded:false}});
+  if(url.pathname===`/api/activities/${activityId}/sections`)return route.fulfill({json:{sport:'run',sections:[{line,distance_m:1200}]}});
+  if(url.pathname===`/api/activities/${activityId}`)return route.fulfill({json:{id:Number(activityId),name:'Fictional test run',sport:'run',sport_label:'Run',start_time:'2026-10-30T12:00:00Z',created:'2026-10-30T12:00:00Z',distance_m:1200,moving_s:360,elapsed_s:365,line,visibility:'me',source:'manual',splits_km:[],splits_mi:[],efforts:[],photos:[],summary_overrides:{}}});
+  if(request.method()==='POST'&&url.pathname==='/api/milestones/celebrate')return route.fulfill({status:204});
+  if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204});
+  if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
+  return route.continue();
+ });
+ return {context,page,assets,errors,writes,activityId};
+}
 (async()=>{const browser=await chromium.launch();try{
   const context=await fixtureContext(browser);
   try{
@@ -683,6 +705,23 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
     });
     assert.deepEqual(cleanup,{mine:null,foreign:'foreign',map:null,foreignMap:'foreign-map',review:null},'Planner cleanup removes only the signed-in account drafts');
   }finally{await progressMe.context.close();}
+
+  const activitySegment=await activitySegmentFixture(browser,{failPlannerFirst:true});
+  try{
+    await activitySegment.page.goto(base+`/activity/${activitySegment.activityId}`);await ready(activitySegment.page,'.compact-detail-title','activity detail before its segment action');
+    await activitySegment.page.locator('#d-segments').scrollIntoViewIfNeeded();await activitySegment.page.locator('#sa-seg').waitFor();
+    assert.deepEqual(activitySegment.assets,['/static/segments.js'],'Activity detail loads Segments without eagerly loading Planner');
+    const iconSnapshot=await activitySegment.page.evaluate(()=>({icons:Object.fromEntries(['route','info','list','up','flag'].map(key=>[key,IC[key]])),other:IC.other}));
+    const sharedIcons=iconSnapshot.icons;
+    assert(Object.values(sharedIcons).every(icon=>icon&&icon!==iconSnapshot.other),'route/action icons have eager shared paths before Planner loads');
+    await activitySegment.page.locator('#sa-seg').click();await activitySegment.page.locator('#toast.on').waitFor();
+    assert.match(await activitySegment.page.locator('#toast').innerText(),/Segment tools could not load.*tap again to retry/i,'failed Planner load leaves a visible retry message');
+    assert.equal(activitySegment.assets.filter(path=>path==='/static/planner.js').length,1,'the first tap attempts the deferred Planner bundle');
+    await activitySegment.page.locator('#sa-seg').click();await activitySegment.page.locator('#st-use').waitFor();
+    assert.deepEqual(activitySegment.assets,['/static/segments.js','/static/planner.js','/static/planner.js'],'the second tap retries Planner and opens the stretch sheet');
+    assert.deepEqual(await activitySegment.page.evaluate(()=>Object.fromEntries(['route','info','list','up','flag'].map(key=>[key,IC[key]]))),sharedIcons,'loading Planner does not replace shared eager icons');
+    assert.deepEqual(activitySegment.errors,[],'Activity first-tap and retry have no uncaught browser errors');assert.deepEqual(activitySegment.writes,[]);
+  }finally{await activitySegment.context.close();}
 
   const directProgress=[
     ['/progress/routes','/progress/routes','/static/progress-routes.js'],

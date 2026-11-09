@@ -333,6 +333,9 @@ const Segments = (() => {
     };
     $('#sa-ex', box).onchange = async (e) => { if(!live())return;try { await api(`/api/activities/${aid}/leaderboards`, json('PUT', {excluded: e.target.checked})); } catch (x) { e.target.checked = !e.target.checked; toast(x.message); } };
     $('#sa-seg', box).onclick = async () => {
+      if(!live())return;
+      try { await loadClassicScript(PLANNER_ROUTE_ASSET); }
+      catch (_) { if(live())toast('Segment tools could not load. Tap again to retry.'); return; }
       if(!live())return;let s; try { s = await api(`/api/activities/${aid}/sections`); } catch (x) { toast(x.message); return; }
       if(!live())return;
       if (!s.sections.length) { toast('This activity has no GPS route.'); return; }
