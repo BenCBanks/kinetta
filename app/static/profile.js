@@ -212,13 +212,14 @@ const ProfileLayout=(()=>{
     const date=day?fdate(day+'T12:00',dateOptions):'',activityId=Number(earned.activity_id),href=Number.isSafeInteger(activityId)&&activityId>0?`/activity/${activityId}`:'';
     let meta='';
     if(tier.level<=currentLevel){const earnedTime=date?`<time datetime="${esc(day)}">${esc(date)}</time>`:'<span>Earned</span>';meta=`<span class="profile-achievement-level-earned">${earnedTime}${href?'<span class="profile-achievement-history-chevron" aria-hidden="true">›</span>':''}</span>`;}
+    else if(next&&!achievementTrackStarted(track)&&tier.level===1)meta='<span class="profile-achievement-level-start-here">Start here</span>';
     else if(next&&achievementTrackStarted(track)){
       const progress=Math.round(achievementProgress(track)*100),remaining=achievementRemainingText(track,tier);
       meta=`<span class="profile-achievement-level-progress"><span class="profile-achievement-level-progressbar" role="progressbar" data-achievement-progress aria-label="Progress to Level ${tier.level}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span data-progress-fill></span></span><small>${esc(remaining)}</small></span>`;
     }
     const threshold=achievementThresholdText(track,tier),name=`Level ${tier.level} · ${threshold}`;
     const content=`${achievementAsset(tier,'profile-achievement-level-icon')}<span class="profile-achievement-level-copy"><span class="profile-achievement-level-title"><b>${esc(name)}</b></span><small>${esc(tier.name)}${tier.level===currentLevel?' · Current':''}</small></span><span class="profile-achievement-level-meta">${meta}</span>`;
-    const accessibleLabel=`Level ${tier.level}, ${tier.name}${tier.level<=currentLevel?`, earned ${date||'level'}`:`, ${status.toLowerCase()}`}`;
+    const spokenStatus=tier.level<=currentLevel?(date?`earned ${date}`:'earned'):status.toLowerCase(),accessibleLabel=`Level ${tier.level}, ${tier.name}, ${spokenStatus}`;
     return `<li class="profile-achievement-level-row ${state}" data-level="${tier.level}">${href?`<a class="profile-achievement-level-link" href="${href}" aria-label="${esc(accessibleLabel)}">${content}</a>`:`<span class="profile-achievement-level-content">${content}</span>`}</li>`;
   }
   function achievementLevelList(track,level,historyData){
@@ -252,7 +253,7 @@ const ProfileLayout=(()=>{
     const value=achievementValue(track);if(value.length<=9)return value;
     const raw=Number(track.display_value),unit=String(track.display_unit||'').toLowerCase();if(!Number.isFinite(raw))return value;
     const compact=number=>{const n=Math.abs(number);if(n>=1e9)return `${achievementNumber(number/1e9)}b`;if(n>=1e6)return `${achievementNumber(number/1e6)}m`;if(n>=1e5)return `${Math.round(number/1e3)}k`;if(n>=1e3)return `${achievementNumber(number/1e3)}k`;return achievementNumber(number);};
-    const amount=compact(raw),shortUnit=({hour:'h',hours:'h',h:'h',week:'wk',weeks:'wk',year:'yr',years:'yr',mi:'mi',km:'km',ft:'ft',m:'m',lb:'lb',kg:'kg'})[unit];
+    const amount=compact(raw),shortUnit=({hour:'h',hours:'h',h:'h',week:'wk',weeks:'wk',year:'yr',years:'yr',workout:'wkt',workouts:'wkt',session:'sess',sessions:'sess',mi:'mi',km:'km',ft:'ft',m:'m',lb:'lb',kg:'kg'})[unit];
     return `${amount}${shortUnit?' '+shortUnit:''}`;
   }
   const achievementSections=[
@@ -272,15 +273,15 @@ const ProfileLayout=(()=>{
     }).join('');
   }
   function achievementMedallion(track){
-    const started=achievementTrackStarted(track),ratio=achievementProgress(track),circumference=2*Math.PI*47,ring=(ratio*circumference).toFixed(1),level=achievementLevel(track),value=started?achievementMedalValue(track):'',tier=achievementCurrentTier(track)||achievementTierAt(track.code,1);
+    const started=achievementTrackStarted(track),ratio=achievementProgress(track),circumference=2*Math.PI*47,ring=(ratio*circumference).toFixed(1),showProgressRing=started&&Math.round(ratio*100)>0,level=achievementLevel(track),value=started?achievementMedalValue(track):'',tier=achievementCurrentTier(track)||achievementTierAt(track.code,1);
     const tone=level>=6?'deep':String(level);
-    return `<span class="profile-achievement-medallion" data-level="${level}" data-level-tone="${tone}" aria-hidden="true"><svg class="profile-achievement-ring" viewBox="0 0 104 104"><circle class="profile-achievement-ring-base" cx="52" cy="52" r="47"/><circle class="profile-achievement-ring-progress" cx="52" cy="52" r="47" stroke-dasharray="${ring} ${circumference.toFixed(1)}" transform="rotate(-90 52 52)"/></svg>${achievementAsset(tier)||achievementGlyph(track)}${started?`<span class="profile-achievement-value">${esc(value)}</span><span class="profile-achievement-level">Lv ${level}</span>${Number(tier?.multiple)>1?`<span class="profile-achievement-multiple">×${Number(tier.multiple)}</span>`:''}`:''}</span>`;
+    return `<span class="profile-achievement-medallion" data-level="${level}" data-level-tone="${tone}" aria-hidden="true"><svg class="profile-achievement-ring" viewBox="0 0 104 104"><circle class="profile-achievement-ring-base" cx="52" cy="52" r="47"/>${showProgressRing?`<circle class="profile-achievement-ring-progress" cx="52" cy="52" r="47" stroke-dasharray="${ring} ${circumference.toFixed(1)}" transform="rotate(-90 52 52)"/>`:''}</svg>${achievementAsset(tier)||achievementGlyph(track)}${started?`<span class="profile-achievement-value">${esc(value)}</span><span class="profile-achievement-level">Lv ${level}</span>${Number(tier?.multiple)>1?`<span class="profile-achievement-multiple">×${Number(tier.multiple)}</span>`:''}`:''}</span>`;
   }
   function achievementRow(track,levelUps=new Set(),pinnedCodes=new Set(),showLevelCount=false){
     const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),tier=achievementCurrentTier(track),value=achievementValue(track),next=achievementNext(track),up=levelUps.has(track.code),pinned=pinnedCodes.has(track.code),canPin=Array.isArray(track.tiers)&&track.tiers.length>0,started=achievementTrackStarted(track),first=achievementTierAt(track.code,1),namedCount=achievementDefinition(track)?.levels?.length||0,maximum=namedCount&&!achievementCatalog?.tail?` of ${namedCount}`:'',aria=started?`${label}, Level ${level}${maximum}${tier?` ${tier.name}`:''}, ${value}${next?`. Next ${next}`:''}${pinned?', Pinned to profile':''}`:`${label}, Not started${first?`. Start with ${first.name}`:''}`;
     const description=showLevelCount&&!started?`Not started. Start with ${first?.name||'the first level'}.`:showLevelCount&&!canPin?'In progress. Earn a level to feature this achievement.':`Long press to ${pinned?'remove this medal from':'pin this medal to'} your profile.`,progress=showLevelCount?Math.round(achievementProgress(track)*100):0;
-    const progressBar=showLevelCount&&started?`<span class="profile-achievement-overview-progress" role="progressbar" data-achievement-progress aria-label="Progress to the next level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span data-progress-fill></span></span>`:'';
-    const detail=showLevelCount&&!started?'Not started':next?`Next · ${next}`:'Highest tier';
+    const progressBar=showLevelCount?(started?`<span class="profile-achievement-overview-progress" role="progressbar" data-achievement-progress aria-label="Progress to the next level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span data-progress-fill></span></span>`:'<span class="profile-achievement-overview-progress-placeholder" aria-hidden="true"></span>'):'';
+    const detail=showLevelCount?(started?(next?achievementRemainingText(track,achievementTierAt(track.code,level+1)):'Highest tier'):'Not started'):(next?`Next · ${next}`:'Highest tier');
     return `<a class="profile-achievement${up?' is-level-up':''}${showLevelCount&&!started?' is-unstarted':''}" role="listitem" href="${esc(achievementHref(track))}" aria-label="${esc(aria)}" aria-description="${esc(description)}" data-achievement-code="${esc(track.code)}" data-showcase-pinned="${pinned}" data-showcase-eligible="${canPin}">${achievementMedallion(track)}<span class="profile-achievement-name">${esc(label)}</span>${progressBar}<span class="profile-achievement-next">${esc(detail)}</span></a>`;
   }
   function achievementLevelUps(data){
