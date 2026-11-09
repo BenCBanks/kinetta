@@ -36,7 +36,7 @@ const report=path.resolve(process.env.KINETTA_SPACING_REPORT||'/tmp/'+project+'-
     const measurements=[],seen=new Set(),allTexts=new Map(),exposure=new Map();
     const measure=async()=>{
      assert(await p.evaluate(id=>App.me?.id===id,auth.id),'The intended fictional account remains signed in');assert.equal(await p.locator('.login').count(),0,'The intended screen cannot be replaced by login');
-     await p.locator(scene.recap?'#recap-preview':scene.ready).first().waitFor({state:'attached'});
+     await p.locator(scene.recap?'[data-share-image="0"]':scene.ready).first().waitFor({state:'attached'});
      const snapshot=await p.evaluate(collectSpacing,{screen:scene.name,rules});
      for(const t of snapshot.texts)allTexts.set(t.key,t);
      const score=r=>Math.min(44,r.width)*Math.min(44,r.height);

@@ -44,7 +44,7 @@
 .share-picture-controls .check{min-height:44px;}
 .share-picture-note:empty{display:none;}
 .share-picture-status{flex:none;min-height:18px;margin:0;text-align:center;}
-.share-picture-actions{display:grid;flex:none;gap:2px;padding:0 18px max(8px,env(safe-area-inset-bottom));}
+.share-picture-actions{display:grid;flex:none;gap:8px;padding:0 18px max(8px,env(safe-area-inset-bottom));}
 .share-picture-actions .primary,.share-picture-actions .linkbtn{min-height:44px;}
 .share-picture-actions .linkbtn{margin:0;}
 .share-picture-actions .primary svg{width:20px;height:20px;margin-right:8px;vertical-align:-4px;}
