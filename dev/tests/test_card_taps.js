@@ -7,7 +7,7 @@ const went = [], handlers = {};
 const ctx = {App: {me: {login: 'zz_me', name: 'Me'}}, SPORT_NAMES: {run: 'Run'}, CHEER: {verb: 'Cheers'}, VIS_SHORT: {friends: 'Friends'},
   esc: (s) => String(s), svg: () => '<svg></svg>', avatar: (p) => `<span class="av">${p.name[0]}</span>`, sportMark: () => '<span class="sp"></span>',
   profileHref: (p) => `/people/${p.login}`, when: () => 'Today', activityMonthKey: (iso) => String(iso).slice(0, 7), activityMedia: () => '', headline: () => '', imp: () => false, rate: () => ({}),
-  stat: () => '', U: {}, dur: () => '', go: (p) => went.push(p), getSelection: () => '', addEventListener() {}};
+  stat: () => '', U: {time: () => ''}, dur: () => '', go: (p) => went.push(p), getSelection: () => '', addEventListener() {}};
 vm.createContext(ctx);
 const social=fs.readFileSync('app/static/social.js','utf8');vm.runInContext(social.slice(social.indexOf('const REACTION_FALLBACK='),social.indexOf('function wireReactionGroup')),ctx);
 vm.runInContext(source.slice(source.indexOf('function postCard'), source.indexOf('// Cheers straight from a feed card')) +

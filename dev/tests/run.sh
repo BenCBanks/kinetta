@@ -169,6 +169,7 @@ node --check dev/tests/weight_progress_actions.cjs
 node --check dev/tests/weight_progress_journeys.cjs
 node dev/tests/test_settings_navigation.js
 node dev/tests/test_confirm_sheet.js
+node dev/tests/test_number_policy.js
 node dev/tests/test_ui_clarity.js
 python3 dev/tests/test_food_thread_facts.py
 python3 dev/tests/test_weekly_food_review.py

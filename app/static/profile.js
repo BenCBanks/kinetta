@@ -599,7 +599,7 @@ const MeCard=(()=>{
   }
   function weekMetrics(row){
     const distance=Number(row.distance_m)||0,workouts=Number(row.activities)||0,time=Number(row.time_s)||0;
-    return {distance:distance>0?U.dist(distance,1):'0',activities:workouts.toLocaleString(),time:time>0?(time>=3600?dur(time,true):`${Math.floor(time/60)}m`):'0m'};
+    return {distance:distance>0?U.dist(distance,1):'0',activities:workouts.toLocaleString(),time:time>0?U.time(time):'0m'};
   }
   function weeklyCard(r){
     if(!r.overview?.activities&&!r.shared_count)return `<div class="me-card-empty"><p>${r.mine===false?'No workouts to show yet.':'Your totals appear here once you have workouts.'}</p>${r.mine===false?"":'<a class="ghost wide" href="/me/goals?new=1">Set a goal</a>'}</div><div class="me-featured-slot" data-me-featured></div>`;

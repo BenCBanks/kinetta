@@ -6,10 +6,10 @@ const stat = (label, v, u = '') => `<div class="stat"><small>${esc(label)}</smal
 const firstStep = (icon,copy,id,label,options='') => `<div class="card first-step"><span class="first-step-icon" aria-hidden="true">${svg(icon)}</span><p>${copy}</p><button type="button" class="primary wide" id="${id}">${label}</button>${options}</div>`;
 function headline(a) {
   const r = rate(a);
-  if (a.lifts && !a.distance_m) return stat('Time', dur(a.moving_s || a.elapsed_s)) + stat('Sets', a.lifts.sets)
+  if (a.lifts && !a.distance_m) return stat('Time', U.time(a.moving_s || a.elapsed_s)) + stat('Sets', a.lifts.sets)
     + (a.lifts.volume ? stat('Lifted', Math.round(imp() ? a.lifts.volume * LB : a.lifts.volume).toLocaleString(), wUnit()) : stat('Exercises', a.lifts.exercises));
-  const first = a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : stat('Time', dur(a.moving_s || a.elapsed_s));
-  const third = a.distance_m ? stat('Time', dur(a.moving_s || a.elapsed_s)) :
+  const first = a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : stat('Time', U.time(a.moving_s || a.elapsed_s));
+  const third = a.distance_m ? stat('Time', U.time(a.moving_s || a.elapsed_s)) :
     a.avg_hr ? stat('Avg HR', Math.round(a.avg_hr), 'bpm') : stat('Effort', a.effort ? Math.round(a.effort) : '–');
   return first + (a.distance_m ? (r.label==='Time' ? (a.avg_hr?stat('Avg HR',Math.round(a.avg_hr),'bpm'):'') : stat(r.label,r.v,r.u)) : (a.effort ? stat('Effort', Math.round(a.effort)) : stat('Calories', a.calories ? Math.round(a.calories) : '–'))) + third;
 }
@@ -119,7 +119,7 @@ function sharedHeadline(a) {   // what a friend shares: no pace when they keep p
   const st = [];
   if (a.distance_m) st.push(stat('Distance', U.dist(a.distance_m), U.du()));
   if (a.distance_m && a.moving_s && a.shares.pace) { const r = rate(a); if(r.label!=='Time')st.push(stat(r.label, r.v, r.u)); }
-  st.push(stat('Time', dur(a.moving_s || a.elapsed_s)));
+  st.push(stat('Time', U.time(a.moving_s || a.elapsed_s)));
   if (st.length < 3 && a.ascent_m) st.push(stat('Elevation', U.elev(a.ascent_m), U.eu()));
   return st.slice(0, 3).join('');
 }
@@ -300,7 +300,7 @@ function combinedWeekHtml(w) {
   const stats=[];
   if(w.workouts)stats.push(stat('Workouts',w.workouts));
   if(w.distance_m>0)stats.push(stat('Distance',U.dist(w.distance_m),U.du()));
-  if(w.seconds>0)stats.push(stat('Time',dur(w.seconds)));
+  if(w.seconds>0)stats.push(stat('Time',U.time(w.seconds)));
   const food=w.days_logged?`${w.days_logged} of 7 days with food logged.`:'Your food consistency will appear as you log meals.';
   const protein=w.days_logged&&w.protein_target?`${w.protein_days_reached?`${w.protein_days_reached} ${w.protein_days_reached===1?'day':'days'} reached`:'No logged days reached'} your current ${r0(w.protein_target)} g protein target.${w.protein_days_unknown?` ${w.protein_days_unknown} logged ${w.protein_days_unknown===1?'day has':'days have'} unknown protein.`:''}`:'';
   return `<details class="card combined-week chev-row"><summary>Your week in review</summary><p class="small muted">${esc(dayLabel(w.start))} – ${esc(dayLabel(w.end))} · last 7 completed days</p>${stats.length?`<div class="stats3">${stats.join('')}</div>`:'<p>No workouts recorded in this week. Distance and time appear with your workouts.</p>'}<p>${food}</p>${protein?`<p>${protein}</p>`:''}<a class="linkbtn" href="${w.days_logged?'/food?view=overview':'/food/describe'}">${w.days_logged?'Food review':'Log food'}</a>${w.workouts?` <a class="linkbtn" href="${profileHref(App.me)}">Your workouts</a>`:''}</details>`;
@@ -744,7 +744,7 @@ function wireActivityTabs(el, onShow = () => {}) {
 
 function drawDetail(el, a) {
   const r = rate(a);
-  const hero = a.lifts && !a.distance_m ? headline(a) : (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Moving time', dur(a.moving_s || a.elapsed_s)) + (a.distance_m && r.label!=='Time' ? stat(r.label, r.v, r.u) : '');
+  const hero = a.lifts && !a.distance_m ? headline(a) : (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Moving time', U.time(a.moving_s || a.elapsed_s)) + (a.distance_m && r.label!=='Time' ? stat(r.label, r.v, r.u) : '');
   const ins = insights(a);
   const splits = imp() ? a.splits_mi : a.splits_km;
   const more = sportStats(a);
@@ -823,7 +823,7 @@ function splitsTable(a, splits) {
   const foot = FOOT.includes(a.sport);
   const paces = splits.map((s) => s.pace_s_per_km).filter(Boolean), fastest = Math.min(...paces), slowest = Math.max(...paces);
   const hasEl = splits.some((s) => s.elev_m != null), hasHr = splits.some((s) => s.avg_hr);
-  return `<table class="tbl"><thead><tr><th>${U.du()}</th><th>${foot ? 'Pace' : 'Speed'}</th><th></th>${foot && splits.some((s) => s.gap_s_per_km) ? '<th class="r">GAP</th>' : ''}${hasEl ? '<th class="r">Elev</th>' : ''}${hasHr ? '<th class="r">HR</th>' : ''}</tr></thead><tbody>
+  return `<table class="tbl"><thead><tr><th>${U.du()}</th><th>${foot ? 'Pace ' + U.pu() : 'Speed ' + U.su()}</th><th></th>${foot && splits.some((s) => s.gap_s_per_km) ? `<th class="r">GAP ${U.pu()}</th>` : ''}${hasEl ? `<th class="r">Elev ${U.eu()}</th>` : ''}${hasHr ? '<th class="r">HR bpm</th>' : ''}</tr></thead><tbody>
     ${splits.map((s) => {
       const full = Math.abs(s.distance_m - (imp() ? MI : 1000)) < 5;
       const w = s.pace_s_per_km ? (fastest / s.pace_s_per_km) : 0;
@@ -835,7 +835,7 @@ function splitsTable(a, splits) {
 }
 function lapsTable(a) {
   const foot = FOOT.includes(a.sport), hasHr = a.laps.some((l) => l.avg_hr);
-  return `<table class="tbl"><thead><tr><th>Lap</th><th>Dist</th><th>Time</th><th class="r">${foot ? 'Pace' : 'Speed'}</th>${hasHr ? '<th class="r">HR</th>' : ''}</tr></thead><tbody>
+  return `<table class="tbl"><thead><tr><th>Lap</th><th>${U.du()}</th><th>Time</th><th class="r">${foot ? 'Pace ' + U.pu() : 'Speed ' + U.su()}</th>${hasHr ? '<th class="r">HR bpm</th>' : ''}</tr></thead><tbody>
     ${a.laps.map((l, i) => { const spk = l.distance_m ? (l.moving_s || l.elapsed_s) / l.distance_m * 1000 : null;
       return `<tr><td>${i + 1}</td><td class="num">${U.dist(l.distance_m)}</td><td class="num">${dur(l.moving_s || l.elapsed_s)}</td>
         <td class="r num">${spk ? (foot ? U.pace(spk) : U.speed(1000 / spk)) : '–'}</td>${hasHr ? `<td class="r num">${l.avg_hr ? Math.round(l.avg_hr) : '–'}</td>` : ''}</tr>`; }).join('')}</tbody></table>`;
