@@ -48,19 +48,20 @@ untrusted.box.buttons[2].onclick();assert(!untrusted.readout.textContent.include
 const future=mixed.box.buttons[6];future.onclick();assert.match(mixed.readout.textContent,/Not yet/);assert.deepEqual(highlighted(mixed.box.buttons),[6]);future.onkeydown({key:'Escape'});assert.deepEqual(highlighted(mixed.box.buttons),[2]);
 console.log('Single total bars: exact heights/tiny values, flat baseline, rounded tops, no sport legend, real breakdown on tap, future/zero and highlight restoration PASS');
 
-// Progress All activities shares the inspection rules; filtered sport/food charts keep their own renderer.
+// Progress Totals: one selectable column per period; All activities draws one total bar with a named breakdown.
 context.$=(selector,box)=>selector==='.readout'?box.readout:selector==='svg'?box.svg:box.hl;
 function periods(distance,keys=[{k:'run',name:'Run'},{k:'ride',name:'Ride'}]){
- const box={clientWidth:340,readout:{},svg:{addEventListener(k,f){this[k]=f;},getBoundingClientRect(){return {left:0,width:340};}},hl:{setAttribute(){}},closest(){return null;},querySelectorAll(){return this.buttons;}};
- Object.defineProperty(box,'innerHTML',{get(){return this.html;},set(html){this.html=html;this.buttons=Array.from({length:(html.match(/class="distance-column"/g)||[]).length},chartButton);}});
- context.periodBars(box,[{label:'Week A',tick:'A',segs:[{k:'run',v:3},{k:'ride',v:6}]},{label:'Week B',partial:true,segs:[{k:'run',v:0}]}],{keys,fmt:v=>v.toFixed(1)+' km',distance});return box;
+ const svg={handlers:{},addEventListener(k,f){this.handlers[k]=f;},querySelectorAll(){return [];},closest(){return null;},getBoundingClientRect(){return {left:0,width:340};}};
+ const box={clientWidth:340,readout:{},svg,hl:null,closest(){return null;}};
+ Object.defineProperty(box,'innerHTML',{get(){return this.html;},set(html){this.html=html;}});
+ context.periodBars(box,[{label:'Week A',tick:'A',segs:[{k:'run',v:3},{k:'ride',v:6}]},{label:'Week B',partial:true,segs:[{k:'run',v:0}]}],{keys,fmt:v=>v.toFixed(1)+' km',distance,yTicks:3,inlineSelection:true,readoutHint:'Tap a bar'});return box;
 }
-const combined=periods(true);assert.equal((combined.html.match(/class="bar-seg distance-total"/g)||[]).length,1);assert(!combined.html.includes('class="legend'));assert.deepEqual(highlighted(combined.buttons),[1]);
-let keyPrevented=false;combined.buttons[0].onkeydown({key:'Enter',preventDefault(){keyPrevented=true;}});assert(keyPrevented);assert.equal(combined.buttons[0].attrs['aria-pressed'],'true');combined.buttons[0].onkeydown({key:' ',preventDefault(){}});assert.equal(combined.buttons[0].attrs['aria-pressed'],'false','SVG bar buttons support Enter and Space without native click synthesis');
-combined.buttons[0].onclick();assert.match(combined.readout.innerHTML,/9.0 km/);assert.match(combined.readout.innerHTML,/Run <b>3.0 km/);assert.match(combined.readout.innerHTML,/Ride <b>6.0 km/);assert.deepEqual(highlighted(combined.buttons),[0]);
-combined.buttons[0].onkeydown({key:'ArrowRight',preventDefault(){}});assert.match(combined.readout.innerHTML,/0.0 km/);assert.equal(combined.buttons[1].focusOptions.preventScroll,true);combined.buttons[1].onkeydown({key:'Escape'});assert.deepEqual(highlighted(combined.buttons),[1]);
-const sport=periods(false,[{k:'run',name:'Run'}]);assert(sport.html.includes('bar-seg k-run'));assert(!sport.html.includes('distance-total'));assert.equal(typeof sport.svg.pointerdown,'function');
-console.log('Progress totals: one bar per period, named per-sport breakdown/zero/current/keyboard, sport-specific renderer preserved PASS');
+const combined=periods(true);assert.equal((combined.html.match(/class="bar-seg distance-total"/g)||[]).length,1,'one total bar per non-empty period');assert(!combined.html.includes('class="legend'));
+assert.match(combined.html,/aria-label="Week A · 9.0 km · Run 3.0 km, Ride 6.0 km"/,'each column names its period, total and per-sport breakdown');assert.match(combined.html,/aria-label="Week B \(so far\) · 0.0 km"/);
+assert.equal((combined.html.match(/role="button" tabindex="0" aria-pressed="false"/g)||[]).length,2,'every period is a focusable toggle');assert.match(combined.readout.innerHTML,/Tap a bar/,'nothing selected shows the hint');
+assert.match(combined.html,/<text class="yl period-axis"[^>]*>10\.0 km<\/text>/,'three axis labels: 0, 5 and 10 km');assert.equal((combined.html.match(/period-axis/g)||[]).length,3);
+const sport=periods(false,[{k:'run',name:'Run'}]);assert(sport.html.includes('bar-seg k-run'));assert(!sport.html.includes('distance-total'));assert.match(sport.html,/period-zero current/,'the current period gets a faint zero tick');
+console.log('Progress totals: one bar per period, named per-sport breakdown, hint readout, three axis labels, current-period tick PASS');
 
 context.U={dist:n=>(n/1609.344).toFixed(1),du:()=> 'mi'};const miles=context.mileageScale([{distance_m:12500}]);assert.equal(miles.top,8);assert.equal(miles.middle,4);assert.equal(miles.max,8*1609.344);
 console.log('SVG distance scale: shared mile/km axis, exact total heights/flat baseline, short-day fractions and visible totals PASS');

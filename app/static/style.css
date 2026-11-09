@@ -565,11 +565,6 @@ body.map-open nav.tabs { display: none; }      /* full-screen map: X, Esc or Bac
 
 .chartbox .hl { fill: var(--tx); opacity: .06; }
 .avgline-label { fill:var(--tx2);font-size:11px;pointer-events:none; }
-.period-select-chart svg { touch-action:manipulation; }
-.period-column { cursor:pointer; }
-.period-hit { fill:transparent; }
-.period-column.is-selected .period-zero { stroke:var(--accent);stroke-width:2; }
-.period-column .period-zero.current { stroke:var(--tx3); stroke-width:1; stroke-dasharray:2 2; opacity:.65; }
 .chartbox .ln.faint { stroke-width: 1.25; opacity: .35; }
 .chartbox .xdot { stroke: var(--card); stroke-width: 2; }
 .chartbox .goal-ln { stroke: var(--tx2); stroke-width: 1.5; stroke-dasharray: 4 4; fill: none; }
@@ -2729,20 +2724,20 @@ nav.tabs { view-transition-name: tabs; }
 @keyframes vt-out-right { to { transform: translateX(18px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .launch svg { animation: none; } ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
 
-/* Progress bars share one readable muted fill; selection is always the accent. Food and other charts keep their own data colours. */
-.distance-hit { fill:transparent; }
-.distance-chart .distance-total, [data-area=progress] #m-chart .bar-seg { fill:color-mix(in srgb,var(--color-distance-muted) 60%,var(--color-brand) 40%); }
-.distance-chart .is-highlighted .distance-total { fill:var(--accent); }
+/* Progress Totals bars (periodBars with inlineSelection): one muted fill for every sport, the accent for the selected
+   period. The muted fill keeps about 3:1 against the card in dark mode. Food and other charts keep their own data colours. */
+.period-select-chart svg { touch-action:manipulation; }
+.period-column { cursor:pointer; }
+.period-column:focus { outline:none; }
+.period-hit { fill:transparent; }
+.period-column:focus-visible .period-hit { stroke:var(--accent); stroke-width:1.5; }
+.period-column .bar-seg { fill:color-mix(in srgb,var(--color-distance-muted) 60%,var(--color-brand) 40%); }
+.period-column.is-selected .bar-seg { fill:var(--accent); }
+.period-column .bar-seg.partial { opacity:.75; }
 .distance-empty { stroke:var(--line); stroke-width:1; }
-.distance-value { visibility:hidden; fill:var(--tx); font-size:10px; pointer-events:none; }
-.distance-column.is-highlighted .distance-value { visibility:visible; }
-.distance-column { cursor:pointer; }
-.distance-column:focus-visible .distance-hit { stroke:var(--color-outline); stroke-width:1; }
-[data-area=progress] #m-chart .period-column.is-selected .bar-seg,
-[data-area=progress] #m-chart .period-column.is-selected .distance-total { fill:var(--accent); filter:none; }
-[data-area=progress] #m-chart .period-column.is-selected .distance-empty { stroke:var(--accent); stroke-width:2; }
-[data-area=progress] #m-chart .period-column:focus { outline:none; }
-[data-area=progress] #m-chart .period-column:focus-visible .period-hit { stroke:var(--accent); stroke-width:1.5; }
+.period-column .period-zero.current { stroke:var(--tx3); stroke-width:1; stroke-dasharray:2 2; opacity:.65; }
+.period-column.is-selected .period-zero, .period-column.is-selected .distance-empty { stroke:var(--accent); stroke-width:2; }
+.progress-total-readout .readout-hint { color:var(--tx3); }
 
 /* Account navigation and persistent return controls (owner cleanup, October 2026). */
 

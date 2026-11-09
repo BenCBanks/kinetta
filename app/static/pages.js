@@ -1508,8 +1508,14 @@ const progressWeekLabel = (start) => {
   if (start.getFullYear() === end.getFullYear()) return `${range}, ${end.getFullYear()}`;
   return `${short(start)} ${start.getDate()}, ${start.getFullYear()}–${short(end)} ${end.getDate()}, ${end.getFullYear()}`;
 };
+// Time axis: whole minutes or hours (30m, 1h, 1h 30m) instead of decimal seconds.
+const progressTimeStep = (max, n) => {
+  const raw = max / n, minutes = [5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 300, 360, 480, 600, 720, 900, 1200].find(m => m * 60 >= raw);
+  return minutes ? minutes * 60 : niceStep(raw / 3600, 1) * 3600;
+};
+const progressAxisTime = seconds => { const h = Math.floor(seconds / 3600), m = Math.round((seconds % 3600) / 60); return h ? `${h}h${m ? ` ${m}m` : ''}` : `${m}m`; };
 const progressPeriodLabel = (d, period) => period === 'week' ? progressWeekLabel(d)
-  : period === 'month' ? d.toLocaleDateString([], {month: 'long', year: 'numeric'}) : String(d.getFullYear());
+  : period === 'month' ? d.toLocaleDateString([], d.getFullYear() === new Date().getFullYear() ? {month: 'long'} : {month: 'long', year: 'numeric'}) : String(d.getFullYear());
 const progressPeriodTick = (d, period) => period === 'week' ? d.toLocaleDateString([], {month: 'short', day: 'numeric'})
   : period === 'month' ? d.toLocaleDateString([], {month: 'short'}) : String(d.getFullYear());
 const progressTableLabel = (d, period) => {
@@ -1555,9 +1561,13 @@ async function pMileage(body, q, {home=false}={}) {
     const show = scoped ? all.filter((d) => inRange(R, d.getFullYear())) : period === 'week' ? all.slice(-26) : period === 'month' ? all.slice(-24) : all;
     // A short history still draws normal-width bars (2026-10-18 UI pass): one first week was one bar across the whole
     // chart. Earlier empty periods are added to the chart only; averages and bests still use real periods.
-    const minCols = {week: 8, month: 6}[period] || 0;
+    const minCols = {week: 8, month: 6, year: 4}[period];
     const chartDays = [...show];
-    while (!scoped && chartDays.length && chartDays.length < minCols) { const d = new Date(chartDays[0]); if (period === 'week') d.setDate(d.getDate() - 7); else d.setMonth(d.getMonth() - 1); chartDays.unshift(d); }
+    while (!scoped && chartDays.length && chartDays.length < minCols) {
+      const d = new Date(chartDays[0]);
+      if (period === 'week') d.setDate(d.getDate() - 7); else if (period === 'month') d.setMonth(d.getMonth() - 1); else d.setFullYear(d.getFullYear() - 1);
+      chartDays.unshift(d);
+    }
     if (!show.length) { box.innerHTML = '<div class="card empty"><b>Nothing in this range</b>Pick other years above.</div>'; return; }
     const pacePeriods = period === 'year' ? all : all.slice(-12), chartPeriods = paceMetric ? pacePeriods : chartDays;
     const shownDays=new Set(show.map(ymd));
@@ -1565,7 +1575,7 @@ async function pMileage(body, q, {home=false}={}) {
       const prev = chartDays[i - 1], tick = period === 'year' ? progressPeriodTick(d, period)
         : period === 'month' ? (d.getMonth() % 3 === 0 ? progressPeriodTick(d, period) : '')
         : (!prev || prev.getMonth() !== d.getMonth()) ? progressPeriodTick(d, period) : '';
-      return {d, label: label(d), tick, padded:!shownDays.has(ymd(d)), partial: i === chartDays.length - 1, segs: keys.map((k) => ({k: k.k, v: metric === 'time' ? Number(((by[ymd(d)] || {})[k.k] || {}).t || 0) : toU(Number(((by[ymd(d)] || {})[k.k] || {}).d || 0))}))};
+      return {d, label: label(d), tick, tickLabel: progressPeriodTick(d, period), padded:!shownDays.has(ymd(d)), partial: i === chartDays.length - 1, segs: keys.map((k) => ({k: k.k, v: metric === 'time' ? Number(((by[ymd(d)] || {})[k.k] || {}).t || 0) : toU(Number(((by[ymd(d)] || {})[k.k] || {}).d || 0))}))};
     });
     const complete = all.slice(0, -1), recent = scoped ? show.filter((d) => d < all[all.length - 1]) : period === 'week' ? complete.slice(-52) : period === 'month' ? complete.slice(-12) : complete;
     const avg = paceMetric ? null : recent.length ? recent.reduce((s, d) => s + metricValue(d), 0) / recent.length : null;
@@ -1610,7 +1620,7 @@ async function pMileage(body, q, {home=false}={}) {
         dotChart($('#m-chart', box), points, {yfmt: v => metric === 'speed' ? U.speed(v) : U.pace(v), invert: metric === 'pace', line: true, height: home ? 150 : 180});
         const svgChart = $('#m-chart svg', box); if (svgChart) svgChart.setAttribute('aria-label', `${chartLabel}; ${period === 'week' ? 'last 12 weeks' : period === 'month' ? 'last 12 months' : 'all recorded years'}`);
       } else {
-        periodBars($('#m-chart', box), cols, {keys, fmt, yfmt: metric === 'time' ? progressDuration : v => String(Math.round(v)), axisUnit:metric==='distance'?U.du():'', yTicks:3, avg, avgLabel: period === 'year' ? 'Yearly average' + (scoped ? ` (${rangeName})` : '') : `Average ${period} (${scoped ? rangeName : 'last 12 months'})`, avgLineLabel: avg>0?`avg ${fmt(avg)}`:'', ariaLabel:`${chartLabel}. Select a bar for its period total.`, height:home?165:190, distance:sport==='all'&&metric==='distance', inlineSelection:true});
+        periodBars($('#m-chart', box), cols, {keys, fmt, yfmt: metric === 'time' ? progressAxisTime : v => String(+v.toFixed(2)), step: metric === 'time' ? progressTimeStep : undefined, axisUnit:metric==='distance'?U.du():'', yTicks:3, avg, avgLabel: period === 'year' ? 'Yearly average' + (scoped ? ` (${rangeName})` : '') : `Average ${period} (${scoped ? rangeName : 'last 12 months'})`, avgLineLabel: avg>0?`avg ${fmt(avg)}`:'', ariaLabel:`${chartLabel}. Select a bar for its period total.`, readoutHint:`Tap a bar for that ${word}’s total`, height:home?165:190, distance:sport==='all'&&metric==='distance', inlineSelection:true});
       }
       if(focusTable&&body.isConnected&&document.activeElement===document.body)$('[data-progress-view="table"]',body)?.focus({preventScroll:true});
     });
