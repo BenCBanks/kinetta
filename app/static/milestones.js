@@ -10,14 +10,15 @@ const Milestones=(()=>{
     }finally{clearTimeout(timer);}
   }
   const day=d=>new Date(d+'T12:00:00Z').toLocaleDateString(undefined,{timeZone:'UTC',month:'long',day:'numeric',year:'numeric'});
+  const pictureDuration=seconds=>{const minutes=Math.max(0,Math.round((Number(seconds)||0)/60)),hours=Math.floor(minutes/60);return hours?`${hours}h ${minutes%60}m`:`${minutes}m`;};
   function values(item){
     const d=item.details,metric=App.me.units==='metric',unit=metric?'km':'mi';let value='',label='',facts=[];
-    if(item.kind==='best'){value=dur(d.seconds);label=d.label;}
+    if(item.kind==='best'){value=pictureDuration(d.seconds);label=d.label;}
     else if(item.kind==='year_distance'){value=d.amount.toLocaleString();label=d.unit;}
     else if(item.kind==='activity_weeks'){value=String(d.amount);label='active weeks in a row';}
     else if(item.kind==='food_days'){value=String(d.amount);label='days with food logged';}
-    else if(d.distance_m>0){value=(d.distance_m/(metric?1000:1609.344)).toLocaleString(undefined,{maximumFractionDigits:1,minimumFractionDigits:1});label=unit;if(d.seconds>0)facts.push('Workout time: '+dur(d.seconds));}
-    else if(d.seconds>0){value=dur(d.seconds);label='Workout time';}
+    else if(d.distance_m>0){value=(d.distance_m/(metric?1000:1609.344)).toLocaleString(undefined,{maximumFractionDigits:1,minimumFractionDigits:1});label=unit;if(d.seconds>0)facts.push('Workout time: '+pictureDuration(d.seconds));}
+    else if(d.seconds>0){value=pictureDuration(d.seconds);label='Workout time';}
     else{value=SPORT_NAMES[d.sport]||'Your progress';}
     return{value,unit:label,facts};
   }
