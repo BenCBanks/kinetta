@@ -23,7 +23,7 @@
 .track-plan > .me-chip { flex:none; min-height:44px; }
 .compact-track-tools.track-tools { margin:8px 0; padding:0; border:0; }
 .compact-track-tools .sec-head { font-size:max(17px,1.125rem); margin:0 0 8px; }
-.compact-track-tools .track-tool-list { display:block; margin:0; }
+.compact-track-tools .track-tool-list { display:flex; flex-direction:column; gap:8px; margin:0; }
 .compact-track-tools .progress-tile {
   display:grid; grid-template-columns:20px minmax(0,1fr); align-items:center; gap:0 8px;
   min-height:56px; margin:0; padding:8px 0; border:0; border-radius:0; background:none; box-shadow:none;
@@ -31,7 +31,7 @@
 .compact-track-tools .progress-tile + .progress-tile { border-top:1px solid var(--line); }
 .compact-track-tools .progress-tile-name { display:contents; }
 .compact-track-tools .progress-tile-name > svg { grid-column:1; grid-row:1 / span 2; width:20px; height:20px; color:var(--tx2); }
-.compact-track-tools .progress-tile-name > b { grid-column:2; grid-row:1; min-width:0; font-size:max(16px,1rem); line-height:1.3; white-space:nowrap; overflow-wrap:normal; }
+.compact-track-tools .progress-tile-name > b { grid-column:2; grid-row:1; min-width:0; font-size:max(16px,1rem); line-height:1.3; white-space:normal; overflow-wrap:anywhere; }
 .compact-track-tools .progress-tile-name .progress-new { display:none; }
 .compact-track-tools .progress-tile > .small { grid-column:2; grid-row:2; min-width:0; margin:2px 0 0; display:block; font-size:max(13px,.8125rem); line-height:1.4; overflow:visible; }
 

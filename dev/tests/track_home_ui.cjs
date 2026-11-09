@@ -35,10 +35,13 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   }
   assert.equal(await p.locator('h1').innerText(),'Track');assert.equal(await p.locator('#track-explore a').count(),native?5:4);assert.equal(await p.locator('#track-kind,.track-other').count(),0,'no extra global choice row');
   assert.equal(await p.locator('.track-gps-note').count(),native?0:1,'GPS recording note appears only on the web');
-  assert.equal(await p.locator('#track-explore').evaluate(n=>getComputedStyle(n).display),'block','Track tools are a plain one-column list');
+  assert.equal(await p.locator('#track-explore').evaluate(n=>{const s=getComputedStyle(n);return `${s.display}/${s.flexDirection}/${s.rowGap}`;}),'flex/column/8px','Track tools are a plain one-column list with readable row gaps');
   assert.equal(await p.locator('#track-explore .progress-new:visible').count(),0,'Track tools have no unexplained New dots');
   const toolRows=await p.locator('#track-explore a').evaluateAll(nodes=>nodes.map(a=>{const title=a.querySelector('.progress-tile-name b'),range=document.createRange();range.selectNodeContents(title);const s=getComputedStyle(a);return{height:a.getBoundingClientRect().height,titleLines:range.getClientRects().length,titleFits:title.scrollWidth<=title.clientWidth+1,background:s.backgroundColor,radius:s.borderRadius,left:s.borderLeftWidth,right:s.borderRightWidth,bottom:s.borderBottomWidth,shadow:s.boxShadow};}));
-  assert(toolRows.every(row=>row.height>=56&&row.titleLines===1&&row.titleFits),'tool rows meet 56px targets and keep titles on one unclipped line '+JSON.stringify(toolRows));
+  assert(toolRows.every(row=>row.height>=56&&row.titleLines>=1&&row.titleLines<=2&&row.titleFits),'tool rows meet 56px targets and wrap titles without clipping '+JSON.stringify(toolRows));
+  const wrapTitle=p.locator('#track-explore .progress-tile-name b').last(),originalTitle=await wrapTitle.textContent();await wrapTitle.evaluate(n=>{n.textContent='Connections and health across your connected training apps';});
+  const wrapped=await wrapTitle.evaluate(n=>{const range=document.createRange();range.selectNodeContents(n);const s=getComputedStyle(n);return{lines:range.getClientRects().length,fits:n.scrollWidth<=n.clientWidth+1,whiteSpace:s.whiteSpace,overflowWrap:s.overflowWrap};});
+  assert(wrapped.lines>1&&wrapped.fits&&wrapped.whiteSpace==='normal'&&wrapped.overflowWrap==='anywhere','a long tool title wraps inside its row instead of clipping '+JSON.stringify(wrapped));await wrapTitle.evaluate((n,text)=>{n.textContent=text;},originalTitle);
   assert(toolRows.every(row=>row.background==='rgba(0, 0, 0, 0)'&&row.radius==='0px'&&row.left==='0px'&&row.right==='0px'&&row.bottom==='0px'&&row.shadow==='none'),'tool rows have no card boxes '+JSON.stringify(toolRows));
   assert(!/0 connected/.test(await p.locator('#track-explore').innerText()));assert.equal(await p.locator('#track-route').count(),0,'retired picker is not resurrected');
   for(const button of await p.locator('.track-quick button,.track-recording-options button').all())if(await button.isVisible()){const r=await button.boundingBox();assert(r.height>=44,'44px control');}
