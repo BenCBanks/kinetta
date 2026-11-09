@@ -180,6 +180,8 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
 
   const chartState=()=>chart.evaluate(n=>({left:n.scrollLeft,max:n.scrollWidth-n.clientWidth,atEnd:n.scrollWidth-n.clientWidth-n.scrollLeft<1}));
   const checkChart=async()=>{
+   const labelGaps=await p.locator('.me-week-month').evaluateAll(nodes=>{const labels=nodes.filter(n=>n.textContent.trim()).map(n=>n.getBoundingClientRect());return labels.slice(1).map((r,i)=>r.left-labels[i].right);});
+   assert(labelGaps.length>0&&labelGaps.every(gap=>gap>=1.5),'adjacent month labels have at least 1.5px separation '+JSON.stringify(labelGaps));
    if(size.width!==390||size.root!==16)return;
    const g=await p.evaluate(()=>{
     const rail=document.querySelector('.me-card-bars'),buttons=[...rail.querySelectorAll('.me-week')],bars=buttons.map(n=>n.querySelector('span[data-h],span:not(.me-week-month)'));
