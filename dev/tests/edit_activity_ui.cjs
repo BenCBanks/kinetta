@@ -35,13 +35,14 @@ for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','
  await cancel.click();await p.waitForSelector('.scrim',{state:'detached'});
  // Changed: Cancel asks; dismissing the question keeps the sheet and the draft; accepting discards.
  await open();await p.locator('#e-form input[name="name"]').fill('Draft title kept');
- let asked=0;p.once('dialog',d=>{asked++;assert.match(d.message(),/Discard your changes/);d.dismiss();});
- await cancel.click();await p.waitForTimeout(300);assert.equal(asked,1);assert.equal(await p.locator('#e-form input[name="name"]').inputValue(),'Draft title kept','draft kept');
- p.once('dialog',d=>{asked++;d.dismiss();});await p.keyboard.press('Escape');await p.waitForTimeout(300);assert.equal(asked,2,'Escape asks too');assert.equal(await p.locator('.sheet.pinned').count(),1);
+ // The question is the shared confirm sheet: Keep editing on the left, red Discard on the right.
+ const ask=async()=>{await p.locator('.confirm-sheet').waitFor();assert.equal(await p.getByRole('dialog',{name:'Discard your changes?'}).count(),1);const [keep,discard]=await p.locator('.confirm-sheet .btnrow button').all();assert.equal(await keep.innerText(),'Keep editing');assert.equal(await discard.innerText(),'Discard');for(const b of [keep,discard])assert((await b.boundingBox()).height>=44,'44px confirm buttons');assert((await keep.boundingBox()).x<(await discard.boundingBox()).x,'Cancel sits left of the action');};
+ await cancel.click();await ask();await shot('discard-confirm');await p.locator('[data-confirm-cancel]').click();await p.locator('.confirm-sheet').waitFor({state:'detached'});assert.equal(await p.locator('#e-form input[name="name"]').inputValue(),'Draft title kept','draft kept');
+ await p.keyboard.press('Escape');await ask();await p.keyboard.press('Escape');await p.locator('.confirm-sheet').waitFor({state:'detached'});assert.equal(await p.locator('.sheet.pinned').count(),1,'Escape asks too, and Escape on the question keeps editing');
  // Save from the pinned header sends the edit (intercepted) and closes without asking.
  await save.click();await p.waitForSelector('.scrim',{state:'detached'});
  assert(writes.some(w=>w==='PATCH /api/activities/'+act.id),'saved from the header: '+writes.join(','));
- await open();p.once('dialog',d=>{asked++;d.accept();});await p.locator('#e-form select[name="kind"]').selectOption({index:1});await cancel.click();await p.waitForSelector('.scrim',{state:'detached'});assert.equal(asked,3,'a changed choice asks, and Discard closes');
+ await open();await p.locator('#e-form select[name="kind"]').selectOption({index:1});await cancel.click();await ask();await p.locator('[data-confirm-ok]').click();await p.waitForSelector('.scrim',{state:'detached'});assert.equal(writes.filter(w=>w.startsWith('PATCH')).length,1,'a changed choice asks, and Discard closes without saving');
  assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no overflow');
  assert.deepEqual(errors,[]);assert.equal(writes.filter(w=>w.startsWith('DELETE')).length,0,'nothing deleted');
  console.log(`Edit activity ${size.width}x${size.height}/${size.root} ${theme} PASS`);await c.close();}

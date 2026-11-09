@@ -108,7 +108,7 @@ route(/^\/food\/import$/, 'food', async (el) => {
     sb.innerHTML = S.first ? `<div class="card"><h2>Imported so far</h2><p class="small">${S.weights} weigh-ins, ${S.days_food} days of food, ${S.burned} days of burned calories - back to ${esc(new Date(S.first + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric', year: 'numeric'}))}.</p>
       <div class="actions"><button class="ghost danger" id="hi-del">Remove imported data</button></div><p class="small muted">Removes only what came from imports. Food you logged in the app and weights you logged by hand stay.</p></div>` : '';
     const del = $('#hi-del', sb);
-    if (del) del.onclick = async () => { if (!confirm('Remove imported food, calorie and weight data? Food and weights you logged in Kinetta will stay.')) return;
+    if (del) del.onclick = async () => { if (!await confirmSheet('Remove imported data?', {body: 'Imported food, calorie and weight data will be removed. Food and weights you logged in Kinetta stay.', action: 'Remove'})) return;
       try { const r = await api('/api/food/history', {method: 'DELETE'}); invalidate('/api/food'); toast(`Removed ${r.weights} weigh-ins, ${r.days_food} days of food and ${r.burned} days of activity calories`); drawSum(); } catch (x) { toast(x.message); } };
   }, {maxAge: 0});
   drawSum();

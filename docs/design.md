@@ -367,7 +367,7 @@ Nutrition owns the resting-source preference, distinct from the food goal and ac
   ending in an ellipsis.
 - **Me greeting:** the Me tab's page title is "Hi, [first name]" with the local date above it; the tab itself is still
   called Me. Your photo at the top right (next to the bell) opens your profile and replaces the old name row. Fitness &
-  freshness is one compact card: status word, then fitness/freshness/run score in a row. Friends, Goals, Shoes & bikes,
+  form is one compact card: status word, then fitness/form/run score in a row. Friends, Goals, Shoes & bikes,
   Explore Kinetta and Help & contact share one list without a heading; Profile & settings stays last.
 - **Contact:** the public support address is feedback@kinetta.app (privacy policy, website footers, SECURITY.md, Me ›
   Help & contact). Never ask for passwords by email.
@@ -736,7 +736,7 @@ don't track food don't see food outside the Nutrition tab.
 - **Me:** greeting, the 14-day distance chart, latest activity, then **Your day**: the training plan card (or a
   Training plan row), and for food users a compact Food today card (Eaten, Left/Over or Goal not set, Protein, a goal
   bar) with a single Log food button, and a pending weekly check-in. Food users also get the folded food & training
-  week. Then Friends recently, setup, goals and Fitness & freshness. No Describe/Snap/Scan/Usual row, Same as
+  week. Then Friends recently, setup, goals and Fitness & form. No Describe/Snap/Scan/Usual row, Same as
   yesterday or workout calories on Me; those stay in Nutrition. New-account setup suggests Apple Health, recording an
   activity and finding friends, never a nutrition goal.
 - **Progress** opens on Training. Only food users see the Food & weight / Training switch and the food & training
@@ -782,7 +782,7 @@ icons to places one level deeper than the tab bar, never repeating a tab: Plan, 
 Friends (with a friend-request badge). Plain green icons, no circles behind them (owner, 18 October). Friends and Goals moved here from the list lower on Me. Then the latest activity. **Your day**
 appears only when it has something: an enrolled plan, or food logged today (its compact card and any pending weekly
 check-in). Nobody sees a food card on Me for a day with nothing logged; the food & training week also needs food today.
-Friends recently, setup, goals and Fitness & freshness follow. The Plan shortcut replaces the old Training plan row.
+Friends recently, setup, goals and Fitness & form follow. The Plan shortcut replaces the old Training plan row.
 Bottom action bars such as Start this plan are pinned above the tab bar and the page reserves room for them.
 
 
@@ -1920,3 +1920,9 @@ Kit uses one small, unfilled 44px header icon (Claude review, 2 November); Insig
 The one-row, 44px footer uses the card content padding. React sits on the left with a 20px smile-plus outline and the word React; after selection it shows only that 22px emoji and uses the accessible name “Your reaction: <name>. Change reaction”. Comments sits 16px after React; its count is hidden at zero. The top three popular emoji and total sit on the right, overlap by 4px, and never mark the viewer's own reaction. Hide the summary at zero; tapping it opens Reactions. The picker opens above React, aligned to the card's content edge. Its selected choice gets a soft circular accent fill around 12% with no border. Tapping it again removes the reaction; choosing another switches it. One person has one reaction per activity.
 
 The 16-choice catalog, complete 4×4 phone / 2×8 wide grid, keyboard focus, long press and slide/release remain as established in #521. Reactions uses 44px profile-link rows, 28px avatars, one-line names and emoji; no handle line or inner card. Its title includes the total and a plain row of emoji counts filters the list. The sheet fits its contents. Matched route is plain secondary metadata, not a pill. Add/change calls the native light-impact hook; opening or changing highlight calls selection feedback once, and removal is silent. Browser and older/missing bridges are no-ops. Blocking, sharing, pending-state disabling, rollback and late-account guards remain. Existing stored Cheers/Strong/Applause map to clapping hands/flexed biceps/fire without changing reaction dates or notification read/cancelled state.
+
+### Affordances and confirmations · 9 November 2026 (#763)
+
+- **One confirm sheet.** Every "are you sure?" uses the shared `confirmSheet()` bottom sheet, never the browser's `confirm()` box: a short question as the title, one plain line on what happens, Cancel on the left and the named action on the right (red when it removes or ends something). Both buttons are at least 44px. Escape, the scrim, a swipe and Cancel all keep things as they were. Closing an editor with unsaved changes asks "Discard your changes?" with Keep editing / Discard.
+- **Folded sections look tappable.** A fold that opens in place (Your week in review, Your weekly check-in, Your week in food, Week by week) is a 44px row in body text with a trailing chevron that turns down when open (`details.chev-row`), not accent-coloured text that reads as a link.
+- **Fitness names.** One name each: **Form** (fitness minus fatigue; never "freshness") and **Run score** (the VDOT formula is named only in the Explore guide). Raw internals such as the weekly ramp number are not shown; a fast rise gives one plain warning on the summary card.

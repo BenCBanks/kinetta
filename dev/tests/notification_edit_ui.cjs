@@ -70,10 +70,12 @@ const until=async(p,fn,label,arg)=>{for(let n=0;n<150;n++){if(await p.evaluate(f
    const f=await open(theme,{width:390,height:844,root:16},{native:true,pending:`/activity/${id}?edit=1`}),p=f.page;
    try{
     await p.goto(base+'/activity');await p.locator('#e-form').waitFor();await until(p,()=>App.pageReady,'First editor ready');
-    await p.locator('#e-form input[name=name]').fill('Keep my current draft');p.once('dialog',dialog=>dialog.dismiss());
+    await p.locator('#e-form input[name=name]').fill('Keep my current draft');
     await p.evaluate(async url=>{fixtureOpenNotification(url);await Native.pushNavigationReady;},`/activity/${ids.treadmill}?edit=1`);
+    await p.locator('[data-confirm-cancel]').click();await p.locator('.confirm-sheet').waitFor({state:'detached'});
     assert.equal(await p.locator('#e-form').count(),1);assert.equal(await p.locator('#e-form input[name=name]').inputValue(),'Keep my current draft');assert.equal(new URL(p.url()).pathname,`/activity/${id}`);
-    p.once('dialog',dialog=>dialog.accept());await p.evaluate(async url=>{fixtureOpenNotification(url);await Native.pushNavigationReady;},`/activity/${ids.treadmill}?edit=1`);
+    await p.evaluate(async url=>{fixtureOpenNotification(url);await Native.pushNavigationReady;},`/activity/${ids.treadmill}?edit=1`);
+    await p.locator('[data-confirm-ok]').click();
     await until(p,()=>document.querySelector('#e-form input[name=name]')?.value==='Fictional treadmill session','Confirmed replacement editor');
     assert.equal(await p.locator('#e-form').count(),1);assert(await p.locator('.sheet button[form="e-form"]').evaluate(button=>button.form===button.closest('.sheet').querySelector('#e-form')),'Save targets its own single form');
     assert.deepEqual(f.errors,[]);count++;

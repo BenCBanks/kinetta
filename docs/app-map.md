@@ -146,7 +146,7 @@ flowchart LR
   GuideEntry -->|"Open Full-screen maps"| History
   GuideEntry -->|"Open Pace, GAP and effort"| History
   GuideEntry -->|"Open Weekly, monthly and yearly totals"| Progress
-  GuideEntry -->|"Open Fitness and freshness"| GuidePage11
+  GuideEntry -->|"Open Fitness and form"| GuidePage11
   GuideEntry -->|"Open Personal records"| GuidePage12
   GuideEntry -->|"Open Weight trend"| GuidePage13
   GuideEntry -->|"Open Calendar"| GuidePage14
@@ -156,7 +156,7 @@ flowchart LR
   GuideEntry -->|"Open Recent milestones"| MilestoneLegacy
   GuideEntry -->|"Open Share your progress"| Progress
   GuideEntry -->|"Open Fitness, fatigue and form defined"| GuidePage11
-  GuideEntry -->|"Open VDOT and race predictions"| GuidePage11
+  GuideEntry -->|"Open Run score and race predictions"| GuidePage11
   GuideEntry -->|"Open Challenges"| Challenges
   GuideEntry -->|"Open Share your Kinetta"| Me
   GuideEntry -->|"Open Friends and people search"| Friends

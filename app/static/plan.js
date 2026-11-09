@@ -180,8 +180,8 @@ function planActions(d,box){
   const p=d.plan,owner=readOwner();
   sheet('Plan options',`<div class="btncol"><a class="ghost" href="/plan?new=1">Change race, level or days</a><button type="button" class="ghost" id="pl-restart">Restart from week 1</button><button type="button" class="ghost danger" id="pl-end">End plan</button></div><p class="small muted">Changing or restarting builds a new schedule; your recorded runs are always kept.</p>`,(body,close)=>{
     const current=()=>body.isConnected&&box.isConnected&&owner===readOwner();$$('a',body).forEach(a=>a.addEventListener('click',close));
-    $('#pl-restart',body).onclick=async()=>{if(!current()||!confirm(`Start this ${p.race_name} plan again from week 1?`))return;try{await api('/api/plans/restart',json('POST',{}));if(current()){invalidate('/api/plans');close();toast('Plan restarted from week 1');render();}}catch(error){if(current())toast(error.message);}};
-    $('#pl-end',body).onclick=async()=>{if(!current()||!confirm('End this training plan? Your runs stay; only the schedule goes.'))return;try{await api('/api/plans/current',{method:'DELETE',body:'{}'});if(current()){invalidate('/api/plans');close();toast('Plan ended');render();}}catch(error){if(current())toast(error.message);}};
+    $('#pl-restart',body).onclick=async()=>{if(!current()||!await confirmSheet('Restart this plan?',{body:`Your ${p.race_name} plan starts again from week 1.`,action:'Restart'})||!current())return;try{await api('/api/plans/restart',json('POST',{}));if(current()){invalidate('/api/plans');close();toast('Plan restarted from week 1');render();}}catch(error){if(current())toast(error.message);}};
+    $('#pl-end',body).onclick=async()=>{if(!current()||!await confirmSheet('End this training plan?',{body:'Your runs stay; only the schedule goes.',action:'End plan'})||!current())return;try{await api('/api/plans/current',{method:'DELETE',body:'{}'});if(current()){invalidate('/api/plans');close();toast('Plan ended');render();}}catch(error){if(current())toast(error.message);}};
   });
 }
 

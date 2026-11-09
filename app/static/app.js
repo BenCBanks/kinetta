@@ -420,14 +420,14 @@ const Q = {
         $$('[data-pending-retry]', box).forEach(btn => btn.onclick = async () => {
           if (owner !== readOwner()) return;
           const op = ops[+btn.dataset.pendingRetry];
-          if (Q.legacy(op) && !confirm(`Send this older saved item to ${App.me.login} on this server?`)) return;
+          if (Q.legacy(op) && (!await confirmSheet('Send this older item?', {body: `It was saved before an update. It will be sent to ${App.me.login} on this server.`, action: 'Send', danger: false}) || owner !== readOwner())) return;
           Q.save(Q.all().map(o => o.id === op.id ? {...o, owner:queueOwner(), error: null} : o));
           btn.disabled = true; btn.textContent = 'Sending…';
           try { await Q.flush(); } catch (e) { toast(e.message); } if (b.isConnected) draw();
         });
-        $$('[data-pending-discard]', box).forEach(btn => btn.onclick = () => {
+        $$('[data-pending-discard]', box).forEach(btn => btn.onclick = async () => {
           if (Q.busy) { toast('Please wait for the current upload to finish.'); return; }
-          if (owner !== readOwner() || !confirm('Discard this pending item from this phone?')) return;
+          if (owner !== readOwner() || !await confirmSheet('Discard this item?', {body: 'It is removed from this phone and won’t be sent.', action: 'Discard'}) || owner !== readOwner() || Q.busy) return;
           const op = ops[+btn.dataset.pendingDiscard]; Q.save(Q.all().filter(o => o.id !== op.id)); netbar(); draw();
         });
       }; draw();
@@ -704,6 +704,7 @@ function sheet(title, html, onMount, opts = {}) {
     if (closing) return true;
     if (force !== true && opts.canClose && !opts.canClose()) { if (sh.style.transform) settle(false); return; }
     closing = true;
+    if (opts.onClose) opts.onClose();
     document.removeEventListener('keydown', onKey); removeEventListener('mousemove', onMove); removeEventListener('mouseup', onUp); unfit();
     // Release focus and handlers at once. Keep only the inert visual shell for the short exit, including when
     // closing halfway through entrance or a drag. A replacement sheet can take focus without a delayed restore.
@@ -791,6 +792,18 @@ function sheet(title, html, onMount, opts = {}) {
   if (first && !(first.matches('input, textarea, select') && matchMedia('(pointer: coarse)').matches)) first.focus({preventScroll: true});
   if (onMount) onMount($('.sbody', s), closeNow);
   return closeNow;
+}
+// One confirmation sheet for the whole app (#763), replacing the browser's confirm() box: a short question as the
+// title, one line on what happens, Cancel on the left and the named action on the right. Destructive actions are red.
+// Resolves true only for the action button; Cancel, Escape, the scrim and a swipe all resolve false.
+function confirmSheet(title, {body = '', action = 'Continue', danger = true, cancel = 'Cancel'} = {}) {
+  return new Promise((resolve) => {
+    let answer = false;
+    sheet(title, `<div class="confirm-sheet">${body ? `<p>${esc(body)}</p>` : ''}<div class="btnrow"><button type="button" class="ghost" data-confirm-cancel>${esc(cancel)}</button><button type="button" class="primary${danger ? ' danger-btn' : ''}" data-confirm-ok>${esc(action)}</button></div></div>`, (b, close) => {
+      $('[data-confirm-cancel]', b).onclick = () => close();
+      $('[data-confirm-ok]', b).onclick = () => { answer = true; close(); };
+    }, {onClose: () => resolve(answer)});
+  });
 }
 
 // ---------- router ----------
@@ -898,9 +911,13 @@ function lazyRouteShell(tab) {
   el.dataset.area = tab;
   return el;
 }
-function closeActivityEditor() {
+// True when no editor is open or it closed at once. With unsaved edits the shared confirm sheet asks first and this
+// returns false; `afterDiscard` then runs only if the person chooses Discard.
+function closeActivityEditor(afterDiscard) {
   const editor=$('#e-form')?.closest('.sheet');
-  return !editor||editor.requestClose?.()===true;
+  if(!editor)return true;
+  editor._afterDiscard=afterDiscard||null;
+  return editor.requestClose?.()===true;
 }
 // Adapt existing page markup into one header while retaining Back's history and the controls' handlers.
 function compactSubpageHeader(el){

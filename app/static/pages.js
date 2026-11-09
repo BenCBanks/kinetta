@@ -303,7 +303,7 @@ function combinedWeekHtml(w) {
   if(w.seconds>0)stats.push(stat('Time',dur(w.seconds)));
   const food=w.days_logged?`${w.days_logged} of 7 days with food logged.`:'Your food consistency will appear as you log meals.';
   const protein=w.days_logged&&w.protein_target?`${w.protein_days_reached?`${w.protein_days_reached} ${w.protein_days_reached===1?'day':'days'} reached`:'No logged days reached'} your current ${r0(w.protein_target)} g protein target.${w.protein_days_unknown?` ${w.protein_days_unknown} logged ${w.protein_days_unknown===1?'day has':'days have'} unknown protein.`:''}`:'';
-  return `<details class="card combined-week"><summary>Your week in review</summary><p class="small muted">${esc(dayLabel(w.start))} – ${esc(dayLabel(w.end))} · last 7 completed days</p>${stats.length?`<div class="stats3">${stats.join('')}</div>`:'<p>No workouts recorded in this week. Distance and time appear with your workouts.</p>'}<p>${food}</p>${protein?`<p>${protein}</p>`:''}<a class="linkbtn" href="${w.days_logged?'/food?view=overview':'/food/describe'}">${w.days_logged?'Food review':'Log food'}</a>${w.workouts?` <a class="linkbtn" href="${profileHref(App.me)}">Your workouts</a>`:''}</details>`;
+  return `<details class="card combined-week chev-row"><summary>Your week in review</summary><p class="small muted">${esc(dayLabel(w.start))} – ${esc(dayLabel(w.end))} · last 7 completed days</p>${stats.length?`<div class="stats3">${stats.join('')}</div>`:'<p>No workouts recorded in this week. Distance and time appear with your workouts.</p>'}<p>${food}</p>${protein?`<p>${protein}</p>`:''}<a class="linkbtn" href="${w.days_logged?'/food?view=overview':'/food/describe'}">${w.days_logged?'Food review':'Log food'}</a>${w.workouts?` <a class="linkbtn" href="${profileHref(App.me)}">Your workouts</a>`:''}</details>`;
 }
 function combinedWeek(box) {
   if(!box)return;const owner=readOwner();
@@ -877,7 +877,15 @@ function editActivity(a) {
   const correctionFields=summaryFields.map(([key,label,unit,scale])=>{const value=a[key]==null?'':isTime(key)?dur(a[key]):key==='distance_m'?String(Math.round(a[key]/scale*100)/100):String(Math.round(a[key]/scale));initial[key]=value;return `<label>${label} (${unit})<input name="summary_${key}" inputmode="${isTime(key)?'text':'decimal'}" value="${value}" placeholder="Not recorded" aria-label="${label} in ${isTime(key)?'hours, minutes and seconds':unit}"></label>${Object.hasOwn(a.summary_overrides||{},key)?`<label class="check"><input type="checkbox" name="restore_${key}"> Use recorded ${label.toLowerCase()}</label>`:''}`}).join('');
   // Redesigned 30 Oct 2026 (Ben): Cancel · Save stay pinned at the top; the most-used choices come first, the rarer
   // details are grouped, and Delete sits alone at the bottom, away from Save.
-  let dirty = false;
+  let dirty = false, closeEdit = null, asking = false;
+  // Closing with unsaved edits asks first in the shared confirm sheet; the editor stays open until Discard.
+  const canClose = () => {
+    if (!dirty) return true;
+    const editor = $('#e-form')?.closest('.sheet'), after = editor?._afterDiscard;
+    if (editor) editor._afterDiscard = null;
+    if (!asking) { asking = true; confirmSheet('Discard your changes?', {body: 'Your edits to this activity won’t be saved.', action: 'Discard', cancel: 'Keep editing'}).then((ok) => { asking = false; if (ok && closeEdit) { closeEdit(); if (after) after(); } }); }
+    return false;
+  };
   sheet('Edit activity', `<form class="form" id="e-form">
     <label>Title<input name="name" value="${esc(a.name)}" maxlength="200" enterkeyhint="done"></label>
     <label>What did you do?<span class="selbox"><select name="kind">${kindOpts}</select>${svg('chev')}</span></label>
@@ -889,6 +897,7 @@ function editActivity(a) {
     <label>Gear<span class="selbox"><select name="gear"><option value="">None</option></select>${svg('chev')}</span></label>
     <label class="check"><input type="checkbox" name="commute"${a.commute ? ' checked' : ''}> Commute</label>
     <button type="button" class="e-delete" id="e-del">Delete activity</button></form>`, async (body, close) => {
+    closeEdit = close;
     body.closest('.sheet').classList.add('activity-editor');
     const f = $('#e-form', body), btn = body.closest('.sheet').querySelector('button[form="e-form"]');
     // Any edit (typing, a choice, a sharing button) means closing asks first; opening the fold-outs doesn't count.
@@ -920,11 +929,11 @@ function editActivity(a) {
       } catch (x) { toast(x.message); btn.disabled = false; btn.textContent = 'Save'; }
     };
     $('#e-del', body).onclick = async () => {
-      if (!confirm(`Delete "${a.name}"? This can't be undone.`)) return;
+      if (!await confirmSheet(`Delete “${a.name}”?`, {body: 'This activity is removed for good. This can’t be undone.', action: 'Delete'})) return;
       try { await api(`/api/activities/${a.id}`, {method: 'DELETE'}); invalidate('/api/'); close(); toast('Activity deleted'); go('/activity', {replace: true}); }
       catch (x) { toast(x.message); }
     };
-  }, {save: 'e-form', canClose: () => !dirty || confirm('Discard your changes?')});
+  }, {save: 'e-form', canClose});
 }
 
 // ---------- Share (2026-10-12): send a link to people on Kinetta, or a picture of the route and the key numbers ----------
@@ -1363,9 +1372,9 @@ async function pFitness(body, q) {
     if (summaryBox && f0.days.some(d => d.fitness > 0)) {
       const form = last.form, [kind, word] = form > 5 ? ['good', 'Fresh'] : form < -15 ? ['warn', 'Tired'] : ['', 'Training steadily'];
       const mini = (label, value) => `<span><b class="num">${esc(value)}</b><small>${esc(label)}</small></span>`;
-      summaryBox.innerHTML = `<section class="card me-form fitness-current" aria-label="Fitness and freshness"><span class="me-form-top"><span class="grow"><small>Fitness &amp; freshness</small><b class="status-word ${kind}">${word}</b></span></span>
-        <span class="me-form-nums">${mini('Fitness', Math.round(last.fitness))}${mini('Freshness', (form > 0 ? '+' : '') + Math.round(form))}${f0.vdot_now ? mini('Run score', f0.vdot_now) : ''}</span>
-        ${f0.ramp_7d > 8 ? '<span class="callout warn">Your training load jumped this week. Watch for niggles.</span>' : ''}</section>`;
+      summaryBox.innerHTML = `<section class="card me-form fitness-current" aria-label="Fitness and form"><span class="me-form-top"><span class="grow"><small>Fitness &amp; form</small><b class="status-word ${kind}">${word}</b></span></span>
+        <span class="me-form-nums">${mini('Fitness', Math.round(last.fitness))}${mini('Form', (form > 0 ? '+' : '') + Math.round(form))}${f0.vdot_now ? mini('Run score', f0.vdot_now) : ''}</span>
+        ${f0.ramp_7d > 8 ? '<span class="callout warn">Your training load jumped this week. Build up gradually to stay healthy.</span>' : ''}</section>`;
     }
     const predictionSourceDetail = p => {
       const source = p.from || {};
@@ -1391,15 +1400,14 @@ async function pFitness(body, q) {
         </details></div>`
       : '<div class="card"><h2>Race predictions</h2><p class="muted">Run a mile or more in the last 90 days and predictions appear here.</p></div>';
     box.innerHTML = `<div class="card fitness-running"><div class="fitness-running-heading"><h2>Running fitness</h2><span class="rng" id="fi-range"></span></div>${f.vdot_months.length ? `<div class="bigstat">${stat('Best · 90 days', f.vdot_now || '–')}${stat(R.from || R.to ? 'Best in range' : 'Best ever', ((v) => (v.length ? Math.max(...v).toFixed(1) : '–'))(f.vdot_months.filter((m) => inRange(R, +m.m.slice(0, 4))).map((m) => m.v)))}</div><div id="p-vdot"></div>
-        <p class="small muted">VDOT is a running-performance score from best efforts of a mile or longer. Higher means faster recorded performance. It is not a measured VO₂max or a guarantee of race pace.</p>` : '<p class="muted">Needs runs of a mile or longer.</p>'}</div>
+        <p class="small muted">Run score rates your best efforts of a mile or longer; higher means faster. It isn’t a measured VO₂max.</p>` : '<p class="muted">Needs runs of a mile or longer.</p>'}</div>
       <div class="card"><h2>Fitness, fatigue & form</h2>
       <div class="bigstat">${stat('Fitness', Math.round(last.fitness))}${stat('Form', (last.form > 0 ? '+' : '') + Math.round(last.form))}</div>
-      <div id="p-load"></div><p class="small muted">Fitness uses a 42-day weighted training load; fatigue uses 7 days. Form = fitness − fatigue: positive means fresh, negative means recent load is higher than your longer-term load. It does not diagnose overtraining.</p>
-      ${f.ramp_7d > 8 ? '<div class="callout warn">Fitness rose fast this week (ramp ' + f.ramp_7d + '). Build gradually to stay healthy.</div>' : ''}</div>`;
+      <div id="p-load"></div><p class="small muted">Form is fitness (about 6 weeks of training) minus fatigue (the last week): above zero means fresh.</p></div>`;
     rangeBar($('#fi-range', box), R, f0.vdot_months.length ? +f0.vdot_months[0].m.slice(0, 4) : f0.days.length ? +f0.days[0].d.slice(0, 4) : nowY);
     requestAnimationFrame(() => {
       fitnessChart($('#p-load', box), 'Training load', (mount, height, options) => loadChart(mount, f.days, {height,...options}));
-      if (f.vdot_months.length) fitnessChart($('#p-vdot', box), 'Monthly best score', (mount, height, options) => {trendLine(mount, monthSeries(f.vdot_months[0].m, (m) => { const r = f.vdot_months.find((x) => x.m === m); return r ? {y: r.v} : {y: null}; }),
+      if (f.vdot_months.length) fitnessChart($('#p-vdot', box), 'Monthly best run score', (mount, height, options) => {trendLine(mount, monthSeries(f.vdot_months[0].m, (m) => { const r = f.vdot_months.find((x) => x.m === m); return r ? {y: r.v} : {y: null}; }),
         {fmt: (v) => v.toFixed(1), rollName:'6-month average of monthly bests', color: 'brand', height, ...options, keep: (p) => inRange(R, p.d.getFullYear())});
         const key=$('.legend span:last-child',mount);if(key)key.lastChild.textContent='Monthly best';});
     });
@@ -1705,7 +1713,7 @@ route(/^\/me\/settings$/, 'me', async (el) => {
       let shortcuts=0;try{shortcuts=await Native.foodEntryPendingCount?.()||0;}catch(e){if(valid())toast(e.message);return;}
       if (!valid()) return;
       const n = Q.mine().length + chat + shortcuts;
-      if (n && !confirm(`${n} unsynced item${n === 1 ? '' : 's'} saved on this phone will be deleted if you log out. Log out?`)) return;
+      if (n && (!await confirmSheet('Log out?', {body: `${n} unsynced item${n === 1 ? '' : 's'} saved on this phone will be deleted if you log out.`, action: 'Log out'}) || !valid())) return;
       if (typeof FoodThread!=='undefined'){try{await FoodThread.eraseDevice();}catch(e){if(valid())toast('Could not remove unsent food photos from this phone. Retry logout to finish clearing them.');return;}}
       if (!valid()) return;
       if(typeof KitChat!=='undefined')KitChat.eraseDevice();
@@ -1940,7 +1948,7 @@ function garminCard(box,C,valid){
       }else if(Native.on){window.open(r.url,'_blank');toast('Finish signing in at Garmin, then come back');}else location.href=r.url;}
     catch(x){toast(x.message);}};
   const off=$('#gc-off',box);if(off)off.onclick=async()=>{
-    if(!confirm('Disconnect Garmin? New activities stop arriving. Activities already here stay until you delete them.'))return;
+    if(!await confirmSheet('Disconnect Garmin?',{body:'New activities stop arriving. Activities already here stay until you delete them.',action:'Disconnect'})||!valid())return;
     try{await api('/api/connections/garmin_connect',{method:'DELETE'});toast('Garmin disconnected');if(valid())render();}catch(x){toast(x.message);}};
   const ai=$('#gc-ai',box);if(ai)ai.onchange=async(e)=>{const v=e.target.checked;
     try{await api('/api/profile',json('PUT',{garmin_ai_ok:v}));App.me.garmin_ai_ok=v;toast(v?'Kit can read your Garmin activities':'Kit won’t read your Garmin activities');}
@@ -1974,7 +1982,7 @@ route(/^\/track\/connections$/, 'track', async (el) => {
       <div id="c-apple-out"></div><div class="actions">${C.apple ? '<button class="ghost danger" data-off="apple">Disconnect</button><span class="spacer"></span>' : ''}<button class="ghost" id="c-apple">${C.apple ? 'Make a new secret' : 'Create connection link'}</button></div></div>`;
   $('#c-apple', el).onclick = async () => {
     if(!valid())return;
-    if (C.apple && !confirm('Make a new secret? The old one stops working.')) return;
+    if (C.apple && (!await confirmSheet('Make a new secret?', {body: 'The old secret stops working.', action: 'Make new secret'}) || !valid())) return;
     try {
       const r = await api('/api/connections/apple', json('POST', {}));
       if(!valid())return;
@@ -1982,14 +1990,14 @@ route(/^\/track\/connections$/, 'track', async (el) => {
         <p class="small"><b>URL</b><br><code>${esc((Native.base || location.origin) + r.url)}</code></p><p class="small"><b>Header</b> Authorization<br><b>Value</b> <code>Bearer ${esc(r.token)}</code></p></div></div>`;
     } catch (x) { toast(x.message); }
   };
-  $$('[data-off]', el).forEach((b) => b.onclick = async () => { if(!valid())return;if (!confirm('Disconnect? Activities already imported stay.')) return; try { await api(`/api/connections/${b.dataset.off}`, {method: 'DELETE'}); render(); } catch (x) { toast(x.message); } });
+  $$('[data-off]', el).forEach((b) => b.onclick = async () => { if(!valid())return;if (!await confirmSheet('Disconnect?', {body: 'Activities already imported stay.', action: 'Disconnect'}) || !valid()) return; try { await api(`/api/connections/${b.dataset.off}`, {method: 'DELETE'}); render(); } catch (x) { toast(x.message); } });
 });
 
 route(/^\/me\/gear$/, 'me', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Me')}<button class="ghost" id="g-add">Add</button></div><h1>Shoes & bikes</h1><div id="g-list">${skel(2)}</div>`;
   wireBack(el, '/me');
   const remove = async (g, button, close) => {
-    if (!confirm(`Delete ${g.name}? Your activities stay; only their link to this gear is removed.`)) return;
+    if (!await confirmSheet(`Delete ${g.name}?`, {body: 'Your activities stay; only their link to this gear is removed.', action: 'Delete'})) return;
     button.disabled = true;
     try { await api(`/api/gear/${g.id}`, {method: 'DELETE'}); invalidate('/api/'); if (close) close(); toast('Gear deleted. Activities kept.'); render(); }
     catch (x) { toast(x.message); button.disabled = false; }
@@ -2207,7 +2215,7 @@ route(/^\/me\/devices$/, 'me', async (el) => {
     });
     const all = $('#dv-all', el);
     if (all) all.onclick = async () => {
-      if (!confirm(`Sign out ${others.length} other device${others.length > 1 ? 's' : ''}? They’ll need your password to log in again.`)) return;
+      if (!await confirmSheet(`Sign out ${others.length} other device${others.length > 1 ? 's' : ''}?`, {body: 'They’ll need your password to log in again.', action: 'Sign out'})) return;
       all.disabled = true;
       try { await api('/api/account/devices/signout-others', json('POST', {})); toast('Other devices signed out'); await draw(); }
       catch (x) { toast(x.message); all.disabled = false; }
