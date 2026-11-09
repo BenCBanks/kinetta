@@ -186,6 +186,16 @@ async function say(page, text) {
         const shown=await emojiNodes.allTextContents(),values=await counts.allTextContents();
         const reactLabel=await react.getAttribute('aria-label'),reactText=(await react.innerText()).trim();
         if(reactLabel!=='React'||reactText!=='React'||!await summaryButton.isVisible()||kinds.length!==3||!['clap','starstruck','mindblown'].every(kind=>kinds.includes(kind))||shown.length!==3||!['👏','🤩','🤯'].every(value=>shown.includes(value))||values.length!==3||values.some(value=>value.trim()!=='1')||await summaryButton.locator('.num').count())throw Error('Demo feed must show React and each of three native emoji with its own count');
+        // A map card can put its controls below the fixed tab bar at the top of the feed.
+        // Scroll just enough to capture the action row clear of that bar.
+        await group.evaluate(el=>{
+          const footer=el.closest('.post-ft'),tabs=document.querySelector('nav.tabs');
+          const controls=[footer?.querySelector('.reaction-more'),footer?.querySelector('.activity-comments'),el.querySelector('.reaction-count')].filter(Boolean);
+          if(!tabs||!controls.length)return;
+          const rowBottom=Math.max(...controls.map(node=>node.getBoundingClientRect().bottom));
+          const safeBottom=tabs.getBoundingClientRect().top-8;
+          if(rowBottom>safeBottom)window.scrollBy(0,rowBottom-safeBottom);
+        });
         if(!await group.evaluate(el=>{
           const footer=el.closest('.post-ft');
           const action=footer?.querySelector('.reaction-more'),comments=footer?.querySelector('.activity-comments'),button=el.querySelector('.reaction-count');
