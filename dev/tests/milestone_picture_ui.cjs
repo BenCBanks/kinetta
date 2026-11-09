@@ -8,9 +8,9 @@ module.exports=async function milestonePictures(p,theme,out){
  await p.route('**/milestone-demo-tiles/**',r=>r.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#e9f0e6"/><path d="M0 190 Q130 120 256 160" stroke="#b8d6e6" stroke-width="36" fill="none"/><path d="M-10 40 L270 110 M50 -10 L150 270" stroke="white" stroke-width="12"/><path d="M-10 40 L270 110 M50 -10 L150 270" stroke="#ccd1cf" stroke-width="2"/></svg>'}));
  await p.evaluate(()=>{
   window.milestoneOriginals={paint:MapTiles.paint,fill:CanvasRenderingContext2D.prototype.fillText,simple:ShareArt.simplePicture,deliver:ShareArt.deliver};
-  window.milestoneArt={draws:[],texts:[],calls:0};const a=window.milestoneArt,paint=MapTiles.paint;
+  window.milestoneArt={draws:[],texts:[],positions:[],calls:0};const a=window.milestoneArt,paint=MapTiles.paint;
   MapTiles.paint=async(g,points,box,geometry)=>{a.draws.push({points,box});return paint(g,points,box,geometry);};
-  const fill=CanvasRenderingContext2D.prototype.fillText;CanvasRenderingContext2D.prototype.fillText=function(text,...args){a.texts.push(String(text));return fill.call(this,text,...args);};
+  const fill=CanvasRenderingContext2D.prototype.fillText;CanvasRenderingContext2D.prototype.fillText=function(text,...args){a.texts.push(String(text));if(this.canvas?.width===1080&&this.canvas?.height===1350)a.positions.push({text:String(text),y:Number(args[1])||0});return fill.call(this,text,...args);};
   const simple=ShareArt.simplePicture;ShareArt.simplePicture=async options=>{const result=await simple(options);a.blob=result.blob;return result;};
   ShareArt.deliver=async()=>{a.calls++;return false;};
  });
@@ -23,9 +23,10 @@ module.exports=async function milestonePictures(p,theme,out){
  await p.route('**/api/activities/987654/social',r=>r.fulfill({json:{visibility:scenario==='private'?'me':'friends',details:{map:scenario!=='map-off'},trim_m:trim}}));
  await p.route('**/api/milestones/*/seen',r=>{receipts.push(r.request().postDataJSON());return r.fulfill({json:{}});});
  for(const name of ['route','no-gps','trimmed','private','map-off']){
-  scenario=name;trim=name==='trimmed'?800:0;await p.evaluate(()=>{window.milestoneArt.draws=[];window.milestoneArt.texts=[];});
+  scenario=name;trim=name==='trimmed'?800:0;await p.evaluate(()=>{window.milestoneArt.draws=[];window.milestoneArt.texts=[];window.milestoneArt.positions=[];});
   await p.evaluate(item=>Milestones.open(item),item);await ready();
   const got=await p.evaluate(()=>window.milestoneArt);const mapped=['route','trimmed'].includes(name);assert.equal(got.draws.length,mapped?1:0,name+' map presence');
+  if(name==='no-gps'){const fact=got.positions.find(row=>row.text.startsWith('Workout time:'));assert(fact&&fact.y>=1100&&fact.y<1200,'mapless milestone spreads its fact toward the pinned footer: '+JSON.stringify(fact));}
   if(mapped){assert(got.texts.some(x=>x.includes('OpenStreetMap'))&&got.texts.some(x=>x.includes('Demo map tiles')),'configured map attribution visible');const actual=got.draws[0].points;assert(actual.length>1&&actual.length<points.length);assert(actual[0][0]>points[0][0]&&actual.at(-1)[0]<points.at(-1)[0],'both endpoints hidden');assert.equal(got.draws[0].box.under>0,true,'credit has route-free space');}
   const alt=await p.locator('[data-share-image="0"]').getAttribute('alt');assert.match(alt,/Milestone.*First hike.*(?:7.2.*km|4.5.*mi).*Workout time/);assert(!alt.includes('@alex'),'identity off');
   assert(got.texts.includes('Kinetta')&&got.texts.some(x=>x.includes('Garmin Demo')),'brand/device credit present');
