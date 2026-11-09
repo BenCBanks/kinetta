@@ -1386,14 +1386,20 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4
   // yTicks labelled gridlines at 0, step, 2·step…; the step functions round up, so the top line always clears the tallest bar.
   const maxValue = Math.max(...cols.map(tot), avg || 0) || 1, step = stepFn(maxValue, yTicks - 1), top = step * (yTicks - 1);
   const yLabels = Array.from({length: yTicks}, (_, i) => `${yfmt(i * step)}${i === yTicks - 1 && axisUnit ? ` ${axisUnit}` : ''}`);
-  // The bars start just right of the widest axis label (allow 7.2 px a character at 11 px), so "1h 30m" is never cut off.
-  const W = chartWidth(box), H = height, padL = Math.max(34, Math.ceil(Math.max(...yLabels.map(l => l.length)) * 7.2) + 4), plotL = inlineSelection ? 4 : padL, padR = 8, padT = distance ? 18 : 8, padB = 18, n = cols.length;
+  // Selectable Totals: bars and gridlines use the whole card width and each axis label sits just above its gridline at the
+  // left (with a card-coloured halo). Other charts keep a left gutter sized to the widest label (7.2 px a character at 11 px).
+  const W = chartWidth(box), H = height, padL = inlineSelection ? 2 : Math.max(34, Math.ceil(Math.max(...yLabels.map(l => l.length)) * 7.2) + 4), padR = 8, padT = inlineSelection ? 16 : distance ? 18 : 8, padB = 18, n = cols.length;
   const Y = (v) => padT + (1 - v / top) * (H - padT - padB), bw = (W - padL - padR) / n, gap = Math.min(4, bw * .25);
   let g = ''; const barRects = [];
-  yLabels.forEach((label, i) => {
+  yLabels.forEach((label, i) => g += `<line class="gl" x1="${padL}" x2="${W - padR}" y1="${Y(i * step).toFixed(1)}" y2="${Y(i * step).toFixed(1)}"/>`);
+  const axisLabels = () => yLabels.map((label, i) => {
     const y = Y(i * step);
-    g += `<line class="gl" x1="${plotL}" x2="${W - padR}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}"/><text class="yl period-axis" x="${padL - 2}" y="${(y + 3).toFixed(1)}" text-anchor="end">${esc(label)}</text>`;
-  });
+    if (!inlineSelection) return `<text class="yl period-axis" x="${padL - 2}" y="${(y + 3).toFixed(1)}" text-anchor="end">${esc(label)}</text>`;
+    // Above the gridline; below it when the average line would run through the text; dropped only for a zero label in that case.
+    const clash = ly => avg && Y(avg) > ly - 12 && Y(avg) < ly + 3;
+    let ly = y - 4; if (clash(ly)) { if (!i) return ''; ly = y + 12; }
+    return `<text class="yl period-axis inside" x="${padL + 2}" y="${ly.toFixed(1)}">${esc(label)}</text>`;
+  }).join('');
   cols.forEach((c, i) => {
     const total = tot(c), x = padL + i * bw + gap / 2, w = Math.max(1, bw - gap);
     let bars = '', y = Y(0);
@@ -1419,18 +1425,16 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4
     const label = `${c.label}${c.partial ? ' (so far)' : ''} · ${fmt(total)}${parts ? ' · ' + parts : ''}`;
     g += `<g class="period-column${distance ? ' distance-column' : ''}" id="${esc(box.id || 'period-chart')}-column-${i}" data-period-index="${i}" data-padded="${c.padded ? 'true' : 'false'}" role="button" tabindex="0" aria-pressed="false" aria-label="${esc(label)}"><rect class="period-hit" x="${(padL + i * bw).toFixed(1)}" y="${padT}" width="${Math.max(0, bw - .25).toFixed(2)}" height="${(H - padT - padB).toFixed(1)}"/>${zero}${bars}</g>`;
   });
-  // X labels: at most one per 48 px, never on padded columns, always on the last real period.
+  // X labels: spaced by their own length (short weekdays need ~32 px, "Nov 16" ~48 px), never on padded columns,
+  // always on the last real period. fitTickLabels then measures the drawn text and drops any that still touch.
   const tickText = c => c.tickLabel || c.tick || c.label, lastReal = cols.findLastIndex(c => !c.padded);
   const tickCandidates = cols.map((c, i) => !c.padded && c.tick && i !== lastReal ? i : -1).filter(i => i >= 0).reverse();
-  const tickLimit = Math.max(1, Math.floor((W - plotL - padR) / 48)), visibleTicks = lastReal < 0 ? [] : [lastReal];
-  for (const i of tickCandidates) {
-    if (visibleTicks.length >= tickLimit) break;
-    if (visibleTicks.every(visible => Math.abs(visible - i) * bw >= 48)) visibleTicks.push(i);
-  }
+  const tickGap = Math.max(32, Math.max(0, ...cols.map(c => tickText(c).length)) * 6.2 + 10), visibleTicks = lastReal < 0 ? [] : [lastReal];
+  for (const i of tickCandidates) if (visibleTicks.every(visible => Math.abs(visible - i) * bw >= tickGap)) visibleTicks.push(i);
   visibleTicks.sort((a, b) => a - b).forEach(i => g += `<text class="yl period-tick" data-period-index="${i}" x="${(padL + (i + .5) * bw).toFixed(1)}" y="${H - 4}" text-anchor="middle">${esc(tickText(cols[i]))}</text>`);
   if (avg) {
     const avgY = Y(avg).toFixed(1);
-    g += `<line class="avgline" x1="${plotL}" x2="${W - padR}" y1="${avgY}" y2="${avgY}"/>`;
+    g += `<line class="avgline" x1="${padL}" x2="${W - padR}" y1="${avgY}" y2="${avgY}"/>`;
     if (avgLineLabel) {
       // Inside the plot at the right end, just above the line; move up, then left, only to stay clear of a bar.
       const labelWidth = Math.min(Math.max(24, avgLineLabel.length * 6.1), Math.max(24, W - padL - 4));
@@ -1446,6 +1450,7 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4
       g += `<text class="avgline-label" x="${labelX.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="end">${esc(avgLineLabel)}</text>`;
     }
   }
+  g += axisLabels();
   if (!inlineSelection) g += `<rect class="hl" x="0" y="${padT}" width="${bw.toFixed(1)}" height="${(H - padT - padB).toFixed(1)}" visibility="hidden"/>`;
   const legend = inlineSelection ? '' : (keys.length > 1 ? keys.map((k) => `<span><i class="sw k-${k.k}"></i>${esc(k.name)}</span>`).join('') : '') + (avg ? `<span><i class="sw dash"></i>${esc(avgLabel)} ${esc(fmt(avg))}</span>` : '');
   const readout = inlineSelection ? '<div class="readout num progress-total-readout" role="status" aria-live="polite" aria-atomic="true"><span></span></div>' : '<div class="readout num"><span></span></div>';

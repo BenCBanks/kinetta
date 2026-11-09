@@ -2738,6 +2738,7 @@ nav.tabs { view-transition-name: tabs; }
 .period-column .period-zero.current { stroke:var(--tx3); stroke-width:1; stroke-dasharray:2 2; opacity:.65; }
 .period-column.is-selected .period-zero, .period-column.is-selected .distance-empty { stroke:var(--accent); stroke-width:2; }
 .progress-total-readout .readout-hint { color:var(--tx3); }
+.period-axis.inside { paint-order:stroke; stroke:var(--card); stroke-width:3px; stroke-linejoin:round; pointer-events:none; }
 
 /* Account navigation and persistent return controls (owner cleanup, October 2026). */
 
@@ -3202,7 +3203,8 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .progress-home-totals .stats3 { grid-template-columns:repeat(3,minmax(0,1fr));row-gap:0;align-items:start; }
 .progress-home-totals .stats3 > .stat { display:contents; }
 .progress-home-totals .stats3 > .stat > small { grid-row:1; }
-.progress-home-totals .stats3 > .stat > b { grid-row:2; }
+.progress-home-totals .stats3 > .stat > b { grid-row:2; white-space:nowrap; font-size:min(var(--text-app-stat, 20px), 5.6vw); }
+.progress-home-totals .stats3 > .stat > small { font-size:clamp(12px,3.7vw,13px); }
 /* Progress: existing values with explicit keys and compact history/segment controls (#492). */
 .sw.k-brand { background:var(--accent); }
 .route-fastest-key { color:var(--gold); }

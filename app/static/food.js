@@ -1076,7 +1076,7 @@ function weightHistory(box) {
     if (pts.length) requestAnimationFrame(() => {
       if(!valid())return;
       const xs = pts.map((p) => new Date(p.day + 'T12:00') / 864e5);
-      dotChart($('#w-chart', box), pts.map((p, i) => ({x: xs[i], y: imp() ? p.kg * 2.20462 : p.kg, id: i})), {yfmt: (v) => v.toFixed(1), minWidth:0,
+      dotChart($('#w-chart', box), pts.map((p, i) => ({x: xs[i], y: imp() ? p.kg * 2.20462 : p.kg, id: i})), {yfmt: (v) => v.toFixed(1),
         trend: pts.length > 1 ? {start: imp() ? pts[0].trend * 2.20462 : pts[0].trend, end: imp() ? pts[pts.length - 1].trend * 2.20462 : pts[pts.length - 1].trend} : null});
     });
   });

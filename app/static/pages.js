@@ -1209,6 +1209,8 @@ function setProgressView(body, showTable) {
   body._showTable = showTable;
   try { localStorage.setItem('fit.ptable', String(showTable)); } catch (e) { /* no storage */ }
   table.hidden = !showTable; chart.hidden = showTable;
+  // A chart drawn while hidden (Table restored on load) could not measure its labels; fit them now it is visible.
+  const svgChart = $('svg', chart); if (!showTable && svgChart) fitTickLabels(svgChart, svgChart.viewBox.baseVal.width);
   $$('[data-progress-view]', body).forEach(button => button.setAttribute('aria-pressed', String((button.dataset.progressView === 'table') === showTable)));
   return true;
 }
@@ -1496,8 +1498,10 @@ const toU = (m) => (imp() ? m / MI : m / 1000);
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const progressDuration = (seconds) => {
   if (seconds == null || !isFinite(seconds)) return '–';
-  const s = Math.round(seconds), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), rest = s % 60;
-  return h ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m ${String(rest).padStart(2, '0')}s`;
+  // Period totals: whole minutes, like the axis ("50m", "1h 05m"); under a minute still shows seconds.
+  const s = Math.round(seconds), h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60);
+  if (h || m === 60) return `${h + (m === 60 ? 1 : 0)}h ${String(m === 60 ? 0 : m).padStart(2, '0')}m`;
+  return m ? `${m}m` : `${s}s`;
 };
 const progressWeekLabel = (start) => {
   const end = new Date(start); end.setDate(end.getDate() + 6);

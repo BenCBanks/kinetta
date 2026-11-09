@@ -59,7 +59,7 @@ function periods(distance,keys=[{k:'run',name:'Run'},{k:'ride',name:'Ride'}]){
 const combined=periods(true);assert.equal((combined.html.match(/class="bar-seg distance-total"/g)||[]).length,1,'one total bar per non-empty period');assert(!combined.html.includes('class="legend'));
 assert.match(combined.html,/aria-label="Week A · 9.0 km · Run 3.0 km, Ride 6.0 km"/,'each column names its period, total and per-sport breakdown');assert.match(combined.html,/aria-label="Week B \(so far\) · 0.0 km"/);
 assert.equal((combined.html.match(/role="button" tabindex="0" aria-pressed="false"/g)||[]).length,2,'every period is a focusable toggle');assert.match(combined.readout.innerHTML,/Tap a bar/,'nothing selected shows the hint');
-assert.match(combined.html,/<text class="yl period-axis"[^>]*>10\.0 km<\/text>/,'three axis labels: 0, 5 and 10 km');assert.equal((combined.html.match(/period-axis/g)||[]).length,3);
+assert.match(combined.html,/<text class="yl period-axis inside"[^>]*>10\.0 km<\/text>/,'three axis labels: 0, 5 and 10 km');assert.equal((combined.html.match(/period-axis/g)||[]).length,3);
 const sport=periods(false,[{k:'run',name:'Run'}]);assert(sport.html.includes('bar-seg k-run'));assert(!sport.html.includes('distance-total'));assert.match(sport.html,/period-zero current/,'the current period gets a faint zero tick');
 console.log('Progress totals: one bar per period, named per-sport breakdown, hint readout, three axis labels, current-period tick PASS');
 
