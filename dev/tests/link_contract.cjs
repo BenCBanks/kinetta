@@ -55,7 +55,7 @@ function intention(link,base,registry,login){
  if(pathname==='/food'&&q.get('view')==='weight')canonical='/progress/weight';
  if(/^\/lift\/\d+$/.test(pathname))canonical=pathname.replace('/lift/','/track/lift/');
  const defaultOffProgressView=pathname==='/progress'&&['calendar','segments'].includes(q.get('view'));
- const heading=dialog?.heading||(addFood?'Add food':canonical===ownProfile&&!q.has('preview')?'Your profile':defaultOffProgressView?headings['/progress']:sharedAchievementView?'Achievements':q.has('view')?views[pathname][q.get('view')]:q.get('section')==='food'?views['/food'][q.get('foodview')||'overview']:pathname==='/food/trends'?'Insights':headings[canonical]);
+ const heading=dialog?.heading||(addFood?'Add food':canonical===ownProfile&&!q.has('preview')?'Your profile':defaultOffProgressView?headings['/progress']:sharedAchievementView?(q.get('track')?'Achievement history':'Achievements'):q.has('view')?views[pathname][q.get('view')]:q.get('section')==='food'?views['/food'][q.get('foodview')||'overview']:pathname==='/food/trends'?'Insights':headings[canonical]);
  const segmentReview=canonical==='/segments/review';
  return {kind:'page',url,canonical,heading:segmentReview?'Review segment':heading,dialog,segmentReview,ready:/^\/track\/lift\/\d+$/.test(canonical)?'#lf-list .lift-name':null,titleInput:/^\/food\/cook\/\d+$/.test(canonical)?'#dk-name':null};
 }
