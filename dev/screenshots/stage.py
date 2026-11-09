@@ -17,6 +17,14 @@ from portal_fixture import admin_headers, is_admin_path
 
 B = os.environ.get('KINETTA_URL', 'http://localhost:8798'); G = sys.argv[1]
 PW = 'demo friend password 1'
+SCREENSHOT_FIXTURE = os.environ.get('KINETTA_SCREENSHOT_FIXTURE') == '1'
+if SCREENSHOT_FIXTURE:
+    clock = json.loads(Path(__file__).with_name('fixture-time.json').read_text())
+    now = dt.datetime.fromisoformat(clock['instant'].replace('Z', '+00:00')).astimezone(ZoneInfo(clock['timezone']))
+    screenshot_today = now.date()
+else:
+    now = dt.datetime.now(ZoneInfo('America/New_York'))
+    screenshot_today = now.date()
 
 
 def person(login, pw):
@@ -58,7 +66,7 @@ for login, name in (('jordan', 'Jordan Lee'), ('sam', 'Sam Rivera'), ('casey', '
 jordan, sam = person('jordan', PW), person('sam', PW)
 jordan('PUT', '/api/profile', {'tz': 'America/New_York', 'units': 'imperial'})
 jordan('PUT', '/api/sharing', {'default': 'friends'})
-cutoff = (dt.date.today() - dt.timedelta(days=2)).strftime('%Y%m%d')   # moved 2 days on, they must still be in the past
+cutoff = (screenshot_today - dt.timedelta(days=2)).strftime('%Y%m%d')   # moved 2 days on, they must still be in the past
 runs = [p for p in sorted(glob.glob(G + '/*.gpx')) if ('cycling' in p or 'walking' in p) and os.path.basename(p)[:8] < cutoff][-16:]
 print('jordan import', upload(jordan, [(os.path.basename(p), later(open(p, 'rb').read(), 2 * 1440 - 60)) for p in runs]).get('added'))
 
@@ -71,7 +79,6 @@ assert alex('GET','/api/me')['friend_count']>=3
 alex('PUT', '/api/sharing', {'default': 'friends'})
 last = [p for p in sorted(glob.glob(G + '/*running.gpx'))][-1]; raw = open(last, 'rb').read()
 t0 = dt.datetime.fromisoformat(re.search(rb'<time>([^<]+)</time>', raw).group(1).decode().replace('Z', '+00:00'))
-now = dt.datetime.now(ZoneInfo('America/New_York'))
 # Scheduled captures near midnight still need a workout on the displayed demo day.
 ago = max(now - dt.timedelta(hours=2.5), now.replace(hour=0, minute=0, second=0, microsecond=0)).astimezone(dt.timezone.utc)
 print('alex today', upload(alex, [('today-running.gpx', later(raw, (ago - t0).total_seconds() // 60))]).get('added'))
@@ -97,7 +104,7 @@ for d in alex('GET', '/api/dishes'):
     if d.get('mine') is not False: alex('DELETE', f"/api/dishes/{d['id']}")
 soup = alex('POST', '/api/dishes', {'name': 'Lentil and tomato soup'})
 alex('PATCH', f"/api/dishes/{soup['id']}", {'serving': 'portion', 'known_kcal': 1450, 'known_protein_g': 82, 'known_carbs_g': 208, 'known_fat_g': 31, 'cooked_g': 2100})
-alex('POST', f"/api/dishes/{soup['id']}/portion", {'grams': 420, 'meal': 'lunch', 'day': str(dt.date.today() - dt.timedelta(days=1))})
+alex('POST', f"/api/dishes/{soup['id']}/portion", {'grams': 420, 'meal': 'lunch', 'day': str(screenshot_today - dt.timedelta(days=1))})
 smoothie = alex('POST', '/api/dishes', {'name': 'Berry protein smoothie'})
 for n, g, p in [('Banana', 120, {'kcal': 89, 'protein_g': 1.1, 'carbs_g': 23, 'fat_g': .3, 'fiber_g': 2.6}),
                 ('Frozen mixed berries', 150, {'kcal': 50, 'protein_g': .7, 'carbs_g': 12, 'fat_g': .3, 'fiber_g': 3}),
@@ -119,7 +126,7 @@ lb = lambda x: x / 2.20462262
 ex = {n: alex('POST', '/api/lifts/exercises', {'name': n})['id'] for n in ('Squat', 'Bench press', 'Barbell row', 'Pull-up', 'Plank')}
 for w, days_ago in enumerate((24, 17, 10, 3)):
     s = alex('POST', '/api/activities/manual', {'sport': 'workout', 'name': 'Strength A', 'duration_s': 3300,
-                                               'start': f"{dt.date.today() - dt.timedelta(days=days_ago)}T18:00"})
+                                               'start': f"{screenshot_today - dt.timedelta(days=days_ago)}T18:00"})
     alex('PUT', f"/api/activities/{s['id']}/lifts", {'exercises': [
         {'exercise_id': ex['Squat'], 'sets': [{'reps': 8, 'kg': lb(95), 'warmup': True}] + [{'reps': 5, 'kg': lb(185 + 5 * w)}] * 3},
         {'exercise_id': ex['Bench press'], 'sets': [{'reps': 5, 'kg': lb(145 + 5 * (w // 2))}] * 3},

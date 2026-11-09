@@ -26,6 +26,7 @@ jobs:
     timeout-minutes: 30
     env:
       KINETTA_VERSION: ci
+      KINETTA_SCREENSHOT_FIXTURE: '1'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -64,6 +65,8 @@ jobs:
         with:
           python-version: "3.12"
       - name: Take the screenshots
+        env:
+          KINETTA_PROJECT: shots
         run: |
           mkdir -p /tmp/png
           npm ci --prefix dev/tests/browser

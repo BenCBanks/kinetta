@@ -3,8 +3,9 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
+const SCREENSHOT_CLOCK=require('../screenshots/fixture-time.json'),SCREENSHOT_NOW=new Date(SCREENSHOT_CLOCK.instant);
 const todayOnly=process.env.KINETTA_ME_TODAY_ONLY==='1';
-const todayInNewYork=()=>{const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()),v=Object.fromEntries(parts.map(p=>[p.type,p.value]));return `${v.year}-${v.month}-${v.day}`;};
+const todayInNewYork=()=>{const parts=new Intl.DateTimeFormat('en-US',{timeZone:SCREENSHOT_CLOCK.timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(SCREENSHOT_NOW),v=Object.fromEntries(parts.map(p=>[p.type,p.value]));return `${v.year}-${v.month}-${v.day}`;};
 const addDays=(day,count)=>{const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+count);return d.toISOString().slice(0,10);};
 const chartFixture=today=>{
  const noon=new Date(today+'T12:00:00Z'),sunday=addDays(today,-noon.getUTCDay());
@@ -22,7 +23,8 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
  const storageState=await login.storageState();
  const sizes=[{width:390,height:844,root:16},{width:330,height:667,root:16}],themes=['light','dark'];
  for(const size of sizes)for(const theme of themes){
-  const c=await b.newContext({storageState,viewport:size,colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];
+  const c=await b.newContext({storageState,viewport:size,colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:SCREENSHOT_CLOCK.timezone}),p=await c.newPage(),errors=[],writes=[];
+  await p.clock.setFixedTime(SCREENSHOT_NOW);
   let slotFixture='both',todayFixture='both',zeroDistanceFixture=false,seriesFixture;
   let showcaseFixture={items:[],pinned:[],day_streak:0},shareAchievementsEnabled=false,showcasePins=[],pinOrderRequests=[],failFeatureSave=false,achievementFixture={tracks:[]};const sharedShowcaseRequests=[];
   const featureTrack=(code,label,value,display_unit)=>({code,label,value,display_value:value,display_unit,tiers:[{rank:1,day:'2026-11-06'}]});

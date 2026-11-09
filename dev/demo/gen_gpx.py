@@ -50,7 +50,13 @@ def write(name, sport, start, route, laps, speed_mps, hr_base, cad):
     fn = os.path.join(out, f'{start:%Y%m%d-%H%M}-{sport}.gpx')
     open(fn, 'w').write(xml)
 
-today = dt.datetime.now(dt.timezone.utc).replace(hour=11, minute=0, second=0, microsecond=0)
+if os.environ.get('KINETTA_SCREENSHOT_FIXTURE') == '1':
+    clock_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'screenshots', 'fixture-time.json')
+    clock = json.load(open(clock_path))
+    now = dt.datetime.fromisoformat(clock['instant'].replace('Z', '+00:00')).astimezone(dt.timezone.utc)
+else:
+    now = dt.datetime.now(dt.timezone.utc)
+today = now.replace(hour=11, minute=0, second=0, microsecond=0)
 n = 0
 for k in range(days, 0, -1):
     day = today - dt.timedelta(days=k)

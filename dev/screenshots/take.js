@@ -5,6 +5,7 @@
 // (its stylesheet's safe-area values are filled in), and a status bar with the Dynamic Island and the home bar are drawn over it.
 const {chromium} = require('playwright');
 const OUT = process.argv[2], B = process.argv[3] || 'http://localhost:8798';
+const SCREENSHOT_CLOCK = require('./fixture-time.json');
 // name, address, and optionally a card title to scroll to, or something to do first
 const SHOTS = require('./scenes.json');
 // ONLY=lift,liftex takes just those (new shots, without retaking every other picture)
@@ -111,9 +112,9 @@ async function say(page, text) {
   const browser = await chromium.launch(), errors = [];
   try {
   for (const scheme of ['light', 'dark']) {
-    // the browser keeps the server's time zone (the workflow sets TZ), or a run near midnight UTC shows an empty week
+    // Keep the browser's calendar day aligned with the screenshot fixture used for staging.
     const ctx = await browser.newContext({viewport: {width: W, height: H}, deviceScaleFactor: 2, colorScheme: scheme,
-      timezoneId: process.env.TZ || 'America/New_York'});
+      timezoneId: SCREENSHOT_CLOCK.timezone});
     const basemap = await (await ctx.request.get(B+'/api/map-config')).json();
     if(!['pmtiles','vector'].includes(basemap.kind))throw Error('Capture needs an operator-controlled vector basemap');
     // The public archive admits the published app origin. Adapt only CORS for this local demo;
@@ -128,6 +129,7 @@ async function say(page, text) {
       await route.fulfill({response,headers:{...response.headers(),'access-control-allow-origin':new URL(B).origin,'access-control-expose-headers':'content-range,content-length,etag'}});
     });
     const page = await ctx.newPage();
+    await page.clock.setFixedTime(new Date(SCREENSHOT_CLOCK.instant));
     await ctx.route('**/*', route => { const request=route.request(), url=new URL(request.url());
       if(url.hostname==='tile.openstreetmap.org'||url.origin!==B&&!['GET','HEAD'].includes(request.method()))return route.abort();
       return route.fallback();
@@ -184,6 +186,16 @@ async function say(page, text) {
         const shown=await emojiNodes.allTextContents(),values=await counts.allTextContents();
         const reactLabel=await react.getAttribute('aria-label'),reactText=(await react.innerText()).trim();
         if(reactLabel!=='React'||reactText!=='React'||!await summaryButton.isVisible()||kinds.length!==3||!['clap','starstruck','mindblown'].every(kind=>kinds.includes(kind))||shown.length!==3||!['👏','🤩','🤯'].every(value=>shown.includes(value))||values.length!==3||values.some(value=>value.trim()!=='1')||await summaryButton.locator('.num').count())throw Error('Demo feed must show React and each of three native emoji with its own count');
+        // A map card can put its controls below the fixed tab bar at the top of the feed.
+        // Scroll just enough to capture the action row clear of that bar.
+        await group.evaluate(el=>{
+          const footer=el.closest('.post-ft'),tabs=document.querySelector('nav.tabs');
+          const controls=[footer?.querySelector('.reaction-more'),footer?.querySelector('.activity-comments'),el.querySelector('.reaction-count')].filter(Boolean);
+          if(!tabs||!controls.length)return;
+          const rowBottom=Math.max(...controls.map(node=>node.getBoundingClientRect().bottom));
+          const safeBottom=tabs.getBoundingClientRect().top-8;
+          if(rowBottom>safeBottom)window.scrollBy(0,rowBottom-safeBottom);
+        });
         if(!await group.evaluate(el=>{
           const footer=el.closest('.post-ft');
           const action=footer?.querySelector('.reaction-more'),comments=footer?.querySelector('.activity-comments'),button=el.querySelector('.reaction-count');

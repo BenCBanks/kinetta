@@ -1,5 +1,6 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const SCREENSHOT_CLOCK=require('../screenshots/fixture-time.json'),SCREENSHOT_NOW=new Date(SCREENSHOT_CLOCK.instant),SCREENSHOT_YEAR=SCREENSHOT_NOW.getUTCFullYear();
 const catalog=JSON.parse(fs.readFileSync(path.join(__dirname,'../../app/static/profile.achievement-levels.json'),'utf8'));
 assert.equal(catalog.version,3,'the profile uses Sage/Ben catalog v3');
 for(const [code,track] of Object.entries(catalog.tracks)){
@@ -29,7 +30,7 @@ const v2History=(code,overrides={})=>{
  const levels=definition.levels.map((level,index)=>({rank:index+1,name:level.name,threshold:catalogValue(level)})).filter(level=>level.threshold<=value);
  const last=definition.levels.at(-1),base=catalogValue(last);let multiple=Math.max(2,Number(catalog.tail.first_multiple)||2);
  while(base>0&&base*multiple<=value&&levels.length<10000){levels.push({rank:levels.length+1,name:`${last.name} ×${multiple}`,threshold:base*multiple});multiple++;}
- return{code,pending:false,tiers:levels.map((level,index)=>({...level,day:code==='journey'&&level.rank===1?`${new Date().getFullYear()-1}-10-01`:code==='journey'&&level.rank===3?'':new Date(Date.UTC(2026,9,1+index)).toISOString().slice(0,10),activity_id:code==='journey'&&level.rank===2?null:3000+index,date_source:'activity'}))};
+ return{code,pending:false,tiers:levels.map((level,index)=>({...level,day:code==='journey'&&level.rank===1?`${SCREENSHOT_YEAR-1}-10-01`:code==='journey'&&level.rank===3?'':new Date(Date.UTC(SCREENSHOT_YEAR,9,1+index)).toISOString().slice(0,10),activity_id:code==='journey'&&level.rank===2?null:3000+index,date_source:'activity'}))};
 };
 const stripCss='.profile-achievement-level-strip{padding:24px 16px}.profile-achievement-level-strip h1{margin:0 0 8px;font-size:1.35rem}.profile-achievement-level-strip>p{max-width:340px;margin:0 0 20px;color:var(--tx2)}.profile-achievement-level-swatches{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:8px;max-width:358px}.profile-achievement-level-swatch{--achievement-palette-base:var(--run);display:flex;flex-direction:column;align-items:center;gap:7px}.profile-achievement-level-swatch .profile-achievement-medallion{flex-basis:34px;width:34px;height:34px}.profile-achievement-level-swatch .profile-achievement-ring{inset:0}.profile-achievement-level-swatch .profile-achievement-icon{width:16px;height:16px}.profile-achievement-level-swatch small{color:var(--tx2);font-size:.7rem}.profile-achievement-level-swatch .profile-achievement-value,.profile-achievement-level-swatch .profile-achievement-level{display:none}:root[data-achievement-evidence="all-tracks"] nav.tabs,:root[data-achievement-evidence="track"] nav.tabs{display:none!important}';
 const achievementFixture={pending:false,tracks:[
@@ -143,8 +144,9 @@ const assert330AchievementViews=async(page,base,setUnits,theme,shots)=>{
 
 module.exports=async({browser,storageState,base,shots})=>{
  for(const theme of ['light','dark']){
-  const context=await browser.newContext({storageState,viewport:{width:390,height:844},colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'});
+  const context=await browser.newContext({storageState,viewport:{width:390,height:844},colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:SCREENSHOT_CLOCK.timezone});
   const page=await context.newPage(),errors=[],writes=[],pinRequests=[];let journeyValue=6099414,workoutValue=1120,unitMode='imperial',unitLabelValues=null,showcasePins=[];
+  await page.clock.setFixedTime(SCREENSHOT_NOW);
   page.on('pageerror',e=>errors.push(e.message));
   await context.addInitScript(()=>{window.__achievementVibrations=0;const original=navigator.vibrate?.bind(navigator);navigator.vibrate=(...args)=>{window.__achievementVibrations++;return original?original(...args):false;};});
   await page.route('**/*',async route=>{
@@ -324,7 +326,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert(await namedJourneyLevels.locator('li.is-current time').count(),'an earned row shows its date');
   assert.equal(await namedJourneyLevels.locator('li.is-earned a[href="/activity/3000"]').count(),1,'earned levels link to their activity');
   const linkedEarned=namedJourneyLevels.locator('li[data-level="1"] a');
-  assert.equal(await linkedEarned.getAttribute('aria-label'),`Level 1, Round the town, earned Oct 1, ${new Date().getFullYear()-1}`,'activity links announce the earned level and its prior-year date');
+  assert.equal(await linkedEarned.getAttribute('aria-label'),`Level 1, Round the town, earned Oct 1, ${SCREENSHOT_YEAR-1}`,'activity links announce the earned level and its prior-year date');
   assert.equal(await namedJourneyLevels.locator('li[data-level="1"]').getAttribute('aria-label'),null,'the row does not override its link name');
   const noActivity=namedJourneyLevels.locator('li[data-level="2"]');
   assert.equal(await noActivity.locator('a').count(),0,'an earned level without activity_id stays noninteractive');
@@ -483,7 +485,7 @@ module.exports=async({browser,storageState,base,shots})=>{
     if(state.empty){assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-value').count(),0,'the new-track medal has no value');assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-level').count(),0,'the new-track medal has no level badge');assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-medallion').evaluate(node=>getComputedStyle(node).filter),'grayscale(1)','an unstarted track page greys the medal');assert.equal(await page.locator('.profile-achievement-named-levels li.is-next [role="progressbar"]').count(),0,'an unstarted track has no progress bar');}
     else await assertRingText(page.locator('#profile-achievement-page'),String(width)+'px '+state.name+' track');
     if(state.name==='prior-year-no-link'){
-     const ladder=page.locator('.profile-achievement-named-levels');assert((await ladder.locator('li[data-level="1"] time').innerText()).includes(String(new Date().getFullYear()-1)),'the screenshot includes an earlier-year earned date');assert.equal(await ladder.locator('li[data-level="2"] a').count(),0,'the screenshot includes an earned row without a link');assert.equal(await ladder.locator('li[data-level="2"] .profile-achievement-history-chevron').count(),0,'the non-link earned row has no chevron');
+     const ladder=page.locator('.profile-achievement-named-levels');assert((await ladder.locator('li[data-level="1"] time').innerText()).includes(String(SCREENSHOT_YEAR-1)),'the screenshot includes an earlier-year earned date');assert.equal(await ladder.locator('li[data-level="2"] a').count(),0,'the screenshot includes an earned row without a link');assert.equal(await ladder.locator('li[data-level="2"] .profile-achievement-history-chevron').count(),0,'the non-link earned row has no chevron');
      assert.match(await ladder.locator('li[data-level="3"] a').getAttribute('aria-label'),/, earned$/,'the no-date earned row stays accessible');
     }
     assert.equal(await ladder.first().evaluate(row=>getComputedStyle(row).minHeight),'44px','achievement rows keep a 44px minimum');
