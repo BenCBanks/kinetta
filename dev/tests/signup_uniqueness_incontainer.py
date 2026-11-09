@@ -13,8 +13,8 @@ from app import account_email, api_account, auth, db
 from app.main import app
 
 PW='fictional signup private passphrase'
-MAIL={'KINETTA_RESEND_KEY':'stand-in-not-a-key','KINETTA_MAIL_FROM':'Kinetta <hello@example.test>',
-      'KINETTA_MAIL_REPLY_TO':'support@example.test','KINETTA_PUBLIC_URL':'https://example.test',
+MAIL={'KINETTA_RESEND_KEY':'stand-in-not-a-key','KINETTA_MAIL_FROM':'Kinetta <hello@example.com>',
+      'KINETTA_MAIL_REPLY_TO':'support@example.com','KINETTA_PUBLIC_URL':'https://example.test',
       'KINETTA_MAIL_WEBHOOK_SECRET':'whsec_'+base64.b64encode(b'fictional-webhook-key').decode(),
       'KINETTA_SIGNUP':'open','KINETTA_MAX_ACCOUNTS':'','KINETTA_BETA_SIGNUP':'1'}
 
@@ -48,7 +48,7 @@ class Uniqueness(unittest.TestCase):
         client=TestClient(app);client.headers.update({'Origin':'http://testserver','Content-Type':'application/json','x-fixture-client':key or uuid.uuid4().hex});return client
 
     def email(self,stem='address'):
-        value=stem+'-'+self.tag+'@example.test';self.emails.add(value);return value
+        value=stem+'-'+self.tag+'@example.com';self.emails.add(value);return value
 
     def form(self,suffix='new',email=None):
         return {'login':self.prefix+'_'+suffix,'name':'Signup Example','password':PW,'email':email or self.email(),'age_ok':True}

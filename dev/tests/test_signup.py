@@ -9,8 +9,8 @@ from app.main import app
 
 PW = 'test account private password'
 BASE = 'http://testserver'
-MAIL = {'KINETTA_RESEND_KEY': 'stand-in-not-a-key', 'KINETTA_MAIL_FROM': 'Kinetta <hello@example.test>',
-        'KINETTA_MAIL_REPLY_TO': 'support@example.test', 'KINETTA_PUBLIC_URL': 'https://example.test',
+MAIL = {'KINETTA_RESEND_KEY': 'stand-in-not-a-key', 'KINETTA_MAIL_FROM': 'Kinetta <hello@example.com>',
+        'KINETTA_MAIL_REPLY_TO': 'support@example.com', 'KINETTA_PUBLIC_URL': 'https://example.test',
         'KINETTA_MAIL_WEBHOOK_SECRET': 'whsec_' + base64.b64encode(b'fictional-webhook-key').decode()}
 
 
@@ -23,7 +23,7 @@ def client():
 
 
 def form(login, **extra):
-    return {'name': 'Signup Test', 'login': login, 'email': login + '@example.test', 'password': PW, 'age_ok': True, 'tz': 'UTC', **extra}
+    return {'name': 'Signup Test', 'login': login, 'email': login + '@example.com', 'password': PW, 'age_ok': True, 'tz': 'UTC', **extra}
 
 
 class Signup(unittest.TestCase):
@@ -31,7 +31,7 @@ class Signup(unittest.TestCase):
     def tearDownClass(cls):
         with db.connect() as c:
             c.execute("DELETE FROM users WHERE login LIKE 'zz\\_test\\_su%%' OR login LIKE 'zzsutest%%'"); c.execute('DELETE FROM auth_attempts')
-            c.execute("DELETE FROM beta_requests WHERE email LIKE 'zz_test_su%%@example.test'")
+            c.execute("DELETE FROM beta_requests WHERE email LIKE 'zz_test_su%%@example.com'")
 
     def setUp(self):
         self.tearDownClass()
@@ -61,7 +61,7 @@ class Signup(unittest.TestCase):
         self.assertEqual(new.post('/api/signup', json=form('zz_test_su_new', age_ok=False)).status_code, 400, '16+ required')
         r = new.post('/api/signup', json=form('zz_test_su_new')); self.assertEqual(r.status_code, 200, r.text)
         me = new.get('/api/me').json()
-        self.assertTrue(me['needs_email_confirm']); self.assertEqual(me['pending_email'], 'zz_test_su_new@example.test'); self.assertIsNone(me['email'])
+        self.assertTrue(me['needs_email_confirm']); self.assertEqual(me['pending_email'], 'zz_test_su_new@example.com'); self.assertIsNone(me['email'])
         self.assertFalse(me.get('ai_ok'), 'Kit waits for a yes (the welcome steps ask)'); self.assertFalse(me['health_ai_ok'] or me['garmin_ai_ok'], 'Health and Garmin still need their own yes')
         # Kit is 18+ although sign-up is 16+: its yes needs the age confirmation, which is recorded once
         self.assertEqual(new.put('/api/profile', json={'ai_ok': True}).status_code, 400, 'Kit needs the 18+ confirmation')
@@ -79,7 +79,7 @@ class Signup(unittest.TestCase):
             self.assertFalse(c.execute(coach.ADULT_OK, (uid,)).fetchone()['ai_ok'], 'no AI call without the confirmation')
         self.assertFalse(new.get('/api/me').json()['ai_ok'], 'the app asks again')
         new.put('/api/profile', json={'ai_ok': False})
-        self.assertEqual(self.mail.call_args.kwargs['json']['to'], ['zz_test_su_new@example.test'])
+        self.assertEqual(self.mail.call_args.kwargs['json']['to'], ['zz_test_su_new@example.com'])
         # a member who would otherwise see "everyone" activities
         old = client(); self.assertEqual(old.post('/api/signup', json=form('zz_test_su_old')).status_code, 200)
         with db.connect() as c: c.execute("UPDATE users SET needs_email_confirm = false WHERE login = 'zz_test_su_old'")
@@ -102,6 +102,37 @@ class Signup(unittest.TestCase):
         self.assertEqual(old.get(f'/api/shared/{aid}').status_code, 200)
         self.assertEqual(new.post('/api/friends', json={'login': 'zz_test_su_old'}).status_code, 200)
         self.assertEqual(new.post(f'/api/activities/{oid}/comments', json={'text': 'hello'}).status_code, 200)
+
+    def test_signup_rejects_common_email_domain_typos(self):
+        self.env(KINETTA_SIGNUP='open')
+        before = self.real_accounts()
+        payload = form('zz_test_su_typo')
+        payload['email'] = 'casey@example.con'
+        response = client().post('/api/signup', json=payload)
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertIn('Did you mean .com?', response.json()['detail'])
+        self.assertEqual(self.real_accounts(), before, 'a correction is required before account creation')
+        payload['email'] = 'zz_test_su_typo@gmial.com'
+        response = client().post('/api/signup', json=payload)
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertIn('Keep my address', response.json()['detail'])
+        response = client().post('/api/signup', json={**payload, 'confirm_typo': True})
+        self.assertEqual(response.status_code, 200, response.text)
+
+    def test_beta_waitlist_requires_explicit_choice_for_domain_typos(self):
+        self.env(KINETTA_SIGNUP='waitlist', KINETTA_BETA_SIGNUP='1')
+        email = 'zz_test_su_waitlist@gmial.com'
+        self.addCleanup(self.delete_beta_typo_request, email)
+        payload = {'name': 'Fictional Waitlist Member', 'email': email, 'phone': 'iphone'}
+        self.assertEqual(client().post('/api/beta', json=payload).status_code, 400)
+        impossible = client().post('/api/beta', json={**payload, 'email': 'zz_test_su_waitlist@example.cpm', 'confirm_typo': True})
+        self.assertEqual(impossible.status_code, 400, 'explicit confirmation never overrides an unknown TLD')
+        response = client().post('/api/beta', json={**payload, 'confirm_typo': True})
+        self.assertEqual(response.status_code, 200, response.text)
+
+    def delete_beta_typo_request(self, email):
+        with db.connect() as c:
+            c.execute('DELETE FROM beta_requests WHERE email=%s', (email,))
 
     def test_new_profiles_use_public_sharing_defaults_without_changing_saved_choices(self):
         self.env(KINETTA_SIGNUP='open')
@@ -262,8 +293,8 @@ class Signup(unittest.TestCase):
         body = {k: v for k, v in form('zz_test_su_x').items() if k != 'login'}
         with db.connect() as c: c.execute("DELETE FROM users WHERE login LIKE 'zzsutest%%'")
         a, b = client(), client()
-        r1 = a.post('/api/signup', json={**body, 'name': 'Zzsutest Person', 'email': 'zz_test_su_n1@example.test'}).json()
-        r2 = b.post('/api/signup', json={**body, 'name': 'Zzsütest Other', 'email': 'zz_test_su_n2@example.test'}).json()
+        r1 = a.post('/api/signup', json={**body, 'name': 'Zzsutest Person', 'email': 'zz_test_su_n1@example.com'}).json()
+        r2 = b.post('/api/signup', json={**body, 'name': 'Zzsütest Other', 'email': 'zz_test_su_n2@example.com'}).json()
         self.assertEqual((r1['login'], r2['login']), ('zzsutest', 'zzsutest2'), 'from the first name, accents dropped, then numbered')
         # confirm, then the email is the login and the username can change freely
         token = re.search(r'/confirm-email/([\w-]+)', self.mail.call_args_list[0].kwargs['json']['text']).group(1)
@@ -271,7 +302,7 @@ class Signup(unittest.TestCase):
         self.assertEqual(a.put('/api/account', json={'login': 'zz_test_su_gamertag'}).json()['login'], 'zz_test_su_gamertag')
         self.assertEqual(a.put('/api/account', json={'login': 'zz_test_su_gamertag2'}).status_code, 200, 'again, whenever they like')
         self.assertEqual(b.put('/api/account', json={'login': 'zz_test_su_gamertag2'}).status_code, 409, 'but not to a taken one')
-        self.assertEqual(client().post('/api/login', json={'login': 'zz_test_su_n1@example.test', 'password': PW}).status_code, 200)
+        self.assertEqual(client().post('/api/login', json={'login': 'zz_test_su_n1@example.com', 'password': PW}).status_code, 200)
         with db.connect() as c: c.execute("DELETE FROM users WHERE login LIKE 'zzsutest%%'")
 
     def test_invite_join_with_email(self):
@@ -281,11 +312,11 @@ class Signup(unittest.TestCase):
         with db.connect() as c: c.execute("INSERT INTO invites (token_hash, note, expires) VALUES (%s, 'zz', now() + interval '1 day')", (auth.token_hash(token),))
         self.assertTrue(client().get('/api/join/' + token).json()['email'], 'the join page can ask for an email')
         j = client()
-        r = j.post('/api/join', json={'age_ok':True,'name': 'Zz_test_su_joiner Invited', 'email': 'zz_test_su_joiner@example.test', 'password': PW, 'token': token})
+        r = j.post('/api/join', json={'age_ok':True,'name': 'Zz_test_su_joiner Invited', 'email': 'zz_test_su_joiner@example.com', 'password': PW, 'token': token})
         self.assertEqual(r.status_code, 200, r.text); self.assertTrue(r.json()['login'].startswith('zz_test_su_joiner'))
-        self.assertEqual(self.mail.call_args.kwargs['json']['to'], ['zz_test_su_joiner@example.test'])
+        self.assertEqual(self.mail.call_args.kwargs['json']['to'], ['zz_test_su_joiner@example.com'])
         me = j.get('/api/me').json()
-        self.assertFalse(me['needs_email_confirm'], 'invited people are not held back'); self.assertEqual(me['pending_email'], 'zz_test_su_joiner@example.test')
+        self.assertFalse(me['needs_email_confirm'], 'invited people are not held back'); self.assertEqual(me['pending_email'], 'zz_test_su_joiner@example.com')
 
     def test_iphone_app_signup_gets_a_token(self):
         # the iPhone app (#232 E) signs up in the app: a login token in the answer, no cookie, an "iPhone app" session
@@ -396,7 +427,7 @@ class Signup(unittest.TestCase):
         self.env(KINETTA_SIGNUP='waitlist')
         with db.connect()as c:c.execute("INSERT INTO auth_attempts(key) SELECT 'fail:login:beta' FROM generate_series(1,50)")
         with patch.object(auth,'client_ip',side_effect=lambda r:r.headers.get('x-fixture-source','network-a')):
-            body=lambda i:{'name':'Waitlist Fixture','email':f'zz_test_su_wait{i}@example.test','phone':'iphone'}
+            body=lambda i:{'name':'Waitlist Fixture','email':f'zz_test_su_wait{i}@example.com','phone':'iphone'}
             for i in range(10):self.assertEqual(client().post('/api/beta',json=body(i)).status_code,200)
             self.assertEqual(client().post('/api/beta',json=body(10)).status_code,429)
             self.assertEqual(client().post('/api/beta',json=body(10),headers={'x-fixture-source':'network-b'}).status_code,200)
@@ -437,12 +468,12 @@ class Signup(unittest.TestCase):
         with db.connect()as c:
             c.execute('INSERT INTO auth_attempts(key)SELECT %s FROM generate_series(1,20)',(key,))
             c.execute("UPDATE users SET signup_confirmed_at=now()-interval '8 days' WHERE id=%s",(uid,));stamp=c.execute('SELECT signup_confirmed_at FROM users WHERE id=%s',(uid,)).fetchone()['signup_confirmed_at']
-            token=account_email._token(c,uid,'verify_email',60,'zz_test_su_replacement@example.test')
+            token=account_email._token(c,uid,'verify_email',60,'zz_test_su_replacement@example.com')
         self.assertEqual(client().post('/api/account/email/confirm',json={'token':token}).status_code,200)
         with db.connect()as c:self.assertEqual(c.execute('SELECT signup_confirmed_at FROM users WHERE id=%s',(uid,)).fetchone()['signup_confirmed_at'],stamp)
         self.assertEqual(actor.post(f'/api/activities/{aid}/comments',json={'text':'After seven days'}).status_code,200)
         self.assertNotIn('signup_confirmed_at',actor.get('/api/me').json())
-        with db.connect()as c:token=account_email._token(c,tid,'verify_email',60,'zz_test_su_old@example.test')
+        with db.connect()as c:token=account_email._token(c,tid,'verify_email',60,'zz_test_su_old@example.com')
         self.assertEqual(client().post('/api/account/email/confirm',json={'token':token}).status_code,200)
         with db.connect()as c:self.assertIsNone(c.execute('SELECT signup_confirmed_at FROM users WHERE id=%s',(tid,)).fetchone()['signup_confirmed_at'])
 

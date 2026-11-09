@@ -75,4 +75,7 @@ def webhook_event(raw,headers):
         if not c.execute('INSERT INTO admin_mail_events (id,provider_id,state) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING RETURNING id',(eid,pid,state)).fetchone():return {'ok':True}
         if state:
             c.execute("UPDATE beta_responses SET state=%s WHERE provider_id=%s AND (state <> 'bounced' OR %s='bounced')",(state,pid,state))
+        if state == 'bounced':
+            c.execute("""UPDATE account_tokens SET bounced_at=coalesce(bounced_at,now())
+                         WHERE resend_id=%s AND kind='verify_email' AND used_at IS NULL""", (pid,))
     return {'ok':True}

@@ -1,0 +1,47 @@
+.email-confirm-banner {
+  display: grid;
+  gap: 8px;
+  margin-block: 10px 14px;
+  padding-block: 12px;
+  border-block: 1px solid var(--line);
+}
+.email-confirm-actions,
+.email-address-suggestion,
+.email-address-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+}
+.email-confirm-status {
+  margin: 0;
+  color: var(--tx2);
+}
+.email-confirm-settings-note {
+  margin-block: 0 12px;
+}
+.email-confirm-change {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+}
+.email-address-suggestion {
+  margin-block: 4px 8px;
+  color: var(--tx2);
+}
+.email-address-review {
+  display: grid;
+  gap: 6px;
+  margin-block: 10px;
+  padding-block: 10px;
+  border-block: 1px solid var(--line);
+}
+.email-address-review p {
+  margin: 0;
+}
+.email-address-value {
+  overflow-wrap: anywhere;
+}
+.email-address-actions button {
+  min-height: 44px;
+}

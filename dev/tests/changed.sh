@@ -22,7 +22,7 @@ app/static/plan*.js,app/static/plan-ui.css,app/static/planner.js;plan;Me,Me Toda
 app/static/discovery.js,app/static/heatmap-ui.css,app/static/milestones.*,app/static/recaps*,app/static/progress-routes.js;progress;Progress,Fitness,Share progress
 app/static/profile.*,app/static/notifications-ui.css,app/static/password-visibility.*,app/static/push-invitation.js,app/static/social-notifications.js;profile;Me,Settings,Notifications
 app/static/admin*,app/static/feature-usage.js;admin;
-app/static/welcome.js,app/static/onboarding.js,app/static/username-availability.*;welcome;
+app/static/welcome.js,app/static/onboarding.js,app/static/username-availability.*,app/static/email-account.*;welcome;
 app/static/explore.js,app/static/guide-ui.css;guide;
 app/static/community-terms.*;community;
 app/static/cards.*,app/static/card-public.js,app/static/vendor/qrcode.js;cards;Me,Share card choices,Public link confirmation
