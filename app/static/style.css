@@ -2258,7 +2258,7 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .reaction-action {display:contents;}
 .activity-reactions .pf,.activity-comments,.post-hd .activity-share {background:none;border-color:transparent;box-shadow:none;min-height:44px;}
 .post-ft:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;gap:0;padding:3px 16px;min-height:44px;}
-.detail-social:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;gap:0;padding:0;margin-top:0;min-height:44px;}
+.detail-social:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;justify-content:flex-start;gap:0;padding:0;margin-top:0;min-height:44px;width:100%;min-width:0;box-sizing:border-box;}
 .emoji-reactions .reaction-more {order:1;flex:none;min-width:44px;min-height:44px;justify-content:flex-start;gap:6px;padding:0;margin-right:8px;font-size:15px;font-weight:500;color:var(--tx2);}
 .emoji-reactions .reaction-more>svg {flex:none;width:20px;height:20px;}
 .emoji-reactions .reaction-more .reaction-emoji {font-size:22px;}
@@ -2276,6 +2276,8 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .post-ft .num,.detail-social .num {font-size:max(15px,.75rem);line-height:1.2;}
 .post-ft:has(.emoji-reactions) .activity-share {order:3;min-width:44px;height:44px;margin:0 0 0 8px;padding:0;display:flex;align-items:center;justify-content:center;}
 .post-ft:has(.emoji-reactions) .activity-share>svg {width:20px;height:20px;}
+.detail-social:has(.emoji-reactions) .activity-share {order:3;flex:none;width:44px;min-width:44px;height:44px;min-height:44px;margin:0 0 0 8px;padding:0;display:flex;align-items:center;justify-content:center;}
+.detail-social:has(.emoji-reactions) .activity-share>svg {width:20px;height:20px;}
 .post-hd .activity-share {width:44px;min-width:44px;height:44px;padding:0;justify-content:center;margin-left:auto;}
 .post-hd .activity-share>svg {width:20px;height:20px;}
 /* Full rows share the card's content edges; narrow cards use four columns. */
