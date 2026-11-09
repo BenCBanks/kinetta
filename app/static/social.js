@@ -277,12 +277,17 @@ const FEED_N = 15;
 // Own private workouts stay visible here. Cached rows explicitly private to someone else never paint.
 const visibleFeedRows=rows=>rows.filter(a=>!a.owner||(App.me?.login&&a.owner.login===App.me.login)||a.visibility!=='me');
 const feedRowKey=a=>`${a.kind==='achievement_moment'?'moment':'activity'}:${a.id}`;
+function achievementBadgeMarkup(badge,className=''){
+  const code=String(badge?.code||''),rank=Number(badge?.rank),icon=String(badge?.icon||'');
+  if(!code||!Number.isSafeInteger(rank)||rank<1||rank>10000||!/^\/static\/[A-Za-z0-9_./-]+(?:\?v=[A-Za-z0-9._-]+)?$/.test(icon)||icon.includes('/../'))return '';
+  return `<span class="me-featured-medal achievement-badge-art ${esc(className)}" data-showcase-code="${esc(code)}" role="img" aria-label="Achievement badge, level ${rank}"><img class="me-featured-icon" src="${esc(icon)}" alt="" aria-hidden="true" loading="eager" decoding="async"></span>`;
+}
 function feedCard(a,options={}){
   if(a.kind==='achievement_moment'){
-    const p=a.owner,name=esc(p.name||p.login),track=a.is_track?svg('globe','achievement-moment-track'):'',extra=a.extra_count?` and ${a.extra_count} more`:'';
-    return `<article class="card achievement-moment" data-feed-key="${esc(feedRowKey(a))}"><div class="achievement-moment-body">
-      <a class="post-av" href="${profileHref(p)}" aria-label="${name}’s profile">${avatar(p)}</a><div class="achievement-moment-copy">
-        <p><a class="achievement-moment-name" href="${profileHref(p)}">${name}</a> reached ${esc(a.title)}${track}${extra}</p></div></div>
+    const p=a.owner,name=esc(p.name||p.login),track=a.is_track?svg('globe','achievement-moment-track'):'',extra=a.extra_count?` and ${a.extra_count} more`:'',badge=achievementBadgeMarkup(a.badge,'achievement-moment-badge');
+    return `<article class="card achievement-moment" data-feed-key="${esc(feedRowKey(a))}"><div class="post-hd achievement-moment-body">
+      <a class="post-av" href="${profileHref(p)}" aria-label="${name}’s profile">${avatar(p)}</a><div class="ph-txt achievement-moment-copy">
+        <p><a class="achievement-moment-name" href="${profileHref(p)}">${name}</a> reached ${esc(a.title)}${track}${extra}</p></div>${badge}</div>
       <div class="post-ft"><time class="achievement-moment-time" datetime="${esc(a.start_time)}">${esc(when(a.start_time))}</time>${reactionButtons(null,a,false,true,{owner:p.login,week:a.week_start})}</div></article>`;
   }
   return postCard(a,options).replace('<article class="card post','<article data-feed-key="'+esc(feedRowKey(a))+'" class="card post');
@@ -896,6 +901,10 @@ const profileTab = (login) => App.me && decodeURIComponent(login).toLowerCase() 
 route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
   login=decodeURIComponent(login);
   const own=!!App.me&&login.toLowerCase()===App.me.login.toLowerCase(),owner=readOwner(),initial=new URLSearchParams(location.search);
+  if(initial.get('view')==='achievements'){
+    if(own){go('/me/achievements',{replace:true});return;}
+    ProfileLayout.achievementPage(el,initial.get('track')||'',{login,returnPath:`/people/${encodeURIComponent(login)}`});return;
+  }
   let revision=0,sport=initial.get('sport')||'',term=initial.get('q')||'',searchOpen=own&&initial.get('search')==='1',deferred=null;
   const path=()=>'/api/people/'+encodeURIComponent(login)+'/profile'+(own?'?limit=1':'');
     el.innerHTML=`<div class="top${own?' owner-profile-top':''}">${backBtn(own?'Me':'People')}<span class="profile-page-title">${own?'Your profile':'Profile'}</span>${own?'':`<a class="icon-btn" href="/me/friends?find=1" aria-label="Find friends">${svg('user-plus')}</a>`}</div><div id="person-profile">${skel(2)}</div>`;
@@ -910,7 +919,7 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
     const action=r.status==='friends'?`<button type="button" class="me-card-pill" data-person-manage>${svg('check')}Friends</button>`:r.status==='sent'?'<button type="button" class="me-card-pill" data-person-action="cancel">Request sent</button>':r.status==='incoming'?`<button type="button" class="me-card-pill solid" data-person-action="accept">${svg('check')}Approve request</button>`:`<button type="button" class="me-card-pill solid" data-person-action="add">${svg('plus')}Add friend</button>`;
     const pills=mine?MeCard.ownPills():action+`<button type="button" class="me-card-pill" data-person-report aria-label="Report or block ${esc(p.name)}">${svg('more')}</button>`;
     const friends=mine?MeCard.ownFriends(r.friend_count):Number.isInteger(r.friend_count)?`<span class="me-friends-link">${svg('people')}<span>${friendCountText(r.friend_count)}</span></span>`:'';
-    box.innerHTML=`${r.profile_hidden?'<p class="callout warn">Your profile is hidden until your account is confirmed and active.</p>':''}${MeCard.card(p,{mine,pills,friends})}
+    box.innerHTML=`${r.profile_hidden?'<p class="callout warn">Your profile is hidden until your account is confirmed and active.</p>':''}${MeCard.card(p,{mine,pills,friends,featured:!mine})}
       ${mine?`<section class="profile-activities" aria-label="Your activities"><div id="workout-sync"></div><div class="profile-activity-tools"><h2>Activities</h2><div class="profile-list-filters"><button type="button" class="ghost" id="person-sport"></button><button type="button" class="icon-btn" id="person-search" aria-label="Search your activities" aria-expanded="${!!term||searchOpen}">${svg('search')}</button></div></div><form id="person-search-form" role="search"${term||searchOpen?'':' hidden'}><input type="search" name="q" aria-label="Search your activities" value="${esc(term)}" placeholder="Search names and descriptions" enterkeyhint="search"></form><div class="feed-list" id="person-activities" aria-busy="true">${skelFeed(2)}</div><button type="button" class="ghost wide feed-more" id="person-more" hidden>Show more</button></section>`:feed?ProfileLayout.content(r,{...r.layout,sections:['activities']}):''}`;
     MeCard.mount(box,{data:r,full:true,reload,onSaved:reload,onEditEnd:async({saved})=>{
       const held=deferred;deferred=null;if(saved||!held||!active()||held.version!==revision||held.key!==path())return;
@@ -1249,7 +1258,8 @@ function groupRecapCard(group){
 }
 function groupUpdateMarkup(group,update){
   const controls=update.can_delete||update.can_report?`<button type="button" class="icon-btn group-update-options" data-update-options="${update.id}" aria-label="Update options from @${esc(update.username)}">${svg('more')}</button>`:'';
-  return `<article class="group-update" data-group-update="${update.id}"><div class="group-update-head"><b>@${esc(update.username)}</b><time>${esc(when(update.created))}</time>${controls}</div><p>${esc(update.text)}</p>${reactionButtons(null,update,false,true,null,{id:group.id,updateId:update.id})}</article>`;
+  const author={login:update.username,name:update.name||update.username,photo:update.photo},badge=achievementBadgeMarkup(update.badge,'group-update-badge');
+  return `<article class="group-update" data-group-update="${update.id}"><div class="post-hd group-update-head"><span class="post-av" aria-hidden="true">${avatar(author)}</span><div class="ph-txt"><b>@${esc(update.username)}</b><small>${esc(when(update.created))}</small></div>${controls}</div>${badge}<p>${esc(update.text)}</p>${reactionButtons(null,update,false,true,null,{id:group.id,updateId:update.id})}</article>`;
 }
 function groupUpdateMenu(group,update,reload){
   const opts=[];if(update.can_delete)opts.push('<button type="button" class="row-link danger" data-update-action="delete"><span>Delete update</span>'+svg('chev')+'</button>');
