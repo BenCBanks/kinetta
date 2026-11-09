@@ -23,6 +23,7 @@ async def lifespan(app):
     db.migrate()     # nightly database copies: host timer fit-db-backup.timer (pg_dump), see README
     threading.Thread(target=coach.weekly_scheduler, daemon=True).start()      # Sunday 6 PM weekly reviews (if an AI key is set)
     threading.Thread(target=meal_reminders.scheduler,daemon=True).start()
+    threading.Thread(target=account_email.reminder_scheduler, daemon=True).start()
     recipe_stop=threading.Event()
     recipe_worker=threading.Thread(target=recipe_import.cleanup,args=(recipe_stop,),daemon=True);recipe_worker.start()
     segment_stop,segment_worker=segments.start_worker()      # segment times from new GPS activities and new segments (#278)

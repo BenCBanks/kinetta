@@ -103,6 +103,16 @@ class Signup(unittest.TestCase):
         self.assertEqual(new.post('/api/friends', json={'login': 'zz_test_su_old'}).status_code, 200)
         self.assertEqual(new.post(f'/api/activities/{oid}/comments', json={'text': 'hello'}).status_code, 200)
 
+    def test_signup_rejects_common_email_domain_typos(self):
+        self.env(KINETTA_SIGNUP='open')
+        before = self.real_accounts()
+        payload = form('zz_test_su_typo')
+        payload['email'] = 'casey@example.con'
+        response = client().post('/api/signup', json=payload)
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertIn('Did you mean .com?', response.json()['detail'])
+        self.assertEqual(self.real_accounts(), before, 'a correction is required before account creation')
+
     def test_new_profiles_use_public_sharing_defaults_without_changing_saved_choices(self):
         self.env(KINETTA_SIGNUP='open')
         existing = client()

@@ -7,8 +7,10 @@ an account matches, and sends from the background, so it never reveals who has a
 database (auth_attempts), so the limits survive restarts. Messages are plain text and never contain a password.
 """
 import datetime as dt
+import logging
 import os
 import secrets
+import time
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -21,11 +23,39 @@ router = APIRouter()
 VERIFY_HOURS, RESET_MINUTES = 24, 60
 SENT = 'If that matches an account, we’ve sent a link to reset the password. Check your inbox and spam folder.'
 RESEND_SENT = 'If that account is waiting for confirmation, we’ve sent a new link. Check your inbox and spam folder.'
+DOMAIN_TYPOS = {
+    'gmai.com': 'gmail.com', 'gmial.com': 'gmail.com', 'gamil.com': 'gmail.com',
+    'gnail.com': 'gmail.com', 'gmal.com': 'gmail.com', 'gmail.con': 'gmail.com',
+    'gmail.cmo': 'gmail.com', 'gmail.vom': 'gmail.com', 'yaho.com': 'yahoo.com',
+    'yahooo.com': 'yahoo.com', 'yahoo.con': 'yahoo.com', 'hotmal.com': 'hotmail.com',
+    'hotmial.com': 'hotmail.com', 'hotmail.con': 'hotmail.com', 'outlok.com': 'outlook.com',
+    'outllok.com': 'outlook.com', 'outlook.con': 'outlook.com', 'iclould.com': 'icloud.com',
+    'icloud.con': 'icloud.com',
+}
+BAD_EMAIL_ENDINGS = {'con': 'com', 'cmo': 'com', 'vom': 'com'}
+
+
+def email_suggestion(email):
+    """Return a likely correction for common address typos, without changing the address silently."""
+    local, sep, domain = (email or '').strip().lower().rpartition('@')
+    if not sep or not local or not domain: return None
+    corrected = DOMAIN_TYPOS.get(domain)
+    if corrected is None:
+        ending = domain.rpartition('.')
+        if ending[1] and ending[2] in BAD_EMAIL_ENDINGS:
+            corrected = ending[0] + '.' + BAD_EMAIL_ENDINGS[ending[2]]
+    return f'{local}@{corrected}' if corrected and corrected != domain else None
 
 
 def _clean_email(v):
     v = (v or '').strip().lower()
     if len(v) > 120 or not EMAIL_RE.fullmatch(v): raise HTTPException(400, 'Check the email address')
+    suggestion = email_suggestion(v)
+    if suggestion:
+        domain = v.rpartition('@')[2]
+        ending = domain.rpartition('.')[2]
+        label = '.com' if ending in BAD_EMAIL_ENDINGS else suggestion.rpartition('@')[2]
+        raise HTTPException(400, f'Check the email address. Did you mean {label}?')
     return v
 
 
@@ -181,6 +211,41 @@ def confirmation(background, c, uid, name, email, welcome=False):
         subject, text = 'Confirm your new email for Kinetta', (f"Hi {name},\n\nTap this link to confirm {email} as your email for Kinetta:\n{link}\n\n"
             f"It works for {VERIFY_HOURS} hours. If you didn't ask for this, you can ignore this email.")
     background.add_task(send, email, subject, text + SIGNATURE)
+
+
+def send_due_confirmation_reminders(limit=100):
+    """Claim the first or second due reminder and send a fresh confirmation link."""
+    if not mail_ready(): return 0
+    messages = []
+    with db.connect() as c:
+        reservation_lock(c)
+        rows = c.execute("""SELECT id, name, email::text AS email, email_confirmation_reminder_count AS sent
+          FROM users WHERE needs_email_confirm AND email_verified_at IS NULL AND suspended_at IS NULL AND email IS NOT NULL
+            AND ((email_confirmation_reminder_count=0 AND created<=now()-interval '1 day')
+              OR (email_confirmation_reminder_count=1 AND email_confirmation_reminder_at<=now()-interval '2 days'))
+          ORDER BY created, id LIMIT %s FOR UPDATE SKIP LOCKED""", (limit,)).fetchall()
+        for user in rows:
+            token = _token(c, user['id'], 'verify_email', VERIFY_HOURS * 60, user['email'])
+            link = f"{_base()}/confirm-email/{token}"
+            c.execute("""UPDATE users SET email_confirmation_reminder_count=email_confirmation_reminder_count+1,
+                         email_confirmation_reminder_at=now()
+                       WHERE id=%s AND needs_email_confirm AND email_verified_at IS NULL""", (user['id'],))
+            messages.append((user['email'], 'Please confirm your Kinetta email',
+                f"Hi {user['name']},\n\nYour Kinetta account is waiting for you to confirm this email address. Open this link:\n{link}\n\n"
+                f"It works for {VERIFY_HOURS} hours. If you didn't sign up, you can ignore this email." + SIGNATURE))
+    for email, subject, text in messages:
+        send(email, subject, text)
+    return len(messages)
+
+
+def reminder_scheduler():
+    """Check hourly; the first pass waits so app startup and tests never send mail immediately."""
+    while True:
+        time.sleep(3600)
+        try:
+            send_due_confirmation_reminders()
+        except Exception:
+            logging.getLogger('uvicorn.error').warning('Email confirmation reminder sweep unavailable')
 
 
 def pending(c, uid):

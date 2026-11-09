@@ -84,6 +84,39 @@ class AccountEmail(unittest.TestCase):
         self.assertIsNone(a.get('/api/me').json()['email'], 'not used before the link is opened')
         anon = TestClient(app); anon.headers['Origin'] = BASE
         self.assertEqual(anon.post('/api/login', json={'login': 'zz_a@example.test', 'password': PW}).status_code, 401)
+
+    def test_change_email_rejects_common_domain_typos(self):
+        a = self.client()
+        r = a.put('/api/account/email', json={'email': 'fictional@gmial.com', 'password': PW})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('Did you mean gmail.com?', r.json()['detail'])
+        r = a.put('/api/account/email', json={'email': 'fictional@example.con', 'password': PW})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('Did you mean .com?', r.json()['detail'])
+        self.assertEqual(self.mail.call_count, 0, 'a likely typo never receives a confirmation message')
+
+    def test_confirmation_reminders_are_spaced_and_capped_at_two(self):
+        self.client()
+        user = self.pending_account('zz_reminders@example.test')
+        with db.connect() as c:
+            c.execute("""UPDATE users SET created=now()-interval '4 days', email_confirmation_reminder_count=0,
+                         email_confirmation_reminder_at=NULL WHERE id=%s""", (user['id'],))
+        self.mail.reset_mock()
+        self.assertEqual(account_email.send_due_confirmation_reminders(), 1)
+        first = self.messages()[-1]
+        self.assertEqual(first['to'], ['zz_reminders@example.test'])
+        self.assertEqual(first['subject'], 'Please confirm your Kinetta email')
+        self.assertIn('/confirm-email/', first['text'])
+        self.assertEqual(account_email.send_due_confirmation_reminders(), 0, 'the second reminder waits two days')
+        with db.connect() as c:
+            c.execute("UPDATE users SET email_confirmation_reminder_at=now()-interval '2 days' WHERE id=%s", (user['id'],))
+        self.assertEqual(account_email.send_due_confirmation_reminders(), 1)
+        with db.connect() as c:
+            c.execute("UPDATE users SET email_confirmation_reminder_at=now()-interval '10 days' WHERE id=%s", (user['id'],))
+            count = c.execute('SELECT email_confirmation_reminder_count FROM users WHERE id=%s', (user['id'],)).fetchone()['email_confirmation_reminder_count']
+        self.assertEqual(count, 2)
+        self.assertEqual(account_email.send_due_confirmation_reminders(), 0, 'there is no third reminder')
+        self.assertEqual(self.mail.call_count, 2)
         token = self.link('confirm-email')
         r = anon.post('/api/account/email/confirm', json={'token': token}); self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(anon.post('/api/account/email/confirm', json={'token': token}).status_code, 404, 'single use')

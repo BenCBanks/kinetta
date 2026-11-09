@@ -2160,6 +2160,11 @@ MIGRATIONS = [
        VALUES ('progress_calendar', false), ('progress_segments', false)
        ON CONFLICT (name) DO NOTHING;""",
 
+    # 109. Track at most two confirmation reminders for unconfirmed new accounts.
+    """ALTER TABLE users ADD COLUMN email_confirmation_reminder_count smallint NOT NULL DEFAULT 0
+       CHECK (email_confirmation_reminder_count BETWEEN 0 AND 2);
+    ALTER TABLE users ADD COLUMN email_confirmation_reminder_at timestamptz;""",
+
 ]
 
 
