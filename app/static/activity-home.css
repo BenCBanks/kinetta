@@ -169,7 +169,7 @@
 .post-led .media-item.media-map { aspect-ratio:5 / 6; }
 .post-led .media-item.media-photo { min-height:0; align-self:flex-start; }
 .post-led .media-track { border-radius:0; }
-.activity-card.post-led .post-hd.post-profile { --activity-map-title-scrim:color-mix(in srgb,var(--color-action) 93%,transparent); position:absolute; z-index:4; inset:0 0 auto; padding:12px 14px 32px; color:#fff; background:linear-gradient(to bottom,var(--activity-map-title-scrim),var(--activity-map-title-scrim) calc(100% - 32px),transparent); pointer-events:none; }
+.activity-card.post-led .post-hd.post-profile { --activity-map-title-scrim:color-mix(in srgb,var(--color-action) 18%,transparent); position:absolute; z-index:4; inset:0 0 auto; padding:12px 14px 32px; color:#fff; background:linear-gradient(to bottom,var(--activity-map-title-scrim) 0%,transparent 100%); text-shadow:0 1px 3px rgba(0,0,0,.72); pointer-events:none; }
 .activity-card.post-led .post-hd a { pointer-events:auto; color:#fff; }
 .activity-card.post-led .post-hd small { color:#fff; }
 .activity-card.post-led .post-private { color:#fff; }
