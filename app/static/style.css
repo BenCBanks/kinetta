@@ -316,6 +316,8 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .badge.alert { background: var(--btn); color: var(--onbtn); }   /* something waiting for you: the one badge that stands out */
 .badge.today { background: var(--card2); color: var(--tx); }
 .badge.s1, .badge.s2, .badge.s3 { color: var(--tx); }
+/* Chart legends (Fitness, fatigue and form) are a dot and a word, not grey pills (#764). */
+.chartbox .badges { gap: 14px; } .chartbox .badges .badge { padding: 0; background: none; border-radius: 0; color: var(--tx2); }
 .badge.s1::before, .badge.s2::before, .badge.s3::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--s1); }
 .badge.s2::before { background: var(--s2); } .badge.s3::before { background: var(--s3); }
 
@@ -1549,7 +1551,7 @@ html.keyboard-open nav.tabs { display: none; }
 .progress-grid.explore-list { display:block; margin:0 0 16px; }
 .progress-grid.explore-list .progress-tile { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; column-gap:12px; row-gap:2px; margin:0; padding:10px 0; min-height:56px;
   background:none; border:0; border-bottom:1px solid var(--line); border-radius:0; box-shadow:none; color:var(--tx); }
-.progress-grid.explore-list .progress-tile::after { content:"›"; grid-column:2; grid-row:1 / span 2; color:var(--tx3); font-size:22px; line-height:1; }
+.progress-grid.explore-list .progress-tile::after { content:"›" / ""; grid-column:2; grid-row:1 / span 2; color:var(--tx3); font-size:22px; line-height:1; }
 .progress-grid.explore-list .progress-tile-name { grid-column:1; display:flex; flex-wrap:nowrap; align-items:center; gap:10px; min-width:0; }
 .progress-grid.explore-list .progress-tile-name svg { display:block; width:20px; height:20px; flex:none; margin:0; color:var(--tx2); }
 .progress-grid.explore-list .progress-tile-name b { display:block; flex:0 1 auto; min-width:0; font-size:max(15px,.9375rem); font-weight:600; line-height:1.3; overflow-wrap:anywhere; }
