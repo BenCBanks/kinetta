@@ -56,7 +56,7 @@ async function startFromTrack(browser,ids,{mode,sessionId,failBundleFirst=false,
   await page.locator(`[data-copy="${savedId}"]`).click();
  }else await page.locator('#sl-new').click();
  if(holdBundle)await page.locator('.lazy-route-loading').waitFor();
- else if(failBundleFirst)await page.locator('#lazy-route-retry').waitFor();
+ else if(failBundleFirst)await page.locator('#retry').waitFor();
  return {context,page,routes,errors};
 }
 (async()=>{
@@ -70,8 +70,8 @@ async function startFromTrack(browser,ids,{mode,sessionId,failBundleFirst=false,
    else assert.deepEqual(run.routes.starts[0],{},'Start creates an empty session');
    assert.equal(new URL(run.page.url()).pathname,`/track/lift/${sessionId}`,'the first route load stays on the new session id');
    assert.equal(run.routes.scripts.length,1,'the first-use route requests its lazy module once');
-   assert(await run.page.locator('#lazy-route-retry').isVisible(),'a failed first module load offers explicit retry');
-   await run.page.locator('#lazy-route-retry').click();await ready(run.page,'.lift-ex',`${mode} logger after retry`);
+   assert(await run.page.locator('#retry').isVisible(),'a failed first module load offers explicit retry');
+   await run.page.locator('#retry').click();await ready(run.page,'.lift-ex',`${mode} logger after retry`);
    assert.equal(run.routes.scripts.length,2,'explicit retry requests the failed module again');
    assert.equal(new URL(run.page.url()).pathname,`/track/lift/${sessionId}`,'retry reopens the same session id');
    assert.equal(run.routes.starts.length,1,'retry never posts a second session start');
@@ -86,7 +86,7 @@ async function startFromTrack(browser,ids,{mode,sessionId,failBundleFirst=false,
   const carryRoutes=await installRoutes(carryContext,{ids,sessionId:990001003,failBundleFirst:true,holdLiftWrites:true});
   await carryPage.goto(base+'/me');await ready(carryPage,'.me-card-sections[aria-busy="false"]','carry fixture Me readiness');assert.equal(carryRoutes.scripts.length,0);
   await carryPage.goto(base+'/track');await ready(carryPage,'#track-start','carry fixture Track readiness');await carryPage.locator('#track-start').click();await carryPage.locator('#sl-new').waitFor();await carryPage.locator('#sl-new').click();
-  await carryPage.locator('#lazy-route-retry').waitFor();assert.equal(carryRoutes.starts.length,1);await carryPage.locator('#lazy-route-retry').click();await ready(carryPage,'.lift-ex','carry fixture logger');
+  await carryPage.locator('#retry').waitFor();assert.equal(carryRoutes.starts.length,1);await carryPage.locator('#retry').click();await ready(carryPage,'.lift-ex','carry fixture logger');
   const reps=carryPage.locator('.lift-ex [data-row="0"] [data-k="reps"]');await reps.fill('7');
   await carryPage.evaluate(()=>{let hidden=false;Object.defineProperty(document,'hidden',{configurable:true,get:()=>hidden});window.__fixtureVisibility=value=>{hidden=value;document.dispatchEvent(new Event('visibilitychange'));};window.__fixtureVisibility(true);});
   await until(carryPage,()=>document.querySelector('#lf-save')?.textContent==='Not saved'&&JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k=>k.startsWith('fit.lift:')))||'null')?.unsent===true,'failed visibility flush keeps an unsent local draft');
