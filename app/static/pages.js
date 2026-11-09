@@ -929,7 +929,7 @@ function editActivity(a) {
       } catch (x) { toast(x.message); btn.disabled = false; btn.textContent = 'Save'; }
     };
     $('#e-del', body).onclick = async () => {
-      if (!await confirmSheet(`Delete “${a.name}”?`, {body: 'This activity is removed for good. This can’t be undone.', action: 'Delete'})) return;
+      if (!await confirmSheet(`Delete “${a.name}”?`, {body: 'This can’t be undone.', action: 'Delete'})) return;
       try { await api(`/api/activities/${a.id}`, {method: 'DELETE'}); invalidate('/api/'); close(); toast('Activity deleted'); go('/activity', {replace: true}); }
       catch (x) { toast(x.message); }
     };
