@@ -223,12 +223,22 @@ class Groups(unittest.TestCase):
         self.assertEqual(self.clients[1].get('/api/groups/' + group['id']).status_code, 404)
 
     def test_combined_total_requires_three_viewer_visible_members(self):
+        zone = ZoneInfo('America/New_York')
+        local_today = self.now.astimezone(zone).date()
+        week_start = local_today - dt.timedelta(days=local_today.weekday())
+        fixed_now = dt.datetime.combine(week_start + dt.timedelta(days=4), dt.time(12), zone).astimezone(dt.timezone.utc)
+        joined_at = fixed_now - dt.timedelta(days=2)
+
+        def group_view(who=0):
+            with patch('app.groups._now', return_value=fixed_now):
+                return self.clients[who].get('/api/groups/' + group['id']).json()
+
         group, token = self.make(goal_target=1000)
         with db.connect() as c:
-            c.execute("UPDATE group_members SET joined_at=now()-interval '2 days' WHERE group_id=%s", (group['id'],))
-        self.activity(0, self.now - dt.timedelta(hours=3), distance=12000, name='PRIVATE A')
+            c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s', (joined_at, group['id']))
+        self.activity(0, fixed_now - dt.timedelta(hours=3), distance=12000, name='PRIVATE A')
 
-        one = self.clients[0].get('/api/groups/' + group['id']).json()
+        one = group_view()
         self.assertEqual(one['member_count'], 1)
         self.assertNotIn('total', one)
         self.assertEqual(one['your_total'], 12)
@@ -237,10 +247,10 @@ class Groups(unittest.TestCase):
 
         self.assertEqual(self.accept(token, who=1).status_code, 200)
         with db.connect() as c:
-            c.execute("UPDATE group_members SET joined_at=now()-interval '2 days' WHERE group_id=%s", (group['id'],))
+            c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s', (joined_at, group['id']))
             c.execute('UPDATE profile SET share_achievements=true WHERE user_id=%s', (self.ids[1],))
-        self.activity(1, self.now - dt.timedelta(hours=2), distance=3000, name='PRIVATE B')
-        two = self.clients[0].get('/api/groups/' + group['id']).json()
+        self.activity(1, fixed_now - dt.timedelta(hours=2), distance=3000, name='PRIVATE B')
+        two = group_view()
         self.assertEqual(two['member_count'], 2)
         self.assertNotIn('total', two)
         self.assertEqual(two['your_total'], 12)
@@ -252,10 +262,11 @@ class Groups(unittest.TestCase):
         token = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={}).json()['invite_url'].rsplit('/', 1)[1]
         self.assertEqual(self.accept(token, who=2).status_code, 200)
         with db.connect() as c:
-            c.execute("UPDATE group_members SET joined_at=now()-interval '2 days' WHERE group_id=%s", (group['id'],))
-        self.activity(2, self.now - dt.timedelta(hours=1), distance=5000, name='PRIVATE C')
-        three = self.clients[0].get('/api/groups/' + group['id']).json()
+            c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s', (joined_at, group['id']))
+        self.activity(2, fixed_now - dt.timedelta(hours=1), distance=5000, name='PRIVATE C')
+        three = group_view()
         self.assertEqual(three['member_count'], 3)
+        self.assertEqual(three['week_start'], week_start.isoformat())
         self.assertEqual(three['total'], 20)
         self.assertNotIn('your_total', three)
         self.assertEqual(three['this_week_total'], 20)
@@ -266,9 +277,9 @@ class Groups(unittest.TestCase):
         token = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={}).json()['invite_url'].rsplit('/', 1)[1]
         self.assertEqual(self.accept(token, who=3).status_code, 200)
         with db.connect() as c:
-            c.execute("UPDATE group_members SET joined_at=now()-interval '2 days' WHERE group_id=%s", (group['id'],))
-        self.activity(3, self.now - dt.timedelta(minutes=30), distance=7000, name='PRIVATE D')
-        all_four = self.clients[1].get('/api/groups/' + group['id']).json()
+            c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s', (joined_at, group['id']))
+        self.activity(3, fixed_now - dt.timedelta(minutes=30), distance=7000, name='PRIVATE D')
+        all_four = group_view(who=1)
         self.assertEqual(all_four['member_count'], 4)
         self.assertEqual(all_four['total'], 27)
         self.assertEqual(all_four['this_week_total'], 27)
@@ -276,8 +287,8 @@ class Groups(unittest.TestCase):
 
         with db.connect() as c:
             c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)', (self.ids[0], self.ids[3]))
-        blocked_view = self.clients[0].get('/api/groups/' + group['id']).json()
-        unblocked_view = self.clients[1].get('/api/groups/' + group['id']).json()
+        blocked_view = group_view()
+        unblocked_view = group_view(who=1)
         self.assertEqual(blocked_view['member_count'], 3)
         self.assertEqual(blocked_view['total'], 20)
         self.assertEqual(blocked_view['this_week_total'], 20)
