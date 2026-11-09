@@ -5,6 +5,7 @@
 // (its stylesheet's safe-area values are filled in), and a status bar with the Dynamic Island and the home bar are drawn over it.
 const {chromium} = require('playwright');
 const OUT = process.argv[2], B = process.argv[3] || 'http://localhost:8798';
+const SCREENSHOT_CLOCK = require('./fixture-time.json');
 // name, address, and optionally a card title to scroll to, or something to do first
 const SHOTS = require('./scenes.json');
 // ONLY=lift,liftex takes just those (new shots, without retaking every other picture)
@@ -113,7 +114,7 @@ async function say(page, text) {
   for (const scheme of ['light', 'dark']) {
     // the browser keeps the server's time zone (the workflow sets TZ), or a run near midnight UTC shows an empty week
     const ctx = await browser.newContext({viewport: {width: W, height: H}, deviceScaleFactor: 2, colorScheme: scheme,
-      timezoneId: process.env.TZ || 'America/New_York'});
+      timezoneId: process.env.TZ || SCREENSHOT_CLOCK.timezone});
     const basemap = await (await ctx.request.get(B+'/api/map-config')).json();
     if(!['pmtiles','vector'].includes(basemap.kind))throw Error('Capture needs an operator-controlled vector basemap');
     // The public archive admits the published app origin. Adapt only CORS for this local demo;
@@ -128,6 +129,7 @@ async function say(page, text) {
       await route.fulfill({response,headers:{...response.headers(),'access-control-allow-origin':new URL(B).origin,'access-control-expose-headers':'content-range,content-length,etag'}});
     });
     const page = await ctx.newPage();
+    await page.clock.setFixedTime(new Date(SCREENSHOT_CLOCK.instant));
     await ctx.route('**/*', route => { const request=route.request(), url=new URL(request.url());
       if(url.hostname==='tile.openstreetmap.org'||url.origin!==B&&!['GET','HEAD'].includes(request.method()))return route.abort();
       return route.fallback();
