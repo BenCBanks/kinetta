@@ -4,7 +4,8 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const source=fs.readFileSync('app/static/app.js','utf8'),handlers={},readout={innerHTML:''},highlight={setAttribute(){}};
 const svg={addEventListener:(name,fn)=>{handlers[name]=fn;},getBoundingClientRect:()=>({left:0,width:340})};
 const context={Math,esc:String,$:()=>readout,$$:selector=>selector==='svg'?[svg]:[highlight]};vm.createContext(context);
-vm.runInContext(source.match(/^const niceStep = .*$/m)[0]+'\n'+source.slice(source.indexOf('function energyChart('),source.indexOf('// fitness / fatigue / form lines')),context);
+const chartWidth=source.slice(source.indexOf('const chartWidth ='),source.indexOf('// Distance bars keep'));
+vm.runInContext(source.match(/^const niceStep = .*$/m)[0]+'\n'+chartWidth+'\n'+source.slice(source.indexOf('function energyChart('),source.indexOf('// fitness / fatigue / form lines')),context);
 const columns=[{day:'2026-10-26',label:'Monday',tick:'Mon',eaten:1800,goal:1900,burned:9000,weight:70,trend:70},{day:'2026-10-27',label:'Tuesday',tick:'Tue',eaten:2200,goal:2100,burned:8500,partial:true,counted:false,weight:69.9,trend:69.95}],original=JSON.stringify(columns),box={clientWidth:340,innerHTML:''};
 context.energyChart(box,columns,{burned:false,interactive:false});
 assert.match(box.innerHTML,/Calories eaten versus goal/);assert.doesNotMatch(box.innerHTML,/Burned|class="ln k-run"|class="readout|>10k</);assert.match(box.innerHTML,/partial/);assert.deepEqual(Object.keys(handlers),[],'overview anchor owns the tap');

@@ -1177,9 +1177,11 @@ function progressBack(el) {
 function progressFilters(el, body, html, {selector='.card'}={}) {
   if (!html) return;
   const controls = document.createElement('div'); controls.className = 'progress-filters'; controls.innerHTML = html;
+  body._progressFilters = controls;
   body.progressRange = $('#p-rng',controls);
   if (body.progressRange) rangeBar(body.progressRange,getRange(new URLSearchParams(location.search)),new Date().getFullYear());
   const mount = () => {
+    if (body._hideProgressFilters) { controls.remove(); return; }
     const first = $(selector, body);
     if (first && controls.parentNode !== first) first.prepend(controls);
   };
@@ -1201,10 +1203,21 @@ function progressMetrics(sport, metric) {
   else if (sport === 'run' || sport === 'walk') choices.push(['pace', 'Pace']);
   return `<div class="me-period progress-metric-controls" data-count="${choices.length}" role="group" aria-label="Totals metric">${choices.map(([key, label]) => `<button type="button" data-progress-metric="${key}" aria-pressed="${metric === key}">${label}</button>`).join('')}</div>`;
 }
+function setProgressView(body, showTable) {
+  const chart = $('#m-chart', body), table = $('#m-table', body);
+  if (!chart || !table) return false;
+  body._showTable = showTable;
+  try { localStorage.setItem('fit.ptable', String(showTable)); } catch (e) { /* no storage */ }
+  table.hidden = !showTable; chart.hidden = showTable;
+  // A chart drawn while hidden (Table restored on load) could not measure its labels; fit them now it is visible.
+  const svgChart = $('svg', chart); if (!showTable && svgChart) fitTickLabels(svgChart, svgChart.viewBox.baseVal.width);
+  $$('[data-progress-view]', body).forEach(button => button.setAttribute('aria-pressed', String((button.dataset.progressView === 'table') === showTable)));
+  return true;
+}
 function wireProgressPeriods(el) {
   el.addEventListener('click', e => {
-    const tableButton=e.target.closest('[data-progress-table]');
-    if(tableButton){const chart=$('#m-chart',el),table=$('#m-table',el);if(!chart||!table)return;const show=table.hidden;$('#p-home-totals',el)._showTable=show;table.hidden=!show;chart.hidden=show;tableButton.setAttribute('aria-pressed',String(show));return;}
+    const viewButton=e.target.closest('[data-progress-view]');
+    if(viewButton){setProgressView($('#p-home-totals',el),viewButton.dataset.progressView==='table');return;}
     const metricButton=e.target.closest('[data-progress-metric]');if(metricButton){const q=new URLSearchParams(location.search);q.set('metric',metricButton.dataset.progressMetric);go('/progress?'+q,{replace:true});return;}
     const b = e.target.closest('[data-progress-period]'); if (!b) return;
     const q = new URLSearchParams(location.search); q.set('period',b.dataset.progressPeriod);
@@ -1264,6 +1277,8 @@ async function progressHome(el, q) {
   App.progressHome={owner:readOwner(),href:location.pathname+location.search};
   const sport = pSport(q), period = PPERIODS.some(p=>p[0]===q.get('period')) ? q.get('period') : 'week';
   const viewSport=forView(sport,'totals'),metric=progressMetricForSport(viewSport,q.get('metric')||'distance');
+  let showTable=false;try{showTable=localStorage.getItem('fit.ptable')==='true';}catch(e){/* no storage */}
+  const showTableToggle=metric==='distance'||metric==='time';
   el.innerHTML = `<div class="top progress-heading"><h1>Progress</h1><div class="acts">${bellBtn()}</div></div>
     <div class="progress-home"><div id="p-combined-week"></div><div id="p-home-totals" class="progress-home-totals">${skelChart()}</div>
     <div class="progress-pair"><a class="card progress-summary" href="/progress?view=fitness"><h2>${svg('flame')}Fitness</h2><span data-progress-fitness class="small muted">Form and race estimates →</span></a>
@@ -1272,8 +1287,8 @@ async function progressHome(el, q) {
     ${foodUser()?'<a class="card progress-food-summary" href="/food?view=overview&from=progress"><h2>Food &amp; weight '+svg('chev')+'</h2><span class="small muted" data-progress-food>See your protein goals and weight trend →</span></a>':''}</div>`;
   wireProgressFocus(el); wireProgressPeriods(el);
   Discovery.wire($('#p-explore',el),'progress',{attribute:'data-progress-feature'});
-  const totals=$('#p-home-totals',el), grid=$('#p-explore',el); progressTiles(grid);
-  progressFilters(el,totals,`<h2 class="progress-totals-title">Totals</h2>${sportBtn(viewSport)}${progressPeriods(period)}${progressMetrics(viewSport,metric)}`);
+  const totals=$('#p-home-totals',el), grid=$('#p-explore',el); progressTiles(grid);totals._showTable=showTableToggle&&showTable;
+  progressFilters(el,totals,`<div class="progress-totals-header"><h2 class="progress-totals-title">Totals</h2>${sportBtn(viewSport)}</div>${progressPeriods(period)}${progressMetrics(viewSport,metric)}`);
   wireSport(el,viewSport);
   q.set('sport',viewSport);q.set('period',period);if(q.has('metric'))q.set('metric',metric);
   if ($('#p-combined-week',el)) combinedWeek($('#p-combined-week',el));
@@ -1481,6 +1496,36 @@ function rangeBar(box, R, firstYear) {
 const VKEYS = [{k: 'run', name: 'Run'}, {k: 'ride', name: 'Ride'}, {k: 'walk', name: 'Walk & hike'}, {k: 'other', name: 'Other'}];
 const toU = (m) => (imp() ? m / MI : m / 1000);
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const progressDuration = (seconds) => {
+  if (seconds == null || !isFinite(seconds)) return '–';
+  // Period totals: whole minutes, like the axis ("50m", "1h 05m"); under a minute still shows seconds.
+  const s = Math.round(seconds), h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60);
+  if (h || m === 60) return `${h + (m === 60 ? 1 : 0)}h ${String(m === 60 ? 0 : m).padStart(2, '0')}m`;
+  return m ? `${m}m` : `${s}s`;
+};
+const progressWeekLabel = (start) => {
+  const end = new Date(start); end.setDate(end.getDate() + 6);
+  const short = d => d.toLocaleDateString([], {month: 'short'}), year = new Date().getFullYear();
+  const sameMonth = start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth();
+  const range = sameMonth ? `${short(start)} ${start.getDate()}–${end.getDate()}` : `${short(start)} ${start.getDate()}–${short(end)} ${end.getDate()}`;
+  if (start.getFullYear() === end.getFullYear() && end.getFullYear() === year) return range;
+  if (start.getFullYear() === end.getFullYear()) return `${range}, ${end.getFullYear()}`;
+  return `${short(start)} ${start.getDate()}, ${start.getFullYear()}–${short(end)} ${end.getDate()}, ${end.getFullYear()}`;
+};
+// Time axis: whole minutes or hours (30m, 1h, 1h 30m) instead of decimal seconds.
+const progressTimeStep = (max, n) => {
+  const raw = max / n, minutes = [5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 300, 360, 480, 600, 720, 900, 1200].find(m => m * 60 >= raw);
+  return minutes ? minutes * 60 : niceStep(raw / 3600, 1) * 3600;
+};
+const progressAxisTime = seconds => { const h = Math.floor(seconds / 3600), m = Math.round((seconds % 3600) / 60); return h ? `${h}h${m ? ` ${m}m` : ''}` : `${m}m`; };
+const progressPeriodLabel = (d, period) => period === 'week' ? progressWeekLabel(d)
+  : period === 'month' ? d.toLocaleDateString([], d.getFullYear() === new Date().getFullYear() ? {month: 'long'} : {month: 'long', year: 'numeric'}) : String(d.getFullYear());
+const progressPeriodTick = (d, period) => period === 'week' ? d.toLocaleDateString([], {month: 'short', day: 'numeric'})
+  : period === 'month' ? d.toLocaleDateString([], {month: 'short'}) : String(d.getFullYear());
+const progressTableLabel = (d, period) => {
+  const year = new Date().getFullYear(), suffix = d.getFullYear() === year ? '' : `, ${d.getFullYear()}`;
+  return period === 'year' ? String(d.getFullYear()) : period === 'month' ? `${d.toLocaleDateString([], {month: 'short'})}${suffix}` : `${d.toLocaleDateString([], {month: 'short', day: 'numeric'})}${suffix}`;
+};
 function monthSeries(firstYm, get) {   // every month from firstYm to this month: [{d, label, ...get(ym)}]
   const out = [], now = new Date(); let [y, m] = firstYm.split('-').map(Number);
   while (y < now.getFullYear() || (y === now.getFullYear() && m <= now.getMonth() + 1)) {
@@ -1494,14 +1539,18 @@ async function pMileage(body, q, {home=false}={}) {
   const sport = q.get('sport') || 'run', period = q.get('period') || 'week';
   const metric = progressMetricForSport(sport, q.get('metric') || 'distance'), paceMetric = metric === 'pace' || metric === 'speed';
   const R = {from: null, to: null}, scoped = false;   // Totals: the period sets how far back (date ranges live on Year over year)
-  let restoreTableFocus=body.contains(document.activeElement)&&document.activeElement?.matches('[data-progress-table]');
+  let restoreTableFocus=body.contains(document.activeElement)&&document.activeElement?.matches('[data-progress-view="table"]');
+  body._hideProgressFilters=false;
   body.innerHTML = `<div id="m-body">${skelChart()}</div>`;   // Weeks / Months / Years: the button in the row at the top
   await load(`/api/progress/volume?period=${period}`, (r) => {
     const box = $('#m-body', body); if (!box) return;
     const keys = sport === 'all' ? VKEYS : VKEYS.filter((k) => k.k === sport);
     const by = {}; for (const x of r.rows) { const o = by[x.p] = by[x.p] || {}; o[x.s] = x; }
     if (!r.rows.length) { const empty = metric === 'pace' ? 'average pace' : metric === 'speed' ? 'average speed' : metric;
-      box.innerHTML = home ? `<div class="card empty"><p class="small muted">No activities yet. Your ${empty} totals appear here.</p></div>` : `<div class="card empty"><b>No activities yet</b>Your ${empty} totals by week, month and year show up here.${startCta()}</div>`; return; }
+      body._hideProgressFilters=home;
+      if (home) body._progressFilters?.remove();
+      box.innerHTML = home ? `<div class="card empty"><p class="small muted">No activities yet. Your ${empty} totals appear here.</p></div>` : `<div class="card empty"><b>No activities yet</b>Your ${empty} totals by week, month and year show up here.${startCta()}</div>`;
+      $('.totals-view-toggle',body)?.remove();return; }
     // every period from the first activity to today
     const today = new Date(r.today + 'T12:00'), first = new Date(r.rows[0].p + 'T12:00'), all = [];
     const start = (d) => { const x = new Date(d); if (period === 'week') x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); else if (period === 'month') x.setDate(1); else { x.setMonth(0); x.setDate(1); } return x; };
@@ -1512,20 +1561,25 @@ async function pMileage(body, q, {home=false}={}) {
       if (metric === 'time') return time;
       return metric === 'speed' ? (time > 0 ? distance / time : 0) : (distance > 0 ? time / (distance / 1000) : 0);
     };
-    const label = (d) => period === 'week' ? 'Week of ' + d.toLocaleDateString([], {month: 'short', day: 'numeric', year: 'numeric'}) : period === 'month' ? d.toLocaleDateString([], {month: 'long', year: 'numeric'}) : String(d.getFullYear());
+    const label = d => progressPeriodLabel(d, period);
     const show = scoped ? all.filter((d) => inRange(R, d.getFullYear())) : period === 'week' ? all.slice(-26) : period === 'month' ? all.slice(-24) : all;
     // A short history still draws normal-width bars (2026-10-18 UI pass): one first week was one bar across the whole
     // chart. Earlier empty periods are added to the chart only; averages and bests still use real periods.
-    const minCols = {week: 8, month: 6}[period] || 0;
+    const minCols = {week: 8, month: 6, year: 4}[period];
     const chartDays = [...show];
-    while (!scoped && chartDays.length && chartDays.length < minCols) { const d = new Date(chartDays[0]); if (period === 'week') d.setDate(d.getDate() - 7); else d.setMonth(d.getMonth() - 1); chartDays.unshift(d); }
+    while (!scoped && chartDays.length && chartDays.length < minCols) {
+      const d = new Date(chartDays[0]);
+      if (period === 'week') d.setDate(d.getDate() - 7); else if (period === 'month') d.setMonth(d.getMonth() - 1); else d.setFullYear(d.getFullYear() - 1);
+      chartDays.unshift(d);
+    }
     if (!show.length) { box.innerHTML = '<div class="card empty"><b>Nothing in this range</b>Pick other years above.</div>'; return; }
     const pacePeriods = period === 'year' ? all : all.slice(-12), chartPeriods = paceMetric ? pacePeriods : chartDays;
+    const shownDays=new Set(show.map(ymd));
     const cols = chartDays.map((d, i) => {
-      const prev = chartDays[i - 1], tick = period === 'year' ? (show.length > 8 ? "'" + String(d.getFullYear()).slice(2) : String(d.getFullYear()))
-        : period === 'month' ? (d.getMonth() % 3 === 0 ? d.toLocaleDateString([], {month: 'short'}) + (d.getMonth() === 0 ? " '" + String(d.getFullYear()).slice(2) : '') : '')
-        : (!prev || prev.getMonth() !== d.getMonth()) && (period !== 'week' || i < chartDays.length - 1) ? d.toLocaleDateString([], {month: 'short'}) : '';
-      return {d, label: label(d), tick, partial: i === chartDays.length - 1, segs: keys.map((k) => ({k: k.k, v: metric === 'time' ? Number(((by[ymd(d)] || {})[k.k] || {}).t || 0) : toU(Number(((by[ymd(d)] || {})[k.k] || {}).d || 0))}))};
+      const prev = chartDays[i - 1], tick = period === 'year' ? progressPeriodTick(d, period)
+        : period === 'month' ? (d.getMonth() % 3 === 0 ? progressPeriodTick(d, period) : '')
+        : (!prev || prev.getMonth() !== d.getMonth()) ? progressPeriodTick(d, period) : '';
+      return {d, label: label(d), tick, tickLabel: progressPeriodTick(d, period), padded:!shownDays.has(ymd(d)), partial: i === chartDays.length - 1, segs: keys.map((k) => ({k: k.k, v: metric === 'time' ? Number(((by[ymd(d)] || {})[k.k] || {}).t || 0) : toU(Number(((by[ymd(d)] || {})[k.k] || {}).d || 0))}))};
     });
     const complete = all.slice(0, -1), recent = scoped ? show.filter((d) => d < all[all.length - 1]) : period === 'week' ? complete.slice(-52) : period === 'month' ? complete.slice(-12) : complete;
     const avg = paceMetric ? null : recent.length ? recent.reduce((s, d) => s + metricValue(d), 0) / recent.length : null;
@@ -1533,21 +1587,12 @@ async function pMileage(body, q, {home=false}={}) {
     const bestEntry = entries.reduce((b, x) => !b || (paceMetric ? metric === 'speed' ? x.value > b.value : x.value < b.value : x.value > b.value) ? x : b, null);
     const rangeName = scoped ? (R.from === R.to ? String(R.from) : `${R.from || 'start'}–${R.to || 'now'}`) : '';
     const word = {week: 'week', month: 'month', year: 'year'}[period];
-    const fmt = metric === 'distance' ? (v) => `${v >= 100 ? Math.round(v) : v.toFixed(1)} ${U.du()}` : metric === 'time' ? (v) => dur(v, true) : metric === 'speed' ? (v) => `${U.speed(v)} ${U.su()}` : (v) => `${U.pace(v)} ${U.pu()}`;
+    const fmt = metric === 'distance' ? (v) => `${v >= 100 ? Math.round(v) : v.toFixed(1)} ${U.du()}` : metric === 'time' ? progressDuration : metric === 'speed' ? (v) => `${U.speed(v)} ${U.su()}` : (v) => `${U.pace(v)} ${U.pu()}`;
     const cur = all[all.length - 1], last = all[all.length - 2];
-    const focusTable=restoreTableFocus||(body.contains(document.activeElement)&&document.activeElement?.matches('[data-progress-table]'));restoreTableFocus=false;
-    const displayValue = value => metric === 'distance' ? value.toFixed(1) : metric === 'time' ? (value ? dur(value, true) : '–') : value ? (metric === 'speed' ? U.speed(value) : U.pace(value)) : '–';
+    const focusTable=restoreTableFocus||(body.contains(document.activeElement)&&document.activeElement?.matches('[data-progress-view="table"]'));restoreTableFocus=false;
+    const displayValue = value => metric === 'distance' ? value.toFixed(1) : metric === 'time' ? (value ? progressDuration(value) : '–') : value ? (metric === 'speed' ? U.speed(value) : U.pace(value)) : '–';
     const statUnit = metric === 'distance' ? U.du() : metric === 'pace' ? U.pu() : metric === 'speed' ? U.su() : '';
     const defaultPeriodLabel = 'This ' + word, defaultPeriodValue = displayValue(metricValue(cur));
-    const periodStat = index => {
-      const statBox = $('.progress-total-stats .stat:first-child', box), small = $('small', statBox), value = $('b', statBox);
-      if (!statBox) return;
-      if (index == null) { small.textContent = defaultPeriodLabel; value.firstChild.nodeValue = defaultPeriodValue; return; }
-      const d = cols[index].d;
-      small.textContent = period === 'week' ? d.toLocaleDateString([], {month: 'short', day: 'numeric'}) + ' week'
-        : period === 'month' ? d.toLocaleDateString([], {month: 'short', year: 'numeric'}) : String(d.getFullYear());
-      value.firstChild.nodeValue = displayValue(metricValue(d));
-    };
     let avgValue = avg, bestValue = bestEntry?.value ?? null;
     if (paceMetric) {
       const distance = chartPeriods.reduce((n, d) => n + val(d, 'd'), 0), time = chartPeriods.reduce((n, d) => n + val(d, 't'), 0);
@@ -1555,9 +1600,9 @@ async function pMileage(body, q, {home=false}={}) {
       const shown = chartPeriods.map(metricValue).filter(v => v > 0);
       bestValue = shown.length ? metric === 'speed' ? Math.max(...shown) : Math.min(...shown) : null;
     }
-    const averageLabel = paceMetric ? period === 'week' ? '12-wk avg' : period === 'month' ? '12-mo avg' : 'Year avg'
-      : metric === 'time' ? {week: 'Weekly avg', month: 'Monthly avg', year: 'Yearly avg'}[period]
-        : {week: 'Weekly avg', month: 'Monthly avg', year: 'Yearly avg'}[period];
+    const averageLabel = paceMetric
+      ? {week: '12-wk avg', month: '12-mo avg', year: 'Year avg'}[period]
+      : {week: 'Weekly avg', month: 'Monthly avg', year: 'Yearly avg'}[period];
     const bestLabel = paceMetric ? `Fastest ${word}` : `Best ${word}`;
     const table = metric === 'distance' || metric === 'time';
     const chartLabel = `${metric === 'speed' ? 'Average speed' : metric === 'pace' ? 'Average pace' : metric === 'time' ? 'Activity time' : 'Distance'} by ${period}`;
@@ -1566,20 +1611,22 @@ async function pMileage(body, q, {home=false}={}) {
         ${home&&avgValue==null?'':stat(averageLabel, avgValue == null ? '–' : displayValue(avgValue), statUnit).replace('class="stat"','class="stat progress-average"')}
         ${stat(bestLabel + (scoped ? ' (range)' : ''), bestValue == null ? '–' : displayValue(bestValue), statUnit)}</div>
         ${paceMetric ? `<p class="small muted progress-pace-window">${period === 'week' ? 'Weekly averages · last 12 weeks' : period === 'month' ? 'Monthly averages · last 12 months' : 'Yearly averages'}</p>` : home?'':`<p class="small muted">${last ? `Last ${word}: ${esc(fmt(metricValue(last)))} · ` : ''}best ${esc(label(bestEntry?.d || cur).replace('Week of ', 'week of '))}</p>`}
-        <div class="totals-display"><div id="m-chart"${body._showTable?' hidden':''}></div>${table?`<button type="button" class="totals-table-toggle" data-progress-table aria-pressed="${body._showTable===true}" aria-controls="m-table">Table</button>
-        <div id="m-table" class="tbl-wrap"${body._showTable?'':' hidden'}><table class="tbl"><thead><tr><th>${period === 'week' ? 'Week of' : period === 'month' ? 'Month' : 'Year'}</th><th class="r">${U.du()}</th><th class="r">Time</th><th class="r">#</th><th class="r">Climb</th></tr></thead><tbody>
-        ${[...show].reverse().map((d) => `<tr><td>${esc(period === 'week' ? d.toLocaleDateString([], {month: 'short', day: 'numeric', year: '2-digit'}) : period === 'month' ? d.toLocaleDateString([], {month: 'short', year: 'numeric'}) : d.getFullYear())}</td>
-          <td class="r num">${toU(val(d)).toFixed(1)}</td><td class="r num">${val(d, 't') ? dur(val(d, 't'), true) : '–'}</td><td class="r num">${val(d, 'n')}</td><td class="r num">${val(d, 'a') ? U.elev(val(d, 'a')) : '–'}</td></tr>`).join('')}</tbody></table></div>`:''}</div></div>`;
+        <div class="totals-display"><div id="m-chart"${body._showTable?' hidden':''}></div>${table?`<div id="m-table" class="tbl-wrap"${body._showTable?'':' hidden'}><table class="tbl"><thead><tr><th>${period === 'week' ? 'Week of' : period === 'month' ? 'Month' : 'Year'}</th><th class="r">${U.du()}</th><th class="r">Time</th><th class="r">#</th><th class="r">Climb</th></tr></thead><tbody>
+        ${[...show].reverse().map((d) => `<tr><td>${esc(progressTableLabel(d, period))}</td>
+          <td class="r num">${toU(val(d)).toFixed(1)}</td><td class="r num">${val(d, 't') ? progressDuration(val(d, 't')) : '–'}</td><td class="r num">${val(d, 'n')}</td><td class="r num">${val(d, 'a') ? U.elev(val(d, 'a')) : '–'}</td></tr>`).join('')}</tbody></table></div>`:''}</div></div>`;
     requestAnimationFrame(() => {
+      const header = $('.progress-totals-header', body);
+      if (home && table && header && !$('.totals-view-toggle', header)) {
+        header.insertAdjacentHTML('beforeend', `<div class="totals-view-toggle" role="group" aria-label="Totals view"><button type="button" data-progress-view="chart" aria-pressed="${!body._showTable}" aria-controls="m-chart m-table">Chart</button><button type="button" data-progress-view="table" aria-pressed="${body._showTable === true}" aria-controls="m-chart m-table">Table</button></div>`);
+      }
       if (paceMetric) {
         const points = chartPeriods.map(d => { const value = metricValue(d); return value > 0 ? {x: new Date(d).getTime() / 864e5, y: value} : null; }).filter(Boolean);
         dotChart($('#m-chart', box), points, {yfmt: v => metric === 'speed' ? U.speed(v) : U.pace(v), invert: metric === 'pace', line: true, height: home ? 150 : 180});
         const svgChart = $('#m-chart svg', box); if (svgChart) svgChart.setAttribute('aria-label', `${chartLabel}; ${period === 'week' ? 'last 12 weeks' : period === 'month' ? 'last 12 months' : 'all recorded years'}`);
       } else {
-        periodBars($('#m-chart', box), cols, {keys, fmt, yfmt: metric === 'time' ? v => dur(v, true) : v => String(Math.round(v)), avg, avgLabel: period === 'year' ? 'Yearly average' + (scoped ? ` (${rangeName})` : '') : `Average ${period} (${scoped ? rangeName : 'last 12 months'})`, avgLineLabel: 'avg', avgLegend: false, height: home?165:190, distance: sport === 'all' && metric === 'distance', inlineSelection: true, onSelectPeriod: periodStat});
-        const svgChart = $('#m-chart svg', box); if (svgChart) svgChart.setAttribute('aria-label', `${chartLabel}. Use Left and Right arrows to choose a period; press Enter or Space to select it.`);
+        periodBars($('#m-chart', box), cols, {keys, fmt, yfmt: metric === 'time' ? progressAxisTime : v => String(+v.toFixed(2)), step: metric === 'time' ? progressTimeStep : undefined, axisUnit:metric==='distance'?U.du():'', yTicks:3, avg, avgLabel: period === 'year' ? 'Yearly average' + (scoped ? ` (${rangeName})` : '') : `Average ${period} (${scoped ? rangeName : 'last 12 months'})`, avgLineLabel: avg>0?`avg ${fmt(avg)}`:'', ariaLabel:`${chartLabel}. Select a bar for its period total.`, readoutHint:`Tap a bar for that ${word}’s total`, height:home?165:190, distance:sport==='all'&&metric==='distance', inlineSelection:true});
       }
-      if(focusTable&&body.isConnected&&document.activeElement===document.body)$('[data-progress-table]',box)?.focus({preventScroll:true});
+      if(focusTable&&body.isConnected&&document.activeElement===document.body)$('[data-progress-view="table"]',body)?.focus({preventScroll:true});
     });
   });
 }
