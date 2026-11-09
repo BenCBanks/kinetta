@@ -534,6 +534,8 @@ async function homeGroups(el) {
     $('#group-empty-create',host)?.addEventListener('click',create);
   }catch(error){if(live()){$('#home-group-list',el).innerHTML=`<div class="card empty">${esc(error.message)}<button type="button" class="ghost" id="group-retry">Retry</button></div>`;$('#group-retry',el)?.addEventListener('click',()=>go('/activity?view=groups',{replace:true}));}}
 }
+// An empty Home feed always offers a next step (#762): record or import a workout, or find friends to follow.
+const feedEmpty=()=>`<div class="feed-empty"><p class="small muted">Your workouts, friends’ shared workouts and achievement moments appear here.</p><div class="btncol"><a class="primary wide" href="/track">Record or import a workout</a><a class="linkbtn" href="/me/friends?find=1">Find friends</a></div></div>`;
 async function homeFeed(el) {
   el.classList?.add('activity-home');
   el.innerHTML=`<div id="feed-top">${actTop(true,true)}</div>${homeViewSwitch('feed')}<div id="activity-groups-strip"></div><div id="weekly-recap"></div><div id="feed-tools"></div>
@@ -626,8 +628,6 @@ function feedTools(el,current){
 }
 
 // ---------- someone else's activity (read-only); for your own: what others see ----------
-// An empty Home feed always offers a next step (#762): record or import a workout, or find friends to follow.
-const feedEmpty=()=>`<div class="feed-empty"><p class="small muted">Your workouts, friends’ shared workouts and achievement moments appear here.</p><div class="btncol"><a class="primary wide" href="/track">Record or import a workout</a><a class="linkbtn" href="/me/friends?find=1">Find friends</a></div></div>`;
 route(/^\/activity\/friends\/(\d+)$/, 'activity', async (el, id) => {
   el.innerHTML = `<div class="top">${backBtn('Home')}</div>${skel(1)}<div class="sk block"></div>`;
   wireBack(el, '/activity');
