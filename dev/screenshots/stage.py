@@ -24,7 +24,7 @@ if SCREENSHOT_FIXTURE:
     screenshot_today = now.date()
 else:
     now = dt.datetime.now(ZoneInfo('America/New_York'))
-    screenshot_today = dt.date.today()
+    screenshot_today = now.date()
 
 
 def person(login, pw):

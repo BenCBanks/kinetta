@@ -112,9 +112,9 @@ async function say(page, text) {
   const browser = await chromium.launch(), errors = [];
   try {
   for (const scheme of ['light', 'dark']) {
-    // the browser keeps the server's time zone (the workflow sets TZ), or a run near midnight UTC shows an empty week
+    // Keep the browser's calendar day aligned with the screenshot fixture used for staging.
     const ctx = await browser.newContext({viewport: {width: W, height: H}, deviceScaleFactor: 2, colorScheme: scheme,
-      timezoneId: process.env.TZ || SCREENSHOT_CLOCK.timezone});
+      timezoneId: SCREENSHOT_CLOCK.timezone});
     const basemap = await (await ctx.request.get(B+'/api/map-config')).json();
     if(!['pmtiles','vector'].includes(basemap.kind))throw Error('Capture needs an operator-controlled vector basemap');
     // The public archive admits the published app origin. Adapt only CORS for this local demo;

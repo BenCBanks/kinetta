@@ -23,7 +23,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
  const storageState=await login.storageState();
  const sizes=[{width:390,height:844,root:16},{width:330,height:667,root:16}],themes=['light','dark'];
  for(const size of sizes)for(const theme of themes){
-  const c=await b.newContext({storageState,viewport:size,colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];
+  const c=await b.newContext({storageState,viewport:size,colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:SCREENSHOT_CLOCK.timezone}),p=await c.newPage(),errors=[],writes=[];
   await p.clock.setFixedTime(SCREENSHOT_NOW);
   let slotFixture='both',todayFixture='both',zeroDistanceFixture=false,seriesFixture;
   let showcaseFixture={items:[],pinned:[],day_streak:0},shareAchievementsEnabled=false,showcasePins=[],pinOrderRequests=[],failFeatureSave=false,achievementFixture={tracks:[]};const sharedShowcaseRequests=[];
