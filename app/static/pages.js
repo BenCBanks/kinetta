@@ -1124,7 +1124,7 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
     const acts = r.activities, foot = FOOT.includes(r.sport) || r.sport === 'walk';
     const pts = acts.filter((a) => a.moving_s && a.distance_m).map((a) => ({x: new Date(a.start_time) / 864e5, y: a.moving_s / a.distance_m * 1000, id: a.id}));
     const t = r.pace_trend, e = r.efficiency_trend;
-    const headline = matchedRouteTrendHeadline(t, pts, foot);
+    let headline = matchedRouteTrendHeadline(t, pts, foot);
     if (e && t) { const effUp = e.slope_per_day > 0; headline += ` Recorded distance per heartbeat ${e.slope_per_day===0?'is unchanged':effUp?'increased':'decreased'}. Conditions and recording differences can affect this.`; }
     const best = acts.find((a) => a.id === r.fastest_id);
     el.innerHTML = `<div class="top">${backBtn('Routes')}<button class="icon-btn" id="r-edit" aria-label="Rename route">${svg('edit')}</button></div>
