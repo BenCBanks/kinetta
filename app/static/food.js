@@ -822,7 +822,7 @@ function savedSheet(m, w, after) {
       try { const result=await addEntries(items,{thread:location.pathname==='/food/describe'}); close.closeAll(true);toast(`Added ${m.name}`,result.undo); } catch (x) { toast(x.message); }
     };
     $('#sv-del', b).onclick = async () => {
-      if (!confirm(`Delete “${m.name}” from Saved combinations? Food already in your food log will stay.`)) return;
+      if (!await confirmSheet(`Delete “${m.name}”?`, {body: 'It is removed from Saved combinations. Food already in your food log stays.', action: 'Delete'})) return;
       try { await api(`/api/food/meals/${m.id}`, {method: 'DELETE'}); close(); toast('Saved combination deleted.'); after(); } catch (x) { toast(x.message); }
     };
     const ai = $('#sv-ai', b); if (ai) ai.onclick = () => {if(!kitChatOn()){mealCoach(m);return;}close.closeAll(true);KitChat.open('nutrition',null,`Help me review the saved meal “${m.name}”. Check its stored foods and nutrition.`);};
@@ -911,7 +911,7 @@ function foodEditor(food, after) {
       if (body.kcal==null) { toast('Enter calories, or all three macros to work them out.'); return; }
       try { await api(food ? `/api/food/foods/${food.id}` : '/api/food/foods', json(food ? 'PUT' : 'POST', body)); close(); toast('Food saved'); if (after) after(); } catch (x) { toast(x.message); }
     };
-    if (food) $('#fe-del', b).onclick = async () => { if (!confirm(`Delete “${food.name}” from My foods? Food already in your food log will stay.`)) return; try { await api(`/api/food/foods/${food.id}`, {method: 'DELETE'}); close(); toast('Saved food deleted.'); if (after) after(); } catch (x) { toast(x.message); } };
+    if (food) $('#fe-del', b).onclick = async () => { if (!await confirmSheet(`Delete “${food.name}”?`, {body: 'It is removed from My foods. Food already in your food log stays.', action: 'Delete'})) return; try { await api(`/api/food/foods/${food.id}`, {method: 'DELETE'}); close(); toast('Saved food deleted.'); if (after) after(); } catch (x) { toast(x.message); } };
   });
 }
 
@@ -1235,8 +1235,8 @@ async function nutritionView(el, view, q) {
     ['since', since ? `Since ${new Date(since + 'T12:00').toLocaleDateString([], {month: 'short', day: 'numeric', year: 'numeric'})}` : 'Since a date…', since ? 'Tap again to change the date' : 'For example the day you started a diet']], r),
     (k) => (k === 'since' ? (since && r !== 'since' ? save('since') : startSheet(since)) : save(k)));
   // Keep Insights chart-first; old weekly links still lead with their open table.
-  const weeklyFold=view==='overview'?`<details class="insights-review" id="nt-weeks-fold"${q.get('weeks')==='1'?' open':''}><summary>Week by week</summary><div id="nt-weeks"></div></details>`:'';
-  root.innerHTML = `${view==='overview'?'<div id="nt-coach"></div>':''}${view==='overview'&&(location.pathname==='/progress'||q.get('from')==='progress')?'<details class="insights-review"><summary>Your weekly check-in</summary><div id="nt-checkin"></div></details>':''}${view==='overview'?`<details class="insights-review"><summary>Your week in food</summary><div id="nt-weekly-food"></div></details>`:''}${q.get('weeks')==='1'?weeklyFold:''}<div id="nt-body">${skel(3)}</div>${q.get('weeks')==='1'?'':weeklyFold}`;
+  const weeklyFold=view==='overview'?`<details class="insights-review chev-row" id="nt-weeks-fold"${q.get('weeks')==='1'?' open':''}><summary>Week by week</summary><div id="nt-weeks"></div></details>`:'';
+  root.innerHTML = `${view==='overview'?'<div id="nt-coach"></div>':''}${view==='overview'&&(location.pathname==='/progress'||q.get('from')==='progress')?'<details class="insights-review chev-row"><summary>Your weekly check-in</summary><div id="nt-checkin"></div></details>':''}${view==='overview'?`<details class="insights-review chev-row"><summary>Your week in food</summary><div id="nt-weekly-food"></div></details>`:''}${q.get('weeks')==='1'?weeklyFold:''}<div id="nt-body">${skel(3)}</div>${q.get('weeks')==='1'?'':weeklyFold}`;
   if(view==='overview'&&(location.pathname==='/progress'||q.get('from')==='progress'))weeklyCheckinCard($('#nt-checkin',root));   // the numbers first, then the coach
   if (view === 'overview') {weeklyFoodReviewCard($('#nt-weekly-food',root));dietCoach($('#nt-coach', root));}
   if(view==='overview'){const fold=$('#nt-weeks-fold',root);let loaded=false;const open=()=>{if(fold.open&&!loaded){loaded=true;weeksCard($('#nt-weeks',fold));}};fold.addEventListener('toggle',open);open();}
@@ -1420,10 +1420,11 @@ async function restingSourceCard(box) {
     catch(e){if(account===readOwner()&&box.isConnected){error.textContent=e.message;sync.disabled=false;}}
   };
   $('#resting-remove',box).onclick=async e=>{
-    if(!confirm('Use Kinetta’s estimate for resting calories? Synced resting calories will be removed; your food goal and activities will stay the same.'))return;
-    e.currentTarget.disabled=true;
+    const btn=e.currentTarget;
+    if(!await confirmSheet('Use Kinetta’s estimate?',{body:'Synced resting calories will be removed. Your food goal and activities stay the same.',action:'Use estimate'})||account!==readOwner())return;
+    btn.disabled=true;
     try {if(Native.on)await Native.stopRestingEnergy();if(account!==readOwner())return;await api('/api/health/resting',{method:'DELETE'});if(account!==readOwner())return;App.me.resting_source='formula';invalidate('/api/food');invalidate('/api/health/resting');render();}
-    catch(err){if(account===readOwner()&&box.isConnected){error.textContent=err.message;e.currentTarget.disabled=false;}}
+    catch(err){if(account===readOwner()&&box.isConnected){error.textContent=err.message;btn.disabled=false;}}
   };
   try {
     const status=await api('/api/health/resting');if(account!==readOwner()||!box.isConnected)return;

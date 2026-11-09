@@ -772,7 +772,7 @@ const MeCard=(()=>{
       bio.oninput=()=>{$('[data-card-bio-count]',box).textContent=bio.value.length+'/280';sizeBio();changed();};
       $('[data-card-photo]',box).onclick=()=>{if(!valid())return;profilePhotoSheet(()=>{if(!valid())return;const photo=$('[data-card-photo]',box);photo.innerHTML=avatar(App.me,'lg')+'<small>Change</small>';const original=$('.me-card-id .me-card-avatar',card);if(original)original.innerHTML=avatar(App.me,'lg');invalidate('/api/me');invalidate('/api/people/');keep('/api/me',App.me);status.textContent='Photo saved. Your other edits are kept.';});};
       const close=()=>{finish();if(fromSettings&&live())go('/me',{replace:true});};
-      const cancel=$('[data-card-cancel]',box);cancel.onclick=()=>{if(valid()&&!busy&&!featuredBusy&&(!dirty()||confirm('Discard your changes?')))close();};
+      const cancel=$('[data-card-cancel]',box);cancel.onclick=async()=>{if(!valid()||busy||featuredBusy)return;if(dirty()&&(!await confirmSheet('Discard your changes?',{body:'Your profile edits won’t be saved.',action:'Discard',cancel:'Keep editing'})||!valid()||busy||featuredBusy))return;close();};
       form.onsubmit=async e=>{
         e.preventDefault();if(!valid()||busy||featuredBusy||!dirty())return;
         const trimmed=name.value.trim();if(!trimmed||trimmed.length>60){nameError.textContent='Enter a name between 1 and 60 characters.';name.setAttribute('aria-invalid','true');name.focus();return;}

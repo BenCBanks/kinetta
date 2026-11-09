@@ -90,7 +90,7 @@ function drawDish(el, d) {
   const lg = $('#dk-log', el); if (lg) lg.onclick = () => dishLogSheet(d, {day: isoDay(new Date()), meal: guessMeal()}, () => {});
   const kit = $('#dk-kit', el); if (kit) kit.onclick = () => mine&&kitChatOn() ? KitChat.open('nutrition',null,`Help me review the saved recipe “${d.name}”. Check its saved ingredients and nutrition.`) : recipeKit(d,mine,set);
   if (!mine) return;
-  $$('[data-dismiss-pending]',el).forEach(b=>b.onclick=()=>{if(confirm('Remove this unmatched ingredient from the recipe? Its nutrition will no longer be included in the total.'))patch({dismiss_pending:[b.dataset.dismissPending],use_ingredients:true});});
+  $$('[data-dismiss-pending]',el).forEach(b=>b.onclick=async()=>{if(await confirmSheet('Leave this line out?',{body:'This unmatched ingredient is removed from the recipe. Its nutrition is no longer included in the total.',action:'Leave out'}))patch({dismiss_pending:[b.dataset.dismissPending],use_ingredients:true});});
   swipeRows(el, (id) => removeItem(d, d.items.find((x) => x.id === id), set));
   chatBox(el, d, set);
   const cancelClarification=$('#dk-cancel-clarification',el);

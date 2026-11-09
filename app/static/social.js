@@ -761,7 +761,7 @@ function drawComments(box,aid,s,onChange){
     if(node._signature===signature)continue;node._signature=signature;
     node.innerHTML=`<a href="${profileHref(comment)}" data-close aria-label="View ${esc(comment.name)}'s profile">${avatar(comment)}</a><div class="c-body"><div class="c-hd"><a href="${profileHref(comment)}" data-close><b>${esc(comment.name)}</b></a><small class="muted">${esc(when(comment.created))}</small></div><p>${esc(comment.text)}</p><div class="c-acts">${comment.can_delete?`<button class="linkbtn danger" data-del="${comment.id}" aria-label="Delete comment from ${esc(comment.name)}">Delete</button>`:''}${comment.login!==App.me.login?`<button class="linkbtn muted" data-rep="${comment.id}" aria-label="Report comment from ${esc(comment.name)}">Report</button>`:''}</div></div>`;
     const after=fresh=>{if(box._owner!==readOwner())return;socialChanged(aid);SocialData.remember(aid,fresh);if(box.isConnected)drawComments(box,aid,fresh,onChange);onChange?.(fresh);};
-    const del=$('[data-del]',node);if(del)del.onclick=async()=>{if(box._owner!==readOwner()||!confirm('Delete this comment?'))return;del.disabled=true;
+    const del=$('[data-del]',node);if(del)del.onclick=async()=>{if(box._owner!==readOwner()||!await confirmSheet('Delete this comment?',{action:'Delete'})||box._owner!==readOwner())return;del.disabled=true;
       try{await api('/api/comments/'+comment.id,{method:'DELETE'});after({...SocialData.peek(aid)||box._social,comments:(SocialData.peek(aid)||box._social).comments.filter(c=>c.id!==comment.id)});}catch(error){if(box._owner===readOwner())toast(error.message);if(del.isConnected)del.disabled=false;}};
     const report=$('[data-rep]',node);if(report)report.onclick=()=>{if(box._owner===readOwner())reportSheet(comment,{comment_id:comment.id},()=>after({...box._social,comments:box._social.comments.filter(c=>c.login!==comment.login)}));};
   }
@@ -821,7 +821,7 @@ function photoViewer(a, start, mine, onChange) {
     $$('[data-step]', v).forEach((b) => b.onclick = () => step(+b.dataset.step));
     const del = $('[data-del]', v);
     if (del) del.onclick = async () => {
-      if (!confirm('Remove this photo?')) return;
+      if (!await confirmSheet('Remove this photo?', {action: 'Remove'})) return;
       del.disabled = true;
       try {
         await api('/api/activity-photos/' + p.id, {method: 'DELETE'});

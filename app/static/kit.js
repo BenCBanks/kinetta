@@ -221,7 +221,7 @@ Object.assign(KitChat, (() => {
           $('#kit-memory-on',box).onchange=async e=>{
             if(!valid())return;
             const enabled=e.target.checked;
-            if(!enabled&&!confirm('Turn off memory and remove everything Kit remembers? Your records stay saved.')){e.target.checked=true;return;}
+            const toggle=e.target;if(!enabled&&(!await confirmSheet('Turn off Kit memory?',{body:'Everything Kit remembers is removed. Your records stay saved.',action:'Turn off'})||!valid())){toggle.checked=true;return;}
             e.target.disabled=true;
             try{await api('/api/coach/conversation/memory',json('PUT',{enabled}));if(valid())await draw();}catch(x){if(valid()){$('#kit-memory-error',box).textContent=x.message;e.target.checked=!enabled;e.target.disabled=false;}}
           };
@@ -231,7 +231,7 @@ Object.assign(KitChat, (() => {
           });
           const all=$('#kit-forget-all',box);if(all)all.onclick=async()=>{
             if(!valid())return;
-            if(!confirm('Forget all saved Kit memories? Your records and current chat stay saved.'))return;
+            if(!await confirmSheet('Forget all Kit memories?',{body:'Your records and current chat stay saved.',action:'Forget all'})||!valid())return;
             all.disabled=true;try{await api('/api/coach/conversation/memory',{method:'DELETE'});if(valid())await draw();}catch(x){if(valid()){$('#kit-memory-error',box).textContent=x.message;all.disabled=false;}}
           };
         }catch(e){if(valid())box.innerHTML=`<p class="err">${esc(e.message)}</p><button class="ghost wide" id="kit-memory-retry">Try again</button>`;const retry=$('#kit-memory-retry',box);if(retry)retry.onclick=draw;}

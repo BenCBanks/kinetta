@@ -86,8 +86,8 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     const day=await(await c.request.get(base+'/api/food/day?d='+fixture.today)).json();assert(day.entries.length,'fixture has a food to save');
     const saved=await c.request.post(base+'/api/food/meals',{headers:{Origin:base},data:{name:'Fictional saved meal',entry_ids:[day.entries[0].id]}});assert.equal(saved.status(),200,'fictional meal fixture saves');savedMealAdded=true;
     await p.evaluate(()=>go('/food/meals'));await ready();const heading=p.locator('.library-section h2').filter({hasText:'Saved combinations'});await heading.waitFor();assert.equal(await p.getByText('Saved combinations',{exact:true}).count(),1);assert.equal(await p.getByText('Saved meals',{exact:true}).count(),0);
-    await p.locator('[data-meal]').first().click();let prompt='';p.once('dialog',async dialog=>{prompt=dialog.message();await dialog.dismiss();});await p.locator('#sv-del').click();
-    assert.match(prompt,/Delete “Fictional saved meal” from Saved combinations\?/);assert.match(prompt,/Food already in your food log will stay/);assert.equal(await p.locator('#sv').count(),1,'cancel keeps the saved combination portion sheet open');await p.locator('.sheet [data-close]').click();await home();
+    await p.locator('[data-meal]').first().click();await p.locator('#sv-del').click();const ask=p.locator('.confirm-sheet');await ask.waitFor();
+    assert.equal(await p.getByRole('dialog',{name:'Delete “Fictional saved meal”?'}).count(),1);assert.match(await ask.innerText(),/removed from Saved combinations\. Food already in your food log stays\./);await p.locator('[data-confirm-cancel]').click();await p.locator('.confirm-sheet').waitFor({state:'detached'});assert.equal(await p.locator('#sv').count(),1,'cancel keeps the saved combination portion sheet open');await p.locator('.sheet [data-close]').click();await home();
    }
    // One summary leads to the same analysis used by legacy Progress links; all options live in cards.
    if(who!=='empty'){

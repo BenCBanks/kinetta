@@ -195,7 +195,7 @@ const Native = (() => {
       if(!same){toast('This link belongs to another Kinetta server. Sign in there to open it.');return;}
     }
     if (account === pushOwner() && /^\/(activity\/[1-9]\d*\?edit=1|activity(?:\/(?:friends\/)?\d+)?|me\/(friends|people|milestones)|food\/cook\/\d+|add\/[\w-]{1,40}|card\/[A-Za-z0-9_-]{1,60}|challenge\/[A-Za-z0-9_-]{1,60}|me\/challenges(?:\/[A-Za-z0-9_-]{1,60})?)$/.test(url)) {
-      if(/^\/activity\/[1-9]\d*\?edit=1$/.test(url)&&typeof closeActivityEditor==='function'&&!closeActivityEditor())return;
+      if(/^\/activity\/[1-9]\d*\?edit=1$/.test(url)&&typeof closeActivityEditor==='function'&&!closeActivityEditor(()=>{if(account===pushOwner())go(url);}))return;
       go(url);
     }
   };
@@ -641,8 +641,8 @@ route(/^\/track\/health$/, 'track', async (el) => {
   });
   const sy = $('#h-sync', box); if (sy) sy.onclick = () => busy(sy, 'Syncing…', async () => done(await Native.syncHealth()));
   const yr = $('#h-year', box); if (yr) yr.onclick = () => busy(yr, 'Bringing in the past year…', async () => done(await Native.syncHealth({days: 365})));
-  const off = $('#h-off', box); if (off) off.onclick = () => {
-    if (!confirm('Disconnect all Health sync on this iPhone and turn off weight/nutrition sharing? Existing history stays. Change system permissions in the Health app.')) return;
+  const off = $('#h-off', box); if (off) off.onclick = async () => {
+    if (!await confirmSheet('Disconnect Health?', {body: 'Health sync stops on this iPhone and weight and nutrition sharing turn off. Existing history stays. Change system permissions in the Health app.', action: 'Disconnect'}) || !valid()) return;
     return busy(off, 'Stopping…', async () => {await Native.disconnectAllHealth();if(valid())render();});
   };
   $('#h-ai', box).onchange = async (e) => {
@@ -679,7 +679,7 @@ async function healthFoodControls(box,parentValid=()=>true) {
         if(!valid())return;const kind=button.dataset.hFood,action=button.dataset.hAction,section=button.closest('section'),error=$('.h-food-error',section),was=button.textContent;
         $$('button',box).forEach(b=>b.disabled=true);button.textContent=action==='connect'?'Opening Health…':action==='off'?'Stopping…':'Syncing…';error.textContent='';
         try{
-          if(action==='older'){if(!confirm('Also add your older logged nutrition days to the Health app? This may take several syncs.')){await draw();return;}await Native.connectFoodHealth(kind,{includeOlder:true});}
+          if(action==='older'){if(!await confirmSheet('Add older nutrition days?',{body:'Your older logged nutrition days are added to the Health app. This may take several syncs.',action:'Add older days',danger:false})){await draw();return;}await Native.connectFoodHealth(kind,{includeOlder:true});}
           else if(action==='connect')await Native.connectFoodHealth(kind);
           else if(action==='off')await Native.disableFoodHealth(kind);
           else await Native.syncFoodHealth({weight:kind==='weight'});

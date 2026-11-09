@@ -292,6 +292,12 @@ button.row-link { width: 100%; border-left: 0; border-right: 0; border-bottom: 0
 h3.sub { font-size: 12px; color: var(--tx3); margin: 16px 0 4px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
 .card .ghead { margin-top: 16px; }
 details > summary { cursor: pointer; font-weight: 600; min-height: 36px; display: flex; align-items: center; color: var(--accent); }
+/* A folded section that opens in place (#763): full-width 44px row in body text with a trailing chevron, so it reads as a
+   control rather than a plain link. The chevron turns down while open. */
+details.chev-row > summary { list-style: none; justify-content: space-between; gap: 10px; min-height: 44px; color: var(--tx); font-weight: 650; }
+details.chev-row > summary::-webkit-details-marker { display: none; }
+details.chev-row > summary::after { content: "›"; flex: none; color: var(--tx3); font-size: 22px; line-height: 1; transition: transform .15s; }
+details.chev-row[open] > summary::after { transform: rotate(90deg); }
 .callout { display: flex; gap: 10px; padding: 14px; border-radius: var(--r2); background: var(--accent2); color: var(--tx); font-weight: 600; margin-bottom: 12px; }
 .callout.warn { background: color-mix(in srgb, var(--warn) 15%, transparent); }
 .callout.invite { margin: 14px 0 0; } .callout.invite > div { width: 100%; min-width: 0; } .callout.invite p { margin: 0 0 8px; font-weight: 500; }
@@ -403,6 +409,9 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 
 .sheet .form label:not(.check):not(.switch-row) {font-size:max(15px,.9375rem);}
 .sheet .actions {display:flex;gap:8px;align-items:center;flex-wrap:nowrap;}
+/* Shared confirm sheet (#763): one plain sentence, then Cancel left and the named action right, each 50px tall. */
+.confirm-sheet > p {margin:0 0 8px;color:var(--tx2);font-size:15px;line-height:1.45;}
+.confirm-sheet .btnrow {margin:12px 0 4px;} .confirm-sheet .btnrow > button {min-height:50px;font-size:15.5px;}
 .sheet .actions > :is(button,a) {min-height:44px;min-width:0;flex:1 1 0;}
 
 /* ---------- sport marks + stats ---------- */

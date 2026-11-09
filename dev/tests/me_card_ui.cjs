@@ -128,7 +128,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    await p.waitForFunction(()=>document.querySelector('[data-card-status]')?.textContent==='Fictional save failure');
    assert.deepEqual(await p.locator('.me-featured-selected [data-featured-toggle]').evaluateAll(nodes=>nodes.map(n=>n.dataset.featuredToggle)),['workouts','journey','sport:run','climbing'],'a failed Save keeps the pending selection for retry');
    assert.equal(await retrySave.isDisabled(),false,'a failed Save leaves the retry enabled');
-   p.once('dialog',dialog=>dialog.accept());await p.locator('[data-card-cancel]').click();await p.locator('[data-card-edit]').click();await p.locator('[data-featured-list][aria-busy="false"]').waitFor();
+   await p.locator('[data-card-cancel]').click();await p.locator('[data-confirm-ok]').click();await p.locator('[data-card-edit]').click();await p.locator('[data-featured-list][aria-busy="false"]').waitFor();
    assert.deepEqual(await p.locator('.me-featured-selected [data-featured-toggle]').evaluateAll(nodes=>nodes.map(n=>n.dataset.featuredToggle)),['workouts','journey','sport:run'],'Cancel discards the failed pending selection');await p.locator('[data-card-cancel]').click();
   };
   if(process.env.KINETTA_ME_FEATURED_CHECKPOINT==='1'){await featuredEditor({checkpoint:true});await c.close();continue;}
