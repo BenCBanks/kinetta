@@ -1028,7 +1028,11 @@ function render(options) {
         App.pageReady = true;
         return;
       }
-      render({globalSyncDone: true,routePosition:nextPosition});
+      const rendered=render({globalSyncDone: true,routePosition:nextPosition});
+      // The initial loader shell ran before Social existed, so its global refresh was skipped.
+      // Refresh after the real route builds the tab bar; the request remains off the first useful paint.
+      if(!globalSyncDone&&typeof Social!=='undefined'&&owner===readOwner()&&key===location.pathname+location.search)Social.refresh();
+      return rendered;
     }).catch(error => {
       if (!current()) return;
       showError(el, error, {retry: () => render({globalSyncDone:true,routePosition:nextPosition})});

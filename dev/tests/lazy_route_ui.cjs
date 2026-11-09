@@ -174,6 +174,7 @@ async function socialFixture(browser,{failFirst=false,idleGate=false}={}){
   if(url.pathname==='/static/social.js'){
    assets.push(url.pathname);if(failFirst&&assets.length===1)return route.abort();
   }
+  if(url.pathname==='/api/notifications/count')return route.fulfill({json:{unread:3,friend_requests:2,friend_count:2}});
   if(request.method()==='POST'&&['/api/challenges/signup/continue','/api/milestones/celebrate'].includes(url.pathname))return route.fulfill({status:204,body:''});
   if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
   return route.continue();
@@ -243,10 +244,29 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     await socialMe.page.evaluate(()=>window.__socialIdleCallbacks.splice(0).forEach(callback=>callback({didTimeout:false,timeRemaining:()=>50})));
     await socialMe.page.waitForFunction(()=>typeof Social==='object');
     assert.equal(socialMe.assets.length,1,'social.js warms after Me is useful');
+    await socialMe.page.waitForFunction(()=>App.me.notifications===3&&App.me.friend_requests===2,null,{timeout:8000});
+    assert.deepEqual(await socialMe.page.evaluate(()=>{
+      const badge=document.querySelector('nav.tabs a[data-tab="me"] .tab-n');
+      return {friendCount:badge?.firstChild?.textContent.trim(),accessible:badge?.textContent.trim()};
+    }),{friendCount:'2',accessible:'2 new friend requests'},'idle warmup restores the friend-request badge');
     await socialMe.page.evaluate(()=>go('/activity'));await ready(socialMe.page,'#feed-tools','Home after its social bundle is warm');
+    assert.equal(await socialMe.page.locator('.bell').getAttribute('aria-label'),'Notifications, 3 new','Home shows the unread count after Social warmup');
+    assert.equal(await socialMe.page.locator('.bell-dot').textContent(),'3');
     assert.equal(socialMe.assets.length,1,'Home reuses the warmed bundle');
     assert.deepEqual(socialMe.errors,[]);assert.deepEqual(socialMe.writes,[]);
   }finally{await socialMe.context.close();}
+
+  const socialFirstTap=await socialFixture(browser,{idleGate:true});
+  try{
+    await socialFirstTap.page.goto(base+'/me');await ready(socialFirstTap.page,meReady,'Me before first Social tap');
+    await socialFirstTap.page.waitForFunction(()=>window.__socialIdleCallbacks.length>0);
+    assert.equal(socialFirstTap.assets.length,0,'Social is still idle when Me becomes useful');
+    assert.equal(await socialFirstTap.page.evaluate(()=>typeof Social),'undefined');
+    await socialFirstTap.page.locator('.me-friends-link').click();
+    await ready(socialFirstTap.page,'#fr-own-list','Friends opens before idle warmup');
+    assert.equal(socialFirstTap.assets.length,1,'the Friends tap loads Social directly without waiting for idle');
+    assert.deepEqual(socialFirstTap.errors,[]);assert.deepEqual(socialFirstTap.writes,[]);
+  }finally{await socialFirstTap.context.close();}
 
   const socialRetry=await socialFixture(browser,{failFirst:true});
   try{
@@ -412,7 +432,7 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
   try{
     await normal.page.goto(base+'/activity');await ready(normal.page,'#feed-tools');
     assert.equal(normal.routes.scriptRequests.length,0,'notification code is absent from the initial Activity/Me shell');
-    assert.deepEqual(await normal.page.evaluate(()=>[typeof Social.badge,typeof noteRow,App.pageReady]),['function','undefined',true],'badge stays eager while notification rows are deferred');
+    assert.deepEqual(await normal.page.evaluate(()=>[typeof Social.badge,typeof noteRow,App.pageReady]),['function','undefined',true],'the Home badge controller is available while notification rows stay deferred');
     await normal.page.waitForFunction(()=>App.me.notifications===3);
     await normal.page.evaluate(()=>Social.badge());
     assert.equal(await normal.page.locator('.bell').getAttribute('aria-label'),'Notifications, 3 new','the eager bell still reflects the Social badge');
@@ -557,7 +577,7 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     await tab.evaluate(el=>el.dispatchEvent(new PointerEvent('pointerover',{bubbles:true,pointerType:'mouse'})));
     await tab.focus();await until(foodWarm.page,()=>window.__foodWarmCalls>=3,'touch, hover and keyboard focus warm Nutrition');
     await foodWarm.page.waitForFunction(()=>window.__foodIdleCallbacks.length>=1);
-    assert.equal(await foodWarm.page.evaluate(()=>window.__foodIdleCallbacks.length),1,'Me schedules only the Nutrition warm-up; Kit is not needed in its header');
+    assert.equal(await foodWarm.page.evaluate(()=>window.__foodIdleCallbacks.length),2,'Me schedules Nutrition and Social warm-ups; Kit is not needed in its header');
     await foodWarm.page.evaluate(()=>window.__foodIdleCallbacks.splice(0).forEach(callback=>callback({didTimeout:false,timeRemaining:()=>50})));
     await foodWarm.page.waitForFunction(()=>classicScriptsLoaded.has(FOOD_ROUTE_ASSET));
     assert.equal(await foodWarm.page.evaluate(()=>KitChat.loaded),false,'Kit stays deferred on Me');
