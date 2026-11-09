@@ -695,8 +695,8 @@ function sheet(title, html, onMount, opts = {}) {
   const flowStep=flow?SheetHistory.depth(flow)+1:-1;
   const s = document.createElement('div'); s.className = 'scrim';
   const head = opts.save ? `<button type="button" class="sheet-text-btn" data-close>Cancel</button><h2>${esc(title)}</h2><button type="submit" class="sheet-text-btn save" form="${esc(opts.save)}">Save</button>`
-    : `${flowStep>0?`<button type="button" class="icon-btn sheet-flow-back" data-sheet-back aria-label="Back">${svg('back')}</button>`:''}<h2>${esc(title)}</h2><button class="icon-btn" data-close aria-label="Close">${svg('close')}</button>`;
-  s.innerHTML = `<div class="sheet${opts.save ? ' pinned' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="grab"></div>
+    : `${flowStep>0?`<button type="button" class="icon-btn sheet-flow-back" data-sheet-back aria-label="Back">${svg('back')}</button>`:''}<h2>${esc(title)}</h2>${opts.noClose ? '' : `<button class="icon-btn" data-close aria-label="Close">${svg('close')}</button>`}`;
+  s.innerHTML = `<div class="sheet${opts.save ? ' pinned' : ''}" role="${opts.role === 'alertdialog' ? 'alertdialog' : 'dialog'}" aria-modal="true" aria-label="${esc(title)}"${opts.describedBy ? ` aria-describedby="${esc(opts.describedBy)}"` : ''}><div class="grab"></div>
     <header>${head}</header><div class="sbody">${html}</div></div>`;
   let closing = false;
   let flowEntry=null;
@@ -796,13 +796,16 @@ function sheet(title, html, onMount, opts = {}) {
 // One confirmation sheet for the whole app (#763), replacing the browser's confirm() box: a short question as the
 // title, one line on what happens, Cancel on the left and the named action on the right. Destructive actions are red.
 // Resolves true only for the action button; Cancel, Escape, the scrim and a swipe all resolve false.
+// It is an alertdialog without the header X, so Cancel is the only cancel button; the body line describes it.
+let confirmSheetCount = 0;
 function confirmSheet(title, {body = '', action = 'Continue', danger = true, cancel = 'Cancel'} = {}) {
   return new Promise((resolve) => {
     let answer = false;
-    sheet(title, `<div class="confirm-sheet">${body ? `<p>${esc(body)}</p>` : ''}<div class="btnrow"><button type="button" class="ghost" data-confirm-cancel>${esc(cancel)}</button><button type="button" class="primary${danger ? ' danger-btn' : ''}" data-confirm-ok>${esc(action)}</button></div></div>`, (b, close) => {
+    const bodyId = body ? `confirm-body-${++confirmSheetCount}` : '';
+    sheet(title, `<div class="confirm-sheet">${body ? `<p id="${bodyId}">${esc(body)}</p>` : ''}<div class="btnrow"><button type="button" class="ghost" data-confirm-cancel>${esc(cancel)}</button><button type="button" class="primary${danger ? ' danger-btn' : ''}" data-confirm-ok>${esc(action)}</button></div></div>`, (b, close) => {
       $('[data-confirm-cancel]', b).onclick = () => close();
       $('[data-confirm-ok]', b).onclick = () => { answer = true; close(); };
-    }, {onClose: () => resolve(answer)});
+    }, {onClose: () => resolve(answer), noClose: true, role: 'alertdialog', describedBy: bodyId});
   });
 }
 

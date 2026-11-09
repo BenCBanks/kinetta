@@ -1421,7 +1421,7 @@ async function restingSourceCard(box) {
   };
   $('#resting-remove',box).onclick=async e=>{
     const btn=e.currentTarget;
-    if(!await confirmSheet('Use Kinetta’s estimate?',{body:'Synced resting calories will be removed. Your food goal and activities stay the same.',action:'Use estimate'})||account!==readOwner())return;
+    if(!await confirmSheet('Use Kinetta’s estimate?',{body:'Synced resting calories will be removed. Your food goal and activities stay the same.',action:'Use estimate',danger:false})||account!==readOwner())return;
     btn.disabled=true;
     try {if(Native.on)await Native.stopRestingEnergy();if(account!==readOwner())return;await api('/api/health/resting',{method:'DELETE'});if(account!==readOwner())return;App.me.resting_source='formula';invalidate('/api/food');invalidate('/api/health/resting');render();}
     catch(err){if(account===readOwner()&&box.isConnected){error.textContent=err.message;btn.disabled=false;}}
