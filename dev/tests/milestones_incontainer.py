@@ -329,6 +329,52 @@ class Milestones(unittest.TestCase):
                 VALUES(%s,'run','Fictional stale streak',%s,1000,60,60,'manual')''',(owner_id,self.now-dt.timedelta(days=3)))
   self.assertEqual(owner.get('/api/achievements/showcase').json()['day_streak'],0,'a streak older than yesterday is no longer current')
 
+ def test_shared_earned_achievement_reads_are_opt_in_block_aware_and_minimal(self):
+  owner,viewer=self.clients;owner_id,viewer_id=self.ids
+  with db.connect() as c:
+   owner_login=c.execute('SELECT login::text AS login FROM users WHERE id=%s',(owner_id,)).fetchone()['login']
+  achievements='/api/achievements';params={'login':owner_login}
+  self.assertEqual(viewer.get(achievements,params=params).json(),{'tracks':[],'pending':False},
+                   'achievement tracks stay private while sharing is off')
+  self.assertEqual(viewer.get('/api/achievement-history/workouts',params=params).json()['tiers'],[],
+                   'achievement history stays private while sharing is off')
+  self.assertEqual(owner.put('/api/sharing',json={'share_achievements':True}).status_code,200)
+  self.activity(distance=0,uid=owner_id);self.process(uid=owner_id)
+  response=viewer.get(achievements,params=params);self.assertEqual(response.status_code,200,response.text)
+  shared=response.json();workouts=next(track for track in shared['tracks'] if track['code']=='workouts')
+  self.assertGreaterEqual(workouts['level'],1,'a shared track appears only after an earned level')
+  for key in ('next','next_label','next_threshold','value','value_m','value_kg','value_s','display_value'):
+   self.assertNotIn(key,workouts,'a shared track does not expose progress toward future levels')
+  self.assertNotIn('activity_id',response.text);self.assertNotIn('details',response.text)
+  self.assertFalse(shared['pending'],'another viewer never sees worker state')
+  history=viewer.get('/api/achievement-history/workouts',params=params)
+  self.assertEqual(history.status_code,200,history.text)
+  self.assertTrue(history.json()['tiers'],'an eligible viewer receives earned levels')
+  self.assertFalse(history.json()['pending'])
+  for tier in history.json()['tiers']:
+   self.assertFalse({'activity_id','date_source'} & set(tier),'shared history contains no activity links or internal source')
+
+  with db.connect() as c:c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)',(viewer_id,owner_id))
+  self.assertEqual(viewer.get(achievements,params=params).json()['tracks'],[],'either-side blocks hide earned tracks')
+  self.assertEqual(viewer.get('/api/achievement-history/workouts',params=params).json()['tiers'],[])
+  with db.connect() as c:c.execute('DELETE FROM blocks WHERE user_id=%s AND blocked=%s',(viewer_id,owner_id))
+  with db.connect() as c:c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)',(owner_id,viewer_id))
+  self.assertEqual(viewer.get(achievements,params=params).json()['tracks'],[],'an owner block hides earned tracks')
+  with db.connect() as c:c.execute('DELETE FROM blocks WHERE user_id=%s AND blocked=%s',(owner_id,viewer_id))
+
+  with db.connect() as c:c.execute('UPDATE profile SET share_achievements_since=NULL WHERE user_id=%s',(owner_id,))
+  self.assertEqual(viewer.get(achievements,params=params).json()['tracks'],[],
+                   'a missing opt-in timestamp hides old earned tracks')
+  self.assertEqual(viewer.get('/api/achievement-history/workouts',params=params).json()['tiers'],[])
+  self.assertEqual(owner.put('/api/sharing',json={'share_achievements':False}).status_code,200)
+  self.assertEqual(viewer.get(achievements,params=params).json()['tracks'],[],'turning sharing off hides old earned tracks')
+  self.assertEqual(owner.put('/api/sharing',json={'share_achievements':True}).status_code,200)
+  with db.connect() as c:c.execute('UPDATE users SET needs_email_confirm=true WHERE id=%s',(owner_id,))
+  self.assertEqual(viewer.get(achievements,params=params).json()['tracks'],[],'an unconfirmed account remains hidden')
+  with db.connect() as c:c.execute('UPDATE users SET needs_email_confirm=false,suspended_at=now() WHERE id=%s',(owner_id,))
+  self.assertEqual(viewer.get('/api/achievement-history/workouts',params=params).json()['tiers'],[],
+                   'a suspended account remains hidden')
+
  def test_catalog_history_uses_exact_crossing_dates_and_legacy_dates_after_deletion(self):
   activities=[self.lifted_activity(days,kg) for days,kg in ((8,1000),(5,1000),(2,50),(1,1000))]
   self.process()
@@ -501,6 +547,9 @@ class Milestones(unittest.TestCase):
   first_week=next(m for m in moments if m['week_start']==(base.astimezone(zone).date()-dt.timedelta(days=base.astimezone(zone).date().weekday())).isoformat())
   self.assertEqual(first_week['title'],'Across the US');self.assertEqual(first_week['extra_count'],2,'three loud catalog tiers fold together; the quiet First and small tier do not')
   self.assertTrue(first_week['is_track'],'the leading journey tier is identified for its feed icon')
+  badge=first_week['badge'];self.assertEqual((badge['code'],badge['rank']),('journey',7))
+  self.assertEqual(badge['icon'],api_achievements._level_catalog()['tracks']['journey']['levels'][6]['icon'])
+  self.assertIn('photo',first_week['owner'],'the feed moment carries its author avatar alongside the badge')
   for moment in moments:
    self.assertLess(moment['id'],0)
    for private_key in ('activity_id','distance_m','line','calories','route_id','food','user_id'):

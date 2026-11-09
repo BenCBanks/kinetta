@@ -282,6 +282,41 @@ def _tier(row, code, units):
     return item
 
 
+def _visible_achievement_profile(c, viewer_id, login):
+    profile = c.execute('''SELECT u.id,p.units,p.tz,p.showcase_pins,p.share_achievements,
+                                 p.share_achievements_since,
+                                 (u.needs_email_confirm OR u.suspended_at IS NOT NULL) AS hidden
+                          FROM users u JOIN profile p ON p.user_id=u.id
+                          WHERE u.login=%s''', (login,)).fetchone()
+    if not profile:
+        return None
+    owner_id = profile['id']
+    if owner_id != viewer_id:
+        relation = c.execute('''SELECT EXISTS(SELECT 1 FROM blocks b WHERE
+                                   (b.user_id=%s AND b.blocked=%s) OR
+                                   (b.user_id=%s AND b.blocked=%s)) AS blocked''',
+                             (viewer_id, owner_id, owner_id, viewer_id)).fetchone()
+        if (profile.get('hidden') or not profile.get('share_achievements') or
+                not profile.get('share_achievements_since') or relation['blocked']):
+            return None
+    return owner_id, profile
+
+
+_SHARED_TRACK_FIELDS = ('code','label','level','unit','tiers','day')
+_SHARED_TIER_FIELDS = ('rank','label','title','day','big','quiet','threshold','unit','trigger',
+                       'display_threshold','display_unit')
+
+
+def _shared_track_payload(track):
+    if int(track.get('level') or 0) < 1:
+        return None
+    result = {key: track[key] for key in _SHARED_TRACK_FIELDS if key in track}
+    result['tiers'] = [{key: tier[key] for key in _SHARED_TIER_FIELDS if key in tier}
+                       for tier in track.get('tiers') or ()]
+    result['history'] = result['tiers']
+    return result
+
+
 def _sport_code(details, *, include_quiet=False):
     sport = details.get('sport')
     if sport in ('walk', 'hike'):
@@ -300,7 +335,7 @@ def _sport_code(details, *, include_quiet=False):
 
 
 @router.get('/achievements')
-def achievements(user=Depends(current_user)):
+def achievements(login: str | None = Query(None, min_length=1, max_length=60), user=Depends(current_user)):
     """Return only rows materialised by the private milestone worker.
 
     There is intentionally no activity query here.  A dirty account may have
@@ -308,19 +343,28 @@ def achievements(user=Depends(current_user)):
     state is still safe to render.
     """
     with db.connect() as c:
+        if login:
+            visible = _visible_achievement_profile(c, user['id'], login)
+            if not visible:
+                return {'tracks': [], 'pending': False}
+            owner_id, profile = visible
+            shared_view = owner_id != user['id']
+        else:
+            owner_id = user['id']
+            shared_view = False
+            profile = c.execute('SELECT units FROM profile WHERE user_id=%s', (owner_id,)).fetchone() or {}
         pending = bool((c.execute('''SELECT generation>processed OR next_check<=now() AS pending
-                                     FROM milestone_state WHERE user_id=%s''', (user['id'],)).fetchone() or {}).get('pending', False))
-        profile = c.execute('SELECT units FROM profile WHERE user_id=%s', (user['id'],)).fetchone() or {}
+                                     FROM milestone_state WHERE user_id=%s''', (owner_id,)).fetchone() or {}).get('pending', False))
         units = profile.get('units') or 'imperial'
         states = c.execute('''SELECT code,title,day,occurred,details
                               FROM milestones WHERE user_id=%s AND kind='track_state' AND valid
-                              ORDER BY code''', (user['id'],)).fetchall()
+                              ORDER BY code''', (owner_id,)).fetchall()
         rows = c.execute('''SELECT code,title,rank,activity_id,day,occurred,details
                             FROM milestones WHERE user_id=%s AND kind='track' AND valid
-                            ORDER BY code,rank,occurred''', (user['id'],)).fetchall()
+                            ORDER BY code,rank,occurred''', (owner_id,)).fetchall()
         firsts = c.execute('''SELECT code,title,rank,activity_id,day,occurred,details
                               FROM milestones WHERE user_id=%s AND kind IN ('sport','first_distance') AND valid
-                              ORDER BY occurred,rank''', (user['id'],)).fetchall()
+                              ORDER BY occurred,rank''', (owner_id,)).fetchall()
 
     tiers_by_track = {}
     for row in rows:
@@ -384,6 +428,9 @@ def achievements(user=Depends(current_user)):
             }
         current['history'] = current['tiers']
         out.append(current)
+    if shared_view:
+        out = [shared for row in out if (shared := _shared_track_payload(row))]
+        pending = False
     return {'tracks': out, 'pending': pending}
 
 
@@ -511,22 +558,10 @@ def achievement_showcase(login: str | None = Query(None, min_length=1, max_lengt
     """Return the owner's Showcase to an opted-in signed-in viewer, unless blocked or hidden."""
     with db.connect() as c:
         if login:
-            profile = c.execute('''SELECT u.id,p.units,p.tz,p.showcase_pins,p.share_achievements,
-                                         p.share_achievements_since,
-                                         (u.needs_email_confirm OR u.suspended_at IS NOT NULL) AS hidden
-                                  FROM users u JOIN profile p ON p.user_id=u.id
-                                  WHERE u.login=%s''', (login,)).fetchone()
-            if not profile:
+            visible = _visible_achievement_profile(c, user['id'], login)
+            if not visible:
                 return _empty_showcase()
-            owner_id = profile['id']
-            if owner_id != user['id']:
-                relation = c.execute('''SELECT EXISTS(SELECT 1 FROM blocks b WHERE
-                                           (b.user_id=%s AND b.blocked=%s) OR
-                                           (b.user_id=%s AND b.blocked=%s)) AS blocked''',
-                                     (user['id'], owner_id, owner_id, user['id'])).fetchone()
-                if (profile.get('hidden') or not profile.get('share_achievements') or
-                        not profile.get('share_achievements_since') or relation['blocked']):
-                    return _empty_showcase()
+            owner_id, profile = visible
         else:
             owner_id = user['id']
             profile = c.execute('''SELECT units,tz,showcase_pins FROM profile WHERE user_id=%s''',
@@ -586,19 +621,28 @@ def update_showcase_pins(body: ShowcasePinsUpdate, user=Depends(current_user)):
 
 
 @router.get('/achievement-history/{code}')
-def achievement_history(code: str, user=Depends(current_user)):
-    """Return named catalog levels with their first-crossing dates for the signed-in owner."""
+def achievement_history(code: str, login: str | None = Query(None, min_length=1, max_length=60), user=Depends(current_user)):
+    """Return earned catalog levels to the owner or an eligible signed-in viewer."""
     definition = _level_catalog().get('tracks', {}).get(code)
     if not definition:
         raise HTTPException(status_code=404, detail='Unknown achievement track')
 
     now = dt.datetime.now(dt.timezone.utc)
     with db.connect() as c:
-        profile = c.execute('SELECT tz FROM profile WHERE user_id=%s', (user['id'],)).fetchone() or {}
+        if login:
+            visible = _visible_achievement_profile(c, user['id'], login)
+            if not visible:
+                return {'code': code, 'tiers': [], 'pending': False}
+            owner_id, profile = visible
+            shared_view = owner_id != user['id']
+        else:
+            owner_id = user['id']
+            shared_view = False
+            profile = c.execute('SELECT tz FROM profile WHERE user_id=%s', (owner_id,)).fetchone() or {}
         zone = ZoneInfo(db.valid_tz(profile.get('tz')) or db.DEFAULT_TZ)
         state = c.execute('''SELECT details FROM milestones
                              WHERE user_id=%s AND code=%s AND kind='track_state' AND valid''',
-                          (user['id'], f'track-state:{code}')).fetchone()
+                          (owner_id, f'track-state:{code}')).fetchone()
         details = dict((state or {}).get('details') or {})
         try:
             value = max(0.0, float(_raw_value(code, details)))
@@ -607,11 +651,11 @@ def achievement_history(code: str, user=Depends(current_user)):
         if not math.isfinite(value):
             value = 0.0
         pending = bool((c.execute('''SELECT generation>processed OR next_check<=now() AS pending
-                                     FROM milestone_state WHERE user_id=%s''', (user['id'],)).fetchone() or {}).get('pending', False))
+                                     FROM milestone_state WHERE user_id=%s''', (owner_id,)).fetchone() or {}).get('pending', False))
         levels = _levels_through(definition, value)
         thresholds = [level['threshold'] for level in levels]
-        _total, crossings, activity_rows = _history_source(c, user['id'], code, thresholds, now, zone)
-        legacy = _legacy_history(c, user['id'], code)
+        _total, crossings, activity_rows = _history_source(c, owner_id, code, thresholds, now, zone)
+        legacy = _legacy_history(c, owner_id, code)
 
     first_level = next(((rank, level) for rank, level in enumerate(definition.get('levels') or (), 1)
                         if code in ('sport:run', 'sport:ride', 'sport:walk-hike', 'sport:swim')
@@ -671,5 +715,9 @@ def achievement_history(code: str, user=Depends(current_user)):
             'activity_id': activity_id,
             'date_source': source,
         })
+    if shared_view:
+        reached = [{key: tier[key] for key in ('rank','name','threshold','day') if key in tier}
+                   for tier in reached]
+        pending = False
     return {'code': code, 'tiers': reached, 'pending': pending}
 
