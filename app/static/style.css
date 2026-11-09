@@ -116,7 +116,7 @@ details.fold-row[open] { padding-bottom: 12px; }
 .btnrow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0 4px; } .btnrow > * { min-height: 44px; }
 .btnrow.one { grid-template-columns: 1fr; }
 .btnrow.tight { display: flex; gap: 8px; margin: 0; flex: none; } .btnrow.tight > * { min-height: 36px; }
-.btncol { display: grid; gap: 10px; } .btncol > * { width: 100%; min-height: 42px; }
+.btncol { display: grid; gap: 10px; } .btncol > * { width: 100%; min-height: 44px; }
 
 /* segmented control + chips */
 .seg { display: inline-flex; background: var(--segbg); border-radius: 16px; padding: 4px; gap: 8px; }

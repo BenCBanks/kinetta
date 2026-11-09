@@ -1101,6 +1101,22 @@ async function routePicture(a, trim, details={}) {
 }
 
 // ---------- Matched route ----------
+function matchedRouteTrendHeadline(trend, points, foot) {
+  const perMonth = trend ? Number(trend.slope_per_day) * 30 : null;
+  if (!Number.isFinite(perMonth) || Math.abs(perMonth) < 1) return '';
+  let amount;
+  if (foot) {
+    amount = Math.round(Math.abs(imp() ? perMonth * MI / 1000 : perMonth));
+  } else {
+    const avgPace = points.length ? points.reduce((sum, point) => sum + point.y, 0) / points.length : null;
+    if (!(avgPace > Math.abs(perMonth))) return '';
+    amount = Math.abs(1000 / (avgPace + perMonth) - 1000 / avgPace);
+  }
+  if (!Number.isFinite(amount) || amount <= 0) return '';
+  const change = foot ? `${amount} s${U.pu()}` : `${U.speed(amount)} ${U.su()}`;
+  if (/^0(?:\.0+)?(?:\s|$)/.test(change)) return '';
+  return `${perMonth < 0 ? 'Getting faster' : 'Getting slower'}: about ${change} per month on this route.`;
+}
 route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
   el.innerHTML = `<div class="top">${backBtn('Routes')}</div>${skel(1)}<div class="sk block"></div>${skel(1)}`;
   wireBack(el, '/progress/routes');
@@ -1108,9 +1124,7 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
     const acts = r.activities, foot = FOOT.includes(r.sport) || r.sport === 'walk';
     const pts = acts.filter((a) => a.moving_s && a.distance_m).map((a) => ({x: new Date(a.start_time) / 864e5, y: a.moving_s / a.distance_m * 1000, id: a.id}));
     const t = r.pace_trend, e = r.efficiency_trend;
-    const perMonth = t ? t.slope_per_day * 30 : null;
-    let headline = '';
-    if (t && Math.abs(perMonth) >= 1) headline = `${perMonth < 0 ? 'Getting faster' : 'Getting slower'}: about ${foot ? Math.round(Math.abs(imp() ? perMonth * MI / 1000 : perMonth)) + ' s' + U.pu() : ''} per month on this route.`;
+    let headline = matchedRouteTrendHeadline(t, pts, foot);
     if (e && t) { const effUp = e.slope_per_day > 0; headline += ` Recorded distance per heartbeat ${e.slope_per_day===0?'is unchanged':effUp?'increased':'decreased'}. Conditions and recording differences can affect this.`; }
     const best = acts.find((a) => a.id === r.fastest_id);
     el.innerHTML = `<div class="top">${backBtn('Routes')}<button class="icon-btn" id="r-edit" aria-label="Rename route">${svg('edit')}</button></div>

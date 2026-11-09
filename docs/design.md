@@ -1258,7 +1258,7 @@ Final food review and recipe-portion previews label missing macros as unknown. S
 
 ### Segment review and completed routes (28 October 2026)
 
-Progress → More holds Matched routes and Segments & times for completed efforts. Creating a segment requires a final immutable-course review; name, description, direction, sport and path cannot change later. The segment map editor offers a Points list alongside gestures and uses verified mapped paths; missing heights remain unknown. Boards are on, with each member off until they choose to join. Admins review reports, appeals and held times with minimal derived evidence; course retirement and permanent takedown are separate confirmed actions. See [segments](segments.md).
+Progress's Explore your progress section holds Matched routes and Segments & times for completed efforts. Creating a segment requires a final immutable-course review; name, description, direction, sport and path cannot change later. The segment map editor offers a Points list alongside gestures and uses verified mapped paths; missing heights remain unknown. Boards are on, with each member off until they choose to join. Admins review reports, appeals and held times with minimal derived evidence; course retirement and permanent takedown are separate confirmed actions. See [segments](segments.md).
 
 ## Run/walk intervals · Track (26 October 2026)
 
