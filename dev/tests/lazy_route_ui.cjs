@@ -714,6 +714,7 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     const iconSnapshot=await activitySegment.page.evaluate(()=>({icons:Object.fromEntries(['route','info','list','up','flag'].map(key=>[key,IC[key]])),other:IC.other}));
     const sharedIcons=iconSnapshot.icons;
     assert(Object.values(sharedIcons).every(icon=>icon&&icon!==iconSnapshot.other),'route/action icons have eager shared paths before Planner loads');
+    assert.match(sharedIcons.flag,/M5 21V4.*M5 4h12/,'the single eager flag icon is not overwritten by Track');
     await activitySegment.page.locator('#sa-seg').click();await activitySegment.page.locator('#toast.on').waitFor();
     assert.match(await activitySegment.page.locator('#toast').innerText(),/Segment tools could not load.*tap again to retry/i,'failed Planner load leaves a visible retry message');
     assert.equal(activitySegment.assets.filter(path=>path==='/static/planner.js').length,1,'the first tap attempts the deferred Planner bundle');
