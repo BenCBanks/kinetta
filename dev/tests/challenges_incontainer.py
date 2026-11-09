@@ -67,10 +67,19 @@ class Challenges(unittest.TestCase):
   q,body=self.make();again=self.clients[0].post('/api/challenges',json=body);self.assertEqual(again.status_code,200);self.assertEqual(again.json()['code'],q['code']);body['target']=99;self.assertEqual(self.clients[0].post('/api/challenges',json=body).status_code,409)
   for body in [{'kind':'weight','target':1},{'kind':'distance','target':1,'name':'arbitrary name'},{'kind':'distance','target':1,'sports':[]}]:
    body['request_id']=uuid.uuid4().hex;self.assertIn(self.clients[0].post('/api/challenges',json=body).status_code,(400,422))
-  for period in ('this_week','next_week','this_month','next_month'):
-   b=C.Create(kind='distance',period=period,target=80,request_id=uuid.uuid4().hex)
-   start,end=C.dates(b,dt.date(2026,10,28));self.assertGreaterEqual((end-start).days+1,3);self.assertLessEqual((end-start).days+1,62)
-  for start,end in [(dt.date.today(),dt.date.today()+dt.timedelta(days=1)),(dt.date.today()+dt.timedelta(days=31),dt.date.today()+dt.timedelta(days=35))]:
+  anchor=dt.date(2026,10,28)
+  expected={'this_week':(dt.date(2026,10,26),dt.date(2026,11,1)),
+            'next_week':(dt.date(2026,11,2),dt.date(2026,11,8)),
+            'this_month':(dt.date(2026,10,1),dt.date(2026,10,31)),
+            'next_month':(dt.date(2026,11,1),dt.date(2026,11,30))}
+  for period,want in expected.items():
+   b=C.Create(kind='distance',period=period,target=80,request_id=uuid.uuid4().hex);self.assertEqual(C.dates(b,anchor),want)
+  self.assertEqual(C.dates(C.Create(kind='distance',period='this_week',target=80,request_id='december-week'),dt.date(2026,12,30)),(dt.date(2026,12,28),dt.date(2027,1,3)))
+  self.assertEqual(C.dates(C.Create(kind='distance',period='next_week',target=80,request_id='january-week'),dt.date(2026,12,30)),(dt.date(2027,1,4),dt.date(2027,1,10)))
+  self.assertEqual(C.dates(C.Create(kind='distance',period='next_month',target=80,request_id='december-month'),dt.date(2026,12,15)),(dt.date(2027,1,1),dt.date(2027,1,31)))
+  self.assertEqual(C.dates(C.Create(kind='distance',period='this_month',target=80,request_id='leap-month'),dt.date(2024,2,15)),(dt.date(2024,2,1),dt.date(2024,2,29)))
+  today=self.now.astimezone(C.ZoneInfo('America/New_York')).date()
+  for start,end in [(today,today+dt.timedelta(days=1)),(today+dt.timedelta(days=40),today+dt.timedelta(days=44))]:
    body={'kind':'distance','period':'custom','target':1,'start':str(start),'end':str(end),'request_id':uuid.uuid4().hex};self.assertEqual(self.clients[0].post('/api/challenges',json=body).status_code,400)
  def test_activity_thresholds_and_edits_deletion_update_immediately(self):
   short=self.activity(seconds=599);long=self.activity(seconds=600);q,_=self.make('activities');self.assertEqual(self.get(q['code'])['self']['value'],1)
