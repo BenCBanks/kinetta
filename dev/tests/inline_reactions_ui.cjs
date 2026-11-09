@@ -65,6 +65,22 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
      const group=card.locator('[data-reaction-group]');assert.equal(await group.locator('.reaction-more').getAttribute('aria-label'),'Your reaction: flexed biceps. Change reaction');assert.equal(await group.locator('.reaction-count').getAttribute('aria-label'),'See who reacted: 💪1.2M👏1M🔥12K (flexed biceps 1.2M, clapping hands 1M, fire 12K)');
      const numbers=await group.locator('.num:visible').evaluateAll(ns=>ns.map(n=>{const ink=document.createRange();ink.selectNodeContents(n);const a=ink.getBoundingClientRect(),b=n.closest('button').getBoundingClientRect();return{value:n.textContent,ink:{left:a.left,right:a.right},target:{left:b.left,right:b.right},font:getComputedStyle(n).fontSize};}));assert(numbers.every(n=>n.ink.left>=n.target.left-.5&&n.ink.right<=n.target.right+.5),'Large displayed counts fit their whole targets: '+JSON.stringify({size,theme,numbers}));
     }
+    if(phase==='after'&&size.width===390){
+     await p.evaluate(()=>reactionPeopleSheet({load:()=>Promise.reject(Object.assign(new Error('Fictional internal reactions trace marker'),{status:500}))}));
+     const reactions=p.locator('.reaction-sheet');await reactions.locator('.social-read-status [data-retry]').waitFor();
+     const reactionError=await reactions.locator('.social-read-status').innerText();assert.match(reactionError,/Couldn't load this\. Check your connection and try again\./);assert(!reactionError.includes('Fictional internal reactions trace marker')&&!reactionError.includes('Error 500'));
+     assert(await reactions.locator('header [aria-label="Close"]').isVisible(),'failed Reactions load keeps its Close control');await reactions.locator('header [aria-label="Close"]').click();await until(p,()=>!document.querySelector('.reaction-sheet'),'close failed Reactions sheet');
+
+     const mixed=p.locator('article.post').filter({hasText:'Fictional mixed run'}),aid=+(await mixed.locator('[data-reaction-group]').getAttribute('data-aid'));let allowSocial=false;
+     await p.route(`**/api/activities/${aid}/social`,route=>allowSocial?route.continue():route.fulfill({status:500,contentType:'application/json',body:JSON.stringify({detail:'Fictional internal comments trace marker'})}));
+     await p.evaluate(()=>SocialData.invalidate());await p.evaluate(id=>commentsSheet(id,null,()=>{}),aid);
+     const comments=p.locator('.sheet[aria-label="Comments"]');await comments.locator('.social-read-status [data-retry]').waitFor();
+     const commentsError=await comments.locator('.social-read-status').innerText();assert.match(commentsError,/Couldn't load this\. Check your connection and try again\./);assert(!commentsError.includes('Fictional internal comments trace marker')&&!commentsError.includes('Error 500'));
+     assert(await comments.locator('header [aria-label="Close"]').isVisible(),'failed Comments load keeps its Close control');
+     if(process.env.KINETTA_ERROR_SHOTS){fs.mkdirSync(process.env.KINETTA_ERROR_SHOTS,{recursive:true});await p.screenshot({path:path.join(process.env.KINETTA_ERROR_SHOTS,'failed-sheet-comments-390-'+theme+'.png'),animations:'disabled'});}
+     allowSocial=true;await comments.locator('.social-read-status [data-retry]').click();await until(p,()=>document.querySelector('.sheet[aria-label="Comments"] .social-read-status')?.textContent.trim()==='','retry Comments load');
+     await comments.locator('header [aria-label="Close"]').click();await until(p,()=>!document.querySelector('.sheet[aria-label="Comments"]'),'close failed Comments sheet');
+    }
     assert.deepEqual(errors,[]);
    }finally{await c.close();}
   }

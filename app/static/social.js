@@ -227,7 +227,7 @@ function reactionPeopleSheet({initial=null,load,watch=null,removeMine=null}){
     if(initial)draw(initial);
     if(watch)viewResources.set(list,watch(fresh=>{if(!current())return false;if(fresh)draw(fresh);}));
     const refresh=async()=>{try{const fresh=await load();if(!current()||!fresh)return;draw(fresh);status.textContent='';}
-      catch(error){if(!current())return;if([401,403,404].includes(error.status))draw(null);list.setAttribute('aria-busy','false');status.innerHTML=`${esc(error.message)} <button type="button" class="linkbtn" data-retry>Retry</button>`;$('[data-retry]',status).onclick=refresh;}};
+      catch(error){if(!current())return;if([401,403,404].includes(error.status))draw(null);list.setAttribute('aria-busy','false');status.innerHTML=`${esc(loadErrorCopy(error))} <button type="button" class="linkbtn" data-retry>Retry</button>`;$('[data-retry]',status).onclick=refresh;}};
     refresh();
   });
 }
@@ -532,7 +532,7 @@ async function homeGroups(el) {
     const host=$('#home-group-list',el);
     host.innerHTML=groups.length?`<div class="card list">${groups.map(group=>`<a class="row-link group-list-row" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('calendar')}</span><span class="grow"><b>${esc(group.title)}</b><small>${group.event_date?`${esc(groupDate(group.event_date,group.time_zone))} · `:'All time · '}${group.member_count} ${group.member_count===1?'member':'members'}</small></span>${svg('chev')}</a>`).join('')}</div>`:`<div class="group-empty"><p>Groups are private places to work toward a shared goal.</p><button type="button" class="primary" id="group-empty-create">Create a group</button></div>`;
     $('#group-empty-create',host)?.addEventListener('click',create);
-  }catch(error){if(live()){$('#home-group-list',el).innerHTML=`<div class="card empty">${esc(error.message)}<button type="button" class="ghost" id="group-retry">Retry</button></div>`;$('#group-retry',el)?.addEventListener('click',()=>go('/activity?view=groups',{replace:true}));}}
+  }catch(error){if(live()){$('#home-group-list',el).innerHTML=`<div class="card empty">${esc(loadErrorCopy(error))}<button type="button" class="ghost" id="group-retry">Retry</button></div>`;$('#group-retry',el)?.addEventListener('click',()=>go('/activity?view=groups',{replace:true}));}}
 }
 async function homeFeed(el) {
   el.classList?.add('activity-home');
@@ -734,7 +734,7 @@ function commentsSheet(aid, s, onChange) {
     viewResources.set(box,SocialData.watch(aid,fresh=>{if(!current())return false;if(fresh)drawComments(box,aid,fresh,onChange);else{list.replaceChildren();$('.social-reactions',box).replaceChildren();box._denied=true;box._sync();}}));
     const refresh=async()=>{try{const fresh=await SocialData.read(aid);update(fresh);}
       catch(error){if(!current())return;if([401,403,404].includes(error.status)){list.replaceChildren();$('.social-reactions',box).replaceChildren();box._denied=true;box._sync();}
-        list.setAttribute('aria-busy','false');status.innerHTML=`${esc(error.message)} <button type="button" class="linkbtn" data-retry>Retry</button>`;$('[data-retry]',status).onclick=refresh;}};
+        list.setAttribute('aria-busy','false');status.innerHTML=`${esc(loadErrorCopy(error))} <button type="button" class="linkbtn" data-retry>Retry</button>`;$('[data-retry]',status).onclick=refresh;}};
     f.onsubmit=async event=>{event.preventDefault();if(!current())return;const raw=f.text.value,text=raw.trim(),button=send;if(!text||button.disabled)return;
       let denied=false;button.dataset.posting='1';button.setAttribute('aria-busy','true');box._sync();
       try{const fresh=await api(`/api/activities/${aid}/comments`,json('POST',{text}));if(account!==readOwner())return;
@@ -1334,14 +1334,14 @@ function groupReport(group){
   });
 }
 route(/^\/groups\/([0-9a-f-]{36})$/i,'activity',async(el,id)=>{
-  el.classList.add('group-page');el.innerHTML='<div class="card empty">Loading group…</div>';
+  el.classList.add('group-page');el._backFallback='/me/groups';el.innerHTML='<div class="card empty">Loading group…</div>';
   try{const group=await api('/api/groups/'+encodeURIComponent(id));if(el.isConnected)groupPage(el,group);}
-  catch(error){if(el.isConnected)el.innerHTML=`<div class="top">${backBtn('Groups')}</div><div class="card empty"><b>Group not available</b><p>${esc(error.message)}</p><a class="ghost" href="/me/groups">Groups</a></div>`;wireBack(el,'/me/groups');}
+  catch(error){if(el.isConnected)showError(el,error);}
 });
 route(/^\/group-invite\/([\w-]+)$/,'activity',async(el,token)=>{
   el.classList.add('group-invite-page');el.innerHTML='<div class="card empty">Checking invite…</div>';wireBack(el,'/activity');
   try{await api('/api/group-invites/'+encodeURIComponent(token));if(!el.isConnected)return;el.innerHTML=`<div class="top">${backBtn('Home')}</div><section class="group-invite-card"><p class="eyebrow">Kinetta Groups</p><h1>You’re invited to a private group</h1><p>Only members can see the group. Sign in and accept to join.</p><div class="btncol"><button type="button" class="primary" id="group-accept">Accept invitation</button><a class="ghost" href="/activity">Not now</a></div></section>`;wireBack(el,'/activity');$('#group-accept',el).onclick=async event=>{const button=event.currentTarget;button.disabled=true;try{const group=await api('/api/group-invites/'+encodeURIComponent(token)+'/accept',json('POST',{}));if(el.isConnected){toast('You joined the group');go('/groups/'+encodeURIComponent(group.id),{replace:true});}}catch(error){toast(error.message);button.disabled=false;}};}
-  catch(error){if(el.isConnected)el.innerHTML=`<div class="top">${backBtn('Home')}</div><section class="group-invite-card"><h1>This invite isn’t available</h1><p>Ask the organizer for a new group invite.</p><a class="ghost" href="/activity">Go to Home</a></section>`;wireBack(el,'/activity');}
+  catch(error){if(!el.isConnected)return;if([403,404].includes(error.status)){el.innerHTML=`<div class="top">${backBtn('Home')}</div><section class="group-invite-card"><h1>This invite isn’t available</h1><p>Ask the organizer for a new group invite.</p><a class="ghost" href="/activity">Go to Home</a></section>`;wireBack(el,'/activity');}else showError(el,error);}
 });
 
 // ---------- report or block someone (App Store guideline 1.2): from their activity or one of their comments ----------
