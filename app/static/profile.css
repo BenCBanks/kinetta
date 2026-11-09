@@ -179,7 +179,7 @@
 .me-card-name h2 { font-size:1.25rem; line-height:1.15; overflow-wrap:anywhere; }
 .me-showcase-slot { display:block; margin:3px 0 0; }
 .me-showcase-slot:empty { display:none; }
-.me-showcase-row { display:flex; align-items:center; gap:6px; width:max-content; min-height:28px; pointer-events:none; }
+.me-showcase-row { display:flex; align-items:center; flex-wrap:wrap; column-gap:6px; row-gap:6px; width:max-content; max-width:100%; min-height:28px; pointer-events:none; }
 .me-showcase-medal { --showcase-color:var(--color-brand); display:grid; flex:none; place-items:center; width:28px; height:28px; border-radius:50%; background:color-mix(in srgb,var(--showcase-color) 24%,var(--card)); }
 .me-showcase-medal[data-showcase-code="sport:run"] { --showcase-color:var(--run); }
 .me-showcase-medal[data-showcase-code="sport:ride"] { --showcase-color:var(--ride); }

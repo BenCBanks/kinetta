@@ -117,6 +117,7 @@ node dev/tests/test_track_native.js
 node dev/tests/test_recording_sharing.js
 node dev/tests/test_activity_sharing.js
 node dev/tests/test_stationary_summary.js
+node dev/tests/test_route_headline.js
 node dev/tests/test_map_fullscreen.js
 node dev/tests/test_back_navigation.js
 node dev/tests/test_back_navigation_dom.js

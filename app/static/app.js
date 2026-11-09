@@ -1906,7 +1906,7 @@ function showSignupPending(result) {
   history.replaceState(null,'','/signup');
   root.innerHTML=`<div class="login"><div class="form">${BRAND}<h1>Check your email</h1>
     <p>We sent a confirmation link to <b>${esc(email)}</b>. Open it to confirm your email.</p>
-    <p class="small muted signup-login-note">You’re already signed in as <b>@${esc(login)}</b>, so you can start now. Until you confirm, log in with @${esc(login)}; after that, your email works too.</p>
+    <p class="small muted signup-login-note">You're signed in as <b>@${esc(login)}</b>. Until you confirm, log in with @${esc(login)}.</p>
     <button type="button" class="primary wide" id="signup-resend">Resend confirmation email</button>
     <p class="small muted resend-status" id="signup-resend-status" role="status" aria-live="polite"></p>
     <a class="ghost wide" href="/welcome" id="signup-continue">${phone?'Continue to the iPhone app':'Continue to Kinetta'}</a>
