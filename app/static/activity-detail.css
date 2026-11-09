@@ -41,6 +41,20 @@
 .compact-detail-title .milestone-share { min-height:44px; padding:0 8px; font-size:.9375rem; }
 /* Keep analysis tabs above the fixed navigation while retaining 8px section gaps. */
 .shell.activity-detail > .seg.wide.dtabs { margin:0 0 2px; }
+/* Keep the 46dvh map and its first-screen tabs together when optional medal rows load. */
+@media(max-width:700px) {
+ .shell.activity-detail > .detail-map-hero ~ .compact-detail-title { padding:8px 14px 4px; }
+ .shell.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-title-row h1 { line-height:1.1; }
+ .shell.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-date-row { margin:2px 0; }
+ .shell.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-primary .stat b { font-size:1.25rem; line-height:1.05; }
+ .shell.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-primary .stat small { line-height:1.1; }
+ .shell.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-secondary { margin-top:4px; }
+ .shell.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-secondary .stat b { font-size:1.125rem; line-height:1.05; }
+ .shell.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-secondary .stat small { line-height:1.1; }
+ /* Matched routes and records remain in Overview/Efforts; drop their duplicate header shortcuts on phones. */
+ .shell.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-highlights { display:none; }
+ .shell.activity-detail > .detail-map-hero ~ .compact-detail-title #d-milestones .milestone-banner { margin-top:4px; }
+}
 @media(max-width:360px) {
  .activity-detail { --detail-edge:16px; }
  .detail-primary,.detail-secondary { grid-template-columns:repeat(auto-fit,minmax(min(100%,5.5rem),1fr)); }

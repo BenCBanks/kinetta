@@ -82,7 +82,11 @@ async function assertActionBlueScrimContrast(locator,pseudo=''){
    }else{assert.equal(await p.locator('.detail-map-hero,.detail-sticky').count(),0,'indoor uses ordinary header');if(kind==='empty')assert.equal(await p.locator('.detail-secondary').count(),0,'no invented empty stats');}
    const buttons=p.locator('[data-dt]'),order=await buttons.evaluateAll(nodes=>nodes.map(n=>n.dataset.dt));assert.deepEqual(order,['charts','splits','efforts','overview'].filter(key=>order.includes(key)),'analysis order');
    for(const tab of await buttons.all()){if(!(await tab.isVisible())){assert(await p.locator(`[data-pane="${await tab.getAttribute('data-dt')}"]`).isVisible(),'single section is already open');continue;}const key=await tab.getAttribute('data-dt');await tab.click();assert(await p.locator(`[data-pane="${key}"]`).isVisible());assert.equal(await tab.getAttribute('aria-selected'),'true');}
-   if(kind==='run'){await p.locator('[data-detail-tab=efforts]').click();assert(await p.locator('[data-pane=efforts]').isVisible());assert.match(await p.locator('.detail-highlights').innerText(),/Matched:.*Fictional river loop/);}
+   if(kind==='run'){
+    assert.equal(await p.locator('.detail-highlights').isVisible(),false,'mapped detail keeps route and record links in their detail sections');
+    await p.locator('[data-dt=overview]').click();assert.match(await p.locator('[data-pane=overview]').innerText(),/Fictional river loop/,'matched route remains in Overview');
+    await p.locator('[data-dt=efforts]').click();assert(await p.locator('[data-pane=efforts]').isVisible());assert.match(await p.locator('[data-pane=efforts]').innerText(),/Best efforts/,'personal records remain in Efforts');
+   }
    if(!friend){const details=p.locator('[data-dt=overview]');if(await details.isVisible())await details.click();assert.equal(await p.locator('[data-phadd]').count(),1,'photo action retained in Details');assert(await p.locator('#d-comment-open').isVisible(),'first comment remains reachable without zero counts');await p.evaluate(()=>scrollTo(0,0));await bar.locator('[data-detail-edit]').click();await p.waitForSelector('#e-form');assert(await p.locator('#e-form').isVisible());await p.keyboard.press('Escape');}
    assert.deepEqual(errors,[]);assert(!writes.some(x=>!['/api/challenges/signup/continue','/api/milestones/celebrate'].includes(x)),'layout/actions do not write private data');console.log(`Activity detail ${name}: layout/actions/tabs/empty/permitted fields/map modal PASS`);await c.close();contexts.splice(contexts.indexOf(c),1);
   }
