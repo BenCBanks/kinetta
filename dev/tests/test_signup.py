@@ -112,6 +112,27 @@ class Signup(unittest.TestCase):
         self.assertEqual(response.status_code, 400, response.text)
         self.assertIn('Did you mean .com?', response.json()['detail'])
         self.assertEqual(self.real_accounts(), before, 'a correction is required before account creation')
+        payload['email'] = 'zz_test_su_typo@gmial.com'
+        response = client().post('/api/signup', json=payload)
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertIn('Keep my address', response.json()['detail'])
+        response = client().post('/api/signup', json={**payload, 'confirm_typo': True})
+        self.assertEqual(response.status_code, 200, response.text)
+
+    def test_beta_waitlist_requires_explicit_choice_for_domain_typos(self):
+        self.env(KINETTA_SIGNUP='waitlist', KINETTA_BETA_SIGNUP='1')
+        email = 'zz_test_su_waitlist@gmial.com'
+        self.addCleanup(self.delete_beta_typo_request, email)
+        payload = {'name': 'Fictional Waitlist Member', 'email': email, 'phone': 'iphone'}
+        self.assertEqual(client().post('/api/beta', json=payload).status_code, 400)
+        impossible = client().post('/api/beta', json={**payload, 'email': 'zz_test_su_waitlist@example.cpm', 'confirm_typo': True})
+        self.assertEqual(impossible.status_code, 400, 'explicit confirmation never overrides an unknown TLD')
+        response = client().post('/api/beta', json={**payload, 'confirm_typo': True})
+        self.assertEqual(response.status_code, 200, response.text)
+
+    def delete_beta_typo_request(self, email):
+        with db.connect() as c:
+            c.execute('DELETE FROM beta_requests WHERE email=%s', (email,))
 
     def test_new_profiles_use_public_sharing_defaults_without_changing_saved_choices(self):
         self.env(KINETTA_SIGNUP='open')

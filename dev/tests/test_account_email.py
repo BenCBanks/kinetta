@@ -1,9 +1,9 @@
 """Email on accounts and Forgot password (#232 A–C) against a disposable database; the mail provider is a stand-in."""
-import base64, os, re, unittest
+import base64, hmac, json, os, re, time, unittest
 from unittest.mock import patch
 import httpx
 from fastapi.testclient import TestClient
-from app import db, auth, account_email
+from app import db, auth, account_email, admin_mail
 from app.main import app
 
 PW = 'test account private password'
@@ -48,7 +48,8 @@ class AccountEmail(unittest.TestCase):
             c.execute('UPDATE profile SET friend_link=NULL WHERE user_id = ANY(%s)', (ids,))
             c.execute('''UPDATE users SET pw_hash=%s, email=NULL, email_verified_at=NULL,
                          needs_email_confirm=false, signup_guard=false, signup_confirmed_at=NULL,
-                         password_change_expires=NULL WHERE id=ANY(%s)''', (auth.hash_pw(PW), ids))
+                         password_change_expires=NULL, email_confirmation_reminder_count=0,
+                         email_confirmation_reminder_at=NULL WHERE id=ANY(%s)''', (auth.hash_pw(PW), ids))
 
     def client(self, login='zz_test_mail_a', password=PW):
         c = TestClient(app); c.headers['Origin'] = BASE
@@ -84,39 +85,6 @@ class AccountEmail(unittest.TestCase):
         self.assertIsNone(a.get('/api/me').json()['email'], 'not used before the link is opened')
         anon = TestClient(app); anon.headers['Origin'] = BASE
         self.assertEqual(anon.post('/api/login', json={'login': 'zz_a@example.test', 'password': PW}).status_code, 401)
-
-    def test_change_email_rejects_common_domain_typos(self):
-        a = self.client()
-        r = a.put('/api/account/email', json={'email': 'fictional@gmial.com', 'password': PW})
-        self.assertEqual(r.status_code, 400)
-        self.assertIn('Did you mean gmail.com?', r.json()['detail'])
-        r = a.put('/api/account/email', json={'email': 'fictional@example.con', 'password': PW})
-        self.assertEqual(r.status_code, 400)
-        self.assertIn('Did you mean .com?', r.json()['detail'])
-        self.assertEqual(self.mail.call_count, 0, 'a likely typo never receives a confirmation message')
-
-    def test_confirmation_reminders_are_spaced_and_capped_at_two(self):
-        self.client()
-        user = self.pending_account('zz_reminders@example.test')
-        with db.connect() as c:
-            c.execute("""UPDATE users SET created=now()-interval '4 days', email_confirmation_reminder_count=0,
-                         email_confirmation_reminder_at=NULL WHERE id=%s""", (user['id'],))
-        self.mail.reset_mock()
-        self.assertEqual(account_email.send_due_confirmation_reminders(), 1)
-        first = self.messages()[-1]
-        self.assertEqual(first['to'], ['zz_reminders@example.test'])
-        self.assertEqual(first['subject'], 'Please confirm your Kinetta email')
-        self.assertIn('/confirm-email/', first['text'])
-        self.assertEqual(account_email.send_due_confirmation_reminders(), 0, 'the second reminder waits two days')
-        with db.connect() as c:
-            c.execute("UPDATE users SET email_confirmation_reminder_at=now()-interval '2 days' WHERE id=%s", (user['id'],))
-        self.assertEqual(account_email.send_due_confirmation_reminders(), 1)
-        with db.connect() as c:
-            c.execute("UPDATE users SET email_confirmation_reminder_at=now()-interval '10 days' WHERE id=%s", (user['id'],))
-            count = c.execute('SELECT email_confirmation_reminder_count FROM users WHERE id=%s', (user['id'],)).fetchone()['email_confirmation_reminder_count']
-        self.assertEqual(count, 2)
-        self.assertEqual(account_email.send_due_confirmation_reminders(), 0, 'there is no third reminder')
-        self.assertEqual(self.mail.call_count, 2)
         token = self.link('confirm-email')
         r = anon.post('/api/account/email/confirm', json={'token': token}); self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(anon.post('/api/account/email/confirm', json={'token': token}).status_code, 404, 'single use')
@@ -286,6 +254,90 @@ class AccountEmail(unittest.TestCase):
                 self.assertFalse(c.execute("SELECT has_table_privilege('fit_readers', %s, 'SELECT') AS ok", (t,)).fetchone()['ok'])
                 self.assertTrue(c.execute('SELECT relrowsecurity FROM pg_class WHERE relname = %s', (t,)).fetchone()['relrowsecurity'])
             self.assertFalse(c.execute("SELECT count(*) AS n FROM account_tokens WHERE token_hash LIKE '%%-%%'").fetchone()['n'], 'only hashes stored')
+
+
+    def test_change_email_rejects_common_domain_typos(self):
+        a = self.client()
+        r = a.put('/api/account/email', json={'email': 'fictional@gmial.com', 'password': PW})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('Did you mean gmail.com?', r.json()['detail'])
+        self.assertIn('Keep my address', r.json()['detail'])
+        for ending in ('con', 'cmo', 'vom', 'cpm', 'ocm', 'comm', 'c'):
+            r = a.put('/api/account/email', json={'email': f'fictional@example.{ending}', 'password': PW})
+            self.assertEqual(r.status_code, 400, ending)
+        self.assertEqual(account_email.check_new_email('fictional@example.fr'), 'fictional@example.fr')
+        self.assertEqual(account_email.check_new_email('fictional@example.dev'), 'fictional@example.dev')
+        self.assertEqual(self.mail.call_count, 0, 'rejected addresses never receive a confirmation message')
+        r = a.put('/api/account/email', json={'email': 'fictional@gmial.com', 'password': PW, 'confirm_typo': True})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(r.json()['pending'], 'fictional@gmial.com', 'the server keeps the address the person explicitly chose')
+        self.assertEqual(self.mail.call_count, 1)
+
+    def test_stored_typo_email_can_confirm_resend_and_reset_without_enumeration(self):
+        anon = TestClient(app); anon.headers['Origin'] = BASE
+        self.pending_account('zz_stored@gmai.com')
+        unknown = anon.post('/api/account/email/resend', json={'login': 'nobody@example.test'})
+        pending = anon.post('/api/account/email/resend', json={'login': 'zz_stored@gmai.com'})
+        self.assertEqual(unknown.status_code, 200)
+        self.assertEqual(pending.status_code, 200)
+        self.assertEqual(pending.json(), unknown.json(), 'resend does not disclose a stored typo address')
+        self.assertEqual(self.messages()[-1]['to'], ['zz_stored@gmai.com'])
+        token = self.link('confirm-email')
+        confirmed = anon.post('/api/account/email/confirm', json={'token': token})
+        self.assertEqual(confirmed.status_code, 200, confirmed.text)
+        self.assertEqual(confirmed.json()['email'], 'zz_stored@gmai.com')
+
+        self.pending_account('zz_reset_stored@gmai.com', login='zz_test_mail_b')
+        unknown = anon.post('/api/password/forgot', json={'login': 'nobody@example.test'})
+        pending = anon.post('/api/password/forgot', json={'login': 'zz_reset_stored@gmai.com'})
+        self.assertEqual(unknown.status_code, 200)
+        self.assertEqual(pending.status_code, 200)
+        self.assertEqual(pending.json(), unknown.json(), 'forgot does not disclose a stored typo address')
+        self.assertEqual(self.messages()[-1]['to'], ['zz_reset_stored@gmai.com'])
+        token = self.link('reset-password')
+        self.assertEqual(anon.get('/api/password/reset/' + token).status_code, 200)
+        reset = anon.post('/api/password/reset', json={'token': token, 'password': 'new stored typo passphrase'})
+        self.assertEqual(reset.status_code, 200, reset.text)
+        self.assertTrue(reset.json()['email_confirmed'])
+
+    def test_confirmation_reminders_are_spaced_and_capped_at_two(self):
+        self.client()
+        user = self.pending_account('zz_reminders@example.test')
+        typo_user = self.pending_account('zz_reminder@gmai.com', login='zz_test_mail_b')
+        with db.connect() as c:
+            applied = c.execute('SELECT applied FROM schema_version WHERE version=109').fetchone()['applied']
+            c.execute("UPDATE schema_version SET applied=now()-interval '4 days' WHERE version=109")
+            c.execute("""UPDATE users SET created=now()-interval '5 days', email_confirmation_reminder_count=0,
+                         email_confirmation_reminder_at=NULL WHERE id=ANY(%s)""", ([user['id'], typo_user['id']],))
+        self.addCleanup(self.restore_reminder_migration_date, applied)
+        self.mail.reset_mock()
+        self.assertEqual(account_email.send_due_confirmation_reminders(), 0, 'accounts predating migration 109 are skipped')
+        with db.connect() as c:
+            c.execute("""UPDATE users SET created=now()-interval '3 days', email_confirmation_reminder_count=0,
+                         email_confirmation_reminder_at=NULL WHERE id=ANY(%s)""", ([user['id'], typo_user['id']],))
+        self.assertEqual(account_email.send_due_confirmation_reminders(), 1)
+        first = self.messages()[-1]
+        self.assertEqual(first['to'], ['zz_reminders@example.test'])
+        self.assertEqual(first['subject'], 'Please confirm your Kinetta email')
+        self.assertIn('/confirm-email/', first['text'])
+        with db.connect() as c:
+            typo = c.execute('SELECT email_confirmation_reminder_count,email_confirmation_reminder_at FROM users WHERE id=%s', (typo_user['id'],)).fetchone()
+            self.assertEqual(typo['email_confirmation_reminder_count'], 0, 'addresses with a recognized typo get no reminder')
+            self.assertIsNone(typo['email_confirmation_reminder_at'])
+        self.assertEqual(account_email.send_due_confirmation_reminders(), 0, 'the second reminder waits two days')
+        with db.connect() as c:
+            c.execute("UPDATE users SET email_confirmation_reminder_at=now()-interval '2 days' WHERE id=%s", (user['id'],))
+        self.assertEqual(account_email.send_due_confirmation_reminders(), 1)
+        with db.connect() as c:
+            c.execute("UPDATE users SET email_confirmation_reminder_at=now()-interval '10 days' WHERE id=%s", (user['id'],))
+            count = c.execute('SELECT email_confirmation_reminder_count FROM users WHERE id=%s', (user['id'],)).fetchone()['email_confirmation_reminder_count']
+        self.assertEqual(count, 2)
+        self.assertEqual(account_email.send_due_confirmation_reminders(), 0, 'there is no third reminder')
+        self.assertEqual(self.mail.call_count, 2)
+
+    def restore_reminder_migration_date(self, applied):
+        with db.connect() as c:
+            c.execute('UPDATE schema_version SET applied=%s WHERE version=109', (applied,))
 
 
 if __name__ == '__main__': unittest.main()

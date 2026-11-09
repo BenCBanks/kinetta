@@ -375,6 +375,7 @@ def invite_info(token: str):
 class JoinIn(NewAccountIn):
     token: str = Field(max_length=100)
     email: str | None = Field(None, max_length=120)      # invited people log in with their email too, once confirmed
+    confirm_typo: StrictBool = False
     age_ok: StrictBool = False
 
 
@@ -385,7 +386,7 @@ def require_signup_age(age_ok):
 @router.post('/api/join')
 def join(body: JoinIn, request: Request, response: Response, background: BackgroundTasks):
     from . import account_email
-    email = account_email._clean_email(body.email) if body.email and body.email.strip() else None
+    email = account_email.check_new_email(body.email, body.confirm_typo) if body.email and body.email.strip() else None
     require_signup_age(body.age_ok)
     ip = auth.client_ip(request)
     if auth.too_many(ip, 'join'): raise HTTPException(429, 'Too many tries - wait 15 minutes')

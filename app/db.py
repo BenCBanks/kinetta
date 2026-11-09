@@ -2160,10 +2160,13 @@ MIGRATIONS = [
        VALUES ('progress_calendar', false), ('progress_segments', false)
        ON CONFLICT (name) DO NOTHING;""",
 
-    # 109. Track at most two confirmation reminders for unconfirmed new accounts.
+    # 109. Track at most two confirmation reminders for new accounts and their provider bounce status.
     """ALTER TABLE users ADD COLUMN email_confirmation_reminder_count smallint NOT NULL DEFAULT 0
        CHECK (email_confirmation_reminder_count BETWEEN 0 AND 2);
-    ALTER TABLE users ADD COLUMN email_confirmation_reminder_at timestamptz;""",
+    ALTER TABLE users ADD COLUMN email_confirmation_reminder_at timestamptz;
+    UPDATE users SET email_confirmation_reminder_count=2 WHERE needs_email_confirm AND email_verified_at IS NULL;
+    ALTER TABLE account_tokens ADD COLUMN resend_id text, ADD COLUMN bounced_at timestamptz;
+    CREATE INDEX account_tokens_resend_id ON account_tokens (resend_id) WHERE resend_id IS NOT NULL;""",
 
 ]
 

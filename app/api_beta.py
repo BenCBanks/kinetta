@@ -31,6 +31,7 @@ class BetaIn(BaseModel):
     card_request: StrictBool = False
     name: str = Field(min_length=1, max_length=60)
     email: str = Field(min_length=3, max_length=120)
+    confirm_typo: StrictBool = False
     phone: Literal['iphone', 'android', 'other']
     watch: str | None = Field(None, max_length=60)
     note: str | None = Field(None, max_length=300)
@@ -45,7 +46,7 @@ def beta_open(): return {'open': enabled()}
 def beta_request(body: BetaIn, request: Request):
     if not enabled(): raise HTTPException(404, 'Not found')
     from . import account_email
-    email = account_email._clean_email(body.email)
+    email = account_email.check_new_email(body.email, body.confirm_typo)
     account_email.enrollment_limit(request, email, waitlist=True)
     if body.website: return {'ok': True}
     clean = lambda v: (v or '').strip() or None

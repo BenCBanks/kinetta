@@ -13,7 +13,7 @@ import secrets
 import time
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 from psycopg import errors
 from . import db, auth, admin_mail
 from .api_beta import EMAIL_RE
@@ -33,6 +33,9 @@ DOMAIN_TYPOS = {
     'icloud.con': 'icloud.com',
 }
 BAD_EMAIL_ENDINGS = {'con': 'com', 'cmo': 'com', 'vom': 'com'}
+COUNTRY_TLDS = frozenset('ad ae af ag ai al am ao aq ar as at au aw ax az ba bb bd be bf bg bh bi bj bl bm bn bo bq br bs bt bv bw by bz ca cc cd cf cg ch ci ck cl cm cn co cr cu cv cw cx cy cz de dj dk dm do dz ec ee eg eh er es et fi fj fk fm fo fr ga gb gd ge gf gg gh gi gl gm gn gp gq gr gs gt gu gw gy hk hm hn hr ht hu id ie il im in io iq ir is it je jm jo jp ke kg kh ki km kn kp kr kw ky kz la lb lc li lk lr ls lt lu lv ly ma mc md me mf mg mh mk ml mm mn mo mp mq mr ms mt mu mv mw mx my mz na nc ne nf ng ni nl no np nr nu nz om pa pe pf pg ph pk pl pm pn pr ps pt pw py qa re ro rs ru rw sa sb sc sd se sg sh si sj sk sl sm sn so sr ss st sv sx sy sz tc td tf tg th tj tk tl tm tn to tr tt tv tw tz ua ug um us uy uz va vc ve vg vi vn vu wf ws ye yt za zm zw'.split())
+COMMON_TLDS = frozenset('aero academy agency app art asia biz blog cafe camera careers cat charity church city cloud club com company computer coop design dev digital doctor email edu finance fitness flowers food fun games global gov group guru health homes house info int jobs law legal life link live mil mobi museum name net news online org page photography photo pizza place pro pub recipes run science services shop site social software solutions space store studio tech technology tel today travel tv university website wiki world xyz zone eu uk example invalid localhost test'.split())
+KNOWN_TLDS = COUNTRY_TLDS | COMMON_TLDS
 
 
 def email_suggestion(email):
@@ -50,12 +53,20 @@ def email_suggestion(email):
 def _clean_email(v):
     v = (v or '').strip().lower()
     if len(v) > 120 or not EMAIL_RE.fullmatch(v): raise HTTPException(400, 'Check the email address')
+    return v
+
+
+def check_new_email(v, confirm_typo=False):
+    """Validate a newly entered address; common domain suggestions need an explicit owner choice."""
+    v = _clean_email(v)
+    ending = v.rpartition('@')[2].rpartition('.')[2]
+    if ending in BAD_EMAIL_ENDINGS:
+        raise HTTPException(400, 'Did you mean .com? Check the email ending.')
+    if ending not in KNOWN_TLDS:
+        raise HTTPException(400, 'Check the email ending.')
     suggestion = email_suggestion(v)
-    if suggestion:
-        domain = v.rpartition('@')[2]
-        ending = domain.rpartition('.')[2]
-        label = '.com' if ending in BAD_EMAIL_ENDINGS else suggestion.rpartition('@')[2]
-        raise HTTPException(400, f'Check the email address. Did you mean {label}?')
+    if suggestion and not confirm_typo:
+        raise HTTPException(400, f"Did you mean {suggestion.rpartition('@')[2]}? Choose Keep my address to continue.")
     return v
 
 
@@ -133,6 +144,25 @@ def send(to, subject, text):
         return False      # the provider's answer may contain addresses or keys: never log it
 
 
+def send_confirmation(to, subject, text, token_hash):
+    """Send a confirmation message and remember its provider ID for a signed bounce event."""
+    cfg = admin_mail.settings()
+    if not cfg['ready']: return False
+    try:
+        r = httpx.post('https://api.resend.com/emails', headers={'Authorization': 'Bearer ' + db.secret('KINETTA_RESEND_KEY')},
+                       json={'from': cfg['sender'], 'to': [to], 'reply_to': cfg['reply_to'], 'subject': subject, 'text': text}, timeout=10)
+        if not r.is_success: return False
+        pid = r.json().get('id')
+        if isinstance(pid, str) and 0 < len(pid) <= 100:
+            with db.connect() as c:
+                c.execute("""UPDATE account_tokens SET resend_id=%s,
+                             bounced_at=CASE WHEN EXISTS (SELECT 1 FROM admin_mail_events WHERE provider_id=%s AND state='bounced') THEN now() ELSE NULL END
+                           WHERE token_hash=%s AND kind='verify_email' AND used_at IS NULL""", (pid, pid, token_hash))
+        return True
+    except (httpx.HTTPError, ValueError, TypeError, KeyError):
+        return False
+
+
 def _token(c, uid, kind, minutes, email=None):
     token = secrets.token_urlsafe(32)
     c.execute('DELETE FROM account_tokens WHERE user_id = %s AND kind = %s AND used_at IS NULL', (uid, kind))   # one live link each
@@ -162,12 +192,13 @@ def mail_ready():
 class EmailIn(BaseModel):
     email: str = Field(max_length=120)
     password: str = Field(max_length=200)
+    confirm_typo: StrictBool = False
 
 
 @router.put('/api/account/email')
 def set_email(body: EmailIn, request: Request, background: BackgroundTasks, user=Depends(current_user)):
     """Sends a confirmation link to the new address; the account uses it only after the link is opened."""
-    email = _clean_email(body.email)
+    email = check_new_email(body.email, body.confirm_typo)
     if not mail_ready(): raise HTTPException(503, 'Email isn’t set up on this Kinetta yet. Ask the person who runs it.')
     with db.connect() as c:
         hit = limited(c, f"email:{user['id']}", 5, 60)
@@ -196,7 +227,9 @@ def confirmation(background, c, uid, name, email, welcome=False):
     (welcome) also says Kinetta is in beta and how to get the iPhone app."""
     email = _clean_email(email)
     require_available(c, email, uid)
-    link = f"{_base()}/confirm-email/{_token(c, uid, 'verify_email', VERIFY_HOURS * 60, email)}"
+    token = _token(c, uid, 'verify_email', VERIFY_HOURS * 60, email)
+    token_hash = auth.token_hash(token)
+    link = f"{_base()}/confirm-email/{token}"
     app = iphone_app() if welcome else None
     # Written the way Ben talks (2026-10-24): short, plain, signed by the team, always "we". No stock phrases.
     beta = (f"\n\nKinetta is in beta, and the iPhone app is the best way to use it. It records your runs, rides and walks "
@@ -210,7 +243,7 @@ def confirmation(background, c, uid, name, email, welcome=False):
     else:
         subject, text = 'Confirm your new email for Kinetta', (f"Hi {name},\n\nTap this link to confirm {email} as your email for Kinetta:\n{link}\n\n"
             f"It works for {VERIFY_HOURS} hours. If you didn't ask for this, you can ignore this email.")
-    background.add_task(send, email, subject, text + SIGNATURE)
+    background.add_task(send_confirmation, email, subject, text + SIGNATURE, token_hash)
 
 
 def send_due_confirmation_reminders(limit=100):
@@ -221,20 +254,23 @@ def send_due_confirmation_reminders(limit=100):
         reservation_lock(c)
         rows = c.execute("""SELECT id, name, email::text AS email, email_confirmation_reminder_count AS sent
           FROM users WHERE needs_email_confirm AND email_verified_at IS NULL AND suspended_at IS NULL AND email IS NOT NULL
+            AND created >= (SELECT applied FROM schema_version WHERE version=109)
             AND ((email_confirmation_reminder_count=0 AND created<=now()-interval '1 day')
               OR (email_confirmation_reminder_count=1 AND email_confirmation_reminder_at<=now()-interval '2 days'))
           ORDER BY created, id LIMIT %s FOR UPDATE SKIP LOCKED""", (limit,)).fetchall()
         for user in rows:
+            if email_suggestion(user['email']): continue
             token = _token(c, user['id'], 'verify_email', VERIFY_HOURS * 60, user['email'])
+            token_hash = auth.token_hash(token)
             link = f"{_base()}/confirm-email/{token}"
             c.execute("""UPDATE users SET email_confirmation_reminder_count=email_confirmation_reminder_count+1,
                          email_confirmation_reminder_at=now()
                        WHERE id=%s AND needs_email_confirm AND email_verified_at IS NULL""", (user['id'],))
             messages.append((user['email'], 'Please confirm your Kinetta email',
                 f"Hi {user['name']},\n\nYour Kinetta account is waiting for you to confirm this email address. Open this link:\n{link}\n\n"
-                f"It works for {VERIFY_HOURS} hours. If you didn't sign up, you can ignore this email." + SIGNATURE))
-    for email, subject, text in messages:
-        send(email, subject, text)
+                f"It works for {VERIFY_HOURS} hours. If you didn't sign up, you can ignore this email." + SIGNATURE, token_hash))
+    for email, subject, text, token_hash in messages:
+        send_confirmation(email, subject, text, token_hash)
     return len(messages)
 
 
@@ -282,6 +318,17 @@ def confirm_email(body: TokenIn, request: Request, background: BackgroundTasks):
             f"Hi {r['name']},\n\nThe email on your Kinetta account ({r['login']}) is now {r['email']}. "
             "If that wasn't you, reply to this email and we'll help sort it out." + SIGNATURE)
     return {'ok': True, 'email': r['email'],'challenge_joined':joined}
+
+
+@router.get('/api/account/email/status')
+def confirmation_status(user=Depends(current_user)):
+    """Only the signed-in owner can learn whether their active confirmation message bounced."""
+    with db.connect() as c:
+        row = c.execute("""SELECT EXISTS (
+              SELECT 1 FROM account_tokens t JOIN users u ON u.id=t.user_id
+              WHERE u.id=%s AND t.kind='verify_email' AND t.used_at IS NULL AND t.bounced_at IS NOT NULL
+            ) AS bounced""", (user['id'],)).fetchone()
+    return {'bounced': bool(row['bounced'])}
 
 
 # ---------- resend confirmation ----------
