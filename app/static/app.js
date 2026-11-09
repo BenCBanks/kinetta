@@ -48,11 +48,13 @@ const FOOD_ROUTE_ASSET = '/static/food.js?v=__ASSET_HASH__';
 const KIT_ROUTE_ASSET = '/static/kit.js?v=__ASSET_HASH__';
 const PROGRESS_ROUTE_ASSET = '/static/progress-routes.js?v=__ASSET_HASH__';
 const SEGMENTS_ROUTE_ASSET = '/static/segments.js?v=__ASSET_HASH__';
+const PLANNER_ROUTE_ASSET = '/static/planner.js?v=__ASSET_HASH__';
 const COOK_ROUTE_ASSET = '/static/cook.js?v=__ASSET_HASH__';
 const RECIPE_IMPORT_ROUTE_ASSET = '/static/recipe-import.js?v=__ASSET_HASH__';
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: ['/static/welcome.js?v=__ASSET_HASH__']},
   {re: /^\/me\/explore$/, tab: 'track', scripts: ['/static/explore.js?v=__ASSET_HASH__']},
+  {re: /^\/routes(?:\/.*)?$/, tab: 'track', scripts: [PLANNER_ROUTE_ASSET]},
   {re: /^\/notifications$/, tab: null, scripts: ['/static/social-notifications.js?v=__ASSET_HASH__']},
   {re: /^\/me\/notifications$/, tab: 'me', scripts: ['/static/social-notifications.js?v=__ASSET_HASH__']},
   {re: /^\/food\/import$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, '/static/food-import.js?v=__ASSET_HASH__']},
@@ -61,7 +63,7 @@ const lazyRouteBundles = [
   {re: /^\/food(?:\/.*)?$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET]},
   {re: /^\/progress\/weight$/, tab: 'progress', scripts: [FOOD_ROUTE_ASSET]},
   {re: /^\/progress\/(?:routes|trends|calendar|heatmap)$/, tab: 'progress', scripts: [PROGRESS_ROUTE_ASSET]},
-  {re: /^\/(?:progress\/segments|segments(?:\/(?:review|new|\d+))?)$/, tab: 'progress', scripts: [SEGMENTS_ROUTE_ASSET]},
+  {re: /^\/(?:progress\/segments|segments(?:\/(?:review|new|\d+))?)$/, tab: 'progress', scripts: [PLANNER_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET]},
   {re: /^\/activity\/\d+$/, tab: 'activity', scripts: [SEGMENTS_ROUTE_ASSET]},
   {re: /^\/me\/sharing$/, tab: 'me', scripts: [SEGMENTS_ROUTE_ASSET]},
   {re: /^\/me\/kit$/, tab: 'me', scripts: [FOOD_ROUTE_ASSET, KIT_ROUTE_ASSET]},
@@ -88,6 +90,20 @@ function loadClassicScript(asset) {
 }
 function loadClassicScripts(assets) {
   return assets.reduce((ready, asset) => ready.then(() => loadClassicScript(asset)), Promise.resolve());
+}
+// Account deletion must clear route and segment drafts even though the map editor is deferred.
+// Keep this small eager cleanup owner-scoped; the full Planner bundle remains route-only.
+function clearSegmentDrafts() {
+  if (!App.me) return;
+  const server = serverKey(), id = App.me.id;
+  const prefix = `kinetta.planDraft:${server}:${id}:`;
+  for (const key of Object.keys(localStorage)) {
+    if (key.startsWith(prefix) || key === `kinetta.mapArea:${server}:${id}` ||
+        key === `kinetta.trackRoute:${server}:${id}` ||
+        key === `kinetta.routeDownloads:${JSON.stringify([Native.base || location.origin, id])}`) localStorage.removeItem(key);
+  }
+  sessionStorage.removeItem(`kinetta.segmentReview:${server}:${id}`);
+  if (typeof Segments !== 'undefined') Segments.pending = null;
 }
 let pendingDishEntry = null;
 async function loadNewDish(btn, where = null) {

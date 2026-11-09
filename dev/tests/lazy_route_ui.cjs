@@ -172,7 +172,7 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
  page.on('pageerror',error=>errors.push(error.message));
  await page.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
-  if(['/static/progress-routes.js','/static/segments.js'].includes(url.pathname)){
+  if(['/static/planner.js','/static/progress-routes.js','/static/segments.js'].includes(url.pathname)){
    assets.push(url.pathname);const attempts=assets.filter(path=>path===url.pathname).length;
    if(fail===url.pathname&&attempts===1)return route.abort();
    if(hold===url.pathname&&!heldOnce){heldOnce=true;signalHeld();await gate;}
@@ -669,8 +669,19 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
   try{
     await progressMe.page.goto(base+'/me');await ready(progressMe.page,meReady,'Me before Progress and Segments routes');
     assert.deepEqual(progressMe.assets,[],'secondary Progress routes and Segments are absent from initial Me');
+    assert.equal(await progressMe.page.evaluate(()=>typeof clearSegmentDrafts),'function','account cleanup stays eager without Planner');
     assert.equal(await progressMe.page.locator('script[src*="/static/segments.js"]').count(),0,'Segments has no eager script tag');
+    assert.equal(await progressMe.page.locator('script[src*="/static/planner.js"]').count(),0,'Planner has no eager script tag');
     assert.equal(await progressMe.page.evaluate(()=>App.pages.some(item=>item.re.test('/progress/trends'))),false,'secondary Progress routes register only after their bundle loads');
+    const cleanup=await progressMe.page.evaluate(()=>{
+      const server=serverKey(),id=App.me.id,other=String(id+1);
+      const mine=`kinetta.planDraft:${server}:${id}:segment-new`,foreign=`kinetta.planDraft:${server}:${other}:segment-new`;
+      localStorage.setItem(mine,'mine');localStorage.setItem(foreign,'foreign');localStorage.setItem(`kinetta.mapArea:${server}:${id}`,'mine-map');
+      localStorage.setItem(`kinetta.mapArea:${server}:${other}`,'foreign-map');sessionStorage.setItem(`kinetta.segmentReview:${server}:${id}`,'mine-review');
+      clearSegmentDrafts();
+      return {mine:localStorage.getItem(mine),foreign:localStorage.getItem(foreign),map:localStorage.getItem(`kinetta.mapArea:${server}:${id}`),foreignMap:localStorage.getItem(`kinetta.mapArea:${server}:${other}`),review:sessionStorage.getItem(`kinetta.segmentReview:${server}:${id}`)};
+    });
+    assert.deepEqual(cleanup,{mine:null,foreign:'foreign',map:null,foreignMap:'foreign-map',review:null},'Planner cleanup removes only the signed-in account drafts');
   }finally{await progressMe.context.close();}
 
   const directProgress=[
@@ -678,15 +689,16 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
     ['/progress/trends','/progress/trends','/static/progress-routes.js'],
     ['/progress/calendar','/progress/calendar','/static/progress-routes.js'],
     ['/progress/heatmap','/progress/heatmap','/static/progress-routes.js'],
-    ['/progress/segments','/progress/segments','/static/segments.js'],
+    ['/progress/segments','/progress/segments','/static/segments.js',['/static/planner.js','/static/segments.js']],
     ['/progress/weight','/progress/weight',null],
     ['/me/sharing','/me/sharing','/static/segments.js'],
-    ['/segments','/progress/segments','/static/segments.js'],
-    ['/segments/new','/segments/new','/static/segments.js'],
-    ['/segments/review','/progress/segments','/static/segments.js'],
-    ['/segments/999999','/segments/999999','/static/segments.js'],
+    ['/segments','/progress/segments','/static/segments.js',['/static/planner.js','/static/segments.js']],
+    ['/segments/new','/segments/new','/static/segments.js',['/static/planner.js','/static/segments.js']],
+    ['/segments/review','/progress/segments','/static/segments.js',['/static/planner.js','/static/segments.js']],
+    ['/segments/999999','/segments/999999','/static/segments.js',['/static/planner.js','/static/segments.js']],
+    ['/routes?view=segments','/progress/segments','/static/planner.js',['/static/planner.js','/static/segments.js']],
   ];
-  for(const [path,expected,asset] of directProgress){
+  for(const [path,expected,asset,ordered] of directProgress){
     const fixture=await progressFixture(browser);
     try{
       await fixture.page.goto(base+path,{waitUntil:'domcontentloaded'});
@@ -694,6 +706,7 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
       else await ready(fixture.page,'#page h1',`direct ${path}`);
       assert.equal(new URL(fixture.page.url()).pathname,expected,`${path} keeps its feature-on destination`);
       assert.equal(asset?fixture.assets.filter(file=>file===asset).length:0,asset?1:0,`${path} requests only its required lazy asset once`);
+      if(ordered)assert.deepEqual(fixture.assets,ordered,`${path} loads its dependencies in order`);
       assert.deepEqual(fixture.errors,[],`${path} has no page errors`);assert.deepEqual(fixture.writes,[],`${path} makes no unapproved writes`);
     }finally{await fixture.context.close();}
   }
@@ -712,7 +725,7 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
     assert.deepEqual(progressHistory.errors,[]);assert.deepEqual(progressHistory.writes,[]);
   }finally{await progressHistory.context.close();}
 
-  for(const [path,asset] of [['/progress/trends','/static/progress-routes.js'],['/progress/segments','/static/segments.js']]){
+  for(const [path,asset] of [['/progress/trends','/static/progress-routes.js'],['/progress/segments','/static/planner.js'],['/progress/segments','/static/segments.js']]){
     const retry=await progressFixture(browser,{fail:asset});
     try{
       await retry.page.goto(base+path,{waitUntil:'domcontentloaded'});await retry.page.locator('.lazy-route-error').waitFor();
@@ -720,6 +733,7 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
       await retry.page.locator('#lazy-route-retry').click();await ready(retry.page,'#page h1',`${path} after explicit retry`);
       assert.equal(new URL(retry.page.url()).pathname,path,`${path} stays on its feature-on route after retry`);
       assert.equal(retry.assets.filter(file=>file===asset).length,2,`${path} retries its failed lazy asset`);
+      if(asset==='/static/planner.js')assert.equal(retry.assets.filter(file=>file==='/static/segments.js').length,1,'Planner retry still loads Segments once after its dependency succeeds');
       assert.deepEqual(retry.errors,[]);assert.deepEqual(retry.writes,[]);
     }finally{await retry.context.close();}
   }

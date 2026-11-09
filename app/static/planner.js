@@ -44,7 +44,6 @@ const Plan = {
   bearing(a, b) { const r = Math.PI / 180, y = Math.sin((b[1] - a[1]) * r) * Math.cos(b[0] * r), x = Math.cos(a[0] * r) * Math.sin(b[0] * r) - Math.sin(a[0] * r) * Math.cos(b[0] * r) * Math.cos((b[1] - a[1]) * r); return (Math.atan2(y, x) / r + 360) % 360; },
 };
 
-// Remove retired route snapshots together with this account’s segment drafts.
 const planDraftKey = key => App.me ? `kinetta.planDraft:${serverKey()}:${App.me.id}:${key}` : null;
 // Shared default for browsing and drawing segments. Never reuse another account’s old global region.
 const MapArea = {
@@ -64,15 +63,6 @@ const MapArea = {
     }}catch{/* No area is an honest empty state, not an invented location. */}return null;
   }
 };
-// Erase device drafts only for this signed-in account/server. Legacy geometry stays in account exports.
-function clearSegmentDrafts() {
-  if(!App.me)return;
-  const prefix=planDraftKey(''),server=serverKey(),id=App.me.id;
-  for(const k of Object.keys(localStorage))if(k.startsWith(prefix)||k===MapArea.key()||k===`kinetta.trackRoute:${server}:${id}`||k===`kinetta.routeDownloads:${JSON.stringify([Native.base||location.origin,id])}`)localStorage.removeItem(k);
-  sessionStorage.removeItem(`kinetta.segmentReview:${server}:${id}`);
-  if(typeof Segments!=='undefined')Segments.pending=null;
-}
-
 // ---------- the map editor ----------
 const Planner = (() => {
   let S = null;      // {mode, key, sport, waypoints, legs[{mode, line, pts, rev, state}], snap, name, description, routeId, baseVersion, clientId}
