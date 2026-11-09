@@ -586,6 +586,18 @@ def _moment_sort_id(login, week_start):
     return -max(1, int.from_bytes(digest[:6], 'big'))
 
 
+def _achievement_badge(code, rank):
+    levels = (api_achievements._level_catalog().get('tracks', {}).get(code) or {}).get('levels') or []
+    if not levels:
+        return None
+    try:
+        index = min(max(1, int(rank)), len(levels)) - 1
+    except (TypeError, ValueError):
+        return None
+    icon = levels[index].get('icon')
+    return {'code': code, 'rank': int(rank), 'icon': icon} if icon else None
+
+
 def _friend_achievement_moments(c, viewer, owner_ids=None):
     q = f'''SELECT m.user_id,m.code,m.kind,m.title,m.rank,m.activity_id,m.day,m.occurred,m.details,
                    p.units,u.login::text AS owner_login,u.name AS owner_name,u.photo_v AS owner_photo
@@ -617,7 +629,8 @@ def _friend_achievement_moments(c, viewer, owner_ids=None):
         key = (row['user_id'], week_start)
         owner = {'login': row['owner_login'], 'name': row['owner_name'] or row['owner_login'], 'photo': row['owner_photo']}
         grouped.setdefault(key, {'owner': owner, 'tiers': []})['tiers'].append(
-            {'title': tier['title'] or tier['label'], 'occurred': row['occurred'], 'day': day, 'code': row['code'],
+            {'title': tier['title'] or tier['label'], 'occurred': row['occurred'], 'day': day,
+             'code': code, 'badge': _achievement_badge(code, tier.get('rank')),
              'is_track': row['kind'] == 'track'})
 
     out = []
@@ -628,7 +641,7 @@ def _friend_achievement_moments(c, viewer, owner_ids=None):
         out.append({'id': _moment_sort_id(owner['login'], week_start), 'kind': 'achievement_moment',
                     'week_start': week_start.isoformat(), 'start_time': primary['occurred'], 'day': primary['day'],
                     'title': primary['title'], 'extra_count': len(group['tiers']) - 1,
-                    'is_track': primary['is_track'], 'owner': owner,
+                    'is_track': primary['is_track'], 'badge': primary['badge'], 'owner': owner,
                     '_owner_id': owner_id, '_week_start': week_start})
     return out
 

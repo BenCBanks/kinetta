@@ -85,6 +85,13 @@ const assertRingText=async(container,label)=>{
  assert(metrics.length,`${label} includes medallion values`);
  assert(metrics.every(m=>m.fontSize>=10&&m.lines<=2&&m.fits),`${label} values stay within the medal at 10px or larger: ${JSON.stringify(metrics)}`);
 };
+const assertFeaturedRailInset=async(page,label)=>{
+ const inset=await page.locator('.me-featured-achievements .profile-achievement-list').evaluate(node=>{const style=getComputedStyle(node),rail=node.getBoundingClientRect(),card=node.closest('.me-card').getBoundingClientRect();return{width:innerWidth,left:rail.left-card.left,right:card.right-rail.right,end:parseFloat(style.marginRight),gap:parseFloat(style.columnGap),snapLeft:parseFloat(style.scrollPaddingLeft),snapRight:parseFloat(style.scrollPaddingRight)};});
+ assert(inset.left>=16&&inset.right>=(inset.width<=360?16:8)&&inset.end===(inset.width<=360?0:-8)&&inset.gap===4&&inset.snapLeft>=16&&inset.snapRight>=16,`${label} featured medals keep the Me-card side inset: ${JSON.stringify(inset)}`);
+ const rail=page.locator('.me-featured-achievements .profile-achievement-list'),third=rail.locator('.profile-achievement').nth(2);await third.scrollIntoViewIfNeeded();
+ const clearance=await third.evaluate(node=>{const rail=node.parentElement,card=node.closest('.me-card').getBoundingClientRect(),list=rail.getBoundingClientRect(),medal=node.querySelector('.profile-achievement-medallion'),badge=medal.querySelector('.profile-achievement-level'),medalBox=medal.getBoundingClientRect(),badgeBox=badge.getBoundingClientRect();return{badge:card.right-badgeBox.right,glow:card.right-(medalBox.right+20),railGlow:list.right-(medalBox.right+20)};});
+ assert(clearance.badge>=8&&clearance.glow>=8&&clearance.railGlow>=0,`${label} third medal's badge and glow remain clear when scrolled into view: ${JSON.stringify(clearance)}`);await rail.evaluate(node=>node.scrollTo({left:0,behavior:'instant'}));
+};
 const assertLargeTextFit=async(container,label)=>{
  const metrics=await container.locator('.profile-achievement-value').evaluateAll(nodes=>nodes.map(node=>{
   node.style.fontSize='22px';delete node.dataset.fitTextMax;const fontSize=window.KinettaTextFit.fitElement(node),range=document.createRange();range.selectNodeContents(node);
@@ -123,6 +130,8 @@ const assertCompactFallback=async(page,label)=>{
 };
 const assert330AchievementViews=async(page,base,setUnits,theme,shots)=>{
  await page.setViewportSize({width:330,height:844});await setUnits('metric');
+ await page.goto(base+'/people/fictional_friend');await page.locator('.me-featured-achievements .profile-achievement-list').waitFor();await assertFeaturedRailInset(page,'330px friend profile');
+ const featuredRail=page.locator('.me-featured-achievements .profile-achievement-list'),thirdMedal=featuredRail.locator('.profile-achievement').nth(2);await thirdMedal.scrollIntoViewIfNeeded();await screenshot(page,shots,`friend-profile-featured-330-third-${theme}`);await featuredRail.evaluate(node=>node.scrollTo({left:0,behavior:'instant'}));await screenshot(page,shots,`friend-profile-featured-330-${theme}`);
  await page.goto(base+'/people/alex');await page.locator('.profile-achievements .profile-achievement-list').waitFor();
  await assertRingText(page.locator('.profile-achievements'),'330px profile');await screenshot(page,shots,`achievement-profile-330-${theme}`);
  await assertLargeTextFit(page.locator('.profile-achievements'),'330px large-text profile');await assertCompactFallback(page,'330px profile');
@@ -145,7 +154,7 @@ const assert330AchievementViews=async(page,base,setUnits,theme,shots)=>{
 module.exports=async({browser,storageState,base,shots})=>{
  for(const theme of ['light','dark']){
   const context=await browser.newContext({storageState,viewport:{width:390,height:844},colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:SCREENSHOT_CLOCK.timezone});
-  const page=await context.newPage(),errors=[],writes=[],pinRequests=[];let journeyValue=6099414,workoutValue=1120,unitMode='imperial',unitLabelValues=null,showcasePins=[];
+  const page=await context.newPage(),errors=[],writes=[],pinRequests=[];let journeyValue=6099414,workoutValue=1120,unitMode='imperial',unitLabelValues=null,showcasePins=[],sharedShowcasePins=[],sharedShareEnabled=true;
   await page.clock.setFixedTime(SCREENSHOT_NOW);
   page.on('pageerror',e=>errors.push(e.message));
   await context.addInitScript(()=>{window.__achievementVibrations=0;const original=navigator.vibrate?.bind(navigator);navigator.vibrate=(...args)=>{window.__achievementVibrations++;return original?original(...args):false;};});
@@ -154,6 +163,8 @@ module.exports=async({browser,storageState,base,shots})=>{
    if(url.origin!==base)return route.abort();
    if(request.method()==='GET'&&url.pathname.endsWith('/profile.css')){const response=await route.fetch();return route.fulfill({response,body:(await response.text())+'\n'+stripCss});}
    if(request.method()==='GET'&&url.pathname==='/api/me'){const response=await route.fetch(),data=await response.json();data.units=unitMode;return route.fulfill({response,json:data});}
+   if(request.method()==='GET'&&url.pathname==='/api/people/fictional_friend/profile')return route.fulfill({json:{mine:false,person:{login:'fictional_friend',name:'Fictional River Friend',photo:'fixture-photo-v1',bio:''},status:'friends',friend_count:4,profile_hidden:false,layout:{sections:['totals'],stats:['activities','distance','time'],sports:[]},overview:{activities:18,distance_m:4828032,time_s:1281600,active_days:32},recent:null,mileage:{weeks:[]},sports:[],items:[],shared_count:18}});
+   if(request.method()==='GET'&&url.pathname==='/api/people/fictional_friend/photo')return route.fulfill({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#4778b8"/><circle cx="32" cy="25" r="12" fill="#f2cfaa"/><path d="M8 64c2-17 11-25 24-25s22 8 24 25" fill="#243d5e"/></svg>'});
    if(request.method()==='GET'&&url.pathname==='/api/achievements'){
     const data=JSON.parse(JSON.stringify(achievementFixture)),journey=data.tracks.find(t=>t.code==='journey'),workouts=data.tracks.find(t=>t.code==='workouts');
     if(journey){journey.value=journeyValue;journey.display_value=unitMode==='imperial'?journeyValue/1609.344:journeyValue/1000;journey.display_unit=unitMode==='imperial'?'mi':'km';}
@@ -161,9 +172,24 @@ module.exports=async({browser,storageState,base,shots})=>{
     for(const track of data.tracks)if(['journey','sport:run','sport:ride','sport:walk-hike','sport:swim'].includes(track.code)){const value=Number(track.value)||0;track.display_value=unitMode==='imperial'?value/1609.344:value/1000;track.display_unit=unitMode==='imperial'?'mi':'km';}
     for(const item of unitLabelValues||[]){const track=data.tracks.find(row=>row.code===item.code);if(track){track.display_value=item.value;track.display_unit=item.unit;}}
     for(const track of data.tracks)for(const item of track.tiers){const [shown,shownUnit]=displayHistoryTier(track.code,Number(item.threshold)||0,unitMode);item.unit=historyUnits[track.code]||item.unit;item.display_threshold=shown;item.display_unit=shownUnit;}
+    if(url.searchParams.has('login')){
+     if(!sharedShareEnabled)return route.fulfill({json:{pending:false,tracks:[]}});
+    const tracks=data.tracks.filter(track=>track.tiers.length).map(track=>{
+     const tiers=v2History(track.code,{journey:journeyValue,workouts:workoutValue}).tiers.map(item=>{const [display_threshold,display_unit]=displayHistoryTier(track.code,item.threshold,unitMode);return{rank:item.rank,label:item.name,title:item.name,day:item.day,threshold:item.threshold,unit:historyUnits[track.code]||track.display_unit,display_threshold,display_unit};});
+     return{code:track.code,label:track.label,level:tiers.at(-1)?.rank||0,unit:track.display_unit,tiers};
+    });
+     return route.fulfill({json:{pending:false,tracks}});
+    }
     return route.fulfill({json:data});
    }
-   if(request.method()==='GET'&&url.pathname==='/api/achievements/showcase')return route.fulfill({json:{items:[],pinned:showcasePins,day_streak:0}});
+   if(request.method()==='GET'&&url.pathname==='/api/achievements/showcase'){
+    if(url.searchParams.has('login')){
+     if(!sharedShareEnabled)return route.fulfill({json:{items:[],pinned:[],day_streak:0}});
+     const codes=sharedShowcasePins.length?sharedShowcasePins:['journey','workouts','lifted','sport:run'];
+     return route.fulfill({json:{items:codes.map(code=>{const rank=v2History(code,{journey:journeyValue,workouts:workoutValue}).tiers.at(-1)?.rank||0;return{code,rank,icon:catalog.tracks[code].levels[rank-1]?.icon};}),pinned:sharedShowcasePins,day_streak:0}});
+    }
+    return route.fulfill({json:{items:[],pinned:showcasePins,day_streak:0}});
+   }
    if(request.method()==='POST'&&url.pathname==='/api/achievements/showcase/pin'){
     const body=request.postDataJSON();pinRequests.push(body);let replaced=false;
     if(body.pinned){if(!showcasePins.includes(body.code)){if(showcasePins.length>=4){showcasePins.shift();replaced=true;}showcasePins.push(body.code);}}
@@ -172,7 +198,9 @@ module.exports=async({browser,storageState,base,shots})=>{
    }
    if(request.method()==='GET'&&url.pathname.startsWith('/api/achievement-history/')){
     const code=decodeURIComponent(url.pathname.slice('/api/achievement-history/'.length));
-    return route.fulfill({json:v2History(code,{'journey':journeyValue,'workouts':workoutValue})});
+    const history=v2History(code,{'journey':journeyValue,'workouts':workoutValue});
+    if(url.searchParams.has('login'))history.tiers=history.tiers.map(({rank,name,threshold,day})=>({rank,name,threshold,day}));
+    return route.fulfill({json:history});
    }
    if(!['GET','HEAD'].includes(request.method())){writes.push(url.pathname);return route.fulfill({json:{}});}
    return route.continue();
@@ -222,6 +250,33 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.equal(await page.evaluate(()=>window.__achievementVibrations),0,'a web level up does not vibrate');
   await page.locator('.profile-achievements').scrollIntoViewIfNeeded();
   await screenshot(page,shots,`achievement-profile-390-${theme}`);
+  await page.goto(base+'/people/fictional_friend');await page.locator('.me-featured-achievements').waitFor();
+  const featured=page.locator('.me-featured-achievements'),featuredTitle=featured.locator('h3.sec-head'),featuredLink=featured.locator('h3.sec-head a'),featuredRows=featured.locator('.profile-achievement-list:not(.is-grid) .profile-achievement');
+  await assertFeaturedRailInset(page,'390px friend profile');
+  assert.equal(await featuredTitle.locator('span').first().innerText(),'Featured','the friend section heading fits on one line');
+  const headingLines=await featuredTitle.locator('span').first().evaluate(node=>{const range=document.createRange();range.selectNodeContents(node);return new Set([...range.getClientRects()].map(rect=>Math.round(rect.top*2)/2)).size;});assert.equal(headingLines,1,'the friend section heading stays on one line');
+  assert.equal(await featuredLink.getAttribute('href'),'/people/fictional_friend?view=achievements','a friend’s card opens their read-only achievement page');
+  const linkColors=await featuredLink.evaluate(node=>{const probe=document.createElement('i');probe.style.color='var(--accent)';node.parentElement.append(probe);const expected=getComputedStyle(probe).color,actual=getComputedStyle(node).color;probe.remove();return{actual,expected};});assert.equal(linkColors.actual,linkColors.expected,'Achievements uses the same accent-blue link style as other section links');
+  assert.deepEqual(await featuredRows.evaluateAll(nodes=>nodes.map(node=>node.dataset.achievementCode)),['journey','workouts','lifted','sport:run'],'the public profile uses the automatic top four when no pins exist');
+  const thirdMedalClearance=await featuredRows.nth(2).evaluate(node=>{const medal=node.querySelector('.profile-achievement-medallion'),badge=medal.querySelector('.profile-achievement-level'),card=node.closest('.me-card').getBoundingClientRect(),medalBox=medal.getBoundingClientRect(),badgeBox=badge.getBoundingClientRect();return{badge:card.right-badgeBox.right,glow:card.right-(medalBox.right+20)};});assert(thirdMedalClearance.badge>=0&&thirdMedalClearance.glow>=0,`the third medal's level badge and glow fit inside the 390px card: ${JSON.stringify(thirdMedalClearance)}`);
+  const featuredVisual=await featuredRows.first().evaluate(node=>{const medal=node.querySelector('.profile-achievement-medallion'),rect=medal.getBoundingClientRect(),list=node.parentElement,style=getComputedStyle(list);return{width:rect.width,height:rect.height,level:medal.querySelector('.profile-achievement-level')?.textContent.trim(),value:medal.querySelector('.profile-achievement-value')?.textContent.trim(),name:node.querySelector('.profile-achievement-name')?.textContent.trim(),caption:node.querySelector('.profile-achievement-next')?.textContent.trim(),overflowX:style.overflowX,scrollWidth:list.scrollWidth,clientWidth:list.clientWidth,pageWidth:document.documentElement.scrollWidth,viewport:innerWidth};});
+  assert.deepEqual([featuredVisual.width,featuredVisual.height],[100,100],'friend medals match the large Me-card medallion size');assert.match(featuredVisual.level,/^Lv \d+$/);assert(featuredVisual.value&&featuredVisual.name,'friend medals show their earned value and track name');assert.match(featuredVisual.caption,/^Level \d+ · /,'the caption names only the earned level');assert.doesNotMatch(featuredVisual.caption,/Next|Coming up/,'the shared card does not reveal future progress');assert.equal(featuredVisual.overflowX,'auto');assert(featuredVisual.scrollWidth>featuredVisual.clientWidth,'four large medals stay in a horizontal rail');assert(featuredVisual.pageWidth<=featuredVisual.viewport+1,'the large medal rail does not widen the page');
+  assert(await page.locator('.me-card-avatar .av img').evaluate(node=>node.complete&&node.naturalWidth>0),'the friend profile displays its fictional author photo');
+  if(shots)await page.screenshot({path:path.join(shots,`friend-profile-featured-390-${theme}.png`),fullPage:true,animations:'disabled'});
+  await featuredLink.click();await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+  assert.equal(await page.locator('#profile-achievement-page .profile-achievement-list.is-grid .profile-achievement').count(),13,'the shared read-only page lists every earned track');
+  assert.equal(await page.locator('#profile-achievement-page [data-showcase-pin-action],#profile-achievement-page [data-showcase-eligible],#profile-achievement-page [data-achievement-progress]').count(),0,'the shared page exposes no pin controls or future progress');
+  await page.locator('#profile-achievement-page [data-achievement-code="journey"]').click();await page.locator('#profile-achievement-page .profile-achievement-history-head[data-achievement-code="journey"]').waitFor();await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+  const sharedRows=page.locator('#profile-achievement-page .profile-achievement-level-row'),sharedRowCount=await sharedRows.count();
+  const expectedSharedJourneyLevels=v2History('journey',{journey:journeyValue,workouts:workoutValue}).tiers.length;
+  assert.equal(sharedRowCount,expectedSharedJourneyLevels,`a shared track shows only its earned levels: ${JSON.stringify({url:page.url(),expectedSharedJourneyLevels,content:(await page.locator('#profile-achievement-page').innerText()).slice(0,300)})}`);
+  assert.equal(await page.locator('#profile-achievement-page .profile-achievement-level-row.is-upcoming,#profile-achievement-page .profile-achievement-level-row.is-next').count(),0,'future levels stay private');
+  assert.equal(await page.locator('#profile-achievement-page a[href^="/activity/"]').count(),0,'shared earned levels never link to an activity');
+  sharedShowcasePins=['workouts','journey'];await page.goto(base+'/people/fictional_friend');await page.locator('.me-featured-achievements').waitFor();
+  assert.deepEqual(await page.locator('.me-featured-achievements .profile-achievement-list:not(.is-grid) .profile-achievement').evaluateAll(nodes=>nodes.map(node=>node.dataset.achievementCode)),['workouts','journey'],'the friend’s pins override automatic medals');
+  sharedShareEnabled=false;await page.reload();await page.locator('.me-card-sections[aria-busy="false"]').waitFor();
+  assert.equal(await page.locator('.me-featured-achievements').count(),0,'turning achievement sharing off removes the featured section');
+  sharedShareEnabled=true;sharedShowcasePins=[];
   if(process.env.KINETTA_ACHIEVEMENT_FIT_ONLY==='1'){await assert330AchievementViews(page,base,setUnits,theme,shots);await context.close();continue;}
   let levelUpAnimations=0;
   if(theme==='light'&&shots){

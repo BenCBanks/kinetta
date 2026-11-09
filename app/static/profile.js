@@ -172,6 +172,13 @@ const ProfileLayout=(()=>{
   function achievementValue(track){
     return achievementQuantity(track.display_value,track.display_unit||'');
   }
+  function sharedAchievementTracks(data){
+    return (Array.isArray(data?.tracks)?data.tracks:[]).map(track=>{
+      const earned=(Array.isArray(track?.tiers)?track.tiers:[]).filter(tier=>Number.isInteger(Number(tier?.rank))&&Number(tier.rank)>0).sort((a,b)=>Number(a.rank)-Number(b.rank)),current=earned.at(-1),rank=Number(current?.rank),tier=rank?achievementTierAt(track.code,rank):null;
+      if(!current||!tier)return null;
+      return {...track,level:rank,value:Number(current.threshold??achievementCanonicalThreshold(tier)),display_value:Number(current.display_threshold??tier.display_value),display_unit:current.display_unit||track.unit||tier.canonical_unit,tiers:earned};
+    }).filter(Boolean);
+  }
   function achievementNext(track){
     const tier=achievementTierAt(track.code,achievementLevel(track)+1);if(tier)return tier.name;
     const next=track.next;if(!next)return '';
@@ -227,6 +234,11 @@ const ProfileLayout=(()=>{
     const hasTail=tailOpen&&level>=count,tailStart=level>count?level:count+1,tailRows=hasTail?Array.from({length:4},(_,i)=>achievementTierAt(track.code,tailStart+i)).filter(Boolean):[];
     return `<section class="profile-achievement-levels" aria-labelledby="profile-achievement-levels-title"><h2 class="sec-head" id="profile-achievement-levels-title">Levels</h2><ol class="profile-achievement-named-levels" aria-label="All named achievement levels">${named.map(tier=>achievementLevelRow(track,tier,level,earnedTiers)).join('')}</ol>${tailRows.length?`<ol class="profile-achievement-tail-levels" aria-label="Repeating levels">${tailRows.map(tier=>achievementLevelRow(track,tier,level,earnedTiers)).join('')}</ol><button class="profile-achievement-more" type="button" data-achievement-show-more data-next-level="${tailStart+4}">Show more</button>`:''}</section>`;
   }
+  function sharedAchievementLevelList(track,historyData){
+    const earned=new Map((Array.isArray(historyData?.tiers)?historyData.tiers:[]).map(row=>[Number(row.rank),{day:String(row.day||'')}]).filter(([rank])=>Number.isInteger(rank)&&rank>0));
+    const levels=[...earned.keys()].sort((a,b)=>a-b).map(rank=>achievementTierAt(track.code,rank)).filter(Boolean);
+    return levels.length?`<section class="profile-achievement-levels" aria-labelledby="profile-achievement-levels-title"><h2 class="sec-head" id="profile-achievement-levels-title">Earned levels</h2><ol class="profile-achievement-named-levels" aria-label="Earned achievement levels">${levels.map(tier=>achievementLevelRow(track,tier,achievementLevel(track),earned)).join('')}</ol></section>`:'<p class="small muted">No earned levels to show.</p>';
+  }
   function wireAchievementLevelList(box,track,level,historyData){
     const section=box.querySelector('.profile-achievement-levels');if(!section)return;
     const more=section.querySelector('[data-achievement-show-more]');
@@ -271,6 +283,18 @@ const ProfileLayout=(()=>{
       const id=`profile-achievement-group-${section.id}`;
       return `<section class="profile-achievement-group" aria-labelledby="${id}"><h2 class="sec-head profile-achievement-group-title" id="${id}">${section.title}</h2><div class="profile-achievement-list is-grid" role="list" aria-labelledby="${id}">${grouped.map(track=>achievementRow(track,levelUps,pinnedCodes,true)).join('')}</div></section>`;
     }).join('');
+  }
+  function sharedAchievementGrid(tracks,login){
+    return achievementSections.map(section=>{
+      const grouped=tracks.filter(track=>section.codes.includes(track.code)).sort((a,b)=>achievementDay(b).localeCompare(achievementDay(a))||achievementLevel(b)-achievementLevel(a));
+      if(!grouped.length)return '';
+      const id=`profile-achievement-group-${section.id}`;
+      return `<section class="profile-achievement-group" aria-labelledby="${id}"><h2 class="sec-head profile-achievement-group-title" id="${id}">${section.title}</h2><div class="profile-achievement-list is-grid" role="list" aria-labelledby="${id}">${grouped.map(track=>sharedAchievementRow(track,login)).join('')}</div></section>`;
+    }).join('');
+  }
+  function sharedAchievementRow(track,login){
+    const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),tier=achievementCurrentTier(track),href=`/people/${encodeURIComponent(login)}?view=achievements&track=${encodeURIComponent(track.code)}`;
+    return `<a class="profile-achievement" role="listitem" href="${esc(href)}" aria-label="${esc(`${label}, Level ${level}${tier?`, ${tier.name}`:''}, ${achievementValue(track)}`)}" data-achievement-code="${esc(track.code)}">${achievementMedallion(track)}<span class="profile-achievement-name">${esc(label)}</span><span class="profile-achievement-next">${esc(`Level ${level}${tier?` · ${tier.name}`:''}`)}</span></a>`;
   }
   function achievementMedallion(track){
     const started=achievementTrackStarted(track),ratio=achievementProgress(track),circumference=2*Math.PI*47,ring=(ratio*circumference).toFixed(1),showProgressRing=started&&Math.round(ratio*100)>0,level=achievementLevel(track),value=started?achievementMedalValue(track):'',tier=achievementCurrentTier(track)||achievementTierAt(track.code,1);
@@ -325,7 +349,7 @@ const ProfileLayout=(()=>{
     return `<span class="me-showcase-row" role="img" aria-label="${streak}-day activity streak"><span class="me-showcase-streak" aria-hidden="true">${svg('flame')}<span>${streak}-day streak</span></span></span>`;
   }
   const featuredContexts={journey:'All-sport distance','sport:run':'Total running distance','sport:ride':'Total cycling distance','sport:walk-hike':'Walking & hiking distance','sport:swim':'Total swimming distance','sport:lift':'Lift sessions',workouts:'Workouts completed',active_time:'Active time',consistency:'Weeks with a workout',years_active:'Years active',climbing:'Elevation climbed',lifted:'Weight lifted',personal_bests:'Personal bests'};
-  function featuredShowcaseMarkup(showcase,achievementData){
+  function featuredShowcaseMarkup(showcase,achievementData,{sharedLogin=''}={}){
     const pinned=new Set((Array.isArray(showcase?.pinned)?showcase.pinned:[]).map(String)),tracks=new Map((Array.isArray(achievementData?.tracks)?achievementData.tracks:[]).map(track=>[String(track?.code||''),track]));
     // The server's item order is the automatic top-four selection when no pins exist.
     // Once someone pins anything, the server returns that ordered set instead.
@@ -333,9 +357,16 @@ const ProfileLayout=(()=>{
       const code=String(item?.code||''),rank=Number(item?.rank),track=tracks.get(code);
       if(!code||!Number.isInteger(rank)||rank<1||!track)return null;
       const tier=achievementTierAt(code,rank),value=achievementValue(track),context=featuredContexts[code]||track.label||code;
-      return tier&&value?{code,name:tier.name,value,context,icon:achievementAsset(tier,'me-featured-icon')}:null;
+      return tier&&value?{code,name:tier.name,value,context,icon:achievementAsset(tier,'me-featured-icon'),track}:null;
     }).filter(Boolean);
-    const heading='<h3 class="me-featured-title"><span>Featured achievements</span><a href="/me/achievements">Achievements <span aria-hidden="true">›</span></a></h3>';
+    if(sharedLogin&&!items.length)return '';
+    const href=sharedLogin?`/people/${encodeURIComponent(sharedLogin)}?view=achievements`:'/me/achievements';
+    if(sharedLogin){
+      const heading=`<h3 class="sec-head"><span>Featured</span><a href="${esc(href)}">Achievements <span aria-hidden="true">›</span></a></h3>`;
+      const rail=`<div class="profile-achievement-list" role="list" aria-label="Featured achievements">${items.map(item=>sharedAchievementRow(item.track,sharedLogin)).join('')}</div>`;
+      return `<div class="me-featured-achievements" role="group" aria-label="Featured achievements">${heading}${rail}</div>`;
+    }
+    const heading=`<h3 class="me-featured-title"><span>Featured achievements</span><a href="${esc(href)}">Achievements <span aria-hidden="true">›</span></a></h3>`;
     const grid=items.length?`<div class="me-featured-grid count-${items.length}" role="list">${items.map(item=>`<div class="me-featured-item" role="listitem" data-showcase-code="${esc(item.code)}" aria-label="${esc(`${item.name}, ${item.value}, ${item.context}`)}"><span class="me-featured-medal" data-showcase-code="${esc(item.code)}" aria-hidden="true">${item.icon}</span><b class="me-featured-value">${esc(item.value)}</b><span class="me-featured-context">${esc(item.context)}</span></div>`).join('')}</div>`:'';
     return `<div class="me-featured-achievements" role="group" aria-label="Featured achievements">${heading}${grid}</div>`;
   }
@@ -399,12 +430,15 @@ const ProfileLayout=(()=>{
       const featureSlot=root?.querySelector?.('[data-me-featured]'),streakSlot=root?.querySelector?.('[data-me-showcase-streak]');
       if(!featureSlot&&!streakSlot)return;
       if(featureSlot?.dataset.loaded==='true'&&(!streakSlot||streakSlot.dataset.loaded==='true'))return;
+      if(featureSlot?.dataset.loading==='true')return;
+      const sharedProfile=r?.mine===false,login=r?.person?.login||r?.login||'';
+      if(sharedProfile&&!login)return;
       const owner=readOwner();if(featureSlot)featureSlot.dataset.loading='true';
       try{
-        const [data,_catalog,achievements,sharing]=await Promise.all([api('/api/achievements/showcase'),loadAchievementCatalog(),api('/api/achievements'),api('/api/sharing')]);
+        const query=sharedProfile?`?login=${encodeURIComponent(login)}`:'', [data,_catalog,achievements,sharing]=await Promise.all([api('/api/achievements/showcase'+query),loadAchievementCatalog(),api('/api/achievements'+query),sharedProfile?Promise.resolve(null):api('/api/sharing')]);
         if(!root.isConnected||owner!==readOwner()||featureSlot&&!featureSlot.isConnected||streakSlot&&!streakSlot.isConnected)return;
         if(streakSlot){streakSlot.innerHTML=showcaseStreakMarkup(data);streakSlot.dataset.loaded='true';}
-        if(featureSlot){featureSlot.innerHTML=sharing?.share_achievements===true?featuredShowcaseMarkup(data,achievements):'';fitFeaturedValues(featureSlot);featureSlot.dataset.loading='';featureSlot.dataset.loaded='true';}
+        if(featureSlot){const sharedData=sharedProfile?{tracks:sharedAchievementTracks(achievements)}:achievements;featureSlot.innerHTML=sharedProfile?featuredShowcaseMarkup(data,sharedData,{sharedLogin:login}):sharing?.share_achievements===true?featuredShowcaseMarkup(data,sharedData):'';fitFeaturedValues(featureSlot);featureSlot.dataset.loading='';featureSlot.dataset.loaded='true';}
       }catch(_){if(featureSlot)featureSlot.dataset.loading='';/* Achievements never block the Me card. */}
       return;
     }
@@ -431,37 +465,36 @@ const ProfileLayout=(()=>{
       achievementLevelUpHaptic(levelUps);
     }).catch(()=>{});
   }
-  function achievementPage(el,requestedCode=''){
-    const owner=readOwner(),code=requestedCode?decodeURIComponent(requestedCode):'',profile=profileHref(App.me),active=()=>el.isConnected&&owner===readOwner();
+  function achievementPage(el,requestedCode='',options={}){
+    const owner=readOwner(),code=requestedCode?decodeURIComponent(requestedCode):'',sharedLogin=String(options.login||''),shared=!!sharedLogin,profile=options.returnPath||profileHref(App.me),active=()=>el.isConnected&&owner===readOwner(),query=shared?`?login=${encodeURIComponent(sharedLogin)}`:'';
     el.innerHTML=`<div class="top">${backBtn('Profile')}</div><div id="profile-achievement-page" aria-busy="true"><h1>${code?'Achievement history':'Achievements'}</h1><p class="small muted">Loading…</p></div>`;
-    wireBack(el,profile,destination=>/^\/me\/achievements(?:\/|$|\?)/.test(destination.path)?'Achievements':'Profile');
+    wireBack(el,profile,destination=>/^\/me\/achievements(?:\/|\?|$)/.test(destination.path)?'Achievements':'Profile');
     const box=$('#profile-achievement-page',el);
-    Promise.all([api('/api/achievements'),loadAchievementCatalog(),code?api('/api/achievement-history/'+encodeURIComponent(code)):Promise.resolve(null),code?Promise.resolve({}):api('/api/achievements/showcase').catch(()=>({}))]).then(([data,_catalog,historyData,showcase])=>{
+    Promise.all([api('/api/achievements'+query),loadAchievementCatalog(),code?api('/api/achievement-history/'+encodeURIComponent(code)+query):Promise.resolve(null),code?Promise.resolve({}):api('/api/achievements/showcase'+query).catch(()=>({}))]).then(([data,_catalog,historyData,showcase])=>{
       if(!active()||!box.isConnected)return;
-      const tracks=startedAchievements(data),track=code?(tracks.find(t=>t.code===code)||emptyAchievementTrack(code)):null;
+      const tracks=shared?sharedAchievementTracks(data):startedAchievements(data),track=code?(tracks.find(t=>t.code===code)||(!shared&&emptyAchievementTrack(code))):null;
       if(code&&!track){box.innerHTML='<h1>Achievements</h1><p class="small muted">This track has no earned tiers yet.</p>';box.setAttribute('aria-busy','false');return;}
       if(!code){
-        const levelUps=achievementLevelUps(data),overviewTracks=overviewAchievementTracks(data);
-        const pinnedCodes=new Set((Array.isArray(showcase?.pinned)?showcase.pinned:[]).map(String)),groups=achievementGrid(overviewTracks,levelUps,pinnedCodes);
+        const levelUps=shared?new Set():achievementLevelUps(data),overviewTracks=shared?tracks:overviewAchievementTracks(data);
+        const pinnedCodes=new Set((Array.isArray(showcase?.pinned)?showcase.pinned:[]).map(String)),groups=shared?sharedAchievementGrid(overviewTracks,sharedLogin):achievementGrid(overviewTracks,levelUps,pinnedCodes);
         box.innerHTML=`<h1>Achievements</h1>${groups||'<p class="small muted">No earned achievements yet.</p>'}`;
         fitAchievementValues(box);
-        fitAchievementProgress(box);
-        wireAchievementPins(box,pinnedCodes);
-        achievementLevelUpHaptic(levelUps);
+        if(!shared){fitAchievementProgress(box);wireAchievementPins(box,pinnedCodes);achievementLevelUpHaptic(levelUps);}
         box.setAttribute('aria-busy','false');return;
       }
-      const levelUps=achievementLevelUps(data),label=track.label||track.code,value=achievementValue(track),next=achievementNext(track),level=achievementLevel(track),current=achievementCurrentTier(track),started=achievementTrackStarted(track);
-      box.innerHTML=`<div class="profile-achievement-history-head${!started?' is-unstarted':''}${levelUps.has(track.code)?' is-level-up':''}" data-achievement-code="${esc(track.code)}">${achievementMedallion(track)}<div class="profile-achievement-history-copy"><h1>${esc(label)}</h1><p class="profile-achievement-current">${started?`Level ${level}${current?` · ${esc(current.name)}`:''}`:'Not started'}</p>${started?`<p class="profile-achievement-current-value">${esc(value)}</p>${next?`<p class="profile-achievement-next-tier">Next · ${esc(next)}</p>`:''}`:''}</div></div>${achievementLevelList(track,level,historyData)}`;
-      wireAchievementLevelList(box,track,level,historyData);
+      const levelUps=shared?new Set():achievementLevelUps(data),label=track.label||track.code,value=achievementValue(track),next=achievementNext(track),level=achievementLevel(track),current=achievementCurrentTier(track),started=achievementTrackStarted(track);
+      const header=shared?`<div class="profile-achievement-history-head" data-achievement-code="${esc(track.code)}">${achievementMedallion(track)}<div class="profile-achievement-history-copy"><h1>${esc(label)}</h1><p class="profile-achievement-current">Level ${level}${current?` · ${esc(current.name)}`:''}</p><p class="profile-achievement-current-value">${esc(value)}</p></div></div>`:`<div class="profile-achievement-history-head${!started?' is-unstarted':''}${levelUps.has(track.code)?' is-level-up':''}" data-achievement-code="${esc(track.code)}">${achievementMedallion(track)}<div class="profile-achievement-history-copy"><h1>${esc(label)}</h1><p class="profile-achievement-current">${started?`Level ${level}${current?` · ${esc(current.name)}`:''}`:'Not started'}</p>${started?`<p class="profile-achievement-current-value">${esc(value)}</p>${next?`<p class="profile-achievement-next-tier">Next · ${esc(next)}</p>`:''}`:''}</div></div>`;
+      box.innerHTML=`${header}${shared?sharedAchievementLevelList(track,historyData):achievementLevelList(track,level,historyData)}`;
+      if(!shared)wireAchievementLevelList(box,track,level,historyData);
       fitAchievementValues(box);
       fitAchievementProgress(box);
-      achievementLevelUpHaptic(levelUps);
+      if(!shared)achievementLevelUpHaptic(levelUps);
       box.setAttribute('aria-busy','false');
     }).catch(error=>{
       if(!active()||!box.isConnected)return;
       box.innerHTML=`<h1>Achievements</h1><p class="small err" role="alert">${esc(error?.message||'Achievements are unavailable.')}</p><button class="ghost" type="button" data-achievement-retry>Try again</button>`;
       box.setAttribute('aria-busy','false');
-      $('[data-achievement-retry]',box).onclick=()=>achievementPage(el,requestedCode);
+      $('[data-achievement-retry]',box).onclick=()=>achievementPage(el,requestedCode,options);
     });
   }
   function numbers(row,selected){
@@ -495,7 +528,7 @@ const ProfileLayout=(()=>{
   function mount(box,r){
     const chart=box.querySelector('[data-profile-mileage]');
     if(chart)mileageChart(chart,r.mileage||{},'days',{shared:true});
-    mountShowcase(box,r);feedMaps(box);wireCheers(box);mountAchievements(box,r);
+    mountShowcase(box,r,{featured:r?.mine===false});feedMaps(box);wireCheers(box);mountAchievements(box,r);
   }
   return {defaults,normalize,singlePeriod,numbers,content,mount,mountShowcase,featuredOptions,distance,hours,labels:{sections,stats},sports,achievementPage};
 })();
@@ -507,9 +540,9 @@ const MeCard=(()=>{
   const short=d=>fdate(d+'T12:00',{month:'short',day:'numeric'});
   // The card itself, shared by Me and every profile page (Ben, 30 Oct 2026: the full profile is this card at full size,
   // then the shared activities). Friends shares the handle row without changing its audience or destination.
-  function card(p,{mine=false,pills='',friends='',link=false,milestones=false,showBio=true}={}){
+  function card(p,{mine=false,pills='',friends='',link=false,milestones=false,showBio=true,featured=false}={}){
     const bio=showBio?(p.bio||'').trim():'',photo=avatar(p,'lg'),name=esc(p.name||p.login),handle=`<span data-type="secondary">@${esc(p.login)}</span>`;
-    const showcase=mine?'<span class="me-showcase-streak-slot" data-me-showcase-streak></span>':'<span class="me-showcase-slot" data-me-showcase></span>';
+    const showcase=mine?'<span class="me-showcase-streak-slot" data-me-showcase-streak></span>':featured?'':'<span class="me-showcase-slot" data-me-showcase></span>';
     const initials=((p.name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase()||'?');
     const identity=link
       ? `<span class="me-card-profile-link"><span class="me-card-avatar">${photo}</span><span class="me-card-name"><span class="me-card-name-heading"><h2>${name}</h2><span class="me-profile-chevron" aria-hidden="true">${svg('chev')}</span></span>${showcase}<span class="me-card-meta">${handle}</span></span></span>${friends}`
@@ -518,7 +551,7 @@ const MeCard=(()=>{
     return `<section class="me-card${link?' me-card-open':''}" aria-label="${mine?'Your profile card':esc(p.name||p.login)+'’s profile card'}">${openProfile}<div class="me-card-banner">${pills}</div>
       <div class="me-card-body"><div class="me-card-id${link?' me-card-id-link':''}">${identity}</div>
         ${bio?bio.length>140?`<details class="me-about"><summary>About me</summary><p>${esc(bio)}</p></details>`:`<p class="me-profile-bio">${esc(bio)}</p>`:''}
-        <div class="me-card-sections" aria-busy="true">${skel(1)}</div>
+        <div class="me-card-sections" aria-busy="true">${skel(1)}</div>${featured?'<div class="me-featured-slot" data-me-featured></div>':''}
         ${milestones?'<div data-me-milestones hidden></div>':''}</div></section>`;
   }
   const paintBars=box=>$$('.me-card-bars span[data-h]',box).forEach(bar=>bar.style.height=(bar.dataset.h==='0'?'0':Math.max(4,bar.dataset.h*5))+'px');

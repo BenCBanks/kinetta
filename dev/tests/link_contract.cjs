@@ -28,7 +28,8 @@ function intention(link,base,registry,login){
  }
  if(pathname==='/admin')return {kind:'document',url};
  if(!registry.some(route=>new RegExp(route.source,route.flags).test(pathname))&&!Object.hasOwn(redirects,pathname))return fail('unregistered route would render the unknown-route fallback');
- if(q.has('view')&&!Object.hasOwn(views[pathname]||{},q.get('view')))return fail('unsupported view='+q.get('view'));
+ const sharedAchievementView=/^\/people\/[^/]+$/.test(pathname)&&q.get('view')==='achievements';
+ if(q.has('view')&&!Object.hasOwn(views[pathname]||{},q.get('view'))&&!sharedAchievementView)return fail('unsupported view='+q.get('view'));
  if(pathname==='/progress'&&q.has('section')&&q.get('section')!=='food')return fail('unsupported Progress section');
  if(q.has('foodview')&&(pathname!=='/progress'||q.get('section')!=='food'))return fail('foodview requires the Progress food section');
  if(q.has('foodview')&&!foodProgressViews.has(q.get('foodview')))return fail('unsupported foodview='+q.get('foodview'));
@@ -54,7 +55,7 @@ function intention(link,base,registry,login){
  if(pathname==='/food'&&q.get('view')==='weight')canonical='/progress/weight';
  if(/^\/lift\/\d+$/.test(pathname))canonical=pathname.replace('/lift/','/track/lift/');
  const defaultOffProgressView=pathname==='/progress'&&['calendar','segments'].includes(q.get('view'));
- const heading=dialog?.heading||(addFood?'Add food':canonical===ownProfile&&!q.has('preview')?'Your profile':defaultOffProgressView?headings['/progress']:q.has('view')?views[pathname][q.get('view')]:q.get('section')==='food'?views['/food'][q.get('foodview')||'overview']:pathname==='/food/trends'?'Insights':headings[canonical]);
+ const heading=dialog?.heading||(addFood?'Add food':canonical===ownProfile&&!q.has('preview')?'Your profile':defaultOffProgressView?headings['/progress']:sharedAchievementView?(q.get('track')?'Achievement history':'Achievements'):q.has('view')?views[pathname][q.get('view')]:q.get('section')==='food'?views['/food'][q.get('foodview')||'overview']:pathname==='/food/trends'?'Insights':headings[canonical]);
  const segmentReview=canonical==='/segments/review';
  return {kind:'page',url,canonical,heading:segmentReview?'Review segment':heading,dialog,segmentReview,ready:/^\/track\/lift\/\d+$/.test(canonical)?'#lf-list .lift-name':null,titleInput:/^\/food\/cook\/\d+$/.test(canonical)?'#dk-name':null};
 }
