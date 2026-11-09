@@ -45,8 +45,8 @@ async function weeklyCardChecks(p){
 }
 async function milestoneChecks(p){
  const row=p.locator('.me-card .me-milestone-row');await row.waitFor();assert.equal(await row.count(),1,'one compact milestone row');assert.match(await row.locator('.me-milestone-latest').innerText(),/Only you[\s\S]*First 5K/,'latest occurrence leads, independently of rank');assert((await row.boundingBox()).height<=55,'one quiet line including its separator');
- await row.locator('.me-milestone-latest').click();await p.locator('#milestone-picture').waitFor();await until(p,()=>document.querySelector('#milestone-picture')?.naturalWidth>0,'milestone share picture');assert(!(await p.locator('#milestone-identity').isChecked()),'identity remains off');assert(await p.locator('.milestone-private').isVisible(),'Only-me sharing reminder retained');await p.keyboard.press('Escape');
- await row.locator('.me-milestone-all').click();await p.locator('.sheet').getByRole('heading',{name:'Recent milestones',exact:true}).waitFor();assert.equal(await p.locator('[data-milestone]').count(),2,'See all uses a sheet');await p.locator('[data-milestone]').last().click();await until(p,()=>document.querySelector('#milestone-picture')?.naturalWidth>0,'another offer share picture');await p.keyboard.press('Escape');
+ await row.locator('.me-milestone-latest').click();await p.locator('[data-unified-share]').waitFor();await until(p,()=>document.querySelector('[data-share-image="0"]')?.naturalWidth>0,'milestone share picture');assert(!(await p.locator('[data-share-control=identity]').isChecked()),'identity remains off');assert.match(await p.locator('[data-share-note]').innerText(),/Only you/,'Only-me sharing reminder retained');await p.keyboard.press('Escape');
+ await row.locator('.me-milestone-all').click();await p.locator('.sheet').getByRole('heading',{name:'Recent milestones',exact:true}).waitFor();assert.equal(await p.locator('[data-milestone]').count(),2,'See all uses a sheet');await p.locator('[data-milestone]').last().click();await until(p,()=>document.querySelector('[data-share-image="0"]')?.naturalWidth>0,'another offer share picture');await p.keyboard.press('Escape');
  await p.goto(base+'/me/milestones');await p.waitForURL('**/me');await until(p,()=>App.pageReady,'legacy milestone link returns ready Me');await p.locator('.me-card-sections[aria-busy=false]').waitFor();
 }
 (async()=>{const b=await chromium.launch();const l=await b.newContext();await l.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});const st=await l.storageState();
@@ -124,18 +124,12 @@ for(const size of [{width:320,height:667,root:16},{width:390,height:844,root:16}
  assert((await p.locator('#person-activities .post, #person-activities .card').count())>0,'activities follow the card');
  await p.locator('.me-card-figures[data-card-period=totals]').scrollIntoViewIfNeeded();await shot('profile-all-time-totals');
  await p.locator('#person-profile').evaluate(n=>n.scrollIntoView({block:'start',behavior:'instant'}));await shot('profile-own');
- await p.locator('[data-card-share]').click();const share=p.locator('.sheet');await share.waitFor();
- await share.locator('.profile-share-art .me-card-sections[aria-busy=false]').waitFor();await share.locator('.profile-share-privacy').waitFor();assert.match(await share.innerText(),/Public card/);assert.equal(await share.locator('.profile-share-actions button').count(),2);
- assert.equal(await share.locator('[data-card-edit],[data-card-share],.me-card-note').count(),0,'recipient miniature has no owner controls or private footer');
- const privacy=share.locator('.profile-share-privacy'),privacyVisible=privacy.locator('span[aria-hidden="true"]');assert.equal(await privacyVisible.innerText(),'Private workouts count, but stay hidden','Share includes the one-line privacy note');
- assert.match(await privacy.ariaSnapshot(),/Totals include your private workouts\. Friends see the totals, not the workouts\./,'the privacy explanation remains available to assistive technology');
- assert(await privacy.evaluate(n=>n.scrollWidth<=n.clientWidth+1),'privacy note remains one line without clipping');
- if(size.width===390&&size.root===16)assert(await privacyVisible.evaluate(n=>{const r=document.createRange();r.selectNodeContents(n);return r.getClientRects().length===1;}),'Share privacy note fits on one line at 390px');
- const preview=share.locator('.profile-share-art');assert(await preview.evaluate(n=>n.inert),'recipient miniature cannot receive input');
- assert.equal(await preview.locator('.me-card-open-link,.me-profile-chevron').count(),0,'the Share miniature has no misleading self-profile link');
- assert.equal(await preview.locator('.me-card-figures[data-card-period=totals] .me-metric-value').first().innerText(),'77','Share preview renders the public-member total, not the owner total');
- assert.equal(await preview.locator('.me-sport-chip .me-sport-ico[data-sport=run]').count(),1,'Share preview includes only audience-filtered sports');
- assert.doesNotMatch(await share.innerText(),/See what others see|Previewing as|View full profile/);if(size.width===390)await shot('profile-share-preview');
+ await p.locator('[data-card-share]').click();const share=p.locator('.sheet');await share.locator('[data-unified-share]').waitFor();
+ const preview=share.locator('[data-share-image="0"]');await preview.waitFor({state:'visible'});await p.waitForFunction(()=>{const n=document.querySelector('[data-share-image="0"]');return n?.complete&&n.naturalWidth===1080;});
+ const labels=await share.locator('.share-picture-label').allInnerTexts();assert.equal(labels[0],'Me card');assert(labels.indexOf('Public link & QR')<0||labels.at(-1)==='Public link & QR','the public link and QR stay last');
+ assert.equal(await share.locator('[data-share-send]').innerText().then(t=>t.trim()),'Share');assert.equal(await share.locator('[data-share-save]').innerText(),'Save image');
+ assert.equal(await share.locator('[data-card-edit],[data-card-share],.me-card-note').count(),0,'the unified sheet has no nested profile or card controls');
+ assert.doesNotMatch(await share.innerText(),/PRIVATE-ONLY|See what others see|Previewing as|View full profile/);if(size.width===390)await shot('profile-share-sheet');
  await p.keyboard.press('Escape');await share.waitFor({state:'detached'}).catch(()=>{});
  // Edit happens in place on the card, exactly as on Me; Cancel leaves everything as it was.
  await p.locator('[data-card-edit]').click();await p.waitForSelector('#person-profile .me-card.editing');

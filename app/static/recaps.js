@@ -86,6 +86,69 @@ const ShareArt=(()=>{
   }
   return{palette,family,text,lines,blob,deliver,photo,simplePicture};
 })();
+const ShareSheet=(()=>{
+  const save=(blob,name)=>{const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);};
+  function open({items,title='Share',actions=[]}){
+    if(!items?.length)return;
+    const owner=readOwner(),values=items.map(item=>Object.fromEntries((item.controls||[]).map(control=>[control.key,!!control.checked])));
+    sheet(title,`<div class="share-sheet" data-unified-share>
+      <div class="share-picture-row" role="group" aria-label="Pictures to share">${items.map((item,index)=>`<button type="button" class="share-picture-choice" data-share-choice="${index}" data-busy="true" aria-pressed="false"><span class="share-picture-frame"><img data-share-image="${index}" alt="" hidden><span class="share-picture-loading" aria-hidden="true">Loading…</span></span><span class="share-picture-label">${esc(item.label)}</span></button>`).join('')}</div>
+      <div class="share-picture-controls" data-share-controls></div><p class="share-picture-note small muted" data-share-note></p><p class="share-picture-status small muted" role="status" aria-live="polite"></p>
+      <div class="share-picture-actions"><button type="button" class="primary wide" data-share-send disabled>${svg('share')}Share</button><button type="button" class="linkbtn wide" data-share-save disabled>Save image</button>${actions.map((action,index)=>`<button type="button" class="linkbtn wide" data-share-action="${index}">${esc(action.label)}</button>`).join('')}</div>
+    </div>`,(body,close)=>{
+      const live=()=>body.isConnected&&owner===readOwner()&&items[selected]?.valid?.()!==false,row=$('.share-picture-row',body),controls=$('[data-share-controls]',body),note=$('[data-share-note]',body),status=$('.share-picture-status',body),send=$('[data-share-send]',body),saveButton=$('[data-share-save]',body);
+      const cache=new Map(),versions=items.map(()=>0);let selected=-1,busy=false,scrollTimer=0;
+      const closeSelf=()=>close();App.closeActivityShare=closeSelf;
+      const buttons=()=>{const current=cache.get(selected),disabled=busy||!current?.blob;send.disabled=disabled;saveButton.disabled=disabled;};
+      const renderControls=index=>{
+        const item=items[index];controls.innerHTML=(item.controls||[]).map(control=>`<label class="check"><input type="checkbox" data-share-control="${esc(control.key)}"${values[index][control.key]?' checked':''}>${esc(control.label)}</label>`).join('');
+        $$('[data-share-control]',controls).forEach(input=>input.onchange=()=>{values[index][input.dataset.shareControl]=input.checked;load(index,true);});
+      };
+      async function load(index,redraw=false){
+        const old=cache.get(index);if(old&&!redraw)return old;
+        if(old?.url)URL.revokeObjectURL(old.url);cache.delete(index);const stamp=++versions[index],item=items[index],image=$(`[data-share-image="${index}"]`,body),choice=$(`[data-share-choice="${index}"]`,body);
+        choice.dataset.busy='true';if(index===selected){status.textContent='Preparing picture…';buttons();}
+        try{
+          const result=await item.build({...values[index]});const blob=result instanceof Blob?result:result?.blob;
+          if(!blob)throw Error('Couldn’t prepare this picture. Try again.');if(!live()||stamp!==versions[index])return null;
+          const record={blob,url:URL.createObjectURL(blob),filename:result.filename||item.filename||'kinetta.png',alt:result.alt||item.alt||item.label,link:result.link||item.link||null};cache.set(index,record);
+          image.src=record.url;image.alt=record.alt;image.hidden=false;choice.dataset.busy='false';
+          if(index===selected){status.textContent='';buttons();}
+          return record;
+        }catch(error){if(live()&&stamp===versions[index]){choice.dataset.busy='false';if(index===selected){status.textContent=error.message||'Couldn’t make this picture.';buttons();}}return null;}
+      }
+      function select(index,scroll=false){
+        if(index<0||index>=items.length)return;selected=index;
+        $$('[data-share-choice]',body).forEach((choice,i)=>choice.setAttribute('aria-pressed',String(i===index)));
+        if(scroll)row.children[index]?.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
+        renderControls(index);note.textContent=items[index].note||'';const current=cache.get(index);status.textContent=current?'':'Preparing picture…';buttons();load(index);
+      }
+      $$('[data-share-choice]',body).forEach(choice=>choice.onclick=()=>select(Number(choice.dataset.shareChoice)));
+      row.addEventListener('scroll',()=>{clearTimeout(scrollTimer);scrollTimer=setTimeout(()=>{
+        const center=row.getBoundingClientRect().left+row.clientWidth/2;let best=0,distance=Infinity;
+        [...row.children].forEach((slide,index)=>{const rect=slide.getBoundingClientRect(),d=Math.abs(rect.left+rect.width/2-center);if(d<distance){best=index;distance=d;}});select(best);
+      },80);},{passive:true});
+      send.onclick=async()=>{
+        const current=cache.get(selected),item=items[selected];if(!current||busy||!live())return;busy=true;buttons();
+        try{if(item.beforeShare&&await item.beforeShare({blob:current.blob,filename:current.filename,link:current.link,values:{...values[selected]},live,close,refresh:()=>load(selected,true),setStatus:value=>{if(live())status.textContent=value;}})===false)return;
+          const handed=item.onShare?await item.onShare({blob:current.blob,filename:current.filename,link:current.link,values:{...values[selected]},live,close,setStatus:value=>{if(live())status.textContent=value;}}):await ShareArt.deliver(current.blob,current.filename,live,current.link);
+          if(handed&&live())await item.afterShare?.({blob:current.blob,values:{...values[selected]},close,live});
+        }catch(error){if(live()&&error.name!=='AbortError')status.textContent=error.message||'Couldn’t share this picture.';}
+        finally{busy=false;if(live())buttons();}
+      };
+      saveButton.onclick=async()=>{
+        const current=cache.get(selected),item=items[selected];if(!current||busy||!live())return;busy=true;buttons();
+        try{save(current.blob,current.filename);status.textContent='Picture saved.';await item.afterSave?.({blob:current.blob,values:{...values[selected]},close,live});}
+        catch(error){if(live())status.textContent=error.message||'Couldn’t save this picture.';}
+        finally{busy=false;if(live())buttons();}
+      };
+      $$('[data-share-action]',body).forEach(button=>button.onclick=()=>actions[Number(button.dataset.shareAction)].run({close,live}));
+      viewResources.set(body,()=>{clearTimeout(scrollTimer);for(const record of cache.values())URL.revokeObjectURL(record.url);if(App.closeActivityShare===closeSelf)delete App.closeActivityShare;});
+      select(0);
+    });
+  }
+  return{open};
+})();
 const Recaps=(()=>{
   const periods=[['week','Week'],['month','Month'],['year','Year']];
   const aliases={this_week:['week',0],last_week:['week',1],this_month:['month',0],last_month:['month',1],this_year:['year',0]};

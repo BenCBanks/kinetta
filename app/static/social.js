@@ -375,7 +375,7 @@ function weeklyRecapDateLabel(start,end){
 function weeklyRecapHtml(data,usual,medals){
   const best=data.owner_best_effort,days=weeklyRecapDays(data),shown=medals.slice(0,3),extra=medals.length-shown.length;
   return `<section class="card recap-offer weekly-recap" data-weekly-recap data-start="${esc(data.start)}"><div class="weekly-recap-copy">
-    <div class="weekly-recap-head"><div><h2>Your week</h2><p class="small muted">${esc(weeklyRecapDateLabel(data.start,data.end))}</p></div><div class="weekly-recap-actions"><button type="button" class="linkbtn" data-weekly-recap-share>Share</button><button type="button" class="icon-btn" data-weekly-recap-dismiss aria-label="Dismiss this week’s recap">${svg('close')}</button></div></div>
+    <div class="weekly-recap-head"><div><h2>Your week</h2><p class="small muted">${esc(weeklyRecapDateLabel(data.start,data.end))}</p></div><div class="weekly-recap-actions"><button type="button" class="icon-btn" data-weekly-recap-share aria-label="Share weekly recap">${svg('share')}</button><button type="button" class="icon-btn" data-weekly-recap-dismiss aria-label="Dismiss this week’s recap">${svg('close')}</button></div></div>
     <div class="weekly-recap-metrics"><div><b class="num">${esc(U.dist(data.distance_m||0,1))} ${esc(U.du())}</b><small>Distance${usual?` · ${esc(U.dist(usual.distance_m,1))} ${esc(U.du())} usual`:''}</small></div><div><b class="num">${esc(dur(data.time_s||0,true))}</b><small>Time${usual?` · ${esc(dur(usual.time_s,true))} usual`:''}</small></div></div>
     ${best||shown.length?`<div class="weekly-recap-highlights">${best?`<p class="weekly-recap-best"><b>Best effort</b> · ${esc(best.label)} · ${esc(dur(best.elapsed_s,true))}</p>`:''}${shown.length?`<div class="weekly-recap-medals" role="list" aria-label="New medals this week">${shown.map(m=>`<span class="weekly-recap-medal" role="listitem" aria-label="${esc(m.label)}"><img src="${esc(m.icon)}" alt="" aria-hidden="true" loading="eager" decoding="async"><span>${esc(m.label)}</span></span>`).join('')}${extra?`<span class="weekly-recap-medal-more">+${extra} more</span>`:''}</div>`:''}</div>`:''}
     <div class="weekly-recap-days" role="group" aria-label="Activity days, Monday to Sunday">${days.map(d=>`<span class="weekly-recap-day" aria-label="${d.name}: ${d.active?'workout':'no workout'}"><small aria-hidden="true">${d.label}</small><i class="${d.active?'is-active':''}" aria-hidden="true"></i></span>`).join('')}</div>
@@ -406,12 +406,17 @@ function weeklyRecapPicture(data,usual,medals,days){
     return ShareArt.blob(canvas);
   })();
 }
-function openWeeklyRecapShare(box,data,usual,medals,days){
-  const owner=readOwner();sheet('Share your week',`<div class="weekly-recap-share-stage"><img data-weekly-recap-share-image alt="Weekly recap picture" hidden></div><p class="small muted" data-weekly-recap-share-status role="status">Preparing your picture…</p><button type="button" class="primary wide" data-weekly-recap-share-send disabled>Share</button>`,(body,close)=>{
-    const live=()=>owner===readOwner()&&box.isConnected&&body.isConnected,image=$('[data-weekly-recap-share-image]',body),status=$('[data-weekly-recap-share-status]',body),button=$('[data-weekly-recap-share-send]',body);let picture=null;
-    weeklyRecapPicture(data,usual,medals,days).then(blob=>{if(!live())return;picture=blob;const parts=[`Your week, ${weeklyRecapDateLabel(data.start,data.end)}.`,`${U.dist(data.distance_m||0,1)} ${U.du()} distance.`,`${dur(data.time_s||0,true)} time.`,usual?`Usual week: ${U.dist(usual.distance_m,1)} ${U.du()} and ${dur(usual.time_s,true)}.`:null,...medals.map(m=>`New medal: ${m.label}.`)];image.alt=parts.filter(Boolean).join(' ');image.src=URL.createObjectURL(blob);image.hidden=false;status.textContent='Your week picture is ready.';button.disabled=false;}).catch(error=>{if(live())status.textContent=error.message||'Couldn’t make this picture.';});
-    button.onclick=async()=>{if(!picture||button.disabled||!live())return;button.disabled=true;status.textContent='Opening share options…';try{await ShareArt.deliver(picture,`kinetta-week-${data.start}.png`,live);if(live())status.textContent='';}catch(error){if(live()){status.textContent=error.message||'Couldn’t share this picture.';button.disabled=false;}}};
-  });
+function weeklyRecapPictureItem(data,usual,medals,days,valid=()=>true){
+  const alt=[`Your week, ${weeklyRecapDateLabel(data.start,data.end)}.`,`${U.dist(data.distance_m||0,1)} ${U.du()} distance.`,`${dur(data.time_s||0,true)} time.`,usual?`Usual week: ${U.dist(usual.distance_m,1)} ${U.du()} and ${dur(usual.time_s,true)}.`:null,...medals.map(m=>`New medal: ${m.label}.`)].filter(Boolean).join(' ');
+  return{label:'Weekly recap',filename:`kinetta-week-${data.start}.png`,valid,build:async()=>({blob:await weeklyRecapPicture(data,usual,medals,days),alt})};
+}
+function openWeeklyRecapShare(box,data,usual,medals,days){ShareSheet.open({items:[weeklyRecapPictureItem(data,usual,medals,days,()=>box.isConnected)]});}
+async function weeklyRecapShareItem(){
+  const owner=readOwner(),zone=tz(),window=weeklyRecapWindow(new Date(),zone);if(!window.visible)return null;
+  const [data,volume,achievements]=await Promise.all([api(`/api/recaps?period=week&offset=${window.offset}`),api('/api/progress/volume?period=week'),api('/api/achievements')]);
+  if(owner!==readOwner()||zone!==tz()||data.tz!==zone||data.start!==window.start||Number(data.activities)<=0)return null;
+  const usual=weeklyRecapUsual(volume.rows,data.start);let medals=weeklyRecapMedals(achievements,null,data.start,data.end);if(medals.length)medals=weeklyRecapMedals(achievements,await weeklyRecapCatalog(),data.start,data.end);
+  if(owner!==readOwner()||zone!==tz())return null;return weeklyRecapPictureItem(data,usual,medals,weeklyRecapDays(data),()=>owner===readOwner());
 }
 async function weeklyRecapOffer(box){
   if(!box||!box.isConnected||!App.me)return;const owner=readOwner(),zone=tz(),window=weeklyRecapWindow(new Date(),zone);if(!window.visible)return;
