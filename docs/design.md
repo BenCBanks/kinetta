@@ -1940,6 +1940,6 @@ Numbers come from the shared `U` helpers in `app.js`, so cards, detail, tables, 
 - **Pickers are text.** The sport, year-range, day and time-range pickers (`.range-btn`) are plain text with a neutral leading icon and their chevron: no grey pill fill, shadow or radius, still 44px tall.
 - **Text actions stay text.** Nutrition's Goals and Copy yesterday are Kinetta-blue text actions with no box or outline.
 - **Units** in Settings use the same underlined text choice as the Totals period (selected = accent text and underline), not a grey segmented track.
-- **Explore your progress / Explore your food** are plain full-width rows: neutral icon, name, one line of detail, a trailing chevron and a hairline (`.progress-grid.explore-list`). Track tools and the Activity discovery tiles are unchanged for now.
+- **Explore your progress / Explore your food** are plain full-width rows 8px apart: neutral icon, name, one line of detail, a trailing chevron and a hairline (`.progress-grid.explore-list`). Track tools and the Activity discovery tiles are unchanged for now.
 - **Icons are neutral.** Nutrition detail links and Explore rows use secondary-text icons; colour stays for meaning (selection, actions, sport/series).
 - **Energy balance is neutral.** A deficit or surplus is plain text, never green or red.
