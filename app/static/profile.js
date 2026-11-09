@@ -289,11 +289,12 @@ const ProfileLayout=(()=>{
       const grouped=tracks.filter(track=>section.codes.includes(track.code)).sort((a,b)=>achievementDay(b).localeCompare(achievementDay(a))||achievementLevel(b)-achievementLevel(a));
       if(!grouped.length)return '';
       const id=`profile-achievement-group-${section.id}`;
-      return `<section class="profile-achievement-group" aria-labelledby="${id}"><h2 class="sec-head profile-achievement-group-title" id="${id}">${section.title}</h2><div class="profile-achievement-list is-grid" role="list" aria-labelledby="${id}">${grouped.map(track=>{
-        const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),tier=achievementCurrentTier(track),href=`/people/${encodeURIComponent(login)}?view=achievements&track=${encodeURIComponent(track.code)}`;
-        return `<a class="profile-achievement" role="listitem" href="${esc(href)}" aria-label="${esc(`${label}, Level ${level}${tier?`, ${tier.name}`:''}`)}" data-achievement-code="${esc(track.code)}">${achievementMedallion(track)}<span class="profile-achievement-name">${esc(label)}</span><span class="profile-achievement-next">${esc(`Level ${level}${tier?` · ${tier.name}`:''}`)}</span></a>`;
-      }).join('')}</div></section>`;
+      return `<section class="profile-achievement-group" aria-labelledby="${id}"><h2 class="sec-head profile-achievement-group-title" id="${id}">${section.title}</h2><div class="profile-achievement-list is-grid" role="list" aria-labelledby="${id}">${grouped.map(track=>sharedAchievementRow(track,login)).join('')}</div></section>`;
     }).join('');
+  }
+  function sharedAchievementRow(track,login){
+    const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),tier=achievementCurrentTier(track),href=`/people/${encodeURIComponent(login)}?view=achievements&track=${encodeURIComponent(track.code)}`;
+    return `<a class="profile-achievement" role="listitem" href="${esc(href)}" aria-label="${esc(`${label}, Level ${level}${tier?`, ${tier.name}`:''}, ${achievementValue(track)}`)}" data-achievement-code="${esc(track.code)}">${achievementMedallion(track)}<span class="profile-achievement-name">${esc(label)}</span><span class="profile-achievement-next">${esc(`Level ${level}${tier?` · ${tier.name}`:''}`)}</span></a>`;
   }
   function achievementMedallion(track){
     const started=achievementTrackStarted(track),ratio=achievementProgress(track),circumference=2*Math.PI*47,ring=(ratio*circumference).toFixed(1),showProgressRing=started&&Math.round(ratio*100)>0,level=achievementLevel(track),value=started?achievementMedalValue(track):'',tier=achievementCurrentTier(track)||achievementTierAt(track.code,1);
@@ -356,10 +357,15 @@ const ProfileLayout=(()=>{
       const code=String(item?.code||''),rank=Number(item?.rank),track=tracks.get(code);
       if(!code||!Number.isInteger(rank)||rank<1||!track)return null;
       const tier=achievementTierAt(code,rank),value=achievementValue(track),context=featuredContexts[code]||track.label||code;
-      return tier&&value?{code,name:tier.name,value,context,icon:achievementAsset(tier,'me-featured-icon')}:null;
+      return tier&&value?{code,name:tier.name,value,context,icon:achievementAsset(tier,'me-featured-icon'),track}:null;
     }).filter(Boolean);
     if(sharedLogin&&!items.length)return '';
     const href=sharedLogin?`/people/${encodeURIComponent(sharedLogin)}?view=achievements`:'/me/achievements';
+    if(sharedLogin){
+      const heading=`<h3 class="sec-head"><span>Featured</span><a href="${esc(href)}">Achievements <span aria-hidden="true">›</span></a></h3>`;
+      const rail=`<div class="profile-achievement-list" role="list" aria-label="Featured achievements">${items.map(item=>sharedAchievementRow(item.track,sharedLogin)).join('')}</div>`;
+      return `<div class="me-featured-achievements" role="group" aria-label="Featured achievements">${heading}${rail}</div>`;
+    }
     const heading=`<h3 class="me-featured-title"><span>Featured achievements</span><a href="${esc(href)}">Achievements <span aria-hidden="true">›</span></a></h3>`;
     const grid=items.length?`<div class="me-featured-grid count-${items.length}" role="list">${items.map(item=>`<div class="me-featured-item" role="listitem" data-showcase-code="${esc(item.code)}" aria-label="${esc(`${item.name}, ${item.value}, ${item.context}`)}"><span class="me-featured-medal" data-showcase-code="${esc(item.code)}" aria-hidden="true">${item.icon}</span><b class="me-featured-value">${esc(item.value)}</b><span class="me-featured-context">${esc(item.context)}</span></div>`).join('')}</div>`:'';
     return `<div class="me-featured-achievements" role="group" aria-label="Featured achievements">${heading}${grid}</div>`;
