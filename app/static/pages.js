@@ -939,60 +939,25 @@ function shareOut(a) { sharePicture(a.id, a); }
 // One picture for everything (Ben, 2026-10-24): a 4:5 image that works in Messages, Instagram posts and Stories alike,
 // so nobody has to choose a size. Share opens the phone's own share sheet.
 function sharePicture(id, known) {
-  const owner = readOwner();
-  sheet('Share', `<div class="pic-wrap busy"><img class="pic" id="pi-img" alt=""></div>
-    <label class="check" id="pi-trim-row" hidden><input type="checkbox" id="pi-trim" checked> Hide where it starts and ends</label>
-    <button class="primary wide" id="pi-go" disabled>${svg('share')} Share</button>
-    <p class="small muted pi-note" role="status"></p>`, async (b, close) => {
-    const img = $('#pi-img', b), t = $('#pi-trim', b), go = $('#pi-go', b), live = () => b.isConnected && owner === readOwner();
-    let a = known && known.line !== undefined && known.start_time ? known : null, s = a && a._social, blob = null, made = 0, url = '', sending = false;
-    const closeSelf = () => close(); App.closeActivityShare = closeSelf;
-    viewResources.set(b, () => { if (App.closeActivityShare === closeSelf) delete App.closeActivityShare; made++; blob = null; if (url) URL.revokeObjectURL(url); url = ''; });
-    try {
-      [a, s] = await Promise.all([a || api(`/api/activities/${id}`), s || api(`/api/activities/${id}/social`).catch(() => null)]);
-      if (known) known._social = s;
-    } catch (x) { if (live()) { $('.pic-wrap', b).classList.remove('busy'); toast(x.message); } return; }
-    if (!live()) return;
-    img.alt = `Picture of ${a.name}`;
-    const note = `A picture of your ${a.line ? 'route and ' : ''}workout numbers. Nothing links back to your account.`;
-    $('.pi-note', b).textContent = note;
-    const trim = (s && s.trim_m) || 400, hasLine = !!(a.line && decode(a.line).length > 1);
-    $('#pi-trim-row', b).hidden = !hasLine;
-    const buttons = () => { go.disabled = !blob || sending; t.disabled = sending; };
-    // a slower, older drawing can never replace a newer one (the privacy choice may differ)
-    const make = async () => {
-      const run = ++made; blob = null; buttons(); $('.pic-wrap', b).classList.add('busy');
-      try {
-        const picture = await routePicture(a, t && !t.checked ? 0 : trim);
-        if (run !== made || !live()) return;
-        if (!picture) throw new Error('Couldn’t prepare this picture. Close Share and try again.');
-        blob = picture; if (url) URL.revokeObjectURL(url); url = URL.createObjectURL(blob); img.src = url;
-        $('.pi-note', b).textContent = note;
-      } catch (x) { if (run === made && live()) $('.pi-note', b).textContent = x.message; }
-      finally { if (run === made && live()) { buttons(); $('.pic-wrap', b).classList.remove('busy'); } }
-    };
-    make(); t.onchange = make;
-    go.onclick = async () => {
-      if (!blob || sending || !live()) return;
-      const picture = blob, run = made;
-      const file = new File([picture], `${(a.name || 'activity').replace(/[^\w -]+/g, '').trim() || 'activity'}.png`, {type: 'image/png'});
-      sending = true; buttons();
-      try {
-        if (Native.activityShareSupported) {
-          // Only the already-previewed image crosses the native bridge, never account credentials or raw GPS.
-          const data = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = () => reject(new Error('Couldn’t open this picture')); r.readAsDataURL(picture); });
-          if (!live() || run !== made) return;
-          await Native.shareActivityPicture(data, 'system');
-        } else if (navigator.canShare && navigator.canShare({files: [file]})) {
-          await navigator.share({files: [file]});      // called on the tap, before any other waiting, so browsers allow it
-        } else {
-          const link = document.createElement('a'); link.href = url; link.download = file.name; document.body.append(link); link.click(); link.remove();
-          toast('Picture saved');
-        }
-      } catch (x) { if (live() && x.name !== 'AbortError') toast(x.message || 'Couldn’t share this picture'); }
-      finally { sending = false; if (live()) buttons(); }
-    };
-  });
+  const owner=readOwner(),cached=known&&known.line!==undefined&&known.start_time?known:null;
+  const socialRequest=cached&&cached._social?Promise.resolve(cached._social):api(`/api/activities/${id}/social`).catch(()=>null);
+  Promise.all([cached||api(`/api/activities/${id}`),socialRequest])
+    .then(([activity,social])=>{
+      if(owner!==readOwner())return;if(cached)cached._social=social;
+      const details=social?.details||{},savedTrim=Number(social?.trim_m)||400,mapAllowed=details.map!==false;
+      const line=mapAllowed?activity.line:null,hasLine=!!(line&&decode(line).length>1),controls=hasLine?[{key:'hideEnds',label:'Hide where it starts and ends',checked:true}]:[];
+      const safe={...activity,line,avg_hr:details.heart_rate?activity.avg_hr:null,calories:details.calories?activity.calories:null};
+      const trimValue=state=>state.hideEnds?savedTrim:0,date=fdate(activity.start_time,{weekday:'short',month:'short',day:'numeric',year:'numeric'}),name=(activity.name||'activity').replace(/[^\w -]+/g,'').trim()||'activity';
+      const items=[{label:'Activity card',filename:`${name}.png`,controls,build:state=>routePicture(safe,hasLine?trimValue(state):0,details)}];
+      if(hasLine)items.push({label:'Route map',filename:`${name}-route.png`,controls,build:state=>{const trim=trimValue(state),routePoints=trimRoute(decode(line),trim);return ShareArt.simplePicture({kicker:'Route map',title:activity.name,date,value:'Route',routePoints,routeTrimmed:trim>0});}});
+      const rateInfo=rate(activity),statsFacts=[`Time: ${dur(activity.moving_s||activity.elapsed_s)}`];
+      if(details.pace&&rateInfo.label!=='Time')statsFacts.push(`${rateInfo.label}: ${rateInfo.v} ${rateInfo.u}`);
+      if(details.heart_rate&&activity.avg_hr)statsFacts.push(`Average heart rate: ${Math.round(activity.avg_hr)} bpm`);
+      if(details.elevation&&activity.ascent_m)statsFacts.push(`Climb: ${App.me?.units==='metric'?Math.round(activity.ascent_m)+' m':Math.round(activity.ascent_m*3.28084)+' ft'}`);
+      if(details.calories&&activity.calories)statsFacts.push(`Calories: ${Math.round(activity.calories)} kcal`);
+      items.push({label:'Stats',filename:`${name}-stats.png`,build:()=>ShareArt.simplePicture({kicker:SPORT_NAMES[activity.sport]||'Activity',title:activity.name,date,value:activity.distance_m?U.dist(activity.distance_m):dur(activity.moving_s||activity.elapsed_s),unit:activity.distance_m?U.du():'moving time',facts:statsFacts})});
+      ShareSheet.open({items});
+    }).catch(error=>{if(owner===readOwner())toast(error.message||'Couldn’t load this activity.');});
 }
 // cut `m` metres off each end of the route; nothing left (a short loop) means no route is drawn
 function trimRoute(pts, m) {
@@ -1040,7 +1005,7 @@ function drawMark(g, cx, cy, w, color) {
 }
 // The share picture (Ben, 2026-10-24): one 4:5 picture for texting, Instagram or anything else. The map fills it and the
 // details sit on a frosted, see-through card near the bottom. Start and finish get the app's markers unless hidden.
-async function routePicture(a, trim) {
+async function routePicture(a, trim, details={}) {
   const pictureOwner=readOwner();
   const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d'), ui = getComputedStyle(document.body).fontFamily, serif = '"Source Serif 4", Georgia, serif';
@@ -1049,10 +1014,10 @@ async function routePicture(a, trim) {
   // the numbers: time and pace (or speed) first, then distance; without distance, heart rate or calories
   const r = rate(a), cells = [];
   cells.push(['Time', dur(a.moving_s || a.elapsed_s), '']);
-  if (a.distance_m && a.moving_s && r.label!=='Time') cells.push([r.label, r.v, r.u]);
+  if (details.pace!==false&&a.distance_m && a.moving_s && r.label!=='Time') cells.push([r.label, r.v, r.u]);
   if (a.distance_m) cells.push(['Distance', U.dist(a.distance_m), U.du()]);
-  if (cells.length < 3 && a.avg_hr) cells.push(['Avg heart rate', String(Math.round(a.avg_hr)), 'bpm']);
-  if (cells.length < 3 && a.calories) cells.push(['Calories', String(Math.round(a.calories)), 'kcal']);
+  if (cells.length < 3 && details.heart_rate && a.avg_hr) cells.push(['Avg heart rate', String(Math.round(a.avg_hr)), 'bpm']);
+  if (cells.length < 3 && details.calories && a.calories) cells.push(['Calories', String(Math.round(a.calories)), 'kcal']);
   // the title on one line, shortened with … when it doesn't fit beside the brand
   g.font = `700 46px ${ui}`;
   const room = W - 2 * M - 2 * PAD - 200, lines = [''], maxLines = 1;

@@ -18,6 +18,7 @@
 .weekly-recap-copy { width:100%; min-width:0; }
 .weekly-recap-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .weekly-recap-actions { display:flex; align-items:center; gap:8px; margin-left:auto; flex:none; }
+.weekly-recap-actions [data-weekly-recap-share] { color:var(--accent); }
 .weekly-recap-head h2 { margin:0; font-size:17px; }
 .weekly-recap-head p { margin:4px 0 0; }
 .weekly-recap-highlights { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin-top:10px; }

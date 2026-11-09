@@ -1414,21 +1414,6 @@ html.keyboard-open nav.tabs { display: none; }
 /* your own profile, editable in place (social.js wireProfileEditing) */
 #kit-settings-panel > .seg {margin:8px 0 16px;grid-template-columns:repeat(2,minmax(0,1fr));}
 #kit-settings-panel > .seg button {min-height:44px;font-size:max(15px,.9375rem);}
-.sheet.profile-share-sheet {display:flex;flex-direction:column;overflow:hidden;}
-.profile-share-sheet > .grab,.profile-share-sheet > header {flex:none;}
-.profile-share-sheet > .sbody {display:flex;flex-direction:column;min-height:0;overflow:hidden;}
-.profile-share-scroll {min-height:0;overflow:auto;overscroll-behavior:contain;}
-.profile-share-preview {position:relative;height:240px;overflow:hidden;border:1px solid var(--line);border-radius:var(--r3);background:var(--card);}
-.profile-share-preview[hidden] {display:none;}
-.profile-share-art {position:absolute;top:0;left:0;width:111.111111%;transform:scale(var(--preview-scale,.9));transform-origin:top left;pointer-events:none;}
-.profile-share-art .me-card {margin:0;border:0;border-radius:0;}
-.profile-share-caption {margin:0 0 8px;}
-.profile-share-privacy {flex:none;margin:12px 0 0;font-size:max(13px,.8125rem);}
-.profile-share-actions {flex:none;margin-top:16px;}
-#profile-share-status:empty {display:none;}
-.profile-share-actions {display:grid;grid-template-columns:1fr;gap:8px;}
-.profile-share-actions button {min-height:48px;font-size:max(15px,.9375rem);}
-.profile-share-actions .ghost {background:transparent;border:1px solid var(--line);}
 .challenge-find-friends {margin-top:12px;}
 .profile-activity-tools {display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0;}
 .profile-activity-tools h2 {flex:1;margin:0;font-size:max(17px,1.0625rem);}
@@ -2273,7 +2258,7 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .reaction-action {display:contents;}
 .activity-reactions .pf,.activity-comments,.post-hd .activity-share {background:none;border-color:transparent;box-shadow:none;min-height:44px;}
 .post-ft:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;gap:0;padding:3px 16px;min-height:44px;}
-.detail-social:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;gap:0;padding:0;margin-top:0;min-height:44px;}
+.detail-social:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;justify-content:flex-start;gap:0;padding:0;margin-top:0;min-height:44px;width:100%;min-width:0;box-sizing:border-box;}
 .emoji-reactions .reaction-more {order:1;flex:none;min-width:44px;min-height:44px;justify-content:flex-start;gap:6px;padding:0;margin-right:8px;font-size:15px;font-weight:500;color:var(--tx2);}
 .emoji-reactions .reaction-more>svg {flex:none;width:20px;height:20px;}
 .emoji-reactions .reaction-more .reaction-emoji {font-size:22px;}
@@ -2291,6 +2276,8 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .post-ft .num,.detail-social .num {font-size:max(15px,.75rem);line-height:1.2;}
 .post-ft:has(.emoji-reactions) .activity-share {order:3;min-width:44px;height:44px;margin:0 0 0 8px;padding:0;display:flex;align-items:center;justify-content:center;}
 .post-ft:has(.emoji-reactions) .activity-share>svg {width:20px;height:20px;}
+.detail-social:has(.emoji-reactions) .activity-share {order:3;flex:none;width:44px;min-width:44px;height:44px;min-height:44px;margin:0 0 0 8px;padding:0;display:flex;align-items:center;justify-content:center;}
+.detail-social:has(.emoji-reactions) .activity-share>svg {width:20px;height:20px;}
 .post-hd .activity-share {width:44px;min-width:44px;height:44px;padding:0;justify-content:center;margin-left:auto;}
 .post-hd .activity-share>svg {width:20px;height:20px;}
 /* Full rows share the card's content edges; narrow cards use four columns. */

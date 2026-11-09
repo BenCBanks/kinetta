@@ -2,7 +2,7 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs');
 module.exports=async function milestonePictures(p,theme,out){
- const ready=async()=>{for(let i=0;i<150;i++){if(await p.evaluate(()=>document.querySelector('#milestone-picture')?.naturalWidth>0&&!document.querySelector('#milestone-share').disabled))return;await p.waitForTimeout(100);}throw Error('Milestone picture did not finish');};
+ const ready=async()=>{for(let i=0;i<150;i++){if(await p.evaluate(()=>document.querySelector('[data-share-image="0"]')?.naturalWidth>0&&!document.querySelector('[data-share-send]').disabled))return;await p.waitForTimeout(100);}throw Error('Milestone picture did not finish');};
  const origin=new URL(p.url()).origin;
  await p.route('**/api/map-config',r=>r.fulfill({json:{kind:'raster',url:origin+'/milestone-demo-tiles/{z}/{x}/{y}.svg',max_zoom:18,attribution:'Demo map tiles'}}));
  await p.route('**/milestone-demo-tiles/**',r=>r.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#e9f0e6"/><path d="M0 190 Q130 120 256 160" stroke="#b8d6e6" stroke-width="36" fill="none"/><path d="M-10 40 L270 110 M50 -10 L150 270" stroke="white" stroke-width="12"/><path d="M-10 40 L270 110 M50 -10 L150 270" stroke="#ccd1cf" stroke-width="2"/></svg>'}));
@@ -27,7 +27,7 @@ module.exports=async function milestonePictures(p,theme,out){
   await p.evaluate(item=>Milestones.open(item),item);await ready();
   const got=await p.evaluate(()=>window.milestoneArt);const mapped=['route','trimmed'].includes(name);assert.equal(got.draws.length,mapped?1:0,name+' map presence');
   if(mapped){assert(got.texts.some(x=>x.includes('OpenStreetMap'))&&got.texts.some(x=>x.includes('Demo map tiles')),'configured map attribution visible');const actual=got.draws[0].points;assert(actual.length>1&&actual.length<points.length);assert(actual[0][0]>points[0][0]&&actual.at(-1)[0]<points.at(-1)[0],'both endpoints hidden');assert.equal(got.draws[0].box.under>0,true,'credit has route-free space');}
-  const alt=await p.locator('#milestone-picture').getAttribute('alt');assert.match(alt,/Milestone.*First hike.*(?:7.2.*km|4.5.*mi).*Workout time/);assert(!alt.includes('@alex'),'identity off');
+  const alt=await p.locator('[data-share-image="0"]').getAttribute('alt');assert.match(alt,/Milestone.*First hike.*(?:7.2.*km|4.5.*mi).*Workout time/);assert(!alt.includes('@alex'),'identity off');
   assert(got.texts.includes('Kinetta')&&got.texts.some(x=>x.includes('Garmin Demo')),'brand/device credit present');
   if(out&&name!=='map-off'){
    const blob=await p.evaluate(async()=>Array.from(new Uint8Array(await window.milestoneArt.blob.arrayBuffer())));fs.mkdirSync(out,{recursive:true});fs.writeFileSync(`${out}/milestone-${name}-${theme}.png`,Buffer.from(blob));
@@ -36,15 +36,15 @@ module.exports=async function milestonePictures(p,theme,out){
  }
  // Revalidate privacy and geometry just before delivery, then require a fresh deliberate Share tap.
  scenario='route';trim=400;await p.evaluate(item=>Milestones.open(item),item);await ready();scenario='map-off';
- await p.locator('#milestone-share').click();await ready();assert.match(await p.locator('#milestone-status').innerText(),/Review this updated picture/);assert.equal(await p.evaluate(()=>window.milestoneArt.calls),0,'stale map never handed off');
- await p.locator('#milestone-share').click();await ready();assert.equal(await p.evaluate(()=>window.milestoneArt.calls),1);assert.equal(receipts.length,0,'cancel never dismisses');await p.keyboard.press('Escape');
+ await p.locator('[data-share-send]').click();await ready();assert.match(await p.locator('.share-picture-status').innerText(),/Review this updated picture/);assert.equal(await p.evaluate(()=>window.milestoneArt.calls),0,'stale map never handed off');
+ await p.locator('[data-share-send]').click();await ready();assert.equal(await p.evaluate(()=>window.milestoneArt.calls),1);assert.equal(receipts.length,0,'cancel never dismisses');await p.keyboard.press('Escape');
  scenario='route';await p.evaluate(item=>Milestones.open(item),item);await ready();trim=800;
- await p.locator('#milestone-share').click();await ready();assert.equal(await p.evaluate(()=>window.milestoneArt.calls),1,'changed crop requires review');await p.keyboard.press('Escape');
+ await p.locator('[data-share-send]').click();await ready();assert.equal(await p.evaluate(()=>window.milestoneArt.calls),1,'changed crop requires review');await p.keyboard.press('Escape');
  // A successful handoff followed by a failed receipt retries only the receipt, with no coordinates.
  scenario='route';await p.evaluate(item=>Milestones.open(item),item);await ready();
  await p.evaluate(()=>{ShareArt.deliver=async()=>{window.milestoneArt.calls++;return true;};window.milestoneReceiptApi=api;let fail=true;api=async(path,...args)=>{if(path.endsWith('/seen')&&fail){fail=false;throw Error('Fictional receipt failure');}return window.milestoneReceiptApi(path,...args);};});
- await p.locator('#milestone-share').click();await p.getByRole('button',{name:'Finish',exact:true}).waitFor();
- const draws=await p.evaluate(()=>window.milestoneArt.draws.length);await p.route('**/api/activities/987654**',r=>r.abort());await p.getByRole('button',{name:'Finish',exact:true}).click();await p.locator('#milestone-share').waitFor({state:'detached'});
+ await p.locator('[data-share-send]').click();await p.locator('.share-picture-status').getByText(/Picture shared/).waitFor();
+ const draws=await p.evaluate(()=>window.milestoneArt.draws.length);await p.route('**/api/activities/987654**',r=>r.abort());await p.locator('[data-share-send]').click();await p.locator('[data-unified-share]').waitFor({state:'detached'});
  assert.equal(await p.evaluate(()=>window.milestoneArt.calls),2,'receipt retry does not deliver twice');assert.equal(await p.evaluate(()=>window.milestoneArt.draws.length),draws,'receipt retry does not refetch/redraw');await p.unroute('**/api/activities/987654**');assert.deepEqual(receipts,[{action:'shared'}],'receipt carries action only');await p.evaluate(()=>{api=window.milestoneReceiptApi;delete window.milestoneReceiptApi;});
  await p.evaluate(()=>{const o=window.milestoneOriginals;MapTiles.paint=o.paint;CanvasRenderingContext2D.prototype.fillText=o.fill;ShareArt.simplePicture=o.simple;ShareArt.deliver=o.deliver;delete window.milestoneOriginals;});
  await p.unroute('**/api/milestones?*');await p.unroute('**/api/activities/987654');await p.unroute('**/api/activities/987654/social');await p.unroute('**/api/milestones/*/seen');

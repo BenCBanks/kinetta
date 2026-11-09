@@ -10,7 +10,8 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
   const c=await browser.newContext({storageState,viewport:size,colorScheme:theme,timezoneId:'America/New_York',serviceWorkers:'block'}),p=await c.newPage(),errors=[];
   p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
   await c.addInitScript(r=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=r+'px'),size.root);
-  await p.goto(base+'/me');await p.locator('[data-card-share]').click();await p.locator('[data-share-card]').click();
+  const ready=async()=>{for(let attempt=0;attempt<150;attempt++){if(await p.evaluate(()=>App.pageReady))return;await p.waitForTimeout(100);}throw Error('Me did not become ready');};
+  await p.goto(base+'/me');await ready();await p.evaluate(()=>KinettaCard.open());
   const enabled=p.getByRole('switch',{name:'Share card',exact:true}),photo=p.locator('#card-photo'),sports=p.locator('#card-sports'),requests=p.locator('#card-requests'),thisWeek=p.getByRole('radio',{name:'This week',exact:true}),allTime=p.getByRole('radio',{name:'All time',exact:true}),none=p.getByRole('radio',{name:'None',exact:true});
   // Evaluate directly: older Playwright's waitForFunction injects eval, rejected by the app's strict CSP.
   const settled=async()=>{for(let attempt=0;attempt<150;attempt++){
@@ -56,10 +57,10 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
   assert(Array.isArray(sharedAchievements.achievements),'the opted-in owner preview returns only featured achievements');
   if(sharingBefore)await achievements.check();else await achievements.uncheck();await settled();
   await enabled.uncheck();await settled();assert(await p.locator('#card-share').isDisabled());assert.equal((await anonymous.request.get(data.url)).status(),404);
-  await p.reload();await p.locator('[data-card-share]').click();await p.locator('[data-share-card]').click();await settled();assert(!(await enabled.isChecked()),'off survives returning to the sheet');
+  await p.reload();await ready();await p.evaluate(()=>KinettaCard.open());await settled();assert(!(await enabled.isChecked()),'off survives returning to the sheet');
   await enabled.check();await settled();assert((await anonymous.request.get(data.url)).ok());
   assert.equal(await p.locator('body').evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'no horizontal overflow');
-  const qr=p.locator('#card-qr');await qr.click();assert(await p.getByRole('img',{name:'QR code for your Kinetta card'}).isVisible());
+  const qr=p.locator('#card-qr');await qr.click();assert(await p.getByRole('img',{name:'QR code for your Kinetta card'}).isVisible(),'the existing card QR screen remains available');
   assert.deepEqual(errors,[]);console.log(`Public card ${size.width}x${size.height}/${size.root} ${theme} PASS: weekly/all-time/none choices, matching image, public opt-out, sports, off persistence, public revocation, QR, console`);
   await anonymous.close();await c.close();
  }

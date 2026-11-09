@@ -24,7 +24,7 @@
 .scrim:has(#milestone-picture) .sheet>header,.scrim:has(#milestone-picture) .grab {flex:none;}
 .scrim:has(#milestone-picture) .sbody {display:flex;flex-direction:column;flex:1;min-height:0;}
 .milestone-body {flex:1;min-height:0;overflow-y:auto;padding-bottom:8px;}
-@media(max-width:360px){.milestone-actions {flex:1 1 100%;justify-content:center;}.milestone-share {flex:1;}}
+@media(max-width:360px){.milestone-actions {flex:1 1 100%;justify-content:center;}.milestone-share {flex:none;}}
 
 .milestone-list .row-link>svg {width:20px;height:20px;flex:none;}
 .me-milestone-row {display:flex;align-items:center;gap:8px;border-top:1px solid var(--line);padding-top:8px;}

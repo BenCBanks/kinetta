@@ -1,60 +1,53 @@
-// Exercise production picture sharing with a fictional owner and transports. No device, account or network access.
+// Activity picture choices use fictional owner data and stubbed transports only.
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const source=fs.readFileSync('app/static/pages.js','utf8');
-const start=source.indexOf('function sharePicture('),end=source.indexOf('// cut `m` metres',start);
-const tick=()=>new Promise(setImmediate);
-function fixture(native=true){
- const nodes={};for(const key of ['#pi-img','#pi-trim','#pi-go','#pi-trim-row','.pi-note','.pic-wrap'])nodes[key]={disabled:false,hidden:false,checked:true,src:'',alt:'',classList:{add(){},remove(){}}};
- const body={isConnected:true,querySelectorAll:()=>[]},calls=[],urls=[],revoked=[],messages=[],pending=[];
- const ctx={App:{},console,File,Blob,Promise,Error,Object,FOOT:['run'],svg:()=>'',readOwner:()=>ctx.owner,owner:'zz_test_owner_a',viewResources:new Map(),
-   Native:{activityShareSupported:native,shareActivityPicture:async(image,destination)=>{calls.push({image,destination});return{handedOff:true}}},
-   navigator:{},URL:{createObjectURL:()=>{const url='blob:fictional-'+urls.length;urls.push(url);return url},revokeObjectURL:url=>revoked.push(url)},
-   FileReader:class{readAsDataURL(){ctx.read=()=>{this.result='data:image/png;base64,fictional';this.onload()};if(!ctx.holdRead)ctx.read()}},
-   document:{body:{append(){}},createElement:()=>({click(){calls.push('download')},remove(){}})},
-   $:key=>nodes[key],sheet:(title,html,mount)=>{ctx.html=html;ctx.mounted=mount(body,()=>{body.isConnected=false})},
-   api:async()=>({trim_m:400}),decode:()=>[[0,0],[1,1]],toast:text=>messages.push(text),
-   routePicture:(a,trim,format)=>{calls.push({trim,format});return new Promise((resolve,reject)=>pending.push({resolve,reject}))}};
- vm.createContext(ctx);vm.runInContext(source.slice(start,end),ctx);
- ctx.sharePicture(1,{id:1,name:'Fictional run',sport:'run',line:'fictional',start_time:'2026-10-23T10:00:00Z'});
- return {ctx,nodes,body,calls,revoked,messages,pending};
+const source=fs.readFileSync('app/static/pages.js','utf8'),start=source.indexOf('function shareOut(a)'),end=source.indexOf('// cut `m` metres',start);
+const activity={id:7,name:'Fictional run',sport:'run',line:'fictional-line',start_time:'2026-10-23T10:00:00Z',distance_m:5000,moving_s:1500,avg_hr:152,calories:400,ascent_m:30};
+const sharing={details:{map:true,pace:true,heart_rate:false,elevation:false,calories:false},trim_m:400};
+function fixture(social=sharing){
+ const calls={route:[],simple:[],api:[]},ctx={owner:'zz_test_owner_a',App:{me:{units:'metric'}},SPORT_NAMES:{run:'Run'},readOwner:()=>ctx.owner,
+   api:async url=>{calls.api.push(url);return url.endsWith('/social')?{...social,details:{...social.details}}:{...activity};},
+   decode:()=>[[40,-75],[40.05,-75.05],[40.1,-75.1]],trimRoute:(points,metres)=>metres?points.slice(1,-1):points,
+   rate:()=>({label:'Pace',v:'5:00',u:'/km'}),dur:n=>n+' seconds',fdate:()=> 'Oct 23, 2026',U:{dist:n=>n+' km',du:()=> 'km'},
+   routePicture:async(...args)=>{calls.route.push(args);return new Blob(['activity']);},
+   ShareArt:{simplePicture:async options=>{calls.simple.push(options);return{blob:new Blob(['simple']),alt:'Fictional picture'};}},
+   ShareSheet:{open:options=>{ctx.options=options;}},toast:message=>{ctx.toast=message;}};
+ vm.createContext(ctx);vm.runInContext(source.slice(start,end),ctx);return{ctx,calls};
 }
+const tick=()=>new Promise(setImmediate),plain=value=>JSON.parse(JSON.stringify(value));
 (async()=>{
- let f=fixture();await f.ctx.mounted;
- assert.equal(f.calls.length,1,'one picture is drawn');assert.equal(f.calls[0].format,undefined,'no size to choose');
- assert(!/Instagram|Story|data-pic-format/.test(f.ctx.html),'no Instagram button and no size choice');
- assert(f.nodes['#pi-go'].disabled,'Share waits for the trimmed preview');
- f.pending.shift().resolve(new Blob(['fictional']));await tick();assert(!f.nodes['#pi-go'].disabled);
- await f.nodes['#pi-go'].onclick();assert.equal(f.calls.at(-1).destination,'system');assert.deepEqual(Object.keys(f.calls.at(-1)).sort(),['destination','image']);
- f.ctx.holdRead=true;const sent=f.calls.length;const sending=f.nodes['#pi-go'].onclick();assert(f.nodes['#pi-go'].disabled&&f.nodes['#pi-trim'].disabled,'duplicate taps and trim changes held during native conversion');
- await f.nodes['#pi-go'].onclick();assert.equal(f.calls.length,sent,'second tap cannot start another export');
- f.ctx.owner='zz_test_owner_b';f.ctx.read();await sending;assert.equal(f.calls.length,sent,'account switch blocks late image handoff');
- console.log('Activity share: one picture to the system share sheet; no size choice or Instagram button; duplicate taps and late account changes blocked PASS');
+ let f=fixture();f.ctx.sharePicture(7);await tick();let items=f.ctx.options.items;
+ assert.deepEqual(plain(items.map(item=>item.label)),['Activity card','Route map','Stats']);assert.equal(items[0].controls[0].checked,true,'endpoint trimming is checked by default');
+ await items[0].build({hideEnds:true});assert.equal(f.calls.route.at(-1)[1],400,'the activity card keeps the default 400 m endpoint trim');assert.equal(f.calls.route.at(-1)[2].heart_rate,false,'hidden heart rate stays out of the existing activity picture');
+ await items[0].build({hideEnds:false});assert.equal(f.calls.route.at(-1)[1],0,'the explicit checkbox choice reaches the existing generator');
+ await items[1].build({hideEnds:true});assert.deepEqual(plain(f.calls.simple.at(-1).routePoints),[[40.05,-75.05]],'the map option uses the trimmed points');assert.equal(f.calls.simple.at(-1).routeTrimmed,true);
+ await items[1].build({hideEnds:false});assert.deepEqual(plain(f.calls.simple.at(-1).routePoints),[[40,-75],[40.05,-75.05],[40.1,-75.1]]);assert.equal(f.calls.simple.at(-1).routeTrimmed,false,'untrimmed map alt text matches the visible endpoints');
+ await items[2].build({});assert(f.calls.simple.at(-1).facts.some(x=>x.startsWith('Time:')));assert(!f.calls.simple.at(-1).facts.some(x=>/heart rate|calories/i.test(x)),'disabled details do not appear in Stats');
+ console.log('Activity share: activity card, trimmed/full route map, stats and detail switches PASS');
 
- f=fixture();await f.ctx.mounted;f.pending.shift().resolve(new Blob(['initial']));await tick();
- f.nodes['#pi-trim'].checked=false;const first=f.nodes['#pi-trim'].onchange();f.nodes['#pi-trim'].checked=true;const second=f.nodes['#pi-trim'].onchange();
- assert(f.nodes['#pi-go'].disabled);
- f.pending[1].resolve(new Blob(['trimmed']));await second;const final=f.nodes['#pi-img'].src;
- f.pending[0].resolve(new Blob(['untrimmed']));await first;assert.equal(f.nodes['#pi-img'].src,final,'late untrimmed result cannot replace a newer trimmed image');
- f.nodes['#pi-trim'].checked=false;const failed=f.nodes['#pi-trim'].onchange();f.pending[2].reject(new Error('Fictional failure'));await failed;
- assert(f.nodes['#pi-go'].disabled,'failed privacy redraw cannot export the previous picture');
- const exports=f.calls.length;await f.nodes['#pi-go'].onclick();assert.equal(f.calls.length,exports);
- f.ctx.viewResources.get(f.body)();assert(f.revoked.includes(final),'closing releases preview URL');
- console.log('Activity share: trim races, failed redraw and close cannot leak an older untrimmed picture PASS');
+ f=fixture({...sharing,trim_m:0});f.ctx.sharePicture(7);await tick();items=f.ctx.options.items;
+ assert.equal(items[0].controls[0].checked,true,'a saved zero still opens with endpoint trimming checked');await items[0].build({hideEnds:true});assert.equal(f.calls.route.at(-1)[1],400,'zero falls back to the safe 400 m trim');
+ console.log('Activity share privacy: saved zero trim restores the safe checked default PASS');
 
- f=fixture(false);await f.ctx.mounted;f.pending.shift().resolve(new Blob(['browser']));await tick();
- f.ctx.navigator.canShare=()=>true;let activate=false;f.ctx.navigator.share=()=>{activate=true;return Promise.resolve()};
- const browser=f.nodes['#pi-go'].onclick();assert(activate,'browser share called synchronously from the tap');await browser;
- f.ctx.navigator.share=()=>Promise.reject(Object.assign(new Error('cancelled'),{name:'AbortError'}));const count=f.messages.length;await f.nodes['#pi-go'].onclick();assert.equal(f.messages.length,count,'user cancellation is quiet');
- f.ctx.navigator.canShare=()=>false;await f.nodes['#pi-go'].onclick();assert.equal(f.messages.at(-1),'Picture saved');
- f.body.isConnected=false;const exports2=f.calls.length;await f.nodes['#pi-go'].onclick();assert.equal(f.calls.length,exports2,'closed sheet cannot send');
- console.log('Activity share: immediate Web Share, quiet cancellation, honest image-download fallback and closed-sheet guard PASS');
- const native=fs.readFileSync('app/static/native.js','utf8');
- const block=native.slice(native.indexOf('  N.activityShareSupported'),native.indexOf('  N.headers ='));
+ f=fixture({trim_m:0,details:{map:false,pace:false,heart_rate:false,elevation:false,calories:false}});f.ctx.sharePicture(7);await tick();items=f.ctx.options.items;
+ assert.deepEqual(plain(items.map(item=>item.label)),['Activity card','Stats'],'the map option is omitted when the map detail is off');assert.equal(items[0].controls.length,0);await items[0].build({});assert.equal(f.calls.route.at(-1)[0].line,null);assert.equal(f.calls.route.at(-1)[1],0,'a hidden map never reaches the picture generator');
+ await items[1].build({});assert.deepEqual(plain(f.calls.simple.at(-1).facts),['Time: 1500 seconds'],'hidden stats remain out of the image');
+ console.log('Activity share privacy: hidden map/details stay out of every picture PASS');
+
+ f=fixture();const known={...activity};f.ctx.shareOut(known);await tick();
+ assert.deepEqual(f.calls.api,['/api/activities/7/social'],'activity detail reuses the activity but still fetches missing sharing preferences');assert.deepEqual(plain(known._social),plain(sharing));assert.equal(f.ctx.options.items[0].controls[0].checked,true);
+ f=fixture();f.ctx.shareOut({...activity,_social:sharing});await tick();assert.deepEqual(f.calls.api,[],'the cached detail social settings avoid a redundant request');
+ console.log('Activity detail sharing: cached workout takes the detail path and fetches missing privacy settings only PASS');
+
+ f=fixture();let resolveSocial;f.ctx.api=url=>{f.calls.api.push(url);return new Promise(resolve=>resolveSocial=resolve);};f.ctx.shareOut({...activity});f.ctx.owner='zz_test_owner_b';resolveSocial(sharing);await tick();assert.equal(f.ctx.options,undefined,'a late social response cannot open a previous account’s share sheet');
+ console.log('Activity share: account switch blocks a late privacy-settings result PASS');
+
+ const native=fs.readFileSync('app/static/native.js','utf8'),block=native.slice(native.indexOf('  N.activityShareSupported'),native.indexOf('  N.headers ='));
  const bridgeCalls=[],old={on:false,P:{},N:{}};vm.createContext(old);vm.runInContext(block,old);assert.equal(old.N.activityShareSupported,false);await old.N.stopActivityShare();
  const bridge={on:true,P:{KinettaActivityShare:{share:async value=>bridgeCalls.push(value),cancel:async()=>bridgeCalls.push('cancel')}},N:{token:'fictional-token',base:'https://fictional.test'}};
- vm.createContext(bridge);vm.runInContext(block,bridge);assert.equal(bridge.N.activityShareSupported,true);await bridge.N.shareActivityPicture('fictional-image','instagram');assert.equal(JSON.stringify(bridgeCalls[0]),JSON.stringify({image:'fictional-image',destination:'instagram'}));await bridge.N.stopActivityShare();assert.equal(bridgeCalls[1],'cancel');
- console.log('Native share bridge: older/web builds cancel safely; supported builds send image/destination only and cancel pending handoff PASS');
+ vm.createContext(bridge);vm.runInContext(block,bridge);assert.equal(bridge.N.activityShareSupported,true);await bridge.N.shareActivityPicture('fictional-image','instagram');assert.deepEqual(JSON.parse(JSON.stringify(bridgeCalls[0])),{image:'fictional-image',destination:'instagram'});await bridge.N.stopActivityShare();assert.equal(bridgeCalls[1],'cancel');
+ console.log('Native share bridge: capability gate, image/destination payload and cancellation PASS');
+
  const app=fs.readFileSync('app/static/app.js','utf8'),closeCalls=[];
  const account={App:{me:{id:1},cache:{clear(){}}},readSessions:new WeakMap(),Native:{stopActivityShare:async()=>closeCalls.push('native')},keep(){},forgetKept(){},render(){}};
  account.App.mediaMapBack=()=>closeCalls.push('map');account.App.closeActivityShare=()=>closeCalls.push('picture');vm.createContext(account);

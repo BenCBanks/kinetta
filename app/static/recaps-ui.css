@@ -25,4 +25,29 @@
 .recap-full{display:block;max-width:100%;height:auto;margin:0 auto}
 @media(prefers-reduced-motion:no-preference){.recap-preview{transition:opacity .15s}}
 
+.scrim:has([data-unified-share]) .sheet{display:flex;flex-direction:column;overflow:hidden;}
+.scrim:has([data-unified-share]) .sheet>header,.scrim:has([data-unified-share]) .grab{flex:none;}
+.scrim:has([data-unified-share]) .sbody{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;}
+.share-sheet{display:flex;flex-direction:column;gap:10px;min-height:0;flex:1;}
+.share-picture-row{display:flex;align-items:stretch;gap:12px;min-height:0;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:none;padding:2px 18px 4px;}
+.share-picture-row::-webkit-scrollbar{display:none}
+.share-picture-choice{display:flex;flex:0 0 min(78vw,286px);flex-direction:column;align-items:stretch;gap:8px;min-width:0;min-height:0;border:0;padding:0;background:transparent;color:var(--tx);text-align:left;scroll-snap-align:center;}
+.share-picture-frame{position:relative;display:flex;align-items:center;justify-content:center;height:clamp(230px,38dvh,340px);overflow:hidden;border-radius:12px;background:var(--card);}
+.share-picture-frame img{display:block;width:100%;height:100%;object-fit:contain;}
+.share-picture-loading{position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:var(--tx2);}
+.share-picture-choice[data-busy=true] .share-picture-loading{display:flex;}
+.share-picture-choice[aria-checked=true] .share-picture-frame{outline:2px solid var(--accent);outline-offset:2px;}
+.share-picture-choice:focus-visible .share-picture-frame{outline:2px solid var(--accent);outline-offset:2px;}
+.share-picture-label{min-height:24px;font-size:max(15px,.9375rem);font-weight:600;}
+.share-picture-controls{flex:none;min-height:0;}
+.share-picture-controls:empty{display:none;}
+.share-picture-controls .check{min-height:44px;}
+.share-picture-note:empty{display:none;}
+.share-picture-status{flex:none;min-height:18px;margin:0;text-align:center;}
+.share-picture-actions{display:grid;flex:none;gap:2px;padding:0 18px max(8px,env(safe-area-inset-bottom));}
+.share-picture-actions .primary,.share-picture-actions .linkbtn{min-height:44px;}
+.share-picture-actions .linkbtn{margin:0;}
+.share-picture-actions .primary svg{width:20px;height:20px;margin-right:8px;vertical-align:-4px;}
+@media(max-height:700px){.share-picture-frame{height:clamp(190px,32dvh,260px);}.share-sheet{gap:6px;}}
+
 .recap-sheet .recap-periods button,.recap-sheet .recap-options button{font-weight:500;background:transparent;box-shadow:none}

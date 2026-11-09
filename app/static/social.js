@@ -375,7 +375,7 @@ function weeklyRecapDateLabel(start,end){
 function weeklyRecapHtml(data,usual,medals){
   const best=data.owner_best_effort,days=weeklyRecapDays(data),shown=medals.slice(0,3),extra=medals.length-shown.length;
   return `<section class="card recap-offer weekly-recap" data-weekly-recap data-start="${esc(data.start)}"><div class="weekly-recap-copy">
-    <div class="weekly-recap-head"><div><h2>Your week</h2><p class="small muted">${esc(weeklyRecapDateLabel(data.start,data.end))}</p></div><div class="weekly-recap-actions"><button type="button" class="linkbtn" data-weekly-recap-share>Share</button><button type="button" class="icon-btn" data-weekly-recap-dismiss aria-label="Dismiss this week’s recap">${svg('close')}</button></div></div>
+    <div class="weekly-recap-head"><div><h2>Your week</h2><p class="small muted">${esc(weeklyRecapDateLabel(data.start,data.end))}</p></div><div class="weekly-recap-actions"><button type="button" class="icon-btn" data-weekly-recap-share aria-label="Share weekly recap">${svg('share')}</button><button type="button" class="icon-btn" data-weekly-recap-dismiss aria-label="Dismiss this week’s recap">${svg('close')}</button></div></div>
     <div class="weekly-recap-metrics"><div><b class="num">${esc(U.dist(data.distance_m||0,1))} ${esc(U.du())}</b><small>Distance${usual?` · ${esc(U.dist(usual.distance_m,1))} ${esc(U.du())} usual`:''}</small></div><div><b class="num">${esc(dur(data.time_s||0,true))}</b><small>Time${usual?` · ${esc(dur(usual.time_s,true))} usual`:''}</small></div></div>
     ${best||shown.length?`<div class="weekly-recap-highlights">${best?`<p class="weekly-recap-best"><b>Best effort</b> · ${esc(best.label)} · ${esc(dur(best.elapsed_s,true))}</p>`:''}${shown.length?`<div class="weekly-recap-medals" role="list" aria-label="New medals this week">${shown.map(m=>`<span class="weekly-recap-medal" role="listitem" aria-label="${esc(m.label)}"><img src="${esc(m.icon)}" alt="" aria-hidden="true" loading="eager" decoding="async"><span>${esc(m.label)}</span></span>`).join('')}${extra?`<span class="weekly-recap-medal-more">+${extra} more</span>`:''}</div>`:''}</div>`:''}
     <div class="weekly-recap-days" role="group" aria-label="Activity days, Monday to Sunday">${days.map(d=>`<span class="weekly-recap-day" aria-label="${d.name}: ${d.active?'workout':'no workout'}"><small aria-hidden="true">${d.label}</small><i class="${d.active?'is-active':''}" aria-hidden="true"></i></span>`).join('')}</div>
@@ -406,12 +406,17 @@ function weeklyRecapPicture(data,usual,medals,days){
     return ShareArt.blob(canvas);
   })();
 }
-function openWeeklyRecapShare(box,data,usual,medals,days){
-  const owner=readOwner();sheet('Share your week',`<div class="weekly-recap-share-stage"><img data-weekly-recap-share-image alt="Weekly recap picture" hidden></div><p class="small muted" data-weekly-recap-share-status role="status">Preparing your picture…</p><button type="button" class="primary wide" data-weekly-recap-share-send disabled>Share</button>`,(body,close)=>{
-    const live=()=>owner===readOwner()&&box.isConnected&&body.isConnected,image=$('[data-weekly-recap-share-image]',body),status=$('[data-weekly-recap-share-status]',body),button=$('[data-weekly-recap-share-send]',body);let picture=null;
-    weeklyRecapPicture(data,usual,medals,days).then(blob=>{if(!live())return;picture=blob;const parts=[`Your week, ${weeklyRecapDateLabel(data.start,data.end)}.`,`${U.dist(data.distance_m||0,1)} ${U.du()} distance.`,`${dur(data.time_s||0,true)} time.`,usual?`Usual week: ${U.dist(usual.distance_m,1)} ${U.du()} and ${dur(usual.time_s,true)}.`:null,...medals.map(m=>`New medal: ${m.label}.`)];image.alt=parts.filter(Boolean).join(' ');image.src=URL.createObjectURL(blob);image.hidden=false;status.textContent='Your week picture is ready.';button.disabled=false;}).catch(error=>{if(live())status.textContent=error.message||'Couldn’t make this picture.';});
-    button.onclick=async()=>{if(!picture||button.disabled||!live())return;button.disabled=true;status.textContent='Opening share options…';try{await ShareArt.deliver(picture,`kinetta-week-${data.start}.png`,live);if(live())status.textContent='';}catch(error){if(live()){status.textContent=error.message||'Couldn’t share this picture.';button.disabled=false;}}};
-  });
+function weeklyRecapPictureItem(data,usual,medals,days,valid=()=>true){
+  const alt=[`Your week, ${weeklyRecapDateLabel(data.start,data.end)}.`,`${U.dist(data.distance_m||0,1)} ${U.du()} distance.`,`${dur(data.time_s||0,true)} time.`,usual?`Usual week: ${U.dist(usual.distance_m,1)} ${U.du()} and ${dur(usual.time_s,true)}.`:null,...medals.map(m=>`New medal: ${m.label}.`)].filter(Boolean).join(' ');
+  return{label:'Weekly recap',filename:`kinetta-week-${data.start}.png`,valid,build:async()=>({blob:await weeklyRecapPicture(data,usual,medals,days),alt})};
+}
+function openWeeklyRecapShare(box,data,usual,medals,days){ShareSheet.open({items:[weeklyRecapPictureItem(data,usual,medals,days,()=>box.isConnected)]});}
+async function weeklyRecapShareItem(){
+  const owner=readOwner(),zone=tz(),window=weeklyRecapWindow(new Date(),zone);if(!window.visible)return null;
+  const [data,volume,achievements]=await Promise.all([api(`/api/recaps?period=week&offset=${window.offset}`),api('/api/progress/volume?period=week'),api('/api/achievements')]);
+  if(owner!==readOwner()||zone!==tz()||data.tz!==zone||data.start!==window.start||Number(data.activities)<=0)return null;
+  const usual=weeklyRecapUsual(volume.rows,data.start);let medals=weeklyRecapMedals(achievements,null,data.start,data.end);if(medals.length)medals=weeklyRecapMedals(achievements,await weeklyRecapCatalog(),data.start,data.end);
+  if(owner!==readOwner()||zone!==tz())return null;return weeklyRecapPictureItem(data,usual,medals,weeklyRecapDays(data),()=>owner===readOwner());
 }
 async function weeklyRecapOffer(box){
   if(!box||!box.isConnected||!App.me)return;const owner=readOwner(),zone=tz(),window=weeklyRecapWindow(new Date(),zone);if(!window.visible)return;
@@ -604,13 +609,15 @@ function sharedCharts(box, a) {
 
 // The cheer and comment icons by an activity's title (2026-10-12, Ben: a little icon near the title, comments pop up
 // from below). Both activity pages use them; the counts follow what happens in the comments sheet.
-const talkIcons=(s,aid)=>reactionButtons(aid,s,true)+`<button type="button" class="pf activity-comments" data-ttalk aria-label="Comments, ${s.comments.length}">${svg('comment')}<span class="num"${s.comments.length?'':' hidden'}>${s.comments.length?reactionNumber(s.comments.length):''}</span></button>`;
-function wireTalk(box,aid,s,open,{hideEmpty=false}={}){
+const detailShareButton=()=>`<button type="button" class="pf activity-share" data-detail-share aria-label="Share a picture of this activity">${svg('share')}</button>`;
+const talkIcons=(s,aid,onShare)=>reactionButtons(aid,s,true)+`<button type="button" class="pf activity-comments" data-ttalk aria-label="Comments, ${s.comments.length}">${svg('comment')}<span class="num"${s.comments.length?'':' hidden'}>${s.comments.length?reactionNumber(s.comments.length):''}</span></button>`+(onShare?detailShareButton():'');
+function wireTalk(box,aid,s,open,{hideEmpty=false,onShare=null}={}){
   if(!box)return;const owner=readOwner(),cached=SocialData.peek(aid);if(cached)s=cached;else SocialData.remember(aid,s);
-  box.innerHTML=talkIcons(s,aid);const visibility=()=>{if(hideEmpty)box.hidden=!(s.cheers.length||s.comments.length);};visibility();cleanViews();
+  box.innerHTML=talkIcons(s,aid,onShare);const visibility=()=>{if(hideEmpty)box.hidden=!(s.cheers.length||s.comments.length);};visibility();cleanViews();
   const group=$('[data-reaction-group]',box),talk=$('[data-ttalk]',box);
   const update=fresh=>{if(!box.isConnected||owner!==readOwner())return;s=fresh;visibility();group?._sync?.(s);const count=$('.num',talk);count.hidden=!s.comments.length;count.textContent=s.comments.length?reactionNumber(s.comments.length):'';talk.setAttribute('aria-label',`Comments, ${s.comments.length}`);};
   wireReactionGroup(group,aid,update);SocialData.warm(talk,aid);
+  const share=$('[data-detail-share]',box);if(share)share.onclick=()=>{if(owner===readOwner())onShare?.();};
   viewResources.set(talk,SocialData.watch(aid,fresh=>{if(!box.isConnected||owner!==readOwner())return false;if(fresh)update(fresh);else box.replaceChildren();}));
   talk.onclick=()=>commentsSheet(aid,s,update);
   if(open)commentsSheet(aid,s,update);
@@ -764,11 +771,12 @@ function photoViewer(a, start, mine, onChange) {
 async function ownSocial(el, a) {
   const box = $('#d-soc', el); if (!box) return;
   const owner=readOwner(),cached=SocialData.peek(a.id),current=()=>box.isConnected&&owner===readOwner();
-  if(cached){if(cached.visibility&&cached.details)a._social=cached;wireTalk(box,a.id,cached,new URLSearchParams(location.search).get('tab')==='comments',{hideEmpty:true});}
-  else box.innerHTML='<span class="small muted" role="status">Loading reactions…</span>';
+  const onShare=()=>shareOut(a);
+  if(cached){if(cached.visibility&&cached.details)a._social=cached;wireTalk(box,a.id,cached,new URLSearchParams(location.search).get('tab')==='comments',{hideEmpty:true,onShare});}
+  else {box.innerHTML=detailShareButton()+'<span class="small muted" role="status">Loading reactions…</span>';const share=$('[data-detail-share]',box);share.onclick=()=>{if(current())onShare();};}
   try{const fresh=await SocialData.read(a.id,{ownerDetails:true});if(!fresh||!current())return;a._social=fresh;
-    if(!cached)wireTalk(box,a.id,fresh,new URLSearchParams(location.search).get('tab')==='comments',{hideEmpty:true});
-  }catch(error){if(current()&&!cached){box.hidden=false;box.innerHTML='<button type="button" class="linkbtn" data-social-retry>Retry reactions</button>';$('[data-social-retry]',box).onclick=()=>ownSocial(el,a);}}
+    if(!cached)wireTalk(box,a.id,fresh,new URLSearchParams(location.search).get('tab')==='comments',{hideEmpty:true,onShare});
+  }catch(error){if(current()&&!cached){box.hidden=false;box.innerHTML=detailShareButton()+'<button type="button" class="linkbtn" data-social-retry>Retry reactions</button>';$('[data-detail-share]',box).onclick=()=>{if(current())onShare();};$('[data-social-retry]',box).onclick=()=>ownSocial(el,a);}}
 }
 function detailChecks(d) {
   return Object.entries(DETAIL_NAMES).map(([k, n]) => `<label class="check"><input type="checkbox" name="${k}"${d[k] ? ' checked' : ''}> ${esc(n)}</label>`).join('');
@@ -924,22 +932,6 @@ function friendshipSheet(p, onChange) {
   sheet(p.name, `<p>You’re friends on Kinetta.</p><a class="ghost wide" href="${profileHref(p)}" data-close>View profile</a><button class="ghost wide danger" type="button" data-remove>Remove friend</button><button class="ghost wide danger" type="button" data-block>Block</button>`,(b,close)=>{
     for(const [selector,block] of [['[data-remove]',false],['[data-block]',true]])$(selector,b).onclick=()=>{close();friendChangeSheet(p,block,onChange);};
   });
-}
-
-function shareProfile(p) {
-  const owner=readOwner(),same=()=>owner===readOwner();
-  const url = `${appBase()}${profileHref(p)}`;
-  const copySheet = () => {if(!same())return;return sheet('Share your profile', `<p>People need a Kinetta account to open your profile. Your sharing choices still apply.</p><label class="form">Profile link<input readonly value="${esc(url)}" aria-label="Profile link"></label><button type="button" class="primary wide" id="pf-copy">Copy link</button><p class="small muted" id="pf-copy-status" role="status"></p>`, (b) => {
-    const live=()=>same()&&b.isConnected;
-    const input = $('input', b); input.onclick = () => input.select();
-    $('#pf-copy', b).onclick = async () => {
-      if(!live())return;
-      try { await navigator.clipboard.writeText(url); if(live())$('#pf-copy-status', b).textContent = 'Link copied'; }
-      catch { if(live()){input.select();$('#pf-copy-status', b).textContent = 'Select and copy the link above.';} }
-    };
-  });};
-  if (navigator.share) navigator.share({title: `${p.name} on Kinetta`, url}).catch((e) => { if (e.name !== 'AbortError') copySheet(); });
-  else copySheet();
 }
 
 // ---------- finding friends (Ben, 25 October 2026: "a tad easier to quickly find your friends") ----------
