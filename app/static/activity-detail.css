@@ -1,9 +1,9 @@
 /* A mapped activity starts at the screen edge; the ordinary header remains for indoor activities. */
 .activity-detail { --detail-edge:22px; }
-.detail-map-hero { position:relative; margin:calc(0px - env(safe-area-inset-top) - var(--shell-top-gap)) calc(-1 * var(--detail-edge)) 12px; }
-.detail-map-hero .detail-media { --media-height:clamp(220px,38dvh,340px); margin:0; }
+.detail-map-hero { --activity-map-title-scrim:color-mix(in srgb,var(--color-action) 93%,transparent); position:relative; margin:calc(0px - env(safe-area-inset-top) - var(--shell-top-gap)) calc(-1 * var(--detail-edge)) 12px; }
+.detail-map-hero .detail-media { --media-height:clamp(264px,46dvh,408px); margin:0; }
 .detail-map-hero .media-track { border-radius:0; }
-.detail-map-hero::after { content:''; position:absolute; pointer-events:none; inset:0 0 auto; height:calc(env(safe-area-inset-top) + 64px); z-index:1001; background:linear-gradient(var(--bg),transparent); }
+.detail-map-hero::after { content:''; position:absolute; pointer-events:none; inset:0 0 auto; height:calc(env(safe-area-inset-top) + 96px); z-index:1001; background:linear-gradient(to bottom,var(--activity-map-title-scrim) 0%,var(--activity-map-title-scrim) calc(env(safe-area-inset-top) + 32px),transparent 100%); }
 .detail-bar { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .detail-bar .acts { display:flex; align-items:center; gap:8px; }
 .detail-bar .back,.detail-bar .icon-btn { min-width:44px; min-height:44px; flex:none; }
