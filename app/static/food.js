@@ -177,7 +177,7 @@ function nHead(el, view, filters) {
 async function foodDiscovery(el) {
   const box=$('#fd-explore',el),owner=readOwner();
   if(!box)return;
-  box.innerHTML='<h2 class="sec-head">Explore your food</h2><div class="progress-grid" id="nutrition-explore"></div>';
+  box.innerHTML='<h2 class="sec-head">Explore your food</h2><div class="progress-grid explore-list" id="nutrition-explore"></div>';
   const grid=$('#nutrition-explore',box),facts={food:null,health:undefined};let ready=false;
   const valid=()=>box.isConnected&&owner===readOwner();
   const draw=()=>{
@@ -270,7 +270,7 @@ function drawDay(el, D) {
       ${!t.protein_target ? '<button class="linkbtn tc-settg" id="fd-targets">Set macro targets</button>' : ''}
       ${!watchResting && B.deficit == null ? '<p class="small muted tc-bal">Log food to see your deficit for this day.</p>' : B.day_burn == null ? `<p class="small muted tc-bal">Resting calories have not synced for this day. Activities: ${r0(B.kcal)} kcal. Total burn is waiting for resting data.</p>`
         : `<details class="bd tc-bal"${!today && bdOpen() ? ' open' : ''}><summary><span>${today ? watchResting ? 'Energy balance so far' : 'Daily energy breakdown' : B.deficit == null ? 'Energy breakdown' : B.deficit >= 0 ? 'Deficit' : 'Surplus'}<small class="muted">${watchResting ? ' · Health resting + activities' : ' · estimate'}</small></span>
-            <b class="num ${today ? 'day-balance-detail' : ''} ${B.partly ? '' : B.deficit >= 0 ? 'good' : 'bad'}">${B.deficit == null ? neg(B.day_burn) : B.deficit >= 0 ? neg(B.deficit) : pos(-B.deficit)}<i> kcal</i></b><span class="chev">${svg('chev')}</span></summary>
+            <b class="num${today ? ' day-balance-detail' : ''}">${B.deficit == null ? neg(B.day_burn) : B.deficit >= 0 ? neg(B.deficit) : pos(-B.deficit)}<i> kcal</i></b><span class="chev">${svg('chev')}</span></summary>
         ${goalNote ? `<p class="small muted tc-note">${esc(goalNote)}</p>` : ''}
         ${B.partly ? '<p class="small muted">Looks only partly logged, so this day is left out of your averages and totals. Add the rest and it counts.</p>' : ''}
         ${row(watchResting ? 'Resting calories · Health app' : 'Resting burn (BMR)', neg(B.bmr), '', watchResting ? `${today ? 'synced so far' : 'synced daily total'}${B.observed_at ? ` · read ${esc(when(B.observed_at))}` : ''}` : B.bmr_exact ? 'Kinetta estimate' : 'rough guess · <a href="/me">add height & age</a>')}
