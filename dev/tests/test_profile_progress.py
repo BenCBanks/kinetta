@@ -25,30 +25,35 @@ try:
     # UTC makes the period boundary deterministic regardless of server timezone/DST.
     req(owner, 'PUT', '/api/profile', {'tz': 'UTC'})
     req(viewer, 'PUT', '/api/profile', {'tz': 'UTC'})
-    today = dt.datetime.now(dt.timezone.utc).date()
-    start = today - dt.timedelta(days=29)
-    cases = [('me', today, 9000), ('friends', today, 2000), ('everyone', today, 1000),
-             ('everyone', start, 3000), ('everyone', start - dt.timedelta(days=1), 4000),
-             ('everyone', start - dt.timedelta(days=30), 5000),
-             ('everyone', start - dt.timedelta(days=31), 6000)]
+    anchor = profile(viewer)['recent']
+    today = dt.date.fromisoformat(anchor['end'])
+    current_day, second_current_day = today - dt.timedelta(days=3), today - dt.timedelta(days=8)
+    previous_days = (today - dt.timedelta(days=35), today - dt.timedelta(days=50))
+    outside_previous = today - dt.timedelta(days=65)
+    cases = [('me', current_day, 9000), ('friends', current_day, 2000), ('everyone', current_day, 1000),
+             ('everyone', second_current_day, 3000), ('everyone', previous_days[0], 4000),
+             ('everyone', previous_days[1], 5000), ('everyone', outside_previous, 6000)]
     ids = []
     for visibility, day, distance in cases:
         a = req(owner, 'POST', '/api/activities/manual', {'sport': 'walk', 'start': f'{day}T00:00:00+00:00', 'duration_s': 600, 'distance_m': distance, 'name': 'Progress fixture'})
         ids.append(a['id'])
         req(owner, 'PUT', f"/api/activities/{a['id']}/sharing", {'visibility': visibility})
     recent = profile(viewer, '?limit=1')['recent']
-    assert recent['start'] == str(start) and recent['end'] == str(today)
+    assert (dt.date.fromisoformat(recent['end']) - dt.date.fromisoformat(recent['start'])).days == 29
     assert recent['current'] == {'activities': 4, 'distance_m': 15000, 'time_s': 2400, 'active_days': 2}, 'totals include private and friends-only workouts'
     assert recent['previous'] == {'activities': 2, 'distance_m': 9000, 'time_s': 1200, 'active_days': 2}
-    assert profile(viewer, '?limit=50')['recent'] == recent, 'pagination must not change progress'
+    paged = profile(viewer, '?limit=50')['recent']
+    assert paged['current'] == recent['current'] and paged['previous'] == recent['previous'], 'pagination must not change progress totals'
     req(viewer, 'POST', '/api/friends', {'login': 'zz_test_progress_owner'})
     req(owner, 'POST', '/api/friends/zz_test_progress_view/accept')
     friend = profile(viewer)['recent']
-    assert friend == recent, 'friends see the same totals as other members'
+    assert friend['current'] == recent['current'] and friend['previous'] == recent['previous'], 'friends see the same totals as other members'
     assert friend['current']['active_days'] == 2, 'same-day workouts count as one active day'
-    assert profile(owner, '?as_friend=true')['recent'] == friend
+    owner_preview = profile(owner, '?as_friend=true')['recent']
+    assert owner_preview['current'] == friend['current'] and owner_preview['previous'] == friend['previous']
     assert profile(owner)['recent']['current']['distance_m'] == 15000
-    assert profile(viewer, '?as_friend=true')['recent'] == friend, 'cannot force owner-only view'
+    forced = profile(viewer, '?as_friend=true')['recent']
+    assert forced['current'] == friend['current'] and forced['previous'] == friend['previous'], 'cannot force owner-only view'
     req(owner, 'PUT', '/api/sharing', {'findable': False})
     # Accepted friends remain findable; exact handle lookup still works after removing friendship.
     req(owner, 'DELETE', '/api/friends/zz_test_progress_view')

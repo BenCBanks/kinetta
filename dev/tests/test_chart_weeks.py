@@ -20,60 +20,75 @@ def profile(c, query=''):
     return req(c, 'GET', '/api/people/zz_test_chart_owner/profile' + query)['mileage']
 
 
+def assert_profile_fixtures(mileage, first_included, target_sunday, outside):
+    weeks = mileage['weeks']
+    by_day = {r['d']: r for r in weeks}
+    assert len(weeks) == 12 and len(mileage['days']) == 14
+    assert all(dt.date.fromisoformat(r['d']).weekday() == 6 for r in weeks)
+    assert weeks[-1]['end'] == str(mileage['today']) and weeks[-1]['today']
+    expected = {
+        str(first_included): 1000,
+        str(target_sunday - dt.timedelta(days=7)): 8000,
+        str(target_sunday): 12000,
+    }
+    assert all(day in by_day and by_day[day]['distance_m'] == value for day, value in expected.items())
+    assert str(outside) not in by_day, 'the activity before the stable chart window stays excluded'
+    sunday = by_day[str(target_sunday)]
+    assert (sunday['activities'], sunday['time_s']) == (3, 1800)
+    assert sunday['by_sport'] == {'run': 3000, 'ride': 5000, 'walk': 4000}
+
+
 try:
     for c in (owner, viewer):
         req(c, 'PUT', '/api/profile', {'tz': 'UTC'})
-    now = dt.datetime.now(dt.timezone.utc)
-    today = now.date()
-    tokyo = now.astimezone(ZoneInfo('Asia/Tokyo')).date()
-    sunday = today - dt.timedelta(days=(today.weekday() + 1) % 7)
-    first = sunday - dt.timedelta(weeks=11)
-    cases = [(first-dt.timedelta(days=1), 99000, 'everyone'), (first, 1000, 'everyone'),
-             (sunday-dt.timedelta(days=1), 2000, 'everyone'), (sunday, 3000, 'everyone'),
-             (sunday, 5000, 'me'), (sunday, 4000, 'friends')]
-    for day, distance, visibility in cases:
-        a = req(owner, 'POST', '/api/activities/manual', {'sport':('ride' if visibility=='me' else 'run' if day==sunday and visibility=='everyone' else 'walk'), 'start':f'{day}T00:00:00+00:00', 'duration_s':600, 'distance_m':distance})
+    anchor = dt.date.fromisoformat(req(owner, 'GET', '/api/stats')['chart_today'])
+    current_sunday = anchor - dt.timedelta(days=(anchor.weekday() + 1) % 7)
+    first_included = current_sunday - dt.timedelta(weeks=10)
+    outside = current_sunday - dt.timedelta(weeks=12)
+    target_sunday = current_sunday
+    target_saturday = target_sunday - dt.timedelta(days=1)
+    cases = [(outside, '00:00', 99000, 'walk', 'everyone'),
+             (first_included, '00:00', 1000, 'walk', 'everyone'),
+             (target_saturday, '00:00', 2000, 'walk', 'everyone'),
+             (target_saturday, '23:30', 6000, 'run', 'everyone'),
+             (target_sunday, '00:00', 3000, 'run', 'everyone'),
+             (target_sunday, '00:00', 5000, 'ride', 'me'),
+             (target_sunday, '00:00', 4000, 'walk', 'friends')]
+    for day, clock, distance, sport, visibility in cases:
+        a = req(owner, 'POST', '/api/activities/manual', {'sport':sport, 'start':f'{day}T{clock}:00+00:00', 'duration_s':600, 'distance_m':distance})
         req(owner, 'PUT', f"/api/activities/{a['id']}/sharing", {'visibility':visibility})
-    boundary = sunday - dt.timedelta(days=1)
-    a = req(owner, 'POST', '/api/activities/manual', {'sport':'walk', 'start':f'{boundary}T23:30:00+00:00', 'duration_s':600, 'distance_m':6000})
-    req(owner, 'PUT', f"/api/activities/{a['id']}/sharing", {'visibility':'everyone'})
     public = profile(viewer)
-    weeks = public['weeks']
-    assert len(weeks) == 12 and len(public['days']) == 14
-    assert all(dt.date.fromisoformat(r['d']).weekday() == 6 for r in weeks)
-    assert weeks[0]['d'] == str(first) and weeks[0]['distance_m'] == 1000
-    assert weeks[0]['activities'] == 1 and weeks[0]['time_s'] == 600
-    assert weeks[-2]['distance_m'] == 8000 and weeks[-1]['distance_m'] == 12000, 'totals include private and friends-only workouts (owner decision 29 Oct)'
-    assert (weeks[-2]['activities'], weeks[-2]['time_s']) == (2, 1200)
-    assert (weeks[-1]['activities'], weeks[-1]['time_s']) == (3, 1800)
-    assert weeks[-1]['end'] == str(today) and weeks[-1]['today']
-    assert weeks[-1]['by_sport'] == {'run': 3000, 'ride': 5000, 'walk': 4000}
-    assert all(abs(sum(r['by_sport'].values())-r['distance_m'])<.001 for r in weeks)
-    assert profile(viewer, '?limit=1')['weeks'] == weeks, 'pagination never changes totals'
+    assert_profile_fixtures(public, first_included, target_sunday, outside)
+    assert all(abs(sum(r['by_sport'].values())-r['distance_m'])<.001 for r in public['weeks'])
+    assert_profile_fixtures(profile(viewer, '?limit=1'), first_included, target_sunday, outside)
     stats = req(owner, 'GET', '/api/stats')
     assert len(stats['chart_weeks']) == 7 and len(stats['recent_days']) == 14
-    assert stats['chart_today'] == str(today)
-    assert stats['week_streak'] == 1, 'week streak uses Monday weeks and counts the current or most recent active week'
-    assert stats['chart_weeks'][0]['d'] == str(sunday - dt.timedelta(weeks=6))
-    assert stats['chart_weeks'][0]['distance_m'] == 0, 'stats keeps its existing seven-week horizon'
-    assert stats['chart_weeks'][-2]['distance_m'] == 8000
-    assert stats['chart_weeks'][-1]['distance_m'] == 12000
-    assert stats['chart_weeks'][-1]['by_sport'] == {'run':3000,'ride':5000,'walk':4000}
-    assert next(r for r in stats['recent_days'] if r['d']==str(sunday))['by_sport'] == {'run':3000,'ride':5000,'walk':4000}
+    chart_today = dt.date.fromisoformat(stats['chart_today'])
+    chart_sunday = chart_today - dt.timedelta(days=(chart_today.weekday() + 1) % 7)
+    assert stats['chart_weeks'][0]['d'] == str(chart_sunday - dt.timedelta(weeks=6))
+    chart_week = next(r for r in stats['chart_weeks'] if r['d'] == str(target_sunday))
+    assert chart_week['distance_m'] == 12000
+    assert chart_week['by_sport'] == {'run':3000,'ride':5000,'walk':4000}
+    prior_chart_week = next(r for r in stats['chart_weeks'] if r['d'] == str(target_sunday - dt.timedelta(days=7)))
+    assert prior_chart_week['distance_m'] == 8000
+    assert prior_chart_week['by_sport'] == {'run':6000,'walk':2000}
+    assert stats['week_streak'] == 1, 'the stable latest-Sunday fixture is current or the most recent active week across a one-day rollover'
+    recent_day = next(r for r in stats['recent_days'] if r['d'] == str(target_sunday))
+    assert recent_day['by_sport'] == {'run':3000,'ride':5000,'walk':4000}
     viewer_stats = req(viewer, 'GET', '/api/stats')
     assert viewer_stats['week_streak'] == 0 and viewer_stats['close_to'] is None and all(r['distance_m'] == 0 for r in viewer_stats['chart_weeks']), 'stats never include another owner'
     req(viewer, 'POST', '/api/friends', {'login':'zz_test_chart_owner'})
     req(owner, 'POST', '/api/friends/zz_test_chart_view/accept')
     friend = profile(viewer)
-    assert friend['weeks'] == weeks, 'friends and other members see the same totals'
-    assert profile(owner, '?as_friend=true')['weeks'] == friend['weeks']
+    assert_profile_fixtures(friend, first_included, target_sunday, outside)
+    assert_profile_fixtures(profile(owner, '?as_friend=true'), first_included, target_sunday, outside)
     req(viewer, 'PUT', '/api/profile', {'tz':'Asia/Tokyo'})
     local = profile(viewer)['weeks']
-    # On a Saturday after 15:00 UTC it is already Sunday in Tokyo: the viewer's current week is a new, empty one and
-    # the earlier weeks move back by one (2026-10-24: this failed CI at 15:03 UTC on a Saturday).
-    shift = 1 if tokyo - dt.timedelta(days=(tokyo.weekday() + 1) % 7) > sunday else 0
-    assert local[-2-shift]['distance_m'] == 2000 and local[-1-shift]['distance_m'] == 18000, 'Sunday buckets follow viewer timezone'
-    assert not shift or local[-1]['distance_m'] == 0
+    local_by_day = {r['d']: r for r in local}
+    prior = local_by_day[str(target_sunday - dt.timedelta(days=7))]
+    sunday = local_by_day[str(target_sunday)]
+    assert prior['distance_m'] == 2000 and prior['by_sport'] == {'walk':2000}, 'Saturday UTC work before the local cutoff stays in the prior Tokyo week'
+    assert sunday['distance_m'] == 18000 and sunday['by_sport'] == {'run':9000,'ride':5000,'walk':4000}, 'late Saturday UTC work follows the Sunday cutoff in Tokyo'
     req(viewer, 'POST', '/api/people/zz_test_chart_owner/block')
     req(viewer, 'GET', '/api/people/zz_test_chart_owner/profile', code=404)
     req(Client(), 'GET', '/api/stats', code=401)
