@@ -230,6 +230,10 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.equal(await profileList.getAttribute('aria-label'),'Achievements, earned and future','the rail identifies both earned and future badges');
   assert.deepEqual(await profileList.locator('.profile-achievement').evaluateAll(nodes=>nodes.slice(0,4).map(n=>n.dataset.achievementCode)),['journey','workouts','lifted','sport:run'],'the profile rail keeps most-recent-progress order');
   assert(await page.locator('.profile-achievement[data-achievement-code="workouts"]').evaluate(n=>n.classList.contains('is-level-up')),'a previously seen level increase animates');
+  if(theme==='light'&&shots){
+   const levelUp=page.locator('.profile-achievement[data-achievement-code="workouts"]'),animations=await levelUp.evaluate(card=>{const active=card.getAnimations({subtree:true});for(const animation of active){animation.pause();animation.currentTime=300;}return active.length;});
+   assert(animations>=1,'the captured level-up frame pauses the medallion pop');await screenshot(page,shots,'achievement-level-up-frame-390-light',{animations:'allow'});await levelUp.evaluate(card=>card.getAnimations({subtree:true}).forEach(animation=>animation.cancel()));
+  }
   const rail=await profileList.evaluate(n=>{const r=n.getBoundingClientRect(),first=n.querySelector('.profile-achievement').getBoundingClientRect(),fourth=n.querySelectorAll('.profile-achievement')[3].getBoundingClientRect();return{listLeft:r.left,listRight:r.right,firstLeft:first.left,fourthLeft:fourth.left,fourthRight:fourth.right,clientWidth:n.clientWidth,scrollWidth:n.scrollWidth,scrollPaddingLeft:getComputedStyle(n).scrollPaddingLeft};});
   assert.equal(Math.round(rail.firstLeft-rail.listLeft),16,'the first profile medallion has a 16px inset');
   assert.equal(parseFloat(rail.scrollPaddingLeft),16,'horizontal snap alignment preserves the 16px inset');
@@ -288,17 +292,8 @@ module.exports=async({browser,storageState,base,shots})=>{
   sharedShareEnabled=false;await page.reload();await page.locator('.me-card-sections[aria-busy="false"]').waitFor();
   assert.equal(await page.locator('.me-featured-achievements').count(),0,'turning achievement sharing off removes the featured section');
   sharedShareEnabled=true;sharedShowcasePins=[];
+  await page.goto(base+'/people/alex');await page.locator('.profile-achievements .profile-achievement-list').waitFor();
   if(process.env.KINETTA_ACHIEVEMENT_FIT_ONLY==='1'){await assert330AchievementViews(page,base,setUnits,theme,shots);await context.close();continue;}
-  let levelUpAnimations=0;
-  if(theme==='light'&&shots){
-   levelUpAnimations=await page.locator('.profile-achievement[data-achievement-code="workouts"]').evaluate(card=>{const animations=card.getAnimations({subtree:true});for(const animation of animations){animation.pause();animation.currentTime=300;}return animations.length;});
-   assert(levelUpAnimations>=1,'the captured level-up frame pauses the medallion pop');
-  }
-  if(theme==='light'&&shots){
-   await screenshot(page,shots,'achievement-level-up-frame-390-light',{animations:'allow'});
-   await page.locator('.profile-achievement[data-achievement-code="workouts"]').evaluate(card=>card.getAnimations({subtree:true}).forEach(animation=>animation.cancel()));
-  }
-
   unitLabelValues=[['consistency',1,'weeks'],['active_time',1,'h'],['workouts',1,'workouts'],['sport:lift',1,'sessions'],['years_active',1,'years']].map(([code,value,unit])=>({code,value,unit}));
   await page.goto(base+'/people/alex');await page.locator('.profile-achievements .profile-achievement-list').waitFor();
   for(const [code,label] of [['consistency','1 week'],['active_time','1 hour'],['workouts','1 workout'],['sport:lift','1 session'],['years_active','1 year']]){
