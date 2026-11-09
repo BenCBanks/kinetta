@@ -359,8 +359,8 @@ function weeklyRecapUsual(rows,start){
   return past.length>=3?{weeks:past.length,distance_m:past.reduce((n,w)=>n+w.distance_m,0)/past.length,time_s:past.reduce((n,w)=>n+w.time_s,0)/past.length}:null;
 }
 function weeklyRecapDays(data){
-  const names=[['Mon','Monday'],['Tue','Tuesday'],['Wed','Wednesday'],['Thu','Thursday'],['Fri','Friday'],['Sat','Saturday'],['Sun','Sunday']],active=new Map((data.days||[]).map(row=>[String(row.day).slice(0,10),Number(row.activities)>0])),start=new Date(data.start+'T12:00:00Z');
-  return Array.from({length:7},(_,i)=>{const day=new Date(start);day.setUTCDate(day.getUTCDate()+i);const iso=day.toISOString().slice(0,10);return{day:iso,label:names[i][0],name:names[i][1],active:active.get(iso)===true};});
+  const names=[['Mon','Monday'],['Tue','Tuesday'],['Wed','Wednesday'],['Thu','Thursday'],['Fri','Friday'],['Sat','Saturday'],['Sun','Sunday']],byDay=new Map((data.days||[]).map(row=>[String(row.day).slice(0,10),row])),start=new Date(data.start+'T12:00:00Z');
+  return Array.from({length:7},(_,i)=>{const day=new Date(start);day.setUTCDate(day.getUTCDate()+i);const iso=day.toISOString().slice(0,10),row=byDay.get(iso)||{};return{day:iso,label:names[i][0],name:names[i][1],active:Number(row.activities)>0,activities:Number(row.activities)||0,distance_m:Number(row.distance_m)||0,time_s:Number(row.time_s)||0};});
 }
 function weeklyRecapMedals(data,catalog,start,end){
   return (data?.tracks||[]).flatMap(track=>(track.tiers||[]).filter(tier=>String(tier.day||'')>=start&&String(tier.day||'')<end).map(tier=>{
@@ -370,7 +370,57 @@ function weeklyRecapMedals(data,catalog,start,end){
 }
 function weeklyRecapDateLabel(start,end){
   const first=new Date(start+'T12:00:00Z'),last=new Date(end+'T12:00:00Z');last.setUTCDate(last.getUTCDate()-1);
-  const fmt=d=>d.toLocaleDateString(undefined,{timeZone:'UTC',month:'short',day:'numeric'});return `${fmt(first)}–${fmt(last)}`;
+  const fmt=d=>fdate(d.toISOString(),{timeZone:'UTC',month:'short',day:'numeric'});return `${fmt(first)}–${fmt(last)}`;
+}
+function weeklyRecapPictureDateLabel(start,end){
+  const first=new Date(start+'T12:00:00Z'),last=new Date(end+'T12:00:00Z');last.setUTCDate(last.getUTCDate()-1);
+  const fmt=d=>d.toLocaleDateString('en-US',{timeZone:'UTC',month:'short',day:'numeric'});return `${fmt(first)}–${fmt(last)}`;
+}
+function weeklyRecapSportLabel(sport){const key=String(sport||'');return SPORT_NAMES[key]||key.replace(/[-_]+/g,' ').replace(/\b\w/g,c=>c.toUpperCase());}
+function weeklyRecapShortDuration(seconds){
+  const minutes=Math.max(0,Math.round((Number(seconds)||0)/60)),hours=Math.floor(minutes/60),remainder=minutes%60;
+  return hours?`${hours}h ${remainder}m`:`${minutes}m`;
+}
+function weeklyRecapRecordDuration(seconds){const elapsed=Math.max(0,Math.floor(Number(seconds)||0));return `${Math.floor(elapsed/60)}:${String(elapsed%60).padStart(2,'0')}`;}
+function weeklyRecapSingleLine(ctx,value,max=896,size=26){
+  const text=String(value);if(!ctx)return text;ctx.font=`600 ${size}px ${ShareArt.family()}`;if(ctx.measureText(text).width<=max)return text;
+  const chars=[...text],suffix='...';let low=0,high=chars.length;
+  while(low<high){const mid=Math.ceil((low+high)/2),candidate=chars.slice(0,mid).join('').trimEnd()+suffix;if(ctx.measureText(candidate).width<=max)low=mid;else high=mid-1;}
+  return chars.slice(0,low).join('').trimEnd()+suffix;
+}
+function weeklyRecapHighlightLines(data,medals,ctx=null){
+  const items=data.highlights||[],longest=items.find(item=>item.kind==='longest'),record=items.find(item=>item.kind==='record'),rows=[];
+  if(longest)rows.push(`Longest ${(weeklyRecapSportLabel(longest.sport)||'activity').toLowerCase()} · ${U.dist(Number(longest.distance_m)||0,1)} ${U.du()}`);
+  if(record)rows.push(`New ${weeklyRecapSportLabel(record.sport)||'activity'} record · ${weeklyRecapRecordDuration(record.elapsed_s)} · ${record.label||'Record'}`);
+  if(medals?.length)rows.push(`New medal · ${medals[0].label}`);
+  if(Number(data.streak_weeks)>=2)rows.push(`${data.streak_weeks}-week streak`);
+  return rows.slice(0,2).map(row=>weeklyRecapSingleLine(ctx,row));
+}
+function weeklyRecapComparison(value,usual){
+  if(!usual||!Number(usual)||!Number(value))return '';
+  const percent=Math.round((Number(value)-Number(usual))/Number(usual)*100);if(Math.abs(percent)<=5)return 'About usual';
+  return `${Math.abs(percent)}% ${percent<0?'less':'more'} than usual`;
+}
+function weeklyRecapFacts(data){
+  const days=Number(data.active_days)||0,workouts=Number(data.activities)||0;
+  if(!Number(data.distance_m)&&workouts)return `Active ${days} of 7 days`;
+  return `Active ${days} of 7 days · ${workouts} workout${workouts===1?'':'s'}`;
+}
+function weeklyRecapHeroPlacement(g,value,unit,x,width){
+  const family=ShareArt.family(),unitGap=unit?16:0;g.font=`600 28px ${family}`;const unitWidth=unit?g.measureText(unit).width:0,maxValue=Math.max(40,width-unitWidth-unitGap);
+  let size=86;for(;size>48;size-=2){g.font=`800 ${size}px ${family}`;if(g.measureText(String(value)).width<=maxValue)break;}
+  g.font=`800 ${size}px ${family}`;const valueWidth=g.measureText(String(value)).width;
+  return{size,valueWidth,maxValue,unitX:x+valueWidth+unitGap,unitWidth,unitMax:Math.max(12,width-valueWidth-unitGap)};
+}
+function weeklyRecapLayout(data,usual,medals,ctx){
+  const top=270,footer=1228,heroHeight=218,sectionGap=24,chartMinHeight=260,highlightHeadingHeight=42,highlightRowHeight=38,highlightFactGap=8,highlightTitleBaseline=25,highlightLineBaseline=25;
+  const highlightLines=weeklyRecapHighlightLines(data,medals,ctx),highlightHeight=highlightLines.length?highlightHeadingHeight+highlightLines.length*highlightRowHeight:0;
+  const factsBaseline=footer-32,factsTop=factsBaseline-30,highlightsBottom=factsTop-highlightFactGap,highlightsY=highlightsBottom-highlightHeight;
+  const chartY=top+heroHeight+sectionGap,chartBottom=highlightHeight?highlightsY-sectionGap:factsTop-sectionGap,chartHeight=Math.max(chartMinHeight,chartBottom-chartY),rows=[];
+  rows.push({kind:'hero',y:top,height:heroHeight});rows.push({kind:'chart',y:chartY,height:chartHeight});
+  if(highlightHeight)rows.push({kind:'highlights',y:highlightsY,height:highlightHeight,lines:highlightLines});
+  rows.push({kind:'facts',y:factsBaseline,height:30});
+  return{rows,footer,metric:(data.days||[]).some(day=>Number(day.distance_m)>0)?'distance':'time',highlightHeadingHeight,highlightRowHeight,highlightTitleBaseline,highlightLineBaseline,sectionGap,highlightFactGap,chartMinHeight};
 }
 function weeklyRecapHtml(data,usual,medals){
   const best=data.owner_best_effort,days=weeklyRecapDays(data),shown=medals.slice(0,3),extra=medals.length-shown.length;
@@ -391,23 +441,50 @@ function weeklyRecapPicture(data,usual,medals,days){
     await document.fonts.ready;const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;
     const g=canvas.getContext('2d'),p=ShareArt.palette(),gradient=g.createLinearGradient(0,0,1080,1350);gradient.addColorStop(0,col('--share-action'));gradient.addColorStop(1,col('--share-brand'));
     g.fillStyle=gradient;g.fillRect(0,0,1080,1350);g.fillStyle=p.bg;g.beginPath();g.roundRect(54,48,972,1254,32);g.fill();
-    ShareArt.text(g,'Your week',92,145,62,{color:p.text,max:896,weight:750});ShareArt.text(g,weeklyRecapDateLabel(data.start,data.end),92,205,32,{color:p.muted,max:896});
-    g.strokeStyle=p.line;g.lineWidth=2;g.beginPath();g.moveTo(92,244);g.lineTo(988,244);g.stroke();
-    ShareArt.text(g,`${U.dist(data.distance_m||0,1)} ${U.du()}`,92,360,100,{color:p.text,max:896,weight:800});ShareArt.text(g,'Distance',92,410,30,{color:p.muted,max:896});
-    ShareArt.text(g,dur(data.time_s||0,true),92,540,92,{color:p.text,max:896,weight:800});ShareArt.text(g,'Time',92,590,30,{color:p.muted,max:896});
-    if(usual)ShareArt.text(g,`Usual week · ${U.dist(usual.distance_m,1)} ${U.du()} · ${dur(usual.time_s,true)}`,92,665,31,{color:p.soft,max:896});
-    let y=755;
-    if(medals.length){ShareArt.text(g,'New medals',92,y,29,{color:p.muted,max:896});const items=medals.slice(0,3),images=await Promise.all(items.map(m=>new Promise(resolve=>{if(!m.icon){resolve(null);return;}const im=new Image();im.onload=()=>resolve(im);im.onerror=()=>resolve(null);im.src=(Native.base||'')+m.icon;})));
-      const width=896/items.length;items.forEach((m,i)=>{const x=92+i*width;if(images[i])g.drawImage(images[i],x,y+24,46,46);else{g.fillStyle=p.blue;g.beginPath();g.arc(x+23,y+47,22,0,Math.PI*2);g.fill();}for(const [line,n] of ShareArt.lines(g,m.label,width-70,27).slice(0,2).entries())ShareArt.text(g,n,x+58,y+58+line*31,27,{color:p.text,max:width-70});});
-      if(medals.length>items.length)ShareArt.text(g,`+${medals.length-items.length} more`,92,y+112,24,{color:p.muted,max:896});y+=160;}
-    ShareArt.text(g,'Activity days',92,Math.min(y+34,1020),29,{color:p.muted,max:896});const dx=896/7,base=Math.min(y+104,1114);
-    days.forEach((d,i)=>{const x=92+dx*(i+.5);ShareArt.text(g,d.label,x,base+58,22,{color:p.muted,max:dx,align:'center'});g.fillStyle=d.active?p.blue:p.line;g.beginPath();g.arc(x,base+4,12,0,Math.PI*2);g.fill();});
-    g.strokeStyle=p.line;g.beginPath();g.moveTo(92,1228);g.lineTo(988,1228);g.stroke();drawMark(g,112,1278,44,p.blue);ShareArt.text(g,'Kinetta',154,1287,28,{color:p.text});ShareArt.text(g,'kinetta.app',988,1285,24,{color:p.muted,align:'right'});
+    const layout=weeklyRecapLayout(data,usual,medals,g),row=kind=>layout.rows.find(item=>item.kind===kind),hero=row('hero'),chart=row('chart'),highlights=row('highlights'),facts=row('facts'),M=92,W=896,tileWidth=416;
+    ShareArt.text(g,'Your week',M,145,62,{color:p.text,max:W,weight:750});ShareArt.text(g,weeklyRecapPictureDateLabel(data.start,data.end),M,205,32,{color:p.muted,max:W});
+    g.strokeStyle=p.line;g.lineWidth=2;g.beginPath();g.moveTo(M,244);g.lineTo(M+W,244);g.stroke();
+    const distance=Number(data.distance_m)||0,time=Number(data.time_s)||0,hasDistance=distance>0;
+    const heroItems=hasDistance?[
+      {label:'Distance',value:U.dist(distance,1),unit:U.du(),comparison:weeklyRecapComparison(distance,usual?.distance_m)},
+      {label:'Time',value:weeklyRecapShortDuration(time),unit:'',comparison:weeklyRecapComparison(time,usual?.time_s)},
+    ]:[
+      {label:'Workouts',value:String(Number(data.activities)||0),unit:'',comparison:''},
+      {label:'Time',value:weeklyRecapShortDuration(time),unit:'',comparison:weeklyRecapComparison(time,usual?.time_s)},
+    ];
+    heroItems.forEach((item,i)=>{
+      const x=M+i*448,placement=weeklyRecapHeroPlacement(g,item.value,item.unit,x,tileWidth);
+      ShareArt.text(g,item.value,x,hero.y+92,placement.size,{color:p.text,max:placement.maxValue,weight:800});
+      if(item.unit)ShareArt.text(g,item.unit,placement.unitX,hero.y+92,28,{color:p.muted,max:placement.unitMax});
+      ShareArt.text(g,item.label,x,hero.y+132,28,{color:p.muted,max:tileWidth});
+      if(item.comparison)ShareArt.text(g,item.comparison,x,hero.y+176,26,{color:p.soft,max:tileWidth});
+    });
+    const dayRows=days?.length?days:weeklyRecapDays(data),metric=layout.metric,max=Math.max(1,...dayRows.map(day=>metric==='distance'?Number(day.distance_m)||0:Number(day.time_s)||0)),plotTop=chart.y+78,plotBottom=chart.y+chart.height-30,step=W/7,barWidth=Math.min(72,step-28),trackHeight=14;
+    ShareArt.text(g,metric==='distance'?`Daily distance · ${U.du()}`:'Daily active time',M,chart.y+28,28,{color:p.muted,max:W});
+    const values=dayRows.map(day=>metric==='distance'?Number(day.distance_m)||0:Number(day.time_s)||0),tallest=values.indexOf(Math.max(...values));
+    dayRows.forEach((day,i)=>{
+      const x=M+step*i+(step-barWidth)/2,value=values[i],trackY=plotBottom-trackHeight;
+      g.fillStyle=p.line;g.beginPath();g.roundRect(x,trackY,barWidth,trackHeight,7);g.fill();
+      if(value>0){const barHeight=Math.max(trackHeight,(plotBottom-plotTop-24)*value/max),barY=plotBottom-barHeight;g.fillStyle=p.blue;g.beginPath();g.roundRect(x,barY,barWidth,barHeight,12);g.fill();
+        if(i===tallest){const label=metric==='distance'?`${U.dist(value,1)} ${U.du()}`:weeklyRecapShortDuration(value);ShareArt.text(g,label,x+barWidth/2,barY-10,26,{color:p.soft,max:step-8,align:'center'});}
+      }
+      ShareArt.text(g,day.label,x+barWidth/2,plotBottom+34,26,{color:p.muted,max:step-4,align:'center'});
+    });
+    if(highlights){
+      ShareArt.text(g,'Highlights',M,highlights.y+layout.highlightTitleBaseline,20,{color:p.muted,max:W});
+      highlights.lines.forEach((line,i)=>ShareArt.text(g,line,M,highlights.y+layout.highlightHeadingHeight+layout.highlightLineBaseline+i*layout.highlightRowHeight,26,{color:p.text,max:W}));
+    }
+    ShareArt.text(g,weeklyRecapFacts(data),M,facts.y,27,{color:p.soft,max:W});
+    g.strokeStyle=p.line;g.beginPath();g.moveTo(M,layout.footer);g.lineTo(M+W,layout.footer);g.stroke();drawMark(g,M+20,layout.footer+50,44,p.blue);ShareArt.text(g,'Kinetta',M+62,layout.footer+59,28,{color:p.text});ShareArt.text(g,'kinetta.app',M+W,layout.footer+57,24,{color:p.muted,align:'right'});
     return ShareArt.blob(canvas);
   })();
 }
+function weeklyRecapPictureAlt(data,usual,medals){
+  const metric=(data.days||[]).some(day=>Number(day.distance_m)>0)?'daily distance':'daily active time',workouts=Number(data.activities)||0,summary=Number(data.distance_m)>0?`${U.dist(data.distance_m,1)} ${U.du()} distance`:`${workouts} workout${workouts===1?'':'s'}`,parts=[`Your week, ${weeklyRecapPictureDateLabel(data.start,data.end)}.`,`${summary}.`,`${weeklyRecapShortDuration(Number(data.time_s)||0)} time.`];
+  const comparisons=[weeklyRecapComparison(data.distance_m,usual?.distance_m),weeklyRecapComparison(data.time_s,usual?.time_s)].filter(Boolean);if(comparisons.length)parts.push(comparisons.join('; '));parts.push(`${metric} chart.`,weeklyRecapFacts(data));const highlights=weeklyRecapHighlightLines(data,medals);if(highlights.length)parts.push(highlights.join('. '));return parts.filter(Boolean).join(' ');
+}
 function weeklyRecapPictureItem(data,usual,medals,days,valid=()=>true){
-  const alt=[`Your week, ${weeklyRecapDateLabel(data.start,data.end)}.`,`${U.dist(data.distance_m||0,1)} ${U.du()} distance.`,`${dur(data.time_s||0,true)} time.`,usual?`Usual week: ${U.dist(usual.distance_m,1)} ${U.du()} and ${dur(usual.time_s,true)}.`:null,...medals.map(m=>`New medal: ${m.label}.`)].filter(Boolean).join(' ');
+  const alt=weeklyRecapPictureAlt(data,usual,medals);
   return{label:'Weekly recap',filename:`kinetta-week-${data.start}.png`,valid,build:async()=>({blob:await weeklyRecapPicture(data,usual,medals,days),alt})};
 }
 function openWeeklyRecapShare(box,data,usual,medals,days){ShareSheet.open({items:[weeklyRecapPictureItem(data,usual,medals,days,()=>box.isConnected)]});}

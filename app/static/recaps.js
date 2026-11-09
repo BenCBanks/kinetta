@@ -46,8 +46,15 @@ const ShareArt=(()=>{
     for(const line of lines(g,title,936,56)){text(g,line,M,y+45,56);y+=70;}
     if(date){text(g,date,M,y+38,32,{color:p.soft});y+=70;}
     const hasMap=routePoints.length>1&&!qrLink;
-    y=hasMap?y+12:Math.max(y+80,520);text(g,value,M,y+120,148);if(unit)text(g,unit,M,y+178,40,{color:p.soft});y+=235;
-    for(const fact of facts)for(const line of lines(g,fact,936,32)){text(g,line,M,y+35,32,{color:p.soft});y+=48;}
+    if(!hasMap&&!qrLink){
+      // Simple pictures use the available frame instead of leaving a fixed hole above the footer.
+      const factLines=facts.flatMap(f=>lines(g,f,936,32)),stackTop=Math.max(y+70,360),stackBottom=1155,valueHeight=235,factHeight=factLines.length*48,spare=Math.max(0,stackBottom-stackTop-valueHeight-factHeight),sections=factLines.length?3:2,gap=spare/sections,valueTop=stackTop+gap;
+      text(g,value,M,valueTop+120,148);if(unit)text(g,unit,M,valueTop+178,40,{color:p.soft});let factY=valueTop+valueHeight+gap;
+      factLines.forEach(line=>{text(g,line,M,factY+35,32,{color:p.soft});factY+=48;});y=Math.max(stackBottom,factLines.length?factY+gap:factY);
+    }else{
+      y=hasMap?y+12:Math.max(y+80,520);text(g,value,M,y+120,148);if(unit)text(g,unit,M,y+178,40,{color:p.soft});y+=235;
+      for(const fact of facts)for(const line of lines(g,fact,936,32)){text(g,line,M,y+35,32,{color:p.soft});y+=48;}
+    }
     const list=[...new Set(sources)],credit=list.length?'Includes data from '+list.slice(0,2).join(', ')+(list.length>2?` + ${list.length-2} other Garmin devices`:''):'';
     if(qrLink){
       if(y+20>880)throw Error('The invitation picture needs more room. Try without photo and username.');
