@@ -66,7 +66,10 @@ async function feedBack(f){
     if(test.action==='record'||test.action==='uncertainSave')await recording(f,test.action==='uncertainSave');
     else if(test.action==='food')await food(f);
     else if(test.action==='feedBack')await feedBack(f);
-    else for(const selector of test.taps)await f.p.locator(selector).first().click();
+    else for(const [index,selector] of test.taps.entries()){
+     const position=test.tapPositions?.[index];
+     await f.p.locator(selector).first().click(position?{position}:{});
+    }
     await assertDestination(f.p,test.end,{saved:f.saved,day:f.foodDay});
     const capture=process.env.KINETTA_JOURNEY_SHOTS&&['me-profile','track-save-detail','nutrition-log','notification-activity_ready'].includes(test.id);
     if(capture)await f.p.locator('#toast.on').waitFor({state:'hidden'});
