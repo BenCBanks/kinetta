@@ -15,7 +15,7 @@ base=urlparse(os.environ['KINETTA_URL']);project=os.environ['KINETTA_PROJECT']
 assert base.hostname in ('localhost','127.0.0.1') and (project.startswith('kt-') or project=='kinettatest')
 port=subprocess.check_output(['docker','inspect','--format','{{(index (index .NetworkSettings.Ports "8000/tcp") 0).HostPort}}',project+'-app-1'],text=True).strip()
 assert base.port==int(port),'Use the project that owns this test port'
-today=dt.datetime.now(dt.timezone.utc).date();now=dt.datetime.now(dt.timezone.utc)
+now=dt.datetime.now(dt.timezone.utc);today=now.date()
 def ok(result):
     assert result[0]==200,(result[0],str(result[1])[:200])
     return result[1]

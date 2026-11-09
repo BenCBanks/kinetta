@@ -1,6 +1,7 @@
 """Fictional Health nutrition change journal, no HealthKit or provider calls."""
 import datetime as dt,json,os,secrets,tempfile,uuid,zipfile
 from concurrent.futures import ThreadPoolExecutor
+from types import SimpleNamespace
 from unittest.mock import patch
 import psycopg
 from psycopg import sql
@@ -42,9 +43,15 @@ try:
  with db.connect() as c:assert not c.execute('SELECT 1 FROM health_nutrition_days WHERE user_id=%s',(uid,)).fetchone()
  assert a.put('/api/health/nutrition/preferences',json={'enabled':True}).status_code==400
  assert a.put('/api/health/nutrition/preferences',json={'enabled':1,'confirmed':True}).status_code==422
- state=preferences();assert state['epoch']!=off['epoch'] and preferences()['epoch']==state['epoch']
+ fixed_now=dt.datetime(2026,3,8,16,tzinfo=dt.timezone.utc)
+ class FixedDateTime(dt.datetime):
+  @classmethod
+  def now(cls,tz=None):return fixed_now.astimezone(tz) if tz else fixed_now.replace(tzinfo=None)
+ fixed_clock=SimpleNamespace(datetime=FixedDateTime,date=dt.date,timezone=dt.timezone)
+ with patch.object(H,'dt',fixed_clock):state=preferences()
+ assert state['epoch']!=off['epoch'] and preferences()['epoch']==state['epoch']
  assert not days(state)['days'] and not state['include_older']
- assert state['since']==dt.datetime.now(__import__('zoneinfo').ZoneInfo('America/New_York')).date().isoformat()
+ assert state['since']=='2026-03-08', 'the local-day cutoff is fixed to the fixture clock, including the DST start day'
  stable=state['account_id'];state=preferences(older=True);assert state['include_older'] and state['account_id']==stable
  page=days(state);row=page['days'][0];assert row['day']=='2026-03-08' and row['values']==dict(kcal=300,protein_g=20,carbs_g=40,fat_g=10,fiber_g=5)
  assert row['estimated'] is False, 'unreviewed chat previews are not written with saved food'

@@ -1,5 +1,6 @@
 """Isolated fictional accounts for Nutrition browser evidence; no providers/devices."""
 import datetime as dt
+import json
 import sys
 import os
 import subprocess
@@ -12,7 +13,9 @@ assert os.environ.get('KINETTA_PROJECT','kinettatest').startswith('kt-') or os.e
 project=os.environ.get('KINETTA_PROJECT','kinettatest')
 port=subprocess.check_output(['docker','inspect','--format','{{(index (index .NetworkSettings.Ports "8000/tcp") 0).HostPort}}',project+'-app-1'],text=True).strip()
 assert urlparse(os.environ.get('KINETTA_URL','http://localhost:8798')).port==int(port),'URL must reach this isolated test project'
-TODAY=dt.datetime.now(ZoneInfo('America/New_York')).date()
+FIXTURE_ZONE='America/New_York'
+FIXTURE_NOW=dt.datetime.now(ZoneInfo(FIXTURE_ZONE))
+TODAY=FIXTURE_NOW.date()
 def ok(result):
  assert result[0]==200,result
  return result[1]
@@ -36,3 +39,4 @@ for who in ('empty','typical','heavy'):
   recipe=ok(c.post('/api/dishes',{'name':'Fictional recipe '+str(i+1)}))
   ok(c.patch('/api/dishes/'+str(recipe['id']),{'known_kcal':400,'known_protein_g':20,'known_carbs_g':40,'known_fat_g':15}))
  print(who,'fictional food fixture ready')
+print(json.dumps({'now':FIXTURE_NOW.isoformat(),'today':TODAY.isoformat(),'timezone':FIXTURE_ZONE}))
