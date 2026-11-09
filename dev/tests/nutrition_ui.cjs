@@ -4,7 +4,9 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error('Timed out: '+label+' '+JSON.stringify(p.nutritionDiagnostics)+' '+JSON.stringify(await p.evaluate(()=>({url:location.href,ready:App.pageReady,bootFailed:globalThis.KinettaBoot?.failed,assets:globalThis.nutritionBootAssets,assetErrors:globalThis.nutritionAssetErrors,text:document.body.textContent.slice(-600)}))));}
 (async()=>{
- cp.execFileSync('python3',['dev/tests/nutrition_fixture.py'],{env:process.env,stdio:'inherit'});
+ const fixtureOutput=cp.execFileSync('python3',['dev/tests/nutrition_fixture.py'],{env:process.env,encoding:'utf8'});
+ process.stdout.write(fixtureOutput);
+ const fixture=JSON.parse(fixtureOutput.trim().split(/\r?\n/).at(-1)),FIXTURE_NOW=new Date(fixture.now);
  const b=await chromium.launch(),cleanup=[];
  try{
  for(const who of ['empty','typical','heavy']){
@@ -12,7 +14,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   let savedMealAdded=false;
   for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
    if(process.env.KINETTA_NUTRITION_CASE&&process.env.KINETTA_NUTRITION_CASE!==`${who}-${size.width}-${theme}`)continue;
-   const c=await b.newContext({storageState:storage,viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],consoleErrors=[],writes=[],failed=[];p.nutritionDiagnostics={errors,consoleErrors,failed};p.on('requestfailed',r=>failed.push({url:r.url(),error:r.failure()?.errorText}));
+   const c=await b.newContext({storageState:storage,viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:fixture.timezone}),p=await c.newPage(),errors=[],consoleErrors=[],writes=[],failed=[];await p.clock.setFixedTime(FIXTURE_NOW);p.nutritionDiagnostics={errors,consoleErrors,failed};p.on('requestfailed',r=>failed.push({url:r.url(),error:r.failure()?.errorText}));
    p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/net::ERR_FAILED|net::ERR_ABORTED|503/.test(m.text()))consoleErrors.push(m.text());});
    await c.addInitScript(root=>{
     addEventListener('error',e=>{if(['LINK','SCRIPT'].includes(e.target?.tagName))(globalThis.nutritionAssetErrors||=[]).push(e.target.src||e.target.href);},true);
@@ -81,7 +83,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    }
    await fits('home');if(out&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.waitForTimeout(350);await p.screenshot({path:`${out}/nutrition-${who}-${theme}.png`,fullPage:true,animations:'disabled'});}
    if(who==='typical'&&size.width===390&&theme==='light'){
-    const day=await(await c.request.get(base+'/api/food/day')).json();assert(day.entries.length,'fixture has a food to save');
+    const day=await(await c.request.get(base+'/api/food/day?d='+fixture.today)).json();assert(day.entries.length,'fixture has a food to save');
     const saved=await c.request.post(base+'/api/food/meals',{headers:{Origin:base},data:{name:'Fictional saved meal',entry_ids:[day.entries[0].id]}});assert.equal(saved.status(),200,'fictional meal fixture saves');savedMealAdded=true;
     await p.evaluate(()=>go('/food/meals'));await ready();const heading=p.locator('.library-section h2').filter({hasText:'Saved combinations'});await heading.waitFor();assert.equal(await p.getByText('Saved combinations',{exact:true}).count(),1);assert.equal(await p.getByText('Saved meals',{exact:true}).count(),0);
     await p.locator('[data-meal]').first().click();let prompt='';p.once('dialog',async dialog=>{prompt=dialog.message();await dialog.dismiss();});await p.locator('#sv-del').click();
