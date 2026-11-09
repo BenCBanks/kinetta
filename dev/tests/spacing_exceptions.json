@@ -127,11 +127,11 @@
     "metric": "target",
     "kind": "approved-target",
     "minimumWidth": 6,
-    "maximumWidth": 28,
+    "maximumWidth": 44,
     "minimumHeight": 44,
     "maximumHeight": 160,
     "followup": "https://github.com/BenCBanks/kinetta/issues/746",
-    "reason": "Issue #746 specifies one independently named, keyboard-selectable button per period while the Totals plot fills the card. At 330–390px, the 26-week chart can divide the plot into 6–28px columns; each column is 139px tall in the audited layout. Only this chart-column width is excepted; labels, keyboard access, contrast and clipping remain checked."
+    "reason": "Issue #746 specifies one independently named, keyboard-selectable button per period while the Totals plot fills the card. Full-width layout measures 28.5–34.5px columns at the audited 330–390px sizes; each remains a dense chart target at least 44px tall. Only this chart-column width is excepted; labels, keyboard access, contrast and clipping remain checked."
   },
   {
     "id": "progress-totals-adjacent-period-columns",

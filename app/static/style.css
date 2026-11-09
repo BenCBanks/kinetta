@@ -561,7 +561,7 @@ body.map-open nav.tabs { display: none; }      /* full-screen map: X, Esc or Bac
 .chartbox .bar-r { fill: var(--tx3); opacity: .35; } .chartbox .bar-r.cur { fill: var(--prog); opacity: 1; }
 .chartbox .ln.s1 { stroke: var(--s1); } .chartbox .ln.s2 { stroke: var(--s2); opacity: .8; } .chartbox .ln.s3 { stroke: var(--s3); }
 .chartbox .bar-seg { stroke: none; } .chartbox .bar-seg.partial { opacity: .55; }
-.chartbox .avgline { stroke: var(--tx2); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.chartbox .avgline { stroke: var(--tx2); stroke-width: 1.5; stroke-dasharray: 4 4; pointer-events:none; }
 
 .chartbox .hl { fill: var(--tx); opacity: .06; }
 .avgline-label { fill:var(--tx2);font-size:11px;pointer-events:none; }
@@ -569,6 +569,7 @@ body.map-open nav.tabs { display: none; }      /* full-screen map: X, Esc or Bac
 .period-column { cursor:pointer; }
 .period-hit { fill:transparent; }
 .period-column.is-selected .period-zero { stroke:var(--accent);stroke-width:2; }
+.period-column .period-zero.current { stroke:var(--tx3); stroke-width:1; stroke-dasharray:2 2; opacity:.65; }
 .chartbox .ln.faint { stroke-width: 1.25; opacity: .35; }
 .chartbox .xdot { stroke: var(--card); stroke-width: 2; }
 .chartbox .goal-ln { stroke: var(--tx2); stroke-width: 1.5; stroke-dasharray: 4 4; fill: none; }
@@ -2728,19 +2729,17 @@ nav.tabs { view-transition-name: tabs; }
 @keyframes vt-out-right { to { transform: translateX(18px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .launch svg { animation: none; } ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
 
-/* Combined Progress distance uses the same treatment; sport-specific and food charts retain their data colours. */
+/* Progress bars share one readable muted fill; selection is always the accent. Food and other charts keep their own data colours. */
 .distance-hit { fill:transparent; }
-.distance-chart .distance-total { fill:var(--color-distance-muted); }
-.distance-chart .is-highlighted .distance-total { fill:var(--btn); }
+.distance-chart .distance-total, [data-area=progress] #m-chart .bar-seg { fill:color-mix(in srgb,var(--color-distance-muted) 60%,var(--color-brand) 40%); }
+.distance-chart .is-highlighted .distance-total { fill:var(--accent); }
 .distance-empty { stroke:var(--line); stroke-width:1; }
 .distance-value { visibility:hidden; fill:var(--tx); font-size:10px; pointer-events:none; }
 .distance-column.is-highlighted .distance-value { visibility:visible; }
 .distance-column { cursor:pointer; }
 .distance-column:focus-visible .distance-hit { stroke:var(--color-outline); stroke-width:1; }
-/* Progress bars share a muted baseline, with selection shown by the accent. */
-[data-area=progress] .chartbox .bar-seg { fill:var(--color-distance-muted); }
-[data-area=progress] #m-chart .period-column.is-selected .bar-seg { fill:var(--accent); filter:none; }
-[data-area=progress] #m-chart .period-column.is-selected .distance-total { fill:var(--accent); }
+[data-area=progress] #m-chart .period-column.is-selected .bar-seg,
+[data-area=progress] #m-chart .period-column.is-selected .distance-total { fill:var(--accent); filter:none; }
 [data-area=progress] #m-chart .period-column.is-selected .distance-empty { stroke:var(--accent); stroke-width:2; }
 [data-area=progress] #m-chart .period-column:focus { outline:none; }
 [data-area=progress] #m-chart .period-column:focus-visible .period-hit { stroke:var(--accent); stroke-width:1.5; }
@@ -3131,8 +3130,8 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .progress-home-totals .card { padding:12px; }
 .progress-home-totals .progress-filters { gap:8px; margin-bottom:6px; }
 .progress-home-totals .progress-pace-window { margin:4px 0 0; }
-.progress-home-totals .progress-total-readout { position:static; z-index:auto; display:flex; min-height:28px; align-items:center; gap:0; padding:3px 0; margin:0 0 2px; border-radius:0; background:transparent; -webkit-backdrop-filter:none; backdrop-filter:none; font-size:.8125rem; }
-.progress-home-totals .progress-total-readout span { color:var(--tx2); }
+.progress-home-totals .progress-total-readout { position:static; z-index:auto; display:flex; min-width:0; min-height:28px; align-items:center; gap:0; padding:3px 0; margin:0 0 2px; border-radius:0; background:transparent; -webkit-backdrop-filter:none; backdrop-filter:none; font-size:.8125rem; white-space:nowrap; overflow:hidden; }
+.progress-home-totals .progress-total-readout span { display:block; min-width:0; max-width:100%; overflow:hidden; color:var(--tx2); text-overflow:ellipsis; white-space:inherit; }
 .progress-home-totals .progress-total-readout b { color:var(--tx); font-weight:650; }
 .progress-metric-controls { flex:1 0 100%; width:100%; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0; margin-top:2px; border-top:1px solid var(--line); }
 .progress-metric-controls[data-count="2"] { grid-template-columns:repeat(2,minmax(0,1fr)); }

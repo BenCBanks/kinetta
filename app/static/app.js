@@ -1378,15 +1378,16 @@ function wirePeriodColumns(svg, onSelect, owner) {
 }
 // Columns of stacked bars. cols: [{label, tick, segs: [{k, v}], partial}], keys: [{k, name, color}]
 function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4, avg = null, avgLabel = 'avg', avgLineLabel = '', height = 180, distance = false, inlineSelection = false, ariaLabel = 'Bar chart', onSelectPeriod = null}) {
-  const W = chartWidth(box), H = height, padL = 34, padR = avgLineLabel ? Math.max(8, avgLineLabel.length * 6 + 8) : 8, padT = distance ? 18 : 8, padB = 18, n = cols.length;
+  const W = chartWidth(box), H = height, padL = 34, plotL = inlineSelection ? 4 : padL, padR = 8, padT = distance ? 18 : 8, padB = 18, n = cols.length;
   const tot = (c) => c.segs.reduce((s, x) => s + x.v, 0);
-  const step = niceStep(Math.max(1e-9, ...cols.map(tot), avg || 0), yTicks === 3 ? 3 : 4), top = Math.ceil(Math.max(1e-9, ...cols.map(tot), avg || 0) / step) * step;
+  const maxValue = Math.max(1e-9, ...cols.map(tot), avg || 0), tickCount = Math.max(2, Math.round(yTicks));
+  const step = niceStep(maxValue, tickCount), top = Math.ceil(maxValue / step) * step;
   const Y = (v) => padT + (1 - v / top) * (H - padT - padB), bw = (W - padL - padR) / n, gap = Math.min(4, bw * .25);
-  let g = '';
-  const yValues = yTicks === 3 ? [0, top / 2, top] : Array.from({length: Math.ceil(top / step) + 1}, (_, i) => i * step).filter(v => v <= top + 1e-9);
+  let g = ''; const barRects = [];
+  const yValues = tickCount === 3 ? [0, top / 2, top] : Array.from({length: Math.ceil(top / step) + 1}, (_, i) => i * step).filter(v => v <= top + 1e-9);
   yValues.forEach((v, i) => {
     const label = `${yfmt(v)}${i === yValues.length - 1 && axisUnit ? ` ${axisUnit}` : ''}`;
-    g += `<line class="gl" x1="${padL}" x2="${W - padR}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/><text class="yl period-axis" x="${padL - 4}" y="${(Y(v) + 3).toFixed(1)}" text-anchor="end">${esc(label)}</text>`;
+    g += `<line class="gl" x1="${plotL}" x2="${W - padR}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/><text class="yl period-axis" x="${padL + 1}" y="${(Y(v) + 3).toFixed(1)}" text-anchor="end">${esc(label)}</text>`;
   });
   cols.forEach((c, i) => {
     const columnStart = g.length;
@@ -1398,6 +1399,7 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4
       const attrs = inlineSelection ? `class="distance-column period-column" id="${esc(box.id || 'period-chart')}-column-${i}" data-period-index="${i}" data-padded="${c.padded?'true':'false'}" role="button" tabindex="0" aria-pressed="false" aria-label="${esc(label)}"`
         : `class="distance-column" role="button" tabindex="0" aria-pressed="false" aria-label="${esc(label)}"`;
       const hitWidth = inlineSelection ? Math.max(0,bw-.25) : bw;
+      if (total) barRects.push({x, y: Y(total), width: w, height: h});
       g += `<g ${attrs}><rect class="distance-hit" x="${padL + i * bw}" y="${padT}" width="${hitWidth}" height="${H - padT - padB}"/>${total ? `<path class="bar-seg distance-total" d="${distanceBarPath(x,Y(0),w,h)}"/>` : `<path class="distance-empty" d="M${x} ${Y(0)}h${w}"/>`}<text class="distance-value" x="${i === n - 1 ? x + w : i === 0 ? x : x + w / 2}" y="${Y(total) - 5}" text-anchor="${i === n - 1 ? 'end' : i === 0 ? 'start' : 'middle'}">${esc(fmt(total))}</text></g>`;
     } else c.segs.forEach((sg, j) => {
       if (!sg.v) return;
@@ -1405,6 +1407,7 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4
       const hh = Math.max(1, h - (last ? 0 : 1.5));   // 1.5px surface gap between stacked segments
       // round-topped bars (2026-10-13): the top corners as round as the bar is wide, up to 8 px
       const r = Math.min(8, w / 2, hh - 1);
+      barRects.push({x, y: y - hh, width: w, height: hh});
       g += last && hh > 4 ? `<path class="bar-seg k-${sg.k}${c.partial ? ' partial' : ''}" d="M${x.toFixed(1)},${(y).toFixed(1)}v${(-hh + r).toFixed(1)}a${r.toFixed(1)},${r.toFixed(1)} 0 0 1 ${r.toFixed(1)},${(-r).toFixed(1)}h${(w - 2 * r).toFixed(1)}a${r.toFixed(1)},${r.toFixed(1)} 0 0 1 ${r.toFixed(1)},${r.toFixed(1)}v${(hh - r).toFixed(1)}z"/>`
                           : `<rect class="bar-seg k-${sg.k}${c.partial ? ' partial' : ''}" x="${x.toFixed(1)}" y="${(y - hh).toFixed(1)}" width="${w.toFixed(1)}" height="${hh.toFixed(1)}"/>`;
       y -= h;
@@ -1412,7 +1415,7 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4
     if (inlineSelection && !distance) {
       const bars = g.slice(columnStart);
       const hit = `<rect class="period-hit" x="${(padL + i * bw).toFixed(1)}" y="${padT}" width="${Math.max(0,bw-.25).toFixed(2)}" height="${(H - padT - padB).toFixed(1)}"/>`;
-      const zero = tot(c) ? '' : `<line class="period-zero" x1="${x.toFixed(1)}" x2="${(x + w).toFixed(1)}" y1="${Y(0).toFixed(1)}" y2="${Y(0).toFixed(1)}"/>`;
+      const zero = tot(c) && !c.partial ? '' : `<line class="period-zero${c.partial ? ' current' : ''}" x1="${x.toFixed(1)}" x2="${(x + w).toFixed(1)}" y1="${Y(0).toFixed(1)}" y2="${Y(0).toFixed(1)}"/>`;
       const label = `${c.label}${c.partial ? ' (so far)' : ''} · ${fmt(tot(c))}`;
       g = g.slice(0, columnStart) + `<g class="period-column" id="${esc(box.id || 'period-chart')}-column-${i}" data-period-index="${i}" data-padded="${c.padded?'true':'false'}" role="button" tabindex="0" aria-pressed="false" aria-label="${esc(label)}">${hit}${zero}${bars}</g>`;
     }
@@ -1420,7 +1423,7 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4
   const tickCandidates = cols.map((c, i) => !c.padded && c.tick ? i : -1).filter(i => i >= 0);
   const lastReal = cols.findLastIndex(c => !c.padded);
   if (lastReal >= 0 && !tickCandidates.includes(lastReal)) tickCandidates.push(lastReal);
-  const tickLimit = Math.max(1, Math.floor((W - padL - padR) / 48)), visibleTicks = lastReal < 0 ? [] : [lastReal];
+  const tickLimit = Math.max(1, Math.floor((W - plotL - padR) / 48)), visibleTicks = lastReal < 0 ? [] : [lastReal];
   for (const i of tickCandidates.filter(i => i !== lastReal).reverse()) {
     if (visibleTicks.length >= tickLimit) break;
     if (visibleTicks.every(visible => Math.abs(visible - i) * bw >= 48)) visibleTicks.push(i);
@@ -1428,13 +1431,28 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4
   // Measure first, then thin labels by their actual plot positions and always keep the last real period.
   visibleTicks.sort((a,b)=>a-b);
   visibleTicks.forEach(i => {
-    const c = cols[i], x = padL + (i + .5) * bw, tick = c.tick || (c.d ? c.d.toLocaleDateString([], {month:'short',day:'numeric'}) : c.label);
-    g += `<text class="yl period-tick" data-period-index="${i}" x="${x.toFixed(1)}" y="${H - 4}" text-anchor="middle">${esc(tick)}</text>`;
+    const c = cols[i], tick = c.tick || (c.d ? c.d.toLocaleDateString([], {month:'short',day:'numeric'}) : c.label), width = Math.max(8, tick.length * 5.7);
+    let x = padL + (i + .5) * bw, anchor = 'middle';
+    if (x + width / 2 > W - 2) { x = W - 4; anchor = 'end'; }
+    else if (x - width / 2 < 2) { x = 2; anchor = 'start'; }
+    g += `<text class="yl period-tick" data-period-index="${i}" x="${x.toFixed(1)}" y="${H - 4}" text-anchor="${anchor}">${esc(tick)}</text>`;
   });
   if (avg) {
     const avgY = Y(avg).toFixed(1);
-    g += `<line class="avgline" x1="${padL}" x2="${W - padR}" y1="${avgY}" y2="${avgY}"/>`;
-    if (avgLineLabel) g += `<text class="avgline-label" x="${W - 2}" y="${Math.max(padT + 11, Y(avg) - 3).toFixed(1)}" text-anchor="end">${esc(avgLineLabel)}</text>`;
+    g += `<line class="avgline" x1="${plotL}" x2="${W - padR}" y1="${avgY}" y2="${avgY}"/>`;
+    if (avgLineLabel) {
+      const labelWidth = Math.min(Math.max(24, avgLineLabel.length * 6.1), Math.max(24, W - padL - 4));
+      const labelYs = [...new Set([Math.max(padT + 11, Y(avg) - 3), Math.max(padT + 11, Y(avg) - 15), padT + 11])];
+      const labelXs = [...new Set([W - 8, ...barRects.map(r => r.x - 4).sort((a, b) => b - a)])]
+        .map(x => Math.min(W - 4, Math.max(padL + labelWidth, x)));
+      const overlaps = (x, y) => {
+        const left = x - labelWidth, right = x, topY = y - 11, bottomY = y + 2;
+        return barRects.some(r => right > r.x && left < r.x + r.width && bottomY > r.y && topY < r.y + r.height);
+      };
+      let labelX = W - 8, labelY = labelYs[0];
+      for (const y of labelYs) { const x = labelXs.find(candidate => !overlaps(candidate, y)); if (x != null) { labelX = x; labelY = y; break; } }
+      g += `<text class="avgline-label" x="${labelX.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="end">${esc(avgLineLabel)}</text>`;
+    }
   }
   if (!distance && !inlineSelection) g += `<rect class="hl" x="0" y="${padT}" width="${bw.toFixed(1)}" height="${(H - padT - padB).toFixed(1)}" visibility="hidden"/>`;
   const legend = (!inlineSelection && !distance && keys.length > 1 ? keys.map((k) => `<span><i class="sw k-${k.k}"></i>${esc(k.name)}</span>`).join('') : '') + (avg && !inlineSelection ? `<span><i class="sw dash"></i>${esc(avgLabel)} ${esc(fmt(avg))}</span>` : '');

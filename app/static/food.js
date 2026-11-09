@@ -1267,11 +1267,11 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
     cols = Object.entries(W).map(([k, rs], i, arr) => { const c = rs.filter((r) => r.counted), a = (f) => { const v=c.map(r=>r[f]).filter(x=>x!=null);return v.length?v.reduce((s,x)=>s+x,0)/v.length:null; };
       const prev = arr[i - 1] && new Date(arr[i - 1][0] + 'T12:00'), d = new Date(k + 'T12:00');
       const ws = rs.filter((r) => r.weight != null), lastT = [...rs].reverse().find((r) => r.trend != null);
-      return {label: 'Week of ' + dlabel(k, {month: 'short', day: 'numeric'}), tick: !prev || prev.getMonth() !== d.getMonth() ? (i === 0 || d.getMonth() % 2 === 0 ? dlabel(k, {month: 'short'}) : '') : '', eaten: a('eaten'), burned: a('burned'), goal: a('goal'), protein_g: a('protein_g'), partial: rs.some((r) => r.today),
+      return {d, label: 'Week of ' + dlabel(k, {month: 'short', day: 'numeric'}), tick: !prev || prev.getMonth() !== d.getMonth() ? dlabel(k, {month: 'short', day: 'numeric'}) : '', eaten: a('eaten'), burned: a('burned'), goal: a('goal'), protein_g: a('protein_g'), partial: rs.some((r) => r.today),
         weight: ws.length ? wconv(ws.reduce((x, r) => x + r.weight, 0) / ws.length) : null, trend: lastT ? wconv(lastT.trend) : null}; });
   } else {
     const every = days <= 7 ? 1 : days <= 30 ? 7 : 14;
-    cols = I.rows.map((r, i) => ({label: dlabel(r.day, {weekday: 'short', month: 'short', day: 'numeric'}), tick: (I.rows.length - 1 - i) % every === 0 ? dlabel(r.day, days <= 7 ? {weekday: 'short'} : {month: 'short', day: 'numeric'}) : '',
+    cols = I.rows.map((r, i) => ({d: new Date(r.day + 'T12:00'), label: dlabel(r.day, {weekday: 'short', month: 'short', day: 'numeric'}), tick: (I.rows.length - 1 - i) % every === 0 ? dlabel(r.day, days <= 7 ? {weekday: 'short', month: 'short', day: 'numeric'} : {month: 'short', day: 'numeric'}) : '',
       eaten: r.eaten, burned: r.eaten == null ? null : r.burned, goal: r.goal, protein_g: r.protein_g, partial: r.today, day: r.day, counted: r.counted, weight: r.weight == null ? null : wconv(r.weight), trend: r.trend == null ? null : wconv(r.trend)}));
   }
   const pDef = S.predicted_kg, pTr = S.trend_change_kg;
@@ -1316,7 +1316,7 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
       const labelled=cols.map((c,i)=>c.tick?i:-1).filter(i=>i>=0),ticks=new Set([labelled[0],labelled[Math.floor((labelled.length-1)/2)],labelled.at(-1)]);
       energyChart($('#nt-overview-chart',box),cols.map((c,i)=>({...c,tick:ticks.has(i)?c.tick:'',partial:c.partial||(!weekly&&c.counted===false&&c.eaten!=null)})),{height:145,burned:false,interactive:false,topPadding:14});
     }
-    if (part === 'macros') periodBars($('#nt-protein', box), cols.map((c) => ({label: c.label, tick: c.tick, partial: c.partial, segs: [{k: 's3', v: c.protein_g || 0}]})),
+    if (part === 'macros') periodBars($('#nt-protein', box), cols.map((c) => ({d: c.d, label: c.label, tick: c.tick, partial: c.partial, segs: [{k: 's3', v: c.protein_g || 0}]})),
       {keys: [{k: 's3', name: 'Protein'}], fmt: (v) => `${r0(v)} g`, yfmt: (v) => String(Math.round(v)), avg: T.protein_target || null, avgLabel: 'Target', height: 150});
     if (part !== 'energy') return;
     energyChart($('#nt-energychart', box), cols, {weight: {fmt: (v) => `${v.toFixed(1)} ${wu}`, axis: (v) => v.toFixed(1), unit: wu}});
