@@ -5,8 +5,16 @@ const source=fs.readFileSync('app/static/social.js','utf8'),start=source.indexOf
 assert(start>=0&&end>start,'weekly recap helpers stay in their Activity feed section');
 const Recaps={startFor(period,day,offset=0){assert.equal(period,'week');const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-((d.getUTCDay()+6)%7)-7*offset);return d.toISOString().slice(0,10);}};
 const c={Intl,Date,Recaps,tz:()=> 'America/Los_Angeles',U:{dist:n=>(n/1000).toFixed(1),du:()=>'km'},dur:n=>`${n} sec`,esc:s=>String(s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])),svg:()=>'<svg></svg>'};
-vm.createContext(c);vm.runInContext(source.slice(start,end)+'\nthis.weeklyRecapWindow=weeklyRecapWindow;this.weeklyRecapDismissKey=weeklyRecapDismissKey;this.weeklyRecapUsual=weeklyRecapUsual;this.weeklyRecapDays=weeklyRecapDays;this.weeklyRecapMedals=weeklyRecapMedals;this.weeklyRecapHtml=weeklyRecapHtml;',c);
+const dateCalls=[];c.locale='en-US';c.fdate=(iso,options)=>{dateCalls.push({iso,options:{...options}});return new Date(iso).toLocaleDateString(c.locale,{timeZone:c.tz(),...options});};vm.createContext(c);vm.runInContext(source.slice(start,end)+'\nthis.weeklyRecapWindow=weeklyRecapWindow;this.weeklyRecapDismissKey=weeklyRecapDismissKey;this.weeklyRecapUsual=weeklyRecapUsual;this.weeklyRecapDays=weeklyRecapDays;this.weeklyRecapMedals=weeklyRecapMedals;this.weeklyRecapHtml=weeklyRecapHtml;this.weeklyRecapDateLabel=weeklyRecapDateLabel;this.weeklyRecapComparison=weeklyRecapComparison;',c);
 const at=utc=>new Date(utc),la='America/Los_Angeles';
+assert.equal(c.weeklyRecapDateLabel('2026-11-02','2026-11-09'),'Nov 2–Nov 8','English recap range uses the app date helper');
+assert.deepEqual(JSON.parse(JSON.stringify(dateCalls.slice(0,2))),[{iso:'2026-11-02T12:00:00.000Z',options:{timeZone:'UTC',month:'short',day:'numeric'}},{iso:'2026-11-08T12:00:00.000Z',options:{timeZone:'UTC',month:'short',day:'numeric'}}],'week endpoints are formatted as civil dates in UTC through the app helper');
+c.locale='fr-FR';const frenchRange=c.weeklyRecapDateLabel('2026-11-02','2026-11-09');assert(frenchRange.startsWith('2 nov.')&&frenchRange.includes('8 nov.')&&frenchRange.includes('–'),'the person locale still controls month wording');
+assert.equal(c.weeklyRecapComparison(28,100),'v down 72% vs usual');
+assert.equal(c.weeklyRecapComparison(120,100),'^ up 20% vs usual');
+assert.equal(c.weeklyRecapComparison(104,100),'About usual');
+assert([...c.weeklyRecapComparison(28,100)].every(ch=>ch.charCodeAt(0)>=32&&ch.charCodeAt(0)<=126),'canvas comparison copy is ASCII-safe');
+c.locale='en-US';
 const before=c.weeklyRecapWindow(at('2026-11-09T01:59:59Z'),la),sunday=c.weeklyRecapWindow(at('2026-11-09T02:00:00Z'),la),monday=c.weeklyRecapWindow(at('2026-11-10T07:59:59Z'),la),tuesday=c.weeklyRecapWindow(at('2026-11-10T08:00:00Z'),la);
 assert.equal(before.visible,false,'Sunday 5:59:59 pm local is before the offer');assert.equal(sunday.visible,true,'Sunday 6 pm local starts the offer');assert.equal(monday.visible,true,'the offer remains visible through Monday 11:59:59 pm local');assert.equal(tuesday.visible,false,'the offer ends at Tuesday midnight local');
 assert.equal(sunday.start,'2026-11-02');assert.equal(sunday.offset,0);assert.equal(monday.start,sunday.start,'Sunday and Monday keep the same Monday–Sunday recap');assert.equal(monday.offset,1);

@@ -370,7 +370,7 @@ function weeklyRecapMedals(data,catalog,start,end){
 }
 function weeklyRecapDateLabel(start,end){
   const first=new Date(start+'T12:00:00Z'),last=new Date(end+'T12:00:00Z');last.setUTCDate(last.getUTCDate()-1);
-  const fmt=d=>d.toLocaleDateString(undefined,{timeZone:'UTC',month:'short',day:'numeric'});return `${fmt(first)}–${fmt(last)}`;
+  const fmt=d=>fdate(d.toISOString(),{timeZone:'UTC',month:'short',day:'numeric'});return `${fmt(first)}–${fmt(last)}`;
 }
 function weeklyRecapSportLabel(sport){return String(sport||'').replace(/[-_]+/g,' ').replace(/\b\w/g,c=>c.toUpperCase());}
 function weeklyRecapHighlightLines(data,medals){
@@ -388,7 +388,7 @@ function weeklyRecapHighlightLines(data,medals){
 function weeklyRecapComparison(value,usual){
   if(!usual||!Number(usual)||!Number(value))return '';
   const percent=Math.round((Number(value)-Number(usual))/Number(usual)*100);if(Math.abs(percent)<=5)return 'About usual';
-  return `${percent<0?'↓ down':'↑ up'} ${Math.abs(percent)}% vs usual`;
+  return `${percent<0?'v down':'^ up'} ${Math.abs(percent)}% vs usual`;
 }
 function weeklyRecapFacts(data){
   const days=Number(data.active_days)||0,workouts=Number(data.activities)||0,sport=weeklyRecapSportLabel(data.top_sport);
