@@ -1,7 +1,7 @@
 {
   "name": "Kinetta",
   "short_name": "Kinetta",
-  "description": "Kinetta: workouts and food in one app, with your friends. You choose what you share.",
+  "description": "Kinetta: Workouts and food in one app, with your friends. You choose what you share.",
   "start_url": "/me",
   "scope": "/",
   "display": "standalone",

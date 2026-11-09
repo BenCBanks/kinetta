@@ -363,7 +363,7 @@ def invite_page(code: str):
     if name:
         title, text = html.escape(f'Join {name} on Kinetta'), html.escape(f'{name} invited you to be friends on Kinetta and follow each other’s workouts.')
         page = page.replace('<meta property="og:title" content="Kinetta">', f'<meta property="og:title" content="{title}">', 1)
-        page = page.replace('<meta property="og:description" content="Kinetta: workouts and food in one app, with your friends. You choose what you share.">',
+        page = page.replace('<meta property="og:description" content="Kinetta: Workouts and food in one app, with your friends. You choose what you share.">',
                             f'<meta property="og:description" content="{text}">', 1)
     return Response(page, media_type='text/html', headers={'Cache-Control': 'no-cache'})
 
