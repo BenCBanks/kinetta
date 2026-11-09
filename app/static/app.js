@@ -1449,7 +1449,7 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4
   if (!inlineSelection) g += `<rect class="hl" x="0" y="${padT}" width="${bw.toFixed(1)}" height="${(H - padT - padB).toFixed(1)}" visibility="hidden"/>`;
   const legend = inlineSelection ? '' : (keys.length > 1 ? keys.map((k) => `<span><i class="sw k-${k.k}"></i>${esc(k.name)}</span>`).join('') : '') + (avg ? `<span><i class="sw dash"></i>${esc(avgLabel)} ${esc(fmt(avg))}</span>` : '');
   const readout = inlineSelection ? '<div class="readout num progress-total-readout" role="status" aria-live="polite" aria-atomic="true"><span></span></div>' : '<div class="readout num"><span></span></div>';
-  box.innerHTML = `${readout}<div class="chartbox${distance ? ' distance-chart' : ''}${inlineSelection ? ' period-select-chart' : ''}"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(ariaLabel)}">${g}</svg></div>${legend ? `<div class="legend small">${legend}</div>` : ''}`;
+  box.innerHTML = `${readout}<div class="chartbox${distance ? ' distance-chart' : ''}${inlineSelection ? ' period-select-chart' : ''}"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="${inlineSelection ? 'group' : 'img'}" aria-label="${esc(ariaLabel)}">${g}</svg></div>${legend ? `<div class="legend small">${legend}</div>` : ''}`;
   const svgEl = $('svg', box), hl = $('.hl', box), ro = $('.readout', box);
   fitTickLabels(svgEl, W);
   if (inlineSelection) {
