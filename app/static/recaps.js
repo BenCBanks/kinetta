@@ -314,13 +314,13 @@ const Recaps=(()=>{
     else if(typeof initial==='string'&&aliases[initial]){({period,offset}=periodArgs(initial));}
     else if(typeof initial==='string'&&['week','month','year'].includes(initial)){period=initial;offset=defaultOffset(period);}
     else{period='month';offset=defaultOffset(period);}
-    let data=null,picture=null,url='',version=0,sending=false,defaultApplied=false,canShare=false;
+    let data=null,version=0,sending=false,defaultApplied=false,canShare=false;
     const names=[['totals','Totals'],['calendar','Chart'],['highlights','Highlights'],['streak','Streak'],['food','Food'],['identity','Photo & username']];
-    sheet('Share progress',`<div class="recap-stage"><button type="button" class="recap-preview busy" aria-label="View full-size picture" disabled><img id="recap-preview" alt="Loading your picture"></button></div><div class="seg vis3 recap-periods" role="group" aria-label="Recap period">${periods.map(([k,v])=>`<button type="button" data-recap-period="${k}" aria-pressed="${k===period}"><span>${v}</span></button>`).join('')}</div><div class="recap-period-nav"><button type="button" class="icon-btn" data-recap-prev aria-label="Previous period">‹</button><span id="recap-period-label" aria-live="polite"></span><button type="button" class="icon-btn" data-recap-next aria-label="Next period">›</button></div><fieldset class="recap-options"><legend>Include</legend><div>${names.map(([k,v])=>`<button type="button" data-recap-option="${k}" aria-pressed="${options[k]}"${k==='streak'?' aria-label="Activity streak (two or more active weeks in a row)"':''} disabled><span>${v}</span></button>`).join('')}</div></fieldset><p class="small muted" id="recap-streak-help" role="status" hidden></p><p class="small muted" id="recap-description"></p><p class="small muted" id="recap-status" role="status"></p><button type="button" class="ghost wide" id="recap-retry" hidden>Retry picture</button><div class="recap-actions"><button type="button" class="primary wide" id="recap-share" disabled>Share</button></div>`,(b,close)=>{
+    sheet('Share progress',`<div class="seg vis3 recap-periods" role="group" aria-label="Recap period">${periods.map(([k,v])=>`<button type="button" data-recap-period="${k}" aria-pressed="${k===period}"><span>${v}</span></button>`).join('')}</div><div class="recap-period-nav"><button type="button" class="icon-btn" data-recap-prev aria-label="Previous period">‹</button><span id="recap-period-label" aria-live="polite"></span><button type="button" class="icon-btn" data-recap-next aria-label="Next period">›</button></div><fieldset class="recap-options"><legend>Include</legend><div>${names.map(([k,v])=>`<button type="button" data-recap-option="${k}" aria-pressed="${options[k]}"${k==='streak'?' aria-label="Activity streak (two or more active weeks in a row)"':''} disabled><span>${v}</span></button>`).join('')}</div></fieldset><p class="small muted" id="recap-streak-help" role="status" hidden></p><p class="small muted" id="recap-description"></p><p class="small muted" id="recap-status" role="status" data-ready="false"></p><button type="button" class="ghost wide" id="recap-retry" hidden>Retry data</button><div class="recap-actions"><button type="button" class="primary wide" id="recap-share" disabled>Preview and share</button></div>`,(b,close)=>{
       b.closest('.sheet').classList.add('recap-sheet');
-      const live=()=>owner===readOwner()&&b.isConnected,button=$('#recap-share',b),image=$('#recap-preview',b),preview=$('.recap-preview',b),status=$('#recap-status',b);
+      const live=()=>owner===readOwner()&&b.isConnected,button=$('#recap-share',b),status=$('#recap-status',b);
       const closeSelf=()=>close();App.closeActivityShare=closeSelf;
-      viewResources.set(b,()=>{version++;picture=null;if(url)URL.revokeObjectURL(url);if(App.closeActivityShare===closeSelf)delete App.closeActivityShare;});
+      viewResources.set(b,()=>{version++;if(App.closeActivityShare===closeSelf)delete App.closeActivityShare;});
       const periodLabel=$('#recap-period-label',b),previous=$('[data-recap-prev]',b),next=$('[data-recap-next]',b);
       function updateNav(){
         const matches=data?.period===period&&data?.offset===offset,start=matches?data.start:startFor(period,today(),offset);
@@ -330,17 +330,14 @@ const Recaps=(()=>{
       }
       function controls(){
         $$('[data-recap-option]',b).forEach(x=>{const k=x.dataset.recapOption,eligible=k!=='streak'||data?.streak_weeks>=2;x.disabled=sending||!data;if(eligible)x.removeAttribute('aria-disabled');else x.setAttribute('aria-disabled','true');x.setAttribute('aria-pressed',String(options[k]&&eligible));});
-        $$('[data-recap-period],[data-recap-prev],[data-recap-next]',b).forEach(x=>{if(x.matches('[data-recap-prev]'))x.disabled=sending||offset>=24;else if(x.matches('[data-recap-next]'))x.disabled=sending||offset<=0;else x.disabled=sending;});preview.disabled=sending||!picture;button.disabled=sending||!canShare||!picture;
+        $$('[data-recap-period],[data-recap-prev],[data-recap-next]',b).forEach(x=>{if(x.matches('[data-recap-prev]'))x.disabled=sending||offset>=24;else if(x.matches('[data-recap-next]'))x.disabled=sending||offset<=0;else x.disabled=sending;});button.disabled=sending||!canShare;
       }
       async function make(reload=false){
-        $('#recap-streak-help',b).hidden=true;const run=++version;picture=null;canShare=false;controls();preview.classList.add('busy');status.textContent='';$('#recap-retry',b).hidden=true;
+        $('#recap-streak-help',b).hidden=true;const run=++version;canShare=false;status.dataset.ready='false';controls();status.textContent='';$('#recap-retry',b).hidden=true;
         try{
           const fresh=reload||!data||data.period!==period||data.offset!==offset?await read(period,offset):data;if(!live()||run!==version)return;data={...fresh,units:App.me?.units||fresh.units};updateNav();
           if(!saved&&!defaultApplied)options.streak=data.streak_weeks>=2;defaultApplied=true;
           $('#recap-description',b).textContent='Totals and chart include Only me workouts; highlights use shared activities. No maps, places or body details.'+(options.food?' Food: logged and protein-goal days only.':'')+(options.identity?' Includes your photo and username.':'');
-          const result=await draw(data,options);if(!live()||run!==version)return;
-          if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('share_picture',owner);
-          if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(result.blob);image.src=url;image.alt=result.alt;picture=result.blob;
           const hasData=data.activities>0||options.food&&data.food.logged_days>0,hasSections=options.totals||options.calendar||options.highlights&&data.highlights.length>0||options.streak&&data.streak_weeks>=2||options.food||options.identity;
           canShare=hasData&&hasSections;
           const messages=[];
@@ -348,18 +345,16 @@ const Recaps=(()=>{
           if(!hasData)messages.push(data.food.logged_days?'No activities in this period. Turn on Food to include logged days, or choose another period.':'No activities in this period yet. Choose another period.');
           status.textContent=messages.join(' ');
         }catch(e){if(live()&&run===version){status.textContent=e.message;$('#recap-retry',b).hidden=false;}}
-        finally{if(live()&&run===version){preview.classList.remove('busy');controls();}}
+        finally{if(live()&&run===version){status.dataset.ready='true';controls();}}
       }
       $$('[data-recap-period]',b).forEach(x=>x.onclick=()=>{if(sending||!live())return;period=x.dataset.recapPeriod;offset=defaultOffset(period);data=null;$$('[data-recap-period]',b).forEach(p=>p.setAttribute('aria-pressed',String(p===x)));updateNav();make(true);});
       previous.onclick=()=>{if(sending||offset>=24||!live())return;offset++;data=null;updateNav();make(true);};
       next.onclick=()=>{if(sending||offset<=0||!live())return;offset--;data=null;updateNav();make(true);};
       $$('[data-recap-option]',b).forEach(x=>x.onclick=()=>{if(sending||!live())return;const k=x.dataset.recapOption;if(k==='streak'&&data?.streak_weeks<2){const help=$('#recap-streak-help',b);help.textContent='Available after two active weeks in a row.';help.hidden=false;return;}options[k]=!options[k];store.set(prefKey,options);make();});
-      preview.onclick=()=>{if(!picture||!live())return;sheet('Your progress picture',`<img class="recap-full" src="${esc(url)}" alt="${esc(image.alt)}">`);};
       $('#recap-retry',b).onclick=()=>make(true);
-      button.onclick=async()=>{if(sending||!picture||!canShare||!live())return;const run=version,blob=picture;sending=true;controls();
-        try{const handedOff=await ShareArt.deliver(blob,`kinetta-${data.start}.png`,()=>live()&&run===version);if(handedOff&&live()&&run===version)onShared?.({...data,period,offset});}
-        catch(e){if(live()&&e.name!=='AbortError')status.textContent=e.message||'Couldn’t share this picture';}
-        finally{sending=false;if(live())controls();}
+      button.onclick=()=>{if(sending||!canShare||!live())return;const recap={...data,period,offset},selected={...options},filename=`kinetta-${data.start}.png`;
+        const item={label:'Progress recap',filename,note:$('#recap-description',b).textContent,valid:()=>owner===readOwner(),build:async()=>{const result=await draw(recap,selected);if(owner!==readOwner())throw Error('The account changed.');if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('share_picture',owner);return{...result,filename};},afterShare:()=>onShared?.(recap),afterSave:()=>onShared?.(recap)};
+        close();ShareSheet.open({items:[item],title:'Share progress'});
       };
       updateNav();
       make(true);
