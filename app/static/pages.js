@@ -940,15 +940,16 @@ function shareOut(a) { sharePicture(a.id, a); }
 // so nobody has to choose a size. Share opens the phone's own share sheet.
 function sharePicture(id, known) {
   const owner=readOwner(),cached=known&&known.line!==undefined&&known.start_time?known:null;
-  Promise.all([cached||api(`/api/activities/${id}`),cached?Promise.resolve(cached._social||null):api(`/api/activities/${id}/social`).catch(()=>null)])
+  const socialRequest=cached&&cached._social?Promise.resolve(cached._social):api(`/api/activities/${id}/social`).catch(()=>null);
+  Promise.all([cached||api(`/api/activities/${id}`),socialRequest])
     .then(([activity,social])=>{
       if(owner!==readOwner())return;if(cached)cached._social=social;
-      const details=social?.details||{},savedTrim=Number.isFinite(social?.trim_m)?social.trim_m:400,mapAllowed=details.map!==false;
-      const line=mapAllowed?activity.line:null,hasLine=!!(line&&decode(line).length>1),controls=hasLine?[{key:'hideEnds',label:'Hide where it starts and ends',checked:savedTrim>0}]:[];
+      const details=social?.details||{},savedTrim=Number(social?.trim_m)||400,mapAllowed=details.map!==false;
+      const line=mapAllowed?activity.line:null,hasLine=!!(line&&decode(line).length>1),controls=hasLine?[{key:'hideEnds',label:'Hide where it starts and ends',checked:true}]:[];
       const safe={...activity,line,avg_hr:details.heart_rate?activity.avg_hr:null,calories:details.calories?activity.calories:null};
       const trimValue=state=>state.hideEnds?savedTrim:0,date=fdate(activity.start_time,{weekday:'short',month:'short',day:'numeric',year:'numeric'}),name=(activity.name||'activity').replace(/[^\w -]+/g,'').trim()||'activity';
       const items=[{label:'Activity card',filename:`${name}.png`,controls,build:state=>routePicture(safe,hasLine?trimValue(state):0,details)}];
-      if(hasLine)items.push({label:'Route map',filename:`${name}-route.png`,controls,build:state=>ShareArt.simplePicture({kicker:'Route map',title:activity.name,date,value:'Route',routePoints:trimRoute(decode(line),trimValue(state))})});
+      if(hasLine)items.push({label:'Route map',filename:`${name}-route.png`,controls,build:state=>{const trim=trimValue(state),routePoints=trimRoute(decode(line),trim);return ShareArt.simplePicture({kicker:'Route map',title:activity.name,date,value:'Route',routePoints,routeTrimmed:trim>0});}});
       const rateInfo=rate(activity),statsFacts=[`Time: ${dur(activity.moving_s||activity.elapsed_s)}`];
       if(details.pace&&rateInfo.label!=='Time')statsFacts.push(`${rateInfo.label}: ${rateInfo.v} ${rateInfo.u}`);
       if(details.heart_rate&&activity.avg_hr)statsFacts.push(`Average heart rate: ${Math.round(activity.avg_hr)} bpm`);

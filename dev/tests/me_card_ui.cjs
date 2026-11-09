@@ -365,12 +365,12 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    await p.mouse.click(medalBox.x+medalBox.width/2,medalBox.y+medalBox.height/2);await p.waitForURL('**/people/alex');await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();
    shareAchievementsEnabled=false;await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();await p.locator('[data-me-featured][data-loaded="true"]').waitFor({state:'attached'});
    assert.equal(await p.locator('.me-featured-item').count(),0,'turning sharing off removes the featured section');await screenshot(`me-featured-sharing-off-${theme}`);
-   await p.locator('[data-card-share]').click();await p.locator('.profile-share-preview .me-card').waitFor();
-   await p.waitForFunction(()=>document.querySelector('#profile-share-status')?.textContent==='');
-   assert.equal(await p.locator('.profile-share-preview .me-showcase-medal').count(),0,'the shared profile preview hides Showcase while sharing is off');
-   assert(sharedShowcaseRequests.includes('alex'),'shared preview requests the target profile Showcase');await screenshot('me-showcase-shared-off');await p.keyboard.press('Escape');
-  shareAchievementsEnabled=true;showcasePins=[];showcaseFixture={items:featuredItems,pinned:[],day_streak:12};await p.locator('[data-card-share]').click();await p.locator('.profile-share-preview .me-showcase-medal').first().waitFor();
-   assert.equal(await p.locator('.profile-share-preview .me-showcase-medal').count(),4,'the shared profile preview uses automatic medals when no pins exist');
+   await p.locator('[data-card-share]').click();await p.locator('[data-unified-share]').waitFor();
+   assert(!(await p.locator('.share-picture-label').allInnerTexts()).includes('Achievements'),'the picture sheet hides achievements when sharing is off');
+   await screenshot('me-showcase-shared-off');await p.keyboard.press('Escape');
+  shareAchievementsEnabled=true;showcasePins=[];showcaseFixture={items:featuredItems,pinned:[],day_streak:12};await p.locator('[data-card-share]').click();await p.locator('[data-unified-share]').waitFor();
+   const achievementPicture=p.locator('[data-share-choice]').filter({hasText:'Achievements'});await achievementPicture.waitFor();await achievementPicture.click();await p.locator('[data-share-control="identity"]').waitFor();
+   assert(!(await p.locator('[data-share-control="identity"]').isChecked()),'achievement identity is an explicit opt-in');
    await screenshot('me-showcase-shared-on');
   }
   await featuredEditor();

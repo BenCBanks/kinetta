@@ -45,14 +45,14 @@ async function weeklyCardChecks(p){
 }
 async function milestoneChecks(p){
  const row=p.locator('.me-card .me-milestone-row');await row.waitFor();assert.equal(await row.count(),1,'one compact milestone row');assert.match(await row.locator('.me-milestone-latest').innerText(),/Only you[\s\S]*First 5K/,'latest occurrence leads, independently of rank');assert((await row.boundingBox()).height<=55,'one quiet line including its separator');
- await row.locator('.me-milestone-latest').click();await p.locator('[data-unified-share]').waitFor();await until(p,()=>document.querySelector('[data-share-image="0"]')?.naturalWidth>0,'milestone share picture');assert(!(await p.locator('[data-share-control=identity]').isChecked()),'identity remains off');assert.match(await p.locator('[data-share-note]').innerText(),/Only you/,'Only-me sharing reminder retained');await p.keyboard.press('Escape');
+ await row.locator('.me-milestone-latest').click();await p.locator('[data-unified-share]').waitFor();await until(p,()=>document.querySelector('[data-share-image="0"]')?.naturalWidth>0,'milestone share picture');assert(!(await p.locator('[data-share-control=identity]').isChecked()),'identity remains off');assert.match(await p.locator('[data-share-note]').innerText(),/Only me/,'Only-me sharing reminder retained');await p.keyboard.press('Escape');
  await row.locator('.me-milestone-all').click();await p.locator('.sheet').getByRole('heading',{name:'Recent milestones',exact:true}).waitFor();assert.equal(await p.locator('[data-milestone]').count(),2,'See all uses a sheet');await p.locator('[data-milestone]').last().click();await until(p,()=>document.querySelector('[data-share-image="0"]')?.naturalWidth>0,'another offer share picture');await p.keyboard.press('Escape');
  await p.goto(base+'/me/milestones');await p.waitForURL('**/me');await until(p,()=>App.pageReady,'legacy milestone link returns ready Me');await p.locator('.me-card-sections[aria-busy=false]').waitFor();
 }
 (async()=>{const b=await chromium.launch();const l=await b.newContext();await l.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});const st=await l.storageState();
 for(const size of [{width:320,height:667,root:16},{width:390,height:844,root:16},{width:430,height:932,root:16},{width:600,height:900,root:16,locale:'fr-FR'}])for(const theme of ['light','dark']){
  const c=await b.newContext({storageState:st,viewport:{width:size.width,height:size.height},locale:size.locale||'en-US',colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];
- let cardState='heavy',cardLayout=null;const blocked=new Set();
+ let cardState='heavy',cardLayout=null,profileHidden=false;const blocked=new Set();
  p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.text()==='Service Worker registration blocked by Playwright'||m.text()==='Failed to load resource: net::ERR_FAILED'&&blocked.has(m.location().url))return;if(['error','warning'].includes(m.type()))errors.push(m.text()+' ('+m.location().url+')')});
  await c.addInitScript(r=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=r+'px'),size.root);
  await c.route('**/*',async r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base){blocked.add(q.url());return r.abort();}if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);return r.fulfill({json:{}});}
@@ -64,7 +64,7 @@ for(const size of [{width:320,height:667,root:16},{width:390,height:844,root:16}
   if(u.pathname==='/api/milestones'){const items=cardState==='heavy'?milestoneOffers:[],id=u.searchParams.get('milestone_id');return r.fulfill({json:{pending:false,items:id?items.filter(m=>m.id===id):items}});}
   if(u.pathname==='/api/people/alex/profile'){
    const response=await r.fetch(),j=await response.json(),empty=cardState==='new',series=chartFixture(j.mileage.today);
-   const memberPreview=u.searchParams.get('preview')==='member';
+   const memberPreview=u.searchParams.get('preview')==='member';j.profile_hidden=profileHidden;
    j.overview={...j.overview,activities:empty?0:memberPreview?77:3045,distance_m:empty?0:memberPreview?321000:18968840,time_s:empty?0:memberPreview?7200:5569200,active_days:empty?0:memberPreview?12:468};
    j.recent.current={activities:empty?0:memberPreview?7:32,distance_m:empty?0:memberPreview?18000:259102,time_s:empty?0:memberPreview?1800:78360,active_days:empty?0:memberPreview?4:18};
    j.sports=empty?[]:memberPreview?[{sport:'run',activities:7}]:[{sport:'hike',activities:9},{sport:'swim',activities:8},{sport:'ride',activities:19},{sport:'run',activities:2939},{sport:'walk',activities:70}];
@@ -126,11 +126,13 @@ for(const size of [{width:320,height:667,root:16},{width:390,height:844,root:16}
  await p.locator('#person-profile').evaluate(n=>n.scrollIntoView({block:'start',behavior:'instant'}));await shot('profile-own');
  await p.locator('[data-card-share]').click();const share=p.locator('.sheet');await share.locator('[data-unified-share]').waitFor();
  const preview=share.locator('[data-share-image="0"]');await preview.waitFor({state:'visible'});await p.waitForFunction(()=>{const n=document.querySelector('[data-share-image="0"]');return n?.complete&&n.naturalWidth===1080;});
- const labels=await share.locator('.share-picture-label').allInnerTexts();assert.equal(labels[0],'Me card');assert(labels.indexOf('Public link & QR')<0||labels.at(-1)==='Public link & QR','the public link and QR stay last');
+ const labels=await share.locator('.share-picture-label').allInnerTexts();assert.equal(labels[0],'Me card');assert(!labels.includes('Public link & QR'),'the unrequested public QR picture is omitted');
  assert.equal(await share.locator('[data-share-send]').innerText().then(t=>t.trim()),'Share');assert.equal(await share.locator('[data-share-save]').innerText(),'Save image');
+ assert.equal(await share.locator('[data-share-note]').innerText(),'Private workouts count, but stay hidden');assert.match(await share.locator('[data-share-description]').innerText(),/Friends see the totals, not the workouts/);
  assert.equal(await share.locator('[data-card-edit],[data-card-share],.me-card-note').count(),0,'the unified sheet has no nested profile or card controls');
  assert.doesNotMatch(await share.innerText(),/PRIVATE-ONLY|See what others see|Previewing as|View full profile/);if(size.width===390)await shot('profile-share-sheet');
  await p.keyboard.press('Escape');await share.waitFor({state:'detached'}).catch(()=>{});
+ profileHidden=true;const visibilityCheck=p.waitForResponse(response=>{const url=new URL(response.url());return url.pathname==='/api/people/alex/profile'&&url.searchParams.get('preview')==='member';});await p.locator('[data-card-share]').click();await visibilityCheck;assert.equal(await p.locator('[data-unified-share]').count(),0,'a hidden profile cannot open picture sharing');profileHidden=false;
  // Edit happens in place on the card, exactly as on Me; Cancel leaves everything as it was.
  await p.locator('[data-card-edit]').click();await p.waitForSelector('#person-profile .me-card.editing');
  assert.equal(await p.locator('#person-activities').evaluate(n=>!!n.closest('[inert]')),true,'activities dimmed while editing');
@@ -150,7 +152,7 @@ for(const size of [{width:320,height:667,root:16},{width:390,height:844,root:16}
  await noOverflow('request profile');
  assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[]);
  console.log(`Profile card ${size.width}x${size.height}/${size.root} ${theme} PASS`);await c.close();}
-await inlineEditorChecks(b);await require('./me_polish_ui.cjs')({browser:b,storageState:st,base});await require('./profile_achievements_ui.cjs')({browser:b,storageState:st,base,shots:out});await b.close();})().catch(e=>{console.error(e);process.exit(1);});
+await inlineEditorChecks(b);await require('./me_polish_ui.cjs')({browser:b,storageState:st,base,shots:out});await require('./profile_achievements_ui.cjs')({browser:b,storageState:st,base,shots:out});await b.close();})().catch(e=>{console.error(e);process.exit(1);});
 
 async function inlineEditorChecks(browser){
  const cp=require('node:child_process'),path=require('node:path'),pw='green teapot on the hill';

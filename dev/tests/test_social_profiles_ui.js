@@ -18,18 +18,14 @@ const source=fs.readFileSync('app/static/social.js','utf8'),tick=()=>new Promise
  assert(!source.includes('function editProfile(')&&!source.includes('Draft preview')&&!source.includes('pf-editor'));
  assert(!profile.includes('data-card-identity')&&!profile.includes('function editor(box,initial'));
  assert(pages.includes("$('#m-profile', el).onclick = () => MeCard.openEditor()"));assert(profile.includes("openEditor:()=>go('/me?edit=profile')"));
- // Native share cancellation is quiet; unavailable sharing exposes a copyable authenticated link.
+ // Friend invites remain link-only and separate from picture sharing.
  c.invalidate=()=>{};c.keep=()=>{};c.invalidateFeed=()=>{};c.toast=()=>{};c.App={me:{name:'Old name'}};
- let sharePayload,shareSheet=null,closedShares=0;const copyInput={select(){this.selected=true;},selected:false};
- c.appBase=()=> 'https://example.test';c.navigator={share:payload=>{sharePayload=payload;return Promise.reject({name:'AbortError'});},clipboard:{writeText:async()=>{}}};
- c.sheet=(title,html,mount)=>{const nodes=Object.fromEntries([...html.matchAll(/id="([^"]+)"/g)].map(m=>['#'+m[1],{textContent:'',disabled:false,hidden:true}]));const box={nodes,isConnected:true};shareSheet={title,html,box};mount(box,()=>{box.isConnected=false;closedShares++;});};
+ let shareSheet=null;const copyInput={select(){this.selected=true;},selected:false};
+ c.appBase=()=> 'https://example.test';c.navigator={clipboard:{writeText:async()=>{}}};
+ c.sheet=(title,html,mount)=>{const nodes=Object.fromEntries([...html.matchAll(/id="([^"]+)"/g)].map(m=>['#'+m[1],{textContent:'',disabled:false,hidden:true}]));const box={nodes,isConnected:true};shareSheet={title,html,box};mount(box,()=>{box.isConnected=false;});};
  c.$=(sel,box)=>sel==='input'?copyInput:box?.nodes[sel]||null;
- vm.runInContext(source.slice(source.indexOf('function shareProfile('),source.indexOf("route(/^\\/me\\/friends$/")),c);
- c.shareProfile({login:'alex',name:'Alex'});await tick();assert.equal(sharePayload.url,'https://example.test/people/alex');assert.equal(shareSheet,null);
- c.navigator.share=undefined;c.shareProfile({login:'alex',name:'Alex'});assert(shareSheet.html.includes('sharing choices still apply'));await shareSheet.box.nodes['#pf-copy'].onclick();assert.equal(shareSheet.box.nodes['#pf-copy-status'].textContent,'Link copied');
- c.navigator.clipboard.writeText=async()=>{throw Error('Clipboard denied')};await shareSheet.box.nodes['#pf-copy'].onclick();assert(copyInput.selected);assert(shareSheet.box.nodes['#pf-copy-status'].textContent.includes('Select and copy'));
+ vm.runInContext(source.slice(source.indexOf('async function inviteFriends()'),source.indexOf("route(/^\\/me\\/friends$/")),c);
  c.api=async()=>({url:'/add/fictional-invitation'});await c.inviteFriends();assert.equal(shareSheet.title,'Invite friends');for(const id of ['#iv-share','#iv-copy','#iv-qr'])assert(shareSheet.box.nodes[id],`invite action ${id} exists`);
  let resolveInvite;c.api=()=>new Promise(resolve=>resolveInvite=resolve);shareSheet=null;const oldInvite=c.inviteFriends();editorOwner='third';resolveInvite({url:'/add/old-account-link'});await oldInvite;assert.equal(shareSheet,null,'an old account’s delayed invite link cannot appear after login changes');
- c.navigator.share=()=>new Promise((_,reject)=>{c.rejectShare=reject});c.shareProfile({login:'alex',name:'Alex'});editorOwner='fourth';c.rejectShare({name:'Unavailable'});await tick();assert.equal(shareSheet,null,'a late native share failure cannot reopen an old account’s sheet');
- console.log('Social profiles: own tab, focused Find friends shell, unified editor entry, working share/copy/invite controls and account fences PASS');
+ console.log('Social profiles: own tab, focused Find friends shell, unified editor entry, invite controls and account fences PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});

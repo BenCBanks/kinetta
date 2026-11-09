@@ -36,7 +36,7 @@
 .share-picture-frame img{display:block;width:100%;height:100%;object-fit:contain;}
 .share-picture-loading{position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:var(--tx2);}
 .share-picture-choice[data-busy=true] .share-picture-loading{display:flex;}
-.share-picture-choice[aria-pressed=true] .share-picture-frame{outline:2px solid var(--accent);outline-offset:2px;}
+.share-picture-choice[aria-checked=true] .share-picture-frame{outline:2px solid var(--accent);outline-offset:2px;}
 .share-picture-choice:focus-visible .share-picture-frame{outline:2px solid var(--accent);outline-offset:2px;}
 .share-picture-label{min-height:24px;font-size:max(15px,.9375rem);font-weight:600;}
 .share-picture-controls{flex:none;min-height:0;}

@@ -1,9 +1,10 @@
 // Bounded owner-profile, privacy, Kit and first-step regressions. Fictional demo data; writes/providers blocked.
 'use strict';
 const assert=require('node:assert/strict');
+const fs=require('node:fs'),path=require('node:path');
 const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error('Timed out: '+label);}
-module.exports=async function({browser,storageState,base}){
+module.exports=async function({browser,storageState,base,shots}){
  try{
  setProgressFlags(true);
  const auth=await browser.newContext({storageState}),rows=await(await auth.request.get(base+'/api/activities?limit=25')).json();await auth.close();assert(rows.length>=25);
@@ -40,6 +41,7 @@ module.exports=async function({browser,storageState,base}){
   const ready=()=>until(p,()=>App.pageReady,'page ready');
   const go=async path=>{await p.evaluate(path=>{go(path)},path);await ready();};
   const fit=async label=>{await p.evaluate(()=>document.fonts.ready);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),label+' page fits');};
+  const shot=async name=>{if(shots&&size.width===390&&size.root===16){fs.mkdirSync(shots,{recursive:true});await p.screenshot({path:path.join(shots,`${name}-${size.width}-${size.root}-${theme}.png`),animations:'disabled'});}};
   await p.goto(base+'/people/alex');await ready();await p.locator('#person-activities .post-private').first().waitFor();
   assert.equal(await p.locator('.me-card-row').count(),0);await fit('owner profile');
   noUsage=true;mode='off';await p.evaluate(async()=>refreshMe(await api('/api/me')));const emptyActivity=p.waitForResponse(r=>new URL(r.url()).pathname==='/api/activities');await go('/me');await emptyActivity;assert.equal(await p.locator('.kit-help').count(),0,'a user with no food or activities has no Kit entry');

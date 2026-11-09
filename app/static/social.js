@@ -931,22 +931,6 @@ function friendshipSheet(p, onChange) {
   });
 }
 
-function shareProfile(p) {
-  const owner=readOwner(),same=()=>owner===readOwner();
-  const url = `${appBase()}${profileHref(p)}`;
-  const copySheet = () => {if(!same())return;return sheet('Share your profile', `<p>People need a Kinetta account to open your profile. Your sharing choices still apply.</p><label class="form">Profile link<input readonly value="${esc(url)}" aria-label="Profile link"></label><button type="button" class="primary wide" id="pf-copy">Copy link</button><p class="small muted" id="pf-copy-status" role="status"></p>`, (b) => {
-    const live=()=>same()&&b.isConnected;
-    const input = $('input', b); input.onclick = () => input.select();
-    $('#pf-copy', b).onclick = async () => {
-      if(!live())return;
-      try { await navigator.clipboard.writeText(url); if(live())$('#pf-copy-status', b).textContent = 'Link copied'; }
-      catch { if(live()){input.select();$('#pf-copy-status', b).textContent = 'Select and copy the link above.';} }
-    };
-  });};
-  if (navigator.share) navigator.share({title: `${p.name} on Kinetta`, url}).catch((e) => { if (e.name !== 'AbortError') copySheet(); });
-  else copySheet();
-}
-
 // ---------- finding friends (Ben, 25 October 2026: "a tad easier to quickly find your friends") ----------
 // Your own invite link: whoever opens it while signed in becomes your friend at once; a new account through it, once its
 // email is confirmed. The share sheet says so, so it goes only to people you'd add yourself.
