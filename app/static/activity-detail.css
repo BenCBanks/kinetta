@@ -1,9 +1,8 @@
 /* A mapped activity starts at the screen edge; the ordinary header remains for indoor activities. */
 .activity-detail { --detail-edge:22px; }
-.detail-map-hero { position:relative; margin:calc(0px - env(safe-area-inset-top) - var(--shell-top-gap)) calc(-1 * var(--detail-edge)) 12px; }
-.detail-map-hero .detail-media { --media-height:clamp(220px,38dvh,340px); margin:0; }
+.detail-map-hero { position:relative; margin:calc(0px - env(safe-area-inset-top) - var(--shell-top-gap)) calc(-1 * var(--detail-edge)) 8px; }
+.detail-map-hero .detail-media { --media-height:clamp(264px,46dvh,408px); margin:0; }
 .detail-map-hero .media-track { border-radius:0; }
-.detail-map-hero::after { content:''; position:absolute; pointer-events:none; inset:0 0 auto; height:calc(env(safe-area-inset-top) + 64px); z-index:1001; background:linear-gradient(var(--bg),transparent); }
 .detail-bar { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .detail-bar .acts { display:flex; align-items:center; gap:8px; }
 .detail-bar .back,.detail-bar .icon-btn { min-width:44px; min-height:44px; flex:none; }
@@ -12,7 +11,7 @@
 .detail-sticky { position:fixed; z-index:1100; top:0; left:0; right:0; max-width:800px; margin:0 auto; padding:calc(env(safe-area-inset-top) + 8px) 12px 8px; background:var(--bg); border-bottom:1px solid var(--line); }
 .detail-sticky[hidden] { display:none; }
 .detail-bar-title { white-space:normal; overflow-wrap:anywhere; min-width:0; font-size:.9375rem; }
-.compact-detail-title { padding:12px 14px; margin-bottom:8px; }
+.compact-detail-title { padding:12px 14px 8px; margin-bottom:0; }
 .detail-title-row { display:flex; align-items:flex-start; gap:8px; }
 .detail-title-row h1 { flex:1; min-width:0; font-size:var(--text-app-title); line-height:1.2; margin:0; overflow-wrap:anywhere; }
 .detail-title-row .sp,.detail-date-row .sp { width:22px; height:24px; border:0; border-radius:0; background:none; flex:none; }
@@ -39,8 +38,23 @@
 .compact-detail-title .milestone-copy { flex:1; min-width:0; font-size:.9375rem; }
 .compact-detail-title .milestone-actions { display:flex; gap:8px; }
 .compact-detail-title .milestone-share { min-height:44px; padding:0 8px; font-size:.9375rem; }
-/* Keep the first chart clear of the fixed bottom tabs with the 44px social row present. */
-.shell.activity-detail > .seg.wide.dtabs { margin:2px 0 2px; }
+/* Keep analysis tabs above the fixed navigation while retaining 8px section gaps. */
+.shell.activity-detail > .seg.wide.dtabs { margin:0 0 2px; }
+/* Keep the 46dvh map and its first-screen tabs together when optional medal rows load. */
+@media(max-width:700px) {
+ .activity-detail > .detail-map-hero ~ .compact-detail-title { padding:8px 14px 4px; }
+ .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-title-row h1 { line-height:1.1; }
+ .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-date-row { margin:2px 0; }
+ .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-primary .stat b { font-size:1.25rem; line-height:1.05; white-space:normal; overflow-wrap:anywhere; }
+ .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-primary .stat small { line-height:1.1; }
+ .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-secondary { margin-top:4px; }
+ .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-secondary .stat b { font-size:1.25rem; line-height:1.05; white-space:normal; overflow-wrap:anywhere; }
+ .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-secondary .stat small { line-height:1.1; }
+ /* Matched routes and records remain in Overview/Efforts; drop their duplicate header shortcuts on phones. */
+ .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-highlights { display:none; }
+ .activity-detail > .detail-map-hero ~ .compact-detail-title #d-next-medal { margin-bottom:4px; }
+ .activity-detail > .detail-map-hero ~ .compact-detail-title #d-milestones .milestone-banner { margin-top:8px; }
+}
 @media(max-width:360px) {
  .activity-detail { --detail-edge:16px; }
  .detail-primary,.detail-secondary { grid-template-columns:repeat(auto-fit,minmax(min(100%,5.5rem),1fr)); }

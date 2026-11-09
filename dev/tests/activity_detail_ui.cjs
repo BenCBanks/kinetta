@@ -1,8 +1,12 @@
 // Real owner/friend APIs and fictional demo geometry. No provider, device or sharing effects.
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),path=require('node:path');
-const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill',out=process.env.KINETTA_EVIDENCE,fs=require('node:fs'),medalKind=process.env.KINETTA_MEDAL_CASE||'',medalTheme=process.env.KINETTA_MEDAL_THEME||'light',medalWidth=Number(process.env.KINETTA_MEDAL_WIDTH)||390;
+const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill',out=process.env.KINETTA_EVIDENCE,fs=require('node:fs'),medalKind=process.env.KINETTA_MEDAL_CASE||'',medalTheme=process.env.KINETTA_MEDAL_THEME||'light',medalWidth=Number(process.env.KINETTA_MEDAL_WIDTH)||390,detailCases=(process.env.KINETTA_DETAIL_CASE||'').split(',').filter(Boolean);
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
+async function assertNoDetailTitleBand(locator){
+ const result=await locator.evaluate(el=>{const host=getComputedStyle(el),pseudo=getComputedStyle(el,'::after');return{content:pseudo.content,pseudoImage:pseudo.backgroundImage,hostImage:host.backgroundImage,borderTop:host.borderTopWidth};});
+ assert(result.content==='none'&&result.pseudoImage==='none'&&result.hostImage==='none'&&result.borderTop==='0px',`activity detail map has no title band or top edge: ${JSON.stringify(result)}`);
+}
 (async()=>{
  const output=cp.execFileSync('python3',[path.join(__dirname,'activity_detail_fixture.py')],{env:process.env,encoding:'utf8'});console.log(output.trim());const ids=JSON.parse(output.trim().split('\n').at(-1));
  const b=await chromium.launch(),contexts=[];
@@ -29,7 +33,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    const size={width:330,height:667,root:16}, {c,p,errors}=await open('lifting','dark',size,false,false,true);await until(p,()=>!!document.querySelector('#d-soc [data-detail-share]'),'detail Share action');await assertDetailActionRow(p,'330px dark activity detail');assert.deepEqual(errors,[]);console.log('Activity detail action row 330px/16px dark: React, Comments, Share and right-side counts PASS');await c.close();contexts.splice(contexts.indexOf(c),1);return;
   }
   for(const kind of ['run','treadmill','ride','lifting','empty','friend'])for(const size of (medalKind?[{width:390,height:844,root:16},{width:330,height:667,root:16}]:[{width:390,height:844,root:16}]))for(const theme of ['light','dark']){
-   const name=`${kind}-${size.width}-${theme}`;if(process.env.KINETTA_DETAIL_CASE&&process.env.KINETTA_DETAIL_CASE!==name)continue;
+   const name=`${kind}-${size.width}-${theme}`;if(detailCases.length&&!detailCases.includes(name))continue;
    if(medalKind&&(kind!==medalKind||theme!==medalTheme||size.width!==medalWidth))continue;
    const {c,p,errors,writes,friend}=await open(kind,theme,size),mapped=['run','ride','friend'].includes(kind);
    if(medalKind){
@@ -56,10 +60,11 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    if(friend){assert.equal(await p.locator('[data-detail-share],[data-detail-edit],#d-kit,.detail-highlights,#d-milestones').count(),0);assert.equal(await p.locator('#s-soc [data-detail-share]').count(),0);assert(!/Only me|Friends|Cadence|Calories/.test(await p.locator('.d-title').innerText()),'only permitted friend fields');assert.match(await p.locator('.d-title').innerText(),/Avg HR/,'heart rate appears for the sharing preference');assert(await p.locator('.detail-owner').isVisible());assert(await p.locator('#s-rb').isVisible());}
    else assert.equal(await p.locator('#d-soc').isVisible(),false,'an empty private activity hides its social footer');
    if(mapped){
-    const map=p.locator(friend?'#s-map':'#d-map');await until(p,()=>!!document.querySelector('.leaflet-container'),'actual Leaflet');const hero=await p.locator('.detail-map-hero').boundingBox();assert(Math.abs(hero.x)<1&&Math.abs(hero.y)<1&&Math.abs(hero.width-size.width)<1,'full bleed top map');assert(hero.height<=size.height*.41,'about 38% viewport map');assert.equal(await map.locator('.leaflet-control-zoom').count(),0,'coarse pointer uses pinch');
+    const map=p.locator(friend?'#s-map':'#d-map');await until(p,()=>!!document.querySelector('.leaflet-container'),'actual Leaflet');const hero=await p.locator('.detail-map-hero').boundingBox();assert(Math.abs(hero.x)<1&&Math.abs(hero.y)<1&&Math.abs(hero.width-size.width)<1,'full bleed top map');const expectedHero=Math.min(408,Math.max(264,size.height*.46));assert(Math.abs(hero.height-expectedHero)<=1,`detail header map grows about 20%: ${JSON.stringify({hero,expectedHero})}`);await assertNoDetailTitleBand(p.locator('.detail-map-hero'));assert.equal(await map.locator('.leaflet-control-zoom').count(),0,'coarse pointer uses pinch');
+    if(kind==='run')for(const selector of ['.detail-floating .back','.detail-floating [data-detail-share]','.detail-floating [data-detail-edit]'])assert(await p.locator(selector).isVisible(),`${selector} stays floating over the map`);
     if(kind==='run'){
      await until(p,()=>!!document.querySelector('#d-map .leaflet-tile-loaded'),'fictional basemap loaded');await p.evaluate(()=>document.fonts.ready);
-     if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`detail-media-${size.width}-${theme}.png`),animations:'disabled'});}
+     if(out){fs.mkdirSync(out,{recursive:true});await p.locator('.detail-map-hero').screenshot({path:path.join(out,`detail-header-${size.width}-${theme}.png`),animations:'disabled'});await p.screenshot({path:path.join(out,`detail-media-${size.width}-${theme}.png`),animations:'disabled'});}
      const controls=await p.locator('.detail-map-hero [data-media-step]').evaluateAll(ns=>ns.map(n=>{const r=n.getBoundingClientRect(),others=[...document.querySelectorAll('.detail-floating .back,.detail-floating button,.detail-map-hero .map-full,.detail-map-hero .leaflet-control-attribution,.detail-map-hero .map-unavailable:not([hidden])')].map(x=>x.getBoundingClientRect());return{rect:r.toJSON(),hit:n.disabled||n.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)),overlap:others.some(b=>b.width>0&&b.height>0&&Math.min(r.right,b.right)>Math.max(r.left,b.left)+.02&&Math.min(r.bottom,b.bottom)>Math.max(r.top,b.top)+.02)};}));
      assert(controls.every(x=>x.rect.width>=44&&x.rect.height>=44&&x.hit&&!x.overlap),'photo controls keep44px hit areas clear of toolbar, map controls and credits: '+JSON.stringify(controls));
      const tools=await p.locator('.detail-map-hero [data-media-step],.detail-map-hero .map-full').evaluateAll(ns=>ns.map(n=>n.getBoundingClientRect().toJSON()).sort((a,b)=>a.left-b.left));assert(tools.every((r,i)=>i===0||Math.abs(r.top-tools[0].top)<.02&&r.left-tools[i-1].right>=7.98),'media tools share one row with8px gaps: '+JSON.stringify(tools));
@@ -78,7 +83,11 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    }else{assert.equal(await p.locator('.detail-map-hero,.detail-sticky').count(),0,'indoor uses ordinary header');if(kind==='empty')assert.equal(await p.locator('.detail-secondary').count(),0,'no invented empty stats');}
    const buttons=p.locator('[data-dt]'),order=await buttons.evaluateAll(nodes=>nodes.map(n=>n.dataset.dt));assert.deepEqual(order,['charts','splits','efforts','overview'].filter(key=>order.includes(key)),'analysis order');
    for(const tab of await buttons.all()){if(!(await tab.isVisible())){assert(await p.locator(`[data-pane="${await tab.getAttribute('data-dt')}"]`).isVisible(),'single section is already open');continue;}const key=await tab.getAttribute('data-dt');await tab.click();assert(await p.locator(`[data-pane="${key}"]`).isVisible());assert.equal(await tab.getAttribute('aria-selected'),'true');}
-   if(kind==='run'){await p.locator('[data-detail-tab=efforts]').click();assert(await p.locator('[data-pane=efforts]').isVisible());assert.match(await p.locator('.detail-highlights').innerText(),/Matched:.*Fictional river loop/);}
+   if(kind==='run'){
+    assert.equal(await p.locator('.detail-highlights').isVisible(),false,'mapped detail keeps route and record links in their detail sections');
+    await p.locator('[data-dt=overview]').click();assert.match(await p.locator('[data-pane=overview]').innerText(),/Fictional river loop/,'matched route remains in Overview');
+    await p.locator('[data-dt=efforts]').click();assert(await p.locator('[data-pane=efforts]').isVisible());assert.match(await p.locator('[data-pane=efforts]').innerText(),/Best efforts/,'personal records remain in Efforts');
+   }
    if(!friend){const details=p.locator('[data-dt=overview]');if(await details.isVisible())await details.click();assert.equal(await p.locator('[data-phadd]').count(),1,'photo action retained in Details');assert(await p.locator('#d-comment-open').isVisible(),'first comment remains reachable without zero counts');await p.evaluate(()=>scrollTo(0,0));await bar.locator('[data-detail-edit]').click();await p.waitForSelector('#e-form');assert(await p.locator('#e-form').isVisible());await p.keyboard.press('Escape');}
    assert.deepEqual(errors,[]);assert(!writes.some(x=>!['/api/challenges/signup/continue','/api/milestones/celebrate'].includes(x)),'layout/actions do not write private data');console.log(`Activity detail ${name}: layout/actions/tabs/empty/permitted fields/map modal PASS`);await c.close();contexts.splice(contexts.indexOf(c),1);
   }
