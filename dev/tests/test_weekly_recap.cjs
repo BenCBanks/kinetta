@@ -1,5 +1,6 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const {weeklyRecapDismissalKey}=require('./weekly_recap_fixture.cjs');
 const source=fs.readFileSync('app/static/social.js','utf8'),start=source.indexOf('// The offer window uses the signed-in account'),end=source.indexOf('// Persist only a small opening view',start);
 assert(start>=0&&end>start,'weekly recap helpers stay in their Activity feed section');
 const Recaps={startFor(period,day,offset=0){assert.equal(period,'week');const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-((d.getUTCDay()+6)%7)-7*offset);return d.toISOString().slice(0,10);}};
@@ -9,6 +10,7 @@ const at=utc=>new Date(utc),la='America/Los_Angeles';
 const before=c.weeklyRecapWindow(at('2026-11-09T01:59:59Z'),la),sunday=c.weeklyRecapWindow(at('2026-11-09T02:00:00Z'),la),monday=c.weeklyRecapWindow(at('2026-11-10T07:59:59Z'),la),tuesday=c.weeklyRecapWindow(at('2026-11-10T08:00:00Z'),la);
 assert.equal(before.visible,false,'Sunday 5:59:59 pm local is before the offer');assert.equal(sunday.visible,true,'Sunday 6 pm local starts the offer');assert.equal(monday.visible,true,'the offer remains visible through Monday 11:59:59 pm local');assert.equal(tuesday.visible,false,'the offer ends at Tuesday midnight local');
 assert.equal(sunday.start,'2026-11-02');assert.equal(sunday.offset,0);assert.equal(monday.start,sunday.start,'Sunday and Monday keep the same Monday–Sunday recap');assert.equal(monday.offset,1);
+assert.equal(weeklyRecapDismissalKey({id:12,tz:la},'https://fit.test',at('2026-11-09T02:00:00Z')),c.weeklyRecapDismissKey('https://fit.test',12,sunday.start),'audit fixtures seed the same account/week key as the recap dismiss button');
 assert.notEqual(c.weeklyRecapDismissKey('https://one.test',1,sunday.start),c.weeklyRecapDismissKey('https://one.test',2,sunday.start),'dismissal is per account');assert.notEqual(c.weeklyRecapDismissKey('https://one.test',1,sunday.start),c.weeklyRecapDismissKey('https://one.test',1,'2026-11-09'),'dismissal is per week');
 const rows=[{p:'2026-10-05',d:1000,t:100,n:1},{p:'2026-10-05',d:2000,t:200,n:2},{p:'2026-10-12',d:4000,t:400,n:1},{p:'2026-10-12',d:0,t:150,n:1},{p:'2026-10-19',d:6000,t:600,n:1},{p:'2026-10-26',d:8000,t:800,n:1},{p:'2026-11-02',d:50000,t:9000,n:2}];
 assert.deepEqual(JSON.parse(JSON.stringify(c.weeklyRecapUsual(rows,'2026-11-02'))),{weeks:4,distance_m:5250,time_s:562.5},'usual mirrors the previous six distance-active weeks and aggregates sports per week');assert.equal(c.weeklyRecapUsual(rows.slice(0,4),'2026-11-02'),null,'usual appears after at least three distance-active weeks');
