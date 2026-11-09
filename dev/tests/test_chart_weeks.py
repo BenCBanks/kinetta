@@ -1,6 +1,7 @@
 """Profile's 12 Sunday-starting totals and stats' seven-week range."""
 import datetime as dt
 from kc import Client, PW, person
+from zoneinfo import ZoneInfo
 
 owner = person('zz_test_chart_owner', 'Chart Owner')
 viewer = person('zz_test_chart_view', 'Chart Viewer')
@@ -22,7 +23,9 @@ def profile(c, query=''):
 try:
     for c in (owner, viewer):
         req(c, 'PUT', '/api/profile', {'tz': 'UTC'})
-    today = dt.datetime.now(dt.timezone.utc).date()
+    now = dt.datetime.now(dt.timezone.utc)
+    today = now.date()
+    tokyo = now.astimezone(ZoneInfo('Asia/Tokyo')).date()
     sunday = today - dt.timedelta(days=(today.weekday() + 1) % 7)
     first = sunday - dt.timedelta(weeks=11)
     cases = [(first-dt.timedelta(days=1), 99000, 'everyone'), (first, 1000, 'everyone'),
@@ -68,7 +71,6 @@ try:
     local = profile(viewer)['weeks']
     # On a Saturday after 15:00 UTC it is already Sunday in Tokyo: the viewer's current week is a new, empty one and
     # the earlier weeks move back by one (2026-10-24: this failed CI at 15:03 UTC on a Saturday).
-    tokyo = dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).date()
     shift = 1 if tokyo - dt.timedelta(days=(tokyo.weekday() + 1) % 7) > sunday else 0
     assert local[-2-shift]['distance_m'] == 2000 and local[-1-shift]['distance_m'] == 18000, 'Sunday buckets follow viewer timezone'
     assert not shift or local[-1]['distance_m'] == 0

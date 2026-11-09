@@ -237,6 +237,16 @@ jobs:
         run: |
           NODE_PATH="$PWD/dev/tests/browser/node_modules" node dev/tests/test_spacing_dom.cjs
           NODE_PATH="$PWD/dev/tests/browser/node_modules" node dev/tests/spacing_audit.cjs
+      - name: Check Home, Activity and Me at persona-local clock boundaries
+        run: |
+          for mode in sunday-02 sunday-19 wednesday-12; do
+            KINETTA_SPACING_CLOCK="$mode" \
+            KINETTA_SPACING_SCREENS='Home,Activity,Me' \
+            KINETTA_SPACING_REPORT="/tmp/spacing-$mode-report.json" \
+            KINETTA_SPACING_SHOTS= \
+            NODE_PATH="$PWD/dev/tests/browser/node_modules" \
+              node dev/tests/spacing_audit.cjs
+          done
       - name: Check accessible names, semantics and contrast
         run: |
           NODE_PATH="$PWD/dev/tests/browser/node_modules" node dev/tests/test_ui_fixture_browser.cjs

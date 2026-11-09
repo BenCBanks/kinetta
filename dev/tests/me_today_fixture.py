@@ -1,5 +1,6 @@
 """A fictional Me account whose planned workout is always scheduled for today."""
 import datetime as dt
+import json
 import os
 import subprocess
 from urllib.parse import urlparse
@@ -15,7 +16,8 @@ port = subprocess.check_output(
 ).strip()
 assert base.port == int(port), 'URL must reach this isolated project'
 
-today = dt.datetime.now(dt.timezone.utc).date()
+now = dt.datetime.now(dt.timezone.utc)
+today = now.date()
 long_day = 6 if today.weekday() == 4 else 5
 monday = today - dt.timedelta(days=today.weekday())
 race_day = monday + dt.timedelta(weeks=5, days=long_day)
@@ -35,3 +37,4 @@ assert plan[0] == 200, plan
 assert plan[1]['today'] == today.isoformat(), plan[1]
 assert plan[1]['today_workout'] and plan[1]['today_workout']['status'] == 'today', plan[1]
 print('Me Today fixture ready:', today.isoformat(), plan[1]['today_workout']['title'])
+print(json.dumps({'now': now.isoformat(), 'today': today.isoformat()}))

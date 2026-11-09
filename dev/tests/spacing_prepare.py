@@ -24,6 +24,8 @@ for filename in ['activity_fixture.py', 'activity_detail_fixture.py', 'track_fix
         raise SystemExit(result.returncode)
     if filename in ('activity_detail_fixture.py', 'lift_compact_fixture.py'):
         fixtures['detail' if filename.startswith('activity') else 'lift'] = json.loads(result.stdout.strip().splitlines()[-1])
+    if filename == 'me_today_fixture.py':
+        fixtures['me_today'] = json.loads(result.stdout.strip().splitlines()[-1])
 recap_path = Path(os.environ.get('KINETTA_RECAP_FIXTURE', '/tmp/'+project+'-recaps-ui.json'))
 fixtures['recaps'] = json.loads(recap_path.read_text())
 destination = Path(os.environ.get('KINETTA_SPACING_FIXTURES', '/tmp/'+project+'-spacing-fixtures.json'))

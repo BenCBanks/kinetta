@@ -16,7 +16,8 @@ const report=path.resolve(process.env.KINETTA_SPACING_REPORT||'/tmp/'+project+'-
  let selected=scenes(fixtures);if(process.env.KINETTA_SPACING_SCREENS){const names=process.env.KINETTA_SPACING_SCREENS.split(',');selected=selected.filter(s=>names.includes(s.name));assert.equal(selected.length,names.length,'Every selected scene exists');}
  try{
   sessions=await fixtureSessions(browser,base,selected);
-  for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16}])for(const theme of ['light','dark'])for(const scene of selected){
+  const clockMatrix=!!process.env.KINETTA_SPACING_CLOCK,sizes=clockMatrix?[{width:390,height:844,root:16}]:[{width:390,height:844,root:16},{width:330,height:667,root:16}],themes=clockMatrix?['light']:['light','dark'];
+  for(const size of sizes)for(const theme of themes)for(const scene of selected){
    let c;const writes=[],pageErrors=[];
    try{
     const opened=await fixturePage(browser,base,fixtures,sessions,scene,size,theme);c=opened.c;const {p,auth}=opened;
@@ -25,6 +26,7 @@ const report=path.resolve(process.env.KINETTA_SPACING_REPORT||'/tmp/'+project+'-
     if(scene.todayPlan){
      const row=p.locator('#t-today [data-today-activity]'),title=row.locator('.me-today-copy > b');
      assert.equal(await row.count(),1,'The deterministic Me Today fixture renders its planned activity row');
+     assert.equal(await p.locator('#t-today').getAttribute('data-loaded-day'),fixtures.me_today.today,'The Me Today fixture and its page clock use the same day');
      assert.equal(await title.count(),1,'The planned activity row has a visible title');
      assert.equal(await row.locator('.me-today-copy > small').innerText(),'On your plan','The activity row is from the active plan');
      assert.equal(await row.getAttribute('href'),'/plan','Tapping the planned activity opens the plan');
