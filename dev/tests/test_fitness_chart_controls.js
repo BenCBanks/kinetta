@@ -2,6 +2,7 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),source=fs.readFileSync('app/static/app.js','utf8');
 const c={Date,Math,Number,WeakMap,Map,esc:String,fdate:(d)=>d.slice(0,10),$: (selector,box)=>box.nodes[selector],$$:(selector,box)=>box.badges};vm.createContext(c);
+vm.runInContext(source.slice(source.indexOf('const chartWidth ='),source.indexOf('// Distance bars keep')),c);
 vm.runInContext(source.slice(source.indexOf('const chartViews ='),source.indexOf('// running total per day'))+'\nglobalThis.state=box=>chartViews.get(box).state();',c);
 vm.runInContext(source.slice(source.indexOf('function loadChart('),source.indexOf('// an AI request that failed')),c);
 function fixture(width=320){

@@ -122,6 +122,29 @@
     "reason": "Owner-approved #551 keeps 12 thin weekly bars with 6px visual gaps and an 18px maximum bar width. Independent buttons are about 24px wide and at least 44px tall; labels remain in the accessibility tree and keyboard selection works. A 44px-wide rail would be 528px, defeating the compact chart. Revisit only with a changed chart design."
   },
   {
+    "id": "progress-totals-dense-period-targets",
+    "selector": "#m-chart .period-column",
+    "metric": "target",
+    "kind": "approved-target",
+    "minimumWidth": 6,
+    "maximumWidth": 28,
+    "minimumHeight": 44,
+    "maximumHeight": 160,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/746",
+    "reason": "Issue #746 specifies one independently named, keyboard-selectable button per period while the Totals plot fills the card. At 330–390px, the 26-week chart can divide the plot into 6–28px columns; each column is 139px tall in the audited layout. Only this chart-column width is excepted; labels, keyboard access, contrast and clipping remain checked."
+  },
+  {
+    "id": "progress-totals-adjacent-period-columns",
+    "selector": "#m-chart .period-column",
+    "withSelector": "#m-chart .period-column",
+    "within": "#m-chart",
+    "metric": "gap",
+    "kind": "chart-column",
+    "maximum": 0.35,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/746",
+    "reason": "Issue #746 makes adjacent weekly columns independent period buttons in one full-width chart. SVG view-box rounding can leave a subpixel seam up to 0.35px between their hit regions; the visible bars retain their inset gaps. Only that seam is excepted; larger gaps and every overlap still fail."
+  },
+  {
     "id": "progress-average-chart-tick-font",
     "selector": ".avgline-label",
     "metric": "font-min",
@@ -149,7 +172,7 @@
     "minimumHeight": 44,
     "maximumHeight": 44,
     "followup": "https://github.com/BenCBanks/kinetta/issues/545",
-    "reason": "Owner-approved #545 puts 20px reaction marks 4px apart. Splitting at the midpoint gives each mark its own 24\u00d744px hit area; the total keeps a separate default 44\u00d744px target. Focused browser checks verify all shortcut boxes are disjoint and each mark and the total receives its own tap. This is the only target-width exception."
+    "reason": "Owner-approved #545 puts 20px reaction marks 4px apart. Splitting at the midpoint gives each mark its own 24×44px hit area; the total keeps a separate default 44×44px target. Focused browser checks verify all shortcut boxes are disjoint and each mark and the total receives its own tap. This is the only target-width exception."
   },
   {
     "id": "me-card-profile-link-over-controls",

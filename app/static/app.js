@@ -1397,7 +1397,8 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4
       const label = `${c.label}${c.partial ? ' (so far)' : ''} · ${fmt(total)}${parts ? ' · ' + parts : ''}`;
       const attrs = inlineSelection ? `class="distance-column period-column" id="${esc(box.id || 'period-chart')}-column-${i}" data-period-index="${i}" data-padded="${c.padded?'true':'false'}" role="button" tabindex="0" aria-pressed="false" aria-label="${esc(label)}"`
         : `class="distance-column" role="button" tabindex="0" aria-pressed="false" aria-label="${esc(label)}"`;
-      g += `<g ${attrs}><rect class="distance-hit" x="${padL + i * bw}" y="${padT}" width="${bw}" height="${H - padT - padB}"/>${total ? `<path class="bar-seg distance-total" d="${distanceBarPath(x,Y(0),w,h)}"/>` : `<path class="distance-empty" d="M${x} ${Y(0)}h${w}"/>`}<text class="distance-value" x="${i === n - 1 ? x + w : i === 0 ? x : x + w / 2}" y="${Y(total) - 5}" text-anchor="${i === n - 1 ? 'end' : i === 0 ? 'start' : 'middle'}">${esc(fmt(total))}</text></g>`;
+      const hitWidth = inlineSelection ? Math.max(0,bw-.25) : bw;
+      g += `<g ${attrs}><rect class="distance-hit" x="${padL + i * bw}" y="${padT}" width="${hitWidth}" height="${H - padT - padB}"/>${total ? `<path class="bar-seg distance-total" d="${distanceBarPath(x,Y(0),w,h)}"/>` : `<path class="distance-empty" d="M${x} ${Y(0)}h${w}"/>`}<text class="distance-value" x="${i === n - 1 ? x + w : i === 0 ? x : x + w / 2}" y="${Y(total) - 5}" text-anchor="${i === n - 1 ? 'end' : i === 0 ? 'start' : 'middle'}">${esc(fmt(total))}</text></g>`;
     } else c.segs.forEach((sg, j) => {
       if (!sg.v) return;
       const h = Y(0) - Y(sg.v), last = j === c.segs.length - 1 || c.segs.slice(j + 1).every((z) => !z.v);
@@ -1410,7 +1411,7 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4
     });
     if (inlineSelection && !distance) {
       const bars = g.slice(columnStart);
-      const hit = `<rect class="period-hit" x="${(padL + i * bw).toFixed(1)}" y="${padT}" width="${bw.toFixed(1)}" height="${(H - padT - padB).toFixed(1)}"/>`;
+      const hit = `<rect class="period-hit" x="${(padL + i * bw).toFixed(1)}" y="${padT}" width="${Math.max(0,bw-.25).toFixed(2)}" height="${(H - padT - padB).toFixed(1)}"/>`;
       const zero = tot(c) ? '' : `<line class="period-zero" x1="${x.toFixed(1)}" x2="${(x + w).toFixed(1)}" y1="${Y(0).toFixed(1)}" y2="${Y(0).toFixed(1)}"/>`;
       const label = `${c.label}${c.partial ? ' (so far)' : ''} · ${fmt(tot(c))}`;
       g = g.slice(0, columnStart) + `<g class="period-column" id="${esc(box.id || 'period-chart')}-column-${i}" data-period-index="${i}" data-padded="${c.padded?'true':'false'}" role="button" tabindex="0" aria-pressed="false" aria-label="${esc(label)}">${hit}${zero}${bars}</g>`;
