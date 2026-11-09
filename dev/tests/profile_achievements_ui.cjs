@@ -96,11 +96,11 @@ const assertLargeTextFit=async(container,label)=>{
 };
 const assertAchievementGridTextFit=async(container,label)=>{
  const metrics=await container.locator('.profile-achievement-name,.profile-achievement-next').evaluateAll(nodes=>nodes.map(node=>{
-  const range=document.createRange();range.selectNodeContents(node);const card=node.closest('.profile-achievement').getBoundingClientRect(),rects=[...range.getClientRects()],style=getComputedStyle(node),lines=new Set(rects.map(rect=>Math.round(rect.top*2)/2)).size;
-  return{text:node.textContent.trim(),caption:node.classList.contains('profile-achievement-next'),lines,fits:node.scrollWidth<=node.clientWidth+1&&node.scrollHeight<=node.clientHeight+1&&rects.every(rect=>rect.left>=card.left-1&&rect.right<=card.right+1&&rect.top>=card.top-1&&rect.bottom<=card.bottom+1)};
+  const range=document.createRange();range.selectNodeContents(node);const card=node.closest('.profile-achievement').getBoundingClientRect(),rects=[...range.getClientRects()],style=getComputedStyle(node),lines=new Set(rects.map(rect=>Math.round(rect.top*2)/2)).size,caption=node.classList.contains('profile-achievement-next'),wrapsWithoutClipping=!caption||(style.whiteSpace==='normal'&&style.overflow==='visible'&&style.textOverflow==='clip'&&style.webkitLineClamp==='none'&&style.maxHeight==='none');
+  return{text:node.textContent.trim(),caption,lines,fits:wrapsWithoutClipping&&node.scrollWidth<=node.clientWidth+1&&node.scrollHeight<=node.clientHeight+1&&rects.every(rect=>rect.left>=card.left-1&&rect.right<=card.right+1&&rect.top>=card.top-1&&rect.bottom<=card.bottom+1)};
  }));
  assert(metrics.length,`${label} includes achievement labels`);
- assert(metrics.every(row=>row.fits&&row.lines<=2),`${label} labels stay readable in two lines inside their medal columns: ${JSON.stringify(metrics.filter(row=>!row.fits||row.lines>2))}`);
+ assert(metrics.every(row=>row.fits&&row.lines<=2),`${label} labels wrap visibly in two lines inside their medal columns: ${JSON.stringify(metrics.filter(row=>!row.fits||row.lines>2))}`);
  const captions=metrics.filter(row=>row.caption);
  assert(captions.every(row=>!row.text.startsWith('Next ·')&&!row.text.includes('…')),`${label} next-level captions have no prefix or ellipsis: ${JSON.stringify(captions.filter(row=>row.text.startsWith('Next ·')||row.text.includes('…')))}`);
 };
@@ -126,11 +126,13 @@ const assert330AchievementViews=async(page,base,setUnits,theme,shots)=>{
  await assertRingText(page.locator('.profile-achievements'),'330px profile');await screenshot(page,shots,`achievement-profile-330-${theme}`);
  await assertLargeTextFit(page.locator('.profile-achievements'),'330px large-text profile');await assertCompactFallback(page,'330px profile');
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'330px profile has no page-level horizontal overflow');
- await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
- await assertRingText(page.locator('#profile-achievement-page'),'330px achievements grid');await screenshot(page,shots,`achievement-grid-330-${theme}`);
+ await setUnits('imperial');await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+ await assertRingText(page.locator('#profile-achievement-page'),'330px achievements grid');
  await assertAchievementGridTextFit(page.locator('#profile-achievement-page'),'330px achievements grid');
  await assertAchievementCaptionSlots(page.locator('#profile-achievement-page'),'330px achievements grid');
+ await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='all-tracks');await screenshot(page,shots,`achievement-grid-330-${theme}`,{fullPage:true});await page.evaluate(()=>delete document.documentElement.dataset.achievementEvidence);
  await assertLargeTextFit(page.locator('#profile-achievement-page'),'330px large-text achievements grid');
+ await setUnits('metric');
  await page.goto(base+'/me/achievements/journey');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
  assert.equal(await page.locator('.profile-achievement-history-copy .profile-achievement-current-value').innerText(),'6,099.4 km','the long history value stays in metric units');
  await assertRingText(page.locator('#profile-achievement-page'),'330px track history');await screenshot(page,shots,`achievement-history-330-${theme}`);
