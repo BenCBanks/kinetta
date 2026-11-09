@@ -7,7 +7,7 @@ const views={
  '/activity':{mine:'Your activities',groups:'Home'},
 };
 const foodProgressViews=new Set(['overview','energy','macros','weight','needs','weeks','calendar']);
-const redirects={'/today':'/me','/me/connections':'/track/connections','/me/health':'/track/health','/me/import':'/track/import','/me/speed':'/me/settings','/me/milestones':'/me','/segments':'/progress/segments','/food/trends':'/food','/food/weight':'/progress/weight'};
+const redirects={'/today':'/me','/me/connections':'/track/connections','/me/health':'/track/health','/me/import':'/track/import','/me/speed':'/me/settings','/me/milestones':'/me','/segments':'/progress','/segments/new':'/progress','/segments/review':'/progress','/progress/calendar':'/progress','/progress/segments':'/progress','/food/trends':'/food','/food/weight':'/progress/weight'};
 const headings={'/me':'Hi,','/activity':'Home','/track':'Track','/progress':'Progress','/food':'Nutrition','/me/settings':'Settings','/me/friends':'Friends','/notifications':'Notifications','/me/notifications':'Notifications','/me/sharing':'Sharing & privacy','/me/gear':'Shoes & bikes','/me/goals':'Goals','/me/devices':'Signed-in devices','/me/people':'Admin tools','/track/connections':'Connections','/track/import':'Upload activities','/track/health':'Health app','/food/meals':'Recipes & foods','/food/describe':'Add food','/food/setup':'What matters to you?','/me/kit':'Ask Kit','/plan':'Training plan','/progress/weight':'Weight','/progress/routes':'Routes','/progress/segments':'Segments','/progress/calendar':'Calendar','/progress/trends':'Years','/progress/heatmap':'Heatmap','/me/challenges':'Challenges','/me/explore':'Explore Kinetta'};
 const externalHosts=new Set(['kinetta.app','apps.apple.com','www.openstreetmap.org','openstreetmap.org','leafletjs.com','github.com','support.apple.com','support.garmin.com','connect.garmin.com','www.garmin.com']);
 function intention(link,base,registry,login){
@@ -27,7 +27,7 @@ function intention(link,base,registry,login){
   return {kind:'download',url};
  }
  if(pathname==='/admin')return {kind:'document',url};
- if(!registry.some(route=>new RegExp(route.source,route.flags).test(pathname)))return fail('unregistered route would render the unknown-route fallback');
+ if(!registry.some(route=>new RegExp(route.source,route.flags).test(pathname))&&!Object.hasOwn(redirects,pathname))return fail('unregistered route would render the unknown-route fallback');
  if(q.has('view')&&!Object.hasOwn(views[pathname]||{},q.get('view')))return fail('unsupported view='+q.get('view'));
  if(pathname==='/progress'&&q.has('section')&&q.get('section')!=='food')return fail('unsupported Progress section');
  if(q.has('foodview')&&(pathname!=='/progress'||q.get('section')!=='food'))return fail('foodview requires the Progress food section');
@@ -49,12 +49,14 @@ function intention(link,base,registry,login){
  if(pathname==='/progress'&&q.has('view')){
   const view=q.get('view');
   if(view==='plan')canonical='/plan';
-  else if(['routes','segments','trends','calendar','heatmap'].includes(view))canonical='/progress/'+view;
+  else if(['routes','trends','heatmap'].includes(view))canonical='/progress/'+view;
  }
  if(pathname==='/food'&&q.get('view')==='weight')canonical='/progress/weight';
  if(/^\/lift\/\d+$/.test(pathname))canonical=pathname.replace('/lift/','/track/lift/');
- const heading=dialog?.heading||(addFood?'Add food':canonical===ownProfile&&!q.has('preview')?'Your profile':q.has('view')?views[pathname][q.get('view')]:q.get('section')==='food'?views['/food'][q.get('foodview')||'overview']:pathname==='/food/trends'?'Insights':headings[canonical]);
- return {kind:'page',url,canonical,heading:pathname==='/segments/review'?'Review segment':heading,dialog,segmentReview:pathname==='/segments/review',ready:/^\/track\/lift\/\d+$/.test(canonical)?'#lf-list .lift-name':null,titleInput:/^\/food\/cook\/\d+$/.test(canonical)?'#dk-name':null};
+ const defaultOffProgressView=pathname==='/progress'&&['calendar','segments'].includes(q.get('view'));
+ const heading=dialog?.heading||(addFood?'Add food':canonical===ownProfile&&!q.has('preview')?'Your profile':defaultOffProgressView?headings['/progress']:q.has('view')?views[pathname][q.get('view')]:q.get('section')==='food'?views['/food'][q.get('foodview')||'overview']:pathname==='/food/trends'?'Insights':headings[canonical]);
+ const segmentReview=canonical==='/segments/review';
+ return {kind:'page',url,canonical,heading:segmentReview?'Review segment':heading,dialog,segmentReview,ready:/^\/track\/lift\/\d+$/.test(canonical)?'#lf-list .lift-name':null,titleInput:/^\/food\/cook\/\d+$/.test(canonical)?'#dk-name':null};
 }
 async function fetchDocument(request,url,base){
  const origin=new URL(base).origin;let target=new URL(url,base);

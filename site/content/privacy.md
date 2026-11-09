@@ -78,7 +78,7 @@ New accounts share new activities with everyone on Kinetta. You can change this 
 
 Shared maps hide where a route starts and ends, but the rest of the route and its time can still hint at where you live or your routine. We strip location data from photos you upload.
 
-## sharing-segments
+## sharing-fixed-courses
 
 **Fixed courses and public results.** A course you create starts private to you. If you publish it, its name, description and path are visible to everyone on this Kinetta server, and publishing can't be undone. Public leaderboards are opt-in: you appear only after you turn on leaderboard sharing in Me → Settings → Sharing & privacy, and then only with your best time from activities shared with Everyone, with a visible map and an outdoor, unassisted declaration. Garmin Connect activities are never shown on public boards. Turning leaderboard sharing off removes your public times; you still see your own times privately.
 

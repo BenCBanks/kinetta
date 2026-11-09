@@ -1,8 +1,8 @@
 // Real fictional accounts and real overview responses. No production data or AI/provider calls.
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process'),path=require('node:path');
-const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS,project=process.env.KINETTA_PROJECT||'kinettatest';
-function setProgressFlags(enabled){const value=enabled?'true':'false';cp.execFileSync('docker',['compose','-p',project,'exec','-T','db','psql','-U','postgres','-d','fit','-v','ON_ERROR_STOP=1','-At'],{input:`INSERT INTO feature_switches (name, enabled) VALUES ('progress_calendar', ${value}), ('progress_segments', ${value}) ON CONFLICT (name) DO UPDATE SET enabled=EXCLUDED.enabled;\n`,encoding:'utf8'});}
+const {setProgressFlags}=require('./progress_flags_fixture.cjs');
+const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error('Timed out: '+label+' '+JSON.stringify(await p.evaluate(()=>({url:location.href,...(typeof App==='undefined'?{}:{key:App.page?.key,ready:App.pageReady}),body:document.body.textContent.slice(0,200)}))));}
 (async()=>{
  cp.execFileSync('python3',[path.join(__dirname,'test_progress_overview.py')],{env:{...process.env,KINETTA_KEEP_PROGRESS:'1'},stdio:'inherit'});

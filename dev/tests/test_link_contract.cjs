@@ -25,7 +25,9 @@ assert.equal(check('/me?setup=body').canonical,'/me/settings');assert.equal(chec
 assert.equal(check('/track?past=1').dialog.ready,'#ma');assert.equal(check('/track?past=1').heading,'Add an activity');
 assert.equal(check('/track?intervals=1').canonical,'/track');assert.equal(check('/track?intervals=1').heading,'Intervals');
 assert.equal(check('/me/settings?email=add').dialog.heading,'Email');
-assert.equal(check('/segments/review').segmentReview,true);assert.equal(check('/segments/review').heading,'Review segment');
+for(const path of ['/progress/calendar','/progress/segments','/progress?view=calendar','/progress?view=segments','/segments','/segments/new','/segments/review']){
+ const route=check(path);assert.equal(route.canonical,'/progress',path+' follows the default-off Progress destination');assert.equal(route.heading,'Progress',path+' has no hidden feature heading');assert.equal(route.segmentReview,false,path+' does not expose the disabled review screen');
+}
 assert.equal(check('/track/lift/123').ready,'#lf-list .lift-name');
 assert.equal(check('/food/cook/123').titleInput,'#dk-name');
 assert.equal(check('/food?add=1').canonical,'/food/describe');assert.equal(check('/food?add=1').heading,'Add food');

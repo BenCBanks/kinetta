@@ -5,13 +5,14 @@ const destination=(url,title,ready)=>({url,title,ready});
 function journeys(fixtures){
  const f=fixtures.journey,profile='/people/'+f.login,activity='/activity/'+f.activity;
  const ownList={...destination(profile,'Your profile',`#person-activities[aria-busy="false"] .post[data-href="/activity/${f.activity}"] .post-title`),text:'Fictional journey run 1'};
- const progress=[['fitness','Fitness','?view=fitness','#fi-pred > .card'],['records','Records','?view=records','#r-body > .card'],['lifting','Lifting','?view=lifting','#lv-body > .card'],['calendar','Calendar','/calendar','#p-body .cal-grid'],['routes','Routes','/routes','#p-body > .card'],['segments','Segments','/segments','#sg-list > .card'],['heatmap','Heatmap','/heatmap','#h-map.leaflet-container'],['trends','Years','/trends','#g-body > .card'],['weight','Weight','/weight','#nt-weight .wform'],['plan','Training plan','plan','#ps-f']];
+ // Calendar and Segments default off; progress_ui.cjs exercises their enabled routes.
+ const progress=[['fitness','Fitness','?view=fitness','#fi-pred > .card'],['records','Records','?view=records','#r-body > .card'],['lifting','Lifting','?view=lifting','#lv-body > .card'],['routes','Routes','/routes','#p-body > .card'],['heatmap','Heatmap','/heatmap','#h-map.leaflet-container'],['trends','Years','/trends','#g-body > .card'],['weight','Weight','/weight','#nt-weight .wform'],['plan','Training plan','plan','#ps-f']];
  const settings=[['/me/devices','Signed-in devices','#dv-list .device-row'],['/me/sharing','Sharing & privacy','#sh-find'],['/track/connections','Connections','#page a'],['/me/notifications','Notifications','#nt-push']];
  const sheets=[['#m-name','Your name','#ac'],['#m-login','Username','#ac'],['#m-email','Email','.sheet[aria-label="Email"]'],['#m-pw','Change password','#pw'],['#m-body','Body, heart rate & time zone','#m-form'],['#m-kit','Kit','#kit-settings-panel'],['#m-del','Delete my account','#del']];
  const cases=[
   {id:'me-profile',start:'/me',taps:['.me-card-open-link'],end:ownList},
   {id:'me-friends',start:'/me',taps:['.me-friends-link[href]'],end:destination('/me/friends','Friends','.friends-page')},
-  {id:'me-progress',start:'/me',taps:['.me-insights .me-insight-row[href="/progress/calendar"]'],end:destination('/progress/calendar','Calendar','#p-body .cal-grid')},
+  {id:'me-progress',start:'/me',taps:['.me-insights .me-insight-row[href="/progress"]'],end:destination('/progress','Progress','#p-explore')},
   {id:'activity-detail-back',start:'/activity',startReady:'#feed-tools[aria-busy=false]',action:'feedBack',end:destination('/activity','Home','#feed-tools')},
   {id:'track-save-detail',start:'/track',native:true,action:'record',end:destination('/activity/{saved}','Fictional journey recording','.compact-detail-title')},
   {id:'track-my-activities',start:'/track',native:true,action:'uncertainSave',end:ownList},
