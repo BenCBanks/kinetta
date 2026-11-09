@@ -28,22 +28,24 @@ h1 em, h2 em, h3 em { font-style: normal; color: inherit; }
 p { margin: 0; }
 .eyebrow { font: 500 13px/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: var(--ink3); }
 
-/* header: logo, the page tabs, Join the beta. Same markup on every page (copy it when adding a page). On a phone the
-   tabs wrap on their own row, so labels stay visible without a menu. */
+/* header: logo and four primary links. Same markup on every page (copy it when adding a page). On a phone the
+   links wrap on their own row, so labels stay visible without a menu. The footer keeps the complete page directory. */
 header.top { position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--bg) 90%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
-header.top .wrap { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px 24px; padding-block: 12px; }
+header.top .wrap { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px 24px; padding-block: 12px; }
 header.top .logo { display: flex; align-items: center; min-height: 44px; }
 header.top .logo img { width: 132px; height: auto; }
-nav.tabs { display: flex; justify-content: flex-start; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+nav.tabs { display: flex; justify-content: flex-end; gap: 2px; overflow-x: auto; scrollbar-width: none; }
 nav.tabs::-webkit-scrollbar { display: none; }
 nav.tabs a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; flex: none; padding: 8px 14px; border-radius: 999px; text-decoration: none; color: var(--ink2); font-weight: 500; font-size: 15px; }
 nav.tabs a:hover { color: var(--ink); }
 nav.tabs a[aria-current="page"] { color: var(--brand); background: color-mix(in srgb, var(--brand) 11%, transparent); font-weight: 600; }
+nav.tabs a.nav-download { color: #fff; }
+nav.tabs a.nav-download:hover { color: #fff; }
 .btn.sm { min-height: 44px; padding: 0 18px; font-size: 15px; }
 @media (max-width: 960px) {
-  header.top .wrap { grid-template-columns: minmax(0, 1fr) auto; padding-block: 10px 0; }
-  nav.tabs { grid-column: 1 / -1; grid-row: 2; flex-wrap:wrap; justify-content:center; overflow:visible; margin-inline:0; padding:0 0 8px; }
+  header.top .wrap { grid-template-columns: 1fr; padding-block: 10px 0; }
+  nav.tabs { grid-column: 1; grid-row: 2; flex-wrap:wrap; justify-content:center; overflow:visible; margin-inline:0; padding:0 0 8px; }
   nav.tabs a { padding:7px 8px; font-size:14.5px; }
 }
 
