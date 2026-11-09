@@ -40,7 +40,7 @@
 .profile-achievement-list.is-grid .profile-achievement { flex:none; width:100%; min-width:0; scroll-snap-align:none; }
 .profile-achievement-list.is-grid .profile-achievement-medallion { flex:0 1 84px; width:100%; max-width:84px; height:auto; aspect-ratio:1; }
 .profile-achievement-list.is-grid .profile-achievement-name { max-width:100%; font-size:.75rem; overflow-wrap:anywhere; word-break:normal; }
-.profile-achievement-list.is-grid .profile-achievement-next { display:block; width:100%; min-height:1.25em; max-width:100%; overflow:visible; font-size:.6875rem; line-height:1.25; text-overflow:clip; white-space:normal; overflow-wrap:anywhere; word-break:normal; }
+.profile-achievement-list.is-grid .profile-achievement-next { display:block; width:100%; min-height:2.5em; max-width:100%; overflow:visible; font-size:.6875rem; line-height:1.25; text-overflow:clip; white-space:normal; overflow-wrap:anywhere; word-break:normal; }
 .profile-achievement-overview-progress,.profile-achievement-overview-progress-placeholder { display:block; width:100%; max-width:84px; height:3px; overflow:hidden; border-radius:2px; background:color-mix(in srgb,var(--tx2) 38%,var(--bg)); }
 .profile-achievement-overview-progress-placeholder { visibility:hidden; }
 .profile-achievement-overview-progress>span { display:block; width:0; height:100%; border-radius:inherit; background:var(--accent); }

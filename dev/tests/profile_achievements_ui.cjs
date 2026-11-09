@@ -96,11 +96,18 @@ const assertLargeTextFit=async(container,label)=>{
 };
 const assertAchievementGridTextFit=async(container,label)=>{
  const metrics=await container.locator('.profile-achievement-name,.profile-achievement-next').evaluateAll(nodes=>nodes.map(node=>{
-  const range=document.createRange();range.selectNodeContents(node);const card=node.closest('.profile-achievement').getBoundingClientRect(),rects=[...range.getClientRects()],style=getComputedStyle(node);
-  return{text:node.textContent.trim(),fits:node.scrollWidth<=node.clientWidth+1&&node.scrollHeight<=node.clientHeight+1&&rects.every(rect=>rect.left>=card.left-1&&rect.right<=card.right+1&&rect.top>=card.top-1&&rect.bottom<=card.bottom+1)};
+  const range=document.createRange();range.selectNodeContents(node);const card=node.closest('.profile-achievement').getBoundingClientRect(),rects=[...range.getClientRects()],style=getComputedStyle(node),lines=new Set(rects.map(rect=>Math.round(rect.top*2)/2)).size;
+  return{text:node.textContent.trim(),caption:node.classList.contains('profile-achievement-next'),lines,fits:node.scrollWidth<=node.clientWidth+1&&node.scrollHeight<=node.clientHeight+1&&rects.every(rect=>rect.left>=card.left-1&&rect.right<=card.right+1&&rect.top>=card.top-1&&rect.bottom<=card.bottom+1)};
  }));
  assert(metrics.length,`${label} includes achievement labels`);
- assert(metrics.every(row=>row.fits),`${label} labels stay inside their medal columns: ${JSON.stringify(metrics.filter(row=>!row.fits))}`);
+ assert(metrics.every(row=>row.fits&&row.lines<=2),`${label} labels stay readable in two lines inside their medal columns: ${JSON.stringify(metrics.filter(row=>!row.fits||row.lines>2))}`);
+ const captions=metrics.filter(row=>row.caption);
+ assert(captions.every(row=>!row.text.startsWith('Next ·')&&!row.text.includes('…')),`${label} next-level captions have no prefix or ellipsis: ${JSON.stringify(captions.filter(row=>row.text.startsWith('Next ·')||row.text.includes('…')))}`);
+};
+const assertAchievementCaptionSlots=async(container,label)=>{
+ const metrics=await container.locator('.profile-achievement-next').evaluateAll(nodes=>nodes.map(node=>{const style=getComputedStyle(node);return{text:node.textContent.trim(),height:node.getBoundingClientRect().height,minHeight:parseFloat(style.minHeight),lineHeight:parseFloat(style.lineHeight)};}));
+ assert(metrics.length,`${label} includes next-level captions`);
+ assert(metrics.every(cell=>cell.minHeight>=cell.lineHeight*2-1&&cell.height>=cell.minHeight-1),`${label} captions reserve two lines: ${JSON.stringify(metrics.filter(cell=>cell.minHeight<cell.lineHeight*2-1||cell.height<cell.minHeight-1))}`);
 };
 const assertProgressWidths=async(container,label)=>{
  const metrics=await container.locator('[data-achievement-progress]').evaluateAll(nodes=>nodes.map(bar=>{const track=bar.getBoundingClientRect(),fill=bar.querySelector('[data-progress-fill]').getBoundingClientRect(),value=Number(bar.getAttribute('aria-valuenow'));return{value,track:track.width,fill:fill.width,expected:track.width*value/100};}));
@@ -122,6 +129,7 @@ const assert330AchievementViews=async(page,base,setUnits,theme,shots)=>{
  await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
  await assertRingText(page.locator('#profile-achievement-page'),'330px achievements grid');await screenshot(page,shots,`achievement-grid-330-${theme}`);
  await assertAchievementGridTextFit(page.locator('#profile-achievement-page'),'330px achievements grid');
+ await assertAchievementCaptionSlots(page.locator('#profile-achievement-page'),'330px achievements grid');
  await assertLargeTextFit(page.locator('#profile-achievement-page'),'330px large-text achievements grid');
  await page.goto(base+'/me/achievements/journey');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
  assert.equal(await page.locator('.profile-achievement-history-copy .profile-achievement-current-value').innerText(),'6,099.4 km','the long history value stays in metric units');
@@ -269,8 +277,8 @@ module.exports=async({browser,storageState,base,shots})=>{
    ['sport:lift','lifted']
   ],'each section sorts tracks by most progress first, without changing the profile rail');
   await assertAchievementGridTextFit(page.locator('#profile-achievement-page'),'390px achievements grid');
-  const gridCells=await page.locator('#profile-achievement-page .profile-achievement-list.is-grid .profile-achievement').evaluateAll(nodes=>nodes.map(node=>({caption:node.querySelector('.profile-achievement-next').textContent.trim(),whiteSpace:getComputedStyle(node.querySelector('.profile-achievement-next')).whiteSpace,overflow:getComputedStyle(node.querySelector('.profile-achievement-next')).overflow,textOverflow:getComputedStyle(node.querySelector('.profile-achievement-next')).textOverflow,progressSlot:node.querySelector('.profile-achievement-overview-progress,.profile-achievement-overview-progress-placeholder')?.getBoundingClientRect().height||0})));
-  assert(gridCells.every(cell=>cell.whiteSpace==='normal'&&cell.overflow==='visible'&&cell.textOverflow==='clip'&&!cell.caption.startsWith('Next ·')&&!cell.caption.includes('…')),'grid captions wrap fully and use a short amount left');assert(gridCells.every(cell=>cell.progressSlot===3),'started and unstarted grid cells reserve the same progress row');
+  const gridCells=await page.locator('#profile-achievement-page .profile-achievement-list.is-grid .profile-achievement').evaluateAll(nodes=>nodes.map(node=>{const caption=node.querySelector('.profile-achievement-next'),style=getComputedStyle(caption),range=document.createRange();range.selectNodeContents(caption);return{caption:caption.textContent.trim(),lines:new Set([...range.getClientRects()].map(rect=>Math.round(rect.top*2)/2)).size,whiteSpace:style.whiteSpace,overflow:style.overflow,textOverflow:style.textOverflow,minHeight:parseFloat(style.minHeight),lineHeight:parseFloat(style.lineHeight),height:caption.getBoundingClientRect().height,progressSlot:node.querySelector('.profile-achievement-overview-progress,.profile-achievement-overview-progress-placeholder')?.getBoundingClientRect().height||0};}));
+  assert(gridCells.every(cell=>cell.whiteSpace==='normal'&&cell.overflow==='visible'&&cell.textOverflow==='clip'&&!cell.caption.startsWith('Next ·')&&!cell.caption.includes('…')&&cell.lines<=2),'grid captions show the next level in at most two readable lines');assert(gridCells.every(cell=>cell.minHeight>=cell.lineHeight*2-1&&cell.height>=cell.minHeight-1),`every grid caption reserves two lines: ${JSON.stringify(gridCells.filter(cell=>cell.minHeight<cell.lineHeight*2-1||cell.height<cell.minHeight-1))}`);assert(gridCells.every(cell=>cell.progressSlot===3),'started and unstarted grid cells reserve the same progress row');
   const progressTrack=await page.locator('#profile-achievement-page .profile-achievement-overview-progress').first().evaluate(bar=>{const probe=document.createElement('i');probe.style.background='var(--line)';document.body.append(probe);const line=getComputedStyle(probe).backgroundColor;probe.remove();return{color:getComputedStyle(bar).backgroundColor,line};});
   assert.notEqual(progressTrack.color,progressTrack.line,'the empty progress track stays more visible than the divider in both themes');
   assert.equal(await page.locator('#profile-achievement-page [data-achievement-code="sport:lift"] .profile-achievement-name').innerText(),'Lift sessions','the grouped grid uses the requested Lift sessions track name');
