@@ -165,6 +165,21 @@ async function notificationFixture(browser,loginName=user,options={}){
   await page.clock.install({time:new Date('2026-11-05T12:00:00Z')});
   const routes=await notificationRoutes(context,options);return {context,page,errors,routes};
 }
+async function socialFixture(browser,{failFirst=false,idleGate=false}={}){
+ const context=await fixtureContext(browser);await login(context);
+ const page=await context.newPage(),assets=[],errors=[],writes=[];page.on('pageerror',error=>errors.push(error.message));
+ if(idleGate)await page.addInitScript(()=>{window.__socialIdleCallbacks=[];window.requestIdleCallback=callback=>{window.__socialIdleCallbacks.push(callback);return window.__socialIdleCallbacks.length;};window.cancelIdleCallback=()=>{};});
+ await page.route('**/*',async route=>{
+  const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
+  if(url.pathname==='/static/social.js'){
+   assets.push(url.pathname);if(failFirst&&assets.length===1)return route.abort();
+  }
+  if(request.method()==='POST'&&['/api/challenges/signup/continue','/api/milestones/celebrate'].includes(url.pathname))return route.fulfill({status:204,body:''});
+  if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
+  return route.continue();
+ });
+ return {context,page,assets,errors,writes};
+}
 async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
  const context=await fixtureContext(browser);await login(context,loginName);
  const page=await context.newPage(),assets=[],errors=[],writes=[];let heldOnce=false,releaseHeld=()=>{},signalHeld=()=>{};
@@ -207,6 +222,41 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
  return {context,page,assets,errors,writes,activityId};
 }
 (async()=>{const browser=await chromium.launch();try{
+  const socialMe=await socialFixture(browser,{idleGate:true});
+  try{
+    await socialMe.page.goto(base+'/me');await ready(socialMe.page,meReady,'Me without the social bundle');
+    await socialMe.page.waitForFunction(()=>window.__socialIdleCallbacks.length>0);
+    assert.deepEqual(socialMe.assets,[],'social.js does not delay the first useful Me screen');
+    assert.equal(await socialMe.page.evaluate(()=>typeof Social),'undefined','Me renders before the social routes are loaded');
+    assert.equal(await socialMe.page.evaluate(()=>typeof weeklyRecapShareItem),'function','the Me card share action can load its recap on first tap');
+    assert.deepEqual(await socialMe.page.evaluate(()=>[typeof profileHref,friendCountText(0)]),['function','No friends yet'],'Me keeps its small profile-link and friend-count helpers eager');
+    const mapped=await socialMe.page.evaluate(()=>[
+      '/activity','/activity/123','/activity/friends/123','/people/zz_test_friend','/add/fictional-token',
+      '/me/friends','/me/friends/contacts','/me/groups','/groups/12345678-1234-1234-1234-123456789012',
+      '/group-invite/fictional-token','/me/sharing','/notifications','/me/notifications',
+    ].map(path=>{const bundle=lazyRouteBundles.find(item=>item.re.test(path));return [path,!!bundle&&bundle.scripts.includes(SOCIAL_ROUTE_ASSET)];}));
+    assert(mapped.every(([,included])=>included),`all direct social routes load social.js: ${JSON.stringify(mapped)}`);
+    const unrelated=await socialMe.page.evaluate(()=>[
+      '/me/challenges','/challenge/fictional-code','/food/cook/42','/food/recipe-link','/track/lift/42','/lift/ex/42',
+    ].map(path=>{const bundle=lazyRouteBundles.find(item=>item.re.test(path));return [path,!!bundle&&bundle.scripts.includes(SOCIAL_ROUTE_ASSET)];}));
+    assert(unrelated.every(([,included])=>!included),`unrelated lazy routes do not load social.js: ${JSON.stringify(unrelated)}`);
+    await socialMe.page.evaluate(()=>window.__socialIdleCallbacks.splice(0).forEach(callback=>callback({didTimeout:false,timeRemaining:()=>50})));
+    await socialMe.page.waitForFunction(()=>typeof Social==='object');
+    assert.equal(socialMe.assets.length,1,'social.js warms after Me is useful');
+    await socialMe.page.evaluate(()=>go('/activity'));await ready(socialMe.page,'#feed-tools','Home after its social bundle is warm');
+    assert.equal(socialMe.assets.length,1,'Home reuses the warmed bundle');
+    assert.deepEqual(socialMe.errors,[]);assert.deepEqual(socialMe.writes,[]);
+  }finally{await socialMe.context.close();}
+
+  const socialRetry=await socialFixture(browser,{failFirst:true});
+  try{
+    await socialRetry.page.goto(base+'/activity',{waitUntil:'domcontentloaded'});await socialRetry.page.locator('.load-error').waitFor();
+    assert(await socialRetry.page.locator('#retry').isVisible(),'a failed Home bundle shows a visible retry');
+    await socialRetry.page.locator('#retry').click();await ready(socialRetry.page,'#feed-tools','Home after social retry');
+    assert.equal(socialRetry.assets.length,2,'retry clears the failed promise and requests social.js again');
+    assert.deepEqual(socialRetry.errors,[]);assert.deepEqual(socialRetry.writes,[]);
+  }finally{await socialRetry.context.close();}
+
   const context=await fixtureContext(browser);
   try{
     await login(context);const page=await context.newPage(),errors=[],requests=[];page.on('pageerror',error=>errors.push(error.message));
