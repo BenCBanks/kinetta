@@ -158,6 +158,7 @@ async function pHeatmap(body, q) {
 
 route(/^\/progress\/routes$/, 'progress', async el => { pHead(el,'routes',''); await pRoutes($('#p-body',el)); });
 route(/^\/progress\/(trends|calendar|heatmap)$/, 'progress', async (el, view) => {
+  if (view === 'calendar' && !appFeatureEnabled('progress_calendar')) return go('/progress', {replace: true});
   const q = new URLSearchParams(location.search), sport = pSport(q), withSport = view === 'trends' || view === 'heatmap';
   pHead(el, view, (withSport ? sportBtn(forView(sport, view)) : '') + (view === 'trends' ? '<span class="rng" id="p-rng"></span>' : ''));
   wireSport(el, sport);

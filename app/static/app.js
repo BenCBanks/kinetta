@@ -41,6 +41,7 @@ function swipeRows(el, onRemove) {
 const listOf = (xs) => xs.slice(0, 3).join(', ') + (xs.length > 3 ? ` and ${xs.length - 3} more` : '');
 const col = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888';   // real colour for SVG attributes
 const App = {me: null, pageReady: false, cache: new Map(), pages: [], scroll: {}};
+const appFeatureEnabled = (name) => App.me?.feature_flags?.[name] === true;
 const classicScriptPromises = new Map();
 const classicScriptsLoaded = new Set();
 const FOOD_ROUTE_ASSET = '/static/food.js?v=__ASSET_HASH__';

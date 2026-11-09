@@ -2155,6 +2155,11 @@ MIGRATIONS = [
       ALTER COLUMN share_achievements SET DEFAULT true,
       ALTER COLUMN share_achievements_since SET DEFAULT now();""",
 
+    # 108. Keep the optional Progress views available for a later server-side re-enable; both start hidden.
+    """INSERT INTO feature_switches (name, enabled)
+       VALUES ('progress_calendar', false), ('progress_segments', false)
+       ON CONFLICT (name) DO NOTHING;""",
+
 ]
 
 

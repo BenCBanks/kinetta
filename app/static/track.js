@@ -624,7 +624,7 @@ const Track = (() => {
     if(typeof Discovery==='undefined')return;let connections=null,health=null,settled=false;
     const draw=()=>{if(!current())return;const count=(connections?['apple','garmin_connect'].filter(k=>connections[k]).length:0)+(health?.on?1:0);
       const items=[...(Native.on?[{id:'health',title:'Health app',icon:'heart',href:'/track/health',description:health?.on===false?'Off · Set up →':'Bring in workouts →',teaser:Native.syncing?'Syncing…':health?.error?'Check sync →':health?.on?(health.at?'Synced '+when(health.at):'Sync is on'):''}]:[]),
-        {id:'explore',title:'Explore Kinetta',icon:'search',href:'/me/explore',description:'Routes, segments and more →'},
+        {id:'explore',title:'Explore Kinetta',icon:'search',href:'/me/explore',description:'Routes, heatmap and more →'},
         {id:'past',title:'Log past',icon:'calendar',href:'/track?past=1',description:'Add a workout →'},
         {id:'import',title:'Import history',icon:'upload',href:'/track/import',description:Native.on?'Use your browser →':'Bring in old workouts →'},
         {id:'connections',title:'Connections',icon:'watch',href:'/track/connections',description:'Connect your apps →',teaser:count?`${count} connected`:''}];

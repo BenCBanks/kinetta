@@ -229,6 +229,9 @@ def logout(request: Request, response: Response):
 def me(user=Depends(current_user)):
     from . import ai_access, reactions
     with db.connect() as c:
+        feature_flags = {'progress_calendar': False, 'progress_segments': False}
+        for row in c.execute("SELECT name, enabled FROM feature_switches WHERE name = ANY(%s)", (list(feature_flags),)).fetchall():
+            feature_flags[row['name']] = bool(row['enabled'])
         p = c.execute('SELECT terms_version, terms_accepted_at, setup_hidden, setup_skipped, profile_layout, share_default, bio, units, tz, max_hr, rest_hr, sex, birth_year, weight_kg, height_cm, activity_factor, kcal_target, protein_target, carbs_target, fat_target, fiber_target, sodium_target_mg, sugar_target_g, saturated_fat_target_g, (ai_ok AND ai_adult_at IS NOT NULL) AS ai_ok, health_ai_ok, health_weight_ai_ok, garmin_ai_ok, health_weight_read, health_nutrition_write, weight_health_derived, resting_source, nutrition_goal, goal_pace_percent FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
         waiting = api_social.waiting(c, user['id'])     # friend requests to answer (a number on the Me tab)
         unread = notify.unread(c, user['id'])            # notifications not yet seen
@@ -238,7 +241,7 @@ def me(user=Depends(current_user)):
         acct = c.execute("SELECT email::text AS email, email_verified_at IS NOT NULL AS email_confirmed, needs_email_confirm, created FROM users WHERE id = %s", (user['id'],)).fetchone()
         friend_count=sum(row['status']=='accepted' for row in api_social._friend_rows(c,user['id']))
         acct['pending_email'] = account_email.pending(c, user['id'])    # Progress shows its Food & weight half only for food users
-    return {**user, **acct, 'reaction_choices':reactions.CHOICES, 'mail_ready': account_email.mail_ready(), 'iphone_app': account_email.iphone_app(), 'terms': community_terms.state(p), 'food_user': food_user, 'ai_access': ai_access.capabilities(user['id']), 'friend_requests': waiting, 'friend_count':friend_count, 'notifications': unread, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'ai_paused': not coach.ai_budget.enabled(), 'coach': coach.enabled(), 'coach_tools': ai_release.enabled(), 'food_coach_tools': ai_release.enabled('food'), 'food_photo_itemize': ai_release.food_photo_itemization_enabled(), 'kit_chat': ai_release.enabled('kit'), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
+    return {**user, **acct, 'feature_flags': feature_flags, 'reaction_choices':reactions.CHOICES, 'mail_ready': account_email.mail_ready(), 'iphone_app': account_email.iphone_app(), 'terms': community_terms.state(p), 'food_user': food_user, 'ai_access': ai_access.capabilities(user['id']), 'friend_requests': waiting, 'friend_count':friend_count, 'notifications': unread, 'units': 'imperial', 'tz': db.DEFAULT_TZ, 'ai_paused': not coach.ai_budget.enabled(), 'coach': coach.enabled(), 'coach_tools': ai_release.enabled(), 'food_coach_tools': ai_release.enabled('food'), 'food_photo_itemize': ai_release.food_photo_itemization_enabled(), 'kit_chat': ai_release.enabled('kit'), 'ai_provider': {'gemini': "Google's Gemini", 'claude': "Anthropic's Claude"}.get(coach.provider()), **{k: v for k, v in p.items() if v is not None}}
 
 
 class ProfileIn(BaseModel):

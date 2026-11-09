@@ -1,5 +1,6 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict');
+const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798';
 const password='green teapot on the hill';
 const user='zz_test_explore_new';
@@ -661,6 +662,9 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
 
   console.log('Cook and recipe-import lazy routes: first tap, dependencies, retry and no duplicate loads PASS');
 
+  // These lazy-route checks exercise feature-on Calendar and Segments; progress_ui.cjs owns the default-off assertions.
+  setProgressFlags(true);
+  try{
   const progressMe=await progressFixture(browser);
   try{
     await progressMe.page.goto(base+'/me');await ready(progressMe.page,meReady,'Me before Progress and Segments routes');
@@ -688,7 +692,7 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
       await fixture.page.goto(base+path,{waitUntil:'domcontentloaded'});
       if(path==='/segments/999999')await until(fixture.page,()=>App.pageReady&&/Segment not found/.test(document.querySelector('#page')?.textContent||''),`direct ${path} not-found route`);
       else await ready(fixture.page,'#page h1',`direct ${path}`);
-      assert.equal(new URL(fixture.page.url()).pathname,expected,`${path} keeps its route (or expected Segments redirect)`);
+      assert.equal(new URL(fixture.page.url()).pathname,expected,`${path} keeps its feature-on destination`);
       assert.equal(asset?fixture.assets.filter(file=>file===asset).length:0,asset?1:0,`${path} requests only its required lazy asset once`);
       assert.deepEqual(fixture.errors,[],`${path} has no page errors`);assert.deepEqual(fixture.writes,[],`${path} makes no unapproved writes`);
     }finally{await fixture.context.close();}
@@ -714,6 +718,7 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
       await retry.page.goto(base+path,{waitUntil:'domcontentloaded'});await retry.page.locator('.lazy-route-error').waitFor();
       assert.equal(new URL(retry.page.url()).pathname,path,'a failed direct deep link stays on its route');
       await retry.page.locator('#lazy-route-retry').click();await ready(retry.page,'#page h1',`${path} after explicit retry`);
+      assert.equal(new URL(retry.page.url()).pathname,path,`${path} stays on its feature-on route after retry`);
       assert.equal(retry.assets.filter(file=>file===asset).length,2,`${path} retries its failed lazy asset`);
       assert.deepEqual(retry.errors,[]);assert.deepEqual(retry.writes,[]);
     }finally{await retry.context.close();}
@@ -728,6 +733,7 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
     assert.equal(await progressStale.page.locator('#sg-list').count(),0);assert.deepEqual(progressStale.errors,[]);assert.deepEqual(progressStale.writes,[]);
   }finally{progressStale.release();await progressStale.context.close();}
   console.log('Progress/Segments lazy routes: cold deep links, back/forward, retries and stale navigation PASS');
+  }finally{setProgressFlags(false);}
 
   console.log('Lazy routes: direct, normal navigation, retry, memoized reload, stale-path and owner guards PASS');
 }finally{await browser.close();}})().catch(error=>{console.error(error);process.exitCode=1;});

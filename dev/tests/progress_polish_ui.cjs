@@ -1,6 +1,7 @@
 // Actual history and prepared segment metadata; writes remain blocked by the calling Fitness fixture.
 'use strict';
 const assert=require('node:assert/strict');
+const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 module.exports=async function polishChecks(p,{size,theme}){
  const base=new URL(p.url()).origin,until=async(fn,label,arg)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);};
  await p.goto(base+'/progress/trends?sport=run');await p.locator('#g-wk .readout').waitFor({state:'attached'});assert.match(await p.locator('#g-wk .readout').innerText(),/\/week/);assert.match(await p.locator('#g-wk .readout').innerText(),/so far/);
@@ -14,8 +15,11 @@ module.exports=async function polishChecks(p,{size,theme}){
  assert.equal(await p.locator('.record-effort').count(),Math.min(10,prs.size));for(const url of await p.locator('.record-effort').evaluateAll(ns=>ns.map(n=>n.getAttribute('href'))))assert(prs.has(url));
  await p.locator('[data-record-filter=all]').click();if(history.length>10){await p.locator('#h-more').click();assert.equal(await p.locator('.record-effort').count(),history.length);}
  assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'history fits');
- await p.route('**/api/segments?*',r=>r.fulfill({json:[]}));
  try{
+  setProgressFlags(true);
+  await p.reload();
+  await until(()=>App.pageReady&&App.me?.feature_flags?.progress_segments===true,'Segments feature flag enabled after reload');
+  await p.route('**/api/segments?*',r=>r.fulfill({json:[]}));
   await p.goto(base+'/progress/segments?f=near&q=fictional-no-match');await p.locator('#sg-list .empty').waitFor();assert(await p.locator('#sg-map').isHidden());assert.match(await p.locator('#sg-list').innerText(),/No matching segments.*Try another search/s);assert.doesNotMatch(await p.locator('#sg-list').innerText(),/Move the map/);
   await p.evaluate(()=>{window.polishMapInto=mapInto;mapInto=async()=>null;});
   for(const filter of ['mine','saved','near']){
@@ -55,8 +59,10 @@ module.exports=async function polishChecks(p,{size,theme}){
   }
 
  }finally{
-  await p.evaluate(()=>{if(window.polishMapInto){mapInto=window.polishMapInto;delete window.polishMapInto;}});
-  await p.unroute('**/api/segments?*');await p.unroute('**/api/segments/999999');await p.unroute('**/api/segments/999999/leaderboard');await p.unroute('**/api/segment-settings');
+  try{setProgressFlags(false);}finally{
+   await p.evaluate(()=>{if(window.polishMapInto){mapInto=window.polishMapInto;delete window.polishMapInto;}});
+   await p.unroute('**/api/segments?*');await p.unroute('**/api/segments/999999');await p.unroute('**/api/segments/999999/leaderboard');await p.unroute('**/api/segment-settings');
+  }
  }
  console.log(`Progress polish ${size.width}/${size.root} ${theme}: single record history, retained PRs, bounded filters, truthful empty states and unchanged Publish confirmation PASS`);
 };

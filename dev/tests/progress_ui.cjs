@@ -1,12 +1,36 @@
 // Real fictional accounts and real overview responses. No production data or AI/provider calls.
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process'),path=require('node:path');
+const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error('Timed out: '+label+' '+JSON.stringify(await p.evaluate(()=>({url:location.href,...(typeof App==='undefined'?{}:{key:App.page?.key,ready:App.pageReady}),body:document.body.textContent.slice(0,200)}))));}
 (async()=>{
  cp.execFileSync('python3',[path.join(__dirname,'test_progress_overview.py')],{env:{...process.env,KINETTA_KEEP_PROGRESS:'1'},stdio:'inherit'});
  const b=await chromium.launch(),cleanup=[];
  try{
+ setProgressFlags(false);
+ const offLogin=await b.newContext(),offSigned=await offLogin.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_overview_runner',password:'green teapot on the hill'}});assert.equal(offSigned.status(),200,'feature-flag fixture login: '+await offSigned.text());
+ const offState=await offLogin.storageState(),offRows=await offLogin.request.get(base+'/api/activities?limit=100').then(r=>r.json()),offActivity=offRows.find(a=>a.line);assert(offActivity,'feature-flag fixture needs a GPS activity');
+ for(const theme of ['light','dark']){
+  const c=await b.newContext({storageState:offState,viewport:{width:390,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[];
+  p.on('pageerror',e=>errors.push(e.message));await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(u.pathname==='/api/notifications/count')return r.fulfill({json:{unread:0,friend_requests:0,friend_count:0}});if(!['GET','HEAD'].includes(q.method()))return r.fulfill({json:{}});return r.continue();});
+  const ready=()=>until(p,()=>typeof App!=='undefined'&&App.pageReady&&App.page?.key===location.pathname+location.search,'feature flags ready');
+  await p.goto(base+'/progress');await ready();await p.waitForSelector('#p-explore a');assert.deepEqual(await p.evaluate(()=>App.me.feature_flags),{progress_calendar:false,progress_segments:false});assert.equal(await p.locator('#p-explore a').count(),6,'disabled Progress features have no tiles');assert.equal(await p.locator('[data-progress-feature="calendar"],[data-progress-feature="segments"]').count(),0,'disabled Progress features have no links');
+  if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/progress-${theme}.png`,fullPage:true});}
+  await p.goto(base+'/me/sharing');await ready();assert.equal(await p.locator('#sh-segments').count(),0,'disabled Segments has no Sharing & privacy settings row');assert.equal(await p.getByText('Segment leaderboards',{exact:true}).count(),0,'disabled Segment settings are absent from the page');
+  await p.goto(base+'/me/explore');await ready();assert.equal(await p.locator('#guide-results summary b').filter({hasText:/^Calendar$/}).count(),0,'disabled Calendar has no Me guide entry');
+  for(const path of ['/progress/calendar?month=2026-10','/progress/segments','/progress?view=calendar','/progress?view=segments','/segments/123','/segments/new','/segments/review']){await p.goto(base+path);await ready();assert.equal(new URL(p.url()).pathname,'/progress',path+' redirects to Progress when disabled');}
+  await p.goto(base+'/activity/'+offActivity.id);await ready();assert.equal(await p.locator('#d-segments').count(),0,'disabled Segments has no activity-detail card');if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/activity-detail-${theme}.png`,fullPage:true});}assert.deepEqual(errors,[]);await c.close();
+ }
+ await offLogin.close();setProgressFlags(true);
+ const onContext=await b.newContext({storageState:offState,viewport:{width:390,height:844},colorScheme:'light',serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'}),onPage=await onContext.newPage(),onErrors=[];
+ onPage.on('pageerror',e=>onErrors.push(e.message));await onContext.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(u.pathname==='/api/notifications/count')return r.fulfill({json:{unread:0,friend_requests:0,friend_count:0}});if(!['GET','HEAD'].includes(q.method()))return r.fulfill({json:{}});return r.continue();});
+ const onReady=()=>until(onPage,()=>typeof App!=='undefined'&&App.pageReady&&App.page?.key===location.pathname+location.search,'enabled feature flags ready');
+ await onPage.goto(base+'/progress');await onReady();await onPage.waitForSelector('#p-explore a');assert.deepEqual(await onPage.evaluate(()=>App.me.feature_flags),{progress_calendar:true,progress_segments:true});assert.equal(await onPage.locator('#p-explore a').count(),8,'enabled Progress features return');assert.equal(await onPage.locator('[data-progress-feature="calendar"],[data-progress-feature="segments"]').count(),2,'enabled Progress links return');
+ for(const path of ['/progress/calendar','/progress/segments']){await onPage.goto(base+path);await onReady();assert.equal(new URL(onPage.url()).pathname,path,path+' opens when enabled');}
+ await onPage.goto(base+'/activity/'+offActivity.id);await onReady();assert.equal(await onPage.locator('#d-segments').count(),1,'enabled Segments returns to activity detail');
+ await onPage.goto(base+'/me/sharing');await onReady();assert.equal(await onPage.locator('#sh-segments').count(),1,'enabled Segment leaderboards return to Sharing & privacy');
+ await onPage.goto(base+'/me/explore');await onReady();assert.equal(await onPage.locator('#guide-results summary b').filter({hasText:/^Calendar$/}).count(),1,'enabled Calendar returns to the Me guide');assert.equal(await onPage.locator('#guide-results details').count(),59,'all guide entries return when Calendar is enabled');assert.deepEqual(onErrors,[]);await onContext.close();
  for(const who of ['empty','runner','food']){
   const login=await b.newContext();const signed=await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_overview_'+who,password:'green teapot on the hill'}});assert.equal(signed.status(),200,'fixture login: '+await signed.text());cleanup.push(login);
   const overviewResponse=await login.request.get(base+'/api/progress/overview');assert.equal(overviewResponse.status(),200,'fixture date: '+await overviewResponse.text());let overviewFixture=await overviewResponse.json(),fixtureToday=overviewFixture.today;assert.match(fixtureToday,/^\d{4}-\d{2}-\d{2}$/,'fixture exposes its account-local current date');
@@ -123,5 +147,5 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[]);console.log(`Progress ${who} ${size.width}/${size.root} ${theme}: cards, filters, legacy addresses, scroll, New and unavailable PASS`);await c.close();
   }
  }
- }finally{for(const c of cleanup){await c.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password:'green teapot on the hill'}});await c.close();}await b.close();}
+ }finally{try{setProgressFlags(false);}catch(_){}for(const c of cleanup){await c.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password:'green teapot on the hill'}});await c.close();}await b.close();}
 })().catch(e=>{console.error(e);process.exit(1);});

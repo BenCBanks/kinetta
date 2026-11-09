@@ -2,6 +2,7 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),fs=require('node:fs'),path=require('node:path');
 const {audit}=require('./spacing_geometry.cjs'),{collectSpacing}=require('./spacing_dom.cjs');
+const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 const spacingRules=JSON.parse(fs.readFileSync(path.join(__dirname,'spacing_exceptions.json'),'utf8'));
 const base=process.env.KINETTA_URL,out=process.env.KINETTA_SHOTS,pw='green teapot on the hill';assert(base&&out);fs.mkdirSync(out,{recursive:true});
 const env={...process.env};if(env.KINETTA_ACTIVITY_FIXTURE_TMPDIR)env.TMPDIR=env.KINETTA_ACTIVITY_FIXTURE_TMPDIR;
@@ -9,7 +10,7 @@ cp.execFileSync('python3',['-c',"import os,sys,subprocess;from urllib.parse impo
 const line='_p~iF~ps|U_ulLnnqC_mqNvxq`@',segment={id:12,name:'Fictional park loop',sport:'run',distance_m:1000,created:'2026-01-01',status:'active',audience:'everyone',line,saved:false,mine:true};
 const efforts=[{id:1,activity_id:31,activity_name:'Fictional morning run',elapsed_s:295,started:'2026-10-31T10:00:00Z',state:'ok',public:false,why_not:'source'},{id:2,activity_id:32,activity_name:'Fictional evening run',elapsed_s:318,started:'2026-11-02T18:00:00Z',state:'ok',public:false,why_not:'source'}];
 async function ready(p){try{await p.waitForFunction(()=>typeof App!=='undefined'&&App.pageReady&&!!document.querySelector('.seg-efforts'));}catch(e){throw Error(e.message+' '+JSON.stringify(await p.evaluate(()=>({path:location.pathname,ready:typeof App!=='undefined'&&App.pageReady,text:document.body.innerText.slice(-1800)}))));}}
-(async()=>{const browser=await chromium.launch();try{
+(async()=>{let browser;try{setProgressFlags(true);browser=await chromium.launch();
  for(const width of process.env.KINETTA_SEGMENT_SPACING==='1'?[390,330]:[390])for(const theme of ['light','dark'])for(const state of ['solo','others']){
   const c=await browser.newContext({viewport:{width,height:1000},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'}),errors=[];
   assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_segments_times',password:pw}})).status(),200);
@@ -26,4 +27,4 @@ async function ready(p){try{await p.waitForFunction(()=>typeof App!=='undefined'
   else{await p.goto(base+'/segments/12?tab=board');await ready(p);assert.equal(await p.locator('[data-t=board]').count(),0,'old solo board links fall back to Your times');}
   assert.deepEqual(errors,[]);console.log(`Segments ${state}390 ${theme}: default, eligible tabs, old links and navigation PASS`);await c.close();
  }
-}finally{const c=await browser.newContext();try{await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_segments_times',password:pw}});await c.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password:pw}});}finally{await c.close();await browser.close();}}})().catch(e=>{console.error(e);process.exitCode=1;});
+}finally{try{setProgressFlags(false);}finally{if(browser){const c=await browser.newContext();try{await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_segments_times',password:pw}});await c.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password:pw}});}finally{await c.close();await browser.close();}}}}})().catch(e=>{console.error(e);process.exitCode=1;});

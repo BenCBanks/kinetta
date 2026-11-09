@@ -133,7 +133,10 @@ route(/^\/me\/explore$/, 'track', async (el) => {
   wireBack(el, '/track');
   const owner=readOwner(),valid=()=>el.isConnected&&readOwner()===owner;
   let category = 'All';
-  const catalog = FEATURE_GUIDE.filter(f=>!Native.on || !['/track/import','/food/import'].includes(f[3]));
+  const catalog = FEATURE_GUIDE.filter(f=>
+    (!Native.on || !['/track/import','/food/import'].includes(f[3])) &&
+    (f[1] !== 'Calendar' || appFeatureEnabled('progress_calendar'))
+  );
   const cats = ['All', ...new Set(catalog.map((f) => f[0]))];
   $('.guide-categories', el).innerHTML = cats.map(c=>`<button type="button" class="me-chip" data-guide-category="${esc(c)}" aria-pressed="${c===category}"><span>${esc(c)}</span></button>`).join('');
   const scroller=$('.guide-categories',el),windowBox=scroller.parentElement;

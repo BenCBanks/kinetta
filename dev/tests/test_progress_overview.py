@@ -23,6 +23,14 @@ def get(c, path='/api/progress/overview'):
     return result
 
 
+def progress_flags(enabled):
+    value = 'true' if enabled else 'false'
+    p = subprocess.run(['docker', 'exec', '-i', project + '-db-1', 'psql', '-U', 'postgres', '-d', 'fit', '-v', 'ON_ERROR_STOP=1', '-At'],
+                       input=f"INSERT INTO feature_switches (name, enabled) VALUES ('progress_calendar', {value}), ('progress_segments', {value}) ON CONFLICT (name) DO UPDATE SET enabled=EXCLUDED.enabled;\n",
+                       text=True, capture_output=True)
+    assert p.returncode == 0, p.stderr
+
+
 def sql(text):
     p = subprocess.run(['docker', 'exec', '-i', project+'-db-1', 'psql', '-U', 'postgres', '-d', 'fit', '-v', 'ON_ERROR_STOP=1', '-At'], input=text, text=True, capture_output=True)
     assert p.returncode == 0, p.stderr
@@ -32,6 +40,11 @@ def sql(text):
 try:
     empty, runner, food = people
     ids = [get(c, '/api/me')['id'] for c in people]
+    assert empty.get('/api/me')[1]['feature_flags'] == {'progress_calendar': False, 'progress_segments': False}
+    progress_flags(True)
+    assert empty.get('/api/me')[1]['feature_flags'] == {'progress_calendar': True, 'progress_segments': True}
+    progress_flags(False)
+    assert empty.get('/api/me')[1]['feature_flags'] == {'progress_calendar': False, 'progress_segments': False}
     for c in people:
         assert c.put('/api/profile', {'tz': 'Pacific/Kiritimati'})[0] == 200
     before = get(empty)
@@ -77,6 +90,7 @@ try:
         assert get(c) == get(c), 'reading must not create plans, exercises or other facts'
     success = True
 finally:
+    progress_flags(False)
     if not success or not os.environ.get('KINETTA_KEEP_PROGRESS'):
         for c in people:
             c.post('/api/account/delete', {'password': PW})
