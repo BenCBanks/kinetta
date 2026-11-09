@@ -815,6 +815,9 @@ IC.paste = '<rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 
 IC.track = '<circle cx="12" cy="10" r="3"/><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/>';
 // Owner decision #700 (7 Nov 2026): Home renames the Activity tab and moves first; Me moves last. Keep Track centred.
 const TABS = [['activity', 'Home'], ['progress', 'Progress'], ['track', 'Track'], ['food', 'Nutrition'], ['me', 'Me']];
+// The Home tab keeps its /activity address but shows a house (#762); the pulse line still marks activities elsewhere.
+IC.home = '<path d="M4 11 12 4l8 7"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/>';
+const tabIcon = tab => svg(tab === 'activity' ? 'home' : tab);
 function route(re, tab, fn) { App.pages.push({re, tab, fn}); }
 function go(path, {replace = false} = {}) {
   App.scroll[location.pathname + location.search] = scrollY;
@@ -902,7 +905,7 @@ function lazyRouteShell(tab) {
   let el = $('#page', root), nav = $('nav.tabs', root);
   if (!el || !nav || nav.parentNode !== root || root.children.length !== 2) {
     root.innerHTML = `<main class="shell" id="page"></main><nav class="tabs" aria-label="Main">${TABS.map(([t, n]) =>
-      `<a href="/${t}" data-tab="${t}"${t === tab ? ' aria-current="page"' : ''}>${svg(t)}<span>${n}</span></a>`).join('')}</nav>`;
+      `<a href="/${t}" data-tab="${t}"${t === tab ? ' aria-current="page"' : ''}>${tabIcon(t)}<span>${n}</span></a>`).join('')}</nav>`;
     el = $('#page', root);
     nav = $('nav.tabs', root);
   } else {
@@ -1005,7 +1008,7 @@ function render(options) {
     const main = document.createElement('main'); main.className = 'shell'; main.id = 'page'; $('#page', root).replaceWith(main);
     $$('a[data-tab]', nav).forEach((a) => (a.dataset.tab === activeTab ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
   } else root.innerHTML = `${fresh}<nav class="tabs" aria-label="Main">${TABS.map(([t, n]) =>
-    `<a href="/${t}" data-tab="${t}"${t === activeTab ? ' aria-current="page"' : ''}>${svg(t)}<span>${n}</span></a>`).join('')}</nav>`;
+    `<a href="/${t}" data-tab="${t}"${t === activeTab ? ' aria-current="page"' : ''}>${tabIcon(t)}<span>${n}</span></a>`).join('')}</nav>`;
   cleanViews();
   const el = $('#page');
   const headerObserver=new MutationObserver(()=>{if(el.isConnected)compactSubpageHeader(el);});headerObserver.observe(el,{childList:true,subtree:true});headerObservers.set(el,headerObserver);
@@ -1903,7 +1906,7 @@ function showSignupPending(result) {
   history.replaceState(null,'','/signup');
   root.innerHTML=`<div class="login"><div class="form">${BRAND}<h1>Check your email</h1>
     <p>We sent a confirmation link to <b>${esc(email)}</b>. Open it to confirm your email.</p>
-    <p class="small muted signup-login-note">You’re signed in as <b>@${esc(login)}</b>. Log in with your email or @${esc(login)}.</p>
+    <p class="small muted signup-login-note">You’re already signed in as <b>@${esc(login)}</b>, so you can start now. Until you confirm, log in with @${esc(login)}; after that, your email works too.</p>
     <button type="button" class="primary wide" id="signup-resend">Resend confirmation email</button>
     <p class="small muted resend-status" id="signup-resend-status" role="status" aria-live="polite"></p>
     <a class="ghost wide" href="/welcome" id="signup-continue">${phone?'Continue to the iPhone app':'Continue to Kinetta'}</a>

@@ -561,7 +561,7 @@ async function homeFeed(el) {
         retained.add(node);
       }
       for(const node of [...list.children])if(!retained.has(node))node.remove();
-    }else list.innerHTML=items.length?items.map(a=>feedCard(a,{who:true,compact:true})).join(''):`<p class="feed-empty small muted">Your workouts, friends’ shared workouts and achievement moments appear here.</p>`;
+    }else list.innerHTML=items.length?items.map(a=>feedCard(a,{who:true,compact:true})).join(''):feedEmpty();
     const invite=list.querySelector?.('[data-invite-empty]');if(invite)invite.onclick=inviteFriends;
     more.hidden=!pg.more;feedMaps(list);wireCheers(list);$$('[data-moment-reaction-group]',list).forEach(group=>wireReactionGroup(group));if(typeof cleanViews!=='undefined')cleanViews();
   };
@@ -626,6 +626,8 @@ function feedTools(el,current){
 }
 
 // ---------- someone else's activity (read-only); for your own: what others see ----------
+// An empty Home feed always offers a next step (#762): record or import a workout, or find friends to follow.
+const feedEmpty=()=>`<div class="feed-empty"><p class="small muted">Your workouts, friends’ shared workouts and achievement moments appear here.</p><div class="btncol"><a class="primary wide" href="/track">Record or import a workout</a><a class="linkbtn" href="/me/friends?find=1">Find friends</a></div></div>`;
 route(/^\/activity\/friends\/(\d+)$/, 'activity', async (el, id) => {
   el.innerHTML = `<div class="top">${backBtn('Home')}</div>${skel(1)}<div class="sk block"></div>`;
   wireBack(el, '/activity');

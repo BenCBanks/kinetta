@@ -41,7 +41,7 @@ async function weeklyCardChecks(p){
  assert.equal(await card.locator('.me-card-figures,.me-sport-chips,.me-profile-bio,.me-about,.me-card-note,.me-period,.me-distance.days').count(),0,'Me omits profile bio, all-time totals, sports, privacy note and daily/period controls');
  assert.equal(await card.locator('.me-card-weekly [data-week-stat]').count(),3,'Me shows distance, workouts and time for the week');
  assert.equal(await card.locator('[data-week-label] span').innerText(),'This week','Me starts on the current week');
- assert.equal(await card.locator('.me-week-streak').getAttribute('aria-label'),'🔥 12 weeks','Me reuses the self-only stats streak');
+ assert.equal(await card.locator('.me-week-streak').getAttribute('aria-label'),'12-week activity streak','Me reuses the self-only stats streak');
 }
 async function milestoneChecks(p){
  const row=p.locator('.me-card .me-milestone-row');await row.waitFor();assert.equal(await row.count(),1,'one compact milestone row');assert.match(await row.locator('.me-milestone-latest').innerText(),/Only you[\s\S]*First 5K/,'latest occurrence leads, independently of rank');assert((await row.boundingBox()).height<=55,'one quiet line including its separator');

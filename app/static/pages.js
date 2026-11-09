@@ -1110,7 +1110,13 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
     const t = r.pace_trend, e = r.efficiency_trend;
     const perMonth = t ? t.slope_per_day * 30 : null;
     let headline = '';
-    if (t && Math.abs(perMonth) >= 1) headline = `${perMonth < 0 ? 'Getting faster' : 'Getting slower'}: about ${foot ? Math.round(Math.abs(imp() ? perMonth * MI / 1000 : perMonth)) + ' s' + U.pu() : ''} per month on this route.`;
+    if (t && Math.abs(perMonth) >= 1) {
+      // Runs and walks show seconds per mile/km; rides show the matching change in average speed (m/s from s/km).
+      const avgPace = pts.length ? pts.reduce((s, p) => s + p.y, 0) / pts.length : null;
+      const change = foot ? `${Math.round(Math.abs(imp() ? perMonth * MI / 1000 : perMonth))} s${U.pu()}`
+        : avgPace > Math.abs(perMonth) ? `${U.speed(Math.abs(1000 / (avgPace + perMonth) - 1000 / avgPace))} ${U.su()}` : '';
+      if (change && !/^0(\.0)? /.test(change)) headline = `${perMonth < 0 ? 'Getting faster' : 'Getting slower'}: about ${change} per month on this route.`;
+    }
     if (e && t) { const effUp = e.slope_per_day > 0; headline += ` Recorded distance per heartbeat ${e.slope_per_day===0?'is unchanged':effUp?'increased':'decreased'}. Conditions and recording differences can affect this.`; }
     const best = acts.find((a) => a.id === r.fastest_id);
     el.innerHTML = `<div class="top">${backBtn('Routes')}<button class="icon-btn" id="r-edit" aria-label="Rename route">${svg('edit')}</button></div>

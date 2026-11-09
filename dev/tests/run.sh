@@ -45,6 +45,7 @@ echo "== native sync recovery (stand-in HealthKit, no health data)"
 python3 dev/tests/test_native_ui_lifecycle.py
 node dev/tests/test_boot.js
 node dev/tests/test_guide_visits.js
+node dev/tests/test_guide_paths.js
 node dev/tests/test_feature_usage.js
 
 node dev/tests/test_progress_links.js

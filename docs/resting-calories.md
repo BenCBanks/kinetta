@@ -3,7 +3,7 @@
 Food targets remain independent of calories burned. A daily target or a target set for one date changes only when
 you explicitly edit it. Imported workouts keep their existing calorie values.
 
-In **Nutrition → More → Calorie needs → Resting calories**, choose **Apple Health · Resting Energy**. In an installed iPhone
+In **Nutrition → Explore your food → Calorie needs → Resting calories**, choose **Apple Health · Resting Energy**. In an installed iPhone
 build containing this feature, allow Kinetta to read Resting Energy and sync. Browsers can choose the source and view
 synced data, but cannot read Apple Health directly. Closing Apple's permission screen does not establish read access;
 if there are no readable totals, check Kinetta's switches in the Health app.
