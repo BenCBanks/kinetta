@@ -197,7 +197,7 @@ class Publication(unittest.TestCase):
                 response=guest.get('/api/me'); self.assertEqual(response.status_code,200)
                 self.assertEqual(response.json()['terms']['accepted_version'],document['version'])
                 self.assertTrue(response.json()['terms']['accepted_at'])
-                body={'name':'Signup Example','login':prefix+'s','password':PW,'email':'fictional-'+self.tag+'@example.invalid','age_ok':True}
+                body={'name':'Signup Example','login':prefix+'s','password':PW,'email':'fictional-'+self.tag+'@example.com','age_ok':True}
                 self.assertEqual(guest.post('/api/signup',json=body).status_code,428)
                 self.assertEqual(guest.post('/api/signup',json={**body,'terms_version':document['version']}).status_code,200)
                 self.assertFalse(guest.get('/api/me').json()['terms']['required'])

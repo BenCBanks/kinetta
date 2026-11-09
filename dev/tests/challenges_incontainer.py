@@ -233,12 +233,12 @@ class Challenges(unittest.TestCase):
    a=pool.submit(attempt);b=pool.submit(attempt);barrier.wait();self.assertEqual(sorted([a.result(5),b.result(5)]),[200,409])
  def test_real_signup_confirmation_preserves_yes_no_choice_and_expired_links(self):
   from app import account_email
-  q,_=self.make();tokens={};mail={'KINETTA_SIGNUP':'open','KINETTA_MAX_ACCOUNTS':'','KINETTA_RESEND_KEY':'fictional-mail','KINETTA_MAIL_FROM':'Kinetta <mail@example.test>','KINETTA_MAIL_REPLY_TO':'help@example.test','KINETTA_PUBLIC_URL':'https://example.test','KINETTA_MAIL_WEBHOOK_SECRET':'fictional-webhook'}
+  q,_=self.make();tokens={};mail={'KINETTA_SIGNUP':'open','KINETTA_MAX_ACCOUNTS':'','KINETTA_RESEND_KEY':'fictional-mail','KINETTA_MAIL_FROM':'Kinetta <mail@example.com>','KINETTA_MAIL_REPLY_TO':'help@example.com','KINETTA_PUBLIC_URL':'https://example.test','KINETTA_MAIL_WEBHOOK_SECRET':'fictional-webhook'}
   def confirmation(background,c,uid,name,email,**kw):tokens[uid]=account_email._token(c,uid,'verify_email',30,email)
   with patch.dict(os.environ,mail),patch('app.account_email.confirmation',side_effect=confirmation),patch('app.auth.client_ip',return_value='fictional-ch-signup-'+uuid.uuid4().hex):
    for want in (True,False):
     client=TestClient(app);login='zz_test_ch_signup_'+uuid.uuid4().hex[:8]
-    r=client.post('/api/signup',json={'name':'PRIVATE SIGNUP NAME','login':login,'email':login+'@example.test','password':'fictional challenge signup phrase','age_ok':True,'challenge_code':q['code'],'challenge_join':want});self.assertEqual(r.status_code,200,r.text)
+    r=client.post('/api/signup',json={'name':'PRIVATE SIGNUP NAME','login':login,'email':login+'@example.com','password':'fictional challenge signup phrase','age_ok':True,'challenge_code':q['code'],'challenge_join':want});self.assertEqual(r.status_code,200,r.text)
     with db.connect() as c:
      uid=c.execute('SELECT id FROM users WHERE login=%s',(login,)).fetchone()['id'];self.ids.append(uid);self.assertFalse(C.member(c,C.accessible(c,q['code'])['id'],uid))
     r=client.post('/api/account/email/confirm',json={'token':tokens[uid]});self.assertEqual(r.status_code,200,r.text);self.assertEqual(r.json()['challenge_joined'],q['code'] if want else None)
@@ -251,7 +251,7 @@ class Challenges(unittest.TestCase):
    c.execute("INSERT INTO signup_join_intents(user_id,kind,code) VALUES(%s,'challenge','fictional-revoked-code')",(self.ids[2],));self.assertIsNone(C.consume_signup(c,self.ids[2]));self.assertFalse(c.execute('SELECT 1 FROM signup_join_intents WHERE user_id=%s',(self.ids[2],)).fetchone())
  def test_waitlist_and_invitation_retain_explicit_challenge_choice(self):
   from app import account_email,api_beta
-  q,_=self.make();tokens={};email='zz_test_ch_wait_'+uuid.uuid4().hex[:8]+'@example.test';mail={'KINETTA_SIGNUP':'waitlist','KINETTA_BETA_SIGNUP':'1','KINETTA_RESEND_KEY':'fictional-mail','KINETTA_MAIL_FROM':'Kinetta <mail@example.test>','KINETTA_MAIL_REPLY_TO':'help@example.test','KINETTA_PUBLIC_URL':'https://example.test','KINETTA_MAIL_WEBHOOK_SECRET':'fictional-webhook'}
+  q,_=self.make();tokens={};email='zz_test_ch_wait_'+uuid.uuid4().hex[:8]+'@example.com';mail={'KINETTA_SIGNUP':'waitlist','KINETTA_BETA_SIGNUP':'1','KINETTA_RESEND_KEY':'fictional-mail','KINETTA_MAIL_FROM':'Kinetta <mail@example.com>','KINETTA_MAIL_REPLY_TO':'help@example.com','KINETTA_PUBLIC_URL':'https://example.test','KINETTA_MAIL_WEBHOOK_SECRET':'fictional-webhook'}
   def confirmation(background,c,uid,name,email,**kw):tokens[uid]=account_email._token(c,uid,'verify_email',30,email)
   with patch.dict(os.environ,mail),patch('app.account_email.confirmation',side_effect=confirmation),patch('app.auth.client_ip',return_value='fictional-ch-wait-'+uuid.uuid4().hex):
    r=self.anon.post('/api/beta',json={'name':'PRIVATE WAITLIST NAME','email':email,'phone':'iphone','challenge_code':q['code'],'challenge_join':True});self.assertEqual(r.status_code,200,r.text)

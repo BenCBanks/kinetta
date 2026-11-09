@@ -30,7 +30,7 @@ const cases=[['signin',1],['signup',1],['invite',1],['temporary',2],['reset',1],
     const fields=admin?p.locator(kind==='admin-signin'?'#login .password-input':'#dialog .password-input'):p.locator('.password-input');
     await fields.first().waitFor();assert.equal(await fields.count(),count,kind+' expected password fields');
     if(['temporary','reset','delete','change'].includes(kind))assert(await fields.first().evaluate(n=>n===document.activeElement),'Initial password focus survives enhancement');
-    await fields.first().evaluate(n=>{for(const field of n.form.elements){if(field.tagName!=='INPUT'||field.type==='password'||field.type==='hidden')continue;if(field.type==='checkbox'){if(field.required)field.checked=true;continue;}if(!field.value&&['text','email'].includes(field.type))field.value=field.type==='email'?'fictional@example.invalid':field.name==='confirm'?'zz_test_password_eye':field.name==='name'?'Alex Example':'zz_test_password_eye';}});
+    await fields.first().evaluate(n=>{for(const field of n.form.elements){if(field.tagName!=='INPUT'||field.type==='password'||field.type==='hidden')continue;if(field.type==='checkbox'){if(field.required)field.checked=true;continue;}if(!field.value&&['text','email'].includes(field.type))field.value=field.type==='email'?'fictional@example.com':field.name==='confirm'?'zz_test_password_eye':field.name==='name'?'Alex Example':'zz_test_password_eye';}});
     for(const field of await fields.all())await field.fill('fictional passphrase');
     // Every original password input remains the same element in the same label and form.
     for(let i=0;i<count;i++){

@@ -121,11 +121,11 @@ class Cards(unittest.TestCase):
   import os
   self.enable();tokens={}
   def confirmation(background,c,uid,name,email,**kw):tokens[uid]=cards.account_email._token(c,uid,'verify_email',30,email)
-  env={'KINETTA_SIGNUP':'open','KINETTA_MAX_ACCOUNTS':'','KINETTA_RESEND_KEY':'fictional-mail-key','KINETTA_MAIL_FROM':'Kinetta <mail@example.test>','KINETTA_MAIL_REPLY_TO':'help@example.test','KINETTA_PUBLIC_URL':'https://example.test','KINETTA_MAIL_WEBHOOK_SECRET':'fictional-card-webhook'}
+  env={'KINETTA_SIGNUP':'open','KINETTA_MAX_ACCOUNTS':'','KINETTA_RESEND_KEY':'fictional-mail-key','KINETTA_MAIL_FROM':'Kinetta <mail@example.com>','KINETTA_MAIL_REPLY_TO':'help@example.com','KINETTA_PUBLIC_URL':'https://example.test','KINETTA_MAIL_WEBHOOK_SECRET':'fictional-card-webhook'}
   with patch.dict(os.environ,env),patch('app.account_email.confirmation',side_effect=confirmation),patch('app.auth.client_ip',return_value='fictional-card-signup-'+uuid.uuid4().hex):
    for want in (True,False):
     login='zz_test_card_join_'+uuid.uuid4().hex[:8];guest=TestClient(app)
-    r=guest.post('/api/signup',json={'name':'Fictional new member','login':login,'email':login+'@example.test','password':'fictional card signup phrase','age_ok':True,'card_code':self.code,'card_request':want});self.assertEqual(r.status_code,200,r.text)
+    r=guest.post('/api/signup',json={'name':'Fictional new member','login':login,'email':login+'@example.com','password':'fictional card signup phrase','age_ok':True,'card_code':self.code,'card_request':want});self.assertEqual(r.status_code,200,r.text)
     with db.connect() as c:
      uid=c.execute('SELECT id FROM users WHERE login=%s',(login,)).fetchone()['id'];self.ids.append(uid);self.assertFalse(c.execute('SELECT 1 FROM friendships WHERE requester=%s',(uid,)).fetchone())
     r=guest.post('/api/account/email/confirm',json={'token':tokens[uid]});self.assertEqual(r.status_code,200,r.text)
@@ -139,8 +139,8 @@ class Cards(unittest.TestCase):
  def test_waitlist_invitation_retains_card_origin_and_confirmation_choice(self):
   import os
   from app import api_beta,api_account,account_email
-  self.enable();mail={'KINETTA_SIGNUP':'waitlist','KINETTA_BETA_SIGNUP':'1','KINETTA_RESEND_KEY':'fictional-key','KINETTA_MAIL_FROM':'Kinetta <mail@example.test>','KINETTA_MAIL_REPLY_TO':'help@example.test','KINETTA_PUBLIC_URL':'https://example.test','KINETTA_MAIL_WEBHOOK_SECRET':'fictional-webhook'}
-  email='zz_test_card_wait_'+uuid.uuid4().hex[:8]+'@example.test';tokens={}
+  self.enable();mail={'KINETTA_SIGNUP':'waitlist','KINETTA_BETA_SIGNUP':'1','KINETTA_RESEND_KEY':'fictional-key','KINETTA_MAIL_FROM':'Kinetta <mail@example.com>','KINETTA_MAIL_REPLY_TO':'help@example.com','KINETTA_PUBLIC_URL':'https://example.test','KINETTA_MAIL_WEBHOOK_SECRET':'fictional-webhook'}
+  email='zz_test_card_wait_'+uuid.uuid4().hex[:8]+'@example.com';tokens={}
   def confirmation(background,c,uid,name,email,**kw):tokens[uid]=account_email._token(c,uid,'verify_email',30,email)
   with patch.dict(os.environ,mail),patch('app.account_email.confirmation',side_effect=confirmation),patch('app.auth.client_ip',return_value='fictional-card-wait-'+uuid.uuid4().hex):
    response=self.guest.post('/api/beta',json={'name':'PRIVATE WAITLIST NAME','email':email,'phone':'iphone','card_code':self.code,'card_request':True});self.assertEqual(response.status_code,200,response.text)
@@ -160,7 +160,7 @@ class Cards(unittest.TestCase):
   import os
   self.enable();tokens={}
   def confirmation(background,c,uid,name,email,**kw):tokens[uid]=cards.account_email._token(c,uid,'verify_email',30,email)
-  env={'KINETTA_SIGNUP':'open','KINETTA_MAX_ACCOUNTS':'','KINETTA_RESEND_KEY':'fictional-mail-key','KINETTA_MAIL_FROM':'Kinetta <mail@example.test>','KINETTA_MAIL_REPLY_TO':'help@example.test','KINETTA_PUBLIC_URL':'https://example.test','KINETTA_MAIL_WEBHOOK_SECRET':'fictional-webhook'}
+  env={'KINETTA_SIGNUP':'open','KINETTA_MAX_ACCOUNTS':'','KINETTA_RESEND_KEY':'fictional-mail-key','KINETTA_MAIL_FROM':'Kinetta <mail@example.com>','KINETTA_MAIL_REPLY_TO':'help@example.com','KINETTA_PUBLIC_URL':'https://example.test','KINETTA_MAIL_WEBHOOK_SECRET':'fictional-webhook'}
   original=cards.consume_signup;checked=[]
   def after_commit(c,uid):
    with db.connect() as other:
@@ -168,7 +168,7 @@ class Cards(unittest.TestCase):
    return original(c,uid)
   with patch.dict(os.environ,env),patch('app.account_email.confirmation',side_effect=confirmation),patch('app.auth.client_ip',return_value='fictional-card-lock-'+uuid.uuid4().hex):
    client=TestClient(app);login='zz_test_card_lock_'+uuid.uuid4().hex[:8]
-   r=client.post('/api/signup',json={'name':'Fictional new person','email':login+'@example.test','login':login,'password':'fictional new card phrase','age_ok':True,'card_code':self.code,'card_request':True});self.assertEqual(r.status_code,200,r.text)
+   r=client.post('/api/signup',json={'name':'Fictional new person','email':login+'@example.com','login':login,'password':'fictional new card phrase','age_ok':True,'card_code':self.code,'card_request':True});self.assertEqual(r.status_code,200,r.text)
    with db.connect() as c:uid=c.execute('SELECT id FROM users WHERE login=%s',(login,)).fetchone()['id'];self.ids.append(uid)
    with patch('app.cards.consume_signup',side_effect=after_commit):r=client.post('/api/account/email/confirm',json={'token':tokens[uid]})
    self.assertEqual(r.status_code,200,r.text);self.assertEqual(checked,[uid])
