@@ -1399,7 +1399,7 @@ async function pFitness(body, q) {
           <div class="prediction-sources"><p class="small muted">Recent efforts used</p><ul>${f.predictions.map(predictionSourceDetail).join('')}</ul></div>
         </details></div>`
       : '<div class="card"><h2>Race predictions</h2><p class="muted">Run a mile or more in the last 90 days and predictions appear here.</p></div>';
-    box.innerHTML = `<div class="card fitness-running"><div class="fitness-running-heading"><h2>Running fitness</h2><span class="rng" id="fi-range"></span></div>${f.vdot_months.length ? `<div class="bigstat">${stat('Best · 90 days', f.vdot_now || '–')}${stat(R.from || R.to ? 'Best in range' : 'Best ever', ((v) => (v.length ? Math.max(...v).toFixed(1) : '–'))(f.vdot_months.filter((m) => inRange(R, +m.m.slice(0, 4))).map((m) => m.v)))}</div><div id="p-vdot"></div>
+    box.innerHTML = `<div class="card fitness-running"><div class="fitness-running-heading"><h2>Running fitness</h2><span class="rng" id="fi-range"></span></div>${f.vdot_months.length ? `<div class="bigstat">${stat('Run score · 90 days', f.vdot_now || '–')}${stat(R.from || R.to ? 'Best in range' : 'Best ever', ((v) => (v.length ? Math.max(...v).toFixed(1) : '–'))(f.vdot_months.filter((m) => inRange(R, +m.m.slice(0, 4))).map((m) => m.v)))}</div><div id="p-vdot"></div>
         <p class="small muted">Run score rates your best efforts of a mile or longer; higher means faster. It isn’t a measured VO₂max.</p>` : '<p class="muted">Needs runs of a mile or longer.</p>'}</div>
       <div class="card"><h2>Fitness, fatigue & form</h2>
       <div class="bigstat">${stat('Fitness', Math.round(last.fitness))}${stat('Form', (last.form > 0 ? '+' : '') + Math.round(last.form))}</div>

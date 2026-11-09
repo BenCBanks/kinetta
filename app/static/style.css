@@ -296,7 +296,7 @@ details > summary { cursor: pointer; font-weight: 600; min-height: 36px; display
    control rather than a plain link. The chevron turns down while open. */
 details.chev-row > summary { list-style: none; justify-content: space-between; gap: 10px; min-height: 44px; color: var(--tx); font-weight: 650; }
 details.chev-row > summary::-webkit-details-marker { display: none; }
-details.chev-row > summary::after { content: "›"; flex: none; color: var(--tx3); font-size: 22px; line-height: 1; transition: transform .15s; }
+details.chev-row > summary::after { content: "›" / ""; flex: none; color: var(--tx3); font-size: 22px; line-height: 1; transition: transform .15s; }
 details.chev-row[open] > summary::after { transform: rotate(90deg); }
 .callout { display: flex; gap: 10px; padding: 14px; border-radius: var(--r2); background: var(--accent2); color: var(--tx); font-weight: 600; margin-bottom: 12px; }
 .callout.warn { background: color-mix(in srgb, var(--warn) 15%, transparent); }
@@ -945,7 +945,7 @@ button.pt-w { width: 100%; border: 0; text-align: left; }
 details.pweek { border-top: 1px solid var(--line); }
 details.pweek > summary { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 48px; cursor: pointer; list-style: none; color: var(--tx); }
 details.pweek > summary::-webkit-details-marker { display: none; }
-details.pweek > summary::after { content: "›"; color: var(--tx3); font-size: 20px; transition: transform .15s; }
+details.pweek > summary::after { content: "›" / ""; color: var(--tx3); font-size: 20px; transition: transform .15s; }
 details.pweek[open] > summary::after { transform: rotate(90deg); }
 .step { justify-content: flex-start !important; gap: 10px; }
 .stepn { width: 26px; height: 26px; border-radius: 50%; background: var(--accent2); color: var(--accent); display: inline-grid; place-items: center; font-size: 13px; font-weight: 700; flex: none; }
