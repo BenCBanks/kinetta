@@ -1,13 +1,14 @@
 // Fictional account and local map tiles; checks the new Nearby/Mine empty actions without external requests.
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),fs=require('node:fs'),path=require('node:path');
+const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798',project=process.env.KINETTA_PROJECT,out=process.env.KINETTA_SHOTS,pw='green teapot on the hill',login='zz_test_segments_empty';
 assert(project&&/^kt-[a-z0-9-]+$/.test(project),'isolated Kinetta test project required');
 const tile=dark=>`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><rect width="256" height="256" fill="${dark?'#20262b':'#edf1ec'}"/><path d="M0 48H256M0 126H256M48 0V256M150 0V256" stroke="${dark?'#414b51':'#fff'}" stroke-width="10"/><path d="M0 200C50 180 95 196 128 152S205 96 256 112" fill="none" stroke="${dark?'#25485b':'#b9d9e7'}" stroke-width="24"/></svg>`;
 const env={...process.env};if(env.KINETTA_ACTIVITY_FIXTURE_TMPDIR)env.TMPDIR=env.KINETTA_ACTIVITY_FIXTURE_TMPDIR;
 cp.execFileSync('python3',['-c',"import os,sys;sys.path.insert(0,'dev/tests');from kc import person;person('zz_test_segments_empty','River Runner')"],{env,stdio:'inherit'});
 async function ready(page,filter){await page.waitForFunction(f=>App.pageReady&&document.querySelector(`[data-f="${f}"][aria-pressed="true"]`)&&document.querySelector('#sg-list .segment-empty'),filter,{timeout:15000});}
-(async()=>{const browser=await chromium.launch();try{
+(async()=>{let browser;try{setProgressFlags(true);browser=await chromium.launch();
  for(const width of [390,330])for(const theme of ['light','dark']){
   const context=await browser.newContext({viewport:{width,height:width===390?844:667},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,reducedMotion:'reduce',timezoneId:'UTC'}),errors=[],writes=[];
   assert.equal((await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login,password:pw}})).status(),200,'fictional Segments account logs in');
@@ -43,4 +44,4 @@ async function ready(page,filter){await page.waitForFunction(f=>App.pageReady&&d
   }
   await context.close();
  }
-}finally{const cleanup=await browser.newContext();try{await cleanup.request.post(base+'/api/login',{headers:{Origin:base},data:{login,password:pw}});await cleanup.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password:pw}});}finally{await cleanup.close();await browser.close();}}})().catch(error=>{console.error(error);process.exitCode=1;});
+}finally{try{setProgressFlags(false);}finally{if(browser){const cleanup=await browser.newContext();try{await cleanup.request.post(base+'/api/login',{headers:{Origin:base},data:{login,password:pw}});await cleanup.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password:pw}});}finally{await cleanup.close();await browser.close();}}}}})().catch(error=>{console.error(error);process.exitCode=1;});

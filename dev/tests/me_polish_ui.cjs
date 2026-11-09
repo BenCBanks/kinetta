@@ -1,8 +1,11 @@
 // Bounded owner-profile, privacy, Kit and first-step regressions. Fictional demo data; writes/providers blocked.
 'use strict';
 const assert=require('node:assert/strict');
+const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error('Timed out: '+label);}
 module.exports=async function({browser,storageState,base}){
+ try{
+ setProgressFlags(true);
  const auth=await browser.newContext({storageState}),rows=await(await auth.request.get(base+'/api/activities?limit=25')).json();await auth.close();assert(rows.length>=25);
  const privateRow={...rows[0],id:999991,visibility:'me',name:'Fictional private workout',description:'PRIVATE-ONLY-DESCRIPTION',ai_note:'PRIVATE-ONLY-NOTE'},ownerRows=[privateRow,...rows.slice(0,24)];
  for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
@@ -89,4 +92,5 @@ module.exports=async function({browser,storageState,base}){
   await go('/me');await p.evaluate(()=>MapArea.recent=async()=>null);await go('/segments/new');await p.locator('#pl-area-empty').waitFor();await p.locator('#pl-area-empty').click();assert(await p.locator('#pl-save').isDisabled(),'no-area prompt cannot draw on the hidden continent');
   assert(!writes.some(path=>/\/conversation\/messages|\/coach$|\/api\/goals|\/api\/challenges$/.test(path)),'no generation or confirmed writes');assert.deepEqual(errors,[]);await c.close();console.log('Me polish',size.width,size.root,theme,'PASS');
  }
+ }finally{setProgressFlags(false);}
 };

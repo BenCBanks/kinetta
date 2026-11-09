@@ -2,6 +2,7 @@
 // NODE_PATH=<existing Playwright install> KINETTA_URL=http://localhost:8798 node dev/tests/map_ui.cjs
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict');
+const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798';
 // Older Chromium rejects waitForFunction's internal eval under the app's CSP. Direct function calls preserve that policy.
 async function ready(page){for(let i=0;i<150;i++){if(await page.evaluate(()=>App.pageReady&&!document.querySelector('#page[data-home-loading]')))return;await page.waitForTimeout(100);}throw Error('Page did not become ready');}
@@ -24,8 +25,9 @@ async function segmentReturn(page,context){
  assert.equal(checked.length,3);assert(checked.every(x=>x.sport==='ride'&&x.line===checked[0].line),'review keeps the seeded sport and first submitted stretch');assert.deepEqual(writes,[],'review/edit never publishes a segment');
 }
 (async()=>{
- const browser=await chromium.launch();
+ let browser;
  try{
+  setProgressFlags(true);browser=await chromium.launch();
   const login=await browser.newContext();
   assert.equal((await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}})).status(),200);
   const storageState=await login.storageState();await login.close();
@@ -72,5 +74,5 @@ async function segmentReturn(page,context){
    assert(zoomStarted,'Exercise actual map disposal during an active zoom');await page.waitForTimeout(350);
    assert.deepEqual(errors,[]);await context.close();console.log(`Map layers, sheets and food composer: ${width}px/${root}px text ${theme} PASS`);
   }
- }finally{await browser.close();}
+ }finally{try{setProgressFlags(false);}finally{await browser?.close();}}
 })().catch(e=>{console.error(e);process.exitCode=1;});
