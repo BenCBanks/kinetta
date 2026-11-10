@@ -31,8 +31,6 @@
 .profile-achievement[data-achievement-code="sport:lift"],.profile-achievement[data-achievement-code="lifted"],.profile-achievement-history-head[data-achievement-code="sport:lift"],.profile-achievement-history-head[data-achievement-code="lifted"] { --achievement-palette-base:var(--workout); }
 .profile-achievement[data-achievement-code="climbing"],.profile-achievement-history-head[data-achievement-code="climbing"] { --achievement-palette-base:var(--hike); }
 .profile-achievement-list { display:flex; align-items:flex-start; gap:12px; overflow-x:auto; overscroll-behavior-x:contain; scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding:5px 2px 8px; }
-.me-featured-achievements .profile-achievement-list { margin-right:-8px; gap:4px; scroll-padding-inline:16px; }
-@media (max-width:360px) { .me-featured-achievements .profile-achievement-list { margin-right:0; } }
 .profile-achievement-list.is-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); align-items:start; gap:14px 6px; margin:0; overflow:visible; overscroll-behavior:initial; scroll-snap-type:none; padding:5px 0 8px; }
 .profile-achievement-list.is-grid .profile-achievement { flex:none; width:100%; min-width:0; scroll-snap-align:none; }
 .profile-achievement-list.is-grid .profile-achievement-medallion { flex:0 1 84px; width:100%; max-width:84px; height:auto; aspect-ratio:1; }
@@ -147,7 +145,7 @@
 .me-top h1 { margin:0; font-size:var(--text-app-title); font-weight:800; overflow-wrap:anywhere; min-width:0; }
 .me-card { margin-inline:-6px; background:var(--card); border-radius:20px; overflow:hidden; box-shadow:var(--shadow), 0 8px 24px color-mix(in srgb, var(--color-brand) 10%, transparent); outline:1px solid var(--line); }
 .me-card-open { position:relative; }
-.me-card-open-link { position:absolute; inset:0; z-index:1; display:block; text-decoration:none; border-radius:20px; }
+.me-card-open-link { position:absolute; inset:0 0 auto; z-index:1; display:block; height:100%; text-decoration:none; border-radius:20px; }
 .me-card-open-link:focus-visible { outline:2px solid var(--accent); outline-offset:-4px; }
 .me-card-open :is(a,button,input,select,[tabindex]:not([tabindex="-1"]),[data-week-label]):not(.me-card-open-link) { position:relative; z-index:2; }
 .me-card.editing { outline:2px solid var(--btn); outline-offset:2px; }
@@ -160,6 +158,9 @@
 .me-card-pill.solid { background:#fff; color:var(--color-brand); }
 .me-card-pill:disabled { opacity:.6; }
 .me-card-body { padding:0 16px 16px; display:flex; flex-direction:column; gap:16px; container-type:inline-size; }
+.me-card-preview-row { margin-block:-8px; }
+.me-card-preview-action { display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:0 4px; border:0; background:transparent; color:var(--accent); font-size:15px; font-weight:600; text-align:left; }
+.me-card-preview-action svg { width:18px; height:18px; flex:none; }
 .me-card-id { display:flex; align-items:flex-start; gap:14px; min-width:0; }
 /* The identity link rises over the banner; Edit and Share remain independent controls. */
 .me-card-id { pointer-events:none; } .me-card-avatar,.me-card-profile-link,.me-card-id > .me-friends-link { pointer-events:auto; }
@@ -187,28 +188,19 @@
 .me-showcase-streak svg { display:block; width:14px; height:14px; color:var(--color-action); }
 .me-showcase-streak-slot { display:block; margin:3px 0 0; }
 .me-showcase-streak-slot:empty,.me-featured-slot:empty { display:none; }
+.me-featured-slot:not(:empty) { margin-block:-8px; }
 .me-featured-achievements { min-width:0; }
-.me-featured-achievements .me-featured-title { display:flex; flex-wrap:nowrap; align-items:center; justify-content:space-between; gap:8px; min-height:44px; margin:0 0 8px; color:var(--tx2); font-size:.8125rem; line-height:1.2; font-weight:600; letter-spacing:0; white-space:nowrap; }
+.me-featured-achievements .me-featured-title { display:flex; flex-wrap:nowrap; align-items:center; justify-content:space-between; gap:8px; min-height:44px; margin:0; color:var(--tx2); font-size:.8125rem; line-height:1.2; font-weight:600; letter-spacing:0; white-space:nowrap; }
 .me-featured-title > span { min-width:0; white-space:nowrap; }
 .me-featured-achievements .me-featured-title a { display:inline-flex; align-items:center; flex:none; min-height:44px; gap:2px; color:var(--accent); font-size:14px; font-weight:600; letter-spacing:0; text-decoration:none; white-space:nowrap; }
 .me-featured-title a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
-.me-featured-grid { display:grid; align-items:start; text-align:center; gap:8px; }
-.me-featured-grid.count-1 { grid-template-columns:minmax(0,1fr); }
-.me-featured-grid.count-2 { grid-template-columns:repeat(2,minmax(0,1fr)); }
-.me-featured-grid.count-3 { grid-template-columns:repeat(3,minmax(0,1fr)); }
-.me-featured-grid.count-4 { grid-template-columns:repeat(4,minmax(0,1fr)); }
-.me-featured-item { display:flex; min-width:0; min-height:44px; flex-direction:column; align-items:center; gap:4px; color:inherit; text-decoration:none; }
-.me-featured-item:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-radius:6px; }
-.me-featured-medal { --featured-color:var(--color-brand); display:grid; place-items:center; width:48px; height:48px; flex:none; border-radius:50%; background:color-mix(in srgb,var(--featured-color) 18%,var(--card)); }
-.me-featured-medal[data-showcase-code="sport:run"] { --featured-color:var(--run); }
-.me-featured-medal[data-showcase-code="sport:ride"] { --featured-color:var(--ride); }
-.me-featured-medal[data-showcase-code="sport:walk-hike"] { --featured-color:var(--walk); }
-.me-featured-medal[data-showcase-code="sport:swim"] { --featured-color:var(--swim); }
-.me-featured-medal[data-showcase-code="sport:lift"],.me-featured-medal[data-showcase-code="lifted"] { --featured-color:var(--workout); }
-.me-featured-medal[data-showcase-code="climbing"] { --featured-color:var(--hike); }
+.me-featured-achievements .profile-achievement-list { margin-right:-8px; gap:8px; scroll-padding-inline:16px; padding-top:8px; padding-bottom:0; }
+@media (max-width:360px) { .me-featured-achievements .profile-achievement-list { margin-right:0; } }
+.me-featured-item:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:4px; }
+.me-featured-item .profile-achievement-value,.me-featured-item .profile-achievement-level,.me-featured-item .profile-achievement-multiple { font-size:13px; }
+.me-featured-item .profile-achievement-level,.me-featured-item .profile-achievement-multiple { right:0; }
+.me-featured-item .profile-achievement-next { font-size:13px; }
 .me-featured-icon { display:block; width:36px; height:36px; object-fit:contain; }
-.me-featured-value { display:block; max-width:100%; color:var(--tx); font-size:clamp(12px,3.5cqw,15px); line-height:1.2; font-weight:700; font-variant-numeric:tabular-nums; overflow-wrap:break-word; }
-.me-featured-context { max-width:100%; color:var(--tx2); font-size:clamp(12px,3.2cqw,13px); line-height:1.2; overflow-wrap:break-word; }
 .me-profile-chevron { display:inline-flex; align-items:center; justify-content:center; flex:none; color:var(--tx2); pointer-events:none; }
 .me-profile-chevron svg { display:block; width:20px; height:20px; }
 .me-card-meta { display:flex; align-items:center; flex-wrap:wrap; gap:0 8px; }
@@ -347,6 +339,8 @@
 .me-card-weekly .me-card-label.picked > span { color:var(--tx); font-weight:650; }
 .me-week-streak { display:inline-flex; align-items:center; gap:5px; flex:none; margin-left:auto; color:var(--tx); font-size:max(15px,.9375rem); font-weight:650; text-align:right; white-space:nowrap; }
 .me-week-streak > svg { width:17px; height:17px; color:var(--color-achievement); flex:none; }
+.me-owner-only { color:var(--tx2); font-size:13px; font-weight:600; white-space:nowrap; }
+.me-card-close-to { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 8px; }
 .me-card-weekly .me-card-numbers { margin:0; }
 .me-card-weekly .me-card-bars { max-width:320px; height:calc(60px + 1.2em + 8px); overflow:visible; font-size:15px; }
 .me-card-close-to { margin:6px 0 0; font-size:max(13px,.8125rem); line-height:1.4; }
@@ -384,6 +378,7 @@
 .me-card.editing { overflow:visible; }
 .me-card.editing .me-card-banner,
 .me-card.editing .me-card-id,
+.me-card.editing .me-card-preview-row,
 .me-card.editing .me-profile-bio,
 .me-card.editing .me-about,
 .me-card.editing .me-friends-link,

@@ -44,7 +44,7 @@ async function weeklyCardChecks(p){
  assert.equal(await card.locator('.me-card-figures,.me-sport-chips,.me-profile-bio,.me-about,.me-card-note,.me-period,.me-distance.days').count(),0,'Me omits profile bio, all-time totals, sports, privacy note and daily/period controls');
  assert.equal(await card.locator('.me-card-weekly [data-week-stat]').count(),3,'Me shows distance, workouts and time for the week');
  assert.equal(await card.locator('[data-week-label] span').innerText(),'This week','Me starts on the current week');
- assert.equal(await card.locator('.me-week-streak').getAttribute('aria-label'),'12-week activity streak','Me reuses the self-only stats streak');
+ assert.equal(await card.locator('.me-week-streak').getAttribute('aria-label'),'12-week activity streak. Only you can see this.','the owner-only streak is labelled');
 }
 async function milestoneChecks(p){
  const row=p.locator('.me-card .me-milestone-row');await row.waitFor();assert.equal(await row.count(),1,'one compact milestone row');assert.equal((await row.locator('.me-milestone-latest > span:not(.vh)').innerText()).trim(),'First 5K','latest occurrence leads without a second privacy label');assert.doesNotMatch(await row.locator('.me-milestone-latest').innerText(),/Only you/,'the milestone row omits privacy noise while the share sheet keeps its Only me reminder');assert.equal(await row.locator('.me-milestone-all').innerText(),'Recent milestones','the separate milestone list is named so it cannot read as another achievement entry');assert((await row.boundingBox()).height<=55,'one quiet line including its separator');
@@ -55,18 +55,19 @@ async function milestoneChecks(p){
 (async()=>{const b=await chromium.launch();const l=await b.newContext();await l.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});const st=await l.storageState();
  for(const size of [{width:320,height:667,root:16},{width:330,height:844,root:16},{width:390,height:844,root:16},{width:430,height:932,root:16},{width:600,height:900,root:16,locale:'fr-FR'}])for(const theme of ['light','dark']){
  const c=await b.newContext({storageState:st,viewport:{width:size.width,height:size.height},locale:size.locale||'en-US',colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];
- let cardState='heavy',cardLayout=null,profileHidden=false;const blocked=new Set();
+ let cardState='heavy',cardLayout=null,profileHidden=false;const blocked=new Set(),previewReads=[];
  p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.text()==='Service Worker registration blocked by Playwright'||m.text()==='Failed to load resource: net::ERR_FAILED'&&blocked.has(m.location().url))return;if(['error','warning'].includes(m.type()))errors.push(m.text()+' ('+m.location().url+')')});
  await c.addInitScript(r=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=r+'px'),size.root);
  await c.route('**/*',async r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base){blocked.add(q.url());return r.abort();}if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);return r.fulfill({json:{}});}
   if(u.pathname==='/api/me'){const response=await r.fetch(),j=await response.json();j.bio='Fictional trails and weekend rides.';if(cardLayout)j.profile_layout=cardLayout;if(cardState==='new'){j.friend_count=0;j.friend_requests=0;j.notifications=0;}return r.fulfill({response,json:j});}
-  if(u.pathname==='/api/achievements/showcase')return r.fulfill({json:u.searchParams.get('login')==='jordan'?friendShowcase:{items:[],pinned:[],day_streak:0}});
-  if(u.pathname==='/api/achievements'&&u.searchParams.get('login')==='jordan')return r.fulfill({json:friendAchievements});
+  if(u.pathname==='/api/achievements/showcase')return r.fulfill({json:['jordan','alex'].includes(u.searchParams.get('login'))?friendShowcase:{items:[],pinned:[],day_streak:0}});
+  if(u.pathname==='/api/achievements'&&['jordan','alex'].includes(u.searchParams.get('login')))return r.fulfill({json:friendAchievements});
   if(cardState==='new'&&u.pathname==='/api/notifications/count')return r.fulfill({json:{unread:0,friend_requests:0,friend_count:0}});
   if(cardState==='new'&&u.pathname==='/api/goals')return r.fulfill({json:[]});
   if(u.pathname==='/api/stats'){const response=await r.fetch(),j=await response.json();j.week_streak=12;return r.fulfill({response,json:j});}
   if(u.pathname==='/api/milestones'){const items=cardState==='heavy'?milestoneOffers:[],id=u.searchParams.get('milestone_id');return r.fulfill({json:{pending:false,items:id?items.filter(m=>m.id===id):items}});}
   if(u.pathname==='/api/people/alex/profile'){
+   if(u.searchParams.get('preview')==='member')previewReads.push(u.searchParams.toString());
    const response=await r.fetch(),j=await response.json(),empty=cardState==='new',series=chartFixture(j.mileage.today);
    const memberPreview=u.searchParams.get('preview')==='member';j.profile_hidden=profileHidden;
    j.overview={...j.overview,activities:empty?0:memberPreview?77:3045,distance_m:empty?0:memberPreview?321000:18968840,time_s:empty?0:memberPreview?7200:5569200,active_days:empty?0:memberPreview?12:468};
@@ -79,7 +80,7 @@ async function milestoneChecks(p){
    if(cardState!=='heavy'){j.items=[];j.shared_count=0;}if(empty)j.mileage.weeks=[];if(cardState==='tiny'){j.overview=j.recent.current={activities:1,distance_m:0,time_s:1,active_days:1};j.mileage.weeks=[];j.sports=[{sport:'run',activities:1}];}if(cardLayout)j.layout=cardLayout;
    return r.fulfill({response,json:j});
   }return r.continue();});
- const shot=async name=>{if(out&&size.root===16&&(size.width===390||(size.width===330&&name==='profile-friend'))){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/${name}-${size.width}-${size.root}-${theme}.png`,animations:'disabled'});}};
+ const shot=async name=>{if(out&&size.root===16&&(size.width===390||(size.width===330&&['profile-friend','profile-preview'].includes(name)))){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/${name}-${size.width}-${size.root}-${theme}.png`,animations:'disabled'});}};
  const settled=()=>p.waitForSelector('.me-card-sections[aria-busy=false]',{state:'attached',timeout:15000});
  const noOverflow=async where=>assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no overflow on '+where);
 
@@ -87,6 +88,18 @@ async function milestoneChecks(p){
  await p.goto(base+'/me');await until(p,()=>App.pageReady,'1');await settled();
  if(size.locale){await p.goto(base+'/people/alex');await until(p,()=>App.pageReady,'French full profile');await settled();await numberChecks(p);assert.match(await p.locator('[data-card-stat=time] dt').innerText(),/Time\s*\(h\)/);assert.deepEqual(errors,[]);console.log('French full-profile grouping and labelled hours PASS');await c.close();continue;}
  await weeklyCardChecks(p,size);
+ if(size.width===330||size.width===390){
+  const previousReads=previewReads.length;await p.locator('[data-card-preview]').click();const previewSheet=p.locator('.sheet');await previewSheet.getByRole('heading',{name:'This is what friends see',exact:true}).waitFor();
+  const preview=p.locator('[data-profile-preview]');await preview.locator('.me-card-sections[aria-busy=false]').waitFor();await preview.locator('[data-me-featured][data-loaded="true"]').waitFor();
+  assert.equal(previewReads.length,previousReads+1,'View as friend requests the existing member-filtered profile route');assert.match(previewReads.at(-1),/as_friend=true.*preview=member/);
+  const previewCard=preview.locator('.me-card');assert.equal(await previewCard.locator('.me-card-figures').count(),1,'preview shows only the profile route’s shared totals');assert.equal(await previewCard.locator('[data-card-edit],[data-card-share],[data-card-preview],[data-person-manage],[data-person-report]').count(),0,'friend preview is read-only');
+  assert.equal(await preview.locator('.me-featured-achievements').count(),1,'the preview shares the same Featured block as a friend profile');assert.equal(await preview.locator('.profile-achievement[data-achievement-code]').count(),4,'the preview uses the same medals as the friend profile');
+  assert.equal(await preview.locator('.profile-achievement-medallion').first().evaluate(n=>n.getBoundingClientRect().width),100,'preview medal size matches the friend profile');
+  const featuredSpacing=await preview.locator('.me-featured-achievements').evaluate(n=>{const heading=n.querySelector('.me-featured-title'),list=n.querySelector('.profile-achievement-list'),first=list.firstElementChild,medal=first.querySelector('.profile-achievement-medallion');return{vertical:first.getBoundingClientRect().top-heading.getBoundingClientRect().bottom,horizontal:parseFloat(getComputedStyle(list).columnGap),medalOverflow:medal.scrollWidth-medal.clientWidth,text:[...first.querySelectorAll('.profile-achievement-name,.profile-achievement-next,.profile-achievement-value,.profile-achievement-level')].map(x=>parseFloat(getComputedStyle(x).fontSize))};});
+  assert(featuredSpacing.vertical>=7.98&&featuredSpacing.horizontal>=7.98,`Featured medals keep 8px gaps in the friend preview: ${JSON.stringify(featuredSpacing)}`);assert(featuredSpacing.medalOverflow<=1,`medal labels stay inside their circles: ${JSON.stringify(featuredSpacing)}`);assert(featuredSpacing.text.every(size=>size>=13),`featured labels meet the secondary type size: ${JSON.stringify(featuredSpacing)}`);
+  assert.doesNotMatch(await preview.innerText(),/Only you/,'owner-only labels are absent from the friend view');
+  assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${size.width}px friend preview has no page overflow`);await shot('profile-preview');if(out&&size.root===16&&(size.width===390||size.width===330)){fs.mkdirSync(out,{recursive:true});await preview.locator('.me-card').screenshot({path:`${out}/profile-preview-card-${size.width}-${size.root}-${theme}.png`,animations:'disabled'});}await p.keyboard.press('Escape');await previewSheet.waitFor({state:'detached'});
+ }
  await milestoneChecks(p);
  if(out&&(size.width===330||size.width===390)&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.locator('.me-card').screenshot({path:`${out}/me-card-recent-milestones-${size.width}-${theme}.png`,animations:'disabled'});}
  if(size.width===390)await require('./milestone_picture_ui.cjs')(p,theme,out);
@@ -182,6 +195,7 @@ async function inlineEditorChecks(browser){
   assert.equal(await p.locator('[data-show][role=switch]').count(),4);assert(await p.locator('[data-move=totals][data-step="-1"]').isDisabled());assert(await p.locator('[data-move=activities][data-step="1"]').isDisabled());
   const targets=await p.locator('[data-number-period]').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};}));assert(targets.every(r=>r.width>=44&&r.height>=44),'period choices retain 44px targets');assert((targets[1].y>=targets[0].bottom?targets[1].y-targets[0].bottom:targets[1].x-targets[0].right)>=7.98,'period choices retain 8px gaps');
   const card=p.locator('.me-card'),header=p.locator('.me-editor-head');
+  assert.equal(await card.locator('.me-card-preview-row').isVisible(),false,'View as friend stays out of the editor layout');
   if(size.root===16){const h=(await card.boundingBox()).height;assert(h<=size.height*1.3,`default editor is compact: ${h}px`);}
   await card.scrollIntoViewIfNeeded();await p.evaluate(()=>scrollTo(0,document.querySelector('.me-card').offsetTop));
   if(out&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/card-editor-default-${theme}.png`});}
