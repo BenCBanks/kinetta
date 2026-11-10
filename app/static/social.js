@@ -364,8 +364,8 @@ function weeklyRecapUsual(rows,start){
   return past.length>=3?{weeks:past.length,distance_m:past.reduce((n,w)=>n+w.distance_m,0)/past.length,time_s:past.reduce((n,w)=>n+w.time_s,0)/past.length}:null;
 }
 function weeklyRecapDays(data){
-  const names=[['Mon','Monday'],['Tue','Tuesday'],['Wed','Wednesday'],['Thu','Thursday'],['Fri','Friday'],['Sat','Saturday'],['Sun','Sunday']],byDay=new Map((data.days||[]).map(row=>[String(row.day).slice(0,10),row])),start=new Date(data.start+'T12:00:00Z');
-  return Array.from({length:7},(_,i)=>{const day=new Date(start);day.setUTCDate(day.getUTCDate()+i);const iso=day.toISOString().slice(0,10),row=byDay.get(iso)||{};return{day:iso,label:names[i][0],name:names[i][1],active:Number(row.activities)>0,activities:Number(row.activities)||0,distance_m:Number(row.distance_m)||0,time_s:Number(row.time_s)||0};});
+  const names=[['Mon','Monday'],['Tue','Tuesday'],['Wed','Wednesday'],['Thu','Thursday'],['Fri','Friday'],['Sat','Saturday'],['Sun','Sunday']],rows=data.days||[],byDay=new Map(rows.map(row=>[String(row.day).slice(0,10),row])),metric=rows.some(row=>Number(row.distance_m)>0)?'distance':'time',value=row=>metric==='distance'?Number(row.distance_m)||0:Number(row.time_s)||0,max=Math.max(1,...rows.map(value)),start=new Date(data.start+'T12:00:00Z');
+  return Array.from({length:7},(_,i)=>{const day=new Date(start);day.setUTCDate(day.getUTCDate()+i);const iso=day.toISOString().slice(0,10),row=byDay.get(iso)||{},active=Number(row.activities)>0,amount=value(row);return{day:iso,label:names[i][0],name:names[i][1],active,activities:Number(row.activities)||0,distance_m:Number(row.distance_m)||0,time_s:Number(row.time_s)||0,metric,value:amount,level:active?Math.max(1,Math.round(amount/max*5)):0};});
 }
 function weeklyRecapMedals(data,catalog,start,end){
   return (data?.tracks||[]).flatMap(track=>(track.tiers||[]).filter(tier=>String(tier.day||'')>=start&&String(tier.day||'')<end).map(tier=>{
@@ -429,11 +429,13 @@ function weeklyRecapLayout(data,usual,medals,ctx){
 }
 function weeklyRecapHtml(data,usual,medals){
   const best=data.owner_best_effort,days=weeklyRecapDays(data),shown=medals.slice(0,3),extra=medals.length-shown.length;
+  const daySummary=d=>!d.active?'no workout':d.value>0?d.metric==='distance'?`${U.dist(d.value,1)} ${U.du()}`:dur(d.value,true):`${d.activities} workout${d.activities===1?'':'s'}`;
   return `<section class="card recap-offer weekly-recap" data-weekly-recap data-start="${esc(data.start)}"><div class="weekly-recap-copy">
     <div class="weekly-recap-head"><div><h2>Your week</h2><p class="small muted">${esc(weeklyRecapDateLabel(data.start,data.end))}</p></div><div class="weekly-recap-actions"><button type="button" class="icon-btn" data-weekly-recap-share aria-label="Share weekly recap">${svg('share')}</button><button type="button" class="icon-btn" data-weekly-recap-dismiss aria-label="Dismiss this week’s recap">${svg('close')}</button></div></div>
     <div class="weekly-recap-metrics"><div><b class="num">${esc(U.dist(data.distance_m||0,1))} ${esc(U.du())}</b><small>Distance${usual?` · ${esc(U.dist(usual.distance_m,1))} ${esc(U.du())} usual`:''}</small></div><div><b class="num">${esc(dur(data.time_s||0,true))}</b><small>Time${usual?` · ${esc(dur(usual.time_s,true))} usual`:''}</small></div></div>
+    ${best||shown.length?`<div class="weekly-recap-highlights">${best?`<p class="weekly-recap-best"><b>Best effort</b> · ${esc(best.label)} · ${esc(dur(best.elapsed_s,true))}</p>`:''}${shown.length?`<div class="weekly-recap-medals" role="list" aria-label="New medals this week">${shown.map(m=>`<span class="weekly-recap-medal" role="listitem" aria-label="${esc(m.label)}"><img src="${esc(m.icon)}" alt="" aria-hidden="true" loading="eager" decoding="async"><span>${esc(m.label)}</span></span>`).join('')}${extra?`<span class="weekly-recap-medal-more">+${extra} more</span>`:''}</div>`:''}</div>`:''}
     ${best||shown.length?`<div class="weekly-recap-highlights">${best?`<p class="weekly-recap-best"><b>Best effort</b> · ${esc(best.label)} · ${esc(dur(best.elapsed_s))}</p>`:''}${shown.length?`<div class="weekly-recap-medals" role="list" aria-label="New medals this week">${shown.map(m=>`<span class="weekly-recap-medal" role="listitem" aria-label="${esc(m.label)}"><img src="${esc(m.icon)}" alt="" aria-hidden="true" loading="eager" decoding="async"><span>${esc(m.label)}</span></span>`).join('')}${extra?`<span class="weekly-recap-medal-more">+${extra} more</span>`:''}</div>`:''}</div>`:''}
-    <div class="weekly-recap-days" role="group" aria-label="Activity days, Monday to Sunday">${days.map(d=>`<span class="weekly-recap-day" aria-label="${d.name}: ${d.active?'workout':'no workout'}"><small aria-hidden="true">${d.label}</small><i class="${d.active?'is-active':''}" aria-hidden="true"></i></span>`).join('')}</div>
+    <div class="weekly-recap-days" role="group" aria-label="Activity days, Monday to Sunday">${days.map(d=>`<span class="weekly-recap-day" role="img" aria-label="${esc(`${d.name}: ${daySummary(d)}`)}"><i class="weekly-recap-day-track" aria-hidden="true"><b class="weekly-recap-day-bar${d.active?' is-active':''}" data-level="${d.level}"></b></i><small aria-hidden="true">${d.label}</small></span>`).join('')}</div>
   </div></section>`;
 }
 let weeklyRecapCatalogPromise=null;
@@ -525,11 +527,15 @@ function warmFeed() {
   feedPage().then((pg) => { if (account === readOwner() && epoch === readEpoch('feed:home') && !App.cache.has('feed:home')) { App.cache.set('feed:home', {data: pg, at: Date.now()}); keepFeed(pg); } }).catch(() => {});
 }
 function homeViewSwitch(view) {
-  return `<nav class="home-view-switch" aria-label="Home view"><a href="/activity"${view==='feed'?' aria-current="page"':''}>Feed</a><a href="/activity?view=groups"${view==='groups'?' aria-current="page"':''}>Groups</a></nav>`;
+  return `<nav class="home-view-switch" aria-label="Home view"><a href="/activity"${view==='feed'?' aria-current="page"':''}>Feed</a><a href="/activity?view=groups"${view==='groups'?' aria-current="page"':''}>Groups</a><a href="/me/challenges" data-home-challenges>Challenges</a></nav>`;
+}
+function wireHomeChallengeLink(el){
+  $('[data-home-challenges]',el)?.addEventListener('click',event=>{if(event.defaultPrevented||event.metaKey||event.ctrlKey||event.button>0)return;if(typeof Discovery!=='undefined')Discovery.visit('activity','challenges');});
 }
 async function homeGroups(el) {
   const owner=readOwner(),live=()=>el.isConnected&&owner===readOwner();
   el.innerHTML=`<div id="feed-top">${actTop(true,true)}</div>${homeViewSwitch('groups')}<section class="home-groups"><div class="home-groups-heading"><h2>Groups</h2><button type="button" class="linkbtn" id="home-group-new">Create</button></div><div id="home-group-list"><div class="card empty">Loading your groups…</div></div></section>`;
+  wireHomeChallengeLink(el);
   const create=()=>groupCreateSheet(group=>{go('/groups/'+encodeURIComponent(group.id),{replace:true});groupInviteSheet(group.invite_url);});
   $('#home-group-new',el).onclick=create;
   try{
@@ -545,6 +551,7 @@ async function homeFeed(el) {
   el.classList?.add('activity-home');
   el.innerHTML=`<div id="feed-top">${actTop(true,true)}</div>${homeViewSwitch('feed')}<div id="activity-groups-strip"></div><div id="weekly-recap"></div><div id="feed-tools"></div>
     <div class="feed-list" id="ff-list">${skelFeed(3)}</div><button type="button" class="ghost feed-more" id="ff-more" hidden>Show more</button>`;
+  wireHomeChallengeLink(el);
   const list=$('#ff-list',el),more=$('#ff-more',el),recap=$('#weekly-recap',el),groupStrip=$('#activity-groups-strip',el),account=readOwner();
   void activityGroupStrip(groupStrip,account);
   void weeklyRecapOffer(recap);
@@ -623,7 +630,7 @@ function feedTools(el,current){
     fitHeader();
     const summary=Challenges.summary(challenges),q=summary?.first;
     const timing=q?(q.start>isoDay(new Date())?'Starts '+new Date(q.start+'T12:00:00Z').toLocaleDateString(undefined,{timeZone:'UTC',month:'short',day:'numeric'}):q.self.complete?'Goal reached':q.self.days_left===0?'Ends today':q.self.days_left===1?'1 day left':q.self.days_left+' days left'):'';
-    host.innerHTML=`<a class="row-link feed-challenges-shortcut" data-narrow-challenges data-feed-tool="challenges" href="/me/challenges"><span class="grow">Challenges</span>${svg('chev')}</a>${summary?`<div class="feed-social-strip" aria-label="Active challenge progress"><a class="row-link challenge-summary" data-feed-tool="challenges" href="/me/challenges/${encodeURIComponent(q.code)}"><span class="ri">${svg('trophy')}</span><span class="grow"><b>${summary.count>1?summary.count+' challenges':'Challenge'}</b><small>${esc(summary.progress)} · ${esc(timing)}</small></span><span class="chev">${svg('chev')}</span></a></div>`:''}`;
+    host.innerHTML=summary?`<div class="feed-social-strip" aria-label="Active challenge progress"><a class="row-link challenge-summary" data-feed-tool="challenges" href="/me/challenges/${encodeURIComponent(q.code)}"><span class="ri">${svg('trophy')}</span><span class="grow"><b>${summary.count>1?summary.count+' challenges':'Challenge'}</b><small>${esc(summary.progress)} · ${esc(timing)}</small></span><span class="chev">${svg('chev')}</span></a></div>`:'';
   }
   host.addEventListener('click',e=>{if(!live()||e.metaKey||e.ctrlKey||e.button>0)return;const tile=e.target.closest('[data-activity-feature],[data-feed-tool]');if(!tile)return;const id=tile.dataset.activityFeature||tile.dataset.feedTool;Discovery.visit('activity',id);
     if(id==='invite'||id==='challenge'){e.preventDefault();e.stopPropagation();if(id==='invite')KinettaCard.open();else Challenges.create();}

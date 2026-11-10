@@ -33,8 +33,14 @@
 .weekly-recap-medal-more { color:var(--tx2); font-size:13px; }
 .weekly-recap-days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; max-width:360px; margin-top:12px; }
 .weekly-recap-day { display:flex; flex-direction:column; align-items:center; gap:5px; color:var(--tx2); font-size:11px; }
-.weekly-recap-day i { display:block; width:9px; height:9px; border-radius:50%; background:var(--line); }
-.weekly-recap-day i.is-active { background:var(--accent); }
+.weekly-recap-day i { position:relative;display:block;width:4px;height:18px;overflow:hidden;border-radius:999px;background:var(--line); }
+.weekly-recap-day-bar { position:absolute;right:0;bottom:0;left:0;display:block;height:0;border-radius:inherit;background:transparent; }
+.weekly-recap-day-bar[data-level="1"] { height:4px; }
+.weekly-recap-day-bar[data-level="2"] { height:7px; }
+.weekly-recap-day-bar[data-level="3"] { height:11px; }
+.weekly-recap-day-bar[data-level="4"] { height:14px; }
+.weekly-recap-day-bar[data-level="5"] { height:18px; }
+.weekly-recap-day-bar.is-active { background:var(--accent); }
 .weekly-recap-share-stage { display:grid; place-items:center; min-height:200px; margin:0 0 12px; }
 .weekly-recap-share-stage img { display:block; width:min(100%,360px); max-height:58vh; aspect-ratio:4/5; object-fit:contain; border-radius:12px; }
 .feed-social-strip { margin:0 0 16px; }
