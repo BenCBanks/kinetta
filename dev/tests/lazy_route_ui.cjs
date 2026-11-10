@@ -281,7 +281,7 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
   try{
     await login(context);const page=await context.newPage(),errors=[],requests=[];page.on('pageerror',error=>errors.push(error.message));
     await filterRequests(page,route=>{requests.push(route.request().url());return route.continue();});
-    await page.goto(base+'/me');await ready(page,meReady);assert.equal(requests.length,0,'Explore is absent from the initial Me load');
+    await page.goto(base+'/me');await ready(page,meReady);assert.equal(requests.length,0,'Explore is absent from the initial Me load');assert.equal(await page.locator('.me-tools a[href="/me/explore"]').count(),1,'Explore remains available from Me');
     await page.goto(base+'/me/explore');await ready(page,'#guide-results details','cold direct Explore route');assert.equal(requests.length,1,'cold direct links load Explore once');
     const lazyURL=new URL(requests[0]);assert.match(lazyURL.searchParams.get('v')||'',/^[0-9a-f]{32}$/,'the deferred bundle has its own build-stamped URL');
     assert.equal(new URL(page.url()).pathname,'/me/explore');assert.equal(await page.locator('nav.tabs a[data-tab="track"][aria-current="page"]').count(),1,'legacy Explore opens under Track');assert.deepEqual(await page.evaluate(()=>[typeof aiCan,typeof aiOffer,typeof kitChatOn]),['function','function','function'],'shared AI/Kit helpers stay eager');
@@ -300,9 +300,10 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
   const scrollContext=await fixtureContext(browser);
   try{
     await login(scrollContext);const page=await scrollContext.newPage();
-    await page.goto(base+'/track');await ready(page,'#track-explore');
+    await page.goto(base+'/track');await ready(page,'#track-start');assert.equal(await page.locator('#track-explore a[href="/me/explore"]').count(),0,'Track no longer duplicates Explore');
+    await page.goto(base+'/me');await ready(page,meReady,'Me entry for Explore');
     await page.evaluate(()=>{App.scroll['/me/explore']=120;});
-    await page.locator('#track-explore a[href="/me/explore"]').click();
+    await page.locator('.me-tools a[href="/me/explore"]').click();
     await ready(page,'#guide-results details','deferred Explore with saved scroll');
     assert.equal(await page.evaluate(()=>scrollY),120,'the deferred render restores the saved route position once');
   }finally{await scrollContext.close();}
@@ -311,13 +312,13 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
   try{
     await login(navigationContext);const page=await navigationContext.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
     const delayed=await holdExplore(page);
-    await page.goto(base+'/track');await ready(page,'#track-explore');
+    await page.goto(base+'/me');await ready(page,meReady,'Me before deferred Explore');
     await page.evaluate(()=>{
       const old=document.querySelector('#page');window.delayedOldPage=old;window.delayedOldPageCleaned=false;
       viewResources.set(old,()=>{window.delayedOldPageCleaned=true;});
       window.finishDelayedOldPage=()=>{if(old.isConnected)old.innerHTML='<p id="stale-old-page">Late former page response</p>';};
     });
-    await page.locator('#track-explore a[href="/me/explore"]').click();await page.locator('.lazy-route-loading').waitFor();
+    await page.locator('.me-tools a[href="/me/explore"]').click();await page.locator('.lazy-route-loading').waitFor();
     assert.deepEqual(await page.evaluate(()=>[window.delayedOldPage.isConnected,window.delayedOldPageCleaned]),[false,true],'the prior main is unmounted through normal view cleanup before the bundle wait');
     await page.evaluate(()=>window.finishDelayedOldPage());
     assert.equal(await page.locator('#stale-old-page').count(),0,'a delayed former-page response cannot write into the loading shell');
@@ -331,7 +332,7 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
   try{
     await login(accountContext);const page=await accountContext.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
     const delayed=await holdExplore(page,{instrument:true});
-    await page.goto(base+'/track');await ready(page,'#track-explore');
+    await page.goto(base+'/me');await ready(page,meReady,'Me before account-change Explore');
     await page.evaluate(()=>{
       window.testExploreOwners=[];window.testDeferredPositions=[];
       const original=render;
@@ -340,7 +341,7 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
         return original(options);
       };
     });
-    await page.locator('#track-explore a[href="/me/explore"]').click();await page.locator('.lazy-route-loading').waitFor();
+    await page.locator('.me-tools a[href="/me/explore"]').click();await page.locator('.lazy-route-loading').waitFor();
     await login(accountContext,'zz_test_explore_typical');
     const meResponse=await accountContext.request.get(base+'/api/me');assert.equal(meResponse.status(),200,'second fictional account profile loads');
     await page.evaluate(me=>refreshMe(me),await meResponse.json());
