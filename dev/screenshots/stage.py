@@ -156,7 +156,7 @@ for theme in ('light', 'dark'):
     screenshot_food('PUT', '/api/profile', {'tz': 'America/New_York', 'units': 'imperial', 'ai_ok': False, 'ai_adult': False})
     # Keep this library empty so the screenshot's typed meal uses the stand-in estimator
     # for all three foods in one review card instead of asking about saved-food portions.
-    yesterday = dt.datetime.now(ZoneInfo('America/New_York')).date() - dt.timedelta(days=1)
+    yesterday = screenshot_today - dt.timedelta(days=1)
     breakfast_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f'https://kinetta.app/dev/screenshots/breakfast/{theme}'))
     screenshot_food('POST', '/api/food/entries', [{'day': str(yesterday), 'meal': 'breakfast',
         'name': 'Greek yogurt with berries', 'amount': 1, 'unit': 'bowl', 'kcal': 225,
