@@ -14,23 +14,27 @@
 .nutrition-start svg { flex:none; width:18px; height:18px; }
 .nutrition-day-summary { position:relative; padding:0; }
 .nutrition-summary-link { display:block; padding:12px; border-radius:inherit; color:inherit; text-decoration:none; }
-.nutrition-summary-link .nutrition-summary { padding-right:102px; margin-bottom:6px; }
+.nutrition-summary-link .nutrition-summary { padding-right:72px; margin-bottom:6px; }
 .nutrition-summary-link .hero-num { font-size:1.875rem; }
 .nutrition-summary-link .hero-num i { font-size:.875rem; }
 .nutrition-summary-link > .track,.nutrition-summary-link .macro .track { width:100%; max-width:none; background:var(--card2); height:8px; border-radius:999px; overflow:hidden; }
 .nutrition-summary-link .track .bar { height:8px; border-radius:999px; }
-.nutrition-summary-link .macro-bars { margin-top:10px; }
-.nutrition-summary-link .macro-line { font-size:.875rem; }
-.nutrition-other-macros { display:flex; align-items:center; flex-wrap:wrap; gap:0 4px; margin-top:8px; font-size:.8125rem; }
-.nutrition-other-macros svg { width:14px; height:14px; margin-left:auto; }
-.nutrition-home .nutrition-goals { font-size:max(15px,.9375rem); display:inline-flex; align-items:center; justify-content:center; gap:6px; height:44px; font-weight:500; border:1px solid var(--line); position:absolute; right:8px; top:8px; background:var(--card2); border-radius:999px; min-height:44px; padding-inline:10px; }
+.nutrition-summary-link .macro-bars { margin-top:10px; gap:7px; }
+.nutrition-summary-link .macro-line { font-size:.8125rem; }
+.nutrition-summary-link .macro-line b::before { display:none; }
+.nutrition-summary-link .macro .track { height:4px; margin-top:3px; background:var(--card2); }
+.nutrition-summary-link .macro .track .macro-target-bar { height:100%; background:var(--prog); }
+.nutrition-summary-link .macro .track .macro-target-bar.over { background:var(--alert); }
+.nutrition-summary-link .macro .track .macro-target-bar.unavailable { background:transparent; }
+.nutrition-home .nutrition-goals { position:absolute; right:12px; top:6px; display:inline-flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; font-size:max(15px,.9375rem); font-weight:600; }
 .nutrition-body-prompt { display:block; margin:6px 0 10px; font-size:.8125rem; }
 .nutrition-home .meal { padding:6px 12px; margin-bottom:10px; }
 .nutrition-home .meal > h2 { display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-height:44px; margin:0 0 8px; font-size:1rem; }
 .nutrition-home .meal > h2 > span:first-child { flex:1; color:var(--tx); font-size:1rem; }
 .nutrition-home .meal-actions { display:flex; flex:none; gap:8px; margin-left:auto; color:var(--tx); }
 .nutrition-home .meal > h2 .num { font-size:.8125rem; white-space:nowrap; }
-.nutrition-home .meal > h2 button { flex:none; min-height:44px; margin:0; }
+#fd-meals .meal > h2::before { content:none; display:none; }
+.nutrition-home .meal > h2 button { flex:none; width:44px; min-width:44px; height:44px; min-height:44px; margin:0; }
 .nutrition-home .meal .fe { padding:8px 0; min-height:56px; gap:10px; }
 .nutrition-home .meal .fe > div:first-child { min-width:0; }
 .nutrition-home .meal .fe b { font-size:.9375rem; }

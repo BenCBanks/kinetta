@@ -263,9 +263,8 @@ function drawDay(el, D) {
   else $('#fd-sum', el).innerHTML = `<div class="card tcard balance nutrition-day-summary">
       <a class="nutrition-summary-link" href="/food?view=overview"><span class="vh">Nutrition overview and details. </span><div class="nutrition-summary"><div><small class="eyebrow">${left == null ? 'Calories logged' : left < 0 ? 'Above goal' : 'Calories remaining'}</small><div class="hero-num">${r0(left == null ? eaten : Math.abs(left))}<i>kcal</i></div>${goal == null ? '' : `<p class="small muted">${r0(eaten)} logged of ${r0(goal)}</p>`}</div></div>
       ${goal ? `<div class="track"><div class="bar${left < 0 ? ' over' : ''}" data-w="${Math.min(1,eaten/goal).toFixed(3)}"></div></div>` : ''}
-      <div class="macro-bars"><div class="macro m-protein_g"><div class="macro-line"><b>Protein</b><span class="num">${macroTotal(D,'protein_g',t.protein_target)}</span></div>${t.protein_target&&!D.unknown_nutrients?.protein_g?`<div class="track"><div class="bar m-protein_g" data-w="${Math.min(1,(T.protein_g||0)/t.protein_target).toFixed(3)}"></div></div>`:''}</div></div>
-      <div class="small muted nutrition-other-macros">Carbs <span class="num">${macroTotal(D,'carbs_g')}</span> · Fat <span class="num">${macroTotal(D,'fat_g')}</span>${svg('chev')}</div></a>
-      <button class="me-chip nutrition-goals" id="fd-goal" aria-label="Calorie and macro goals">${svg('target')}<span>Goals</span></button>
+      <div class="macro-bars">${MACROS.map(([k,name])=>{const target=t[k.replace('_g','_target')],hasTarget=target!=null&&Number.isFinite(Number(target))&&Number(target)>0,unknown=Number(D.unknown_nutrients?.[k]||0)>0,amount=Number(T[k])||0,state=unknown?'unknown':!hasTarget?'unset':amount>target?'over':'under',width=hasTarget&&!unknown?Math.min(1,amount/target):0;return `<div class="macro m-${k}" data-macro="${k}" data-target-state="${state}"><div class="macro-line"><b>${name}</b><span class="num">${macroTotal(D,k,target)}</span></div><div class="track" aria-hidden="true"><div class="bar macro-target-bar${state==='over'?' over':''}${state==='unknown'||state==='unset'?' unavailable':''}" data-w="${width.toFixed(3)}"></div></div></div>`}).join('')}</div></a>
+      <a class="nutrition-goals text-link" id="fd-goal" href="/food/setup" aria-label="Calorie and macro goals">Goals</a>
       <div class="nutrition-secondary">${D.entries.length?extraTotals(extraCoverage(D.entries,t)):''}
       ${!energyDetails && goalNote ? `<p class="small muted tc-note">${esc(goalNote)}</p>` : ''}
       ${!t.protein_target ? '<button class="linkbtn tc-settg" id="fd-targets">Set macro targets</button>' : ''}
@@ -288,7 +287,7 @@ function drawDay(el, D) {
   const tb = $('#fd-targets', el); if (tb) tb.onclick = () => targetsSheet();
   const bd = $('details.bd', el); if (bd) bd.ontoggle = () => { try { localStorage.setItem('fit.bd', bd.open ? '1' : ''); } catch (e) { /* no storage */ } };
   // No usual target yet: Set goals opens the full goal setup rather than a one-day override.
-  const gb = $('#fd-goal', el); if (gb) gb.onclick = () => (G.default == null && goal == null ? go('/food/setup') : goalSheet(D));
+  const gb = $('#fd-goal', el); if (gb) gb.onclick = (event) => { event.preventDefault(); return G.default == null && goal == null ? go('/food/setup') : goalSheet(D); };
   const by = {breakfast: [], lunch: [], dinner: [], snacks: []}; for (const e of D.entries) by[e.meal].push(e);
   $('#fd-meals', el).innerHTML = Object.keys(MEAL_NAMES).map((m) => {
     const list = by[m], kc = list.reduce((s, e) => s + e.kcal, 0);

@@ -24,7 +24,7 @@ for who in ('empty','typical','heavy'):
  ok(c.post('/api/account/delete',{'password':PW}));c=person(name,'River '+who.title())
  if who=='empty':continue
  ok(c.put('/api/profile',{'tz':'America/New_York','weight_kg':70,'height_cm':174,'birth_year':1992,'sex':'female','activity_factor':1.3,'ai_ok':False}))
- ok(c.put('/api/food/targets',{'kcal_target':2100,'protein_target':130,'carbs_target':None,'fat_target':None}))
+ ok(c.put('/api/food/targets',{'kcal_target':2100,'protein_target':130,'carbs_target':240,'fat_target':70}))
  meals=[('breakfast','Oats, yogurt and berries',395,24,56,10),('lunch','Chicken and rice bowl',520,40,60,13),('dinner','Salmon with potatoes',610,42,52,25),('snacks','Apple and peanut butter',210,6,28,10)]
  rows=[]
  for days in range(7 if who=='typical' else 35):
