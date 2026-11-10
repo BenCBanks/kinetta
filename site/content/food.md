@@ -16,7 +16,7 @@ Describe a meal, check the foods and portions, then add it to your log.
 
 ## food-yesterday-description
 
-Repeat a saved meal with one tap when you eat it again.
+Log yesterday’s meal again with one tap.
 
 ## food-calories-description
 
@@ -24,7 +24,7 @@ Compare calories, protein, carbs and fat with your daily goals.
 
 ## food-recipes-description
 
-Save a recipe once, then log the portion you ate.
+Save a recipe once, then add a portion to your food log.
 
 ## food-also
 
