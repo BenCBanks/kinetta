@@ -232,13 +232,13 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     assert.equal(await socialMe.page.evaluate(()=>typeof weeklyRecapShareItem),'function','the Me card share action can load its recap on first tap');
     assert.deepEqual(await socialMe.page.evaluate(()=>[typeof profileHref,friendCountText(0)]),['function','No friends yet'],'Me keeps its small profile-link and friend-count helpers eager');
     const mapped=await socialMe.page.evaluate(()=>[
-      '/activity','/activity/123','/activity/friends/123','/people/zz_test_friend','/add/fictional-token',
+      '/activity','/activity/123','/activity/friends/123','/people/zz_test_friend','/add/fictional-token','/me/explore','/food/cook/42',
       '/me/friends','/me/friends/contacts','/me/groups','/groups/12345678-1234-1234-1234-123456789012',
       '/group-invite/fictional-token','/me/sharing','/notifications','/me/notifications',
     ].map(path=>{const bundle=lazyRouteBundles.find(item=>item.re.test(path));return [path,!!bundle&&bundle.scripts.includes(SOCIAL_ROUTE_ASSET)];}));
-    assert(mapped.every(([,included])=>included),`all direct social routes load social.js: ${JSON.stringify(mapped)}`);
+    assert(mapped.every(([,included])=>included),`routes that render Social-owned icons or controls load social.js first: ${JSON.stringify(mapped)}`);
     const unrelated=await socialMe.page.evaluate(()=>[
-      '/me/challenges','/challenge/fictional-code','/food/cook/42','/food/recipe-link','/track/lift/42','/lift/ex/42',
+      '/me/challenges','/challenge/fictional-code','/food/recipe-link','/track/lift/42','/lift/ex/42',
     ].map(path=>{const bundle=lazyRouteBundles.find(item=>item.re.test(path));return [path,!!bundle&&bundle.scripts.includes(SOCIAL_ROUTE_ASSET)];}));
     assert(unrelated.every(([,included])=>!included),`unrelated lazy routes do not load social.js: ${JSON.stringify(unrelated)}`);
     await socialMe.page.evaluate(()=>window.__socialIdleCallbacks.splice(0).forEach(callback=>callback({didTimeout:false,timeRemaining:()=>50})));
