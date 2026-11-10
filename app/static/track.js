@@ -520,7 +520,7 @@ const Track = (() => {
       <div class="track-ready-map-wrap" id="track-ready-map-wrap"><div class="track-ready-map" id="track-ready-map" aria-label="Map before recording"></div><span class="gps-chip" id="track-gps-chip" role="status" hidden></span><button type="button" class="map-full" aria-label="Full-screen map">${svg('expand')}</button><button type="button" class="icon-btn track-locate" id="track-locate" aria-label="Locate me">${svg('track')}</button></div>
       <div id="track-plan" class="track-plan" hidden></div>
       <div class="track-recording-options" aria-label="This recording"><div id="track-interval-ready"></div><button type="button" class="me-chip" id="track-options" hidden></button></div>
-      <div class="track-go"><button class="${outdoor.length?'round-btn start':'primary wide'}" id="track-start"><span>Start</span></button></div>
+      <div class="track-go"><button class="${outdoor.length?'round-btn start':'primary wide'}" id="track-start"><span>Start</span></button><a id="track-log-past" class="track-log-past" data-track-feature="past" href="/track?past=1">Log a past workout</a></div>
       <p class="small danger" id="track-ready-error" role="alert"></p><p class="small muted" id="track-guidance"></p>
       </form>
       <div id="track-open-lift"></div><section class="track-tools compact-track-tools" aria-labelledby="track-tools-h"><h2 class="sec-head" id="track-tools-h">Track tools</h2><div id="track-explore" class="track-tool-list"></div></section>`;
@@ -592,6 +592,7 @@ const Track = (() => {
     const auto=()=>{ if(!located&&choices[selected].gps)locate(true); };
     $('#track-locate').onclick=()=>{centred=false;readyFollow=true;locate(false);};
     pick(selected,true);
+    const logPast=$('#track-log-past',el);if(logPast)logPast.onclick=e=>{if(!readyLive()||e.metaKey||e.ctrlKey||e.button>0)return;e.preventDefault();if(typeof Discovery!=='undefined')Discovery.visit('track','past');addActivitySheet();};
     // keep the dot live while you get ready, not just one fix from when the screen opened
     const tick=setInterval(()=>{ if(!readyLive()){clearInterval(tick);return;} if(located&&choices[selected].gps&&!document.hidden)locate(true); },8000);
     function ensureMap(){
@@ -622,13 +623,10 @@ const Track = (() => {
   function trackDiscovery(box,current){
     if(typeof Discovery==='undefined')return;let connections=null,health=null,settled=false;
     const draw=()=>{if(!current())return;const count=(connections?['apple','garmin_connect'].filter(k=>connections[k]).length:0)+(health?.on?1:0);
-      const items=[...(Native.on?[{id:'health',title:'Health app',icon:'heart',href:'/track/health',description:health?.on===false?'Off · Set up →':'Bring in workouts →',teaser:Native.syncing?'Syncing…':health?.error?'Check sync →':health?.on?(health.at?'Synced '+when(health.at):'Sync is on'):''}]:[]),
-        {id:'explore',title:'Explore Kinetta',icon:'search',href:'/me/explore',description:'Routes, heatmap and more →'},
-        {id:'past',title:'Log past',icon:'calendar',href:'/track?past=1',description:'Add a workout →'},
-        {id:'import',title:'Import history',icon:'upload',href:'/track/import',description:Native.on?'Use your browser →':'Bring in old workouts →'},
-        {id:'connections',title:'Connections',icon:'watch',href:'/track/connections',description:'Connect your apps →',teaser:count?`${count} connected`:''}];
+      const items=[{id:'connections',title:'Connections and import',icon:'watch',href:'/track/connections',
+        description:Native.on?'Manage Health and connected apps →':'Connect apps or import older workouts →',teaser:count?`${count} connected`:''}];
       Discovery.render(box,items,{space:'track',ready:settled,attribute:'data-track-feature'});
-    };Discovery.wire(box,'track',{attribute:'data-track-feature'});box.addEventListener('click',e=>{if(!current()||e.metaKey||e.ctrlKey||e.button>0)return;if(e.target.closest('[data-track-feature="past"]')){e.preventDefault();e.stopPropagation();addActivitySheet();}else if(Native.on&&e.target.closest('[data-track-feature="import"]')){e.preventDefault();e.stopPropagation();sheet('Import history',`<p>Open Kinetta in your browser to import original activity files or a Strava export.</p><a class="primary wide" href="${esc(Native.base+'/track/import')}" target="_blank" rel="noopener">Open in browser</a>`);}});draw();
+    };Discovery.wire(box,'track',{attribute:'data-track-feature'});draw();
     Promise.allSettled([api('/api/connections',{maxAge:0}).then(value=>connections=value),...(Native.on?[Native.healthCall(Promise.all([Native.healthOn(),Native.healthStatus()]),'Health status is unavailable.',5000).then(([on,st])=>health={on,at:st?.last_success_at||st?.at,error:st?.error},()=>health={error:true})]:[])]).then(()=>{settled=true;draw();});
   }
   function recordOptions(sport) {

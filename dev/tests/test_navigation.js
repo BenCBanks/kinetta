@@ -37,10 +37,10 @@ const app=fs.readFileSync('app/static/app.js','utf8');
  assert.deepEqual(tabs.map(t=>t[0]),['activity','progress','track','food','me']);assert.deepEqual(tabs.map(t=>t[1]),['Home','Progress','Track','Nutrition','Me']);
  assert(!/quickLogSheet|data-quick-log/.test(app),'the shared Log sheet is gone');
  const track=fs.readFileSync('app/static/track.js','utf8'),me=fs.readFileSync('app/static/pages.js','utf8'),explore=fs.readFileSync('app/static/explore.js','utf8');
- assert.match(track,/nav\.tabs \[data-tab="track"\]/);assert.match(track,/title:'Explore Kinetta'.*href:'\/me\/explore'/);
- assert(!me.includes('href="/me/explore"'),'Explore is no longer listed under Me');assert(explore.includes("route(/^\\/me\\/explore$/, 'track'"),'the legacy Explore URL selects Track');
+ assert.match(track,/nav\.tabs \[data-tab="track"\]/);assert.match(track,/title:'Connections and import'.*href:'\/track\/connections'/);assert(!track.includes("title:'Explore Kinetta'"),'Explore is removed from Track tools');
+ assert(me.includes('href="/me/explore"'),'Explore remains reachable from Me');assert(explore.includes("route(/^\\/me\\/explore$/, 'track'"),'the legacy Explore URL selects Track');
  assert.match(explore,/backBtn\('Track'\)/);assert.match(explore,/wireBack\(el, '\/track'\)/);
- console.log('navigation tabs: Home, Progress, Track, Nutrition, Me; Explore under Track; no Log sheet PASS');
+ console.log('navigation tabs: Home, Progress, Track, Nutrition, Me; Explore reachable from Me; no Log sheet PASS');
 }
 // Fixed legacy URL contract, checked against the app's registered route patterns.
 {
