@@ -370,11 +370,11 @@ const ProfileLayout=(()=>{
     if(sharedLogin&&!items.length)return '';
     const href=sharedLogin?`/people/${encodeURIComponent(sharedLogin)}?view=achievements`:'/me/achievements';
     if(sharedLogin){
-      const heading=`<h3 class="sec-head me-featured-title"><span>Featured achievements</span><a href="${esc(href)}">Achievements <span aria-hidden="true">›</span></a></h3>`;
+      const heading=`<h3 class="sec-head me-featured-title" data-type="secondary"><span>Featured achievements</span><a href="${esc(href)}">Achievements <span aria-hidden="true">›</span></a></h3>`;
       const rail=`<div class="profile-achievement-list" role="list" aria-label="Featured achievements">${items.map(item=>sharedAchievementRow(item.track,sharedLogin)).join('')}</div>`;
       return `<div class="me-featured-achievements" role="group" aria-label="Featured achievements">${heading}${rail}</div>`;
     }
-    const heading=`<h3 class="me-featured-title"><span>Featured achievements</span><a href="${esc(href)}">Achievements <span aria-hidden="true">›</span></a></h3>`;
+    const heading=`<h3 class="me-featured-title" data-type="secondary"><span>Featured achievements</span><a href="${esc(href)}">Achievements <span aria-hidden="true">›</span></a></h3>`;
     const grid=items.length?`<div class="me-featured-grid count-${items.length}" role="list">${items.map(item=>`<div class="me-featured-item" role="listitem" data-showcase-code="${esc(item.code)}" aria-label="${esc(`${item.name}, ${item.value}, ${item.context}`)}"><span class="me-featured-medal" data-showcase-code="${esc(item.code)}" aria-hidden="true">${item.icon}</span><b class="me-featured-value">${esc(item.value)}</b><span class="me-featured-context">${esc(item.context)}</span></div>`).join('')}</div>`:'';
     return `<div class="me-featured-achievements" role="group" aria-label="Featured achievements">${heading}${grid}</div>`;
   }
