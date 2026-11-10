@@ -162,7 +162,7 @@ const assert330AchievementViews=async(page,base,setUnits,theme,shots)=>{
  assert.equal(await page.locator('.me-featured-achievements').count(),1,'Featured is the only achievement entry point on Me');
  await assertFeaturedHeading(page,page.locator('.me-featured-title'),'330px Me card');
  assert(await page.locator('.me-featured-item').evaluateAll(nodes=>nodes.length>0&&nodes.every(node=>node.tagName==='A'&&node.getAttribute('href')===`/me/achievements/${encodeURIComponent(node.dataset.showcaseCode)}`)),'each Me Featured medal opens its own track');
- await page.locator('.me-card').screenshot({path:path.join(shots,`achievement-me-card-entry-330-${theme}.png`),animations:'disabled'});
+ if(shots)await page.locator('.me-card').screenshot({path:path.join(shots,`achievement-me-card-entry-330-${theme}.png`),animations:'disabled'});
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'330px Me card has no page-level horizontal overflow');
  await setUnits('imperial');await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
  await assertMedalText(page.locator('#profile-achievement-page'),'330px achievements grid');
@@ -263,7 +263,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert(await page.locator('.me-featured-item').evaluateAll(nodes=>nodes.length>0&&nodes.every(node=>node.tagName==='A'&&node.getAttribute('href')===`/me/achievements/${encodeURIComponent(node.dataset.showcaseCode)}`)),'every Featured medal opens its own track history');
   const saved=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),key);assert.equal(saved.workouts,8,'featured rendering updates the migrated level once');
   assert.equal(await page.evaluate(()=>window.__achievementVibrations),0,'a web level up does not vibrate');
-  await page.locator('.me-card').screenshot({path:path.join(shots,`achievement-me-card-entry-390-${theme}.png`),animations:'disabled'});
+  if(shots)await page.locator('.me-card').screenshot({path:path.join(shots,`achievement-me-card-entry-390-${theme}.png`),animations:'disabled'});
   const featuredMedal=page.locator('.me-featured-item').first(),featuredTrack=await featuredMedal.getAttribute('data-showcase-code');
   await featuredMedal.click();await page.waitForURL(`**/me/achievements/${encodeURIComponent(featuredTrack)}`);await page.locator(`#profile-achievement-page .profile-achievement-history-head[data-achievement-code="${featuredTrack}"]`).waitFor();
   await page.goto(base+'/people/alex?view=achievements');await page.waitForURL('**/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();

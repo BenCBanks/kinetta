@@ -102,13 +102,10 @@ async function verifyReactionSummary(card,page,out,theme){
 }
 async function metadataLineTops(node){return node.evaluate(el=>{const tops=new Set(),walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);for(let t=walker.nextNode();t;t=walker.nextNode()){if(!t.textContent.trim())continue;const r=document.createRange();r.selectNodeContents(t);for(const box of r.getClientRects())tops.add(Math.round(box.top*2)/2);}return[...tops].sort((a,b)=>a-b);});}
 async function verifyActivityMonthJump(p,out,theme,width){
- const achievementsDone=p.waitForResponse(r=>{const u=new URL(r.url());return u.origin===base&&u.pathname==='/api/achievements';});
  await p.goto(base+'/people/zz_test_feed_typical');await p.locator('#person-activities .activity-card').first().waitFor();
  assert.equal(await p.evaluate(()=>Intl.DateTimeFormat().resolvedOptions().timeZone),'Asia/Tokyo','browser uses the Tokyo device zone');assert.equal(await p.evaluate(()=>App.me.tz),'America/New_York','owner profile uses the New York zone');
  const header=p.locator('.profile-activity-tools'),button=p.locator('#person-month');await button.waitFor();
- // The panel appears only when the worker returned earned tiers. Wait for its request, then for the layout shift only when rows exist.
- const achievementsResponse=await achievementsDone;assert.equal(achievementsResponse.status(),200,'owner achievements response completes');
- const achievements=await achievementsResponse.json();if((achievements.tracks||[]).some(track=>Array.isArray(track.tiers)&&track.tiers.length))await p.locator('.profile-achievements').waitFor({state:'attached'});
+ assert.equal(await p.locator('.profile-achievements').count(),0,'the full owner profile has no duplicate achievements catalog');
  await p.evaluate(()=>document.fonts.ready);
  await p.evaluate(()=>{document.documentElement.style.scrollBehavior='auto';});await header.evaluate(n=>n.scrollIntoView({block:'center',behavior:'instant'}));
  await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
