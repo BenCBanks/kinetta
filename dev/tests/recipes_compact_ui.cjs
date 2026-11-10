@@ -18,7 +18,20 @@ async function capture(p,name){const dir=process.env.KINETTA_SCREENSHOT_DIR;if(!
   await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(u.pathname===`/api/dishes/${ids.recipe.saved}`||u.pathname===`/api/dishes/${ids.recipe.actions}`||u.pathname===`/api/dishes/${ids.recipe.draft}`||u.pathname.endsWith('/items/recipe')||u.pathname.endsWith('/say'))return r.continue();return r.fulfill({json:{}});}return r.continue();});
   await p.goto(base+(recipe?'/food/cook/'+dishId:'/food/meals'));await until(p,()=>typeof App!=='undefined'&&App.pageReady&&!!document.querySelector('#tm-new,#dk-add'),`recipe/library ready (${state})`);return{c,p,errors,writes};
  }
- async function closeSheet(p){const s=await p.evaluate(()=>({has:!!document.querySelector('.sheet'),closing:!!document.querySelector('.scrim.is-closing')}));if(!s.has)return;if(!s.closing)await p.locator('[data-close]').last().click();await until(p,()=>!document.querySelector('.sheet'),'sheet closed');}
+ async function closeSheet(p){
+  const active=p.locator('.scrim:not(.is-closing)').last(),sheet=active.locator('.sheet');
+  if(!await sheet.count()){await until(p,()=>!document.querySelector('.sheet'),'sheet closed');return;}
+  await sheet.waitFor({state:'visible'});
+  await p.waitForFunction(()=>{
+   const scrim=[...document.querySelectorAll('.scrim:not(.is-closing)')].at(-1),panel=scrim?.querySelector('.sheet'),button=panel?.querySelector('header [data-close]');
+   if(!scrim||!panel||!button||panel.inert||button.disabled)return false;
+   const r=panel.getBoundingClientRect(),style=getComputedStyle(panel);if(!r.width||!r.height||style.visibility==='hidden'||style.display==='none')return false;
+   const rect=[r.x,r.y,r.width,r.height],html=panel.innerHTML,running=scrim.getAnimations({subtree:true}).some(a=>a.playState==='running'),last=window.__kinettaSheetSettle;
+   const same=last?.scrim===scrim&&last.panel===panel&&last.button===button&&last.html===html&&rect.every((v,i)=>v===last.rect[i]);
+   const frames=!running&&same?(last.frames||0)+1:0;window.__kinettaSheetSettle={scrim,panel,button,html,rect,frames};return frames>=3;
+  },null,{timeout:15000});
+  await active.locator('.sheet header [data-close]').click();await until(p,()=>!document.querySelector('.sheet'),'sheet closed');
+ }
  try{
   for(const state of ['empty','typical','heavy','saved','draft','weight'])for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
    const name=`${state}-${size.width}-${theme}`;if(!runCase(name))continue;
@@ -57,7 +70,7 @@ async function capture(p,name){const dir=process.env.KINETTA_SCREENSHOT_DIR;if(!
    assert.equal(await p.locator('.scrim').count(),3,'recipe amount stays inside the Cook flow');assert.equal(await amount.locator('[data-sheet-back]').count(),1);assert.equal(await amount.locator('[data-close]').count(),1);await capture(p,`722-cook-amount-390-${theme}`);
    await amount.locator('[data-sheet-back]').click();await p.waitForFunction(()=>document.querySelectorAll('.scrim').length===2&&document.querySelectorAll('[data-recent-recipe]').length>0);assert(await recipes.locator('[data-recent-recipe]').count()>0,'chevron restores the recent recipe list');
    await measuredRecipe.click();amount=p.locator('.scrim').last().locator('.sheet');await amount.locator('#recipe-amount-form').waitFor();await amount.locator('[data-sheet-back]').click();await p.waitForFunction(()=>document.querySelectorAll('.scrim').length===2&&document.querySelectorAll('[data-recent-recipe]').length>0);
-   await recipes.locator('[data-close]').click();await p.waitForFunction(()=>!document.querySelector('.scrim'));assert.equal(new URL(p.url()).pathname,'/food/cook/'+ids.recipe.draft,'X closes the Cook sheet flow');assert.deepEqual(errors,[]);await c.close();contexts.splice(contexts.indexOf(c),1);
+   await closeSheet(p);assert.equal(new URL(p.url()).pathname,'/food/cook/'+ids.recipe.draft,'X closes the Cook sheet flow');assert.deepEqual(errors,[]);await c.close();contexts.splice(contexts.indexOf(c),1);
   }
   if(selectedCases.has('checkpoint')){
    const {c,p,errors}=await open('draft','light',{width:390,height:844,root:16});
