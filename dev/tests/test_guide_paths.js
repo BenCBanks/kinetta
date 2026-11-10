@@ -8,6 +8,7 @@ vm.runInContext(read('app/static/explore.js')+';globalThis.catalog=FEATURE_GUIDE
 const statics=fs.readdirSync(path.join(root,'app/static')).filter(f=>f.endsWith('.js')).map(f=>read('app/static/'+f));
 const routes=statics.flatMap(src=>[...src.matchAll(/^route\((\/\^.*?\$\/i?),/gm)].map(m=>new Function('return '+m[1])()));
 assert(routes.length>40,'found the app routes');
+assert(routes.some(re=>re.test('/me/explore')),'Explore remains reachable from Me/search after leaving Track tools');
 const foodViews=new Set(['log',...[...read('app/static/food-home.js').matchAll(/\['(\w+)', '[^']+', '[^']+', '\w+', 'c-\w+'\]/g)].map(m=>m[1])]);
 const pages=read('app/static/pages.js'),progressViews=new Set([...pages.match(/const PVIEWS = \[([\s\S]*?)\]\];/)[1].matchAll(/\['(\w+)', '/g)].map(m=>m[1]));
 const progressTiles=new Set([...pages.match(/const PEXPLORE = \[([\s\S]*?)\n\];/)[1].matchAll(/\['\w+','([^']+)'/g)].map(m=>m[1]));
@@ -26,6 +27,8 @@ for(const [group,title,,href,how] of box.catalog){
 assert(tileSteps>=10,`checked the named Explore tiles (${tileSteps})`);
 const guide=read('site/guide.html');
 assert.doesNotMatch(guide,/→ More\b|\bMore →/,'public guide has no retired More paths');
+assert.match(guide,/Open Me → Goals to add or update a target/,'public Guide points Goals to Me after Explore leaves Track');
+assert.doesNotMatch(guide,/Open Explore Kinetta → Goals/,'public Guide has no stale Track Explore path for Goals');
 assert.doesNotMatch(guide,/<h2>(Calendar|Segments)<\/h2>/,'public guide leaves out default-off features');
 const social=read('app/static/social.js'),empty=social.match(/const feedEmpty=\(\)=>`([^`]*)`/)[1];
 assert.match(empty,/class="primary wide" href="\/track">Record or import a workout</,'empty Home feed offers a primary next step');

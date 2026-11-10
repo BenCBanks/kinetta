@@ -9,6 +9,7 @@
 .compact-ready .track-go,.gps-ready .compact-ready .track-go { margin:0; }
 .compact-ready .track-go > .round-btn { width:92px; height:92px; min-height:92px; font-size:1.25rem; }
 .compact-ready .track-go > .primary { min-height:48px; }
+.compact-ready .track-log-past { display:flex; align-items:center; justify-content:center; min-height:44px; padding:0 8px; color:var(--accent); font-size:max(15px,.9375rem); font-weight:600; text-decoration:none; }
 .compact-ready #track-ready-error:empty { display:none; }
 .compact-ready #track-guidance { font-size:.8125rem; }
 .track-recording-options { min-width:0; display:flex; flex-wrap:wrap; align-items:center; gap:8px; }

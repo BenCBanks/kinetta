@@ -2023,9 +2023,10 @@ route(/^\/track\/connections$/, 'track', async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Connections</h1><p class="muted">Connect Garmin or the Health app to bring in workouts automatically. A watch is optional.</p>
     <div id="c-gc"></div>
     <div class="card" id="c-health"><h2>Health app</h2>${skel(1)}</div>
-    ${Native.on ? '' : '<a class="card tap row-link" href="/track/import"><div class="grow"><h2>Import activity history</h2><p>Original activity files or a Strava export, in your browser.</p></div><span class="chev">'+svg('chev')+'</span></a>'}
+    ${Native.on ? '<button type="button" class="row-link" data-import-history><span class="ri c-brand">'+svg('upload')+'</span><span class="grow">Import activity history<small class="muted">Open your browser to upload files or a Strava export.</small></span><span class="chev">'+svg('chev')+'</span></button>' : '<a class="card tap row-link" href="/track/import"><div class="grow"><h2>Import activity history</h2><p>Original activity files or a Strava export, in your browser.</p></div><span class="chev">'+svg('chev')+'</span></a>'}
     <details class="card" id="c-other"><summary>Other connections</summary><div id="c-body">${skel(2)}</div></details>`;
   wireBack(el, '/track');
+  const importHistory=$('[data-import-history]',el);if(importHistory)importHistory.onclick=()=>sheet('Import history',`<p>Open Kinetta in your browser to import original activity files or a Strava export.</p><a class="primary wide" href="${esc((Native.base||location.origin)+'/track/import')}" target="_blank" rel="noopener">Open in browser</a>`);
   const healthCard=(isOn,st,error='')=>{if(!valid())return;$('#c-health',el).innerHTML=`<h2>Health app</h2>
     <p>${Native.on?isOn?'Sync enabled. Health shares only the categories you allow.':'Optional · share nutrition, read weight or import workouts.':'Available in the Kinetta iPhone app.'}</p>
     ${st?.at?`<p class="small muted">Last ${st.error?'attempt':'sync'} ${esc(when(st.at))}.</p>`:''}${error?`<p class="err">${esc(error)}</p>`:''}

@@ -33,12 +33,22 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/track-saved-${medalCase}-${theme}.png`,fullPage:true,animations:'disabled'});}
    assert.deepEqual(errors,[]);assert(!writes.some(w=>!w.startsWith('/api/interval-presets/')&&w!=='/api/challenges/signup/continue'));console.log(`Saved workout ${medalCase} ${theme}: next-medal line and 25% threshold PASS`);await c.close();cleanup.pop();continue;
   }
-  assert.equal(await p.locator('h1').innerText(),'Track');assert.equal(await p.locator('#track-explore a').count(),native?5:4);assert.equal(await p.locator('#track-kind,.track-other').count(),0,'no extra global choice row');
+  assert.equal(await p.locator('h1').innerText(),'Track');
+  const tools=p.locator('#track-explore a');assert.equal(await tools.count(),1,'connections, import and Health share one Track tool');
+  assert.equal(await tools.getAttribute('data-track-feature'),'connections');assert.equal(await tools.getAttribute('href'),'/track/connections');
+  assert.equal(await tools.locator('.progress-tile-name b').innerText(),'Connections and import');
+  assert.equal(await p.locator('#track-explore [data-track-feature=health]').count(),0,'Health is inside Connections');
+  assert.equal(await p.locator('#track-explore [data-track-feature=explore]').count(),0,'Explore is removed from Track');
+  assert.equal(await p.locator('#track-explore [data-track-feature=past]').count(),0,'past logging is outside Track tools');
+  assert.equal(await p.locator('#track-log-past').innerText(),'Log a past workout');assert.equal(await p.locator('#track-log-past').getAttribute('href'),'/track?past=1');
+  const pastBox=await p.locator('#track-log-past').boundingBox(),startBox=await p.locator('#track-start').boundingBox();
+  assert(pastBox.height>=44&&pastBox.y>=startBox.y+startBox.height-1,'Log a past workout is a 44px link under Start');
+  assert.equal(await p.locator('#track-kind,.track-other').count(),0,'no extra global choice row');
   assert.equal(await p.locator('.track-gps-note').count(),native?0:1,'GPS recording note appears only on the web');
   assert.equal(await p.locator('#track-explore').evaluate(n=>{const s=getComputedStyle(n);return `${s.display}/${s.flexDirection}/${s.rowGap}`;}),'flex/column/8px','Track tools are a plain one-column list with readable row gaps');
   assert.equal(await p.locator('#track-explore .progress-new:visible').count(),0,'Track tools have no unexplained New dots');
   const toolRows=await p.locator('#track-explore a').evaluateAll(nodes=>nodes.map(a=>{const title=a.querySelector('.progress-tile-name b'),range=document.createRange();range.selectNodeContents(title);const s=getComputedStyle(a);return{height:a.getBoundingClientRect().height,titleLines:range.getClientRects().length,titleFits:title.scrollWidth<=title.clientWidth+1,background:s.backgroundColor,radius:s.borderRadius,left:s.borderLeftWidth,right:s.borderRightWidth,bottom:s.borderBottomWidth,shadow:s.boxShadow};}));
-  assert(toolRows.every(row=>row.height>=56&&row.titleLines>=1&&row.titleLines<=2&&row.titleFits),'tool rows meet 56px targets and wrap titles without clipping '+JSON.stringify(toolRows));
+  assert(toolRows.length===1&&toolRows.every(row=>row.height>=56&&row.titleLines===1&&row.titleFits),'the one-line tool row meets the 56px target and title fits '+JSON.stringify(toolRows));
   const wrapTitle=p.locator('#track-explore .progress-tile-name b').last(),originalTitle=await wrapTitle.textContent();await wrapTitle.evaluate(n=>{n.textContent='Connections and health across your connected training apps';});
   const wrapped=await wrapTitle.evaluate(n=>{const range=document.createRange();range.selectNodeContents(n);const s=getComputedStyle(n);return{lines:range.getClientRects().length,fits:n.scrollWidth<=n.clientWidth+1,whiteSpace:s.whiteSpace,overflowWrap:s.overflowWrap};});
   assert(wrapped.lines>1&&wrapped.fits&&wrapped.whiteSpace==='normal'&&wrapped.overflowWrap==='anywhere','a long tool title wraps inside its row instead of clipping '+JSON.stringify(wrapped));await wrapTitle.evaluate((n,text)=>{n.textContent=text;},originalTitle);
@@ -76,9 +86,11 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     await p.locator('[data-plan-use]').click();await until(p,()=>!document.querySelector('[data-plan-use]').disabled,'repeat Use');const after=(await(await get('/api/interval-presets')).json()).length;assert(after<=before+1,'repeated Use creates no second preset');
     await p.locator('#track-start').click();await until(p,()=>document.querySelector('#track-ready-error').textContent.includes('Fictional recording blocked'),'stand-in blocked start');const call=await p.evaluate(()=>trackFixtureCalls[0]);assert.equal(call[1].sport,'run');assert.equal(call[1].intervalVoice,false);assert.equal(call[1].autoPause,false);
    }
-   await p.locator('[data-track-feature=import]').click();await p.waitForSelector('.sheet a[target=_blank]');assert.equal(new URL(p.url()).pathname,'/track');assert.match(await p.locator('.sheet').innerText(),/browser/);await p.keyboard.press('Escape');
   }
-  await p.locator('[data-track-feature=past]').click();await p.waitForSelector('#ma');assert.equal(new URL(p.url()).pathname,'/track');await p.keyboard.press('Escape');await p.evaluate(()=>render());await ready();assert.equal(await p.locator('[data-track-feature=past] .progress-new:not(.seen)').count(),0,'visited marker is remembered');
+  await p.locator('#track-log-past').click();await p.waitForSelector('#ma');assert.equal(new URL(p.url()).pathname,'/track');assert(await p.evaluate(()=>Discovery.hasVisited('track','past')),'opening Log a past workout remembers its visit');await p.keyboard.press('Escape');await p.evaluate(()=>render());await ready();
+  await p.locator('#track-explore a[data-track-feature=connections]').click();await p.waitForURL('**/track/connections');await p.locator('#c-health').waitFor();
+  if(native){const importAction=p.locator('[data-import-history]');assert.equal(await importAction.count(),1,'native Connections keeps the browser import sub-screen');assert((await importAction.boundingBox()).height>=44,'native import action keeps a 44px target');await importAction.click();await p.waitForSelector('.sheet a[target=_blank]');assert.match(await p.locator('.sheet a[target=_blank]').getAttribute('href'),/\/track\/import$/);await p.keyboard.press('Escape');}
+  else{const importLink=p.locator('a[href="/track/import"]');assert.equal(await importLink.count(),1,'web Connections keeps the import sub-screen');await importLink.click();await p.waitForURL('**/track/import');await until(p,()=>document.querySelector('h1')?.textContent==='Upload activities','existing import screen');assert.equal(new URL(p.url()).pathname,'/track/import','the existing import route still opens');}
   assert.equal((await get('/api/planned-routes')).status(),404,'parked API remains closed');
   assert.deepEqual(errors,[]);assert(!writes.some(w=>!w.startsWith('/api/interval-presets/')&&w!=='/api/challenges/signup/continue'),'no activity/Health/provider writes');console.log(`Track ${who} ${native?'native':'browser'} ${size.width}/${size.root} ${theme}: compact launch, choices, plan/intervals, settings and discovery PASS`);await c.close();cleanup.pop();
  }
