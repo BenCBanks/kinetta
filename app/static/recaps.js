@@ -178,7 +178,7 @@ const Recaps=(()=>{
   const navLabel=(period,offset,start,end)=>{if(!offset)return 'This '+period;const first=new Date(start+'T12:00:00Z');if(period==='year')return String(first.getUTCFullYear());if(period==='month')return first.toLocaleDateString(undefined,{timeZone:'UTC',month:'long',year:'numeric'});const last=end?new Date(end+'T12:00:00Z'):new Date(first);if(!end)last.setUTCDate(last.getUTCDate()+7);last.setUTCDate(last.getUTCDate()-1);const a=first.toLocaleDateString(undefined,{timeZone:'UTC',month:'short',day:'numeric'}),b=last.toLocaleDateString(undefined,{timeZone:'UTC',...(first.getUTCMonth()===last.getUTCMonth()?{day:'numeric'}:{month:'short',day:'numeric'})});return a+'–'+b+', '+last.getUTCFullYear();};
   const distance=d=>(d.distance_m/(d.units==='imperial'?1609.344:1000)).toLocaleString(undefined,{minimumFractionDigits:1,maximumFractionDigits:1});
   const unit=d=>d.units==='imperial'?'mi':'km';
-  function time(seconds){const n=Math.max(0,Math.round(seconds)),h=Math.floor(n/3600),m=Math.floor(n%3600/60);return h?`${h} h${m?' '+m+' m':''}`:m?`${m} m`:n+' s';}
+  function time(seconds){const n=Math.max(0,Math.round(seconds)),h=Math.floor(n/3600),m=Math.floor(n%3600/60);return h?`${h.toLocaleString()}h${m?' '+m+'m':''}`:m?`${m}m`:n+'s';}  // same as U.time (#765)
   function summary(d,o){
     const title=label(d),sport=SPORT_NAMES[d.top_sport]||'activity';let hero=null;
     if(o.totals){

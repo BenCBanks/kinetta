@@ -53,11 +53,11 @@ const ActivityDetail=(()=>{
  function remainingText(code,value){
   if(['journey','sport:run','sport:ride','sport:walk-hike','sport:swim'].includes(code)){
    const imperial=App.me?.units!=='metric',shown=imperial?value/1609.344:value/1000;
-   return `${shown.toLocaleString(undefined,{maximumFractionDigits:shown<1?2:1})} ${imperial?'mi':'km'}`;
+   return `${shown>0&&shown<.05?'<0.1':shown.toLocaleString(undefined,{maximumFractionDigits:1})} ${imperial?'mi':'km'}`;  // one decimal at most (#765)
   }
   if(code==='climbing')return `${U.elev(value)} ${U.eu()}`;
   if(code==='lifted')return `${U.weight(value)} ${App.me?.units==='metric'?'kg':'lb'}`;
-  if(code==='active_time')return `${(value/3600).toLocaleString(undefined,{maximumFractionDigits:1})} h`;
+  if(code==='active_time')return U.time(value);
   const count=Math.max(0,Math.ceil(value-1e-9)).toLocaleString();
   if(code==='consistency')return `${count} ${Math.ceil(value-1e-9)===1?'week':'weeks'}`;
   if(code==='years_active')return `${count} ${Math.ceil(value-1e-9)===1?'year':'years'}`;

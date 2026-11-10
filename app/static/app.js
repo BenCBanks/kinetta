@@ -535,24 +535,31 @@ function warmTabs() {
 // ---------- units + formatting ----------
 const MI = 1609.344;
 const imp = () => (App.me ? App.me.units : 'imperial') === 'imperial';
+// One number policy (#765, owner 9 Nov 2026): distance at most one decimal (whole numbers from 100), thousands
+// separators, pace m:ss that rolls over correctly (59.5 s is the next minute, never :60), summary durations in h and m
+// (U.time) with seconds kept for records, splits, intervals and pace (dur), whole-number elevation and 1-decimal weight.
+const numFmt = (v, d) => v.toLocaleString(undefined, {minimumFractionDigits: d, maximumFractionDigits: d});
+const mmss = (sec) => { const t = Math.round(sec); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
 const U = {
-  dist: (m, d = 2) => m == null ? '–' : imp() ? (m / MI).toFixed(m / MI >= 100 ? 0 : d) : (m / 1000).toFixed(m >= 100000 ? 0 : d),
+  dist: (m, d = 1) => { if (m == null || !isFinite(m)) return '–'; const v = imp() ? m / MI : m / 1000; return numFmt(v, Math.abs(v) >= 100 ? 0 : d); },
   du: () => (imp() ? 'mi' : 'km'),
   elev: (m) => m == null ? '–' : Math.round(imp() ? m * 3.28084 : m).toLocaleString(),
   eu: () => (imp() ? 'ft' : 'm'),
   speed: (ms) => ms == null ? '–' : (imp() ? ms * 2.23694 : ms * 3.6).toFixed(1),
   su: () => (imp() ? 'mph' : 'km/h'),
-  pace: (sPerKm) => { if (!sPerKm || !isFinite(sPerKm)) return '–'; const s = imp() ? sPerKm * MI / 1000 : sPerKm; return `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`.replace(/:60$/, ':59'); },
+  pace: (sPerKm) => { if (!sPerKm || !isFinite(sPerKm)) return '–'; return mmss(imp() ? sPerKm * MI / 1000 : sPerKm); },
   pu: () => (imp() ? '/mi' : '/km'),
-  swim: (sPerKm) => { if (!sPerKm) return '–'; const s = imp() ? sPerKm * 0.09144 : sPerKm / 10; return `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`; },
+  swim: (sPerKm) => { if (!sPerKm || !isFinite(sPerKm)) return '–'; return mmss(imp() ? sPerKm * 0.09144 : sPerKm / 10); },
   swu: () => (imp() ? '/100yd' : '/100m'),
   temp: (c) => c == null ? '–' : Math.round(imp() ? c * 9 / 5 + 32 : c) + '°',
   weight: (kg) => kg == null ? '' : (imp() ? kg * 2.20462 : kg).toFixed(1),
+  // Summary and hero durations: hours and minutes only ('1h 7m', '3h', '20m'); under a minute shows seconds ('45s').
+  time: (s) => { if (s == null || !isFinite(s)) return '–'; const t = Math.round(s / 60); if (s > 0 && s < 59.5) return `${Math.round(s)}s`; const h = Math.floor(t / 60), m = t % 60; return h ? `${h.toLocaleString()}h${m ? ` ${m}m` : ''}` : `${m}m`; },
 };
 function dur(s, long = false) {
   if (s == null || !isFinite(s)) return '–';
+  if (long) return U.time(s);   // summaries: h and m only (#765)
   s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
-  if (long) return h ? `${h}h ${m}m` : `${m}m ${String(x).padStart(2, '0')}s`;
   return h ? `${h}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}` : `${m}:${String(x).padStart(2, '0')}`;
 }
 const tz = () => (App.me && App.me.tz) || 'America/New_York';
@@ -572,7 +579,7 @@ const SPORT_NAMES = {run: 'Run', ride: 'Ride', walk: 'Walk', hike: 'Hike', swim:
 const FOOT = ['run', 'walk', 'hike'];
 // the headline number per sport: pace for foot sports, speed for rides/skis, /100 for swims
 function rate(a) {
-  if (!a.distance_m || !a.moving_s || a.speed_available === false) return {label: 'Time', v: dur(a.moving_s || a.elapsed_s), u: ''};
+  if (!a.distance_m || !a.moving_s || a.speed_available === false) return {label: 'Time', v: U.time(a.moving_s || a.elapsed_s), u: ''};
   const spk = a.moving_s / a.distance_m * 1000;
   if (a.sport === 'swim') return {label: 'Pace', v: U.swim(spk), u: U.swu()};
   if (FOOT.includes(a.sport)) return {label: 'Pace', v: U.pace(spk), u: U.pu()};
