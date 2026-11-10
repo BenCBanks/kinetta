@@ -8,7 +8,7 @@ Run, ride, walk and lift.
 
 ## training-intro
 
-Follow a plan, then track your progress on routes and segments.
+Follow a plan, then track your progress on routes.
 
 ## training-training-food-food-friends-friends-compare-co-25
 

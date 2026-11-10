@@ -48,10 +48,6 @@
     "ROUTE"
   ],
   [
-    "segment",
-    "SEGMENT"
-  ],
-  [
     "progress",
     "/progress"
   ],
