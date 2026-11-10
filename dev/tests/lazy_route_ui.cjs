@@ -183,7 +183,7 @@ async function socialFixture(browser,{failFirst=false,idleGate=false}={}){
 }
 async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
  const context=await fixtureContext(browser);await login(context,loginName);
- const page=await context.newPage(),assets=[],errors=[],writes=[];let heldOnce=false,releaseHeld=()=>{},signalHeld=()=>{};
+ const page=await context.newPage(),assets=[],errors=[],writes=[],previews=[];let heldOnce=false,releaseHeld=()=>{},signalHeld=()=>{};
  const gate=new Promise(resolve=>{releaseHeld=resolve;}),held=new Promise(resolve=>{signalHeld=resolve;});
  page.on('pageerror',error=>errors.push(error.message));
  await page.route('**/*',async route=>{
@@ -194,11 +194,14 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
    if(hold===url.pathname&&!heldOnce){heldOnce=true;signalHeld();await gate;}
    return route.continue();
   }
+  if(request.method()==='POST'&&url.pathname==='/api/plans/preview'){
+   previews.push(url.pathname);return route.continue();
+  }
   if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204});
   if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
   return route.continue();
  });
- return {context,page,assets,errors,writes,held,release:()=>releaseHeld()};
+ return {context,page,assets,errors,writes,previews,held,release:()=>releaseHeld()};
 }
 async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
  const context=await fixtureContext(browser);await login(context);
@@ -764,7 +767,7 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     assert.equal(homeInitial.assets.filter(file=>file==='/static/plan.js').length,0,'Home does not request the Training plan bundle');
     assert.equal(await homeInitial.page.locator('script[src*="/static/plan.js"]').count(),0,'Home has no Training plan script element');
     assert.equal(await homeInitial.page.evaluate(()=>App.pages.some(item=>item.re.test('/plan'))),false,'Training plan is registered only when its route opens');
-    assert.deepEqual(homeInitial.errors,[]);assert.deepEqual(homeInitial.writes,[]);
+    assert.deepEqual(homeInitial.errors,[]);assert.deepEqual(homeInitial.writes,[]);assert.deepEqual(homeInitial.previews,[]);
   }finally{await homeInitial.context.close();}
 
   const progressMe=await progressFixture(browser);
@@ -793,6 +796,7 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     await planDirect.page.goto(base+'/plan');await ready(planDirect.page,'.plan-page','direct Training plan route');
     assert.equal(new URL(planDirect.page.url()).pathname,'/plan');
     assert.deepEqual(planDirect.assets,['/static/plan.js'],'direct Training plan opens its single route bundle');
+    assert.deepEqual(planDirect.previews,['/api/plans/preview'],'the preview request is read-only and distinct from saving a plan');
     assert.deepEqual(planDirect.errors,[]);assert.deepEqual(planDirect.writes,[]);
   }finally{await planDirect.context.close();}
 
@@ -803,6 +807,7 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     await link.click();await ready(planFromMe.page,'.plan-page','Training plan after an in-app Me tap');
     assert.equal(new URL(planFromMe.page.url()).pathname,'/plan');
     assert.deepEqual(planFromMe.assets,['/static/plan.js'],'in-app navigation loads Training plan once on first tap');
+    assert.deepEqual(planFromMe.previews,['/api/plans/preview'],'in-app Plan opening only computes its read-only preview');
     assert.deepEqual(planFromMe.errors,[]);assert.deepEqual(planFromMe.writes,[]);
   }finally{await planFromMe.context.close();}
 
@@ -812,6 +817,7 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     assert.equal(new URL(planRetry.page.url()).pathname,'/plan','a failed direct Training plan load keeps its route');
     await planRetry.page.locator('#retry').click();await ready(planRetry.page,'.plan-page','Training plan after explicit retry');
     assert.deepEqual(planRetry.assets,['/static/plan.js','/static/plan.js'],'Training plan retries a failed bundle exactly once');
+    assert.deepEqual(planRetry.previews,['/api/plans/preview'],'retry computes the preview without saving a plan');
     assert.deepEqual(planRetry.errors,[]);assert.deepEqual(planRetry.writes,[]);
   }finally{await planRetry.context.close();}
 
