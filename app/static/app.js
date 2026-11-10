@@ -5,6 +5,10 @@
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+// pages.js uses this link in Me's weekly summary before the larger Social routes load.
+window.profileHref = (person) => `/people/${encodeURIComponent(person.login)}`;
+// The Me card uses the count before Social's friend-page helpers are loaded.
+window.friendCountText = (count) => count===0?'No friends yet':`${count} ${count===1?'friend':'friends'}`;
 const root = $('#app');
 // Shared by the lazy Food and Cook bundles; keep their swipe interaction available without loading either bundle eagerly.
 function swipeRows(el, onRemove) {
@@ -51,26 +55,37 @@ const SEGMENTS_ROUTE_ASSET = '/static/segments.js?v=__ASSET_HASH__';
 const PLANNER_ROUTE_ASSET = '/static/planner.js?v=__ASSET_HASH__';
 const COOK_ROUTE_ASSET = '/static/cook.js?v=__ASSET_HASH__';
 const RECIPE_IMPORT_ROUTE_ASSET = '/static/recipe-import.js?v=__ASSET_HASH__';
+const SOCIAL_ROUTE_ASSET = '/static/social.js?v=__ASSET_HASH__';
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: ['/static/welcome.js?v=__ASSET_HASH__']},
-  {re: /^\/me\/explore$/, tab: 'track', scripts: ['/static/explore.js?v=__ASSET_HASH__']},
+  {re: /^\/me\/explore$/, tab: 'track', scripts: [SOCIAL_ROUTE_ASSET, '/static/explore.js?v=__ASSET_HASH__']},
+  {re: /^\/progress$/, tab: 'progress', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/routes(?:\/.*)?$/, tab: 'track', scripts: [PLANNER_ROUTE_ASSET]},
-  {re: /^\/notifications$/, tab: null, scripts: ['/static/social-notifications.js?v=__ASSET_HASH__']},
-  {re: /^\/me\/notifications$/, tab: 'me', scripts: ['/static/social-notifications.js?v=__ASSET_HASH__']},
+  {re: /^\/activity$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
+  {re: /^\/activity\/friends\/\d+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
+  {re: /^\/activity\/\d+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET]},
+  {re: /^\/people\/([^/]+)$/, tab: login => App.me && decodeURIComponent(login).toLowerCase() === App.me.login.toLowerCase() ? 'me' : 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
+  {re: /^\/add\/[\w-]+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
+  {re: /^\/me\/friends(?:\/contacts)?$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET]},
+  {re: /^\/me\/groups$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET]},
+  {re: /^\/groups\/[0-9a-f-]{36}$/i, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
+  {re: /^\/group-invite\/[\w-]+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
+  {re: /^\/notifications$/, tab: null, scripts: [SOCIAL_ROUTE_ASSET, '/static/social-notifications.js?v=__ASSET_HASH__']},
+  {re: /^\/me\/notifications$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET, '/static/social-notifications.js?v=__ASSET_HASH__']},
   {re: /^\/food\/import$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, '/static/food-import.js?v=__ASSET_HASH__']},
-  {re: /^\/food\/cook\/\d+$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, COOK_ROUTE_ASSET]},
+  {re: /^\/food\/cook\/\d+$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, SOCIAL_ROUTE_ASSET, COOK_ROUTE_ASSET]},
   {re: /^\/food\/recipe-link$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, COOK_ROUTE_ASSET, RECIPE_IMPORT_ROUTE_ASSET]},
   {re: /^\/food(?:\/.*)?$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET]},
   {re: /^\/progress\/weight$/, tab: 'progress', scripts: [FOOD_ROUTE_ASSET]},
   {re: /^\/progress\/(?:routes|trends|calendar|heatmap)$/, tab: 'progress', scripts: [PROGRESS_ROUTE_ASSET]},
   {re: /^\/(?:progress\/segments|segments(?:\/(?:review|new|\d+))?)$/, tab: 'progress', scripts: [PLANNER_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET]},
-  {re: /^\/activity\/\d+$/, tab: 'activity', scripts: [SEGMENTS_ROUTE_ASSET]},
-  {re: /^\/me\/sharing$/, tab: 'me', scripts: [SEGMENTS_ROUTE_ASSET]},
+  {re: /^\/me\/sharing$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET]},
   {re: /^\/me\/kit$/, tab: 'me', scripts: [FOOD_ROUTE_ASSET, KIT_ROUTE_ASSET]},
   {re: /^\/(?:lift\/\d+|track\/lift\/\d+|lift\/history\/workout\/\d+)$/, tab: 'track', scripts: ['/static/lift-routes.js?v=__ASSET_HASH__']},
   {re: /^\/(?:lift\/ex\/\d+|lift\/history\/exercise\/\d+)$/, tab: 'progress', scripts: ['/static/lift-routes.js?v=__ASSET_HASH__']},
 ];
 let lazyRouteGeneration = 0;
+let socialWarmupScheduledOwner = null, socialWarmupOwner = null;
 let foodWarmupScheduledOwner = null, foodWarmupOwner = null;
 const kitEntryPaths = new Set(['/progress','/track','/plan','/food']);
 const kitWarmups = new Set();
@@ -91,6 +106,12 @@ function loadClassicScript(asset) {
 function loadClassicScripts(assets) {
   return assets.reduce((ready, asset) => ready.then(() => loadClassicScript(asset)), Promise.resolve());
 }
+const loadWeeklyRecapShareItem = () => loadClassicScript(SOCIAL_ROUTE_ASSET).then(() => {
+  const build=window.weeklyRecapShareItem;
+  if(typeof build!=='function'||build===loadWeeklyRecapShareItem)return null;
+  return build();
+}).catch(error=>{toast('Weekly recap could not load. Check your connection and try again.');throw error;});
+window.weeklyRecapShareItem = loadWeeklyRecapShareItem;
 // Shared with the deferred Planner so cleanup and map browsing use one owner-scoped key format.
 function planDraftKey(key) { return App.me ? `kinetta.planDraft:${serverKey()}:${App.me.id}:${key}` : null; }
 function mapAreaKey() { return App.me ? `kinetta.mapArea:${serverKey()}:${App.me.id}` : null; }
@@ -172,6 +193,25 @@ function afterMeUseful(owner,path,callback) {
     callback(true);
   };
   check();
+}
+function scheduleSocialRouteWarmup(path) {
+  if(path!=='/me')return;
+  const owner=readOwner();
+  if(!owner||socialWarmupOwner===owner||socialWarmupScheduledOwner===owner||classicScriptsLoaded.has(SOCIAL_ROUTE_ASSET))return;
+  socialWarmupScheduledOwner=owner;
+  afterMeUseful(owner,path,ready=>{
+    if(!ready){if(socialWarmupScheduledOwner===owner)socialWarmupScheduledOwner=null;return;}
+    const warm=()=>{
+      if(socialWarmupScheduledOwner===owner)socialWarmupScheduledOwner=null;
+      if(owner!==readOwner()||!App.me)return;
+      socialWarmupOwner=owner;
+      loadClassicScript(SOCIAL_ROUTE_ASSET).then(()=>{
+        if(owner===readOwner()&&App.me)Social.refresh();
+      }).catch(()=>{if(socialWarmupOwner===owner)socialWarmupOwner=null;});
+    };
+    if(typeof requestIdleCallback==='function')requestIdleCallback(warm);
+    else setTimeout(warm,1000);
+  });
 }
 function scheduleFoodRouteWarmup() {
   const owner=readOwner();
@@ -970,9 +1010,10 @@ function render(options) {
   document.title = path === '/activity' ? 'Home · Kinetta' : 'Kinetta';
   const bundle = lazyRouteBundles.find((candidate) => candidate.re.test(path));
   if (bundle && bundle.scripts.some((file) => !classicScriptsLoaded.has(file))) {
+    const bundleMatch=path.match(bundle.re)||[],bundleTab=typeof bundle.tab==='function'?bundle.tab(...bundleMatch.slice(1)):bundle.tab;
     const owner = readOwner(), generation = ++lazyRouteGeneration, nextPosition={key,owner,y:targetY};
-    const el = lazyRouteShell(bundle.tab);
-    el.innerHTML = bundle.tab==='food'
+    const el = lazyRouteShell(bundleTab);
+    el.innerHTML = bundleTab==='food'
       ? `<div class="lazy-route-loading food-route-loading"><p class="vh" role="status">Loading Nutrition…</p>${skelFood()}</div>`
       : '<div class="boot lazy-route-loading" role="status"><p>Opening this page…</p></div>';
     if (!globalSyncDone) {
@@ -988,7 +1029,11 @@ function render(options) {
         App.pageReady = true;
         return;
       }
-      render({globalSyncDone: true,routePosition:nextPosition});
+      const rendered=render({globalSyncDone: true,routePosition:nextPosition});
+      // The initial loader shell ran before Social existed, so its global refresh was skipped.
+      // Refresh after the real route builds the tab bar; the request remains off the first useful paint.
+      if(!globalSyncDone&&typeof Social!=='undefined'&&owner===readOwner()&&key===location.pathname+location.search)Social.refresh();
+      return rendered;
     }).catch(error => {
       if (!current()) return;
       showError(el, error, {retry: () => render({globalSyncDone:true,routePosition:nextPosition})});
@@ -1025,7 +1070,7 @@ function render(options) {
   return Promise.resolve(result).then(() => {if(current()&&typeof FeatureUsage!=='undefined')FeatureUsage.open(path);}).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
     requestAnimationFrame(() => { if(current()&&!touched)window.scrollTo(0,targetY);interactions.abort(); });
-    if (current()) { compactSubpageHeader(el);App.pageReady = true; if(path==='/me')scheduleFoodRouteWarmup(); globalThis.CommunityTerms?.check(); if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
+    if (current()) { compactSubpageHeader(el);App.pageReady = true; if(path==='/me')scheduleFoodRouteWarmup();scheduleSocialRouteWarmup(path);globalThis.CommunityTerms?.check(); if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
   });
 }
 function loadErrorCopy(e) {
