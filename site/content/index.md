@@ -10,17 +10,41 @@ Your workouts. Your nutrition. One app.
 
 Progress, insights and Kit.
 
+## home-progress-description
+
+See weekly distance, fitness trends and personal records over time.
+
+## home-insights-description
+
+Notice patterns in logged days, calorie totals and changing macros.
+
+## home-kit-description
+
+Ask Kit for optional notes on workouts, training and recovery.
+
 ## runs-rides-and-lifting-4
 
 See the whole workout
+
+## home-workout-description
+
+Review each route, pace, splits and heart rate after a workout.
 
 ## quick-food-logging-6
 
 Log food with a sentence
 
+## home-food-description
+
+Describe a meal, then review each food and amount before logging.
+
 ## friends-kept-private-8
 
 Share with friends
+
+## home-friends-description
+
+Follow friends’ shared workouts, photos, cheers and comments in one feed.
 
 ## home-progress-caption
 

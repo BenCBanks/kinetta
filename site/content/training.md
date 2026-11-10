@@ -10,6 +10,30 @@ Run, ride, walk and lift.
 
 Follow a plan, then track your progress on routes.
 
+## training-run-description
+
+See each route, pace, splits and heart rate after a workout.
+
+## training-ride-walk-description
+
+Compare weekly totals across your rides, walks and runs.
+
+## training-lifting-description
+
+Log sets, reps and weight, with last time beside each set.
+
+## training-plans-description
+
+Choose a plan for your next 5K, 10K, half or full marathon.
+
+## training-progress-description
+
+Track weekly distance, fitness trends and personal records over time.
+
+## training-routes-description
+
+Compare repeated routes and see how your pace changes over time.
+
 ## training-training-food-food-friends-friends-compare-co-25
 
 [Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [Feature guide](guide) · [Privacy policy](privacy) · [Terms of Use](terms) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta)

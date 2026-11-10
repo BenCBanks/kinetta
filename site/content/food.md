@@ -10,6 +10,22 @@ Log food in a few words.
 
 See calories and macros, with your meals and recipes in one place.
 
+## food-quick-description
+
+Describe a meal, check the foods and portions, then add it to your log.
+
+## food-yesterday-description
+
+Repeat a saved meal with one tap when you eat it again.
+
+## food-calories-description
+
+Compare calories, protein, carbs and fat with your daily goals.
+
+## food-recipes-description
+
+Save a recipe once, then log the portion you ate.
+
 ## food-also
 
 Also

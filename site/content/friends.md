@@ -14,6 +14,22 @@ Share activities, cheer each other on, and catch up through training.
 
 Catch up in a few taps.
 
+## friends-feed-description
+
+Catch up on friends’ shared workouts and send a cheer or comment.
+
+## friends-photos-description
+
+Add a photo to a workout shared with friends.
+
+## friends-profiles-description
+
+See the details friends choose to show on their profile.
+
+## friends-find-description
+
+Search names, send a request and choose who to follow.
+
 ## friends-photo-credit
 
 Photos of Freedom Park, Charlotte: James Willamor and City Dweller 2, [CC BY-SA](https://creativecommons.org/licenses/by-sa/4.0), via Wikimedia Commons.
