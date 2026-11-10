@@ -7,6 +7,7 @@
 .compact-ready .track-ready-map { height:clamp(190px,28dvh,240px); }
 .compact-ready .track-ready-map-wrap.full .track-ready-map { height:100%; }
 .compact-ready .track-go,.gps-ready .compact-ready .track-go { margin:0; }
+.compact-ready .track-go { gap:8px; }
 .compact-ready .track-go > .round-btn { width:92px; height:92px; min-height:92px; font-size:1.25rem; }
 .compact-ready .track-go > .primary { min-height:48px; }
 .compact-ready .track-log-past { display:flex; align-items:center; justify-content:center; min-height:44px; padding:0 8px; color:var(--accent); font-size:max(15px,.9375rem); font-weight:600; text-decoration:none; }
