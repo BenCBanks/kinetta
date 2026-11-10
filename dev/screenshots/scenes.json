@@ -120,10 +120,7 @@
     "describe",
     "/food",
     {
-      "describe": [
-        "I had a hot dog from Costco and a Diet Coke",
-        "make it two hot dogs"
-      ]
+      "foodChat": "ready"
     }
   ],
   [
@@ -137,10 +134,7 @@
     "talk",
     "/food",
     {
-      "snap": [
-        "chicken curry rice bowl for lunch",
-        "only half the rice"
-      ]
+      "foodChat": "same-yesterday"
     }
   ],
   [

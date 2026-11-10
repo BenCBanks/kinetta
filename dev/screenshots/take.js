@@ -61,8 +61,7 @@ function chrome(dark) {
   hb.innerHTML = `<rect x="${W / 2 - 67}" y="0" width="134" height="5" rx="2.5" fill="${c}"/>`;
   document.body.append(sb, hb);
 }
-// The food chat: open it for a meal with the demo account's AI consent on (the estimates are stand-ins), send a message,
-// and wait until nothing is pending on this phone.
+// Other capture scenes can send a made-up message and use the local estimator stand-in.
 async function chat(page, meal) {
   await page.evaluate(async (m) => { await api('/api/profile', json('PUT', {ai_ok: true, ai_adult: true})); App.me.ai_ok = true; go('/food/describe?meal=' + m); }, meal);
   await page.locator('#thread-text').waitFor();
@@ -110,11 +109,31 @@ async function say(page, text) {
 }
 (async () => {
   const browser = await chromium.launch(), errors = [];
+  const openFoodDemo = async (login, scheme) => {
+    const context = await browser.newContext({viewport: {width: W, height: H}, deviceScaleFactor: 2, colorScheme: scheme,
+      timezoneId: SCREENSHOT_CLOCK.timezone, serviceWorkers: 'block'});
+    await context.route('**/*', route => new URL(route.request().url()).origin === B ? route.continue() : route.abort());
+    await context.route('**/style.css*', async route => {
+      const r = await route.fetch(), css = (await r.text())
+        .replace(/env\(safe-area-inset-top(?:,[^)]*)?\)/g, TOP + 'px').replace(/env\(safe-area-inset-bottom(?:,[^)]*)?\)/g, BOTTOM + 'px');
+      await route.fulfill({response: r, body: css});
+    });
+    const page = await context.newPage();
+    await page.clock.setFixedTime(new Date(SCREENSHOT_CLOCK.instant));
+    page.on('pageerror', e => errors.push(`${scheme}: ${e.message}`));
+    await page.goto(B + '/');
+    await page.fill('input[name=login]', login);
+    await page.fill('input[name=password]', 'green teapot on the hill');
+    await page.click('button[type=submit]');
+    await page.waitForSelector('nav.tabs');
+    return {context, page};
+  };
   try {
   for (const scheme of ['light', 'dark']) {
     // Keep the browser's calendar day aligned with the screenshot fixture used for staging.
     const ctx = await browser.newContext({viewport: {width: W, height: H}, deviceScaleFactor: 2, colorScheme: scheme,
       timezoneId: SCREENSHOT_CLOCK.timezone});
+    let foodChatCtx = null, foodChatPage = null, foodRepeatCtx = null, foodRepeatPage = null;
     const basemap = await (await ctx.request.get(B+'/api/map-config')).json();
     if(!['pmtiles','vector'].includes(basemap.kind))throw Error('Capture needs an operator-controlled vector basemap');
     // The public archive admits the published app origin. Adapt only CORS for this local demo;
@@ -162,6 +181,61 @@ async function say(page, text) {
     });
     for (const [name, path, opt = {}] of SHOTS) {
       if (ONLY && !ONLY.includes(name)) continue;
+      if (opt.foodChat === 'ready') {
+        const demo = await openFoodDemo(`zz_test_658_chat_${scheme}`, scheme);
+        foodChatCtx = demo.context;
+        foodChatPage = demo.page;
+        await enableKitForDemo(foodChatPage);
+        await foodChatPage.goto(B + '/food/describe?meal=breakfast');
+        await foodChatPage.locator('#thread-text').waitFor();
+        const fixtureDraftId = await foodChatPage.evaluate(async () => {
+          const payload = await fetch('/api/food/thread?limit=100').then(r => r.json());
+          const message = [...(payload.messages || [])].reverse().find(m => m.kind === 'user' &&
+            m.body === 'Greek yogurt with berries, oatmeal with banana, and a chicken salad bowl');
+          const reply = message && payload.messages.find(m => m.kind === 'reply' && m.reply_to === message.id);
+          const draftId = message?.result?.draft_id;
+          const key = Object.keys(localStorage).find(name => name.startsWith('fit.food.review.draft:'));
+          if (!draftId || reply?.result?.kind !== 'preview' || !key) throw Error('Could not find the staged Food chat draft for this fictional account.');
+          const saved = JSON.parse(localStorage.getItem(key) || '{}');
+          localStorage.setItem(key, JSON.stringify({...saved, id: draftId, meal: 'breakfast', active: true}));
+          return draftId;
+        });
+        if (!fixtureDraftId) throw Error('Food screenshot fixture has no prepared review draft.');
+        // FoodThread reads one active draft from device storage. Mount again after matching it to the seeded card.
+        await foodChatPage.goto(B + '/food/describe?meal=breakfast');
+        const ready = foodChatPage.locator('.thread-card').filter({hasText: 'Chicken salad bowl'});
+        await ready.waitFor({timeout: 15000});
+        await foodChatPage.locator('#thread-review-add').waitFor({state: 'visible'});
+        const cardText = await ready.innerText();
+        if (!['Greek yogurt with berries', 'Oatmeal with banana', 'Chicken salad bowl'].every(name => cardText.includes(name)) ||
+            await ready.locator('.thread-food').count() !== 3) throw Error('Food chat capture must show three items in one review card.');
+        if ((await foodChatPage.locator('#thread-review-add').innerText()).trim() !== 'Add to log') throw Error('Food chat capture must show Add to log.');
+        await foodChatPage.evaluate(() => document.activeElement.blur());
+        await foodChatPage.evaluate(chrome, scheme === 'dark');
+        await foodChatPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        await foodChatPage.screenshot({path: `${OUT}/${scheme}-${name}.png`});
+        continue;
+      }
+      if (opt.foodChat === 'same-yesterday') {
+        const demo = await openFoodDemo(`zz_test_658_food_${scheme}`, scheme);
+        foodRepeatCtx = demo.context;
+        foodRepeatPage = demo.page;
+        await foodRepeatPage.evaluate(() => go('/food'));
+        const shortcut = foodRepeatPage.locator('#fd-meals .meal-breakfast [data-repeat-yesterday="breakfast"]');
+        await shortcut.waitFor({state: 'visible', timeout: 15000});
+        const state = await shortcut.evaluate(button => ({
+          text: button.textContent.trim(),
+          empty: button.closest('.meal-breakfast')?.classList.contains('meal-empty'),
+          entries: button.closest('.meal-breakfast')?.querySelectorAll('.fe').length
+        }));
+        if (state.text !== 'Same as yesterday · 225 kcal' || !state.empty || state.entries !== 0) throw Error('Repeat capture must show an empty Breakfast and its Same as yesterday shortcut.');
+        await shortcut.scrollIntoViewIfNeeded();
+        await foodRepeatPage.evaluate(() => document.activeElement.blur());
+        await foodRepeatPage.evaluate(chrome, scheme === 'dark');
+        await foodRepeatPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        await foodRepeatPage.screenshot({path: `${OUT}/${scheme}-${name}.png`});
+        continue;
+      }
       await page.evaluate((p) => { document.querySelectorAll('.scrim').forEach((x) => x.remove()); document.body.classList.remove('has-sheet'); window.scrollTo(0, 0); go(p); }, ids[path] || path);   // no sheet left open from the shot before
       await page.waitForTimeout(1500);
       if(name==='activity'){
@@ -302,6 +376,8 @@ async function say(page, text) {
     }
     await ctx.unrouteAll({behavior:'ignoreErrors'});
     await ctx.close();
+    await foodChatCtx?.close();
+    await foodRepeatCtx?.close();
   }
   } finally { await browser.close(); }
   if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
