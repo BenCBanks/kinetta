@@ -59,6 +59,7 @@ const SOCIAL_ROUTE_ASSET = '/static/social.js?v=__ASSET_HASH__';
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: ['/static/welcome.js?v=__ASSET_HASH__']},
   {re: /^\/me\/explore$/, tab: 'track', scripts: [SOCIAL_ROUTE_ASSET, '/static/explore.js?v=__ASSET_HASH__']},
+  {re: /^\/progress$/, tab: 'progress', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/routes(?:\/.*)?$/, tab: 'track', scripts: [PLANNER_ROUTE_ASSET]},
   {re: /^\/activity$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/activity\/friends\/\d+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
