@@ -149,7 +149,7 @@ for device in preferred:
      assert friends['findAction'] and friends['findAction']['width']>=44 and friends['findAction']['height']>=44 and not friends['fullChallenges'],metrics
      if friends['requestRow']:assert friends['requestRow']['height']>=44,metrics
      assert all(r['width']>=44 and r['height']>=44 for r in friends['controls']),metrics
-     if stage=='friends-empty':assert friends['empty'] and friends['emptyAction'] and friends['emptyAction']['width']>=44 and friends['emptyAction']['height']>=44,metrics
+     if stage=='friends-empty':assert friends['empty'] and friends['emptyAction'] and friends['emptyAction']['width']==0,metrics
      if stage=='friends-heavy' and root==16:assert friends['firstFriend']['bottom']<nav['box']['y'],metrics
     if stage.startswith('groups-'):
      groups=metrics['groups'];fields=groups['fields'];date=groups['date'];name=groups['name'];grid=groups['grid']

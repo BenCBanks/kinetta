@@ -1132,7 +1132,24 @@ route(/^\/add\/([\w-]+)$/, 'activity', async (el, code) => {
 });
 
 route(/^\/me\/friends\/contacts$/, 'me', el=>ContactsUI.mount(el));
-route(/^\/me\/friends$/, 'me', async el=>{const find=new URLSearchParams(location.search).has('find')||new URLSearchParams(location.search).has('q');await FriendsUI.mount(el);if(find)ContactsUI.addEntry(el);});
+function installFriendListSearch(el){
+  if(!el.classList.contains('friends-list-page'))return;
+  const header=el.querySelector('.top'),list=el.querySelector('#fr-own-list'),requests=el.querySelector('#fr-requests');
+  if(!header||!list||!requests)return;
+  header.querySelector('#fr-browse')?.remove();
+  const form=document.createElement('form');form.id='fr-list-find';form.className='searchbox people-search friend-list-search';form.setAttribute('role','search');
+  form.innerHTML=`<span class="sb-ico">${svg('search')}</span><input type="search" name="q" placeholder="Find friends" aria-label="Search name or @username" maxlength="60" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="search">`;
+  form.addEventListener('submit',event=>{
+    event.preventDefault();const params=new URLSearchParams({find:'1'}),query=form.elements.q.value.trim();if(query)params.set('q',query);go('/me/friends?'+params.toString());
+  });
+  header.insertAdjacentElement('afterend',form);
+  const invite=document.createElement('button');invite.type='button';invite.id='fr-list-invite';invite.className='row-link friend-action friend-list-invite';invite.setAttribute('aria-label','Invite friends');
+  invite.innerHTML=`<span class="ri">${svg('share')}</span><span class="grow"><b>Invite friends</b><small>Share a link or QR code</small></span>${svg('chev')}`;
+  invite.addEventListener('click',()=>inviteFriends());requests.insertAdjacentElement('afterend',invite);
+  const updateInvite=()=>{invite.hidden=!!el.querySelector('#fr-list-retry')||list.querySelectorAll('.fr-friend').length>5;};
+  const observer=new MutationObserver(updateInvite);observer.observe(list,{childList:true});updateInvite();viewResources.set(form,()=>observer.disconnect());
+}
+route(/^\/me\/friends$/, 'me', async el=>{const find=new URLSearchParams(location.search).has('find')||new URLSearchParams(location.search).has('q');await FriendsUI.mount(el);if(find)ContactsUI.addEntry(el);else installFriendListSearch(el);});
 
 // ---------- private event Groups (2026-11-07) ----------
 const GROUP_GOALS={distance:'Distance',elevation:'Elevation',long_outings:'Long outings',sessions:'Sessions'};
