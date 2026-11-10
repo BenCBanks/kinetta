@@ -335,11 +335,6 @@ const ProfileLayout=(()=>{
     return up;
   }
   function achievementLevelUpHaptic(levelUps){if(levelUps.size)Native.achievementLevelUp?.();}
-  function achievementPanel(data,levelUps=new Set()){
-    const tracks=achievementDisplayOrder(overviewAchievementTracks(data),{earnedByProgress:false});
-    if(!tracks.length)return '';
-    return `<section class="profile-achievements" aria-label="Achievements"><h2><a href="/me/achievements">Achievements <span aria-hidden="true">›</span></a></h2><div class="profile-achievement-list" role="list" aria-label="Achievements, earned and future" tabindex="0">${tracks.map(track=>achievementRow(track,levelUps,new Set(),true)).join('')}</div></section>`;
-  }
   function showcaseMarkup(data){
     const items=(Array.isArray(data?.items)?data.items:[]).slice(0,FEATURED_ACHIEVEMENT_LIMIT).map(item=>{
       const code=String(item?.code||''),rank=Number(item?.rank);
@@ -370,12 +365,12 @@ const ProfileLayout=(()=>{
     if(sharedLogin&&!items.length)return '';
     const href=sharedLogin?`/people/${encodeURIComponent(sharedLogin)}?view=achievements`:'/me/achievements';
     if(sharedLogin){
-      const heading=`<h3 class="sec-head me-featured-title" data-type="secondary"><span>Featured achievements</span><a href="${esc(href)}">Achievements <span aria-hidden="true">›</span></a></h3>`;
+      const heading=`<h3 class="sec-head me-featured-title" data-type="secondary"><span>Featured achievements</span><a href="${esc(href)}">See all</a></h3>`;
       const rail=`<div class="profile-achievement-list" role="list" aria-label="Featured achievements">${items.map(item=>sharedAchievementRow(item.track,sharedLogin)).join('')}</div>`;
       return `<div class="me-featured-achievements" role="group" aria-label="Featured achievements">${heading}${rail}</div>`;
     }
-    const heading=`<h3 class="me-featured-title" data-type="secondary"><span>Featured achievements</span><a href="${esc(href)}">Achievements <span aria-hidden="true">›</span></a></h3>`;
-    const grid=items.length?`<div class="me-featured-grid count-${items.length}" role="list">${items.map(item=>`<div class="me-featured-item" role="listitem" data-showcase-code="${esc(item.code)}" aria-label="${esc(`${item.name}, ${item.value}, ${item.context}`)}"><span class="me-featured-medal" data-showcase-code="${esc(item.code)}" aria-hidden="true">${item.icon}</span><b class="me-featured-value">${esc(item.value)}</b><span class="me-featured-context">${esc(item.context)}</span></div>`).join('')}</div>`:'';
+    const heading=`<h3 class="me-featured-title" data-type="secondary"><span>Featured achievements</span><a href="${esc(href)}">See all</a></h3>`;
+    const grid=items.length?`<div class="me-featured-grid count-${items.length}" role="list">${items.map(item=>`<a class="me-featured-item" role="listitem" href="${esc(achievementHref(item.track))}" data-showcase-code="${esc(item.code)}" aria-label="${esc(`${item.name}, ${item.value}, ${item.context}`)}"><span class="me-featured-medal" data-showcase-code="${esc(item.code)}" aria-hidden="true">${item.icon}</span><b class="me-featured-value">${esc(item.value)}</b><span class="me-featured-context">${esc(item.context)}</span></a>`).join('')}</div>`:'';
     return `<div class="me-featured-achievements" role="group" aria-label="Featured achievements">${heading}${grid}</div>`;
   }
   function fitFeaturedValues(root){
@@ -443,10 +438,11 @@ const ProfileLayout=(()=>{
       if(sharedProfile&&!login)return;
       const owner=readOwner();if(featureSlot)featureSlot.dataset.loading='true';
       try{
-        const query=sharedProfile?`?login=${encodeURIComponent(login)}`:'', [data,_catalog,achievements,sharing]=await Promise.all([api('/api/achievements/showcase'+query),loadAchievementCatalog(),api('/api/achievements'+query),sharedProfile?Promise.resolve(null):api('/api/sharing')]);
+        const query=sharedProfile?`?login=${encodeURIComponent(login)}`:'', [data,_catalog,achievements]=await Promise.all([api('/api/achievements/showcase'+query),loadAchievementCatalog(),api('/api/achievements'+query)]);
         if(!root.isConnected||owner!==readOwner()||featureSlot&&!featureSlot.isConnected||streakSlot&&!streakSlot.isConnected)return;
         if(streakSlot){streakSlot.innerHTML=showcaseStreakMarkup(data);streakSlot.dataset.loaded='true';}
-        if(featureSlot){const sharedData=sharedProfile?{tracks:sharedAchievementTracks(achievements)}:achievements;featureSlot.innerHTML=sharedProfile?featuredShowcaseMarkup(data,sharedData,{sharedLogin:login}):sharing?.share_achievements===true?featuredShowcaseMarkup(data,sharedData):'';fitFeaturedValues(featureSlot);featureSlot.dataset.loading='';featureSlot.dataset.loaded='true';}
+        if(!sharedProfile)achievementLevelUpHaptic(achievementLevelUps(achievements));
+        if(featureSlot){const sharedData=sharedProfile?{tracks:sharedAchievementTracks(achievements)}:achievements;featureSlot.innerHTML=featuredShowcaseMarkup(data,sharedData,sharedProfile?{sharedLogin:login}:{});fitFeaturedValues(featureSlot);featureSlot.dataset.loading='';featureSlot.dataset.loaded='true';}
       }catch(_){if(featureSlot)featureSlot.dataset.loading='';/* Achievements never block the Me card. */}
       return;
     }
@@ -459,19 +455,6 @@ const ProfileLayout=(()=>{
       if(!root.isConnected||!slot.isConnected||owner!==readOwner())return;
       slot.innerHTML=showcaseMarkup(ownSharedPreview&&sharing?.share_achievements!==true?{items:[],day_streak:0}:data);
     }catch(_){/* The optional Showcase never blocks its profile card. */}
-  }
-  function mountAchievements(box,r){
-    if(r?.mine!==true)return;
-    const owner=readOwner(),generation=Symbol('achievements');box._achievementMount=generation;
-    Promise.all([api('/api/achievements'),loadAchievementCatalog()]).then(([data])=>{
-      if(!box.isConnected||owner!==readOwner()||box._achievementMount!==generation||r.mine!==true)return;
-      box.querySelector('.profile-achievements')?.remove();
-      const levelUps=achievementLevelUps(data),panel=achievementPanel(data,levelUps);if(!panel)return;
-      const activities=box.querySelector('.profile-activities');
-      if(activities)activities.insertAdjacentHTML('beforebegin',panel);else box.insertAdjacentHTML('beforeend',panel);
-      fitAchievementValues(box);
-      achievementLevelUpHaptic(levelUps);
-    }).catch(()=>{});
   }
   function achievementPage(el,requestedCode='',options={}){
     const owner=readOwner(),code=requestedCode?decodeURIComponent(requestedCode):'',sharedLogin=String(options.login||''),shared=!!sharedLogin,profile=options.returnPath||profileHref(App.me),active=()=>el.isConnected&&owner===readOwner(),query=shared?`?login=${encodeURIComponent(sharedLogin)}`:'';
@@ -536,7 +519,7 @@ const ProfileLayout=(()=>{
   function mount(box,r){
     const chart=box.querySelector('[data-profile-mileage]');
     if(chart)mileageChart(chart,r.mileage||{},'days',{shared:true});
-    mountShowcase(box,r,{featured:r?.mine===false});feedMaps(box);wireCheers(box);mountAchievements(box,r);
+    mountShowcase(box,r,{featured:r?.mine===false});feedMaps(box);wireCheers(box);
   }
   return {defaults,normalize,singlePeriod,numbers,content,mount,mountShowcase,featuredOptions,distance,hours,labels:{sections,stats},sports,achievementPage};
 })();

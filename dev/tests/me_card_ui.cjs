@@ -53,7 +53,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
     return r.fulfill({json:{...showcaseFixture,pinned:showcasePins,available:earnedFixture}});
    }
    if(u.pathname==='/api/sharing')return r.fulfill({json:{share_achievements:shareAchievementsEnabled}});
-   if(u.pathname==='/api/me'){const resp=await r.fetch(),j=await resp.json();j.bio='Fictional trails and weekend rides.';j.kcal_target=null;j.protein_target=null;j.units='imperial';return r.fulfill({response:resp,json:j});}
+   if(u.pathname==='/api/me'){const resp=await r.fetch(),j=await resp.json();j.bio='Fictional trails and weekend rides.';j.kcal_target=null;j.protein_target=null;j.units='imperial';j.friend_count=2;j.friend_requests=0;return r.fulfill({response:resp,json:j});}
    if(u.pathname==='/api/activities'&&u.searchParams.has('limit')){
     const day=todayInNewYork(),hasActivity=['both','activity','activity-multiple','food-error'].includes(todayFixture),yesterday=todayFixture==='activity-empty';
     const row={id:918204,sport:'run',start_time:`${day}T12:12:00Z`,distance_m:9656.064,moving_s:3120,elapsed_s:3180};
@@ -163,7 +163,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   assert(arrowHit,'tapping the decorative chevron reaches the whole-card profile link');
   assert.equal(await p.locator('.me-card-id > .me-friends-link').count(),1,'friend navigation remains a separate link');
   assert.equal(await profileLink.locator('.me-friends-link').count(),0,'friend navigation is not nested inside the profile link');
-  for(const [selector,label] of [['.me-card-banner [data-card-edit]','Edit'],['.me-card-banner [data-card-share]','Share'],['.me-card-id > .me-friends-link .me-friends-count','friends'],['.me-card-id > .me-friends-link .badge.alert','waiting chip'],['.me-card .me-milestone-all','See all']]){
+  for(const [selector,label] of [['.me-card-banner [data-card-edit]','Edit'],['.me-card-banner [data-card-share]','Share'],['.me-card-id > .me-friends-link .me-friends-count','friends'],['.me-card-id > .me-friends-link .badge.alert','waiting chip'],['.me-card .me-milestone-all','Recent milestones']]){
    const target=p.locator(selector).first();if(await target.count()&&await target.isVisible()){const box=await target.boundingBox(),cardLinkAtCenter=await p.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('.me-card-open-link'),{x:box.x+box.width/2,y:box.y+box.height/2});assert(!cardLinkAtCenter,`${label} remains its own tap target above the profile link`);}
   }
   assert.equal(await p.locator('.me-divider').count(),0,'no hairline divider separates the Me card and Today');
@@ -370,16 +370,18 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    for(const count of [2,3]){showcasePins=featuredItems.slice(0,count).map(item=>item.code);showcaseFixture={items:featuredItems.slice(0,count),pinned:showcasePins,day_streak:12};await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();await p.locator('.me-featured-item').nth(count-1).waitFor();assert.equal(await p.locator('.me-featured-item').count(),count,`${count} pinned achievements fit in the row`);await screenshot(`me-featured-${count}-${theme}`);}
    showcasePins=featuredItems.map(item=>item.code);showcaseFixture={items:featuredItems,pinned:showcasePins,day_streak:12};await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();await p.locator('.me-featured-item').nth(3).waitFor();
    assert.equal(await p.locator('.me-featured-item').count(),4,'all four pinned achievements fit in one row');
+   const featuredHits=await p.locator('.me-featured-item').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return{label:n.getAttribute('aria-label'),target:hit?.closest('.me-featured-item')===n};}));assert(featuredHits.every(item=>item.target),'each Featured medal remains the top hit target above the full-card profile link '+JSON.stringify(featuredHits));
    assert.equal(await p.locator('.me-showcase-streak').innerText(),'12-day streak','a live day streak sits beside the medals, labelled');
    const streakFont=await p.locator('.me-showcase-streak').evaluate(n=>parseFloat(getComputedStyle(n).fontSize));assert(streakFont>=15,'the compact streak number meets the minimum readable type size ('+streakFont+'px)');
    const grid=await p.locator('.me-featured-grid').evaluate(n=>{const box=n.getBoundingClientRect(),nodes=[...n.children],items=nodes.map(x=>x.getBoundingClientRect()),medals=nodes.map(x=>x.querySelector('.me-featured-medal').getBoundingClientRect());return{cols:getComputedStyle(n).gridTemplateColumns,centers:medals.map(x=>x.x+x.width/2),medalSizes:medals.map(x=>[x.width,x.height]),box:{left:box.left,right:box.right},items:items.map(x=>({left:x.left,right:x.right}))};});
    assert(grid.centers.every((x,i)=>!i||x>grid.centers[i-1])&&Math.abs((grid.centers[1]-grid.centers[0])-(grid.centers[2]-grid.centers[1]))<1&&Math.abs((grid.centers[2]-grid.centers[1])-(grid.centers[3]-grid.centers[2]))<1&&grid.items.every(x=>x.left>=grid.box.left-1&&x.right<=grid.box.right+1)&&grid.medalSizes.every(([w,h])=>w===48&&h===48),'featured medals keep the approved 48px size, spacing and bounds '+JSON.stringify(grid));
    const fitted=await p.locator('.me-featured-value,.me-featured-context').evaluateAll(nodes=>nodes.every(n=>n.scrollWidth<=n.clientWidth+1&&!/…|\.\.\./.test(n.textContent)));assert(fitted,'long achievement values and contexts wrap without clipping or ellipsis');
    assert.equal(await p.locator('.me-featured-value').nth(2).getAttribute('data-fit-text-source'),'12,345 workouts');assert.doesNotMatch(await p.locator('.me-featured-value').last().innerText(),/…|\.\.\./);await screenshot(`me-featured-four-${theme}`);
-   const medalBox=await p.locator('.me-featured-medal').first().boundingBox(),medalLinkHit=await p.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('.me-card-open-link'),{x:medalBox.x+medalBox.width/2,y:medalBox.y+medalBox.height/2});assert(medalLinkHit,'a featured medal keeps the existing whole-card profile link');
-   await p.mouse.click(medalBox.x+medalBox.width/2,medalBox.y+medalBox.height/2);await p.waitForURL('**/people/alex');await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();
+   const medalLink=p.locator('.me-featured-item').first();assert.equal(await medalLink.getAttribute('href'),'/me/achievements/journey','a featured medal links directly to its own track detail');
+   await medalLink.click();await p.waitForURL('**/me/achievements/journey');await p.locator('.profile-achievement-history-head[data-achievement-code="journey"]').waitFor();
+   await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();
    shareAchievementsEnabled=false;await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();await p.locator('[data-me-featured][data-loaded="true"]').waitFor({state:'attached'});
-   assert.equal(await p.locator('.me-featured-item').count(),0,'turning sharing off removes the featured section');await screenshot(`me-featured-sharing-off-${theme}`);
+   assert.equal(await p.locator('.me-featured-achievements').count(),1,'the owner keeps the Featured entry point when sharing is off');assert.equal(await p.locator('.me-featured-item').count(),4,'the private owner card retains its pinned medals');await screenshot(`me-featured-sharing-off-${theme}`);
    await p.locator('[data-card-share]').click();await p.locator('[data-unified-share]').waitFor();
    assert(!(await p.locator('.share-picture-label').allInnerTexts()).includes('Achievements'),'the picture sheet hides achievements when sharing is off');
    await screenshot('me-showcase-shared-off');await p.keyboard.press('Escape');

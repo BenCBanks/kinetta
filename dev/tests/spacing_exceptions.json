@@ -185,6 +185,16 @@
     "reason": "The approved whole-card profile link covers the Me card; existing edit, share, friends, week and medal controls stay above it. Only these same-card pairs are excepted, and reachability checks still require both hit areas exposed."
   },
   {
+    "id": "me-card-profile-link-under-featured-medals",
+    "selector": ".me-card-open-link",
+    "withSelector": ".me-card-open .me-featured-item",
+    "within": ".me-card",
+    "metric": "overlap",
+    "kind": "intentional-overlay",
+    "maximum": 76,
+    "reason": "Featured medals are links above the approved whole-card profile link; the Me-card browser test verifies each medal remains the center hit target."
+  },
+  {
     "id": "me-featured-heading-type",
     "selector": ".me-featured-achievements .me-featured-title",
     "metric": "font-min",
