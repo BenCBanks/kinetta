@@ -193,10 +193,11 @@
 .me-showcase-streak-slot { display:block; margin:3px 0 0; }
 .me-showcase-streak-slot:empty,.me-featured-slot:empty { display:none; }
 .me-featured-achievements { min-width:0; }
-.me-featured-title { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:44px; margin:0 0 8px; color:var(--tx2); font-size:max(17px,var(--text-app-card-title)); line-height:1.2; font-weight:500; }
-.me-featured-title a { display:inline-flex; align-items:center; flex:none; min-height:44px; gap:2px; color:var(--tx2); font-size:max(17px,var(--text-app-card-title)); font-weight:500; text-decoration:none; }
+.me-featured-achievements .me-featured-title { display:flex; flex-wrap:nowrap; align-items:center; justify-content:space-between; gap:8px; min-height:44px; margin:0 0 8px; color:var(--tx2); font-size:.8125rem; line-height:1.2; font-weight:600; letter-spacing:0; white-space:nowrap; }
+.me-featured-title > span { min-width:0; white-space:nowrap; }
+.me-featured-achievements .me-featured-title a { display:inline-flex; align-items:center; flex:none; min-height:44px; gap:2px; color:var(--accent); font-size:14px; font-weight:600; letter-spacing:0; text-decoration:none; white-space:nowrap; }
 .me-featured-title a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
-.me-featured-title a > span { font-size:1.25rem; font-weight:500; line-height:1; }
+.me-featured-title a > span { font-size:1em; font-weight:600; line-height:1; }
 .me-featured-grid { display:grid; align-items:start; text-align:center; gap:8px; }
 .me-featured-grid.count-1 { grid-template-columns:minmax(0,1fr); }
 .me-featured-grid.count-2 { grid-template-columns:repeat(2,minmax(0,1fr)); }

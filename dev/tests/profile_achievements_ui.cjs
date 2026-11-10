@@ -94,6 +94,23 @@ const assertFeaturedRailInset=async(page,label)=>{
  const clearance=await third.evaluate(node=>{const rail=node.parentElement,card=node.closest('.me-card').getBoundingClientRect(),list=rail.getBoundingClientRect(),medal=node.querySelector('.profile-achievement-medallion'),badge=medal.querySelector('.profile-achievement-level'),medalBox=medal.getBoundingClientRect(),badgeBox=badge.getBoundingClientRect();return{badge:card.right-badgeBox.right,glow:card.right-(medalBox.right+20),railGlow:list.right-(medalBox.right+20)};});
  assert(clearance.badge>=8&&clearance.glow>=8&&clearance.railGlow>=0,`${label} third medal's badge and glow remain clear when scrolled into view: ${JSON.stringify(clearance)}`);await rail.evaluate(node=>node.scrollTo({left:0,behavior:'instant'}));
 };
+const assertFeaturedHeading=async(page,heading,label)=>{
+ const style=await heading.evaluate(node=>{
+  const title=node.querySelector(':scope > span'),link=node.querySelector(':scope > a'),titleRange=document.createRange();titleRange.selectNodeContents(title);
+  const titleBox=title.getBoundingClientRect(),linkBox=link.getBoundingClientRect(),box=node.getBoundingClientRect(),titleStyle=getComputedStyle(title),linkStyle=getComputedStyle(link),referenceBox=document.createElement('div');referenceBox.className='me-card-label';referenceBox.style.cssText='position:absolute;visibility:hidden;pointer-events:none';referenceBox.innerHTML='<span>All time</span>';node.closest('.me-card').append(referenceBox);const reference=referenceBox.querySelector('span'),referenceStyle=getComputedStyle(reference);
+  const probe=document.createElement('i');probe.style.color='var(--accent)';node.append(probe);const accent=getComputedStyle(probe).color;probe.remove();
+  const titleLines=new Set([...titleRange.getClientRects()].map(rect=>Math.round(rect.top*2)/2)).size;
+  const result={text:title.textContent.trim(),titleLines,titleSize:titleStyle.fontSize,titleWeight:titleStyle.fontWeight,referenceSize:referenceStyle.fontSize,referenceWeight:referenceStyle.fontWeight,linkSize:linkStyle.fontSize,linkWeight:linkStyle.fontWeight,linkColor:linkStyle.color,accent,headRight:box.right,linkRight:linkBox.right,noOverlap:titleBox.right<=linkBox.left+1,sameRow:Math.abs(titleBox.top+titleBox.height/2-linkBox.top-linkBox.height/2)<2};referenceBox.remove();return result;
+ });
+ assert.equal(style.text,'Featured achievements',`${label} names the featured-achievements section`);
+ assert.equal(style.titleLines,1,`${label} heading stays on one line`);
+ assert.equal(style.titleSize,style.referenceSize,`${label} heading matches the All time card-label size`);
+ assert.equal(style.titleWeight,style.referenceWeight,`${label} heading matches the All time card-label weight`);
+ assert.equal(style.linkSize,'14px',`${label} link uses the normal link size`);
+ assert.equal(style.linkWeight,'600',`${label} link uses the normal link weight`);
+ assert.equal(style.linkColor,style.accent,`${label} link uses the app blue`);
+ assert(Math.abs(style.headRight-style.linkRight)<1&&style.noOverlap&&style.sameRow,`${label} link sits at the right of the one-line label: ${JSON.stringify(style)}`);
+};
 const assertLargeTextFit=async(container,label)=>{
  const metrics=await container.locator('.profile-achievement-value').evaluateAll(nodes=>nodes.map(node=>{
   node.style.fontSize='22px';delete node.dataset.fitTextMax;const fontSize=window.KinettaTextFit.fitElement(node),range=document.createRange();range.selectNodeContents(node);
@@ -132,7 +149,7 @@ const assertCompactFallback=async(page,label)=>{
 };
 const assert330AchievementViews=async(page,base,setUnits,theme,shots)=>{
  await page.setViewportSize({width:330,height:844});await setUnits('metric');
- await page.goto(base+'/people/fictional_friend');await page.locator('.me-featured-achievements .profile-achievement-list').waitFor();await assertFeaturedRailInset(page,'330px friend profile');
+ await page.goto(base+'/people/fictional_friend');await page.locator('.me-featured-achievements .profile-achievement-list').waitFor();await assertFeaturedHeading(page,page.locator('.me-featured-title'),'330px friend profile');await assertFeaturedRailInset(page,'330px friend profile');if(shots){fs.mkdirSync(shots,{recursive:true});await page.locator('.me-featured-achievements').screenshot({path:path.join(shots,`friend-featured-heading-330-${theme}.png`),animations:'disabled'});}
  const featuredRail=page.locator('.me-featured-achievements .profile-achievement-list'),thirdMedal=featuredRail.locator('.profile-achievement').nth(2);await thirdMedal.scrollIntoViewIfNeeded();await screenshot(page,shots,`friend-profile-featured-330-third-${theme}`);await featuredRail.evaluate(node=>node.scrollTo({left:0,behavior:'instant'}));await screenshot(page,shots,`friend-profile-featured-330-${theme}`);
  futureEvidence=true;await page.evaluate(()=>invalidate('/api/achievements'));
  await page.goto(base+'/people/alex');await page.locator('.profile-achievements .profile-achievement-list').waitFor();
@@ -183,9 +200,15 @@ module.exports=async({browser,storageState,base,shots})=>{
     for(const track of data.tracks)for(const item of track.tiers){const [shown,shownUnit]=displayHistoryTier(track.code,Number(item.threshold)||0,unitMode);item.unit=historyUnits[track.code]||item.unit;item.display_threshold=shown;item.display_unit=shownUnit;}
     if(url.searchParams.has('login')){
      if(!sharedShareEnabled)return route.fulfill({json:{pending:false,tracks:[]}});
-    const tracks=data.tracks.filter(track=>track.tiers.length).map(track=>{
-     const tiers=v2History(track.code,{journey:journeyValue,workouts:workoutValue}).tiers.map(item=>{const [display_threshold,display_unit]=displayHistoryTier(track.code,item.threshold,unitMode);return{rank:item.rank,label:item.name,title:item.name,day:item.day,threshold:item.threshold,unit:historyUnits[track.code]||track.display_unit,display_threshold,display_unit};});
-     return{code:track.code,label:track.label,level:tiers.at(-1)?.rank||0,unit:track.display_unit,tiers};
+     const sharedSportValues={
+      'sport:run':{level:11,display_value:11517,display_unit:'mi'},
+      'sport:walk-hike':{level:8,display_value:191,display_unit:'mi'},
+      'sport:swim':{level:7,display_value:54,display_unit:'mi'}
+     };
+     const tracks=data.tracks.filter(track=>track.tiers.length).map(track=>{
+     const tiers=v2History(track.code,{journey:journeyValue,workouts:workoutValue}).tiers.map(item=>{const [display_threshold,display_unit]=displayHistoryTier(track.code,item.threshold,unitMode);return{rank:item.rank,label:item.name,title:item.name,day:item.day,threshold:item.threshold,unit:historyUnits[track.code]||'count',display_threshold,display_unit};});
+     const total=sharedSportValues[track.code],earnedTiers=total?tiers.slice(0,1):tiers;
+     return{code:track.code,label:track.label,level:total?.level??(tiers.at(-1)?.rank||0),unit:track.display_unit,...(total?{display_value:total.display_value,display_unit:total.display_unit}:{}),tiers:earnedTiers};
     });
      return route.fulfill({json:{pending:false,tracks}});
     }
@@ -266,10 +289,10 @@ module.exports=async({browser,storageState,base,shots})=>{
   await page.locator('.profile-achievements').scrollIntoViewIfNeeded();
   await screenshot(page,shots,`achievement-profile-390-${theme}`);
   await page.goto(base+'/people/fictional_friend');await page.locator('.me-featured-achievements').waitFor();
-  const featured=page.locator('.me-featured-achievements'),featuredTitle=featured.locator('h3.sec-head'),featuredLink=featured.locator('h3.sec-head a'),featuredRows=featured.locator('.profile-achievement-list:not(.is-grid) .profile-achievement');
+  const featured=page.locator('.me-featured-achievements'),featuredTitle=featured.locator('h3.me-featured-title'),featuredLink=featured.locator('h3.me-featured-title a'),featuredRows=featured.locator('.profile-achievement-list:not(.is-grid) .profile-achievement');
   await assertFeaturedRailInset(page,'390px friend profile');
-  assert.equal(await featuredTitle.locator('span').first().innerText(),'Featured','the friend section heading fits on one line');
-  const headingLines=await featuredTitle.locator('span').first().evaluate(node=>{const range=document.createRange();range.selectNodeContents(node);return new Set([...range.getClientRects()].map(rect=>Math.round(rect.top*2)/2)).size;});assert.equal(headingLines,1,'the friend section heading stays on one line');
+  await assertFeaturedHeading(page,featuredTitle,'390px friend profile');
+  if(shots)await featured.screenshot({path:path.join(shots,`friend-featured-heading-390-${theme}.png`),animations:'disabled'});
   assert.equal(await featuredLink.getAttribute('href'),'/people/fictional_friend?view=achievements','a friend’s card opens their read-only achievement page');
   const linkColors=await featuredLink.evaluate(node=>{const probe=document.createElement('i');probe.style.color='var(--accent)';node.parentElement.append(probe);const expected=getComputedStyle(probe).color,actual=getComputedStyle(node).color;probe.remove();return{actual,expected};});assert.equal(linkColors.actual,linkColors.expected,'Achievements uses the same accent-blue link style as other section links');
   assert.deepEqual(await featuredRows.evaluateAll(nodes=>nodes.map(node=>node.dataset.achievementCode)),['journey','workouts','lifted','sport:run'],'the public profile uses the automatic top four when no pins exist');
@@ -279,7 +302,15 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert(await page.locator('.me-card-avatar .av img').evaluate(node=>node.complete&&node.naturalWidth>0),'the friend profile displays its fictional author photo');
   if(shots)await page.screenshot({path:path.join(shots,`friend-profile-featured-390-${theme}.png`),fullPage:true,animations:'disabled'});
   await featuredLink.click();await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
-  assert.equal(await page.locator('#profile-achievement-page .profile-achievement-list.is-grid .profile-achievement').count(),13,'the shared read-only page lists every earned track');
+  const sharedRowsAll=page.locator('#profile-achievement-page .profile-achievement-list.is-grid .profile-achievement');
+  assert.equal(await sharedRowsAll.count(),13,'the shared read-only page lists every earned track');
+  assert.deepEqual((await sharedRowsAll.evaluateAll(nodes=>nodes.map(node=>node.dataset.achievementCode))).sort(),Object.keys(catalog.tracks).sort(),'every catalog track with an earned level appears in the shared view');
+  for(const [code,level,value] of [['sport:run','11','11,517 mi'],['sport:walk-hike','8','191 mi'],['sport:swim','7','54 mi']]){
+   const row=page.locator(`#profile-achievement-page [data-achievement-code="${code}"]`);
+   assert.equal(await row.locator('.profile-achievement-medallion').getAttribute('data-level'),level,`${code} trusts the server level when its shared tier history is incomplete`);
+   assert.equal(await row.locator('.profile-achievement-value').innerText(),value,`${code} shows the current shared total instead of the last tier threshold`);
+  }
+  await screenshot(page,shots,`achievement-shared-catalog-390-${theme}`,{fullPage:true});
   assert.equal(await page.locator('#profile-achievement-page [data-showcase-pin-action],#profile-achievement-page [data-showcase-eligible],#profile-achievement-page [data-achievement-progress]').count(),0,'the shared page exposes no pin controls or future progress');
   await page.locator('#profile-achievement-page [data-achievement-code="journey"]').click();await page.locator('#profile-achievement-page .profile-achievement-history-head[data-achievement-code="journey"]').waitFor();await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
   const sharedRows=page.locator('#profile-achievement-page .profile-achievement-level-row'),sharedRowCount=await sharedRows.count();

@@ -5,6 +5,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
 const SCREENSHOT_CLOCK=require('../screenshots/fixture-time.json'),SCREENSHOT_NOW=new Date(SCREENSHOT_CLOCK.instant);
 const todayOnly=process.env.KINETTA_ME_TODAY_ONLY==='1';
+const featuredHeadingOnly=process.env.KINETTA_ME_FEATURED_HEADING_ONLY==='1';
 const todayInNewYork=()=>{const parts=new Intl.DateTimeFormat('en-US',{timeZone:SCREENSHOT_CLOCK.timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(SCREENSHOT_NOW),v=Object.fromEntries(parts.map(p=>[p.type,p.value]));return `${v.year}-${v.month}-${v.day}`;};
 const addDays=(day,count)=>{const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+count);return d.toISOString().slice(0,10);};
 const chartFixture=today=>{
@@ -131,6 +132,16 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    await p.locator('[data-card-cancel]').click();await p.locator('[data-confirm-ok]').click();await p.locator('[data-card-edit]').click();await p.locator('[data-featured-list][aria-busy="false"]').waitFor();
    assert.deepEqual(await p.locator('.me-featured-selected [data-featured-toggle]').evaluateAll(nodes=>nodes.map(n=>n.dataset.featuredToggle)),['workouts','journey','sport:run'],'Cancel discards the failed pending selection');await p.locator('[data-card-cancel]').click();
   };
+  if(featuredHeadingOnly){
+   showcaseFixture={items:[{code:'journey',rank:4},{code:'sport:run',rank:4}],pinned:[],day_streak:0};shareAchievementsEnabled=true;
+   await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();const heading=p.locator('.me-featured-title'),title=heading.locator(':scope > span'),link=heading.locator(':scope > a');
+   assert.equal(await title.innerText(),'Featured achievements','Me names the featured-achievements section');
+   const metrics=await heading.evaluate(node=>{const title=node.querySelector(':scope > span'),link=node.querySelector(':scope > a'),range=document.createRange();range.selectNodeContents(title);const t=title.getBoundingClientRect(),a=link.getBoundingClientRect(),h=node.getBoundingClientRect(),ts=getComputedStyle(title),as=getComputedStyle(link),referenceBox=document.createElement('div');referenceBox.className='me-card-label';referenceBox.style.cssText='position:absolute;visibility:hidden;pointer-events:none';referenceBox.innerHTML='<span>All time</span>';node.closest('.me-card').append(referenceBox);const ref=getComputedStyle(referenceBox.querySelector('span')),probe=document.createElement('i');probe.style.color='var(--accent)';node.append(probe);const accent=getComputedStyle(probe).color;probe.remove();const result={font:ts.fontSize,weight:ts.fontWeight,referenceFont:ref.fontSize,referenceWeight:ref.fontWeight,lines:new Set([...range.getClientRects()].map(rect=>Math.round(rect.top*2)/2)).size,whiteSpace:ts.whiteSpace,linkFont:as.fontSize,linkWeight:as.fontWeight,linkColor:as.color,accent,rightGap:h.right-a.right,noOverlap:t.right<=a.left+1,sameRow:Math.abs(t.top+t.height/2-a.top-a.height/2)<2};referenceBox.remove();return result;});
+   assert.equal(metrics.font,metrics.referenceFont,'Me heading matches the All time label size');assert.equal(metrics.weight,metrics.referenceWeight,'Me heading matches the card-label weight');assert.equal(metrics.lines,1,'Me heading stays on one line');assert.equal(metrics.whiteSpace,'nowrap');
+   assert.equal(metrics.linkFont,'14px','Me link uses the normal link size');assert.equal(metrics.linkWeight,'600');assert.equal(metrics.linkColor,metrics.accent,'Me link uses the app blue');assert(Math.abs(metrics.rightGap)<1&&metrics.noOverlap&&metrics.sameRow,`Me link sits to the right: ${JSON.stringify(metrics)}`);
+   if(out){fs.mkdirSync(out,{recursive:true});await p.locator('.me-featured-achievements').screenshot({path:`${out}/me-featured-heading-${size.width}-${theme}.png`,animations:'disabled'});}
+   assert.deepEqual(errors,[]);await c.close();continue;
+  }
   if(process.env.KINETTA_ME_FEATURED_CHECKPOINT==='1'){await featuredEditor({checkpoint:true});await c.close();continue;}
   await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();
   const weekly=p.locator('.me-card-weekly'),label=p.locator('[data-week-label]'),chart=p.locator('.me-card-bars'),weeks=p.locator('.me-week');

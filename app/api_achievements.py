@@ -305,12 +305,15 @@ def _visible_achievement_profile(c, viewer_id, login):
 _SHARED_TRACK_FIELDS = ('code','label','level','unit','tiers','day')
 _SHARED_TIER_FIELDS = ('rank','label','title','day','big','quiet','threshold','unit','trigger',
                        'display_threshold','display_unit')
+_SHARED_DISTANCE_TRACKS = frozenset(('sport:run','sport:ride','sport:walk-hike','sport:swim'))
 
 
 def _shared_track_payload(track):
     if int(track.get('level') or 0) < 1:
         return None
     result = {key: track[key] for key in _SHARED_TRACK_FIELDS if key in track}
+    if track.get('code') in _SHARED_DISTANCE_TRACKS:
+        result.update({key: track[key] for key in ('display_value','display_unit') if key in track})
     result['tiers'] = [{key: tier[key] for key in _SHARED_TIER_FIELDS if key in tier}
                        for tier in track.get('tiers') or ()]
     result['history'] = result['tiers']

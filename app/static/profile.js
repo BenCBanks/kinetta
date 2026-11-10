@@ -113,6 +113,7 @@ const ProfileLayout=(()=>{
       canonical_value:Number(last.canonical_value)*multiple,display_value:Number(last.display_value)*multiple,multiple};
   }
   function achievementLevel(track){
+    if(track?._sharedAchievement)return Math.max(0,Math.round(Number(track.level)||0));
     const def=achievementDefinition(track);if(!def)return Math.max(0,Math.round(Number(track.level)||track.tiers?.length||0));
     const value=achievementRawValue(track),firstActivityEarned=value>0||(track.tiers||[]).some(tier=>tier.trigger==='first_activity');let level=0;
     for(const tier of def.levels){
@@ -181,9 +182,10 @@ const ProfileLayout=(()=>{
   }
   function sharedAchievementTracks(data){
     return (Array.isArray(data?.tracks)?data.tracks:[]).map(track=>{
-      const earned=(Array.isArray(track?.tiers)?track.tiers:[]).filter(tier=>Number.isInteger(Number(tier?.rank))&&Number(tier.rank)>0).sort((a,b)=>Number(a.rank)-Number(b.rank)),current=earned.at(-1),rank=Number(current?.rank),tier=rank?achievementTierAt(track.code,rank):null;
-      if(!current||!tier)return null;
-      return {...track,level:rank,value:Number(current.threshold??achievementCanonicalThreshold(tier)),display_value:Number(current.display_threshold??tier.display_value),display_unit:current.display_unit||track.unit||tier.canonical_unit,tiers:earned};
+      const earned=(Array.isArray(track?.tiers)?track.tiers:[]).filter(tier=>Number.isInteger(Number(tier?.rank))&&Number(tier.rank)>0).sort((a,b)=>Number(a.rank)-Number(b.rank)),current=earned.at(-1),reportedLevel=Number(track?.level),rank=Number.isInteger(reportedLevel)&&reportedLevel>0?reportedLevel:Number(current?.rank),tier=rank?achievementTierAt(track.code,rank):null;
+      if(!rank||!tier)return null;
+      const total=track?.display_value,displayValue=total!=null&&Number.isFinite(Number(total))?Number(total):Number(current?.display_threshold??tier.display_value);
+      return {...track,level:rank,display_value:displayValue,display_unit:track.display_unit||current?.display_unit||track.unit||tier.canonical_unit,tiers:earned,_sharedAchievement:true};
     }).filter(Boolean);
   }
   function achievementNext(track){
@@ -368,7 +370,7 @@ const ProfileLayout=(()=>{
     if(sharedLogin&&!items.length)return '';
     const href=sharedLogin?`/people/${encodeURIComponent(sharedLogin)}?view=achievements`:'/me/achievements';
     if(sharedLogin){
-      const heading=`<h3 class="sec-head"><span>Featured</span><a href="${esc(href)}">Achievements <span aria-hidden="true">›</span></a></h3>`;
+      const heading=`<h3 class="sec-head me-featured-title"><span>Featured achievements</span><a href="${esc(href)}">Achievements <span aria-hidden="true">›</span></a></h3>`;
       const rail=`<div class="profile-achievement-list" role="list" aria-label="Featured achievements">${items.map(item=>sharedAchievementRow(item.track,sharedLogin)).join('')}</div>`;
       return `<div class="me-featured-achievements" role="group" aria-label="Featured achievements">${heading}${rail}</div>`;
     }
