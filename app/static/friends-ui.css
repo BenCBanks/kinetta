@@ -39,7 +39,6 @@
 .friends-page .card-origin { flex-basis:100%;font-size:.8125rem;margin:0 0 3px 38px; }
 .friends-page .fr-friend > .icon-btn { flex:none; }
 .friends-page .fr-friend-link::after { content:'›';font-size:1.25rem;color:var(--tx2);margin-left:auto;padding-inline:4px; }
-.friends-page.friends-list-page #fr-browse { display:none; }
 .friends-page.friends-list-page .friend-list-search { min-height:48px;margin:8px 0 12px; }
 .friends-page.friends-list-page .friend-list-search input { width:100%;min-width:0;min-height:44px;font-size:max(16px,1rem); }
 .friends-page.friends-list-page .friend-request-summary { color:var(--accent); }

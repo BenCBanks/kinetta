@@ -1129,6 +1129,7 @@ function installFriendListSearch(el){
   if(!el.classList.contains('friends-list-page'))return;
   const header=el.querySelector('.top'),list=el.querySelector('#fr-own-list'),requests=el.querySelector('#fr-requests');
   if(!header||!list||!requests)return;
+  header.querySelector('#fr-browse')?.remove();
   const form=document.createElement('form');form.id='fr-list-find';form.className='searchbox people-search friend-list-search';form.setAttribute('role','search');
   form.innerHTML=`<span class="sb-ico">${svg('search')}</span><input type="search" name="q" placeholder="Find friends" aria-label="Search name or @username" maxlength="60" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="search">`;
   form.addEventListener('submit',event=>{
