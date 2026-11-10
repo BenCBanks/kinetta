@@ -11,8 +11,8 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
  try{
  for(const who of ['empty','typical','heavy']){
   const auth=await b.newContext();assert.equal((await auth.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_nutrition_'+who,password:'green teapot on the hill'}})).status(),200);cleanup.push(auth);const storage=await auth.storageState();
-  let savedMealAdded=false;
-  for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
+  let savedMealAdded=false;const sizes=who==='empty'?[{width:390,height:844,root:16}]:[{width:390,height:844,root:16},{width:330,height:844,root:16}];
+  for(const size of sizes)for(const theme of ['light','dark']){
    if(process.env.KINETTA_NUTRITION_CASE&&process.env.KINETTA_NUTRITION_CASE!==`${who}-${size.width}-${theme}`)continue;
    const c=await b.newContext({storageState:storage,viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:fixture.timezone}),p=await c.newPage(),errors=[],consoleErrors=[],writes=[],failed=[];await p.clock.setFixedTime(FIXTURE_NOW);p.nutritionDiagnostics={errors,consoleErrors,failed};p.on('requestfailed',r=>failed.push({url:r.url(),error:r.failure()?.errorText}));
    p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/net::ERR_FAILED|net::ERR_ABORTED|503/.test(m.text()))consoleErrors.push(m.text());});
@@ -38,9 +38,10 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    }
    for(const group of await p.locator('.meal-actions').all()){
     const add=group.locator('[data-add]'),more=group.locator('[data-more]');
-    const addBox=await add.boundingBox();assert(addBox.height>=44&&addBox.width>=44,'meal plus keeps a 44px target');
+    const addBox=await add.boundingBox();assert(addBox.height>=44&&addBox.width>=44,'meal plus keeps a 44px target');assert.match(await add.getAttribute('aria-label'),/^Add food to /,'meal plus has a spoken label');
     if(await more.count()){const moreBox=await more.boundingBox();assert(Math.abs(addBox.y-moreBox.y)<1,'meal actions stay together when wrapping');}
    }
+   assert(await p.locator('#fd-meals .meal > h2').evaluateAll(ns=>ns.every(n=>getComputedStyle(n,'::before').display==='none')),'Nutrition meal headings have no decorative grey dot');
    for(const title of await p.locator('.progress-tile-name').all())assert(await title.evaluate(n=>n.scrollWidth<=n.clientWidth+1),'tile title fits without clipping');
    assert.equal(await p.locator('.nutrition-date-row #fd-date').count(),1);assert.equal(await p.locator('#fq-add').count(),1);
    if(who!=='empty'){const facts=await(await c.request.get(base+'/api/progress/overview')).json();assert.match(await p.locator('[data-nutrition-feature=overview]').innerText(),new RegExp('Protein goal '+facts.food.protein_days+'/7'),'tile agrees with own facts after earlier confirmed food saves, including zero');}
@@ -51,7 +52,8 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     assert.match(await p.locator('[data-nutrition-feature=recipes]').innerText(),new RegExp(((who==='typical'?4:13)+(savedMealAdded?1:0))+' saved'));
     assert.match(await p.locator('[data-nutrition-feature=weight]').innerText(),/(last logged|trend)/);
     assert.equal(await p.locator('[data-nutrition-feature=weight] .progress-new:not(.seen)').count(),0);
-    const barWidths=await p.locator('.nutrition-summary-link .track').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().width));assert.equal(barWidths.length,2);assert(Math.abs(barWidths[0]-barWidths[1])<2,'calorie and protein tracks match');
+    const macros=await p.locator('.nutrition-summary-link .macro').evaluateAll(nodes=>nodes.map(n=>({name:n.querySelector('.macro-line b').textContent.trim(),state:n.dataset.targetState,color:getComputedStyle(n.querySelector('.macro-target-bar')).backgroundColor,height:n.querySelector('.macro .track')?.getBoundingClientRect().height||n.querySelector('.track').getBoundingClientRect().height})));assert.deepEqual(macros.map(m=>m.name),['Protein','Carbs','Fat'],'Nutrition summary has three labeled macros');assert.deepEqual(macros.map(m=>m.state),who==='typical'?['under','under','under']:['over','over','over'],'macro bar state follows each saved target');assert(macros.every(m=>m.height<=4.5),'macro bars stay slim');const statusColors=await p.evaluate(()=>{const n=document.createElement('i');document.body.append(n);n.style.backgroundColor='var(--prog)';const under=getComputedStyle(n).backgroundColor;n.style.backgroundColor='var(--alert)';const over=getComputedStyle(n).backgroundColor;n.remove();return{under,over};});assert(macros.every(m=>m.color===statusColors[who==='typical'?'under':'over']),'macro fill color identifies under or over target');
+    const goals=p.locator('#fd-goal'),goalBox=await goals.boundingBox(),goalStyle=await goals.evaluate(n=>({border:getComputedStyle(n).borderTopWidth,background:getComputedStyle(n).backgroundColor}));assert.equal(await goals.evaluate(n=>n.tagName),'A','Goals is a link');assert.equal(await goals.getAttribute('href'),'/food/setup');assert(goalBox.height>=44&&goalStyle.border==='0px'&&goalStyle.background==='rgba(0, 0, 0, 0)','Goals remains a plain 44px text link');
     if(size.root===16){const lunch=await p.locator('.meal-lunch').boundingBox(),nav=await p.locator('nav.tabs').boundingBox();if(who==='typical')assert(lunch.y+lunch.height<nav.y-8,'Breakfast and Lunch clear the tab bar');}
     assert.equal(await p.locator('.meal-calories').first().evaluate(n=>getComputedStyle(n.querySelector('small')).display),'inline');
    }
@@ -81,7 +83,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
      await details.locator('summary').click();await p.evaluate(()=>scrollTo(0,0));
     }
    }
-   await fits('home');if(out&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.waitForTimeout(350);await p.screenshot({path:`${out}/nutrition-${who}-${theme}.png`,fullPage:true,animations:'disabled'});}
+   await fits('home');if(out&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.waitForTimeout(350);await p.screenshot({path:`${out}/nutrition-${who}-${size.width}-${theme}.png`,fullPage:true,animations:'disabled'});}
    if(who==='typical'&&size.width===390&&theme==='light'){
     const day=await(await c.request.get(base+'/api/food/day?d='+fixture.today)).json();assert(day.entries.length,'fixture has a food to save');
     const saved=await c.request.post(base+'/api/food/meals',{headers:{Origin:base},data:{name:'Fictional saved meal',entry_ids:[day.entries[0].id]}});assert.equal(saved.status(),200,'fictional meal fixture saves');savedMealAdded=true;
