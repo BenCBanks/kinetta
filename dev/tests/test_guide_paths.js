@@ -27,7 +27,7 @@ for(const [group,title,,href,how] of box.catalog){
 assert(tileSteps>=10,`checked the named Explore tiles (${tileSteps})`);
 const guide=read('site/guide.html');
 assert.doesNotMatch(guide,/→ More\b|\bMore →/,'public guide has no retired More paths');
-assert.match(guide,/Open Me → Goals to add or update a target/,'public Guide points Goals to Me after Explore leaves Track');
+assert.match(guide,/Open Me → Explore Kinetta → Goals to add or update a target/,'public Guide points to Explore in Me after its Track tile is removed');
 assert.doesNotMatch(guide,/Open Explore Kinetta → Goals/,'public Guide has no stale Track Explore path for Goals');
 assert.doesNotMatch(guide,/<h2>(Calendar|Segments)<\/h2>/,'public guide leaves out default-off features');
 const social=read('app/static/social.js'),empty=social.match(/const feedEmpty=\(\)=>`([^`]*)`/)[1];
