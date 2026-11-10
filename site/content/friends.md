@@ -28,7 +28,7 @@ See the details friends choose to show on their profile.
 
 ## friends-find-description
 
-Search names, send a request and choose who to follow.
+Search names and send friend requests.
 
 ## friends-photo-credit
 
