@@ -339,12 +339,23 @@ class Milestones(unittest.TestCase):
   self.assertEqual(viewer.get('/api/achievement-history/workouts',params=params).json()['tiers'],[],
                    'achievement history stays private while sharing is off')
   self.assertEqual(owner.put('/api/sharing',json={'share_achievements':True}).status_code,200)
+  with db.connect() as c:c.execute("UPDATE profile SET units='imperial' WHERE user_id=%s",(owner_id,))
+  for sport,distance in (('run',16093.44),('walk',3218.688),('swim',8046.72)):
+   self.activity(sport=sport,distance=distance,uid=owner_id)
   self.activity(distance=0,uid=owner_id);self.process(uid=owner_id)
   response=viewer.get(achievements,params=params);self.assertEqual(response.status_code,200,response.text)
   shared=response.json();workouts=next(track for track in shared['tracks'] if track['code']=='workouts')
   self.assertGreaterEqual(workouts['level'],1,'a shared track appears only after an earned level')
   for key in ('next','next_label','next_threshold','value','value_m','value_kg','value_s','display_value'):
    self.assertNotIn(key,workouts,'a shared track does not expose progress toward future levels')
+  by_code={track['code']:track for track in shared['tracks']}
+  for code,value in (('sport:run',10),('sport:walk-hike',2),('sport:swim',5)):
+   track=by_code[code]
+   self.assertGreater(track['level'],1,f'{code} keeps the server-computed lifetime level')
+   self.assertAlmostEqual(track['display_value'],value,places=6,msg=f'{code} returns its current shared total')
+   self.assertEqual(track['display_unit'],'mi',f'{code} total uses the owner’s display units')
+   for key in ('value','value_m','value_kg','value_s'):
+    self.assertNotIn(key,track,f'{code} exposes no raw canonical total')
   self.assertNotIn('activity_id',response.text);self.assertNotIn('details',response.text)
   self.assertFalse(shared['pending'],'another viewer never sees worker state')
   history=viewer.get('/api/achievement-history/workouts',params=params)
