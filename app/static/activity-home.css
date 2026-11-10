@@ -3,7 +3,7 @@
 #feed-top .top { margin-bottom:0; }
 #feed-top .top .acts { gap:8px; }
 #feed-tools:empty { display:none; }
-.home-view-switch { display:flex; align-items:stretch; gap:20px; min-height:48px; margin:0 0 12px; }
+.home-view-switch { display:flex; align-items:stretch; gap:20px; min-height:48px; margin:8px 0 12px; }
 .home-view-switch a { display:inline-flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; padding:0 2px; border-bottom:2px solid transparent; color:var(--tx2); font-size:15px; font-weight:550; text-decoration:none; }
 .home-view-switch a[aria-current="page"] { border-bottom-color:var(--accent); color:var(--tx); font-weight:700; }
 .home-groups-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:44px; margin:4px 0 12px; }
@@ -33,13 +33,13 @@
 .weekly-recap-medal-more { color:var(--tx2); font-size:13px; }
 .weekly-recap-days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; max-width:360px; margin-top:12px; }
 .weekly-recap-day { display:flex; flex-direction:column; align-items:center; gap:5px; color:var(--tx2); font-size:11px; }
-.weekly-recap-day i { position:relative;display:block;width:4px;height:18px;overflow:hidden;border-radius:999px;background:var(--line); }
+.weekly-recap-day-track { position:relative;display:block;width:6px;height:36px;overflow:hidden;border-radius:999px;background:var(--line); }
 .weekly-recap-day-bar { position:absolute;right:0;bottom:0;left:0;display:block;height:0;border-radius:inherit;background:transparent; }
-.weekly-recap-day-bar[data-level="1"] { height:4px; }
-.weekly-recap-day-bar[data-level="2"] { height:7px; }
-.weekly-recap-day-bar[data-level="3"] { height:11px; }
-.weekly-recap-day-bar[data-level="4"] { height:14px; }
-.weekly-recap-day-bar[data-level="5"] { height:18px; }
+.weekly-recap-day-bar[data-level="1"] { height:8px; }
+.weekly-recap-day-bar[data-level="2"] { height:14px; }
+.weekly-recap-day-bar[data-level="3"] { height:22px; }
+.weekly-recap-day-bar[data-level="4"] { height:28px; }
+.weekly-recap-day-bar[data-level="5"] { height:36px; }
 .weekly-recap-day-bar.is-active { background:var(--accent); }
 .weekly-recap-share-stage { display:grid; place-items:center; min-height:200px; margin:0 0 12px; }
 .weekly-recap-share-stage img { display:block; width:min(100%,360px); max-height:58vh; aspect-ratio:4/5; object-fit:contain; border-radius:12px; }
