@@ -151,6 +151,10 @@ const assert330AchievementViews=async(page,base,setUnits,theme,shots)=>{
  await page.setViewportSize({width:330,height:844});await setUnits('metric');
  await page.goto(base+'/people/fictional_friend');await page.locator('.me-featured-achievements .profile-achievement-list').waitFor();await assertFeaturedHeading(page,page.locator('.me-featured-title'),'330px friend profile');await assertFeaturedRailInset(page,'330px friend profile');if(shots){fs.mkdirSync(shots,{recursive:true});await page.locator('.me-featured-achievements').screenshot({path:path.join(shots,`friend-featured-heading-330-${theme}.png`),animations:'disabled'});}
  const featuredRail=page.locator('.me-featured-achievements .profile-achievement-list'),thirdMedal=featuredRail.locator('.profile-achievement').nth(2);await thirdMedal.scrollIntoViewIfNeeded();await screenshot(page,shots,`friend-profile-featured-330-third-${theme}`);await featuredRail.evaluate(node=>node.scrollTo({left:0,behavior:'instant'}));await screenshot(page,shots,`friend-profile-featured-330-${theme}`);
+ await page.goto(base+'/people/fictional_friend?view=achievements&track=sport%3Aride');await waitForHistoryTrack(page,'sport:ride','330px friend Ride history');
+ assert.equal(await page.locator('#profile-achievement-page .profile-achievement-history-head h1').innerText(),'Achievement history','the compact friend track route keeps its page heading');
+ assert.match(await page.locator('#profile-achievement-page .profile-achievement-history-head .profile-achievement-current').innerText(),/^Ride · Level \d+/);
+ assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'330px friend history has no page-level horizontal overflow');await screenshot(page,shots,`achievement-shared-ride-history-330-${theme}`,{fullPage:true});
  futureEvidence=true;await page.evaluate(()=>invalidate('/api/achievements'));
  await page.goto(base+'/people/alex');await page.locator('.profile-achievements .profile-achievement-list').waitFor();
   await assertMedalText(page.locator('.profile-achievements'),'330px profile');await screenshot(page,shots,`achievement-profile-330-${theme}`);
@@ -312,6 +316,12 @@ module.exports=async({browser,storageState,base,shots})=>{
   }
   await screenshot(page,shots,`achievement-shared-catalog-390-${theme}`,{fullPage:true});
   assert.equal(await page.locator('#profile-achievement-page [data-showcase-pin-action],#profile-achievement-page [data-showcase-eligible],#profile-achievement-page [data-achievement-progress]').count(),0,'the shared page exposes no pin controls or future progress');
+  await page.locator('#profile-achievement-page [data-achievement-code="sport:ride"]').click();await waitForHistoryTrack(page,'sport:ride','friend Ride history');
+  assert.equal(await page.locator('#profile-achievement-page .profile-achievement-history-head h1').innerText(),'Achievement history','friend track details keep the shared history heading');
+  assert.match(await page.locator('#profile-achievement-page .profile-achievement-history-head .profile-achievement-current').innerText(),/^Ride · Level \d+/,'the track name remains visible below the shared history heading');
+  await page.goto(base+'/people/fictional_friend?view=achievements&track=sport%3Aride');await waitForHistoryTrack(page,'sport:ride','direct friend Ride history');
+  await screenshot(page,shots,`achievement-shared-ride-history-390-${theme}`,{fullPage:true});
+  await page.goto(base+'/people/fictional_friend?view=achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
   await page.locator('#profile-achievement-page [data-achievement-code="journey"]').click();await page.locator('#profile-achievement-page .profile-achievement-history-head[data-achievement-code="journey"]').waitFor();await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
   const sharedRows=page.locator('#profile-achievement-page .profile-achievement-level-row'),sharedRowCount=await sharedRows.count();
   const expectedSharedJourneyLevels=v2History('journey',{journey:journeyValue,workouts:workoutValue}).tiers.length;
