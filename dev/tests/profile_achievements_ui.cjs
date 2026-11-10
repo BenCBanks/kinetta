@@ -97,10 +97,10 @@ const assertFeaturedRailInset=async(page,label)=>{
 const assertFeaturedHeading=async(page,heading,label)=>{
  const style=await heading.evaluate(node=>{
   const title=node.querySelector(':scope > span'),link=node.querySelector(':scope > a'),titleRange=document.createRange();titleRange.selectNodeContents(title);
-  const titleBox=title.getBoundingClientRect(),linkBox=link.getBoundingClientRect(),box=node.getBoundingClientRect(),titleStyle=getComputedStyle(title),linkStyle=getComputedStyle(link),referenceBox=document.createElement('div');referenceBox.className='me-card-label';referenceBox.style.cssText='position:absolute;visibility:hidden;pointer-events:none';referenceBox.innerHTML='<span>All time</span>';node.closest('.me-card').append(referenceBox);const reference=referenceBox.querySelector('span'),referenceStyle=getComputedStyle(reference);
+  const titleBox=title.getBoundingClientRect(),textBox=titleRange.getBoundingClientRect(),linkBox=link.getBoundingClientRect(),box=node.getBoundingClientRect(),titleStyle=getComputedStyle(title),linkStyle=getComputedStyle(link),referenceBox=document.createElement('div');referenceBox.className='me-card-label';referenceBox.style.cssText='position:absolute;visibility:hidden;pointer-events:none';referenceBox.innerHTML='<span>All time</span>';node.closest('.me-card').append(referenceBox);const reference=referenceBox.querySelector('span'),referenceStyle=getComputedStyle(reference);
   const probe=document.createElement('i');probe.style.color='var(--accent)';node.append(probe);const accent=getComputedStyle(probe).color;probe.remove();
   const titleLines=new Set([...titleRange.getClientRects()].map(rect=>Math.round(rect.top*2)/2)).size;
-  const result={text:title.textContent.trim(),titleLines,titleSize:titleStyle.fontSize,titleWeight:titleStyle.fontWeight,referenceSize:referenceStyle.fontSize,referenceWeight:referenceStyle.fontWeight,linkSize:linkStyle.fontSize,linkWeight:linkStyle.fontWeight,linkColor:linkStyle.color,accent,headRight:box.right,linkRight:linkBox.right,noOverlap:titleBox.right<=linkBox.left+1,sameRow:Math.abs(titleBox.top+titleBox.height/2-linkBox.top-linkBox.height/2)<2};referenceBox.remove();return result;
+  const result={text:title.textContent.trim(),titleLines,titleSize:titleStyle.fontSize,titleWeight:titleStyle.fontWeight,referenceSize:referenceStyle.fontSize,referenceWeight:referenceStyle.fontWeight,linkSize:linkStyle.fontSize,linkWeight:linkStyle.fontWeight,linkColor:linkStyle.color,accent,headRight:box.right,linkRight:linkBox.right,gap:linkBox.left-textBox.right,noOverlap:titleBox.right<=linkBox.left+1,sameRow:Math.abs(titleBox.top+titleBox.height/2-linkBox.top-linkBox.height/2)<2};referenceBox.remove();return result;
  });
  assert.equal(style.text,'Featured achievements',`${label} names the featured-achievements section`);
  assert.equal(style.titleLines,1,`${label} heading stays on one line`);
@@ -109,7 +109,7 @@ const assertFeaturedHeading=async(page,heading,label)=>{
  assert.equal(style.linkSize,'14px',`${label} link uses the normal link size`);
  assert.equal(style.linkWeight,'600',`${label} link uses the normal link weight`);
  assert.equal(style.linkColor,style.accent,`${label} link uses the app blue`);
- assert(Math.abs(style.headRight-style.linkRight)<1&&style.noOverlap&&style.sameRow,`${label} link sits at the right of the one-line label: ${JSON.stringify(style)}`);
+ assert(Math.abs(style.headRight-style.linkRight)<1&&style.noOverlap&&style.gap>=8&&style.sameRow,`${label} link sits at the right of the one-line label with a visible gap: ${JSON.stringify(style)}`);
 };
 const assertLargeTextFit=async(container,label)=>{
  const metrics=await container.locator('.profile-achievement-value').evaluateAll(nodes=>nodes.map(node=>{
@@ -156,11 +156,14 @@ const assert330AchievementViews=async(page,base,setUnits,theme,shots)=>{
  assert.match(await page.locator('#profile-achievement-page .profile-achievement-history-head .profile-achievement-current').innerText(),/^Ride · Level \d+/);
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'330px friend history has no page-level horizontal overflow');await screenshot(page,shots,`achievement-shared-ride-history-330-${theme}`,{fullPage:true});
  futureEvidence=true;await page.evaluate(()=>invalidate('/api/achievements'));
- await page.goto(base+'/people/alex');await page.locator('.profile-achievements .profile-achievement-list').waitFor();
-  await assertMedalText(page.locator('.profile-achievements'),'330px profile');await screenshot(page,shots,`achievement-profile-330-${theme}`);
- assert.equal(await page.locator('.profile-achievement.is-future').count(),2,'the 330px rail keeps the next and future badges with earned badges');
- await assertLargeTextFit(page.locator('.profile-achievements'),'330px large-text profile');await assertCompactFallback(page,'330px profile');
- assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'330px profile has no page-level horizontal overflow');
+ await page.goto(base+'/people/alex');await page.locator('.me-card-sections[aria-busy="false"]').waitFor();
+ assert.equal(await page.locator('.profile-achievements,.me-featured-achievements').count(),0,'the full owner profile has no duplicate achievement entry');
+ await page.goto(base+'/me');await page.locator('.me-featured-achievements').waitFor();
+ assert.equal(await page.locator('.me-featured-achievements').count(),1,'Featured is the only achievement entry point on Me');
+ await assertFeaturedHeading(page,page.locator('.me-featured-title'),'330px Me card');
+ assert(await page.locator('.me-featured-item').evaluateAll(nodes=>nodes.length>0&&nodes.every(node=>node.tagName==='A'&&node.getAttribute('href')===`/me/achievements/${encodeURIComponent(node.dataset.showcaseCode)}`)),'each Me Featured medal opens its own track');
+ await page.locator('.me-card').screenshot({path:path.join(shots,`achievement-me-card-entry-330-${theme}.png`),animations:'disabled'});
+ assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'330px Me card has no page-level horizontal overflow');
  await setUnits('imperial');await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
  await assertMedalText(page.locator('#profile-achievement-page'),'330px achievements grid');
  await assertAchievementGridTextFit(page.locator('#profile-achievement-page'),'330px achievements grid');
@@ -184,6 +187,7 @@ module.exports=async({browser,storageState,base,shots})=>{
  for(const theme of ['light','dark']){
   const context=await browser.newContext({storageState,viewport:{width:390,height:844},colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:SCREENSHOT_CLOCK.timezone});
   const page=await context.newPage(),errors=[],writes=[],pinRequests=[];let journeyValue=6099414,workoutValue=1120,unitMode='imperial',unitLabelValues=null,showcasePins=[],sharedShowcasePins=[],sharedShareEnabled=true;
+  const ownerShowcaseCodes=['journey','workouts','lifted','sport:run'];
   await page.clock.setFixedTime(SCREENSHOT_NOW);
   page.on('pageerror',e=>errors.push(e.message));
   await context.addInitScript(()=>{window.__achievementVibrations=0;const original=navigator.vibrate?.bind(navigator);navigator.vibrate=(...args)=>{window.__achievementVibrations++;return original?original(...args):false;};});
@@ -224,7 +228,8 @@ module.exports=async({browser,storageState,base,shots})=>{
      const codes=sharedShowcasePins.length?sharedShowcasePins:['journey','workouts','lifted','sport:run'];
      return route.fulfill({json:{items:codes.map(code=>{const rank=v2History(code,{journey:journeyValue,workouts:workoutValue}).tiers.at(-1)?.rank||0;return{code,rank,icon:catalog.tracks[code].levels[rank-1]?.icon};}),pinned:sharedShowcasePins,day_streak:0}});
     }
-    return route.fulfill({json:{items:[],pinned:showcasePins,day_streak:0}});
+    const items=ownerShowcaseCodes.map(code=>({code,rank:achievementFixture.tracks.find(track=>track.code===code)?.tiers.at(-1)?.rank||1}));
+    return route.fulfill({json:{items,pinned:showcasePins,day_streak:0}});
    }
    if(request.method()==='POST'&&url.pathname==='/api/achievements/showcase/pin'){
     const body=request.postDataJSON();pinRequests.push(body);let replaced=false;
@@ -249,49 +254,21 @@ module.exports=async({browser,storageState,base,shots})=>{
   const webHaptic=await page.evaluate(()=>Native.achievementLevelUp());
   assert.equal(webHaptic,false,'the achievement success feedback is disabled on web');
 
-  await page.goto(base+'/people/alex');await page.locator('.profile-achievements .profile-achievement-list').waitFor();
-  assert.equal(await page.locator('.profile-achievements h2 a').getAttribute('href'),'/me/achievements','the Profile achievements heading opens the full catalog');
-  const profileList=page.locator('.profile-achievements .profile-achievement-list');
-  assert.equal(await profileList.locator('.profile-achievement').count(),13,'the profile shows every earned and future track in its sideways rail');
-  assert.equal(await profileList.locator('.profile-achievement-overview-progress[role="progressbar"]').count(),13,'every badge in the profile rail has its own progress bar');
-  assert.equal(await profileList.getAttribute('aria-label'),'Achievements, earned and future','the rail identifies both earned and future badges');
-  assert.deepEqual(await profileList.locator('.profile-achievement').evaluateAll(nodes=>nodes.slice(0,4).map(n=>n.dataset.achievementCode)),['journey','workouts','lifted','sport:run'],'the profile rail keeps most-recent-progress order');
-  assert(await page.locator('.profile-achievement[data-achievement-code="workouts"]').evaluate(n=>n.classList.contains('is-level-up')),'a previously seen level increase animates');
-  if(theme==='light'&&shots){
-   const levelUp=page.locator('.profile-achievement[data-achievement-code="workouts"]'),animations=await levelUp.evaluate(card=>{const active=card.getAnimations({subtree:true});for(const animation of active){animation.pause();animation.currentTime=300;}return active.length;});
-   assert(animations>=1,'the captured level-up frame pauses the medallion pop');await screenshot(page,shots,'achievement-level-up-frame-390-light',{animations:'allow'});await levelUp.evaluate(card=>card.getAnimations({subtree:true}).forEach(animation=>animation.cancel()));
-  }
-  const rail=await profileList.evaluate(n=>{const r=n.getBoundingClientRect(),first=n.querySelector('.profile-achievement').getBoundingClientRect(),fourth=n.querySelectorAll('.profile-achievement')[3].getBoundingClientRect();return{listLeft:r.left,listRight:r.right,firstLeft:first.left,fourthLeft:fourth.left,fourthRight:fourth.right,clientWidth:n.clientWidth,scrollWidth:n.scrollWidth,scrollPaddingLeft:getComputedStyle(n).scrollPaddingLeft};});
-  assert.equal(Math.round(rail.firstLeft-rail.listLeft),16,'the first profile medallion has a 16px inset');
-  assert.equal(parseFloat(rail.scrollPaddingLeft),16,'horizontal snap alignment preserves the 16px inset');
-  assert(rail.fourthLeft<rail.listRight&&rail.fourthRight>rail.listRight,'the next medallion peeks in from the right');
-  assert(rail.scrollWidth>rail.clientWidth,'the profile rail remains horizontally scrollable');
-  assert.equal(await page.locator('.profile-achievement[data-achievement-code="journey"] .profile-achievement-value').innerText(),'3,790 mi','Journey follows the owner’s miles');
-  assert.equal(await page.locator('.profile-achievement[data-achievement-code="climbing"] .profile-achievement-value').innerText(),'55,774 ft','Climbing follows the existing feet preference');
-  const iconMap=await page.locator('.profile-achievement[data-achievement-code]').evaluateAll(nodes=>Object.fromEntries(nodes.map(n=>[n.dataset.achievementCode,n.querySelector('[data-achievement-icon]')?.dataset.achievementIcon])));
-  assert.deepEqual(iconMap,{journey:'Bridge at night',workouts:'National park',lifted:'Statue of liberty','sport:run':'Trophy',active_time:'Hiking boot',years_active:'Hand with fingers splayed',consistency:'Fire',climbing:'Airplane',personal_bests:'Notebook','sport:ride':'Chequered flag','sport:walk-hike':'Sports medal','sport:swim':'Dolphin','sport:lift':'Flexed biceps'});
-  assert.equal(await page.locator('.profile-achievement[data-achievement-code="climbing"] .profile-achievement-medallion').getAttribute('data-level'),'10','17,000 m maps to catalog Level 10, Cruising altitude');
-  assert.equal(await page.locator('.profile-achievement[data-achievement-code="climbing"] .profile-achievement-name').innerText(),'Climbing');
-  assert.equal(await page.locator('.profile-achievement[data-achievement-code="lifted"] .profile-achievement-medallion').getAttribute('data-level'),'7','300,000 kg maps to catalog Level 7, Statue of Liberty');
-  assert.equal(await page.locator('.profile-achievement[data-achievement-code="lifted"] [data-achievement-icon]').getAttribute('data-achievement-icon'),'Statue of liberty');
-  const paletteTokens={journey:'--color-brand',workouts:'--color-brand',lifted:'--color-workout','sport:run':'--color-run',active_time:'--color-brand',years_active:'--color-brand',consistency:'--color-brand',climbing:'--color-hike',personal_bests:'--color-brand','sport:ride':'--color-ride','sport:walk-hike':'--color-walk','sport:swim':'--color-swim','sport:lift':'--color-workout'};
-  const paletteMatches=await page.evaluate(expected=>{
-   const resolve=(context,token)=>{const probe=document.createElement('i');probe.style.cssText='position:absolute;visibility:hidden;pointer-events:none';probe.style.color=`var(${token})`;context.append(probe);const color=getComputedStyle(probe).color;probe.remove();return color;};
-   return Object.entries(expected).map(([code,token])=>{const card=document.querySelector(`.profile-achievement[data-achievement-code="${CSS.escape(code)}"]`);return{code,actual:resolve(card,'--achievement-palette-base'),expected:resolve(document.documentElement,token)};});
-  },paletteTokens);
-  assert.equal(paletteMatches.length,13,'every started track has a P2 palette token');
-  assert(paletteMatches.every(match=>match.actual===match.expected),`sport tracks use their existing sport colours; general tracks use brand blue: ${JSON.stringify(paletteMatches)}`);
-  const artwork=await page.locator('.profile-achievement[data-achievement-code] .profile-achievement-icon').evaluateAll(nodes=>nodes.map(n=>({name:n.dataset.achievementIcon,width:n.naturalWidth,height:n.naturalHeight,source:new URL(n.src).pathname})));
-  assert(artwork.every(icon=>icon.width>0&&icon.height>0&&icon.source.startsWith('/static/profile.fluent-emoji/flat/')),'every started track uses a locally vendored Fluent Flat SVG');
-  assert.doesNotMatch(await page.locator('.profile-achievements').innerText(),/[\u{1F300}-\u{1FAFF}]/u,'achievement labels contain no emoji');
-  assert.equal(await page.locator('.profile-achievement[data-achievement-code="workouts"] .profile-achievement-medallion').getAttribute('data-level-tone'),'deep','level eight uses the saturated tone');
-  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'the profile rail does not widen the page');
-  await assertMedalText(profileList,'profile');
-  assert.match(await page.locator('.profile-achievement[data-achievement-code="workouts"]').getAttribute('aria-label'),/1,120 workouts/,'the accessible label keeps the full workout count');
-  const saved=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),key);assert.equal(saved.workouts,8,'the migrated level updates once');
+  await page.goto(base+'/people/alex');await page.locator('.me-card-sections[aria-busy="false"]').waitFor();
+  assert.equal(await page.locator('.profile-achievements,.me-featured-achievements').count(),0,'the full owner profile has no duplicate achievement entry');
+  await page.goto(base+'/me');await page.locator('.me-featured-achievements').waitFor();
+  assert.equal(await page.locator('.me-featured-achievements').count(),1,'Featured is the only achievement entry point on Me');
+  assert.equal(await page.getByRole('link',{name:'See all',exact:true}).count(),1,'Me has one link to the full achievement catalog');
+  assert.equal(await page.locator('.me-featured-title a').getAttribute('href'),'/me/achievements','the Featured heading opens the full catalog');
+  assert(await page.locator('.me-featured-item').evaluateAll(nodes=>nodes.length>0&&nodes.every(node=>node.tagName==='A'&&node.getAttribute('href')===`/me/achievements/${encodeURIComponent(node.dataset.showcaseCode)}`)),'every Featured medal opens its own track history');
+  const saved=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),key);assert.equal(saved.workouts,8,'featured rendering updates the migrated level once');
   assert.equal(await page.evaluate(()=>window.__achievementVibrations),0,'a web level up does not vibrate');
-  await page.locator('.profile-achievements').scrollIntoViewIfNeeded();
-  await screenshot(page,shots,`achievement-profile-390-${theme}`);
+  await page.locator('.me-card').screenshot({path:path.join(shots,`achievement-me-card-entry-390-${theme}.png`),animations:'disabled'});
+  const featuredMedal=page.locator('.me-featured-item').first(),featuredTrack=await featuredMedal.getAttribute('data-showcase-code');
+  await featuredMedal.click();await page.waitForURL(`**/me/achievements/${encodeURIComponent(featuredTrack)}`);await page.locator(`#profile-achievement-page .profile-achievement-history-head[data-achievement-code="${featuredTrack}"]`).waitFor();
+  await page.goto(base+'/people/alex?view=achievements');await page.waitForURL('**/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+  assert.equal(await page.locator('#profile-achievement-page .profile-achievement-group').count(),3,'the old owner profile URL still opens the grouped catalog');
+  await page.goto(base+'/me');await page.locator('.me-featured-achievements').waitFor();await page.locator('.me-featured-title a').click();await page.waitForURL('**/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
   await page.goto(base+'/people/fictional_friend');await page.locator('.me-featured-achievements').waitFor();
   const featured=page.locator('.me-featured-achievements'),featuredTitle=featured.locator('h3.me-featured-title'),featuredLink=featured.locator('h3.me-featured-title a'),featuredRows=featured.locator('.profile-achievement-list:not(.is-grid) .profile-achievement');
   await assertFeaturedRailInset(page,'390px friend profile');
@@ -333,22 +310,23 @@ module.exports=async({browser,storageState,base,shots})=>{
   sharedShareEnabled=false;await page.reload();await page.locator('.me-card-sections[aria-busy="false"]').waitFor();
   assert.equal(await page.locator('.me-featured-achievements').count(),0,'turning achievement sharing off removes the featured section');
   sharedShareEnabled=true;sharedShowcasePins=[];
-  await page.goto(base+'/people/alex');await page.locator('.profile-achievements .profile-achievement-list').waitFor();
+  await page.goto(base+'/me');await page.locator('.me-featured-achievements').waitFor();
   if(process.env.KINETTA_ACHIEVEMENT_FIT_ONLY==='1'){await assert330AchievementViews(page,base,setUnits,theme,shots);await context.close();continue;}
   unitLabelValues=[['consistency',1,'weeks'],['active_time',1,'h'],['workouts',1,'workouts'],['sport:lift',1,'sessions'],['years_active',1,'years']].map(([code,value,unit])=>({code,value,unit}));
-  await page.goto(base+'/people/alex');await page.locator('.profile-achievements .profile-achievement-list').waitFor();
+  await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
   for(const [code,label] of [['consistency','1 week'],['active_time','1 hour'],['workouts','1 workout'],['sport:lift','1 session'],['years_active','1 year']]){
-   assert.equal(await page.locator(`.profile-achievement[data-achievement-code="${code}"] .profile-achievement-value`).innerText(),label,`${code} uses its singular unit`);
+   assert.equal(await page.locator(`#profile-achievement-page .profile-achievement[data-achievement-code="${code}"] .profile-achievement-value`).innerText(),label,`${code} uses its singular unit`);
   }
   unitLabelValues=[['consistency',2,'weeks'],['active_time',2,'h'],['workouts',2,'workouts'],['sport:lift',2,'sessions'],['years_active',2,'years']].map(([code,value,unit])=>({code,value,unit}));
-  await page.goto(base+'/people/alex');await page.locator('.profile-achievements .profile-achievement-list').waitFor();
+  await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
   for(const [code,medal,accessible] of [['consistency','2 weeks','2 weeks'],['active_time','2 hours','2 hours'],['workouts','2 wkt','2 workouts'],['sport:lift','2 sess','2 sessions'],['years_active','2 years','2 years']]){
-   const row=page.locator(`.profile-achievement[data-achievement-code="${code}"]`);assert.equal(await row.locator('.profile-achievement-value').innerText(),medal,`${code} keeps its medal label compact`);assert.match(await row.getAttribute('aria-label'),new RegExp(accessible.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')),`${code} retains its full spoken unit`);
+   const row=page.locator(`#profile-achievement-page .profile-achievement[data-achievement-code="${code}"]`);assert.equal(await row.locator('.profile-achievement-value').innerText(),medal,`${code} keeps its medal label compact`);assert.match(await row.getAttribute('aria-label'),new RegExp(accessible.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')),`${code} retains its full spoken unit`);
   }
   unitLabelValues=null;
 
-  await page.goto(base+'/people/alex');await page.locator('.profile-achievements h2 a').waitFor();
-  await page.locator('.profile-achievements h2 a').click();await page.waitForURL('**/me/achievements');
+  await page.goto(base+'/me');await page.locator('.me-featured-title a').waitFor();
+  assert.equal(await page.locator('.profile-achievements').count(),0,'the Me card does not duplicate the full catalog');
+  await page.locator('.me-featured-title a').click();await page.waitForURL('**/me/achievements');
   await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
   const groups=page.locator('#profile-achievement-page .profile-achievement-group');
   assert.equal(await groups.count(),3,'started tracks are grouped into Overall, Distance and Strength');
@@ -517,8 +495,8 @@ module.exports=async({browser,storageState,base,shots})=>{
   ];
   // One run plus one lifting session gives the new account two total workouts.
   workoutValue=2;await setUnits('metric');await page.evaluate(()=>{for(const key of Object.keys(localStorage))if(key.startsWith('kinetta.achievement-levels.v'))localStorage.removeItem(key);});
-  await page.goto(base+'/people/alex');await page.locator('.profile-achievements .profile-achievement-list').waitFor();
-  const earlyShowcase=page.locator('.profile-achievements');
+  await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+  const earlyShowcase=page.locator('#profile-achievement-page');
   assert.match(await earlyShowcase.innerText(),/First 1\.6 km|5K/,'the new-run Showcase has the metric First mile level');
   assert.match(await earlyShowcase.innerText(),/First workout|Sprig/,'the new-workout Showcase shows the early workout level');
   assert.match(await earlyShowcase.locator('[data-achievement-code="sport:run"]').getAttribute('aria-label'),/First 1\.6 km/,'the run medal uses its metric display name');
@@ -625,7 +603,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   }
   achievementFixture.tracks=allFixtureTracks;workoutValue=1120;journeyValue=6099414;unitLabelValues=null;await page.setViewportSize({width:390,height:844});await setUnits('imperial');
 
-  workoutValue=1120;journeyValue=6099414;await page.goto(base+'/people/alex');await page.locator('.profile-achievements .profile-achievement-list').waitFor();
+  workoutValue=1120;journeyValue=6099414;await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
   await page.evaluate(()=>{
    const runner='<circle cx="15.5" cy="4.5" r="2.5"/><path d="m12 8 4 1 2.2 3.2 3.2 1.1-.7 2-4-1.4-2-2.4-2 2.2 3.6 2.4 2.1 5.2h-2.3l-1.7-4-4.4-2.4-2.9 3.8H4.5l3.8-5.7 3.1-3.1-1.1-.6-2.4 2.5-3.3-.5.3-2.1 2.4.3L10 9.1A3 3 0 0 1 12 8Z"/>';
    const cards=Array.from({length:8},(_,i)=>{
