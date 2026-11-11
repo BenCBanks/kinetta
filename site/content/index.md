@@ -32,7 +32,7 @@ Follow friends’ shared workouts, photos, cheers and comments in one feed.
 
 ## home-trust-share
 
-You choose what you share.
+[Choose who sees your workouts](privacy)
 
 ## home-trust-export
 

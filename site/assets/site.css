@@ -328,8 +328,9 @@ pre .c { color: #929BA4; }
 .home-more-links svg { width: 22px; height: 22px; color: var(--ink3); }
 .home-more-links b { display: block; font-size: 14px; }
 .home-more-links small { display: block; margin-top: 3px; font-size: 12px; line-height: 1.3; }
-.home-trust { padding-block: 28px; background: var(--ink); color: var(--bg); }
-.home-trust li { font-size: 15px; font-weight: 600; }
+.home-trust { padding-block: 16px; background: transparent; color: var(--ink2); }
+.home-trust li { font-size: 14px; font-weight: 500; }
+.home-trust a { text-decoration: underline; text-underline-offset: .15em; }
 .home-final { padding-block: 52px 60px; border-top: 1px solid var(--line); text-align: center; }
 .home-final .wrap { display: grid; justify-items: center; gap: 26px; }
 .home-final h2 { max-width: 20ch; font-size: clamp(32px, 4.5vw, 52px); line-height: 1.04; letter-spacing: -.04em; }
@@ -365,7 +366,7 @@ pre .c { color: #929BA4; }
   .home-disciplines ul, .home-trust ul { gap: 14px 22px; }
   .home-disciplines li { font-size: 14px; }
   .home-more-links { grid-template-columns: 1fr 1fr; gap: 14px 10px; }
-  .home-trust li { align-items: flex-start; gap: 6px; font-size: 13px; }
+  .home-trust li { font-size: 14px; }
   .home-final { padding-block: 42px 48px; }
   .friends-gallery .head { margin-bottom: 22px; }
 }
@@ -544,8 +545,8 @@ header.top .signup { display:flex;align-items:center; }
 .home-disciplines ul, .home-trust ul { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 14px clamp(22px, 5vw, 64px); margin: 0; padding: 0; list-style: none; }
 .home-disciplines li { display: flex; align-items: center; gap: 9px; color: var(--ink2); font-size: 15px; font-weight: 600; }
 .home-disciplines svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; }
-.home-trust { padding-block: 28px; background: var(--ink); color: var(--bg); }
-.home-trust li { font-size: 15px; font-weight: 600; }
+.home-trust { padding-block: 16px; background: transparent; color: var(--ink2); }
+.home-trust li { font-size: 14px; font-weight: 500; }
 .home-final { padding-block: 72px; text-align: center; }
 .home-final .wrap { display: grid; justify-items: center; gap: 26px; }
 .home-final h2 { max-width: 20ch; font-size: clamp(32px, 4.5vw, 52px); line-height: 1.04; letter-spacing: -.04em; }
