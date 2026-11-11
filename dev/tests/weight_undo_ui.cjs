@@ -32,7 +32,7 @@ const until=async(p,f,label)=>{for(let n=0;n<160;n++){if(await p.evaluate(f))ret
    assert.equal(await p.locator('.wcard [name=wday]').getAttribute('max'),today,'current-day limit follows the same fixture instant');
    assert.match(await p.locator('.wcard .wdone').innerText(),/today$/,'current weight remains labeled today');
    const expectedLabels=await p.evaluate(({today,previous})=>[today,previous].map(day=>new Date(day+'T12:00').toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})),{today,previous});
-   const actualLabels=await p.locator('.weight-history-row > span').evaluateAll(nodes=>nodes.map(node=>node.childNodes[0].textContent.trim()));
+   const actualLabels=await p.locator('.weight-history-row > span:first-child').evaluateAll(nodes=>nodes.map(node=>node.childNodes[0].textContent.trim()));
    assert.deepEqual(actualLabels,expectedLabels,'weight history weekday labels match the fixed fictional dates');
    const draft=await p.evaluate(()=>imp()?'163.4':'73.6');await p.locator('.wform input').fill(draft);await p.evaluate(()=>globalThis.weightDraftField=document.querySelector('.wform input'));
    await remove();assert.equal(await p.locator('.weight-history-row:visible').count(),1);assert.equal(deleteCalls,0,'Delete is deferred');assert.equal(await p.locator('.wform input').inputValue(),draft);await shot('weight-deleted');
