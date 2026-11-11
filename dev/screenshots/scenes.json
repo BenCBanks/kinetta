@@ -5,17 +5,7 @@
   ],
   [
     "feed",
-    "/activity",
-    {
-      "feedCard": true
-    }
-  ],
-  [
-    "home-groups",
-    "/activity?view=groups",
-    {
-      "homeGroups": true
-    }
+    "/activity"
   ],
   [
     "profile",
@@ -58,47 +48,12 @@
     "ROUTE"
   ],
   [
-    "records-pr",
-    "/records/run/5000",
-    {
-      "recordPR": true
-    }
-  ],
-  [
     "progress",
     "/progress"
   ],
   [
     "fitness",
     "/progress?view=fitness"
-  ],
-  [
-    "fitness-trend",
-    "/progress?view=fitness",
-    {
-      "fitnessTrend": true
-    }
-  ],
-  [
-    "week-review",
-    "/progress?review=week",
-    {
-      "weekReview": true
-    }
-  ],
-  [
-    "calendar",
-    "/progress/calendar",
-    {
-      "calendar": true
-    }
-  ],
-  [
-    "kit-pace",
-    "/me/kit",
-    {
-      "kitPace": true
-    }
   ],
   [
     "plan",
@@ -111,13 +66,6 @@
   [
     "food",
     "/food"
-  ],
-  [
-    "nutrition-day",
-    "/food",
-    {
-      "nutritionDay": true
-    }
   ],
   [
     "insights",
@@ -146,28 +94,6 @@
   [
     "friends",
     "/me/friends"
-  ],
-  [
-    "friends-feed",
-    "/activity",
-    {
-      "feedCard": true,
-      "friendActivity": true
-    }
-  ],
-  [
-    "friends-group",
-    "/me/groups",
-    {
-      "groupDetail": true
-    }
-  ],
-  [
-    "friends-me",
-    "/me",
-    {
-      "meCard": true
-    }
   ],
   [
     "dietcoach",

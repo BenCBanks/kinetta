@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Friends · Kinetta</title>
-<meta name="description" content="Follow your friends’ workouts, photos and profiles. Cheer each other on.">
+<meta name="description" content="See workouts your friends share, with photos, cheers and comments.">
 <meta property="og:title" content="Friends · Kinetta">
-<meta property="og:description" content="Follow your friends’ workouts, photos and profiles. Cheer each other on.">
+<meta property="og:description" content="See workouts your friends share, with photos, cheers and comments.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Kinetta">
 <meta property="og:url" content="https://kinetta.app/friends">
@@ -42,8 +42,7 @@
 <header class="top">
   <div class="wrap">
     <a class="logo" href="./" aria-label="Kinetta home"><picture><source srcset="assets/logo-dark.svg?v=4" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg?v=4" alt="Kinetta" width="132" height="21"></picture></a>
-    <nav class="tabs" aria-label="Pages"><a href="training">Training</a><a href="food">Food</a><a href="friends" aria-current="page">Friends</a><a href="compare">Compare</a></nav>
-    <span class="signup"><a class="btn solid sm" href="https://login.kinetta.app/signup">Join beta</a></span>
+    <nav class="tabs" aria-label="Primary"><a href="./">Home</a><a href="compare">Features</a><a href="guide">Guide</a><a href="https://testflight.apple.com/join/YAX1JnwB" class="nav-download btn solid sm">Download</a></nav>
   </div>
 </header>
 
@@ -51,32 +50,27 @@
   <section class="pagehead friends-pagehead">
     <div class="wrap">
       <span class="eyebrow">Friends</span>
-      <h1>{{copy:friends-hero}}</h1>
-      <p class="lede">{{copy:friends-intro}}</p>
+      <h1>{{copy:your-friends-workouts-and-yours-1}}</h1>
+      <p class="lede">{{copy:find-friends-by-name-see-their-runs-send-them-cheers-2}}</p>
     </div>
   </section>
-  <section class="band" aria-labelledby="friends-gallery-title">
+  <section class="band friends-gallery" aria-labelledby="friends-gallery-heading">
     <div class="wrap">
-      <div class="head"><h2 id="friends-gallery-title">{{copy:friends-gallery}}</h2></div>
-      <div class="shots two" aria-label="Friends features">
-        <div class="shot"><figure>
-          <div class="frame"><picture><source srcset="assets/shots/dark-feed-1x.webp 1x, assets/shots/dark-feed.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-feed-1x.webp" srcset="assets/shots/light-feed-1x.webp 1x, assets/shots/light-feed.webp 2x" alt="A fictional activity feed with workouts, a route map and friends’ cheers" loading="lazy" width="786" height="1704"></picture></div>
-          <figcaption><h3>The feed</h3><p>{{copy:friends-feed-description}}</p></figcaption>
-        </figure></div>
-        <div class="shot"><figure>
-          <div class="frame"><picture><source srcset="assets/shots/dark-photos-1x.webp 1x, assets/shots/dark-photos.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-photos-1x.webp" srcset="assets/shots/light-photos-1x.webp 1x, assets/shots/light-photos.webp 2x" alt="A fictional shared run with its map and a public park photo" loading="lazy" width="786" height="1704"></picture></div>
-          <figcaption><h3>Photos</h3><p>{{copy:friends-photos-description}}</p></figcaption>
-        </figure></div>
-        <div class="shot"><figure>
-          <div class="frame"><picture><source srcset="assets/shots/dark-profile-1x.webp 1x, assets/shots/dark-profile.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-profile-1x.webp" srcset="assets/shots/light-profile-1x.webp 1x, assets/shots/light-profile.webp 2x" alt="A fictional profile card with a custom headline, weekly totals and sports" loading="lazy" width="786" height="1704"></picture></div>
-          <figcaption><h3>Profiles</h3><p>{{copy:friends-profiles-description}}</p></figcaption>
-        </figure></div>
-        <div class="shot"><figure>
-          <div class="frame"><picture><source srcset="assets/shots/dark-friends-1x.webp 1x, assets/shots/dark-friends.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-friends-1x.webp" srcset="assets/shots/light-friends-1x.webp 1x, assets/shots/light-friends.webp 2x" alt="Three fictional friends and one pending request" loading="lazy" width="786" height="1704"></picture></div>
-          <figcaption><h3>Find friends</h3><p>{{copy:friends-find-description}}</p></figcaption>
-        </figure></div>
+      <div class="head"><h2 id="friends-gallery-heading">{{copy:see-who-s-out-there-today-3}}</h2><p>{{copy:your-runs-and-theirs-newest-first-4}}</p></div>
+      <div class="shots four" aria-label="Friends features">
+        <article class="shot"><figure><div class="frame"><picture><source srcset="assets/shots/dark-feed-1x.webp 1x, assets/shots/dark-feed.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-feed-1x.webp" srcset="assets/shots/light-feed-1x.webp 1x, assets/shots/light-feed.webp 2x" alt="Fictional activity feed with shared workouts, a route map and friends’ reactions" loading="lazy" width="786" height="1704"></picture></div><figcaption><h3>The feed</h3><p>{{copy:friends-feed-description}}</p></figcaption></figure></article>
+        <article class="shot"><figure><div class="frame"><picture><source srcset="assets/shots/dark-photos-1x.webp 1x, assets/shots/dark-photos.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-photos-1x.webp" srcset="assets/shots/light-photos-1x.webp 1x, assets/shots/light-photos.webp 2x" alt="Fictional shared run with a map and a park photo" loading="lazy" width="786" height="1704"></picture></div><figcaption><h3>Map and photos</h3><p>{{copy:friends-photos-description}}</p></figcaption></figure></article>
+        <article class="shot"><figure><div class="frame"><picture><source srcset="assets/shots/dark-profile-1x.webp 1x, assets/shots/dark-profile.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-profile-1x.webp" srcset="assets/shots/light-profile-1x.webp 1x, assets/shots/light-profile.webp 2x" alt="Fictional profile with a chosen photo, bio and weekly totals" loading="lazy" width="786" height="1704"></picture></div><figcaption><h3>Build your profile</h3><p>{{copy:friends-profiles-description}}</p></figcaption></figure></article>
+        <article class="shot"><figure><div class="frame"><picture><source srcset="assets/shots/dark-friends-1x.webp 1x, assets/shots/dark-friends.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-friends-1x.webp" srcset="assets/shots/light-friends-1x.webp 1x, assets/shots/light-friends.webp 2x" alt="Fictional friends list with three members and one pending request" loading="lazy" width="786" height="1704"></picture></div><figcaption><h3>Find your people</h3><p>{{copy:friends-find-description}}</p></figcaption></figure></article>
       </div>
-      <p class="site-credit">{{copy:friends-photo-credit}}</p>
+      <p class="site-credit">{{copy:photos-of-freedom-park-charlotte-james-willamor-and-ci-5}}</p>
+    </div>
+  </section>
+  <section class="band friends-summary" aria-label="Profiles and sharing">
+    <div class="wrap">
+      <article><h2>{{copy:profile-heading}}</h2><p>{{copy:profile-copy}}</p></article>
+      <article><h2>{{copy:private-overview-heading}}</h2><p>{{copy:private-overview-copy}}</p></article>
+      <article><h2>{{copy:motivation-heading}}</h2><p>{{copy:motivation-copy}}</p></article>
     </div>
   </section>
   <section class="band next" aria-label="Next">
@@ -91,7 +85,7 @@
   <div class="wrap">
     <picture><source srcset="assets/logo-dark.svg?v=4" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg?v=4" alt="Kinetta" width="124" height="20"></picture>
     <div>
-      <p>{{copy:training-training-food-food-friends-friends-compare-co-6}}</p>
+      <p>{{copy:training-training-food-food-friends-friends-compare-co-6}} · <a href="about">About us</a></p>
       <p>{{copy:free-for-personal-use-under-the-polyform-noncommercial-7}}</p>
       <p>{{copy:2026-ben-banks-name-and-logo-not-covered-by-the-licens-8}}</p>
     </div>

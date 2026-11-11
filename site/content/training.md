@@ -40,7 +40,7 @@ Compare repeated routes and see how your pace changes over time.
 
 ## free-for-personal-use-under-the-polyform-noncommercial-26
 
-Source available under the [PolyForm Noncommercial License](https://github.com/BenCBanks/kinetta/blob/main/LICENSE); commercial use needs a separate license.
+Free for personal use under the [PolyForm Noncommercial License](https://github.com/BenCBanks/kinetta/blob/main/LICENSE); commercial licenses on request.
 
 ## 2026-ben-banks-name-and-logo-not-covered-by-the-licens-27
 

@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Friends · Kinetta</title>
-<meta name="description" content="Follow your friends’ workouts, photos and profiles. Cheer each other on.">
+<meta name="description" content="See workouts your friends share, with photos, cheers and comments.">
 <meta property="og:title" content="Friends · Kinetta">
-<meta property="og:description" content="Follow your friends’ workouts, photos and profiles. Cheer each other on.">
+<meta property="og:description" content="See workouts your friends share, with photos, cheers and comments.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Kinetta">
 <meta property="og:url" content="https://kinetta.app/friends">
@@ -42,8 +42,7 @@
 <header class="top">
   <div class="wrap">
     <a class="logo" href="./" aria-label="Kinetta home"><picture><source srcset="assets/logo-dark.svg?v=4" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg?v=4" alt="Kinetta" width="132" height="21"></picture></a>
-    <nav class="tabs" aria-label="Pages"><a href="training">Training</a><a href="food">Food</a><a href="friends" aria-current="page">Friends</a><a href="compare">Compare</a></nav>
-    <span class="signup"><a class="btn solid sm" href="https://login.kinetta.app/signup">Join beta</a></span>
+    <nav class="tabs" aria-label="Primary"><a href="./">Home</a><a href="compare">Features</a><a href="guide">Guide</a><a href="https://testflight.apple.com/join/YAX1JnwB" class="nav-download btn solid sm">Download</a></nav>
   </div>
 </header>
 
@@ -51,32 +50,27 @@
   <section class="pagehead friends-pagehead">
     <div class="wrap">
       <span class="eyebrow">Friends</span>
-      <h1>Your friends’ workouts, together.</h1>
-      <p class="lede">Share activities, cheer each other on, and catch up through training.</p>
+      <h1>Keep up with <em>your friends’ workouts.</em></h1>
+      <p class="lede">Find friends, share workouts, and send cheers or comments.</p>
     </div>
   </section>
-  <section class="band" aria-labelledby="friends-gallery-title">
+  <section class="band friends-gallery" aria-labelledby="friends-gallery-heading">
     <div class="wrap">
-      <div class="head"><h2 id="friends-gallery-title">Catch up in a few taps.</h2></div>
-      <div class="shots two" aria-label="Friends features">
-        <div class="shot"><figure>
-          <div class="frame"><picture><source srcset="assets/shots/dark-feed-1x.webp 1x, assets/shots/dark-feed.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-feed-1x.webp" srcset="assets/shots/light-feed-1x.webp 1x, assets/shots/light-feed.webp 2x" alt="A fictional activity feed with workouts, a route map and friends’ cheers" loading="lazy" width="786" height="1704"></picture></div>
-          <figcaption><h3>The feed</h3><p>Catch up on friends’ shared workouts and send a cheer or comment.</p></figcaption>
-        </figure></div>
-        <div class="shot"><figure>
-          <div class="frame"><picture><source srcset="assets/shots/dark-photos-1x.webp 1x, assets/shots/dark-photos.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-photos-1x.webp" srcset="assets/shots/light-photos-1x.webp 1x, assets/shots/light-photos.webp 2x" alt="A fictional shared run with its map and a public park photo" loading="lazy" width="786" height="1704"></picture></div>
-          <figcaption><h3>Photos</h3><p>Add a photo to a workout shared with friends.</p></figcaption>
-        </figure></div>
-        <div class="shot"><figure>
-          <div class="frame"><picture><source srcset="assets/shots/dark-profile-1x.webp 1x, assets/shots/dark-profile.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-profile-1x.webp" srcset="assets/shots/light-profile-1x.webp 1x, assets/shots/light-profile.webp 2x" alt="A fictional profile card with a custom headline, weekly totals and sports" loading="lazy" width="786" height="1704"></picture></div>
-          <figcaption><h3>Profiles</h3><p>See the details friends choose to show on their profile.</p></figcaption>
-        </figure></div>
-        <div class="shot"><figure>
-          <div class="frame"><picture><source srcset="assets/shots/dark-friends-1x.webp 1x, assets/shots/dark-friends.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-friends-1x.webp" srcset="assets/shots/light-friends-1x.webp 1x, assets/shots/light-friends.webp 2x" alt="Three fictional friends and one pending request" loading="lazy" width="786" height="1704"></picture></div>
-          <figcaption><h3>Find friends</h3><p>Search names and send friend requests.</p></figcaption>
-        </figure></div>
+      <div class="head"><h2 id="friends-gallery-heading">Your workouts and theirs, in one feed.</h2><p>See shared workouts newest first; new accounts share with everyone; saved choices stay unchanged.</p></div>
+      <div class="shots four" aria-label="Friends features">
+        <article class="shot"><figure><div class="frame"><picture><source srcset="assets/shots/dark-feed-1x.webp 1x, assets/shots/dark-feed.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-feed-1x.webp" srcset="assets/shots/light-feed-1x.webp 1x, assets/shots/light-feed.webp 2x" alt="Fictional activity feed with shared workouts, a route map and friends’ reactions" loading="lazy" width="786" height="1704"></picture></div><figcaption><h3>The feed</h3><p>Catch up on friends’ shared workouts and send a cheer or comment.</p></figcaption></figure></article>
+        <article class="shot"><figure><div class="frame"><picture><source srcset="assets/shots/dark-photos-1x.webp 1x, assets/shots/dark-photos.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-photos-1x.webp" srcset="assets/shots/light-photos-1x.webp 1x, assets/shots/light-photos.webp 2x" alt="Fictional shared run with a map and a park photo" loading="lazy" width="786" height="1704"></picture></div><figcaption><h3>Map and photos</h3><p>Add a photo to a workout shared with friends.</p></figcaption></figure></article>
+        <article class="shot"><figure><div class="frame"><picture><source srcset="assets/shots/dark-profile-1x.webp 1x, assets/shots/dark-profile.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-profile-1x.webp" srcset="assets/shots/light-profile-1x.webp 1x, assets/shots/light-profile.webp 2x" alt="Fictional profile with a chosen photo, bio and weekly totals" loading="lazy" width="786" height="1704"></picture></div><figcaption><h3>Build your profile</h3><p>See the details friends choose to show on their profile.</p></figcaption></figure></article>
+        <article class="shot"><figure><div class="frame"><picture><source srcset="assets/shots/dark-friends-1x.webp 1x, assets/shots/dark-friends.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-friends-1x.webp" srcset="assets/shots/light-friends-1x.webp 1x, assets/shots/light-friends.webp 2x" alt="Fictional friends list with three members and one pending request" loading="lazy" width="786" height="1704"></picture></div><figcaption><h3>Find your people</h3><p>Search names and send friend requests.</p></figcaption></figure></article>
       </div>
       <p class="site-credit">Photos of Freedom Park, Charlotte: James Willamor and City Dweller 2, <a href="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA</a>, via Wikimedia Commons.</p>
+    </div>
+  </section>
+  <section class="band friends-summary" aria-label="Profiles and sharing">
+    <div class="wrap">
+      <article><h2>A profile that feels like you.</h2><p>Choose your photo, bio, stats and sports; preview your card as friends see it.</p></article>
+      <article><h2>Your dashboard stays private.</h2><p>Only you see your food logs, body data and Kit conversations.</p></article>
+      <article><h2>A little momentum, together.</h2><p>Share recaps, celebrate milestones or invite friends to challenges; you choose what to share.</p></article>
     </div>
   </section>
   <section class="band next" aria-label="Next">
@@ -91,7 +85,7 @@
   <div class="wrap">
     <picture><source srcset="assets/logo-dark.svg?v=4" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg?v=4" alt="Kinetta" width="124" height="20"></picture>
     <div>
-      <p><a href="training">Training</a> · <a href="food">Food</a> · <a href="friends">Friends</a> · <a href="compare">Compare</a> · <a href="guide">Feature guide</a> · <a href="privacy">Privacy policy</a> · <a href="terms">Terms of Use</a> · <a href="mailto:feedback@kinetta.app">Contact</a> · <a href="https://github.com/BenCBanks/kinetta">GitHub</a></p>
+      <p><a href="training">Training</a> · <a href="food">Food</a> · <a href="friends">Friends</a> · <a href="compare">Compare</a> · <a href="guide">Feature guide</a> · <a href="privacy">Privacy policy</a> · <a href="terms">Terms of Use</a> · <a href="mailto:feedback@kinetta.app">Contact</a> · <a href="https://github.com/BenCBanks/kinetta">GitHub</a> · <a href="about">About us</a></p>
       <p>Free for personal use under the <a href="https://github.com/BenCBanks/kinetta/blob/main/LICENSE">PolyForm Noncommercial License</a>; commercial licenses on request.</p>
       <p>© 2026 Ben Banks. Name and logo not covered by the license. Demo data in screenshots.</p>
     </div>

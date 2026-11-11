@@ -25,7 +25,7 @@ Ben and Rachel
 
 ## footer-license
 
-Source available under the [PolyForm Noncommercial License](https://github.com/BenCBanks/kinetta/blob/main/LICENSE); commercial use needs a separate license.
+Free for personal use under the [PolyForm Noncommercial License](https://github.com/BenCBanks/kinetta/blob/main/LICENSE); commercial licenses on request.
 
 ## footer-copyright
 

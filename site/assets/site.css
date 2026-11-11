@@ -32,18 +32,21 @@ p { margin: 0; }
    tabs wrap on their own row, so labels stay visible without a menu. */
 header.top { position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--bg) 90%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
-header.top .wrap { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px 24px; padding-block: 12px; }
+header.top .wrap { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px 24px; padding-block: 12px; }
 header.top .logo { display: flex; align-items: center; min-height: 44px; }
 header.top .logo img { width: 132px; height: auto; }
-nav.tabs { display: flex; justify-content: flex-start; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+nav.tabs { display: flex; justify-content: flex-end; gap: 2px; overflow-x: auto; scrollbar-width: none; }
 nav.tabs::-webkit-scrollbar { display: none; }
 nav.tabs a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; flex: none; padding: 8px 14px; border-radius: 999px; text-decoration: none; color: var(--ink2); font-weight: 500; font-size: 15px; }
 nav.tabs a:hover { color: var(--ink); }
-nav.tabs a[aria-current="page"] { color: var(--brand); background: color-mix(in srgb, var(--brand) 11%, transparent); font-weight: 600; }
+nav.tabs a.nav-download { color: #fff; }
+nav.tabs a.nav-download:hover { color: #fff; }
+nav.tabs a[aria-current="page"] { position: relative; color: var(--brand); background: none; border-radius: 0; font-weight: 700; }
+nav.tabs a[aria-current="page"]::after { content: ""; position: absolute; inset: auto 14px 3px; height: 2px; background: currentColor; }
 .btn.sm { min-height: 44px; padding: 0 18px; font-size: 15px; }
 @media (max-width: 960px) {
-  header.top .wrap { grid-template-columns: minmax(0, 1fr) auto; padding-block: 10px 0; }
-  nav.tabs { grid-column: 1 / -1; grid-row: 2; flex-wrap:wrap; justify-content:center; overflow:visible; margin-inline:0; padding:0 0 8px; }
+  header.top .wrap { grid-template-columns: 1fr; padding-block: 10px 0; }
+  nav.tabs { grid-column: 1; grid-row: 2; flex-wrap:wrap; justify-content:center; overflow:visible; margin-inline:0; padding:0 0 8px; }
   nav.tabs a { padding:7px 8px; font-size:14.5px; }
 }
 
@@ -559,3 +562,14 @@ header.top .signup { display:flex;align-items:center; }
   .home-disciplines li { font-size: 14px; }
   .home-final { padding-block: 54px; }
 }
+
+/* Compact home secondary links after the discipline strip. */
+.home-more { padding-block: 28px; border-bottom: 1px solid var(--line); }
+.home-more > .wrap { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 16px 28px; }
+.home-more > .wrap > h2 { font-size: 18px; }
+.home-more .home-insight-support { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; max-width: none; margin: 0; }
+.home-more .home-insight-support figure { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; justify-items: start; gap: 12px; }
+.home-more .home-insight-support .frame { width: 64px; height: 64px; overflow: hidden; border-radius: 12px; }
+.home-more .home-insight-support .frame img { width: 100%; height: 100%; object-fit: cover; }
+.home-more .home-insight-support h3 { color: var(--ink2); font-size: 14px; line-height: 1.25; text-align: left; }
+@media (max-width: 860px) { .home-more > .wrap { grid-template-columns: 1fr; gap: 14px; } .home-more .home-insight-support { grid-template-columns: 1fr; gap: 8px; width: auto; margin: 0; padding: 0; overflow: visible; } .home-more .home-insight-support figure { grid-template-columns: 56px minmax(0,1fr); } .home-more .home-insight-support .frame { width: 56px; height: 56px; } }

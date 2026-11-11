@@ -18,133 +18,17 @@ Your workouts, food and people—one clear picture.
 
 Training, food and friends, together.
 
-## home-progress-description
-
-See weekly distance, fitness trends and personal records over time.
-
-## home-insights-description
-
-Notice patterns in logged days, calorie totals and changing macros.
-
-## home-kit-description
-
-Ask Kit for optional notes on workouts, training and recovery.
-
-## runs-rides-and-lifting-4
-
-Review each route, pace, splits and heart rate after a workout.
-
 ## home-workout-description
 
 Review each route, pace, splits and heart rate after a workout.
-
-## quick-food-logging-6
-
-Describe a meal, then review each food and amount before logging.
 
 ## home-food-description
 
 Describe a meal, then review each food and amount before logging.
 
-## friends-kept-private-8
-
-See training and food, day by day.
-
-## home-insight-kit
-
-Get a clear answer backed by your own records.
-
-## home-support-routes
-
-Find your best on every familiar route.
-
-## home-support-prs
-
-Spot new personal records over time.
-
-## home-support-heatmap
-
-Lift
-
-## home-discipline-plans
-
-Plans
-
-## home-more-heading
-
-Also in Kinetta
-
 ## home-friends-description
 
 Follow friends’ shared workouts, photos, cheers and comments in one feed.
-
-## home-progress-caption
-
-Food insights
-
-## home-insights-caption
-
-Routes & segments
-
-## home-kit-caption
-
-Kit
-
-## home-groups-caption
-
-Groups
-
-## home-trust-sharing
-
-You choose what you share
-
-## home-trust-export
-
-Export your data
-
-## home-trust-ads
-
-No ads
-
-## home-closing-heading
-
-Bring it all together.
-
-## home-food-heading
-
-Fuel that fits your day.
-
-## home-food-day
-
-See meals, calories and macros at a glance.
-
-## home-food-chat
-
-Log a full meal in a few words.
-
-## home-food-demo
-
-Fictional meals · Nutrition estimates are stand-ins.
-
-## home-friends-heading
-
-Celebrate every kind of progress.
-
-## home-friends-feed
-
-Routes, reactions and moments worth cheering.
-
-## home-friends-group
-
-Bring the whole crew closer to its goal.
-
-## home-friends-me
-
-Give your milestones a place to shine.
-
-## home-friends-demo
-
-Fictional people, routes, reactions and achievement stand-ins.
 
 ## home-trust-share
 
@@ -164,7 +48,7 @@ Make every week count.
 
 ## training-training-food-food-friends-friends-compare-co-17
 
-[Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [About](about) · [Privacy](privacy)
+[Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [Feature guide](guide) · [Privacy policy](privacy) · [Terms of Use](terms) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta)
 
 ## free-for-personal-use-under-the-polyform-noncommercial-18
 

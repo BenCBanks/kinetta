@@ -1,10 +1,9 @@
-// Homepage screenshots (site/assets/shots): light and dark at an iPhone 16's screen size (393 x 852 at 2x =
-// 786 x 1704), from a throwaway install with dev/demo/seed.py + dev/screenshots/stage.py loaded. The Home Food chat uses a compact staged viewport. Usage: node take.js <out dir> [base url]
+// Homepage screenshots (site/assets/shots): every shot in light and dark, at an iPhone 16's screen size (393 x 852 at 2x =
+// 786 x 1704), from a throwaway install with dev/demo/seed.py + dev/screenshots/stage.py loaded. Usage: node take.js <out dir> [base url]
 // Writes PNGs; to_webp.py turns them into the site's .webp files. Maps use the operator-configured tile/archive source; never bulk-fetch the public OSM tile service.
 // Like a real iPhone (2026-10-13): the app gets the status bar's 59 px at the top and the home bar's 34 px at the bottom
 // (its stylesheet's safe-area values are filled in), and a status bar with the Dynamic Island and the home bar are drawn over it.
 const {chromium} = require('playwright');
-const fs = require('node:fs');
 const OUT = process.argv[2], B = process.argv[3] || 'http://localhost:8798';
 const SCREENSHOT_CLOCK = require('./fixture-time.json');
 // name, address, and optionally a card title to scroll to, or something to do first
@@ -12,8 +11,6 @@ const SHOTS = require('./scenes.json');
 // ONLY=lift,liftex takes just those (new shots, without retaking every other picture)
 const ONLY = process.env.ONLY ? process.env.ONLY.split(',') : null;
 const W = 393, H = 852, TOP = 59, BOTTOM = 34;
-const REACTION_EMOJI = Object.fromEntries(Object.entries({clap: '1f44f', starstruck: '1f929', mindblown: '1f92f'}).map(([kind, file]) =>
-  [kind, 'data:image/svg+xml;base64,' + fs.readFileSync(`${__dirname}/emoji/${file}.svg`).toString('base64')]));
 async function enableKitForDemo(page) {
   // Kit requires the person's explicit opt-in; this is only the fictional screenshot account.
   const result = await page.evaluate(async () => {
@@ -24,13 +21,7 @@ async function enableKitForDemo(page) {
   if (!result?.ok) throw Error('Could not opt the fictional screenshot account into Kit.');
 }
 // Describe, Snap or Scan: explicit estimates use per-food stand-ins; no provider is called.
-const SAMPLE = (note) => {
-  if (/egg|toast|coffee/i.test(note || '')) return {items: [
-    {name: 'Eggs', amount: '2 large', kcal: 144, protein_g: 13, carbs_g: 1, fat_g: 10, fiber_g: 0},
-    {name: 'Whole-wheat toast', amount: '1 slice', kcal: 110, protein_g: 4, carbs_g: 20, fat_g: 2, fiber_g: 3},
-    {name: 'Black coffee', amount: '1 cup', kcal: 2, protein_g: 0, carbs_g: 0, fat_g: 0, fiber_g: 0}
-  ], notes: 'Made-up screenshot nutrition, not a live provider response.', model: 'sample'};
-  const n = /two/.test(note || '') ? 2 : 1;   // the correction changes the answer, like the real thing
+const SAMPLE = (note) => { const n = /two/.test(note || '') ? 2 : 1;   // the correction changes the answer, like the real thing
   const items = [{name: 'Hot dog', amount: String(n), kcal: 550 * n, protein_g: 20 * n, carbs_g: 45 * n, fat_g: 32 * n, fiber_g: 2 * n},
     {name: 'Diet Coke', amount: '20 fl oz', kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0}];
   return {items: items.filter(x => x.name === 'Hot dog' ? /hot dog/i.test(note || '') : /diet coke/i.test(note || '')),
@@ -86,49 +77,6 @@ async function cleanFood(before) {
   for (const x of f) if (!before.foods.includes(x.id)) await api('/api/food/foods/' + x.id, {method: 'DELETE'}).catch(() => {});
   for (const m of t.messages) if (m.kind === 'user' && !before.messages.includes(m.id)) await api('/api/food/thread/messages/' + m.id, {method: 'DELETE'}).catch(() => {});
   invalidate('/api/');
-}
-async function kitPaceStandin(page) {
-  return page.evaluate(async () => {
-    const [activities, fitness] = await Promise.all([
-      api('/api/activities?limit=200'), api('/api/fitness?days=60')
-    ]);
-    const today = new Date(isoDay(new Date()) + 'T00:00:00');
-    const start = days => { const d = new Date(today); d.setDate(d.getDate() - days); return d; };
-    const currentStart = start(7), previousStart = start(14);
-    const runStats = (from, to) => {
-      const runs = activities.filter(a => a.sport === 'run' && a.distance_m > 0 && a.moving_s > 0 &&
-        new Date(a.start_time) >= from && new Date(a.start_time) < to);
-      const distance = runs.reduce((n, a) => n + Number(a.distance_m), 0);
-      const moving = runs.reduce((n, a) => n + Number(a.moving_s), 0);
-      return {runs, distance, pace: distance ? moving / distance * 1609.344 : null};
-    };
-    const current = runStats(currentStart, today), previous = runStats(previousStart, currentStart);
-    if (!current.runs.length || !previous.runs.length) throw new Error('The fictional pace chat needs runs in both comparison weeks.');
-    const pace = seconds => {
-      const n = Math.round(seconds), m = Math.floor(n / 60);
-      return `${m}:${String(n % 60).padStart(2, '0')}/mi`;
-    };
-    const miles = meters => `${(meters / 1609.344).toFixed(1)} mi`;
-    const longest = [...current.runs].sort((a, b) => b.distance_m - a.distance_m)[0];
-    const currentDays = isoDay(new Date());
-    const previousDays = isoDay(currentStart);
-    const priorStartDay = isoDay(previousStart);
-    const inDays = (row, from, to) => row.d >= from && row.d < to;
-    const currentLoad = fitness.days.filter(row => inDays(row, previousDays, currentDays)).reduce((n, row) => n + Number(row.load || 0), 0);
-    const previousLoad = fitness.days.filter(row => inDays(row, priorStartDay, previousDays)).reduce((n, row) => n + Number(row.load || 0), 0);
-    const change = Math.round(previous.pace - current.pace);
-    const trend = change >= 0 ? `${change} sec/mi faster` : `${Math.abs(change)} sec/mi slower`;
-    return {
-      interpretation: `Your ${miles(longest.distance_m)} run was ${pace(longest.moving_s / longest.distance_m * 1609.344)}, but your ${current.runs.length}-run week averaged ${pace(current.pace)} — ${trend} than last week (${pace(previous.pace)}). Load was nearly unchanged (${Math.round(currentLoad)} vs ${Math.round(previousLoad)}). I can’t see weather or sleep, so I can’t explain that slower run.`,
-      facts: [
-        {label: 'Last 7 days', value: `${pace(current.pace)} · ${current.runs.length} runs`},
-        {label: 'Previous 7 days', value: `${pace(previous.pace)} · ${previous.runs.length} runs`},
-        {label: 'Training load', value: `${Math.round(currentLoad)} vs ${Math.round(previousLoad)}`}
-      ],
-      limitations: ['Weather and sleep are not recorded in this screenshot data.'],
-      actions: ['activities']
-    };
-  });
 }
 async function settle(page) {
   await page.locator('.thread-pending').first().waitFor({state: 'detached', timeout: 30000}).catch(() => {});
@@ -211,58 +159,12 @@ async function say(page, text) {
         .replace(/env\(safe-area-inset-top(?:,[^)]*)?\)/g, TOP + 'px').replace(/env\(safe-area-inset-bottom(?:,[^)]*)?\)/g, BOTTOM + 'px');
       await route.fulfill({response: r, body: css});
     });
-    // The fictional feed uses the real achievement-moment card with a labelled screenshot-only 25-mile stand-in.
-    await page.route('**/api/feed/friends?*', async route => {
-      const response = await route.fetch(), rows = await response.json();
-      if (!friendMomentStandin || !Array.isArray(rows)) return route.fulfill({response, json: rows});
-      const activity = rows.find(row => row.kind !== 'achievement_moment' && row.owner?.login === 'morgan');
-      if (!activity) throw Error('The fictional achievement stand-in needs Morgan’s mapped ride.');
-      const date = new Date(activity.start_time), week = new Date(date);
-      week.setUTCHours(0, 0, 0, 0); week.setUTCDate(week.getUTCDate() - ((week.getUTCDay() + 6) % 7));
-      if (!rows.some(row => row.kind === 'achievement_moment' && row.owner?.login === 'morgan')) rows.push({
-        id: -700001, kind: 'achievement_moment', week_start: week.toISOString().slice(0, 10),
-        start_time: new Date(date.getTime() - 1000).toISOString(), day: date.toISOString().slice(0, 10),
-        title: '25 miles', extra_count: 0, is_track: true, owner: activity.owner,
-        cheers: [], reactions: {}, my_reaction: null, cheered: false
-      });
-      return route.fulfill({response, json: rows});
-    });
     await page.route('**/api/food/photo', (route) => { const body = JSON.parse(route.request().postData() || '{}');
       route.fulfill({json: body.images || body.image ? BOWL(body.note) : SAMPLE(body.note)}); });
     await page.route('**/api/food/barcode/*', (route) => route.fulfill({json: PRODUCT}));
     await page.route('**/api/food/meals-chat/products?**', route => route.fulfill({json: {query: '', foods: [], portion: null}}));
     // the combined lookup (one request for every new food): nothing in the databases, so the stand-in AI estimates them
     await page.route('**/api/food/meals-chat/lookup', route => route.fulfill({json: {results: JSON.parse(route.request().postData() || '{}').texts.map(text => ({text, query: '', kind: 'none', foods: [], portion: null}))}}));
-    // This one chat answer is a screenshot fixture built from the disposable account's real demo records; no model is called.
-    await page.route('**/api/coach/conversation/visits', async route => {
-      if (!kitPaceActive || route.request().method() !== 'POST') return route.fallback();
-      const response = await route.fetch(), visit = await response.json();
-      visit.ready = true;
-      await route.fulfill({response, json: visit});
-    });
-    await page.route('**/api/coach/conversation/messages', async route => {
-      if (!kitPaceActive || route.request().method() !== 'POST') return route.fallback();
-      const message = JSON.parse(route.request().postData() || '{}');
-      const pending = {...message, id: Date.now(), state: 'pending', answer: null, error: null, created: new Date().toISOString()};
-      kitTurn = {...pending, state: 'answered', answer: kitStandin, error: null, lease: null, expires: null};
-      await route.fulfill({json: pending});
-    });
-    await page.route('**/api/coach/conversation/messages/*/answer', async route => {
-      const id = new URL(route.request().url()).pathname.split('/').at(-2);
-      if (!kitPaceActive || !kitTurn || id !== kitTurn.client_id) return route.fallback();
-      await route.fulfill({json: kitTurn});
-    });
-    await page.route('**/api/coach/conversation?*', async route => {
-      const response = await route.fetch(), data = await response.json();
-      if (kitPaceActive) data.ready = true;
-      if (kitPaceActive && kitTurn) {
-        const messages = data.messages || [];
-        const at = messages.findIndex(message => message.client_id === kitTurn.client_id);
-        if (at === -1) messages.push(kitTurn); else messages[at] = kitTurn;
-        data.messages = messages;
-      }
-      await route.fulfill({response, json: data});
-    });
     page.on('pageerror', (e) => errors.push(`${scheme}: ${e.message}`));
     await page.goto(B + '/');
     await page.fill('input[name=login]', 'alex'); await page.fill('input[name=password]', 'blue kettle morning run');
@@ -270,12 +172,10 @@ async function say(page, text) {
     await enableKitForDemo(page);
     const ids = await page.evaluate(async () => {
       const get = async (p) => (await fetch(p)).json();
-      const acts = await get('/api/activities?limit=40'), friends = await get('/api/feed/friends?limit=40'), routes = await get('/api/routes'), dishes = await get('/api/dishes');
+      const acts = await get('/api/activities?limit=40'), routes = await get('/api/routes'), dishes = await get('/api/dishes');
       const loop = acts.find((a) => a.sport === 'run' && a.distance_m > 4600 && a.distance_m < 4950) || acts[0];
       const coach = (await Promise.all(acts.slice(0, 40).map((a) => get('/api/activities/' + a.id)))).find((a) => a.ai_note) || loop;
-      const featuredFriend = friends.find(a => a.kind !== 'achievement_moment' && a.owner?.login === 'morgan' && a.line);
-      if (!featuredFriend) throw new Error('The fictional Friends feed needs Morgan’s mapped ride.');
-      return {FEED_ACTIVITY: acts[0].id, FRIEND_ACTIVITY: featuredFriend.id, LATEST: '/activity/' + (acts.find(a => a.photos?.length && a.line) || acts[0]).id, RUN: '/activity/' + loop.id, RUN_NAME: loop.name, COACH: '/activity/' + coach.id, ROUTE: routes.length ? '/route/' + routes.sort((x, y) => y.count - x.count)[0].id : '/progress',
+      return {FEED_ACTIVITY: acts[0].id, LATEST: '/activity/' + (acts.find(a => a.photos?.length && a.line) || acts[0]).id, RUN: '/activity/' + loop.id, RUN_NAME: loop.name, COACH: '/activity/' + coach.id, ROUTE: routes.length ? '/route/' + routes.sort((x, y) => y.count - x.count)[0].id : '/progress',
         DISH: '/food/cook/' + ((dishes.find((d) => d.name === 'Chicken and veg traybake') || dishes[0] || {}).id || ''),
         SQUAT: '/lift/ex/' + (((await get('/api/lifts/exercises')).mine.find((x) => x.name === 'Squat') || {}).id || '')};
     });
@@ -343,57 +243,15 @@ async function say(page, text) {
         const actual=(await title.innerText()).trim();
         if(actual!==ids.RUN_NAME)throw Error(`Activity detail keeps its recorded name "${ids.RUN_NAME}" (default names such as "Morning Run" are preserved), got "${actual}"`);
       }
-      if (opt.homeGroups) {
-        await page.locator('.home-view-switch a[href="/activity?view=groups"][aria-current="page"]').waitFor({state:'visible'});
-        await page.locator('#home-group-list .group-list-row').first().waitFor({state:'visible'});
-      }
       await page.evaluate(() => { window.scrollTo(0, 0); });
       await page.evaluate(() => document.fonts.ready);
       // Locator/evaluate polling works under the app’s strict script policy.
       for(let n=0;n<40;n++){if(await page.evaluate(()=>!document.querySelector('.leaflet-tile-container')||document.querySelector('.leaflet-tile-loaded')))break;await page.waitForTimeout(100);}
-      if(name==='feed'||name==='friends-feed'){
-        let friendMoment = null;
+      if(name==='feed'){
         await page.locator('#feed-tools[aria-busy=false]').waitFor({state:'attached'});
-        if (opt.feedCard) {
-          const activityId = opt.friendActivity ? ids.FRIEND_ACTIVITY : ids.FEED_ACTIVITY;
-          const detailPath = opt.friendActivity ? `/activity/friends/${activityId}` : `/activity/${activityId}`;
-          const featured = page.locator(`#ff-list .post[data-href="${detailPath}"]`);
-          await featured.waitFor({state:'attached'});
-          if (opt.friendActivity) {
-            if (await featured.locator('.post-name').innerText() !== 'Morgan Patel') throw Error('Friends screenshot must feature a fictional friend’s activity.');
-            friendMoment = page.locator('#ff-list .achievement-moment').filter({hasText:'Morgan Patel'}).filter({hasText:'25 miles'});
-            await friendMoment.waitFor({state:'visible'});
-          } else {
-            await featured.evaluate(el => window.scrollTo({top: el.getBoundingClientRect().top + scrollY - 68, behavior: 'instant'}));
-          }
-          await page.waitForTimeout(200);
-        }
         if(await page.locator('#feed-discovery').count())throw Error('Mature feed must not show discovery cards');
-        const featuredId = opt.friendActivity ? ids.FRIEND_ACTIVITY : ids.FEED_ACTIVITY;
-        const detailPath = opt.friendActivity ? `/activity/friends/${featuredId}` : `/activity/${featuredId}`;
-        const featured = page.locator(`#ff-list .post[data-href="${detailPath}"]`);
-        const group=featured.locator(`.post-ft [data-reaction-group][data-aid="${featuredId}"]`);
+        const group=page.locator(`#ff-list .post[data-href="/activity/${ids.FEED_ACTIVITY}"] .post-ft [data-reaction-group][data-aid="${ids.FEED_ACTIVITY}"]`);
         await group.waitFor({state:'visible'});
-        if (opt.friendActivity && friendMoment) {
-          const comment = featured.locator('.activity-comments');
-          if (await comment.getAttribute('aria-label') !== 'Comments, 2') throw Error('The featured friend activity needs its two fictional comments.');
-          const [momentBox, cardBox, reactionBox, commentBox, tabsBox, scroll] = await Promise.all([
-            friendMoment.boundingBox(), featured.boundingBox(), group.locator('.reaction-count').boundingBox(), comment.boundingBox(),
-            page.locator('nav.tabs').boundingBox(), page.evaluate(() => window.scrollY)
-          ]);
-          if (!momentBox || !cardBox || !reactionBox || !commentBox || !tabsBox) throw Error('Friends screenshot needs the achievement, ride, reactions and comments.');
-          const lower = Math.max(momentBox.y + scroll + momentBox.height - tabsBox.y,
-            reactionBox.y + scroll + reactionBox.height - tabsBox.y, commentBox.y + scroll + commentBox.height - tabsBox.y);
-          const upper = Math.min(momentBox.y + scroll - 59, cardBox.y + scroll - 59,
-            reactionBox.y + scroll - 59, commentBox.y + scroll - 59);
-          if (Math.max(0, lower) > upper) throw Error('Friends achievement, ride, reactions and comments do not fit in one phone viewport.');
-          await page.evaluate(y => window.scrollTo({top:y, behavior:'instant'}), Math.min(upper, Math.max(Math.max(0, lower), scroll)));
-          await page.waitForTimeout(200);
-          const [momentVisible, reactionVisible, tabs] = await Promise.all([friendMoment.boundingBox(), group.locator('.reaction-count').boundingBox(), page.locator('nav.tabs').boundingBox()]);
-          if (!momentVisible || !reactionVisible || !tabs || momentVisible.y < 59 || momentVisible.y + momentVisible.height > tabs.y || reactionVisible.y < 59 || reactionVisible.y + reactionVisible.height > tabs.y) {
-            throw Error('Friends achievement and reaction cluster must both fit above the tab bar.');
-          }
-        }
         for(const kind of ['clap','starstruck','mindblown'])if(await group.getAttribute(`data-count-${kind}`)!=='1')throw Error(`Demo feed must have one ${kind} reaction on the same card`);
         const react=group.locator('.reaction-more'),summaryButton=group.locator('.reaction-count'),summary=summaryButton.locator('.reaction-summary');
         const emojiNodes=summary.locator('.reaction-summary-emoji .reaction-emoji'),counts=summary.locator('.reaction-summary-count');
@@ -423,51 +281,7 @@ async function say(page, text) {
             &&Math.abs(commentRect.left-actionRect.right-8)<1&&Math.abs(buttonRect.right-contentRight)<1&&buttonRect.left>=commentRect.right;
         }))throw Error('Demo feed actions must stay left of the per-emoji counts in the captured viewport');
       }
-      if (opt.groupDetail) {
-        const id = await page.evaluate(async () => (await api('/api/groups'))[0]?.id);
-        if (!id) throw Error('Fictional Friends group was not staged.');
-        await page.evaluate((groupId) => go('/groups/' + groupId), id);
-        const goal = page.locator('.group-goal progress');
-        await goal.waitFor({state: 'visible'});
-        const percent = await goal.evaluate(el => Math.round(Number(el.value) / Number(el.max) * 100));
-        if (percent !== 70) throw Error(`Friends group goal should be 70%, found ${percent}%.`);
-        await page.locator('#group-members .group-member').first().waitFor({state: 'visible'});
-      }
-      if (opt.meCard) {
-        await page.locator('.me-card').first().waitFor({state: 'visible'});
-        const medals = page.locator('.me-card .me-featured-medal');
-        await medals.first().waitFor({state: 'visible'});
-        if (await medals.count() !== 4) throw Error('The fictional Me card should show four featured medals.');
-      }
-      if (opt.nutritionDay) {
-        await page.getByText('Black coffee', {exact: true}).waitFor({state: 'visible'});
-        await page.getByText('Chicken grain bowl', {exact: true}).waitFor({state: 'visible'});
-        await page.getByText('Salmon and potatoes', {exact: true}).waitFor({state: 'visible'});
-      }
       if(name==='insights'){await page.getByRole('heading',{name:'Insights',exact:true}).waitFor();await page.locator('#nt-overview-chart').waitFor();}
-      if(opt.fitnessTrend){
-        await page.locator('#p-load .chartbox svg').first().waitFor({state:'visible'});
-        await page.evaluate(()=>{
-          const tail=document.createElement('div');
-          tail.id='capture-scroll-tail';
-          tail.setAttribute('aria-hidden','true');
-          tail.style.cssText='height:180px;pointer-events:none';
-          document.body.append(tail);
-        });
-        await page.locator('#p-load').evaluate(el=>{
-          const card=el.closest('.card')||el;
-          window.scrollTo({top:Math.max(0,card.getBoundingClientRect().top+scrollY-64),behavior:'instant'});
-        });
-        const cardTop=await page.locator('#p-load').evaluate(el=>el.closest('.card').getBoundingClientRect().top);
-        if(Math.abs(cardTop-64)>12)throw Error('Fitness trend card must start below the phone status bar');
-      }
-      if(opt.recordPR){
-        await page.locator('#h-chart svg').waitFor({state:'visible'});
-        await page.locator('#h-all .record-effort').first().waitFor({state:'visible'});
-        await page.locator('#h-all .record-effort').filter({hasText:'· PR'}).first().waitFor({state:'visible'});
-      }
-      if(opt.weekReview)await page.locator('.combined-week[open]').waitFor({state:'visible'});
-      if(opt.calendar)await page.locator('.cal-grid .cd').first().waitFor({state:'visible'});
       if (opt.logDish) {      // Add food > My Recipes > the recipe: the log sheet, with a portion typed in
         await page.evaluate(() => describeSheet(isoDay(new Date()), 'dinner'));
         await page.locator('#thread-text').waitFor();
@@ -500,25 +314,10 @@ async function say(page, text) {
       }
       if (opt.describe || opt.snap || opt.scan) {   // the food chat (2026-10-18): estimates come from dev/screenshots/standin.py
         const before = await page.evaluate(snapshotFood);
-        await chat(page, opt.meal || (opt.scan ? 'breakfast' : opt.snap ? 'lunch' : 'dinner'));
-        if (opt.describe) {      // review a realistic multi-item breakfast in the compact #685 food chat
-          for (const text of opt.describe) await say(page, text);
-          if (opt.completeMeal) {
-            const toast = page.getByRole('button', {name: 'Whole-grain toast', exact: true});
-            await toast.waitFor({state: 'visible'});
-            await toast.click();
-            await settle(page);
-            const coffee = page.getByRole('button', {name: '1 serving', exact: true});
-            await coffee.last().waitFor({state: 'visible'});
-            await coffee.last().click();
-            await settle(page);
-          }
-          if (opt.expectFoods) {
-            const card = page.locator('#thread-messages .thread-card').last();
-            await card.waitFor({state: 'visible'});
-            const names = (await card.locator('.thread-food strong').allTextContents()).map(name => name.trim());
-            if (JSON.stringify(names) !== JSON.stringify(opt.expectFoods)) throw Error(`Breakfast chat rows should be ${opt.expectFoods.join(', ')}; found ${names.join(', ')}.`);
-          }
+        await chat(page, opt.scan ? 'breakfast' : opt.snap ? 'lunch' : 'dinner');
+        if (opt.describe) {      // type a meal, then correct its pending review in plain words
+          await say(page, opt.describe[0]); await page.locator('.thread-card').filter({hasText: 'Hot dog'}).filter({hasText: '550'}).first().waitFor();
+          await say(page, opt.describe[1]); await page.locator('.thread-card').filter({hasText: 'Hot dog'}).filter({hasText: '1100'}).first().waitFor();
         }
         if (opt.scan) {          // what a scan finds: the product's sheet, one container, ready to add to breakfast
           await page.evaluate(async (code) => { const f = await api('/api/food/barcode/' + code); amountSheet(f, {day: isoDay(new Date()), meal: 'breakfast'}, () => {}); }, opt.scan);
@@ -552,16 +351,6 @@ async function say(page, text) {
         await page.evaluate((x) => { document.activeElement.blur(); window.scrollTo(0, 0); window.__liftId = x; }, id);
       }
       if (name === 'coach') await page.locator('#d-kit').click();
-      if (opt.kitPace) {
-        await page.locator('#kit-composer').waitFor({state:'visible'});
-        kitStandin = await kitPaceStandin(page);
-        await page.fill('#kit-text', 'Why was my pace down this week?');
-        await page.locator('#kit-send:not([disabled])').waitFor({state:'visible'});
-        await page.click('#kit-send');
-        await page.locator('#kit-messages .kit-answer').waitFor({state:'visible',timeout:30000});
-        await page.locator('#kit-messages').evaluate(el=>{el.scrollTop=el.scrollHeight;});
-        await page.evaluate(() => document.activeElement.blur());
-      }
       if (name === 'dietcoach') {
         const entry = page.locator('#nt-coach a[data-kit-entry][aria-label="Ask Kit"][href="/me/kit?from=nutrition"]');
         await entry.waitFor({state:'visible'});
@@ -578,38 +367,8 @@ async function say(page, text) {
         if (h) window.scrollTo(0, h.getBoundingClientRect().top + scrollY - 70);   // below the status bar
       }, opt.to);
       await page.waitForTimeout(700);
-      await loadedMaps(page);
-      if (name === 'feed' || name === 'friends-feed') await page.evaluate(icons => {
-        for (const button of document.querySelectorAll('.reaction-summary-emoji')) {
-          const imageUrl = icons[button.getAttribute('data-summary-react')], icon = button.querySelector('.reaction-emoji');
-          if (!imageUrl || !icon) continue;
-          const image = document.createElement('img'); image.src = imageUrl; image.alt = ''; image.setAttribute('aria-hidden', 'true');
-          image.style.cssText = 'display:block;width:1.25em;height:1.25em;object-fit:contain'; icon.replaceChildren(image);
-        }
-      }, REACTION_EMOJI);
-      if (name === 'describe') {
-        // Marketing crop: keep the actual chat rows, total, suggestions and composer together without the unused
-        // flex-fill space from a full-height conversation. This affects only this capture page, not app CSS.
-        const height = await page.evaluate(() => {
-          const messages = document.querySelector('#thread-messages'), composer = document.querySelector('#thread-composer');
-          if (!messages || !composer) throw new Error('The staged Food chat needs its message list and composer.');
-          messages.style.flex = '0 0 auto'; messages.style.maxHeight = 'none'; messages.style.overflowY = 'visible';
-          const empty = document.querySelector('#thread-empty');
-          if (empty && messages.querySelector('article')) empty.style.display = 'none';
-          return Math.max(540, Math.ceil(composer.getBoundingClientRect().bottom + 48));
-        });
-        if (height >= H) throw new Error(`The compact Food chat crop should be shorter than ${H}px; measured ${height}px.`);
-        await page.setViewportSize({width: W, height});
-        await page.evaluate(() => window.scrollTo(0, 0));
-        await page.waitForTimeout(120);
-      }
-      await page.evaluate(chrome, scheme === 'dark'); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+      await loadedMaps(page); await page.evaluate(chrome, scheme === 'dark'); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
       await page.screenshot({path: `${OUT}/${scheme}-${name}.png`});
-      if (name === 'kit-pace' && kitUiState) {
-        await page.evaluate(previous => Object.assign(App.me, previous), kitUiState);
-        kitUiState = null; kitPaceActive = false;
-      }
-      if(opt.fitnessTrend)await page.locator('#capture-scroll-tail').evaluate(el=>el.remove());
       if (opt.lift) await page.evaluate(() => fetch('/api/activities/' + window.__liftId, {method: 'DELETE', headers: {'Content-Type': 'application/json'}}));
       // Remove only what this fictional review story added (entries, saved foods, messages) so the next pass and
       // the other screenshots start from the same demo data.
