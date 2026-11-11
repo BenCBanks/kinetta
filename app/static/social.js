@@ -493,7 +493,14 @@ function weeklyRecapPictureItem(data,usual,medals,days,valid=()=>true){
   const alt=weeklyRecapPictureAlt(data,usual,medals);
   return{label:'Weekly recap',filename:`kinetta-week-${data.start}.png`,valid,build:async()=>({blob:await weeklyRecapPicture(data,usual,medals,days),alt})};
 }
-function openWeeklyRecapShare(box,data,usual,medals,days){ShareSheet.open({items:[weeklyRecapPictureItem(data,usual,medals,days,()=>box.isConnected)]});}
+const weeklyRecapShareOpening=new WeakSet();
+function openWeeklyRecapShare(box,data,usual,medals,days){
+  const owner=readOwner(),path=location.pathname+location.search,live=()=>box.isConnected&&owner===readOwner()&&path===location.pathname+location.search;
+  if(!live()||weeklyRecapShareOpening.has(box))return;weeklyRecapShareOpening.add(box);
+  void(async()=>{try{await loadShareArt();if(live())ShareSheet.open({items:[weeklyRecapPictureItem(data,usual,medals,days,live)]});}
+    catch(error){if(live())toast((error.message||'Picture sharing could not load.')+' Tap Share to try again.');}
+    finally{weeklyRecapShareOpening.delete(box);}})();
+}
 async function weeklyRecapShareItem(){
   const owner=readOwner(),zone=tz(),window=weeklyRecapWindow(new Date(),zone);if(!window.visible)return null;
   const [data,volume,achievements]=await Promise.all([api(`/api/recaps?period=week&offset=${window.offset}`),api('/api/progress/volume?period=week'),api('/api/achievements')]);
@@ -1272,10 +1279,10 @@ function groupRecapPicture(group){
     return ShareArt.blob(canvas);
   })();
 }
-function openGroupRecapShare(box,group){
-  const owner=readOwner();sheet('Share event recap',`<div class="weekly-recap-share-stage"><img data-group-recap-image alt="Group event recap picture" hidden></div><p class="small muted" data-group-recap-status role="status">Preparing your picture…</p><button type="button" class="primary wide" data-group-recap-send disabled>Share</button>`,(body)=>{
-    const live=()=>owner===readOwner()&&box.isConnected&&body.isConnected,image=$('[data-group-recap-image]',body),status=$('[data-group-recap-status]',body),button=$('[data-group-recap-send]',body);let picture=null;
-    groupRecapPicture(group).then(blob=>{if(!live())return;picture=blob;image.alt=`Group recap for ${group.title}, ${groupDate(group.recap.event_date,group.time_zone)}. ${group.recap.total!==undefined?`Together: ${groupAmount(group.recap.total,group.goal_unit)}.`:`You: ${groupAmount(group.recap.your_total,group.goal_unit)}.`} ${group.recap.participants.length?`People who took part: ${group.recap.participants.map(n=>'@'+n).join(', ')}.`:'No one chose to appear by name.'}`;image.src=URL.createObjectURL(blob);image.hidden=false;status.textContent='Your group picture is ready.';button.disabled=false;}).catch(error=>{if(live())status.textContent=error.message||'Couldn’t make this picture.';});
+function openGroupRecapShare(box,group,trigger){
+  const owner=readOwner(),path=location.pathname+location.search;sheet('Share event recap',`<div class="weekly-recap-share-stage"><img data-group-recap-image alt="Group event recap picture" hidden></div><p class="small muted" data-group-recap-status role="status">Preparing your picture…</p><button type="button" class="primary wide" data-group-recap-send disabled>Share</button>`,(body)=>{
+    const live=()=>owner===readOwner()&&path===location.pathname+location.search&&box.isConnected&&trigger.isConnected&&body.isConnected,image=$('[data-group-recap-image]',body),status=$('[data-group-recap-status]',body),button=$('[data-group-recap-send]',body);let picture=null;
+    loadShareArt().then(()=>{if(!live())return null;return groupRecapPicture(group);}).then(blob=>{if(!blob||!live())return;picture=blob;image.alt=`Group recap for ${group.title}, ${groupDate(group.recap.event_date,group.time_zone)}. ${group.recap.total!==undefined?`Together: ${groupAmount(group.recap.total,group.goal_unit)}.`:`You: ${groupAmount(group.recap.your_total,group.goal_unit)}.`} ${group.recap.participants.length?`People who took part: ${group.recap.participants.map(n=>'@'+n).join(', ')}.`:'No one chose to appear by name.'}`;image.src=URL.createObjectURL(blob);image.hidden=false;status.textContent='Your group picture is ready.';button.disabled=false;}).catch(error=>{if(live())status.textContent=(error.message||'Couldn’t make this picture.')+' Close this window and tap Share recap to try again.';});
     button.onclick=async()=>{if(!picture||button.disabled||!live())return;button.disabled=true;status.textContent='Opening share options…';try{await ShareArt.deliver(picture,`kinetta-group-recap-${group.recap.event_date}.png`,live);if(live())status.textContent='';}catch(error){if(live()){status.textContent=error.message||'Couldn’t share this picture.';button.disabled=false;}}};
   });
 }
@@ -1329,7 +1336,7 @@ function groupPage(el,group){
     wireBack(el,'/me/groups');$('#group-options',el).onclick=()=>groupMenu(group,reload);$('[data-group-more]',el)?.addEventListener('click',()=>{expanded=true;draw();});
     $$('[data-group-reaction-group]',el).forEach(node=>wireReactionGroup(node,null));
     $$('[data-update-options]',el).forEach(button=>{const update=group.updates.find(item=>String(item.id)===button.dataset.updateOptions);if(update)button.onclick=()=>groupUpdateMenu(group,update,reload);});
-    const share=$('[data-group-recap-share]',el);if(share)share.onclick=()=>openGroupRecapShare(el,group);
+    const share=$('[data-group-recap-share]',el);if(share)share.onclick=()=>openGroupRecapShare(el,group,share);
     const form=$('.group-update-form',el);if(form)form.onsubmit=async event=>{event.preventDefault();const text=form.elements.text.value.trim(),button=$('button[type=submit]',form),status=$('.group-update-status',form);if(!text||button.disabled)return;button.disabled=true;status.textContent='Posting…';try{await api(`/api/groups/${encodeURIComponent(group.id)}/updates`,json('POST',{text}));form.elements.text.value='';await reload();}catch(error){status.textContent=error.message;button.disabled=false;}};
   };
   draw();

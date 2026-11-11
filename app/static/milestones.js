@@ -75,7 +75,7 @@ const Milestones=(()=>{
   }
   function more(items,changed){
     sheet('Recent milestones',`<div class="card list milestone-list">${items.map((item,n)=>`<button type="button" class="row-link" data-milestone="${n}"><span class="grow"><b>${esc(item.title)}</b><small>${esc(day(item.day))}</small></span>${svg('chev')}</button>`).join('')}</div>`,(b,close)=>{
-      const owner=readOwner();$$('[data-milestone]',b).forEach(button=>button.onclick=()=>{if(owner!==readOwner())return;const item=items[+button.dataset.milestone];close();open(item,changed);});
+      const owner=readOwner();$$('[data-milestone]',b).forEach(button=>button.onclick=()=>{if(owner!==readOwner())return;const item=items[+button.dataset.milestone];open(item,changed,b,close);});
     });
   }
   function paint(node,data,{row=false,onChange,params={}}={}){
@@ -85,11 +85,11 @@ const Milestones=(()=>{
     if(row){
       const latest=[...items].sort((a,b)=>(Date.parse(b.occurred||b.day)||0)-(Date.parse(a.occurred||a.day)||0)),item=latest[0];
       node.innerHTML=`<div class="me-milestone-row"><button type="button" class="me-milestone-latest">${svg('trophy')}<span>${esc(item.title)}</span><span class="vh">. Review share picture</span></button>${items.length>1?'<button type="button" class="me-milestone-all">Recent milestones</button>':''}</div>`;
-      $('.me-milestone-latest',node).onclick=()=>{if(owner===readOwner())open(item,refresh);};
+      $('.me-milestone-latest',node).onclick=()=>{if(owner===readOwner())open(item,refresh,node);};
       const all=$('.me-milestone-all',node);if(all)all.onclick=()=>{if(owner===readOwner())more(latest,refresh);};return;
     }
     node.innerHTML=`<section class="card milestone-banner" aria-label="Milestone"><div class="milestone-copy"><b>${esc(first.title)}</b>${items.length>1?`<button type="button" class="linkbtn milestone-more">+${items.length-1} more</button>`:''}</div><div class="milestone-actions"><button type="button" class="icon-btn milestone-share" aria-label="Share achievement picture">${svg('share')}</button><button type="button" class="icon-btn milestone-dismiss" aria-label="Dismiss milestone">${svg('close')}</button></div><p role="status" class="small milestone-error" hidden></p></section>`;
-    $('.milestone-share',node).onclick=()=>open(first,refresh);
+    $('.milestone-share',node).onclick=()=>open(first,refresh,node);
     const extra=$('.milestone-more',node);if(extra)extra.onclick=()=>more(items,refresh);
     $('.milestone-dismiss',node).onclick=async e=>{const button=e.currentTarget;button.disabled=true;try{await mark(first,'dismiss');if(owner===readOwner())refresh();}catch(error){if(node.isConnected&&owner===readOwner()){const status=$('.milestone-error',node);status.hidden=false;status.textContent=error.message;button.disabled=false;}}};
   }
@@ -98,14 +98,14 @@ const Milestones=(()=>{
     try{const data=await read(params);if(node.isConnected&&owner===readOwner()&&node.milestoneGeneration===generation)paint(node,data,{row,onChange,params});}
     catch(_){/* Optional celebrations never block the person's food or workout records. */}
   }
-  async function open(initial,changed){
-    const owner=readOwner();let item;
-    try{item=(await read({milestone_id:initial.id},5000)).items[0];if(!item){toast('This milestone is no longer waiting for review.');changed?.();return;}}
-    catch(e){if(owner===readOwner())toast(e.message);return;}
-    if(owner!==readOwner())return;
+  async function open(initial,changed,view=null,closeSource=null){
+    const owner=readOwner(),path=location.pathname+location.search,live=()=>owner===readOwner()&&path===location.pathname+location.search&&(!view||view.isConnected);let item;
+    try{item=(await read({milestone_id:initial.id},5000)).items[0];if(!live())return;if(!item){toast('This milestone is no longer waiting for review.');changed?.();return;}await loadShareArt();if(!live())return;closeSource?.();}
+    catch(e){if(live()){const status=view?.querySelector('.milestone-error');if(status){status.hidden=false;status.textContent=(e.message||'Picture sharing could not load.')+' Tap Share to try again.';}else toast((e.message||'Picture sharing could not load.')+' Tap Share to try again.');}return;}
+    const valid=()=>owner===readOwner()&&path===location.pathname+location.search;
     let points=[],handed=false;
     const pictureItem={label:item.title,filename:'kinetta-milestone.png',note:item.private_activity?'This activity is set to Only me. The picture shows its time and distance.':'',controls:[{key:'identity',label:'Photo and username',checked:false}],
-      build:async state=>{points=await routePoints(item);if(owner!==readOwner())throw Error('The account changed.');return picture(item,state.identity,points);},
+      valid,build:async state=>{if(!valid())throw Error('The account changed.');points=await routePoints(item);if(!valid())throw Error('The account changed.');return picture(item,state.identity,points);},
       beforeShare:async({values,setStatus,refresh,close,live})=>{
         if(handed){await mark(item,'shared');if(live()){close();changed?.();}return false;}
         const fresh=(await read({milestone_id:item.id},5000)).items[0];if(!live())return false;

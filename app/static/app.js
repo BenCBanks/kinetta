@@ -67,6 +67,7 @@ const PUSH_INVITATION_ROUTE_ASSET = '/static/push-invitation.js?v=__ASSET_HASH__
 const PUSH_INVITATION_HOMES = new Set(['/me','/activity','/track','/progress','/food']);
 const ACTIVITY_DETAIL_ROUTE_ASSET = '/static/activity-detail.js?v=__ASSET_HASH__';
 const CHALLENGES_ROUTE_ASSET = '/static/challenges.js?v=__ASSET_HASH__';
+const SHARE_ART_ASSET = '/static/share-art.js?v=__ASSET_HASH__';
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: [CONTACTS_ROUTE_ASSET, '/static/welcome.js?v=__ASSET_HASH__']},
   {re: /^\/me\/explore$/, tab: 'track', scripts: [SOCIAL_ROUTE_ASSET, '/static/explore.js?v=__ASSET_HASH__']},
@@ -158,6 +159,7 @@ function loadPushInvitationForRoute(isCurrent) {
   }).catch(()=>{});
 }
 const loadActivityDetail = () => loadClassicScript(ACTIVITY_DETAIL_ROUTE_ASSET);
+function loadShareArt() { return loadClassicScript(SHARE_ART_ASSET); }
 const loadWeeklyRecapShareItem = () => loadClassicScript(SOCIAL_ROUTE_ASSET).then(() => {
   const build=window.weeklyRecapShareItem;
   if(typeof build!=='function'||build===loadWeeklyRecapShareItem)return null;

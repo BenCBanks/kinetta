@@ -17,8 +17,10 @@ const ChallengeRoutes=(()=>{
   const participants=q=>q.participants==null||!Number.isInteger(q.participants)||q.participants<0?'':q.participants+' '+(q.participants===1?'participant':'participants');
   const signature=(q,finish)=>JSON.stringify([q.title,q.start,q.end,q.target,q.unit,q.joining_closed,finish?q.self:null]);
   async function fetchOne(code){const owner=readOwner(),q=await api('/api/challenges/'+encodeURIComponent(code));if(owner!==readOwner())throw Error('The account changed.');return q;}
-  async function picture(q,finish=false,identity=false){
+  async function picture(q,finish=false,identity=false,live=()=>true){
+    const owner=readOwner(),picturePath=location.pathname+location.search;
     const own=q.self||{},facts=finish?(own.manual?['Includes manual entries']:[]):[q.sports.map(s=>SPORT_NAMES[s]).join(' · ')].filter(Boolean);
+    await loadShareArt();if(owner!==readOwner()||picturePath!==location.pathname+location.search||!live())throw Error('The account changed.');
     return ShareArt.simplePicture({kicker:finish?'Your challenge':'Join this challenge',title:q.title,date:date(q.start)+' – '+date(q.end),value:finish?number(own.value,q.unit)+' / '+number(q.target,q.unit):number(q.target,q.unit),unit:q.unit,facts,sources:finish?own.garmin_sources||[]:[],identity,qrLink:finish?null:q.url});
   }
   function confirmation(title,copy,action,onDone){
@@ -26,16 +28,17 @@ const ChallengeRoutes=(()=>{
       guardFoodSheet(b,close,owner);$('#challenge-keep',b).onclick=close;$('#challenge-confirm',b).onclick=async e=>{e.currentTarget.disabled=true;try{await action.run();if(owner!==readOwner()||!b.isConnected)return;close();onDone?.();}catch(error){if(b.isConnected&&owner===readOwner()){$('.err',b).textContent=error.message;e.target.disabled=false;}}};
     });
   }
-  async function share(initial,finish=false){
-    const owner=readOwner();let q;
+  async function share(initial,finish=false,origin=null){
+    const owner=readOwner(),path=location.pathname+location.search,context=origin||document.querySelector('#app'),sourceLive=()=>context?.isConnected&&owner===readOwner()&&path===location.pathname+location.search;let q;
     try{q=await fetchOne(initial.code);if(!q.member)throw Error('Join the challenge before making a picture.');if(finish&&!q.self?.finished)throw Error('Your finish picture is available when your challenge ends.');if(!finish&&q.joining_closed)throw Error('This challenge is no longer accepting joins.');}
-    catch(e){if(owner===readOwner())toast(e.message);return;}
+    catch(e){if(sourceLive())toast(e.message);return;}
+    if(!sourceLive())return;
     let current=null,url='',generation=0,busy=false;
     sheet(finish?'Your finish picture':'Invite to your challenge',`<div class="challenge-share-body"><p>${finish?'Only your challenge progress appears. Photo and username start off.':'People see this challenge’s dates and target before choosing to join. Joining never adds friends.'}</p><label class="check"><input type="checkbox" id="challenge-identity">Photo and username</label><div class="challenge-picture"><img id="challenge-picture" alt="Loading challenge picture"></div><p class="small" role="status" id="challenge-share-status"></p><button class="ghost wide" id="challenge-picture-retry" hidden>Retry picture</button></div><div class="challenge-share-actions"><button type="button" class="primary wide" id="challenge-send" disabled>Share picture${finish?'':' and link'}</button>${finish?'':'<button type="button" class="ghost wide" id="challenge-copy">Copy invitation link</button>'}</div>`,(b,close)=>{
-      const live=()=>b.isConnected&&owner===readOwner(),status=$('#challenge-share-status',b),send=$('#challenge-send',b),identity=$('#challenge-identity',b),image=$('#challenge-picture',b);
+      const live=()=>b.isConnected&&sourceLive(),status=$('#challenge-share-status',b),send=$('#challenge-send',b),identity=$('#challenge-identity',b),image=$('#challenge-picture',b);
       const closeSelf=()=>close();App.closeActivityShare=closeSelf;viewResources.set(b,()=>{generation++;if(url)URL.revokeObjectURL(url);if(App.closeActivityShare===closeSelf)delete App.closeActivityShare;});
       async function draw(){const stamp=++generation;send.disabled=true;current=null;status.textContent='Creating picture…';$('#challenge-picture-retry',b).hidden=true;
-        try{const result=await picture(q,finish,identity.checked);if(!live()||stamp!==generation)return;current=result;if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(result.blob);image.src=url;image.alt=result.alt;status.textContent='Review the picture before sharing.';send.disabled=false;}
+        try{const result=await picture(q,finish,identity.checked,live);if(!live()||stamp!==generation)return;current=result;if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(result.blob);image.src=url;image.alt=result.alt;status.textContent='Review the picture before sharing.';send.disabled=false;}
         catch(e){if(live()&&stamp===generation){status.textContent=e.message;$('#challenge-picture-retry',b).hidden=false;}}
       }
       identity.onchange=draw;$('#challenge-picture-retry',b).onclick=draw;
@@ -74,7 +77,7 @@ const ChallengeRoutes=(()=>{
   async function page(el,code){
     const owner=readOwner();el.innerHTML=`<div class="top">${activityBack(el)}</div><div id="challenge-detail">${skel(2)}</div>`;let busy=false,generation=0;
     const live=()=>el.isConnected&&owner===readOwner();
-    async function load(initial=false){if(busy)return;busy=true;const stamp=++generation;try{const q=await fetchOne(code);if(!live()||stamp!==generation||(!initial&&el._challengePress))return;draw(q);if(initial&&new URLSearchParams(location.search).get('invite')==='1'){history.replaceState(null,'',path(q));share(q);}}
+    async function load(initial=false){if(busy)return;busy=true;const stamp=++generation;try{const q=await fetchOne(code);if(!live()||stamp!==generation||(!initial&&el._challengePress))return;draw(q);if(initial&&new URLSearchParams(location.search).get('invite')==='1'){history.replaceState(null,'',path(q));share(q,false,el);}}
       catch(error){if(live()&&stamp===generation){if(initial)showError($('#challenge-detail',el),error);else{const status=$('#challenge-page-status',el);if(status)status.textContent='Couldn’t refresh. Your displayed progress may be out of date. '+error.message;}}}finally{busy=false;}}
     function draw(q){
       const focused=document.activeElement,focusId=el.contains(focused)?focused.id:null,removeFocus=el.contains(focused)?focused.dataset?.removeMember:null,scroll=scrollY;
@@ -84,7 +87,7 @@ const ChallengeRoutes=(()=>{
       const restore=focusId?$('#'+focusId,el):removeFocus?$$('[data-remove-member]',el).find(n=>n.dataset.removeMember===removeFocus):null;restore?.focus({preventScroll:true});window.scrollTo(0,scroll);
       const listen=(id,fn)=>{const n=$(id,el);if(n)n.onclick=fn;};
       listen('#challenge-report', () => reportSheet({login:q.creator, name:'@'+q.creator}, {challenge_code:q.code}, () => go('/me/challenges')));
-      listen('#challenge-refresh',()=>load());listen('#challenge-invite',()=>share(q));listen('#challenge-finish-picture',()=>share(q,true));
+      listen('#challenge-refresh',()=>load());listen('#challenge-invite',()=>share(q,false,el));listen('#challenge-finish-picture',()=>share(q,true,el));
       listen('#challenge-join',async e=>{e.currentTarget.disabled=true;try{await api('/api/challenges/'+encodeURIComponent(code)+'/join',json('POST',{}));if(live()){invalidate('/api/challenges');load();}}catch(error){if(live()){$('#challenge-page-status',el).textContent=error.message;e.target.disabled=false;}}});
       listen('#challenge-leave',()=>confirmation('Leave this challenge?','Your row and progress disappear for everyone. Your own workouts and food stay in your account.',{label:'Leave challenge',run:()=>api('/api/challenges/'+encodeURIComponent(code)+'/leave',json('POST',{}))},()=>{invalidate('/api/challenges');go('/me/challenges');}));
       listen('#challenge-end',()=>confirmation('End this challenge early?','Joining closes immediately and every participant can make a finish picture. Progress stops at this time.',{label:'End early',run:()=>api('/api/challenges/'+encodeURIComponent(code)+'/end',json('POST',{}))},()=>load()));

@@ -5,13 +5,15 @@ const source=fs.readFileSync('app/static/pages.js','utf8'),start=source.indexOf(
 const activity={id:7,name:'Fictional run',sport:'run',line:'fictional-line',start_time:'2026-10-23T10:00:00Z',distance_m:5000,moving_s:1500,avg_hr:152,calories:400,ascent_m:30};
 const sharing={details:{map:true,pace:true,heart_rate:false,elevation:false,calories:false},trim_m:400};
 function fixture(social=sharing){
- const calls={route:[],simple:[],api:[]},ctx={owner:'zz_test_owner_a',App:{me:{units:'metric'}},SPORT_NAMES:{run:'Run'},readOwner:()=>ctx.owner,
+ const calls={route:[],simple:[],api:[],leaf:[],toasts:[]},sourceContext={isConnected:true};let leafFailure=null;
+ const ctx={owner:'zz_test_owner_a',App:{me:{units:'metric'}},SPORT_NAMES:{run:'Run'},location:{pathname:'/activity/7',search:''},root:sourceContext,document:{querySelector:()=>sourceContext},readOwner:()=>ctx.owner,
    api:async url=>{calls.api.push(url);return url.endsWith('/social')?{...social,details:{...social.details}}:{...activity};},
    decode:()=>[[40,-75],[40.05,-75.05],[40.1,-75.1]],trimRoute:(points,metres)=>metres?points.slice(1,-1):points,
    rate:()=>({label:'Pace',v:'5:00',u:'/km'}),dur:n=>n+' seconds',fdate:()=> 'Oct 23, 2026',U:{dist:n=>n+' km',du:()=> 'km',time:n=>n+' seconds'},
    routePicture:async(...args)=>{calls.route.push(args);return new Blob(['activity']);},
    ShareArt:{simplePicture:async options=>{calls.simple.push(options);return{blob:new Blob(['simple']),alt:'Fictional picture'};}},
-   ShareSheet:{open:options=>{ctx.options=options;}},toast:message=>{ctx.toast=message;}};
+   loadShareArt:async()=>{calls.leaf.push('load');if(leafFailure)throw leafFailure;},
+   ShareSheet:{open:options=>{ctx.options=options;}},toast:message=>{calls.toasts.push(message);ctx.toast=message;},setLeafFailure:error=>{leafFailure=error;},sourceContext};
  vm.createContext(ctx);vm.runInContext(source.slice(start,end),ctx);return{ctx,calls};
 }
 const tick=()=>new Promise(setImmediate),plain=value=>JSON.parse(JSON.stringify(value));
@@ -41,6 +43,12 @@ const tick=()=>new Promise(setImmediate),plain=value=>JSON.parse(JSON.stringify(
 
  f=fixture();let resolveSocial;f.ctx.api=url=>{f.calls.api.push(url);return new Promise(resolve=>resolveSocial=resolve);};f.ctx.shareOut({...activity});f.ctx.owner='zz_test_owner_b';resolveSocial(sharing);await tick();assert.equal(f.ctx.options,undefined,'a late social response cannot open a previous account’s share sheet');
  console.log('Activity share: account switch blocks a late privacy-settings result PASS');
+
+ f=fixture();const knownForRetry={...activity,_social:sharing};f.ctx.setLeafFailure(Error('Fictional share leaf failure'));f.ctx.shareOut(knownForRetry);await tick();assert.equal(f.ctx.options,undefined,'a failed leaf load cannot open an incomplete share sheet');assert.match(f.ctx.toast,/Fictional share leaf failure/);f.ctx.setLeafFailure(null);f.ctx.shareOut(knownForRetry);await tick();assert(f.ctx.options,'retry after a failed leaf load reaches the existing share sheet');assert.equal(f.calls.leaf.length,2,'each action retries the loader after its failure');
+ console.log('Activity share: failed leaf load reports an error and the next action retries PASS');
+
+ f=fixture();let releaseLeaf;f.ctx.loadShareArt=()=>{f.calls.leaf.push('load');return new Promise(resolve=>releaseLeaf=resolve);};f.ctx.shareOut({...activity,_social:sharing});while(!releaseLeaf)await tick();f.ctx.location.pathname='/me';releaseLeaf();await tick();assert.equal(f.ctx.options,undefined,'a late leaf load cannot open a share sheet after route navigation');
+ console.log('Activity share: route change during leaf load blocks the stale sheet PASS');
 
  const native=fs.readFileSync('app/static/native.js','utf8'),block=native.slice(native.indexOf('  N.activityShareSupported'),native.indexOf('  N.headers ='));
  const bridgeCalls=[],old={on:false,P:{},N:{}};vm.createContext(old);vm.runInContext(block,old);assert.equal(old.N.activityShareSupported,false);await old.N.stopActivityShare();

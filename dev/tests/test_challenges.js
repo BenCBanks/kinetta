@@ -1,9 +1,9 @@
 // Execute the actual picture boundary. Another participant's detail must never enter a shared picture.
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-let captured,owner='fictional-owner',challengeItems=[],signupResult={};const apiCalls=[],invalidations=[],navigations=[];
+let captured,owner='fictional-owner',challengeItems=[],signupResult={},leafLoads=0,leafError=null;const apiCalls=[],invalidations=[],navigations=[];
 const api=async(path,options)=>{apiCalls.push({path,options});if(path==='/api/challenges')return challengeItems;if(path==='/api/challenges/signup/continue')return signupResult;return {};};
-const ctx={Intl,Date,Math,JSON,Number,URLSearchParams,route(){},readOwner:()=>owner,api,App:{me:{}},location:{pathname:'/me'},json:(method,body)=>({method,body}),invalidate:path=>invalidations.push(path),go:path=>navigations.push(path),render(){},svg:name=>`<svg data-icon="${name}"></svg>`,SPORT_NAMES:{walk:'Walk',run:'Run'},ShareArt:{simplePicture:async options=>(captured=options)}};
+const ctx={Intl,Date,Math,JSON,Number,URLSearchParams,route(){},readOwner:()=>owner,api,App:{me:{}},location:{pathname:'/me',search:''},json:(method,body)=>({method,body}),invalidate:path=>invalidations.push(path),go:path=>navigations.push(path),render(){},svg:name=>`<svg data-icon="${name}"></svg>`,loadShareArt:async()=>{leafLoads++;if(leafError)throw leafError;},SPORT_NAMES:{walk:'Walk',run:'Run'},ShareArt:{simplePicture:async options=>(captured=options)}};
 vm.createContext(ctx);vm.runInContext(fs.readFileSync('app/static/challenge-summary.js','utf8')+'\n'+fs.readFileSync('app/static/challenges.js','utf8')+'\nthis.subject=Challenges;',ctx);
 (async()=>{
  assert.equal(ctx.subject.number(.04,'km'),'0.04','A small remaining distance must not say zero to go');
@@ -25,8 +25,10 @@ vm.createContext(ctx);vm.runInContext(fs.readFileSync('app/static/challenge-summ
   const f=new Intl.DateTimeFormat(undefined,{timeZone:'UTC',month:'short',day:'numeric',year:'numeric'});assert.equal(ctx.subject.dateRange({start,end}),f.formatRange(new Date(start+'T12:00:00Z'),new Date(end+'T12:00:00Z')));
  }
  assert.equal(ctx.subject.participants({participants:1}),'1 participant');assert.equal(ctx.subject.participants({participants:2}),'2 participants');assert.equal(ctx.subject.participants({people:[1]}),'');
- await ctx.subject.picture(data);assert.equal(captured.title,data.title);assert.equal(captured.identity,false);assert.equal(captured.value,'80');assert.equal(captured.qrLink,data.url);assert.equal(captured.sources.length,0);assert(!JSON.stringify(captured).includes('PRIVATE'));assert(!JSON.stringify(captured).includes('99999'));
+ await ctx.subject.picture(data);assert.equal(leafLoads,1,'challenge picture waits for the share leaf');assert.equal(captured.title,data.title);assert.equal(captured.identity,false);assert.equal(captured.value,'80');assert.equal(captured.qrLink,data.url);assert.equal(captured.sources.length,0);assert(!JSON.stringify(captured).includes('PRIVATE'));assert(!JSON.stringify(captured).includes('99999'));
  await ctx.subject.picture(data,true);assert.equal(captured.value,'41 / 80');assert.equal(captured.qrLink,null);assert.equal(captured.identity,false);assert.deepEqual(Array.from(captured.sources),['Garmin Forerunner 965']);assert(captured.facts.includes('Includes manual entries'));assert(!JSON.stringify(captured).includes('PRIVATE'));
  await ctx.subject.picture({...data,kind:'food_days',unit:'days',target:20,self:{value:7,garmin_sources:[],manual:false,finished:true}},true,true);assert.equal(captured.value,'7 / 20');assert.equal(captured.unit,'days');assert.equal(captured.identity,true);assert(!JSON.stringify(captured).includes('protein_target'));assert(!JSON.stringify(captured).includes('weight'));
+ leafError=Error('fictional leaf failure');await assert.rejects(ctx.subject.picture(data),/fictional leaf failure/,'a failed leaf load keeps the existing Retry picture path');leafError=null;await ctx.subject.picture(data);assert(leafLoads>=5,'the retry asks the memoized production loader again after its rejected promise clears');
+ let release;ctx.loadShareArt=()=>new Promise(resolve=>{release=resolve;});const stale=ctx.subject.picture(data);while(!release)await Promise.resolve();ctx.location.pathname='/activity';release();await assert.rejects(stale,/account changed/,'a late leaf load cannot draw after route change');
  console.log('Challenge invitation and incomplete/food finish pictures: only chosen target or own aggregate, QR link, safe credits, identity off and no participant details PASS');
 })().catch(error=>{console.error(error);process.exit(1)});
