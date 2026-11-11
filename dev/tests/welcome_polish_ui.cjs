@@ -35,10 +35,10 @@ const until=async(p,f,label)=>{for(let n=0;n<160;n++){if(await p.evaluate(f))ret
     assert.equal(await p.locator('input[name=phone_e164]').inputValue(),phoneValue||'');
     if(process.env.KINETTA_WELCOME_OUT){fs.mkdirSync(process.env.KINETTA_WELCOME_OUT,{recursive:true});await p.screenshot({path:path.join(process.env.KINETTA_WELCOME_OUT,`welcome-phone-${size.width}-${theme}-${phoneValue?'prefilled':'empty'}.png`),fullPage:true});}
     holdContactRead=true;releaseContactRead=null;await p.goto(base+'/welcome?step=phone');await p.locator('input[name=phone_e164][disabled]').waitFor();for(let n=0;n<160&&!releaseContactRead;n++)await p.waitForTimeout(20);assert.equal(typeof releaseContactRead,'function','loading-state settings request starts');assert.equal(await p.locator('#wc-next').isDisabled(),true);assert.equal(await p.locator('#wc-skip').isDisabled(),false);
-    if(process.env.KINETTA_WELCOME_OUT){await p.screenshot({path:path.join(process.env.KINETTA_WELCOME_OUT,`welcome-phone-390-${theme}-loading.png`),fullPage:true});}
+    if(process.env.KINETTA_WELCOME_OUT){await p.screenshot({path:path.join(process.env.KINETTA_WELCOME_OUT,`welcome-phone-${size.width}-${theme}-loading.png`),fullPage:true});}
     holdContactRead=false;releaseContactRead();await p.locator('input[name=phone_e164]:enabled').waitFor();
     contactReadFailure=true;await open('phone');await p.getByRole('button',{name:'Try again'}).waitFor();
-    if(process.env.KINETTA_WELCOME_OUT){await p.screenshot({path:path.join(process.env.KINETTA_WELCOME_OUT,`welcome-phone-390-${theme}-error.png`),fullPage:true});}
+    if(process.env.KINETTA_WELCOME_OUT){await p.screenshot({path:path.join(process.env.KINETTA_WELCOME_OUT,`welcome-phone-${size.width}-${theme}-error.png`),fullPage:true});}
     contactReadFailure=false;
     if(size.width===330){const targets=await p.locator('.welcome-actions button').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().height));assert(targets.every(height=>height>=44),'330px phone actions retain 44px targets');assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'330px phone step has no horizontal overflow');assert.equal(await p.locator('#wc-err').evaluate(n=>n.scrollHeight<=n.clientHeight||!n.textContent),true,'330px phone error area does not clip');}
     continue;
