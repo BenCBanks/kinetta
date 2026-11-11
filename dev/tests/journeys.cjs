@@ -60,6 +60,7 @@ async function feedBack(f){
    const key=[test.login,test.native?test.id:'browser',!!test.kit].join(':'),existing=contexts.has(key);
    const f=contexts.get(key)||await context(browser,base,fixtures,sessions,test,theme);contexts.set(key,f);f.test(test);
    try{
+    if(test.clockTime)await f.p.clock.setFixedTime(new Date(test.clockTime));
     if(existing)await f.p.evaluate(url=>go(url,{replace:true}),test.start);else await f.p.goto(base+test.start);
     await ready(f.p);
     if(test.startReady)await f.p.locator(test.startReady).waitFor({state:'attached'});
