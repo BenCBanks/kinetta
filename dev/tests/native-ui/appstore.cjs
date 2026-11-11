@@ -1,6 +1,7 @@
 // Fictional, deterministic display responses for unsigned native App Store captures only.
 'use strict';
 const assert=require('node:assert/strict');
+const achievementCatalog=require('../../../app/static/profile.achievement-levels.json');
 module.exports=()=>{
  const today='2026-11-02',date=(days)=>new Date(Date.UTC(2026,10,2-days)).toISOString().slice(0,10);
  const activity=require('../../demo/activity_detail.cjs')(),friends=require('../../demo/friends.cjs')('typical');
@@ -45,7 +46,7 @@ module.exports=()=>{
  assert.equal(currentWeek.activities,currentDays.reduce((n,row)=>n+row.activities,0),'the current Me week count matches the visible fictional days');
  assert.equal(currentWeek.time_s,currentDays.reduce((n,row)=>n+row.time_s,0),'the current Me week time matches the visible fictional days');
  const achievements=responses['/api/achievements'],showcase=responses['/api/achievements/showcase'];
- for(const item of showcase.items){const track=achievements.tracks.find(row=>row.code===item.code);assert(track&&track.level>=item.rank&&track.tiers.some(tier=>tier.rank===item.rank),'featured fixture medals must be earned');}
+ for(const item of showcase.items){const track=achievements.tracks.find(row=>row.code===item.code),tier=achievementCatalog.tracks[item.code]?.levels?.[item.rank-1];assert(track&&track.level>=item.rank&&track.tiers.some(earned=>earned.rank===item.rank)&&tier&&Number(track.value)>=Number(tier.canonical_value),'featured fixture medals must meet their catalog threshold');}
  assert.equal(achievements.tracks.find(row=>row.code==='workouts').display_value,overview.activities,'featured workout count matches the lifetime overview');
  return {now:today+'T12:00:00Z',position:{lat,lon,accuracy:8,timestamp:Date.parse(today+'T12:00:00Z')},responses};
 };
