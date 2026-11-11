@@ -6,23 +6,28 @@ import secrets
 import tempfile
 import uuid
 import zipfile
+from zoneinfo import ZoneInfo
 import psycopg
 from psycopg import sql
 from app import db, api_mydata
 
+fixture_instant=dt.datetime.now(dt.timezone.utc)
+account_tz=ZoneInfo('UTC')
+fixture_day=fixture_instant.astimezone(account_tz).date()
+fixture_yesterday=fixture_day-dt.timedelta(days=1)
 uids=[]; role='zz_test_thread_reader'; password=secrets.token_urlsafe(24)
 def message(c, uid, text, **extra):
     return c.execute('''INSERT INTO food_chat_messages(user_id,client_id,kind,body,captured_at,local_day,state,reply_to)
-                        VALUES (%s,%s,%s,%s,now(),current_date,%s,%s) RETURNING id''',
-                     (uid,uuid.uuid4(),extra.get('kind','user'),text,extra.get('state','pending'),extra.get('reply_to'))).fetchone()['id']
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id''',
+                     (uid,uuid.uuid4(),extra.get('kind','user'),text,fixture_instant,fixture_day,extra.get('state','pending'),extra.get('reply_to'))).fetchone()['id']
 try:
     with db.connect() as c:
         for label in ('a','b'):
             uid=c.execute('INSERT INTO users(login,name) VALUES (%s,%s) RETURNING id',('zz_test_thread_db_'+label,'Fictional thread')).fetchone()['id'];uids.append(uid)
-            c.execute('INSERT INTO profile(user_id) VALUES (%s)',(uid,))
+            c.execute("INSERT INTO profile(user_id,tz) VALUES (%s,'UTC')",(uid,))
         ma=message(c,uids[0],'Fictional private oats');mb=message(c,uids[1],'Other fictional soup')
-        ea=c.execute("INSERT INTO food_entries(user_id,day,meal,name,kcal) VALUES (%s,current_date,'lunch','Fictional oats',400) RETURNING id",(uids[0],)).fetchone()['id']
-        eb=c.execute("INSERT INTO food_entries(user_id,day,meal,name,kcal) VALUES (%s,current_date,'lunch','Other fictional soup',300) RETURNING id",(uids[1],)).fetchone()['id']
+        ea=c.execute("INSERT INTO food_entries(user_id,day,meal,name,kcal) VALUES (%s,%s,'lunch','Fictional oats',400) RETURNING id",(uids[0],fixture_day)).fetchone()['id']
+        eb=c.execute("INSERT INTO food_entries(user_id,day,meal,name,kcal) VALUES (%s,%s,'lunch','Other fictional soup',300) RETURNING id",(uids[1],fixture_day)).fetchone()['id']
         c.execute('INSERT INTO food_chat_entries VALUES (%s,%s,%s)',(uids[0],ma,ea))
         reply=message(c,uids[0],'Fictional oats logged',kind='reply',state='answered',reply_to=ma)
         c.execute(sql.SQL('CREATE ROLE {} LOGIN PASSWORD {}').format(sql.Identifier(role),sql.Literal(password)))
@@ -67,12 +72,12 @@ try:
     older=food_thread.history(before=latest['before'],limit=1,user={'id':uids[0]})
     assert [r['id'] for r in older['messages']]==[ma,reply], 'Late replies stay on the parent page'
     from fastapi import Response
-    assert food_thread.append(food_thread.MessageIn(client_id=uuid.uuid4(),body='Fictional invalid-zone check'),Response(),user={'id':uids[0]})['message']['local_day']
+    assert food_thread.append(food_thread.MessageIn(client_id=uuid.uuid4(),body='Fictional invalid-zone check',captured_at=fixture_instant),Response(),user={'id':uids[0]})['message']['local_day']
     with db.connect() as c:
         c.execute('DELETE FROM food_chat_messages WHERE user_id=%s AND id NOT IN (%s,%s)',(uids[0],ma,reply))
-        imported=c.execute("INSERT INTO food_entries(user_id,day,meal,name,kcal,source) VALUES (%s,current_date-1,'snacks','Day total (imported)',300,'import') RETURNING id",(uids[0],)).fetchone()['id']
+        imported=c.execute("INSERT INTO food_entries(user_id,day,meal,name,kcal,source) VALUES (%s,%s,'snacks','Day total (imported)',300,'import') RETURNING id",(uids[0],fixture_yesterday)).fetchone()['id']
         c.execute('INSERT INTO food_chat_entries VALUES (%s,%s,%s)',(uids[0],ma,imported))
-    history_import.save(history_import.SaveIn(rows=[history_import.DayIn(day=dt.date.today()-dt.timedelta(days=1),eaten=500)]),user={'id':uids[0]})
+    history_import.save(history_import.SaveIn(rows=[history_import.DayIn(day=fixture_yesterday,eaten=500)]),user={'id':uids[0]})
     with db.connect() as c:
         assert c.execute('SELECT kcal FROM food_entries WHERE id=%s',(imported,)).fetchone()['kcal']==500
         assert c.execute('SELECT 1 FROM food_chat_entries WHERE entry_id=%s',(imported,)).fetchone(), 'Reimport preserves linked entry identity'
