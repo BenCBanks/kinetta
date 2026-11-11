@@ -57,6 +57,7 @@ const COOK_ROUTE_ASSET = '/static/cook.js?v=__ASSET_HASH__';
 const RECIPE_IMPORT_ROUTE_ASSET = '/static/recipe-import.js?v=__ASSET_HASH__';
 const SOCIAL_ROUTE_ASSET = '/static/social.js?v=__ASSET_HASH__';
 const PLAN_ROUTE_ASSET = '/static/plan.js?v=__ASSET_HASH__';
+const QR_CODE_ASSET = '/static/vendor/qrcode.js?v=__ASSET_HASH__';
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: ['/static/welcome.js?v=__ASSET_HASH__']},
   {re: /^\/me\/explore$/, tab: 'track', scripts: [SOCIAL_ROUTE_ASSET, '/static/explore.js?v=__ASSET_HASH__']},
@@ -108,6 +109,7 @@ function loadClassicScript(asset) {
 function loadClassicScripts(assets) {
   return assets.reduce((ready, asset) => ready.then(() => loadClassicScript(asset)), Promise.resolve());
 }
+function loadQrCode() { return loadClassicScript(QR_CODE_ASSET); }
 const loadWeeklyRecapShareItem = () => loadClassicScript(SOCIAL_ROUTE_ASSET).then(() => {
   const build=window.weeklyRecapShareItem;
   if(typeof build!=='function'||build===loadWeeklyRecapShareItem)return null;

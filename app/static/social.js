@@ -1058,17 +1058,20 @@ async function inviteFriends() {
       try { await navigator.clipboard.writeText(`${text} ${url}`); if(live())$('#iv-status', b).textContent = 'Link copied'; }
       catch { if(live()){input.select();$('#iv-status', b).textContent = 'Select and copy the link above.';} }
     };
-    $('#iv-qr',b).onclick=()=>{
+    $('#iv-qr',b).onclick=async()=>{
       if(!live())return;
       const box=$('#iv-qr-code',b);box.hidden=false;
-      if(box.firstElementChild)return;
+      if(box.firstElementChild||box.dataset.loading)return;
+      box.dataset.loading='true';
       try {
+        await loadQrCode();if(!live())return;
         const code=qrcode(0,'M');code.addData(url);code.make();const n=code.getModuleCount(),m=4,ns='http://www.w3.org/2000/svg';let path='';
         for(let y=0;y<n;y++)for(let x=0;x<n;x++)if(code.isDark(y,x))path+=`M${x+m} ${y+m}h1v1h-1z`;
         const graphic=document.createElementNS(ns,'svg');graphic.setAttribute('viewBox',`0 0 ${n+2*m} ${n+2*m}`);graphic.setAttribute('role','img');graphic.setAttribute('aria-label','QR code for your Kinetta invite link');
         const background=document.createElementNS(ns,'rect');background.setAttribute('width',n+2*m);background.setAttribute('height',n+2*m);background.setAttribute('fill','#fff');
         const marks=document.createElementNS(ns,'path');marks.setAttribute('d',path);marks.setAttribute('fill','#000');graphic.append(background,marks);box.append(graphic);
-      } catch { box.hidden=true;$('#iv-status',b).textContent='The QR code could not be shown. Copy the invite link instead.'; }
+      } catch { if(live()){box.hidden=true;$('#iv-status',b).textContent='The QR code could not be shown. Copy the invite link instead.';} }
+      finally{delete box.dataset.loading;}
     };
     $('#iv-new', b).onclick = async () => {
       const button=$('#iv-new',b);if(!live()||button.disabled)return;button.disabled=true;

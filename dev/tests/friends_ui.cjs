@@ -10,8 +10,9 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   const c=await browser.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});contexts.push(c);
   assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_fc_'+state,password:pw}})).status(),200);
   await c.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize='16px'));
-  const p=await c.newPage(),errors=[],writes=[],searches=[];
+  const p=await c.newPage(),errors=[],writes=[],searches=[],qrRequests=[];
   p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
+  p.on('request',r=>{if(new URL(r.url()).pathname==='/static/vendor/qrcode.js')qrRequests.push(r.url());});
   p.on('request',r=>{const u=new URL(r.url());if(u.origin===base&&u.pathname==='/api/people/search')searches.push(u.searchParams.get('q')||'');});
   await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(q.method()==='GET'&&u.pathname==='/api/groups')return r.fulfill({json:[{id:'00000000-0000-4000-8000-000000000091',title:'Fictional walk group',event_date:'2026-12-01',time_zone:'UTC',member_count:2,closed:false},{id:'00000000-0000-4000-8000-000000000092',title:'Closed fictional group',event_date:'2026-12-02',time_zone:'UTC',member_count:2,closed:true}]});if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(u.pathname==='/api/friends'||u.pathname.startsWith('/api/friends/zz_test_fc_')||u.pathname.startsWith('/api/people/zz_test_fc_'))return r.continue();return r.fulfill({json:{}});}return r.continue();});
   const friends=p.waitForResponse(r=>new URL(r.url()).pathname==='/api/friends'&&r.request().method()==='GET');
@@ -19,7 +20,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   await p.goto(base+'/me/friends?find=1');await Promise.all([friends,suggested]);
   await until(p,()=>App.pageReady&&!!document.querySelector('.friends-page #fr-invite'),'Find friends ready');await p.evaluate(()=>document.fonts.ready.then(()=>true));
   await until(p,()=>{const box=document.querySelector('#fr-suggest');return box&&((box.parentElement.hidden)||box.querySelector('.pym-row'));},'suggestions loaded');
-  return{c,p,errors,writes,searches};
+  return{c,p,errors,writes,searches,qrRequests};
  }
  async function close(c){await c.close();contexts.splice(contexts.indexOf(c),1);}
  async function closeSheet(p){await p.locator('[data-close]').last().click();await until(p,()=>!document.querySelector('[role="dialog"]'),'sheet closed');}
@@ -123,6 +124,26 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     await p.locator('#person-profile [data-person-manage]').click();await p.locator('[data-block]').waitFor();await p.locator('[data-block]').click();await p.locator('[data-confirm]').waitFor();assert.equal(await p.locator('[data-confirm]').innerText(),'Block','Block is reachable through a friend profile');await p.locator('[data-keep]').click();
     assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(x=>!x.endsWith('/api/challenges/signup/continue')),[],'friend management sheets do not write until confirmation');await close(c);console.log(`Find friends management ${theme}: Remove and Block are reachable from a friend's profile PASS`);
    }
+  }
+  if(!process.env.KINETTA_FRIEND_CASE||process.env.KINETTA_FRIEND_CASE==='qr'){
+   const {c,p,errors,writes,qrRequests}=await open('empty','light');
+   assert.equal(qrRequests.length,0,'loading Social for Find friends does not preload QR');
+   await p.locator('#fr-invite').click();await p.getByRole('dialog',{name:'Invite friends'}).waitFor();
+   await p.locator('#iv-qr').click();await p.locator('#iv-qr-code svg[aria-label="QR code for your Kinetta invite link"]').waitFor();
+   assert.equal(qrRequests.length,1,'the invite action loads QR on demand');await p.locator('#iv-qr').click();assert.equal(qrRequests.length,1,'repeated QR action reuses the loaded script and graphic');
+   assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(x=>!x.endsWith('/api/challenges/signup/continue')),[],'QR generation has no write side effects');await close(c);
+   const stale=await open('empty','light');assert.equal(stale.qrRequests.length,0);await stale.p.locator('#fr-invite').click();await stale.p.getByRole('dialog',{name:'Invite friends'}).waitFor();
+   await stale.p.evaluate(()=>{window.__pendingInviteQrBox=document.querySelector('#iv-qr-code');});let qrStarted=false,releaseQr;
+   await stale.p.route('**/static/vendor/qrcode.js*',async route=>{qrStarted=true;await new Promise(resolve=>{releaseQr=resolve;});await route.continue();});await stale.p.locator('#iv-qr').click();
+   for(let attempt=0;attempt<100&&!qrStarted;attempt++)await stale.p.waitForTimeout(20);assert(qrStarted,'the invite QR action starts its lazy request');
+   assert.equal((await stale.c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_fc_typical',password:pw}})).status(),200,'second fictional owner signs in');
+   const newOwner=await(await stale.c.request.get(base+'/api/me')).json();await stale.p.evaluate(me=>refreshMe(me),newOwner);
+   await until(stale.p,()=>App.pageReady&&App.me?.login==='zz_test_fc_typical','second fictional owner becomes current');releaseQr();
+   let qrLoaded=false;for(let attempt=0;attempt<100;attempt++){qrLoaded=await stale.p.evaluate(()=>classicScriptsLoaded.has(QR_CODE_ASSET));if(qrLoaded)break;await stale.p.waitForTimeout(20);}
+   assert(qrLoaded,'the invite QR script load and stale callback complete after owner change');
+   assert.equal(stale.qrRequests.length,1,'the old invite QR request completes after owner change');assert.equal(await stale.p.evaluate(()=>window.__pendingInviteQrBox?.querySelector('svg')||null),null,'old-owner invite does not render after its deferred load');
+   assert.equal(await stale.p.locator('#iv-qr-code svg').count(),0,'new owner has no stale invite QR');assert.deepEqual(stale.errors,[]);await close(stale.c);
+   console.log('Find friends QR: action-only load, deduplication and late old-owner guard PASS');
   }
  }finally{for(const c of contexts)await c.close();await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

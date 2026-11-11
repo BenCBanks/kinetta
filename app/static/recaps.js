@@ -57,6 +57,7 @@ const ShareArt=(()=>{
     }
     const list=[...new Set(sources)],credit=list.length?'Includes data from '+list.slice(0,2).join(', ')+(list.length>2?` + ${list.length-2} other Garmin devices`:''):'';
     if(qrLink){
+      await loadQrCode();if(readOwner()!==pictureOwner)throw Error('The account changed.');
       if(y+20>880)throw Error('The invitation picture needs more room. Try without photo and username.');
       const qr=qrcode(0,'M');qr.addData(qrLink);qr.make();const n=qr.getModuleCount(),quiet=4,cell=Math.floor(300/(n+quiet*2)),size=cell*(n+quiet*2),left=Math.floor((1080-size)/2),top=900;
       g.fillStyle='#fff';g.fillRect(left,top,size,size);g.fillStyle='#000';
