@@ -14,10 +14,10 @@ const source=fs.readFileSync('app/static/social.js','utf8'),tick=()=>new Promise
  for(const retired of ['Your profile','Your friends will appear here','New activities:','/me/sharing','fr-own-list','fr-lists'])assert(!shell.includes(retired),`Find friends omits ${retired}`);
  const requestMarkup=c.FriendsUITest.requests({incoming:[{name:'Casey Fixture',login:'casey'}],outgoing:[{name:'Riley Fixture',login:'riley'}]});assert(requestMarkup.includes('Waiting for you'));assert(requestMarkup.includes('You sent'));assert(!requestMarkup.includes('Your friends will appear here'));
  // The separate profile editor is gone; Settings uses the current inline card editor.
- const profile=fs.readFileSync('app/static/profile.js','utf8'),pages=fs.readFileSync('app/static/pages.js','utf8');
+ const profile=fs.readFileSync('app/static/profile.js','utf8'),settings=fs.readFileSync('app/static/settings-route.js','utf8');
  assert(!source.includes('function editProfile(')&&!source.includes('Draft preview')&&!source.includes('pf-editor'));
  assert(!profile.includes('data-card-identity')&&!profile.includes('function editor(box,initial'));
- assert(pages.includes("$('#m-profile', el).onclick = () => MeCard.openEditor()"));assert(profile.includes("openEditor:()=>go('/me?edit=profile')"));
+ assert(settings.includes("$('#m-profile', el).onclick = () => MeCard.openEditor()"));assert(profile.includes("openEditor:()=>go('/me?edit=profile')"));
  // Friend invites remain link-only and separate from picture sharing.
  c.invalidate=()=>{};c.keep=()=>{};c.invalidateFeed=()=>{};c.toast=()=>{};c.App={me:{name:'Old name'}};
  let shareSheet=null;const copyInput={select(){this.selected=true;},selected:false};
