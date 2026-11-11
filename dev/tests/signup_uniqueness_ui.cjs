@@ -88,7 +88,7 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
    assert.equal(await p.locator('form .err').textContent(),'','A detached signup form cannot receive a delayed load error');cases++;
    await p.goto(base+'/signup');await p.locator('details.username-choice').waitFor();
    const passwordField=p.locator('input[name=password]'),passwordToggle=p.locator('.password-visibility-button');
-   checks.length=0; // Start the existing debounce case after the new delayed-attach cases.
+   checks.length=0;signups.length=0; // Isolate the existing availability/final-review cases from new delayed-attach cases.
    assert.equal(await passwordToggle.count(),1,'Signup has one show-password control');
    assert.equal(await p.locator('.password-toggle').count(),0,'Signup does not add a duplicate password control');
    const eye=await passwordToggle.boundingBox();assert(eye.width>=44&&eye.height>=44,'Show-password control meets the touch target');
@@ -133,7 +133,7 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
    await p.evaluate(()=>go('/me/settings'));await until(p,()=>App.pageReady&&location.pathname==='/me/settings','Settings ready');if(width===390&&theme==='light'){const download=p.waitForEvent('download');await p.locator('#m-export').click();assert.match((await download).suggestedFilename(),/\.zip$/);assert.equal(new URL(p.url()).pathname,'/me/settings');cases++;}
    await p.reload();await until(p,()=>App.pageReady&&location.pathname==='/me/settings','Reloaded Settings ready');helperMode='hold-next';await p.evaluate(()=>accountSheet('login'));await p.locator('#ac input').waitFor();
    for(let n=0;n<100&&!helperRelease;n++)await p.waitForTimeout(20);assert(helperRelease,'Settings username helper is held before attachment');
-   assert.equal(await p.locator('#ac .username-status').textContent(),'','No edit error before typing');await p.locator('#ac input').fill('taken_name');
+   assert.equal(await p.locator('#ac .username-status').count(),0,'Availability status is absent before helper attachment');await p.locator('#ac input').fill('taken_name');
    await p.locator('#ac button.primary').click();await until(p,()=>document.querySelector('#ac .username-status')?.textContent==='That username is taken','Authoritative save conflict before helper attachment');
    helperRelease();helperRelease=null;await until(p,()=>document.querySelector('#ac .username-status')?.textContent==='That username is taken','Settings server error replay after helper attachment');assert.equal(await p.locator('#ac input').inputValue(),'taken_name');cases+=2;
    // Saving into the current same-account profile preserves a concurrent profile refresh.
