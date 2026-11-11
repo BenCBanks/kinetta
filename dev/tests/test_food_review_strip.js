@@ -131,3 +131,37 @@ vm.runInContext(source.slice(source.indexOf('  function pendingHtml('),source.in
 c.navigator={onLine:false};let pending=c.pendingHtml({phase:'process',body:'Fictional tacos'});
 assert.match(pending,/Your food is waiting to send when you’re back online/);assert(!pending.includes('message'));
 console.log('food chat pending status uses food language and avoids internal message wording PASS');
+
+// Loading the optional review leaf keeps the existing draft and busy gate intact.
+vm.runInContext(source.slice(source.indexOf('  async function review(ctx,'),source.indexOf('  async function stage(')),c);
+Object.assign(c,{status:(_ctx,message)=>reviewStatuses.push(message),saveDraft:()=>{},saveReviewDraft:()=>{},toast:()=>{},undoLogged:()=>{}});
+let reviewStatuses=[],reviewOpens=0,reviewActive=true;
+c.active=()=>reviewActive;
+c.FoodReview={busy:()=>false,open:async()=>{reviewOpens++;}};
+const reviewCtx=()=>({draftId:'review-draft',meal:'lunch',day:'2026-11-11',session:'review-session',jobs:[],reviewForm:{note:'keep this'},visibleClients:new Set(['review-client']),messages:[
+ {id:51,kind:'user',client_id:'review-client',result:{review_only:true,draft_id:'review-draft'}},
+ {id:52,kind:'reply',reply_to:51,result:{kind:'preview',parts:[{index:0,status:'ready',entries:[{name:'Fictional meal',kcal:200}]}]}}
+]});
+(async()=>{
+ const failed=reviewCtx(),staged=failed.messages,form=failed.reviewForm;let loadAttempts=0;
+ c.loadClassicScript=async()=>{if(++loadAttempts===1)throw Error('offline');};
+ await c.review(failed,{allowUnsent:true});
+ assert.equal(reviewOpens,0,'a failed leaf load does not open review');assert.equal(failed.messages,staged,'a failed leaf load preserves staged foods');assert.equal(failed.reviewForm,form,'a failed leaf load preserves the review draft');assert.equal(failed.preparingReview,false);assert.match(reviewStatuses.at(-1),/could not load/i);
+ await c.review(failed,{allowUnsent:true});
+ assert.equal(loadAttempts,2,'a failed memoized load can be retried');assert.equal(reviewOpens,1,'retry opens review once');
+
+ let finishLoad;const deferred=new Promise(resolve=>{finishLoad=resolve;});
+ c.loadClassicScript=()=>deferred;reviewActive=true;reviewOpens=0;reviewStatuses=[];
+ const duplicate=reviewCtx(),first=c.review(duplicate,{allowUnsent:true});
+ assert.equal(duplicate.preparingReview,true,'the review strip remains busy while the leaf loads');
+ await c.review(duplicate,{allowUnsent:true});assert.equal(reviewOpens,0,'a second activation cannot bypass the in-flight leaf load');
+ c.FoodReview.busy=()=>true;finishLoad();await first;
+ assert.equal(reviewOpens,0,'a confirmation becoming busy during load still blocks duplicate review');assert.match(reviewStatuses.at(-1),/Finish the food details/);
+
+ let finishStale;const staleLoad=new Promise(resolve=>{finishStale=resolve;});
+ c.loadClassicScript=()=>staleLoad;c.FoodReview.busy=()=>false;reviewActive=true;
+ const stale=reviewCtx(),staleMessages=stale.messages,staleForm=stale.reviewForm,waiting=c.review(stale,{allowUnsent:true});
+ reviewActive=false;finishStale();await waiting;
+ assert.equal(reviewOpens,0,'owner/path becoming inactive during load cannot open review');assert.equal(stale.messages,staleMessages,'stale completion leaves staged foods untouched');assert.equal(stale.reviewForm,staleForm,'stale completion leaves the saved review draft untouched');assert.equal(stale.preparingReview,false);
+ console.log('lazy Food review: retryable load failure, duplicate activation/confirm gate, stale owner/path and staged draft preservation PASS');
+})().catch(error=>{console.error(error);process.exitCode=1;});
