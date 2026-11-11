@@ -39,7 +39,45 @@ async function mediaBeforeRender(page,requests,label,renderPaths,errors,networkI
    console.log('Media route case start: cold Me with scheduled Social warmup');await p.goto(base+'/me');await ready(p,'.me-card-sections[aria-busy="false"]','cold Me with scheduled Social warmup',{errors,networkIssues});
    await socialRefresh;await p.waitForFunction(()=>classicScriptsLoaded.has(SOCIAL_ROUTE_ASSET)&&Social.at>0,null,{timeout:20000});
    assert.equal(requests.includes('/static/media.js'),false,'cold Me stays media-free after the real scheduled Social warmup');
-   assert.equal(await p.locator('script[src*="/static/media.js"]').count(),0,'Me has no eager media tag');assert.deepEqual(errors,[],'cold Me has no page errors');await c.close();
+   assert.equal(await p.locator('script[src*="/static/media.js"]').count(),0,'Me has no eager media tag');
+   await p.locator('[data-card-preview]').click();const preview=p.locator('[data-profile-preview]');await preview.locator('.me-card-sections[aria-busy="false"]').waitFor();
+   await preview.locator('.profile-activities .activity-media').waitFor();
+   assert.equal(requests.filter(x=>x==='/static/media.js').length,1,'View as friend demand-loads media on first action after cold Me');
+   assert(await p.evaluate(()=>classicScriptsLoaded.has(MEDIA_ROUTE_ASSET)&&typeof activityMedia==='function'),'the media renderer exists before preview activity cards are composed');
+   assert.equal(await preview.locator('.profile-activities .activity-card').count(),1,'the preview shows only the one shared activity requested by its member-filtered payload');
+   assert.equal(await preview.locator('[data-card-edit],[data-card-share],[data-card-preview],[data-person-manage],[data-person-report]').count(),0,'the preview remains read-only');
+   assert.doesNotMatch(await preview.innerText(),/Only you|PRIVATE-ONLY|Fictional treadmill session|Fictional lifting session/,'the preview preserves the shared-only privacy boundary');
+   assert.deepEqual(errors,[],'cold Me and its media-backed preview have no page errors');await c.close();
+  }
+  // The Me preview uses the same explicit retry when its action-time media dependency fails.
+  {
+   const c=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'block'});await login(c,'zz_test_detail_owner');
+   const p=await c.newPage(),requests=[],errors=[],networkIssues=[],attempts={media:0};await guard(p,requests,errors,networkIssues);await p.unroute('**/*');
+   await p.route('**/*',route=>{const q=route.request(),u=new URL(q.url());if(u.origin!==base)return route.abort();if(u.pathname==='/static/media.js'&&++attempts.media===1)return route.abort();if(q.method()==='POST'&&u.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204});if(!['GET','HEAD'].includes(q.method()))return route.abort();return route.continue();});
+   await p.goto(base+'/me');await ready(p,'.me-card-sections[aria-busy="false"]','Me before preview media retry',{errors,networkIssues});
+   await p.locator('[data-card-preview]').click();const preview=p.locator('[data-profile-preview]');await preview.locator('[role="alert"]').waitFor();
+   assert.equal(attempts.media,1,'the preview media request fails once');assert(await preview.locator('[data-profile-preview-retry]').isVisible(),'media failure keeps the existing explicit Try again action');
+   await preview.locator('[data-profile-preview-retry]').click();await preview.locator('.profile-activities .activity-media').waitFor();
+   assert.equal(attempts.media,2,'the same preview action retries the rejected media loader');
+   assert.equal(requests.filter(x=>x==='/api/people/zz_test_detail_owner/profile').length,2,'retry repeats the filtered preview fetch before composition');assert.deepEqual(errors,[],'preview loader failure and retry cause no browser exception');await c.close();
+  }
+  // Pending action-time loads cannot paint into a changed query, owner or detached preview host.
+  for(const stale of ['query','owner','detached']){
+   const c=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'block'});await login(c,'zz_test_detail_owner');
+   const p=await c.newPage(),errors=[],networkIssues=[];await guard(p,[],errors,networkIssues);let entered,release;
+   const mediaEntered=new Promise(resolve=>{entered=resolve;}),mediaGate=new Promise(resolve=>{release=resolve;});
+   await p.route('**/static/media.js*',async route=>{entered();await mediaGate;return route.continue();});
+   await p.goto(base+'/me');await ready(p,'.me-card-sections[aria-busy="false"]','Me before stale preview '+stale,{errors,networkIssues});
+   await p.locator('[data-card-preview]').click();const host=p.locator('[data-profile-preview]'),hostHandle=await host.elementHandle();await entered;
+   if(stale==='query')await p.evaluate(()=>history.pushState({fixture:'stale-preview'},'',location.pathname+'?previewFixture=stale'));
+   if(stale==='owner')await p.evaluate(()=>{window.__previewOwner=App.me;App.me={...App.me,id:'fictional-preview-owner-change'};});
+   if(stale==='detached')await hostHandle.evaluate(node=>node.remove());
+   const mediaLoaded=p.waitForResponse(response=>new URL(response.url()).pathname==='/static/media.js',{timeout:20000});release();await mediaLoaded;await p.waitForTimeout(100);
+   assert.equal(await hostHandle.evaluate(node=>node.querySelectorAll('.me-card-sections').length),0,stale+' response is ignored before composition');
+   if(stale==='detached')assert.equal(await hostHandle.evaluate(node=>node.isConnected),false,'the detached preview stays detached');
+   else assert.equal(await hostHandle.evaluate(node=>node.isConnected),true,stale+' preview host remains connected without stale content');
+   if(stale==='owner')await p.evaluate(()=>{App.me=window.__previewOwner;delete window.__previewOwner;});
+   assert.deepEqual(errors,[],stale+' preview load causes no browser exception');await c.close();
   }
   // Home/feed, own and shared detail, person profile, legacy redirect and Track all wait for media before rendering.
   const cases=[

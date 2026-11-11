@@ -583,20 +583,22 @@ const MeCard=(()=>{
   }
   function viewAsFriend(){
     if(openingPreview)return;openingPreview=true;
-    const owner=readOwner(),login=String(App.me?.login||'');
+    const owner=readOwner(),path=location.pathname+location.search,login=String(App.me?.login||''),live=host=>!!host?.isConnected&&owner===readOwner()&&path===location.pathname+location.search;
     const load=async host=>{
-      if(!host?.isConnected)return;
-      host.setAttribute('aria-busy','true');host.innerHTML='<p class="small muted" role="status">Loading your shared profile…</p>';
       try{
+        if(!live(host))return;
+        host.setAttribute('aria-busy','true');host.innerHTML='<p class="small muted" role="status">Loading your shared profile…</p>';
         const profile=await api('/api/people/'+encodeURIComponent(login)+'/profile?as_friend=true&preview=member&limit=1');
-        if(!host.isConnected||owner!==readOwner())return;
+        if(!live(host))return;
         if(profile.profile_hidden)throw Error('Your profile is hidden until your account is confirmed and active.');
         if(profile.preview!=='member')throw Error('The shared profile preview is unavailable.');
+        await loadClassicScript(MEDIA_ROUTE_ASSET);
+        if(!live(host))return;
         const view=viewerData(profile,'preview'),friends=Number.isInteger(profile.friend_count)?`<span class="me-friends-link">${svg('people')}<span>${friendCountText(profile.friend_count)}</span></span>`:'';
         host.innerHTML=card(profile.person,{viewer:'preview',friends,showBio:true});
         mount(host,{data:view,viewer:'preview',mode:'profile'});ProfileLayout.mount(host,view,{shared:true});host.setAttribute('aria-busy','false');
       }catch(error){
-        if(!host.isConnected||owner!==readOwner())return;
+        if(!live(host))return;
         host.innerHTML=`<p class="small err" role="alert">${esc(error?.message||'Your shared profile could not load.')}</p><button type="button" class="linkbtn" data-profile-preview-retry>Try again</button>`;
         $('[data-profile-preview-retry]',host).onclick=()=>load(host);
       }finally{openingPreview=false;}
