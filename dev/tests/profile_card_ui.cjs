@@ -224,8 +224,9 @@ async function milestoneChecks(p){
  await noOverflow('request profile');
  assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[]);
  console.log(`Profile card ${size.width}x${size.height}/${size.root} ${theme} PASS`);await c.close();}
-if(profileClockOnly){await b.close();console.log('Profile card clock: fixed 390px Me, full profile, friend and preview PASS');return;}
-await inlineEditorChecks(b);await require('./me_polish_ui.cjs')({browser:b,storageState:st,base,shots:out});await require('./profile_achievements_ui.cjs')({browser:b,storageState:st,base,shots:out});await b.close();})().catch(e=>{console.error(e);process.exit(1);});
+ if(unitsOnly){await l.close();await b.close();return;}
+ if(profileClockOnly){await b.close();console.log('Profile card clock: fixed 390px Me, full profile, friend and preview PASS');return;}
+ await inlineEditorChecks(b);await require('./me_polish_ui.cjs')({browser:b,storageState:st,base,shots:out});await require('./profile_achievements_ui.cjs')({browser:b,storageState:st,base,shots:out});await b.close();})().catch(e=>{console.error(e);process.exit(1);});
 
 async function inlineEditorChecks(browser){
  const cp=require('node:child_process'),path=require('node:path'),pw='green teapot on the hill';
