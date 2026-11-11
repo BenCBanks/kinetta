@@ -67,7 +67,7 @@ route(/^\/me\/settings$/, 'me', async (el) => {
   $('#m-login', el).onclick = () => {if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_account');accountSheet('login');};
   $('#m-pw', el).onclick = () => {if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_account');passwordSheet();};
   $('#m-email', el).onclick = () => {if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_account');emailSheet();};
-  if (new URLSearchParams(location.search).get('email') === 'add') { history.replaceState(null, '', '/me/settings'); emailSheet(); }
+  if (new URLSearchParams(location.search).get('email') === 'add') { replacePageAddress(el, '/me/settings'); emailSheet(); }
   $('#m-export', el).onclick = async (e) => {
     if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_data');
     if (!Native.on) { toast('Preparing your download - this can take a minute'); return; }
