@@ -35,7 +35,7 @@ def validate(server,reviewer,confirmation):
     if not re.fullmatch(r'(?:review_[a-z0-9_]{1,12}|zz_test_review_[a-z0-9]{1,8})',reviewer):
         raise Refused('Choose a new review_ name (up to12 suffix characters), or zz_test_review_ test name.')
     expected=f'CREATE REVIEW DEMO ON {server} FOR {reviewer}'
-    if confirmation!=expected:raise Refused('Confirmation must exactly match: '+expected)
+    if confirmation!=expected:raise Refused('Confirmation did not match this server and reviewer. No credentials or request were sent.')
     return server,reviewer,reviewer+'_friend'
 
 
@@ -59,7 +59,7 @@ class API:
                 return json.load(r)
         except HTTPError as e:
             # Responses can contain submitted data: print only a fixed path and status, never bodies/passwords.
-            raise Refused(f'{method} {path.split("?")[0]} returned HTTP{e.code}. No existing account was reset or removed.') from None
+            raise Refused(f'{method} request returned HTTP{e.code}. No existing account was reset or removed.') from None
         except (URLError,TimeoutError):raise Refused('Server request failed. No credentials or response content printed.') from None
 
     def get(self,path):return self.request('GET',path)
@@ -143,8 +143,8 @@ def main(argv=None):
         password=getpass.getpass('New reviewer password (never printed or saved locally): ')
         if len(password)<12:raise Refused('Use a reviewer password of at least12 characters.')
         admin=API(server);admin_signin(admin,args.admin,getpass.getpass('Administrator password: '),lambda:getpass.getpass('Current administrator MFA or unused recovery code: '))
-        result=seed(admin,server,reviewer,friend,password)
-        print(f'Created fictional reviewer {result["reviewer"]} and friend {result["friend"]}.8 synthetic routes,14 food days, weigh-ins and a recipe. Credentials were not printed. Everyone on a shared server is still visible; use the owner-approved review server.')
+        seed(admin,server,reviewer,friend,password)
+        print('Created fictional reviewer and friend accounts with 8 synthetic routes,14 food days, weigh-ins and a recipe. Credentials were not printed. Everyone on a shared server is still visible; use the owner-approved review server.')
         return 0
     except Refused as e:
         print('Stopped: '+str(e));return 1

@@ -14,8 +14,10 @@ class ReviewerChecks(unittest.TestCase):
   with patch.object(I,'guard_target',side_effect=AssertionError('No Docker inspection before confirmation')),contextlib.redirect_stdout(io.StringIO()):
    self.assertEqual(I.main(['--url','http://127.0.0.1:8798','--project','kt-review-demo','--confirm','wrong']),1)
  def test_confirmation_before_any_password_or_network(self):
-  with patch.object(R.getpass,'getpass',side_effect=AssertionError('No credential prompt')),patch.object(R,'API',side_effect=AssertionError('No network')),contextlib.redirect_stdout(io.StringIO()):
+  output=io.StringIO()
+  with patch.object(R.getpass,'getpass',side_effect=AssertionError('No credential prompt')),patch.object(R,'API',side_effect=AssertionError('No network')),contextlib.redirect_stdout(output):
    self.assertEqual(R.main(['--server',BASE,'--reviewer',LOGIN,'--admin','operator','--confirm','wrong']),1)
+  self.assertNotIn(BASE,output.getvalue());self.assertNotIn(LOGIN,output.getvalue())
   self.assertEqual(R.validate(BASE+'/',LOGIN,CONF),(BASE,LOGIN,LOGIN+'_friend'))
  def test_server_and_names(self):
   for server in ('http://external.example','https://name:secret@fictional.example','https://fictional.example/path','https://fictional.example?token=secret','https://fictional.example#fragment','file:///tmp/a','https://fictional.example:0'):
