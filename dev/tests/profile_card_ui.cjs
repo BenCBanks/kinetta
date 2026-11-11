@@ -45,6 +45,7 @@ async function cardChecks(p,size){
 }
 async function weeklyCardChecks(p,size){
  const card=p.locator('.me-card');assert.equal(await card.locator('.me-card-weekly').count(),1,'Me shows the weekly summary card');
+ await card.locator('[data-me-featured][data-loaded="true"]').waitFor();assert.equal(await card.locator('.profile-achievement[data-achievement-code]').count(),4,'Me shows four featured achievements');assert.equal(await card.locator('.profile-achievement-next').count(),0,'Me featured medals omit the repeated level description');assert.equal(await card.locator('.profile-achievement-name').count(),4,'Me featured medals retain their titles');assert.equal(await card.locator('.profile-achievement-level').count(),4,'Me featured medals retain their level badges');
  assert.equal(await card.locator('.me-week').count(),12,'Me shows twelve weeks');
  assert.deepEqual(await card.locator('.me-week').evaluateAll(nodes=>nodes.map(n=>n.dataset.range)),['2026-08-23','2026-08-30','2026-09-06','2026-09-13','2026-09-20','2026-09-27','2026-10-04','2026-10-11','2026-10-18','2026-10-25','2026-11-01','2026-11-08'],'the fixed Nov 9 fixture shows the expected twelve Sunday week starts');
  if(!size.locale)assert.deepEqual(await card.locator('.me-week-month').allTextContents(),['Aug','Sep','','','','Oct','','','','','Nov',''],'the chart labels August through November at the correct week/month boundaries');
@@ -175,6 +176,7 @@ const focusedOnly=unitsOnly||compositionOnly||profileClockOnly||shareLeafOnly;
 
  // Your profile keeps the established totals, sports and bio; Share retains its audience-filtered profile card.
  await p.goto(base+'/people/alex');await until(p,()=>App.pageReady,'3');await settled();
+ await p.locator('#person-profile [data-me-featured][data-loaded="true"]').waitFor();assert.equal(await p.locator('#person-profile .profile-achievement[data-achievement-code]').count(),4,'the full profile shows four featured achievements');
  await cardChecks(p,size);
  assert.equal(await p.locator('[data-me-milestones]').count(),0,'private milestone row is absent from full profiles');
  assert.equal(await p.locator('.profile-page-title').innerText(),'Your profile');

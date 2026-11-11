@@ -301,10 +301,11 @@ const ProfileLayout=(()=>{
       return `<section class="profile-achievement-group" aria-labelledby="${id}"><h2 class="sec-head profile-achievement-group-title" id="${id}">${section.title}</h2><div class="profile-achievement-list is-grid" role="list" aria-labelledby="${id}">${grouped.map(track=>sharedAchievementRow(track,login)).join('')}</div></section>`;
     }).join('');
   }
-  function sharedAchievementRow(track,login='',{featured=false}={}){
+  function sharedAchievementRow(track,login='',{featured=false,ownerFeatured=false}={}){
     const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),tier=achievementCurrentTier(track),href=login?`/people/${encodeURIComponent(login)}?view=achievements&track=${encodeURIComponent(track.code)}`:achievementHref(track);
     const secondary=featured?' data-type="secondary"':'';
-    return `<a class="profile-achievement${featured?' me-featured-item':''}" role="listitem" href="${esc(href)}" aria-label="${esc(`${label}, Level ${level}${tier?`, ${tier.name}`:''}, ${achievementValue(track)}`)}" data-achievement-code="${esc(track.code)}"${featured?` data-showcase-code="${esc(track.code)}"`:''}>${achievementMedallion(track,{featured})}<span class="profile-achievement-name"${secondary}>${esc(label)}</span><span class="profile-achievement-next"${secondary}>${esc(`Level ${level}${tier?` · ${tier.name}`:''}`)}</span></a>`;
+    const description=ownerFeatured?'':`<span class="profile-achievement-next"${secondary}>${esc(`Level ${level}${tier?` · ${tier.name}`:''}`)}</span>`;
+    return `<a class="profile-achievement${featured?' me-featured-item':''}" role="listitem" href="${esc(href)}" aria-label="${esc(`${label}, Level ${level}${tier?`, ${tier.name}`:''}, ${achievementValue(track)}`)}" data-achievement-code="${esc(track.code)}"${featured?` data-showcase-code="${esc(track.code)}"`:''}>${achievementMedallion(track,{featured})}<span class="profile-achievement-name"${secondary}>${esc(label)}</span>${description}</a>`;
   }
   function achievementMedallion(track,{featured=false}={}){
     const started=achievementTrackStarted(track),level=achievementLevel(track),value=started?achievementMedalValue(track,{small:featured}):'',tier=achievementCurrentTier(track)||achievementTierAt(track.code,1);
@@ -355,7 +356,7 @@ const ProfileLayout=(()=>{
     const streak=Number(data?.day_streak);if(!Number.isInteger(streak)||streak<2)return '';
     return `<span class="me-showcase-row" role="img" aria-label="${streak}-day activity streak"><span class="me-showcase-streak" aria-hidden="true">${svg('flame')}<span>${streak}-day streak</span></span></span>`;
   }
-  function featuredShowcaseMarkup(showcase,achievementData,{sharedLogin=''}={}){
+  function featuredShowcaseMarkup(showcase,achievementData,{sharedLogin='',ownerFeatured=false}={}){
     const pinned=new Set((Array.isArray(showcase?.pinned)?showcase.pinned:[]).map(String)),tracks=new Map((Array.isArray(achievementData?.tracks)?achievementData.tracks:[]).map(track=>[String(track?.code||''),track]));
     // The server's item order is the automatic top-four selection when no pins exist.
     // If the server has no pins or automatic items, fill the rail with the highest earned tracks.
@@ -373,7 +374,7 @@ const ProfileLayout=(()=>{
     const href=sharedLogin?`/people/${encodeURIComponent(sharedLogin)}?view=achievements`:'/me/achievements';
     if(!items.length)return sharedLogin?'':`<a class="linkbtn me-featured-empty-entry" href="${esc(href)}">Achievements ›</a>`;
     const heading=`<h3 class="me-featured-title" data-type="secondary"><span>Featured achievements</span><a href="${esc(href)}">See all</a></h3>`;
-    const rail=`<div class="profile-achievement-list" role="list" aria-label="Featured achievements">${items.map(item=>sharedAchievementRow(item.track,sharedLogin,{featured:true})).join('')}</div>`;
+    const rail=`<div class="profile-achievement-list" role="list" aria-label="Featured achievements">${items.map(item=>sharedAchievementRow(item.track,sharedLogin,{featured:true,ownerFeatured})).join('')}</div>`;
     return `<div class="me-featured-achievements" role="group" aria-label="Featured achievements">${heading}${rail}</div>`;
   }
   function addAchievementCleanup(root,cleanup){
@@ -485,7 +486,7 @@ const ProfileLayout=(()=>{
       const paint=(data,achievements)=>{
         if(streakSlot){streakSlot.innerHTML=showcaseStreakMarkup(data);streakSlot.dataset.loaded='true';}
         if(!sharedProfile)achievementLevelUpHaptic(achievementLevelUps(achievements));
-        if(featureSlot){const sharedData=sharedProfile?{tracks:sharedAchievementTracks(achievements)}:achievements;featureSlot.innerHTML=featuredShowcaseMarkup(data,sharedData,sharedProfile?{sharedLogin:login}:{});featureSlot.dataset.loading='';featureSlot.dataset.loaded='true';watchMeCardOpenLink(root,featureSlot.closest('.me-card'),featureSlot);}
+        if(featureSlot){const sharedData=sharedProfile?{tracks:sharedAchievementTracks(achievements)}:achievements;featureSlot.innerHTML=featuredShowcaseMarkup(data,sharedData,sharedProfile?{sharedLogin:login}:{ownerFeatured:true});featureSlot.dataset.loading='';featureSlot.dataset.loaded='true';watchMeCardOpenLink(root,featureSlot.closest('.me-card'),featureSlot);}
       };
       try{
         const query=sharedProfile?`?login=${encodeURIComponent(login)}`:'', [data,_catalog,achievements]=await Promise.all([api('/api/achievements/showcase'+query),loadAchievementCatalog(),api('/api/achievements'+query)]);
@@ -606,10 +607,10 @@ const ProfileLayout=(()=>{
       return `<section class="profile-activities"><h2 class="sec-head">Shared activities</h2><div class="feed-list" id="person-activities">${r.items.length?r.items.map(a=>postCard(a)).join(''):`<div class="card empty"><b>No shared activities yet</b>${r.mine?'Choose an activity and change its audience to share it.' : 'No activities shared with you.'}${r.mine?`<a class="ghost wide" href="${profileHref(App.me)}">Choose an activity</a>`:''}</div>`}</div><button type="button" class="ghost wide" id="person-more"${r.next?'':' hidden'}>Show more</button></section>`;
     }).join('');
   }
-  function mount(box,r,{shared=r?.mine===false}={}){
+  function mount(box,r,{shared=r?.mine===false,featured=shared}={}){
     const chart=box.querySelector('[data-profile-mileage]');
     if(chart)mileageChart(chart,r.mileage||{},'days',{shared:true});
-    mountShowcase(box,r,{shared,featured:shared});feedMaps(box);wireCheers(box);
+    mountShowcase(box,r,{shared,featured});feedMaps(box);wireCheers(box);
   }
   return {defaults,normalize,singlePeriod,numbers,content,mount,mountShowcase,featuredOptions,distance,hours,labels:{sections,stats},sports,achievementPage};
 })();
@@ -621,9 +622,9 @@ const MeCard=(()=>{
   const short=d=>fdate(d+'T12:00',{month:'short',day:'numeric'});
   // The card itself, shared by Me and every profile page (Ben, 30 Oct 2026: the full profile is this card at full size,
   // then the shared activities). Friends shares the handle row without changing its audience or destination.
-  function card(p,{viewer='friend',pills='',friends='',link=false,milestones=false,showBio=true}={}){
+  function card(p,{viewer='friend',pills='',friends='',link=false,milestones=false,showBio=true,featured:featuredOption}={}){
     if(!['owner','friend','preview'].includes(viewer))throw new TypeError(`Unknown profile viewer: ${viewer}`);
-    const mine=viewer==='owner',featured=viewer!=='owner';
+    const mine=viewer==='owner',featured=featuredOption===undefined?viewer!=='owner':featuredOption;
     const bio=showBio?(p.bio||'').trim():'',photo=avatar(p,'lg'),name=esc(p.name||p.login),handle=`<span data-type="secondary">@${esc(p.login)}</span>`;
     const showcase=mine?'<span class="me-showcase-streak-slot" data-me-showcase-streak></span>':'';
     const preview=mine&&location.pathname==='/me'?`<div class="me-card-preview-row"><button type="button" class="me-card-preview-action" data-card-preview>${svg('people')}View as friend</button></div>`:'';
@@ -638,6 +639,17 @@ const MeCard=(()=>{
         <div class="me-card-sections" aria-busy="true">${skel(1)}</div>${featured?'<div class="me-featured-slot" data-me-featured></div>':''}
         ${milestones?'<div data-me-milestones hidden></div>':''}</div></section>`;
   }
+  async function sharedProfileCardPicture(profile,live){
+    const host=document.createElement('div');host.style.cssText='position:fixed;left:-100000px;top:0;width:390px;z-index:-1;pointer-events:none;';
+    const view=viewerData(profile,'preview'),friends=Number.isInteger(profile.friend_count)?`<span class="me-friends-link">${svg('people')}<span>${friendCountText(profile.friend_count)}</span></span>`:'';
+    host.innerHTML=card(profile.person,{viewer:'preview',friends,showBio:true,featured:true});document.body.append(host);
+    try{
+      MeCard.mount(host,{data:view,viewer:'preview',mode:'profile'});ProfileLayout.mount(host,view,{shared:true,featured:true});
+      const slot=host.querySelector('[data-me-featured]');for(let i=0;i<120&&slot&&!slot.dataset.loaded;i++)await new Promise(resolve=>setTimeout(resolve,50));
+      if(slot&&!slot.dataset.loaded)throw Error('The shared profile card could not finish loading.');
+      return await ShareArt.domPicture(host.querySelector('.me-card'),{live});
+    }finally{host.remove();}
+  }
   const paintBars=box=>$$('.me-card-bars span[data-h]',box).forEach(bar=>bar.style.height=(bar.dataset.h==='0'?'0':Math.max(4,bar.dataset.h*5))+'px');
   let openingShare=false,openingPreview=false;
   async function shareSheet(event){
@@ -648,13 +660,14 @@ const MeCard=(()=>{
       if(!live())return;
       if(profile.profile_hidden)throw Error('Your profile is hidden until your account is confirmed and active.');
       if(profile.preview!=='member')throw Error('The preview needs a server update.');
-      const items=cardItems.slice(0,1);
+      const items=cardItems.slice(0,1),meCard=items[0];
+      if(meCard){meCard.filename='kinetta-me-card.png';meCard.build=async()=>{const picture=await sharedProfileCardPicture(profile,live);return{...picture,filename:meCard.filename,link:profileLink};};}
       if(sharing.share_achievements&&showcase.items?.length){
         const featured=await ProfileLayout.featuredOptions(achievements,showcase.items);if(!live())return;
         if(featured.length)items.push({label:'Achievements',filename:'kinetta-achievements.png',controls:[{key:'identity',label:'Photo and username',checked:false}],build:state=>ShareArt.simplePicture({kicker:'Achievements',title:'Your progress',value:String(featured.length),unit:'featured',facts:featured.map(item=>`${item.label} · ${item.detail}`),identity:!!state.identity})});
       }
       if(typeof weeklyRecapShareItem==='function'){const week=await weeklyRecapShareItem().catch(()=>null);if(!live())return;if(week)items.push(week);}
-      const meCard=items.find(item=>item.label==='Me card');if(meCard){meCard.note='Private workouts count, but stay hidden';meCard.description='Totals include your private workouts. Friends see the totals, not the workouts.';}
+      if(meCard){meCard.note='Private workouts count, but stay hidden';meCard.description='Totals include your private workouts. Friends see the totals, not the workouts.';}
       if(live())ShareSheet.open({items});
     }catch(error){if(live())toast((error.message||'Couldn’t prepare your pictures.')+' Tap Share to try again.');}
     finally{openingShare=false;}
