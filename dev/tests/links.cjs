@@ -7,7 +7,17 @@ const {fixturePage}=require('./ui_fixture_browser.cjs');
 const {boundary,context,fixtureSessions,ready,visibleTitles,closeSheets}=require('./journey_browser.cjs');
 const base=process.env.KINETTA_URL,project=process.env.KINETTA_PROJECT,partial=process.argv.includes('--rendered-only');
 let checking='collecting initial scenes';
-const collect=p=>p.evaluate(()=>[...document.querySelectorAll('a[href],[data-href]')].map(node=>{const raw=node.getAttribute('href')||node.dataset.href;if(!raw)return null;const url=new URL(raw,location.href);return {href:url.origin===location.origin?url.pathname+url.search+url.hash:url.href,label:node.getAttribute('aria-label')||node.textContent.trim(),source:location.pathname+location.search,download:node.hasAttribute('download')};}).filter(Boolean));
+function collectRenderedLinks(mutation){
+ const read=node=>{const raw=node.getAttribute('href')||node.dataset.href;if(!raw)return null;const url=new URL(raw,location.href);return {href:url.origin===location.origin?url.pathname+url.search+url.hash:url.href,label:node.getAttribute('aria-label')||node.textContent.trim(),source:location.pathname+location.search,download:node.hasAttribute('download')};};
+ const collect=()=>[...document.querySelectorAll('a[href],[data-href]')].map(read).filter(Boolean);
+ if(!mutation)return collect();
+ const node=document.querySelector(mutation.selector);if(!node)return{link:null,original:null,restored:null};
+ const original=node.getAttribute('href');let link=null,restored=null;
+ try{node.setAttribute('href',mutation.href);link=collect().find(item=>item.href===mutation.href)||null;}
+ finally{node.setAttribute('href',original);restored=node.getAttribute('href');}
+ return{link,original,restored};
+}
+const collect=p=>p.evaluate(collectRenderedLinks);
 (async()=>{
  boundary();const started=Date.now(),fixtures=JSON.parse(fs.readFileSync(process.env.KINETTA_JOURNEY_FIXTURES||'/tmp/'+project+'-journeys.json'));
  const selected=scenes(fixtures),recursive=new Set(['alex',fixtures.journey.login]);
@@ -34,11 +44,10 @@ const collect=p=>p.evaluate(()=>[...document.querySelectorAll('a[href],[data-hre
     ]);
     for(const link of await collect(f.p))add(link,scene.login);
     if(scene.name==='Me'){
-     const anchor=f.p.locator('a.me-insight-row[href^="/progress"]').first();await anchor.waitFor();const original=await anchor.getAttribute('href');
-     await anchor.evaluate(n=>n.setAttribute('href','/progress?view=training'));
-     const bad=(await collect(f.p)).find(link=>link.href==='/progress?view=training');assert(bad,'Real rendered link was deliberately broken');
+     const selector='a.me-insight-row[href^="/progress"]';await f.p.locator(selector).first().waitFor();
+     const probe=await f.p.evaluate(collectRenderedLinks,{selector,href:'/progress?view=training'}),bad=probe.link;assert(bad,'Real rendered link was deliberately broken');
+     assert.equal(probe.restored,probe.original,'The real Me link is restored in the same browser task');
      assert.throws(()=>add(bad,scene.login),error=>{broken=error.message;return /unsupported view=training/.test(broken);});
-     await anchor.evaluate((n,href)=>n.setAttribute('href',href),original);
      await f.p.evaluate(()=>{const h=document.createElement('h1');h.hidden=true;h.dataset.linkHeadingProof='';h.textContent='Fictional hidden heading proof';document.querySelector('#page').append(h);});
      assert(!(await visibleTitles(f.p)).includes('Fictional hidden heading proof'),'A hidden matching heading cannot validate a destination');
      await f.p.locator('[data-link-heading-proof]').evaluate(h=>h.remove());
