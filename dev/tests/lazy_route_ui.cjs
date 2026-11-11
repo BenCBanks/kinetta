@@ -205,7 +205,7 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
  });
  return {context,page,assets,errors,writes,previews,held,release:()=>releaseHeld()};
 }
-async function settingsRouteFixture(browser,{failFirst=false,hold=false,instrument=false,idleGate=false,loginName=user}={}){
+async function settingsRouteFixture(browser,{failFirst=false,hold=false,instrument=false,idleGate=false,loginName=user,mailReady=false}={}){
  const context=await fixtureContext(browser);await login(context,loginName);
  const page=await context.newPage(),assets=[],errors=[],writes=[];let heldOnce=false,releaseHeld=()=>{},signalHeld=()=>{},finishHeld=()=>{};
  const gate=new Promise(resolve=>{releaseHeld=resolve;}),held=new Promise(resolve=>{signalHeld=resolve;}),done=new Promise(resolve=>{finishHeld=resolve;});
@@ -220,6 +220,10 @@ async function settingsRouteFixture(browser,{failFirst=false,hold=false,instrume
     await route.fulfill({response,body:source+probe});finishHeld();return;
    }
    return route.continue();
+  }
+  if(mailReady&&request.method()==='GET'&&url.pathname==='/api/me'){
+   const response=await route.fetch(),profile=await response.json();
+   return route.fulfill({response,json:{...profile,mail_ready:true}});
   }
   if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204,body:''});
   if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
@@ -244,14 +248,14 @@ async function settingsRouteCase(browser){
   assert.deepEqual(cold.errors,[]);assert.deepEqual(cold.writes,[]);
  }finally{await cold.context.close();}
 
- for(const [path,selector,label] of [
+ for(const [path,selector,label,options={}] of [
   ['/me/settings','.me-settings','direct Settings'],
   ['/me/settings?setup=body','#m-form','body setup deep link'],
   ['/me?setup=body','#m-form','Me body setup redirect'],
-  ['/me/settings?email=add','#em','email add deep link'],
+  ['/me/settings?email=add','#em','email add deep link',{mailReady:true}],
   ['/me/settings#ai','#kit-settings-panel','Kit settings hash deep link'],
  ]){
-  const fixture=await settingsRouteFixture(browser);
+  const fixture=await settingsRouteFixture(browser,options);
   try{
    await fixture.page.goto(base+path,{waitUntil:'domcontentloaded'});await ready(fixture.page,'.me-settings',`${label} Settings route`);await fixture.page.locator(selector).waitFor();
    assert.equal(new URL(fixture.page.url()).pathname,'/me/settings',`${label} resolves to Settings`);
@@ -259,6 +263,20 @@ async function settingsRouteCase(browser){
    assertSettingsAsset(fixture.assets,label);assert.deepEqual(fixture.errors,[],`${label} has no page errors`);assert.deepEqual(fixture.writes,[],`${label} performs no writes`);
   }finally{await fixture.context.close();}
  }
+
+ const unavailableMail=await settingsRouteFixture(browser);
+ try{
+  await unavailableMail.page.goto(base+'/me/settings?email=add',{waitUntil:'domcontentloaded'});
+  await ready(unavailableMail.page,'.me-settings','Settings with email unavailable');
+  const emailNotice=unavailableMail.page.locator('.scrim [role="dialog"][aria-label="Email"]');
+  await emailNotice.waitFor();
+  assert.match(await emailNotice.textContent(),/Email isn’t set up on this Kinetta yet/,'unavailable email keeps its existing message');
+  assert.equal(await unavailableMail.page.locator('#em').count(),0,'unavailable email does not show the confirmation form');
+  assert.equal(new URL(unavailableMail.page.url()).search+new URL(unavailableMail.page.url()).hash,'','unavailable email deep link is consumed');
+  assert.equal(await unavailableMail.page.evaluate(()=>App.pageReady),true,'unavailable email route is ready');
+  assertSettingsAsset(unavailableMail.assets,'unavailable email');
+  assert.deepEqual(unavailableMail.errors,[]);assert.deepEqual(unavailableMail.writes,[]);
+ }finally{await unavailableMail.context.close();}
 
  const retry=await settingsRouteFixture(browser,{failFirst:true});
  try{
