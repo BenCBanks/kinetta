@@ -14,7 +14,17 @@ const REACTION_FALLBACK=[
   ['swim','swimming','🏊'],['starstruck','star-struck','🤩'],['mindblown','mind blown','🤯'],['mountain','mountain','⛰️'],
 ];
 const REACTIONS=()=>App.me?.reaction_choices||REACTION_FALLBACK;
+const HAPTICS_ROUTE_ASSET='/static/haptics.js?v=__ASSET_HASH__';
 let closeReactionPicker = null;
+function reactionFeedback(method,current){
+  try{
+    const capacitor=globalThis.Capacitor;
+    if(!capacitor?.isNativePlatform?.()||capacitor.getPlatform?.()!=='ios'||(capacitor.isPluginAvailable&&!capacitor.isPluginAvailable('KinettaHaptics'))||typeof capacitor.Plugins?.KinettaHaptics?.tap!=='function')return;
+    const send=()=>{if(current()&&typeof globalThis.Haptics?.[method]==='function')globalThis.Haptics[method]();};
+    if(globalThis.Haptics){send();return;}
+    loadClassicScript(HAPTICS_ROUTE_ASSET).then(send).catch(()=>{});
+  }catch(_){}
+}
 const reactionKind=k=>({cheer:'clap',strong:'muscle',applause:'fire',laugh:'clap',hike:'mountain',lift:'muscle','🥾':'mountain'})[k]||k;
 const reactionMark=kind=>'<span class="reaction-emoji" data-type="glyph" aria-hidden="true">'+esc(REACTIONS().find(([k])=>k===reactionKind(kind))?.[2]||'👏')+'</span>';
 const reactionAddIcon=()=>'<svg class="reaction-add-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="13" r="7.5"/><path d="M6.5 14.5c.7 1 1.6 1.5 2.5 1.5s1.8-.5 2.5-1.5"/><path d="M6.5 10h.01 M11.5 10h.01"/><path d="M18.5 3.5v6 M15.5 6.5h6"/></svg>';
@@ -55,12 +65,12 @@ function wireReactionGroup(group,aid,changed){
   const showPeople=()=>{close();const removeMine=()=>choose(null);if(isMoment)achievementMomentCheers(momentOwner,momentWeek,removeMine);else if(isGroup)groupReactionCheers(groupId,groupUpdateId||null,removeMine);else activityCheers(aid,removeMine);};
   const owner=readOwner(),active=()=>group.isConnected&&readOwner()===owner;
   const more=$('.reaction-more',group),main=more,summary=$('.reaction-summary',group),count=$('.reaction-count',group),picker=$('.reaction-picker',group),options=$$('[data-react]',picker);
-  let busy=false,state={my_reaction:group.dataset.mine||null,reactions:Object.fromEntries(REACTIONS().map(([k])=>[k,+group.getAttribute('data-count-'+k)||0])),reaction_order:(group.dataset.reactionOrder||'').split(',').filter(Boolean)};
+  let busy=false,feedbackGeneration=0,state={my_reaction:group.dataset.mine||null,reactions:Object.fromEntries(REACTIONS().map(([k])=>[k,+group.getAttribute('data-count-'+k)||0])),reaction_order:(group.dataset.reactionOrder||'').split(',').filter(Boolean)};
   let hoverTimer=null,leaveTimer=null,heldOpen=false,highlighted=null,anchorRect=null;
-  const highlight=(button,buzz=true)=>{if(!active()||!button||button===highlighted)return;highlighted?.classList.remove('is-highlighted');highlighted=button;button.classList.add('is-highlighted');if(buzz&&typeof Haptics!=='undefined')Haptics.tick();};
+  const highlight=(button,buzz=true)=>{if(!active()||!button||button===highlighted)return;highlighted?.classList.remove('is-highlighted');highlighted=button;button.classList.add('is-highlighted');if(buzz){const generation=++feedbackGeneration;reactionFeedback('tick',()=>generation===feedbackGeneration&&active()&&!picker.hidden&&highlighted===button&&picker.contains(button));}};
   const focusOption=(button,buzz=true)=>{highlight(button,buzz);button.focus({preventScroll:true});};
   const close=(focus=false)=>{
-    listen(false);
+    feedbackGeneration++;listen(false);
     clearTimeout(hoverTimer);clearTimeout(leaveTimer);if(picker.hidden){if(focus===true&&active())main.focus({preventScroll:true});return;}picker.hidden=true;more.setAttribute('aria-expanded','false');heldOpen=false;
     group.appendChild(picker);if(closeReactionPicker===close)closeReactionPicker=null;
     if(focus&&active())main.focus({preventScroll:true});
@@ -81,7 +91,7 @@ function wireReactionGroup(group,aid,changed){
     const top=vv?.offsetTop||0,bottom=top+(vv?.height||innerHeight);
     picker.style.left=Math.max(8,Math.min(bounds.left,innerWidth-p.width-8))+'px';
     picker.style.top=Math.max(top+8,Math.min(r.top-p.height,bottom-p.height-8))+'px';
-    highlighted?.classList.remove('is-highlighted');highlighted=null;if(typeof Haptics!=='undefined')Haptics.tick();
+    highlighted?.classList.remove('is-highlighted');highlighted=null;const generation=++feedbackGeneration;reactionFeedback('tick',()=>generation===feedbackGeneration&&active()&&!picker.hidden&&closeReactionPicker===close);
     if(focus)focusOption(options.find(b=>b.dataset.react===state.my_reaction)||options[0],false);
   };
   const draw=()=>{
@@ -105,7 +115,7 @@ function wireReactionGroup(group,aid,changed){
     close();if(busy||!active()||state.my_reaction===next)return;
     busy=true;const was=state,counts={...state.reactions};
     const order=reactionOrder(state);if(state.my_reaction){counts[state.my_reaction]=Math.max(0,(counts[state.my_reaction]||0)-1);if(!counts[state.my_reaction])order.splice(order.indexOf(state.my_reaction),1);}if(next){if(!counts[next])order.push(next);counts[next]=(counts[next]||0)+1;}
-    state={my_reaction:next,reactions:counts,reaction_order:order};draw();if(next&&typeof Haptics!=='undefined')Haptics.react();
+    state={my_reaction:next,reactions:counts,reaction_order:order};draw();if(next){const generation=++feedbackGeneration;reactionFeedback('react',()=>generation===feedbackGeneration&&active()&&busy&&state.my_reaction===next);}
     try{
       const path=isMoment?`/api/achievement-moments/${encodeURIComponent(momentOwner)}/${momentWeek}/reaction`:isGroup?(groupUpdateId?`/api/groups/${encodeURIComponent(groupId)}/updates/${encodeURIComponent(groupUpdateId)}/reaction`:`/api/groups/${encodeURIComponent(groupId)}/weekly-reaction`):`/api/activities/${aid}/reaction`;
       let fresh=await api(path,next?json('POST',{kind:next}):{method:'DELETE'});if(readOwner()!==owner)return;
