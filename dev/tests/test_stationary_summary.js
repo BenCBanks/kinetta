@@ -1,6 +1,6 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const app=fs.readFileSync('app/static/app.js','utf8'),pages=fs.readFileSync('app/static/pages.js','utf8');
+const app=fs.readFileSync('app/static/app.js','utf8'),pages=fs.readFileSync('app/static/pages.js','utf8'),progress=fs.readFileSync('app/static/progress-routes.js','utf8');
 const ctx={FOOT:['run','walk','hike'],MI:1609.344,imp:()=>false,dur:s=>s+'s',esc:String,fdate:()=> 'Jan 1',route:()=>{},U:{dist:n=>String(n),du:()=> 'm',speed:n=>String(n*3.6),su:()=> 'km/h',pace:n=>String(n),pu:()=> '/km',time:s=>s+'s',eu:()=> 'm'}};
 vm.createContext(ctx);vm.runInContext(app.slice(app.indexOf('function rate(a)'),app.indexOf('// ---------- icons'))+'\n'+pages.slice(pages.indexOf('const stat ='),pages.indexOf('// One card'))+'\n'+pages.slice(pages.indexOf('function sharedHeadline'),pages.indexOf('// Cheers straight'))+'\n'+pages.slice(pages.indexOf('function similarHtml'),pages.indexOf('function editActivity'))+'\n'+pages.slice(pages.indexOf('const ZN ='),pages.indexOf('route(/^\\/activity',pages.indexOf('const ZN =')))+'\n'+pages.slice(pages.indexOf('function routeActivityRate'),pages.indexOf('route(/^\\/route')),ctx);
 const ride={sport:'ride',distance_m:10000,moving_s:1800,avg_hr:131,speed_available:false,shares:{pace:true}};
@@ -17,4 +17,9 @@ assert.doesNotMatch(ctx.sharedHeadline({...paused,shares:{pace:false}}),/<small>
 assert.equal(ctx.routeActivityRate({elapsed_s:3000,distance_m:8046.72},'run'),ctx.U.pace(3000/8046.72*1000)+ctx.U.pu(),'matched-route activity rate receives route sport and formats run pace');
 const rideCompare={distance_m:10000,elapsed_s:1000,sport:'ride'},similar=effort=>ctx.similarHtml({...rideCompare,similar:[{id:2,name:'Ride',start_time:'2026-01-01',distance_m:10000,elapsed_s:effort}]});
 assert.match(similar(1001),/same pace/,'ride comparison uses an appropriately small speed threshold');assert.doesNotMatch(similar(1010),/same pace/,'material ride speed differences are not rounded to same pace');
+const elapsedTrendRows=[{pace_d:10000,pace_t:3600,pd:20000,pt:2000,hr_t:2000,hr_w:300000}];
+assert.equal(ctx.elapsedActivityRate(elapsedTrendRows,'ride').label,'Average speed');assert.equal(ctx.elapsedActivityRate(elapsedTrendRows,'ride').value,10000/3600,'Ride insight shows elapsed based speed even when moving totals imply another speed');
+assert.equal(ctx.elapsedActivityRate(elapsedTrendRows,'run').label,'Average pace');assert.equal(ctx.elapsedActivityRate(elapsedTrendRows,'run').value,360,'pTrends shows elapsed based pace');
+assert.match(progress,/elapsedActivityRate\(rows,sport\)/,'pTrends uses elapsed pace totals');assert.match(pages,/elapsedActivityRate\(recent,sport\)/,'Ride insight uses elapsed pace totals');
+assert.match(progress,/Pace = total elapsed time ÷ total distance/);assert.match(progress,/Speed = total distance ÷ total elapsed time/);assert.match(progress,/weighted by moving time/);
 console.log('Activity summary: elapsed-first paused run, equal/close durations, unknown elapsed and friend pace privacy PASS');

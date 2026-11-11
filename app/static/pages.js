@@ -455,15 +455,11 @@ function meInsights(box, s) {
     const nowMonth = String(r.today || today).slice(0, 7), [year, monthNo] = nowMonth.split('-').map(Number);
     if (!year || !monthNo) return;
     const keyAt = offset => { const d = new Date(Date.UTC(year, monthNo - 1 + offset, 1)); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; };
-    const period = offsets => offsets.map(offset => months.get(keyAt(offset)) || {n: 0, pd: 0, pt: 0});
+    const period = offsets => offsets.map(offset => months.get(keyAt(offset)) || {n: 0, pace_d: 0, pace_t: 0});
     const recent = period([-2, -1, 0]), before = period([-5, -4, -3]);
     const count = list => list.reduce((n, m) => n + (+m.n || 0), 0);
     if (count(recent) < 3 || count(before) < 3) return;
-    const value = list => {
-      const d = list.reduce((n, m) => n + (+(sport==='ride'?m.pd:m.pace_d) || 0), 0), t = list.reduce((n, m) => n + (+(sport==='ride'?m.pt:m.pace_t) || 0), 0);
-      return sport === 'ride' ? (t > 0 ? d / t : 0) : (d > 0 ? t / (d / 1000) : 0);
-    };
-    const current = value(recent), previous = value(before); if (!(current > 0 && previous > 0)) return;
+    const current=elapsedActivityRate(recent,sport).value,previous=elapsedActivityRate(before,sport).value;if(!(current>0&&previous>0))return;
     let title, shown, subtitle, metric;
     if (sport === 'ride') {
       const delta = current - previous, unitDelta = U.speed(Math.abs(delta)), same = unitDelta < 0.1;

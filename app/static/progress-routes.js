@@ -15,10 +15,10 @@ async function pTrends(body, q) {
     const weeksIn = (y, m) => { const days = new Date(y, m, 0).getDate(); return (y === today.getFullYear() && m === today.getMonth() + 1 ? today.getDate() : days) / 7; };
     // derived numbers for a set of month rows + the weeks they cover
     const derive = (rows, weeks) => {
-      const s = (k) => rows.reduce((a, x) => a + N(x[k]), 0), n = s('n'), pd = s('pd'), pt = s('pt'), hrt = s('hr_t'), cadt = s('cad_t');
+      const s = (k) => rows.reduce((a, x) => a + N(x[k]), 0), n = s('n'), rate=elapsedActivityRate(rows,sport), hrt = s('hr_t'), cadt = s('cad_t');
       return {n, weeks, wk: weeks ? toU(s('d')) / weeks : null, perwk: weeks ? n / weeks : null, avgd: n ? toU(s('d')) / n : null,
-        pace: pd ? pt / pd * 1000 : null, speed: pt ? pd / pt : null, hr: hrt ? s('hr_w') / hrt : null, cad: cadt ? s('cad_w') / cadt : null,
-        longest: Math.max(0, ...rows.map((x) => N(x.longest))), climb: s('a'), pd, hrt};
+        pace: sport==='ride'?null:rate.value, speed: sport==='ride'?rate.value:null, hr: hrt ? s('hr_w') / hrt : null, cad: cadt ? s('cad_w') / cadt : null,
+        longest: Math.max(0, ...rows.map((x) => N(x.longest))), climb: s('a'), pd:rate.distance, hrt};
     };
     const series = monthSeries(r.months[0].m, (ym) => { const [y, m] = ym.split('-').map(Number), row = M[ym]; return {ym, ...derive(row ? [row] : [], weeksIn(y, m))}; });
     // by year
@@ -45,7 +45,7 @@ async function pTrends(body, q) {
     box.innerHTML = `<div class="card"><h2>By year</h2><div class="tblwrap"><table class="tbl yrs"><thead><tr><th>Year</th><th class="r">${U.du()}/wk</th><th class="r">${noun[0].toUpperCase() + noun.slice(1)}/wk</th><th class="r">${foot ? 'Pace ' + U.pu() : 'Speed ' + U.su()}</th><th class="r">HR bpm</th><th class="r">Avg ${U.du()}</th><th class="r">Longest ${U.du()}</th></tr></thead><tbody>
         ${yrows.map((y) => `<tr${+y.y === today.getFullYear() ? ' class="cur"' : ''}><td>${y.y}${+y.y === today.getFullYear() ? '<small class="muted"> so far</small>' : ''}</td><td class="r num"><b>${y.wk == null ? '–' : y.wk.toFixed(1)}</b></td><td class="r num">${y.perwk == null ? '–' : y.perwk.toFixed(1)}</td>
           <td class="r num">${foot ? pace(y.pace) : spd(y.speed)}</td><td class="r num">${y.hr ? Math.round(y.hr) : '–'}</td><td class="r num">${y.avgd == null ? '–' : y.avgd.toFixed(1)}</td><td class="r num">${y.longest ? toU(y.longest).toFixed(1) : '–'}</td></tr>`).join('')}</tbody></table></div>
-        <p class="small muted">${foot ? 'Pace = total moving time ÷ total distance' : 'Speed = total distance ÷ total moving time'}. Heart rate is weighted by time, from ${noun} that recorded it.</p></div>
+        <p class="small muted">${foot ? 'Pace = total elapsed time ÷ total distance' : 'Speed = total distance ÷ total elapsed time'}. Heart rate and cadence are weighted by moving time, from activities that recorded them.</p></div>
       ${metrics.map((m) => `<div class="card"><h2>${esc(m.t)}</h2>
         ${cy && cy[m.k] != null ? `<p class="small"><b class="num">${esc(m.fmt(cy[m.k]))}</b> in ${cy.y}${+cy.y === today.getFullYear() ? ' so far' : ''}${ly && ly[m.k] != null ? ` · ${esc(m.fmt(ly[m.k]))} in ${ly.y} ${cmp(m)}` : ''}</p>` : ''}
         <div id="g-${m.k}"></div></div>`).join('')}`;

@@ -649,6 +649,11 @@ function rate(a) {
   if (FOOT.includes(a.sport)) return {label: 'Pace', v: U.pace(spk), u: U.pu()};
   return {label: 'Speed', v: U.speed(distance / elapsed), u: U.su()};
 }
+function elapsedActivityRate(rows,sport) {
+  const sum=key=>rows.reduce((total,row)=>total+(Number(row[key])||0),0),distance=sum('pace_d'),elapsed=sum('pace_t');
+  if(!(distance>0&&elapsed>0))return {label:sport==='ride'?'Average speed':'Average pace',value:null,distance,elapsed};
+  return {label:sport==='ride'?'Average speed':'Average pace',value:sport==='ride'?distance/elapsed:elapsed/(distance/1000),distance,elapsed};
+}
 
 // ---------- icons ----------
 const IC = {
