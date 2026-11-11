@@ -134,7 +134,7 @@ try:
         if i and (i * moving_intervals // interval_count) > ((i - 1) * moving_intervals // interval_count):
             travelled += step_m
         seconds = i
-        route.append(api_health.RoutePoint(t=staircase_start+dt.timedelta(seconds=seconds),
+        route.append(api_health.Point(t=staircase_start+dt.timedelta(seconds=seconds),
             lat=40 + travelled / 111195.0, lng=-75, alt=100 + travelled * (80 / route_distance)))
     staircase = api_health.WorkoutIn(id='health-staircase-duration-fixture', type='running',
         start=staircase_start, end=staircase_start+dt.timedelta(seconds=2400), duration_s=2360,
@@ -214,7 +214,7 @@ try:
     # A compatible phone recording remains the summary owner when Health adds
     # matching detail; Health's timer must not replace the phone's active time.
     phone_start=staircase_start+dt.timedelta(days=10)
-    phone_route=[api_health.RoutePoint(t=phone_start+dt.timedelta(seconds=i),lat=p.lat,lng=p.lng,alt=p.alt) for i,p in enumerate(route)]
+    phone_route=[api_health.Point(t=phone_start+dt.timedelta(seconds=i),lat=p.lat,lng=p.lng,alt=p.alt) for i,p in enumerate(route)]
     phone_sample=staircase.model_copy(update={'id':'health-staircase-phone-enrichment','start':phone_start,
         'end':phone_start+dt.timedelta(seconds=2400),'route':phone_route,
         'heart_rate':[api_health.Beat(t=phone_start+dt.timedelta(seconds=t),bpm=150) for t in range(0,2401,30)]})
