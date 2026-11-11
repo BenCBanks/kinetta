@@ -583,10 +583,11 @@ const contactsCallersOnly=process.env.KINETTA_LAZY_ROUTE_CASE==='contacts-caller
     ].map(path=>{const bundle=lazyRouteBundles.find(item=>item.re.test(path));return [path,!!bundle&&bundle.scripts.includes(SOCIAL_ROUTE_ASSET)];}));
     assert(mapped.every(([,included])=>included),`routes that render Social-owned icons or controls load social.js first: ${JSON.stringify(mapped)}`);
     const detailDependencies=await socialMe.page.evaluate(()=>[
-      ['/activity/123',[SOCIAL_ROUTE_ASSET,SEGMENTS_ROUTE_ASSET,ACTIVITY_DETAIL_ROUTE_ASSET]],
-      ['/activity/friends/123',[SOCIAL_ROUTE_ASSET,ACTIVITY_DETAIL_ROUTE_ASSET]],
+      ['/activity/123',[SOCIAL_ROUTE_ASSET,SEGMENTS_ROUTE_ASSET,INTERVALS_ROUTE_ASSET,MEDIA_ROUTE_ASSET,ACTIVITY_DETAIL_ROUTE_ASSET]],
+      ['/activity/friends/123',[SOCIAL_ROUTE_ASSET,MEDIA_ROUTE_ASSET,ACTIVITY_DETAIL_ROUTE_ASSET]],
     ].map(([path,expected])=>{const bundle=lazyRouteBundles.find(item=>item.re.test(path));return [path,bundle?.scripts.slice(0,expected.length),expected];}));
     assert(detailDependencies.every(([,actual,expected])=>JSON.stringify(actual)===JSON.stringify(expected)),`own/shared ActivityDetail routes preserve ordered dependencies: ${JSON.stringify(detailDependencies)}`);
+    assert(detailDependencies.every(([,actual,expected])=>actual.indexOf(expected.at(-2))<actual.indexOf(expected.at(-1))),`Media loads before ActivityDetail on both detail routes: ${JSON.stringify(detailDependencies)}`);
     const unrelated=await socialMe.page.evaluate(()=>[
       '/me/challenges','/challenge/fictional-code','/food/recipe-link','/track/lift/42','/lift/ex/42',
     ].map(path=>{const bundle=lazyRouteBundles.find(item=>item.re.test(path));return [path,!!bundle&&bundle.scripts.includes(SOCIAL_ROUTE_ASSET)];}));
