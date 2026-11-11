@@ -30,6 +30,22 @@ Save a recipe once, then add a portion to your food log.
 
 Also
 
+## food-also-barcode
+
+Scan a packaged food’s barcode to find its nutrition details.
+
+## food-also-photo
+
+Photograph a meal, then review estimated portions and nutrition before saving.
+
+## food-also-trends
+
+See how your logged meals and daily totals change over time.
+
+## food-also-ai
+
+Choose an optional AI review of your logged meals.
+
 ## training-training-food-food-friends-friends-compare-co-16
 
 [Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [Feature guide](guide) · [Privacy policy](privacy) · [Terms of Use](terms) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta)
