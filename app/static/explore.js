@@ -61,7 +61,14 @@ const FEATURE_GUIDE = [
   ['Optional AI', 'Ask Kit and memory', 'Ask about your own records when the reviewed Kit conversation is available and you have enabled it.', '/me/kit', 'Open Kit from the app. Answers use private account tools and optional AI; Health access needs separate consent. Check the cited numbers. Proposals need confirmation. View or remove saved preferences under What Kit remembers in Settings. Food logging chat and Kit are separate conversations.', 'kit assistant memory chat consent privacy tools', 'coach'],
   ['Optional AI', 'Kit training & nutrition reviews', 'Kit offers optional AI notes about workouts and reviews of training, food logs and recipes.', '/me', 'Turn on AI features in Settings if they are available for your account. Allow workouts from the Health app separately if you want them included. Reviews you have already saved remain readable.', 'coach weekly review ai analysis', 'coach'],
 ];
-const guideId=title=>title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+const GUIDE_ID_ALIASES = {
+  'fitness-form': 'fitness-freshness',
+  'run-score-and-race-predictions': 'vdot-and-race-predictions',
+};
+const guideId=title=>{
+  const id=title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  return GUIDE_ID_ALIASES[id] || id;
+};
 // Match the existing destination icons; titles alone do not determine the feature.
 const GUIDE_ICONS = {
   "welcome-to-kinetta": "user",
