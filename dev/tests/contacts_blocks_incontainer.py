@@ -15,6 +15,7 @@ class ContactBlocks(unittest.TestCase):
         self.peer_login = f'zz_test_contacts_b_{suffix}'
         self.peer_email = f'{self.peer_login}@example.test'
         self.peer_phone = '+1555' + f'{int(suffix, 16) % 10_000_000:07d}'
+        self.duplicate = None
         with db.connect() as c:
             self.owner = c.execute('INSERT INTO users(login,name,pw_hash) VALUES(%s,%s,%s) RETURNING id',
                                    (self.owner_login, 'Fictional contact A', auth.hash_pw('fictional contact fixture'))).fetchone()['id']
@@ -37,8 +38,11 @@ class ContactBlocks(unittest.TestCase):
             app.dependency_overrides.pop(api_contacts.current_user, None)
         else:
             app.dependency_overrides[api_contacts.current_user] = self.override_before
+        users = [self.owner, self.peer]
+        if self.duplicate is not None:
+            users.append(self.duplicate)
         with db.connect() as c:
-            c.execute('DELETE FROM users WHERE id = ANY(%s)', ([self.owner, self.peer],))
+            c.execute('DELETE FROM users WHERE id = ANY(%s)', (users,))
 
     def _match(self, salt, kind='phone'):
         value = self.peer_phone if kind == 'phone' else self.peer_email
@@ -77,6 +81,29 @@ class ContactBlocks(unittest.TestCase):
         with db.connect() as c:
             c.execute('UPDATE profile SET find_by_email=true,find_by_phone=false WHERE user_id=%s', (self.peer,))
         self.assertEqual(self._match(salt, 'phone'), [], 'phone opt-out hides a submitted matching hash')
+
+    def test_duplicate_phone_claims_match_nobody_even_when_one_claimant_opts_out(self):
+        salt = self.client.get('/api/contacts/salt').json()['salt']
+        expected_hash = api_contacts.contact_digest(salt, 'phone', self.peer_phone)
+        expected = [{'hash': expected_hash, 'login': self.peer_login}]
+        self.assertEqual(self._match(salt), expected, 'the unique unverified phone matches')
+
+        duplicate_login = f'zz_test_contacts_duplicate_{uuid.uuid4().hex[:8]}'
+        with db.connect() as c:
+            self.duplicate = c.execute('INSERT INTO users(login,name,pw_hash) VALUES(%s,%s,%s) RETURNING id',
+                                       (duplicate_login, 'Fictional duplicate claimant',
+                                        auth.hash_pw('fictional duplicate fixture'))).fetchone()['id']
+            c.execute('INSERT INTO profile(user_id) VALUES(%s)', (self.duplicate,))
+            c.execute('UPDATE users SET phone_e164=%s WHERE id=%s', (self.peer_phone, self.duplicate))
+        self.assertEqual(self._match(salt), [], 'two accounts claiming the same phone both disappear')
+
+        with db.connect() as c:
+            c.execute('UPDATE profile SET find_by_phone=false WHERE user_id=%s', (self.duplicate,))
+        self.assertEqual(self._match(salt), [], 'an opted-out duplicate still suppresses the other claimant')
+
+        with db.connect() as c:
+            c.execute('UPDATE users SET phone_e164=NULL WHERE id=%s', (self.duplicate,))
+        self.assertEqual(self._match(salt), expected, 'clearing the duplicate claim restores the unique match')
 
 
 if __name__ == '__main__':
