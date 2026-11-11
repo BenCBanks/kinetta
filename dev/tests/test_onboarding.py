@@ -34,7 +34,7 @@ check('floor binds at aggressive pace',status==200 and floor['floor_applied'] an
 for pace in (-.1,1.01,float('inf'),float('nan')):
  check('invalid pace '+str(pace),p.post('/api/food/target-suggestion',{**base,'pace_percent':pace})[0]==422)
 check('invalid activity rejected',p.post('/api/food/target-suggestion',{**base,'activity_factor':2})[0]==400)
-check('minor estimate rejected',p.post('/api/food/target-suggestion',{**base,'birth_year':dt.date.today().year-15})[0]==400)
+check('minor estimate rejected',p.post('/api/food/target-suggestion',{**base,'birth_year':test_day.year-15})[0]==400)
 check('no body defaults are explicit',other.post('/api/food/target-suggestion',{'goal':'eat_healthier'})[1]['weight_assumed'])
 check('no target created on other account',not other.get('/api/me')[1].get('kcal_target'))
 check('anonymous preview denied',Client().post('/api/food/target-suggestion',base)[0]==401)
