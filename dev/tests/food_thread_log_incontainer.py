@@ -1,14 +1,18 @@
 """Atomic food/reply commits and learned times, with no second connection/provider."""
 import datetime as dt
 import uuid
+from zoneinfo import ZoneInfo
 from app import db, food_thread, food_thread_log as engine, food_photo
 uid=None;original_connect=db.connect;original_ask=food_photo.ask;original_finish=food_thread.finish_reply
+fixture_captured_at=dt.datetime.now(dt.timezone.utc)
+account_tz=ZoneInfo('UTC')
+fixture_day=fixture_captured_at.astimezone(account_tz).date()
 try:
  with db.connect() as c:
   uid=c.execute("INSERT INTO users(login,name) VALUES ('zz_test_thread_atomic','Fictional atomic food') RETURNING id").fetchone()['id']
   c.execute("INSERT INTO profile(user_id,tz,kcal_target,protein_target) VALUES (%s,'UTC',2000,110)",(uid,))
   c.execute("INSERT INTO custom_foods(user_id,name,kcal,protein_g) VALUES (%s,'Protein bar',200,20)",(uid,))
-  day=dt.datetime.now(dt.timezone.utc).date()-dt.timedelta(days=1)
+  day=fixture_day-dt.timedelta(days=1)
   captured=dt.datetime.combine(day,dt.time(9),dt.timezone.utc)
   mid=c.execute("""INSERT INTO food_chat_messages(user_id,client_id,kind,body,captured_at,local_day,state)
                      VALUES (%s,%s,'user','a protein bar',%s,%s,'pending') RETURNING id""",(uid,uuid.uuid4(),captured,day)).fetchone()['id']
@@ -68,7 +72,7 @@ try:
   for suffix in ('fast','chip','ambiguous','old','other','half','daycopy','other_daycopy'):
    uid2=c.execute('INSERT INTO users(login,name) VALUES (%s,%s) RETURNING id',('zz_test_repeat_'+suffix,'Fictional repeat '+suffix)).fetchone()['id'];reuse_uids.append(uid2)
    c.execute("INSERT INTO profile(user_id,tz,kcal_target,protein_target,food_chat_auto_log) VALUES (%s,'UTC',2000,110,true)",(uid2,))
- repeat_day=dt.datetime.now(dt.timezone.utc).date()
+ repeat_day=fixture_day
  def seed_group(uid2,items,minutes_ago=5,hours_ago=0,meal='lunch',day=repeat_day):
   stamp=dt.datetime.now(dt.timezone.utc)-dt.timedelta(minutes=minutes_ago,hours=hours_ago)
   if day!=repeat_day:stamp=dt.datetime.combine(day,dt.time(8),dt.timezone.utc)
@@ -80,8 +84,10 @@ try:
       (uid2,day,meal,name,amount,unit,kcal,position,f'{prefix}-{position:02d}',stamp,stamp)).fetchone();ids.append(row['id'])
   return ids
  def repeat_message(uid2,body,meal='lunch',repeat_entry_id=None,client_id=None):
-  request=food_thread.MessageIn(client_id=client_id or uuid.uuid4(),body=body,day=repeat_day,meal=meal,review_only=True,draft_id=uuid.uuid4(),repeat_entry_id=repeat_entry_id)
-  return food_thread.append(request,Response(),user={'id':uid2})['message']
+  request=food_thread.MessageIn(client_id=client_id or uuid.uuid4(),body=body,captured_at=fixture_captured_at,day=repeat_day,meal=meal,review_only=True,draft_id=uuid.uuid4(),repeat_entry_id=repeat_entry_id)
+  message=food_thread.append(request,Response(),user={'id':uid2})['message']
+  assert message['local_day']==repeat_day,'captured message day follows the UTC account day'
+  return message
  def logged_count(uid2):
   with db.connect() as c:return c.execute('SELECT count(*) AS n FROM food_entries WHERE user_id=%s',(uid2,)).fetchone()['n']
  def no_model(*args,**kwargs):raise AssertionError('Recent repeat reached food-memory or food-understanding preparation')
@@ -99,7 +105,7 @@ try:
  chip_ids=seed_group(chip_uid,[('Fictional toast',1,'piece',120),('Fictional butter',1,'serving',40)])
  assert food_thread.recent_reuse(repeat_day,'lunch',user={'id':chip_uid})['item']['entry_id'] in chip_ids
  request_id=uuid.uuid4();chip_message=repeat_message(chip_uid,'Another Fictional toast with Fictional butter',repeat_entry_id=chip_ids[0],client_id=request_id)
- duplicate=food_thread.append(food_thread.MessageIn(client_id=request_id,body='Another Fictional toast with Fictional butter',day=repeat_day,meal='lunch',review_only=True,draft_id=uuid.UUID(chip_message['result']['draft_id']),repeat_entry_id=chip_ids[0]),Response(),user={'id':chip_uid})
+ duplicate=food_thread.append(food_thread.MessageIn(client_id=request_id,body='Another Fictional toast with Fictional butter',captured_at=fixture_captured_at,day=repeat_day,meal='lunch',review_only=True,draft_id=uuid.UUID(chip_message['result']['draft_id']),repeat_entry_id=chip_ids[0]),Response(),user={'id':chip_uid})
  assert duplicate['created'] is False,'repeated chip delivery reuses the original message identity'
  chip_result=food_thread.process_message(chip_message['id'],food_thread.AnswerIn(),{'id':chip_uid});assert len(chip_result['messages'][-1]['entries'])==2 and logged_count(chip_uid)==4
  # No name plus two distinct recent groups asks one question; selecting a chip copies only its group.
