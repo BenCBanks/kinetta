@@ -76,7 +76,7 @@ async function milestoneChecks(p){
 },{once:true}),size.root);
  else await c.addInitScript(r=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=r+'px'),size.root);
  await c.route('**/*',async r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base){blocked.add(q.url());return r.abort();}if(q.method()==='PUT'&&u.pathname==='/api/profile'){
-  const body=q.postDataJSON();if(Object.keys(body).length===1&&['imperial','metric'].includes(body.units)){writes.push(u.pathname);unitWrites.push(body);if(failUnits){failUnits=false;unitStatuses.push(503);return r.fulfill({status:503,json:{detail:'Fictional units save failed'}});}unitStatuses.push(200);return r.fulfill({json:{units:body.units}});}
+  const body=q.postDataJSON();if(Object.keys(body).length===1&&['imperial','metric'].includes(body.units)){unitWrites.push(body);if(failUnits){failUnits=false;unitStatuses.push(503);return r.fulfill({status:503,json:{detail:'Fictional units save failed'}});}unitStatuses.push(200);return r.fulfill({json:{units:body.units}});}
  }if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);return r.fulfill({json:{}});}
   if(u.pathname==='/api/me'){const sequence=++meReadSequence;meReads.push({sequence,phase:'request'});const response=await r.fetch(),j=await response.json();meReads.push({sequence,phase:'response',status:response.status()});j.bio='Fictional trails and weekend rides.';if(cardLayout)j.profile_layout=cardLayout;if(cardState==='new'){j.friend_count=0;j.friend_requests=0;j.notifications=0;}return r.fulfill({response,json:j});}
   if(['/api/achievements','/api/achievements/showcase'].includes(u.pathname))(u.searchParams.has('login')?sharedAchievementReads:ownerAchievementReads).push(u.href);
