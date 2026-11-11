@@ -4,6 +4,7 @@
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
 const compositionOnly=process.env.KINETTA_PROFILE_VIEW_COMPOSITION_ONLY==='1';
+const unitsOnly=process.env.KINETTA_PROFILE_UNITS_ONLY==='1';
 const milestoneOffers=[{id:'22222222-2222-4222-8222-222222222222',kind:'year_distance',title:'100 miles this year',day:'2026-10-31',occurred:'2026-10-31T12:00:00Z',rank:500,private_activity:false,details:{amount:100,unit:'mi',garmin_sources:[]}},{id:'11111111-1111-4111-8111-111111111111',kind:'first_distance',title:'First 5K',day:'2026-11-01',occurred:'2026-11-01T12:00:00Z',rank:10,private_activity:true,details:{distance_m:5000,seconds:1800,sport:'run',garmin_sources:[]}}];
 const friendRanks=[['journey','Journey',7,'mi'],['workouts','Workouts',8,'workouts'],['lifted','Weight lifted',7,'lb'],['sport:run','Running',4,'mi']];
 const friendShowcase={items:friendRanks.map(([code,,rank])=>({code,rank})),pinned:friendRanks.map(([code])=>code),day_streak:123};
@@ -54,13 +55,15 @@ async function milestoneChecks(p){
  await p.goto(base+'/me/milestones');await p.waitForURL('**/me');await until(p,()=>App.pageReady,'legacy milestone link returns ready Me');await p.locator('.me-card-sections[aria-busy=false]').waitFor();
 }
 (async()=>{const b=await chromium.launch();const l=await b.newContext();await l.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});const st=await l.storageState();
- const sizes=compositionOnly?[{width:390,height:844,root:16}]:[{width:320,height:667,root:16},{width:330,height:844,root:16},{width:390,height:844,root:16},{width:430,height:932,root:16},{width:600,height:900,root:16,locale:'fr-FR'}];
- for(const size of sizes)for(const theme of compositionOnly?['light']:['light','dark']){
- const c=await b.newContext({storageState:st,viewport:{width:size.width,height:size.height},locale:size.locale||'en-US',colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];
- let cardState='heavy',cardLayout=null,profileHidden=false,refuseOwnerProfile=false;const blocked=new Set(),previewReads=[],statsReads=[],ownerAchievementReads=[],sharedAchievementReads=[];
+ const sizes=unitsOnly||compositionOnly?[{width:390,height:844,root:16}]:[{width:320,height:667,root:16},{width:330,height:844,root:16},{width:390,height:844,root:16},{width:430,height:932,root:16},{width:600,height:900,root:16,locale:'fr-FR'}];
+ for(const size of sizes)for(const theme of unitsOnly||compositionOnly?['light']:['light','dark']){
+ const c=await b.newContext({storageState:st,viewport:{width:size.width,height:size.height},locale:size.locale||'en-US',colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[],unitWrites=[],unitStatuses=[];
+ let cardState='heavy',cardLayout=null,profileHidden=false,refuseOwnerProfile=false,failUnits=false;const blocked=new Set(),previewReads=[],statsReads=[],ownerAchievementReads=[],sharedAchievementReads=[];
  p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.text()==='Service Worker registration blocked by Playwright'||m.text()==='Failed to load resource: net::ERR_FAILED'&&blocked.has(m.location().url))return;if(['error','warning'].includes(m.type()))errors.push(m.text()+' ('+m.location().url+')')});
  await c.addInitScript(r=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=r+'px'),size.root);
- await c.route('**/*',async r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base){blocked.add(q.url());return r.abort();}if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);return r.fulfill({json:{}});}
+ await c.route('**/*',async r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base){blocked.add(q.url());return r.abort();}if(q.method()==='PUT'&&u.pathname==='/api/profile'){
+  const body=q.postDataJSON();if(Object.keys(body).length===1&&['imperial','metric'].includes(body.units)){writes.push(u.pathname);unitWrites.push(body);if(failUnits){failUnits=false;unitStatuses.push(503);return r.fulfill({status:503,json:{detail:'Fictional units save failed'}});}unitStatuses.push(200);return r.fulfill({json:{units:body.units}});}
+ }if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);return r.fulfill({json:{}});}
   if(u.pathname==='/api/me'){const response=await r.fetch(),j=await response.json();j.bio='Fictional trails and weekend rides.';if(cardLayout)j.profile_layout=cardLayout;if(cardState==='new'){j.friend_count=0;j.friend_requests=0;j.notifications=0;}return r.fulfill({response,json:j});}
   if(['/api/achievements','/api/achievements/showcase'].includes(u.pathname))(u.searchParams.has('login')?sharedAchievementReads:ownerAchievementReads).push(u.href);
   if(u.pathname==='/api/achievements/showcase')return r.fulfill({json:['jordan','alex'].includes(u.searchParams.get('login'))?friendShowcase:{items:[],pinned:[],day_streak:0}});
@@ -91,9 +94,22 @@ async function milestoneChecks(p){
  const shot=async name=>{if(out&&size.root===16&&(size.width===390||(size.width===330&&['profile-friend','profile-preview'].includes(name)))){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/${name}-${size.width}-${size.root}-${theme}.png`,animations:'disabled'});}};
  const settled=()=>p.waitForSelector('.me-card-sections[aria-busy=false]',{state:'attached',timeout:15000});
  const noOverflow=async where=>assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no overflow on '+where);
+ const unitsCheck=async()=>{
+  await p.goto(base+'/me/settings');await until(p,()=>App.pageReady,'Settings units route');
+  const original=await p.evaluate(()=>App.me.units),next=original==='metric'?'imperial':'metric',originalButton=await p.locator(`.units-toggle button[data-u="${original}"]`).elementHandle();
+  await p.locator(`.units-toggle button[data-u="${next}"]`).click();await until(p,()=>unitWrites.length===1&&document.querySelector(`.units-toggle button[data-u="${next}"]`)?.getAttribute('aria-pressed')==='true','unit PUT and pressed rerender');
+  assert.deepEqual(unitWrites[0],{units:next});assert.equal(unitStatuses[0],200);assert.equal(await originalButton.evaluate(n=>n.isConnected),false,'successful choice rerenders the Settings controls');assert.equal(await p.evaluate(()=>App.me.units),next);
+  failUnits=true;await p.locator(`.units-toggle button[data-u="${original}"]`).click();await until(p,()=>unitWrites.length===2&&document.querySelector(`.units-toggle button[data-u="${next}"]`)?.getAttribute('aria-pressed')==='true'&&document.querySelector('#toast')?.textContent.includes('Could not save: Fictional units save failed'),'failed unit PUT rolls back');
+  assert.deepEqual(unitWrites[1],{units:original});assert.equal(unitStatuses[1],503);assert.equal(await p.locator(`.units-toggle button[data-u="${next}"]`).getAttribute('aria-pressed'),'true');assert.equal(await p.locator(`.units-toggle button[data-u="${original}"]`).getAttribute('aria-pressed'),'false');
+  await p.locator(`.units-toggle button[data-u="${original}"]`).click();await until(p,()=>unitWrites.length===3&&document.querySelector(`.units-toggle button[data-u="${original}"]`)?.getAttribute('aria-pressed')==='true','restore intercepted fixture units');assert.deepEqual(unitWrites[2],{units:original});assert.equal(unitStatuses[2],200);
+  const saved=await(await c.request.get(base+'/api/me',{headers:{Origin:base}})).json();assert.equal(saved.units,original,'all Settings unit PUTs were intercepted; no account setting was written');
+  await p.goto(base+'/me');await until(p,()=>App.pageReady,'Me after unit check');await settled();
+ };
 
  // Me: the weekly summary stays on the card, with private insights below it.
  await p.goto(base+'/me');await until(p,()=>App.pageReady,'1');await settled();
+ if(unitsOnly){await unitsCheck();assert.deepEqual(errors,[],'unit selection, failure rollback and restore have no browser errors');console.log('Settings units: intercepted PUT, pressed rerender, failure rollback, and no persisted write PASS');await c.close();continue;}
+ if(size.width===390&&theme==='light')await unitsCheck();
  if(size.locale){await p.goto(base+'/people/alex');await until(p,()=>App.pageReady,'French full profile');await settled();await numberChecks(p);assert.match(await p.locator('[data-card-stat=time] dt').innerText(),/Time\s*\(h\)/);assert.deepEqual(errors,[]);console.log('French full-profile grouping and labelled hours PASS');await c.close();continue;}
  await weeklyCardChecks(p,size);
  if(size.width===330||size.width===390){
