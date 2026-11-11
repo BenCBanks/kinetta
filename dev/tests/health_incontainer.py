@@ -22,6 +22,7 @@ print('Health recording coverage: partial/empty retries preserve fuller signals;
 
 # Sparse heart rate must not inherit the GPS/movement 30-second cutoff.
 import math
+from decimal import Decimal
 from app import analysis
 
 def heart(times, beats, gps=False):
@@ -121,6 +122,124 @@ try:
         with db.connect() as c:
             assert c.execute('SELECT moving_s FROM activities WHERE id=%s AND user_id=%s',(run_id,uid)).fetchone()['moving_s']==1000, 'manual duration survives replay'
     print('Sparse motion timer: initial import, 18/zero legacy replay, derived refresh, pause handling, profile recalculation, no invented splits and manual time preservation PASS')
+    # Dense staircase route: complete distance with long stretches of repeated
+    # coordinates. The Health timer is authoritative for aggregates, while no
+    # per-split or pace-chart timing is inferred from the route mask.
+    staircase_start = start + dt.timedelta(days=5)
+    interval_count, moving_intervals, route_distance = 2350, 770, 4800.0
+    step_m = route_distance / moving_intervals
+    travelled = 0.0
+    route = []
+    for i in range(interval_count + 1):
+        if i and (i * moving_intervals // interval_count) > ((i - 1) * moving_intervals // interval_count):
+            travelled += step_m
+        seconds = i
+        route.append(api_health.Point(t=staircase_start+dt.timedelta(seconds=seconds),
+            lat=40 + travelled / 111195.0, lng=-75, alt=100 + travelled * (80 / route_distance)))
+    staircase = api_health.WorkoutIn(id='health-staircase-duration-fixture', type='running',
+        start=staircase_start, end=staircase_start+dt.timedelta(seconds=2400), duration_s=2360,
+        distance_m=route_distance, ascent_m=80, route=route,
+        heart_rate=[api_health.Beat(t=staircase_start+dt.timedelta(seconds=t), bpm=150)
+                    for t in range(0, 2401, 30)])
+    result, staircase_id, _ = api_health.save(uid, staircase)
+    assert result == 'added'
+    with db.connect() as c:
+        row=c.execute('SELECT source,moving_s,distance_m,gap_s_per_km,vam,vo2max,max_speed,decoupling,splits_km,splits_mi,chart,health_details FROM activities WHERE id=%s AND user_id=%s',(staircase_id,uid)).fetchone()
+        assert row['source']=='healthkit' and row['moving_s']==2360 and abs(row['distance_m']-4800)<2
+        # The steady 1.67% climb raises equivalent distance by ~4.7%, so GAP
+        # should be about 470 s/km, not the flat 492 s/km aggregate pace.
+        assert 465 < row['gap_s_per_km'] < 475 and 120 < row['vam'] < 123 and row['vo2max'] is not None
+        assert row['max_speed'] is None and row['decoupling'] is None
+        assert not row['splits_km'] and not row['splits_mi'], 'Health duration cannot be distributed into route splits'
+        assert row['chart'] and 'speed' not in row['chart'] and 'gap_speed' not in row['chart'] and row['chart'].get('hr')
+        assert row['health_details']['health_duration_authoritative'] is True
+        assert row['health_details']['health_duration_s']==2360
+        assert row['health_details']['route_timing'].startswith('health-duration-only')
+        assert c.execute('SELECT count(*) AS n FROM best_efforts WHERE activity_id=%s AND user_id=%s',(staircase_id,uid)).fetchone()['n']==0
+        old_recording=c.execute('SELECT t,lat,lon,hr FROM activity_streams WHERE activity_id=%s AND user_id=%s',(staircase_id,uid)).fetchone()
+        # Simulate the previous moving-mask result/provenance and stored outputs.
+        c.execute("UPDATE activities SET moving_s=%s,vo2max=NULL,splits_km='[{\"moving_s\":770}]',splits_mi='[{\"moving_s\":770}]',chart=jsonb_set(chart,'{speed}','[6.23]'::jsonb),health_details=jsonb_set(health_details - 'health_duration_authoritative' - 'health_duration_s','{imported,moving_s}','770') WHERE id=%s AND user_id=%s",(moving_intervals,staircase_id,uid))
+    # Old rows have no recoverable raw Health timer. Reprocessing must leave the
+    # aggregate untouched, clear route-timed outputs, and request Health replay.
+    assert activities.reprocess(uid,staircase_id)
+    with db.connect() as c:
+        legacy=c.execute('SELECT moving_s,gap_s_per_km,vo2max,vam,max_speed,decoupling,splits_km,splits_mi,chart,health_details FROM activities WHERE id=%s AND user_id=%s',(staircase_id,uid)).fetchone()
+        assert legacy['moving_s']==moving_intervals and legacy['gap_s_per_km'] is None and legacy['vo2max'] is None and legacy['vam'] is None
+        assert legacy['max_speed'] is None and legacy['decoupling'] is None and not legacy['splits_km'] and not legacy['splits_mi']
+        assert 'speed' not in legacy['chart'] and legacy['health_details']['health_duration_replay_required'] is True
+        c.execute('UPDATE activities SET gap_s_per_km=470,vo2max=40,vam=400,max_speed=6,decoupling=4,steps=5000 WHERE id=%s AND user_id=%s',(staircase_id,uid))
+    legacy_file,_=api_health.to_activity(staircase)
+    legacy_streams={k:list(v) for k,v in legacy_file['streams'].items()}
+    legacy_streams['temp']=[20.0]*len(legacy_streams['t'])
+    legacy_file['streams']=legacy_streams
+    with db.connect() as c:
+        assert activities.enrich_file(c,uid,staircase_id,legacy_file,{},None,None), 'legacy file enrichment exercises replay-required clearing'
+        legacy=c.execute('SELECT gap_s_per_km,vo2max,vam,max_speed,decoupling,steps,health_details FROM activities WHERE id=%s AND user_id=%s',(staircase_id,uid)).fetchone()
+        assert all(legacy[k] is None for k in ('gap_s_per_km','vo2max','vam','max_speed','decoupling','steps'))
+        assert legacy['health_details']['health_duration_replay_required'] is True
+    result, replay_id, repaired=api_health.save(uid,staircase)
+    assert result=='duplicate' and replay_id==staircase_id and repaired, 'Health replay repairs legacy mask-derived aggregate'
+    with db.connect() as c:
+        row=c.execute('SELECT moving_s,gap_s_per_km,vam,vo2max,splits_km,splits_mi,chart,health_details FROM activities WHERE id=%s AND user_id=%s',(staircase_id,uid)).fetchone()
+        assert row['moving_s']==2360 and row['vo2max'] is not None and row['vam']>120
+        assert not row['splits_km'] and not row['splits_mi'] and 'speed' not in row['chart']
+        assert c.execute('SELECT t,lat,lon,hr FROM activity_streams WHERE activity_id=%s AND user_id=%s',(staircase_id,uid)).fetchone()==old_recording
+        assert c.execute('SELECT count(*) AS n FROM best_efforts WHERE activity_id=%s AND user_id=%s',(staircase_id,uid)).fetchone()['n']==0
+    assert api_health.save(uid,staircase)[2] is False, 'repaired Health replay is stable'
+    assert activities.reprocess(uid,staircase_id)
+    with db.connect() as c:
+        row=c.execute('SELECT moving_s,gap_s_per_km,vam,vo2max,splits_km,splits_mi,chart FROM activities WHERE id=%s AND user_id=%s',(staircase_id,uid)).fetchone()
+        assert row['moving_s']==2360 and row['vo2max'] is not None and row['vam']>120
+        assert not row['splits_km'] and not row['splits_mi'] and 'speed' not in row['chart']
+        assert c.execute('SELECT count(*) AS n FROM best_efforts WHERE activity_id=%s AND user_id=%s',(staircase_id,uid)).fetchone()['n']==0
+    source_totals=staircase.model_copy(update={'steps':5000,'max_speed':6.2})
+    assert api_health.save(uid,source_totals)[2] is True
+    with db.connect() as c:
+        row=c.execute('SELECT steps,max_speed,health_details FROM activities WHERE id=%s AND user_id=%s',(staircase_id,uid)).fetchone()
+        assert row['steps']==5000 and abs(row['max_speed']-6.2)<.001, 'explicit Health totals survive route-timing invalidation'
+        assert row['health_details']['source_metrics']=={'steps':5000.0,'max_speed':6.2}
+    assert api_health.save(uid,source_totals)[2] is False, 'unchanged Health totals replay idempotently'
+    file_parsed,_=api_health.to_activity(staircase)
+    file_streams={k:list(v) for k,v in file_parsed['streams'].items()}
+    file_streams['power']=[200.0]*len(file_streams['t'])
+    file_parsed['streams']=file_streams
+    with db.connect() as c:
+        assert activities.enrich_file(c,uid,staircase_id,file_parsed,{},None,None), 'compatible file enrichment adds a missing signal'
+        row=c.execute('SELECT steps,max_speed,gap_s_per_km,vo2max,vam,health_details FROM activities WHERE id=%s AND user_id=%s',(staircase_id,uid)).fetchone()
+        assert row['steps']==5000 and abs(row['max_speed']-6.2)<.001 and row['health_details']['source_metrics']=={'steps':5000.0,'max_speed':6.2}
+        assert row['gap_s_per_km'] is not None and row['vo2max'] is not None and row['vam']>120, 'file enrichment retains Health-duration aggregate metrics'
+    partial_totals=staircase.model_copy(update={'steps':None,'max_speed':None})
+    assert api_health.save(uid,partial_totals)[2] is False, 'partial replay retains explicit prior source metrics'
+    assert activities.reprocess(uid,staircase_id)
+    with db.connect() as c:
+        row=c.execute('SELECT steps,max_speed FROM activities WHERE id=%s AND user_id=%s',(staircase_id,uid)).fetchone()
+        assert row['steps']==5000 and abs(row['max_speed']-6.2)<.001, 'reprocess restores only explicit source metrics'
+    with db.connect() as c:
+        from app import activity_corrections
+        current=c.execute('SELECT * FROM activities WHERE id=%s AND user_id=%s',(staircase_id,uid)).fetchone()
+        baseline={k:(float(current[k]) if isinstance(current.get(k),(int,float,Decimal)) else current.get(k)) for k in activity_corrections.FIELDS+activity_corrections.DERIVED}
+        c.execute('UPDATE activities SET moving_s=1800,summary_original=%s,summary_overrides=%s WHERE id=%s AND user_id=%s',(json.dumps(baseline),json.dumps({'moving_s':1800}),staircase_id,uid))
+    api_health.save(uid,staircase)
+    with db.connect() as c:
+        assert c.execute('SELECT moving_s FROM activities WHERE id=%s AND user_id=%s',(staircase_id,uid)).fetchone()['moving_s']==1800, 'manual duration remains authoritative'
+    # A compatible phone recording remains the summary owner when Health adds
+    # matching detail; Health's timer must not replace the phone's active time.
+    phone_start=staircase_start+dt.timedelta(days=10)
+    phone_route=[api_health.Point(t=phone_start+dt.timedelta(seconds=i),lat=p.lat,lng=p.lng,alt=p.alt) for i,p in enumerate(route)]
+    phone_sample=staircase.model_copy(update={'id':'health-staircase-phone-enrichment','start':phone_start,
+        'end':phone_start+dt.timedelta(seconds=2400),'route':phone_route,
+        'heart_rate':[api_health.Beat(t=phone_start+dt.timedelta(seconds=t),bpm=150) for t in range(0,2401,30)]})
+    parsed, phone_meta=api_health.to_activity(phone_sample)
+    parsed['streams']['hr']=[]  # Health replay adds HR, exercising changed-stream enrichment.
+    phone_meta.update(source_id='fictional-phone-recording',moving_s=2300,elapsed_s=2400,distance_m=route_distance)
+    phone_result, phone_id=activities.store(uid,parsed,phone_meta,source='track')
+    assert phone_result=='added'
+    health_result, same_phone_id, _=api_health.save(uid,phone_sample)
+    assert health_result=='duplicate' and same_phone_id==phone_id
+    with db.connect() as c:
+        phone=c.execute('SELECT source,moving_s,healthkit_id FROM activities WHERE id=%s AND user_id=%s',(phone_id,uid)).fetchone()
+        assert phone['source']=='track' and phone['moving_s']==2300 and phone['healthkit_id']==phone_sample.id
+    print('Health staircase: authoritative aggregate pace/GAP/VAM/VO2, legacy replay requirement, invalid split/chart/best-effort suppression, compatible phone summary and owner correction preservation PASS')
 finally:
     if uid:
         with db.connect() as c:c.execute('DELETE FROM users WHERE id=%s',(uid,))

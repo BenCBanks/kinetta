@@ -173,6 +173,18 @@ def summary(S, sport, session, profile):
     out = {}
     out['elapsed_s'] = float(S['t'][-1] - S['t'][0]) if n > 1 else session.get('elapsed_s')
     out['moving_s'] = float(dt[mv].sum()) if n > 1 else session.get('moving_s')
+    health_duration = session.get('_health_duration_authoritative') and (session.get('moving_s') or 0) > 0
+    if health_duration:
+        # HealthKit's timer includes active time that a staircase GPS stream cannot
+        # assign to individual intervals. It remains authoritative for aggregates.
+        out['moving_s'] = float(session['moving_s'])
+    route_distance_valid = True
+    if health_duration and session.get('distance_m'):
+        route_distance = float(S['dist'][-1]) if n > 1 else 0
+        route_distance_valid = (route_distance > 0 and
+            min(route_distance, float(session['distance_m'])) / max(route_distance, float(session['distance_m'])) >= 0.93)
+    out['route_timing_valid'] = not health_duration or (route_distance_valid and math.isclose(
+        float(dt[mv].sum()), float(session['moving_s']), rel_tol=0.02, abs_tol=5.0))
     # Heart-rate timestamps are observations, not a movement recording. Sparse
     # Health samples must not turn a full workout into a few seconds (or zero).
     # Keep the device's active duration, including its pause handling, when no
@@ -203,9 +215,12 @@ def summary(S, sport, session, profile):
         out[name] = _wmean(seg(S[k]), w) if n > 1 and S[k] is not None else None
     # grade-adjusted pace (foot sports)
     out['gap_s_per_km'] = None
-    if sport in FOOT and n > 1 and S.get('grade') is not None and out['moving_s'] and mv.any():
+    if sport in FOOT and n > 1 and S.get('grade') is not None and out['moving_s'] and mv.any() and (not health_duration or route_distance_valid):
         g = seg(S['grade'])
-        eq = float(np.sum(np.diff(S['dist'])[mv] * gap_factor(g[mv])))
+        # With an authoritative workout timer, the route's valid positive distance
+        # deltas support aggregate GAP, while the speed mask does not support splits.
+        route = (np.diff(S['dist']) > 0) if health_duration else mv
+        eq = float(np.sum(np.diff(S['dist'])[route] * gap_factor(g[route])))
         if eq > 0: out['gap_s_per_km'] = out['moving_s'] / eq * 1000
     # heart-rate based numbers
     hrmax, hrrest = profile.get('max_hr') or 190, profile.get('rest_hr') or 60
@@ -214,7 +229,33 @@ def summary(S, sport, session, profile):
     out['decoupling'] = decoupling(S, sport)
     out['vo2max'] = vo2max(out, sport, hrmax)
     extras(S, sport, session, out)
+    if health_duration and not out['route_timing_valid']:
+        # These values need trustworthy placement of active time on route samples.
+        out['max_speed'] = None
+        out['decoupling'] = None
+        out['steps'] = None
     return out
+
+
+def summary_splits(S, sport, unit, summ):
+    """Do not turn aggregate Health time into fabricated interval/split timing."""
+    return splits(S, sport, unit) if summ.get('route_timing_valid', True) else []
+
+
+def summary_chart(S, sport, summ):
+    """Keep route/HR details but hide pace traces when route timing cannot allocate Health time."""
+    chart = chart_series(S, sport)
+    if chart and not summ.get('route_timing_valid', True):
+        chart = dict(chart)
+        chart.pop('speed', None)
+        chart.pop('gap_speed', None)
+        chart = clean_chart(chart)
+    return chart
+
+
+def summary_best_efforts(S, sport, summ):
+    """Best efforts use route timestamps and are unsafe when Health time cannot be allocated."""
+    return best_efforts(S, sport) if summ.get('route_timing_valid', True) else []
 
 
 def extras(S, sport, session, out):
