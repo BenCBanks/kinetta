@@ -200,7 +200,7 @@ const engine=process.env.KINETTA_ACTIVITY_BROWSER==='webkit'?webkit:chromium,b=a
   if(weeklyRecapTest){
    if(who==='typical')await captureWeeklyRecap(p,out,theme,ready,size.width,weeklyVariant,weeklyUnits);
    else{assert.equal(await p.locator('#weekly-recap [data-weekly-recap]').count(),0,'an empty week has no recap card');if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`weekly-recap-empty-${size.width}-${theme}.png`),animations:'disabled'});}}
-    const actualNow=new Date(),profile=await p.evaluate(()=>({id:App.me.id,tz:App.me.tz}));await seedWeeklyRecapDismissal(c,profile,base,actualNow);await p.clock.setFixedTime(actualNow);await p.reload();await ready();
+    const profile=await p.evaluate(()=>({id:App.me.id,tz:App.me.tz}));await seedWeeklyRecapDismissal(c,profile,base,weeklyRecapNow);await p.clock.setFixedTime(weeklyRecapNow);await p.reload();await ready();
   }
   if(weeklyRecapTest&&process.env.KINETTA_WEEKLY_RECAP_ONLY==='1'){
    assert.deepEqual(errors,[],'weekly recap has no browser errors');assert.deepEqual(failures,[],'weekly recap has no failed app requests');assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[],'recap preview and dismissal do not write account data');
