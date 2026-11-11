@@ -6,6 +6,59 @@ from app import achievement_tracks as tracks, api_achievements
 
 
 class AchievementTrackRules(unittest.TestCase):
+    def test_canonical_catalog_contains_the_reference_ladders_exactly(self):
+        expected = {
+            'consistency': ('weeks', ['Spark','Kindling','Steady flame','Bonfire','Campfire circle','Volcano',
+                                      'Solar flare','North Star','Constellation','Galaxy'],
+                            [4,10,20,52,100,150,200,250,300,350]),
+            'years_active': ('years', ['First orbit','Comet','Three-peat','Olympiad','High five','Decade',
+                                       'Silver jubilee','Golden jubilee','Century'],
+                             [1,2,3,4,5,10,25,50,100]),
+            'workouts': ('workouts', ['Seed','Sprout','Sapling','Young tree','Evergreen','Grove','Forest',
+                                      'Old-growth forest'], [10,50,100,250,500,1000,1500,2000]),
+            'active_time': ('hours', ['First ten hours','Round the clock','Four days moving','Six workweeks',
+                                      'A season of effort','Half a working year','A working year',
+                                      'Mastery (10,000 hours)'], [10,24,100,250,500,1000,2000,10000]),
+            'journey': ('km', ['Marathon','Ironman 70.3','Ironman 140.6','Length of Britain','Across the US',
+                               'Length of Africa','Around Australia','Around Earth','To the Moon'],
+                        [42.195,113.137,226.274,1406.567,4506.163,8046.72,14484.096,40074.275,384399.861]),
+            'climbing': ('m', ['Ben Nevis','Mount Fuji','Mont Blanc','Kilimanjaro','Denali','Aconcagua','Everest',
+                               'Cruising altitude','Edge of the sky','Edge of space'],
+                         [1345.1,3775.9,4807.9,5895.1,6190.5,6961,8849,10668,18897.6,100000]),
+            'lifted': ('kg', ['A car','An elephant','A school bus','A loaded semi truck','A blue whale',
+                              'Statue of Liberty','A jumbo jet','A heavy-lift rocket','Eiffel Tower','Titanic'],
+                       [1497,5897,11340,36287,149685,204117,396893,2041166,9979032,52163123]),
+            'personal_bests': ('records', ['First record','On a roll','Record keeper','Hall of fame','Record shelf',
+                                           'Record library','Record constellation','Legend'],
+                               [1,5,10,25,50,75,100,150]),
+            'sport:run': ('km', ['5K','10K','Half marathon','Marathon','50-mile ultra','100 miles','250 miles',
+                                 '500 miles','1,000 miles'], [5,10,21.0975,42.195,80.467,160.934,402.336,804.672,1609.344]),
+            'sport:ride': ('km', ['First 10 miles','25 miles','Metric century','Century','250 miles','500 miles',
+                                  '1,000 miles','Coast to coast'], [16.093,40.234,100,160.934,402.336,804.672,
+                                                                     1609.344,4506.163]),
+            'sport:walk-hike': ('km', ['5K','10K','Half marathon','Marathon','50 miles','100 miles','250 miles',
+                                       '500 miles','Appalachian Trail'],
+                                [5,10,21.0975,42.195,80.467,160.934,402.336,804.672,3524.463]),
+            'sport:swim': ('km', ['First mile','Ironman swim','Marathon swim (10K)','English Channel','50 miles',
+                                  '100 miles','250 miles','500 miles'],
+                           [1.609,3.862,10,33.796,80.467,160.934,402.336,804.672]),
+            'sport:lift': ('sessions', ['First set','Warmed up','Ten sessions','Strong foundation','Strength cycle',
+                                        'Power block','Iron habit','Strength hall'], [1,5,10,25,50,100,200,400]),
+        }
+        catalog = api_achievements._level_catalog()['tracks']
+        self.assertEqual(set(catalog), set(expected))
+        for code, (unit, names, thresholds) in expected.items():
+            with self.subTest(code=code):
+                levels = catalog[code]['levels']
+                self.assertEqual([level['name'] for level in levels], names)
+                self.assertEqual([level['canonical_unit'] for level in levels], [unit] * len(levels))
+                self.assertEqual([bool(level.get('quiet')) for level in levels],
+                                 [tracks.is_quiet_level(code, rank) for rank in range(1, len(levels) + 1)])
+                actual = [api_achievements._canonical_threshold(level) for level in levels]
+                factor = 3600 if unit == 'hours' else 1000 if unit == 'km' else 1
+                for got, want in zip(actual, thresholds):
+                    self.assertAlmostEqual(got, want * factor, places=6)
+
     def test_api_catalog_tail_matches_worker_for_every_track_and_boundary(self):
         catalog = api_achievements._level_catalog()
         self.assertEqual(catalog['tail']['rule'], api_achievements._CATALOG_TAIL_RULE)
@@ -37,8 +90,8 @@ class AchievementTrackRules(unittest.TestCase):
 
     def test_fixed_tracks_and_step_tails(self):
         cases = {
-            'consistency': (150, [1, 2, 4, 10, 20, 52, 100, 150]),
-            'workouts': (1_500, [1, 5, 10, 50, 100, 250, 500, 1_000, 1_500]),
+            'consistency': (150, [4, 10, 20, 52, 100, 150]),
+            'workouts': (1_500, [10, 50, 100, 250, 500, 1_000, 1_500]),
             'personal_bests': (50, [1, 5, 10, 25, 50]),
         }
         for code, (value, expected) in cases.items():
@@ -47,7 +100,7 @@ class AchievementTrackRules(unittest.TestCase):
                                  [float(n) for n in expected])
         active = tracks.tiers_for('active_time', 1_500 * 3_600)
         self.assertEqual([tier.threshold for tier in active],
-                         [n * 3_600 for n in (1, 5, 10, 24, 100, 250, 500, 1_000)])
+                         [n * 3_600 for n in (10, 24, 100, 250, 500, 1_000)])
         self.assertEqual(tracks.next_tier('active_time', 1_500 * 3_600).threshold, 2_000 * 3_600)
         self.assertEqual(tracks.next_tier('workouts', 1_500).threshold, 2_000)
         self.assertEqual(tracks.next_tier('personal_bests', 50).threshold, 75)
@@ -81,13 +134,13 @@ class AchievementTrackRules(unittest.TestCase):
                          ['Edge of space', 'Edge of space ×2', 'Edge of space ×3'])
         self.assertEqual(tracks.next_tier('climbing', 3 * edge).threshold, 4 * edge)
         self.assertEqual([t.label for t in tracks.tiers_for('lifted', 300_000)],
-                         ['A grand piano', 'A car', 'An elephant', 'A school bus',
+                         ['A car', 'An elephant', 'A school bus',
                           'A loaded semi truck', 'A blue whale', 'Statue of Liberty'])
         self.assertEqual(tracks.next_tier('lifted', 300_000).threshold, 396_893)
 
     def test_sport_distance_and_lift_session_tails(self):
         self.assertEqual([t.label for t in tracks.tiers_for('sport:run', 50_000)],
-                         ['First run', 'First mile', '5K', '10K', 'Half marathon', 'Marathon'])
+                         ['5K', '10K', 'Half marathon', 'Marathon'])
         self.assertEqual(tracks.next_tier('sport:run', 50_000).threshold, 80_467)
         self.assertEqual(tracks.next_tier('sport:ride', 200_000).threshold, 402_336)
         self.assertEqual(tracks.next_tier('sport:walk-hike', 42_195).threshold, 80_467)
@@ -95,22 +148,67 @@ class AchievementTrackRules(unittest.TestCase):
         self.assertEqual([t.threshold for t in tracks.tiers_for('sport:lift', 100)], [1, 5, 10, 25, 50, 100])
         self.assertEqual(tracks.next_tier('sport:lift', 100).threshold, 200)
 
-    def test_early_levels_are_quiet_and_sport_firsts_are_activity_triggered(self):
+    def test_legacy_starters_are_readable_without_canonical_credit(self):
+        self.assertEqual(sum(map(len, tracks.LEGACY_STARTER_LEVELS.values()))
+                         + len(tracks.LEGACY_FIRST_ACTIVITY_LABELS), 19)
+
+        old_run_mile = api_achievements._tier({
+            'code': 'trackt:sport:run:1609.344', 'kind': 'track', 'rank': 1002,
+            'title': 'First mile',
+            'details': {'track':'sport:run','rank':2,'threshold':1609.344,'label':'First mile','unit':'m'},
+        }, 'sport:run', 'metric')
+        self.assertEqual(old_run_mile['label'], 'First mile')
+        self.assertTrue(old_run_mile['legacy'])
+        self.assertEqual(old_run_mile['rank'], 0)
+        self.assertNotIn('trigger', old_run_mile)
+        self.assertEqual(api_achievements._levels_through(
+            api_achievements._level_catalog()['tracks']['sport:run'], 1609.344), [])
+        self.assertEqual(tracks.next_tier('sport:run', 1609.344).label, '5K')
+
+        old_starter = api_achievements._tier({
+            'code': 'track:workouts:1', 'kind': 'track', 'rank': 1001,
+            'title': 'First workout',
+            'details': {'track':'workouts','rank':1,'threshold':1,'label':'First workout','unit':'workouts'},
+        }, 'workouts', 'metric')
+        self.assertEqual(old_starter['rank'], 0)
+        self.assertTrue(old_starter['legacy'])
+        history = api_achievements._legacy_history_tiers('workouts', [(1, {
+            'kind':'track','activity_id':123,'day':'2026-01-02',
+        })], {})
+        self.assertEqual(history, [{
+            'rank':0,'name':'First workout','threshold':1.0,'day':'2026-01-02',
+            'activity_id':None,'date_source':'legacy','legacy':True,
+        }])
+
+        first_activity = api_achievements._tier({
+            'code':'sport:run:first','kind':'sport','rank':20,'title':'First run on Kinetta',
+            'details':{'sport':'run','trigger':'first_activity','quiet':True},
+        }, 'sport:run', 'metric')
+        self.assertEqual((first_activity['label'],first_activity['rank']),('First run',0))
+        self.assertTrue(first_activity['legacy'])
+        self.assertNotIn('trigger',first_activity)
+
+    def test_new_running_catalogue_first_tier_is_5k(self):
+        self.assertEqual([(tier.rank, tier.label, tier.threshold)
+                          for tier in tracks.tiers_for('sport:run', 5_000)], [(1, '5K', 5_000.0)])
+        self.assertIsNone(tracks.level_trigger('sport:run', 1))
+
+    def test_legacy_first_activity_rows_are_quiet_and_canonical_levels_keep_quiet_window(self):
         self.assertTrue(tracks.is_quiet_level('workouts', 1))
         self.assertTrue(tracks.is_quiet_level('sport:ride', 2))
         self.assertFalse(tracks.is_quiet_level('sport:ride', 3))
         self.assertTrue(tracks.is_quiet_level('lifted', 1))
         self.assertFalse(tracks.is_quiet_level('lifted', 2))
-        self.assertEqual(tracks.level_trigger('sport:run', 1), 'first_activity')
+        self.assertEqual(tracks.level_trigger('sport:run', 1), None)
         self.assertEqual(tracks.level_trigger('sport:run', 2), None)
 
     def test_quiet_levels_are_hidden_from_friend_moments_but_remain_owner_tiers(self):
         first_run = {'sport': 'run', 'trigger': 'first_activity', 'quiet': True}
         self.assertIsNone(api_achievements._sport_code(first_run))
         self.assertEqual(api_achievements._sport_code(first_run, include_quiet=True), 'sport:run')
-        legacy_first_run = {'sport': 'run'}
+        legacy_first_run = {'sport': 'run', 'quiet': True, 'trigger': 'first_activity'}
         self.assertIsNone(api_achievements._sport_code(legacy_first_run),
-                          'the current catalog also hides older First rows from friend moments')
+                          'the saved prior first-activity row stays quiet in friend moments')
         quiet_level = api_achievements._tier({
             'code': 'trackt:workouts:1.0', 'kind': 'track',
             'details': {'track': 'workouts', 'threshold': 1, 'big': False, 'quiet': True},

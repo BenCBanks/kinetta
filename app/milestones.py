@@ -36,8 +36,8 @@ def candidates(c,uid,now,zone,units):
         if kind=='sport':
             sport=details.get('sport')
             track_code='sport:walk-hike' if sport in ('walk','hike') else f'sport:{sport}'
-            if tracks.level_trigger(track_code,1)=='first_activity':
-                details['quiet']=tracks.is_quiet_level(track_code,1)
+            if track_code in tracks.LEGACY_FIRST_ACTIVITY_LABELS:
+                details['quiet']=True
                 details['trigger']='first_activity'
         result[code]={'code':code,'kind':kind,'title':title,'rank':rank,'activity_id':row.get('id'),
           'day':row['start_time'].astimezone(zone).date(),'occurred':row['start_time'],
@@ -224,8 +224,6 @@ def _state_item(code,value,tiers,first_row,zone,now):
     nxt=tracks.next_tier(code,value)
     details={'track':code,'label':tracks.track_label(code),'value':value,'unit':tracks.TRACK_UNITS.get(code,'count'),
              'level':max((tier.rank for tier in tiers),default=0),'big':False}
-    if code in {f'sport:{sport}' for sport in tracks.SPORT_FIRST_ACTIVITY_LABELS}:
-        details['level']=max(details['level'],1)
     if code in ('journey','climbing','sport:run','sport:ride','sport:walk-hike','sport:swim'):
         details['value_m']=value
     elif code=='lifted':details['value_kg']=value
@@ -265,8 +263,7 @@ def _preserve_track_progress(c,uid,states):
             nxt=tracks.next_tier(code,value)
             if nxt:
                 details['next_threshold']=nxt.threshold;details['next_label']=nxt.label;details['next_unit']=nxt.unit
-        details['level']=max(int(details.get('level',0) or 0),int(old_details.get('level',0) or 0),
-                             max((tier.rank for tier in tracks.tiers_for(code,value)),default=0))
+        details['level']=max((tier.rank for tier in tracks.tiers_for(code,value)),default=0)
 
 
 def achievement_candidates(c,uid,now,zone):

@@ -195,9 +195,13 @@ def _legacy_history(c, user_id, code):
                 continue
         elif row.get('kind') == 'sport' and _sport_code(details, include_quiet=True) == code:
             level = _catalog_level(code, trigger='first_activity')
-            if not level:
+            prior = tracks.legacy_starter_tier(code, trigger='first_activity')
+            if level:
+                threshold = level['threshold']
+            elif prior:
+                threshold = prior.threshold
+            else:
                 continue
-            threshold = level['threshold']
         else:
             continue
         if math.isfinite(threshold) and threshold >= 0:
@@ -247,20 +251,31 @@ def _tier(row, code, units):
         threshold = catalog_level['threshold']
     if catalog_level is None:
         catalog_level = _catalog_level(code, threshold=threshold, trigger=trigger)
-    rank = catalog_level.get('rank') if catalog_level else details.get('rank')
-    if rank is None and str(row.get('code', '')).startswith(('track:', 'trackt:')):
+    legacy_level = None if catalog_level else tracks.legacy_starter_tier(
+        code, threshold, trigger='first_activity' if kind == 'sport' else None)
+    if kind == 'sport' and legacy_level:
+        threshold = legacy_level.threshold
+    rank = catalog_level.get('rank') if catalog_level else (0 if legacy_level else details.get('rank'))
+    if not legacy_level and rank is None and str(row.get('code', '')).startswith(('track:', 'trackt:')):
         try:
             suffix = str(row['code']).rsplit(':', 1)[1]
             rank = int(suffix) if str(row['code']).startswith('track:') else None
         except (ValueError, IndexError):
             rank = row.get('rank', 0)
     rank = int(rank if rank is not None else row.get('rank', 0) or 0)
-    label = (catalog_level or {}).get('name') or details.get('label') or row.get('title') or ''
+    label = ((catalog_level or {}).get('name') or (legacy_level.label if legacy_level else None)
+             or details.get('label') or row.get('title') or '')
     unit = details.get('unit') or tracks.TRACK_UNITS.get(code, 'count')
-    quiet = bool(details.get('quiet') or (catalog_level or {}).get('quiet') or tracks.is_quiet_level(code, rank))
+    quiet = bool(legacy_level or details.get('quiet') or (catalog_level or {}).get('quiet')
+                 or tracks.is_quiet_level(code, rank))
     trigger = trigger or (catalog_level or {}).get('trigger') or tracks.level_trigger(code, rank)
     details.update(track=code, rank=rank, threshold=threshold, label=label, unit=unit, quiet=quiet)
-    if trigger:
+    if legacy_level:
+        details['legacy'] = True
+        details['legacy_rank'] = (row.get('details') or {}).get('rank')
+        details.pop('trigger', None)
+        trigger = None
+    elif trigger:
         details['trigger'] = trigger
     rule = tracks.Tier(rank, threshold, label, unit, bool(details.get('big')))
     item = {
@@ -276,11 +291,42 @@ def _tier(row, code, units):
         'unit': rule.unit,
         'details': details,
     }
+    if legacy_level:
+        item['legacy'] = True
+        if details.get('legacy_rank') is None:
+            details.pop('legacy_rank', None)
     if trigger:
         item['trigger'] = trigger
     item.update({k: v for k, v in tracks.display_tier(code, rule, units).items()
                  if k in ('display_threshold', 'display_unit')})
     return item
+
+
+def _legacy_history_tiers(code, legacy, activity_rows):
+    """Expose saved starter awards separately from canonical earned levels."""
+    reached = []
+    seen = set()
+    for threshold, row in legacy:
+        prior = tracks.legacy_starter_tier(
+            code, threshold,
+            trigger='first_activity' if row.get('kind') == 'sport' else None)
+        if not prior or prior.threshold in seen:
+            continue
+        seen.add(prior.threshold)
+        activity_id = row.get('activity_id')
+        if activity_id not in activity_rows:
+            activity_id = None
+        day = row.get('day')
+        reached.append({
+            'rank': 0,
+            'name': prior.label,
+            'threshold': prior.threshold,
+            'day': day.isoformat() if hasattr(day, 'isoformat') else (str(day) if day else None),
+            'activity_id': activity_id,
+            'date_source': 'legacy',
+            'legacy': True,
+        })
+    return reached
 
 
 def _visible_achievement_profile(c, viewer_id, login):
@@ -304,7 +350,7 @@ def _visible_achievement_profile(c, viewer_id, login):
 
 
 _SHARED_TRACK_FIELDS = ('code','label','level','unit','tiers','day')
-_SHARED_TIER_FIELDS = ('rank','label','title','day','big','quiet','threshold','unit','trigger',
+_SHARED_TIER_FIELDS = ('rank','label','title','day','big','quiet','threshold','unit','trigger','legacy',
                        'display_threshold','display_unit')
 _SHARED_DISTANCE_TRACKS = frozenset(('sport:run','sport:ride','sport:walk-hike','sport:swim'))
 
@@ -333,7 +379,8 @@ def _sport_code(details, *, include_quiet=False):
         return None
     first = _catalog_level(code, trigger='first_activity')
     is_first_activity = details.get('target_m') is None
-    if is_first_activity and (details.get('quiet') or (first and first.get('quiet'))) and not include_quiet:
+    if is_first_activity and (details.get('quiet') or (first and first.get('quiet'))
+                              or code in tracks.LEGACY_FIRST_ACTIVITY_LABELS) and not include_quiet:
         return None
     return code
 
@@ -375,9 +422,8 @@ def achievements(login: str | None = Query(None, min_length=1, max_length=60), u
         code = (row.get('details') or {}).get('track')
         if code:
             tiers_by_track.setdefault(code, []).append(_tier(row, code, units))
-    # Existing First rows are worker output too.  Include them in the matching
-    # sport track so the new profile can show the familiar First 5K/First run
-    # history without recomputing bests in this request.
+    # Existing first-activity rows remain readable as legacy awards. They do
+    # not become a canonical level or shift the track's current rank.
     for row in firsts:
         details = row.get('details') or {}
         code = _sport_code(details, include_quiet=True)
@@ -719,8 +765,10 @@ def achievement_history(code: str, login: str | None = Query(None, min_length=1,
             'activity_id': activity_id,
             'date_source': source,
         })
+    reached.extend(_legacy_history_tiers(code, legacy, activity_rows))
+    reached.sort(key=lambda tier: (tier['rank'], tier['threshold']))
     if shared_view:
-        reached = [{key: tier[key] for key in ('rank','name','threshold','day') if key in tier}
+        reached = [{key: tier[key] for key in ('rank','name','threshold','day','legacy') if key in tier}
                    for tier in reached]
         pending = False
     return {'code': code, 'tiers': reached, 'pending': pending}
