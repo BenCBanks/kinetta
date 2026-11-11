@@ -526,6 +526,10 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.equal(await nextBadge.locator('.profile-achievement-next').innerText(),'First hour · 0.5 hours left','the next reward shows its name and what remains');
   assert.equal(await futureBadge.locator('[data-achievement-progress]').getAttribute('aria-valuenow'),'0','the later reward has a zero progress bar');assert.equal(await futureBadge.locator('.profile-achievement-next').innerText(),'First orbit · 1 year left','the later reward shows its name and criterion');
   assert(Number(await futureBadge.locator('.profile-achievement-medallion').evaluate(node=>getComputedStyle(node).opacity))<1,'future medals use reduced opacity');
+  await nextBadge.click();await waitForHistoryTrack(page,'active_time','in-progress future achievement detail');
+  assert.equal(await page.locator('.profile-achievement-history-copy .profile-achievement-current-value').innerText(),'0.5 hours','an in-progress owner track keeps its API value on the detail route');
+  assert.equal(await page.locator('.profile-achievement-named-levels li.is-next [role="progressbar"]').getAttribute('aria-valuenow'),'50','an in-progress owner detail keeps progress toward its first level');
+  await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
   await assertAchievementGridTextFit(page.locator('#profile-achievement-page'),'390px achievement list with future rewards');
   await assertMedalText(page.locator('#profile-achievement-page'),'390px achievement list with future rewards');
   await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='all-tracks');

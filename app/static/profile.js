@@ -521,7 +521,7 @@ const ProfileLayout=(()=>{
     const clearBoxResources=()=>{const cleanup=viewResources.get(box);if(cleanup){cleanup();viewResources.delete(box);}};
     const draw=(data,historyData,showcase)=>{
       if(!active()||!box.isConnected)return false;clearBoxResources();
-      const tracks=shared?sharedAchievementTracks(data):startedAchievements(data),track=code?(tracks.find(t=>t.code===code)||(!shared&&emptyAchievementTrack(code))):null;
+      const tracks=shared?sharedAchievementTracks(data):(Array.isArray(data?.tracks)?data.tracks:[]),track=code?(tracks.find(t=>t.code===code)||(!shared&&emptyAchievementTrack(code))):null;
       if(code&&!track){box.innerHTML='<h1>Achievements</h1><p class="small muted">This track has no earned tiers yet.</p>';box.setAttribute('aria-busy','false');return true;}
       if(!code){
         const levelUps=shared?new Set():achievementLevelUps(data),overviewTracks=shared?tracks:overviewAchievementTracks(data);
