@@ -5,7 +5,22 @@
   cfg.errors=errors;cfg.requests=requests;cfg.blocked=[];
   addEventListener('error',e=>errors.push(String(e.message)));
   addEventListener('unhandledrejection',e=>errors.push(String(e.reason?.message||e.reason)));
-  if(cfg.store){const Clock=Date,epoch=new Clock(cfg.store.now).getTime(),began=performance.now(),now=()=>epoch+Math.floor(performance.now()-began);globalThis.Date=class extends Clock{constructor(...v){super(...(v.length?v:[now()]));}static now(){return now();}};}
+  if(Number.isFinite(cfg.fixtureNow)){
+    const NativeDate=Date,epoch=Number(cfg.fixtureNow);
+    function FixtureDate(...args){
+      if(!new.target)return new NativeDate(epoch).toString();
+      const instance=new NativeDate(...(args.length?args:[epoch]));
+      Object.setPrototypeOf(instance,FixtureDate.prototype);
+      return instance;
+    }
+    FixtureDate.prototype=Object.create(NativeDate.prototype);
+    Object.defineProperty(FixtureDate.prototype,'constructor',{value:FixtureDate,writable:true,configurable:true});
+    Object.setPrototypeOf(FixtureDate,NativeDate);
+    FixtureDate.now=()=>epoch;
+    FixtureDate.parse=NativeDate.parse;
+    FixtureDate.UTC=NativeDate.UTC;
+    globalThis.Date=FixtureDate;
+  }
   localStorage.clear();document.documentElement.style.fontSize=cfg.root+'px';
   history.replaceState(null,'',cfg.headerPage?'/'+cfg.headerPage:cfg.groups?'/me/groups':cfg.friends?'/me/friends':cfg.stage.startsWith('activity')?'/activity/1':cfg.stage.startsWith('track-')?'/track':cfg.stage==='food'?'/food/describe':'/food/cook/1');
   if(cfg.recording){const s={...cfg.recording,native:true,lapSupport:true,activeSeconds:cfg.recording.activeMs/1000,elapsedSeconds:(cfg.recording.finishedAt-cfg.recording.start)/1000,_snapshotClock:performance.now()};localStorage.setItem('kinetta.track:'+JSON.stringify(['https://example.test',1]),JSON.stringify(s));}

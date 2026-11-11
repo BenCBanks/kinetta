@@ -1,5 +1,6 @@
 """Instrument a disposable unsigned Simulator bundle; never modify source or the original build."""
-import argparse,json,shutil,subprocess,uuid
+import argparse,json,math,shutil,subprocess,uuid
+from datetime import datetime
 from pathlib import Path
 p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('destination',type=Path);p.add_argument('--stage',choices=['recipe','review','food','track-live','track-review','track-map','activity','activity-sticky','activity-empty','activity-map','friends-empty','friends-typical','friends-heavy','groups-create','header-me','header-activity','header-track','header-progress','header-food'],required=True);p.add_argument('--store',action='store_true');p.add_argument('--map-config',type=Path);p.add_argument('--root',type=int,default=16);p.add_argument('--run',required=True);p.add_argument('--update',action='store_true');a=p.parse_args()
 assert a.source.suffix=='.app' and a.source.is_dir()
@@ -18,6 +19,14 @@ if a.stage=='header-activity' and not a.store:
   fixture_data['friends'][0]['owner']['name']='River Friend 1 With a Long Fictional Name'
  config['activityFeed']=fixture_data
 if a.store:config['store']=json.loads(subprocess.check_output(['node','-e','process.stdout.write(JSON.stringify(require(process.argv[1])()))',str(fixture/'appstore.cjs')],text=True))
+fixture_now=config['store']['now'] if a.store else '2026-11-02T12:00:00Z'
+try:
+ parsed_fixture_now=datetime.fromisoformat(str(fixture_now).replace('Z','+00:00'))
+ assert parsed_fixture_now.tzinfo is not None,'fixtureNow must include a timezone'
+ fixture_epoch=parsed_fixture_now.timestamp()*1000
+ assert math.isfinite(fixture_epoch),'fixtureNow must resolve to a finite epoch'
+except (OverflowError,TypeError,ValueError) as error:raise ValueError('Invalid fixtureNow: '+str(fixture_now)) from error
+config['fixtureNow']=int(fixture_epoch)
 if a.store:
  assert a.map_config and a.map_config.is_file(),'Store scenes require the public basemap contract'
  config['store']['responses']['/api/map-config']=json.loads(a.map_config.read_text())
@@ -30,6 +39,10 @@ if a.stage.startswith('activity'):
  config['activity']=json.loads(subprocess.check_output(['node','-e',"process.stdout.write(JSON.stringify(require(process.argv[1])(process.argv[2]==='true')))",str(fixture.parents[1]/'demo/activity_detail.cjs'),str(a.stage=='activity-empty').lower()],text=True))
 if a.stage.startswith('track-'):
  config['recording']=json.loads(subprocess.check_output(['node','-e','process.stdout.write(JSON.stringify(require(process.argv[1])()))',str(fixture.parents[1]/'demo/track_session.cjs')],text=True))
+ recording=config['recording'];old_finished=recording['finishedAt'];delta=config['fixtureNow']-old_finished
+ assert all(isinstance(recording[key],(int,float)) and math.isfinite(recording[key]) for key in ('start','activeAt','checkpoint','finishedAt')),'Track fixture timestamps must be finite numbers'
+ for key in ('start','activeAt','checkpoint','finishedAt'):recording[key]+=delta
+ assert recording['finishedAt']==config['fixtureNow']
  config['recording']['id']=str(uuid.UUID(a.run))
  config['recording']['state']='review' if a.stage=='track-review' else 'recording'
 (public/'static/native-ui-early.js').write_text('globalThis.KinettaUIFixture='+json.dumps(config)+';\n'+(fixture/'display-diagnostics.js').read_text()+'\n'+(fixture/'early.js').read_text())
