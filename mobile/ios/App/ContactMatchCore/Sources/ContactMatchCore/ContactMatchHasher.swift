@@ -91,10 +91,8 @@ public enum ContactMatchHasher {
                     truncated = true
                 }
             }
-            if !contactHashes.isEmpty {
-                localContacts.append(ContactMatchContact(id: contact.id, name: contact.name,
-                    hashes: contactHashes.sorted(by: digestOrder)))
-            }
+            localContacts.append(ContactMatchContact(id: contact.id, name: contact.name,
+                hashes: contactHashes.sorted(by: digestOrder)))
         }
 
         return ContactMatchBatch(contacts: localContacts, hashes: unique.sorted(by: digestOrder), truncated: truncated)
