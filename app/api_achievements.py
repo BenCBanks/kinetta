@@ -15,6 +15,7 @@ from .auth import current_user
 
 
 router = APIRouter(prefix='/api')
+_CATALOG_TAIL_RULE = 'repeat last named level at integer multiples of its canonical threshold'
 
 
 @lru_cache(maxsize=1)
@@ -47,7 +48,7 @@ def _levels_through(definition, value):
                            **({'trigger': level['trigger']} if level.get('trigger') else {})})
     fixed = definition.get('levels') or ()
     tail = _level_catalog().get('tail') or {}
-    if fixed and tail.get('rule') == 'repeat last named level at integer multiples':
+    if fixed and tail.get('rule') == _CATALOG_TAIL_RULE:
         last = fixed[-1]
         base = _canonical_threshold(last)
         try:
