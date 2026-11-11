@@ -28,23 +28,11 @@ What we keep
 
 ## collect
 
-**Your account:** email, username, display name, password (stored scrambled, never in plain text), and an optional photo and bio. You may add an optional phone number under Me → Settings → Sharing & privacy. Kinetta stores it in normalized international format; it is not verified or shown to other members. Remove it there to clear it from your account.
+**Your account:** email, username, display name, password (stored scrambled, never in plain text), and an optional photo and bio. You may add an optional phone number under Me → Settings → Sharing & privacy. Kinetta stores it in normalized international format; it is not verified or shown to other members. Remove it there to clear it from your account. **What you add or import:** workouts, activity files, routes, heart rate and other measurements, food, recipes, weight, goals, plans and settings. Body details like height and age are optional and only used for your own estimates.
 
 ## collect-records
 
-**What you add or import:** workouts, activity files, routes, heart rate and other measurements, food, recipes, weight, goals, plans and settings. Body details like height and age are optional and only used for your own estimates.
-
-## collect-contacts
-
-**iPhone Contacts (optional):** To find friends, choose Find friends with contacts, tap Continue, then allow Contacts access. The app reads contact names, local IDs, email addresses and phone numbers on your iPhone. It normalizes email and phone there, then sends a fresh salt and up to 2,000 salted email/phone hashes. This includes hashes that do not match; names, local IDs and raw addresses are not sent.
-
-## collect-contacts-controls
-
-The server compares the hashes, returns only matches and public usernames, and does not store or log the request body. A separate account-linked attempt record enforces one check per 24 hours; cleanup removes attempts older than a day when the limiter next runs. The app caches matched contact IDs, usernames and the check time on your iPhone until you choose Remove my contacts in Sharing & privacy. Revoking Contacts access does not clear that cache. Email and phone findability start on; turn either off in Sharing & privacy to stop people matching that field. This does not delete your account email or phone. Contacts are checked only after you choose Continue or Check selected contacts on this screen; they do not sync in the background.
-
-## collect-contacts-invites
-
-Invite rows stay on your iPhone. If you choose Invite for one contact, Kinetta shows a preview. Choose Share invite link to use the iPhone share sheet; if it is unavailable, Kinetta copies the generic link. Kinetta does not send a text or email or add contact details to the link.
+**iPhone Contacts (optional):** To check friends, choose Find friends with contacts, tap Continue, and allow Contacts access. The iPhone reads contact names, local IDs, email addresses and phone numbers, normalizes email and phone there, then sends a fresh salt and up to 2,000 salted email/phone hashes, including non-matches. Names, IDs and raw contact details stay on your iPhone. The server compares hashes, returns matching usernames, and does not store or log the request body. A separate account-linked attempt record enforces one check per 24 hours; expired attempts are removed when the limiter next runs. Matched contact IDs, usernames and check time stay cached on your iPhone until you choose Remove my contacts; revoking Contacts access does not clear them. Email and phone findability start on; turn either off in Sharing & privacy. These settings do not delete your account email or phone. Contacts are checked only after you choose Continue or Check selected contacts; they do not sync in the background. If Kinetta shows an Invite option for a contact, choosing it opens a preview. You can share the generic invite link with the iPhone share sheet; when unavailable, Kinetta copies the link. Kinetta does not send messages or add contact details to the link.
 
 ## collect-chat
 
