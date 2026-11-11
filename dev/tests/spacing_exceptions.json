@@ -211,5 +211,23 @@
     "minimum": 12,
     "followup": "https://github.com/BenCBanks/kinetta/issues/689",
     "reason": "Ben approved the current #689 featured section size. Keep its 12px values and context labels with the 48px medals; clipping and every other text minimum remain audited."
+  },
+  {
+    "id": "me-featured-level-badge-type",
+    "selector": ".me-featured-achievements .profile-achievement-level",
+    "metric": "font-min",
+    "kind": "approved-type",
+    "minimum": 10,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/786",
+    "reason": "Issue #786 fits a level badge above each responsive medal in the four-across row. Keep its compact 10px badge text; icon/value clearance and all other type minimums remain audited."
+  },
+  {
+    "id": "me-featured-track-label-type",
+    "selector": ".me-featured-achievements .profile-achievement-name",
+    "metric": "font-min",
+    "kind": "approved-type",
+    "minimum": 11,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/786",
+    "reason": "Issue #786 fits all four track names across one phone row and Ben approved 11px labels. Names stay complete without ellipsis; every other text minimum remains audited."
   }
 ]

@@ -27,7 +27,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   const c=await b.newContext({storageState,viewport:size,colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:SCREENSHOT_CLOCK.timezone}),p=await c.newPage(),errors=[],writes=[];
   await p.clock.setFixedTime(SCREENSHOT_NOW);
   let slotFixture='both',todayFixture='both',zeroDistanceFixture=false,seriesFixture;
-  let showcaseFixture={items:[],pinned:[],day_streak:0},shareAchievementsEnabled=false,showcasePins=[],pinOrderRequests=[],failFeatureSave=false,achievementFixture={tracks:[]};const sharedShowcaseRequests=[];
+  let showcaseFixture={items:[],pinned:[],day_streak:0},shareAchievementsEnabled=false,showcasePins=[],pinOrderRequests=[],failFeatureSave=false,achievementFixture=null;const sharedShowcaseRequests=[];
   const featureTrack=(code,label,value,display_unit)=>({code,label,value,display_value:value,display_unit,tiers:[{rank:1,day:'2026-11-06'}]});
   const featuredFixture={pending:false,tracks:[featureTrack('journey','Journey',6099414,'mi'),featureTrack('workouts','Workouts',1120,'workouts'),featureTrack('lifted','Lifted',300000,'lb'),featureTrack('sport:run','Run',80000,'mi'),featureTrack('active_time','Active time',3960000,'h'),featureTrack('climbing','Climbing',17000,'ft'),featureTrack('consistency','Consistency',22,'weeks')]};
   const earnedFixture=['journey','workouts','lifted','sport:run','climbing','consistency'].map(code=>({code,rank:1}));
@@ -45,8 +45,8 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    }
    if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);return r.fulfill({json:{}});}
    if(u.pathname==='/api/achievements'){
-    const replacements=new Map(achievementFixture.tracks.map(track=>[track.code,track]));
-    return r.fulfill({json:{...featuredFixture,tracks:featuredFixture.tracks.map(track=>({...track,...(replacements.get(track.code)||{})}))}});
+    if(achievementFixture)return r.fulfill({json:{...featuredFixture,tracks:achievementFixture.tracks}});
+    return r.fulfill({json:featuredFixture});
    }
    if(u.pathname==='/api/achievements/showcase'){
     if(u.searchParams.has('login')){sharedShowcaseRequests.push(u.searchParams.get('login'));return r.fulfill({json:showcaseFixture});}
@@ -95,7 +95,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    return r.continue();
   });
   const featuredEditor=async({checkpoint=false}={})=>{
-   showcasePins=['journey','workouts','lifted'];showcaseFixture={items:['journey','workouts','lifted','sport:run','climbing'].map((code,index)=>({code,rank:index+1})),pinned:showcasePins,day_streak:0};shareAchievementsEnabled=true;failFeatureSave=false;
+   achievementFixture=null;showcasePins=['journey','workouts','lifted'];showcaseFixture={items:['journey','workouts','lifted','sport:run','climbing'].map((code,index)=>({code,rank:index+1})),pinned:showcasePins,day_streak:0};shareAchievementsEnabled=true;failFeatureSave=false;
    await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();await p.locator('[data-card-edit]').click();
    const list=p.locator('[data-featured-list]');await list.waitFor();await p.waitForFunction(()=>document.querySelector('[data-featured-list]')?.getAttribute('aria-busy')==='false');await list.scrollIntoViewIfNeeded();
    const selected=()=>p.locator('.me-featured-selected [data-featured-toggle]');
@@ -145,10 +145,12 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   if(process.env.KINETTA_ME_FEATURED_CHECKPOINT==='1'){await featuredEditor({checkpoint:true});await c.close();continue;}
   await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();
   const weekly=p.locator('.me-card-weekly'),label=p.locator('[data-week-label]'),chart=p.locator('.me-card-bars'),weeks=p.locator('.me-week');
-  const profileLink=p.locator('.me-card-open-link'),linkBox=await profileLink.boundingBox(),cardBox=await p.locator('.me-card').boundingBox();
-  assert.equal(await profileLink.getAttribute('aria-label'),'Open my profile','the whole-card link has the approved VoiceOver label');
-  assert.match(await profileLink.getAttribute('href'),/^\/people\/alex(?:\?|$)/,'the whole card opens the owner profile');
-  assert(Math.abs(linkBox.x-cardBox.x)<1&&Math.abs(linkBox.y-cardBox.y)<1&&Math.abs(linkBox.width-cardBox.width)<1&&Math.abs(linkBox.height-cardBox.height)<1,'the profile target covers the whole Me card');
+  await p.locator('.me-featured-slot[data-loaded="true"]').waitFor();await p.locator('.me-featured-achievements').waitFor();
+  const profileLink=p.locator('.me-card-open-link'),linkBox=await profileLink.boundingBox(),cardBox=await p.locator('.me-card').boundingBox(),featuredBox=await p.locator('.me-featured-achievements').boundingBox();
+  assert.equal(await profileLink.getAttribute('aria-label'),'Open my profile','the profile link has the approved VoiceOver label');
+  assert.match(await profileLink.getAttribute('href'),/^\/people\/alex(?:\?|$)/,'the profile link opens the owner profile');
+  assert(Math.abs(linkBox.x-cardBox.x)<1&&Math.abs(linkBox.y-cardBox.y)<1&&Math.abs(linkBox.width-cardBox.width)<1,'the profile link covers the card width from its top edge');
+  assert(featuredBox.y-(linkBox.y+linkBox.height)>=7.98,`the profile link leaves 8px before the Featured entry and medals (${featuredBox.y-(linkBox.y+linkBox.height)}px)`);
   const identity=p.locator('.me-card-profile-link');
   assert.equal(await identity.locator('.me-card-avatar').count(),1);assert.equal(await identity.locator('h2').innerText(),'Alex Rivera');
   assert.equal(await identity.locator('.me-card-meta').innerText(),'@alex');
@@ -163,7 +165,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   assert(arrowHit,'tapping the decorative chevron reaches the whole-card profile link');
   assert.equal(await p.locator('.me-card-id > .me-friends-link').count(),1,'friend navigation remains a separate link');
   assert.equal(await profileLink.locator('.me-friends-link').count(),0,'friend navigation is not nested inside the profile link');
-  for(const [selector,label] of [['.me-card-banner [data-card-edit]','Edit'],['.me-card-banner [data-card-share]','Share'],['.me-card-id > .me-friends-link .me-friends-count','friends'],['.me-card-id > .me-friends-link .badge.alert','waiting chip'],['.me-card .me-milestone-all','Recent milestones']]){
+  for(const [selector,label] of [['.me-card-banner [data-card-edit]','Edit'],['.me-card-banner [data-card-share]','Share'],['.me-card [data-card-preview]','View as friend'],['.me-card-id > .me-friends-link .me-friends-count','friends'],['.me-card-id > .me-friends-link .badge.alert','waiting chip'],['.me-card .me-milestone-all','Recent milestones']]){
    const target=p.locator(selector).first();if(await target.count()&&await target.isVisible()){const box=await target.boundingBox(),cardLinkAtCenter=await p.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('.me-card-open-link'),{x:box.x+box.width/2,y:box.y+box.height/2});assert(!cardLinkAtCenter,`${label} remains its own tap target above the profile link`);}
   }
   assert.equal(await p.locator('.me-divider').count(),0,'no hairline divider separates the Me card and Today');
@@ -175,13 +177,16 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   const currentStats=await weekly.locator('[data-week-stat]').allTextContents();assert(currentStats.every(value=>value.trim()),'This week has visible distance, workout and time totals');
   assert.equal(await label.locator('span').innerText(),'This week','current week is the default selection');
   assert.equal(await p.locator('.me-week-streak[data-week-streak="12"]').count(),1,'streak appears at twelve weeks');
-  assert.equal(await p.locator('.me-card-close-to[data-close-to]').innerText(),'18 mi to 1,000 mi this year','close-to follows the owner’s profile units');
+  assert.equal(await p.locator('.me-card-close-to[data-close-to]').innerText(),'Only you\n18 mi to 1,000 mi this year','private close-to text has the owner label and profile units');
+  assert.equal(await p.locator('.me-owner-only').count(),2,'private streak and close-to use the same visible Only you label');
   assert.equal(await weekly.locator('[data-week-stat]').count(),3,'the close-to line adds no number row');
   const closeGeometry=await p.locator('.me-card-close-to').evaluate(n=>{const r=n.getBoundingClientRect(),bar=document.querySelector('.me-card-bars').getBoundingClientRect(),s=getComputedStyle(n);return{top:r.top,barBottom:bar.bottom,font:parseFloat(s.fontSize),border:s.borderWidth,background:s.backgroundColor};});
   assert(closeGeometry.top>=closeGeometry.barBottom&&closeGeometry.font>=13&&closeGeometry.border==='0px'&&closeGeometry.background==='rgba(0, 0, 0, 0)','close-to remains plain 13px secondary text under the bars '+JSON.stringify(closeGeometry));
-  await screenshot('me-card-both');
-  assert.equal(await p.locator('.me-week-streak').getAttribute('aria-label'),'12-week activity streak');
+  await screenshot('me-card-both');if(size.width===330||size.width===390){const feature=p.locator('.me-featured-achievements');await feature.evaluate(n=>n.scrollIntoView({block:'start',behavior:'instant'}));const visible=await p.evaluate(()=>{const featured=document.querySelector('.me-featured-achievements').getBoundingClientRect(),tab=document.querySelector('.bottom-nav,nav').getBoundingClientRect();return{top:featured.top,bottom:featured.bottom,tabTop:tab.top};});assert(visible.top>=-1&&visible.bottom<=visible.tabTop+1,`${size.width}px Featured rail scrolls fully above the fixed tab bar `+JSON.stringify(visible));if(out)await p.screenshot({path:`${out}/me-featured-visible-${size.width}-${theme}.png`,animations:'disabled'});await p.locator('.me-top').evaluate(n=>n.scrollIntoView({block:'start',behavior:'instant'}));}
+  assert.equal(await p.locator('.me-week-streak').getAttribute('aria-label'),'12-week activity streak. Only you can see this.');
   assert.equal(await p.locator('.me-week-streak > span[aria-hidden="true"]').innerText(),'12-week streak');
+  assert.equal(await p.locator('.me-week-streak .me-owner-only').innerText(),'Only you');
+  assert.equal(await p.locator('.me-week-streak .me-owner-only').evaluate(n=>getComputedStyle(n).fontSize),'13px','owner-only labels use the same readable secondary type');
   assert.equal(await p.locator('.me-week-streak svg').count(),1,'streak flame remains visible without relying on a device emoji font');
   const streakLayout=await p.locator('.me-week-streak').evaluate(node=>({right:node.getBoundingClientRect().right,headRight:node.parentElement.getBoundingClientRect().right,textAlign:getComputedStyle(node).textAlign}));
   assert(Math.abs(streakLayout.right-streakLayout.headRight)<1&&streakLayout.textAlign==='right','streak is right-aligned in the This week row');
@@ -219,9 +224,9 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    if(!out)return;fs.mkdirSync(out,{recursive:true});
    await p.locator('.me-top').evaluate(n=>n.scrollIntoView({block:'start',inline:'nearest'}));
    await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
-   const layout=await p.evaluate(()=>{const header=document.querySelector('.me-top').getBoundingClientRect(),card=document.querySelector('.me-card').getBoundingClientRect();return{headerTop:header.top,headerBottom:header.bottom,cardTop:card.top,cardBottom:card.bottom,viewport:innerHeight};});
+   const layout=await p.evaluate(()=>{const header=document.querySelector('.me-top').getBoundingClientRect(),card=document.querySelector('.me-card').getBoundingClientRect();return{headerTop:header.top,headerBottom:header.bottom,cardTop:card.top,cardBottom:card.bottom,scrollHeight:document.scrollingElement.scrollHeight};});
    assert(layout.headerTop>=0&&layout.headerTop<48,`Screenshot starts with the Me header visible (${layout.headerTop}px)`);
-   assert(layout.cardTop>=layout.headerBottom-1&&layout.cardBottom<=layout.viewport+1,`Screenshot keeps the full Me card in view (${JSON.stringify(layout)})`);
+   assert(layout.cardTop>=layout.headerBottom-1&&layout.cardBottom<=layout.scrollHeight+1,`Screenshot starts the Me card below its header and keeps the full card in the scroll range (${JSON.stringify(layout)})`);
    await p.screenshot({path:`${out}/${name}-${size.width}-${size.root}-${theme}.png`,animations:'disabled'});
   };
   if(todayOnly||size.width===390&&size.root===16&&theme==='light'){
@@ -298,7 +303,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   if(size.width===390&&size.root===16)await screenshot('me-card-current-week');
   if(size.width===390&&size.root===16&&theme==='light'){
    if(out)await p.locator('.me-top').screenshot({path:`${out}/me-header-${size.width}-${theme}.png`,animations:'disabled'});
-   await profileLink.click();await p.waitForURL('**/people/alex');await p.locator('#person-profile').waitFor();
+   await p.mouse.click(arrow.x+arrow.width/2,arrow.y+arrow.height/2);await p.waitForURL('**/people/alex');await p.locator('#person-profile').waitFor();
    await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();
   }
 
@@ -351,32 +356,41 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   }
   if(size.width===390&&size.root===16){
    await p.locator('[data-me-featured][data-loaded="true"]').waitFor({state:'attached'});
-   assert.equal(await p.locator('.me-featured-item').count(),0,'an empty or unshared Showcase has no featured section');
+   assert.equal(await p.locator('.me-featured-item').count(),4,'earned achievements fill an unpinned Featured rail automatically');
    assert.equal(await p.locator('.me-showcase-streak').count(),0,'an inactive day streak stays hidden');
    await screenshot('me-featured-zero');
-   showcaseFixture={items:[],pinned:[],day_streak:1};showcasePins=[];achievementFixture={tracks:[]};shareAchievementsEnabled=true;await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();await p.locator('[data-me-featured][data-loaded="true"]').waitFor();
-   assert.equal(await p.locator('.me-featured-achievements').count(),1,'the shared Me card keeps the achievements heading with no medals');assert.equal(await p.locator('.me-featured-item').count(),0,'an empty automatic Showcase has no medals');assert.equal(await p.locator('.me-featured-title a').getAttribute('href'),'/me/achievements','the heading links to the full achievements page');
+   showcaseFixture={items:[],pinned:[],day_streak:1};showcasePins=[];achievementFixture={tracks:[]};shareAchievementsEnabled=true;await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();await p.locator('[data-me-featured][data-loaded="true"]').waitFor({state:'attached'});
+   assert.equal(await p.locator('.me-featured-achievements').count(),0,'the Me card hides Featured when there are no earned medals');assert.equal(await p.locator('.me-featured-item').count(),0,'an empty automatic Showcase has no medals');
+   const fallbackTracks=[
+    {code:'sport:run',label:'Run',level:9,_sharedAchievement:true,display_value:9000,display_unit:'mi',tiers:[{rank:9,day:'2026-11-08'}]},
+    {code:'sport:ride',label:'Ride',level:9,_sharedAchievement:true,display_value:8000,display_unit:'mi',tiers:[{rank:9,day:'2026-11-09'}]},
+    {code:'workouts',label:'Workouts',level:10,_sharedAchievement:true,display_value:100,display_unit:'workouts',tiers:[{rank:10,day:'2026-11-07'}]},
+    {code:'lifted',label:'Lifted',level:7,_sharedAchievement:true,display_value:200000,display_unit:'lb',tiers:[{rank:7,day:'2026-11-06'}]},
+    {code:'journey',label:'Journey',level:6,_sharedAchievement:true,display_value:4000,display_unit:'mi',tiers:[{rank:6,day:'2026-11-10'}]}
+   ];
+   showcaseFixture={items:[],pinned:[],day_streak:1};showcasePins=[];achievementFixture={tracks:fallbackTracks};await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();await p.locator('[data-me-featured][data-loaded="true"]').waitFor();
+   assert.deepEqual(await p.locator('.me-featured-item').evaluateAll(nodes=>nodes.map(n=>n.dataset.showcaseCode)),['workouts','sport:ride','sport:run','lifted'],'an empty unpinned Showcase fills with the four highest earned levels, with recent earning as the tie-break');
    const automaticItems=[{code:'journey',rank:4},{code:'sport:run',rank:2}],automaticTracks=[{code:'journey',label:'Journey',display_value:27111,display_unit:'mi'},{code:'sport:run',label:'Run',display_value:11427.5,display_unit:'mi'}];
    showcaseFixture={items:automaticItems,pinned:[],day_streak:1};showcasePins=[];achievementFixture={tracks:automaticTracks};await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();await p.locator('[data-me-featured][data-loaded="true"]').waitFor();
    assert.deepEqual(await p.locator('.me-featured-item').evaluateAll(nodes=>nodes.map(n=>n.dataset.showcaseCode)),['journey','sport:run'],'no pins use the server automatic top medals');await screenshot('me-featured-automatic');
    showcaseFixture={items:[{code:'sport:run',rank:2}],pinned:['sport:run'],day_streak:1};showcasePins=['sport:run'];achievementFixture={tracks:[{code:'sport:run',label:'Run',display_value:11427.5,display_unit:'mi'}]};await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();await p.locator('[data-me-featured][data-loaded="true"]').waitFor();
    assert.equal(await p.locator('.me-featured-item').count(),1,'a single pinned achievement overrides the automatic medals');
-   assert.equal(await p.locator('.me-featured-value').innerText(),'11,427.5 mi');assert.equal(await p.locator('.me-featured-context').innerText(),'Total running distance');
+   assert.equal(await p.locator('.profile-achievement-value').innerText(),'11.4k mi','the shared medal uses the same compact value as a friend profile');assert.match(await p.locator('.me-featured-item').getAttribute('aria-label'),/11,427\.5 mi/,'the full value remains available to screen readers');
    assert.equal(await p.locator('.me-showcase-streak').count(),0,'a one-day streak stays hidden');
-   const onePlacement=await p.locator('.me-featured-achievements').evaluate(n=>{const item=n.querySelector('.me-featured-item').getBoundingClientRect(),chart=n.closest('.me-card-sections').querySelector('.me-card-weekly').getBoundingClientRect();return{itemTop:item.top,chartBottom:chart.bottom,medal:n.querySelector('.me-featured-medal').getBoundingClientRect().width};});
-   assert(onePlacement.itemTop>onePlacement.chartBottom&&onePlacement.medal===48,'one approved-size medal is centered below the weekly chart '+JSON.stringify(onePlacement));await screenshot('me-featured-one');
-   const featuredItems=[{code:'journey',rank:4},{code:'sport:run',rank:2},{code:'workouts',rank:3},{code:'climbing',rank:3}],featuredTracks=[{code:'journey',label:'Journey',display_value:27111,display_unit:'mi'},{code:'sport:run',label:'Run',display_value:11427.5,display_unit:'mi'},{code:'workouts',label:'Workouts',display_value:12345,display_unit:'workouts'},{code:'climbing',label:'Climbing',display_value:12210,display_unit:'ft'}];
+   const onePlacement=await p.locator('.me-featured-achievements').evaluate(n=>{const item=n.querySelector('.me-featured-item').getBoundingClientRect(),chart=n.closest('.me-card-sections').querySelector('.me-card-weekly').getBoundingClientRect();return{itemTop:item.top,chartBottom:chart.bottom,medal:n.querySelector('.profile-achievement-medallion').getBoundingClientRect().width};});
+   assert(onePlacement.itemTop>onePlacement.chartBottom&&onePlacement.medal>=68&&onePlacement.medal<=72,'one featured medal uses the responsive 390px size as a friend profile '+JSON.stringify(onePlacement));await screenshot('me-featured-one');
+   const featuredItems=[{code:'journey',rank:4},{code:'sport:run',rank:2},{code:'workouts',rank:3},{code:'climbing',rank:3}],featuredTracks=[{code:'journey',label:'Journey',value:4828032,display_value:27111,display_unit:'mi',tiers:[{rank:4,day:'2026-11-09'}]},{code:'sport:run',label:'Run',value:3218688,display_value:11427.5,display_unit:'mi',tiers:[{rank:2,day:'2026-11-08'}]},{code:'workouts',label:'Workouts',value:12345,display_value:12345,display_unit:'workouts',tiers:[{rank:3,day:'2026-11-07'}]},{code:'climbing',label:'Climbing',value:12210,display_value:12210,display_unit:'ft',tiers:[{rank:3,day:'2026-11-06'}]}];
    achievementFixture={tracks:featuredTracks};showcasePins=['sport:run'];await screenshot('me-showcase-one-medal');
-   for(const count of [2,3]){showcasePins=featuredItems.slice(0,count).map(item=>item.code);showcaseFixture={items:featuredItems.slice(0,count),pinned:showcasePins,day_streak:12};await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();await p.locator('.me-featured-item').nth(count-1).waitFor();assert.equal(await p.locator('.me-featured-item').count(),count,`${count} pinned achievements fit in the row`);await screenshot(`me-featured-${count}-${theme}`);}
+   for(const count of [2,3]){showcasePins=featuredItems.slice(0,count).map(item=>item.code);showcaseFixture={items:featuredItems.slice(0,count),pinned:showcasePins,day_streak:12};await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();await p.locator('.me-featured-item').nth(count-1).waitFor();assert.equal(await p.locator('.me-featured-item').count(),count,`${count} pinned achievements fit in the grid`);await screenshot(`me-featured-${count}-${theme}`);}
    showcasePins=featuredItems.map(item=>item.code);showcaseFixture={items:featuredItems,pinned:showcasePins,day_streak:12};await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();await p.locator('.me-featured-item').nth(3).waitFor();
    assert.equal(await p.locator('.me-featured-item').count(),4,'all four pinned achievements fit in one row');
-   const featuredHits=await p.locator('.me-featured-item').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return{label:n.getAttribute('aria-label'),target:hit?.closest('.me-featured-item')===n};}));assert(featuredHits.every(item=>item.target),'each Featured medal remains the top hit target above the full-card profile link '+JSON.stringify(featuredHits));
+   const featuredHits=[];for(const item of await p.locator('.me-featured-item').all()){await item.scrollIntoViewIfNeeded();featuredHits.push(await item.evaluate(n=>{const r=n.querySelector('.profile-achievement-medallion').getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return{label:n.getAttribute('aria-label'),target:hit?.closest('.me-featured-item')===n,clearOfProfile:!hit?.closest('.me-card-open-link')};}));}assert(featuredHits.every(item=>item.target&&item.clearOfProfile),'each Featured medal remains its own top hit target outside the card profile link '+JSON.stringify(featuredHits));
    assert.equal(await p.locator('.me-showcase-streak').innerText(),'12-day streak','a live day streak sits beside the medals, labelled');
    const streakFont=await p.locator('.me-showcase-streak').evaluate(n=>parseFloat(getComputedStyle(n).fontSize));assert(streakFont>=15,'the compact streak number meets the minimum readable type size ('+streakFont+'px)');
-   const grid=await p.locator('.me-featured-grid').evaluate(n=>{const box=n.getBoundingClientRect(),nodes=[...n.children],items=nodes.map(x=>x.getBoundingClientRect()),medals=nodes.map(x=>x.querySelector('.me-featured-medal').getBoundingClientRect());return{cols:getComputedStyle(n).gridTemplateColumns,centers:medals.map(x=>x.x+x.width/2),medalSizes:medals.map(x=>[x.width,x.height]),box:{left:box.left,right:box.right},items:items.map(x=>({left:x.left,right:x.right}))};});
-   assert(grid.centers.every((x,i)=>!i||x>grid.centers[i-1])&&Math.abs((grid.centers[1]-grid.centers[0])-(grid.centers[2]-grid.centers[1]))<1&&Math.abs((grid.centers[2]-grid.centers[1])-(grid.centers[3]-grid.centers[2]))<1&&grid.items.every(x=>x.left>=grid.box.left-1&&x.right<=grid.box.right+1)&&grid.medalSizes.every(([w,h])=>w===48&&h===48),'featured medals keep the approved 48px size, spacing and bounds '+JSON.stringify(grid));
-   const fitted=await p.locator('.me-featured-value,.me-featured-context').evaluateAll(nodes=>nodes.every(n=>n.scrollWidth<=n.clientWidth+1&&!/…|\.\.\./.test(n.textContent)));assert(fitted,'long achievement values and contexts wrap without clipping or ellipsis');
-   assert.equal(await p.locator('.me-featured-value').nth(2).getAttribute('data-fit-text-source'),'12,345 workouts');assert.doesNotMatch(await p.locator('.me-featured-value').last().innerText(),/…|\.\.\./);await screenshot(`me-featured-four-${theme}`);
+   const grid=await p.locator('.me-featured-achievements .profile-achievement-list').evaluate(n=>{const box=n.getBoundingClientRect(),nodes=[...n.children],items=nodes.map(x=>x.getBoundingClientRect()),medals=nodes.map(x=>x.querySelector('.profile-achievement-medallion').getBoundingClientRect()),style=getComputedStyle(n);return{display:style.display,columns:style.gridTemplateColumns.split(' ').length,overflow:style.overflowX,scrollWidth:n.scrollWidth,clientWidth:n.clientWidth,centers:medals.map(x=>x.x+x.width/2),medalSizes:medals.map(x=>[x.width,x.height]),box:{left:box.left,right:box.right},items:items.map(x=>({left:x.left,right:x.right,top:x.top,bottom:x.bottom}))};});
+   const medalBounds=size.width===330?[56,60]:[68,72];assert.equal(grid.display,'grid');assert.equal(grid.columns,4);assert.equal(grid.overflow,'visible');assert(grid.scrollWidth<=grid.clientWidth+1&&grid.centers.length===4&&grid.centers.every((x,i)=>!i||x>grid.centers[i-1])&&grid.items.every(item=>Math.abs(item.top-grid.items[0].top)<1&&item.left>=grid.box.left-1&&item.right<=grid.box.right+1&&item.bottom-item.top>=44)&&grid.medalSizes.every(([w,h])=>w>=medalBounds[0]&&w<=medalBounds[1]&&w===h),'featured medals fit four across with responsive size, wrapped labels and 44px+ link targets '+JSON.stringify(grid));
+   const medalReadability=await p.locator('.me-featured-item').evaluateAll(nodes=>nodes.map(node=>{const medal=node.querySelector('.profile-achievement-medallion'),icon=medal.querySelector('.profile-achievement-icon').getBoundingClientRect(),value=medal.querySelector('.profile-achievement-value').getBoundingClientRect(),level=medal.querySelector('.profile-achievement-level')?.getBoundingClientRect(),multiple=medal.querySelector('.profile-achievement-multiple')?.getBoundingClientRect(),overlap=(a,b)=>a&&b&&a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;return{name:node.querySelector('.profile-achievement-name').textContent.trim(),value:medal.querySelector('.profile-achievement-value').textContent.trim(),aria:node.getAttribute('aria-label'),badgesClear:[level,multiple].filter(Boolean).every(b=>!overlap(b,icon)&&!overlap(b,value)&&(!level||!multiple||!overlap(level,multiple)))};}));assert(medalReadability.every(item=>item.badgesClear),'level/multiple badges stay clear of icons and values '+JSON.stringify(medalReadability));const journey=medalReadability.find(item=>item.name==='Journey');assert.equal(journey.value,'27.1k mi');assert.match(journey.aria,/27,111 mi/,'Journey aria-label keeps the exact value');assert.equal(medalReadability.find(item=>item.name==='Workouts').name,'Workouts','workout label remains intact');
+   const fitted=await p.locator('.profile-achievement-name,.profile-achievement-next').evaluateAll(nodes=>nodes.every(n=>n.scrollWidth<=n.clientWidth+1&&!/…|\.\.\./.test(n.textContent)));assert(fitted,'long achievement labels wrap without clipping or ellipsis');await screenshot(`me-featured-four-${theme}`);
    const medalLink=p.locator('.me-featured-item').first();assert.equal(await medalLink.getAttribute('href'),'/me/achievements/journey','a featured medal links directly to its own track detail');
    await medalLink.click();await p.waitForURL('**/me/achievements/journey');await p.locator('.profile-achievement-history-head[data-achievement-code="journey"]').waitFor();
    await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();
@@ -385,7 +399,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    await p.locator('[data-card-share]').click();await p.locator('[data-unified-share]').waitFor();
    assert(!(await p.locator('.share-picture-label').allInnerTexts()).includes('Achievements'),'the picture sheet hides achievements when sharing is off');
    await screenshot('me-showcase-shared-off');await p.keyboard.press('Escape');
-  shareAchievementsEnabled=true;showcasePins=[];showcaseFixture={items:featuredItems,pinned:[],day_streak:12};await p.locator('[data-card-share]').click();await p.locator('[data-unified-share]').waitFor();
+  shareAchievementsEnabled=true;showcasePins=[];showcaseFixture={items:featuredItems,pinned:[],day_streak:12};await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();await p.locator('[data-me-featured][data-loaded="true"]').waitFor({state:'attached'});await p.locator('[data-card-share]').click();await p.locator('[data-unified-share]').waitFor();
    const achievementPicture=p.locator('[data-share-choice]').filter({hasText:'Achievements'});await achievementPicture.waitFor();await achievementPicture.click();await p.locator('[data-share-control="identity"]').waitFor();
    assert(!(await p.locator('[data-share-control="identity"]').isChecked()),'achievement identity is an explicit opt-in');
    await screenshot('me-showcase-shared-on');

@@ -4,6 +4,7 @@ const FEATURED_ACHIEVEMENT_LIMIT=4;
 const ProfileLayout=(()=>{
   const sections={recent:'Recent progress',mileage:'Distance chart',totals:'All-time totals',sports:'Sports',activities:'Activities'};
   const stats={activities:'Activities',distance:'Distance',time:'Time',active_days:'Active days'};
+  const watchedOpenProfileCards=new WeakSet();
   const sports=['run','ride','walk','hike','swim','workout','row','ski','other'];
   const defaults=()=>({sections:Object.keys(sections),stats:['activities','distance','time'],sports:[]});
   function normalize(value){
@@ -270,8 +271,8 @@ const ProfileLayout=(()=>{
     });
   }
   function achievementTrackStarted(track){return achievementLevel(track)>0||achievementRawValue(track)>0||(Array.isArray(track?.tiers)&&track.tiers.length>0);}
-  function achievementMedalValue(track){
-    const value=achievementValue(track);if(value.length<=9)return value;
+  function achievementMedalValue(track,{small=false}={}){
+    const value=achievementValue(track);if(!small&&value.length<=9)return value;
     const raw=Number(track.display_value),unit=String(track.display_unit||'').toLowerCase();if(!Number.isFinite(raw))return value;
     const compact=number=>{const n=Math.abs(number);if(n>=1e9)return `${achievementNumber(number/1e9)}b`;if(n>=1e6)return `${achievementNumber(number/1e6)}m`;if(n>=1e5)return `${Math.round(number/1e3)}k`;if(n>=1e3)return `${achievementNumber(number/1e3)}k`;return achievementNumber(number);};
     const amount=compact(raw),shortUnit=({hour:'h',hours:'h',h:'h',week:'wk',weeks:'wk',year:'yr',years:'yr',workout:'wkt',workouts:'wkt',session:'sess',sessions:'sess',mi:'mi',km:'km',ft:'ft',m:'m',lb:'lb',kg:'kg'})[unit];
@@ -298,14 +299,15 @@ const ProfileLayout=(()=>{
       return `<section class="profile-achievement-group" aria-labelledby="${id}"><h2 class="sec-head profile-achievement-group-title" id="${id}">${section.title}</h2><div class="profile-achievement-list is-grid" role="list" aria-labelledby="${id}">${grouped.map(track=>sharedAchievementRow(track,login)).join('')}</div></section>`;
     }).join('');
   }
-  function sharedAchievementRow(track,login){
-    const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),tier=achievementCurrentTier(track),href=`/people/${encodeURIComponent(login)}?view=achievements&track=${encodeURIComponent(track.code)}`;
-    return `<a class="profile-achievement" role="listitem" href="${esc(href)}" aria-label="${esc(`${label}, Level ${level}${tier?`, ${tier.name}`:''}, ${achievementValue(track)}`)}" data-achievement-code="${esc(track.code)}">${achievementMedallion(track)}<span class="profile-achievement-name">${esc(label)}</span><span class="profile-achievement-next">${esc(`Level ${level}${tier?` · ${tier.name}`:''}`)}</span></a>`;
+  function sharedAchievementRow(track,login='',{featured=false}={}){
+    const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),tier=achievementCurrentTier(track),href=login?`/people/${encodeURIComponent(login)}?view=achievements&track=${encodeURIComponent(track.code)}`:achievementHref(track);
+    const secondary=featured?' data-type="secondary"':'';
+    return `<a class="profile-achievement${featured?' me-featured-item':''}" role="listitem" href="${esc(href)}" aria-label="${esc(`${label}, Level ${level}${tier?`, ${tier.name}`:''}, ${achievementValue(track)}`)}" data-achievement-code="${esc(track.code)}"${featured?` data-showcase-code="${esc(track.code)}"`:''}>${achievementMedallion(track,{featured})}<span class="profile-achievement-name"${secondary}>${esc(label)}</span><span class="profile-achievement-next"${secondary}>${esc(`Level ${level}${tier?` · ${tier.name}`:''}`)}</span></a>`;
   }
-  function achievementMedallion(track){
-    const started=achievementTrackStarted(track),level=achievementLevel(track),value=started?achievementMedalValue(track):'',tier=achievementCurrentTier(track)||achievementTierAt(track.code,1);
-    const tone=level>=6?'deep':String(level);
-    return `<span class="profile-achievement-medallion" data-level="${level}" data-level-tone="${tone}" aria-hidden="true">${achievementAsset(tier)||achievementGlyph(track)}${started?`<span class="profile-achievement-value">${esc(value)}</span><span class="profile-achievement-level">Lv ${level}</span>${Number(tier?.multiple)>1?`<span class="profile-achievement-multiple">×${Number(tier.multiple)}</span>`:''}`:''}</span>`;
+  function achievementMedallion(track,{featured=false}={}){
+    const started=achievementTrackStarted(track),level=achievementLevel(track),value=started?achievementMedalValue(track,{small:featured}):'',tier=achievementCurrentTier(track)||achievementTierAt(track.code,1);
+    const tone=level>=6?'deep':String(level),secondary=featured?' data-type="secondary"':'';
+    return `<span class="profile-achievement-medallion" data-level="${level}" data-level-tone="${tone}" aria-hidden="true">${achievementAsset(tier)||achievementGlyph(track)}${started?`<span class="profile-achievement-value"${secondary}>${esc(value)}</span><span class="profile-achievement-level"${secondary}>Lv ${level}</span>${Number(tier?.multiple)>1?`<span class="profile-achievement-multiple"${secondary}>×${Number(tier.multiple)}</span>`:''}`:''}</span>`;
   }
   function achievementRow(track,levelUps=new Set(),pinnedCodes=new Set(),showLevelCount=false){
     const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),tier=achievementCurrentTier(track),value=achievementValue(track),next=achievementNext(track),up=levelUps.has(track.code),pinned=pinnedCodes.has(track.code),canPin=Array.isArray(track.tiers)&&track.tiers.length>0,started=achievementTrackStarted(track),earned=level>0,first=achievementTierAt(track.code,1),namedCount=achievementDefinition(track)?.levels?.length||0,maximum=namedCount&&!achievementCatalog?.tail?` of ${namedCount}`:'';
@@ -351,34 +353,44 @@ const ProfileLayout=(()=>{
     const streak=Number(data?.day_streak);if(!Number.isInteger(streak)||streak<2)return '';
     return `<span class="me-showcase-row" role="img" aria-label="${streak}-day activity streak"><span class="me-showcase-streak" aria-hidden="true">${svg('flame')}<span>${streak}-day streak</span></span></span>`;
   }
-  const featuredContexts={journey:'All-sport distance','sport:run':'Total running distance','sport:ride':'Total cycling distance','sport:walk-hike':'Walking & hiking distance','sport:swim':'Total swimming distance','sport:lift':'Lift sessions',workouts:'Workouts completed',active_time:'Active time',consistency:'Weeks with a workout',years_active:'Years active',climbing:'Elevation climbed',lifted:'Weight lifted',personal_bests:'Personal bests'};
   function featuredShowcaseMarkup(showcase,achievementData,{sharedLogin=''}={}){
     const pinned=new Set((Array.isArray(showcase?.pinned)?showcase.pinned:[]).map(String)),tracks=new Map((Array.isArray(achievementData?.tracks)?achievementData.tracks:[]).map(track=>[String(track?.code||''),track]));
     // The server's item order is the automatic top-four selection when no pins exist.
-    // Once someone pins anything, the server returns that ordered set instead.
-    const items=(Array.isArray(showcase?.items)?showcase.items:[]).filter(item=>!pinned.size||pinned.has(String(item?.code||''))).slice(0,4).map(item=>{
-      const code=String(item?.code||''),rank=Number(item?.rank),track=tracks.get(code);
-      if(!code||!Number.isInteger(rank)||rank<1||!track)return null;
-      const tier=achievementTierAt(code,rank),value=achievementValue(track),context=featuredContexts[code]||track.label||code;
-      return tier&&value?{code,name:tier.name,value,context,icon:achievementAsset(tier,'me-featured-icon'),track}:null;
+    // If the server has no pins or automatic items, fill the rail with the highest earned tracks.
+    let choices=(Array.isArray(showcase?.items)?showcase.items:[]).filter(item=>!pinned.size||pinned.has(String(item?.code||'')));
+    if(!choices.length&&pinned.size)choices=[...pinned].map(code=>({code,rank:achievementLevel(tracks.get(code)||{})}));
+    if(!choices.length&&!pinned.size)choices=[...tracks.values()].map(track=>({track,rank:achievementLevel(track)})).filter(item=>item.rank>0)
+      .sort((a,b)=>b.rank-a.rank||achievementDay(b.track).localeCompare(achievementDay(a.track))||String(a.track.code).localeCompare(String(b.track.code)))
+      .slice(0,FEATURED_ACHIEVEMENT_LIMIT).map(({track,rank})=>({code:track.code,rank}));
+    const items=choices.slice(0,FEATURED_ACHIEVEMENT_LIMIT).map(item=>{
+      const code=String(item?.code||''),track=tracks.get(code),reported=Number(item?.rank),rank=Math.max(Number.isInteger(reported)&&reported>0?reported:0,Number(track?.level)||achievementLevel(track||{}));
+      if(!code||!track||!rank)return null;
+      const tier=achievementTierAt(code,rank),value=achievementValue(track),medalTrack={...track,level:rank,_sharedAchievement:true};
+      return tier&&value?{track:medalTrack}:null;
     }).filter(Boolean);
-    if(sharedLogin&&!items.length)return '';
     const href=sharedLogin?`/people/${encodeURIComponent(sharedLogin)}?view=achievements`:'/me/achievements';
-    if(sharedLogin){
-      const heading=`<h3 class="sec-head me-featured-title" data-type="secondary"><span>Featured achievements</span><a href="${esc(href)}">See all</a></h3>`;
-      const rail=`<div class="profile-achievement-list" role="list" aria-label="Featured achievements">${items.map(item=>sharedAchievementRow(item.track,sharedLogin)).join('')}</div>`;
-      return `<div class="me-featured-achievements" role="group" aria-label="Featured achievements">${heading}${rail}</div>`;
-    }
+    if(!items.length)return sharedLogin?'':`<a class="linkbtn me-featured-empty-entry" href="${esc(href)}">Achievements ›</a>`;
     const heading=`<h3 class="me-featured-title" data-type="secondary"><span>Featured achievements</span><a href="${esc(href)}">See all</a></h3>`;
-    const grid=items.length?`<div class="me-featured-grid count-${items.length}" role="list">${items.map(item=>`<a class="me-featured-item" role="listitem" href="${esc(achievementHref(item.track))}" data-showcase-code="${esc(item.code)}" aria-label="${esc(`${item.name}, ${item.value}, ${item.context}`)}"><span class="me-featured-medal" data-showcase-code="${esc(item.code)}" aria-hidden="true">${item.icon}</span><b class="me-featured-value">${esc(item.value)}</b><span class="me-featured-context">${esc(item.context)}</span></a>`).join('')}</div>`:'';
-    return `<div class="me-featured-achievements" role="group" aria-label="Featured achievements">${heading}${grid}</div>`;
-  }
-  function fitFeaturedValues(root){
-    root.querySelectorAll('.me-featured-value').forEach(value=>window.KinettaTextFit?.fitElement(value,{minFontSize:12}));
+    const rail=`<div class="profile-achievement-list" role="list" aria-label="Featured achievements">${items.map(item=>sharedAchievementRow(item.track,sharedLogin,{featured:true})).join('')}</div>`;
+    return `<div class="me-featured-achievements" role="group" aria-label="Featured achievements">${heading}${rail}</div>`;
   }
   function addAchievementCleanup(root,cleanup){
     const previous=viewResources.get(root);
     viewResources.set(root,Object.assign(()=>{cleanup();previous?.();},{keepVisual:previous?.keepVisual}));
+  }
+  function syncMeCardOpenLink(card){
+    const link=card?.querySelector('.me-card-open-link');if(!link)return;
+    const featured=card.querySelector('.me-featured-achievements');
+    if(!featured){link.style.height='100%';return;}
+    const cardTop=card.getBoundingClientRect().top,featuredTop=featured.getBoundingClientRect().top;
+    link.style.height=`${Math.max(0,featuredTop-cardTop-8)}px`;
+  }
+  function watchMeCardOpenLink(root,card,featureSlot){
+    if(!card?.querySelector('.me-card-open-link')||!featureSlot||watchedOpenProfileCards.has(card))return;
+    watchedOpenProfileCards.add(card);
+    const sync=()=>syncMeCardOpenLink(card),resize=new ResizeObserver(sync),mutations=new MutationObserver(sync);
+    resize.observe(card);resize.observe(featureSlot);mutations.observe(card,{childList:true,subtree:true});sync();
+    addAchievementCleanup(root,()=>{resize.disconnect();mutations.disconnect();watchedOpenProfileCards.delete(card);});
   }
   function fitAchievementValues(root){
     if(!root?.querySelectorAll)return;
@@ -442,7 +454,7 @@ const ProfileLayout=(()=>{
         if(!root.isConnected||owner!==readOwner()||featureSlot&&!featureSlot.isConnected||streakSlot&&!streakSlot.isConnected)return;
         if(streakSlot){streakSlot.innerHTML=showcaseStreakMarkup(data);streakSlot.dataset.loaded='true';}
         if(!sharedProfile)achievementLevelUpHaptic(achievementLevelUps(achievements));
-        if(featureSlot){const sharedData=sharedProfile?{tracks:sharedAchievementTracks(achievements)}:achievements;featureSlot.innerHTML=featuredShowcaseMarkup(data,sharedData,sharedProfile?{sharedLogin:login}:{});fitFeaturedValues(featureSlot);featureSlot.dataset.loading='';featureSlot.dataset.loaded='true';}
+        if(featureSlot){const sharedData=sharedProfile?{tracks:sharedAchievementTracks(achievements)}:achievements;featureSlot.innerHTML=featuredShowcaseMarkup(data,sharedData,sharedProfile?{sharedLogin:login}:{});featureSlot.dataset.loading='';featureSlot.dataset.loaded='true';watchMeCardOpenLink(root,featureSlot.closest('.me-card'),featureSlot);}
       }catch(_){if(featureSlot)featureSlot.dataset.loading='';/* Achievements never block the Me card. */}
       return;
     }
@@ -534,19 +546,20 @@ const MeCard=(()=>{
   function card(p,{mine=false,pills='',friends='',link=false,milestones=false,showBio=true,featured=false}={}){
     const bio=showBio?(p.bio||'').trim():'',photo=avatar(p,'lg'),name=esc(p.name||p.login),handle=`<span data-type="secondary">@${esc(p.login)}</span>`;
     const showcase=mine?'<span class="me-showcase-streak-slot" data-me-showcase-streak></span>':featured?'':'<span class="me-showcase-slot" data-me-showcase></span>';
+    const preview=mine&&location.pathname==='/me'?`<div class="me-card-preview-row"><button type="button" class="me-card-preview-action" data-card-preview>${svg('people')}View as friend</button></div>`:'';
     const initials=((p.name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase()||'?');
     const identity=link
       ? `<span class="me-card-profile-link"><span class="me-card-avatar">${photo}</span><span class="me-card-name"><span class="me-card-name-heading"><h2>${name}</h2><span class="me-profile-chevron" aria-hidden="true">${svg('chev')}</span></span>${showcase}<span class="me-card-meta">${handle}</span></span></span>${friends}`
       : `<span class="me-card-avatar">${photo}</span><div class="me-card-name"><h2>${name}</h2>${showcase}<div class="me-card-meta">${handle}${friends}</div></div>`;
     const openProfile=link?`<a class="me-card-open-link" href="${profileHref(p)}" aria-label="Open my profile"></a>`:'';
     return `<section class="me-card${link?' me-card-open':''}" aria-label="${mine?'Your profile card':esc(p.name||p.login)+'’s profile card'}">${openProfile}<div class="me-card-banner">${pills}</div>
-      <div class="me-card-body"><div class="me-card-id${link?' me-card-id-link':''}">${identity}</div>
+      <div class="me-card-body"><div class="me-card-id${link?' me-card-id-link':''}">${identity}</div>${preview}
         ${bio?bio.length>140?`<details class="me-about"><summary>About me</summary><p>${esc(bio)}</p></details>`:`<p class="me-profile-bio">${esc(bio)}</p>`:''}
         <div class="me-card-sections" aria-busy="true">${skel(1)}</div>${featured?'<div class="me-featured-slot" data-me-featured></div>':''}
         ${milestones?'<div data-me-milestones hidden></div>':''}</div></section>`;
   }
   const paintBars=box=>$$('.me-card-bars span[data-h]',box).forEach(bar=>bar.style.height=(bar.dataset.h==='0'?'0':Math.max(4,bar.dataset.h*5))+'px');
-  let openingShare=false;
+  let openingShare=false,openingPreview=false;
   async function shareSheet(){
     if(openingShare)return;openingShare=true;const owner=readOwner(),login=App.me.login;
     try{
@@ -565,6 +578,28 @@ const MeCard=(()=>{
       ShareSheet.open({items});
     }catch(error){if(owner===readOwner())toast(error.message||'Couldn’t prepare your pictures.');}
     finally{openingShare=false;}
+  }
+  function viewAsFriend(){
+    if(openingPreview)return;openingPreview=true;
+    const owner=readOwner(),login=String(App.me?.login||'');
+    const load=async host=>{
+      if(!host?.isConnected)return;
+      host.setAttribute('aria-busy','true');host.innerHTML='<p class="small muted" role="status">Loading your shared profile…</p>';
+      try{
+        const profile=await api('/api/people/'+encodeURIComponent(login)+'/profile?as_friend=true&preview=member&limit=1');
+        if(!host.isConnected||owner!==readOwner())return;
+        if(profile.profile_hidden)throw Error('Your profile is hidden until your account is confirmed and active.');
+        if(profile.preview!=='member')throw Error('The shared profile preview is unavailable.');
+        const view={...profile,mine:false},friends=Number.isInteger(profile.friend_count)?`<span class="me-friends-link">${svg('people')}<span>${friendCountText(profile.friend_count)}</span></span>`:'';
+        host.innerHTML=card(profile.person,{mine:false,friends,featured:true,showBio:true});
+        mount(host,{data:view,full:true});ProfileLayout.mount(host,view);host.setAttribute('aria-busy','false');
+      }catch(error){
+        if(!host.isConnected||owner!==readOwner())return;
+        host.innerHTML=`<p class="small err" role="alert">${esc(error?.message||'Your shared profile could not load.')}</p><button type="button" class="linkbtn" data-profile-preview-retry>Try again</button>`;
+        $('[data-profile-preview-retry]',host).onclick=()=>load(host);
+      }finally{openingPreview=false;}
+    };
+    sheet('This is what friends see','<div class="me-friend-preview" data-profile-preview aria-busy="true"><p class="small muted" role="status">Loading your shared profile…</p></div>',body=>load($('[data-profile-preview]',body)));
   }
   const ownPills=()=>`<button type="button" class="me-card-pill" data-card-edit>${svg('edit')}Edit</button><button type="button" class="me-card-pill" data-card-share aria-label="Share your profile">${svg('share')}</button>`;
   function ownFriends(count){
@@ -602,12 +637,12 @@ const MeCard=(()=>{
       return '';
     };
     const day=d=>fdate(d+'T12:00',{month:'short',day:'numeric'}),streak=Number(r.week_streak);
-    const closeTo=typeof r.close_to==='string'&&r.close_to.trim()?`<p class="me-card-close-to small muted" data-close-to>${esc(r.close_to)}</p>`:'';
+    const closeTo=typeof r.close_to==='string'&&r.close_to.trim()?`<p class="me-card-close-to small muted" data-close-to><span class="me-owner-only" data-type="secondary">Only you</span><span>${esc(r.close_to)}</span></p>`:'';
     const chart=weeks.length?`<div class="me-chart-scroll"><div class="me-card-bars" role="group" aria-label="Weekly distance, last 12 weeks">${weeks.map((w,i)=>{
       const zero=!(Number(w.distance_m)>0),h=zero?0:Math.max(1,Math.round(Number(w.distance_m)/Math.max(1,...weeks.map(row=>Number(row.distance_m)||0))*10)),label=w.today?'This week':`Week of ${day(w.d)}`,axisMonth=month(w,i),value=weekMetrics(w),aria=`${label}${axisMonth?`, ${axisMonth}`:''}: ${value.distance} ${U.du()}, ${value.activities} ${value.activities==='1'?'workout':'workouts'}, ${value.time}`;
       return `<button type="button" class="me-week${w.today?' now':''}${zero?' zero':''}" aria-pressed="false" data-range="${esc(w.d)}" data-distance="${esc(w.distance_m||0)}" data-activities="${esc(w.activities||0)}" data-time="${esc(w.time_s||0)}" data-current="${w.today?'true':'false'}" aria-label="${esc(aria)}"><span data-h="${h}"></span><span class="me-week-month" data-type="chart" aria-hidden="true">${esc(axisMonth)}</span></button>`;
     }).join('')}</div></div>`:'';
-    const streakSlot=Number.isInteger(streak)&&streak>=2?`<span class="me-week-streak" data-week-streak="${streak}" role="img" aria-label="${streak}-week activity streak">${svg('flame')}<span aria-hidden="true">${streak}-week streak</span></span>`:'';
+    const streakSlot=Number.isInteger(streak)&&streak>=2?`<span class="me-week-streak" data-week-streak="${streak}" role="img" aria-label="${streak}-week activity streak. Only you can see this.">${svg('flame')}<span aria-hidden="true">${streak}-week streak</span><span class="me-owner-only" data-type="secondary">Only you</span></span>`:'';
     return `<div class="me-card-sec me-card-weekly"><div class="me-card-head"><div class="me-card-label" data-week-label aria-live="polite"><span>This week</span></div>${streakSlot}</div>
       <dl class="me-card-numbers me-numbers-3"><div data-week-stat="distance"><dd><b class="me-metric-value" data-type="stat" data-week-value="distance">${esc(values.distance)}</b></dd><dt data-type="secondary">Distance <small>(${esc(U.du())})</small></dt></div><div data-week-stat="activities"><dd><b class="me-metric-value" data-type="stat" data-week-value="activities">${esc(values.activities)}</b></dd><dt data-type="secondary">Workouts</dt></div><div data-week-stat="time"><dd><b class="me-metric-value" data-type="stat" data-week-value="time">${esc(values.time)}</b></dd><dt data-type="secondary">Time</dt></div></dl>
       ${chart}${closeTo}</div><div class="me-featured-slot" data-me-featured></div>`;
@@ -823,6 +858,7 @@ const MeCard=(()=>{
     if(data?.mine===false){ProfileLayout.mountShowcase(root,data);draw();return {};}
     $('[data-card-edit]',card).onclick=edit;
     $('[data-card-share]',card).onclick=shareSheet;
+    $('[data-card-preview]',card)?.addEventListener('click',viewAsFriend);
     if(data)draw();else loadCard();
     return {edit};
   }
