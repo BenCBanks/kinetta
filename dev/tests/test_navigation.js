@@ -50,7 +50,7 @@ const app=fs.readFileSync('app/static/app.js','utf8');
  for(const path of old)assert(patterns.some(re=>re.test(path)),path+' remains routable');
  const lazyStart=app.indexOf('const lazyRouteBundles = ['),lazyEnd=app.indexOf('\n];',lazyStart),lazyRoutes=app.slice(lazyStart,lazyEnd);
  assert(app.includes("const PLAN_ROUTE_ASSET = '/static/plan.js?v=__ASSET_HASH__';"),'Plan uses the stamped lazy asset URL');
- assert(lazyRoutes.includes('plan$')&&lazyRoutes.includes('scripts: [PLAN_ROUTE_ASSET]'),'direct Training plan navigation loads its own route bundle');
+ assert(lazyRoutes.includes('plan$')&&lazyRoutes.includes('scripts: [INTERVALS_ROUTE_ASSET, PLAN_ROUTE_ASSET]'),'direct Training plan navigation loads interval support before its route bundle');
  assert(!fs.readFileSync('app/static/index.html','utf8').includes('/static/plan.js'),'Training plan is absent from eager script tags');
  const eagerFood=fs.readFileSync('app/static/food.js','utf8'),deferredFood=fs.readFileSync('app/static/food-import.js','utf8');
  const imports=(source)=>source.split('\n').filter(line=>line.startsWith('route(')&&line.includes('food\\/import'));

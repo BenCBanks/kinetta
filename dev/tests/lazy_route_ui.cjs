@@ -1,6 +1,7 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict');
 const {setProgressFlags}=require('./progress_flags_fixture.cjs');
+const trackFixture=require('../demo/track_session.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798';
 const password='green teapot on the hill';
 const user='zz_test_explore_new';
@@ -188,7 +189,7 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
  page.on('pageerror',error=>errors.push(error.message));
  await page.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
-  if(['/static/plan.js','/static/planner.js','/static/progress-routes.js','/static/segments.js'].includes(url.pathname)){
+  if(['/static/intervals.js','/static/plan.js','/static/planner.js','/static/progress-routes.js','/static/segments.js'].includes(url.pathname)){
    assets.push(url.pathname);const attempts=assets.filter(path=>path===url.pathname).length;
    if(fail===url.pathname&&attempts===1)return route.abort();
    if(hold===url.pathname&&!heldOnce){heldOnce=true;signalHeld();await gate;}
@@ -203,6 +204,37 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
  });
  return {context,page,assets,errors,writes,previews,held,release:()=>releaseHeld()};
 }
+async function activeIntervalFixture(browser){
+ const context=await fixtureContext(browser);await login(context);
+ const me=await(await context.request.get(base+'/api/me')).json(),page=await context.newPage(),assets=[],errors=[],writes=[];
+ const preset=require('./fixtures/interval_presets.json')[0],recording=trackFixture();
+ recording.native=true;recording.gps=false;recording.points=[];recording.distance=0;recording.splits=[];recording.state='recording';recording.intervals={pin:preset.pin,phases:preset.expected_steps,index:0,status:'running',time:30,distance:90,phase_time:0,phase_distance:0,phase_ignored_distance:0,results:[],effects:[]};
+ await page.addInitScript(({base,id,recording})=>localStorage.setItem('kinetta.track:'+JSON.stringify([base,id]),JSON.stringify(recording)),{base,id:me.id,recording});
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.route('**/*',async route=>{
+  const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
+  if(url.pathname==='/static/intervals.js')assets.push(url.pathname);
+  if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204});
+  if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
+  return route.continue();
+ });
+ return{context,page,assets,errors,writes,recording};
+}
+async function getAppLogoutFixture(browser){
+ const context=await browser.newContext({viewport:{width:390,height:844},colorScheme:'light',serviceWorkers:'block',isMobile:true,hasTouch:true,userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'});
+ await login(context);const me=await(await context.request.get(base+'/api/me')).json(),page=await context.newPage(),assets=[],errors=[];
+ const ownKey='intervals:'+JSON.stringify([base,me.id])+':selected',foreignKey='intervals:'+JSON.stringify([base,me.id+1])+':selected',ownValue=JSON.stringify({fixture:'own'}),foreignValue=JSON.stringify({fixture:'foreign'});
+ await page.addInitScript(({ownKey,foreignKey,ownValue,foreignValue})=>{localStorage.setItem('kinetta.getApp',JSON.stringify('1'));localStorage.setItem(ownKey,ownValue);localStorage.setItem(foreignKey,foreignValue);},{ownKey,foreignKey,ownValue,foreignValue});
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.route('**/*',async route=>{
+  const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
+  if(url.pathname==='/static/intervals.js'){assets.push(url.pathname);return route.abort();}
+  if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204});
+  if(!['GET','HEAD'].includes(request.method())&&url.pathname!=='/api/logout')return route.abort();
+  return route.continue();
+ });
+ return{context,page,assets,errors,ownKey,foreignKey,ownValue,foreignValue};
+}
 async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
  const context=await fixtureContext(browser);await login(context);
  const page=await context.newPage(),assets=[],errors=[],writes=[];let plannerAttempts=0;
@@ -210,7 +242,7 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
  page.on('pageerror',error=>errors.push(error.message));
  await page.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
-  if(['/static/planner.js','/static/segments.js'].includes(url.pathname)){
+  if(['/static/intervals.js','/static/planner.js','/static/segments.js'].includes(url.pathname)){
    assets.push(url.pathname);
    if(url.pathname==='/static/planner.js'&&++plannerAttempts===1&&failPlannerFirst)return route.abort();
    return route.continue();
@@ -773,13 +805,19 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
   const progressMe=await progressFixture(browser);
   try{
     await progressMe.page.goto(base+'/me');await ready(progressMe.page,meReady,'Me before Progress and Segments routes');
-    assert.deepEqual(progressMe.assets,[],'secondary Progress routes and Segments are absent from initial Me');
+    assert.deepEqual(progressMe.assets,[],'secondary Progress routes, Segments and intervals are absent from initial Me');
+    assert.equal(await progressMe.page.evaluate(()=>typeof Intervals),'undefined','cold Me has no intervals code');
+    assert.equal(await progressMe.page.locator('script[src*="/static/intervals.js"]').count(),0,'intervals has no eager script tag');
     assert.equal(await progressMe.page.evaluate(()=>typeof clearSegmentDrafts),'function','account cleanup stays eager without Planner');
     assert.equal(await progressMe.page.locator('script[src*="/static/segments.js"]').count(),0,'Segments has no eager script tag');
     assert.equal(await progressMe.page.locator('script[src*="/static/planner.js"]').count(),0,'Planner has no eager script tag');
     assert.equal(await progressMe.page.locator('script[src*="/static/plan.js"]').count(),0,'Training plan has no eager script tag');
     assert.equal(await progressMe.page.evaluate(()=>App.pages.some(item=>item.re.test('/plan'))),false,'Training plan route registers on demand');
     assert.equal(await progressMe.page.evaluate(()=>App.pages.some(item=>item.re.test('/progress/trends'))),false,'secondary Progress routes register only after their bundle loads');
+    await progressMe.page.evaluate(()=>go('/me/settings'));
+    await until(progressMe.page,()=>App.pageReady&&location.pathname==='/me/settings'&&typeof Intervals==='object','settings cleanup dependency');
+    assert.deepEqual(progressMe.assets,['/static/intervals.js'],'Settings loads interval cleanup only when needed');
+    assert.equal(await progressMe.page.evaluate(()=>typeof Intervals.clear),'function','account deletion can still clear interval storage');
     const cleanup=await progressMe.page.evaluate(()=>{
       const server=serverKey(),id=App.me.id,other=String(id+1);
       const mine=`kinetta.planDraft:${server}:${id}:segment-new`,foreign=`kinetta.planDraft:${server}:${other}:segment-new`;
@@ -791,11 +829,34 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     assert.deepEqual(cleanup,{mine:null,foreign:'foreign',map:null,foreignMap:'foreign-map',review:null},'Planner cleanup removes only the signed-in account drafts');
   }finally{await progressMe.context.close();}
 
+  const intervalResume=await activeIntervalFixture(browser);
+  try{
+    await intervalResume.page.goto(base+'/me');await ready(intervalResume.page,meReady,'cold Me with a fictional active native interval workout');
+    assert.deepEqual(intervalResume.assets,[],'cold Me does not load interval code for native resume state');
+    assert.equal(await intervalResume.page.evaluate(()=>typeof Intervals),'undefined','native workout restoration does not need the interval bundle');
+    assert.equal(await intervalResume.page.evaluate(()=>Track.active),true,'Track.sync restores the existing native interval session on cold Me');
+    await intervalResume.page.evaluate(()=>go('/track'));await ready(intervalResume.page,'#interval-live .interval-current','Track after restoring the native interval session');
+    assert.deepEqual(intervalResume.assets,['/static/intervals.js'],'Track loads interval rendering once on demand');
+    assert.equal(await intervalResume.page.evaluate(()=>Track.active),true,'loading interval rendering leaves the workout active');
+    assert.equal(await intervalResume.page.evaluate(()=>JSON.parse(localStorage.getItem('kinetta.track:'+JSON.stringify([location.origin,App.me.id]))).intervals.index),0,'the active interval step survives route loading');
+    assert.deepEqual(intervalResume.errors,[]);assert.deepEqual(intervalResume.writes,[]);
+  }finally{await intervalResume.context.close();}
+
+  const getAppLogout=await getAppLogoutFixture(browser);
+  try{
+    await getAppLogout.page.goto(base+'/me');await getAppLogout.page.locator('#ga-out').waitFor();
+    assert.equal(await getAppLogout.page.evaluate(()=>typeof Intervals),'undefined','Get App logout starts with the lazy bundle unloaded');
+    const loggedOut=getAppLogout.page.waitForResponse(response=>new URL(response.url()).pathname==='/api/logout'&&response.request().method()==='POST');
+    await getAppLogout.page.locator('#ga-out').click();await loggedOut;
+    assert.deepEqual(await getAppLogout.page.evaluate(({ownKey,foreignKey})=>[localStorage.getItem(ownKey),localStorage.getItem(foreignKey)],{ownKey:getAppLogout.ownKey,foreignKey:getAppLogout.foreignKey}),[null,getAppLogout.foreignValue],'logout clears only the current owner interval key without loading the bundle');
+    assert.deepEqual(getAppLogout.assets,[],'logout does not fetch intervals.js');assert.deepEqual(getAppLogout.errors,[]);
+  }finally{await getAppLogout.context.close();}
+
   const planDirect=await progressFixture(browser);
   try{
     await planDirect.page.goto(base+'/plan');await ready(planDirect.page,'.plan-page','direct Training plan route');
     assert.equal(new URL(planDirect.page.url()).pathname,'/plan');
-    assert.deepEqual(planDirect.assets,['/static/plan.js'],'direct Training plan opens its single route bundle');
+    assert.deepEqual(planDirect.assets,['/static/intervals.js','/static/plan.js'],'direct Training plan loads interval support before Plan');
     assert.deepEqual(planDirect.previews,['/api/plans/preview'],'the preview request is read-only and distinct from saving a plan');
     assert.deepEqual(planDirect.errors,[]);assert.deepEqual(planDirect.writes,[]);
   }finally{await planDirect.context.close();}
@@ -806,7 +867,7 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     const link=planFromMe.page.locator('.me-tools a[href="/plan"]');assert.equal(await link.count(),1,'Me keeps its Training plan entry');
     await link.click();await ready(planFromMe.page,'.plan-page','Training plan after an in-app Me tap');
     assert.equal(new URL(planFromMe.page.url()).pathname,'/plan');
-    assert.deepEqual(planFromMe.assets,['/static/plan.js'],'in-app navigation loads Training plan once on first tap');
+    assert.deepEqual(planFromMe.assets,['/static/intervals.js','/static/plan.js'],'in-app navigation loads interval support before Training plan');
     assert.deepEqual(planFromMe.previews,['/api/plans/preview'],'in-app Plan opening only computes its read-only preview');
     assert.deepEqual(planFromMe.errors,[]);assert.deepEqual(planFromMe.writes,[]);
   }finally{await planFromMe.context.close();}
@@ -816,16 +877,34 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     await planRetry.page.goto(base+'/plan',{waitUntil:'domcontentloaded'});await planRetry.page.locator('.load-error').waitFor();
     assert.equal(new URL(planRetry.page.url()).pathname,'/plan','a failed direct Training plan load keeps its route');
     await planRetry.page.locator('#retry').click();await ready(planRetry.page,'.plan-page','Training plan after explicit retry');
-    assert.deepEqual(planRetry.assets,['/static/plan.js','/static/plan.js'],'Training plan retries a failed bundle exactly once');
+    assert.deepEqual(planRetry.assets,['/static/intervals.js','/static/plan.js','/static/plan.js'],'Training plan retries its failed bundle without reloading intervals');
     assert.deepEqual(planRetry.previews,['/api/plans/preview'],'retry computes the preview without saving a plan');
     assert.deepEqual(planRetry.errors,[]);assert.deepEqual(planRetry.writes,[]);
   }finally{await planRetry.context.close();}
 
+  const intervalsRetry=await progressFixture(browser,{fail:'/static/intervals.js'});
+  try{
+    await intervalsRetry.page.goto(base+'/plan',{waitUntil:'domcontentloaded'});await intervalsRetry.page.locator('.load-error').waitFor();
+    assert.deepEqual(intervalsRetry.assets,['/static/intervals.js'],'Plan waits for its interval dependency before requesting Plan');
+    await intervalsRetry.page.locator('#retry').click();await ready(intervalsRetry.page,'.plan-page','Plan after interval dependency retry');
+    assert.deepEqual(intervalsRetry.assets,['/static/intervals.js','/static/intervals.js','/static/plan.js'],'a failed interval dependency retries first, then loads Plan once');
+    assert.deepEqual(intervalsRetry.errors,[]);assert.deepEqual(intervalsRetry.writes,[]);
+  }finally{await intervalsRetry.context.close();}
+
+  const trackRoute=await progressFixture(browser);
+  try{
+    await trackRoute.page.goto(base+'/track');await ready(trackRoute.page,'#track-start','Track after its interval dependency');
+    assert.deepEqual(trackRoute.assets,['/static/intervals.js'],'Track loads interval controls before rendering');
+    assert.equal(await trackRoute.page.evaluate(()=>typeof Intervals.startOptions),'function');
+    assert.deepEqual(trackRoute.errors,[]);assert.deepEqual(trackRoute.writes,[]);
+  }finally{await trackRoute.context.close();}
+
   const activitySegment=await activitySegmentFixture(browser,{failPlannerFirst:true});
   try{
     await activitySegment.page.goto(base+`/activity/${activitySegment.activityId}`);await ready(activitySegment.page,'.compact-detail-title','activity detail before its segment action');
+    assert.equal(await activitySegment.page.evaluate(()=>typeof Intervals.history),'function','Activity detail has its interval history renderer');
     await activitySegment.page.locator('#d-segments').scrollIntoViewIfNeeded();await activitySegment.page.locator('#sa-seg').waitFor();
-    assert.deepEqual(activitySegment.assets,['/static/segments.js'],'Activity detail loads Segments without eagerly loading Planner');
+    assert.deepEqual(activitySegment.assets,['/static/segments.js','/static/intervals.js'],'Activity detail loads interval history after Segments without eagerly loading Planner');
     const iconSnapshot=await activitySegment.page.evaluate(()=>({icons:Object.fromEntries(['route','info','list','up','flag'].map(key=>[key,IC[key]])),other:IC.other}));
     const sharedIcons=iconSnapshot.icons;
     assert(Object.values(sharedIcons).every(icon=>icon&&icon!==iconSnapshot.other),'route/action icons have eager shared paths before Planner loads');
@@ -834,7 +913,7 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     assert.match(await activitySegment.page.locator('#toast').innerText(),/Segment tools could not load.*tap again to retry/i,'failed Planner load leaves a visible retry message');
     assert.equal(activitySegment.assets.filter(path=>path==='/static/planner.js').length,1,'the first tap attempts the deferred Planner bundle');
     await activitySegment.page.locator('#sa-seg').click();await activitySegment.page.locator('#st-use').waitFor();
-    assert.deepEqual(activitySegment.assets,['/static/segments.js','/static/planner.js','/static/planner.js'],'the second tap retries Planner and opens the stretch sheet');
+    assert.deepEqual(activitySegment.assets,['/static/segments.js','/static/intervals.js','/static/planner.js','/static/planner.js'],'the second tap retries Planner after interval history is loaded and opens the stretch sheet');
     assert.deepEqual(await activitySegment.page.evaluate(()=>Object.fromEntries(['route','info','list','up','flag'].map(key=>[key,IC[key]]))),sharedIcons,'loading Planner does not replace shared eager icons');
     assert.deepEqual(activitySegment.errors,[],'Activity first-tap and retry have no uncaught browser errors');assert.deepEqual(activitySegment.writes,[]);
   }finally{await activitySegment.context.close();}
@@ -901,6 +980,29 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     assert.equal(new URL(progressStale.page.url()).pathname,'/me','a late Segments bundle cannot replace newer navigation');
     assert.equal(await progressStale.page.locator('#sg-list').count(),0);assert.deepEqual(progressStale.errors,[]);assert.deepEqual(progressStale.writes,[]);
   }finally{progressStale.release();await progressStale.context.close();}
+
+  const intervalsStalePath=await progressFixture(browser,{hold:'/static/intervals.js'});
+  try{
+    await intervalsStalePath.page.goto(base+'/track',{waitUntil:'domcontentloaded'});await intervalsStalePath.page.locator('.lazy-route-loading').waitFor();await intervalsStalePath.held;
+    await intervalsStalePath.page.locator('nav.tabs a[data-tab="me"]').click();await ready(intervalsStalePath.page,meReady,'Me while intervals is loading for Track');
+    intervalsStalePath.release();await until(intervalsStalePath.page,()=>classicScriptsLoaded.has(INTERVALS_ROUTE_ASSET),'interval script completion after leaving Track');
+    assert.equal(new URL(intervalsStalePath.page.url()).pathname,'/me','a late intervals bundle cannot replace newer navigation');
+    assert.equal(await intervalsStalePath.page.locator('#track-start').count(),0);assert.deepEqual(intervalsStalePath.errors,[]);assert.deepEqual(intervalsStalePath.writes,[]);
+  }finally{intervalsStalePath.release();await intervalsStalePath.context.close();}
+
+  const intervalsStaleOwner=await progressFixture(browser,{hold:'/static/intervals.js'});
+  try{
+    await intervalsStaleOwner.page.goto(base+'/plan',{waitUntil:'domcontentloaded'});await intervalsStaleOwner.page.locator('.lazy-route-loading').waitFor();await intervalsStaleOwner.held;
+    await intervalsStaleOwner.page.evaluate(()=>{window.intervalRouteOwners=[];const original=render;window.render=options=>{if(options?.routePosition)window.intervalRouteOwners.push({login:App.me.login,ownerMatches:options.routePosition.owner===readOwner()});return original(options);};});
+    await login(intervalsStaleOwner.context,'zz_test_explore_typical');
+    const meResponse=await intervalsStaleOwner.context.request.get(base+'/api/me');assert.equal(meResponse.status(),200);
+    const me=await meResponse.json();await intervalsStaleOwner.page.evaluate(profile=>refreshMe(profile),me);
+    await until(intervalsStaleOwner.page,()=>App.me.login==='zz_test_explore_typical'&&!!document.querySelector('.lazy-route-loading'),'new owner while intervals is loading');
+    intervalsStaleOwner.release();await ready(intervalsStaleOwner.page,'.plan-page','Plan for the current fictional owner');
+    assert.deepEqual(intervalsStaleOwner.assets,['/static/intervals.js','/static/plan.js'],'one shared interval request completes before Plan mounts for the new owner');
+    assert.deepEqual(await intervalsStaleOwner.page.evaluate(()=>window.intervalRouteOwners),[{login:'zz_test_explore_typical',ownerMatches:true}],'the stale owner continuation never renders, and the new owner gets one guarded render');
+    assert.deepEqual(intervalsStaleOwner.errors,[]);assert.deepEqual(intervalsStaleOwner.writes,[]);
+  }finally{intervalsStaleOwner.release();await intervalsStaleOwner.context.close();}
   console.log('Progress/Segments lazy routes: cold deep links, back/forward, retries and stale navigation PASS');
   }finally{setProgressFlags(false);}
 

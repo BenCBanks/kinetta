@@ -58,15 +58,18 @@ const RECIPE_IMPORT_ROUTE_ASSET = '/static/recipe-import.js?v=__ASSET_HASH__';
 const SOCIAL_ROUTE_ASSET = '/static/social.js?v=__ASSET_HASH__';
 const PLAN_ROUTE_ASSET = '/static/plan.js?v=__ASSET_HASH__';
 const QR_CODE_ASSET = '/static/vendor/qrcode.js?v=__ASSET_HASH__';
+const INTERVALS_ROUTE_ASSET = '/static/intervals.js?v=__ASSET_HASH__';
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: ['/static/welcome.js?v=__ASSET_HASH__']},
   {re: /^\/me\/explore$/, tab: 'track', scripts: [SOCIAL_ROUTE_ASSET, '/static/explore.js?v=__ASSET_HASH__']},
   {re: /^\/progress$/, tab: 'progress', scripts: [SOCIAL_ROUTE_ASSET]},
-  {re: /^\/plan$/, tab: 'progress', scripts: [PLAN_ROUTE_ASSET]},
+  {re: /^\/plan$/, tab: 'progress', scripts: [INTERVALS_ROUTE_ASSET, PLAN_ROUTE_ASSET]},
+  {re: /^\/track$/, tab: 'track', scripts: [INTERVALS_ROUTE_ASSET]},
+  {re: /^\/me\/settings$/, tab: 'me', scripts: [INTERVALS_ROUTE_ASSET]},
   {re: /^\/routes(?:\/.*)?$/, tab: 'track', scripts: [PLANNER_ROUTE_ASSET]},
   {re: /^\/activity$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/activity\/friends\/\d+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
-  {re: /^\/activity\/\d+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET]},
+  {re: /^\/activity\/\d+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET, INTERVALS_ROUTE_ASSET]},
   {re: /^\/people\/([^/]+)$/, tab: login => App.me && decodeURIComponent(login).toLowerCase() === App.me.login.toLowerCase() ? 'me' : 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/add\/[\w-]+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/me\/friends(?:\/contacts)?$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET]},
@@ -132,6 +135,13 @@ function clearSegmentDrafts() {
   }
   sessionStorage.removeItem(`kinetta.segmentReview:${server}:${id}`);
   if (typeof Segments !== 'undefined') Segments.pending = null;
+}
+// Clear the signed-in owner's interval choices without making logout depend on the lazy bundle.
+function clearIntervalDrafts(account=App.me) {
+  if (!account?.id) return;
+  const prefix=`intervals:${JSON.stringify([Native.base||location.origin,account.id])}:`;
+  try { for (const key of Object.keys(localStorage)) if(key.startsWith(prefix))localStorage.removeItem(key); } catch (_) { /* local cleanup is best effort */ }
+  if(App.me?.id===account.id)globalThis.Intervals?.clear();
 }
 let pendingDishEntry = null;
 async function loadNewDish(btn, where = null) {
@@ -2009,7 +2019,7 @@ async function showGetApp() {
     ${link ? `<a class="primary wide" href="${esc(link)}" target="_blank" rel="noopener">Get the Kinetta iPhone app</a>` : ''}
     ${me?.needs_email_confirm ? `<p class="small muted">We also sent a link to ${esc(who)}. Open it to confirm your email.</p>` : ''}
     <p class="small muted">Not on an iPhone? <a href="/" id="ga-out">Log out</a> and log in from a computer or another phone’s browser.</p></div></div>`;
-  $('#ga-out', root).onclick = async (e) => { e.preventDefault(); try { await api('/api/logout', json('POST', {})); } catch (x) { /* the login screen still shows */ } store.del('kinetta.getApp'); globalThis.Intervals?.clear(); forgetKept(); App.me = null; history.replaceState(null, '', '/'); showLogin(); };
+  $('#ga-out', root).onclick = async (e) => { e.preventDefault(); clearIntervalDrafts(me); try { await api('/api/logout', json('POST', {})); } catch (x) { /* the login screen still shows */ } store.del('kinetta.getApp'); forgetKept(); App.me = null; history.replaceState(null, '', '/'); showLogin(); };
 }
 // A friend's invite link opened without the app (2026-10-26). With the iPhone app installed, the link opens the app
 // itself; here: who sent it, the app first on an iPhone, then sign up or log in on the web.
