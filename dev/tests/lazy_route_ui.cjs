@@ -960,7 +960,7 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
   try{
     await intervalsStalePath.page.goto(base+'/track',{waitUntil:'domcontentloaded'});await intervalsStalePath.page.locator('.lazy-route-loading').waitFor();await intervalsStalePath.held;
     await intervalsStalePath.page.locator('nav.tabs a[data-tab="me"]').click();await ready(intervalsStalePath.page,meReady,'Me while intervals is loading for Track');
-    intervalsStalePath.release();await intervalsStalePath.page.waitForTimeout(100);
+    intervalsStalePath.release();await until(intervalsStalePath.page,()=>classicScriptsLoaded.has(INTERVALS_ROUTE_ASSET),'interval script completion after leaving Track');
     assert.equal(new URL(intervalsStalePath.page.url()).pathname,'/me','a late intervals bundle cannot replace newer navigation');
     assert.equal(await intervalsStalePath.page.locator('#track-start').count(),0);assert.deepEqual(intervalsStalePath.errors,[]);assert.deepEqual(intervalsStalePath.writes,[]);
   }finally{intervalsStalePath.release();await intervalsStalePath.context.close();}
