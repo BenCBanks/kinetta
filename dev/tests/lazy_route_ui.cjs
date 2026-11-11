@@ -93,7 +93,7 @@ async function foodRouteFixture(browser,{hold=false,failFirst=false,instrument=f
  await page.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url());
   if(url.origin!==base)return route.abort();
-  if(['/static/food.js','/static/kit.js','/static/cook.js','/static/recipe-import.js'].includes(url.pathname)){
+  if(['/static/food.js','/static/kit.js','/static/cook.js','/static/recipe-import.js','/static/onboarding.js'].includes(url.pathname)){
    assets.push(url.pathname);
    const count=(attempts.get(url.pathname)||0)+1;attempts.set(url.pathname,count);
    if(url.pathname===failedPath&&count===1)return route.abort();
@@ -569,6 +569,9 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
   try{
     await foodWarm.page.goto(base+'/me');await ready(foodWarm.page,meReady,'Me before Food warm-up');
     assert.deepEqual(foodWarm.assets,[],'Food and Kit route bundles are absent before useful Me is ready');
+    assert.equal(foodWarm.assetAttempts('/static/onboarding.js'),0,'cold Me does not request the optional Food setup route');
+    assert.equal(await foodWarm.page.locator('script[src*="/static/onboarding.js"]').count(),0,'onboarding.js is not an eager script tag');
+    assert.equal(await foodWarm.page.evaluate(()=>App.pages.some(item=>item.re.test('/food/setup'))),false,'the setup route registers only when opened');
     assert.deepEqual(await foodWarm.page.evaluate(()=>[typeof kitFoodWords,typeof weightAddress,typeof refreshWeightData,typeof guardFoodSheet,typeof KitChat.href,KitChat.loaded]),['function','function','function','function','function',false],'small shared Food and Kit entry seams stay eager');
     await foodWarm.page.evaluate(()=>{window.__foodWarmCalls=0;const original=loadClassicScript;window.loadClassicScript=asset=>{if(asset===FOOD_ROUTE_ASSET)window.__foodWarmCalls++;return original(asset);};});
     const warmed=foodWarm.page.waitForRequest(request=>new URL(request.url()).pathname==='/static/food.js');
@@ -592,8 +595,36 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     await foodWarm.page.waitForFunction(()=>KitChat.loaded&&classicScriptsLoaded.has(KIT_ROUTE_ASSET));
     assert.equal(foodWarm.assets.filter(path=>path==='/static/food.js').length,1,'tab intent and idle deduplicate Food loading');
     assert.equal(foodWarm.assets.filter(path=>path==='/static/kit.js').length,1,'Kit loads after Me is ready, not on its initial path');
+    assert.equal(foodWarm.assetAttempts('/static/onboarding.js'),0,'opening Nutrition does not load the separate setup route');
     assert.equal(new URL(foodWarm.page.url()).pathname,'/food');assert.deepEqual(foodWarm.errors,[]);assert.deepEqual(foodWarm.writes,[]);
   }finally{foodWarm.release();await foodWarm.context.close();}
+
+  const onboardingDirect=await foodRouteFixture(browser);
+  try{
+    await onboardingDirect.page.goto(base+'/food/setup?source=me',{waitUntil:'domcontentloaded'});
+    await ready(onboardingDirect.page,'#gs-form','cold direct Food setup route');
+    assert.equal(new URL(onboardingDirect.page.url()).pathname,'/food/setup');
+    assert.equal(new URL(onboardingDirect.page.url()).search,'?source=me','direct setup preserves its query string');
+    assert.deepEqual(onboardingDirect.assets,['/static/food.js','/static/onboarding.js'],'setup loads Food globals before the onboarding route');
+    assert.equal(await onboardingDirect.page.locator('nav.tabs a[data-tab="food"]').getAttribute('aria-current'),'page','direct setup keeps Nutrition selected');
+    const scriptUrl=await onboardingDirect.page.locator('script[src*="/static/onboarding.js"]').evaluate(el=>el.src);
+    assert.match(new URL(scriptUrl).searchParams.get('v')||'',/^[0-9a-f]{32}$/,'onboarding uses its build-stamped asset URL');
+    await onboardingDirect.page.locator('input[name="goal"][value="fuel_training"]').check();
+    assert.deepEqual(onboardingDirect.writes,[],'opening and editing setup does not write before an explicit save');
+    assert.deepEqual(onboardingDirect.errors,[]);
+  }finally{onboardingDirect.release();await onboardingDirect.context.close();}
+
+  const onboardingRetry=await foodRouteFixture(browser,{failAsset:'/static/onboarding.js'});
+  try{
+    await onboardingRetry.page.goto(base+'/food/setup?source=me',{waitUntil:'domcontentloaded'});await onboardingRetry.page.locator('.load-error').waitFor();
+    assert.equal(new URL(onboardingRetry.page.url()).pathname,'/food/setup','a failed setup bundle keeps the direct route');
+    assert.equal(onboardingRetry.assetAttempts('/static/food.js'),1,'retryable setup keeps its Food prerequisite loaded');
+    assert.equal(onboardingRetry.assetAttempts('/static/onboarding.js'),1);assert(await onboardingRetry.page.locator('#retry').isVisible());
+    await onboardingRetry.page.locator('#retry').click();await ready(onboardingRetry.page,'#gs-form','Food setup after explicit retry');
+    assert.deepEqual(onboardingRetry.assets,['/static/food.js','/static/onboarding.js','/static/onboarding.js'],'retry requests only the failed onboarding script');
+    assert.deepEqual(onboardingRetry.writes,[],'retrying setup still performs no write before Save');
+    assert.deepEqual(onboardingRetry.errors,[]);
+  }finally{onboardingRetry.release();await onboardingRetry.context.close();}
 
   const foodSkeleton=await foodRouteFixture(browser,{hold:true});
   try{

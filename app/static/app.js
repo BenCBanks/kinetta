@@ -78,6 +78,7 @@ const lazyRouteBundles = [
   {re: /^\/food\/import$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, '/static/food-import.js?v=__ASSET_HASH__']},
   {re: /^\/food\/cook\/\d+$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, SOCIAL_ROUTE_ASSET, COOK_ROUTE_ASSET]},
   {re: /^\/food\/recipe-link$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, COOK_ROUTE_ASSET, RECIPE_IMPORT_ROUTE_ASSET]},
+  {re: /^\/food\/setup$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, '/static/onboarding.js?v=__ASSET_HASH__']},
   {re: /^\/food(?:\/.*)?$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET]},
   {re: /^\/progress\/weight$/, tab: 'progress', scripts: [FOOD_ROUTE_ASSET]},
   {re: /^\/progress\/(?:routes|trends|calendar|heatmap)$/, tab: 'progress', scripts: [PROGRESS_ROUTE_ASSET]},
