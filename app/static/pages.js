@@ -1748,7 +1748,7 @@ route(/^\/me\/settings$/, 'me', async (el) => {
     catch (x) { toast(x.message); }
   };
   $('#m-del', el).onclick = () => {if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_data');deleteSheet();};
-  $$('.seg button[data-u]', el).forEach((b) => b.onclick = async () => {
+  $$('.units-toggle button[data-u]', el).forEach((b) => b.onclick = async () => {
     const prev = me.units; me.units = b.dataset.u; render();
     try { await api('/api/profile', json('PUT', {units: me.units})); } catch (x) { me.units = prev; render(); toast('Could not save: ' + x.message); }
   });
