@@ -940,7 +940,7 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
       const held=deferred;deferred=null;if(saved||!held||!active()||held.version!==revision||held.key!==path())return;
       if(held.epoch!==readEpoch(held.key)){reload();return;}
       await draw(held.data);if(active()&&held.version===revision&&document.activeElement===document.body)$('[data-card-edit]',box)?.focus({preventScroll:true});
-    }});ProfileLayout.mount(box,r,{shared:!mine,featured:true});ProfileLayout.mountShowcase(box,r,{shared:!mine,featured:true});
+    }});ProfileLayout.mount(box,r,{shared:!mine,featured:true});
     const act=$('[data-person-action]',box);
     if(act)act.onclick=async()=>{
       act.disabled=true;
