@@ -484,7 +484,7 @@ async function meOverview(el) {
     '<div id="t-required"></div><div id="t-today"></div>'+
     '<div id="t-content"><div id="t-checkin"></div><div id="t-recap"></div><div id="t-goals"></div><div id="t-insights" hidden></div></div>'+
     '<div id="t-start"></div><div id="t-setup"></div>';
-  MeCard.mount(el,{reload:()=>render(),editOnLoad:new URLSearchParams(location.search).get('edit')==='profile'});
+  MeCard.mount(el,{viewer:'owner',mode:'landing',reload:()=>render(),editOnLoad:new URLSearchParams(location.search).get('edit')==='profile'});
   if(typeof Milestones!=='undefined')Milestones.mount($('[data-me-milestones]',el),{row:true});
   const setup=$('#t-setup',el),todayRoot=$('#t-today',el),owner=readOwner();
   if(me.needs_email_confirm)$('#t-required',el).innerHTML='<a class="card tap row-link" href="/me/settings?email=add"><span class="ri c-brand">'+svg('mail')+'</span><span class="grow"><b>Confirm your email</b><small class="muted">Your profile stays hidden until you confirm it.</small></span>'+svg('chev')+'</a>';

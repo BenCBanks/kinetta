@@ -921,18 +921,19 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
   const draw=r=>{
     if(!active())return;
     if($('.me-card.editing',box)){deferred={data:r,version:revision,key:path(),epoch:readEpoch(path())};return;}
-    r={...r,layout:ProfileLayout.normalize(r.layout)};
-    const p=r.person,mine=own&&r.mine,feed=mine||r.layout.sections.includes('activities');
+    const mine=Boolean(own&&r.mine);
+    r={...r,mine,layout:ProfileLayout.normalize(r.layout)};
+    const p=r.person,feed=mine||r.layout.sections.includes('activities');
     const action=r.status==='friends'?`<button type="button" class="me-card-pill" data-person-manage>${svg('check')}Friends</button>`:r.status==='sent'?'<button type="button" class="me-card-pill" data-person-action="cancel">Request sent</button>':r.status==='incoming'?`<button type="button" class="me-card-pill solid" data-person-action="accept">${svg('check')}Approve request</button>`:`<button type="button" class="me-card-pill solid" data-person-action="add">${svg('plus')}Add friend</button>`;
     const pills=mine?MeCard.ownPills():action+`<button type="button" class="me-card-pill" data-person-report aria-label="Report or block ${esc(p.name)}">${svg('more')}</button>`;
     const friends=mine?MeCard.ownFriends(r.friend_count):Number.isInteger(r.friend_count)?`<span class="me-friends-link">${svg('people')}<span>${friendCountText(r.friend_count)}</span></span>`:'';
-    box.innerHTML=`${r.profile_hidden?'<p class="callout warn">Your profile is hidden until your account is confirmed and active.</p>':''}${MeCard.card(p,{mine,pills,friends,featured:!mine})}
+    box.innerHTML=`${r.profile_hidden?'<p class="callout warn">Your profile is hidden until your account is confirmed and active.</p>':''}${MeCard.card(p,{viewer:mine?'owner':'friend',pills,friends})}
       ${mine?`<section class="profile-activities" aria-label="Your activities"><div id="workout-sync"></div><div class="profile-activity-tools"><h2>Activities</h2><div class="profile-list-filters"><button type="button" class="ghost" id="person-sport"></button><button type="button" class="icon-btn" id="person-search" aria-label="Search your activities" aria-expanded="${!!term||searchOpen}">${svg('search')}</button></div></div><form id="person-search-form" role="search"${term||searchOpen?'':' hidden'}><input type="search" name="q" aria-label="Search your activities" value="${esc(term)}" placeholder="Search names and descriptions" enterkeyhint="search"></form><div class="feed-list" id="person-activities" aria-busy="true">${skelFeed(2)}</div><button type="button" class="ghost wide feed-more" id="person-more" hidden>Show more</button></section>`:feed?ProfileLayout.content(r,{...r.layout,sections:['activities']}):''}`;
-    MeCard.mount(box,{data:r,full:true,reload,onSaved:reload,onEditEnd:async({saved})=>{
+    MeCard.mount(box,{data:r,viewer:mine?'owner':'friend',mode:'profile',reload,onSaved:reload,onEditEnd:async({saved})=>{
       const held=deferred;deferred=null;if(saved||!held||!active()||held.version!==revision||held.key!==path())return;
       if(held.epoch!==readEpoch(held.key)){reload();return;}
       await draw(held.data);if(active()&&held.version===revision&&document.activeElement===document.body)$('[data-card-edit]',box)?.focus({preventScroll:true});
-    }});ProfileLayout.mount(box,r);
+    }});ProfileLayout.mount(box,r,{shared:!mine});
     const act=$('[data-person-action]',box);
     if(act)act.onclick=async()=>{
       act.disabled=true;

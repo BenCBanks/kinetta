@@ -3,6 +3,7 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
+const compositionOnly=process.env.KINETTA_PROFILE_VIEW_COMPOSITION_ONLY==='1';
 const milestoneOffers=[{id:'22222222-2222-4222-8222-222222222222',kind:'year_distance',title:'100 miles this year',day:'2026-10-31',occurred:'2026-10-31T12:00:00Z',rank:500,private_activity:false,details:{amount:100,unit:'mi',garmin_sources:[]}},{id:'11111111-1111-4111-8111-111111111111',kind:'first_distance',title:'First 5K',day:'2026-11-01',occurred:'2026-11-01T12:00:00Z',rank:10,private_activity:true,details:{distance_m:5000,seconds:1800,sport:'run',garmin_sources:[]}}];
 const friendRanks=[['journey','Journey',7,'mi'],['workouts','Workouts',8,'workouts'],['lifted','Weight lifted',7,'lb'],['sport:run','Running',4,'mi']];
 const friendShowcase={items:friendRanks.map(([code,,rank])=>({code,rank})),pinned:friendRanks.map(([code])=>code),day_streak:123};
@@ -53,33 +54,40 @@ async function milestoneChecks(p){
  await p.goto(base+'/me/milestones');await p.waitForURL('**/me');await until(p,()=>App.pageReady,'legacy milestone link returns ready Me');await p.locator('.me-card-sections[aria-busy=false]').waitFor();
 }
 (async()=>{const b=await chromium.launch();const l=await b.newContext();await l.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});const st=await l.storageState();
- for(const size of [{width:320,height:667,root:16},{width:330,height:844,root:16},{width:390,height:844,root:16},{width:430,height:932,root:16},{width:600,height:900,root:16,locale:'fr-FR'}])for(const theme of ['light','dark']){
+ const sizes=compositionOnly?[{width:390,height:844,root:16}]:[{width:320,height:667,root:16},{width:330,height:844,root:16},{width:390,height:844,root:16},{width:430,height:932,root:16},{width:600,height:900,root:16,locale:'fr-FR'}];
+ for(const size of sizes)for(const theme of compositionOnly?['light']:['light','dark']){
  const c=await b.newContext({storageState:st,viewport:{width:size.width,height:size.height},locale:size.locale||'en-US',colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];
- let cardState='heavy',cardLayout=null,profileHidden=false;const blocked=new Set(),previewReads=[];
+ let cardState='heavy',cardLayout=null,profileHidden=false,refuseOwnerProfile=false;const blocked=new Set(),previewReads=[],statsReads=[],ownerAchievementReads=[],sharedAchievementReads=[];
  p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.text()==='Service Worker registration blocked by Playwright'||m.text()==='Failed to load resource: net::ERR_FAILED'&&blocked.has(m.location().url))return;if(['error','warning'].includes(m.type()))errors.push(m.text()+' ('+m.location().url+')')});
  await c.addInitScript(r=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=r+'px'),size.root);
  await c.route('**/*',async r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base){blocked.add(q.url());return r.abort();}if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);return r.fulfill({json:{}});}
   if(u.pathname==='/api/me'){const response=await r.fetch(),j=await response.json();j.bio='Fictional trails and weekend rides.';if(cardLayout)j.profile_layout=cardLayout;if(cardState==='new'){j.friend_count=0;j.friend_requests=0;j.notifications=0;}return r.fulfill({response,json:j});}
+  if(['/api/achievements','/api/achievements/showcase'].includes(u.pathname))(u.searchParams.has('login')?sharedAchievementReads:ownerAchievementReads).push(u.href);
   if(u.pathname==='/api/achievements/showcase')return r.fulfill({json:['jordan','alex'].includes(u.searchParams.get('login'))?friendShowcase:{items:[],pinned:[],day_streak:0}});
   if(u.pathname==='/api/achievements'&&['jordan','alex'].includes(u.searchParams.get('login')))return r.fulfill({json:friendAchievements});
   if(cardState==='new'&&u.pathname==='/api/notifications/count')return r.fulfill({json:{unread:0,friend_requests:0,friend_count:0}});
   if(cardState==='new'&&u.pathname==='/api/goals')return r.fulfill({json:[]});
-  if(u.pathname==='/api/stats'){const response=await r.fetch(),j=await response.json();j.week_streak=12;return r.fulfill({response,json:j});}
+  if(u.pathname==='/api/stats'){statsReads.push(u.href);const response=await r.fetch(),j=await response.json();j.week_streak=12;return r.fulfill({response,json:j});}
   if(u.pathname==='/api/milestones'){const items=cardState==='heavy'?milestoneOffers:[],id=u.searchParams.get('milestone_id');return r.fulfill({json:{pending:false,items:id?items.filter(m=>m.id===id):items}});}
   if(u.pathname==='/api/people/alex/profile'){
    if(u.searchParams.get('preview')==='member')previewReads.push(u.searchParams.toString());
    const response=await r.fetch(),j=await response.json(),empty=cardState==='new',series=chartFixture(j.mileage.today);
    const memberPreview=u.searchParams.get('preview')==='member';j.profile_hidden=profileHidden;
+   if(memberPreview){j.mine=true;j.week_streak=99;j.close_to='PRIVATE-ONLY fictional preview marker';}else if(refuseOwnerProfile)j.mine=false;
    j.overview={...j.overview,activities:empty?0:memberPreview?77:3045,distance_m:empty?0:memberPreview?321000:18968840,time_s:empty?0:memberPreview?7200:5569200,active_days:empty?0:memberPreview?12:468};
    j.recent.current={activities:empty?0:memberPreview?7:32,distance_m:empty?0:memberPreview?18000:259102,time_s:empty?0:memberPreview?1800:78360,active_days:empty?0:memberPreview?4:18};
    j.sports=empty?[]:memberPreview?[{sport:'run',activities:7}]:[{sport:'hike',activities:9},{sport:'swim',activities:8},{sport:'ride',activities:19},{sport:'run',activities:2939},{sport:'walk',activities:70}];
-   j.person={...j.person,bio:'Fictional trails and weekend rides.'};j.close_to='One more walk to match last week.';
+   j.person={...j.person,bio:'Fictional trails and weekend rides.'};if(!memberPreview)j.close_to='One more walk to match last week.';
    // The public-member preview omits private-only current-week activity; the owner view retains the friend-filtered fixture.
    if(memberPreview)series.weeks[11]={...series.weeks[11],distance_m:1200,activities:1,time_s:600};
    j.mileage=series;
    if(cardState!=='heavy'){j.items=[];j.shared_count=0;}if(empty)j.mileage.weeks=[];if(cardState==='tiny'){j.overview=j.recent.current={activities:1,distance_m:0,time_s:1,active_days:1};j.mileage.weeks=[];j.sports=[{sport:'run',activities:1}];}if(cardLayout)j.layout=cardLayout;
    return r.fulfill({response,json:j});
-  }return r.continue();});
+  }
+  if(u.pathname==='/api/people/jordan/profile'){
+   const response=await r.fetch(),j=await response.json();j.mine=true;j.week_streak=99;j.close_to='PRIVATE-ONLY fictional friend marker';return r.fulfill({response,json:j});
+  }
+  return r.continue();});
  const shot=async name=>{if(out&&size.root===16&&(size.width===390||(size.width===330&&['profile-friend','profile-preview'].includes(name)))){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/${name}-${size.width}-${size.root}-${theme}.png`,animations:'disabled'});}};
  const settled=()=>p.waitForSelector('.me-card-sections[aria-busy=false]',{state:'attached',timeout:15000});
  const noOverflow=async where=>assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no overflow on '+where);
@@ -89,7 +97,7 @@ async function milestoneChecks(p){
  if(size.locale){await p.goto(base+'/people/alex');await until(p,()=>App.pageReady,'French full profile');await settled();await numberChecks(p);assert.match(await p.locator('[data-card-stat=time] dt').innerText(),/Time\s*\(h\)/);assert.deepEqual(errors,[]);console.log('French full-profile grouping and labelled hours PASS');await c.close();continue;}
  await weeklyCardChecks(p,size);
  if(size.width===330||size.width===390){
-  const previousReads=previewReads.length;await p.locator('[data-card-preview]').click();const previewSheet=p.locator('.sheet');await previewSheet.getByRole('heading',{name:'This is what friends see',exact:true}).waitFor();
+  const previousReads=previewReads.length,previewStats=statsReads.length,previewOwnerAchievements=ownerAchievementReads.length,previewSharedAchievements=sharedAchievementReads.length;await p.locator('[data-card-preview]').click();const previewSheet=p.locator('.sheet');await previewSheet.getByRole('heading',{name:'This is what friends see',exact:true}).waitFor();
   const preview=p.locator('[data-profile-preview]');await preview.locator('.me-card-sections[aria-busy=false]').waitFor();await preview.locator('[data-me-featured][data-loaded="true"]').waitFor();
   assert.equal(previewReads.length,previousReads+1,'View as friend requests the existing member-filtered profile route');assert.match(previewReads.at(-1),/as_friend=true.*preview=member/);
   const previewCard=preview.locator('.me-card');assert.equal(await previewCard.locator('.me-card-figures').count(),1,'preview shows only the profile route’s shared totals');assert.equal(await previewCard.locator('[data-card-edit],[data-card-share],[data-card-preview],[data-person-manage],[data-person-report]').count(),0,'friend preview is read-only');
@@ -97,7 +105,8 @@ async function milestoneChecks(p){
   const medalRange=size.width===330?[56,60]:[68,72],previewMedal=await preview.locator('.profile-achievement-medallion').first().evaluate(n=>n.getBoundingClientRect().width);assert(previewMedal>=medalRange[0]&&previewMedal<=medalRange[1],`preview medal fits the responsive friend size (${previewMedal}px)`);
   const featuredSpacing=await preview.locator('.me-featured-achievements').evaluate(n=>{const heading=n.querySelector('.me-featured-title'),list=n.querySelector('.profile-achievement-list'),first=list.firstElementChild,medal=first.querySelector('.profile-achievement-medallion');return{vertical:first.getBoundingClientRect().top-heading.getBoundingClientRect().bottom,horizontal:parseFloat(getComputedStyle(list).columnGap),medalOverflow:medal.scrollWidth-medal.clientWidth,text:[...first.querySelectorAll('.profile-achievement-name,.profile-achievement-next,.profile-achievement-value,.profile-achievement-level')].map(x=>({className:[...x.classList].find(name=>/^profile-achievement-(name|next|value|level)$/.test(name)),fontSize:parseFloat(getComputedStyle(x).fontSize)}))};});
   assert(featuredSpacing.vertical>=7.98&&featuredSpacing.horizontal>=7.98,`Featured medals keep 8px gaps in the friend preview: ${JSON.stringify(featuredSpacing)}`);assert(featuredSpacing.medalOverflow<=1,`medal labels stay inside their circles: ${JSON.stringify(featuredSpacing)}`);assert(featuredSpacing.text.every(({className,fontSize})=>fontSize>=(className==='profile-achievement-name'?11:className==='profile-achievement-next'?12:10)),`featured labels and values remain readable: ${JSON.stringify(featuredSpacing)}`);
-  assert.doesNotMatch(await preview.innerText(),/Only you/,'owner-only labels are absent from the friend view');
+  assert.doesNotMatch(await preview.innerText(),/Only you|PRIVATE-ONLY/,'owner-only labels and ambiguous private fields are absent from the friend preview');
+  assert.equal(statsReads.length,previewStats,'View-as-friend never fetches owner weekly stats');assert.equal(ownerAchievementReads.length,previewOwnerAchievements,'View-as-friend never fetches owner achievement endpoints');assert(sharedAchievementReads.slice(previewSharedAchievements).some(url=>url.includes('login=alex')),'View-as-friend fetches the filtered shared achievement payload');
   assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${size.width}px friend preview has no page overflow`);await shot('profile-preview');if(out&&size.root===16&&(size.width===390||size.width===330)){fs.mkdirSync(out,{recursive:true});await preview.locator('.me-card').screenshot({path:`${out}/profile-preview-card-${size.width}-${size.root}-${theme}.png`,animations:'disabled'});}await p.keyboard.press('Escape');await previewSheet.waitFor({state:'detached'});
  }
  await milestoneChecks(p);
@@ -156,14 +165,26 @@ async function milestoneChecks(p){
  assert.equal(await p.locator('#person-activities').evaluate(n=>!!n.closest('[inert]')),true,'activities dimmed while editing');
  await p.locator('[data-card-cancel]').click();await until(p,()=>!document.querySelector('.me-card.editing'),'4')
  await noOverflow('own profile');
+ if(compositionOnly){const deniedStats=statsReads.length,deniedOwnerAchievements=ownerAchievementReads.length;refuseOwnerProfile=true;await p.goto(base+'/people/alex');await until(p,()=>App.pageReady,'server-denied owner profile');await settled();assert.equal(await p.locator('#person-profile .me-card [data-card-edit]').count(),0,'a URL matching the signed-in account does not override server mine=false');assert.equal(await p.locator('#person-profile .me-card [data-person-report]').count(),1,'server-denial keeps the card in shared viewer mode');assert.equal(statsReads.length,deniedStats,'server-denied owner profile does not fetch owner weekly stats');assert.equal(ownerAchievementReads.length,deniedOwnerAchievements,'server-denied owner profile does not fetch owner achievement endpoints');refuseOwnerProfile=false;}
 
  // Someone else's profile: the same card; the friendship button and ⋯ sit where Edit and Share are.
- await p.goto(base+'/people/jordan');await until(p,()=>App.pageReady,'6');await settled();
+ const friendStats=statsReads.length,friendOwnerAchievements=ownerAchievementReads.length,friendSharedAchievements=sharedAchievementReads.length;
+ await p.goto(base+'/people/jordan');await until(p,()=>App.pageReady,'6');await settled();await p.locator('#person-profile [data-me-featured][data-loaded="true"]').waitFor();
  if((size.width===330||size.width===390)&&size.root===16){const featured=p.locator('#person-profile .me-featured-achievements');await featured.waitFor();assert.equal(await featured.locator('.profile-achievement[data-achievement-code]').count(),4,'shared profile fixture shows four featured achievements');assert.equal(await featured.locator('h3.me-featured-title > span').first().innerText(),'Featured achievements','the shared profile uses the compact featured section heading');const geometry=await featured.locator('.profile-achievement-list').evaluate(n=>{const r=n.getBoundingClientRect(),card=n.closest('.me-card').getBoundingClientRect(),style=getComputedStyle(n),items=[...n.children].map(x=>({box:x.getBoundingClientRect(),medal:x.querySelector('.profile-achievement-medallion').getBoundingClientRect()}));return{left:r.left-card.left,right:card.right-r.right,display:style.display,columns:style.gridTemplateColumns.split(' ').length,overflow:style.overflowX,scrollWidth:n.scrollWidth,clientWidth:n.clientWidth,items:items.map(({box,medal})=>({top:box.top,height:box.height,medal:medal.width}))};});const medalRange=size.width===330?[56,60]:[68,72];assert(geometry.left>=16&&geometry.right>=16&&geometry.display==='grid'&&geometry.columns===4&&geometry.overflow==='visible'&&geometry.scrollWidth<=geometry.clientWidth+1&&geometry.items.every(item=>item.top===geometry.items[0].top&&item.height>=44&&item.medal>=medalRange[0]&&item.medal<=medalRange[1]),`the ${size.width}px friend profile fits four responsive medals in one row: ${JSON.stringify(geometry)}`);}
  assert.equal(await p.locator('.profile-page-title').innerText(),'Profile');
  assert.equal(await p.locator('.me-card-banner [data-person-manage]').count(),1);assert.equal(await p.locator('.me-card-banner [data-person-report]').count(),1);
  assert.equal(await p.locator('.me-card [data-card-edit], .me-card-note').count(),0,'no owner controls or owner note');
  assert.equal(await p.locator('[data-me-milestones]').count(),0,'other people never receive the private row');
+ assert.doesNotMatch(await p.locator('#person-profile').innerText(),/Only you|PRIVATE-ONLY/,'friend profile strips ambiguous owner-only fields');assert.equal(statsReads.length,friendStats,'friend profile never fetches owner weekly stats');assert.equal(ownerAchievementReads.length,friendOwnerAchievements,'friend profile never fetches owner achievement endpoints');assert(sharedAchievementReads.slice(friendSharedAchievements).some(url=>url.includes('login=jordan')),'friend profile uses filtered shared achievement endpoints');
+ if(compositionOnly){
+  const probeShared=sharedAchievementReads.length,probeOwner=ownerAchievementReads.length;
+  await p.evaluate(()=>{const root=document.createElement('div');root.id='profile-view-shared-probe';root.innerHTML='<section class="me-card"><div data-me-featured></div></section>';document.body.append(root);ProfileLayout.mount(root,{mine:true,person:{login:'jordan',name:'Jordan Fixture'},layout:{sections:[],stats:['activities'],sports:[]},mileage:{},items:[]},{shared:true});});
+  await p.locator('#profile-view-shared-probe [data-me-featured][data-loaded="true"]').waitFor();assert.equal(ownerAchievementReads.length,probeOwner,'explicit shared mode overrides an ambiguous mine=true payload');assert(sharedAchievementReads.slice(probeShared).some(url=>url.includes('login=jordan')),'shared helper consumes its explicit shared option');await p.locator('#profile-view-shared-probe').evaluate(n=>n.remove());
+  assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[]);await c.close();
+  const prior=process.env.KINETTA_ACHIEVEMENT_EMPTY_ENTRY_ONLY;process.env.KINETTA_ACHIEVEMENT_EMPTY_ENTRY_ONLY='1';
+  try{await require('./profile_achievements_ui.cjs')({browser:b,storageState:st,base,shots:out});}finally{if(prior===undefined)delete process.env.KINETTA_ACHIEVEMENT_EMPTY_ENTRY_ONLY;else process.env.KINETTA_ACHIEVEMENT_EMPTY_ENTRY_ONLY=prior;}
+  console.log('Profile viewer composition: owner landing/full, friend, preview, ambiguous mine privacy, and empty/off achievement states PASS');await l.close();await b.close();return;
+ }
  await shot('profile-friend');
  await p.goto(base+'/people/sam');await until(p,()=>App.pageReady,'7');await settled();
  assert.equal(await p.locator('.me-card-empty a[href^="/me/goals"]').count(),0,'private setup is absent from other people’s cards');
