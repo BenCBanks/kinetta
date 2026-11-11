@@ -184,9 +184,10 @@ const assert330AchievementViews=async(page,base,setUnits,theme,shots)=>{
 };
 
 module.exports=async({browser,storageState,base,shots})=>{
- for(const theme of ['light','dark']){
+ const pendingOnly=process.env.KINETTA_ACHIEVEMENT_PENDING_ONLY==='1';
+ for(const theme of pendingOnly?['light']:['light','dark']){
   const context=await browser.newContext({storageState,viewport:{width:390,height:844},colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:SCREENSHOT_CLOCK.timezone});
-  const page=await context.newPage(),errors=[],writes=[],pinRequests=[];let journeyValue=6099414,workoutValue=1120,unitMode='imperial',unitLabelValues=null,showcasePins=[],sharedShowcasePins=[],sharedShareEnabled=true,emptyOwnerAchievements=false,emptyOwnerShowcase=false,emptyFriendShowcase=false,emptyFriendAchievements=false;
+  const page=await context.newPage(),errors=[],writes=[],pinRequests=[],ownerAchievementCalls=[],ownerHistoryCalls=[],sharedAchievementCalls=[],ownerShowcaseCalls=[];let journeyValue=6099414,workoutValue=1120,unitMode='imperial',unitLabelValues=null,showcasePins=[],sharedShowcasePins=[],sharedShareEnabled=true,emptyOwnerAchievements=false,emptyOwnerShowcase=false,emptyFriendShowcase=false,emptyFriendAchievements=false,pendingAchievementResponses=[],pendingHistoryResponses=[],failOwnerAchievementOnce=false,sharedAchievementPending=false,pinPostGate=null;
   const ownerShowcaseCodes=['journey','workouts','lifted','sport:run'];
   await page.clock.setFixedTime(SCREENSHOT_NOW);
   page.on('pageerror',e=>errors.push(e.message));
@@ -200,6 +201,8 @@ module.exports=async({browser,storageState,base,shots})=>{
    if(request.method()==='GET'&&url.pathname==='/api/people/fictional_friend/photo')return route.fulfill({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#4778b8"/><circle cx="32" cy="25" r="12" fill="#f2cfaa"/><path d="M8 64c2-17 11-25 24-25s22 8 24 25" fill="#243d5e"/></svg>'});
    if(request.method()==='GET'&&url.pathname==='/api/achievements'){
     const data=JSON.parse(JSON.stringify(achievementFixture)),journey=data.tracks.find(t=>t.code==='journey'),workouts=data.tracks.find(t=>t.code==='workouts');
+    if(url.searchParams.has('login'))sharedAchievementCalls.push(url.href);else ownerAchievementCalls.push(url.href);
+    if(!url.searchParams.has('login')&&failOwnerAchievementOnce){failOwnerAchievementOnce=false;if(pendingAchievementResponses.length)pendingAchievementResponses.shift();return route.fulfill({status:503,json:{error:'Fictional temporary achievement refresh failure'}});}
     if(emptyOwnerAchievements&&!url.searchParams.has('login'))return route.fulfill({json:{pending:false,tracks:[]}});
     if(futureEvidence){const next=data.tracks.find(t=>t.code==='active_time'),future=data.tracks.find(t=>t.code==='years_active');Object.assign(next,{value:1800,display_value:.5,display_unit:'hours',tiers:[]});Object.assign(future,{value:0,display_value:0,display_unit:'years',tiers:[]});}
     if(journey){journey.value=journeyValue;journey.display_value=unitMode==='imperial'?journeyValue/1609.344:journeyValue/1000;journey.display_unit=unitMode==='imperial'?'mi':'km';}
@@ -220,8 +223,9 @@ module.exports=async({browser,storageState,base,shots})=>{
      const total=sharedSportValues[track.code],earnedTiers=total?tiers.slice(0,1):tiers;
      return{code:track.code,label:track.label,level:total?.level??(tiers.at(-1)?.rank||0),unit:track.display_unit,...(total?{display_value:total.display_value,display_unit:total.display_unit}:{}),tiers:earnedTiers};
     });
-     return route.fulfill({json:{pending:false,tracks}});
+     return route.fulfill({json:{pending:sharedAchievementPending,tracks}});
     }
+    if(pendingAchievementResponses.length)data.pending=pendingAchievementResponses.shift();
     return route.fulfill({json:data});
    }
    if(request.method()==='GET'&&url.pathname==='/api/achievements/showcase'){
@@ -231,19 +235,23 @@ module.exports=async({browser,storageState,base,shots})=>{
      const codes=sharedShowcasePins.length?sharedShowcasePins:['journey','workouts','lifted','sport:run'];
      return route.fulfill({json:{items:codes.map(code=>{const rank=v2History(code,{journey:journeyValue,workouts:workoutValue}).tiers.at(-1)?.rank||0;return{code,rank,icon:catalog.tracks[code].levels[rank-1]?.icon};}),pinned:sharedShowcasePins,day_streak:0}});
     }
+    ownerShowcaseCalls.push(url.href);
     if(emptyOwnerShowcase)return route.fulfill({json:{items:[],pinned:showcasePins,day_streak:0}});
     const items=ownerShowcaseCodes.map(code=>({code,rank:achievementFixture.tracks.find(track=>track.code===code)?.tiers.at(-1)?.rank||1}));
     return route.fulfill({json:{items,pinned:showcasePins,day_streak:0}});
    }
    if(request.method()==='POST'&&url.pathname==='/api/achievements/showcase/pin'){
     const body=request.postDataJSON();pinRequests.push(body);let replaced=false;
+    if(pinPostGate){const gate=pinPostGate;pinPostGate=null;gate.enter();await gate.wait;}
     if(body.pinned){if(!showcasePins.includes(body.code)){if(showcasePins.length>=4){showcasePins.shift();replaced=true;}showcasePins.push(body.code);}}
     else showcasePins=showcasePins.filter(code=>code!==body.code);
     return route.fulfill({json:{pinned:showcasePins,replaced}});
    }
    if(request.method()==='GET'&&url.pathname.startsWith('/api/achievement-history/')){
+    if(!url.searchParams.has('login'))ownerHistoryCalls.push(url.href);
     const code=decodeURIComponent(url.pathname.slice('/api/achievement-history/'.length));
     const history=v2History(code,{'journey':journeyValue,'workouts':workoutValue});
+    if(!url.searchParams.has('login')&&pendingHistoryResponses.length)history.pending=pendingHistoryResponses.shift();
     if(url.searchParams.has('login'))history.tiers=history.tiers.map(({rank,name,threshold,day})=>({rank,name,threshold,day}));
     return route.fulfill({json:history});
    }
@@ -252,6 +260,109 @@ module.exports=async({browser,storageState,base,shots})=>{
   });
   const setUnits=async units=>{unitMode=units;await page.evaluate(units=>{App.me.units=units;keep('/api/me',App.me);},units);};
   await page.goto(base+'/me');await until(page,()=>App.pageReady,'fixture login');await setUnits('imperial');
+  const waitForCallCount=async(calls,count,label)=>{for(let i=0;i<160;i++){if(calls.length>=count)return;await page.waitForTimeout(50);}throw Error('Timed out waiting for '+label);};
+  const holdToPin=async code=>{
+   const medal=page.locator('#profile-achievement-page .profile-achievement[data-achievement-code="'+code+'"]');await medal.evaluate(n=>n.scrollIntoView({block:'center',behavior:'instant'}));await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+   const rect=await medal.boundingBox();await page.mouse.move(rect.x+rect.width/2,rect.y+rect.height/2);await page.mouse.down();await page.waitForTimeout(570);await page.mouse.up();
+   const action=page.locator('[data-showcase-pin-action]');await action.waitFor();return action;
+  };
+  const waitForPin=async(code,pinned)=>{const selector='#profile-achievement-page .profile-achievement[data-achievement-code="'+code+'"]';await until(page,state=>document.querySelector(state.selector)?.dataset.showcasePinned===state.pinned,'Showcase pin update',{selector,pinned:String(pinned)});};
+  const pinSaveRaceCheck=async()=>{
+   if(theme!=='light')return;
+   // A dismissed pin sheet does not release the refresh fence while its save is in flight.
+   showcasePins=['workouts'];pendingAchievementResponses=[true];
+   await page.goto(base+'/me/achievements?pin-save-race=1');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+   let enterSave,releaseSave;const saveEntered=new Promise(resolve=>{enterSave=resolve;}),saveWait=new Promise(resolve=>{releaseSave=resolve;});pinPostGate={enter:enterSave,wait:saveWait};
+   const beforeJourney=await page.locator('#profile-achievement-page [data-achievement-code="journey"] .profile-achievement-value').innerText();
+   const beforeRefreshCalls=ownerAchievementCalls.length,beforeRefreshShowcases=ownerShowcaseCalls.length;pendingAchievementResponses=[false];journeyValue=8000000;
+   const heldAction=await holdToPin('journey');assert.equal(await heldAction.innerText(),'Pin to profile','the held-save fixture starts from an unpinned medal');
+   const clickSave=heldAction.click();await saveEntered;await page.keyboard.press('Escape');await page.locator('.sheet').waitFor({state:'detached'});
+   await waitForCallCount(ownerAchievementCalls,beforeRefreshCalls+1,'settled poll while the dismissed pin save remains pending');await waitForCallCount(ownerShowcaseCalls,beforeRefreshShowcases+1,'stale showcase snapshot while the pin save remains pending');
+   await page.waitForTimeout(100);
+   assert.equal(await page.locator('#profile-achievement-page [data-achievement-code="journey"] .profile-achievement-value').innerText(),beforeJourney,'a settled poll cannot repaint the catalogue while the dismissed save is pending');
+   releaseSave();await clickSave;await waitForPin('journey',true);await waitForPin('workouts',true);
+   pendingAchievementResponses=[false];await waitForCallCount(ownerAchievementCalls,beforeRefreshCalls+2,'post-save settled catalogue refresh');await waitForCallCount(ownerShowcaseCalls,beforeRefreshShowcases+2,'post-save showcase refresh');
+   await until(page,expected=>document.querySelector('#profile-achievement-page [data-achievement-code="journey"] .profile-achievement-value')?.textContent.trim()!==expected,'post-save refreshed Journey value',beforeJourney);
+   await waitForPin('journey',true);await waitForPin('workouts',true);
+   assert.deepEqual(showcasePins,['workouts','journey'],'the next poll keeps both pins after applying fresh achievement values');
+   assert.equal(pinRequests.length,1,'the held-save fixture sends exactly one intentional pin request');assert.deepEqual(pinRequests[0],{code:'journey',pinned:true},'the owner pin request carries only the selected fictional track and pin state');
+   pinRequests.length=0;showcasePins=[];journeyValue=6099414;pendingAchievementResponses=[];
+   await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+  };
+  const pendingLifecycleChecks=async()=>{
+   if(theme!=='light')return;
+   // A transient failed refresh leaves the visible catalogue in place; the next backoff settles it.
+   pendingAchievementResponses=[true];await page.goto(base+'/me/achievements?pending=catalogue');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+   const beforeErrorCalls=ownerAchievementCalls.length,beforeErrorValue=await page.locator('#profile-achievement-page [data-achievement-code="journey"] .profile-achievement-value').innerText();
+   pendingAchievementResponses=[true,false];failOwnerAchievementOnce=true;journeyValue=7000000;
+   await waitForCallCount(ownerAchievementCalls,beforeErrorCalls+1,'catalogue refresh after temporary error');
+   await page.waitForTimeout(100);assert.equal(await page.locator('#profile-achievement-page [data-achievement-code="journey"] .profile-achievement-value').innerText(),beforeErrorValue,'a failed pending refresh keeps the rendered catalogue unchanged');
+   await waitForCallCount(ownerAchievementCalls,beforeErrorCalls+2,'settled catalogue refresh after retry');
+   await until(page,expected=>document.querySelector('#profile-achievement-page [data-achievement-code="journey"] .profile-achievement-value')?.textContent.trim()!==expected,'settled catalogue value',beforeErrorValue);
+   const settledCatalogueCalls=ownerAchievementCalls.length;await page.waitForTimeout(8200);
+   assert.equal(ownerAchievementCalls.length,settledCatalogueCalls,'the settled catalogue stops before the next scheduled poll');
+
+   // Track history stays unchanged while only its history endpoint is pending, then settles both reads.
+   pendingAchievementResponses=[true];pendingHistoryResponses=[true];const beforeHistoryCalls=ownerAchievementCalls.length;
+   await page.goto(base+'/me/achievements/journey?pending=history');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+   const beforeHistoryValue=await page.locator('.profile-achievement-current-value').innerText(),beforeHistoryRequests=ownerHistoryCalls.length;
+   pendingAchievementResponses=[false,false];pendingHistoryResponses=[true];journeyValue=8000000;
+   await waitForCallCount(ownerAchievementCalls,beforeHistoryCalls+1,'pending track history achievement refresh');await waitForCallCount(ownerHistoryCalls,beforeHistoryRequests+1,'pending track history refresh');
+   await page.waitForTimeout(100);assert.equal(await page.locator('.profile-achievement-current-value').innerText(),beforeHistoryValue,'a history-only pending response keeps the old history content');
+   pendingHistoryResponses=[false];
+   await waitForCallCount(ownerAchievementCalls,beforeHistoryCalls+2,'settled track history achievement refresh');await waitForCallCount(ownerHistoryCalls,beforeHistoryRequests+2,'settled track history refresh');
+   await until(page,expected=>document.querySelector('.profile-achievement-current-value')?.textContent.trim()!==expected,'settled track history value',beforeHistoryValue);
+
+   // The Me Featured slot uses the same owner lifecycle and settles without a full profile reload.
+   pendingAchievementResponses=[true];const beforeMeCalls=ownerAchievementCalls.length,beforeMeShowcaseCalls=ownerShowcaseCalls.length;
+   await page.goto(base+'/me?pending=featured');await page.locator('[data-me-featured][data-loaded="true"]').waitFor();
+   const beforeMeValue=await page.locator('[data-me-featured] [data-achievement-code="journey"] .profile-achievement-value').innerText();
+   pendingAchievementResponses=[false];journeyValue=9000000;
+   await waitForCallCount(ownerAchievementCalls,beforeMeCalls+1,'pending Me Featured refresh');await waitForCallCount(ownerShowcaseCalls,beforeMeShowcaseCalls+1,'Me Featured showcase refresh');
+   await until(page,expected=>document.querySelector('[data-me-featured] [data-achievement-code="journey"] .profile-achievement-value')?.textContent.trim()!==expected,'settled Me Featured value',beforeMeValue);
+
+   // Hidden and offline pages do not poll on their timer; returning to an available state resumes once.
+   pendingAchievementResponses=[true];const beforeHiddenCalls=ownerAchievementCalls.length;
+   await page.goto(base+'/me/achievements?pending=hidden');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+   await page.evaluate(()=>{window.__fixtureHidden=true;Object.defineProperty(document,'hidden',{configurable:true,get:()=>window.__fixtureHidden});document.dispatchEvent(new Event('visibilitychange'));});
+   await page.waitForTimeout(2200);assert.equal(ownerAchievementCalls.length,beforeHiddenCalls+1,'a hidden pending page pauses its poll timer');
+   await page.evaluate(()=>{window.__fixtureHidden=false;document.dispatchEvent(new Event('visibilitychange'));});pendingAchievementResponses=[false];
+   await waitForCallCount(ownerAchievementCalls,beforeHiddenCalls+2,'visible pending page resume');
+   pendingAchievementResponses=[true];const beforeOfflineCalls=ownerAchievementCalls.length;
+   await page.goto(base+'/me/achievements?pending=offline');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+   await page.evaluate(()=>{Object.defineProperty(navigator,'onLine',{configurable:true,get:()=>false});window.dispatchEvent(new Event('offline'));});
+   await page.waitForTimeout(2200);assert.equal(ownerAchievementCalls.length,beforeOfflineCalls+1,'an offline pending page pauses its poll timer');
+   await page.evaluate(()=>{Object.defineProperty(navigator,'onLine',{configurable:true,get:()=>true});window.dispatchEvent(new Event('online'));});pendingAchievementResponses=[false];
+   await waitForCallCount(ownerAchievementCalls,beforeOfflineCalls+2,'online pending page resume');
+
+   // A shared pending response remains read-only and never starts owner polling.
+   sharedAchievementPending=true;const beforeSharedCalls=sharedAchievementCalls.length,beforeSharedOwner=ownerAchievementCalls.length;
+   await page.goto(base+'/people/fictional_friend?view=achievements&pending=shared');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+   assert(sharedAchievementCalls.length>beforeSharedCalls,'the friend view loads its filtered achievement response');const sharedCallsAfterLoad=sharedAchievementCalls.length;await page.waitForTimeout(2200);
+   assert.equal(sharedAchievementCalls.length,sharedCallsAfterLoad,'a shared pending response does not start a background refresh');assert.equal(ownerAchievementCalls.length,beforeSharedOwner,'a shared pending response never calls owner achievements');sharedAchievementPending=false;
+
+   pendingAchievementResponses=[true];const beforeOwnerSwapCalls=ownerAchievementCalls.length;
+   await page.goto(base+'/me/achievements?pending=owner-change');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+   await page.evaluate(()=>{window.__pendingFixtureOwner=App.me;App.me={...App.me,id:'fictional-owner-swapped'};});await page.waitForTimeout(2200);
+   assert.equal(ownerAchievementCalls.length,beforeOwnerSwapCalls+1,'a pending owner watcher stops when its captured owner changes');
+   await page.evaluate(()=>{App.me=window.__pendingFixtureOwner;delete window.__pendingFixtureOwner;});
+
+   // Navigating away stops the old page watcher; same-root reentry gets exactly one fresh watcher.
+   pendingAchievementResponses=[true];const beforeReentryCalls=ownerAchievementCalls.length;
+   await page.goto(base+'/me/achievements?pending=old-path');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+   await page.evaluate(()=>go('/people/fictional_friend?pending=away'));await page.locator('#person-profile .me-card-sections[aria-busy="false"]').waitFor();await page.waitForTimeout(2200);
+   assert.equal(ownerAchievementCalls.length,beforeReentryCalls+1,'the detached catalogue watcher does not poll after navigation');
+   pendingAchievementResponses=[true,true];await page.evaluate(()=>go('/me/achievements?pending=reentry'));await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+   await waitForCallCount(ownerAchievementCalls,beforeReentryCalls+3,'the reentered catalogue watcher');
+
+   // Restore the ordinary fixture before the existing design and pin checks continue.
+   pendingAchievementResponses=[];pendingHistoryResponses=[];failOwnerAchievementOnce=false;sharedAchievementPending=false;journeyValue=6099414;workoutValue=1120;
+   await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});Object.defineProperty(navigator,'onLine',{configurable:true,get:()=>true});invalidate('/api/');go('/me/achievements');});
+   await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+  };
+  await pendingLifecycleChecks();
+  await pinSaveRaceCheck();
+  if(pendingOnly){assert.deepEqual(errors,[],'pending refresh fixture has no browser errors');assert.deepEqual(writes.filter(write=>write!=='/api/challenges/signup/continue'),[],'pending refresh fixture has no unexpected writes');await context.close();return;}
   const checkEmptyOwnerFriendEntry=async({capture=false}={})=>{
    const prior={showcasePins:[...showcasePins],sharedShowcasePins:[...sharedShowcasePins],sharedShareEnabled,emptyOwnerAchievements,emptyOwnerShowcase,emptyFriendShowcase,emptyFriendAchievements};
    try{
@@ -419,12 +530,6 @@ module.exports=async({browser,storageState,base,shots})=>{
   await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='all-tracks');
   await screenshot(page,shots,`achievement-grid-390-${theme}`,{fullPage:true});
   futureEvidence=false;await page.evaluate(()=>{delete document.documentElement.dataset.achievementEvidence;invalidate('/api/achievements');});await page.reload();await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
-  const holdToPin=async code=>{
-   const medal=page.locator('#profile-achievement-page .profile-achievement[data-achievement-code="'+code+'"]');await medal.evaluate(n=>n.scrollIntoView({block:'center',behavior:'instant'}));await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
-   const rect=await medal.boundingBox();await page.mouse.move(rect.x+rect.width/2,rect.y+rect.height/2);await page.mouse.down();await page.waitForTimeout(570);await page.mouse.up();
-   const action=page.locator('[data-showcase-pin-action]');await action.waitFor();return action;
-  };
-  const waitForPin=async(code,pinned)=>{const selector='#profile-achievement-page .profile-achievement[data-achievement-code="'+code+'"]';await until(page,state=>document.querySelector(state.selector)?.dataset.showcasePinned===state.pinned,'Showcase pin update',{selector,pinned:String(pinned)});};
   let pinAction=await holdToPin('workouts');assert.equal(await pinAction.innerText(),'Pin to profile','a long press opens the pin action');
   await screenshot(page,shots,'achievement-pin-action-390-'+theme);await pinAction.click();await page.locator('.sheet').waitFor({state:'detached'});
   await waitForPin('workouts',true);
