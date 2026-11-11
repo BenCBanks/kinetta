@@ -1,4 +1,4 @@
-// Welcome steps after a new account (#232 F): profile, Kit, who sees your activities, bring in workouts (with optional friends).
+// Welcome steps after a new account (#232 F): profile, Kit, who sees your activities, optional phone, bring in workouts.
 // Kit's step shows only while it's off and this server offers it: new accounts start with AI off until they say yes (2026-10-26).
 // Save and continue saves this step; Skip keeps existing choices; Not now returns to Me. Get started on Me reopens it until there's history.
 'use strict';
@@ -11,7 +11,7 @@ route(/^\/welcome$/, 'me', async (el) => {
   const owner = readOwner();let currentStep='';const here = (id=currentStep) => el.isConnected && readOwner() === owner && currentStep===id;
   const access = Object.values(App.me?.ai_access || {});
   const offerKit = !App.me?.ai_ok && (access.length ? access.some((a) => a.available && a.entitled) : !!App.me?.coach);
-  const k = offerKit ? 1 : 0, total = 3 + k;
+  const k = offerKit ? 1 : 0, total = 4 + k;
   const frame = (id,n, title, intro, body, next = 'Save and continue') => {
     currentStep=id;const query=new URLSearchParams(location.search);query.set('step',id);replacePageAddress(el,'/welcome?'+query);
     el.innerHTML = `<div class="welcome"><p class="eyebrow">Welcome · ${n} of ${total}</p><h1>${title}</h1><p class="muted">${intro}</p>${body}
@@ -59,7 +59,7 @@ route(/^\/welcome$/, 'me', async (el) => {
   }
   async function audience() {
     frame('audience',2 + k, 'Who sees your activities', 'This applies to new activities. You can choose differently on any one of them. Skip keeps your current choice.', `<div id="wc-aud">${skel(1)}</div>`);
-    $('#wc-skip', el).onclick = workouts;
+    $('#wc-skip', el).onclick = phone;
     let current=null;$('#wc-next',el).disabled=true;
     try { const saved=(await api('/api/sharing')).default;if(!WELCOME_AUDIENCE.some(([value])=>value===saved))throw Error();current=saved; } catch (x) { if(here('audience'))$('#wc-err',el).textContent='Your current choice couldn’t load. Choose an audience, or skip to keep it.'; }
     if (!here('audience')) return;
@@ -70,13 +70,40 @@ route(/^\/welcome$/, 'me', async (el) => {
       const pick = $('input[name="aud"]:checked', el)?.value;
       if(!pick)throw Error('Choose who sees new activities, or skip to keep your current choice.');
       if (pick !== current) await api('/api/sharing', json('PUT', {default: pick}));
-    }, workouts);
+    }, phone);
+  }
+  async function phone() {
+    frame('phone',3 + k, 'Phone number', 'Used for contact matching and never shown to others. Include + and your country code.',
+      `<label class="form">Number · optional<input type="tel" name="phone_e164" autocomplete="tel" inputmode="tel" maxlength="40" placeholder="+1 555 010 1234" disabled></label>`);
+    const input=$('input[name=phone_e164]',el),next=$('#wc-next',el),skip=$('#wc-skip',el);
+    let savedPhone=null;
+    const load=async()=>{
+      if(!here('phone'))return;
+      input.disabled=true;next.disabled=true;next.textContent='Save and continue';$('#wc-err',el).textContent='';
+      try{
+        const settings=await api('/api/contacts/settings');if(!here('phone'))return;
+        savedPhone=settings.phone_e164||null;input.value=savedPhone||'';input.disabled=false;next.disabled=false;
+        next.onclick=step(async()=>{
+          const value=input.value.trim();if(value===(savedPhone||''))return;
+          input.disabled=true;
+          try{
+            const updated=await api('/api/contacts/settings',json('PUT',{phone_e164:value||null}));if(!here('phone'))return;
+            savedPhone=updated.phone_e164||null;input.value=savedPhone||'';
+          }finally{if(here('phone'))input.disabled=false;}
+        },workouts);
+      }catch(x){
+        if(!here('phone'))return;
+        $('#wc-err',el).textContent=x.message;next.textContent='Try again';next.disabled=false;next.onclick=load;
+      }
+    };
+    skip.onclick=workouts;
+    await load();
   }
   function workouts() {
     const card = (href, ico, title, sub) => `<a class="row-link" href="${href}"><span class="ri c-brand">${svg(ico)}</span><span class="grow">${title}<small class="muted gs-sub">${sub}</small></span><span class="chev">${svg('chev')}</span></a>`;
     // In the iPhone app, the Health app leads: one tap, one permission screen, then the recent workouts import (2026-10-24)
     const health = Native.on;
-    frame('workouts',3 + k, 'Bring in your workouts', health ? 'Connect to the Health app to bring in workouts from your iPhone, Apple Watch and other apps. Weight reading has its own control in Connections.' : 'Pick one now, or come back to it from Get started on Me.',
+    frame('workouts',4 + k, 'Bring in your workouts', health ? 'Connect to the Health app to bring in workouts from your iPhone, Apple Watch and other apps. Weight reading has its own control in Connections.' : 'Pick one now, or come back to it from Get started on Me.',
       `${health ? '<button class="primary wide" id="wc-health">' + svg('heart') + ' Connect to the Health app</button><p class="small muted">The Health app shows one screen where you choose what to share. You can change it any time in the Health app.</p><p class="err" role="alert" id="wc-health-err"></p>' : ''}
       <div class="card list">${card('/track', 'track', 'Record with this phone', 'Runs, rides, walks and lifting. Your phone asks for location when you start.')}
       <div id="wc-connections">${card('/track/connections', 'watch', 'Workout connections', 'Check which connections are available.')}</div>
@@ -111,6 +138,6 @@ route(/^\/welcome$/, 'me', async (el) => {
     };
   }
   const requested=new URLSearchParams(location.search).get('step');
-  const steps={profile,kit:offerKit?kit:audience,audience,workouts};
+  const steps={profile,kit:offerKit?kit:audience,audience,phone,workouts};
   return (Object.hasOwn(steps,requested)?steps[requested]:profile)();
 });
