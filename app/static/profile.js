@@ -513,15 +513,15 @@ const ProfileLayout=(()=>{
   }
   function achievementPage(el,requestedCode='',options={}){
     const owner=readOwner(),path=location.pathname+location.search,code=requestedCode?decodeURIComponent(requestedCode):'',sharedLogin=String(options.login||''),shared=!!sharedLogin,profile=options.returnPath||profileHref(App.me),active=()=>el.isConnected&&owner===readOwner()&&path===location.pathname+location.search,query=shared?`?login=${encodeURIComponent(sharedLogin)}`:'';
-    el.innerHTML=`<div class="top">${backBtn('Profile')}</div><div id="profile-achievement-page" aria-busy="true"><h1>${code?'Achievement history':'Achievements'}</h1><p class="small muted">Loading…</p></div>`;
+    el.innerHTML=`<div class="top">${backBtn('Profile')}${!shared&&!code?'<div class="acts"><button type="button" class="icon-btn" data-achievement-share aria-label="Share achievements" hidden>'+svg('share')+'</button></div>':''}</div><div id="profile-achievement-page" aria-busy="true"><h1>${code?'Achievement history':'Achievements'}</h1><p class="small muted">Loading…</p></div>`;
     wireBack(el,profile,destination=>/^\/me\/achievements(?:\/|\?|$)/.test(destination.path)?'Achievements':'Profile');
-    const box=$('#profile-achievement-page',el),lifecycleRoot=document.createElement('span');let interaction=0,activePinSheets=0,pendingPinSaves=0;
+    const box=$('#profile-achievement-page',el),shareButton=$('[data-achievement-share]',el),lifecycleRoot=document.createElement('span');let interaction=0,activePinSheets=0,pendingPinSaves=0;
     lifecycleRoot.hidden=true;lifecycleRoot.setAttribute('aria-hidden','true');el.append(lifecycleRoot);
     const pinInteraction=state=>{interaction++;if(state==='open')activePinSheets++;else if(state==='close')activePinSheets=Math.max(0,activePinSheets-1);else if(state==='save-start')pendingPinSaves++;else if(state==='save-end')pendingPinSaves=Math.max(0,pendingPinSaves-1);};
     const clearBoxResources=()=>{const cleanup=viewResources.get(box);if(cleanup){cleanup();viewResources.delete(box);}};
     const draw=(data,historyData,showcase)=>{
       if(!active()||!box.isConnected)return false;clearBoxResources();
-      const tracks=shared?sharedAchievementTracks(data):startedAchievements(data),track=code?(tracks.find(t=>t.code===code)||(!shared&&emptyAchievementTrack(code))):null;
+      const tracks=shared?sharedAchievementTracks(data):(Array.isArray(data?.tracks)?data.tracks:[]),track=code?(tracks.find(t=>t.code===code)||(!shared&&emptyAchievementTrack(code))):null;
       if(code&&!track){box.innerHTML='<h1>Achievements</h1><p class="small muted">This track has no earned tiers yet.</p>';box.setAttribute('aria-busy','false');return true;}
       if(!code){
         const levelUps=shared?new Set():achievementLevelUps(data),overviewTracks=shared?tracks:overviewAchievementTracks(data);
@@ -546,8 +546,30 @@ const ProfileLayout=(()=>{
       const [data,historyData,showcase]=await Promise.all([api('/api/achievements'),code?api('/api/achievement-history/'+encodeURIComponent(code)):Promise.resolve(null),code?Promise.resolve({}):api('/api/achievements/showcase')]);
       return{pending:!!data.pending||!!historyData?.pending,apply:()=>version===interaction&&!activePinSheets&&!pendingPinSaves&&draw(data,historyData,showcase)};
     };
-    Promise.all([api('/api/achievements'+query),loadAchievementCatalog(),code?api('/api/achievement-history/'+encodeURIComponent(code)+query):Promise.resolve(null),code?Promise.resolve({}):api('/api/achievements/showcase'+query).catch(()=>({}))]).then(([data,_catalog,historyData,showcase])=>{
+    const sharingPromise=shared||code?Promise.resolve({share_achievements:false}):api('/api/sharing').catch(()=>({share_achievements:false}));
+    const earnedBadges=data=>{
+      const tracks=Array.isArray(data?.tracks)?data.tracks:[];
+      return tracks.map(track=>{
+        const level=achievementLevel(track),tier=level?achievementTierAt(track.code,level):null;
+        if(level<1||!tier?.icon)return null;
+        return{code:track.code,label:track.code==='sport:lift'?'Lift sessions':track.label||track.code,level,name:tier.name,value:achievementValue(track),icon:tier.icon};
+      }).filter(Boolean);
+    };
+    const shareEarned=async()=>{
+      const startOwner=readOwner(),startPath=location.pathname+location.search,live=()=>active()&&startOwner===readOwner()&&startPath===location.pathname+location.search&&shareButton?.isConnected;
+      if(!live()||shareButton.disabled)return;shareButton.disabled=true;
+      try{
+        await loadShareArt();if(!live())return;
+        const [sharing,latest]=await Promise.all([api('/api/sharing'),api('/api/achievements')]);if(!live())return;
+        if(sharing?.share_achievements!==true)throw Error('Achievement sharing is off.');
+        const badges=earnedBadges(latest);if(!badges.length)throw Error('There are no earned achievements to share.');
+        ShareSheet.open({title:'Share achievements',items:[{label:'Achievements',filename:'kinetta-achievements.png',build:()=>ShareArt.achievementPicture({badges})}]});
+      }catch(error){if(live())toast((error.message||'Could not prepare achievements.')+' Tap Share achievements to try again.');}
+      finally{if(shareButton?.isConnected)shareButton.disabled=false;}
+    };
+    Promise.all([api('/api/achievements'+query),loadAchievementCatalog(),code?api('/api/achievement-history/'+encodeURIComponent(code)+query):Promise.resolve(null),code?Promise.resolve({}):api('/api/achievements/showcase'+query).catch(()=>({})),sharingPromise]).then(([data,_catalog,historyData,showcase,sharing])=>{
       if(!draw(data,historyData,showcase))return;
+      if(shareButton&&sharing?.share_achievements===true){shareButton.hidden=false;shareButton.onclick=shareEarned;}
       if(!shared&&(data.pending||historyData?.pending))watchOwnerPending(lifecycleRoot,owner,path,refresh);
     }).catch(error=>{
       if(!active()||!box.isConnected)return;
