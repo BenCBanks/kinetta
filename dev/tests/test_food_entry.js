@@ -8,7 +8,7 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
  vm.createContext(c);vm.runInContext(food.slice(food.indexOf('route(/^\\/food\\/describe$/'),food.indexOf('// ---------- barcode ----------')),c);
  const el={};const first=handler(el);assert.equal(calls[0][0],el);assert.deepEqual(JSON.parse(JSON.stringify(calls[0][1])),{day:'2026-10-18',meal:'dinner'});assert.equal(first,calls[0].result,'Food route returns the shared awaited page boundary');
  c.location.search='';handler(el);assert.deepEqual(JSON.parse(JSON.stringify(calls[1][1])),{day:null,meal:null});
- assert.match(thread,/async function page\(el,\{day,meal\}=\)\{\s*const requestedOwner=ownerKey\(\),requestedSession=readOwner\(\),requestedPath=location\.pathname;\s*await prepare\(\);/,'the Food route waits for Nutrition before constructing its view');
+ assert.match(thread,/async function page\(el,\{day,meal\}=\{\}\)\{\s*const requestedOwner=ownerKey\(\),requestedSession=readOwner\(\),requestedLocation=location\.pathname\+location\.search;\s*await prepare\(\);\s*if\(requestedOwner!==ownerKey\(\)\|\|requestedSession!==readOwner\(\)\|\|requestedLocation!==location\.pathname\+location\.search\|\|!el\.isConnected\)return;/,'the Food route awaits Nutrition and discards a stale path, query or host');
  assert.match(thread,/loadClassicScript\(FOOD_NUTRITION_ASSET\)/,'Nutrition uses the shared retryable script loader');
  console.log('Food description route: permanent conversation with explicit/default destination parameters PASS');
 }
