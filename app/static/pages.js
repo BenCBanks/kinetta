@@ -515,7 +515,7 @@ async function meOverview(el) {
   const shortDate=()=>{const parts=new Intl.DateTimeFormat(undefined,{weekday:'short',day:'numeric',month:'short',timeZone:zone}).formatToParts(new Date());return ['weekday','day','month'].map(k=>parts.find(p=>p.type===k)?.value).filter(Boolean).join(' ');};
   const activityLine=rows=>{
     if(rows.length===1){
-      const a=rows[0],parts=[],seconds=a.moving_s||a.elapsed_s,minutes=seconds?Math.round(seconds/60):0;
+      const a=rows[0],parts=[],seconds=Number(a.elapsed_s),minutes=Number.isFinite(seconds)&&seconds>0?Math.round(seconds/60):0;
       if(a.distance_m>0)parts.push(U.dist(a.distance_m,1)+' '+U.du());if(minutes>0)parts.push(minutes+' min');
       const name=SPORT_NAMES[a.sport]||a.sport_label||'Workout';
       return {title:[name,...parts].join(' · '),detail:new Date(a.start_time).toLocaleTimeString([], {timeZone:zone,hour:'numeric',minute:'2-digit'}),icon:IC[a.sport]?a.sport:'activity',sport:a.sport||'other',href:a.id?'/activity/'+a.id:'/me/activities'};
@@ -853,14 +853,14 @@ function zonesHtml(z) {
   return `<div class="zones">${z.map((s, i) => `<div class="zone" data-zone="${i+1}" role="img" aria-label="Zone ${i+1}, ${ZN[i]}, ${dur(s,true)}, ${Math.round(s/tot*100)} percent"><span class="zone-name"><i aria-hidden="true"></i>Z${i + 1}</span><div><div class="zone-track"><div class="bar z${i + 1}" data-w="${(s / tot).toFixed(3)}"></div></div><small class="muted">${ZN[i]}</small></div><span class="num r">${dur(s, true)}<small class="muted">${Math.round(s/tot*100)}%</small></span></div>`).join('')}</div>`;
 }
 function similarHtml(a) {
-  const mine = a.moving_s && a.distance_m ? a.moving_s / a.distance_m * 1000 : null;
+  const mineRate = rate(a), foot = FOOT.includes(a.sport);
+  const mine = mineRate.label==='Time'?null:foot?Number(a.elapsed_s)/Number(a.distance_m)*1000:Number(a.distance_m)/Number(a.elapsed_s);
   return a.similar.map((s) => {
-    const p = s.moving_s && s.distance_m ? s.moving_s / s.distance_m * 1000 : null;
-    const diff = mine && p ? p - mine : null;
-    const foot = FOOT.includes(a.sport);
-    const cmp = diff == null ? '' : Math.abs(diff) < 2 ? 'same pace' : `${diff > 0 ? 'you were' : 'it was'} ${foot ? Math.round(Math.abs(imp() ? diff * MI / 1000 : diff)) + ' s' + U.pu() : U.speed(Math.abs(1000 / mine - 1000 / p)) + ' ' + U.su()} faster`;
+    const peerRate=rate({...s,sport:a.sport}),p=peerRate.label==='Time'?null:foot?Number(s.elapsed_s)/Number(s.distance_m)*1000:Number(s.distance_m)/Number(s.elapsed_s);
+    const diff = mine!=null&&p!=null ? foot?p-mine:mine-p : null;
+    const cmp = diff == null ? '' : Math.abs(diff) < 2 ? 'same pace' : `${diff > 0 ? 'you were' : 'it was'} ${foot ? Math.round(Math.abs(imp() ? diff * MI / 1000 : diff)) + ' s' + U.pu() : U.speed(Math.abs(diff)) + ' ' + U.su()} faster`;
     return `<a class="row-link" href="/activity/${s.id}" data-prefetch="/api/activities/${s.id}"><div><b>${esc(s.name)}</b><br><small class="muted">${esc(fdate(s.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))} · ${U.dist(s.distance_m)} ${U.du()}${s.same_route ? ' · same route' : ''}</small></div>
-      <div class="r"><b class="num">${p ? (foot ? U.pace(p) + U.pu() : U.speed(1000 / p) + ' ' + U.su()) : '–'}</b><br><small class="muted">${esc(cmp)}</small></div></a>`;
+      <div class="r"><b class="num">${p!=null ? peerRate.v + peerRate.u : '–'}</b><br><small class="muted">${esc(cmp)}</small></div></a>`;
   }).join('');
 }
 
@@ -1130,20 +1130,21 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
   wireBack(el, '/progress/routes');
   await load(`/api/routes/${id}`, (r) => {
     const acts = r.activities, foot = FOOT.includes(r.sport) || r.sport === 'walk';
-    const pts = acts.filter((a) => a.moving_s && a.distance_m).map((a) => ({x: new Date(a.start_time) / 864e5, y: a.moving_s / a.distance_m * 1000, id: a.id}));
+    const pts = acts.filter((a) => a.elapsed_s > 0 && a.distance_m > 0).map((a) => ({x: new Date(a.start_time) / 864e5, y: a.elapsed_s / a.distance_m * 1000, id: a.id}));
     const t = r.pace_trend, e = r.efficiency_trend;
     let headline = matchedRouteTrendHeadline(t, pts, foot);
     if (e && t) { const effUp = e.slope_per_day > 0; headline += ` Recorded distance per heartbeat ${e.slope_per_day===0?'is unchanged':effUp?'increased':'decreased'}. Conditions and recording differences can affect this.`; }
     const best = acts.find((a) => a.id === r.fastest_id);
+    const knownTimes=acts.filter(a=>a.elapsed_s>0),average=knownTimes.length===acts.length&&acts.length?dur(knownTimes.reduce((s,a)=>s+a.elapsed_s,0)/knownTimes.length):'–';
     el.innerHTML = `<div class="top">${backBtn('Routes')}<button class="icon-btn" id="r-edit" aria-label="Rename route">${svg('edit')}</button></div>
       <div class="card"><h1>${esc(r.name)}</h1><p class="muted">${acts.length} times · ${SPORT_NAMES[r.sport] || 'Activity'} · first ${esc(fdate(acts[0].start_time, {month: 'short', year: 'numeric'}))}</p>
-        <div class="hero">${stat('Best', dur(best && best.moving_s))}${stat('Average', dur(acts.reduce((s, a) => s + (a.moving_s || 0), 0) / acts.length))}${stat('Distance', U.dist(acts[0].distance_m), U.du())}</div></div>
+        <div class="hero">${stat('Best', best&&best.elapsed_s>0?dur(best.elapsed_s):'–')}${stat('Average', average)}${stat('Distance', U.dist(acts[0].distance_m), U.du())}</div></div>
       ${r.line ? '<div class="map" id="r-map"></div>' : ''}
       <div class="card"><h2>${foot ? 'Pace' : 'Speed'} over time</h2>${headline ? `<div class="callout">${esc(headline)}</div>` : ''}<div id="r-chart"></div>
         <div class="badges"><span class="badge"><span class="route-fastest-key" aria-hidden="true">●</span> Fastest</span><span class="badge">- - Trend</span></div></div>
       <div class="card"><h2>Every time</h2>${[...acts].reverse().map((a) => `<a class="row-link" href="/activity/${a.id}" data-prefetch="/api/activities/${a.id}">
         <div><b>${a.id === r.fastest_id ? '<span class="badge pr">' + svg('trophy') + ' Fastest</span> ' : ''}${esc(fdate(a.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))}</b><br><small class="muted">${esc(a.name)}${a.avg_hr ? ' · ' + Math.round(a.avg_hr) + ' bpm' : ''}${a.avg_temp != null ? ' · ' + U.temp(a.avg_temp) : ''}</small></div>
-        <div class="r"><b class="num">${dur(a.moving_s)}</b><br><small class="muted num">${foot ? U.pace(a.moving_s / a.distance_m * 1000) + U.pu() : U.speed(a.distance_m / a.moving_s) + ' ' + U.su()}</small></div></a>`).join('')}</div>`;
+        <div class="r"><b class="num">${a.elapsed_s>0?dur(a.elapsed_s):'–'}</b><br><small class="muted num">${(()=>{const value=rate(a);return value.label==='Time'?'–':value.v+value.u;})()}</small></div></a>`).join('')}</div>`;
     wireBack(el, '/progress/routes');
     requestAnimationFrame(() => dotChart($('#r-chart', el), pts, {yfmt: (v) => (foot ? U.pace(v) : U.speed(1000 / v)), invert: true, trend: t, best: r.fastest_id}));
     if (r.line) lazy($('#r-map', el), () => mapInto($('#r-map', el), [r.line], {sport: r.sport}).catch(() => {}));

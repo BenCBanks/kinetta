@@ -18,8 +18,8 @@ source={}
 for kind in ('run','ride'):
  rows=ok(alex.get('/api/activities?sport='+kind+'&limit=100'));source[kind]=next(a for a in rows if a['line'] and (kind!='run' or a['distance_m']>=5000))
 now=dt.datetime.now(dt.timezone.utc)-dt.timedelta(hours=3);ids={};sql=[]
-for i,(kind,sport,label) in enumerate([('run','run',None),('treadmill','run','Treadmill Running'),('ride','ride',None),('lifting','workout','Strength Training'),('empty','walk',None)]):
- src=source.get(kind);body={'sport':sport,'name':'Fictional '+kind+' session','start':(now-dt.timedelta(days=i)).isoformat(),'duration_s':src['elapsed_s'] if src else 1800,'sport_label':label}
+for i,(kind,sport,label) in enumerate([('run','run',None),('paused','run',None),('treadmill','run','Treadmill Running'),('ride','ride',None),('lifting','workout','Strength Training'),('empty','walk',None)]):
+ src=source.get('run') if kind=='paused' else source.get(kind);body={'sport':sport,'name':'Fictional '+kind+' session','start':(now-dt.timedelta(days=i)).isoformat(),'duration_s':src['elapsed_s'] if src else 1800,'sport_label':label}
  if kind!='empty':body.update(distance_m=src['distance_m'] if src else 5000 if kind=='treadmill' else None)
  aid=ok(owner.post('/api/activities/manual',body))['id'];ids[kind]=aid
  ok(owner.put(f'/api/activities/{aid}/sharing',{'visibility':'friends' if kind=='run' else 'me'}))
@@ -32,6 +32,7 @@ for i,(kind,sport,label) in enumerate([('run','run',None),('treadmill','run','Tr
   sql.append(f"INSERT INTO best_efforts(user_id,activity_id,sport,distance_m,label,elapsed_s,start_time) SELECT user_id,id,sport,5000,'5K',1500,start_time FROM activities WHERE id={aid} AND user_id={uid};")
   for photo in ('freedom-park-lake.jpg','freedom-park-bridge.jpg'):
    raw=base64.b64encode((Path('dev/demo/photos')/photo).read_bytes()).decode();ok(owner.post(f'/api/activities/{aid}/photos',{'image':'data:image/jpeg;base64,'+raw}))
+ if kind=='paused':sql.append(f"UPDATE activities SET name='Fictional paused five mile run',distance_m=8046.72,moving_s=2400,elapsed_s=3000 WHERE id={aid} AND user_id={uid};")
  if kind=='lifting':
   ex=ok(owner.post('/api/lifts/exercises',{'name':'Fictional squat'}))['id'];ok(owner.put(f'/api/activities/{aid}/lifts',{'exercises':[{'exercise_id':ex,'sets':[{'reps':8,'kg':40,'warmup':True},{'reps':5,'kg':70},{'reps':5,'kg':70}]}]}))
 r=subprocess.run(['docker','exec','-i',project+'-db-1','psql','-U','postgres','-d','fit','-v','ON_ERROR_STOP=1','-q'],input='\n'.join(sql),text=True,capture_output=True);assert r.returncode==0,r.stderr

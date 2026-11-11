@@ -2,14 +2,14 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync('app/static/pages.js','utf8'),start=source.indexOf('function shareOut(a)'),end=source.indexOf('// cut `m` metres',start);
-const activity={id:7,name:'Fictional run',sport:'run',line:'fictional-line',start_time:'2026-10-23T10:00:00Z',distance_m:5000,moving_s:1500,avg_hr:152,calories:400,ascent_m:30};
+const activity={id:7,name:'Fictional paused run',sport:'run',line:'fictional-line',start_time:'2026-10-23T10:00:00Z',distance_m:8046.72,moving_s:2400,elapsed_s:3000,avg_hr:152,calories:400,ascent_m:30};
 const sharing={details:{map:true,pace:true,heart_rate:false,elevation:false,calories:false},trim_m:400};
-function fixture(social=sharing){
+function fixture(social=sharing,act=activity){
  const calls={route:[],simple:[],api:[],leaf:[],toasts:[]},sourceContext={isConnected:true};let leafFailure=null;
  const ctx={owner:'zz_test_owner_a',App:{me:{units:'metric'}},SPORT_NAMES:{run:'Run'},location:{pathname:'/activity/7',search:''},root:sourceContext,document:{querySelector:()=>sourceContext},readOwner:()=>ctx.owner,
-   api:async url=>{calls.api.push(url);return url.endsWith('/social')?{...social,details:{...social.details}}:{...activity};},
+   api:async url=>{calls.api.push(url);return url.endsWith('/social')?{...social,details:{...social.details}}:{...act};},
    decode:()=>[[40,-75],[40.05,-75.05],[40.1,-75.1]],trimRoute:(points,metres)=>metres?points.slice(1,-1):points,
-   rate:()=>({label:'Pace',v:'5:00',u:'/km'}),dur:n=>n+' seconds',fdate:()=> 'Oct 23, 2026',U:{dist:n=>n+' km',du:()=> 'km',time:n=>n+' seconds'},
+   rate:a=>{const elapsed=Number(a.elapsed_s),distance=Number(a.distance_m);if(!Number.isFinite(elapsed)||elapsed<=0)return{label:'Time',v:'–',u:''};if(!Number.isFinite(distance)||distance<=0)return{label:'Time',v:`${elapsed} seconds`,u:''};const pace=Math.round(elapsed/(distance/1609.344)),min=Math.floor(pace/60),sec=String(pace%60).padStart(2,'0');return{label:'Pace',v:`${min}:${sec}`,u:'/mi'};},activityElapsedText:a=>Number.isFinite(Number(a.elapsed_s))&&Number(a.elapsed_s)>0?`${a.elapsed_s} seconds`:'–',dur:n=>n+' seconds',fdate:()=> 'Oct 23, 2026',U:{dist:n=>n+' m',du:()=> 'm',time:n=>n+' seconds'},
    routePicture:async(...args)=>{calls.route.push(args);return new Blob(['activity']);},
    ShareArt:{simplePicture:async options=>{calls.simple.push(options);return{blob:new Blob(['simple']),alt:'Fictional picture'};}},
    loadShareArt:async()=>{calls.leaf.push('load');if(leafFailure)throw leafFailure;},
@@ -24,7 +24,7 @@ const tick=()=>new Promise(setImmediate),plain=value=>JSON.parse(JSON.stringify(
  await items[0].build({hideEnds:false});assert.equal(f.calls.route.at(-1)[1],0,'the explicit checkbox choice reaches the existing generator');
  await items[1].build({hideEnds:true});assert.deepEqual(plain(f.calls.simple.at(-1).routePoints),[[40.05,-75.05]],'the map option uses the trimmed points');assert.equal(f.calls.simple.at(-1).routeTrimmed,true);
  await items[1].build({hideEnds:false});assert.deepEqual(plain(f.calls.simple.at(-1).routePoints),[[40,-75],[40.05,-75.05],[40.1,-75.1]]);assert.equal(f.calls.simple.at(-1).routeTrimmed,false,'untrimmed map alt text matches the visible endpoints');
- await items[2].build({});assert(f.calls.simple.at(-1).facts.some(x=>x.startsWith('Time:')));assert(!f.calls.simple.at(-1).facts.some(x=>/heart rate|calories/i.test(x)),'disabled details do not appear in Stats');
+ await items[2].build({});assert(f.calls.simple.at(-1).facts.includes('Elapsed time: 3000 seconds'));assert(f.calls.simple.at(-1).facts.includes('Pace: 10:00 /mi'));assert.equal(f.calls.simple.at(-1).value,'8046.72 m');assert.equal(f.calls.route.at(-1)[0].moving_s,2400);assert.equal(f.calls.route.at(-1)[0].elapsed_s,3000);assert(!f.calls.simple.at(-1).facts.some(x=>/heart rate|calories/i.test(x)),'disabled details do not appear in Stats');
  console.log('Activity share: activity card, trimmed/full route map, stats and detail switches PASS');
 
  f=fixture({...sharing,trim_m:0});f.ctx.sharePicture(7);await tick();items=f.ctx.options.items;
@@ -33,8 +33,11 @@ const tick=()=>new Promise(setImmediate),plain=value=>JSON.parse(JSON.stringify(
 
  f=fixture({trim_m:0,details:{map:false,pace:false,heart_rate:false,elevation:false,calories:false}});f.ctx.sharePicture(7);await tick();items=f.ctx.options.items;
  assert.deepEqual(plain(items.map(item=>item.label)),['Activity card','Stats'],'the map option is omitted when the map detail is off');assert.equal(items[0].controls.length,0);await items[0].build({});assert.equal(f.calls.route.at(-1)[0].line,null);assert.equal(f.calls.route.at(-1)[1],0,'a hidden map never reaches the picture generator');
- await items[1].build({});assert.deepEqual(plain(f.calls.simple.at(-1).facts),['Time: 1500 seconds'],'hidden stats remain out of the image');
+ await items[1].build({});assert.deepEqual(plain(f.calls.simple.at(-1).facts),['Elapsed time: 3000 seconds'],'hidden stats remain out of the image');
  console.log('Activity share privacy: hidden map/details stay out of every picture PASS');
+
+ f=fixture(sharing,{...activity,elapsed_s:null});f.ctx.sharePicture(7);await tick();items=f.ctx.options.items;await items[0].build({});const unknown=await items[2].build({});assert.equal(unknown.value,'8046.72 m');assert.deepEqual(plain(unknown.facts),['Elapsed time: –'],'unknown elapsed time never falls back to moving time');assert.equal(f.calls.route.at(-1)[0].moving_s,2400,'moving duration remains preserved in activity-card input');
+ console.log('Activity share: unknown elapsed remains unavailable while moving duration stays distinct PASS');
 
  f=fixture();const known={...activity};f.ctx.shareOut(known);await tick();
  assert.deepEqual(f.calls.api,['/api/activities/7/social'],'activity detail reuses the activity but still fetches missing sharing preferences');assert.deepEqual(plain(known._social),plain(sharing));assert.equal(f.ctx.options.items[0].controls[0].checked,true);

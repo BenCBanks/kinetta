@@ -586,7 +586,7 @@ def _trend(xs, ys):
 def routes(user=Depends(current_user)):
     with db.connect() as c:
         return c.execute("""
-            SELECT r.id, r.name, r.sport, count(a.id) AS count, min(a.moving_s) AS best_s, max(a.start_time) AS last,
+            SELECT r.id, r.name, r.sport, count(a.id) AS count, min(a.elapsed_s) AS best_s, max(a.start_time) AS last,
                    avg(a.distance_m) AS distance_m,
                    (SELECT ST_AsGeoJSON(ST_Simplify(x.geom, %s)) FROM activities x WHERE x.route_id = r.id ORDER BY x.start_time DESC LIMIT 1) AS g
             FROM routes r JOIN activities a ON a.route_id = r.id WHERE r.user_id = %s
@@ -598,12 +598,13 @@ def route(rid: int, user=Depends(current_user)):
     with db.connect() as c:
         r = c.execute('SELECT id, name, sport FROM routes WHERE id = %s AND user_id = %s', (rid, user['id'])).fetchone()
         if not r: raise HTTPException(404, 'Not found')
-        acts = c.execute("""SELECT id, name, start_time, distance_m, moving_s, avg_hr, gap_s_per_km, avg_temp, effort FROM activities
+        acts = c.execute("""SELECT id, name, start_time, distance_m, moving_s, elapsed_s, avg_hr, gap_s_per_km, avg_temp, effort FROM activities
                             WHERE route_id = %s AND user_id = %s ORDER BY start_time""", (rid, user['id'])).fetchall()
         g = c.execute("""SELECT ST_AsGeoJSON(geom) AS g FROM activities WHERE route_id = %s AND user_id = %s
                          ORDER BY start_time DESC LIMIT 1""", (rid, user['id'])).fetchone()
     days = lambda t: t.timestamp() / 86400
-    pace = [(days(a['start_time']), a['moving_s'] / a['distance_m'] * 1000) for a in acts if a['moving_s'] and a['distance_m']]
+    pace = [(days(a['start_time']), a['elapsed_s'] / a['distance_m'] * 1000) for a in acts
+            if a['elapsed_s'] and a['elapsed_s'] > 0 and a['distance_m'] and a['distance_m'] > 0]
     # efficiency: metres per heartbeat (hill-adjusted where possible) - higher = fitter at the same effort
     eff = [(days(a['start_time']), (1000 / (a['gap_s_per_km'] or a['moving_s'] / a['distance_m'] * 1000)) * 60 / a['avg_hr'])
            for a in acts if a['avg_hr'] and a['moving_s'] and a['distance_m']]
@@ -611,7 +612,8 @@ def route(rid: int, user=Depends(current_user)):
     r['line'] = polyline(json.loads(g['g'])['coordinates']) if g and g['g'] else None
     r['pace_trend'] = _trend(*zip(*pace)) if len(pace) >= 3 else None
     r['efficiency_trend'] = _trend(*zip(*eff)) if len(eff) >= 3 else None
-    r['fastest_id'] = min(acts, key=lambda a: a['moving_s'] or math.inf)['id'] if acts else None
+    timed = [a for a in acts if a['elapsed_s'] and a['elapsed_s'] > 0]
+    r['fastest_id'] = min(timed, key=lambda a: a['elapsed_s'])['id'] if timed else None
     return r
 
 
@@ -631,7 +633,7 @@ def rename_route(rid: int, body: RouteEdit, user=Depends(current_user)):
 def _similar(c, uid, aid, limit):
     """Other activities of the same sport and similar distance (±10 %), newest first, for side-by-side comparison."""
     return c.execute("""
-        SELECT o.id, o.name, o.start_time, o.distance_m, o.moving_s, o.avg_hr, o.gap_s_per_km, o.route_id = a.route_id AS same_route
+        SELECT o.id, o.name, o.start_time, o.distance_m, o.moving_s, o.elapsed_s, o.avg_hr, o.gap_s_per_km, o.route_id = a.route_id AS same_route
         FROM activities a JOIN activities o ON o.user_id = a.user_id AND o.sport = a.sport AND o.id <> a.id
         WHERE a.id = %s AND a.user_id = %s AND a.distance_m > 0
           AND o.distance_m BETWEEN a.distance_m * 0.9 AND a.distance_m * 1.1
