@@ -47,7 +47,11 @@ class CopyTests(unittest.TestCase):
    footer=source.split('<footer>')[1]
    self.assertRegex(footer,r'<a href="(?:about|guide)">(?:About(?: us)?|Feature guide)</a>',template.name)
    self.assertRegex(footer,r'<a href="privacy">Privacy(?: policy)?</a>',template.name)
-   self.assertNotIn('href="guide"',source.split('</header>')[0],template.name)
+   header=source.split('</header>')[0]
+   nav=re.search(r'<nav class="tabs" aria-label="Primary">(.*?)</nav>',header,re.S)
+   self.assertIsNotNone(nav,template.name)
+   links=re.findall(r'<a href="([^"]+)"[^>]*>([^<]+)</a>',nav.group(1))
+   self.assertEqual(links,[('./','Home'),('compare','Features'),('guide','Guide'),('https://testflight.apple.com/join/YAX1JnwB','Download')],template.name)
  def test_about_photos_have_no_embedded_metadata(self):
   import struct
   for name in ['ben-and-rachel']:

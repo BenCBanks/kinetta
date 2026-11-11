@@ -14,9 +14,9 @@ Train. Fuel. Feel the difference.
 
 Your workouts, food and people—one clear picture.
 
-## home-insights-heading
+## home-core-heading
 
-Make your next move with the full picture.
+Training, food and friends, together.
 
 ## home-progress-description
 
@@ -32,7 +32,7 @@ Ask Kit for optional notes on workouts, training and recovery.
 
 ## runs-rides-and-lifting-4
 
-Fictional demo data · Kit reply is a screenshot stand-in.
+Review each route, pace, splits and heart rate after a workout.
 
 ## home-workout-description
 
@@ -40,7 +40,7 @@ Review each route, pace, splits and heart rate after a workout.
 
 ## quick-food-logging-6
 
-Know when to push. Know when to rest.
+Describe a meal, then review each food and amount before logging.
 
 ## home-food-description
 
