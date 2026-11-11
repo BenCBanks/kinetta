@@ -46,6 +46,7 @@ case "$1" in
     node dev/tests/personal_notifications_ui.cjs
     node dev/tests/notification_settings_ui.cjs
     node dev/tests/recaps_ui.cjs
+    KINETTA_PUBLIC_CARD_CASE=qr node dev/tests/public_card_ui.cjs
     python3 dev/tests/insights_fixture.py
     node dev/tests/insights_ui.cjs
     node dev/tests/goals_ui.cjs

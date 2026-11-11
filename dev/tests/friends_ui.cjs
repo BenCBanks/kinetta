@@ -131,7 +131,18 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    await p.locator('#fr-invite').click();await p.getByRole('dialog',{name:'Invite friends'}).waitFor();
    await p.locator('#iv-qr').click();await p.locator('#iv-qr-code svg[aria-label="QR code for your Kinetta invite link"]').waitFor();
    assert.equal(qrRequests.length,1,'the invite action loads QR on demand');await p.locator('#iv-qr').click();assert.equal(qrRequests.length,1,'repeated QR action reuses the loaded script and graphic');
-   assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(x=>!x.endsWith('/api/challenges/signup/continue')),[],'QR generation has no write side effects');await close(c);console.log('Find friends QR: Social stays QR-free until the invite action; one deduplicated lazy load PASS');
+   assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(x=>!x.endsWith('/api/challenges/signup/continue')),[],'QR generation has no write side effects');await close(c);
+   const stale=await open('empty','light');assert.equal(stale.qrRequests.length,0);await stale.p.locator('#fr-invite').click();await stale.p.getByRole('dialog',{name:'Invite friends'}).waitFor();
+   await stale.p.evaluate(()=>{window.__pendingInviteQrBox=document.querySelector('#iv-qr-code');});let qrStarted=false,releaseQr;
+   await stale.p.route('**/static/vendor/qrcode.js*',async route=>{qrStarted=true;await new Promise(resolve=>{releaseQr=resolve;});await route.continue();});await stale.p.locator('#iv-qr').click();
+   for(let attempt=0;attempt<100&&!qrStarted;attempt++)await stale.p.waitForTimeout(20);assert(qrStarted,'the invite QR action starts its lazy request');
+   assert.equal((await stale.c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_fc_typical',password:pw}})).status(),200,'second fictional owner signs in');
+   const newOwner=await(await stale.c.request.get(base+'/api/me')).json();await stale.p.evaluate(me=>refreshMe(me),newOwner);
+   await until(stale.p,()=>App.pageReady&&App.me?.login==='zz_test_fc_typical','second fictional owner becomes current');releaseQr();
+   for(let attempt=0;attempt<100;attempt++){if(stale.qrRequests.length===1)break;await stale.p.waitForTimeout(20);}
+   assert.equal(stale.qrRequests.length,1,'the old invite QR request completes after owner change');assert.equal(await stale.p.evaluate(()=>window.__pendingInviteQrBox?.querySelector('svg')||null),null,'old-owner invite does not render after its deferred load');
+   assert.equal(await stale.p.locator('#iv-qr-code svg').count(),0,'new owner has no stale invite QR');assert.deepEqual(stale.errors,[]);await close(stale.c);
+   console.log('Find friends QR: action-only load, deduplication and late old-owner guard PASS');
   }
  }finally{for(const c of contexts)await c.close();await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
