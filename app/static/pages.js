@@ -4,12 +4,14 @@
 // ---------- shared bits ----------
 const stat = (label, v, u = '') => `<div class="stat"><small>${esc(label)}</small><b class="num">${esc(v)}${u ? `<i>${esc(u)}</i>` : ''}</b></div>`;
 const firstStep = (icon,copy,id,label,options='') => `<div class="card first-step"><span class="first-step-icon" aria-hidden="true">${svg(icon)}</span><p>${copy}</p><button type="button" class="primary wide" id="${id}">${label}</button>${options}</div>`;
+const activityElapsedText = a => { const s=Number(a.elapsed_s); return Number.isFinite(s)&&s>0?U.time(s):'–'; };
+const activityMovingText = a => { const s=Number(a.moving_s); return a.moving_s!=null&&Number.isFinite(s)&&s>=0?U.time(s):'–'; };
 function headline(a) {
   const r = rate(a);
-  if (a.lifts && !a.distance_m) return stat('Time', U.time(a.moving_s || a.elapsed_s)) + stat('Sets', a.lifts.sets)
+  if (a.lifts && !a.distance_m) return stat('Time', activityElapsedText(a)) + stat('Sets', a.lifts.sets)
     + (a.lifts.volume ? stat('Lifted', Math.round(imp() ? a.lifts.volume * LB : a.lifts.volume).toLocaleString(), wUnit()) : stat('Exercises', a.lifts.exercises));
-  const first = a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : stat('Time', U.time(a.moving_s || a.elapsed_s));
-  const third = a.distance_m ? stat('Time', U.time(a.moving_s || a.elapsed_s)) :
+  const first = a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : stat('Time', activityElapsedText(a));
+  const third = a.distance_m ? stat('Time', activityElapsedText(a)) :
     a.avg_hr ? stat('Avg HR', Math.round(a.avg_hr), 'bpm') : stat('Effort', a.effort ? Math.round(a.effort) : '–');
   return first + (a.distance_m ? (r.label==='Time' ? (a.avg_hr?stat('Avg HR',Math.round(a.avg_hr),'bpm'):'') : stat(r.label,r.v,r.u)) : (a.effort ? stat('Effort', Math.round(a.effort)) : stat('Calories', a.calories ? Math.round(a.calories) : '–'))) + third;
 }
@@ -118,8 +120,8 @@ function postCard(a, {compact = false, lock = false} = {}) {
 function sharedHeadline(a) {   // what a friend shares: no pace when they keep pace to themselves
   const st = [];
   if (a.distance_m) st.push(stat('Distance', U.dist(a.distance_m), U.du()));
-  if (a.distance_m && a.moving_s && a.shares.pace) { const r = rate(a); if(r.label!=='Time')st.push(stat(r.label, r.v, r.u)); }
-  st.push(stat('Time', U.time(a.moving_s || a.elapsed_s)));
+  if (a.distance_m && a.shares.pace) { const r = rate(a); if(r.label!=='Time')st.push(stat(r.label, r.v, r.u)); }
+  st.push(stat('Time', activityElapsedText(a)));
   if (st.length < 3 && a.ascent_m) st.push(stat('Elevation', U.elev(a.ascent_m), U.eu()));
   return st.slice(0, 3).join('');
 }
@@ -128,13 +130,13 @@ function postMapMetrics(a) {
   if(a.distance_m) rows.push(['Distance',U.dist(a.distance_m),U.du()]);
   const r=rate(a);
   if(a.owner) {
-    if(a.distance_m&&a.moving_s&&a.shares?.pace&&r.label!=='Time') rows.push([r.label,r.v,r.u]);
-    rows.push(['Time',U.time(a.moving_s||a.elapsed_s),'']);
+    if(a.distance_m&&a.shares?.pace&&r.label!=='Time') rows.push([r.label,r.v,r.u]);
+    rows.push(['Time',activityElapsedText(a),'']);
     if(rows.length<3&&a.ascent_m)rows.push(['Elevation',U.elev(a.ascent_m),U.eu()]);
   } else {
     if(a.distance_m&&r.label!=='Time')rows.push([r.label,r.v,r.u]);
     else if(a.distance_m&&a.avg_hr)rows.push(['Avg HR',Math.round(a.avg_hr),'bpm']);
-    if(a.distance_m)rows.push(['Time',U.time(a.moving_s||a.elapsed_s),'']);
+    if(a.distance_m)rows.push(['Time',activityElapsedText(a),'']);
   }
   if(!rows.length)return '';
   return `<div class="post-map-metrics" role="group" aria-label="Activity metrics">${rows.slice(0,3).map(([label,value,unit])=>`<div class="post-map-metric"><span class="vh">${esc(label)}</span><b>${esc(value)}${unit?`<i>${esc(unit)}</i>`:''}</b></div>`).join('')}</div>`;
@@ -663,7 +665,7 @@ function sportStats(a) {
   const s = [];
   const add = (l, v, u) => { if (v != null && v !== '–') s.push(stat(l, v, u)); };
   if (a.sport === 'swim') {
-    add('Pace', a.distance_m && a.moving_s ? U.swim(a.moving_s / a.distance_m * 1000) : null, U.swu());
+    const r=rate(a); add('Pace', r.label==='Pace'?r.v:null, U.swu());
     add('Lengths', a.lengths); add('SWOLF', a.swolf ? Math.round(a.swolf) : null); add('Strokes', a.strokes ? Math.round(a.strokes) : null);
     add('Pool', a.pool_length_m ? `${Math.round(a.pool_length_m)} m` : null);
   }
@@ -679,7 +681,8 @@ function sportStats(a) {
   if (a.avg_stride) add('Stride', (a.avg_stride / 1000).toFixed(2), 'm');
   if (a.avg_gct) add('Ground contact', Math.round(a.avg_gct), 'ms');
   if (a.avg_vo) add('Vert. osc.', (a.avg_vo / 10).toFixed(1), 'cm');
-  add('Elapsed', a.elapsed_s && Math.abs(a.elapsed_s - (a.moving_s || 0)) > 30 ? dur(a.elapsed_s) : null);
+  add('Elapsed time', a.elapsed_s != null ? activityElapsedText(a) : null);
+  add('Moving time', a.moving_s != null ? activityMovingText(a) : null);
   add('Calories', a.calories ? Math.round(a.calories) : null); add('Temp', a.avg_temp != null ? U.temp(a.avg_temp) : null);
   return s.join('');
 }
@@ -744,7 +747,7 @@ function wireActivityTabs(el, onShow = () => {}) {
 
 function drawDetail(el, a) {
   const r = rate(a);
-  const hero = a.lifts && !a.distance_m ? headline(a) : (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Moving time', U.time(a.moving_s || a.elapsed_s)) + (a.distance_m && r.label!=='Time' ? stat(r.label, r.v, r.u) : '');
+  const hero = a.lifts && !a.distance_m ? headline(a) : (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Elapsed time', activityElapsedText(a)) + (a.distance_m && r.label!=='Time' ? stat(r.label, r.v, r.u) : '');
   const ins = insights(a);
   const splits = imp() ? a.splits_mi : a.splits_km;
   const more = sportStats(a);
@@ -962,12 +965,12 @@ function sharePicture(id, known, origin=null) {
       const trimValue=state=>state.hideEnds?savedTrim:0,date=fdate(activity.start_time,{weekday:'short',month:'short',day:'numeric',year:'numeric'}),name=(activity.name||'activity').replace(/[^\w -]+/g,'').trim()||'activity';
       const items=[{label:'Activity card',filename:`${name}.png`,controls,build:state=>routePicture(safe,hasLine?trimValue(state):0,details)}];
       if(hasLine)items.push({label:'Route map',filename:`${name}-route.png`,controls,build:state=>{const trim=trimValue(state),routePoints=trimRoute(decode(line),trim);return ShareArt.simplePicture({kicker:'Route map',title:activity.name,date,value:'Route',routePoints,routeTrimmed:trim>0});}});
-      const rateInfo=rate(activity),statsFacts=[`Time: ${U.time(activity.moving_s||activity.elapsed_s)}`];
+      const rateInfo=rate(activity),statsFacts=[`Elapsed time: ${activityElapsedText(activity)}`];
       if(details.pace&&rateInfo.label!=='Time')statsFacts.push(`${rateInfo.label}: ${rateInfo.v} ${rateInfo.u}`);
       if(details.heart_rate&&activity.avg_hr)statsFacts.push(`Average heart rate: ${Math.round(activity.avg_hr)} bpm`);
       if(details.elevation&&activity.ascent_m)statsFacts.push(`Climb: ${App.me?.units==='metric'?Math.round(activity.ascent_m)+' m':Math.round(activity.ascent_m*3.28084)+' ft'}`);
       if(details.calories&&activity.calories)statsFacts.push(`Calories: ${Math.round(activity.calories)} kcal`);
-      items.push({label:'Stats',filename:`${name}-stats.png`,build:()=>ShareArt.simplePicture({kicker:SPORT_NAMES[activity.sport]||'Activity',title:activity.name,date,value:activity.distance_m?U.dist(activity.distance_m):dur(activity.moving_s||activity.elapsed_s),unit:activity.distance_m?U.du():'moving time',facts:statsFacts})});
+      items.push({label:'Stats',filename:`${name}-stats.png`,build:()=>ShareArt.simplePicture({kicker:SPORT_NAMES[activity.sport]||'Activity',title:activity.name,date,value:activity.distance_m?U.dist(activity.distance_m):activityElapsedText(activity),unit:activity.distance_m?U.du():'elapsed time',facts:statsFacts})});
       await loadShareArt();if(!live())return;ShareSheet.open({items});
    }catch(error){if(live())toast(error.message||'Couldn’t load this activity. Tap Share to try again.');}
    finally{activityShareOpening.delete(context);}
@@ -1027,8 +1030,8 @@ async function routePicture(a, trim, details={}) {
   const hue = PIC.route, M = 48, PAD = 44, SAFE_TOP = 40, SAFE_BOTTOM = M;
   // the numbers: time and pace (or speed) first, then distance; without distance, heart rate or calories
   const r = rate(a), cells = [];
-  cells.push(['Time', U.time(a.moving_s || a.elapsed_s), '']);
-  if (details.pace!==false&&a.distance_m && a.moving_s && r.label!=='Time') cells.push([r.label, r.v, r.u]);
+  cells.push(['Elapsed time', activityElapsedText(a), '']);
+  if (details.pace!==false&&a.distance_m && r.label!=='Time') cells.push([r.label, r.v, r.u]);
   if (a.distance_m) cells.push(['Distance', U.dist(a.distance_m), U.du()]);
   if (cells.length < 3 && details.heart_rate && a.avg_hr) cells.push(['Avg heart rate', String(Math.round(a.avg_hr)), 'bpm']);
   if (cells.length < 3 && details.calories && a.calories) cells.push(['Calories', String(Math.round(a.calories)), 'kcal']);

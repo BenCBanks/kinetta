@@ -641,11 +641,13 @@ const SPORT_NAMES = {run: 'Run', ride: 'Ride', walk: 'Walk', hike: 'Hike', swim:
 const FOOT = ['run', 'walk', 'hike'];
 // the headline number per sport: pace for foot sports, speed for rides/skis, /100 for swims
 function rate(a) {
-  if (!a.distance_m || !a.moving_s || a.speed_available === false) return {label: 'Time', v: U.time(a.moving_s || a.elapsed_s), u: ''};
-  const spk = a.moving_s / a.distance_m * 1000;
+  const elapsed = Number(a.elapsed_s), distance = Number(a.distance_m);
+  if (!Number.isFinite(elapsed) || elapsed <= 0) return {label: 'Time', v: '–', u: ''};
+  if (!Number.isFinite(distance) || distance <= 0 || a.speed_available === false) return {label: 'Time', v: U.time(elapsed), u: ''};
+  const spk = elapsed / distance * 1000;
   if (a.sport === 'swim') return {label: 'Pace', v: U.swim(spk), u: U.swu()};
   if (FOOT.includes(a.sport)) return {label: 'Pace', v: U.pace(spk), u: U.pu()};
-  return {label: 'Speed', v: U.speed(a.distance_m / a.moving_s), u: U.su()};
+  return {label: 'Speed', v: U.speed(distance / elapsed), u: U.su()};
 }
 
 // ---------- icons ----------
