@@ -166,21 +166,57 @@ async function notificationFixture(browser,loginName=user,options={}){
   await page.clock.install({time:new Date('2026-11-05T12:00:00Z')});
   const routes=await notificationRoutes(context,options);return {context,page,errors,routes};
 }
-async function socialFixture(browser,{failFirst=false,idleGate=false}={}){
+async function socialFixture(browser,{failFirst=false,failFriendsFirst=false,idleGate=false}={}){
  const context=await fixtureContext(browser);await login(context);
- const page=await context.newPage(),assets=[],errors=[],writes=[];page.on('pageerror',error=>errors.push(error.message));
+ const page=await context.newPage(),assets=[],friendsAssets=[],routeAssets=[],errors=[],writes=[];page.on('pageerror',error=>errors.push(error.message));
  if(idleGate)await page.addInitScript(()=>{window.__socialIdleCallbacks=[];window.requestIdleCallback=callback=>{window.__socialIdleCallbacks.push(callback);return window.__socialIdleCallbacks.length;};window.cancelIdleCallback=()=>{};});
  await page.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
   if(url.pathname==='/static/social.js'){
-   assets.push(url.pathname);if(failFirst&&assets.length===1)return route.abort();
+   assets.push(url.pathname);routeAssets.push(url.pathname);if(failFirst&&assets.length===1)return route.abort();
+  }
+  if(url.pathname==='/static/friends-ui.js'){
+   friendsAssets.push(url.pathname);routeAssets.push(url.pathname);if(failFriendsFirst&&friendsAssets.length===1)return route.abort();
   }
   if(url.pathname==='/api/notifications/count')return route.fulfill({json:{unread:3,friend_requests:2,friend_count:2}});
   if(request.method()==='POST'&&['/api/challenges/signup/continue','/api/milestones/celebrate'].includes(url.pathname))return route.fulfill({status:204,body:''});
   if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
   return route.continue();
  });
- return {context,page,assets,errors,writes};
+ return {context,page,assets,friendsAssets,routeAssets,errors,writes};
+}
+async function friendsLeafChecks(browser){
+ const me=await socialFixture(browser,{idleGate:true});
+ try{
+  await me.page.goto(base+'/me');await ready(me.page,meReady,'Me before FriendsUI route entry');
+  await me.page.waitForFunction(()=>window.__socialIdleCallbacks.length>0);
+  assert.deepEqual(me.friendsAssets,[],'FriendsUI is absent from the cold Me request sequence');
+  assert.equal(await me.page.evaluate(()=>typeof FriendsUI),'undefined','Me does not evaluate the FriendsUI leaf');
+  const routing=await me.page.evaluate(()=>['/me/friends','/me/friends/contacts','/me/groups'].map(path=>{
+   const bundle=lazyRouteBundles.find(item=>item.re.test(path));
+   return [path,!!bundle&&bundle.scripts.includes(FRIENDS_UI_ASSET)];
+  }));
+  assert.deepEqual(routing,[['/me/friends',true],['/me/friends/contacts',false],['/me/groups',false]],'only the Friends page route owns the FriendsUI leaf');
+  await me.page.goto(base+'/me/friends/contacts');await ready(me.page,'#contacts-not-now','direct Contacts route without FriendsUI');
+  assert.deepEqual(me.friendsAssets,[],'Contacts loads without requesting FriendsUI');
+  assert.equal(await me.page.evaluate(()=>typeof ContactsUI),'object','ContactsUI remains available on its existing eager path');
+  assert.deepEqual(me.writes,[],'opening Contacts did not trigger a write before its explicit action');
+  assert.deepEqual(me.errors,[]);
+ }finally{await me.context.close();}
+
+ const retry=await socialFixture(browser,{failFriendsFirst:true});
+ try{
+  await retry.page.goto(base+'/me/friends?find=1',{waitUntil:'domcontentloaded'});await retry.page.locator('.load-error').waitFor();
+  assert.deepEqual(retry.routeAssets,['/static/social.js','/static/friends-ui.js'],'direct Friends loads Social before its dependent UI leaf');
+  await retry.page.locator('#retry').click();await ready(retry.page,'#fr-invite','Friends after leaf retry');
+  assert.equal(new URL(retry.page.url()).pathname,'/me/friends','retry preserves the direct Friends route');
+  assert.deepEqual(retry.routeAssets,['/static/social.js','/static/friends-ui.js','/static/friends-ui.js'],'failed FriendsUI load retries without reloading Social');
+  assert.deepEqual(retry.friendsAssets,['/static/friends-ui.js','/static/friends-ui.js']);
+  assert.equal(await retry.page.evaluate(()=>typeof FriendsUI),'object');
+  assert.equal(await retry.page.locator('#fr-find input').count(),1,'Find friends search remains available after route load');
+  assert.equal(await retry.page.locator('#fr-invite').count(),1,'Invite action remains available after route load');
+  assert.deepEqual(retry.errors,[]);assert.deepEqual(retry.writes,[],'loading and retrying Friends performs no writes');
+ }finally{await retry.context.close();}
 }
 async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
  const context=await fixtureContext(browser);await login(context,loginName);
@@ -258,6 +294,9 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
  return {context,page,assets,errors,writes,activityId};
 }
 (async()=>{const browser=await chromium.launch();try{
+  if(process.env.KINETTA_FRIENDS_LAZY_ONLY==='1'){
+    await friendsLeafChecks(browser);console.log('FriendsUI lazy leaf: cold Me, direct route order/retry and Contacts independence PASS');return;
+  }
   const socialMe=await socialFixture(browser,{idleGate:true});
   try{
     await socialMe.page.goto(base+'/me');await ready(socialMe.page,meReady,'Me without the social bundle');
@@ -279,6 +318,8 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     await socialMe.page.evaluate(()=>window.__socialIdleCallbacks.splice(0).forEach(callback=>callback({didTimeout:false,timeRemaining:()=>50})));
     await socialMe.page.waitForFunction(()=>typeof Social==='object');
     assert.equal(socialMe.assets.length,1,'social.js warms after Me is useful');
+    assert.deepEqual(socialMe.friendsAssets,[],'the released Social warmup still does not load FriendsUI');
+    assert.equal(await socialMe.page.evaluate(()=>typeof FriendsUI),'undefined','Me remains FriendsUI-free after Social warmup');
     await socialMe.page.waitForFunction(()=>App.me.notifications===3&&App.me.friend_requests===2,null,{timeout:8000});
     assert.deepEqual(await socialMe.page.evaluate(()=>{
       const badge=document.querySelector('nav.tabs a[data-tab="me"] .tab-n');
@@ -311,6 +352,8 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     assert.equal(socialRetry.assets.length,2,'retry clears the failed promise and requests social.js again');
     assert.deepEqual(socialRetry.errors,[]);assert.deepEqual(socialRetry.writes,[]);
   }finally{await socialRetry.context.close();}
+
+  await friendsLeafChecks(browser);
 
   const context=await fixtureContext(browser);
   try{

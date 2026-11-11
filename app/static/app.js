@@ -59,6 +59,7 @@ const SOCIAL_ROUTE_ASSET = '/static/social.js?v=__ASSET_HASH__';
 const PLAN_ROUTE_ASSET = '/static/plan.js?v=__ASSET_HASH__';
 const QR_CODE_ASSET = '/static/vendor/qrcode.js?v=__ASSET_HASH__';
 const INTERVALS_ROUTE_ASSET = '/static/intervals.js?v=__ASSET_HASH__';
+const FRIENDS_UI_ASSET = '/static/friends-ui.js?v=__ASSET_HASH__';
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: ['/static/welcome.js?v=__ASSET_HASH__']},
   {re: /^\/me\/explore$/, tab: 'track', scripts: [SOCIAL_ROUTE_ASSET, '/static/explore.js?v=__ASSET_HASH__']},
@@ -72,7 +73,8 @@ const lazyRouteBundles = [
   {re: /^\/activity\/\d+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET, INTERVALS_ROUTE_ASSET]},
   {re: /^\/people\/([^/]+)$/, tab: login => App.me && decodeURIComponent(login).toLowerCase() === App.me.login.toLowerCase() ? 'me' : 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/add\/[\w-]+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
-  {re: /^\/me\/friends(?:\/contacts)?$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET]},
+  {re: /^\/me\/friends$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET, FRIENDS_UI_ASSET]},
+  {re: /^\/me\/friends\/contacts$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/me\/groups$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/groups\/[0-9a-f-]{36}$/i, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/group-invite\/[\w-]+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
