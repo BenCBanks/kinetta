@@ -103,7 +103,9 @@ def to_activity(w):
         if rows[-1][0] < end: rows.append((end, {}))
     bpm = [v for _, v in hr]
     # HealthKit's duration leaves out pauses: it is the moving time when there's no recording to measure it from
-    session = {'elapsed_s': (end - start).total_seconds(), 'moving_s': w.duration_s, 'distance_m': w.distance_m or None, 'calories': w.calories or None,
+    session = {'elapsed_s': (end - start).total_seconds(), 'moving_s': w.duration_s,
+               '_health_duration_authoritative': True,
+               'distance_m': w.distance_m or None, 'calories': w.calories or None,
                'avg_hr': sum(bpm) / len(bpm) if bpm else None, 'max_hr': max(bpm) if bpm else None}
     parsed = parsers._finish(start, rows, sport, None, w.source or 'Apple Health', session, [])
     if not parsed['streams']['t']:   # summary only
@@ -154,7 +156,9 @@ def enrich(uid, aid, w, parsed, meta):
         changed = st != old
         previous = (a.get('health_details') or {}).get('imported', {})
         S = analysis.prepare(st, a['sport'])
-        summ = analysis.summary(S, a['sport'], parsed.get('session') or {}, activities.profile_of(c, uid))
+        session = dict(parsed.get('session') or {})
+        session['_health_duration_authoritative'] = a['source'] == 'healthkit'
+        summ = analysis.summary(S, a['sport'], session, activities.profile_of(c, uid))
         # The stream analysis can leave aggregate-only Health statistics empty.
         for k in EXTRA + ('calories', 'distance_m', 'elapsed_s', 'moving_s'):
             if summ.get(k) is None or (k in EXTRA and meta.get(k) is not None): summ[k] = meta.get(k)
@@ -178,24 +182,51 @@ def enrich(uid, aid, w, parsed, meta):
         if not changed and 'moving_s' in updates:
             # A duration repair also changes time-based estimates on unchanged HR
             # recordings. Do not require new GPS/HR samples to refresh those values.
-            for k in ('vo2max', 'vam'):
+            for k in ('gap_s_per_km', 'vo2max', 'vam'):
                 updates[k] = activities.num(summ.get(k))
+        if a['source'] == 'healthkit' and not summ.get('route_timing_valid', True):
+            # The Health timer cannot be placed onto GPS intervals. Clear old
+            # mask-based split times and pace charts while retaining route/HR data.
+            if a.get('splits_km'):
+                updates['splits_km'] = json.dumps([])
+            if a.get('splits_mi'):
+                updates['splits_mi'] = json.dumps([])
+            chart = analysis.summary_chart(S, a['sport'], summ)
+            if a.get('chart') != chart:
+                updates['chart'] = json.dumps(chart)
+            for k in ('max_speed', 'decoupling', 'steps'):
+                if a.get(k) is not None:
+                    updates[k] = None
+            if a.get('gap_s_per_km') is not None and 'gap_s_per_km' not in updates:
+                updates['gap_s_per_km'] = activities.num(summ.get('gap_s_per_km'))
+            if not changed:
+                updates['vo2max'] = activities.num(summ.get('vo2max'))
+                updates['vam'] = activities.num(summ.get('vam'))
         if changed and st['t']:
             cols = ('t',) + parsers.STREAMS
             arrays = [activities._floats(st[k]) for k in cols]
             c.execute('INSERT INTO activity_streams (activity_id, user_id, ' + ','.join(cols) + ') VALUES (' + ','.join(['%s'] * (len(cols) + 2)) + ') ON CONFLICT (activity_id) DO UPDATE SET ' + ','.join(k + '=EXCLUDED.' + k for k in cols), (aid, uid, *arrays))
-            for k in ('effort', 'gap_s_per_km', 'decoupling', 'vo2max', 'norm_power', 'vam', 'min_alt', 'max_alt'):
-                if summ.get(k) is not None: updates[k] = activities.num(summ[k])
-            updates.update(zones=json.dumps(summ.get('zones')), chart=json.dumps(analysis.chart_series(S, a['sport'])),
-                splits_km=json.dumps(analysis.splits(S, a['sport'], 1000)), splits_mi=json.dumps(analysis.splits(S, a['sport'], activities.MI)),
+            for k in ('effort', 'gap_s_per_km', 'decoupling', 'vo2max', 'norm_power', 'vam', 'min_alt', 'max_alt', 'max_speed', 'steps'):
+                if summ.get(k) is not None or (a['source'] == 'healthkit' and not summ.get('route_timing_valid', True) and k in ('decoupling', 'max_speed', 'steps')):
+                    updates[k] = activities.num(summ.get(k))
+            updates.update(zones=json.dumps(summ.get('zones')), chart=json.dumps(analysis.summary_chart(S, a['sport'], summ)),
+                splits_km=json.dumps(analysis.summary_splits(S, a['sport'], 1000, summ)), splits_mi=json.dumps(analysis.summary_splits(S, a['sport'], activities.MI, summ)),
                 power_curve=json.dumps(analysis.power_curve(S)))
             c.execute('DELETE FROM best_efforts WHERE activity_id = %s AND user_id = %s', (aid, uid))
-            for e in analysis.best_efforts(S, a['sport']):
+            for e in analysis.summary_best_efforts(S, a['sport'], summ):
                 c.execute('INSERT INTO best_efforts (user_id, activity_id, sport, distance_m, label, elapsed_s, start_s, start_time) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)',
                     (uid, aid, a['sport'], e['distance_m'], e['label'], e['elapsed_s'], e['start_s'], a['start_time']))
             activities.set_geometry(c, aid, st)
             activities.match_route(c, uid, aid)
+        elif a['source'] == 'healthkit' and not summ.get('route_timing_valid', True):
+            c.execute('DELETE FROM best_efforts WHERE activity_id = %s AND user_id = %s', (aid, uid))
         details = {'imported': imported, 'route_points': sum(v is not None for v in st['lat']), 'heart_rate_points': sum(v is not None for v in st['hr'])}
+        if a['source'] == 'healthkit':
+            details['health_duration_authoritative'] = True
+            details['health_duration_s'] = float(meta['moving_s'])
+            details.pop('health_duration_replay_required', None)
+        if a['source'] == 'healthkit' and not summ.get('route_timing_valid', True):
+            details['route_timing'] = 'health-duration-only; split and pace-chart timing unavailable'
         indoor=w.indoor if w.indoor is not None else (a.get('health_details') or {}).get('indoor')
         if indoor is not None:details['indoor']=indoor
         corrections.capture(c,raw_a,updates)

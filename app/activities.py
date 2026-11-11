@@ -108,7 +108,9 @@ def store(user_id, parsed, meta=None, raw=None, ext=None, source='file', connect
         prof = profile_of(c, user_id, lock=True)
         tz = prof.get('tz') or db.DEFAULT_TZ
         S = analysis.prepare(parsed['streams'], sport)
-        summ = analysis.summary(S, sport, parsed.get('session') or {}, prof)
+        session = dict(parsed.get('session') or {})
+        session['_health_duration_authoritative'] = source == 'healthkit'
+        summ = analysis.summary(S, sport, session, prof)
         if source == 'track':
             # Session totals span pauses; map/derived sample metrics describe one uninterrupted segment only.
             summ.update({k: meta[k] for k in ('elapsed_s', 'moving_s', 'distance_m')})
@@ -158,10 +160,10 @@ def store(user_id, parsed, meta=None, raw=None, ext=None, source='file', connect
         for k in ('elapsed_s', 'distance_m', 'moving_s', 'calories', 'avg_hr', 'max_hr', 'ascent_m'):   # manual entries (no samples)
             if not row.get(k) and meta.get(k): row[k] = float(meta[k])
         row['zones'] = json.dumps(summ.get('zones'))
-        row['splits_km'] = json.dumps(analysis.splits(S, sport, 1000))
-        row['splits_mi'] = json.dumps(analysis.splits(S, sport, MI))
+        row['splits_km'] = json.dumps(analysis.summary_splits(S, sport, 1000, summ))
+        row['splits_mi'] = json.dumps(analysis.summary_splits(S, sport, MI, summ))
         row['power_curve'] = json.dumps(analysis.power_curve(S))
-        row['chart'] = json.dumps(analysis.chart_series(S, sport))
+        row['chart'] = json.dumps(analysis.summary_chart(S, sport, summ))
         cols = ', '.join(row); ph = ', '.join(f'%({k})s' for k in row)
         aid = c.execute(f'INSERT INTO activities ({cols}) VALUES ({ph}) RETURNING id', row).fetchone()['id']
         st = parsed['streams']
@@ -173,7 +175,7 @@ def store(user_id, parsed, meta=None, raw=None, ext=None, source='file', connect
                        _floats(st['power']), _floats(st['speed']), _floats(st['temp']), _floats(st['vo']), _floats(st['gct']),
                        _floats(st['stride'])))
         set_geometry(c, aid, parsed.get('geometry') or st)   # a phone recording's map line is its longest section
-        for e in analysis.best_efforts(S, sport):
+        for e in analysis.summary_best_efforts(S, sport, summ):
             c.execute("""INSERT INTO best_efforts (user_id, activity_id, sport, distance_m, label, elapsed_s, start_s, start_time)
                          VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
                       (user_id, aid, sport, e['distance_m'], e['label'], e['elapsed_s'], e['start_s'], start))
@@ -239,19 +241,38 @@ def enrich_file(c, uid, aid, parsed, incoming_summary, sha, path):
     if not st['t'] or st == old: return False
     S = analysis.prepare(st, a['sport'])
     session = {k: a[k] for k in ('elapsed_s', 'moving_s', 'distance_m', 'calories', 'ascent_m', 'descent_m') if a.get(k) is not None}
+    details = a.get('health_details') or {}
+    health_duration = details.get('health_duration_s') if details.get('health_duration_authoritative') else None
+    session['_health_duration_authoritative'] = a['source'] == 'healthkit' and health_duration is not None
+    if session['_health_duration_authoritative']:
+        session['moving_s'] = health_duration
     summ = analysis.summary(S, a['sport'], session, profile_of(c, uid))
+    if a['source'] == 'healthkit' and health_duration is None:
+        summ['route_timing_valid'] = False
+        for k in ('gap_s_per_km', 'vo2max', 'vam', 'max_speed', 'decoupling', 'steps'):
+            summ[k] = None
     cols = ('t',) + STREAMS
     c.execute('INSERT INTO activity_streams (activity_id,user_id,' + ','.join(cols) + ') VALUES (' + ','.join(['%s']*(len(cols)+2)) + ') ON CONFLICT (activity_id) DO UPDATE SET ' + ','.join(k+'=EXCLUDED.'+k for k in cols), (aid,uid,*[_floats(st[k]) for k in cols]))
     sets = {}
     for k in ('avg_hr', 'max_hr', 'avg_cad', 'avg_power', 'max_power', 'max_speed', 'avg_vo', 'avg_gct', 'avg_stride', 'steps'):
         if a.get(k) is None and summ.get(k) is not None: sets[k] = num(summ[k])
-    sets.update(chart=json.dumps(analysis.chart_series(S, a['sport'])), zones=json.dumps(summ.get('zones')),
-        splits_km=json.dumps(analysis.splits(S,a['sport'],1000)), splits_mi=json.dumps(analysis.splits(S,a['sport'],MI)),
+        elif a['source'] == 'healthkit' and not summ.get('route_timing_valid', True) and k in ('max_speed','steps'):
+            sets[k] = None
+    sets.update(chart=json.dumps(analysis.summary_chart(S, a['sport'], summ)), zones=json.dumps(summ.get('zones')),
+        splits_km=json.dumps(analysis.summary_splits(S,a['sport'],1000,summ)), splits_mi=json.dumps(analysis.summary_splits(S,a['sport'],MI,summ)),
         power_curve=json.dumps(analysis.power_curve(S)))
+    if a['source'] == 'healthkit' and not summ.get('route_timing_valid', True):
+        details = dict(a.get('health_details') or {})
+        details['route_timing'] = 'health-duration-only; split and pace-chart timing unavailable'
+        if health_duration is None:
+            details['health_duration_replay_required'] = True
+        sets['health_details'] = json.dumps(details)
+        for k in ('gap_s_per_km','vo2max','vam','max_speed','decoupling','steps'):
+            sets[k] = None
     corrections.capture(c,raw_a,sets)
     c.execute('UPDATE activities SET '+','.join(k+'=%('+k+')s' for k in sets)+', file_sha256=coalesce(file_sha256,%(sha)s), file_path=coalesce(file_path,%(path)s), updated=now() WHERE id=%(aid)s AND user_id=%(uid)s', {**sets,'sha':sha,'path':path,'aid':aid,'uid':uid})
     c.execute('DELETE FROM best_efforts WHERE activity_id=%s AND user_id=%s', (aid,uid))
-    for e in analysis.best_efforts(S,a['sport']):
+    for e in analysis.summary_best_efforts(S,a['sport'],summ):
         c.execute('INSERT INTO best_efforts (user_id,activity_id,sport,distance_m,label,elapsed_s,start_s,start_time) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)', (uid,aid,a['sport'],e['distance_m'],e['label'],e['elapsed_s'],e['start_s'],a['start_time']))
     set_geometry(c,aid,st); match_route(c,uid,aid)
     if raw_a.get('summary_overrides'):corrections.apply(c,uid,aid)
@@ -344,18 +365,39 @@ def reprocess(user_id, aid):
         raw_a=a;a=corrections.original(a)
         prof = profile_of(c, user_id)
         S = analysis.prepare(streams, a['sport'])
-        summ = analysis.summary(S, a['sport'], {k:a.get(k) for k in corrections.FIELDS}, prof)
+        session = {k:a.get(k) for k in corrections.FIELDS}
+        details = a.get('health_details') or {}
+        health_duration = details.get('health_duration_s') if details.get('health_duration_authoritative') else None
+        session['_health_duration_authoritative'] = a['source'] == 'healthkit' and health_duration is not None
+        if a['source'] == 'healthkit':
+            if health_duration is not None:
+                # Use the raw imported timer, then reapply owner corrections below.
+                session['moving_s'] = health_duration
+        summ = analysis.summary(S, a['sport'], session, prof)
+        if a['source'] == 'healthkit' and health_duration is None:
+            # Legacy rows never stored the raw timer separately. Preserve their
+            # current aggregate for now and require Health replay to correct it.
+            summ['moving_s'] = a.get('moving_s')
+            summ['route_timing_valid'] = False
+            for k in ('gap_s_per_km', 'vo2max', 'vam', 'max_speed', 'decoupling', 'steps'):
+                summ[k] = None
         sets = {k: num(summ.get(k)) for k in
                 ('moving_s', 'avg_hr', 'avg_cad', 'avg_power', 'max_speed', 'gap_s_per_km', 'effort', 'decoupling', 'vo2max',
                  'max_alt', 'min_alt', 'vam', 'norm_power', 'steps')}
-        sets.update(zones=json.dumps(summ.get('zones')), splits_km=json.dumps(analysis.splits(S, a['sport'], 1000)),
-                    splits_mi=json.dumps(analysis.splits(S, a['sport'], MI)), power_curve=json.dumps(analysis.power_curve(S)),
-                    chart=json.dumps(analysis.chart_series(S, a['sport'])))
+        sets.update(zones=json.dumps(summ.get('zones')), splits_km=json.dumps(analysis.summary_splits(S, a['sport'], 1000, summ)),
+                    splits_mi=json.dumps(analysis.summary_splits(S, a['sport'], MI, summ)), power_curve=json.dumps(analysis.power_curve(S)),
+                    chart=json.dumps(analysis.summary_chart(S, a['sport'], summ)))
+        if a['source'] == 'healthkit' and not summ.get('route_timing_valid', True):
+            details = dict(a.get('health_details') or {})
+            details['route_timing'] = 'health-duration-only; split, pace-chart and sample-timed metrics unavailable'
+            if health_duration is None:
+                details['health_duration_replay_required'] = True
+            sets['health_details'] = json.dumps(details)
         corrections.capture(c,raw_a,sets)
         c.execute('UPDATE activities SET ' + ', '.join(f'{k} = %({k})s' for k in sets) + ', updated = now() WHERE id = %(id)s AND user_id = %(uid)s',
                   {**sets, 'id': aid, 'uid': user_id})
         c.execute('DELETE FROM best_efforts WHERE activity_id = %s AND user_id = %s', (aid, user_id))
-        for e in analysis.best_efforts(S, a['sport']):
+        for e in analysis.summary_best_efforts(S, a['sport'], summ):
             c.execute("""INSERT INTO best_efforts (user_id, activity_id, sport, distance_m, label, elapsed_s, start_s, start_time)
                          VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
                       (user_id, aid, a['sport'], e['distance_m'], e['label'], e['elapsed_s'], e['start_s'], a['start_time']))
