@@ -661,7 +661,7 @@ const MeCard=(()=>{
       if(profile.profile_hidden)throw Error('Your profile is hidden until your account is confirmed and active.');
       if(profile.preview!=='member')throw Error('The preview needs a server update.');
       const items=cardItems.slice(0,1),meCard=items[0];
-      if(meCard){meCard.filename='kinetta-me-card.png';meCard.build=async()=>{const picture=await sharedProfileCardPicture(profile,live,showcase,achievements);return{...picture,filename:meCard.filename,link:profileLink};};}
+      if(meCard){const sharedShowcase=sharing.share_achievements===true?showcase:{items:[],pinned:[]},sharedAchievements=sharing.share_achievements===true?achievements:{tracks:[]};meCard.filename='kinetta-me-card.png';meCard.build=async()=>{const picture=await sharedProfileCardPicture(profile,live,sharedShowcase,sharedAchievements);return{...picture,filename:meCard.filename,link:profileLink};};}
       if(sharing.share_achievements&&showcase.items?.length){
         const featured=await ProfileLayout.featuredOptions(achievements,showcase.items);if(!live())return;
         if(featured.length)items.push({label:'Achievements',filename:'kinetta-achievements.png',controls:[{key:'identity',label:'Photo and username',checked:false}],build:state=>ShareArt.simplePicture({kicker:'Achievements',title:'Your progress',value:String(featured.length),unit:'featured',facts:featured.map(item=>`${item.label} · ${item.detail}`),identity:!!state.identity})});
