@@ -225,7 +225,76 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
  });
  return {context,page,assets,errors,writes,activityId};
 }
+async function pushInvitationFixture(browser,{failFirst=false,hold=false}={}){
+ const context=await fixtureContext(browser);await login(context);
+ const page=await context.newPage(),assets=[],errors=[],writes=[],external=[];let heldOnce=false,releaseHeld=()=>{},signalHeld=()=>{},finishFailed=()=>{};
+ const gate=new Promise(resolve=>{releaseHeld=resolve;}),held=new Promise(resolve=>{signalHeld=resolve;}),failedFirst=new Promise(resolve=>{finishFailed=resolve;});
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.route('**/*',async route=>{
+  const request=route.request(),url=new URL(request.url());
+  if(url.origin!==base){external.push(url.origin);return route.abort();}
+  if(url.pathname==='/static/push-invitation.js'){
+   assets.push(url.href);
+   if(failFirst&&assets.length===1){finishFailed();return route.abort();}
+   if(hold&&!heldOnce){heldOnce=true;signalHeld();await gate;}
+   const response=await route.fetch(),body=await response.text();
+   await route.fulfill({response,body:body+'\n;window.__pushInvitationScriptEvaluations=(window.__pushInvitationScriptEvaluations||0)+1;window.__pushInvitationConsiderCalls=0;PushInvitation.consider=()=>{window.__pushInvitationConsiderCalls++;};'});
+   return;
+  }
+  if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204,body:''});
+  if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
+  return route.continue();
+ });
+ async function nativeStandIn(){
+  await page.evaluate(()=>{
+   if(window.Capacitor)throw new Error('test page unexpectedly has a native bridge');
+   window.__pushInvitationNativeCalls=0;Native.on=true;Native.base=location.origin;Native.token='fictional-native-session';Native.headers=()=>({});Native.pushNavigationReady=Promise.resolve();
+   for(const name of ['readPushInvitation','writePushInvitation','pushStatus','enablePush','openPushSettings'])Native[name]=async()=>{window.__pushInvitationNativeCalls++;throw new Error('native bridge disabled in fixture');};
+  });
+ }
+ const invoke=()=>page.evaluate(()=>loadPushInvitationForRoute(()=>true));
+ return {context,page,assets,errors,writes,external,held,failedFirst,release:()=>releaseHeld(),nativeStandIn,invoke};
+}
+async function pushInvitationBrowserProof(browser){
+ const cold=await pushInvitationFixture(browser);
+ try{
+  await cold.page.goto(base+'/me');await ready(cold.page,meReady,'cold web Me before push invitation');
+  assert.deepEqual(cold.assets,[],'cold web Me never requests the Native-only invitation module');
+  await cold.nativeStandIn();await cold.invoke();
+  await cold.page.waitForFunction(()=>window.__pushInvitationScriptEvaluations===1,null,{timeout:8000});
+  assert.equal(new URL(cold.assets[0]).searchParams.get('v')?.length,32,'eligible home loads the hash-stamped invitation asset');
+  await cold.page.waitForFunction(()=>window.__pushInvitationConsiderCalls===1,null,{timeout:5000});
+  assert.equal(cold.assets.length,1,'an eligible Native home loads the module once');
+  assert.deepEqual(cold.errors,[]);assert.deepEqual(cold.writes,[]);assert.deepEqual(cold.external,[]);
+  assert.equal(await cold.page.evaluate(()=>window.__pushInvitationNativeCalls),0,'fixture never calls bridge storage or permission APIs');
+ }finally{await cold.context.close();}
+
+ const stale=await pushInvitationFixture(browser,{hold:true});
+ try{
+  await stale.page.goto(base+'/me');await ready(stale.page,meReady,'Me before held Native invitation load');await stale.nativeStandIn();
+  await stale.invoke();await stale.held;
+  await stale.page.evaluate(()=>{App.me={...App.me,id:987654,login:'zz_test_stale_owner'};});
+  stale.release();await stale.page.waitForFunction(()=>window.__pushInvitationScriptEvaluations===1,null,{timeout:8000});
+  await stale.page.waitForTimeout(50);
+  assert.equal(await stale.page.evaluate(()=>window.__pushInvitationConsiderCalls),0,'held module completion for an old owner never calls consider');
+  assert.deepEqual(stale.errors,[]);assert.deepEqual(stale.writes,[]);assert.deepEqual(stale.external,[]);
+ }finally{stale.release();await stale.context.close();}
+
+ const retry=await pushInvitationFixture(browser,{failFirst:true});
+ try{
+  await retry.page.goto(base+'/me');await ready(retry.page,meReady,'Me before Native invitation retry');await retry.nativeStandIn();
+  await retry.invoke();await retry.failedFirst;await retry.page.waitForTimeout(50);await retry.invoke();
+  await retry.page.waitForFunction(()=>window.__pushInvitationScriptEvaluations===1,null,{timeout:8000});
+  await retry.page.waitForFunction(()=>window.__pushInvitationConsiderCalls===1,null,{timeout:5000});
+  assert.equal(retry.assets.length,2,'failed invitation asset is requested again on the next eligible route');
+  assert.deepEqual(retry.errors,[]);assert.deepEqual(retry.writes,[]);assert.deepEqual(retry.external,[]);
+  assert.equal(await retry.page.evaluate(()=>window.__pushInvitationNativeCalls),0,'retry remains a loader-only action with no bridge permission/storage calls');
+ }finally{await retry.context.close();}
+ console.log('Native push invitation loader: cold web absence, Native home demand load, stale-owner suppression and failed-load retry PASS');
+}
 (async()=>{const browser=await chromium.launch();try{
+  if(process.env.KINETTA_LAZY_PUSH_INVITATION_ONLY==='1'){await pushInvitationBrowserProof(browser);return;}
+  await pushInvitationBrowserProof(browser);
   const socialMe=await socialFixture(browser,{idleGate:true});
   try{
     await socialMe.page.goto(base+'/me');await ready(socialMe.page,meReady,'Me without the social bundle');
