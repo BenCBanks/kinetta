@@ -51,7 +51,15 @@ function foodChatPhotoCache(){
 
 const FoodThread = (() => {
   let current = null, privacyEpoch = 0, pendingNativeMountRetry = null;
+  const FOOD_NUTRITION_ASSET='/static/food-nutrition.js?v=__ASSET_HASH__';
   const photos=foodChatPhotoCache();
+  function prepare(){
+    if(typeof FoodNutrition!=='undefined')return Promise.resolve();
+    if(typeof loadClassicScript!=='function')return Promise.reject(Error('Nutrition could not load. Check your connection and try again.'));
+    return loadClassicScript(FOOD_NUTRITION_ASSET).then(()=>{
+      if(typeof FoodNutrition==='undefined')throw Error('Nutrition could not load. Check your connection and try again.');
+    });
+  }
   const ownerKey = () => App.me ? JSON.stringify([Native.base || location.origin, App.me.id]) : null;
   const uuid = () => { if(crypto.randomUUID)return crypto.randomUUID();const b=crypto.getRandomValues(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=[...b].map(n=>n.toString(16).padStart(2,'0')).join('');return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`; };
   const cacheKey = owner => 'fit.thread.history:'+owner;
@@ -690,7 +698,10 @@ const FoodThread = (() => {
       saveReviewDraft(ctx,false);$('#thread-text',ctx.el).value='';ctx.chatView?.resize();draw(ctx);done();toast('Chat cleared');}
     catch(e){toast(e.message);}};});
   }
-  function page(el,{day,meal}={}){
+  async function page(el,{day,meal}={}){
+    const requestedOwner=ownerKey(),requestedSession=readOwner(),requestedPath=location.pathname;
+    await prepare();
+    if(requestedOwner!==ownerKey()||requestedSession!==readOwner()||requestedPath!==location.pathname||!el.isConnected)return;
     if(current){current.removeEvents?.abort();current.chatView?.dispose();clearTimeout(current.removeNoticeTimer);}
     if(new URLSearchParams(location.search).get('save')==='1'){el.innerHTML=`<header class="thread-heading">${backBtn('My Recipes')}<h1>Create recipe</h1></header><button type="button" class="primary wide" id="recipe-start">Create recipe</button>`;wireBack(el,'/food/meals');const button=$('#recipe-start',el);button.onclick=()=>newDish(button);newDish(button);return;}
     const owner=ownerKey(),resume=store.get(reviewDraftKey(owner)),resumeId=typeof resume==='string'?resume:resume?.id,localTimeZone=deviceTimeZone(),profileTimeZone=App.me?.tz||localTimeZone,hasDay=/^\d{4}-\d{2}-\d{2}$/.test(day),hasMeal=Object.hasOwn(MEAL_NAMES,meal),cached=store.get(cacheKey(owner)),resumeContext=store.get(contextKey(owner)),unsent=String(store.get(draftKey(owner))||'').trim(),cachedWork=Array.isArray(cached)&&cached.some(m=>m.kind==='user'&&m.result?.draft_id===resumeId),resumeActive=!!resume&&(resume.active===true||!!resume.form||!!resumeContext||!!unsent||cachedWork),resumeHasDay=/^\d{4}-\d{2}-\d{2}$/.test(resume?.day),resumeExplicitDay=resume?.explicitDay===true&&resumeHasDay,resumeExplicitActive=resumeActive&&resumeExplicitDay,initialDay=hasDay?day:resumeExplicitActive?resume.day:isoDay(new Date(),localTimeZone),historyDay=hasDay||resumeExplicitActive?initialDay:(initialDay>isoDay(new Date(),profileTimeZone)?initialDay:isoDay(new Date(),profileTimeZone)),ctx={el,owner,day:initialDay,historyDay,meal:hasMeal?meal:resumeExplicitActive&&Object.hasOwn(MEAL_NAMES,resume?.meal)?resume.meal:guessMeal(localTimeZone),explicitDay:hasDay||resumeExplicitActive,session:readOwner(),draftId:resumeActive&&resumeId||uuid(),saveRecipe:new URLSearchParams(location.search).get('save')==='1',reviewForm:resumeActive?resume?.form||null:null,messages:[],visibleClients:new Set(),context:resumeActive?resumeContext:null,jobs:[],before:null,follow:false,initial:true,epoch:0,readVersion:0,removeEvents:new AbortController(),resumeId};current=ctx;saveReviewDraft(ctx,resumeActive);
@@ -821,5 +832,5 @@ const FoodThread = (() => {
   }
   async function pendingCount(){const owner=ownerKey();return owner?(await ThreadDB.list(owner)).length+(String(store.get(draftKey(owner))||'').trim()?1:0):0;}
   async function eraseDevice(){const owner=ownerKey();if(!owner)return;if(pendingNativeMountRetry?.owner===owner)pendingNativeMountRetry=null;privacyEpoch++;photos.clear(owner);const view=current;if(view?.owner===owner){view.messages=[];view.jobs=[];view.el.replaceChildren();current=null;}let failure;try{await ThreadDB.erase(owner);}catch(e){failure=e;}finally{let keys=[];try{keys=Object.keys(localStorage).filter(key=>key.startsWith('fit.kit.proposal:'+owner+':'));}catch(e){failure=failure||e;}for(const key of [...keys,cacheKey(owner),draftKey(owner),contextKey(owner),nativeKey(owner),reviewDraftKey(owner)]){try{localStorage.removeItem(key);}catch(e){failure=failure||e;}}}if(failure)throw failure;}
-  return {collecting:()=>!!current&&active(current)&&location.pathname==='/food/describe',stage,stageDish:(did,portion)=>stage([],{dish:{did,portion}}),review:options=>current&&review(current,options),page,eraseDevice,pendingCount,receiveNative,accept:data=>merge(ownerKey(),data),refresh:()=>current&&refresh(current),send,ownerKey,source};
+  return {collecting:()=>!!current&&active(current)&&location.pathname==='/food/describe',stage,stageDish:(did,portion)=>stage([],{dish:{did,portion}}),review:options=>current&&review(current,options),prepare,page,eraseDevice,pendingCount,receiveNative,accept:data=>merge(ownerKey(),data),refresh:()=>current&&refresh(current),send,ownerKey,source};
 })();

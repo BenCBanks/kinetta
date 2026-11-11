@@ -93,19 +93,21 @@ Object.assign(KitChat, (() => {
     const retry=$('#kit-retry-send',list);if(retry)retry.onclick=()=>deliver(c);
     controls(c);c.view?.pin();
   }
-  function mountFoodThread(c){
+  async function mountFoodThread(c){
     if(c.foodHost?.isConnected)return c.foodHost;
     if(typeof FoodThread==='undefined')throw Error('Food logging is unavailable right now. Your message is still here.');
+    await FoodThread.prepare();if(!active(c))return null;
     c.foodStarted=true;draw(c);const slot=$('#kit-food-slot',c.el),host=document.createElement('section');
     host.className='shell kit-food-inline';host.setAttribute('aria-label','Food log');slot.append(host);c.foodHost=host;
-    FoodThread.page(host,{});draw(c);return host;
+    try{await FoodThread.page(host,{});if(!active(c)||!host.isConnected){if(c.foodHost===host){host.remove();c.foodHost=null;c.foodStarted=false;if(active(c))draw(c);}return null;}draw(c);return host;}
+    catch(error){if(c.foodHost===host){host.remove();c.foodHost=null;c.foodStarted=false;draw(c);}throw error;}
   }
   function clearDraft(c,field,submitted){
     if(submitted!=null&&field.value.trim()!==submitted.trim())return false;
     field.value='';field.style.height='';store.del(key(c.owner,'draft'));return true;
   }
   async function sendFood(c,text){
-    const host=mountFoodThread(c),field=$('#thread-text',host),form=$('#thread-composer',host),notice=$('#thread-status',host);
+    const host=await mountFoodThread(c);if(!host)return false;const field=$('#thread-text',host),form=$('#thread-composer',host),notice=$('#thread-status',host);
     if(!field||!form)throw Error('Food logging could not open. Your message is still here.');
     if(field.value.trim()&&field.value.trim()!==text){status(c,'Your saved food draft is kept in the food log. Finish it before adding another.');return false;}
     field.value=text;field.dispatchEvent(new Event('input',{bubbles:true}));form.requestSubmit();
