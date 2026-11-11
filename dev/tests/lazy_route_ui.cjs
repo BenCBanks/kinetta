@@ -196,7 +196,7 @@ async function friendsLeafChecks(browser){
    return [path,!!bundle&&bundle.scripts.includes(FRIENDS_UI_ASSET)];
   }));
   assert.deepEqual(routing,[['/me/friends',true],['/me/friends/contacts',false],['/me/groups',false]],'only the Friends page route owns the FriendsUI leaf');
-  await me.page.goto(base+'/me/friends/contacts');await ready(me.page,'#contacts-continue','direct Contacts route without FriendsUI');
+  await me.page.goto(base+'/me/friends/contacts');await ready(me.page,'#contacts-not-now','direct Contacts route without FriendsUI');
   assert.deepEqual(me.friendsAssets,[],'Contacts loads without requesting FriendsUI');
   assert.equal(await me.page.evaluate(()=>typeof ContactsUI),'object','ContactsUI remains available on its existing eager path');
   assert.deepEqual(me.writes,[],'opening Contacts did not trigger a write before its explicit action');
@@ -286,6 +286,8 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     await socialMe.page.evaluate(()=>window.__socialIdleCallbacks.splice(0).forEach(callback=>callback({didTimeout:false,timeRemaining:()=>50})));
     await socialMe.page.waitForFunction(()=>typeof Social==='object');
     assert.equal(socialMe.assets.length,1,'social.js warms after Me is useful');
+    assert.deepEqual(socialMe.friendsAssets,[],'the released Social warmup still does not load FriendsUI');
+    assert.equal(await socialMe.page.evaluate(()=>typeof FriendsUI),'undefined','Me remains FriendsUI-free after Social warmup');
     await socialMe.page.waitForFunction(()=>App.me.notifications===3&&App.me.friend_requests===2,null,{timeout:8000});
     assert.deepEqual(await socialMe.page.evaluate(()=>{
       const badge=document.querySelector('nav.tabs a[data-tab="me"] .tab-n');
