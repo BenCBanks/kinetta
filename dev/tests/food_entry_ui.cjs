@@ -69,7 +69,7 @@ async function assertLoggedLineFits(locator){
   return {c,p,foodWrites,errors};
  }
  try{
-  if(process.env.KINETTA_FOOD_CASE==='lazy-nutrition'){
+  if(!process.env.KINETTA_FOOD_CASE||process.env.KINETTA_FOOD_CASE==='lazy-nutrition'){
    const size={width:390,height:844,root:16},failedControl={requests:0,failNext:true};
    const failed=await open('empty','light',size,false,{path:'/me',nutritionControl:failedControl});
    assert.equal(failedControl.requests,0,'cold Me does not request Food Nutrition');assert.equal(await failed.p.evaluate(()=>typeof FoodNutrition),'undefined','cold Me has no Food Nutrition module');
