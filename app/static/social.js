@@ -653,10 +653,13 @@ route(/^\/activity\/friends\/(\d+)$/, 'activity', async (el, id) => {
   await load(`/api/shared/${id}`, (a) => drawShared(el, a), {maxAge: 30000});
 });
 const SHARED_SERIES = ['speed','hr','alt'];
+function sharedActivityHero(a) {
+  const r=rate(a),sh=a.shares;
+  return (a.distance_m?stat('Distance',U.dist(a.distance_m),U.du()):'')+stat('Elapsed time',activityElapsedText(a))+
+    (a.distance_m&&sh.pace&&r.label!=='Time'?stat(r.label,r.v,r.u):'');
+}
 function drawShared(el, a) {
-  const mine = a.social.mine, sh = a.shares, r = rate(a);
-  const hero = (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Moving time', U.time(a.moving_s || a.elapsed_s)) +
-    (a.distance_m && sh.pace && r.label !== 'Time' ? stat(r.label, r.v, r.u) : '');
+  const mine = a.social.mine, hero=sharedActivityHero(a);
   const splits = imp() ? a.splits_mi : a.splits_km;
   const details = sportStats(a);
   const panes = {

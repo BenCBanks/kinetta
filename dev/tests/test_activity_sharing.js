@@ -1,7 +1,7 @@
 // Activity picture choices use fictional owner data and stubbed transports only.
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const source=fs.readFileSync('app/static/pages.js','utf8'),start=source.indexOf('function shareOut(a)'),end=source.indexOf('// cut `m` metres',start);
+const source=fs.readFileSync('app/static/pages.js','utf8'),socialSource=fs.readFileSync('app/static/social.js','utf8'),start=source.indexOf('function shareOut(a)'),end=source.indexOf('// cut `m` metres',start);
 const activity={id:7,name:'Fictional paused run',sport:'run',line:'fictional-line',start_time:'2026-10-23T10:00:00Z',distance_m:8046.72,moving_s:2400,elapsed_s:3000,avg_hr:152,calories:400,ascent_m:30};
 const sharing={details:{map:true,pace:true,heart_rate:false,elevation:false,calories:false},trim_m:400};
 function fixture(social=sharing,act=activity){
@@ -9,16 +9,17 @@ function fixture(social=sharing,act=activity){
  const ctx={owner:'zz_test_owner_a',App:{me:{units:'metric'}},SPORT_NAMES:{run:'Run'},location:{pathname:'/activity/7',search:''},root:sourceContext,document:{querySelector:()=>sourceContext},readOwner:()=>ctx.owner,
    api:async url=>{calls.api.push(url);return url.endsWith('/social')?{...social,details:{...social.details}}:{...act};},
    decode:()=>[[40,-75],[40.05,-75.05],[40.1,-75.1]],trimRoute:(points,metres)=>metres?points.slice(1,-1):points,
-   rate:a=>{const elapsed=Number(a.elapsed_s),distance=Number(a.distance_m);if(!Number.isFinite(elapsed)||elapsed<=0)return{label:'Time',v:'–',u:''};if(!Number.isFinite(distance)||distance<=0)return{label:'Time',v:`${elapsed} seconds`,u:''};const pace=Math.round(elapsed/(distance/1609.344)),min=Math.floor(pace/60),sec=String(pace%60).padStart(2,'0');return{label:'Pace',v:`${min}:${sec}`,u:'/mi'};},activityElapsedText:a=>Number.isFinite(Number(a.elapsed_s))&&Number(a.elapsed_s)>0?`${a.elapsed_s} seconds`:'–',dur:n=>n+' seconds',fdate:()=> 'Oct 23, 2026',U:{dist:n=>n+' m',du:()=> 'm',time:n=>n+' seconds'},
+   rate:a=>{const elapsed=Number(a.elapsed_s),distance=Number(a.distance_m);if(!Number.isFinite(elapsed)||elapsed<=0)return{label:'Time',v:'–',u:''};if(!Number.isFinite(distance)||distance<=0)return{label:'Time',v:`${elapsed} seconds`,u:''};const pace=Math.round(elapsed/(distance/1609.344)),min=Math.floor(pace/60),sec=String(pace%60).padStart(2,'0');return{label:'Pace',v:`${min}:${sec}`,u:'/mi'};},activityElapsedText:a=>Number.isFinite(Number(a.elapsed_s))&&Number(a.elapsed_s)>0?`${a.elapsed_s} seconds`:'–',dur:n=>n+' seconds',fdate:()=> 'Oct 23, 2026',stat:(label,value,unit='')=>`<span><small>${label}</small><b>${value}${unit}</b></span>`,U:{dist:n=>n+' m',du:()=> 'm',time:n=>n+' seconds'},
    routePicture:async(...args)=>{calls.route.push(args);return new Blob(['activity']);},
    ShareArt:{simplePicture:async options=>{calls.simple.push(options);return{blob:new Blob(['simple']),alt:'Fictional picture'};}},
    loadShareArt:async()=>{calls.leaf.push('load');if(leafFailure)throw leafFailure;},
    ShareSheet:{open:options=>{ctx.options=options;}},toast:message=>{calls.toasts.push(message);ctx.toast=message;},setLeafFailure:error=>{leafFailure=error;},sourceContext};
- vm.createContext(ctx);vm.runInContext(source.slice(start,end),ctx);return{ctx,calls};
+ vm.createContext(ctx);vm.runInContext(source.slice(start,end)+'\n'+socialSource.slice(socialSource.indexOf('function sharedActivityHero'),socialSource.indexOf('function drawShared')),ctx);return{ctx,calls};
 }
 const tick=()=>new Promise(setImmediate),plain=value=>JSON.parse(JSON.stringify(value));
 (async()=>{
  let f=fixture();f.ctx.sharePicture(7);await tick();let items=f.ctx.options.items;
+ const sharedHero=f.ctx.sharedActivityHero(activity);assert.match(sharedHero,/Elapsed time/);assert.doesNotMatch(sharedHero,/Moving time/);assert.match(sharedHero,/Pace/,'shared activity hero prioritizes elapsed time and matching pace');
  assert.deepEqual(plain(items.map(item=>item.label)),['Activity card','Route map','Stats']);assert.equal(items[0].controls[0].checked,true,'endpoint trimming is checked by default');
  await items[0].build({hideEnds:true});assert.equal(f.calls.route.at(-1)[1],400,'the activity card keeps the default 400 m endpoint trim');assert.equal(f.calls.route.at(-1)[2].heart_rate,false,'hidden heart rate stays out of the existing activity picture');
  await items[0].build({hideEnds:false});assert.equal(f.calls.route.at(-1)[1],0,'the explicit checkbox choice reaches the existing generator');
