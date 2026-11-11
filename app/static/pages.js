@@ -1835,7 +1835,7 @@ function accountSheet(field) {
     f.onsubmit = async (e) => {
       e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
       try { const r = await api('/api/account', json('PUT', {[field]: f.v.value})); if(owner!==readOwner())return;App.me[field] = r[field];keep('/api/me',App.me);if(!b.isConnected||b.closest('.scrim')?.classList.contains('is-closing'))return;close(); render(); toast(isName ? 'Name saved' : me.email ? `You're now @${r[field]}` : 'Username changed - use it next time you log in'); }
-      catch (x) { if(owner!==readOwner()||!b.isConnected)return;if(username)username.error(x.message);else toast(x.message); btn.disabled = false; }
+      catch (x) { if(owner!==readOwner()||!b.isConnected)return;if(username){if(!globalThis.UsernameAvailability)toast(x.message);username.error(x.message);}else toast(x.message); btn.disabled = false; }
     };
   });
 }

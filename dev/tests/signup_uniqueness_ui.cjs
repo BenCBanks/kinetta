@@ -134,7 +134,11 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
    await p.reload();await until(p,()=>App.pageReady&&location.pathname==='/me/settings','Reloaded Settings ready');helperMode='hold-next';await p.evaluate(()=>accountSheet('login'));await p.locator('#ac input').waitFor();
    for(let n=0;n<100&&!helperRelease;n++)await p.waitForTimeout(20);assert(helperRelease,'Settings username helper is held before attachment');
    assert.equal(await p.locator('#ac .username-status').count(),0,'Availability status is absent before helper attachment');await p.locator('#ac input').fill('taken_name');
-   await p.locator('#ac button.primary').click();await until(p,()=>document.querySelector('#ac .username-status')?.textContent==='That username is taken','Authoritative save conflict before helper attachment');
+   await p.evaluate(()=>document.querySelector('#toast')?.classList.remove('on'));
+   const settingsConflict=p.waitForResponse(r=>r.url()===base+'/api/account'&&r.request().method()==='PUT'&&r.status()===409);
+   await p.locator('#ac button.primary').click();await settingsConflict;
+   await p.locator('#toast.on').filter({hasText:'That username is taken'}).waitFor();
+   assert.equal(await p.locator('#ac .username-status').count(),0,'Server error has immediate toast while helper remains pending');
    helperRelease();helperRelease=null;await until(p,()=>document.querySelector('#ac .username-status')?.textContent==='That username is taken','Settings server error replay after helper attachment');assert.equal(await p.locator('#ac input').inputValue(),'taken_name');cases+=2;
    // Saving into the current same-account profile preserves a concurrent profile refresh.
    saveFailure=false;await p.locator('#ac input').fill('new_profile_name');await p.locator('#ac button.primary').click();for(let n=0;n<100&&!saveRelease;n++)await p.waitForTimeout(20);assert(saveRelease);
