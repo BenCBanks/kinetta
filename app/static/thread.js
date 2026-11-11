@@ -396,6 +396,14 @@ const FoodThread = (() => {
     const requestState={draftId:ctx.draftId,meal:ctx.meal,day:ctx.day,session:ctx.session};
     ctx.preparingReview=true;primary(ctx);
     try {
+      try {
+        await loadClassicScript('/static/food-review.js?v=__ASSET_HASH__');
+      } catch(error) {
+        if(active(ctx))status(ctx,'Food review could not load. Check your connection and try again.');
+        return;
+      }
+      if(!active(ctx)||ctx.draftId!==requestState.draftId||ctx.meal!==requestState.meal||ctx.day!==requestState.day||ctx.session!==requestState.session)return;
+      if(pendingReview()){status(ctx,'Finish the food details before reviewing.');return;}
       await FoodReview.open({done:result=>{if(!result.queued&&active(ctx)){const typed=$('#thread-text',ctx.el).value;saveDraft(ctx,typed);saveReviewDraft(ctx,hasDraftWork(ctx));ctx.chatView?.resize();}},notifySuccess:(message,result,reviewMessageId)=>{if(!result?.queued&&(message.startsWith('Added to ')||message==='Recipe saved and added to your log')){const where=message.startsWith('Added to ')?message.slice('Added to '.length):MEAL_NAMES[requestState.meal]||'your log';toast(`Added to ${where} ·`,()=>undoLogged(ctx,[reviewMessageId]));}else toast(message);},messages:state.ids,selection:state.selections,expectedFoods:state.foods,quickConfirm,draftId:requestState.draftId,meal:requestState.meal,day:requestState.day,session:requestState.session,current:()=>ctx.draftId===requestState.draftId&&ctx.meal===requestState.meal&&ctx.day===requestState.day&&ctx.session===requestState.session,location:()=>ctx.meal===requestState.meal&&ctx.day===requestState.day&&ctx.session===requestState.session,saveRecipe,draftForm:ctx.reviewForm,rememberForm:form=>{ctx.reviewForm=form;saveReviewDraft(ctx,true);},active:()=>active(ctx),accept:data=>merge(ctx.owner,data)});
     } finally {ctx.preparingReview=false;primary(ctx);}
   }
