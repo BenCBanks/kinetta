@@ -203,12 +203,12 @@ jobs:
       KINETTA_APNS_PRIVATE_KEY: ""
       TMPDIR: ${{ runner.temp }}/kinetta-reviewer-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
+      - name: Create private fixture state directory
+        run: mkdir -m 700 "$TMPDIR"
       - uses: actions/checkout@v4
       - uses: ./.github/actions/build-test-image
         with:
           scope: tests-reviewer-integration
-      - name: Create private fixture state directory
-        run: mkdir -m 700 "$TMPDIR"
       - name: Start this marked reviewer fixture
         run: |
           docker compose -p "$KINETTA_PROJECT" up -d
