@@ -1,17 +1,19 @@
 // Actual Weight handlers with fictional replies. No weight write or device action reaches the server.
 'use strict';
 const{chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),cp=require('node:child_process');
+const fixtureClock=require('../screenshots/fixture-time.json'),fixtureInstant=new Date(fixtureClock.instant);
 const base=process.env.KINETTA_URL||'http://localhost:8798',project=process.env.KINETTA_PROJECT||'kinettatest',out=process.env.KINETTA_SHOTS;
 assert(['localhost','127.0.0.1'].includes(new URL(base).hostname));assert(project==='kinettatest'||project.startsWith('kt-'));
 assert.equal(Number(cp.execFileSync('docker',['inspect','--format','{{(index (index .NetworkSettings.Ports "8000/tcp") 0).HostPort}}',project+'-app-1'],{encoding:'utf8'}).trim()),Number(new URL(base).port));
 const until=async(p,f,label)=>{for(let n=0;n<160;n++){if(await p.evaluate(f))return;await p.waitForTimeout(75);}throw Error(label);};
 (async()=>{const browser=await chromium.launch();let cases=0;try{
  const auth=await browser.newContext();assert.equal((await auth.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}})).status(),200);const me=await(await auth.request.get(base+'/api/me')).json(),state=await auth.storageState();await auth.close();
- const today=new Date().toLocaleDateString('en-CA',{timeZone:me.tz||'UTC'}),previous=new Date(new Date(today+'T12:00Z').valueOf()-86400000).toISOString().slice(0,10);
+ const timezone=me.tz||'UTC',today=fixtureInstant.toLocaleDateString('en-CA',{timeZone:timezone}),previous=new Date(new Date(today+'T12:00Z').valueOf()-86400000).toISOString().slice(0,10);
  for(const size of[{width:390,height:844,root:16}])for(const theme of['light','dark']){
   const original=[{day:previous,kg:71,trend:71,source:'healthkit',source_label:'Health app · Fictional Scale'},{day:today,kg:70,trend:70.9,source:'manual',source_label:'Manual'}];let points=original.slice(),deleteCalls=0,putCalls=0,putDay=null,holdDelete=null,release,failDelete=false;
-  const c=await browser.newContext({storageState:state,viewport:size,colorScheme:theme,serviceWorkers:'block',reducedMotion:'reduce'}),p=await c.newPage(),errors=[],writes=[],dialogs=[];
+  const c=await browser.newContext({storageState:state,viewport:size,colorScheme:theme,serviceWorkers:'block',reducedMotion:'reduce',timezoneId:timezone}),p=await c.newPage(),errors=[],writes=[],dialogs=[];
   try{
+   await p.clock.setFixedTime(fixtureInstant);
    p.on('pageerror',e=>errors.push(e.message));p.on('dialog',d=>{dialogs.push(d.type());d.dismiss();});
    await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
    await c.route('**/*',async r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();
@@ -24,7 +26,15 @@ const until=async(p,f,label)=>{for(let n=0;n<160;n++){if(await p.evaluate(f))ret
    const ready=async()=>{await p.goto(base+'/progress/weight');await until(p,()=>App.pageReady&&document.querySelectorAll('.weight-history-row').length===2,'Initial weight history');};
    const remove=()=>p.locator('[data-del="'+previous+'"]').click();
    const shot=async name=>{if(out){fs.mkdirSync(out,{recursive:true});await p.evaluate(()=>scrollTo(0,0));await p.screenshot({path:path.join(out,`${name}-${size.width}-${theme}.png`)});}};
-   await ready();const draft=await p.evaluate(()=>imp()?'163.4':'73.6');await p.locator('.wform input').fill(draft);await p.evaluate(()=>globalThis.weightDraftField=document.querySelector('.wform input'));
+   await ready();
+   assert.equal(await p.locator('.wcard h2').innerText(),"Log today's weight",'shared fixture instant remains Today in the account timezone');
+   assert.equal(await p.locator('.wcard [name=wday]').inputValue(),today);
+   assert.equal(await p.locator('.wcard [name=wday]').getAttribute('max'),today,'current-day limit follows the same fixture instant');
+   assert.match(await p.locator('.wcard .wdone').innerText(),/today$/,'current weight remains labeled today');
+   const expectedLabels=await p.evaluate(({today,previous})=>[today,previous].map(day=>new Date(day+'T12:00').toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})),{today,previous});
+   const actualLabels=await p.locator('.weight-history-row > span').evaluateAll(nodes=>nodes.map(node=>node.childNodes[0].textContent.trim()));
+   assert.deepEqual(actualLabels,expectedLabels,'weight history weekday labels match the fixed fictional dates');
+   const draft=await p.evaluate(()=>imp()?'163.4':'73.6');await p.locator('.wform input').fill(draft);await p.evaluate(()=>globalThis.weightDraftField=document.querySelector('.wform input'));
    await remove();assert.equal(await p.locator('.weight-history-row:visible').count(),1);assert.equal(deleteCalls,0,'Delete is deferred');assert.equal(await p.locator('.wform input').inputValue(),draft);await shot('weight-deleted');
    await p.locator('#toast button').click();await until(p,()=>document.querySelectorAll('.weight-history-row:not([hidden])').length===2,'Undo keeps history');assert.equal(deleteCalls,0,'Undo sends no write');assert.deepEqual(points,original,'Undo preserves original source and all server values');assert.equal(await p.locator('.wform input').inputValue(),draft);assert(await p.evaluate(()=>weightDraftField===document.querySelector('.wform input')));assert.match(await p.locator('#nt-whist').innerText(),/Health app · Fictional Scale/);await shot('weight-restored');cases++;
    await remove();await until(p,()=>document.querySelector('#toast.on')?.textContent==='Weigh-in deleted'&&!document.querySelector('#toast button'),'Expiry commits deletion');assert.equal(deleteCalls,1);assert.equal(points.length,1);assert.equal(await p.locator('.wform input').inputValue(),draft);cases++;
