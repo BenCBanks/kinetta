@@ -12,10 +12,20 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
   if(process.env.THEME&&process.env.THEME!==theme||process.env.WIDTH&&Number(process.env.WIDTH)!==width)continue;
   const c=await browser.newContext({viewport:{width,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true});
   try{
-   const p=await c.newPage(),errors=[],checks=[],signups=[],accepts=[],joins=[],resends=[],forgot=[];let oldRelease=null,saveRelease=null,saveFailure=true,closed=true;
-   p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!m.text().startsWith('Failed to load resource'))errors.push(m.text());});
+   const p=await c.newPage(),errors=[],pageErrors=[],sameOriginFailed=[],sameOriginStatuses=[],checks=[],signups=[],accepts=[],joins=[],resends=[],forgot=[];let oldRelease=null,saveRelease=null,helperRelease=null,helperMode='pass',saveFailure=true,closed=true,blockedExternalCount=0;
+   const safePath=path=>path.replace(/^\/add\/[^/]+$/,'/add/<friend-code>').replace(/^\/api\/friend-links\/[^/]+$/,'/api/friend-links/<friend-code>');
+   const safeError=message=>message.replace(/\/add\/[A-Za-z0-9_-]+/g,'/add/<friend-code>').replace(/\/api\/friend-links\/[A-Za-z0-9_-]+/g,'/api/friend-links/<friend-code>');
+   p.on('pageerror',e=>{pageErrors.push(safeError(e.message));errors.push(e.message);});
+   p.on('requestfailed',request=>{const u=new URL(request.url());if(u.origin===base)sameOriginFailed.push({method:request.method(),path:safePath(u.pathname),error:request.failure()?.errorText||'failed'});});
+   p.on('response',response=>{const u=new URL(response.url());if(u.origin===base&&response.status()>=400)sameOriginStatuses.push({method:response.request().method(),path:safePath(u.pathname),status:response.status()});});
+   p.on('console',m=>{if(m.type()==='error'&&!m.text().startsWith('Failed to load resource'))errors.push(m.text());});
    await c.route('**/*',async r=>{
-    const request=r.request(),u=new URL(request.url());if(u.origin!==base)return r.abort();
+    const request=r.request(),u=new URL(request.url());if(u.origin!==base){blockedExternalCount++;return r.abort();}
+    if(u.pathname==='/static/username-availability.js'){
+     if(helperMode==='fail-next'){helperMode='pass';return r.fulfill({status:503,body:'fixture helper load failure'});}
+     if(helperMode==='hold-next'){helperMode='held';return new Promise(resolve=>{helperRelease=fail=>(fail?r.fulfill({status:503,body:'fixture helper load failure'}):r.continue()).then(resolve);});}
+     return r.continue();
+    }
     if(u.pathname==='/api/signup'&&request.method()==='GET')return r.fulfill({json:{open:!closed,full:false}});
     if(u.pathname==='/api/account/username-availability'){
      const value=u.searchParams.get('login');checks.push(value);
@@ -49,10 +59,44 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
    });
    const shot=async name=>{if(out&&width===390){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`${name}-${theme}.png`),fullPage:name.startsWith('signup')});}};
    const fit=async()=>assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'No horizontal overflow');
-   await p.goto(base+fixture.friend_path);await p.locator('#iv-login').waitFor();assert.equal(await p.locator('#iv-signup').count(),0);assert(!((await p.locator('.form').innerText()).includes('Create an account')));assert.match(await p.locator('.form').innerText(),/account invitation/);
+   await p.goto(base+fixture.friend_path);try{await p.locator('#iv-login').waitFor();}catch(error){
+    const state=await p.evaluate(()=>({path:location.pathname.replace(/^\/add\/[^/]+$/,'/add/<friend-code>'),appPresent:typeof App!=='undefined',pageReady:typeof App!=='undefined'?App.pageReady:null,hasMe:typeof App!=='undefined'?!!App.me:null,inviteLogin:document.querySelectorAll('#iv-login').length,inviteSignup:document.querySelectorAll('#iv-signup').length,loginForm:document.querySelectorAll('form').length,loginInput:document.querySelectorAll('input[name="login"]').length,heading:!!document.querySelector('h1'),loadingText:document.body.innerText.includes('Loading invitation')})).catch(()=>null);
+    console.error('SANITIZED_STARTUP_DIAGNOSTIC '+JSON.stringify({stage:'friend-invitation #iv-login visible wait',routeTemplate:'/add/<friend-code>',expected:{inviteLogin:1,inviteSignup:0,closedSignup:true},actual:state,pageErrors,sameOriginFailed,sameOriginStatuses,blockedExternalCount,usernameAvailabilityRequests:sameOriginStatuses.filter(item=>item.path==='/api/account/username-availability').length}));throw error;
+   }assert.equal(await p.locator('#iv-signup').count(),0);assert(!((await p.locator('.form').innerText()).includes('Create an account')));assert.match(await p.locator('.form').innerText(),/account invitation/);
    assert(await p.evaluate(w=>{const h=document.querySelector('h1').getBoundingClientRect(),body=document.querySelector('.form>p').getBoundingClientRect();return document.documentElement.scrollWidth<=w+1&&h.left>=0&&h.right<=w&&body.left>=0&&body.right<=w;},width),'Long inviter heading and body stay within viewport');await shot('friend-invitation-closed');closed=false;cases++;
-   await p.evaluate(()=>store.del('kinetta.friendLink'));await p.goto(base+'/signup');await p.locator('details.username-choice').waitFor();assert.equal(checks.length,0,'No checks before typing');
+   await p.evaluate(()=>store.del('kinetta.friendLink'));helperMode='fail-next';await p.goto(base+'/signup');await p.locator('details.username-choice').waitFor();assert.equal(checks.length,0,'No checks before typing');
+   const signupName=p.locator('input[name=name]'),signupDetails=p.locator('details.username-choice'),signupErr=p.locator('form .err');
+   await until(p,()=>document.querySelector('form .err')?.textContent.includes('Username check could not load'),'Username helper load error');
+   assert.equal(await signupName.evaluate(n=>n===document.activeElement),true,'A background load failure must keep the signup name focused');
+   assert.equal(await signupDetails.evaluate(n=>n.open),false,'A background load failure must not open optional username details');
+   const failedScroll=await p.evaluate(()=>scrollY);await p.waitForTimeout(100);assert.equal(await p.evaluate(()=>scrollY),failedScroll,'A background load failure must not scroll the signup form');
+   helperMode='hold-next';await signupDetails.locator('summary').click();const preAttachField=p.locator('input[name=login]');
+   await preAttachField.fill('first_retry_value');for(let n=0;n<100&&!helperRelease;n++)await p.waitForTimeout(20);assert(helperRelease,'Typing retries the failed helper load');
+   await preAttachField.fill('typed_before_attach');helperRelease();helperRelease=null;
+   await until(p,()=>document.querySelector('.username-status')?.textContent.includes('@typed_before_attach'),'Latest typed value checked after attach');
+   assert.equal(await signupErr.textContent(),'','Successful attachment clears only the helper-owned form error');assert(checks.includes('typed_before_attach'));
+   // A failed helper message must yield to a real server field error and remain gone after late attachment.
+   helperMode='fail-next';await p.reload();await until(p,()=>document.querySelector('form .err')?.textContent.includes('Username check could not load'),'Second helper load error');
+   helperMode='hold-next';await p.locator('details.username-choice summary').click();const retryField=p.locator('input[name=login]');await retryField.fill('late_signup_conflict');
+   for(let n=0;n<100&&!helperRelease;n++)await p.waitForTimeout(20);assert(helperRelease);
+   await p.locator('input[name=name]').fill('Casey Example');await p.locator('input[name=email]').fill('late-conflict@example.com');await p.locator('input[name=password]').fill('fictional long passphrase');await p.locator('input[name=age_ok]').check();
+   await p.locator('button[type=submit]').click();await p.locator('.email-address-review').waitFor();await p.locator('[data-email-use]').click();
+   await until(p,()=>document.querySelector('input[name=email]')?.getAttribute('aria-invalid')==='true','Server 409 email field error');
+   const detailsOpenBeforeLateAttach=await signupDetails.evaluate(n=>n.open);assert.equal(detailsOpenBeforeLateAttach,true,'The optional username field stays open after explicit use');
+   assert.match(await p.locator('.field-err').innerText(),/already a Kinetta account/);
+   helperRelease();helperRelease=null;await p.waitForTimeout(150);
+   assert.match(await p.locator('.field-err').innerText(),/already a Kinetta account/,'Late helper success preserves the server field error');
+   assert.equal(await signupDetails.evaluate(n=>n.open),detailsOpenBeforeLateAttach,'Late helper success preserves the user-opened details state');
+   // An obsolete owner or detached signup form cannot receive a delayed load failure.
+   helperMode='hold-next';await p.reload();for(let n=0;n<100&&!helperRelease;n++)await p.waitForTimeout(20);assert(helperRelease);
+   await p.evaluate(()=>{App.me={id:'fictional-stale-owner'};});helperRelease(true);helperRelease=null;await p.waitForTimeout(100);
+   assert.equal(await p.locator('form .err').textContent(),'','A changed owner cannot receive a stale signup error');cases++;await p.evaluate(()=>{App.me=null;});
+   helperMode='hold-next';await p.reload();for(let n=0;n<100&&!helperRelease;n++)await p.waitForTimeout(20);assert(helperRelease);
+   await p.goto(base+'/');helperRelease(true);helperRelease=null;await p.locator('input[name=login]').waitFor();
+   assert.equal(await p.locator('form .err').textContent(),'','A detached signup form cannot receive a delayed load error');cases++;
+   await p.goto(base+'/signup');await p.locator('details.username-choice').waitFor();
    const passwordField=p.locator('input[name=password]'),passwordToggle=p.locator('.password-visibility-button');
+   checks.length=0;signups.length=0; // Isolate the existing availability/final-review cases from new delayed-attach cases.
    assert.equal(await passwordToggle.count(),1,'Signup has one show-password control');
    assert.equal(await p.locator('.password-toggle').count(),0,'Signup does not add a duplicate password control');
    const eye=await passwordToggle.boundingBox();assert(eye.width>=44&&eye.height>=44,'Show-password control meets the touch target');
@@ -94,9 +138,16 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
    await p.locator('#j-login').click();await p.locator('#l-forgot').click();await p.locator('#f-back').click();assert.equal(new URL(p.url()).pathname,'/join/'+token);
    await p.locator('input[name=login]').fill(login);await p.locator('input[name=password]').fill(password);await p.locator('button[type=submit]').click();await p.locator('#j-accept').waitFor();assert.equal(accepts.length,0,'Authentication alone does not accept');await shot('existing-invitation');
    await p.locator('#j-accept').click();await p.locator('#j-open').waitFor();assert.deepEqual(accepts,[{token}]);await p.locator('#j-open').click();await until(p,()=>App.pageReady,'Existing account opens after acceptance');cases+=2;
-   await p.evaluate(()=>go('/me/settings'));await until(p,()=>App.pageReady&&location.pathname==='/me/settings','Settings ready');if(width===390&&theme==='light'){const download=p.waitForEvent('download');await p.locator('#m-export').click();assert.match((await download).suggestedFilename(),/\.zip$/);assert.equal(new URL(p.url()).pathname,'/me/settings');cases++;}await p.evaluate(()=>accountSheet('login'));await p.locator('#ac input').waitFor();
-   assert.equal(await p.locator('#ac .username-status').textContent(),'','No edit error before typing');await p.locator('#ac input').fill('taken_name');await until(p,()=>document.querySelector('#ac .username-status')?.textContent.includes('Taken'),'Edit feedback');await shot('edit-username-taken');
-   await p.locator('#ac button.primary').click();await until(p,()=>document.querySelector('#ac .username-status')?.textContent==='That username is taken','Authoritative save conflict replaces availability');assert.equal(await p.locator('#ac input').inputValue(),'taken_name');cases+=2;
+   await p.evaluate(()=>go('/me/settings'));await until(p,()=>App.pageReady&&location.pathname==='/me/settings','Settings ready');if(width===390&&theme==='light'){const download=p.waitForEvent('download');await p.locator('#m-export').click();assert.match((await download).suggestedFilename(),/\.zip$/);assert.equal(new URL(p.url()).pathname,'/me/settings');cases++;}
+   await p.reload();await until(p,()=>App.pageReady&&location.pathname==='/me/settings','Reloaded Settings ready');helperMode='hold-next';await p.evaluate(()=>accountSheet('login'));await p.locator('#ac input').waitFor();
+   for(let n=0;n<100&&!helperRelease;n++)await p.waitForTimeout(20);assert(helperRelease,'Settings username helper is held before attachment');
+   assert.equal(await p.locator('#ac .username-status').count(),0,'Availability status is absent before helper attachment');await p.locator('#ac input').fill('taken_name');
+   await p.evaluate(()=>document.querySelector('#toast')?.classList.remove('on'));
+   const settingsConflict=p.waitForResponse(r=>r.url()===base+'/api/account'&&r.request().method()==='PUT'&&r.status()===409);
+   await p.locator('#ac button.primary').click();await settingsConflict;
+   await p.locator('#toast.on').filter({hasText:'That username is taken'}).waitFor();
+   assert.equal(await p.locator('#ac .username-status').count(),0,'Server error has immediate toast while helper remains pending');
+   helperRelease();helperRelease=null;await until(p,()=>document.querySelector('#ac .username-status')?.textContent==='That username is taken','Settings server error replay after helper attachment');assert.equal(await p.locator('#ac input').inputValue(),'taken_name');cases+=2;
    // Saving into the current same-account profile preserves a concurrent profile refresh.
    saveFailure=false;await p.locator('#ac input').fill('new_profile_name');await p.locator('#ac button.primary').click();for(let n=0;n<100&&!saveRelease;n++)await p.waitForTimeout(20);assert(saveRelease);
    await p.evaluate(()=>refreshMe({...App.me,units:'metric',bio:'Fictional refreshed profile'}));await saveRelease();await until(p,()=>App.me.login==='new_profile_name','Current profile updated');assert.equal(await p.evaluate(()=>App.me.bio),'Fictional refreshed profile');assert.equal(await p.evaluate(()=>kept('/api/me').login),'new_profile_name');cases++;
@@ -105,6 +156,7 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
    await fit();assert.deepEqual(errors,[]);console.log(`Signup uniqueness ${width}px ${theme}: debounce, stale replies, duplicate links, recovery/explicit invitation, edit conflict/refresh/detach PASS`);
   }finally{await c.close();}
  }
+ if(!process.env.THEME&&!process.env.WIDTH){
  // Real fresh-account journey, bound to the disposable fixture; no mail or consent/provider writes.
  const c=await browser.newContext({viewport:{width:330,height:844},colorScheme:'light',serviceWorkers:'block',isMobile:true,hasTouch:true,reducedMotion:'reduce'});let created=false;
  try{
@@ -119,6 +171,7 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
   const me=await (await c.request.get(base+'/api/me')).json(),sharing=await (await c.request.get(base+'/api/sharing')).json();assert.equal(me.login,fixture.login);assert.equal(me.is_admin,false);assert.equal(me.ai_ok,false);assert.equal(me.health_ai_ok,false);assert.equal(me.garmin_ai_ok,false);assert.equal(sharing.default,'me');await shot('real-welcome-me');assert.deepEqual(errors,[]);cases++;
   console.log('Real email-free invite → create → welcome → Done → Me, private audience and Kit off PASS');
  }finally{if(created){const me=await (await c.request.get(base+'/api/me')).json();assert.equal(me.login,fixture.login);const removed=await c.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password}});assert.equal(removed.status(),200);assert.equal((await c.request.get(base+'/api/me')).status(),401);}await c.close();}
+ }
  }finally{await browser.close();}
  console.log(`Signup uniqueness: ${cases} rendered journey checks passed`);
 })().catch(error=>{console.error(error);process.exit(1);});
