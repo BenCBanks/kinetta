@@ -184,9 +184,10 @@ const assert330AchievementViews=async(page,base,setUnits,theme,shots)=>{
 };
 
 module.exports=async({browser,storageState,base,shots})=>{
- for(const theme of ['light','dark']){
+ const pendingOnly=process.env.KINETTA_ACHIEVEMENT_PENDING_ONLY==='1';
+ for(const theme of pendingOnly?['light']:['light','dark']){
   const context=await browser.newContext({storageState,viewport:{width:390,height:844},colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:SCREENSHOT_CLOCK.timezone});
-  const page=await context.newPage(),errors=[],writes=[],pinRequests=[],ownerAchievementCalls=[],sharedAchievementCalls=[],ownerShowcaseCalls=[];let journeyValue=6099414,workoutValue=1120,unitMode='imperial',unitLabelValues=null,showcasePins=[],sharedShowcasePins=[],sharedShareEnabled=true,emptyOwnerAchievements=false,emptyOwnerShowcase=false,emptyFriendShowcase=false,emptyFriendAchievements=false,pendingAchievementResponses=[],pendingHistoryResponses=[],failOwnerAchievementOnce=false,sharedAchievementPending=false,pinPostGate=null;
+  const page=await context.newPage(),errors=[],writes=[],pinRequests=[],ownerAchievementCalls=[],ownerHistoryCalls=[],sharedAchievementCalls=[],ownerShowcaseCalls=[];let journeyValue=6099414,workoutValue=1120,unitMode='imperial',unitLabelValues=null,showcasePins=[],sharedShowcasePins=[],sharedShareEnabled=true,emptyOwnerAchievements=false,emptyOwnerShowcase=false,emptyFriendShowcase=false,emptyFriendAchievements=false,pendingAchievementResponses=[],pendingHistoryResponses=[],failOwnerAchievementOnce=false,sharedAchievementPending=false,pinPostGate=null;
   const ownerShowcaseCodes=['journey','workouts','lifted','sport:run'];
   await page.clock.setFixedTime(SCREENSHOT_NOW);
   page.on('pageerror',e=>errors.push(e.message));
@@ -247,6 +248,7 @@ module.exports=async({browser,storageState,base,shots})=>{
     return route.fulfill({json:{pinned:showcasePins,replaced}});
    }
    if(request.method()==='GET'&&url.pathname.startsWith('/api/achievement-history/')){
+    if(!url.searchParams.has('login'))ownerHistoryCalls.push(url.href);
     const code=decodeURIComponent(url.pathname.slice('/api/achievement-history/'.length));
     const history=v2History(code,{'journey':journeyValue,'workouts':workoutValue});
     if(!url.searchParams.has('login')&&pendingHistoryResponses.length)history.pending=pendingHistoryResponses.shift();
@@ -259,6 +261,33 @@ module.exports=async({browser,storageState,base,shots})=>{
   const setUnits=async units=>{unitMode=units;await page.evaluate(units=>{App.me.units=units;keep('/api/me',App.me);},units);};
   await page.goto(base+'/me');await until(page,()=>App.pageReady,'fixture login');await setUnits('imperial');
   const waitForCallCount=async(calls,count,label)=>{for(let i=0;i<160;i++){if(calls.length>=count)return;await page.waitForTimeout(50);}throw Error('Timed out waiting for '+label);};
+  const holdToPin=async code=>{
+   const medal=page.locator('#profile-achievement-page .profile-achievement[data-achievement-code="'+code+'"]');await medal.evaluate(n=>n.scrollIntoView({block:'center',behavior:'instant'}));await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+   const rect=await medal.boundingBox();await page.mouse.move(rect.x+rect.width/2,rect.y+rect.height/2);await page.mouse.down();await page.waitForTimeout(570);await page.mouse.up();
+   const action=page.locator('[data-showcase-pin-action]');await action.waitFor();return action;
+  };
+  const waitForPin=async(code,pinned)=>{const selector='#profile-achievement-page .profile-achievement[data-achievement-code="'+code+'"]';await until(page,state=>document.querySelector(state.selector)?.dataset.showcasePinned===state.pinned,'Showcase pin update',{selector,pinned:String(pinned)});};
+  const pinSaveRaceCheck=async()=>{
+   if(theme!=='light')return;
+   // A dismissed pin sheet does not release the refresh fence while its save is in flight.
+   showcasePins=['workouts'];pendingAchievementResponses=[true];
+   await page.goto(base+'/me/achievements?pin-save-race=1');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+   let enterSave,releaseSave;const saveEntered=new Promise(resolve=>{enterSave=resolve;}),saveWait=new Promise(resolve=>{releaseSave=resolve;});pinPostGate={enter:enterSave,wait:saveWait};
+   const beforeJourney=await page.locator('#profile-achievement-page [data-achievement-code="journey"] .profile-achievement-value').innerText();
+   const beforeRefreshCalls=ownerAchievementCalls.length,beforeRefreshShowcases=ownerShowcaseCalls.length;pendingAchievementResponses=[false];journeyValue=8000000;
+   const heldAction=await holdToPin('journey');assert.equal(await heldAction.innerText(),'Pin to profile','the held-save fixture starts from an unpinned medal');
+   const clickSave=heldAction.click();await saveEntered;await page.keyboard.press('Escape');await page.locator('.sheet').waitFor({state:'detached'});
+   await waitForCallCount(ownerAchievementCalls,beforeRefreshCalls+1,'settled poll while the dismissed pin save remains pending');await waitForCallCount(ownerShowcaseCalls,beforeRefreshShowcases+1,'stale showcase snapshot while the pin save remains pending');
+   await page.waitForTimeout(100);
+   assert.equal(await page.locator('#profile-achievement-page [data-achievement-code="journey"] .profile-achievement-value').innerText(),beforeJourney,'a settled poll cannot repaint the catalogue while the dismissed save is pending');
+   releaseSave();await clickSave;await waitForPin('journey',true);await waitForPin('workouts',true);
+   pendingAchievementResponses=[false];await waitForCallCount(ownerAchievementCalls,beforeRefreshCalls+2,'post-save settled catalogue refresh');await waitForCallCount(ownerShowcaseCalls,beforeRefreshShowcases+2,'post-save showcase refresh');
+   await until(page,expected=>document.querySelector('#profile-achievement-page [data-achievement-code="journey"] .profile-achievement-value')?.textContent.trim()!==expected,'post-save refreshed Journey value',beforeJourney);
+   await waitForPin('journey',true);await waitForPin('workouts',true);
+   assert.deepEqual(showcasePins,['workouts','journey'],'the next poll keeps both pins after applying fresh achievement values');
+   pinRequests.length=0;showcasePins=[];journeyValue=6099414;pendingAchievementResponses=[];
+   await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+  };
   const pendingLifecycleChecks=async()=>{
    if(theme!=='light')return;
    // A transient failed refresh leaves the visible catalogue in place; the next backoff settles it.
@@ -269,13 +298,18 @@ module.exports=async({browser,storageState,base,shots})=>{
    await page.waitForTimeout(100);assert.equal(await page.locator('#profile-achievement-page [data-achievement-code="journey"] .profile-achievement-value').innerText(),beforeErrorValue,'a failed pending refresh keeps the rendered catalogue unchanged');
    await waitForCallCount(ownerAchievementCalls,beforeErrorCalls+2,'settled catalogue refresh after retry');
    await until(page,expected=>document.querySelector('#profile-achievement-page [data-achievement-code="journey"] .profile-achievement-value')?.textContent.trim()!==expected,'settled catalogue value',beforeErrorValue);
+   const settledCatalogueCalls=ownerAchievementCalls.length;await page.waitForTimeout(8200);
+   assert.equal(ownerAchievementCalls.length,settledCatalogueCalls,'the settled catalogue stops before the next scheduled poll');
 
-   // Track history waits for both pending endpoints and refreshes them as one view.
+   // Track history stays unchanged while only its history endpoint is pending, then settles both reads.
    pendingAchievementResponses=[true];pendingHistoryResponses=[true];const beforeHistoryCalls=ownerAchievementCalls.length;
    await page.goto(base+'/me/achievements/journey?pending=history');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
-   const beforeHistoryValue=await page.locator('.profile-achievement-current-value').innerText();
-   pendingAchievementResponses=[false];pendingHistoryResponses=[false];journeyValue=8000000;
-   await waitForCallCount(ownerAchievementCalls,beforeHistoryCalls+1,'pending track history refresh');
+   const beforeHistoryValue=await page.locator('.profile-achievement-current-value').innerText(),beforeHistoryRequests=ownerHistoryCalls.length;
+   pendingAchievementResponses=[false,false];pendingHistoryResponses=[true];journeyValue=8000000;
+   await waitForCallCount(ownerAchievementCalls,beforeHistoryCalls+1,'pending track history achievement refresh');await waitForCallCount(ownerHistoryCalls,beforeHistoryRequests+1,'pending track history refresh');
+   await page.waitForTimeout(100);assert.equal(await page.locator('.profile-achievement-current-value').innerText(),beforeHistoryValue,'a history-only pending response keeps the old history content');
+   pendingHistoryResponses=[false];
+   await waitForCallCount(ownerAchievementCalls,beforeHistoryCalls+2,'settled track history achievement refresh');await waitForCallCount(ownerHistoryCalls,beforeHistoryRequests+2,'settled track history refresh');
    await until(page,expected=>document.querySelector('.profile-achievement-current-value')?.textContent.trim()!==expected,'settled track history value',beforeHistoryValue);
 
    // The Me Featured slot uses the same owner lifecycle and settles without a full profile reload.
@@ -303,8 +337,14 @@ module.exports=async({browser,storageState,base,shots})=>{
    // A shared pending response remains read-only and never starts owner polling.
    sharedAchievementPending=true;const beforeSharedCalls=sharedAchievementCalls.length,beforeSharedOwner=ownerAchievementCalls.length;
    await page.goto(base+'/people/fictional_friend?view=achievements&pending=shared');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
-   assert(sharedAchievementCalls.length>beforeSharedCalls,'the friend view loads its filtered achievement response');await page.waitForTimeout(2200);
-   assert.equal(ownerAchievementCalls.length,beforeSharedOwner,'a shared pending response never calls owner achievements');sharedAchievementPending=false;
+   assert(sharedAchievementCalls.length>beforeSharedCalls,'the friend view loads its filtered achievement response');const sharedCallsAfterLoad=sharedAchievementCalls.length;await page.waitForTimeout(2200);
+   assert.equal(sharedAchievementCalls.length,sharedCallsAfterLoad,'a shared pending response does not start a background refresh');assert.equal(ownerAchievementCalls.length,beforeSharedOwner,'a shared pending response never calls owner achievements');sharedAchievementPending=false;
+
+   pendingAchievementResponses=[true];const beforeOwnerSwapCalls=ownerAchievementCalls.length;
+   await page.goto(base+'/me/achievements?pending=owner-change');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+   await page.evaluate(()=>{window.__pendingFixtureOwner=App.me;App.me={...App.me,id:'fictional-owner-swapped'};});await page.waitForTimeout(2200);
+   assert.equal(ownerAchievementCalls.length,beforeOwnerSwapCalls+1,'a pending owner watcher stops when its captured owner changes');
+   await page.evaluate(()=>{App.me=window.__pendingFixtureOwner;delete window.__pendingFixtureOwner;});
 
    // Navigating away stops the old page watcher; same-root reentry gets exactly one fresh watcher.
    pendingAchievementResponses=[true];const beforeReentryCalls=ownerAchievementCalls.length;
@@ -320,6 +360,8 @@ module.exports=async({browser,storageState,base,shots})=>{
    await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
   };
   await pendingLifecycleChecks();
+  await pinSaveRaceCheck();
+  if(pendingOnly){await context.close();return;}
   const checkEmptyOwnerFriendEntry=async({capture=false}={})=>{
    const prior={showcasePins:[...showcasePins],sharedShowcasePins:[...sharedShowcasePins],sharedShareEnabled,emptyOwnerAchievements,emptyOwnerShowcase,emptyFriendShowcase,emptyFriendAchievements};
    try{
@@ -487,29 +529,6 @@ module.exports=async({browser,storageState,base,shots})=>{
   await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='all-tracks');
   await screenshot(page,shots,`achievement-grid-390-${theme}`,{fullPage:true});
   futureEvidence=false;await page.evaluate(()=>{delete document.documentElement.dataset.achievementEvidence;invalidate('/api/achievements');});await page.reload();await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
-  const holdToPin=async code=>{
-   const medal=page.locator('#profile-achievement-page .profile-achievement[data-achievement-code="'+code+'"]');await medal.evaluate(n=>n.scrollIntoView({block:'center',behavior:'instant'}));await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
-   const rect=await medal.boundingBox();await page.mouse.move(rect.x+rect.width/2,rect.y+rect.height/2);await page.mouse.down();await page.waitForTimeout(570);await page.mouse.up();
-   const action=page.locator('[data-showcase-pin-action]');await action.waitFor();return action;
-  };
-  const waitForPin=async(code,pinned)=>{const selector='#profile-achievement-page .profile-achievement[data-achievement-code="'+code+'"]';await until(page,state=>document.querySelector(state.selector)?.dataset.showcasePinned===state.pinned,'Showcase pin update',{selector,pinned:String(pinned)});};
-  if(theme==='light'){
-   // A dismissed pin sheet does not release the refresh fence while its save is still in flight.
-   showcasePins=['workouts'];pendingAchievementResponses=[true];
-   await page.goto(base+'/me/achievements?pin-save-race=1');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
-   let enterSave,releaseSave;const saveEntered=new Promise(resolve=>{enterSave=resolve;}),saveWait=new Promise(resolve=>{releaseSave=resolve;});pinPostGate={enter:enterSave,wait:saveWait};
-   const beforeJourney=await page.locator('#profile-achievement-page [data-achievement-code="journey"] .profile-achievement-value').innerText();
-   const beforeRefreshCalls=ownerAchievementCalls.length,beforeRefreshShowcases=ownerShowcaseCalls.length;pendingAchievementResponses=[false];journeyValue=8000000;
-   const heldAction=await holdToPin('journey');assert.equal(await heldAction.innerText(),'Pin to profile','the held-save fixture starts from an unpinned medal');
-   const clickSave=heldAction.click();await saveEntered;await page.keyboard.press('Escape');await page.locator('.sheet').waitFor({state:'detached'});
-   await waitForCallCount(ownerAchievementCalls,beforeRefreshCalls+1,'settled poll while the dismissed pin save remains pending');await waitForCallCount(ownerShowcaseCalls,beforeRefreshShowcases+1,'stale showcase snapshot while the pin save remains pending');
-   await page.waitForTimeout(100);
-   assert.equal(await page.locator('#profile-achievement-page [data-achievement-code="journey"] .profile-achievement-value').innerText(),beforeJourney,'a settled poll cannot repaint the catalogue while the dismissed save is pending');
-   releaseSave();await clickSave;await waitForPin('journey',true);await waitForPin('workouts',true);
-   assert.deepEqual(showcasePins,['workouts','journey'],'the held save commits both current pins after the stale poll is deferred');
-   pinRequests.length=0;showcasePins=[];journeyValue=6099414;pendingAchievementResponses=[];
-   await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
-  }
   let pinAction=await holdToPin('workouts');assert.equal(await pinAction.innerText(),'Pin to profile','a long press opens the pin action');
   await screenshot(page,shots,'achievement-pin-action-390-'+theme);await pinAction.click();await page.locator('.sheet').waitFor({state:'detached'});
   await waitForPin('workouts',true);
