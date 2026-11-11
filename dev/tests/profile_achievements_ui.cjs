@@ -361,7 +361,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   };
   await pendingLifecycleChecks();
   await pinSaveRaceCheck();
-  if(pendingOnly){await context.close();return;}
+  if(pendingOnly){assert.deepEqual(errors,[],'pending refresh fixture has no browser errors');assert.deepEqual(writes,['/api/achievements/showcase/pin'],'the fixture performs only its intentional fictional pin write');await context.close();return;}
   const checkEmptyOwnerFriendEntry=async({capture=false}={})=>{
    const prior={showcasePins:[...showcasePins],sharedShowcasePins:[...sharedShowcasePins],sharedShareEnabled,emptyOwnerAchievements,emptyOwnerShowcase,emptyFriendShowcase,emptyFriendAchievements};
    try{
