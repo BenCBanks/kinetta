@@ -8,7 +8,7 @@ Privacy policy
 
 ## updated
 
-Last updated November 1, 2026
+Last updated November 11, 2026
 
 ## intro
 
@@ -28,11 +28,11 @@ What we keep
 
 ## collect
 
-**Your account:** email, username, display name, password (stored scrambled, never in plain text), and an optional photo and bio.
+**Your account:** email, username, display name, password (stored scrambled, never in plain text), and an optional photo and bio. You may add an optional phone number under Me → Settings → Sharing & privacy. Kinetta stores it in normalized international format; it is not verified or shown to other members. Remove it there to clear it from your account.
 
 ## collect-records
 
-**What you add or import:** workouts, activity files, routes, heart rate and other measurements, food, recipes, weight, goals, plans and settings. Body details like height and age are optional and only used for your own estimates.
+**What you add or import:** workouts, activity files, routes, heart rate and other measurements, food, recipes, weight, goals, plans and settings. Body details like height and age are optional and only used for your own estimates. **iPhone Contacts (optional):** To find friends, choose Find friends with contacts, tap Continue, then allow Contacts access. The app reads contact names, local IDs, email addresses and phone numbers on your iPhone. It normalizes email and phone there, then sends a fresh salt and up to 2,000 salted email/phone hashes. This includes hashes that do not match; names, local IDs and raw addresses are not sent. The server compares the hashes, returns only matches and public usernames, and does not store or log the request body. A separate account-linked attempt record enforces one check per 24 hours; cleanup removes attempts older than a day when the limiter next runs. The app caches matched contact IDs, usernames and the check time on your iPhone until you choose Remove my contacts in Sharing & privacy. Revoking Contacts access does not clear that cache. Email and phone findability start on; turn either off in Sharing & privacy to stop people matching that field. This does not delete your account email or phone. Invite rows stay on your iPhone; if you choose Invite, your phone can share a generic link. Kinetta does not send the invite by text or email or include contact details in the link.
 
 ## collect-chat
 
