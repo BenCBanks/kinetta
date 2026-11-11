@@ -29,7 +29,7 @@
 .insights-copy .insight { margin:6px 0; font-size:max(15px,.9375rem); line-height:1.4; gap:8px; }
 .insights-links { display:flex; flex-direction:column; gap:8px; margin:12px 0; }
 .insights-links a { display:flex; align-items:center; gap:8px; min-height:48px; padding:8px 0; border-bottom:1px solid var(--line); color:var(--tx); text-decoration:none; font-size:max(15px,.9375rem); }
-.insights-links svg { width:18px; height:18px; flex:none; color:var(--accent); }
+.insights-links svg { width:18px; height:18px; flex:none; color:var(--tx2); }
 .insights-links svg:last-child { margin-left:auto; color:var(--tx3); }
 .insights-empty h2 { font-size:max(17px,1.125rem); }
 .insights-empty .linkbtn { min-height:44px; justify-content:center; width:100%; margin-top:4px; }

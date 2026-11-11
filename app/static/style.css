@@ -144,7 +144,7 @@ details.fold-row[open] { padding-bottom: 12px; }
 .pbar::-webkit-scrollbar { display: none; }
 .pbar .rng { margin: 0; flex: none; } .pbar .range-btn { flex: none; padding: 6px 10px; gap: 5px; }
 .pbar .rng .range-btn > svg:first-child { display: none; }   /* the years button: no calendar icon here, so the row fits */
-.pbar .range-btn:first-child svg:first-child, .pbar #p-sport svg:first-child { color: var(--accent); }
+.pbar .range-btn:first-child svg:first-child, .pbar #p-sport svg:first-child { color: var(--tx2); }
 .chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px 16px 12px; margin: 0 -16px; }
 .chips::-webkit-scrollbar { display: none; }
 .chip { flex: none; min-height: 34px; padding: 6px 14px; border-radius: 999px; border: 0; background: var(--card2); box-shadow: var(--shadow);
@@ -316,6 +316,8 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .badge.alert { background: var(--btn); color: var(--onbtn); }   /* something waiting for you: the one badge that stands out */
 .badge.today { background: var(--card2); color: var(--tx); }
 .badge.s1, .badge.s2, .badge.s3 { color: var(--tx); }
+/* Chart legends (Fitness, fatigue and form) are a dot and a word, not grey pills (#764). */
+.chartbox .badges { gap: 14px; } .chartbox .badges .badge { padding: 0; background: none; border-radius: 0; color: var(--tx2); }
 .badge.s1::before, .badge.s2::before, .badge.s3::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--s1); }
 .badge.s2::before { background: var(--s2); } .badge.s3::before { background: var(--s3); }
 
@@ -686,9 +688,10 @@ tr.muted td { color: var(--tx3); }
 
 
 .rng { margin: 4px 0 12px; }
-.range-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 6px 12px; border: 0; border-radius: 999px;
-  background: var(--card2); box-shadow: var(--shadow); color: var(--tx); font-weight: 500; font-size: 14px; white-space: nowrap; }
-.range-btn svg { width: 16px; height: 16px; flex: none; color: var(--tx3); } .range-btn span { overflow: hidden; text-overflow: ellipsis; }
+/* Pickers (sport, years, day, time range) are plain text with their chevron: no grey pill, shadow or radius (#764). */
+.range-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 6px 4px; border: 0; border-radius: 0;
+  background: transparent; box-shadow: none; color: var(--tx); font-weight: 600; font-size: 14px; white-space: nowrap; }
+.range-btn svg { width: 16px; height: 16px; flex: none; color: var(--tx2); } .range-btn span { overflow: hidden; text-overflow: ellipsis; }
 
 /* Calendar (2026-10-11): workouts + food, day by day */
 .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
@@ -731,7 +734,7 @@ tr.muted td { color: var(--tx3); }
 
 .nrange { margin-bottom: 4px; }
 
-.daypick { position: relative; cursor: pointer; font-size:max(15px,.9375rem); } .daypick svg { width: 16px; height: 16px; color: var(--accent); }
+.daypick { position: relative; cursor: pointer; font-size:max(15px,.9375rem); } .daypick svg { width: 16px; height: 16px; color: var(--tx2); }
 .daypick input { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; }
 .backtoday { margin: -6px 0 10px; }
 /* Nutrition (2026-10-12 redesign): the row of small buttons (View, the day, ‹ ›) and the one summary card */
@@ -748,7 +751,6 @@ tr.muted td { color: var(--tx3); }
 .tc-bal > summary::-webkit-details-marker { display: none; }
 .tc-bal > summary > span:first-child { flex: 1; min-width: 0; } :is(.tcard,.nutrition-secondary) .tc-bal > summary small { display: inline; font-weight: 500; font-size: 13px; text-transform: none; letter-spacing: 0; }
 :is(.tcard,.nutrition-secondary) .tc-bal > summary b { font: 800 22px var(--numf); letter-spacing: -.02em; } .tc-bal > summary b i { font-size: 13px; font-style: normal; color: var(--tx3); font-weight: 600; }
-.tc-bal > summary b.good { color: var(--good); } .tc-bal > summary b.bad { color: var(--alert); }
 .tc-bal > summary .chev svg { width: 16px; height: 16px; color: var(--tx3); transition: transform .15s; } .tc-bal[open] > summary .chev svg { transform: rotate(90deg); }
 :is(.tcard,.nutrition-secondary) .tc-bal .brow b { font: 700 15px var(--numf); letter-spacing: 0; }
 a.ntile { color: inherit; text-decoration: none; }
@@ -791,7 +793,6 @@ a.ntile { color: inherit; text-decoration: none; }
 :is(.balance,.nutrition-secondary) .brow.sum { border-top: 2px solid var(--tx3); font-weight: 700; }
 :is(.balance,.nutrition-secondary) .brow.big { border-top: 0; font-size: 17px; font-weight: 750; padding: 2px 0 6px; }
 :is(.balance,.nutrition-secondary) .brow.big b { font: 800 28px var(--numf); letter-spacing: -.03em; } :is(.balance,.nutrition-secondary) .brow.big i { font-size: 13px; font-style: normal; color: var(--tx3); }
-:is(.balance,.nutrition-secondary) .brow.good b { color: var(--good); } :is(.balance,.nutrition-secondary) .brow.bad b { color: var(--alert); }
 :is(.balance,.nutrition-secondary) .more-link { display: inline-block; margin-top: 8px; }
 :is(.balance,.nutrition-secondary) details.bd { margin-top: 4px; } :is(.balance,.nutrition-secondary) details.bd > summary { font-size: max(15px,.9375rem); }
 .balance .addwk { display: inline-block; margin: 2px 0 6px; }
@@ -877,7 +878,6 @@ a.ntile { color: inherit; text-decoration: none; }
 .ntile small { color: var(--tx3); font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; }
 .ntile b { font: 800 24px var(--numf); letter-spacing: -.02em; } .ntile b i { font: 600 12px var(--font); font-style: normal; color: var(--tx3); margin-left: 3px; }
 .ntile span { font-size: 12px; color: var(--tx2); }
-.ntile.good b { color: var(--good); } .ntile.bad b { color: var(--alert); }
 .tdee-opts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0 6px; }
 .tdee-opts button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 60px; padding: 10px 12px; text-align: left; }
 .tdee-opts small { color: var(--tx3); font-weight: 600; } .tdee-opts b { font: 750 19px var(--numf); }
@@ -1546,6 +1546,17 @@ html.keyboard-open nav.tabs { display: none; }
 .progress-food-options .pbar { margin:0; padding:8px 0 0; }
 .progress-map-card .map { margin-top:8px; }
 @media(max-width:370px) { .progress-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+/* Explore your progress / Explore your food (#764): plain rows with an icon, the name, one line of detail, a trailing
+   chevron and a hairline; no tile boxes. Track tools and the Activity discovery keep their tiles for now. */
+.progress-grid.explore-list { display:flex; flex-direction:column; gap:8px; margin:0 0 16px; }   /* 8px between rows, like the insights links */
+.progress-grid.explore-list .progress-tile { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; column-gap:12px; row-gap:2px; margin:0; padding:10px 0; min-height:56px;
+  background:none; border:0; border-bottom:1px solid var(--line); border-radius:0; box-shadow:none; color:var(--tx); }
+.progress-grid.explore-list .progress-tile::after { content:"›" / ""; grid-column:2; grid-row:1 / span 2; color:var(--tx3); font-size:22px; line-height:1; }
+.progress-grid.explore-list .progress-tile-name { grid-column:1; display:flex; flex-wrap:nowrap; align-items:center; gap:10px; min-width:0; }
+.progress-grid.explore-list .progress-tile-name svg { display:block; width:20px; height:20px; flex:none; margin:0; color:var(--tx2); }
+.progress-grid.explore-list .progress-tile-name b { display:block; flex:0 1 auto; min-width:0; font-size:max(15px,.9375rem); font-weight:600; line-height:1.3; overflow-wrap:anywhere; }
+.progress-grid.explore-list .progress-tile-name .progress-new { margin:0; }
+.progress-grid.explore-list .progress-tile .small { grid-column:1; padding-left:30px; font-size:.8125rem; line-height:1.4; overflow-wrap:anywhere; display:block; -webkit-line-clamp:unset; overflow:visible; }
 
 .tab-n, .bell-dot { background: var(--btn); color: var(--onbtn); }
 
@@ -1719,6 +1730,7 @@ html.keyboard-open nav.tabs { display: none; }
 .mileage-toggle button { min-height: 44px; min-width: 44px; padding: 0 6px; border: 0; background: transparent; color: var(--tx2); font-size: .6875rem; }
 .mileage-toggle button[aria-pressed="true"] { color: var(--accent); font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
 .mileage-toggle button:disabled { opacity: .5; cursor: default; }
+.units-toggle { gap: 12px; } .units-toggle button { padding: 0 2px; font-size: max(15px,.9375rem); }
 .seven-bars .future-day i { background: var(--line); }
 
 .track-ready { gap: 12px; }
@@ -3075,8 +3087,8 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .meal-yesterday-repeat{display:flex;align-items:center;justify-content:flex-start;width:100%;min-width:0;min-height:44px;margin:4px 0 0;padding:4px 0;border:0;background:none;color:var(--accent);font:inherit;font-size:max(14px,.875rem);font-weight:600;line-height:1.35;text-align:left;white-space:normal;overflow-wrap:anywhere}
 .meal-yesterday-repeat:disabled{opacity:.55}
 .food-copy-action{display:flex;justify-content:center;margin:16px 0;}
-.food-copy-action .ghost{min-height:44px;max-width:100%;white-space:normal;background:var(--card);border:1px solid var(--line);font-weight:500;}
-.food-copy-action svg{width:18px;height:18px;flex:none;color:var(--tx3);}
+.food-copy-action .ghost{min-height:44px;max-width:100%;white-space:normal;background:none;border:0;box-shadow:none;color:var(--accent);font-weight:600;}
+.food-copy-action svg{width:18px;height:18px;flex:none;color:var(--accent);}
 
 /* Loading recovery stays available even if a later script cannot download. */
 .launch-note{margin:0;color:var(--tx3);font-size:.875rem;text-align:center;}

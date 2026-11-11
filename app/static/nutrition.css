@@ -27,6 +27,9 @@
 .nutrition-summary-link .macro .track .macro-target-bar.over { background:var(--alert); }
 .nutrition-summary-link .macro .track .macro-target-bar.unavailable { background:transparent; }
 .nutrition-home .nutrition-goals { position:absolute; right:12px; top:6px; display:inline-flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; font-size:max(15px,.9375rem); font-weight:500; }
+.nutrition-other-macros { display:flex; align-items:center; flex-wrap:wrap; gap:0 4px; margin-top:8px; font-size:.8125rem; }
+.nutrition-other-macros svg { width:14px; height:14px; margin-left:auto; }
+.nutrition-home .nutrition-goals { font-size:max(15px,.9375rem); display:inline-flex; align-items:center; justify-content:center; gap:6px; height:44px; font-weight:500; border:0; position:absolute; right:8px; top:8px; background:none; color:var(--accent); border-radius:999px; min-height:44px; padding-inline:10px; }
 .nutrition-body-prompt { display:block; margin:6px 0 10px; font-size:.8125rem; }
 .nutrition-home .meal { padding:6px 12px; margin-bottom:10px; }
 .nutrition-home .meal > h2 { display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-height:44px; margin:0 0 8px; font-size:1rem; }
@@ -57,7 +60,7 @@
   .progress-grid .progress-tile .small { display:block; -webkit-line-clamp:unset; }
 }
 
-.nutrition-home .nutrition-goals > svg { flex:none; width:18px; height:18px; }
+.nutrition-home .nutrition-goals > svg { flex:none; width:18px; height:18px; color:var(--accent); }
 
 .nutrition-home .meal .fe.sw-row + .fe.sw-row { margin-top:8px; }
 
