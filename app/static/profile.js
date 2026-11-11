@@ -368,8 +368,8 @@ const ProfileLayout=(()=>{
       const tier=achievementTierAt(code,rank),value=achievementValue(track),medalTrack={...track,level:rank,_sharedAchievement:true};
       return tier&&value?{track:medalTrack}:null;
     }).filter(Boolean);
-    if(!items.length)return '';
     const href=sharedLogin?`/people/${encodeURIComponent(sharedLogin)}?view=achievements`:'/me/achievements';
+    if(!items.length)return sharedLogin?'':`<a class="linkbtn me-featured-empty-entry" href="${esc(href)}">Achievements ›</a>`;
     const heading=`<h3 class="me-featured-title" data-type="secondary"><span>Featured achievements</span><a href="${esc(href)}">See all</a></h3>`;
     const rail=`<div class="profile-achievement-list" role="list" aria-label="Featured achievements">${items.map(item=>sharedAchievementRow(item.track,sharedLogin,{featured:true})).join('')}</div>`;
     return `<div class="me-featured-achievements" role="group" aria-label="Featured achievements">${heading}${rail}</div>`;
