@@ -1831,7 +1831,7 @@ function accountSheet(field) {
     <p class="small muted">${isName ? 'Shown at the top of your screens.' : me.email ? 'Your @name: how friends find and mention you. Change it whenever you like; you log in with your email. Lowercase letters, numbers or _.' : 'Your @name, and what you type to log in until you add an email. Change it whenever you like. Lowercase letters, numbers or _.'}</p>
     <div class="actions"><button class="primary">Save</button></div></form>`, (b, close) => {
     const f = $('#ac', b); f.v.focus();
-    const username = !isName && globalThis.UsernameAvailability?.watch(f.v);
+    const username = !isName && lazyUsernameAvailability(f.v,()=>owner===readOwner()&&b.isConnected&&!b.closest('.scrim')?.classList.contains('is-closing')&&location.pathname==='/me/settings',message=>toast(message));
     f.onsubmit = async (e) => {
       e.preventDefault(); const btn = $('button.primary', f); btn.disabled = true;
       try { const r = await api('/api/account', json('PUT', {[field]: f.v.value})); if(owner!==readOwner())return;App.me[field] = r[field];keep('/api/me',App.me);if(!b.isConnected||b.closest('.scrim')?.classList.contains('is-closing'))return;close(); render(); toast(isName ? 'Name saved' : me.email ? `You're now @${r[field]}` : 'Username changed - use it next time you log in'); }

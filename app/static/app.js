@@ -58,6 +58,7 @@ const RECIPE_IMPORT_ROUTE_ASSET = '/static/recipe-import.js?v=__ASSET_HASH__';
 const SOCIAL_ROUTE_ASSET = '/static/social.js?v=__ASSET_HASH__';
 const PLAN_ROUTE_ASSET = '/static/plan.js?v=__ASSET_HASH__';
 const QR_CODE_ASSET = '/static/vendor/qrcode.js?v=__ASSET_HASH__';
+const USERNAME_AVAILABILITY_ASSET = '/static/username-availability.js?v=__ASSET_HASH__';
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: ['/static/welcome.js?v=__ASSET_HASH__']},
   {re: /^\/me\/explore$/, tab: 'track', scripts: [SOCIAL_ROUTE_ASSET, '/static/explore.js?v=__ASSET_HASH__']},
@@ -108,6 +109,29 @@ function loadClassicScript(asset) {
 }
 function loadClassicScripts(assets) {
   return assets.reduce((ready, asset) => ready.then(() => loadClassicScript(asset)), Promise.resolve());
+}
+function lazyUsernameAvailability(input,valid,failed) {
+  let watcher=null,pending=null,action=null;
+  const changed=()=>{action={kind:'changed'};if(watcher)watcher.changed();else load();};
+  const attach=()=>{
+    if(watcher||!input.isConnected||!valid())return;
+    watcher=globalThis.UsernameAvailability?.watch(input);
+    if(!watcher)return;
+    input.removeEventListener('input',changed);
+    if(action?.kind==='error')watcher.error(action.message);
+    else if(action?.kind==='changed')watcher.changed();
+  };
+  const load=()=>{
+    if(watcher||!input.isConnected||!valid()||pending)return pending;
+    pending=loadClassicScript(USERNAME_AVAILABILITY_ASSET).then(attach).catch(()=>{
+      pending=null;
+      if(input.isConnected&&valid())failed(action?.kind==='error'?action.message:'Username check could not load. Try again or save to verify it.');
+    });
+    return pending;
+  };
+  input.addEventListener('input',changed);
+  load();
+  return{changed,error(message){action={kind:'error',message};if(watcher)watcher.error(message);else load();}};
 }
 function loadQrCode() { return loadClassicScript(QR_CODE_ASSET); }
 const loadWeeklyRecapShareItem = () => loadClassicScript(SOCIAL_ROUTE_ASSET).then(() => {
@@ -1933,7 +1957,8 @@ function showNewAccount({title, intro, button, send, signup = false, ageConfirm 
     <p class="err" role="alert"></p>
     <button class="primary" type="submit">${esc(button)}</button></form></div>`;
   const f = $('form', root); f.name.focus();
-  const username = globalThis.UsernameAvailability?.watch(f.login);
+  const usernameOwner=readOwner(),usernameRoute=location.pathname+location.search;
+  const username = f.login&&lazyUsernameAvailability(f.login,()=>f.isConnected&&usernameOwner===readOwner()&&usernameRoute===location.pathname+location.search,message=>fieldErr('login',message));
   const agreement = globalThis.CommunityTerms?.enrollment(f);
   if (pick) {
     f.name.addEventListener('input', () => {   // suggest a username from the first name until they type their own
