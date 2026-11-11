@@ -410,10 +410,10 @@ def achievements(login: str | None = Query(None, min_length=1, max_length=60), u
         states = c.execute('''SELECT code,title,day,occurred,details
                               FROM milestones WHERE user_id=%s AND kind='track_state' AND valid
                               ORDER BY code''', (owner_id,)).fetchall()
-        rows = c.execute('''SELECT code,title,rank,activity_id,day,occurred,details
+        rows = c.execute('''SELECT code,kind,title,rank,activity_id,day,occurred,details
                             FROM milestones WHERE user_id=%s AND kind='track' AND valid
                             ORDER BY code,rank,occurred''', (owner_id,)).fetchall()
-        firsts = c.execute('''SELECT code,title,rank,activity_id,day,occurred,details
+        firsts = c.execute('''SELECT code,kind,title,rank,activity_id,day,occurred,details
                               FROM milestones WHERE user_id=%s AND kind IN ('sport','first_distance') AND valid
                               ORDER BY occurred,rank''', (owner_id,)).fetchall()
 
