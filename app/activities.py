@@ -243,6 +243,7 @@ def enrich_file(c, uid, aid, parsed, incoming_summary, sha, path):
     session = {k: a[k] for k in ('elapsed_s', 'moving_s', 'distance_m', 'calories', 'ascent_m', 'descent_m') if a.get(k) is not None}
     details = a.get('health_details') or {}
     health_duration = details.get('health_duration_s') if details.get('health_duration_authoritative') else None
+    source_metrics = details.get('source_metrics') or {}
     session['_health_duration_authoritative'] = a['source'] == 'healthkit' and health_duration is not None
     if session['_health_duration_authoritative']:
         session['moving_s'] = health_duration
@@ -251,17 +252,16 @@ def enrich_file(c, uid, aid, parsed, incoming_summary, sha, path):
         summ['route_timing_valid'] = False
         for k in ('gap_s_per_km', 'vo2max', 'vam', 'max_speed', 'decoupling', 'steps'):
             summ[k] = None
-    elif a['source'] == 'healthkit':
-        imported = details.get('imported') or {}
+    if a['source'] == 'healthkit':
         for k in ('max_speed','steps'):
-            if imported.get(k) is not None: summ[k] = imported[k]
+            if source_metrics.get(k) is not None: summ[k] = source_metrics[k]
     cols = ('t',) + STREAMS
     c.execute('INSERT INTO activity_streams (activity_id,user_id,' + ','.join(cols) + ') VALUES (' + ','.join(['%s']*(len(cols)+2)) + ') ON CONFLICT (activity_id) DO UPDATE SET ' + ','.join(k+'=EXCLUDED.'+k for k in cols), (aid,uid,*[_floats(st[k]) for k in cols]))
     sets = {}
     for k in ('avg_hr', 'max_hr', 'avg_cad', 'avg_power', 'max_power', 'max_speed', 'avg_vo', 'avg_gct', 'avg_stride', 'steps'):
         if a.get(k) is None and summ.get(k) is not None: sets[k] = num(summ[k])
         elif a['source'] == 'healthkit' and not summ.get('route_timing_valid', True) and k in ('max_speed','steps'):
-            sets[k] = None
+            sets[k] = num(source_metrics[k]) if source_metrics.get(k) is not None else None
     sets.update(chart=json.dumps(analysis.summary_chart(S, a['sport'], summ)), zones=json.dumps(summ.get('zones')),
         splits_km=json.dumps(analysis.summary_splits(S,a['sport'],1000,summ)), splits_mi=json.dumps(analysis.summary_splits(S,a['sport'],MI,summ)),
         power_curve=json.dumps(analysis.power_curve(S)))
@@ -272,7 +272,8 @@ def enrich_file(c, uid, aid, parsed, incoming_summary, sha, path):
             details['health_duration_replay_required'] = True
         sets['health_details'] = json.dumps(details)
         for k in ('gap_s_per_km','vo2max','vam','max_speed','decoupling','steps'):
-            sets[k] = None
+            if k not in ('max_speed','steps') or source_metrics.get(k) is None:
+                sets[k] = None
     corrections.capture(c,raw_a,sets)
     c.execute('UPDATE activities SET '+','.join(k+'=%('+k+')s' for k in sets)+', file_sha256=coalesce(file_sha256,%(sha)s), file_path=coalesce(file_path,%(path)s), updated=now() WHERE id=%(aid)s AND user_id=%(uid)s', {**sets,'sha':sha,'path':path,'aid':aid,'uid':uid})
     c.execute('DELETE FROM best_efforts WHERE activity_id=%s AND user_id=%s', (aid,uid))
@@ -385,10 +386,10 @@ def reprocess(user_id, aid):
             summ['route_timing_valid'] = False
             for k in ('gap_s_per_km', 'vo2max', 'vam', 'max_speed', 'decoupling', 'steps'):
                 summ[k] = None
-        elif a['source'] == 'healthkit':
-            imported = details.get('imported') or {}
+        if a['source'] == 'healthkit':
+            source_metrics = details.get('source_metrics') or {}
             for k in ('max_speed','steps'):
-                if imported.get(k) is not None: summ[k] = imported[k]
+                if source_metrics.get(k) is not None: summ[k] = source_metrics[k]
         sets = {k: num(summ.get(k)) for k in
                 ('moving_s', 'avg_hr', 'avg_cad', 'avg_power', 'max_speed', 'gap_s_per_km', 'effort', 'decoupling', 'vo2max',
                  'max_alt', 'min_alt', 'vam', 'norm_power', 'steps')}

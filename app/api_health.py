@@ -159,6 +159,11 @@ def enrich(uid, aid, w, parsed, meta):
         session = dict(parsed.get('session') or {})
         session['_health_duration_authoritative'] = a['source'] == 'healthkit'
         summ = analysis.summary(S, a['sport'], session, activities.profile_of(c, uid))
+        source_metrics = dict((a.get('health_details') or {}).get('source_metrics') or {}) if a['source'] == 'healthkit' else {}
+        if a['source'] == 'healthkit':
+            for k in ('steps', 'max_speed'):
+                if meta.get(k) is not None: source_metrics[k] = meta[k]
+                if source_metrics.get(k) is not None: summ[k] = source_metrics[k]
         # The stream analysis can leave aggregate-only Health statistics empty.
         for k in EXTRA + ('calories', 'distance_m', 'elapsed_s', 'moving_s'):
             if summ.get(k) is None or (k in EXTRA and meta.get(k) is not None): summ[k] = meta.get(k)
@@ -196,7 +201,7 @@ def enrich(uid, aid, w, parsed, meta):
             if a.get('chart') != chart:
                 updates['chart'] = json.dumps(chart)
             for k in ('max_speed', 'steps'):
-                if meta.get(k) is None and a.get(k) is not None:
+                if source_metrics.get(k) is None and a.get(k) is not None:
                     updates[k] = None
             if a.get('decoupling') is not None:
                 updates['decoupling'] = None
@@ -213,7 +218,7 @@ def enrich(uid, aid, w, parsed, meta):
             c.execute('INSERT INTO activity_streams (activity_id, user_id, ' + ','.join(cols) + ') VALUES (' + ','.join(['%s'] * (len(cols) + 2)) + ') ON CONFLICT (activity_id) DO UPDATE SET ' + ','.join(k + '=EXCLUDED.' + k for k in cols), (aid, uid, *arrays))
             for k in ('effort', 'gap_s_per_km', 'decoupling', 'vo2max', 'norm_power', 'vam', 'min_alt', 'max_alt', 'max_speed', 'steps'):
                 clear_mask_value = (a['source'] == 'healthkit' and not summ.get('route_timing_valid', True) and
-                                    (k == 'decoupling' or (k in ('max_speed','steps') and meta.get(k) is None)))
+                                    (k == 'decoupling' or (k in ('max_speed','steps') and source_metrics.get(k) is None)))
                 if (a['source'] == 'healthkit' or a.get(k) is None) and (summ.get(k) is not None or clear_mask_value):
                     updates[k] = activities.num(summ.get(k))
             if a['source'] == 'healthkit' or a.get('zones') is None:
@@ -234,6 +239,7 @@ def enrich(uid, aid, w, parsed, meta):
         if a['source'] == 'healthkit':
             details['health_duration_authoritative'] = True
             details['health_duration_s'] = float(meta['moving_s'])
+            if source_metrics: details['source_metrics'] = source_metrics
             details.pop('health_duration_replay_required', None)
         if a['source'] == 'healthkit' and not summ.get('route_timing_valid', True):
             details['route_timing'] = 'health-duration-only; split and pace-chart timing unavailable'

@@ -185,9 +185,24 @@ try:
     source_totals=staircase.model_copy(update={'steps':5000,'max_speed':6.2})
     assert api_health.save(uid,source_totals)[2] is True
     with db.connect() as c:
-        row=c.execute('SELECT steps,max_speed FROM activities WHERE id=%s AND user_id=%s',(staircase_id,uid)).fetchone()
+        row=c.execute('SELECT steps,max_speed,health_details FROM activities WHERE id=%s AND user_id=%s',(staircase_id,uid)).fetchone()
         assert row['steps']==5000 and abs(row['max_speed']-6.2)<.001, 'explicit Health totals survive route-timing invalidation'
+        assert row['health_details']['source_metrics']=={'steps':5000.0,'max_speed':6.2}
     assert api_health.save(uid,source_totals)[2] is False, 'unchanged Health totals replay idempotently'
+    file_parsed,_=api_health.to_activity(staircase)
+    file_streams={k:list(v) for k,v in file_parsed['streams'].items()}
+    file_streams['temp']=[20.0]*len(file_streams['t'])
+    file_parsed['streams']=file_streams
+    with db.connect() as c:
+        assert activities.enrich_file(c,uid,staircase_id,file_parsed,{},None,None), 'compatible file enrichment adds a missing signal'
+        row=c.execute('SELECT steps,max_speed,health_details FROM activities WHERE id=%s AND user_id=%s',(staircase_id,uid)).fetchone()
+        assert row['steps']==5000 and abs(row['max_speed']-6.2)<.001 and row['health_details']['source_metrics']=={'steps':5000.0,'max_speed':6.2}
+    partial_totals=staircase.model_copy(update={'steps':None,'max_speed':None})
+    assert api_health.save(uid,partial_totals)[2] is False, 'partial replay retains explicit prior source metrics'
+    assert activities.reprocess(uid,staircase_id)
+    with db.connect() as c:
+        row=c.execute('SELECT steps,max_speed FROM activities WHERE id=%s AND user_id=%s',(staircase_id,uid)).fetchone()
+        assert row['steps']==5000 and abs(row['max_speed']-6.2)<.001, 'reprocess restores only explicit source metrics'
     with db.connect() as c:
         from app import activity_corrections
         current=c.execute('SELECT * FROM activities WHERE id=%s AND user_id=%s',(staircase_id,uid)).fetchone()
