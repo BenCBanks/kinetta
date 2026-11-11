@@ -42,8 +42,7 @@
 <header class="top">
   <div class="wrap">
     <a class="logo" href="./" aria-label="Kinetta home"><picture><source srcset="assets/logo-dark.svg?v=4" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg?v=4" alt="Kinetta" width="132" height="21"></picture></a>
-    <nav class="tabs" aria-label="Pages"><a href="training">Training</a><a href="food" aria-current="page">Food</a><a href="friends">Friends</a><a href="compare">Compare</a></nav>
-    <span class="signup"><a class="btn solid sm" href="https://login.kinetta.app/signup">Join beta</a></span>
+    <nav class="tabs" aria-label="Primary"><a href="./">Home</a><a href="compare">Features</a><a href="guide">Guide</a><a href="https://testflight.apple.com/join/YAX1JnwB" class="nav-download btn solid sm">Download</a></nav>
   </div>
 </header>
 
@@ -60,19 +59,19 @@
       <div class="shots two" aria-label="Food features">
         <div class="shot"><figure>
           <div class="frame"><picture><source srcset="assets/shots/dark-describe-1x.webp 1x, assets/shots/dark-describe.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-describe-1x.webp" srcset="assets/shots/light-describe-1x.webp 1x, assets/shots/light-describe.webp 2x" alt="A three-item review card with Greek yogurt with berries, oatmeal with banana and chicken salad bowl; Add to log is visible" loading="lazy" width="786" height="1704"></picture></div>
-          <figcaption><h3>Quick logging</h3></figcaption>
+          <figcaption><h3>Quick logging</h3><p>{{copy:food-quick-description}}</p></figcaption>
         </figure></div>
         <div class="shot"><figure>
           <div class="frame"><picture><source srcset="assets/shots/dark-talk-1x.webp 1x, assets/shots/dark-talk.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-talk-1x.webp" srcset="assets/shots/light-talk-1x.webp 1x, assets/shots/light-talk.webp 2x" alt="An empty Breakfast with the one-tap shortcut Same as yesterday · 225 kcal" loading="lazy" width="786" height="1704"></picture></div>
-          <figcaption><h3>Same as yesterday</h3></figcaption>
+          <figcaption><h3>Same as yesterday</h3><p>{{copy:food-yesterday-description}}</p></figcaption>
         </figure></div>
         <div class="shot"><figure>
           <div class="frame"><picture><source srcset="assets/shots/dark-food-1x.webp 1x, assets/shots/dark-food.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-food-1x.webp" srcset="assets/shots/light-food-1x.webp 1x, assets/shots/light-food.webp 2x" alt="Nutrition totals for calories, protein, carbohydrates and fat alongside logged meals" loading="lazy" width="786" height="1704"></picture></div>
-          <figcaption><h3>Calories and macros</h3></figcaption>
+          <figcaption><h3>Calories and macros</h3><p>{{copy:food-calories-description}}</p></figcaption>
         </figure></div>
         <div class="shot"><figure>
           <div class="frame"><picture><source srcset="assets/shots/dark-cook-1x.webp 1x, assets/shots/dark-cook.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-cook-1x.webp" srcset="assets/shots/light-cook-1x.webp 1x, assets/shots/light-cook.webp 2x" alt="A saved recipe with ingredients and its calories and macros" loading="lazy" width="786" height="1704"></picture></div>
-          <figcaption><h3>Meals and recipes</h3></figcaption>
+          <figcaption><h3>Meals and recipes</h3><p>{{copy:food-recipes-description}}</p></figcaption>
         </figure></div>
       </div>
     </div>
@@ -81,7 +80,10 @@
     <div class="wrap">
       <p class="also-label" id="food-also-title">{{copy:food-also}}</p>
       <ul class="also-row" aria-label="More food features">
-        <li>Barcode scan</li><li>Photo estimates</li><li>Food trends</li><li>Optional AI review</li>
+        <li>Barcode scan<span class="also-detail">{{copy:food-also-barcode}}</span></li>
+        <li>Photo estimates<span class="also-detail">{{copy:food-also-photo}}</span></li>
+        <li>Food trends<span class="also-detail">{{copy:food-also-trends}}</span></li>
+        <li>Optional AI review<span class="also-detail">{{copy:food-also-ai}}</span></li>
       </ul>
     </div>
   </section>

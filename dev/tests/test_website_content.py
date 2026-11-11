@@ -37,12 +37,21 @@ class CopyTests(unittest.TestCase):
   self.assertTrue(40<=len(words.split())<=90)
   self.assertNotRegex(words.lower(),r'\bads?\b|ad-free|privacy|sell|data')
   self.assertNotIn('<ul',enabled)
- def test_about_is_linked_only_from_every_footer(self):
+ def test_about_or_guide_and_privacy_are_linked_from_every_footer(self):
+  import re
   for template in (content.ROOT/'site/templates').glob('*.html'):
-   source=template.read_text()
-   self.assertIn('<a href="about">About us</a>',source.split('<footer>')[1],template.name)
-   self.assertNotIn('href="about"',source.split('</header>')[0],template.name)
-  self.assertNotIn('class="about"',(content.ROOT/'site/templates/index.html').read_text())
+   md=(content.ROOT/'site/content'/template.with_suffix('.md').name).read_text()
+   parts=re.split(r'(?m)^## ([a-z0-9-]+)\s*\n',md)
+   entries=dict(zip(parts[1::2],(content.inline(' '.join(x.split())) for x in parts[2::2])))
+   source=content.render(template.read_text(),entries)
+   footer=source.split('<footer>')[1]
+   self.assertRegex(footer,r'<a href="(?:about|guide)">(?:About(?: us)?|Feature guide)</a>',template.name)
+   self.assertRegex(footer,r'<a href="privacy">Privacy(?: policy)?</a>',template.name)
+   header=source.split('</header>')[0]
+   nav=re.search(r'<nav class="tabs" aria-label="Primary">(.*?)</nav>',header,re.S)
+   self.assertIsNotNone(nav,template.name)
+   links=re.findall(r'<a href="([^"]+)"[^>]*>([^<]+)</a>',nav.group(1))
+   self.assertEqual(links,[('./','Home'),('compare','Features'),('guide','Guide'),('https://testflight.apple.com/join/YAX1JnwB','Download')],template.name)
  def test_about_photos_have_no_embedded_metadata(self):
   import struct
   for name in ['ben-and-rachel']:
