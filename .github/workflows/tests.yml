@@ -36,10 +36,6 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: dev/tests/browser/package-lock.json
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: pw-${{ runner.os }}-${{ hashFiles('dev/tests/browser/package-lock.json') }}
       - uses: ./.github/actions/build-test-image
         with:
           scope: tests-quick
@@ -63,11 +59,12 @@ jobs:
           FEATURE_UI_SESSION: /tmp/kinetta-features-session.json
         run: |
           npm ci --prefix dev/tests/browser
-          dev/tests/browser/node_modules/.bin/playwright install --with-deps chromium
-          python3 dev/tests/admin_features_fixture.py
-          NODE_PATH=dev/tests/browser/node_modules node dev/tests/admin_features_ui.cjs
-          python3 dev/tests/feature_collection_fixture.py
-          NODE_PATH=dev/tests/browser/node_modules node dev/tests/feature_collection_ui.cjs
+          dev/tests/with_playwright.sh bash -euo pipefail -c '
+            python3 dev/tests/admin_features_fixture.py
+            NODE_PATH=dev/tests/browser/node_modules node dev/tests/admin_features_ui.cjs
+            python3 dev/tests/feature_collection_fixture.py
+            NODE_PATH=dev/tests/browser/node_modules node dev/tests/feature_collection_ui.cjs
+          '
       - name: Server log (if something failed)
         if: failure()
         run: docker compose -p kinettatest logs app | tail -100
@@ -139,10 +136,6 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: dev/tests/browser/package-lock.json
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: pw-${{ runner.os }}-${{ hashFiles('dev/tests/browser/package-lock.json') }}
       - uses: ./.github/actions/build-test-image
         with:
           scope: tests-browser-shard-${{ matrix.shard }}
@@ -155,12 +148,11 @@ jobs:
           python3 dev/demo/gen_gpx.py /tmp/gpx 120
           python3 dev/demo/seed.py /tmp/gpx
           python3 dev/screenshots/stage.py /tmp/gpx
-      - name: Install Playwright
+      - name: Install locked browser test package
         run: |
           npm ci --prefix dev/tests/browser
-          dev/tests/browser/node_modules/.bin/playwright install --with-deps chromium
       - name: Run this browser shard
-        run: bash dev/tests/run_browser_shard.sh "${{ matrix.shard }}"
+        run: dev/tests/with_playwright.sh bash dev/tests/run_browser_shard.sh "${{ matrix.shard }}"
       - name: Keep journey evidence
         if: always() && matrix.shard == 4
         uses: actions/upload-artifact@v4
@@ -274,10 +266,6 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: dev/tests/browser/package-lock.json
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: pw-${{ runner.os }}-${{ hashFiles('dev/tests/browser/package-lock.json') }}
       - uses: ./.github/actions/build-test-image
         with:
           scope: tests-spacing
@@ -291,28 +279,35 @@ jobs:
           python3 dev/demo/seed.py /tmp/spacing-gpx
           python3 dev/screenshots/stage.py /tmp/spacing-gpx
           python3 dev/tests/spacing_prepare.py
-      - name: Install the browser
+      - name: Install locked browser test package
         run: |
           npm ci --prefix dev/tests/browser
-          dev/tests/browser/node_modules/.bin/playwright install --with-deps chromium
       - name: Check the collector and every screen
         run: |
-          NODE_PATH="$PWD/dev/tests/browser/node_modules" node dev/tests/test_spacing_dom.cjs
-          NODE_PATH="$PWD/dev/tests/browser/node_modules" node dev/tests/spacing_audit.cjs
+          dev/tests/with_playwright.sh bash -euo pipefail -c '
+            export NODE_PATH="$PWD/dev/tests/browser/node_modules"
+            node dev/tests/test_spacing_dom.cjs
+            node dev/tests/spacing_audit.cjs
+          '
       - name: Check Home, Activity and Me at persona-local clock boundaries
         run: |
-          for mode in sunday-02 sunday-19 wednesday-12; do
-            KINETTA_SPACING_CLOCK="$mode" \
-            KINETTA_SPACING_SCREENS='Home,Activity,Me' \
-            KINETTA_SPACING_REPORT="/tmp/spacing-$mode-report.json" \
-            KINETTA_SPACING_SHOTS= \
-            NODE_PATH="$PWD/dev/tests/browser/node_modules" \
-              node dev/tests/spacing_audit.cjs
-          done
+          dev/tests/with_playwright.sh bash -euo pipefail -c '
+            export NODE_PATH="$PWD/dev/tests/browser/node_modules"
+            for mode in sunday-02 sunday-19 wednesday-12; do
+              KINETTA_SPACING_CLOCK="$mode" \
+              KINETTA_SPACING_SCREENS="Home,Activity,Me" \
+              KINETTA_SPACING_REPORT="/tmp/spacing-$mode-report.json" \
+              KINETTA_SPACING_SHOTS= \
+                node dev/tests/spacing_audit.cjs
+            done
+          '
       - name: Check accessible names, semantics and contrast
         run: |
-          NODE_PATH="$PWD/dev/tests/browser/node_modules" node dev/tests/test_ui_fixture_browser.cjs
-          NODE_PATH="$PWD/dev/tests/browser/node_modules" node dev/tests/accessibility_audit.cjs
+          dev/tests/with_playwright.sh bash -euo pipefail -c '
+            export NODE_PATH="$PWD/dev/tests/browser/node_modules"
+            node dev/tests/test_ui_fixture_browser.cjs
+            node dev/tests/accessibility_audit.cjs
+          '
       - name: Keep fictional spacing evidence
         if: always()
         uses: actions/upload-artifact@v4
