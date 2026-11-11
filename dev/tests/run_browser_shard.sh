@@ -34,6 +34,7 @@ case "$1" in
     node dev/tests/food_memory_ui.cjs
     node dev/tests/plan_ui.cjs
     node dev/tests/activity_detail_ui.cjs
+    node dev/tests/media_routes_ui.cjs
     node dev/tests/notification_edit_ui.cjs
     node dev/tests/lift_compact_ui.cjs
     node dev/tests/lift_ui.cjs
