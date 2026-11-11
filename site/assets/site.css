@@ -168,7 +168,6 @@ section.band { padding-block: 80px; border-top: 1px solid var(--line); }
 .also-label { margin: 0 0 12px; color: var(--ink3); font-size: 14px; font-weight: 600; }
 .also-row li { min-width: 0; flex: 1 1 220px; }
 .also-detail { display: block; margin-top: 4px; color: var(--ink3); font-size: 14px; line-height: 1.4; }
-.also-row li + li::before { content: "·"; margin-right: 22px; color: var(--ink3); }
 @media (max-width: 560px) {
   .also-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 18px; }
   .also-row li { white-space: normal; }
