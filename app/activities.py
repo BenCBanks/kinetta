@@ -251,6 +251,10 @@ def enrich_file(c, uid, aid, parsed, incoming_summary, sha, path):
         summ['route_timing_valid'] = False
         for k in ('gap_s_per_km', 'vo2max', 'vam', 'max_speed', 'decoupling', 'steps'):
             summ[k] = None
+    elif a['source'] == 'healthkit':
+        imported = details.get('imported') or {}
+        for k in ('max_speed','steps'):
+            if imported.get(k) is not None: summ[k] = imported[k]
     cols = ('t',) + STREAMS
     c.execute('INSERT INTO activity_streams (activity_id,user_id,' + ','.join(cols) + ') VALUES (' + ','.join(['%s']*(len(cols)+2)) + ') ON CONFLICT (activity_id) DO UPDATE SET ' + ','.join(k+'=EXCLUDED.'+k for k in cols), (aid,uid,*[_floats(st[k]) for k in cols]))
     sets = {}
@@ -381,6 +385,10 @@ def reprocess(user_id, aid):
             summ['route_timing_valid'] = False
             for k in ('gap_s_per_km', 'vo2max', 'vam', 'max_speed', 'decoupling', 'steps'):
                 summ[k] = None
+        elif a['source'] == 'healthkit':
+            imported = details.get('imported') or {}
+            for k in ('max_speed','steps'):
+                if imported.get(k) is not None: summ[k] = imported[k]
         sets = {k: num(summ.get(k)) for k in
                 ('moving_s', 'avg_hr', 'avg_cad', 'avg_power', 'max_speed', 'gap_s_per_km', 'effort', 'decoupling', 'vo2max',
                  'max_alt', 'min_alt', 'vam', 'norm_power', 'steps')}

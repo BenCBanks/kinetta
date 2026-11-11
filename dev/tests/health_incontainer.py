@@ -182,6 +182,12 @@ try:
         assert row['moving_s']==2360 and row['vo2max'] is not None and row['vam']>120
         assert not row['splits_km'] and not row['splits_mi'] and 'speed' not in row['chart']
         assert c.execute('SELECT count(*) AS n FROM best_efforts WHERE activity_id=%s AND user_id=%s',(staircase_id,uid)).fetchone()['n']==0
+    source_totals=staircase.model_copy(update={'steps':5000,'max_speed':6.2})
+    assert api_health.save(uid,source_totals)[2] is True
+    with db.connect() as c:
+        row=c.execute('SELECT steps,max_speed FROM activities WHERE id=%s AND user_id=%s',(staircase_id,uid)).fetchone()
+        assert row['steps']==5000 and abs(row['max_speed']-6.2)<.001, 'explicit Health totals survive route-timing invalidation'
+    assert api_health.save(uid,source_totals)[2] is False, 'unchanged Health totals replay idempotently'
     with db.connect() as c:
         from app import activity_corrections
         current=c.execute('SELECT * FROM activities WHERE id=%s AND user_id=%s',(staircase_id,uid)).fetchone()
@@ -198,6 +204,7 @@ try:
         'end':phone_start+dt.timedelta(seconds=2400),'route':phone_route,
         'heart_rate':[api_health.Beat(t=phone_start+dt.timedelta(seconds=t),bpm=150) for t in range(0,2401,30)]})
     parsed, phone_meta=api_health.to_activity(phone_sample)
+    parsed['streams']['hr']=[]  # Health replay adds HR, exercising changed-stream enrichment.
     phone_meta.update(source_id='fictional-phone-recording',moving_s=2300,elapsed_s=2400,distance_m=route_distance)
     phone_result, phone_id=activities.store(uid,parsed,phone_meta,source='track')
     assert phone_result=='added'

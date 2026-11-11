@@ -183,7 +183,8 @@ def enrich(uid, aid, w, parsed, meta):
             # A duration repair also changes time-based estimates on unchanged HR
             # recordings. Do not require new GPS/HR samples to refresh those values.
             for k in ('gap_s_per_km', 'vo2max', 'vam'):
-                updates[k] = activities.num(summ.get(k))
+                value = activities.num(summ.get(k))
+                if not _same_measurement(a.get(k), value): updates[k] = value
         if a['source'] == 'healthkit' and not summ.get('route_timing_valid', True):
             # The Health timer cannot be placed onto GPS intervals. Clear old
             # mask-based split times and pace charts while retaining route/HR data.
@@ -194,24 +195,33 @@ def enrich(uid, aid, w, parsed, meta):
             chart = analysis.summary_chart(S, a['sport'], summ)
             if a.get('chart') != chart:
                 updates['chart'] = json.dumps(chart)
-            for k in ('max_speed', 'decoupling', 'steps'):
-                if a.get(k) is not None:
+            for k in ('max_speed', 'steps'):
+                if meta.get(k) is None and a.get(k) is not None:
                     updates[k] = None
-            if a.get('gap_s_per_km') is not None and 'gap_s_per_km' not in updates:
-                updates['gap_s_per_km'] = activities.num(summ.get('gap_s_per_km'))
+            if a.get('decoupling') is not None:
+                updates['decoupling'] = None
+            if 'gap_s_per_km' not in updates:
+                value = activities.num(summ.get('gap_s_per_km'))
+                if not _same_measurement(a.get('gap_s_per_km'), value): updates['gap_s_per_km'] = value
             if not changed:
-                updates['vo2max'] = activities.num(summ.get('vo2max'))
-                updates['vam'] = activities.num(summ.get('vam'))
+                for k in ('vo2max', 'vam'):
+                    value = activities.num(summ.get(k))
+                    if not _same_measurement(a.get(k), value): updates[k] = value
         if changed and st['t']:
             cols = ('t',) + parsers.STREAMS
             arrays = [activities._floats(st[k]) for k in cols]
             c.execute('INSERT INTO activity_streams (activity_id, user_id, ' + ','.join(cols) + ') VALUES (' + ','.join(['%s'] * (len(cols) + 2)) + ') ON CONFLICT (activity_id) DO UPDATE SET ' + ','.join(k + '=EXCLUDED.' + k for k in cols), (aid, uid, *arrays))
             for k in ('effort', 'gap_s_per_km', 'decoupling', 'vo2max', 'norm_power', 'vam', 'min_alt', 'max_alt', 'max_speed', 'steps'):
-                if summ.get(k) is not None or (a['source'] == 'healthkit' and not summ.get('route_timing_valid', True) and k in ('decoupling', 'max_speed', 'steps')):
+                clear_mask_value = (a['source'] == 'healthkit' and not summ.get('route_timing_valid', True) and
+                                    (k == 'decoupling' or (k in ('max_speed','steps') and meta.get(k) is None)))
+                if (a['source'] == 'healthkit' or a.get(k) is None) and (summ.get(k) is not None or clear_mask_value):
                     updates[k] = activities.num(summ.get(k))
-            updates.update(zones=json.dumps(summ.get('zones')), chart=json.dumps(analysis.summary_chart(S, a['sport'], summ)),
-                splits_km=json.dumps(analysis.summary_splits(S, a['sport'], 1000, summ)), splits_mi=json.dumps(analysis.summary_splits(S, a['sport'], activities.MI, summ)),
-                power_curve=json.dumps(analysis.power_curve(S)))
+            if a['source'] == 'healthkit' or a.get('zones') is None:
+                updates['zones'] = json.dumps(summ.get('zones'))
+            updates.update(chart=json.dumps(analysis.summary_chart(S, a['sport'], summ)),
+                splits_km=json.dumps(analysis.summary_splits(S, a['sport'], 1000, summ)) if a['source'] == 'healthkit' or not a.get('splits_km') else json.dumps(a['splits_km']),
+                splits_mi=json.dumps(analysis.summary_splits(S, a['sport'], activities.MI, summ)) if a['source'] == 'healthkit' or not a.get('splits_mi') else json.dumps(a['splits_mi']),
+                power_curve=json.dumps(analysis.power_curve(S)) if a['source'] == 'healthkit' or not a.get('power_curve') else json.dumps(a['power_curve']))
             c.execute('DELETE FROM best_efforts WHERE activity_id = %s AND user_id = %s', (aid, uid))
             for e in analysis.summary_best_efforts(S, a['sport'], summ):
                 c.execute('INSERT INTO best_efforts (user_id, activity_id, sport, distance_m, label, elapsed_s, start_s, start_time) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)',
