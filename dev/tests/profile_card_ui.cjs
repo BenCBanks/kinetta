@@ -53,9 +53,11 @@ async function milestoneChecks(p,shareArtRequests){
  await row.locator('.me-milestone-all').click();await p.locator('.sheet').getByRole('heading',{name:'Recent milestones',exact:true}).waitFor();assert.equal(await p.locator('[data-milestone]').count(),2,'Recent milestones opens its own list');await p.locator('[data-milestone]').last().click();await until(p,()=>document.querySelector('[data-share-image="0"]')?.naturalWidth>0,'another offer share picture');await p.keyboard.press('Escape');
  await p.goto(base+'/me/milestones');await p.waitForURL('**/me');await until(p,()=>App.pageReady,'legacy milestone link returns ready Me');await p.locator('.me-card-sections[aria-busy=false]').waitFor();
 }
+const shareLeafOnly=process.env.KINETTA_PROFILE_SHARE_LEAF_ONLY==='1';
+const focusedOnly=compositionOnly||shareLeafOnly;
 (async()=>{const b=await chromium.launch();const l=await b.newContext();await l.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});const st=await l.storageState();
- const sizes=compositionOnly?[{width:390,height:844,root:16}]:[{width:320,height:667,root:16},{width:330,height:844,root:16},{width:390,height:844,root:16},{width:430,height:932,root:16},{width:600,height:900,root:16,locale:'fr-FR'}];
- for(const size of sizes)for(const theme of compositionOnly?['light']:['light','dark']){
+ const sizes=focusedOnly?[{width:390,height:844,root:16}]:[{width:320,height:667,root:16},{width:330,height:844,root:16},{width:390,height:844,root:16},{width:430,height:932,root:16},{width:600,height:900,root:16,locale:'fr-FR'}];
+ for(const size of sizes)for(const theme of focusedOnly?['light']:['light','dark']){
  const c=await b.newContext({storageState:st,viewport:{width:size.width,height:size.height},locale:size.locale||'en-US',colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[],shareArtRequests=[];
  p.on('request',request=>{if(new URL(request.url()).pathname==='/static/share-art.js')shareArtRequests.push(request.url());});
  let cardState='heavy',cardLayout=null,profileHidden=false,refuseOwnerProfile=false;const blocked=new Set(),previewReads=[],statsReads=[],ownerAchievementReads=[],sharedAchievementReads=[];
@@ -161,6 +163,7 @@ async function milestoneChecks(p,shareArtRequests){
  assert.doesNotMatch(await share.innerText(),/PRIVATE-ONLY|See what others see|Previewing as|View full profile/);if(size.width===390)await shot('profile-share-sheet');
  await p.keyboard.press('Escape');await share.waitFor({state:'detached'}).catch(()=>{});
  profileHidden=true;const visibilityCheck=p.waitForResponse(response=>{const url=new URL(response.url());return url.pathname==='/api/people/alex/profile'&&url.searchParams.get('preview')==='member';});await p.locator('[data-card-share]').click();await visibilityCheck;assert.equal(await p.locator('[data-unified-share]').count(),0,'a hidden profile cannot open picture sharing');profileHidden=false;
+ if(shareLeafOnly){assert.deepEqual(errors,[]);console.log('Profile share leaf 390/light: cold Me, first-action loader, milestone picture and owner Share PASS');await c.close();await b.close();return;}
  // Edit happens in place on the card, exactly as on Me; Cancel leaves everything as it was.
  await p.locator('[data-card-edit]').click();await p.waitForSelector('#person-profile .me-card.editing');
  assert.equal(await p.locator('#person-activities').evaluate(n=>!!n.closest('[inert]')),true,'activities dimmed while editing');
