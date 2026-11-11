@@ -271,8 +271,8 @@ const ProfileLayout=(()=>{
     });
   }
   function achievementTrackStarted(track){return achievementLevel(track)>0||achievementRawValue(track)>0||(Array.isArray(track?.tiers)&&track.tiers.length>0);}
-  function achievementMedalValue(track){
-    const value=achievementValue(track);if(value.length<=9)return value;
+  function achievementMedalValue(track,{small=false}={}){
+    const value=achievementValue(track);if(!small&&value.length<=9)return value;
     const raw=Number(track.display_value),unit=String(track.display_unit||'').toLowerCase();if(!Number.isFinite(raw))return value;
     const compact=number=>{const n=Math.abs(number);if(n>=1e9)return `${achievementNumber(number/1e9)}b`;if(n>=1e6)return `${achievementNumber(number/1e6)}m`;if(n>=1e5)return `${Math.round(number/1e3)}k`;if(n>=1e3)return `${achievementNumber(number/1e3)}k`;return achievementNumber(number);};
     const amount=compact(raw),shortUnit=({hour:'h',hours:'h',h:'h',week:'wk',weeks:'wk',year:'yr',years:'yr',workout:'wkt',workouts:'wkt',session:'sess',sessions:'sess',mi:'mi',km:'km',ft:'ft',m:'m',lb:'lb',kg:'kg'})[unit];
@@ -305,7 +305,7 @@ const ProfileLayout=(()=>{
     return `<a class="profile-achievement${featured?' me-featured-item':''}" role="listitem" href="${esc(href)}" aria-label="${esc(`${label}, Level ${level}${tier?`, ${tier.name}`:''}, ${achievementValue(track)}`)}" data-achievement-code="${esc(track.code)}"${featured?` data-showcase-code="${esc(track.code)}"`:''}>${achievementMedallion(track,{featured})}<span class="profile-achievement-name"${secondary}>${esc(label)}</span><span class="profile-achievement-next"${secondary}>${esc(`Level ${level}${tier?` · ${tier.name}`:''}`)}</span></a>`;
   }
   function achievementMedallion(track,{featured=false}={}){
-    const started=achievementTrackStarted(track),level=achievementLevel(track),value=started?achievementMedalValue(track):'',tier=achievementCurrentTier(track)||achievementTierAt(track.code,1);
+    const started=achievementTrackStarted(track),level=achievementLevel(track),value=started?achievementMedalValue(track,{small:featured}):'',tier=achievementCurrentTier(track)||achievementTierAt(track.code,1);
     const tone=level>=6?'deep':String(level),secondary=featured?' data-type="secondary"':'';
     return `<span class="profile-achievement-medallion" data-level="${level}" data-level-tone="${tone}" aria-hidden="true">${achievementAsset(tier)||achievementGlyph(track)}${started?`<span class="profile-achievement-value"${secondary}>${esc(value)}</span><span class="profile-achievement-level"${secondary}>Lv ${level}</span>${Number(tier?.multiple)>1?`<span class="profile-achievement-multiple"${secondary}>×${Number(tier.multiple)}</span>`:''}`:''}</span>`;
   }
