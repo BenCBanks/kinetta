@@ -100,15 +100,19 @@ async function loadedMaps(page, {advanceActivityFade = false} = {}){
     if(stable<3)throw Error('All visible basemap tiles must load before capture');
     if(advanceActivityFade){
       // This scene freezes Date.now(); advance only Leaflet's 200 ms tile fade after loading.
-      await page.clock.runFor(250);
-      const opaque=await map.evaluate(el=>{
-        const box=el.getBoundingClientRect();
-        const tiles=[...el.querySelectorAll('.leaflet-tile.leaflet-tile-loaded')].filter(tile=>{
-          const r=tile.getBoundingClientRect();
-          return r.width>0&&r.height>0&&r.left<Math.min(box.right,innerWidth)&&r.right>Math.max(box.left,0)&&r.top<Math.min(box.bottom,innerHeight)&&r.bottom>Math.max(box.top,0);
+      await page.clock.setFixedTime(new Date(await page.evaluate(()=>Date.now())+250));
+      let opaque=false;
+      for(let n=0;n<10&&!opaque;n++){
+        opaque=await map.evaluate(el=>{
+          const box=el.getBoundingClientRect();
+          const tiles=[...el.querySelectorAll('.leaflet-tile.leaflet-tile-loaded')].filter(tile=>{
+            const r=tile.getBoundingClientRect();
+            return r.width>0&&r.height>0&&r.left<Math.min(box.right,innerWidth)&&r.right>Math.max(box.left,0)&&r.top<Math.min(box.bottom,innerHeight)&&r.bottom>Math.max(box.top,0);
+          });
+          return tiles.length>0&&tiles.every(tile=>getComputedStyle(tile).opacity==='1');
         });
-        return tiles.length>0&&tiles.every(tile=>getComputedStyle(tile).opacity==='1');
-      });
+        if(!opaque)await page.waitForTimeout(50);
+      }
       if(!opaque)throw Error('Visible activity basemap tiles must finish fading in before capture');
     }
   }
