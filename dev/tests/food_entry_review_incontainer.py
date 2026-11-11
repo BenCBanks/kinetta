@@ -2,6 +2,7 @@
 import copy,datetime as dt,json,unittest,uuid
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 from fastapi.testclient import TestClient
 from app import auth,db,food_thread as T
 from app.main import app
@@ -29,8 +30,9 @@ class Review(unittest.TestCase):
  def rows(self,table):
   with db.connect() as c:return c.execute(f'SELECT * FROM {table} WHERE user_id=%s ORDER BY id',(self.ids[0],)).fetchall()
  def food(self,name,kcal=100):return self.post('/api/food/foods',{'name':name,'serving_label':'1 serving','serving_g':100,'kcal':kcal,'protein_g':5,'carbs_g':10,'fat_g':2})
- def send(self,text,context=None,review=True):
+ def send(self,text,context=None,review=True,captured_at=None):
   body={'client_id':str(uuid.uuid4()),'body':text,**({'review_only':True,'draft_id':self.draft} if review else {}),**({'context':context} if context else {})}
+  if captured_at is not None:body['captured_at']=captured_at.isoformat()
   m=self.post('/api/food/thread/messages',body,status=201)['message'];r=self.post(f"/api/food/thread/messages/{m['id']}/process");return m,r
  def estimate(self):
   # Fictional structured estimate; no model call or nutrition-accuracy claim.
@@ -183,10 +185,14 @@ class Review(unittest.TestCase):
   with db.connect() as c:c.execute("UPDATE food_chat_messages SET result=jsonb_set(result,'{expires}',to_jsonb(%s::text)) WHERE user_id=%s AND reply_to=%s",((dt.datetime.now(dt.timezone.utc)-dt.timedelta(days=2)).isoformat(),self.ids[0],r['id']))
   self.post(f"/api/food/thread/reviews/{r['id']}/confirm",{'confirm':True,'meal':'dinner'},status=409);self.assertEqual(self.rows('food_entries'),[])
  def test_copied_meals_wait_for_final_review_with_either_old_preference(self):
-  self.post('/api/food/entries',[{'day':str(dt.date.today()-dt.timedelta(days=1)),'meal':'lunch','name':'Fictional leftovers','amount':200,'unit':'g','kcal':300}])
+  fixture_now=dt.datetime.now(dt.timezone.utc)
+  with db.connect() as c:fixture_tz=c.execute('SELECT tz FROM profile WHERE user_id=%s',(self.ids[0],)).fetchone()['tz']
+  fixture_today=fixture_now.astimezone(ZoneInfo(fixture_tz)).date()
+  yesterday=fixture_today-dt.timedelta(days=1)
+  self.post('/api/food/entries',[{'day':str(yesterday),'meal':'lunch','name':'Fictional leftovers','amount':200,'unit':'g','kcal':300}])
   for auto in (True,False):
    self.draft=str(uuid.uuid4());self.assertEqual(self.a.put('/api/food/thread/preferences',json={'auto_log':auto}).status_code,200)
-   m,result=self.send('same as yesterday lunch');self.assertEqual(len(self.rows('food_entries')),1)
+   m,result=self.send('same as yesterday lunch',captured_at=fixture_now);self.assertEqual(len(self.rows('food_entries')),1)
    review=self.prepare([m]);self.assertEqual(review['review']['totals']['kcal'],300);self.assertNotIn('id',review['review']['foods'][0])
    logged=self.confirm(review,meal='dinner');self.assertEqual(len(self.rows('food_entries')),2)
    self.post(f"/api/food/thread/messages/{review['id']}/undo");self.assertEqual(len(self.rows('food_entries')),1)

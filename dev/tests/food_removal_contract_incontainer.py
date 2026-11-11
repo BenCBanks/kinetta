@@ -2,23 +2,28 @@
 import datetime as dt
 import json
 import uuid
+from zoneinfo import ZoneInfo
 from fastapi.testclient import TestClient
 from app import auth, db, food_thread as thread
 from app.main import app
 
 login='zz_test_removal_'+uuid.uuid4().hex[:12]
+fixture_tz='America/Los_Angeles'
 with db.connect() as c:
     uid=c.execute('INSERT INTO users(login,name,pw_hash) VALUES(%s,%s,%s) RETURNING id',
                   (login,'Fictional removal test',auth.hash_pw('green teapot on the hill'))).fetchone()['id']
-    c.execute('INSERT INTO profile(user_id) VALUES(%s)',(uid,))
+    c.execute('INSERT INTO profile(user_id,tz) VALUES(%s,%s)',(uid,fixture_tz))
 app.dependency_overrides[thread.current_user]=lambda:{'id':uid}
 try:
     client=TestClient(app);client.headers['Origin']='http://testserver'
-    saved=client.post('/api/food/entries?thread=true',json=[{'day':str(dt.date.today()),'meal':'lunch',
+    fixture_now=dt.datetime.now(dt.timezone.utc)
+    fixture_day=fixture_now.astimezone(ZoneInfo(fixture_tz)).date()
+    saved=client.post('/api/food/entries',params={'thread':'true','captured_at':fixture_now.isoformat()},json=[{'day':str(fixture_day),'meal':'lunch',
         'name':'Fictional partial plate','kcal':200,'protein_g':10,'carbs_g':25,'fat_g':5,
         'client_id':str(uuid.uuid4())}])
     assert saved.status_code==200,saved.text
     root=saved.json()['messages'][0];reply=saved.json()['messages'][1]
+    assert root['local_day']==str(fixture_day),f"receipt date {root['local_day']} did not match entry date {fixture_day}"
     with db.connect() as c:
         result=c.execute('SELECT result FROM food_chat_messages WHERE user_id=%s AND id=%s',(uid,reply['id'])).fetchone()['result']
         result['pending_count']=1
