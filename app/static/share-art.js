@@ -33,6 +33,27 @@ const ShareArt=(()=>{
     try{return await Promise.race([load(),timeout]);}finally{clearTimeout(timer);if(object)URL.revokeObjectURL(object);}
   }
 
+  async function achievementPicture({badges=[]}){
+    const pictureOwner=readOwner(),visible=badges.slice(0,12),more=Math.max(0,badges.length-visible.length),W=1080,H=1350,M=72;
+    await document.fonts.ready;const canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const g=canvas.getContext('2d'),p=palette();
+    g.fillStyle=p.bg;g.fillRect(0,0,W,H);text(g,'Achievements',M,122,34,{color:p.muted});text(g,'Earned badges',M,200,64,{weight:750,max:W-2*M});
+    text(g,`${badges.length} earned`,M,252,30,{color:p.soft});
+    const cols=3,cellW=(W-2*M)/cols,cellH=218,gridTop=315,iconSize=126,images=[];
+    for(const badge of visible){
+      if(readOwner()!==pictureOwner)throw Error('The account changed.');
+      const image=new Image();image.src=badge.icon;await image.decode();images.push({badge,image});
+    }
+    for(const [index,{badge,image}] of images.entries()){
+      const col=index%cols,row=Math.floor(index/cols),x=M+col*cellW+cellW/2,y=gridTop+row*cellH;
+      g.save();g.fillStyle=p.tint;g.beginPath();g.roundRect(x-iconSize/2,y,iconSize,iconSize,24);g.fill();g.drawImage(image,x-iconSize/2+12,y+12,iconSize-24,iconSize-24);g.restore();
+      text(g,badge.label,x,y+iconSize+35,25,{align:'center',max:cellW-20,weight:700});
+      text(g,`Level ${badge.level} · ${badge.name}`,x,y+iconSize+70,21,{align:'center',max:cellW-20,color:p.soft});
+    }
+    if(more)text(g,`+${more} more`,M,gridTop+Math.ceil(visible.length/cols)*cellH+14,28,{color:p.soft});
+    const footer=H-80;g.strokeStyle=p.line;g.lineWidth=2;g.beginPath();g.moveTo(M,footer-34);g.lineTo(W-M,footer-34);g.stroke();drawMark(g,M+24,footer+2,48,p.blue);text(g,'Kinetta',M+62,footer+14,30);text(g,'kinetta.app',W-M,footer+12,26,{align:'right',color:p.muted});
+    const alt=`Earned achievements: ${visible.map(badge=>`${badge.label}, Level ${badge.level}, ${badge.name}`).join('; ')}${more?`; plus ${more} more earned achievements`:''}.`;
+    return{blob:await blob(canvas),alt};
+  }
   async function simplePicture({kicker,title,date,value,unit,facts=[],sources=[],identity=false,qrLink=null,routePoints=[],routeTrimmed=true}){
     const pictureOwner=readOwner();
     await document.fonts.ready;const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1350;
@@ -93,7 +114,7 @@ const ShareArt=(()=>{
     const pictureBlob=await blob(canvas);if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('share_picture',pictureOwner);
     return{blob:pictureBlob,alt:[identity?'@'+App.me.login:'',kicker,title,date,value,unit,...facts,credit,hasMap?(routeTrimmed?'Route with start and end hidden':'Route with start and end visible'):'',mapCredit,qrLink?'Invitation: '+qrLink:''].filter(Boolean).join('. ')};
   }
-  return{palette,family,text,lines,blob,deliver,photo,simplePicture};
+  return{palette,family,text,lines,blob,deliver,photo,simplePicture,achievementPicture};
 })();
 const ShareSheet=(()=>{
   const save=(blob,name)=>{if(Native.on)return false;let url;try{url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);return true;}catch(_){if(url)URL.revokeObjectURL(url);return false;}};
