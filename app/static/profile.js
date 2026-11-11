@@ -435,12 +435,12 @@ const ProfileLayout=(()=>{
     const clearPress=()=>{clearTimeout(timer);timer=0;press=null;};
     const suppress=()=>{suppressClick=true;clearTimeout(suppressTimer);suppressTimer=setTimeout(()=>{suppressClick=false;},900);};
     const openOptions=anchor=>{
-      onInteraction(true);
+      onInteraction('open');
       const code=anchor.dataset.achievementCode,pinned=pinnedCodes.has(code),replace=!pinned&&pinnedCodes.size>=FEATURED_ACHIEVEMENT_LIMIT;
       sheet('Showcase',`<div class="card list"><button type="button" class="row-link" data-showcase-pin-action><span class="grow">${pinned?'Remove from profile':'Pin to profile'}</span>${svg('chev')}</button></div>`,(body,close)=>{
         const button=body.querySelector('[data-showcase-pin-action]');if(!button)return;
         button.onclick=async()=>{
-          onInteraction();button.disabled=true;
+          onInteraction('save-start');button.disabled=true;
           try{
             const result=await api('/api/achievements/showcase/pin',json('POST',{code,pinned:!pinned}));
             if(!box.isConnected||owner!==readOwner())return;
@@ -453,8 +453,9 @@ const ProfileLayout=(()=>{
             onInteraction();
             close();toast(result?.replaced||replace?'Pinned to profile. Oldest pin replaced.':pinned?'Removed from profile.':'Pinned to profile.');
           }catch(error){button.disabled=false;toast(error?.message||'Showcase could not be updated.');}
+          finally{onInteraction('save-end');}
         };
-      },{onClose:()=>onInteraction(false)});
+      },{onClose:()=>onInteraction('close')});
     };
     const onDown=e=>{
       if(e.button!==0||e.isPrimary===false)return;
@@ -514,9 +515,9 @@ const ProfileLayout=(()=>{
     const owner=readOwner(),path=location.pathname+location.search,code=requestedCode?decodeURIComponent(requestedCode):'',sharedLogin=String(options.login||''),shared=!!sharedLogin,profile=options.returnPath||profileHref(App.me),active=()=>el.isConnected&&owner===readOwner()&&path===location.pathname+location.search,query=shared?`?login=${encodeURIComponent(sharedLogin)}`:'';
     el.innerHTML=`<div class="top">${backBtn('Profile')}</div><div id="profile-achievement-page" aria-busy="true"><h1>${code?'Achievement history':'Achievements'}</h1><p class="small muted">Loading…</p></div>`;
     wireBack(el,profile,destination=>/^\/me\/achievements(?:\/|\?|$)/.test(destination.path)?'Achievements':'Profile');
-    const box=$('#profile-achievement-page',el),lifecycleRoot=document.createElement('span');let interaction=0,activePinSheets=0;
+    const box=$('#profile-achievement-page',el),lifecycleRoot=document.createElement('span');let interaction=0,activePinSheets=0,pendingPinSaves=0;
     lifecycleRoot.hidden=true;lifecycleRoot.setAttribute('aria-hidden','true');el.append(lifecycleRoot);
-    const pinInteraction=active=>{interaction++;if(active===true)activePinSheets++;else if(active===false)activePinSheets=Math.max(0,activePinSheets-1);};
+    const pinInteraction=state=>{interaction++;if(state==='open')activePinSheets++;else if(state==='close')activePinSheets=Math.max(0,activePinSheets-1);else if(state==='save-start')pendingPinSaves++;else if(state==='save-end')pendingPinSaves=Math.max(0,pendingPinSaves-1);};
     const clearBoxResources=()=>{const cleanup=viewResources.get(box);if(cleanup){cleanup();viewResources.delete(box);}};
     const draw=(data,historyData,showcase)=>{
       if(!active()||!box.isConnected)return false;clearBoxResources();
@@ -543,7 +544,7 @@ const ProfileLayout=(()=>{
     const refresh=async()=>{
       const version=interaction;
       const [data,historyData,showcase]=await Promise.all([api('/api/achievements'),code?api('/api/achievement-history/'+encodeURIComponent(code)):Promise.resolve(null),code?Promise.resolve({}):api('/api/achievements/showcase')]);
-      return{pending:!!data.pending||!!historyData?.pending,apply:()=>version===interaction&&!activePinSheets&&draw(data,historyData,showcase)};
+      return{pending:!!data.pending||!!historyData?.pending,apply:()=>version===interaction&&!activePinSheets&&!pendingPinSaves&&draw(data,historyData,showcase)};
     };
     Promise.all([api('/api/achievements'+query),loadAchievementCatalog(),code?api('/api/achievement-history/'+encodeURIComponent(code)+query):Promise.resolve(null),code?Promise.resolve({}):api('/api/achievements/showcase'+query).catch(()=>({}))]).then(([data,_catalog,historyData,showcase])=>{
       if(!draw(data,historyData,showcase))return;
