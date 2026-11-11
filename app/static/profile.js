@@ -543,9 +543,11 @@ const MeCard=(()=>{
   const short=d=>fdate(d+'T12:00',{month:'short',day:'numeric'});
   // The card itself, shared by Me and every profile page (Ben, 30 Oct 2026: the full profile is this card at full size,
   // then the shared activities). Friends shares the handle row without changing its audience or destination.
-  function card(p,{mine=false,pills='',friends='',link=false,milestones=false,showBio=true,featured=false}={}){
+  function card(p,{viewer='friend',pills='',friends='',link=false,milestones=false,showBio=true}={}){
+    if(!['owner','friend','preview'].includes(viewer))throw new TypeError(`Unknown profile viewer: ${viewer}`);
+    const mine=viewer==='owner';
     const bio=showBio?(p.bio||'').trim():'',photo=avatar(p,'lg'),name=esc(p.name||p.login),handle=`<span data-type="secondary">@${esc(p.login)}</span>`;
-    const showcase=mine?'<span class="me-showcase-streak-slot" data-me-showcase-streak></span>':featured?'':'<span class="me-showcase-slot" data-me-showcase></span>';
+    const showcase=mine?'<span class="me-showcase-streak-slot" data-me-showcase-streak></span>':viewer==='friend'||viewer==='preview'?'':'<span class="me-showcase-slot" data-me-showcase></span>';
     const preview=mine&&location.pathname==='/me'?`<div class="me-card-preview-row"><button type="button" class="me-card-preview-action" data-card-preview>${svg('people')}View as friend</button></div>`:'';
     const initials=((p.name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase()||'?');
     const identity=link
@@ -591,8 +593,8 @@ const MeCard=(()=>{
         if(profile.profile_hidden)throw Error('Your profile is hidden until your account is confirmed and active.');
         if(profile.preview!=='member')throw Error('The shared profile preview is unavailable.');
         const view={...profile,mine:false},friends=Number.isInteger(profile.friend_count)?`<span class="me-friends-link">${svg('people')}<span>${friendCountText(profile.friend_count)}</span></span>`:'';
-        host.innerHTML=card(profile.person,{mine:false,friends,featured:true,showBio:true});
-        mount(host,{data:view,full:true});ProfileLayout.mount(host,view);host.setAttribute('aria-busy','false');
+        host.innerHTML=card(profile.person,{viewer:'preview',friends,showBio:true});
+        mount(host,{data:view,viewer:'preview',mode:'profile'});ProfileLayout.mount(host,view);host.setAttribute('aria-busy','false');
       }catch(error){
         if(!host.isConnected||owner!==readOwner())return;
         host.innerHTML=`<p class="small err" role="alert">${esc(error?.message||'Your shared profile could not load.')}</p><button type="button" class="linkbtn" data-profile-preview-retry>Try again</button>`;
@@ -608,7 +610,7 @@ const MeCard=(()=>{
   }
   function header(me){
     return `<header class="me-top"><h1>Hi, ${esc(firstName(me))}</h1><div class="me-profile-tools"><a class="icon-btn" href="/me/settings" aria-label="Settings">${svg('settings')}</a></div></header>
-    ${card(me,{mine:true,link:true,pills:ownPills(),friends:ownFriends(me.friend_count),milestones:true,showBio:false})}`;
+    ${card(me,{viewer:'owner',link:true,pills:ownPills(),friends:ownFriends(me.friend_count),milestones:true,showBio:false})}`;
   }
   // One distance chart, on the card, with a tiny Days / Weeks switch (Ben, 30 Oct 2026: no second chart below it).
   // Every bar is a button: tapping shows that period's range and distance; tap again restores the current period.
@@ -667,6 +669,15 @@ const MeCard=(()=>{
       return '';
     }).join('');
   }
+  function profileView(data,{viewer,mode='profile'}={}){
+    if(!['owner','friend','preview'].includes(viewer))throw new TypeError(`Unknown profile viewer: ${viewer}`);
+    if(!['landing','profile'].includes(mode))throw new TypeError(`Unknown profile mode: ${mode}`);
+    const owner=viewer==='owner';
+    if(mode==='landing'&&!owner)throw new TypeError('Only the owner can render the Me landing view.');
+    const shared=owner?data:(()=>{const{week_streak,close_to,...payload}=data;return{...payload,mine:false};})();
+    const layout=ProfileLayout.normalize(owner?App.me?.profile_layout||shared.layout:shared.layout);
+    return {html:mode==='landing'?weeklyCard(shared):sections(shared,layout,true),owner,landing:mode==='landing'};
+  }
   function fitSports(rail){
     const chips=$$('.me-sport-chip',rail),more=$('.me-sport-more',rail);let count=Math.min(3,chips.length);chips.forEach((n,i)=>n.hidden=i>=count);more.hidden=count===chips.length;if(!more.hidden)more.textContent='+'+(chips.length-count);
     const fits=()=>{const a=rail.getBoundingClientRect(),b=(more.hidden?chips.at(-1):more).getBoundingClientRect();return b.left>=a.left-.01&&b.right<=a.right+.01;};
@@ -674,9 +685,11 @@ const MeCard=(()=>{
     while(count&&!fits()){chips[--count].hidden=true;more.hidden=false;more.textContent='+'+(chips.length-count);}
     if(count<chips.length){const n=chips.length-count,names=chips.slice(count).map(x=>x.textContent.trim()).join(', ');more.title=names;more.innerHTML=`<span aria-hidden="true">+${n}</span><span class="vh">${n} more ${n===1?'sport':'sports'}: ${esc(names)}</span>`;}
   }
-  // data: the profile page passes the response it already has; full: the activities follow the card (no link row, no
-  // View full profile); onSaved: reread after a layout save. Someone else's card only gets the week taps.
-  function mount(root,{reload,data:given=null,full=false,onSaved,onEditEnd,editOnLoad=false}={}){
+  // Profile data is composed once for the explicit viewer; shared views cannot read owner-only weekly stats.
+  function mount(root,{reload,data:given=null,viewer='owner',mode='landing',onSaved,onEditEnd,editOnLoad=false}={}){
+    if(!['owner','friend','preview'].includes(viewer))throw new TypeError(`Unknown profile viewer: ${viewer}`);
+    if(!['landing','profile'].includes(mode))throw new TypeError(`Unknown profile mode: ${mode}`);
+    const ownerView=viewer==='owner';
     const owner=readOwner(),card=$('.me-card',root),box=$('.me-card-sections',card),live=()=>card.isConnected&&owner===readOwner();
     let data=given,editing=false,editRevision=0,chartCleanup=()=>{};
     const chartPositions=new Map();
@@ -735,11 +748,12 @@ const MeCard=(()=>{
       const cleanup=chartCleanup,dispose=()=>{cleanup();wrap.removeEventListener('pointerdown',onDown);wrap.removeEventListener('click',onClick);document.removeEventListener('pointermove',onMove,true);document.removeEventListener('pointerup',onUp,true);document.removeEventListener('pointercancel',onCancel,true);document.removeEventListener('click',outside,true);clearTimeout(ignoreTimer);};chartCleanup=dispose;viewResources.set(wrap,dispose);
     };
     const periods=()=>$$('[data-period]',box).forEach(b=>b.onclick=()=>{if(b.dataset.period===period)return;period=b.dataset.period;draw();$(`[data-period="${period}"]`,box)?.focus({preventScroll:true});});
-    const draw=()=>{if(!live()||editing||!data)return;chartCleanup();box.setAttribute('aria-busy','false');box.innerHTML=full?sections(data,ProfileLayout.normalize(data.mine===false?data.layout:App.me.profile_layout||data.layout),true):weeklyCard(data);bars();if(full){weekTaps();periods();}else{weeklyTaps();if(data.mine!==false)ProfileLayout.mountShowcase(root,data,{featured:true});}};
+    const draw=()=>{if(!live()||editing||!data)return;chartCleanup();const view=profileView(data,{viewer,mode});box.setAttribute('aria-busy','false');box.innerHTML=view.html;bars();if(view.landing){weeklyTaps();ProfileLayout.mountShowcase(root,data,{featured:true});}else{weekTaps();periods();}};
     const loadCard=async()=>{
       try{
+        if(!ownerView)throw new TypeError('A shared profile view requires its filtered profile payload.');
         const profileRead=api('/api/people/'+encodeURIComponent(App.me.login)+'/profile?as_friend=true&preview=friend&limit=1');
-        const statsRead=full?Promise.resolve(null):load('/api/stats',()=>{}).catch(()=>null);
+        const statsRead=mode==='landing'?load('/api/stats',()=>{}).catch(()=>null):Promise.resolve(null);
         const [profile,stats]=await Promise.all([profileRead,statsRead]);
         if(!live())return;
         data=stats?{...profile,week_streak:stats.week_streak,close_to:stats.close_to}:profile;draw();
@@ -855,12 +869,12 @@ const MeCard=(()=>{
       sizeBio();if(focusName){card.scrollIntoView({block:'start'});name.focus({preventScroll:true});}else $('[data-show]',box)?.focus({preventScroll:true});
     }
     function finish(saved=false){editing=false;dim(false);draw();if(!data)loadCard();$('[data-card-edit]',card).focus({preventScroll:true});onEditEnd?.({saved});}
-    if(data?.mine===false){ProfileLayout.mountShowcase(root,data);draw();return {};}
+    if(!ownerView){ProfileLayout.mountShowcase(root,data);draw();return {};}
     $('[data-card-edit]',card).onclick=edit;
     $('[data-card-share]',card).onclick=shareSheet;
     $('[data-card-preview]',card)?.addEventListener('click',viewAsFriend);
     if(data)draw();else loadCard();
     return {edit};
   }
-  return {header,card,ownPills,ownFriends,mount,firstName,openEditor:()=>go('/me?edit=profile')};
+  return {header,card,ownPills,ownFriends,mount,profileView,firstName,openEditor:()=>go('/me?edit=profile')};
 })();
