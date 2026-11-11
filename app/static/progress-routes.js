@@ -88,7 +88,7 @@ async function pCalendar(body, q) {
 function calDay(x, M) {
   const f = x.food, title = new Date(x.d + 'T12:00').toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'});
   sheet(title, `<h3 class="ghead">Training</h3>${x.acts.length ? `<div class="card list">${x.acts.map((a) => `<a class="row-link" href="/activity/${a.id}" data-close>${sportMark(a.sport)}
-      <span class="grow"><b>${esc(a.name)}</b><small class="muted">${a.distance_m ? `${esc(U.dist(a.distance_m))} ${esc(U.du())} · ` : ''}${esc(dur(a.moving_s))}</small></span><span class="chev">${svg('chev')}</span></a>`).join('')}</div>`
+      <span class="grow"><b>${esc(a.name)}</b><small class="muted">${a.distance_m ? `${esc(U.dist(a.distance_m))} ${esc(U.du())} · ` : ''}${esc(activityElapsedText(a))}${a.moving_s!=null&&a.elapsed_s!==a.moving_s?` · ${esc(dur(a.moving_s))} moving`:''}</small></span><span class="chev">${svg('chev')}</span></a>`).join('')}</div>`
       : '<p class="small muted">Rest day: no workout.</p>'}
     <h3 class="ghead">Food</h3>${f ? `<div class="card cal-food"><div class="kv"><span>Eaten</span><b class="num">${r0(f.kcal)} kcal${f.goal ? ` <span class="muted">of ${r0(f.goal)}</span>` : ''}</b></div>
       <div class="kv"><span>Protein</span><b class="num">${r0(f.protein_g)} g${M.protein_target ? ` <span class="muted">of ${r0(M.protein_target)}</span>` : ''}</b></div>

@@ -586,7 +586,7 @@ def _trend(xs, ys):
 def routes(user=Depends(current_user)):
     with db.connect() as c:
         return c.execute("""
-            SELECT r.id, r.name, r.sport, count(a.id) AS count, min(a.elapsed_s) AS best_s, max(a.start_time) AS last,
+            SELECT r.id, r.name, r.sport, count(a.id) AS count, min(a.elapsed_s) FILTER (WHERE a.elapsed_s > 0) AS best_s, max(a.start_time) AS last,
                    avg(a.distance_m) AS distance_m,
                    (SELECT ST_AsGeoJSON(ST_Simplify(x.geom, %s)) FROM activities x WHERE x.route_id = r.id ORDER BY x.start_time DESC LIMIT 1) AS g
             FROM routes r JOIN activities a ON a.route_id = r.id WHERE r.user_id = %s
@@ -714,7 +714,7 @@ def progress_volume(period: str = 'week', user=Depends(current_user)):
 
 @router.get('/progress/trends')
 def progress_trends(sport: str = 'run', user=Depends(current_user)):
-    """Per month, sums the phone turns into averages for any month/year: pace = moving time / distance,
+    """Per month, sums elapsed time for whole-activity pace and moving time for HR/cadence weighting,
     heart rate and cadence weighted by moving time (only activities that have them)."""
     sports = {'run': ['run'], 'ride': ['ride'], 'walk': ['walk', 'hike']}.get(sport)
     if not sports: raise HTTPException(400, 'sport must be run, ride or walk')
@@ -723,6 +723,7 @@ def progress_trends(sport: str = 'run', user=Depends(current_user)):
         rows = c.execute("""SELECT to_char(start_time AT TIME ZONE %s, 'YYYY-MM') AS m, count(*) AS n,
                  coalesce(sum(distance_m), 0) AS d, coalesce(sum(moving_s), 0) AS t, coalesce(sum(ascent_m), 0) AS a,
                  max(distance_m) AS longest,
+                 sum(distance_m) FILTER (WHERE distance_m > 0 AND elapsed_s > 0) AS pace_d, sum(elapsed_s) FILTER (WHERE distance_m > 0 AND elapsed_s > 0) AS pace_t,
                  sum(distance_m) FILTER (WHERE distance_m > 0 AND moving_s > 0) AS pd, sum(moving_s) FILTER (WHERE distance_m > 0 AND moving_s > 0) AS pt,
                  sum(avg_hr * moving_s) FILTER (WHERE avg_hr > 0 AND moving_s > 0) AS hr_w, sum(moving_s) FILTER (WHERE avg_hr > 0 AND moving_s > 0) AS hr_t,
                  sum(avg_cad * moving_s) FILTER (WHERE avg_cad > 0 AND moving_s > 0) AS cad_w, sum(moving_s) FILTER (WHERE avg_cad > 0 AND moving_s > 0) AS cad_t
@@ -790,7 +791,7 @@ def calendar(month: str, user=Depends(current_user)):
     except ValueError: raise HTTPException(400, 'month must be YYYY-MM')
     with db.connect() as c:
         tz = (c.execute('SELECT tz FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}).get('tz') or db.DEFAULT_TZ
-        return c.execute("""SELECT id, sport, name, (start_time AT TIME ZONE %s)::date AS d, distance_m, moving_s, effort FROM activities
+        return c.execute("""SELECT id, sport, name, (start_time AT TIME ZONE %s)::date AS d, distance_m, moving_s, elapsed_s, effort FROM activities
                             WHERE user_id = %s AND (start_time AT TIME ZONE %s)::date >= make_date(%s, %s, 1)
                               AND (start_time AT TIME ZONE %s)::date < make_date(%s, %s, 1) + interval '1 month'
                             ORDER BY start_time""", (tz, user['id'], tz, y, m, tz, y, m)).fetchall()
@@ -813,7 +814,7 @@ def calendar_month(month: str, user=Depends(current_user)):
         p = c.execute('SELECT tz, kcal_target, protein_target FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}
         tz = p.get('tz') or db.DEFAULT_TZ
         today = c.execute('SELECT (now() AT TIME ZONE %s)::date AS d', (tz,)).fetchone()['d']
-        acts = c.execute("""SELECT id, sport, name, (start_time AT TIME ZONE %s)::date AS d, distance_m, moving_s FROM activities
+        acts = c.execute("""SELECT id, sport, name, (start_time AT TIME ZONE %s)::date AS d, distance_m, moving_s, elapsed_s FROM activities
                             WHERE user_id = %s AND (start_time AT TIME ZONE %s)::date BETWEEN %s AND %s ORDER BY start_time""",
                          (tz, user['id'], tz, mon, sun)).fetchall()
         food = {r['day']: r for r in c.execute("""SELECT day, round(sum(kcal)) AS kcal, round(sum(protein_g)) AS protein_g, count(*) AS n
@@ -825,7 +826,7 @@ def calendar_month(month: str, user=Depends(current_user)):
         typical = c.execute("""SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY k) AS k FROM (SELECT sum(kcal) AS k FROM food_entries
                                WHERE user_id = %s AND day BETWEEN %s AND %s GROUP BY day) x""", (user['id'], today - dt.timedelta(days=60), today)).fetchone()['k']
     by = {}
-    for a in acts: by.setdefault(a['d'], []).append({k: a[k] for k in ('id', 'sport', 'name', 'distance_m', 'moving_s')})
+    for a in acts: by.setdefault(a['d'], []).append({k: a[k] for k in ('id', 'sport', 'name', 'distance_m', 'moving_s', 'elapsed_s')})
     days, d = [], mon
     while d < sun + dt.timedelta(days=1):
         f, goal = food.get(d), goals[d]['kcal']

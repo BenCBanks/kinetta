@@ -460,7 +460,7 @@ function meInsights(box, s) {
     const count = list => list.reduce((n, m) => n + (+m.n || 0), 0);
     if (count(recent) < 3 || count(before) < 3) return;
     const value = list => {
-      const d = list.reduce((n, m) => n + (+m.pd || 0), 0), t = list.reduce((n, m) => n + (+m.pt || 0), 0);
+      const d = list.reduce((n, m) => n + (+(sport==='ride'?m.pd:m.pace_d) || 0), 0), t = list.reduce((n, m) => n + (+(sport==='ride'?m.pt:m.pace_t) || 0), 0);
       return sport === 'ride' ? (t > 0 ? d / t : 0) : (d > 0 ? t / (d / 1000) : 0);
     };
     const current = value(recent), previous = value(before); if (!(current > 0 && previous > 0)) return;
@@ -858,7 +858,8 @@ function similarHtml(a) {
   return a.similar.map((s) => {
     const peerRate=rate({...s,sport:a.sport}),p=peerRate.label==='Time'?null:foot?Number(s.elapsed_s)/Number(s.distance_m)*1000:Number(s.distance_m)/Number(s.elapsed_s);
     const diff = mine!=null&&p!=null ? foot?p-mine:mine-p : null;
-    const cmp = diff == null ? '' : Math.abs(diff) < 2 ? 'same pace' : `${diff > 0 ? 'you were' : 'it was'} ${foot ? Math.round(Math.abs(imp() ? diff * MI / 1000 : diff)) + ' s' + U.pu() : U.speed(Math.abs(diff)) + ' ' + U.su()} faster`;
+    const same = diff == null ? false : foot ? Math.abs(diff)<2 : U.speed(Math.abs(diff))<0.1;
+    const cmp = diff == null ? '' : same ? 'same pace' : `${diff > 0 ? 'you were' : 'it was'} ${foot ? Math.round(Math.abs(imp() ? diff * MI / 1000 : diff)) + ' s' + U.pu() : U.speed(Math.abs(diff)) + ' ' + U.su()} faster`;
     return `<a class="row-link" href="/activity/${s.id}" data-prefetch="/api/activities/${s.id}"><div><b>${esc(s.name)}</b><br><small class="muted">${esc(fdate(s.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))} · ${U.dist(s.distance_m)} ${U.du()}${s.same_route ? ' · same route' : ''}</small></div>
       <div class="r"><b class="num">${p!=null ? peerRate.v + peerRate.u : '–'}</b><br><small class="muted">${esc(cmp)}</small></div></a>`;
   }).join('');
@@ -1125,6 +1126,9 @@ function matchedRouteTrendHeadline(trend, points, foot) {
   if (/^0(?:\.0+)?(?:\s|$)/.test(change)) return '';
   return `${perMonth < 0 ? 'Getting faster' : 'Getting slower'}: about ${change} per month on this route.`;
 }
+function routeActivityRate(a,sport) {
+  const value=rate({...a,sport});return value.label==='Time'?'–':value.v+value.u;
+}
 route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
   el.innerHTML = `<div class="top">${backBtn('Routes')}</div>${skel(1)}<div class="sk block"></div>${skel(1)}`;
   wireBack(el, '/progress/routes');
@@ -1144,7 +1148,7 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
         <div class="badges"><span class="badge"><span class="route-fastest-key" aria-hidden="true">●</span> Fastest</span><span class="badge">- - Trend</span></div></div>
       <div class="card"><h2>Every time</h2>${[...acts].reverse().map((a) => `<a class="row-link" href="/activity/${a.id}" data-prefetch="/api/activities/${a.id}">
         <div><b>${a.id === r.fastest_id ? '<span class="badge pr">' + svg('trophy') + ' Fastest</span> ' : ''}${esc(fdate(a.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))}</b><br><small class="muted">${esc(a.name)}${a.avg_hr ? ' · ' + Math.round(a.avg_hr) + ' bpm' : ''}${a.avg_temp != null ? ' · ' + U.temp(a.avg_temp) : ''}</small></div>
-        <div class="r"><b class="num">${a.elapsed_s>0?dur(a.elapsed_s):'–'}</b><br><small class="muted num">${(()=>{const value=rate(a);return value.label==='Time'?'–':value.v+value.u;})()}</small></div></a>`).join('')}</div>`;
+        <div class="r"><b class="num">${a.elapsed_s>0?dur(a.elapsed_s):'–'}</b><br><small class="muted num">${routeActivityRate(a,r.sport)}</small></div></a>`).join('')}</div>`;
     wireBack(el, '/progress/routes');
     requestAnimationFrame(() => dotChart($('#r-chart', el), pts, {yfmt: (v) => (foot ? U.pace(v) : U.speed(1000 / v)), invert: true, trend: t, best: r.fastest_id}));
     if (r.line) lazy($('#r-map', el), () => mapInto($('#r-map', el), [r.line], {sport: r.sport}).catch(() => {}));

@@ -1,8 +1,8 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const app=fs.readFileSync('app/static/app.js','utf8'),pages=fs.readFileSync('app/static/pages.js','utf8');
-const ctx={FOOT:['run','walk','hike'],MI:1609.344,imp:()=>false,dur:s=>s+'s',esc:String,route:()=>{},U:{dist:n=>String(n),du:()=> 'm',speed:n=>String(n),su:()=> 'km/h',pace:n=>String(n),pu:()=> '/km',time:s=>s+'s'}};
-vm.createContext(ctx);vm.runInContext(app.slice(app.indexOf('function rate(a)'),app.indexOf('// ---------- icons'))+'\n'+pages.slice(pages.indexOf('const stat ='),pages.indexOf('// One card'))+'\n'+pages.slice(pages.indexOf('function sharedHeadline'),pages.indexOf('// Cheers straight'))+'\n'+pages.slice(pages.indexOf('const ZN ='),pages.indexOf('route(/^\\/activity',pages.indexOf('const ZN ='))),ctx);
+const ctx={FOOT:['run','walk','hike'],MI:1609.344,imp:()=>false,dur:s=>s+'s',esc:String,fdate:()=> 'Jan 1',route:()=>{},U:{dist:n=>String(n),du:()=> 'm',speed:n=>String(n*3.6),su:()=> 'km/h',pace:n=>String(n),pu:()=> '/km',time:s=>s+'s',eu:()=> 'm'}};
+vm.createContext(ctx);vm.runInContext(app.slice(app.indexOf('function rate(a)'),app.indexOf('// ---------- icons'))+'\n'+pages.slice(pages.indexOf('const stat ='),pages.indexOf('// One card'))+'\n'+pages.slice(pages.indexOf('function sharedHeadline'),pages.indexOf('// Cheers straight'))+'\n'+pages.slice(pages.indexOf('function similarHtml'),pages.indexOf('function editActivity'))+'\n'+pages.slice(pages.indexOf('const ZN ='),pages.indexOf('route(/^\\/activity',pages.indexOf('const ZN =')))+'\n'+pages.slice(pages.indexOf('function routeActivityRate'),pages.indexOf('route(/^\\/route')),ctx);
 const ride={sport:'ride',distance_m:10000,moving_s:1800,avg_hr:131,speed_available:false,shares:{pace:true}};
 assert.equal(ctx.rate(ride).label,'Time');assert(!ctx.headline(ride).includes('Speed'));assert(ctx.headline(ride).includes('Avg HR'));assert.equal((ctx.headline(ride).match(/<small>Time<\/small>/g)||[]).length,1);
 assert(!ctx.sharedHeadline(ride).includes('Speed'));assert.equal((ctx.sharedHeadline(ride).match(/<small>Time<\/small>/g)||[]).length,1);
@@ -14,4 +14,7 @@ assert.match(ctx.sportStats({...paused,elapsed_s:3000,moving_s:3000}),/Elapsed t
 assert.match(ctx.sportStats({...paused,elapsed_s:3000,moving_s:2985}),/Moving time/,'a difference under 30 seconds still shows moving time');
 const unknown={...paused,elapsed_s:null,moving_s:2400};assert.deepEqual(JSON.parse(JSON.stringify(ctx.rate(unknown))),{label:'Time',v:'–',u:''});assert(ctx.headline(unknown).includes('–'));assert.match(ctx.sportStats(unknown),/Moving time/);assert.doesNotMatch(ctx.sportStats(unknown),/Elapsed time/);
 assert.doesNotMatch(ctx.sharedHeadline({...paused,shares:{pace:false}}),/<small>Pace<\/small>/,'friend pace remains private');
+assert.equal(ctx.routeActivityRate({elapsed_s:3000,distance_m:8046.72},'run'),ctx.U.pace(3000/8046.72*1000)+ctx.U.pu(),'matched-route activity rate receives route sport and formats run pace');
+const rideCompare={distance_m:10000,elapsed_s:1000,sport:'ride'},similar=effort=>ctx.similarHtml({...rideCompare,similar:[{id:2,name:'Ride',start_time:'2026-01-01',distance_m:10000,elapsed_s:effort}]});
+assert.match(similar(1001),/same pace/,'ride comparison uses an appropriately small speed threshold');assert.doesNotMatch(similar(1010),/same pace/,'material ride speed differences are not rounded to same pace');
 console.log('Activity summary: elapsed-first paused run, equal/close durations, unknown elapsed and friend pace privacy PASS');

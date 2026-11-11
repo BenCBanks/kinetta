@@ -36,7 +36,7 @@ const tick=()=>new Promise(setImmediate),plain=value=>JSON.parse(JSON.stringify(
  await items[1].build({});assert.deepEqual(plain(f.calls.simple.at(-1).facts),['Elapsed time: 3000 seconds'],'hidden stats remain out of the image');
  console.log('Activity share privacy: hidden map/details stay out of every picture PASS');
 
- f=fixture(sharing,{...activity,elapsed_s:null});f.ctx.sharePicture(7);await tick();items=f.ctx.options.items;await items[0].build({});const unknown=await items[2].build({});assert.equal(unknown.value,'8046.72 m');assert.deepEqual(plain(unknown.facts),['Elapsed time: –'],'unknown elapsed time never falls back to moving time');assert.equal(f.calls.route.at(-1)[0].moving_s,2400,'moving duration remains preserved in activity-card input');
+ f=fixture(sharing,{...activity,elapsed_s:null});f.ctx.sharePicture(7);await tick();items=f.ctx.options.items;await items[0].build({});await items[2].build({});const unknown=f.calls.simple.at(-1);assert.equal(unknown.value,'8046.72 m');assert.deepEqual(plain(unknown.facts),['Elapsed time: –'],'unknown elapsed time never falls back to moving time');assert.equal(f.calls.route.at(-1)[0].moving_s,2400,'moving duration remains preserved in activity-card input');
  console.log('Activity share: unknown elapsed remains unavailable while moving duration stays distinct PASS');
 
  f=fixture();const known={...activity};f.ctx.shareOut(known);await tick();
