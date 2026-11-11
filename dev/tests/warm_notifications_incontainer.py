@@ -9,6 +9,16 @@ from app import auth, db, notify, notification_facts, notification_words
 
 UTC=dt.timezone.utc
 NOW=dt.datetime(2026,10,31,18,tzinfo=UTC)
+LOCAL_SUNDAY=dt.datetime(2026,11,8,23,59,tzinfo=ZoneInfo('America/New_York'))
+LOCAL_MONDAY=dt.datetime(2026,11,9,0,1,tzinfo=ZoneInfo('America/New_York'))
+
+
+def notify_clock_module(instant):
+    class FixedDateTime(dt.datetime):
+        @classmethod
+        def now(cls,tz=None):
+            return instant.replace(tzinfo=None) if tz is None else instant.astimezone(tz)
+    return SimpleNamespace(datetime=FixedDateTime,timezone=dt.timezone)
 
 
 class WarmNotifications(unittest.TestCase):
@@ -156,33 +166,26 @@ class WarmNotifications(unittest.TestCase):
         self.assertTrue(all('\n' not in p['body'] for p in sent))
 
     def test_midnight_during_fact_scan_discards_old_period_highlight(self):
-        now=dt.datetime.now(UTC);old=self.activity(now-dt.timedelta(days=3),7000);self.effort(old,1500)
-        current=self.activity(now-dt.timedelta(hours=2));self.effort(current,1450);nid=self.notice(current);self.devices()
-        before=now.replace(hour=23,minute=59);after=before+dt.timedelta(minutes=2);advanced=[False];sent=[];read=notification_facts.read
+        before=LOCAL_SUNDAY;after=LOCAL_MONDAY
+        old=self.activity(before-dt.timedelta(days=3),7000);self.effort(old,1500)
+        current=self.activity(before-dt.timedelta(hours=2));self.effort(current,1450);nid=self.notice(current);self.devices()
+        advanced=[False];sent=[];read=notification_facts.read
         def clock(row,asof=None):return before if asof is not None or not advanced[0] else after
         def crossing(c,row,asof=None):
             facts=read(c,row,asof);advanced[0]=True;return facts
-        with patch.object(notification_facts,'local_now',side_effect=clock),patch.object(notification_facts,'read',side_effect=crossing):
+        with patch.object(notify,'dt',notify_clock_module(before)),patch.object(notification_facts,'local_now',side_effect=clock),patch.object(notification_facts,'read',side_effect=crossing):
             self.assertEqual(notify.push(nid,send=lambda d,p:sent.append(p)),2)
         self.assertTrue(sent,'both fictional device sends are recorded')
         self.assertNotIn('\n',sent[0]['body'],'stale facts are discarded before the first device send')
         self.assertTrue(all('\n' not in p['body'] for p in sent),'The next day cannot inherit yesterday’s period claims')
 
     def test_local_midnight_during_send_omits_highlight_for_second_device(self):
-        zone=ZoneInfo('America/New_York')
-        before=dt.datetime(2026,11,8,23,59,tzinfo=zone)
-        after=dt.datetime(2026,11,9,0,1,tzinfo=zone)
+        before=LOCAL_SUNDAY;after=LOCAL_MONDAY
         old=self.activity(before-dt.timedelta(days=4),5000)
         middle=self.activity(before-dt.timedelta(days=1),5000)
         current=self.activity(before-dt.timedelta(hours=2),5000)
         nid=self.notice(current);self.devices();sent=[];advanced=[False]
 
-        class FixedDateTime(dt.datetime):
-            @classmethod
-            def now(cls,tz=None):
-                return before.replace(tzinfo=None) if tz is None else before.astimezone(tz)
-
-        clock_module=SimpleNamespace(datetime=FixedDateTime,timezone=dt.timezone)
         def clock(row,asof=None):
             return before if asof is not None or not advanced[0] else after
         def send(device,payload):
@@ -191,7 +194,7 @@ class WarmNotifications(unittest.TestCase):
             return True
 
         self.assertNotEqual(old,middle)
-        with patch.object(notify,'dt',clock_module),patch.object(notification_facts,'local_now',side_effect=clock):
+        with patch.object(notify,'dt',notify_clock_module(before)),patch.object(notification_facts,'local_now',side_effect=clock):
             self.assertEqual(notify.push(nid,send=send),2)
         self.assertEqual(len(sent),2,'each fictional device receives one prepared payload')
         self.assertIn('3rd run this week',sent[0]['body'],'Sunday delivery keeps its period highlight')
