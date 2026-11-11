@@ -1,7 +1,12 @@
 // Real invitation controller with a fake native bridge, private device preferences and no Apple/network calls.
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const source=fs.readFileSync('app/static/push-invitation.js','utf8'),DAY=864e5;
+const source=fs.readFileSync('app/static/push-invitation.js','utf8'),appSource=fs.readFileSync('app/static/app.js','utf8'),DAY=864e5;
+const routeDeclarations=appSource.match(/const PUSH_INVITATION_ROUTE_ASSET = [^\n]+\nconst PUSH_INVITATION_HOMES = [^\n]+/)?.[0];
+const routeHelperStart=appSource.indexOf('function loadPushInvitationForRoute(isCurrent) {');
+const routeHelperEnd=appSource.indexOf('\nconst loadWeeklyRecapShareItem',routeHelperStart);
+assert(routeDeclarations&&routeHelperStart>=0&&routeHelperEnd>routeHelperStart,'the actual app route gate source is present');
+const routeHelperSource=appSource.slice(routeHelperStart,routeHelperEnd);
 function fixture(overrides={}){
  let now=40*DAY,shows=0,enabled=0,settings=0;const records=new Map(),nodes=[],events={},controls={},timers=new Map();let timer=0;
  const doc={hidden:false,documentElement:{classList:{contains:()=>false}},querySelectorAll:()=>nodes.filter(n=>n.isConnected),addEventListener:(k,fn)=>events[k]=fn};
@@ -13,6 +18,15 @@ function fixture(overrides={}){
  Object.assign(c,overrides);vm.createContext(c);vm.runInContext(source+'\nglobalThis.invitation=PushInvitation;',c);
  return {c,records,controls,nodes,events,key,shows:()=>shows,enabled:()=>enabled,settings:()=>settings,setTime:v=>now=v,entry:async()=>{doc.hidden=true;events.visibilitychange?.();doc.hidden=false;events.visibilitychange?.();await c.invitation.consider();}};
 }
+function routeGate({pathname='/me',search='',native=true,signedIn=true,ready=true,load=()=>Promise.resolve()}={}){
+ const loads=[];let considers=0;
+ const c={location:{pathname,search},Native:{on:native,base:'https://fictional.test',token:native?'fictional-native-token':null},App:{me:signedIn?{id:1}:null,pageReady:ready},
+  loadClassicScript(asset){loads.push(asset);return load(asset);},PushInvitation:{consider(){considers++;}}};
+ c.readOwner=()=>JSON.stringify([c.Native.base,c.Native.token,c.App.me?.id]);
+ vm.createContext(c);vm.runInContext(`${routeDeclarations}\n${routeHelperSource}\nglobalThis.invokeRouteGate=loadPushInvitationForRoute;`,c);
+ return {c,loads,considers:()=>considers,invoke:current=>c.invokeRouteGate(current||(()=>true))};
+}
+const settle=async()=>{await new Promise(setImmediate);await new Promise(setImmediate);};
 (async()=>{
  for(const [name,change] of [
   ['web',f=>f.c.Native.on=false],['signed out',f=>f.c.App.me=null],['not loaded',f=>f.c.App.pageReady=false],
@@ -35,5 +49,19 @@ function fixture(overrides={}){
  f=fixture();await f.c.invitation.consider();f.c.document.documentElement.classList.contains=()=>true;await f.c.invitation.consider();assert.equal(f.nodes[0].isConnected,false,'keyboard appearing dismisses the invitation');
  f=fixture();f.c.Native.writePushInvitation=async()=>{throw Error('Storage unavailable');};await f.c.invitation.consider();assert.equal(f.shows(),0,'cannot reserve a durable ask: stay quiet');
  assert(f.c.invitation.shouldAsk({asks:1,lastAsked:0},30*DAY));assert(!f.c.invitation.shouldAsk({asks:1,lastAsked:0},29*DAY));
+ for(const [name,options] of [
+  ['web',{native:false}],['logged out',{signedIn:false}],['query route',{search:'?view=weight'}],
+  ['profile',{pathname:'/people/fictional'}],['Contacts',{pathname:'/me/friends/contacts'}],
+  ['profile settings',{pathname:'/me/settings'}],
+ ]){const gate=routeGate(options);gate.invoke();await settle();assert.deepEqual(gate.loads,[],`${name} does not request the invitation module`);}
+ for(const path of ['/me','/activity','/track','/progress','/food']){const gate=routeGate({pathname:path});gate.invoke();await settle();assert.deepEqual(gate.loads,['/static/push-invitation.js?v=__ASSET_HASH__'],`${path} requests the stamped module once`);assert.equal(gate.considers(),1,`${path} considers the invitation after loading`);}
+ for(const [name,change] of [
+  ['owner',gate=>{gate.c.App.me={id:2};}],['path',gate=>{gate.c.location.pathname='/activity';}],['readiness',gate=>{gate.c.App.pageReady=false;}],
+ ]){
+  let release;const gate=routeGate({load:()=>new Promise(resolve=>{release=resolve;})});gate.invoke();await settle();assert.equal(gate.loads.length,1,`${name} case starts the lazy request`);change(gate);release();await settle();assert.equal(gate.considers(),0,`a held load cannot consider after ${name} changes`);
+ }
+ let attempts=0;const retryGate=routeGate({load:()=>++attempts===1?Promise.reject(new Error('offline')):Promise.resolve()});
+ retryGate.invoke();await settle();retryGate.invoke();await settle();assert.equal(attempts,2,'a rejected helper load can be requested again on the next eligible route');assert.equal(retryGate.considers(),1,'the successful retry considers once');
  console.log('Native push invitation: show/exclusion matrix, existing login, 30-day/two-ask limits, denied/Settings, native enable, owner changes, overlays and storage failures PASS');
+ console.log('App push-invitation route gate: exact homes, web/login/query/profile/Contacts exclusions, stale owner/path/readiness and retry PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});
