@@ -22,6 +22,7 @@ case "$1" in
     ;;
   2)
     node dev/tests/track_home_ui.cjs
+    node dev/tests/track_review_recovery_ui.cjs
     node dev/tests/top_chips_ui.cjs
     node dev/tests/track_ready_map_ui.cjs
     node dev/tests/activity_home_ui.cjs
