@@ -2,15 +2,16 @@
 // Delayed real writes on one fictional account; every unrelated write is blocked.
 const {chromium}=require('playwright'),assert=require('node:assert/strict');
 const base=process.env.KINETTA_URL||'http://localhost:8798',foodOnly=process.env.FOOD_ONLY==='1';
+const fixtureNow=new Date(),today=fixtureNow.toISOString().slice(0,10);
 const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))return;await p.waitForTimeout(100);}throw Error(label+' '+JSON.stringify(await p.evaluate(()=>({weight:App.me.weight_kg,height:App.me.height_cm,toast:document.querySelector('#toast')?.textContent}))));};
 (async()=>{
  const browser=await chromium.launch();
  try{
   for(const theme of ['light','dark']){
-   const c=await browser.newContext({viewport:{width:390,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block'});
+   const c=await browser.newContext({viewport:{width:390,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',timezoneId:'UTC'});
    try{
     assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_weight_actions',password:'green teapot on the hill'}})).status(),200);
-    const today=new Date().toISOString().slice(0,10);await c.request.delete(base+'/api/food/weights/'+today,{headers:{Origin:base,'Content-Type':'application/json'},data:{}});
+    await c.request.delete(base+'/api/food/weights/'+today,{headers:{Origin:base,'Content-Type':'application/json'},data:{}});
     const p=await c.newPage(),errors=[];let hold='',release,seen=false,profileWrite,holdProfile=false,profileRead,profileRelease,holdLatest=false,latestRead=false,latestRelease;
     p.on('pageerror',e=>errors.push(e.message));
     await c.route('**/*',async route=>{
@@ -22,7 +23,7 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
      if(!['GET','HEAD'].includes(r.method())&&!((r.method()==='PUT'&&['/api/food/weights','/api/profile'].includes(u.pathname))||(r.method()==='DELETE'&&u.pathname.startsWith('/api/food/weights/'))))return route.fulfill({json:{}});
      return route.continue();
     });
-    await p.goto(base+'/progress/weight');await p.locator('.wform input').waitFor();
+    await p.clock.setFixedTime(fixtureNow);await p.goto(base+'/progress/weight');await p.locator('.wform input').waitFor();
     hold='PUT';await p.locator('.wform input').fill('170');await p.locator('.wform button').click();
     for(let n=0;n<100&&!seen;n++)await p.waitForTimeout(50);assert(seen,'PUT held');await p.evaluate(()=>go('/progress'));release();hold='';
     await until(p,()=>Math.abs(App.me.weight_kg-170/2.20462)<.01,'Same-owner save refreshes after leaving Weight');
