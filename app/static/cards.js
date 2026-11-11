@@ -39,7 +39,8 @@ const KinettaCard=(()=>{
         catch(error){if(live()){e.target.checked=!!sharing.share_achievements;status.textContent=error.message;}}
         finally{busy=false;if(live()){if(sharing.share_achievements===on)await refresh(false,false,true);else disable(false);}}
       };
-      $('#card-share',b).onclick=()=>{if(busy||!blob||!data.enabled)return;const items=makeShareItems(data,owner,data.url);close();ShareSheet.open({items});};
+      let shareLoading=false;
+      $('#card-share',b).onclick=async()=>{if(busy||shareLoading||!blob||!data.enabled||!qrLive())return;shareLoading=true;const button=$('#card-share',b);button.disabled=true;status.textContent='Preparing picture sharing…';try{const items=makeShareItems(data,owner,data.url);await loadShareArt();if(!qrLive())return;close();ShareSheet.open({items});}catch(error){if(qrLive())status.textContent=(error.message||'Picture sharing could not load.')+' Tap Share card to try again.';}finally{shareLoading=false;if(qrLive())button.disabled=!data.enabled||!blob;}};
       $('#card-copy',b).onclick=async()=>{try{await navigator.clipboard.writeText(data.url);if(live())toast('Card link copied');}catch(e){if(live())sheet('Your card link',`<label class="form">Copy this link<input readonly value="${esc(data.url)}" aria-label="Card link"></label>`,(root,done)=>{guardFoodSheet(root,done,owner);$('input',root).select();});}};
       $('#card-qr',b).onclick=async()=>{
         if(busy||qrLoading||!qrLive()||!data.enabled)return;const link=data.url;qrLoading=true;

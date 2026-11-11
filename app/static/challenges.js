@@ -1,13 +1,14 @@
 // Deliberate group goals. A challenge never grants access to anyone else's workouts or food.
 'use strict';
-const Challenges=(()=>{
+const challengeSummaryMount=Challenges.mount;
+const ChallengeRoutes=(()=>{
   const kinds={distance:'Distance',active_days:'Active days',activities:'Activities',food_days:'Food logging days',protein_days:'Protein goal days'};
   const descriptions={distance:'Choose running, walking, hiking or cycling.',active_days:'A day counts with at least one workout lasting 10 minutes or more.',activities:'Each workout must last at least 10 minutes.',food_days:'Days with food logged. No food details are shared.',protein_days:'Days reaching your own protein target. Your target stays private.'};
   const icons={distance:'run',active_days:'calendar',activities:'activity',food_days:'food',protein_days:'food'};
   const date=d=>new Date(d+'T12:00:00Z').toLocaleDateString(undefined,{timeZone:'UTC',month:'short',day:'numeric',year:'numeric'});
-  const number=(n,unit)=>Number(n).toLocaleString(undefined,{maximumFractionDigits:unit==='km'||unit==='mi'?(n>0&&n<.1?3:1):0});
+  const number=Challenges.number,summary=Challenges.summary;
   const path=q=>'/me/challenges/'+encodeURIComponent(q.code);
-  const total=q=>number(q.target,q.unit)+' '+q.unit;
+  const total=Challenges.total;
   const title=q=>kinds[q.kind]&&Number.isFinite(Number(q.target))&&q.target>0&&(q.kind!=='distance'||['km','mi'].includes(q.unit))?kinds[q.kind]+' · '+number(q.target,q.unit)+(q.kind==='distance'?' '+q.unit:''):q.title||'Challenge';
   function dateRange(q){
     const first=new Date(q.start+'T12:00:00Z'),last=new Date(q.end+'T12:00:00Z');if(!Number.isFinite(+first)||!Number.isFinite(+last)||first>last)return '';
@@ -16,8 +17,10 @@ const Challenges=(()=>{
   const participants=q=>q.participants==null||!Number.isInteger(q.participants)||q.participants<0?'':q.participants+' '+(q.participants===1?'participant':'participants');
   const signature=(q,finish)=>JSON.stringify([q.title,q.start,q.end,q.target,q.unit,q.joining_closed,finish?q.self:null]);
   async function fetchOne(code){const owner=readOwner(),q=await api('/api/challenges/'+encodeURIComponent(code));if(owner!==readOwner())throw Error('The account changed.');return q;}
-  async function picture(q,finish=false,identity=false){
+  async function picture(q,finish=false,identity=false,live=()=>true){
+    const owner=readOwner(),picturePath=location.pathname+location.search;
     const own=q.self||{},facts=finish?(own.manual?['Includes manual entries']:[]):[q.sports.map(s=>SPORT_NAMES[s]).join(' · ')].filter(Boolean);
+    await loadShareArt();if(owner!==readOwner()||picturePath!==location.pathname+location.search||!live())throw Error('The account changed.');
     return ShareArt.simplePicture({kicker:finish?'Your challenge':'Join this challenge',title:q.title,date:date(q.start)+' – '+date(q.end),value:finish?number(own.value,q.unit)+' / '+number(q.target,q.unit):number(q.target,q.unit),unit:q.unit,facts,sources:finish?own.garmin_sources||[]:[],identity,qrLink:finish?null:q.url});
   }
   function confirmation(title,copy,action,onDone){
@@ -25,16 +28,17 @@ const Challenges=(()=>{
       guardFoodSheet(b,close,owner);$('#challenge-keep',b).onclick=close;$('#challenge-confirm',b).onclick=async e=>{e.currentTarget.disabled=true;try{await action.run();if(owner!==readOwner()||!b.isConnected)return;close();onDone?.();}catch(error){if(b.isConnected&&owner===readOwner()){$('.err',b).textContent=error.message;e.target.disabled=false;}}};
     });
   }
-  async function share(initial,finish=false){
-    const owner=readOwner();let q;
+  async function share(initial,finish=false,origin=null){
+    const owner=readOwner(),path=location.pathname+location.search,context=origin||document.querySelector('#app'),sourceLive=()=>context?.isConnected&&owner===readOwner()&&path===location.pathname+location.search;let q;
     try{q=await fetchOne(initial.code);if(!q.member)throw Error('Join the challenge before making a picture.');if(finish&&!q.self?.finished)throw Error('Your finish picture is available when your challenge ends.');if(!finish&&q.joining_closed)throw Error('This challenge is no longer accepting joins.');}
-    catch(e){if(owner===readOwner())toast(e.message);return;}
+    catch(e){if(sourceLive())toast(e.message);return;}
+    if(!sourceLive())return;
     let current=null,url='',generation=0,busy=false;
     sheet(finish?'Your finish picture':'Invite to your challenge',`<div class="challenge-share-body"><p>${finish?'Only your challenge progress appears. Photo and username start off.':'People see this challenge’s dates and target before choosing to join. Joining never adds friends.'}</p><label class="check"><input type="checkbox" id="challenge-identity">Photo and username</label><div class="challenge-picture"><img id="challenge-picture" alt="Loading challenge picture"></div><p class="small" role="status" id="challenge-share-status"></p><button class="ghost wide" id="challenge-picture-retry" hidden>Retry picture</button></div><div class="challenge-share-actions"><button type="button" class="primary wide" id="challenge-send" disabled>Share picture${finish?'':' and link'}</button>${finish?'':'<button type="button" class="ghost wide" id="challenge-copy">Copy invitation link</button>'}</div>`,(b,close)=>{
-      const live=()=>b.isConnected&&owner===readOwner(),status=$('#challenge-share-status',b),send=$('#challenge-send',b),identity=$('#challenge-identity',b),image=$('#challenge-picture',b);
+      const live=()=>b.isConnected&&sourceLive(),status=$('#challenge-share-status',b),send=$('#challenge-send',b),identity=$('#challenge-identity',b),image=$('#challenge-picture',b);
       const closeSelf=()=>close();App.closeActivityShare=closeSelf;viewResources.set(b,()=>{generation++;if(url)URL.revokeObjectURL(url);if(App.closeActivityShare===closeSelf)delete App.closeActivityShare;});
       async function draw(){const stamp=++generation;send.disabled=true;current=null;status.textContent='Creating picture…';$('#challenge-picture-retry',b).hidden=true;
-        try{const result=await picture(q,finish,identity.checked);if(!live()||stamp!==generation)return;current=result;if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(result.blob);image.src=url;image.alt=result.alt;status.textContent='Review the picture before sharing.';send.disabled=false;}
+        try{const result=await picture(q,finish,identity.checked,live);if(!live()||stamp!==generation)return;current=result;if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(result.blob);image.src=url;image.alt=result.alt;status.textContent='Review the picture before sharing.';send.disabled=false;}
         catch(e){if(live()&&stamp===generation){status.textContent=e.message;$('#challenge-picture-retry',b).hidden=false;}}
       }
       identity.onchange=draw;$('#challenge-picture-retry',b).onclick=draw;
@@ -63,21 +67,17 @@ const Challenges=(()=>{
       };
     });
   }
-  function summary(items){
-    const active=items.filter(q=>q.member&&q.self&&!q.self.finished).sort((a,b)=>(a.self.days_left??Infinity)-(b.self.days_left??Infinity));
-    return active.length?{active,count:active.length,first:active[0],progress:number(active[0].self.value,active[0].unit)+' / '+total(active[0])}:null;
-  }
   const activityBack=el=>{el.classList.add('has-back');el._backFallback='/activity';return `<a class="back" href="/activity" data-back data-challenge-back aria-label="Back to Home">${svg('back')}<span>Home</span></a>`;};
   async function mount(node,{me=false}={}){
+    if(me)return challengeSummaryMount(node,{me:true});
     if(!node)return;const owner=readOwner();try{const items=await api('/api/challenges');if(!node.isConnected||owner!==readOwner())return;const glance=summary(items),active=glance?.active||[];
-      if(me){node.innerHTML=glance?`<div class="card list"><a class="row-link" href="/me/challenges"><span class="ri">${svg('people')}</span><span class="grow"><b>Challenges</b><small>${glance.count} active · ${glance.progress}</small></span><span class="chev">${svg('chev')}</span></a></div>`:'';return;}
       node.innerHTML=`<section class="challenge-section"><h2 class="sec-head">Challenges</h2>${active.length?`<div class="card list">${active.map(q=>`<a class="row-link" href="${path(q)}"><span class="grow"><b>${esc(title(q))}</b><small>${esc(dateRange(q))} · ${number(q.self.value,q.unit)} / ${total(q)}</small></span><span class="chev">${svg('chev')}</span></a>`).join('')}</div>`:''}<button type="button" class="ghost wide" data-start-challenge>Start a challenge</button><a class="linkbtn wide" href="/me/challenges">All your challenges</a></section>`;$('[data-start-challenge]',node).onclick=create;
     }catch(_){if(node.isConnected&&owner===readOwner()&&!me)node.innerHTML='<a class="ghost wide" href="/me/challenges">Open challenges</a>';}
   }
   async function page(el,code){
     const owner=readOwner();el.innerHTML=`<div class="top">${activityBack(el)}</div><div id="challenge-detail">${skel(2)}</div>`;let busy=false,generation=0;
     const live=()=>el.isConnected&&owner===readOwner();
-    async function load(initial=false){if(busy)return;busy=true;const stamp=++generation;try{const q=await fetchOne(code);if(!live()||stamp!==generation||(!initial&&el._challengePress))return;draw(q);if(initial&&new URLSearchParams(location.search).get('invite')==='1'){history.replaceState(null,'',path(q));share(q);}}
+    async function load(initial=false){if(busy)return;busy=true;const stamp=++generation;try{const q=await fetchOne(code);if(!live()||stamp!==generation||(!initial&&el._challengePress))return;draw(q);if(initial&&new URLSearchParams(location.search).get('invite')==='1'){history.replaceState(null,'',path(q));share(q,false,el);}}
       catch(error){if(live()&&stamp===generation){if(initial)showError($('#challenge-detail',el),error);else{const status=$('#challenge-page-status',el);if(status)status.textContent='Couldn’t refresh. Your displayed progress may be out of date. '+error.message;}}}finally{busy=false;}}
     function draw(q){
       const focused=document.activeElement,focusId=el.contains(focused)?focused.id:null,removeFocus=el.contains(focused)?focused.dataset?.removeMember:null,scroll=scrollY;
@@ -87,7 +87,7 @@ const Challenges=(()=>{
       const restore=focusId?$('#'+focusId,el):removeFocus?$$('[data-remove-member]',el).find(n=>n.dataset.removeMember===removeFocus):null;restore?.focus({preventScroll:true});window.scrollTo(0,scroll);
       const listen=(id,fn)=>{const n=$(id,el);if(n)n.onclick=fn;};
       listen('#challenge-report', () => reportSheet({login:q.creator, name:'@'+q.creator}, {challenge_code:q.code}, () => go('/me/challenges')));
-      listen('#challenge-refresh',()=>load());listen('#challenge-invite',()=>share(q));listen('#challenge-finish-picture',()=>share(q,true));
+      listen('#challenge-refresh',()=>load());listen('#challenge-invite',()=>share(q,false,el));listen('#challenge-finish-picture',()=>share(q,true,el));
       listen('#challenge-join',async e=>{e.currentTarget.disabled=true;try{await api('/api/challenges/'+encodeURIComponent(code)+'/join',json('POST',{}));if(live()){invalidate('/api/challenges');load();}}catch(error){if(live()){$('#challenge-page-status',el).textContent=error.message;e.target.disabled=false;}}});
       listen('#challenge-leave',()=>confirmation('Leave this challenge?','Your row and progress disappear for everyone. Your own workouts and food stay in your account.',{label:'Leave challenge',run:()=>api('/api/challenges/'+encodeURIComponent(code)+'/leave',json('POST',{}))},()=>{invalidate('/api/challenges');go('/me/challenges');}));
       listen('#challenge-end',()=>confirmation('End this challenge early?','Joining closes immediately and every participant can make a finish picture. Progress stops at this time.',{label:'End early',run:()=>api('/api/challenges/'+encodeURIComponent(code)+'/end',json('POST',{}))},()=>load()));
@@ -97,13 +97,9 @@ const Challenges=(()=>{
     let timer=null;viewResources.set(el,()=>{generation++;clearInterval(timer);el.removeEventListener('pointerdown',down);window.removeEventListener('pointerup',up);window.removeEventListener('pointercancel',up);});
     await load(true);if(!live())return;timer=setInterval(()=>{if(live()&&!el._challengePress&&!document.hidden&&!document.querySelector('.scrim:not(.is-closing)'))load();},30000);
   }
-  async function resumeSignup(){
-    if(App.me?.needs_email_confirm)return;const owner=readOwner(),before=location.pathname;
-    try{const result=await api('/api/challenges/signup/continue',json('POST',{}));if(result.joined&&owner===readOwner()&&location.pathname===before){invalidate('/api/challenges');if(['/me','/welcome'].includes(before))go('/me/challenges/'+encodeURIComponent(result.joined));else if(before==='/me/challenges/'+result.joined)render();}}
-    catch(_){/* The confirmed join intent is also retried by the server. */}
-  }
-  return{create,createForm,mount,page,picture,number,summary,activityBack,resumeSignup,title,dateRange,participants};
+  return{create,createForm,mount,page,picture,activityBack,title,dateRange,participants};
 })();
+Object.assign(Challenges,ChallengeRoutes);
 route(/^\/me\/challenges$/,'activity',async el=>{
   const owner=readOwner();el.innerHTML=`<div class="top">${Challenges.activityBack(el)}<button type="button" class="ghost" id="challenge-start" aria-label="New challenge">New</button></div><h1>Challenges</h1><div id="challenge-list">${skel(1)}</div><a class="row-link challenge-find-friends" href="/me/friends?find=1" id="challenge-friends"><span class="grow">Find friends</span>${svg('chev')}</a>`;$('#challenge-start',el).onclick=Challenges.create;
   try{const items=await api('/api/challenges');if(!el.isConnected||owner!==readOwner())return;$('#challenge-start',el).hidden=!items.length;$('#challenge-list',el).innerHTML=items.length?`<div class="card list">${items.map(q=>`<a class="row-link" href="/me/challenges/${encodeURIComponent(q.code)}"><span class="grow"><b>${esc(Challenges.title(q))}</b><small>${esc(Challenges.dateRange(q))} · ${q.member?'':'You left · '}${Challenges.number(q.self.value,q.unit)} / ${Challenges.number(q.target,q.unit)} ${q.unit}${q.self.finished?' · Finished':''}</small></span><span class="chev">${svg('chev')}</span></a>`).join('')}</div>` :firstStep('trophy','Small, friendly goals to do together.','challenge-first','Start a challenge','<div class="first-step-presets"><button type="button" class="linkbtn" data-challenge-template="distance">Monthly distance</button><button type="button" class="linkbtn" data-challenge-template="active_days">Weekly active days</button></div>');

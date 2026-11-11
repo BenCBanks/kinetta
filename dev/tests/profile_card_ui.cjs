@@ -53,16 +53,19 @@ async function weeklyCardChecks(p,size){
  assert.equal(await card.locator('[data-week-label] span').innerText(),'This week','Me starts on the current week');
  assert.equal(await card.locator('.me-week-streak').getAttribute('aria-label'),'12-week activity streak. Only you can see this.','the owner-only streak is labelled');
 }
-async function milestoneChecks(p){
+async function milestoneChecks(p,shareArtRequests){
  const row=p.locator('.me-card .me-milestone-row');await row.waitFor();assert.equal(await row.count(),1,'one compact milestone row');assert.equal((await row.locator('.me-milestone-latest > span:not(.vh)').innerText()).trim(),'First 5K','latest occurrence leads without a second privacy label');assert.doesNotMatch(await row.locator('.me-milestone-latest').innerText(),/Only you/,'the milestone row omits privacy noise while the share sheet keeps its Only me reminder');assert.equal(await row.locator('.me-milestone-all').innerText(),'Recent milestones','the separate milestone list is named so it cannot read as another achievement entry');assert((await row.boundingBox()).height<=55,'one quiet line including its separator');
- await row.locator('.me-milestone-latest').click();await p.locator('[data-unified-share]').waitFor();await until(p,()=>document.querySelector('[data-share-image="0"]')?.naturalWidth>0,'milestone share picture');assert(!(await p.locator('[data-share-control=identity]').isChecked()),'identity remains off');assert.match(await p.locator('[data-share-note]').innerText(),/Only me/,'Only-me sharing reminder retained');await p.keyboard.press('Escape');
+ assert.equal(shareArtRequests.length,0,'Me and its milestone row keep the picture leaf cold');await row.locator('.me-milestone-latest').click();await p.locator('[data-unified-share]').waitFor();await until(p,()=>document.querySelector('[data-share-image="0"]')?.naturalWidth>0,'milestone share picture');assert.equal(shareArtRequests.length,1,'the first explicit milestone action loads the shared picture leaf');assert(!(await p.locator('[data-share-control=identity]').isChecked()),'identity remains off');assert.match(await p.locator('[data-share-note]').innerText(),/Only me/,'Only-me sharing reminder retained');await p.keyboard.press('Escape');
  await row.locator('.me-milestone-all').click();await p.locator('.sheet').getByRole('heading',{name:'Recent milestones',exact:true}).waitFor();assert.equal(await p.locator('[data-milestone]').count(),2,'Recent milestones opens its own list');await p.locator('[data-milestone]').last().click();await until(p,()=>document.querySelector('[data-share-image="0"]')?.naturalWidth>0,'another offer share picture');await p.keyboard.press('Escape');
  await p.goto(base+'/me/milestones');await p.waitForURL('**/me');await until(p,()=>App.pageReady,'legacy milestone link returns ready Me');await p.locator('.me-card-sections[aria-busy=false]').waitFor();
 }
+const shareLeafOnly=process.env.KINETTA_PROFILE_SHARE_LEAF_ONLY==='1';
+const focusedOnly=unitsOnly||compositionOnly||profileClockOnly||shareLeafOnly;
 (async()=>{const b=await chromium.launch();const l=await b.newContext();await l.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});const st=await l.storageState();
- const sizes=unitsOnly||compositionOnly||profileClockOnly?[{width:390,height:844,root:16}]:[{width:320,height:667,root:16},{width:330,height:844,root:16},{width:390,height:844,root:16},{width:430,height:932,root:16},{width:600,height:900,root:16,locale:'fr-FR'}];
- for(const size of sizes)for(const theme of unitsOnly||compositionOnly||profileClockOnly?['light']:['light','dark']){
- const c=await b.newContext({storageState:st,viewport:{width:size.width,height:size.height},locale:size.locale||'en-US',colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:SCREENSHOT_CLOCK.timezone}),p=await c.newPage(),errors=[],writes=[],unitWrites=[],unitStatuses=[],meReads=[];
+ const sizes=focusedOnly?[{width:390,height:844,root:16}]:[{width:320,height:667,root:16},{width:330,height:844,root:16},{width:390,height:844,root:16},{width:430,height:932,root:16},{width:600,height:900,root:16,locale:'fr-FR'}];
+ for(const size of sizes)for(const theme of focusedOnly?['light']:['light','dark']){
+ const c=await b.newContext({storageState:st,viewport:{width:size.width,height:size.height},locale:size.locale||'en-US',colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:SCREENSHOT_CLOCK.timezone}),p=await c.newPage(),errors=[],writes=[],unitWrites=[],unitStatuses=[],meReads=[],shareArtRequests=[];
+ p.on('request',request=>{if(new URL(request.url()).pathname==='/static/share-art.js')shareArtRequests.push(request.url());});
  await p.clock.setFixedTime(SCREENSHOT_NOW); // Freeze Date while Playwright's timers and performance clock remain live.
  let cardState='heavy',cardLayout=null,profileHidden=false,refuseOwnerProfile=false,failUnits=false,expectedUnitFailure=false,meReadSequence=0;const blocked=new Set(),previewReads=[],statsReads=[],ownerAchievementReads=[],sharedAchievementReads=[];
  p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.text()==='Service Worker registration blocked by Playwright'||m.text()==='Failed to load resource: net::ERR_FAILED'&&blocked.has(m.location().url)||expectedUnitFailure&&m.type()==='error'&&/^Failed to load resource: the server responded with a status of 503\b/.test(m.text()))return;if(['error','warning'].includes(m.type()))errors.push(m.text()+' ('+m.location().url+')')});
@@ -141,7 +144,7 @@ async function milestoneChecks(p){
   assert.equal(statsReads.length,previewStats,'View-as-friend never fetches owner weekly stats');assert.equal(ownerAchievementReads.length,previewOwnerAchievements,'View-as-friend never fetches owner achievement endpoints');assert(sharedAchievementReads.slice(previewSharedAchievements).some(url=>url.includes('login=alex')),'View-as-friend fetches the filtered shared achievement payload');
   assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${size.width}px friend preview has no page overflow`);await shot('profile-preview');if(out&&size.root===16&&(size.width===390||size.width===330)){fs.mkdirSync(out,{recursive:true});await preview.locator('.me-card').screenshot({path:`${out}/profile-preview-card-${size.width}-${size.root}-${theme}.png`,animations:'disabled'});}await p.keyboard.press('Escape');await previewSheet.waitFor({state:'detached'});
  }
- await milestoneChecks(p);
+ await milestoneChecks(p,shareArtRequests);
  if(out&&(size.width===330||size.width===390)&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.locator('.me-card').screenshot({path:`${out}/me-card-recent-milestones-${size.width}-${theme}.png`,animations:'disabled'});}
  if(size.width===390)await require('./milestone_picture_ui.cjs')(p,theme,out);
  await p.waitForSelector('.me-insights',{timeout:15000});
@@ -192,6 +195,7 @@ async function milestoneChecks(p){
  assert.doesNotMatch(await share.innerText(),/PRIVATE-ONLY|See what others see|Previewing as|View full profile/);if(size.width===390)await shot('profile-share-sheet');
  await p.keyboard.press('Escape');await share.waitFor({state:'detached'}).catch(()=>{});
  profileHidden=true;const visibilityCheck=p.waitForResponse(response=>{const url=new URL(response.url());return url.pathname==='/api/people/alex/profile'&&url.searchParams.get('preview')==='member';});await p.locator('[data-card-share]').click();await visibilityCheck;assert.equal(await p.locator('[data-unified-share]').count(),0,'a hidden profile cannot open picture sharing');profileHidden=false;
+ if(shareLeafOnly){assert.deepEqual(errors,[]);console.log('Profile share leaf 390/light: cold Me, first-action loader, milestone picture and owner Share PASS');await c.close();await b.close();return;}
  // Edit happens in place on the card, exactly as on Me; Cancel leaves everything as it was.
  await p.locator('[data-card-edit]').click();await p.waitForSelector('#person-profile .me-card.editing');
  assert.equal(await p.locator('#person-activities').evaluate(n=>!!n.closest('[inert]')),true,'activities dimmed while editing');

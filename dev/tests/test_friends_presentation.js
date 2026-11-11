@@ -12,7 +12,7 @@ console.log('Find friends presentation: discovery-only shell, escaped request na
 
 assert(!shell.includes('href="/me/challenges"'),'Challenge navigation belongs to Home; Invite remains on Find friends');
 const challengeRoutes=[];c.route=(pattern,tab)=>challengeRoutes.push({pattern,tab});
-vm.runInContext(fs.readFileSync('app/static/challenges.js','utf8')+'\nglobalThis.challengeUI=Challenges;',c);
+vm.runInContext(fs.readFileSync('app/static/challenge-summary.js','utf8')+'\n'+fs.readFileSync('app/static/challenges.js','utf8')+'\nglobalThis.challengeUI=Challenges;',c);
 const challenge=(code,days,extra={})=>({code,member:true,target:4,unit:'days',self:{value:2,days_left:days,finished:false},...extra});
 assert.equal(c.challengeUI.summary([]),null);
 assert.equal(c.challengeUI.summary([challenge('left',1,{member:false}),challenge('done',0,{self:{finished:true}})]),null);

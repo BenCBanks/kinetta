@@ -49,9 +49,47 @@ function foodChatPhotoCache(){
   };
 }
 
+// Own-food suggestions are optional. Keep the composer responsive while their
+// leaf loads, and initialize it only for a current qualifying query.
+function foodThreadReuseLoader({ctx,field,active,create,load=loadClassicScript,path=()=>location.pathname}){
+  let chips=null,loading=null,disposed=false;
+  const enough=()=>String(field.value||'').trim().length>=2;
+  const current=()=>!disposed&&active()&&!!ctx.el?.isConnected&&field.isConnected;
+  const ensure=()=>{
+    if(chips)return Promise.resolve(chips);
+    if(loading)return loading;
+    if(!current()||!enough())return Promise.resolve(null);
+    const owner=ctx.owner,session=ctx.session,route=path();
+    loading=(async()=>{
+      try{await load('/static/food-reuse.js?v=__ASSET_HASH__');}catch(_){return null;}
+      if(chips)return chips;
+      if(!current()||ctx.owner!==owner||ctx.session!==session||path()!==route||!enough())return null;
+      const latest=String(field.value||'').trim();
+      try{chips=create(latest);return chips;}catch(_){return null;}
+    })().finally(()=>{loading=null;});
+    return loading;
+  };
+  const onInput=()=>{if(enough())void ensure();};
+  field.addEventListener('input',onInput);
+  if(enough())void ensure(); // Restore suggestions for a qualifying saved draft.
+  return {
+    refresh:()=>chips?chips.refresh():ensure(),
+    clear:()=>chips?.clear(),
+    dispose(){disposed=true;field.removeEventListener('input',onInput);chips?.dispose();},
+  };
+}
+
 const FoodThread = (() => {
   let current = null, privacyEpoch = 0, pendingNativeMountRetry = null;
+  const FOOD_NUTRITION_ASSET='/static/food-nutrition.js?v=__ASSET_HASH__';
   const photos=foodChatPhotoCache();
+  function prepare(){
+    if(typeof FoodNutrition!=='undefined')return Promise.resolve();
+    if(typeof loadClassicScript!=='function')return Promise.reject(Error('Nutrition could not load. Check your connection and try again.'));
+    return loadClassicScript(FOOD_NUTRITION_ASSET).then(()=>{
+      if(typeof FoodNutrition==='undefined')throw Error('Nutrition could not load. Check your connection and try again.');
+    });
+  }
   const ownerKey = () => App.me ? JSON.stringify([Native.base || location.origin, App.me.id]) : null;
   const uuid = () => { if(crypto.randomUUID)return crypto.randomUUID();const b=crypto.getRandomValues(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=[...b].map(n=>n.toString(16).padStart(2,'0')).join('');return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`; };
   const cacheKey = owner => 'fit.thread.history:'+owner;
@@ -396,6 +434,14 @@ const FoodThread = (() => {
     const requestState={draftId:ctx.draftId,meal:ctx.meal,day:ctx.day,session:ctx.session};
     ctx.preparingReview=true;primary(ctx);
     try {
+      try {
+        await loadClassicScript('/static/food-review.js?v=__ASSET_HASH__');
+      } catch(error) {
+        if(active(ctx))status(ctx,'Food review could not load. Check your connection and try again.');
+        return;
+      }
+      if(!active(ctx)||ctx.draftId!==requestState.draftId||ctx.meal!==requestState.meal||ctx.day!==requestState.day||ctx.session!==requestState.session)return;
+      if(pendingReview()){status(ctx,'Finish the food details before reviewing.');return;}
       await FoodReview.open({done:result=>{if(!result.queued&&active(ctx)){const typed=$('#thread-text',ctx.el).value;saveDraft(ctx,typed);saveReviewDraft(ctx,hasDraftWork(ctx));ctx.chatView?.resize();}},notifySuccess:(message,result,reviewMessageId)=>{if(!result?.queued&&(message.startsWith('Added to ')||message==='Recipe saved and added to your log')){const where=message.startsWith('Added to ')?message.slice('Added to '.length):MEAL_NAMES[requestState.meal]||'your log';toast(`Added to ${where} ·`,()=>undoLogged(ctx,[reviewMessageId]));}else toast(message);},messages:state.ids,selection:state.selections,expectedFoods:state.foods,quickConfirm,draftId:requestState.draftId,meal:requestState.meal,day:requestState.day,session:requestState.session,current:()=>ctx.draftId===requestState.draftId&&ctx.meal===requestState.meal&&ctx.day===requestState.day&&ctx.session===requestState.session,location:()=>ctx.meal===requestState.meal&&ctx.day===requestState.day&&ctx.session===requestState.session,saveRecipe,draftForm:ctx.reviewForm,rememberForm:form=>{ctx.reviewForm=form;saveReviewDraft(ctx,true);},active:()=>active(ctx),accept:data=>merge(ctx.owner,data)});
     } finally {ctx.preparingReview=false;primary(ctx);}
   }
@@ -690,7 +736,10 @@ const FoodThread = (() => {
       saveReviewDraft(ctx,false);$('#thread-text',ctx.el).value='';ctx.chatView?.resize();draw(ctx);done();toast('Chat cleared');}
     catch(e){toast(e.message);}};});
   }
-  function page(el,{day,meal}={}){
+  async function page(el,{day,meal}={}){
+    const requestedOwner=ownerKey(),requestedSession=readOwner(),requestedLocation=location.pathname+location.search;
+    await prepare();
+    if(requestedOwner!==ownerKey()||requestedSession!==readOwner()||requestedLocation!==location.pathname+location.search||!el.isConnected)return;
     if(current){current.removeEvents?.abort();current.chatView?.dispose();clearTimeout(current.removeNoticeTimer);}
     if(new URLSearchParams(location.search).get('save')==='1'){el.innerHTML=`<header class="thread-heading">${backBtn('My Recipes')}<h1>Create recipe</h1></header><button type="button" class="primary wide" id="recipe-start">Create recipe</button>`;wireBack(el,'/food/meals');const button=$('#recipe-start',el);button.onclick=()=>newDish(button);newDish(button);return;}
     const owner=ownerKey(),resume=store.get(reviewDraftKey(owner)),resumeId=typeof resume==='string'?resume:resume?.id,localTimeZone=deviceTimeZone(),profileTimeZone=App.me?.tz||localTimeZone,hasDay=/^\d{4}-\d{2}-\d{2}$/.test(day),hasMeal=Object.hasOwn(MEAL_NAMES,meal),cached=store.get(cacheKey(owner)),resumeContext=store.get(contextKey(owner)),unsent=String(store.get(draftKey(owner))||'').trim(),cachedWork=Array.isArray(cached)&&cached.some(m=>m.kind==='user'&&m.result?.draft_id===resumeId),resumeActive=!!resume&&(resume.active===true||!!resume.form||!!resumeContext||!!unsent||cachedWork),resumeHasDay=/^\d{4}-\d{2}-\d{2}$/.test(resume?.day),resumeExplicitDay=resume?.explicitDay===true&&resumeHasDay,resumeExplicitActive=resumeActive&&resumeExplicitDay,initialDay=hasDay?day:resumeExplicitActive?resume.day:isoDay(new Date(),localTimeZone),historyDay=hasDay||resumeExplicitActive?initialDay:(initialDay>isoDay(new Date(),profileTimeZone)?initialDay:isoDay(new Date(),profileTimeZone)),ctx={el,owner,day:initialDay,historyDay,meal:hasMeal?meal:resumeExplicitActive&&Object.hasOwn(MEAL_NAMES,resume?.meal)?resume.meal:guessMeal(localTimeZone),explicitDay:hasDay||resumeExplicitActive,session:readOwner(),draftId:resumeActive&&resumeId||uuid(),saveRecipe:new URLSearchParams(location.search).get('save')==='1',reviewForm:resumeActive?resume?.form||null:null,messages:[],visibleClients:new Set(),context:resumeActive?resumeContext:null,jobs:[],before:null,follow:false,initial:true,epoch:0,readVersion:0,removeEvents:new AbortController(),resumeId};current=ctx;saveReviewDraft(ctx,resumeActive);
@@ -724,7 +773,7 @@ const FoodThread = (() => {
     anotherBox.setAttribute('role','group');anotherBox.setAttribute('aria-label','Repeat a recent food');
     $('.thread-compose-row',el).before(anotherBox);ctx.anotherBox=anotherBox;
     $('.thread-compose-row',el).before($('#thread-remove-notice',el));
-    ctx.reuseChips=foodReuseChips({box:reuseBox,field,live:()=>active(ctx),choose:item=>reuse(ctx,item),day:()=>ctx.historyDay,excluded:()=>{const current=held(ctx).foods.map(e=>e.name),last=[...ctx.messages].reverse().find(m=>m.kind==='reply'&&m.result?.kind==='log'&&m.entries?.length);return [...current,...(last?.entries.map(e=>e.name)||[])];}});
+    ctx.reuseChips=foodThreadReuseLoader({ctx,field,active:()=>active(ctx),create:()=>foodReuseChips({box:reuseBox,field,live:()=>active(ctx),choose:item=>reuse(ctx,item),day:()=>ctx.historyDay,excluded:()=>{const current=held(ctx).foods.map(e=>e.name),last=[...ctx.messages].reverse().find(m=>m.kind==='reply'&&m.result?.kind==='log'&&m.entries?.length);return [...current,...(last?.entries.map(e=>e.name)||[])];}})});
     ctx.nativeEntries=(store.get(nativeKey(owner))||[]).filter(x=>x&&x.at>Date.now()-86400000).slice(-100);
     let fitKey='';
     const grow=()=>{
@@ -821,5 +870,5 @@ const FoodThread = (() => {
   }
   async function pendingCount(){const owner=ownerKey();return owner?(await ThreadDB.list(owner)).length+(String(store.get(draftKey(owner))||'').trim()?1:0):0;}
   async function eraseDevice(){const owner=ownerKey();if(!owner)return;if(pendingNativeMountRetry?.owner===owner)pendingNativeMountRetry=null;privacyEpoch++;photos.clear(owner);const view=current;if(view?.owner===owner){view.messages=[];view.jobs=[];view.el.replaceChildren();current=null;}let failure;try{await ThreadDB.erase(owner);}catch(e){failure=e;}finally{let keys=[];try{keys=Object.keys(localStorage).filter(key=>key.startsWith('fit.kit.proposal:'+owner+':'));}catch(e){failure=failure||e;}for(const key of [...keys,cacheKey(owner),draftKey(owner),contextKey(owner),nativeKey(owner),reviewDraftKey(owner)]){try{localStorage.removeItem(key);}catch(e){failure=failure||e;}}}if(failure)throw failure;}
-  return {collecting:()=>!!current&&active(current)&&location.pathname==='/food/describe',stage,stageDish:(did,portion)=>stage([],{dish:{did,portion}}),review:options=>current&&review(current,options),page,eraseDevice,pendingCount,receiveNative,accept:data=>merge(ownerKey(),data),refresh:()=>current&&refresh(current),send,ownerKey,source};
+  return {collecting:()=>!!current&&active(current)&&location.pathname==='/food/describe',stage,stageDish:(did,portion)=>stage([],{dish:{did,portion}}),review:options=>current&&review(current,options),prepare,page,eraseDevice,pendingCount,receiveNative,accept:data=>merge(ownerKey(),data),refresh:()=>current&&refresh(current),send,ownerKey,source};
 })();

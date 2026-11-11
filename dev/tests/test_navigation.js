@@ -57,6 +57,12 @@ const app=fs.readFileSync('app/static/app.js','utf8');
  assert.equal(imports(eagerFood).length,0,'/food/import is removed from eager food.js');
  assert.equal(imports(deferredFood).length,1,'food-import.js registers exactly one import route');
  assert(!fs.readFileSync('app/static/index.html','utf8').includes('/static/food-import.js'), 'Food import module stays out of eager script tags');
+ const setupIndex=lazyRoutes.indexOf("{re: /^\\/food\\/setup$/"),genericFoodIndex=lazyRoutes.indexOf("{re: /^\\/food(?:\\/.*)?$/");
+ const setupRoute=setupIndex<0?'':lazyRoutes.slice(setupIndex,lazyRoutes.indexOf('\n',setupIndex));
+ assert(setupRoute,'Food setup has an exact lazy route before generic Food');
+ assert(setupRoute.indexOf('FOOD_ROUTE_ASSET')<setupRoute.indexOf("'/static/onboarding.js?v=__ASSET_HASH__'"),'Food globals load before onboarding');
+ assert(setupIndex<genericFoodIndex,'Food setup precedes the generic Food matcher');
+ assert(!fs.readFileSync('app/static/index.html','utf8').includes('/static/onboarding.js'),'onboarding is absent from eager script tags');
  console.log('navigation legacy URL contract: '+old.length+' previous destinations remain registered PASS');
 }
 // Progress now opens on cards, with a real back link and account-scoped discovery history.

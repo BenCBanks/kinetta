@@ -3,6 +3,8 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict');
 const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 const trackFixture=require('../demo/track_session.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798';
+const selectedCase=process.env.KINETTA_LAZY_CASE||'';
+if(selectedCase&&selectedCase!=='settings')throw new Error(`Unknown lazy-route case: ${selectedCase}`);
 const password='green teapot on the hill';
 const user='zz_test_explore_new';
 const meReady='.me-card-sections[aria-busy="false"]';
@@ -94,7 +96,7 @@ async function foodRouteFixture(browser,{hold=false,failFirst=false,instrument=f
  await page.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url());
   if(url.origin!==base)return route.abort();
-  if(['/static/food.js','/static/kit.js','/static/cook.js','/static/recipe-import.js'].includes(url.pathname)){
+  if(['/static/food.js','/static/kit.js','/static/cook.js','/static/recipe-import.js','/static/onboarding.js'].includes(url.pathname)){
    assets.push(url.pathname);
    const count=(attempts.get(url.pathname)||0)+1;attempts.set(url.pathname,count);
    if(url.pathname===failedPath&&count===1)return route.abort();
@@ -166,21 +168,143 @@ async function notificationFixture(browser,loginName=user,options={}){
   await page.clock.install({time:new Date('2026-11-05T12:00:00Z')});
   const routes=await notificationRoutes(context,options);return {context,page,errors,routes};
 }
-async function socialFixture(browser,{failFirst=false,idleGate=false}={}){
+async function socialFixture(browser,{failFirst=false,failFriendsFirst=false,idleGate=false}={}){
  const context=await fixtureContext(browser);await login(context);
- const page=await context.newPage(),assets=[],errors=[],writes=[];page.on('pageerror',error=>errors.push(error.message));
+ const page=await context.newPage(),assets=[],friendsAssets=[],routeAssets=[],errors=[],writes=[];page.on('pageerror',error=>errors.push(error.message));
  if(idleGate)await page.addInitScript(()=>{window.__socialIdleCallbacks=[];window.requestIdleCallback=callback=>{window.__socialIdleCallbacks.push(callback);return window.__socialIdleCallbacks.length;};window.cancelIdleCallback=()=>{};});
  await page.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
   if(url.pathname==='/static/social.js'){
-   assets.push(url.pathname);if(failFirst&&assets.length===1)return route.abort();
+   assets.push(url.pathname);routeAssets.push(url.pathname);if(failFirst&&assets.length===1)return route.abort();
+  }
+  if(url.pathname==='/static/friends-ui.js'){
+   friendsAssets.push(url.pathname);routeAssets.push(url.pathname);if(failFriendsFirst&&friendsAssets.length===1)return route.abort();
   }
   if(url.pathname==='/api/notifications/count')return route.fulfill({json:{unread:3,friend_requests:2,friend_count:2}});
   if(request.method()==='POST'&&['/api/challenges/signup/continue','/api/milestones/celebrate'].includes(url.pathname))return route.fulfill({status:204,body:''});
   if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
   return route.continue();
  });
- return {context,page,assets,errors,writes};
+ return {context,page,assets,friendsAssets,routeAssets,errors,writes};
+}
+async function friendsLeafChecks(browser){
+ const me=await socialFixture(browser,{idleGate:true});
+ try{
+  await me.page.goto(base+'/me');await ready(me.page,meReady,'Me before FriendsUI route entry');
+  await me.page.waitForFunction(()=>window.__socialIdleCallbacks.length>0);
+  assert.deepEqual(me.friendsAssets,[],'FriendsUI is absent from the cold Me request sequence');
+  assert.equal(await me.page.evaluate(()=>typeof FriendsUI),'undefined','Me does not evaluate the FriendsUI leaf');
+  const routing=await me.page.evaluate(()=>['/me/friends','/me/friends/contacts','/me/groups'].map(path=>{
+   const bundle=lazyRouteBundles.find(item=>item.re.test(path));
+   return [path,!!bundle&&bundle.scripts.includes(FRIENDS_UI_ASSET)];
+  }));
+  assert.deepEqual(routing,[['/me/friends',true],['/me/friends/contacts',false],['/me/groups',false]],'only the Friends page route owns the FriendsUI leaf');
+  await me.page.goto(base+'/me/friends/contacts');await ready(me.page,'#contacts-not-now','direct Contacts route without FriendsUI');
+  assert.deepEqual(me.friendsAssets,[],'Contacts loads without requesting FriendsUI');
+  assert.equal(await me.page.evaluate(()=>typeof ContactsUI),'object','ContactsUI remains available on its existing eager path');
+  assert.deepEqual(me.writes,[],'opening Contacts did not trigger a write before its explicit action');
+  assert.deepEqual(me.errors,[]);
+ }finally{await me.context.close();}
+
+ const retry=await socialFixture(browser,{failFriendsFirst:true});
+ try{
+  await retry.page.goto(base+'/me/friends?find=1',{waitUntil:'domcontentloaded'});await retry.page.locator('.load-error').waitFor();
+  assert.deepEqual(retry.routeAssets,['/static/social.js','/static/friends-ui.js'],'direct Friends loads Social before its dependent UI leaf');
+  await retry.page.locator('#retry').click();await ready(retry.page,'#fr-invite','Friends after leaf retry');
+  assert.equal(new URL(retry.page.url()).pathname,'/me/friends','retry preserves the direct Friends route');
+  assert.deepEqual(retry.routeAssets,['/static/social.js','/static/friends-ui.js','/static/friends-ui.js'],'failed FriendsUI load retries without reloading Social');
+  assert.deepEqual(retry.friendsAssets,['/static/friends-ui.js','/static/friends-ui.js']);
+  assert.equal(await retry.page.evaluate(()=>typeof FriendsUI),'object');
+  assert.equal(await retry.page.locator('#fr-find input').count(),1,'Find friends search remains available after route load');
+  assert.equal(await retry.page.locator('#fr-invite').count(),1,'Invite action remains available after route load');
+  assert.deepEqual(retry.errors,[]);assert.deepEqual(retry.writes,[],'loading and retrying Friends performs no writes');
+ }finally{await retry.context.close();}
+}
+async function contactsFixture(browser,{failFirst=false,idleGate=false}={}){
+ const context=await fixtureContext(browser);await login(context);
+ const page=await context.newPage(),assets=[],errors=[],writes=[],external=[],signupContinues=[];let contactsAttempts=0;
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.addInitScript(()=>{
+  window.__contactsPluginCalls=[];
+  const plugin=new Proxy({}, {get:(_target,name)=> (...args)=>{window.__contactsPluginCalls.push(String(name));return Promise.reject(new Error('blocked test bridge'));}});
+  window.Capacitor={isNativePlatform:()=>false,getPlatform:()=> 'ios',Plugins:{KinettaContacts:plugin}};
+ });
+ if(idleGate)await page.addInitScript(()=>{window.__contactsIdleCallbacks=[];window.requestIdleCallback=callback=>{window.__contactsIdleCallbacks.push(callback);return window.__contactsIdleCallbacks.length;};window.cancelIdleCallback=()=>{};});
+ await page.route('**/*',async route=>{
+  const request=route.request(),url=new URL(request.url());
+  if(url.origin!==base){external.push(url.href);return route.abort();}
+  if(['/static/social.js','/static/contacts-ui.js','/static/segments.js','/static/welcome.js'].includes(url.pathname)){
+   assets.push(url.pathname);
+   if(url.pathname==='/static/contacts-ui.js'&&++contactsAttempts===1&&failFirst)return route.abort();
+  }
+  if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue'){
+   signupContinues.push(url.pathname);return route.fulfill({status:204});
+  }
+  if(url.pathname==='/api/notifications/count')return route.fulfill({json:{unread:3,friend_requests:2,friend_count:2}});
+  if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
+  return route.continue();
+ });
+ return {context,page,assets,errors,writes,external,signupContinues,nativeCalls:()=>page.evaluate(()=>window.__contactsPluginCalls)};
+}
+async function contactsCases(browser,{includeColdMe=true}={}){
+  const signupContinuationStubs=[];
+  if(includeColdMe){
+  const contactsMe=await contactsFixture(browser,{idleGate:true});
+  try{
+    await contactsMe.page.goto(base+'/me');await ready(contactsMe.page,meReady,'Me before ContactsUI route use');
+    await contactsMe.page.waitForFunction(()=>window.__contactsIdleCallbacks.length>0);
+    assert.equal(await contactsMe.page.evaluate(()=>typeof ContactsUI),'undefined','cold Me has no eager ContactsUI');
+    assert(!contactsMe.assets.includes('/static/contacts-ui.js'),'cold Me did not request ContactsUI');
+    await contactsMe.page.evaluate(()=>window.__contactsIdleCallbacks.splice(0).forEach(callback=>callback({didTimeout:false,timeRemaining:()=>50})));
+    await contactsMe.page.waitForFunction(()=>typeof Social==='object');
+    await contactsMe.page.waitForFunction(()=>App.me.notifications===3&&App.me.friend_requests===2,null,{timeout:8000});
+    assert(contactsMe.assets.includes('/static/social.js'),'scheduled Social warmup still runs');
+    assert(!contactsMe.assets.includes('/static/contacts-ui.js'),'released Social warmup does not load ContactsUI');
+    assert.equal(await contactsMe.page.evaluate(()=>typeof ContactsUI),'undefined','ContactsUI stays absent after Social refresh');
+    assert.deepEqual(contactsMe.errors,[]);assert.deepEqual(contactsMe.writes,[]);assert.deepEqual(contactsMe.external,[]);assert.deepEqual(await contactsMe.nativeCalls(),[]);
+    signupContinuationStubs.push(...contactsMe.signupContinues);
+  }finally{await contactsMe.context.close();}
+  }
+
+  const contactsRoutes=[
+    {path:'/welcome?step=workouts',selector:'.contacts-welcome-link',scripts:['/static/contacts-ui.js','/static/welcome.js'],label:'Welcome Workouts Contacts link'},
+    {path:'/me/friends?find=1',selector:'#contacts-entry',scripts:['/static/social.js','/static/contacts-ui.js'],label:'Friends contacts entry'},
+    {path:'/me/friends/contacts',selector:'.contacts-intro',scripts:['/static/social.js','/static/contacts-ui.js'],label:'Contacts intro'},
+    {path:'/me/sharing',selector:'#contacts-cache-remove',scripts:['/static/social.js','/static/contacts-ui.js','/static/segments.js'],label:'Sharing contacts removal'},
+  ];
+  for(const routeCase of contactsRoutes){
+    const fixture=await contactsFixture(browser);
+    try{
+      await fixture.page.goto(base+routeCase.path,{waitUntil:'domcontentloaded'});await ready(fixture.page,routeCase.selector,routeCase.label);
+      assert.deepEqual(fixture.assets,routeCase.scripts,`${routeCase.path} requests only ordered caller dependencies`);
+      if(routeCase.path.startsWith('/welcome')){
+        const contactsLink=fixture.page.locator('.contacts-welcome-link');
+        await fixture.page.locator("details").filter({has:contactsLink}).locator('summary').click();
+        await contactsLink.waitFor({state:'visible'});
+        assert.match(await contactsLink.innerText(),/Find friends with contacts/);
+      }
+      if(routeCase.path.startsWith('/me/friends?'))assert.match(await fixture.page.locator('#contacts-entry').innerText(),/Find friends with contacts/);
+      if(routeCase.path==='/me/friends/contacts')assert(await fixture.page.locator('.contacts-intro').innerText().then(text=>text.includes('See which of your contacts use Kinetta')));
+      if(routeCase.path==='/me/sharing')assert.match(await fixture.page.locator('#contacts-cache-remove').innerText(),/Remove my contacts/);
+      assert.deepEqual(fixture.errors,[],`${routeCase.path} mounts without browser errors`);
+      assert.deepEqual(fixture.writes,[],`${routeCase.path} performs no unexpected writes`);
+      assert.deepEqual(fixture.external,[],`${routeCase.path} makes no external requests`);
+      assert.deepEqual(await fixture.nativeCalls(),[],`${routeCase.path} makes no Native Contacts calls`);
+      signupContinuationStubs.push(...fixture.signupContinues);
+    }finally{await fixture.context.close();}
+  }
+
+  const contactsRetry=await contactsFixture(browser,{failFirst:true});
+  try{
+    await contactsRetry.page.goto(base+'/me/friends/contacts',{waitUntil:'domcontentloaded'});await contactsRetry.page.locator('.load-error').waitFor();
+    assert.deepEqual(contactsRetry.assets,['/static/social.js','/static/contacts-ui.js'],'Contacts failure follows one successful Social load');
+    assert(await contactsRetry.page.locator('#retry').isVisible(),'failed ContactsUI route offers explicit retry');
+    await contactsRetry.page.locator('#retry').click();await ready(contactsRetry.page,'.contacts-intro','Contacts route after explicit retry');
+    assert.deepEqual(contactsRetry.assets,['/static/social.js','/static/contacts-ui.js','/static/contacts-ui.js'],'retry requests only the failed ContactsUI leaf');
+    assert.deepEqual(contactsRetry.errors,[]);assert.deepEqual(contactsRetry.writes,[]);assert.deepEqual(contactsRetry.external,[]);assert.deepEqual(await contactsRetry.nativeCalls(),[]);
+    signupContinuationStubs.push(...contactsRetry.signupContinues);
+  }finally{await contactsRetry.context.close();}
+  console.log(`ContactsUI ${includeColdMe?'cold Me plus ':''}four ordered callers and retry with no Native/write/external actions PASS; ${signupContinuationStubs.length} established signup continuation requests were locally fulfilled with 204`);
 }
 async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
  const context=await fixtureContext(browser);await login(context,loginName);
@@ -235,6 +359,113 @@ async function getAppLogoutFixture(browser){
  });
  return{context,page,assets,errors,ownKey,foreignKey,ownValue,foreignValue};
 }
+async function settingsRouteFixture(browser,{failFirst=false,hold=false,instrument=false,idleGate=false,loginName=user,mailReady=false}={}){
+ const context=await fixtureContext(browser);await login(context,loginName);
+ const page=await context.newPage(),assets=[],errors=[],writes=[];let heldOnce=false,releaseHeld=()=>{},signalHeld=()=>{},finishHeld=()=>{};
+ const gate=new Promise(resolve=>{releaseHeld=resolve;}),held=new Promise(resolve=>{signalHeld=resolve;}),done=new Promise(resolve=>{finishHeld=resolve;});
+ page.on('pageerror',error=>errors.push(error.message));
+ if(idleGate)await page.addInitScript(()=>{window.__settingsIdleCallbacks=[];let id=0;window.requestIdleCallback=callback=>{window.__settingsIdleCallbacks.push(callback);return ++id;};window.cancelIdleCallback=()=>{};});
+ await page.route('**/*',async route=>{
+  const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
+  if(url.pathname==='/static/settings-route.js'){
+   assets.push(url.href);if(failFirst&&assets.length===1)return route.abort();
+   if(hold&&!heldOnce){heldOnce=true;signalHeld();const response=await route.fetch(),source=await response.text();await gate;
+    const probe=instrument?`\n;(()=>{const entry=App.pages.find(page=>page.re.test('/me/settings'));const original=entry.fn;window.__settingsOwners=[];entry.fn=(...args)=>{window.__settingsOwners.push(App.me.login);return original(...args);};})();`:'';
+    await route.fulfill({response,body:source+probe});finishHeld();return;
+   }
+   return route.continue();
+  }
+  if(mailReady&&request.method()==='GET'&&url.pathname==='/api/me'){
+   const response=await route.fetch(),profile=await response.json();
+   return route.fulfill({response,json:{...profile,mail_ready:true}});
+  }
+  if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204,body:''});
+  if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
+  return route.continue();
+ });
+ return {context,page,assets,errors,writes,held,done,release:()=>releaseHeld()};
+}
+function assertSettingsAsset(assets,label){
+ assert.equal(assets.length,1,`${label} loads one Settings asset`);
+ const url=new URL(assets[0]);assert.equal(url.pathname,'/static/settings-route.js',`${label} loads the Settings route leaf`);
+ assert.match(url.searchParams.get('v')||'',/^[0-9a-f]{32}$/,`${label} uses the stamped asset URL`);
+}
+async function settingsRouteCase(browser){
+ const cold=await settingsRouteFixture(browser,{idleGate:true});
+ try{
+  await cold.page.goto(base+'/me');await ready(cold.page,meReady,'Me before Settings is requested');
+  await cold.page.waitForFunction(()=>window.__settingsIdleCallbacks.length>0);
+  await cold.page.evaluate(()=>window.__settingsIdleCallbacks.splice(0).forEach(callback=>callback({didTimeout:false,timeRemaining:()=>50})));
+  assert.deepEqual(cold.assets,[],'Me and its ordinary idle warmups do not request the Settings leaf');
+  assert.equal(await cold.page.locator('script[src*="/static/settings-route.js"]').count(),0,'Me has no eager Settings script tag');
+  assert.equal(await cold.page.evaluate(()=>App.pages.some(item=>item.re.test('/me/settings'))),false,'Settings is not registered before its route is opened');
+  assert.deepEqual(cold.errors,[]);assert.deepEqual(cold.writes,[]);
+ }finally{await cold.context.close();}
+
+ for(const [path,selector,label,options={}] of [
+  ['/me/settings','.me-settings','direct Settings'],
+  ['/me/settings?setup=body','#m-form','body setup deep link'],
+  ['/me?setup=body','#m-form','Me body setup redirect'],
+  ['/me/settings?email=add','#em','email add deep link',{mailReady:true}],
+  ['/me/settings#ai','#kit-settings-panel','Kit settings hash deep link'],
+ ]){
+  const fixture=await settingsRouteFixture(browser,options);
+  try{
+   await fixture.page.goto(base+path,{waitUntil:'domcontentloaded'});await ready(fixture.page,'.me-settings',`${label} Settings route`);await fixture.page.locator(selector).waitFor();
+   assert.equal(new URL(fixture.page.url()).pathname,'/me/settings',`${label} resolves to Settings`);
+   if(path.includes('?')||path.includes('#'))assert.equal(new URL(fixture.page.url()).search+new URL(fixture.page.url()).hash,'',`${label} normalizes the consumed query/hash`);
+   assertSettingsAsset(fixture.assets,label);assert.deepEqual(fixture.errors,[],`${label} has no page errors`);assert.deepEqual(fixture.writes,[],`${label} performs no writes`);
+  }finally{await fixture.context.close();}
+ }
+
+ const unavailableMail=await settingsRouteFixture(browser);
+ try{
+  await unavailableMail.page.goto(base+'/me/settings?email=add',{waitUntil:'domcontentloaded'});
+  await ready(unavailableMail.page,'.me-settings','Settings with email unavailable');
+  const emailNotice=unavailableMail.page.locator('.scrim [role="dialog"][aria-label="Email"]');
+  await emailNotice.waitFor();
+  assert.match(await emailNotice.textContent(),/Email isn’t set up on this Kinetta yet/,'unavailable email keeps its existing message');
+  assert.equal(await unavailableMail.page.locator('#em').count(),0,'unavailable email does not show the confirmation form');
+  assert.equal(new URL(unavailableMail.page.url()).search+new URL(unavailableMail.page.url()).hash,'','unavailable email deep link is consumed');
+  assert.equal(await unavailableMail.page.evaluate(()=>App.pageReady),true,'unavailable email route is ready');
+  assertSettingsAsset(unavailableMail.assets,'unavailable email');
+  assert.deepEqual(unavailableMail.errors,[]);assert.deepEqual(unavailableMail.writes,[]);
+ }finally{await unavailableMail.context.close();}
+
+ const retry=await settingsRouteFixture(browser,{failFirst:true});
+ try{
+  await retry.page.goto(base+'/me/settings',{waitUntil:'domcontentloaded'});await retry.page.locator('.load-error').waitFor();
+  assert.equal(new URL(retry.page.url()).pathname,'/me/settings','failed Settings load keeps the direct route');
+  await retry.page.locator('#retry').click();await ready(retry.page,'.me-settings','Settings after explicit retry');
+  assert.equal(retry.assets.length,2,'Settings retries its failed asset exactly once');assertSettingsAsset(retry.assets.slice(1),'Settings retry');
+  assert.deepEqual(retry.errors,[]);assert.deepEqual(retry.writes,[]);
+ }finally{await retry.context.close();}
+
+ const stalePath=await settingsRouteFixture(browser,{hold:true});
+ try{
+  await stalePath.page.goto(base+'/me/settings',{waitUntil:'domcontentloaded'});await stalePath.page.locator('.lazy-route-loading').waitFor();await stalePath.held;
+  const finished=stalePath.page.waitForEvent('requestfinished',request=>new URL(request.url()).pathname==='/static/settings-route.js');
+  await stalePath.page.evaluate(()=>go('/me'));await ready(stalePath.page,meReady,'Me while Settings is held');
+  stalePath.release();await finished;await stalePath.done;
+  await until(stalePath.page,()=>App.pageReady&&App.page.key==='/me'&&!!document.querySelector('.me-card-sections'),'settled Me after the Settings path changes');
+  assert.equal(new URL(stalePath.page.url()).pathname,'/me');assert.equal(await stalePath.page.locator('.me-settings').count(),0,'a late Settings load cannot replace newer Me navigation');
+  assert.deepEqual(stalePath.errors,[]);assert.deepEqual(stalePath.writes,[]);
+ }finally{stalePath.release();await stalePath.context.close();}
+
+ const staleOwner=await settingsRouteFixture(browser,{hold:true,instrument:true});
+ try{
+  await staleOwner.page.goto(base+'/me/settings',{waitUntil:'domcontentloaded'});await staleOwner.page.locator('.lazy-route-loading').waitFor();await staleOwner.held;
+  await login(staleOwner.context,'zz_test_explore_typical');
+  const response=await staleOwner.context.request.get(base+'/api/me');assert.equal(response.status(),200,'second fictional account profile loads');
+  await staleOwner.page.evaluate(profile=>refreshMe(profile),await response.json());
+  await until(staleOwner.page,()=>App.me.login==='zz_test_explore_typical'&&!!document.querySelector('.lazy-route-loading'),'new owner holds the pending Settings shell');
+  const finished=staleOwner.page.waitForEvent('requestfinished',request=>new URL(request.url()).pathname==='/static/settings-route.js');
+  staleOwner.release();await finished;await staleOwner.done;await ready(staleOwner.page,'.me-settings','Settings after owner change');
+  assert.deepEqual(await staleOwner.page.evaluate(()=>window.__settingsOwners),['zz_test_explore_typical'],'only the current owner reaches the Settings renderer');
+  assert.equal(staleOwner.assets.length,1,'owner change reuses the single in-flight stamped asset');
+  assert.deepEqual(staleOwner.errors,[]);assert.deepEqual(staleOwner.writes,[]);
+ }finally{staleOwner.release();await staleOwner.context.close();}
+}
 async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
  const context=await fixtureContext(browser);await login(context);
  const page=await context.newPage(),assets=[],errors=[],writes=[];let plannerAttempts=0;
@@ -257,12 +488,91 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
  });
  return {context,page,assets,errors,writes,activityId};
 }
+async function pushInvitationFixture(browser,{failFirst=false,hold=false}={}){
+ const context=await fixtureContext(browser);await login(context);
+ const page=await context.newPage(),assets=[],errors=[],writes=[],external=[];let heldOnce=false,releaseHeld=()=>{},signalHeld=()=>{},finishFailed=()=>{};
+ const gate=new Promise(resolve=>{releaseHeld=resolve;}),held=new Promise(resolve=>{signalHeld=resolve;}),failedFirst=new Promise(resolve=>{finishFailed=resolve;});
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.route('**/*',async route=>{
+  const request=route.request(),url=new URL(request.url());
+  if(url.origin!==base){external.push(url.origin);return route.abort();}
+  if(url.pathname==='/static/push-invitation.js'){
+   assets.push(url.href);
+   if(failFirst&&assets.length===1){finishFailed();return route.abort();}
+   if(hold&&!heldOnce){heldOnce=true;signalHeld();await gate;}
+   const response=await route.fetch(),body=await response.text();
+   await route.fulfill({response,body:body+'\n;window.__pushInvitationScriptEvaluations=(window.__pushInvitationScriptEvaluations||0)+1;window.__pushInvitationConsiderCalls=0;PushInvitation.consider=()=>{window.__pushInvitationConsiderCalls++;};'});
+   return;
+  }
+  if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204,body:''});
+  if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
+  return route.continue();
+ });
+ async function nativeStandIn(){
+  await page.evaluate(()=>{
+   if(window.Capacitor)throw new Error('test page unexpectedly has a native bridge');
+   window.__pushInvitationNativeCalls=0;Native.on=true;Native.base=location.origin;Native.token='fictional-native-session';Native.headers=()=>({});Native.pushNavigationReady=Promise.resolve();
+   for(const name of ['readPushInvitation','writePushInvitation','pushStatus','enablePush','openPushSettings'])Native[name]=async()=>{window.__pushInvitationNativeCalls++;throw new Error('native bridge disabled in fixture');};
+  });
+ }
+ const invoke=()=>page.evaluate(()=>loadPushInvitationForRoute(()=>true));
+ return {context,page,assets,errors,writes,external,held,failedFirst,release:()=>releaseHeld(),nativeStandIn,invoke};
+}
+async function pushInvitationBrowserProof(browser){
+ const cold=await pushInvitationFixture(browser);
+ try{
+  await cold.page.goto(base+'/me');await ready(cold.page,meReady,'cold web Me before push invitation');
+  assert.deepEqual(cold.assets,[],'cold web Me never requests the Native-only invitation module');
+  await cold.nativeStandIn();await cold.invoke();
+  await cold.page.waitForFunction(()=>window.__pushInvitationScriptEvaluations===1,null,{timeout:8000});
+  assert.equal(new URL(cold.assets[0]).searchParams.get('v')?.length,32,'eligible home loads the hash-stamped invitation asset');
+  await cold.page.waitForFunction(()=>window.__pushInvitationConsiderCalls===1,null,{timeout:5000});
+  assert.equal(cold.assets.length,1,'an eligible Native home loads the module once');
+  assert.deepEqual(cold.errors,[]);assert.deepEqual(cold.writes,[]);assert.deepEqual(cold.external,[]);
+  assert.equal(await cold.page.evaluate(()=>window.__pushInvitationNativeCalls),0,'fixture never calls bridge storage or permission APIs');
+ }finally{await cold.context.close();}
+
+ const stale=await pushInvitationFixture(browser,{hold:true});
+ try{
+  await stale.page.goto(base+'/me');await ready(stale.page,meReady,'Me before held Native invitation load');await stale.nativeStandIn();
+  await stale.invoke();await stale.held;
+  await stale.page.evaluate(()=>{App.me={...App.me,id:987654,login:'zz_test_stale_owner'};});
+  stale.release();await stale.page.waitForFunction(()=>window.__pushInvitationScriptEvaluations===1,null,{timeout:8000});
+  await stale.page.waitForTimeout(50);
+  assert.equal(await stale.page.evaluate(()=>window.__pushInvitationConsiderCalls),0,'held module completion for an old owner never calls consider');
+  assert.deepEqual(stale.errors,[]);assert.deepEqual(stale.writes,[]);assert.deepEqual(stale.external,[]);
+ }finally{stale.release();await stale.context.close();}
+
+ const retry=await pushInvitationFixture(browser,{failFirst:true});
+ try{
+  await retry.page.goto(base+'/me');await ready(retry.page,meReady,'Me before Native invitation retry');await retry.nativeStandIn();
+  await retry.invoke();await retry.failedFirst;await retry.page.waitForTimeout(50);await retry.invoke();
+  await retry.page.waitForFunction(()=>window.__pushInvitationScriptEvaluations===1,null,{timeout:8000});
+  await retry.page.waitForFunction(()=>window.__pushInvitationConsiderCalls===1,null,{timeout:5000});
+  assert.equal(retry.assets.length,2,'failed invitation asset is requested again on the next eligible route');
+  assert.deepEqual(retry.errors,[]);assert.deepEqual(retry.writes,[]);assert.deepEqual(retry.external,[]);
+  assert.equal(await retry.page.evaluate(()=>window.__pushInvitationNativeCalls),0,'retry remains a loader-only action with no bridge permission/storage calls');
+ }finally{await retry.context.close();}
+ console.log('Native push invitation loader: cold web absence, Native home demand load, stale-owner suppression and failed-load retry PASS');
+}
+const contactsOnly=process.env.KINETTA_LAZY_ROUTE_CASE==='contacts';
+const contactsCallersOnly=process.env.KINETTA_LAZY_ROUTE_CASE==='contacts-callers';
 (async()=>{const browser=await chromium.launch();try{
+  if(process.env.KINETTA_FRIENDS_LAZY_ONLY==='1'){
+    await friendsLeafChecks(browser);console.log('FriendsUI lazy leaf: cold Me, direct route order/retry and Contacts independence PASS');return;
+  }
+  if(process.env.KINETTA_LAZY_PUSH_INVITATION_ONLY==='1'){await pushInvitationBrowserProof(browser);return;}
+  if(contactsOnly){await contactsCases(browser);return;}
+  if(contactsCallersOnly){await contactsCases(browser,{includeColdMe:false});return;}
+  if(selectedCase==='settings'){await settingsRouteCase(browser);console.log('Settings lazy route: cold Me, direct/deep links, retry and stale path/owner PASS');return;}
+  await pushInvitationBrowserProof(browser);
+  await settingsRouteCase(browser);
   const socialMe=await socialFixture(browser,{idleGate:true});
   try{
     await socialMe.page.goto(base+'/me');await ready(socialMe.page,meReady,'Me without the social bundle');
     await socialMe.page.waitForFunction(()=>window.__socialIdleCallbacks.length>0);
     assert.deepEqual(socialMe.assets,[],'social.js does not delay the first useful Me screen');
+    assert.equal(await socialMe.page.evaluate(()=>performance.getEntriesByType('resource').some(item=>new URL(item.name).pathname==='/static/activity-detail.js')),false,'ActivityDetail is absent from cold Me');
     assert.equal(await socialMe.page.evaluate(()=>typeof Social),'undefined','Me renders before the social routes are loaded');
     assert.equal(await socialMe.page.evaluate(()=>typeof weeklyRecapShareItem),'function','the Me card share action can load its recap on first tap');
     assert.deepEqual(await socialMe.page.evaluate(()=>[typeof profileHref,friendCountText(0)]),['function','No friends yet'],'Me keeps its small profile-link and friend-count helpers eager');
@@ -272,6 +582,12 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
       '/group-invite/fictional-token','/me/sharing','/notifications','/me/notifications',
     ].map(path=>{const bundle=lazyRouteBundles.find(item=>item.re.test(path));return [path,!!bundle&&bundle.scripts.includes(SOCIAL_ROUTE_ASSET)];}));
     assert(mapped.every(([,included])=>included),`routes that render Social-owned icons or controls load social.js first: ${JSON.stringify(mapped)}`);
+    const detailDependencies=await socialMe.page.evaluate(()=>[
+      ['/activity/123',[SOCIAL_ROUTE_ASSET,SEGMENTS_ROUTE_ASSET,INTERVALS_ROUTE_ASSET,MEDIA_ROUTE_ASSET,ACTIVITY_DETAIL_ROUTE_ASSET]],
+      ['/activity/friends/123',[SOCIAL_ROUTE_ASSET,MEDIA_ROUTE_ASSET,ACTIVITY_DETAIL_ROUTE_ASSET]],
+    ].map(([path,expected])=>{const bundle=lazyRouteBundles.find(item=>item.re.test(path));return [path,bundle?.scripts.slice(0,expected.length),expected];}));
+    assert(detailDependencies.every(([,actual,expected])=>JSON.stringify(actual)===JSON.stringify(expected)),`own/shared ActivityDetail routes preserve ordered dependencies: ${JSON.stringify(detailDependencies)}`);
+    assert(detailDependencies.every(([,actual,expected])=>actual.indexOf(expected.at(-2))<actual.indexOf(expected.at(-1))),`Media loads before ActivityDetail on both detail routes: ${JSON.stringify(detailDependencies)}`);
     const unrelated=await socialMe.page.evaluate(()=>[
       '/me/challenges','/challenge/fictional-code','/food/recipe-link','/track/lift/42','/lift/ex/42',
     ].map(path=>{const bundle=lazyRouteBundles.find(item=>item.re.test(path));return [path,!!bundle&&bundle.scripts.includes(SOCIAL_ROUTE_ASSET)];}));
@@ -279,6 +595,8 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     await socialMe.page.evaluate(()=>window.__socialIdleCallbacks.splice(0).forEach(callback=>callback({didTimeout:false,timeRemaining:()=>50})));
     await socialMe.page.waitForFunction(()=>typeof Social==='object');
     assert.equal(socialMe.assets.length,1,'social.js warms after Me is useful');
+    assert.deepEqual(socialMe.friendsAssets,[],'the released Social warmup still does not load FriendsUI');
+    assert.equal(await socialMe.page.evaluate(()=>typeof FriendsUI),'undefined','Me remains FriendsUI-free after Social warmup');
     await socialMe.page.waitForFunction(()=>App.me.notifications===3&&App.me.friend_requests===2,null,{timeout:8000});
     assert.deepEqual(await socialMe.page.evaluate(()=>{
       const badge=document.querySelector('nav.tabs a[data-tab="me"] .tab-n');
@@ -311,6 +629,9 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     assert.equal(socialRetry.assets.length,2,'retry clears the failed promise and requests social.js again');
     assert.deepEqual(socialRetry.errors,[]);assert.deepEqual(socialRetry.writes,[]);
   }finally{await socialRetry.context.close();}
+
+  await friendsLeafChecks(browser);
+  await contactsCases(browser);
 
   const context=await fixtureContext(browser);
   try{
@@ -601,6 +922,9 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
   try{
     await foodWarm.page.goto(base+'/me');await ready(foodWarm.page,meReady,'Me before Food warm-up');
     assert.deepEqual(foodWarm.assets,[],'Food and Kit route bundles are absent before useful Me is ready');
+    assert.equal(foodWarm.assetAttempts('/static/onboarding.js'),0,'cold Me does not request the optional Food setup route');
+    assert.equal(await foodWarm.page.locator('script[src*="/static/onboarding.js"]').count(),0,'onboarding.js is not an eager script tag');
+    assert.equal(await foodWarm.page.evaluate(()=>App.pages.some(item=>item.re.test('/food/setup'))),false,'the setup route registers only when opened');
     assert.deepEqual(await foodWarm.page.evaluate(()=>[typeof kitFoodWords,typeof weightAddress,typeof refreshWeightData,typeof guardFoodSheet,typeof KitChat.href,KitChat.loaded]),['function','function','function','function','function',false],'small shared Food and Kit entry seams stay eager');
     await foodWarm.page.evaluate(()=>{window.__foodWarmCalls=0;const original=loadClassicScript;window.loadClassicScript=asset=>{if(asset===FOOD_ROUTE_ASSET)window.__foodWarmCalls++;return original(asset);};});
     const warmed=foodWarm.page.waitForRequest(request=>new URL(request.url()).pathname==='/static/food.js');
@@ -624,8 +948,36 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     await foodWarm.page.waitForFunction(()=>KitChat.loaded&&classicScriptsLoaded.has(KIT_ROUTE_ASSET));
     assert.equal(foodWarm.assets.filter(path=>path==='/static/food.js').length,1,'tab intent and idle deduplicate Food loading');
     assert.equal(foodWarm.assets.filter(path=>path==='/static/kit.js').length,1,'Kit loads after Me is ready, not on its initial path');
+    assert.equal(foodWarm.assetAttempts('/static/onboarding.js'),0,'opening Nutrition does not load the separate setup route');
     assert.equal(new URL(foodWarm.page.url()).pathname,'/food');assert.deepEqual(foodWarm.errors,[]);assert.deepEqual(foodWarm.writes,[]);
   }finally{foodWarm.release();await foodWarm.context.close();}
+
+  const onboardingDirect=await foodRouteFixture(browser);
+  try{
+    await onboardingDirect.page.goto(base+'/food/setup?source=me',{waitUntil:'domcontentloaded'});
+    await ready(onboardingDirect.page,'#gs-form','cold direct Food setup route');
+    assert.equal(new URL(onboardingDirect.page.url()).pathname,'/food/setup');
+    assert.equal(new URL(onboardingDirect.page.url()).search,'?source=me','direct setup preserves its query string');
+    assert.deepEqual(onboardingDirect.assets,['/static/food.js','/static/onboarding.js'],'setup loads Food globals before the onboarding route');
+    assert.equal(await onboardingDirect.page.locator('nav.tabs a[data-tab="food"]').getAttribute('aria-current'),'page','direct setup keeps Nutrition selected');
+    const scriptUrl=await onboardingDirect.page.locator('script[src*="/static/onboarding.js"]').evaluate(el=>el.src);
+    assert.match(new URL(scriptUrl).searchParams.get('v')||'',/^[0-9a-f]{32}$/,'onboarding uses its build-stamped asset URL');
+    await onboardingDirect.page.locator('input[name="goal"][value="fuel_training"]').check();
+    assert.deepEqual(onboardingDirect.writes,[],'opening and editing setup does not write before an explicit save');
+    assert.deepEqual(onboardingDirect.errors,[]);
+  }finally{onboardingDirect.release();await onboardingDirect.context.close();}
+
+  const onboardingRetry=await foodRouteFixture(browser,{failAsset:'/static/onboarding.js'});
+  try{
+    await onboardingRetry.page.goto(base+'/food/setup?source=me',{waitUntil:'domcontentloaded'});await onboardingRetry.page.locator('.load-error').waitFor();
+    assert.equal(new URL(onboardingRetry.page.url()).pathname,'/food/setup','a failed setup bundle keeps the direct route');
+    assert.equal(onboardingRetry.assetAttempts('/static/food.js'),1,'retryable setup keeps its Food prerequisite loaded');
+    assert.equal(onboardingRetry.assetAttempts('/static/onboarding.js'),1);assert(await onboardingRetry.page.locator('#retry').isVisible());
+    await onboardingRetry.page.locator('#retry').click();await ready(onboardingRetry.page,'#gs-form','Food setup after explicit retry');
+    assert.deepEqual(onboardingRetry.assets,['/static/food.js','/static/onboarding.js','/static/onboarding.js'],'retry requests only the failed onboarding script');
+    assert.deepEqual(onboardingRetry.writes,[],'retrying setup still performs no write before Save');
+    assert.deepEqual(onboardingRetry.errors,[]);
+  }finally{onboardingRetry.release();await onboardingRetry.context.close();}
 
   const foodSkeleton=await foodRouteFixture(browser,{hold:true});
   try{

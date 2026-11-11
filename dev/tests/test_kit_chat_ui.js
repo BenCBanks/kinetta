@@ -40,14 +40,17 @@ async function testEntryVisibility(){
  for(const [file,needle] of [['app/static/pages.js',"kitChatOn() ? go(KitChat.href('activity'"],['app/static/thread.js',"!kitChatOn()||!(r.offer_kit"]])assert(fs.readFileSync(file,'utf8').includes(needle),file+' gates its Kit chat entry');
 }
 async function testFoodThreadBridge(){
- let host,submitted='',pageCalls=0;const field={value:'',style:{},dispatchEvent(){}},notice={textContent:''};
+ let host,submitted='',pageCalls=0,prepareFails=true,heldPrepare=null,owner='fixture';const events=[],field={value:'',style:{},dispatchEvent(){}},notice={textContent:''};
  const form={requestSubmit(){submitted=field.value;field.value='';}},slot={append(el){host=el;el.isConnected=true;}};
- const foodHost={isConnected:false,setAttribute(){}};
- const bridge={pageCalls:0,FoodThread:{page(el,options){bridge.pageCalls++;bridge.pageHost=el;bridge.pageOptions=options;}},document:{createElement(tag){assert.equal(tag,'section');return foodHost;}},Event:class{},$(selector){return {'#kit-food-slot':slot,'#thread-text':field,'#thread-composer':form,'#thread-status':notice}[selector];},draw(){},active:()=>true,status(){}};
+ const foodHost={isConnected:false,setAttribute(){},remove(){this.isConnected=false;}};
+ const bridge={pageCalls:0,FoodThread:{async prepare(){events.push('prepare');if(heldPrepare)await heldPrepare;if(prepareFails)throw Error('Nutrition unavailable');},async page(el,options){bridge.pageCalls++;events.push('page');bridge.pageHost=el;bridge.pageOptions=options;}},document:{createElement(tag){assert.equal(tag,'section');return foodHost;}},Event:class{},$(selector){return {'#kit-food-slot':slot,'#thread-text':field,'#thread-composer':form,'#thread-status':notice}[selector];},draw(){events.push('draw');},active:c=>c.owner===owner,status(){}};
  vm.createContext(bridge);
- vm.runInContext(pick('  function mountFoodThread(c){','  function clearDraft(')+'\n'+pick('  async function sendFood(c,text){','  async function refresh('),bridge);
- const result=await bridge.sendFood({el:{},owner:'fixture'},'2 eggs');
+ vm.runInContext(pick('  async function mountFoodThread(c){','  function clearDraft(')+'\n'+pick('  async function sendFood(c,text){','  async function refresh('),bridge);
+ const ctx={el:{},owner:'fixture'};await assert.rejects(bridge.sendFood(ctx,'2 eggs'),/Nutrition unavailable/);assert.equal(bridge.pageCalls,0,'Kit does not render the inline thread before Nutrition prepares');assert.deepEqual(events,['prepare'],'a failed leaf load leaves Kit at its existing retry point');
+ prepareFails=false;events.length=0;const result=await bridge.sendFood(ctx,'2 eggs');
  assert.equal(result,true,'the Kit food route submits through the inline FoodThread composer');assert.equal(bridge.pageCalls,1,'the existing FoodThread.page export owns the inline engine');assert.equal(bridge.pageHost,host);assert.equal(JSON.stringify(bridge.pageOptions),'{}');assert.equal(submitted,'2 eggs','the text reaches the existing FoodThread composer');
+ assert.equal(events[0],'prepare');assert(events.indexOf('draw')>events.indexOf('prepare'),'Kit waits for the same Nutrition boundary before rendering its food slot');assert(events.indexOf('page')>events.indexOf('prepare'));
+ foodHost.isConnected=false;submitted='';events.length=0;const previousPages=bridge.pageCalls;let release;heldPrepare=new Promise(resolve=>release=resolve);const stale={el:{},owner:'fixture'};const pending=bridge.sendFood(stale,'2 eggs');await Promise.resolve();owner='another-owner';release();assert.equal(await pending,false,'a stale Kit context abandons its pending Food open');assert.equal(bridge.pageCalls,previousPages,'a changed owner never mounts the inline FoodThread page');assert.equal(submitted,'','a changed owner never submits through the inline composer');assert.deepEqual(events,['prepare'],'the stale deferred completion causes no Food render');
 }
 (async()=>{
  await testEntryVisibility();
