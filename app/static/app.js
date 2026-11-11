@@ -1536,9 +1536,11 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4
   fitTickLabels(svgEl, W);
   if (inlineSelection) {
     // Nothing selected: a quiet hint (the stat tiles already show the current period). Selected: one line, ellipsised if long.
+    let hasSelectedPeriod = false;
     const showReadout = index => {
       const c = index == null ? null : cols[index];
-      if (!c) { ro.innerHTML = `<span class="readout-hint">${esc(readoutHint)}</span>`; return; }
+      if (!c) { ro.innerHTML = hasSelectedPeriod ? '' : `<span class="readout-hint">${esc(readoutHint)}</span>`; return; }
+      hasSelectedPeriod = true;
       const parts = distance ? c.segs.filter(sg => sg.v).map(sg => `${esc(keys.find(k => k.k === sg.k)?.name || sg.k)} ${esc(fmt(sg.v))}`).join(' · ') : '';
       ro.innerHTML = `<span>${esc(c.label)}${c.partial ? ' (so far)' : ''} · <b>${esc(fmt(tot(c)))}</b>${parts ? ` · ${parts}` : ''}</span>`;
     };
