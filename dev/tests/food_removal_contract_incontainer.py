@@ -23,6 +23,7 @@ try:
         'client_id':str(uuid.uuid4())}])
     assert saved.status_code==200,saved.text
     root=saved.json()['messages'][0];reply=saved.json()['messages'][1]
+    assert root['local_day']==str(fixture_day),f"receipt date {root['local_day']} did not match entry date {fixture_day}"
     with db.connect() as c:
         result=c.execute('SELECT result FROM food_chat_messages WHERE user_id=%s AND id=%s',(uid,reply['id'])).fetchone()['result']
         result['pending_count']=1
