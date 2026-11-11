@@ -406,7 +406,8 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.equal(webHaptic,false,'the achievement success feedback is disabled on web');
 
   await page.goto(base+'/people/alex');await page.locator('.me-card-sections[aria-busy="false"]').waitFor();
-  assert.equal(await page.locator('.profile-achievements,.me-featured-achievements').count(),0,'the full owner profile has no duplicate achievement entry');
+  assert.equal(await page.locator('.profile-achievements').count(),0,'the full owner profile has no duplicate achievements grid');
+  assert.equal(await page.locator('.me-featured-achievements').count(),1,'the full owner profile has one Featured achievement entry');
   await page.goto(base+'/me');await page.locator('.me-featured-achievements').waitFor();
   assert.equal(await page.locator('.me-featured-achievements').count(),1,'Featured is the only achievement entry point on Me');
   assert.equal(await page.getByRole('link',{name:'See all',exact:true}).count(),1,'Me has one link to the full achievement catalog');
