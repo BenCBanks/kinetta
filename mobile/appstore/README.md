@@ -15,7 +15,7 @@ Nothing here uploads, signs or submits an app. `listing-en-US.json` holds plain-
 | `whats_new` | What's new,4000; replace release placeholders |
 | `copyright` | Copyright; owner supplies legal holder/year |
 
-Run `python3 mobile/scripts/test_listing.py`. Review `privacy-audit.md`, `age-rating.md` and `review-notes.md` together. Unfilled placeholders deliberately block a submission-ready claim. No reviewer account is created by this preparation; the earlier guarded seeding draft needs its own current-source integration review and fit-core assignment. Prefer a separate fictional review server, as explained in review notes.
+Run `python3 mobile/scripts/test_listing.py`. Review `privacy-audit.md`, `age-rating.md` and `review-notes.md` together. Unfilled placeholders deliberately block a submission-ready claim. The guarded reviewer CLI is implemented and passed its marked disposable integration. This preparation alone creates no production reviewer account; choosing a separate fictional review server and providing private credentials remain owner gates.
 
 ## Native screenshot artifacts
 
