@@ -12,10 +12,15 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
   if(process.env.THEME&&process.env.THEME!==theme||process.env.WIDTH&&Number(process.env.WIDTH)!==width)continue;
   const c=await browser.newContext({viewport:{width,height:844},colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true});
   try{
-   const p=await c.newPage(),errors=[],checks=[],signups=[],accepts=[],joins=[],resends=[],forgot=[];let oldRelease=null,saveRelease=null,helperRelease=null,helperMode='pass',saveFailure=true,closed=true;
-   p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!m.text().startsWith('Failed to load resource'))errors.push(m.text());});
+   const p=await c.newPage(),errors=[],pageErrors=[],sameOriginFailed=[],sameOriginStatuses=[],checks=[],signups=[],accepts=[],joins=[],resends=[],forgot=[];let oldRelease=null,saveRelease=null,helperRelease=null,helperMode='pass',saveFailure=true,closed=true,blockedExternalCount=0;
+   const safePath=path=>path.replace(/^\/add\/[^/]+$/,'/add/<friend-code>').replace(/^\/api\/friend-links\/[^/]+$/,'/api/friend-links/<friend-code>');
+   const safeError=message=>message.replace(/\/add\/[A-Za-z0-9_-]+/g,'/add/<friend-code>').replace(/\/api\/friend-links\/[A-Za-z0-9_-]+/g,'/api/friend-links/<friend-code>');
+   p.on('pageerror',e=>{pageErrors.push(safeError(e.message));errors.push(e.message);});
+   p.on('requestfailed',request=>{const u=new URL(request.url());if(u.origin===base)sameOriginFailed.push({method:request.method(),path:safePath(u.pathname),error:request.failure()?.errorText||'failed'});});
+   p.on('response',response=>{const u=new URL(response.url());if(u.origin===base&&response.status()>=400)sameOriginStatuses.push({method:response.request().method(),path:safePath(u.pathname),status:response.status()});});
+   p.on('console',m=>{if(m.type()==='error'&&!m.text().startsWith('Failed to load resource'))errors.push(m.text());});
    await c.route('**/*',async r=>{
-    const request=r.request(),u=new URL(request.url());if(u.origin!==base)return r.abort();
+    const request=r.request(),u=new URL(request.url());if(u.origin!==base){blockedExternalCount++;return r.abort();}
     if(u.pathname==='/static/username-availability.js'){
      if(helperMode==='fail-next'){helperMode='pass';return r.fulfill({status:503,body:'fixture helper load failure'});}
      if(helperMode==='hold-next'){helperMode='held';return new Promise(resolve=>{helperRelease=fail=>(fail?r.fulfill({status:503,body:'fixture helper load failure'}):r.continue()).then(resolve);});}
@@ -54,7 +59,10 @@ const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))r
    });
    const shot=async name=>{if(out&&width===390){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`${name}-${theme}.png`),fullPage:name.startsWith('signup')});}};
    const fit=async()=>assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'No horizontal overflow');
-   await p.goto(base+fixture.friend_path);await p.locator('#iv-login').waitFor();assert.equal(await p.locator('#iv-signup').count(),0);assert(!((await p.locator('.form').innerText()).includes('Create an account')));assert.match(await p.locator('.form').innerText(),/account invitation/);
+   await p.goto(base+fixture.friend_path);try{await p.locator('#iv-login').waitFor();}catch(error){
+    const state=await p.evaluate(()=>({path:location.pathname.replace(/^\/add\/[^/]+$/,'/add/<friend-code>'),appPresent:typeof App!=='undefined',pageReady:typeof App!=='undefined'?App.pageReady:null,hasMe:typeof App!=='undefined'?!!App.me:null,inviteLogin:document.querySelectorAll('#iv-login').length,inviteSignup:document.querySelectorAll('#iv-signup').length,loginForm:document.querySelectorAll('form').length,loginInput:document.querySelectorAll('input[name="login"]').length,heading:!!document.querySelector('h1'),loadingText:document.body.innerText.includes('Loading invitation')})).catch(()=>null);
+    console.error('SANITIZED_STARTUP_DIAGNOSTIC '+JSON.stringify({stage:'friend-invitation #iv-login visible wait',routeTemplate:'/add/<friend-code>',expected:{inviteLogin:1,inviteSignup:0,closedSignup:true},actual:state,pageErrors,sameOriginFailed,sameOriginStatuses,blockedExternalCount,usernameAvailabilityRequests:sameOriginStatuses.filter(item=>item.path==='/api/account/username-availability').length}));throw error;
+   }assert.equal(await p.locator('#iv-signup').count(),0);assert(!((await p.locator('.form').innerText()).includes('Create an account')));assert.match(await p.locator('.form').innerText(),/account invitation/);
    assert(await p.evaluate(w=>{const h=document.querySelector('h1').getBoundingClientRect(),body=document.querySelector('.form>p').getBoundingClientRect();return document.documentElement.scrollWidth<=w+1&&h.left>=0&&h.right<=w&&body.left>=0&&body.right<=w;},width),'Long inviter heading and body stay within viewport');await shot('friend-invitation-closed');closed=false;cases++;
    await p.evaluate(()=>store.del('kinetta.friendLink'));helperMode='fail-next';await p.goto(base+'/signup');await p.locator('details.username-choice').waitFor();assert.equal(checks.length,0,'No checks before typing');
    const signupName=p.locator('input[name=name]'),signupDetails=p.locator('details.username-choice'),signupErr=p.locator('form .err');
