@@ -1,15 +1,21 @@
 """Regression checks for the disposable screenshot-only Kit gate fixture."""
 import json
+import datetime as dt
+import importlib.util
 import os
 import tempfile
 import unittest
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from kit_release_standin import render_report, write_report
 
 ROOT = Path(__file__).resolve().parents[2]
 SCREENSHOTS = ROOT / "dev" / "screenshots"
 REPORT_NAME = "".join(("kit-release", ".standin.json"))
+SEED_SPEC = importlib.util.spec_from_file_location("screenshot_demo_seed", ROOT / "dev" / "demo" / "seed.py")
+SEED_MODULE = importlib.util.module_from_spec(SEED_SPEC)
+SEED_SPEC.loader.exec_module(SEED_MODULE)
 
 
 def fixture_references_outside_screenshots():
@@ -33,6 +39,21 @@ def fixture_references_outside_screenshots():
 
 
 class KitScreenshotStandinTests(unittest.TestCase):
+    def test_demo_seed_date_uses_fixture_zone_and_live_fallback(self):
+        clock_path = SCREENSHOTS / "fixture-time.json"
+        clock = json.loads(clock_path.read_text())
+        fixture_today = dt.datetime.fromisoformat(clock["instant"].replace("Z", "+00:00")).astimezone(ZoneInfo(clock["timezone"])).date()
+        fixture_env = {"KINETTA_SCREENSHOT_FIXTURE": "1"}
+        self.assertEqual(SEED_MODULE.seed_date(fixture_env), fixture_today)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            boundary_clock = Path(tmp) / "fixture-time.json"
+            boundary_clock.write_text(json.dumps({"instant": "2026-11-10T02:30:00Z", "timezone": "America/New_York"}))
+            self.assertEqual(SEED_MODULE.seed_date(fixture_env, fixture_path=boundary_clock), dt.date(2026, 11, 9))
+
+        live_today = dt.date(2040, 2, 3)
+        self.assertEqual(SEED_MODULE.seed_date({"KINETTA_SCREENSHOT_FIXTURE": "0"}, live_today=lambda: live_today), live_today)
+
     def test_report_uses_runtime_fingerprint_callable(self):
         expected = "a" * 64
         report = render_report(lambda: expected)
