@@ -10,16 +10,17 @@ def check(label, value):
     assert value, label
     ok += 1
 
+test_day = dt.date.today()
 profile = {'weight_kg':80,'height_cm':180,'birth_year':1990,'sex':'male','activity_factor':1.3}
 p.put('/api/profile',profile)
 p.put('/api/food/targets',{'kcal_target':2200,'protein_target':120,'carbs_target':250,'fat_target':65,'fiber_target':30})
 p.put('/api/profile',{'resting_source':'apple_health'})
-p.put('/api/food/day-goal',{'day':dt.date.today().isoformat(),'kcal':2300})
+p.put('/api/food/day-goal',{'day':test_day.isoformat(),'kcal':2300})
 before = p.get('/api/me')[1]
 base = {'goal':'lose_weight','pace_percent':.5,'activity_factor':1.3}
 status,s = p.post('/api/food/target-suggestion',base)
 check('preview succeeds',status==200)
-rest = 10*80+6.25*180-5*(dt.date.today().year-1990)+5
+rest = 10*80+6.25*180-5*(test_day.year-1990)+5
 expected=max(__import__('math').ceil(rest/10)*10,round((rest*1.3-80*.005*7700/7)/10)*10)
 check('calorie suggestion uses energy formula and pace',s['kcal_target']==expected)
 check('protein suggestion uses weight and goal',s['protein_target']==130)
@@ -49,14 +50,14 @@ check('edited targets persisted',after['kcal_target']==s['kcal_target']+10 and a
 check('other macros preserved',all(after[k]==before[k] for k in ('carbs_target','fat_target','fiber_target')))
 check('Health setting and body preserved',all(after[k]==before[k] for k in (*profile,'resting_source')))
 check('other account unchanged',other.get('/api/me')[1]==other_before)
-day=p.get('/api/food/day?d='+dt.date.today().isoformat())[1]
+day=p.get('/api/food/day?d='+test_day.isoformat())[1]
 check('Nutrition sees saved targets',day['targets']['protein_target']==135 and day['goal']['default']==s['kcal_target']+10)
 check('daily override preserved',day['goal']['custom']==2300)
 check('save retry idempotent',p.put('/api/food/goal-setup',{**base,'kcal_target':s['kcal_target']+10,'protein_target':135})[0]==200)
 check('explicit body changes can save',p.put('/api/food/goal-setup',{'goal':'maintain','weight_kg':90,'activity_factor':1.45,'kcal_target':3000,'protein_target':110})[0]==200 and p.get('/api/me')[1]['weight_kg']==90)
 print(f'onboarding: {ok} passed')
 
-other.put('/api/food/weights',{'day':dt.date.today().isoformat(),'kg':90})
+other.put('/api/food/weights',{'day':test_day.isoformat(),'kg':90})
 other.put('/api/profile',{'weight_kg':None,'activity_factor':1.45})
 r=other.post('/api/food/target-suggestion',{'goal':'maintain'})[1]
 check('preview uses stored weight trend and current activity',r['weight_kg']==90 and not r['weight_assumed'] and r['activity_factor']==1.45)
