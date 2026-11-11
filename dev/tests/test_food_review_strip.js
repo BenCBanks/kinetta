@@ -165,3 +165,39 @@ const reviewCtx=()=>({draftId:'review-draft',meal:'lunch',day:'2026-11-11',sessi
  assert.equal(reviewOpens,0,'owner/path becoming inactive during load cannot open review');assert.equal(stale.messages,staleMessages,'stale completion leaves staged foods untouched');assert.equal(stale.reviewForm,staleForm,'stale completion leaves the saved review draft untouched');assert.equal(stale.preparingReview,false);
  console.log('lazy Food review: retryable load failure, duplicate activation/confirm gate, stale owner/path and staged draft preservation PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
+// The optional own-food suggestion leaf is loaded only for a qualifying draft,
+// and a completed load may initialize only the still-current composer.
+const reuseStart=source.indexOf('function foodThreadReuseLoader('),reuseEnd=source.indexOf('\n\nconst FoodThread',reuseStart);
+const reuseContext={String,Promise,loadClassicScript:async()=>{},location:{pathname:'/food/describe'}};
+vm.createContext(reuseContext);vm.runInContext(source.slice(reuseStart,reuseEnd),reuseContext);
+const fakeField=value=>({value,isConnected:true,listeners:{},addEventListener(k,fn){this.listeners[k]=fn;},removeEventListener(k){delete this.listeners[k];}});
+const tick=()=>new Promise(resolve=>setImmediate(resolve));
+(async()=>{
+ let attempts=0,created=0,active=true,path='/food/describe';
+ const ctx={owner:'owner-1',session:'session-1',el:{isConnected:true}};
+ const field=fakeField('');let release;
+ const slow=new Promise(resolve=>{release=resolve;});
+ const loader=reuseContext.foodThreadReuseLoader({ctx,field,active:()=>active,create:()=>{created++;return{refresh(){},clear(){},dispose(){}};},load:async()=>{attempts++;return slow;},path:()=>path});
+ assert.equal(attempts,0,'an empty composer does not load suggestions');
+ field.value='a';field.listeners.input();assert.equal(attempts,0,'one character does not load suggestions');
+ field.value='oats';field.listeners.input();const waiting=loader.refresh();assert.equal(attempts,1,'typed qualifying text starts one shared load');
+ field.value='pear';release();await waiting;await tick();assert.equal(created,1,'a restored/current qualifying composer initializes once');assert.equal(field.value,'pear','the latest composer text is retained');
+ await loader.refresh();assert.equal(created,1,'refresh reuses the context initializer');loader.dispose();
+
+ const restored=fakeField('Fictional restored oats');let restoredCreated=0;
+ const restoredLoader=reuseContext.foodThreadReuseLoader({ctx:{owner:'o',session:'s',el:{isConnected:true}},field:restored,active:()=>true,create:()=>{restoredCreated++;return{refresh(){},clear(){},dispose(){}};},load:async()=>{}});
+ await tick();assert.equal(restoredCreated,1,'a qualifying saved draft loads suggestions on restore');restoredLoader.dispose();
+
+ let retryAttempts=0,retryCreated=0;const retryField=fakeField('oats');
+ const retryLoader=reuseContext.foodThreadReuseLoader({ctx:{owner:'o',session:'s',el:{isConnected:true}},field:retryField,active:()=>true,create:()=>{retryCreated++;return{refresh(){},clear(){},dispose(){}};},load:async()=>{if(++retryAttempts===1)throw Error('offline');}});
+ await tick();assert.equal(retryCreated,0,'a failed optional load leaves composer without suggestions');await retryLoader.refresh();assert.equal(retryAttempts,2,'the failed memoized load can be retried');assert.equal(retryCreated,1);retryLoader.dispose();
+
+ for(const stale of ['owner','session','path','disconnected']){
+  let done;const deferred=new Promise(resolve=>{done=resolve;}),staleCtx={owner:'o',session:'s',el:{isConnected:true}},staleField=fakeField('oats');let staleCreated=0,staleActive=true,stalePath='/food/describe';
+  const staleLoader=reuseContext.foodThreadReuseLoader({ctx:staleCtx,field:staleField,active:()=>staleActive,create:()=>{staleCreated++;return{refresh(){},clear(){},dispose(){}};},load:()=>deferred,path:()=>stalePath});
+  await tick();if(stale==='owner')staleCtx.owner='other';if(stale==='session')staleCtx.session='other';if(stale==='path')stalePath='/me';if(stale==='disconnected')staleField.isConnected=false;
+  done();await tick();assert.equal(staleCreated,0,`${stale} context cannot initialize after load`);staleLoader.dispose();
+ }
+ console.log('lazy Food reuse: empty/short gate, typed/restored draft, shared initializer, retry and stale owner/session/path/DOM guards PASS');
+})().catch(error=>{console.error(error);process.exitCode=1;});

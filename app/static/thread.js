@@ -49,6 +49,36 @@ function foodChatPhotoCache(){
   };
 }
 
+// Own-food suggestions are optional. Keep the composer responsive while their
+// leaf loads, and initialize it only for a current qualifying query.
+function foodThreadReuseLoader({ctx,field,active,create,load=loadClassicScript,path=()=>location.pathname}){
+  let chips=null,loading=null,disposed=false;
+  const enough=()=>String(field.value||'').trim().length>=2;
+  const current=()=>!disposed&&active()&&!!ctx.el?.isConnected&&field.isConnected;
+  const ensure=()=>{
+    if(chips)return Promise.resolve(chips);
+    if(loading)return loading;
+    if(!current()||!enough())return Promise.resolve(null);
+    const owner=ctx.owner,session=ctx.session,route=path();
+    loading=(async()=>{
+      try{await load('/static/food-reuse.js?v=__ASSET_HASH__');}catch(_){return null;}
+      if(chips)return chips;
+      if(!current()||ctx.owner!==owner||ctx.session!==session||path()!==route||!enough())return null;
+      const latest=String(field.value||'').trim();
+      try{chips=create(latest);return chips;}catch(_){return null;}
+    })().finally(()=>{loading=null;});
+    return loading;
+  };
+  const onInput=()=>{if(enough())void ensure();};
+  field.addEventListener('input',onInput);
+  if(enough())void ensure(); // Restore suggestions for a qualifying saved draft.
+  return {
+    refresh:()=>chips?chips.refresh():ensure(),
+    clear:()=>chips?.clear(),
+    dispose(){disposed=true;field.removeEventListener('input',onInput);chips?.dispose();},
+  };
+}
+
 const FoodThread = (() => {
   let current = null, privacyEpoch = 0, pendingNativeMountRetry = null;
   const FOOD_NUTRITION_ASSET='/static/food-nutrition.js?v=__ASSET_HASH__';
@@ -743,7 +773,7 @@ const FoodThread = (() => {
     anotherBox.setAttribute('role','group');anotherBox.setAttribute('aria-label','Repeat a recent food');
     $('.thread-compose-row',el).before(anotherBox);ctx.anotherBox=anotherBox;
     $('.thread-compose-row',el).before($('#thread-remove-notice',el));
-    ctx.reuseChips=foodReuseChips({box:reuseBox,field,live:()=>active(ctx),choose:item=>reuse(ctx,item),day:()=>ctx.historyDay,excluded:()=>{const current=held(ctx).foods.map(e=>e.name),last=[...ctx.messages].reverse().find(m=>m.kind==='reply'&&m.result?.kind==='log'&&m.entries?.length);return [...current,...(last?.entries.map(e=>e.name)||[])];}});
+    ctx.reuseChips=foodThreadReuseLoader({ctx,field,active:()=>active(ctx),create:()=>foodReuseChips({box:reuseBox,field,live:()=>active(ctx),choose:item=>reuse(ctx,item),day:()=>ctx.historyDay,excluded:()=>{const current=held(ctx).foods.map(e=>e.name),last=[...ctx.messages].reverse().find(m=>m.kind==='reply'&&m.result?.kind==='log'&&m.entries?.length);return [...current,...(last?.entries.map(e=>e.name)||[])];}})});
     ctx.nativeEntries=(store.get(nativeKey(owner))||[]).filter(x=>x&&x.at>Date.now()-86400000).slice(-100);
     let fitKey='';
     const grow=()=>{
