@@ -4,6 +4,9 @@
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs');
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
 const compositionOnly=process.env.KINETTA_PROFILE_VIEW_COMPOSITION_ONLY==='1';
+const profileClockOnly=process.env.KINETTA_PROFILE_CARD_CLOCK_ONLY==='1';
+const SCREENSHOT_CLOCK=require('../screenshots/fixture-time.json'),SCREENSHOT_NOW=new Date(SCREENSHOT_CLOCK.instant);
+const FIXTURE_TODAY=(()=>{const parts=new Intl.DateTimeFormat('en-CA',{timeZone:SCREENSHOT_CLOCK.timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(SCREENSHOT_NOW),v=Object.fromEntries(parts.map(p=>[p.type,p.value]));return `${v.year}-${v.month}-${v.day}`;})();
 const milestoneOffers=[{id:'22222222-2222-4222-8222-222222222222',kind:'year_distance',title:'100 miles this year',day:'2026-10-31',occurred:'2026-10-31T12:00:00Z',rank:500,private_activity:false,details:{amount:100,unit:'mi',garmin_sources:[]}},{id:'11111111-1111-4111-8111-111111111111',kind:'first_distance',title:'First 5K',day:'2026-11-01',occurred:'2026-11-01T12:00:00Z',rank:10,private_activity:true,details:{distance_m:5000,seconds:1800,sport:'run',garmin_sources:[]}}];
 const friendRanks=[['journey','Journey',7,'mi'],['workouts','Workouts',8,'workouts'],['lifted','Weight lifted',7,'lb'],['sport:run','Running',4,'mi']];
 const friendShowcase={items:friendRanks.map(([code,,rank])=>({code,rank})),pinned:friendRanks.map(([code])=>code),day_streak:123};
@@ -39,9 +42,11 @@ async function cardChecks(p,size){
  assert.equal(await card.locator('.me-card-note').count(),0,'privacy note is kept out of the profile card and shown in Share');
  assert.match(await p.locator('body').innerText(),/Fictional trails and weekend rides\./,'bio remains on the full profile');
 }
-async function weeklyCardChecks(p){
+async function weeklyCardChecks(p,size){
  const card=p.locator('.me-card');assert.equal(await card.locator('.me-card-weekly').count(),1,'Me shows the weekly summary card');
  assert.equal(await card.locator('.me-week').count(),12,'Me shows twelve weeks');
+ assert.deepEqual(await card.locator('.me-week').evaluateAll(nodes=>nodes.map(n=>n.dataset.range)),['2026-08-23','2026-08-30','2026-09-06','2026-09-13','2026-09-20','2026-09-27','2026-10-04','2026-10-11','2026-10-18','2026-10-25','2026-11-01','2026-11-08'],'the fixed Nov 9 fixture shows the expected twelve Sunday week starts');
+ if(!size.locale)assert.deepEqual(await card.locator('.me-week-month').allTextContents(),['Aug','Sep','','','','Oct','','','','','Nov',''],'the chart labels August through November at the correct week/month boundaries');
  assert.equal(await card.locator('.me-card-figures,.me-sport-chips,.me-profile-bio,.me-about,.me-card-note,.me-period,.me-distance.days').count(),0,'Me omits profile bio, all-time totals, sports, privacy note and daily/period controls');
  assert.equal(await card.locator('.me-card-weekly [data-week-stat]').count(),3,'Me shows distance, workouts and time for the week');
  assert.equal(await card.locator('[data-week-label] span').innerText(),'This week','Me starts on the current week');
@@ -54,9 +59,10 @@ async function milestoneChecks(p){
  await p.goto(base+'/me/milestones');await p.waitForURL('**/me');await until(p,()=>App.pageReady,'legacy milestone link returns ready Me');await p.locator('.me-card-sections[aria-busy=false]').waitFor();
 }
 (async()=>{const b=await chromium.launch();const l=await b.newContext();await l.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});const st=await l.storageState();
- const sizes=compositionOnly?[{width:390,height:844,root:16}]:[{width:320,height:667,root:16},{width:330,height:844,root:16},{width:390,height:844,root:16},{width:430,height:932,root:16},{width:600,height:900,root:16,locale:'fr-FR'}];
- for(const size of sizes)for(const theme of compositionOnly?['light']:['light','dark']){
- const c=await b.newContext({storageState:st,viewport:{width:size.width,height:size.height},locale:size.locale||'en-US',colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];
+ const sizes=compositionOnly||profileClockOnly?[{width:390,height:844,root:16}]:[{width:320,height:667,root:16},{width:330,height:844,root:16},{width:390,height:844,root:16},{width:430,height:932,root:16},{width:600,height:900,root:16,locale:'fr-FR'}];
+ for(const size of sizes)for(const theme of compositionOnly||profileClockOnly?['light']:['light','dark']){
+ const c=await b.newContext({storageState:st,viewport:{width:size.width,height:size.height},locale:size.locale||'en-US',colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:SCREENSHOT_CLOCK.timezone}),p=await c.newPage(),errors=[],writes=[];
+ await p.clock.setFixedTime(SCREENSHOT_NOW); // Freeze Date while Playwright's timers and performance clock remain live.
  let cardState='heavy',cardLayout=null,profileHidden=false,refuseOwnerProfile=false;const blocked=new Set(),previewReads=[],statsReads=[],ownerAchievementReads=[],sharedAchievementReads=[];
  p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.text()==='Service Worker registration blocked by Playwright'||m.text()==='Failed to load resource: net::ERR_FAILED'&&blocked.has(m.location().url))return;if(['error','warning'].includes(m.type()))errors.push(m.text()+' ('+m.location().url+')')});
  await c.addInitScript(r=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=r+'px'),size.root);
@@ -71,7 +77,7 @@ async function milestoneChecks(p){
   if(u.pathname==='/api/milestones'){const items=cardState==='heavy'?milestoneOffers:[],id=u.searchParams.get('milestone_id');return r.fulfill({json:{pending:false,items:id?items.filter(m=>m.id===id):items}});}
   if(u.pathname==='/api/people/alex/profile'){
    if(u.searchParams.get('preview')==='member')previewReads.push(u.searchParams.toString());
-   const response=await r.fetch(),j=await response.json(),empty=cardState==='new',series=chartFixture(j.mileage.today);
+   const response=await r.fetch(),j=await response.json(),empty=cardState==='new',series=chartFixture(FIXTURE_TODAY);
    const memberPreview=u.searchParams.get('preview')==='member';j.profile_hidden=profileHidden;
    if(memberPreview){j.mine=true;j.week_streak=99;j.close_to='PRIVATE-ONLY fictional preview marker';}else if(refuseOwnerProfile)j.mine=false;
    j.overview={...j.overview,activities:empty?0:memberPreview?77:3045,distance_m:empty?0:memberPreview?321000:18968840,time_s:empty?0:memberPreview?7200:5569200,active_days:empty?0:memberPreview?12:468};
@@ -192,6 +198,7 @@ async function milestoneChecks(p){
  await noOverflow('request profile');
  assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[]);
  console.log(`Profile card ${size.width}x${size.height}/${size.root} ${theme} PASS`);await c.close();}
+if(profileClockOnly){await b.close();console.log('Profile card clock: fixed 390px Me, full profile, friend and preview PASS');return;}
 await inlineEditorChecks(b);await require('./me_polish_ui.cjs')({browser:b,storageState:st,base,shots:out});await require('./profile_achievements_ui.cjs')({browser:b,storageState:st,base,shots:out});await b.close();})().catch(e=>{console.error(e);process.exit(1);});
 
 async function inlineEditorChecks(browser){
