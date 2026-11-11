@@ -110,7 +110,7 @@ function loadClassicScript(asset) {
 function loadClassicScripts(assets) {
   return assets.reduce((ready, asset) => ready.then(() => loadClassicScript(asset)), Promise.resolve());
 }
-function lazyUsernameAvailability(input,valid,failed) {
+function lazyUsernameAvailability(input,valid,failed,loaded) {
   let watcher=null,pending=null,action=null;
   const changed=()=>{action={kind:'changed'};if(watcher)watcher.changed();else load();};
   const attach=()=>{
@@ -118,6 +118,7 @@ function lazyUsernameAvailability(input,valid,failed) {
     watcher=globalThis.UsernameAvailability?.watch(input);
     if(!watcher)return;
     input.removeEventListener('input',changed);
+    loaded?.();
     if(action?.kind==='error')watcher.error(action.message);
     else if(action?.kind==='changed')watcher.changed();
   };
@@ -1958,7 +1959,16 @@ function showNewAccount({title, intro, button, send, signup = false, ageConfirm 
     <button class="primary" type="submit">${esc(button)}</button></form></div>`;
   const f = $('form', root); f.name.focus();
   const usernameOwner=readOwner(),usernameRoute=location.pathname+location.search;
-  const username = f.login&&lazyUsernameAvailability(f.login,()=>f.isConnected&&usernameOwner===readOwner()&&usernameRoute===location.pathname+location.search,message=>fieldErr('login',message));
+  const usernameError=$('.err',f);let usernameLoadMessage=null;
+  const usernameLoadFailed=message=>{
+    if(usernameLoadMessage||usernameError.textContent||f.querySelector('.field-err'))return;
+    usernameLoadMessage=message;usernameError.textContent=message;
+  };
+  const usernameLoadSucceeded=()=>{
+    if(usernameLoadMessage&&usernameError.textContent===usernameLoadMessage)usernameError.textContent='';
+    usernameLoadMessage=null;
+  };
+  const username = f.login&&lazyUsernameAvailability(f.login,()=>f.isConnected&&usernameOwner===readOwner()&&usernameRoute===location.pathname+location.search,usernameLoadFailed,usernameLoadSucceeded);
   const agreement = globalThis.CommunityTerms?.enrollment(f);
   if (pick) {
     f.name.addEventListener('input', () => {   // suggest a username from the first name until they type their own
