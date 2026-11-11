@@ -24,7 +24,7 @@ module.exports=()=>{
   '/api/activities':[activity],'/api/activities/1':activity,'/api/activities/1/social':activity.social,
   '/api/stats':{chart_today:today,chart_weeks:weeks,week_days:days,recent_days:days,weeks:[],years:[],total:134,week_streak:7},
   '/api/progress/overview':{today,activities:134,mapped:110,active_days:2,years:2,routes:4,segments:0,record:{label:'5K',elapsed_s:1500,start_time:'2026-10-31T08:30:00Z'},plan:null,food:{protein_days:4,weight_change_kg:-.2,weight_kg:70,logged_days:28,library_items:3}},
-  '/api/progress/volume':{today,period:'week',rows:weeks.map((w,i)=>({p:date((6-i)*7),s:'run',n:4,d:w.distance_m,t:w.distance_m*.36,a:80}))},
+  '/api/progress/volume':{today,period:'week',rows:weeks.map((w,i)=>({p:date((6-i)*7),s:'run',n:w.activities,d:w.distance_m,t:w.time_s,a:80}))},
   '/api/progress/trends':{today,months:[]},'/api/records':{efforts:[]},
   '/api/fitness':{days:[{day:today,fitness:42,fatigue:39,form:3}],predictions:[{label:'5K',seconds:1500}]},
   '/api/food/day':{day:today,entries,totals:macros,unknown_nutrients:{fiber_g:2,sodium_mg:2,sugar_g:2,saturated_fat_g:2},targets:{kcal_target:1800,protein_target:110},goal:{kcal:1800,default:1800},burned:{kcal:330,n:1,items:[],day_burn:2250,deficit:1335,source:'formula'},food_user:true,has_history:true},
