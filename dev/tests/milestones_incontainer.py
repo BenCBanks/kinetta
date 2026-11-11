@@ -171,6 +171,32 @@ class Milestones(unittest.TestCase):
   self.assertEqual(workout['level'],3)
   self.assertIn('trackt:workouts:1.0',[tier['code'] for tier in workout['history']])
 
+ def test_historical_run_imports_aggregate_across_sources(self):
+  self.assertEqual(self.clients[0].put('/api/notifications/settings',json={'milestones':True}).status_code,200)
+  self.activity(days=30,sport='run',distance=2000,source='garmin_connect',device='Forerunner 265')
+  self.activity(days=29,sport='run',distance=2000,source='strava')
+  self.activity(days=28,sport='run',distance=1000,source='manual')
+  self.activity(days=27,sport='ride',distance=100000,source='garmin_connect',device='Forerunner 265')
+
+  self.process()
+  response=self.clients[0].get('/api/achievements')
+  self.assertEqual(response.status_code,200,response.text)
+  payload=response.json();self.assertFalse(payload['pending'],json.dumps(payload))
+  run=next(track for track in payload['tracks'] if track['code']=='sport:run')
+  self.assertEqual(run['value_m'],5000)
+  self.assertEqual({tier['label'] for tier in run['tiers']} & {'First run','First mile','5K'},
+                   {'First run','First mile','5K'})
+
+  with db.connect() as c:
+   run_rows=c.execute('''SELECT kind,code,silent FROM milestones
+                         WHERE user_id=%s AND valid AND (details->>'track'='sport:run' OR details->>'sport'='run')''',
+                      (self.ids[0],)).fetchall()
+   notifications=c.execute("SELECT count(*) AS n FROM notifications WHERE user_id=%s AND kind='milestone'",
+                           (self.ids[0],)).fetchone()['n']
+  self.assertTrue(run_rows)
+  self.assertTrue(all(row['silent'] for row in run_rows),'old imported Run awards remain silent')
+  self.assertEqual(notifications,0,'old imported Run awards do not enqueue milestone notifications')
+
  def test_threshold_keys_dedupe_legacy_rank_rows_and_quietly_backfill_early_levels(self):
   for _ in range(10):self.activity(days=20,distance=0)
   legacy_details={'track':'workouts','rank':1,'threshold':10,'label':'Seed','unit':'workouts','big':False}
