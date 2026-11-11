@@ -474,7 +474,7 @@ const ProfileLayout=(()=>{
     const dispose=()=>{if(disposed)return;disposed=true;clearPress();clearTimeout(suppressTimer);document.removeEventListener('click',onClick,true);document.removeEventListener('pointermove',onMove,true);document.removeEventListener('pointerup',onUp,true);document.removeEventListener('pointercancel',onUp,true);box.removeEventListener('pointerdown',onDown);box.removeEventListener('contextmenu',onContext);box.removeEventListener('keydown',onKey);};
     addAchievementCleanup(box,dispose);
   }
-  async function mountShowcase(root,r,{shared,featured=false}={}){
+  async function mountShowcase(root,r,{shared,featured=false,showcaseData=null,achievementData=null}={}){
     if(featured){
       const featureSlot=root?.querySelector?.('[data-me-featured]'),streakSlot=root?.querySelector?.('[data-me-showcase-streak]');
       if(!featureSlot&&!streakSlot)return;
@@ -489,7 +489,7 @@ const ProfileLayout=(()=>{
         if(featureSlot){const sharedData=sharedProfile?{tracks:sharedAchievementTracks(achievements)}:achievements;featureSlot.innerHTML=featuredShowcaseMarkup(data,sharedData,sharedProfile?{sharedLogin:login}:{ownerFeatured:true});featureSlot.dataset.loading='';featureSlot.dataset.loaded='true';watchMeCardOpenLink(root,featureSlot.closest('.me-card'),featureSlot);}
       };
       try{
-        const query=sharedProfile?`?login=${encodeURIComponent(login)}`:'', [data,_catalog,achievements]=await Promise.all([api('/api/achievements/showcase'+query),loadAchievementCatalog(),api('/api/achievements'+query)]);
+        const query=sharedProfile?`?login=${encodeURIComponent(login)}`:'', [data,_catalog,achievements]=showcaseData!==null&&achievementData!==null?[showcaseData,null,achievementData]:await Promise.all([api('/api/achievements/showcase'+query),loadAchievementCatalog(),api('/api/achievements'+query)]);
         if(!root.isConnected||owner!==readOwner()||path!==location.pathname+location.search||featureSlot&&!featureSlot.isConnected||streakSlot&&!streakSlot.isConnected)return;
         paint(data,achievements);
         if(!sharedProfile&&achievements.pending&&featureSlot)watchOwnerPending(featureSlot,owner,path,async()=>{
@@ -639,12 +639,12 @@ const MeCard=(()=>{
         <div class="me-card-sections" aria-busy="true">${skel(1)}</div>${featured?'<div class="me-featured-slot" data-me-featured></div>':''}
         ${milestones?'<div data-me-milestones hidden></div>':''}</div></section>`;
   }
-  async function sharedProfileCardPicture(profile,live){
+  async function sharedProfileCardPicture(profile,live,showcase,achievements){
     const host=document.createElement('div');host.style.cssText='position:fixed;left:-100000px;top:0;width:390px;z-index:-1;pointer-events:none;';
     const view=viewerData(profile,'preview'),friends=Number.isInteger(profile.friend_count)?`<span class="me-friends-link">${svg('people')}<span>${friendCountText(profile.friend_count)}</span></span>`:'';
     host.innerHTML=card(profile.person,{viewer:'preview',friends,showBio:true,featured:true});document.body.append(host);
     try{
-      MeCard.mount(host,{data:view,viewer:'preview',mode:'profile'});ProfileLayout.mount(host,view,{shared:true,featured:true});
+      MeCard.mount(host,{data:view,viewer:'preview',mode:'profile'});ProfileLayout.mountShowcase(host,view,{shared:true,featured:true,showcaseData:showcase,achievementData:achievements});
       const slot=host.querySelector('[data-me-featured]');for(let i=0;i<120&&slot&&!slot.dataset.loaded;i++)await new Promise(resolve=>setTimeout(resolve,50));
       if(slot&&!slot.dataset.loaded)throw Error('The shared profile card could not finish loading.');
       return await ShareArt.domPicture(host.querySelector('.me-card'),{live});
@@ -661,7 +661,7 @@ const MeCard=(()=>{
       if(profile.profile_hidden)throw Error('Your profile is hidden until your account is confirmed and active.');
       if(profile.preview!=='member')throw Error('The preview needs a server update.');
       const items=cardItems.slice(0,1),meCard=items[0];
-      if(meCard){meCard.filename='kinetta-me-card.png';meCard.build=async()=>{const picture=await sharedProfileCardPicture(profile,live);return{...picture,filename:meCard.filename,link:profileLink};};}
+      if(meCard){meCard.filename='kinetta-me-card.png';meCard.build=async()=>{const picture=await sharedProfileCardPicture(profile,live,showcase,achievements);return{...picture,filename:meCard.filename,link:profileLink};};}
       if(sharing.share_achievements&&showcase.items?.length){
         const featured=await ProfileLayout.featuredOptions(achievements,showcase.items);if(!live())return;
         if(featured.length)items.push({label:'Achievements',filename:'kinetta-achievements.png',controls:[{key:'identity',label:'Photo and username',checked:false}],build:state=>ShareArt.simplePicture({kicker:'Achievements',title:'Your progress',value:String(featured.length),unit:'featured',facts:featured.map(item=>`${item.label} · ${item.detail}`),identity:!!state.identity})});
