@@ -2,6 +2,7 @@
 import base64,datetime as dt,io,json,threading,unittest,uuid
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from app import db,auth,food_photo,food_thread,meal_chat
@@ -340,15 +341,20 @@ class Resolution(unittest.TestCase):
   self.resolve(follow);self.assertEqual(len(self.entries()),1);self.model.assert_not_called()
 
  def test_31_taco_short_answers_keep_count_and_destination(self):
-  day=(dt.date.today()-dt.timedelta(days=1)).isoformat()
-  self.send('taco',day=day,meal='dinner')
-  _,r=self.send('2');self.assertIn('What kind of taco',self.result(r)['text'])
+  fixture_now=dt.datetime.now(dt.timezone.utc)
+  fixture_tz='UTC'
+  fixture_today=fixture_now.astimezone(ZoneInfo(fixture_tz)).date()
+  yesterday=(fixture_today-dt.timedelta(days=1)).isoformat()
+  destination=fixture_today.isoformat()
+  captured_at=fixture_now.isoformat()
+  self.send('taco',day=yesterday,meal='dinner',captured_at=captured_at)
+  _,r=self.send('2',captured_at=captured_at);self.assertIn('What kind of taco',self.result(r)['text'])
   self.assertNotIn('how many',self.result(r)['text']);self.assertEqual(self.entries(),[])
-  m,r=self.send('chicken',day=dt.date.today().isoformat());self.assertEqual(self.result(r)['day'],day);self.assertEqual(self.result(r)['meal'],'dinner')
-  replay=self.post('/api/food/thread/messages',{'client_id':m['client_id'],'body':'chicken','day':dt.date.today().isoformat()})
+  m,r=self.send('chicken',day=destination,captured_at=captured_at);self.assertEqual(self.result(r)['day'],yesterday);self.assertEqual(self.result(r)['meal'],'dinner')
+  replay=self.post('/api/food/thread/messages',{'client_id':m['client_id'],'body':'chicken','day':destination,'captured_at':captured_at})
   self.assertFalse(replay['created'],'resolved day must not change immutable request metadata')
   self.look.side_effect=lambda text:{'kind':'plain','foods':[{**PLAIN,'name':'Chicken taco','serving':{'label':'1 taco','g':100}}]}
-  self.resolve(m);rows=self.a.get('/api/food/day?d='+day).json()['entries']
+  self.resolve(m);rows=self.a.get('/api/food/day?d='+yesterday).json()['entries']
   self.assertEqual(len(rows),1);self.assertEqual(rows[0]['kcal'],200);self.assertEqual(rows[0]['meal'],'dinner')
   self.look.assert_called_once();self.assertIn('2',self.look.call_args.args[0]);self.model.assert_not_called()
 
