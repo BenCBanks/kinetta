@@ -65,6 +65,7 @@ const FRIENDS_UI_ASSET = '/static/friends-ui.js?v=__ASSET_HASH__';
 const USERNAME_AVAILABILITY_ASSET = '/static/username-availability.js?v=__ASSET_HASH__';
 const PUSH_INVITATION_ROUTE_ASSET = '/static/push-invitation.js?v=__ASSET_HASH__';
 const PUSH_INVITATION_HOMES = new Set(['/me','/activity','/track','/progress','/food']);
+const ACTIVITY_DETAIL_ROUTE_ASSET = '/static/activity-detail.js?v=__ASSET_HASH__';
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: [CONTACTS_ROUTE_ASSET, '/static/welcome.js?v=__ASSET_HASH__']},
   {re: /^\/me\/explore$/, tab: 'track', scripts: [SOCIAL_ROUTE_ASSET, '/static/explore.js?v=__ASSET_HASH__']},
@@ -74,8 +75,8 @@ const lazyRouteBundles = [
   {re: /^\/me\/settings$/, tab: 'me', scripts: [INTERVALS_ROUTE_ASSET, SETTINGS_ROUTE_ASSET]},
   {re: /^\/routes(?:\/.*)?$/, tab: 'track', scripts: [PLANNER_ROUTE_ASSET]},
   {re: /^\/activity$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
-  {re: /^\/activity\/friends\/\d+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
-  {re: /^\/activity\/\d+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET, INTERVALS_ROUTE_ASSET]},
+  {re: /^\/activity\/friends\/\d+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET, ACTIVITY_DETAIL_ROUTE_ASSET]},
+  {re: /^\/activity\/\d+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET, INTERVALS_ROUTE_ASSET, ACTIVITY_DETAIL_ROUTE_ASSET]},
   {re: /^\/people\/([^/]+)$/, tab: login => App.me && decodeURIComponent(login).toLowerCase() === App.me.login.toLowerCase() ? 'me' : 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/add\/[\w-]+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/me\/friends$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET, FRIENDS_UI_ASSET, CONTACTS_ROUTE_ASSET]},
@@ -154,6 +155,7 @@ function loadPushInvitationForRoute(isCurrent) {
     if(typeof PushInvitation!=='undefined')PushInvitation.consider();
   }).catch(()=>{});
 }
+const loadActivityDetail = () => loadClassicScript(ACTIVITY_DETAIL_ROUTE_ASSET);
 const loadWeeklyRecapShareItem = () => loadClassicScript(SOCIAL_ROUTE_ASSET).then(() => {
   const build=window.weeklyRecapShareItem;
   if(typeof build!=='function'||build===loadWeeklyRecapShareItem)return null;

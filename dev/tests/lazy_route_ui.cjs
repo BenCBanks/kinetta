@@ -572,6 +572,7 @@ const contactsCallersOnly=process.env.KINETTA_LAZY_ROUTE_CASE==='contacts-caller
     await socialMe.page.goto(base+'/me');await ready(socialMe.page,meReady,'Me without the social bundle');
     await socialMe.page.waitForFunction(()=>window.__socialIdleCallbacks.length>0);
     assert.deepEqual(socialMe.assets,[],'social.js does not delay the first useful Me screen');
+    assert.equal(await socialMe.page.evaluate(()=>performance.getEntriesByType('resource').some(item=>new URL(item.name).pathname==='/static/activity-detail.js')),false,'ActivityDetail is absent from cold Me');
     assert.equal(await socialMe.page.evaluate(()=>typeof Social),'undefined','Me renders before the social routes are loaded');
     assert.equal(await socialMe.page.evaluate(()=>typeof weeklyRecapShareItem),'function','the Me card share action can load its recap on first tap');
     assert.deepEqual(await socialMe.page.evaluate(()=>[typeof profileHref,friendCountText(0)]),['function','No friends yet'],'Me keeps its small profile-link and friend-count helpers eager');
@@ -581,6 +582,11 @@ const contactsCallersOnly=process.env.KINETTA_LAZY_ROUTE_CASE==='contacts-caller
       '/group-invite/fictional-token','/me/sharing','/notifications','/me/notifications',
     ].map(path=>{const bundle=lazyRouteBundles.find(item=>item.re.test(path));return [path,!!bundle&&bundle.scripts.includes(SOCIAL_ROUTE_ASSET)];}));
     assert(mapped.every(([,included])=>included),`routes that render Social-owned icons or controls load social.js first: ${JSON.stringify(mapped)}`);
+    const detailDependencies=await socialMe.page.evaluate(()=>[
+      ['/activity/123',[SOCIAL_ROUTE_ASSET,SEGMENTS_ROUTE_ASSET,ACTIVITY_DETAIL_ROUTE_ASSET]],
+      ['/activity/friends/123',[SOCIAL_ROUTE_ASSET,ACTIVITY_DETAIL_ROUTE_ASSET]],
+    ].map(([path,expected])=>{const bundle=lazyRouteBundles.find(item=>item.re.test(path));return [path,bundle?.scripts.slice(0,expected.length),expected];}));
+    assert(detailDependencies.every(([,actual,expected])=>JSON.stringify(actual)===JSON.stringify(expected)),`own/shared ActivityDetail routes preserve ordered dependencies: ${JSON.stringify(detailDependencies)}`);
     const unrelated=await socialMe.page.evaluate(()=>[
       '/me/challenges','/challenge/fictional-code','/food/recipe-link','/track/lift/42','/lift/ex/42',
     ].map(path=>{const bundle=lazyRouteBundles.find(item=>item.re.test(path));return [path,!!bundle&&bundle.scripts.includes(SOCIAL_ROUTE_ASSET)];}));

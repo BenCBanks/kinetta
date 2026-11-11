@@ -1,7 +1,7 @@
 // Real owner/friend APIs and fictional demo geometry. No provider, device or sharing effects.
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),path=require('node:path');
-const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill',out=process.env.KINETTA_EVIDENCE,fs=require('node:fs'),medalKind=process.env.KINETTA_MEDAL_CASE||'',medalTheme=process.env.KINETTA_MEDAL_THEME||'light',medalWidth=Number(process.env.KINETTA_MEDAL_WIDTH)||390,detailCases=(process.env.KINETTA_DETAIL_CASE||'').split(',').filter(Boolean);
+const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill',out=process.env.KINETTA_EVIDENCE,fs=require('node:fs'),medalKind=process.env.KINETTA_MEDAL_CASE||'',medalTheme=process.env.KINETTA_MEDAL_THEME||'light',medalWidth=Number(process.env.KINETTA_MEDAL_WIDTH)||390,detailCases=(process.env.KINETTA_DETAIL_CASE||'').split(',').filter(Boolean),loadCases=(process.env.KINETTA_DETAIL_LOAD_CASE??'cold-me,retry,repeat,track-done,track-failure,track-unmount,track-owner,track-owner-original').split(',').filter(Boolean);
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
 async function assertNoDetailTitleBand(locator){
  const result=await locator.evaluate(el=>{const host=getComputedStyle(el),pseudo=getComputedStyle(el,'::after');return{content:pseudo.content,pseudoImage:pseudo.backgroundImage,hostImage:host.backgroundImage,borderTop:host.borderTopWidth};});
@@ -10,14 +10,15 @@ async function assertNoDetailTitleBand(locator){
 (async()=>{
  const output=cp.execFileSync('python3',[path.join(__dirname,'activity_detail_fixture.py')],{env:process.env,encoding:'utf8'});console.log(output.trim());const ids=JSON.parse(output.trim().split('\n').at(-1));
  const b=await chromium.launch(),contexts=[];
- async function open(kind,theme,size,mouse=false,comments=false,reaction=false){
+async function open(kind,theme,size,mouse=false,comments=false,reaction=false,loadOptions={}){
   const friend=kind==='friend',id=ids[friend?'run':kind],c=await b.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:!mouse,hasTouch:!mouse,timezoneId:'UTC'});contexts.push(c);
   assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_detail_'+(friend?'friend':'owner'),password:pw}})).status(),200);
   if(reaction)assert.equal((await c.request.post(base+`/api/activities/${id}/reaction`,{headers:{Origin:base,'Content-Type':'application/json'},data:{kind:'clap'}})).status(),200,'fictional detail reaction fixture');
   await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
-  const p=await c.newPage(),errors=[],writes=[];p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
-  await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(u.pathname===`/api/activities/${id}/comments`)return r.continue();return r.fulfill({json:{}});}if(medalKind&&u.pathname===`/api/activities/${id}`){return r.fetch().then(async response=>{const activity=await response.json(),ride=medalKind==='ride';activity.created=new Date().toISOString();activity.sport=ride?'ride':'run';activity.distance_m=ride?20000:5000;return r.fulfill({response,json:activity});});}if(medalKind&&u.pathname==='/api/sharing')return r.fulfill({json:{share_achievements:true}});if(medalKind&&u.pathname==='/api/achievements'){const ride=medalKind==='ride';return r.fulfill({json:{pending:false,tracks:[{code:ride?'sport:ride':'sport:run',value:ride?157233:9000,tiers:[]}]}});}if(u.pathname==='/api/map-config')return r.fulfill({json:{kind:'raster',url:base+'/__detail_tiles/light/{z}/{x}/{y}.svg',dark_url:base+'/__detail_tiles/dark/{z}/{x}/{y}.svg',max_zoom:17,attribution:'Fictional mapping and terrain tiles'}});if(u.pathname.startsWith('/__detail_tiles/'))return r.fulfill({contentType:'image/svg+xml',body:`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="${u.pathname.includes('/dark/')?'#20262B':'#EDF0F3'}"/></svg>`});return r.continue();});
-  await p.goto(base+(friend?'/activity/friends/':'/activity/')+id+(comments?'?tab=comments':''));await until(p,()=>App.pageReady&&!!document.querySelector('.compact-detail-title'),'detail ready');return{c,p,id,errors,writes,friend};
+  const p=await c.newPage(),errors=[],writes=[],detailAssets=[],routeScriptOrder=[];let detailAttempts=0;p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
+  p.on('request',q=>{const path=new URL(q.url()).pathname;if(path==='/static/activity-detail.js')detailAssets.push(q.url());if(['/static/social.js','/static/segments.js','/static/activity-detail.js'].includes(path))routeScriptOrder.push(path);});
+  await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(u.pathname==='/static/activity-detail.js'&&loadOptions.failDetailFirst&&detailAttempts++===0)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(u.pathname===`/api/activities/${id}/comments`)return r.continue();return r.fulfill({json:{}});}if(medalKind&&u.pathname===`/api/activities/${id}`){return r.fetch().then(async response=>{const activity=await response.json(),ride=medalKind==='ride';activity.created=new Date().toISOString();activity.sport=ride?'ride':'run';activity.distance_m=ride?20000:5000;return r.fulfill({response,json:activity});});}if(medalKind&&u.pathname==='/api/sharing')return r.fulfill({json:{share_achievements:true}});if(medalKind&&u.pathname==='/api/achievements'){const ride=medalKind==='ride';return r.fulfill({json:{pending:false,tracks:[{code:ride?'sport:ride':'sport:run',value:ride?157233:9000,tiers:[]}]}});}if(u.pathname==='/api/map-config')return r.fulfill({json:{kind:'raster',url:base+'/__detail_tiles/light/{z}/{x}/{y}.svg',dark_url:base+'/__detail_tiles/dark/{z}/{x}/{y}.svg',max_zoom:17,attribution:'Fictional mapping and terrain tiles'}});if(u.pathname.startsWith('/__detail_tiles/'))return r.fulfill({contentType:'image/svg+xml',body:`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="${u.pathname.includes('/dark/')?'#20262B':'#EDF0F3'}"/></svg>`});return r.continue();});
+  await p.goto(base+(friend?'/activity/friends/':'/activity/')+id+(comments?'?tab=comments':''));if(!loadOptions.noWait)await until(p,()=>App.pageReady&&!!document.querySelector('.compact-detail-title'),'detail ready');return{c,p,id,errors,writes,friend,detailAssets,routeScriptOrder};
  }
  async function assertDetailActionRow(p,label){
   const row=p.locator('#d-soc'),react=row.locator('.reaction-more'),comments=row.locator('.activity-comments'),share=row.locator('[data-detail-share]'),counts=row.locator('.reaction-count');
@@ -28,14 +29,55 @@ async function assertNoDetailTitleBand(locator){
   assert(box.x>=0&&box.x+box.width<=viewportWidth+1&&await row.evaluate(n=>n.scrollWidth<=n.clientWidth+1),`${label}: action row fits the viewport`);
   if(await counts.isVisible()){const count=await counts.boundingBox();assert(count.x>=s.x+s.width&&Math.abs(count.x+count.width-box.x-box.width)<1,`${label}: emoji counts stay at the far right`);}
  }
+ async function trackDoneFixture({failDetail=false,holdDetail=false,instrument=false}={}){
+  const c=await b.newContext({viewport:{width:390,height:844},colorScheme:'light',serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});contexts.push(c);
+  assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_detail_owner',password:pw}})).status(),200);
+  const p=await c.newPage(),assets=[],writes=[],activityReads=[],errors=[];let attempts=0,releaseGate=()=>{},signalHeld=()=>{};
+  const gate=new Promise(resolve=>{releaseGate=resolve;}),held=new Promise(resolve=>{signalHeld=resolve;});
+  p.on('request',request=>{const url=new URL(request.url());if(url.pathname==='/static/activity-detail.js')assets.push(url.pathname);if(request.method()==='GET'&&url.pathname===`/api/activities/${ids.run}`)activityReads.push(url.pathname);});
+  p.on('pageerror',error=>errors.push(error.message));
+  if(instrument)await p.addInitScript(()=>{window.__trackDetailCalls=[];window.__firstTrackMedalNode=null;window.__currentTrackMedalNode=null;});
+  await c.route('**/*',async route=>{
+   const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
+   if(url.pathname==='/static/activity-detail.js'){
+    attempts++;if(failDetail&&attempts===1)return route.abort();
+    if((holdDetail&&attempts===1)||instrument){
+     const response=await route.fetch(),body=await response.text();
+     if(holdDetail&&attempts===1){signalHeld();await gate;}
+     const probe=instrument?'\n;(()=>{const original=ActivityDetail.nextMedalForId;ActivityDetail.nextMedalForId=(node,id)=>{window.__trackDetailCalls.push({owner:App.me?.login,connected:node.isConnected,original:node===window.__firstTrackMedalNode,current:node===window.__currentTrackMedalNode,id});return original(node,id);};})();':'';
+     return route.fulfill({response,body:body+probe});
+    }
+    return route.continue();
+   }
+   if(request.method()==='GET'&&url.pathname===`/api/activities/${ids.run}`){
+    return route.fulfill({json:{id:Number(ids.run),created:new Date().toISOString(),sport:'run',distance_m:5000,moving_s:1500,elapsed_s:1500}});
+   }
+   if(request.method()==='GET'&&url.pathname==='/api/sharing')return route.fulfill({json:{share_achievements:true}});
+   if(request.method()==='GET'&&url.pathname==='/api/achievements')return route.fulfill({json:{pending:false,tracks:[{code:'sport:run',value:9000}]}});
+   if(request.method()==='POST'&&url.pathname==='/api/milestones/celebrate')return route.fulfill({status:204});
+   if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
+   return route.continue();
+  });
+  await p.goto(base+`/track?done=${ids.run}`);await until(p,()=>App.pageReady&&!!document.querySelector('.track-saved'),'saved Track screen');
+  return{c,p,assets,writes,activityReads,errors,held,release:releaseGate};
+ }
  try{
+  if(loadCases.includes('cold-me')){
+   const c=await b.newContext({viewport:{width:390,height:844},colorScheme:'light',serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});contexts.push(c);
+   assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_detail_owner',password:pw}})).status(),200);
+   const p=await c.newPage(),detailAssets=[],errors=[];p.on('request',request=>{if(new URL(request.url()).pathname==='/static/activity-detail.js')detailAssets.push(request.url());});p.on('pageerror',error=>errors.push(error.message));
+   await c.route('**/*',route=>{const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204});if(!['GET','HEAD'].includes(request.method()))return route.abort();return route.continue();});
+   await p.goto(base+'/me');await until(p,()=>App.pageReady&&!!document.querySelector('.me-card-sections[aria-busy="false"]'),'cold Me ready without ActivityDetail');assert.equal(detailAssets.length,0,'cold Me makes no ActivityDetail request');assert.equal(await p.evaluate(()=>performance.getEntriesByType('resource').some(item=>new URL(item.name).pathname==='/static/activity-detail.js')),false,'cold Me has no ActivityDetail resource');assert.deepEqual(errors,[]);await c.close();contexts.splice(contexts.indexOf(c),1);
+  }
   if(process.env.KINETTA_DETAIL_ROW_ONLY==='1'){
    const size={width:330,height:667,root:16}, {c,p,errors}=await open('lifting','dark',size,false,false,true);await until(p,()=>!!document.querySelector('#d-soc [data-detail-share]'),'detail Share action');await assertDetailActionRow(p,'330px dark activity detail');assert.deepEqual(errors,[]);console.log('Activity detail action row 330px/16px dark: React, Comments, Share and right-side counts PASS');await c.close();contexts.splice(contexts.indexOf(c),1);return;
   }
   for(const kind of ['run','treadmill','ride','lifting','empty','friend'])for(const size of (medalKind?[{width:390,height:844,root:16},{width:330,height:667,root:16}]:[{width:390,height:844,root:16}]))for(const theme of ['light','dark']){
    const name=`${kind}-${size.width}-${theme}`;if(detailCases.length&&!detailCases.includes(name))continue;
    if(medalKind&&(kind!==medalKind||theme!==medalTheme||size.width!==medalWidth))continue;
-   const {c,p,errors,writes,friend}=await open(kind,theme,size),mapped=['run','ride','friend'].includes(kind);
+   const {c,p,errors,writes,friend,detailAssets,routeScriptOrder}=await open(kind,theme,size),mapped=['run','ride','friend'].includes(kind);
+   assert.equal(detailAssets.length,1,`${name} loads the deferred ActivityDetail script once`);
+   if(kind==='run'||kind==='friend')assert.deepEqual(routeScriptOrder,kind==='friend'?['/static/social.js','/static/activity-detail.js']:['/static/social.js','/static/segments.js','/static/activity-detail.js'],`${name} loads route prerequisites before ActivityDetail`);
    if(medalKind){
     await until(p,()=>!!document.querySelector('.activity-next-medal'),'detail next medal');
     const line=p.locator('.activity-next-medal'),copy=line.locator('.activity-next-medal-copy'),metric=await p.evaluate(()=>App.me?.units==='metric'),remaining=medalKind==='ride'?(metric?'3.7 km':'2.3 mi'):(metric?'1 km':'0.6 mi'),level=medalKind==='ride'?'Century':'10K',full=`${remaining} to your ${level} medal`,compact=`${remaining} to ${level}`,actual=await copy.innerText(),fullFits=await copy.evaluate((el,text)=>{const link=el.closest('a'),tight=link.classList.contains('is-tight'),font=link.style.fontSize,before=el.textContent;link.classList.remove('is-tight');link.style.removeProperty('font-size');el.textContent=text;const fits=el.scrollWidth<=el.clientWidth+1;el.textContent=before;if(tight)link.classList.add('is-tight');if(font)link.style.fontSize=font;return fits;},full);assert.equal(actual,fullFits?full:compact,'keeps the expanded medal copy only when it fits at '+size.width+'px');
@@ -91,11 +133,49 @@ async function assertNoDetailTitleBand(locator){
    if(!friend){const details=p.locator('[data-dt=overview]');if(await details.isVisible())await details.click();assert.equal(await p.locator('[data-phadd]').count(),1,'photo action retained in Details');assert(await p.locator('#d-comment-open').isVisible(),'first comment remains reachable without zero counts');await p.evaluate(()=>scrollTo(0,0));await bar.locator('[data-detail-edit]').click();await p.waitForSelector('#e-form');assert(await p.locator('#e-form').isVisible());await p.keyboard.press('Escape');}
    assert.deepEqual(errors,[]);assert(!writes.some(x=>!['/api/challenges/signup/continue','/api/milestones/celebrate'].includes(x)),'layout/actions do not write private data');console.log(`Activity detail ${name}: layout/actions/tabs/empty/permitted fields/map modal PASS`);await c.close();contexts.splice(contexts.indexOf(c),1);
   }
+  if(loadCases.includes('retry')){
+   const retry=await open('run','light',{width:390,height:844,root:16},false,false,false,{failDetailFirst:true,noWait:true});
+   try{await retry.p.locator('.load-error').waitFor();assert.equal(retry.detailAssets.length,1,'first detail request fails');await retry.p.locator('#retry').click();await until(retry.p,()=>App.pageReady&&!!document.querySelector('.compact-detail-title'),'ActivityDetail after explicit retry');assert.equal(retry.detailAssets.length,2,'failed detail promise is cleared for retry');assert.deepEqual(retry.errors,[]);}finally{await retry.c.close();contexts.splice(contexts.indexOf(retry.c),1);}
+  }
+  if(loadCases.includes('repeat')){
+   const repeated=await open('run','light',{width:390,height:844,root:16});
+   try{await repeated.p.evaluate(()=>go('/activity'));await until(repeated.p,()=>App.pageReady&&!!document.querySelector('#ff-list'),'Activity after detail');await repeated.p.evaluate(id=>go(`/activity/${id}`),repeated.id);await until(repeated.p,()=>App.pageReady&&!!document.querySelector('.compact-detail-title'),'repeated own detail route');assert.equal(repeated.detailAssets.length,1,'repeated detail navigation reuses one loaded script');assert.deepEqual(repeated.errors,[]);}finally{await repeated.c.close();contexts.splice(contexts.indexOf(repeated.c),1);}
+  }
+  if(loadCases.includes('track-done')){
+   const done=await trackDoneFixture();
+   try{await done.p.locator('.activity-next-medal').waitFor();assert.equal(done.assets.length,1,'Track done loads ActivityDetail on demand once');assert.equal(done.activityReads.length,1,'the saved activity medal lookup reads its existing activity');assert(!done.writes.some(item=>item.startsWith('POST /api/activities')),'the optional medal lookup does not save another activity');assert(await done.p.locator('#track-start').isVisible(),'Track remains ready after the medal lookup');assert.deepEqual(done.errors,[]);}finally{await done.c.close();contexts.splice(contexts.indexOf(done.c),1);}
+  }
+  if(loadCases.includes('track-failure')){
+   const failed=await trackDoneFixture({failDetail:true});
+   try{await failed.p.waitForTimeout(100);assert.equal(failed.assets.length,1,'the optional ActivityDetail request was attempted once');assert(await failed.p.locator('#track-start').isVisible(),'failed optional medal code leaves Track usable');assert.deepEqual(failed.errors,[]);}finally{await failed.c.close();contexts.splice(contexts.indexOf(failed.c),1);}
+  }
+  if(loadCases.includes('track-unmount')){
+   const delayed=await trackDoneFixture({holdDetail:true});
+   try{await delayed.held;await delayed.p.evaluate(()=>go('/me'));await until(delayed.p,()=>App.pageReady&&!!document.querySelector('.me-card-sections'),'leave Track while ActivityDetail is loading');delayed.release();await delayed.p.waitForFunction(()=>classicScriptsLoaded.has(ACTIVITY_DETAIL_ROUTE_ASSET));await delayed.p.waitForTimeout(100);assert.equal(delayed.activityReads.length,0,'unmount prevents a stale saved-activity medal lookup');assert.deepEqual(delayed.errors,[]);}finally{delayed.release();await delayed.c.close();contexts.splice(contexts.indexOf(delayed.c),1);}
+  }
+  if(loadCases.includes('track-owner')){
+   const delayed=await trackDoneFixture({holdDetail:true,instrument:true});
+   try{
+    await delayed.held;await delayed.p.evaluate(()=>{window.__firstTrackMedalNode=document.querySelector('#track-next-medal');});
+    assert.equal((await delayed.c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_detail_friend',password:pw}})).status(),200);const response=await delayed.c.request.get(base+'/api/me');assert.equal(response.status(),200);await delayed.p.evaluate(profile=>refreshMe(profile),await response.json());await until(delayed.p,()=>App.me?.login==='zz_test_detail_friend','Track owner changed while ActivityDetail is loading');
+    await delayed.p.evaluate(()=>{window.__currentTrackMedalNode=document.querySelector('#track-next-medal');});const nodes=await delayed.p.evaluate(()=>({oldConnected:window.__firstTrackMedalNode.isConnected,same:window.__firstTrackMedalNode===window.__currentTrackMedalNode,newConnected:window.__currentTrackMedalNode.isConnected}));assert.deepEqual(nodes,{oldConnected:false,same:false,newConnected:true},'account change replaces the original slot with a connected new-owner slot');
+    delayed.release();await delayed.p.waitForFunction(()=>classicScriptsLoaded.has(ACTIVITY_DETAIL_ROUTE_ASSET));await delayed.p.waitForFunction(()=>window.__trackDetailCalls.length===1);const calls=await delayed.p.evaluate(()=>window.__trackDetailCalls);assert.deepEqual(calls.map(({owner,connected,original,current})=>({owner,connected,original,current})),[{owner:'zz_test_detail_friend',connected:true,original:false,current:true}],'only the legitimate new-owner callback runs; the stale original callback is skipped');assert.equal(delayed.activityReads.length,1,'the new owner gets one legitimate saved-activity lookup');assert.deepEqual(delayed.errors,[]);
+   }finally{delayed.release();await delayed.c.close();contexts.splice(contexts.indexOf(delayed.c),1);}
+  }
+  if(loadCases.includes('track-owner-original')){
+   const delayed=await trackDoneFixture({holdDetail:true,instrument:true});
+   try{
+    await delayed.held;await delayed.p.evaluate(()=>{window.__trackNextMedalNode=document.querySelector('#track-next-medal');window.__firstTrackMedalNode=window.__trackNextMedalNode;window.__currentTrackMedalNode=window.__trackNextMedalNode;App.me={...App.me,id:App.me.id+1000000};});
+    assert.equal(await delayed.p.evaluate(()=>window.__trackNextMedalNode.isConnected),true,'synthetic owner change keeps the original slot connected');
+    delayed.release();await delayed.p.waitForFunction(()=>classicScriptsLoaded.has(ACTIVITY_DETAIL_ROUTE_ASSET));await delayed.p.waitForTimeout(100);assert.deepEqual(await delayed.p.evaluate(()=>window.__trackDetailCalls),[],'owner mismatch skips the original connected-node callback');assert.equal(delayed.activityReads.length,0,'owner mismatch prevents an old-session activity lookup');assert.deepEqual(delayed.errors,[]);
+   }finally{delayed.release();await delayed.c.close();contexts.splice(contexts.indexOf(delayed.c),1);}
+  }
   if(!medalKind&&!process.env.KINETTA_DETAIL_CASE){const {c,p,errors}=await open('lifting','dark',{width:330,height:667,root:16},false,false,true);await until(p,()=>!!document.querySelector('#d-soc [data-detail-share]'),'detail Share action');await assertDetailActionRow(p,'Activity detail 330px dark');assert.deepEqual(errors,[]);await c.close();contexts.splice(contexts.indexOf(c),1);console.log('Activity detail action row 330px/16px dark PASS');}
   if(!process.env.KINETTA_DETAIL_CASE||process.env.KINETTA_DETAIL_CASE==='actions'){
    const {c,p,errors}=await open('run','light',{width:390,height:844,root:16},true);await until(p,()=>!!document.querySelector('.leaflet-container'),'mouse map');assert.equal(await p.locator('#d-map .leaflet-control-zoom').count(),0,'photo rail starts still');await p.locator('#d-map .map-full').click();assert(await p.locator('.map.full .leaflet-control-zoom').isVisible(),'expanded photo map supports mouse zoom');await p.locator('.map.full .leaflet-control-zoom-in').click();await p.keyboard.press('Escape');await until(p,()=>!document.querySelector('.map.full'),'mouse map closed');assert.equal(await p.locator('#d-map .leaflet-control-zoom').count(),0,'inline rail restored');assert.deepEqual(errors,[]);await c.close();contexts.splice(contexts.indexOf(c),1);
    const item=await open('empty','light',{width:390,height:844,root:16},false,true);await item.p.waitForSelector('.c-form');assert.equal(await item.p.locator('#d-soc').isVisible(),false,'an empty private activity hides its social footer');await item.p.keyboard.press('Escape');await item.p.locator('#d-comment-open').click();await item.p.waitForSelector('.c-form');await item.p.locator('.c-form textarea').fill('Fictional private workout note');await item.p.locator('.c-send').click();await until(item.p,()=>document.querySelector('.social-read-status')?.textContent==='Comment posted.','own comment saved');await item.p.keyboard.press('Escape');assert(await item.p.locator('#d-soc').isVisible(),'the owner footer appears when the activity has a comment');assert(await item.p.locator('#d-soc .reaction-more').isVisible());assert.match(await item.p.locator('#d-soc [data-ttalk]').getAttribute('aria-label'),/1/);assert.deepEqual(item.errors,[]);await item.c.close();contexts.splice(contexts.indexOf(item.c),1);
    console.log('Activity detail actions: mouse zoom/keyboard restoration, empty-owner comment deep link and live social update PASS');
   }
+  if(loadCases.length)console.log(`ActivityDetail lazy loading: ${loadCases.join(', ')} PASS`);
  }finally{for(const c of contexts)await c.close();for(const who of ['owner','friend']){const c=await b.newContext();try{const r=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_detail_'+who,password:pw}});if(r.ok())await c.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password:pw}});}finally{await c.close();}}await b.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

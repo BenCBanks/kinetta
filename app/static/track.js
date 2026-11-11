@@ -524,7 +524,13 @@ const Track = (() => {
       <p class="small danger" id="track-ready-error" role="alert"></p><p class="small muted" id="track-guidance"></p>
       </form>
       <div id="track-open-lift"></div><section class="track-tools compact-track-tools" aria-labelledby="track-tools-h"><h2 class="sec-head" id="track-tools-h">Track tools</h2><div id="track-explore" class="track-tool-list"></div></section>`;
-    if(doneId){Milestones.celebrate($('#track-celebration',el),doneId);ActivityDetail.nextMedalForId($('#track-next-medal',el),doneId);}
+    if(doneId){
+      Milestones.celebrate($('#track-celebration',el),doneId);
+      const nextMedalNode=$('#track-next-medal',el),nextMedalOwner=readOwner();
+      loadActivityDetail().then(()=>{
+        if(nextMedalNode.isConnected&&nextMedalOwner===readOwner())ActivityDetail.nextMedalForId(nextMedalNode,doneId);
+      }).catch(()=>{});
+    }
     let view=null,dot=null,located=false,here=null,loadingMap=false,centred=false,readyFollow=true;const readyOwner=readOwner(),readyLive=()=>renderRevision===drawRevision&&el.isConnected&&readyOwner===readOwner()&&!session;
     const quickRow=$('.track-sport-row',el),quickBox=$('.track-quick',el),more=$('#track-other',el),quickButtons=$$('[data-quick]',el);
     const fitQuick=()=>{
