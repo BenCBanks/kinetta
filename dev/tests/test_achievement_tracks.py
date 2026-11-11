@@ -1,10 +1,40 @@
 """Pure tier boundary and endless-tail tests; no database or server needed."""
+import math
 import unittest
 
 from app import achievement_tracks as tracks, api_achievements
 
 
 class AchievementTrackRules(unittest.TestCase):
+    def test_api_catalog_tail_matches_worker_for_every_track_and_boundary(self):
+        catalog = api_achievements._level_catalog()
+        self.assertEqual(catalog['tail']['rule'], api_achievements._CATALOG_TAIL_RULE)
+        self.assertEqual(len(catalog['tracks']), 13)
+
+        for code, definition in catalog['tracks'].items():
+            with self.subTest(code=code):
+                fixed = definition['levels']
+                base = api_achievements._canonical_threshold(fixed[-1])
+                boundaries = [api_achievements._canonical_threshold(level) for level in fixed]
+                boundaries.extend(base * multiple for multiple in (2, 3))
+                for boundary in boundaries:
+                    for value in (math.nextafter(boundary, -math.inf), boundary,
+                                  math.nextafter(boundary, math.inf)):
+                        api_levels = api_achievements._levels_through(definition, value)
+                        worker_levels = tracks.tiers_for(code, value)
+                        expected = [(tier.rank, tier.label, tier.threshold) for tier in worker_levels]
+                        actual = [(level['rank'], level['name'], level['threshold']) for level in api_levels]
+                        self.assertEqual(actual, expected, f'{code} at canonical value {value}')
+                        next_level = tracks.next_tier(code, value)
+                        if next_level:
+                            self.assertEqual(next_level.rank, len(api_levels) + 1)
+                            self.assertGreater(next_level.threshold, value)
+
+                repeated = api_achievements._catalog_level(code, threshold=2 * base)
+                self.assertEqual(repeated['rank'], len(fixed) + 1)
+                self.assertEqual(repeated['name'], f"{fixed[-1]['name']} ×2")
+                self.assertEqual(repeated['icon'], fixed[-1]['icon'])
+
     def test_fixed_tracks_and_step_tails(self):
         cases = {
             'consistency': (150, [1, 2, 4, 10, 20, 52, 100, 150]),

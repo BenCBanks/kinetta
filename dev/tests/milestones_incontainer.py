@@ -171,6 +171,29 @@ class Milestones(unittest.TestCase):
   self.assertEqual(workout['level'],3)
   self.assertIn('trackt:workouts:1.0',[tier['code'] for tier in workout['history']])
 
+ def test_run_api_and_owner_history_include_repeat_tail_levels(self):
+  value_m=20_000_000
+  self.activity(days=30,sport='run',distance=value_m)
+  self.process()
+  response=self.clients[0].get('/api/achievements')
+  self.assertEqual(response.status_code,200,response.text)
+  payload=response.json();self.assertFalse(payload['pending'])
+  run=next(track for track in payload['tracks'] if track['code']=='sport:run')
+  worker=api_achievements.tracks.tiers_for('sport:run',value_m)
+  next_tier=api_achievements.tracks.next_tier('sport:run',value_m)
+  self.assertEqual(run['level'],worker[-1].rank)
+  self.assertEqual((run['next']['threshold'],run['next']['label']),
+                   (next_tier.threshold,next_tier.label))
+  repeated=api_achievements._catalog_level('sport:run',threshold=worker[-1].threshold)
+  self.assertEqual(repeated['name'],worker[-1].label)
+  self.assertEqual(repeated['icon'],api_achievements._level_catalog()['tracks']['sport:run']['levels'][-1]['icon'])
+
+  history=self.clients[0].get('/api/achievement-history/sport:run')
+  self.assertEqual(history.status_code,200,history.text)
+  history_payload=history.json();self.assertFalse(history_payload['pending'])
+  self.assertEqual([(tier['rank'],tier['name'],tier['threshold']) for tier in history_payload['tiers']],
+                   [(tier.rank,tier.label,tier.threshold) for tier in worker])
+
  def test_threshold_keys_dedupe_legacy_rank_rows_and_quietly_backfill_early_levels(self):
   for _ in range(10):self.activity(days=20,distance=0)
   legacy_details={'track':'workouts','rank':1,'threshold':10,'label':'Seed','unit':'workouts','big':False}
