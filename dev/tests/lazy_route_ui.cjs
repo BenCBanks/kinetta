@@ -3,6 +3,8 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict');
 const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 const trackFixture=require('../demo/track_session.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798';
+const selectedCase=process.env.KINETTA_LAZY_CASE||'';
+if(selectedCase&&selectedCase!=='settings')throw new Error(`Unknown lazy-route case: ${selectedCase}`);
 const password='green teapot on the hill';
 const user='zz_test_explore_new';
 const meReady='.me-card-sections[aria-busy="false"]';
@@ -357,6 +359,113 @@ async function getAppLogoutFixture(browser){
  });
  return{context,page,assets,errors,ownKey,foreignKey,ownValue,foreignValue};
 }
+async function settingsRouteFixture(browser,{failFirst=false,hold=false,instrument=false,idleGate=false,loginName=user,mailReady=false}={}){
+ const context=await fixtureContext(browser);await login(context,loginName);
+ const page=await context.newPage(),assets=[],errors=[],writes=[];let heldOnce=false,releaseHeld=()=>{},signalHeld=()=>{},finishHeld=()=>{};
+ const gate=new Promise(resolve=>{releaseHeld=resolve;}),held=new Promise(resolve=>{signalHeld=resolve;}),done=new Promise(resolve=>{finishHeld=resolve;});
+ page.on('pageerror',error=>errors.push(error.message));
+ if(idleGate)await page.addInitScript(()=>{window.__settingsIdleCallbacks=[];let id=0;window.requestIdleCallback=callback=>{window.__settingsIdleCallbacks.push(callback);return ++id;};window.cancelIdleCallback=()=>{};});
+ await page.route('**/*',async route=>{
+  const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
+  if(url.pathname==='/static/settings-route.js'){
+   assets.push(url.href);if(failFirst&&assets.length===1)return route.abort();
+   if(hold&&!heldOnce){heldOnce=true;signalHeld();const response=await route.fetch(),source=await response.text();await gate;
+    const probe=instrument?`\n;(()=>{const entry=App.pages.find(page=>page.re.test('/me/settings'));const original=entry.fn;window.__settingsOwners=[];entry.fn=(...args)=>{window.__settingsOwners.push(App.me.login);return original(...args);};})();`:'';
+    await route.fulfill({response,body:source+probe});finishHeld();return;
+   }
+   return route.continue();
+  }
+  if(mailReady&&request.method()==='GET'&&url.pathname==='/api/me'){
+   const response=await route.fetch(),profile=await response.json();
+   return route.fulfill({response,json:{...profile,mail_ready:true}});
+  }
+  if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204,body:''});
+  if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
+  return route.continue();
+ });
+ return {context,page,assets,errors,writes,held,done,release:()=>releaseHeld()};
+}
+function assertSettingsAsset(assets,label){
+ assert.equal(assets.length,1,`${label} loads one Settings asset`);
+ const url=new URL(assets[0]);assert.equal(url.pathname,'/static/settings-route.js',`${label} loads the Settings route leaf`);
+ assert.match(url.searchParams.get('v')||'',/^[0-9a-f]{32}$/,`${label} uses the stamped asset URL`);
+}
+async function settingsRouteCase(browser){
+ const cold=await settingsRouteFixture(browser,{idleGate:true});
+ try{
+  await cold.page.goto(base+'/me');await ready(cold.page,meReady,'Me before Settings is requested');
+  await cold.page.waitForFunction(()=>window.__settingsIdleCallbacks.length>0);
+  await cold.page.evaluate(()=>window.__settingsIdleCallbacks.splice(0).forEach(callback=>callback({didTimeout:false,timeRemaining:()=>50})));
+  assert.deepEqual(cold.assets,[],'Me and its ordinary idle warmups do not request the Settings leaf');
+  assert.equal(await cold.page.locator('script[src*="/static/settings-route.js"]').count(),0,'Me has no eager Settings script tag');
+  assert.equal(await cold.page.evaluate(()=>App.pages.some(item=>item.re.test('/me/settings'))),false,'Settings is not registered before its route is opened');
+  assert.deepEqual(cold.errors,[]);assert.deepEqual(cold.writes,[]);
+ }finally{await cold.context.close();}
+
+ for(const [path,selector,label,options={}] of [
+  ['/me/settings','.me-settings','direct Settings'],
+  ['/me/settings?setup=body','#m-form','body setup deep link'],
+  ['/me?setup=body','#m-form','Me body setup redirect'],
+  ['/me/settings?email=add','#em','email add deep link',{mailReady:true}],
+  ['/me/settings#ai','#kit-settings-panel','Kit settings hash deep link'],
+ ]){
+  const fixture=await settingsRouteFixture(browser,options);
+  try{
+   await fixture.page.goto(base+path,{waitUntil:'domcontentloaded'});await ready(fixture.page,'.me-settings',`${label} Settings route`);await fixture.page.locator(selector).waitFor();
+   assert.equal(new URL(fixture.page.url()).pathname,'/me/settings',`${label} resolves to Settings`);
+   if(path.includes('?')||path.includes('#'))assert.equal(new URL(fixture.page.url()).search+new URL(fixture.page.url()).hash,'',`${label} normalizes the consumed query/hash`);
+   assertSettingsAsset(fixture.assets,label);assert.deepEqual(fixture.errors,[],`${label} has no page errors`);assert.deepEqual(fixture.writes,[],`${label} performs no writes`);
+  }finally{await fixture.context.close();}
+ }
+
+ const unavailableMail=await settingsRouteFixture(browser);
+ try{
+  await unavailableMail.page.goto(base+'/me/settings?email=add',{waitUntil:'domcontentloaded'});
+  await ready(unavailableMail.page,'.me-settings','Settings with email unavailable');
+  const emailNotice=unavailableMail.page.locator('.scrim [role="dialog"][aria-label="Email"]');
+  await emailNotice.waitFor();
+  assert.match(await emailNotice.textContent(),/Email isn’t set up on this Kinetta yet/,'unavailable email keeps its existing message');
+  assert.equal(await unavailableMail.page.locator('#em').count(),0,'unavailable email does not show the confirmation form');
+  assert.equal(new URL(unavailableMail.page.url()).search+new URL(unavailableMail.page.url()).hash,'','unavailable email deep link is consumed');
+  assert.equal(await unavailableMail.page.evaluate(()=>App.pageReady),true,'unavailable email route is ready');
+  assertSettingsAsset(unavailableMail.assets,'unavailable email');
+  assert.deepEqual(unavailableMail.errors,[]);assert.deepEqual(unavailableMail.writes,[]);
+ }finally{await unavailableMail.context.close();}
+
+ const retry=await settingsRouteFixture(browser,{failFirst:true});
+ try{
+  await retry.page.goto(base+'/me/settings',{waitUntil:'domcontentloaded'});await retry.page.locator('.load-error').waitFor();
+  assert.equal(new URL(retry.page.url()).pathname,'/me/settings','failed Settings load keeps the direct route');
+  await retry.page.locator('#retry').click();await ready(retry.page,'.me-settings','Settings after explicit retry');
+  assert.equal(retry.assets.length,2,'Settings retries its failed asset exactly once');assertSettingsAsset(retry.assets.slice(1),'Settings retry');
+  assert.deepEqual(retry.errors,[]);assert.deepEqual(retry.writes,[]);
+ }finally{await retry.context.close();}
+
+ const stalePath=await settingsRouteFixture(browser,{hold:true});
+ try{
+  await stalePath.page.goto(base+'/me/settings',{waitUntil:'domcontentloaded'});await stalePath.page.locator('.lazy-route-loading').waitFor();await stalePath.held;
+  const finished=stalePath.page.waitForEvent('requestfinished',request=>new URL(request.url()).pathname==='/static/settings-route.js');
+  await stalePath.page.evaluate(()=>go('/me'));await ready(stalePath.page,meReady,'Me while Settings is held');
+  stalePath.release();await finished;await stalePath.done;
+  await until(stalePath.page,()=>App.pageReady&&App.page.key==='/me'&&!!document.querySelector('.me-card-sections'),'settled Me after the Settings path changes');
+  assert.equal(new URL(stalePath.page.url()).pathname,'/me');assert.equal(await stalePath.page.locator('.me-settings').count(),0,'a late Settings load cannot replace newer Me navigation');
+  assert.deepEqual(stalePath.errors,[]);assert.deepEqual(stalePath.writes,[]);
+ }finally{stalePath.release();await stalePath.context.close();}
+
+ const staleOwner=await settingsRouteFixture(browser,{hold:true,instrument:true});
+ try{
+  await staleOwner.page.goto(base+'/me/settings',{waitUntil:'domcontentloaded'});await staleOwner.page.locator('.lazy-route-loading').waitFor();await staleOwner.held;
+  await login(staleOwner.context,'zz_test_explore_typical');
+  const response=await staleOwner.context.request.get(base+'/api/me');assert.equal(response.status(),200,'second fictional account profile loads');
+  await staleOwner.page.evaluate(profile=>refreshMe(profile),await response.json());
+  await until(staleOwner.page,()=>App.me.login==='zz_test_explore_typical'&&!!document.querySelector('.lazy-route-loading'),'new owner holds the pending Settings shell');
+  const finished=staleOwner.page.waitForEvent('requestfinished',request=>new URL(request.url()).pathname==='/static/settings-route.js');
+  staleOwner.release();await finished;await staleOwner.done;await ready(staleOwner.page,'.me-settings','Settings after owner change');
+  assert.deepEqual(await staleOwner.page.evaluate(()=>window.__settingsOwners),['zz_test_explore_typical'],'only the current owner reaches the Settings renderer');
+  assert.equal(staleOwner.assets.length,1,'owner change reuses the single in-flight stamped asset');
+  assert.deepEqual(staleOwner.errors,[]);assert.deepEqual(staleOwner.writes,[]);
+ }finally{staleOwner.release();await staleOwner.context.close();}
+}
 async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
  const context=await fixtureContext(browser);await login(context);
  const page=await context.newPage(),assets=[],errors=[],writes=[];let plannerAttempts=0;
@@ -455,7 +564,9 @@ const contactsCallersOnly=process.env.KINETTA_LAZY_ROUTE_CASE==='contacts-caller
   if(process.env.KINETTA_LAZY_PUSH_INVITATION_ONLY==='1'){await pushInvitationBrowserProof(browser);return;}
   if(contactsOnly){await contactsCases(browser);return;}
   if(contactsCallersOnly){await contactsCases(browser,{includeColdMe:false});return;}
+  if(selectedCase==='settings'){await settingsRouteCase(browser);console.log('Settings lazy route: cold Me, direct/deep links, retry and stale path/owner PASS');return;}
   await pushInvitationBrowserProof(browser);
+  await settingsRouteCase(browser);
   const socialMe=await socialFixture(browser,{idleGate:true});
   try{
     await socialMe.page.goto(base+'/me');await ready(socialMe.page,meReady,'Me without the social bundle');

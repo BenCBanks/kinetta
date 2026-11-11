@@ -58,6 +58,7 @@ const RECIPE_IMPORT_ROUTE_ASSET = '/static/recipe-import.js?v=__ASSET_HASH__';
 const SOCIAL_ROUTE_ASSET = '/static/social.js?v=__ASSET_HASH__';
 const CONTACTS_ROUTE_ASSET = '/static/contacts-ui.js?v=__ASSET_HASH__';
 const PLAN_ROUTE_ASSET = '/static/plan.js?v=__ASSET_HASH__';
+const SETTINGS_ROUTE_ASSET = '/static/settings-route.js?v=__ASSET_HASH__';
 const QR_CODE_ASSET = '/static/vendor/qrcode.js?v=__ASSET_HASH__';
 const INTERVALS_ROUTE_ASSET = '/static/intervals.js?v=__ASSET_HASH__';
 const FRIENDS_UI_ASSET = '/static/friends-ui.js?v=__ASSET_HASH__';
@@ -70,7 +71,7 @@ const lazyRouteBundles = [
   {re: /^\/progress$/, tab: 'progress', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/plan$/, tab: 'progress', scripts: [INTERVALS_ROUTE_ASSET, PLAN_ROUTE_ASSET]},
   {re: /^\/track$/, tab: 'track', scripts: [INTERVALS_ROUTE_ASSET]},
-  {re: /^\/me\/settings$/, tab: 'me', scripts: [INTERVALS_ROUTE_ASSET]},
+  {re: /^\/me\/settings$/, tab: 'me', scripts: [INTERVALS_ROUTE_ASSET, SETTINGS_ROUTE_ASSET]},
   {re: /^\/routes(?:\/.*)?$/, tab: 'track', scripts: [PLANNER_ROUTE_ASSET]},
   {re: /^\/activity$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/activity\/friends\/\d+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
