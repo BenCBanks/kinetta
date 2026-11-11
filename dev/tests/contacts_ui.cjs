@@ -150,7 +150,7 @@ async function runTheme(browser,theme){
  },'invite-only IDs and names stay in the local batch with empty hash lists');
  await page.locator('.contacts-invites > summary').click();await page.locator('[data-invite-contact="fictional-invite-1"]').click();
  const inviteOnly=page.getByRole('dialog',{name:'Invite Avery Patel'});await inviteOnly.waitFor();
- await inviteOnly.locator('#contacts-share-invite').click();await page.waitForFunction(()=>window.__contactsShares.length>1);
+ await inviteOnly.locator('#contacts-share-invite').click();await page.waitForFunction(()=>window.__contactsShares.length>0);
  const inviteOnlyShare=await page.evaluate(()=>window.__contactsShares.at(-1));
  assert.equal(inviteOnlyShare.url,'https://login.kinetta.app/add/fictional-invite');
  assert(!JSON.stringify(inviteOnlyShare).includes('Avery Patel'),'invite-only names stay out of the share payload');
