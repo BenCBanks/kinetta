@@ -514,7 +514,8 @@ const ProfileLayout=(()=>{
     const owner=readOwner(),path=location.pathname+location.search,code=requestedCode?decodeURIComponent(requestedCode):'',sharedLogin=String(options.login||''),shared=!!sharedLogin,profile=options.returnPath||profileHref(App.me),active=()=>el.isConnected&&owner===readOwner()&&path===location.pathname+location.search,query=shared?`?login=${encodeURIComponent(sharedLogin)}`:'';
     el.innerHTML=`<div class="top">${backBtn('Profile')}</div><div id="profile-achievement-page" aria-busy="true"><h1>${code?'Achievement history':'Achievements'}</h1><p class="small muted">Loading…</p></div>`;
     wireBack(el,profile,destination=>/^\/me\/achievements(?:\/|\?|$)/.test(destination.path)?'Achievements':'Profile');
-    const box=$('#profile-achievement-page',el);let interaction=0,activePinSheets=0;
+    const box=$('#profile-achievement-page',el),lifecycleRoot=document.createElement('span');let interaction=0,activePinSheets=0;
+    lifecycleRoot.hidden=true;lifecycleRoot.setAttribute('aria-hidden','true');el.append(lifecycleRoot);
     const pinInteraction=active=>{interaction++;if(active===true)activePinSheets++;else if(active===false)activePinSheets=Math.max(0,activePinSheets-1);};
     const clearBoxResources=()=>{const cleanup=viewResources.get(box);if(cleanup){cleanup();viewResources.delete(box);}};
     const draw=(data,historyData,showcase)=>{
@@ -546,7 +547,7 @@ const ProfileLayout=(()=>{
     };
     Promise.all([api('/api/achievements'+query),loadAchievementCatalog(),code?api('/api/achievement-history/'+encodeURIComponent(code)+query):Promise.resolve(null),code?Promise.resolve({}):api('/api/achievements/showcase'+query).catch(()=>({}))]).then(([data,_catalog,historyData,showcase])=>{
       if(!draw(data,historyData,showcase))return;
-      if(!shared&&(data.pending||historyData?.pending))watchOwnerPending(el,owner,path,refresh);
+      if(!shared&&(data.pending||historyData?.pending))watchOwnerPending(lifecycleRoot,owner,path,refresh);
     }).catch(error=>{
       if(!active()||!box.isConnected)return;
       box.innerHTML=`<h1>Achievements</h1><p class="small err" role="alert">${esc(error?.message||'Achievements are unavailable.')}</p><button class="ghost" type="button" data-achievement-retry>Try again</button>`;
