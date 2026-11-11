@@ -706,7 +706,9 @@ def progress_volume(period: str = 'week', user=Depends(current_user)):
     with db.connect() as c:
         tz = (c.execute('SELECT tz FROM profile WHERE user_id = %s', (user['id'],)).fetchone() or {}).get('tz') or db.DEFAULT_TZ
         rows = c.execute(f"""SELECT date_trunc('{period}', start_time AT TIME ZONE %s)::date AS p, {SPORT_BUCKET} AS s, count(*) AS n,
-                                    coalesce(sum(distance_m), 0) AS d, coalesce(sum(moving_s), 0) AS t, coalesce(sum(ascent_m), 0) AS a
+                                    coalesce(sum(distance_m), 0) AS d, coalesce(sum(moving_s), 0) AS t, coalesce(sum(ascent_m), 0) AS a,
+                                    coalesce(sum(distance_m) FILTER (WHERE distance_m > 0 AND elapsed_s > 0), 0) AS pace_d,
+                                    coalesce(sum(elapsed_s) FILTER (WHERE distance_m > 0 AND elapsed_s > 0), 0) AS pace_t
                              FROM activities WHERE user_id = %s GROUP BY 1, 2 ORDER BY 1""", (tz, user['id'])).fetchall()
     today = dt.datetime.now(ZoneInfo(tz)).date()
     return {'period': period, 'today': today.isoformat(), 'rows': rows}

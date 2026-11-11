@@ -1572,7 +1572,7 @@ async function pMileage(body, q, {home=false}={}) {
     const start = (d) => { const x = new Date(d); if (period === 'week') x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); else if (period === 'month') x.setDate(1); else { x.setMonth(0); x.setDate(1); } return x; };
     for (let d = start(first); d <= today; ) { all.push(new Date(d)); if (period === 'week') d.setDate(d.getDate() + 7); else if (period === 'month') d.setMonth(d.getMonth() + 1); else d.setFullYear(d.getFullYear() + 1); }
     const val = (d, f = 'd') => { const o = by[ymd(d)] || {}; return keys.reduce((s, k) => s + Number((o[k.k] || {})[f] || 0), 0); };
-    const metricValue = d => { const distance = val(d, 'd'), time = val(d, 't');
+    const metricValue = d => { const distance = val(d, paceMetric ? 'pace_d' : 'd'), time = val(d, paceMetric ? 'pace_t' : 't');
       if (metric === 'distance') return toU(distance);
       if (metric === 'time') return time;
       return metric === 'speed' ? (time > 0 ? distance / time : 0) : (distance > 0 ? time / (distance / 1000) : 0);
@@ -1611,7 +1611,7 @@ async function pMileage(body, q, {home=false}={}) {
     const defaultPeriodLabel = 'This ' + word, defaultPeriodValue = displayValue(metricValue(cur));
     let avgValue = avg, bestValue = bestEntry?.value ?? null;
     if (paceMetric) {
-      const distance = chartPeriods.reduce((n, d) => n + val(d, 'd'), 0), time = chartPeriods.reduce((n, d) => n + val(d, 't'), 0);
+      const distance = chartPeriods.reduce((n, d) => n + val(d, 'pace_d'), 0), time = chartPeriods.reduce((n, d) => n + val(d, 'pace_t'), 0);
       avgValue = metric === 'speed' ? (time > 0 ? distance / time : null) : (distance > 0 ? time / (distance / 1000) : null);
       const shown = chartPeriods.map(metricValue).filter(v => v > 0);
       bestValue = shown.length ? metric === 'speed' ? Math.max(...shown) : Math.min(...shown) : null;
