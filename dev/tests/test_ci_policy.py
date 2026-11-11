@@ -195,7 +195,7 @@ feature_collection_ui.cjs groups_ui.cjs journeys_prepare.py journeys.cjs journey
         self.assertIn('command -v "$command"',wrapper)
         self.assertIn('COMPOSE_FILE FEATURE_UI_SESSION',wrapper)
         self.assertIn('--env PLAYWRIGHT_BROWSERS_PATH=/ms-playwright',wrapper)
-        self.assertIn('git config --global --add safe.directory "$PWD"',wrapper)
+        self.assertIn('git -C /tmp config --global --add safe.directory "$PWD"',wrapper)
         self.assertNotIn('env |',wrapper)
 
 if __name__=='__main__':unittest.main()

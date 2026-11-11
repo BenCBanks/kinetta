@@ -59,7 +59,7 @@ for name in \
 done
 
 docker "${run_args[@]}" "$IMAGE" bash -euc '
-  git config --global --add safe.directory "$PWD"
+  git -C /tmp config --global --add safe.directory "$PWD"
   mkdir -p /usr/local/lib/docker/cli-plugins
   cp /tmp/docker-compose-plugin /usr/local/lib/docker/cli-plugins/docker-compose
   for command in node npm python3 git docker; do
