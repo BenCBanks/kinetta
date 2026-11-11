@@ -20,15 +20,15 @@ const tick=()=>new Promise(r=>setTimeout(r,0));
   assert.match(el.innerHTML,/2 of 4/);await tick();
   await node('#wc-next').onclick();assert.deepEqual(calls.filter(([p,b])=>p==='/api/sharing'&&b),[],'unchanged audience is not saved');
   assert.match(el.innerHTML,/3 of 4/);await tick();assert.equal(c.phoneValue,null,'the isolated Contacts settings fake starts empty');
-  const unchangedPhoneWrites=calls.filter(([p,opts])=>p==='/api/contacts/settings'&&opts?.method==='PUT').length;
-  await node('#wc-next').onclick();assert.match(el.innerHTML,/4 of 4/);assert.equal(calls.filter(([p,opts])=>p==='/api/contacts/settings'&&opts?.method==='PUT').length,unchangedPhoneWrites,'unchanged empty phone does not write');
+  const unchangedPhoneWrites=calls.filter(([p,b])=>p==='/api/contacts/settings'&&b!==undefined).length;
+  await node('#wc-next').onclick();assert.match(el.innerHTML,/4 of 4/);assert.equal(calls.filter(([p,b])=>p==='/api/contacts/settings'&&b!==undefined).length,unchangedPhoneWrites,'unchanged empty phone does not write');
   node('#wc-leave').onclick();assert.deepEqual(went,['/me'],'Not now just leaves');
   calls=[];c.location.search='';await route(el);form.elements.bio.value='A fictional bio';await node('#wc-next').onclick();
   assert.deepEqual(JSON.parse(JSON.stringify(calls[0])),['/api/account',{name:'Sam Fictional',bio:'A fictional bio'}]);
   await tick();c.pick='friends';await node('#wc-next').onclick();
   assert(calls.some(([p,b])=>p==='/api/sharing'&&b&&b.default==='friends'),'a changed audience is saved');
   calls=[];c.location.search='';await route(el);await node('#wc-skip').onclick();await node('#wc-skip').onclick();assert.match(el.innerHTML,/3 of 4/);assert.deepEqual(calls.filter(([,b])=>b),[],'profile and audience Skip write nothing');
-  const skippedPhoneWrites=calls.filter(([p,opts])=>p==='/api/contacts/settings'&&opts?.method==='PUT').length;await node('#wc-skip').onclick();assert.match(el.innerHTML,/4 of 4/);assert.equal(calls.filter(([p,opts])=>p==='/api/contacts/settings'&&opts?.method==='PUT').length,skippedPhoneWrites,'phone Skip writes nothing');
+  const skippedPhoneWrites=calls.filter(([p,b])=>p==='/api/contacts/settings'&&b!==undefined).length;await node('#wc-skip').onclick();assert.match(el.innerHTML,/4 of 4/);assert.equal(calls.filter(([p,b])=>p==='/api/contacts/settings'&&b!==undefined).length,skippedPhoneWrites,'phone Skip writes nothing');
   // Kit is offered while it's off and available; Skip leaves it off, Turn on Kit saves only that yes
   c.App.me={name:'Sam Fictional',bio:'',coach:true,ai_ok:null};calls=[];
   c.location.search='';await route(el);assert.match(el.innerHTML,/1 of 5/);node('#wc-skip').onclick();assert.match(el.innerHTML,/Turn on Kit\?/);assert.match(el.innerHTML,/2 of 5/);
