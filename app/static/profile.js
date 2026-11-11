@@ -5,6 +5,8 @@ const ProfileLayout=(()=>{
   const sections={recent:'Recent progress',mileage:'Distance chart',totals:'All-time totals',sports:'Sports',activities:'Activities'};
   const stats={activities:'Activities',distance:'Distance',time:'Time',active_days:'Active days'};
   const watchedOpenProfileCards=new WeakSet();
+  const pendingAchievementViews=new WeakMap();
+  const pendingAchievementDelays=[2000,4000,8000,15000];
   const sports=['run','ride','walk','hike','swim','workout','row','ski','other'];
   const defaults=()=>({sections:Object.keys(sections),stats:['activities','distance','time'],sports:[]});
   function normalize(value){
@@ -378,6 +380,34 @@ const ProfileLayout=(()=>{
     const previous=viewResources.get(root);
     viewResources.set(root,Object.assign(()=>{cleanup();previous?.();},{keepVisual:previous?.keepVisual}));
   }
+  function watchOwnerPending(root,owner,path,refresh){
+    if(!root||pendingAchievementViews.has(root))return;
+    let timer=0,inFlight=false,stopped=false,delayIndex=0;
+    const live=()=>!stopped&&root.isConnected&&owner===readOwner()&&path===location.pathname+location.search;
+    const available=()=>!document.hidden&&navigator.onLine!==false;
+    const clear=()=>{if(timer){clearTimeout(timer);timer=0;}};
+    const stop=()=>{
+      if(stopped)return;stopped=true;clear();document.removeEventListener('visibilitychange',visibility);window.removeEventListener('online',resume);window.removeEventListener('offline',pause);
+      if(pendingAchievementViews.get(root)===stop)pendingAchievementViews.delete(root);
+    };
+    const schedule=()=>{
+      if(stopped||timer||inFlight)return;if(!live()){stop();return;}if(!available())return;
+      timer=setTimeout(run,pendingAchievementDelays[delayIndex]);
+    };
+    const pause=()=>clear(),resume=()=>schedule(),visibility=()=>available()?schedule():clear();
+    const run=async()=>{
+      timer=0;if(!live()){stop();return;}if(!available()||inFlight)return;inFlight=true;
+      try{
+        const result=await refresh();
+        if(!live()){stop();return;}if(!available())return;
+        if(result&&!result.pending&&result.apply?.()!==false){stop();return;}
+      }catch(_){if(!live()){stop();return;}}
+      finally{inFlight=false;}
+      delayIndex=Math.min(delayIndex+1,pendingAchievementDelays.length-1);schedule();
+    };
+    pendingAchievementViews.set(root,stop);document.addEventListener('visibilitychange',visibility);window.addEventListener('online',resume);window.addEventListener('offline',pause);
+    addAchievementCleanup(root,stop);schedule();
+  }
   function syncMeCardOpenLink(card){
     const link=card?.querySelector('.me-card-open-link');if(!link)return;
     const featured=card.querySelector('.me-featured-achievements');
@@ -397,7 +427,7 @@ const ProfileLayout=(()=>{
     const fit=()=>{if(root.isConnected)root.querySelectorAll('.profile-achievement-value').forEach(value=>window.KinettaTextFit.fitElement(value));};
     const observer=new ResizeObserver(fit);observer.observe(root);addAchievementCleanup(root,()=>observer.disconnect());fit();document.fonts?.ready?.then(fit);
   }
-  function wireAchievementPins(box,pinnedCodes){
+  function wireAchievementPins(box,pinnedCodes,onInteraction=()=>{}){
     if(!box.querySelector('.profile-achievement-list.is-grid'))return;
     const owner=readOwner();
     let press=null,timer=0,suppressClick=false,suppressTimer=0,disposed=false;
@@ -405,11 +435,12 @@ const ProfileLayout=(()=>{
     const clearPress=()=>{clearTimeout(timer);timer=0;press=null;};
     const suppress=()=>{suppressClick=true;clearTimeout(suppressTimer);suppressTimer=setTimeout(()=>{suppressClick=false;},900);};
     const openOptions=anchor=>{
+      onInteraction();
       const code=anchor.dataset.achievementCode,pinned=pinnedCodes.has(code),replace=!pinned&&pinnedCodes.size>=FEATURED_ACHIEVEMENT_LIMIT;
       sheet('Showcase',`<div class="card list"><button type="button" class="row-link" data-showcase-pin-action><span class="grow">${pinned?'Remove from profile':'Pin to profile'}</span>${svg('chev')}</button></div>`,(body,close)=>{
         const button=body.querySelector('[data-showcase-pin-action]');if(!button)return;
         button.onclick=async()=>{
-          button.disabled=true;
+          onInteraction();button.disabled=true;
           try{
             const result=await api('/api/achievements/showcase/pin',json('POST',{code,pinned:!pinned}));
             if(!box.isConnected||owner!==readOwner())return;
@@ -448,13 +479,23 @@ const ProfileLayout=(()=>{
       if(featureSlot?.dataset.loading==='true')return;
       const sharedProfile=shared??r?.mine===false,login=r?.person?.login||r?.login||'';
       if(sharedProfile&&!login)return;
-      const owner=readOwner();if(featureSlot)featureSlot.dataset.loading='true';
-      try{
-        const query=sharedProfile?`?login=${encodeURIComponent(login)}`:'', [data,_catalog,achievements]=await Promise.all([api('/api/achievements/showcase'+query),loadAchievementCatalog(),api('/api/achievements'+query)]);
-        if(!root.isConnected||owner!==readOwner()||featureSlot&&!featureSlot.isConnected||streakSlot&&!streakSlot.isConnected)return;
+      const owner=readOwner(),path=location.pathname+location.search;if(featureSlot)featureSlot.dataset.loading='true';
+      const paint=(data,achievements)=>{
         if(streakSlot){streakSlot.innerHTML=showcaseStreakMarkup(data);streakSlot.dataset.loaded='true';}
         if(!sharedProfile)achievementLevelUpHaptic(achievementLevelUps(achievements));
         if(featureSlot){const sharedData=sharedProfile?{tracks:sharedAchievementTracks(achievements)}:achievements;featureSlot.innerHTML=featuredShowcaseMarkup(data,sharedData,sharedProfile?{sharedLogin:login}:{});featureSlot.dataset.loading='';featureSlot.dataset.loaded='true';watchMeCardOpenLink(root,featureSlot.closest('.me-card'),featureSlot);}
+      };
+      try{
+        const query=sharedProfile?`?login=${encodeURIComponent(login)}`:'', [data,_catalog,achievements]=await Promise.all([api('/api/achievements/showcase'+query),loadAchievementCatalog(),api('/api/achievements'+query)]);
+        if(!root.isConnected||owner!==readOwner()||featureSlot&&!featureSlot.isConnected||streakSlot&&!streakSlot.isConnected)return;
+        paint(data,achievements);
+        if(!sharedProfile&&achievements.pending&&featureSlot)watchOwnerPending(featureSlot,owner,path,async()=>{
+          const [freshShowcase,freshAchievements]=await Promise.all([api('/api/achievements/showcase'),api('/api/achievements')]);
+          return{pending:!!freshAchievements.pending,apply:()=>{
+            if(!root.isConnected||!featureSlot.isConnected||streakSlot&&!streakSlot.isConnected)return false;
+            paint(freshShowcase,freshAchievements);return true;
+          }};
+        });
       }catch(_){if(featureSlot)featureSlot.dataset.loading='';/* Achievements never block the Me card. */}
       return;
     }
@@ -469,21 +510,22 @@ const ProfileLayout=(()=>{
     }catch(_){/* The optional Showcase never blocks its profile card. */}
   }
   function achievementPage(el,requestedCode='',options={}){
-    const owner=readOwner(),code=requestedCode?decodeURIComponent(requestedCode):'',sharedLogin=String(options.login||''),shared=!!sharedLogin,profile=options.returnPath||profileHref(App.me),active=()=>el.isConnected&&owner===readOwner(),query=shared?`?login=${encodeURIComponent(sharedLogin)}`:'';
+    const owner=readOwner(),path=location.pathname+location.search,code=requestedCode?decodeURIComponent(requestedCode):'',sharedLogin=String(options.login||''),shared=!!sharedLogin,profile=options.returnPath||profileHref(App.me),active=()=>el.isConnected&&owner===readOwner()&&path===location.pathname+location.search,query=shared?`?login=${encodeURIComponent(sharedLogin)}`:'';
     el.innerHTML=`<div class="top">${backBtn('Profile')}</div><div id="profile-achievement-page" aria-busy="true"><h1>${code?'Achievement history':'Achievements'}</h1><p class="small muted">Loading…</p></div>`;
     wireBack(el,profile,destination=>/^\/me\/achievements(?:\/|\?|$)/.test(destination.path)?'Achievements':'Profile');
-    const box=$('#profile-achievement-page',el);
-    Promise.all([api('/api/achievements'+query),loadAchievementCatalog(),code?api('/api/achievement-history/'+encodeURIComponent(code)+query):Promise.resolve(null),code?Promise.resolve({}):api('/api/achievements/showcase'+query).catch(()=>({}))]).then(([data,_catalog,historyData,showcase])=>{
-      if(!active()||!box.isConnected)return;
+    const box=$('#profile-achievement-page',el);let interaction=0;
+    const clearBoxResources=()=>{const cleanup=viewResources.get(box);if(cleanup){cleanup();viewResources.delete(box);}};
+    const draw=(data,historyData,showcase)=>{
+      if(!active()||!box.isConnected)return false;clearBoxResources();
       const tracks=shared?sharedAchievementTracks(data):startedAchievements(data),track=code?(tracks.find(t=>t.code===code)||(!shared&&emptyAchievementTrack(code))):null;
-      if(code&&!track){box.innerHTML='<h1>Achievements</h1><p class="small muted">This track has no earned tiers yet.</p>';box.setAttribute('aria-busy','false');return;}
+      if(code&&!track){box.innerHTML='<h1>Achievements</h1><p class="small muted">This track has no earned tiers yet.</p>';box.setAttribute('aria-busy','false');return true;}
       if(!code){
         const levelUps=shared?new Set():achievementLevelUps(data),overviewTracks=shared?tracks:overviewAchievementTracks(data);
         const pinnedCodes=new Set((Array.isArray(showcase?.pinned)?showcase.pinned:[]).map(String)),groups=shared?sharedAchievementGrid(overviewTracks,sharedLogin):achievementGrid(overviewTracks,levelUps,pinnedCodes);
         box.innerHTML=`<h1>Achievements</h1>${groups||'<p class="small muted">No earned achievements yet.</p>'}`;
         fitAchievementValues(box);
-        if(!shared){fitAchievementProgress(box);wireAchievementPins(box,pinnedCodes);achievementLevelUpHaptic(levelUps);}
-        box.setAttribute('aria-busy','false');return;
+        if(!shared){fitAchievementProgress(box);wireAchievementPins(box,pinnedCodes,()=>interaction++);achievementLevelUpHaptic(levelUps);}
+        box.setAttribute('aria-busy','false');return true;
       }
       const levelUps=shared?new Set():achievementLevelUps(data),label=track.label||track.code,value=achievementValue(track),next=achievementNext(track),level=achievementLevel(track),current=achievementCurrentTier(track),started=achievementTrackStarted(track);
       const header=shared?`<div class="profile-achievement-history-head" data-achievement-code="${esc(track.code)}">${achievementMedallion(track)}<div class="profile-achievement-history-copy"><h1>Achievement history</h1><p class="profile-achievement-current">${esc(label)} · Level ${level}${current?` · ${esc(current.name)}`:''}</p><p class="profile-achievement-current-value">${esc(value)}</p></div></div>`:`<div class="profile-achievement-history-head${!started?' is-unstarted':''}${levelUps.has(track.code)?' is-level-up':''}" data-achievement-code="${esc(track.code)}">${achievementMedallion(track)}<div class="profile-achievement-history-copy"><h1>${esc(label)}</h1><p class="profile-achievement-current">${started?`Level ${level}${current?` · ${esc(current.name)}`:''}`:'Not started'}</p>${started?`<p class="profile-achievement-current-value">${esc(value)}</p>${next?`<p class="profile-achievement-next-tier">Next · ${esc(next)}</p>`:''}`:''}</div></div>`;
@@ -493,6 +535,16 @@ const ProfileLayout=(()=>{
       fitAchievementProgress(box);
       if(!shared)achievementLevelUpHaptic(levelUps);
       box.setAttribute('aria-busy','false');
+      return true;
+    };
+    const refresh=async()=>{
+      const version=interaction;
+      const [data,historyData,showcase]=await Promise.all([api('/api/achievements'),code?api('/api/achievement-history/'+encodeURIComponent(code)):Promise.resolve(null),code?Promise.resolve({}):api('/api/achievements/showcase')]);
+      return{pending:!!data.pending||!!historyData?.pending,apply:()=>version===interaction&&draw(data,historyData,showcase)};
+    };
+    Promise.all([api('/api/achievements'+query),loadAchievementCatalog(),code?api('/api/achievement-history/'+encodeURIComponent(code)+query):Promise.resolve(null),code?Promise.resolve({}):api('/api/achievements/showcase'+query).catch(()=>({}))]).then(([data,_catalog,historyData,showcase])=>{
+      if(!draw(data,historyData,showcase))return;
+      if(!shared&&(data.pending||historyData?.pending))watchOwnerPending(el,owner,path,refresh);
     }).catch(error=>{
       if(!active()||!box.isConnected)return;
       box.innerHTML=`<h1>Achievements</h1><p class="small err" role="alert">${esc(error?.message||'Achievements are unavailable.')}</p><button class="ghost" type="button" data-achievement-retry>Try again</button>`;
