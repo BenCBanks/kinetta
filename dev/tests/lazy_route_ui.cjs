@@ -913,7 +913,7 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     assert.match(await activitySegment.page.locator('#toast').innerText(),/Segment tools could not load.*tap again to retry/i,'failed Planner load leaves a visible retry message');
     assert.equal(activitySegment.assets.filter(path=>path==='/static/planner.js').length,1,'the first tap attempts the deferred Planner bundle');
     await activitySegment.page.locator('#sa-seg').click();await activitySegment.page.locator('#st-use').waitFor();
-    assert.deepEqual(activitySegment.assets,['/static/segments.js','/static/planner.js','/static/planner.js'],'the second tap retries Planner and opens the stretch sheet');
+    assert.deepEqual(activitySegment.assets,['/static/segments.js','/static/intervals.js','/static/planner.js','/static/planner.js'],'the second tap retries Planner after interval history is loaded and opens the stretch sheet');
     assert.deepEqual(await activitySegment.page.evaluate(()=>Object.fromEntries(['route','info','list','up','flag'].map(key=>[key,IC[key]]))),sharedIcons,'loading Planner does not replace shared eager icons');
     assert.deepEqual(activitySegment.errors,[],'Activity first-tap and retry have no uncaught browser errors');assert.deepEqual(activitySegment.writes,[]);
   }finally{await activitySegment.context.close();}
