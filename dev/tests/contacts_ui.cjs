@@ -23,7 +23,10 @@ async function runTheme(browser,theme){
   window.__contactsShares=[];
   Object.defineProperty(navigator,'share',{configurable:true,value:async options=>{window.__contactsShares.push(options);}});
   window.Capacitor={isNativePlatform:()=>false,getPlatform:()=> 'ios',Plugins:{KinettaContacts:{
-   hashContacts:async()=>{window.__contactsPluginCalls++;const contacts=[
+   hashContacts:async()=>{window.__contactsPluginCalls++;const contacts=window.__contactsScenario==='invite-only' ? [
+    {id:'fictional-invite-1',name:'Avery Patel',hashes:[]},
+    {id:'fictional-invite-2',name:'Kai Morgan',hashes:[]},
+   ] : [
     {id:'fictional-contact-1',name:'Jordan Lee',hashes:[{kind:'email',digest:'a'.repeat(64)}]},
     {id:'fictional-contact-2',name:'Maya Chen',hashes:[{kind:'phone',digest:'b'.repeat(64)}]},
     {id:'fictional-contact-3',name:'Taylor Brooks',hashes:[{kind:'email',digest:'c'.repeat(64)}]},
@@ -139,9 +142,22 @@ async function runTheme(browser,theme){
  await enter('empty');await page.locator('#contacts-continue').click();await page.getByRole('heading',{name:'No friends found yet'}).waitFor();
  assert.equal(await page.locator('.contacts-matched-list .contacts-person').count(),0,'unmatched contact names are not shown as Kinetta accounts');
  await capture('contacts-empty');
+ const requestsBeforeInviteOnly=matchBodies.length;
+ await enter('invite-only');await page.locator('#contacts-continue').click();await page.getByRole('heading',{name:'No friends found yet'}).waitFor();
+ assert.equal(matchBodies.length,requestsBeforeInviteOnly,'an all-invite-only batch makes no contacts-match request');
+ assert.deepEqual(await page.evaluate(()=>({contacts:window.__contactsLastBatch.contacts.map(c=>({id:c.id,name:c.name,hashes:c.hashes.length})),hashes:window.__contactsLastBatch.hashes.length})),{
+  contacts:[{id:'fictional-invite-1',name:'Avery Patel',hashes:0},{id:'fictional-invite-2',name:'Kai Morgan',hashes:0}],hashes:0,
+ },'invite-only IDs and names stay in the local batch with empty hash lists');
+ await page.locator('.contacts-invites > summary').click();await page.locator('[data-invite-contact="fictional-invite-1"]').click();
+ const inviteOnly=page.getByRole('dialog',{name:'Invite Avery Patel'});await inviteOnly.waitFor();
+ await inviteOnly.locator('#contacts-share-invite').click();await page.waitForFunction(()=>window.__contactsShares.length>1);
+ const inviteOnlyShare=await page.evaluate(()=>window.__contactsShares.at(-1));
+ assert.equal(inviteOnlyShare.url,'https://login.kinetta.app/add/fictional-invite');
+ assert(!JSON.stringify(inviteOnlyShare).includes('Avery Patel'),'invite-only names stay out of the share payload');
+ await capture('contacts-invite-only');
  assert.deepEqual(matchBodies.map(body=>Object.keys(body).sort()),[['hashes','salt'],['hashes','salt'],['hashes','salt'],['hashes','salt'],['hashes','salt']]);
  assert(matchBodies.every(body=>JSON.stringify(body).includes('digest')&&!JSON.stringify(body).includes('Jordan Lee')),'the server receives hashes only, never local contact details');
- assert.equal(saltCalls,5,'each explicit Contacts check gets a salt');
+ assert.equal(saltCalls,6,'each explicit Contacts check gets a salt');
  assert.deepEqual(errors,[]);
  await context.close();
 }

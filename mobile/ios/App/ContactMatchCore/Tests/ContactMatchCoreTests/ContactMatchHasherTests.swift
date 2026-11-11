@@ -40,6 +40,28 @@ final class ContactMatchHasherTests: XCTestCase {
         XCTAssertTrue(json.contains("local-a"))
     }
 
+    func testInviteOnlyContactsStayLocalWithEmptyHashes() throws {
+        let batch = try ContactMatchHasher.build(salt: salt, region: "US", contacts: [
+            ContactMatchSource(id: "local-invite", name: "Fictional Invite", emails: ["not an email"], phones: ["not a phone number"])
+        ])
+
+        XCTAssertEqual(batch.contacts, [ContactMatchContact(id: "local-invite", name: "Fictional Invite", hashes: [])])
+        XCTAssertTrue(batch.hashes.isEmpty, "invite-only contacts never contribute server request hashes")
+        XCTAssertFalse(batch.truncated)
+    }
+
+    func testMixedMatchableAndInviteOnlyContactsKeepOnlyValidHashes() throws {
+        let batch = try ContactMatchHasher.build(salt: salt, region: "US", contacts: [
+            ContactMatchSource(id: "local-match", name: "Fictional Match", emails: ["match@example.test"], phones: []),
+            ContactMatchSource(id: "local-invite", name: "Fictional Invite", emails: ["invalid"], phones: ["not a phone number"])
+        ])
+
+        XCTAssertEqual(batch.contacts.map(\.id), ["local-match", "local-invite"])
+        XCTAssertEqual(batch.contacts.map(\.hashes.count), [1, 0])
+        XCTAssertEqual(batch.hashes.count, 1)
+        XCTAssertEqual(batch.hashes.first?.kind, .email)
+    }
+
     func testRejectsInvalidSaltAndCapsTheRequestAtTwoThousandHashes() throws {
         XCTAssertThrowsError(try ContactMatchHasher.build(salt: "short", region: "US", contacts: []))
         let source = ContactMatchSource(id: "local-many", name: "Fictional Contact",
