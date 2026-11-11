@@ -271,6 +271,9 @@ def enrich_file(c, uid, aid, parsed, incoming_summary, sha, path):
         if health_duration is None:
             details['health_duration_replay_required'] = True
         sets['health_details'] = json.dumps(details)
+        if health_duration is None:
+            for k in ('gap_s_per_km','vo2max','vam'):
+                sets[k] = None
         for k in ('max_speed','decoupling','steps'):
             if k not in ('max_speed','steps') or source_metrics.get(k) is None:
                 sets[k] = None

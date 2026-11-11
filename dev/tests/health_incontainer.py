@@ -167,6 +167,16 @@ try:
         assert legacy['moving_s']==moving_intervals and legacy['gap_s_per_km'] is None and legacy['vo2max'] is None and legacy['vam'] is None
         assert legacy['max_speed'] is None and legacy['decoupling'] is None and not legacy['splits_km'] and not legacy['splits_mi']
         assert 'speed' not in legacy['chart'] and legacy['health_details']['health_duration_replay_required'] is True
+        c.execute('UPDATE activities SET gap_s_per_km=470,vo2max=40,vam=400,max_speed=6,decoupling=4,steps=5000 WHERE id=%s AND user_id=%s',(staircase_id,uid))
+    legacy_file,_=api_health.to_activity(staircase)
+    legacy_streams={k:list(v) for k,v in legacy_file['streams'].items()}
+    legacy_streams['temp']=[20.0]*len(legacy_streams['t'])
+    legacy_file['streams']=legacy_streams
+    with db.connect() as c:
+        assert activities.enrich_file(c,uid,staircase_id,legacy_file,{},None,None), 'legacy file enrichment exercises replay-required clearing'
+        legacy=c.execute('SELECT gap_s_per_km,vo2max,vam,max_speed,decoupling,steps,health_details FROM activities WHERE id=%s AND user_id=%s',(staircase_id,uid)).fetchone()
+        assert all(legacy[k] is None for k in ('gap_s_per_km','vo2max','vam','max_speed','decoupling','steps'))
+        assert legacy['health_details']['health_duration_replay_required'] is True
     result, replay_id, repaired=api_health.save(uid,staircase)
     assert result=='duplicate' and replay_id==staircase_id and repaired, 'Health replay repairs legacy mask-derived aggregate'
     with db.connect() as c:
@@ -191,7 +201,7 @@ try:
     assert api_health.save(uid,source_totals)[2] is False, 'unchanged Health totals replay idempotently'
     file_parsed,_=api_health.to_activity(staircase)
     file_streams={k:list(v) for k,v in file_parsed['streams'].items()}
-    file_streams['temp']=[20.0]*len(file_streams['t'])
+    file_streams['power']=[200.0]*len(file_streams['t'])
     file_parsed['streams']=file_streams
     with db.connect() as c:
         assert activities.enrich_file(c,uid,staircase_id,file_parsed,{},None,None), 'compatible file enrichment adds a missing signal'
