@@ -379,7 +379,6 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
  });
  return {context,page,assets,errors,writes,activityId};
 }
-<<<<<<< HEAD
 async function pushInvitationFixture(browser,{failFirst=false,hold=false}={}){
  const context=await fixtureContext(browser);await login(context);
  const page=await context.newPage(),assets=[],errors=[],writes=[],external=[];let heldOnce=false,releaseHeld=()=>{},signalHeld=()=>{},finishFailed=()=>{};
@@ -447,19 +446,16 @@ async function pushInvitationBrowserProof(browser){
  }finally{await retry.context.close();}
  console.log('Native push invitation loader: cold web absence, Native home demand load, stale-owner suppression and failed-load retry PASS');
 }
+const contactsOnly=process.env.KINETTA_LAZY_ROUTE_CASE==='contacts';
+const contactsCallersOnly=process.env.KINETTA_LAZY_ROUTE_CASE==='contacts-callers';
 (async()=>{const browser=await chromium.launch();try{
   if(process.env.KINETTA_FRIENDS_LAZY_ONLY==='1'){
     await friendsLeafChecks(browser);console.log('FriendsUI lazy leaf: cold Me, direct route order/retry and Contacts independence PASS');return;
   }
   if(process.env.KINETTA_LAZY_PUSH_INVITATION_ONLY==='1'){await pushInvitationBrowserProof(browser);return;}
-  await pushInvitationBrowserProof(browser);
-=======
-const contactsOnly=process.env.KINETTA_LAZY_ROUTE_CASE==='contacts';
-const contactsCallersOnly=process.env.KINETTA_LAZY_ROUTE_CASE==='contacts-callers';
-(async()=>{const browser=await chromium.launch();try{
   if(contactsOnly){await contactsCases(browser);return;}
   if(contactsCallersOnly){await contactsCases(browser,{includeColdMe:false});return;}
->>>>>>> dash-518-contacts-ui
+  await pushInvitationBrowserProof(browser);
   const socialMe=await socialFixture(browser,{idleGate:true});
   try{
     await socialMe.page.goto(base+'/me');await ready(socialMe.page,meReady,'Me without the social bundle');
@@ -516,11 +512,8 @@ const contactsCallersOnly=process.env.KINETTA_LAZY_ROUTE_CASE==='contacts-caller
     assert.deepEqual(socialRetry.errors,[]);assert.deepEqual(socialRetry.writes,[]);
   }finally{await socialRetry.context.close();}
 
-<<<<<<< HEAD
   await friendsLeafChecks(browser);
-=======
   await contactsCases(browser);
->>>>>>> dash-518-contacts-ui
 
   const context=await fixtureContext(browser);
   try{
