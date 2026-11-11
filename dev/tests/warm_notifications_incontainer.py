@@ -1,7 +1,9 @@
 """Real owner-scoped SQL and device/session delivery with a local send stand-in."""
 import datetime as dt
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from app import auth, db, notify, notification_facts, notification_words
 
@@ -162,7 +164,38 @@ class WarmNotifications(unittest.TestCase):
             facts=read(c,row,asof);advanced[0]=True;return facts
         with patch.object(notification_facts,'local_now',side_effect=clock),patch.object(notification_facts,'read',side_effect=crossing):
             self.assertEqual(notify.push(nid,send=lambda d,p:sent.append(p)),2)
+        self.assertTrue(sent,'both fictional device sends are recorded')
+        self.assertNotIn('\n',sent[0]['body'],'stale facts are discarded before the first device send')
         self.assertTrue(all('\n' not in p['body'] for p in sent),'The next day cannot inherit yesterday’s period claims')
+
+    def test_local_midnight_during_send_omits_highlight_for_second_device(self):
+        zone=ZoneInfo('America/New_York')
+        before=dt.datetime(2026,11,8,23,59,tzinfo=zone)
+        after=dt.datetime(2026,11,9,0,1,tzinfo=zone)
+        old=self.activity(before-dt.timedelta(days=4),5000)
+        middle=self.activity(before-dt.timedelta(days=1),5000)
+        current=self.activity(before-dt.timedelta(hours=2),5000)
+        nid=self.notice(current);self.devices();sent=[];advanced=[False]
+
+        class FixedDateTime(dt.datetime):
+            @classmethod
+            def now(cls,tz=None):
+                return before.replace(tzinfo=None) if tz is None else before.astimezone(tz)
+
+        clock_module=SimpleNamespace(datetime=FixedDateTime,timezone=dt.timezone)
+        def clock(row,asof=None):
+            return before if asof is not None or not advanced[0] else after
+        def send(device,payload):
+            sent.append(payload)
+            if len(sent)==1:advanced[0]=True
+            return True
+
+        self.assertNotEqual(old,middle)
+        with patch.object(notify,'dt',clock_module),patch.object(notification_facts,'local_now',side_effect=clock):
+            self.assertEqual(notify.push(nid,send=send),2)
+        self.assertEqual(len(sent),2,'each fictional device receives one prepared payload')
+        self.assertIn('3rd run this week',sent[0]['body'],'Sunday delivery keeps its period highlight')
+        self.assertNotIn('\n',sent[1]['body'],'Monday delivery omits facts prepared for Sunday')
 
     def test_optional_loader_and_sql_errors_preserve_plain_delivery(self):
         current=self.activity(dt.datetime.now(UTC)-dt.timedelta(hours=2));nid=self.notice(current);self.devices()
