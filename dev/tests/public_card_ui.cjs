@@ -7,8 +7,10 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
  assert((await login.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}})).ok());
  const storageState=await login.storageState();await login.close();
  for(const size of [{width:390,height:844,root:16},{width:1280,height:900,root:16}])for(const theme of ['light','dark']){
-  const c=await browser.newContext({storageState,viewport:size,colorScheme:theme,timezoneId:'America/New_York',serviceWorkers:'block'}),p=await c.newPage(),errors=[];
-  p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
+  const c=await browser.newContext({storageState,viewport:size,colorScheme:theme,timezoneId:'America/New_York',serviceWorkers:'block'}),p=await c.newPage(),errors=[],qrRequests=[];let qrFailures=0;
+  p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!m.text().startsWith('Failed to load resource'))errors.push(m.text());});
+  p.on('request',r=>{if(new URL(r.url()).pathname==='/static/vendor/qrcode.js')qrRequests.push(r.url());});
+  p.on('requestfailed',r=>{if(new URL(r.url()).pathname==='/static/vendor/qrcode.js')qrFailures++;else errors.push(`Request failed: ${r.url()}`);});
   await c.addInitScript(r=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=r+'px'),size.root);
   const ready=async()=>{for(let attempt=0;attempt<150;attempt++){if(await p.evaluate(()=>App.pageReady))return;await p.waitForTimeout(100);}throw Error('Me did not become ready');};
   await p.goto(base+'/me');await ready();await p.evaluate(()=>KinettaCard.open());
@@ -19,6 +21,8 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
    await p.waitForTimeout(100);
   }throw Error('Card picture and settings did not settle');};
   await settled();assert.match(await p.title(),/Kinetta/);assert.equal(new URL(p.url()).pathname,'/me');
+  for(let attempt=0;attempt<40;attempt++){if(await p.evaluate(()=>performance.getEntriesByType('resource').some(r=>new URL(r.name).pathname==='/static/social.js')))break;await p.waitForTimeout(50);}
+  assert(await p.evaluate(()=>performance.getEntriesByType('resource').some(r=>new URL(r.name).pathname==='/static/social.js')),'post-Me Social warmup completes');assert.equal(qrRequests.length,0,'neither cold Me nor post-Me Social warmup loads QR');
   for(const x of [enabled,photo,sports,requests,thisWeek])assert(await x.isChecked());assert(!(await allTime.isChecked()));assert(!(await none.isChecked()));
   const setting=await c.request.get(base+'/api/card'),data=await setting.json();
   assert.equal(data.period,'this_week');assert.equal(data.preview.period,'this_week');
@@ -60,7 +64,10 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
   await p.reload();await ready();await p.evaluate(()=>KinettaCard.open());await settled();assert(!(await enabled.isChecked()),'off survives returning to the sheet');
   await enabled.check();await settled();assert((await anonymous.request.get(data.url)).ok());
   assert.equal(await p.locator('body').evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'no horizontal overflow');
-  const qr=p.locator('#card-qr');await qr.click();assert(await p.getByRole('img',{name:'QR code for your Kinetta card'}).isVisible(),'the existing card QR screen remains available');
+  const qr=p.locator('#card-qr');let failQr=true;await p.route('**/static/vendor/qrcode.js*',route=>{if(failQr){failQr=false;return route.abort();}return route.continue();});
+  await qr.click();for(let attempt=0;attempt<100;attempt++){if((await p.locator('#card-status').textContent()).includes('could not load'))break;await p.waitForTimeout(50);}
+  assert.match(await p.locator('#card-status').innerText(),/QR code could not load/,'a failed lazy QR load leaves the card sheet open with a retry message');assert.equal(qrRequests.length,1,'QR is requested only after the card action');assert.equal(qrFailures,1,'the fixture fails the first QR asset request only');
+  await qr.click();assert(await p.getByRole('img',{name:'QR code for your Kinetta card'}).isVisible(),'the existing card QR screen remains available after retry');assert.equal(qrRequests.length,2,'a failed script request can retry once');await p.unroute('**/static/vendor/qrcode.js*');
   assert.deepEqual(errors,[]);console.log(`Public card ${size.width}x${size.height}/${size.root} ${theme} PASS: weekly/all-time/none choices, matching image, public opt-out, sports, off persistence, public revocation, QR, console`);
   await anonymous.close();await c.close();
  }
