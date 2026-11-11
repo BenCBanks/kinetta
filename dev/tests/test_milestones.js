@@ -27,7 +27,7 @@ vm.createContext(context);vm.runInContext(source+'\nglobalThis.subject=Milestone
  detail={visibility:'everyone',line:null};assert.equal((await M.routePoints(single)).length,0,'missing GPS');
  context.api=async()=>{throw Error('offline');};await assert.rejects(M.routePoints(single),/offline/,'privacy fetch failure cannot export a stale map');
  detail={visibility:'everyone',line:'fictional-line'};context.api=url=>url.endsWith('/social')?new Promise(ok=>resolve=ok):Promise.resolve(detail);
- const late=M.routePoints(single);owner='new-account';resolve(shared);await assert.rejects(late,/account changed/);
+ const lateRouteRead=M.routePoints(single);owner='new-account';resolve(shared);await assert.rejects(lateRouteRead,/account changed/);
  owner='fictional-owner';
  // Exercise the real activity-picture crop rather than the mocked boundary above.
  vm.runInContext(fs.readFileSync('app/static/pages.js','utf8').match(/function trimRoute\(pts, m\) \{[\s\S]*?\n\}/)[0],context);
