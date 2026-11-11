@@ -194,7 +194,7 @@ function wireCheers(box) {
     });
   };});
   $$('[data-reaction-group]',box).forEach(group=>wireReactionGroup(group,group.dataset.aid));
-  $$('[data-share-picture]',box).forEach(button=>button.onclick=()=>sharePicture(button.dataset.sharePicture));
+  $$('[data-share-picture]',box).forEach(button=>button.onclick=()=>sharePicture(button.dataset.sharePicture,null,button));
 }
 // A tap anywhere on a card that isn't one of its own buttons or links opens the activity, and the card dips slightly
 // under the finger so the tap feels answered at once (2026-10-16). Links, Cheers, comments and photos keep their jobs.
@@ -947,12 +947,15 @@ const appBase = () => (Native.on && Native.base ? Native.base : location.origin)
 function shareOut(a) { sharePicture(a.id, a); }
 // One picture for everything (Ben, 2026-10-24): a 4:5 image that works in Messages, Instagram posts and Stories alike,
 // so nobody has to choose a size. Share opens the phone's own share sheet.
-function sharePicture(id, known) {
-  const owner=readOwner(),cached=known&&known.line!==undefined&&known.start_time?known:null;
+const activityShareOpening=new WeakSet();
+function sharePicture(id, known, origin=null) {
+  const owner=readOwner(),path=location.pathname+location.search,context=origin||document.querySelector('#d-body')||root,live=()=>context?.isConnected&&owner===readOwner()&&path===location.pathname+location.search,cached=known&&known.line!==undefined&&known.start_time?known:null;
+  if(!live()||activityShareOpening.has(context))return;activityShareOpening.add(context);
   const socialRequest=cached&&cached._social?Promise.resolve(cached._social):api(`/api/activities/${id}/social`).catch(()=>null);
-  Promise.all([cached||api(`/api/activities/${id}`),socialRequest])
-    .then(([activity,social])=>{
-      if(owner!==readOwner())return;if(cached)cached._social=social;
+  void(async()=>{
+   try{
+    const [activity,social]=await Promise.all([cached||api(`/api/activities/${id}`),socialRequest]);
+      if(!live())return;if(cached)cached._social=social;
       const details=social?.details||{},savedTrim=Number(social?.trim_m)||400,mapAllowed=details.map!==false;
       const line=mapAllowed?activity.line:null,hasLine=!!(line&&decode(line).length>1),controls=hasLine?[{key:'hideEnds',label:'Hide where it starts and ends',checked:true}]:[];
       const safe={...activity,line,avg_hr:details.heart_rate?activity.avg_hr:null,calories:details.calories?activity.calories:null};
@@ -965,8 +968,10 @@ function sharePicture(id, known) {
       if(details.elevation&&activity.ascent_m)statsFacts.push(`Climb: ${App.me?.units==='metric'?Math.round(activity.ascent_m)+' m':Math.round(activity.ascent_m*3.28084)+' ft'}`);
       if(details.calories&&activity.calories)statsFacts.push(`Calories: ${Math.round(activity.calories)} kcal`);
       items.push({label:'Stats',filename:`${name}-stats.png`,build:()=>ShareArt.simplePicture({kicker:SPORT_NAMES[activity.sport]||'Activity',title:activity.name,date,value:activity.distance_m?U.dist(activity.distance_m):dur(activity.moving_s||activity.elapsed_s),unit:activity.distance_m?U.du():'moving time',facts:statsFacts})});
-      ShareSheet.open({items});
-    }).catch(error=>{if(owner===readOwner())toast(error.message||'Couldn’t load this activity.');});
+      await loadShareArt();if(!live())return;ShareSheet.open({items});
+   }catch(error){if(live())toast(error.message||'Couldn’t load this activity. Tap Share to try again.');}
+   finally{activityShareOpening.delete(context);}
+  })();
 }
 // cut `m` metres off each end of the route; nothing left (a short loop) means no route is drawn
 function trimRoute(pts, m) {

@@ -562,23 +562,23 @@ const MeCard=(()=>{
   }
   const paintBars=box=>$$('.me-card-bars span[data-h]',box).forEach(bar=>bar.style.height=(bar.dataset.h==='0'?'0':Math.max(4,bar.dataset.h*5))+'px');
   let openingShare=false,openingPreview=false;
-  async function shareSheet(){
-    if(openingShare)return;openingShare=true;const owner=readOwner(),login=App.me.login;
+  async function shareSheet(event){
+    if(openingShare)return;openingShare=true;const owner=readOwner(),path=location.pathname+location.search,trigger=event.currentTarget,card=trigger.closest('.me-card'),live=()=>trigger.isConnected&&card?.isConnected&&owner===readOwner()&&path===location.pathname+location.search,login=App.me.login;
     try{
       const profileLink=`${appBase()}${profileHref(App.me)}`;
-      const [profile,sharing,showcase,achievements,cardItems]=await Promise.all([api('/api/people/'+encodeURIComponent(login)+'/profile?as_friend=true&preview=member&limit=1'),api('/api/sharing').catch(()=>({share_achievements:false})),api('/api/achievements/showcase').catch(()=>({items:[]})),api('/api/achievements').catch(()=>({tracks:[]})),KinettaCard.shareItems(profileLink).catch(()=>[])]);
-      if(owner!==readOwner())return;
+      const [profile,sharing,showcase,achievements,cardItems]=await Promise.all([api('/api/people/'+encodeURIComponent(login)+'/profile?as_friend=true&preview=member&limit=1'),api('/api/sharing').catch(()=>({share_achievements:false})),api('/api/achievements/showcase').catch(()=>({items:[]})),api('/api/achievements').catch(()=>({tracks:[]})),KinettaCard.shareItems(profileLink).catch(()=>[]),loadShareArt()]);
+      if(!live())return;
       if(profile.profile_hidden)throw Error('Your profile is hidden until your account is confirmed and active.');
       if(profile.preview!=='member')throw Error('The preview needs a server update.');
       const items=cardItems.slice(0,1);
       if(sharing.share_achievements&&showcase.items?.length){
-        const featured=await ProfileLayout.featuredOptions(achievements,showcase.items);if(owner!==readOwner())return;
+        const featured=await ProfileLayout.featuredOptions(achievements,showcase.items);if(!live())return;
         if(featured.length)items.push({label:'Achievements',filename:'kinetta-achievements.png',controls:[{key:'identity',label:'Photo and username',checked:false}],build:state=>ShareArt.simplePicture({kicker:'Achievements',title:'Your progress',value:String(featured.length),unit:'featured',facts:featured.map(item=>`${item.label} · ${item.detail}`),identity:!!state.identity})});
       }
-      if(typeof weeklyRecapShareItem==='function'){const week=await weeklyRecapShareItem().catch(()=>null);if(owner!==readOwner())return;if(week)items.push(week);}
+      if(typeof weeklyRecapShareItem==='function'){const week=await weeklyRecapShareItem().catch(()=>null);if(!live())return;if(week)items.push(week);}
       const meCard=items.find(item=>item.label==='Me card');if(meCard){meCard.note='Private workouts count, but stay hidden';meCard.description='Totals include your private workouts. Friends see the totals, not the workouts.';}
-      ShareSheet.open({items});
-    }catch(error){if(owner===readOwner())toast(error.message||'Couldn’t prepare your pictures.');}
+      if(live())ShareSheet.open({items});
+    }catch(error){if(live())toast((error.message||'Couldn’t prepare your pictures.')+' Tap Share to try again.');}
     finally{openingShare=false;}
   }
   function viewAsFriend(){

@@ -1,8 +1,8 @@
 // Execute the actual presentation boundary with fictional own records; no browser, model or device calls.
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const source=fs.readFileSync('app/static/milestones.js','utf8');let owner='fictional-owner',captured,resolve;
-const context={URLSearchParams,AbortController,setTimeout,clearTimeout,Intl,Date,Math,Symbol,console,App:{me:{units:'metric',login:'fictional_login',name:'PRIVATE REAL NAME'}},SPORT_NAMES:{run:'Run'},readOwner:()=>owner,route:()=>{},dur:n=>String(n)+' seconds',ShareArt:{simplePicture:async options=>(captured=options)},api:async()=>({items:[]})};
+const source=fs.readFileSync('app/static/milestones.js','utf8');let owner='fictional-owner',captured,resolve,leafLoads=0,leafError=null,leafWait=null,leafStarted=false,opened=null,toastText='';
+const location={pathname:'/me',search:''},context={URLSearchParams,AbortController,setTimeout,clearTimeout,Intl,Date,Math,Symbol,console,location,App:{me:{units:'metric',login:'fictional_login',name:'PRIVATE REAL NAME'}},SPORT_NAMES:{run:'Run'},readOwner:()=>owner,loadShareArt:async()=>{leafLoads++;if(leafError)throw leafError;if(leafWait){leafStarted=true;await leafWait;}},ShareSheet:{open:options=>{opened=options;}},sheet(_title,_html,handler){handler({isConnected:true,querySelector:()=>null},()=>{});},toast:value=>{toastText=value;},route:()=>{},dur:n=>String(n)+' seconds',ShareArt:{simplePicture:async options=>(captured=options)},api:async()=>({items:[]})};
 vm.createContext(context);vm.runInContext(source+'\nglobalThis.subject=Milestones;',context);
 (async()=>{
  const M=context.subject;
@@ -11,6 +11,8 @@ vm.createContext(context);vm.runInContext(source+'\nglobalThis.subject=Milestone
  const year={...food,kind:'year_distance',details:{amount:250,unit:'mi',garmin_sources:['Garmin Forerunner 965']}};await M.picture(year,true);assert.equal(captured.unit,'mi');assert.equal(captured.identity,true);assert.deepEqual(Array.from(captured.sources),['Garmin Forerunner 965']);
  const activity={...food,kind:'first_distance',details:{distance_m:10000,seconds:3600,sport:'run'}};await M.picture(activity);assert.equal(captured.value,'10.0');assert.equal(captured.unit,'km');context.App.me.units='imperial';await M.picture(activity);assert.equal(captured.value,'6.2');assert.equal(captured.unit,'mi');
  const unknown={...activity,details:{distance_m:null,seconds:null,sport:'run'}};await M.picture(unknown);assert.equal(captured.value,'Run');assert.equal(captured.unit,'');assert.equal(captured.facts.length,0);
+ const view={isConnected:true,querySelector:()=>null};context.api=async()=>({items:[food]});leafError=Error('fictional leaf failure');await M.open(food,null,view);assert.match(toastText,/Tap Share to try again/,'failed first load leaves the existing milestone action retryable');assert.equal(opened,null);leafError=null;await M.open(food,null,view);assert.equal(leafLoads,2);assert(opened?.items?.length===1,'the milestone sheet opens only after the leaf loads');
+ opened=null;let releaseLeaf;leafWait=new Promise(resolve=>{releaseLeaf=resolve;});leafStarted=false;const late=M.open(food,null,view);while(!leafStarted)await Promise.resolve();location.pathname='/activity';releaseLeaf();await late;assert.equal(opened,null,'a stale route cannot open the milestone sheet after the leaf arrives');leafWait=null;location.pathname='/me';
  // Fresh owner-only route lookup; aggregation IDs never opt totals into a map.
  let calls=[],trimmed;const line=[[40,-75],[40.01,-75],[40.02,-75],[40.03,-75]],shared={visibility:'friends',details:{map:true},trim_m:0};
  context.decode=encoded=>{assert.equal(encoded,'fictional-line');return line;};context.trimRoute=(points,trim)=>{trimmed=trim;assert.equal(points,line);return points.slice(1,-1);};
