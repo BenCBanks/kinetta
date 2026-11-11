@@ -111,6 +111,12 @@ for device in preferred:
      assert raw[:3]==b'\xff\xd8\xff' and re.search(r'pixelWidth: 1320\b',dimensions) and re.search(r'pixelHeight: 2868\b',dimensions),'Store JPEG must be native1320x2868, no alpha or resizing'
      assert not metrics.get('blocked') and metrics.get('sceneReady'),metrics
      assert metrics.get('store') and metrics.get('bodyText') and not re.search(r'could not load|couldn.t load|Map unavailable|NaN|undefined',metrics['bodyText'],re.I),metrics
+     if stage=='header-me':
+      me_text=metrics['bodyText']
+      assert re.search(r'\b8\.0\s+Distance\s+\(km\)',me_text), 'Me screenshot must show the matching fictional 8.0 km distance'
+      assert re.search(r'\b2\s+Workouts\b',me_text) and re.search(r'\b48m\s+Time\b',me_text), 'Me screenshot must show its two fictional workouts and their 48 minutes'
+      assert re.search(r'Featured achievements[\s\S]{0,160}\b134\s+(?:wkt|workouts)\b',me_text), 'Me screenshot must show the earned featured workout and its lifetime value'
+      assert not re.search(r'\b0\s+Workouts\b|\b0m\s+Time\b',me_text), 'Me screenshot must not show empty weekly count/time beside a nonzero distance'
      assert metrics['viewport']=={'width':440,'height':956,'offset':0},metrics
      metrics['sha256']=hashlib.sha256(raw).hexdigest();metrics['captureToolRevision']=run('git','rev-parse','HEAD');metrics['bundleAssetsVerifiedAgainst']=metrics['captureToolRevision']
      (a.output/(filename+'.json')).write_text(json.dumps(metrics,indent=2))
