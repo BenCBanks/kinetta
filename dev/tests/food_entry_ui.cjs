@@ -543,19 +543,20 @@ await p.goto(base+'/me/kit?from=nutrition');await until(p,()=>typeof App!=='unde
    assert.deepEqual(errors,[],'the Add food back-flow interactions have no browser errors');await c.close();contexts.splice(contexts.indexOf(c),1);
   }
   if(!process.env.KINETTA_FOOD_CASE||process.env.KINETTA_FOOD_CASE==='reuse-lazy'){
+   const waitForReuse=async(opened,label)=>{const traffic=[],track=(kind,request,extra='')=>{const u=new URL(request.url());if(u.origin===base&&(u.pathname==='/static/food-reuse.js'||u.pathname==='/api/food/meals-chat/reuse'))traffic.push(`${kind} ${request.method()} ${u.pathname}${extra}`);};opened.p.on('request',r=>track('request',r));opened.p.on('response',r=>track('response',r.request(),` ${r.status()}`));opened.p.on('requestfailed',r=>track('failed',r,` ${r.failure()?.errorText||'unknown'}`));try{await opened.p.locator('.thread-reuse button').waitFor();}catch(error){throw new Error(`${label}: ${error.message}; scriptRequests=${JSON.stringify(opened.reuseScriptRequests)}; reuseTraffic=${JSON.stringify(traffic)}; browserErrors=${JSON.stringify(opened.errors)}`);}};
    const cold=await open('empty','light',{width:390,height:844,root:16},false,{path:'/me',reuseFixture:true});
    assert.equal(cold.reuseScriptRequests.length,0,'cold Me does not request the optional Food reuse leaf');
    await cold.p.goto(base+'/food/describe?meal=lunch');await until(cold.p,()=>App.pageReady&&!!document.querySelector('#thread-text'),'typed Food composer ready');
    assert.equal(cold.reuseScriptRequests.length,0,'an empty composer does not request Food reuse');
    await cold.p.locator('#thread-text').fill('a');assert.equal(cold.reuseScriptRequests.length,0,'one character leaves Food reuse unloaded');
-   await cold.p.locator('#thread-text').fill('oa');await cold.p.locator('.thread-reuse button').waitFor();
+   await cold.p.locator('#thread-text').fill('oa');await waitForReuse(cold,'typed suggestions');
    assert.equal(cold.reuseScriptRequests.length,1,'qualifying typed text loads the leaf once');assert.equal((await cold.p.locator('.thread-reuse button').innerText()).trim(),'Fictional pear · 100 kcal');
    await cold.p.locator('#thread-text').fill('toast');const send=cold.p.waitForRequest(r=>r.method()==='POST'&&new URL(r.url()).pathname==='/api/food/thread/messages');await cold.p.locator('#thread-send').click();await send;
    assert.equal(cold.threadPosts.length,1,'the existing Send path remains usable');assert.equal(cold.threadPosts[0].text,'toast');assert.deepEqual(cold.errors,[],'optional suggestions add no error row or browser error');await cold.c.close();contexts.splice(contexts.indexOf(cold.c),1);
 
    const restored=await open('restored','light',{width:390,height:844,root:16},false,{draftText:'Fictional saved oats',reuseFixture:true});
    assert.equal(await restored.p.locator('#thread-text').inputValue(),'Fictional saved oats','the saved composer draft is restored');
-   await restored.p.locator('.thread-reuse button').waitFor();assert.equal(restored.reuseScriptRequests.length,1,'a qualifying restored draft loads the leaf on demand');
+   await waitForReuse(restored,'restored suggestions');assert.equal(restored.reuseScriptRequests.length,1,'a qualifying restored draft loads the leaf on demand');
    assert.equal(await restored.p.locator('.thread-reuse button').count(),1);assert.deepEqual(restored.errors,[]);await restored.c.close();contexts.splice(contexts.indexOf(restored.c),1);
    console.log('Food reuse lazy leaf: cold Me, typed threshold, restored draft, fictional suggestion and composer Send PASS');
   }
