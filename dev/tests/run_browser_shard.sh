@@ -65,6 +65,7 @@ case "$1" in
     node dev/tests/signup_uniqueness_ui.cjs
     node dev/tests/welcome_polish_ui.cjs
     node dev/tests/community_ui.cjs
+    KINETTA_GROUPS_UPDATES_ONLY=1 node dev/tests/groups_ui.cjs
     python3 dev/tests/admin_features_fixture.py
     node dev/tests/admin_features_ui.cjs
     python3 dev/tests/feature_collection_fixture.py
