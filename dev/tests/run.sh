@@ -17,6 +17,7 @@ MODE="${1:---full}"
 python3 dev/tests/test_asset_build.py
 python3 dev/tests/test_ci_policy.py
 python3 dev/tests/test_journeys_guard.py
+python3 dev/tests/test_reviewer.py
 node dev/tests/test_link_contract.cjs
 node --check dev/tests/journeys.cjs
 node --check dev/tests/links.cjs
