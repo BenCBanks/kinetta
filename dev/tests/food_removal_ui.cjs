@@ -2,11 +2,11 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill',fixedFoodTime='2026-11-06T17:00:00.000Z';
-async function until(page,fn,label){for(let i=0;i<120;i++){if(await page.evaluate(fn))return;await page.waitForTimeout(100);}throw Error(label);}
+async function until(page,fn,label,arg){for(let i=0;i<120;i++){if(await page.evaluate(fn,arg))return;await page.waitForTimeout(100);}throw Error(label);}
 (async()=>{
   if(process.env.KINETTA_FIXTURE_READY!=='1')cp.execFileSync('python3',[path.join(__dirname,'food_entry_fixture.py')],{env:process.env,stdio:'inherit'});
   const browser=await chromium.launch(),contexts=[];
-  async function open(who,theme){
+  async function open(who,theme,expectedFoodCount=null){
     const context=await browser.newContext({viewport:{width:390,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});contexts.push(context);
     const login=await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_food_compact_'+who,password:pw}});assert.equal(login.status(),200);
     const me=await(await context.request.get(base+'/api/me')).json(),history=await(await context.request.get(base+'/api/food/thread')).json();
@@ -16,11 +16,12 @@ async function until(page,fn,label){for(let i=0;i<120;i++){if(await page.evaluat
     const page=await context.newPage(),errors=[];await page.clock.setFixedTime(new Date(fixedFoodTime));page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>{if(message.type()==='error'&&!/Failed to load resource/.test(message.text()))errors.push(message.text());});
     await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
     await page.goto(base+'/food/describe?meal=lunch');await until(page,()=>App.pageReady&&!!document.querySelector('#thread-text'),'food screen ready');
+    if(expectedFoodCount!==null)await until(page,count=>document.querySelectorAll('.compact-food').length===count,`${expectedFoodCount} food rows ready`,expectedFoodCount);
     return {context,page,errors,root};
   }
   try{
     for(const [who,theme] of [['one','light'],['6381d','dark']]){
-      const single=await open(who,theme),page=single.page,row=page.locator('.compact-food').first();
+      const single=await open(who,theme,1),page=single.page,row=page.locator('.compact-food').first();
       assert.equal(await page.locator('.compact-food').count(),1,'the fictional single-food card starts with one food');
       assert.equal(await row.locator('.compact-food-title [data-remove-food]').count(),0,'the title row has no separate × action');
       const minus=row.locator('.thread-stepper [data-step="-1"]');assert.equal(await minus.count(),1,'minus stays beside the amount while the food has two portions');
@@ -37,7 +38,7 @@ async function until(page,fn,label){for(let i=0;i<120;i++){if(await page.evaluat
       console.log(`Food removal ${theme}: minus becomes quantity-one trash and removes the draft food PASS`);
     }
 
-    const multi=await open('three','light'),rows=multi.page.locator('.compact-food');
+    const multi=await open('three','light',3),rows=multi.page.locator('.compact-food');
     assert.equal(await rows.count(),3,'the fictional multi-food card has three rows');
     assert.equal(await multi.page.locator('.compact-thread-card [data-unlogged-remove]').count(),0,'the ready card has no separate whole-card ×');
     for(const row of await rows.all()){
