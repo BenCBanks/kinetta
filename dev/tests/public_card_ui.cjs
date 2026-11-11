@@ -12,7 +12,6 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
   p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'){let resourcePath='';try{resourcePath=new URL(m.location().url).pathname;}catch{}if(expectedQrFailurePending&&m.text().startsWith('Failed to load resource')&&resourcePath==='/static/vendor/qrcode.js'){qrConsoleFailures++;return;}errors.push(m.text());}});
   p.on('request',r=>{if(new URL(r.url()).pathname==='/static/vendor/qrcode.js')qrRequests.push(r.url());});
   p.on('requestfailed',r=>{if(new URL(r.url()).pathname==='/static/vendor/qrcode.js'){qrFailures++;if(!expectedQrFailurePending)errors.push('Unexpected QR asset request failure');}else errors.push(`Request failed: ${r.url()}`);});
-  p.on('requestfailed',r=>{if(new URL(r.url()).pathname==='/static/vendor/qrcode.js')qrFailures++;else errors.push(`Request failed: ${r.url()}`);});
   await c.addInitScript(r=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=r+'px'),size.root);
   const ready=async()=>{for(let attempt=0;attempt<150;attempt++){if(await p.evaluate(()=>App.pageReady))return;await p.waitForTimeout(100);}throw Error('Me did not become ready');};
   await p.goto(base+'/me');await ready();await p.evaluate(()=>KinettaCard.open());
@@ -29,14 +28,15 @@ const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINE
    for(let attempt=0;attempt<100;attempt++){if((await p.locator('#card-status').textContent()).includes('could not load'))break;await p.waitForTimeout(50);}
    await p.waitForTimeout(50);expectedQrFailurePending=false;
    assert.match(await p.locator('#card-status').innerText(),/QR code could not load/,'a failed lazy QR load leaves the card sheet open with a retry message');assert.equal(qrRequests.length,1,'QR is requested only after the card action');assert.equal(qrFailures,1,'the fixture fails the first QR asset request only');
-   await qr.click();assert(await p.getByRole('img',{name:'QR code for your Kinetta card'}).isVisible(),'the existing card QR screen remains available after retry');assert.equal(qrRequests.length,2,'a failed script request can retry once');await p.unroute('**/static/vendor/qrcode.js*');
+   await qr.click();const cardQr=p.getByRole('img',{name:'QR code for your Kinetta card'});await cardQr.waitFor({state:'visible'});assert(await cardQr.isVisible(),'the existing card QR screen remains available after retry');assert.equal(qrRequests.length,2,'a failed script request can retry once');await p.unroute('**/static/vendor/qrcode.js*');
    await p.reload();await ready();await p.evaluate(()=>KinettaCard.open());await settled();
    let qrStarted=false,releaseQr;await p.route('**/static/vendor/qrcode.js*',async route=>{qrStarted=true;await new Promise(resolve=>{releaseQr=resolve;});await route.continue();});
    await p.locator('#card-qr').evaluate(button=>{window.__pendingCardQrSheet=button.closest('.sheet');});await p.locator('#card-qr').click();
    for(let attempt=0;attempt<100&&!qrStarted;attempt++)await p.waitForTimeout(20);assert(qrStarted,'the card QR action starts its lazy request');
    await p.evaluate(()=>go('/activity'));for(let attempt=0;attempt<100;attempt++){if(await p.evaluate(()=>location.pathname==='/activity'&&App.pageReady))break;await p.waitForTimeout(50);}
    assert.equal(new URL(p.url()).pathname,'/activity','the test navigates while card QR is pending');releaseQr();
-   for(let attempt=0;attempt<100;attempt++){if(qrRequests.length===3)break;await p.waitForTimeout(20);}
+   let qrLoaded=false;for(let attempt=0;attempt<100;attempt++){qrLoaded=await p.evaluate(()=>classicScriptsLoaded.has(QR_CODE_ASSET));if(qrLoaded)break;await p.waitForTimeout(20);}
+   assert(qrLoaded,'the QR script load and its pending callback complete after navigation');
    assert.equal(qrRequests.length,3,'the pending QR asset finishes after navigation');assert.equal(await p.getByRole('dialog',{name:'Scan my Kinetta card'}).count(),0,'a stale card callback does not open a QR sheet after navigation');
    assert.equal(await p.evaluate(()=>window.__pendingCardQrSheet?.querySelector('#card-qr-code svg')||null),null,'the detached card sheet is not updated after navigation');
   };

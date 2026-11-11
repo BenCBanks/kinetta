@@ -139,7 +139,8 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    assert.equal((await stale.c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_fc_typical',password:pw}})).status(),200,'second fictional owner signs in');
    const newOwner=await(await stale.c.request.get(base+'/api/me')).json();await stale.p.evaluate(me=>refreshMe(me),newOwner);
    await until(stale.p,()=>App.pageReady&&App.me?.login==='zz_test_fc_typical','second fictional owner becomes current');releaseQr();
-   for(let attempt=0;attempt<100;attempt++){if(stale.qrRequests.length===1)break;await stale.p.waitForTimeout(20);}
+   let qrLoaded=false;for(let attempt=0;attempt<100;attempt++){qrLoaded=await stale.p.evaluate(()=>classicScriptsLoaded.has(QR_CODE_ASSET));if(qrLoaded)break;await stale.p.waitForTimeout(20);}
+   assert(qrLoaded,'the invite QR script load and stale callback complete after owner change');
    assert.equal(stale.qrRequests.length,1,'the old invite QR request completes after owner change');assert.equal(await stale.p.evaluate(()=>window.__pendingInviteQrBox?.querySelector('svg')||null),null,'old-owner invite does not render after its deferred load');
    assert.equal(await stale.p.locator('#iv-qr-code svg').count(),0,'new owner has no stale invite QR');assert.deepEqual(stale.errors,[]);await close(stale.c);
    console.log('Find friends QR: action-only load, deduplication and late old-owner guard PASS');
