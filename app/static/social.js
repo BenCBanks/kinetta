@@ -921,8 +921,9 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
   const draw=r=>{
     if(!active())return;
     if($('.me-card.editing',box)){deferred={data:r,version:revision,key:path(),epoch:readEpoch(path())};return;}
-    r={...r,layout:ProfileLayout.normalize(r.layout)};
-    const p=r.person,mine=own&&r.mine,feed=mine||r.layout.sections.includes('activities');
+    const mine=Boolean(own&&r.mine);
+    r={...r,mine,layout:ProfileLayout.normalize(r.layout)};
+    const p=r.person,feed=mine||r.layout.sections.includes('activities');
     const action=r.status==='friends'?`<button type="button" class="me-card-pill" data-person-manage>${svg('check')}Friends</button>`:r.status==='sent'?'<button type="button" class="me-card-pill" data-person-action="cancel">Request sent</button>':r.status==='incoming'?`<button type="button" class="me-card-pill solid" data-person-action="accept">${svg('check')}Approve request</button>`:`<button type="button" class="me-card-pill solid" data-person-action="add">${svg('plus')}Add friend</button>`;
     const pills=mine?MeCard.ownPills():action+`<button type="button" class="me-card-pill" data-person-report aria-label="Report or block ${esc(p.name)}">${svg('more')}</button>`;
     const friends=mine?MeCard.ownFriends(r.friend_count):Number.isInteger(r.friend_count)?`<span class="me-friends-link">${svg('people')}<span>${friendCountText(r.friend_count)}</span></span>`:'';
@@ -932,7 +933,7 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
       const held=deferred;deferred=null;if(saved||!held||!active()||held.version!==revision||held.key!==path())return;
       if(held.epoch!==readEpoch(held.key)){reload();return;}
       await draw(held.data);if(active()&&held.version===revision&&document.activeElement===document.body)$('[data-card-edit]',box)?.focus({preventScroll:true});
-    }});ProfileLayout.mount(box,r);
+    }});ProfileLayout.mount(box,r,{shared:!mine});
     const act=$('[data-person-action]',box);
     if(act)act.onclick=async()=>{
       act.disabled=true;

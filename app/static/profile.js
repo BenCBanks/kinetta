@@ -440,13 +440,13 @@ const ProfileLayout=(()=>{
     const dispose=()=>{if(disposed)return;disposed=true;clearPress();clearTimeout(suppressTimer);document.removeEventListener('click',onClick,true);document.removeEventListener('pointermove',onMove,true);document.removeEventListener('pointerup',onUp,true);document.removeEventListener('pointercancel',onUp,true);box.removeEventListener('pointerdown',onDown);box.removeEventListener('contextmenu',onContext);box.removeEventListener('keydown',onKey);};
     addAchievementCleanup(box,dispose);
   }
-  async function mountShowcase(root,r,{shared=false,featured=false}={}){
+  async function mountShowcase(root,r,{shared,featured=false}={}){
     if(featured){
       const featureSlot=root?.querySelector?.('[data-me-featured]'),streakSlot=root?.querySelector?.('[data-me-showcase-streak]');
       if(!featureSlot&&!streakSlot)return;
       if(featureSlot?.dataset.loaded==='true'&&(!streakSlot||streakSlot.dataset.loaded==='true'))return;
       if(featureSlot?.dataset.loading==='true')return;
-      const sharedProfile=r?.mine===false,login=r?.person?.login||r?.login||'';
+      const sharedProfile=shared??r?.mine===false,login=r?.person?.login||r?.login||'';
       if(sharedProfile&&!login)return;
       const owner=readOwner();if(featureSlot)featureSlot.dataset.loading='true';
       try{
@@ -460,7 +460,7 @@ const ProfileLayout=(()=>{
     }
     const slot=root?.querySelector?.('[data-me-showcase]');if(!slot)return;
     const owner=readOwner(),login=r?.person?.login||r?.login||App.me?.login;
-    const asShared=shared||r?.mine===false,url=asShared&&login?`/api/achievements/showcase?login=${encodeURIComponent(login)}`:'/api/achievements/showcase';
+    const asShared=shared??r?.mine===false,url=asShared&&login?`/api/achievements/showcase?login=${encodeURIComponent(login)}`:'/api/achievements/showcase';
     const ownSharedPreview=shared&&login&&App.me?.login&&String(login).toLowerCase()===String(App.me.login).toLowerCase();
     try{
       const [data,_catalog,sharing]=await Promise.all([api(url),loadAchievementCatalog(),ownSharedPreview?api('/api/sharing'):Promise.resolve(null)]);
@@ -528,10 +528,10 @@ const ProfileLayout=(()=>{
       return `<section class="profile-activities"><h2 class="sec-head">Shared activities</h2><div class="feed-list" id="person-activities">${r.items.length?r.items.map(a=>postCard(a)).join(''):`<div class="card empty"><b>No shared activities yet</b>${r.mine?'Choose an activity and change its audience to share it.' : 'No activities shared with you.'}${r.mine?`<a class="ghost wide" href="${profileHref(App.me)}">Choose an activity</a>`:''}</div>`}</div><button type="button" class="ghost wide" id="person-more"${r.next?'':' hidden'}>Show more</button></section>`;
     }).join('');
   }
-  function mount(box,r){
+  function mount(box,r,{shared=r?.mine===false}={}){
     const chart=box.querySelector('[data-profile-mileage]');
     if(chart)mileageChart(chart,r.mileage||{},'days',{shared:true});
-    mountShowcase(box,r,{featured:r?.mine===false});feedMaps(box);wireCheers(box);
+    mountShowcase(box,r,{shared,featured:shared});feedMaps(box);wireCheers(box);
   }
   return {defaults,normalize,singlePeriod,numbers,content,mount,mountShowcase,featuredOptions,distance,hours,labels:{sections,stats},sports,achievementPage};
 })();
@@ -545,9 +545,9 @@ const MeCard=(()=>{
   // then the shared activities). Friends shares the handle row without changing its audience or destination.
   function card(p,{viewer='friend',pills='',friends='',link=false,milestones=false,showBio=true}={}){
     if(!['owner','friend','preview'].includes(viewer))throw new TypeError(`Unknown profile viewer: ${viewer}`);
-    const mine=viewer==='owner';
+    const mine=viewer==='owner',featured=viewer!=='owner';
     const bio=showBio?(p.bio||'').trim():'',photo=avatar(p,'lg'),name=esc(p.name||p.login),handle=`<span data-type="secondary">@${esc(p.login)}</span>`;
-    const showcase=mine?'<span class="me-showcase-streak-slot" data-me-showcase-streak></span>':viewer==='friend'||viewer==='preview'?'':'<span class="me-showcase-slot" data-me-showcase></span>';
+    const showcase=mine?'<span class="me-showcase-streak-slot" data-me-showcase-streak></span>':'';
     const preview=mine&&location.pathname==='/me'?`<div class="me-card-preview-row"><button type="button" class="me-card-preview-action" data-card-preview>${svg('people')}View as friend</button></div>`:'';
     const initials=((p.name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase()||'?');
     const identity=link
@@ -592,9 +592,9 @@ const MeCard=(()=>{
         if(!host.isConnected||owner!==readOwner())return;
         if(profile.profile_hidden)throw Error('Your profile is hidden until your account is confirmed and active.');
         if(profile.preview!=='member')throw Error('The shared profile preview is unavailable.');
-        const view={...profile,mine:false},friends=Number.isInteger(profile.friend_count)?`<span class="me-friends-link">${svg('people')}<span>${friendCountText(profile.friend_count)}</span></span>`:'';
+        const view=viewerData(profile,'preview'),friends=Number.isInteger(profile.friend_count)?`<span class="me-friends-link">${svg('people')}<span>${friendCountText(profile.friend_count)}</span></span>`:'';
         host.innerHTML=card(profile.person,{viewer:'preview',friends,showBio:true});
-        mount(host,{data:view,viewer:'preview',mode:'profile'});ProfileLayout.mount(host,view);host.setAttribute('aria-busy','false');
+        mount(host,{data:view,viewer:'preview',mode:'profile'});ProfileLayout.mount(host,view,{shared:true});host.setAttribute('aria-busy','false');
       }catch(error){
         if(!host.isConnected||owner!==readOwner())return;
         host.innerHTML=`<p class="small err" role="alert">${esc(error?.message||'Your shared profile could not load.')}</p><button type="button" class="linkbtn" data-profile-preview-retry>Try again</button>`;
@@ -669,12 +669,17 @@ const MeCard=(()=>{
       return '';
     }).join('');
   }
+  function viewerData(data,viewer){
+    if(viewer==='owner')return data;
+    const{week_streak,close_to,...payload}=data;
+    return {...payload,mine:false};
+  }
   function profileView(data,{viewer,mode='profile'}={}){
     if(!['owner','friend','preview'].includes(viewer))throw new TypeError(`Unknown profile viewer: ${viewer}`);
     if(!['landing','profile'].includes(mode))throw new TypeError(`Unknown profile mode: ${mode}`);
     const owner=viewer==='owner';
     if(mode==='landing'&&!owner)throw new TypeError('Only the owner can render the Me landing view.');
-    const shared=owner?data:(()=>{const{week_streak,close_to,...payload}=data;return{...payload,mine:false};})();
+    const shared=viewerData(data,viewer);
     const layout=ProfileLayout.normalize(owner?App.me?.profile_layout||shared.layout:shared.layout);
     return {html:mode==='landing'?weeklyCard(shared):sections(shared,layout,true),owner,landing:mode==='landing'};
   }
@@ -691,7 +696,7 @@ const MeCard=(()=>{
     if(!['landing','profile'].includes(mode))throw new TypeError(`Unknown profile mode: ${mode}`);
     const ownerView=viewer==='owner';
     const owner=readOwner(),card=$('.me-card',root),box=$('.me-card-sections',card),live=()=>card.isConnected&&owner===readOwner();
-    let data=given,editing=false,editRevision=0,chartCleanup=()=>{};
+    let data=given?viewerData(given,viewer):null,editing=false,editRevision=0,chartCleanup=()=>{};
     const chartPositions=new Map();
     function chartScroll(){
       chartCleanup();
@@ -748,7 +753,7 @@ const MeCard=(()=>{
       const cleanup=chartCleanup,dispose=()=>{cleanup();wrap.removeEventListener('pointerdown',onDown);wrap.removeEventListener('click',onClick);document.removeEventListener('pointermove',onMove,true);document.removeEventListener('pointerup',onUp,true);document.removeEventListener('pointercancel',onCancel,true);document.removeEventListener('click',outside,true);clearTimeout(ignoreTimer);};chartCleanup=dispose;viewResources.set(wrap,dispose);
     };
     const periods=()=>$$('[data-period]',box).forEach(b=>b.onclick=()=>{if(b.dataset.period===period)return;period=b.dataset.period;draw();$(`[data-period="${period}"]`,box)?.focus({preventScroll:true});});
-    const draw=()=>{if(!live()||editing||!data)return;chartCleanup();const view=profileView(data,{viewer,mode});box.setAttribute('aria-busy','false');box.innerHTML=view.html;bars();if(view.landing){weeklyTaps();ProfileLayout.mountShowcase(root,data,{featured:true});}else{weekTaps();periods();}};
+    const draw=()=>{if(!live()||editing||!data)return;chartCleanup();const view=profileView(data,{viewer,mode});box.setAttribute('aria-busy','false');box.innerHTML=view.html;bars();if(view.landing){weeklyTaps();ProfileLayout.mountShowcase(root,data,{featured:true,shared:false});}else{weekTaps();periods();}};
     const loadCard=async()=>{
       try{
         if(!ownerView)throw new TypeError('A shared profile view requires its filtered profile payload.');
@@ -756,7 +761,7 @@ const MeCard=(()=>{
         const statsRead=mode==='landing'?load('/api/stats',()=>{}).catch(()=>null):Promise.resolve(null);
         const [profile,stats]=await Promise.all([profileRead,statsRead]);
         if(!live())return;
-        data=stats?{...profile,week_streak:stats.week_streak,close_to:stats.close_to}:profile;draw();
+        data=viewerData(stats?{...profile,week_streak:stats.week_streak,close_to:stats.close_to}:profile,viewer);draw();
         if(editOnLoad&&live()){editOnLoad=false;edit({focusName:true,fromSettings:true});}
       }
       catch(x){if(!live()||editing)return;box.setAttribute('aria-busy','false');box.innerHTML=`<p class="small muted">Your card’s numbers couldn’t load.</p><button type="button" class="ghost wide" data-card-retry>Try again</button>`;$('[data-card-retry]',box).onclick=()=>{box.innerHTML=skel(1);loadCard();};}
@@ -869,7 +874,7 @@ const MeCard=(()=>{
       sizeBio();if(focusName){card.scrollIntoView({block:'start'});name.focus({preventScroll:true});}else $('[data-show]',box)?.focus({preventScroll:true});
     }
     function finish(saved=false){editing=false;dim(false);draw();if(!data)loadCard();$('[data-card-edit]',card).focus({preventScroll:true});onEditEnd?.({saved});}
-    if(!ownerView){ProfileLayout.mountShowcase(root,data);draw();return {};}
+    if(!ownerView){draw();return {};}
     $('[data-card-edit]',card).onclick=edit;
     $('[data-card-share]',card).onclick=shareSheet;
     $('[data-card-preview]',card)?.addEventListener('click',viewAsFriend);

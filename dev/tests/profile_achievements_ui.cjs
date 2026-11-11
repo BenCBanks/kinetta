@@ -196,7 +196,7 @@ module.exports=async({browser,storageState,base,shots})=>{
    if(url.origin!==base)return route.abort();
    if(request.method()==='GET'&&url.pathname.endsWith('/profile.css')){const response=await route.fetch();return route.fulfill({response,body:(await response.text())+'\n'+stripCss});}
    if(request.method()==='GET'&&url.pathname==='/api/me'){const response=await route.fetch(),data=await response.json();data.units=unitMode;return route.fulfill({response,json:data});}
-   if(request.method()==='GET'&&url.pathname==='/api/people/fictional_friend/profile')return route.fulfill({json:{mine:false,person:{login:'fictional_friend',name:'Fictional River Friend',photo:'fixture-photo-v1',bio:''},status:'friends',friend_count:4,profile_hidden:false,layout:{sections:['totals'],stats:['activities','distance','time'],sports:[]},overview:{activities:18,distance_m:4828032,time_s:1281600,active_days:32},recent:null,mileage:{weeks:[]},sports:[],items:[],shared_count:18}});
+   if(request.method()==='GET'&&url.pathname==='/api/people/fictional_friend/profile')return route.fulfill({json:{mine:true,week_streak:99,close_to:'PRIVATE-ONLY fictional friend marker',person:{login:'fictional_friend',name:'Fictional River Friend',photo:'fixture-photo-v1',bio:''},status:'friends',friend_count:4,profile_hidden:false,layout:{sections:['totals'],stats:['activities','distance','time'],sports:[]},overview:{activities:18,distance_m:4828032,time_s:1281600,active_days:32},recent:null,mileage:{weeks:[]},sports:[],items:[],shared_count:18}});
    if(request.method()==='GET'&&url.pathname==='/api/people/fictional_friend/photo')return route.fulfill({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#4778b8"/><circle cx="32" cy="25" r="12" fill="#f2cfaa"/><path d="M8 64c2-17 11-25 24-25s22 8 24 25" fill="#243d5e"/></svg>'});
    if(request.method()==='GET'&&url.pathname==='/api/achievements'){
     const data=JSON.parse(JSON.stringify(achievementFixture)),journey=data.tracks.find(t=>t.code==='journey'),workouts=data.tracks.find(t=>t.code==='workouts');
@@ -271,6 +271,7 @@ module.exports=async({browser,storageState,base,shots})=>{
    emptyFriendShowcase=true;emptyFriendAchievements=true;sharedShareEnabled=true;
    await page.goto(base+'/people/fictional_friend');await page.locator('.me-card-sections[aria-busy="false"]').waitFor();await until(page,()=>document.querySelector('[data-me-featured]')?.dataset.loaded==='true','empty friend showcase settles');
    assert.equal(await page.locator('.me-featured-empty-entry,.me-featured-achievements,.me-featured-title').count(),0,'an empty friend showcase exposes no owner catalogue entry or empty Featured heading');
+   assert.doesNotMatch(await page.locator('#person-profile').innerText(),/Only you|PRIVATE-ONLY/,'friend view strips owner-only fields even when its fixture says mine=true');
    assert.deepEqual(errors,[],`no browser errors in empty ${theme} owner/friend regression`);
    assert.deepEqual(writes.filter(write=>write!=='/api/challenges/signup/continue'),[],'the empty owner/friend entry check performs no unmocked writes');
    console.log(`Achievement empty owner/friend 390 ${theme}: 44px owner link, full catalogue route, shared empty omitted PASS`);
