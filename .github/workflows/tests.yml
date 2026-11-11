@@ -179,18 +179,80 @@ jobs:
         if: always()
         run: docker compose -p "$KINETTA_PROJECT" down -v
 
+  reviewer_integration:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      COMPOSE_FILE: ${{ github.workspace }}/docker-compose.yml:${{ github.workspace }}/dev/tests/journeys-compose.yml
+      KINETTA_URL: http://127.0.0.1:8799
+      KINETTA_PROJECT: kt-ci-reviewer-${{ github.run_id }}-${{ github.run_attempt }}
+      KINETTA_PORT: 8799
+      KINETTA_VERSION: ci
+      TZ: America/New_York
+      KINETTA_ROUTING_URL: http://127.0.0.1:9
+      KINETTA_GEOCODER_URL: http://127.0.0.1:9
+      KINETTA_AI_ENABLED: "0"
+      GEMINI_API_KEY: ""
+      ANTHROPIC_API_KEY: ""
+      FDC_API_KEY: ""
+      GARMIN_CLIENT_ID: ""
+      GARMIN_CLIENT_SECRET: ""
+      GARMIN_PUSH_SECRET: ""
+      KINETTA_RESEND_KEY: ""
+      KINETTA_APNS_PRIVATE_KEY: ""
+    steps:
+      - name: Create private fixture state directory
+        run: |
+          state_dir="${RUNNER_TEMP}/kinetta-reviewer-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          mkdir -m 700 "$state_dir"
+          printf 'TMPDIR=%s\n' "$state_dir" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/build-test-image
+        with:
+          scope: tests-reviewer-integration
+      - name: Start this marked reviewer fixture
+        run: |
+          docker compose -p "$KINETTA_PROJECT" up -d
+          ready=0
+          for i in $(seq 1 60); do
+            if curl -fsS "$KINETTA_URL/api/health" >/dev/null; then ready=1; break; fi
+            sleep 3
+          done
+          test "$ready" = 1
+      - name: Load the fictional demo account
+        run: |
+          python3 dev/demo/gen_gpx.py "$TMPDIR/gpx" 120
+          python3 dev/demo/seed.py "$TMPDIR/gpx"
+      - name: Run guarded reviewer integration
+        run: |
+          python3 dev/tests/test_reviewer_integration.py \
+            --url "$KINETTA_URL" \
+            --project "$KINETTA_PROJECT" \
+            --confirm "RUN FICTIONAL REVIEWER TEST ON $KINETTA_URL PROJECT $KINETTA_PROJECT"
+      - name: Remove only this reviewer fixture and private state
+        if: always()
+        run: |
+          status=0
+          docker compose -p "$KINETTA_PROJECT" down -v --remove-orphans || status=$?
+          state_dir="${RUNNER_TEMP}/kinetta-reviewer-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          if [ -d "$state_dir" ]; then rm -rf -- "$state_dir" || status=$?; fi
+          exit "$status"
+
   tests:
     if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
-    needs: [backend, browser_shards]
+    needs: [backend, browser_shards, reviewer_integration]
     runs-on: ubuntu-latest
     steps:
-      - name: Require backend and all browser shards to pass
+      - name: Require backend, browser shards and reviewer integration to pass
         env:
           BACKEND_RESULT: ${{ needs.backend.result }}
           BROWSER_SHARDS_RESULT: ${{ needs.browser_shards.result }}
+          REVIEWER_INTEGRATION_RESULT: ${{ needs.reviewer_integration.result }}
         run: |
           test "$BACKEND_RESULT" = success
           test "$BROWSER_SHARDS_RESULT" = success
+          test "$REVIEWER_INTEGRATION_RESULT" = success
 
   spacing:
     runs-on: ubuntu-latest
