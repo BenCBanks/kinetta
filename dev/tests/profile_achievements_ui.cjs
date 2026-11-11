@@ -157,7 +157,8 @@ const assert330AchievementViews=async(page,base,setUnits,theme,shots)=>{
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'330px friend history has no page-level horizontal overflow');await screenshot(page,shots,`achievement-shared-ride-history-330-${theme}`,{fullPage:true});
  futureEvidence=true;await page.evaluate(()=>invalidate('/api/achievements'));
  await page.goto(base+'/people/alex');await page.locator('.me-card-sections[aria-busy="false"]').waitFor();
- assert.equal(await page.locator('.profile-achievements,.me-featured-achievements').count(),0,'the full owner profile has no duplicate achievement entry');
+ assert.equal(await page.locator('.profile-achievements').count(),0,'the full owner profile has no duplicate achievements grid');
+ assert.equal(await page.locator('.me-featured-achievements').count(),1,'the full owner profile has one Featured achievement entry');
  await page.goto(base+'/me');await page.locator('.me-featured-achievements').waitFor();
  assert.equal(await page.locator('.me-featured-achievements').count(),1,'Featured is the only achievement entry point on Me');
  await assertFeaturedHeading(page,page.locator('.me-featured-title'),'330px Me card');
