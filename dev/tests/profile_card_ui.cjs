@@ -5,6 +5,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
 const compositionOnly=process.env.KINETTA_PROFILE_VIEW_COMPOSITION_ONLY==='1';
 const profileClockOnly=process.env.KINETTA_PROFILE_CARD_CLOCK_ONLY==='1';
+const badgeOnly=process.env.KINETTA_PROFILE_BADGE_ONLY==='1';
 const SCREENSHOT_CLOCK=require('../screenshots/fixture-time.json'),SCREENSHOT_NOW=new Date(SCREENSHOT_CLOCK.instant);
 const FIXTURE_TODAY=(()=>{const parts=new Intl.DateTimeFormat('en-CA',{timeZone:SCREENSHOT_CLOCK.timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(SCREENSHOT_NOW),v=Object.fromEntries(parts.map(p=>[p.type,p.value]));return `${v.year}-${v.month}-${v.day}`;})();
 const unitsOnly=process.env.KINETTA_PROFILE_UNITS_ONLY==='1';
@@ -61,12 +62,12 @@ async function milestoneChecks(p,shareArtRequests){
  await p.goto(base+'/me/milestones');await p.waitForURL('**/me');await until(p,()=>App.pageReady,'legacy milestone link returns ready Me');await p.locator('.me-card-sections[aria-busy=false]').waitFor();
 }
 const shareLeafOnly=process.env.KINETTA_PROFILE_SHARE_LEAF_ONLY==='1';
-const focusedOnly=unitsOnly||compositionOnly||profileClockOnly||shareLeafOnly;
+const focusedOnly=unitsOnly||compositionOnly||profileClockOnly||shareLeafOnly||badgeOnly;
 (async()=>{const b=await chromium.launch();const l=await b.newContext();await l.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});const st=await l.storageState();
  const sizes=focusedOnly?[{width:390,height:844,root:16}]:[{width:320,height:667,root:16},{width:330,height:844,root:16},{width:390,height:844,root:16},{width:430,height:932,root:16},{width:600,height:900,root:16,locale:'fr-FR'}];
- for(const size of sizes)for(const theme of focusedOnly?['light']:['light','dark']){
- const c=await b.newContext({storageState:st,viewport:{width:size.width,height:size.height},locale:size.locale||'en-US',colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:SCREENSHOT_CLOCK.timezone}),p=await c.newPage(),errors=[],writes=[],unitWrites=[],unitStatuses=[],meReads=[],shareArtRequests=[];
- p.on('request',request=>{if(new URL(request.url()).pathname==='/static/share-art.js')shareArtRequests.push(request.url());});
+ for(const size of sizes)for(const theme of badgeOnly?['light','dark']:focusedOnly?['light']:['light','dark']){
+ const c=await b.newContext({storageState:st,viewport:{width:size.width,height:size.height},locale:size.locale||'en-US',colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:SCREENSHOT_CLOCK.timezone}),p=await c.newPage(),errors=[],writes=[],unitWrites=[],unitStatuses=[],meReads=[],shareArtRequests=[],cardImageRequests=[];
+ p.on('request',request=>{const pathname=new URL(request.url()).pathname;if(pathname==='/static/share-art.js')shareArtRequests.push(request.url());if(pathname==='/api/card/image.png')cardImageRequests.push(request.url());});
  await p.clock.setFixedTime(SCREENSHOT_NOW); // Freeze Date while Playwright's timers and performance clock remain live.
  let cardState='heavy',cardLayout=null,profileHidden=false,refuseOwnerProfile=false,failUnits=false,expectedUnitFailure=false,meReadSequence=0;const blocked=new Set(),previewReads=[],statsReads=[],ownerAchievementReads=[],sharedAchievementReads=[];
  p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.text()==='Service Worker registration blocked by Playwright'||m.text()==='Failed to load resource: net::ERR_FAILED'&&blocked.has(m.location().url)||expectedUnitFailure&&m.type()==='error'&&/^Failed to load resource: the server responded with a status of 503\b/.test(m.text()))return;if(['error','warning'].includes(m.type()))errors.push(m.text()+' ('+m.location().url+')')});
@@ -132,6 +133,11 @@ const focusedOnly=unitsOnly||compositionOnly||profileClockOnly||shareLeafOnly;
  if(size.width===390&&theme==='light')await unitsCheck();
  if(size.locale){await p.goto(base+'/people/alex');await until(p,()=>App.pageReady,'French full profile');await settled();await numberChecks(p);assert.match(await p.locator('[data-card-stat=time] dt').innerText(),/Time\s*\(h\)/);assert.deepEqual(errors,[]);console.log('French full-profile grouping and labelled hours PASS');await c.close();continue;}
  await weeklyCardChecks(p,size);
+ if(badgeOnly){
+  if(out)await p.locator('.me-card').screenshot({path:`${out}/badge-me-card-390-${theme}.png`,animations:'disabled'});
+  await p.locator('[data-card-share]').click();const share=p.locator('[data-unified-share]');await share.waitFor();await share.locator('[data-share-image="0"]').waitFor({state:'visible'});await until(p,()=>document.querySelector('[data-share-image="0"]')?.naturalWidth>0,'literal Me-card share picture');assert.equal(cardImageRequests.length,0,'profile sharing does not fall back to the generic public-card image');if(out)await share.screenshot({path:`${out}/badge-share-390-${theme}.png`,animations:'disabled'});await p.keyboard.press('Escape');
+  await p.goto(base+'/people/alex');await until(p,()=>App.pageReady,'full profile');await settled();await p.locator('#person-profile [data-me-featured][data-loaded="true"]').waitFor();assert.equal(await p.locator('#person-profile .profile-achievement[data-achievement-code]').count(),4,'full profile keeps four featured achievements');if(out)await p.locator('#person-profile .me-card').screenshot({path:`${out}/badge-full-profile-390-${theme}.png`,animations:'disabled'});assert.deepEqual(errors,[],'badge/profile states have no browser errors');assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[],'badge/profile states make no writes');console.log(`Badge/profile ${size.width}px ${theme}: owner description-free medals, full-profile medals and literal shared Me-card picture PASS`);await c.close();continue;
+ }
  if(size.width===330||size.width===390){
   const previousReads=previewReads.length,previewStats=statsReads.length,previewOwnerAchievements=ownerAchievementReads.length,previewSharedAchievements=sharedAchievementReads.length;await p.locator('[data-card-preview]').click();const previewSheet=p.locator('.sheet');await previewSheet.getByRole('heading',{name:'This is what friends see',exact:true}).waitFor();
   const preview=p.locator('[data-profile-preview]');await preview.locator('.me-card-sections[aria-busy=false]').waitFor();await preview.locator('[data-me-featured][data-loaded="true"]').waitFor();
