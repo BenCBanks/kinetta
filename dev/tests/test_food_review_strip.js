@@ -169,7 +169,7 @@ const reviewCtx=()=>({draftId:'review-draft',meal:'lunch',day:'2026-11-11',sessi
 // The optional own-food suggestion leaf is loaded only for a qualifying draft,
 // and a completed load may initialize only the still-current composer.
 const reuseStart=source.indexOf('function foodThreadReuseLoader('),reuseEnd=source.indexOf('\n\nconst FoodThread',reuseStart);
-const reuseContext={String,Promise,location:{pathname:'/food/describe'}};
+const reuseContext={String,Promise,loadClassicScript:async()=>{},location:{pathname:'/food/describe'}};
 vm.createContext(reuseContext);vm.runInContext(source.slice(reuseStart,reuseEnd),reuseContext);
 const fakeField=value=>({value,isConnected:true,listeners:{},addEventListener(k,fn){this.listeners[k]=fn;},removeEventListener(k){delete this.listeners[k];}});
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
