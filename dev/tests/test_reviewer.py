@@ -13,6 +13,12 @@ class ReviewerChecks(unittest.TestCase):
  def test_integration_confirmation_precedes_guard_or_credentials(self):
   with patch.object(I,'guard_target',side_effect=AssertionError('No Docker inspection before confirmation')),contextlib.redirect_stdout(io.StringIO()):
    self.assertEqual(I.main(['--url','http://127.0.0.1:8798','--project','kt-review-demo','--confirm','wrong']),1)
+ def test_rejected_integration_guard_precedes_auth_and_seed(self):
+  base='http://127.0.0.1:8798';project='kt-review-demo';confirmation=I.expected_confirmation(base,project)
+  output=io.StringIO()
+  with patch.object(I,'guard_target',side_effect=ValueError('fixture mismatch')),patch.object(I,'admin_headers',side_effect=AssertionError('No auth')),patch.object(I.reviewer,'API',side_effect=AssertionError('No API')),patch.object(I.reviewer,'seed',side_effect=AssertionError('No seed')),contextlib.redirect_stdout(output):
+   self.assertEqual(I.main(['--url',base,'--project',project,'--confirm',confirmation]),1)
+  self.assertIn('marked disposable',output.getvalue())
  def test_confirmation_before_any_password_or_network(self):
   output=io.StringIO()
   with patch.object(R.getpass,'getpass',side_effect=AssertionError('No credential prompt')),patch.object(R,'API',side_effect=AssertionError('No network')),contextlib.redirect_stdout(output):
