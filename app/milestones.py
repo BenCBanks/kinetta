@@ -21,6 +21,12 @@ IDLE_CHECK=dt.datetime(9999,1,1,tzinfo=dt.timezone.utc)
 TRACK_BATCH_SIZE=100
 
 
+def _legacy_first_activity_sport(details):
+    sport=details.get('sport')
+    code='sport:walk-hike' if sport in ('walk','hike') else f'sport:{sport}'
+    return code in tracks.LEGACY_FIRST_ACTIVITY_LABELS and details.get('target_m') is None
+
+
 def candidates(c,uid,now,zone,units):
     """One background pass, coalesced across a batch of imports/edits. Only fixed facts leave this helper."""
     rows=c.execute('''SELECT id,sport,start_time,created,updated,distance_m,moving_s,elapsed_s,source,device
@@ -350,7 +356,10 @@ def process(c,uid,now=None,*,push_ids=None):
     # Seen/share timestamps survive invalidation, backfill, edits and retries: offers never resurrect.
     # Track tiers are durable history: an edit can hide an unshared offer from
     # the old milestone UI, but it must never revoke an earned tier.
-    c.execute("UPDATE milestones SET valid=false WHERE user_id=%s AND shared_at IS NULL AND kind NOT IN ('track','track_state')",(uid,))
+    c.execute("""UPDATE milestones SET valid=false WHERE user_id=%s AND shared_at IS NULL
+                 AND kind NOT IN ('track','track_state')
+                 AND NOT (kind='sport' AND details->>'sport' IN ('run','ride','walk','hike','swim')
+                          AND details->>'target_m' IS NULL)""",(uid,))
     existing_track_thresholds=set()
     for saved in c.execute("SELECT details FROM milestones WHERE user_id=%s AND kind='track'",(uid,)).fetchall():
         details=saved.get('details') or {}
@@ -421,12 +430,20 @@ def process(c,uid,now=None,*,push_ids=None):
             continue
         silent=not state['fresh'] or e['occurred']<now-dt.timedelta(days=7) or e['arrival']<state['baseline_at']
         silent=silent or quiet_backfill(e)
-        row=c.execute('''INSERT INTO milestones(user_id,code,kind,title,rank,activity_id,day,occurred,details,garmin_source,silent)
-          VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-          ON CONFLICT(user_id,code) DO UPDATE SET valid=true,activity_id=excluded.activity_id,day=excluded.day,
-            occurred=excluded.occurred,details=excluded.details,garmin_source=excluded.garmin_source
-          WHERE milestones.shared_at IS NULL
-          RETURNING id,(xmax=0) AS inserted''',(uid,e['code'],e['kind'],e['title'],e['rank'],e['activity_id'],e['day'],e['occurred'],json.dumps(e['details']),e['garmin_source'],silent)).fetchone()
+        if e['kind']=='sport' and _legacy_first_activity_sport(e.get('details') or {}):
+            row=c.execute('''INSERT INTO milestones(user_id,code,kind,title,rank,activity_id,day,occurred,details,garmin_source,silent)
+              VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+              ON CONFLICT(user_id,code) DO UPDATE SET valid=true
+              RETURNING id,(xmax=0) AS inserted''',
+              (uid,e['code'],e['kind'],e['title'],e['rank'],e['activity_id'],e['day'],e['occurred'],json.dumps(e['details']),e['garmin_source'],silent)).fetchone()
+        else:
+            row=c.execute('''INSERT INTO milestones(user_id,code,kind,title,rank,activity_id,day,occurred,details,garmin_source,silent)
+              VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+              ON CONFLICT(user_id,code) DO UPDATE SET valid=true,activity_id=excluded.activity_id,day=excluded.day,
+                occurred=excluded.occurred,details=excluded.details,garmin_source=excluded.garmin_source
+              WHERE milestones.shared_at IS NULL
+              RETURNING id,(xmax=0) AS inserted''',
+              (uid,e['code'],e['kind'],e['title'],e['rank'],e['activity_id'],e['day'],e['occurred'],json.dumps(e['details']),e['garmin_source'],silent)).fetchone()
         if row and row['inserted'] and not silent and not e['details'].get('quiet'):
             new.append((e['rank'],row['id']))
     day=now.astimezone(zone).date()

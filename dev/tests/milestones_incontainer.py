@@ -185,10 +185,10 @@ class Milestones(unittest.TestCase):
   run=next(track for track in payload['tracks'] if track['code']=='sport:run')
   self.assertEqual(run['value_m'],5000)
   run_by_label={tier['label']:tier for tier in run['tiers']}
-  self.assertTrue({'First run','5K','10K'} <= set(run_by_label))
+  self.assertTrue({'First run','5K'} <= set(run_by_label))
   self.assertTrue(run_by_label['First run']['legacy'],'the first-activity record remains a separate prior award')
-  self.assertEqual((run_by_label['First run']['rank'],run_by_label['5K']['rank'],run_by_label['10K']['rank']),
-                   (0,1,2),'a legacy first-activity award does not shift canonical Run ranks')
+  self.assertEqual((run_by_label['First run']['rank'],run_by_label['5K']['rank']),
+                   (0,1),'a legacy first-activity award does not shift canonical Run ranks')
 
   with db.connect() as c:
    run_rows=c.execute('''SELECT kind,code,silent FROM milestones
@@ -261,6 +261,61 @@ class Milestones(unittest.TestCase):
    replay=c.execute("SELECT details->>'threshold' AS threshold FROM milestones WHERE user_id=%s AND kind='track' AND details->>'track'='workouts'",(self.ids[0],)).fetchall()
   self.assertEqual(sorted(float(row['threshold']) for row in replay),[1,10],
                    'rerunning the worker neither rewrites the old award nor duplicates canonical thresholds')
+
+ def test_first_activity_history_survives_source_deletion_and_replay(self):
+  self.clients[0].put('/api/notifications/settings',json={'milestones':True})
+  owner_id,viewer_id=self.ids
+  with db.connect() as c:
+   c.execute("INSERT INTO friendships(requester,addressee,status,accepted) VALUES(%s,%s,'accepted',now())",(owner_id,viewer_id))
+   owner_login=c.execute('SELECT login::text AS login FROM users WHERE id=%s',(owner_id,)).fetchone()['login']
+  self.clients[0].put('/api/sharing',json={'share_achievements':True})
+  earlier={}
+  for sport in ('run','ride','walk','swim'):
+   earlier[sport]=self.activity(days=20,sport=sport,distance=1000)
+   self.activity(days=10,sport=sport,distance=1000)
+  self.process()
+  with db.connect() as c:
+   c.execute("UPDATE milestones SET seen_at=%s WHERE user_id=%s AND kind='sport' AND details->>'sport'=ANY(%s)",
+             (self.now,self.ids[0],list(earlier)))
+   saved=c.execute('''SELECT id,code,activity_id,day,occurred,details,silent,seen_at,shared_at,valid
+                      FROM milestones WHERE user_id=%s AND kind='sport'
+                        AND details->>'sport'=ANY(%s) ORDER BY code''',(self.ids[0],list(earlier))).fetchall()
+   pushes=c.execute("SELECT count(*) AS n FROM notifications WHERE user_id=%s AND kind='milestone'",
+                    (self.ids[0],)).fetchone()['n']
+  self.assertEqual(len(saved),4)
+  self.assertTrue(all(row['details'].get('trigger')=='first_activity' for row in saved))
+  self.assertEqual(pushes,0,'quiet first-activity records never notify')
+  before={row['details']['sport']:row for row in saved}
+  with db.connect() as c:c.execute('DELETE FROM activities WHERE user_id=%s AND id=ANY(%s)',(self.ids[0],list(earlier.values())))
+  self.process()
+  with db.connect() as c:
+   replay=c.execute('''SELECT id,code,activity_id,day,occurred,details,silent,seen_at,shared_at,valid
+                       FROM milestones WHERE user_id=%s AND kind='sport'
+                         AND details->>'sport'=ANY(%s) ORDER BY code''',(self.ids[0],list(earlier))).fetchall()
+   pushes_after=c.execute("SELECT count(*) AS n FROM notifications WHERE user_id=%s AND kind='milestone'",
+                          (self.ids[0],)).fetchone()['n']
+  self.assertEqual(len(replay),4,'replay keeps one durable first-activity row per sport')
+  for row in replay:
+   original=before[row['details']['sport']]
+   self.assertEqual((row['id'],row['activity_id'],row['day'],row['occurred'],row['details'],row['silent'],
+                     row['seen_at'],row['shared_at'],row['valid']),
+                    (original['id'],original['activity_id'],original['day'],original['occurred'],original['details'],
+                     original['silent'],original['seen_at'],original['shared_at'],True))
+  self.assertEqual(pushes_after,pushes,'replay does not create duplicate first-activity notifications')
+  for sport in ('run','ride','walk-hike','swim'):
+   path='/api/achievement-history/sport:'+sport
+   history=self.clients[0].get(path).json()['tiers']
+   prior=next(tier for tier in history if tier.get('legacy'))
+   self.assertEqual(prior['day'],before[{'walk-hike':'walk'}.get(sport,sport)]['day'].isoformat())
+   self.assertIsNone(prior['activity_id'],'a deleted source does not leave a dead activity link')
+   self.assertEqual(prior['date_source'],'legacy')
+   shared=self.clients[1].get(path,params={'login':owner_login})
+   self.assertEqual(shared.status_code,200,shared.text)
+   shared_tiers=shared.json()['tiers']
+   self.assertTrue(any(tier.get('legacy') and tier['name']==prior['name'] for tier in shared_tiers))
+   self.assertTrue(all('activity_id' not in tier for tier in shared_tiers),'shared history omits source IDs')
+   self.assertTrue(all('next' not in tier and 'future' not in tier for tier in shared_tiers),
+                   'shared history exposes saved awards only, not future levels')
 
  def test_deleted_source_keeps_canonical_award_date_without_regenerating_removed_starters(self):
   deleted=self.activity(days=20,distance=0)

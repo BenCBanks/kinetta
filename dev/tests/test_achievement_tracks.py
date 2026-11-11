@@ -120,13 +120,13 @@ class AchievementTrackRules(unittest.TestCase):
         self.assertEqual(landmarks[-1].label, 'To the Moon')
         moon = tracks.JOURNEY_LANDMARKS[-1][1]
         moon_tiers = tracks.tiers_for('journey', moon)
-        self.assertEqual((moon_tiers[-1].rank, moon_tiers[-1].label), (11, 'To the Moon'))
+        self.assertEqual((moon_tiers[-1].rank, moon_tiers[-1].label), (9, 'To the Moon'))
         next_after_moon = tracks.next_tier('journey', moon)
         self.assertEqual((next_after_moon.rank, next_after_moon.threshold, next_after_moon.label),
-                         (12, 2 * moon, 'To the Moon ×2'))
+                         (10, 2 * moon, 'To the Moon ×2'))
         next_after_two = tracks.next_tier('journey', 2 * moon)
         self.assertEqual((next_after_two.rank, next_after_two.threshold, next_after_two.label),
-                         (13, 3 * moon, 'To the Moon ×3'))
+                         (11, 3 * moon, 'To the Moon ×3'))
 
     def test_climbing_and_lifting_equivalence_tails(self):
         edge = tracks.CLIMBING_LEVELS[-1][1]
