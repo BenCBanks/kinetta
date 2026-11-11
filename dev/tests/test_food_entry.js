@@ -3,11 +3,13 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 // Every food-description entry opens the same permanent conversation and keeps
 // its destination parameters; logging still uses that conversation's review flow.
 {
- const food=fs.readFileSync('app/static/food.js','utf8'),calls=[];let handler;
- const c={URLSearchParams,location:{search:'?d=2026-10-18&meal=dinner'},route:(re,tab,fn)=>{assert(re.test('/food/describe'));assert.equal(tab,'food');handler=fn;},FoodThread:{page:(...args)=>calls.push(args)}};
+ const food=fs.readFileSync('app/static/food.js','utf8'),thread=fs.readFileSync('app/static/thread.js','utf8'),calls=[];let handler;
+ const c={URLSearchParams,location:{search:'?d=2026-10-18&meal=dinner'},route:(re,tab,fn)=>{assert(re.test('/food/describe'));assert.equal(tab,'food');handler=fn;},FoodThread:{page:(...args)=>{const result=Promise.resolve('ready');calls.push(Object.assign(args,{result}));return result;}}};
  vm.createContext(c);vm.runInContext(food.slice(food.indexOf('route(/^\\/food\\/describe$/'),food.indexOf('// ---------- barcode ----------')),c);
- const el={};handler(el);assert.equal(calls[0][0],el);assert.deepEqual(JSON.parse(JSON.stringify(calls[0][1])),{day:'2026-10-18',meal:'dinner'});
+ const el={};const first=handler(el);assert.equal(calls[0][0],el);assert.deepEqual(JSON.parse(JSON.stringify(calls[0][1])),{day:'2026-10-18',meal:'dinner'});assert.equal(first,calls[0].result,'Food route returns the shared awaited page boundary');
  c.location.search='';handler(el);assert.deepEqual(JSON.parse(JSON.stringify(calls[1][1])),{day:null,meal:null});
+ assert.match(thread,/async function page\(el,\{day,meal\}=\{\}\)\{\s*const requestedOwner=ownerKey\(\),requestedSession=readOwner\(\),requestedLocation=location\.pathname\+location\.search;\s*await prepare\(\);\s*if\(requestedOwner!==ownerKey\(\)\|\|requestedSession!==readOwner\(\)\|\|requestedLocation!==location\.pathname\+location\.search\|\|!el\.isConnected\)return;/,'the Food route awaits Nutrition and discards a stale path, query or host');
+ assert.match(thread,/loadClassicScript\(FOOD_NUTRITION_ASSET\)/,'Nutrition uses the shared retryable script loader');
  console.log('Food description route: permanent conversation with explicit/default destination parameters PASS');
 }
 let owner='a',full=false,savedReview=null;const saved=new Map(),field={value:'Existing draft',focus(){}},ctx={owner:'a',nativeEntries:[],el:{}};
