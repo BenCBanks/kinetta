@@ -129,7 +129,7 @@ weight_progress_actions.cjs weight_progress_journeys.cjs weight_undo_ui.cjs
 inline_reactions_fixture.py inline_reactions_ui.cjs inline_reactions_actions.cjs shell_ui.cjs
 password_visibility_ui.cjs signup_uniqueness_fixture.py signup_uniqueness_ui.cjs welcome_polish_ui.cjs
 community_ui.cjs admin_features_fixture.py admin_features_ui.cjs feature_collection_fixture.py
-feature_collection_ui.cjs journeys_prepare.py journeys.cjs journeys.cjs links.cjs'''.split()
+feature_collection_ui.cjs groups_ui.cjs journeys_prepare.py journeys.cjs journeys.cjs links.cjs'''.split()
         self.assertEqual(Counter(expected),Counter(re.findall(r'(?:node|python3) dev/tests/([A-Za-z0-9_.-]+)',script)))
 
         shard=None
