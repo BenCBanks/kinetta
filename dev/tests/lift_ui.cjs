@@ -16,7 +16,10 @@ async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))
    // The logger now lives in the guarded lift-routes bundle; load it through a real deferred route before
    // exercising its controls directly below. The eager Me/Track summary seam has already been checked above.
    await p.goto(base+'/lift/ex/999905');await until(p,()=>App.pageReady);
-   const start=new Date().toISOString(),past='2026-09-01T12:00:00Z';
+   const fixtureNow=new Date();
+   const fixtureDay=daysAgo=>{const d=new Date(fixtureNow);d.setUTCDate(d.getUTCDate()-daysAgo);return d.toISOString().slice(0,10);};
+   const fixtureStamp=daysAgo=>`${fixtureDay(daysAgo)}T12:00:00Z`;
+   const start=fixtureNow.toISOString(),past=fixtureStamp(30);
    const exercises=[{exercise_id:999902,name:'Fictional bench press',kind:'weight',sets:[{kg:null,reps:null,done:false}],last:{activity_id:999900,start_time:past,sets:[{kg:60,reps:8}]}},
      {exercise_id:999903,name:'Fictional push-up',kind:'body',sets:[{reps:null,done:false}],last:{activity_id:999900,start_time:past,sets:[{reps:12}]}},
      {exercise_id:999904,name:'Fictional hold',kind:'time',sets:[{secs:null,done:false}],last:{activity_id:999900,start_time:past,sets:[{secs:45}]}}];
@@ -42,14 +45,17 @@ async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))
    assert((await p.locator('.lift-review').innerText()).includes('Warm-up only'));assert.equal(await p.locator('.track-review-stats > div').filter({hasText:'Exercise'}).innerText(),'1\nExercise');assert.equal(await p.locator('.track-review-stats > div').filter({hasText:'Warm-up sets'}).innerText(),'2\nWarm-up sets');assert.equal(await p.locator('.track-review-stats').getByText('Working sets',{exact:true}).count(),0,'warm-up-only summary never claims zero working sets');assert((await p.locator('.lift-review-ex').innerText()).includes('2 warm-up sets'),'exercise detail labels its completed warm-ups');
    // The paired day/time fields use the same responsive form layout as other app sheets.
    await p.evaluate(()=>addActivitySheet(null,'workout'));await p.locator('#ma').waitFor();
-   const yesterday=await p.locator('#ma select[name=day] option').nth(1).getAttribute('value');await p.locator('#ma select[name=day]').selectOption(yesterday);
+   const daySelect=p.locator('#ma select[name=day]'),yesterday=await daySelect.locator('option').evaluateAll(options=>options.find(option=>option.textContent.trim()==='Yesterday')?.value);
+   assert(yesterday,'day picker exposes Yesterday by semantic label');await daySelect.selectOption(yesterday);
+   assert.equal(await daySelect.evaluate(select=>select.selectedOptions[0]?.textContent.trim()),'Yesterday','the selected day is Yesterday');
    const clippedChoices=await p.locator('#ma .two select').evaluateAll(es=>es.flatMap(e=>{const s=getComputedStyle(e),g=document.createElement('canvas').getContext('2d');g.font=s.font;const text=e.selectedOptions[0].text,space=e.clientWidth-parseFloat(s.paddingLeft)-parseFloat(s.paddingRight),needed=g.measureText(text).width;return needed>space+1?[{text,space,needed}]:[];}));
    assert.deepEqual(clippedChoices,[],'Day and time choices must remain readable when enlarged');
    await p.keyboard.press('Escape');
-   await p.evaluate(()=>{
+   const chartDays=[0,1,2,3].map(i=>fixtureDay(3+i));
+   await p.evaluate(days=>{
     const realChart=dotChart;window.bodyChartPoints=null;dotChart=(el,points,options)=>{if(el.id==='lx-chart')window.bodyChartPoints=points.map(p=>p.y);return realChart(el,points,options);};window.restoreBodyChart=()=>{dotChart=realChart;};
-    const history={exercise:{id:999905,name:'Fictional push-up',kind:'body',sessions:4,last:'2026-10-13',note:''},records:{reps:{value:10,activity_id:999914,start_time:'2026-10-13'}},sessions:[10,9,8,7].map((best,i)=>({activity_id:999914-i,start_time:`2026-10-${13-i}T12:00:00Z`,reps:best*2-1,best_reps:best,top:{kg:30,reps:best-1},sets:[{reps:best,kg:0,done:true},{reps:best-1,kg:30,done:true}]}))};window.bodyChartHistory=history;drawExercise(document.querySelector('#page'),history);
-   });
+    const history={exercise:{id:999905,name:'Fictional push-up',kind:'body',sessions:4,last:days[0],note:''},records:{reps:{value:10,activity_id:999914,start_time:days[0]}},sessions:[10,9,8,7].map((best,i)=>({activity_id:999914-i,start_time:`${days[i]}T12:00:00Z`,reps:best*2-1,best_reps:best,top:{kg:30,reps:best-1},sets:[{reps:best,kg:0,done:true},{reps:best-1,kg:30,done:true}]}))};window.bodyChartHistory=history;drawExercise(document.querySelector('#page'),history);
+   },chartDays);
    await until(p,()=>!!document.querySelector('#lx-chart svg')&&!!window.bodyChartPoints);assert.deepEqual(await p.evaluate(()=>bodyChartPoints),[7,8,9,10],'bodyweight chart plots the best single set, not session totals');assert(await p.getByRole('heading',{name:'Most reps in a set',exact:true}).isVisible());assert((await p.locator('.lx-rec').innerText()).includes('10'),'single-set record stays10');await p.evaluate(()=>{for(const s of bodyChartHistory.sessions){delete s.best_reps;s.sets.push({reps:90,done:true,warmup:true},{reps:99,done:false});}window.bodyChartPoints=null;drawExercise(document.querySelector('#page'),bodyChartHistory);});await until(p,()=>!!window.bodyChartPoints);assert.deepEqual(await p.evaluate(()=>bodyChartPoints),[7,8,9,10],'older-server fallback ignores warm-up and unfinished sets');await p.evaluate(()=>restoreBodyChart());
    assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)));assert.deepEqual(errors,[]);await c.close();console.log(`Lifting writes/values/summary: ${size.width}px/${size.root}px ${theme} PASS`);
   }
