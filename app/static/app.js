@@ -56,10 +56,11 @@ const PLANNER_ROUTE_ASSET = '/static/planner.js?v=__ASSET_HASH__';
 const COOK_ROUTE_ASSET = '/static/cook.js?v=__ASSET_HASH__';
 const RECIPE_IMPORT_ROUTE_ASSET = '/static/recipe-import.js?v=__ASSET_HASH__';
 const SOCIAL_ROUTE_ASSET = '/static/social.js?v=__ASSET_HASH__';
+const CONTACTS_ROUTE_ASSET = '/static/contacts-ui.js?v=__ASSET_HASH__';
 const PLAN_ROUTE_ASSET = '/static/plan.js?v=__ASSET_HASH__';
 const QR_CODE_ASSET = '/static/vendor/qrcode.js?v=__ASSET_HASH__';
 const lazyRouteBundles = [
-  {re: /^\/welcome$/, tab: 'me', scripts: ['/static/welcome.js?v=__ASSET_HASH__']},
+  {re: /^\/welcome$/, tab: 'me', scripts: [CONTACTS_ROUTE_ASSET, '/static/welcome.js?v=__ASSET_HASH__']},
   {re: /^\/me\/explore$/, tab: 'track', scripts: [SOCIAL_ROUTE_ASSET, '/static/explore.js?v=__ASSET_HASH__']},
   {re: /^\/progress$/, tab: 'progress', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/plan$/, tab: 'progress', scripts: [PLAN_ROUTE_ASSET]},
@@ -69,7 +70,8 @@ const lazyRouteBundles = [
   {re: /^\/activity\/\d+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET]},
   {re: /^\/people\/([^/]+)$/, tab: login => App.me && decodeURIComponent(login).toLowerCase() === App.me.login.toLowerCase() ? 'me' : 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/add\/[\w-]+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
-  {re: /^\/me\/friends(?:\/contacts)?$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET]},
+  {re: /^\/me\/friends$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET, CONTACTS_ROUTE_ASSET]},
+  {re: /^\/me\/friends\/contacts$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET, CONTACTS_ROUTE_ASSET]},
   {re: /^\/me\/groups$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/groups\/[0-9a-f-]{36}$/i, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/group-invite\/[\w-]+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
@@ -82,7 +84,7 @@ const lazyRouteBundles = [
   {re: /^\/progress\/weight$/, tab: 'progress', scripts: [FOOD_ROUTE_ASSET]},
   {re: /^\/progress\/(?:routes|trends|calendar|heatmap)$/, tab: 'progress', scripts: [PROGRESS_ROUTE_ASSET]},
   {re: /^\/(?:progress\/segments|segments(?:\/(?:review|new|\d+))?)$/, tab: 'progress', scripts: [PLANNER_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET]},
-  {re: /^\/me\/sharing$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET]},
+  {re: /^\/me\/sharing$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET, CONTACTS_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET]},
   {re: /^\/me\/kit$/, tab: 'me', scripts: [FOOD_ROUTE_ASSET, KIT_ROUTE_ASSET]},
   {re: /^\/(?:lift\/\d+|track\/lift\/\d+|lift\/history\/workout\/\d+)$/, tab: 'track', scripts: ['/static/lift-routes.js?v=__ASSET_HASH__']},
   {re: /^\/(?:lift\/ex\/\d+|lift\/history\/exercise\/\d+)$/, tab: 'progress', scripts: ['/static/lift-routes.js?v=__ASSET_HASH__']},

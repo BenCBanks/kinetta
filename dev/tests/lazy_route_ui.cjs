@@ -181,6 +181,28 @@ async function socialFixture(browser,{failFirst=false,idleGate=false}={}){
  });
  return {context,page,assets,errors,writes};
 }
+async function contactsFixture(browser,{failFirst=false,idleGate=false}={}){
+ const context=await fixtureContext(browser);await login(context);
+ const page=await context.newPage(),assets=[],errors=[],writes=[],external=[];let contactsAttempts=0;
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.addInitScript(()=>{
+  window.__contactsPluginCalls=[];
+  const plugin=new Proxy({}, {get:(_target,name)=> (...args)=>{window.__contactsPluginCalls.push(String(name));return Promise.reject(new Error('blocked test bridge'));}});
+  window.Capacitor={getPlatform:()=> 'web',Plugins:{KinettaContacts:plugin}};
+ });
+ if(idleGate)await page.addInitScript(()=>{window.__contactsIdleCallbacks=[];window.requestIdleCallback=callback=>{window.__contactsIdleCallbacks.push(callback);return window.__contactsIdleCallbacks.length;};window.cancelIdleCallback=()=>{};});
+ await page.route('**/*',async route=>{
+  const request=route.request(),url=new URL(request.url());
+  if(url.origin!==base){external.push(url.href);return route.abort();}
+  if(['/static/social.js','/static/contacts-ui.js','/static/segments.js','/static/welcome.js'].includes(url.pathname)){
+   assets.push(url.pathname);
+   if(url.pathname==='/static/contacts-ui.js'&&++contactsAttempts===1&&failFirst)return route.abort();
+  }
+  if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
+  return route.continue();
+ });
+ return {context,page,assets,errors,writes,external,nativeCalls:()=>page.evaluate(()=>window.__contactsPluginCalls)};
+}
 async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
  const context=await fixtureContext(browser);await login(context,loginName);
  const page=await context.newPage(),assets=[],errors=[],writes=[],previews=[];let heldOnce=false,releaseHeld=()=>{},signalHeld=()=>{};
@@ -279,6 +301,49 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     assert.equal(socialRetry.assets.length,2,'retry clears the failed promise and requests social.js again');
     assert.deepEqual(socialRetry.errors,[]);assert.deepEqual(socialRetry.writes,[]);
   }finally{await socialRetry.context.close();}
+
+  const contactsMe=await contactsFixture(browser,{idleGate:true});
+  try{
+    await contactsMe.page.goto(base+'/me');await ready(contactsMe.page,meReady,'Me before ContactsUI route use');
+    await contactsMe.page.waitForFunction(()=>window.__contactsIdleCallbacks.length>0);
+    assert.equal(await contactsMe.page.evaluate(()=>typeof ContactsUI),'undefined','cold Me has no eager ContactsUI');
+    assert(!contactsMe.assets.includes('/static/contacts-ui.js'),'cold Me did not request ContactsUI');
+    await contactsMe.page.evaluate(()=>window.__contactsIdleCallbacks.splice(0).forEach(callback=>callback({didTimeout:false,timeRemaining:()=>50})));
+    await contactsMe.page.waitForFunction(()=>typeof Social==='object');
+    assert(contactsMe.assets.includes('/static/social.js'),'scheduled Social warmup still runs');
+    assert(!contactsMe.assets.includes('/static/contacts-ui.js'),'released Social warmup does not load ContactsUI');
+    assert.equal(await contactsMe.page.evaluate(()=>typeof ContactsUI),'undefined','ContactsUI stays absent after Social warmup');
+    assert.deepEqual(contactsMe.errors,[]);assert.deepEqual(contactsMe.writes,[]);assert.deepEqual(contactsMe.external,[]);assert.deepEqual(await contactsMe.nativeCalls(),[]);
+  }finally{await contactsMe.context.close();}
+
+  const contactsRoutes=[
+    {path:'/welcome?step=profile',selector:'#wc-form',scripts:['/static/contacts-ui.js','/static/welcome.js'],label:'Welcome calls ContactsUI before rendering'},
+    {path:'/me/friends?find=1',selector:'#fr-own-list',scripts:['/static/social.js','/static/contacts-ui.js'],label:'Friends finder calls ContactsUI after Social'},
+    {path:'/me/friends/contacts',selector:'#contacts-continue',scripts:['/static/social.js','/static/contacts-ui.js'],label:'Contacts route mounts after Social'},
+    {path:'/me/sharing',selector:'#contacts-cache-remove',scripts:['/static/social.js','/static/contacts-ui.js','/static/segments.js'],label:'Sharing caller loads ContactsUI after Social'},
+  ];
+  for(const routeCase of contactsRoutes){
+    const fixture=await contactsFixture(browser);
+    try{
+      await fixture.page.goto(base+routeCase.path,{waitUntil:'domcontentloaded'});await ready(fixture.page,routeCase.selector,routeCase.label);
+      assert.deepEqual(fixture.assets,routeCase.scripts,`${routeCase.path} requests only ordered caller dependencies`);
+      assert.deepEqual(fixture.errors,[],`${routeCase.path} mounts without browser errors`);
+      assert.deepEqual(fixture.writes,[],`${routeCase.path} performs no writes`);
+      assert.deepEqual(fixture.external,[],`${routeCase.path} makes no external requests`);
+      assert.deepEqual(await fixture.nativeCalls(),[],`${routeCase.path} makes no Native Contacts calls`);
+    }finally{await fixture.context.close();}
+  }
+
+  const contactsRetry=await contactsFixture(browser,{failFirst:true});
+  try{
+    await contactsRetry.page.goto(base+'/me/friends/contacts',{waitUntil:'domcontentloaded'});await contactsRetry.page.locator('.load-error').waitFor();
+    assert.deepEqual(contactsRetry.assets,['/static/social.js','/static/contacts-ui.js'],'Contacts failure follows one successful Social load');
+    assert(await contactsRetry.page.locator('#retry').isVisible(),'failed ContactsUI route offers explicit retry');
+    await contactsRetry.page.locator('#retry').click();await ready(contactsRetry.page,'#contacts-continue','Contacts route after explicit retry');
+    assert.deepEqual(contactsRetry.assets,['/static/social.js','/static/contacts-ui.js','/static/contacts-ui.js'],'retry requests only the failed ContactsUI leaf');
+    assert.deepEqual(contactsRetry.errors,[]);assert.deepEqual(contactsRetry.writes,[]);assert.deepEqual(contactsRetry.external,[]);assert.deepEqual(await contactsRetry.nativeCalls(),[]);
+  }finally{await contactsRetry.context.close();}
+  console.log('ContactsUI lazy routes: cold Me after Social warmup, four ordered callers, retry and no Native/write/external actions PASS');
 
   const context=await fixtureContext(browser);
   try{
