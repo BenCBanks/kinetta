@@ -1675,6 +1675,7 @@ route(/^\/me$/, 'me', async (el) => {
 });
 route(/^\/me\/settings$/, 'me', async (el) => {
   const me = App.me, ch = `<span class="chev">${svg('chev')}</span>`;
+  const unitsOwner = readOwner(), unitsAccountId = me.id;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
   el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Settings</h1><section class="me-settings">
     <h2 class="sec-head">Account</h2>
@@ -1749,8 +1750,13 @@ route(/^\/me\/settings$/, 'me', async (el) => {
   };
   $('#m-del', el).onclick = () => {if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('settings_data');deleteSheet();};
   $$('.units-toggle button[data-u]', el).forEach((b) => b.onclick = async () => {
-    const prev = me.units; me.units = b.dataset.u; render();
-    try { await api('/api/profile', json('PUT', {units: me.units})); } catch (x) { me.units = prev; render(); toast('Could not save: ' + x.message); }
+    const requested = b.dataset.u, current = App.me;
+    if (!current || unitsOwner !== readOwner() || current.id !== unitsAccountId) return;
+    const prev = current.units; current.units = requested; render();
+    try { await api('/api/profile', json('PUT', {units: requested})); } catch (x) {
+      const latest = App.me;
+      if (unitsOwner === readOwner() && latest && latest.id === unitsAccountId) { latest.units = prev; render(); toast('Could not save: ' + x.message); }
+    }
   });
   $('#m-body', el).onclick = () => bodySheet();
   if (new URLSearchParams(location.search).get('setup') === 'body') {
