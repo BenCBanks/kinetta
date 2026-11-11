@@ -201,10 +201,12 @@ jobs:
       GARMIN_PUSH_SECRET: ""
       KINETTA_RESEND_KEY: ""
       KINETTA_APNS_PRIVATE_KEY: ""
-      TMPDIR: ${{ runner.temp }}/kinetta-reviewer-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Create private fixture state directory
-        run: mkdir -m 700 "$TMPDIR"
+        run: |
+          state_dir="${RUNNER_TEMP}/kinetta-reviewer-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          mkdir -m 700 "$state_dir"
+          printf 'TMPDIR=%s\n' "$state_dir" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: ./.github/actions/build-test-image
         with:
@@ -233,7 +235,8 @@ jobs:
         run: |
           status=0
           docker compose -p "$KINETTA_PROJECT" down -v --remove-orphans || status=$?
-          if [ -d "$TMPDIR" ]; then rm -rf -- "$TMPDIR" || status=$?; fi
+          state_dir="${RUNNER_TEMP}/kinetta-reviewer-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          if [ -d "$state_dir" ]; then rm -rf -- "$state_dir" || status=$?; fi
           exit "$status"
 
   tests:
