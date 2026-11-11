@@ -31,7 +31,7 @@ function harness({native=false,api:apiImpl}={}){
    esc:String,svg:()=>'',toast:message=>toasts.push(message),route:()=>{},col:()=> '#ffffff',getComputedStyle:()=>({getPropertyValue:()=> 'system-ui'}),
    setOwner:value=>{owner=value;},getObjects:()=>objects,getTimers:()=>timers,getState:()=>({html,anchorClicks,scrollHandler,revoked,toasts,apiCalls,body,choices,images,actions,controls,note,description,status,send,save,document})};
  vm.createContext(context);
- vm.runInContext(fs.readFileSync('app/static/recaps.js','utf8')+'\n'+fs.readFileSync('app/static/cards.js','utf8')+'\nthis.shareSheetTest=ShareSheet;this.shareArtTest=ShareArt;this.kinettaCardTest=KinettaCard;',context);
+ vm.runInContext(fs.readFileSync('app/static/share-art.js','utf8')+'\n'+fs.readFileSync('app/static/recaps.js','utf8')+'\n'+fs.readFileSync('app/static/cards.js','utf8')+'\nthis.shareSheetTest=ShareSheet;this.shareArtTest=ShareArt;this.kinettaCardTest=KinettaCard;',context);
  context.openShare=value=>{options=value;context.shareSheetTest.open(value);};
  return context;
 }
