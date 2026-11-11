@@ -435,7 +435,7 @@ const ProfileLayout=(()=>{
     const clearPress=()=>{clearTimeout(timer);timer=0;press=null;};
     const suppress=()=>{suppressClick=true;clearTimeout(suppressTimer);suppressTimer=setTimeout(()=>{suppressClick=false;},900);};
     const openOptions=anchor=>{
-      onInteraction();
+      onInteraction(true);
       const code=anchor.dataset.achievementCode,pinned=pinnedCodes.has(code),replace=!pinned&&pinnedCodes.size>=FEATURED_ACHIEVEMENT_LIMIT;
       sheet('Showcase',`<div class="card list"><button type="button" class="row-link" data-showcase-pin-action><span class="grow">${pinned?'Remove from profile':'Pin to profile'}</span>${svg('chev')}</button></div>`,(body,close)=>{
         const button=body.querySelector('[data-showcase-pin-action]');if(!button)return;
@@ -450,10 +450,11 @@ const ProfileLayout=(()=>{
               const label=row.getAttribute('aria-label')||'';row.setAttribute('aria-label',label.replace(/, Pinned to profile$/,'')+(active?', Pinned to profile':''));
               row.setAttribute('aria-description',`Long press to ${active?'remove this medal from':'pin this medal to'} your profile.`);
             });
+            onInteraction();
             close();toast(result?.replaced||replace?'Pinned to profile. Oldest pin replaced.':pinned?'Removed from profile.':'Pinned to profile.');
           }catch(error){button.disabled=false;toast(error?.message||'Showcase could not be updated.');}
         };
-      });
+      },{onClose:()=>onInteraction(false)});
     };
     const onDown=e=>{
       if(e.button!==0||e.isPrimary===false)return;
@@ -487,7 +488,7 @@ const ProfileLayout=(()=>{
       };
       try{
         const query=sharedProfile?`?login=${encodeURIComponent(login)}`:'', [data,_catalog,achievements]=await Promise.all([api('/api/achievements/showcase'+query),loadAchievementCatalog(),api('/api/achievements'+query)]);
-        if(!root.isConnected||owner!==readOwner()||featureSlot&&!featureSlot.isConnected||streakSlot&&!streakSlot.isConnected)return;
+        if(!root.isConnected||owner!==readOwner()||path!==location.pathname+location.search||featureSlot&&!featureSlot.isConnected||streakSlot&&!streakSlot.isConnected)return;
         paint(data,achievements);
         if(!sharedProfile&&achievements.pending&&featureSlot)watchOwnerPending(featureSlot,owner,path,async()=>{
           const [freshShowcase,freshAchievements]=await Promise.all([api('/api/achievements/showcase'),api('/api/achievements')]);
@@ -513,7 +514,8 @@ const ProfileLayout=(()=>{
     const owner=readOwner(),path=location.pathname+location.search,code=requestedCode?decodeURIComponent(requestedCode):'',sharedLogin=String(options.login||''),shared=!!sharedLogin,profile=options.returnPath||profileHref(App.me),active=()=>el.isConnected&&owner===readOwner()&&path===location.pathname+location.search,query=shared?`?login=${encodeURIComponent(sharedLogin)}`:'';
     el.innerHTML=`<div class="top">${backBtn('Profile')}</div><div id="profile-achievement-page" aria-busy="true"><h1>${code?'Achievement history':'Achievements'}</h1><p class="small muted">Loading…</p></div>`;
     wireBack(el,profile,destination=>/^\/me\/achievements(?:\/|\?|$)/.test(destination.path)?'Achievements':'Profile');
-    const box=$('#profile-achievement-page',el);let interaction=0;
+    const box=$('#profile-achievement-page',el);let interaction=0,activePinSheets=0;
+    const pinInteraction=active=>{interaction++;if(active===true)activePinSheets++;else if(active===false)activePinSheets=Math.max(0,activePinSheets-1);};
     const clearBoxResources=()=>{const cleanup=viewResources.get(box);if(cleanup){cleanup();viewResources.delete(box);}};
     const draw=(data,historyData,showcase)=>{
       if(!active()||!box.isConnected)return false;clearBoxResources();
@@ -524,7 +526,7 @@ const ProfileLayout=(()=>{
         const pinnedCodes=new Set((Array.isArray(showcase?.pinned)?showcase.pinned:[]).map(String)),groups=shared?sharedAchievementGrid(overviewTracks,sharedLogin):achievementGrid(overviewTracks,levelUps,pinnedCodes);
         box.innerHTML=`<h1>Achievements</h1>${groups||'<p class="small muted">No earned achievements yet.</p>'}`;
         fitAchievementValues(box);
-        if(!shared){fitAchievementProgress(box);wireAchievementPins(box,pinnedCodes,()=>interaction++);achievementLevelUpHaptic(levelUps);}
+        if(!shared){fitAchievementProgress(box);wireAchievementPins(box,pinnedCodes,pinInteraction);achievementLevelUpHaptic(levelUps);}
         box.setAttribute('aria-busy','false');return true;
       }
       const levelUps=shared?new Set():achievementLevelUps(data),label=track.label||track.code,value=achievementValue(track),next=achievementNext(track),level=achievementLevel(track),current=achievementCurrentTier(track),started=achievementTrackStarted(track);
@@ -540,7 +542,7 @@ const ProfileLayout=(()=>{
     const refresh=async()=>{
       const version=interaction;
       const [data,historyData,showcase]=await Promise.all([api('/api/achievements'),code?api('/api/achievement-history/'+encodeURIComponent(code)):Promise.resolve(null),code?Promise.resolve({}):api('/api/achievements/showcase')]);
-      return{pending:!!data.pending||!!historyData?.pending,apply:()=>version===interaction&&draw(data,historyData,showcase)};
+      return{pending:!!data.pending||!!historyData?.pending,apply:()=>version===interaction&&!activePinSheets&&draw(data,historyData,showcase)};
     };
     Promise.all([api('/api/achievements'+query),loadAchievementCatalog(),code?api('/api/achievement-history/'+encodeURIComponent(code)+query):Promise.resolve(null),code?Promise.resolve({}):api('/api/achievements/showcase'+query).catch(()=>({}))]).then(([data,_catalog,historyData,showcase])=>{
       if(!draw(data,historyData,showcase))return;
