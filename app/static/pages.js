@@ -1252,7 +1252,7 @@ function foodProgress(el,q) {
 }
 function pHead(el, view, filters) {
   const v = [...PVIEWS, ...PMORE.filter(progressItemEnabled)].find(m => m[0] === view);
-  el.innerHTML = `<div class="top progress-heading"><h1>${esc(({routes:'Routes',trends:'Years'})[view]||v?.[1]||'Progress')}</h1><div class="acts"><button type="button" class="icon-btn" id="recap-entry" aria-label="Share a progress picture">${svg('share')}</button>${bellBtn()}</div></div><div id="p-body">${skelChart()}</div>`;
+  el.innerHTML = `<div class="top progress-heading"><h1>${esc(({routes:'Routes',trends:'Years'})[view]||v?.[1]||'Progress')}</h1><div class="acts"><button type="button" class="icon-btn" id="recap-entry" aria-label="Share a progress picture">${svg('share')}</button></div></div><div id="p-body">${skelChart()}</div>`;
   progressBack(el); progressVisit(view); wireProgressFocus(el);
   $('#recap-entry',el).onclick=()=>Recaps.open('this_month');
   progressFilters(el, $('#p-body',el), filters, {selector:view === 'heatmap' ? '.heatmap-tools' : '.card'});
@@ -1669,7 +1669,7 @@ route(/^\/me$/, 'me', async (el) => {
   const me = App.me, ch = `<span class="chev">${svg('chev')}</span>`;
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
   el.innerHTML = `<div id="me-overview"></div>
-    <div class="card list me-tools">${row('a', `href="${profileHref(App.me)}"`, 'activity', 'c-brand', 'See full profile')}${row('a', 'href="/plan"', 'calendar', 'c-brand', 'Training plan')}${row('a', 'href="/me/explore"', 'search', 'c-brand', 'Explore Kinetta')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help & contact')}</div>`;
+    <div class="card list me-tools">${row('a', `href="${profileHref(App.me)}"`, 'activity', 'c-brand', 'See full profile')}${row('a', 'href="/plan"', 'calendar', 'c-brand', 'Training plan')}${row('a', 'href="/me/explore"', 'search', 'c-brand', 'Explore Kinetta')}${foodUser() ? row('a', 'href="/food/setup"', 'food', 'c-green', `Nutrition goal<small class="muted">${me.kcal_target ? `${Math.round(me.kcal_target)} kcal · ${me.protein_target ? Math.round(me.protein_target) + ' g protein' : 'review'}` : 'Optional setup'}</small>`) : ''}${row('a', 'href="/me/gear"', 'shoe', 'c-brand', 'Shoes & bikes')}</div>`;
   el.insertAdjacentHTML('beforeend','<div id="me-challenges"></div>');Challenges.mount($('#me-challenges',el),{me:true});
   meOverview($('#me-overview', el)).catch((e) => showError($('#me-overview', el), e));
 });
