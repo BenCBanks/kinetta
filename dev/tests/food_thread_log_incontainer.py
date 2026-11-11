@@ -85,7 +85,9 @@ try:
   return ids
  def repeat_message(uid2,body,meal='lunch',repeat_entry_id=None,client_id=None):
   request=food_thread.MessageIn(client_id=client_id or uuid.uuid4(),body=body,captured_at=fixture_captured_at,day=repeat_day,meal=meal,review_only=True,draft_id=uuid.uuid4(),repeat_entry_id=repeat_entry_id)
-  return food_thread.append(request,Response(),user={'id':uid2})['message']
+  message=food_thread.append(request,Response(),user={'id':uid2})['message']
+  assert message['local_day']==repeat_day,'captured message day follows the UTC account day'
+  return message
  def logged_count(uid2):
   with db.connect() as c:return c.execute('SELECT count(*) AS n FROM food_entries WHERE user_id=%s',(uid2,)).fetchone()['n']
  def no_model(*args,**kwargs):raise AssertionError('Recent repeat reached food-memory or food-understanding preparation')
