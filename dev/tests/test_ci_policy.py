@@ -111,7 +111,7 @@ class CIPolicyTests(unittest.TestCase):
         script=(ROOT/'dev/tests/run_browser_shard.sh').read_text()
         self.assertIn('shard: [1, 2, 3, 4]',workflow)
         self.assertIn('run_browser_shard.sh',workflow)
-        self.assertIn('needs: [backend, browser_shards]',workflow)
+        self.assertIn('needs: [backend, browser_shards, reviewer_integration]',workflow)
         self.assertIn('always()',workflow)
         self.assertIn('run: dev/tests/run.sh',workflow)
         self.assertIn('KINETTA_PROJECT: kt-ci-shard-${{ matrix.shard }}',workflow)
