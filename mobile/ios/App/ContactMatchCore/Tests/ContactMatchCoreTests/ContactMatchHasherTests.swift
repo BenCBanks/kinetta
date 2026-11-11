@@ -42,10 +42,14 @@ final class ContactMatchHasherTests: XCTestCase {
 
     func testInviteOnlyContactsStayLocalWithEmptyHashes() throws {
         let batch = try ContactMatchHasher.build(salt: salt, region: "US", contacts: [
-            ContactMatchSource(id: "local-invite", name: "Fictional Invite", emails: ["not an email"], phones: ["not a phone number"])
+            ContactMatchSource(id: "local-empty", name: "Fictional Empty", emails: [], phones: []),
+            ContactMatchSource(id: "local-invalid", name: "Fictional Invalid", emails: ["not an email"], phones: ["not a phone number"])
         ])
 
-        XCTAssertEqual(batch.contacts, [ContactMatchContact(id: "local-invite", name: "Fictional Invite", hashes: [])])
+        XCTAssertEqual(batch.contacts, [
+            ContactMatchContact(id: "local-empty", name: "Fictional Empty", hashes: []),
+            ContactMatchContact(id: "local-invalid", name: "Fictional Invalid", hashes: [])
+        ])
         XCTAssertTrue(batch.hashes.isEmpty, "invite-only contacts never contribute server request hashes")
         XCTAssertFalse(batch.truncated)
     }
@@ -64,10 +68,16 @@ final class ContactMatchHasherTests: XCTestCase {
 
     func testRejectsInvalidSaltAndCapsTheRequestAtTwoThousandHashes() throws {
         XCTAssertThrowsError(try ContactMatchHasher.build(salt: "short", region: "US", contacts: []))
-        let source = ContactMatchSource(id: "local-many", name: "Fictional Contact",
-            emails: (0...ContactMatchHasher.maxHashes).map { "person\($0)@example.test" }, phones: [])
-        let batch = try ContactMatchHasher.build(salt: salt, region: "US", contacts: [source])
+        let sources = (0..<ContactMatchHasher.maxHashes).map { index in
+            ContactMatchSource(id: "local-match-\(index)", name: "Fictional Match \(index)",
+                emails: ["person\(index)@example.test"], phones: [])
+        } + [ContactMatchSource(id: "local-after-cap", name: "Fictional After Cap",
+            emails: [], phones: ["invalid phone", "not a number"])]
+        let batch = try ContactMatchHasher.build(salt: salt, region: "US", contacts: sources)
         XCTAssertEqual(batch.hashes.count, ContactMatchHasher.maxHashes)
         XCTAssertTrue(batch.truncated)
+        XCTAssertEqual(batch.contacts.count, ContactMatchHasher.maxHashes + 1)
+        XCTAssertEqual(batch.contacts.last, ContactMatchContact(id: "local-after-cap", name: "Fictional After Cap", hashes: []),
+            "a contact after the aggregate hash cap remains available for local invitation")
     }
 }
