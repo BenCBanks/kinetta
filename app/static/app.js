@@ -68,6 +68,7 @@ const PUSH_INVITATION_HOMES = new Set(['/me','/activity','/track','/progress','/
 const ACTIVITY_DETAIL_ROUTE_ASSET = '/static/activity-detail.js?v=__ASSET_HASH__';
 const CHALLENGES_ROUTE_ASSET = '/static/challenges.js?v=__ASSET_HASH__';
 const SHARE_ART_ASSET = '/static/share-art.js?v=__ASSET_HASH__';
+const MEDIA_ROUTE_ASSET = '/static/media.js?v=__ASSET_HASH__';
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: [CONTACTS_ROUTE_ASSET, '/static/welcome.js?v=__ASSET_HASH__']},
   {re: /^\/me\/explore$/, tab: 'track', scripts: [SOCIAL_ROUTE_ASSET, '/static/explore.js?v=__ASSET_HASH__']},
@@ -77,10 +78,11 @@ const lazyRouteBundles = [
   {re: /^\/me\/settings$/, tab: 'me', scripts: [INTERVALS_ROUTE_ASSET, SETTINGS_ROUTE_ASSET]},
   {re: /^\/(?:me\/challenges(?:\/[A-Za-z0-9_-]{1,60})?|challenge\/[A-Za-z0-9_-]{1,60})$/, tab: 'activity', scripts: [CHALLENGES_ROUTE_ASSET]},
   {re: /^\/routes(?:\/.*)?$/, tab: 'track', scripts: [PLANNER_ROUTE_ASSET]},
-  {re: /^\/activity$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
-  {re: /^\/activity\/friends\/\d+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET, ACTIVITY_DETAIL_ROUTE_ASSET]},
-  {re: /^\/activity\/\d+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET, INTERVALS_ROUTE_ASSET, ACTIVITY_DETAIL_ROUTE_ASSET]},
-  {re: /^\/people\/([^/]+)$/, tab: login => App.me && decodeURIComponent(login).toLowerCase() === App.me.login.toLowerCase() ? 'me' : 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
+  {re: /^\/activity$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET, MEDIA_ROUTE_ASSET]},
+  {re: /^\/activity\/friends\/\d+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET, MEDIA_ROUTE_ASSET, ACTIVITY_DETAIL_ROUTE_ASSET]},
+  {re: /^\/activity\/\d+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET, INTERVALS_ROUTE_ASSET, MEDIA_ROUTE_ASSET, ACTIVITY_DETAIL_ROUTE_ASSET]},
+  {re: /^\/people\/([^/]+)$/, tab: login => App.me && decodeURIComponent(login).toLowerCase() === App.me.login.toLowerCase() ? 'me' : 'activity', scripts: [SOCIAL_ROUTE_ASSET, MEDIA_ROUTE_ASSET]},
+  {re: /^\/track$/, tab: 'track', scripts: [INTERVALS_ROUTE_ASSET, MEDIA_ROUTE_ASSET]},
   {re: /^\/add\/[\w-]+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/me\/friends$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET, FRIENDS_UI_ASSET, CONTACTS_ROUTE_ASSET]},
   {re: /^\/me\/friends\/contacts$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET, CONTACTS_ROUTE_ASSET]},
