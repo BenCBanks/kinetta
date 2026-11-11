@@ -208,10 +208,6 @@ def enrich(uid, aid, w, parsed, meta):
             if 'gap_s_per_km' not in updates:
                 value = activities.num(summ.get('gap_s_per_km'))
                 if not _same_measurement(a.get('gap_s_per_km'), value): updates['gap_s_per_km'] = value
-            if not changed:
-                for k in ('vo2max', 'vam'):
-                    value = activities.num(summ.get(k))
-                    if not _same_measurement(a.get(k), value): updates[k] = value
         if changed and st['t']:
             cols = ('t',) + parsers.STREAMS
             arrays = [activities._floats(st[k]) for k in cols]
