@@ -72,7 +72,7 @@ final class ContactMatchHasherTests: XCTestCase {
             ContactMatchSource(id: "local-match-\(index)", name: "Fictional Match \(index)",
                 emails: ["person\(index)@example.test"], phones: [])
         } + [ContactMatchSource(id: "local-after-cap", name: "Fictional After Cap",
-            emails: [], phones: ["invalid phone", "not a number"])]
+            emails: ["after-cap@example.test"], phones: ["invalid phone", "not a number"])]
         let batch = try ContactMatchHasher.build(salt: salt, region: "US", contacts: sources)
         XCTAssertEqual(batch.hashes.count, ContactMatchHasher.maxHashes)
         XCTAssertTrue(batch.truncated)
