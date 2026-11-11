@@ -58,6 +58,8 @@ const RECIPE_IMPORT_ROUTE_ASSET = '/static/recipe-import.js?v=__ASSET_HASH__';
 const SOCIAL_ROUTE_ASSET = '/static/social.js?v=__ASSET_HASH__';
 const PLAN_ROUTE_ASSET = '/static/plan.js?v=__ASSET_HASH__';
 const QR_CODE_ASSET = '/static/vendor/qrcode.js?v=__ASSET_HASH__';
+const PUSH_INVITATION_ROUTE_ASSET = '/static/push-invitation.js?v=__ASSET_HASH__';
+const PUSH_INVITATION_HOMES = new Set(['/me','/activity','/track','/progress','/food']);
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: ['/static/welcome.js?v=__ASSET_HASH__']},
   {re: /^\/me\/explore$/, tab: 'track', scripts: [SOCIAL_ROUTE_ASSET, '/static/explore.js?v=__ASSET_HASH__']},
@@ -110,6 +112,15 @@ function loadClassicScripts(assets) {
   return assets.reduce((ready, asset) => ready.then(() => loadClassicScript(asset)), Promise.resolve());
 }
 function loadQrCode() { return loadClassicScript(QR_CODE_ASSET); }
+function loadPushInvitationForRoute(isCurrent) {
+  const fullPath=location.pathname+location.search;
+  if(!Native.on||!App.me||!Native.token||location.search||!PUSH_INVITATION_HOMES.has(location.pathname)||!isCurrent())return;
+  const owner=readOwner();
+  loadClassicScript(PUSH_INVITATION_ROUTE_ASSET).then(()=>{
+    if(owner!==readOwner()||fullPath!==location.pathname+location.search||!isCurrent()||!App.pageReady||!Native.on||!App.me||!Native.token||location.search||!PUSH_INVITATION_HOMES.has(location.pathname))return;
+    if(typeof PushInvitation!=='undefined')PushInvitation.consider();
+  }).catch(()=>{});
+}
 const loadWeeklyRecapShareItem = () => loadClassicScript(SOCIAL_ROUTE_ASSET).then(() => {
   const build=window.weeklyRecapShareItem;
   if(typeof build!=='function'||build===loadWeeklyRecapShareItem)return null;
@@ -1081,7 +1092,7 @@ function render(options) {
   return Promise.resolve(result).then(() => {if(current()&&typeof FeatureUsage!=='undefined')FeatureUsage.open(path);}).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
     requestAnimationFrame(() => { if(current()&&!touched)window.scrollTo(0,targetY);interactions.abort(); });
-    if (current()) { compactSubpageHeader(el);App.pageReady = true; if(path==='/me')scheduleFoodRouteWarmup();scheduleSocialRouteWarmup(path);globalThis.CommunityTerms?.check(); if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path); if (typeof PushInvitation !== 'undefined') PushInvitation.consider(); }
+    if (current()) { compactSubpageHeader(el);App.pageReady = true; if(path==='/me')scheduleFoodRouteWarmup();scheduleSocialRouteWarmup(path);globalThis.CommunityTerms?.check(); if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path); loadPushInvitationForRoute(current); }
   });
 }
 function loadErrorCopy(e) {
