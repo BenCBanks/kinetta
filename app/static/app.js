@@ -57,9 +57,11 @@ const COOK_ROUTE_ASSET = '/static/cook.js?v=__ASSET_HASH__';
 const RECIPE_IMPORT_ROUTE_ASSET = '/static/recipe-import.js?v=__ASSET_HASH__';
 const SOCIAL_ROUTE_ASSET = '/static/social.js?v=__ASSET_HASH__';
 const PLAN_ROUTE_ASSET = '/static/plan.js?v=__ASSET_HASH__';
+const SETTINGS_ROUTE_ASSET = '/static/settings-route.js?v=__ASSET_HASH__';
 const QR_CODE_ASSET = '/static/vendor/qrcode.js?v=__ASSET_HASH__';
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: ['/static/welcome.js?v=__ASSET_HASH__']},
+  {re: /^\/me\/settings$/, tab: 'me', scripts: [SETTINGS_ROUTE_ASSET]},
   {re: /^\/me\/explore$/, tab: 'track', scripts: [SOCIAL_ROUTE_ASSET, '/static/explore.js?v=__ASSET_HASH__']},
   {re: /^\/progress$/, tab: 'progress', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/plan$/, tab: 'progress', scripts: [PLAN_ROUTE_ASSET]},
