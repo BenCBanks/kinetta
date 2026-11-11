@@ -285,6 +285,7 @@ module.exports=async({browser,storageState,base,shots})=>{
    await until(page,expected=>document.querySelector('#profile-achievement-page [data-achievement-code="journey"] .profile-achievement-value')?.textContent.trim()!==expected,'post-save refreshed Journey value',beforeJourney);
    await waitForPin('journey',true);await waitForPin('workouts',true);
    assert.deepEqual(showcasePins,['workouts','journey'],'the next poll keeps both pins after applying fresh achievement values');
+   assert.equal(pinRequests.length,1,'the held-save fixture sends exactly one intentional pin request');assert.deepEqual(pinRequests[0],{code:'journey',pinned:true},'the owner pin request carries only the selected fictional track and pin state');
    pinRequests.length=0;showcasePins=[];journeyValue=6099414;pendingAchievementResponses=[];
    await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
   };
@@ -361,7 +362,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   };
   await pendingLifecycleChecks();
   await pinSaveRaceCheck();
-  if(pendingOnly){assert.deepEqual(errors,[],'pending refresh fixture has no browser errors');assert.deepEqual(writes,['/api/achievements/showcase/pin'],'the fixture performs only its intentional fictional pin write');await context.close();return;}
+  if(pendingOnly){assert.deepEqual(errors,[],'pending refresh fixture has no browser errors');assert.deepEqual(writes.filter(write=>write!=='/api/challenges/signup/continue'),[],'pending refresh fixture has no unexpected writes');await context.close();return;}
   const checkEmptyOwnerFriendEntry=async({capture=false}={})=>{
    const prior={showcasePins:[...showcasePins],sharedShowcasePins:[...sharedShowcasePins],sharedShareEnabled,emptyOwnerAchievements,emptyOwnerShowcase,emptyFriendShowcase,emptyFriendAchievements};
    try{
