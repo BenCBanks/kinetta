@@ -220,6 +220,21 @@ async function activeIntervalFixture(browser){
  });
  return{context,page,assets,errors,writes,recording};
 }
+async function getAppLogoutFixture(browser){
+ const context=await browser.newContext({viewport:{width:390,height:844},colorScheme:'light',serviceWorkers:'block',isMobile:true,hasTouch:true,userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'});
+ await login(context);const me=await(await context.request.get(base+'/api/me')).json(),page=await context.newPage(),assets=[],errors=[];
+ const ownKey='intervals:'+JSON.stringify([base,me.id])+':selected',foreignKey='intervals:'+JSON.stringify([base,me.id+1])+':selected',ownValue=JSON.stringify({fixture:'own'}),foreignValue=JSON.stringify({fixture:'foreign'});
+ await page.addInitScript(({ownKey,foreignKey,ownValue,foreignValue})=>{localStorage.setItem('kinetta.getApp',JSON.stringify('1'));localStorage.setItem(ownKey,ownValue);localStorage.setItem(foreignKey,foreignValue);},{ownKey,foreignKey,ownValue,foreignValue});
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.route('**/*',async route=>{
+  const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
+  if(url.pathname==='/static/intervals.js'){assets.push(url.pathname);return route.abort();}
+  if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204});
+  if(!['GET','HEAD'].includes(request.method())&&url.pathname!=='/api/logout')return route.abort();
+  return route.continue();
+ });
+ return{context,page,assets,errors,ownKey,foreignKey,ownValue,foreignValue};
+}
 async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
  const context=await fixtureContext(browser);await login(context);
  const page=await context.newPage(),assets=[],errors=[],writes=[];let plannerAttempts=0;
@@ -827,6 +842,16 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
     assert.deepEqual(intervalResume.errors,[]);assert.deepEqual(intervalResume.writes,[]);
   }finally{await intervalResume.context.close();}
 
+  const getAppLogout=await getAppLogoutFixture(browser);
+  try{
+    await getAppLogout.page.goto(base+'/me');await getAppLogout.page.locator('#ga-out').waitFor();
+    assert.equal(await getAppLogout.page.evaluate(()=>typeof Intervals),'undefined','Get App logout starts with the lazy bundle unloaded');
+    const loggedOut=getAppLogout.page.waitForResponse(response=>new URL(response.url()).pathname==='/api/logout'&&response.request().method()==='POST');
+    await getAppLogout.page.locator('#ga-out').click();await loggedOut;
+    assert.deepEqual(await getAppLogout.page.evaluate(({ownKey,foreignKey})=>[localStorage.getItem(ownKey),localStorage.getItem(foreignKey)],{ownKey:getAppLogout.ownKey,foreignKey:getAppLogout.foreignKey}),[null,getAppLogout.foreignValue],'logout clears only the current owner interval key without loading the bundle');
+    assert.deepEqual(getAppLogout.assets,[],'logout does not fetch intervals.js');assert.deepEqual(getAppLogout.errors,[]);
+  }finally{await getAppLogout.context.close();}
+
   const planDirect=await progressFixture(browser);
   try{
     await planDirect.page.goto(base+'/plan');await ready(planDirect.page,'.plan-page','direct Training plan route');
@@ -968,12 +993,14 @@ async function activitySegmentFixture(browser,{failPlannerFirst=false}={}){
   const intervalsStaleOwner=await progressFixture(browser,{hold:'/static/intervals.js'});
   try{
     await intervalsStaleOwner.page.goto(base+'/plan',{waitUntil:'domcontentloaded'});await intervalsStaleOwner.page.locator('.lazy-route-loading').waitFor();await intervalsStaleOwner.held;
+    await intervalsStaleOwner.page.evaluate(()=>{window.intervalRouteOwners=[];const original=render;window.render=options=>{if(options?.routePosition)window.intervalRouteOwners.push({login:App.me.login,ownerMatches:options.routePosition.owner===readOwner()});return original(options);};});
     await login(intervalsStaleOwner.context,'zz_test_explore_typical');
     const meResponse=await intervalsStaleOwner.context.request.get(base+'/api/me');assert.equal(meResponse.status(),200);
     const me=await meResponse.json();await intervalsStaleOwner.page.evaluate(profile=>refreshMe(profile),me);
     await until(intervalsStaleOwner.page,()=>App.me.login==='zz_test_explore_typical'&&!!document.querySelector('.lazy-route-loading'),'new owner while intervals is loading');
     intervalsStaleOwner.release();await ready(intervalsStaleOwner.page,'.plan-page','Plan for the current fictional owner');
     assert.deepEqual(intervalsStaleOwner.assets,['/static/intervals.js','/static/plan.js'],'one shared interval request completes before Plan mounts for the new owner');
+    assert.deepEqual(await intervalsStaleOwner.page.evaluate(()=>window.intervalRouteOwners),[{login:'zz_test_explore_typical',ownerMatches:true}],'the stale owner continuation never renders, and the new owner gets one guarded render');
     assert.deepEqual(intervalsStaleOwner.errors,[]);assert.deepEqual(intervalsStaleOwner.writes,[]);
   }finally{intervalsStaleOwner.release();await intervalsStaleOwner.context.close();}
   console.log('Progress/Segments lazy routes: cold deep links, back/forward, retries and stale navigation PASS');

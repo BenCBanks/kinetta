@@ -136,6 +136,13 @@ function clearSegmentDrafts() {
   sessionStorage.removeItem(`kinetta.segmentReview:${server}:${id}`);
   if (typeof Segments !== 'undefined') Segments.pending = null;
 }
+// Clear the signed-in owner's interval choices without making logout depend on the lazy bundle.
+function clearIntervalDrafts(account=App.me) {
+  if (!account?.id) return;
+  const prefix=`intervals:${JSON.stringify([Native.base||location.origin,account.id])}:`;
+  try { for (const key of Object.keys(localStorage)) if(key.startsWith(prefix))localStorage.removeItem(key); } catch (_) { /* local cleanup is best effort */ }
+  if(App.me?.id===account.id)globalThis.Intervals?.clear();
+}
 let pendingDishEntry = null;
 async function loadNewDish(btn, where = null) {
   if (!App.me || btn?.disabled) return pendingDishEntry;
@@ -2012,7 +2019,7 @@ async function showGetApp() {
     ${link ? `<a class="primary wide" href="${esc(link)}" target="_blank" rel="noopener">Get the Kinetta iPhone app</a>` : ''}
     ${me?.needs_email_confirm ? `<p class="small muted">We also sent a link to ${esc(who)}. Open it to confirm your email.</p>` : ''}
     <p class="small muted">Not on an iPhone? <a href="/" id="ga-out">Log out</a> and log in from a computer or another phone’s browser.</p></div></div>`;
-  $('#ga-out', root).onclick = async (e) => { e.preventDefault(); try { await loadClassicScript(INTERVALS_ROUTE_ASSET); } catch (x) { /* logout still proceeds if cleanup code cannot load */ } globalThis.Intervals?.clear(); try { await api('/api/logout', json('POST', {})); } catch (x) { /* the login screen still shows */ } store.del('kinetta.getApp'); forgetKept(); App.me = null; history.replaceState(null, '', '/'); showLogin(); };
+  $('#ga-out', root).onclick = async (e) => { e.preventDefault(); clearIntervalDrafts(me); try { await api('/api/logout', json('POST', {})); } catch (x) { /* the login screen still shows */ } store.del('kinetta.getApp'); forgetKept(); App.me = null; history.replaceState(null, '', '/'); showLogin(); };
 }
 // A friend's invite link opened without the app (2026-10-26). With the iPhone app installed, the link opens the app
 // itself; here: who sent it, the app first on an iPhone, then sign up or log in on the web.
