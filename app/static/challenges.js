@@ -1,13 +1,14 @@
 // Deliberate group goals. A challenge never grants access to anyone else's workouts or food.
 'use strict';
-const Challenges=(()=>{
+const challengeSummaryMount=Challenges.mount;
+const ChallengeRoutes=(()=>{
   const kinds={distance:'Distance',active_days:'Active days',activities:'Activities',food_days:'Food logging days',protein_days:'Protein goal days'};
   const descriptions={distance:'Choose running, walking, hiking or cycling.',active_days:'A day counts with at least one workout lasting 10 minutes or more.',activities:'Each workout must last at least 10 minutes.',food_days:'Days with food logged. No food details are shared.',protein_days:'Days reaching your own protein target. Your target stays private.'};
   const icons={distance:'run',active_days:'calendar',activities:'activity',food_days:'food',protein_days:'food'};
   const date=d=>new Date(d+'T12:00:00Z').toLocaleDateString(undefined,{timeZone:'UTC',month:'short',day:'numeric',year:'numeric'});
-  const number=(n,unit)=>Number(n).toLocaleString(undefined,{maximumFractionDigits:unit==='km'||unit==='mi'?(n>0&&n<.1?3:1):0});
+  const number=Challenges.number,summary=Challenges.summary;
   const path=q=>'/me/challenges/'+encodeURIComponent(q.code);
-  const total=q=>number(q.target,q.unit)+' '+q.unit;
+  const total=Challenges.total;
   const title=q=>kinds[q.kind]&&Number.isFinite(Number(q.target))&&q.target>0&&(q.kind!=='distance'||['km','mi'].includes(q.unit))?kinds[q.kind]+' · '+number(q.target,q.unit)+(q.kind==='distance'?' '+q.unit:''):q.title||'Challenge';
   function dateRange(q){
     const first=new Date(q.start+'T12:00:00Z'),last=new Date(q.end+'T12:00:00Z');if(!Number.isFinite(+first)||!Number.isFinite(+last)||first>last)return '';
@@ -63,14 +64,10 @@ const Challenges=(()=>{
       };
     });
   }
-  function summary(items){
-    const active=items.filter(q=>q.member&&q.self&&!q.self.finished).sort((a,b)=>(a.self.days_left??Infinity)-(b.self.days_left??Infinity));
-    return active.length?{active,count:active.length,first:active[0],progress:number(active[0].self.value,active[0].unit)+' / '+total(active[0])}:null;
-  }
   const activityBack=el=>{el.classList.add('has-back');el._backFallback='/activity';return `<a class="back" href="/activity" data-back data-challenge-back aria-label="Back to Home">${svg('back')}<span>Home</span></a>`;};
   async function mount(node,{me=false}={}){
+    if(me)return challengeSummaryMount(node,{me:true});
     if(!node)return;const owner=readOwner();try{const items=await api('/api/challenges');if(!node.isConnected||owner!==readOwner())return;const glance=summary(items),active=glance?.active||[];
-      if(me){node.innerHTML=glance?`<div class="card list"><a class="row-link" href="/me/challenges"><span class="ri">${svg('people')}</span><span class="grow"><b>Challenges</b><small>${glance.count} active · ${glance.progress}</small></span><span class="chev">${svg('chev')}</span></a></div>`:'';return;}
       node.innerHTML=`<section class="challenge-section"><h2 class="sec-head">Challenges</h2>${active.length?`<div class="card list">${active.map(q=>`<a class="row-link" href="${path(q)}"><span class="grow"><b>${esc(title(q))}</b><small>${esc(dateRange(q))} · ${number(q.self.value,q.unit)} / ${total(q)}</small></span><span class="chev">${svg('chev')}</span></a>`).join('')}</div>`:''}<button type="button" class="ghost wide" data-start-challenge>Start a challenge</button><a class="linkbtn wide" href="/me/challenges">All your challenges</a></section>`;$('[data-start-challenge]',node).onclick=create;
     }catch(_){if(node.isConnected&&owner===readOwner()&&!me)node.innerHTML='<a class="ghost wide" href="/me/challenges">Open challenges</a>';}
   }
@@ -97,13 +94,9 @@ const Challenges=(()=>{
     let timer=null;viewResources.set(el,()=>{generation++;clearInterval(timer);el.removeEventListener('pointerdown',down);window.removeEventListener('pointerup',up);window.removeEventListener('pointercancel',up);});
     await load(true);if(!live())return;timer=setInterval(()=>{if(live()&&!el._challengePress&&!document.hidden&&!document.querySelector('.scrim:not(.is-closing)'))load();},30000);
   }
-  async function resumeSignup(){
-    if(App.me?.needs_email_confirm)return;const owner=readOwner(),before=location.pathname;
-    try{const result=await api('/api/challenges/signup/continue',json('POST',{}));if(result.joined&&owner===readOwner()&&location.pathname===before){invalidate('/api/challenges');if(['/me','/welcome'].includes(before))go('/me/challenges/'+encodeURIComponent(result.joined));else if(before==='/me/challenges/'+result.joined)render();}}
-    catch(_){/* The confirmed join intent is also retried by the server. */}
-  }
-  return{create,createForm,mount,page,picture,number,summary,activityBack,resumeSignup,title,dateRange,participants};
+  return{create,createForm,mount,page,picture,activityBack,title,dateRange,participants};
 })();
+Object.assign(Challenges,ChallengeRoutes);
 route(/^\/me\/challenges$/,'activity',async el=>{
   const owner=readOwner();el.innerHTML=`<div class="top">${Challenges.activityBack(el)}<button type="button" class="ghost" id="challenge-start" aria-label="New challenge">New</button></div><h1>Challenges</h1><div id="challenge-list">${skel(1)}</div><a class="row-link challenge-find-friends" href="/me/friends?find=1" id="challenge-friends"><span class="grow">Find friends</span>${svg('chev')}</a>`;$('#challenge-start',el).onclick=Challenges.create;
   try{const items=await api('/api/challenges');if(!el.isConnected||owner!==readOwner())return;$('#challenge-start',el).hidden=!items.length;$('#challenge-list',el).innerHTML=items.length?`<div class="card list">${items.map(q=>`<a class="row-link" href="/me/challenges/${encodeURIComponent(q.code)}"><span class="grow"><b>${esc(Challenges.title(q))}</b><small>${esc(Challenges.dateRange(q))} · ${q.member?'':'You left · '}${Challenges.number(q.self.value,q.unit)} / ${Challenges.number(q.target,q.unit)} ${q.unit}${q.self.finished?' · Finished':''}</small></span><span class="chev">${svg('chev')}</span></a>`).join('')}</div>` :firstStep('trophy','Small, friendly goals to do together.','challenge-first','Start a challenge','<div class="first-step-presets"><button type="button" class="linkbtn" data-challenge-template="distance">Monthly distance</button><button type="button" class="linkbtn" data-challenge-template="active_days">Weekly active days</button></div>');
