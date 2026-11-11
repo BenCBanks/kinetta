@@ -266,7 +266,7 @@
     },
     {
       "id": "pages-11",
-      "source": "app/static/pages.js",
+      "source": "app/static/settings-route.js",
       "pattern": "/^\\/me\\/settings$/",
       "paths": [
         "/me/settings"
