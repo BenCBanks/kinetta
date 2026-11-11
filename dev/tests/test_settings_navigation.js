@@ -1,7 +1,7 @@
 // Exercise the real settings route and logout safeguards with fictional local drafts.
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const source=fs.readFileSync('app/static/pages.js','utf8'),start=source.indexOf("route(/^\\/me\\/settings$/"),end=source.indexOf('// heart rate, body and time zone',start);
+const source=fs.readFileSync('app/static/settings-route.js','utf8'),start=source.indexOf("route(/^\\/me\\/settings$/"),end=source.indexOf('// heart rate, body and time zone',start);
 function fixture(pending=0,accept=true){
  let route,writes=[],forgot=0,login=0,erased=0,notices=[],editors=[],confirms=[];const nodes=new Map(),el={innerHTML:'',isConnected:true};
  const c={session:1,readOwner:()=>JSON.stringify([c.App.me?.id,c.session]),App:{me:{id:1,name:'Fictional Person',login:'zz_test_settings',units:'imperial'},cache:new Map()},
