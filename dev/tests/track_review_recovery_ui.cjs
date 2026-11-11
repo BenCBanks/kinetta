@@ -4,13 +4,14 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=r
 const base=process.env.KINETTA_URL||'http://localhost:8798',password='green teapot on the hill';
 const fixture=require('../demo/track_session.cjs');
 (async()=>{
- cp.execFileSync('python3',[path.join(__dirname,'track_fixture.py')],{env:process.env,stdio:'inherit'});
- const browser=await chromium.launch();let context=null;
+ const browser=await chromium.launch();let context=null,fixtureReady=false,testFailure=null;const cleanupErrors=[];
  try{
   context=await browser.newContext({viewport:{width:390,height:844},colorScheme:'light',serviceWorkers:'block',timezoneId:'UTC'});
+  cp.execFileSync('python3',[path.join(__dirname,'track_fixture.py')],{env:process.env,stdio:'inherit'});fixtureReady=true;
   const login=await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_track_runner',password}});assert.equal(login.status(),200,'fictional TrackReview account logs in');
   const me=await(await context.request.get(base+'/api/me')).json(),recording=fixture('review');
-  await context.addInitScript(({server,uid,recording})=>localStorage.setItem('kinetta.track:'+JSON.stringify([server,uid]),JSON.stringify(recording)),{server:base,uid:me.id,recording});
+  const journalKey='kinetta.track:'+JSON.stringify([base,me.id]);
+  await context.addInitScript(({journalKey,recording})=>{const marker='kinetta.track-review-recovery.seeded';if(sessionStorage.getItem(marker)==='1')return;localStorage.setItem(journalKey,JSON.stringify(recording));sessionStorage.setItem(marker,'1');},{journalKey,recording});
   const attempts=[],blockedWrites=[],errors=[],page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/*',route=>{
    const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
@@ -33,7 +34,9 @@ const fixture=require('../demo/track_session.cjs');
   assert.deepEqual(JSON.parse(JSON.stringify(pending.request)),attempts[0],'the stored request matches the intercepted body');
   assert.equal(pending.id,recording.id,'the stored request retains the original recording identity');
 
+  assert.equal(await page.evaluate(key=>{localStorage.removeItem(key);return localStorage.getItem(key);},journalKey),null,'remove only the fictional owner Track journal before reload');
   await page.reload();
+  assert.equal(await page.evaluate(()=>sessionStorage.getItem('kinetta.track-review-recovery.seeded')),'1','reload retains the one-shot seed marker');
   await page.waitForFunction(()=>document.querySelector('#track-save')?.textContent==='Retry save'&&!document.querySelector('#track-save').disabled,null,{timeout:15000});
   const restored=await page.evaluate(async()=>TrackReviewStore.pending('kinetta.track:'+JSON.stringify([location.origin,App.me.id])));
   assert.deepEqual(JSON.parse(JSON.stringify(restored.request)),attempts[0],'reload restores the exact confirmed request');
@@ -44,14 +47,21 @@ const fixture=require('../demo/track_session.cjs');
   assert.deepEqual(blockedWrites,[],'the case blocks every other application write');
   assert.deepEqual(errors,[],'TrackReview recovery has no page errors');
   console.log('TrackReview recovery: confirmed payload survives reload, Retry is identical, success clears pending; fictional 390px light PASS');
+ }catch(error){testFailure=error;
  }finally{
-  if(context){
+  if(context&&fixtureReady){
    for(const who of ['empty','runner','lifter']){
-    const login=await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login:`zz_test_track_${who}`,password}});
-    if(login.ok())await context.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password}});
+    try{
+     const login=await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login:`zz_test_track_${who}`,password}});
+     assert.equal(login.status(),200,`cleanup login succeeds for fictional ${who} account`);
+     const removed=await context.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password}});
+     assert.equal(removed.status(),200,`cleanup deletes fictional ${who} account`);
+    }catch(error){cleanupErrors.push(`${who}: ${error.message}`);}
    }
-   await context.close();
   }
-  await browser.close();
+  if(context)try{await context.close();}catch(error){cleanupErrors.push(`context close: ${error.message}`);}
+  try{await browser.close();}catch(error){cleanupErrors.push(`browser close: ${error.message}`);}
  }
+ if(testFailure)throw testFailure;
+ if(cleanupErrors.length)throw Error('Track fixture/browser cleanup failed: '+cleanupErrors.join('; '));
 })().catch(error=>{console.error(error);process.exitCode=1;});
