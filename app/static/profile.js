@@ -653,14 +653,14 @@ const MeCard=(()=>{
       if(meCard){
         meCard.build=async(_state)=>{
           if(!card?.isConnected||!live())throw Error('The account changed.');
-          const [latestCard,latestSharing]=await Promise.all([api('/api/card'),api('/api/sharing').catch(()=>({share_achievements:false}))]);
-          if(!live()||profile.profile_hidden||profile.preview!=='member')throw Error('Your shared profile is no longer available.');
+          const [latestCard,latestSharing,member]=await Promise.all([api('/api/card'),api('/api/sharing').catch(()=>({share_achievements:false})),api('/api/people/'+encodeURIComponent(login)+'/profile?as_friend=true&preview=member&limit=1')]);
+          if(!live()||member.profile_hidden||member.preview!=='member')throw Error('Your shared profile is no longer available.');
           if(!latestCard.enabled||latestCard.url!==meCard.cardUrl)throw Error('Your card changed. Reopen Share to refresh it.');
           const width=card.getBoundingClientRect().width;if(!width)throw Error('The card picture could not fit clearly.');
           const host=document.createElement('div');host.setAttribute('aria-hidden','true');host.style.cssText=`position:fixed;left:-100000px;top:0;width:${width}px;z-index:-1;pointer-events:none;`;
           const clone=card.cloneNode(true);clone.style.boxSizing='border-box';clone.style.width=`${width}px`;clone.style.margin='0';host.append(clone);document.body.append(host);
           try{
-            const privacy=await MeCard.prepareShareClone(clone,profile,{photo:latestCard.photo===true,shareAchievements:latestSharing.share_achievements===true});
+            const privacy=await prepareShareClone(clone,member,{photo:latestCard.photo===true,shareAchievements:latestSharing.share_achievements===true});
             const picture=await ShareArt.domPicture(clone,{live});
             window.__sharePictureDiagnostic={...window.__sharePictureDiagnostic,privacy};
             return{...picture,filename:meCard.filename,link:profileLink};
@@ -775,17 +775,18 @@ const MeCard=(()=>{
   }
   async function prepareShareClone(clone,profile,{photo=false,shareAchievements=false}={}){
     const member=viewerData(profile,'preview'),person=member.person||{},name=person.name||person.login||'';
-    const sections=clone.querySelector('.me-card-sections'),originalSections=sections?.innerHTML;
+    const sections=clone.querySelector('.me-card-sections'),originalSections=sections?.innerHTML,featureSlot=clone.querySelector('[data-me-featured]');
     const heading=clone.querySelector('.me-card-name h2');if(heading)heading.textContent=name;
     const handle=clone.querySelector('.me-card-meta [data-type="secondary"]');if(handle)handle.textContent='@'+(person.login||'');
     const avatarNode=clone.querySelector('.me-card-avatar');if(avatarNode)avatarNode.innerHTML=avatar({...person,photo:photo?person.photo:null},'lg');
     const friendCount=clone.querySelector('[data-friend-count]');if(friendCount)friendCount.textContent=Number.isInteger(member.friend_count)?friendCountText(member.friend_count):'Friends';
+    if(featureSlot){featureSlot.replaceChildren();featureSlot.removeAttribute('data-loaded');featureSlot.removeAttribute('data-loading');}
     const ownerOnly=['.me-week-streak','.me-card-close-to','[data-friend-waiting]','[data-me-milestones]','[data-card-edit]','[data-card-share]','[data-card-preview]','.me-card-preview-row','.me-card-open-link','.me-showcase-streak-slot'];
     clone.querySelectorAll(ownerOnly.join(',')).forEach(node=>node.remove());
-    if(shareAchievements){await ProfileLayout.mountShowcase(clone,member,{shared:true,featured:true});clone.querySelectorAll('.profile-achievement-next').forEach(node=>node.remove());}
+    if(shareAchievements){await ProfileLayout.mountShowcase(clone,member,{shared:true,featured:true});if(featureSlot?.dataset.loaded==='true')clone.querySelectorAll('.profile-achievement-next').forEach(node=>node.remove());else if(featureSlot){featureSlot.replaceChildren();featureSlot.removeAttribute('data-loaded');featureSlot.removeAttribute('data-loading');}}
     else clone.querySelectorAll('.me-featured-slot,[data-me-featured],.me-featured-achievements,.profile-achievements').forEach(node=>node.remove());
     const privateSelectors=[...ownerOnly,'.profile-achievement-next',...(!shareAchievements?['.me-featured-slot','[data-me-featured]','.me-featured-achievements','.profile-achievements','.profile-achievement-medallion']:[])];
-    return{memberPreview:profile.preview==='member',photoIncluded:photo===true&&!!person.photo,shareAchievements:shareAchievements===true,measuredWidth:clone.getBoundingClientRect().width,privateMarkersAbsent:privateSelectors.every(selector=>!clone.querySelector(selector)),aggregateSectionsPreserved:sections?.innerHTML===originalSections};
+    return{memberPreview:profile.preview==='member',photoIncluded:photo===true&&!!person.photo,shareAchievements:shareAchievements===true,sharedFeaturedLoaded:shareAchievements&&featureSlot?.dataset.loaded==='true',measuredWidth:clone.getBoundingClientRect().width,privateMarkersAbsent:privateSelectors.every(selector=>!clone.querySelector(selector)),aggregateSectionsPreserved:sections?.innerHTML===originalSections};
   }
   function profileView(data,{viewer,mode='profile'}={}){
     if(!['owner','friend','preview'].includes(viewer))throw new TypeError(`Unknown profile viewer: ${viewer}`);
