@@ -381,19 +381,21 @@ module.exports=async({browser,storageState,base,shots})=>{
    const runNamedCount=catalog.tracks['sport:run'].levels.length;
    assert.equal(await page.locator('.profile-achievement-named-levels li').count(),runNamedCount,'all canonical Run badges are discoverable before earning one');
    assert.equal(await page.locator('.profile-achievement-named-levels li.is-next .profile-achievement-level-copy>small').innerText(),'5K','the first future Run badge uses the canonical name');
+   if(shots){await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='track');await screenshot(page,shots,`achievement-run-zero-future-390-${theme}`,{fullPage:true});await page.evaluate(()=>delete document.documentElement.dataset.achievementEvidence);}
 
    runEvidenceState={value:4000,history:[]};await page.goto(base+'/me/achievements/sport%3Arun');await waitForHistoryTrack(page,'sport:run','partial Run detail');await expandAchievementLevels(page);
    assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-current').innerText(),'In progress','sub-threshold Run remains in progress');
    assert.equal(await page.locator('.profile-achievement-current-value-context').innerText(),'Total distance run','the Running metric has its clear detail label');
    assert.equal(await page.locator('.profile-achievement-current-value').innerText(),'Total distance run\n4 km','the Run detail shows cumulative distance');
    assert.equal(await page.locator('.profile-achievement-named-levels li.is-next .profile-achievement-level-progressbar').count(),1,'partial Run progress points to the first future badge');
-   if(shots){await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='track');await screenshot(page,shots,`achievement-run-future-390-${theme}`,{fullPage:true});await page.evaluate(()=>delete document.documentElement.dataset.achievementEvidence);}
+   if(shots){await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='track');await screenshot(page,shots,`achievement-run-partial-390-${theme}`,{fullPage:true});await page.evaluate(()=>delete document.documentElement.dataset.achievementEvidence);}
 
    const earnedRunValue=60000;runEvidenceState={value:earnedRunValue,history:v2History('sport:run',{'sport:run':earnedRunValue}).tiers};
    await page.goto(base+'/me/achievements/sport%3Arun');await waitForHistoryTrack(page,'sport:run','earned Run detail');await expandAchievementLevels(page);
    assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-current').innerText(),'Level 4 · Marathon','earned Run detail shows the canonical fourth level');
    assert.equal(await page.locator('.profile-achievement-named-levels li.is-earned').count(),3,'the first three Run levels remain visible as earned history');
    assert.equal(await page.locator('.profile-achievement-named-levels li.is-current[data-level="4"]').count(),1,'the Marathon row is the current canonical Run level');
+   if(shots){await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='track');await screenshot(page,shots,`achievement-run-earned-390-${theme}`,{fullPage:true});await page.evaluate(()=>delete document.documentElement.dataset.achievementEvidence);}
 
    const runRepeatMultiple=4,runRepeatValue=catalogValue(catalog.tracks['sport:run'].levels.at(-1))*runRepeatMultiple,runRepeatLevel=runNamedCount+runRepeatMultiple-1;
    runEvidenceState={value:runRepeatValue,history:v2History('sport:run',{'sport:run':runRepeatValue}).tiers};
