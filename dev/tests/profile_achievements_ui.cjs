@@ -189,6 +189,7 @@ module.exports=async({browser,storageState,base,shots})=>{
  const owner330Only=process.env.KINETTA_ACHIEVEMENT_OWNER_330_ONLY==='1';
  const runOnly=process.env.KINETTA_ACHIEVEMENT_RUN_ONLY==='1';
  const indexOnly=process.env.KINETTA_ACHIEVEMENT_INDEX_ONLY==='1';
+ const tailOnly=process.env.KINETTA_ACHIEVEMENT_TAIL_ONLY==='1';
  for(const theme of pendingOnly?['light']:['light','dark']){
   const context=await browser.newContext({storageState,viewport:{width:390,height:844},colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:SCREENSHOT_CLOCK.timezone});
   const page=await context.newPage(),errors=[],writes=[],pinRequests=[],ownerAchievementCalls=[],ownerAchievementResponses=[],ownerHistoryCalls=[],sharedAchievementCalls=[],ownerShowcaseCalls=[];let journeyValue=6099414,workoutValue=1120,unitMode='imperial',unitLabelValues=null,legacyRunAward=null,runEvidenceState=null,deepRunFeatured=false,showcasePins=[],sharedShowcasePins=[],sharedShareEnabled=true,emptyOwnerAchievements=false,emptyOwnerShowcase=false,emptyFriendShowcase=false,emptyFriendAchievements=false,pendingAchievementResponses=[],pendingHistoryResponses=[],failOwnerAchievementOnce=false,sharedAchievementPending=false,pinPostGate=null,pinRaceKeepPending=false;
@@ -270,6 +271,30 @@ module.exports=async({browser,storageState,base,shots})=>{
    return route.continue();
   });
   const setUnits=async units=>{unitMode=units;await page.evaluate(units=>{App.me.units=units;keep('/api/me',App.me);},units);};
+  const assertContinuation=async code=>{
+   const last=catalog.tracks[code].levels.at(-1),note=page.locator('.profile-achievement-tail-note');
+   assert.equal(await note.innerText(),`${last.name} ×2, ×3…`,`${code} names the continuing final level`);
+   assert.equal(await note.locator('img').getAttribute('src'),last.icon,`${code} reuses the final named icon`);
+   assert.equal(await note.locator('a,button,[role="button"],[role="progressbar"]').count(),0,'the continuation is an explanation');
+   const icon=await note.locator('img').boundingBox();assert.equal(icon.width,24);assert.equal(icon.height,24);
+  };
+  if(tailOnly){
+   for(const code of Object.keys(catalog.tracks)){
+    await page.goto(base+'/me/achievements/'+encodeURIComponent(code));await waitForHistoryTrack(page,code,'owner continuation');
+    await assertContinuation(code);
+   }
+   await setUnits('metric');
+   for(const [state,value] of [['zero',0],['partial',4000],['max',catalogValue(catalog.tracks['sport:run'].levels.at(-1))]]){
+    runEvidenceState={value,history:[]};await page.goto(base+'/me/achievements/sport%3Arun');await waitForHistoryTrack(page,'sport:run','Run continuation '+state);await expandAchievementLevels(page);
+    await assertContinuation('sport:run');await assertMedalText(page.locator('#profile-achievement-page'),'Run continuation '+state);
+    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'continuation wraps within the page');
+    if(state!=='max'&&shots){await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='track');await screenshot(page,shots,`achievement-tail-${state}-390-${theme}`,{fullPage:true});}
+   }
+   await page.goto(base+'/people/fictional_friend?view=achievements&track=sport%3Arun');await waitForHistoryTrack(page,'sport:run','shared continuation privacy');
+   assert.equal(await page.locator('.profile-achievement-tail-note').count(),0,'shared history has no future continuation');
+   assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(url=>url!=='/api/challenges/signup/continue'),[]);
+   console.log(`Achievement continuation 390 ${theme}: 13 final names/icons, zero/partial/max, shared privacy PASS`);await context.close();continue;
+  }
   if(indexOnly){
    futureEvidence=true;
    await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
@@ -778,7 +803,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.equal(await page.locator('.profile-achievement-named-levels li').count(),catalog.tracks.years_active.levels.length,'an unstarted deep link opens with its full catalog ladder visible');
   assert.equal(await page.locator('.profile-achievement-named-levels li.is-next').getAttribute('data-level'),'1','the first level is highlighted as the next goal');
   assert.equal(await page.locator('.profile-achievement-named-levels li[data-level="1"] .profile-achievement-level-meta').innerText(),'Start here','an unstarted ladder points to its first level');
-  assert.match(await page.locator('.profile-achievement-tail-note').innerText(),/After all named levels.*whole-number multiple/,'an unstarted owner can discover the repeating tail');
+  await assertContinuation('years_active');
   achievementFixture.tracks=allFixtureTracks;
   const allFixtureTracksForFilter=achievementFixture.tracks;achievementFixture.tracks=allFixtureTracksForFilter.filter(track=>['lifted','sport:lift'].includes(track.code));
   await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
@@ -886,7 +911,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   console.log(`Achievement medallions 390 ${theme}: profile, all tracks, history, units, icons and web haptic guard PASS`);
   await page.unrouteAll({behavior:'ignoreErrors'});await context.close();
  }
- if(owner330Only||indexOnly||process.env.KINETTA_ACHIEVEMENT_FIT_ONLY==='1'||process.env.KINETTA_ACHIEVEMENT_EMPTY_ENTRY_ONLY==='1'||process.env.KINETTA_ACHIEVEMENT_RUN_ONLY==='1')return;
+ if(tailOnly||owner330Only||indexOnly||process.env.KINETTA_ACHIEVEMENT_FIT_ONLY==='1'||process.env.KINETTA_ACHIEVEMENT_EMPTY_ENTRY_ONLY==='1'||process.env.KINETTA_ACHIEVEMENT_RUN_ONLY==='1')return;
  const nativeContext=await browser.newContext(),nativePage=await nativeContext.newPage();
  await nativeContext.addInitScript(()=>{
   window.__achievementHaptics=[];
