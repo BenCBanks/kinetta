@@ -356,9 +356,21 @@ _SHARED_DISTANCE_TRACKS = frozenset(('sport:run','sport:ride','sport:walk-hike',
 
 
 def _shared_track_payload(track):
-    if int(track.get('level') or 0) < 1:
+    level = int(track.get('level') or 0)
+    legacy = [tier for tier in track.get('tiers') or ()
+              if int(tier.get('rank') or 0) == 0 and tier.get('legacy') is True]
+    if level < 1 and not legacy:
         return None
     result = {key: track[key] for key in _SHARED_TRACK_FIELDS if key in track}
+    if level < 1:
+        # An explicitly saved starter remains readable without exposing current
+        # unearned progress or turning that history into a canonical level.
+        result.pop('day', None)
+        result['level'] = 0
+        result['tiers'] = [{key: tier[key] for key in _SHARED_TIER_FIELDS if key in tier}
+                           for tier in legacy]
+        result['history'] = result['tiers']
+        return result
     if track.get('code') in _SHARED_DISTANCE_TRACKS:
         result.update({key: track[key] for key in ('display_value','display_unit') if key in track})
     result['tiers'] = [{key: tier[key] for key in _SHARED_TIER_FIELDS if key in tier}

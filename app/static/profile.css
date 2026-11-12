@@ -76,6 +76,7 @@
 .profile-achievement-history-copy h1 { overflow-wrap:anywhere; }
 .profile-achievement-current { margin:6px 0 0; color:var(--tx2); font-size:.8125rem; line-height:1.25; white-space:nowrap; }
 .profile-achievement-current-value { margin:2px 0 0; color:var(--tx); font-size:.875rem; font-weight:650; line-height:1.25; white-space:nowrap; }
+.profile-achievement-current-value-context { display:block; color:var(--tx2); font-size:.75rem; font-weight:500; line-height:1.2; }
 .profile-achievement-history { margin:8px 0 0; padding:0; list-style:none; border-top:1px solid var(--line); }
 .profile-achievement-history li { border-bottom:1px solid var(--line); }
 .profile-achievement-history a,.profile-achievement-history-missing { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:44px; padding:6px 0; color:inherit; text-decoration:none; }
