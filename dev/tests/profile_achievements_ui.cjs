@@ -286,7 +286,9 @@ module.exports=async({browser,storageState,base,shots})=>{
    await setUnits('metric');
    for(const [state,value] of [['zero',0],['partial',4000],['max',catalogValue(catalog.tracks['sport:run'].levels.at(-1))]]){
     runEvidenceState={value,history:[]};await page.goto(base+'/me/achievements/sport%3Arun');await waitForHistoryTrack(page,'sport:run','Run continuation '+state);await expandAchievementLevels(page);
-    await assertContinuation('sport:run');await assertMedalText(page.locator('#profile-achievement-page'),'Run continuation '+state);
+    await assertContinuation('sport:run');
+    if(state==='zero')assert.equal(await page.locator('.profile-achievement-current-value').count(),0,'an unstarted Run does not invent a zero total');
+    else await assertMedalText(page.locator('#profile-achievement-page'),'Run continuation '+state);
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'continuation wraps within the page');
     if(state!=='max'&&shots){await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='track');await screenshot(page,shots,`achievement-tail-${state}-390-${theme}`,{fullPage:true});}
    }
