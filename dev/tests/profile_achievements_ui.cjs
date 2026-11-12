@@ -411,6 +411,7 @@ const owner330Only=process.env.KINETTA_ACHIEVEMENT_OWNER_330_ONLY==='1';
   assert.equal(webHaptic,false,'the achievement success feedback is disabled on web');
 
   await page.goto(base+'/people/alex');await page.locator('.me-card-sections[aria-busy="false"]').waitFor();
+  await page.locator('#person-profile [data-me-featured][data-loaded="true"]').waitFor();
   assert.equal(await page.locator('.profile-achievements').count(),0,'the full owner profile has no duplicate achievements grid');
   assert.equal(await page.locator('.me-featured-achievements').count(),1,'the full owner profile has one Featured achievement entry');
   await page.goto(base+'/me');await page.locator('.me-featured-achievements').waitFor();
