@@ -1,5 +1,5 @@
 'use strict';
-const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const SCREENSHOT_CLOCK=require('../screenshots/fixture-time.json'),SCREENSHOT_NOW=new Date(SCREENSHOT_CLOCK.instant),SCREENSHOT_YEAR=SCREENSHOT_NOW.getUTCFullYear();
 const catalog=JSON.parse(fs.readFileSync(path.join(__dirname,'../../app/static/profile.achievement-levels.json'),'utf8'));
 for(const [code,track] of Object.entries(catalog.tracks)){
@@ -274,7 +274,9 @@ module.exports=async({browser,storageState,base,shots})=>{
   const assertContinuation=async code=>{
    const last=catalog.tracks[code].levels.at(-1),note=page.locator('.profile-achievement-tail-note');
    assert.equal(await note.innerText(),`${last.name} ×2, ×3…`,`${code} names the continuing final level`);
-   assert.equal(await note.locator('img').getAttribute('src'),last.icon,`${code} reuses the final named icon`);
+   const iconFile=path.join(__dirname,'../../app/static',last.icon.replace(/^\/static\//,'').split('?')[0]);
+   const expectedIcon=last.icon.replace('__ASSET_HASH__',crypto.createHash('sha256').update(fs.readFileSync(iconFile)).digest('hex').slice(0,32));
+   assert.equal(await note.locator('img').getAttribute('src'),expectedIcon,`${code} reuses the final named icon with its built asset version`);
    assert.equal(await note.locator('a,button,[role="button"],[role="progressbar"]').count(),0,'the continuation is an explanation');
    const icon=await note.locator('img').boundingBox();assert.equal(icon.width,24);assert.equal(icon.height,24);
   };

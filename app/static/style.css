@@ -3138,8 +3138,8 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .progress-home-totals .card { padding:12px; }
 .progress-home-totals .progress-filters { gap:8px; margin-bottom:6px; }
 .progress-home-totals .progress-pace-window { margin:4px 0 0; }
-.progress-home-totals .progress-total-readout { position:static; z-index:auto; display:flex; min-width:0; min-height:28px; align-items:center; gap:0; padding:3px 0; margin:0 0 2px; border-radius:0; background:transparent; -webkit-backdrop-filter:none; backdrop-filter:none; font-size:.8125rem; white-space:nowrap; overflow:hidden; }
-.progress-home-totals .progress-total-readout span { display:block; min-width:0; max-width:100%; overflow:hidden; color:var(--tx2); text-overflow:ellipsis; white-space:inherit; }
+.progress-home-totals .progress-total-readout { position:static; z-index:auto; display:grid; gap:2px; min-width:0; padding:3px 0 0; margin:4px 0 0; border-radius:0; background:transparent; -webkit-backdrop-filter:none; backdrop-filter:none; font-size:.8125rem; white-space:normal; overflow:visible; }
+.progress-home-totals .progress-total-readout span { display:block; min-width:0; max-width:100%; overflow:visible; color:var(--tx2); overflow-wrap:anywhere; text-overflow:clip; white-space:normal; }
 .progress-home-totals .progress-total-readout b { color:var(--tx); font-weight:650; }
 .progress-metric-controls { flex:1 0 100%; width:100%; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0; margin-top:2px; border-top:1px solid var(--line); }
 .progress-metric-controls[data-count="2"] { grid-template-columns:repeat(2,minmax(0,1fr)); }
