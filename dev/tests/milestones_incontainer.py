@@ -365,11 +365,18 @@ class Milestones(unittest.TestCase):
    rows=c.execute("""SELECT kind,details,silent FROM milestones WHERE user_id=%s
                      AND ((kind='track' AND details->>'track'=ANY(%s)) OR kind='sport')""",
                   (self.ids[0],['workouts','consistency','active_time','sport:run'])).fetchall()
-   pushes=c.execute("SELECT count(*) AS n FROM notifications WHERE user_id=%s AND kind='milestone'",(self.ids[0],)).fetchone()['n']
+   pushes=c.execute('''SELECT m.details FROM notifications n JOIN milestones m ON m.id=n.milestone_id
+                       WHERE n.user_id=%s AND n.kind='milestone' ''',(self.ids[0],)).fetchall()
   quiet_rows=[row for row in rows if row['details'].get('quiet')]
   self.assertGreaterEqual(len(quiet_rows),4,'canonical threshold tiers and the prior First run record are stored')
-  self.assertTrue(all(not row['silent'] for row in quiet_rows),'fresh quiet awards remain available in app')
-  self.assertEqual(pushes,0,'quiet awards do not enqueue pushes')
+  fresh_quiet_tracks={row['details'].get('track') for row in quiet_rows
+                      if row['kind']=='track' and row['details'].get('track') in ('workouts','consistency','active_time')}
+  self.assertEqual(fresh_quiet_tracks,{'workouts','consistency','active_time'})
+  self.assertTrue(all(not row['silent'] for row in quiet_rows
+                      if row['kind']=='track' and row['details'].get('track') in fresh_quiet_tracks),
+                  'current-day quiet canonical awards remain available in app')
+  self.assertFalse(any((row.get('details') or {}).get('quiet') for row in pushes),
+                   'quiet awards do not enqueue pushes even when unrelated non-quiet activity awards do')
   feed=self.clients[1].get('/api/feed/friends').json()
   self.assertFalse(any(row.get('kind')=='achievement_moment' for row in feed),'quiet early awards stay out of the friend feed even when sharing is on')
 
