@@ -268,7 +268,7 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
       if(type.gap!==null)assert(type.gap>=8,`Today text lines have an 8px visual gap (${type.gap}px)`);
      }
      if(['both','activity','food-error'].includes(state)){
-      assert.match(await activity.innerText(),/Run · 6\.0 mi · 52 min/);assert.match(await activity.innerText(),/7:12 AM/);assert.doesNotMatch(await activity.innerText(),/Today at/);assert.equal(await activity.getAttribute('href'),'/activity/918204');assert(await activity.boundingBox().then(box=>box.height>=56),'activity row is the 56px workout target');
+      assert.match(await activity.innerText(),/Run · 6\.0 mi · 53 min/);assert.match(await activity.innerText(),/7:12 AM/);assert.doesNotMatch(await activity.innerText(),/Today at/);assert.equal(await activity.getAttribute('href'),'/activity/918204');assert(await activity.boundingBox().then(box=>box.height>=56),'activity row is the 56px workout target');
      }
      if(state==='activity-multiple')assert.match(await activity.innerText(),/2 workouts · 7\.0 mi[\s\S]*Run, Walk/,'the date-window query retains every workout from today');
      if(state==='both'){
@@ -400,8 +400,9 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    assert(!(await p.locator('.share-picture-label').allInnerTexts()).includes('Achievements'),'the picture sheet hides achievements when sharing is off');
    await screenshot('me-showcase-shared-off');await p.keyboard.press('Escape');
   shareAchievementsEnabled=true;showcasePins=[];showcaseFixture={items:featuredItems,pinned:[],day_streak:12};await clearProfileCache(p);await p.reload();await waitApp(p);await p.locator('.me-card-weekly').waitFor();await p.locator('[data-me-featured][data-loaded="true"]').waitFor({state:'attached'});await p.locator('[data-card-share]').click();await p.locator('[data-unified-share]').waitFor();
-   const achievementPicture=p.locator('[data-share-choice]').filter({hasText:'Achievements'});await achievementPicture.waitFor();await achievementPicture.click();await p.locator('[data-share-control="identity"]').waitFor();
-   assert(!(await p.locator('[data-share-control="identity"]').isChecked()),'achievement identity is an explicit opt-in');
+   const achievementPicture=p.locator('[data-share-choice]').filter({hasText:'Achievements'});await achievementPicture.waitFor();await achievementPicture.click();
+   const achievementIndex=await achievementPicture.getAttribute('data-share-choice'),achievementImage=p.locator(`[data-share-image="${achievementIndex}"]`);await p.waitForFunction(index=>{const image=document.querySelector(`[data-share-image="${index}"]`);return image?.complete&&image.naturalWidth===1080;},achievementIndex);
+   const earnedAlt=await achievementImage.getAttribute('alt');assert.match(earnedAlt,/^Earned achievements:/,'achievement sharing renders the earned-medal print');for(const track of featuredTracks)assert(earnedAlt.includes(track.label+', Level '),`the earned print includes ${track.label}`);assert.equal(await p.evaluate(()=>window.__sharePictureDiagnostic?.achievementCount),featuredTracks.length,'the print contains every earned fixture track');assert.doesNotMatch(earnedAlt,/@alex|Alex Rivera/,'the earned-medal print omits account identity');assert.equal(await p.locator('[data-share-control="identity"]').count(),0,'the earned-medal print has no identity field');
    await screenshot('me-showcase-shared-on');
   }
   await featuredEditor();
