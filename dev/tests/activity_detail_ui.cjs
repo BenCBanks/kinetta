@@ -7,17 +7,24 @@ async function assertNoDetailTitleBand(locator){
  const result=await locator.evaluate(el=>{const host=getComputedStyle(el),pseudo=getComputedStyle(el,'::after');return{content:pseudo.content,pseudoImage:pseudo.backgroundImage,hostImage:host.backgroundImage,borderTop:host.borderTopWidth};});
  assert(result.content==='none'&&result.pseudoImage==='none'&&result.hostImage==='none'&&result.borderTop==='0px',`activity detail map has no title band or top edge: ${JSON.stringify(result)}`);
 }
+const missingElapsedCases={'missing-elapsed-null':null,'missing-elapsed-zero':0,'missing-elapsed-negative':-1};
 (async()=>{
  const output=cp.execFileSync('python3',[path.join(__dirname,'activity_detail_fixture.py')],{env:process.env,encoding:'utf8'});console.log(output.trim());const ids=JSON.parse(output.trim().split('\n').at(-1));
  const b=await chromium.launch(),contexts=[];
 async function open(kind,theme,size,mouse=false,comments=false,reaction=false,loadOptions={}){
-  const friend=kind==='friend',id=ids[friend?'run':kind],c=await b.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:!mouse,hasTouch:!mouse,timezoneId:'UTC'});contexts.push(c);
+  const friend=kind==='friend',missingElapsed=Object.hasOwn(missingElapsedCases,kind),id=ids[friend||missingElapsed?'run':kind],c=await b.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:!mouse,hasTouch:!mouse,timezoneId:'UTC'});contexts.push(c);
   assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_detail_'+(friend?'friend':'owner'),password:pw}})).status(),200);
   if(reaction)assert.equal((await c.request.post(base+`/api/activities/${id}/reaction`,{headers:{Origin:base,'Content-Type':'application/json'},data:{kind:'clap'}})).status(),200,'fictional detail reaction fixture');
   await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
   const p=await c.newPage(),errors=[],writes=[],detailAssets=[],routeScriptOrder=[];let detailAttempts=0;p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
   p.on('request',q=>{const path=new URL(q.url()).pathname;if(path==='/static/activity-detail.js')detailAssets.push(q.url());if(['/static/social.js','/static/segments.js','/static/activity-detail.js'].includes(path))routeScriptOrder.push(path);});
   await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(u.pathname==='/static/activity-detail.js'&&loadOptions.failDetailFirst&&detailAttempts++===0)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(u.pathname===`/api/activities/${id}/comments`)return r.continue();return r.fulfill({json:{}});}if(medalKind&&u.pathname===`/api/activities/${id}`){return r.fetch().then(async response=>{const activity=await response.json(),ride=medalKind==='ride';activity.created=new Date().toISOString();activity.sport=ride?'ride':'run';activity.distance_m=ride?20000:5000;return r.fulfill({response,json:activity});});}if(medalKind&&u.pathname==='/api/sharing')return r.fulfill({json:{share_achievements:true}});if(medalKind&&u.pathname==='/api/achievements'){const ride=medalKind==='ride';return r.fulfill({json:{pending:false,tracks:[{code:ride?'sport:ride':'sport:run',value:ride?157233:9000,tiers:[]}]}});}if(u.pathname==='/api/map-config')return r.fulfill({json:{kind:'raster',url:base+'/__detail_tiles/light/{z}/{x}/{y}.svg',dark_url:base+'/__detail_tiles/dark/{z}/{x}/{y}.svg',max_zoom:17,attribution:'Fictional mapping and terrain tiles'}});if(u.pathname.startsWith('/__detail_tiles/'))return r.fulfill({contentType:'image/svg+xml',body:`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="${u.pathname.includes('/dark/')?'#20262B':'#EDF0F3'}"/></svg>`});return r.continue();});
+  if(missingElapsed)await c.route(`**/api/activities/${id}`,async r=>{
+   if(r.request().method()!=='GET')return r.fallback();
+   const response=await r.fetch(),activity=await response.json();
+   // Keep the fictional activity's identity, access and geometry; change only the summary inputs.
+   return r.fulfill({response,json:{...activity,distance_m:8046.72,elapsed_s:missingElapsedCases[kind],moving_s:2400}});
+  });
   await p.goto(base+(friend?'/activity/friends/':'/activity/')+id+(comments?'?tab=comments':''));if(!loadOptions.noWait)await until(p,()=>App.pageReady&&!!document.querySelector('.compact-detail-title'),'detail ready');return{c,p,id,errors,writes,friend,detailAssets,routeScriptOrder};
  }
  async function assertDetailActionRow(p,label){
@@ -72,7 +79,7 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
   if(process.env.KINETTA_DETAIL_ROW_ONLY==='1'){
    const size={width:330,height:667,root:16}, {c,p,errors}=await open('lifting','dark',size,false,false,true);await until(p,()=>!!document.querySelector('#d-soc [data-detail-share]'),'detail Share action');await assertDetailActionRow(p,'330px dark activity detail');assert.deepEqual(errors,[]);console.log('Activity detail action row 330px/16px dark: React, Comments, Share and right-side counts PASS');await c.close();contexts.splice(contexts.indexOf(c),1);return;
   }
-  for(const kind of ['run','treadmill','ride','lifting','empty','friend'])for(const size of (medalKind?[{width:390,height:844,root:16},{width:330,height:667,root:16}]:[{width:390,height:844,root:16}]))for(const theme of ['light','dark']){
+  for(const kind of ['run','treadmill','ride','lifting','empty','friend',...Object.keys(missingElapsedCases)])for(const size of (medalKind?[{width:390,height:844,root:16},{width:330,height:667,root:16}]:[{width:390,height:844,root:16}]))for(const theme of ['light','dark']){
    const name=`${kind}-${size.width}-${theme}`;if(detailCases.length&&!detailCases.includes(name))continue;
    if(medalKind&&(kind!==medalKind||theme!==medalTheme||size.width!==medalWidth))continue;
    const {c,p,errors,writes,friend,detailAssets,routeScriptOrder}=await open(kind,theme,size),mapped=['run','ride','friend'].includes(kind);
@@ -86,6 +93,23 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
     if(mapped)await until(p,()=>!!document.querySelector('#d-map .leaflet-tile-loaded'),'fictional map tiles');
     if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`detail-next-${medalKind}-${theme}.png`),fullPage:true,animations:'disabled'});}
     assert.deepEqual(errors,[]);assert(await p.locator('[data-detail-edit]').count()>=1);console.log(`Activity detail ${medalKind} ${theme}: next-medal line PASS`);await c.close();contexts.splice(contexts.indexOf(c),1);continue;
+   }
+   if(Object.hasOwn(missingElapsedCases,kind)){
+    const primary=p.locator('.detail-primary .stat'),metric=await p.evaluate(()=>App.me?.units==='metric');
+    assert.deepEqual(await primary.locator('small').allTextContents(),['Distance','Elapsed time'],'unavailable elapsed does not invent a whole-activity Pace');
+    assert.equal(await primary.nth(0).locator('b').evaluate(n=>n.firstChild.textContent),metric?'8.0':'5.0','recorded five-mile distance survives unavailable elapsed');
+    assert.equal(await primary.nth(0).locator('i').innerText(),metric?'km':'mi');
+    assert.equal(await primary.nth(1).locator('b').innerText(),'–','elapsed stays unavailable instead of falling back to moving time');
+    await p.getByRole('tab',{name:'Details',exact:true}).click();
+    const details=p.locator('#activity-pane-overview');await details.waitFor({state:'visible'});
+    const rows=await details.locator('.stat').evaluateAll(nodes=>nodes.map(n=>({label:n.querySelector('small').textContent,value:n.querySelector('b').textContent})));
+    assert.deepEqual(rows.filter(row=>row.label==='Moving time'),[{label:'Moving time',value:'40m'}],'known moving time remains available in Details');
+    assert(!rows.some(row=>row.label==='Elapsed time'||row.label==='Pace'),'Details does not fabricate elapsed time or whole-activity pace');
+    assert.doesNotMatch(await p.locator('.detail-primary').innerText()+await details.innerText(),/NaN|Infinity/);
+    assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'missing-elapsed detail fits phone width');
+    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`activity-${name}.png`),fullPage:true,animations:'disabled'});}
+    assert.deepEqual(errors,[]);assert(!writes.some(x=>!['/api/challenges/signup/continue','/api/milestones/celebrate'].includes(x)),'missing-elapsed detail performs no unrelated writes');
+    await c.close();contexts.splice(contexts.indexOf(c),1);console.log(`Activity detail ${name}: recorded distance/unavailable elapsed/retained moving time PASS`);continue;
    }
    if(!friend)await until(p,()=>!!document.querySelector('#d-soc [data-ttalk]'),'owner reactions read');
    assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no document overflow');assert.equal(await p.locator('.discovery-grid').count(),0);
