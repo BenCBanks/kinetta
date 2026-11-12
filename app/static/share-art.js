@@ -33,26 +33,10 @@ const ShareArt=(()=>{
     try{return await Promise.race([load(),timeout]);}finally{clearTimeout(timer);if(object)URL.revokeObjectURL(object);}
   }
 
-  async function achievementPicture({badges=[]}){
-    const pictureOwner=readOwner(),visible=badges.slice(0,12),more=Math.max(0,badges.length-visible.length),W=1080,H=1350,M=72;
-    await document.fonts.ready;const canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const g=canvas.getContext('2d'),p=palette();
-    g.fillStyle=p.bg;g.fillRect(0,0,W,H);text(g,'Achievements',M,122,34,{color:p.muted});text(g,'Earned badges',M,200,64,{weight:750,max:W-2*M});
-    text(g,`${badges.length} earned`,M,252,30,{color:p.soft});
-    const cols=3,cellW=(W-2*M)/cols,cellH=218,gridTop=315,iconSize=126,images=[];
-    for(const badge of visible){
-      if(readOwner()!==pictureOwner)throw Error('The account changed.');
-      const image=new Image();image.src=badge.icon;await image.decode();images.push({badge,image});
-    }
-    for(const [index,{badge,image}] of images.entries()){
-      const col=index%cols,row=Math.floor(index/cols),x=M+col*cellW+cellW/2,y=gridTop+row*cellH;
-      g.save();g.fillStyle=p.tint;g.beginPath();g.roundRect(x-iconSize/2,y,iconSize,iconSize,24);g.fill();g.drawImage(image,x-iconSize/2+12,y+12,iconSize-24,iconSize-24);g.restore();
-      text(g,badge.label,x,y+iconSize+35,25,{align:'center',max:cellW-20,weight:700});
-      text(g,`Level ${badge.level} · ${badge.name}`,x,y+iconSize+70,21,{align:'center',max:cellW-20,color:p.soft});
-    }
-    if(more)text(g,`+${more} more`,M,gridTop+Math.ceil(visible.length/cols)*cellH+14,28,{color:p.soft});
-    const footer=H-80;g.strokeStyle=p.line;g.lineWidth=2;g.beginPath();g.moveTo(M,footer-34);g.lineTo(W-M,footer-34);g.stroke();drawMark(g,M+24,footer+2,48,p.blue);text(g,'Kinetta',M+62,footer+14,30);text(g,'kinetta.app',W-M,footer+12,26,{align:'right',color:p.muted});
-    const alt=`Earned achievements: ${visible.map(badge=>`${badge.label}, Level ${badge.level}, ${badge.name}`).join('; ')}${more?`; plus ${more} more earned achievements`:''}.`;
-    return{blob:await blob(canvas),alt};
+  async function achievementPicture({root,live=()=>true,outputHeight}={}){
+    if(!root?.isConnected||!live())throw Error('The account changed.');
+    const height=Math.max(400,Math.ceil(outputHeight||root.getBoundingClientRect().height+96));
+    return domPicture(root,{live,outputHeight:height});
   }
   async function simplePicture({kicker,title,date,value,unit,facts=[],sources=[],identity=false,qrLink=null,routePoints=[],routeTrimmed=true}){
     const pictureOwner=readOwner();
@@ -159,12 +143,12 @@ const ShareArt=(()=>{
     context.restore();if(rootStyle.outlineStyle!=='none'&&parseFloat(rootStyle.outlineWidth)>0){context.save();context.translate(x,y);context.scale(scale,scale);context.strokeStyle=rootStyle.outlineColor;context.lineWidth=parseFloat(rootStyle.outlineWidth);context.beginPath();context.roundRect(-parseFloat(rootStyle.outlineOffset||0)-context.lineWidth/2,-parseFloat(rootStyle.outlineOffset||0)-context.lineWidth/2,bounds.width+2*(parseFloat(rootStyle.outlineOffset||0)+context.lineWidth/2),bounds.height+2*(parseFloat(rootStyle.outlineOffset||0)+context.lineWidth/2),rootRadius+parseFloat(rootStyle.outlineOffset||0));context.stroke();context.restore();}if(pictureOwner!==readOwner()||!live())throw Error('The account changed.');const pictureBlob=await blob(canvas),prior=window.__sharePictureDiagnostic||{};window.__sharePictureDiagnostic={...prior,mode:'canvasFallback',handledErrorName:prior.errorName||null,handledErrorMessage:prior.errorMessage||null,errorName:null,errorMessage:null,outputBytes:pictureBlob.size,exportedBlob:true};if(typeof FeatureUsage!=='undefined')void FeatureUsage.event('share_picture',pictureOwner);return{blob:pictureBlob,alt:root.getAttribute('aria-label')||'Your Kinetta profile card.'};
   }
   const structureSignature=nodes=>nodes.map(node=>`${node.tagName.toLowerCase()}.${[...node.classList].join('.')}`).join('|');
-  async function domPicture(root,{live=()=>true,prepareClone=()=>{}}={}){
+  async function domPicture(root,{live=()=>true,prepareClone=()=>{},outputWidth=1080,outputHeight=1350}={}){
     const pictureOwner=readOwner();if(!root?.isConnected||!live())throw Error('The account changed.');
     let fontTimer;await Promise.race([Promise.resolve(document.fonts?.ready).catch(()=>undefined),new Promise(resolve=>{fontTimer=setTimeout(resolve,1000);})]);clearTimeout(fontTimer);if(!root.isConnected||pictureOwner!==readOwner()||!live())throw Error('The account changed.');
     const bounds=root.getBoundingClientRect(),sourceNodes=[root,...root.querySelectorAll('*')],clone=root.cloneNode(true);prepareClone(clone);const cloneNodes=[clone,...clone.querySelectorAll('*')];
     if(!bounds.width||!bounds.height)throw Error('The card picture could not fit clearly.');
-    const W=1080,H=1350,pad=48,scale=Math.min((W-pad*2)/bounds.width,(H-pad*2)/bounds.height),x=(W-bounds.width*scale)/2,y=(H-bounds.height*scale)/2;
+    const W=Math.max(1,Math.floor(outputWidth)),H=Math.max(1,Math.floor(outputHeight)),pad=48,scale=Math.min((W-pad*2)/bounds.width,(H-pad*2)/bounds.height),x=(W-bounds.width*scale)/2,y=(H-bounds.height*scale)/2;
     const styleNames=['display','position','top','right','bottom','left','inset','z-index','box-sizing','width','height','min-width','min-height','max-width','max-height','margin','margin-top','margin-right','margin-bottom','margin-left','margin-inline','margin-inline-start','margin-inline-end','padding','padding-top','padding-right','padding-bottom','padding-left','color','background','background-color','background-image','background-position','background-size','background-repeat','background-origin','background-clip','border','border-top','border-right','border-bottom','border-left','border-radius','outline','outline-color','outline-style','outline-width','outline-offset','font','font-family','font-size','font-weight','font-style','line-height','letter-spacing','text-align','text-transform','text-decoration','text-decoration-color','text-decoration-style','text-decoration-thickness','text-shadow','white-space','word-break','overflow-wrap','text-overflow','text-indent','opacity','visibility','align-items','align-content','align-self','justify-content','justify-items','flex','flex-basis','flex-direction','flex-wrap','order','gap','column-gap','row-gap','grid-template-columns','grid-template-rows','grid-column','grid-row','overflow','overflow-x','overflow-y','object-fit','object-position','clip','clip-path','vertical-align','transform','transform-origin','filter','box-shadow'];
     const rules=[],shadowFilters=[],pillShadowFilters=[];for(let i=0;i<sourceNodes.length;i++){
       const source=sourceNodes[i],target=cloneNodes[i],style=getComputedStyle(source);if(!target)continue;const id=String(i),nodeBounds=source.getBoundingClientRect(),medalFilter=source.classList?.contains('profile-achievement-medallion')?medalShadowFilter(style.boxShadow,nodeBounds.width,nodeBounds.height,`share-medal-shadow-${i}`):null,pillFilter=source.matches?.('.profile-achievement-level,.profile-achievement-multiple')?medalShadowFilter(style.boxShadow,nodeBounds.width,nodeBounds.height,`share-pill-shadow-${i}`):null,css=styleNames.map(name=>{let value=i===0&&name.startsWith('margin')?'0px':style.getPropertyValue(name);if(value.includes('url('))value='none';if((medalFilter||pillFilter)&&name==='box-shadow')value='none';return `${name}:${value};`;}).join('');
@@ -252,7 +236,7 @@ const ShareSheet=(()=>{
       };
       saveButton.onclick=async()=>{
         const current=cache.get(selected),item=items[selected];if(!current||busy||!live())return;busy=true;buttons();
-        try{if(item.beforeSave&&await item.beforeSave({blob:current.blob,filename:current.filename,link:current.link,values:{...values[selected]},live,close,refresh:()=>load(selected,true),setStatus:value=>{if(live())status.textContent=value;}})===false)return;if(!save(current.blob,current.filename)){status.textContent='This device cannot save the picture here. Use Share instead.';return;}status.textContent='Picture saved.';await item.afterSave?.({blob:current.blob,values:{...values[selected]},close,live});}
+        try{if(item.beforeSave&&await item.beforeSave({blob:current.blob,filename:current.filename,link:current.link,values:{...values[selected]},live,close,refresh:()=>load(selected,true),setStatus:value=>{if(live())status.textContent=value;}})===false)return;if(!live())return;if(!save(current.blob,current.filename)){status.textContent='This device cannot save the picture here. Use Share instead.';return;}status.textContent='Picture saved.';await item.afterSave?.({blob:current.blob,values:{...values[selected]},close,live});}
         catch(error){if(live())status.textContent=error.message||'Couldn’t save this picture.';}
         finally{busy=false;if(live())buttons();}
       };
