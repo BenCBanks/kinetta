@@ -82,12 +82,13 @@ async function settle(page) {
   await page.locator('.thread-pending').first().waitFor({state: 'detached', timeout: 30000}).catch(() => {});
   await page.waitForTimeout(600);
 }
-async function loadedMaps(page, {advanceActivityFade = false} = {}){
+async function loadedMaps(page, {advanceMapFade = false} = {}){
   for(const preview of await page.locator('.fmap:visible').all()){
     if(!await preview.evaluate(el=>{const r=el.getBoundingClientRect();return r.top<innerHeight&&r.bottom>0&&r.left<innerWidth&&r.right>0&&r.width>0&&r.height>0;}))continue;
     for(let n=0;n<150;n++){if(await preview.evaluate(el=>el.classList.contains('ready')))break;await page.waitForTimeout(100);}
     if(!await preview.evaluate(el=>el.classList.contains('ready')))throw Error('Visible feed map did not initialize');
   }
+  let fadeClockAdvanced=false;
   for(const map of await page.locator('.leaflet-container:visible').all()){
     if(!await map.evaluate(el=>{const r=el.getBoundingClientRect();return r.top<innerHeight&&r.bottom>0&&r.left<innerWidth&&r.right>0&&r.width>0&&r.height>0;}))continue;
     let stable=0;
@@ -98,9 +99,12 @@ async function loadedMaps(page, {advanceActivityFade = false} = {}){
       });stable=ready?stable+1:0;if(stable<3)await page.waitForTimeout(100);
     }
     if(stable<3)throw Error('All visible basemap tiles must load before capture');
-    if(advanceActivityFade){
-      // This scene freezes Date.now(); advance only Leaflet's 200 ms tile fade after loading.
-      await page.clock.setFixedTime(new Date(await page.evaluate(()=>Date.now())+250));
+    if(advanceMapFade){
+      // These screenshot scenes freeze Date.now(); advance only Leaflet's 200 ms tile fade after loading.
+      if(!fadeClockAdvanced){
+        await page.clock.setFixedTime(new Date(await page.evaluate(()=>Date.now())+250));
+        fadeClockAdvanced=true;
+      }
       let opaque=false;
       for(let n=0;n<10&&!opaque;n++){
         opaque=await map.evaluate(el=>{
@@ -113,7 +117,7 @@ async function loadedMaps(page, {advanceActivityFade = false} = {}){
         });
         if(!opaque)await page.waitForTimeout(50);
       }
-      if(!opaque)throw Error('Visible activity basemap tiles must finish fading in before capture');
+      if(!opaque)throw Error('Visible basemap tiles must finish fading in before capture');
     }
   }
   if(await page.locator('.map-unavailable:visible').count())throw Error('Capture requires the loaded approved basemap');
@@ -384,7 +388,7 @@ async function say(page, text) {
         if (h) window.scrollTo(0, h.getBoundingClientRect().top + scrollY - 70);   // below the status bar
       }, opt.to);
       await page.waitForTimeout(700);
-      await loadedMaps(page, {advanceActivityFade: name === 'activity'}); await page.evaluate(chrome, scheme === 'dark'); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+      await loadedMaps(page, {advanceMapFade: ['activity', 'feed', 'route'].includes(name)}); await page.evaluate(chrome, scheme === 'dark'); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
       await page.screenshot({path: `${OUT}/${scheme}-${name}.png`});
       if (opt.lift) await page.evaluate(() => fetch('/api/activities/' + window.__liftId, {method: 'DELETE', headers: {'Content-Type': 'application/json'}}));
       // Remove only what this fictional review story added (entries, saved foods, messages) so the next pass and
