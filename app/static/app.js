@@ -68,6 +68,7 @@ const PUSH_INVITATION_HOMES = new Set(['/me','/activity','/track','/progress','/
 const ACTIVITY_DETAIL_ROUTE_ASSET = '/static/activity-detail.js?v=__ASSET_HASH__';
 const CHALLENGES_ROUTE_ASSET = '/static/challenges.js?v=__ASSET_HASH__';
 const SHARE_ART_ASSET = '/static/share-art.js?v=__ASSET_HASH__';
+const RECAP_EDITOR_ASSET = '/static/recap-editor.js?v=__ASSET_HASH__';
 const MEDIA_ROUTE_ASSET = '/static/media.js?v=__ASSET_HASH__';
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: [CONTACTS_ROUTE_ASSET, '/static/welcome.js?v=__ASSET_HASH__']},
@@ -161,6 +162,7 @@ function loadPushInvitationForRoute(isCurrent) {
 }
 const loadActivityDetail = () => loadClassicScript(ACTIVITY_DETAIL_ROUTE_ASSET);
 function loadShareArt() { return loadClassicScript(SHARE_ART_ASSET); }
+function loadRecapEditor() { return loadClassicScript(RECAP_EDITOR_ASSET); }
 const loadWeeklyRecapShareItem = () => loadClassicScript(SOCIAL_ROUTE_ASSET).then(() => {
   const build=window.weeklyRecapShareItem;
   if(typeof build!=='function'||build===loadWeeklyRecapShareItem)return null;
@@ -1600,20 +1602,21 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4
   if (!inlineSelection) g += `<rect class="hl" x="0" y="${padT}" width="${bw.toFixed(1)}" height="${(H - padT - padB).toFixed(1)}" visibility="hidden"/>`;
   const legend = inlineSelection ? '' : (keys.length > 1 ? keys.map((k) => `<span><i class="sw k-${k.k}"></i>${esc(k.name)}</span>`).join('') : '') + (avg ? `<span><i class="sw dash"></i>${esc(avgLabel)} ${esc(fmt(avg))}</span>` : '');
   const readout = inlineSelection ? '<div class="readout num progress-total-readout" role="status" aria-live="polite" aria-atomic="true"><span></span></div>' : '<div class="readout num"><span></span></div>';
-  box.innerHTML = `${readout}<div class="chartbox${distance ? ' distance-chart' : ''}${inlineSelection ? ' period-select-chart' : ''}"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="${inlineSelection ? 'group' : 'img'}" aria-label="${esc(ariaLabel)}">${g}</svg></div>${legend ? `<div class="legend small">${legend}</div>` : ''}`;
+  const chart = `<div class="chartbox${distance ? ' distance-chart' : ''}${inlineSelection ? ' period-select-chart' : ''}"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="${inlineSelection ? 'group' : 'img'}" aria-label="${esc(ariaLabel)}">${g}</svg></div>`;
+  box.innerHTML = `${inlineSelection ? chart + readout : readout + chart}${legend ? `<div class="legend small">${legend}</div>` : ''}`;
   const svgEl = $('svg', box), hl = $('.hl', box), ro = $('.readout', box);
   fitTickLabels(svgEl, W);
   if (inlineSelection) {
     // Nothing selected: a quiet hint (the stat tiles already show the current period). Selected: one line, ellipsised if long.
     let hasSelectedPeriod = false;
-    const showReadout = index => {
+    const showReadout = (index, initial = false) => {
       const c = index == null ? null : cols[index];
       if (!c) { ro.innerHTML = hasSelectedPeriod ? '' : `<span class="readout-hint">${esc(readoutHint)}</span>`; return; }
-      hasSelectedPeriod = true;
+      if (!initial) hasSelectedPeriod = true;
       const parts = distance ? c.segs.filter(sg => sg.v).map(sg => `${esc(keys.find(k => k.k === sg.k)?.name || sg.k)} ${esc(fmt(sg.v))}`).join(' · ') : '';
-      ro.innerHTML = `<span>${esc(c.label)}${c.partial ? ' (so far)' : ''} · <b>${esc(fmt(tot(c)))}</b>${parts ? ` · ${parts}` : ''}</span>`;
+      ro.innerHTML = `<span>${esc(c.label)}${c.partial ? ' (so far)' : ''} · <b>${esc(fmt(tot(c)))}</b>${parts ? ` · ${parts}` : ''}</span>${initial && readoutHint ? `<span class="readout-hint">${esc(readoutHint)}</span>` : ''}`;
     };
-    showReadout(null);
+    showReadout(cols.findLastIndex(c => !c.padded), true);
     wirePeriodColumns(svgEl, index => { showReadout(index); onSelectPeriod?.(index); }, box.closest('.card'));
     return;
   }

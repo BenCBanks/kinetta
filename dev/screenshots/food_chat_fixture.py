@@ -25,7 +25,15 @@ FOODS = [
      'protein_g': 35, 'carbs_g': 30, 'fat_g': 19, 'fiber_g': 6},
 ]
 BODY = 'Greek yogurt with berries, oatmeal with banana, and a chicken salad bowl'
-DAY = dt.datetime.now(ZoneInfo('America/New_York')).date()
+_capture_arg = sys.argv[1] if len(sys.argv) > 1 else None
+if _capture_arg:
+    CAPTURED_AT = dt.datetime.fromisoformat(_capture_arg.replace('Z', '+00:00'))
+    if CAPTURED_AT.tzinfo is None:
+        CAPTURED_AT = CAPTURED_AT.replace(tzinfo=ZoneInfo('America/New_York'))
+else:
+    CAPTURED_AT = dt.datetime.now(ZoneInfo('America/New_York'))
+CAPTURED_AT = CAPTURED_AT.astimezone(ZoneInfo('America/New_York'))
+DAY = CAPTURED_AT.date()
 
 with patch('urllib.request.urlopen', side_effect=AssertionError('Screenshot fixture must not make external requests')):
     for theme in ('light', 'dark'):
@@ -38,7 +46,7 @@ with patch('urllib.request.urlopen', side_effect=AssertionError('Screenshot fixt
 
         response = client.post('/api/food/thread/messages', json={
             'client_id': str(uuid.uuid4()), 'draft_id': str(uuid.uuid4()),
-            'review_only': True, 'body': BODY, 'meal': 'breakfast', 'day': str(DAY),
+            'review_only': True, 'body': BODY, 'meal': 'breakfast', 'day': str(DAY), 'captured_at': CAPTURED_AT.isoformat(),
         })
         assert response.status_code == 201, response.text
         message = response.json()['message']

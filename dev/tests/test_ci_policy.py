@@ -5,6 +5,7 @@ import json
 import sys
 import textwrap
 import importlib.util
+from itertools import product
 from pathlib import Path
 import unittest
 from collections import Counter
@@ -76,6 +77,9 @@ class CIPolicyTests(unittest.TestCase):
                (True,['dev/tests/native-ui/appstore.cjs'],True,True),
                (True,['app/static/food.js'],False,False),
                (False,['mobile/appstore/README.md'],True,False),
+               (True,['.github/workflows/ios.yml'],False,False),
+               (False,['.github/workflows/ios.yml'],True,False),
+               (False,['app/static/food.js'],False,False),
                (None,[],False,False)]
         for draft,paths,enabled,preview in cases:
             with self.subTest(draft=draft,paths=paths),tempfile.TemporaryDirectory() as temp:
@@ -100,9 +104,36 @@ class CIPolicyTests(unittest.TestCase):
         ios=(ROOT/'.github/workflows/ios.yml').read_text()
         self.assertIn("native: ${{ steps.paths.outputs.native == 'true' || steps.store.outputs.preview == 'true' }}",ios)
         self.assertIn('python3 dev/ci/policy.py',ios)
-        self.assertIn("if: needs.changes.outputs.release == '1' && github.ref == 'refs/heads/main'",ios)
         self.assertEqual(ios.count('npm run sync'),2) # unsigned and signed builds share stamping
         self.assertIn('RUN python -m app.asset_build app/static app/static',(ROOT/'Dockerfile').read_text())
+
+    def test_signing_requires_release_main_and_successful_required_jobs(self):
+        ios=(ROOT/'.github/workflows/ios.yml').read_text()
+        job=ios.split('\n  testflight:\n',1)[1].split('\n    runs-on:',1)[0]
+        self.assertIn('needs: [changes, build, native-ui, store-ui]',job)
+        condition=re.search(r'\$\{\{(.*?)\}\}',job,re.S).group(1)
+        condition=' '.join(condition.split())
+        self.assertIn('!cancelled()',condition) # explicitly handle the optional skipped dependency
+        self.assertIn("needs.changes.outputs.release == '1'",condition)
+        self.assertIn("github.ref == 'refs/heads/main'",condition)
+        # Evaluate the actual workflow expression's boolean/equality subset, without GitHub calls.
+        # Unknown output values fail closed; only a disabled, skipped Store job is optional.
+        statuses=('success','failure','cancelled','skipped')
+        for changes,build,native,store,enabled,release,ref,cancelled in product(
+                statuses,statuses,statuses,statuses,('true','false',''),('0','1'),
+                ('refs/heads/main','refs/heads/topic'),(False,True)):
+            values={'needs.changes.result':changes,'needs.build.result':build,
+                    'needs.native-ui.result':native,'needs.store-ui.result':store,
+                    'needs.changes.outputs.store':enabled,'needs.changes.outputs.release':release,
+                    'github.ref':ref}
+            expression=condition.replace('!cancelled()',repr(not cancelled))
+            expression=re.sub(r'needs\.[\w.-]+|github\.ref',lambda match:repr(values[match.group()]),expression)
+            expression=expression.replace('&&',' and ').replace('||',' or ')
+            actual=eval(expression,{'__builtins__':{}},{})
+            expected=(not cancelled and release=='1' and ref=='refs/heads/main' and
+                      changes==build==native=='success' and
+                      ((enabled=='true' and store=='success') or (enabled=='false' and store=='skipped')))
+            self.assertEqual(actual,expected,(values,cancelled))
 
 
 
