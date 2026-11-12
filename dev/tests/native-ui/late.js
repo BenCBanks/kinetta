@@ -13,12 +13,16 @@
   if(cfg.recording){TrackNative.supported=false;TrackNative.call=()=>Promise.reject(Error('Native UI fixture blocked GPS controls'));}
   const rect=selector=>{const e=typeof selector==='string'?document.querySelector(selector):selector;if(!e)return null;const r=e.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};
   function paintedMap(scope=document){
-    return [...scope.querySelectorAll('canvas.leaflet-tile-loaded')].some(c=>{try{
+    let visible=0,painted=false;
+    for(const c of scope.querySelectorAll('canvas.leaflet-tile')){try{
       const b=c.getBoundingClientRect(),m=c.closest('.leaflet-container').getBoundingClientRect(),x=Math.max(0,b.x,m.x),y=Math.max(0,b.y,m.y),right=Math.min(innerWidth,b.right,m.right),bottom=Math.min(innerHeight,b.bottom,m.bottom);
-      if(right<=x||bottom<=y)return false;let opacity=1;for(let e=c;e;e=e.parentElement){const css=getComputedStyle(e);opacity*=Number(css.opacity);if(opacity<.95||css.visibility==='hidden'||css.display==='none')return false;}
+      if(right<=x||bottom<=y)continue;visible++;
+      if(!c.classList.contains('leaflet-tile-loaded'))return false;
+      let opacity=1;for(let e=c;e;e=e.parentElement){const css=getComputedStyle(e);opacity*=Number(css.opacity);if(opacity<.99||css.visibility==='hidden'||css.display==='none')return false;}
       const sx=Math.floor((x-b.x)/b.width*c.width),sy=Math.floor((y-b.y)/b.height*c.height),w=Math.max(1,Math.floor((right-x)/b.width*c.width)),h=Math.max(1,Math.floor((bottom-y)/b.height*c.height));
-      const d=c.getContext('2d').getImageData(sx,sy,w,h).data;let different=0;for(let i=0;i<d.length;i+=64)if(d[i+3]&&(d[i]!==d[0]||d[i+1]!==d[1]||d[i+2]!==d[2]))different++;return different>16;
-    }catch(_){return false;}});
+      const d=c.getContext('2d').getImageData(sx,sy,w,h).data;let different=0;for(let i=0;i<d.length;i+=64)if(d[i+3]&&(d[i]!==d[0]||d[i+1]!==d[1]||d[i+2]!==d[2]))different++;if(different>16)painted=true;
+    }catch(_){return false;}}
+    return visible>0&&painted;
   }
   function storeReady(){
       const checks={
@@ -32,9 +36,12 @@
       };
       return !!checks[cfg.stage]?.();
   }
-  function storeMapTilesLoaded(){
+  function storeMapElement(){
     const selector={activity:'#d-map.leaflet-container','header-track':'#track-ready-map.leaflet-container','header-activity':'#ff-list .post[data-href="/activity/friends/2"] .leaflet-container'}[cfg.stage];
-    const map=selector&&document.querySelector(selector);if(!map)return false;
+    return selector?document.querySelector(selector):null;
+  }
+  function storeMapTilesLoaded(){
+    const map=storeMapElement();if(!map)return false;
     const mapStyle=getComputedStyle(map),m=map.getBoundingClientRect();
     if(mapStyle.display==='none'||mapStyle.visibility==='hidden'||m.width<=0||m.height<=0||m.right<=0||m.bottom<=0||m.left>=innerWidth||m.top>=innerHeight)return false;
     const left=Math.max(0,m.left),top=Math.max(0,m.top),right=Math.min(innerWidth,m.right),bottom=Math.min(innerHeight,m.bottom);
@@ -46,13 +53,21 @@
   }
   async function waitForStorePaint(){
     const mapStage=['activity','header-track','header-activity'].includes(cfg.stage);
-    for(let n=0;n<200&&!storeReady();n++){
-      if(mapStage&&!cfg.fixtureClockAdvanceAttempted&&(cfg.stage!=='activity'||document.querySelector('[data-dt="charts"][aria-selected="true"]'))&&storeMapTilesLoaded()){
+    let previousTiles=[],stable=0;
+    for(let n=0;n<200;n++){
+      let ready=storeReady();
+      if(!ready&&mapStage&&!cfg.fixtureClockAdvanceAttempted&&(cfg.stage!=='activity'||document.querySelector('[data-dt="charts"][aria-selected="true"]'))&&storeMapTilesLoaded()){
         cfg.fixtureClockAdvanceAttempted=true;cfg.fixtureClockAdvanceApplied=cfg.advanceFixtureClock?.(250)===true;
+        ready=storeReady();
       }
-      if(!storeReady())await new Promise(ok=>setTimeout(ok,100));
+      const tiles=mapStage?[...(storeMapElement()?.querySelectorAll('canvas.leaflet-tile')||[])]:[];
+      const sameTiles=tiles.length===previousTiles.length&&tiles.every((tile,i)=>tile===previousTiles[i]);
+      stable=ready?(sameTiles?stable+1:1):0;previousTiles=tiles;
+      if(stable>=3)return;
+      await new Promise(ok=>setTimeout(ok,100));
+      await new Promise(ok=>requestAnimationFrame(ok));
     }
-    if(!storeReady())throw Error('Store scene did not finish painting: '+cfg.stage);
+    throw Error('Store scene did not finish painting: '+cfg.stage);
   }
   function storeActivityDiagnostics(){
     const box=e=>{if(!e)return null;const r=e.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};
@@ -70,7 +85,7 @@
           pixelVariation={readable:true,sampled,different,error:null};
         }
       }catch(e){pixelVariation.error=String(e?.name||'CanvasReadError');}
-      return{box:box(c),mapBox:box(map),intersectsViewport:r.right>0&&r.bottom>0&&r.left<innerWidth&&r.top<innerHeight,visible:visibility(c),effectiveOpacity:opacity(c),pixelVariation};
+      return{box:box(c),mapBox:box(map),intersectsViewport:r.right>0&&r.bottom>0&&r.left<innerWidth&&r.top<innerHeight,visible:visibility(c),effectiveOpacity:opacity(c),inlineOpacity:c.style.opacity,pixelVariation};
     });
     const resources=performance.getEntriesByType('resource').filter(r=>/map|tile|pmtiles/i.test(r.name)).slice(-30).map(r=>({kind:/pmtiles/i.test(r.name)?'pmtiles':/tile/i.test(r.name)?'tile':'map',initiator:r.initiatorType||'',status:Number.isFinite(r.responseStatus)?r.responseStatus:null,durationMs:Math.round(r.duration),transferBytes:r.transferSize||0}));
     const safeErrors=(cfg.errors||[]).map(e=>String(e).replace(/https?:\/\/[^\s"']+/gi,'[url]')).slice(-20);

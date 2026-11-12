@@ -128,6 +128,12 @@ async function say(page, text) {
   await page.locator('#thread-messages article').nth(before).waitFor({timeout: 30000});   // locator waits work under the app's strict CSP
   await settle(page);
 }
+async function closeCaptureContext(context) {
+  if (!context) return;
+  for (const page of context.pages()) await page.unrouteAll({behavior: 'wait'});
+  await context.unrouteAll({behavior: 'wait'});
+  await context.close();
+}
 (async () => {
   const browser = await chromium.launch(), errors = [];
   const openFoodDemo = async (login, scheme) => {
@@ -395,12 +401,16 @@ async function say(page, text) {
       // the other screenshots start from the same demo data.
       if (opt.cleanup) { await page.evaluate(cleanFood, opt.cleanup); delete opt.cleanup; }   // gone before the next pass's Today and feed
     }
-    await ctx.unrouteAll({behavior:'ignoreErrors'});
-    await ctx.close();
-    await foodChatCtx?.close();
-    await foodRepeatCtx?.close();
+    for (const context of [ctx, foodChatCtx, foodRepeatCtx]) await closeCaptureContext(context);
   }
-  } finally { await browser.close(); }
+  } catch (error) {
+    console.error('Screenshot capture failed:', error);
+    throw error;
+  } finally {
+    try {
+      for (const context of browser.contexts()) await closeCaptureContext(context);
+    } finally { await browser.close(); }
+  }
   if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
   console.log('shots taken');
 })();
