@@ -44,7 +44,7 @@ const cases=[
 async function positions(p){return p.locator('#nt-body .chartbox svg').evaluateAll(ns=>ns.map(n=>{const r=n.getBoundingClientRect();return [r.x,r.y+scrollY,r.width,r.height];}));}
 async function unchanged(p,before,label){const after=await positions(p);assert.equal(after.length,before.length);after.forEach((r,i)=>r.forEach((v,j)=>assert(Math.abs(v-before[i][j])<1,label+' geometry')));}
 async function inspect(p,id,index,count,line=false,invalid=false){
- const svg=p.locator(id+' svg').first();await p.mouse.move(0,0);await svg.scrollIntoViewIfNeeded();
+ const svg=p.locator(id+' svg').first();await p.mouse.move(0,0);await svg.evaluate(n=>n.scrollIntoView({block:'center',inline:'nearest'}));
  const point=await svg.evaluate((n,{index,count,line,invalid})=>{const r=n.getBoundingClientRect(),W=n.viewBox.baseVal.width,L=Number(n.querySelector('.gl').getAttribute('x1')),R=W-Number(n.querySelector('.gl').getAttribute('x2'));
   const x=invalid?2:line?L+(W-L-R)*index/(count-1):L+(W-L-R)*(index+.5)/count;
   return {x:r.left+x/W*r.width,y:r.top+Math.min(40,r.height/2)};},{index,count,line,invalid});
