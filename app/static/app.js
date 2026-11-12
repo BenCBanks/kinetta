@@ -1526,10 +1526,46 @@ function wirePeriodColumns(svg, onSelect, owner) {
   owner?.addEventListener('pointerdown', e => { if (selected != null && !chart?.contains(e.target)) clear(); });
   describeSelection();
 }
+// Opt-in detail readouts: format the initial facts without moving a mark, and reserve
+// the dataset's wrapped height once at this draw's width so inspection cannot move plots.
+function initialChartReadout(ro, items, format, {initialIndex, hint}) {
+  if (!Number.isInteger(initialIndex) || initialIndex < 0 || initialIndex >= items.length) return null;
+  const values = items.map(format), cue = `<span class="readout-hint">${esc(hint)}</span>`;
+  let touched = false;
+  ro.style.overflowWrap = 'anywhere';
+  const paint = (index, inspect = true) => {
+    if (inspect) touched = true;
+    ro.innerHTML = values[index] + cue;
+    const label = $('.readout-hint', ro);
+    if (touched) { label.style.visibility = 'hidden'; label.setAttribute('aria-hidden', 'true'); }
+  };
+  const reserve = () => {
+    if (!ro.isConnected) return;
+    const width = ro.getBoundingClientRect().width;
+    if (!width) return;
+    const measure = document.createElement('div');
+    measure.setAttribute('aria-hidden', 'true');
+    Object.assign(measure.style, {position:'fixed', left:'0', top:'0', width:width+'px', height:'0', overflow:'hidden', visibility:'hidden', pointerEvents:'none'});
+    for (const value of values) {
+      const candidate = ro.cloneNode(false);
+      Object.assign(candidate.style, {position:'static', margin:'0', width:'100%', minHeight:'0'});
+      candidate.innerHTML = value + cue;
+      measure.append(candidate);
+    }
+    ro.parentElement.append(measure);
+    const height = Math.max(ro.getBoundingClientRect().height, ...[...measure.children].map(node => node.getBoundingClientRect().height));
+    measure.remove();
+    ro.style.minHeight = Math.ceil(height) + 'px';
+  };
+  paint(initialIndex, false);
+  if (document.fonts && document.fonts.status !== 'loaded') document.fonts.ready.then(reserve);
+  else reserve();
+  return paint;
+}
 // Columns of stacked bars. cols: [{label, tick, tickLabel, segs: [{k, v}], partial, padded}], keys: [{k, name, color}]
 // tick marks a column that may carry an x label; tickLabel is the text used when the label is shown (falls back to tick).
 // inlineSelection: every column is a button; the readout line above names the selected period (distance: one total per column).
-function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4, step: stepFn = axisStep, avg = null, avgLabel = 'avg', avgLineLabel = '', height = 180, distance = false, inlineSelection = false, readoutHint = '', ariaLabel = 'Bar chart', onSelectPeriod = null}) {
+function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4, step: stepFn = axisStep, avg = null, avgLabel = 'avg', avgLineLabel = '', height = 180, distance = false, inlineSelection = false, readoutHint = '', ariaLabel = 'Bar chart', onSelectPeriod = null, initialReadout = null}) {
   const tot = (c) => c.segs.reduce((s, x) => s + x.v, 0);
   // yTicks labelled gridlines at 0, step, 2·step…; the step functions round up, so the top line always clears the tallest bar.
   const maxValue = Math.max(...cols.map(tot), avg || 0) || 1, step = stepFn(maxValue, yTicks - 1), top = step * (yTicks - 1);
@@ -1620,12 +1656,17 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4
     wirePeriodColumns(svgEl, index => { showReadout(index); onSelectPeriod?.(index); }, box.closest('.card'));
     return;
   }
+  const formatReadout = (c) => {
+    const parts = keys.length > 1 ? c.segs.filter((x) => x.v).map((x) => `<span><i class="sw k-${x.k}"></i>${esc(keys.find((k) => k.k === x.k).name)} <b>${esc(fmt(x.v))}</b></span>`).join('') : '';
+    const value = initialReadout ? (c.readoutValue == null ? '–' : esc(fmt(c.readoutValue))) : esc(fmt(tot(c)));
+    return `<span>${esc(c.label)}${c.partial ? ' (so far)' : ''}</span><span><b>${value}</b>${initialReadout ? '' : ' total'}</span>${parts}`;
+  };
+  const present = initialReadout && initialChartReadout(ro, cols, formatReadout, initialReadout);
   const show = (e) => {
     const r = svgEl.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * W, i = Math.floor((px - padL) / bw);
     if (i < 0 || i >= n) return;
     const c = cols[i]; hl.setAttribute('x', (padL + i * bw).toFixed(1)); hl.setAttribute('visibility', 'visible');
-    const parts = keys.length > 1 ? c.segs.filter((x) => x.v).map((x) => `<span><i class="sw k-${x.k}"></i>${esc(keys.find((k) => k.k === x.k).name)} <b>${esc(fmt(x.v))}</b></span>`).join('') : '';
-    ro.innerHTML = `<span>${esc(c.label)}${c.partial ? ' (so far)' : ''}</span><span><b>${esc(fmt(tot(c)))}</b> total</span>${parts}`;
+    if (present) present(i); else ro.innerHTML = formatReadout(c);
   };
   svgEl.addEventListener('pointerdown', show); svgEl.addEventListener('pointermove', show);
 }
@@ -1756,7 +1797,7 @@ function trendLine(box, allPts, {fmt, yfmt = fmt, color = 's1', invert = false, 
 }
 
 // running total per day (can go below zero): line + zero line + touch readout. pts: [{label, y, sub}]
-function dayLine(box, pts, {fmt, height = 150, color = 'walk'}) {
+function dayLine(box, pts, {fmt, height = 150, color = 'walk', initialReadout = null}) {
   const W = chartWidth(box), H = height, padL = 44, padR = 6, padT = 8, padB = 18, n = pts.length;
   if (n < 2) { box.innerHTML = '<p class="muted small">A few more days and the chart appears.</p>'; return; }
   const ys = pts.map((p) => p.y), lo = Math.min(0, ...ys), hi = Math.max(0, ...ys), span = hi - lo || 1;
@@ -1768,17 +1809,21 @@ function dayLine(box, pts, {fmt, height = 150, color = 'walk'}) {
   g += `<line class="xh" y1="${padT}" y2="${H - padB}" visibility="hidden"/><circle class="xdot k-${color}" r="5" visibility="hidden"/>`;
   box.innerHTML = `<div class="readout num"><span></span></div><div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Running total">${g}</svg></div>`;
   const svgEl = $('svg', box), xh = $('.xh', box), dot = $('.xdot', box), ro = $('.readout', box);
+  const formatReadout = (p) => `<span>${esc(p.label)}</span><span>Total <b>${esc(fmt(p.y))}</b></span>${p.sub ? `<span>${p.sub}</span>` : ''}`;
+  const present = initialReadout && initialChartReadout(ro, pts, formatReadout, initialReadout);
   const show = (e) => {
-    const r = svgEl.getBoundingClientRect(), i = Math.max(0, Math.min(n - 1, Math.round(((e.clientX - r.left) / r.width * W - padL) / (W - padL - padR) * (n - 1))));
+    const r = svgEl.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * W;
+    if (initialReadout && (px < padL || px > W - padR)) return;
+    const i = Math.max(0, Math.min(n - 1, Math.round((px - padL) / (W - padL - padR) * (n - 1))));
     xh.setAttribute('x1', X(i)); xh.setAttribute('x2', X(i)); xh.setAttribute('visibility', 'visible');
     dot.setAttribute('cx', X(i)); dot.setAttribute('cy', Y(pts[i].y)); dot.setAttribute('visibility', 'visible');
-    ro.innerHTML = `<span>${esc(pts[i].label)}</span><span>Total <b>${esc(fmt(pts[i].y))}</b></span>${pts[i].sub ? `<span>${pts[i].sub}</span>` : ''}`;
+    if (present) present(i); else ro.innerHTML = formatReadout(pts[i]);
   };
   svgEl.addEventListener('pointerdown', show); svgEl.addEventListener('pointermove', show);
 }
 
 // Nutrition trends (2026-10-09): eaten (bars) vs burned (line) + goal (dashed), one kcal axis. cols: [{label, tick, eaten, burned, goal, partial}]
-function energyChart(box, cols, {height = 190, weight = null, burned = true, interactive = true, topPadding = 8} = {}) {   // weight: {fmt, axis} -> panel below with cols[i].weight / .trend
+function energyChart(box, cols, {height = 190, weight = null, burned = true, interactive = true, topPadding = 8, initialReadout = null} = {}) {   // weight: {fmt, axis} -> panel below with cols[i].weight / .trend
   const W = chartWidth(box), H = height, padL = 38, padR = 4, padT = Math.max(8, topPadding), padB = 18, n = cols.length;
   if (!cols.some((c) => c.eaten)) { box.innerHTML = '<p class="muted small">Log some food and this chart fills in.</p>'; return; }
   const max = Math.max(1, ...cols.flatMap((c) => [c.eaten || 0, burned ? c.burned || 0 : 0, c.goal || 0])), step = niceStep(max), top = Math.ceil(max / step) * step;
@@ -1810,11 +1855,15 @@ function energyChart(box, cols, {height = 190, weight = null, burned = true, int
     <div class="legend small"><span><i class="sw k-s1"></i>Eaten</span>${burned?'<span><i class="sw ln-sw k-run"></i>Burned</span>':''}<span><i class="sw dash"></i>Goal</span>${WH ? '<span><i class="sw ln-sw k-s3"></i>Weight trend</span><span><i class="sw wsw"></i>Weigh-ins</span>' : ''}</div>`;
   if(!interactive)return;
   const svgs = $$('svg', box), hls = $$('.hl', box), ro = $('.readout', box), f = (v) => (v == null ? '–' : Math.round(v).toLocaleString());
+  const formatReadout = (c) => {
+    const def = burned && c.eaten != null && c.burned && c.counted !== false ? c.burned - c.eaten : null;   // partly logged days: no deficit
+    return `<span>${esc(c.label)}${c.partial ? ' (so far)' : ''}</span><span>Eaten <b>${f(c.eaten)}</b></span>${burned?`<span>Burned <b>${f(c.burned)}</b></span>`:''}${c.goal ? `<span>Goal <b>${f(c.goal)}</b></span>` : ''}${def != null && !c.partial ? `<span>${def >= 0 ? 'Deficit' : 'Surplus'} <b>${f(Math.abs(def))}</b></span>` : ''}${c.counted === false && c.eaten != null && !c.partial ? '<span>Partly logged, not counted</span>' : ''}${weight && (c.weight != null || c.trend != null) ? `<span>Weight <b>${c.weight != null ? esc(weight.fmt(c.weight)) : '–'}</b>${c.trend != null ? ` (trend ${esc(weight.fmt(c.trend))})` : ''}</span>` : ''}${c.day ? `<a class="ro-edit" href="/food?d=${esc(c.day)}">Edit this day ›</a>` : ''}`;
+  };
+  const present = initialReadout && initialChartReadout(ro, cols, formatReadout, initialReadout);
   const show = (e) => {
     const r = e.currentTarget.getBoundingClientRect(), i = Math.floor(((e.clientX - r.left) / r.width * W - padL) / bw); if (i < 0 || i >= n) return;
     const c = cols[i]; hls.forEach((h) => { h.setAttribute('x', (padL + i * bw).toFixed(1)); h.setAttribute('visibility', 'visible'); });
-    const def = burned && c.eaten != null && c.burned && c.counted !== false ? c.burned - c.eaten : null;   // partly logged days: no deficit
-    ro.innerHTML = `<span>${esc(c.label)}${c.partial ? ' (so far)' : ''}</span><span>Eaten <b>${f(c.eaten)}</b></span>${burned?`<span>Burned <b>${f(c.burned)}</b></span>`:''}${c.goal ? `<span>Goal <b>${f(c.goal)}</b></span>` : ''}${def != null && !c.partial ? `<span>${def >= 0 ? 'Deficit' : 'Surplus'} <b>${f(Math.abs(def))}</b></span>` : ''}${c.counted === false && c.eaten != null && !c.partial ? '<span>Partly logged, not counted</span>' : ''}${weight && (c.weight != null || c.trend != null) ? `<span>Weight <b>${c.weight != null ? esc(weight.fmt(c.weight)) : '–'}</b>${c.trend != null ? ` (trend ${esc(weight.fmt(c.trend))})` : ''}</span>` : ''}${c.day ? `<a class="ro-edit" href="/food?d=${esc(c.day)}">Edit this day ›</a>` : ''}`;
+    if (present) present(i); else ro.innerHTML = formatReadout(c);
   };
   svgs.forEach((sv) => { sv.addEventListener('pointerdown', show); sv.addEventListener('pointermove', show); });
 }
