@@ -1,34 +1,50 @@
 # Index website copy
 
-Edit the text below each heading. Keep the section keys unchanged. Supports **bold**, *emphasis*, `code` and [links](https://example.com). Publishing rebuilds the page automatically.
+Edit the text below each heading. Keep the section keys unchanged.
 
 ## home-hero-kicker
 
-One app for your whole training life.
+One app for your whole training life
 
 ## your-workouts-and-your-food-in-one-app-1
 
-Train. Fuel. Feel the difference.
+Track workouts. Log food. See progress.
 
 ## runs-rides-lifting-and-meals-tracked-together-and-kept-2
 
-Your workouts, food and people—one clear picture.
+Log a meal, review a run, or check what you lifted last time. Keep your records together and use the parts that fit your day.
 
-## home-core-heading
+## home-workout-heading
 
-Training, food and friends, together.
+Review a completed workout
 
 ## home-workout-description
 
-Review your recorded activity, including routes, pace, splits and heart rate when available.
+Review recorded routes, distance, elapsed time and pace.
+
+## home-food-heading
+
+Keep a clear food log
 
 ## home-food-description
 
-Describe a meal, then review each food and amount before logging.
+Review daily totals and every food and amount in Breakfast.
+
+## home-progress-heading
+
+Make the week easy to revisit.
+
+## home-progress-description
+
+Put weekly running beside recent weeks, then look across months and years.
+
+## home-friends-heading
+
+Friends, on your terms.
 
 ## home-friends-description
 
-Follow friends’ shared workouts, photos, cheers and comments in one feed.
+View workouts your friends chose to share. Your own history stays useful on its own.
 
 ## home-trust-share
 
@@ -44,11 +60,11 @@ No ads.
 
 ## home-final-heading
 
-Make every week count.
+Start with the records that matter to you.
 
 ## training-training-food-food-friends-friends-compare-co-17
 
-[Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [Feature guide](guide) · [Privacy policy](privacy) · [Terms of Use](terms) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta)
+[Training](training) · [Food](food) · [Friends](friends) · [Features](compare) · [Feature guide](guide) · [Privacy policy](privacy) · [Terms of Use](terms) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta)
 
 ## free-for-personal-use-under-the-polyform-noncommercial-18
 

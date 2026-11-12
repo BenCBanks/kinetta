@@ -574,3 +574,67 @@ header.top .signup { display:flex;align-items:center; }
 .home-more .home-insight-support .frame img { width: 100%; height: 100%; object-fit: cover; }
 .home-more .home-insight-support h3 { color: var(--ink2); font-size: 14px; line-height: 1.25; text-align: left; }
 @media (max-width: 860px) { .home-more > .wrap { grid-template-columns: 1fr; gap: 14px; } .home-more .home-insight-support { grid-template-columns: 1fr; gap: 8px; width: auto; margin: 0; padding: 0; overflow: visible; } .home-more .home-insight-support figure { grid-template-columns: 56px minmax(0,1fr); } .home-more .home-insight-support .frame { width: 56px; height: 56px; } }
+
+/* The product tour leads with readable recorded examples and open sections. */
+.website-tour .tour-hero { padding: 48px 0 36px; text-align: center; }
+.website-tour .tour-hero h1 { font-size: clamp(40px, 5.2vw, 64px); max-width: 16ch; line-height: 1.04; margin: 14px auto 18px; letter-spacing: -.04em; }
+.website-tour .tour-hero .lede { max-width: 55ch; margin: 0 auto 22px; }
+.website-tour .lede { font-size: clamp(17px, 1.8vw, 21px); line-height: 1.5; color: var(--ink2); }
+.tour-access { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 22px; margin-top: 8px; font-size: 14px; }
+.tour-access a, .tour-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--brand); text-underline-offset: .2em; }
+.tour-access-note { color: var(--ink3); font-size: 13px; margin-top: 4px; }
+.tour-pair { padding-bottom: 56px; }
+.tour-pair > .wrap { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; align-items: start; }
+.website-tour figure { margin: 0; min-width: 0; }
+.tour-image { max-width: 500px; margin-inline: auto; }
+.tour-image img, .tour-workout img { width: 100%; height: auto; border-radius: 16px; }
+.tour-workout { max-width: 500px; margin-inline: auto; }
+.draft-asset { padding: 12px 0; font-size: 14px; color: var(--ink3); }
+.website-tour figcaption { margin-top: 12px; color: var(--ink2); font-size: 14px; line-height: 1.45; }
+.website-tour figcaption h2 { color: var(--ink); font-size: 22px; margin-bottom: 5px; }
+.website-tour h2 { font-size: clamp(28px, 3.2vw, 40px); }
+.tour-band { border-top: 1px solid var(--line); padding-block: 56px; }
+.tour-split { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); align-items: center; gap: 48px; }
+.tour-split h2, .tour-row h2 { margin: 12px 0 16px; }
+.tour-trust { border-block: 1px solid var(--line); padding-block: 18px; }
+.tour-trust ul { padding: 0; margin: 0; list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 32px; font-size: 14px; }
+.tour-final { padding-block: 48px 64px; text-align: center; }
+.tour-final h2 { margin-bottom: 22px; }
+.tour-row { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); align-items: center; gap: 48px; padding-block: 48px; border-bottom: 1px solid var(--line); }
+.tour-row:nth-child(even) > div { order: 2; }
+.tour-row:nth-child(even) > figure { order: 1; }
+.tour-features .tour-row:last-child { border-bottom: 0; }
+.tour-guide-hero { padding-block: 40px; border-bottom: 1px solid var(--line); }
+.tour-guide-hero h1 { font-size: clamp(40px, 5vw, 58px); margin: 12px 0 16px; }
+.tour-guide-hero .lede { max-width: 54ch; }
+.tour-task-links { padding-left: 24px; margin-block: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 32px; }
+.tour-task-links a { display: inline-flex; align-items: center; min-height: 44px; color: var(--brand); font-weight: 600; }
+.guide-task-details { max-width: 860px; }
+.guide-task-detail { padding-block: 32px; border-bottom: 1px solid var(--line); scroll-margin-top: 170px; }
+.guide-task-detail h2 { font-size: 26px; margin-bottom: 14px; }
+.guide-task-detail p + p { margin-top: 16px; }
+.guide-task-detail p { color: var(--ink2); }
+.tour-achievements { max-width: 350px; margin-top: 22px !important; }
+.tour-achievements img { width: 100%; height: auto; }
+.website-tour .feature-guide-public { border-top: 1px solid var(--line); }
+.website-tour #feature-catalog { grid-template-columns: 1fr; gap: 0; }
+.website-tour .public-guide-card { padding: 24px 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; }
+.website-tour .public-guide-card h2 { font-size: 24px; }
+@media (max-width: 720px) {
+ .website-tour .tour-hero { padding-top: 34px; }
+ .website-tour .tour-hero h1 { font-size: 40px; max-width: 14ch; }
+ .tour-pair > .wrap, .tour-split, .tour-row { grid-template-columns: 1fr; gap: 24px; }
+ .tour-pair > .wrap { gap: 44px; }
+ .tour-band { padding-block: 44px; }
+ .tour-row { padding-block: 36px; gap: 20px; }
+ .tour-row:nth-child(even) > div, .tour-row:nth-child(even) > figure { order: initial; }
+ .tour-trust ul { justify-content: flex-start; }
+ .tour-task-links { grid-template-columns: 1fr; gap: 4px; }
+ .tour-final { padding-block: 44px 52px; }
+ .website-tour .pagehead { padding-top: 36px; }
+}
+
+.guide-categories { display: flex; flex-wrap: wrap; gap: 4px 22px; margin-top: 24px; }
+.guide-categories a { display: inline-flex; align-items: center; min-height: 44px; color: var(--brand); }
+
+.website-tour .combo > .half { padding: 0; background: transparent; border: 0; border-radius: 0; }

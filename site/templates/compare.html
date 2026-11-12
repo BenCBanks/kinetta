@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Compare · Kinetta</title>
+<title>Features · Kinetta</title>
 <meta name="description" content="Explore Kinetta’s training and food tools together: workout history, plans, recorded routes, recipes, calories and macros.">
-<meta property="og:title" content="Compare · Kinetta">
+<meta property="og:title" content="Features · Kinetta">
 <meta property="og:description" content="Explore Kinetta’s training and food tools together: workout history, plans, recorded routes, recipes, calories and macros.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Kinetta">
@@ -23,9 +23,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="assets/theme.css?v=9">
-<link rel="stylesheet" href="assets/site.css?v=21">
+<link rel="stylesheet" href="assets/site.css?v=25">
 </head>
-<body>
+<body class="website-tour">
 <a class="skip-link" href="#main">Skip to content</a>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -49,11 +49,17 @@
 <main id="main">
   <section class="pagehead">
     <div class="wrap">
-      <span class="eyebrow">Compare</span>
+      <span class="eyebrow">Features</span>
       <h1>{{copy:the-premium-features-free-1}}</h1>
       <p class="lede">{{copy:others-charge-160-a-year-for-these-kinetta-doesn-t-2}}</p>
     </div>
   </section>
+  <section class="tour-features"><div class="wrap"><article class="tour-row"><div><span class="eyebrow">Training</span><h2>{{copy:tour-training-heading}}</h2><p class="lede">{{copy:tour-training-description}}</p><a class="tour-link" href="training">Explore Training →</a></div><figure><div class="tour-workout"><picture><source srcset="assets/tour/activity-result-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/tour/activity-result-light.png" alt="Fictional Morning Run summary: distance 3.0 miles, elapsed time 25 minutes and pace 8:18 per mile." width="696" height="332"></picture><picture><source srcset="assets/tour/activity-map-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/tour/activity-map-light.png" alt="The same Morning Run route through streets and a park, with OpenStreetMap contributors and Protomaps attribution." width="786" height="786"></picture></div><figcaption>A route belongs to the activity that recorded it.</figcaption></figure></article>
+<article class="tour-row"><div><span class="eyebrow">Lifting</span><h2>{{copy:tour-lifting-heading}}</h2><p class="lede">{{copy:tour-lifting-description}}</p><a class="tour-link" href="guide#task-lifting">Learn about lifting →</a></div><figure><div class="tour-image"><picture><source srcset="assets/tour/lifting-session-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/lifting-session-light.webp" alt="Fictional squat session showing previous load and reps beside completed sets, including 205 pounds for five reps." width="698" height="800" loading="lazy"></picture></div><figcaption>Squat · completed sets beside previous load and reps.</figcaption></figure></article>
+<article class="tour-row"><div><span class="eyebrow">Food</span><h2>{{copy:tour-food-heading}}</h2><p class="lede">{{copy:tour-food-description}}</p><a class="tour-link" href="food">Explore Food →</a></div><figure><div class="tour-image"><picture><source srcset="assets/tour/food-day-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/food-day-light.webp" alt="Fictional logged food day showing daily totals and a complete Breakfast list of foods and amounts." width="730" height="915" fetchpriority="high"></picture></div><figcaption>Daily totals above an itemized Breakfast.</figcaption></figure></article>
+<article class="tour-row"><div><span class="eyebrow">Progress</span><h2>{{copy:tour-progress-heading}}</h2><p class="lede">{{copy:tour-progress-description}}</p><a class="tour-link" href="guide#task-week">Explore Progress →</a></div><figure><div class="tour-image"><picture><source srcset="assets/tour/progress-week-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/progress-week-light.webp" alt="Fictional weekly running totals and dated distance history chart, with Week, Month and Year views." width="702" height="880" loading="lazy"></picture></div><figcaption>Weekly running distance, with month and year views.</figcaption></figure></article>
+<article class="tour-row"><div><span class="eyebrow">Optional sharing</span><h2>{{copy:tour-sharing-heading}}</h2><p class="lede">{{copy:tour-sharing-description}}</p><a class="tour-link" href="friends">Explore Friends →</a></div><figure><div class="tour-image"><picture><source srcset="assets/tour/friends-route-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/friends-route-light.webp" alt="Fictional friend-shared Night Ride with its recorded route and ride details." width="700" height="760" loading="lazy"></picture></div><figcaption>A shared Night Ride with its recorded details.</figcaption></figure></article></div></section>
+  <section class="band" aria-label="Feature reference"><div class="wrap"><h2>Feature reference</h2></div></section>
   <section class="band" aria-label="Feature by feature">
     <div class="wrap">
       <div class="compare first solo">
@@ -94,7 +100,7 @@
   <section class="band next" aria-label="Next">
     <div class="wrap">
       <a class="on" href="privacy"><small>Next: Privacy</small><span>Privacy and sharing ›</span></a>
-      <a class="btn solid" href="https://login.kinetta.app/signup">Join beta</a>
+      <a class="btn solid" href="https://login.kinetta.app/signup">Get started</a>
     </div>
   </section>
 </main>
