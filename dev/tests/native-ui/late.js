@@ -44,6 +44,16 @@
     });
     return visible.length>0&&visible.every(c=>c.classList.contains('leaflet-tile-loaded'));
   }
+  async function waitForStorePaint(){
+    const mapStage=['activity','header-track','header-activity'].includes(cfg.stage);
+    for(let n=0;n<200&&!storeReady();n++){
+      if(mapStage&&!cfg.fixtureClockAdvanceAttempted&&(cfg.stage!=='activity'||document.querySelector('[data-dt="charts"][aria-selected="true"]'))&&storeMapTilesLoaded()){
+        cfg.fixtureClockAdvanceAttempted=true;cfg.fixtureClockAdvanceApplied=cfg.advanceFixtureClock?.(250)===true;
+      }
+      if(!storeReady())await new Promise(ok=>setTimeout(ok,100));
+    }
+    if(!storeReady())throw Error('Store scene did not finish painting: '+cfg.stage);
+  }
   function storeActivityDiagnostics(){
     const box=e=>{if(!e)return null;const r=e.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};
     const visibility=e=>{if(!e)return false;const s=getComputedStyle(e),r=e.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)>0&&r.width>0&&r.height>0&&r.right>0&&r.bottom>0&&r.left<innerWidth&&r.top<innerHeight;};
@@ -84,16 +94,7 @@
     if(cfg.stage==='review')finishDish(cfg.dish);
     if(cfg.stage==='track-map')document.querySelector('#track-map-wrap .map-full')?.click();
     await document.fonts.ready;await new Promise(ok=>setTimeout(ok,2000));
-    if(cfg.store){
-      const mapStage=['activity','header-track','header-activity'].includes(cfg.stage);let advanceAttempted=false;
-      for(let n=0;n<200&&!storeReady();n++){
-        if(mapStage&&!advanceAttempted&&(cfg.stage!=='activity'||document.querySelector('[data-dt="charts"][aria-selected="true"]'))&&storeMapTilesLoaded()){
-          advanceAttempted=true;cfg.fixtureClockAdvanceAttempted=true;cfg.fixtureClockAdvanceApplied=cfg.advanceFixtureClock?.(250)===true;
-        }
-        if(!storeReady())await new Promise(ok=>setTimeout(ok,100));
-      }
-      if(!storeReady())throw Error('Store scene did not finish painting: '+cfg.stage);
-    }
+    if(cfg.store)await waitForStorePaint();
     if(cfg.activityFeed){let ready=false;for(let n=0;n<150;n++){ready=!!document.querySelector('#ff-list .post[data-href="/activity/1"]')&&!!document.querySelector('#ff-list .post[data-href="/activity/friends/2"]');if(ready)break;await new Promise(ok=>setTimeout(ok,100));}if(!ready)throw Error('Fictional own and friend Activity cards did not finish rendering');}
     // Route startup restores scroll on its next frame; exercise scrolling only once it has settled.
     if(cfg.stage==='activity-sticky'){document.querySelector('.dtabs').scrollIntoView({block:'start'});for(let n=0;n<150;n++){if(!document.querySelector('.detail-sticky').hidden&&document.querySelector('.detail-map-hero').getBoundingClientRect().bottom<=0)break;await new Promise(ok=>setTimeout(ok,100));}}
@@ -109,6 +110,8 @@
     probe.remove();if(Native.on&&(safeTop<20||stable<8))throw Error('Native safe-area layout did not settle');
     // Exercise the real read-only UIKit bridge; a silent old/missing plugin must fail this check.
     for(let n=0;n<50&&!document.documentElement.classList.contains('native-display-ready');n++)await new Promise(ok=>setTimeout(ok,100));
+    // Layout/display settling can replace tiles after the early paint check.
+    if(cfg.store)await waitForStorePaint();
     const nav=document.querySelector('nav.tabs'),navStyle=getComputedStyle(nav),navigation={
       ready:document.documentElement.classList.contains('native-display-ready'),visible:navStyle.display!=='none',box:rect('nav.tabs'),
       items:[...nav.querySelectorAll('a')].map(a=>({text:a.querySelector('span').textContent,selected:a.getAttribute('aria-current')==='page',box:(()=>{const r=a.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})(),label:(()=>{const r=a.querySelector('span').getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})()}))};
