@@ -711,7 +711,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   await page.locator('[data-achievement-show-more]').click();assert.equal(await page.locator('.profile-achievement-tail-levels li').count(),initialTailRows+4,'Show more appends four levels');
 
   workoutValue=1120;journeyValue=6099414;await setUnits('imperial');await page.goto(base+'/me/achievements/lifted');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
-  assert.equal(await page.locator('.profile-achievement-history-copy .profile-achievement-current').innerText(),'Level 7 · Statue of Liberty');assert.equal(await page.locator('.profile-achievement-history-copy .profile-achievement-current-value').innerText(),'661,387 lb');
+  assert.equal(await page.locator('.profile-achievement-history-copy .profile-achievement-current').innerText(),'Level 6 · Statue of Liberty');assert.equal(await page.locator('.profile-achievement-history-copy .profile-achievement-current-value').innerText(),'661,387 lb');
   await expandAchievementLevels(page);
   const liftedLevels=page.locator('.profile-achievement-named-levels');assert.equal(await liftedLevels.locator('li').count(),catalog.tracks.lifted.levels.length,'the named ladder includes every level without rendering an endless tail');
   assert.equal(await liftedLevels.locator('li[data-level="7"] .profile-achievement-level-title b').innerText(),'Level 7 · 875,000 lb','Lifted uses pounds in the existing miles preference');
