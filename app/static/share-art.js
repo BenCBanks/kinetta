@@ -211,7 +211,7 @@ const ShareSheet=(()=>{
       };
       saveButton.onclick=async()=>{
         const current=cache.get(selected),item=items[selected];if(!current||busy||!live())return;busy=true;buttons();
-        try{if(!save(current.blob,current.filename)){status.textContent='This device cannot save the picture here. Use Share instead.';return;}status.textContent='Picture saved.';await item.afterSave?.({blob:current.blob,values:{...values[selected]},close,live});}
+        try{if(item.beforeSave&&await item.beforeSave({blob:current.blob,filename:current.filename,link:current.link,values:{...values[selected]},live,close,refresh:()=>load(selected,true),setStatus:value=>{if(live())status.textContent=value;}})===false)return;if(!save(current.blob,current.filename)){status.textContent='This device cannot save the picture here. Use Share instead.';return;}status.textContent='Picture saved.';await item.afterSave?.({blob:current.blob,values:{...values[selected]},close,live});}
         catch(error){if(live())status.textContent=error.message||'Couldn’t save this picture.';}
         finally{busy=false;if(live())buttons();}
       };
