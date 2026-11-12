@@ -703,7 +703,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-medallion').getAttribute('data-level'),'9','the canonical repeat ladder starts after its eight named levels');
   assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-current').innerText(),'Level 9 · Old-growth forest ×2');assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-current-value').innerText(),'4,500 workouts');
   assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-multiple').innerText(),'×2','the medal shows the tail multiplier badge');
-  assert.equal(await page.locator('.profile-achievement-tail-levels li[data-level="9"] .profile-achievement-level-copy>small').innerText(),'Old-growth forest ×2');
+  assert.equal(await page.locator('.profile-achievement-tail-levels li[data-level="9"] .profile-achievement-level-copy>small').innerText(),'Old-growth forest ×2 · Current');
   assert.equal(await page.locator('.profile-achievement-tail-levels li[data-level="10"] .profile-achievement-level-copy>small').innerText(),'Old-growth forest ×3');
   await expandAchievementLevels(page);
   const initialTailRows=await page.locator('.profile-achievement-tail-levels li').count();assert.equal(initialTailRows,4,'the open tail starts at its first level and shows earned rows before future rows');
