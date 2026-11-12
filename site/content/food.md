@@ -8,11 +8,11 @@ Log food in a few words.
 
 ## food-intro
 
-See calories and macros, with your meals and recipes in one place.
+Search foods or log them manually; keep meals, recipes, calories and macros together.
 
 ## food-quick-description
 
-Describe a meal, check the foods and portions, then add it to your log.
+Saved foods are checked first. New AI descriptions require account availability and opt-in; review matches and portions before logging. You can also search foods or add them manually.
 
 ## food-yesterday-description
 
@@ -36,7 +36,7 @@ Scan a packaged food’s barcode to find its nutrition details.
 
 ## food-also-photo
 
-Photograph a meal, then review estimated portions and nutrition before saving.
+When photo estimates are available for your account and you opt in, photograph a meal and review estimated portions and nutrition before saving.
 
 ## food-also-trends
 
