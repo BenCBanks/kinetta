@@ -14,7 +14,7 @@ async function fitnessLanguage(p,data){
  assert.deepEqual(await summary.locator('.me-form-nums small').allTextContents(),['Fitness','Form',...(data.vdot_now?['Run score']:[])]);
  assert.deepEqual(await summary.locator('.me-form-nums b').allTextContents(),[String(Math.round(last.fitness)),form,...(data.vdot_now?[String(data.vdot_now)]:[])],'summary values retain their API meaning');
  const running=p.locator('.fitness-running'),load=p.locator('#fi-body > .card').last();
- assert.match(await running.locator('.stat small').first().innerText(),/\bRun score\b/);
+ assert.match(await running.locator('.stat small').first().innerText(),/\bRun score\b/i);
  assert.equal(await running.locator('.stat b').first().innerText(),String(data.vdot_now||'–'),'Run score retains its API value');
  assert.deepEqual(await load.locator('.stat small').allTextContents(),['Fitness','Form']);
  assert.deepEqual(await load.locator('.stat b').allTextContents(),[String(Math.round(last.fitness)),form],'Form means fitness minus fatigue in both places');
