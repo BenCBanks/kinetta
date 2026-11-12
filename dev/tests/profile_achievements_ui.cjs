@@ -661,9 +661,11 @@ module.exports=async({browser,storageState,base,shots})=>{
   const fixedMarathon=page.locator('.profile-achievement-named-levels li[data-level="1"]');
   assert.equal(await fixedMarathon.locator('b').innerText(),'Level 1 · 42.2 km','the race threshold uses at most one decimal in metric mode');
   assert.equal(await fixedMarathon.locator('small').innerText(),'Marathon','the fixed race name stays clear');
+  assert.equal(await namedJourneyLevels.locator('li[data-level="2"] b').innerText(),'Level 2 · 70.3 mi','a mile-based milestone stays in miles in metric mode');
   await page.goto(base+'/me/achievements/sport%3Arun');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();await expandAchievementLevels(page);
   assert.equal(await page.locator('.profile-achievement-named-levels li[data-level="2"] .profile-achievement-level-title b').innerText(),'Level 2 · 10 km','the canonical Run ladder uses its 10K second level');
   assert.equal(await page.locator('.profile-achievement-named-levels li[data-level="2"] .profile-achievement-level-copy>small').innerText(),'10K','the canonical Run level keeps its requested name');
+  assert.equal(await page.locator('.profile-achievement-named-levels li[data-level="5"] b').innerText(),'Level 5 · 50 mi','the 50-mile milestone has no converted kilometre label');
   await setUnits('imperial');
   await page.goto(base+'/me');await until(page,()=>App.pageReady&&App.me?.units==='imperial','imperial profile before checking the canonical Run level name');
   legacyRunAward={rank:0,name:'First run',threshold:1,day:'2024-03-05',activity_id:90210,date_source:'legacy',legacy:true};
@@ -674,9 +676,9 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.equal(await legacyRunRows.first().locator('time').getAttribute('datetime'),'2024-03-05','the saved legacy award date is preserved');
   assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-current').innerText(),'Level 4 · Marathon','a legacy rank-zero award does not change the canonical Run level');
   const runningLevels=page.locator('.profile-achievement-named-levels');
-  for(const [level,name,distance] of [[1,'5K','3.1 mi'],[2,'10K','6.2 mi'],[3,'Half marathon','13.1 mi'],[4,'Marathon','26.2 mi']]){
+  for(const [level,name,distance] of [[1,'5K','5 km'],[2,'10K','10 km'],[3,'Half marathon','21.1 km'],[4,'Marathon','42.2 km']]){
    assert.equal(await runningLevels.locator(`li[data-level="${level}"] .profile-achievement-level-copy>small`).innerText(),name+(level===4?' · Current':''),`${name} keeps its race name in miles mode`);
-   assert.equal(await runningLevels.locator(`li[data-level="${level}"] .profile-achievement-level-title b`).innerText(),`Level ${level} · ${distance}`,`${name} shows its converted distance in miles`);
+   assert.equal(await runningLevels.locator(`li[data-level="${level}"] .profile-achievement-level-title b`).innerText(),`Level ${level} · ${distance}`,`${name} keeps its kilometre-based milestone distance`);
   }
   assert.equal(await page.locator('.profile-achievement-current').innerText(),'Level 4 · Marathon');assert.equal(await page.locator('.profile-achievement-current-value').innerText(),'Total distance run\n49.7 mi');assert.equal(await page.locator('.profile-achievement-current-value-context').innerText(),'Total distance run');
   await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='track');await screenshot(page,shots,`achievement-run-levels-390-${theme}`,{fullPage:true});await page.evaluate(()=>delete document.documentElement.dataset.achievementEvidence);
@@ -688,7 +690,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   legacyRunAward=null;
   await page.goto(base+'/me/achievements/sport%3Aride');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();await expandAchievementLevels(page);
   assert.equal(await page.locator('.profile-achievement-named-levels li[data-level="3"] .profile-achievement-level-copy>small').innerText(),'Metric century · Current');
-  assert.equal(await page.locator('.profile-achievement-named-levels li[data-level="3"] .profile-achievement-level-title b').innerText(),'Level 3 · 62.1 mi','the Metric century value follows miles');
+  assert.equal(await page.locator('.profile-achievement-named-levels li[data-level="3"] .profile-achievement-level-title b').innerText(),'Level 3 · 100 km','the Metric century keeps its kilometre-based milestone distance');
 
   await page.goto(base+'/me/achievements/sport%3Aswim');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();await expandAchievementLevels(page);
   assert.equal(await page.locator('.profile-achievement-named-levels li[data-level="2"] .profile-achievement-level-copy>small').innerText(),'Ironman swim · Current');

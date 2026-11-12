@@ -109,10 +109,9 @@ const ProfileLayout=(()=>{
   function achievementTierAt(code,level){
     const def=achievementCatalog?.tracks?.[code],n=Math.max(1,Math.floor(Number(level)||1));if(!def)return null;
     if(!Array.isArray(def.levels)||!def.levels.length)return null;
-    const displayName=tier=>App.me?.units==='metric'&&tier?.name==='First mile'&&tier?.display==='mi'?'First 1.6 km':tier?.name;
-    if(n<=def.levels.length)return {...def.levels[n-1],name:displayName(def.levels[n-1]),level:n,threshold:achievementCanonicalThreshold(def.levels[n-1]),multiple:1};
+    if(n<=def.levels.length)return {...def.levels[n-1],level:n,threshold:achievementCanonicalThreshold(def.levels[n-1]),multiple:1};
     const last=def.levels.at(-1),multiple=n-def.levels.length+1;
-    return {...last,level:n,name:`${displayName(last)} ×${multiple}`,threshold:achievementCanonicalThreshold(last)*multiple,
+    return {...last,level:n,name:`${last.name} ×${multiple}`,threshold:achievementCanonicalThreshold(last)*multiple,
       canonical_value:Number(last.canonical_value)*multiple,display_value:Number(last.display_value)*multiple,multiple};
   }
   function achievementLevel(track){
@@ -199,12 +198,11 @@ const ProfileLayout=(()=>{
   }
   function achievementThresholdText(track,tier){
     const raw=Number(tier?.canonical_value)||0,hint=Number(tier?.display_value),canonicalUnit=tier?.canonical_unit||'',code=track.code,imperial=App.me?.units!=='metric';
-    const exact=n=>Number.isFinite(n)?n.toLocaleString(undefined,{maximumFractionDigits:1}):'—';
     if(tier?.trigger==='first_activity')return 'First activity';
     if(['journey','sport:run','sport:ride','sport:walk-hike','sport:swim'].includes(code)){
       const km=canonicalUnit==='km'?raw:raw/1000;
-      const value=imperial?(tier?.display==='mi'&&Number.isFinite(hint)?hint:km*1000/1609.344):km,unit=imperial?'mi':'km';
-      return `${tier?.display==='km-fixed'&&!imperial?exact(value):achievementNumber(value)} ${unit}`;
+      const metric=tier?.display==='km-fixed',value=metric?km:Number.isFinite(hint)?hint:km*1000/1609.344;
+      return `${achievementNumber(value)} ${metric?'km':'mi'}`;
     }
     if(code==='climbing')return `${achievementNumber(imperial&&Number.isFinite(hint)?hint:raw)} ${imperial?'ft':'m'}`;
     if(code==='lifted')return `${achievementNumber(imperial&&Number.isFinite(hint)?hint:raw)} ${imperial?'lb':'kg'}`;
@@ -217,7 +215,7 @@ const ProfileLayout=(()=>{
     if(tier?.trigger==='first_activity')return 'First activity to go';
     const raw=Math.max(0,Number(tier?.threshold)-achievementRawValue(track)),imperial=App.me?.units!=='metric',code=track.code;
     let value=raw,unit=achievementDefinition(track)?.levels?.[0]?.canonical_unit||'';
-    if(['journey','sport:run','sport:ride','sport:walk-hike','sport:swim'].includes(code)){value=raw/(imperial?1609.344:1000);unit=imperial?'mi':'km';}
+    if(['journey','sport:run','sport:ride','sport:walk-hike','sport:swim'].includes(code)){const metric=tier?.display==='km-fixed';value=raw/(metric?1000:1609.344);unit=metric?'km':'mi';}
     else if(code==='climbing'){value=raw*(imperial?3.28084:1);unit=imperial?'ft':'m';}
     else if(code==='lifted'){value=raw*(imperial?2.2046226218:1);unit=imperial?'lb':'kg';}
     else if(code==='active_time'){value=raw/3600;unit='hours';}

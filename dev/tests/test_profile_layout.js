@@ -2,7 +2,9 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const c={App:{me:{login:'zz_test_layout'}},profileHref:p=>'/people/'+p.login,structuredClone,esc:s=>String(s).replaceAll('<','&lt;').replaceAll('>','&gt;'),stat:(key,value)=>`[${key}:${value}]`,U:{dist:n=>n/1000,du:()=> 'km'},dur:n=>n+'s',fdate:s=>s,SPORT_NAMES:{run:'Run',ride:'Ride'},postCard:a=>`<article>${a.name}</article>`};
-vm.createContext(c);vm.runInContext(fs.readFileSync('app/static/profile.js','utf8')+'\nglobalThis.layout=ProfileLayout;',c);
+const source=fs.readFileSync('app/static/profile.js','utf8'),testSource=source.replace('  return {defaults,normalize,', '  globalThis.achievementUnits={catalog:value=>achievementCatalog=value,tier:achievementTierAt,threshold:achievementThresholdText,remaining:achievementRemainingText};\n  return {defaults,normalize,');
+assert.notEqual(testSource,source,'the profile presentation test hook is installed');
+vm.createContext(c);vm.runInContext(testSource+'\nglobalThis.layout=ProfileLayout;',c);
 const r={overview:{activities:5,distance_m:10000,time_s:3600,active_days:3},recent:{start:'2026-10-01',end:'2026-10-30',current:{activities:2,distance_m:5000,time_s:1800,active_days:2},previous:{activities:1}},sports:[{sport:'run',activities:3,distance_m:7000},{sport:'ride',activities:2,distance_m:3000}],items:[{name:'Shared fixture'}],weight_kg:'PRIVATE',food:'PRIVATE',kit:'PRIVATE'};
 let html=c.layout.content(r,{sections:['sports','activities','totals'],stats:['active_days'],sports:['ride']});
 assert(html.indexOf('<h2>Sports')<html.indexOf('Shared activities'));assert(html.indexOf('Shared activities')<html.indexOf('All-time shared progress'));
@@ -15,3 +17,24 @@ assert.deepEqual(single({sections:['recent','sports','totals','mileage']}),['tot
 assert.deepEqual(single({sections:['recent','sports']}),['recent','sports'],'a Recent-only choice survives');
 assert.deepEqual(single({sections:[]}),[],'hidden numbers remain hidden');assert.deepEqual(single({}),['totals','mileage','sports','activities'],'old defaults render All time without changing stored data');
 console.log('Profile presentation: section order/visibility, selected stats/sports, no private or unknown fields, empty profiles and upgraded defaults PASS');
+
+// Milestone distances follow the named tier's unit, regardless of general app units.
+const catalog=JSON.parse(fs.readFileSync('app/static/profile.achievement-levels.json','utf8'));
+c.achievementUnits.catalog(catalog);
+for(const units of ['metric','imperial']){
+ c.App.me.units=units;
+ for(const code of ['journey','sport:run','sport:ride','sport:walk-hike','sport:swim']){
+  const track={code,value:0},definition=catalog.tracks[code];
+  for(let rank=1;rank<=definition.levels.length+2;rank++){
+   const tier=c.achievementUnits.tier(code,rank),unit=tier.display==='km-fixed'?'km':'mi';
+   assert.equal(c.achievementUnits.threshold(track,tier).split(' ').at(-1),unit,`${units}: ${code} ${tier.name} uses its milestone unit`);
+   assert.equal(c.achievementUnits.remaining(track,tier).split(' ').slice(-2).join(' '),unit+' left',`${units}: remaining distance uses the same unit`);
+  }
+ }
+ for(const [code,rank,name,label] of [['sport:run',1,'5K','5 km'],['sport:run',5,'50-mile ultra','50 mi'],['sport:ride',3,'Metric century','100 km'],['sport:ride',4,'Century','100 mi'],['sport:swim',1,'First mile','1 mi'],['journey',2,'Ironman 70.3','70.3 mi'],['sport:run',10,'1,000 miles ×2','2,000 mi']]){
+  const tier=c.achievementUnits.tier(code,rank);
+  assert.equal(tier.name,name,`${units}: milestone names are stable`);
+  assert.equal(c.achievementUnits.threshold({code},tier),label,`${units}: ${name} has one distance label`);
+ }
+}
+console.log('Achievement milestone labels: metric races, mile-based tiers, stable names, remaining distances and repeats PASS');
