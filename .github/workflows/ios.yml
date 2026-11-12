@@ -167,8 +167,8 @@ jobs:
       fail-fast: false
       matrix:
         device: ${{ fromJSON(github.event_name == 'pull_request' && github.event.pull_request.draft && '["pro"]' || '["compact","pro"]') }}
-    # Native iOS Simulator execution uses Apple Silicon; Intel remains the compile/archive runner.
-    runs-on: macos-26
+    # Probe only: measure unchanged native checks on the Intel runner.
+    runs-on: macos-26-intel
     timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
@@ -181,6 +181,24 @@ jobs:
           path: ${{ runner.temp }}/simulator
       - name: Unpack the unsigned universal Simulator app
         run: unzip -q "$RUNNER_TEMP/simulator/Kinetta-simulator.zip" -d "$RUNNER_TEMP/simulator"
+      - name: Report Simulator executable slices and runtime inventory (read-only probe)
+        run: |
+          uname -m
+          xcodebuild -version
+          xcrun --sdk iphonesimulator --show-sdk-version
+          python3 - <<'PYCODE'
+          import os, plistlib, subprocess
+          from pathlib import Path
+          app = Path(os.environ['RUNNER_TEMP']) / 'simulator/App.app'
+          for bundle in [app, *sorted((app / 'Frameworks').glob('*.framework'))]:
+              with (bundle / 'Info.plist').open('rb') as source:
+                  executable = plistlib.load(source)['CFBundleExecutable']
+              print('Simulator executable: ' + bundle.name + '/' + executable, flush=True)
+              subprocess.run(['lipo', '-archs', str(bundle / executable)], check=True)
+          PYCODE
+          xcrun simctl list runtimes -j
+          xcrun simctl list devicetypes -j
+          xcrun simctl list devices available -j
       - name: Check native WebView layout with fictional records
         if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
         timeout-minutes: 23
@@ -201,7 +219,7 @@ jobs:
       fail-fast: false
       matrix:
         device: [pro]
-    runs-on: macos-26
+    runs-on: macos-26-intel
     timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
@@ -214,6 +232,24 @@ jobs:
           path: ${{ runner.temp }}/simulator
       - name: Unpack the unsigned universal Simulator app
         run: unzip -q "$RUNNER_TEMP/simulator/Kinetta-simulator.zip" -d "$RUNNER_TEMP/simulator"
+      - name: Report Simulator executable slices and runtime inventory (read-only probe)
+        run: |
+          uname -m
+          xcodebuild -version
+          xcrun --sdk iphonesimulator --show-sdk-version
+          python3 - <<'PYCODE'
+          import os, plistlib, subprocess
+          from pathlib import Path
+          app = Path(os.environ['RUNNER_TEMP']) / 'simulator/App.app'
+          for bundle in [app, *sorted((app / 'Frameworks').glob('*.framework'))]:
+              with (bundle / 'Info.plist').open('rb') as source:
+                  executable = plistlib.load(source)['CFBundleExecutable']
+              print('Simulator executable: ' + bundle.name + '/' + executable, flush=True)
+              subprocess.run(['lipo', '-archs', str(bundle / executable)], check=True)
+          PYCODE
+          xcrun simctl list runtimes -j
+          xcrun simctl list devicetypes -j
+          xcrun simctl list devices available -j
       - name: Capture6.9-inch App Store scenes (fictional records, unsigned)
         if: matrix.device == 'pro' && needs.changes.outputs.store == 'true'
         timeout-minutes: 20
