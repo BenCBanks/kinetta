@@ -470,7 +470,8 @@ class Milestones(unittest.TestCase):
   with db.connect() as c:c.execute("UPDATE profile SET units='imperial' WHERE user_id=%s",(owner_id,))
   for sport,distance in (('run',16093.44),('walk',3218.688),('swim',8046.72)):
    self.activity(sport=sport,distance=distance,uid=owner_id)
-  self.activity(distance=0,uid=owner_id);self.process(uid=owner_id)
+  for _ in range(7):self.activity(distance=0,uid=owner_id)
+  self.process(uid=owner_id)
   response=viewer.get(achievements,params=params);self.assertEqual(response.status_code,200,response.text)
   shared=response.json();workouts=next(track for track in shared['tracks'] if track['code']=='workouts')
   self.assertGreaterEqual(workouts['level'],1,'a shared track appears only after an earned level')
