@@ -285,6 +285,44 @@ const ProfileLayout=(()=>{
     const amount=compact(raw),shortUnit=({hour:'h',hours:'h',h:'h',week:'wk',weeks:'wk',year:'yr',years:'yr',workout:'wkt',workouts:'wkt',session:'sess',sessions:'sess',mi:'mi',km:'km',ft:'ft',m:'m',lb:'lb',kg:'kg'})[unit];
     return `${amount}${shortUnit?' '+shortUnit:''}`;
   }
+  function earnedBadges(data){
+    return (Array.isArray(data?.tracks)?data.tracks:[]).map(track=>{
+      if(!achievementDefinition(track))return null;
+      const level=achievementLevel(track),tier=level?achievementTierAt(track.code,level):null;if(level<1||!tier?.icon)return null;
+      const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,displayValue=track.display_value!=null&&Number.isFinite(Number(track.display_value))?Number(track.display_value):Number(tier.display_value),displayUnit=String(track.display_unit||track.unit||tier.display||tier.canonical_unit||'');
+      const displayTrack={code:track.code,label,level,display_value:displayValue,display_unit:displayUnit,_sharedAchievement:true};
+      return{code:track.code,label,level,name:tier.name,value:achievementMedalValue(displayTrack),icon:tier.icon,track:displayTrack};
+    }).filter(Boolean);
+  }
+  async function earnedAchievementPicture(badges,live){
+    if(!live())throw Error('The account changed.');
+    const sourceWidth=Math.max(240,Math.min(348,document.documentElement.clientWidth-42)),host=document.createElement('div');host.setAttribute('aria-hidden','true');host.style.cssText=`position:fixed;left:-100000px;top:0;width:${sourceWidth}px;z-index:-1;pointer-events:none;`;
+    const root=document.createElement('section');root.setAttribute('aria-label',`Earned achievements: ${badges.map(badge=>`${badge.label}, Level ${badge.level}, ${badge.name}, ${badge.value}`).join('; ')}`);root.style.cssText=`box-sizing:border-box;width:${sourceWidth}px;padding:28px;background:var(--bg);color:var(--tx);`;
+    const heading=document.createElement('h1');heading.textContent='Earned achievements';heading.style.cssText='margin:0;font-size:30px;line-height:1.2;font-weight:700;';
+    const count=document.createElement('p');count.textContent=`${badges.length} earned`;count.style.cssText='margin:8px 0 0;color:var(--tx2);font-size:16px;line-height:1.3;';
+    const list=document.createElement('div');list.className='profile-achievement-list is-grid';list.setAttribute('role','list');list.setAttribute('aria-label','All earned achievement medals');list.style.marginTop='18px';
+    for(const badge of badges){const row=document.createElement('div');row.className='profile-achievement';row.setAttribute('role','listitem');row.dataset.achievementCode=badge.code;row.innerHTML=achievementMedallion(badge.track)+`<span class="profile-achievement-name">${esc(badge.label)}</span>`;const medal=row.querySelector('.profile-achievement-medallion');if(medal){medal.style.flex='0 0 auto';medal.style.width='100%';medal.style.maxWidth='84px';medal.style.height='auto';medal.style.aspectRatio='1';medal.style.boxSizing='border-box';const repeat=medal.querySelector('.profile-achievement-multiple');if(repeat){repeat.style.left='-5px';repeat.style.right='auto';repeat.style.top='-1px';repeat.style.bottom='auto';}}list.append(row);}
+    root.append(heading,count,list);host.append(root);document.body.append(host);
+    try{
+      if(!live())throw Error('The account changed.');
+      const renderedHeight=root.getBoundingClientRect().height,outputHeight=Math.ceil(renderedHeight*(984/sourceWidth)+96),picture=await ShareArt.achievementPicture({root,live,outputHeight});
+      if(!live())throw Error('The account changed.');
+      const alt=root.getAttribute('aria-label');window.__sharePictureDiagnostic={...window.__sharePictureDiagnostic,kind:'earnedAchievementGrid',achievementCount:badges.length,achievementCodes:badges.map(badge=>badge.code)};
+      return{...picture,filename:'kinetta-achievements.png',alt};
+    }finally{host.remove();}
+  }
+  function earnedBadgeShareItem(isLive){
+    const owner=readOwner(),route=location.pathname+location.search,live=()=>owner===readOwner()&&route===location.pathname+location.search&&isLive();let builtSignature='';
+    const read=async()=>{
+      if(!live())throw Error('The account changed.');await loadAchievementCatalog();
+      const [sharing,data]=await Promise.all([api('/api/sharing'),api('/api/achievements')]);if(!live())throw Error('The account changed.');
+      if(sharing?.share_achievements!==true)throw Error('Achievement sharing is off.');if(data?.pending)throw Error('Achievements are still updating.');
+      const badges=earnedBadges(data);if(!badges.length)throw Error('There are no earned achievements to share.');return badges;
+    };
+    const signature=badges=>JSON.stringify(badges.map(({code,level,name,value,icon})=>[code,level,name,value,icon]));
+    const confirmCurrent=async({refresh,setStatus})=>{const badges=await read();if(signature(badges)===builtSignature)return true;setStatus('Your achievements changed. Refreshing picture…');await refresh();return false;};
+    return{label:'Achievements',filename:'kinetta-achievements.png',valid:live,build:async()=>{const badges=await read(),key=signature(badges),picture=await earnedAchievementPicture(badges,live);if(!live())throw Error('The account changed.');builtSignature=key;return picture;},beforeShare:confirmCurrent,beforeSave:confirmCurrent};
+  }
   const achievementSections=[
     {id:'overall',title:'Overall',codes:['consistency','workouts','active_time','years_active','personal_bests']},
     {id:'distance',title:'Distance',codes:['journey','sport:run','sport:ride','sport:walk-hike','sport:swim','climbing']},
@@ -310,10 +348,11 @@ const ProfileLayout=(()=>{
     const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,href=`/people/${encodeURIComponent(login)}?view=achievements&track=${encodeURIComponent(track.code)}`;
     return `<a class="profile-achievement is-unstarted" role="listitem" href="${esc(href)}" aria-label="${esc(`${label}, earlier saved awards`)}" data-achievement-code="${esc(track.code)}" data-legacy-only="true"><span class="profile-achievement-name">${esc(label)}</span><span class="profile-achievement-next">Earlier awards</span></a>`;
   }
-  function sharedAchievementRow(track,login='',{featured=false}={}){
+  function sharedAchievementRow(track,login='',{featured=false,ownerFeatured=false}={}){
     const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),tier=achievementCurrentTier(track),href=login?`/people/${encodeURIComponent(login)}?view=achievements&track=${encodeURIComponent(track.code)}`:achievementHref(track);
     const secondary=featured?' data-type="secondary"':'';
-    return `<a class="profile-achievement${featured?' me-featured-item':''}" role="listitem" href="${esc(href)}" aria-label="${esc(`${label}, Level ${level}${tier?`, ${tier.name}`:''}, ${achievementValue(track)}`)}" data-achievement-code="${esc(track.code)}"${featured?` data-showcase-code="${esc(track.code)}"`:''}>${achievementMedallion(track,{featured})}<span class="profile-achievement-name"${secondary}>${esc(label)}</span><span class="profile-achievement-next"${secondary}>${esc(`Level ${level}${tier?` · ${tier.name}`:''}`)}</span></a>`;
+    const description=ownerFeatured?'':`<span class="profile-achievement-next"${secondary}>${esc(`Level ${level}${tier?` · ${tier.name}`:''}`)}</span>`;
+    return `<a class="profile-achievement${featured?' me-featured-item':''}" role="listitem" href="${esc(href)}" aria-label="${esc(`${label}, Level ${level}${tier?`, ${tier.name}`:''}, ${achievementValue(track)}`)}" data-achievement-code="${esc(track.code)}"${featured?` data-showcase-code="${esc(track.code)}"`:''}>${achievementMedallion(track,{featured})}<span class="profile-achievement-name"${secondary}>${esc(label)}</span>${description}</a>`;
   }
   function achievementMedallion(track,{featured=false}={}){
     const started=achievementTrackStarted(track),level=achievementLevel(track),value=started?achievementMedalValue(track,{small:featured}):'',tier=achievementCurrentTier(track)||achievementTierAt(track.code,1);
@@ -362,7 +401,7 @@ const ProfileLayout=(()=>{
     const streak=Number(data?.day_streak);if(!Number.isInteger(streak)||streak<2)return '';
     return `<span class="me-showcase-row" role="img" aria-label="${streak}-day activity streak"><span class="me-showcase-streak" aria-hidden="true">${svg('flame')}<span>${streak}-day streak</span></span></span>`;
   }
-  function featuredShowcaseMarkup(showcase,achievementData,{sharedLogin=''}={}){
+  function featuredShowcaseMarkup(showcase,achievementData,{sharedLogin='',ownerFeatured=false}={}){
     const pinned=new Set((Array.isArray(showcase?.pinned)?showcase.pinned:[]).map(String)),tracks=new Map((Array.isArray(achievementData?.tracks)?achievementData.tracks:[]).map(track=>[String(track?.code||''),track]));
     // The server's item order is the automatic top-four selection when no pins exist.
     // If the server has no pins or automatic items, fill the rail with the highest earned tracks.
@@ -380,7 +419,7 @@ const ProfileLayout=(()=>{
     const href=sharedLogin?`/people/${encodeURIComponent(sharedLogin)}?view=achievements`:'/me/achievements';
     if(!items.length)return sharedLogin?'':`<a class="linkbtn me-featured-empty-entry" href="${esc(href)}">Achievements ›</a>`;
     const heading=`<h3 class="me-featured-title" data-type="secondary"><span>Featured achievements</span><a href="${esc(href)}">See all</a></h3>`;
-    const rail=`<div class="profile-achievement-list" role="list" aria-label="Featured achievements">${items.map(item=>sharedAchievementRow(item.track,sharedLogin,{featured:true})).join('')}</div>`;
+    const rail=`<div class="profile-achievement-list" role="list" aria-label="Featured achievements">${items.map(item=>sharedAchievementRow(item.track,sharedLogin,{featured:true,ownerFeatured})).join('')}</div>`;
     return `<div class="me-featured-achievements" role="group" aria-label="Featured achievements">${heading}${rail}</div>`;
   }
   function addAchievementCleanup(root,cleanup){
@@ -492,7 +531,7 @@ const ProfileLayout=(()=>{
       const paint=(data,achievements)=>{
         if(streakSlot){streakSlot.innerHTML=showcaseStreakMarkup(data);streakSlot.dataset.loaded='true';}
         if(!sharedProfile)achievementLevelUpHaptic(achievementLevelUps(achievements));
-        if(featureSlot){const sharedData=sharedProfile?{tracks:sharedAchievementTracks(achievements)}:achievements;featureSlot.innerHTML=featuredShowcaseMarkup(data,sharedData,sharedProfile?{sharedLogin:login}:{});featureSlot.dataset.loading='';featureSlot.dataset.loaded='true';watchMeCardOpenLink(root,featureSlot.closest('.me-card'),featureSlot);}
+        if(featureSlot){const sharedData=sharedProfile?{tracks:sharedAchievementTracks(achievements)}:achievements;featureSlot.innerHTML=featuredShowcaseMarkup(data,sharedData,sharedProfile?{sharedLogin:login}:{ownerFeatured:true});featureSlot.dataset.loading='';featureSlot.dataset.loaded='true';watchMeCardOpenLink(root,featureSlot.closest('.me-card'),featureSlot);}
       };
       try{
         const query=sharedProfile?`?login=${encodeURIComponent(login)}`:'', [data,_catalog,achievements]=await Promise.all([api('/api/achievements/showcase'+query),loadAchievementCatalog(),api('/api/achievements'+query)]);
@@ -555,23 +594,12 @@ const ProfileLayout=(()=>{
       return{pending:!!data.pending||!!historyData?.pending,apply:()=>version===interaction&&!activePinSheets&&!pendingPinSaves&&draw(data,historyData,showcase)};
     };
     const sharingPromise=shared||code?Promise.resolve({share_achievements:false}):api('/api/sharing').catch(()=>({share_achievements:false}));
-    const earnedBadges=data=>{
-      const tracks=Array.isArray(data?.tracks)?data.tracks:[];
-      return tracks.map(track=>{
-        const level=achievementLevel(track),tier=level?achievementTierAt(track.code,level):null;
-        if(level<1||!tier?.icon)return null;
-        return{code:track.code,label:track.code==='sport:lift'?'Lift sessions':track.label||track.code,level,name:tier.name,value:achievementValue(track),icon:tier.icon};
-      }).filter(Boolean);
-    };
     const shareEarned=async()=>{
       const startOwner=readOwner(),startPath=location.pathname+location.search,live=()=>active()&&startOwner===readOwner()&&startPath===location.pathname+location.search&&shareButton?.isConnected;
       if(!live()||shareButton.disabled)return;shareButton.disabled=true;
       try{
         await loadShareArt();if(!live())return;
-        const [sharing,latest]=await Promise.all([api('/api/sharing'),api('/api/achievements')]);if(!live())return;
-        if(sharing?.share_achievements!==true)throw Error('Achievement sharing is off.');
-        const badges=earnedBadges(latest);if(!badges.length)throw Error('There are no earned achievements to share.');
-        ShareSheet.open({title:'Share achievements',items:[{label:'Achievements',filename:'kinetta-achievements.png',build:()=>ShareArt.achievementPicture({badges})}]});
+        ShareSheet.open({title:'Share achievements',items:[earnedBadgeShareItem(live)]});
       }catch(error){if(live())toast((error.message||'Could not prepare achievements.')+' Tap Share achievements to try again.');}
       finally{if(shareButton?.isConnected)shareButton.disabled=false;}
     };
@@ -614,12 +642,12 @@ const ProfileLayout=(()=>{
       return `<section class="profile-activities"><h2 class="sec-head">Shared activities</h2><div class="feed-list" id="person-activities">${r.items.length?r.items.map(a=>postCard(a)).join(''):`<div class="card empty"><b>No shared activities yet</b>${r.mine?'Choose an activity and change its audience to share it.' : 'No activities shared with you.'}${r.mine?`<a class="ghost wide" href="${profileHref(App.me)}">Choose an activity</a>`:''}</div>`}</div><button type="button" class="ghost wide" id="person-more"${r.next?'':' hidden'}>Show more</button></section>`;
     }).join('');
   }
-  function mount(box,r,{shared=r?.mine===false}={}){
+  function mount(box,r,{shared=r?.mine===false,featured=shared}={}){
     const chart=box.querySelector('[data-profile-mileage]');
     if(chart)mileageChart(chart,r.mileage||{},'days',{shared:true});
-    mountShowcase(box,r,{shared,featured:shared});feedMaps(box);wireCheers(box);
+    mountShowcase(box,r,{shared,featured});feedMaps(box);wireCheers(box);
   }
-  return {defaults,normalize,singlePeriod,numbers,content,mount,mountShowcase,featuredOptions,distance,hours,labels:{sections,stats},sports,achievementPage};
+  return {defaults,normalize,singlePeriod,numbers,content,mount,mountShowcase,featuredOptions,distance,hours,labels:{sections,stats},sports,achievementPage,earnedBadgeShareItem};
 })();
 
 // Me leads with the card friends see, then a private dashboard (owner-approved mockup, 29 October 2026). The card uses the
@@ -629,9 +657,9 @@ const MeCard=(()=>{
   const short=d=>fdate(d+'T12:00',{month:'short',day:'numeric'});
   // The card itself, shared by Me and every profile page (Ben, 30 Oct 2026: the full profile is this card at full size,
   // then the shared activities). Friends shares the handle row without changing its audience or destination.
-  function card(p,{viewer='friend',pills='',friends='',link=false,milestones=false,showBio=true}={}){
+  function card(p,{viewer='friend',pills='',friends='',link=false,milestones=false,showBio=true,featured:featuredOption}={}){
     if(!['owner','friend','preview'].includes(viewer))throw new TypeError(`Unknown profile viewer: ${viewer}`);
-    const mine=viewer==='owner',featured=viewer!=='owner';
+    const mine=viewer==='owner',featured=featuredOption===undefined?viewer!=='owner':featuredOption;
     const bio=showBio?(p.bio||'').trim():'',photo=avatar(p,'lg'),name=esc(p.name||p.login),handle=`<span data-type="secondary">@${esc(p.login)}</span>`;
     const showcase=mine?'<span class="me-showcase-streak-slot" data-me-showcase-streak></span>':'';
     const preview=mine&&location.pathname==='/me'?`<div class="me-card-preview-row"><button type="button" class="me-card-preview-action" data-card-preview>${svg('people')}View as friend</button></div>`:'';
@@ -652,17 +680,44 @@ const MeCard=(()=>{
     if(openingShare)return;openingShare=true;const owner=readOwner(),path=location.pathname+location.search,trigger=event.currentTarget,card=trigger.closest('.me-card'),live=()=>trigger.isConnected&&card?.isConnected&&owner===readOwner()&&path===location.pathname+location.search,login=App.me.login;
     try{
       const profileLink=`${appBase()}${profileHref(App.me)}`;
-      const [profile,sharing,showcase,achievements,cardItems]=await Promise.all([api('/api/people/'+encodeURIComponent(login)+'/profile?as_friend=true&preview=member&limit=1'),api('/api/sharing').catch(()=>({share_achievements:false})),api('/api/achievements/showcase').catch(()=>({items:[]})),api('/api/achievements').catch(()=>({tracks:[]})),KinettaCard.shareItems(profileLink).catch(()=>[]),loadShareArt()]);
+      const [profile,cardState,sharingState]=await Promise.all([api('/api/people/'+encodeURIComponent(login)+'/profile?as_friend=true&preview=member&limit=1'),api('/api/card').catch(()=>null),api('/api/sharing').catch(()=>({share_achievements:false})),loadShareArt()]);
       if(!live())return;
       if(profile.profile_hidden)throw Error('Your profile is hidden until your account is confirmed and active.');
       if(profile.preview!=='member')throw Error('The preview needs a server update.');
-      const items=cardItems.slice(0,1);
-      if(sharing.share_achievements&&showcase.items?.length){
-        const featured=await ProfileLayout.featuredOptions(achievements,showcase.items);if(!live())return;
-        if(featured.length)items.push({label:'Achievements',filename:'kinetta-achievements.png',controls:[{key:'identity',label:'Photo and username',checked:false}],build:state=>ShareArt.simplePicture({kicker:'Achievements',title:'Your progress',value:String(featured.length),unit:'featured',facts:featured.map(item=>`${item.label} · ${item.detail}`),identity:!!state.identity})});
+      const items=[],meCard=cardState?.enabled&&cardState?.url?{label:'Me card',filename:'kinetta-me-card.png',link:profileLink,cardUrl:cardState.url}:null;
+      if(meCard){
+        const memberPath='/api/people/'+encodeURIComponent(login)+'/profile?as_friend=true&preview=member&limit=1';let builtSignature='';
+        const readEligible=async()=>{
+          const [latestCard,latestSharing,member]=await Promise.all([api('/api/card'),api('/api/sharing').catch(()=>({share_achievements:false})),api(memberPath)]);
+          if(!live()||member.profile_hidden||member.preview!=='member')throw Error('Your shared profile is no longer available.');
+          if(!latestCard.enabled||latestCard.url!==meCard.cardUrl)throw Error('Your card changed. Reopen Share to refresh it.');
+          return{card:latestCard,sharing:latestSharing,member};
+        };
+        const signature=state=>JSON.stringify({url:state.card.url,photo:state.card.photo===true,shareAchievements:state.sharing.share_achievements===true,login:state.member.person?.login,name:state.member.person?.name,memberPhoto:state.card.photo===true?state.member.person?.photo:null,friendCount:state.member.friend_count});
+        const confirmCurrent=async({refresh,setStatus})=>{
+          const current=await readEligible();if(signature(current)===builtSignature)return true;
+          setStatus('Your sharing settings changed. Refreshing picture…');await refresh();return false;
+        };
+        meCard.valid=live;meCard.beforeShare=confirmCurrent;meCard.beforeSave=confirmCurrent;
+        meCard.build=async(_state)=>{
+          if(!card?.isConnected||!live())throw Error('The account changed.');
+          const current=await readEligible(),{card:latestCard,sharing:latestSharing,member}=current;
+          const width=card.getBoundingClientRect().width;if(!width)throw Error('The card picture could not fit clearly.');
+          const host=document.createElement('div');host.setAttribute('aria-hidden','true');host.style.cssText=`position:fixed;left:-100000px;top:0;width:${width}px;z-index:-1;pointer-events:none;`;
+          const clone=card.cloneNode(true);clone.style.boxSizing='border-box';clone.style.width=`${width}px`;clone.style.margin='0';host.append(clone);document.body.append(host);
+          try{
+            const privacy=await prepareShareClone(clone,member,{photo:latestCard.photo===true,shareAchievements:latestSharing.share_achievements===true});
+            const picture=await ShareArt.domPicture(clone,{live});
+            window.__sharePictureDiagnostic={...window.__sharePictureDiagnostic,privacy};
+            builtSignature=signature(current);
+            return{...picture,filename:meCard.filename,link:profileLink};
+          }finally{host.remove();}
+        };
+        items.push(meCard);
       }
+      if(sharingState?.share_achievements===true)items.push(ProfileLayout.earnedBadgeShareItem(live));
       if(typeof weeklyRecapShareItem==='function'){const week=await weeklyRecapShareItem().catch(()=>null);if(!live())return;if(week)items.push(week);}
-      const meCard=items.find(item=>item.label==='Me card');if(meCard){meCard.note='Private workouts count, but stay hidden';meCard.description='Totals include your private workouts. Friends see the totals, not the workouts.';}
+      if(meCard){meCard.note='Private workouts count, but stay hidden';meCard.description='Totals include your private workouts. Friends see the totals, not the workouts.';}
       if(live())ShareSheet.open({items});
     }catch(error){if(live())toast((error.message||'Couldn’t prepare your pictures.')+' Tap Share to try again.');}
     finally{openingShare=false;}
@@ -761,6 +816,21 @@ const MeCard=(()=>{
     if(viewer==='owner')return data;
     const{week_streak,close_to,...payload}=data;
     return {...payload,mine:false};
+  }
+  async function prepareShareClone(clone,profile,{photo=false,shareAchievements=false}={}){
+    const member=viewerData(profile,'preview'),person=member.person||{},name=person.name||person.login||'';
+    const sections=clone.querySelector('.me-card-sections'),featureSlot=clone.querySelector('[data-me-featured]'),aggregateSnapshot=()=>{const copy=sections?.cloneNode(true);if(!copy)return null;copy.querySelectorAll('.me-week-streak,.me-card-close-to,[data-friend-waiting],[data-me-milestones],.me-featured-slot,[data-me-featured],.me-featured-achievements,.profile-achievements,.profile-achievement-medallion').forEach(node=>node.remove());return copy.innerHTML;},originalAggregates=aggregateSnapshot();
+    const heading=clone.querySelector('.me-card-name h2');if(heading)heading.textContent=name;
+    const handle=clone.querySelector('.me-card-meta [data-type="secondary"]');if(handle)handle.textContent='@'+(person.login||'');
+    const avatarNode=clone.querySelector('.me-card-avatar');if(avatarNode)avatarNode.innerHTML=avatar({...person,photo:photo?person.photo:null},'lg');
+    const friendCount=clone.querySelector('[data-friend-count]');if(friendCount)friendCount.textContent=Number.isInteger(member.friend_count)?friendCountText(member.friend_count):'Friends';
+    if(featureSlot){featureSlot.replaceChildren();featureSlot.removeAttribute('data-loaded');featureSlot.removeAttribute('data-loading');}
+    const ownerOnly=['.me-week-streak','.me-card-close-to','[data-friend-waiting]','[data-me-milestones]','[data-card-edit]','[data-card-share]','[data-card-preview]','.me-card-preview-row','.me-card-open-link','.me-showcase-streak-slot'];
+    clone.querySelectorAll(ownerOnly.join(',')).forEach(node=>node.remove());
+    if(shareAchievements){await ProfileLayout.mountShowcase(clone,member,{shared:true,featured:true});if(featureSlot?.dataset.loaded==='true')clone.querySelectorAll('.profile-achievement-next').forEach(node=>node.remove());else if(featureSlot){featureSlot.replaceChildren();featureSlot.removeAttribute('data-loaded');featureSlot.removeAttribute('data-loading');}}
+    else clone.querySelectorAll('.me-featured-slot,[data-me-featured],.me-featured-achievements,.profile-achievements').forEach(node=>node.remove());
+    const privateSelectors=[...ownerOnly,'.profile-achievement-next',...(!shareAchievements?['.me-featured-slot','[data-me-featured]','.me-featured-achievements','.profile-achievements','.profile-achievement-medallion']:[])];
+    return{memberPreview:profile.preview==='member',photoIncluded:photo===true&&!!person.photo,shareAchievements:shareAchievements===true,sharedFeaturedLoaded:shareAchievements&&featureSlot?.dataset.loaded==='true',measuredWidth:clone.getBoundingClientRect().width,privateMarkersAbsent:privateSelectors.every(selector=>!clone.querySelector(selector)),aggregateSectionsPreserved:aggregateSnapshot()===originalAggregates};
   }
   function profileView(data,{viewer,mode='profile'}={}){
     if(!['owner','friend','preview'].includes(viewer))throw new TypeError(`Unknown profile viewer: ${viewer}`);
