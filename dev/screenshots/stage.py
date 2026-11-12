@@ -185,7 +185,7 @@ if copied_fixture:
     source = Path(__file__).with_name('food_chat_fixture.py')
     subprocess.run(['docker', 'cp', str(source), f'{apps[0]}:{fixture}'], check=True)
 try:
-    subprocess.run(['docker', 'exec', apps[0], 'python', fixture], check=True)
+    subprocess.run(['docker', 'exec', apps[0], 'python', fixture, now.isoformat()], check=True)
 finally:
     if copied_fixture:
         subprocess.run(['docker', 'exec', apps[0], 'rm', '-f', fixture], check=False)
