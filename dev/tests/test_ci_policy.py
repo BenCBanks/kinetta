@@ -167,7 +167,7 @@ class CIPolicyTests(unittest.TestCase):
         self.assertIn('COMPOSE_FILE: ${{ github.workspace }}/docker-compose.yml:${{ github.workspace }}/dev/tests/journeys-compose.yml',workflow)
 
         expected='''interval_voice_ui.cjs navigation_ui.cjs asset_cache_ui.cjs explore_fixture.py lazy_route_ui.cjs
-guide_ui.cjs progress_ui.cjs fitness_ui.cjs heatmap_ui.cjs profile_card_ui.cjs nutrition_ui.cjs
+guide_ui.cjs progress_ui.cjs fitness_ui.cjs heatmap_ui.cjs profile_card_ui.cjs nutrition_ui.cjs nutrition_readout_ui.cjs
 track_home_ui.cjs track_review_recovery_ui.cjs top_chips_ui.cjs track_ready_map_ui.cjs activity_home_ui.cjs activity_home_ui.cjs food_entry_ui.cjs
 food_removal_ui.cjs food_memory_fixture.py food_memory_ui.cjs plan_ui.cjs activity_detail_ui.cjs
 notification_edit_ui.cjs media_routes_ui.cjs lift_compact_ui.cjs lift_ui.cjs lift_lazy_route_ui.cjs recipes_compact_ui.cjs friends_ui.cjs
