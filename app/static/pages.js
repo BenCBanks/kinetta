@@ -1221,7 +1221,7 @@ function progressMetricForSport(sport, metric) {
   return 'distance';
 }
 function progressMetrics(sport, metric) {
-  const choices = [['distance', 'Distance'], ['time', 'Time']];
+  const choices = [['distance', 'Distance'], ['time', 'Moving time']];
   if (sport === 'ride') choices.push(['speed', 'Speed']);
   else if (sport === 'run' || sport === 'walk') choices.push(['pace', 'Pace']);
   return `<div class="me-period progress-metric-controls" data-count="${choices.length}" role="group" aria-label="Totals metric">${choices.map(([key, label]) => `<button type="button" data-progress-metric="${key}" aria-pressed="${metric === key}">${label}</button>`).join('')}</div>`;
@@ -1621,13 +1621,13 @@ async function pMileage(body, q, {home=false}={}) {
       : {week: 'Weekly avg', month: 'Monthly avg', year: 'Yearly avg'}[period];
     const bestLabel = paceMetric ? `Fastest ${word}` : `Best ${word}`;
     const table = metric === 'distance' || metric === 'time';
-    const chartLabel = `${metric === 'speed' ? 'Average speed' : metric === 'pace' ? 'Average pace' : metric === 'time' ? 'Activity time' : 'Distance'} by ${period}`;
+    const chartLabel = `${metric === 'speed' ? 'Average speed' : metric === 'pace' ? 'Average pace' : metric === 'time' ? 'Moving time' : 'Distance'} by ${period}`;
     box.innerHTML = `<div class="card"><div class="stats3 progress-total-stats">
         ${stat(defaultPeriodLabel, displayValue(metricValue(cur)), statUnit)}
         ${home&&avgValue==null?'':stat(averageLabel, avgValue == null ? '–' : displayValue(avgValue), statUnit).replace('class="stat"','class="stat progress-average"')}
         ${stat(bestLabel + (scoped ? ' (range)' : ''), bestValue == null ? '–' : displayValue(bestValue), statUnit)}</div>
         ${paceMetric ? `<p class="small muted progress-pace-window">${period === 'week' ? 'Weekly averages · last 12 weeks' : period === 'month' ? 'Monthly averages · last 12 months' : 'Yearly averages'}</p>` : home?'':`<p class="small muted">${last ? `Last ${word}: ${esc(fmt(metricValue(last)))} · ` : ''}best ${esc(label(bestEntry?.d || cur).replace('Week of ', 'week of '))}</p>`}
-        <div class="totals-display"><div id="m-chart"${body._showTable?' hidden':''}></div>${table?`<div id="m-table" class="tbl-wrap"${body._showTable?'':' hidden'}><table class="tbl"><thead><tr><th>${period === 'week' ? 'Week of' : period === 'month' ? 'Month' : 'Year'}</th><th class="r">Distance ${U.du()}</th><th class="r">Time h/m/s</th><th class="r">Workouts</th><th class="r">Climb ${U.eu()}</th></tr></thead><tbody>
+        <div class="totals-display"><div id="m-chart"${body._showTable?' hidden':''}></div>${table?`<div id="m-table" class="tbl-wrap"${body._showTable?'':' hidden'}><table class="tbl"><thead><tr><th>${period === 'week' ? 'Week of' : period === 'month' ? 'Month' : 'Year'}</th><th class="r">Distance ${U.du()}</th><th class="r">Moving time h/m/s</th><th class="r">Workouts</th><th class="r">Climb ${U.eu()}</th></tr></thead><tbody>
         ${[...show].reverse().map((d) => `<tr><td>${esc(progressTableLabel(d, period))}</td>
           <td class="r num">${toU(val(d)).toFixed(1)}</td><td class="r num">${val(d, 't') ? U.time(val(d, 't')) : '–'}</td><td class="r num">${val(d, 'n')}</td><td class="r num">${val(d, 'a') ? U.elev(val(d, 'a')) : '–'}</td></tr>`).join('')}</tbody></table></div>`:''}</div></div>`;
     requestAnimationFrame(() => {
