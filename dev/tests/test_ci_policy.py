@@ -93,6 +93,23 @@ class CIPolicyTests(unittest.TestCase):
         self.assertIn("github.event.pull_request.draft && '[\"pro\"]'",ios)
         self.assertIn("if: matrix.device == 'pro' && needs.changes.outputs.store == 'true'",ios)
 
+    def test_store_selector_handles_non_pr_events_with_real_policy(self):
+        ios=(ROOT/'.github/workflows/ios.yml').read_text()
+        script=textwrap.dedent(ios.split("python3 - <<'PYCODE' >> \"$GITHUB_OUTPUT\"",1)[1].split('PYCODE',1)[0])
+        events={'push':{'ref':'refs/heads/main','before':'0'*40,'after':'1'*40},
+                'workflow_dispatch':{'ref':'refs/heads/main','inputs':{}},
+                'schedule':{'schedule':'0 14 * * 1,4'}}
+        for name,payload in events.items():
+            with self.subTest(event=name),tempfile.TemporaryDirectory() as temp:
+                event=Path(temp)/'event.json';event.write_text(json.dumps(payload))
+                # Execute the workflow itself in a fresh process: changed_paths is the real import.
+                result=subprocess.run([sys.executable,'-c',script],cwd=ROOT,
+                                      env={**os.environ,'GITHUB_EVENT_NAME':name,'GITHUB_EVENT_PATH':str(event)},
+                                      capture_output=True,text=True)
+                self.assertEqual(result.returncode,0,result.stderr)
+                self.assertEqual(result.stdout.splitlines(),['enabled=false','preview=false'])
+                self.assertEqual(result.stderr,'')
+
     def test_workflow_event_guards_and_release_boundaries(self):
         for name in ('tests.yml','ios.yml','screenshots.yml','admin-ui.yml'):
             text=(ROOT/'.github/workflows'/name).read_text()
