@@ -66,7 +66,7 @@ async function wrapped(p){assert(await p.locator('#nt-body .readout').evaluateAl
    const c=await browser.newContext({storageState:auth.storageState,viewport:{width:390,height:844},colorScheme:theme,serviceWorkers:'block',reducedMotion:'reduce',isMobile:true,hasTouch:true,timezoneId:'UTC'}),p=await c.newPage(),writes=[],errors=[],external=[],facts=payload(test.rows,test.days);
    try{
     let delayedFont=theme==='light'&&test.name==='known',fontRequest;
-    if(delayedFont)await c.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>{const style=document.createElement('style');style.textContent='.readout { font-family:"Source Serif 4" !important }';document.head.append(style);}));
+    if(delayedFont)await c.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>{const style=document.createElement('style');style.textContent='.readout { font-family:"Source Serif 4" !important }';document.head.append(style);void document.fonts.load('14px "Source Serif 4"');}));
     await c.addInitScript(initialize,{root:16,native:false,base,id:auth.id});await p.clock.setFixedTime(new Date('2026-11-12T12:00:00Z'));
     p.on('pageerror',e=>errors.push(e.message));
     await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base){external.push(u.pathname);return r.abort();}
@@ -77,6 +77,7 @@ async function wrapped(p){assert(await p.locator('#nt-body .readout').evaluateAl
      if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);return r.abort();}return r.continue();});
     const open=async view=>{await p.mouse.move(0,0);await p.goto(`${base}/food?view=${view}&r=${test.days||30}`,{waitUntil:'domcontentloaded'});await until(p,()=>typeof App!=='undefined'&&App.pageReady&&!!document.querySelector('#nt-body .card'),'Nutrition route');if(!test.empty)await p.locator(view==='macros'?'#nt-protein svg': '#nt-energychart svg').first().waitFor({state:'attached'});
      if(delayedFont){
+      for(let attempt=0;!fontRequest&&attempt<50;attempt++)await p.waitForTimeout(100);
       assert(fontRequest,'real font request held');assert.equal(await p.evaluate(()=>document.fonts.status),'loading');
       const hidden=async()=>assert(await p.locator('#nt-protein > *').evaluateAll(ns=>ns.every(n=>getComputedStyle(n).visibility==='hidden')),'pending-font draw children are not exposed');
       await hidden();assert.equal(await p.locator('#nt-protein .readout').evaluate(n=>n.style.minHeight),'','reservation waits for actual font metrics');
