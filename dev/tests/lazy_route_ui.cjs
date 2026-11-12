@@ -4,7 +4,7 @@ const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 const trackFixture=require('../demo/track_session.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798';
 const selectedCase=process.env.KINETTA_LAZY_CASE||'';
-if(selectedCase&&selectedCase!=='settings')throw new Error(`Unknown lazy-route case: ${selectedCase}`);
+if(selectedCase&&!['settings','recaps'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
 const password='green teapot on the hill';
 const user='zz_test_explore_new';
 const meReady='.me-card-sections[aria-busy="false"]';
@@ -565,6 +565,8 @@ const contactsCallersOnly=process.env.KINETTA_LAZY_ROUTE_CASE==='contacts-caller
   if(contactsOnly){await contactsCases(browser);return;}
   if(contactsCallersOnly){await contactsCases(browser,{includeColdMe:false});return;}
   if(selectedCase==='settings'){await settingsRouteCase(browser);console.log('Settings lazy route: cold Me, direct/deep links, retry and stale path/owner PASS');return;}
+  if(selectedCase==='recaps'){await require('./recap_lazy_ui.cjs')(browser,base);return;}
+  await require('./recap_lazy_ui.cjs')(browser,base);
   await pushInvitationBrowserProof(browser);
   await settingsRouteCase(browser);
   const socialMe=await socialFixture(browser,{idleGate:true});
