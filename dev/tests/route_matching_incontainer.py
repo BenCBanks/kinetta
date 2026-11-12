@@ -65,6 +65,8 @@ try:
       FROM activities WHERE user_id=%s AND sport='run' AND to_char(start_time AT TIME ZONE 'UTC','YYYY-MM')=%s""",(uid,trend['m'])).fetchone()
  assert all(trend[k]==expected[k] for k in ('pace_d','pace_t','pd','pt')),'monthly API separates elapsed pace totals from moving-time totals'
  assert trend['pace_t']!=trend['pt'],'paused fictional route durations affect pace without changing moving-time aggregate'
+ volume=next(row for row in api_activities.progress_volume('month',{'id':uid})['rows'] if row['s']=='run' and row['p'].isoformat()==now.date().replace(day=1).isoformat())
+ assert volume['pace_d']==expected['pace_d'] and volume['pace_t']==expected['pace_t'],'Progress Totals groups elapsed pace sums by period while excluding unknown-elapsed distance'
  with db.connect() as c:
   similar=api_activities._similar(c,uid,elapsed_ids[0],10)
   peer=next(r for r in similar if r['id']==elapsed_ids[2]);assert peer['elapsed_s']==3000 and peer['moving_s']==2600,'similar-activity API carries both source durations'

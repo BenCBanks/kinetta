@@ -143,9 +143,9 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     const monday=day=>{const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-((d.getUTCDay()+6)%7));return d.toISOString().slice(0,10);};
     const addDays=(day,n)=>{const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);};
     await c.route('**/api/progress/volume?*',r=>{const period=new URL(r.request().url()).searchParams.get('period'),rows=[];
-     if(period==='week'){const start=monday(fixtureToday);for(let i=11;i>=0;i--){const p=addDays(start,-i*7),d=i===0?8046.72:5200+i*180,t=i===0?2400:d/1000*(440-i*2);rows.push({p,s:'run',d,t,pace_d:d,pace_t:i===0?3000:t,n:2,a:0});if(i===0)rows.push({p,s:'run',d:1609.344,t:600,pace_d:0,pace_t:0,n:1,a:0});const rd=22000+i*450;rows.push({p,s:'ride',d:rd,t:rd/(7+i*.04),n:1,a:0});}}
-     else if(period==='month'){const [year,month]=fixtureToday.split('-').map(Number);for(let i=11;i>=0;i--){const date=new Date(Date.UTC(year,month-1-i,1)),p=date.toISOString().slice(0,10),d=16000+i*700,t=d/1000*(438-i*2);rows.push({p,s:'run',d,t,n:8,a:0});const rd=68000+i*3000;rows.push({p,s:'ride',d:rd,t:rd/(7+i*.05),n:4,a:0});}}
-     else rows.push({p:'2026-01-01',s:'run',d:120000,t:52000,n:30,a:0});
+     if(period==='week'){const start=monday(fixtureToday);for(let i=11;i>=0;i--){const p=addDays(start,-i*7),d=i===0?9656.064:5200+i*180,t=i===0?3000:d/1000*(440-i*2),paceD=i===0?8046.72:d,paceT=i===0?3000:t;rows.push({p,s:'run',d,t,pace_d:paceD,pace_t:paceT,n:2,a:0});const rd=22000+i*450,rt=rd/(7+i*.04);rows.push({p,s:'ride',d:rd,t:rt,pace_d:rd,pace_t:rt,n:1,a:0});}}
+     else if(period==='month'){const [year,month]=fixtureToday.split('-').map(Number);for(let i=11;i>=0;i--){const date=new Date(Date.UTC(year,month-1-i,1)),p=date.toISOString().slice(0,10),d=16000+i*700,t=d/1000*(438-i*2);rows.push({p,s:'run',d,t,pace_d:d,pace_t:t,n:8,a:0});const rd=68000+i*3000,rt=rd/(7+i*.05);rows.push({p,s:'ride',d:rd,t:rt,pace_d:rd,pace_t:rt,n:4,a:0});}}
+     else {const d=120000,t=52000;rows.push({p:'2026-01-01',s:'run',d,t,pace_d:d,pace_t:t,n:30,a:0});}
      return r.fulfill({json:{period,today:fixtureToday,rows}});
     });
     await p.evaluate(()=>{for(const period of ['week','month']){const path=`/api/progress/volume?period=${period}`;App.cache.delete(path);localStorage.removeItem('fit.c:'+path);}});

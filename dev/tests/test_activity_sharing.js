@@ -2,7 +2,7 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync('app/static/pages.js','utf8'),socialSource=fs.readFileSync('app/static/social.js','utf8'),start=source.indexOf('function shareOut(a)'),end=source.indexOf('// cut `m` metres',start);
-const activity={id:7,name:'Fictional paused run',sport:'run',line:'fictional-line',start_time:'2026-10-23T10:00:00Z',distance_m:8046.72,moving_s:2400,elapsed_s:3000,avg_hr:152,calories:400,ascent_m:30};
+const activity={id:7,name:'Fictional paused run',sport:'run',line:'fictional-line',start_time:'2026-10-23T10:00:00Z',distance_m:8046.72,moving_s:2400,elapsed_s:3000,shares:{pace:true},avg_hr:152,calories:400,ascent_m:30};
 const sharing={details:{map:true,pace:true,heart_rate:false,elevation:false,calories:false},trim_m:400};
 function fixture(social=sharing,act=activity){
  const calls={route:[],simple:[],api:[],leaf:[],toasts:[]},sourceContext={isConnected:true};let leafFailure=null;
