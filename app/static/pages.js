@@ -4,12 +4,14 @@
 // ---------- shared bits ----------
 const stat = (label, v, u = '') => `<div class="stat"><small>${esc(label)}</small><b class="num">${esc(v)}${u ? `<i>${esc(u)}</i>` : ''}</b></div>`;
 const firstStep = (icon,copy,id,label,options='') => `<div class="card first-step"><span class="first-step-icon" aria-hidden="true">${svg(icon)}</span><p>${copy}</p><button type="button" class="primary wide" id="${id}">${label}</button>${options}</div>`;
+const activityElapsedText = a => { const s=Number(a.elapsed_s); return Number.isFinite(s)&&s>0?U.time(s):'–'; };
+const activityMovingText = a => { const s=Number(a.moving_s); return a.moving_s!=null&&Number.isFinite(s)&&s>=0?U.time(s):'–'; };
 function headline(a) {
   const r = rate(a);
-  if (a.lifts && !a.distance_m) return stat('Time', U.time(a.moving_s || a.elapsed_s)) + stat('Sets', a.lifts.sets)
+  if (a.lifts && !a.distance_m) return stat('Time', activityElapsedText(a)) + stat('Sets', a.lifts.sets)
     + (a.lifts.volume ? stat('Lifted', Math.round(imp() ? a.lifts.volume * LB : a.lifts.volume).toLocaleString(), wUnit()) : stat('Exercises', a.lifts.exercises));
-  const first = a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : stat('Time', U.time(a.moving_s || a.elapsed_s));
-  const third = a.distance_m ? stat('Time', U.time(a.moving_s || a.elapsed_s)) :
+  const first = a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : stat('Time', activityElapsedText(a));
+  const third = a.distance_m ? stat('Time', activityElapsedText(a)) :
     a.avg_hr ? stat('Avg HR', Math.round(a.avg_hr), 'bpm') : stat('Effort', a.effort ? Math.round(a.effort) : '–');
   return first + (a.distance_m ? (r.label==='Time' ? (a.avg_hr?stat('Avg HR',Math.round(a.avg_hr),'bpm'):'') : stat(r.label,r.v,r.u)) : (a.effort ? stat('Effort', Math.round(a.effort)) : stat('Calories', a.calories ? Math.round(a.calories) : '–'))) + third;
 }
@@ -118,8 +120,8 @@ function postCard(a, {compact = false, lock = false} = {}) {
 function sharedHeadline(a) {   // what a friend shares: no pace when they keep pace to themselves
   const st = [];
   if (a.distance_m) st.push(stat('Distance', U.dist(a.distance_m), U.du()));
-  if (a.distance_m && a.moving_s && a.shares.pace) { const r = rate(a); if(r.label!=='Time')st.push(stat(r.label, r.v, r.u)); }
-  st.push(stat('Time', U.time(a.moving_s || a.elapsed_s)));
+  if (a.distance_m && a.shares.pace) { const r = rate(a); if(r.label!=='Time')st.push(stat(r.label, r.v, r.u)); }
+  st.push(stat('Time', activityElapsedText(a)));
   if (st.length < 3 && a.ascent_m) st.push(stat('Elevation', U.elev(a.ascent_m), U.eu()));
   return st.slice(0, 3).join('');
 }
@@ -128,13 +130,13 @@ function postMapMetrics(a) {
   if(a.distance_m) rows.push(['Distance',U.dist(a.distance_m),U.du()]);
   const r=rate(a);
   if(a.owner) {
-    if(a.distance_m&&a.moving_s&&a.shares?.pace&&r.label!=='Time') rows.push([r.label,r.v,r.u]);
-    rows.push(['Time',U.time(a.moving_s||a.elapsed_s),'']);
+    if(a.distance_m&&a.shares?.pace&&r.label!=='Time') rows.push([r.label,r.v,r.u]);
+    rows.push(['Time',activityElapsedText(a),'']);
     if(rows.length<3&&a.ascent_m)rows.push(['Elevation',U.elev(a.ascent_m),U.eu()]);
   } else {
     if(a.distance_m&&r.label!=='Time')rows.push([r.label,r.v,r.u]);
     else if(a.distance_m&&a.avg_hr)rows.push(['Avg HR',Math.round(a.avg_hr),'bpm']);
-    if(a.distance_m)rows.push(['Time',U.time(a.moving_s||a.elapsed_s),'']);
+    if(a.distance_m)rows.push(['Time',activityElapsedText(a),'']);
   }
   if(!rows.length)return '';
   return `<div class="post-map-metrics" role="group" aria-label="Activity metrics">${rows.slice(0,3).map(([label,value,unit])=>`<div class="post-map-metric"><span class="vh">${esc(label)}</span><b>${esc(value)}${unit?`<i>${esc(unit)}</i>`:''}</b></div>`).join('')}</div>`;
@@ -453,15 +455,11 @@ function meInsights(box, s) {
     const nowMonth = String(r.today || today).slice(0, 7), [year, monthNo] = nowMonth.split('-').map(Number);
     if (!year || !monthNo) return;
     const keyAt = offset => { const d = new Date(Date.UTC(year, monthNo - 1 + offset, 1)); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; };
-    const period = offsets => offsets.map(offset => months.get(keyAt(offset)) || {n: 0, pd: 0, pt: 0});
+    const period = offsets => offsets.map(offset => months.get(keyAt(offset)) || {n: 0, pace_d: 0, pace_t: 0});
     const recent = period([-2, -1, 0]), before = period([-5, -4, -3]);
     const count = list => list.reduce((n, m) => n + (+m.n || 0), 0);
     if (count(recent) < 3 || count(before) < 3) return;
-    const value = list => {
-      const d = list.reduce((n, m) => n + (+m.pd || 0), 0), t = list.reduce((n, m) => n + (+m.pt || 0), 0);
-      return sport === 'ride' ? (t > 0 ? d / t : 0) : (d > 0 ? t / (d / 1000) : 0);
-    };
-    const current = value(recent), previous = value(before); if (!(current > 0 && previous > 0)) return;
+    const current=elapsedActivityRate(recent,sport).value,previous=elapsedActivityRate(before,sport).value;if(!(current>0&&previous>0))return;
     let title, shown, subtitle, metric;
     if (sport === 'ride') {
       const delta = current - previous, unitDelta = U.speed(Math.abs(delta)), same = unitDelta < 0.1;
@@ -513,7 +511,7 @@ async function meOverview(el) {
   const shortDate=()=>{const parts=new Intl.DateTimeFormat(undefined,{weekday:'short',day:'numeric',month:'short',timeZone:zone}).formatToParts(new Date());return ['weekday','day','month'].map(k=>parts.find(p=>p.type===k)?.value).filter(Boolean).join(' ');};
   const activityLine=rows=>{
     if(rows.length===1){
-      const a=rows[0],parts=[],seconds=a.moving_s||a.elapsed_s,minutes=seconds?Math.round(seconds/60):0;
+      const a=rows[0],parts=[],seconds=Number(a.elapsed_s),minutes=Number.isFinite(seconds)&&seconds>0?Math.round(seconds/60):0;
       if(a.distance_m>0)parts.push(U.dist(a.distance_m,1)+' '+U.du());if(minutes>0)parts.push(minutes+' min');
       const name=SPORT_NAMES[a.sport]||a.sport_label||'Workout';
       return {title:[name,...parts].join(' · '),detail:new Date(a.start_time).toLocaleTimeString([], {timeZone:zone,hour:'numeric',minute:'2-digit'}),icon:IC[a.sport]?a.sport:'activity',sport:a.sport||'other',href:a.id?'/activity/'+a.id:'/me/activities'};
@@ -663,7 +661,7 @@ function sportStats(a) {
   const s = [];
   const add = (l, v, u) => { if (v != null && v !== '–') s.push(stat(l, v, u)); };
   if (a.sport === 'swim') {
-    add('Pace', a.distance_m && a.moving_s ? U.swim(a.moving_s / a.distance_m * 1000) : null, U.swu());
+    const r=rate(a); add('Pace', r.label==='Pace'?r.v:null, U.swu());
     add('Lengths', a.lengths); add('SWOLF', a.swolf ? Math.round(a.swolf) : null); add('Strokes', a.strokes ? Math.round(a.strokes) : null);
     add('Pool', a.pool_length_m ? `${Math.round(a.pool_length_m)} m` : null);
   }
@@ -679,7 +677,8 @@ function sportStats(a) {
   if (a.avg_stride) add('Stride', (a.avg_stride / 1000).toFixed(2), 'm');
   if (a.avg_gct) add('Ground contact', Math.round(a.avg_gct), 'ms');
   if (a.avg_vo) add('Vert. osc.', (a.avg_vo / 10).toFixed(1), 'cm');
-  add('Elapsed', a.elapsed_s && Math.abs(a.elapsed_s - (a.moving_s || 0)) > 30 ? dur(a.elapsed_s) : null);
+  add('Elapsed time', a.elapsed_s != null ? activityElapsedText(a) : null);
+  add('Moving time', a.moving_s != null ? activityMovingText(a) : null);
   add('Calories', a.calories ? Math.round(a.calories) : null); add('Temp', a.avg_temp != null ? U.temp(a.avg_temp) : null);
   return s.join('');
 }
@@ -744,7 +743,7 @@ function wireActivityTabs(el, onShow = () => {}) {
 
 function drawDetail(el, a) {
   const r = rate(a);
-  const hero = a.lifts && !a.distance_m ? headline(a) : (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Moving time', U.time(a.moving_s || a.elapsed_s)) + (a.distance_m && r.label!=='Time' ? stat(r.label, r.v, r.u) : '');
+  const hero = a.lifts && !a.distance_m ? headline(a) : (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Elapsed time', activityElapsedText(a)) + (a.distance_m && r.label!=='Time' ? stat(r.label, r.v, r.u) : '');
   const ins = insights(a);
   const splits = imp() ? a.splits_mi : a.splits_km;
   const more = sportStats(a);
@@ -850,14 +849,15 @@ function zonesHtml(z) {
   return `<div class="zones">${z.map((s, i) => `<div class="zone" data-zone="${i+1}" role="img" aria-label="Zone ${i+1}, ${ZN[i]}, ${dur(s,true)}, ${Math.round(s/tot*100)} percent"><span class="zone-name"><i aria-hidden="true"></i>Z${i + 1}</span><div><div class="zone-track"><div class="bar z${i + 1}" data-w="${(s / tot).toFixed(3)}"></div></div><small class="muted">${ZN[i]}</small></div><span class="num r">${dur(s, true)}<small class="muted">${Math.round(s/tot*100)}%</small></span></div>`).join('')}</div>`;
 }
 function similarHtml(a) {
-  const mine = a.moving_s && a.distance_m ? a.moving_s / a.distance_m * 1000 : null;
+  const mineRate = rate(a), foot = FOOT.includes(a.sport);
+  const mine = mineRate.label==='Time'?null:foot?Number(a.elapsed_s)/Number(a.distance_m)*1000:Number(a.distance_m)/Number(a.elapsed_s);
   return a.similar.map((s) => {
-    const p = s.moving_s && s.distance_m ? s.moving_s / s.distance_m * 1000 : null;
-    const diff = mine && p ? p - mine : null;
-    const foot = FOOT.includes(a.sport);
-    const cmp = diff == null ? '' : Math.abs(diff) < 2 ? 'same pace' : `${diff > 0 ? 'you were' : 'it was'} ${foot ? Math.round(Math.abs(imp() ? diff * MI / 1000 : diff)) + ' s' + U.pu() : U.speed(Math.abs(1000 / mine - 1000 / p)) + ' ' + U.su()} faster`;
+    const peerRate=rate({...s,sport:a.sport}),p=peerRate.label==='Time'?null:foot?Number(s.elapsed_s)/Number(s.distance_m)*1000:Number(s.distance_m)/Number(s.elapsed_s);
+    const diff = mine!=null&&p!=null ? foot?p-mine:mine-p : null;
+    const same = diff == null ? false : foot ? Math.abs(diff)<2 : U.speed(Math.abs(diff))<0.1;
+    const cmp = diff == null ? '' : same ? 'same pace' : `${diff > 0 ? 'you were' : 'it was'} ${foot ? Math.round(Math.abs(imp() ? diff * MI / 1000 : diff)) + ' s' + U.pu() : U.speed(Math.abs(diff)) + ' ' + U.su()} faster`;
     return `<a class="row-link" href="/activity/${s.id}" data-prefetch="/api/activities/${s.id}"><div><b>${esc(s.name)}</b><br><small class="muted">${esc(fdate(s.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))} · ${U.dist(s.distance_m)} ${U.du()}${s.same_route ? ' · same route' : ''}</small></div>
-      <div class="r"><b class="num">${p ? (foot ? U.pace(p) + U.pu() : U.speed(1000 / p) + ' ' + U.su()) : '–'}</b><br><small class="muted">${esc(cmp)}</small></div></a>`;
+      <div class="r"><b class="num">${p!=null ? peerRate.v + peerRate.u : '–'}</b><br><small class="muted">${esc(cmp)}</small></div></a>`;
   }).join('');
 }
 
@@ -962,12 +962,12 @@ function sharePicture(id, known, origin=null) {
       const trimValue=state=>state.hideEnds?savedTrim:0,date=fdate(activity.start_time,{weekday:'short',month:'short',day:'numeric',year:'numeric'}),name=(activity.name||'activity').replace(/[^\w -]+/g,'').trim()||'activity';
       const items=[{label:'Activity card',filename:`${name}.png`,controls,build:state=>routePicture(safe,hasLine?trimValue(state):0,details)}];
       if(hasLine)items.push({label:'Route map',filename:`${name}-route.png`,controls,build:state=>{const trim=trimValue(state),routePoints=trimRoute(decode(line),trim);return ShareArt.simplePicture({kicker:'Route map',title:activity.name,date,value:'Route',routePoints,routeTrimmed:trim>0});}});
-      const rateInfo=rate(activity),statsFacts=[`Time: ${U.time(activity.moving_s||activity.elapsed_s)}`];
+      const rateInfo=rate(activity),statsFacts=[`Elapsed time: ${activityElapsedText(activity)}`];
       if(details.pace&&rateInfo.label!=='Time')statsFacts.push(`${rateInfo.label}: ${rateInfo.v} ${rateInfo.u}`);
       if(details.heart_rate&&activity.avg_hr)statsFacts.push(`Average heart rate: ${Math.round(activity.avg_hr)} bpm`);
       if(details.elevation&&activity.ascent_m)statsFacts.push(`Climb: ${App.me?.units==='metric'?Math.round(activity.ascent_m)+' m':Math.round(activity.ascent_m*3.28084)+' ft'}`);
       if(details.calories&&activity.calories)statsFacts.push(`Calories: ${Math.round(activity.calories)} kcal`);
-      items.push({label:'Stats',filename:`${name}-stats.png`,build:()=>ShareArt.simplePicture({kicker:SPORT_NAMES[activity.sport]||'Activity',title:activity.name,date,value:activity.distance_m?U.dist(activity.distance_m):dur(activity.moving_s||activity.elapsed_s),unit:activity.distance_m?U.du():'moving time',facts:statsFacts})});
+      items.push({label:'Stats',filename:`${name}-stats.png`,build:()=>ShareArt.simplePicture({kicker:SPORT_NAMES[activity.sport]||'Activity',title:activity.name,date,value:activity.distance_m?U.dist(activity.distance_m):activityElapsedText(activity),unit:activity.distance_m?U.du():'elapsed time',facts:statsFacts})});
       await loadShareArt();if(!live())return;ShareSheet.open({items});
    }catch(error){if(live())toast(error.message||'Couldn’t load this activity. Tap Share to try again.');}
    finally{activityShareOpening.delete(context);}
@@ -1027,8 +1027,8 @@ async function routePicture(a, trim, details={}) {
   const hue = PIC.route, M = 48, PAD = 44, SAFE_TOP = 40, SAFE_BOTTOM = M;
   // the numbers: time and pace (or speed) first, then distance; without distance, heart rate or calories
   const r = rate(a), cells = [];
-  cells.push(['Time', U.time(a.moving_s || a.elapsed_s), '']);
-  if (details.pace!==false&&a.distance_m && a.moving_s && r.label!=='Time') cells.push([r.label, r.v, r.u]);
+  cells.push(['Elapsed time', activityElapsedText(a), '']);
+  if (details.pace!==false&&a.distance_m && r.label!=='Time') cells.push([r.label, r.v, r.u]);
   if (a.distance_m) cells.push(['Distance', U.dist(a.distance_m), U.du()]);
   if (cells.length < 3 && details.heart_rate && a.avg_hr) cells.push(['Avg heart rate', String(Math.round(a.avg_hr)), 'bpm']);
   if (cells.length < 3 && details.calories && a.calories) cells.push(['Calories', String(Math.round(a.calories)), 'kcal']);
@@ -1122,25 +1122,29 @@ function matchedRouteTrendHeadline(trend, points, foot) {
   if (/^0(?:\.0+)?(?:\s|$)/.test(change)) return '';
   return `${perMonth < 0 ? 'Getting faster' : 'Getting slower'}: about ${change} per month on this route.`;
 }
+function routeActivityRate(a,sport) {
+  const value=rate({...a,sport});return value.label==='Time'?'–':value.v+value.u;
+}
 route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
   el.innerHTML = `<div class="top">${backBtn('Routes')}</div>${skel(1)}<div class="sk block"></div>${skel(1)}`;
   wireBack(el, '/progress/routes');
   await load(`/api/routes/${id}`, (r) => {
     const acts = r.activities, foot = FOOT.includes(r.sport) || r.sport === 'walk';
-    const pts = acts.filter((a) => a.moving_s && a.distance_m).map((a) => ({x: new Date(a.start_time) / 864e5, y: a.moving_s / a.distance_m * 1000, id: a.id}));
+    const pts = acts.filter((a) => a.elapsed_s > 0 && a.distance_m > 0).map((a) => ({x: new Date(a.start_time) / 864e5, y: a.elapsed_s / a.distance_m * 1000, id: a.id}));
     const t = r.pace_trend, e = r.efficiency_trend;
     let headline = matchedRouteTrendHeadline(t, pts, foot);
     if (e && t) { const effUp = e.slope_per_day > 0; headline += ` Recorded distance per heartbeat ${e.slope_per_day===0?'is unchanged':effUp?'increased':'decreased'}. Conditions and recording differences can affect this.`; }
     const best = acts.find((a) => a.id === r.fastest_id);
+    const knownTimes=acts.filter(a=>a.elapsed_s>0),average=knownTimes.length===acts.length&&acts.length?dur(knownTimes.reduce((s,a)=>s+a.elapsed_s,0)/knownTimes.length):'–';
     el.innerHTML = `<div class="top">${backBtn('Routes')}<button class="icon-btn" id="r-edit" aria-label="Rename route">${svg('edit')}</button></div>
       <div class="card"><h1>${esc(r.name)}</h1><p class="muted">${acts.length} times · ${SPORT_NAMES[r.sport] || 'Activity'} · first ${esc(fdate(acts[0].start_time, {month: 'short', year: 'numeric'}))}</p>
-        <div class="hero">${stat('Best', dur(best && best.moving_s))}${stat('Average', dur(acts.reduce((s, a) => s + (a.moving_s || 0), 0) / acts.length))}${stat('Distance', U.dist(acts[0].distance_m), U.du())}</div></div>
+        <div class="hero">${stat('Best', best&&best.elapsed_s>0?dur(best.elapsed_s):'–')}${stat('Average', average)}${stat('Distance', U.dist(acts[0].distance_m), U.du())}</div></div>
       ${r.line ? '<div class="map" id="r-map"></div>' : ''}
       <div class="card"><h2>${foot ? 'Pace' : 'Speed'} over time</h2>${headline ? `<div class="callout">${esc(headline)}</div>` : ''}<div id="r-chart"></div>
         <div class="badges"><span class="badge"><span class="route-fastest-key" aria-hidden="true">●</span> Fastest</span><span class="badge">- - Trend</span></div></div>
       <div class="card"><h2>Every time</h2>${[...acts].reverse().map((a) => `<a class="row-link" href="/activity/${a.id}" data-prefetch="/api/activities/${a.id}">
         <div><b>${a.id === r.fastest_id ? '<span class="badge pr">' + svg('trophy') + ' Fastest</span> ' : ''}${esc(fdate(a.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))}</b><br><small class="muted">${esc(a.name)}${a.avg_hr ? ' · ' + Math.round(a.avg_hr) + ' bpm' : ''}${a.avg_temp != null ? ' · ' + U.temp(a.avg_temp) : ''}</small></div>
-        <div class="r"><b class="num">${dur(a.moving_s)}</b><br><small class="muted num">${foot ? U.pace(a.moving_s / a.distance_m * 1000) + U.pu() : U.speed(a.distance_m / a.moving_s) + ' ' + U.su()}</small></div></a>`).join('')}</div>`;
+        <div class="r"><b class="num">${a.elapsed_s>0?dur(a.elapsed_s):'–'}</b><br><small class="muted num">${routeActivityRate(a,r.sport)}</small></div></a>`).join('')}</div>`;
     wireBack(el, '/progress/routes');
     requestAnimationFrame(() => dotChart($('#r-chart', el), pts, {yfmt: (v) => (foot ? U.pace(v) : U.speed(1000 / v)), invert: true, trend: t, best: r.fastest_id}));
     if (r.line) lazy($('#r-map', el), () => mapInto($('#r-map', el), [r.line], {sport: r.sport}).catch(() => {}));
@@ -1217,7 +1221,7 @@ function progressMetricForSport(sport, metric) {
   return 'distance';
 }
 function progressMetrics(sport, metric) {
-  const choices = [['distance', 'Distance'], ['time', 'Time']];
+  const choices = [['distance', 'Distance'], ['time', 'Moving time']];
   if (sport === 'ride') choices.push(['speed', 'Speed']);
   else if (sport === 'run' || sport === 'walk') choices.push(['pace', 'Pace']);
   return `<div class="me-period progress-metric-controls" data-count="${choices.length}" role="group" aria-label="Totals metric">${choices.map(([key, label]) => `<button type="button" data-progress-metric="${key}" aria-pressed="${metric === key}">${label}</button>`).join('')}</div>`;
@@ -1568,7 +1572,7 @@ async function pMileage(body, q, {home=false}={}) {
     const start = (d) => { const x = new Date(d); if (period === 'week') x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); else if (period === 'month') x.setDate(1); else { x.setMonth(0); x.setDate(1); } return x; };
     for (let d = start(first); d <= today; ) { all.push(new Date(d)); if (period === 'week') d.setDate(d.getDate() + 7); else if (period === 'month') d.setMonth(d.getMonth() + 1); else d.setFullYear(d.getFullYear() + 1); }
     const val = (d, f = 'd') => { const o = by[ymd(d)] || {}; return keys.reduce((s, k) => s + Number((o[k.k] || {})[f] || 0), 0); };
-    const metricValue = d => { const distance = val(d, 'd'), time = val(d, 't');
+    const metricValue = d => { const distance = val(d, paceMetric ? 'pace_d' : 'd'), time = val(d, paceMetric ? 'pace_t' : 't');
       if (metric === 'distance') return toU(distance);
       if (metric === 'time') return time;
       return metric === 'speed' ? (time > 0 ? distance / time : 0) : (distance > 0 ? time / (distance / 1000) : 0);
@@ -1607,7 +1611,7 @@ async function pMileage(body, q, {home=false}={}) {
     const defaultPeriodLabel = 'This ' + word, defaultPeriodValue = displayValue(metricValue(cur));
     let avgValue = avg, bestValue = bestEntry?.value ?? null;
     if (paceMetric) {
-      const distance = chartPeriods.reduce((n, d) => n + val(d, 'd'), 0), time = chartPeriods.reduce((n, d) => n + val(d, 't'), 0);
+      const distance = chartPeriods.reduce((n, d) => n + val(d, 'pace_d'), 0), time = chartPeriods.reduce((n, d) => n + val(d, 'pace_t'), 0);
       avgValue = metric === 'speed' ? (time > 0 ? distance / time : null) : (distance > 0 ? time / (distance / 1000) : null);
       const shown = chartPeriods.map(metricValue).filter(v => v > 0);
       bestValue = shown.length ? metric === 'speed' ? Math.max(...shown) : Math.min(...shown) : null;
@@ -1617,13 +1621,13 @@ async function pMileage(body, q, {home=false}={}) {
       : {week: 'Weekly avg', month: 'Monthly avg', year: 'Yearly avg'}[period];
     const bestLabel = paceMetric ? `Fastest ${word}` : `Best ${word}`;
     const table = metric === 'distance' || metric === 'time';
-    const chartLabel = `${metric === 'speed' ? 'Average speed' : metric === 'pace' ? 'Average pace' : metric === 'time' ? 'Activity time' : 'Distance'} by ${period}`;
+    const chartLabel = `${metric === 'speed' ? 'Average speed' : metric === 'pace' ? 'Average pace' : metric === 'time' ? 'Moving time' : 'Distance'} by ${period}`;
     box.innerHTML = `<div class="card"><div class="stats3 progress-total-stats">
         ${stat(defaultPeriodLabel, displayValue(metricValue(cur)), statUnit)}
         ${home&&avgValue==null?'':stat(averageLabel, avgValue == null ? '–' : displayValue(avgValue), statUnit).replace('class="stat"','class="stat progress-average"')}
         ${stat(bestLabel + (scoped ? ' (range)' : ''), bestValue == null ? '–' : displayValue(bestValue), statUnit)}</div>
         ${paceMetric ? `<p class="small muted progress-pace-window">${period === 'week' ? 'Weekly averages · last 12 weeks' : period === 'month' ? 'Monthly averages · last 12 months' : 'Yearly averages'}</p>` : home?'':`<p class="small muted">${last ? `Last ${word}: ${esc(fmt(metricValue(last)))} · ` : ''}best ${esc(label(bestEntry?.d || cur).replace('Week of ', 'week of '))}</p>`}
-        <div class="totals-display"><div id="m-chart"${body._showTable?' hidden':''}></div>${table?`<div id="m-table" class="tbl-wrap"${body._showTable?'':' hidden'}><table class="tbl"><thead><tr><th>${period === 'week' ? 'Week of' : period === 'month' ? 'Month' : 'Year'}</th><th class="r">Distance ${U.du()}</th><th class="r">Time h/m/s</th><th class="r">Workouts</th><th class="r">Climb ${U.eu()}</th></tr></thead><tbody>
+        <div class="totals-display"><div id="m-chart"${body._showTable?' hidden':''}></div>${table?`<div id="m-table" class="tbl-wrap"${body._showTable?'':' hidden'}><table class="tbl"><thead><tr><th>${period === 'week' ? 'Week of' : period === 'month' ? 'Month' : 'Year'}</th><th class="r">Distance ${U.du()}</th><th class="r">Moving time h/m/s</th><th class="r">Workouts</th><th class="r">Climb ${U.eu()}</th></tr></thead><tbody>
         ${[...show].reverse().map((d) => `<tr><td>${esc(progressTableLabel(d, period))}</td>
           <td class="r num">${toU(val(d)).toFixed(1)}</td><td class="r num">${val(d, 't') ? U.time(val(d, 't')) : '–'}</td><td class="r num">${val(d, 'n')}</td><td class="r num">${val(d, 'a') ? U.elev(val(d, 'a')) : '–'}</td></tr>`).join('')}</tbody></table></div>`:''}</div></div>`;
     requestAnimationFrame(() => {

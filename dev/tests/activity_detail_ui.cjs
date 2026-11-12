@@ -72,12 +72,12 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
   if(process.env.KINETTA_DETAIL_ROW_ONLY==='1'){
    const size={width:330,height:667,root:16}, {c,p,errors}=await open('lifting','dark',size,false,false,true);await until(p,()=>!!document.querySelector('#d-soc [data-detail-share]'),'detail Share action');await assertDetailActionRow(p,'330px dark activity detail');assert.deepEqual(errors,[]);console.log('Activity detail action row 330px/16px dark: React, Comments, Share and right-side counts PASS');await c.close();contexts.splice(contexts.indexOf(c),1);return;
   }
-  for(const kind of ['run','treadmill','ride','lifting','empty','friend'])for(const size of (medalKind?[{width:390,height:844,root:16},{width:330,height:667,root:16}]:[{width:390,height:844,root:16}]))for(const theme of ['light','dark']){
+  for(const kind of ['run','paused','treadmill','ride','lifting','empty','friend'])for(const size of (medalKind?[{width:390,height:844,root:16},{width:330,height:667,root:16}]:[{width:390,height:844,root:16}]))for(const theme of ['light','dark']){
    const name=`${kind}-${size.width}-${theme}`;if(detailCases.length&&!detailCases.includes(name))continue;
    if(medalKind&&(kind!==medalKind||theme!==medalTheme||size.width!==medalWidth))continue;
-   const {c,p,errors,writes,friend,detailAssets,routeScriptOrder}=await open(kind,theme,size),mapped=['run','ride','friend'].includes(kind);
+   const {c,p,errors,writes,friend,detailAssets,routeScriptOrder}=await open(kind,theme,size),mapped=['run','paused','ride','friend'].includes(kind);
    assert.equal(detailAssets.length,1,`${name} loads the deferred ActivityDetail script once`);
-   if(kind==='run'||kind==='friend')assert.deepEqual(routeScriptOrder,kind==='friend'?['/static/social.js','/static/activity-detail.js']:['/static/social.js','/static/segments.js','/static/activity-detail.js'],`${name} loads route prerequisites before ActivityDetail`);
+   if(kind==='run'||kind==='paused'||kind==='friend')assert.deepEqual(routeScriptOrder,kind==='friend'?['/static/social.js','/static/activity-detail.js']:['/static/social.js','/static/segments.js','/static/activity-detail.js'],`${name} loads route prerequisites before ActivityDetail`);
    if(medalKind){
     await until(p,()=>!!document.querySelector('.activity-next-medal'),'detail next medal');
     const line=p.locator('.activity-next-medal'),copy=line.locator('.activity-next-medal-copy'),metric=await p.evaluate(()=>App.me?.units==='metric'),remaining=medalKind==='ride'?(metric?'3.7 km':'2.3 mi'):(metric?'1 km':'0.6 mi'),level=medalKind==='ride'?'Century':'10K',full=`${remaining} to your ${level} medal`,compact=`${remaining} to ${level}`,actual=await copy.innerText(),fullFits=await copy.evaluate((el,text)=>{const link=el.closest('a'),tight=link.classList.contains('is-tight'),font=link.style.fontSize,before=el.textContent;link.classList.remove('is-tight');link.style.removeProperty('font-size');el.textContent=text;const fits=el.scrollWidth<=el.clientWidth+1;el.textContent=before;if(tight)link.classList.add('is-tight');if(font)link.style.fontSize=font;return fits;},full);assert.equal(actual,fullFits?full:compact,'keeps the expanded medal copy only when it fits at '+size.width+'px');
@@ -86,6 +86,17 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
     if(mapped)await until(p,()=>!!document.querySelector('#d-map .leaflet-tile-loaded'),'fictional map tiles');
     if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`detail-next-${medalKind}-${theme}.png`),fullPage:true,animations:'disabled'});}
     assert.deepEqual(errors,[]);assert(await p.locator('[data-detail-edit]').count()>=1);console.log(`Activity detail ${medalKind} ${theme}: next-medal line PASS`);await c.close();contexts.splice(contexts.indexOf(c),1);continue;
+   }
+   if(kind==='paused'){
+    assert.deepEqual(await p.locator('.detail-primary .stat small').allTextContents(),['Distance','Elapsed time','Pace'],'paused-run detail leads with elapsed time and elapsed pace');
+    const card=await p.evaluate(async id=>{const a=await api(`/api/activities/${id}`),host=document.createElement('div');host.innerHTML=postCard(a,{compact:true});document.body.append(host);const result={distance:a.distance_m,elapsed:a.elapsed_s,moving:a.moving_s,labels:[...host.querySelectorAll('.post-map-metric .vh')].map(n=>n.textContent),values:[...host.querySelectorAll('.post-map-metric b')].map(n=>n.textContent)};host.remove();return result;},ids.paused);
+    assert.equal(card.distance,8046.72,'feed preserves recorded five-mile distance');assert.equal(card.elapsed,3000);assert.equal(card.moving,2400);assert(card.labels.includes('Pace')&&card.labels.includes('Time'),'feed shows pace and whole-activity time');assert(card.values.includes('50m'),'feed duration is the 50-minute elapsed time');
+    await p.getByRole('tab',{name:'Details',exact:true}).click();const details=p.locator('#activity-pane-overview');await details.waitFor({state:'visible'});const detail=await details.innerText();assert.match(detail,/Elapsed time[\s\S]*?50m/i);assert.match(detail,/Moving time[\s\S]*?40m/i,'detail exposes both durations even with a ten-minute difference');
+    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`activity-elapsed-paused-detail-390-${theme}.png`),fullPage:true,animations:'disabled'});}
+    await until(p,()=>!!document.querySelector('#d-send'),'paused-run header Share action');await p.locator('#d-send').click();await p.locator('.share-sheet').waitFor();await p.waitForFunction(()=>{const image=document.querySelector('[data-share-image="0"]');return image&&!image.hidden&&image.complete&&image.naturalWidth>0;});
+    assert.equal(await p.locator('.share-picture-label').first().innerText(),'Activity card');assert.equal(await p.locator('[data-share-save]').isEnabled(),true,'elapsed-first activity card is ready to save/share');
+    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`activity-elapsed-paused-share-390-${theme}.png`),fullPage:true,animations:'disabled'});}
+    assert.deepEqual(errors,[]);assert(!writes.some(x=>!['/api/challenges/signup/continue','/api/milestones/celebrate'].includes(x)),'paused-run feed/detail/share proof performs no unrelated writes');await c.close();contexts.splice(contexts.indexOf(c),1);console.log(`Paused run elapsed summary feed/detail/share ${theme} PASS`);continue;
    }
    if(!friend)await until(p,()=>!!document.querySelector('#d-soc [data-ttalk]'),'owner reactions read');
    assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no document overflow');assert.equal(await p.locator('.discovery-grid').count(),0);

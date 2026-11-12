@@ -7,16 +7,18 @@ const went = [], handlers = {};
 const ctx = {App: {me: {login: 'zz_me', name: 'Me'}}, SPORT_NAMES: {run: 'Run'}, CHEER: {verb: 'Cheers'}, VIS_SHORT: {friends: 'Friends'},
   esc: (s) => String(s), svg: () => '<svg></svg>', avatar: (p) => `<span class="av">${p.name[0]}</span>`, sportMark: () => '<span class="sp"></span>',
   profileHref: (p) => `/people/${p.login}`, when: () => 'Today', activityMonthKey: (iso) => String(iso).slice(0, 7), activityMedia: () => '', headline: () => '', imp: () => false, rate: () => ({}),
-  stat: () => '', U: {time: () => ''}, dur: () => '', go: (p) => went.push(p), getSelection: () => '', addEventListener() {}};
+  stat: (label,value,unit='') => `<span><small>${label}</small><b>${value}${unit}</b></span>`, U: {dist:n=>n+' m',du:()=> 'm',time:n=>n+'s'}, dur: () => '', go: (p) => went.push(p), getSelection: () => '', addEventListener() {}};
 vm.createContext(ctx);
+vm.runInContext(source.slice(source.indexOf('const activityElapsedText ='),source.indexOf('const activityMovingText =')),ctx);
 const social=fs.readFileSync('app/static/social.js','utf8');vm.runInContext(social.slice(social.indexOf('const REACTION_FALLBACK='),social.indexOf('function wireReactionGroup')),ctx);
 vm.runInContext(source.slice(source.indexOf('function postCard'), source.indexOf('// Cheers straight from a feed card')) +
   source.slice(source.indexOf('// A tap anywhere on a card'), source.indexOf('const backBtn')) + '\nglobalThis.card=postCard;globalThis.wire=wireCardTaps;globalThis.OWN=CARD_OWN;', ctx);
 
-const html = ctx.card({id: 7, sport: 'run', name: 'Easy run', start_time: '2026-10-16T10:00:00Z', owner: {login: 'zz_friend', name: 'Sam'}, shares: {}}, {who: true});
+const html = ctx.card({id: 7, sport: 'run', name: 'Easy run', start_time: '2026-10-16T10:00:00Z', distance_m:5000,moving_s:2700,elapsed_s:3000,owner: {login: 'zz_friend', name: 'Sam'}, shares: {}}, {who: true});
 const links = [...html.matchAll(/<a class="([^"]+)" href="([^"]+)"/g)].map((m) => [m[1], m[2]]);
 assert.deepEqual(links.filter(([, h]) => h.startsWith('/people/')).map(([c]) => c), ['post-av', 'post-name'], 'only the photo and the name link to the profile');
 assert.match(html, /data-activity-month="2026-10"/, 'activity cards expose the month key used by history navigation');
+assert.match(html, /<small>Time<\/small><b>3000s<\/b>/, 'shared activity card uses the real elapsed-time helper');
 assert.match(html, /<article class="[^"]*\bpost\b[^"]*" data-href="\/activity\/friends\/7"/, 'the whole card knows its activity');
 assert(!html.includes('data-share'),"a friend's activity is never turned into a shareable picture by someone else");
 const own=ctx.card({id:8,sport:'run',name:'Private run',visibility:'me',comments:3});
