@@ -187,7 +187,7 @@ module.exports=async({browser,storageState,base,shots})=>{
  const pendingOnly=process.env.KINETTA_ACHIEVEMENT_PENDING_ONLY==='1';
  for(const theme of pendingOnly?['light']:['light','dark']){
   const context=await browser.newContext({storageState,viewport:{width:390,height:844},colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:SCREENSHOT_CLOCK.timezone});
-  const page=await context.newPage(),errors=[],writes=[],pinRequests=[],ownerAchievementCalls=[],ownerAchievementResponses=[],ownerHistoryCalls=[],sharedAchievementCalls=[],ownerShowcaseCalls=[];let journeyValue=6099414,workoutValue=1120,unitMode='imperial',unitLabelValues=null,showcasePins=[],sharedShowcasePins=[],sharedShareEnabled=true,emptyOwnerAchievements=false,emptyOwnerShowcase=false,emptyFriendShowcase=false,emptyFriendAchievements=false,pendingAchievementResponses=[],pendingHistoryResponses=[],failOwnerAchievementOnce=false,sharedAchievementPending=false,pinPostGate=null,pinRaceKeepPending=false;
+  const page=await context.newPage(),errors=[],writes=[],pinRequests=[],ownerAchievementCalls=[],ownerAchievementResponses=[],ownerHistoryCalls=[],sharedAchievementCalls=[],ownerShowcaseCalls=[];let journeyValue=6099414,workoutValue=1120,unitMode='imperial',unitLabelValues=null,legacyRunAward=null,deepRunFeatured=false,showcasePins=[],sharedShowcasePins=[],sharedShareEnabled=true,emptyOwnerAchievements=false,emptyOwnerShowcase=false,emptyFriendShowcase=false,emptyFriendAchievements=false,pendingAchievementResponses=[],pendingHistoryResponses=[],failOwnerAchievementOnce=false,sharedAchievementPending=false,pinPostGate=null,pinRaceKeepPending=false;
   const ownerShowcaseCodes=['journey','workouts','lifted','sport:run'];
   await page.clock.setFixedTime(SCREENSHOT_NOW);
   page.on('pageerror',e=>errors.push(e.message));
@@ -204,6 +204,7 @@ module.exports=async({browser,storageState,base,shots})=>{
     if(url.searchParams.has('login'))sharedAchievementCalls.push(url.href);else ownerAchievementCalls.push(url.href);
     if(!url.searchParams.has('login')&&failOwnerAchievementOnce){failOwnerAchievementOnce=false;if(pendingAchievementResponses.length)pendingAchievementResponses.shift();ownerAchievementResponses.push({pageURL:page.url(),request:url.href,status:503,pending:null});return route.fulfill({status:503,json:{error:'Fictional temporary achievement refresh failure'}});}
     if(emptyOwnerAchievements&&!url.searchParams.has('login'))return route.fulfill({json:{pending:false,tracks:[]}});
+    if(deepRunFeatured){const run=data.tracks.find(track=>track.code==='sport:run');if(run){run.value=160934.4;run.display_value=100;run.display_unit='mi';}}
     if(futureEvidence){const next=data.tracks.find(t=>t.code==='active_time'),future=data.tracks.find(t=>t.code==='years_active');Object.assign(next,{value:1800,display_value:.5,display_unit:'hours',tiers:[]});Object.assign(future,{value:0,display_value:0,display_unit:'years',tiers:[]});}
     if(journey){journey.value=journeyValue;journey.display_value=unitMode==='imperial'?journeyValue/1609.344:journeyValue/1000;journey.display_unit=unitMode==='imperial'?'mi':'km';}
     if(workouts){workouts.value=workoutValue;workouts.display_value=workoutValue;}
@@ -253,6 +254,7 @@ module.exports=async({browser,storageState,base,shots})=>{
     if(!url.searchParams.has('login'))ownerHistoryCalls.push(url.href);
     const code=decodeURIComponent(url.pathname.slice('/api/achievement-history/'.length));
     const history=v2History(code,{'journey':journeyValue,'workouts':workoutValue});
+    if(code==='sport:run'&&legacyRunAward)history.tiers.push({...legacyRunAward});
     if(!url.searchParams.has('login')&&pendingHistoryResponses.length)history.pending=pendingHistoryResponses.shift();
     if(url.searchParams.has('login'))history.tiers=history.tiers.map(({rank,name,threshold,day})=>({rank,name,threshold,day}));
     return route.fulfill({json:history});
@@ -464,6 +466,12 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.equal(await page.locator('.me-featured-achievements').count(),0,'turning achievement sharing off removes the featured section');
   sharedShareEnabled=true;sharedShowcasePins=[];
   await page.goto(base+'/me');await page.locator('.me-featured-achievements').waitFor();
+  if(theme==='light'){
+   deepRunFeatured=true;await page.evaluate(()=>invalidate('/api/achievements'));await page.goto(base+'/me');await page.locator('[data-me-featured][data-loaded="true"] .profile-achievement[data-achievement-code="sport:run"]').waitFor();
+   const contrast=await page.locator('[data-me-featured][data-loaded="true"] .profile-achievement[data-achievement-code="sport:run"] .profile-achievement-value').evaluate(node=>{const rgb=value=>value.match(/[\d.]+/g).slice(0,3).map(Number),linear=value=>{value/=255;return value<=.04045?value/12.92:((value+.055)/1.055)**2.4},lum=value=>{const [r,g,b]=rgb(value);return .2126*linear(r)+.7152*linear(g)+.0722*linear(b)},fg=getComputedStyle(node).color,bg=getComputedStyle(node.closest('.profile-achievement-medallion')).backgroundColor,a=lum(fg),b=lum(bg);return{fg,bg,ratio:(Math.max(a,b)+.05)/(Math.min(a,b)+.05)};});
+   assert(contrast.ratio>=4.5,`the deep green Run medal value meets 4.5:1 contrast: ${JSON.stringify(contrast)}`);
+   deepRunFeatured=false;await page.evaluate(()=>invalidate('/api/achievements'));await page.goto(base+'/me');await page.locator('[data-me-featured][data-loaded="true"]').waitFor();
+  }
   if(process.env.KINETTA_ACHIEVEMENT_FIT_ONLY==='1'){await assert330AchievementViews(page,base,setUnits,theme,shots);await context.close();continue;}
   unitLabelValues=[['consistency',1,'weeks'],['active_time',1,'h'],['workouts',1,'workouts'],['sport:lift',1,'sessions'],['years_active',1,'years']].map(([code,value,unit])=>({code,value,unit}));
   await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
@@ -593,7 +601,13 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.equal(await page.locator('.profile-achievement-named-levels li[data-level="2"] .profile-achievement-level-copy>small').innerText(),'First 1.6 km','the rounded metric mile name is clear');
   await setUnits('imperial');
   await page.goto(base+'/me');await until(page,()=>App.pageReady&&App.me?.units==='imperial','imperial profile before checking the canonical Run level name');
+  legacyRunAward={rank:0,name:'First run',threshold:1,day:'2024-03-05',activity_id:90210,date_source:'legacy',legacy:true};
   await page.evaluate(()=>go('/me/achievements/sport%3Arun'));await waitForHistoryTrack(page,'sport:run','imperial Run history');await expandAchievementLevels(page);
+  const legacyRunRows=page.locator('.profile-achievement-history-section .profile-achievement-history li');
+  assert.equal(await legacyRunRows.count(),1,'a saved starter award remains visible apart from canonical levels');
+  assert.equal(await legacyRunRows.first().locator('span').first().innerText(),'First run');
+  assert.equal(await legacyRunRows.first().locator('time').getAttribute('datetime'),'2024-03-05','the saved legacy award date is preserved');
+  assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-current').innerText(),'Level 6 · Marathon','a legacy rank-zero award does not change the canonical Run level');
   const runningLevels=page.locator('.profile-achievement-named-levels');
   assert.equal(await runningLevels.locator('li[data-level="2"] .profile-achievement-level-copy>small').innerText(),'First mile','imperial keeps Wren’s canonical Run name');
   for(const [level,name,distance] of [[3,'5K','3.1 mi'],[4,'10K','6.2 mi'],[5,'Half marathon','13.1 mi'],[6,'Marathon','26.2 mi']]){
@@ -602,6 +616,12 @@ module.exports=async({browser,storageState,base,shots})=>{
   }
   assert.equal(await page.locator('.profile-achievement-current').innerText(),'Level 6 · Marathon');assert.equal(await page.locator('.profile-achievement-current-value').innerText(),'49.7 mi');
   await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='track');await screenshot(page,shots,`achievement-run-levels-390-${theme}`,{fullPage:true});await page.evaluate(()=>delete document.documentElement.dataset.achievementEvidence);
+  await page.goto(base+'/people/fictional_friend?view=achievements&track=sport%3Arun');await waitForHistoryTrack(page,'sport:run','shared Run history with legacy award');
+  assert.equal(await page.locator('.profile-achievement-history-section .profile-achievement-history li').count(),1,'shared history retains the saved starter name and date');
+  assert.equal(await page.locator('#profile-achievement-page a[href^="/activity/"]').count(),0,'shared legacy history contains no activity link or identifier');
+  assert.equal(await page.locator('.profile-achievement-tail-note').count(),0,'shared history does not disclose future repeat levels');
+  assert.equal(await page.locator('.profile-achievement-level-row.is-next,.profile-achievement-level-row.is-upcoming').count(),0,'shared history contains no future canonical levels');
+  legacyRunAward=null;
   await page.goto(base+'/me/achievements/sport%3Aride');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();await expandAchievementLevels(page);
   assert.equal(await page.locator('.profile-achievement-named-levels li[data-level="5"] .profile-achievement-level-copy>small').innerText(),'Metric century · Current');
   assert.equal(await page.locator('.profile-achievement-named-levels li[data-level="5"] .profile-achievement-level-title b').innerText(),'Level 5 · 62.1 mi','the Metric century value follows miles');
@@ -666,6 +686,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.equal(await page.locator('.profile-achievement-named-levels li').count(),catalog.tracks.years_active.levels.length,'an unstarted deep link opens with its full catalog ladder visible');
   assert.equal(await page.locator('.profile-achievement-named-levels li.is-next').getAttribute('data-level'),'1','the first level is highlighted as the next goal');
   assert.equal(await page.locator('.profile-achievement-named-levels li[data-level="1"] .profile-achievement-level-meta').innerText(),'Start here','an unstarted ladder points to its first level');
+  assert.match(await page.locator('.profile-achievement-tail-note').innerText(),/After all named levels.*whole-number multiple/,'an unstarted owner can discover the repeating tail');
   achievementFixture.tracks=allFixtureTracks;
   const allFixtureTracksForFilter=achievementFixture.tracks;achievementFixture.tracks=allFixtureTracksForFilter.filter(track=>['lifted','sport:lift'].includes(track.code));
   await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
