@@ -186,6 +186,7 @@ const assert330AchievementViews=async(page,base,setUnits,theme,shots)=>{
 module.exports=async({browser,storageState,base,shots})=>{
  const pendingOnly=process.env.KINETTA_ACHIEVEMENT_PENDING_ONLY==='1';
  const runOnly=process.env.KINETTA_ACHIEVEMENT_RUN_ONLY==='1';
+ const indexOnly=process.env.KINETTA_ACHIEVEMENT_INDEX_ONLY==='1';
  for(const theme of pendingOnly?['light']:['light','dark']){
   const context=await browser.newContext({storageState,viewport:{width:390,height:844},colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:SCREENSHOT_CLOCK.timezone});
   const page=await context.newPage(),errors=[],writes=[],pinRequests=[],ownerAchievementCalls=[],ownerAchievementResponses=[],ownerHistoryCalls=[],sharedAchievementCalls=[],ownerShowcaseCalls=[];let journeyValue=6099414,workoutValue=1120,unitMode='imperial',unitLabelValues=null,legacyRunAward=null,runEvidenceState=null,deepRunFeatured=false,showcasePins=[],sharedShowcasePins=[],sharedShareEnabled=true,emptyOwnerAchievements=false,emptyOwnerShowcase=false,emptyFriendShowcase=false,emptyFriendAchievements=false,pendingAchievementResponses=[],pendingHistoryResponses=[],failOwnerAchievementOnce=false,sharedAchievementPending=false,pinPostGate=null,pinRaceKeepPending=false;
@@ -267,6 +268,26 @@ module.exports=async({browser,storageState,base,shots})=>{
    return route.continue();
   });
   const setUnits=async units=>{unitMode=units;await page.evaluate(units=>{App.me.units=units;keep('/api/me',App.me);},units);};
+  if(indexOnly){
+   futureEvidence=true;
+   await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+   const index=page.locator('#profile-achievement-page');
+   assert.deepEqual(await index.locator('.profile-achievement-group-title').allTextContents(),['Overall','Distance','Strength']);
+   assert.deepEqual((await index.locator('.profile-achievement[data-achievement-code]').evaluateAll(nodes=>nodes.map(n=>n.dataset.achievementCode))).sort(),Object.keys(catalog.tracks).sort(),'owner index shows all 13 catalogue tracks');
+   for(const [code,progress,caption] of [['active_time','5','First ten hours · 9.5 hours left'],['years_active','0','First orbit · 1 year left']]){
+    const badge=index.locator(`[data-achievement-code="${code}"]`);
+    assert.equal(await badge.locator('[data-achievement-progress]').getAttribute('aria-valuenow'),progress);
+    assert.equal(await badge.locator('.profile-achievement-next').innerText(),caption);
+    assert.match(await badge.getAttribute('aria-description'),/Future reward/);
+   }
+   await assertAchievementGridTextFit(index,'390px owner index with future rewards');await assertMedalText(index,'390px owner index');
+   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'owner index fits the viewport');
+   await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='all-tracks');
+   await screenshot(page,shots,`achievement-index-390-${theme}`,{fullPage:true});
+   assert.deepEqual(errors,[],'owner index has no browser errors');assert.deepEqual(writes.filter(url=>url!=='/api/challenges/signup/continue'),[],'owner index requests no writes beyond the intercepted startup continuation');
+   console.log(`Achievement owner index 390 ${theme}: 13 tracks, 3 groups, future rewards and text fit PASS`);
+   futureEvidence=false;await context.close();continue;
+  }
   await page.goto(base+'/me');await until(page,()=>App.pageReady,'fixture login');await setUnits('imperial');await page.locator('[data-me-featured][data-loaded="true"]').waitFor();
   const waitForCallCount=async(calls,count,label)=>{for(let i=0;i<160;i++){if(calls.length>=count)return;await page.waitForTimeout(50);}throw Error('Timed out waiting for '+label);};
   const holdToPin=async code=>{
@@ -860,7 +881,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   console.log(`Achievement medallions 390 ${theme}: profile, all tracks, history, units, icons and web haptic guard PASS`);
   await page.unrouteAll({behavior:'ignoreErrors'});await context.close();
  }
- if(process.env.KINETTA_ACHIEVEMENT_FIT_ONLY==='1'||process.env.KINETTA_ACHIEVEMENT_EMPTY_ENTRY_ONLY==='1'||process.env.KINETTA_ACHIEVEMENT_RUN_ONLY==='1')return;
+ if(indexOnly||process.env.KINETTA_ACHIEVEMENT_FIT_ONLY==='1'||process.env.KINETTA_ACHIEVEMENT_EMPTY_ENTRY_ONLY==='1'||process.env.KINETTA_ACHIEVEMENT_RUN_ONLY==='1')return;
  const nativeContext=await browser.newContext(),nativePage=await nativeContext.newPage();
  await nativeContext.addInitScript(()=>{
   window.__achievementHaptics=[];
