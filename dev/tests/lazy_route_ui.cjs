@@ -4,7 +4,7 @@ const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 const trackFixture=require('../demo/track_session.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798';
 const selectedCase=process.env.KINETTA_LAZY_CASE||'';
-if(selectedCase&&!['settings','recaps'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
+if(selectedCase&&!['settings','recaps','fitness'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
 const password='green teapot on the hill';
 const user='zz_test_explore_new';
 const meReady='.me-card-sections[aria-busy="false"]';
@@ -306,18 +306,26 @@ async function contactsCases(browser,{includeColdMe=true}={}){
   }finally{await contactsRetry.context.close();}
   console.log(`ContactsUI ${includeColdMe?'cold Me plus ':''}four ordered callers and retry with no Native/write/external actions PASS; ${signupContinuationStubs.length} established signup continuation requests were locally fulfilled with 204`);
 }
-async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
+async function progressFixture(browser,{fail=null,hold=null,loginName=user,fitnessProbe=false,failHeld=false}={}){
  const context=await fixtureContext(browser);await login(context,loginName);
- const page=await context.newPage(),assets=[],errors=[],writes=[],previews=[];let heldOnce=false,releaseHeld=()=>{},signalHeld=()=>{};
+ const page=await context.newPage(),assets=[],assetUrls=[],fitnessReads=[],errors=[],writes=[],previews=[];let heldOnce=false,releaseHeld=()=>{},signalHeld=()=>{};
  const gate=new Promise(resolve=>{releaseHeld=resolve;}),held=new Promise(resolve=>{signalHeld=resolve;});
  page.on('pageerror',error=>errors.push(error.message));
  await page.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
   if(['/static/intervals.js','/static/plan.js','/static/planner.js','/static/progress-routes.js','/static/segments.js'].includes(url.pathname)){
-   assets.push(url.pathname);const attempts=assets.filter(path=>path===url.pathname).length;
+   assets.push(url.pathname);assetUrls.push(url.href);const attempts=assets.filter(path=>path===url.pathname).length;
    if(fail===url.pathname&&attempts===1)return route.abort();
-   if(hold===url.pathname&&!heldOnce){heldOnce=true;signalHeld();await gate;}
+   if(hold===url.pathname&&!heldOnce){heldOnce=true;signalHeld();await gate;if(failHeld)return route.abort();}
+   if(fitnessProbe&&url.pathname==='/static/progress-routes.js'){
+    const response=await route.fetch(),source=await response.text();
+    return route.fulfill({response,body:source+'\n;(()=>{const draw=pFitnessLoaded;window.__fitnessRenders=[];pFitnessLoaded=(...args)=>{window.__fitnessRenders.push({owner:readOwner(),path:location.pathname+location.search});return draw(...args);};})();'});
+   }
    return route.continue();
+  }
+  if(fitnessProbe&&url.pathname==='/api/fitness'&&url.searchParams.get('days')!=='60'){
+   fitnessReads.push(url.search);
+   return route.fulfill({json:{days:[],predictions:[],vdot_months:[],vdot_now:null,ramp_7d:0}});
   }
   if(request.method()==='POST'&&url.pathname==='/api/plans/preview'){
    previews.push(url.pathname);return route.continue();
@@ -326,7 +334,65 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user}={}){
   if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
   return route.continue();
  });
- return {context,page,assets,errors,writes,previews,held,release:()=>releaseHeld()};
+ return {context,page,assets,assetUrls,fitnessReads,errors,writes,previews,held,release:()=>releaseHeld()};
+}
+// Observe the real deferred renderer while keeping all Fitness records fictional and writes blocked.
+async function fitnessRouteCase(browser){
+ const asset='/static/progress-routes.js',fitness='/progress?view=fitness';
+ const readyFitness=page=>ready(page,'#fi-pred .card','deferred Fitness rendered');
+ const settle=page=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ const cold=await progressFixture(browser,{fitnessProbe:true});
+ try{
+  await cold.page.goto(base+'/me');await ready(cold.page,meReady,'cold Me retains its summary');
+  assert.equal(cold.assets.filter(path=>path===asset).length,0,'cold Me leaves Fitness details deferred');
+  await cold.page.evaluate(()=>go('/progress'));await ready(cold.page,'#p-home-totals','ordinary Progress retains its totals');
+  assert.equal(await cold.page.locator('[data-progress-fitness]').count(),1,'ordinary Progress retains its Fitness summary link');
+  assert.equal(await cold.page.evaluate(()=>typeof pFitnessLoaded),'undefined','ordinary Progress needs no Fitness renderer');
+  assert.equal(cold.assets.filter(path=>path===asset).length,0,'ordinary Progress leaves the details bundle deferred');
+  assert.deepEqual(cold.fitnessReads,[],'summaries do not read the detailed Fitness range');
+  await cold.page.goto(base+fitness);await readyFitness(cold.page);
+  assert.equal(cold.assets.filter(path=>path===asset).length,1,'direct Fitness requests one existing Progress bundle');
+  assert.match(new URL(cold.assetUrls.find(url=>new URL(url).pathname===asset)).searchParams.get('v'),/^[0-9a-f]{32}$/,'deferred asset uses its built content hash');
+  assert.equal(await cold.page.locator('#fi-range .range-btn').count(),1,'the moved renderer retains the year filter');
+  assert.equal(await cold.page.evaluate(()=>window.__fitnessRenders.length),1,'the direct route invokes the real renderer once');
+  await cold.page.evaluate(()=>go('/progress'));await ready(cold.page,'#p-home-totals','Progress after Fitness');
+  await cold.page.evaluate(path=>go(path),fitness);await readyFitness(cold.page);
+  assert.equal(cold.assets.filter(path=>path===asset).length,1,'returning to Fitness reuses the loaded bundle');
+  assert.equal(await cold.page.evaluate(()=>window.__fitnessRenders.length),2,'returning renders the new destination once');
+  assert(cold.fitnessReads.length>0,'the real renderer reads the fictional detailed Fitness response');
+  assert.deepEqual(cold.errors,[]);assert.deepEqual(cold.writes,[]);
+ }finally{await cold.context.close();}
+ const retry=await progressFixture(browser,{fitnessProbe:true,fail:asset});
+ try{
+  await retry.page.goto(base+fitness);await retry.page.locator('.load-error #retry').waitFor();
+  assert.equal(new URL(retry.page.url()).search,'?view=fitness','a failed detail load retains its exact destination');
+  assert.deepEqual(retry.fitnessReads,[],'a failed script does not request detailed Fitness data');
+  await retry.page.locator('#retry').click();await readyFitness(retry.page);
+  assert.equal(retry.assets.filter(path=>path===asset).length,2,'Try again retries only the failed bundle');
+  assert.equal(await retry.page.evaluate(()=>window.__fitnessRenders.length),1,'retry invokes the renderer once');
+  assert.deepEqual(retry.errors,[]);assert.deepEqual(retry.writes,[]);
+ }finally{await retry.context.close();}
+ for(const change of ['owner','path','query','destination'])for(const failHeld of [false,true]){
+  const stale=await progressFixture(browser,{fitnessProbe:true,hold:asset,failHeld});
+  try{
+   await stale.page.goto(base+fitness,{waitUntil:'domcontentloaded'});await stale.held;
+   await stale.page.evaluate(change=>{
+    if(change==='owner')App.me={...App.me,id:987654,login:'zz_test_fitness_replaced'};
+    else if(change==='path')go('/me');
+    else if(change==='query')history.replaceState(history.state,'','/progress?view=records');
+    else document.querySelector('#p-body').remove();
+   },change);
+   if(change==='path')await ready(stale.page,meReady,'new path settles before the old Fitness bundle');
+   stale.release();
+   await until(stale.page,failed=>failed?!classicScriptPromises.has(PROGRESS_ROUTE_ASSET):typeof pFitnessLoaded==='function','held Fitness script settles',failHeld);
+   await settle(stale.page);
+   assert.equal(await stale.page.evaluate(()=>window.__fitnessRenders?.length||0),0,`${change} change suppresses the late renderer`);
+   assert.deepEqual(stale.fitnessReads,[],`${change} change suppresses stale detailed API reads`);
+   assert.equal(await stale.page.locator('.load-error').count(),0,`${change} change suppresses stale ${failHeld?'failure':'success'} UI`);
+   assert.deepEqual(stale.errors,[]);assert.deepEqual(stale.writes,[]);
+  }finally{stale.release();await stale.context.close();}
+ }
+ console.log('Fitness lazy details: cold Me/Progress summaries, direct/reuse, failed-load Retry and stale owner/path/query/detached success/failure PASS');
 }
 async function activeIntervalFixture(browser){
  const context=await fixtureContext(browser);await login(context);
@@ -566,6 +632,8 @@ const contactsCallersOnly=process.env.KINETTA_LAZY_ROUTE_CASE==='contacts-caller
   if(contactsCallersOnly){await contactsCases(browser,{includeColdMe:false});return;}
   if(selectedCase==='settings'){await settingsRouteCase(browser);console.log('Settings lazy route: cold Me, direct/deep links, retry and stale path/owner PASS');return;}
   if(selectedCase==='recaps'){await require('./recap_lazy_ui.cjs')(browser,base);return;}
+  if(selectedCase==='fitness'){await fitnessRouteCase(browser);return;}
+  await fitnessRouteCase(browser);
   await require('./recap_lazy_ui.cjs')(browser,base);
   await pushInvitationBrowserProof(browser);
   await settingsRouteCase(browser);

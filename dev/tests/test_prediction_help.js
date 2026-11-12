@@ -1,7 +1,7 @@
 // Prediction references are quiet, local-year bests; provenance stays inside the explanation.
 'use strict';
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
-const source=fs.readFileSync('app/static/pages.js','utf8'),start=source.indexOf('    const predictionSourceDetail ='),end=source.indexOf('\n    pbox.innerHTML',start),block=source.slice(start,end);
+const source=fs.readFileSync('app/static/progress-routes.js','utf8'),start=source.indexOf('    const predictionSourceDetail ='),end=source.indexOf('\n    pbox.innerHTML',start),block=source.slice(start,end);
 assert(start>=0&&end>start);
 const context={
   esc:s=>String(s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])),
