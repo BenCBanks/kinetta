@@ -12,7 +12,7 @@ See calories and macros, with your meals and recipes in one place.
 
 ## food-quick-description
 
-Describe a meal, check the foods and portions, then add it to your log.
+Describe a meal, review the foods and portions, then log it. Saved foods are checked first; new estimates need optional AI enabled for your account. Search, barcodes and manual entry work without AI.
 
 ## food-yesterday-description
 
@@ -36,7 +36,7 @@ Scan a packaged food’s barcode to find its nutrition details.
 
 ## food-also-photo
 
-Photograph a meal, then review estimated portions and nutrition before saving.
+When available for your account, turn on optional AI to estimate a meal from a photo. Review portions and nutrition before saving.
 
 ## food-also-trends
 
