@@ -4,6 +4,23 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=r
 const base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS;
 function duration(seconds){seconds=Math.round(seconds);const hours=Math.floor(seconds/3600),minutes=Math.floor((seconds%3600)/60),rest=seconds%60;return hours?`${hours}:${String(minutes).padStart(2,'0')}:${String(rest).padStart(2,'0')}`:`${minutes}:${String(rest).padStart(2,'0')}`;}
 async function until(p,fn,label){for(let i=0;i<180;i++){if(await p.evaluate(fn))return;await p.waitForTimeout(100);}throw Error(label);}
+async function fitnessWarning(p,ramp){
+ const warning=p.locator('#fi-summary .fitness-current .callout.warn');
+ assert.equal(await warning.count(),ramp>8?1:0,'load warning appears only above the high-ramp threshold');
+ if(ramp>8){assert(await warning.isVisible(),'high load has a visible warning');assert.doesNotMatch(await warning.innerText(),/\bramp\b|\b8\.1\b/i,'warning hides the raw load increase');}
+}
+async function fitnessLanguage(p,data){
+ const last=data.days.at(-1),form=(last.form>0?'+':'')+Math.round(last.form),summary=p.locator('#fi-summary .fitness-current');
+ assert.deepEqual(await summary.locator('.me-form-nums small').allTextContents(),['Fitness','Form',...(data.vdot_now?['Run score']:[])]);
+ assert.deepEqual(await summary.locator('.me-form-nums b').allTextContents(),[String(Math.round(last.fitness)),form,...(data.vdot_now?[String(data.vdot_now)]:[])],'summary values retain their API meaning');
+ const running=p.locator('.fitness-running'),load=p.locator('#fi-body > .card').last();
+ assert.match(await running.locator('.stat small').first().innerText(),/\bRun score\b/);
+ assert.equal(await running.locator('.stat b').first().innerText(),String(data.vdot_now||'–'),'Run score retains its API value');
+ assert.deepEqual(await load.locator('.stat small').allTextContents(),['Fitness','Form']);
+ assert.deepEqual(await load.locator('.stat b').allTextContents(),[String(Math.round(last.fitness)),form],'Form means fitness minus fatigue in both places');
+ assert.doesNotMatch(await p.locator('#fi-summary,#fi-pred,#fi-body').allInnerTexts().then(texts=>texts.join('\n')),/\b(?:VDOT|ramp)\b/i,'visible Fitness wording uses Run score and hides raw internals');
+ await fitnessWarning(p,data.ramp_7d);
+}
 (async()=>{
  cp.execFileSync('python3',[path.join(__dirname,'subpages_fixture.py')],{env:{...process.env,KINETTA_URL:base},stdio:'inherit'});
  const oldBestSetup=`from app import db
@@ -43,9 +60,17 @@ with db.connect() as c:
     await p.locator('.prediction-method summary').click();assert(await p.locator('.prediction-method').evaluate(n=>n.open));assert.match(await p.locator('.prediction-method').innerText(),/90 days/);assert.equal(await p.locator('.prediction-method .prediction-source').count(),4,'source details are tucked inside the explanation');assert.equal(await p.locator('.prediction-method a').count(),0,'source details remain plain text');await p.evaluate(()=>{const r=document.querySelector('.prediction-source:last-child').getBoundingClientRect(),n=document.querySelector('nav.tabs').getBoundingClientRect();window.scrollBy(0,Math.max(0,r.bottom-n.top+8));});const lastSource=await p.locator('.prediction-method .prediction-source').last().boundingBox(),tabs=await p.locator('nav.tabs').boundingBox();assert(lastSource.y+lastSource.height<=tabs.y,'the last source stays reachable above the tab bar when scrolled');await p.locator('.prediction-method summary').click();
     assert.match(await p.locator('#fi-body .card').first().innerText(),/Run score · 90 days/i);assert.match(await p.locator('#p-vdot .legend').innerText(),/6-month average of monthly bests/);
     const swatches=await p.locator('#p-vdot .sw').evaluateAll(ns=>ns.map(n=>getComputedStyle(n).backgroundColor));assert(swatches.length===2&&swatches.every(c=>c!=='rgba(0, 0, 0, 0)'&&c!=='transparent'),'fitness keys have a visible color');
-    await p.locator('#p-vdot .chart-expand').click();await until(p,()=>!!document.querySelector('.fitness-inspect svg'),'full VDOT chart');await p.locator('.sheet [data-close]').click();assert.equal(await p.locator('.fitness-inspect').count(),0);
+    await p.locator('#p-vdot .chart-expand').click();await until(p,()=>!!document.querySelector('.fitness-inspect svg'),'full Run score chart');assert.doesNotMatch(await p.locator('.sheet').innerText(),/\bVDOT\b/i,'expanded chart keeps the Run score name');await p.locator('.sheet [data-close]').click();assert.equal(await p.locator('.fitness-inspect').count(),0);
    }
    if(out&&state==='typical'&&size.width===390&&size.root===16){fs.mkdirSync(out,{recursive:true});await p.evaluate(()=>scrollTo(0,0));await p.screenshot({path:out+'/race-predictions-390-'+theme+'.png'});}
+   if(state==='typical'&&size.root===16){
+    await fitnessLanguage(p,data);
+    // Keep the fictional history and predictions; change only the browser response's load increase.
+    let ramp=8,served=0;
+    await c.route('**/api/fitness?*',r=>{served++;return r.fulfill({json:{...data,ramp_7d:ramp}});});
+    for(const value of [8,8.1]){ramp=value;const previous=served;await p.reload();await ready();assert(served>previous,'load-warning variant uses the browser-local response');await fitnessWarning(p,ramp);}
+    if(out){await p.evaluate(()=>scrollTo(0,0));await p.screenshot({path:out+'/fitness-high-load-390-'+theme+'.png'});}
+   }
    if(state==='heavy')await require('./progress_polish_ui.cjs')(p,{size,theme});
    assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);await c.close();console.log(`Fitness ${state} ${size.width}/${size.root} ${theme} PASS`);
   }
