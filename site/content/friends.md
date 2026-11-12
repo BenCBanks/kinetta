@@ -41,7 +41,7 @@ Search names and send friend requests.
 
 ## training-training-food-food-friends-friends-compare-co-6
 
-[Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [Feature guide](guide) · [Privacy policy](privacy) · [Terms of Use](terms) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta)
+[Training](training) · [Food](food) · [Friends](friends) · [Features](compare) · [Feature guide](guide) · [Privacy policy](privacy) · [Terms of Use](terms) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta)
 
 ## free-for-personal-use-under-the-polyform-noncommercial-7
 

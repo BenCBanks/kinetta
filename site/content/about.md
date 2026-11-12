@@ -21,7 +21,7 @@ Ben and Rachel
 
 ## footer-links
 
-[Training](training) · [Food](food) · [Friends](friends) · [Compare](compare) · [Feature guide](guide) · [Privacy policy](privacy) · [Terms of Use](terms) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta)
+[Training](training) · [Food](food) · [Friends](friends) · [Features](compare) · [Feature guide](guide) · [Privacy policy](privacy) · [Terms of Use](terms) · [Contact](mailto:feedback@kinetta.app) · [GitHub](https://github.com/BenCBanks/kinetta)
 
 ## footer-license
 
