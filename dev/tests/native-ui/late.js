@@ -33,7 +33,7 @@
       return !!checks[cfg.stage]?.();
   }
   function storeMapTilesLoaded(){
-    const selector={activity:'#d-map.leaflet-container','header-track':'#track-map.leaflet-container','header-activity':'#ff-list .post[data-href="/activity/friends/2"] .leaflet-container'}[cfg.stage];
+    const selector={activity:'#d-map.leaflet-container','header-track':'#track-ready-map.leaflet-container','header-activity':'#ff-list .post[data-href="/activity/friends/2"] .leaflet-container'}[cfg.stage];
     const map=selector&&document.querySelector(selector);if(!map)return false;
     const mapStyle=getComputedStyle(map),m=map.getBoundingClientRect();
     if(mapStyle.display==='none'||mapStyle.visibility==='hidden'||m.width<=0||m.height<=0||m.right<=0||m.bottom<=0||m.left>=innerWidth||m.top>=innerHeight)return false;
@@ -138,5 +138,5 @@
     globalThis.KinettaUIResult=result;
     if(Native.on)await Capacitor.Plugins.KinettaActivityShare.uiTestMetrics({value:JSON.stringify(result)});
   }
-  addEventListener('DOMContentLoaded',()=>capture().catch(async e=>{const result={fixture:true,run:cfg.run,error:String(e),errors:cfg.errors,display:cfg.displayDiagnostics()};if(cfg.store&&cfg.stage==='activity')result.storeDiagnostics=storeActivityDiagnostics();globalThis.KinettaUIResult=result;if(Native.on)await Capacitor.Plugins.KinettaActivityShare.uiTestMetrics({value:JSON.stringify(result)});}),{once:true});
+  addEventListener('DOMContentLoaded',()=>capture().catch(async e=>{const result={fixture:true,run:cfg.run,error:String(e),errors:cfg.errors,display:cfg.displayDiagnostics()};if(cfg.store&&['activity','header-track','header-activity'].includes(cfg.stage))result.storeDiagnostics=storeActivityDiagnostics();globalThis.KinettaUIResult=result;if(Native.on)await Capacitor.Plugins.KinettaActivityShare.uiTestMetrics({value:JSON.stringify(result)});}),{once:true});
 })();
