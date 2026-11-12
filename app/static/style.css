@@ -1661,7 +1661,7 @@ html.keyboard-open nav.tabs { display: none; }
 .sharing-settings .vis3 {padding:0;gap:8px;flex-wrap:nowrap;overflow-x:auto;background:none;}
 .sharing-settings .vis3 button {position:relative;flex:1 0 auto;min-width:44px;background:transparent;box-shadow:none;font-size:max(15px,.9375rem);white-space:nowrap;font-weight:500;}
 .sharing-settings .vis3 button::before {content:'';position:absolute;inset:4px 0;border:1px solid var(--line);border-radius:999px;pointer-events:none;}
-.sharing-settings .vis3 button[aria-pressed=true] {color:var(--accent);}
+.sharing-settings .vis3 button[aria-pressed=true] {color:var(--accent);background:transparent;}
 .sharing-settings .vis3 button[aria-pressed=true]::before {border-color:var(--accent);}
 .track-question { margin: 24px 0; font-size: 28px; }
 .track-sports { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 16px 0 26px; }
