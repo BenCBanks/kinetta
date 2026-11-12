@@ -52,7 +52,7 @@ Find achievements to earn
 
 ## guide-task-achievements-description
 
-Open Me → Achievements. Open a track to see its named levels and the activity needed for each one. Run distances keep their named units: 5 km, 10 km, 21.1 km and 42.2 km, then 50, 100, 250, 500 and 1,000 miles. A longer qualifying activity can earn a level again.
+Open Me → Achievements. Open a track to see its named levels and progress towards the next one. Run distances keep their named units: 5 km, 10 km, 21.1 km and 42.2 km, then 50, 100, 250, 500 and 1,000 miles. After the final named level, the track continues at multiples of its last distance.
 
 ## guide-task-lifting-heading
 
