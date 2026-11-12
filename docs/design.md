@@ -174,6 +174,35 @@ UTC capture time; it must work when the converter runs outside the git checkout.
 manifest and refreshes light/dark images when it changes, retaining usable pictures offline. Near-midnight staging keeps
 the fictional workout on the displayed local day. PR screenshots are artifacts, not branch-changing bot commits.
 
+### Website standards · owner direction, 12 November 2026
+
+Every website change follows these rules. They override older website notes where they conflict.
+
+1. **Let the pictures speak.** A heading of a few words and at most one short sentence per feature. No captions that
+   repeat the picture, no filler, no marketing or AI-sounding phrasing ("in context", "on your terms", "seamless", "journey").
+   Home stays under about 110 words of main copy, Features under about 260.
+2. **Every picture proves the sentence beside it.** Show the actual control or result the text names, never a related
+   screen. Sharing claims show audience controls; workout claims show that workout.
+3. **Complete, current and sharp.** Crops contain whole controls with no cut-off rows, buttons or text. Use only the
+   current app design: retake a capture after any app change it shows. Captures are 2×; display at most 393 CSS px wide
+   so they stay sharp. Map pictures keep their OpenStreetMap/Protomaps attribution visible and unobscured.
+4. **Scope is explicit.** Settings that apply only to new items are labelled as such; per-item controls are labelled
+   as one item's setting.
+5. **Order matches how people read.** A workout shows its map first, then its numbers.
+6. **One framing system.** Same corner radius, spacing and caption/label style for every picture; a picture without its
+   own card edge (a sheet or plain page) gets the shared hairline frame. Avoid extra cards, borders, pills and boxes.
+7. **Light, dark and three widths.** Review rendered pages at 390px, a narrow 330px phone and desktop, in both themes,
+   looking at the actual screenshots. No sideways scrolling. Passing tests do not prove good design.
+8. **Access paths stay distinct.** Get started = account signup, Sign in = existing account, iPhone beta = TestFlight
+   install. Label each plainly; never call the TestFlight link "Download".
+9. **Claims match the shipped app.** Check the current source before stating a feature; keep the searchable Guide and
+   the feature reference complete.
+10. **Fictional data and honest evidence.** Demo accounts only; nothing private in the public repo. Browser captures are
+    not physical-iPhone evidence. Crops come from `dev/screenshots/tour.js` (whole elements, both themes) or the shared
+    capture set; regenerate them rather than hand-editing images.
+11. **Publish deliberately.** Preview representative screenshots before a substantial redesign; coordinate publication
+    with the release lead so it does not collide with an app deploy.
+
 Keep the existing route/point mark and all logo, icon, launch-artwork and social-preview assets unchanged in
 this colour/heading pass. Wordmark artwork keeps its original Source Serif 4 outlines. A future asset change needs
 separate scope; do not regenerate native icons or upload a new build as part of this PR.

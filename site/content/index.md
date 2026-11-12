@@ -4,7 +4,7 @@ Edit the text below each heading. Keep the section keys unchanged.
 
 ## home-hero-kicker
 
-One app for your whole training life
+Training and food, one app
 
 ## your-workouts-and-your-food-in-one-app-1
 
@@ -12,43 +12,43 @@ Track workouts. Log food. See progress.
 
 ## runs-rides-lifting-and-meals-tracked-together-and-kept-2
 
-Log a meal, review a run, or check what you lifted last time. Keep your records together and use the parts that fit your day.
+Runs, rides, lifting and meals in one place.
 
 ## home-workout-heading
 
-Review a completed workout
+Review a workout
 
 ## home-workout-description
 
-Review recorded routes, distance, elapsed time and pace.
+The route, then the numbers.
 
 ## home-food-heading
 
-Keep a clear food log
+Log what you eat
 
 ## home-food-description
 
-Review daily totals and every food and amount in Breakfast.
+Every food and amount, with daily totals.
 
 ## home-progress-heading
 
-Make the week easy to revisit.
+See your weeks add up.
 
 ## home-progress-description
 
-Put weekly running beside recent weeks, then look across months and years.
+Totals by week, month and year.
 
 ## home-friends-heading
 
-Friends, on your terms.
+Choose who sees your workouts.
 
 ## home-friends-description
 
-View workouts your friends chose to share. Your own history stays useful on its own.
+You choose who sees each workout.
 
 ## home-trust-share
 
-[Choose who sees your workouts](privacy)
+[Privacy policy](privacy)
 
 ## home-trust-export
 
@@ -60,7 +60,7 @@ No ads.
 
 ## home-final-heading
 
-Start with the records that matter to you.
+Start tracking.
 
 ## training-training-food-food-friends-friends-compare-co-17
 

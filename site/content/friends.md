@@ -8,7 +8,7 @@ Keep up with *your friends’ workouts.*
 
 ## find-friends-by-name-see-their-runs-send-them-cheers-2
 
-Find friends, share workouts, and send cheers or comments.
+Find friends, share workouts, react and comment.
 
 ## see-who-s-out-there-today-3
 
@@ -16,7 +16,7 @@ Your workouts and theirs, in one feed.
 
 ## your-runs-and-theirs-newest-first-4
 
-See shared workouts newest first; new accounts share with everyone; saved choices stay unchanged.
+Shared workouts, newest first.
 
 ## photos-of-freedom-park-charlotte-james-willamor-and-ci-5
 
@@ -25,19 +25,19 @@ Photos of Freedom Park, Charlotte: James Willamor and City Dweller 2, [CC BY-SA]
 
 ## friends-feed-description
 
-Catch up on friends’ shared workouts and send a cheer or comment.
+React to or comment on friends’ workouts.
 
 ## friends-photos-description
 
-Add a photo to a workout shared with friends.
+Add photos to a shared workout.
 
 ## friends-profiles-description
 
-See the details friends choose to show on their profile.
+Show friends only what you choose.
 
 ## friends-find-description
 
-Search names and send friend requests.
+Search by name and send a request.
 
 ## training-training-food-food-friends-friends-compare-co-6
 
@@ -58,7 +58,7 @@ A profile that feels like you.
 
 ## profile-copy
 
-Choose your photo, bio, stats and sports; preview your card as friends see it.
+Photo, bio, stats and sports. Preview what friends see.
 
 ## private-overview-heading
 
@@ -66,7 +66,7 @@ Your dashboard stays private.
 
 ## private-overview-copy
 
-Only you see your food logs, body data and Kit conversations.
+Only you see your food, body data and Kit chats.
 
 ## motivation-heading
 
@@ -74,4 +74,4 @@ A little momentum, together.
 
 ## motivation-copy
 
-Share recaps, celebrate milestones or invite friends to challenges; you choose what to share.
+Recaps, milestones and challenges, when you want to share.

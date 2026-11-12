@@ -10,7 +10,9 @@ const server=http.createServer((req,res)=>{
  res.setHeader('Content-Type',mime[path.extname(file)]||'application/octet-stream');res.end(req.method==='HEAD'?undefined:fs.readFileSync(file));
 });
 const until=async(p,fn)=>{for(let n=0;n<100;n++){if(await p.evaluate(fn))return;await p.waitForTimeout(30);}throw Error('Website state did not settle');};
-const pages=(process.env.KINETTA_WEBSITE_PAGES||'index,training,food,friends').split(',');
+// Whole-phone galleries remain on the topic pages; Home, Features and Guide use complete cropped controls (tour checks below).
+const pages=(process.env.KINETTA_WEBSITE_PAGES||'training,food,friends').split(',');
+const tourPages=(process.env.KINETTA_WEBSITE_TOUR_PAGES||'index,compare,guide').split(',').filter(Boolean);
 const widths=(process.env.KINETTA_WEBSITE_WIDTHS||'1280,390').split(',').map(Number);
 const themes=(process.env.KINETTA_WEBSITE_THEMES||'light,dark').split(',');
 const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
@@ -40,25 +42,36 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
     }}
     await p.evaluate(()=>scrollTo(0,0));
     const image=p.locator('.phone img,.frame img').first();await image.focus();await p.keyboard.press('Enter');await p.locator('dialog.zoom').waitFor({state:'visible'});await until(p,()=>document.querySelector('dialog.zoom .slide img')?.naturalWidth===786);assert(!new URL(await p.locator('dialog.zoom .slide img').first().getAttribute('src')).pathname.endsWith('-1x.webp'));await p.keyboard.press('Escape');assert(await image.evaluate(i=>document.activeElement===i));
-    if(name==='index'){
-     const order=await p.locator('main > section').evaluateAll(xs=>xs.map(x=>x.classList.contains('home-hero')?'hero':x.classList.contains('home-core')?'core':x.classList.contains('home-disciplines')?'disciplines':x.classList.contains('home-more')?'more':x.classList.contains('home-trust')?'trust':x.classList.contains('home-final')?'beta':'unexpected'));
-     assert.deepEqual(order,['hero','core','disciplines','more','trust','beta']);assert.deepEqual(await p.locator('.home-core-grid h3').allInnerTexts(),['Record','Food','Friends']);assert.equal(await p.locator('a.btn').count(),3);
-     const nav=await p.locator('nav[aria-label=\"Primary\"] a').allInnerTexts();assert.deepEqual(nav,['Home','Features','Guide','Download']);
-     const homeLink=p.locator('nav[aria-label=\"Primary\"] a[aria-current=\"page\"]');assert.equal(await homeLink.innerText(),'Home');const active=await homeLink.evaluate(a=>({weight:getComputedStyle(a).fontWeight,background:getComputedStyle(a).backgroundColor,underline:getComputedStyle(a,'::after').height}));assert.equal(active.weight,'700');assert.equal(active.underline,'2px');assert.equal(active.background,'rgba(0, 0, 0, 0)');
-     const core=await p.locator('.home-core-grid').evaluate(e=>({client:e.clientWidth,scroll:e.scrollWidth,columns:getComputedStyle(e).gridTemplateColumns}));assert.equal(core.client,core.scroll);if(width<=560)assert.equal(core.columns.split(' ').length,1);
-     assert.deepEqual(await p.locator('.home-trust li').allInnerTexts(),['Choose who sees your workouts','Export your data.','No ads.']);
-     assert.equal(await p.locator('.home-trust li a').getAttribute('href'),'privacy');
-     const trust=await p.locator('.home-trust').evaluate(e=>({background:getComputedStyle(e).backgroundColor,color:getComputedStyle(e).color,items:[...e.querySelectorAll('li')].map(x=>{const r=x.getBoundingClientRect();return{top:Math.round(r.top),bottom:Math.round(r.bottom)}}),scroll:e.scrollWidth,client:e.clientWidth}));
-     const secondaryColor=await p.locator('.home-disciplines li').first().evaluate(e=>getComputedStyle(e).color);assert.equal(trust.background,'rgba(0, 0, 0, 0)');assert.equal(trust.color,secondaryColor);
-     assert.equal(trust.scroll,trust.client);if(width>560)assert.equal(new Set(trust.items.map(x=>x.top)).size,1,'Trust row should stay on one line when desktop width allows');
-     const record=p.locator('.home-core-grid article').first().locator('picture');assert.match(await record.locator('img').getAttribute('alt'),/completed run.*route map.*pace/i);assert.match(await record.locator('img').getAttribute('srcset'),/light-activity-1x\.webp(?:\?[^ ]*)? 1x, .*\/light-activity\.webp(?:\?[^ ]*)? 2x/);assert.match(await record.locator('source').getAttribute('srcset'),/dark-activity-1x\.webp(?:\?[^ ]*)? 1x, .*\/dark-activity\.webp(?:\?[^ ]*)? 2x/);
-     const mainWords=await p.locator('main').innerText().then(t=>t.trim().split(/\s+/).filter(Boolean).length);assert(mainWords<=170,'Home main copy exceeds ~150 words: '+mainWords);console.log('Home main words='+mainWords+'; CTAs=3; trust=sharing/export/no-ads');
+    if(name==='training'){
      version='fictional-b';await p.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await until(p,()=>[...document.querySelectorAll('img[src*="assets/shots/"],source[srcset*="assets/shots/"]')].every(e=>(!e.hasAttribute('src')||e.getAttribute('src').includes('fictional-b'))&&e.getAttribute('srcset').split(',').every(s=>/capture=fictional-b/.test(s)&&/ [12]x$/.test(s))));
      const before=await p.locator('img[src*="assets/shots/"]').evaluateAll(xs=>xs.map(x=>x.getAttribute('srcset')));
      imageFail=true;version='fictional-c';await p.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));for(let n=0;n<100&&!failedImages;n++)await p.waitForTimeout(20);assert(failedImages);await p.waitForTimeout(100);assert.deepEqual(await p.locator('img[src*="assets/shots/"]').evaluateAll(xs=>xs.map(x=>x.getAttribute('srcset'))),before);assert(await p.locator('img[src*="assets/shots/"]').evaluateAll(xs=>xs.every(x=>x.complete&&x.naturalWidth>0)));
      imageFail=false;await p.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await until(p,()=>[...document.querySelectorAll('img[src*="assets/shots/"]')].every(e=>e.getAttribute('srcset').includes('fictional-c')));
      const recovered=await p.locator('img[src*="assets/shots/"]').evaluateAll(xs=>xs.map(x=>x.getAttribute('srcset')));offline=true;await p.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await p.waitForTimeout(80);assert.deepEqual(await p.locator('img[src*="assets/shots/"]').evaluateAll(xs=>xs.map(x=>x.getAttribute('srcset'))),recovered);offline=false;
     }
+    assert.deepEqual(errors,[]);checks++;await p.close();
+   }
+   for(const name of tourPages){
+    const p=await c.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));await p.goto(base+'/'+name+'.html');await p.evaluate(()=>document.fonts.ready);
+    await p.evaluate(()=>document.querySelectorAll('img').forEach(i=>i.loading='eager'));await until(p,()=>[...document.images].every(i=>i.complete&&i.naturalWidth));
+    assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,name+' scrolls sideways');
+    assert.deepEqual(await p.locator('nav[aria-label="Primary"] a').allInnerTexts(),['Home','Features','Guide','iPhone beta']);
+    // Every tour picture is a complete, themed crop shown at no more than its natural width.
+    const pics=await p.locator('main img[src*="assets/tour/"]').evaluateAll(xs=>xs.map(i=>({src:i.currentSrc,w:i.getBoundingClientRect().width,natural:i.naturalWidth/2,alt:i.alt})));
+    assert(pics.every(i=>i.alt.length>20&&i.w<=i.natural*2/1.7+1&&i.src.includes(theme==='dark'?'-dark.':'-light.')),name+' tour picture theme, alt or upscaling');
+    if(name==='index'||name==='compare'){
+     // The workout map comes first, the recorded numbers underneath.
+     const workout=await p.locator('.tour-workout img').evaluateAll(xs=>xs.map(i=>({src:i.currentSrc,top:i.getBoundingClientRect().top})));
+     assert.equal(workout.length,2);assert.match(workout[0].src,/activity-map-/);assert.match(workout[1].src,/activity-result-/);assert(workout[0].top<workout[1].top);
+     // Audience controls, never a shared ride, prove the sharing claim.
+     assert.equal(await p.locator('img[src*="friends-route"]').count(),0);assert.equal(await p.locator('img[src*="sharing-default-"]').count(),1);
+     const words=await p.locator('main').innerText().then(t=>t.trim().split(/\s+/).length);assert(words<=(name==='index'?110:260),name+' copy grew to '+words+' words');
+    }
+    if(name==='compare'){
+     assert.deepEqual(await p.locator('.tour-scope').allInnerTexts(),['New workouts · Settings','One workout · Edit']);
+     assert.equal(await p.locator('img[src*="sharing-workout-"]').count(),1);assert.equal(await p.locator('.feature-reference tbody tr').count(),8);
+    }
+    if(name==='guide'){await p.locator('#feature-search').fill('recipes');assert(await p.locator('.public-guide-card:visible').count()>0,'Guide search found nothing');}
     assert.deepEqual(errors,[]);checks++;await p.close();
    }
   }finally{await c.close();}

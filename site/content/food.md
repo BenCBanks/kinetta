@@ -8,23 +8,23 @@ Log food in a few words.
 
 ## food-intro
 
-See calories and macros, with your meals and recipes in one place.
+Calories, macros, meals and recipes.
 
 ## food-quick-description
 
-Describe a meal, review the foods and portions, then log it. Saved foods are checked first; new estimates need optional AI enabled for your account. Search, barcodes and manual entry work without AI.
+Type what you ate, check the amounts, then log it. New foods are estimated only if you turn on optional AI; search and barcodes work without it.
 
 ## food-yesterday-description
 
-Log yesterday’s meal again with one tap.
+Repeat yesterday’s meal in one tap.
 
 ## food-calories-description
 
-Compare calories, protein, carbs and fat with your daily goals.
+Daily calories and protein against your goals.
 
 ## food-recipes-description
 
-Save a recipe once, then add a portion to your food log.
+Save a recipe once, then log a portion.
 
 ## food-also
 
@@ -32,19 +32,19 @@ Also
 
 ## food-also-barcode
 
-Scan a packaged food’s barcode to find its nutrition details.
+Barcode scanning for packaged food.
 
 ## food-also-photo
 
-When available for your account, turn on optional AI to estimate a meal from a photo. Review portions and nutrition before saving.
+Photo estimates, with optional AI. You check them before saving.
 
 ## food-also-trends
 
-See how your logged meals and daily totals change over time.
+Daily totals over time.
 
 ## food-also-ai
 
-Choose an optional AI review of your logged meals.
+Optional AI review of your meals.
 
 ## training-training-food-food-friends-friends-compare-co-16
 
