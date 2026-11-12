@@ -636,3 +636,5 @@ header.top .signup { display:flex;align-items:center; }
 
 .guide-categories { display: flex; flex-wrap: wrap; gap: 4px 22px; margin-top: 24px; }
 .guide-categories a { display: inline-flex; align-items: center; min-height: 44px; color: var(--brand); }
+
+.website-tour .combo > .half { padding: 0; background: transparent; border: 0; border-radius: 0; }
