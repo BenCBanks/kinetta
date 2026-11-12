@@ -45,12 +45,12 @@ async function ready(page){for(let i=0;i<120;i++){if(await page.evaluate(()=>App
   assert.equal(await page.locator('.note-t').innerText(),titleFor(period));assert.equal(await page.locator('.note-q').innerText(),'112 mi · 18 workouts');
   await shot(page,`monthly-summary-bell-390-${theme}`);
   await page.locator('[data-summary-period]').click();await page.locator('.recap-sheet').waitFor();
-  await page.waitForFunction(()=>document.querySelector('#recap-preview')?.complete&&document.querySelector('#recap-status')?.textContent==='');
+  await page.locator('.recap-sheet #recap-status[data-ready="true"]').waitFor();assert.equal(await page.locator('#recap-status').innerText(),'','recap data loaded without an error');
   const label=await page.locator('#recap-period-label').innerText();assert(label.includes(new Date(period+'-01T12:00:00Z').toLocaleDateString('en-US',{timeZone:'UTC',month:'long'})),'Bell item opens the same month');
   assert.equal(new URL(page.url()).pathname,'/notifications');await shot(page,`monthly-summary-sheet-390-${theme}`);
   await page.locator('.recap-sheet [data-close]').click();await page.locator('.recap-sheet').waitFor({state:'detached'});summary.read=true;
   await page.goto(base+'/notifications?summary=2020-10');await ready(page);await page.locator('.recap-sheet').waitFor();
-  await page.waitForFunction(()=>document.querySelector('#recap-preview')?.complete&&document.querySelector('#recap-status')?.textContent==='');
+  await page.locator('.recap-sheet #recap-status[data-ready="true"]').waitFor();assert.equal(await page.locator('#recap-status').innerText(),'','recap data loaded without an error');
   assert.equal(new URL(page.url()).pathname,'/progress','summaries older than 24 months open Progress → Share');
   assert(!/2020/.test(await page.locator('#recap-period-label').innerText()),'old summaries do not open a capped, incorrect month');
   await shot(page,`monthly-summary-old-period-fallback-390-${theme}`);

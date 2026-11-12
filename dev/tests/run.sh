@@ -67,6 +67,7 @@ node dev/tests/test_map_late_layers.js
 node dev/tests/test_recaps.js
 node dev/tests/test_share_sheet.js
 node dev/tests/test_recap_cache.js
+node dev/tests/test_recap_loader.js
 node --check dev/tests/recaps_ui.cjs
 node dev/tests/test_milestones.js
 node dev/tests/test_activity_milestone_loading.js
