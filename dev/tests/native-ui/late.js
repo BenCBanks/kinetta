@@ -32,6 +32,18 @@
       };
       return !!checks[cfg.stage]?.();
   }
+  function storeMapTilesLoaded(){
+    const selector={activity:'#s-map.leaflet-container','header-track':'#track-map.leaflet-container','header-activity':'#ff-list .post[data-href="/activity/friends/2"] .leaflet-container'}[cfg.stage];
+    const map=selector&&document.querySelector(selector);if(!map)return false;
+    const mapStyle=getComputedStyle(map),m=map.getBoundingClientRect();
+    if(mapStyle.display==='none'||mapStyle.visibility==='hidden'||m.width<=0||m.height<=0||m.right<=0||m.bottom<=0||m.left>=innerWidth||m.top>=innerHeight)return false;
+    const left=Math.max(0,m.left),top=Math.max(0,m.top),right=Math.min(innerWidth,m.right),bottom=Math.min(innerHeight,m.bottom);
+    const visible=[...map.querySelectorAll('canvas.leaflet-tile')].filter(c=>{
+      const s=getComputedStyle(c),r=c.getBoundingClientRect();
+      return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0&&r.right>left&&r.bottom>top&&r.left<right&&r.top<bottom;
+    });
+    return visible.length>0&&visible.every(c=>c.classList.contains('leaflet-tile-loaded'));
+  }
   function storeActivityDiagnostics(){
     const box=e=>{if(!e)return null;const r=e.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};
     const visibility=e=>{if(!e)return false;const s=getComputedStyle(e),r=e.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)>0&&r.width>0&&r.height>0&&r.right>0&&r.bottom>0&&r.left<innerWidth&&r.top<innerHeight;};
@@ -55,7 +67,7 @@
     const maps=[...document.querySelectorAll('.leaflet-container')];
     const fixtureNow=Number(cfg.fixtureNow),dateNow=Date.now(),performanceNow=performance.now();
     return{
-      stage:cfg.stage,clock:{dateNow:Number.isFinite(dateNow)?dateNow:null,fixtureNow:Number.isFinite(fixtureNow)?fixtureNow:null,performanceNow:Number.isFinite(performanceNow)?performanceNow:null},
+      stage:cfg.stage,clock:{dateNow:Number.isFinite(dateNow)?dateNow:null,fixtureNow:Number.isFinite(fixtureNow)?fixtureNow:null,performanceNow:Number.isFinite(performanceNow)?performanceNow:null,advanceAttempted:cfg.fixtureClockAdvanceAttempted===true,advanceApplied:cfg.fixtureClockAdvanceApplied===true},
       chartsSelected:document.querySelector('[data-dt="charts"]')?.getAttribute('aria-selected')==='true',chartsVisible:visibility(document.querySelector('[data-dt="charts"]')),
       mapContainers:maps.map(m=>({box:box(m),visible:visibility(m),effectiveOpacity:opacity(m),loadedTileElements:m.querySelectorAll('.leaflet-tile.leaflet-tile-loaded').length,totalTileElements:m.querySelectorAll('.leaflet-tile').length})),
       loadedCanvases:canvases,unavailable:[...document.querySelectorAll('.map-unavailable')].map(e=>({visible:visibility(e),hidden:e.hidden,box:box(e)})),resources,errors:safeErrors
@@ -72,7 +84,16 @@
     if(cfg.stage==='review')finishDish(cfg.dish);
     if(cfg.stage==='track-map')document.querySelector('#track-map-wrap .map-full')?.click();
     await document.fonts.ready;await new Promise(ok=>setTimeout(ok,2000));
-    if(cfg.store){for(let n=0;n<200&&!storeReady();n++)await new Promise(ok=>setTimeout(ok,100));if(!storeReady())throw Error('Store scene did not finish painting: '+cfg.stage);}
+    if(cfg.store){
+      const mapStage=['activity','header-track','header-activity'].includes(cfg.stage);let advanceAttempted=false;
+      for(let n=0;n<200&&!storeReady();n++){
+        if(mapStage&&!advanceAttempted&&(cfg.stage!=='activity'||document.querySelector('[data-dt="charts"][aria-selected="true"]'))&&storeMapTilesLoaded()){
+          advanceAttempted=true;cfg.fixtureClockAdvanceAttempted=true;cfg.fixtureClockAdvanceApplied=cfg.advanceFixtureClock?.(250)===true;
+        }
+        if(!storeReady())await new Promise(ok=>setTimeout(ok,100));
+      }
+      if(!storeReady())throw Error('Store scene did not finish painting: '+cfg.stage);
+    }
     if(cfg.activityFeed){let ready=false;for(let n=0;n<150;n++){ready=!!document.querySelector('#ff-list .post[data-href="/activity/1"]')&&!!document.querySelector('#ff-list .post[data-href="/activity/friends/2"]');if(ready)break;await new Promise(ok=>setTimeout(ok,100));}if(!ready)throw Error('Fictional own and friend Activity cards did not finish rendering');}
     // Route startup restores scroll on its next frame; exercise scrolling only once it has settled.
     if(cfg.stage==='activity-sticky'){document.querySelector('.dtabs').scrollIntoView({block:'start'});for(let n=0;n<150;n++){if(!document.querySelector('.detail-sticky').hidden&&document.querySelector('.detail-map-hero').getBoundingClientRect().bottom<=0)break;await new Promise(ok=>setTimeout(ok,100));}}

@@ -6,7 +6,8 @@
   addEventListener('error',e=>errors.push(String(e.message)));
   addEventListener('unhandledrejection',e=>errors.push(String(e.reason?.message||e.reason)));
   if(Number.isFinite(cfg.fixtureNow)){
-    const NativeDate=Date,epoch=Number(cfg.fixtureNow);
+    const NativeDate=Date;
+    let epoch=Number(cfg.fixtureNow),fixtureClockAdvanced=false;
     function FixtureDate(...args){
       if(!new.target)return new NativeDate(epoch).toString();
       const instance=new NativeDate(...(args.length?args:[epoch]));
@@ -20,6 +21,14 @@
     FixtureDate.parse=NativeDate.parse;
     FixtureDate.UTC=NativeDate.UTC;
     globalThis.Date=FixtureDate;
+    if(cfg.store&&['activity','header-track','header-activity'].includes(cfg.stage)){
+      cfg.advanceFixtureClock=milliseconds=>{
+        if(fixtureClockAdvanced||milliseconds!==250)return false;
+        const before=new NativeDate(epoch),after=new NativeDate(epoch+milliseconds);
+        if(before.getFullYear()!==after.getFullYear()||before.getMonth()!==after.getMonth()||before.getDate()!==after.getDate())return false;
+        epoch+=milliseconds;fixtureClockAdvanced=true;cfg.fixtureClockAdvanceApplied=true;return true;
+      };
+    }
   }
   localStorage.clear();document.documentElement.style.fontSize=cfg.root+'px';
   history.replaceState(null,'',cfg.headerPage?'/'+cfg.headerPage:cfg.groups?'/me/groups':cfg.friends?'/me/friends':cfg.stage.startsWith('activity')?'/activity/1':cfg.stage.startsWith('track-')?'/track':cfg.stage==='food'?'/food/describe':'/food/cook/1');
