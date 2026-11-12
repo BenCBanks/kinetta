@@ -51,7 +51,7 @@ class CopyTests(unittest.TestCase):
    nav=re.search(r'<nav class="tabs" aria-label="Primary">(.*?)</nav>',header,re.S)
    self.assertIsNotNone(nav,template.name)
    links=re.findall(r'<a href="([^"]+)"[^>]*>([^<]+)</a>',nav.group(1))
-   self.assertEqual(links,[('./','Home'),('compare','Features'),('guide','Guide'),('https://testflight.apple.com/join/YAX1JnwB','Download')],template.name)
+   self.assertEqual(links,[('./','Home'),('compare','Features'),('guide','Guide'),('https://testflight.apple.com/join/YAX1JnwB','iPhone beta')],template.name)
  def test_about_photos_have_no_embedded_metadata(self):
   import struct
   for name in ['ben-and-rachel']:

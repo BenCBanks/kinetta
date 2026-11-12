@@ -588,7 +588,12 @@ header.top .signup { display:flex;align-items:center; }
 .website-tour figure { margin: 0; min-width: 0; }
 .tour-image { max-width: 500px; margin-inline: auto; }
 .tour-image img, .tour-workout img { width: 100%; height: auto; border-radius: 16px; }
-.tour-workout { max-width: 500px; margin-inline: auto; }
+.tour-workout { max-width: 500px; margin-inline: auto; display: grid; gap: 10px; }
+/* Two scopes of one control, each named above its complete picture. */
+.tour-scopes .tour-image { display: grid; gap: 8px; }
+.tour-scope { margin: 0; font-size: 14px; line-height: 1.4; color: var(--ink2); }
+.tour-scope strong { color: var(--ink); font-weight: 600; }
+.tour-scopes picture + .tour-scope { margin-top: 18px; }
 .draft-asset { padding: 12px 0; font-size: 14px; color: var(--ink3); }
 .website-tour figcaption { margin-top: 12px; color: var(--ink2); font-size: 14px; line-height: 1.45; }
 .website-tour figcaption h2 { color: var(--ink); font-size: 22px; margin-bottom: 5px; }
@@ -614,7 +619,7 @@ header.top .signup { display:flex;align-items:center; }
 .guide-task-detail h2 { font-size: 26px; margin-bottom: 14px; }
 .guide-task-detail p + p { margin-top: 16px; }
 .guide-task-detail p { color: var(--ink2); }
-.tour-achievements { max-width: 350px; margin-top: 22px !important; }
+.tour-achievements { max-width: 393px; margin-top: 22px !important; }
 .tour-achievements img { width: 100%; height: auto; }
 .website-tour .feature-guide-public { border-top: 1px solid var(--line); }
 .website-tour #feature-catalog { grid-template-columns: 1fr; gap: 0; }
@@ -638,3 +643,25 @@ header.top .signup { display:flex;align-items:center; }
 .guide-categories a { display: inline-flex; align-items: center; min-height: 44px; color: var(--brand); }
 
 .website-tour .combo > .half { padding: 0; background: transparent; border: 0; border-radius: 0; }
+
+/* Website owner pass (12 Nov 2026): tall pictures keep their text beside them, sheets get the same edge as cards. */
+@media (min-width: 761px) {
+  .tour-features .tour-row { align-items: start; }
+  .tour-features .tour-row > div { position: sticky; top: 104px; padding-top: 24px; }
+}
+.tour-image img.tour-frame { outline: 1px solid var(--line); outline-offset: -1px; }
+.feature-reference .head { margin-bottom: 24px; }
+.feature-reference .tablewrap { max-width: 860px; }
+.feature-reference .source { margin-top: 14px; }
+@media (max-width: 560px) {
+  section.band.feature-reference { padding-block: 44px; }
+  .feature-reference table.cmp { min-width: 0; }
+  .feature-reference .cmp thead { display: none; }
+  .feature-reference .cmp tr { display: block; padding: 14px 18px; border-top: 1px solid var(--line); }
+  .feature-reference .cmp tbody tr:first-child { border-top: 0; }
+  .feature-reference .cmp td { display: block; padding: 0; border: 0; }
+  .feature-reference .cmp td:first-child { font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+  .feature-reference .cmp td:last-child { color: var(--ink2); }
+}
+/* Sharp on 2x screens: 2x crops never display wider than half their pixels. */
+.tour-image, .tour-workout { max-width: 393px; }

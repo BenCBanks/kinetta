@@ -8,31 +8,31 @@ Run, ride, walk and lift.
 
 ## training-intro
 
-Follow a plan, then track your progress on routes.
+Plans, lifting, routes and progress.
 
 ## training-run-description
 
-Review your recorded activity, including routes, pace, splits and heart rate when available.
+Route, pace, splits and heart rate, when recorded.
 
 ## training-ride-walk-description
 
-Compare weekly totals across your rides, walks and runs.
+Totals for every sport, plus this week.
 
 ## training-lifting-description
 
-Log sets, reps and weight, with last time beside each set.
+Last time’s weight and reps beside each set.
 
 ## training-plans-description
 
-Choose a plan for your next 5K, 10K, half or full marathon.
+Plans for a 5K up to a marathon.
 
 ## training-progress-description
 
-Track weekly distance, fitness trends and personal records over time.
+Weekly distance over time.
 
 ## training-routes-description
 
-Compare repeated routes and see how your pace changes over time.
+Run a route again and compare your times.
 
 ## training-training-food-food-friends-friends-compare-co-25
 

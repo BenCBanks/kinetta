@@ -8,7 +8,7 @@ Choose a task.
 
 ## guide-task-intro
 
-Find a clear next step for a workout, an import, a meal, your training week or achievements.
+Common tasks, step by step.
 
 ## guide-task-activity-heading
 
@@ -68,7 +68,7 @@ Search the feature reference.
 
 ## activity-tracking-food-logging-meals-training-plans-an-2
 
-Search for a feature, expand its instructions and open the related screen in Kinetta. The five tabs are Home, Progress, Track, Nutrition and Me.
+Search a feature, expand its steps, then open it in Kinetta. The tabs are Home, Progress, Track, Nutrition and Me.
 
 ## start-by-adding-your-weight-height-sex-and-birth-year--3
 
