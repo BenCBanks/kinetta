@@ -4,7 +4,7 @@ const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 const trackFixture=require('../demo/track_session.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798';
 const selectedCase=process.env.KINETTA_LAZY_CASE||'';
-if(selectedCase&&!['settings','recaps','fitness','notifications'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
+if(selectedCase&&!['settings','recaps','fitness','notifications','records'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
 const password='green teapot on the hill';
 const user='zz_test_explore_new';
 const meReady='.me-card-sections[aria-busy="false"]';
@@ -326,9 +326,9 @@ async function contactsCases(browser,{includeColdMe=true}={}){
   }finally{await contactsRetry.context.close();}
   console.log(`ContactsUI ${includeColdMe?'cold Me plus ':''}four ordered callers and retry with no Native/write/external actions PASS; ${signupContinuationStubs.length} established signup continuation requests were locally fulfilled with 204`);
 }
-async function progressFixture(browser,{fail=null,hold=null,loginName=user,fitnessProbe=false,failHeld=false}={}){
+async function progressFixture(browser,{fail=null,hold=null,loginName=user,fitnessProbe=false,recordsProbe=false,failHeld=false}={}){
  const context=await fixtureContext(browser);await login(context,loginName);
- const page=await context.newPage(),assets=[],assetUrls=[],fitnessReads=[],errors=[],writes=[],previews=[];let heldOnce=false,releaseHeld=()=>{},signalHeld=()=>{};
+ const page=await context.newPage(),assets=[],assetUrls=[],fitnessReads=[],recordsReads=[],errors=[],writes=[],previews=[];let heldOnce=false,releaseHeld=()=>{},signalHeld=()=>{};
  const gate=new Promise(resolve=>{releaseHeld=resolve;}),held=new Promise(resolve=>{signalHeld=resolve;});
  page.on('pageerror',error=>errors.push(error.message));
  await page.route('**/*',async route=>{
@@ -337,6 +337,10 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user,fitne
    assets.push(url.pathname);assetUrls.push(url.href);const attempts=assets.filter(path=>path===url.pathname).length;
    if(fail===url.pathname&&attempts===1)return route.abort();
    if(hold===url.pathname&&!heldOnce){heldOnce=true;signalHeld();await gate;if(failHeld)return route.abort();}
+   if(recordsProbe&&url.pathname==='/static/progress-routes.js'){
+    const response=await route.fetch(),source=await response.text();
+    return route.fulfill({response,body:source+'\n;(()=>{const list=pRecordsLoaded,history=pRecordHistoryLoaded;window.__recordsRenders=[];pRecordsLoaded=(...args)=>{window.__recordsRenders.push("list");return list(...args);};pRecordHistoryLoaded=(...args)=>{window.__recordsRenders.push("history");return history(...args);};})();'});
+   }
    if(fitnessProbe&&url.pathname==='/static/progress-routes.js'){
     const response=await route.fetch(),source=await response.text();
     return route.fulfill({response,body:source+'\n;(()=>{const draw=pFitnessLoaded;window.__fitnessRenders=[];pFitnessLoaded=(...args)=>{window.__fitnessRenders.push({owner:readOwner(),path:location.pathname+location.search});return draw(...args);};})();'});
@@ -347,6 +351,13 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user,fitne
    fitnessReads.push(url.search);
    return route.fulfill({json:{days:[],predictions:[],vdot_months:[],vdot_now:null,ramp_7d:0}});
   }
+  if(recordsProbe&&['/api/records','/api/records/history'].includes(url.pathname)){
+   recordsReads.push(url.pathname+url.search);
+   const rows=Array.from({length:12},(_,i)=>({activity_id:9000+i,name:`Fictional record ${i+1}`,label:'5 km',start_time:`2026-10-${String(i+1).padStart(2,'0')}T12:00:00`,elapsed_s:1500-i*10,pr:i%3===0}));
+   if(url.pathname==='/api/records/history')return route.fulfill({json:rows});
+   const sport=url.searchParams.get('sport');
+   return route.fulfill({json:{efforts:sport==='walk'?[]:[{distance_m:5000,label:'5 km',count:rows.length,top:[rows.at(-1)],year:rows.at(-1)}],power_curve:sport==='ride'?[{seconds:60,watts:250}]:[]}});
+  }
   if(request.method()==='POST'&&url.pathname==='/api/plans/preview'){
    previews.push(url.pathname);return route.continue();
   }
@@ -354,7 +365,7 @@ async function progressFixture(browser,{fail=null,hold=null,loginName=user,fitne
   if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
   return route.continue();
  });
- return {context,page,assets,assetUrls,fitnessReads,errors,writes,previews,held,release:()=>releaseHeld()};
+ return {context,page,assets,assetUrls,fitnessReads,recordsReads,errors,writes,previews,held,release:()=>releaseHeld()};
 }
 // Observe the real deferred renderer while keeping all Fitness records fictional and writes blocked.
 async function fitnessRouteCase(browser){
@@ -413,6 +424,74 @@ async function fitnessRouteCase(browser){
   }finally{stale.release();await stale.context.close();}
  }
  console.log('Fitness lazy details: cold Me/Progress summaries, direct/reuse, failed-load Retry and stale owner/path/query/detached success/failure PASS');
+}
+// Exercise the real Records renderers with fictional responses and blocked writes.
+async function recordsRouteCase(browser){
+ const asset='/static/progress-routes.js',list='/progress?view=records&sport=run',history='/records/run/5000';
+ const readyRecords=(page,path)=>ready(page,path===history?'#h-all .record-effort':'#r-body .card','deferred Records rendered');
+ const settle=page=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ const cold=await progressFixture(browser,{recordsProbe:true});
+ try{
+  await cold.page.goto(base+'/me');await ready(cold.page,meReady,'cold Me before Records');
+  assert.equal(cold.assets.filter(path=>path===asset).length,0,'cold Me leaves Records deferred');
+  assert.equal(await cold.page.evaluate(()=>App.pages.some(item=>item.re.test('/records/run/5000'))),true,'direct Records registration stays eager');
+  await cold.page.evaluate(()=>go('/progress'));await ready(cold.page,'#p-home-totals','ordinary Progress before Records');
+  assert.equal(await cold.page.evaluate(()=>typeof pRecordsLoaded),'undefined','ordinary Progress needs no Records renderer');
+  assert.equal(await cold.page.evaluate(()=>typeof pRecordHistoryLoaded),'undefined','ordinary Progress needs no history renderer');
+  assert.equal(cold.assets.filter(path=>path===asset).length,0,'ordinary Progress leaves Records deferred');
+  assert.deepEqual(cold.recordsReads,[],'summaries do not read Records details');
+  await cold.page.evaluate(path=>go(path),list);await readyRecords(cold.page,list);
+  assert.match(new URL(cold.assetUrls.find(url=>new URL(url).pathname===asset)).searchParams.get('v'),/^[0-9a-f]{32}$/,'Records uses the existing content-hashed bundle');
+  assert.equal(await cold.page.locator('#r-body a[href="/records/run/5000"]').count(),1,'Records list retains its distance link');
+  assert.equal(await cold.page.locator('#r-body a[href="/activity/9011"]').count(),1,'Records list retains the best activity link');
+  await cold.page.locator('#r-body a[href="/records/run/5000"]').click();await readyRecords(cold.page,history);
+  assert.equal(await cold.page.locator('#h-all .record-effort').count(),10,'history initially shows ten efforts');
+  assert.equal(await cold.page.locator('#h-all .record-effort').first().getAttribute('href'),'/activity/9011','history remains fastest first');
+  await cold.page.locator('#h-more').click();assert.equal(await cold.page.locator('#h-all .record-effort').count(),12,'Show all preserves every effort');
+  await cold.page.locator('[data-record-filter="prs"]').click();assert.equal(await cold.page.locator('#h-all .record-effort').count(),4,'PR filter keeps personal records');
+  assert.equal(await cold.page.locator('[data-record-filter="prs"]').getAttribute('aria-pressed'),'true','PR filter retains selected state');
+  await cold.page.locator('[data-record-filter="all"]').click();assert.equal(await cold.page.locator('#h-all .record-effort').count(),10,'All returns to ten efforts');
+  assert.equal(cold.assets.filter(path=>path===asset).length,1,'list and history reuse one Progress bundle');
+  assert.deepEqual(await cold.page.evaluate(()=>window.__recordsRenders),['list','history'],'both real renderers run once');
+  await cold.page.evaluate(()=>go('/progress?view=records&sport=ride'));await readyRecords(cold.page,list);
+  assert.match(await cold.page.locator('#r-body').innerText(),/Best power[\s\S]*250 W/,'ride Records retains power');
+  await cold.page.evaluate(()=>go('/progress?view=records&sport=walk'));await readyRecords(cold.page,list);
+  assert.match(await cold.page.locator('#r-body').innerText(),/No walk records yet/i,'Records retains its empty state');
+  assert.deepEqual(cold.errors,[]);assert.deepEqual(cold.writes,[]);
+ }finally{await cold.context.close();}
+ for(const path of [list,history]){
+  const retry=await progressFixture(browser,{recordsProbe:true,fail:asset});
+  try{
+   await retry.page.goto(base+path);await retry.page.locator('.load-error #retry').waitFor();
+   assert.equal(new URL(retry.page.url()).pathname+new URL(retry.page.url()).search,path,'failed load retains exact Records destination');
+   assert.deepEqual(retry.recordsReads,[],'failed script does not request Records');
+   await retry.page.locator('#retry').click();await readyRecords(retry.page,path);
+   assert.equal(retry.assets.filter(file=>file===asset).length,2,'Retry reloads only the failed bundle');
+   assert.deepEqual(await retry.page.evaluate(()=>window.__recordsRenders),[path===history?'history':'list'],'Retry invokes the real renderer once');
+   assert.deepEqual(retry.errors,[]);assert.deepEqual(retry.writes,[]);
+  }finally{await retry.context.close();}
+  for(const change of ['owner','path','query','destination'])for(const failHeld of [false,true]){
+   const stale=await progressFixture(browser,{recordsProbe:true,hold:asset,failHeld});
+   try{
+    await stale.page.goto(base+path,{waitUntil:'domcontentloaded'});await stale.held;
+    await stale.page.evaluate(({change,history})=>{
+     if(change==='owner')App.me={...App.me,id:987654,login:'zz_test_records_replaced'};
+     else if(change==='path')go('/me');
+     else if(change==='query')window.history.replaceState(window.history.state,'',location.pathname+'?stale=1');
+     else document.querySelector(history?'#page':'#p-body').remove();
+    },{change,history:path===history});
+    if(change==='path')await ready(stale.page,meReady,'new path settles before held Records');
+    stale.release();
+    await until(stale.page,failed=>failed?!classicScriptPromises.has(PROGRESS_ROUTE_ASSET):typeof pRecordsLoaded==='function','held Records script settles',failHeld);
+    await settle(stale.page);
+    assert.equal(await stale.page.evaluate(()=>window.__recordsRenders?.length||0),0,`${path}: ${change} suppresses late renderer`);
+    assert.deepEqual(stale.recordsReads,[],`${path}: ${change} suppresses stale API reads`);
+    assert.equal(await stale.page.locator('.load-error').count(),0,`${path}: ${change} suppresses stale ${failHeld?'failure':'success'} UI`);
+    assert.deepEqual(stale.errors,[]);assert.deepEqual(stale.writes,[]);
+   }finally{stale.release();await stale.context.close();}
+  }
+ }
+ console.log('Records lazy details: cold summaries, list/history/reuse, retained UX, Retry and stale owner/path/query/detached success/failure PASS');
 }
 async function activeIntervalFixture(browser){
  const context=await fixtureContext(browser);await login(context);
@@ -654,7 +733,9 @@ const contactsCallersOnly=process.env.KINETTA_LAZY_ROUTE_CASE==='contacts-caller
   if(selectedCase==='notifications'){await notificationLeafCase(browser);return;}
   if(selectedCase==='recaps'){await require('./recap_lazy_ui.cjs')(browser,base);return;}
   if(selectedCase==='fitness'){await fitnessRouteCase(browser);return;}
+  if(selectedCase==='records'){await recordsRouteCase(browser);return;}
   await fitnessRouteCase(browser);
+  await recordsRouteCase(browser);
   await require('./recap_lazy_ui.cjs')(browser,base);
   await pushInvitationBrowserProof(browser);
   await settingsRouteCase(browser);
