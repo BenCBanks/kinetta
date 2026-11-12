@@ -9,6 +9,26 @@ const row=(day,extra={})=>({day,today:false,eaten:1800,burned:2200,goal:1900,pro
 const earlier=row('2026-11-08',{weight:70,trend:70,total:400});
 const middle=row('2026-11-09',{protein_g:0,total:800});
 function payload(rows,days=30){return {rows,summary:{days,logged:rows.filter(r=>r.counted&&!r.today).length,past_days:rows.filter(r=>!r.today).length,avg_eaten:1800,avg_burned:2200,avg_goal:1900,avg_deficit:400,total_deficit:800,avg_protein_g:100,avg_carbs_g:200,avg_fat_g:60,predicted_kg:null,trend_change_kg:null,tdee:2100,meals:{}},targets:{protein_target:130},insights:[],top_foods:[]};}
+const week=day=>{const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-(d.getUTCDay()+6)%7);return d.toISOString().slice(0,10);};
+const date=(day,weekly=false)=>(weekly?'Week of ':'')+new Date(day+'T12:00:00Z').toLocaleDateString('en-US',weekly?{month:'short',day:'numeric'}:{weekday:'short',month:'short',day:'numeric'});
+const number=v=>v==null?'–':Math.round(v).toLocaleString('en-US');
+function columns(test){
+ if(!test.days)return test.rows.map(r=>({...r,label:date(r.day),burned:r.eaten==null?null:r.burned,partial:r.today}));
+ const groups=new Map();for(const r of test.rows){const k=week(r.day);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(r);}
+ return [...groups].map(([day,rows])=>{const known=rows.filter(r=>r.counted),weights=rows.filter(r=>r.weight!=null),c={label:date(day,true),partial:rows.some(r=>r.today),weight:weights.length?weights.reduce((s,r)=>s+r.weight,0)/weights.length:null,trend:[...rows].reverse().find(r=>r.trend!=null)?.trend};for(const key of ['eaten','burned','goal','protein_g']){const values=known.map(r=>r[key]).filter(v=>v!=null);c[key]=values.length?values.reduce((a,b)=>a+b,0)/values.length:null;}return c;});
+}
+async function energyFacts(p,c){
+ const spans=await p.locator('#nt-energychart .readout > span:not(.readout-hint)').allTextContents(),expected=[c.label+(c.partial?' (so far)':''),'Eaten '+number(c.eaten),'Burned '+number(c.burned)];
+ if(c.goal)expected.push('Goal '+number(c.goal));
+ if(c.eaten!=null&&c.burned&&c.counted!==false&&!c.partial){const d=c.burned-c.eaten;expected.push((d>=0?'Deficit ':'Surplus ')+number(Math.abs(d)));}
+ if(c.counted===false&&c.eaten!=null&&!c.partial)expected.push('Partly logged, not counted');
+ if(c.weight!=null||c.trend!=null){const imperial=await p.evaluate(()=>App.me.units==='imperial'),fmt=v=>(v*(imperial?2.20462:1)).toFixed(1)+(imperial?' lb':' kg');expected.push('Weight '+(c.weight==null?'–':fmt(c.weight))+(c.trend!=null?' (trend '+fmt(c.trend)+')':''));}
+ assert.deepEqual(spans.map(s=>s.trim()),expected,'selected Energy date, values and qualification');
+}
+async function cumulativeFacts(p,r){
+ const expected=[date(r.day),'Total '+number(Math.abs(r.total))+' kcal '+(r.total>=0?'deficit':'surplus'),r.counted?(r.deficit==null?'resting calories not synced':'Day '+number(Math.abs(r.deficit))+' '+(r.deficit>=0?'deficit':'surplus')):'partly logged, not counted'];
+ assert.deepEqual((await p.locator('#nt-cum .readout > span:not(.readout-hint)').allTextContents()).map(s=>s.trim()),expected,'selected cumulative date, carried total and qualifying subtext');
+}
 const cases=[
  {name:'known',rows:[earlier,middle,row('2026-11-10',{protein_g:84,total:1200})],protein:'84 g',energy:/Deficit\s+400/,cum:/Nov 10.*Total\s+1,200 kcal deficit/},
  {name:'zero',rows:[earlier,middle,row('2026-11-10',{protein_g:0,total:1200})],protein:'0 g',energy:/Eaten\s+1,800/,cum:/Nov 10/},
@@ -42,22 +62,27 @@ async function wrapped(p){assert(await p.locator('#nt-body .readout').evaluateAl
  try{
   const auth=(await fixtureSessions(browser,base,[{login:'alex'}])).get('alex');
   for(const theme of ['light','dark'])for(const test of cases){
-   const count=test.days?new Set(test.rows.map(r=>{const d=new Date(r.day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-(d.getUTCDay()+6)%7);return d.toISOString().slice(0,10);})).size:test.rows.length;
+   const expectedColumns=columns(test),count=expectedColumns.length;
    const c=await browser.newContext({storageState:auth.storageState,viewport:{width:390,height:844},colorScheme:theme,serviceWorkers:'block',reducedMotion:'reduce',isMobile:true,hasTouch:true,timezoneId:'UTC'}),p=await c.newPage(),writes=[],errors=[],external=[],facts=payload(test.rows,test.days);
    try{
+    let delayedFont=theme==='light'&&test.name==='known',fontRequest;
+    if(delayedFont)await c.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>{const style=document.createElement('style');style.textContent='.readout { font-family:"Source Serif 4" !important }';document.head.append(style);}));
     await c.addInitScript(initialize,{root:16,native:false,base,id:auth.id});await p.clock.setFixedTime(new Date('2026-11-12T12:00:00Z'));
     p.on('pageerror',e=>errors.push(e.message));
     await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base){external.push(u.pathname);return r.abort();}
+     if(delayedFont&&u.pathname==='/static/fonts/source-serif-4.woff2'){fontRequest=r;return;}
      if(u.pathname==='/api/food/insights'&&q.method()==='GET')return r.fulfill({json:facts});
      if(u.pathname==='/api/challenges/signup/continue')return r.fulfill({json:{}});
      if(q.method()==='POST'&&u.pathname==='/api/milestones/celebrate')return r.fulfill({json:{items:[],pending:false}});
      if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);return r.abort();}return r.continue();});
-    const open=async view=>{await p.mouse.move(0,0);await p.goto(`${base}/food?view=${view}&r=${test.days||30}`);await until(p,()=>typeof App!=='undefined'&&App.pageReady&&!!document.querySelector('#nt-body .card'),'Nutrition route');if(!test.empty)await p.locator(view==='macros'?'#nt-protein svg': '#nt-energychart svg').first().waitFor();await p.evaluate(()=>document.fonts.ready);await settle(p);};
+    const open=async view=>{await p.mouse.move(0,0);await p.goto(`${base}/food?view=${view}&r=${test.days||30}`,{waitUntil:'domcontentloaded'});await until(p,()=>typeof App!=='undefined'&&App.pageReady&&!!document.querySelector('#nt-body .card'),'Nutrition route');if(!test.empty)await p.locator(view==='macros'?'#nt-protein svg': '#nt-energychart svg').first().waitFor({state:'attached'});
+     if(delayedFont){assert(fontRequest,'real font request held');assert.equal(await p.evaluate(()=>document.fonts.status),'loading');assert.equal(await p.locator('#nt-protein').evaluate(n=>getComputedStyle(n).visibility),'hidden','pending-font plot and facts are not exposed');assert.equal(await p.locator('#nt-protein .readout').evaluate(n=>n.style.minHeight),'','reservation waits for actual font metrics');delayedFont=false;await fontRequest.continue();await p.evaluate(()=>document.fonts.ready);assert.equal(await p.locator('#nt-protein').evaluate(n=>getComputedStyle(n).visibility),'visible');assert(await p.locator('#nt-protein .readout').evaluate(n=>parseFloat(n.style.minHeight)>0),'height reserved before chart exposed');}
+     await p.evaluate(()=>document.fonts.ready);await settle(p);};
     const shot=async state=>{if(out&&['known','unknown','today','uncounted'].includes(test.name)){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:`${out}/nutrition-readout-${test.name}-${state}-${theme}.png`,fullPage:true,animations:'disabled'});}};
     await open('macros');
     if(test.empty){assert.match(await p.locator('#nt-body').innerText(),/Nothing logged in this range/);assert.equal(await p.locator('.readout-hint').count(),0);}
     else{
-     const ro=p.locator('#nt-protein .readout');assert.equal((await ro.locator('b').innerText()).trim(),test.protein);await initial(p,'#nt-protein',test.days?/Week of Nov/:/Nov 10|Nov 12/);
+     const ro=p.locator('#nt-protein .readout');assert.equal((await ro.locator('b').innerText()).trim(),test.protein);await initial(p,'#nt-protein',test.days?/Week of Nov/:/Nov 10|Nov 12/);assert.equal((await ro.locator(':scope > span').first().innerText()).trim(),expectedColumns.at(-1).label+(expectedColumns.at(-1).partial?' (so far)':''),'exact final represented Protein date or Week-of bucket');
      if(test.name==='today')assert.match(await ro.innerText(),/so far/);await shot('protein-initial');
      const before=await positions(p);await inspect(p,'#nt-protein',0,3,false,true);await hint(p,'#nt-protein',true);
      await inspect(p,'#nt-protein',0,count);await hint(p,'#nt-protein',false);await unchanged(p,before,'protein');
@@ -77,8 +102,8 @@ async function wrapped(p){assert(await p.locator('#nt-body .readout').evaluateAl
      else await initial(p,'#nt-cum',test.cum);
      await shot('energy-initial');const before=await positions(p);
      await inspect(p,'#nt-energychart',0,3,false,true);await hint(p,'#nt-energychart',true);
-     for(let i=0;i<count;i++){await inspect(p,'#nt-energychart',i,count);await hint(p,'#nt-energychart',false);await unchanged(p,before,'energy');await wrapped(p);}
-     if(!test.sparse){const points=test.rows.filter(r=>!r.today&&r.eaten!=null).length;await inspect(p,'#nt-cum',0,points,true,true);await hint(p,'#nt-cum',true);for(let i=0;i<points;i++){await inspect(p,'#nt-cum',i,points,true);await hint(p,'#nt-cum',false);await unchanged(p,before,'cumulative');await wrapped(p);}}
+     for(let i=0;i<count;i++){await inspect(p,'#nt-energychart',i,count);await energyFacts(p,expectedColumns[i]);await hint(p,'#nt-energychart',false);await unchanged(p,before,'energy');await wrapped(p);}
+     if(!test.sparse){const points=test.rows.filter(r=>!r.today&&r.eaten!=null);await inspect(p,'#nt-cum',0,points.length,true,true);await hint(p,'#nt-cum',true);for(let i=0;i<points.length;i++){await inspect(p,'#nt-cum',i,points.length,true);await cumulativeFacts(p,points[i]);await hint(p,'#nt-cum',false);await unchanged(p,before,'cumulative');await wrapped(p);}}
      await p.mouse.move(0,0);await hint(p,'#nt-energychart',false);await shot('energy-inspected');
      await open('energy');await hint(p,'#nt-energychart',true);
      if(test.name==='known'){
