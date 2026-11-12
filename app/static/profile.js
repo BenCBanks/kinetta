@@ -291,8 +291,8 @@ const ProfileLayout=(()=>{
   }
   async function earnedAchievementPicture(badges,live){
     if(!live())throw Error('The account changed.');
-    const host=document.createElement('div');host.setAttribute('aria-hidden','true');host.style.cssText='position:fixed;left:-100000px;top:0;width:984px;z-index:-1;pointer-events:none;';
-    const root=document.createElement('section');root.setAttribute('aria-label',`Earned achievements: ${badges.map(badge=>`${badge.label}, Level ${badge.level}, ${badge.name}, ${badge.value}`).join('; ')}`);root.style.cssText='box-sizing:border-box;width:984px;padding:28px;background:var(--bg);color:var(--tx);';
+    const sourceWidth=Math.max(240,Math.min(348,document.documentElement.clientWidth-42)),host=document.createElement('div');host.setAttribute('aria-hidden','true');host.style.cssText=`position:fixed;left:-100000px;top:0;width:${sourceWidth}px;z-index:-1;pointer-events:none;`;
+    const root=document.createElement('section');root.setAttribute('aria-label',`Earned achievements: ${badges.map(badge=>`${badge.label}, Level ${badge.level}, ${badge.name}, ${badge.value}`).join('; ')}`);root.style.cssText=`box-sizing:border-box;width:${sourceWidth}px;padding:28px;background:var(--bg);color:var(--tx);`;
     const heading=document.createElement('h1');heading.textContent='Earned achievements';heading.style.cssText='margin:0;font-size:30px;line-height:1.2;font-weight:700;';
     const count=document.createElement('p');count.textContent=`${badges.length} earned`;count.style.cssText='margin:8px 0 0;color:var(--tx2);font-size:16px;line-height:1.3;';
     const list=document.createElement('div');list.className='profile-achievement-list is-grid';list.setAttribute('role','list');list.setAttribute('aria-label','All earned achievement medals');list.style.marginTop='18px';
@@ -300,7 +300,7 @@ const ProfileLayout=(()=>{
     root.append(heading,count,list);host.append(root);document.body.append(host);
     try{
       if(!live())throw Error('The account changed.');
-      const outputHeight=Math.ceil(root.getBoundingClientRect().height+96),picture=await ShareArt.achievementPicture({root,live,outputHeight});
+      const renderedHeight=root.getBoundingClientRect().height,outputHeight=Math.ceil(renderedHeight*(984/sourceWidth)+96),picture=await ShareArt.achievementPicture({root,live,outputHeight});
       if(!live())throw Error('The account changed.');
       const alt=root.getAttribute('aria-label');window.__sharePictureDiagnostic={...window.__sharePictureDiagnostic,kind:'earnedAchievementGrid',achievementCount:badges.length,achievementCodes:badges.map(badge=>badge.code)};
       return{...picture,filename:'kinetta-achievements.png',alt};
