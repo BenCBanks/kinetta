@@ -174,7 +174,7 @@ const ShareArt=(()=>{
         // and behind its own glyph and Lv pill. The filter sees only the local circle alpha.
         const shadowSvg=target.ownerDocument.createElementNS('http://www.w3.org/2000/svg','svg');
         shadowSvg.setAttribute('data-share-medal-shadow',id);shadowSvg.setAttribute('viewBox','0 0 100 100');shadowSvg.setAttribute('preserveAspectRatio','none');shadowSvg.setAttribute('aria-hidden','true');
-        const circle=target.ownerDocument.createElementNS('http://www.w3.org/2000/svg','circle');circle.setAttribute('cx','50');circle.setAttribute('cy','50');circle.setAttribute('r','50');circle.setAttribute('filter',`url(#share-medal-shadow-${i})`);shadowSvg.append(circle);target.insertBefore(shadowSvg,target.firstChild);
+        const circle=target.ownerDocument.createElementNS('http://www.w3.org/2000/svg','circle');circle.setAttribute('cx','50');circle.setAttribute('cy','50');circle.setAttribute('r','50');circle.setAttribute('fill',style.backgroundColor);circle.setAttribute('filter',`url(#share-medal-shadow-${i})`);shadowSvg.append(circle);target.insertBefore(shadowSvg,target.firstChild);
         rules.push(`[data-share-medal-shadow="${id}"]{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:-1;}[data-share-dom-id="${id}"]{isolation:isolate;}`);
       }
       target.removeAttribute('style');target.setAttribute('data-share-dom-id',id);rules.push(`[data-share-dom-id="${id}"]{${css}}`);
