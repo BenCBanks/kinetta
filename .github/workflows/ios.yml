@@ -47,7 +47,10 @@ jobs:
           from policy import changed_paths
           with open(os.environ['GITHUB_EVENT_PATH']) as source:event=json.load(source)
           pr=event.get('pull_request')
-          enabled=bool(pr and any(p.startswith('mobile/appstore/') or p=='dev/tests/native-ui/appstore.cjs' for p in changed_paths(event)))
+          paths=changed_paths(event)
+          listing=any(p.startswith('mobile/appstore/') or p=='dev/tests/native-ui/appstore.cjs' for p in paths)
+          workflow_ready=bool(pr and not pr.get('draft',False) and '.github/workflows/ios.yml' in paths)
+          enabled=bool(pr and (listing or workflow_ready))
           print('enabled='+str(enabled).lower())
           print('preview='+str(enabled and pr.get('draft',False)).lower())
           PYCODE
