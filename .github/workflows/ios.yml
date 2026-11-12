@@ -126,11 +126,6 @@ jobs:
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug
           -sdk iphonesimulator -destination 'generic/platform=iOS Simulator'
           -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
-      - name: Build for a real iPhone (unsigned, so it can't be installed; checks the release build compiles)
-        run: >
-          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release
-          -sdk iphoneos -destination 'generic/platform=iOS'
-          -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
       - name: Check the unsigned archive and HealthKit entitlements
         run: |
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
