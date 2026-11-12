@@ -44,7 +44,7 @@ Choose who sees your workouts.
 
 ## home-friends-description
 
-You choose who sees each workout.
+Set a default for new workouts, or change one at a time.
 
 ## home-trust-share
 
