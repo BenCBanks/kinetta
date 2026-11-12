@@ -1,5 +1,5 @@
 """Fictional reminders, real HTTP/SQL, APNs replaced; never contacts a phone."""
-import datetime as dt,json,uuid,os,tempfile,zipfile,secrets
+import datetime as dt,json,uuid,os,tempfile,zipfile,secrets,types
 from unittest.mock import patch
 from concurrent.futures import ThreadPoolExecutor
 from zoneinfo import ZoneInfo
@@ -9,8 +9,15 @@ from fastapi.testclient import TestClient
 from app import db,auth,meal_reminders as M,notify,api_mydata,apns
 from app.main import app
 uids=[];clients=[];role='zz_test_mealnudge_'+uuid.uuid4().hex[:8];password=secrets.token_urlsafe(24)
-now=dt.datetime.now(dt.timezone.utc);offset=12-now.hour;zone='Etc/GMT'+('+' if offset<0 else '-')+str(abs(offset)) if offset else 'Etc/GMT';local=now.astimezone(ZoneInfo(zone));day=local.date();clock=local.replace(minute=0,second=0,microsecond=0).astimezone(dt.timezone.utc)
+now=dt.datetime(2026,1,15,0,tzinfo=dt.timezone.utc);zone='Etc/GMT-12';local=now.astimezone(ZoneInfo(zone));day=local.date();clock=now
+assert local.hour==12,'the fixed reminder instant is local noon'
+class FixedDateTime(dt.datetime):
+ @classmethod
+ def now(cls,tz=None):return now.replace(tzinfo=None) if tz is None else now.astimezone(tz)
+fixed_clock=types.SimpleNamespace(datetime=FixedDateTime,date=dt.date,time=dt.time,timedelta=dt.timedelta,timezone=dt.timezone)
+meal_clock_patch=patch.object(M,'dt',fixed_clock);notify_clock_patch=patch.object(notify,'dt',fixed_clock)
 try:
+ meal_clock_patch.start();notify_clock_patch.start()
  for _ in range(2):
   login='zz_test_mealnudge_'+uuid.uuid4().hex[:12]
   with db.connect() as c:
@@ -127,4 +134,5 @@ try:
   c.execute('DELETE FROM users WHERE id=%s',(uid,));assert not c.execute('SELECT 1 FROM meal_reminder_attempts WHERE user_id=%s',(uid,)).fetchone()
  print('Meal reminders HTTP/SQL: off/confirmed/strict/APNs+device gates, own usual history, at-most-once concurrent claims, already-logged/off/missing-config/expired-session silence, private payload/short expiry/no bell, SQL RLS/read-only/coach denial/export/cascade PASS')
 finally:
+ notify_clock_patch.stop();meal_clock_patch.stop()
  with db.connect() as c:c.execute('DELETE FROM users WHERE id=ANY(%s)',(uids,));c.execute(sql.SQL('DROP ROLE IF EXISTS {}').format(sql.Identifier(role)))
