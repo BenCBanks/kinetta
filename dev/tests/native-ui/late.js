@@ -32,6 +32,35 @@
       };
       return !!checks[cfg.stage]?.();
   }
+  function storeActivityDiagnostics(){
+    const box=e=>{if(!e)return null;const r=e.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};
+    const visibility=e=>{if(!e)return false;const s=getComputedStyle(e),r=e.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&Number(s.opacity)>0&&r.width>0&&r.height>0&&r.right>0&&r.bottom>0&&r.left<innerWidth&&r.top<innerHeight;};
+    const opacity=e=>{let value=1;for(let n=e;n;n=n.parentElement)value*=Number(getComputedStyle(n).opacity);return value;};
+    const canvases=[...document.querySelectorAll('.leaflet-container canvas.leaflet-tile-loaded')].map(c=>{
+      const map=c.closest('.leaflet-container'),r=c.getBoundingClientRect(),m=map.getBoundingClientRect();let pixelVariation={readable:false,sampled:0,different:0,error:null};
+      try{
+        const left=Math.max(0,r.left,m.left),top=Math.max(0,r.top,m.top),right=Math.min(innerWidth,r.right,m.right),bottom=Math.min(innerHeight,r.bottom,m.bottom);
+        if(right>left&&bottom>top&&r.width>0&&r.height>0){
+          const sx=Math.max(0,Math.floor((left-r.left)/r.width*c.width)),sy=Math.max(0,Math.floor((top-r.top)/r.height*c.height));
+          const w=Math.max(1,Math.min(c.width-sx,Math.floor((right-left)/r.width*c.width))),h=Math.max(1,Math.min(c.height-sy,Math.floor((bottom-top)/r.height*c.height)));
+          const data=c.getContext('2d').getImageData(sx,sy,w,h).data;let different=0,sampled=0;
+          for(let i=0;i<data.length;i+=64){sampled++;if(data[i+3]&&(data[i]!==data[0]||data[i+1]!==data[1]||data[i+2]!==data[2]))different++;}
+          pixelVariation={readable:true,sampled,different,error:null};
+        }
+      }catch(e){pixelVariation.error=String(e?.name||'CanvasReadError');}
+      return{box:box(c),mapBox:box(map),intersectsViewport:r.right>0&&r.bottom>0&&r.left<innerWidth&&r.top<innerHeight,visible:visibility(c),effectiveOpacity:opacity(c),pixelVariation};
+    });
+    const resources=performance.getEntriesByType('resource').filter(r=>/map|tile|pmtiles/i.test(r.name)).slice(-30).map(r=>({kind:/pmtiles/i.test(r.name)?'pmtiles':/tile/i.test(r.name)?'tile':'map',initiator:r.initiatorType||'',status:Number.isFinite(r.responseStatus)?r.responseStatus:null,durationMs:Math.round(r.duration),transferBytes:r.transferSize||0}));
+    const safeErrors=(cfg.errors||[]).map(e=>String(e).replace(/https?:\/\/[^\s"']+/gi,'[url]')).slice(-20);
+    const maps=[...document.querySelectorAll('.leaflet-container')];
+    const fixtureNow=Number(cfg.fixtureNow),dateNow=Date.now(),performanceNow=performance.now();
+    return{
+      stage:cfg.stage,clock:{dateNow:Number.isFinite(dateNow)?dateNow:null,fixtureNow:Number.isFinite(fixtureNow)?fixtureNow:null,performanceNow:Number.isFinite(performanceNow)?performanceNow:null},
+      chartsSelected:document.querySelector('[data-dt="charts"]')?.getAttribute('aria-selected')==='true',chartsVisible:visibility(document.querySelector('[data-dt="charts"]')),
+      mapContainers:maps.map(m=>({box:box(m),visible:visibility(m),effectiveOpacity:opacity(m),loadedTileElements:m.querySelectorAll('.leaflet-tile.leaflet-tile-loaded').length,totalTileElements:m.querySelectorAll('.leaflet-tile').length})),
+      loadedCanvases:canvases,unavailable:[...document.querySelectorAll('.map-unavailable')].map(e=>({visible:visibility(e),hidden:e.hidden,box:box(e)})),resources,errors:safeErrors
+    };
+  }
   async function capture(){
     for(let n=0;n<150;n++){
       if(cfg.groups?(App.pageReady&&document.querySelector('#group-new')):cfg.headerPage?(App.pageReady&&document.querySelector('#page h1')):cfg.friends?(App.pageReady&&document.querySelector('#fr-own-list')):cfg.activity?(App.pageReady&&document.querySelector('.compact-detail-title')):cfg.recording?document.querySelector(cfg.stage==='track-review'?'#track-photos-add:not(:disabled)':'#track-lap'):cfg.stage==='food'?document.querySelector('#thread-text'):document.querySelector('#dk-name'))break;
@@ -82,5 +111,5 @@
     globalThis.KinettaUIResult=result;
     if(Native.on)await Capacitor.Plugins.KinettaActivityShare.uiTestMetrics({value:JSON.stringify(result)});
   }
-  addEventListener('DOMContentLoaded',()=>capture().catch(async e=>{const result={fixture:true,run:cfg.run,error:String(e),errors:cfg.errors,display:cfg.displayDiagnostics()};globalThis.KinettaUIResult=result;if(Native.on)await Capacitor.Plugins.KinettaActivityShare.uiTestMetrics({value:JSON.stringify(result)});}),{once:true});
+  addEventListener('DOMContentLoaded',()=>capture().catch(async e=>{const result={fixture:true,run:cfg.run,error:String(e),errors:cfg.errors,display:cfg.displayDiagnostics()};if(cfg.store&&cfg.stage==='activity')result.storeDiagnostics=storeActivityDiagnostics();globalThis.KinettaUIResult=result;if(Native.on)await Capacitor.Plugins.KinettaActivityShare.uiTestMetrics({value:JSON.stringify(result)});}),{once:true});
 })();
