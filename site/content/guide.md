@@ -8,7 +8,7 @@ Find a feature. *See how to use it.*
 
 ## activity-tracking-food-logging-meals-training-plans-an-2
 
-Search for a task, open its instructions and jump to it in Kinetta. The five tabs are **Home, Progress, Track, Nutrition and Me**. Home opens to Feed; use the **Feed | Groups** switch below its header to open Groups. For the upcoming iPhone build, test the stacked reaction summary in Feed or Groups and the back chevron in a multi-step Add food sheet. Find food logging, recipes, training plans, routes, records and account settings here.
+Search for food logging, recipes, training plans, routes, records and settings. In Kinetta, the five tabs are **Home, Progress, Track, Nutrition and Me**.
 
 ## start-by-adding-your-weight-height-sex-and-birth-year--3
 
@@ -24,7 +24,7 @@ No features match. Try another search.
 
 ## free-for-personal-use-under-the-polyform-noncommercial-6
 
-Free for personal use under the [PolyForm Noncommercial License](https://github.com/BenCBanks/kinetta/blob/main/LICENSE); commercial licenses on request.
+Source available under the [PolyForm Noncommercial License](https://github.com/BenCBanks/kinetta/blob/main/LICENSE); commercial use needs a separate license.
 
 ## 2026-ben-banks-name-and-logo-not-covered-by-the-licens-7
 

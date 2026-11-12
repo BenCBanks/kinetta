@@ -1,6 +1,46 @@
 """Synthetic recording coverage; no real records or device access."""
+import os
 from app import activities
 from app.parsers import STREAMS
+
+def health_replay_guard_cases(uid):
+    import datetime as dt
+    from app import api_health, db
+    start = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=20)
+    workout = api_health.WorkoutIn(id='health-replay-guard-test', type='running', start=start,
+        end=start+dt.timedelta(seconds=1800), duration_s=1600, distance_m=5000)
+    result, aid, _ = api_health.save(uid, workout)
+    assert result == 'added'
+
+    def snapshot():
+        with db.connect() as c:
+            row = c.execute('SELECT source_id,healthkit_id,source,start_time,elapsed_s,moving_s,distance_m,health_details,updated FROM activities WHERE id=%s AND user_id=%s', (aid,uid)).fetchone()
+        return dict(row)
+
+    before = snapshot()
+    no_identity = workout.model_copy(update={'id': None, 'end': workout.end+dt.timedelta(seconds=600), 'duration_s': 1000})
+    parsed, meta = api_health.to_activity(no_identity)
+    assert api_health.enrich(uid, aid, no_identity, parsed, meta) is False, 'replay without Health identity is rejected'
+    assert snapshot() == before, 'missing identity leaves the persisted row unchanged'
+
+    incompatible = workout.model_copy(update={'end': workout.end+dt.timedelta(seconds=600)})
+    result, same_id, updated = api_health.save(uid, incompatible)
+    assert result == 'duplicate' and same_id == aid and updated is False, 'elapsed-incompatible exact-UUID replay is rejected'
+    assert snapshot() == before, 'elapsed cutoff preserves the persisted row'
+    print('Health replay guards: missing identity and elapsed incompatibility preserve the row PASS')
+
+if os.environ.get('KINETTA_HEALTH_CASE') == 'replay-guards':
+    from app import db
+    uid = None
+    try:
+        with db.connect() as c:
+            uid = c.execute("INSERT INTO users (login,name) VALUES ('zz_test_health_replay_guard','Health Replay Guard Test') RETURNING id").fetchone()['id']
+            c.execute('INSERT INTO profile (user_id,max_hr,rest_hr) VALUES (%s,200,60)', (uid,))
+        health_replay_guard_cases(uid)
+    finally:
+        if uid:
+            with db.connect() as c: c.execute('DELETE FROM users WHERE id=%s', (uid,))
+    raise SystemExit(0)
 
 def recording(times, gps=True, hr=True):
     s = {k:[] for k in STREAMS}
@@ -61,6 +101,7 @@ try:
     with db.connect() as c:
         uid = c.execute("INSERT INTO users (login,name) VALUES ('zz_test_sparse_hr','Sparse HR Test') RETURNING id").fetchone()['id']
         c.execute('INSERT INTO profile (user_id,max_hr,rest_hr) VALUES (%s,200,60)', (uid,))
+    health_replay_guard_cases(uid)
     start = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=20)
     w = api_health.WorkoutIn(id='sparse-heart-replay-fixture',type='running',start=start,end=start+dt.timedelta(seconds=363),duration_s=363,distance_m=1200,
         heart_rate=[api_health.Beat(t=start+dt.timedelta(seconds=t),bpm=h) for t,h in zip([0,3,123,243,363],[72,72,142,152,150])])

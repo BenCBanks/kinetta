@@ -12,7 +12,7 @@ Follow a plan, then track your progress on routes.
 
 ## training-run-description
 
-See each route, pace, splits and heart rate after a workout.
+Review your recorded activity, including routes, pace, splits and heart rate when available.
 
 ## training-ride-walk-description
 

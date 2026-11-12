@@ -31,8 +31,6 @@ class Tier:
 # The catalog in profile.achievement-levels.json is the presentation source;
 # these rules mirror its canonical thresholds and tail behavior.
 JOURNEY_LANDMARKS = (
-    ('Round the town', 10_000.0),
-    ('Across the city', 21_097.5),
     ('Marathon', 42_195.0),
     ('Ironman 70.3', 113_137.0),
     ('Ironman 140.6', 226_274.0),
@@ -44,8 +42,6 @@ JOURNEY_LANDMARKS = (
     ('To the Moon', 384_399_861.0),
 )
 CLIMBING_LEVELS = (
-    ('Rooftop', 100.0),
-    ('Hilltop', 400.0),
     ('Ben Nevis', 1_345.1),
     ('Mount Fuji', 3_775.9),
     ('Mont Blanc', 4_807.9),
@@ -58,7 +54,6 @@ CLIMBING_LEVELS = (
     ('Edge of space', 100_000.0),
 )
 LIFT_EQUIVALENTS = (
-    ('A grand piano', 500.0),
     ('A car', 1_497.0),
     ('An elephant', 5_897.0),
     ('A school bus', 11_340.0),
@@ -71,9 +66,9 @@ LIFT_EQUIVALENTS = (
     ('Titanic', 52_163_123.0),
 )
 
-CONSISTENCY_LEVELS = (1, 2, 4, 10, 20, 52, 100, 150, 200, 250, 300, 350)
+CONSISTENCY_LEVELS = (4, 10, 20, 52, 100, 150, 200, 250, 300, 350)
 CONSISTENCY_LABELS = (
-    'First week', 'Pilot light', 'Spark', 'Kindling', 'Steady flame', 'Bonfire',
+    'Spark', 'Kindling', 'Steady flame', 'Bonfire',
     'Campfire circle', 'Volcano', 'Solar flare', 'North Star', 'Constellation', 'Galaxy',
 )
 YEARS_ACTIVE_LEVELS = (1, 2, 3, 4, 5, 10, 25, 50, 100)
@@ -81,16 +76,15 @@ YEARS_ACTIVE_LABELS = (
     'First orbit', 'Comet', 'Three-peat', 'Olympiad', 'High five', 'Decade',
     'Silver jubilee', 'Golden jubilee', 'Century',
 )
-WORKOUT_LEVELS = (1, 5, 10, 50, 100, 250, 500, 1_000, 1_500, 2_000)
+WORKOUT_LEVELS = (10, 50, 100, 250, 500, 1_000, 1_500, 2_000)
 WORKOUT_LABELS = (
-    'First workout', 'Sprig', 'Seed', 'Sprout', 'Sapling', 'Young tree',
+    'Seed', 'Sprout', 'Sapling', 'Young tree',
     'Evergreen', 'Grove', 'Forest', 'Old-growth forest',
 )
-ACTIVE_TIME_HOURS = (1, 5, 10, 24, 100, 250, 500, 1_000, 2_000, 10_000)
+ACTIVE_TIME_HOURS = (10, 24, 100, 250, 500, 1_000, 2_000, 10_000)
 ACTIVE_TIME_LABELS = (
-    'First hour', 'Movie marathon', 'First ten hours', 'Round the clock',
-    'Four days moving', 'Six workweeks', 'A season of effort',
-    'Half a working year', 'A working year', 'Mastery',
+    'First ten hours', 'Round the clock', 'Four days moving', 'Six workweeks',
+    'A season of effort', 'Half a working year', 'A working year', 'Mastery (10,000 hours)',
 )
 PERSONAL_BEST_LEVELS = (1, 5, 10, 25, 50, 75, 100, 150)
 PERSONAL_BEST_LABELS = (
@@ -98,34 +92,48 @@ PERSONAL_BEST_LABELS = (
     'Record library', 'Record constellation', 'Legend',
 )
 
-# The first activity is already stored as a sport milestone. The distance tiers
-# here begin with the next catalog level so zero-distance activities still earn
-# the existing First row without relying on a zero-threshold crossing.
-SPORT_FIRST_ACTIVITY_LABELS = {
-    'run': 'First run',
-    'ride': 'First ride',
-    'walk-hike': 'First walk',
-    'swim': 'First swim',
+# Legacy first-activity milestones remain readable, but are not canonical track
+# levels. The canonical sport ladders begin at their first named distance.
+LEGACY_FIRST_ACTIVITY_LABELS = {
+    'sport:run': 'First run',
+    'sport:ride': 'First ride',
+    'sport:walk-hike': 'First walk',
+    'sport:swim': 'First swim',
 }
 SPORT_DISTANCE_LEVELS = {
-    'run': (1_609.344, 5_000.0, 10_000.0, 21_097.5, 42_195.0, 80_467.0,
+    'run': (5_000.0, 10_000.0, 21_097.5, 42_195.0, 80_467.0,
             160_934.0, 402_336.0, 804_672.0, 1_609_344.0),
-    'ride': (5_000.0, 16_093.0, 40_234.0, 100_000.0, 160_934.0, 402_336.0,
+    'ride': (16_093.0, 40_234.0, 100_000.0, 160_934.0, 402_336.0,
              804_672.0, 1_609_344.0, 4_506_163.0),
-    'walk-hike': (1_609.344, 5_000.0, 10_000.0, 21_097.5, 42_195.0, 80_467.0,
+    'walk-hike': (5_000.0, 10_000.0, 21_097.5, 42_195.0, 80_467.0,
                   160_934.0, 402_336.0, 804_672.0, 3_524_463.0),
-    'swim': (500.0, 1_609.0, 3_862.0, 10_000.0, 33_796.0, 80_467.0,
+    'swim': (1_609.0, 3_862.0, 10_000.0, 33_796.0, 80_467.0,
              160_934.0, 402_336.0, 804_672.0),
 }
 SPORT_DISTANCE_LABELS = {
-    'run': ('First mile', '5K', '10K', 'Half marathon', 'Marathon', '50-mile ultra',
+    'run': ('5K', '10K', 'Half marathon', 'Marathon', '50-mile ultra',
             '100 miles', '250 miles', '500 miles', '1,000 miles'),
-    'ride': ('Quick spin', 'First 10 miles', '25 miles', 'Metric century', 'Century',
+    'ride': ('First 10 miles', '25 miles', 'Metric century', 'Century',
              '250 miles', '500 miles', '1,000 miles', 'Coast to coast'),
-    'walk-hike': ('First mile', '5K', '10K', 'Half marathon', 'Marathon', '50 miles',
+    'walk-hike': ('5K', '10K', 'Half marathon', 'Marathon', '50 miles',
                   '100 miles', '250 miles', '500 miles', 'Appalachian Trail'),
-    'swim': ('Splash', 'First mile', 'Ironman swim', 'Marathon swim (10K)',
+    'swim': ('First mile', 'Ironman swim', 'Marathon swim (10K)',
              'English Channel', '50 miles', '100 miles', '250 miles', '500 miles'),
+}
+
+# The removed entries are exact read aliases only. They never participate in
+# rank, next-tier, worker, or backfill calculations.
+LEGACY_STARTER_LEVELS = {
+    'consistency': (('First week', 1.0), ('Pilot light', 2.0)),
+    'workouts': (('First workout', 1.0), ('Sprig', 5.0)),
+    'active_time': (('First hour', 3_600.0), ('Movie marathon', 18_000.0)),
+    'journey': (('Round the town', 10_000.0), ('Across the city', 21_097.5)),
+    'climbing': (('Rooftop', 100.0), ('Hilltop', 400.0)),
+    'lifted': (('A grand piano', 500.0),),
+    'sport:run': (('First mile', 1_609.344),),
+    'sport:ride': (('Quick spin', 5_000.0),),
+    'sport:walk-hike': (('First mile', 1_609.344),),
+    'sport:swim': (('Splash', 500.0),),
 }
 SPORT_LIFT_LEVELS = (
     ('First set', 1.0), ('Warmed up', 5.0), ('Ten sessions', 10.0),
@@ -154,10 +162,23 @@ def is_quiet_level(code: str, rank: int) -> bool:
 
 
 def level_trigger(code: str, rank: int) -> str | None:
-    if int(rank or 0) == 1 and (code in ('consistency', 'workouts') or code in {
-        'sport:run', 'sport:ride', 'sport:walk-hike', 'sport:swim'
-    }):
-        return 'first_activity'
+    return None
+
+
+def legacy_starter_tier(code: str, threshold=None, *, trigger=None) -> Tier | None:
+    """Return a display-only prior award; it has no current canonical rank."""
+    if trigger == 'first_activity' and code in LEGACY_FIRST_ACTIVITY_LABELS:
+        label = LEGACY_FIRST_ACTIVITY_LABELS[code]
+        return Tier(0, 1.0, label, 'm', False)
+    try:
+        threshold = float(threshold)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(threshold):
+        return None
+    for label, prior_threshold in LEGACY_STARTER_LEVELS.get(code, ()):
+        if math.isclose(threshold, prior_threshold, rel_tol=1e-12, abs_tol=1e-6):
+            return Tier(0, prior_threshold, label, TRACK_UNITS.get(code, 'count'), False)
     return None
 
 
@@ -247,12 +268,7 @@ def _sport_levels(sport):
 
 def _sport_tiers(sport, value) -> list[Tier]:
     value = _finite(value)
-    code = f'sport:{sport}'
-    out = []
-    if value >= 1.0:
-        out.append(Tier(1, 1.0, SPORT_FIRST_ACTIVITY_LABELS[sport], 'm', False))
-    out.extend(_named_tiers(_sport_levels(sport), value, 'm', False, rank_offset=1))
-    return out
+    return _named_tiers(_sport_levels(sport), value, 'm', False)
 
 
 def tiers_for(code: str, value) -> list[Tier]:
@@ -309,9 +325,7 @@ def next_tier(code: str, value) -> Tier | None:
         if sport == 'lift':
             return _next_named(SPORT_LIFT_LEVELS, value, 'sessions', False)
         if sport in SPORT_DISTANCE_LEVELS:
-            if value < 1.0:
-                return Tier(1, 1.0, SPORT_FIRST_ACTIVITY_LABELS[sport], 'm', False)
-            return _next_named(_sport_levels(sport), value, 'm', False, rank_offset=1)
+            return _next_named(_sport_levels(sport), value, 'm', False)
     return None
 
 

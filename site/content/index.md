@@ -20,7 +20,7 @@ Training, food and friends, together.
 
 ## home-workout-description
 
-Review each route, pace, splits and heart rate after a workout.
+Review your recorded activity, including routes, pace, splits and heart rate when available.
 
 ## home-food-description
 
