@@ -1531,9 +1531,9 @@ function wirePeriodColumns(svg, onSelect, owner) {
 function initialChartReadout(ro, items, format, {initialIndex, hint}) {
   if (!Number.isInteger(initialIndex) || initialIndex < 0 || initialIndex >= items.length) return null;
   const values = items.map(format), cue = `<span class="readout-hint">${esc(hint)}</span>`;
-  const owner = ro.parentElement, visibility = owner.style.visibility;
   const fontsPending = document.fonts && document.fonts.status !== 'loaded';
-  if (fontsPending) owner.style.visibility = 'hidden';
+  const pendingNodes = fontsPending ? [...ro.parentElement.children].map(node => [node, node.style.visibility]) : [];
+  pendingNodes.forEach(([node]) => { node.style.visibility = 'hidden'; });
   let touched = false;
   ro.style.overflowWrap = 'anywhere';
   const paint = (index, inspect = true) => {
@@ -1559,7 +1559,7 @@ function initialChartReadout(ro, items, format, {initialIndex, hint}) {
     const height = Math.max(ro.getBoundingClientRect().height, ...[...measure.children].map(node => node.getBoundingClientRect().height));
     measure.remove();
     ro.style.minHeight = Math.ceil(height) + 'px';
-    if (fontsPending) owner.style.visibility = visibility;
+    pendingNodes.forEach(([node, visibility]) => { node.style.visibility = visibility; });
   };
   paint(initialIndex, false);
   if (fontsPending) document.fonts.ready.then(reserve);
