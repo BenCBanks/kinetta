@@ -4,7 +4,7 @@ const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 const trackFixture=require('../demo/track_session.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798';
 const selectedCase=process.env.KINETTA_LAZY_CASE||'';
-if(selectedCase&&!['settings','recaps','fitness','notifications','records','food'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
+if(selectedCase&&!['settings','recaps','fitness','notifications','records','food','home'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
 const password='green teapot on the hill';
 const user='zz_test_explore_new';
 const meReady='.me-card-sections[aria-busy="false"]';
@@ -201,6 +201,37 @@ async function notificationLeafCase(browser){
     assert.deepEqual(direct.errors,[]);assert.deepEqual(direct.routes.writes,[]);
   }finally{await direct.context.close();}
   console.log('Notifications lazy leaf: eager unread badge, /notifications and /me/notifications demand load PASS');
+}
+async function homeFanoutCase(browser){
+ const context=await fixtureContext(browser);const loginResponse=await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});assert.equal(loginResponse.status(),200,'fictional demo Home account logs in');
+ const page=await context.newPage(),requests=[],writes=[],errors=[];page.on('pageerror',error=>errors.push(error.message));
+ await page.addInitScript(()=>{window.__homeIdleCallbacks=[];window.requestIdleCallback=callback=>{window.__homeIdleCallbacks.push(callback);return window.__homeIdleCallbacks.length;};window.cancelIdleCallback=()=>{};});
+ page.on('request',request=>{const url=new URL(request.url());if(url.origin===base&&url.pathname.startsWith('/api/'))requests.push(`${request.method()} ${url.pathname}`);});
+ await page.route('**/*',async route=>{
+   const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
+   if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204,body:''});
+   if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
+   return route.continue();
+ });
+ try{
+   await page.goto(base+'/');await ready(page,'#ff-list','Home feed before idle extras');
+   const before=await page.evaluate(()=>({callbacks:window.__homeIdleCallbacks.length,busy:document.querySelector('#feed-tools')?.getAttribute('aria-busy'),requests:performance.getEntriesByType('resource').map(item=>new URL(item.name).pathname).filter(path=>path.startsWith('/api/'))}));
+   const early=before.requests;
+   assert(early.some(path=>path==='/api/activities'),'Home starts the owner activity feed before idle extras');
+   assert(early.some(path=>path==='/api/feed/friends'),'Home starts the friends feed before idle extras');
+   assert(early.some(path=>path==='/api/notifications/count'),'Home keeps the unread count eager');
+   assert(!early.includes('/api/groups/activity-strip'),'the below-fold group strip waits for idle');
+   assert(!early.includes('/api/challenges'),'the below-fold challenge summary waits for idle');
+   assert.equal(before.busy,'false','Home readiness does not wait for the below-fold challenge summary');
+   assert(before.callbacks>0,'Home schedules below-fold work on idle');
+   await page.evaluate(()=>window.__homeIdleCallbacks.splice(0).forEach(callback=>callback({didTimeout:false,timeRemaining:()=>50})));
+   await page.waitForFunction(()=>document.querySelector('#activity-groups-strip')?.dataset.loaded==='true'&&document.querySelector('#feed-tools')?.getAttribute('aria-busy')==='false');
+   assert(requests.includes('GET /api/groups/activity-strip'),'idle loads the group strip');
+   assert(requests.includes('GET /api/challenges'),'idle loads the challenge summary');
+   assert.deepEqual(writes,[],'Home fan-out remains read-only for the fictional account');
+   assert.deepEqual(errors,[],'Home fan-out has no browser errors');
+ }finally{await context.close();}
+ console.log('Home fan-out: feed and unread count eager; group/challenge extras idle-loaded PASS');
 }
 async function socialFixture(browser,{failFirst=false,failFriendsFirst=false,idleGate=false}={}){
  const context=await fixtureContext(browser);await login(context);
@@ -800,6 +831,7 @@ async function foodWarmupCase(browser){
   if(contactsCallersOnly){await contactsCases(browser,{includeColdMe:false});return;}
   if(selectedCase==='settings'){await settingsRouteCase(browser);console.log('Settings lazy route: cold Me, direct/deep links, retry and stale path/owner PASS');return;}
   if(selectedCase==='notifications'){await notificationLeafCase(browser);return;}
+  if(selectedCase==='home'){await homeFanoutCase(browser);return;}
   if(selectedCase==='food'){await foodWarmupCase(browser);return;}
   if(selectedCase==='recaps'){await require('./recap_lazy_ui.cjs')(browser,base);return;}
   if(selectedCase==='fitness'){await fitnessRouteCase(browser);return;}

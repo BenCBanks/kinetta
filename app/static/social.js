@@ -554,16 +554,25 @@ async function homeGroups(el) {
 }
 // An empty Home feed always offers a next step (#762): record or import a workout, or find friends to follow.
 const feedEmpty=()=>`<div class="feed-empty"><p class="small muted">Your workouts, friends’ shared workouts and achievement moments appear here.</p><div class="btncol"><a class="primary wide" href="/track">Record or import a workout</a><a class="linkbtn" href="/me/friends?find=1">Find friends</a></div></div>`;
+function scheduleHomeIdle(fn){
+  if(typeof requestIdleCallback==='function')return requestIdleCallback(()=>fn(),{timeout:1200});
+  return setTimeout(fn,0);
+}
 async function homeFeed(el) {
   el.classList?.add('activity-home');
   el.innerHTML=`<div id="feed-top">${actTop(true,true)}</div>${homeViewSwitch('feed')}<div id="activity-groups-strip"></div><div id="weekly-recap"></div><div id="feed-tools"></div>
     <div class="feed-list" id="ff-list">${skelFeed(3)}</div><button type="button" class="ghost feed-more" id="ff-more" hidden>Show more</button>`;
   wireHomeChallengeLink(el);
   const list=$('#ff-list',el),more=$('#ff-more',el),recap=$('#weekly-recap',el),groupStrip=$('#activity-groups-strip',el),account=readOwner();
-  void activityGroupStrip(groupStrip,account);
-  void weeklyRecapOffer(recap);
   let items=[],shown=null,pageRevision=0;
-  const active=()=>account===readOwner()&&list.isConnected,tools=feedTools(el,()=>account===readOwner()&&list.isConnected);
+  const active=()=>account===readOwner()&&list.isConnected,tools=feedTools(el,()=>account===readOwner()&&list.isConnected,{defer:true});
+  let extrasStarted=false,extrasPromise=null;
+  const startExtras=()=>{
+    if(extrasStarted)return extrasPromise||Promise.resolve();
+    extrasStarted=true;
+    extrasPromise=Promise.all([activityGroupStrip(groupStrip,account),weeklyRecapOffer(recap),tools.start()]);
+    return extrasPromise;
+  };
   const draw=pg=>{
     if(!active())return;
     const visible=visibleFeedRows(pg.rows);pg={...pg,rows:visible,friends:visible.filter(a=>a.owner).length};
@@ -602,7 +611,7 @@ async function homeFeed(el) {
     App.cache.set('feed:home',{data:pg,at:Date.now()});keepFeed(pg);draw(pg);
   };
   // Pull-to-refresh uses this read-only hook instead of replacing the entire page.
-  el.refresh=()=>Promise.all([revalidate(),tools.refresh(),weeklyRecapOffer(recap),activityGroupStrip(groupStrip,account)]);
+  el.refresh=()=>Promise.all([revalidate(),startExtras()]);
   more.onclick=async()=>{
     if(more.disabled||!active()||!items.length)return;
     const epoch=readEpoch('feed:home');pageRevision++;more.disabled=true;more.textContent='Loading…';
@@ -615,13 +624,14 @@ async function homeFeed(el) {
   };
   try{if(!hit||Date.now()-hit.at>=15000)await revalidate();}
   catch(x){if(!hit)throw x;if(typeof PageRefresh!=='undefined')PageRefresh.failed(x);}
+  scheduleHomeIdle(()=>{if(active())void startExtras();});
   await tools.ready;
 }
 
 // Read-only own social facts never replace feed cards or their live maps.
-function feedTools(el,current){
-  if(typeof Discovery==='undefined')return{refresh:async()=>{},ready:Promise.resolve()};
-  const host=$('#feed-tools',el),top=$('#feed-top',el),owner=readOwner();let challenges=[],ready=false,headerCleanup=()=>{};
+function feedTools(el,current,{defer=false}={}){
+  if(typeof Discovery==='undefined')return{refresh:async()=>{},start:async()=>{},ready:Promise.resolve()};
+  const host=$('#feed-tools',el),top=$('#feed-top',el),owner=readOwner();let challenges=[],ready=defer,initial=null,headerCleanup=()=>{};
   const live=()=>current()&&readOwner()===owner;
   function fitHeader(){
     headerCleanup();const heading=$('.top',top),actions=$('.acts',top),title=$('h1',top),context=document.createElement('canvas').getContext('2d');
@@ -643,7 +653,8 @@ function feedTools(el,current){
     if(id==='invite'){e.preventDefault();e.stopPropagation();KinettaCard.open();}
   });
   async function refresh(){if(live())host.setAttribute('aria-busy','true');await Promise.allSettled([api('/api/challenges').then(rows=>{if(live())challenges=rows;})]);ready=true;draw();}
-  draw();const initial=refresh();return{refresh,ready:initial};
+  const start=()=>{if(!initial)initial=refresh();return initial;};
+  draw();if(!defer)start();return{refresh:start,start,ready:defer?Promise.resolve():initial};
 }
 
 // ---------- someone else's activity (read-only); for your own: what others see ----------
