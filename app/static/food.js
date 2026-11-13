@@ -1315,14 +1315,14 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
       const labelled=cols.map((c,i)=>c.tick?i:-1).filter(i=>i>=0),ticks=new Set([labelled[0],labelled[Math.floor((labelled.length-1)/2)],labelled.at(-1)]);
       energyChart($('#nt-overview-chart',box),cols.map((c,i)=>({...c,tick:ticks.has(i)?c.tick:'',partial:c.partial||(!weekly&&c.counted===false&&c.eaten!=null)})),{height:145,burned:false,interactive:false,topPadding:14});
     }
-    if (part === 'macros') periodBars($('#nt-protein', box), cols.map((c) => ({label: c.label, tick: c.tick, tickLabel: c.tickLabel, partial: c.partial, segs: [{k: 's3', v: c.protein_g || 0}]})),
-      {keys: [{k: 's3', name: 'Protein'}], fmt: (v) => `${r0(v)} g`, yfmt: (v) => String(Math.round(v)), avg: T.protein_target || null, avgLabel: 'Target', height: 150});
+    if (part === 'macros') periodBars($('#nt-protein', box), cols.map((c) => ({label: c.label, tick: c.tick, tickLabel: c.tickLabel, partial: c.partial, readoutValue: c.protein_g, segs: [{k: 's3', v: c.protein_g || 0}]})),
+      {keys: [{k: 's3', name: 'Protein'}], fmt: (v) => `${r0(v)} g`, yfmt: (v) => String(Math.round(v)), avg: T.protein_target || null, avgLabel: 'Target', height: 150, initialReadout: {initialIndex: cols.length - 1, hint: 'Tap a bar'}});
     if (part !== 'energy') return;
-    energyChart($('#nt-energychart', box), cols, {weight: {fmt: (v) => `${v.toFixed(1)} ${wu}`, axis: (v) => v.toFixed(1), unit: wu}});
+    energyChart($('#nt-energychart', box), cols, {initialReadout: {initialIndex: cols.length - 1, hint: 'Tap a bar'}, weight: {fmt: (v) => `${v.toFixed(1)} ${wu}`, axis: (v) => v.toFixed(1), unit: wu}});
     const cum = S.logged ? past.filter((r) => r.eaten != null) : [];   // no fully logged day yet: nothing to add up
     dayLine($('#nt-cum', box), cum.map((r) => ({y: r.total, tick: dlabel(r.day, {month: 'short', day: 'numeric'}), label: dlabel(r.day, {weekday: 'short', month: 'short', day: 'numeric'}),
       sub: r.counted && r.deficit == null ? 'resting calories not synced' : r.counted ? `Day <b>${r0(Math.abs(r.deficit))}</b> ${r.deficit >= 0 ? 'deficit' : 'surplus'}` : 'partly logged, not counted'})),
-      {fmt: (v, short) => (short ? (Math.abs(v) >= 10000 ? (v / 1000).toFixed(1) + 'k' : r0(v)) : `${r0(Math.abs(v))} kcal ${v >= 0 ? 'deficit' : 'surplus'}`)});
+      {initialReadout: {initialIndex: cum.length - 1, hint: 'Tap a point'}, fmt: (v, short) => (short ? (Math.abs(v) >= 10000 ? (v / 1000).toFixed(1) + 'k' : r0(v)) : `${r0(Math.abs(v))} kcal ${v >= 0 ? 'deficit' : 'surplus'}`)});
   });
 }
 
