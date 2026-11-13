@@ -2,12 +2,14 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const src=fs.readFileSync('app/static/social-notifications.js','utf8'),opened=[],navigated=[],routes=[];
-const c={esc:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'),avatar:p=>`<span class="av">${p?.name?.[0]||'?'}</span>`,svg:k=>`<svg data-k="${k}"></svg>`,when:()=>'Mon at 9:00 AM',App:{me:{tz:'America/New_York'}},Recaps:{today:()=> '2026-11-05',open(...args){opened.push(args);}},go:path=>navigated.push(path),route:(re,tab,fn)=>routes.push({re,tab,fn}),Date};
+const fixtureInstant=new Date(require('../screenshots/fixture-time.json').instant);
+class FixtureDate extends Date{constructor(...args){super(...(args.length?args:[fixtureInstant]));}static now(){return fixtureInstant.valueOf();}}
+const c={esc:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'),avatar:p=>`<span class="av">${p?.name?.[0]||'?'}</span>`,svg:k=>`<svg data-k="${k}"></svg>`,when:()=>'Mon at 9:00 AM',App:{me:{tz:'America/New_York'}},Recaps:{today:()=> '2026-11-05',open(...args){opened.push(args);}},go:path=>navigated.push(path),route:(re,tab,fn)=>routes.push({re,tab,fn}),Date:FixtureDate};
 vm.createContext(c);vm.runInContext(src,c);
 assert(src.includes('Recaps.today(')&&src.includes('Recaps.open('),'notification summaries use the eager recap shell facade');
 assert(!src.includes('RecapEditor')&&!src.includes('loadRecapEditor'),'notification leaf does not own the deferred recap editor');
 assert.deepEqual(routes.map(({re,tab})=>[re.toString(),tab]),[['/^\\/notifications$/',null],['/^\\/me\\/notifications$/','me']],'the real extracted module registers both notification routes');
-const ago=m=>new Date(Date.now()-m*60000).toISOString();
+const ago=m=>new Date(fixtureInstant.valueOf()-m*60000).toISOString();
 const comment=c.noteRow({kind:'comment',read:false,link:'/activity/1',created:ago(5),who:{name:'Sam Fictional'},text:'Sam Fictional commented on your Easy Run: "Great <pace>!"'});
 assert(comment.includes('<b>Sam Fictional</b> commented on your Easy Run<'),'name is bold, the action is plain text');
 assert(comment.includes('<span class="note-q">“Great &lt;pace&gt;!”</span>'),'the comment is quoted on its own line and escaped');

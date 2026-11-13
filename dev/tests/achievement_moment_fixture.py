@@ -1,5 +1,6 @@
 """Seed one fictional weekly big-tier moment for the guarded Activity screenshot test."""
 import datetime as dt
+import os
 from zoneinfo import ZoneInfo
 
 from psycopg.types.json import Jsonb
@@ -14,7 +15,12 @@ with db.connect() as c:
         raise RuntimeError('Run the guarded activity fixture first.')
     owner_id = person['id']
     zone = ZoneInfo(person['tz'] or 'UTC')
-    occurred = dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=8)
+    # This fixture is piped into the app container with ``python -``; its
+    # __file__ is therefore not the checked-out repository path. The browser
+    # harness passes the same fixed instant explicitly, with a deterministic
+    # fallback for direct fixture runs.
+    fixture_instant=os.environ.get('KINETTA_FIXTURE_INSTANT','2026-11-09T17:00:00Z')
+    occurred = dt.datetime.fromisoformat(fixture_instant.replace('Z','+00:00')) - dt.timedelta(minutes=8)
     day = occurred.astimezone(zone).date()
     since = occurred - dt.timedelta(minutes=5)
     c.execute("DELETE FROM milestones WHERE user_id=%s AND code LIKE 'test-sharing:%%'", (owner_id,))

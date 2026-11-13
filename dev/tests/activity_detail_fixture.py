@@ -17,7 +17,8 @@ owner,friend=people.values();uid=ok(owner.get('/api/me'))['id'];alex=login(*ALEX
 source={}
 for kind in ('run','ride'):
  rows=ok(alex.get('/api/activities?sport='+kind+'&limit=100'));source[kind]=next(a for a in rows if a['line'] and (kind!='run' or a['distance_m']>=5000))
-now=dt.datetime.now(dt.timezone.utc)-dt.timedelta(hours=3);ids={};sql=[]
+fixture_data=json.loads((Path(__file__).resolve().parents[1] / 'screenshots' / 'fixture-time.json').read_text())
+now=dt.datetime.fromisoformat(fixture_data['instant'].replace('Z','+00:00'))-dt.timedelta(hours=3);ids={};sql=[]
 for i,(kind,sport,label) in enumerate([('run','run',None),('paused','run',None),('treadmill','run','Treadmill Running'),('ride','ride',None),('lifting','workout','Strength Training'),('empty','walk',None)]):
  src=source.get('run') if kind=='paused' else source.get(kind);body={'sport':sport,'name':'Fictional '+kind+' session','start':(now-dt.timedelta(days=i)).isoformat(),'duration_s':src['elapsed_s'] if src else 1800,'sport_label':label}
  if kind!='empty':body.update(distance_m=src['distance_m'] if src else 5000 if kind=='treadmill' else None)
