@@ -1927,9 +1927,9 @@
           "distance_m": 1609.344,
           "max_seconds": 600,
           "requirement": "1 mi · ≤ 10:00",
-          "emoji": "👟",
-          "asset_name": "Running shoe",
-          "icon": "/static/profile.fluent-emoji/flat/running_shoe_flat.svg?v=__ASSET_HASH__"
+          "emoji": "🏃",
+          "asset_name": "Person Running",
+          "icon": "/static/profile.fluent-emoji/flat/person_running_flat_default.svg?v=__ASSET_HASH__"
         },
         {
           "name": "Mile marker",
@@ -1940,9 +1940,9 @@
           "distance_m": 1609.344,
           "max_seconds": 480,
           "requirement": "1 mi · ≤ 8:00",
-          "emoji": "⏱️",
-          "asset_name": "Stopwatch",
-          "icon": "/static/profile.fluent-emoji/flat/stopwatch_flat.svg?v=__ASSET_HASH__"
+          "emoji": "⚡",
+          "asset_name": "High Voltage",
+          "icon": "/static/profile.fluent-emoji/flat/high_voltage_flat.svg?v=__ASSET_HASH__"
         },
         {
           "name": "Five-K foothold",
@@ -1953,9 +1953,9 @@
           "distance_m": 5000,
           "max_seconds": 1800,
           "requirement": "5K · ≤ 30:00",
-          "emoji": "🏅",
-          "asset_name": "Sports medal",
-          "icon": "/static/profile.fluent-emoji/flat/sports_medal_flat.svg?v=__ASSET_HASH__"
+          "emoji": "☄️",
+          "asset_name": "Comet",
+          "icon": "/static/profile.fluent-emoji/flat/comet_flat.svg?v=__ASSET_HASH__"
         },
         {
           "name": "Five-K club",
@@ -1966,9 +1966,9 @@
           "distance_m": 5000,
           "max_seconds": 1500,
           "requirement": "5K · ≤ 25:00",
-          "emoji": "🏁",
-          "asset_name": "Chequered flag",
-          "icon": "/static/profile.fluent-emoji/flat/chequered_flag_flat.svg?v=__ASSET_HASH__"
+          "emoji": "🚀",
+          "asset_name": "Rocket",
+          "icon": "/static/profile.fluent-emoji/flat/rocket_flat.svg?v=__ASSET_HASH__"
         },
         {
           "name": "Ten-K standard",
@@ -1979,9 +1979,9 @@
           "distance_m": 10000,
           "max_seconds": 3600,
           "requirement": "10K · ≤ 60:00",
-          "emoji": "⛰️",
-          "asset_name": "Mountain",
-          "icon": "/static/profile.fluent-emoji/flat/mountain_flat.svg?v=__ASSET_HASH__"
+          "emoji": "✨",
+          "asset_name": "Sparkles",
+          "icon": "/static/profile.fluent-emoji/flat/sparkles_flat.svg?v=__ASSET_HASH__"
         },
         {
           "name": "Ten-K pace",
@@ -1992,9 +1992,9 @@
           "distance_m": 10000,
           "max_seconds": 3000,
           "requirement": "10K · ≤ 50:00",
-          "emoji": "🏆",
-          "asset_name": "Trophy",
-          "icon": "/static/profile.fluent-emoji/flat/trophy_flat.svg?v=__ASSET_HASH__"
+          "emoji": "🔥",
+          "asset_name": "Fire",
+          "icon": "/static/profile.fluent-emoji/flat/fire_flat.svg?v=__ASSET_HASH__"
         },
         {
           "name": "Halfway banner",
@@ -2005,9 +2005,9 @@
           "distance_m": 21097.5,
           "max_seconds": 8100,
           "requirement": "Half marathon · ≤ 2:15:00",
-          "emoji": "💯",
-          "asset_name": "Hundred points",
-          "icon": "/static/profile.fluent-emoji/flat/hundred_points_flat.svg?v=__ASSET_HASH__"
+          "emoji": "⭐",
+          "asset_name": "Star",
+          "icon": "/static/profile.fluent-emoji/flat/star_flat.svg?v=__ASSET_HASH__"
         },
         {
           "name": "Half-marathon flight",
@@ -2018,9 +2018,9 @@
           "distance_m": 21097.5,
           "max_seconds": 6300,
           "requirement": "Half marathon · ≤ 1:45:00",
-          "emoji": "👑",
-          "asset_name": "Crown",
-          "icon": "/static/profile.fluent-emoji/flat/crown_flat.svg?v=__ASSET_HASH__"
+          "emoji": "🎆",
+          "asset_name": "Fireworks",
+          "icon": "/static/profile.fluent-emoji/flat/fireworks_flat.svg?v=__ASSET_HASH__"
         }
       ]
     }

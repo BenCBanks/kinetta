@@ -184,13 +184,27 @@ class AchievementTrackRules(unittest.TestCase):
             {'activity_id': 2, 'sport': 'run', 'distance_m': 1_600, 'elapsed_s': 1},
             {'activity_id': 3, 'sport': 'run', 'distance_m': 5_000, 'elapsed_s': 1_700},
         ]
-        count, found = milestones._fastest_effort_facts(Cursor(rows), 7,
-                                                         {1: {'id': 1}, 2: {'id': 2}, 3: {'id': 3}})
+        count, found, best_seconds = milestones._fastest_effort_facts(Cursor(rows), 7,
+                                                                       {1: {'id': 1}, 2: {'id': 2}, 3: {'id': 3}})
         self.assertEqual(count, 2)
         self.assertEqual(sorted(found), [1.0, 3.0])
         self.assertNotIn(2.0, found, 'a 9:30 mile does not earn the 8-minute tier')
         self.assertNotIn(4.0, found, 'a 28:20 5K does not earn the 25-minute tier')
+        self.assertEqual(best_seconds, {1: 570.0, 2: 570.0, 3: 1_700.0, 4: 1_700.0})
         self.assertEqual(tracks.next_tier('sport:run:fastest', 3).label, 'Five-K club')
+
+    def test_fastest_run_keeps_non_nested_ranks(self):
+        class Cursor:
+            def execute(self, _query, _params):
+                class Result:
+                    def fetchall(self):
+                        return [{'activity_id': 9, 'sport': 'run', 'distance_m': 5_000, 'elapsed_s': 1_440}]
+                return Result()
+
+        count, found, _best_seconds = milestones._fastest_effort_facts(
+            Cursor(), 7, {9: {'id': 9}})
+        self.assertEqual(count, 2)
+        self.assertEqual(sorted(found), [3.0, 4.0], '5K effort earns only its own two benchmarks')
 
     def test_legacy_starters_are_readable_without_canonical_credit(self):
         self.assertEqual(sum(map(len, tracks.LEGACY_STARTER_LEVELS.values()))

@@ -64,8 +64,8 @@ const achievementFixture={pending:false,tracks:[
   {label:'250 workouts',threshold:250,display_threshold:250,display_unit:'workouts'}),
  makeTrack('sport:run:longest','Longest run',5,80000,49.7,'mi',[tier(4,'Marathon day',42195,'2026-11-02',2302)],
   {label:'50-mile ultra',threshold:80467.2,display_threshold:50,display_unit:'mi'}),
- makeTrack('sport:run:fastest','Fastest run efforts',4,4,4,'benchmarks',[tier(4,'Five-K club',4,'2026-11-03',2309)],
-  {label:'Ten-K standard',threshold:5,display_threshold:5,display_unit:'benchmarks'}),
+ {...makeTrack('sport:run:fastest','Fastest run efforts',4,4,4,'benchmarks',[tier(4,'Five-K club',4,'2026-11-03',2309)],
+  {label:'Ten-K standard',threshold:5,display_threshold:5,display_unit:'benchmarks'}),earned_ranks:[1,2,3,4],best_seconds:{1:570,2:570,3:1700,4:1700,5:3734}},
  makeTrack('sport:ride:workouts','Ride workouts',3,80,80,'workouts',[tier(3,'Club loop',50,'2026-11-03',2303)],
   {label:'100 workouts',threshold:100,display_threshold:100,display_unit:'workouts'}),
  makeTrack('sport:ride:longest','Longest ride',5,200000,124.3,'mi',[tier(3,'Metric century',100000,'2026-11-04',2304)],
@@ -373,6 +373,10 @@ module.exports=async({browser,storageState,base,shots})=>{
    assert.equal(await run.locator('.profile-achievement-ladder-badge[data-level="5"] .profile-achievement-ladder-threshold').innerText(),'50 mi');
    assert(Number(await run.locator('.profile-achievement-ladder-badge.is-next [data-achievement-progress]').getAttribute('aria-valuenow'))>0,'Run next badge has a partial progress bar');
    assert.equal(await run.locator('.profile-achievement-multiple,.profile-achievement-level,.profile-achievement-value').count(),0,'the small level badges have no face chips or values');
+   const fastest=page.locator('#profile-achievement-page .profile-achievement-track[data-achievement-code="sport:run:fastest"]');
+   assert.equal(await fastest.locator('.profile-achievement-track-summary').innerText(),'4 of 8 earned · Next: 10K under 60:00 · your best 1:02:14','fastest summary reports earned count and the current 10K gap');
+   assert.equal(await fastest.locator('.profile-achievement-ladder-badge.is-earned').count(),4,'fastest badges use their own earned ranks');
+   assert.equal(await fastest.locator('.profile-achievement-ladder-badge.is-next').getAttribute('data-level'),'5','fastest next badge is the first unearned criterion');
    const swim=page.locator('#profile-achievement-page .profile-achievement-track[data-achievement-code="sport:swim"]');
    assert.equal(await swim.locator('.profile-achievement-ladder-badge').count(),catalog.tracks['sport:swim'].levels.length,'an unstarted sport still shows every named level');
    const inProgress=page.locator('#profile-achievement-page .profile-achievement-track[data-achievement-code="active_time"]');

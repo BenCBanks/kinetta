@@ -247,11 +247,14 @@ def _fastest_effort_facts(c, uid, rows_by_id):
         if prior is None or elapsed < prior[0]:
             best[criterion[1]] = (elapsed, activity)
     found = {}
+    best_seconds = {}
     for rank, (_name, distance, max_seconds) in enumerate(criteria, 1):
         candidate = best.get(distance)
+        if candidate:
+            best_seconds[rank] = candidate[0]
         if candidate and candidate[0] <= max_seconds:
             found[float(rank)] = candidate[1]
-    return len(found), found
+    return len(found), found, best_seconds
 
 
 def _tier_item(code,tier,row,zone,now,*,occurred=None,day=None):
@@ -273,7 +276,7 @@ def _tier_item(code,tier,row,zone,now,*,occurred=None,day=None):
             'garmin_source':recaps.garmin_source(row.get('source'),row.get('device')) if row else None}
 
 
-def _state_item(code,value,tiers,first_row,zone,now):
+def _state_item(code,value,tiers,first_row,zone,now,extra=None):
     nxt=tracks.next_tier(code,value)
     details={'track':code,'label':tracks.track_label(code),'value':value,'unit':tracks.TRACK_UNITS.get(code,'count'),
              'level':max((tier.rank for tier in tiers),default=0),'big':False}
@@ -283,6 +286,8 @@ def _state_item(code,value,tiers,first_row,zone,now):
     elif code=='active_time':details['value_s']=value
     if nxt:
         details['next_threshold']=nxt.threshold;details['next_label']=nxt.label;details['next_unit']=nxt.unit
+    if extra:
+        details.update(extra)
     return {'code':f'track-state:{code}','kind':'track_state','title':tracks.track_label(code),'rank':0,
             'activity_id':None,'day':_local_day(first_row,zone),'occurred':first_row['start_time'],
             'arrival':now,'details':details,'garmin_source':None}
@@ -301,6 +306,24 @@ def _preserve_track_progress(c,uid,states):
         details=state['details'];code=details['track'];old=previous.get(code)
         if not old:continue
         old_details=old['details']
+        if code == 'sport:run:fastest':
+            old_ranks={int(rank) for rank in old_details.get('earned_ranks', ())
+                       if str(rank).lstrip('-').isdigit() and 1 <= int(rank) <= len(tracks.RUN_FASTEST_LEVELS)}
+            current_ranks={int(rank) for rank in details.get('earned_ranks', ())
+                           if str(rank).lstrip('-').isdigit() and 1 <= int(rank) <= len(tracks.RUN_FASTEST_LEVELS)}
+            merged_ranks=sorted(old_ranks | current_ranks)
+            details['earned_ranks']=merged_ranks
+            details['value']=len(merged_ranks)
+            details['level']=max(merged_ranks,default=0)
+            old_best={str(rank):float(seconds) for rank,seconds in (old_details.get('best_seconds') or {}).items()
+                      if str(rank).isdigit() and isinstance(seconds,(int,float)) and math.isfinite(float(seconds))}
+            current_best={str(rank):float(seconds) for rank,seconds in (details.get('best_seconds') or {}).items()
+                          if str(rank).isdigit() and isinstance(seconds,(int,float)) and math.isfinite(float(seconds))}
+            details['best_seconds']={rank:min(seconds,current_best[rank]) if rank in current_best else seconds
+                                     for rank,seconds in {**old_best,**current_best}.items()}
+            if old_ranks - current_ranks:
+                state['day']=old['day'];state['occurred']=old['occurred']
+            continue
         try:old_value=float(old_details.get('value',0) or 0)
         except (TypeError,ValueError):old_value=0.0
         try:value=float(details.get('value',0) or 0)
@@ -327,10 +350,10 @@ def achievement_candidates(c,uid,now,zone):
     if not rows:return [],[],False
     by_id={r['id']:r for r in rows}
     states=[];tiers=[]
-    def add(code,value,crossing,started=True):
+    def add(code,value,crossing,started=True,*,reached=None,state_extra=None):
         if not started:return
-        reached=tracks.tiers_for(code,value)
-        states.append(_state_item(code,value,reached,rows[0],zone,now))
+        reached = tracks.tiers_for(code,value) if reached is None else reached
+        states.append(_state_item(code,value,reached,rows[0],zone,now,state_extra))
         for tier in reached:
             # Sport First rows are already durable catalog rows, including
             # distance-free indoor sessions. Count-based First tiers still
@@ -385,8 +408,14 @@ def achievement_candidates(c,uid,now,zone):
             longest,crossing=_max_crossings(longest_code,subset,lambda r:_number(r,'distance_m'),zone)
             add(longest_code,longest,crossing,longest>0)
 
-    fastest_count,fastest_crossing=_fastest_effort_facts(c,uid,by_id)
-    add('sport:run:fastest',fastest_count,fastest_crossing,fastest_count>0)
+    fastest_count,fastest_crossing,fastest_best=_fastest_effort_facts(c,uid,by_id)
+    fastest_tiers=[tracks.Tier(rank,float(rank),name,'benchmarks',False)
+                   for rank,(name,_distance,_seconds) in enumerate(tracks.RUN_FASTEST_LEVELS,1)
+                   if float(rank) in fastest_crossing]
+    add('sport:run:fastest',fastest_count,fastest_crossing,bool(fastest_best),
+        reached=fastest_tiers,
+        state_extra={'earned_ranks':[tier.rank for tier in fastest_tiers],
+                     'best_seconds':{str(rank):seconds for rank,seconds in fastest_best.items()}})
 
     events=_personal_best_events(c,uid,by_id)
     if events:
