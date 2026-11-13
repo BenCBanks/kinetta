@@ -23,6 +23,13 @@
     }
   ],
   [
+    "activity-splits",
+    "RUN_SPLITS",
+    {
+      "tab": "splits"
+    }
+  ],
+  [
     "charts",
     "RUN",
     {

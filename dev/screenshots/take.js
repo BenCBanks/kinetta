@@ -202,7 +202,8 @@ async function closeCaptureContext(context) {
       const acts = await get('/api/activities?limit=40'), routes = await get('/api/routes'), dishes = await get('/api/dishes');
       const loop = acts.find((a) => a.sport === 'run' && a.distance_m > 4600 && a.distance_m < 4950) || acts[0];
       const coach = (await Promise.all(acts.slice(0, 40).map((a) => get('/api/activities/' + a.id)))).find((a) => a.ai_note) || loop;
-      return {FEED_ACTIVITY: acts[0].id, LATEST: '/activity/' + (acts.find(a => a.photos?.length && a.line) || acts[0]).id, RUN: '/activity/' + loop.id, RUN_NAME: loop.name, COACH: '/activity/' + coach.id, ROUTE: routes.length ? '/route/' + routes.sort((x, y) => y.count - x.count)[0].id : '/progress',
+      const splitRun = acts.filter(a => a.sport === 'run' && a.distance_m > 6200 && a.distance_m < 7000).sort((a,b) => Math.abs(a.distance_m-6600) - Math.abs(b.distance_m-6600))[0] || loop;
+      return {FEED_ACTIVITY: acts[0].id, LATEST: '/activity/' + (acts.find(a => a.photos?.length && a.line) || acts[0]).id, RUN: '/activity/' + loop.id, RUN_NAME: loop.name, RUN_SPLITS: '/activity/' + splitRun.id, COACH: '/activity/' + coach.id, ROUTE: routes.length ? '/route/' + routes.sort((x, y) => y.count - x.count)[0].id : '/progress',
         DISH: '/food/cook/' + ((dishes.find((d) => d.name === 'Chicken and veg traybake') || dishes[0] || {}).id || ''),
         SQUAT: '/lift/ex/' + (((await get('/api/lifts/exercises')).mine.find((x) => x.name === 'Squat') || {}).id || '')};
     });
@@ -269,6 +270,11 @@ async function closeCaptureContext(context) {
         const title=page.locator('.d-title h1');await title.waitFor({state:'visible'});
         const actual=(await title.innerText()).trim();
         if(actual!==ids.RUN_NAME)throw Error(`Activity detail keeps its recorded name "${ids.RUN_NAME}" (default names such as "Morning Run" are preserved), got "${actual}"`);
+      }
+      if(opt.tab){
+        const tab=page.locator(`[data-dt="${opt.tab}"]`);
+        await tab.waitFor({state:'visible'});await tab.click();
+        await page.locator(`#activity-pane-${opt.tab}:visible`).waitFor();
       }
       await page.evaluate(() => { window.scrollTo(0, 0); });
       await page.evaluate(() => document.fonts.ready);
@@ -394,7 +400,9 @@ async function closeCaptureContext(context) {
         if (h) window.scrollTo(0, h.getBoundingClientRect().top + scrollY - 70);   // below the status bar
       }, opt.to);
       await page.waitForTimeout(700);
-      await loadedMaps(page, {advanceMapFade: ['activity', 'feed', 'route'].includes(name)}); await page.evaluate(chrome, scheme === 'dark'); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+      await loadedMaps(page, {advanceMapFade: ['activity', 'activity-splits', 'feed', 'route'].includes(name)});
+      if(opt.tab){const heading=page.locator(`#activity-pane-${opt.tab} h2`).first();await heading.waitFor({state:'visible'});await heading.evaluate(el=>window.scrollBy(0,el.getBoundingClientRect().top-390));}
+      await page.evaluate(chrome, scheme === 'dark'); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
       await page.screenshot({path: `${OUT}/${scheme}-${name}.png`});
       if (opt.lift) await page.evaluate(() => fetch('/api/activities/' + window.__liftId, {method: 'DELETE', headers: {'Content-Type': 'application/json'}}));
       // Remove only what this fictional review story added (entries, saved foods, messages) so the next pass and
