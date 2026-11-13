@@ -3,15 +3,15 @@
   'use strict';
 
   const scriptUrl = document.currentScript?.src || new URL('assets/progress-demo.js', document.baseURI).href;
-  const styleUrl = new URL('progress-demo.css', scriptUrl).href;
+  const styleUrl = new URL('progress-demo.css?v=1', scriptUrl).href;
   const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const sports = {
-    run: {name:'Run', base:25, min:15, max:35, pace:9.4, season:[.88,.9,.95,1,1.04,1.08,1.08,1.05,1,.98,.92,.86],
+    run: {name:'Run', icon:'🏃', base:25, min:15, max:35, pace:9.4, season:[.88,.9,.95,1,1.04,1.08,1.08,1.05,1,.98,.92,.86],
       weights:[0,.14,.17,0,.17,.34,.18]},
-    ride: {name:'Ride', base:88, min:40, max:150, pace:3.55, season:[.58,.64,.8,.96,1.1,1.2,1.28,1.22,1.08,.94,.72,.61],
+    ride: {name:'Ride', icon:'🚴', base:88, min:40, max:150, pace:3.55, season:[.58,.64,.8,.96,1.1,1.2,1.28,1.22,1.08,.94,.72,.61],
       weights:[0,.17,.19,.14,0,.34,.16]},
-    swim: {name:'Swim', base:5.1*1760, min:2*1760, max:8*1760, pace:18.4, unit:'yd', season:[.82,.85,.91,.97,1.07,1.18,1.23,1.2,1.12,1.02,.9,.84],
+    swim: {name:'Swim', icon:'🏊', base:5.1*1760, min:2*1760, max:8*1760, pace:18.4, unit:'yd', season:[.82,.85,.91,.97,1.07,1.18,1.23,1.2,1.12,1.02,.9,.84],
       weights:[.13,.18,0,.18,.15,.22,.14]}
   };
   const periods = {week:'Week',month:'Month',year:'Year'};
@@ -76,9 +76,7 @@
     return hours?`${hours}h ${String(mins).padStart(2,'0')}m`:`${mins}m`;
   }
   function niceTop(value) {
-    const raw=Math.max(.1,value),power=Math.pow(10,Math.floor(Math.log10(raw))),scaled=raw/power;
-    const step=scaled<=1?1:scaled<=2?2:scaled<=2.5?2.5:scaled<=5?5:10;
-    return step*power;
+    return Math.ceil(Math.max(.1,value)*1.18*10)/10;
   }
   function ensureStyles() {
     if(stylePromise)return stylePromise;
@@ -111,11 +109,11 @@
       let sportKey='run',period='week',rows=[],selected=0,frame=0;
       root.innerHTML=`<section class="pchart" aria-label="Interactive training progress">
         <div class="pchart-controls">
-          <div class="pchart-group" role="group" aria-label="Time range">
+          <div class="pchart-group pchart-ranges" role="group" aria-label="Time range">
             ${Object.entries(periods).map(([key,label])=>`<button type="button" data-period="${key}" aria-pressed="${key==='week'}">${label}</button>`).join('')}
           </div>
           <div class="pchart-group pchart-sports" role="group" aria-label="Sport">
-            ${Object.entries(sports).map(([key,sport])=>`<button type="button" data-sport="${key}" aria-pressed="${key==='run'}">${sport.name}</button>`).join('')}
+            ${Object.entries(sports).map(([key,sport])=>`<button type="button" data-sport="${key}" aria-pressed="${key==='run'}"><span class="pchart-sport-icon" aria-hidden="true">${sport.icon}</span>${sport.name}</button>`).join('')}
           </div>
         </div>
         <div class="pchart-summary">
@@ -123,7 +121,7 @@
           <dl class="pchart-metrics">
             <div><dt>Total</dt><dd><span data-total data-value="0">0.0 mi</span></dd></div>
             <div><dt>Moving time</dt><dd><span data-time data-value="0">0m</span></dd></div>
-            <div><dt>Best effort</dt><dd><span data-best data-value="0">0.0 mi</span><small data-best-label></small></dd></div>
+            <div><dt>Longest</dt><dd><span data-best data-value="0">0.0 mi</span><small data-best-label></small></dd></div>
           </dl>
         </div>
         <div class="pchart-legend" aria-hidden="true"><span>Distance · miles</span><span data-average-label></span></div>

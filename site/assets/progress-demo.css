@@ -8,6 +8,7 @@
 }
 #progress-demo .pchart-controls { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 #progress-demo .pchart-group { display:flex; align-items:center; min-width:0; gap:2px; }
+#progress-demo .pchart-ranges { padding:4px; gap:4px; border-radius:12px; background:var(--color-soft); }
 #progress-demo .pchart-group button {
   position:relative;
   display:inline-flex;
@@ -24,18 +25,20 @@
   font:500 14px/1 var(--body);
   cursor:pointer;
 }
-#progress-demo .pchart-group button::after {
-  position:absolute;
-  right:8px;
-  bottom:3px;
-  left:8px;
-  height:2px;
-  background:transparent;
-  content:"";
-}
-#progress-demo .pchart-group button[aria-pressed="true"] { color:var(--brand); font-weight:700; }
-#progress-demo .pchart-group button[aria-pressed="true"]::after { background:currentColor; }
+#progress-demo .pchart-ranges button { border-radius:9px; }
+#progress-demo .pchart-ranges button::after { display:none; }
+#progress-demo .pchart-ranges button[aria-pressed="true"] { background:var(--paper); color:var(--brand); box-shadow:0 1px 3px color-mix(in srgb,var(--ink) 16%,transparent); }
+#progress-demo .pchart-sports { gap:6px; }
+#progress-demo .pchart-sports button { flex:0 0 auto; gap:6px; padding-inline:12px; border:1px solid var(--line); border-radius:999px; }
+#progress-demo .pchart-sports button::after { display:none; }
+#progress-demo .pchart-sports button[aria-pressed="true"] { border-color:var(--ink3); background:var(--color-soft); color:var(--ink); }
+#progress-demo .pchart-sport-icon { font-size:16px; line-height:1; }
 #progress-demo .pchart-group button:hover { color:var(--ink); }
+#progress-demo .pchart-ranges button:hover { color:var(--ink); }
+#progress-demo .pchart-sports button:hover { border-color:var(--ink2); }
+#progress-demo .pchart-ranges button:focus-visible,#progress-demo .pchart-sports button:focus-visible { z-index:3; }
+#progress-demo .pchart-ranges button:active,#progress-demo .pchart-sports button:active { transform:scale(.98); }
+#progress-demo .pchart-group button[aria-pressed="true"] { font-weight:700; }
 #progress-demo .pchart-summary { margin-top:18px; }
 #progress-demo .pchart-context { min-height:22px; color:var(--ink2); font-size:14px; font-weight:500; }
 #progress-demo .pchart-metrics { display:grid; grid-template-columns:1.1fr 1fr 1fr; gap:10px; margin:12px 0 22px; }
@@ -59,14 +62,16 @@
 #progress-demo .pchart-bar.is-selected .pchart-fill { background:var(--chart-accent); }
 #progress-demo .pchart-bar:hover .pchart-fill { background:var(--chart-accent); }
 #progress-demo .pchart-average { position:absolute; z-index:2; right:0; left:0; height:0; border-top:1px dashed color-mix(in srgb,var(--ink2) 65%,transparent); pointer-events:none; }
-#progress-demo .pchart-average span { position:absolute; top:-7px; right:2px; padding:0 3px; background:var(--paper); color:var(--ink3); font-size:9px; line-height:1.2; }
+#progress-demo .pchart-average span { position:absolute; top:-7px; left:2px; padding:0 3px; background:var(--paper); color:var(--ink3); font-size:9px; line-height:1.2; }
 #progress-demo .pchart-labels { margin:6px 0 0 40px; color:var(--ink3); font-size:10px; line-height:1.2; text-align:center; font-variant-numeric:tabular-nums; }
 #progress-demo .pchart-labels span { min-width:0; overflow:hidden; white-space:nowrap; }
 #progress-demo .pchart-bar:focus-visible,#progress-demo .pchart-group button:focus-visible { outline:3px solid var(--brand); outline-offset:2px; z-index:3; }
 @media(max-width:600px) {
   #progress-demo .pchart-controls { flex-wrap:wrap; }
-  #progress-demo .pchart-group { flex:1 1 100%; }
-  #progress-demo .pchart-group button { padding-inline:5px; font-size:13px; }
+  #progress-demo .pchart-ranges { flex:1 1 100%; }
+  #progress-demo .pchart-sports { flex:1 1 100%; justify-content:center; }
+  #progress-demo .pchart-ranges button { padding-inline:5px; font-size:13px; }
+  #progress-demo .pchart-sports button { padding-inline:12px; font-size:13px; }
   #progress-demo .pchart-summary { margin-top:12px; }
   #progress-demo .pchart-metrics { gap:6px; margin:10px 0 20px; }
   #progress-demo .pchart-metrics dd { font-size:17px; }
