@@ -119,8 +119,10 @@ for device in preferred:
      if stage in ('activity','header-activity'):
       assert re.search(r'\d+(?:\.\d+)?\s*mi\b',metrics['bodyText']) and re.search(r'\d+:\d{2}\s*/mi\b',metrics['bodyText']), 'US App Store activity scenes must use miles and min/mi pace'
       assert not re.search(r'\bkm\b|/km\b',metrics['bodyText']), 'US App Store activity scenes must not show metric distance or pace'
-     if stage in ('header-me','header-food'):
-      crop=metrics.get('storeCrop');assert crop and crop['top']>=metrics['safeTop']-1 and crop['bottom']<=crop['tabTop']-8, f'{stage} crop keeps its last content row complete above the tab bar: {crop}'
+     if stage.startswith('header-') or stage=='achievements':
+      top=metrics.get('topBand',{});assert top.get('glyph',{}).get('y',-1)>=metrics['safeTop']-1, f'{stage} top heading is fully visible: {top}'
+     if stage!='food' and metrics['navigation']['visible']:
+      assert all(item['label']['height']>=10 for item in metrics['navigation']['items']), f'{stage} Store nav must remain expanded: {metrics["navigation"]}'
      if stage=='header-me':
       me_text=metrics['bodyText']
       assert re.search(r'\b5\.0\s+Distance\s+\(mi\)',me_text), 'Me screenshot must show the matching fictional 5.0 mi distance'

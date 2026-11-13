@@ -137,7 +137,8 @@
     for(let n=0;n<50&&!document.documentElement.classList.contains('native-display-ready');n++)await new Promise(ok=>setTimeout(ok,100));
     // Layout/display settling can replace tiles after the early paint check.
     if(cfg.store)await waitForStorePaint();
-    const storeCrop=cfg.store&&['header-me','header-food'].includes(cfg.stage)?await positionStoreCrop():null;
+    // Store scenes stay at the top of each page so the native safe-area header and full labelled nav are visible.
+    const storeCrop=null;
     const nav=document.querySelector('nav.tabs'),navStyle=getComputedStyle(nav),navigation={
       ready:document.documentElement.classList.contains('native-display-ready'),visible:navStyle.display!=='none',box:rect('nav.tabs'),
       items:[...nav.querySelectorAll('a')].map(a=>({text:a.querySelector('span').textContent,selected:a.getAttribute('aria-current')==='page',box:(()=>{const r=a.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})(),label:(()=>{const r=a.querySelector('span').getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})()}))};
