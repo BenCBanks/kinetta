@@ -4,8 +4,8 @@
   const themeIsDark = () => matchMedia('(prefers-color-scheme: dark)').matches;
   const friendsMap = {
     friends: ['assets/shots/light-friends.webp', 'assets/shots/dark-friends.webp', 'Fictional Kinetta Friends screen with three approved friends.'],
-    feed: ['assets/shots/light-activity.webp', 'assets/shots/dark-activity.webp', 'Fictional Kinetta shared workout detail with a route map and reactions.'],
-    profile: ['assets/shots/light-profile.webp', 'assets/shots/dark-profile.webp', 'Fictional Kinetta profile with weekly totals and featured achievements.']
+    photos: ['assets/shots/light-photos.webp', 'assets/shots/dark-photos.webp', 'Fictional Kinetta shared workout with an attached photo, reactions and comments.'],
+    social: ['assets/shots/light-activity.webp', 'assets/shots/dark-activity.webp', 'Fictional Kinetta activity detail with reactions and comments.']
   };
   const pinned = document.querySelector('[data-friends-screen]');
   const pinnedDark = document.querySelector('[data-friends-dark]');
@@ -16,6 +16,7 @@
     pinned.src = themeIsDark() ? item[1] : item[0];
     if (pinnedDark) pinnedDark.srcset = item[1];
     pinned.alt = item[2];
+    ['friends', 'photos', 'social'].forEach(state => pinnedFrame?.classList.toggle(`friends-screen--${state}`, key === state));
     pinnedFrame?.classList.toggle('friends-screen--clean', key === 'friends');
   };
   const steps = [...document.querySelectorAll('.friends-step[data-friends-screen-key]')];
