@@ -21,7 +21,7 @@ const surfaces=[['progress','/progress'],['nutrition','/food'],['insights','/foo
     if(surface==='progress')await page.locator('[data-progress-feature]').first().waitFor();
     if(surface==='nutrition'){await page.locator('[data-nutrition-feature=weight]').waitFor();await page.locator('#fd-explore').scrollIntoViewIfNeeded();}
     if(surface==='weight'){await page.locator('.wform').waitFor();await until(page,()=>!!document.querySelector('#nt-whist .card'),'Weight history ready');}
-    if(surface==='explore'){await page.getByRole('searchbox',{name:'Search features'}).fill('weight');await page.locator('.guide-search').scrollIntoViewIfNeeded();}
+    if(surface==='explore'){await page.locator('.guide-hint').nth(2).waitFor();await page.locator('.guide-hints').scrollIntoViewIfNeeded();}
     if(surface==='insights')await page.locator('.insights-log-weight,a[href*="/progress/weight"],a[href*="view=weight"]').first().waitFor();
     await page.waitForTimeout(150);
     const metrics=await page.evaluate(()=>{

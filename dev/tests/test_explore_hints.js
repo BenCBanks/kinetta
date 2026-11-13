@@ -1,0 +1,12 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+const root=path.resolve(__dirname,'../..'),source=fs.readFileSync(path.join(root,'app/static/explore.js'),'utf8');
+const routes=[],box={route:(...args)=>routes.push(args)};vm.createContext(box);
+vm.runInContext(source+';globalThis.hints=FEATURE_HINTS;',box);
+assert.equal(box.hints.length,3,'Explore has no more than five hints');
+const hints=JSON.parse(JSON.stringify(box.hints));
+assert.deepEqual(hints.map(([label])=>label),['React','Health app','Hide where it starts and ends']);
+assert(hints.every(([,text])=>text.length<=80),'each hint is short');
+assert.equal(routes.length,1);assert(routes[0][0].test('/me/explore'),'Explore remains reachable at its current route');
+for(const retired of ['FEATURE_GUIDE','Search features','No features match','How to use it','guide-category'])assert(!source.includes(retired),`Explore has no ${retired} catalog UI`);
+console.log('Explore hints: three exact labels, short copy and current route PASS');

@@ -1,5 +1,5 @@
 @font-face { font-family: "Source Serif 4"; src: url("fonts/source-serif-4.woff2") format("woff2"); font-weight: 200 900; font-display: swap; }
-/* kinetta.app: shared by every page (Home, Training, Food, Friends, Compare, Guide, Privacy). */
+/* kinetta.app: shared by every page (Home, Training, Food, Friends, Features, Privacy). */
 /* Sky Blue: retain the existing page structure with neutral headings and surfaces. */
 :root {
   --bg: var(--color-canvas); --paper: var(--color-surface); --ink: var(--color-text); --ink2: var(--color-text-secondary); --ink3: var(--color-text-muted); --line: var(--color-divider);
@@ -422,21 +422,6 @@ html { scroll-padding-top: 130px; }
 .point, .card, .combo > div { border-radius: 16px; }
 .btn.solid { border-color: var(--brand-solid); }
 
-/* The permanent feature guide shares the app's catalog and neutral surfaces. */
-.feature-guide-public { padding-block: 72px; }
-.feature-guide-public > h1 { margin: 14px 0 22px; }
-.public-guide-search { display: grid; gap: 10px; margin: 32px 0 16px; max-width: 640px; }
-.public-guide-search input { font: inherit; font-size: 16px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 16px; width: 100%; box-sizing: border-box; }
-#feature-catalog { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; margin: 24px 0 32px; }
-.public-guide-card { background: var(--paper); border: 1px solid var(--line); border-radius: 18px; padding: 22px; min-width: 0; }
-.public-guide-card[hidden] { display: none; }
-.public-guide-card small { color: var(--ink3); }
-.public-guide-card h2 { font-size: 25px; margin: 10px 0; }
-.public-guide-card p { margin: 12px 0; }
-.public-guide-card summary { cursor: pointer; padding-block: 14px; min-height: 44px; box-sizing: border-box; }
-.public-guide-card a { color: var(--brand); display: inline-block; padding-block: 12px; }
-@media(max-width:650px) { #feature-catalog { grid-template-columns: 1fr; } .feature-guide-public { padding-block: 40px; } }
-
 /* Whole phones keep the real status, content and navigation together. */
 .point { padding:0; }
 .points .wrap { gap:24px; }
@@ -609,23 +594,6 @@ header.top .signup { display:flex;align-items:center; }
 .tour-row:nth-child(even) > div { order: 2; }
 .tour-row:nth-child(even) > figure { order: 1; }
 .tour-features .tour-row:last-child { border-bottom: 0; }
-.tour-guide-hero { padding-block: 40px; border-bottom: 1px solid var(--line); }
-.tour-guide-hero h1 { font-size: clamp(40px, 5vw, 58px); margin: 12px 0 16px; }
-.tour-guide-hero .lede { max-width: 54ch; }
-.tour-task-links { padding-left: 24px; margin-block: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 32px; }
-.tour-task-links a { display: inline-flex; align-items: center; min-height: 44px; color: var(--brand); font-weight: 600; }
-.guide-task-details { max-width: 860px; }
-.guide-task-detail { padding-block: 32px; border-bottom: 1px solid var(--line); scroll-margin-top: 170px; }
-.guide-task-detail h2 { font-size: 26px; margin-bottom: 14px; }
-.guide-task-detail p + p { margin-top: 16px; }
-.guide-task-detail p { color: var(--ink2); }
-.tour-achievements { max-width: 393px; margin-top: 22px !important; }
-.tour-achievements img { width: 100%; height: auto; }
-.tour-achievements img.tour-frame { outline: 1px solid var(--line); outline-offset: -1px; border-radius: 16px; }
-.website-tour .feature-guide-public { border-top: 1px solid var(--line); }
-.website-tour #feature-catalog { grid-template-columns: 1fr; gap: 0; }
-.website-tour .public-guide-card { padding: 24px 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; }
-.website-tour .public-guide-card h2 { font-size: 24px; }
 @media (max-width: 720px) {
  .website-tour .tour-hero { padding-top: 34px; }
  .website-tour .tour-hero h1 { font-size: 40px; max-width: 14ch; }
@@ -635,13 +603,9 @@ header.top .signup { display:flex;align-items:center; }
  .tour-row { padding-block: 36px; gap: 20px; }
  .tour-row:nth-child(even) > div, .tour-row:nth-child(even) > figure { order: initial; }
  .tour-trust ul { justify-content: flex-start; }
- .tour-task-links { grid-template-columns: 1fr; gap: 4px; }
  .tour-final { padding-block: 44px 52px; }
  .website-tour .pagehead { padding-top: 36px; }
 }
-
-.guide-categories { display: flex; flex-wrap: wrap; gap: 4px 22px; margin-top: 24px; }
-.guide-categories a { display: inline-flex; align-items: center; min-height: 44px; color: var(--brand); }
 
 .website-tour .combo > .half { padding: 0; background: transparent; border: 0; border-radius: 0; }
 

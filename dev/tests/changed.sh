@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 BASE="${CHANGED_BASE:-origin/main}"
-group_order="core assets food social challenges track lift plan progress profile admin welcome guide community cards standalone"
+group_order="core assets food social challenges track lift plan progress profile admin welcome hints community cards standalone"
 
 map_path() {
   local path="$1" patterns pattern group scenes
@@ -25,7 +25,7 @@ app/static/profile.*,app/static/notifications-ui.css,app/static/password-visibil
 app/static/settings-route.js;profile;Settings
 app/static/admin*,app/static/feature-usage.js;admin;
 app/static/welcome.js,app/static/onboarding.js,app/static/username-availability.*,app/static/email-account.*;welcome;
-app/static/explore.js,app/static/guide-ui.css;guide;
+app/static/explore.js,app/static/guide-ui.css;hints;
 app/static/community-terms.*;community;
 app/static/cards.*,app/static/card-public.js,app/static/vendor/qrcode.js;cards;Me,Share card choices,Public link confirmation
 app/static/standalone.css;standalone;
@@ -41,7 +41,7 @@ check_paths() {
     [[ "$path" == app/static/* ]] || continue
     if ! mapped="$(map_path "$path")"; then echo "No changed-screen browser mapping for $path" >&2; return 1; fi
     group="${mapped%%|*}"; scenes="${mapped#*|}"
-    [[ " ${group_order:-core assets food social track lift plan progress profile admin welcome guide community cards standalone} " == *" $group "* ]] || { echo "No changed-screen dispatch for $path ($group)." >&2; return 1; }
+    [[ " ${group_order:-core assets food social track lift plan progress profile admin welcome hints community cards standalone} " == *" $group "* ]] || { echo "No changed-screen dispatch for $path ($group)." >&2; return 1; }
     if [[ -n "$scenes" && "$scenes" != all ]]; then
       IFS=',' read -ra names <<< "$scenes"
       for name in "${names[@]}"; do [[ ",$scene_names," == *",$name,"* ]] || scene_names="${scene_names:+$scene_names,}$name"; done
@@ -125,7 +125,7 @@ for group in $group_order; do
     progress) python3 dev/tests/weight_progress_fixture.py ;;
     admin) python3 dev/tests/admin_features_fixture.py; python3 dev/tests/feature_collection_fixture.py ;;
     welcome) python3 dev/tests/signup_uniqueness_fixture.py ;;
-    guide) python3 dev/tests/explore_fixture.py ;;
+    hints) python3 dev/tests/explore_fixture.py ;;
   esac
   tests=""
   case "$group" in
@@ -141,7 +141,7 @@ for group in $group_order; do
     profile) tests="profile_card_ui.cjs me_card_ui.cjs personal_notifications_ui.cjs notification_settings_ui.cjs password_visibility_ui.cjs" ;;
     admin) tests="admin_features_ui.cjs feature_collection_ui.cjs"; node dev/tests/test_admin_logins.js; node dev/tests/test_admin_tools.js; node dev/tests/test_temporary_login.js ;;
     welcome) tests="signup_uniqueness_ui.cjs welcome_polish_ui.cjs" ;;
-    guide) tests="guide_ui.cjs" ;;
+    hints) tests="explore_hints_ui.cjs" ;;
     cards) tests="profile_card_ui.cjs public_card_ui.cjs" ;;
     standalone) tests="garmin_connect_ui.cjs" ;;
     community) tests="community_ui.cjs" ;;

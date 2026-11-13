@@ -195,8 +195,8 @@ Every website change follows these rules. They override older website notes wher
    looking at the actual screenshots. No sideways scrolling. Passing tests do not prove good design.
 8. **Access paths stay distinct.** Get started = account signup, Sign in = existing account, iPhone beta = TestFlight
    install. Label each plainly; never call the TestFlight link "Download".
-9. **Claims match the shipped app.** Check the current source before stating a feature; keep the searchable Guide and
-   the feature reference complete.
+9. **Claims match the shipped app.** Check the current source before stating a feature. Keep each short Explore hint
+   aligned with its exact current control label; a screen change that affects a hint updates it in the same PR.
 10. **Fictional data and honest evidence.** Demo accounts only; nothing private in the public repo. Browser captures are
     not physical-iPhone evidence. Crops come from `dev/screenshots/tour.js` (whole elements, both themes) or the shared
     capture set; regenerate them rather than hand-editing images.
@@ -248,10 +248,10 @@ Kinetta links. They are usable destinations, not fake empty totals. The setup ch
 not enabled their account-scoped Health connection, even if activities were imported another way. Keep private body
 settings guidance until missing weight, height, sex or birth year is supplied; these details remain optional and editable.
 
-Explore Kinetta is a permanent searchable guide in Me and on Today, with categories, a short explanation, expandable
-how-to and a real destination for every feature. The same 36-entry catalog generates the public website guide using
-`node dev/design/build_guide.js`; CI checks drift. Explain why body inputs affect estimated needs without promising
-medical accuracy or implying that these fields are public. No forced tour or one-time dismissal hides the guide.
+Explore Kinetta is a short list of at most five hints for features that are easy to miss. Each hint names the exact
+current control, uses one brief sentence, and stays useful without a step-by-step tour or a searchable catalog. When
+a PR changes a screen named by a hint, update that hint in the same PR. The public website Guide is retired; `/guide`
+redirects to Features.
 
 Use **My Recipes** for reusable recipes, **My foods** for individual saved foods, and **Saved combinations** in user-facing app/site copy. My Recipes means log, edit or create;
 provide explicit edit controls and retain unfinished named meals. Keep existing API/storage identifiers for compatibility.
@@ -1766,13 +1766,11 @@ recorded best. Source and help controls retain44px targets; the caveat and colla
 captures already show Running fitness and VDOT on the first screen, so their structure, numbers, charts and caveats
 need no change. Chart inspection and existing year filtering stay available.
 
-## Explore guide rows (31 October 2026)
+## Explore hints (13 November 2026)
 
-Explore keeps its searchable catalog and real destinations. Category chips scroll in one row; category headings appear once above compact divider rows. Each row uses an existing app icon, a name, one-line summary and disclosure chevron. Opening it retains the full description, instructions and Open link. New dots mean a guide entry has not been opened on this account/server/device; they do not infer feature usage elsewhere. Reading an entry clears its dot. The catalog, native import exclusions and shared Kit availability/consent helpers are unchanged. This sub-page has no discovery tile grid or layout helper paragraph. Enlarged text wraps names; the touch target stays at least44px.
-
-The later31October owner spacing rule takes precedence over the original ten-visible-rows target: two-line summary targets are at least 56px, separated by at least8px; group cards use16px padding and12px between groups. Category chips and the search/filters have 8px separation. Names use15px and secondary summaries13px at the default text size; enlarged text grows naturally. Density comes from grouping and removing duplicated category labels rather than reducing these minimums. The PR reports the measured visible row count, pitch and gaps.
-
-Explore review corrections: the named Me return uses its own row, with the left-aligned title below. Category controls have36px visible faces within44px targets,15px medium labels,8px gaps and a quiet selected tint. Overflow edges fade and keyboard focus brings a complete label into view. All59 guide entries have explicit icons from the existing destination set.
+Explore Kinetta shows at most five short hints, each named with the exact current control label. Hints describe only
+features that are easy to miss; they do not add search, categories, expandable steps or a public Guide. Update a hint
+in the same PR as any screen change that affects its label or behavior.
 
 ## Food Insights and visible goals (31 October 2026)
 
@@ -1954,7 +1952,7 @@ The 16-choice catalog, complete 4×4 phone / 2×8 wide grid, keyboard focus, lon
 
 - **One confirm sheet.** Every "are you sure?" uses the shared `confirmSheet()` bottom sheet, never the browser's `confirm()` box: a short question as the title, one plain line on what happens, Cancel on the left and the named action on the right (red when it removes or ends something). Both buttons are at least 44px. It is an `alertdialog` described by its body line, with no header X, so Cancel is the only cancel button; Escape, the scrim and a swipe also keep things as they were. Closing an editor with unsaved changes asks "Discard your changes?" with Keep editing / Discard.
 - **Folded sections look tappable.** A fold that opens in place (Your week in review, Your weekly check-in, Your week in food, Week by week) is a 44px row in body text with a trailing chevron (silent to screen readers) that turns down when open (`details.chev-row`), not accent-coloured text that reads as a link.
-- **Fitness names.** One name each: **Form** (fitness minus fatigue; never "freshness") and **Run score** (the VDOT formula is named only in the Explore guide; the running card's headline reads “Run score · 90 days”). Raw internals such as the weekly ramp number are not shown; a fast rise gives one plain warning on the summary card.
+- **Fitness names.** One name each: **Form** (fitness minus fatigue; never "freshness") and **Run score** (the running card's headline reads “Run score · 90 days”). Keep the VDOT formula out of the card headline. Raw internals such as the weekly ramp number are not shown; a fast rise gives one plain warning on the summary card.
 
 ### One number policy · 9 November 2026 (#765, owner agreed)
 

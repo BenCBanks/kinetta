@@ -13,7 +13,7 @@ case "$1" in
     node dev/tests/asset_cache_ui.cjs
     python3 dev/tests/explore_fixture.py
     node dev/tests/lazy_route_ui.cjs
-    node dev/tests/guide_ui.cjs
+    node dev/tests/explore_hints_ui.cjs
     node dev/tests/progress_ui.cjs
     node dev/tests/fitness_ui.cjs
     node dev/tests/heatmap_ui.cjs

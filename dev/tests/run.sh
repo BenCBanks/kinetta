@@ -37,7 +37,6 @@ python3 dev/design/build_content.py
 python3 dev/tests/test_website_content.py
 python3 dev/tests/ai_fingerprints.py
 python3 dev/evals/test_food_memory_score.py
-node dev/design/build_guide.js --check
 
 echo "== syntax"
 python3 -m py_compile app/*.py dev/demo/*.py dev/screenshots/*.py dev/tests/*.py
@@ -46,8 +45,7 @@ for f in app/static/*.js dev/screenshots/take.js; do node --check "$f"; done
 echo "== native sync recovery (stand-in HealthKit, no health data)"
 python3 dev/tests/test_native_ui_lifecycle.py
 node dev/tests/test_boot.js
-node dev/tests/test_guide_visits.js
-node dev/tests/test_guide_paths.js
+node dev/tests/test_explore_hints.js
 node dev/tests/test_feature_usage.js
 
 node dev/tests/test_progress_links.js

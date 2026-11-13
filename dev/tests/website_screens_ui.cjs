@@ -6,17 +6,17 @@ const mime={'.html':'text/html','.css':'text/css','.js':'text/javascript','.json
 const server=http.createServer((req,res)=>{
  if(!['GET','HEAD'].includes(req.method)){res.writeHead(405);return res.end();}
  let name=decodeURIComponent(new URL(req.url,'http://localhost').pathname);if(name==='/')name='/index.html';if(!path.extname(name))name+='.html';
- const file=path.resolve(root,'.'+name);if(!file.startsWith(root+path.sep)||!fs.existsSync(file)){res.writeHead(404);return res.end();}
- res.setHeader('Content-Type',mime[path.extname(file)]||'application/octet-stream');res.end(req.method==='HEAD'?undefined:fs.readFileSync(file));
+ let file=path.resolve(root,'.'+name),status=200;if(!file.startsWith(root+path.sep)){res.writeHead(404);return res.end();}if(!fs.existsSync(file)){file=path.join(root,'404.html');status=404;}
+ res.writeHead(status,{'Content-Type':mime[path.extname(file)]||'application/octet-stream'});res.end(req.method==='HEAD'?undefined:fs.readFileSync(file));
 });
 const until=async(p,fn)=>{for(let n=0;n<100;n++){if(await p.evaluate(fn))return;await p.waitForTimeout(30);}throw Error('Website state did not settle');};
-// Home, Training, Food, Friends, Features and Guide use complete cropped controls.
-const tourPages=(process.env.KINETTA_WEBSITE_TOUR_PAGES||'index,training,food,friends,compare,guide').split(',').filter(Boolean);
+// Home, Training, Food, Friends and Features use complete cropped controls.
+const tourPages=(process.env.KINETTA_WEBSITE_TOUR_PAGES||'index,training,food,friends,compare').split(',').filter(Boolean);
 const widths=(process.env.KINETTA_WEBSITE_WIDTHS||'1280,390').split(',').map(Number);
 const themes=(process.env.KINETTA_WEBSITE_THEMES||'light,dark').split(',');
 const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
 (async()=>{
- for(const page of ['index','training','food','friends','compare','guide','privacy']){
+ for(const page of ['index','training','food','friends','compare','privacy']){
   const html=fs.readFileSync(path.join(root,page+'.html'),'utf8');assert(!html.includes('class="pshot"'));
   const assets=[...html.matchAll(/assets\/shots\/([a-z-]+\.webp)/g)].map(m=>m[1]);
   for(const theme of themes){const unique=[...new Set(assets.filter(f=>f.startsWith(theme+'-')&&!f.endsWith('-1x.webp')))];const bytes=unique.reduce((n,f)=>n+fs.statSync(path.join(root,'assets/shots',f)).size,0);assert(bytes<1500000,page+' '+theme+' images exceed1.5MB');}
@@ -29,7 +29,7 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
     const p=await c.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));await p.goto(base+'/'+name+'.html');await p.evaluate(()=>document.fonts.ready);
     await p.evaluate(()=>document.querySelectorAll('img').forEach(i=>i.loading='eager'));await until(p,()=>[...document.images].every(i=>i.complete&&i.naturalWidth));
     assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,name+' scrolls sideways');
-    assert.deepEqual(await p.locator('nav[aria-label="Primary"] a').allInnerTexts(),['Home','Features','Guide','iPhone beta']);
+    assert.deepEqual(await p.locator('nav[aria-label="Primary"] a').allInnerTexts(),['Home','Features','iPhone beta']);
     // Every tour picture is a complete, themed crop shown at no more than its natural width.
     const pics=await p.locator('main img[src*="assets/tour/"]').evaluateAll(xs=>xs.map(i=>({src:i.currentSrc,w:i.getBoundingClientRect().width,natural:i.naturalWidth/2,alt:i.alt})));
     assert(pics.every(i=>i.alt.length>20&&i.w<=i.natural*2/1.7+1&&i.src.includes(theme==='dark'?'-dark.':'-light.')),name+' tour picture theme, alt or upscaling');
@@ -44,8 +44,8 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
     if(name==='compare'){
      assert.deepEqual(await p.locator('.tour-scope').allInnerTexts(),['New workouts · Settings','One workout · Edit']);
      assert.equal(await p.locator('img[src*="sharing-workout-"]').count(),1);assert.equal(await p.locator('.feature-reference tbody tr').count(),8);
+     if(width===390&&theme==='light'&&dpr===1){const old=await c.newPage();await old.goto(base+'/guide');await old.waitForURL(url=>new URL(url).pathname==='/compare');assert.equal(await old.locator('h1').first().innerText(),'What Kinetta does.');await old.close();}
     }
-    if(name==='guide'){await p.locator('#feature-search').fill('recipes');assert(await p.locator('.public-guide-card:visible').count()>0,'Guide search found nothing');}
     assert.deepEqual(errors,[]);checks++;await p.close();
    }
   }finally{await c.close();}
