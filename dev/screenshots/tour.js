@@ -17,15 +17,15 @@ const CROPS = [
   ['training-routes', '/progress/routes', '#p-body > .card', '#p-body > .card', 'alex'],
   // Food: the review card is staged by dev/screenshots/food_chat_fixture.py; the other
   // controls are deterministic demo data from stage.py.
-  ['food-quick', '/food/describe?meal=breakfast', '.thread-card', '.thread-card', 'chat', 'hide-chat-user'],
+  ['food-quick', '/food/describe?meal=breakfast', '.compact-thread-card', '.compact-thread-card', 'chat', 'hide-chat-user'],
   ['food-yesterday', '/food', '.meal-breakfast', '.meal-breakfast', 'food'],
   ['food-insights', '/food?view=overview&r=30', '.insights-summary', '.insights-summary', 'alex'],
-  ['food-recipes', '/food/meals', '#library-recipes', '#library-recipes', 'alex'],
+  ['food-recipes', '/food/meals', '#library-recipes > .library-section:first-child', '#library-recipes > .library-section:first-child', 'alex'],
   // Friends: each picture is one complete feed, profile or search control.
   ['friends-feed', '/activity', '.activity-card', '.activity-card', 'alex'],
   ['friends-photos', '/activity', '.activity-card', '.activity-card', 'alex', 'photo'],
   ['friends-profile', '/people/alex', '.me-card', '.me-card', 'alex'],
-  ['friends-find', '/me/friends', '#fr-list-find', '#fr-list-find', 'alex'],
+  ['friends-find', '/me/friends?find=1&q=Morgan', '#fr-find', '#fr-found', 'alex', 'hide-friends-groups'],
 ];
 
 async function crop(page, first, last) {
@@ -106,12 +106,16 @@ async function stageChat(page) {
         await constrain(page);
         await page.waitForTimeout(1200);
         if (account === 'chat') await stageChat(page);
+        // Wait for the app's async route render before hiding nearby controls. Otherwise
+        // its final data refresh can replace the hidden message bubble before capture.
+        await page.waitForSelector(last, {state: 'visible'});
         if (action === 'photo') {
           await page.locator('.activity-card [data-media-step="1"]').first().click();
           await page.waitForFunction(() => document.querySelector('.activity-card [data-media-position]')?.textContent.startsWith('Photo 1'));
         }
         if (action === 'hide-tabs') await page.evaluate(() => { const el = document.querySelector('.dtabs'); if (el) el.style.visibility = 'hidden'; });
         if (action === 'hide-chat-user') await page.evaluate(() => document.querySelectorAll('.thread-user').forEach((el) => { el.style.display = 'none'; }));
+        if (action === 'hide-friends-groups') await page.evaluate(() => { const el = document.querySelector('#fr-groups-shortcut'); if (el) el.style.display = 'none'; });
         await page.waitForSelector(last, {state: 'visible'});
         await page.evaluate(() => document.fonts.ready);
         await page.waitForTimeout(800);
