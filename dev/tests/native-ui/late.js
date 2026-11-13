@@ -26,10 +26,10 @@
   }
   function storeReady(){
       const checks={
-        'header-me':()=>document.querySelector('.me-card-sections[aria-busy="false"]')&&document.querySelectorAll('.me-week').length===7,
+        'header-me':()=>document.querySelector('.me-card-sections[aria-busy="false"]')&&document.querySelectorAll('.me-week').length===7&&document.querySelector('.me-featured-achievements .profile-achievement[data-achievement-code]:nth-child(3)'),
         activity:()=>document.querySelector('[data-dt="charts"][aria-selected="true"]')&&paintedMap()&&!document.querySelector('.map-unavailable:not([hidden])'),
         'header-track':()=>document.querySelector('#track-start')?.getAttribute('aria-label')==='Start run'&&!document.querySelector('#track-lap')&&paintedMap()&&!document.querySelector('.map-unavailable:not([hidden])'),
-        'header-food':()=>document.querySelectorAll('#fd-meals [data-id]').length===2&&document.querySelector('#fd-sum').textContent.includes('915'),
+        'header-food':()=>document.querySelectorAll('#fd-meals [data-id]').length===2&&document.querySelector('#fd-sum').textContent.includes('915')&&document.querySelector('#fd-copy'),
         food:()=>document.querySelector('.thread-card [data-action="undo"]')&&document.querySelector('#thread-text'),
         'header-progress':()=>document.querySelector('#m-chart svg')&&document.querySelector('[data-progress-fitness]').textContent.includes('Training steadily'),
         'header-activity':()=>{const post=document.querySelector('#ff-list .post[data-href="/activity/friends/2"]');return post?.querySelector('.post-name')?.textContent==='Jordan Example'&&paintedMap(post)&&!post.querySelector('.map-unavailable:not([hidden])');},
@@ -68,6 +68,15 @@
       await new Promise(ok=>requestAnimationFrame(ok));
     }
     throw Error('Store scene did not finish painting: '+cfg.stage);
+  }
+  async function positionStoreCrop(){
+    const selector=cfg.stage==='header-me'?'.me-insights .me-insight:last-child':'#fd-copy',target=document.querySelector(selector),nav=document.querySelector('nav.tabs');
+    if(!target||!nav)throw Error('Store crop anchor missing: '+selector);
+    const before=target.getBoundingClientRect(),navTop=nav.getBoundingClientRect().top,delta=Math.max(0,before.bottom+12-navTop);
+    if(delta)window.scrollTo(0,window.scrollY+delta);
+    await new Promise(ok=>requestAnimationFrame(()=>requestAnimationFrame(ok)));
+    const box=target.getBoundingClientRect(),tab=nav.getBoundingClientRect();
+    return{selector,text:target.innerText.trim(),top:box.top,bottom:box.bottom,tabTop:tab.top,scrollY:window.scrollY};
   }
   function storeActivityDiagnostics(){
     const box=e=>{if(!e)return null;const r=e.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};
@@ -127,11 +136,13 @@
     for(let n=0;n<50&&!document.documentElement.classList.contains('native-display-ready');n++)await new Promise(ok=>setTimeout(ok,100));
     // Layout/display settling can replace tiles after the early paint check.
     if(cfg.store)await waitForStorePaint();
+    const storeCrop=cfg.store&&['header-me','header-food'].includes(cfg.stage)?await positionStoreCrop():null;
     const nav=document.querySelector('nav.tabs'),navStyle=getComputedStyle(nav),navigation={
       ready:document.documentElement.classList.contains('native-display-ready'),visible:navStyle.display!=='none',box:rect('nav.tabs'),
       items:[...nav.querySelectorAll('a')].map(a=>({text:a.querySelector('span').textContent,selected:a.getAttribute('aria-current')==='page',box:(()=>{const r=a.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})(),label:(()=>{const r=a.querySelector('span').getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};})()}))};
     const field=document.querySelector('#thread-text'),fieldSize=field?{...rect('#thread-text'),scrollHeight:field.scrollHeight,clientHeight:field.clientHeight}:null;
-    const result={fixture:true,store:!!cfg.store,blocked:cfg.blocked,bodyText:cfg.store?document.querySelector('#page')?.innerText:null,display:cfg.displayDiagnostics(),navigation,field:fieldSize,run:cfg.run,stage:cfg.stage,root:cfg.root,theme:matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light',native:Native.on,viewport:{width:innerWidth,height:innerHeight,offset:visualViewport?.offsetTop||0},safeTop,safeBottom,back:rect(cfg.stage==='food'?'.thread-heading .back':'.top .back'),header:rect(cfg.stage==='food'?'.thread-heading':'.top'),name:rect('#dk-name'),content:rect('.recipe-content'),composer:rect(cfg.stage==='food'?'#thread-composer':'#dk-add'),review:rect('#recipe-finish'),overflow:document.documentElement.scrollWidth>innerWidth+1,status:document.querySelector('#thread-status')?.textContent||'',errors:cfg.errors,requests:cfg.requests,mePreloadCount:cfg.mePreloadCount};
+    const featuredAchievements=cfg.stage==='header-me'?[...document.querySelectorAll('.me-featured-achievements .profile-achievement[data-achievement-code]')].map(item=>({code:item.dataset.achievementCode,box:rect(item)})):[];
+    const result={fixture:true,store:!!cfg.store,blocked:cfg.blocked,bodyText:cfg.store?document.querySelector('#page')?.innerText:null,storeCrop,featuredAchievements,display:cfg.displayDiagnostics(),navigation,field:fieldSize,run:cfg.run,stage:cfg.stage,root:cfg.root,theme:matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light',native:Native.on,viewport:{width:innerWidth,height:innerHeight,offset:visualViewport?.offsetTop||0},safeTop,safeBottom,back:rect(cfg.stage==='food'?'.thread-heading .back':'.top .back'),header:rect(cfg.stage==='food'?'.thread-heading':'.top'),name:rect('#dk-name'),content:rect('.recipe-content'),composer:rect(cfg.stage==='food'?'#thread-composer':'#dk-add'),review:rect('#recipe-finish'),overflow:document.documentElement.scrollWidth>innerWidth+1,status:document.querySelector('#thread-status')?.textContent||'',errors:cfg.errors,requests:cfg.requests,mePreloadCount:cfg.mePreloadCount,...(cfg.startupTiming?{startupTiming:cfg.startupTiming}:{})};
     if(cfg.groups){const fields=document.querySelector('.group-create-fields');result.groups={fields:{...rect('.group-create-fields'),clientWidth:fields.clientWidth,scrollWidth:fields.scrollWidth},date:rect('[name=event_date]'),name:rect('[name=title]'),grid:rect('.group-goal-fields'),labels:[...document.querySelectorAll('.group-create-fields>label')].map(label=>rect(label))};}
     if(cfg.headerPage){
       const title=document.querySelector('#page h1'),shell=document.querySelector('#page'),header=title.closest('.top,.me-top'),glyph=document.createRange();glyph.selectNodeContents(title);
