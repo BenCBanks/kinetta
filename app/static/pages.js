@@ -1522,10 +1522,10 @@ async function pMileage(body, q, {home=false}={}) {
     const word = {week: 'week', month: 'month', year: 'year'}[period];
     const fmt = metric === 'distance' ? (v) => `${v >= 100 ? Math.round(v) : v.toFixed(1)} ${U.du()}` : metric === 'time' ? U.time : metric === 'speed' ? (v) => `${U.speed(v)} ${U.su()}` : (v) => `${U.pace(v)} ${U.pu()}`;
     const cur = all[all.length - 1], last = all[all.length - 2];
+    const defaultPeriodLabel = 'This ' + word;
     const focusTable=restoreTableFocus||(body.contains(document.activeElement)&&document.activeElement?.matches('[data-progress-view="table"]'));restoreTableFocus=false;
     const displayValue = value => metric === 'distance' ? value.toFixed(1) : metric === 'time' ? (value ? U.time(value) : '–') : value ? (metric === 'speed' ? U.speed(value) : U.pace(value)) : '–';
     const statUnit = metric === 'distance' ? U.du() : metric === 'pace' ? U.pu() : metric === 'speed' ? U.su() : '';
-    const defaultPeriodLabel = 'This ' + word, defaultPeriodValue = displayValue(metricValue(cur));
     let avgValue = avg, bestValue = bestEntry?.value ?? null;
     if (paceMetric) {
       const distance = chartPeriods.reduce((n, d) => n + val(d, 'pace_d'), 0), time = chartPeriods.reduce((n, d) => n + val(d, 'pace_t'), 0);
@@ -1553,7 +1553,7 @@ async function pMileage(body, q, {home=false}={}) {
         header.insertAdjacentHTML('beforeend', `<div class="totals-view-toggle" role="group" aria-label="Totals view"><button type="button" data-progress-view="chart" aria-pressed="${!body._showTable}" aria-controls="m-chart m-table">Chart</button><button type="button" data-progress-view="table" aria-pressed="${body._showTable === true}" aria-controls="m-chart m-table">Table</button></div>`);
       }
       if (paceMetric) {
-        const points = chartPeriods.map(d => { const value = metricValue(d); return value > 0 ? {x: new Date(d).getTime() / 864e5, y: value, value, periodLabel: label(d)} : null; }).filter(Boolean);
+        const points = chartPeriods.map(d => { const value = metricValue(d); return value > 0 ? {x: new Date(d).getTime() / 864e5, y: value, value, periodLabel: period === 'week' ? `Week of ${d.getDate()} ${d.toLocaleDateString([], {month: 'short'})}` : label(d), current: period === 'week' && ymd(d) === ymd(cur)} : null; }).filter(Boolean);
         const chart = $('#m-chart', box);
         dotChart(chart, points, {yfmt: v => metric === 'speed' ? U.speed(v) : U.pace(v), invert: metric === 'pace', line: true, height: home ? 150 : 180});
         const svgChart = $('#m-chart svg', box);
@@ -1565,31 +1565,38 @@ async function pMileage(body, q, {home=false}={}) {
             const readout = document.createElement('div');
             readout.className = 'readout num progress-total-readout progress-dot-readout';
             readout.setAttribute('role', 'status'); readout.setAttribute('aria-live', 'polite'); readout.setAttribute('aria-atomic', 'true');
+            readout.hidden = true;
             chart.append(readout);
-            let selected = null, hovered = null, inspected = false;
+            let selected = null;
             const show = index => {
-              if (index != null) inspected = true;
               const point = index == null ? null : points[index];
-              const text = point ? `${point.periodLabel} · <b>${esc(displayValue(point.value))}</b>${statUnit ? ` ${esc(statUnit)}` : ''}`
-                : `${defaultPeriodLabel} · <b>${esc(defaultPeriodValue)}</b>${statUnit ? ` ${esc(statUnit)}` : ''}`;
-              readout.innerHTML = `<span>${text}</span>${inspected ? '' : '<span class="readout-hint">Tap a point</span>'}`;
+              readout.hidden = !point;
+              readout.innerHTML = point ? `<span>${point.periodLabel} · <b>${esc(displayValue(point.value))}</b>${statUnit ? ` ${esc(statUnit)}` : ''}</span>` : '';
               dots.forEach((dot, i) => {
                 dot.setAttribute('aria-pressed', String(i === selected));
                 dot.setAttribute('aria-label', `${points[i].periodLabel}: ${displayValue(points[i].value)}${statUnit ? ` ${statUnit}` : ''}`);
                 dot.setAttribute('r', i === selected ? '7' : (dot.dataset.baseRadius || dot.getAttribute('r')));
               });
             };
-            const choose = index => { selected = selected === index ? null : index; hovered = null; show(selected); };
+            const choose = index => { selected = selected === index ? null : index; show(selected); };
             dots.forEach((dot, i) => {
               dot.dataset.baseRadius = dot.getAttribute('r');
               dot.setAttribute('role', 'button'); dot.setAttribute('tabindex', '0'); dot.setAttribute('aria-pressed', 'false');
-              dot.onfocus = () => { hovered = i; show(i); };
-              dot.onblur = () => { hovered = null; show(selected); };
+              if (points[i].current) {
+                dot.classList.add('progress-current-dot');
+                dot.setAttribute('r', '5.5'); dot.dataset.baseRadius = '5.5';
+                const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                ring.setAttribute('class', 'progress-current-dot-ring');
+                ring.setAttribute('cx', dot.getAttribute('cx')); ring.setAttribute('cy', dot.getAttribute('cy'));
+                ring.setAttribute('r', '8'); ring.setAttribute('fill', 'none'); ring.setAttribute('stroke', 'var(--accent)');
+                ring.setAttribute('stroke-width', '1.5'); ring.setAttribute('pointer-events', 'none'); ring.setAttribute('aria-hidden', 'true');
+                dot.parentNode.insertBefore(ring, dot);
+              }
               dot.onkeydown = e => {
                 const next = e.key === 'Home' ? 0 : e.key === 'End' ? dots.length - 1 : e.key === 'ArrowRight' ? Math.min(dots.length - 1, i + 1) : e.key === 'ArrowLeft' ? Math.max(0, i - 1) : null;
                 if (next != null) { e.preventDefault(); dots[next].focus({preventScroll: true}); }
                 else if (['Enter', ' '].includes(e.key)) { e.preventDefault(); choose(i); }
-                else if (e.key === 'Escape') { e.preventDefault(); selected = null; hovered = null; show(null); }
+                else if (e.key === 'Escape') { e.preventDefault(); selected = null; show(null); }
               };
             });
             const nearest = e => {
@@ -1604,15 +1611,10 @@ async function pMileage(body, q, {home=false}={}) {
               });
               return best?.index ?? null;
             };
-            svgChart.addEventListener('pointermove', e => {
-              if (e.pointerType !== 'mouse') return;
-              const next = nearest(e);
-              if (next !== hovered) { hovered = next; show(hovered ?? selected); }
-            });
-            svgChart.addEventListener('pointerleave', () => { hovered = null; show(selected); });
             svgChart.addEventListener('click', e => {
               const target = e.target.closest?.('.dotp[role="button"]'), index = target ? dots.indexOf(target) : nearest(e);
               if (index != null && index >= 0) choose(index);
+              if (target && document.activeElement === target) target.blur();
             });
             show(null);
           }
