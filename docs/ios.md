@@ -94,8 +94,8 @@ TestFlight upload. A successful upload and physical-device HealthKit test are st
 After step 7, start the upload once by hand: GitHub > **Actions > iPhone app > Run workflow** (branch `main`). The build
 shows up in App Store Connect under **TestFlight** 10 to 30 minutes later.
 
-**Testers get a new build twice a week, not on every merge** (each build emails every tester). Merges to `main` only
-check that the app still builds. Every **Monday and Thursday around 9-10 am US Eastern** the workflow signs, uploads
+**Testers get at most one new build a day, not one per merge** (each build emails every tester). Merges to `main` only
+check that the app still builds. Every **morning around 9-10 am US Eastern** the workflow signs, uploads
 and sends a build, but only when the app (`mobile/` or `app/static/`) changed since the last tester build; otherwise
 it stops without using the Mac or emailing anyone. **To send one right away** (an urgent fix): GitHub > **Actions >
 iPhone app > Run workflow**, branch `main`, then the green **Run workflow** button. A hand-started run always sends a

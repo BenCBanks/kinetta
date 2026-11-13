@@ -1,7 +1,7 @@
 # Builds the iPhone app (mobile/) on a Mac runner, to prove it still builds after every change to it or to the phone
 # pages it carries (app/static): an unsigned Simulator build, kept for 7 days as a download.
-# Testers get a new build twice a week, not on every merge (owner, 2026-10-26: each build emails every tester). Merges only
-# prove the app still builds. Monday and Thursday mornings the scheduled run signs, uploads and sends a build to testers,
+# Testers get at most one new build a day, not one per merge (owner, 2026-11-12; each build emails every tester). Merges only
+# prove the app still builds. Every morning the scheduled run signs, uploads and sends a build to testers,
 # but only if the app changed since the last release; "Run workflow" (Actions > iPhone app) releases one at once.
 # Signing needs four repository secrets (docs/ios.md, steps 5-7); until they exist it does nothing.
 name: iPhone app
@@ -12,7 +12,7 @@ on:
     branches: [main]
     paths: ["mobile/**", "app/static/**", "app/asset_build.py", "dev/ci/policy.py", "dev/demo/friends.cjs", "dev/demo/activity_detail.cjs", "dev/demo/track_session.cjs", "dev/tests/fixtures/interval_presets.json", "dev/tests/native-ui/**", ".github/workflows/ios.yml"]
   schedule:
-    - cron: "0 14 * * 1,4"      # Monday and Thursday, 9-10 am US Eastern
+    - cron: "0 14 * * *"        # daily, 9-10 am US Eastern
   workflow_dispatch:
 permissions:
   contents: read

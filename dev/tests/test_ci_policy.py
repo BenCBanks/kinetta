@@ -98,7 +98,7 @@ class CIPolicyTests(unittest.TestCase):
         script=textwrap.dedent(ios.split("python3 - <<'PYCODE' >> \"$GITHUB_OUTPUT\"",1)[1].split('PYCODE',1)[0])
         events={'push':{'ref':'refs/heads/main','before':'0'*40,'after':'1'*40},
                 'workflow_dispatch':{'ref':'refs/heads/main','inputs':{}},
-                'schedule':{'schedule':'0 14 * * 1,4'}}
+                'schedule':{'schedule':'0 14 * * *'}}
         for name,payload in events.items():
             with self.subTest(event=name),tempfile.TemporaryDirectory() as temp:
                 event=Path(temp)/'event.json';event.write_text(json.dumps(payload))
