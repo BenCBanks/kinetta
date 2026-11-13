@@ -745,19 +745,33 @@ header.top .signup { display:flex;align-items:center; }
 .friends-step h3 { margin-top: 10px; font-size: clamp(28px, 3.1vw, 44px); max-width: 16ch; }
 .friends-step p { margin-top: 14px; max-width: 42ch; color: var(--ink2); }
 .friends-step .step-phone { display: none; }
-.feature-showcase { border-top: 1px solid var(--line); padding: 90px 0 110px; background: var(--paper); }
-.feature-showcase-grid { display: grid; grid-template-columns: minmax(0, .9fr) minmax(300px, .7fr); gap: clamp(38px, 9vw, 130px); align-items: center; }
-.feature-showcase-copy .lede { margin-top: 18px; max-width: 39ch; color: var(--ink2); }
-.feature-tabs { display: flex; flex-wrap: wrap; gap: 0 22px; margin-top: 28px; border-bottom: 1px solid var(--line); }
-.feature-tabs button { position: relative; min-width: 44px; min-height: 48px; padding: 8px 0; border: 0; background: none; color: var(--ink2); font: 600 15px/1.1 var(--body); cursor: pointer; }
-.feature-tabs button::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: var(--brand); content: ''; transform: scaleX(0); transition: transform .2s ease; }
-.feature-tabs button.is-selected { color: var(--brand); }
-.feature-tabs button.is-selected::after { transform: scaleX(1); }
-.feature-demo-note { max-width: 34ch; margin-top: 18px; color: var(--ink2); }
-.feature-phone { width: min(320px, 78vw); }
-.feature-phone { opacity: 0; transform: translateY(18px); transition: opacity .55s ease, transform .55s ease; }
-.feature-showcase.is-visible .feature-phone { opacity: 1; transform: none; }
-.feature-phone img { display: block; width: 100%; }
+.feature-showcase { overflow: hidden; border-top: 1px solid var(--line); padding: 96px 0 120px; background: var(--paper); }
+.feature-showcase-grid { display: grid; grid-template-columns: minmax(0, .95fr) minmax(380px, .95fr); gap: clamp(44px, 7vw, 100px); align-items: center; }
+.feature-showcase-copy { min-width: 0; }
+.feature-tabs { position: relative; display: inline-flex; width: max-content; max-width: 100%; gap: 0; margin: 0 0 34px; padding: 4px; overflow-x: auto; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--ink) 8%, var(--paper)); scrollbar-width: none; }
+.feature-tabs::-webkit-scrollbar { display: none; }
+.feature-tabs::before { position: absolute; z-index: 0; top: 4px; left: var(--feature-pill-left, 4px); width: var(--feature-pill-width, 0px); height: calc(100% - 8px); border-radius: 999px; background: var(--brand-solid); content: ''; transition: left .28s ease, width .28s ease; }
+.feature-tabs button { position: relative; z-index: 1; flex: 0 0 auto; min-width: 44px; min-height: 44px; padding: 8px 17px; border: 0; border-radius: 999px; background: transparent; color: var(--ink2); font: 600 15px/1.1 var(--body); cursor: pointer; transition: color .2s ease; }
+.feature-tabs button.is-selected { color: #fff; }
+.feature-copy-panel { max-width: 500px; transition: opacity .28s ease, transform .28s ease; }
+.feature-copy-panel.is-changing { opacity: 0; transform: translateX(16px); }
+.feature-copy-panel h2 { max-width: 12ch; font-size: clamp(40px, 4.5vw, 56px); font-weight: 700; line-height: 1.05; }
+.feature-demo-note { max-width: 36ch; margin-top: 18px; color: var(--ink2); font-size: 18px; line-height: 1.45; }
+.feature-capabilities { display: grid; gap: 14px; max-width: 480px; margin: 28px 0 0; padding: 0; list-style: none; }
+.feature-capabilities li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; align-items: start; }
+.feature-capabilities li svg { width: 24px; height: 24px; margin-top: 2px; color: var(--brand); }
+.feature-capabilities li span { display: grid; gap: 1px; }
+.feature-capabilities strong { color: var(--ink); font-size: 16px; font-weight: 600; line-height: 1.3; }
+.feature-capabilities small { color: var(--ink2); font-size: 14px; line-height: 1.35; }
+.feature-explore { display: inline-flex; align-items: center; gap: 8px; min-width: 44px; min-height: 44px; margin-top: 24px; color: var(--brand); font-size: 16px; font-weight: 600; text-decoration: none; }
+.feature-explore span { font-size: 20px; transition: transform .2s ease; }
+.feature-explore:hover span { transform: translateX(3px); }
+.feature-phone-glow { position: relative; display: grid; place-items: center; width: 100%; padding: 28px 0; }
+.feature-phone-glow::before { position: absolute; inset: 4% -14%; background: radial-gradient(ellipse at center, color-mix(in srgb, var(--brand) 24%, transparent), color-mix(in srgb, var(--brand) 9%, transparent) 44%, transparent 72%); content: ''; pointer-events: none; }
+.feature-phone { position: relative; z-index: 1; width: min(380px, 100%); box-shadow: 0 30px 70px rgba(15,24,32,.22), 0 8px 20px rgba(15,24,32,.16); }
+.feature-phone picture { display: block; aspect-ratio: 786 / 1420; overflow: hidden; }
+.feature-phone img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; transition: opacity .28s ease, transform .28s ease; }
+.feature-phone img.is-changing { opacity: .2; transform: translateX(16px); }
 .feature-stage-label { text-align: center; }
 @media (max-width: 900px) {
   .friends-hero { padding: 32px 0 72px; }
@@ -770,14 +784,19 @@ header.top .signup { display:flex;align-items:center; }
   .friends-step { min-height: auto; padding: 58px 0; opacity: 1; transform: none; }
   .friends-step .step-phone { display: grid; justify-items: center; margin-top: 26px; }
   .friends-step .friends-phone { width: min(270px, 72vw); }
-  .feature-showcase { padding: 70px 0 80px; }
+  .feature-showcase { padding: 70px 0 84px; }
   .feature-showcase-copy { order: 1; }
   .feature-showcase-stage { order: 2; }
+  .feature-tabs { display: flex; width: 100%; margin-bottom: 28px; }
+  .feature-tabs button { padding-inline: 16px; }
+  .feature-copy-panel h2 { max-width: 14ch; font-size: 40px; }
+  .feature-phone-glow { padding: 20px 0; }
+  .feature-phone { width: min(380px, 90vw); }
 }
 @media (prefers-reduced-motion: reduce) {
   .friends-step { opacity: 1; transform: none; transition: none; }
-  .feature-tabs button::after { transition: none; }
-  .feature-phone { opacity: 1; transform: none; transition: none; }
+  .feature-tabs::before, .feature-tabs button, .feature-copy-panel, .feature-phone img, .feature-explore span { transition: none; }
+  .feature-copy-panel.is-changing, .feature-phone img.is-changing { opacity: 1; transform: none; }
 }
 
 /* Sage review: Friends follows Home's right-pinned story and has a full-size audience demo. */

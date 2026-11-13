@@ -58,21 +58,30 @@
   <section class="feature-showcase" aria-labelledby="features-page-title">
     <div class="wrap feature-showcase-grid">
       <div class="feature-showcase-copy">
-                <div class="feature-tabs" role="tablist" aria-label="Kinetta areas">
+        <div class="feature-tabs" role="tablist" aria-label="Kinetta areas">
           <button type="button" role="tab" aria-selected="true" aria-controls="feature-phone-panel" data-feature-tab="training">Training</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="feature-phone-panel" data-feature-tab="food">Food</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="feature-phone-panel" data-feature-tab="friends">Friends</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="feature-phone-panel" data-feature-tab="progress">Progress</button>
           <button type="button" role="tab" aria-selected="false" aria-controls="feature-phone-panel" data-feature-tab="kit">Kit</button>
         </div>
-        <p class="feature-demo-note" data-feature-copy aria-live="polite">Route and numbers, together.</p>
-
+        <div class="feature-copy-panel" data-feature-copy-panel aria-live="polite">
+          <h2 data-feature-headline>Every run, mapped and measured.</h2>
+          <p class="feature-demo-note" data-feature-copy>Record a route, then see the detail that makes the next run better.</p>
+          <ul class="feature-capabilities" data-feature-capabilities>
+            <li><svg aria-hidden="true"><use href="#i-target"></use></svg><span><strong>Route map</strong><small>Start and finish privacy</small></span></li>
+            <li><svg aria-hidden="true"><use href="#i-run"></use></svg><span><strong>Splits, pace and heart rate</strong><small>When the recording includes them</small></span></li>
+            <li><svg aria-hidden="true"><use href="#i-spark"></use></svg><span><strong>Compare repeats on a route</strong><small>See what changed over time</small></span></li>
+          </ul>
+          <a class="feature-explore" data-feature-link href="training">Explore Training <span aria-hidden="true">→</span></a>
+        </div>
       </div>
       <div class="feature-showcase-stage" id="feature-phone-panel" role="tabpanel" aria-live="polite">
-        <div class="phone-frame feature-phone">
-          <picture><source data-feature-dark srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img id="feature-phone-screen" data-feature-screen src="assets/shots/light-activity.webp" alt="Fictional Kinetta Training activity screen with a route map and workout numbers." width="786" height="1704"></picture>
+        <div class="feature-phone-glow">
+          <div class="phone-frame feature-phone">
+            <picture><source data-feature-dark srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img id="feature-phone-screen" data-feature-screen src="assets/shots/light-activity.webp" alt="Fictional Kinetta Training activity screen with a route map and workout numbers." width="786" height="1704"></picture>
+          </div>
         </div>
-        <p class="feature-stage-label" data-feature-label aria-hidden="true"></p>
       </div>
     </div>
   </section>

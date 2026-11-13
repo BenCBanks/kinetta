@@ -55,13 +55,22 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
      }
     }
     if(name==='compare'){
-     // Features is a single framed phone with five selectable areas.
+     // Features is a large framed phone with five selectable areas and concrete copy.
      assert.deepEqual(await p.locator('[data-feature-tab]').allInnerTexts(),['Training','Food','Friends','Progress','Kit']);
      assert.equal(await p.locator('[data-feature-tab][aria-selected="true"]').innerText(),'Training');
+     assert.equal(await p.locator('[data-feature-capabilities] li').count(),3,'Features starts with three concrete Training capabilities');
+     assert.equal(await p.locator('[data-feature-headline]').innerText(),'Every run, mapped and measured.');
+     assert.match(await p.locator('[data-feature-link]').innerText(),/^Explore Training/);
+     assert(Number(await p.locator('.feature-tabs').evaluate(node=>parseFloat(getComputedStyle(node).getPropertyValue('--feature-pill-width'))))>=44,'the active tab has a filled pill width');
+     if(width>=900){const phone=await p.locator('.feature-phone').boundingBox();assert(phone&&phone.width>=360,'desktop Features uses an Apple-scale phone');}
+     const screenShape=await p.locator('[data-feature-screen]').evaluate(node=>{const r=node.getBoundingClientRect();return r.height/r.width;});assert(screenShape<2,'the Features screen ends above the app navigation artifacts');
      assert.match(await p.locator('[data-feature-screen]').getAttribute('src'),/activity\.webp/);
      await p.locator('[data-feature-tab="food"]').click();
      assert.match(await p.locator('[data-feature-screen]').getAttribute('src'),/food\.webp/);
      assert.match(await p.locator('[data-feature-screen]').getAttribute('alt'),/Food screen/);
+     assert.equal(await p.locator('[data-feature-headline]').innerText(),'Food that fits your day.');
+     assert.equal(await p.locator('[data-feature-capabilities] li').count(),3);
+     assert.match(await p.locator('[data-feature-link]').innerText(),/^Explore Food/);
      const words=await p.locator('main').innerText().then(t=>t.trim().split(/\s+/).length);assert(words<=260,name+' copy grew to '+words+' words');
     }
     if(name==='compare'){
