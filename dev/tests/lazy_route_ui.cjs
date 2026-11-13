@@ -4,7 +4,7 @@ const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 const trackFixture=require('../demo/track_session.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798';
 const selectedCase=process.env.KINETTA_LAZY_CASE||'';
-if(selectedCase&&!['settings','recaps','fitness'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
+if(selectedCase&&!['settings','recaps','fitness','notifications'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
 const password='green teapot on the hill';
 const user='zz_test_explore_new';
 const meReady='.me-card-sections[aria-busy="false"]';
@@ -167,6 +167,26 @@ async function notificationFixture(browser,loginName=user,options={}){
   const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.clock.install({time:new Date('2026-11-05T12:00:00Z')});
   const routes=await notificationRoutes(context,options);return {context,page,errors,routes};
+}
+async function notificationLeafCase(browser){
+  const normal=await notificationFixture(browser);
+  try{
+    await normal.page.goto(base+'/activity');await ready(normal.page,'#feed-tools','Activity before notification leaf');
+    assert.equal(normal.routes.scriptRequests.length,0,'notification page code is absent from the eager Activity shell');
+    assert.deepEqual(await normal.page.evaluate(()=>[typeof Social.badge,typeof noteRow,App.pageReady]),['function','undefined',true],'the unread badge stays eager while notification page code stays deferred');
+    await normal.page.waitForFunction(()=>App.me.notifications===3);await normal.page.evaluate(()=>Social.badge());
+    assert.equal(await normal.page.locator('.bell').getAttribute('aria-label'),'Notifications, 3 new','the eager bell keeps the unread count');
+    await normal.page.locator('.bell').click();await ready(normal.page,'#nt-list','notification list after bell navigation');
+    assert.equal(normal.routes.scriptRequests.length,1,'the /notifications route loads its leaf once');
+    assert.deepEqual(normal.errors,[]);assert.deepEqual(normal.routes.writes,[]);
+  }finally{await normal.context.close();}
+  const direct=await notificationFixture(browser);
+  try{
+    await direct.page.goto(base+'/me/notifications');await ready(direct.page,'#nt-push','direct /me/notifications route');
+    assert.equal(direct.routes.scriptRequests.length,1,'the /me/notifications route loads the same leaf once');
+    assert.deepEqual(direct.errors,[]);assert.deepEqual(direct.routes.writes,[]);
+  }finally{await direct.context.close();}
+  console.log('Notifications lazy leaf: eager unread badge, /notifications and /me/notifications demand load PASS');
 }
 async function socialFixture(browser,{failFirst=false,failFriendsFirst=false,idleGate=false}={}){
  const context=await fixtureContext(browser);await login(context);
@@ -631,6 +651,7 @@ const contactsCallersOnly=process.env.KINETTA_LAZY_ROUTE_CASE==='contacts-caller
   if(contactsOnly){await contactsCases(browser);return;}
   if(contactsCallersOnly){await contactsCases(browser,{includeColdMe:false});return;}
   if(selectedCase==='settings'){await settingsRouteCase(browser);console.log('Settings lazy route: cold Me, direct/deep links, retry and stale path/owner PASS');return;}
+  if(selectedCase==='notifications'){await notificationLeafCase(browser);return;}
   if(selectedCase==='recaps'){await require('./recap_lazy_ui.cjs')(browser,base);return;}
   if(selectedCase==='fitness'){await fitnessRouteCase(browser);return;}
   await fitnessRouteCase(browser);
