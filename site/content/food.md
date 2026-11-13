@@ -12,7 +12,7 @@ Calories, macros, meals and recipes.
 
 ## food-quick-description
 
-Type what you ate, check the amounts, then log it. New foods are estimated only if you turn on optional AI; search and barcodes work without it.
+Type what you ate, check the amounts, then log it.
 
 ## food-yesterday-description
 

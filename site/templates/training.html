@@ -25,7 +25,7 @@
 <link rel="stylesheet" href="assets/theme.css?v=9">
 <link rel="stylesheet" href="assets/site.css?v=26">
 </head>
-<body>
+<body class="website-tour">
 <a class="skip-link" href="#main">Skip to content</a>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -54,34 +54,14 @@
       <p class="lede">{{copy:training-intro}}</p>
     </div>
   </section>
-  <section class="band" aria-label="Training features">
+  <section class="tour-features" aria-label="Training features">
     <div class="wrap">
-      <div class="shots three" aria-label="Training features">
-        <div class="shot"><figure>
-          <div class="frame"><picture><source srcset="assets/shots/dark-activity-1x.webp 1x, assets/shots/dark-activity.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-activity-1x.webp" srcset="assets/shots/light-activity-1x.webp 1x, assets/shots/light-activity.webp 2x" alt="A fictional run with its route map, pace, heart rate and matching loop" loading="lazy" width="786" height="1704"></picture></div>
-          <figcaption><h3>Run</h3><p>{{copy:training-run-description}}</p></figcaption>
-        </figure></div>
-        <div class="shot"><figure>
-          <div class="frame"><picture><source srcset="assets/shots/dark-profile-1x.webp 1x, assets/shots/dark-profile.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-profile-1x.webp" srcset="assets/shots/light-profile-1x.webp 1x, assets/shots/light-profile.webp 2x" alt="Fictional weekly totals split between runs, walks and rides" loading="lazy" width="786" height="1704"></picture></div>
-          <figcaption><h3>Every sport</h3><p>{{copy:training-ride-walk-description}}</p></figcaption>
-        </figure></div>
-        <div class="shot"><figure>
-          <div class="frame"><picture><source srcset="assets/shots/dark-lift-1x.webp 1x, assets/shots/dark-lift.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-lift-1x.webp" srcset="assets/shots/light-lift-1x.webp 1x, assets/shots/light-lift.webp 2x" alt="A fictional squat session with last-time weights and completed sets" loading="lazy" width="786" height="1704"></picture></div>
-          <figcaption><h3>Lifting</h3><p>{{copy:training-lifting-description}}</p></figcaption>
-        </figure></div>
-        <div class="shot"><figure>
-          <div class="frame"><picture><source srcset="assets/shots/dark-plan-1x.webp 1x, assets/shots/dark-plan.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-plan-1x.webp" srcset="assets/shots/light-plan-1x.webp 1x, assets/shots/light-plan.webp 2x" alt="An intermediate 10K plan with its next workout and weekly progress" loading="lazy" width="786" height="1704"></picture></div>
-          <figcaption><h3>Plans</h3><p>{{copy:training-plans-description}}</p></figcaption>
-        </figure></div>
-        <div class="shot"><figure>
-          <div class="frame"><picture><source srcset="assets/shots/dark-progress-1x.webp 1x, assets/shots/dark-progress.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-progress-1x.webp" srcset="assets/shots/light-progress-1x.webp 1x, assets/shots/light-progress.webp 2x" alt="Weekly running distance over several months, with the average week marked" loading="lazy" width="786" height="1704"></picture></div>
-          <figcaption><h3>Progress</h3><p>{{copy:training-progress-description}}</p></figcaption>
-        </figure></div>
-        <div class="shot"><figure>
-          <div class="frame"><picture><source srcset="assets/shots/dark-route-1x.webp 1x, assets/shots/dark-route.webp 2x" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-route-1x.webp" srcset="assets/shots/light-route-1x.webp 1x, assets/shots/light-route.webp 2x" alt="A repeated route with its best and average time, map and pace history" loading="lazy" width="786" height="1704"></picture></div>
-          <figcaption><h3>Routes</h3><p>{{copy:training-routes-description}}</p></figcaption>
-        </figure></div>
-      </div>
+      <article class="tour-row"><div><span class="eyebrow">Run</span><h2>Run</h2><p class="lede">{{copy:training-run-description}}</p></div><figure><div class="tour-image"><picture><source srcset="assets/tour/training-run-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/training-run-light.webp" alt="Fictional Afternoon Run with its route map, distance, elapsed time, pace, elevation, heart rate and cadence." width="786" height="1132"></picture></div></figure></article>
+      <article class="tour-row"><div><span class="eyebrow">Every sport</span><h2>Every sport</h2><p class="lede">{{copy:training-ride-walk-description}}</p></div><figure><div class="tour-image"><picture><source srcset="assets/tour/training-sports-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/training-sports-light.webp" alt="Fictional profile card with all-time totals, this week’s distance, a weekly chart and totals for each sport." width="786" height="520" loading="lazy"></picture></div></figure></article>
+      <article class="tour-row"><div><span class="eyebrow">Lifting</span><h2>Lifting</h2><p class="lede">{{copy:training-lifting-description}}</p></div><figure><div class="tour-image"><picture><source srcset="assets/tour/training-lifting-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/training-lifting-light.webp" alt="Fictional Strength A workout with each exercise’s current and previous sets, weights and reps." width="786" height="1500" loading="lazy"></picture></div></figure></article>
+      <article class="tour-row"><div><span class="eyebrow">Plans</span><h2>Plans</h2><p class="lede">{{copy:training-plans-description}}</p></div><figure><div class="tour-image"><picture><source srcset="assets/tour/training-plans-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/training-plans-light.webp" alt="Fictional intermediate 10K plan with its next workout and the first week’s schedule." width="786" height="1240" loading="lazy"></picture></div></figure></article>
+      <article class="tour-row"><div><span class="eyebrow">Progress</span><h2>Progress</h2><p class="lede">{{copy:training-progress-description}}</p></div><figure><div class="tour-image"><picture><source srcset="assets/tour/training-progress-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/training-progress-light.webp" alt="Fictional Progress totals with weekly distance metrics, a distance chart and the selected period." width="786" height="980" loading="lazy"></picture></div></figure></article>
+      <article class="tour-row"><div><span class="eyebrow">Routes</span><h2>Routes</h2><p class="lede">{{copy:training-routes-description}}</p></div><figure><div class="tour-image"><picture><source srcset="assets/tour/training-routes-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/training-routes-light.webp" alt="Fictional matched routes list with repeat counts, best times and latest dates." width="786" height="1040" loading="lazy"></picture></div></figure></article>
     </div>
   </section>
   <section class="band next" aria-label="Next">
