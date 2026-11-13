@@ -343,6 +343,8 @@ module.exports=async({browser,storageState,base,shots})=>{
    assert.equal(await swim.locator('.profile-achievement-medallion').count(),1,'a never-started sport shows only its first badge');
    assert.match(await swim.locator('.profile-achievement-next').innerText(),/^Start: .+/,'a never-started sport names its first threshold');
    assert.equal(await swim.locator('.profile-achievement-next-medallion').getAttribute('data-level'),'1','a never-started badge is Level 1');
+   assert((await swim.getAttribute('class')).includes('is-single-medal'),'a one-badge sport uses one grid cell');
+   assert((await swim.evaluate(node=>getComputedStyle(node).gridColumn)).includes('span 1'),'the lone Swim badge aligns with the first grid column');
    const inProgress=page.locator('#profile-achievement-page [data-achievement-code="active_time"]');
    assert.equal(await inProgress.locator('.profile-achievement-medallion').count(),1,'an in-progress track has one dimmed next badge, not a duplicate');
    assert.equal(await inProgress.locator('.profile-achievement-next-medallion').getAttribute('data-level'),'1','a below-Level-1 track shows its first-level badge');
@@ -361,6 +363,8 @@ module.exports=async({browser,storageState,base,shots})=>{
     await page.setViewportSize({width:330,height:844});
     const columns=await page.locator('#profile-achievement-page .profile-achievement-group[aria-labelledby="profile-achievement-group-overall"] .profile-achievement-list').evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(/\s+/).length);
     assert.equal(columns,3,'the overview uses three columns at 330px');
+    const swimColumn=await page.locator('#profile-achievement-page [data-achievement-code="sport:swim"]').evaluate(node=>getComputedStyle(node).gridColumn);
+    assert(swimColumn.includes('span 1'),'the lone 330px Swim badge aligns with the first grid column');
     const pairColumns=await page.locator('#profile-achievement-page .profile-achievement-group[aria-labelledby="profile-achievement-group-strength"] [data-achievement-code="sport:lift"]').evaluate(node=>({gridColumn:getComputedStyle(node).gridColumn,gridColumnEnd:getComputedStyle(node).gridColumnEnd,list:node.parentElement.className}));
     assert(pairColumns.gridColumn.includes('span 2')||pairColumns.gridColumnEnd==='span 2',`each current/next sport pair occupies two grid cells: ${JSON.stringify(pairColumns)}`);
     await assertAchievementGridTextFit(page.locator('#profile-achievement-page'),'330px redesign evidence');

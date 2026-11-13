@@ -34,6 +34,7 @@
 .profile-achievement-list.is-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); align-items:start; gap:14px 6px; margin:0; overflow:visible; overscroll-behavior:initial; scroll-snap-type:none; padding:5px 0 8px; }
 .profile-achievement-list.is-overview { grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px 6px; }
 .profile-achievement-list.is-next-grid .profile-achievement { grid-column:span 2; gap:6px; }
+.profile-achievement-list.is-next-grid .profile-achievement.is-single-medal { grid-column:span 1; }
 .profile-achievement-medals { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; }
 .profile-achievement-list.is-next-grid .profile-achievement-medallion { flex:0 1 74px; width:min(100%,74px); max-width:74px; }
 .profile-achievement-next-medallion { filter:grayscale(1); opacity:.45; box-shadow:none !important; }
