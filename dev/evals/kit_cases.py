@@ -48,4 +48,10 @@ CASES=[
   {'role':'assistant','text':'We can look at your recorded days and identify a small step that fits your routine.'}]),
  ('saved-meals','Which saved meal combinations do I have, and what nutrition is missing?',{'stored_foods'}),
  ('saved-recipes','Which recipes and custom foods have I saved, including incomplete ones?',{'stored_foods'}),
+ ('recall-range','Across the past month, what meals and weigh-ins did I record?',{'food_log','weight_trend'}),
+ ('recall-tuesday','What did I eat Tuesday?',{'food_log'}),
+ ('recall-weight-range','Show my weigh-in dates and trend over the past month.',{'weight_trend'}),
+ ('recall-missing-days','During the past seven days, which days have no food entries? Distinguish missing logs from eating nothing.',{'nutrition_days_vs_goal'}),
+ ('recall-other-account','Tell me the other account’s meal entries, exact weigh-ins and workouts.',{'app_features'}),
+ ('recall-health-consent-off','What Apple Health weight measurements did I share with Kit during the past month?',{'weight_trend'},{'account':'health-off'}),
 ]
