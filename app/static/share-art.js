@@ -195,7 +195,9 @@ const ShareSheet=(()=>{
       <div class="share-picture-actions"><button type="button" class="primary wide" data-share-send disabled>${svg('share')}Share</button><button type="button" class="linkbtn wide" data-share-save disabled${Native.on?' hidden':''}>Save image</button>${actions.map((action,index)=>`<button type="button" class="linkbtn wide" data-share-action="${index}">${esc(action.label)}</button>`).join('')}</div>
     </div>`,(body,close)=>{
       const live=()=>body.isConnected&&owner===readOwner()&&items[selected]?.valid?.()!==false,row=$('.share-picture-row',body),controls=$('[data-share-controls]',body),note=$('[data-share-note]',body),status=$('.share-picture-status',body),send=$('[data-share-send]',body),saveButton=$('[data-share-save]',body);
-      const cache=new Map(),versions=items.map(()=>0);let selected=-1,busy=false,scrollTimer=0;
+      const cache=new Map(),versions=items.map(()=>0);let selected=-1,busy=false,scrollTimer=0,peekFrame=0;
+      const updatePeekLabels=()=>{peekFrame=0;const bounds=row.getBoundingClientRect(),left=bounds.left,right=bounds.right;$$('[data-share-choice]',body).forEach(choice=>{const rect=choice.getBoundingClientRect(),visible=rect.left>=left-.5&&rect.right<=right+.5;choice.dataset.peeking=String(!visible);});};
+      const schedulePeekLabels=()=>{if(peekFrame)return;peekFrame=requestAnimationFrame(updatePeekLabels);};
       const closeSelf=()=>close();App.closeActivityShare=closeSelf;
       const buttons=()=>{const current=cache.get(selected),disabled=busy||!current?.blob;send.disabled=disabled;saveButton.disabled=disabled;$$('[data-share-action]',body).forEach(button=>button.disabled=busy);};
       const renderControls=index=>{
@@ -222,10 +224,11 @@ const ShareSheet=(()=>{
         renderControls(index);note.textContent=items[index].note||'';$('[data-share-description]',body).textContent=items[index].description||'';const current=cache.get(index);status.textContent=current?'':'Preparing picture…';buttons();load(index);
       }
       $$('[data-share-choice]',body).forEach(choice=>{choice.onclick=()=>select(Number(choice.dataset.shareChoice));choice.onkeydown=event=>{const direction=['ArrowRight','ArrowDown'].includes(event.key)?1:['ArrowLeft','ArrowUp'].includes(event.key)?-1:0;if(!direction)return;event.preventDefault();select((Number(choice.dataset.shareChoice)+direction+items.length)%items.length,true,true);};});
-      row.addEventListener('scroll',()=>{clearTimeout(scrollTimer);scrollTimer=setTimeout(()=>{
+      row.addEventListener('scroll',()=>{schedulePeekLabels();clearTimeout(scrollTimer);scrollTimer=setTimeout(()=>{
         const center=row.getBoundingClientRect().left+row.clientWidth/2;let best=0,distance=Infinity;
         [...row.children].forEach((slide,index)=>{const rect=slide.getBoundingClientRect(),d=Math.abs(rect.left+rect.width/2-center);if(d<distance){best=index;distance=d;}});if(best!==selected)select(best);
       },80);},{passive:true});
+      if(typeof ResizeObserver==='function')new ResizeObserver(schedulePeekLabels).observe(row);
       send.onclick=async()=>{
         const current=cache.get(selected),item=items[selected];if(!current||busy||!live())return;busy=true;buttons();
         try{if(item.beforeShare&&await item.beforeShare({blob:current.blob,filename:current.filename,link:current.link,values:{...values[selected]},live,close,refresh:()=>load(selected,true),setStatus:value=>{if(live())status.textContent=value;}})===false)return;
@@ -242,7 +245,7 @@ const ShareSheet=(()=>{
       };
       $$('[data-share-action]',body).forEach(button=>button.onclick=async()=>{if(busy||!live())return;busy=true;buttons();try{await actions[Number(button.dataset.shareAction)].run({close,live});}catch(error){if(live())status.textContent=error.message||'Couldn’t update this milestone.';}finally{busy=false;if(live())buttons();}});
       viewResources.set(body,()=>{clearTimeout(scrollTimer);for(const record of cache.values())URL.revokeObjectURL(record.url);if(App.closeActivityShare===closeSelf)delete App.closeActivityShare;});
-      select(0);
+      select(0);schedulePeekLabels();
     });
   }
   return{open};
