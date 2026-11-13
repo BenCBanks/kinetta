@@ -12,8 +12,9 @@
     const refresh = () => {
       const step = steps.find(item => item.dataset.foodScreen === active);
       if (!pinned || !step) return;
-      const light = `assets/shots/light-${active}.webp`;
-      const night = `assets/shots/dark-${active}.webp`;
+      const shot = active === 'day' ? 'food' : active;
+      const light = `assets/shots/light-${shot}.webp`;
+      const night = `assets/shots/dark-${shot}.webp`;
       const alt = step.dataset.foodAlt || 'Kinetta Nutrition screen with demo data.';
       pinned.src = dark.matches ? night : light;
       pinned.alt = alt;
@@ -26,7 +27,7 @@
       refresh();
     };
 
-    if ('IntersectionObserver' in window && !reduce) {
+    if ('IntersectionObserver' in window) {
       const observer = new IntersectionObserver(entries => entries.forEach(entry => {
         if (entry.isIntersecting) activate(entry.target);
       }), {rootMargin:'-35% 0px -45%'});
