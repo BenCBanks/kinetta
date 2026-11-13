@@ -490,7 +490,7 @@
     },
     {
       "id": "track-1",
-      "source": "app/static/track.js",
+      "source": "app/static/track-route.js",
       "pattern": "/^\\/track$/",
       "paths": [
         "/track"

@@ -4,7 +4,7 @@ const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 const trackFixture=require('../demo/track_session.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798';
 const selectedCase=process.env.KINETTA_LAZY_CASE||'';
-if(selectedCase&&!['settings','recaps','fitness','notifications','records','food','route-css'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
+if(selectedCase&&!['settings','recaps','fitness','notifications','records','food','route-css','track'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
 const password='green teapot on the hill';
 const user='zz_test_explore_new';
 const meReady='.me-card-sections[aria-busy="false"]';
@@ -546,6 +546,44 @@ async function activeIntervalFixture(browser){
  });
  return{context,page,assets,errors,writes,recording};
 }
+async function trackLeafFixture(browser,{active=false}={}){
+ const context=await fixtureContext(browser);await login(context);
+ const me=await(await context.request.get(base+'/api/me')).json(),page=await context.newPage(),assets=[],errors=[],writes=[];
+ if(active){const recording=trackFixture();recording.native=true;recording.gps=false;recording.points=[];recording.distance=0;recording.splits=[];recording.state='recording';await page.addInitScript(({base,id,recording})=>localStorage.setItem('kinetta.track:'+JSON.stringify([base,id]),JSON.stringify(recording)),{base,id:me.id,recording});}
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.route('**/*',async route=>{
+  const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();
+  if(['/static/intervals.js','/static/media.js','/static/track-route.js'].includes(url.pathname))assets.push(url.pathname);
+  if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204});
+  if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}
+  return route.continue();
+ });
+ return{context,page,assets,errors,writes};
+}
+async function trackLeafCase(browser){
+ const cold=await trackLeafFixture(browser);
+ try{
+  await cold.page.goto(base+'/me');await ready(cold.page,meReady,'cold Me before Track route');
+  assert.deepEqual(cold.assets,[],'cold Me keeps the Track route leaf and its dependencies deferred');
+  assert.equal(await cold.page.evaluate(()=>Track.active),false,'cold Me still exposes the eager recorder facade');
+  assert.equal(await cold.page.evaluate(()=>typeof Track.resume),'function','native/browser resume stays on the eager recorder facade');
+  assert.equal(await cold.page.evaluate(()=>typeof TrackMath.metres),'function','TrackMath remains eager');
+  await cold.page.evaluate(()=>go('/track'));await ready(cold.page,'#track-start','Track route leaf after direct navigation');
+  assert.deepEqual(cold.assets,['/static/intervals.js','/static/media.js','/static/track-route.js'],'Track loads dependencies and its route leaf once');
+  assert.equal(await cold.page.evaluate(()=>typeof Track.preparePlan),'function','Track plan handoff remains on the eager facade');
+  assert.deepEqual(cold.errors,[]);assert.deepEqual(cold.writes,[]);
+ }finally{await cold.context.close();}
+ const resume=await trackLeafFixture(browser,{active:true});
+ try{
+  await resume.page.goto(base+'/me');await ready(resume.page,meReady,'cold Me with a fictional active recorder');
+  assert.deepEqual(resume.assets,[],'recorder resume does not load the Track route leaf');
+  assert.equal(await resume.page.evaluate(()=>Track.active),true,'eager Track.sync restores an active native recorder');
+  await resume.page.evaluate(()=>go('/track'));await ready(resume.page,'#track-content','Track after recorder resume');
+  assert.equal(await resume.page.evaluate(()=>Track.active),true,'loading the route leaf preserves recorder active state');
+  assert.deepEqual(resume.errors,[]);assert.deepEqual(resume.writes,[]);
+ }finally{await resume.context.close();}
+ console.log('Track lazy leaf: cold Me keeps route code deferred; direct route loads once; recorder resume stays eager and active PASS');
+}
 async function getAppLogoutFixture(browser){
  const context=await browser.newContext({viewport:{width:390,height:844},colorScheme:'light',serviceWorkers:'block',isMobile:true,hasTouch:true,userAgent:'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'});
  await login(context);const me=await(await context.request.get(base+'/api/me')).json(),page=await context.newPage(),assets=[],errors=[];
@@ -828,6 +866,7 @@ async function foodWarmupCase(browser){
   if(selectedCase==='recaps'){await require('./recap_lazy_ui.cjs')(browser,base);return;}
   if(selectedCase==='fitness'){await fitnessRouteCase(browser);return;}
   if(selectedCase==='records'){await recordsRouteCase(browser);return;}
+  if(selectedCase==='track'){await trackLeafCase(browser);return;}
   await fitnessRouteCase(browser);
   await recordsRouteCase(browser);
   await require('./recap_lazy_ui.cjs')(browser,base);
