@@ -11,6 +11,13 @@ const fixtures=JSON.parse(fs.readFileSync(process.env.KINETTA_SPACING_FIXTURES||
 assert.equal(fixtures.base,base);assert.equal(fixtures.project,project);
 const rules=JSON.parse(fs.readFileSync(path.join(__dirname,'spacing_exceptions.json'),'utf8'));validateExceptions(rules);
 const report=path.resolve(process.env.KINETTA_SPACING_REPORT||'/tmp/'+project+'-spacing-report.json'),pictures=process.env.KINETTA_SPACING_SHOTS;
+async function waitForRouteStyles(p){
+ const ready=()=>[...document.querySelectorAll('link[data-route-style]')].every(link=>!!link.sheet);
+ await p.waitForFunction(ready,null,{timeout:30000});
+ // A loaded sheet can still be one frame behind style recalculation. Let the
+ // browser apply it before collecting geometry for the first scene measure.
+ await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+}
 (async()=>{
  const browser=await chromium.launch(),results=[],errors=[];let sessions;
  let selected=scenes(fixtures);if(process.env.KINETTA_SPACING_SCREENS){const names=process.env.KINETTA_SPACING_SCREENS.split(',');selected=selected.filter(s=>names.includes(s.name));assert.equal(selected.length,names.length,'Every selected scene exists');}
@@ -21,6 +28,7 @@ const report=path.resolve(process.env.KINETTA_SPACING_REPORT||'/tmp/'+project+'-
    let c;const writes=[],pageErrors=[];
    try{
     const opened=await fixturePage(browser,base,fixtures,sessions,scene,size,theme);c=opened.c;const {p,auth}=opened;
+    await waitForRouteStyles(p);
     // Reuse the guarded context's live collectors throughout traversal.
     const writes=opened.writes,pageErrors=opened.pageErrors;
     if(scene.todayPlan){
