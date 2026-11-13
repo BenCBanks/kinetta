@@ -199,6 +199,17 @@ def process(c,uid,message):
     if (message.get('result') or {}).get('input'):
         from . import food_thread_compose as compose
         return compose.begin(c,uid,message,{'items':[],'issued':int(time.time())})
+    from . import food_thread_weight as body_weight
+    weight=body_weight.parse(c,uid,message['body'],message['local_day'])
+    if weight and weight.get('invalid'):
+        return food_thread.finish_reply(c,uid,message,{'kind':'answer','intent':'weight_clarification','source':'code',
+            'text':'That weight is outside the range I can save. Check the number and unit, then send it again.'})
+    if weight:
+        data=dict(message.get('result') or {});data.pop('understanding',None)
+        message={**message,'body':weight['food'],'result':data,'_weight':{k:v for k,v in weight.items() if k!='food'}}
+        if not message['body']:
+            return food_thread.finish_reply(c,uid,message,{'kind':'preview','composed':True,'day':weight['day'],
+                'meal':'snacks','parts':[],'weight':message['_weight'],'text':'Weight is ready to review. Tap Add to log.'})
     # Photo questions refer to the selected card, before generic log questions
     # or model intent parsing can turn them into a new food or today's totals.
     from . import food_thread_photo

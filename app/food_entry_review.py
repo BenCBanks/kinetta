@@ -72,6 +72,8 @@ class ConfirmIn(Strict):
     portion:float|None=Field(None,gt=0,le=20000)
     # Calories changed on the sheet, by food position ("0": 180). That food's other nutrients scale with it.
     kcal:dict[str,float]|None=None
+    log_weight:StrictBool=True
+    weight_kg:float|None=Field(None,gt=0,le=300,allow_inf_nan=False)
 
     @field_validator('kcal')
     @classmethod
@@ -221,7 +223,7 @@ def collect(c,uid,ids,selection=None,draft_id=None):
     selected-only source view feeds method labels and learning so an unselected
     part can never be learned or classified by this review.
     """
-    entries=[];sources=[];selected_sources=[];picked=selected_map(selection)
+    entries=[];sources=[];selected_sources=[];picked=selected_map(selection);weighins=[]
     for mid in sorted(set(ids)):
         # A selection is authoritative: message IDs supplied for display but not
         # selected do not get locked, refreshed or consumed.
@@ -229,6 +231,7 @@ def collect(c,uid,ids,selection=None,draft_id=None):
         m=T.locked_message(c,uid,mid)
         if not (m.get('result') or {}).get('review_only'):raise HTTPException(409,'Use the new food draft for this review')
         reply=E.stored_reply(c,uid,m);result=copy.deepcopy((reply or {}).get('result') or {})
+        if result.get('weight'):weighins.append({'message':m['id'],**result['weight']})
         if m['state']=='cancelled' or result.get('kind') in ('undone','reviewed','cancelled'):
             raise HTTPException(409,'A selected food was removed or already saved. Refresh the draft.')
         if result.get('food_review'):raise HTTPException(422,'Choose food messages, not another review')
@@ -266,7 +269,8 @@ def collect(c,uid,ids,selection=None,draft_id=None):
             selected_result=copy.deepcopy(result)
             selected_result['parts']=copy.deepcopy(selected_parts)
             selected_sources.append((m,selected_result))
-    if not entries:raise HTTPException(409,'Add a food and finish its details first')
+    if len(weighins)>1:raise HTTPException(422,'Review one weigh-in with these foods at a time')
+    if not entries and not weighins:raise HTTPException(409,'Add a food and finish its details first')
     if len(entries)>D.MAX_ITEMS:raise HTTPException(422,'Review up to 60 foods at a time')
     if any(not N.known(e,'kcal') for e in entries):raise HTTPException(422,'Enter missing calories before logging these foods')
     values={k:N.rounded(k,sum(e[k] for e in entries)) if all(N.known(e,k) for e in entries) else None for k in N.ALL}
@@ -277,19 +281,24 @@ def collect(c,uid,ids,selection=None,draft_id=None):
         if ref.get('review_grams'):return ref['review_grams']
         if ref.get('serving',{}).get('g') and e.get('unit')=='serving':return e['amount']*ref['serving']['g']
         return None
-    weights=[grams(e) for e in entries]
-    public={'foods':entries,'totals':values,'known_weight_g':sum(weights) if all(g is not None for g in weights) else None,
+    gram_weights=[grams(e) for e in entries]
+    public={'foods':entries,'totals':values,'known_weight_g':sum(gram_weights) if all(g is not None for g in gram_weights) else None,
             'names':', '.join(e['name'] for e in entries)[:200]}
     if selection is None:
         # Keep this exact payload for older clients: existing prepared reviews
         # and their replay/freshness fingerprints must remain valid.
-        signature=digest({'sources':[m['id'] for m,_ in sources],'foods':entries})
+        signed={'sources':[m['id'] for m,_ in sources],'foods':entries}
+        if weighins:signed['weight']=weighins
+        signature=digest(signed)
     else:
         bound=[]
         for m,result in selected_sources:
             for part in result.get('parts',[]):
                 bound.append({'message':m['id'],'part':part['index'],'content':part})
-        signature=digest({'draft_id':str(draft_id),'selection':selection,'parts':bound,'foods':entries})
+        signed={'draft_id':str(draft_id),'selection':selection,'parts':bound,'foods':entries}
+        if weighins:signed['weight']=weighins
+        signature=digest(signed)
+    if weighins:public['weight']={**weighins[0],'display_unit':weighins[0]['unit']}
     return public,sources,signature,selected_sources
 
 
@@ -377,7 +386,7 @@ def consume_selected(c,uid,sources,selection,review_id,entry_ids,basis,log_today
 @router.post('/{mid:int}/confirm')
 def confirm(mid:int,body:ConfirmIn,response:Response,user=Depends(current_user)):
     if not body.confirm:raise HTTPException(400,'Confirm the food review before saving')
-    if not (body.save_recipe or body.log_today):raise HTTPException(422,'Choose whether to log food or save a recipe')
+    if not (body.save_recipe or body.log_today or body.log_weight):raise HTTPException(422,'Choose whether to log food, weight or save a recipe')
     if body.log_today and body.meal is None:raise HTTPException(422,'Which meal would you like to log it to?')
     if body.save_recipe and (not (body.name or '').strip() or body.basis=='amounts'):raise HTTPException(422,'Name the recipe and choose servings or cooked weight')
     if body.basis=='servings' and body.servings is None:raise HTTPException(422,'How many servings does the whole recipe make?')
@@ -386,10 +395,12 @@ def confirm(mid:int,body:ConfirmIn,response:Response,user=Depends(current_user))
     if body.basis=='servings' and body.portion is not None and body.portion>20:raise HTTPException(422,'Log up to 20 servings at once')
     uid=user['id'];request=body.model_dump(mode='json')
     if body.day is None:request.pop('day')    # preserve hashes of already-confirmed older-client requests
-    request_key=digest(request)
     with db.connect() as c:
         m=T.locked_message(c,uid,mid);r=(E.stored_reply(c,uid,m) or {}).get('result') or {}
         if not r.get('food_review'):raise HTTPException(404,'Food review not found')
+        if not r.get('weight'):
+            request.pop('log_weight',None);request.pop('weight_kg',None)  # keep replay hashes from food-only reviews made by older clients
+        request_key=digest(request)
         if r.get('confirmed'):
             if r['confirmed']!=request_key:raise HTTPException(409,'This review was already saved with different choices')
             return {**T.answer_with(c,uid,m),'replayed':True,'recipe_id':r.get('recipe_id')}
@@ -401,6 +412,11 @@ def confirm(mid:int,body:ConfirmIn,response:Response,user=Depends(current_user))
             T.finish_reply(c,uid,m,fresh);response.status_code=409
             return {'changed':True,'detail':fresh['text'],'review':fresh,'id':mid}
         public=edit_kcal(public,body.kcal)
+        weight=public.get('weight')
+        weight_kg=body.weight_kg if body.weight_kg is not None else (weight or {}).get('kg')
+        if body.log_weight and weight:
+            valid=(66<=weight_kg*2.2046226218<=660) if weight.get('display_unit')=='lb' and weight_kg is not None else (weight_kg is not None and 30<=weight_kg<=300)
+            if not valid:raise HTTPException(422,'Check the weight within the supported range')
         factor=1 if body.whole else body.portion/(body.servings if body.basis=='servings' else body.total_g)
         values={k:N.rounded(k,v*factor) if v is not None else None for k,v in public['totals'].items()}
         recipe_id=None;name=(body.name or '').strip() or public['names'];today=D._today(c,uid).date();day=body.day or today
@@ -425,6 +441,15 @@ def confirm(mid:int,body:ConfirmIn,response:Response,user=Depends(current_user))
                     (uid,day,body.meal,e['name'],e.get('brand'),e['amount'],e['unit'],*[e[k] for k in N.ALL],e['source'],json.dumps(e.get('ref')),pos,key)).fetchone()
                 ids.append(row['id']);entry_digests[str(row['id'])]=E.entry_digest(row)
                 c.execute('INSERT INTO food_chat_entries(user_id,message_id,entry_id) VALUES(%s,%s,%s)',(uid,mid,row['id']))
+        if body.log_weight and weight:
+            day=dt.date.fromisoformat(weight['day'])
+            c.execute('SELECT id FROM users WHERE id=%s FOR UPDATE',(uid,))
+            from . import api_health_weights as H
+            profile=H.profile(c,uid);H.lift_exclusion(c,uid,day,profile['tz'] or db.DEFAULT_TZ)
+            c.execute('''INSERT INTO weights(user_id,day,kg,note,source,health_sample_id,source_name)
+                VALUES(%s,%s,%s,'',NULL,NULL,NULL) ON CONFLICT(user_id,day) DO UPDATE SET
+                kg=excluded.kg,note=excluded.note,source=NULL,health_sample_id=NULL,source_name=NULL''',(uid,day,weight_kg))
+            F._latest_weight(c,uid)
         from . import food_entry_methods as methods
         methods.review(c,uid,ids,selected_sources,recipe=bool(recipe_id),combined=body.basis!='amounts')
         if body.log_today and body.basis=='amounts' and body.kcal is None:C.learn_review(c,uid,ids,selected_sources)
@@ -435,8 +460,12 @@ def confirm(mid:int,body:ConfirmIn,response:Response,user=Depends(current_user))
                 messages+=T.finish_reply(c,uid,source,result)['messages']
         else:
             messages=consume_selected(c,uid,sources,selection,mid,ids,body.basis,body.log_today)
-        text=(f'Saved {name} to My Recipes. ' if recipe_id else '')+(f'Logged to {body.meal} '+('today.' if day==today else f'on {day}.') if ids else 'Nothing was added to your food log.')
-        result={**r,'kind':'log' if ids else 'answer','confirmed':request_key,'recipe_id':recipe_id,'entry_ids':ids,'entry_digests':entry_digests,'logged_totals':values,'logged_unknown':[k for k,v in values.items() if v is None],'day':str(day),'meal':body.meal,'text':text}
+        text=(f'Saved {name} to My Recipes. ' if recipe_id else '')+(f'Logged to {body.meal} '+('today.' if day==today else f'on {day}.') if ids else '')
+        if body.log_weight and weight:text+=(f' Logged weight for {weight["day"]}.' if text else f'Logged weight for {weight["day"]}.')
+        if not text:text='Nothing was added to your food log.'
+        saved_weight=({**weight,'kg':weight_kg,'amount':weight_kg*(2.2046226218 if weight['display_unit']=='lb' else 1)}
+                      if body.log_weight and weight else None)
+        result={**r,'kind':'log' if ids else 'answer','confirmed':request_key,'recipe_id':recipe_id,'entry_ids':ids,'entry_digests':entry_digests,'logged_totals':values,'logged_unknown':[k for k,v in values.items() if v is None],'day':str(day),'meal':body.meal,'weight':saved_weight,'text':text}
         saved=T.finish_reply(c,uid,m,result)
         T.link_entries(c,uid,saved['messages'],ids)
         saved['messages']=T.message_entries(c,uid,saved['messages'])

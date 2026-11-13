@@ -242,10 +242,35 @@ class Review(unittest.TestCase):
   self.post(path,{'confirm':True,'meal':'dinner','day':'not-a-date'},status=422);self.assertEqual(self.rows('food_entries'),[])
   self.confirm(review)
   legacy=ConfirmIn(confirm=True,meal='dinner').model_dump(mode='json');legacy.pop('day')
+  legacy.pop('log_weight');legacy.pop('weight_kg')
   with db.connect() as c:
    reply=c.execute('SELECT result FROM food_chat_messages WHERE user_id=%s AND reply_to=%s',(self.ids[0],review['id'])).fetchone()['result']
   self.assertEqual(reply['confirmed'],digest(legacy),'omitted day keeps the old request fingerprint')
   self.assertTrue(self.confirm(review)['replayed']);self.assertEqual(len(self.rows('food_entries')),1)
+
+ def test_kit_weight_statement_is_reviewed_with_food_and_saved_once(self):
+  from app import food_thread_weight
+  class Conn:
+   def execute(self,*args):return type('Result',(),{'fetchone':lambda _: {'units':'metric','tz':'UTC'}})()
+  parsed=food_thread_weight.parse(Conn(),self.ids[0],'Oatmeal with a coffee, weighed 152.4 this morning.',FIXTURE_TODAY)
+  self.assertEqual(parsed['food'],'Oatmeal with a coffee');self.assertEqual(parsed['unit'],'kg')
+  self.food('Fictional oat bar',180)
+  m,_=self.send('1 Fictional oat bar for breakfast, weighed 152.4 this morning.')
+  result=next(x['result'] for x in self.a.get('/api/food/thread/reviews/draft/'+self.draft).json()['messages'] if x.get('reply_to')==m['id'])
+  self.assertEqual(result['weight']['unit'],'lb');self.assertEqual(len(result['parts']),1)
+  review=self.prepare([m]);self.assertEqual(review['review']['weight']['display_unit'],'lb')
+  body={'confirm':True,'meal':'breakfast','log_weight':True,'weight_kg':review['review']['weight']['kg']}
+  saved=self.post(f"/api/food/thread/reviews/{review['id']}/confirm",body)
+  replay=self.post(f"/api/food/thread/reviews/{review['id']}/confirm",body)
+  self.assertTrue(replay.get('replayed'));self.assertEqual(len(self.rows('food_entries')),1)
+  with db.connect() as c:
+   rows=c.execute('SELECT day,kg,source FROM weights WHERE user_id=%s',(self.ids[0],)).fetchall()
+  self.assertEqual(len(rows),1);self.assertAlmostEqual(rows[0]['kg'],review['review']['weight']['kg'],places=3);self.assertIsNone(rows[0]['source'])
+  # A weight-only statement uses the same review and store without requiring a food row.
+  m2,_=self.send('Weighed 151.8 yesterday')
+  review2=self.prepare([m2]);self.assertEqual(review2['review']['foods'],[])
+  self.confirm(review2,log_today=False,log_weight=True,weight_kg=68.9)
+  with db.connect() as c:self.assertEqual(c.execute('SELECT kg FROM weights WHERE user_id=%s AND day=%s',(self.ids[0],FIXTURE_TODAY-dt.timedelta(days=1))).fetchone()['kg'],68.9)
 
  def test_old_client_auto_log_preference_still_works(self):
   self.food('Fictional rice');self.send('1 serving fictional rice',review=False);self.assertEqual(len(self.rows('food_entries')),1)
