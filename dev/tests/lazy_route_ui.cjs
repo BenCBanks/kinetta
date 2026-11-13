@@ -86,17 +86,31 @@ async function holdFood(page,{instrument=false,blockedWrites=[]}={}){
   });
   return {release:openGate,count:()=>requests,done};
 }
-async function foodRouteFixture(browser,{hold=false,failFirst=false,instrument=false,idleGate=false,holdAsset=null,failAsset=null,fakeDishCreation=false}={}){
- const context=await fixtureContext(browser);await login(context);
+async function foodRouteFixture(browser,{hold=false,failFirst=false,instrument=false,idleGate=false,holdAsset=null,failAsset=null,fakeDishCreation=false,nativePending=false,nativePendingHold=false}={}){
+ const context=await fixtureContext(browser),nativeEntry={id:'f1c710a4-14ca-4f2b-a021-13b145c94c01',source:'shortcut',text:'Fictional native breakfast note'};
+ let nativeToken=null;
+ if(nativePending){const signed=await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login:user,password,app:true}});assert.equal(signed.status(),200,'fictional native FoodEntry account logs in');nativeToken=(await signed.json()).token;}
+ else await login(context);
  const page=await context.newPage(),assets=[],errors=[],writes=[],attempts=new Map();let heldOnce=false,releaseHeld=()=>{},signalHeld=()=>{},finishHeld=()=>{},dishCreations=0;
  const heldPath=holdAsset||(hold?'/static/food.js':null),failedPath=failAsset||(failFirst?'/static/food.js':null);
  const gate=new Promise(resolve=>{releaseHeld=resolve;}),held=new Promise(resolve=>{signalHeld=resolve;}),done=new Promise(resolve=>{finishHeld=resolve;});
  page.on('pageerror',error=>errors.push(error.message));
+ if(nativePending)await context.addInitScript(({base,token,entry,hold})=>{
+   let pending=entry,listener=null,releasePending=null,holdPending=hold;
+   const prefs={server:base,token};
+   const plugin={addListener:(name,fn)=>{if(name==='foodEntryReady')listener=fn;return {remove(){}};},bind:async()=>{},pending:async()=>{window.__nativePendingCalls=(window.__nativePendingCalls||0)+1;window.__nativeFoodPendingWaiting=true;if(holdPending){holdPending=false;await new Promise(resolve=>{releasePending=resolve;});}window.__nativeFoodPendingWaiting=false;return {entries:pending?[pending]:[]};},acknowledge:async({id})=>{window.__nativeFoodAck=id;pending=null;},stop:async()=>{}};
+   window.__releaseNativeFoodPending=()=>releasePending?.();
+   window.Capacitor={isNativePlatform:()=>true,isPluginAvailable:name=>name==='Preferences'||name==='KinettaFoodEntry',Plugins:{Preferences:{get:async({key})=>({value:prefs[key]??null}),set:async({key,value})=>{prefs[key]=value;},remove:async({key})=>{delete prefs[key];}},KinettaFoodEntry:plugin}};
+ },{base,token:nativeToken,entry:nativeEntry,hold:nativePendingHold});
  if(idleGate)await page.addInitScript(()=>{window.__foodIdleCallbacks=[];let id=0;window.requestIdleCallback=callback=>{window.__foodIdleCallbacks.push(callback);return ++id;};window.cancelIdleCallback=()=>{};});
  await page.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url());
   if(url.origin!==base)return route.abort();
-  if(['/static/food.js','/static/kit.js','/static/cook.js','/static/recipe-import.js','/static/onboarding.js'].includes(url.pathname)){
+  if(nativePending&&request.method()==='GET'&&url.pathname==='/api/me'){
+   const response=await route.fetch(),body=await response.json();body.created='2020-01-01T00:00:00Z';
+   return route.fulfill({response,body:JSON.stringify(body)});
+  }
+  if(['/static/food.js','/static/thread.js','/static/kit.js','/static/cook.js','/static/recipe-import.js','/static/onboarding.js'].includes(url.pathname)){
    assets.push(url.pathname);
    const count=(attempts.get(url.pathname)||0)+1;attempts.set(url.pathname,count);
    if(url.pathname===failedPath&&count===1)return route.abort();
@@ -749,7 +763,33 @@ async function foodWarmupCase(browser){
    assert.deepEqual(direct.errors,[],`${label} has no page errors`);
   }finally{await direct.context.close();}
  }
- console.log('Food route leaf: cold Me omits food.js; Nutrition, Weight and Kit load it on demand PASS');
+ const threadDirect=await foodRouteFixture(browser);
+ try{
+   await threadDirect.page.goto(base+'/food/describe',{waitUntil:'domcontentloaded'});await ready(threadDirect.page,'#thread-plus','direct Food conversation');
+   assert.deepEqual(threadDirect.assets.slice(0,2),['/static/food.js','/static/thread.js'],'Food conversation loads the FoodThread leaf after Food helpers');
+   assert.equal(threadDirect.assets.filter(path=>path==='/static/thread.js').length,1,'direct Food conversation requests thread.js once');
+   assert.deepEqual(threadDirect.errors,[]);assert.deepEqual(threadDirect.writes,[]);
+ }finally{threadDirect.release();await threadDirect.context.close();}
+ const nativeCold=await foodRouteFixture(browser,{nativePending:true,nativePendingHold:true});
+ try{
+   await nativeCold.page.goto(base+'/me',{waitUntil:'domcontentloaded'});
+   if(new URL(nativeCold.page.url()).pathname==='/welcome'){
+     await nativeCold.page.evaluate(()=>{App.me.created='2020-01-01T00:00:00Z';store.set('kinetta.welcomed:'+readOwner(),1);});
+     await nativeCold.page.locator('#wc-leave').click();
+     await until(nativeCold.page,()=>location.pathname==='/me'&&App.pageReady,'cold native fixture leaves optional Welcome');
+     await nativeCold.page.evaluate(()=>Native.autoFoodEntry());
+   }
+   await until(nativeCold.page,()=>window.__nativeFoodPendingWaiting===true,'cold native FoodEntry pending read');
+   assert.deepEqual(nativeCold.assets,[],'cold native FoodEntry waits before requesting FoodThread');
+   await nativeCold.page.evaluate(()=>window.__releaseNativeFoodPending());
+   await until(nativeCold.page,()=>location.pathname==='/food/describe'&&App.pageReady&&!!document.querySelector('#thread-text'),'cold native FoodEntry opens the lazy Food route');
+   await until(nativeCold.page,()=>document.querySelector('#thread-text')?.value==='Fictional native breakfast note','cold native FoodEntry waits for FoodThread');
+   assert.deepEqual(nativeCold.assets.slice(0,2).sort(),['/static/food.js','/static/thread.js'],'pending native FoodEntry loads FoodThread after the cold Me shell');
+   assert.equal(nativeCold.assets.filter(path=>path==='/static/thread.js').length,1,'pending native FoodEntry requests thread.js once');
+   assert.equal(await nativeCold.page.evaluate(()=>window.__nativeFoodAck),'f1c710a4-14ca-4f2b-a021-13b145c94c01','native receipt acknowledges only after FoodThread receives it');
+   assert.deepEqual(nativeCold.errors,[]);assert.deepEqual(nativeCold.writes,[]);
+ }finally{nativeCold.release();await nativeCold.context.close();}
+ console.log('Food route leaf: cold Me omits food.js; Nutrition, Weight, Kit and FoodThread load on demand PASS');
 }
 (async()=>{const browser=await chromium.launch();try{
   if(process.env.KINETTA_FRIENDS_LAZY_ONLY==='1'){
@@ -1225,7 +1265,8 @@ async function foodWarmupCase(browser){
   const kitDirect=await foodRouteFixture(browser);
   try{
     await kitDirect.page.goto(base+'/me/kit',{waitUntil:'domcontentloaded'});await ready(kitDirect.page,'#kit-text','Kit after deferred direct route');
-    assert.deepEqual(kitDirect.assets.slice(0,2),['/static/food.js','/static/kit.js'],'Kit loads Food dependencies before the chat route');
+    assert.deepEqual(kitDirect.assets.slice(0,3),['/static/food.js','/static/kit.js','/static/thread.js'],'Kit loads Food and chat dependencies before mounting');
+    assert.equal(kitDirect.assets.filter(path=>path==='/static/thread.js').length,1,'Kit requests the FoodThread leaf once');
     assert.equal(await kitDirect.page.locator('#kit-load-retry').isVisible(),false,'fictional conversation startup succeeds without the retry error');
     assert.doesNotMatch(await kitDirect.page.locator('#kit-status').textContent(),/Cannot read properties/,'Kit renders without an initialization exception');
     assert.deepEqual(kitDirect.errors,[]);assert(kitDirect.writes.some(path=>path==='POST /api/coach/conversation/visits'),'the fictional Kit start write is intercepted by the test route');

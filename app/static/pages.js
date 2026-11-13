@@ -1674,7 +1674,7 @@ function deleteSheet() {
         await cleanup(()=>clearSegmentDrafts());
         await cleanup(()=>Native.forget({deleted:true}));
         await cleanup(()=>typeof KitChat!=='undefined'?KitChat.eraseDevice():null);
-        await cleanup(()=>typeof FoodThread!=='undefined'?FoodThread.eraseDevice():null);
+        await cleanup(async()=>{if(typeof FoodThread==='undefined'&&typeof loadClassicScript==='function')await loadClassicScript(THREAD_ROUTE_ASSET);return typeof FoodThread!=='undefined'?FoodThread.eraseDevice():null;});
         await cleanup(()=>typeof RecipeImport!=='undefined'?RecipeImport.eraseDevice():null);
         await cleanup(()=>typeof Track!=='undefined'?Track.forgetDraft():null);
         await cleanup(()=>store.set('fit.queue',Q.all().filter(o=>o.who!==login)));
