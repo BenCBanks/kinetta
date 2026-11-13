@@ -10,8 +10,8 @@ module.exports=()=>{
  const friendActivity={...activity,id:2,name:'Park loop with friends',start_time:'2026-11-01T08:00:00Z',owner:friends.friends[0],visibility:'friends',sport_label:null,speed_available:true,shares:{pace:true,map:true},cheers:0,comments:0,reactions:{cheer:0,strong:0,applause:0},my_reaction:null,cheered:false};
  const macros={kcal:915,protein_g:48,carbs_g:90,fat_g:31,fiber_g:null,sodium_mg:null,sugar_g:null,saturated_fat_g:null};
  const entries=[['Oatmeal with blueberries','breakfast',395,16,50,9],['Chicken salad bowl','lunch',520,32,40,22]].map(([name,meal,kcal,protein_g,carbs_g,fat_g],i)=>({...macros,id:i+1,day:today,name,meal,kcal,protein_g,carbs_g,fat_g,amount:1,unit:'serving',source:'quick',ref:null}));
- const weeklyWorkouts=[4,4,4,5,4,4,2];
- const weeks=[24,28,26,32,30,29,8].map((km,i)=>({d:date((6-i)*7+1),end:i===6?today:date((6-i)*7-5),distance_m:km*1000,activities:weeklyWorkouts[i],time_s:km*360,by_sport:{run:km*1000},today:i===6}));
+ const weeklyWorkouts=[2,4,1,5,3,6,2];
+ const weeks=[12,24,8,32,20,36,8].map((km,i)=>({d:date((6-i)*7+1),end:i===6?today:date((6-i)*7-5),distance_m:km*1000,activities:weeklyWorkouts[i],time_s:km*360,by_sport:{run:km*1000},today:i===6}));
  const days=Array.from({length:7},(_,i)=>({d:date(1-i),distance_m:i<2?4000:0,activities:i<2?1:0,time_s:i<2?1440:0,by_sport:i<2?{run:4000}:{},today:i===1,future:i>1}));
  const overview={activities:134,distance_m:784000,time_s:270000,active_days:110};
  const profile={mine:true,overview,shared_count:20,sports:[{sport:'run',activities:110,distance_m:600000,time_s:210000},{sport:'ride',activities:24,distance_m:184000,time_s:60000}],items:[],mileage:{today,weeks,days},layout:{sections:['totals','mileage','sports'],stats:['activities','distance','time'],sports:[]}};
