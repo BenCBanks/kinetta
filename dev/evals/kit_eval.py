@@ -20,7 +20,7 @@ try:
   for suffix in ('a','b','health_off'):
    uid=c.execute('INSERT INTO users(login,name) VALUES (%s,%s) RETURNING id',('zz_test_kit_eval_'+suffix+uuid.uuid4().hex[:8],'Fictional evaluation account')).fetchone()['id'];uids.append(uid)
    health_consent = suffix != 'health_off'
-   c.execute("INSERT INTO profile(user_id,tz,ai_ok,health_ai_ok,health_weight_ai_ok,weight_health_derived,kcal_target,protein_target,carbs_target,fat_target,fiber_target,weight_kg,height_cm,birth_year,sex) VALUES (%s,'UTC',true,%s,%s,%s,2200,120,250,70,30,72,175,1990,'male')",(uid,health_consent,health_consent,suffix=='health_off'))
+   c.execute("INSERT INTO profile(user_id,tz,ai_ok,ai_adult_at,health_ai_ok,health_weight_ai_ok,weight_health_derived,kcal_target,protein_target,carbs_target,fat_target,fiber_target,weight_kg,height_cm,birth_year,sex) VALUES (%s,'UTC',true,now(),%s,%s,%s,2200,120,250,70,30,72,175,1990,'male')",(uid,health_consent,health_consent,suffix=='health_off'))
   uid=uids[0]
   gear=c.execute("INSERT INTO gear(user_id,name,start_distance_m) VALUES (%s,'Fictional shoes',5000) RETURNING id",(uid,)).fetchone()['id']
   c.execute("INSERT INTO goals(user_id,sport,period,metric,target) VALUES (%s,'run','week','distance',20000)",(uid,))
