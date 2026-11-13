@@ -26,7 +26,9 @@ try{for(const enabled of [false,true])for(const theme of ['light','dark'])for(co
    if(route==='/me/settings')assert(await p.locator('.me-settings .row-link:has(> .val)').evaluateAll(ns=>ns.every(n=>{const label=n.querySelector(':scope>.grow'),value=n.querySelector(':scope>.val'),a=label.getBoundingClientRect(),b=value.getBoundingClientRect(),r=document.createRange();r.selectNodeContents(label);return a.right<=b.left-7.98&&[...r.getClientRects()].every(t=>t.left>=a.left-.02&&t.right<=a.right+.02);})), 'Settings labels and values keep separate columns with full wrapping text');
    if(out&&enabled){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`collection-${route==='/welcome'?'welcome':'settings'}-${width}-${theme}.png`)});}
   }
-  if(enabled){for(let n=0;n<80&&!calls.length;n++)await p.waitForTimeout(25);assert.deepEqual(calls,[{feature:'settings'}]);}else{assert(reads>0);await p.waitForTimeout(150);assert.deepEqual(calls,[]);}
+  for(let n=0;n<80&&!reads;n++)await p.waitForTimeout(25);
+  assert(reads>0,'the deferred feature-usage leaf reads the feature preference after first useful');
+  if(enabled){for(let n=0;n<80&&!calls.length;n++)await p.waitForTimeout(25);assert.deepEqual(calls,[{feature:'settings'}]);}else{await p.waitForTimeout(150);assert.deepEqual(calls,[]);}
   assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);checks++;
   console.log(`Ordinary account ${enabled?'ON':'OFF'} ${width}/${theme}: Welcome/Settings navigation, operator gate, fixed payload and no per-person control PASS`);
  }finally{await c.close();}

@@ -58,6 +58,7 @@ async function fixturePage(browser,base,fixtures,sessions,scene,size,theme){
     if(scene.recap)await p.clock.setFixedTime(new Date(fixtures.recaps.now));
     await p.goto(base+scene.route);if(!scene.signup)await until(p,()=>typeof App!=='undefined'&&App.pageReady,'Page route settles');await p.locator(scene.entryReady||scene.ready).first().waitFor({state:'attached'});
     if(scene.name==='Progress'){assert.deepEqual(await p.evaluate(()=>App.me?.feature_flags),{progress_calendar:false,progress_segments:false},'spacing/accessibility Progress fixture uses the default-off flags');assert.equal(await p.locator('[data-progress-feature="calendar"],[data-progress-feature="segments"]').count(),0,'audit Progress scene has no disabled Calendar or Segments links');}
+    if(scene.modal==='share-card'||scene.modal==='card')await p.waitForFunction(()=>typeof KinettaCard!=='undefined',null,{timeout:10000});
     if(scene.modal){await modalState(p,scene.modal);await p.locator(scene.ready).first().waitFor({state:'attached'});}
     if(scene.notifications)await notificationState(p);
     if(scene.recap){await p.locator('#recap-entry').click();await until(p,()=>{const button=document.querySelector('#recap-share');return button&&!button.disabled;},'Recap data ready');await p.locator('#recap-share').click();await until(p,()=>{const image=document.querySelector('[data-share-image="0"]');return image?.complete&&image.naturalWidth>0;},'Recap picture ready');}

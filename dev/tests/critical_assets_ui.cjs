@@ -8,7 +8,7 @@ const ready={me:'.me-card-sections[aria-busy="false"]',home:'#feed-tools[aria-bu
 const deferredScripts=['haptics.js','maps.js','cards.js','feature-usage.js','refresh.js','password-visibility.js','email-account.js'];
 const firstScreenCss=fs.readFileSync(path.resolve(__dirname,'../../app/static/first-screen.css'),'utf8');
 const themeCss=fs.readFileSync(path.resolve(__dirname,'../../app/static/theme.css'),'utf8');
-const sharedEffectTokens=['--weight-body','--weight-support','--weight-title','--weight-display','--weight-number','--motion-press','--motion-settle','--motion-ease','--elevation-rest','--elevation-raised','--elevation-sheet','--surface-card','--surface-raised','--surface-sheet','--accent-gradient'];
+const sharedEffectTokens=['--text-app-section','--text-app-card-title','--text-app-stat','--weight-body','--weight-support','--weight-title','--weight-display','--weight-number','--motion-press','--motion-settle','--motion-ease','--elevation-rest','--elevation-raised','--elevation-sheet','--surface-card','--surface-raised','--surface-sheet','--accent-gradient'];
 for(const token of new Set([...themeCss.matchAll(/(--(?:weight|motion|elevation|surface|accent-gradient)[\w-]*)\s*:/g)].map(match=>match[1])))assert.ok(firstScreenCss.includes(`${token}:`),`critical CSS keeps shared token ${token}`);
 (async()=>{
  const browser=await chromium.launch({headless:true});
@@ -45,7 +45,7 @@ for(const token of new Set([...themeCss.matchAll(/(--(?:weight|motion|elevation|
    assert.equal(before['nav.tabs']?.position,'fixed','navigation is styled before deferred CSS');
    assert.ok(before['.me-card']||before['#feed-tools'],'the expected first screen exists');
    assert.equal(errors.length,0,`${name} ${theme}: no page or console errors before deferred assets`);
-   const shot=`/tmp/dash-960-rebased-${name}-${theme}-critical.png`;
+   const shot=`/tmp/dash-960-fixed-${name}-${theme}-critical.png`;
    await page.screenshot({path:shot,fullPage:false});
    for(const resume of held.splice(0))await resume();
    await page.waitForFunction(()=>[...document.querySelectorAll('link[rel="stylesheet"]')].every(link=>!!link.sheet),null,{timeout:120000});

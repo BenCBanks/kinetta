@@ -31,6 +31,12 @@ async function waitForRouteStyles(p){
     await waitForRouteStyles(p);
     // Reuse the guarded context's live collectors throughout traversal.
     const writes=opened.writes,pageErrors=opened.pageErrors;
+    // First useful may precede the intentionally deferred route CSS and share-card leaf.
+    // Measure final layout only after those assets have loaded, never during their FOUC window.
+    await p.waitForFunction(()=>[...document.querySelectorAll('link[data-deferred-stylesheet]')].every(link=>['loaded','error'].includes(link.dataset.deferredLoad)),null,{timeout:10000});
+    assert(await p.evaluate(()=>[...document.querySelectorAll('link[data-deferred-stylesheet]')].every(link=>link.dataset.deferredLoad==='loaded')),'all deferred stylesheets load before spacing measurements');
+    await p.evaluate(()=>document.fonts.ready);
+    if(scene.modal==='share-card'||scene.modal==='card')await p.waitForFunction(()=>typeof KinettaCard!=='undefined',null,{timeout:10000});
     if(scene.todayPlan){
      const row=p.locator('#t-today [data-today-activity]'),title=row.locator('.me-today-copy > b');
      assert.equal(await row.count(),1,'The deterministic Me Today fixture renders its planned activity row');
