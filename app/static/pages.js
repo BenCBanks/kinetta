@@ -1577,6 +1577,7 @@ async function pMileage(body, q, {home=false}={}) {
                 dot.setAttribute('aria-label', `${points[i].periodLabel}: ${displayValue(points[i].value)}${statUnit ? ` ${statUnit}` : ''}`);
                 dot.setAttribute('r', i === selected ? '7' : (dot.dataset.baseRadius || dot.getAttribute('r')));
               });
+            const ringDot = dots[selected ?? points.findIndex(point => point.current)], ring = svgChart.querySelector('.progress-current-dot-ring'); if (ringDot && ring) { ring.setAttribute('cx', ringDot.getAttribute('cx')); ring.setAttribute('cy', ringDot.getAttribute('cy')); svgChart.append(ring); }
             };
             const choose = index => { selected = selected === index ? null : index; show(selected); };
             dots.forEach((dot, i) => {
@@ -1590,7 +1591,7 @@ async function pMileage(body, q, {home=false}={}) {
                 ring.setAttribute('cx', dot.getAttribute('cx')); ring.setAttribute('cy', dot.getAttribute('cy'));
                 ring.setAttribute('r', '8'); ring.setAttribute('fill', 'none'); ring.setAttribute('stroke', 'var(--accent)');
                 ring.setAttribute('stroke-width', '1.5'); ring.setAttribute('pointer-events', 'none'); ring.setAttribute('aria-hidden', 'true');
-                dot.parentNode.insertBefore(ring, dot);
+                svgChart.append(ring);
               }
               dot.onkeydown = e => {
                 const next = e.key === 'Home' ? 0 : e.key === 'End' ? dots.length - 1 : e.key === 'ArrowRight' ? Math.min(dots.length - 1, i + 1) : e.key === 'ArrowLeft' ? Math.max(0, i - 1) : null;
