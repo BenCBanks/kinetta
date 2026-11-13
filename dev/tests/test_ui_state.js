@@ -2,10 +2,10 @@
 'use strict';
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
 const saved = new Map();
-function client() {
+function client(brokenLookup = false) {
   const listeners = [], paintDefs = new Map(), ctx = {
     document: {currentScript: {src: 'https://example.test/static/app.js?v=ui-test'}, querySelector: () => null,
-      getElementById: id => paintDefs.get(id) || null,
+      getElementById: brokenLookup ? {} : id => paintDefs.get(id) || null,
       createElementNS: (namespace, tag) => ({id: '', classList: {add() {}}, setAttribute() {}, innerHTML: ''}),
       body: {append: node => paintDefs.set(node.id, node)},
       addEventListener: (type, fn) => { if (type === 'click') listeners.push(fn); }},
@@ -23,6 +23,7 @@ function client() {
 (async () => {
   let c = client();
   assert.match(c.paintDefs.get('kinetta-paint-defs').innerHTML, /linearGradient/);
+  assert.doesNotThrow(() => client(true), 'minimal DOM stubs may expose non-callable query methods');
   assert.equal(c.coachVersion({change: 'demo', effect: 'demo benefit'}), c.coachVersion({effect: 'demo benefit', change: 'demo'}), 'JSON field order does not change note identity');
   const key = c.coachKey('activity:10'), version = c.coachVersion('A made-up note.');
   const body = {hidden: false}, card = {dataset: {coachKey: key, coachVersion: version}, querySelector: () => body};
