@@ -161,6 +161,14 @@ const NLOG = [['log', 'Food log', 'What you ate, day by day', 'food', 'c-green']
 const NMORE = [['reminders', 'Meal reminders', 'Optional nudges at your usual meal times', 'bell', 'c-orange'],
   ...(!Native.on ? [['import', 'Add past days', 'Weight and calories from another app', 'upload', 'c-grey']] : [])];
 const NRANGED = ['overview', 'energy', 'macros'];
+const mealFoodEmoji = (entry, meal) => {
+  const name = String(entry?.name || '').toLowerCase();
+  if (/oat|yogurt|berry|cereal|toast/.test(name)) return '🥣';
+  if (/salad|bowl|rice|sandwich|soup/.test(name)) return '🥗';
+  if (/salmon|chicken|pasta|potato|dinner/.test(name)) return '🍽️';
+  if (/apple|fruit|snack|bar|nut/.test(name)) return '🍎';
+  return ({breakfast:'🥣', lunch:'🥗', dinner:'🍽️', snacks:'🍎'})[meal] || '🍽️';
+};
 function nHead(el, view, filters) {
   const v = [...NLOG, ...NPROG].find(m => m[0] === view), inProgress = location.pathname === '/progress';
   const q = new URLSearchParams(location.search), fromProgress = q.get('from') === 'progress';
@@ -291,9 +299,9 @@ function drawDay(el, D) {
   const by = {breakfast: [], lunch: [], dinner: [], snacks: []}; for (const e of D.entries) by[e.meal].push(e);
   $('#fd-meals', el).innerHTML = Object.keys(MEAL_NAMES).map((m) => {
     const list = by[m], kc = list.reduce((s, e) => s + e.kcal, 0);
-    if (!list.length) return `<section class="card meal meal-empty meal-${m}"><h2><span>${MEAL_NAMES[m]}</span><span class="meal-actions"><button class="icon-btn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">${svg('plus')}</button></span></h2><div class="meal-empty-state"><span class="meal-empty-mark" aria-hidden="true">+</span><span><b>No food logged</b><small>Add ${MEAL_NAMES[m].toLowerCase()} when you’re ready</small></span></div>${sameYesterdayMealMarkup(D,m,today)}</section>`;
+    if (!list.length) return `<section class="card meal meal-empty meal-${m}"><h2><span>${MEAL_NAMES[m]}</span><span class="meal-actions"><button class="icon-btn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">${svg('plus')}</button></span></h2><div class="meal-empty-state"><span class="meal-empty-mark" aria-hidden="true">🍽️</span><span><b>Nothing logged yet</b></span></div>${sameYesterdayMealMarkup(D,m,today)}</section>`;
     return `<section class="card meal meal-${m}"><h2><span>${MEAL_NAMES[m]}</span><span class="muted small num meal-total">${r0(kc)} kcal</span><span class="meal-actions"><button class="icon-btn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">${svg('plus')}</button><button class="icon-btn" data-more="${m}" aria-label="Edit ${MEAL_NAMES[m].toLowerCase()}">${svg('more')}</button></span></h2>
-      ${list.map((e) => { const fe = `<button class="fe${e.pending ? ' pending' : ' sw-row'}" data-id="${e.id}"><span class="vh">Edit </span><div><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></div>
+      ${list.map((e) => { const fe = `<button class="fe${e.pending ? ' pending' : ' sw-row'}" data-id="${e.id}"><span class="vh">Edit </span><div class="meal-food"><span class="meal-food-icon" aria-hidden="true">${mealFoodEmoji(e,m)}</span><span class="meal-food-copy"><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></span></div>
         <div class="r meal-calories"><b class="num">${r0(e.kcal)}</b> <small class="muted">kcal</small></div></button>`;
         // swipe left to remove (with Undo); Remove is also in the food's editor and the meal's Edit menu
         return e.pending ? fe : `<div class="swipe"><button type="button" class="sw-del" data-del="${e.id}" tabindex="-1">${svg('trash')}Remove</button>${fe}</div>`; }).join('')}
