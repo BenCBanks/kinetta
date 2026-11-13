@@ -880,7 +880,7 @@ async function foodWarmupCase(browser){
     await login(context);const page=await context.newPage(),errors=[],requests=[];page.on('pageerror',error=>errors.push(error.message));
     await filterRequests(page,route=>{requests.push(route.request().url());return route.continue();});
     await page.goto(base+'/me');await ready(page,meReady);assert.equal(requests.length,0,'Explore is absent from the initial Me load');assert.equal(await page.locator('.me-tools a[href="/me/explore"]').count(),1,'Explore remains available from Me');
-    await page.goto(base+'/me/explore');await ready(page,'#guide-results details','cold direct Explore route');assert.equal(requests.length,1,'cold direct links load Explore once');
+    await page.goto(base+'/me/explore');await ready(page,'.guide-hint','cold direct Explore route');assert.equal(requests.length,1,'cold direct links load Explore once');
     const lazyURL=new URL(requests[0]);assert.match(lazyURL.searchParams.get('v')||'',/^[0-9a-f]{32}$/,'the deferred bundle has its own build-stamped URL');
     assert.equal(new URL(page.url()).pathname,'/me/explore');assert.equal(await page.locator('nav.tabs a[data-tab="track"][aria-current="page"]').count(),1,'legacy Explore opens under Track');assert.deepEqual(await page.evaluate(()=>[typeof aiCan,typeof aiOffer,typeof kitChatOn]),['function','function','function'],'shared AI/Kit helpers stay eager');
     assert.deepEqual(errors,[],'Me and Explore load without browser errors');
@@ -892,7 +892,7 @@ async function foodWarmupCase(browser){
     await filterRequests(page,route=>{requests++;return requests===1?route.abort():route.continue();});
     await page.goto(base+'/me/explore',{waitUntil:'domcontentloaded'});await page.locator('.load-error').waitFor();
     assert.equal(new URL(page.url()).pathname,'/me/explore','a failed bundle keeps the legacy Explore URL');assert.equal(await page.locator('nav.tabs a[data-tab="track"][aria-current="page"]').count(),1,'the failed page remains in Track');assert(await page.locator('#retry').isVisible());
-    await page.locator('#retry').click();await ready(page,'#guide-results details','Explore after explicit retry');assert.equal(requests,2,'retry clears the failed promise and requests the bundle again');assert.deepEqual(errors,[]);
+    await page.locator('#retry').click();await ready(page,'.guide-hint','Explore after explicit retry');assert.equal(requests,2,'retry clears the failed promise and requests the bundle again');assert.deepEqual(errors,[]);
   }finally{await retryContext.close();}
 
   const scrollContext=await fixtureContext(browser);
@@ -902,8 +902,8 @@ async function foodWarmupCase(browser){
     await page.goto(base+'/me');await ready(page,meReady,'Me entry for Explore');
     await page.evaluate(()=>{App.scroll['/me/explore']=120;});
     await page.locator('.me-tools a[href="/me/explore"]').click();
-    await ready(page,'#guide-results details','deferred Explore with saved scroll');
-    assert.equal(await page.evaluate(()=>scrollY),120,'the deferred render restores the saved route position once');
+    await ready(page,'.guide-hint','deferred Explore with saved scroll');
+    assert.equal(await page.evaluate(()=>scrollY),await page.evaluate(()=>Math.min(120,Math.max(0,document.documentElement.scrollHeight-innerHeight))),'the deferred render restores the saved route position once');
   }finally{await scrollContext.close();}
 
   const navigationContext=await fixtureContext(browser);
@@ -923,7 +923,7 @@ async function foodWarmupCase(browser){
     assert(await page.locator('.lazy-route-loading').isVisible());
     await page.locator('nav.tabs a[data-tab="me"]').click();await ready(page,meReady,'new Me route while Explore is pending');
     const finished=page.waitForEvent('requestfinished',request=>new URL(request.url()).pathname==='/static/explore.js');delayed.release();await finished;await delayed.done;await page.waitForTimeout(100);
-    assert.equal(delayed.count(),1);assert.equal(new URL(page.url()).pathname,'/me');assert.equal(await page.locator('#guide-results').count(),0,'a stale route cannot replace newer Me navigation');assert.deepEqual(errors,[]);
+    assert.equal(delayed.count(),1);assert.equal(new URL(page.url()).pathname,'/me');assert.equal(await page.locator('.guide-hints').count(),0,'a stale route cannot replace newer Me navigation');assert.deepEqual(errors,[]);
   }finally{await navigationContext.close();}
 
   const accountContext=await fixtureContext(browser);
@@ -944,7 +944,7 @@ async function foodWarmupCase(browser){
     const meResponse=await accountContext.request.get(base+'/api/me');assert.equal(meResponse.status(),200,'second fictional account profile loads');
     await page.evaluate(me=>refreshMe(me),await meResponse.json());
     await until(page,()=>App.me.login==='zz_test_explore_typical'&&!!document.querySelector('.lazy-route-loading'),'new account owns the pending Explore shell');
-    delayed.release();await delayed.done;await ready(page,'#guide-results details','Explore after account change');
+    delayed.release();await delayed.done;await ready(page,'.guide-hint','Explore after account change');
     assert.deepEqual(await page.evaluate(()=>window.testDeferredPositions),[true],'only the current account’s deferred continuation reaches render');
     assert.deepEqual(await page.evaluate(()=>window.testExploreOwners),['zz_test_explore_typical'],'Explore mounts for the current fictional account');
     assert.equal(new URL(page.url()).pathname,'/me/explore');assert.deepEqual(errors,[]);

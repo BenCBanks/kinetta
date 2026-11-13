@@ -41,6 +41,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   assert.equal(await p.locator('#track-explore [data-track-feature=explore]').count(),0,'Explore is removed from Track');
   assert.equal(await p.locator('#track-explore [data-track-feature=past]').count(),0,'past logging is outside Track tools');
   assert.equal(await p.locator('#track-log-past').innerText(),'Log a past workout');assert.equal(await p.locator('#track-log-past').getAttribute('href'),'/track?past=1');
+  await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   const pastBox=await p.locator('#track-log-past').boundingBox(),startBox=await p.locator('#track-start').boundingBox();
   assert(pastBox.height>=44&&pastBox.y>=startBox.y+startBox.height-1,'Log a past workout is a 44px link under Start');
   assert.equal(await p.locator('#track-kind,.track-other').count(),0,'no extra global choice row');

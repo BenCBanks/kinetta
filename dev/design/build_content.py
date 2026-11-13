@@ -5,7 +5,6 @@ import html
 import json
 import hashlib
 import re
-import subprocess
 ROOT = Path(__file__).resolve().parents[2]
 
 def inline(text):
@@ -48,6 +47,5 @@ def build():
                         'url': 'https://kinetta.app/terms', 'privacy_url': 'https://kinetta.app/privacy'}
             (ROOT/'app/terms_document.json').write_text(json.dumps(document, indent=2)+'\n')
 
-    subprocess.run(['node', str(ROOT/'dev/design/build_guide.js')], check=True)
     print('Website copy rendered from site/content/*.md')
 if __name__ == '__main__': build()

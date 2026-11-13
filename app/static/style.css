@@ -1401,16 +1401,6 @@ html.keyboard-open nav.tabs { display: none; }
 .setup-body > div { min-width: 0; flex: 1; }
 .setup-body p { margin: 6px 0; font-size: 14px; }
 .setup-body small { color: var(--tx3); }
-.guide-search { margin: 18px 0 12px; }
-.guide-categories { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-.guide-categories button { min-height: 44px; border-radius: 999px; border: 1px solid var(--line); padding: 8px 16px; background: var(--card2); color: var(--tx); font-weight: 500; }
-.guide-categories button:focus-visible { border-radius: 999px; }
-.guide-categories [aria-pressed="true"] { background: var(--card2); color: var(--tx); border-color: var(--color-outline); }
-.feature-guide-card h2 { margin: 8px 0; }
-.feature-guide-card p { color: var(--tx2); }
-.feature-guide-card summary { cursor: pointer; min-height: 44px; padding-block: 12px; }
-.guide-open { display: flex; gap: 8px; justify-content: space-between; align-items: center; min-height: 44px; margin-top: 8px; color: var(--accent); font-weight: 650; }
-.guide-open svg { width: 20px; height: 20px; flex: none; }
 .meal-library-row { display: flex; gap: 8px; margin-bottom:8px; align-items: center; border-bottom: 1px solid var(--line); }
 .meal-library-row .fe { flex: 1; min-width: 0; border-bottom: 0; }
 .meal-library-row > .icon-btn { flex: none; }
@@ -2420,14 +2410,6 @@ html:has(.recipe-page) nav.tabs { display: none; }
 .progress-view-title { font: 650 var(--text-app-section)/1.2 var(--display); margin: 8px 0 12px; }
 
 /* Discovery: choose a category, then open just the guidance you need. */
-.guide-categories { display: grid; gap: 6px; margin: 12px 0; }
-.feature-guide-card { padding: 0 14px; }
-.feature-guide-card summary { display: flex; align-items: center; gap: 12px; min-height: 64px; }
-.feature-guide-card summary::after { content: '+'; margin-left: auto; color: var(--accent); font-size: 20px; }
-.feature-guide-card details[open] > summary::after { content: '−'; }
-.feature-guide-card summary small, .feature-guide-card summary b { display: block; }
-.feature-guide-card summary b { font-size: 1rem; margin-top: 3px; }
-.feature-guide-card .guide-open { margin-bottom: 12px; }
 
 /* Map controls remain comfortable to tap over light or dark tiles. */
 body .leaflet-bar a, body .leaflet-touch .leaflet-bar a { width: 44px; height: 44px; line-height: 44px; background: var(--card); color: var(--tx); }
