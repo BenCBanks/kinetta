@@ -18,7 +18,7 @@ assert.deepEqual(single({sections:['recent','sports']}),['recent','sports'],'a R
 assert.deepEqual(single({sections:[]}),[],'hidden numbers remain hidden');assert.deepEqual(single({}),['totals','mileage','sports','activities'],'old defaults render All time without changing stored data');
 console.log('Profile presentation: section order/visibility, selected stats/sports, no private or unknown fields, empty profiles and upgraded defaults PASS');
 
-// Milestone distances follow the named tier's unit, regardless of general app units.
+// Achievement distances use the account's selected unit, including fixed-kilometre named tiers.
 const catalog=JSON.parse(fs.readFileSync('app/static/profile.achievement-levels.json','utf8'));
 c.achievementUnits.catalog(catalog);
 for(const units of ['metric','imperial']){
@@ -26,12 +26,13 @@ for(const units of ['metric','imperial']){
  for(const code of ['journey','sport:run','sport:ride','sport:walk-hike','sport:swim']){
   const track={code,value:0},definition=catalog.tracks[code];
   for(let rank=1;rank<=definition.levels.length+2;rank++){
-   const tier=c.achievementUnits.tier(code,rank),unit=tier.display==='km-fixed'?'km':'mi';
-   assert.equal(c.achievementUnits.threshold(track,tier).split(' ').at(-1),unit,`${units}: ${code} ${tier.name} uses its milestone unit`);
-   assert.equal(c.achievementUnits.remaining(track,tier).split(' ').slice(-2).join(' '),unit+' left',`${units}: remaining distance uses the same unit`);
+   const tier=c.achievementUnits.tier(code,rank),unit=units==='metric'?'km':'mi';
+   assert.equal(c.achievementUnits.threshold(track,tier).split(' ').at(-1),unit,`${units}: ${code} ${tier.name} follows account units`);
+   assert.equal(c.achievementUnits.remaining(track,tier).split(' ').slice(-2).join(' '),unit+' left',`${units}: remaining distance follows account units`);
   }
  }
- for(const [code,rank,name,label] of [['sport:run',1,'5K','5 km'],['sport:run',5,'50-mile ultra','50 mi'],['sport:ride',3,'Metric century','100 km'],['sport:ride',4,'Century','100 mi'],['sport:swim',1,'First mile','1 mi'],['journey',2,'Ironman 70.3','70.3 mi'],['sport:run',10,'1,000 miles ×2','2,000 mi']]){
+ const labels=units==='metric'?[['sport:run',1,'5K','5 km'],['sport:run',5,'50-mile ultra','80.5 km'],['sport:ride',3,'Metric century','100 km'],['sport:ride',4,'Century','160.9 km'],['sport:swim',1,'First mile','1.6 km'],['journey',2,'Ironman 70.3','113.1 km'],['sport:run',10,'1,000 miles ×2','3,218.7 km']]:[['sport:run',1,'5K','3.1 mi'],['sport:run',5,'50-mile ultra','50 mi'],['sport:ride',3,'Metric century','62.1 mi'],['sport:ride',4,'Century','100 mi'],['sport:swim',1,'First mile','1 mi'],['journey',2,'Ironman 70.3','70.3 mi'],['sport:run',10,'1,000 miles ×2','2,000 mi']];
+ for(const [code,rank,name,label] of labels){
   const tier=c.achievementUnits.tier(code,rank);
   assert.equal(tier.name,name,`${units}: milestone names are stable`);
   assert.equal(c.achievementUnits.threshold({code},tier),label,`${units}: ${name} has one distance label`);

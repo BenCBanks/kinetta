@@ -45,6 +45,7 @@ const ProfileLayout=(()=>{
     footprints:'<path d="M8 13.1c-1.8-.2-3.3 1.6-3.7 4.1-.3 2.1.6 3.6 2.1 3.8 1.8.2 3.4-1.5 3.8-3.9.3-2.2-.6-3.7-2.2-4Zm-.3-3.3c1.2 0 2.1-1.7 2-3.6S8.7 3 7.5 3 5.4 4.7 5.5 6.6s.9 3.2 2.2 3.2Zm4.2 1.3c1.1-.5 1.3-2.3.5-4s-2-2.6-3.1-2.1-1.3 2.3-.5 4 2 2.6 3.1 2.1Zm7.1 2c-1.6-.5-3.1.9-3.8 3.2-.6 2.1 0 3.8 1.5 4.3 1.7.5 3.4-.9 4.1-3 .6-2.2 0-4-1.8-4.5Zm-2.4-3.4c1.1-.2 1.7-2 1.3-3.8s-1.5-3-2.7-2.7-1.8 2-1.4 3.8 1.6 2.9 2.8 2.7Z"/>'
   };
   const achievementNumber=n=>Number.isFinite(Number(n))?Number(n).toLocaleString(undefined,{maximumFractionDigits:1}):'—';
+  const achievementCompactNumber=n=>{const value=Number(n),absolute=Math.abs(value);if(!Number.isFinite(value))return '—';if(absolute>=1e9)return `${achievementNumber(value/1e9)}b`;if(absolute>=1e6)return `${achievementNumber(value/1e6)}m`;if(absolute>=1e5)return `${Math.round(value/1e3)}k`;if(absolute>=1e3)return `${achievementNumber(value/1e3)}k`;return achievementNumber(value);};
   let achievementTextMeasure=null;
   function achievementTextWidth(text,size,{fontFamily='sans-serif',fontWeight='700',fontStyle='normal'}={}){
     if(!achievementTextMeasure&&typeof document!=='undefined')achievementTextMeasure=document.createElement('canvas').getContext('2d');
@@ -201,7 +202,7 @@ const ProfileLayout=(()=>{
     if(tier?.trigger==='first_activity')return 'First activity';
     if(['journey','sport:run','sport:ride','sport:walk-hike','sport:swim'].includes(code)){
       const km=canonicalUnit==='km'?raw:raw/1000;
-      const metric=tier?.display==='km-fixed',value=metric?km:Number.isFinite(hint)?hint:km*1000/1609.344;
+      const metric=App.me?.units==='metric',value=metric?km:km*1000/1609.344;
       return `${achievementNumber(value)} ${metric?'km':'mi'}`;
     }
     if(code==='climbing')return `${achievementNumber(imperial&&Number.isFinite(hint)?hint:raw)} ${imperial?'ft':'m'}`;
@@ -215,12 +216,26 @@ const ProfileLayout=(()=>{
     if(tier?.trigger==='first_activity')return 'First activity to go';
     const raw=Math.max(0,Number(tier?.threshold)-achievementRawValue(track)),imperial=App.me?.units!=='metric',code=track.code;
     let value=raw,unit=achievementDefinition(track)?.levels?.[0]?.canonical_unit||'';
-    if(['journey','sport:run','sport:ride','sport:walk-hike','sport:swim'].includes(code)){const metric=tier?.display==='km-fixed';value=raw/(metric?1000:1609.344);unit=metric?'km':'mi';}
+    if(['journey','sport:run','sport:ride','sport:walk-hike','sport:swim'].includes(code)){const metric=App.me?.units==='metric';value=raw/(metric?1000:1609.344);unit=metric?'km':'mi';}
     else if(code==='climbing'){value=raw*(imperial?3.28084:1);unit=imperial?'ft':'m';}
     else if(code==='lifted'){value=raw*(imperial?2.2046226218:1);unit=imperial?'lb':'kg';}
     else if(code==='active_time'){value=raw/3600;unit='hours';}
     if(code==='personal_bests')return `${achievementNumber(value)} ${value===1?'personal best':'personal bests'} left`;
     return `${achievementQuantity(value,unit)} left`;
+  }
+  function achievementShortThreshold(track,tier){
+    const text=achievementThresholdText(track,tier),match=text.match(/^([\d,]+(?:\.\d+)?)\s+(.+)$/);
+    if(!match)return text;
+    const value=Number(match[1].replaceAll(',','')),unit=match[2];
+    const shownUnit=unit.replace(/^personal bests?$/,'best'+(value===1?'':'s'));
+    return `${achievementCompactNumber(value)} ${shownUnit}`;
+  }
+  function achievementShortRemaining(track,tier){
+    const text=achievementRemainingText(track,tier).replace(/ (?:left|to go)$/,''),match=text.match(/^([\d,]+(?:\.\d+)?)\s+(.+)$/);
+    if(!match)return text;
+    const amount=achievementCompactNumber(Number(match[1].replaceAll(',',''))),unit=match[2];
+    const namedWithThreshold=['personal_bests','workouts','active_time','consistency','years_active','sport:lift'].includes(track.code);
+    return `${amount}${namedWithThreshold?'':` ${unit}`}`;
   }
   function achievementLevelRow(track,tier,currentLevel,earnedTiers=new Map()){
     const next=tier.level===currentLevel+1,state=tier.level===currentLevel?'is-current':tier.level<currentLevel?'is-earned':next?'is-next':'is-upcoming',status=tier.level===currentLevel?'Current level':tier.level<currentLevel?'Earned':next?'Next level':'Coming up';
@@ -279,10 +294,9 @@ const ProfileLayout=(()=>{
   }
   function achievementTrackStarted(track){return achievementLevel(track)>0||achievementRawValue(track)>0||(Array.isArray(track?.tiers)&&track.tiers.some(tier=>Number(tier?.rank)>0));}
   function achievementMedalValue(track,{small=false}={}){
-    const value=achievementValue(track);if(!small&&value.length<=9)return value;
+    const value=achievementValue(track);if(!small&&value.length<=8)return value;
     const raw=Number(track.display_value),unit=String(track.display_unit||'').toLowerCase();if(!Number.isFinite(raw))return value;
-    const compact=number=>{const n=Math.abs(number);if(n>=1e9)return `${achievementNumber(number/1e9)}b`;if(n>=1e6)return `${achievementNumber(number/1e6)}m`;if(n>=1e5)return `${Math.round(number/1e3)}k`;if(n>=1e3)return `${achievementNumber(number/1e3)}k`;return achievementNumber(number);};
-    const amount=compact(raw),shortUnit=({hour:'h',hours:'h',h:'h',week:'wk',weeks:'wk',year:'yr',years:'yr',workout:'wkt',workouts:'wkt',session:'sess',sessions:'sess',mi:'mi',km:'km',ft:'ft',m:'m',lb:'lb',kg:'kg'})[unit];
+    const amount=achievementCompactNumber(raw),shortUnit=({hour:'h',hours:'h',h:'h',week:'wk',weeks:'wk',year:'yr',years:'yr',workout:'wkt',workouts:'wkt',session:'sess',sessions:'sess',mi:'mi',km:'km',ft:'ft',m:'m',lb:'lb',kg:'kg'})[unit];
     return `${amount}${shortUnit?' '+shortUnit:''}`;
   }
   function earnedBadges(data){
@@ -324,16 +338,37 @@ const ProfileLayout=(()=>{
     return{label:'Achievements',filename:'kinetta-achievements.png',valid:live,build:async()=>{const badges=await read(),key=signature(badges),picture=await earnedAchievementPicture(badges,live);if(!live())throw Error('The account changed.');builtSignature=key;return picture;},beforeShare:confirmCurrent,beforeSave:confirmCurrent};
   }
   const achievementSections=[
-    {id:'overall',title:'Overall',codes:['consistency','workouts','active_time','years_active','personal_bests']},
-    {id:'distance',title:'Distance',codes:['journey','sport:run','sport:ride','sport:walk-hike','sport:swim','climbing']},
-    {id:'strength',title:'Strength',codes:['lifted','sport:lift']}
+    {id:'overall',title:'Overall',codes:['workouts','active_time','consistency','years_active','personal_bests','journey','climbing']},
+    {id:'run',title:'Run',codes:['sport:run'],nextBadge:true},
+    {id:'ride',title:'Ride',codes:['sport:ride'],nextBadge:true},
+    {id:'walk-hike',title:'Walk & hike',codes:['sport:walk-hike'],nextBadge:true},
+    {id:'swim',title:'Swim',codes:['sport:swim'],nextBadge:true},
+    {id:'strength',title:'Strength',codes:['sport:lift','lifted'],nextBadge:true}
   ];
+  function achievementTrackLadder(track,{shared=false,login='',pinnedCodes=new Set(),showTitle=true}={}){
+    const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),levels=achievementLevels(track),count=levels.length,current=achievementCurrentTier(track),next=achievementTierAt(track.code,level+1),progress=Math.round(achievementProgress(track)*100),pinned=pinnedCodes.has(track.code),canPin=level>0;
+    const href=login?`/people/${encodeURIComponent(login)}?view=achievements&track=${encodeURIComponent(track.code)}`:achievementHref(track);
+    const levelText=level>count?`Level ${level}`:`Level ${level} of ${count}`;
+    const summary=shared?`${levelText}${current?` · ${current.name}`:''}`:`${levelText}${next?` · Next ${achievementShortThreshold(track,next)} · ${achievementShortRemaining(track,next)} to go`:''}`;
+    const headerLabel=`${label}, ${summary}. Open achievement levels${pinned?', Pinned to profile':''}`;
+    const earnedLevels=shared?levels.filter(tier=>tier.level<=level):levels;
+    const badges=earnedLevels.map(tier=>{
+      const earned=tier.level<=level,isNext=!shared&&tier.level===level+1,state=earned?'is-earned':isNext?'is-next':'is-upcoming',threshold=achievementThresholdText(track,tier),status=earned?'earned':isNext?'next level':'coming up';
+      const bar=isNext?`<span class="profile-achievement-ladder-progress" role="progressbar" data-achievement-progress aria-label="Progress to ${esc(tier.name)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span data-progress-fill></span></span>`:'';
+      return `<a class="profile-achievement-ladder-badge ${state}" role="listitem" href="${esc(href)}" data-level="${tier.level}" aria-label="${esc(`${label}, ${tier.name}, ${threshold}, ${status}`)}"><span class="profile-achievement-medallion" data-level="${tier.level}" data-level-tone="${tier.level>=6?'deep':tier.level}" aria-hidden="true">${achievementAsset(tier)}${bar}</span><span class="profile-achievement-ladder-name">${esc(tier.name)}</span><span class="profile-achievement-ladder-threshold">${esc(threshold)}</span></a>`;
+    }).join('');
+    const tailEnabled=Boolean(achievementCatalog?.tail),tailEarned=level>count,tailMultiple=Math.max(2,level-count+1),last=levels.at(-1);
+    const tail=tailEnabled&&last&&(!shared||tailEarned)?`<a class="profile-achievement-ladder-badge profile-achievement-ladder-tail ${tailEarned?'is-earned':'is-upcoming'}" role="listitem" href="${esc(href)}" aria-label="${esc(`${label}, repeat levels ${tailEarned?`through ×${tailMultiple}`:'from ×2'}, opens achievement levels`)}"><span class="profile-achievement-medallion" data-level="${last.level}" data-level-tone="${last.level>=6?'deep':last.level}" aria-hidden="true">${achievementAsset(last)}${!shared&&tailEarned?`<span class="profile-achievement-ladder-progress" role="progressbar" data-achievement-progress aria-label="Progress to repeat level ×${tailMultiple+1}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span data-progress-fill></span></span>`:''}</span><span class="profile-achievement-ladder-name">${shared?`×${tailMultiple}`:tailEarned?`×${tailMultiple}, ×${tailMultiple+1}…`:'×2, ×3…'}</span></a>`:'';
+    const description=`Long press to ${pinned?'remove this medal from':'pin this medal to'} your profile.`;
+    return `<section class="profile-achievement-track" data-achievement-code="${esc(track.code)}"><a class="profile-achievement profile-achievement-track-head" href="${esc(href)}" aria-label="${esc(headerLabel)}" aria-description="${esc(description)}" data-achievement-code="${esc(track.code)}" data-showcase-pinned="${pinned}" data-showcase-eligible="${canPin}" data-achievement-pin-target="true">${showTitle?`<span class="profile-achievement-track-title">${esc(label)}</span>`:''}<span class="profile-achievement-track-summary">${esc(summary)}</span></a><div class="profile-achievement-ladder" role="list" aria-label="${esc(`${label} achievement levels`)}">${badges}${tail}</div></section>`;
+  }
   function achievementGrid(tracks,levelUps,pinnedCodes=new Set()){
+    const byCode=new Map(tracks.map(track=>[track.code,track]));
     return achievementSections.map(section=>{
-      const grouped=achievementDisplayOrder(tracks.filter(track=>section.codes.includes(track.code)));
+      const grouped=section.codes.map(code=>byCode.get(code)).filter(Boolean);
       if(!grouped.length)return '';
       const id=`profile-achievement-group-${section.id}`;
-      return `<section class="profile-achievement-group" aria-labelledby="${id}"><h2 class="sec-head profile-achievement-group-title" id="${id}">${section.title}</h2><div class="profile-achievement-list is-grid" role="list" aria-labelledby="${id}">${grouped.map(track=>achievementRow(track,levelUps,pinnedCodes,true)).join('')}</div></section>`;
+      return `<section class="profile-achievement-group" aria-labelledby="${id}"><h2 class="sec-head profile-achievement-group-title" id="${id}">${section.title}</h2><div class="profile-achievement-list is-grid is-overview is-ladder-list" role="list" aria-labelledby="${id}">${grouped.map(track=>achievementTrackLadder(track,{pinnedCodes,showTitle:grouped.length>1})).join('')}</div></section>`;
     }).join('');
   }
   function sharedAchievementGrid(tracks,login){
@@ -341,7 +376,7 @@ const ProfileLayout=(()=>{
       const grouped=tracks.filter(track=>section.codes.includes(track.code)).sort((a,b)=>achievementDay(b).localeCompare(achievementDay(a))||achievementLevel(b)-achievementLevel(a));
       if(!grouped.length)return '';
       const id=`profile-achievement-group-${section.id}`;
-      return `<section class="profile-achievement-group" aria-labelledby="${id}"><h2 class="sec-head profile-achievement-group-title" id="${id}">${section.title}</h2><div class="profile-achievement-list is-grid" role="list" aria-labelledby="${id}">${grouped.map(track=>track._sharedLegacyOnly?sharedLegacyOnlyRow(track,login):sharedAchievementRow(track,login)).join('')}</div></section>`;
+      return `<section class="profile-achievement-group" aria-labelledby="${id}"><h2 class="sec-head profile-achievement-group-title" id="${id}">${section.title}</h2><div class="profile-achievement-list is-grid is-overview is-ladder-list" role="list" aria-labelledby="${id}">${grouped.map(track=>track._sharedLegacyOnly?sharedLegacyOnlyRow(track,login):achievementTrackLadder(track,{shared:true,login,showTitle:grouped.length>1})).join('')}</div></section>`;
     }).join('');
   }
   function sharedLegacyOnlyRow(track,login=''){
@@ -354,19 +389,24 @@ const ProfileLayout=(()=>{
     const description=ownerFeatured?'':`<span class="profile-achievement-next"${secondary}>${esc(`Level ${level}${tier?` · ${tier.name}`:''}`)}</span>`;
     return `<a class="profile-achievement${featured?' me-featured-item':''}" role="listitem" href="${esc(href)}" aria-label="${esc(`${label}, Level ${level}${tier?`, ${tier.name}`:''}, ${achievementValue(track)}`)}" data-achievement-code="${esc(track.code)}"${featured?` data-showcase-code="${esc(track.code)}"`:''}>${achievementMedallion(track,{featured})}<span class="profile-achievement-name"${secondary}>${esc(label)}</span>${description}</a>`;
   }
-  function achievementMedallion(track,{featured=false}={}){
+  function achievementMedallion(track,{featured=false,showMultiple=true}={}){
     const started=achievementTrackStarted(track),level=achievementLevel(track),value=started?achievementMedalValue(track,{small:featured}):'',tier=achievementCurrentTier(track)||achievementTierAt(track.code,1);
     const tone=level>=6?'deep':String(level),secondary=featured?' data-type="secondary"':'';
-    return `<span class="profile-achievement-medallion" data-level="${level}" data-level-tone="${tone}" aria-hidden="true">${achievementAsset(tier)||achievementGlyph(track)}${started?`<span class="profile-achievement-value"${secondary}>${esc(value)}</span><span class="profile-achievement-level"${secondary}>Lv ${level}</span>${Number(tier?.multiple)>1?`<span class="profile-achievement-multiple"${secondary}>×${Number(tier.multiple)}</span>`:''}`:''}</span>`;
+    return `<span class="profile-achievement-medallion" data-level="${level}" data-level-tone="${tone}" aria-hidden="true">${achievementAsset(tier)||achievementGlyph(track)}${started?`<span class="profile-achievement-value"${secondary}>${esc(value)}</span><span class="profile-achievement-level"${secondary}>Lv ${level}</span>${showMultiple&&Number(tier?.multiple)>1?`<span class="profile-achievement-multiple"${secondary}>×${Number(tier.multiple)}</span>`:''}`:''}</span>`;
   }
-  function achievementRow(track,levelUps=new Set(),pinnedCodes=new Set(),showLevelCount=false){
+  function achievementNextMedallion(track,tier){
+    if(!tier)return '';
+    const tone=tier.level>=6?'deep':String(tier.level),threshold=achievementShortThreshold(track,tier);
+    return `<span class="profile-achievement-medallion profile-achievement-next-medallion" data-level="${tier.level}" data-level-tone="${tone}" aria-hidden="true">${achievementAsset(tier)}<span class="profile-achievement-value">${esc(threshold)}</span><span class="profile-achievement-level">Lv ${tier.level}</span></span>`;
+  }
+  function achievementRow(track,levelUps=new Set(),pinnedCodes=new Set(),showLevelCount=false,showNextBadge=false){
     const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),tier=achievementCurrentTier(track),value=achievementValue(track),next=achievementNext(track),up=levelUps.has(track.code),pinned=pinnedCodes.has(track.code),canPin=level>0,started=achievementTrackStarted(track),earned=level>0,first=achievementTierAt(track.code,1),namedCount=achievementDefinition(track)?.levels?.length||0,maximum=namedCount&&!achievementCatalog?.tail?` of ${namedCount}`:'';
-    const nextTier=achievementTierAt(track.code,level+1),remaining=nextTier?achievementRemainingText(track,nextTier):'',requirement=first?achievementThresholdText(track,first):'the first level',progress=showLevelCount?Math.round(achievementProgress(track)*100):0;
-    const aria=earned?`${label}, Level ${level}${maximum}${tier?` ${tier.name}`:''}, ${value}${next?`. Next ${next}`:''}${pinned?', Pinned to profile':''}`:`${label}, future reward, ${started?'In progress':'Not started'}${nextTier?`. ${remaining} (${nextTier.name})`:''}`;
+    const nextTier=achievementTierAt(track.code,level+1),captionTier=nextTier||first,remaining=captionTier?achievementShortRemaining(track,captionTier):'',threshold=captionTier?achievementShortThreshold(track,captionTier):'',repeat=Number(captionTier?.multiple)>1?` (×${Number(captionTier.multiple)})`:'',caption=!earned&&first?`Start: ${achievementShortThreshold(track,first)}`:nextTier?`Next ${threshold}${repeat} · ${remaining} to go`:next?`Next ${next}`:'All levels earned',requirement=first?achievementThresholdText(track,first):'the first level',progress=showLevelCount?Math.round(achievementProgress(track)*100):0;
+    const aria=earned?`${label}, Level ${level}${maximum}${tier?` ${tier.name}`:''}, ${value}. ${caption}${pinned?', Pinned to profile':''}`:`${label}, ${started?'In progress':'Not started'}. ${caption}`;
     const description=showLevelCount&&!earned?`Future reward. ${started?'In progress. ':'Not started. '}First reward: ${first?.name||'the first level'}; requires ${requirement}.`:showLevelCount&&!canPin?'In progress. Earn a level to feature this achievement.':`Long press to ${pinned?'remove this medal from':'pin this medal to'} your profile.`;
     const progressBar=showLevelCount?`<span class="profile-achievement-overview-progress" role="progressbar" data-achievement-progress aria-label="Progress to ${earned?'the next':'the first'} level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span data-progress-fill></span></span>`:'';
-    const detail=showLevelCount?(nextTier?[nextTier.name,remaining].filter(Boolean).join(' · '):remaining||'All levels earned'):(next?`Next · ${next}`:'Highest tier');
-    return `<a class="profile-achievement${up?' is-level-up':''}${showLevelCount&&!earned?' is-future':''}${showLevelCount&&!started?' is-unstarted':''}" role="listitem" href="${esc(achievementHref(track))}" aria-label="${esc(aria)}" aria-description="${esc(description)}" data-achievement-code="${esc(track.code)}" data-showcase-pinned="${pinned}" data-showcase-eligible="${canPin}">${achievementMedallion(track)}<span class="profile-achievement-name">${esc(label)}</span>${progressBar}<span class="profile-achievement-next">${esc(detail)}</span></a>`;
+    const detail=showLevelCount?caption:(next?`Next · ${next}`:'Highest tier'),medals=showNextBadge?`${earned?achievementMedallion(track,{showMultiple:false}):''}${achievementNextMedallion(track,captionTier)}`:earned?achievementMedallion(track,{showMultiple:false}):achievementNextMedallion(track,first),singleBadge=showNextBadge&&!earned;
+    return `<a class="profile-achievement${up?' is-level-up':''}${showLevelCount&&!earned?' is-future':''}${showLevelCount&&!started?' is-unstarted':''}${singleBadge?' is-single-medal':''}" role="listitem" href="${esc(achievementHref(track))}" aria-label="${esc(aria)}" aria-description="${esc(description)}" data-achievement-code="${esc(track.code)}" data-showcase-pinned="${pinned}" data-showcase-eligible="${canPin}">${showNextBadge?`<span class="profile-achievement-medals">${medals}</span>`:medals}<span class="profile-achievement-name">${esc(label)}</span>${progressBar}<span class="profile-achievement-next">${esc(detail)}</span></a>`;
   }
   function achievementLevelUps(data){
     const owner=App.me?.id;if(owner==null)return new Set();
@@ -477,7 +517,7 @@ const ProfileLayout=(()=>{
     if(!box.querySelector('.profile-achievement-list.is-grid'))return;
     const owner=readOwner();
     let press=null,timer=0,suppressClick=false,suppressTimer=0,disposed=false;
-    const pinAnchor=target=>{const anchor=target?.closest?.('.profile-achievement');return anchor&&box.contains(anchor)&&anchor.closest('.profile-achievement-list.is-grid')&&anchor.dataset.showcaseEligible==='true'?anchor:null;};
+    const pinAnchor=target=>{const anchor=target?.closest?.('[data-achievement-pin-target="true"]');return anchor&&box.contains(anchor)&&anchor.closest('.profile-achievement-list.is-grid')&&anchor.dataset.showcaseEligible==='true'?anchor:null;};
     const clearPress=()=>{clearTimeout(timer);timer=0;press=null;};
     const suppress=()=>{suppressClick=true;clearTimeout(suppressTimer);suppressTimer=setTimeout(()=>{suppressClick=false;},900);};
     const openOptions=anchor=>{
@@ -491,7 +531,7 @@ const ProfileLayout=(()=>{
             const result=await api('/api/achievements/showcase/pin',json('POST',{code,pinned:!pinned}));
             if(!box.isConnected||owner!==readOwner())return;
             pinnedCodes.clear();for(const item of Array.isArray(result?.pinned)?result.pinned:[])pinnedCodes.add(String(item));
-            box.querySelectorAll('.profile-achievement-list.is-grid .profile-achievement').forEach(row=>{
+            box.querySelectorAll('.profile-achievement-list.is-grid [data-achievement-pin-target="true"]').forEach(row=>{
               const active=pinnedCodes.has(row.dataset.achievementCode);row.dataset.showcasePinned=String(active);
               const label=row.getAttribute('aria-label')||'';row.setAttribute('aria-label',label.replace(/, Pinned to profile$/,'')+(active?', Pinned to profile':''));
               row.setAttribute('aria-description',`Long press to ${active?'remove this medal from':'pin this medal to'} your profile.`);
