@@ -10,54 +10,6 @@ What Kinetta does.
 
 Real app screens, demo data.
 
-## tour-training-heading
-
-Review a workout.
-
-## tour-training-description
-
-The route, then the numbers.
-
-## tour-lifting-heading
-
-Log a set as you go.
-
-## tour-lifting-description
-
-Last time’s weight and reps sit beside each set.
-
-## tour-food-heading
-
-Log what you eat.
-
-## tour-food-description
-
-Every food and amount, with the day’s totals.
-
-## tour-progress-heading
-
-See your weeks add up.
-
-## tour-progress-description
-
-Totals by week, month and year.
-
-## tour-sharing-heading
-
-Choose who sees your workouts.
-
-## tour-sharing-description
-
-Set a default for new workouts. Change any single workout when you edit it.
-
-## tour-sharing-default-label
-
-**New workouts** · Settings
-
-## tour-sharing-workout-label
-
-**One workout** · Edit
-
 ## us-prices-from-strava-https-www-strava-com-subscribe-a-3
 
 Pricing for the hosted service hasn’t been announced.
