@@ -272,6 +272,15 @@ class Review(unittest.TestCase):
   self.confirm(review2,log_today=False,log_weight=True,weight_kg=68.9)
   with db.connect() as c:self.assertEqual(c.execute('SELECT kg FROM weights WHERE user_id=%s AND day=%s',(self.ids[0],FIXTURE_TODAY-dt.timedelta(days=1))).fetchone()['kg'],68.9)
 
+ def test_two_body_weights_in_one_message_are_clarified_without_food_or_weight(self):
+  for text in ('Oatmeal, weighed 165.4 lbs and 160 lbs','I weighed 165.4 lbs, then 160 lbs'):
+   m,_=self.send(text,review=False)
+   result=next(x['result'] for x in self.a.get('/api/food/thread').json()['messages'] if x.get('reply_to')==m['id'])
+   self.assertEqual(result['intent'],'weight_clarification')
+   self.assertIn('more than one body weight',result['text'])
+  self.assertEqual(self.rows('food_entries'),[])
+  with db.connect() as c:self.assertEqual(c.execute('SELECT count(*) AS n FROM weights WHERE user_id=%s',(self.ids[0],)).fetchone()['n'],0)
+
  def test_old_client_auto_log_preference_still_works(self):
   self.food('Fictional rice');self.send('1 serving fictional rice',review=False);self.assertEqual(len(self.rows('food_entries')),1)
 

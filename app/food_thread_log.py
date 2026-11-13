@@ -201,6 +201,9 @@ def process(c,uid,message):
         return compose.begin(c,uid,message,{'items':[],'issued':int(time.time())})
     from . import food_thread_weight as body_weight
     weight=body_weight.parse(c,uid,message['body'],message['local_day'])
+    if weight and weight.get('ambiguous'):
+        return food_thread.finish_reply(c,uid,message,{'kind':'answer','intent':'weight_clarification','source':'code',
+            'text':'I found more than one body weight. Send one weigh-in at a time so I can save the right one.'})
     if weight and weight.get('invalid'):
         return food_thread.finish_reply(c,uid,message,{'kind':'answer','intent':'weight_clarification','source':'code',
             'text':'That weight is outside the range I can save. Check the number and unit, then send it again.'})

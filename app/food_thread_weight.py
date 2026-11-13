@@ -9,10 +9,22 @@ STATEMENT = re.compile(
     r"|\bi(?:'m|\s+am)\s+(?P<n2>\d{2,3}(?:[.,]\d+)?)\s*(?P<u2>kg|kgs?|kilograms?|lb|lbs?|pounds?)\b)"
     r"(?P<when>\s+(?:today|yesterday|this\s+morning|this\s+evening))?\s*$", re.I)
 
+# A meal message may contain one body-weight statement, but two values cannot
+# be saved safely as one weigh-in. Catch the common "165 lb and 160 lb" form
+# before the food parser treats the second value as another food.
+MULTIPLE = re.compile(
+    r"\b(?:weighed|weight(?:\s+(?:is|of))?|scale\s+said|i(?:'m|\s+am))\s*"
+    r"\d{2,3}(?:[.,]\d+)?\s*(?:kg|kgs?|kilograms?|lb|lbs?|pounds?)?"
+    r"\s*(?:,|and|or|then|/)\s*(?:then\s+)?"
+    r"(?:weighed\s+|weight(?:\s+(?:is|of))?\s+|scale\s+said\s+|i(?:'m|\s+am)\s+)?"
+    r"\d{2,3}(?:[.,]\d+)?\s*(?:kg|kgs?|kilograms?|lb|lbs?|pounds?)?\b", re.I)
+
 
 def parse(c, uid, body, anchor):
     """Return a normalized weigh-in and remaining food words, or None."""
     text=body.strip().rstrip(' .!?')
+    if MULTIPLE.search(text):
+        return {'ambiguous':True,'food':text}
     match=STATEMENT.search(text)
     if not match:return None
     number=(match.group('n') or match.group('n2') or '').replace(',','.')
