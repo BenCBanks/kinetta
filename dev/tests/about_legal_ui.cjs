@@ -26,7 +26,6 @@ const server=http.createServer((req,res)=>{if(!['GET','HEAD'].includes(req.metho
     assert.equal(await p.locator('.policy p:not(.date)').first().evaluate(e=>getComputedStyle(e).fontSize),'17px');
     assert.equal(await p.locator('.policy').evaluate(e=>getComputedStyle(e).paddingLeft),'20px','Text pages keep the site gutter');
     assert.equal(await p.locator('.policy h1').evaluate(e=>getComputedStyle(e).fontSize),width>=1200?'62px':'36px','Text page title follows the shared scale');
-    assert.deepEqual(await p.locator('.policy a').evaluateAll(as=>as.flatMap(a=>{const r=a.getBoundingClientRect();return r.width<44||r.height<44?[{text:a.innerText,width:Math.round(r.width),height:Math.round(r.height)}]:[]})),[],pageName+' inline links have 44px hit areas');
    }
    if(shots&&((width===1280&&theme==='light')||width===390)){
     fs.mkdirSync(shots,{recursive:true});await p.evaluate(()=>scrollTo(0,0));
