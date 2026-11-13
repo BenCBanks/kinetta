@@ -485,6 +485,7 @@ class Milestones(unittest.TestCase):
   self.assertGreaterEqual(workouts['level'],1,'a shared track appears only after an earned level')
   for key in ('next','next_label','next_threshold','value','value_m','value_kg','value_s','display_value'):
    self.assertNotIn(key,workouts,'a shared track does not expose progress toward future levels')
+  self.assertNotIn('best_seconds',workouts,'a shared fastest track keeps best times out of the profile payload')
   by_code={track['code']:track for track in shared['tracks']}
   for code,value in (('sport:run',10),('sport:walk-hike',10),('sport:swim',5)):
    track=by_code[code]

@@ -167,6 +167,8 @@ def _history_source(c, user_id, code, thresholds, now, zone):
     elif code == 'personal_bests':
         events = milestone_engine._personal_best_events(c, user_id, by_id)
         total, found = _crossings(thresholds, events, lambda _row: 1)
+    elif tracks.fastest_effort_spec(code):
+        total, found, _best_seconds = milestone_engine._fastest_effort_facts(c, user_id, by_id, code)
     else:
         sport_by_code = {
             'sport:run': lambda row: row['sport'] == 'run',
@@ -373,7 +375,7 @@ def _visible_achievement_profile(c, viewer_id, login):
     return owner_id, profile
 
 
-_SHARED_TRACK_FIELDS = ('code','label','level','unit','tiers','day')
+_SHARED_TRACK_FIELDS = ('code','label','level','unit','tiers','day','earned_ranks')
 _SHARED_TIER_FIELDS = ('rank','label','title','day','big','quiet','threshold','unit','trigger','legacy',
                        'display_threshold','display_unit')
 _SHARED_DISTANCE_TRACKS = frozenset(('sport:run','sport:ride','sport:walk-hike','sport:swim',
@@ -483,14 +485,21 @@ def achievements(login: str | None = Query(None, min_length=1, max_length=60), u
         track_tiers = tiers_by_track.get(code, [])
         catalog = _level_catalog().get('tracks', {}).get(code, {})
         current_levels = _levels_through(catalog, value)
-        level = max((item['rank'] for item in current_levels), default=0)
+        if tracks.fastest_effort_spec(code):
+            earned_ranks = sorted({int(rank) for rank in details.get('earned_ranks', ())
+                                   if str(rank).lstrip('-').isdigit()
+                                   and 1 <= int(rank) <= len(catalog.get('levels') or ())})
+            level = max(earned_ranks, default=0)
+        else:
+            earned_ranks = []
+            level = max((item['rank'] for item in current_levels), default=0)
         has_first_activity = any(item.get('trigger') == 'first_activity' for item in track_tiers)
         if has_first_activity:
             level = max(level, 1)
         next_value = 1.0 if has_first_activity and code in {
             'sport:run', 'sport:ride', 'sport:walk-hike', 'sport:swim'
         } and value < 1.0 else value
-        next_rule = tracks.next_tier(code, next_value)
+        next_rule = None if tracks.fastest_effort_spec(code) else tracks.next_tier(code, next_value)
         current = {
             'code': code,
             'label': details.get('label') or tracks.track_label(code),
@@ -500,6 +509,9 @@ def achievements(login: str | None = Query(None, min_length=1, max_length=60), u
             'day': row.get('day'),
         }
         current.update(_value_fields(code, value, units))
+        if tracks.fastest_effort_spec(code):
+            current['earned_ranks'] = earned_ranks
+            current['best_seconds'] = details.get('best_seconds') or {}
         if next_rule:
             next_item = tracks.display_tier(code, next_rule, units)
             current['next_threshold'] = next_rule.threshold
@@ -591,7 +603,14 @@ def _showcase_candidates(c, user_id, units):
             value = 0.0
         if not math.isfinite(value) or value < 0:
             value = 0.0
-        level = max((item['rank'] for item in _levels_through(definition, value)), default=0)
+        if tracks.fastest_effort_spec(code):
+            earned_ranks = sorted({int(rank) for rank in details.get('earned_ranks', ())
+                                   if str(rank).lstrip('-').isdigit()
+                                   and 1 <= int(rank) <= len(definition.get('levels') or ())})
+            level = max(earned_ranks, default=0)
+        else:
+            earned_ranks = []
+            level = max((item['rank'] for item in _levels_through(definition, value)), default=0)
         track_events = events.get(code, [])
         first_activity = any(item['trigger'] == 'first_activity' for item in track_events)
         if first_activity:
@@ -739,7 +758,12 @@ def achievement_history(code: str, login: str | None = Query(None, min_length=1,
             value = 0.0
         pending = bool((c.execute('''SELECT generation>processed OR next_check<=now() AS pending
                                      FROM milestone_state WHERE user_id=%s''', (owner_id,)).fetchone() or {}).get('pending', False))
-        levels = _levels_through(definition, value)
+        if tracks.fastest_effort_spec(code):
+            levels = [{'rank': rank, 'name': level['name'], 'threshold': float(rank),
+                       'quiet': bool(level.get('quiet'))}
+                      for rank, level in enumerate(definition.get('levels') or (), 1)]
+        else:
+            levels = _levels_through(definition, value)
         thresholds = [level['threshold'] for level in levels]
         _total, crossings, activity_rows = _history_source(c, owner_id, code, thresholds, now, zone)
         legacy = _legacy_history(c, owner_id, code)

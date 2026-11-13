@@ -504,3 +504,54 @@
 .me-insight > small,.me-insight-link .grow > small { font-size:.8125rem; }
 
 .me-card-head .me-card-label > span { text-transform:none; letter-spacing:0; }
+
+/* One-sport achievements overview (#970). */
+.profile-achievement-sport-overview { display:grid; gap:16px; }
+.profile-achievement-sport-switcher { position:sticky; top:0; z-index:4; display:flex; gap:8px; margin-inline:-16px; padding:8px 16px; overflow-x:auto; overscroll-behavior-x:contain; scrollbar-width:none; background:color-mix(in srgb,var(--bg) 94%,transparent); backdrop-filter:blur(10px); }
+.profile-achievement-sport-switcher::-webkit-scrollbar { display:none; }
+.profile-achievement-sport-chip { display:inline-flex; flex:0 0 auto; align-items:center; justify-content:center; gap:5px; min-width:44px; min-height:44px; padding:7px 11px; border:1px solid var(--line); border-radius:999px; background:var(--bg); color:var(--tx2); font:600 .8125rem/1.1 var(--body); white-space:nowrap; cursor:pointer; }
+.profile-achievement-sport-chip svg { width:18px; height:18px; flex:none; }
+.profile-achievement-sport-chip b { color:var(--tx); font-size:.75rem; font-weight:700; }
+.profile-achievement-sport-chip.is-selected { border-color:var(--accent); background:var(--accent2); color:var(--tx); box-shadow:inset 0 0 0 1px var(--accent); }
+.profile-achievement-sport-chip:focus-visible,.profile-achievement-sport-share:focus-visible,.profile-achievement-see-all:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.profile-achievement-sport-header { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:72px; }
+.profile-achievement-sport-heading { display:flex; flex:1; align-items:center; gap:12px; min-width:0; }
+.profile-achievement-sport-heading > div { flex:1; min-width:0; }
+.profile-achievement-sport-heading>svg { flex:none; width:34px; height:34px; color:var(--accent); }
+.profile-achievement-sport-heading h2 { margin:0; font-size:1.5rem; line-height:1.1; }
+.profile-achievement-sport-heading p { margin:4px 0 6px; color:var(--tx2); font-size:.8125rem; }
+.profile-achievement-sport-progress { display:block; width:100%; height:6px; overflow:hidden; border-radius:999px; background:color-mix(in srgb,var(--tx2) 30%,var(--bg)); }
+.profile-achievement-sport-progress i { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--color-action),var(--color-brand) 60%,var(--color-ride)); }
+.profile-achievement-sport-share { flex:none; min-width:44px; min-height:44px; }
+.profile-achievement-sport-cards { display:grid; gap:16px; }
+.profile-achievement-sport-card { min-width:0; padding:16px; border:0; border-radius:16px; background:var(--card); box-shadow:0 2px 12px color-mix(in srgb,var(--tx) 12%,transparent); }
+.profile-achievement-sport-card .profile-achievement-track-head { display:flex; align-items:flex-start; gap:10px; min-height:0; padding:0; color:var(--tx); text-decoration:none; }
+.profile-achievement-track-heading { display:flex; align-items:flex-start; gap:8px; min-width:0; }
+.profile-achievement-track-heading svg { flex:none; width:20px; height:20px; color:var(--accent); }
+.profile-achievement-track-heading-copy { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.profile-achievement-sport-card .profile-achievement-track-title { font-size:18px; font-weight:600; line-height:1.2; }
+.profile-achievement-sport-card .profile-achievement-track-summary { color:var(--tx2); font-size:14px; font-weight:400; line-height:1.25; }
+.profile-achievement-ladder-scroll { display:flex; align-items:flex-start; gap:12px; width:100%; margin:4px 0 0; padding:4px max(8px,calc(50% - 44px)) 6px; overflow-x:auto; overflow-y:visible; overscroll-behavior-x:contain; scroll-snap-type:x proximity; scrollbar-width:none; -webkit-mask-image:linear-gradient(to right,transparent 0,#000 18px,#000 calc(100% - 18px),transparent 100%); mask-image:linear-gradient(to right,transparent 0,#000 18px,#000 calc(100% - 18px),transparent 100%); }
+.profile-achievement-ladder-scroll::-webkit-scrollbar { display:none; }
+.profile-achievement-ladder-scroll .profile-achievement-ladder-badge { flex:0 0 88px; min-height:44px; scroll-snap-align:center; }
+.profile-achievement-ladder-scroll .profile-achievement-medallion { flex:0 0 64px; width:64px; min-width:64px; max-width:64px; height:64px; aspect-ratio:1 / 1; box-shadow:none; }
+.profile-achievement-ladder-scroll .profile-achievement-icon { width:32px; height:32px; }
+.profile-achievement-ladder-scroll .profile-achievement-ladder-name,.profile-achievement-ladder-scroll .profile-achievement-ladder-threshold { font-size:.6875rem; }
+.profile-achievement-ladder-scroll .profile-achievement-ladder-progress { width:88px; }
+.profile-achievement-ladder-scroll.is-expanded { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); overflow:visible; padding-inline:0; scroll-snap-type:none; }
+.profile-achievement-ladder-scroll.is-expanded .profile-achievement-ladder-badge { width:100%; min-width:0; }
+.profile-achievement-sport-card-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:44px; }
+.profile-achievement-see-all { min-width:44px; min-height:44px; padding:8px 0; border:0; background:none; color:var(--accent); font:600 .8125rem/1.2 var(--body); text-align:right; cursor:pointer; }
+.profile-achievement-sport-card .profile-achievement-repeat-caption { margin:0; font-size:.75rem; }
+@media (max-width:360px) { .profile-achievement-sport-card { padding:14px; } .profile-achievement-ladder-scroll .profile-achievement-ladder-badge { flex-basis:82px; } .profile-achievement-ladder-scroll .profile-achievement-ladder-progress { width:82px; } }
+@media (prefers-reduced-motion:reduce) { .profile-achievement-ladder-scroll { scroll-behavior:auto; } }
+/* Fastest ladders show three complete benchmarks centred on the next goal. */
+.profile-achievement-sport-card.is-fastest .profile-achievement-ladder-scroll {
+  justify-content:center;
+  overflow:visible;
+  padding-inline:0;
+  -webkit-mask-image:none;
+  mask-image:none;
+}
+.profile-achievement-sport-card.is-fastest .profile-achievement-sport-card-footer { justify-content:flex-end; }
+.profile-achievement-sport-card.is-fastest .profile-achievement-see-all { margin-left:auto; }

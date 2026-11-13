@@ -118,8 +118,17 @@ const ProfileLayout=(()=>{
     return {...last,level:n,name:`${last.name} ×${multiple}`,threshold:achievementCanonicalThreshold(last)*multiple,
       canonical_value:Number(last.canonical_value)*multiple,display_value:Number(last.display_value)*multiple,multiple};
   }
+  const fastestAchievementCodes=new Set(['sport:run:fastest','sport:ride:fastest','sport:walk-hike:fastest','sport:swim:fastest']);
+  const isFastestAchievement=code=>fastestAchievementCodes.has(code);
+  function fastestEarnedRanks(track){
+    if(!isFastestAchievement(track?.code))return null;
+    const ranks=(Array.isArray(track.earned_ranks)?track.earned_ranks:track.tiers?.map(tier=>tier.rank))
+      .map(Number).filter(rank=>Number.isInteger(rank)&&rank>0);
+    return new Set(ranks);
+  }
   function achievementLevel(track){
     if(track?._sharedAchievement)return Math.max(0,Math.round(Number(track.level)||0));
+    const fastest=fastestEarnedRanks(track);if(fastest)return Math.max(0,...fastest);
     const def=achievementDefinition(track);if(!def)return Math.max(0,Math.round(Number(track.level)||0),...(Array.isArray(track?.tiers)?track.tiers.map(tier=>Number(tier?.rank)>0?Number(tier.rank):0):[]));
     const value=achievementRawValue(track),firstActivityEarned=value>0||(track.tiers||[]).some(tier=>tier.trigger==='first_activity');let level=0;
     for(const tier of def.levels){
@@ -134,7 +143,7 @@ const ProfileLayout=(()=>{
   function achievementLevels(track){
     const def=achievementDefinition(track);return def?.levels?.map((_,i)=>achievementTierAt(track.code,i+1))||[];
   }
-  const achievementLabels={consistency:'Consistency',years_active:'Years active',workouts:'Workouts',active_time:'Active time',journey:'Journey',climbing:'Climbing',lifted:'Lifted',personal_bests:'Personal bests','sport:run':'Run','sport:ride':'Ride','sport:walk-hike':'Walk & hike','sport:swim':'Swim','sport:lift':'Lift sessions',
+  const achievementLabels={consistency:'Consistency',years_active:'Years active',workouts:'Workouts',active_time:'Active time',journey:'Journey',climbing:'Climbing',lifted:'Lifted',personal_bests:'Personal bests','sport:run':'Run','sport:ride':'Ride','sport:walk-hike':'Walk & hike','sport:swim':'Swim','sport:lift':'Lift sessions','sport:run:fastest':'Fastest run efforts','sport:ride:fastest':'Fastest ride efforts','sport:walk-hike:fastest':'Fastest walk & hike efforts','sport:swim:fastest':'Fastest swim efforts',
     'sport:run:workouts':'Run workouts','sport:run:longest':'Longest run','sport:ride:workouts':'Ride workouts','sport:ride:longest':'Longest ride',
     'sport:walk-hike:workouts':'Walk & hike workouts','sport:walk-hike:longest':'Longest walk or hike','sport:swim:workouts':'Swim workouts','sport:swim:longest':'Longest swim'};
   const achievementDistanceCodes=new Set(['journey','sport:run','sport:ride','sport:walk-hike','sport:swim','sport:run:longest','sport:ride:longest','sport:walk-hike:longest','sport:swim:longest']);
@@ -207,6 +216,7 @@ const ProfileLayout=(()=>{
   function achievementThresholdText(track,tier){
     const raw=Number(tier?.canonical_value)||0,hint=Number(tier?.display_value),canonicalUnit=tier?.canonical_unit||'',code=track.code,imperial=App.me?.units!=='metric';
     if(tier?.trigger==='first_activity')return 'First activity';
+    if(isFastestAchievement(code))return tier?.requirement||tier?.name||'Recorded effort';
     if(achievementDistanceCode(code)){
       const km=canonicalUnit==='km'?raw:raw/1000;
       const metric=App.me?.units==='metric',value=metric?km:km*1000/1609.344;
@@ -219,8 +229,28 @@ const ProfileLayout=(()=>{
     if(code==='personal_bests')return `${achievementNumber(value)} ${value===1?'personal best':'personal bests'}`;
     return achievementQuantity(value,canonicalUnit);
   }
+  function achievementRepeatThresholdText(track,tier){
+    const text=achievementThresholdText(track,tier);
+    if(!achievementDistanceCode(track.code)||App.me?.units==='metric')return text;
+    const match=text.match(/^([\d,.]+) mi$/),value=Number(match?.[1]?.replace(/,/g,''));
+    if(!match||!Number.isFinite(value)||value<=0)return text;
+    const step=value>=500?500:value>=100?50:value>=50?10:value>=10?5:1;
+    return `${achievementNumber(Math.max(step,Math.round(value/step)*step))} mi`;
+  }
+  function fastestElapsed(seconds){
+    const total=Math.max(0,Math.round(Number(seconds)||0)),hours=Math.floor(total/3600),minutes=Math.floor((total%3600)/60),rest=String(total%60).padStart(2,'0');
+    return hours?`${hours}:${String(minutes).padStart(2,'0')}:${rest}`:`${minutes}:${rest}`;
+  }
+  function fastestNextText(track,tier){
+    const requirement=String(tier?.requirement||'').replace(' · ≤ ',' under '),distance=String(tier?.requirement||'').split(' · ')[0]||tier?.name||'this distance',best=track?.best_seconds?.[String(tier.level)];
+    return `Next: ${requirement} · ${best!=null?`your best ${fastestElapsed(best)}`:`no ${distance} yet`}`;
+  }
   function achievementRemainingText(track,tier){
     if(tier?.trigger==='first_activity')return 'First activity to go';
+    if(isFastestAchievement(track.code)){
+      const left=Math.max(0,Number(tier?.canonical_value||tier?.threshold||0)-achievementRawValue(track));
+      return `${achievementNumber(left)} ${left===1?'benchmark':'benchmarks'} left`;
+    }
     const raw=Math.max(0,Number(tier?.threshold)-achievementRawValue(track)),imperial=App.me?.units!=='metric',code=track.code;
     let value=raw,unit=achievementDefinition(track)?.levels?.[0]?.canonical_unit||'';
     if(achievementDistanceCode(code)){const metric=App.me?.units==='metric';value=raw/(metric?1000:1609.344);unit=metric?'km':'mi';}
@@ -241,7 +271,7 @@ const ProfileLayout=(()=>{
     const text=achievementRemainingText(track,tier).replace(/ (?:left|to go)$/,''),match=text.match(/^([\d,]+(?:\.\d+)?)\s+(.+)$/);
     if(!match)return text;
     const amount=achievementCompactNumber(Number(match[1].replaceAll(',',''))),unit=match[2];
-    const namedWithThreshold=['personal_bests','workouts','active_time','consistency','years_active','sport:lift'].includes(track.code)||track.code.endsWith(':workouts');
+    const namedWithThreshold=['personal_bests','workouts','active_time','consistency','years_active','sport:lift'].includes(track.code)||isFastestAchievement(track.code)||track.code.endsWith(':workouts');
     return `${amount}${namedWithThreshold?'':` ${unit}`}`;
   }
   function achievementLevelRow(track,tier,currentLevel,earnedTiers=new Map()){
@@ -264,7 +294,8 @@ const ProfileLayout=(()=>{
   function achievementLevelList(track,level,historyData){
     const named=achievementLevels(track),last=named.at(-1),count=named.length,tailOpen=Boolean(achievementCatalog?.tail),earnedTiers=new Map((Array.isArray(historyData?.tiers)?historyData.tiers:[]).map(tier=>[Number(tier.rank),tier]).filter(([rank,tier])=>Number.isInteger(rank)&&rank>0&&tier));
     const hasTail=tailOpen&&level>=count,tailStart=count+1,earnedTailCount=hasTail?Math.max(0,level-count):0,tailRows=hasTail?Array.from({length:Math.max(4,earnedTailCount+3)},(_,i)=>achievementTierAt(track.code,tailStart+i)).filter(Boolean):[];
-    return `<section class="profile-achievement-levels" aria-labelledby="profile-achievement-levels-title"><h2 class="sec-head" id="profile-achievement-levels-title">Levels</h2><ol class="profile-achievement-named-levels" aria-label="All named achievement levels">${named.map(tier=>achievementLevelRow(track,tier,level,earnedTiers)).join('')}</ol>${tailOpen&&last?`<p class="profile-achievement-tail-note${level<count?' is-future':''}">${achievementAsset(last,'profile-achievement-tail-icon')}<span>${esc(last.name)} ×2, ×3…</span></p>`:''}${tailRows.length?`<ol class="profile-achievement-tail-levels" aria-label="Repeating levels">${tailRows.map(tier=>achievementLevelRow(track,tier,level,earnedTiers)).join('')}</ol><button class="profile-achievement-more" type="button" data-achievement-show-more data-next-level="${tailStart+tailRows.length}">Show more</button>`:''}</section>${legacyAchievementHistory(historyData)}`;
+    const hasRepeatTail=!isFastestAchievement(track.code);
+    return `<section class="profile-achievement-levels" aria-labelledby="profile-achievement-levels-title"><h2 class="sec-head" id="profile-achievement-levels-title">Levels</h2><ol class="profile-achievement-named-levels" aria-label="All named achievement levels">${named.map(tier=>achievementLevelRow(track,tier,level,earnedTiers)).join('')}</ol>${hasRepeatTail&&tailOpen&&last?`<p class="profile-achievement-tail-note${level<count?' is-future':''}">${achievementAsset(last,'profile-achievement-tail-icon')}<span>${esc(last.name)} ×2, ×3…</span></p>`:''}${hasRepeatTail&&tailRows.length?`<ol class="profile-achievement-tail-levels" aria-label="Repeating levels">${tailRows.map(tier=>achievementLevelRow(track,tier,level,earnedTiers)).join('')}</ol><button class="profile-achievement-more" type="button" data-achievement-show-more data-next-level="${tailStart+tailRows.length}">Show more</button>`:''}</section>${legacyAchievementHistory(historyData)}`;
   }
   function legacyAchievementHistory(historyData){
     const rows=(Array.isArray(historyData?.tiers)?historyData.tiers:[]).filter(tier=>tier&&(tier.legacy===true||Number(tier.rank)===0)).sort((a,b)=>String(a.day||'').localeCompare(String(b.day||''))||String(a.name||'').localeCompare(String(b.name||'')));
@@ -299,7 +330,7 @@ const ProfileLayout=(()=>{
       if(fill)fill.style.width=`${value}%`;
     });
   }
-  function achievementTrackStarted(track){return achievementLevel(track)>0||achievementRawValue(track)>0||(Array.isArray(track?.tiers)&&track.tiers.some(tier=>Number(tier?.rank)>0));}
+  function achievementTrackStarted(track){return achievementLevel(track)>0||achievementRawValue(track)>0||(isFastestAchievement(track?.code)&&Object.keys(track?.best_seconds||{}).length>0)||(Array.isArray(track?.tiers)&&track.tiers.some(tier=>Number(tier?.rank)>0));}
   function achievementMedalValue(track,{small=false}={}){
     const value=achievementValue(track);if(!small&&value.length<=8)return value;
     const raw=Number(track.display_value),unit=String(track.display_unit||'').toLowerCase();if(!Number.isFinite(raw))return value;
@@ -346,26 +377,75 @@ const ProfileLayout=(()=>{
   }
   const achievementSections=[
     {id:'overall',title:'Overall',codes:['workouts','active_time','consistency','years_active','personal_bests','journey','climbing']},
-    {id:'run',title:'Run',codes:['sport:run','sport:run:workouts','sport:run:longest'],nextBadge:true},
-    {id:'ride',title:'Ride',codes:['sport:ride','sport:ride:workouts','sport:ride:longest'],nextBadge:true},
-    {id:'walk-hike',title:'Walk & hike',codes:['sport:walk-hike','sport:walk-hike:workouts','sport:walk-hike:longest'],nextBadge:true},
-    {id:'swim',title:'Swim',codes:['sport:swim','sport:swim:workouts','sport:swim:longest'],nextBadge:true},
+    {id:'run',title:'Run',codes:['sport:run','sport:run:workouts','sport:run:longest','sport:run:fastest'],nextBadge:true},
+    {id:'ride',title:'Ride',codes:['sport:ride','sport:ride:workouts','sport:ride:longest','sport:ride:fastest'],nextBadge:true},
+    {id:'walk-hike',title:'Walk & hike',codes:['sport:walk-hike','sport:walk-hike:workouts','sport:walk-hike:longest','sport:walk-hike:fastest'],nextBadge:true},
+    {id:'swim',title:'Swim',codes:['sport:swim','sport:swim:workouts','sport:swim:longest','sport:swim:fastest'],nextBadge:true},
     {id:'strength',title:'Strength',codes:['sport:lift','lifted'],nextBadge:true}
   ];
+  const achievementSportTitles={
+    overall:{title:'Overall',icon:'trophy',codes:['workouts','active_time','consistency','years_active','personal_bests','journey','climbing'],labels:{workouts:'Workouts',active_time:'Active time',consistency:'Consistency',years_active:'Years active',personal_bests:'Personal bests',journey:'Journey',climbing:'Elevation'}},
+    run:{title:'Run',icon:'runner',codes:['sport:run','sport:run:workouts','sport:run:longest','sport:run:fastest'],labels:{'sport:run':'Distance','sport:run:workouts':'Workouts','sport:run:longest':'Longest','sport:run:fastest':'Fastest'}},
+    ride:{title:'Ride',icon:'bike',codes:['sport:ride','sport:ride:workouts','sport:ride:longest','sport:ride:fastest'],labels:{'sport:ride':'Distance','sport:ride:workouts':'Workouts','sport:ride:longest':'Longest','sport:ride:fastest':'Fastest'}},
+    'walk-hike':{title:'Walk & hike',icon:'footprints',codes:['sport:walk-hike','sport:walk-hike:workouts','sport:walk-hike:longest','sport:walk-hike:fastest'],labels:{'sport:walk-hike':'Distance','sport:walk-hike:workouts':'Workouts','sport:walk-hike:longest':'Longest','sport:walk-hike:fastest':'Fastest'}},
+    swim:{title:'Swim',icon:'waves',codes:['sport:swim','sport:swim:workouts','sport:swim:longest','sport:swim:fastest'],labels:{'sport:swim':'Distance','sport:swim:workouts':'Workouts','sport:swim:longest':'Longest','sport:swim:fastest':'Fastest'}},
+    strength:{title:'Strength',icon:'kettlebell',codes:['sport:lift','lifted'],labels:{'sport:lift':'Workouts',lifted:'Lifted'}}
+  };
+  const achievementSportOrder=['overall','run','ride','walk-hike','swim','strength'];
+  const achievementSportCode=key=>key==='strength'?'sport:lift':`sport:${key}`;
+  const achievementSportIconCode=key=>key==='overall'?'personal_bests':achievementSportCode(key);
+  const achievementSportForCode=code=>code==='sport:lift'||code==='lifted'?'strength':String(code||'').startsWith('sport:')?String(code).split(':')[1]:null;
+  const achievementSportCount=(tracks,key)=>{const section=achievementSportTitles[key],by=new Map(tracks.map(track=>[track.code,track]));return section.codes.reduce((sum,code)=>{const track=by.get(code);if(!track)return sum;return sum+(isFastestAchievement(code)?fastestEarnedRanks(track)?.size||0:achievementLevel(track));},0);};
+  const achievementSportTotal=(tracks,key)=>{const section=achievementSportTitles[key];return section.codes.reduce((sum,code)=>sum+(achievementCatalog?.tracks?.[code]?.levels?.length||0),0);};
+  function achievementSportFromState(tracks){
+    const valid=new Set(achievementSportOrder),hash=String(location.hash||'').replace(/^#/,'').toLowerCase();
+    if(valid.has(hash))return hash;
+    try{const saved=sessionStorage.getItem('kinetta.achievement.sport');if(valid.has(saved))return saved;}catch(_){/* storage is optional */}
+    const by=new Map(tracks.map(track=>[track.code,track])),sports=achievementSportOrder.slice(1).map(key=>({key,day:Math.max(...achievementSportTitles[key].codes.map(code=>{const track=by.get(code);return track?Number(String(achievementDay(track)).replaceAll('-',''))||0:0}))})).sort((a,b)=>b.day-a.day);
+    return sports[0]?.day?sports[0].key:'overall';
+  }
+  function rememberAchievementSport(key){try{sessionStorage.setItem('kinetta.achievement.sport',key);}catch(_){/* storage is optional */}if(key==='overall')history.replaceState(null,'',location.pathname+location.search);else history.replaceState(null,'',location.pathname+location.search+'#'+key);}
+  function achievementSportBadgeMarkup(track,{shared=false,login='',title='',pinnedCodes=new Set()}={}){
+    const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),levels=achievementLevels(track),count=levels.length,fastest=isFastestAchievement(track.code),earnedRanks=fastestEarnedRanks(track),earnedCount=fastest?earnedRanks.size:level,next=fastest?levels.find(tier=>!earnedRanks.has(tier.level)):achievementTierAt(track.code,level+1),progress=Math.round(achievementProgress(track)*100),pinned=pinnedCodes.has(track.code),canPin=level>0;
+    const href=login?`/people/${encodeURIComponent(login)}?view=achievements&track=${encodeURIComponent(track.code)}`:achievementHref(track),levelText=fastest?`${earnedCount} of ${count} earned`:(level>count?`Level ${level}`:`Level ${level} of ${count}`),summary=shared?`${levelText}${achievementCurrentTier(track)?` · ${achievementCurrentTier(track).name}`:''}`:`${levelText}${next?` · ${fastest?fastestNextText(track,next):`${achievementShortRemaining(track,next)} to ${achievementShortThreshold(track,next)}`}`:''}`;
+    const earnedLevels=shared?levels.filter(tier=>fastest?earnedRanks.has(tier.level):tier.level<=level):levels;
+    const ladderLevels=fastest&&!shared?(()=>{const center=next?.level||levels.length,start=Math.max(1,Math.min(center-1,levels.length-2)),end=Math.min(levels.length,start+2);return levels.filter(tier=>tier.level>=start&&tier.level<=end);})():earnedLevels;
+    const badges=ladderLevels.map(tier=>{const earned=fastest?earnedRanks.has(tier.level):tier.level<=level,isNext=!shared&&tier.level===next?.level,state=earned?'is-earned':isNext?'is-next':'is-upcoming',threshold=achievementThresholdText(track,tier),status=earned?'earned':isNext?'next level':'coming up',bar=isNext?`<span class="profile-achievement-ladder-progress" role="progressbar" data-achievement-progress aria-label="Progress to ${esc(tier.name)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span data-progress-fill></span></span>`:'';return `<a class="profile-achievement-ladder-badge ${state}" role="listitem" href="${esc(href)}" data-level="${tier.level}" aria-label="${esc(`${title||label}, ${tier.name}, ${threshold}, ${status}`)}"><span class="profile-achievement-medallion" data-level="${tier.level}" data-level-tone="${tier.level>=6?'deep':tier.level}" aria-hidden="true">${achievementAsset(tier)}</span>${bar}<span class="profile-achievement-ladder-name">${esc(tier.name)}</span><span class="profile-achievement-ladder-threshold">${esc(threshold)}</span></a>`;}).join('');
+    const description=`Long press to ${pinned?'remove this medal from':'pin this medal to'} your profile.`;
+    const iconCode=achievementSportForCode(track.code),trackIcon=iconCode?achievementGlyph({code:achievementSportCode(iconCode)}):achievementGlyph(track);
+    const repeatCaption=!shared&&count&&!fastest?`<span class="profile-achievement-repeat-caption">Then every ${esc(achievementRepeatThresholdText(track,levels.at(-1)))}</span>`:'';
+    return `<article class="profile-achievement-track ${fastest?'is-fastest ':''}profile-achievement-sport-card" data-achievement-code="${esc(track.code)}"><a class="profile-achievement-track-head" href="${esc(href)}" aria-label="${esc(`${title||label}, ${summary}. Open achievement levels${pinned?', Pinned to profile':''}`)}" aria-description="${esc(description)}" data-achievement-code="${esc(track.code)}" data-showcase-pinned="${pinned}" data-showcase-eligible="${canPin}" data-achievement-pin-target="true"><span class="profile-achievement-track-heading">${trackIcon}<span class="profile-achievement-track-heading-copy"><span class="profile-achievement-track-title">${esc(title||label)}</span><span class="profile-achievement-track-summary">${esc(summary)}</span></span></span></a><div class="profile-achievement-ladder profile-achievement-ladder-scroll" role="list" aria-label="${esc(`${title||label} achievement levels`)}" data-achievement-ladder>${badges}</div><div class="profile-achievement-sport-card-footer">${repeatCaption}<button type="button" class="profile-achievement-see-all" data-achievement-see-all aria-expanded="false">See all</button></div></article>`;
+  }
+  function achievementSportMarkup(tracks,key,pinnedCodes=new Set()){
+    const section=achievementSportTitles[key]||achievementSportTitles.overall,by=new Map(tracks.map(track=>[track.code,track])),count=achievementSportCount(tracks,key),total=achievementSportTotal(tracks,key),progress=total?Math.round(count/total*100):0;
+    const chips=achievementSportOrder.map(id=>{const sport=achievementSportTitles[id],selected=id===key,earned=achievementSportCount(tracks,id);return `<button type="button" class="profile-achievement-sport-chip${selected?' is-selected':''}" role="tab" aria-selected="${selected}" data-achievement-sport="${id}">${achievementGlyph({code:achievementSportIconCode(id)})}<span>${esc(sport.title)}</span><b>${earned}</b></button>`;}).join('');
+    const cards=section.codes.map(code=>by.get(code)||emptyAchievementTrack(code)).filter(Boolean).map(track=>achievementSportBadgeMarkup(track,{title:section.labels[track.code]||achievementLabels[track.code],pinnedCodes})).join('');
+    return `<section class="profile-achievement-sport-overview" data-achievement-sport-overview data-selected-sport="${key}"><div class="profile-achievement-sport-switcher" role="tablist" aria-label="Achievement sports">${chips}</div><header class="profile-achievement-sport-header"><div class="profile-achievement-sport-heading">${achievementGlyph({code:achievementSportIconCode(key)})}<div><h2>${esc(section.title)}</h2><p>${count} of ${total} earned</p><span class="profile-achievement-sport-progress" role="progressbar" aria-label="${esc(section.title)} progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><i style="width:${progress}%"></i></span></div></div><button type="button" class="icon-btn profile-achievement-sport-share" data-achievement-sport-share aria-label="Share ${esc(section.title)} achievements">${svg('share')}</button></header><div class="profile-achievement-sport-cards">${cards}</div></section>`;
+  }
+  function wireAchievementSportOverview(box,tracks,pinnedCodes,onInteraction=()=>{}){
+    const root=box.querySelector('[data-achievement-sport-overview]');if(!root)return;
+    const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches,raf=typeof requestAnimationFrame==='function'?requestAnimationFrame:fn=>setTimeout(fn,0),selected=()=>root.dataset.selectedSport;
+    const mount=key=>{rememberAchievementSport(key);root.outerHTML=achievementSportMarkup(tracks,key,pinnedCodes);const next=box.querySelector('[data-achievement-sport-overview]');wireAchievementSportOverview(box,tracks,pinnedCodes,onInteraction);fitAchievementProgress(next);fitAchievementValues(next);scrollAchievementLadders(next,reduce,raf);if(!box.isConnected)return;};
+    root.querySelectorAll('[data-achievement-sport]').forEach(button=>button.addEventListener('click',()=>mount(button.dataset.achievementSport)));
+    root.querySelectorAll('[data-achievement-see-all]').forEach(button=>button.addEventListener('click',()=>{const ladder=button.closest('.profile-achievement-sport-card')?.querySelector('[data-achievement-ladder]');if(!ladder)return;const expanded=ladder.classList.toggle('is-expanded');button.setAttribute('aria-expanded',String(expanded));button.textContent=expanded?'Show less':'See all';}));
+    root.querySelector('[data-achievement-sport-share]')?.addEventListener('click',()=>window.ProfileShare?.open?.({scope:'sport',sport:selected()}));
+    scrollAchievementLadders(root,reduce,raf);
+  }
+  function scrollAchievementLadders(root,reduce,raf){if(!root)return;raf(()=>root.querySelectorAll('[data-achievement-ladder]').forEach(ladder=>{const next=ladder.querySelector('.is-next')||ladder.lastElementChild;if(!next)return;const left=Math.max(0,next.offsetLeft-(ladder.clientWidth-next.offsetWidth)/2);ladder.scrollLeft=left;if(!reduce&&typeof ladder.scrollTo==='function')ladder.scrollTo({left,behavior:'smooth'});}));}
   function achievementTrackLadder(track,{shared=false,login='',pinnedCodes=new Set(),showTitle=true}={}){
-    const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),levels=achievementLevels(track),count=levels.length,current=achievementCurrentTier(track),next=achievementTierAt(track.code,level+1),progress=Math.round(achievementProgress(track)*100),pinned=pinnedCodes.has(track.code),canPin=level>0;
+    const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),levels=achievementLevels(track),count=levels.length,fastest=isFastestAchievement(track.code),earnedRanks=fastestEarnedRanks(track),earnedCount=fastest?earnedRanks.size:level,current=achievementCurrentTier(track),next=fastest?levels.find(tier=>!earnedRanks.has(tier.level)):achievementTierAt(track.code,level+1),progress=Math.round(achievementProgress(track)*100),pinned=pinnedCodes.has(track.code),canPin=level>0;
     const href=login?`/people/${encodeURIComponent(login)}?view=achievements&track=${encodeURIComponent(track.code)}`:achievementHref(track);
-    const levelText=level>count?`Level ${level}`:`Level ${level} of ${count}`;
-    const summary=shared?`${levelText}${current?` · ${current.name}`:''}`:`${levelText}${next?` · Next ${achievementShortThreshold(track,next)} · ${achievementShortRemaining(track,next)} to go`:''}`;
+    const levelText=fastest?`${earnedCount} of ${count} earned`:(level>count?`Level ${level}`:`Level ${level} of ${count}`);
+    const summary=shared?`${levelText}${current?` · ${current.name}`:''}`:`${levelText}${next?` · ${fastest?fastestNextText(track,next):`Next ${achievementShortThreshold(track,next)} · ${achievementShortRemaining(track,next)} to go`}`:''}`;
     const headerLabel=`${label}, ${summary}. Open achievement levels${pinned?', Pinned to profile':''}`;
-    const earnedLevels=shared?levels.filter(tier=>tier.level<=level):levels;
+    const earnedLevels=shared?levels.filter(tier=>fastest?earnedRanks.has(tier.level):tier.level<=level):levels;
     const badges=earnedLevels.map(tier=>{
-      const earned=tier.level<=level,isNext=!shared&&tier.level===level+1,state=earned?'is-earned':isNext?'is-next':'is-upcoming',threshold=achievementThresholdText(track,tier),status=earned?'earned':isNext?'next level':'coming up';
+      const earned=fastest?earnedRanks.has(tier.level):tier.level<=level,isNext=!shared&&tier.level===next?.level,state=earned?'is-earned':isNext?'is-next':'is-upcoming',threshold=achievementThresholdText(track,tier),status=earned?'earned':isNext?'next level':'coming up';
       const bar=isNext?`<span class="profile-achievement-ladder-progress" role="progressbar" data-achievement-progress aria-label="Progress to ${esc(tier.name)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span data-progress-fill></span></span>`:'';
       return `<a class="profile-achievement-ladder-badge ${state}" role="listitem" href="${esc(href)}" data-level="${tier.level}" aria-label="${esc(`${label}, ${tier.name}, ${threshold}, ${status}`)}"><span class="profile-achievement-medallion" data-level="${tier.level}" data-level-tone="${tier.level>=6?'deep':tier.level}" aria-hidden="true">${achievementAsset(tier)}</span>${bar}<span class="profile-achievement-ladder-name">${esc(tier.name)}</span><span class="profile-achievement-ladder-threshold">${esc(threshold)}</span></a>`;
     }).join('');
     const description=`Long press to ${pinned?'remove this medal from':'pin this medal to'} your profile.`;
-    const repeatCaption=!shared&&count?`<p class="profile-achievement-repeat-caption">Then every ${esc(achievementThresholdText(track,levels.at(-1)))}</p>`:'';
+    const repeatCaption=!shared&&count&&!isFastestAchievement(track.code)?`<p class="profile-achievement-repeat-caption">Then every ${esc(achievementRepeatThresholdText(track,levels.at(-1)))}</p>`:'';
     return `<section class="profile-achievement-track" data-achievement-code="${esc(track.code)}"><a class="profile-achievement profile-achievement-track-head" href="${esc(href)}" aria-label="${esc(headerLabel)}" aria-description="${esc(description)}" data-achievement-code="${esc(track.code)}" data-showcase-pinned="${pinned}" data-showcase-eligible="${canPin}" data-achievement-pin-target="true">${showTitle?`<span class="profile-achievement-track-title">${esc(label)}</span>`:''}<span class="profile-achievement-track-summary">${esc(summary)}</span></a><div class="profile-achievement-ladder" role="list" aria-label="${esc(`${label} achievement levels`)}">${badges}</div>${repeatCaption}</section>`;
   }
   function achievementGrid(tracks,levelUps,pinnedCodes=new Set()){
@@ -520,10 +600,10 @@ const ProfileLayout=(()=>{
     const observer=new ResizeObserver(fit);observer.observe(root);addAchievementCleanup(root,()=>observer.disconnect());fit();document.fonts?.ready?.then(fit);
   }
   function wireAchievementPins(box,pinnedCodes,onInteraction=()=>{}){
-    if(!box.querySelector('.profile-achievement-list.is-grid'))return;
+    if(!box.querySelector('.profile-achievement-list.is-grid, .profile-achievement-sport-cards'))return;
     const owner=readOwner();
     let press=null,timer=0,suppressClick=false,suppressTimer=0,disposed=false;
-    const pinAnchor=target=>{const anchor=target?.closest?.('[data-achievement-pin-target="true"]');return anchor&&box.contains(anchor)&&anchor.closest('.profile-achievement-list.is-grid')&&anchor.dataset.showcaseEligible==='true'?anchor:null;};
+    const pinAnchor=target=>{const anchor=target?.closest?.('[data-achievement-pin-target="true"]');return anchor&&box.contains(anchor)&&anchor.closest('.profile-achievement-list.is-grid, .profile-achievement-sport-cards')&&anchor.dataset.showcaseEligible==='true'?anchor:null;};
     const clearPress=()=>{clearTimeout(timer);timer=0;press=null;};
     const suppress=()=>{suppressClick=true;clearTimeout(suppressTimer);suppressTimer=setTimeout(()=>{suppressClick=false;},900);};
     const openOptions=anchor=>{
@@ -537,7 +617,7 @@ const ProfileLayout=(()=>{
             const result=await api('/api/achievements/showcase/pin',json('POST',{code,pinned:!pinned}));
             if(!box.isConnected||owner!==readOwner())return;
             pinnedCodes.clear();for(const item of Array.isArray(result?.pinned)?result.pinned:[])pinnedCodes.add(String(item));
-            box.querySelectorAll('.profile-achievement-list.is-grid [data-achievement-pin-target="true"]').forEach(row=>{
+            box.querySelectorAll('.profile-achievement-list.is-grid [data-achievement-pin-target="true"], .profile-achievement-sport-cards [data-achievement-pin-target="true"]').forEach(row=>{
               const active=pinnedCodes.has(row.dataset.achievementCode);row.dataset.showcasePinned=String(active);
               const label=row.getAttribute('aria-label')||'';row.setAttribute('aria-label',label.replace(/, Pinned to profile$/,'')+(active?', Pinned to profile':''));
               row.setAttribute('aria-description',`Long press to ${active?'remove this medal from':'pin this medal to'} your profile.`);
@@ -605,7 +685,7 @@ const ProfileLayout=(()=>{
   }
   function achievementPage(el,requestedCode='',options={}){
     const owner=readOwner(),path=location.pathname+location.search,code=requestedCode?decodeURIComponent(requestedCode):'',sharedLogin=String(options.login||''),shared=!!sharedLogin,profile=options.returnPath||profileHref(App.me),active=()=>el.isConnected&&owner===readOwner()&&path===location.pathname+location.search,query=shared?`?login=${encodeURIComponent(sharedLogin)}`:'';
-    el.innerHTML=`<div class="top">${backBtn('Profile')}${!shared&&!code?'<div class="acts"><button type="button" class="icon-btn" data-achievement-share aria-label="Share achievements" hidden>'+svg('share')+'</button></div>':''}</div><div id="profile-achievement-page" aria-busy="true"><h1>${code?'Achievement history':'Achievements'}</h1><p class="small muted">Loading…</p></div>`;
+    el.innerHTML=`<div class="top">${backBtn('Profile')}</div><div id="profile-achievement-page" aria-busy="true"><h1>${code?'Achievement history':'Achievements'}</h1><p class="small muted">Loading…</p></div>`;
     wireBack(el,profile,destination=>/^\/me\/achievements(?:\/|\?|$)/.test(destination.path)?'Achievements':'Profile');
     const box=$('#profile-achievement-page',el),shareButton=$('[data-achievement-share]',el),lifecycleRoot=document.createElement('span');let interaction=0,activePinSheets=0,pendingPinSaves=0;
     lifecycleRoot.hidden=true;lifecycleRoot.setAttribute('aria-hidden','true');el.append(lifecycleRoot);
@@ -617,10 +697,16 @@ const ProfileLayout=(()=>{
       if(code&&!track){box.innerHTML='<h1>Achievements</h1><p class="small muted">This track has no earned tiers yet.</p>';box.setAttribute('aria-busy','false');return true;}
       if(!code){
         const levelUps=shared?new Set():achievementLevelUps(data),overviewTracks=shared?tracks:overviewAchievementTracks(data);
-        const pinnedCodes=new Set((Array.isArray(showcase?.pinned)?showcase.pinned:[]).map(String)),groups=shared?sharedAchievementGrid(overviewTracks,sharedLogin):achievementGrid(overviewTracks,levelUps,pinnedCodes);
-        box.innerHTML=`<h1>Achievements</h1>${groups||'<p class="small muted">No earned achievements yet.</p>'}`;
-        fitAchievementValues(box);
-        if(!shared){fitAchievementProgress(box);wireAchievementPins(box,pinnedCodes,pinInteraction);achievementLevelUpHaptic(levelUps);}
+        const pinnedCodes=new Set((Array.isArray(showcase?.pinned)?showcase.pinned:[]).map(String));
+        if(shared){
+          const groups=sharedAchievementGrid(overviewTracks,sharedLogin);
+          box.innerHTML=`<h1>Achievements</h1>${groups||'<p class="small muted">No earned achievements yet.</p>'}`;
+          fitAchievementValues(box);
+        }else{
+          const selected=achievementSportFromState(overviewTracks);
+          box.innerHTML=`<h1>Achievements</h1>${achievementSportMarkup(overviewTracks,selected,pinnedCodes)}`;
+          fitAchievementValues(box);fitAchievementProgress(box);wireAchievementSportOverview(box,overviewTracks,pinnedCodes,pinInteraction);wireAchievementPins(box,pinnedCodes,pinInteraction);achievementLevelUpHaptic(levelUps);
+        }
         box.setAttribute('aria-busy','false');return true;
       }
       const levelUps=shared?new Set():achievementLevelUps(data),label=track.label||track.code,value=achievementValue(track),next=achievementNext(track),level=achievementLevel(track),current=achievementCurrentTier(track),started=achievementTrackStarted(track);

@@ -2,7 +2,7 @@
 import math
 import unittest
 
-from app import achievement_tracks as tracks, api_achievements
+from app import achievement_tracks as tracks, api_achievements, milestones
 
 
 class AchievementTrackRules(unittest.TestCase):
@@ -33,6 +33,12 @@ class AchievementTrackRules(unittest.TestCase):
                                [1,5,10,25,50,75,100,150]),
             'sport:run': ('km', ['5K','10K','Half marathon','Marathon','50-mile ultra','100 miles','250 miles',
                                  '500 miles','1,000 miles'], [5,10,21.0975,42.195,80.467,160.934,402.336,804.672,1609.344]),
+            'sport:run:fastest': ('benchmarks', [name for name, _distance, _seconds in tracks.RUN_FASTEST_LEVELS],
+                                  list(range(1, len(tracks.RUN_FASTEST_LEVELS) + 1))),
+            'sport:ride:fastest': ('benchmarks', [name for name, _distance, _seconds in tracks.RIDE_FASTEST_LEVELS],
+                                   list(range(1, len(tracks.RIDE_FASTEST_LEVELS) + 1))),
+            'sport:walk-hike:fastest': ('benchmarks', [name for name, _distance, _seconds in tracks.WALK_HIKE_FASTEST_LEVELS],
+                                        list(range(1, len(tracks.WALK_HIKE_FASTEST_LEVELS) + 1))),
             'sport:ride': ('km', ['First 10 miles','25 miles','Metric century','Century','250 miles','500 miles',
                                   '1,000 miles','Coast to coast'], [16.093,40.234,100,160.934,402.336,804.672,
                                                                      1609.344,4506.163]),
@@ -42,6 +48,8 @@ class AchievementTrackRules(unittest.TestCase):
             'sport:swim': ('km', ['First mile','Ironman swim','Marathon swim (10K)','English Channel','50 miles',
                                   '100 miles','250 miles','500 miles'],
                            [1.609,3.862,10,33.796,80.467,160.934,402.336,804.672]),
+            'sport:swim:fastest': ('benchmarks', [name for name, _distance, _seconds in tracks.SWIM_FASTEST_LEVELS],
+                                   list(range(1, len(tracks.SWIM_FASTEST_LEVELS) + 1))),
             'sport:lift': ('sessions', ['First set','Warmed up','Ten sessions','Strong foundation','Strength cycle',
                                         'Power block','Iron habit','Strength hall'], [1,5,10,25,50,100,200,400]),
         }
@@ -66,7 +74,7 @@ class AchievementTrackRules(unittest.TestCase):
     def test_api_catalog_tail_matches_worker_for_every_track_and_boundary(self):
         catalog = api_achievements._level_catalog()
         self.assertEqual(catalog['tail']['rule'], api_achievements._CATALOG_TAIL_RULE)
-        self.assertEqual(len(catalog['tracks']), 21)
+        self.assertEqual(len(catalog['tracks']), 25)
 
         for code, definition in catalog['tracks'].items():
             with self.subTest(code=code):
@@ -167,6 +175,77 @@ class AchievementTrackRules(unittest.TestCase):
         next_level = tracks.next_tier('sport:run:workouts', 10)
         self.assertEqual((next_level.rank, next_level.label, next_level.threshold),
                          (3, 'Local circuit', 50.0))
+
+    def test_fastest_run_uses_only_exact_recorded_efforts(self):
+        class Cursor:
+            def __init__(self, rows): self.rows = rows
+            def execute(self, _query, _params):
+                class Result:
+                    def __init__(self, rows): self.rows = rows
+                    def fetchall(self): return self.rows
+                return Result(self.rows)
+
+        rows = [
+            {'activity_id': 1, 'sport': 'run', 'distance_m': 1_609.344, 'elapsed_s': 570},
+            {'activity_id': 2, 'sport': 'run', 'distance_m': 1_600, 'elapsed_s': 1},
+            {'activity_id': 3, 'sport': 'run', 'distance_m': 5_000, 'elapsed_s': 1_700},
+        ]
+        count, found, best_seconds = milestones._fastest_effort_facts(Cursor(rows), 7,
+                                                                       {1: {'id': 1}, 2: {'id': 2}, 3: {'id': 3}})
+        self.assertEqual(count, 2)
+        self.assertEqual(sorted(found), [1.0, 3.0])
+        self.assertNotIn(2.0, found, 'a 9:30 mile does not earn the 8-minute tier')
+        self.assertNotIn(4.0, found, 'a 28:20 5K does not earn the 25-minute tier')
+        self.assertEqual(best_seconds, {1: 570.0, 2: 570.0, 3: 1_700.0, 4: 1_700.0})
+        self.assertEqual(tracks.next_tier('sport:run:fastest', 3).label, 'Five-K club')
+
+    def test_fastest_run_keeps_non_nested_ranks(self):
+        class Cursor:
+            def execute(self, _query, _params):
+                class Result:
+                    def fetchall(self):
+                        return [{'activity_id': 9, 'sport': 'run', 'distance_m': 5_000, 'elapsed_s': 1_440}]
+                return Result()
+
+        count, found, _best_seconds = milestones._fastest_effort_facts(
+            Cursor(), 7, {9: {'id': 9}})
+        self.assertEqual(count, 2)
+        self.assertEqual(sorted(found), [3.0, 4.0], '5K effort earns only its own two benchmarks')
+
+    def test_fastest_ride_swim_and_walk_use_exact_standard_distances(self):
+        class Cursor:
+            def __init__(self, sport, rows): self.sport, self.rows = sport, rows
+            def execute(self, _query, params):
+                self.assert_sport = params[1]
+                class Result:
+                    def __init__(self, rows): self.rows = rows
+                    def fetchall(self): return self.rows
+                return Result(self.rows)
+
+        ride_rows=[{'activity_id':11,'sport':'ride','distance_m':10_000,'elapsed_s':1_800}]
+        count,found,_=milestones._fastest_effort_facts(Cursor('ride',ride_rows),7,{11:{'id':11}},'sport:ride:fastest')
+        self.assertEqual(sorted(found),[1.0,2.0])
+        swim_rows=[{'activity_id':12,'sport':'swim','distance_m':400,'elapsed_s':480}]
+        count,found,_=milestones._fastest_effort_facts(Cursor('swim',swim_rows),7,{12:{'id':12}},'sport:swim:fastest')
+        self.assertEqual(sorted(found),[4.0,5.0])
+
+        class WalkCursor:
+            def execute(self, _query, _params):
+                class Result:
+                    def fetchall(self):
+                        return [{'activity_id':13,'sport':'hike','distance_m':5_000,'elapsed_s':2_700}]
+                return Result()
+
+        count,found,_=milestones._fastest_effort_facts(WalkCursor(),7,{13:{'id':13}},'sport:walk-hike:fastest')
+        self.assertEqual(sorted(found),[4.0,5.0])
+
+    def test_distance_ladder_catalog_parity_remains_canonical(self):
+        catalog=api_achievements._level_catalog()['tracks']
+        for sport in tracks.SPORT_TRACK_LABELS:
+            code=f'sport:{sport}'
+            expected=tracks.SPORT_DISTANCE_LEVELS[sport]
+            actual=[api_achievements._canonical_threshold(level) for level in catalog[code]['levels']]
+            self.assertEqual(actual, list(expected), code+' distance ladder parity')
 
     def test_legacy_starters_are_readable_without_canonical_credit(self):
         self.assertEqual(sum(map(len, tracks.LEGACY_STARTER_LEVELS.values()))

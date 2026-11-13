@@ -22,7 +22,7 @@ const ownerAchievementFixture={pending:false,tracks:Object.entries(achievementCa
 })};
 ownerAchievementFixture.tracks.push({code:'legacy:historic',label:'Legacy-only award',level:0,tiers:[{rank:0,legacy:true}],display_value:99,display_unit:'mi'},{code:'sport:future',label:'Future track',level:0,value:0,tiers:[],next:{label:'PRIVATE FUTURE PROGRESS',display_threshold:999,display_unit:'mi'}});
 const ownerAchievementByCode=new Map(ownerAchievementFixture.tracks.map(track=>[track.code,track]));
-const earnedBadgeCodes=Object.keys(achievementCatalog.tracks);assert.equal(earnedBadgeCodes.length,21,'the canonical fixture covers all twenty-one catalogue tracks');
+const earnedBadgeCodes=Object.keys(achievementCatalog.tracks);assert.equal(earnedBadgeCodes.length,25,'the canonical fixture covers all twenty-five catalogue tracks');
 const friendRanks=Object.entries(featuredRanks).map(([code,rank])=>[code,fixtureLabels[code],rank,ownerAchievementByCode.get(code).display_unit]);
 const friendShowcase={items:friendRanks.map(([code,,rank])=>({code,rank})),pinned:friendRanks.map(([code])=>code),day_streak:123};
 const friendAchievements={pending:false,tracks:friendRanks.map(([code,label,rank,unit])=>{const owner=ownerAchievementByCode.get(code);return{code,label,level:rank,unit,display_value:owner.display_value,display_unit:owner.display_unit,tiers:Array.from({length:rank},(_,index)=>({rank:index+1,day:'2026-11-01'}))};})};
@@ -281,7 +281,7 @@ const focusedOnly=unitsOnly||compositionOnly||profileClockOnly||shareLeafOnly||b
  if(unitsOnly){await l.close();await b.close();return;}
  if(profileClockOnly){await b.close();console.log('Profile card clock: fixed 390px Me, full profile, friend and preview PASS');return;}
  if(badgeOnly){await b.close();return;}
- await inlineEditorChecks(b);await require('./me_polish_ui.cjs')({browser:b,storageState:st,base,shots:out});await require('./profile_achievements_ui.cjs')({browser:b,storageState:st,base,shots:out});
+ await inlineEditorChecks(b);await require('./me_polish_ui.cjs')({browser:b,storageState:st,base,shots:out});
  const priorRedesign=process.env.KINETTA_ACHIEVEMENT_REDESIGN_ONLY;process.env.KINETTA_ACHIEVEMENT_REDESIGN_ONLY='1';
  try{await require('./profile_achievements_ui.cjs')({browser:b,storageState:st,base,shots:out});}finally{if(priorRedesign===undefined)delete process.env.KINETTA_ACHIEVEMENT_REDESIGN_ONLY;else process.env.KINETTA_ACHIEVEMENT_REDESIGN_ONLY=priorRedesign;}
  await b.close();})().catch(e=>{console.error(e);process.exit(1);});
