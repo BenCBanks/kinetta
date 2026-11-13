@@ -2525,6 +2525,7 @@ button.thread-food:active { opacity: .7; }
 .food-final-review .review-where > .muted { display:inline; }
 .portion-context { margin:0 0 8px;overflow-wrap:anywhere; }
 .food-final-review .review-food-row { align-items: center; }
+.food-final-review [data-remove-weight] { display:block;min-height:36px;margin-top:3px;padding:0 4px; }
 .kcal-edit { flex: none; white-space: nowrap; min-height: 40px; padding: 4px 10px; border: 1px dashed var(--line); border-radius: 10px; background: none;
   color: var(--tx); font: inherit; font-weight: 600; }
 .kcal-edit small { font-weight: 400; color: var(--tx2); }
