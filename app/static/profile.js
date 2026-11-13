@@ -98,7 +98,10 @@ const ProfileLayout=(()=>{
   }
   function achievementDefinition(track){return achievementCatalog?.tracks?.[track?.code]||null;}
   function achievementRawValue(track){
-    const value=Number(track?.value??track?.value_m??track?.value_kg??track?.value_s??track?.value_weeks??track?.value_years??track?.value_sessions);
+    let value=Number(track?.value??track?.value_m??track?.value_kg??track?.value_s??track?.value_weeks??track?.value_years??track?.value_sessions);
+    // Workout-count tracks are integer facts. Normalize a serialized 9.999999
+    // at the exact boundary so the earned badge and next target agree.
+    if(String(track?.code||'').endsWith(':workouts')&&Number.isFinite(value))value=Math.round(value);
     return Number.isFinite(value)&&value>=0?value:0;
   }
   function achievementCanonicalThreshold(tier){
@@ -361,10 +364,8 @@ const ProfileLayout=(()=>{
       const bar=isNext?`<span class="profile-achievement-ladder-progress" role="progressbar" data-achievement-progress aria-label="Progress to ${esc(tier.name)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span data-progress-fill></span></span>`:'';
       return `<a class="profile-achievement-ladder-badge ${state}" role="listitem" href="${esc(href)}" data-level="${tier.level}" aria-label="${esc(`${label}, ${tier.name}, ${threshold}, ${status}`)}"><span class="profile-achievement-medallion" data-level="${tier.level}" data-level-tone="${tier.level>=6?'deep':tier.level}" aria-hidden="true">${achievementAsset(tier)}</span>${bar}<span class="profile-achievement-ladder-name">${esc(tier.name)}</span><span class="profile-achievement-ladder-threshold">${esc(threshold)}</span></a>`;
     }).join('');
-    const tailEnabled=Boolean(achievementCatalog?.tail),tailEarned=level>count,tailMultiple=Math.max(2,level-count+1),last=levels.at(-1);
-    const tail=tailEnabled&&last&&(!shared||tailEarned)?`<a class="profile-achievement-ladder-badge profile-achievement-ladder-tail ${tailEarned?'is-earned':'is-upcoming'}" role="listitem" href="${esc(href)}" aria-label="${esc(`${label}, repeat levels ${tailEarned?`through ×${tailMultiple}`:'from ×2'}, opens achievement levels`)}"><span class="profile-achievement-medallion" data-level="${last.level}" data-level-tone="${last.level>=6?'deep':last.level}" aria-hidden="true">${achievementAsset(last)}</span>${!shared&&tailEarned?`<span class="profile-achievement-ladder-progress" role="progressbar" data-achievement-progress aria-label="Progress to repeat level ×${tailMultiple+1}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span data-progress-fill></span></span>`:''}<span class="profile-achievement-ladder-name">${shared?`×${tailMultiple}`:tailEarned?`×${tailMultiple}, ×${tailMultiple+1}…`:'×2, ×3…'}</span></a>`:'';
     const description=`Long press to ${pinned?'remove this medal from':'pin this medal to'} your profile.`;
-    return `<section class="profile-achievement-track" data-achievement-code="${esc(track.code)}"><a class="profile-achievement profile-achievement-track-head" href="${esc(href)}" aria-label="${esc(headerLabel)}" aria-description="${esc(description)}" data-achievement-code="${esc(track.code)}" data-showcase-pinned="${pinned}" data-showcase-eligible="${canPin}" data-achievement-pin-target="true">${showTitle?`<span class="profile-achievement-track-title">${esc(label)}</span>`:''}<span class="profile-achievement-track-summary">${esc(summary)}</span></a><div class="profile-achievement-ladder" role="list" aria-label="${esc(`${label} achievement levels`)}">${badges}${tail}</div></section>`;
+    return `<section class="profile-achievement-track" data-achievement-code="${esc(track.code)}"><a class="profile-achievement profile-achievement-track-head" href="${esc(href)}" aria-label="${esc(headerLabel)}" aria-description="${esc(description)}" data-achievement-code="${esc(track.code)}" data-showcase-pinned="${pinned}" data-showcase-eligible="${canPin}" data-achievement-pin-target="true">${showTitle?`<span class="profile-achievement-track-title">${esc(label)}</span>`:''}<span class="profile-achievement-track-summary">${esc(summary)}</span></a><div class="profile-achievement-ladder" role="list" aria-label="${esc(`${label} achievement levels`)}">${badges}</div></section>`;
   }
   function achievementGrid(tracks,levelUps,pinnedCodes=new Set()){
     const byCode=new Map(tracks.map(track=>[track.code,track]));

@@ -1389,9 +1389,9 @@
           "canonical_unit": "km",
           "display": "km-fixed",
           "display_value": 100,
-          "emoji": "💯",
-          "asset_name": "Hundred Points",
-          "icon": "/static/profile.fluent-emoji/flat/hundred_points_flat.svg?v=__ASSET_HASH__"
+          "emoji": "🏟️",
+          "asset_name": "Stadium",
+          "icon": "/static/profile.fluent-emoji/flat/stadium_flat.svg?v=__ASSET_HASH__"
         },
         {
           "name": "100-mile ultra",
@@ -1399,9 +1399,9 @@
           "canonical_unit": "km",
           "display": "mi",
           "display_value": 100.0,
-          "emoji": "🗺️",
-          "asset_name": "World Map",
-          "icon": "/static/profile.fluent-emoji/flat/world_map_flat.svg?v=__ASSET_HASH__"
+          "emoji": "🚀",
+          "asset_name": "Rocket",
+          "icon": "/static/profile.fluent-emoji/flat/rocket_flat.svg?v=__ASSET_HASH__"
         }
       ]
     },

@@ -160,6 +160,14 @@ class AchievementTrackRules(unittest.TestCase):
         self.assertEqual(tracks.next_tier('sport:swim:longest', 3_862.68).threshold, 5_000)
         self.assertEqual(tracks.display_value('sport:run:longest', 80_467.2, 'imperial'), (50.0, 'mi'))
 
+    def test_phase_one_count_exact_threshold_is_earned_and_advances(self):
+        reached = tracks.tiers_for('sport:run:workouts', 10)
+        self.assertEqual((reached[-1].rank, reached[-1].label, reached[-1].threshold),
+                         (2, 'Training block', 10.0))
+        next_level = tracks.next_tier('sport:run:workouts', 10)
+        self.assertEqual((next_level.rank, next_level.label, next_level.threshold),
+                         (3, 'Local circuit', 50.0))
+
     def test_legacy_starters_are_readable_without_canonical_credit(self):
         self.assertEqual(sum(map(len, tracks.LEGACY_STARTER_LEVELS.values()))
                          + len(tracks.LEGACY_FIRST_ACTIVITY_LABELS), 19)

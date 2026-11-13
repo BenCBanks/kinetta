@@ -360,10 +360,10 @@ module.exports=async({browser,storageState,base,shots})=>{
     const future=await run.locator('.profile-achievement-ladder-badge.is-upcoming .profile-achievement-medallion').first().evaluate(node=>{const style=getComputedStyle(node),probe=document.createElement('i');probe.style.backgroundColor='var(--segbg)';document.body.append(probe);const segment=getComputedStyle(probe).backgroundColor;probe.remove();return{opacity:Number(style.opacity),filter:style.filter,background:style.backgroundColor,segment,borderWidth:style.borderTopWidth};});
     assert(future.opacity>=.55&&future.filter==='grayscale(1)'&&future.background===future.segment&&future.borderWidth==='1px',`dark future badges remain readable and dimmed: ${JSON.stringify(future)}`);
    }
-   assert.equal(await runBadges.count(),catalog.tracks['sport:run'].levels.length+1,'Run shows all nine named levels and the repeating tail');
+   assert.equal(await runBadges.count(),catalog.tracks['sport:run'].levels.length,'Run shows every named level without a repeat tile');
    assert.equal(await run.locator('.profile-achievement-ladder-badge.is-earned').count(),4,'Run colors all four earned levels');
    assert.equal(await run.locator('.profile-achievement-ladder-badge.is-next').count(),1,'Run outlines only the next level');
-   assert.equal(await run.locator('.profile-achievement-ladder-badge.is-upcoming').count(),5,'Run dims later levels and the repeat tail');
+   assert.equal(await run.locator('.profile-achievement-ladder-badge.is-upcoming').count(),4,'Run dims later named levels');
    const marathon=run.locator('.profile-achievement-ladder-badge[data-level="4"]');
    assert.equal(await marathon.locator('.profile-achievement-ladder-name').innerText(),'Marathon');
    assert.equal(await marathon.locator('.profile-achievement-ladder-threshold').innerText(),'26.2 mi','Run thresholds follow the account unit preference');
@@ -371,7 +371,7 @@ module.exports=async({browser,storageState,base,shots})=>{
    assert(Number(await run.locator('.profile-achievement-ladder-badge.is-next [data-achievement-progress]').getAttribute('aria-valuenow'))>0,'Run next badge has a partial progress bar');
    assert.equal(await run.locator('.profile-achievement-multiple,.profile-achievement-level,.profile-achievement-value').count(),0,'the small level badges have no face chips or values');
    const swim=page.locator('#profile-achievement-page .profile-achievement-track[data-achievement-code="sport:swim"]');
-   assert.equal(await swim.locator('.profile-achievement-ladder-badge').count(),catalog.tracks['sport:swim'].levels.length+1,'an unstarted sport still shows every named level and the repeat tail');
+   assert.equal(await swim.locator('.profile-achievement-ladder-badge').count(),catalog.tracks['sport:swim'].levels.length,'an unstarted sport still shows every named level');
    const inProgress=page.locator('#profile-achievement-page .profile-achievement-track[data-achievement-code="active_time"]');
    assert.equal(await inProgress.locator('.profile-achievement-ladder-badge.is-earned').count(),0,'partial Active time has no earned levels');
    assert.equal(await inProgress.locator('.profile-achievement-ladder-badge.is-next').count(),1,'partial Active time outlines Level 1');
@@ -386,7 +386,7 @@ module.exports=async({browser,storageState,base,shots})=>{
     const columns=await group.locator('.profile-achievement-ladder').first().evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(/\s+/).length);
     assert.equal(columns,5,`${label} ladders show five badges per row at 390px`);
    }
-   assert.equal(await page.locator('#profile-achievement-page .profile-achievement-ladder-badge[role="listitem"]').count(),Object.values(catalog.tracks).reduce((sum,track)=>sum+track.levels.length+1,0),'the owner sees every named level plus one tail item for every open-ended track');
+   assert.equal(await page.locator('#profile-achievement-page .profile-achievement-ladder-badge[role="listitem"]').count(),Object.values(catalog.tracks).reduce((sum,track)=>sum+track.levels.length,0),'the owner sees every named level without repeat tiles');
    await assertProgressWidths(page.locator('#profile-achievement-page'),'390px redesign evidence');
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'all level ladders fit 390px without horizontal overflow');
    if(theme==='light'){
@@ -667,7 +667,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.deepEqual((await sharedRowsAll.evaluateAll(nodes=>nodes.map(node=>node.dataset.achievementCode))).sort(),Object.keys(catalog.tracks).sort(),'every catalog track with an earned level appears in the shared view');
   for(const [code,level] of [['sport:run','11'],['sport:walk-hike','8'],['sport:swim','7']]){
    const row=page.locator(`#profile-achievement-page .profile-achievement-track[data-achievement-code="${code}"]`);
-   assert.equal(await row.locator('.profile-achievement-ladder-badge.is-earned').count(),Number(level)>catalog.tracks[code].levels.length?catalog.tracks[code].levels.length+1:Number(level),`${code} shows every server-earned level and its repeat tail`);
+   assert.equal(await row.locator('.profile-achievement-ladder-badge.is-earned').count(),Math.min(Number(level),catalog.tracks[code].levels.length),`${code} shows every server-earned named level`);
    assert.equal(await row.locator('.profile-achievement-ladder-badge.is-upcoming,.profile-achievement-ladder-badge.is-next').count(),0,`${code} does not show future levels to a friend`);
   }
   await screenshot(page,shots,`achievement-shared-catalog-390-${theme}`,{fullPage:true});
