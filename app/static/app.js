@@ -314,7 +314,11 @@ function readOnce(path) {
   return pendingReads.get(key);
 }
 function bootstrapMe() {
-  return globalThis.KinettaBoot?.me || api('/api/me');
+  const boot = globalThis.KinettaBoot?.me;
+  // A cold logged-out page may have already completed its eager probe with 401;
+  // after login, retry against the newly established session instead of reusing
+  // that stale rejection. Other failures retain the boot probe's error state.
+  return boot ? boot.catch(error => error?.status === 401 ? api('/api/me') : Promise.reject(error)) : api('/api/me');
 }
 
 // ---------- API: fetch + per-session cache (stale-while-revalidate) ----------
