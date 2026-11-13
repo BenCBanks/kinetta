@@ -2,13 +2,14 @@
 // NODE_PATH=<Playwright install> KINETTA_URL=http://localhost:8798 node dev/tests/lift_ui.cjs
 'use strict';
 const{chromium}=require('playwright'),assert=require('node:assert/strict');
+const fixtureInstant=new Date(require('../screenshots/fixture-time.json').instant);
 const base=process.env.KINETTA_URL||'http://localhost:8798';
 async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))return;await page.waitForTimeout(100);}throw Error('Lifting UI did not settle');}
 (async()=>{
  const browser=await chromium.launch();
  try{
   for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16},{width:1280,height:900,root:16}])for(const theme of ['light','dark']){
-   const c=await browser.newContext({viewport:{width:size.width,height:size.height},colorScheme:theme,serviceWorkers:'block'}),p=await c.newPage(),errors=[];
+   const c=await browser.newContext({viewport:{width:size.width,height:size.height},colorScheme:theme,serviceWorkers:'block'}),p=await c.newPage(),errors=[];await p.clock.setFixedTime(fixtureInstant);
    p.on('pageerror',e=>errors.push(e.message));await c.route('**/*',r=>new URL(r.request().url()).origin===base?r.continue():r.abort());
    assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}})).status(),200);
    await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
@@ -16,7 +17,7 @@ async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))
    // The logger now lives in the guarded lift-routes bundle; load it through a real deferred route before
    // exercising its controls directly below. The eager Me/Track summary seam has already been checked above.
    await p.goto(base+'/lift/ex/999905');await until(p,()=>App.pageReady);
-   const fixtureNow=new Date();
+   const fixtureNow=fixtureInstant;
    const fixtureDay=daysAgo=>{const d=new Date(fixtureNow);d.setUTCDate(d.getUTCDate()-daysAgo);return d.toISOString().slice(0,10);};
    const fixtureStamp=daysAgo=>`${fixtureDay(daysAgo)}T12:00:00Z`;
    const start=fixtureNow.toISOString(),past=fixtureStamp(30);

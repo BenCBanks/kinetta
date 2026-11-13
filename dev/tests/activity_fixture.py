@@ -1,6 +1,10 @@
 """Fictional feed evidence on an explicitly guarded local project; no real accounts/devices."""
 from pathlib import Path
 import os,sys,uuid,math,base64,subprocess,datetime as dt
+import json
+
+FIXTURE_CLOCK=Path(__file__).resolve().parents[1] / 'screenshots' / 'fixture-time.json'
+fixture_data=json.loads(FIXTURE_CLOCK.read_text())
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 sys.path.insert(0,'dev/tests')
@@ -19,7 +23,7 @@ for who,count in [('typical',2),('heavy',6),('established',3)]:
  for i in range(count):
   friend='friend'+str(i);ok(clients[friend].post('/api/friends',{'login':'zz_test_feed_'+who}));ok(clients[who].post('/api/friends/zz_test_feed_'+friend+'/accept'))
  ok(clients['pending'].post('/api/friends',{'login':'zz_test_feed_'+who}))
-now=dt.datetime.now(dt.timezone.utc)
+now=dt.datetime.fromisoformat(fixture_data['instant'].replace('Z','+00:00'))
 activity_timezone=ZoneInfo('America/New_York')
 local_yesterday=now.astimezone(activity_timezone).date()-dt.timedelta(days=1)
 pinned_long_friend_time=dt.datetime.combine(local_yesterday,dt.time(12,59),tzinfo=activity_timezone).astimezone(dt.timezone.utc)

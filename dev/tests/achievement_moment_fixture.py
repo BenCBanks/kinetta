@@ -1,5 +1,7 @@
 """Seed one fictional weekly big-tier moment for the guarded Activity screenshot test."""
 import datetime as dt
+import json
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from psycopg.types.json import Jsonb
@@ -14,7 +16,8 @@ with db.connect() as c:
         raise RuntimeError('Run the guarded activity fixture first.')
     owner_id = person['id']
     zone = ZoneInfo(person['tz'] or 'UTC')
-    occurred = dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=8)
+    fixture_data=json.loads((Path(__file__).resolve().parents[1] / 'screenshots' / 'fixture-time.json').read_text())
+    occurred = dt.datetime.fromisoformat(fixture_data['instant'].replace('Z','+00:00')) - dt.timedelta(minutes=8)
     day = occurred.astimezone(zone).date()
     since = occurred - dt.timedelta(minutes=5)
     c.execute("DELETE FROM milestones WHERE user_id=%s AND code LIKE 'test-sharing:%%'", (owner_id,))

@@ -1,8 +1,8 @@
 // First-use lifting route behavior with fictional records and all write requests intercepted.
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),path=require('node:path');
-const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill';
-const startTime=new Date(Date.now()-60_000).toISOString(),savedId=990000010;
+const fixtureInstant=new Date(require('../screenshots/fixture-time.json').instant),base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill';
+const startTime=new Date(fixtureInstant.valueOf()-60_000).toISOString(),savedId=990000010;
 async function until(page,predicate,label,arg){for(let i=0;i<200;i++){try{if(await page.evaluate(predicate,arg))return;}catch(_){}await page.waitForTimeout(100);}throw Error(label);}
 async function ready(page,selector,label){await until(page,s=>!!document.querySelector(s)&&App.pageReady,label||`ready: ${selector}`,selector);}
 async function login(context,name='zz_test_lift_compact'){
@@ -44,7 +44,7 @@ async function installRoutes(context,{ids,sessionId,failBundleFirst=false,holdBu
 }
 async function startFromTrack(browser,ids,{mode,sessionId,failBundleFirst=false,holdBundle=false}={}){
  const context=await browser.newContext({viewport:{width:390,height:844},colorScheme:'light',serviceWorkers:'block',isMobile:true,hasTouch:true,reducedMotion:'reduce',timezoneId:'UTC'});
- await login(context);const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await login(context);const page=await context.newPage(),errors=[];await page.clock.setFixedTime(fixtureInstant);page.on('pageerror',e=>errors.push(e.message));
  await page.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize='16px'));
  const routes=await installRoutes(context,{ids,sessionId,failBundleFirst,holdBundle});
  await page.goto(base+'/me');await ready(page,'.me-card-sections[aria-busy="false"]','initial Me readiness');
@@ -81,7 +81,7 @@ async function startFromTrack(browser,ids,{mode,sessionId,failBundleFirst=false,
   }
 
   const carryContext=await browser.newContext({viewport:{width:390,height:844},colorScheme:'light',serviceWorkers:'block',isMobile:true,hasTouch:true,reducedMotion:'reduce',timezoneId:'UTC'});contexts.push(carryContext);
-  await login(carryContext);const carryPage=await carryContext.newPage(),carryErrors=[];carryPage.on('pageerror',e=>carryErrors.push(e.message));
+  await login(carryContext);const carryPage=await carryContext.newPage(),carryErrors=[];await carryPage.clock.setFixedTime(fixtureInstant);carryPage.on('pageerror',e=>carryErrors.push(e.message));
   await carryContext.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize='16px'));
   const carryRoutes=await installRoutes(carryContext,{ids,sessionId:990001003,failBundleFirst:true,holdLiftWrites:true});
   await carryPage.goto(base+'/me');await ready(carryPage,'.me-card-sections[aria-busy="false"]','carry fixture Me readiness');assert.equal(carryRoutes.scripts.length,0);
