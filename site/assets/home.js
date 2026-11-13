@@ -10,8 +10,8 @@
     progress: ['assets/shots/light-progress.webp','assets/shots/dark-progress.webp','Progress'],
     achievements: ['assets/shots/light-profile.webp','assets/shots/dark-profile.webp','Achievements']
   };
-  const pinned = document.querySelector('[data-story-screen]'), pinnedDark = document.querySelector('[data-story-dark]'), label = document.querySelector('[data-story-label]');
-  const showScreen = key => { const item=screenMap[key]; if (!item || !pinned) return; const dark=matchMedia('(prefers-color-scheme: dark)').matches; pinned.src=dark?item[1]:item[0]; if(pinnedDark) pinnedDark.srcset=item[1]; pinned.alt=`Fictional Kinetta ${item[2]} screen.`; if(label) label.textContent=item[2]; document.body.dataset.story=key; };
+  const pinned = document.querySelector('[data-story-screen]'), pinnedDark = document.querySelector('[data-story-dark]');
+  const showScreen = key => { const item=screenMap[key]; if (!item || !pinned) return; const dark=matchMedia('(prefers-color-scheme: dark)').matches; pinned.src=dark?item[1]:item[0]; if(pinnedDark) pinnedDark.srcset=item[1]; pinned.alt=`Fictional Kinetta ${item[2]} screen.`; document.body.dataset.story=key; };
   const steps=[...document.querySelectorAll('.story-step')];
   const jumpLinks=[...document.querySelectorAll('.home-jumps a')];
   const setJump=(key)=>{ const target=key==='progress'?'#progress-demo':`#story-${key}`; jumpLinks.forEach(link=>link.setAttribute('aria-current',link.getAttribute('href')===target?'true':'false')); };
