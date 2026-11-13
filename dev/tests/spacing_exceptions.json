@@ -229,5 +229,21 @@
     "minimum": 11,
     "followup": "https://github.com/BenCBanks/kinetta/issues/786",
     "reason": "Issue #786 fits all four track names across one phone row and Ben approved 11px labels. Names stay complete without ellipsis; every other text minimum remains audited."
+  },
+  {
+    "id": "activity-detail-title-size",
+    "selector": ".compact-detail-title .detail-title-row h1",
+    "metric": "font-min",
+    "minimum": 24,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/926",
+    "reason": "Issue #926 sets the activity detail title at 24px; it remains a full visible heading and grows with Dynamic Type."
+  },
+  {
+    "id": "activity-detail-chart-heading-size",
+    "selector": ".activity-detail .activity-charts .lbl > span:first-child,.activity-detail .dpane h2",
+    "metric": "font-min",
+    "minimum": 15,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/926",
+    "reason": "Issue #926 sets activity detail chart headers at 15px; their labels remain visible and unclipped."
   }
 ]
