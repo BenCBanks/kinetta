@@ -64,29 +64,93 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Take the screenshots
+      - name: Install screenshot browser dependencies
         env:
           KINETTA_PROJECT: shots
         run: |
           mkdir -p /tmp/png
           npm ci --prefix dev/tests/browser
           dev/tests/browser/node_modules/.bin/playwright install --with-deps chromium
+      - name: Check app boot
+        env:
+          KINETTA_PROJECT: shots
+        run: |
           NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/boot_ui.cjs"
+      - name: Capture website screenshots
+        env:
+          KINETTA_PROJECT: shots
+        run: |
           NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/screenshots/take.js" /tmp/png
+      - name: Validate maps
+        env:
+          KINETTA_PROJECT: shots
+        run: |
           NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/map_ui.cjs"
+      - name: Validate lifting
+        env:
+          KINETTA_PROJECT: shots
+        run: |
           NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/lift_ui.cjs"
+      - name: Validate Activity
+        env:
+          KINETTA_PROJECT: shots
+        run: |
           NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/activity_ui.cjs"
+      - name: Validate activity editing
+        env:
+          KINETTA_PROJECT: shots
+        run: |
           NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/edit_activity_ui.cjs"
+      - name: Validate tracking
+        env:
+          KINETTA_PROJECT: shots
+        run: |
           NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/tracking_ui.cjs"
+      - name: Validate map feedback
+        env:
+          KINETTA_PROJECT: shots
+        run: |
           NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/map_feedback_ui.cjs"
+      - name: Validate Track ready map
+        env:
+          KINETTA_PROJECT: shots
+        run: |
           NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/track_ready_map_ui.cjs"
+      - name: Validate personal notifications
+        env:
+          KINETTA_PROJECT: shots
+        run: |
           NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/personal_notifications_ui.cjs"
+      - name: Validate Me card
+        env:
+          KINETTA_PROJECT: shots
+        run: |
           NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/me_card_ui.cjs"
+      - name: Validate profile card
+        env:
+          KINETTA_PROJECT: shots
+        run: |
           NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/profile_card_ui.cjs"
+      - name: Validate public card
+        env:
+          KINETTA_PROJECT: shots
+        run: |
           NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/public_card_ui.cjs"
+      - name: Validate goals
+        env:
+          KINETTA_PROJECT: shots
+        run: |
           NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/goals_ui.cjs"
+      - name: Convert screenshots to WebP
+        env:
+          KINETTA_PROJECT: shots
+        run: |
           pip install pillow==11.0.0
           python3 "$GITHUB_WORKSPACE/dev/screenshots/to_webp.py" /tmp/png "$GITHUB_WORKSPACE/site/assets/shots"
+      - name: Validate website screenshots
+        env:
+          KINETTA_PROJECT: shots
+        run: |
           NODE_PATH="$GITHUB_WORKSPACE/dev/tests/browser/node_modules" node "$GITHUB_WORKSPACE/dev/tests/website_screens_ui.cjs"
       - name: Commit them
         if: github.event_name != 'pull_request'
