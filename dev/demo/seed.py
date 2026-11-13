@@ -38,10 +38,15 @@ def main():
     random.seed(3); today = seed_date()
     for k in range(0, 28):
         d = str(today - dt.timedelta(days=k))
-        rows = [{'day': d, 'meal': 'breakfast', 'name': random.choice(['Oatmeal with blueberries', 'Eggs on whole-wheat toast']), 'kcal': random.randint(320, 420), 'protein_g': 16, 'carbs_g': 50, 'fat_g': 9}]
-        if k > 0: rows += [{'day': d, 'meal': 'lunch', 'name': random.choice(['Turkey sandwich', 'Chicken salad bowl', 'Black bean burrito']), 'kcal': random.randint(480, 640), 'protein_g': 34, 'carbs_g': 55, 'fat_g': 16},
-                           {'day': d, 'meal': 'dinner', 'name': random.choice(['Baked salmon + potatoes', 'Pasta with turkey', 'Tofu stir-fry']), 'kcal': random.randint(550, 760), 'protein_g': 38, 'carbs_g': 70, 'fat_g': 20}]
-        else: rows += [{'day': d, 'meal': 'lunch', 'name': 'Chicken salad bowl', 'kcal': 520, 'protein_g': 32, 'carbs_g': 40, 'fat_g': 22}]
+        if k == 0:
+            rows = [
+                {'day': d, 'meal': 'breakfast', 'name': 'Oats and berries', 'kcal': 680, 'protein_g': 26, 'carbs_g': 90, 'fat_g': 20},
+                {'day': d, 'meal': 'lunch', 'name': 'Chicken grain bowl', 'kcal': 720, 'protein_g': 41, 'carbs_g': 78, 'fat_g': 24},
+            ]
+        else:
+            rows = [{'day': d, 'meal': 'breakfast', 'name': random.choice(['Oatmeal with blueberries', 'Eggs on whole-wheat toast']), 'kcal': random.randint(320, 420), 'protein_g': 16, 'carbs_g': 50, 'fat_g': 9},
+                    {'day': d, 'meal': 'lunch', 'name': random.choice(['Turkey sandwich', 'Chicken salad bowl', 'Black bean burrito']), 'kcal': random.randint(480, 640), 'protein_g': 34, 'carbs_g': 55, 'fat_g': 16},
+                    {'day': d, 'meal': 'dinner', 'name': random.choice(['Baked salmon + potatoes', 'Pasta with turkey', 'Tofu stir-fry']), 'kcal': random.randint(550, 760), 'protein_g': 38, 'carbs_g': 70, 'fat_g': 20}]
         q('POST', '/api/food/entries', rows)
         if k % 3 == 0: q('PUT', '/api/food/weights', {'day': d, 'kg': round(64.8 - 0.035 * (28 - k) + random.uniform(-0.25, 0.25), 1)})
     q('PUT', '/api/food/targets', {'kcal_target': 1800, 'protein_target': 110})
