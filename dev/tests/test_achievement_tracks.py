@@ -37,6 +37,8 @@ class AchievementTrackRules(unittest.TestCase):
                                   list(range(1, len(tracks.RUN_FASTEST_LEVELS) + 1))),
             'sport:ride:fastest': ('benchmarks', [name for name, _distance, _seconds in tracks.RIDE_FASTEST_LEVELS],
                                    list(range(1, len(tracks.RIDE_FASTEST_LEVELS) + 1))),
+            'sport:walk-hike:fastest': ('benchmarks', [name for name, _distance, _seconds in tracks.WALK_HIKE_FASTEST_LEVELS],
+                                        list(range(1, len(tracks.WALK_HIKE_FASTEST_LEVELS) + 1))),
             'sport:ride': ('km', ['First 10 miles','25 miles','Metric century','Century','250 miles','500 miles',
                                   '1,000 miles','Coast to coast'], [16.093,40.234,100,160.934,402.336,804.672,
                                                                      1609.344,4506.163]),
@@ -72,7 +74,7 @@ class AchievementTrackRules(unittest.TestCase):
     def test_api_catalog_tail_matches_worker_for_every_track_and_boundary(self):
         catalog = api_achievements._level_catalog()
         self.assertEqual(catalog['tail']['rule'], api_achievements._CATALOG_TAIL_RULE)
-        self.assertEqual(len(catalog['tracks']), 24)
+        self.assertEqual(len(catalog['tracks']), 25)
 
         for code, definition in catalog['tracks'].items():
             with self.subTest(code=code):
@@ -210,7 +212,7 @@ class AchievementTrackRules(unittest.TestCase):
         self.assertEqual(count, 2)
         self.assertEqual(sorted(found), [3.0, 4.0], '5K effort earns only its own two benchmarks')
 
-    def test_fastest_ride_and_swim_use_exact_standard_distances(self):
+    def test_fastest_ride_swim_and_walk_use_exact_standard_distances(self):
         class Cursor:
             def __init__(self, sport, rows): self.sport, self.rows = sport, rows
             def execute(self, _query, params):
@@ -225,6 +227,16 @@ class AchievementTrackRules(unittest.TestCase):
         self.assertEqual(sorted(found),[1.0,2.0])
         swim_rows=[{'activity_id':12,'sport':'swim','distance_m':400,'elapsed_s':480}]
         count,found,_=milestones._fastest_effort_facts(Cursor('swim',swim_rows),7,{12:{'id':12}},'sport:swim:fastest')
+        self.assertEqual(sorted(found),[4.0,5.0])
+
+        class WalkCursor:
+            def execute(self, _query, _params):
+                class Result:
+                    def fetchall(self):
+                        return [{'activity_id':13,'sport':'hike','distance_m':5_000,'elapsed_s':2_700}]
+                return Result()
+
+        count,found,_=milestones._fastest_effort_facts(WalkCursor(),7,{13:{'id':13}},'sport:walk-hike:fastest')
         self.assertEqual(sorted(found),[4.0,5.0])
 
     def test_distance_ladder_catalog_parity_remains_canonical(self):

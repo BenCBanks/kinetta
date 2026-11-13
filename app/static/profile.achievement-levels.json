@@ -1,6 +1,6 @@
 {
-  "version": 6,
-  "source": "Ben canonical Medal Levels HTML (2026-11-11); #877; #921 phase 2 fastest Run/Ride/Swim efforts",
+  "version": 7,
+  "source": "Ben canonical Medal Levels HTML (2026-11-11); #877; #921 phase 2 fastest Run/Ride/Walk & hike/Swim efforts",
   "unit_preference": "App.me.units",
   "value_storage": "canonical metric values from /api/achievements",
   "tail": {
@@ -2021,6 +2021,128 @@
           "emoji": "🎆",
           "asset_name": "Fireworks",
           "icon": "/static/profile.fluent-emoji/flat/fireworks_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    },
+    "sport:walk-hike:fastest": {
+      "source_track": "Fastest recorded Walk & hike efforts at standard distances",
+      "levels": [
+        {
+          "name": "One-mile stroll",
+          "canonical_value": 1,
+          "canonical_unit": "benchmarks",
+          "display": "benchmarks",
+          "display_value": 1,
+          "distance_m": 1609.344,
+          "max_seconds": 1200,
+          "requirement": "1 mi · ≤ 20:00",
+          "emoji": "👣",
+          "asset_name": "Footprints",
+          "icon": "/static/profile.fluent-emoji/flat/footprints_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "One-mile brisk",
+          "canonical_value": 2,
+          "canonical_unit": "benchmarks",
+          "display": "benchmarks",
+          "display_value": 2,
+          "distance_m": 1609.344,
+          "max_seconds": 900,
+          "requirement": "1 mi · ≤ 15:00",
+          "emoji": "🚶",
+          "asset_name": "Person Walking",
+          "icon": "/static/profile.fluent-emoji/flat/person_walking_flat_default.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "One-mile swift",
+          "canonical_value": 3,
+          "canonical_unit": "benchmarks",
+          "display": "benchmarks",
+          "display_value": 3,
+          "distance_m": 1609.344,
+          "max_seconds": 720,
+          "requirement": "1 mi · ≤ 12:00",
+          "emoji": "🥾",
+          "asset_name": "Hiking Boot",
+          "icon": "/static/profile.fluent-emoji/flat/hiking_boot_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Five-K stroll",
+          "canonical_value": 4,
+          "canonical_unit": "benchmarks",
+          "display": "benchmarks",
+          "display_value": 4,
+          "distance_m": 5000,
+          "max_seconds": 3600,
+          "requirement": "5K · ≤ 60:00",
+          "emoji": "🌲",
+          "asset_name": "Evergreen Tree",
+          "icon": "/static/profile.fluent-emoji/flat/evergreen_tree_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Five-K brisk",
+          "canonical_value": 5,
+          "canonical_unit": "benchmarks",
+          "display": "benchmarks",
+          "display_value": 5,
+          "distance_m": 5000,
+          "max_seconds": 2700,
+          "requirement": "5K · ≤ 45:00",
+          "emoji": "🧭",
+          "asset_name": "Compass",
+          "icon": "/static/profile.fluent-emoji/flat/compass_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Five-K swift",
+          "canonical_value": 6,
+          "canonical_unit": "benchmarks",
+          "display": "benchmarks",
+          "display_value": 6,
+          "distance_m": 5000,
+          "max_seconds": 2100,
+          "requirement": "5K · ≤ 35:00",
+          "emoji": "⛰️",
+          "asset_name": "Mountain",
+          "icon": "/static/profile.fluent-emoji/flat/mountain_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Ten-K stroll",
+          "canonical_value": 7,
+          "canonical_unit": "benchmarks",
+          "display": "benchmarks",
+          "display_value": 7,
+          "distance_m": 10000,
+          "max_seconds": 7200,
+          "requirement": "10K · ≤ 2:00:00",
+          "emoji": "🌅",
+          "asset_name": "Sunrise Over Mountains",
+          "icon": "/static/profile.fluent-emoji/flat/sunrise_over_mountains_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Ten-K brisk",
+          "canonical_value": 8,
+          "canonical_unit": "benchmarks",
+          "display": "benchmarks",
+          "display_value": 8,
+          "distance_m": 10000,
+          "max_seconds": 5400,
+          "requirement": "10K · ≤ 1:30:00",
+          "emoji": "🏔️",
+          "asset_name": "Snow-Capped Mountain",
+          "icon": "/static/profile.fluent-emoji/flat/snow-capped_mountain_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Ten-K swift",
+          "canonical_value": 9,
+          "canonical_unit": "benchmarks",
+          "display": "benchmarks",
+          "display_value": 9,
+          "distance_m": 10000,
+          "max_seconds": 4500,
+          "requirement": "10K · ≤ 1:15:00",
+          "emoji": "⌛",
+          "asset_name": "Hourglass Not Done",
+          "icon": "/static/profile.fluent-emoji/flat/hourglass_not_done_flat.svg?v=__ASSET_HASH__"
         }
       ]
     },

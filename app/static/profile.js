@@ -118,7 +118,7 @@ const ProfileLayout=(()=>{
     return {...last,level:n,name:`${last.name} ×${multiple}`,threshold:achievementCanonicalThreshold(last)*multiple,
       canonical_value:Number(last.canonical_value)*multiple,display_value:Number(last.display_value)*multiple,multiple};
   }
-  const fastestAchievementCodes=new Set(['sport:run:fastest','sport:ride:fastest','sport:swim:fastest']);
+  const fastestAchievementCodes=new Set(['sport:run:fastest','sport:ride:fastest','sport:walk-hike:fastest','sport:swim:fastest']);
   const isFastestAchievement=code=>fastestAchievementCodes.has(code);
   function fastestEarnedRanks(track){
     if(!isFastestAchievement(track?.code))return null;
@@ -143,7 +143,7 @@ const ProfileLayout=(()=>{
   function achievementLevels(track){
     const def=achievementDefinition(track);return def?.levels?.map((_,i)=>achievementTierAt(track.code,i+1))||[];
   }
-  const achievementLabels={consistency:'Consistency',years_active:'Years active',workouts:'Workouts',active_time:'Active time',journey:'Journey',climbing:'Climbing',lifted:'Lifted',personal_bests:'Personal bests','sport:run':'Run','sport:ride':'Ride','sport:walk-hike':'Walk & hike','sport:swim':'Swim','sport:lift':'Lift sessions','sport:run:fastest':'Fastest run efforts','sport:ride:fastest':'Fastest ride efforts','sport:swim:fastest':'Fastest swim efforts',
+  const achievementLabels={consistency:'Consistency',years_active:'Years active',workouts:'Workouts',active_time:'Active time',journey:'Journey',climbing:'Climbing',lifted:'Lifted',personal_bests:'Personal bests','sport:run':'Run','sport:ride':'Ride','sport:walk-hike':'Walk & hike','sport:swim':'Swim','sport:lift':'Lift sessions','sport:run:fastest':'Fastest run efforts','sport:ride:fastest':'Fastest ride efforts','sport:walk-hike:fastest':'Fastest walk & hike efforts','sport:swim:fastest':'Fastest swim efforts',
     'sport:run:workouts':'Run workouts','sport:run:longest':'Longest run','sport:ride:workouts':'Ride workouts','sport:ride:longest':'Longest ride',
     'sport:walk-hike:workouts':'Walk & hike workouts','sport:walk-hike:longest':'Longest walk or hike','sport:swim:workouts':'Swim workouts','sport:swim:longest':'Longest swim'};
   const achievementDistanceCodes=new Set(['journey','sport:run','sport:ride','sport:walk-hike','sport:swim','sport:run:longest','sport:ride:longest','sport:walk-hike:longest','sport:swim:longest']);
@@ -228,6 +228,14 @@ const ProfileLayout=(()=>{
     const value=Number.isFinite(hint)?hint:Number(tier?.canonical_value)||0;
     if(code==='personal_bests')return `${achievementNumber(value)} ${value===1?'personal best':'personal bests'}`;
     return achievementQuantity(value,canonicalUnit);
+  }
+  function achievementRepeatThresholdText(track,tier){
+    const text=achievementThresholdText(track,tier);
+    if(!achievementDistanceCode(track.code)||App.me?.units==='metric')return text;
+    const match=text.match(/^([\d,.]+) mi$/),value=Number(match?.[1]?.replace(/,/g,''));
+    if(!match||!Number.isFinite(value)||value<=0)return text;
+    const step=value>=500?500:value>=100?50:value>=50?10:value>=10?5:1;
+    return `${achievementNumber(Math.max(step,Math.round(value/step)*step))} mi`;
   }
   function fastestElapsed(seconds){
     const total=Math.max(0,Math.round(Number(seconds)||0)),hours=Math.floor(total/3600),minutes=Math.floor((total%3600)/60),rest=String(total%60).padStart(2,'0');
@@ -371,7 +379,7 @@ const ProfileLayout=(()=>{
     {id:'overall',title:'Overall',codes:['workouts','active_time','consistency','years_active','personal_bests','journey','climbing']},
     {id:'run',title:'Run',codes:['sport:run','sport:run:workouts','sport:run:longest','sport:run:fastest'],nextBadge:true},
     {id:'ride',title:'Ride',codes:['sport:ride','sport:ride:workouts','sport:ride:longest','sport:ride:fastest'],nextBadge:true},
-    {id:'walk-hike',title:'Walk & hike',codes:['sport:walk-hike','sport:walk-hike:workouts','sport:walk-hike:longest'],nextBadge:true},
+    {id:'walk-hike',title:'Walk & hike',codes:['sport:walk-hike','sport:walk-hike:workouts','sport:walk-hike:longest','sport:walk-hike:fastest'],nextBadge:true},
     {id:'swim',title:'Swim',codes:['sport:swim','sport:swim:workouts','sport:swim:longest','sport:swim:fastest'],nextBadge:true},
     {id:'strength',title:'Strength',codes:['sport:lift','lifted'],nextBadge:true}
   ];
@@ -388,7 +396,7 @@ const ProfileLayout=(()=>{
       return `<a class="profile-achievement-ladder-badge ${state}" role="listitem" href="${esc(href)}" data-level="${tier.level}" aria-label="${esc(`${label}, ${tier.name}, ${threshold}, ${status}`)}"><span class="profile-achievement-medallion" data-level="${tier.level}" data-level-tone="${tier.level>=6?'deep':tier.level}" aria-hidden="true">${achievementAsset(tier)}</span>${bar}<span class="profile-achievement-ladder-name">${esc(tier.name)}</span><span class="profile-achievement-ladder-threshold">${esc(threshold)}</span></a>`;
     }).join('');
     const description=`Long press to ${pinned?'remove this medal from':'pin this medal to'} your profile.`;
-    const repeatCaption=!shared&&count&&!isFastestAchievement(track.code)?`<p class="profile-achievement-repeat-caption">Then every ${esc(achievementThresholdText(track,levels.at(-1)))}</p>`:'';
+    const repeatCaption=!shared&&count&&!isFastestAchievement(track.code)?`<p class="profile-achievement-repeat-caption">Then every ${esc(achievementRepeatThresholdText(track,levels.at(-1)))}</p>`:'';
     return `<section class="profile-achievement-track" data-achievement-code="${esc(track.code)}"><a class="profile-achievement profile-achievement-track-head" href="${esc(href)}" aria-label="${esc(headerLabel)}" aria-description="${esc(description)}" data-achievement-code="${esc(track.code)}" data-showcase-pinned="${pinned}" data-showcase-eligible="${canPin}" data-achievement-pin-target="true">${showTitle?`<span class="profile-achievement-track-title">${esc(label)}</span>`:''}<span class="profile-achievement-track-summary">${esc(summary)}</span></a><div class="profile-achievement-ladder" role="list" aria-label="${esc(`${label} achievement levels`)}">${badges}</div>${repeatCaption}</section>`;
   }
   function achievementGrid(tracks,levelUps,pinnedCodes=new Set()){

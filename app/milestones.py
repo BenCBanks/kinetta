@@ -219,7 +219,7 @@ def _personal_best_events(c, uid, rows_by_id):
 
 
 def _fastest_effort_facts(c, uid, rows_by_id, code='sport:run:fastest'):
-    """Return Run fastest-ladder count and source activity for each level.
+    """Return fastest-ladder count and source activity for each level.
 
     Only persisted best-effort rows with their recorded distance and elapsed
     time qualify. There is deliberately no prediction between distances.
@@ -228,11 +228,12 @@ def _fastest_effort_facts(c, uid, rows_by_id, code='sport:run:fastest'):
     sport = tracks.fastest_effort_sport(code)
     if not criteria:
         return 0, {}
+    sports = ['walk', 'hike'] if sport == 'walk-hike' else [sport]
     best = {}
     for row in c.execute('''SELECT activity_id,sport,distance_m,elapsed_s
                             FROM best_efforts
-                            WHERE user_id=%s AND sport=%s
-                            ORDER BY activity_id,id''', (uid, sport)).fetchall():
+                            WHERE user_id=%s AND sport = ANY(%s)
+                            ORDER BY activity_id,id''', (uid, sports)).fetchall():
         activity = rows_by_id.get(row.get('activity_id'))
         if not activity:
             continue

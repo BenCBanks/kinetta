@@ -151,8 +151,16 @@ SWIM_FASTEST_LEVELS = (
     ('Fifteen-hundred rhythm', 1_500.0, 40 * 60), ('Fifteen-hundred push', 1_500.0, 32 * 60),
     ('Fifteen-hundred flight', 1_500.0, 24 * 60),
 )
+WALK_HIKE_FASTEST_LEVELS = (
+    ('One-mile stroll', 1_609.344, 20 * 60), ('One-mile brisk', 1_609.344, 15 * 60),
+    ('One-mile swift', 1_609.344, 12 * 60), ('Five-K stroll', 5_000.0, 60 * 60),
+    ('Five-K brisk', 5_000.0, 45 * 60), ('Five-K swift', 5_000.0, 35 * 60),
+    ('Ten-K stroll', 10_000.0, 2 * 60 * 60), ('Ten-K brisk', 10_000.0, 90 * 60),
+    ('Ten-K swift', 10_000.0, 75 * 60),
+)
 FASTEST_EFFORT_LEVELS = {
-    'run': RUN_FASTEST_LEVELS, 'ride': RIDE_FASTEST_LEVELS, 'swim': SWIM_FASTEST_LEVELS,
+    'run': RUN_FASTEST_LEVELS, 'ride': RIDE_FASTEST_LEVELS,
+    'walk-hike': WALK_HIKE_FASTEST_LEVELS, 'swim': SWIM_FASTEST_LEVELS,
 }
 SPORT_TRACK_LABELS = {
     'run': 'Run', 'ride': 'Ride', 'walk-hike': 'Walk & hike', 'swim': 'Swim',
@@ -298,6 +306,7 @@ for _sport, _label in SPORT_TRACK_LABELS.items():
     }[_sport]
 TRACK_LABELS['sport:run:fastest'] = 'Fastest run efforts'
 TRACK_LABELS['sport:ride:fastest'] = 'Fastest ride efforts'
+TRACK_LABELS['sport:walk-hike:fastest'] = 'Fastest walk & hike efforts'
 TRACK_LABELS['sport:swim:fastest'] = 'Fastest swim efforts'
 
 TRACK_UNITS = {
@@ -320,6 +329,7 @@ for _sport in SPORT_TRACK_LABELS:
     TRACK_UNITS[f'sport:{_sport}:longest'] = 'm'
 TRACK_UNITS['sport:run:fastest'] = 'benchmarks'
 TRACK_UNITS['sport:ride:fastest'] = 'benchmarks'
+TRACK_UNITS['sport:walk-hike:fastest'] = 'benchmarks'
 TRACK_UNITS['sport:swim:fastest'] = 'benchmarks'
 
 
