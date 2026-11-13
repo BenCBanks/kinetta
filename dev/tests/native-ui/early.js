@@ -31,6 +31,7 @@
     }
   }
   localStorage.clear();document.documentElement.style.fontSize=cfg.root+'px';
+  cfg.mePreloadCount=Array.from(document.querySelectorAll?.('link[rel="preload"][as="fetch"]')||[]).filter(link=>new URL(link.href,location.href).pathname==='/api/me').length;
   history.replaceState(null,'',cfg.headerPage?'/'+cfg.headerPage:cfg.groups?'/me/groups':cfg.friends?'/me/friends':cfg.stage.startsWith('activity')?'/activity/1':cfg.stage.startsWith('track-')?'/track':cfg.stage==='food'?'/food/describe':'/food/cook/1');
   if(cfg.recording){const s={...cfg.recording,native:true,lapSupport:true,activeSeconds:cfg.recording.activeMs/1000,elapsedSeconds:(cfg.recording.finishedAt-cfg.recording.start)/1000,_snapshotClock:performance.now()};localStorage.setItem('kinetta.track:'+JSON.stringify(['https://example.test',1]),JSON.stringify(s));}
   const nutrients={kcal:450,protein_g:30,carbs_g:40,fat_g:19,fiber_g:null,sodium_mg:null,sugar_g:null,saturated_fat_g:null};

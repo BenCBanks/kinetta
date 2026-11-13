@@ -323,7 +323,7 @@ async function api(path, opts = {}) {
   // in the iPhone app: the chosen server + the login token in a header (native.js); in a browser: this site + its cookie
   const timeout=!opts.signal&&(!opts.method||opts.method.toUpperCase()==='GET')?new AbortController():null;
   const timer=timeout?setTimeout(()=>timeout.abort(),20000):null;
-  try { r = await fetch(Native.base + path, {credentials: Native.on ? 'omit' : 'same-origin', ...opts, ...(timeout?{signal:timeout.signal}:{}), headers: {...headers, ...Native.headers(), ...(opts.headers || {})}});
+  try { r = await fetch(Native.base + path, {credentials: Native.on ? 'omit' : 'same-origin', ...opts, ...(path === '/api/me' ? {priority: 'high'} : {}), ...(timeout?{signal:timeout.signal}:{}), headers: {...headers, ...Native.headers(), ...(opts.headers || {})}});
     try{body=await r.json();}catch(e){if(timeout?.signal.aborted)throw e;}
   }
   catch (e) { throw Object.assign(new Error(timeout?.signal.aborted ? 'This is taking too long. Try refreshing again.' : "Can't reach Kinetta - check your connection."), timeout?.signal.aborted ? {status:504} : {offline:true}); }
