@@ -789,7 +789,7 @@ header.top .signup { display:flex;align-items:center; }
   .feature-showcase { padding: 56px 0 64px; }
   .feature-showcase-copy { order: 1; }
   .feature-showcase-stage { order: 2; }
-  .feature-tabs { width: 100%; margin-bottom: 28px; }
+  .feature-tabs { width: 100%; margin-bottom: 28px; padding-right: 16px; }
   .feature-tabs button { min-width: 0; padding-inline: 10px; }
   .feature-copy-panel h1 { max-width: 13ch; font-size: clamp(38px, 10vw, 52px); }
   .feature-phone-glow { padding: 20px 10px; }
