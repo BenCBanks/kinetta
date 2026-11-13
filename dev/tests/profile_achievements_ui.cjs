@@ -388,7 +388,8 @@ module.exports=async({browser,storageState,base,shots})=>{
    for(const [id,name] of [['run','run'],['overall','overall'],['strength','strength']]){
     await page.locator('.profile-achievement-group').evaluateAll((nodes,keep)=>nodes.forEach(node=>{node.style.display=node.getAttribute('aria-labelledby')===`profile-achievement-group-${keep}`?'':'none';}),id);
     assert.equal(await page.locator('.profile-achievement-group:visible').count(),1,`${name} evidence keeps exactly its selected section visible`);
-    const fullShot=await page.locator('#page').screenshot({path:path.join(shots,`achievement-ladder-${name}-390-${theme}.png`),animations:'disabled'});
+    const screenshotOptions={animations:'disabled'};if(shots)screenshotOptions.path=path.join(shots,`achievement-ladder-${name}-390-${theme}.png`);
+    const fullShot=await page.locator('#page').screenshot(screenshotOptions);
     assert.equal(fullShot.readUInt32BE(16),390,'the screenshot includes the full viewport width and both page gutters');
    }
    await page.evaluate(()=>delete document.documentElement.dataset.achievementEvidence);
