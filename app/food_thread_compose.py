@@ -162,6 +162,8 @@ def begin(c,uid,message,resolution,*,aliases=True,destination=None,assumed=()):
     if (message.get('result') or {}).get('input',{}).get('kind','text')=='text' and not re.search(r'https?://|www\.',message['body'],re.I):
         for part in result['parts']:description_question(part)
         assume_typical(c,uid,result,assumed)
+    if message.get('_weight'):
+        result['weight']=message['_weight']
     return write(c,uid,message,result)
 
 

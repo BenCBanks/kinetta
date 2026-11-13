@@ -26,6 +26,10 @@
 .thread-logged-detail {display:flex;justify-content:space-between;gap:10px;min-width:0;padding:2px 0;}
 .thread-logged-detail > :first-child {min-width:0;overflow-wrap:anywhere;}
 .thread-logged-detail > :last-child {flex:none;white-space:nowrap;}
+.thread-logged-weight {justify-content:flex-start;gap:8px;min-height:32px;color:var(--tx);text-decoration:none;}
+.thread-logged-weight > :first-child {flex:none;}
+.thread-logged-weight > :last-child {flex:1;min-width:0;white-space:normal;}
+.thread-logged-weight .logged-check {color:var(--tx2);font-size:1.05rem;}
 .thread-logged-summary:focus-visible,.thread-logged-destination:focus-visible,.thread-logged-single:focus-visible {outline:2px solid var(--link);outline-offset:1px;}
 .food-thread .thread-another {display:flex;flex-wrap:wrap;gap:8px;padding:0 0 4px;}
 .food-thread .thread-another[hidden] {display:none;}

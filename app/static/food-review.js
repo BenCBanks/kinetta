@@ -28,7 +28,9 @@ const FoodReview=(()=>{
     if(!stillCurrent())return;
     let review=prepared.review,kcal={},initialError='';
     const chosen=Object.hasOwn(MEAL_NAMES,meal)?meal:guessMeal();
-    if(quickConfirm){
+    // A weigh-in adds a second value to inspect/edit/remove; it must not use
+    // the food-only one-tap confirmation shortcut.
+    if(quickConfirm&&!review?.weight){
       if(sameFoods(expectedSnapshot,review?.foods)&&review.foods.every(kcalKnown)){
         const where=MEAL_NAMES[meal]||MEAL_NAMES[chosen]||'your log',request={confirm:true,save_recipe:false,log_today:true,...(day?{day}:{}),meal:chosen,basis:'amounts',whole:true};
         sending.add(owner);changed();
@@ -52,8 +54,8 @@ const FoodReview=(()=>{
     sheet('Add to log',`<form class="form food-final-review" id="food-final-review">
       <label id="review-recipe-name" hidden>Recipe name<input name="name" maxlength="80" autocomplete="off" placeholder="Name this recipe"></label>
       <div class="where review-where"><span class="muted">Adding to</span><span class="pill-sel"><select name="meal" aria-label="Meal">${Object.entries(MEAL_NAMES).map(([k,n])=>`<option value="${k}"${k===chosen?' selected':''}>${n}</option>`).join('')}</select>${svg('chev')}</span><span class="muted">${esc(day&&day!==isoDay(new Date())?dayLabel(day):'today')}</span></div>
-      <div id="review-foods"></div><div class="review-total" id="review-totals"></div>
-      <label class="switch-row"><span><b>Save as a recipe</b><small>Reuse it from My Recipes next time</small></span><input type="checkbox" role="switch" name="save_recipe"${saveRecipe?' checked':''}></label>
+      <div id="review-foods"></div><div class="review-total" id="review-totals"></div><div id="review-body-weight"></div>
+      <label class="switch-row" id="review-recipe-toggle"><span><b>Save as a recipe</b><small>Reuse it from My Recipes next time</small></span><input type="checkbox" role="switch" name="save_recipe"${saveRecipe?' checked':''}></label>
       <div id="review-recipe" hidden>
         <label>How is the whole recipe measured?<select name="basis"><option value="">Choose servings or weight</option><option value="servings">By servings</option><option value="weight">By cooked weight</option></select></label>
         <label id="review-yield" hidden>Servings in the whole recipe<input name="servings" inputmode="decimal" placeholder="How many does it make?"></label>
@@ -66,6 +68,7 @@ const FoodReview=(()=>{
       <p class="err" id="review-error" role="status"></p><button class="primary wide" id="review-confirm">Add to log</button>
     </form>`,(body,close)=>{
       guardFoodSheet(body,close,owner);const f=$('#food-final-review',body),save=f.elements.save_recipe,log=f.elements.log_today;
+      let weightRemoved=false,weightEdit=null;
       const valid=()=>stillCurrent()&&body.isConnected;
       const shown=()=>review.foods.map((e,i)=>edited(e,kcal[i]));
       const totals=()=>{const foods=shown();return Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,!foods.length||foods.some(e=>!(k==='kcal'?kcalKnown(e):nutrientKnown(e,k)))?null:foods.reduce((n,e)=>n+Number(e[k]),0)]));};
@@ -73,6 +76,13 @@ const FoodReview=(()=>{
         $('#review-foods',body).innerHTML=shown().map((e,i)=>`<div class="review-food-row"><div><b>${esc(e.name)}</b><small class="tf-macros">${esc(FoodNutrition.macros(e))}</small><small class="muted">${esc(fmtAmount(e))} · ${esc(FoodThread.source(e))}${kcal[i]!=null?' · Edited':''}</small></div><button type="button" class="kcal-edit num" data-kcal="${i}" aria-label="${kcalKnown(e)?'Change':'Add'} calories for ${esc(e.name)}">${kcalKnown(e)?homeCalories(e.kcal):'Add'}<small> kcal</small></button></div>`).join('');
         const T=totals(),g=k=>T[k]==null?`${k.split('_')[0]} unknown`:`${Math.round(T[k])} g ${k.split('_')[0]}`;
         $('#review-totals',body).innerHTML=`<div><span>Total</span><b class="num">${T.kcal==null?'Incomplete':'≈ '+homeCalories(T.kcal)+' kcal'}</b></div><small class="muted">${esc([g('protein_g'),g('carbs_g'),g('fat_g')].filter(Boolean).join(' · '))}</small>`;
+        const weight=review.weight;const weightBox=$('#review-body-weight',body);
+        if(weight&&!weightRemoved){const unit=weight.display_unit||weight.unit,factor=unit==='lb'?2.2046226218:1,value=weightEdit??Number(weight.kg)*factor;
+          weightBox.innerHTML=`<div class="review-food-row"><div><b>Weight</b><small class="muted">${weight.today?'today':esc(weight.day)}</small><button type="button" class="linkbtn" data-remove-weight>Remove</button></div>${weightEdit===null?`<button type="button" class="kcal-edit num" data-edit-weight>${Number(weight.amount||value).toFixed(1)}<small> ${esc(unit)}</small></button>`:`<label class="kcal-box"><input data-weight-value type="number" inputmode="decimal" min="${unit==='lb'?'66':'30'}" max="${unit==='lb'?'660':'300'}" step="0.1" value="${esc(String(weightEdit))}" aria-label="Weight in ${esc(unit)}"><small>${esc(unit)}</small></label>`}</div>`;
+          $('[data-edit-weight]',weightBox)?.addEventListener('click',()=>{weightEdit=Number(weight.amount||value);foods();draw();const input=$('[data-weight-value]',weightBox);input?.focus();input?.select();});
+          $('[data-weight-value]',weightBox)?.addEventListener('input',e=>{weightEdit=Number(e.target.value);});
+          $('[data-remove-weight]',weightBox)?.addEventListener('click',()=>{weightRemoved=true;foods();draw();});
+        }else weightBox.innerHTML='';
         // Tap a calorie number to change it in place: a small number box, Enter or tapping away saves, Esc cancels.
         $$('[data-kcal]',body).forEach(b=>b.onclick=()=>{
           const i=+b.dataset.kcal,box=document.createElement('span');box.className='kcal-box';
@@ -86,8 +96,8 @@ const FoodReview=(()=>{
         });
       };
       const draw=()=>{
-        const recipe=save.checked,logging=!recipe||log.checked,basis=f.elements.basis.value,portion=recipe&&logging&&f.elements.amount_kind.value==='portion';
-        $('#review-recipe-name',body).hidden=!recipe;$('#review-recipe',body).hidden=!recipe;$('.review-where',body).hidden=!logging;
+        const recipe=save.checked,logging=review.foods.length>0&&(!recipe||log.checked),basis=f.elements.basis.value,portion=recipe&&logging&&f.elements.amount_kind.value==='portion';
+        $('#review-recipe-toggle',body).hidden=!review.foods.length;$('#review-recipe-name',body).hidden=!recipe;$('#review-recipe',body).hidden=!recipe;$('.review-where',body).hidden=!logging;
         $('#review-yield',body).hidden=basis!=='servings';$('#review-weight',body).hidden=basis!=='weight';
         $('#review-log-amount',body).hidden=!logging;
         $('#review-portion',body).hidden=!portion;$('#review-portion-label',body).textContent=basis==='weight'?'Grams you ate':'Servings you ate';
@@ -96,7 +106,9 @@ const FoodReview=(()=>{
         const total=basis==='weight'?number(f.elements.total_g):number(f.elements.servings),amount=number(f.elements.portion),factor=portion&&total>0&&amount>0?amount/total:1,T=totals();
         $('#review-portion-nutrition',body).innerHTML=portion&&total>0&&amount>0?`<p class="small muted">Nutrition for your portion</p>${nutGrid(Object.fromEntries(FOOD_NUTRIENTS.map(k=>[k,T[k]==null?null:T[k]*factor])))}`:'';
         const where=MEAL_NAMES[f.elements.meal.value]||'your log';
-        $('#review-confirm',body).textContent=recipe&&logging?`Save recipe and add to ${where}`:recipe?'Save recipe':`Add to ${where}`;
+        $('#review-confirm',body).textContent=recipe&&logging?`Save recipe and add to ${where}`:recipe?'Save recipe':review.weight&&!review.foods.length?'Save weight':review.weight?'Add food and weight':`Add to ${where}`;
+        $('#review-confirm',body).disabled=!!(review.weight&&!review.foods.length&&weightRemoved);
+        if(review.weight&&!review.foods.length&&weightRemoved)$('#review-confirm',body).textContent='Nothing to add';
       };
       if(draftForm)for(const control of [...f.elements])if(control.name&&Object.hasOwn(draftForm,control.name)){
         if(control.type==='checkbox')control.checked=!!draftForm[control.name];else control.value=String(draftForm[control.name]??'');
@@ -108,12 +120,14 @@ const FoodReview=(()=>{
       f.onsubmit=async e=>{
         e.preventDefault();if(!valid())return;
         const focused=document.activeElement;if(focused?.closest?.('.kcal-box')){focused.blur();return;}   // Enter in a calorie box saves that box first
-        const recipe=save.checked,logging=!recipe||log.checked,part=recipe&&logging&&f.elements.amount_kind.value==='portion';
+        const recipe=save.checked,logging=review.foods.length>0&&(!recipe||log.checked),part=recipe&&logging&&f.elements.amount_kind.value==='portion';
         if(logging&&!f.elements.meal.value){$('#review-error',body).textContent='Choose a meal.';return;}
         const basis=recipe?f.elements.basis.value:'amounts';
         const request={confirm:true,save_recipe:recipe,log_today:logging,...(day?{day}:{}),name:recipe?f.elements.name.value.trim():null,meal:logging?f.elements.meal.value:null,
           basis,servings:basis==='servings'?number(f.elements.servings):null,total_g:basis==='weight'?number(f.elements.total_g):null,whole:!part,portion:part?number(f.elements.portion):null,
-          ...(Object.keys(kcal).length?{kcal:Object.fromEntries(Object.entries(kcal).map(([i,v])=>[String(i),v]))}:{})};
+          ...(Object.keys(kcal).length?{kcal:Object.fromEntries(Object.entries(kcal).map(([i,v])=>[String(i),v]))}:{}),
+          log_weight:!!review.weight&&!weightRemoved,
+          ...(review.weight&&!weightRemoved?{weight_kg:weightEdit===null?Number(review.weight.kg):weightEdit/(review.weight.display_unit==='lb'?2.2046226218:1)}:{})};
         const button=$('#review-confirm',body),label=button.textContent;button.disabled=true;button.textContent='Saving…';$('#review-error',body).textContent='';
         sending.add(owner);changed();
         try{
@@ -123,7 +137,7 @@ const FoodReview=(()=>{
           if((accepted?!stillLocated():!stillCurrent())||!body.isConnected)return;
           App.cache.delete('/api/dishes');invalidate('/api/food');
           if((accepted?!stillLocated():!stillCurrent())||!body.isConnected)return;close();done(result);
-          notifySuccess(result.queued?'Food is waiting to send. It’s not in your log yet.':recipe&&logging?'Recipe saved and added to your log':recipe?'Recipe saved for later':`Added to ${MEAL_NAMES[f.elements.meal.value]||'your log'}`,result,prepared.id);
+          notifySuccess(result.queued?'Food is waiting to send. It’s not in your log yet.':review.weight&&!review.foods.length?'Weight saved':recipe&&logging?'Recipe saved and added to your log':recipe?'Recipe saved for later':`Added to ${MEAL_NAMES[f.elements.meal.value]||'your log'}`,result,prepared.id);
         }catch(error){
           if(!valid())return;
           if(error.payload?.changed&&error.payload.review){review=error.payload.review;kcal={};foods();draw();}
