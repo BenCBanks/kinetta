@@ -361,6 +361,7 @@ module.exports=async({browser,storageState,base,shots})=>{
     assert(future.opacity>=.55&&future.filter==='grayscale(1)'&&future.background===future.segment&&future.borderWidth==='1px',`dark future badges remain readable and dimmed: ${JSON.stringify(future)}`);
    }
    assert.equal(await runBadges.count(),catalog.tracks['sport:run'].levels.length,'Run shows every named level without a repeat tile');
+   assert.equal(await run.locator('.profile-achievement-repeat-caption').innerText(),'Then every 1,000 mi','Run explains the repeat interval in plain text below its named levels');
    assert.equal(await run.locator('.profile-achievement-ladder-badge.is-earned').count(),4,'Run colors all four earned levels');
    assert.equal(await run.locator('.profile-achievement-ladder-badge.is-next').count(),1,'Run outlines only the next level');
    assert.equal(await run.locator('.profile-achievement-ladder-badge.is-upcoming').count(),4,'Run dims later named levels');
@@ -888,7 +889,8 @@ module.exports=async({browser,storageState,base,shots})=>{
   const firstLevel=unstarted.locator('.profile-achievement-ladder-badge.is-next');
   assert.equal(await firstLevel.getAttribute('data-level'),'1','a new track outlines Level 1');
   assert.equal(await firstLevel.locator('[data-achievement-progress]').getAttribute('aria-valuenow'),'0','an unstarted Level 1 has zero progress');
-  assert.equal(await unstarted.locator('.profile-achievement-ladder-badge.is-upcoming').count(),catalog.tracks.workouts.levels.length,'the track keeps its later levels and repeat tail visible');
+  assert.equal(await unstarted.locator('.profile-achievement-ladder-badge.is-upcoming').count(),catalog.tracks.workouts.levels.length-1,'the track keeps its later named levels visible without a repeat tile');
+  assert.equal(await unstarted.locator('.profile-achievement-repeat-caption').innerText(),'Then every 2,000 workouts','the repeat interval is a plain caption below the named levels');
   assert.equal(await unstarted.locator('.profile-achievement-progress-count,.profile-achievement-level,.profile-achievement-value').count(),0,'an unstarted track has no duplicate level chip or value on the badge face');
   assert.equal(await unstarted.locator('.profile-achievement-ring').count(),0,'an unstarted medal has no progress ring');
   assert.match(await unstarted.locator('.profile-achievement-track-summary').innerText(),/Level 0 of \d+ · Next /,'the track header names the first goal');
@@ -934,7 +936,7 @@ module.exports=async({browser,storageState,base,shots})=>{
     if(state.nearTop)assert.equal(level,catalog.tracks[state.code].levels.length-1,'the near-top capture is one level below the named maximum');
     if(state.name==='many-level')assert.equal(await page.locator('.profile-achievement-tail-levels li').count(),0,'the open tail stays hidden before all named levels are earned');
     const ladder=page.locator('.profile-achievement-named-levels li');assert.equal(await ladder.count(),catalog.tracks[state.code].levels.length,`${state.name} shows every named level immediately`);
-    if(state.empty){assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-value').count(),0,'the new-track medal has no value');assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-level').count(),0,'the new-track medal has no level badge');assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-medallion').evaluate(node=>getComputedStyle(node).filter),'grayscale(1)','an unstarted track page greys the medal');assert.equal(await page.locator('.profile-achievement-named-levels li.is-next [role="progressbar"]').count(),0,'an unstarted track has no progress bar');}
+    if(state.empty){assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-value').count(),0,'the new-track medal has no value');assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-level').count(),0,'the new-track medal has no level badge');assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-medallion').evaluate(node=>getComputedStyle(node).filter),'grayscale(1)','an unstarted track page greys the medal');assert.equal(await page.locator('.profile-achievement-named-levels li.is-next [role="progressbar"]').getAttribute('aria-valuenow'),'0','an unstarted track starts at zero progress');}
     else await assertMedalText(page.locator('#profile-achievement-page'),String(width)+'px '+state.name+' track');
     if(state.name==='prior-year-no-link'){
      const ladder=page.locator('.profile-achievement-named-levels');assert((await ladder.locator('li[data-level="1"] time').innerText()).includes(String(SCREENSHOT_YEAR-1)),'the screenshot includes an earlier-year earned date');assert.equal(await ladder.locator('li[data-level="2"] a').count(),0,'the screenshot includes an earned row without a link');assert.equal(await ladder.locator('li[data-level="2"] .profile-achievement-history-chevron').count(),0,'the non-link earned row has no chevron');
