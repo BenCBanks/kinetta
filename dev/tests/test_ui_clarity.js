@@ -3,11 +3,11 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 // Track: the one-tap shortcuts point at Run, Ride, Walk, Hike and Lifting in the real choice list.
 {
- const track=fs.readFileSync('app/static/track.js','utf8'),c={};vm.createContext(c);
+ const track=fs.readFileSync('app/static/track.js','utf8'),trackRoute=fs.readFileSync('app/static/track-route.js','utf8'),c={};vm.createContext(c);
  vm.runInContext(track.match(/const OUTDOOR = \[.*?\];/)[0]+'\n'+track.match(/const TRACK_QUICK = .*?;/)[0]+'\nglobalThis.out={OUTDOOR,TRACK_QUICK};',c);
  const {OUTDOOR,TRACK_QUICK}=c.out,labels=[...OUTDOOR.map(o=>o[1]),'Lifting'];
  assert.equal(JSON.stringify(TRACK_QUICK.map(i=>labels[i])),JSON.stringify(['Run','Ride','Walk','Hike','Lifting']));
- assert.match(track,/sheet\('Activity',pickRows\(choices\.map/,'the full list stays available in More');
+ assert.match(trackRoute,/sheet\('Activity',pickRows\(choices\.map/,'the full list stays available in More');
  console.log('Track shortcuts: Run, Ride, Walk, Hike, Lifting map to real choices; full list kept PASS');
 }
 // Nutrition: one Add food entry above the meals; optional goals do not duplicate it.
