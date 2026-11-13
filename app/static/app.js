@@ -313,6 +313,9 @@ function readOnce(path) {
   }
   return pendingReads.get(key);
 }
+function bootstrapMe() {
+  return globalThis.KinettaBoot?.me || api('/api/me');
+}
 
 // ---------- API: fetch + per-session cache (stale-while-revalidate) ----------
 async function api(path, opts = {}) {
@@ -2446,11 +2449,11 @@ async function start() {
   const saved = kept('/api/me');
   if (saved && !location.pathname.startsWith('/join/') && !pendingJoinPath()) {
     App.me = saved; enter();
-    api('/api/me').then(refreshMe).catch((x) => { if (x.status === 401) forgetKept(); else if (x.offline) netState(true); });
+    bootstrapMe().then(refreshMe).catch((x) => { if (x.status === 401) forgetKept(); else if (x.offline) netState(true); });
     return;
   }
   try {
-    App.me = await api('/api/me'); keep('/api/me', App.me);
+    App.me = await bootstrapMe(); keep('/api/me', App.me);
     enter();
   } catch (x) {
     if (x.status === 401) { forgetKept(); showWelcome(); return; }

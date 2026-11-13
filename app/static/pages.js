@@ -551,19 +551,17 @@ async function meOverview(el) {
   const refreshToday=async()=>{
     if(!el.isConnected||owner!==readOwner())return;
     const token=++todaySequence,day=dayNow();todayRoot.dataset.loadToken=String(token);todayRoot.dataset.loading='true';
-    const [activityResult,planResult,foodHistoryResult,foodDayResult]=await Promise.allSettled([
-      api('/api/activities?limit=1'),api('/api/plans/current'),api('/api/food/history?days=30'),api('/api/food/day?d='+encodeURIComponent(day))
+    const todayActivityPath='/api/activities?limit=100&after='+encodeURIComponent(new Date(day+'T00:00:00').toISOString());
+    const [activityResult,planResult,foodHistoryResult,foodDayResult,todayActivityResult]=await Promise.allSettled([
+      api('/api/activities?limit=1'),api('/api/plans/current'),api('/api/food/history?days=30'),api('/api/food/day?d='+encodeURIComponent(day)),api(todayActivityPath)
     ]);
     if(!el.isConnected||owner!==readOwner()||token!==todaySequence)return;
     const activities=activityResult.status==='fulfilled'&&Array.isArray(activityResult.value)?activityResult.value:[];
     const latestActivity=activities[0]||null,latestActivityDay=latestActivity?localDay(new Date(latestActivity.start_time)):null;
-    const todayActivityResult=latestActivityDay===day?((await Promise.allSettled([
-      api('/api/activities?limit=100&after='+encodeURIComponent(new Date(day+'T00:00:00').toISOString()))
-    ]))[0]):{status:'fulfilled',value:[]};
-    if(!el.isConnected||owner!==readOwner()||token!==todaySequence)return;
-    const todayRows=todayActivityResult.status==='fulfilled'&&Array.isArray(todayActivityResult.value)?todayActivityResult.value:[];
+    const todayResult=latestActivityDay===day?todayActivityResult:{status:'fulfilled',value:[]};
+    const todayRows=todayResult.status==='fulfilled'&&Array.isArray(todayResult.value)?todayResult.value:[];
     const noPlan=planResult.status==='rejected'&&planResult.reason?.status===404,planFailed=planResult.status==='rejected'&&!noPlan;
-    const plan=planResult.status==='fulfilled'?planResult.value:null,planActive=!!plan?.plan&&(!plan.plan.race_day||day<=plan.plan.race_day),activityFailed=activityResult.status==='rejected'||todayActivityResult.status==='rejected';
+    const plan=planResult.status==='fulfilled'?planResult.value:null,planActive=!!plan?.plan&&(!plan.plan.race_day||day<=plan.plan.race_day),activityFailed=activityResult.status==='rejected'||todayResult.status==='rejected';
     const sinceDate=new Date(day+'T12:00:00');sinceDate.setDate(sinceDate.getDate()-29);const since=localDay(sinceDate);
     const recentActivity=!!latestActivity&&latestActivityDay>=since&&latestActivityDay<=day;
     if(activityResult.status==='fulfilled')App.me.recentActivityUser=recentActivity;if(!planFailed)App.me.hasActivePlan=planActive;
