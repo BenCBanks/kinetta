@@ -1530,7 +1530,9 @@ function wirePeriodColumns(svg, onSelect, owner) {
 // the dataset's wrapped height once at this draw's width so inspection cannot move plots.
 function initialChartReadout(ro, items, format, {initialIndex, hint}) {
   if (!Number.isInteger(initialIndex) || initialIndex < 0 || initialIndex >= items.length) return null;
+  ro.classList.add('chart-fact-readout');
   const values = items.map(format), cue = `<span class="readout-hint">${esc(hint)}</span>`;
+  const withCue = value => value.includes('readout-hint') ? value : value + cue;
   const fontsPending = document.fonts && document.fonts.status !== 'loaded';
   const pendingNodes = fontsPending ? [...ro.parentElement.children].map(node => [node, node.style.visibility]) : [];
   pendingNodes.forEach(([node]) => { node.style.visibility = 'hidden'; });
@@ -1538,7 +1540,7 @@ function initialChartReadout(ro, items, format, {initialIndex, hint}) {
   ro.style.overflowWrap = 'anywhere';
   const paint = (index, inspect = true) => {
     if (inspect) touched = true;
-    ro.innerHTML = values[index] + cue;
+    ro.innerHTML = withCue(values[index]);
     const label = $('.readout-hint', ro);
     if (touched) { label.style.visibility = 'hidden'; label.setAttribute('aria-hidden', 'true'); }
   };
@@ -1552,7 +1554,7 @@ function initialChartReadout(ro, items, format, {initialIndex, hint}) {
     for (const value of values) {
       const candidate = ro.cloneNode(false);
       Object.assign(candidate.style, {position:'static', margin:'0', width:'100%', minHeight:'0'});
-      candidate.innerHTML = value + cue;
+      candidate.innerHTML = withCue(value);
       measure.append(candidate);
     }
     ro.parentElement.append(measure);
@@ -1565,6 +1567,15 @@ function initialChartReadout(ro, items, format, {initialIndex, hint}) {
   if (fontsPending) document.fonts.ready.then(reserve);
   else reserve();
   return paint;
+}
+function chartFactDetail(detail) {
+  if (!detail) return '';
+  if (typeof detail === 'string') return esc(detail);
+  return `${esc(detail.prefix || '')}${detail.value == null ? '' : `<b>${esc(detail.value)}</b>`}${esc(detail.suffix || '')}`;
+}
+function chartFactReadout(date, fields, {hint = '', edit = ''} = {}) {
+  const facts = fields.map(field => `<span class="chart-fact"><span class="chart-fact-label">${esc(field.label)}</span>${field.value == null ? '' : `<b>${esc(field.value)}</b>`}${field.detail ? `<span class="chart-fact-detail">${chartFactDetail(field.detail)}</span>` : ''}</span>`).join('');
+  return `<span class="chart-fact-heading"><span class="chart-fact-date">${esc(date)}${hint ? `<span class="readout-hint">${esc(hint)}</span>` : ''}</span>${edit}</span><span class="chart-fact-grid">${facts}</span>`;
 }
 // Columns of stacked bars. cols: [{label, tick, tickLabel, segs: [{k, v}], partial, padded}], keys: [{k, name, color}]
 // tick marks a column that may carry an x label; tickLabel is the text used when the label is shown (falls back to tick).
@@ -1663,6 +1674,12 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4
   const formatReadout = (c) => {
     const parts = keys.length > 1 ? c.segs.filter((x) => x.v).map((x) => `<span><i class="sw k-${x.k}"></i>${esc(keys.find((k) => k.k === x.k).name)} <b>${esc(fmt(x.v))}</b></span>`).join('') : '';
     const value = initialReadout ? (c.readoutValue == null ? '–' : esc(fmt(c.readoutValue))) : esc(fmt(tot(c)));
+    if (initialReadout) {
+      const fields = keys.length > 1
+        ? c.segs.filter(x => x.v).map(x => ({label: keys.find(k => k.k === x.k).name, value: fmt(x.v)}))
+        : [{label: keys[0]?.name || 'Total', value: c.readoutValue == null ? '–' : fmt(c.readoutValue)}];
+      return chartFactReadout(`${c.label}${c.partial ? ' (so far)' : ''}`, fields, {hint: initialReadout.hint});
+    }
     return `<span>${esc(c.label)}${c.partial ? ' (so far)' : ''}</span><span><b>${value}</b>${initialReadout ? '' : ' total'}</span>${parts}`;
   };
   const present = initialReadout && initialChartReadout(ro, cols, formatReadout, initialReadout);
@@ -1813,7 +1830,9 @@ function dayLine(box, pts, {fmt, height = 150, color = 'walk', initialReadout = 
   g += `<line class="xh" y1="${padT}" y2="${H - padB}" visibility="hidden"/><circle class="xdot k-${color}" r="5" visibility="hidden"/>`;
   box.innerHTML = `<div class="readout num"><span></span></div><div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Running total">${g}</svg></div>`;
   const svgEl = $('svg', box), xh = $('.xh', box), dot = $('.xdot', box), ro = $('.readout', box);
-  const formatReadout = (p) => `<span>${esc(p.label)}</span><span>Total <b>${esc(fmt(p.y))}</b></span>${p.sub ? `<span>${p.sub}</span>` : ''}`;
+  const formatReadout = (p) => initialReadout
+    ? chartFactReadout(p.label, [{label: 'Total', value: fmt(p.y), detail: p.sub || ''}], {hint: initialReadout.hint})
+    : `<span>${esc(p.label)}</span><span>Total <b>${esc(fmt(p.y))}</b></span>${p.sub ? `<span>${chartFactDetail(p.sub)}</span>` : ''}`;
   const present = initialReadout && initialChartReadout(ro, pts, formatReadout, initialReadout);
   const show = (e) => {
     const r = svgEl.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * W;
@@ -1861,6 +1880,16 @@ function energyChart(box, cols, {height = 190, weight = null, burned = true, int
   const svgs = $$('svg', box), hls = $$('.hl', box), ro = $('.readout', box), f = (v) => (v == null ? '–' : Math.round(v).toLocaleString());
   const formatReadout = (c) => {
     const def = burned && c.eaten != null && c.burned && c.counted !== false ? c.burned - c.eaten : null;   // partly logged days: no deficit
+    if (initialReadout) {
+      const fields = [{label: 'Eaten', value: f(c.eaten)}];
+      if (burned) fields.push({label: 'Burned', value: f(c.burned)});
+      if (c.goal) fields.push({label: 'Goal', value: f(c.goal)});
+      if (def != null && !c.partial) fields.push({label: def >= 0 ? 'Deficit' : 'Surplus', value: f(Math.abs(def))});
+      if (c.counted === false && c.eaten != null && !c.partial) fields.push({label: 'Partly logged, not counted', value: null});
+      if (weight && (c.weight != null || c.trend != null)) fields.push({label: 'Weight', value: c.weight != null ? weight.fmt(c.weight) : '–', detail: c.trend != null ? `Trend ${weight.fmt(c.trend).split(' ')[0]}` : ''});
+      const edit = c.day ? `<a class="ro-edit" href="/food?d=${esc(c.day)}">Edit this day ›</a>` : '';
+      return chartFactReadout(`${c.label}${c.partial ? ' (so far)' : ''}`, fields, {hint: initialReadout.hint, edit});
+    }
     return `<span>${esc(c.label)}${c.partial ? ' (so far)' : ''}</span><span>Eaten <b>${f(c.eaten)}</b></span>${burned?`<span>Burned <b>${f(c.burned)}</b></span>`:''}${c.goal ? `<span>Goal <b>${f(c.goal)}</b></span>` : ''}${def != null && !c.partial ? `<span>${def >= 0 ? 'Deficit' : 'Surplus'} <b>${f(Math.abs(def))}</b></span>` : ''}${c.counted === false && c.eaten != null && !c.partial ? '<span>Partly logged, not counted</span>' : ''}${weight && (c.weight != null || c.trend != null) ? `<span>Weight <b>${c.weight != null ? esc(weight.fmt(c.weight)) : '–'}</b>${c.trend != null ? ` (trend ${esc(weight.fmt(c.trend))})` : ''}</span>` : ''}${c.day ? `<a class="ro-edit" href="/food?d=${esc(c.day)}">Edit this day ›</a>` : ''}`;
   };
   const present = initialReadout && initialChartReadout(ro, cols, formatReadout, initialReadout);

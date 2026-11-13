@@ -17,17 +17,20 @@ function columns(test){
  const groups=new Map();for(const r of test.rows){const k=week(r.day);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(r);}
  return [...groups].map(([day,rows])=>{const known=rows.filter(r=>r.counted),weights=rows.filter(r=>r.weight!=null),c={label:date(day,true),partial:rows.some(r=>r.today),weight:weights.length?weights.reduce((s,r)=>s+r.weight,0)/weights.length:null,trend:[...rows].reverse().find(r=>r.trend!=null)?.trend};for(const key of ['eaten','burned','goal','protein_g']){const values=known.map(r=>r[key]).filter(v=>v!=null);c[key]=values.length?values.reduce((a,b)=>a+b,0)/values.length:null;}return c;});
 }
+async function readoutDate(p,id){return p.locator(id+' .chart-fact-date').evaluate(n=>[...n.childNodes].filter(x=>x.nodeType===Node.TEXT_NODE).map(x=>x.textContent).join('').trim());}
 async function energyFacts(p,c){
- const spans=await p.locator('#nt-energychart .readout > span:not(.readout-hint)').allTextContents(),expected=[c.label+(c.partial?' (so far)':''),'Eaten '+number(c.eaten),'Burned '+number(c.burned)];
- if(c.goal)expected.push('Goal '+number(c.goal));
- if(c.eaten!=null&&c.burned&&c.counted!==false&&!c.partial){const d=c.burned-c.eaten;expected.push((d>=0?'Deficit ':'Surplus ')+number(Math.abs(d)));}
- if(c.counted===false&&c.eaten!=null&&!c.partial)expected.push('Partly logged, not counted');
- if(c.weight!=null||c.trend!=null){const imperial=await p.evaluate(()=>App.me.units==='imperial'),fmt=v=>(v*(imperial?2.20462:1)).toFixed(1)+(imperial?' lb':' kg');expected.push('Weight '+(c.weight==null?'–':fmt(c.weight))+(c.trend!=null?' (trend '+fmt(c.trend)+')':''));}
- assert.deepEqual(spans.map(s=>s.trim()),expected,'selected Energy date, values and qualification');
+ const dateLabel=await readoutDate(p,'#nt-energychart'),expected=[{label:'Eaten',value:number(c.eaten)}];
+ expected.push({label:'Burned',value:number(c.burned)});
+ if(c.goal)expected.push({label:'Goal',value:number(c.goal)});
+ if(c.eaten!=null&&c.burned&&c.counted!==false&&!c.partial){const d=c.burned-c.eaten;expected.push({label:d>=0?'Deficit':'Surplus',value:number(Math.abs(d))});}
+ if(c.counted===false&&c.eaten!=null&&!c.partial)expected.push({label:'Partly logged, not counted',value:null});
+ if(c.weight!=null||c.trend!=null){const imperial=await p.evaluate(()=>App.me.units==='imperial'),fmt=v=>(v*(imperial?2.20462:1)).toFixed(1)+(imperial?' lb':' kg');expected.push({label:'Weight',value:c.weight==null?'–':fmt(c.weight),detail:c.trend!=null?'Trend '+fmt(c.trend).split(' ')[0]:''});}
+ const actual=await p.locator('#nt-energychart .chart-fact').evaluateAll(ns=>ns.map(n=>({label:n.querySelector('.chart-fact-label').textContent.trim(),value:n.querySelector('b')?.textContent.trim()??null,detail:n.querySelector('.chart-fact-detail')?.textContent.trim()||''})));
+ assert.equal(dateLabel,c.label+(c.partial?' (so far)':''),'selected Energy date is the visible date line');assert.deepEqual(actual,expected.map(f=>({detail:'',...f})),'selected Energy values and qualification match their visible fact labels');
 }
 async function cumulativeFacts(p,r){
- const expected=[date(r.day),'Total '+number(Math.abs(r.total))+' kcal '+(r.total>=0?'deficit':'surplus'),r.counted?(r.deficit==null?'resting calories not synced':'Day '+number(Math.abs(r.deficit))+' '+(r.deficit>=0?'deficit':'surplus')):'partly logged, not counted'];
- assert.deepEqual((await p.locator('#nt-cum .readout > span:not(.readout-hint)').allTextContents()).map(s=>s.trim()),expected,'selected cumulative date, carried total and qualifying subtext');
+ const dateLabel=await readoutDate(p,'#nt-cum'),fact=p.locator('#nt-cum .chart-fact'),value=await fact.locator(':scope > b').innerText(),detail=await fact.locator('.chart-fact-detail').innerText(),expectedTotal=number(Math.abs(r.total))+' kcal '+(r.total>=0?'deficit':'surplus'),expectedDetail=r.counted?(r.deficit==null?'resting calories not synced':'Day: '+number(Math.abs(r.deficit))+' kcal '+(r.deficit>=0?'deficit':'surplus')):'partly logged, not counted';
+ assert.equal(dateLabel,date(r.day),'selected cumulative date is the visible date line');assert.equal(await fact.locator('.chart-fact-label').innerText(),'Total');assert.equal(value,expectedTotal,'selected cumulative total has its visible label and units');assert.equal(detail,expectedDetail,'selected cumulative qualification is human-readable');
 }
 const cases=[
  {name:'known',rows:[earlier,middle,row('2026-11-10',{protein_g:84,total:1200})],protein:'84 g',energy:/Deficit\s+400/,cum:/Nov 10.*Total\s+1,200 kcal deficit/},
@@ -98,7 +101,7 @@ async function insightHeader(p){
     await open('macros');
     if(test.empty){assert.match(await p.locator('#nt-body').innerText(),/Nothing logged in this range/);assert.equal(await p.locator('.readout-hint').count(),0);}
     else{
-     const ro=p.locator('#nt-protein .readout');assert.equal((await ro.locator('b').innerText()).trim(),test.protein);await initial(p,'#nt-protein',test.days?/Week of Nov/:/Nov 10|Nov 12/);assert.equal((await ro.locator(':scope > span').first().innerText()).trim(),expectedColumns.at(-1).label+(expectedColumns.at(-1).partial?' (so far)':''),'exact final represented Protein date or Week-of bucket');
+     const ro=p.locator('#nt-protein .readout');assert.equal((await ro.locator('b').innerText()).trim(),test.protein);await initial(p,'#nt-protein',test.days?/Week of Nov/:/Nov 10|Nov 12/);assert.equal(await readoutDate(p,'#nt-protein'),expectedColumns.at(-1).label+(expectedColumns.at(-1).partial?' (so far)':''),'exact final represented Protein date or Week-of bucket as displayed');
      if(test.name==='today')assert.match(await ro.innerText(),/so far/);await shot('protein-initial');
      const before=await positions(p);await inspect(p,'#nt-protein',0,3,false,true);await hint(p,'#nt-protein',true);
      await inspect(p,'#nt-protein',0,count);await hint(p,'#nt-protein',false);await unchanged(p,before,'protein');

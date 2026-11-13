@@ -1299,9 +1299,9 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
       ${I.extra_nutrients?`<div class="card">${extraTotals(I.extra_nutrients,{period:true})}</div>`:''}`,
 
     energy: `<div class="card"><h2>Eaten, burned & weight<span class="muted small">${weekly ? 'weekly average' : 'per day'}</span></h2><div id="nt-energychart"></div>
-      <p class="small muted estimate-note">${esc(burnNote)} The goal line is your food target; eating below it does not by itself establish a calorie deficit.</p></div>
+      <details class="estimate-disclosure"><summary>ⓘ How this is estimated</summary><p class="small muted estimate-note">${esc(burnNote)} The goal line is your food target; eating below it does not by itself establish a calorie deficit.</p></details></div>
     <div class="card"><h2>Running deficit<span class="muted small">kcal total</span></h2><div id="nt-cum"></div>
-      <p class="small muted estimate-note">Adds estimated burn minus logged food across fully logged days with burn data. The weight conversion is a rough energy model, not measured fat loss. Water changes, missing food and burn-estimate errors can affect the comparison.</p></div>`,
+      <details class="estimate-disclosure"><summary>ⓘ How this is estimated</summary><p class="small muted estimate-note">Adds estimated burn minus logged food across fully logged days with burn data. The weight conversion is a rough energy model, not measured fat loss. Water changes, missing food and burn-estimate errors can affect the comparison.</p></details></div>`,
     macros: `<div class="card"><h2>Protein<span class="muted small">${weekly ? 'weekly average · g/day' : 'g per day'}</span></h2><div id="nt-protein"></div></div>
     <div class="card"><h2>Where your calories come from</h2>
       ${MACROS.every(([k])=>S['avg_'+k]!=null) ? `<div class="split" role="img" aria-label="Protein ${pct(kcalP)}%, carbs ${pct(kcalC)}%, fat ${pct(kcalF)}%"><i class="m-protein_g" data-w="${(kcalP / kcalM).toFixed(3)}"></i><i class="m-carbs_g" data-w="${(kcalC / kcalM).toFixed(3)}"></i><i class="m-fat_g" data-w="${(kcalF / kcalM).toFixed(3)}"></i></div>
@@ -1321,7 +1321,7 @@ function drawTrends(box, I, days, part) {   // part: overview | energy | macros
     energyChart($('#nt-energychart', box), cols, {initialReadout: {initialIndex: cols.length - 1, hint: 'Tap a bar'}, weight: {fmt: (v) => `${v.toFixed(1)} ${wu}`, axis: (v) => v.toFixed(1), unit: wu}});
     const cum = S.logged ? past.filter((r) => r.eaten != null) : [];   // no fully logged day yet: nothing to add up
     dayLine($('#nt-cum', box), cum.map((r) => ({y: r.total, tick: dlabel(r.day, {month: 'short', day: 'numeric'}), label: dlabel(r.day, {weekday: 'short', month: 'short', day: 'numeric'}),
-      sub: r.counted && r.deficit == null ? 'resting calories not synced' : r.counted ? `Day <b>${r0(Math.abs(r.deficit))}</b> ${r.deficit >= 0 ? 'deficit' : 'surplus'}` : 'partly logged, not counted'})),
+      sub: r.counted && r.deficit == null ? 'resting calories not synced' : r.counted ? {prefix: 'Day: ', value: r0(Math.abs(r.deficit)), suffix: ` kcal ${r.deficit >= 0 ? 'deficit' : 'surplus'}`} : 'partly logged, not counted'})),
       {initialReadout: {initialIndex: cum.length - 1, hint: 'Tap a point'}, fmt: (v, short) => (short ? (Math.abs(v) >= 10000 ? (v / 1000).toFixed(1) + 'k' : r0(v)) : `${r0(Math.abs(v))} kcal ${v >= 0 ? 'deficit' : 'surplus'}`)});
   });
 }
