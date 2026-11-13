@@ -255,6 +255,19 @@
 :root[data-theme="light"] .me-featured-achievements .profile-achievement[data-achievement-code="sport:run"] .profile-achievement-medallion[data-level-tone="deep"] .profile-achievement-value[data-type="secondary"] { color:var(--tx); text-shadow:none; }
 @media (prefers-color-scheme:light) { :root:not([data-theme="dark"]) .me-featured-achievements .profile-achievement[data-achievement-code="sport:run"] .profile-achievement-medallion[data-level-tone="deep"] .profile-achievement-value[data-type="secondary"] { color:var(--tx); text-shadow:none; } }
 .me-featured-achievements .profile-achievement-medallion:not([data-level-tone="deep"]) .profile-achievement-value[data-type="secondary"] { color:var(--tx); text-shadow:none; }
+/* These light-theme medal tints need dark value text for readable contrast. */
+:root[data-theme="light"] .me-featured-achievements a[data-achievement-code="climbing"] .profile-achievement-medallion[data-level="7"] .profile-achievement-value[data-type="secondary"],
+:root[data-theme="light"] .me-featured-achievements a[data-achievement-code="personal_bests"] .profile-achievement-medallion[data-level="6"] .profile-achievement-value[data-type="secondary"] { color:#000; text-shadow:none; }
+@media (prefers-color-scheme:light) {
+  :root:not([data-theme="dark"]) .me-featured-achievements a[data-achievement-code="climbing"] .profile-achievement-medallion[data-level="7"] .profile-achievement-value[data-type="secondary"],
+  :root:not([data-theme="dark"]) .me-featured-achievements a[data-achievement-code="personal_bests"] .profile-achievement-medallion[data-level="6"] .profile-achievement-value[data-type="secondary"] { color:#000; text-shadow:none; }
+}
+:root[data-theme="light"] .me-featured-achievements .profile-achievement[data-achievement-code="sport:run"] .profile-achievement-medallion[data-level="8"] .profile-achievement-value[data-type="secondary"],
+:root[data-theme="light"] .me-featured-achievements .profile-achievement[data-achievement-code="sport:run"] .profile-achievement-medallion[data-level="9"] .profile-achievement-value[data-type="secondary"] { color:#fff; text-shadow:none; }
+@media (prefers-color-scheme:light) {
+  :root:not([data-theme="dark"]) .me-featured-achievements .profile-achievement[data-achievement-code="sport:run"] .profile-achievement-medallion[data-level="8"] .profile-achievement-value[data-type="secondary"],
+  :root:not([data-theme="dark"]) .me-featured-achievements .profile-achievement[data-achievement-code="sport:run"] .profile-achievement-medallion[data-level="9"] .profile-achievement-value[data-type="secondary"] { color:#fff; text-shadow:none; }
+}
 .me-featured-item .profile-achievement-value,.me-featured-item .profile-achievement-level,.me-featured-item .profile-achievement-multiple { font-size:13px; }
 .me-featured-item .profile-achievement-level,.me-featured-item .profile-achievement-multiple { right:0; }
 .me-featured-achievements .me-featured-item .profile-achievement-level { top:-20px; right:0; left:auto; font-size:10px; }
