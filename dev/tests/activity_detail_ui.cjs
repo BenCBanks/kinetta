@@ -48,6 +48,7 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
   const c=await b.newContext({viewport:{width:390,height:844},colorScheme:'light',serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});contexts.push(c);
   assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_detail_owner',password:pw}})).status(),200);
   const p=await c.newPage(),assets=[],writes=[],activityReads=[],errors=[];let attempts=0,releaseGate=()=>{},signalHeld=()=>{};
+  await p.clock.setFixedTime(fixtureInstant);
   const gate=new Promise(resolve=>{releaseGate=resolve;}),held=new Promise(resolve=>{signalHeld=resolve;});
   p.on('request',request=>{const url=new URL(request.url());if(url.pathname==='/static/activity-detail.js')assets.push(url.pathname);if(request.method()==='GET'&&url.pathname===`/api/activities/${ids.run}`)activityReads.push(url.pathname);});
   p.on('pageerror',error=>errors.push(error.message));
