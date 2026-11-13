@@ -11,7 +11,7 @@ window.profileHref = (person) => `/people/${encodeURIComponent(person.login)}`;
 window.friendCountText = (count) => count===0?'No friends yet':`${count} ${count===1?'friend':'friends'}`;
 const root = $('#app');
 // Shared SVG paint for current-period bars. Kept outside #app because route rendering replaces its contents.
-if (!document.getElementById('kinetta-paint-defs')) {
+if (document.body?.append && typeof document.createElementNS === 'function' && !document.getElementById?.('kinetta-paint-defs')) {
   const paintDefs = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   paintDefs.id = 'kinetta-paint-defs'; paintDefs.classList.add('svg-paint-defs'); paintDefs.setAttribute('aria-hidden', 'true');
   paintDefs.innerHTML = '<defs><linearGradient id="kinetta-accent-gradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--color-action)"/><stop offset="1" stop-color="var(--color-brand)"/></linearGradient></defs>';
