@@ -40,7 +40,7 @@
 .weekly-recap-day-bar[data-level="3"] { height:22px; }
 .weekly-recap-day-bar[data-level="4"] { height:28px; }
 .weekly-recap-day-bar[data-level="5"] { height:36px; }
-.weekly-recap-day-bar.is-active { background:var(--accent); }
+.weekly-recap-day-bar.is-active { background:var(--accent-gradient); }
 .weekly-recap-share-stage { display:grid; place-items:center; min-height:200px; margin:0 0 12px; }
 .weekly-recap-share-stage img { display:block; width:min(100%,360px); max-height:58vh; aspect-ratio:4/5; object-fit:contain; border-radius:12px; }
 .feed-social-strip { margin:0 0 16px; }
@@ -117,6 +117,16 @@
 .feed-low .progress-tile-name .progress-new { margin-left:6px;vertical-align:middle; }
 
 /* Feed and profile activity cards: title first, one metadata row, then an edge-to-edge route. */
+.activity-home .activity-card {
+  background:var(--surface-card);
+  border-color:color-mix(in srgb,var(--line) 75%,transparent);
+  box-shadow:var(--elevation-rest);
+  transition:transform var(--motion-press) var(--motion-ease),box-shadow var(--motion-settle) var(--motion-ease),background-color var(--motion-settle) var(--motion-ease);
+}
+.activity-home .activity-card.press { transform:scale(.985); box-shadow:var(--elevation-raised); }
+@media (hover:hover) and (pointer:fine) {
+  .activity-home .activity-card:hover { background:var(--surface-raised); box-shadow:var(--elevation-raised); }
+}
 .activity-card { overflow:hidden; }
 .activity-card.post .post-hd.post-profile { display:flex; align-items:flex-start; gap:8px; padding:0 16px; margin:0; min-width:0; }
 .activity-card.post .post-av { display:grid; place-items:center; flex:none; width:44px; min-width:44px; height:44px; min-height:44px; margin-top:0; }
@@ -135,7 +145,7 @@
 .activity-card.post .post-name:focus-visible,.activity-card.post .post-title-link:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
 .activity-card .activity-media { width:100%; margin:0; }
 .activity-card { --activity-map-stats-scrim:rgba(0,21,58,.48); }
-.activity-card .media-track { height:auto; border-radius:0; }
+.activity-card .media-track { height:auto; border-radius:0; background:var(--surface-raised); }
 .activity-card .media-item { height:auto; aspect-ratio:4 / 3; }
 .activity-card .media-map > .fmap { width:100%; height:100%; min-height:0; }
 .activity-card .post-map-metrics { position:absolute; z-index:3; inset:auto 0 0; box-sizing:border-box; height:56px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:end; gap:6px; padding:0 12px 8px; color:#fff; background:linear-gradient(to bottom,transparent 0%,rgba(0,21,58,.16) 42%,var(--activity-map-stats-scrim) 100%); pointer-events:none; }
@@ -153,8 +163,16 @@
 .activity-card .post-ft .activity-share { order:3; display:flex; align-items:center; justify-content:center; flex:none; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; margin:0 0 0 16px; background:none; border-color:transparent; box-shadow:none; }
 .activity-card .post-ft:has(.activity-share) .emoji-reactions .reaction-count { margin-left:auto; }
 .activity-card .post-ft:has(.emoji-reactions) .reaction-more { margin-right:8px; }
-.activity-card .post-ft:has(.emoji-reactions) { gap:0; padding-top:8px; }
+.activity-card .post-ft:has(.emoji-reactions) { gap:0; padding-top:8px; padding-bottom:8px; }
 .activity-card .post-ft:has(.emoji-reactions) .emoji-reactions .reaction-count { order:4; }
+.activity-home .activity-card .post-ft {
+  border-top-color:color-mix(in srgb,var(--line) 80%,transparent);
+  background:var(--surface-card);
+}
+.activity-home .activity-card .post-ft :is(.reaction-more,.activity-comments,.activity-share,.reaction-count) {
+  transition:transform var(--motion-press) var(--motion-ease),opacity var(--motion-press) var(--motion-ease),background-color var(--motion-settle) var(--motion-ease);
+}
+.activity-home .activity-card .post-ft :is(.reaction-more,.activity-comments,.activity-share,.reaction-count):active { transform:scale(.96); opacity:.72; }
 @media(max-width:360px) {
  .activity-card .post-ft:has(.emoji-reactions) { padding-inline:12px; }
  .activity-card .post-ft:has(.activity-share) { gap:8px; }
