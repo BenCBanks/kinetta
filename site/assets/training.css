@@ -3,7 +3,9 @@
 .training-pin { position:sticky; top:110px; display:grid; justify-items:center; align-content:start; gap:16px; }
 .training-pin .phone-frame { width:min(290px,100%); }
 .training-steps { min-width:0; padding-bottom:180px; }
-.training-steps .story-step { max-width:470px; }
+.training-steps .story-step { max-width:470px; min-height:62vh; padding-block:64px; }
+.training-steps .story-step:first-child { padding-top:42px; }
+.training-steps .story-step + .story-step { padding-top:34px; }
 .training-steps .story-step p { max-width:40ch; }
 .training-view-switch { display:inline-flex; gap:4px; padding:4px; border-radius:999px; background:var(--paper2); }
 .training-view-switch button { min-width:74px; min-height:44px; padding:8px 14px; border:0; border-radius:999px; background:transparent; color:var(--ink2); font:600 15px var(--body); cursor:pointer; }
