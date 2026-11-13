@@ -332,8 +332,19 @@ module.exports=async({browser,storageState,base,shots})=>{
    const expectedTitles=['Overall','Run','Ride','Walk & hike','Swim','Strength'];
    assert.deepEqual(await page.locator('#profile-achievement-page .profile-achievement-group-title').allTextContents(),expectedTitles,'the owner overview has one section per sport in the requested order');
    assert.equal(await page.locator('#profile-achievement-page .profile-achievement').count(),13,'the overview includes every catalog track');
+   const gutter=await page.locator('#page').evaluate(shell=>{const outer=shell.getBoundingClientRect(),content=document.querySelector('#profile-achievement-page').getBoundingClientRect(),style=getComputedStyle(shell);return{viewport:innerWidth,shellWidth:outer.width,paddingLeft:parseFloat(style.paddingLeft),paddingRight:parseFloat(style.paddingRight),contentLeft:content.left-outer.left,contentRight:outer.right-content.right};});
+   assert.equal(gutter.viewport,390,'the viewport-width evidence uses the 390px viewport');assert.equal(gutter.shellWidth,390,'the page shell fills the viewport width');assert.equal(gutter.paddingLeft,16,'the page shell keeps 16px left padding');assert.equal(gutter.paddingRight,16,'the page shell keeps 16px right padding');assert(gutter.contentLeft>=16&&gutter.contentRight>=16,`the achievement content stays inside both page gutters: ${JSON.stringify(gutter)}`);
    const run=page.locator('#profile-achievement-page .profile-achievement-track[data-achievement-code="sport:run"]'),runBadges=run.locator('.profile-achievement-ladder-badge');
-   assert.match(await run.locator('.profile-achievement-track-summary').innerText(),/^Level 4 of 9 · Next 50 mi · .* mi to go$/,'Run header names the current level, named maximum, next threshold and remaining distance');
+   assert.equal(await run.locator('.profile-achievement-track-summary').innerText(),'Level 4 of 9 · Next 50 mi · 12.8 mi to go','Run shows only the current level, next threshold and compact remaining distance under its section heading');
+   assert.equal(await run.locator('.profile-achievement-track-title').count(),0,'Run uses the section heading without repeating its name in the track header');
+   for(const [code,label] of [['sport:ride','Ride'],['sport:walk-hike','Walk & hike'],['sport:swim','Swim']])assert.equal(await page.locator(`#profile-achievement-page .profile-achievement-track[data-achievement-code="${code}"] .profile-achievement-track-title`).count(),0,`${label} does not repeat its single-track section name`);
+   for(const code of ['workouts','active_time','consistency','years_active','personal_bests','journey','climbing','sport:lift','lifted'])assert.equal(await page.locator(`#profile-achievement-page .profile-achievement-track[data-achievement-code="${code}"] .profile-achievement-track-title`).count(),1,`${code} keeps its name in a multi-track section`);
+   const medalShape=await run.locator('.profile-achievement-ladder-badge .profile-achievement-medallion').first().evaluate(node=>{const rect=node.getBoundingClientRect(),style=getComputedStyle(node);return{width:rect.width,height:rect.height,aspectRatio:style.aspectRatio,borderRadius:style.borderRadius};});
+   assert.equal(medalShape.width,56,'ladder badges keep a fixed 56px width');assert.equal(medalShape.height,56,'ladder badges stay square');assert.equal(medalShape.aspectRatio,'1 / 1','ladder badges declare a square aspect ratio');
+   if(theme==='dark'){
+    const future=await run.locator('.profile-achievement-ladder-badge.is-upcoming .profile-achievement-medallion').first().evaluate(node=>{const style=getComputedStyle(node),probe=document.createElement('i');probe.style.backgroundColor='var(--segbg)';document.body.append(probe);const segment=getComputedStyle(probe).backgroundColor;probe.remove();return{opacity:Number(style.opacity),filter:style.filter,background:style.backgroundColor,segment,borderWidth:style.borderTopWidth};});
+    assert(future.opacity>=.55&&future.filter==='grayscale(1)'&&future.background===future.segment&&future.borderWidth==='1px',`dark future badges remain readable and dimmed: ${JSON.stringify(future)}`);
+   }
    assert.equal(await runBadges.count(),catalog.tracks['sport:run'].levels.length+1,'Run shows all nine named levels and the repeating tail');
    assert.equal(await run.locator('.profile-achievement-ladder-badge.is-earned').count(),4,'Run colors all four earned levels');
    assert.equal(await run.locator('.profile-achievement-ladder-badge.is-next').count(),1,'Run outlines only the next level');
@@ -367,13 +378,20 @@ module.exports=async({browser,storageState,base,shots})=>{
     await page.setViewportSize({width:330,height:844});
     const compactColumns=await page.locator('#profile-achievement-group-run').locator('xpath=..').locator('.profile-achievement-ladder').evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(/\s+/).length);
     assert.equal(compactColumns,4,'330px level ladders use four columns');
+    const compactSquare=await run.locator('.profile-achievement-ladder-badge .profile-achievement-medallion').first().evaluate(node=>{const rect=node.getBoundingClientRect();return{width:rect.width,height:rect.height};});assert.deepEqual(compactSquare,{width:56,height:56},'ladder badges remain square at 330px');
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'all level ladders fit 330px without horizontal overflow');
     await page.setViewportSize({width:390,height:844});
    }
    await page.evaluate(()=>{document.documentElement.dataset.achievementEvidence='all-tracks';});
    await page.locator('nav.tabs').evaluate(node=>node.style.display='none');
    await page.locator('.top').evaluate(node=>node.style.display='none');
-   for(const [id,name] of [['run','run'],['overall','overall'],['strength','strength']])await page.locator(`.profile-achievement-group[aria-labelledby="profile-achievement-group-${id}"]`).screenshot({path:path.join(shots,`achievement-ladder-${name}-390-${theme}.png`),animations:'disabled'});
+   await page.locator('#profile-achievement-page > h1').evaluate(node=>node.style.display='none');
+   for(const [id,name] of [['run','run'],['overall','overall'],['strength','strength']]){
+    await page.locator('.profile-achievement-group').evaluateAll((nodes,keep)=>nodes.forEach(node=>{node.style.display=node.getAttribute('aria-labelledby')===`profile-achievement-group-${keep}`?'':'none';}),id);
+    assert.equal(await page.locator('.profile-achievement-group:visible').count(),1,`${name} evidence keeps exactly its selected section visible`);
+    const fullShot=await page.locator('#page').screenshot({path:path.join(shots,`achievement-ladder-${name}-390-${theme}.png`),animations:'disabled'});
+    assert.equal(fullShot.readUInt32BE(16),390,'the screenshot includes the full viewport width and both page gutters');
+   }
    await page.evaluate(()=>delete document.documentElement.dataset.achievementEvidence);
    const ownerCallsBeforeFriend=ownerAchievementCalls.length;
    await page.goto(base+'/people/fictional_friend?view=achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();

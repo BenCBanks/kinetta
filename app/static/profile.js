@@ -345,7 +345,7 @@ const ProfileLayout=(()=>{
     {id:'swim',title:'Swim',codes:['sport:swim'],nextBadge:true},
     {id:'strength',title:'Strength',codes:['sport:lift','lifted'],nextBadge:true}
   ];
-  function achievementTrackLadder(track,{shared=false,login='',pinnedCodes=new Set()}={}){
+  function achievementTrackLadder(track,{shared=false,login='',pinnedCodes=new Set(),showTitle=true}={}){
     const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),levels=achievementLevels(track),count=levels.length,current=achievementCurrentTier(track),next=achievementTierAt(track.code,level+1),progress=Math.round(achievementProgress(track)*100),pinned=pinnedCodes.has(track.code),canPin=level>0;
     const href=login?`/people/${encodeURIComponent(login)}?view=achievements&track=${encodeURIComponent(track.code)}`:achievementHref(track);
     const levelText=level>count?`Level ${level}`:`Level ${level} of ${count}`;
@@ -360,7 +360,7 @@ const ProfileLayout=(()=>{
     const tailEnabled=Boolean(achievementCatalog?.tail),tailEarned=level>count,tailMultiple=Math.max(2,level-count+1),last=levels.at(-1);
     const tail=tailEnabled&&last&&(!shared||tailEarned)?`<a class="profile-achievement-ladder-badge profile-achievement-ladder-tail ${tailEarned?'is-earned':'is-upcoming'}" role="listitem" href="${esc(href)}" aria-label="${esc(`${label}, repeat levels ${tailEarned?`through ×${tailMultiple}`:'from ×2'}, opens achievement levels`)}"><span class="profile-achievement-medallion" data-level="${last.level}" data-level-tone="${last.level>=6?'deep':last.level}" aria-hidden="true">${achievementAsset(last)}${!shared&&tailEarned?`<span class="profile-achievement-ladder-progress" role="progressbar" data-achievement-progress aria-label="Progress to repeat level ×${tailMultiple+1}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span data-progress-fill></span></span>`:''}</span><span class="profile-achievement-ladder-name">${shared?`×${tailMultiple}`:tailEarned?`×${tailMultiple}, ×${tailMultiple+1}…`:'×2, ×3…'}</span></a>`:'';
     const description=`Long press to ${pinned?'remove this medal from':'pin this medal to'} your profile.`;
-    return `<section class="profile-achievement-track" data-achievement-code="${esc(track.code)}"><a class="profile-achievement profile-achievement-track-head" href="${esc(href)}" aria-label="${esc(headerLabel)}" aria-description="${esc(description)}" data-achievement-code="${esc(track.code)}" data-showcase-pinned="${pinned}" data-showcase-eligible="${canPin}" data-achievement-pin-target="true"><span class="profile-achievement-track-title">${esc(label)}</span><span class="profile-achievement-track-summary">${esc(summary)}</span></a><div class="profile-achievement-ladder" role="list" aria-label="${esc(`${label} achievement levels`)}">${badges}${tail}</div></section>`;
+    return `<section class="profile-achievement-track" data-achievement-code="${esc(track.code)}"><a class="profile-achievement profile-achievement-track-head" href="${esc(href)}" aria-label="${esc(headerLabel)}" aria-description="${esc(description)}" data-achievement-code="${esc(track.code)}" data-showcase-pinned="${pinned}" data-showcase-eligible="${canPin}" data-achievement-pin-target="true">${showTitle?`<span class="profile-achievement-track-title">${esc(label)}</span>`:''}<span class="profile-achievement-track-summary">${esc(summary)}</span></a><div class="profile-achievement-ladder" role="list" aria-label="${esc(`${label} achievement levels`)}">${badges}${tail}</div></section>`;
   }
   function achievementGrid(tracks,levelUps,pinnedCodes=new Set()){
     const byCode=new Map(tracks.map(track=>[track.code,track]));
@@ -368,7 +368,7 @@ const ProfileLayout=(()=>{
       const grouped=section.codes.map(code=>byCode.get(code)).filter(Boolean);
       if(!grouped.length)return '';
       const id=`profile-achievement-group-${section.id}`;
-      return `<section class="profile-achievement-group" aria-labelledby="${id}"><h2 class="sec-head profile-achievement-group-title" id="${id}">${section.title}</h2><div class="profile-achievement-list is-grid is-overview is-ladder-list" role="list" aria-labelledby="${id}">${grouped.map(track=>achievementTrackLadder(track,{pinnedCodes})).join('')}</div></section>`;
+      return `<section class="profile-achievement-group" aria-labelledby="${id}"><h2 class="sec-head profile-achievement-group-title" id="${id}">${section.title}</h2><div class="profile-achievement-list is-grid is-overview is-ladder-list" role="list" aria-labelledby="${id}">${grouped.map(track=>achievementTrackLadder(track,{pinnedCodes,showTitle:grouped.length>1})).join('')}</div></section>`;
     }).join('');
   }
   function sharedAchievementGrid(tracks,login){
@@ -376,7 +376,7 @@ const ProfileLayout=(()=>{
       const grouped=tracks.filter(track=>section.codes.includes(track.code)).sort((a,b)=>achievementDay(b).localeCompare(achievementDay(a))||achievementLevel(b)-achievementLevel(a));
       if(!grouped.length)return '';
       const id=`profile-achievement-group-${section.id}`;
-      return `<section class="profile-achievement-group" aria-labelledby="${id}"><h2 class="sec-head profile-achievement-group-title" id="${id}">${section.title}</h2><div class="profile-achievement-list is-grid is-overview is-ladder-list" role="list" aria-labelledby="${id}">${grouped.map(track=>track._sharedLegacyOnly?sharedLegacyOnlyRow(track,login):achievementTrackLadder(track,{shared:true,login})).join('')}</div></section>`;
+      return `<section class="profile-achievement-group" aria-labelledby="${id}"><h2 class="sec-head profile-achievement-group-title" id="${id}">${section.title}</h2><div class="profile-achievement-list is-grid is-overview is-ladder-list" role="list" aria-labelledby="${id}">${grouped.map(track=>track._sharedLegacyOnly?sharedLegacyOnlyRow(track,login):achievementTrackLadder(track,{shared:true,login,showTitle:grouped.length>1})).join('')}</div></section>`;
     }).join('');
   }
   function sharedLegacyOnlyRow(track,login=''){
