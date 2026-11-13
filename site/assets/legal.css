@@ -5,7 +5,7 @@
   padding:32px 20px 64px;
   line-height:1.6;
 }
-.policy a { color:var(--brand); }
+.policy a { color:var(--brand); padding:12px 15px; margin:-12px -15px; }
 .policy h1 { font-size:clamp(36px,5.4vw,62px); font-weight:700; letter-spacing:-.03em; }
 .policy h2 { margin:40px 0 0; padding-top:24px; border-top:1px solid var(--line); font-size:clamp(24px,3vw,30px); }
 .policy p,.policy ul { max-width:68ch; margin:14px 0 0; color:var(--ink2); font-size:17px; line-height:1.6; }
