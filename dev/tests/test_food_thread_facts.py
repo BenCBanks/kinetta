@@ -75,5 +75,15 @@ check(f.classify('calories last week',anchor)['day']==dt.date(2026,10,11),'last 
 check(f.answer(f.classify('how many calories at lunch today?',anchor),S)['facts']['logged'] is None,'empty requested meal is not whole-day totals')
 check(f.feedback(S,{'kcal':None},seed=1),'unknown added calories do not crash feedback')
 
+for text, start, end in (
+ ('How has my weight changed since October?', dt.date(2026,10,1), anchor),
+ ('How has my weight changed from October 1 to October 31?', dt.date(2026,10,1), dt.date(2026,10,31)),
+):
+ q=f.classify(text,anchor);check(q and q['kind']=='weight' and q['start']==start and q['end']==end,'weight range: '+text)
+weights=[{'day':dt.date(2026,10,1),'kg':70.0},{'day':dt.date(2026,10,31),'kg':69.0}]
+weight_q=f.classify('How has my weight changed since October?',anchor)
+weight_answer=f.answer(weight_q,{'day':{'entries':[]},'needs':{'today':anchor},'profile':{'units':'metric'},'weights':weights})
+check('down 1.0 kg' in weight_answer['text'] and weight_answer['range']['start']=='2026-10-01','weight change uses dated endpoints')
+
 for text in ['How many calories can I have left today?','How much protein could I have remaining today?']:
  assert f.classify(text,anchor)['kind']=='left'

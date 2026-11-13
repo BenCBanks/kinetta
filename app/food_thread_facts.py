@@ -3,6 +3,7 @@ import datetime as dt
 import re
 
 WEEKDAYS = ('monday','tuesday','wednesday','thursday','friday','saturday','sunday')
+MONTHS = {name: index for index, name in enumerate(('january','february','march','april','may','june','july','august','september','october','november','december'), 1)}
 MEALS = {'breakfast':'breakfast','brunch':'lunch','lunch':'lunch','dinner':'dinner','supper':'dinner','snack':'snacks','snacks':'snacks'}
 NUTRIENTS = {'protein':('protein_g','protein_target','g'),'carbs':('carbs_g','carbs_target','g'),
              'fat':('fat_g','fat_target','g'),'fiber':('fiber_g','fiber_target','g'),
@@ -21,6 +22,52 @@ def fmt(value,unit):
     return kcal(value) if unit=='kcal' else round(float(value or 0))
 
 
+def _month_range(text, anchor):
+    match=re.search(r'\b(january|february|march|april|may|june|july|august|september|october|november|december)(?:\s+(\d{4}))?\b',text)
+    if not match:return None
+    month=MONTHS[match[1]];year=int(match[2] or anchor.year)
+    if not match[2] and month>anchor.month:year-=1
+    start=dt.date(year,month,1)
+    end=dt.date(year+1,1,1)-dt.timedelta(days=1) if month==12 else dt.date(year,month+1,1)-dt.timedelta(days=1)
+    return start,end
+
+
+def _date_word(word, anchor):
+    if word=='today':return anchor
+    if word=='yesterday':return anchor-dt.timedelta(days=1)
+    if word[-3:].isalpha():
+        weekday=word.split()[-1];ago=(anchor.weekday()-WEEKDAYS.index(weekday))%7
+        if word.startswith('last ') and not ago:ago=7
+        return anchor-dt.timedelta(days=ago)
+    month_day=re.fullmatch(r'(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:,?\s+(\d{4}))?',word)
+    if month_day:
+        month=MONTHS[month_day[1]];year=int(month_day[3] or anchor.year)
+        if not month_day[3] and month>anchor.month:year-=1
+        return dt.date(year,month,int(month_day[2]))
+    return dt.date.fromisoformat(word)
+
+
+def _range_for(text, anchor):
+    if re.search(r'\bthis month\b',text):return dt.date(anchor.year,anchor.month,1),anchor
+    if re.search(r'\blast month\b',text):
+        end=dt.date(anchor.year,anchor.month,1)-dt.timedelta(days=1)
+        return dt.date(end.year,end.month,1),end
+    if re.search(r'\b(?:last|past) (?:30|six|three) days\b',text):return anchor-dt.timedelta(days=29),anchor
+    month=_month_range(text,anchor)
+    since=re.search(r'\bsince\s+(.+?)(?:[?.!]|$)',text)
+    if since:
+        raw=since[1].strip()
+        try:return _date_word(raw,anchor),anchor
+        except (ValueError,KeyError):
+            return (month[0],anchor) if month and raw in MONTHS else None
+
+    between=re.search(r'\b(?:from|between)\s+(.+?)\s+(?:to|and)\s+(.+?)(?:[?.!]|$)',text)
+    if between:
+        try:return _date_word(between[1].strip(),anchor),_date_word(between[2].strip(),anchor)
+        except (ValueError,KeyError):return None
+    return None
+
+
 def classify(text, anchor):
     """Recognize questions only; ordinary food descriptions stay with the food engine."""
     text = re.sub(r'\s+', ' ', text.lower().replace('’', "'")).strip()
@@ -31,6 +78,10 @@ def classify(text, anchor):
     if info and 2<=len(info[1])<=120 and not re.search(r'\b(?:today|yesterday|left|logged|my (?:day|log|week))\b',info[1]):
         food=info[1].strip()
         return {'kind':'food_info','food':food}
+    if re.search(r'\b(?:weight|weigh)\w*\b',text) and re.search(r'\b(?:change|changed|trend|since|between|from|this month|last month|last|past)\b',text):
+        range_= _range_for(text,anchor)
+        if not range_ or range_[1] < range_[0]:return {'kind':'clarify','text':'Which date range would you like to see?'}
+        return {'kind':'weight','day':range_[1],'start':range_[0],'end':range_[1]}
     food_question = bool(re.search(r'\b(?:how (?:much|many).*\bin (?:a |an |the )?|does .+ have)\b', text))
     if food_question:
         return {'kind':'advice','day':anchor,'meal':None,'nutrient':'calories','weekly':False,'average':False}
@@ -88,6 +139,12 @@ def snapshot(c, uid, day, question=None):
     if question and question['kind']=='advice':
         return {'day':{'entries':[]},'needs':{'today':day},'profile':{}}
     profile = c.execute('SELECT units, food_chat_tone FROM profile WHERE user_id=%s',(uid,)).fetchone() or {}
+    if question and question['kind']=='weight':
+        start=question['start'];end=question['end']
+        rows=c.execute('SELECT day,kg FROM weights WHERE user_id=%s AND day BETWEEN %s AND %s ORDER BY day',(uid,start,end)).fetchall()
+        from . import energy
+        points=energy.weight_trend(rows)
+        return {'day':{'entries':[]},'needs':{'today':day},'profile':profile,'weights':rows,'weight_points':points}
     week_start=day-dt.timedelta(days=day.weekday())
     unknown_sql=','.join(f"bool_or((CASE WHEN jsonb_typeof(ref->'unknown_nutrients')='array' THEN ref->'unknown_nutrients' ELSE '[]'::jsonb END) ? '{k}') AS {k}_unknown" for k in NUTRIENTS_KEYS)
     period_rows=c.execute(f'''SELECT day, sum(kcal) AS kcal, sum(protein_g) AS protein_g, sum(carbs_g) AS carbs_g, sum(fat_g) AS fat_g, sum(fiber_g) AS fiber_g, count(*) AS n, count(fiber_g) AS fiber_n,{unknown_sql} FROM food_entries WHERE user_id=%s AND day BETWEEN %s AND %s GROUP BY day ORDER BY day''',(uid,week_start,day)).fetchall()
@@ -162,6 +219,15 @@ def answer(question, S):
     D=S['day'];kind=question['kind'];day=question['day'];today=S['needs']['today']
     label='today' if day==today else day.strftime('%b %d, %Y')
     entries=D['entries'];result={'kind':'answer','intent':kind,'day':day.isoformat(),'source':'your food log','facts':{}}
+    if kind=='weight':
+        rows=S.get('weights',[]);imperial=S.get('profile',{}).get('units')=='imperial';factor=2.20462 if imperial else 1;unit='lb' if imperial else 'kg'
+        if not rows:text=f"No weight is logged from {question['start'].strftime('%b %-d, %Y')} to {question['end'].strftime('%b %-d, %Y')}."
+        elif len(rows)<2:text=f"I have one weigh-in in that range, on {rows[0]['day'].strftime('%b %-d, %Y')}. I need two to calculate a change."
+        else:
+            first,last=rows[0],rows[-1];change=(float(last['kg'])-float(first['kg']))*factor;direction='down' if change<0 else 'up' if change>0 else 'unchanged'
+            text=f"From {first['day'].strftime('%b %-d, %Y')} to {last['day'].strftime('%b %-d, %Y')}, your weight was {direction} {abs(change):.1f} {unit}, from {float(first['kg'])*factor:.1f} to {float(last['kg'])*factor:.1f} {unit} across {len(rows)} weigh-ins."
+            result['facts']={'weights':len(rows),'start_kg':first['kg'],'end_kg':last['kg'],'change_kg':round(float(last['kg'])-float(first['kg']),2)}
+        result['text']=text;result['range']={'start':question['start'].isoformat(),'end':question['end'].isoformat()};return result
     if kind=='history':
         entries=[e for e in entries if not question['meal'] or e['meal']==question['meal']]
         meal=question['meal'] or 'food'

@@ -1,8 +1,8 @@
 """Kit's app-wide tools: fixed SQL, bound identity, bounded records and consent-aware scopes."""
 import datetime as dt
 from typing import Literal
-from pydantic import Field
-from . import db, coach
+from pydantic import Field, model_validator
+from . import db, coach, energy
 from .coach_tools import AccountTools, Empty, Range, Activity, TOOLS
 
 
@@ -16,10 +16,22 @@ class Stored(Empty):
     before_id: int | None = Field(default=None,gt=0)
 
 
+class GoalRange(Empty):
+    start: dt.date
+    end: dt.date
+
+    @model_validator(mode='after')
+    def bounded(self):
+        if not 0 <= (self.end - self.start).days <= 365:
+            raise ValueError('Use an ordered date range of at most one year')
+        return self
+
+
 EXTRA = {
     'stored_foods': (Stored, 'Own saved recipes, custom foods or saved meal combinations, including incomplete nutrients. Lists are paginated; pass record_id for ingredient details of one own record. Missing/other-account IDs are not found. Read only; never invent missing nutrition.'),
     'activities': (Page, 'Own workouts of every sport in inclusive local dates, newest first. Up to 50 rows; use next_before_id for older rows. Includes exact totals and explicit missing-data limits.'),
     'food_log': (Page, 'Own individual food entries in inclusive local dates: meals, quantities, source and known nutrients. Up to 50 rows; next_before_id pages older records. Unlogged is not zero; unknown nutrient flags remain explicit.'),
+    'nutrition_days_vs_goal': (GoalRange, 'Own daily logged calories compared with the applicable calorie goal in an inclusive range of at most 366 calendar days. Unlogged days and unknown calories stay explicit; read only.'),
     'strength_history': (Page, 'Own completed strength sets with exercise names, reps, kg and duration. Up to 50 sets per page; no invented strength values.'),
     'goals': (Empty, 'Own saved activity goals and nutrition targets. These are goals, not proof of completion.'),
     'body_profile': (Empty, 'Own entered body and heart-rate settings, including birth year and height. Requires Health sharing consent when the profile includes Health-derived weight. Unknown fields remain unknown.'),
@@ -41,7 +53,7 @@ class KitTools(AccountTools):
         ctx = db.coach_scope(connection, self._uid) if connection is not None else db.coach_connect(self._uid)
         with ctx as c:
             # Food/app tools remain usable without disclosing unconsented Health records.
-            if name not in {'profile','nutrition_summary','meal_options','meal_combinations','food_log','stored_foods','goals','app_features'} and not coach.health_ok(c, self._uid):
+            if name not in {'profile','nutrition_summary','meal_options','meal_combinations','food_log','nutrition_days_vs_goal','stored_foods','goals','app_features'} and not coach.health_ok(c, self._uid):
                 raise ValueError(coach.HEALTH_NO)
             return getattr(self, '_' + name)(c, parsed)
 
@@ -92,6 +104,28 @@ class KitTools(AccountTools):
                 if key in ('kcal','protein_g','carbs_g','fat_g','fiber_g','sodium_mg','sugar_g','saturated_fat_g'):row[key]=None
         return {'foods':rows[:50],'next_before_id':rows[49]['id'] if len(rows)>50 else None,
                 'limitations':['Unknown nutrient flags take precedence over stored zero placeholders. No record means unlogged, not no food eaten.']}
+
+    def _nutrition_days_vs_goal(self, c, r):
+        rows = c.execute('''SELECT day,
+          sum(CASE WHEN kcal IS NULL OR (CASE WHEN jsonb_typeof(ref->'unknown_nutrients')='array' THEN ref->'unknown_nutrients' ELSE '[]'::jsonb END) ? 'kcal' THEN 0 ELSE kcal END) AS logged_kcal,
+          count(*) AS items,
+          count(*) FILTER (WHERE kcal IS NULL OR (CASE WHEN jsonb_typeof(ref->'unknown_nutrients')='array' THEN ref->'unknown_nutrients' ELSE '[]'::jsonb END) ? 'kcal') AS kcal_unknown
+          FROM food_entries WHERE user_id=%s AND day BETWEEN %s AND %s GROUP BY day ORDER BY day''',
+                         (self._uid, r.start, r.end)).fetchall()
+        by_day = {row['day']: row for row in rows}
+        goals = energy.day_goals(c, self._uid, r.start, r.end)
+        days=[];day=r.start
+        while day <= r.end:
+            row=by_day.get(day);goal=goals.get(day,{}).get('kcal')
+            unknown=int((row or {}).get('kcal_unknown') or 0)
+            logged=None if not row or unknown else round(float(row['logged_kcal'] or 0))
+            days.append({'day':day,'logged_kcal':logged,'goal_kcal':goal,
+                         'difference_kcal':round(logged-goal) if logged is not None and goal is not None else None,
+                         'items':int(row['items']) if row else 0,'kcal_unknown':unknown})
+            day += dt.timedelta(days=1)
+        return {'start':r.start,'end':r.end,'days':days,
+                'logged_days':sum(1 for row in days if row['items']),
+                'limitations':['Unlogged days are missing data, not zero intake. Unknown calories make that day’s comparison unavailable. A logged calorie total can still understate a partial day.']}
 
     def _strength_history(self, c, r):
         tz=self._profile(c, Empty()).get('tz') or db.DEFAULT_TZ
