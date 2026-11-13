@@ -33,13 +33,19 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
     // Every tour picture is a complete, themed crop shown at no more than its natural width.
     const pics=await p.locator('main img[src*="assets/tour/"]').evaluateAll(xs=>xs.map(i=>({src:i.currentSrc,w:i.getBoundingClientRect().width,natural:i.naturalWidth/2,alt:i.alt})));
     assert(pics.every(i=>i.alt.length>20&&i.w<=i.natural*2/1.7+1&&i.src.includes(theme==='dark'?'-dark.':'-light.')),name+' tour picture theme, alt or upscaling');
-    if(name==='index'||name==='compare'){
+    if(name==='index'){
+     // Home is the pinned-phone story: keep its jump sections and reserved Progress mount present.
+     assert.equal(await p.locator('.home-story').count(),1);assert.equal(await p.locator('.story-step').count(),5);
+     assert.equal(await p.locator('[data-progress-demo-mount]').count(),1);
+     assert.equal(await p.locator('.story-pin-label').count(),0);
+    }
+    if(name==='compare'){
      // The workout map comes first, the recorded numbers underneath.
      const workout=await p.locator('.tour-workout img').evaluateAll(xs=>xs.map(i=>({src:i.currentSrc,top:i.getBoundingClientRect().top})));
      assert.equal(workout.length,2);assert.match(workout[0].src,/activity-map-/);assert.match(workout[1].src,/activity-result-/);assert(workout[0].top<workout[1].top);
      // Audience controls, never a shared ride, prove the sharing claim.
      assert.equal(await p.locator('img[src*="friends-route"]').count(),0);assert.equal(await p.locator('img[src*="sharing-default-"]').count(),1);
-     const words=await p.locator('main').innerText().then(t=>t.trim().split(/\s+/).length);assert(words<=(name==='index'?110:260),name+' copy grew to '+words+' words');
+     const words=await p.locator('main').innerText().then(t=>t.trim().split(/\s+/).length);assert(words<=260,name+' copy grew to '+words+' words');
     }
     if(name==='compare'){
      assert.deepEqual(await p.locator('.tour-scope').allInnerTexts(),['New workouts · Settings','One workout · Edit']);
