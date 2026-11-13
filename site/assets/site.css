@@ -376,7 +376,7 @@ footer { border-top: 1px solid var(--line); padding-block: 44px 56px; color: var
 footer .wrap { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px 40px; align-items: start; }
 footer img { width: 124px; height: auto; }
 footer p + p { margin-top: 8px; }
-footer a { color: var(--ink2); }
+footer a { display: inline-flex; min-height: 44px; align-items: center; box-sizing: border-box; color: var(--ink2); vertical-align: middle; }
 @media (max-width: 640px) { footer .wrap { grid-template-columns: 1fr; } }
 .compare.first { margin-top: 0; } .compare.solo { grid-template-columns: minmax(0, 760px); justify-content: center; }
 /* the comparison table on a phone: all three columns fit, the small print under each feature is left out */
@@ -749,7 +749,7 @@ header.top .signup { display:flex;align-items:center; }
 .feature-showcase-grid { display: grid; grid-template-columns: minmax(0, .9fr) minmax(300px, .7fr); gap: clamp(38px, 9vw, 130px); align-items: center; }
 .feature-showcase-copy .lede { margin-top: 18px; max-width: 39ch; color: var(--ink2); }
 .feature-tabs { display: flex; flex-wrap: wrap; gap: 0 22px; margin-top: 28px; border-bottom: 1px solid var(--line); }
-.feature-tabs button { position: relative; min-height: 48px; padding: 8px 0; border: 0; background: none; color: var(--ink2); font: 600 15px/1.1 var(--body); cursor: pointer; }
+.feature-tabs button { position: relative; min-width: 44px; min-height: 48px; padding: 8px 0; border: 0; background: none; color: var(--ink2); font: 600 15px/1.1 var(--body); cursor: pointer; }
 .feature-tabs button::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: var(--brand); content: ''; transform: scaleX(0); transition: transform .2s ease; }
 .feature-tabs button.is-selected { color: var(--brand); }
 .feature-tabs button.is-selected::after { transform: scaleX(1); }
