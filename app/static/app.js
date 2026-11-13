@@ -954,7 +954,7 @@ IC.home = '<path d="M4 11 12 4l8 7"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20
 const tabIcon = tab => svg(tab === 'activity' ? 'home' : tab);
 function route(re, tab, fn) { App.pages.push({re, tab, fn}); }
 function go(path, {replace = false} = {}) {
-  expandBottomNav();
+  if (typeof expandBottomNav === 'function') expandBottomNav();
   App.scroll[location.pathname + location.search] = scrollY;
   const from = location.pathname;
   const fromKnown=App.pages.some(p=>p.re.test(location.pathname.replace(/\/+$/, '')||'/me'));
@@ -1203,7 +1203,7 @@ function showError(el, e, {retry} = {}) {
 }
 // in-app links: <a href="/..."> navigate without reloading; prefetch on press for instant pages
 document.addEventListener('click', (e) => {
-  if (e.target.closest('nav.tabs')) expandBottomNav();
+  if (e.target.closest('nav.tabs') && typeof expandBottomNav === 'function') expandBottomNav();
   if (e.defaultPrevented) return;
   const a = e.target.closest('a[href^="/"]');
   if (!a || e.metaKey || e.ctrlKey || a.target || a.hasAttribute('download')) return;
