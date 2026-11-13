@@ -77,8 +77,8 @@
 .profile-achievement-ladder-badge.is-upcoming .profile-achievement-ladder-name,.profile-achievement-ladder-badge.is-upcoming .profile-achievement-ladder-threshold { color:var(--tx2); }
 .profile-achievement-ladder-progress { display:block; width:100%; max-width:100%; min-width:0; height:3px; margin:1px 0; overflow:hidden; border-radius:2px; background:color-mix(in srgb,var(--tx2) 38%,var(--bg)); }
 .profile-achievement-ladder-progress>span { display:block; width:0; height:100%; border-radius:inherit; background:var(--accent); }
-.achievement-share-card { box-sizing:border-box; width:952px; margin:0; padding:0 64px 24px; background:var(--bg); color:var(--tx); font-family:var(--font-ui); }
-.achievement-share-head { margin-inline:-64px; padding:28px 64px 24px; background:linear-gradient(135deg,var(--color-action),var(--color-brand) 60%,var(--color-ride)); color:#fff; }
+.achievement-share-card { box-sizing:border-box; width:952px; margin:0; padding:0 64px 24px; overflow:hidden; border-radius:28px; background:var(--bg); color:var(--tx); font-family:var(--font-ui); box-shadow:0 18px 44px rgba(12,20,24,.18); }
+.achievement-share-head { margin-inline:-64px; padding:28px 64px 24px; border-radius:28px 28px 0 0; background:linear-gradient(135deg,var(--color-action),var(--color-brand) 60%,var(--color-ride)); color:#fff; }
 .achievement-share-brand { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:48px; }
 .achievement-share-brand img { display:block; width:220px; height:75px; object-fit:contain; object-position:left center; filter:brightness(0) invert(1); }
 .achievement-share-brand span { color:rgba(255,255,255,.78); font-size:20px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; }
@@ -154,15 +154,18 @@
 .achievement-share-track-card .achievement-share-badge { min-height:210px; }
 .achievement-share-track-card .achievement-share-badge .profile-achievement-medallion { flex-basis:178px; width:178px; height:178px; }
 .achievement-share-track-card .achievement-share-badge .profile-achievement-icon { width:68px; height:68px; }
-.achievement-share-track-card .achievement-share-progress { width:100%; }
+.achievement-share-single-track .achievement-share-progress,.achievement-share-track-card .achievement-share-progress { width:178px; align-self:center; }
 .achievement-share-track-card .achievement-share-foot { margin-top:24px; }
 .share-scope-picker { display:grid; gap:12px; margin:0; padding:0; border:0; }
 .share-scope-picker legend { margin-bottom:2px; color:var(--tx); font-size:1rem; font-weight:700; }
 .share-scope-picker > label { display:flex; align-items:center; gap:10px; min-height:44px; color:var(--tx); }
-.share-scope-picker > label input { flex:none; accent-color:var(--accent); }
+.share-scope-picker > label input { flex:none; width:22px; height:22px; margin:0; accent-color:var(--accent); }
+.share-scope-picker > label > span { display:block; color:var(--tx); font-size:1rem; font-weight:600; }
 .share-scope-picker > label[data-share-sport-field],.share-scope-picker > label[data-share-track-field] { display:grid; grid-template-columns:72px minmax(0,1fr); gap:10px; }
 .share-scope-picker select { width:100%; min-height:44px; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--tx); font:inherit; }
 .share-scope-picker [data-share-scope-go] { margin-top:4px; }
+:root[data-theme="dark"] .achievement-share-head { background:linear-gradient(135deg,#1f55d0,#17488e 60%,#0b6077); }
+@media (prefers-color-scheme:dark) { :root:not([data-theme="light"]) .achievement-share-head { background:linear-gradient(135deg,#1f55d0,#17488e 60%,#0b6077); } }
 
 .profile-achievement-ladder-tail .profile-achievement-medallion { --achievement-color:color-mix(in srgb,var(--tx) 40%,var(--bg)); filter:grayscale(1); opacity:.45; }
 .profile-achievement-ladder-tail.is-earned .profile-achievement-medallion { --achievement-color:color-mix(in srgb,var(--achievement-palette-base) var(--achievement-strength),var(--color-canvas)); filter:none; opacity:1; }
