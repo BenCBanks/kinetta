@@ -89,6 +89,32 @@
       tab.classList.toggle('is-selected', active);
     });
   };
-  document.querySelectorAll('[data-feature-tab]').forEach(tab => tab.addEventListener('click', () => selectFeature(tab.dataset.featureTab)));
+  const featureTabs = [...document.querySelectorAll('[data-feature-tab]')];
+  featureTabs.forEach(tab => {
+    tab.addEventListener('click', () => selectFeature(tab.dataset.featureTab));
+    tab.addEventListener('keydown', event => {
+      const index = featureTabs.indexOf(tab);
+      const next = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? index + 1 : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? index - 1 : event.key === 'Home' ? 0 : event.key === 'End' ? featureTabs.length - 1 : -1;
+      if (next < 0) return;
+      event.preventDefault();
+      const target = featureTabs[(next + featureTabs.length) % featureTabs.length];
+      target.focus();
+      selectFeature(target.dataset.featureTab);
+    });
+  });
+  const featureShowcase = document.querySelector('.feature-showcase');
+  if (featureShowcase) {
+    const reveal = () => featureShowcase.classList.add('is-visible');
+    if (reduce || !('IntersectionObserver' in window)) reveal();
+    else {
+      const observer = new IntersectionObserver(entries => {
+        if (entries.some(entry => entry.isIntersecting)) {
+          reveal();
+          observer.disconnect();
+        }
+      }, { threshold: 0.12 });
+      observer.observe(featureShowcase);
+    }
+  }
   selectFeature('training');
 })();

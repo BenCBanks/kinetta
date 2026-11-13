@@ -60,17 +60,18 @@
       <div class="feature-showcase-copy">
         <h2 id="feature-showcase-title">Features.</h2>
                 <div class="feature-tabs" role="tablist" aria-label="Kinetta areas">
-          <button type="button" role="tab" aria-selected="true" data-feature-tab="training">Training</button>
-          <button type="button" role="tab" aria-selected="false" data-feature-tab="food">Food</button>
-          <button type="button" role="tab" aria-selected="false" data-feature-tab="friends">Friends</button>
-          <button type="button" role="tab" aria-selected="false" data-feature-tab="progress">Progress</button>
-          <button type="button" role="tab" aria-selected="false" data-feature-tab="kit">Kit</button>
+          <button type="button" role="tab" aria-selected="true" aria-controls="feature-phone-panel" data-feature-tab="training">Training</button>
+          <button type="button" role="tab" aria-selected="false" aria-controls="feature-phone-panel" data-feature-tab="food">Food</button>
+          <button type="button" role="tab" aria-selected="false" aria-controls="feature-phone-panel" data-feature-tab="friends">Friends</button>
+          <button type="button" role="tab" aria-selected="false" aria-controls="feature-phone-panel" data-feature-tab="progress">Progress</button>
+          <button type="button" role="tab" aria-selected="false" aria-controls="feature-phone-panel" data-feature-tab="kit">Kit</button>
         </div>
+        <p class="feature-demo-note" data-feature-copy aria-live="polite">{{copy:tour-training-description}}</p>
 
       </div>
-      <div class="feature-showcase-stage">
+      <div class="feature-showcase-stage" id="feature-phone-panel" role="tabpanel" aria-live="polite">
         <div class="phone-frame feature-phone">
-          <picture><source data-feature-dark srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img data-feature-screen src="assets/shots/light-activity.webp" alt="Fictional Kinetta Training activity screen with a route map and workout numbers." width="786" height="1704"></picture>
+          <picture><source data-feature-dark srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img id="feature-phone-screen" data-feature-screen src="assets/shots/light-activity.webp" alt="Fictional Kinetta Training activity screen with a route map and workout numbers." width="786" height="1704"></picture>
         </div>
         <p class="feature-stage-label" data-feature-label aria-hidden="true"></p>
       </div>
