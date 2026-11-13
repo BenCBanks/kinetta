@@ -98,7 +98,7 @@ they already pass on the new surfaces. Outline is neutral `#7B8791` / `#82909C`,
 UI sans is the display face for page titles and section headings, about 700 weight with slightly negative tracking.
 The existing Source Serif 4 logo artwork and bundled OFL font remain for the unchanged wordmark only. Native system sans is used for app controls, labels, body and numbers;
 the marketing site retains Figtree body text. Use tabular numerals and explicit units. Ordinary bold text must not
-inherit display sizes. At the default text size, app page titles are28–32px, sections17–20px and card titles16–17px. Body, buttons and chips are15–16px; secondary text is13–14px and never below12px. Allow one clearly identified hero per card or sheet, up to about40px; other statistics are20–24px and no larger than the page title. Use the `text-app-*` tokens (in rem) so this hierarchy grows with text enlargement; do not shrink the root font. Marketing display sizes remain separate.
+inherit display sizes. At the default text size, app page titles are28–32px, sections17–20px and card titles16–17px. Body, buttons and chips are15–16px; secondary text is13–14px and never below12px. Allow one clearly identified hero per card or sheet, up to about40px; other statistics are20–24px and no larger than the page title. Statistic values are semibold (600), never heavier; their labels are13px, weight500, muted, sentence case without added letter-spacing (owner, 13 November 2026). Use the `text-app-*` tokens (in rem) so this hierarchy grows with text enlargement; do not shrink the root font. Marketing display sizes remain separate.
 
 The shared spacing scale is 4, 8, 12, 16, 22, 32 and 48px. Phones have 22px side margins, dropping to 16px when narrow.
 Use 12px control radii, 16px media radii and 18px quiet card radii. Cards use about 16px padding and a fine border with
@@ -1972,3 +1972,13 @@ Numbers come from the shared `U` helpers in `app.js`, so cards, detail, tables, 
 - **Explore your progress / Explore your food** are plain full-width rows 8px apart: neutral icon, name, one line of detail, a trailing chevron and a hairline (`.progress-grid.explore-list`). Track tools and the Activity discovery tiles are unchanged for now.
 - **Icons are neutral.** Nutrition detail links and Explore rows use secondary-text icons; colour stays for meaning (selection, actions, sport/series).
 - **Energy balance is neutral.** A deficit or surplus is plain text, never green or red.
+
+## Owner standards, 13 November 2026
+
+These are standing rules from owner review on a physical iPhone. New work follows them; earlier sections yield where they conflict.
+
+**Activity detail header (#926).** Title 24px/700. Stat values 20px/600 with tabular numbers, units 13px/400 muted, labels 13px/500 muted in sentence case. The date/sport line is 14px/400 muted and runs full width. Analysis tabs and chart headers are 15px: 600 when selected, 400 otherwise. The stats grid has 3 aligned columns with 16px between rows, 2px between label and value, 12px above the first row and 16px card bottom padding. Total and moving figures sit together: Elapsed time and Pace (elapsed-based) on one row, with Moving time and Moving pace (or Moving speed for rides) directly beneath, shown only when they differ by at least one minute. Kit sits at the right end of the title row as a plain accent icon and label, 44px target, with no border or pill.
+
+**Picture choosers (#918).** A selected picture's outline sits exactly on the picture's own edge and radius, visible on all four sides. The frame takes the picture's aspect ratio, so there are no letterbox bands inside the outline. A choice that is still loading peeks as a flat card-coloured panel of the same shape, never stripes or text.
+
+**Achievements page (#920).** Show every catalog track in every state, grouped as Overall, Run, Ride, Walk & hike, Swim and Strength. Under each track, show its whole named ladder as small circular badges (always 1:1) with each level's name and threshold. Earned levels are in full colour, the next level has an accent outline and progress, and later levels are dimmed but clearly legible in both themes. A "×2, ×3…" tail follows the last named level. A one-line summary gives `Level N of M · Next <threshold> · <remaining> to go` in compact numbers and the account's units. No repeat chip covers a badge value. Friends see earned levels only.
