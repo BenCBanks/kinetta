@@ -33,6 +33,7 @@
         food:()=>document.querySelector('.thread-card [data-action="undo"]')&&document.querySelector('#thread-text'),
         'header-progress':()=>document.querySelector('#m-chart svg')&&document.querySelector('[data-progress-fitness]').textContent.includes('Training steadily'),
         'header-activity':()=>{const post=document.querySelector('#ff-list .post[data-href="/activity/friends/2"]');return post?.querySelector('.post-name')?.textContent==='Jordan Example'&&paintedMap(post)&&!post.querySelector('.map-unavailable:not([hidden])');},
+        achievements:()=>document.querySelector('#profile-achievement-page[aria-busy="false"] h1')?.textContent==='Achievements'&&document.querySelectorAll('#profile-achievement-page .profile-achievement-track .profile-achievement-ladder').length>=3,
       };
       return !!checks[cfg.stage]?.();
   }
