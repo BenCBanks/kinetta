@@ -8,12 +8,16 @@ const code=source.slice(start,end);
 const deferred=()=>{let resolve;const promise=new Promise(ok=>resolve=ok);return{promise,resolve};};
 
 async function run(){
+ const fixtureNow=new Date('2026-11-09T17:00:00.000Z');
+ const fixtureZone=Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';
+ const fixtureDay=fixtureNow.toLocaleDateString('en-CA',{timeZone:fixtureZone});
+ class FixtureDate extends Date{constructor(...args){super(...(args.length?args:[fixtureNow]));}static now(){return fixtureNow.getTime();}}
  const selectors=['#t-today','#t-required','#t-start','#t-setup','#t-recap','#t-checkin','#t-combined-week','#t-goals','#t-form','#t-insights'];
  const nodes=new Map(selectors.map(selector=>[selector,{innerHTML:'',hidden:false,dataset:{},isConnected:true}]));
  const pending=new Map(),el={innerHTML:'',isConnected:true};
  const read=path=>{const value=deferred();pending.set(path,value);return value.promise;};
  const ctx={
-  console,Date,Promise,Set,Intl,URLSearchParams,location:{search:''},
+  console,Date:FixtureDate,Promise,Set,Intl,URLSearchParams,location:{search:''},
   document:{hidden:false,addEventListener(){},removeEventListener(){}},
   window:{addEventListener(){},removeEventListener(){}},setTimeout:()=>1,clearTimeout(){},
   $:selector=>nodes.get(selector)||null,$$:()=>[],
@@ -31,10 +35,10 @@ async function run(){
  assert.match(today.innerHTML,/aria-busy="true"/,'Today exposes its loading state immediately');
  assert.equal((today.innerHTML.match(/me-today-skeleton/g)||[]).length,2,'Today reserves one skeleton per possible row');
  assert.equal(today.dataset.loading,'true','the loading token remains active while sources are pending');
- assert.deepEqual([...pending.keys()],['/api/activities?limit=1','/api/plans/current','/api/food/history?days=30',`/api/food/day?d=${new Date().toLocaleDateString('en-CA',{timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC'})}`]);
+ assert.deepEqual([...pending.keys()],['/api/activities?limit=1','/api/plans/current','/api/food/history?days=30',`/api/food/day?d=${fixtureDay}`]);
 
- const zone=Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';
- const day=new Date().toLocaleDateString('en-CA',{timeZone:zone});
+ const zone=fixtureZone;
+ const day=fixtureDay;
  pending.get('/api/activities?limit=1').resolve([]);
  pending.get('/api/plans/current').resolve({today:day,plan:{id:9101,unit:'mi'},today_workout:{type:'run',title:'Easy run',minutes:30,day}});
  pending.get('/api/food/history?days=30').resolve([]);

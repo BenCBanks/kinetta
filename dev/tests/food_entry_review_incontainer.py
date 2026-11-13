@@ -7,6 +7,8 @@ from fastapi.testclient import TestClient
 from app import auth,db,food_thread as T
 from app.main import app
 
+FIXTURE_TODAY=dt.date.today()
+
 class Review(unittest.TestCase):
  def setUp(self):
   self.ids=[];self.clients=[];self.draft=str(uuid.uuid4())
@@ -23,7 +25,7 @@ class Review(unittest.TestCase):
  def post(self,path,body=None,client=None,status=200):
   response=(client or self.a).post(path,json=body or {});self.assertEqual(response.status_code,status,response.text[:1200]);return response.json()
  def stage(self,items=None,**extra):
-  body={'client_id':str(uuid.uuid4()),'draft_id':self.draft,'items':items or [{'day':str(dt.date.today()),'meal':'snacks','name':'Fictional sauce','amount':1,'unit':'serving','kcal':400}],**extra}
+  body={'client_id':str(uuid.uuid4()),'draft_id':self.draft,'items':items or [{'day':str(FIXTURE_TODAY),'meal':'snacks','name':'Fictional sauce','amount':1,'unit':'serving','kcal':400}],**extra}
   result=self.post('/api/food/thread/reviews/items',body);return next(m for m in result['messages'] if m['kind']=='user'),body
  def prepare(self,messages,status=200,**extra):return self.post('/api/food/thread/reviews',{'client_id':str(uuid.uuid4()),'draft_id':self.draft,'messages':[m['id'] for m in messages],**extra},status=status)
  def confirm(self,review,**extra):return self.post(f"/api/food/thread/reviews/{review['id']}/confirm",{'confirm':True,'meal':'dinner',**extra})
@@ -50,7 +52,7 @@ class Review(unittest.TestCase):
   return self.post(f"/api/food/thread/messages/{m['id']}/remove-food",{'part':part['index'],'entry':entry,'expected':part['remove_token']},**kw)
  def mixed_source(self):
   """Make one held message with one ready and one unanswered fictional part."""
-  m,_=self.stage([{'day':str(dt.date.today()),'meal':'snacks','name':'Fictional rice','amount':1,'unit':'serving','kcal':220,'protein_g':5,'carbs_g':40,'fat_g':2}])
+  m,_=self.stage([{'day':str(FIXTURE_TODAY),'meal':'snacks','name':'Fictional rice','amount':1,'unit':'serving','kcal':220,'protein_g':5,'carbs_g':40,'fat_g':2}])
   with db.connect() as c:
    message=T.locked_message(c,self.ids[0],m['id']);reply=T.stored_reply(c,self.ids[0],message);result=copy.deepcopy(reply['result'])
    ready=copy.deepcopy(result['parts'][0]);ready['index']=0
@@ -84,8 +86,8 @@ class Review(unittest.TestCase):
   self.removal(m,part,1,status=409)
   r=next(x['result'] for x in data['messages'] if x.get('reply_to')==m['id']);self.removal(m,r['parts'][0],1)
   review=self.prepare([m]);self.assertEqual(review['review']['totals']['kcal'],120)
-  second,_=self.stage([{'day':str(dt.date.today()),'meal':'lunch','name':'Fictional rice','amount':1,'unit':'serving','kcal':200},
-                        {'day':str(dt.date.today()),'meal':'lunch','name':'Fictional beans','amount':1,'unit':'serving','kcal':100}])
+  second,_=self.stage([{'day':str(FIXTURE_TODAY),'meal':'lunch','name':'Fictional rice','amount':1,'unit':'serving','kcal':200},
+                        {'day':str(FIXTURE_TODAY),'meal':'lunch','name':'Fictional beans','amount':1,'unit':'serving','kcal':100}])
   restored=self.a.get('/api/food/thread/reviews/draft/'+self.draft).json();p=next(x['result']['parts'][0] for x in restored['messages'] if x.get('reply_to')==second['id'])
   self.removal(second,p,0);review=self.prepare([m,second]);self.assertEqual(review['review']['totals']['kcal'],220)
   self.assertEqual([e['name'] for e in review['review']['foods']],['Fictional turkey sub','Fictional beans'])
@@ -105,8 +107,8 @@ class Review(unittest.TestCase):
   self.post(f"/api/food/thread/messages/{review['id']}/undo");self.assertEqual(self.rows('food_entries'),[]);self.assertEqual(len(self.rows('dishes')),1)
   r=self.a.post(f"/api/food/thread/reviews/{review['id']}/confirm",json={'confirm':True,'meal':'dinner',**choices});self.assertIn(r.status_code,(200,404,409));self.assertEqual(self.rows('food_entries'),[])
  def test_calorie_edits_scale_that_food_only_and_are_validated(self):
-  items=[{'day':str(dt.date.today()),'meal':'snacks','name':'Fictional bun','amount':1,'unit':'serving','kcal':120,'protein_g':4,'carbs_g':20,'fat_g':2},
-         {'day':str(dt.date.today()),'meal':'snacks','name':'Fictional mustard','amount':1,'unit':'serving','kcal':5,'protein_g':0,'carbs_g':1,'fat_g':0}]
+  items=[{'day':str(FIXTURE_TODAY),'meal':'snacks','name':'Fictional bun','amount':1,'unit':'serving','kcal':120,'protein_g':4,'carbs_g':20,'fat_g':2},
+         {'day':str(FIXTURE_TODAY),'meal':'snacks','name':'Fictional mustard','amount':1,'unit':'serving','kcal':5,'protein_g':0,'carbs_g':1,'fat_g':0}]
   m,_=self.stage(items);review=self.prepare([m])
   for bad in ({'0':-1},{'0':6000},{'x':10}):self.post(f"/api/food/thread/reviews/{review['id']}/confirm",{'confirm':True,'meal':'dinner','kcal':bad},status=422)
   self.post(f"/api/food/thread/reviews/{review['id']}/confirm",{'confirm':True,'meal':'dinner','kcal':{'9':10}},status=422)
@@ -116,7 +118,7 @@ class Review(unittest.TestCase):
   self.assertEqual((rows['Fictional bun']['kcal'],rows['Fictional bun']['protein_g'],rows['Fictional bun']['carbs_g']),(180,6,30),'macros scale with the calories')
   self.assertTrue(rows['Fictional bun']['ref']['origin_edited']);self.assertEqual(rows['Fictional mustard']['kcal'],5,'other foods unchanged')
  def test_one_off_uses_the_given_amounts_without_creating_a_recipe(self):
-  items=[{'day':str(dt.date.today()),'meal':'snacks','name':name,'amount':amount,'unit':'g','kcal':kcal} for name,amount,kcal in [('Fictional oats',100,200),('Fictional milk',200,100)]]
+  items=[{'day':str(FIXTURE_TODAY),'meal':'snacks','name':name,'amount':amount,'unit':'g','kcal':kcal} for name,amount,kcal in [('Fictional oats',100,200),('Fictional milk',200,100)]]
   m,_=self.stage(items);r=self.prepare([m]);self.confirm(r,meal='lunch')
   self.assertEqual([(e['name'],e['amount'],e['kcal'],e['meal']) for e in self.rows('food_entries')],[('Fictional oats',100,200,'lunch'),('Fictional milk',200,100,'lunch')]);self.assertEqual(self.rows('dishes'),[])
  def test_save_without_log_and_by_weight_portion(self):
@@ -147,13 +149,13 @@ class Review(unittest.TestCase):
   self.prepare([m],selection=[{'message':m['id'],'parts':[9]}],status=409)
   self.prepare([m],selection=[{'message':m['id'],'parts':[1]}],status=409)
   self.prepare([m],selection=[{'message':m['id'],'parts':[0]}]);
-  foreign=self.b.post('/api/food/thread/reviews/items',json={'client_id':str(uuid.uuid4()),'draft_id':self.draft,'items':[{'day':str(dt.date.today()),'meal':'snacks','name':'Foreign food','amount':1,'unit':'serving','kcal':50}]}).json();foreign_m=next(x for x in foreign['messages'] if x['kind']=='user')
+  foreign=self.b.post('/api/food/thread/reviews/items',json={'client_id':str(uuid.uuid4()),'draft_id':self.draft,'items':[{'day':str(FIXTURE_TODAY),'meal':'snacks','name':'Foreign food','amount':1,'unit':'serving','kcal':50}]}).json();foreign_m=next(x for x in foreign['messages'] if x['kind']=='user')
   self.prepare([foreign_m],selection=[{'message':foreign_m['id'],'parts':[0]}],status=404)
   self.prepare([m],selection=[{'message':999999999,'parts':[0]}],status=422)
   review=self.prepare([m],selection=[{'message':m['id'],'parts':[0]}]);self.confirm(review,meal='dinner')
   self.prepare([m],selection=[{'message':m['id'],'parts':[0]}],status=409)
  def test_selected_review_refreshes_when_selected_food_changes(self):
-  m,_=self.stage([{'day':str(dt.date.today()),'meal':'snacks','name':'Fictional oats','amount':1,'unit':'serving','kcal':100,'protein_g':4,'carbs_g':18,'fat_g':2}]);review=self.prepare([m],selection=[{'message':m['id'],'parts':[0]}])
+  m,_=self.stage([{'day':str(FIXTURE_TODAY),'meal':'snacks','name':'Fictional oats','amount':1,'unit':'serving','kcal':100,'protein_g':4,'carbs_g':18,'fat_g':2}]);review=self.prepare([m],selection=[{'message':m['id'],'parts':[0]}])
   with db.connect() as c:
    message=T.locked_message(c,self.ids[0],m['id']);reply=T.stored_reply(c,self.ids[0],message);result=copy.deepcopy(reply['result']);result['parts'][0]['entries'][0]['kcal']=180;T.finish_reply(c,self.ids[0],message,result)
   changed=self.post(f"/api/food/thread/reviews/{review['id']}/confirm",{'confirm':True,'meal':'lunch'},status=409);self.assertTrue(changed['changed']);self.assertEqual(changed['review']['foods'][0]['kcal'],180);self.assertEqual(self.rows('food_entries'),[])
@@ -227,12 +229,12 @@ class Review(unittest.TestCase):
   self.assertEqual(len(self.rows('food_entries')),1);self.assertEqual(sum(bool(x.get('replayed')) for x in results),1)
   self.post(f"/api/food/thread/reviews/{other['id']}/confirm",{'confirm':True,'meal':'dinner'},status=409)
  def test_explicit_past_day_and_retry_preserve_destination(self):
-  past=str(dt.date.today()-dt.timedelta(days=12))
+  past=str(FIXTURE_TODAY-dt.timedelta(days=12))
   m,_=self.stage();review=self.prepare([m])
   result=self.confirm(review,day=past,meal='lunch')
   rows=self.rows('food_entries');self.assertEqual(len(rows),1);self.assertEqual(str(rows[0]['day']),past);self.assertEqual(rows[0]['meal'],'lunch')
   replay=self.confirm(review,day=past,meal='lunch');self.assertTrue(replay['replayed']);self.assertEqual(len(self.rows('food_entries')),1)
-  self.post(f"/api/food/thread/reviews/{review['id']}/confirm",{'confirm':True,'meal':'lunch','day':str(dt.date.today())},status=409)
+  self.post(f"/api/food/thread/reviews/{review['id']}/confirm",{'confirm':True,'meal':'lunch','day':str(FIXTURE_TODAY)},status=409)
   self.assertEqual(str(self.rows('food_entries')[0]['day']),past)
  def test_invalid_day_and_old_confirmation_hash(self):
   from app.food_entry_review import ConfirmIn,digest

@@ -1,8 +1,10 @@
 'use strict';
 // Delayed real writes on one fictional account; every unrelated write is blocked.
-const {chromium}=require('playwright'),assert=require('node:assert/strict');
-const base=process.env.KINETTA_URL||'http://localhost:8798',foodOnly=process.env.FOOD_ONLY==='1';
-const fixtureNow=new Date(),actionDay=fixtureNow.toISOString().slice(0,10);
+const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs');
+const base=process.env.KINETTA_URL||'http://localhost:8798',foodOnly=process.env.FOOD_ONLY==='1',project=process.env.KINETTA_PROJECT||'kinettatest';
+const clockPath=process.env.KINETTA_WEIGHT_FIXTURE_CLOCK||'/tmp/'+project+'-weight-progress-clock.json';
+assert(fs.existsSync(clockPath),'Weight actions require the instant captured by weight_progress_fixture.py');
+const fixtureNow=new Date(JSON.parse(fs.readFileSync(clockPath,'utf8')).now),actionDay=fixtureNow.toISOString().slice(0,10);
 const until=async(p,fn,label)=>{for(let n=0;n<150;n++){if(await p.evaluate(fn))return;await p.waitForTimeout(100);}throw Error(label+' '+JSON.stringify(await p.evaluate(()=>({weight:App.me.weight_kg,height:App.me.height_cm,toast:document.querySelector('#toast')?.textContent}))));};
 (async()=>{
  const browser=await chromium.launch();
