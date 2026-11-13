@@ -357,6 +357,10 @@ module.exports=async({browser,storageState,base,shots})=>{
    assert.deepEqual(await index.locator('[data-achievement-sport]').evaluateAll(nodes=>nodes.map(node=>node.querySelector('span')?.textContent.trim())),['Overall','Run','Ride','Walk & hike','Swim','Strength'],'the sticky sport switcher has the six requested choices');
    assert.equal(await index.locator('.profile-achievement-sport-card').count(),4,'only the selected sport tracks are rendered');
    assert.deepEqual(await index.locator('.profile-achievement-sport-card .profile-achievement-track-title').allTextContents(),['Distance','Workouts','Longest','Fastest'],'Run cards are titled by what they measure');
+   assert.equal(await index.locator('[data-achievement-sport=\"overall\"] [data-achievement-icon=\"trophy\"]').count(),1,'Overall uses a real trophy icon');
+   const fastest=index.locator('.profile-achievement-sport-card.is-fastest');
+   assert.equal(await fastest.count(),1,'Fastest card is marked for its scroll treatment');
+   assert((await fastest.locator('.profile-achievement-see-all').evaluate(node=>parseFloat(getComputedStyle(node).marginLeft)))>0,'Fastest See all is aligned to the card edge');
    assert.equal(await index.locator('.profile-achievement-sport-card .profile-achievement-track-title').evaluateAll(nodes=>nodes.some(node=>/run|ride|swim|walk/i.test(node.textContent))),false,'track titles do not repeat the sport name');
    const ladder= index.locator('[data-achievement-ladder]').first();assert(await ladder.evaluate(node=>node.scrollWidth>=node.clientWidth),'the ladder is horizontally scrollable');await page.waitForTimeout(500);
    const centered=await ladder.evaluate(node=>{const next=node.querySelector('.is-next'),r=node.getBoundingClientRect(),n=next?.getBoundingClientRect();return next?Math.abs((n.left+n.width/2)-(r.left+r.width/2)):0;});assert(centered<8,`the next Run badge is centred on open (${centered}px)`);

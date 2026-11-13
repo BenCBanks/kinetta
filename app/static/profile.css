@@ -545,3 +545,10 @@
 .profile-achievement-sport-card .profile-achievement-repeat-caption { margin:0; font-size:.75rem; }
 @media (max-width:360px) { .profile-achievement-sport-card { padding:14px; } .profile-achievement-ladder-scroll .profile-achievement-ladder-badge { flex-basis:82px; } .profile-achievement-ladder-scroll .profile-achievement-ladder-progress { width:82px; } }
 @media (prefers-reduced-motion:reduce) { .profile-achievement-ladder-scroll { scroll-behavior:auto; } }
+/* Fastest ladders keep the centred benchmark readable without exposing clipped neighbours. */
+.profile-achievement-sport-card.is-fastest .profile-achievement-ladder-scroll {
+  -webkit-mask-image:linear-gradient(to right,transparent 0,transparent 22px,#000 36px,#000 calc(100% - 36px),transparent calc(100% - 22px),transparent 100%);
+  mask-image:linear-gradient(to right,transparent 0,transparent 22px,#000 36px,#000 calc(100% - 36px),transparent calc(100% - 22px),transparent 100%);
+}
+.profile-achievement-sport-card.is-fastest .profile-achievement-sport-card-footer { justify-content:flex-end; }
+.profile-achievement-sport-card.is-fastest .profile-achievement-see-all { margin-left:auto; }
