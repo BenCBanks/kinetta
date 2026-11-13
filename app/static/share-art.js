@@ -197,7 +197,8 @@ const ShareSheet=(()=>{
       const live=()=>body.isConnected&&owner===readOwner()&&items[selected]?.valid?.()!==false,row=$('.share-picture-row',body),controls=$('[data-share-controls]',body),note=$('[data-share-note]',body),status=$('.share-picture-status',body),send=$('[data-share-send]',body),saveButton=$('[data-share-save]',body);
       const cache=new Map(),versions=items.map(()=>0);let selected=-1,busy=false,scrollTimer=0,peekFrame=0;
       const updatePeekLabels=()=>{peekFrame=0;const bounds=row.getBoundingClientRect(),left=bounds.left,right=bounds.right;$$('[data-share-choice]',body).forEach(choice=>{const rect=choice.getBoundingClientRect(),visible=rect.left>=left-.5&&rect.right<=right+.5;choice.dataset.peeking=String(!visible);});};
-      const schedulePeekLabels=()=>{if(peekFrame)return;peekFrame=requestAnimationFrame(updatePeekLabels);};
+      const scheduleFrame=typeof requestAnimationFrame==='function'?requestAnimationFrame:callback=>setTimeout(callback,0);
+      const schedulePeekLabels=()=>{if(peekFrame)return;peekFrame=scheduleFrame(updatePeekLabels);};
       const centeredChoice=()=>{const center=row.getBoundingClientRect().left+row.clientWidth/2;let best=-1,distance=Infinity;[...row.children].forEach((choice,index)=>{const rect=choice.getBoundingClientRect(),d=Math.abs(rect.left+rect.width/2-center);if(d<distance){best=index;distance=d;}});return best;};
       const syncCenteredChoice=()=>{const best=centeredChoice();if(best>=0&&best!==selected)select(best);schedulePeekLabels();};
       const closeSelf=()=>close();App.closeActivityShare=closeSelf;
