@@ -49,6 +49,7 @@ const appFeatureEnabled = (name) => App.me?.feature_flags?.[name] === true;
 const classicScriptPromises = new Map();
 const classicScriptsLoaded = new Set();
 const FOOD_ROUTE_ASSET = '/static/food.js?v=__ASSET_HASH__';
+const THREAD_ROUTE_ASSET = '/static/thread.js?v=__ASSET_HASH__';
 const KIT_ROUTE_ASSET = '/static/kit.js?v=__ASSET_HASH__';
 const PROGRESS_ROUTE_ASSET = '/static/progress-routes.js?v=__ASSET_HASH__';
 const SEGMENTS_ROUTE_ASSET = '/static/segments.js?v=__ASSET_HASH__';
@@ -95,6 +96,7 @@ const lazyRouteBundles = [
   {re: /^\/food\/cook\/\d+$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, SOCIAL_ROUTE_ASSET, COOK_ROUTE_ASSET]},
   {re: /^\/food\/recipe-link$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, COOK_ROUTE_ASSET, RECIPE_IMPORT_ROUTE_ASSET]},
   {re: /^\/food\/setup$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, '/static/onboarding.js?v=__ASSET_HASH__']},
+  {re: /^\/food\/describe(?:\/.*)?$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, THREAD_ROUTE_ASSET]},
   {re: /^\/food(?:\/.*)?$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET]},
   {re: /^\/progress\/weight$/, tab: 'progress', scripts: [FOOD_ROUTE_ASSET]},
   {re: /^\/progress\/(?:routes|trends|calendar|heatmap)$/, tab: 'progress', scripts: [PROGRESS_ROUTE_ASSET]},
@@ -489,7 +491,7 @@ const Q = {
         const current = Q.all();
         Q.save(failed ? current.map(o => o.id === op.id ? {...o, error: failed.offline || failed.stale || failed.status === 401 || failed.code === 'account_changed' ? null : failed.message} : o)
           : current.filter(o => o.id !== op.id));
-        if (!failed && response?.messages && owner===readOwner() && typeof FoodThread!=='undefined') {try{await FoodThread.accept(response);}catch(e){invalidate('/api/food');}}
+        if (!failed && response?.messages && owner===readOwner()) {try{if(typeof FoodThread==='undefined')await loadClassicScript(THREAD_ROUTE_ASSET);if(typeof FoodThread!=='undefined')await FoodThread.accept(response);}catch(e){invalidate('/api/food');}}
         if (failed && !failed.offline && !failed.stale && failed.status !== 401 && failed.code !== 'account_changed' && owner === readOwner()) toast(`Couldn't save ${op.label}. It is still on this phone.`);
         if (failed && (failed.offline || failed.stale || failed.status === 401 || failed.code === 'account_changed')) break;
       }

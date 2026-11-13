@@ -95,6 +95,7 @@ Object.assign(KitChat, (() => {
   }
   async function mountFoodThread(c){
     if(c.foodHost?.isConnected)return c.foodHost;
+    if(typeof FoodThread==='undefined')await loadClassicScript(THREAD_ROUTE_ASSET);
     if(typeof FoodThread==='undefined')throw Error('Food logging is unavailable right now. Your message is still here.');
     await FoodThread.prepare();if(!active(c))return null;
     c.foodStarted=true;draw(c);const slot=$('#kit-food-slot',c.el),host=document.createElement('section');
@@ -241,6 +242,7 @@ Object.assign(KitChat, (() => {
     });
   }
   async function mount(el){
+    if(typeof FoodThread==='undefined')await loadClassicScript(THREAD_ROUTE_ASSET);
     const ctx=context(),back=screens[ctx.screen],c={el,context:ctx,owner:owner(),session:readOwner(),messages:[],localMessages:[],loaded:false,sending:false,awaitingFood:false,foodStarted:false};current=c;
     el.classList.add('food-thread','kit-chat');
     el.innerHTML=`<header class="thread-heading"><a class="back" href="${back[1]}">${svg('back')}${back[0]}</a><h1>Ask Kit</h1><div class="kit-chat-actions"><button type="button" class="icon-btn" id="kit-saved" aria-label="Earlier Kit reviews" title="Earlier Kit reviews">${svg('list')}</button><button type="button" class="icon-btn kit-settings" id="kit-settings" aria-label="Kit chat settings">${svg('more')}</button></div></header><p id="kit-status" role="status" aria-live="polite"></p><button class="linkbtn" id="kit-older" type="button" hidden>Earlier messages</button><div id="kit-messages" aria-live="off"></div><section id="kit-intro"><h2><span class="kit-mark" aria-hidden="true">${svg('sparkle')}</span>What can I help with?</h2><div class="kit-starters">${starters[ctx.screen].map(([label],i)=>`<button type="button" data-kit-start="${i}">${svg(starterIcons[ctx.screen][i])}<span>${esc(ctx.screen==='activity'&&i===0&&!ctx.activity_id?'Review my latest workout':label)}</span></button>`).join('')}</div><button class="ghost wide" id="kit-load-retry" hidden>Try loading again</button></section><form id="kit-composer" class="thread-composer"><div class="thread-compose-row kit-compose-row"><label class="vh" for="kit-text">Message Kit</label><textarea id="kit-text" rows="1" maxlength="1500" enterkeyhint="send" placeholder="Message Kit…"></textarea><button class="primary thread-send" id="kit-send" aria-label="Send to Kit">${svg('send')}</button></div><p class="kit-fine" id="kit-fine">${esc(shortProvider())} · <button type="button" class="linkbtn" id="kit-footer-memory">Memory</button></p></form>`;

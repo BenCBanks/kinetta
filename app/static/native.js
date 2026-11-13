@@ -562,6 +562,7 @@ const Native = (() => {
     if(!Array.isArray(pending.entries)||pending.entries.length>5)throw new Error('Food entry was incomplete. Try opening Kinetta again.');
     if(!pending.entries.length)return;
     if(location.pathname!=='/food/describe'){if(location.pathname+(location.search||'')!==view)return;go('/food/describe');}
+    if(typeof FoodThread==='undefined'&&typeof loadClassicScript==='function')await loadClassicScript(THREAD_ROUTE_ASSET);
     // Owner-bound local staging is safe offline; posting still requires server authentication.
     for(const entry of pending.entries){
       guard();if(typeof FoodThread==='undefined')throw new Error('Install the latest Kinetta app to open this food draft.');

@@ -96,7 +96,7 @@ async function foodRouteFixture(browser,{hold=false,failFirst=false,instrument=f
  await page.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url());
   if(url.origin!==base)return route.abort();
-  if(['/static/food.js','/static/kit.js','/static/cook.js','/static/recipe-import.js','/static/onboarding.js'].includes(url.pathname)){
+  if(['/static/food.js','/static/thread.js','/static/kit.js','/static/cook.js','/static/recipe-import.js','/static/onboarding.js'].includes(url.pathname)){
    assets.push(url.pathname);
    const count=(attempts.get(url.pathname)||0)+1;attempts.set(url.pathname,count);
    if(url.pathname===failedPath&&count===1)return route.abort();
@@ -749,7 +749,14 @@ async function foodWarmupCase(browser){
    assert.deepEqual(direct.errors,[],`${label} has no page errors`);
   }finally{await direct.context.close();}
  }
- console.log('Food route leaf: cold Me omits food.js; Nutrition, Weight and Kit load it on demand PASS');
+ const threadDirect=await foodRouteFixture(browser);
+ try{
+   await threadDirect.page.goto(base+'/food/describe',{waitUntil:'domcontentloaded'});await ready(threadDirect.page,'#thread-plus','direct Food conversation');
+   assert.deepEqual(threadDirect.assets.slice(0,2),['/static/food.js','/static/thread.js'],'Food conversation loads the FoodThread leaf after Food helpers');
+   assert.equal(threadDirect.assets.filter(path=>path==='/static/thread.js').length,1,'direct Food conversation requests thread.js once');
+   assert.deepEqual(threadDirect.errors,[]);assert.deepEqual(threadDirect.writes,[]);
+ }finally{threadDirect.release();await threadDirect.context.close();}
+ console.log('Food route leaf: cold Me omits food.js; Nutrition, Weight, Kit and FoodThread load on demand PASS');
 }
 (async()=>{const browser=await chromium.launch();try{
   if(process.env.KINETTA_FRIENDS_LAZY_ONLY==='1'){
@@ -1225,7 +1232,8 @@ async function foodWarmupCase(browser){
   const kitDirect=await foodRouteFixture(browser);
   try{
     await kitDirect.page.goto(base+'/me/kit',{waitUntil:'domcontentloaded'});await ready(kitDirect.page,'#kit-text','Kit after deferred direct route');
-    assert.deepEqual(kitDirect.assets.slice(0,2),['/static/food.js','/static/kit.js'],'Kit loads Food dependencies before the chat route');
+    assert.deepEqual(kitDirect.assets.slice(0,3),['/static/food.js','/static/kit.js','/static/thread.js'],'Kit loads Food and chat dependencies before mounting');
+    assert.equal(kitDirect.assets.filter(path=>path==='/static/thread.js').length,1,'Kit requests the FoodThread leaf once');
     assert.equal(await kitDirect.page.locator('#kit-load-retry').isVisible(),false,'fictional conversation startup succeeds without the retry error');
     assert.doesNotMatch(await kitDirect.page.locator('#kit-status').textContent(),/Cannot read properties/,'Kit renders without an initialization exception');
     assert.deepEqual(kitDirect.errors,[]);assert(kitDirect.writes.some(path=>path==='POST /api/coach/conversation/visits'),'the fictional Kit start write is intercepted by the test route');
