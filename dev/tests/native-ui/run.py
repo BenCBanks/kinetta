@@ -6,7 +6,9 @@ import urllib.request
 from lifecycle import stop_for_fixture
 from header_geometry import check_headers
 STORE_STAGES=('header-me','activity','header-track','header-food','food','header-progress','header-activity','achievements')
-p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--store',action='store_true');p.add_argument('--store-stage',action='append',choices=STORE_STAGES,help='Add a Store scene to the default set; repeat for extra screens.');p.add_argument('--device',choices=['compact','pro','all'],default='all');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
+from startup_timing import phase_durations,summary_markdown
+p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--store',action='store_true');p.add_argument('--store-stage',action='append',choices=STORE_STAGES,help='Add a Store scene to the default set; repeat for extra screens.');p.add_argument('--device',choices=['compact','pro','all'],default='all');p.add_argument('--startup-timing',action='store_true');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
+assert not (a.store and a.startup_timing),'Cold-start timing uses the fictional Me fixture, not Store captures'
 def run(*args,check=True,timeout=180):
  try:result=subprocess.run(args,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=timeout)
  except subprocess.TimeoutExpired as error:
@@ -56,7 +58,7 @@ if a.store:
  assert map_config['kind']=='pmtiles' and url.scheme=='https' and url.hostname and not (url.username or url.password or url.query or url.fragment),'Public credential-free vector map required'
  assert not url.hostname.endswith('tile.openstreetmap.org'),'Never use public OSM tile servers'
  (a.output/'public-map.json').write_text(json.dumps(map_config,indent=2))
-results=[]
+results=[];startup_rows=[]
 for device in preferred:
  udid=None
  try:
@@ -79,15 +81,18 @@ for device in preferred:
    else: stages=[(name,16) for name in ['header-me','header-activity','header-track','header-progress','header-food']]+[('recipe',16),('review',16),('food',16),('recipe',24),('food',24),('track-live',16),('track-map',16),('track-review',16),('track-live',24),('track-review',24),('activity',16),('activity-sticky',16),('activity-empty',16),('activity-map',16),('activity',24),('friends-empty',16),('friends-typical',16),('friends-heavy',16),('friends-heavy',24),('groups-create',16)]
    for stage,root in stages:
     diagnostics['phase']=f'{theme} {stage} root={root}';(a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
+    measure_startup=a.startup_timing and theme=='light' and stage=='header-me'
     print(f'Native UI: {device["name"]} {theme} {stage} root={root}',flush=True)
     token=uuid.uuid4().hex;copy=a.output/'KinettaLayout.app'
     if installed:recovered=stop_for_fixture(sim,udid,theme,recovered)
     diagnostics['terminationRecovery']=recovered;(a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
     destination=installed or copy
-    run('python3',str(Path(__file__).with_name('prepare.py')),str(a.app),str(destination),'--stage',stage,'--root',str(root),'--run',token,*(['--update'] if installed else []),*(['--store','--map-config',str(a.output/'public-map.json')] if a.store else []))
+    run('python3',str(Path(__file__).with_name('prepare.py')),str(a.app),str(destination),'--stage',stage,'--root',str(root),'--run',token,*(['--update'] if installed else []),*(['--store','--map-config',str(a.output/'public-map.json')] if a.store else []),*(['--startup-timing'] if measure_startup else []))
     if not installed:
      sim('install',udid,str(copy));installed=Path(sim('get_app_container',udid,'com.kinetta.app','app'))
-    container=Path(sim('get_app_container',udid,'com.kinetta.app','data'));sim('launch',udid,'com.kinetta.app')
+    container=Path(sim('get_app_container',udid,'com.kinetta.app','data'))
+    process_launch_epoch_ms=time.time_ns()/1_000_000 if measure_startup else None
+    sim('launch',udid,'com.kinetta.app')
     metrics=None
     for _ in range(250):
      try:
@@ -100,6 +105,14 @@ for device in preferred:
      sim('io',udid,'screenshot','--type=png',str(a.output/(filename+'-missing-metrics.png')),check=False,timeout=20)
      (a.output/(filename+'-missing-metrics.json')).write_text(json.dumps({**diagnostics,'error':'No metrics for current fixture run'},indent=2))
     assert metrics, f'No native metrics: {device["name"]} {theme} {stage}'
+    if measure_startup:
+     timing=metrics.get('startupTiming')
+     assert timing,'Cold-start fixture did not return phase timestamps'
+     timing['processLaunchEpochMs']=process_launch_epoch_ms
+     timing['phasesMs']=phase_durations(timing,process_launch_epoch_ms)
+     startup_rows.append({'device':device['name'],'phases':timing['phasesMs']})
+     phases=timing['phasesMs']
+     print('IOS_COLD_START '+device['name']+' '+ ' '.join(f'{key}={value:.1f}ms' for key,value in phases.items()),flush=True)
     capture=a.output/(filename+('.jpg' if a.store else '.png'))
     sim('io',udid,'screenshot','--type='+('jpeg' if a.store else 'png'),str(capture))
     metrics.update(device=device['name'],runtime=runtime['name'],terminationRecovery=recovered);(a.output/(filename+'.json')).write_text(json.dumps(metrics,indent=2))
@@ -220,4 +233,11 @@ import shutil
 shutil.rmtree(a.output/'KinettaLayout.app',ignore_errors=True)
 expected_count=len(dict.fromkeys([*STORE_STAGES,*(a.store_stage or [])])) if a.store else 50*len(preferred)
 assert len(results)==expected_count,'Every selected phone needs all selected layout cases'
+if a.startup_timing:
+ assert len(startup_rows)==len(preferred),'Each selected phone needs one cold-start sample'
+ summary=summary_markdown(startup_rows)
+ (a.output/'startup-summary.md').write_text(summary)
+ summary_path=os.environ.get('GITHUB_STEP_SUMMARY')
+ if summary_path:
+  with open(summary_path,'a',encoding='utf-8') as output:output.write(summary+'\n')
 print(f'PASS {len(results)} actual native WebView layout captures with fictional API stand-ins; physical device checks remain separate')

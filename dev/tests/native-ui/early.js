@@ -6,6 +6,7 @@
   // labels in the same screenshot-only mode as the website capture runner.
   globalThis.__KINETTA_SCREENSHOT_MODE__ = true;
   cfg.errors=errors;cfg.requests=requests;cfg.blocked=[];
+  if(cfg.startupTiming)document.addEventListener('DOMContentLoaded',()=>{cfg.startupTiming.indexLoadedPerfMs=performance.now();},{once:true});
   addEventListener('error',e=>errors.push(String(e.message)));
   addEventListener('unhandledrejection',e=>errors.push(String(e.reason?.message||e.reason)));
   if(Number.isFinite(cfg.fixtureNow)){
@@ -44,6 +45,7 @@
   globalThis.fetch=async(input,options={})=>{
     const raw=typeof input==='string'?input:input.url,u=new URL(raw,location.href),p=u.pathname;
     if(p.startsWith('/api/')){
+      if(p==='/api/me'&&cfg.startupTiming&&cfg.startupTiming.apiMeStartPerfMs==null)cfg.startupTiming.apiMeStartPerfMs=performance.now();
       requests.push(p);let data;
       if(cfg.store){
         const method=options.method||input?.method||'GET',key=p.startsWith('/api/food/thread/reviews/draft/')?'/api/food/thread':p;
@@ -82,7 +84,9 @@
       else if(p==='/api/plan/today')data={plan:null};
       else if(/\/(activities|goals|dishes|shared|friends|suggested|calendar|plans|gear)/.test(p))data=[];
       else data={};
-      return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
+      const response=new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
+      if(p==='/api/me'&&cfg.startupTiming)cfg.startupTiming.apiMeDonePerfMs=performance.now();
+      return response;
     }
     if(cfg.store&&raw===cfg.store.mapUrl)return nativeFetch(input,{...options,credentials:'omit'});
     if(u.origin!==location.origin)throw Error('Native UI fixture blocked external request');

@@ -2,7 +2,7 @@
 import argparse,json,math,shutil,subprocess,uuid
 from datetime import datetime
 from pathlib import Path
-p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('destination',type=Path);p.add_argument('--stage',choices=['recipe','review','food','track-live','track-review','track-map','activity','activity-sticky','activity-empty','activity-map','friends-empty','friends-typical','friends-heavy','groups-create','header-me','header-activity','header-track','header-progress','header-food','achievements'],required=True);p.add_argument('--store',action='store_true');p.add_argument('--map-config',type=Path);p.add_argument('--root',type=int,default=16);p.add_argument('--run',required=True);p.add_argument('--update',action='store_true');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('destination',type=Path);p.add_argument('--stage',choices=['recipe','review','food','track-live','track-review','track-map','activity','activity-sticky','activity-empty','activity-map','friends-empty','friends-typical','friends-heavy','groups-create','header-me','header-activity','header-track','header-progress','header-food','achievements'],required=True);p.add_argument('--store',action='store_true');p.add_argument('--map-config',type=Path);p.add_argument('--root',type=int,default=16);p.add_argument('--run',required=True);p.add_argument('--update',action='store_true');p.add_argument('--startup-timing',action='store_true');a=p.parse_args()
 assert a.source.suffix=='.app' and a.source.is_dir()
 assert a.destination.suffix=='.app' and a.destination.resolve()!=a.source.resolve()
 if a.update:
@@ -13,6 +13,9 @@ else:
 public=a.destination/'public';index=public/'index.html';assert index.is_file()
 fixture=Path(__file__).parent
 config={'stage':a.stage,'root':a.root,'run':a.run}
+if a.startup_timing:
+ assert a.stage=='header-me' and not a.store,'Startup timing is limited to the fictional Me fixture'
+ config['startupTiming']={}
 if a.stage=='header-activity' and not a.store:
  fixture_data=json.loads(subprocess.check_output(['node','-e',"const r=require(process.argv[1])().responses;process.stdout.write(JSON.stringify({own:r['/api/activities'],friends:r['/api/feed/friends']}))",str(fixture/'appstore.cjs')],text=True))
  if fixture_data['friends']:
@@ -46,7 +49,7 @@ if a.stage.startswith('track-'):
  assert recording['finishedAt']==config['fixtureNow']
  config['recording']['id']=str(uuid.UUID(a.run))
  config['recording']['state']='review' if a.stage=='track-review' else 'recording'
-(public/'static/native-ui-early.js').write_text('globalThis.KinettaUIFixture='+json.dumps(config)+';\n'+(fixture/'display-diagnostics.js').read_text()+'\n'+(fixture/'early.js').read_text())
+(public/'static/native-ui-early.js').write_text('globalThis.KinettaUIFixture='+json.dumps(config)+';\nif(globalThis.KinettaUIFixture.startupTiming){const t=globalThis.KinettaUIFixture.startupTiming;t.performanceTimeOriginEpochMs=performance.timeOrigin;t.webViewReadyPerfMs=performance.now();}\n'+(fixture/'display-diagnostics.js').read_text()+'\n'+(fixture/'early.js').read_text())
 (public/'static/native-ui-late.js').write_text((fixture/'late.js').read_text())
 if not a.update:
  s=index.read_text().replace('<script src="/static/keyboard.js','<script src="/static/native-ui-early.js"></script>\n<script src="/static/keyboard.js',1).replace('</body>','<script src="/static/native-ui-late.js"></script>\n</body>')

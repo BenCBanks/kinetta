@@ -184,7 +184,7 @@ jobs:
       - name: Check native WebView layout with fictional records
         if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
         timeout-minutes: 23
-        run: python3 dev/tests/native-ui/run.py --app "$RUNNER_TEMP/simulator/App.app" --output "$RUNNER_TEMP/native-ui" --device "${{ matrix.device }}"
+        run: python3 dev/tests/native-ui/run.py --app "$RUNNER_TEMP/simulator/App.app" --output "$RUNNER_TEMP/native-ui" --device "${{ matrix.device }}" --startup-timing
       - uses: actions/upload-artifact@v4
         if: always()
         with:
