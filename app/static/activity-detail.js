@@ -132,10 +132,17 @@ const ActivityDetail=(()=>{
   if(best)rows.push(`<button type="button" class="detail-highlight" data-type="secondary" data-detail-tab="efforts">${svg('trophy')}${esc(best.label)} best</button>`);
   return rows.length?`<div class="detail-highlights">${rows.join('')}</div>`:'';
  }
+ function movingRow(a){
+  const elapsed=Number(a.elapsed_s),moving=Number(a.moving_s);
+  if(!a.distance_m||a.moving_s==null||!Number.isFinite(elapsed)||!Number.isFinite(moving)||elapsed-moving<60)return '';
+  const r=rate({...a,elapsed_s:moving});
+  if(r.label==='Time')return '';
+  return `<div class="detail-moving" aria-label="Moving workout numbers"><span class="detail-stat-empty" aria-hidden="true"></span>${stat('Moving time',activityMovingText(a))}${stat('Moving '+r.label.toLowerCase(),r.v,r.u)}</div>`;
+ }
  function title(a,hero,{shared=false,socialId=shared?'s-soc':'d-soc'}={}){
-  const kit=!shared&&(a.ai_note||kitChatOn())?`<button type="button" class="me-chip detail-kit" id="d-kit" aria-label="${kitChatOn()?'Ask Kit about this activity':'Kit’s workout note'}">${svg(kitChatOn()?'sparkle':'clock')}${kitChatOn()?'Kit':'Saved note'}</button>`:'';
-  return `<section class="d-title card compact-detail-title"><div class="detail-title-row"><h1>${esc(a.name)}</h1></div><div class="detail-date-row">${sportMark(a.sport)}<p class="detail-date">${date(a,{shared})}</p>${kit}</div>${shared&&a.owner?`<a class="detail-owner" href="${profileHref(a.owner)}">${esc(a.owner.name)}</a>`:''}
-    <div class="hero detail-primary">${hero}</div>${secondary(a,{shared})}${!shared?'<div id="d-celebration" class="milestone-celebration-host" aria-live="polite"></div><div id="d-next-medal"></div>':''}${highlights(a,{shared})}<div class="detail-social" id="${socialId}"${!shared?' hidden':''}></div>${!shared?'<div id="d-milestones"></div>':''}</section>`;
+  const kit=!shared&&(a.ai_note||kitChatOn())?`<button type="button" class="me-chip detail-kit" id="d-kit" aria-label="${kitChatOn()?'Ask Kit about this activity':'Kit’s workout note'}">${svg('sparkle')}Kit</button>`:'';
+  return `<section class="d-title card compact-detail-title"><div class="detail-title-row"><h1>${esc(a.name)}</h1>${kit}</div><div class="detail-date-row">${sportMark(a.sport)}<p class="detail-date">${date(a,{shared})}</p></div>${shared&&a.owner?`<a class="detail-owner" href="${profileHref(a.owner)}">${esc(a.owner.name)}</a>`:''}
+    <div class="detail-stat-stack"><div class="hero detail-primary">${hero}</div>${movingRow(a)}${secondary(a,{shared})}</div>${!shared?'<div id="d-celebration" class="milestone-celebration-host" aria-live="polite"></div><div id="d-next-medal"></div>':''}${highlights(a,{shared})}<div class="detail-social" id="${socialId}"${!shared?' hidden':''}></div>${!shared?'<div id="d-milestones"></div>':''}</section>`;
  }
  function header(a,{mine=true,mapped=!!a.line,backLabel='Activity'}={}){
   const bar=sticky=>`<header class="detail-bar ${mapped?(sticky?'detail-sticky':'detail-floating'):'top'}"${sticky?' hidden':''}><button type="button" class="back" data-back aria-label="Back to ${esc(backLabel)}">${svg('back')}<span>${esc(backLabel)}</span></button>${sticky?`<b class="detail-bar-title">${esc(a.name)}</b>`:''}<div class="acts">${mine?`<button type="button" class="icon-btn"${sticky?'':' id="d-send"'} data-detail-share aria-label="Share activity">${svg('share')}</button><button type="button" class="icon-btn"${sticky?'':' id="d-edit"'} data-detail-edit aria-label="Edit activity">${svg('edit')}</button>`:''}</div></header>`;
