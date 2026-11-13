@@ -77,7 +77,7 @@ const TrackMath = {
   },
 };
 const Track = (() => {
-  let session = null, key = null, owner = null, watch = null, wake = null, message = '', saving = false, mapTimer = null, mapView = null, lastPersist = 0, nativeTask = null, controlling = false, display = 'map', nativeRevision = 0,refreshReadyDistance=null,drawRevision=0;
+  let session = null, key = null, owner = null, watch = null, wake = null, message = '', saving = false, mapTimer = null, mapView = null, lastPersist = 0, nativeTask = null, controlling = false, display = 'map', nativeRevision = 0,refreshReadyDistance=null,drawRevision=0,mapControlsFrame=0,reviewResizeFrame=0;
   let planIntent=null;
   let reviewDraft=null,reviewRestore=null,photoBusy=false,photoGeneration=0,saveError='',mapOverlay=null,reviewResize=null;
   const accountKey = () => App.me ? 'kinetta.track:' + JSON.stringify([Native.base || location.origin, App.me.id]) : null;
@@ -399,13 +399,13 @@ const Track = (() => {
   function draw() {
     const el = $('#track-content'); if (!el || !App.me) return;
     const renderRevision=++drawRevision;
-    if (!session) { mapOverlay?.close();mapOverlay=null;reviewResize?.disconnect();reviewResize=null;const top=el.parentElement?.querySelector(':scope > .top');if(top){top.hidden=false;$('h1',top).textContent='Track';const acts=$('.acts',top);if(acts)acts.hidden=false;}ready(el,renderRevision);cleanViews();return; }
+    if (!session) { mapOverlay?.close();mapOverlay=null;reviewResize?.disconnect();reviewResize=null;cancelAnimationFrame(reviewResizeFrame);reviewResizeFrame=0;cancelAnimationFrame(mapControlsFrame);mapControlsFrame=0;const top=el.parentElement?.querySelector(':scope > .top');if(top){top.hidden=false;$('h1',top).textContent='Track';const acts=$('.acts',top);if(acts)acts.hidden=false;}ready(el,renderRevision);cleanViews();return; }
     const renderedId=session.id,renderedOwner=readOwner(),live=()=>session?.id===renderedId&&readOwner()===renderedOwner&&el.isConnected;
     const review = session.state === 'review', paused = session.state !== 'recording';
     const heldMap=review && el._trackReview && el._trackId===session.id?$('#track-map-wrap',el):null;
     const heldChart=heldMap && el._trackUnits===U.du()?$('#track-review-charts',el):null;
     const heldOverlay=heldMap?mapOverlay:null;
-    mapOverlay?.close();mapOverlay=null;reviewResize?.disconnect();reviewResize=null;
+    mapOverlay?.close();mapOverlay=null;reviewResize?.disconnect();reviewResize=null;cancelAnimationFrame(reviewResizeFrame);reviewResizeFrame=0;cancelAnimationFrame(mapControlsFrame);mapControlsFrame=0;
     if(review)loadReview();
     const top = el.parentElement?.querySelector(':scope > .top'); if (top) top.hidden = !review;   // the session header names it
     if(top && review){$('h1',top).textContent='Review activity';const acts=$('.acts',top);if(acts)acts.hidden=true;}
@@ -423,7 +423,7 @@ const Track = (() => {
     el._trackId=session.id;el._trackReview=review;el._trackUnits=U.du();
     $$('[data-display]', el).forEach((b) => b.onclick = () => { display = b.dataset.display; draw(); });
     cleanViews();
-    const wrap=$('#track-map-wrap');if(wrap){mapOverlay=heldOverlay || wireMediaMapFull(wrap,()=>mapView?.el===$('#track-map')?mapView:null,lines,false,{tapArea:'.track-map',refitOnClose:review});const controls=$('.track-full-controls',wrap);if(controls){const observer=new ResizeObserver(()=>{if(wrap.isConnected)wrap.style.setProperty('--map-controls-height',Math.ceil(controls.getBoundingClientRect().height)+'px');});observer.observe(controls);viewResources.set(controls,()=>observer.disconnect());}}
+    const wrap=$('#track-map-wrap');if(wrap){mapOverlay=heldOverlay || wireMediaMapFull(wrap,()=>mapView?.el===$('#track-map')?mapView:null,lines,false,{tapArea:'.track-map',refitOnClose:review});const controls=$('.track-full-controls',wrap);if(controls){const observer=new ResizeObserver(()=>{if(!wrap.isConnected)return;cancelAnimationFrame(mapControlsFrame);mapControlsFrame=requestAnimationFrame(()=>{mapControlsFrame=0;if(wrap.isConnected)wrap.style.setProperty('--map-controls-height',Math.ceil(controls.getBoundingClientRect().height)+'px');});});observer.observe(controls);viewResources.set(controls,()=>{observer.disconnect();cancelAnimationFrame(mapControlsFrame);mapControlsFrame=0;});}}
     $$('[data-track-lap]',el).forEach(b=>b.onclick=markLap);
     $$('[data-track-pause]',el).forEach(b=>b.onclick=()=>$('#track-pause')?.click());
     $$('[data-track-finish]',el).forEach(b=>b.onclick=()=>$('#track-finish')?.click());
@@ -439,8 +439,8 @@ const Track = (() => {
       const continuing=$('#track-continue');if(continuing)continuing.onclick=()=>{if(!live()||saving||photoBusy||reviewDraft?.request)return;session.state='paused';resume();};
       wireReviewPhotos(live);if(!heldChart)reviewCharts();
       const chart=$('#track-review-charts'),dock=$('.track-review-dock'),section=$('.track-review');let width=chart?.clientWidth;
-      const observer=new ResizeObserver(()=>{if(!live())return;if(chart?.isConnected&&Math.abs(chart.clientWidth-width)>1){width=chart.clientWidth;reviewCharts();}if(section?.isConnected && dock?.isConnected){const height=Math.ceil(dock.getBoundingClientRect().height)+'px';section.style.setProperty('--track-dock-height',height);document.documentElement.style.setProperty('--track-review-dock-height',height);}});
-      if(chart)observer.observe(chart);if(dock)observer.observe(dock);reviewResize=observer;viewResources.set(form,()=>observer.disconnect());
+      const observer=new ResizeObserver(()=>{if(!live()||reviewResizeFrame)return;reviewResizeFrame=requestAnimationFrame(()=>{reviewResizeFrame=0;if(!live())return;if(chart?.isConnected&&Math.abs(chart.clientWidth-width)>1){width=chart.clientWidth;reviewCharts();}if(section?.isConnected && dock?.isConnected){const height=Math.ceil(dock.getBoundingClientRect().height)+'px';section.style.setProperty('--track-dock-height',height);document.documentElement.style.setProperty('--track-review-dock-height',height);}});});
+      if(chart)observer.observe(chart);if(dock)observer.observe(dock);reviewResize=observer;viewResources.set(form,()=>{observer.disconnect();cancelAnimationFrame(reviewResizeFrame);reviewResizeFrame=0;});
       const detail=$('.track-review-details');if(detail)detail.ontoggle=()=>{if(live()&&reviewDraft)reviewDraft.detailsOpen=detail.open;};
       if(saving||photoBusy||reviewDraft?.request)$$('input,select',form).forEach(field=>field.disabled=true);
       form.onsubmit = async (e) => {
