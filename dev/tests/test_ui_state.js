@@ -3,8 +3,11 @@
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
 const saved = new Map();
 function client() {
-  const listeners = [], ctx = {
+  const listeners = [], paintDefs = new Map(), ctx = {
     document: {currentScript: {src: 'https://example.test/static/app.js?v=ui-test'}, querySelector: () => null,
+      getElementById: id => paintDefs.get(id) || null,
+      createElementNS: (namespace, tag) => ({id: '', classList: {add() {}}, setAttribute() {}, innerHTML: ''}),
+      body: {append: node => paintDefs.set(node.id, node)},
       addEventListener: (type, fn) => { if (type === 'click') listeners.push(fn); }},
     localStorage: {getItem: k => saved.get(k) ?? null, setItem: (k, v) => saved.set(k, v), removeItem: k => saved.delete(k)},
     location: {origin: 'https://example.test'}, Native: {base: '', token: null, headers: () => ({})},
@@ -15,10 +18,11 @@ function client() {
   vm.runInContext(fs.readFileSync('app/static/app.js', 'utf8') +
     '\nglobalThis.ui = {App, load, prefetch, invalidate, coachKey, coachVersion, coachMessage, showCoach};', ctx);
   ctx.ui.App.me = {id: 1, login: 'zz_test_ui'};
-  return {ctx, ...ctx.ui, listeners};
+  return {ctx, ...ctx.ui, listeners, paintDefs};
 }
 (async () => {
   let c = client();
+  assert.match(c.paintDefs.get('kinetta-paint-defs').innerHTML, /linearGradient/);
   assert.equal(c.coachVersion({change: 'demo', effect: 'demo benefit'}), c.coachVersion({effect: 'demo benefit', change: 'demo'}), 'JSON field order does not change note identity');
   const key = c.coachKey('activity:10'), version = c.coachVersion('A made-up note.');
   const body = {hidden: false}, card = {dataset: {coachKey: key, coachVersion: version}, querySelector: () => body};

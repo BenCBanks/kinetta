@@ -248,7 +248,7 @@ details.fold-row[open] { padding-bottom: 12px; }
    --tab-h reserves its actual height and bottom gap in existing sticky controls and page padding.
    Long labels keep their intrinsic width; the other targets share the remaining room. */
 nav.tabs { position: fixed; z-index: 20; left: 12px; right: 12px; bottom: var(--nav-bottom); max-width: 520px; margin: 0 auto;
-  display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 2px; height: var(--nav-height); padding: var(--nav-padding);
+  display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 8px; height: var(--nav-height); padding: var(--nav-padding);
   border: 1px solid var(--line); border-color: color-mix(in srgb, var(--card) 80%, var(--line)); border-radius: calc(var(--nav-height) / 2);
   background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none;
   box-shadow: var(--elevation-raised); transition: height var(--motion-settle) var(--motion-ease), border-radius var(--motion-settle) var(--motion-ease), padding var(--motion-settle) var(--motion-ease); }
