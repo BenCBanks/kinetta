@@ -46,23 +46,59 @@
   </div>
 </header>
 
-<main id="main">
+<main id="main" class="friends-page">
   <section class="pagehead friends-pagehead">
     <div class="wrap">
       <span class="eyebrow">Friends</span>
       <h1>Keep up with <em>your friends’ workouts.</em></h1>
-      <p class="lede">Find friends, share workouts, react and comment.</p>
+      <p class="lede">Find friends, share workouts, react and comment.</p><p class="friends-runs-note">Shared workouts, newest first.</p>
     </div>
   </section>
-  <section class="tour-features friends-tour" aria-label="Friends features">
-    <div class="wrap">
-      <div class="head friends-tour-head"><h2>Your workouts and theirs, in one feed.</h2><p>Shared workouts, newest first.</p></div>
-      <article class="tour-row"><div><span class="eyebrow">The feed</span><h2>The feed</h2><p class="lede">React to or comment on friends’ workouts.</p></div><figure><div class="tour-image"><picture><source srcset="assets/tour/friends-feed-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/friends-feed-light.webp" alt="Fictional shared workout feed card with a route map, metrics, reactions and comments." width="373" height="499"></picture></div></figure></article>
-      <article class="tour-row"><div><span class="eyebrow">Map and photos</span><h2>Map and photos</h2><p class="lede">Add photos to a shared workout.</p></div><figure><div class="tour-image"><picture><source srcset="assets/tour/friends-photos-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/friends-photos-light.webp" alt="Fictional shared run card with a park photo, route metrics and reactions." width="373" height="499" loading="lazy"></picture></div></figure></article>
-      <article class="tour-row"><div><span class="eyebrow">Build your profile</span><h2>Build your profile</h2><p class="lede">Show friends only what you choose.</p></div><figure><div class="tour-image"><picture><source srcset="assets/tour/friends-profile-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/friends-profile-light.webp" alt="Fictional profile card with a bio, weekly chart, sport totals and featured achievements." width="385" height="666" loading="lazy"></picture></div></figure></article>
-      <article class="tour-row"><div><span class="eyebrow">Find your people</span><h2>Find your people</h2><p class="lede">Search by name and send a request.</p></div><figure><div class="tour-image"><picture><source srcset="assets/tour/friends-find-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/friends-find-light.webp" alt="Fictional Find friends search with Morgan Example and an add-friend action." width="373" height="152" loading="lazy"></picture></div></figure></article>
-      <p class="site-credit">Photos of Freedom Park, Charlotte: James Willamor and City Dweller 2, <a href="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA</a>, via Wikimedia Commons.</p>
+  <section class="friends-hero" aria-labelledby="friends-hero-title">
+    <div class="wrap friends-hero-grid">
+      <div class="friends-hero-copy">
+        <span class="eyebrow">A better kind of feed</span>
+        <h2 id="friends-hero-title">Your workouts and theirs, in one feed.</h2>
+        <p class="lede">Share the run, keep the rest private. Every post has its own audience.</p>
+        <p class="friends-note">Fictional demo data · Freedom Park, Charlotte</p>
+      </div>
+      <div class="friends-hero-stage">
+        <div class="phone-frame friends-phone friends-phone--hero">
+          <div class="friends-screen">
+            <picture><source srcset="assets/shots/dark-friends.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-friends.webp" alt="Fictional Kinetta Friends screen with Casey, Jordan and Taylor." width="786" height="1704"></picture>
+            <div class="friends-privacy-sheet" data-privacy-sheet>
+              <p class="privacy-sheet-title">Who sees this workout?</p>
+              <div class="privacy-choices" role="radiogroup" aria-label="Workout audience">
+                <button type="button" role="radio" aria-checked="false" data-privacy-choice="only">Only me</button>
+                <button type="button" role="radio" aria-checked="true" data-privacy-choice="friends">Friends <span class="privacy-check" aria-hidden="true">✓</span></button>
+                <button type="button" role="radio" aria-checked="false" data-privacy-choice="everyone">Everyone</button>
+              </div>
+              <p class="privacy-sheet-status" data-privacy-status>Friends see this in their feed.</p>
+            </div>
+          </div>
+        </div>
+        <p class="friends-demo-caption" data-privacy-caption>Audience: Friends</p>
+      </div>
     </div>
+  </section>
+  <section class="friends-story" aria-labelledby="friends-story-title">
+    <div class="wrap friends-story-grid">
+      <div class="friends-story-pin" aria-live="polite">
+        <div class="phone-frame friends-phone friends-phone--story">
+          <div class="friends-screen">
+            <picture><source data-friends-dark srcset="assets/shots/dark-friends.webp" media="(prefers-color-scheme: dark)"><img data-friends-screen src="assets/shots/light-friends.webp" alt="Fictional Kinetta Friends screen." width="786" height="1704"></picture>
+          </div>
+        </div>
+      </div>
+      <div class="friends-story-steps">
+        <span class="eyebrow">Made for people, not metrics</span>
+        <h2 id="friends-story-title">Keep the good part of training social.</h2>
+        <article class="friends-step is-visible" data-friends-screen-key="friends"><span class="eyebrow">Find your people</span><h3>Search by name and send a request.</h3><p>React to or comment on friends’ workouts.</p><div class="step-phone"><div class="phone-frame friends-phone"><picture><source srcset="assets/shots/dark-friends.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-friends.webp" alt="Fictional Friends list with three approved friends." width="786" height="1704" loading="lazy"></picture></div></div></article>
+        <article class="friends-step" data-friends-screen-key="feed"><span class="eyebrow">Share a workout</span><h3>Give the route a little context.</h3><p>Add photos to a shared workout.</p><div class="step-phone"><div class="phone-frame friends-phone"><picture><source srcset="assets/shots/dark-feed.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-feed.webp" alt="Fictional shared workout feed with a route map and reactions." width="786" height="1704" loading="lazy"></picture></div></div></article>
+        <article class="friends-step" data-friends-screen-key="profile"><span class="eyebrow">Choose each audience</span><h3>Share on your terms.</h3><p>Show friends only what you choose.</p><div class="step-phone"><div class="phone-frame friends-phone"><picture><source srcset="assets/shots/dark-profile.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-profile.webp" alt="Fictional profile with weekly totals and featured achievements." width="786" height="1704" loading="lazy"></picture></div></div></article>
+      </div>
+    </div>
+    <p class="site-credit">Photos of Freedom Park, Charlotte: James Willamor and City Dweller 2, <a href="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA</a>, via Wikimedia Commons.</p>
   </section>
   <section class="band friends-summary" aria-label="Profiles and sharing">
     <div class="wrap">
@@ -71,14 +107,8 @@
       <article><h2>A little momentum, together.</h2><p>Recaps, milestones and challenges, when you want to share.</p></article>
     </div>
   </section>
-  <section class="band next" aria-label="Next">
-    <div class="wrap">
-      <a class="on" href="compare"><small>Next: Compare</small><span>Training and food together ›</span></a>
-      <a class="btn solid" href="https://login.kinetta.app/signup">Join the iPhone beta</a>
-    </div>
-  </section>
+  <section class="band next" aria-label="Next"><div class="wrap"><a class="on" href="compare"><small>Next: Compare</small><span>Training and food together ›</span></a><a class="btn solid" href="https://login.kinetta.app/signup">Join the iPhone beta</a></div></section>
 </main>
-
 <footer>
   <div class="wrap">
     <picture><source srcset="assets/logo-dark.svg?v=4" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg?v=4" alt="Kinetta" width="124" height="20"></picture>
@@ -89,6 +119,7 @@
     </div>
   </div>
 </footer>
+<script src="assets/friends-features.js?v=1" defer></script>
 <script src="assets/zoom.js?v=4" defer></script>
 <script src="assets/daily-preview.js?v=2" defer></script>
 </body>
