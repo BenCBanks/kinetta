@@ -776,3 +776,44 @@ header.top .signup { display:flex;align-items:center; }
   .friends-step { opacity: 1; transform: none; transition: none; }
   .feature-tabs button::after { transition: none; }
 }
+
+/* Sage review: Friends follows Home's right-pinned story and has a full-size audience demo. */
+.friends-story-grid { grid-template-columns: minmax(0, 1fr) minmax(250px, .7fr); }
+.friends-story-pin { grid-column: 2; grid-row: 1; }
+.friends-story-steps { grid-column: 1; grid-row: 1; }
+.friends-story-steps > h2 { font-size: clamp(34px, 4vw, 54px); margin-bottom: 44px; }
+.friends-step h3 { max-width: 22ch; }
+.friends-clean-back { display: none; position: absolute; z-index: 3; top: 8.1%; left: 4.2%; width: 28%; height: 5.6%; align-items: center; padding-left: 1%; background: var(--color-canvas); color: var(--color-text); font: 600 10px/1 var(--body); white-space: nowrap; }
+.friends-screen--clean .friends-clean-back { display: flex; }
+.friends-privacy-demo { border-top: 1px solid var(--line); padding: 100px 0 110px; background: var(--paper); }
+.friends-privacy-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, .7fr); gap: clamp(38px, 9vw, 130px); align-items: center; }
+.friends-privacy-copy { max-width: 500px; }
+.friends-privacy-copy h2 { font-size: clamp(34px, 4vw, 54px); max-width: 15ch; }
+.friends-privacy-copy .lede { margin-top: 18px; color: var(--ink2); max-width: 34ch; }
+.privacy-demo-choices { display: grid; max-width: 340px; margin-top: 30px; border-block: 1px solid var(--line); }
+.privacy-demo-choices button { display: flex; min-height: 54px; align-items: center; justify-content: space-between; padding: 8px 2px; border: 0; border-top: 1px solid var(--line); background: none; color: var(--ink2); font: 600 16px/1.2 var(--body); text-align: left; cursor: pointer; }
+.privacy-demo-choices button:first-child { border-top: 0; }
+.privacy-demo-choices button.is-selected { color: var(--brand); }
+.privacy-demo-choices .privacy-check { min-width: 20px; font-size: 18px; }
+.privacy-demo-status { margin-top: 14px; color: var(--ink3); font-size: 14px; }
+.friends-privacy-stage { display: grid; justify-items: center; gap: 12px; }
+.friends-phone--privacy { width: min(320px, 78vw); }
+.privacy-phone-status { position: absolute; right: 12px; bottom: 112px; left: 12px; display: grid; gap: 3px; padding: 11px 13px; border: 1px solid color-mix(in srgb, var(--line) 85%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--paper) 95%, transparent); box-shadow: 0 10px 22px rgba(21,25,29,.18); color: var(--ink2); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.privacy-phone-status span { font-size: 10px; line-height: 1.2; }
+.privacy-phone-status strong { color: var(--brand); font-size: 17px; line-height: 1.2; }
+@media (prefers-reduced-motion: reduce) and (min-width: 901px) {
+  .friends-story-pin { position: static; display: none; }
+  .friends-step { opacity: 1; transform: none; transition: none; }
+  .friends-step .step-phone { display: grid; justify-items: center; margin-top: 26px; }
+  .friends-step .friends-phone { width: min(270px, 72vw); }
+}
+@media (max-width: 900px) {
+  .friends-story-grid { display: block; }
+  .friends-story-pin { display: none; }
+  .friends-story-steps > h2 { margin-bottom: 10px; }
+  .friends-privacy-demo { padding: 70px 0 80px; }
+  .friends-privacy-grid { grid-template-columns: 1fr; gap: 38px; }
+  .friends-privacy-stage { order: 2; }
+}
+/* Keep the page from becoming a second scroll container; sticky story phones need the viewport. */
+.friends-page { overflow-x: clip; }

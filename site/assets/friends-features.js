@@ -4,25 +4,36 @@
   const themeIsDark = () => matchMedia('(prefers-color-scheme: dark)').matches;
   const friendsMap = {
     friends: ['assets/shots/light-friends.webp', 'assets/shots/dark-friends.webp', 'Fictional Kinetta Friends screen with three approved friends.'],
-    feed: ['assets/shots/light-feed.webp', 'assets/shots/dark-feed.webp', 'Fictional Kinetta shared workout feed with a route map and reactions.'],
+    feed: ['assets/shots/light-activity.webp', 'assets/shots/dark-activity.webp', 'Fictional Kinetta shared workout detail with a route map and reactions.'],
     profile: ['assets/shots/light-profile.webp', 'assets/shots/dark-profile.webp', 'Fictional Kinetta profile with weekly totals and featured achievements.']
   };
   const pinned = document.querySelector('[data-friends-screen]');
   const pinnedDark = document.querySelector('[data-friends-dark]');
+  const pinnedFrame = pinned?.closest('.friends-screen');
   const showFriendsScreen = key => {
     const item = friendsMap[key];
     if (!item || !pinned) return;
     pinned.src = themeIsDark() ? item[1] : item[0];
     if (pinnedDark) pinnedDark.srcset = item[1];
     pinned.alt = item[2];
+    pinnedFrame?.classList.toggle('friends-screen--clean', key === 'friends');
   };
   const steps = [...document.querySelectorAll('.friends-step[data-friends-screen-key]')];
   if (steps.length && pinned) {
+    const reveal = step => {
+      step.classList.add('is-visible');
+      showFriendsScreen(step.dataset.friendsScreenKey);
+    };
     if ('IntersectionObserver' in window && !reduce) {
       const observer = new IntersectionObserver(entries => entries.forEach(entry => {
-        if (entry.isIntersecting) showFriendsScreen(entry.target.dataset.friendsScreenKey);
-      }), { rootMargin: '-34% 0px -45%' });
+        if (entry.isIntersecting) reveal(entry.target);
+      }), { rootMargin: '-20% 0px -25%', threshold: 0.08 });
       steps.forEach(step => observer.observe(step));
+      // The scroll fallback covers browsers that settle a smooth scroll between observer thresholds.
+      addEventListener('scroll', () => steps.forEach(step => {
+        const box = step.getBoundingClientRect();
+        if (box.top < innerHeight * .72 && box.bottom > innerHeight * .18) reveal(step);
+      }), { passive: true });
     } else {
       steps.forEach(step => step.classList.add('is-visible'));
     }
@@ -45,6 +56,7 @@
     });
     document.querySelectorAll('[data-privacy-status]').forEach(node => { node.textContent = status; });
     document.querySelectorAll('[data-privacy-caption]').forEach(node => { node.textContent = `Audience: ${label}`; });
+    document.querySelectorAll('[data-privacy-phone-label]').forEach(node => { node.textContent = label; });
   };
   document.querySelectorAll('[data-privacy-choice]').forEach(button => {
     button.addEventListener('click', () => updatePrivacy(button.dataset.privacyChoice));

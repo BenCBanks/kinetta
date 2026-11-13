@@ -20,7 +20,7 @@ Shared workouts, newest first.
 
 ## photos-of-freedom-park-charlotte-james-willamor-and-ci-5
 
-Photos of Freedom Park, Charlotte: James Willamor and City Dweller 2, [CC BY-SA](https://creativecommons.org/licenses/by-sa/4.0), via Wikimedia Commons.
+Fictional demo imagery supplied with Kinetta.
 
 
 ## friends-feed-description
