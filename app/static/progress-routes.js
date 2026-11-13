@@ -1,6 +1,40 @@
 // Kinetta phone app — Progress detail routes, loaded only when opened.
 'use strict';
 
+// ---------- Progress: Records list and per-distance history ----------
+async function pRecordsLoaded(body, q) {
+  const sport = q.get('sport') || 'run';
+  body.innerHTML = `<div id="r-body">${skel(2)}</div>`;
+  await load(`/api/records?sport=${sport}`, (r) => {
+    const yr = new Date().getFullYear();
+    $('#r-body', body).innerHTML = r.efforts.length ? `<div class="card"><table class="tbl"><thead><tr><th>Distance</th><th class="r">Best</th><th class="r">${yr}</th></tr></thead><tbody>
+      ${r.efforts.map((e) => `<tr><td><a href="/records/${sport}/${e.distance_m}">${esc(e.label)}</a><br><small class="muted">${e.count} efforts</small></td>
+        <td class="r"><a class="num" href="/activity/${e.top[0].activity_id}"><b>${dur(e.top[0].elapsed_s)}</b></a><br><small class="muted">${esc(fdate(e.top[0].start_time, {month: 'short', year: 'numeric'}))}</small></td>
+        <td class="r num">${e.year ? dur(e.year.elapsed_s) : '–'}</td></tr>`).join('')}</tbody></table>
+      <p class="small muted">Tap a distance for its PR history. Best efforts are found inside every ${SPORT_NAMES[sport].toLowerCase()}, not just races.</p></div>
+      ${r.power_curve.length ? `<div class="card"><h2>Best power</h2><table class="tbl">${r.power_curve.map((p) => `<tr><td>${p.seconds < 60 ? p.seconds + ' s' : p.seconds / 60 + ' min'}</td><td class="r num">${p.watts} W</td></tr>`).join('')}</table></div>` : ''}`
+      : `<div class="card empty"><b>No ${SPORT_NAMES[sport].toLowerCase()} records yet</b>They appear as soon as you upload activities with GPS or distance data.</div>`;
+  });
+}
+async function pRecordHistoryLoaded(el, sport, dist) {
+  el.innerHTML = `<div class="top">${backBtn('Records')}</div>${skel(2)}`;
+  wireBack(el, `/progress?view=records&sport=${sport}`);
+  await load(`/api/records/history?sport=${sport}&distance_m=${dist}`, (rows) => {
+    const prs = rows.filter((r) => r.pr),owner=readOwner();let onlyPRs=false;
+    const label = (rows[0] && rows[0].label) || '';
+    el.innerHTML = `<div class="top">${backBtn('Records')}</div><div class="card"><h1>${esc(U.dist(+dist) + ' ' + U.du())} · ${SPORT_NAMES[sport]}</h1>
+      <p class="muted">${rows.length} efforts · ${prs.length} times you set a new PR</p><div id="h-chart"></div></div>
+      <div class="card"><div class="record-history-heading"><h2>Efforts</h2><div class="me-period" role="group" aria-label="Effort history"><button type="button" data-record-filter="all" aria-pressed="true">All</button><button type="button" data-record-filter="prs" aria-label="Personal records only" aria-pressed="false">PRs</button></div></div><p class="small muted">Fastest first</p><div id="h-all"></div></div>`;
+    wireBack(el, `/progress?view=records&sport=${sport}`);
+    const all = [...rows].sort((a, b) => a.elapsed_s - b.elapsed_s), allRow = (r, i) => `<a class="row-link record-effort" href="/activity/${r.activity_id}"><span class="record-rank num">${i + 1}</span><div class="record-effort-main"><b class="num">${dur(r.elapsed_s)}</b><br><small class="muted">${esc(r.name)}${r.pr?' · PR':''}</small></div><small class="muted">${esc(fdate(r.start_time, {month: 'short', day: 'numeric', year: 'numeric'}))}</small></a>`;
+    const drawAll = (n) => { const box = $('#h-all', el),list=onlyPRs?all.filter(r=>r.pr):all; if (!box||owner!==readOwner()) return; box.innerHTML = list.slice(0, n).map(allRow).join('') + (list.length > n ? `<button type="button" class="ghost wide" id="h-more">Show all ${list.length}</button>` : ''); const more = $('#h-more', box); if (more) more.onclick = () => drawAll(list.length); };
+    drawAll(10);
+    $$('[data-record-filter]',el).forEach(button=>button.onclick=()=>{if(!el.isConnected||owner!==readOwner())return;onlyPRs=button.dataset.recordFilter==='prs';$$('[data-record-filter]',el).forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.recordFilter==='prs')===onlyPRs)));drawAll(10);});
+    const best = rows.reduce((b, r) => (!b || r.elapsed_s < b.elapsed_s ? r : b), null);
+    requestAnimationFrame(() => dotChart($('#h-chart', el), rows.map((r) => ({x: new Date(r.start_time) / 864e5, y: r.elapsed_s, id: r.activity_id})), {yfmt: (v) => dur(v), invert: true, best: best && best.activity_id}));
+  });
+}
+
 // ---------- Progress: growth over the years (2026-10-09) ----------
 async function pTrends(body, q) {
   const sport = q.get('sport') || 'run', foot = sport !== 'ride';
