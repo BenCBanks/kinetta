@@ -224,17 +224,21 @@ def answer(question, S):
         if not rows:text=f"No weight is logged from {question['start'].strftime('%b %-d, %Y')} to {question['end'].strftime('%b %-d, %Y')}."
         elif len(rows)<2:text=f"I have one weigh-in in that range, on {rows[0]['day'].strftime('%b %-d, %Y')}. I need two to calculate a change."
         else:
-            first,last=rows[0],rows[-1];change=(float(last['kg'])-float(first['kg']))*factor;direction='down' if change<0 else 'up' if change>0 else 'unchanged'
-            text=f"From {first['day'].strftime('%b %-d, %Y')} to {last['day'].strftime('%b %-d, %Y')}, your weight was {direction} {abs(change):.1f} {unit}, from {float(first['kg'])*factor:.1f} to {float(last['kg'])*factor:.1f} {unit} across {len(rows)} weigh-ins."
+            first,last=rows[0],rows[-1];change=(float(last['kg'])-float(first['kg']))*factor;start_label=first['day'].strftime('%b %-d')+(f", {first['day'].year}" if first['day'].year!=today.year else '')
+            if change:
+                direction='Down' if change<0 else 'Up'
+                text=f"{direction} {abs(change):.1f} {unit} since {start_label} ({float(first['kg'])*factor:.1f} → {float(last['kg'])*factor:.1f} {unit}, {len(rows)} weigh-ins)."
+            else:
+                text=f"No change since {start_label} ({float(first['kg'])*factor:.1f} → {float(last['kg'])*factor:.1f} {unit}, {len(rows)} weigh-ins)."
             result['facts']={'weights':len(rows),'start_kg':first['kg'],'end_kg':last['kg'],'change_kg':round(float(last['kg'])-float(first['kg']),2)}
-        result['text']=text;result['range']={'start':question['start'].isoformat(),'end':question['end'].isoformat()};return result
+        result['text']=text;result['range']={'start':question['start'].isoformat(),'end':question['end'].isoformat()};result['open_weight']='/progress/weight?from=nutrition';return result
     if kind=='history':
         entries=[e for e in entries if not question['meal'] or e['meal']==question['meal']]
         meal=question['meal'] or 'food'
         if not entries:text=f'No {meal} is logged for {label}.'
         else:
-            names=', '.join(e['name'][:80] for e in entries[:12]);extra=f" and {len(entries)-12} more foods" if len(entries)>12 else ''
-            text=f"For {meal} {'today' if label=='today' else 'on '+label}: {names}{extra}. About {kcal(sum(e['kcal'] for e in entries)):,} kcal logged."
+            names=', '.join(e['name'][:80] for e in entries[:12]);extra=f" and {len(entries)-12} more foods" if len(entries)>12 else '';day_label=day.strftime('%a, %b %-d')+(f", {day.year}" if day.year!=today.year else '')
+            text=f"{day_label}: {names}{extra} · about {kcal(sum(e['kcal'] for e in entries)):,} kcal"
         result['facts']['entries']=[{k:e[k] for k in ('id','name','kcal','source')} for e in entries[:12]]
         result['open_day']=day.isoformat()
     elif kind in ('totals','left'):
