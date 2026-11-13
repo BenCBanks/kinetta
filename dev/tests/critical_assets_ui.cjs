@@ -45,7 +45,7 @@ for(const token of new Set([...themeCss.matchAll(/(--(?:weight|motion|elevation|
    assert.equal(before['nav.tabs']?.position,'fixed','navigation is styled before deferred CSS');
    assert.ok(before['.me-card']||before['#feed-tools'],'the expected first screen exists');
    assert.equal(errors.length,0,`${name} ${theme}: no page or console errors before deferred assets`);
-   const shot=`/tmp/dash-960-final2-${name}-${theme}-critical.png`;
+   const shot=`/tmp/dash-960-rebased-${name}-${theme}-critical.png`;
    await page.screenshot({path:shot,fullPage:false});
    for(const resume of held.splice(0))await resume();
    await page.waitForFunction(()=>[...document.querySelectorAll('link[rel="stylesheet"]')].every(link=>!!link.sheet),null,{timeout:120000});
