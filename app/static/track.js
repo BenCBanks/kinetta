@@ -528,7 +528,7 @@ const Track = (() => {
       Milestones.celebrate($('#track-celebration',el),doneId);
       const nextMedalNode=$('#track-next-medal',el),nextMedalOwner=readOwner();
       loadActivityDetail().then(()=>{
-        if(nextMedalNode.isConnected&&nextMedalOwner===readOwner())ActivityDetail.nextMedalForId(nextMedalNode,doneId);
+        if(nextMedalNode?.isConnected&&nextMedalOwner===readOwner())ActivityDetail.nextMedalForId(nextMedalNode,doneId);
       }).catch(()=>{});
     }
     let view=null,dot=null,located=false,here=null,loadingMap=false,centred=false,readyFollow=true;const readyOwner=readOwner(),readyLive=()=>renderRevision===drawRevision&&el.isConnected&&readyOwner===readOwner()&&!session;
