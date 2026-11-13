@@ -75,8 +75,10 @@
     const total=Math.max(0,Math.round(minutes)),hours=Math.floor(total/60),mins=total%60;
     return hours?`${hours}h ${String(mins).padStart(2,'0')}m`:`${mins}m`;
   }
-  function niceTop(value) {
-    return Math.ceil(Math.max(.1,value)*1.18*10)/10;
+  function niceStep(value) {
+    const raw=Math.max(1,value/3),power=Math.pow(10,Math.floor(Math.log10(raw))),scaled=raw/power;
+    const step=scaled<=1?1:scaled<=2?2:scaled<=5?5:10;
+    return step*power;
   }
   function ensureStyles() {
     if(stylePromise)return stylePromise;
@@ -145,7 +147,7 @@
       }
       function render(animate=true) {
         rows=periodRows(sportKey,period);selected=rows.reduce((best,row,index)=>row.value>rows[best].value?index:best,0);
-        const values=rows.map(row=>row.value),sum=values.reduce((a,b)=>a+b,0),average=sum/values.length,max=Math.max(...values),top=niceTop(max);
+        const values=rows.map(row=>row.value),sum=values.reduce((a,b)=>a+b,0),average=sum/values.length,max=Math.max(...values),step=niceStep(max),top=Math.ceil(max/step)*step;
         const best=rows.reduce((a,b)=>b.value>a.value?b:a,rows[0]),sport=sports[sportKey];
         root.querySelector('[data-plot]').setAttribute('aria-label',`${sport.name} distance by ${period}`);
         const totalNode=root.querySelector('[data-total]'),timeNode=root.querySelector('[data-time]'),bestNode=root.querySelector('[data-best]');
@@ -155,7 +157,11 @@
         root.querySelector('[data-best-label]').textContent=best.longLabel;
         root.querySelector('.pchart-legend span:first-child').textContent=`Distance · ${sport.unit||'miles'}`;
         root.querySelector('[data-average-label]').textContent=`Average ${formatDistance(average,sportKey)}`;
-        const ticks=[top,top/2,0];root.querySelector('[data-axis]').innerHTML=ticks.map((tick,i)=>`<span class="pchart-tick pchart-tick-${i}">${rounded(tick).toFixed(tick%1?1:0)}</span>`).join('');
+        const tickCount=Math.round(top/step)+1,ticks=Array.from({length:tickCount},(_,index)=>top-index*step);
+        root.querySelector('[data-axis]').innerHTML=ticks.map((tick,index)=>{
+          const edge=index===0?' pchart-tick-top':index===ticks.length-1?' pchart-tick-bottom':'';
+          return `<span class="pchart-tick${edge}" style="top:${(top-tick)/top*100}%">${Math.round(tick).toLocaleString('en-US')}</span>`;
+        }).join('');
         root.querySelector('[data-average]').style.bottom=`${clamp(average/top*100,0,100)}%`;
         const start=++frame,plot=root.querySelector('[data-plot]'),plotHeight=plot.clientHeight||1;
         const previousHeights=[...bars.querySelectorAll('.pchart-fill')].map(fill=>fill.getBoundingClientRect().height/plotHeight*100);
