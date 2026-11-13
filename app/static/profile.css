@@ -167,7 +167,7 @@
 .share-picker-field { display:grid; gap:7px; }
 .share-picker-field-label { color:var(--tx2); font-size:.8125rem; font-weight:700; }
 .share-picker-chips { display:flex; flex-wrap:wrap; gap:8px; }
-.share-picker-chip { min-height:40px; padding:8px 12px; border:1px solid var(--line); border-radius:999px; background:transparent; color:var(--tx2); font:inherit; font-size:.875rem; font-weight:600; }
+.share-picker-chip { min-height:44px; padding:8px 12px; border:1px solid var(--line); border-radius:999px; background:transparent; color:var(--tx2); font:inherit; font-size:.875rem; font-weight:600; }
 .share-picker-chip[aria-pressed="true"] { border-color:color-mix(in srgb,var(--accent) 60%,var(--line)); background:color-mix(in srgb,var(--accent) 13%,transparent); color:var(--tx); }
 .share-picker-preview { height:132px; overflow:hidden; border:1px solid var(--line); border-radius:14px; background:color-mix(in srgb,var(--bg) 72%,#fff); }
 .share-picker-preview-card { transform:scale(.14); transform-origin:top left; }
