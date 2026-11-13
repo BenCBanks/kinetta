@@ -1,0 +1,11 @@
+.about { padding-block:24px 72px; }
+.about-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(240px,.8fr); gap:clamp(32px,7vw,88px); align-items:center; }
+.about-copy { max-width:58ch; }
+.about-copy p { color:var(--ink2); font-size:17px; line-height:1.6; }
+.about-phone { margin:0; display:grid; justify-items:center; }
+.about-phone .frame { width:min(280px,100%); }
+@media (max-width:900px) {
+  .about { padding-block:18px 56px; }
+  .about-layout { grid-template-columns:minmax(0,1fr); gap:32px; }
+  .about-phone .frame { width:min(260px,100%); }
+}
