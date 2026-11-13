@@ -103,6 +103,8 @@ for device in preferred:
     assert 'error' not in metrics,metrics
     assert metrics['native'] and metrics['theme']==theme and metrics['safeTop']>=20,metrics
     assert not metrics['errors'] and not metrics['overflow'] and not metrics['status'],metrics
+    assert metrics['requests'].count('/api/me')==1,metrics
+    assert metrics['mePreloadCount']==0,metrics
     nav=metrics['navigation']
     assert nav['ready'],'Actual UIKit display-preference bridge must respond: '+json.dumps(metrics.get('display',{}),sort_keys=True)
     assert nav['visible']==(stage in ('activity','activity-sticky','activity-empty') or stage.startswith(('friends-','groups-','header-'))),metrics
