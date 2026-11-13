@@ -168,6 +168,12 @@ details.fold-row[open] { padding-bottom: 12px; }
 .progress-new { display:inline-flex; align-items:center; gap:4px; font-size:.625rem; color:var(--tx3); }
 .progress-new.seen { visibility:hidden; }
 .progress-new::before { content:''; width:5px; height:5px; border-radius:50%; background:var(--accent); }
+.progress-tile .progress-new { width:5px; flex:none; height:5px; font-size:0; gap:0; }
+.progress-metric-controls { flex:1 0 100%; width:100%; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0; margin-top:2px; border-top:1px solid var(--line); }
+.progress-metric-controls[data-count="2"] { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.progress-metric-controls button { position:relative; min-width:44px; min-height:44px; padding:0 6px; border:0; border-radius:0; background:transparent; color:var(--tx2); font-size:15px; font-weight:550; white-space:normal; }
+.progress-metric-controls button[aria-pressed="true"] { color:var(--tx); font-weight:700; }
+.progress-metric-controls button[aria-pressed="true"]::after { content:""; position:absolute; bottom:0; left:8px; right:8px; height:2px; background:var(--accent); }
 .progress-grid.explore-list { display:flex; flex-direction:column; gap:8px; margin:0 0 16px; }
 .progress-grid.explore-list .progress-tile { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; column-gap:12px; row-gap:2px; margin:0; padding:10px 0; min-height:56px; background:none; border:0; border-bottom:1px solid var(--line); border-radius:0; box-shadow:none; color:var(--tx); }
 .progress-grid.explore-list .progress-tile::after { content:"›" / ""; grid-column:2; grid-row:1 / span 2; color:var(--tx3); font-size:22px; line-height:1; }
@@ -532,6 +538,7 @@ button.pf:active, a.pf:active { background: var(--card2); }
 .map-full svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .map.full, .map.big.full, .map.lead.full { position: fixed; inset: 0; height: auto; margin: 0; border-radius: 0; z-index: 2000; }
 .map.full .map-full { top: calc(12px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); }
+.top .primary.sm { min-height: 44px; padding: 0 16px; border-radius: 999px; font-size: 15px; }
 .map-note { margin: -4px 4px 12px; }
 /* activity page: the map fills the top of the screen (under the status bar); back/share/edit float over it */
 .map-head { position: relative; margin: calc(0px - env(safe-area-inset-top) - var(--shell-top-gap)) -16px 12px; }
