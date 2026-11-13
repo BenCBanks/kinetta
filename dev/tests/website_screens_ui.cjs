@@ -39,6 +39,21 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
      assert.equal(await p.locator('[data-progress-demo-mount]').count(),1);
      assert.equal(await p.locator('.story-pin-label').count(),0);
     }
+    if(name==='food'){
+     assert.equal(await p.locator('.food-story .story-steps > h2').count(),0,'Food has one page heading, not a second stacked story heading');
+     assert.equal(await p.locator('[data-food-screen="day"]').count(),1,'The whole-day step uses the Nutrition day screen');
+     if(width>900){
+      await p.emulateMedia({reducedMotion:'no-preference'});
+      const pin=p.locator('[data-food-pinned-image]');
+      for(const [step,shot] of [['day','food'],['meals','meals']]){
+       await p.locator(`[data-food-screen="${step}"]`).evaluate(el=>el.scrollIntoView({block:'center',behavior:'instant'}));
+       await p.waitForFunction(expected=>document.querySelector('[data-food-pinned-image]')?.getAttribute('src')?.includes(expected+'.webp'),shot);
+       const frame=await p.locator('.food-story .story-pin .phone-frame').boundingBox();
+       assert(frame&&frame.y>=0&&frame.y+frame.height<=900,`Food ${step} phone stays fully visible in the desktop viewport`);
+      }
+      assert((await pin.getAttribute('src')).includes('meals.webp'),'Recipes step shows the saved-recipes screen');
+     }
+    }
     if(name==='compare'){
      // The workout map comes first, the recorded numbers underneath.
      const workout=await p.locator('.tour-workout img').evaluateAll(xs=>xs.map(i=>({src:i.currentSrc,top:i.getBoundingClientRect().top})));
