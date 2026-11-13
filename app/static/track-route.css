@@ -93,25 +93,6 @@
 
 #track-setup > p { margin: 0; }
 
-/* Track v2: map-first, all live controls in the Track destination; seven Sunday-aligned profile bars. */
-.seven-bars { gap:4px; align-items:stretch; }
-.seven-bars .mileage-column { height:128px; max-width:32px; }
-.seven-bars .mileage-day small { font-size: .625rem; line-height: 1.5; max-width: 100%; overflow-wrap: anywhere; }
-.seven-bars .mileage-day { padding: 4px 0; border: 0; border-radius: 4px; background: transparent; color: var(--tx3); }
-.seven-bars .mileage-day.is-inspected { background: transparent; box-shadow: none; }
-.seven-bars .mileage-day.is-inspected small { color:var(--tx3); font-weight:600; text-decoration:underline; text-underline-offset:3px; }
-.seven-bars .mileage-day.is-highlighted .mileage-value { fill:var(--tx); font-weight:600; visibility:visible; }
-.seven-bars .current-day small { color: var(--tx3); font-weight: 600; }
-.mileage-range { text-align: right; margin: 8px 0 0; }
-.mileage-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-.mileage-heading h2 { margin: 0; font-family: var(--font-display); font-size: var(--text-app-card-title); font-weight: 700; letter-spacing: -.015em; }
-.mileage-toggle { display: inline-flex; align-items: center; gap: 2px; }
-.mileage-toggle button { min-height: 44px; min-width: 44px; padding: 0 6px; border: 0; background: transparent; color: var(--tx2); font-size: .6875rem; }
-.mileage-toggle button[aria-pressed="true"] { color: var(--accent); font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
-.mileage-toggle button:disabled { opacity: .5; cursor: default; }
-.units-toggle { gap: 12px; } .units-toggle button { padding: 0 2px; font-size: max(15px,.9375rem); }
-.seven-bars .future-day i { background: var(--line); }
-
 .track-ready { gap: 12px; }
 .track-ready select { width: 100%; min-height: 50px; font-size: 17px; }
 .track-quick { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 3.2rem), 1fr)); gap: 6px; }
