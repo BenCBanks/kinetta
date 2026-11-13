@@ -29,7 +29,7 @@ React to or comment on friends’ workouts.
 
 ## friends-photos-description
 
-Add photos to a shared workout.
+Leave a cheer or comment on a friend's activity.
 
 ## friends-profiles-description
 
