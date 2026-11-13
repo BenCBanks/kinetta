@@ -218,6 +218,42 @@ def _personal_best_events(c, uid, rows_by_id):
     return events
 
 
+def _fastest_effort_facts(c, uid, rows_by_id):
+    """Return Run fastest-ladder count and source activity for each level.
+
+    Only persisted best-effort rows with their recorded distance and elapsed
+    time qualify. There is deliberately no prediction between distances.
+    """
+    criteria = tracks.fastest_effort_spec('sport:run:fastest') or ()
+    if not criteria:
+        return 0, {}
+    best = {}
+    for row in c.execute('''SELECT activity_id,sport,distance_m,elapsed_s
+                            FROM best_efforts
+                            WHERE user_id=%s AND sport='run'
+                            ORDER BY activity_id,id''', (uid,)).fetchall():
+        activity = rows_by_id.get(row.get('activity_id'))
+        if not activity:
+            continue
+        distance = _number(row, 'distance_m')
+        elapsed = _number(row, 'elapsed_s')
+        if distance <= 0 or elapsed <= 0:
+            continue
+        criterion = next((item for item in criteria if math.isclose(
+            distance, item[1], rel_tol=0, abs_tol=0.5)), None)
+        if not criterion:
+            continue
+        prior = best.get(criterion[1])
+        if prior is None or elapsed < prior[0]:
+            best[criterion[1]] = (elapsed, activity)
+    found = {}
+    for rank, (_name, distance, max_seconds) in enumerate(criteria, 1):
+        candidate = best.get(distance)
+        if candidate and candidate[0] <= max_seconds:
+            found[float(rank)] = candidate[1]
+    return len(found), found
+
+
 def _tier_item(code,tier,row,zone,now,*,occurred=None,day=None):
     occurred=occurred or row['start_time']
     day=day or occurred.astimezone(zone).date()
@@ -348,6 +384,9 @@ def achievement_candidates(c,uid,now,zone):
             longest_code=f'sport:{sport}:longest'
             longest,crossing=_max_crossings(longest_code,subset,lambda r:_number(r,'distance_m'),zone)
             add(longest_code,longest,crossing,longest>0)
+
+    fastest_count,fastest_crossing=_fastest_effort_facts(c,uid,by_id)
+    add('sport:run:fastest',fastest_count,fastest_crossing,fastest_count>0)
 
     events=_personal_best_events(c,uid,by_id)
     if events:

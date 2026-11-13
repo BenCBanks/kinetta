@@ -167,6 +167,8 @@ def _history_source(c, user_id, code, thresholds, now, zone):
     elif code == 'personal_bests':
         events = milestone_engine._personal_best_events(c, user_id, by_id)
         total, found = _crossings(thresholds, events, lambda _row: 1)
+    elif tracks.fastest_effort_spec(code):
+        total, found = milestone_engine._fastest_effort_facts(c, user_id, by_id)
     else:
         sport_by_code = {
             'sport:run': lambda row: row['sport'] == 'run',

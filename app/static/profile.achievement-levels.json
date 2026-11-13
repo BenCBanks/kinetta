@@ -1,6 +1,6 @@
 {
-  "version": 4,
-  "source": "Ben canonical Medal Levels HTML (2026-11-11); #877",
+  "version": 5,
+  "source": "Ben canonical Medal Levels HTML (2026-11-11); #877; #921 phase 2 fastest Run efforts",
   "unit_preference": "App.me.units",
   "value_storage": "canonical metric values from /api/achievements",
   "tail": {
@@ -1912,6 +1912,115 @@
           "emoji": "🌎",
           "asset_name": "Globe Showing Americas",
           "icon": "/static/profile.fluent-emoji/flat/globe_showing_americas_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    },
+    "sport:run:fastest": {
+      "source_track": "Fastest recorded Run efforts at standard distances",
+      "levels": [
+        {
+          "name": "Park mile",
+          "canonical_value": 1,
+          "canonical_unit": "benchmarks",
+          "display": "benchmarks",
+          "display_value": 1,
+          "distance_m": 1609.344,
+          "max_seconds": 600,
+          "requirement": "1 mi · ≤ 10:00",
+          "emoji": "👟",
+          "asset_name": "Running shoe",
+          "icon": "/static/profile.fluent-emoji/flat/running_shoe_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Mile marker",
+          "canonical_value": 2,
+          "canonical_unit": "benchmarks",
+          "display": "benchmarks",
+          "display_value": 2,
+          "distance_m": 1609.344,
+          "max_seconds": 480,
+          "requirement": "1 mi · ≤ 8:00",
+          "emoji": "⏱️",
+          "asset_name": "Stopwatch",
+          "icon": "/static/profile.fluent-emoji/flat/stopwatch_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Five-K foothold",
+          "canonical_value": 3,
+          "canonical_unit": "benchmarks",
+          "display": "benchmarks",
+          "display_value": 3,
+          "distance_m": 5000,
+          "max_seconds": 1800,
+          "requirement": "5K · ≤ 30:00",
+          "emoji": "🏅",
+          "asset_name": "Sports medal",
+          "icon": "/static/profile.fluent-emoji/flat/sports_medal_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Five-K club",
+          "canonical_value": 4,
+          "canonical_unit": "benchmarks",
+          "display": "benchmarks",
+          "display_value": 4,
+          "distance_m": 5000,
+          "max_seconds": 1500,
+          "requirement": "5K · ≤ 25:00",
+          "emoji": "🏁",
+          "asset_name": "Chequered flag",
+          "icon": "/static/profile.fluent-emoji/flat/chequered_flag_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Ten-K standard",
+          "canonical_value": 5,
+          "canonical_unit": "benchmarks",
+          "display": "benchmarks",
+          "display_value": 5,
+          "distance_m": 10000,
+          "max_seconds": 3600,
+          "requirement": "10K · ≤ 60:00",
+          "emoji": "⛰️",
+          "asset_name": "Mountain",
+          "icon": "/static/profile.fluent-emoji/flat/mountain_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Ten-K pace",
+          "canonical_value": 6,
+          "canonical_unit": "benchmarks",
+          "display": "benchmarks",
+          "display_value": 6,
+          "distance_m": 10000,
+          "max_seconds": 3000,
+          "requirement": "10K · ≤ 50:00",
+          "emoji": "🏆",
+          "asset_name": "Trophy",
+          "icon": "/static/profile.fluent-emoji/flat/trophy_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Halfway banner",
+          "canonical_value": 7,
+          "canonical_unit": "benchmarks",
+          "display": "benchmarks",
+          "display_value": 7,
+          "distance_m": 21097.5,
+          "max_seconds": 8100,
+          "requirement": "Half marathon · ≤ 2:15:00",
+          "emoji": "💯",
+          "asset_name": "Hundred points",
+          "icon": "/static/profile.fluent-emoji/flat/hundred_points_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Half-marathon flight",
+          "canonical_value": 8,
+          "canonical_unit": "benchmarks",
+          "display": "benchmarks",
+          "display_value": 8,
+          "distance_m": 21097.5,
+          "max_seconds": 6300,
+          "requirement": "Half marathon · ≤ 1:45:00",
+          "emoji": "👑",
+          "asset_name": "Crown",
+          "icon": "/static/profile.fluent-emoji/flat/crown_flat.svg?v=__ASSET_HASH__"
         }
       ]
     }

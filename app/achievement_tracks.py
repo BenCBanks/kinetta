@@ -123,6 +123,20 @@ SPORT_LONGEST_LEVELS = {
              ("Marathon swim", 10_000), ("10-mile swim", 16_093.44), ("English Channel", 33_796.224),
              ("25-mile swim", 40_233.6), ("50K swim", 50_000)),
 }
+
+# Phase 2 fastest-effort track (#921). Each level is one exact, recorded
+# standard effort. The worker credits it only from a matching best_efforts row;
+# it never predicts or stretches a result to another distance.
+RUN_FASTEST_LEVELS = (
+    ('Park mile', 1_609.344, 10 * 60),
+    ('Mile marker', 1_609.344, 8 * 60),
+    ('Five-K foothold', 5_000.0, 30 * 60),
+    ('Five-K club', 5_000.0, 25 * 60),
+    ('Ten-K standard', 10_000.0, 60 * 60),
+    ('Ten-K pace', 10_000.0, 50 * 60),
+    ('Halfway banner', 21_097.5, 2 * 60 * 60 + 15 * 60),
+    ('Half-marathon flight', 21_097.5, 1 * 60 * 60 + 45 * 60),
+)
 SPORT_TRACK_LABELS = {
     'run': 'Run', 'ride': 'Ride', 'walk-hike': 'Walk & hike', 'swim': 'Swim',
 }
@@ -138,6 +152,11 @@ def sport_phase1_spec(code):
     family = parts[2]
     levels = SPORT_WORKOUT_LEVELS[parts[1]] if family == 'workouts' else SPORT_LONGEST_LEVELS[parts[1]]
     return parts[1], family, levels
+
+
+def fastest_effort_spec(code):
+    """Return exact recorded-effort criteria for a fastest ladder."""
+    return RUN_FASTEST_LEVELS if code == 'sport:run:fastest' else None
 
 # Legacy first-activity milestones remain readable, but are not canonical track
 # levels. The canonical sport ladders begin at their first named distance.
@@ -251,6 +270,7 @@ for _sport, _label in SPORT_TRACK_LABELS.items():
         'run': 'Longest run', 'ride': 'Longest ride',
         'walk-hike': 'Longest walk or hike', 'swim': 'Longest swim',
     }[_sport]
+TRACK_LABELS['sport:run:fastest'] = 'Fastest run efforts'
 
 TRACK_UNITS = {
     'consistency': 'weeks',
@@ -270,6 +290,7 @@ TRACK_UNITS = {
 for _sport in SPORT_TRACK_LABELS:
     TRACK_UNITS[f'sport:{_sport}:workouts'] = 'workouts'
     TRACK_UNITS[f'sport:{_sport}:longest'] = 'm'
+TRACK_UNITS['sport:run:fastest'] = 'benchmarks'
 
 
 def _finite(value) -> float:
@@ -352,6 +373,10 @@ def tiers_for(code: str, value) -> list[Tier]:
     if spec:
         _sport, _family, levels = spec
         return _named_tiers(levels, value, 'workouts' if _family == 'workouts' else 'm', False)
+    fastest = fastest_effort_spec(code)
+    if fastest:
+        levels = tuple((name, index) for index, (name, _distance, _seconds) in enumerate(fastest, 1))
+        return _named_tiers(levels, value, 'benchmarks', False)
     if code.startswith('sport:'):
         sport = code.split(':', 1)[1]
         if sport == 'lift':
@@ -385,6 +410,10 @@ def next_tier(code: str, value) -> Tier | None:
     if spec:
         _sport, _family, levels = spec
         return _next_named(levels, value, 'workouts' if _family == 'workouts' else 'm', False)
+    fastest = fastest_effort_spec(code)
+    if fastest:
+        levels = tuple((name, index) for index, (name, _distance, _seconds) in enumerate(fastest, 1))
+        return _next_named(levels, value, 'benchmarks', False)
     if code.startswith('sport:'):
         sport = code.split(':', 1)[1]
         if sport == 'lift':
