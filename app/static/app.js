@@ -917,11 +917,28 @@ IC.paste = '<rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 
 IC.track = '<circle cx="12" cy="10" r="3"/><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/>';
 // Owner decision #700 (7 Nov 2026): Home renames the Activity tab and moves first; Me moves last. Keep Track centred.
 const TABS = [['activity', 'Home'], ['progress', 'Progress'], ['track', 'Track'], ['food', 'Nutrition'], ['me', 'Me']];
+let navScrollFrame = 0, navScrollLast = 0, navScrollDown = 0, navScrollUp = 0;
+function navElement() { return document.querySelector('nav.tabs'); }
+function expandBottomNav() {
+  navElement()?.classList.remove('compact');
+  navScrollDown = 0; navScrollUp = 0; navScrollLast = scrollY;
+}
+function updateBottomNav() {
+  navScrollFrame = 0;
+  const y = scrollY, previous = navScrollLast, delta = y - previous;
+  navScrollLast = y;
+  const max = Math.max(0, document.documentElement.scrollHeight - innerHeight);
+  if (y <= 0 || y >= max - 1) { expandBottomNav(); return; }
+  if (delta > 0) { navScrollDown += delta; navScrollUp = 0; if (navScrollDown >= 24) navElement()?.classList.add('compact'); }
+  else if (delta < 0) { navScrollUp -= delta; navScrollDown = 0; if (navScrollUp >= 8) expandBottomNav(); }
+}
+addEventListener('scroll', () => { if (!navScrollFrame) navScrollFrame = requestAnimationFrame(updateBottomNav); }, {passive: true});
 // The Home tab keeps its /activity address but shows a house (#762); the pulse line still marks activities elsewhere.
 IC.home = '<path d="M4 11 12 4l8 7"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/>';
 const tabIcon = tab => svg(tab === 'activity' ? 'home' : tab);
 function route(re, tab, fn) { App.pages.push({re, tab, fn}); }
 function go(path, {replace = false} = {}) {
+  if (typeof expandBottomNav === 'function') expandBottomNav();
   App.scroll[location.pathname + location.search] = scrollY;
   const from = location.pathname;
   const fromKnown=App.pages.some(p=>p.re.test(location.pathname.replace(/\/+$/, '')||'/me'));
@@ -1063,6 +1080,7 @@ function compactSubpageHeader(el){
 }
 function render(options) {
   if (!App.me) return;
+  expandBottomNav();
   const globalSyncDone = options?.globalSyncDone === true;
   App.pageReady = false;
   const key=location.pathname+location.search,routePosition=options?.routePosition;
@@ -1169,6 +1187,7 @@ function showError(el, e, {retry} = {}) {
 }
 // in-app links: <a href="/..."> navigate without reloading; prefetch on press for instant pages
 document.addEventListener('click', (e) => {
+  if (e.target.closest('nav.tabs') && typeof expandBottomNav === 'function') expandBottomNav();
   if (e.defaultPrevented) return;
   const a = e.target.closest('a[href^="/"]');
   if (!a || e.metaKey || e.ctrlKey || a.target || a.hasAttribute('download')) return;

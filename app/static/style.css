@@ -207,7 +207,11 @@ nav.tabs { position: fixed; z-index: 20; left: 12px; right: 12px; bottom: var(--
   display: grid; grid-template-columns: minmax(44px,1fr) minmax(max-content,1fr) minmax(44px,1fr) repeat(2,minmax(max-content,1fr)); gap: 8px; height: var(--nav-height); padding: var(--nav-padding);
   border: 1px solid var(--line); border-color: color-mix(in srgb, var(--card) 80%, var(--line)); border-radius: calc(var(--nav-height) / 2);
   background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none;
-  box-shadow: 0 8px 26px rgba(21,25,29,.12), inset 0 1px 0 rgba(255,255,255,.7); }
+  box-shadow: 0 8px 26px rgba(21,25,29,.12), inset 0 1px 0 rgba(255,255,255,.7); transition: height .2s ease, border-radius .2s ease, padding .2s ease; }
+nav.tabs.compact { height: max(56px, calc(var(--nav-height) * .75)); padding-block: 6px; border-radius: 28px; }
+nav.tabs.compact :is(a,button) { gap: 0; }
+nav.tabs.compact :is(a,button) > span:not(.tab-n) { max-height: 0; opacity: 0; overflow: hidden; }
+nav.tabs :is(a,button) > span:not(.tab-n) { max-height: 1.3em; opacity: 1; overflow: hidden; transition: max-height .2s ease, opacity .16s ease; }
 nav.tabs :is(a,button) { position: relative; display: grid; justify-items: center; align-content: center; gap: 2px;
   min-width: 44px; min-height: 44px; height: 100%; padding: 3px 0; border-radius: 30px;
   color: var(--tx2); font-size: 13px; font-weight: 650; line-height: 1.15; letter-spacing: 0; transition: color .12s, background-color .12s; }
@@ -236,7 +240,7 @@ html.native-increase-contrast nav.tabs [aria-current="page"] { box-shadow:none; 
   nav.tabs { background: Canvas; border-color: CanvasText; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
   nav.tabs :is(a,button)[aria-current="page"] { background:transparent;color:LinkText;box-shadow:none; }
 }
-@media (prefers-reduced-motion: reduce) { nav.tabs :is(a,button) { transition: none !important; transform: none; } nav.tabs svg { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { nav.tabs, nav.tabs :is(a,button), nav.tabs :is(a,button) > span { transition: none !important; } nav.tabs :is(a,button) { transform: none; } nav.tabs svg { animation: none !important; } }
 .tab-n { position: absolute; top: 3px; left: auto; right: max(0px, calc(50% - 24px)); min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
   background: var(--btn); color: var(--onbtn); font-size: 13px; font-weight: 700; line-height: 20px; text-align: center; box-shadow: 0 0 0 2px var(--card); }
 
