@@ -19,9 +19,40 @@ Run `python3 mobile/scripts/test_listing.py`. Review `privacy-audit.md`, `age-ra
 
 ## Native screenshot artifacts
 
-The seven scenes are Me, activity map/charts, Track ready, Nutrition day, Add food chat, Progress and the friends’ Activity feed. The capture mode uses an unsigned Simulator bundle, actual UIKit safe areas and fictional API responses. Track’s location is a supplied point from the published fictional park route; no GPS permission or real position is read. Only the public basemap contract and its map-file ranges are requested without account credentials. It must produce7 light-mode JPEGs at1320×2868 with no alpha, source revision, image hashes and readiness metrics. Never resize browser/website captures into App Store screenshots or commit image artifacts. Review raw native captures before choosing an optional Sky Blue caption treatment. Inspect the native CI artifact and attach reviewed examples to the PR before marking preparation complete.
+The eight scenes are the Activity feed, activity map/charts, Track ready, Nutrition day, Add food chat, Progress, Me and Achievements. The capture mode uses an unsigned Simulator bundle, actual UIKit safe areas and fictional API responses. Track’s location is a supplied point from the published fictional park route; no GPS permission or real position is read. Only the public basemap contract and its map-file ranges are requested without account credentials. It produces eight light-mode JPEGs at 1320 × 2868 with no alpha, plus source revision, image hashes and readiness metrics. Never resize browser/website captures into App Store screenshots or commit image artifacts. Review raw native captures before choosing an optional Sky Blue caption treatment. Inspect the native CI artifact and attach reviewed examples to the PR before marking preparation complete.
 
 The Activity map/charts scene is recaptured from the merged activity-detail header (#928), including its current title, Kit action and stat layout. The artifact must be generated from the PR’s current bundle; do not reuse the earlier screenshot set.
+
+## 6.9-inch screenshot upload checklist
+
+Use the `appstore-6.9-fictional` artifact from the exact green `iPhone app` workflow run for the submitted source revision. The eight files are native Simulator JPEGs; upload the `.jpg` files only. The `.json` files are evidence for review, not App Store Connect uploads. Each image must be 1320 × 2868, light mode, and show fictional demo data.
+
+Upload the images to the iOS version’s **6.9-inch Display** screenshot slot in this order. Drag them one at a time if App Store Connect sorts a multi-file selection by filename:
+
+| Order | Store scene | Capture filename |
+| ---: | --- | --- |
+| 1 | Home activity feed | `iPhone-16-Pro-Max-light-header-activity-16.jpg` |
+| 2 | Activity detail map and charts | `iPhone-16-Pro-Max-light-activity-16.jpg` |
+| 3 | Track ready | `iPhone-16-Pro-Max-light-header-track-16.jpg` |
+| 4 | Nutrition day | `iPhone-16-Pro-Max-light-header-food-16.jpg` |
+| 5 | Add food chat | `iPhone-16-Pro-Max-light-food-16.jpg` |
+| 6 | Progress | `iPhone-16-Pro-Max-light-header-progress-16.jpg` |
+| 7 | Me | `iPhone-16-Pro-Max-light-header-me-16.jpg` |
+| 8 | Achievements | `iPhone-16-Pro-Max-light-achievements-16.jpg` |
+
+The device prefix is the Simulator model reported by the runner; if Apple’s runner uses a different exact 6.9-inch model, keep the same `light-<stage>-16.jpg` suffixes and use that prefix. Do not upload browser crops, dark-mode images, metric JSON, `public-map.json`, or screenshots from an older workflow run. Review each thumbnail after upload for a complete safe-area header, full bottom navigation and no clipped row.
+
+### App Store Connect order
+
+1. **App and version:** open the Kinetta app record in App Store Connect, choose the iOS platform and create or open the version being submitted.
+2. **Build:** wait for the signed build from the green release workflow to finish processing in TestFlight. Select that exact processed build for the version; a Simulator artifact cannot be submitted as a build.
+3. **Screenshots:** upload the eight JPEGs above under 6.9-inch Display, in the listed order. Check the generated smaller-device previews if App Store Connect creates them.
+4. **Listing:** copy the reviewed values from `listing-en-US.json` into the name, subtitle, promotional text, description, keywords, support/marketing URLs, privacy URL, EULA reference, What's New and copyright fields.
+5. **App information:** confirm the primary language, category, age rating answers from `age-rating.md`, and copyright before leaving the version page.
+6. **Privacy and review:** complete App Privacy from `privacy-audit.md`; fill Review Information from `review-notes.md` with a dedicated fictional reviewer account and server, supplied privately in App Store Connect.
+7. **Final checks:** confirm the privacy URL, support URL, screenshots, processed build, export compliance and pricing/availability. Save the version, then use **Add for Review** and submit only after the owner has reviewed the exact build and account exposure.
+
+The capture runner accepts repeatable `--store-stage <stage>` arguments for future whole-screen scenes. Extra stages are previews only until their order, copy and fictional data have been reviewed; they do not change this eight-image upload set.
 
 ## Existing push protection
 
