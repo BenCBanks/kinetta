@@ -719,6 +719,7 @@ header.top .signup { display:flex;align-items:center; }
 .friends-hero-copy { max-width: 560px; }
 .friends-hero-copy h2, .friends-story-steps > h2 { font-size: clamp(34px, 4.6vw, 58px); max-width: 15ch; }
 .friends-hero-copy .lede { margin-top: 18px; max-width: 34ch; color: var(--ink2); }
+.friends-runs-note { margin-top: 14px; color: var(--ink2); }
 .friends-note, .friends-demo-caption, .feature-demo-note, .feature-stage-label { color: var(--ink3); font-size: 13px; }
 .friends-note { margin-top: 24px; }
 .friends-hero-stage, .feature-showcase-stage { display: grid; justify-items: center; gap: 12px; }
@@ -868,7 +869,7 @@ header.top .signup { display:flex;align-items:center; }
 .feature-hero-copy h1 { max-width:12ch; margin:0; font-size:clamp(40px,5vw,66px); line-height:1.02; letter-spacing:-.035em; font-weight:700; }
 .feature-hero-copy .lede { max-width:42ch; margin-top:18px; color:var(--ink2); font-size:clamp(17px,1.7vw,20px); line-height:1.45; }
 .feature-hero-copy .site-capabilities { margin-top:28px; }
-.feature-hero-stage { min-width:0; overflow:clip; }
+.feature-hero-stage { min-width:0; }
 .feature-hero-stage .phone-frame { position:relative; z-index:1; width:min(380px,100%); box-shadow:0 32px 78px rgba(15,24,32,.24),0 8px 22px rgba(15,24,32,.16); }
 .feature-hero-stage .phone-frame picture { display:block; aspect-ratio:786 / 1420; overflow:hidden; }
 .feature-hero-stage .phone-frame picture img { display:block; width:100%; height:100%; object-fit:cover; object-position:top; }
