@@ -152,6 +152,16 @@ class CIPolicyTests(unittest.TestCase):
                       ((enabled=='true' and store=='success') or (enabled=='false' and store=='skipped')))
             self.assertEqual(actual,expected,(values,cancelled))
 
+    def test_tester_delivery_survives_the_skipped_store_job(self):
+        # A bare output check carries an implicit success(), which a skipped upstream Store job turns false:
+        # builds 2723 and 2752 uploaded but never reached testers. The beta job must state its own status check.
+        ios=(ROOT/'.github/workflows/ios.yml').read_text()
+        job=ios.split('\n  beta:\n',1)[1].split('\n    runs-on:',1)[0]
+        self.assertIn('needs: [changes, testflight]',job)
+        condition=' '.join(re.search(r'\$\{\{(.*?)\}\}',job,re.S).group(1).split())
+        self.assertIn('!cancelled()',condition)
+        self.assertIn("needs.testflight.result == 'success'",condition)
+        self.assertIn("needs.testflight.outputs.uploaded == '1'",condition)
 
 
     def test_browser_shards_cover_every_existing_command_once(self):
