@@ -1984,3 +1984,16 @@ These are standing rules from owner review on a physical iPhone. New work follow
 **Achievements page (#920).** Show every catalog track in every state, grouped as Overall, Run, Ride, Walk & hike, Swim and Strength. Under each track, show its whole named ladder as small circular badges (always 1:1) with each level's name and threshold. Earned levels are in full colour, the next level has an accent outline and progress, and later levels are dimmed but clearly legible in both themes. The named ladder ends after its last level; do not add a repeat tile or ellipsis. A one-line summary gives `Level N of M · Next <threshold> · <remaining> to go` in compact numbers and the account's units. No repeat chip covers a badge value. Friends see earned levels only.
 
 Progress bars sit under badges horizontally, are sized to their cell, and are never clipped (owner, #921).
+
+
+## Polish bar · owner direction, 13 November 2026 (#971)
+
+Every app and website checkpoint must meet this bar. Shared values live in `docs/design-tokens.json`; regenerate both theme files with `python3 dev/design/build_tokens.py`.
+
+- **Depth:** use the three shared elevations for resting cards, raised interactive surfaces and sheets. Light mode uses soft layered shadows; dark mode raises the surface and adds a faint top highlight without dark drop shadows. A hairline alone is not elevation.
+- **Accent:** use the subtle brand-blue gradient for primary actions and selected navigation. Keep sport colours for identity and measured data; do not add large flat grey bands.
+- **Type:** display 700, titles 600, body 400, supporting text 500 at 13px or larger, and tabular numbers 600. Keep useful weight contrast without changing the page layout.
+- **Motion:** tappable controls respond at press with scale 0.97 over 120ms. Shared component transitions settle in about 250ms. Respect `prefers-reduced-motion`; no information depends on animation.
+- **Feedback:** iOS log, save, earn and toggle actions may add light haptics through the existing native bridge; browser and missing-bridge behavior remains a no-op.
+- **Charts and badges:** use rounded gradient chart fills, a soft average line, a smooth scrub/tooltip and animated entry; earned medallions get an inner gradient and rim highlight. Respect screen ownership for all screen-specific work.
+- **Website:** frame phones at a larger, Apple-scale size, with soft-light or gradient backdrops, clear section transitions and a glassy sticky nav.
