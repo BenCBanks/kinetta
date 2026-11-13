@@ -3,15 +3,15 @@
   'use strict';
 
   const scriptUrl = document.currentScript?.src || new URL('assets/progress-demo.js', document.baseURI).href;
-  const styleUrl = new URL('progress-demo.css?v=1', scriptUrl).href;
+  const styleUrl = new URL('progress-demo.css', scriptUrl).href;
   const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const sports = {
-    run: {name:'Run', icon:'🏃', base:25, min:15, max:35, pace:9.4, season:[.88,.9,.95,1,1.04,1.08,1.08,1.05,1,.98,.92,.86],
+    run: {name:'Run', base:25, min:15, max:35, pace:9.4, season:[.88,.9,.95,1,1.04,1.08,1.08,1.05,1,.98,.92,.86],
       weights:[0,.14,.17,0,.17,.34,.18]},
-    ride: {name:'Ride', icon:'🚴', base:88, min:40, max:150, pace:3.55, season:[.58,.64,.8,.96,1.1,1.2,1.28,1.22,1.08,.94,.72,.61],
+    ride: {name:'Ride', base:88, min:40, max:150, pace:3.55, season:[.58,.64,.8,.96,1.1,1.2,1.28,1.22,1.08,.94,.72,.61],
       weights:[0,.17,.19,.14,0,.34,.16]},
-    swim: {name:'Swim', icon:'🏊', base:5.1*1760, min:2*1760, max:8*1760, pace:18.4, unit:'yd', season:[.82,.85,.91,.97,1.07,1.18,1.23,1.2,1.12,1.02,.9,.84],
+    swim: {name:'Swim', base:5.1*1760, min:2*1760, max:8*1760, pace:18.4, unit:'yd', season:[.82,.85,.91,.97,1.07,1.18,1.23,1.2,1.12,1.02,.9,.84],
       weights:[.13,.18,0,.18,.15,.22,.14]}
   };
   const periods = {week:'Week',month:'Month',year:'Year'};
@@ -75,9 +75,9 @@
     const total=Math.max(0,Math.round(minutes)),hours=Math.floor(total/60),mins=total%60;
     return hours?`${hours}h ${String(mins).padStart(2,'0')}m`:`${mins}m`;
   }
-  function niceStep(value) {
-    const raw=Math.max(1,value/3),power=Math.pow(10,Math.floor(Math.log10(raw))),scaled=raw/power;
-    const step=scaled<=1?1:scaled<=2?2:scaled<=5?5:10;
+  function niceTop(value) {
+    const raw=Math.max(.1,value),power=Math.pow(10,Math.floor(Math.log10(raw))),scaled=raw/power;
+    const step=scaled<=1?1:scaled<=2?2:scaled<=2.5?2.5:scaled<=5?5:10;
     return step*power;
   }
   function ensureStyles() {
@@ -111,11 +111,11 @@
       let sportKey='run',period='week',rows=[],selected=0,frame=0;
       root.innerHTML=`<section class="pchart" aria-label="Interactive training progress">
         <div class="pchart-controls">
-          <div class="pchart-group pchart-ranges" role="group" aria-label="Time range">
+          <div class="pchart-group" role="group" aria-label="Time range">
             ${Object.entries(periods).map(([key,label])=>`<button type="button" data-period="${key}" aria-pressed="${key==='week'}">${label}</button>`).join('')}
           </div>
           <div class="pchart-group pchart-sports" role="group" aria-label="Sport">
-            ${Object.entries(sports).map(([key,sport])=>`<button type="button" data-sport="${key}" aria-pressed="${key==='run'}"><span class="pchart-sport-icon" aria-hidden="true">${sport.icon}</span>${sport.name}</button>`).join('')}
+            ${Object.entries(sports).map(([key,sport])=>`<button type="button" data-sport="${key}" aria-pressed="${key==='run'}">${sport.name}</button>`).join('')}
           </div>
         </div>
         <div class="pchart-summary">
@@ -123,7 +123,7 @@
           <dl class="pchart-metrics">
             <div><dt>Total</dt><dd><span data-total data-value="0">0.0 mi</span></dd></div>
             <div><dt>Moving time</dt><dd><span data-time data-value="0">0m</span></dd></div>
-            <div><dt>Longest</dt><dd><span data-best data-value="0">0.0 mi</span><small data-best-label></small></dd></div>
+            <div><dt>Best effort</dt><dd><span data-best data-value="0">0.0 mi</span><small data-best-label></small></dd></div>
           </dl>
         </div>
         <div class="pchart-legend" aria-hidden="true"><span>Distance · miles</span><span data-average-label></span></div>
@@ -147,7 +147,7 @@
       }
       function render(animate=true) {
         rows=periodRows(sportKey,period);selected=rows.reduce((best,row,index)=>row.value>rows[best].value?index:best,0);
-        const values=rows.map(row=>row.value),sum=values.reduce((a,b)=>a+b,0),average=sum/values.length,max=Math.max(...values),step=niceStep(max),top=Math.ceil(max/step)*step;
+        const values=rows.map(row=>row.value),sum=values.reduce((a,b)=>a+b,0),average=sum/values.length,max=Math.max(...values),top=niceTop(max);
         const best=rows.reduce((a,b)=>b.value>a.value?b:a,rows[0]),sport=sports[sportKey];
         root.querySelector('[data-plot]').setAttribute('aria-label',`${sport.name} distance by ${period}`);
         const totalNode=root.querySelector('[data-total]'),timeNode=root.querySelector('[data-time]'),bestNode=root.querySelector('[data-best]');
@@ -157,11 +157,7 @@
         root.querySelector('[data-best-label]').textContent=best.longLabel;
         root.querySelector('.pchart-legend span:first-child').textContent=`Distance · ${sport.unit||'miles'}`;
         root.querySelector('[data-average-label]').textContent=`Average ${formatDistance(average,sportKey)}`;
-        const tickCount=Math.round(top/step)+1,ticks=Array.from({length:tickCount},(_,index)=>top-index*step);
-        root.querySelector('[data-axis]').innerHTML=ticks.map((tick,index)=>{
-          const edge=index===0?' pchart-tick-top':index===ticks.length-1?' pchart-tick-bottom':'';
-          return `<span class="pchart-tick${edge}" style="top:${(top-tick)/top*100}%">${Math.round(tick).toLocaleString('en-US')}</span>`;
-        }).join('');
+        const ticks=[top,top/2,0];root.querySelector('[data-axis]').innerHTML=ticks.map((tick,i)=>`<span class="pchart-tick pchart-tick-${i}">${rounded(tick).toFixed(tick%1?1:0)}</span>`).join('');
         root.querySelector('[data-average]').style.bottom=`${clamp(average/top*100,0,100)}%`;
         const start=++frame,plot=root.querySelector('[data-plot]'),plotHeight=plot.clientHeight||1;
         const previousHeights=[...bars.querySelectorAll('.pchart-fill')].map(fill=>fill.getBoundingClientRect().height/plotHeight*100);
