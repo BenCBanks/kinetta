@@ -22,6 +22,9 @@ globalThis.KinettaBoot=(()=>{
         return Promise.reject(Object.assign(new Error(error?.name==='AbortError'?'This is taking too long. Try refreshing again.':"Can't reach Kinetta - check your connection."),{offline:true,status:error?.name==='AbortError'?504:undefined}));
       })
       .finally(()=>clearTimeout(timer));
+    // The app consumes this promise once the eager bundle is ready; observe an
+    // early logged-out rejection so it cannot surface as an unhandled page error.
+    mePromise.catch(()=>{});
   }
   const launching=()=>document.querySelector('#app .launch');
   // Proxies can inject optional scripts. Only our bundled app files block startup, including Capacitor URLs.
