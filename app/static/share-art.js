@@ -190,7 +190,7 @@ const ShareSheet=(()=>{
     if(!items?.length)return;
     const owner=readOwner(),values=items.map(item=>Object.fromEntries((item.controls||[]).map(control=>[control.key,!!control.checked])));
     sheet(title,`<div class="share-sheet" data-unified-share>
-      <div class="share-picture-row" role="radiogroup" aria-label="Pictures to share">${items.map((item,index)=>`<button type="button" role="radio" class="share-picture-choice" data-share-choice="${index}" data-busy="true" aria-checked="false" tabindex="-1"><span class="share-picture-frame"><img data-share-image="${index}" alt="" hidden><span class="share-picture-loading" aria-hidden="true">Loading…</span></span><span class="share-picture-label">${esc(item.label)}</span></button>`).join('')}</div>
+      <div class="share-picture-row" role="radiogroup" aria-label="Pictures to share">${items.map((item,index)=>`<button type="button" role="radio" class="share-picture-choice" data-share-choice="${index}" data-busy="true" aria-checked="false" tabindex="-1"><span class="share-picture-frame" data-share-frame="${index}"><img data-share-image="${index}" alt="" hidden><span class="share-picture-loading" aria-hidden="true"></span></span><span class="share-picture-label">${esc(item.label)}</span></button>`).join('')}</div>
       <div class="share-picture-controls" data-share-controls></div><p class="share-picture-note small muted" data-share-note></p><p class="vh" data-share-description></p><p class="share-picture-status small muted" role="status" aria-live="polite"></p>
       <div class="share-picture-actions"><button type="button" class="primary wide" data-share-send disabled>${svg('share')}Share</button><button type="button" class="linkbtn wide" data-share-save disabled${Native.on?' hidden':''}>Save image</button>${actions.map((action,index)=>`<button type="button" class="linkbtn wide" data-share-action="${index}">${esc(action.label)}</button>`).join('')}</div>
     </div>`,(body,close)=>{
@@ -204,13 +204,13 @@ const ShareSheet=(()=>{
       };
       async function load(index,redraw=false){
         const old=cache.get(index);if(old&&!redraw)return old;
-        if(old?.url)URL.revokeObjectURL(old.url);cache.delete(index);const stamp=++versions[index],item=items[index],image=$(`[data-share-image="${index}"]`,body),choice=$(`[data-share-choice="${index}"]`,body);image.hidden=true;image.removeAttribute('src');image.alt='';
-        choice.dataset.busy='true';if(index===selected){status.textContent='Preparing picture…';buttons();}
+        if(old?.url)URL.revokeObjectURL(old.url);cache.delete(index);const stamp=++versions[index],item=items[index],image=$(`[data-share-image="${index}"]`,body),frame=$(`[data-share-frame="${index}"]`,body),choice=$(`[data-share-choice="${index}"]`,body);image.hidden=true;image.removeAttribute('src');image.alt='';if(frame)frame.style.removeProperty('--share-picture-ratio');
+        choice.dataset.busy='true';const fitFrame=()=>{if(frame&&image.naturalWidth>0&&image.naturalHeight>0&&live()&&stamp===versions[index])frame.style.setProperty('--share-picture-ratio',String(image.naturalWidth/image.naturalHeight));};image.onload=fitFrame;if(index===selected){status.textContent='Preparing picture…';buttons();}
         try{
           const result=await item.build({...values[index]});const blob=result instanceof Blob?result:result?.blob;
           if(!blob)throw Error('Couldn’t prepare this picture. Try again.');if(!live()||stamp!==versions[index])return null;
           const record={blob,url:URL.createObjectURL(blob),filename:result.filename||item.filename||'kinetta.png',alt:result.alt||item.alt||item.label,link:result.link||item.link||null};cache.set(index,record);
-          image.src=record.url;image.alt=record.alt;image.hidden=false;choice.dataset.busy='false';
+          image.src=record.url;image.alt=record.alt;image.hidden=false;fitFrame();choice.dataset.busy='false';
           if(index===selected){status.textContent='';buttons();}
           return record;
         }catch(error){if(live()&&stamp===versions[index]){image.hidden=true;image.removeAttribute('src');image.alt='';choice.dataset.busy='false';if(index===selected){status.textContent=error.message||'Couldn’t make this picture.';buttons();}}return null;}
