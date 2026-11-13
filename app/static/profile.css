@@ -57,7 +57,7 @@
 .profile-achievement.is-unstarted .profile-achievement-overview-progress>span { background:var(--tx2); }
 .profile-achievement.is-future .profile-achievement-name,.profile-achievement.is-future .profile-achievement-next { color:var(--tx2); }
 .profile-achievement-group + .profile-achievement-group { margin-top:6px; }
-.profile-achievement-group-title { margin:10px 2px 4px; }
+.profile-achievement-group-title { margin:10px 0 4px; }
 .profile-achievement-list.is-ladder-list { display:flex; flex-direction:column; gap:7px; padding:0; }
 #page:has(#profile-achievement-page) { padding-inline:16px; }
 .profile-achievement-list.is-ladder-list .profile-achievement-track-head { display:flex; flex:0 0 auto; flex-direction:row; align-items:baseline; flex-wrap:wrap; gap:2px 8px; width:100%; min-width:0; min-height:44px; padding:4px 0 2px; color:var(--tx); text-align:left; text-decoration:none; }
