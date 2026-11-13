@@ -106,7 +106,6 @@ const lazyRouteBundles = [
 ];
 let lazyRouteGeneration = 0;
 let socialWarmupScheduledOwner = null, socialWarmupOwner = null;
-let foodWarmupScheduledOwner = null, foodWarmupOwner = null;
 const kitEntryPaths = new Set(['/progress','/track','/plan','/food']);
 const kitWarmups = new Set();
 function loadClassicScript(asset) {
@@ -272,21 +271,6 @@ function scheduleSocialRouteWarmup(path) {
       loadClassicScript(SOCIAL_ROUTE_ASSET).then(()=>{
         if(owner===readOwner()&&App.me)Social.refresh();
       }).catch(()=>{if(socialWarmupOwner===owner)socialWarmupOwner=null;});
-    };
-    if(typeof requestIdleCallback==='function')requestIdleCallback(warm);
-    else setTimeout(warm,1000);
-  });
-}
-function scheduleFoodRouteWarmup() {
-  const owner=readOwner();
-  if(!owner||foodWarmupOwner===owner||foodWarmupScheduledOwner===owner)return;
-  foodWarmupScheduledOwner=owner;
-  afterMeUseful(owner,'/me',ready=>{
-    if(!ready){if(foodWarmupScheduledOwner===owner)foodWarmupScheduledOwner=null;return;}
-    const warm=()=>{
-      if(foodWarmupScheduledOwner===owner)foodWarmupScheduledOwner=null;
-      if(owner!==readOwner()||location.pathname!=='/me'||!App.me||!App.pageReady)return;
-      foodWarmupOwner=owner;warmFoodRoutes();
     };
     if(typeof requestIdleCallback==='function')requestIdleCallback(warm);
     else setTimeout(warm,1000);
@@ -1148,7 +1132,7 @@ function render(options) {
   return Promise.resolve(result).then(() => {if(current()&&typeof FeatureUsage!=='undefined')FeatureUsage.open(path);}).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
     requestAnimationFrame(() => { if(current()&&!touched)window.scrollTo(0,targetY);interactions.abort(); });
-    if (current()) { compactSubpageHeader(el);App.pageReady = true; if(path==='/me')scheduleFoodRouteWarmup();scheduleSocialRouteWarmup(path);globalThis.CommunityTerms?.check(); if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path); loadPushInvitationForRoute(current); }
+    if (current()) { compactSubpageHeader(el);App.pageReady = true; scheduleSocialRouteWarmup(path);globalThis.CommunityTerms?.check(); if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path); loadPushInvitationForRoute(current); }
   });
 }
 function loadErrorCopy(e) {

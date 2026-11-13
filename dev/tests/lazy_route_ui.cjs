@@ -4,7 +4,7 @@ const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 const trackFixture=require('../demo/track_session.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798';
 const selectedCase=process.env.KINETTA_LAZY_CASE||'';
-if(selectedCase&&!['settings','recaps','fitness','notifications','records'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
+if(selectedCase&&!['settings','recaps','fitness','notifications','records','food'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
 const password='green teapot on the hill';
 const user='zz_test_explore_new';
 const meReady='.me-card-sections[aria-busy="false"]';
@@ -722,6 +722,35 @@ async function pushInvitationBrowserProof(browser){
 }
 const contactsOnly=process.env.KINETTA_LAZY_ROUTE_CASE==='contacts';
 const contactsCallersOnly=process.env.KINETTA_LAZY_ROUTE_CASE==='contacts-callers';
+async function foodWarmupCase(browser){
+ const cold=await foodRouteFixture(browser,{idleGate:true});
+ try{
+  await cold.page.goto(base+'/me');await ready(cold.page,meReady,'cold Me before Food warm-up');
+  await cold.page.waitForFunction(()=>window.__foodIdleCallbacks.length>=1);
+  assert.deepEqual(cold.assets,[],'cold Me does not request the Food route bundle');
+  assert.equal(await cold.page.evaluate(()=>window.__foodIdleCallbacks.length),1,'Me keeps only the Social idle warm-up');
+  await cold.page.evaluate(()=>window.__foodIdleCallbacks.splice(0).forEach(callback=>callback({didTimeout:false,timeRemaining:()=>50})));
+  await cold.page.waitForTimeout(100);
+  assert.deepEqual(cold.assets,[],'releasing Me idle work still does not load food.js');
+  assert.deepEqual(await cold.page.evaluate(()=>[typeof kitFoodWords,typeof weightAddress,typeof refreshWeightData,typeof guardFoodSheet,typeof KitChat.href,KitChat.loaded]),['function','function','function','function','function',false],'food-home.js keeps the small eager entry seams');
+  assert.deepEqual(cold.errors,[]);assert.deepEqual(cold.writes,[]);
+ }finally{await cold.context.close();}
+
+ for(const [path,selector,expected,label] of [
+  ['/food','#page h1',['/static/food.js'],'Nutrition'],
+  ['/progress/weight','#nt-weight',['/static/food.js'],'Weight'],
+  ['/me/kit','#kit-text',['/static/food.js','/static/kit.js'],'Kit'],
+ ]){
+  const direct=await foodRouteFixture(browser);
+  try{
+   await direct.page.goto(base+path,{waitUntil:'domcontentloaded'});await ready(direct.page,selector,`direct ${label}`);
+   assert.deepEqual(direct.assets.slice(0,expected.length),expected,`${label} loads Food at its direct route boundary`);
+   assert.equal(direct.assets.filter(path=>path==='/static/food.js').length,1,`${label} requests food.js once`);
+   assert.deepEqual(direct.errors,[],`${label} has no page errors`);
+  }finally{await direct.context.close();}
+ }
+ console.log('Food route leaf: cold Me omits food.js; Nutrition, Weight and Kit load it on demand PASS');
+}
 (async()=>{const browser=await chromium.launch();try{
   if(process.env.KINETTA_FRIENDS_LAZY_ONLY==='1'){
     await friendsLeafChecks(browser);console.log('FriendsUI lazy leaf: cold Me, direct route order/retry and Contacts independence PASS');return;
@@ -731,6 +760,7 @@ const contactsCallersOnly=process.env.KINETTA_LAZY_ROUTE_CASE==='contacts-caller
   if(contactsCallersOnly){await contactsCases(browser,{includeColdMe:false});return;}
   if(selectedCase==='settings'){await settingsRouteCase(browser);console.log('Settings lazy route: cold Me, direct/deep links, retry and stale path/owner PASS');return;}
   if(selectedCase==='notifications'){await notificationLeafCase(browser);return;}
+  if(selectedCase==='food'){await foodWarmupCase(browser);return;}
   if(selectedCase==='recaps'){await require('./recap_lazy_ui.cjs')(browser,base);return;}
   if(selectedCase==='fitness'){await fitnessRouteCase(browser);return;}
   if(selectedCase==='records'){await recordsRouteCase(browser);return;}
@@ -1094,6 +1124,11 @@ const contactsCallersOnly=process.env.KINETTA_LAZY_ROUTE_CASE==='contacts-caller
   try{
     await foodWarm.page.goto(base+'/me');await ready(foodWarm.page,meReady,'Me before Food warm-up');
     assert.deepEqual(foodWarm.assets,[],'Food and Kit route bundles are absent before useful Me is ready');
+    await foodWarm.page.waitForFunction(()=>window.__foodIdleCallbacks.length>=1);
+    assert.equal(await foodWarm.page.evaluate(()=>window.__foodIdleCallbacks.length),1,'Me schedules only the Social warm-up; Food stays deferred');
+    await foodWarm.page.evaluate(()=>window.__foodIdleCallbacks.splice(0).forEach(callback=>callback({didTimeout:false,timeRemaining:()=>50})));
+    await foodWarm.page.waitForTimeout(100);
+    assert.deepEqual(foodWarm.assets,[],'Me idle work never requests food.js');
     assert.equal(foodWarm.assetAttempts('/static/onboarding.js'),0,'cold Me does not request the optional Food setup route');
     assert.equal(await foodWarm.page.locator('script[src*="/static/onboarding.js"]').count(),0,'onboarding.js is not an eager script tag');
     assert.equal(await foodWarm.page.evaluate(()=>App.pages.some(item=>item.re.test('/food/setup'))),false,'the setup route registers only when opened');
@@ -1108,10 +1143,6 @@ const contactsCallersOnly=process.env.KINETTA_LAZY_ROUTE_CASE==='contacts-caller
     const tab=foodWarm.page.locator('a[data-tab="food"]');
     await tab.evaluate(el=>el.dispatchEvent(new PointerEvent('pointerover',{bubbles:true,pointerType:'mouse'})));
     await tab.focus();await until(foodWarm.page,()=>window.__foodWarmCalls>=3,'touch, hover and keyboard focus warm Nutrition');
-    await foodWarm.page.waitForFunction(()=>window.__foodIdleCallbacks.length>=1);
-    assert.equal(await foodWarm.page.evaluate(()=>window.__foodIdleCallbacks.length),2,'Me schedules Nutrition and Social warm-ups; Kit is not needed in its header');
-    await foodWarm.page.evaluate(()=>window.__foodIdleCallbacks.splice(0).forEach(callback=>callback({didTimeout:false,timeRemaining:()=>50})));
-    await foodWarm.page.waitForFunction(()=>classicScriptsLoaded.has(FOOD_ROUTE_ASSET));
     assert.equal(await foodWarm.page.evaluate(()=>KitChat.loaded),false,'Kit stays deferred on Me');
     assert.equal(foodWarm.assets.filter(path=>path==='/static/kit.js').length,0,'Me does not fetch the Kit bundle');
     await tab.click();await ready(foodWarm.page,'#page h1','Nutrition after tab warm-up');
