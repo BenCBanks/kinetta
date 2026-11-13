@@ -3,14 +3,13 @@
   const screens = {
     activity: ['assets/shots/light-activity.webp','assets/shots/dark-activity.webp','Fictional Kinetta run detail with a route map, workout numbers and chart.'],
     splits: ['assets/shots/light-activity-splits.webp','assets/shots/dark-activity-splits.webp','Fictional Kinetta run detail showing mile splits.'],
-    profile: ['assets/shots/light-profile.webp','assets/shots/dark-profile.webp','Fictional Kinetta Me screen with totals for Run, Walk, Ride and other sports.'],
+    profile: ['assets/shots/light-profile.webp','assets/shots/dark-profile.webp','Fictional Kinetta profile with this week’s activity chart and sport totals.'],
     lift: ['assets/shots/light-lift.webp','assets/shots/dark-lift.webp','Fictional strength session with current and previous sets.'],
     plan: ['assets/shots/light-plan.webp','assets/shots/dark-plan.webp','Fictional 10K plan with the next workout and this week’s schedule.'],
     progress: ['assets/shots/light-progress.webp','assets/shots/dark-progress.webp','Fictional weekly running totals and a varied distance history chart.'],
     route: ['assets/shots/light-route.webp','assets/shots/dark-route.webp','Fictional matched route with repeat count, best time and recent activities.']
   };
   const prefersDark = matchMedia('(prefers-color-scheme: dark)');
-  const story = document.querySelector('.training-story');
   const pinned = document.querySelector('[data-training-pinned]');
   const pinnedDark = document.querySelector('[data-training-dark]');
   const mobile = document.querySelector('[data-training-mobile]');
@@ -37,7 +36,6 @@
     const observer = new IntersectionObserver(entries => entries.forEach(entry => {
       if (!entry.isIntersecting) return;
       active = entry.target.dataset.trainingScreen;
-      story?.setAttribute('data-active-screen', active);
       entry.target.classList.add('is-visible');
       refresh();
     }), {rootMargin:'-35% 0px -45%'});
