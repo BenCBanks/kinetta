@@ -51,9 +51,7 @@
 #progress-demo .pchart-axis,#progress-demo .pchart-plot { position:relative; height:190px; min-width:0; }
 #progress-demo .pchart-axis { color:var(--ink3); font-size:10px; font-variant-numeric:tabular-nums; }
 #progress-demo .pchart-tick { position:absolute; right:0; line-height:1; transform:translateY(-50%); }
-#progress-demo .pchart-tick-0 { top:0; transform:none; }
-#progress-demo .pchart-tick-1 { top:50%; }
-#progress-demo .pchart-tick-2 { bottom:0; transform:none; }
+#progress-demo .pchart-tick-top,#progress-demo .pchart-tick-bottom { transform:none; }
 #progress-demo .pchart-plot { border-bottom:1px solid var(--line); }
 #progress-demo .pchart-bars,#progress-demo .pchart-labels { display:grid; grid-template-columns:repeat(var(--bar-count),minmax(0,1fr)); gap:3px; }
 #progress-demo .pchart-bars { position:absolute; inset:0; align-items:stretch; }
