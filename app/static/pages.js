@@ -1553,9 +1553,70 @@ async function pMileage(body, q, {home=false}={}) {
         header.insertAdjacentHTML('beforeend', `<div class="totals-view-toggle" role="group" aria-label="Totals view"><button type="button" data-progress-view="chart" aria-pressed="${!body._showTable}" aria-controls="m-chart m-table">Chart</button><button type="button" data-progress-view="table" aria-pressed="${body._showTable === true}" aria-controls="m-chart m-table">Table</button></div>`);
       }
       if (paceMetric) {
-        const points = chartPeriods.map(d => { const value = metricValue(d); return value > 0 ? {x: new Date(d).getTime() / 864e5, y: value} : null; }).filter(Boolean);
-        dotChart($('#m-chart', box), points, {yfmt: v => metric === 'speed' ? U.speed(v) : U.pace(v), invert: metric === 'pace', line: true, height: home ? 150 : 180});
-        const svgChart = $('#m-chart svg', box); if (svgChart) svgChart.setAttribute('aria-label', `${chartLabel}; ${period === 'week' ? 'last 12 weeks' : period === 'month' ? 'last 12 months' : 'all recorded years'}`);
+        const points = chartPeriods.map(d => { const value = metricValue(d); return value > 0 ? {x: new Date(d).getTime() / 864e5, y: value, value, periodLabel: label(d)} : null; }).filter(Boolean);
+        const chart = $('#m-chart', box);
+        dotChart(chart, points, {yfmt: v => metric === 'speed' ? U.speed(v) : U.pace(v), invert: metric === 'pace', line: true, height: home ? 150 : 180});
+        const svgChart = $('#m-chart svg', box);
+        if (svgChart) {
+          svgChart.setAttribute('role', 'group');
+          svgChart.setAttribute('aria-label', `${chartLabel}; ${period === 'week' ? 'last 12 weeks' : period === 'month' ? 'last 12 months' : 'all recorded years'}. Select a point to inspect its value.`);
+          const dots = [...svgChart.querySelectorAll('.dotp')];
+          if (dots.length) {
+            const readout = document.createElement('div');
+            readout.className = 'readout num progress-total-readout progress-dot-readout';
+            readout.setAttribute('role', 'status'); readout.setAttribute('aria-live', 'polite'); readout.setAttribute('aria-atomic', 'true');
+            chart.append(readout);
+            let selected = null, hovered = null, inspected = false;
+            const show = index => {
+              if (index != null) inspected = true;
+              const point = index == null ? null : points[index];
+              const text = point ? `${point.periodLabel} · <b>${esc(displayValue(point.value))}</b>${statUnit ? ` ${esc(statUnit)}` : ''}`
+                : `${defaultPeriodLabel} · <b>${esc(defaultPeriodValue)}</b>${statUnit ? ` ${esc(statUnit)}` : ''}`;
+              readout.innerHTML = `<span>${text}</span>${inspected ? '' : '<span class="readout-hint">Tap a point</span>'}`;
+              dots.forEach((dot, i) => {
+                dot.setAttribute('aria-pressed', String(i === selected));
+                dot.setAttribute('aria-label', `${points[i].periodLabel}: ${displayValue(points[i].value)}${statUnit ? ` ${statUnit}` : ''}`);
+                dot.setAttribute('r', i === selected ? '7' : (dot.dataset.baseRadius || dot.getAttribute('r')));
+              });
+            };
+            const choose = index => { selected = selected === index ? null : index; hovered = null; show(selected); };
+            dots.forEach((dot, i) => {
+              dot.dataset.baseRadius = dot.getAttribute('r');
+              dot.setAttribute('role', 'button'); dot.setAttribute('tabindex', '0'); dot.setAttribute('aria-pressed', 'false');
+              dot.onfocus = () => { hovered = i; show(i); };
+              dot.onblur = () => { hovered = null; show(selected); };
+              dot.onkeydown = e => {
+                const next = e.key === 'Home' ? 0 : e.key === 'End' ? dots.length - 1 : e.key === 'ArrowRight' ? Math.min(dots.length - 1, i + 1) : e.key === 'ArrowLeft' ? Math.max(0, i - 1) : null;
+                if (next != null) { e.preventDefault(); dots[next].focus({preventScroll: true}); }
+                else if (['Enter', ' '].includes(e.key)) { e.preventDefault(); choose(i); }
+                else if (e.key === 'Escape') { e.preventDefault(); selected = null; hovered = null; show(null); }
+              };
+            });
+            const nearest = e => {
+              const matrix = svgChart.getScreenCTM(), rect = svgChart.getBoundingClientRect();
+              if (!matrix || !rect.width) return null;
+              const pointer = svgChart.createSVGPoint(); pointer.x = e.clientX; pointer.y = e.clientY;
+              const local = pointer.matrixTransform(matrix.inverse()), radius = 22 * svgChart.viewBox.baseVal.width / rect.width;
+              let best = null;
+              dots.forEach((dot, i) => {
+                const dx = local.x - Number(dot.getAttribute('cx')), dy = local.y - Number(dot.getAttribute('cy')), distance = Math.hypot(dx, dy);
+                if (distance <= radius && (!best || distance < best.distance)) best = {index: i, distance};
+              });
+              return best?.index ?? null;
+            };
+            svgChart.addEventListener('pointermove', e => {
+              if (e.pointerType !== 'mouse') return;
+              const next = nearest(e);
+              if (next !== hovered) { hovered = next; show(hovered ?? selected); }
+            });
+            svgChart.addEventListener('pointerleave', () => { hovered = null; show(selected); });
+            svgChart.addEventListener('click', e => {
+              const target = e.target.closest?.('.dotp[role="button"]'), index = target ? dots.indexOf(target) : nearest(e);
+              if (index != null && index >= 0) choose(index);
+            });
+            show(null);
+          }
+        }
       } else {
         periodBars($('#m-chart', box), cols, {keys, fmt, yfmt: metric === 'time' ? progressAxisTime : v => String(+v.toFixed(2)), step: metric === 'time' ? progressTimeStep : undefined, axisUnit:metric==='distance'?U.du():'', yTicks:3, avg, avgLabel: period === 'year' ? 'Yearly average' + (scoped ? ` (${rangeName})` : '') : `Average ${period} (${scoped ? rangeName : 'last 12 months'})`, avgLineLabel: avg>0?`avg ${fmt(avg)}`:'', ariaLabel:`${chartLabel}. Select a bar for its period total.`, readoutHint:`Tap a bar for that ${word}’s total`, height:home?165:190, distance:sport==='all'&&metric==='distance', inlineSelection:true});
       }
