@@ -73,6 +73,9 @@ class AssetBuildTests(unittest.TestCase):
             self.assertIn('/static/recipe-import.js?v='+result['assets']['recipe-import.js'],built_app,'the deferred recipe-import route points at its own content hash')
             self.assertIn('/static/lift-routes.js?v='+result['assets']['lift-routes.js'],built_app,'the deferred lifting routes point at their own content hash')
             self.assertIn('/static/progress-routes.js?v='+result['assets']['progress-routes.js'],built_app,'the deferred Progress routes point at their own content hash')
+            for name in ('progress-route.css','track-route.css','food-route.css','lift-route.css'):
+                self.assertIn('/static/'+name+'?v='+result['assets'][name],built_app,'the route stylesheet has its own content hash: '+name)
+                self.assertNotIn('/static/'+name+'?v=',html,'route stylesheet is absent from the eager HTML shell: '+name)
             self.assertIn('/static/segments.js?v='+result['assets']['segments.js'],built_app,'the deferred Segments routes point at their own content hash')
             self.assertIn('/static/planner.js?v='+result['assets']['planner.js'],built_app,'the deferred Planner route points at its own content hash')
             self.assertIn('/static/recap-editor.js?v='+result['assets']['recap-editor.js'],built_app,'the action-loaded recap editor uses its own content hash')

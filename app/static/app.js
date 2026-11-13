@@ -71,12 +71,16 @@ const CHALLENGES_ROUTE_ASSET = '/static/challenges.js?v=__ASSET_HASH__';
 const SHARE_ART_ASSET = '/static/share-art.js?v=__ASSET_HASH__';
 const RECAP_EDITOR_ASSET = '/static/recap-editor.js?v=__ASSET_HASH__';
 const MEDIA_ROUTE_ASSET = '/static/media.js?v=__ASSET_HASH__';
+const PROGRESS_ROUTE_STYLE = '/static/progress-route.css?v=__ASSET_HASH__';
+const TRACK_ROUTE_STYLE = '/static/track-route.css?v=__ASSET_HASH__';
+const FOOD_ROUTE_STYLE = '/static/food-route.css?v=__ASSET_HASH__';
+const LIFT_ROUTE_STYLE = '/static/lift-route.css?v=__ASSET_HASH__';
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: [CONTACTS_ROUTE_ASSET, '/static/welcome.js?v=__ASSET_HASH__']},
   {re: /^\/me\/explore$/, tab: 'track', scripts: [SOCIAL_ROUTE_ASSET, '/static/explore.js?v=__ASSET_HASH__']},
-  {re: /^\/progress$/, tab: 'progress', scripts: [SOCIAL_ROUTE_ASSET]},
+  {re: /^\/progress$/, tab: 'progress', styles: [PROGRESS_ROUTE_STYLE], scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/plan$/, tab: 'progress', scripts: [INTERVALS_ROUTE_ASSET, PLAN_ROUTE_ASSET]},
-  {re: /^\/track$/, tab: 'track', scripts: [INTERVALS_ROUTE_ASSET, MEDIA_ROUTE_ASSET]},
+  {re: /^\/track$/, tab: 'track', styles: [TRACK_ROUTE_STYLE], scripts: [INTERVALS_ROUTE_ASSET, MEDIA_ROUTE_ASSET]},
   {re: /^\/me\/settings$/, tab: 'me', scripts: [INTERVALS_ROUTE_ASSET, SETTINGS_ROUTE_ASSET]},
   {re: /^\/(?:me\/challenges(?:\/[A-Za-z0-9_-]{1,60})?|challenge\/[A-Za-z0-9_-]{1,60})$/, tab: 'activity', scripts: [CHALLENGES_ROUTE_ASSET]},
   {re: /^\/routes(?:\/.*)?$/, tab: 'track', scripts: [PLANNER_ROUTE_ASSET]},
@@ -92,24 +96,46 @@ const lazyRouteBundles = [
   {re: /^\/group-invite\/[\w-]+$/, tab: 'activity', scripts: [SOCIAL_ROUTE_ASSET]},
   {re: /^\/notifications$/, tab: null, scripts: [SOCIAL_ROUTE_ASSET, '/static/social-notifications.js?v=__ASSET_HASH__']},
   {re: /^\/me\/notifications$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET, '/static/social-notifications.js?v=__ASSET_HASH__']},
-  {re: /^\/food\/import$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, '/static/food-import.js?v=__ASSET_HASH__']},
-  {re: /^\/food\/cook\/\d+$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, SOCIAL_ROUTE_ASSET, COOK_ROUTE_ASSET]},
-  {re: /^\/food\/recipe-link$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, COOK_ROUTE_ASSET, RECIPE_IMPORT_ROUTE_ASSET]},
-  {re: /^\/food\/setup$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, '/static/onboarding.js?v=__ASSET_HASH__']},
-  {re: /^\/food\/describe(?:\/.*)?$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, THREAD_ROUTE_ASSET]},
-  {re: /^\/food(?:\/.*)?$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET]},
-  {re: /^\/progress\/weight$/, tab: 'progress', scripts: [FOOD_ROUTE_ASSET]},
-  {re: /^\/progress\/(?:routes|trends|calendar|heatmap)$/, tab: 'progress', scripts: [PROGRESS_ROUTE_ASSET]},
-  {re: /^\/(?:progress\/segments|segments(?:\/(?:review|new|\d+))?)$/, tab: 'progress', scripts: [PLANNER_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET]},
+  {re: /^\/food\/import$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, '/static/food-import.js?v=__ASSET_HASH__'], styles: [FOOD_ROUTE_STYLE]},
+  {re: /^\/food\/cook\/\d+$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, SOCIAL_ROUTE_ASSET, COOK_ROUTE_ASSET], styles: [FOOD_ROUTE_STYLE]},
+  {re: /^\/food\/recipe-link$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, COOK_ROUTE_ASSET, RECIPE_IMPORT_ROUTE_ASSET], styles: [FOOD_ROUTE_STYLE]},
+  {re: /^\/food\/setup$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, '/static/onboarding.js?v=__ASSET_HASH__'], styles: [FOOD_ROUTE_STYLE]},
+  {re: /^\/food\/describe(?:\/.*)?$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET, THREAD_ROUTE_ASSET], styles: [FOOD_ROUTE_STYLE]},
+  {re: /^\/food(?:\/.*)?$/, tab: 'food', scripts: [FOOD_ROUTE_ASSET], styles: [FOOD_ROUTE_STYLE]},
+  {re: /^\/progress\/weight$/, tab: 'progress', scripts: [FOOD_ROUTE_ASSET], styles: [FOOD_ROUTE_STYLE]},
+  {re: /^\/progress\/(?:routes|trends|calendar|heatmap)$/, tab: 'progress', scripts: [PROGRESS_ROUTE_ASSET], styles: [PROGRESS_ROUTE_STYLE]},
+  {re: /^\/(?:progress\/segments|segments(?:\/(?:review|new|\d+))?)$/, tab: 'progress', scripts: [PLANNER_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET], styles: [PROGRESS_ROUTE_STYLE]},
   {re: /^\/me\/sharing$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET, CONTACTS_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET]},
-  {re: /^\/me\/kit$/, tab: 'me', scripts: [FOOD_ROUTE_ASSET, KIT_ROUTE_ASSET]},
+  {re: /^\/me\/kit$/, tab: 'me', styles: [FOOD_ROUTE_STYLE], scripts: [FOOD_ROUTE_ASSET, KIT_ROUTE_ASSET]},
   {re: /^\/(?:lift\/\d+|track\/lift\/\d+|lift\/history\/workout\/\d+)$/, tab: 'track', scripts: ['/static/lift-routes.js?v=__ASSET_HASH__']},
   {re: /^\/(?:lift\/ex\/\d+|lift\/history\/exercise\/\d+)$/, tab: 'progress', scripts: ['/static/lift-routes.js?v=__ASSET_HASH__']},
 ];
+for (const route of lazyRouteBundles) {
+  if (route.scripts.length === 1 && route.scripts[0] === '/static/lift-routes.js?v=__ASSET_HASH__') route.styles = [LIFT_ROUTE_STYLE];
+}
 let lazyRouteGeneration = 0;
 let socialWarmupScheduledOwner = null, socialWarmupOwner = null;
 const kitEntryPaths = new Set(['/progress','/track','/plan','/food']);
 const kitWarmups = new Set();
+const routeStylePromises = new Map(), routeStylesLoaded = new Set();
+function loadRouteStyle(asset) {
+  if (routeStylesLoaded.has(asset)) return Promise.resolve();
+  if (routeStylePromises.has(asset)) return routeStylePromises.get(asset);
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.dataset.routeStyle = asset;
+  link.href = new URL(asset, location.href).href;
+  const promise = new Promise((resolve, reject) => {
+    link.onload = () => { routeStylesLoaded.add(asset); resolve(); };
+    link.onerror = () => { link.remove(); routeStylePromises.delete(asset); reject(new Error('Could not load this page style.')); };
+    document.head.append(link);
+  });
+  routeStylePromises.set(asset, promise);
+  return promise;
+}
+function loadRouteStyles(assets = []) {
+  return assets.reduce((ready, asset) => ready.then(() => loadRouteStyle(asset)), Promise.resolve());
+}
 function loadClassicScript(asset) {
   if (classicScriptPromises.has(asset)) return classicScriptPromises.get(asset);
   const url = new URL(asset, location.href);
@@ -1091,7 +1117,7 @@ function render(options) {
   const path = location.pathname.replace(/\/+$/, '') || '/activity';
   document.title = path === '/activity' ? 'Home · Kinetta' : 'Kinetta';
   const bundle = lazyRouteBundles.find((candidate) => candidate.re.test(path));
-  if (bundle && bundle.scripts.some((file) => !classicScriptsLoaded.has(file))) {
+  if (bundle && ((bundle.styles || []).some((file) => !routeStylesLoaded.has(file)) || bundle.scripts.some((file) => !classicScriptsLoaded.has(file)))) {
     const bundleMatch=path.match(bundle.re)||[],bundleTab=typeof bundle.tab==='function'?bundle.tab(...bundleMatch.slice(1)):bundle.tab;
     const owner = readOwner(), generation = ++lazyRouteGeneration, nextPosition={key,owner,y:targetY};
     const el = lazyRouteShell(bundleTab);
@@ -1104,7 +1130,7 @@ function render(options) {
       if (typeof Social !== 'undefined') Social.refresh();
     }
     const current = () => generation === lazyRouteGeneration && owner === readOwner() && key === location.pathname + location.search && !!App.me;
-    loadClassicScripts(bundle.scripts).then(() => {
+    loadRouteStyles(bundle.styles).then(() => loadClassicScripts(bundle.scripts)).then(() => {
       if (!current()) return;
       if (!App.pages.some((page) => page.re.test(path))) {
         showError(el, {status: 503}, {retry: () => location.reload()});
