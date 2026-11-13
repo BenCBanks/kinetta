@@ -29,8 +29,11 @@ ROUTES = {k: densify(v) for k, v in json.load(open(os.path.join(os.path.dirname(
 
 def dist(a, b): return math.hypot((a[0] - b[0]) * M_LAT, (a[1] - b[1]) * M_LON)
 
-def write(name, sport, start, route, laps, speed_mps, hr_base, cad):
-    pts = ROUTES[route] * laps
+def write(name, sport, start, route, laps, speed_mps, hr_base, cad, route_fraction=1.0):
+    course = ROUTES[route]
+    if route_fraction < 1:
+        course = course[:max(2, round(len(course) * route_fraction))]
+    pts = course * laps
     t, rows, prev = 0.0, [], pts[0]
     for i, p in enumerate(pts):
         d = dist(prev, p); prev = p
@@ -58,19 +61,38 @@ else:
     now = dt.datetime.now(dt.timezone.utc)
 today = now.replace(hour=11, minute=0, second=0, microsecond=0)
 n = 0
+total_weeks = max(1, (days + 6) // 7)
+missed_week = max(0, total_weeks - 8)  # visible in the twelve-week Me view and longer Progress chart
 for k in range(days, 0, -1):
     day = today - dt.timedelta(days=k)
-    fit = (days - k) / days                      # 0 -> 1 over the period: getting fitter
+    elapsed_days = days - k
+    week = elapsed_days // 7
+    weeks_left = total_weeks - week
+    fit = elapsed_days / max(1, days)             # 0 -> 1 over the period: getting fitter
     wd = day.weekday()
-    if wd in (0, 2, 4):                          # easy runs
-        route, laps = ('park loop', 1) if wd != 2 else ('greenway', 1)
-        write('Morning Run', 'running', day, route, laps, 2.9 + 0.35 * fit, 150 - 8 * fit, 84); n += 1
-    if wd == 5:                                  # long run
-        write('Long Run', 'running', day, 'long river', 1, 2.8 + 0.3 * fit, 148 - 6 * fit, 82); n += 1
-    if wd == 1 and k % 14 < 7:                   # tempo
+    recovery = week % 4 == 3
+    taper = weeks_left <= 2
+    build = min(1.0, .55 + .05 * week)            # long run builds from ~6 to ~11 miles
+    long_fraction = build * (.78 if recovery else 1)
+    if weeks_left == 2: long_fraction *= .78
+    if weeks_left == 1: long_fraction *= .62
+    if week == missed_week:                       # a fictional illness/travel week: one short run, several rest days
+        if wd == 2:
+            write('Easy Run', 'running', day, 'park loop', 1, 2.8 + .25 * fit, 145 - 6 * fit, 82); n += 1
+        continue
+    if wd == 0 and not recovery and not taper:    # easy Monday
+        write('Easy Run', 'running', day, 'park loop', 1, 2.8 + .3 * fit, 145 - 6 * fit, 82); n += 1
+    if wd == 2:                                  # midweek easy run
+        route = 'park loop' if recovery or taper else 'greenway'
+        write('Morning Run', 'running', day, route, 1, 2.9 + 0.35 * fit, 150 - 8 * fit, 84); n += 1
+    if wd == 4 and not recovery and not taper:   # Friday is easy in build weeks and a rest day in recovery/taper
+        write('Easy Run', 'running', day, 'park loop', 1, 2.8 + .3 * fit, 145 - 6 * fit, 82); n += 1
+    if wd == 1 and week % 2 == 1 and not recovery and not taper:  # alternate-week tempo
         write('Tempo', 'running', day + dt.timedelta(hours=10), 'greenway', 1, 3.6 + 0.3 * fit, 165 - 5 * fit, 88); n += 1
-    if wd == 6:
+    if wd == 5:                                  # weekend long run builds, then tapers
+        write('Long Run', 'running', day, 'long river', 1, 2.8 + 0.3 * fit, 148 - 6 * fit, 82, long_fraction); n += 1
+    if wd == 6 and week % 3 != 1 and not recovery and not taper:
         write('Sunday Ride', 'cycling', day + dt.timedelta(hours=2), 'bike loop', 1, 7.5 + 1.0 * fit, 132, 85); n += 1
-    if wd in (1, 3):
+    if wd == 3 and week % 3 == 0:
         write('Evening Walk', 'walking', day + dt.timedelta(hours=11), 'neighborhood walk', 1, 1.45, 100, 55); n += 1
 print(n, 'files')
