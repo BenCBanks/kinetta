@@ -29,6 +29,26 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    const ready=()=>until(p,()=>App.pageReady&&App.page?.key===location.pathname+location.search,'page ready');
    const home=async()=>{if(p.url()==='about:blank')await p.goto(base+'/food');else await p.evaluate(()=>go('/food'));await ready();await until(p,()=>document.querySelector('#nutrition-explore')?.getAttribute('aria-busy')==='false','food facts');};
    const fits=async label=>assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),label+' has no horizontal overflow');
+   const compactReadout=async selector=>{
+    const details=await p.locator(selector+' .chart-fact-readout').evaluate(n=>({
+     rows:[...n.children].map(row=>row.className),
+     background:getComputedStyle(n).backgroundColor,
+     border:getComputedStyle(n).borderTopWidth,
+     radius:getComputedStyle(n).borderTopLeftRadius,
+     padding:getComputedStyle(n).padding,
+     labels:[...n.querySelectorAll('.chart-fact-labels > span:not(.readout-hint):not(.ro-edit)')].map(s=>({size:getComputedStyle(s).fontSize,weight:getComputedStyle(s).fontWeight})),
+     values:[...n.querySelectorAll('.chart-fact-values b')].map(s=>({size:getComputedStyle(s).fontSize,weight:getComputedStyle(s).fontWeight})),
+     width:n.getBoundingClientRect().width,scroll:n.scrollWidth
+    }));
+    assert.equal(details.rows.length,2,selector+' readout has a labels row and a values row');
+    assert(details.rows[0].includes('chart-fact-labels')&&details.rows[1].includes('chart-fact-values'),selector+' readout rows stay ordered');
+    assert.equal(details.background,'rgba(0, 0, 0, 0)',selector+' readout is borderless and unfilled');
+    assert.equal(details.border,'0px');assert.equal(details.radius,'0px');assert.equal(details.padding,'0px');
+    assert(details.labels.length&&details.labels.every(s=>s.size==='13px'&&s.weight==='500'),selector+' labels follow the 13px/500 standard');
+    assert(details.values.length&&details.values.every(s=>s.weight==='600'),selector+' values use semibold weight');
+    assert(details.scroll<=details.width+1,selector+' readout does not overflow its chart');
+    return details;
+   };
    await home();
    assert.equal(await p.locator('h1').innerText(),'Nutrition');assert.equal(await p.locator('.view-nav,.pbar,.food-library-link,.backtoday,.mealact').count(),0,'no stacked navigation or meal footer');
    assert.equal(await p.locator('#nutrition-explore a').count(),8);assert.equal(await p.locator('#fd-explore h2').innerText(),'Explore your food');
@@ -106,7 +126,9 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     await p.evaluate(view=>go('/food?view='+view),view);await ready();const weight=view==='weight';assert.equal(await p.locator(weight?'.weight-heading [data-back]':'.nutrition-back').count(),1,view+' back');if(weight){assert.equal(new URL(p.url()).pathname,'/progress/weight');assert.equal(await p.locator('nav.tabs [aria-current=page]').getAttribute('data-tab'),'progress');}assert.equal(await p.locator('.view-nav,.pbar').count(),0,view+' no global bars');await fits(view);
     if(view==='weeks'){assert.equal(new URL(p.url()).searchParams.get('view'),'overview');assert(await p.locator('#nt-weeks-fold').evaluate(n=>n.open),'Old weekly links open the folded table in Insights');if(who==='empty'){await p.locator('#nt-weeks .empty').waitFor();assert.match(await p.locator('#nt-weeks').innerText(),/No food logged yet/);}else{await p.locator('#nt-weeks .tbl').waitFor();assert.match(await p.locator('#nt-weeks').innerText(),/Last 26 weeks.*separate from the selected chart range/s);const fixed=await p.locator('#nt-weeks th').first().boundingBox();await p.locator('#nt-weeks .tblwrap').evaluate(n=>n.scrollLeft=n.scrollWidth);const scrolled=await p.locator('#nt-weeks th').first().boundingBox();assert(Math.abs(fixed.x-scrolled.x)<2,'Weekly date stays fixed while amounts scroll');}}
     if(view==='calendar'){assert.equal(await p.locator('.food-calendar').count(),0,'No90-tile calendar');assert(await p.locator('.food-history-date input').isVisible());const dates=await p.locator('.food-day-list a').evaluateAll(ns=>ns.map(n=>new URL(n.href).searchParams.get('d')));assert.deepEqual(dates,dates.slice().sort().reverse(),'Logged dates stay newest first');assert(dates.length<=35,'Only logged dates are listed');assert.equal(dates.length,who==='empty'?0:who==='typical'?7:35);const chosen=dates.at(-1)||'2026-01-01';await p.locator('.food-history-date input').fill(chosen);await ready();assert.equal(new URL(p.url()).searchParams.get('d'),chosen,'Date picker opens the chosen log day');await p.evaluate(()=>go('/food?view=calendar'));await ready();}
-    if(view==='macros'&&who==='typical'){const fit=await p.locator('#nt-protein').evaluate(box=>{const svg=box.querySelector('svg'),view=svg?.viewBox.baseVal,bad=[];for(const node of box.querySelectorAll('.yl,.period-tick,.avgline-label')){const b=node.getBBox();if(b.x<-.5||b.y<-.5||b.x+b.width>(view?.width||0)+.5||b.y+b.height>(view?.height||0)+.5)bad.push({className:node.getAttribute('class'),box:{x:b.x,y:b.y,width:b.width,height:b.height}});}return bad;});assert.deepEqual(fit,[],'protein chart labels stay inside the SVG at 16px');if(out&&process.env.KINETTA_TOTALS_CAPTURE_SET==='1'){fs.mkdirSync(out,{recursive:true});await p.locator('#nt-protein').screenshot({path:`${out}/protein-${size.width}-${theme}.png`});}}
+    if(view==='macros'&&who==='typical'){await compactReadout('#nt-protein');const fit=await p.locator('#nt-protein').evaluate(box=>{const svg=box.querySelector('svg'),view=svg?.viewBox.baseVal,bad=[];for(const node of box.querySelectorAll('.yl,.period-tick,.avgline-label')){const b=node.getBBox();if(b.x<-.5||b.y<-.5||b.x+b.width>(view?.width||0)+.5||b.y+b.height>(view?.height||0)+.5)bad.push({className:node.getAttribute('class'),box:{x:b.x,y:b.y,width:b.width,height:b.height}});}return bad;});assert.deepEqual(fit,[],'protein chart labels stay inside the SVG at 16px');if(out&&process.env.KINETTA_TOTALS_CAPTURE_SET==='1'){fs.mkdirSync(out,{recursive:true});await p.locator('#nt-protein').screenshot({path:`${out}/protein-${size.width}-${theme}.png`});}}
+    if(view==='energy'&&who==='typical'){await compactReadout('#nt-energychart');assert.match(await p.locator('#nt-energychart .chart-fact-readout').innerText(),/Tap a bar/,'energy readout keeps its inspection hint');if(out&&process.env.KINETTA_READOUT_CAPTURE_SET==='1'&&size.width===390){fs.mkdirSync(out,{recursive:true});await p.locator('#nt-energychart').screenshot({path:`${out}/energy-readout-390-${theme}.png`});}}
+    if(view==='trends'&&who==='typical'&&await p.locator('#nt-cum .chart-fact-readout').count())await compactReadout('#nt-cum');
     await p.locator(weight?'.weight-heading [data-back]':'.nutrition-back').click();await ready();
    }
    for(const address of ['/food/weight','/progress?section=food','/progress?section=food&foodview=calendar','/progress?section=food&foodview=weight']){

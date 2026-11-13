@@ -48,6 +48,14 @@
 .nutrition-detail .top h1 { font-size:1.5rem; }
 .nutrition-detail .top .acts { flex-wrap:nowrap; }
 .nutrition-detail .progress-filters { justify-content:flex-end; margin-bottom:10px; }
+.nutrition-detail .chart-fact-readout { position:static; display:block; min-height:0; padding:0; margin:0 0 6px; border:0; border-radius:0; background:none; -webkit-backdrop-filter:none; backdrop-filter:none; font-size:14px; line-height:1.25; }
+.chart-fact-row { display:flex; align-items:baseline; flex-wrap:wrap; gap:2px 5px; min-width:0; }
+.chart-fact-labels { color:var(--tx3); font-size:13px; font-weight:500; }
+.chart-fact-labels > span:first-child { color:var(--tx2); }
+.chart-fact-values { color:var(--tx3); font-size:13px; }
+.chart-fact-values b { color:var(--tx); font-size:15px; font-weight:600; }
+.chart-fact-readout .readout-hint { color:var(--tx3); font-size:13px; font-weight:400; }
+.chart-fact-readout .ro-edit { margin-left:0; font-size:13px; }
 .nutrition-detail .top:not(:has(.nutrition-back)) { grid-template-columns:minmax(0,1fr) auto; }
 
 /* At narrow widths, let later title lines use the icon column too. Keep full labels readable with larger text. */
