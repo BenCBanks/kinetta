@@ -45,6 +45,7 @@ const ProfileLayout=(()=>{
     footprints:'<path d="M8 13.1c-1.8-.2-3.3 1.6-3.7 4.1-.3 2.1.6 3.6 2.1 3.8 1.8.2 3.4-1.5 3.8-3.9.3-2.2-.6-3.7-2.2-4Zm-.3-3.3c1.2 0 2.1-1.7 2-3.6S8.7 3 7.5 3 5.4 4.7 5.5 6.6s.9 3.2 2.2 3.2Zm4.2 1.3c1.1-.5 1.3-2.3.5-4s-2-2.6-3.1-2.1-1.3 2.3-.5 4 2 2.6 3.1 2.1Zm7.1 2c-1.6-.5-3.1.9-3.8 3.2-.6 2.1 0 3.8 1.5 4.3 1.7.5 3.4-.9 4.1-3 .6-2.2 0-4-1.8-4.5Zm-2.4-3.4c1.1-.2 1.7-2 1.3-3.8s-1.5-3-2.7-2.7-1.8 2-1.4 3.8 1.6 2.9 2.8 2.7Z"/>'
   };
   const achievementNumber=n=>Number.isFinite(Number(n))?Number(n).toLocaleString(undefined,{maximumFractionDigits:1}):'—';
+  const achievementCompactNumber=n=>{const value=Number(n),absolute=Math.abs(value);if(!Number.isFinite(value))return '—';if(absolute>=1e9)return `${achievementNumber(value/1e9)}b`;if(absolute>=1e6)return `${achievementNumber(value/1e6)}m`;if(absolute>=1e5)return `${Math.round(value/1e3)}k`;if(absolute>=1e3)return `${achievementNumber(value/1e3)}k`;return achievementNumber(value);};
   let achievementTextMeasure=null;
   function achievementTextWidth(text,size,{fontFamily='sans-serif',fontWeight='700',fontStyle='normal'}={}){
     if(!achievementTextMeasure&&typeof document!=='undefined')achievementTextMeasure=document.createElement('canvas').getContext('2d');
@@ -201,7 +202,7 @@ const ProfileLayout=(()=>{
     if(tier?.trigger==='first_activity')return 'First activity';
     if(['journey','sport:run','sport:ride','sport:walk-hike','sport:swim'].includes(code)){
       const km=canonicalUnit==='km'?raw:raw/1000;
-      const metric=tier?.display==='km-fixed',value=metric?km:Number.isFinite(hint)?hint:km*1000/1609.344;
+      const metric=App.me?.units==='metric',value=metric?km:km*1000/1609.344;
       return `${achievementNumber(value)} ${metric?'km':'mi'}`;
     }
     if(code==='climbing')return `${achievementNumber(imperial&&Number.isFinite(hint)?hint:raw)} ${imperial?'ft':'m'}`;
@@ -215,7 +216,7 @@ const ProfileLayout=(()=>{
     if(tier?.trigger==='first_activity')return 'First activity to go';
     const raw=Math.max(0,Number(tier?.threshold)-achievementRawValue(track)),imperial=App.me?.units!=='metric',code=track.code;
     let value=raw,unit=achievementDefinition(track)?.levels?.[0]?.canonical_unit||'';
-    if(['journey','sport:run','sport:ride','sport:walk-hike','sport:swim'].includes(code)){const metric=tier?.display==='km-fixed';value=raw/(metric?1000:1609.344);unit=metric?'km':'mi';}
+    if(['journey','sport:run','sport:ride','sport:walk-hike','sport:swim'].includes(code)){const metric=App.me?.units==='metric';value=raw/(metric?1000:1609.344);unit=metric?'km':'mi';}
     else if(code==='climbing'){value=raw*(imperial?3.28084:1);unit=imperial?'ft':'m';}
     else if(code==='lifted'){value=raw*(imperial?2.2046226218:1);unit=imperial?'lb':'kg';}
     else if(code==='active_time'){value=raw/3600;unit='hours';}
@@ -226,8 +227,15 @@ const ProfileLayout=(()=>{
     const text=achievementThresholdText(track,tier),match=text.match(/^([\d,]+(?:\.\d+)?)\s+(.+)$/);
     if(!match)return text;
     const value=Number(match[1].replaceAll(',','')),unit=match[2];
-    if(!Number.isFinite(value)||value<1000)return text;
-    return `${value>=1e6?`${achievementNumber(value/1e6)}m`:`${achievementNumber(value/1e3)}k`} ${unit}`;
+    const shownUnit=unit.replace(/^personal bests?$/,'best'+(value===1?'':'s'));
+    return `${achievementCompactNumber(value)} ${shownUnit}`;
+  }
+  function achievementShortRemaining(track,tier){
+    const text=achievementRemainingText(track,tier).replace(/ (?:left|to go)$/,''),match=text.match(/^([\d,]+(?:\.\d+)?)\s+(.+)$/);
+    if(!match)return text;
+    const amount=achievementCompactNumber(Number(match[1].replaceAll(',',''))),unit=match[2];
+    const namedWithThreshold=['personal_bests','workouts','active_time','consistency','years_active','sport:lift'].includes(track.code);
+    return `${amount}${namedWithThreshold?'':` ${unit}`}`;
   }
   function achievementLevelRow(track,tier,currentLevel,earnedTiers=new Map()){
     const next=tier.level===currentLevel+1,state=tier.level===currentLevel?'is-current':tier.level<currentLevel?'is-earned':next?'is-next':'is-upcoming',status=tier.level===currentLevel?'Current level':tier.level<currentLevel?'Earned':next?'Next level':'Coming up';
@@ -288,8 +296,7 @@ const ProfileLayout=(()=>{
   function achievementMedalValue(track,{small=false}={}){
     const value=achievementValue(track);if(!small&&value.length<=8)return value;
     const raw=Number(track.display_value),unit=String(track.display_unit||'').toLowerCase();if(!Number.isFinite(raw))return value;
-    const compact=number=>{const n=Math.abs(number);if(n>=1e9)return `${achievementNumber(number/1e9)}b`;if(n>=1e6)return `${achievementNumber(number/1e6)}m`;if(n>=1e5)return `${Math.round(number/1e3)}k`;if(n>=1e3)return `${achievementNumber(number/1e3)}k`;return achievementNumber(number);};
-    const amount=compact(raw),shortUnit=({hour:'h',hours:'h',h:'h',week:'wk',weeks:'wk',year:'yr',years:'yr',workout:'wkt',workouts:'wkt',session:'sess',sessions:'sess',mi:'mi',km:'km',ft:'ft',m:'m',lb:'lb',kg:'kg'})[unit];
+    const amount=achievementCompactNumber(raw),shortUnit=({hour:'h',hours:'h',h:'h',week:'wk',weeks:'wk',year:'yr',years:'yr',workout:'wkt',workouts:'wkt',session:'sess',sessions:'sess',mi:'mi',km:'km',ft:'ft',m:'m',lb:'lb',kg:'kg'})[unit];
     return `${amount}${shortUnit?' '+shortUnit:''}`;
   }
   function earnedBadges(data){
@@ -377,11 +384,11 @@ const ProfileLayout=(()=>{
   }
   function achievementRow(track,levelUps=new Set(),pinnedCodes=new Set(),showLevelCount=false,showNextBadge=false){
     const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),tier=achievementCurrentTier(track),value=achievementValue(track),next=achievementNext(track),up=levelUps.has(track.code),pinned=pinnedCodes.has(track.code),canPin=level>0,started=achievementTrackStarted(track),earned=level>0,first=achievementTierAt(track.code,1),namedCount=achievementDefinition(track)?.levels?.length||0,maximum=namedCount&&!achievementCatalog?.tail?` of ${namedCount}`:'';
-    const nextTier=achievementTierAt(track.code,level+1),captionTier=nextTier||first,remaining=captionTier?achievementRemainingText(track,captionTier):'',threshold=captionTier?achievementShortThreshold(track,captionTier):'',repeat=Number(captionTier?.multiple)>1?` (×${Number(captionTier.multiple)})`:'',caption=!started&&first?`Start: ${achievementShortThreshold(track,first)}`:nextTier?`Next ${threshold}${repeat} · ${remaining.replace(/ (?:left|to go)$/,'')} to go`:next?`Next ${next}`:'All levels earned',requirement=first?achievementThresholdText(track,first):'the first level',progress=showLevelCount?Math.round(achievementProgress(track)*100):0;
+    const nextTier=achievementTierAt(track.code,level+1),captionTier=nextTier||first,remaining=captionTier?achievementShortRemaining(track,captionTier):'',threshold=captionTier?achievementShortThreshold(track,captionTier):'',repeat=Number(captionTier?.multiple)>1?` (×${Number(captionTier.multiple)})`:'',caption=!earned&&first?`Start: ${achievementShortThreshold(track,first)}`:nextTier?`Next ${threshold}${repeat} · ${remaining} to go`:next?`Next ${next}`:'All levels earned',requirement=first?achievementThresholdText(track,first):'the first level',progress=showLevelCount?Math.round(achievementProgress(track)*100):0;
     const aria=earned?`${label}, Level ${level}${maximum}${tier?` ${tier.name}`:''}, ${value}. ${caption}${pinned?', Pinned to profile':''}`:`${label}, ${started?'In progress':'Not started'}. ${caption}`;
     const description=showLevelCount&&!earned?`Future reward. ${started?'In progress. ':'Not started. '}First reward: ${first?.name||'the first level'}; requires ${requirement}.`:showLevelCount&&!canPin?'In progress. Earn a level to feature this achievement.':`Long press to ${pinned?'remove this medal from':'pin this medal to'} your profile.`;
     const progressBar=showLevelCount?`<span class="profile-achievement-overview-progress" role="progressbar" data-achievement-progress aria-label="Progress to ${earned?'the next':'the first'} level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span data-progress-fill></span></span>`:'';
-    const detail=showLevelCount?caption:(next?`Next · ${next}`:'Highest tier'),medals=showNextBadge?`${earned?achievementMedallion(track,{showMultiple:false}):''}${achievementNextMedallion(track,captionTier)}`:started?achievementMedallion(track,{showMultiple:false}):achievementNextMedallion(track,first);
+    const detail=showLevelCount?caption:(next?`Next · ${next}`:'Highest tier'),medals=showNextBadge?`${earned?achievementMedallion(track,{showMultiple:false}):''}${achievementNextMedallion(track,captionTier)}`:earned?achievementMedallion(track,{showMultiple:false}):achievementNextMedallion(track,first);
     return `<a class="profile-achievement${up?' is-level-up':''}${showLevelCount&&!earned?' is-future':''}${showLevelCount&&!started?' is-unstarted':''}" role="listitem" href="${esc(achievementHref(track))}" aria-label="${esc(aria)}" aria-description="${esc(description)}" data-achievement-code="${esc(track.code)}" data-showcase-pinned="${pinned}" data-showcase-eligible="${canPin}">${showNextBadge?`<span class="profile-achievement-medals">${medals}</span>`:medals}<span class="profile-achievement-name">${esc(label)}</span>${progressBar}<span class="profile-achievement-next">${esc(detail)}</span></a>`;
   }
   function achievementLevelUps(data){
