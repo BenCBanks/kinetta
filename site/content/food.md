@@ -14,10 +14,6 @@ Calories, macros, meals and recipes.
 
 Type what you ate, check the amounts, then log it.
 
-## food-yesterday-description
-
-Repeat yesterday’s meal in one tap.
-
 ## food-calories-description
 
 Daily calories and protein against your goals.
