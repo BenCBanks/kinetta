@@ -556,7 +556,8 @@ async function homeGroups(el) {
 const feedEmpty=()=>`<div class="feed-empty"><p class="small muted">Your workouts, friends’ shared workouts and achievement moments appear here.</p><div class="btncol"><a class="primary wide" href="/track">Record or import a workout</a><a class="linkbtn" href="/me/friends?find=1">Find friends</a></div></div>`;
 function scheduleHomeIdle(fn){
   if(typeof requestIdleCallback==='function')return requestIdleCallback(()=>fn(),{timeout:1200});
-  return setTimeout(fn,0);
+  if(typeof setTimeout==='function')return setTimeout(fn,0);
+  fn();return null;
 }
 async function homeFeed(el) {
   el.classList?.add('activity-home');
