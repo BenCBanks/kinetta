@@ -652,7 +652,15 @@ function feedTools(el,current,{defer=false}={}){
   host.addEventListener('click',e=>{if(!live()||e.metaKey||e.ctrlKey||e.button>0)return;const tile=e.target.closest('[data-activity-feature],[data-feed-tool]');if(!tile)return;const id=tile.dataset.activityFeature||tile.dataset.feedTool;Discovery.visit('activity',id);
     if(id==='invite'){e.preventDefault();e.stopPropagation();KinettaCard.open();}
   });
-  async function refresh(){if(live())host.setAttribute('aria-busy','true');await Promise.allSettled([api('/api/challenges').then(rows=>{if(live())challenges=rows;})]);ready=true;draw();}
+  async function refresh(){
+    if(live()){
+      if(defer)host.setAttribute('data-home-extras-loading','true');
+      else host.setAttribute('aria-busy','true');
+    }
+    await Promise.allSettled([api('/api/challenges').then(rows=>{if(live())challenges=rows;})]);
+    if(live()&&defer)host.removeAttribute('data-home-extras-loading');
+    ready=true;draw();
+  }
   const start=()=>{if(!initial)initial=refresh();return initial;};
   draw();if(!defer)start();return{refresh:start,start,ready:defer?Promise.resolve():initial};
 }
