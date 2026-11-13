@@ -18,25 +18,23 @@ class CopyTests(unittest.TestCase):
    required=set(re.findall(r'\{\{(?:#|/)?copy:([^}]+)\}\}',template.read_text()))
    present=set(re.findall(r'(?m)^## ([a-z0-9-]+)',(content.ROOT/'site/content'/template.with_suffix('.md').name).read_text()))
    self.assertTrue(required,template.name);self.assertEqual(required,present,template.name)
- def test_about_photo_can_be_removed_in_one_content_entry(self):
+ def test_about_uses_one_framed_fictional_app_screen(self):
   import re
   parts=re.split(r'(?m)^## ([a-z0-9-]+)\s*\n',(content.ROOT/'site/content/about.md').read_text())
   entries=dict(zip(parts[1::2],(content.inline(' '.join(x.split())) for x in parts[2::2])))
   template=(content.ROOT/'site/templates/about.html').read_text()
-  enabled=content.render(template,entries)
-  self.assertIn('alt="Ben and Rachel by the river"',enabled)
-  self.assertNotIn('about-avatar',enabled)
-  entries['about-couple-photo']=''
-  removed=content.render(template,entries)
-  self.assertNotIn('assets/about/ben-and-rachel',removed)
-  self.assertNotIn('class="about-couple"',removed)
-  self.assertNotIn('about-avatar',removed)
-  self.assertIn('mailto:feedback@kinetta.app',removed)
-  self.assertNotIn('{{',removed)
+  page=content.render(template,entries)
+  self.assertIn('assets/shots/light-today.webp',page)
+  self.assertIn('assets/shots/dark-today.webp',page)
+  self.assertEqual(page.count('class="frame"'),1)
+  self.assertNotIn('assets/about/ben-and-rachel',page)
+  self.assertNotIn('about-couple',page)
+  self.assertIn('mailto:feedback@kinetta.app',page)
+  self.assertNotIn('{{',page)
   words=' '.join(entries[k] for k in ['about-story','about-feedback'])
   self.assertTrue(40<=len(words.split())<=90)
   self.assertNotRegex(words.lower(),r'\bads?\b|ad-free|privacy|sell|data')
-  self.assertNotIn('<ul',enabled)
+  self.assertNotIn('<ul',page)
  def test_about_and_privacy_are_linked_from_every_footer_and_guide_is_retired(self):
   import re
   for template in (content.ROOT/'site/templates').glob('*.html'):

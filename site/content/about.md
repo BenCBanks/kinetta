@@ -1,7 +1,6 @@
 # About us website copy
 
 Edit the text below each heading. Keep the section keys unchanged.
-To remove the photo, clear the text under `about-couple-photo` and rebuild; leave the heading in place.
 
 ## title
 
@@ -14,10 +13,6 @@ We're Ben and Rachel. We both train and care about eating well, so we built Kine
 ## about-feedback
 
 We use Kinetta ourselves and are still adding to it. If there's something you'd find useful, or something that isn't working, we'd like to hear from you at [feedback@kinetta.app](mailto:feedback@kinetta.app).
-
-## about-couple-photo
-
-Ben and Rachel
 
 ## footer-links
 

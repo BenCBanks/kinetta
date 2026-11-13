@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="assets/theme.css?v=9">
 <link rel="stylesheet" href="assets/site.css?v=26">
+<link rel="stylesheet" href="assets/about.css?v=1">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -23,21 +24,24 @@
   </div>
 </header>
 <main id="main">
-  <section class="pagehead"><div class="wrap"><h1>About us</h1></div></section>
+  <section class="pagehead about-head">
+    <div class="wrap">
+      <span class="eyebrow">About</span>
+      <h1>About us</h1>
+      <p class="lede">We're Ben and Rachel. We both train and care about eating well, so we built Kinetta to bring workouts, nutrition and friends together in one place.</p>
+    </div>
+  </section>
   <section class="about" aria-label="About Ben and Rachel">
     <div class="wrap about-layout">
-      <div class="about-bio">
-        <div class="about-copy">
-          <p>We're Ben and Rachel. We both train and care about eating well, so we built Kinetta to bring workouts, nutrition and friends together in one place.</p>
-          <p>We use Kinetta ourselves and are still adding to it. If there's something you'd find useful, or something that isn't working, we'd like to hear from you at <a href="mailto:feedback@kinetta.app">feedback@kinetta.app</a>.</p>
+      <div class="about-copy"><p>We use Kinetta ourselves and are still adding to it. If there's something you'd find useful, or something that isn't working, we'd like to hear from you at <a href="mailto:feedback@kinetta.app">feedback@kinetta.app</a>.</p></div>
+      <figure class="about-phone">
+        <div class="frame">
+          <picture>
+            <source srcset="assets/shots/dark-today-1x.webp 1x, assets/shots/dark-today.webp 2x" media="(prefers-color-scheme: dark)">
+            <img src="assets/shots/light-today-1x.webp" srcset="assets/shots/light-today-1x.webp 1x, assets/shots/light-today.webp 2x" alt="Fictional Kinetta Today screen with training and nutrition." width="786" height="1704">
+          </picture>
         </div>
-      </div>
-
-      <figure class="about-couple">
-        <picture><source srcset="assets/about/ben-and-rachel.webp" type="image/webp"><img src="assets/about/ben-and-rachel.jpg" alt="Ben and Rachel by the river" loading="lazy" width="480" height="360"></picture>
-        <figcaption>Ben and Rachel</figcaption>
       </figure>
-
     </div>
   </section>
 </main>
