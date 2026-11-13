@@ -21,6 +21,8 @@ Run `python3 mobile/scripts/test_listing.py`. Review `privacy-audit.md`, `age-ra
 
 The seven scenes are Me, activity map/charts, Track ready, Nutrition day, Add food chat, Progress and the friends’ Activity feed. The capture mode uses an unsigned Simulator bundle, actual UIKit safe areas and fictional API responses. Track’s location is a supplied point from the published fictional park route; no GPS permission or real position is read. Only the public basemap contract and its map-file ranges are requested without account credentials. It must produce7 light-mode JPEGs at1320×2868 with no alpha, source revision, image hashes and readiness metrics. Never resize browser/website captures into App Store screenshots or commit image artifacts. Review raw native captures before choosing an optional Sky Blue caption treatment. Inspect the native CI artifact and attach reviewed examples to the PR before marking preparation complete.
 
+The Activity map/charts scene is recaptured from the merged activity-detail header (#928), including its current title, Kit action and stat layout. The artifact must be generated from the PR’s current bundle; do not reuse the earlier screenshot set.
+
 ## Existing push protection
 
 `NativePush.swift` selects sandbox only for DEBUG and production otherwise. `ios.yml` archives Release; `mobile/scripts/check-export.py` inspects the actual exported IPA signature for `aps-environment=production` and a distribution profile before upload. This PR retains those assertions. An unsigned Simulator check cannot prove the final exported entitlement or real push delivery; signing/export and physical testing remain release steps.
