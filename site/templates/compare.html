@@ -50,41 +50,37 @@
   <section class="pagehead">
     <div class="wrap">
       <span class="eyebrow">Features</span>
-      <h1 id="features-page-title">{{copy:the-premium-features-free-1}}</h1>
+      <h1>{{copy:the-premium-features-free-1}}</h1>
       <p class="lede">{{copy:others-charge-160-a-year-for-these-kinetta-doesn-t-2}}</p>
     </div>
   </section>
-  <!-- Features by area. -->
-  <section class="feature-showcase" aria-labelledby="features-page-title">
+  <!-- {{copy:tour-training-description}} -->
+  <section class="feature-showcase" aria-labelledby="feature-showcase-title">
     <div class="wrap feature-showcase-grid">
       <div class="feature-showcase-copy">
-        <div class="feature-tabs" role="tablist" aria-label="Kinetta areas">
-          <button type="button" role="tab" aria-selected="true" aria-controls="feature-phone-panel" data-feature-tab="training">Training</button>
-          <button type="button" role="tab" aria-selected="false" aria-controls="feature-phone-panel" data-feature-tab="food">Food</button>
-          <button type="button" role="tab" aria-selected="false" aria-controls="feature-phone-panel" data-feature-tab="friends">Friends</button>
-          <button type="button" role="tab" aria-selected="false" aria-controls="feature-phone-panel" data-feature-tab="progress">Progress</button>
-          <button type="button" role="tab" aria-selected="false" aria-controls="feature-phone-panel" data-feature-tab="kit">Kit</button>
+        <h2 id="feature-showcase-title">Features.</h2>
+                <div class="feature-tabs" role="tablist" aria-label="Kinetta areas">
+          <button type="button" role="tab" aria-selected="true" data-feature-tab="training">Training</button>
+          <button type="button" role="tab" aria-selected="false" data-feature-tab="food">Food</button>
+          <button type="button" role="tab" aria-selected="false" data-feature-tab="friends">Friends</button>
+          <button type="button" role="tab" aria-selected="false" data-feature-tab="progress">Progress</button>
+          <button type="button" role="tab" aria-selected="false" data-feature-tab="kit">Kit</button>
         </div>
-        <div class="feature-copy-panel" data-feature-copy-panel aria-live="polite">
-          <h2 data-feature-headline>Every run, mapped and measured.</h2>
-          <p class="feature-demo-note" data-feature-copy>Record a route, then see the detail that makes the next run better.</p>
-          <ul class="feature-capabilities" data-feature-capabilities>
-            <li><svg aria-hidden="true"><use href="#i-target"></use></svg><span><strong>Route map</strong><small>Start and finish privacy</small></span></li>
-            <li><svg aria-hidden="true"><use href="#i-run"></use></svg><span><strong>Splits, pace and heart rate</strong><small>When the recording includes them</small></span></li>
-            <li><svg aria-hidden="true"><use href="#i-spark"></use></svg><span><strong>Compare repeats on a route</strong><small>See what changed over time</small></span></li>
-          </ul>
-          <a class="feature-explore" data-feature-link href="training">Explore Training <span aria-hidden="true">→</span></a>
-        </div>
+
       </div>
-      <div class="feature-showcase-stage" id="feature-phone-panel" role="tabpanel" aria-live="polite">
-        <div class="feature-phone-glow">
-          <div class="phone-frame feature-phone">
-            <picture><source data-feature-dark srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img id="feature-phone-screen" data-feature-screen src="assets/shots/light-activity.webp" alt="Fictional Kinetta Training activity screen with a route map and workout numbers." width="786" height="1704"></picture>
-          </div>
+      <div class="feature-showcase-stage">
+        <div class="phone-frame feature-phone">
+          <picture><source data-feature-dark srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img data-feature-screen src="assets/shots/light-activity.webp" alt="Fictional Kinetta Training activity screen with a route map and workout numbers." width="786" height="1704"></picture>
         </div>
+        <p class="feature-stage-label" data-feature-label aria-hidden="true"></p>
       </div>
     </div>
   </section>
+  <section class="tour-features"><div class="wrap"><article class="tour-row"><div><span class="eyebrow">Training</span><h2>{{copy:tour-training-heading}}</h2><p class="lede">{{copy:tour-training-description}}</p><a class="tour-link" href="training">Explore Training →</a></div><figure><div class="tour-workout"><picture><source srcset="assets/tour/activity-map-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/tour/activity-map-light.png" alt="Fictional Morning Run route through streets and a park, with OpenStreetMap contributors and Protomaps attribution." width="786" height="786"></picture><picture><source srcset="assets/tour/activity-result-dark.png" media="(prefers-color-scheme: dark)"><img src="assets/tour/activity-result-light.png" alt="The same Morning Run: distance 3.0 miles, elapsed time 25 minutes, pace 8:18 per mile, elevation 218 feet, average heart rate 149 and cadence 168." width="696" height="332"></picture></div></figure></article>
+<article class="tour-row"><div><span class="eyebrow">Lifting</span><h2>{{copy:tour-lifting-heading}}</h2><p class="lede">{{copy:tour-lifting-description}}</p><a class="tour-link" href="training">Learn about lifting →</a></div><figure><div class="tour-image"><picture><source srcset="assets/tour/lifting-session-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/lifting-session-light.webp" alt="Fictional squat session showing previous load and reps beside completed sets, including 205 pounds for five reps." width="698" height="800" loading="lazy"></picture></div></figure></article>
+<article class="tour-row"><div><span class="eyebrow">Food</span><h2>{{copy:tour-food-heading}}</h2><p class="lede">{{copy:tour-food-description}}</p><a class="tour-link" href="food">Explore Food →</a></div><figure><div class="tour-image"><picture><source srcset="assets/tour/food-day-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/food-day-light.webp" alt="Fictional logged food day showing daily totals and a complete Breakfast list of foods and amounts." width="730" height="915" loading="lazy"></picture></div></figure></article>
+<article class="tour-row"><div><span class="eyebrow">Progress</span><h2>{{copy:tour-progress-heading}}</h2><p class="lede">{{copy:tour-progress-description}}</p><a class="tour-link" href="compare#reference-h">Explore Features →</a></div><figure><div class="tour-image"><picture><source srcset="assets/tour/progress-week-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/progress-week-light.webp" alt="Fictional weekly running totals and dated distance history chart, with Week, Month and Year views." width="702" height="880" loading="lazy"></picture></div></figure></article>
+<article class="tour-row"><div><span class="eyebrow">Privacy</span><h2>{{copy:tour-sharing-heading}}</h2><p class="lede">{{copy:tour-sharing-description}}</p><a class="tour-link" href="friends">Explore Friends →</a></div><figure class="tour-scopes"><div class="tour-image"><p class="tour-scope">{{copy:tour-sharing-default-label}}</p><picture><source srcset="assets/tour/sharing-default-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/sharing-default-light.webp" alt="Fictional Sharing &amp; privacy setting: Who sees new activities, with Only me, Friends (selected) and Everyone. It applies to new activities; each workout can be changed." width="786" height="370" loading="lazy"></picture><p class="tour-scope">{{copy:tour-sharing-workout-label}}</p><picture><source srcset="assets/tour/sharing-workout-dark.webp" media="(prefers-color-scheme: dark)"><img class="tour-frame" src="assets/tour/sharing-workout-light.webp" alt="Fictional Edit activity sheet for one workout, Lunch Run: Who can see it, with Only me, Friends (selected) and Everyone, plus Choose what’s shared and Preview as a friend." width="786" height="903" loading="lazy"></picture></div></figure></article></div></section>
   <section class="band feature-reference" aria-labelledby="reference-h">
     <div class="wrap">
       <div class="head"><span class="eyebrow">Feature reference</span><h2 id="reference-h">{{copy:like-strava-and-myfitnesspal-combined-4}}</h2></div>

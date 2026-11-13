@@ -60,14 +60,21 @@
         <span class="eyebrow">A better kind of feed</span>
         <h2 id="friends-hero-title">Your workouts and theirs, in one feed.</h2>
         <p class="lede">Share the run, keep the rest private. Every post has its own audience.</p>
-        <p class="friends-note">Fictional demo data · sample training history</p>
+        <p class="friends-note">Fictional demo data · Freedom Park, Charlotte</p>
       </div>
       <div class="friends-hero-stage">
         <div class="phone-frame friends-phone friends-phone--hero">
-          <div class="friends-screen friends-screen--feed">
-            <picture><source srcset="assets/shots/dark-feed.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-feed.webp" alt="Fictional Kinetta Home feed with Jordan Lee’s shared Morning Run, reactions and comments." width="786" height="1704"></picture>
-            <span class="friends-feed-place-cover" aria-hidden="true">Park run</span>
-            <div class="friends-feed-reactions" aria-label="Fictional shared workout reactions"><strong>Jordan Lee</strong><span>Morning Run · Friends</span><b>👏 3 · ❤️ 2 · 💬 1</b></div>
+          <div class="friends-screen">
+            <picture><source srcset="assets/shots/dark-friends.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-friends.webp" alt="Fictional Kinetta Friends screen with Casey, Jordan and Taylor." width="786" height="1704"></picture>
+            <div class="friends-privacy-sheet" data-privacy-sheet>
+              <p class="privacy-sheet-title">Who sees this workout?</p>
+              <div class="privacy-choices" role="radiogroup" aria-label="Workout audience">
+                <button type="button" role="radio" aria-checked="false" data-privacy-choice="only">Only me</button>
+                <button type="button" role="radio" aria-checked="true" data-privacy-choice="friends">Friends <span class="privacy-check" aria-hidden="true">✓</span></button>
+                <button type="button" role="radio" aria-checked="false" data-privacy-choice="everyone">Everyone</button>
+              </div>
+              <p class="privacy-sheet-status" data-privacy-status>Friends see this in their feed.</p>
+            </div>
           </div>
         </div>
         <p class="friends-demo-caption" data-privacy-caption>Audience: Friends</p>
@@ -78,45 +85,20 @@
     <div class="wrap friends-story-grid">
       <div class="friends-story-pin" aria-live="polite">
         <div class="phone-frame friends-phone friends-phone--story">
-          <div class="friends-screen friends-screen--friends friends-screen--clean">
-            <picture><source data-friends-dark srcset="assets/shots/dark-friends.webp" media="(prefers-color-scheme: dark)"><img data-friends-screen src="assets/shots/light-friends.webp" alt="Fictional Kinetta Friends screen." width="786" height="1704"></picture><span class="friends-clean-back" aria-hidden="true">‹ Me</span><span class="friends-feed-place-cover" aria-hidden="true">Park run</span><div class="friends-feed-reactions" aria-hidden="true"><strong>Jordan Lee</strong><span>Morning Run · Friends</span><b>👏 3 · ❤️ 2 · 💬 1</b></div><div class="friends-comments-sheet" aria-hidden="true"><strong>Reactions and comments</strong><span>👏 Jordan Lee · Nice route!</span><span>💬 Casey Example · That finish!</span></div>
+          <div class="friends-screen">
+            <picture><source data-friends-dark srcset="assets/shots/dark-friends.webp" media="(prefers-color-scheme: dark)"><img data-friends-screen src="assets/shots/light-friends.webp" alt="Fictional Kinetta Friends screen." width="786" height="1704"></picture>
           </div>
         </div>
       </div>
       <div class="friends-story-steps">
         <span class="eyebrow">Made for people, not metrics</span>
         <h2 id="friends-story-title">Keep the good part of training social.</h2>
-        <article class="friends-step is-visible" data-friends-screen-key="friends"><span class="eyebrow">Find your people</span><h3>Search by name and send a request.</h3><p>React to or comment on friends’ workouts.</p><div class="step-phone"><div class="phone-frame friends-phone"><div class="friends-screen friends-screen--clean"><picture><source srcset="assets/shots/dark-friends.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-friends.webp" alt="Fictional Friends list with three approved friends." width="786" height="1704" loading="lazy"></picture><span class="friends-clean-back" aria-hidden="true">‹ Me</span></div></div></div></article>
-        <article class="friends-step" data-friends-screen-key="photos"><span class="eyebrow">Join the conversation</span><h3>React to a shared workout.</h3><p>Leave a cheer or comment on a friend's activity.</p><div class="step-phone"><div class="phone-frame friends-phone"><picture><source srcset="assets/shots/dark-photos.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-photos.webp" alt="Fictional shared workout with an attached photo, reactions and comments." width="786" height="1704" loading="lazy"></picture></div></div></article>
-        <!-- Show friends only what you choose. --><article class="friends-step" data-friends-screen-key="social"><span class="eyebrow">Keep it social</span><h3>Keep the good part of training social.</h3><p>Reactions and comments make a shared workout feel like a conversation.</p><div class="step-phone"><div class="phone-frame friends-phone"><div class="friends-screen friends-screen--social"><picture><source srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-activity.webp" alt="Fictional activity detail with a reactions and comments sheet." width="786" height="1704" loading="lazy"></picture><div class="friends-comments-sheet"><strong>Reactions and comments</strong><span>👏 Jordan Lee · Nice route!</span><span>💬 Casey Example · That finish!</span></div></div></div></div></article>
+        <article class="friends-step is-visible" data-friends-screen-key="friends"><span class="eyebrow">Find your people</span><h3>Search by name and send a request.</h3><p>React to or comment on friends’ workouts.</p><div class="step-phone"><div class="phone-frame friends-phone"><picture><source srcset="assets/shots/dark-friends.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-friends.webp" alt="Fictional Friends list with three approved friends." width="786" height="1704" loading="lazy"></picture></div></div></article>
+        <article class="friends-step" data-friends-screen-key="feed"><span class="eyebrow">Share a workout</span><h3>Give the route a little context.</h3><p>Add photos to a shared workout.</p><div class="step-phone"><div class="phone-frame friends-phone"><picture><source srcset="assets/shots/dark-feed.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-feed.webp" alt="Fictional shared workout feed with a route map and reactions." width="786" height="1704" loading="lazy"></picture></div></div></article>
+        <article class="friends-step" data-friends-screen-key="profile"><span class="eyebrow">Choose each audience</span><h3>Share on your terms.</h3><p>Show friends only what you choose.</p><div class="step-phone"><div class="phone-frame friends-phone"><picture><source srcset="assets/shots/dark-profile.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-profile.webp" alt="Fictional profile with weekly totals and featured achievements." width="786" height="1704" loading="lazy"></picture></div></div></article>
       </div>
     </div>
-    <!-- Fictional demo imagery supplied with Kinetta. -->
-  </section>
-  <section class="friends-privacy-demo" aria-labelledby="friends-privacy-title">
-    <div class="wrap friends-privacy-grid">
-      <div class="friends-privacy-copy">
-        <span class="eyebrow">Privacy, per workout</span>
-        <h2 id="friends-privacy-title">Choose who sees the run.</h2>
-        <p class="lede">Set a default, then change any single workout before you share it.</p>
-        <div class="privacy-demo-choices" role="radiogroup" aria-label="Workout audience">
-          <button type="button" role="radio" aria-checked="false" data-privacy-choice="only">Only me <span class="privacy-check" aria-hidden="true"></span></button>
-          <button type="button" role="radio" aria-checked="true" data-privacy-choice="friends">Friends <span class="privacy-check" aria-hidden="true">✓</span></button>
-          <button type="button" role="radio" aria-checked="false" data-privacy-choice="everyone">Everyone <span class="privacy-check" aria-hidden="true"></span></button>
-        </div>
-        <p class="privacy-demo-status" data-privacy-status>Friends see this in their feed.</p>
-      </div>
-      <div class="friends-privacy-stage">
-        <div class="phone-frame friends-phone friends-phone--privacy">
-          <div class="privacy-demo-phone-screen" role="img" aria-label="Fictional Morning Run activity screen with a live workout audience label.">
-            <picture class="privacy-activity-capture"><source srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-activity.webp" alt="" width="786" height="1704"></picture>
-            <div class="privacy-audience-overlay" aria-live="polite"><span>Workout audience</span><strong data-privacy-phone-label>Friends</strong></div>
-            <picture class="privacy-screen-nav-capture" aria-hidden="true"><source srcset="assets/shots/dark-friends.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-friends.webp" alt="" width="786" height="1704"></picture>
-          </div>
-        </div>
-        <p class="friends-demo-caption" data-privacy-caption>Audience: Friends</p>
-      </div>
-    </div>
+    <p class="site-credit">Photos of Freedom Park, Charlotte: James Willamor and City Dweller 2, <a href="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA</a>, via Wikimedia Commons.</p>
   </section>
   <section class="band friends-summary" aria-label="Profiles and sharing">
     <div class="wrap">
