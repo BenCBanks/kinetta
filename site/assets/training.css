@@ -1,8 +1,8 @@
 .training-story { overflow: clip; }
-.training-story-grid { grid-template-columns:minmax(0,1fr) minmax(250px,.7fr); }
+.training-story-grid { grid-template-columns:minmax(0,1fr) minmax(250px,.7fr); padding-bottom:180px; }
 .training-pin { position:sticky; top:110px; display:grid; justify-items:center; align-content:start; gap:16px; }
 .training-pin .phone-frame { width:min(290px,100%); }
-.training-steps { min-width:0; }
+.training-steps { min-width:0; padding-bottom:180px; }
 .training-steps .story-step { max-width:470px; }
 .training-steps .story-step p { max-width:40ch; }
 .training-view-switch { display:inline-flex; gap:4px; padding:4px; border-radius:999px; background:var(--paper2); }
@@ -12,10 +12,6 @@
 .training-view-switch--inline { display:inline-flex; margin-top:18px; }
 .training-steps .step-phone { display:none; }
 .training-steps .story-step.is-visible { opacity:1; }
-.training-route-step { display:grid; grid-template-columns:minmax(0,1fr) minmax(190px,230px); align-items:center; gap:clamp(20px,3vw,36px); max-width:none!important; }
-.training-route-step .step-phone { display:block; width:min(230px,100%); justify-self:center; }
-.training-route-step .phone-frame { width:100%; }
-.training-story[data-active-screen="route"] .training-pin { visibility:hidden; }
 @media (prefers-color-scheme:dark) {
   .training-story .phone-frame { border-color:#353b42; box-shadow:0 24px 60px rgba(0,0,0,.52),0 2px 12px rgba(255,255,255,.035); }
 }
@@ -25,15 +21,14 @@
 }
 @media (max-width:900px) {
   .training-story { padding:70px 20px 40px; }
-  .training-story-grid { display:block; margin-inline:0; padding-inline:0; overflow:visible; }
+  .training-story-grid { display:block; margin-inline:0; padding:0; overflow:visible; }
+  .training-steps { padding-bottom:0; }
   .training-pin { display:none; }
   .training-steps > h2 { margin-bottom:10px; }
   .training-steps .story-step { min-height:auto; display:grid; grid-template-columns:1fr; gap:24px; padding:64px 0; opacity:1; transform:none; }
   .training-steps .story-step:last-child { padding-bottom:0; }
   .training-steps .story-step h3 { max-width:16ch; }
   .training-steps .step-phone { display:block; width:min(270px,70vw); justify-self:center; }
-  .training-route-step { grid-template-columns:1fr; min-height:auto; }
-  .training-route-step .step-phone { width:min(270px,70vw); }
 }
 @media (prefers-reduced-motion:reduce) {
   .training-steps .story-step { opacity:1; transform:none; animation:none; }
