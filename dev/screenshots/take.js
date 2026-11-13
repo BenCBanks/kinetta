@@ -175,6 +175,7 @@ async function closeCaptureContext(context) {
       await route.fulfill({response,headers:{...response.headers(),'access-control-allow-origin':new URL(B).origin,'access-control-expose-headers':'content-range,content-length,etag'}});
     });
     const page = await ctx.newPage();
+    await page.addInitScript(() => { window.__KINETTA_SCREENSHOT_MODE__ = true; });
     await page.clock.setFixedTime(new Date(SCREENSHOT_CLOCK.instant));
     await ctx.route('**/*', route => { const request=route.request(), url=new URL(request.url());
       if(url.hostname==='tile.openstreetmap.org'||url.origin!==B&&!['GET','HEAD'].includes(request.method()))return route.abort();
