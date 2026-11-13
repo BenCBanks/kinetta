@@ -714,7 +714,14 @@ const detailShareButton=()=>`<button type="button" class="pf activity-share" dat
 const talkIcons=(s,aid,onShare)=>reactionButtons(aid,s,true)+`<button type="button" class="pf activity-comments" data-ttalk aria-label="Comments, ${s.comments.length}">${svg('comment')}<span class="num"${s.comments.length?'':' hidden'}>${s.comments.length?reactionNumber(s.comments.length):''}</span></button>`+(onShare?detailShareButton():'');
 function wireTalk(box,aid,s,open,{hideEmpty=false,onShare=null}={}){
   if(!box)return;const owner=readOwner(),cached=SocialData.peek(aid);if(cached)s=cached;else SocialData.remember(aid,s);
-  box.innerHTML=talkIcons(s,aid,onShare);const visibility=()=>{if(hideEmpty)box.hidden=!(s.cheers.length||s.comments.length);};visibility();cleanViews();
+  box.innerHTML=talkIcons(s,aid,onShare);
+  // Keep the detail action row in one flex line even if the stylesheet is still loading.
+  // The wrappers become layout-transparent in CSS; applying that contract at insertion
+  // prevents a transient block layout from being observed between reaction and comment paint.
+  const reactions=$('.activity-reactions',box),action=$('.reaction-action',reactions);
+  if(reactions)reactions.style.display='contents';
+  if(action)action.style.display='contents';
+  const visibility=()=>{if(hideEmpty)box.hidden=!(s.cheers.length||s.comments.length);};visibility();cleanViews();
   const group=$('[data-reaction-group]',box),talk=$('[data-ttalk]',box);
   const update=fresh=>{if(!box.isConnected||owner!==readOwner())return;s=fresh;visibility();group?._sync?.(s);const count=$('.num',talk);count.hidden=!s.comments.length;count.textContent=s.comments.length?reactionNumber(s.comments.length):'';talk.setAttribute('aria-label',`Comments, ${s.comments.length}`);};
   wireReactionGroup(group,aid,update);SocialData.warm(talk,aid);
