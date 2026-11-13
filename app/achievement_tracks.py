@@ -137,6 +137,23 @@ RUN_FASTEST_LEVELS = (
     ('Halfway banner', 21_097.5, 2 * 60 * 60 + 15 * 60),
     ('Half-marathon flight', 21_097.5, 1 * 60 * 60 + 45 * 60),
 )
+RIDE_FASTEST_LEVELS = (
+    ('Ten-K tempo', 10_000.0, 36 * 60), ('Ten-K push', 10_000.0, 30 * 60),
+    ('Ten-K flight', 10_000.0, 24 * 60), ('Twenty-K tempo', 20_000.0, 72 * 60),
+    ('Twenty-K push', 20_000.0, 60 * 60), ('Twenty-K flight', 20_000.0, 48 * 60),
+    ('Forty-K tempo', 40_000.0, 2 * 60 * 60 + 24 * 60),
+    ('Forty-K push', 40_000.0, 2 * 60 * 60), ('Forty-K flight', 40_000.0, 1 * 60 * 60 + 36 * 60),
+)
+SWIM_FASTEST_LEVELS = (
+    ('Pool hundred', 100.0, 2 * 60 + 30), ('Fast hundred', 100.0, 2 * 60),
+    ('Flying hundred', 100.0, 1 * 60 + 30), ('Four-hundred rhythm', 400.0, 10 * 60),
+    ('Four-hundred push', 400.0, 8 * 60), ('Four-hundred flight', 400.0, 6 * 60 + 30),
+    ('Fifteen-hundred rhythm', 1_500.0, 40 * 60), ('Fifteen-hundred push', 1_500.0, 32 * 60),
+    ('Fifteen-hundred flight', 1_500.0, 24 * 60),
+)
+FASTEST_EFFORT_LEVELS = {
+    'run': RUN_FASTEST_LEVELS, 'ride': RIDE_FASTEST_LEVELS, 'swim': SWIM_FASTEST_LEVELS,
+}
 SPORT_TRACK_LABELS = {
     'run': 'Run', 'ride': 'Ride', 'walk-hike': 'Walk & hike', 'swim': 'Swim',
 }
@@ -156,7 +173,16 @@ def sport_phase1_spec(code):
 
 def fastest_effort_spec(code):
     """Return exact recorded-effort criteria for a fastest ladder."""
-    return RUN_FASTEST_LEVELS if code == 'sport:run:fastest' else None
+    if not isinstance(code, str) or not code.startswith('sport:') or not code.endswith(':fastest'):
+        return None
+    return FASTEST_EFFORT_LEVELS.get(code.split(':')[1])
+
+
+def fastest_effort_sport(code):
+    """Return the source sport for an exact fastest-effort ladder."""
+    if fastest_effort_spec(code) is None:
+        return None
+    return code.split(':')[1]
 
 # Legacy first-activity milestones remain readable, but are not canonical track
 # levels. The canonical sport ladders begin at their first named distance.
@@ -271,6 +297,8 @@ for _sport, _label in SPORT_TRACK_LABELS.items():
         'walk-hike': 'Longest walk or hike', 'swim': 'Longest swim',
     }[_sport]
 TRACK_LABELS['sport:run:fastest'] = 'Fastest run efforts'
+TRACK_LABELS['sport:ride:fastest'] = 'Fastest ride efforts'
+TRACK_LABELS['sport:swim:fastest'] = 'Fastest swim efforts'
 
 TRACK_UNITS = {
     'consistency': 'weeks',
@@ -291,6 +319,8 @@ for _sport in SPORT_TRACK_LABELS:
     TRACK_UNITS[f'sport:{_sport}:workouts'] = 'workouts'
     TRACK_UNITS[f'sport:{_sport}:longest'] = 'm'
 TRACK_UNITS['sport:run:fastest'] = 'benchmarks'
+TRACK_UNITS['sport:ride:fastest'] = 'benchmarks'
+TRACK_UNITS['sport:swim:fastest'] = 'benchmarks'
 
 
 def _finite(value) -> float:

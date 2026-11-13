@@ -22,7 +22,7 @@ const ownerAchievementFixture={pending:false,tracks:Object.entries(achievementCa
 })};
 ownerAchievementFixture.tracks.push({code:'legacy:historic',label:'Legacy-only award',level:0,tiers:[{rank:0,legacy:true}],display_value:99,display_unit:'mi'},{code:'sport:future',label:'Future track',level:0,value:0,tiers:[],next:{label:'PRIVATE FUTURE PROGRESS',display_threshold:999,display_unit:'mi'}});
 const ownerAchievementByCode=new Map(ownerAchievementFixture.tracks.map(track=>[track.code,track]));
-const earnedBadgeCodes=Object.keys(achievementCatalog.tracks);assert.equal(earnedBadgeCodes.length,22,'the canonical fixture covers all twenty-two catalogue tracks');
+const earnedBadgeCodes=Object.keys(achievementCatalog.tracks);assert.equal(earnedBadgeCodes.length,24,'the canonical fixture covers all twenty-four catalogue tracks');
 const friendRanks=Object.entries(featuredRanks).map(([code,rank])=>[code,fixtureLabels[code],rank,ownerAchievementByCode.get(code).display_unit]);
 const friendShowcase={items:friendRanks.map(([code,,rank])=>({code,rank})),pinned:friendRanks.map(([code])=>code),day_streak:123};
 const friendAchievements={pending:false,tracks:friendRanks.map(([code,label,rank,unit])=>{const owner=ownerAchievementByCode.get(code);return{code,label,level:rank,unit,display_value:owner.display_value,display_unit:owner.display_unit,tiers:Array.from({length:rank},(_,index)=>({rank:index+1,day:'2026-11-01'}))};})};

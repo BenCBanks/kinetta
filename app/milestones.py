@@ -218,20 +218,21 @@ def _personal_best_events(c, uid, rows_by_id):
     return events
 
 
-def _fastest_effort_facts(c, uid, rows_by_id):
+def _fastest_effort_facts(c, uid, rows_by_id, code='sport:run:fastest'):
     """Return Run fastest-ladder count and source activity for each level.
 
     Only persisted best-effort rows with their recorded distance and elapsed
     time qualify. There is deliberately no prediction between distances.
     """
-    criteria = tracks.fastest_effort_spec('sport:run:fastest') or ()
+    criteria = tracks.fastest_effort_spec(code) or ()
+    sport = tracks.fastest_effort_sport(code)
     if not criteria:
         return 0, {}
     best = {}
     for row in c.execute('''SELECT activity_id,sport,distance_m,elapsed_s
                             FROM best_efforts
-                            WHERE user_id=%s AND sport='run'
-                            ORDER BY activity_id,id''', (uid,)).fetchall():
+                            WHERE user_id=%s AND sport=%s
+                            ORDER BY activity_id,id''', (uid, sport)).fetchall():
         activity = rows_by_id.get(row.get('activity_id'))
         if not activity:
             continue
@@ -306,11 +307,12 @@ def _preserve_track_progress(c,uid,states):
         details=state['details'];code=details['track'];old=previous.get(code)
         if not old:continue
         old_details=old['details']
-        if code == 'sport:run:fastest':
+        if tracks.fastest_effort_spec(code):
+            fastest_count=len(tracks.fastest_effort_spec(code))
             old_ranks={int(rank) for rank in old_details.get('earned_ranks', ())
-                       if str(rank).lstrip('-').isdigit() and 1 <= int(rank) <= len(tracks.RUN_FASTEST_LEVELS)}
+                       if str(rank).lstrip('-').isdigit() and 1 <= int(rank) <= fastest_count}
             current_ranks={int(rank) for rank in details.get('earned_ranks', ())
-                           if str(rank).lstrip('-').isdigit() and 1 <= int(rank) <= len(tracks.RUN_FASTEST_LEVELS)}
+                           if str(rank).lstrip('-').isdigit() and 1 <= int(rank) <= fastest_count}
             merged_ranks=sorted(old_ranks | current_ranks)
             details['earned_ranks']=merged_ranks
             details['value']=len(merged_ranks)
@@ -408,14 +410,16 @@ def achievement_candidates(c,uid,now,zone):
             longest,crossing=_max_crossings(longest_code,subset,lambda r:_number(r,'distance_m'),zone)
             add(longest_code,longest,crossing,longest>0)
 
-    fastest_count,fastest_crossing,fastest_best=_fastest_effort_facts(c,uid,by_id)
-    fastest_tiers=[tracks.Tier(rank,float(rank),name,'benchmarks',False)
-                   for rank,(name,_distance,_seconds) in enumerate(tracks.RUN_FASTEST_LEVELS,1)
-                   if float(rank) in fastest_crossing]
-    add('sport:run:fastest',fastest_count,fastest_crossing,bool(fastest_best),
-        reached=fastest_tiers,
-        state_extra={'earned_ranks':[tier.rank for tier in fastest_tiers],
-                     'best_seconds':{str(rank):seconds for rank,seconds in fastest_best.items()}})
+    for sport in tracks.FASTEST_EFFORT_LEVELS:
+        code=f'sport:{sport}:fastest'
+        fastest_count,fastest_crossing,fastest_best=_fastest_effort_facts(c,uid,by_id,code)
+        fastest_tiers=[tracks.Tier(rank,float(rank),name,'benchmarks',False)
+                       for rank,(name,_distance,_seconds) in enumerate(tracks.fastest_effort_spec(code),1)
+                       if float(rank) in fastest_crossing]
+        add(code,fastest_count,fastest_crossing,bool(fastest_best),
+            reached=fastest_tiers,
+            state_extra={'earned_ranks':[tier.rank for tier in fastest_tiers],
+                         'best_seconds':{str(rank):seconds for rank,seconds in fastest_best.items()}})
 
     events=_personal_best_events(c,uid,by_id)
     if events:

@@ -17,6 +17,7 @@ RUN_EFFORTS = [(400, '400 m'), (804.672, '½ mile'), (1000, '1 km'), (MILE, '1 m
                (30000, '30K'), (42195, 'Marathon')]
 RIDE_EFFORTS = [(5000, '5 km'), (10000, '10 km'), (20000, '20 km'), (40000, '40 km'), (50000, '50 km'), (80467, '50 miles'),
                 (100000, '100 km'), (160934, '100 miles')]
+SWIM_EFFORTS = [(100, '100 m'), (400, '400 m'), (1500, '1500 m')]
 WALK_EFFORTS = [(MILE, '1 mile'), (5000, '5K'), (10000, '10K')]
 POWER_DURATIONS = [5, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600]
 MAX_SPEED = {'run': 12.0, 'walk': 4.0, 'hike': 4.0, 'ride': 30.0, 'swim': 4.0, 'row': 8.0, 'ski': 40.0, 'workout': 12.0, 'other': 30.0}   # m/s: faster = GPS glitch
@@ -25,7 +26,7 @@ FOOT = ('run', 'walk', 'hike')
 
 
 def efforts_for(sport):
-    return RUN_EFFORTS if sport == 'run' else RIDE_EFFORTS if sport == 'ride' else WALK_EFFORTS if sport in ('walk', 'hike') else []
+    return RUN_EFFORTS if sport == 'run' else RIDE_EFFORTS if sport == 'ride' else SWIM_EFFORTS if sport == 'swim' else WALK_EFFORTS if sport in ('walk', 'hike') else []
 
 
 def _arr(xs):
