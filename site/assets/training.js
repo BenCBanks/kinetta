@@ -3,7 +3,7 @@
   const screens = {
     activity: ['assets/shots/light-activity.webp','assets/shots/dark-activity.webp','Fictional Kinetta run detail with a route map, workout numbers and chart.'],
     splits: ['assets/shots/light-activity-splits.webp','assets/shots/dark-activity-splits.webp','Fictional Kinetta run detail showing mile splits.'],
-    profile: ['assets/shots/light-progress.webp','assets/shots/dark-progress.webp','Fictional Kinetta Progress chart with a Run sport picker and Week, Month and Year views.'],
+    profile: ['assets/shots/light-profile.webp','assets/shots/dark-profile.webp','Fictional Kinetta Me screen with totals for Run, Walk, Ride and other sports.'],
     lift: ['assets/shots/light-lift.webp','assets/shots/dark-lift.webp','Fictional strength session with current and previous sets.'],
     plan: ['assets/shots/light-plan.webp','assets/shots/dark-plan.webp','Fictional 10K plan with the next workout and this week’s schedule.'],
     progress: ['assets/shots/light-progress.webp','assets/shots/dark-progress.webp','Fictional weekly running totals and a varied distance history chart.'],
