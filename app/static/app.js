@@ -78,9 +78,9 @@ const LIFT_ROUTE_STYLE = '/static/lift-route.css?v=__ASSET_HASH__';
 const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: [CONTACTS_ROUTE_ASSET, '/static/welcome.js?v=__ASSET_HASH__']},
   {re: /^\/me\/explore$/, tab: 'track', scripts: [SOCIAL_ROUTE_ASSET, '/static/explore.js?v=__ASSET_HASH__']},
-  {re: /^\/progress$/, tab: 'progress', styles: [PROGRESS_ROUTE_STYLE], scripts: [SOCIAL_ROUTE_ASSET]},
+  {re: /^\/progress$/, tab: 'progress', scripts: [SOCIAL_ROUTE_ASSET], styles: [PROGRESS_ROUTE_STYLE]},
   {re: /^\/plan$/, tab: 'progress', scripts: [INTERVALS_ROUTE_ASSET, PLAN_ROUTE_ASSET]},
-  {re: /^\/track$/, tab: 'track', styles: [TRACK_ROUTE_STYLE], scripts: [INTERVALS_ROUTE_ASSET, MEDIA_ROUTE_ASSET]},
+  {re: /^\/track$/, tab: 'track', scripts: [INTERVALS_ROUTE_ASSET, MEDIA_ROUTE_ASSET], styles: [TRACK_ROUTE_STYLE]},
   {re: /^\/me\/settings$/, tab: 'me', scripts: [INTERVALS_ROUTE_ASSET, SETTINGS_ROUTE_ASSET]},
   {re: /^\/(?:me\/challenges(?:\/[A-Za-z0-9_-]{1,60})?|challenge\/[A-Za-z0-9_-]{1,60})$/, tab: 'activity', scripts: [CHALLENGES_ROUTE_ASSET]},
   {re: /^\/routes(?:\/.*)?$/, tab: 'track', scripts: [PLANNER_ROUTE_ASSET]},
@@ -106,7 +106,7 @@ const lazyRouteBundles = [
   {re: /^\/progress\/(?:routes|trends|calendar|heatmap)$/, tab: 'progress', scripts: [PROGRESS_ROUTE_ASSET], styles: [PROGRESS_ROUTE_STYLE]},
   {re: /^\/(?:progress\/segments|segments(?:\/(?:review|new|\d+))?)$/, tab: 'progress', scripts: [PLANNER_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET], styles: [PROGRESS_ROUTE_STYLE]},
   {re: /^\/me\/sharing$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET, CONTACTS_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET]},
-  {re: /^\/me\/kit$/, tab: 'me', styles: [FOOD_ROUTE_STYLE], scripts: [FOOD_ROUTE_ASSET, KIT_ROUTE_ASSET]},
+  {re: /^\/me\/kit$/, tab: 'me', scripts: [FOOD_ROUTE_ASSET, KIT_ROUTE_ASSET], styles: [FOOD_ROUTE_STYLE]},
   {re: /^\/(?:lift\/\d+|track\/lift\/\d+|lift\/history\/workout\/\d+)$/, tab: 'track', scripts: ['/static/lift-routes.js?v=__ASSET_HASH__']},
   {re: /^\/(?:lift\/ex\/\d+|lift\/history\/exercise\/\d+)$/, tab: 'progress', scripts: ['/static/lift-routes.js?v=__ASSET_HASH__']},
 ];
