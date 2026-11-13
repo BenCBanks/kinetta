@@ -16,7 +16,7 @@ Read a completed workout
 
 ## guide-task-activity-description
 
-Open Me → Your activities and select a workout. Read distance and elapsed time with their labels; pace and speed use elapsed time. Moving time is shown separately when recorded. Maps, splits and heart rate depend on what the recording source supplies.
+Open Me → Shared activities and select a workout. Distance and elapsed time are labelled; moving time is separate. Maps, splits and heart rate depend on the recording.
 
 ## guide-task-import-heading
 
