@@ -37,31 +37,16 @@ def main():
     print('import', j['status'], j.get('added'))
     random.seed(3); today = seed_date()
     for k in range(0, 28):
-        day = today - dt.timedelta(days=k)
-        d = str(day)
-        # The insight chart should look like a month of real logging: a few
-        # missing days, naturally uneven totals, a holiday meal, and an
-        # on-target run. The app calculates its displayed average from these
-        # same saved entries (unlogged dates are omitted, never entered as 0).
-        if k in (6, 18):
-            continue
+        d = str(today - dt.timedelta(days=k))
         if k == 0:
             rows = [
                 {'day': d, 'meal': 'breakfast', 'name': 'Oats and berries', 'kcal': 680, 'protein_g': 26, 'carbs_g': 90, 'fat_g': 20},
                 {'day': d, 'meal': 'lunch', 'name': 'Chicken grain bowl', 'kcal': 720, 'protein_g': 41, 'carbs_g': 78, 'fat_g': 24},
             ]
         else:
-            weekend = day.weekday() >= 5
-            low_day = k in (10, 21)
-            holiday = day.month == 10 and day.day == 31
-            total = 930 if low_day else (2580 if holiday else (2050 + 110 * (k % 3) if weekend else 1710 + 65 * (k % 4)))
-            breakfast = round(total * .24)
-            lunch = round(total * .32)
-            dinner = total - breakfast - lunch
-            rows = [
-                {'day': d, 'meal': 'breakfast', 'name': random.choice(['Oatmeal with blueberries', 'Eggs on whole-wheat toast']), 'kcal': breakfast, 'protein_g': 16, 'carbs_g': 50, 'fat_g': 9},
-                {'day': d, 'meal': 'lunch', 'name': random.choice(['Turkey sandwich', 'Chicken salad bowl', 'Black bean burrito']), 'kcal': lunch, 'protein_g': 34, 'carbs_g': 55, 'fat_g': 16},
-                {'day': d, 'meal': 'dinner', 'name': 'Holiday dinner' if holiday else random.choice(['Baked salmon + potatoes', 'Pasta with turkey', 'Tofu stir-fry']), 'kcal': dinner, 'protein_g': 38, 'carbs_g': 70, 'fat_g': 20}]
+            rows = [{'day': d, 'meal': 'breakfast', 'name': random.choice(['Oatmeal with blueberries', 'Eggs on whole-wheat toast']), 'kcal': random.randint(320, 420), 'protein_g': 16, 'carbs_g': 50, 'fat_g': 9},
+                    {'day': d, 'meal': 'lunch', 'name': random.choice(['Turkey sandwich', 'Chicken salad bowl', 'Black bean burrito']), 'kcal': random.randint(480, 640), 'protein_g': 34, 'carbs_g': 55, 'fat_g': 16},
+                    {'day': d, 'meal': 'dinner', 'name': random.choice(['Baked salmon + potatoes', 'Pasta with turkey', 'Tofu stir-fry']), 'kcal': random.randint(550, 760), 'protein_g': 38, 'carbs_g': 70, 'fat_g': 20}]
         q('POST', '/api/food/entries', rows)
         if k % 3 == 0: q('PUT', '/api/food/weights', {'day': d, 'kg': round(64.8 - 0.035 * (28 - k) + random.uniform(-0.25, 0.25), 1)})
     q('PUT', '/api/food/targets', {'kcal_target': 1800, 'protein_target': 110})
