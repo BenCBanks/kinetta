@@ -363,6 +363,26 @@ const ProfileLayout=(()=>{
       return{...picture,filename:'kinetta-achievements.png',alt};
     }finally{host.remove();}
   }
+  const shareSportLabels={run:'Run',ride:'Ride','walk-hike':'Walk & hike',swim:'Swim',lift:'Strength'};
+  const shareSportKey=code=>{const match=String(code||'').match(/^sport:(run|ride|walk-hike|swim|lift)(?::|$)/);return match?match[1]:'';};
+  function achievementShareCard({tracks=[],name='',showName=true,limit=4}={}){
+    const source=(Array.isArray(tracks)?tracks:[]).filter(track=>achievementDefinition(track)&&achievementLevel(track)>0);
+    const totals=new Map();source.forEach(track=>{const key=shareSportKey(track.code);if(key)totals.set(key,(totals.get(key)||0)+achievementLevel(track));});
+    const bySport=new Map();source.forEach(track=>{const key=shareSportKey(track.code)||'overall',current=bySport.get(key);if(!current||achievementLevel(track)>achievementLevel(current)||String(track.day||'')>String(current.day||''))bySport.set(key,track);});
+    const preferred=['run','ride','walk-hike','swim','lift'],chosen=[];for(const key of preferred){const track=bySport.get(key);if(track)chosen.push(track);if(chosen.length>=Math.max(1,Math.min(4,Number(limit)||4)))break;}
+    if(chosen.length<Math.max(1,Math.min(4,Number(limit)||4)))for(const track of [...source].sort((a,b)=>achievementLevel(b)-achievementLevel(a))){if(!chosen.includes(track))chosen.push(track);if(chosen.length>=Math.max(1,Math.min(4,Number(limit)||4)))break;}
+    const total=source.reduce((sum,track)=>sum+achievementLevel(track),0),label=showName&&String(name).trim()?String(name).trim():'';
+    const card=document.createElement('section');card.className='achievement-share-card';card.dataset.nameVisible=String(Boolean(label));card.setAttribute('aria-label',`${label?`${label}'s `:''}Achievements: ${total} earned`);
+    const totalsMarkup=[...totals.entries()].map(([key,count])=>`<li><span>${esc(shareSportLabels[key]||key)}</span><b>${count} earned</b></li>`).join('');
+    const highlights=chosen.map(track=>{
+      const key=shareSportKey(track.code),sport=shareSportLabels[key]||track.label||track.code,level=achievementLevel(track),current=achievementCurrentTier(track),next=achievementTierAt(track.code,level+1),progress=Math.round(achievementProgress(track)*100),currentName=current?.name||`Level ${level}`,nextName=next?.name||'Highest tier';
+      const earned=`<div class="achievement-share-badge is-earned">${achievementMedallion(track,{showMultiple:false})}<b>${esc(currentName)}</b><small>${esc(achievementThresholdText(track,current))}</small></div>`;
+      const nextBadge=next?`<div class="achievement-share-badge is-next">${achievementNextMedallion(track,next)}<span class="achievement-share-progress" role="progressbar" aria-label="Progress to ${esc(nextName)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><svg viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect width="${progress}" height="4"></rect></svg></span><b>${esc(nextName)}</b><small>${esc(achievementThresholdText(track,next))}</small></div>`:'';
+      return `<article class="achievement-share-track" data-achievement-code="${esc(track.code)}"><h2>${esc(sport)}</h2><div class="achievement-share-badges">${earned}${nextBadge}</div></article>`;
+    }).join('');
+    card.innerHTML=`<header class="achievement-share-head"><p class="achievement-share-kicker">Achievements</p>${label?`<h1>${esc(label)}</h1>`:''}<p class="achievement-share-total">${total} earned</p></header><ul class="achievement-share-totals" aria-label="Earned achievements by sport">${totalsMarkup}</ul><div class="achievement-share-highlights" aria-label="Achievement highlights">${highlights}</div><footer class="achievement-share-foot"><span>Kinetta</span><span>kinetta.app</span></footer>`;
+    return card;
+  }
   function earnedBadgeShareItem(isLive){
     const owner=readOwner(),route=location.pathname+location.search,live=()=>owner===readOwner()&&route===location.pathname+location.search&&isLive();let builtSignature='';
     const read=async()=>{
@@ -779,7 +799,7 @@ const ProfileLayout=(()=>{
     if(chart)mileageChart(chart,r.mileage||{},'days',{shared:true});
     mountShowcase(box,r,{shared,featured});feedMaps(box);wireCheers(box);
   }
-  return {defaults,normalize,singlePeriod,numbers,content,mount,mountShowcase,featuredOptions,distance,hours,labels:{sections,stats},sports,achievementPage,earnedBadgeShareItem};
+  return {defaults,normalize,singlePeriod,numbers,content,mount,mountShowcase,featuredOptions,distance,hours,labels:{sections,stats},sports,achievementPage,earnedBadgeShareItem,achievementShareCard};
 })();
 
 // Me leads with the card friends see, then a private dashboard (owner-approved mockup, 29 October 2026). The card uses the
