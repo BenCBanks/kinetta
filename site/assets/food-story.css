@@ -4,7 +4,6 @@
 .food-story .phone-frame { width:min(290px,100%); }
 .food-story .story-step { max-width:470px; }
 .food-story .story-step p { max-width:40ch; }
-.food-story .story-step:last-child { min-height:78vh; padding-bottom:80px; }
 .food-story .step-phone { display:none; }
 .food-story .story-step.is-visible { opacity:1; }
 .story-demo { margin-top:20px; max-width:390px; }
@@ -24,9 +23,9 @@
   .food-story { padding:70px 20px 40px; }
   .food-story .home-story-grid { display:block; margin-inline:0; padding-inline:0; overflow:visible; }
   .food-story .story-pin { display:none; }
+  .food-story .story-steps > h2 { margin-bottom:10px; }
   .food-story .story-step { min-height:auto; display:grid; grid-template-columns:1fr; gap:24px; padding:64px 0; opacity:1; transform:none; }
   .food-story .story-step:last-child { padding-bottom:0; }
-  .food-story .story-step:last-child { min-height:auto; }
   .food-story .story-step h3 { max-width:16ch; }
   .food-story .step-phone { display:block; width:min(270px,70vw); justify-self:center; }
 }
@@ -34,5 +33,4 @@
   .food-story .story-step { opacity:1; transform:none; animation:none; }
   .food-story .story-pin { display:none; }
   .food-story .step-phone { display:block; width:min(270px,70vw); margin:24px auto 0; }
-  .food-story .story-step:last-child { min-height:auto; padding-bottom:0; }
 }
