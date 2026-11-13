@@ -889,7 +889,8 @@ module.exports=async({browser,storageState,base,shots})=>{
   const firstLevel=unstarted.locator('.profile-achievement-ladder-badge.is-next');
   assert.equal(await firstLevel.getAttribute('data-level'),'1','a new track outlines Level 1');
   assert.equal(await firstLevel.locator('[data-achievement-progress]').getAttribute('aria-valuenow'),'0','an unstarted Level 1 has zero progress');
-  assert.equal(await unstarted.locator('.profile-achievement-ladder-badge.is-upcoming').count(),catalog.tracks.workouts.levels.length-1,'the track keeps its later named levels visible without a repeat tile');
+  assert.equal(await unstarted.locator('.profile-achievement-ladder-badge').count(),catalog.tracks.workouts.levels.length,'the track shows every named level without a repeat tile');
+  assert.equal(await unstarted.locator('.profile-achievement-ladder-badge.is-upcoming').count(),catalog.tracks.workouts.levels.length-1,'all named levels after the next goal remain visible');
   assert.equal(await unstarted.locator('.profile-achievement-repeat-caption').innerText(),'Then every 2,000 workouts','the repeat interval is a plain caption below the named levels');
   assert.equal(await unstarted.locator('.profile-achievement-progress-count,.profile-achievement-level,.profile-achievement-value').count(),0,'an unstarted track has no duplicate level chip or value on the badge face');
   assert.equal(await unstarted.locator('.profile-achievement-ring').count(),0,'an unstarted medal has no progress ring');
