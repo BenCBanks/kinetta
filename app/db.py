@@ -2168,6 +2168,9 @@ MIGRATIONS = [
     ALTER TABLE account_tokens ADD COLUMN resend_id text, ADD COLUMN bounced_at timestamptz;
     CREATE INDEX account_tokens_resend_id ON account_tokens (resend_id) WHERE resend_id IS NOT NULL;""",
 
+    # 110. Food-day last-meal lookups match the owner's meal while finding the most recent day.
+    """CREATE INDEX food_entries_user_meal_day ON food_entries (user_id, meal, day DESC);""",
+
 ]
 
 
