@@ -14,6 +14,13 @@ const CROPS = [
   ['sharing-workout', '/activity/{RUN}?edit=1', '.sheet .sheet-head, .sheet header', '#e-share'],
   // Run achievements: earned, current and next levels with distance left, then the repeat rule.
   ['run-achievements', '/me/achievements/sport:run', '.profile-achievement-history-head', '.profile-achievement-levels'],
+  // Training: one complete control for each claim on the Training page.
+  ['training-run', '/activity/{RUN}', '.detail-map-hero', '.detail-secondary'],
+  ['training-sports', '/people/alex', '.me-card-figures', '.me-card-sections > .me-card-sec:last-child'],
+  ['training-lifting', '/activity/{LIFT}', '.d-title', '#d-lifts'],
+  ['training-plans', '/plan', '.compact-plan-summary', '.pweek.current'],
+  ['training-progress', '/progress', '.progress-totals-header', '#m-chart'],
+  ['training-routes', '/progress/routes', '#p-body > .card', '#p-body > .card'],
 ];
 
 async function crop(page, first, last) {
@@ -41,8 +48,10 @@ async function crop(page, first, last) {
       await page.waitForTimeout(1500);
       const run = await page.evaluate(async () => (await (await fetch('/api/activities?limit=20')).json()).find((a) => a.sport === 'run' && a.visibility === 'friends')?.id);
       if (!run) throw Error('No demo run shared with friends');
+      const lift = await page.evaluate(async () => (await (await fetch('/api/activities?limit=20')).json()).find((a) => a.sport === 'workout')?.id);
+      if (!lift) throw Error('No demo lifting activity');
       for (const [name, address, first, last] of CROPS) {
-        await page.goto(B + address.replace('{RUN}', run));
+        await page.goto(B + address.replace('{RUN}', run).replace('{LIFT}', lift));
         await page.waitForSelector(last, {state: 'visible'});
         await page.evaluate(() => document.fonts.ready);
         await page.waitForTimeout(800);
