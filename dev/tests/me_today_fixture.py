@@ -16,10 +16,10 @@ port = subprocess.check_output(
 ).strip()
 assert base.port == int(port), 'URL must reach this isolated project'
 
-now = dt.datetime.now(dt.timezone.utc)
-today = now.date()
-long_day = 6 if today.weekday() == 4 else 5
-monday = today - dt.timedelta(days=today.weekday())
+fixture_now = dt.datetime.now(dt.timezone.utc)
+fixture_today = fixture_now.date()
+long_day = 6 if fixture_now.weekday() == 4 else 5
+monday = fixture_today - dt.timedelta(days=fixture_today.weekday())
 race_day = monday + dt.timedelta(weeks=5, days=long_day)
 
 login = 'zz_test_me_today'
@@ -34,7 +34,7 @@ result = c.post('/api/plans', {
 assert result[0] == 200, result
 plan = c.get('/api/plans/current')
 assert plan[0] == 200, plan
-assert plan[1]['today'] == today.isoformat(), plan[1]
+assert plan[1]['today'] == fixture_today.isoformat(), plan[1]
 assert plan[1]['today_workout'] and plan[1]['today_workout']['status'] == 'today', plan[1]
-print('Me Today fixture ready:', today.isoformat(), plan[1]['today_workout']['title'])
-print(json.dumps({'now': now.isoformat(), 'today': today.isoformat()}))
+print('Me Today fixture ready:', fixture_today.isoformat(), plan[1]['today_workout']['title'])
+print(json.dumps({'now': fixture_now.isoformat(), 'today': fixture_today.isoformat()}))
