@@ -281,7 +281,10 @@ const focusedOnly=unitsOnly||compositionOnly||profileClockOnly||shareLeafOnly||b
  if(unitsOnly){await l.close();await b.close();return;}
  if(profileClockOnly){await b.close();console.log('Profile card clock: fixed 390px Me, full profile, friend and preview PASS');return;}
  if(badgeOnly){await b.close();return;}
- await inlineEditorChecks(b);await require('./me_polish_ui.cjs')({browser:b,storageState:st,base,shots:out});await require('./profile_achievements_ui.cjs')({browser:b,storageState:st,base,shots:out});await b.close();})().catch(e=>{console.error(e);process.exit(1);});
+ await inlineEditorChecks(b);await require('./me_polish_ui.cjs')({browser:b,storageState:st,base,shots:out});await require('./profile_achievements_ui.cjs')({browser:b,storageState:st,base,shots:out});
+ const priorRedesign=process.env.KINETTA_ACHIEVEMENT_REDESIGN_ONLY;process.env.KINETTA_ACHIEVEMENT_REDESIGN_ONLY='1';
+ try{await require('./profile_achievements_ui.cjs')({browser:b,storageState:st,base,shots:out});}finally{if(priorRedesign===undefined)delete process.env.KINETTA_ACHIEVEMENT_REDESIGN_ONLY;else process.env.KINETTA_ACHIEVEMENT_REDESIGN_ONLY=priorRedesign;}
+ await b.close();})().catch(e=>{console.error(e);process.exit(1);});
 
 async function inlineEditorChecks(browser){
  const cp=require('node:child_process'),path=require('node:path'),pw='green teapot on the hill';
