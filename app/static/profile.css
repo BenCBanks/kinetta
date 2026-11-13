@@ -32,6 +32,13 @@
 .profile-achievement[data-achievement-code="climbing"],.profile-achievement-history-head[data-achievement-code="climbing"] { --achievement-palette-base:var(--hike); }
 .profile-achievement-list { display:flex; align-items:flex-start; gap:12px; overflow-x:auto; overscroll-behavior-x:contain; scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding:5px 2px 8px; }
 .profile-achievement-list.is-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); align-items:start; gap:14px 6px; margin:0; overflow:visible; overscroll-behavior:initial; scroll-snap-type:none; padding:5px 0 8px; }
+.profile-achievement-list.is-overview { grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 10px; }
+.profile-achievement-list.is-next-grid .profile-achievement { gap:6px; }
+.profile-achievement-medals { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; }
+.profile-achievement-list.is-next-grid .profile-achievement-medallion { flex:0 1 74px; width:min(100%,74px); max-width:74px; }
+.profile-achievement-next-medallion { filter:grayscale(1); opacity:.45; box-shadow:none !important; }
+.profile-achievement-next-medallion .profile-achievement-icon { filter:none; }
+.profile-achievement-next-medallion .profile-achievement-value { color:var(--tx); text-shadow:none; font-size:.6875rem; }
 .profile-achievement-list.is-grid .profile-achievement { flex:none; width:100%; min-width:0; scroll-snap-align:none; }
 .profile-achievement-list.is-grid .profile-achievement-medallion { flex:0 1 84px; width:100%; max-width:84px; height:auto; aspect-ratio:1; }
 .profile-achievement-list.is-grid .profile-achievement-name { max-width:100%; font-size:.75rem; overflow-wrap:anywhere; word-break:normal; }

@@ -190,9 +190,10 @@ module.exports=async({browser,storageState,base,shots})=>{
  const runOnly=process.env.KINETTA_ACHIEVEMENT_RUN_ONLY==='1';
  const indexOnly=process.env.KINETTA_ACHIEVEMENT_INDEX_ONLY==='1';
  const tailOnly=process.env.KINETTA_ACHIEVEMENT_TAIL_ONLY==='1';
+ const redesignOnly=process.env.KINETTA_ACHIEVEMENT_REDESIGN_ONLY==='1';
  for(const theme of pendingOnly?['light']:['light','dark']){
   const context=await browser.newContext({storageState,viewport:{width:390,height:844},colorScheme:theme,serviceWorkers:'block',hasTouch:true,isMobile:true,timezoneId:SCREENSHOT_CLOCK.timezone});
-  const page=await context.newPage(),errors=[],writes=[],pinRequests=[],ownerAchievementCalls=[],ownerAchievementResponses=[],ownerHistoryCalls=[],sharedAchievementCalls=[],ownerShowcaseCalls=[];let journeyValue=6099414,workoutValue=1120,unitMode='imperial',unitLabelValues=null,legacyRunAward=null,runEvidenceState=null,deepRunFeatured=false,showcasePins=[],sharedShowcasePins=[],sharedShareEnabled=true,emptyOwnerAchievements=false,emptyOwnerShowcase=false,emptyFriendShowcase=false,emptyFriendAchievements=false,pendingAchievementResponses=[],pendingHistoryResponses=[],failOwnerAchievementOnce=false,sharedAchievementPending=false,pinPostGate=null,pinRaceKeepPending=false;
+  const page=await context.newPage(),errors=[],writes=[],pinRequests=[],ownerAchievementCalls=[],ownerAchievementResponses=[],ownerHistoryCalls=[],sharedAchievementCalls=[],ownerShowcaseCalls=[];let journeyValue=6099414,workoutValue=1120,unitMode='imperial',unitLabelValues=null,legacyRunAward=null,runEvidenceState=null,deepRunFeatured=false,achievementRedesignEvidence=false,showcasePins=[],sharedShowcasePins=[],sharedShareEnabled=true,emptyOwnerAchievements=false,emptyOwnerShowcase=false,emptyFriendShowcase=false,emptyFriendAchievements=false,pendingAchievementResponses=[],pendingHistoryResponses=[],failOwnerAchievementOnce=false,sharedAchievementPending=false,pinPostGate=null,pinRaceKeepPending=false;
   const ownerShowcaseCodes=['journey','workouts','lifted','sport:run'];
   await page.clock.setFixedTime(SCREENSHOT_NOW);
   page.on('pageerror',e=>errors.push(e.message));
@@ -216,6 +217,12 @@ module.exports=async({browser,storageState,base,shots})=>{
     if(workouts){workouts.value=workoutValue;workouts.display_value=workoutValue;}
     for(const track of data.tracks)if(['journey','sport:run','sport:ride','sport:walk-hike','sport:swim'].includes(track.code)){const value=Number(track.value)||0;track.display_value=unitMode==='imperial'?value/1609.344:value/1000;track.display_unit=unitMode==='imperial'?'mi':'km';}
     for(const item of unitLabelValues||[]){const track=data.tracks.find(row=>row.code===item.code);if(track){track.display_value=item.value;track.display_unit=item.unit;}}
+    if(achievementRedesignEvidence&&!url.searchParams.has('login')){
+     const run=data.tracks.find(track=>track.code==='sport:run'),definition=catalog.tracks['sport:run'],last=definition.levels.at(-1),lastValue=last.canonical_unit==='km'?Number(last.canonical_value)*1000:Number(last.canonical_value);
+     if(run){run.value=lastValue*11.5;run.display_value=run.value/1609.344;run.display_unit='mi';}
+     const swim=data.tracks.find(track=>track.code==='sport:swim');if(swim){swim.value=0;swim.display_value=0;swim.display_unit='mi';swim.tiers=[];}
+     const climb=data.tracks.find(track=>track.code==='climbing');if(climb){climb.value=1_100_000/3.28084;climb.display_value=1_100_000;climb.display_unit='ft';}
+    }
     for(const track of data.tracks)for(const item of track.tiers){const [shown,shownUnit]=displayHistoryTier(track.code,Number(item.threshold)||0,unitMode);item.unit=historyUnits[track.code]||item.unit;item.display_threshold=shown;item.display_unit=shownUnit;}
     if(url.searchParams.has('login')){
      if(!sharedShareEnabled)return route.fulfill({json:{pending:false,tracks:[]}});
@@ -318,6 +325,39 @@ module.exports=async({browser,storageState,base,shots})=>{
    assert.deepEqual(errors,[],'owner index has no browser errors');assert.deepEqual(writes.filter(url=>url!=='/api/challenges/signup/continue'),[],'owner index requests no writes beyond the intercepted startup continuation');
    console.log(`Achievement owner index 390 ${theme}: 13 tracks, 3 groups, future rewards and text fit PASS`);
    futureEvidence=false;await context.close();continue;
+  }
+  if(redesignOnly){
+   futureEvidence=true;achievementRedesignEvidence=true;await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+   const expectedTitles=['Overall','Run','Ride','Walk & hike','Swim','Strength'];
+   assert.deepEqual(await page.locator('#profile-achievement-page .profile-achievement-group-title').allTextContents(),expectedTitles,'the owner overview has one section per sport in the requested order');
+   assert.equal(await page.locator('#profile-achievement-page .profile-achievement').count(),13,'the overview includes every catalog track');
+   const run=page.locator('#profile-achievement-page [data-achievement-code="sport:run"]'),runBadges=run.locator('.profile-achievement-medallion');
+   assert.equal(await runBadges.count(),2,'an earned sport track shows its current and next badges together');
+   assert.equal(await run.locator('.profile-achievement-multiple').count(),0,'a repeating count does not cover the current badge value');
+   assert.match(await run.locator('.profile-achievement-next').innerText(),/^Next [\d.]+k mi \(×12\) · .+ mi to go$/,'the next repeat count and remaining distance appear in the caption');
+   assert.match(await run.locator('.profile-achievement-value').first().innerText(),/^11\.5k mi$/,'the current long distance value stays compact and readable');
+   assert.match(await run.locator('.profile-achievement-next-medallion .profile-achievement-value').innerText(),/^\d+(?:\.\d+)?k mi$/,'the next badge shows a readable abbreviated threshold');
+   assert.match(await page.locator('#profile-achievement-page [data-achievement-code="climbing"] .profile-achievement-value').innerText(),/^1\.1m ft$/,'a long climbing total stays readable');
+   const swim=page.locator('#profile-achievement-page [data-achievement-code="sport:swim"]');
+   assert.equal(await swim.locator('.profile-achievement-medallion').count(),1,'a never-started sport shows only its first badge');
+   assert.match(await swim.locator('.profile-achievement-next').innerText(),/^Start: .+/,'a never-started sport names its first threshold');
+   assert.equal(await swim.locator('.profile-achievement-next-medallion').getAttribute('data-level'),'1','a never-started badge is Level 1');
+   const inProgress=page.locator('#profile-achievement-page [data-achievement-code="active_time"]');
+   assert.equal(await inProgress.locator('.profile-achievement-medallion').count(),1,'an in-progress track has one dimmed next badge, not a duplicate');
+   assert(Number(await inProgress.locator('[data-achievement-progress]').getAttribute('aria-valuenow'))>0,'an in-progress track keeps its progress bar');
+   await assertAchievementGridTextFit(page.locator('#profile-achievement-page'),'390px redesign evidence');
+   await assertProgressWidths(page.locator('#profile-achievement-page'),'390px redesign evidence');
+   await page.evaluate(()=>{document.documentElement.dataset.achievementEvidence='all-tracks';});
+   await screenshot(page,shots,`achievement-redesign-390-${theme}`,{fullPage:true});
+   const ownerCallsBeforeFriend=ownerAchievementCalls.length;
+   await page.goto(base+'/people/fictional_friend?view=achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
+   assert.equal(await page.locator('#profile-achievement-page .profile-achievement-next-medallion').count(),0,'friend achievements do not show owner-only dimmed next badges');
+   assert.equal(await page.locator('#profile-achievement-page .profile-achievement.is-future').count(),0,'friend achievements do not show owner-only future tracks');
+   assert.equal(ownerAchievementCalls.length,ownerCallsBeforeFriend,'friend achievements do not fetch owner achievement data');
+   assert(sharedAchievementCalls.some(url=>url.includes('login=fictional_friend')),'the friend page reads only the fictional friend achievement route');
+   assert.deepEqual(errors,[],'the mixed-state owner and friend pages have no browser errors');
+   console.log(`Achievements redesign checkpoint 390 ${theme}: mixed owner state and friend privacy PASS`);
+   await page.unrouteAll({behavior:'ignoreErrors'});await context.close();continue;
   }
   await page.goto(base+'/me');await until(page,()=>App.pageReady,'fixture login');await setUnits('imperial');await page.locator('[data-me-featured][data-loaded="true"]').waitFor();
   if(owner330Only){await page.setViewportSize({width:330,height:844});await page.goto(base+'/people/alex');await page.locator('.me-card-sections[aria-busy="false"]').waitFor();await page.locator('#person-profile [data-me-featured][data-loaded="true"]').waitFor();assert.equal(await page.locator('.profile-achievements').count(),0,'330px full owner profile has no duplicate catalog');assert.equal(await page.locator('.me-featured-achievements').count(),1,'330px full owner profile has one settled Featured entry');assert.equal(await page.locator('#person-profile .profile-achievement[data-achievement-code]').count(),4,'330px owner profile retains four featured badges');assert.deepEqual(errors,[],'330px owner featured path has no browser errors');assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[],'330px owner featured path makes no writes');console.log('Achievement owner profile 330px: settled Featured block, four badges, no writes PASS');await context.close();continue;}
