@@ -260,7 +260,7 @@ nav.tabs :is(a,button) { position: relative; display: grid; justify-items: cente
   width: 100%; min-width: 0; min-height: 44px; height: 100%; padding: 3px 1px; border-radius: 30px; white-space: nowrap;
   color: var(--tx2); font-size: 13px; font-weight: var(--weight-support); line-height: 1.15; letter-spacing: 0; transition: transform var(--motion-press) ease-out, color var(--motion-press) ease-out, background var(--motion-settle) var(--motion-ease), box-shadow var(--motion-settle) var(--motion-ease); }
 nav.tabs :is(a,button) svg { width: 23px; height: 23px; stroke-width: 1.9; }
-nav.tabs :is(a,button)[aria-current="page"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); font-weight: var(--weight-title); box-shadow: none; }
+nav.tabs :is(a,button)[aria-current="page"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--card)); font-weight: var(--weight-title); box-shadow: none; }
 nav.tabs :is(a,button)[aria-current="page"] svg { stroke-width: 2.3; }
 nav.tabs :is(a,button):active { transform: scale(.97); }
 /* Blur is confined to this small surface; unsupported browsers keep the solid base. */

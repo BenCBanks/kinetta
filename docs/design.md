@@ -121,7 +121,8 @@ activity detail. Input text is at least 16px to avoid iPhone zoom. Account for b
   must not hide a tab. Hide the entire bottom bar while the software keyboard is open, on every route and in sheets;
   restore it after dismissal, including swipe-down dismissal. Native keyboard events take precedence over viewport guesses.
   A focused field with a physical keyboard must not hide navigation. Use a full-width bottom bar, regular icons, readable
-  labels, safe-area padding and a short active underline.
+  labels and safe-area padding. Show the selected tab in a capsule tinted with 12–15% accent, with accent-coloured icon
+  and label; size the capsule to fit the longest label.
 - **Activities:** use Friends feed and My activities. Friends feed contains your activities and approved friends’ shared
   activities, newest first. My activities contains your own history with search and filters. Keep the short scope line,
   privacy labels, comments, a compact reaction action and tappable reaction counts. Preserve a thin, full-width horizontal
