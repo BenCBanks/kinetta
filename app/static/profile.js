@@ -365,22 +365,25 @@ const ProfileLayout=(()=>{
   }
   const shareSportLabels={run:'Run',ride:'Ride','walk-hike':'Walk & hike',swim:'Swim',lift:'Strength'};
   const shareSportKey=code=>{const match=String(code||'').match(/^sport:(run|ride|walk-hike|swim|lift)(?::|$)/);return match?match[1]:'';};
-  function achievementShareCard({tracks=[],name='',showName=true,limit=4}={}){
+  function achievementShareMedallion(track,tier,state='earned'){
+    if(!tier)return '';
+    const level=Number(tier.level)||1,displayTrack={...track,_sharedAchievement:true,level,display_value:tier.display_value??track.display_value,display_unit:tier.display||tier.display_unit||track.display_unit||tier.canonical_unit};
+    return state==='next'?achievementNextMedallion(displayTrack,tier):achievementMedallion(displayTrack,{showMultiple:false});
+  }
+  function achievementShareCard({tracks=[],name='',showName=true,limit=5}={}){
     const source=(Array.isArray(tracks)?tracks:[]).filter(track=>achievementDefinition(track)&&achievementLevel(track)>0);
     const totals=new Map();source.forEach(track=>{const key=shareSportKey(track.code);if(key)totals.set(key,(totals.get(key)||0)+achievementLevel(track));});
-    const bySport=new Map();source.forEach(track=>{const key=shareSportKey(track.code)||'overall',current=bySport.get(key);if(!current||achievementLevel(track)>achievementLevel(current)||String(track.day||'')>String(current.day||''))bySport.set(key,track);});
-    const preferred=['run','ride','walk-hike','swim','lift'],chosen=[];for(const key of preferred){const track=bySport.get(key);if(track)chosen.push(track);if(chosen.length>=Math.max(1,Math.min(4,Number(limit)||4)))break;}
-    if(chosen.length<Math.max(1,Math.min(4,Number(limit)||4)))for(const track of [...source].sort((a,b)=>achievementLevel(b)-achievementLevel(a))){if(!chosen.includes(track))chosen.push(track);if(chosen.length>=Math.max(1,Math.min(4,Number(limit)||4)))break;}
+    const bySport=new Map();source.forEach(track=>{const key=shareSportKey(track.code);if(!key)return;const current=bySport.get(key);if(!current||achievementLevel(track)>achievementLevel(current)||String(track.day||'')>String(current.day||''))bySport.set(key,track);});
+    const maxSports=Math.max(1,Math.min(5,Number(limit)||5)),preferred=['run','ride','walk-hike','swim','lift'],chosen=preferred.map(key=>bySport.get(key)).filter(Boolean).slice(0,maxSports);
     const total=source.reduce((sum,track)=>sum+achievementLevel(track),0),label=showName&&String(name).trim()?String(name).trim():'';
-    const card=document.createElement('section');card.className='achievement-share-card';card.dataset.nameVisible=String(Boolean(label));card.setAttribute('aria-label',`${label?`${label}'s `:''}Achievements: ${total} earned`);
+    const card=document.createElement('section');card.className='achievement-share-card';card.dataset.nameVisible=String(Boolean(label));card.dataset.sportCount=String(chosen.length);card.setAttribute('aria-label',`${label?`${label}'s `:''}Achievements: ${total} earned`);
     const totalsMarkup=[...totals.entries()].map(([key,count])=>`<li><span>${esc(shareSportLabels[key]||key)}</span><b>${count} earned</b></li>`).join('');
     const highlights=chosen.map(track=>{
-      const key=shareSportKey(track.code),sport=shareSportLabels[key]||track.label||track.code,level=achievementLevel(track),current=achievementCurrentTier(track),next=achievementTierAt(track.code,level+1),progress=Math.round(achievementProgress(track)*100),currentName=current?.name||`Level ${level}`,nextName=next?.name||'Highest tier';
-      const earned=`<div class="achievement-share-badge is-earned">${achievementMedallion(track,{showMultiple:false})}<b>${esc(currentName)}</b><small>${esc(achievementThresholdText(track,current))}</small></div>`;
-      const nextBadge=next?`<div class="achievement-share-badge is-next">${achievementNextMedallion(track,next)}<span class="achievement-share-progress" role="progressbar" aria-label="Progress to ${esc(nextName)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><svg viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect width="${progress}" height="4"></rect></svg></span><b>${esc(nextName)}</b><small>${esc(achievementThresholdText(track,next))}</small></div>`:'';
-      return `<article class="achievement-share-track" data-achievement-code="${esc(track.code)}"><h2>${esc(sport)}</h2><div class="achievement-share-badges">${earned}${nextBadge}</div></article>`;
+      const key=shareSportKey(track.code),sport=shareSportLabels[key]||track.label||track.code,level=achievementLevel(track),named=achievementLevels(track).filter(tier=>tier.level<=level),namedEarned=named.filter(tier=>Number(tier.multiple||1)<=1),earned=(namedEarned.length?namedEarned:named).slice(-2),next=achievementTierAt(track.code,level+1),later=achievementTierAt(track.code,level+2),progress=Math.round(achievementProgress(track)*100),displayTrack={...track,_sharedAchievement:true};
+      const badge=(tier,state)=>`<div class="achievement-share-badge is-${state}" data-achievement-code="${esc(track.code)}">${achievementShareMedallion(displayTrack,tier,state)}${state==='next'?`<span class="achievement-share-progress" role="progressbar" aria-label="Progress to ${esc(tier.name)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><svg viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true"><rect width="100" height="8" fill="#d8e4ff"></rect><rect width="${progress}" height="8" fill="#2563eb"></rect></svg></span>`:''}<b>${esc(state==='next'?`Next · ${tier.name}`:state==='locked'?`Later · ${tier.name}`:tier.name)}</b><small>${esc(achievementThresholdText(displayTrack,tier))}</small></div>`;
+      return `<article class="achievement-share-track" data-achievement-code="${esc(track.code)}"><h2>${esc(sport)}</h2><div class="achievement-share-badges">${earned.map(tier=>badge(tier,'earned')).join('')}${next?badge(next,'next'):''}${later?badge(later,'locked'):''}</div></article>`;
     }).join('');
-    card.innerHTML=`<header class="achievement-share-head"><p class="achievement-share-kicker">Achievements</p>${label?`<h1>${esc(label)}</h1>`:''}<p class="achievement-share-total">${total} earned</p></header><ul class="achievement-share-totals" aria-label="Earned achievements by sport">${totalsMarkup}</ul><div class="achievement-share-highlights" aria-label="Achievement highlights">${highlights}</div><footer class="achievement-share-foot"><span>Kinetta</span><span>kinetta.app</span></footer>`;
+    card.innerHTML=`<header class="achievement-share-head"><p class="achievement-share-kicker">Achievements</p>${label?`<h1>${esc(label)}</h1>`:''}<p class="achievement-share-total">${total} earned</p><ul class="achievement-share-totals" aria-label="Earned achievements by sport">${totalsMarkup}</ul></header><div class="achievement-share-highlights" aria-label="Achievement highlights">${highlights}</div><footer class="achievement-share-foot"><span>Kinetta</span><span>kinetta.app</span></footer>`;
     return card;
   }
   function earnedBadgeShareItem(isLive){
