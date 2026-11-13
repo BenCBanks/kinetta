@@ -55,16 +55,17 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
      }
     }
     if(name==='compare'){
-     // The workout map comes first, the recorded numbers underneath.
-     const workout=await p.locator('.tour-workout img').evaluateAll(xs=>xs.map(i=>({src:i.currentSrc,top:i.getBoundingClientRect().top})));
-     assert.equal(workout.length,2);assert.match(workout[0].src,/activity-map-/);assert.match(workout[1].src,/activity-result-/);assert(workout[0].top<workout[1].top);
-     // Audience controls, never a shared ride, prove the sharing claim.
-     assert.equal(await p.locator('img[src*="friends-route"]').count(),0);assert.equal(await p.locator('img[src*="sharing-default-"]').count(),1);
+     // Features is a single framed phone with five selectable areas.
+     assert.deepEqual(await p.locator('[data-feature-tab]').allInnerTexts(),['Training','Food','Friends','Progress','Kit']);
+     assert.equal(await p.locator('[data-feature-tab][aria-selected="true"]').innerText(),'Training');
+     assert.match(await p.locator('[data-feature-screen]').getAttribute('src'),/activity\.webp/);
+     await p.locator('[data-feature-tab="food"]').click();
+     assert.match(await p.locator('[data-feature-screen]').getAttribute('src'),/food\.webp/);
+     assert.match(await p.locator('[data-feature-screen]').getAttribute('alt'),/Food screen/);
      const words=await p.locator('main').innerText().then(t=>t.trim().split(/\s+/).length);assert(words<=260,name+' copy grew to '+words+' words');
     }
     if(name==='compare'){
-     assert.deepEqual(await p.locator('.tour-scope').allInnerTexts(),['New workouts · Settings','One workout · Edit']);
-     assert.equal(await p.locator('img[src*="sharing-workout-"]').count(),1);assert.equal(await p.locator('.feature-reference tbody tr').count(),8);
+     assert.equal(await p.locator('.feature-reference tbody tr').count(),8);
      if(width===390&&theme==='light'&&dpr===1){const old=await c.newPage();await old.goto(base+'/guide');await old.waitForURL(url=>new URL(url).pathname==='/compare');assert.equal(await old.locator('h1').first().innerText(),'What Kinetta does.');await old.close();}
     }
     assert.deepEqual(errors,[]);checks++;await p.close();
