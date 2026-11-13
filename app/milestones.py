@@ -148,6 +148,17 @@ def _crossings(code, rows, amount, zone):
     return total,crossing
 
 
+def _max_crossings(code, rows, amount, zone):
+    """Return the maximum single-row value and the first row crossing tiers."""
+    maximum=0.0;seen=set();crossing={}
+    for row in rows:
+        maximum=max(maximum,max(0.0,float(amount(row) or 0)))
+        for tier in tracks.tiers_for(code,maximum):
+            if tier.threshold not in seen:
+                seen.add(tier.threshold);crossing[tier.threshold]=row
+    return maximum,crossing
+
+
 def _weeks_facts(rows, zone):
     """Best active-week run and the activity that reached each level."""
     by_week={}
@@ -230,7 +241,7 @@ def _state_item(code,value,tiers,first_row,zone,now):
     nxt=tracks.next_tier(code,value)
     details={'track':code,'label':tracks.track_label(code),'value':value,'unit':tracks.TRACK_UNITS.get(code,'count'),
              'level':max((tier.rank for tier in tiers),default=0),'big':False}
-    if code in ('journey','climbing','sport:run','sport:ride','sport:walk-hike','sport:swim'):
+    if code in ('journey','climbing','sport:run','sport:ride','sport:walk-hike','sport:swim') or (tracks.sport_phase1_spec(code) and tracks.sport_phase1_spec(code)[1] == 'longest'):
         details['value_m']=value
     elif code=='lifted':details['value_kg']=value
     elif code=='active_time':details['value_s']=value
@@ -264,6 +275,8 @@ def _preserve_track_progress(c,uid,states):
                    'sport:run':'value_m','sport:ride':'value_m','sport:walk-hike':'value_m','sport:swim':'value_m',
                    'consistency':'value_weeks','years_active':'value_years',
                    'sport:lift':'value_sessions'}.get(code)
+            if not field and tracks.sport_phase1_spec(code):
+                field = 'value_m' if tracks.sport_phase1_spec(code)[1] == 'longest' else 'value'
             if field:details[field]=value
             state['day']=old['day'];state['occurred']=old['occurred']
             nxt=tracks.next_tier(code,value)
@@ -328,6 +341,13 @@ def achievement_candidates(c,uid,now,zone):
         code='sport:'+sport
         amount=(lambda _r:1) if sport=='lift' else (lambda r:_number(r,'distance_m'))
         total,crossing=_crossings(code,subset,amount,zone);add(code,total,crossing,bool(subset))
+        if sport in tracks.SPORT_TRACK_LABELS:
+            count_code=f'sport:{sport}:workouts'
+            count,crossing=_crossings(count_code,subset,lambda _r:1,zone)
+            add(count_code,count,crossing,bool(subset))
+            longest_code=f'sport:{sport}:longest'
+            longest,crossing=_max_crossings(longest_code,subset,lambda r:_number(r,'distance_m'),zone)
+            add(longest_code,longest,crossing,longest>0)
 
     events=_personal_best_events(c,uid,by_id)
     if events:

@@ -31,9 +31,9 @@ def _canonical_threshold(level):
         return 0.0
     unit = level.get('canonical_unit')
     if unit == 'km':
-        return value * 1000
+        return round(value * 1000, 6)
     if unit == 'hours':
-        return value * 3600
+        return round(value * 3600, 6)
     return value
 
 
@@ -108,6 +108,22 @@ def _crossings(thresholds, rows, amount):
     return total, found
 
 
+def _max_crossings(thresholds, rows, amount):
+    """Find the first row where a single-activity maximum crosses each tier."""
+    targets = sorted(thresholds)
+    found = {}
+    maximum = 0.0
+    for row in rows:
+        try:
+            maximum = max(maximum, float(amount(row) or 0))
+        except (TypeError, ValueError):
+            continue
+        for threshold in targets:
+            if threshold not in found and threshold <= maximum:
+                found[threshold] = row
+    return maximum, found
+
+
 def _history_source(c, user_id, code, thresholds, now, zone):
     """Compute exact crossing dates from completed activities for one track."""
     rows = milestone_engine._completed_activity_rows(c, user_id, now)
@@ -158,7 +174,15 @@ def _history_source(c, user_id, code, thresholds, now, zone):
             'sport:walk-hike': lambda row: row['sport'] in ('walk', 'hike'),
             'sport:swim': lambda row: row['sport'] == 'swim',
         }
-        if code in sport_by_code:
+        phase1 = tracks.sport_phase1_spec(code)
+        if phase1:
+            sport, family, _levels = phase1
+            subset = [row for row in rows if (row['sport'] == sport if sport != 'walk-hike' else row['sport'] in ('walk', 'hike'))]
+            if family == 'workouts':
+                total, found = _crossings(thresholds, subset, lambda _row: 1)
+            else:
+                total, found = _max_crossings(thresholds, subset, lambda row: milestone_engine._number(row, 'distance_m'))
+        elif code in sport_by_code:
             subset = [row for row in rows if sport_by_code[code](row)]
             total, found = _crossings(thresholds, subset, lambda row: milestone_engine._number(row, 'distance_m'))
         elif code == 'journey':
@@ -221,7 +245,7 @@ def _raw_value(code, details):
 def _value_fields(code, value, units):
     shown, shown_unit = tracks.display_value(code, value, units)
     out = {'value': value, 'display_value': shown, 'display_unit': shown_unit}
-    if code in ('journey', 'climbing', 'sport:run', 'sport:ride', 'sport:walk-hike', 'sport:swim'):
+    if code in ('journey', 'climbing', 'sport:run', 'sport:ride', 'sport:walk-hike', 'sport:swim') or (tracks.sport_phase1_spec(code) and tracks.sport_phase1_spec(code)[1] == 'longest'):
         out['value_m'] = value
     elif code == 'lifted':
         out['value_kg'] = value
@@ -352,7 +376,8 @@ def _visible_achievement_profile(c, viewer_id, login):
 _SHARED_TRACK_FIELDS = ('code','label','level','unit','tiers','day')
 _SHARED_TIER_FIELDS = ('rank','label','title','day','big','quiet','threshold','unit','trigger','legacy',
                        'display_threshold','display_unit')
-_SHARED_DISTANCE_TRACKS = frozenset(('sport:run','sport:ride','sport:walk-hike','sport:swim'))
+_SHARED_DISTANCE_TRACKS = frozenset(('sport:run','sport:ride','sport:walk-hike','sport:swim',
+                                     'sport:run:longest','sport:ride:longest','sport:walk-hike:longest','sport:swim:longest'))
 
 
 def _shared_track_payload(track):

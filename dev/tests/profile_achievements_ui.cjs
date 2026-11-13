@@ -60,12 +60,28 @@ const achievementFixture={pending:false,tracks:[
   {label:'42.2 km',threshold:42195,display_threshold:26.2,display_unit:'mi'}),
  makeTrack('sport:swim','Swim',2,6000,3.7,'mi',[tier(2,'5 km',5000,'2026-10-24',2101)],
   {label:'10 km',threshold:10000,display_threshold:6.2,display_unit:'mi'}),
+ makeTrack('sport:run:workouts','Run workouts',4,128,128,'workouts',[tier(8,'Running institution',128,'2026-11-01',2301)],
+  {label:'250 workouts',threshold:250,display_threshold:250,display_unit:'workouts'}),
+ makeTrack('sport:run:longest','Longest run',5,80000,49.7,'mi',[tier(4,'Marathon day',42195,'2026-11-02',2302)],
+  {label:'50-mile ultra',threshold:80467.2,display_threshold:50,display_unit:'mi'}),
+ makeTrack('sport:ride:workouts','Ride workouts',3,80,80,'workouts',[tier(3,'Club loop',50,'2026-11-03',2303)],
+  {label:'100 workouts',threshold:100,display_threshold:100,display_unit:'workouts'}),
+ makeTrack('sport:ride:longest','Longest ride',5,200000,124.3,'mi',[tier(3,'Metric century',100000,'2026-11-04',2304)],
+  {label:'200 km ride',threshold:200000,display_threshold:124.3,display_unit:'mi'}),
+ makeTrack('sport:walk-hike:workouts','Walk & hike workouts',4,128,128,'workouts',[tier(5,'Starting line regular',250,'2026-11-05',2305)],
+  {label:'250 workouts',threshold:250,display_threshold:250,display_unit:'workouts'}),
+ makeTrack('sport:walk-hike:longest','Longest walk or hike',4,50000,31.1,'mi',[tier(2,'10K day',10000,'2026-11-06',2306)],
+  {label:'Half-marathon walk',threshold:21097.5,display_threshold:13.1,display_unit:'mi'}),
+ makeTrack('sport:swim:workouts','Swim workouts',2,25,25,'workouts',[tier(2,'Lane regular',10,'2026-11-07',2307)],
+  {label:'50 workouts',threshold:50,display_threshold:50,display_unit:'workouts'}),
+ makeTrack('sport:swim:longest','Longest swim',3,5000,3.1,'mi',[tier(2,'Ironman swim',3862,'2026-11-08',2308)],
+  {label:'5 km swim',threshold:5000,display_threshold:3.1,display_unit:'mi'}),
  makeTrack('sport:lift','Lift',3,22,22,'sessions',[tier(3,'10 lift sessions',10,'2026-10-23',2201)],
   {label:'25 lift sessions',threshold:25,display_threshold:25,display_unit:'sessions'})
 ]};
-const historyUnits={consistency:'weeks',years_active:'years',workouts:'workouts',active_time:'seconds',journey:'m',climbing:'m',lifted:'kg',personal_bests:'bests','sport:run':'m','sport:ride':'m','sport:walk-hike':'m','sport:swim':'m','sport:lift':'sessions'};
+const historyUnits={consistency:'weeks',years_active:'years',workouts:'workouts',active_time:'seconds',journey:'m',climbing:'m',lifted:'kg',personal_bests:'bests','sport:run':'m','sport:ride':'m','sport:walk-hike':'m','sport:swim':'m','sport:lift':'sessions','sport:run:workouts':'workouts','sport:ride:workouts':'workouts','sport:walk-hike:workouts':'workouts','sport:swim:workouts':'workouts','sport:run:longest':'m','sport:ride:longest':'m','sport:walk-hike:longest':'m','sport:swim:longest':'m'};
 const displayHistoryTier=(code,value,units)=>{
- if(['journey','sport:run','sport:ride','sport:walk-hike','sport:swim'].includes(code))return units==='imperial'?[value/1609.344,'mi']:[value/1000,'km'];
+ if(['journey','sport:run','sport:ride','sport:walk-hike','sport:swim','sport:run:longest','sport:ride:longest','sport:walk-hike:longest','sport:swim:longest'].includes(code))return units==='imperial'?[value/1609.344,'mi']:[value/1000,'km'];
  if(code==='climbing')return units==='imperial'?[value*3.28084,'ft']:[value,'m'];
  if(code==='lifted')return units==='imperial'?[value*2.2046226218,'lb']:[value,'kg'];
  if(code==='active_time')return [value/3600,'h'];
@@ -304,14 +320,14 @@ module.exports=async({browser,storageState,base,shots})=>{
    await page.goto(base+'/people/fictional_friend?view=achievements&track=sport%3Arun');await waitForHistoryTrack(page,'sport:run','shared continuation privacy');
    assert.equal(await page.locator('.profile-achievement-tail-note').count(),0,'shared history has no future continuation');
    assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(url=>url!=='/api/challenges/signup/continue'),[]);
-   console.log(`Achievement continuation 390 ${theme}: 13 final names/icons, zero/partial/max, shared privacy PASS`);await context.close();continue;
+   console.log(`Achievement continuation 390 ${theme}: 21 final names/icons, zero/partial/max, shared privacy PASS`);await context.close();continue;
   }
   if(indexOnly){
    futureEvidence=true;
    await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
    const index=page.locator('#profile-achievement-page');
    assert.deepEqual(await index.locator('.profile-achievement-group-title').allTextContents(),['Overall','Distance','Strength']);
-   assert.deepEqual((await index.locator('.profile-achievement[data-achievement-code]').evaluateAll(nodes=>nodes.map(n=>n.dataset.achievementCode))).sort(),Object.keys(catalog.tracks).sort(),'owner index shows all 13 catalogue tracks');
+   assert.deepEqual((await index.locator('.profile-achievement[data-achievement-code]').evaluateAll(nodes=>nodes.map(n=>n.dataset.achievementCode))).sort(),Object.keys(catalog.tracks).sort(),'owner index shows all 21 catalogue tracks');
    for(const [code,progress,caption] of [['active_time','5','First ten hours · 9.5 hours left'],['years_active','0','First orbit · 1 year left']]){
     const badge=index.locator(`[data-achievement-code="${code}"]`);
     assert.equal(await badge.locator('[data-achievement-progress]').getAttribute('aria-valuenow'),progress);
@@ -323,20 +339,20 @@ module.exports=async({browser,storageState,base,shots})=>{
    await page.evaluate(()=>document.documentElement.dataset.achievementEvidence='all-tracks');
    await screenshot(page,shots,`achievement-index-390-${theme}`,{fullPage:true});
    assert.deepEqual(errors,[],'owner index has no browser errors');assert.deepEqual(writes.filter(url=>url!=='/api/challenges/signup/continue'),[],'owner index requests no writes beyond the intercepted startup continuation');
-   console.log(`Achievement owner index 390 ${theme}: 13 tracks, 3 groups, future rewards and text fit PASS`);
+   console.log(`Achievement owner index 390 ${theme}: 21 tracks, 3 groups, future rewards and text fit PASS`);
    futureEvidence=false;await context.close();continue;
   }
   if(redesignOnly){
    futureEvidence=true;achievementRedesignEvidence=true;await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
    const expectedTitles=['Overall','Run','Ride','Walk & hike','Swim','Strength'];
    assert.deepEqual(await page.locator('#profile-achievement-page .profile-achievement-group-title').allTextContents(),expectedTitles,'the owner overview has one section per sport in the requested order');
-   assert.equal(await page.locator('#profile-achievement-page .profile-achievement-track').count(),13,'the overview includes every catalog track');
+   assert.equal(await page.locator('#profile-achievement-page .profile-achievement-track').count(),21,'the overview includes every catalog track');
    const gutter=await page.locator('#page').evaluate(shell=>{const outer=shell.getBoundingClientRect(),content=document.querySelector('#profile-achievement-page').getBoundingClientRect(),style=getComputedStyle(shell);return{viewport:innerWidth,shellWidth:outer.width,paddingLeft:parseFloat(style.paddingLeft),paddingRight:parseFloat(style.paddingRight),contentLeft:content.left-outer.left,contentRight:outer.right-content.right};});
    assert.equal(gutter.viewport,390,'the viewport-width evidence uses the 390px viewport');assert.equal(gutter.shellWidth,390,'the page shell fills the viewport width');assert.equal(gutter.paddingLeft,16,'the page shell keeps 16px left padding');assert.equal(gutter.paddingRight,16,'the page shell keeps 16px right padding');assert(gutter.contentLeft>=16&&gutter.contentRight>=16,`the achievement content stays inside both page gutters: ${JSON.stringify(gutter)}`);
    const run=page.locator('#profile-achievement-page .profile-achievement-track[data-achievement-code="sport:run"]'),runBadges=run.locator('.profile-achievement-ladder-badge');
    assert.equal(await run.locator('.profile-achievement-track-summary').innerText(),'Level 4 of 9 · Next 50 mi · 12.8 mi to go','Run shows only the current level, next threshold and compact remaining distance under its section heading');
-   assert.equal(await run.locator('.profile-achievement-track-title').count(),0,'Run uses the section heading without repeating its name in the track header');
-   for(const [code,label] of [['sport:ride','Ride'],['sport:walk-hike','Walk & hike'],['sport:swim','Swim']])assert.equal(await page.locator(`#profile-achievement-page .profile-achievement-track[data-achievement-code="${code}"] .profile-achievement-track-title`).count(),0,`${label} does not repeat its single-track section name`);
+   assert.equal(await run.locator('.profile-achievement-track-title').count(),1,'Run names each claim in the multi-track sport section');
+   for(const [code,label] of [['sport:ride','Ride'],['sport:walk-hike','Walk & hike'],['sport:swim','Swim']])assert.equal(await page.locator(`#profile-achievement-page .profile-achievement-track[data-achievement-code="${code}"] .profile-achievement-track-title`).count(),1,`${label} names each claim in the multi-track sport section`);
    for(const code of ['workouts','active_time','consistency','years_active','personal_bests','journey','climbing','sport:lift','lifted'])assert.equal(await page.locator(`#profile-achievement-page .profile-achievement-track[data-achievement-code="${code}"] .profile-achievement-track-title`).count(),1,`${code} keeps its name in a multi-track section`);
    const medalShape=await run.locator('.profile-achievement-ladder-badge .profile-achievement-medallion').first().evaluate(node=>{const rect=node.getBoundingClientRect(),style=getComputedStyle(node);return{width:rect.width,height:rect.height,aspectRatio:style.aspectRatio,borderRadius:style.borderRadius};});
    assert.equal(medalShape.width,56,'ladder badges keep a fixed 56px width');assert.equal(medalShape.height,56,'ladder badges stay square');assert.equal(medalShape.aspectRatio,'1 / 1','ladder badges declare a square aspect ratio');
@@ -375,7 +391,7 @@ module.exports=async({browser,storageState,base,shots})=>{
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'all level ladders fit 390px without horizontal overflow');
    if(theme==='light'){
     await page.setViewportSize({width:330,height:844});
-    const compactColumns=await page.locator('#profile-achievement-group-run').locator('xpath=..').locator('.profile-achievement-ladder').evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(/\s+/).length);
+    const compactColumns=await page.locator('#profile-achievement-group-run').locator('xpath=..').locator('.profile-achievement-ladder').first().evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(/\s+/).length);
     assert.equal(compactColumns,4,'330px level ladders use four columns');
     const compactSquare=await run.locator('.profile-achievement-ladder-badge .profile-achievement-medallion').first().evaluate(node=>{const rect=node.getBoundingClientRect();return{width:rect.width,height:rect.height};});assert.deepEqual(compactSquare,{width:56,height:56},'ladder badges remain square at 330px');
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'all level ladders fit 330px without horizontal overflow');
@@ -515,7 +531,7 @@ module.exports=async({browser,storageState,base,shots})=>{
    await setUnits('metric');
    runEvidenceState={value:0,history:[]};
    await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
-   const futureRun=page.locator('#profile-achievement-page [data-achievement-code="sport:run"]');
+   const futureRun=page.locator('#profile-achievement-page .profile-achievement-track-head[data-achievement-code="sport:run"]');
    assert.equal(await futureRun.getAttribute('data-showcase-eligible'),'false','an unearned canonical Run level cannot be pinned');
    await page.goto(base+'/me/achievements/sport%3Arun');await waitForHistoryTrack(page,'sport:run','zero-progress Run detail');await expandAchievementLevels(page);
    assert.equal(await page.locator('.profile-achievement-history-head .profile-achievement-current').innerText(),'Not started','zero-distance Run opens as a future track');
@@ -552,7 +568,7 @@ module.exports=async({browser,storageState,base,shots})=>{
 
    runEvidenceState={value:0,ownerLegacy:true,history:[{rank:0,name:'First run',threshold:1,day:'2024-03-05',legacy:true}]};
    await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
-   const legacyOwnerRun=page.locator('#profile-achievement-page [data-achievement-code="sport:run"]');
+   const legacyOwnerRun=page.locator('#profile-achievement-page .profile-achievement-track-head[data-achievement-code="sport:run"]');
    assert.equal(await legacyOwnerRun.getAttribute('data-showcase-eligible'),'false','a saved rank-zero Run starter cannot be pinned');
    const legacyRect=await legacyOwnerRun.boundingBox();await page.mouse.move(legacyRect.x+legacyRect.width/2,legacyRect.y+legacyRect.height/2);await page.mouse.down();await page.waitForTimeout(570);await page.mouse.up();
    assert.equal(await page.locator('[data-showcase-pin-action]').count(),0,'long-pressing a legacy-only Run row opens no pin action');assert.equal(pinRequests.length,0,'legacy-only Run never submits a showcase pin request');
@@ -647,7 +663,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   if(shots)await page.screenshot({path:path.join(shots,`friend-profile-featured-390-${theme}.png`),fullPage:true,animations:'disabled'});
   await featuredLink.click();await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
   const sharedRowsAll=page.locator('#profile-achievement-page .profile-achievement-track');
-  assert.equal(await sharedRowsAll.count(),13,'the shared read-only page lists every earned track');
+  assert.equal(await sharedRowsAll.count(),21,'the shared read-only page lists every earned track');
   assert.deepEqual((await sharedRowsAll.evaluateAll(nodes=>nodes.map(node=>node.dataset.achievementCode))).sort(),Object.keys(catalog.tracks).sort(),'every catalog track with an earned level appears in the shared view');
   for(const [code,level] of [['sport:run','11'],['sport:walk-hike','8'],['sport:swim','7']]){
    const row=page.locator(`#profile-achievement-page .profile-achievement-track[data-achievement-code="${code}"]`);
@@ -688,10 +704,10 @@ module.exports=async({browser,storageState,base,shots})=>{
   const groups=page.locator('#profile-achievement-page .profile-achievement-group');
   assert.equal(await groups.count(),6,'every sport has its own achievement section');
   assert.deepEqual(await groups.locator('.profile-achievement-group-title').allTextContents(),['Overall','Run','Ride','Walk & hike','Swim','Strength'],'section headings use the requested order');
-  assert.equal(await page.locator('#profile-achievement-page .profile-achievement-track').count(),13,'See all opens every started track');
+  assert.equal(await page.locator('#profile-achievement-page .profile-achievement-track').count(),21,'See all opens every started track');
   assert.equal(await page.locator('#profile-achievement-page .profile-achievement-progress-count').count(),0,'the overview has no repeated level chips');
   assert.match(await page.locator('#profile-achievement-page .profile-achievement-track[data-achievement-code="workouts"] .profile-achievement-track-summary').innerText(),/^Level \d+ of \d+ · Next /,'the open-ended Workouts header names its next level');
-  assert.equal(await page.locator('#profile-achievement-page .profile-achievement-ladder-progress[role="progressbar"]').count(),13,'each owner track shows progress on its next level');
+  assert.equal(await page.locator('#profile-achievement-page .profile-achievement-ladder-progress[role="progressbar"]').count(),21,'each owner track shows progress on its next level');
   await assertProgressWidths(page.locator('#profile-achievement-page'),'390px achievements overview');
   const workoutsProgress=await page.locator('#profile-achievement-page .profile-achievement-track[data-achievement-code="workouts"] .profile-achievement-ladder-progress').evaluate(bar=>({track:bar.getBoundingClientRect().width,fill:bar.querySelector('[data-progress-fill]').getBoundingClientRect().width,value:Number(bar.getAttribute('aria-valuenow'))}));
   assert(workoutsProgress.value>0&&workoutsProgress.value<100&&workoutsProgress.fill<workoutsProgress.track-1,'the Workouts next-level progress bar is visibly partial');
@@ -701,7 +717,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   assert.equal(await page.locator('#profile-achievement-page .profile-achievement-ring').count(),0,'all achievement medallions omit progress rings');
   workoutValue=1120;await page.reload();await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
   const groupCodes=await groups.evaluateAll(nodes=>nodes.map(group=>({title:group.querySelector('.profile-achievement-group-title').textContent.trim(),tracks:[...group.querySelectorAll('.profile-achievement-track')].map(track=>track.dataset.achievementCode)})));
-  assert.deepEqual(groupCodes,[{title:'Overall',tracks:['workouts','active_time','consistency','years_active','personal_bests','journey','climbing']},{title:'Run',tracks:['sport:run']},{title:'Ride',tracks:['sport:ride']},{title:'Walk & hike',tracks:['sport:walk-hike']},{title:'Swim',tracks:['sport:swim']},{title:'Strength',tracks:['sport:lift','lifted']}],'tracks stay in their requested sport sections');
+  assert.deepEqual(groupCodes,[{title:'Overall',tracks:['workouts','active_time','consistency','years_active','personal_bests','journey','climbing']},{title:'Run',tracks:['sport:run','sport:run:workouts','sport:run:longest']},{title:'Ride',tracks:['sport:ride','sport:ride:workouts','sport:ride:longest']},{title:'Walk & hike',tracks:['sport:walk-hike','sport:walk-hike:workouts','sport:walk-hike:longest']},{title:'Swim',tracks:['sport:swim','sport:swim:workouts','sport:swim:longest']},{title:'Strength',tracks:['sport:lift','lifted']}],'tracks stay in their requested sport sections');
   const gridFitsPage=await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1);assert(gridFitsPage,'the achievement ladders do not widen the page');
   await assertProgressWidths(page.locator('#profile-achievement-page'),'390px achievement ladders');
   futureEvidence=true;await page.evaluate(()=>invalidate('/api/achievements'));await page.reload();await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
@@ -867,7 +883,7 @@ module.exports=async({browser,storageState,base,shots})=>{
   const allFixtureTracksForFilter=achievementFixture.tracks;achievementFixture.tracks=allFixtureTracksForFilter.filter(track=>['lifted','sport:lift'].includes(track.code));
   await page.goto(base+'/me/achievements');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
   assert.deepEqual(await page.locator('.profile-achievement-group-title').allTextContents(),['Overall','Run','Ride','Walk & hike','Swim','Strength'],'every sport section stays discoverable when tracks are new');
-  assert.equal(await page.locator('.profile-achievement-track').count(),13,'the overview includes started and new tracks');
+  assert.equal(await page.locator('.profile-achievement-track').count(),21,'the overview includes started and new tracks');
   const unstarted=page.locator('#profile-achievement-page .profile-achievement-track[data-achievement-code="workouts"]');
   const firstLevel=unstarted.locator('.profile-achievement-ladder-badge.is-next');
   assert.equal(await firstLevel.getAttribute('data-level'),'1','a new track outlines Level 1');

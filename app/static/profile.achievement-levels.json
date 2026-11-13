@@ -1234,6 +1234,686 @@
           "icon": "/static/profile.fluent-emoji/flat/classical_building_flat.svg?v=__ASSET_HASH__"
         }
       ]
+    },
+    "sport:run:workouts": {
+      "source_track": "run workout count",
+      "levels": [
+        {
+          "name": "First stride",
+          "canonical_value": 1,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 1,
+          "emoji": "🏃",
+          "asset_name": "Person Running",
+          "icon": "/static/profile.fluent-emoji/flat/person_running_flat_default.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Training block",
+          "canonical_value": 10,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 10,
+          "emoji": "👟",
+          "asset_name": "Running Shoe",
+          "icon": "/static/profile.fluent-emoji/flat/running_shoe_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Local circuit",
+          "canonical_value": 50,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 50,
+          "emoji": "⏱️",
+          "asset_name": "Stopwatch",
+          "icon": "/static/profile.fluent-emoji/flat/stopwatch_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Race season",
+          "canonical_value": 100,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 100,
+          "emoji": "🏅",
+          "asset_name": "Sports Medal",
+          "icon": "/static/profile.fluent-emoji/flat/sports_medal_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Starting line regular",
+          "canonical_value": 250,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 250,
+          "emoji": "🏁",
+          "asset_name": "Chequered Flag",
+          "icon": "/static/profile.fluent-emoji/flat/chequered_flag_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Club veteran",
+          "canonical_value": 500,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 500,
+          "emoji": "🎖️",
+          "asset_name": "Military Medal",
+          "icon": "/static/profile.fluent-emoji/flat/military_medal_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Road legend",
+          "canonical_value": 1000,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 1000,
+          "emoji": "🏆",
+          "asset_name": "Trophy",
+          "icon": "/static/profile.fluent-emoji/flat/trophy_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Running institution",
+          "canonical_value": 2000,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 2000,
+          "emoji": "👑",
+          "asset_name": "Crown",
+          "icon": "/static/profile.fluent-emoji/flat/crown_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    },
+    "sport:run:longest": {
+      "source_track": "run longest single workout",
+      "levels": [
+        {
+          "name": "5K outing",
+          "canonical_value": 5,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 5,
+          "emoji": "👟",
+          "asset_name": "Running Shoe",
+          "icon": "/static/profile.fluent-emoji/flat/running_shoe_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "10K day",
+          "canonical_value": 10,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 10,
+          "emoji": "⏱️",
+          "asset_name": "Stopwatch",
+          "icon": "/static/profile.fluent-emoji/flat/stopwatch_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Half-marathon day",
+          "canonical_value": 21.0975,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 21.0975,
+          "emoji": "🏅",
+          "asset_name": "Sports Medal",
+          "icon": "/static/profile.fluent-emoji/flat/sports_medal_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Marathon day",
+          "canonical_value": 42.195,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 42.195,
+          "emoji": "🏆",
+          "asset_name": "Trophy",
+          "icon": "/static/profile.fluent-emoji/flat/trophy_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "50K ultra",
+          "canonical_value": 50,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 50,
+          "emoji": "⛰️",
+          "asset_name": "Mountain",
+          "icon": "/static/profile.fluent-emoji/flat/mountain_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "50-mile ultra",
+          "canonical_value": 80.4672,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 50.0,
+          "emoji": "🏁",
+          "asset_name": "Chequered Flag",
+          "icon": "/static/profile.fluent-emoji/flat/chequered_flag_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "100K ultra",
+          "canonical_value": 100,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 100,
+          "emoji": "💯",
+          "asset_name": "Hundred Points",
+          "icon": "/static/profile.fluent-emoji/flat/hundred_points_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "100-mile ultra",
+          "canonical_value": 160.9344,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 100.0,
+          "emoji": "🗺️",
+          "asset_name": "World Map",
+          "icon": "/static/profile.fluent-emoji/flat/world_map_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    },
+    "sport:ride:workouts": {
+      "source_track": "ride workout count",
+      "levels": [
+        {
+          "name": "First spin",
+          "canonical_value": 1,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 1,
+          "emoji": "🚴",
+          "asset_name": "Person Biking",
+          "icon": "/static/profile.fluent-emoji/flat/person_biking_flat_default.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Weekend rider",
+          "canonical_value": 10,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 10,
+          "emoji": "🚲",
+          "asset_name": "Bicycle",
+          "icon": "/static/profile.fluent-emoji/flat/bicycle_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Club loop",
+          "canonical_value": 50,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 50,
+          "emoji": "🛣️",
+          "asset_name": "Motorway",
+          "icon": "/static/profile.fluent-emoji/flat/motorway_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Century season",
+          "canonical_value": 100,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 100,
+          "emoji": "🏁",
+          "asset_name": "Chequered Flag",
+          "icon": "/static/profile.fluent-emoji/flat/chequered_flag_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Gran fondo regular",
+          "canonical_value": 250,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 250,
+          "emoji": "🏔️",
+          "asset_name": "Snow-Capped Mountain",
+          "icon": "/static/profile.fluent-emoji/flat/snow-capped_mountain_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Club veteran",
+          "canonical_value": 500,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 500,
+          "emoji": "🏅",
+          "asset_name": "Sports Medal",
+          "icon": "/static/profile.fluent-emoji/flat/sports_medal_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Road captain",
+          "canonical_value": 1000,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 1000,
+          "emoji": "🗺️",
+          "asset_name": "World Map",
+          "icon": "/static/profile.fluent-emoji/flat/world_map_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Cycling institution",
+          "canonical_value": 2000,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 2000,
+          "emoji": "🌎",
+          "asset_name": "Globe Showing Americas",
+          "icon": "/static/profile.fluent-emoji/flat/globe_showing_americas_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    },
+    "sport:ride:longest": {
+      "source_track": "ride longest single workout",
+      "levels": [
+        {
+          "name": "25K ride",
+          "canonical_value": 25,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 25,
+          "emoji": "🚲",
+          "asset_name": "Bicycle",
+          "icon": "/static/profile.fluent-emoji/flat/bicycle_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "50K ride",
+          "canonical_value": 50,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 50,
+          "emoji": "🛣️",
+          "asset_name": "Motorway",
+          "icon": "/static/profile.fluent-emoji/flat/motorway_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Metric century",
+          "canonical_value": 100,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 100,
+          "emoji": "🏁",
+          "asset_name": "Chequered Flag",
+          "icon": "/static/profile.fluent-emoji/flat/chequered_flag_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Century ride",
+          "canonical_value": 160.9344,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 100.0,
+          "emoji": "🏅",
+          "asset_name": "Sports Medal",
+          "icon": "/static/profile.fluent-emoji/flat/sports_medal_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "200K ride",
+          "canonical_value": 200,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 200,
+          "emoji": "🏔️",
+          "asset_name": "Snow-Capped Mountain",
+          "icon": "/static/profile.fluent-emoji/flat/snow-capped_mountain_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Double century",
+          "canonical_value": 321.8688,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 200.0,
+          "emoji": "💯",
+          "asset_name": "Hundred Points",
+          "icon": "/static/profile.fluent-emoji/flat/hundred_points_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "300-mile ride",
+          "canonical_value": 482.8032,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 300.0,
+          "emoji": "🗺️",
+          "asset_name": "World Map",
+          "icon": "/static/profile.fluent-emoji/flat/world_map_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "1,000K ride",
+          "canonical_value": 1000,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 1000,
+          "emoji": "🌎",
+          "asset_name": "Globe Showing Americas",
+          "icon": "/static/profile.fluent-emoji/flat/globe_showing_americas_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    },
+    "sport:walk-hike:workouts": {
+      "source_track": "walk-hike workout count",
+      "levels": [
+        {
+          "name": "First steps",
+          "canonical_value": 1,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 1,
+          "emoji": "👣",
+          "asset_name": "Footprints",
+          "icon": "/static/profile.fluent-emoji/flat/footprints_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Trail regular",
+          "canonical_value": 10,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 10,
+          "emoji": "🚶",
+          "asset_name": "Person Walking",
+          "icon": "/static/profile.fluent-emoji/flat/person_walking_flat_default.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Day hiker",
+          "canonical_value": 50,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 50,
+          "emoji": "🥾",
+          "asset_name": "Hiking Boot",
+          "icon": "/static/profile.fluent-emoji/flat/hiking_boot_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Woodland walker",
+          "canonical_value": 100,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 100,
+          "emoji": "🌲",
+          "asset_name": "Evergreen Tree",
+          "icon": "/static/profile.fluent-emoji/flat/evergreen_tree_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Summit seeker",
+          "canonical_value": 250,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 250,
+          "emoji": "⛰️",
+          "asset_name": "Mountain",
+          "icon": "/static/profile.fluent-emoji/flat/mountain_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Long-distance walker",
+          "canonical_value": 500,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 500,
+          "emoji": "🧭",
+          "asset_name": "Compass",
+          "icon": "/static/profile.fluent-emoji/flat/compass_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Trail institution",
+          "canonical_value": 1000,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 1000,
+          "emoji": "🗺️",
+          "asset_name": "World Map",
+          "icon": "/static/profile.fluent-emoji/flat/world_map_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Appalachian veteran",
+          "canonical_value": 2000,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 2000,
+          "emoji": "🐻",
+          "asset_name": "Bear",
+          "icon": "/static/profile.fluent-emoji/flat/bear_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    },
+    "sport:walk-hike:longest": {
+      "source_track": "walk-hike longest single workout",
+      "levels": [
+        {
+          "name": "10K walk",
+          "canonical_value": 10,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 10,
+          "emoji": "👣",
+          "asset_name": "Footprints",
+          "icon": "/static/profile.fluent-emoji/flat/footprints_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Half-marathon walk",
+          "canonical_value": 21.0975,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 21.0975,
+          "emoji": "🥾",
+          "asset_name": "Hiking Boot",
+          "icon": "/static/profile.fluent-emoji/flat/hiking_boot_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Marathon walk",
+          "canonical_value": 42.195,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 42.195,
+          "emoji": "🏅",
+          "asset_name": "Sports Medal",
+          "icon": "/static/profile.fluent-emoji/flat/sports_medal_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "50K trail day",
+          "canonical_value": 50,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 50,
+          "emoji": "⛰️",
+          "asset_name": "Mountain",
+          "icon": "/static/profile.fluent-emoji/flat/mountain_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "50-mile hike",
+          "canonical_value": 80.4672,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 50.0,
+          "emoji": "🌲",
+          "asset_name": "Evergreen Tree",
+          "icon": "/static/profile.fluent-emoji/flat/evergreen_tree_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "100K trail day",
+          "canonical_value": 100,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 100,
+          "emoji": "🧭",
+          "asset_name": "Compass",
+          "icon": "/static/profile.fluent-emoji/flat/compass_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "100-mile hike",
+          "canonical_value": 160.9344,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 100.0,
+          "emoji": "🗺️",
+          "asset_name": "World Map",
+          "icon": "/static/profile.fluent-emoji/flat/world_map_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "200-mile trek",
+          "canonical_value": 321.8688,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 200.0,
+          "emoji": "🐻",
+          "asset_name": "Bear",
+          "icon": "/static/profile.fluent-emoji/flat/bear_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    },
+    "sport:swim:workouts": {
+      "source_track": "swim workout count",
+      "levels": [
+        {
+          "name": "First length",
+          "canonical_value": 1,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 1,
+          "emoji": "🏊",
+          "asset_name": "Person Swimming",
+          "icon": "/static/profile.fluent-emoji/flat/person_swimming_flat_default.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Lane regular",
+          "canonical_value": 10,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 10,
+          "emoji": "🐟",
+          "asset_name": "Fish",
+          "icon": "/static/profile.fluent-emoji/flat/fish_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Pool season",
+          "canonical_value": 50,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 50,
+          "emoji": "🐬",
+          "asset_name": "Dolphin",
+          "icon": "/static/profile.fluent-emoji/flat/dolphin_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Open-water regular",
+          "canonical_value": 100,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 100,
+          "emoji": "🦈",
+          "asset_name": "Shark",
+          "icon": "/static/profile.fluent-emoji/flat/shark_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Long-course swimmer",
+          "canonical_value": 250,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 250,
+          "emoji": "🐢",
+          "asset_name": "Turtle",
+          "icon": "/static/profile.fluent-emoji/flat/turtle_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Channel hopeful",
+          "canonical_value": 500,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 500,
+          "emoji": "🐋",
+          "asset_name": "Whale",
+          "icon": "/static/profile.fluent-emoji/flat/whale_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Marathon swimmer",
+          "canonical_value": 1000,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 1000,
+          "emoji": "⛵",
+          "asset_name": "Sailboat",
+          "icon": "/static/profile.fluent-emoji/flat/sailboat_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Blue-water legend",
+          "canonical_value": 2000,
+          "canonical_unit": "workouts",
+          "display": "workouts",
+          "display_value": 2000,
+          "emoji": "🌊",
+          "asset_name": "Water Wave",
+          "icon": "/static/profile.fluent-emoji/flat/water_wave_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
+    },
+    "sport:swim:longest": {
+      "source_track": "swim longest single workout",
+      "levels": [
+        {
+          "name": "First mile",
+          "canonical_value": 1.609344,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 1.0,
+          "emoji": "🐟",
+          "asset_name": "Fish",
+          "icon": "/static/profile.fluent-emoji/flat/fish_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Ironman swim",
+          "canonical_value": 3.86268,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 2.400158076831305,
+          "emoji": "🐬",
+          "asset_name": "Dolphin",
+          "icon": "/static/profile.fluent-emoji/flat/dolphin_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "5K swim",
+          "canonical_value": 5,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 5,
+          "emoji": "🦈",
+          "asset_name": "Shark",
+          "icon": "/static/profile.fluent-emoji/flat/shark_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "Marathon swim",
+          "canonical_value": 10,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 10,
+          "emoji": "🐢",
+          "asset_name": "Turtle",
+          "icon": "/static/profile.fluent-emoji/flat/turtle_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "10-mile swim",
+          "canonical_value": 16.09344,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 10.0,
+          "emoji": "🐋",
+          "asset_name": "Whale",
+          "icon": "/static/profile.fluent-emoji/flat/whale_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "English Channel",
+          "canonical_value": 33.796224,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 21.0,
+          "emoji": "⛵",
+          "asset_name": "Sailboat",
+          "icon": "/static/profile.fluent-emoji/flat/sailboat_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "25-mile swim",
+          "canonical_value": 40.2336,
+          "canonical_unit": "km",
+          "display": "mi",
+          "display_value": 25.0,
+          "emoji": "🌊",
+          "asset_name": "Water Wave",
+          "icon": "/static/profile.fluent-emoji/flat/water_wave_flat.svg?v=__ASSET_HASH__"
+        },
+        {
+          "name": "50K swim",
+          "canonical_value": 50,
+          "canonical_unit": "km",
+          "display": "km-fixed",
+          "display_value": 50,
+          "emoji": "🌎",
+          "asset_name": "Globe Showing Americas",
+          "icon": "/static/profile.fluent-emoji/flat/globe_showing_americas_flat.svg?v=__ASSET_HASH__"
+        }
+      ]
     }
   }
 }
