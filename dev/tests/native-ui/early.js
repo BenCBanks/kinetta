@@ -2,6 +2,9 @@
 'use strict';
 (() => {
   const cfg=globalThis.KinettaUIFixture,errors=[],requests=[];
+  // Native store and review captures share the app map style; suppress geographic
+  // labels in the same screenshot-only mode as the website capture runner.
+  globalThis.__KINETTA_SCREENSHOT_MODE__ = true;
   cfg.errors=errors;cfg.requests=requests;cfg.blocked=[];
   addEventListener('error',e=>errors.push(String(e.message)));
   addEventListener('unhandledrejection',e=>errors.push(String(e.reason?.message||e.reason)));
