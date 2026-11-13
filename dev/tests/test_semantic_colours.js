@@ -1,8 +1,8 @@
 // Production plan/zone presentation: original numbers, labelled semantics, no writes.
 'use strict';const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
-const plan=fs.readFileSync('app/static/plan.js','utf8'),pages=fs.readFileSync('app/static/pages.js','utf8');
+const plan=fs.readFileSync('app/static/plan.js','utf8'),detail=fs.readFileSync('app/static/activity-detail-route.js','utf8');
 const ctx={Date,Map,Array,Math,DOW:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],esc:String,svg:()=>'<svg></svg>',addDays:(d,n)=>{const date=new Date(d+'T12:00Z');date.setUTCDate(date.getUTCDate()+n);return date.toISOString().slice(0,10);},dur:n=>n+'s',ZN:['Very easy','Easy','Steady','Hard','Max']};
-vm.createContext(ctx);vm.runInContext(plan.slice(plan.indexOf('const HARD'),plan.indexOf('function wireWorkouts')),ctx);vm.runInContext(pages.slice(pages.indexOf('function zonesHtml'),pages.indexOf('function similarHtml')),ctx);
+vm.createContext(ctx);vm.runInContext(plan.slice(plan.indexOf('const HARD'),plan.indexOf('function wireWorkouts')),ctx);vm.runInContext(detail.slice(detail.indexOf('function zonesHtml'),detail.indexOf('function similarHtml')),ctx);
 const week={start:'2026-10-19',workouts:[{day:'2026-10-19',type:'easy',title:'Easy run',detail:'4 km',status:'done'},{day:'2026-10-21',type:'intervals',title:'Intervals',detail:'6 repeats',status:'upcoming'},{day:'2026-10-25',type:'long',title:'Long run',detail:'12 km',status:'upcoming'}]};
 const html=ctx.planWeekRows(week,'km');assert.equal((html.match(/class="pw /g)||[]).length,7);assert.equal((html.match(/data-workout-kind="rest"/g)||[]).length,4);assert.equal((html.match(/data-wday=/g)||[]).length,3,'rest has no completion/edit action');for(const type of ['easy','hard','long'])assert(html.includes('data-workout-kind="'+type+'"'));assert(html.includes('achievement'));assert(html.includes('Done'));
 for(const [type,tone] of [['recovery','easy'],['runwalk','easy'],['medium_long','long'],['long_pace','hard'],['tempo','hard'],['fartlek','hard'],['new_type','other']])assert.equal(ctx.workoutTone(type),tone);
