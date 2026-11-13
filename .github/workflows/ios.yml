@@ -338,7 +338,8 @@ jobs:
   # up to an hour, so this runs on a Linux runner rather than holding the Mac.
   beta:
     needs: [changes, testflight]
-    if: needs.testflight.outputs.uploaded == '1'
+    # The skipped optional Store job upstream must not skip this; only a real upload sends a build to testers.
+    if: ${{ !cancelled() && needs.testflight.result == 'success' && needs.testflight.outputs.uploaded == '1' }}
     runs-on: ubuntu-latest
     timeout-minutes: 100
     env:
