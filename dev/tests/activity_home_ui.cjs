@@ -184,7 +184,7 @@ const engine=process.env.KINETTA_ACTIVITY_BROWSER==='webkit'?webkit:chromium,b=a
   assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_feed_'+who,password:pw}})).status(),200);
   if(weeklyRecapTest){const profile=await c.request.put(base+'/api/profile',{headers:{Origin:base},data:{units:weeklyUnits}});assert.equal(profile.status(),200,`weekly recap fixture accepts ${weeklyUnits} units`);}
   if(!weeklyRecapTest){
-   const profile=await(await c.request.get(base+'/api/me')).json();await seedWeeklyRecapDismissal(c,profile,base);
+   const profile=await(await c.request.get(base+'/api/me')).json();await seedWeeklyRecapDismissal(c,profile,base,activityFixtureNow);
   }
   const original=(await(await c.request.get(base+'/api/activities?limit=100')).json()),privateIds=original.filter(a=>a.visibility==='me').map(a=>a.id),publicIds=original.filter(a=>a.visibility!=='me').map(a=>a.id);
   await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
