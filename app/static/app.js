@@ -1568,8 +1568,13 @@ function initialChartReadout(ro, items, format, {initialIndex, hint}) {
   else reserve();
   return paint;
 }
+function chartFactDetail(detail) {
+  if (!detail) return '';
+  if (typeof detail === 'string') return esc(detail);
+  return `${esc(detail.prefix || '')}${detail.value == null ? '' : `<b>${esc(detail.value)}</b>`}${esc(detail.suffix || '')}`;
+}
 function chartFactReadout(date, fields, {hint = '', edit = ''} = {}) {
-  const facts = fields.map(field => `<span class="chart-fact"><span class="chart-fact-label">${esc(field.label)}</span>${field.value == null ? '' : `<b>${esc(field.value)}</b>`}${field.detail ? `<span class="chart-fact-detail">${esc(field.detail)}</span>` : ''}</span>`).join('');
+  const facts = fields.map(field => `<span class="chart-fact"><span class="chart-fact-label">${esc(field.label)}</span>${field.value == null ? '' : `<b>${esc(field.value)}</b>`}${field.detail ? `<span class="chart-fact-detail">${chartFactDetail(field.detail)}</span>` : ''}</span>`).join('');
   return `<span class="chart-fact-heading"><span class="chart-fact-date">${esc(date)}${hint ? `<span class="readout-hint">${esc(hint)}</span>` : ''}</span>${edit}</span><span class="chart-fact-grid">${facts}</span>`;
 }
 // Columns of stacked bars. cols: [{label, tick, tickLabel, segs: [{k, v}], partial, padded}], keys: [{k, name, color}]
@@ -1827,7 +1832,7 @@ function dayLine(box, pts, {fmt, height = 150, color = 'walk', initialReadout = 
   const svgEl = $('svg', box), xh = $('.xh', box), dot = $('.xdot', box), ro = $('.readout', box);
   const formatReadout = (p) => initialReadout
     ? chartFactReadout(p.label, [{label: 'Total', value: fmt(p.y), detail: p.sub || ''}], {hint: initialReadout.hint})
-    : `<span>${esc(p.label)}</span><span>Total <b>${esc(fmt(p.y))}</b></span>${p.sub ? `<span>${p.sub}</span>` : ''}`;
+    : `<span>${esc(p.label)}</span><span>Total <b>${esc(fmt(p.y))}</b></span>${p.sub ? `<span>${chartFactDetail(p.sub)}</span>` : ''}`;
   const present = initialReadout && initialChartReadout(ro, pts, formatReadout, initialReadout);
   const show = (e) => {
     const r = svgEl.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * W;

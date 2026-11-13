@@ -58,6 +58,10 @@
 .chart-fact-label { color:var(--tx3); font-size:13px; font-weight:500; }
 .chart-fact b { color:var(--tx); font-size:15px; font-weight:600; white-space:nowrap; }
 .chart-fact-detail { color:var(--tx3); font-size:13px; font-weight:400; overflow-wrap:anywhere; }
+.chart-fact-detail b { color:var(--tx); font-size:inherit; font-weight:600; }
+.nutrition-detail .estimate-disclosure { margin-top:4px; }
+.nutrition-detail .estimate-disclosure summary { min-height:44px; color:var(--tx3); font-size:13px; font-weight:500; cursor:pointer; }
+.nutrition-detail .estimate-disclosure p { margin:0 0 8px; color:var(--tx3); font-size:13px; line-height:1.45; }
 .nutrition-detail .top:not(:has(.nutrition-back)) { grid-template-columns:minmax(0,1fr) auto; }
 
 /* At narrow widths, let later title lines use the icon column too. Keep full labels readable with larger text. */
