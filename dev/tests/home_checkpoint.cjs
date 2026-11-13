@@ -1,0 +1,11 @@
+'use strict';
+const {chromium}=require('playwright');
+const fs=require('node:fs');
+const out=process.env.HOME_CHECKPOINT_OUT||'/tmp/amber955-shots';fs.mkdirSync(out,{recursive:true});
+const base=process.env.HOME_CHECKPOINT_URL||'http://127.0.0.1:8910';
+(async()=>{const browser=await chromium.launch();for(const cfg of [{name:'390-light',width:390,height:844,colorScheme:'light'},{name:'390-dark',width:390,height:844,colorScheme:'dark'},{name:'1280-light',width:1280,height:900,colorScheme:'light'}]){const context=await browser.newContext({viewport:{width:cfg.width,height:cfg.height},colorScheme:cfg.colorScheme,recordVideo:{dir:out,size:{width:cfg.width,height:cfg.height}}});const page=await context.newPage();await page.goto(base+'/',{waitUntil:'networkidle'});await page.screenshot({path:`${out}/${cfg.name}-hero.png`});
+ if(await page.locator('#home-title').count()!==1||await page.locator('.home-story').count()!==1||await page.locator('#progress-demo').count()!==1)throw Error(`${cfg.name}: missing checkpoint sections`);
+ await page.locator('[data-period="month"]').click();if((await page.locator('[data-stat="distance"]').innerText())==='40.6')throw Error(`${cfg.name}: chart did not switch period`);
+ await page.locator('[data-sport="swim"]').click();if(!(await page.locator('[data-chart-period]').innerText()).includes('Swim'))throw Error(`${cfg.name}: chart did not switch sport`);
+ await page.locator('#story-activity').scrollIntoViewIfNeeded();await page.waitForTimeout(120);await page.locator('#story-food').scrollIntoViewIfNeeded();await page.waitForTimeout(120);await page.locator('#story-progress').scrollIntoViewIfNeeded();await page.waitForTimeout(120);await page.locator('#story-achievements').scrollIntoViewIfNeeded();await page.waitForTimeout(120);await page.locator('#progress-demo').scrollIntoViewIfNeeded();await page.waitForTimeout(120);await page.screenshot({path:`${out}/${cfg.name}-progress.png`});await page.screenshot({path:`${out}/${cfg.name}.png`,fullPage:true});
+ await context.close();console.log(`${cfg.name} PASS`);}await browser.close();})();
