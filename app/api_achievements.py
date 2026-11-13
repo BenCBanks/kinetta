@@ -375,7 +375,7 @@ def _visible_achievement_profile(c, viewer_id, login):
     return owner_id, profile
 
 
-_SHARED_TRACK_FIELDS = ('code','label','level','unit','tiers','day','earned_ranks','best_seconds')
+_SHARED_TRACK_FIELDS = ('code','label','level','unit','tiers','day','earned_ranks')
 _SHARED_TIER_FIELDS = ('rank','label','title','day','big','quiet','threshold','unit','trigger','legacy',
                        'display_threshold','display_unit')
 _SHARED_DISTANCE_TRACKS = frozenset(('sport:run','sport:ride','sport:walk-hike','sport:swim',
