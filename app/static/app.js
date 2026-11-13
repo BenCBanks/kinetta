@@ -1568,10 +1568,9 @@ function initialChartReadout(ro, items, format, {initialIndex, hint}) {
   else reserve();
   return paint;
 }
-function chartFactReadout(date, fields, trailing = '') {
-  const labels = fields.map(field => `<span>${esc(field.label)}</span>`).join('');
-  const values = fields.map(field => `<span>${field.value == null ? '' : `<b>${esc(field.value)}</b>`}</span>`).join('');
-  return `<span class="chart-fact-row chart-fact-labels"><span>${esc(date)}</span>${labels}${trailing}</span><span class="chart-fact-row chart-fact-values"><span aria-hidden="true"></span>${values}</span>`;
+function chartFactReadout(date, fields, {hint = '', edit = ''} = {}) {
+  const facts = fields.map(field => `<span class="chart-fact"><span class="chart-fact-label">${esc(field.label)}</span>${field.value == null ? '' : `<b>${esc(field.value)}</b>`}${field.detail ? `<span class="chart-fact-detail">${esc(field.detail)}</span>` : ''}</span>`).join('');
+  return `<span class="chart-fact-heading"><span class="chart-fact-date">${esc(date)}${hint ? `<span class="readout-hint">${esc(hint)}</span>` : ''}</span>${edit}</span><span class="chart-fact-grid">${facts}</span>`;
 }
 // Columns of stacked bars. cols: [{label, tick, tickLabel, segs: [{k, v}], partial, padded}], keys: [{k, name, color}]
 // tick marks a column that may carry an x label; tickLabel is the text used when the label is shown (falls back to tick).
@@ -1674,7 +1673,7 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4
       const fields = keys.length > 1
         ? c.segs.filter(x => x.v).map(x => ({label: keys.find(k => k.k === x.k).name, value: fmt(x.v)}))
         : [{label: keys[0]?.name || 'Total', value: c.readoutValue == null ? '–' : fmt(c.readoutValue)}];
-      return chartFactReadout(`${c.label}${c.partial ? ' (so far)' : ''}`, fields, `<span class="readout-hint">${esc(initialReadout.hint)}</span>`);
+      return chartFactReadout(`${c.label}${c.partial ? ' (so far)' : ''}`, fields, {hint: initialReadout.hint});
     }
     return `<span>${esc(c.label)}${c.partial ? ' (so far)' : ''}</span><span><b>${value}</b>${initialReadout ? '' : ' total'}</span>${parts}`;
   };
@@ -1827,7 +1826,7 @@ function dayLine(box, pts, {fmt, height = 150, color = 'walk', initialReadout = 
   box.innerHTML = `<div class="readout num"><span></span></div><div class="chartbox"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Running total">${g}</svg></div>`;
   const svgEl = $('svg', box), xh = $('.xh', box), dot = $('.xdot', box), ro = $('.readout', box);
   const formatReadout = (p) => initialReadout
-    ? chartFactReadout(p.label, [{label: 'Total', value: fmt(p.y)}, ...(p.sub ? [{label: p.sub, value: null}] : [])], `<span class="readout-hint">${esc(initialReadout.hint)}</span>`)
+    ? chartFactReadout(p.label, [{label: 'Total', value: fmt(p.y), detail: p.sub || ''}], {hint: initialReadout.hint})
     : `<span>${esc(p.label)}</span><span>Total <b>${esc(fmt(p.y))}</b></span>${p.sub ? `<span>${p.sub}</span>` : ''}`;
   const present = initialReadout && initialChartReadout(ro, pts, formatReadout, initialReadout);
   const show = (e) => {
@@ -1882,9 +1881,9 @@ function energyChart(box, cols, {height = 190, weight = null, burned = true, int
       if (c.goal) fields.push({label: 'Goal', value: f(c.goal)});
       if (def != null && !c.partial) fields.push({label: def >= 0 ? 'Deficit' : 'Surplus', value: f(Math.abs(def))});
       if (c.counted === false && c.eaten != null && !c.partial) fields.push({label: 'Partly logged, not counted', value: null});
-      if (weight && (c.weight != null || c.trend != null)) fields.push({label: 'Weight', value: `${c.weight != null ? weight.fmt(c.weight) : '–'}${c.trend != null ? ` (trend ${weight.fmt(c.trend)})` : ''}`});
+      if (weight && (c.weight != null || c.trend != null)) fields.push({label: 'Weight', value: c.weight != null ? weight.fmt(c.weight) : '–', detail: c.trend != null ? `Trend ${weight.fmt(c.trend).split(' ')[0]}` : ''});
       const edit = c.day ? `<a class="ro-edit" href="/food?d=${esc(c.day)}">Edit this day ›</a>` : '';
-      return chartFactReadout(`${c.label}${c.partial ? ' (so far)' : ''}`, fields, `${edit}<span class="readout-hint">${esc(initialReadout.hint)}</span>`);
+      return chartFactReadout(`${c.label}${c.partial ? ' (so far)' : ''}`, fields, {hint: initialReadout.hint, edit});
     }
     return `<span>${esc(c.label)}${c.partial ? ' (so far)' : ''}</span><span>Eaten <b>${f(c.eaten)}</b></span>${burned?`<span>Burned <b>${f(c.burned)}</b></span>`:''}${c.goal ? `<span>Goal <b>${f(c.goal)}</b></span>` : ''}${def != null && !c.partial ? `<span>${def >= 0 ? 'Deficit' : 'Surplus'} <b>${f(Math.abs(def))}</b></span>` : ''}${c.counted === false && c.eaten != null && !c.partial ? '<span>Partly logged, not counted</span>' : ''}${weight && (c.weight != null || c.trend != null) ? `<span>Weight <b>${c.weight != null ? esc(weight.fmt(c.weight)) : '–'}</b>${c.trend != null ? ` (trend ${esc(weight.fmt(c.trend))})` : ''}</span>` : ''}${c.day ? `<a class="ro-edit" href="/food?d=${esc(c.day)}">Edit this day ›</a>` : ''}`;
   };
