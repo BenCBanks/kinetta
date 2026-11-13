@@ -1,5 +1,5 @@
 .training-story { overflow: clip; }
-.training-story-grid { grid-template-columns:minmax(0,1fr) minmax(250px,.7fr); padding-bottom:180px; }
+.training-story-grid { grid-template-columns:minmax(0,1fr) minmax(250px,.7fr); }
 .training-pin { position:sticky; top:110px; display:grid; justify-items:center; align-content:start; gap:16px; }
 .training-pin .phone-frame { width:min(290px,100%); }
 .training-steps { min-width:0; padding-bottom:180px; }
