@@ -45,6 +45,10 @@ class AchievementTrackRules(unittest.TestCase):
             'sport:lift': ('sessions', ['First set','Warmed up','Ten sessions','Strong foundation','Strength cycle',
                                         'Power block','Iron habit','Strength hall'], [1,5,10,25,50,100,200,400]),
         }
+        for sport, levels in tracks.SPORT_WORKOUT_LEVELS.items():
+            expected[f'sport:{sport}:workouts'] = ('workouts', [name for name, _ in levels], [value for _, value in levels])
+        for sport, levels in tracks.SPORT_LONGEST_LEVELS.items():
+            expected[f'sport:{sport}:longest'] = ('km', [name for name, _ in levels], [value / 1000 for _, value in levels])
         catalog = api_achievements._level_catalog()['tracks']
         self.assertEqual(set(catalog), set(expected))
         for code, (unit, names, thresholds) in expected.items():
@@ -62,7 +66,7 @@ class AchievementTrackRules(unittest.TestCase):
     def test_api_catalog_tail_matches_worker_for_every_track_and_boundary(self):
         catalog = api_achievements._level_catalog()
         self.assertEqual(catalog['tail']['rule'], api_achievements._CATALOG_TAIL_RULE)
-        self.assertEqual(len(catalog['tracks']), 13)
+        self.assertEqual(len(catalog['tracks']), 21)
 
         for code, definition in catalog['tracks'].items():
             with self.subTest(code=code):
@@ -147,6 +151,22 @@ class AchievementTrackRules(unittest.TestCase):
         self.assertEqual(tracks.next_tier('sport:swim', 20_000).threshold, 33_796)
         self.assertEqual([t.threshold for t in tracks.tiers_for('sport:lift', 100)], [1, 5, 10, 25, 50, 100])
         self.assertEqual(tracks.next_tier('sport:lift', 100).threshold, 200)
+
+    def test_phase_one_sport_tracks_count_rows_and_max_single_workout(self):
+        self.assertEqual([tier.threshold for tier in tracks.tiers_for('sport:run:workouts', 128)], [1, 10, 50, 100])
+        self.assertEqual(tracks.next_tier('sport:run:workouts', 128).threshold, 250)
+        self.assertEqual([tier.label for tier in tracks.tiers_for('sport:run:longest', 42_195)],
+                         ['5K outing', '10K day', 'Half-marathon day', 'Marathon day'])
+        self.assertEqual(tracks.next_tier('sport:swim:longest', 3_862.68).threshold, 5_000)
+        self.assertEqual(tracks.display_value('sport:run:longest', 80_467.2, 'imperial'), (50.0, 'mi'))
+
+    def test_phase_one_count_exact_threshold_is_earned_and_advances(self):
+        reached = tracks.tiers_for('sport:run:workouts', 10)
+        self.assertEqual((reached[-1].rank, reached[-1].label, reached[-1].threshold),
+                         (2, 'Training block', 10.0))
+        next_level = tracks.next_tier('sport:run:workouts', 10)
+        self.assertEqual((next_level.rank, next_level.label, next_level.threshold),
+                         (3, 'Local circuit', 50.0))
 
     def test_legacy_starters_are_readable_without_canonical_credit(self):
         self.assertEqual(sum(map(len, tracks.LEGACY_STARTER_LEVELS.values()))

@@ -92,6 +92,53 @@ PERSONAL_BEST_LABELS = (
     'Record library', 'Record constellation', 'Legend',
 )
 
+# Phase 1 per-sport tracks (#921). Counts use completed activity rows; longest
+# tracks use the maximum distance of one completed activity, never a lifetime
+# sum. Distances remain canonical metres in worker state.
+SPORT_WORKOUT_LEVELS = {
+    'run': (("First stride", 1), ("Training block", 10), ("Local circuit", 50),
+            ("Race season", 100), ("Starting line regular", 250), ("Club veteran", 500),
+            ("Road legend", 1_000), ("Running institution", 2_000)),
+    'ride': (("First spin", 1), ("Weekend rider", 10), ("Club loop", 50),
+             ("Century season", 100), ("Gran fondo regular", 250), ("Club veteran", 500),
+             ("Road captain", 1_000), ("Cycling institution", 2_000)),
+    'walk-hike': (("First steps", 1), ("Trail regular", 10), ("Day hiker", 50),
+                  ("Woodland walker", 100), ("Summit seeker", 250), ("Long-distance walker", 500),
+                  ("Trail institution", 1_000), ("Appalachian veteran", 2_000)),
+    'swim': (("First length", 1), ("Lane regular", 10), ("Pool season", 50),
+             ("Open-water regular", 100), ("Long-course swimmer", 250), ("Channel hopeful", 500),
+             ("Marathon swimmer", 1_000), ("Blue-water legend", 2_000)),
+}
+SPORT_LONGEST_LEVELS = {
+    'run': (("5K outing", 5_000), ("10K day", 10_000), ("Half-marathon day", 21_097.5),
+            ("Marathon day", 42_195), ("50K ultra", 50_000), ("50-mile ultra", 80_467.2),
+            ("100K ultra", 100_000), ("100-mile ultra", 160_934.4)),
+    'ride': (("25K ride", 25_000), ("50K ride", 50_000), ("Metric century", 100_000),
+             ("Century ride", 160_934.4), ("200K ride", 200_000), ("Double century", 321_868.8),
+             ("300-mile ride", 482_803.2), ("1,000K ride", 1_000_000)),
+    'walk-hike': (("10K walk", 10_000), ("Half-marathon walk", 21_097.5), ("Marathon walk", 42_195),
+                  ("50K trail day", 50_000), ("50-mile hike", 80_467.2), ("100K trail day", 100_000),
+                  ("100-mile hike", 160_934.4), ("200-mile trek", 321_868.8)),
+    'swim': (("First mile", 1_609.344), ("Ironman swim", 3_862.68), ("5K swim", 5_000),
+             ("Marathon swim", 10_000), ("10-mile swim", 16_093.44), ("English Channel", 33_796.224),
+             ("25-mile swim", 40_233.6), ("50K swim", 50_000)),
+}
+SPORT_TRACK_LABELS = {
+    'run': 'Run', 'ride': 'Ride', 'walk-hike': 'Walk & hike', 'swim': 'Swim',
+}
+
+
+def sport_phase1_spec(code):
+    """Return (sport, family, levels) for a #921 phase-1 track code."""
+    if not isinstance(code, str) or not code.startswith('sport:'):
+        return None
+    parts = code.split(':')
+    if len(parts) != 3 or parts[1] not in SPORT_TRACK_LABELS or parts[2] not in ('workouts', 'longest'):
+        return None
+    family = parts[2]
+    levels = SPORT_WORKOUT_LEVELS[parts[1]] if family == 'workouts' else SPORT_LONGEST_LEVELS[parts[1]]
+    return parts[1], family, levels
+
 # Legacy first-activity milestones remain readable, but are not canonical track
 # levels. The canonical sport ladders begin at their first named distance.
 LEGACY_FIRST_ACTIVITY_LABELS = {
@@ -198,6 +245,13 @@ TRACK_LABELS = {
     'sport:lift': 'Lift',
 }
 
+for _sport, _label in SPORT_TRACK_LABELS.items():
+    TRACK_LABELS[f'sport:{_sport}:workouts'] = f'{_label} workouts'
+    TRACK_LABELS[f'sport:{_sport}:longest'] = {
+        'run': 'Longest run', 'ride': 'Longest ride',
+        'walk-hike': 'Longest walk or hike', 'swim': 'Longest swim',
+    }[_sport]
+
 TRACK_UNITS = {
     'consistency': 'weeks',
     'years_active': 'years',
@@ -213,6 +267,9 @@ TRACK_UNITS = {
     'sport:swim': 'm',
     'sport:lift': 'sessions',
 }
+for _sport in SPORT_TRACK_LABELS:
+    TRACK_UNITS[f'sport:{_sport}:workouts'] = 'workouts'
+    TRACK_UNITS[f'sport:{_sport}:longest'] = 'm'
 
 
 def _finite(value) -> float:
@@ -291,6 +348,10 @@ def tiers_for(code: str, value) -> list[Tier]:
         return _named_tiers(LIFT_EQUIVALENTS, value, 'kg', False)
     if code == 'personal_bests':
         return _named_tiers(_levels(PERSONAL_BEST_LEVELS, PERSONAL_BEST_LABELS), value, 'bests', False)
+    spec = sport_phase1_spec(code)
+    if spec:
+        _sport, _family, levels = spec
+        return _named_tiers(levels, value, 'workouts' if _family == 'workouts' else 'm', False)
     if code.startswith('sport:'):
         sport = code.split(':', 1)[1]
         if sport == 'lift':
@@ -320,6 +381,10 @@ def next_tier(code: str, value) -> Tier | None:
         return _next_named(LIFT_EQUIVALENTS, value, 'kg', False)
     if code == 'personal_bests':
         return _next_named(_levels(PERSONAL_BEST_LEVELS, PERSONAL_BEST_LABELS), value, 'bests', False)
+    spec = sport_phase1_spec(code)
+    if spec:
+        _sport, _family, levels = spec
+        return _next_named(levels, value, 'workouts' if _family == 'workouts' else 'm', False)
     if code.startswith('sport:'):
         sport = code.split(':', 1)[1]
         if sport == 'lift':
@@ -336,7 +401,7 @@ def track_label(code: str) -> str:
 def display_value(code: str, value, units: str = 'metric') -> tuple[float, str]:
     """Convert a canonical worker value for API presentation."""
     value = _finite(value)
-    if code in ('journey', 'sport:run', 'sport:ride', 'sport:walk-hike', 'sport:swim'):
+    if code in ('journey', 'sport:run', 'sport:ride', 'sport:walk-hike', 'sport:swim') or sport_phase1_spec(code) and sport_phase1_spec(code)[1] == 'longest':
         if units == 'imperial':
             return value / 1609.344, 'mi'
         return value / 1000, 'km'

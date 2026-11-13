@@ -203,8 +203,16 @@ class Milestones(unittest.TestCase):
  def test_run_api_and_owner_history_include_repeat_tail_levels(self):
   value_m=20_000_000
   self.activity(days=30,sport='run',distance=value_m)
-  self.process()
-  response=self.clients[0].get('/api/achievements')
+  # A large value can earn more than TRACK_BATCH_SIZE tiers.  Drain the
+  # worker's bounded batches before asserting the owner-facing payload is
+  # settled; this keeps the test aligned with the production worker contract.
+  for _ in range(20):
+   self.process()
+   response=self.clients[0].get('/api/achievements')
+   if not response.json().get('pending'):
+    break
+  else:
+   self.fail('achievement worker did not drain bounded track batches')
   self.assertEqual(response.status_code,200,response.text)
   payload=response.json();self.assertFalse(payload['pending'])
   run=next(track for track in payload['tracks'] if track['code']=='sport:run')
