@@ -231,7 +231,7 @@ def read_tcx(data):
                 lap = {'start_s': None, '_start': _time(el.get('StartTime'))}
                 for c in el:
                     cn = _local(c.tag)
-                    if cn == 'TotalTimeSeconds': lap['moving_s'] = lap['elapsed_s'] = _num(c.text)
+                    if cn == 'TotalTimeSeconds': lap['elapsed_s'] = _num(c.text)
                     elif cn == 'DistanceMeters': lap['distance_m'] = _num(c.text)
                     elif cn == 'AverageHeartRateBpm': lap['avg_hr'] = _num(next((x.text for x in c), None))
                     elif cn == 'MaximumHeartRateBpm': lap['max_hr'] = _num(next((x.text for x in c), None))
@@ -254,7 +254,12 @@ def read_tcx(data):
                 laps.append(lap)
         break
     kind = sport_of(sport)
-    out = _finish(start, rows, kind, None, device, {}, [])
+    # TCX exposes TotalTimeSeconds as the lap's start-to-finish duration. It
+    # has no separate moving-time field, so retain that distinction and let
+    # the recorded trackpoints provide moving time when available.
+    elapsed = sum(l['elapsed_s'] for l in laps if l.get('elapsed_s') is not None)
+    session = {'elapsed_s': elapsed, '_elapsed_authoritative': bool(laps and elapsed > 0)} if elapsed > 0 else {}
+    out = _finish(start, rows, kind, None, device, session, [])
     if kind == 'run' and out['streams']['cad'] and max(c or 0 for c in out['streams']['cad']) < 120:
         out['streams']['cad'] = [c * 2 if c is not None else None for c in out['streams']['cad']]
     for l in laps:
