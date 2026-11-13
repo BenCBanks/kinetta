@@ -639,7 +639,7 @@ header.top .signup { display:flex;align-items:center; }
 .home-hero-copy h1 { font-size:clamp(42px,6vw,78px); max-width:11ch; }
 .home-hero-copy .lede { max-width:35ch; }
 .home-jumps { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:30px; }
-.home-jumps a { min-height:40px; display:inline-flex; align-items:center; padding:7px 13px; border:1px solid var(--line); border-radius:999px; color:var(--ink2); background:color-mix(in srgb, var(--paper) 72%, transparent); text-decoration:none; font-size:15px; transition:color .2s ease,background .2s ease,border-color .2s ease; }
+.home-jumps a { min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; padding:7px 13px; border:1px solid var(--line); border-radius:999px; color:var(--ink2); background:color-mix(in srgb, var(--paper) 72%, transparent); text-decoration:none; font-size:15px; transition:color .2s ease,background .2s ease,border-color .2s ease; }
 .home-jumps a:hover, .home-jumps a:focus-visible { color:var(--brand); border-color:var(--brand); }
 .home-jumps a[aria-current="true"] { color:var(--paper); background:var(--brand-solid); border-color:var(--brand-solid); font-weight:600; }
 .hero-phones { position:relative; min-height:620px; display:grid; place-items:center; }
@@ -668,7 +668,7 @@ header.top .signup { display:flex;align-items:center; }
 .kit-demo { margin-top:24px; padding:16px; border:1px solid var(--line); border-radius:18px; background:var(--paper); max-width:360px; }
 .kit-line { color:var(--ink)!important; font-weight:600; }
 .kit-response { font-size:15px; }
-.text-button { border:0; background:none; padding:8px 0; color:var(--brand); font:600 15px var(--body); cursor:pointer; }
+.text-button { display:inline-flex; align-items:center; justify-content:flex-start; min-width:44px; min-height:44px; border:0; background:none; padding:8px 0; color:var(--brand); font:600 15px var(--body); cursor:pointer; }
 .achievement-mini { display:grid; gap:12px; margin-top:24px; max-width:360px; }
 .achievement-mini span { display:block; color:var(--ink2); font-size:14px; }
 .achievement-mini b { display:block; height:7px; margin-top:6px; border-radius:999px; background:var(--color-soft); overflow:hidden; }

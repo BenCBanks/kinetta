@@ -56,6 +56,9 @@
 #progress-demo .pchart-bars,#progress-demo .pchart-labels { display:grid; grid-template-columns:repeat(var(--bar-count),minmax(0,1fr)); gap:3px; }
 #progress-demo .pchart-bars { position:absolute; inset:0; align-items:stretch; }
 #progress-demo .pchart-bar { position:relative; display:block; width:100%; min-width:0; min-height:44px; height:100%; padding:0; border:0; border-radius:2px 2px 0 0; background:transparent; cursor:pointer; }
+/* The visual columns can be narrower than 44px in a 12-column year view. Keep each
+   control's invisible touch rect centered on its column without changing the chart width. */
+#progress-demo .pchart-bar::after { content:""; position:absolute; z-index:1; top:50%; left:50%; width:44px; height:44px; transform:translate(-50%,-50%); }
 #progress-demo .pchart-fill { position:absolute; right:20%; bottom:0; left:20%; min-height:0; border-radius:3px 3px 0 0; background:color-mix(in srgb,var(--chart-accent) 55%,var(--paper)); transition:height .58s cubic-bezier(.2,.8,.2,1),background-color .18s ease; }
 #progress-demo .pchart-bar.is-selected .pchart-fill { background:var(--chart-accent); }
 #progress-demo .pchart-bar:hover .pchart-fill { background:var(--chart-accent); }
