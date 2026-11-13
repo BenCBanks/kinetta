@@ -26,6 +26,7 @@ const CROPS = [
   ['friends-photos', '/activity', '.activity-card', '.activity-card', 'alex', 'photo'],
   ['friends-profile', '/people/alex', '.me-card', '.me-card', 'alex'],
   ['friends-find', '/me/friends?find=1&q=Morgan', '#fr-find', '#fr-found', 'alex', 'hide-friends-groups'],
+  ['run-achievements', '/me/achievements', '.profile-achievement-group[aria-labelledby=\"profile-achievement-group-run\"]', '.profile-achievement-group[aria-labelledby=\"profile-achievement-group-run\"]', 'alex', 'scroll-crop'],
 ];
 
 async function crop(page, first, last) {
@@ -119,7 +120,8 @@ async function stageChat(page) {
         await page.waitForSelector(last, {state: 'visible'});
         await page.evaluate(() => document.fonts.ready);
         await page.waitForTimeout(800);
-        await page.evaluate(() => window.scrollTo(0, 0));
+        if (action === 'scroll-crop') await page.locator(first).scrollIntoViewIfNeeded();
+        else await page.evaluate(() => window.scrollTo(0, 0));
         const clip = await crop(page, first, last);
         const png = await page.screenshot({clip});
         // WebP in the page's own encoder: no image library needed, same pixels as the PNG.
