@@ -621,6 +621,7 @@ header.top .signup { display:flex;align-items:center; }
 .guide-task-detail p { color: var(--ink2); }
 .tour-achievements { max-width: 393px; margin-top: 22px !important; }
 .tour-achievements img { width: 100%; height: auto; }
+.tour-achievements img.tour-frame { outline: 1px solid var(--line); outline-offset: -1px; border-radius: 16px; }
 .website-tour .feature-guide-public { border-top: 1px solid var(--line); }
 .website-tour #feature-catalog { grid-template-columns: 1fr; gap: 0; }
 .website-tour .public-guide-card { padding: 24px 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; }
