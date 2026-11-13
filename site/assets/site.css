@@ -753,9 +753,11 @@ header.top .signup { display:flex;align-items:center; }
 .feature-tabs button::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: var(--brand); content: ''; transform: scaleX(0); transition: transform .2s ease; }
 .feature-tabs button.is-selected { color: var(--brand); }
 .feature-tabs button.is-selected::after { transform: scaleX(1); }
-.feature-demo-note { margin-top: 18px; }
+.feature-demo-note { max-width: 34ch; margin-top: 18px; color: var(--ink2); }
 .feature-phone { width: min(320px, 78vw); }
-.feature-phone img { width: 100%; }
+.feature-phone { opacity: 0; transform: translateY(18px); transition: opacity .55s ease, transform .55s ease; }
+.feature-showcase.is-visible .feature-phone { opacity: 1; transform: none; }
+.feature-phone img { display: block; width: 100%; }
 .feature-stage-label { text-align: center; }
 @media (max-width: 900px) {
   .friends-hero { padding: 32px 0 72px; }
@@ -775,6 +777,7 @@ header.top .signup { display:flex;align-items:center; }
 @media (prefers-reduced-motion: reduce) {
   .friends-step { opacity: 1; transform: none; transition: none; }
   .feature-tabs button::after { transition: none; }
+  .feature-phone { opacity: 1; transform: none; transition: none; }
 }
 
 /* Sage review: Friends follows Home's right-pinned story and has a full-size audience demo. */
