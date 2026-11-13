@@ -709,3 +709,24 @@
   .me-profile-tools .icon-btn, .me-card-weekly .me-week, .me-featured-item, .me-card-preview-action, .me-card .me-friends-link, .me-settings .row-link { transition:none !important; }
   .me-profile-tools .icon-btn:active, .me-card-weekly .me-week:active, .me-featured-item:active, .me-card-preview-action:active, .me-card .me-friends-link:active, .me-settings .row-link:active { transform:none !important; }
 }
+
+/* #979 Sage follow-up: keep the light and dark Me surfaces equally legible. */
+.me-card-numbers > div,
+.me-card-weekly .me-card-bars { background:var(--card2); }
+.me-featured-achievements .profile-achievement-list { padding-top:16px; }
+.me-featured-achievements .profile-achievement-medallion { margin-top:14px; }
+
+/* Settings chips follow their group accent, like the native Settings categories. */
+.me-settings .settings-group { --settings-accent:var(--accent); }
+.me-settings .settings-group-account { --settings-accent:var(--color-brand); }
+.me-settings .settings-group-profile { --settings-accent:var(--color-success); }
+.me-settings .settings-group-connections { --settings-accent:var(--color-ride); }
+.me-settings .settings-group-units { --settings-accent:var(--color-ski); }
+.me-settings .settings-group-body { --settings-accent:var(--color-workout); }
+.me-settings .settings-group-kit { --settings-accent:var(--color-achievement); }
+.me-settings .settings-group-help { --settings-accent:var(--color-brand); }
+.me-settings .settings-group-data { --settings-accent:var(--color-swim); }
+.me-settings .settings-group-danger { --settings-accent:var(--color-error); }
+.me-settings .settings-group .ri { color:var(--settings-accent); background:color-mix(in srgb,var(--settings-accent) 15%,transparent); }
+.me-settings .settings-group-data .c-green { --settings-accent:var(--color-success); }
+.me-settings .settings-group-data .c-red { --settings-accent:var(--color-error); }
