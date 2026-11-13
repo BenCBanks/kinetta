@@ -85,6 +85,11 @@ try:
  assert not ot.call('activities',dates)['activities']
  assert tools.call('food_log',dates)['foods'][0]['protein_g'] is None
  assert not ot.call('food_log',dates)['foods']
+ goal_days=tools.call('nutrition_days_vs_goal',dates)['days'];assert len(goal_days)==1 and goal_days[0]['logged_kcal']==250 and goal_days[0]['goal_kcal']==2200
+ assert not ot.call('nutrition_days_vs_goal',dates)['days'][0]['items']
+ try:tools.call('nutrition_days_vs_goal',{'start':'2026-01-01','end':'2027-01-02'})
+ except ValueError:pass
+ else:raise AssertionError('Nutrition goal range must cap at 366 days')
  assert len(tools.call('goals',{})['activity_goals'])==1 and not ot.call('goals',{})['activity_goals']
  assert tools.call('gear',{})['gear'][0]['name']=='Fictional shoes'
  with db.connect() as c:

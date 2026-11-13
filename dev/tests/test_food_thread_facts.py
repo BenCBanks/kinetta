@@ -75,5 +75,19 @@ check(f.classify('calories last week',anchor)['day']==dt.date(2026,10,11),'last 
 check(f.answer(f.classify('how many calories at lunch today?',anchor),S)['facts']['logged'] is None,'empty requested meal is not whole-day totals')
 check(f.feedback(S,{'kcal':None},seed=1),'unknown added calories do not crash feedback')
 
+for text, start, end in (
+ ('How has my weight changed since October?', dt.date(2026,10,1), anchor),
+ ('How has my weight changed from October 1 to October 31?', dt.date(2026,10,1), dt.date(2026,10,31)),
+):
+ q=f.classify(text,anchor);check(q and q['kind']=='weight' and q['start']==start and q['end']==end,'weight range: '+text)
+weights=[{'day':dt.date(2026,10,1),'kg':70.0},{'day':dt.date(2026,10,31),'kg':69.0}]
+weight_q=f.classify('How has my weight changed since October?',anchor)
+weight_answer=f.answer(weight_q,{'day':{'entries':[]},'needs':{'today':anchor},'profile':{'units':'metric'},'weights':weights})
+check(weight_answer['text']=='Down 1.0 kg since Oct 1 (70.0 → 69.0 kg, 2 weigh-ins).' and weight_answer['open_weight']=='/progress/weight?from=nutrition','weight change uses concise dated endpoints and chart link')
+
+history_S=copy.deepcopy(S);history_S['day']['entries']=[{'id':1,'name':'Fictional oats','meal':'breakfast','kcal':400,'protein_g':25,'carbs_g':50,'fat_g':12,'fiber_g':None,'source':'custom'}]
+history_answer=f.answer(f.classify('what did I eat 2026-10-10?',anchor),history_S)
+check(history_answer['text']=='Sat, Oct 10: Fictional oats · about 400 kcal' and history_answer['open_day']=='2026-10-10','food recall uses concise current-year date and day link')
+
 for text in ['How many calories can I have left today?','How much protein could I have remaining today?']:
  assert f.classify(text,anchor)['kind']=='left'
