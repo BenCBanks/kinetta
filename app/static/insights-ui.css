@@ -58,5 +58,15 @@
 #nt-overview-chart .sw.k-s1 { background:var(--color-action); }
 .nutrition-detail .weekly-food-review h2 { font-size:1.25rem; }
 .nutrition-detail .nutrition-back { white-space:nowrap; text-decoration:none; font-weight:500; padding-right:0; }
+@media (max-width:420px) {
+ .nutrition-detail .top:has([data-kit-entry]) { display:grid; grid-template-columns:max-content minmax(0,1fr) max-content; gap:8px; }
+ .nutrition-detail .top:has([data-kit-entry]) .acts { margin-left:0; max-width:none; flex-wrap:nowrap; }
+ .nutrition-detail .top:has([data-kit-entry]) > h1 { white-space:normal; }
+}
+@media (max-width:360px) {
+ .nutrition-detail .top:has([data-kit-entry]) { grid-template-columns:max-content minmax(0,1fr); }
+ .nutrition-detail .top:has([data-kit-entry]) .acts { grid-column:2; justify-self:end; }
+ .nutrition-detail .top:has([data-kit-entry]) > h1 { grid-column:1 / -1; grid-row:2; text-align:center; }
+}
 
 .insights-copy .insight > span { font-size:inherit; }

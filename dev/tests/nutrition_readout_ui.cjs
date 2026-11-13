@@ -57,6 +57,13 @@ async function initial(p,id,pattern){
  assert.equal(await p.locator(id+' .hl[visibility="visible"],'+id+' .xh[visibility="visible"],'+id+' .xdot[visibility="visible"]').count(),0,id+' initialization has no active mark');
 }
 async function wrapped(p){assert(await p.locator('#nt-body .readout').evaluateAll(ns=>ns.every(n=>n.scrollWidth<=n.clientWidth+1&&[...n.children].every(c=>c.getBoundingClientRect().right<=n.getBoundingClientRect().right+1))),'readout facts wrap completely');}
+async function insightHeader(p){
+ const fit=await p.evaluate(()=>{const top=document.querySelector('.nutrition-detail .top'),title=top?.querySelector(':scope > h1'),controls=[...top.querySelectorAll('.acts > *')].map(n=>{const r=n.getBoundingClientRect();return {left:r.left,right:r.right,width:r.width,height:r.height};});return {width:innerWidth,documentWidth:document.documentElement.scrollWidth,title:title&&{width:title.clientWidth,scroll:title.scrollWidth,whiteSpace:getComputedStyle(title).whiteSpace},controls};});
+ assert.equal(fit.documentWidth,fit.width,`Insights header has no horizontal overflow at ${fit.width}px`);
+ assert(fit.title&&fit.title.scroll<=fit.title.width+1&&fit.title.whiteSpace==='normal',`Insights title fits without clipping at ${fit.width}px: ${JSON.stringify(fit.title)}`);
+ assert.equal(fit.controls.length,3,'help, notifications and Kit shortcuts remain available');
+ assert(fit.controls.every(r=>r.width>=44&&r.height>=44&&r.left>=0&&r.right<=fit.width+1),`all Insights header targets remain at least 44px and inside ${fit.width}px: ${JSON.stringify(fit.controls)}`);
+}
 (async()=>{
  const browser=await chromium.launch();
  try{
@@ -75,7 +82,7 @@ async function wrapped(p){assert(await p.locator('#nt-body .readout').evaluateAl
      if(u.pathname==='/api/challenges/signup/continue')return r.fulfill({json:{}});
      if(q.method()==='POST'&&u.pathname==='/api/milestones/celebrate')return r.fulfill({json:{items:[],pending:false}});
      if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);return r.abort();}return r.continue();});
-    const open=async view=>{await p.mouse.move(0,0);await p.goto(`${base}/food?view=${view}&r=${test.days||30}`,{waitUntil:'domcontentloaded'});await until(p,()=>typeof App!=='undefined'&&App.pageReady&&!!document.querySelector('#nt-body .card'),'Nutrition route');if(!test.empty)await p.locator(view==='macros'?'#nt-protein svg': '#nt-energychart svg').first().waitFor({state:'attached'});
+    const open=async view=>{await p.mouse.move(0,0);await p.goto(`${base}/food?view=${view}&r=${test.days||30}`,{waitUntil:'domcontentloaded'});await until(p,()=>typeof App!=='undefined'&&App.pageReady&&!!document.querySelector('#nt-body .card'),'Nutrition route');if(!test.empty)await p.locator(view==='macros'?'#nt-protein svg': '#nt-energychart svg').first().waitFor({state:'attached'});await p.locator('.nutrition-detail .top [data-kit-entry]').waitFor({state:'attached'});await insightHeader(p);
      if(delayedFont){
       for(let attempt=0;!fontRequest&&attempt<50;attempt++)await p.waitForTimeout(100);
       assert(fontRequest,'real font request held');assert.equal(await p.evaluate(()=>document.fonts.status),'loading');
@@ -118,6 +125,7 @@ async function wrapped(p){assert(await p.locator('#nt-body .readout').evaluateAl
      if(test.name==='known'){
       const controls=await p.evaluate(()=>{const box=document.createElement('div');document.querySelector('#nt-body').append(box);const cols=[{label:'Fixture',eaten:100,burned:200,goal:150}];energyChart(box,cols,{interactive:false,initialReadout:{initialIndex:0,hint:'Tap a bar'}});const staticHint=box.querySelector('.readout');energyChart(box,cols);const blank=box.querySelector('.readout').textContent;box.remove();return {staticHint:!!staticHint,blank};});
       assert.deepEqual(controls,{staticHint:false,blank:''},'static and legacy callers remain opt-out');
+      await p.setViewportSize({width:330,height:844});await open('macros');await open('energy');await p.setViewportSize({width:390,height:844});await open('energy');
      }
     }
     assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'390px page fits');assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
