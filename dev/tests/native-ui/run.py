@@ -216,5 +216,6 @@ for device in preferred:
   if udid:sim('shutdown',udid,check=False,timeout=20);sim('delete',udid,check=False,timeout=20)
 import shutil
 shutil.rmtree(a.output/'KinettaLayout.app',ignore_errors=True)
-assert len(results)==(7 if a.store else 50*len(preferred)),'Every selected phone needs all fifty layout cases'
+expected_count=len(dict.fromkeys([*STORE_STAGES,*(a.store_stage or [])])) if a.store else 50*len(preferred)
+assert len(results)==expected_count,'Every selected phone needs all selected layout cases'
 print(f'PASS {len(results)} actual native WebView layout captures with fictional API stand-ins; physical device checks remain separate')
