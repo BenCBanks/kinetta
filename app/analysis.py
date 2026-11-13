@@ -171,8 +171,16 @@ def heart_intervals(S):
 def summary(S, sport, session, profile):
     n, dt, mv = S['n'], S['dt'], S['moving']
     out = {}
-    out['elapsed_s'] = float(S['t'][-1] - S['t'][0]) if n > 1 else session.get('elapsed_s')
-    out['moving_s'] = float(dt[mv].sum()) if n > 1 else session.get('moving_s')
+    if session.get('_elapsed_authoritative'):
+        value = session.get('elapsed_s')
+        out['elapsed_s'] = float(value) if value is not None and math.isfinite(float(value)) and float(value) > 0 else None
+    else:
+        out['elapsed_s'] = float(S['t'][-1] - S['t'][0]) if n > 1 else session.get('elapsed_s')
+    if session.get('_moving_authoritative') and session.get('moving_s') is not None:
+        value = session.get('moving_s')
+        out['moving_s'] = float(value) if math.isfinite(float(value)) and float(value) >= 0 else None
+    else:
+        out['moving_s'] = float(dt[mv].sum()) if n > 1 else session.get('moving_s')
     health_duration = session.get('_health_duration_authoritative') and (session.get('moving_s') or 0) > 0
     if health_duration:
         # HealthKit's timer includes active time that a staircase GPS stream cannot
