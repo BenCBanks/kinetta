@@ -7,6 +7,13 @@ async function assertNoDetailTitleBand(locator){
  const result=await locator.evaluate(el=>{const host=getComputedStyle(el),pseudo=getComputedStyle(el,'::after');return{content:pseudo.content,pseudoImage:pseudo.backgroundImage,hostImage:host.backgroundImage,borderTop:host.borderTopWidth};});
  assert(result.content==='none'&&result.pseudoImage==='none'&&result.hostImage==='none'&&result.borderTop==='0px',`activity detail map has no title band or top edge: ${JSON.stringify(result)}`);
 }
+async function assertShareChoiceSelection(p,label){
+ const row=p.locator('.share-picture-row'),choices=p.locator('.share-picture-choice');
+ const settled=async expected=>{await p.waitForTimeout(260);const state=await row.evaluate((node,expected)=>{const bounds=node.getBoundingClientRect(),center=bounds.left+bounds.width/2;return[...node.querySelectorAll('.share-picture-choice')].map(choice=>{const r=choice.getBoundingClientRect(),frame=choice.querySelector('.share-picture-frame');return{index:Number(choice.dataset.shareChoice),aria:choice.getAttribute('aria-checked'),distance:Math.abs(r.left+r.width/2-center),outline:getComputedStyle(frame).outline,peeking:choice.dataset.peeking};}).sort((a,b)=>a.distance-b.distance).slice(0,1)[0];},expected);assert.equal(state.index,expected,`${label}: choice ${expected+1} is centered after scroll-snap`);assert.equal(state.aria,'true',`${label}: centered choice ${expected+1} is aria-checked`);assert.match(state.outline,/solid/ ,`${label}: centered choice ${expected+1} has the selection outline`);assert.equal(state.peeking,'false',`${label}: centered choice ${expected+1} is fully visible`);};
+ await choices.nth(0).locator('img').waitFor({state:'visible'});await settled(0);
+ for(const expected of [1,0]){await choices.nth(expected).evaluate(node=>node.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'}));await settled(expected);}
+ await p.keyboard.press('Escape');await p.locator('[data-unified-share]').waitFor({state:'detached'});
+}
 const missingElapsedCases={'missing-elapsed-null':null,'missing-elapsed-zero':0,'missing-elapsed-negative':-1};
 (async()=>{
  const output=cp.execFileSync('python3',[path.join(__dirname,'activity_detail_fixture.py')],{env:process.env,encoding:'utf8'});console.log(output.trim());const ids=JSON.parse(output.trim().split('\n').at(-1));
@@ -141,6 +148,7 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
     if(kind==='run')for(const selector of ['.detail-floating .back','.detail-floating [data-detail-share]','.detail-floating [data-detail-edit]'])assert(await p.locator(selector).isVisible(),`${selector} stays floating over the map`);
     if(kind==='run'){
      await until(p,()=>!!document.querySelector('#d-map .leaflet-tile-loaded'),'fictional basemap loaded');await p.evaluate(()=>document.fonts.ready);
+     if(size.width===390){await p.locator('[data-detail-share]').first().click();await p.locator('[data-unified-share]').waitFor();await assertShareChoiceSelection(p,`${name} share chooser`);}
      if(out){fs.mkdirSync(out,{recursive:true});await p.locator('.detail-map-hero').screenshot({path:path.join(out,`detail-header-${size.width}-${theme}.png`),animations:'disabled'});await p.screenshot({path:path.join(out,`detail-media-${size.width}-${theme}.png`),animations:'disabled'});}
      const controls=await p.locator('.detail-map-hero [data-media-step]').evaluateAll(ns=>ns.map(n=>{const r=n.getBoundingClientRect(),others=[...document.querySelectorAll('.detail-floating .back,.detail-floating button,.detail-map-hero .map-full,.detail-map-hero .leaflet-control-attribution,.detail-map-hero .map-unavailable:not([hidden])')].map(x=>x.getBoundingClientRect());return{rect:r.toJSON(),hit:n.disabled||n.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)),overlap:others.some(b=>b.width>0&&b.height>0&&Math.min(r.right,b.right)>Math.max(r.left,b.left)+.02&&Math.min(r.bottom,b.bottom)>Math.max(r.top,b.top)+.02)};}));
      assert(controls.every(x=>x.rect.width>=44&&x.rect.height>=44&&x.hit&&!x.overlap),'photo controls keep44px hit areas clear of toolbar, map controls and credits: '+JSON.stringify(controls));

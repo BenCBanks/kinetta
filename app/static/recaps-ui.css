@@ -38,7 +38,8 @@
 .share-picture-choice[data-busy=true] .share-picture-loading{display:flex;background:var(--card);}
 .share-picture-choice[aria-checked=true] .share-picture-frame{outline:2px solid var(--accent);outline-offset:-2px;}
 .share-picture-choice:focus-visible .share-picture-frame{outline:2px solid var(--accent);outline-offset:-2px;}
-.share-picture-label{min-height:24px;font-size:max(15px,.9375rem);font-weight:600;}
+.share-picture-label{min-height:24px;font-size:max(15px,.9375rem);font-weight:600;opacity:1;transition:opacity .15s ease;}
+.share-picture-choice[data-peeking=true] .share-picture-label{opacity:0;}
 .share-picture-controls{flex:none;min-height:0;}
 .share-picture-controls:empty{display:none;}
 .share-picture-controls .check{min-height:44px;}
@@ -49,5 +50,6 @@
 .share-picture-actions .linkbtn{margin:0;}
 .share-picture-actions .primary svg{width:20px;height:20px;margin-right:8px;vertical-align:-4px;}
 @media(max-height:700px){.share-picture-frame{width:min(100%,calc(clamp(190px,32dvh,260px) * var(--share-picture-ratio)));}.share-sheet{gap:6px;}}
+@media(prefers-reduced-motion:reduce){.share-picture-label{transition:none;}}
 
 .recap-sheet .recap-periods button,.recap-sheet .recap-options button{font-weight:500;background:transparent;box-shadow:none}
