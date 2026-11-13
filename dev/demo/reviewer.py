@@ -121,12 +121,12 @@ def seed(admin,server,reviewer,friend,password,*,api_factory=API):
     rows=[]
     for i in range(14):
         day=str(today-dt.timedelta(days=i))
-        for meal,name,kcal,protein,carbs,fat in [('breakfast','Fictional oats and yogurt',420,26,52,12),('lunch','Fictional rice bowl',600,40,75,16),('dinner','Fictional lentil pasta',650,36,90,16),('snacks','Fictional fruit and nuts',220,7,25,12)]:
+        for meal,name,kcal,protein,carbs,fat in [('breakfast','Oats and yogurt',420,26,52,12),('lunch','Rice bowl',600,40,75,16),('dinner','Lentil pasta',650,36,90,16),('snacks','Fruit and nuts',220,7,25,12)]:
             rows.append({'day':day,'meal':meal,'name':name,'kcal':kcal,'protein_g':protein,'carbs_g':carbs,'fat_g':fat})
     person.post('/api/food/entries',rows)
     person.put('/api/food/targets',{'kcal_target':2100,'protein_target':110,'carbs_target':None,'fat_target':None})
     for i in range(0,28,3):person.put('/api/food/weights',{'day':str(today-dt.timedelta(days=i)),'kg':70+i*.01})
-    recipe=person.post('/api/dishes',{'name':'Fictional lentil bowl'})
+    recipe=person.post('/api/dishes',{'name':'Lentil bowl'})
     person.patch('/api/dishes/'+str(recipe['id']),{'known_kcal':520,'known_protein_g':25,'known_carbs_g':70,'known_fat_g':15})
     person.post('/api/friends',{'login':friend});pal.post('/api/friends/'+reviewer+'/accept')
     activity=pal.post('/api/activities/manual',{'sport':'walk','start':str(today-dt.timedelta(days=1))+'T12:00:00+00:00','duration_s':1800,'distance_m':2200,'name':'Fictional friend walk'})
