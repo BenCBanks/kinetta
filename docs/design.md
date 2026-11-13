@@ -203,6 +203,8 @@ Every website change follows these rules. They override older website notes wher
 11. **Publish deliberately.** Preview representative screenshots before a substantial redesign; coordinate publication
     with the release lead so it does not collide with an app deploy.
 
+12. **Product screens are whole phones.** Use whole iPhone screens in a plain CSS phone frame; never show cropped UI fragments (owner, 13 November 2026, #955).
+
 Keep the existing route/point mark and all logo, icon, launch-artwork and social-preview assets unchanged in
 this colour/heading pass. Wordmark artwork keeps its original Source Serif 4 outlines. A future asset change needs
 separate scope; do not regenerate native icons or upload a new build as part of this PR.

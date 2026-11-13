@@ -24,6 +24,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="assets/theme.css?v=9">
 <link rel="stylesheet" href="assets/site.css?v=26">
+<link rel="stylesheet" href="assets/food-story.css?v=1">
 </head>
 <body class="website-tour">
 <a class="skip-link" href="#main">Skip to content</a>
@@ -54,12 +55,31 @@
       <p class="lede">{{copy:food-intro}}</p>
     </div>
   </section>
-  <section class="tour-features" aria-label="Food features">
-    <div class="wrap">
-      <article class="tour-row"><div><span class="eyebrow">Quick logging</span><h2>Quick logging</h2><p class="lede">{{copy:food-quick-description}}</p></div><figure><div class="tour-image"><picture><source srcset="assets/tour/food-quick-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/food-quick-light.webp" alt="A fictional reviewed food card with three foods, portions, calorie estimates and add controls." width="397" height="204"></picture></div></figure></article>
-      <article class="tour-row"><div><span class="eyebrow">Same as yesterday</span><h2>Same as yesterday</h2><p class="lede">{{copy:food-yesterday-description}}</p></div><figure><div class="tour-image"><picture><source srcset="assets/tour/food-yesterday-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/food-yesterday-light.webp" alt="A fictional empty Breakfast meal with the Same as yesterday shortcut." width="373" height="130" loading="lazy"></picture></div></figure></article>
-      <article class="tour-row"><div><span class="eyebrow">Calories and protein</span><h2>Calories and protein</h2><p class="lede">{{copy:food-calories-description}}</p></div><figure><div class="tour-image"><picture><source srcset="assets/tour/food-insights-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/food-insights-light.webp" alt="Fictional food insights with daily calories against a goal and average protein against its goal." width="373" height="525" loading="lazy"></picture></div></figure></article>
-      <article class="tour-row"><div><span class="eyebrow">Meals and recipes</span><h2>Meals and recipes</h2><p class="lede">{{copy:food-recipes-description}}</p></div><figure><div class="tour-image"><picture><source srcset="assets/tour/food-recipes-dark.webp" media="(prefers-color-scheme: dark)"><img class="tour-frame" src="assets/tour/food-recipes-light.webp" alt="Fictional saved recipes with ingredients, calories and one-tap add controls." width="373" height="341" loading="lazy"></picture></div></figure></article>
+  <section class="home-story food-story" data-food-story aria-label="Food features">
+    <div class="wrap home-story-grid">
+      <aside class="story-pin" aria-live="polite" aria-label="Kinetta Nutrition demo screen">
+        <div class="phone-frame phone-frame--story"><picture><source data-food-dark srcset="assets/shots/dark-describe.webp" media="(prefers-color-scheme: dark)"><img data-food-pinned-image src="assets/shots/light-describe.webp" alt="Kit reviews three foods in a Nutrition chat before they are added." width="786" height="1704"></picture></div>
+      </aside>
+      <div class="story-steps">
+        <article class="story-step is-visible" data-food-screen="describe" data-food-alt="Kit reviews three foods in a Nutrition chat before they are added.">
+          <div><span class="eyebrow">Kit chat</span><h3>Say what you ate.</h3><p>{{copy:food-quick-description}}</p>
+            <div class="story-demo" data-chat-demo><p data-chat-line>Greek yogurt with berries, oatmeal with banana, and a chicken salad bowl</p><p data-chat-reply>Review the foods and portions before saving.</p><button type="button" data-chat-replay>Replay message</button></div>
+          </div>
+          <div class="step-phone"><div class="phone-frame"><picture><source srcset="assets/shots/dark-describe.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-describe.webp" alt="Kit reviews three foods in a Nutrition chat before they are added." width="786" height="1704" loading="lazy"></picture></div></div>
+        </article>
+        <article class="story-step" data-food-screen="day" data-food-alt="Nutrition shows the day's meals, calories and macros.">
+          <div><span class="eyebrow">Daily log</span><h3>See the whole day.</h3><p>{{copy:food-calories-description}}</p></div>
+          <div class="step-phone"><div class="phone-frame"><picture><source srcset="assets/shots/dark-food.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-food.webp" alt="Nutrition shows the day's meals, calories and macros." width="786" height="1704" loading="lazy"></picture></div></div>
+        </article>
+        <article class="story-step" data-food-screen="insights" data-food-alt="Food insights show calorie and protein trends with a weight trend.">
+          <div><span class="eyebrow">Insights</span><h3>See how the weeks compare.</h3><p>Calories, protein and weight trends.</p></div>
+          <div class="step-phone"><div class="phone-frame"><picture><source srcset="assets/shots/dark-insights.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-insights.webp" alt="Food insights show calorie and protein trends with a weight trend." width="786" height="1704" loading="lazy"></picture></div></div>
+        </article>
+        <article class="story-step" data-food-screen="meals" data-food-alt="Recipes and foods lists saved meals ready to add.">
+          <div><span class="eyebrow">Recipes</span><h3>Save meals you use again.</h3><p>{{copy:food-recipes-description}}</p></div>
+          <div class="step-phone"><div class="phone-frame"><picture><source srcset="assets/shots/dark-meals.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-meals.webp" alt="Recipes and foods lists saved meals ready to add." width="786" height="1704" loading="lazy"></picture></div></div>
+        </article>
+      </div>
     </div>
   </section>
   <section class="band" aria-labelledby="food-also-title">
@@ -93,5 +113,6 @@
 </footer>
 <script src="assets/zoom.js?v=4" defer></script>
 <script src="assets/daily-preview.js?v=2" defer></script>
+<script src="assets/food-story.js?v=1" defer></script>
 </body>
 </html>

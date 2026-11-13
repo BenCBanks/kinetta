@@ -46,22 +46,76 @@
   </div>
 </header>
 
-<main id="main">
+<main id="main" class="friends-page">
   <section class="pagehead friends-pagehead">
     <div class="wrap">
       <span class="eyebrow">Friends</span>
       <h1>{{copy:your-friends-workouts-and-yours-1}}</h1>
-      <p class="lede">{{copy:find-friends-by-name-see-their-runs-send-them-cheers-2}}</p>
+      <p class="lede">{{copy:find-friends-by-name-see-their-runs-send-them-cheers-2}}</p><p class="friends-runs-note">{{copy:your-runs-and-theirs-newest-first-4}}</p>
     </div>
   </section>
-  <section class="tour-features friends-tour" aria-label="Friends features">
-    <div class="wrap">
-      <div class="head friends-tour-head"><h2>{{copy:see-who-s-out-there-today-3}}</h2><p>{{copy:your-runs-and-theirs-newest-first-4}}</p></div>
-      <article class="tour-row"><div><span class="eyebrow">The feed</span><h2>The feed</h2><p class="lede">{{copy:friends-feed-description}}</p></div><figure><div class="tour-image"><picture><source srcset="assets/tour/friends-feed-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/friends-feed-light.webp" alt="Fictional shared workout feed card with a route map, metrics, reactions and comments." width="373" height="499"></picture></div></figure></article>
-      <article class="tour-row"><div><span class="eyebrow">Map and photos</span><h2>Map and photos</h2><p class="lede">{{copy:friends-photos-description}}</p></div><figure><div class="tour-image"><picture><source srcset="assets/tour/friends-photos-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/friends-photos-light.webp" alt="Fictional shared run card with a park photo, route metrics and reactions." width="373" height="499" loading="lazy"></picture></div></figure></article>
-      <article class="tour-row"><div><span class="eyebrow">Build your profile</span><h2>Build your profile</h2><p class="lede">{{copy:friends-profiles-description}}</p></div><figure><div class="tour-image"><picture><source srcset="assets/tour/friends-profile-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/friends-profile-light.webp" alt="Fictional profile card with a bio, weekly chart, sport totals and featured achievements." width="385" height="666" loading="lazy"></picture></div></figure></article>
-      <article class="tour-row"><div><span class="eyebrow">Find your people</span><h2>Find your people</h2><p class="lede">{{copy:friends-find-description}}</p></div><figure><div class="tour-image"><picture><source srcset="assets/tour/friends-find-dark.webp" media="(prefers-color-scheme: dark)"><img src="assets/tour/friends-find-light.webp" alt="Fictional Find friends search with Morgan Example and an add-friend action." width="373" height="152" loading="lazy"></picture></div></figure></article>
-      <p class="site-credit">{{copy:photos-of-freedom-park-charlotte-james-willamor-and-ci-5}}</p>
+  <section class="friends-hero" aria-labelledby="friends-hero-title">
+    <div class="wrap friends-hero-grid">
+      <div class="friends-hero-copy">
+        <span class="eyebrow">A better kind of feed</span>
+        <h2 id="friends-hero-title">{{copy:see-who-s-out-there-today-3}}</h2>
+        <p class="lede">Share the run, keep the rest private. Every post has its own audience.</p>
+        <p class="friends-note">Fictional demo data · sample training history</p>
+      </div>
+      <div class="friends-hero-stage">
+        <div class="phone-frame friends-phone friends-phone--hero">
+          <div class="friends-screen friends-screen--feed">
+            <picture><source srcset="assets/shots/dark-feed.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-feed.webp" alt="Fictional Kinetta Home feed with Jordan Lee’s shared Morning Run, reactions and comments." width="786" height="1704"></picture>
+            <span class="friends-feed-place-cover" aria-hidden="true">Park run</span>
+            <div class="friends-feed-reactions" aria-label="Fictional shared workout reactions"><strong>Jordan Lee</strong><span>Morning Run · Friends</span><b>👏 3 · ❤️ 2 · 💬 1</b></div>
+          </div>
+        </div>
+        <p class="friends-demo-caption" data-privacy-caption>Audience: Friends</p>
+      </div>
+    </div>
+  </section>
+  <section class="friends-story" aria-labelledby="friends-story-title">
+    <div class="wrap friends-story-grid">
+      <div class="friends-story-pin" aria-live="polite">
+        <div class="phone-frame friends-phone friends-phone--story">
+          <div class="friends-screen friends-screen--friends friends-screen--clean">
+            <picture><source data-friends-dark srcset="assets/shots/dark-friends.webp" media="(prefers-color-scheme: dark)"><img data-friends-screen src="assets/shots/light-friends.webp" alt="Fictional Kinetta Friends screen." width="786" height="1704"></picture><span class="friends-clean-back" aria-hidden="true">‹ Me</span><span class="friends-feed-place-cover" aria-hidden="true">Park run</span><div class="friends-feed-reactions" aria-hidden="true"><strong>Jordan Lee</strong><span>Morning Run · Friends</span><b>👏 3 · ❤️ 2 · 💬 1</b></div><div class="friends-comments-sheet" aria-hidden="true"><strong>Reactions and comments</strong><span>👏 Jordan Lee · Nice route!</span><span>💬 Casey Example · That finish!</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="friends-story-steps">
+        <span class="eyebrow">Made for people, not metrics</span>
+        <h2 id="friends-story-title">Keep the good part of training social.</h2>
+        <article class="friends-step is-visible" data-friends-screen-key="friends"><span class="eyebrow">Find your people</span><h3>{{copy:friends-find-description}}</h3><p>{{copy:friends-feed-description}}</p><div class="step-phone"><div class="phone-frame friends-phone"><div class="friends-screen friends-screen--clean"><picture><source srcset="assets/shots/dark-friends.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-friends.webp" alt="Fictional Friends list with three approved friends." width="786" height="1704" loading="lazy"></picture><span class="friends-clean-back" aria-hidden="true">‹ Me</span></div></div></div></article>
+        <article class="friends-step" data-friends-screen-key="photos"><span class="eyebrow">Join the conversation</span><h3>React to a shared workout.</h3><p>{{copy:friends-photos-description}}</p><div class="step-phone"><div class="phone-frame friends-phone"><picture><source srcset="assets/shots/dark-photos.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-photos.webp" alt="Fictional shared workout with an attached photo, reactions and comments." width="786" height="1704" loading="lazy"></picture></div></div></article>
+        <!-- {{copy:friends-profiles-description}} --><article class="friends-step" data-friends-screen-key="social"><span class="eyebrow">Keep it social</span><h3>Keep the good part of training social.</h3><p>Reactions and comments make a shared workout feel like a conversation.</p><div class="step-phone"><div class="phone-frame friends-phone"><div class="friends-screen friends-screen--social"><picture><source srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-activity.webp" alt="Fictional activity detail with a reactions and comments sheet." width="786" height="1704" loading="lazy"></picture><div class="friends-comments-sheet"><strong>Reactions and comments</strong><span>👏 Jordan Lee · Nice route!</span><span>💬 Casey Example · That finish!</span></div></div></div></div></article>
+      </div>
+    </div>
+    <!-- {{copy:photos-of-freedom-park-charlotte-james-willamor-and-ci-5}} -->
+  </section>
+  <section class="friends-privacy-demo" aria-labelledby="friends-privacy-title">
+    <div class="wrap friends-privacy-grid">
+      <div class="friends-privacy-copy">
+        <span class="eyebrow">Privacy, per workout</span>
+        <h2 id="friends-privacy-title">Choose who sees the run.</h2>
+        <p class="lede">Set a default, then change any single workout before you share it.</p>
+        <div class="privacy-demo-choices" role="radiogroup" aria-label="Workout audience">
+          <button type="button" role="radio" aria-checked="false" data-privacy-choice="only">Only me <span class="privacy-check" aria-hidden="true"></span></button>
+          <button type="button" role="radio" aria-checked="true" data-privacy-choice="friends">Friends <span class="privacy-check" aria-hidden="true">✓</span></button>
+          <button type="button" role="radio" aria-checked="false" data-privacy-choice="everyone">Everyone <span class="privacy-check" aria-hidden="true"></span></button>
+        </div>
+        <p class="privacy-demo-status" data-privacy-status>Friends see this in their feed.</p>
+      </div>
+      <div class="friends-privacy-stage">
+        <div class="phone-frame friends-phone friends-phone--privacy">
+          <div class="privacy-demo-phone-screen" role="img" aria-label="Fictional Morning Run activity screen with a live workout audience label.">
+            <picture class="privacy-activity-capture"><source srcset="assets/shots/dark-activity.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-activity.webp" alt="" width="786" height="1704"></picture>
+            <div class="privacy-audience-overlay" aria-live="polite"><span>Workout audience</span><strong data-privacy-phone-label>Friends</strong></div>
+            <picture class="privacy-screen-nav-capture" aria-hidden="true"><source srcset="assets/shots/dark-friends.webp" media="(prefers-color-scheme: dark)"><img src="assets/shots/light-friends.webp" alt="" width="786" height="1704"></picture>
+          </div>
+        </div>
+        <p class="friends-demo-caption" data-privacy-caption>Audience: Friends</p>
+      </div>
     </div>
   </section>
   <section class="band friends-summary" aria-label="Profiles and sharing">
@@ -71,14 +125,8 @@
       <article><h2>{{copy:motivation-heading}}</h2><p>{{copy:motivation-copy}}</p></article>
     </div>
   </section>
-  <section class="band next" aria-label="Next">
-    <div class="wrap">
-      <a class="on" href="compare"><small>Next: Compare</small><span>Training and food together ›</span></a>
-      <a class="btn solid" href="https://login.kinetta.app/signup">Join the iPhone beta</a>
-    </div>
-  </section>
+  <section class="band next" aria-label="Next"><div class="wrap"><a class="on" href="compare"><small>Next: Compare</small><span>Training and food together ›</span></a><a class="btn solid" href="https://login.kinetta.app/signup">Join the iPhone beta</a></div></section>
 </main>
-
 <footer>
   <div class="wrap">
     <picture><source srcset="assets/logo-dark.svg?v=4" media="(prefers-color-scheme: dark)"><img src="assets/logo.svg?v=4" alt="Kinetta" width="124" height="20"></picture>
@@ -89,6 +137,7 @@
     </div>
   </div>
 </footer>
+<script src="assets/friends-features.js?v=1" defer></script>
 <script src="assets/zoom.js?v=4" defer></script>
 <script src="assets/daily-preview.js?v=2" defer></script>
 </body>

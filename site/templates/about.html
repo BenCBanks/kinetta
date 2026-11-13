@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="assets/theme.css?v=9">
 <link rel="stylesheet" href="assets/site.css?v=26">
+<link rel="stylesheet" href="assets/about.css?v=1">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -23,21 +24,24 @@
   </div>
 </header>
 <main id="main">
-  <section class="pagehead"><div class="wrap"><h1>{{copy:title}}</h1></div></section>
+  <section class="pagehead about-head">
+    <div class="wrap">
+      <span class="eyebrow">About</span>
+      <h1>{{copy:title}}</h1>
+      <p class="lede">{{copy:about-story}}</p>
+    </div>
+  </section>
   <section class="about" aria-label="About Ben and Rachel">
     <div class="wrap about-layout">
-      <div class="about-bio">
-        <div class="about-copy">
-          <p>{{copy:about-story}}</p>
-          <p>{{copy:about-feedback}}</p>
+      <div class="about-copy"><p>{{copy:about-feedback}}</p></div>
+      <figure class="about-phone">
+        <div class="frame">
+          <picture>
+            <source srcset="assets/shots/dark-today-1x.webp 1x, assets/shots/dark-today.webp 2x" media="(prefers-color-scheme: dark)">
+            <img src="assets/shots/light-today-1x.webp" srcset="assets/shots/light-today-1x.webp 1x, assets/shots/light-today.webp 2x" alt="Fictional Kinetta Today screen with training and nutrition." width="786" height="1704">
+          </picture>
         </div>
-      </div>
-{{#copy:about-couple-photo}}
-      <figure class="about-couple">
-        <picture><source srcset="assets/about/ben-and-rachel.webp" type="image/webp"><img src="assets/about/ben-and-rachel.jpg" alt="Ben and Rachel by the river" loading="lazy" width="480" height="360"></picture>
-        <figcaption>{{copy:about-couple-photo}}</figcaption>
       </figure>
-{{/copy:about-couple-photo}}
     </div>
   </section>
 </main>

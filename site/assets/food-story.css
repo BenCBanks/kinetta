@@ -1,0 +1,38 @@
+.food-story { overflow:clip; }
+.food-story .home-story-grid { grid-template-columns:minmax(0,1fr) minmax(250px,.7fr); }
+.food-story .story-pin { position:sticky; top:110px; display:grid; justify-items:center; align-content:start; }
+.food-story .phone-frame { width:min(290px,100%); }
+.food-story .story-step { max-width:470px; }
+.food-story .story-step p { max-width:40ch; }
+.food-story .story-step:last-child { min-height:78vh; padding-bottom:80px; }
+.food-story .step-phone { display:none; }
+.food-story .story-step.is-visible { opacity:1; }
+.story-demo { margin-top:20px; max-width:390px; }
+.story-demo p { margin:0; }
+.story-demo [data-chat-line] { font-weight:600; color:var(--ink); }
+.story-demo [data-chat-reply] { color:var(--ink2); font-size:15px; }
+.story-demo button { min-height:44px; display:inline-flex; align-items:center; padding:8px 0; border:0; background:transparent; color:var(--brand); font:600 15px var(--body); cursor:pointer; }
+.story-demo button:focus-visible { outline:3px solid var(--brand); outline-offset:3px; }
+@media (prefers-color-scheme:dark) {
+  .food-story .phone-frame { border-color:#353b42; box-shadow:0 24px 60px rgba(0,0,0,.52),0 2px 12px rgba(255,255,255,.035); }
+}
+@supports (animation-timeline:view()) {
+  .food-story .story-step { animation:food-step-in linear both; animation-timeline:view(); animation-range:entry 8% cover 34%; }
+  @keyframes food-step-in { from { opacity:.25; transform:translateY(24px); } to { opacity:1; transform:none; } }
+}
+@media (max-width:900px) {
+  .food-story { padding:70px 20px 40px; }
+  .food-story .home-story-grid { display:block; margin-inline:0; padding-inline:0; overflow:visible; }
+  .food-story .story-pin { display:none; }
+  .food-story .story-step { min-height:auto; display:grid; grid-template-columns:1fr; gap:24px; padding:64px 0; opacity:1; transform:none; }
+  .food-story .story-step:last-child { padding-bottom:0; }
+  .food-story .story-step:last-child { min-height:auto; }
+  .food-story .story-step h3 { max-width:16ch; }
+  .food-story .step-phone { display:block; width:min(270px,70vw); justify-self:center; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .food-story .story-step { opacity:1; transform:none; animation:none; }
+  .food-story .story-pin { display:none; }
+  .food-story .step-phone { display:block; width:min(270px,70vw); margin:24px auto 0; }
+  .food-story .story-step:last-child { min-height:auto; padding-bottom:0; }
+}

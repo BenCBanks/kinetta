@@ -33,17 +33,39 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
     // Every tour picture is a complete, themed crop shown at no more than its natural width.
     const pics=await p.locator('main img[src*="assets/tour/"]').evaluateAll(xs=>xs.map(i=>({src:i.currentSrc,w:i.getBoundingClientRect().width,natural:i.naturalWidth/2,alt:i.alt})));
     assert(pics.every(i=>i.alt.length>20&&i.w<=i.natural*2/1.7+1&&i.src.includes(theme==='dark'?'-dark.':'-light.')),name+' tour picture theme, alt or upscaling');
-    if(name==='index'||name==='compare'){
-     // The workout map comes first, the recorded numbers underneath.
-     const workout=await p.locator('.tour-workout img').evaluateAll(xs=>xs.map(i=>({src:i.currentSrc,top:i.getBoundingClientRect().top})));
-     assert.equal(workout.length,2);assert.match(workout[0].src,/activity-map-/);assert.match(workout[1].src,/activity-result-/);assert(workout[0].top<workout[1].top);
-     // Audience controls, never a shared ride, prove the sharing claim.
-     assert.equal(await p.locator('img[src*="friends-route"]').count(),0);assert.equal(await p.locator('img[src*="sharing-default-"]').count(),1);
-     const words=await p.locator('main').innerText().then(t=>t.trim().split(/\s+/).length);assert(words<=(name==='index'?110:260),name+' copy grew to '+words+' words');
+    if(name==='index'){
+     // Home is the pinned-phone story: keep its jump sections and reserved Progress mount present.
+     assert.equal(await p.locator('.home-story').count(),1);assert.equal(await p.locator('.story-step').count(),5);
+     assert.equal(await p.locator('[data-progress-demo-mount]').count(),1);
+     assert.equal(await p.locator('.story-pin-label').count(),0);
+    }
+    if(name==='food'){
+     assert.equal(await p.locator('.food-story .story-steps > h2').count(),0,'Food has one page heading, not a second stacked story heading');
+     assert.equal(await p.locator('[data-food-screen="day"]').count(),1,'The whole-day step uses the Nutrition day screen');
+     if(width>900){
+      await p.emulateMedia({reducedMotion:'no-preference'});
+      const pin=p.locator('[data-food-pinned-image]');
+      for(const [step,shot] of [['day','food'],['meals','meals']]){
+       await p.locator(`[data-food-screen="${step}"]`).evaluate(el=>el.scrollIntoView({block:'center',behavior:'instant'}));
+       await p.waitForFunction(expected=>document.querySelector('[data-food-pinned-image]')?.getAttribute('src')?.includes(expected+'.webp'),shot);
+       const frame=await p.locator('.food-story .story-pin .phone-frame').boundingBox();
+       assert(frame&&frame.y>=0&&frame.y+frame.height<=900,`Food ${step} phone stays fully visible in the desktop viewport`);
+      }
+      assert((await pin.getAttribute('src')).includes('meals.webp'),'Recipes step shows the saved-recipes screen');
+     }
     }
     if(name==='compare'){
-     assert.deepEqual(await p.locator('.tour-scope').allInnerTexts(),['New workouts · Settings','One workout · Edit']);
-     assert.equal(await p.locator('img[src*="sharing-workout-"]').count(),1);assert.equal(await p.locator('.feature-reference tbody tr').count(),8);
+     // Features is a single framed phone with five selectable areas.
+     assert.deepEqual(await p.locator('[data-feature-tab]').allInnerTexts(),['Training','Food','Friends','Progress','Kit']);
+     assert.equal(await p.locator('[data-feature-tab][aria-selected="true"]').innerText(),'Training');
+     assert.match(await p.locator('[data-feature-screen]').getAttribute('src'),/activity\.webp/);
+     await p.locator('[data-feature-tab="food"]').click();
+     assert.match(await p.locator('[data-feature-screen]').getAttribute('src'),/food\.webp/);
+     assert.match(await p.locator('[data-feature-screen]').getAttribute('alt'),/Food screen/);
+     const words=await p.locator('main').innerText().then(t=>t.trim().split(/\s+/).length);assert(words<=260,name+' copy grew to '+words+' words');
+    }
+    if(name==='compare'){
+     assert.equal(await p.locator('.feature-reference tbody tr').count(),8);
      if(width===390&&theme==='light'&&dpr===1){const old=await c.newPage();await old.goto(base+'/guide');await old.waitForURL(url=>new URL(url).pathname==='/compare');assert.equal(await old.locator('h1').first().innerText(),'What Kinetta does.');await old.close();}
     }
     assert.deepEqual(errors,[]);checks++;await p.close();
