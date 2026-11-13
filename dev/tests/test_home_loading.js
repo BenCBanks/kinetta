@@ -11,7 +11,6 @@ async function run(){
  const fixtureNow=new Date('2026-11-09T17:00:00.000Z');
  const fixtureZone=Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';
  const fixtureDay=fixtureNow.toLocaleDateString('en-CA',{timeZone:fixtureZone});
- const todayActivityPath='/api/activities?limit=100&after='+encodeURIComponent(new Date(fixtureDay+'T00:00:00').toISOString());
  class FixtureDate extends Date{constructor(...args){super(...(args.length?args:[fixtureNow]));}static now(){return fixtureNow.getTime();}}
  const selectors=['#t-today','#t-required','#t-start','#t-setup','#t-recap','#t-checkin','#t-combined-week','#t-goals','#t-form','#t-insights'];
  const nodes=new Map(selectors.map(selector=>[selector,{innerHTML:'',hidden:false,dataset:{},isConnected:true}]));
@@ -36,7 +35,7 @@ async function run(){
  assert.match(today.innerHTML,/aria-busy="true"/,'Today exposes its loading state immediately');
  assert.equal((today.innerHTML.match(/me-today-skeleton/g)||[]).length,2,'Today reserves one skeleton per possible row');
  assert.equal(today.dataset.loading,'true','the loading token remains active while sources are pending');
- assert.deepEqual([...pending.keys()],['/api/activities?limit=1','/api/plans/current','/api/food/history?days=30',`/api/food/day?d=${fixtureDay}`,todayActivityPath]);
+ assert.deepEqual([...pending.keys()],['/api/activities?limit=1','/api/plans/current','/api/food/history?days=30',`/api/food/day?d=${fixtureDay}`]);
 
  const zone=fixtureZone;
  const day=fixtureDay;
@@ -44,7 +43,6 @@ async function run(){
  pending.get('/api/plans/current').resolve({today:day,plan:{id:9101,unit:'mi'},today_workout:{type:'run',title:'Easy run',minutes:30,day}});
  pending.get('/api/food/history?days=30').resolve([]);
  pending.get(`/api/food/day?d=${day}`).resolve({day,entries:[],totals:{},unknown_nutrients:{},targets:{},has_history:false,food_user:false});
- pending.get(todayActivityPath).resolve([]);
  await done;
  assert.equal(today.dataset.loadedDay,day,'Today records the completed local date');
  assert.equal(today.dataset.loading,undefined,'the loading state ends after source reads settle');
