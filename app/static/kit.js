@@ -1,6 +1,6 @@
 // One private conversation across the app. Numbers and proposed writes remain server-validated.
 'use strict';
-Object.assign(IC, {
+if (typeof IC !== 'undefined') Object.assign(IC, {
   send: '<path d="M12 19V5M6 11l6-6 6 6"/>',
   chat: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-5 4v-4.5A2.5 2.5 0 0 1 4 12z"/><path d="M8 9h.01M12 9h.01M16 9h.01"/>',
 });

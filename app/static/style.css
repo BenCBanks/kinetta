@@ -2344,7 +2344,7 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .recipes-library .library-heading > #tm-new { min-height:44px; padding:0 4px; border:0; background:transparent; box-shadow:none; color:var(--accent); font-size:15px; font-weight:600; }
 .recipes-library #meal-library .library-section { margin:16px 0 0; }
 .recipes-library #meal-library .library-section > h2 { margin:0; padding:8px 0; color:var(--tx2); font-size:13px; font-weight:500; line-height:1.35; }
-.recipes-library #meal-library .library-row, .recipes-library #meal-library .library-section > .fe, .recipes-library #meal-library .meal-library-row { min-height:56px; margin:0; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; box-shadow:none; }
+.recipes-library #meal-library .library-row, .recipes-library #meal-library .library-section > .fe, .recipes-library #meal-library .meal-library-row { min-height:56px; margin:0 0 8px; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; box-shadow:none; }
 .recipes-library #meal-library .library-recipe, .recipes-library #meal-library .library-section > .fe { min-height:56px; padding:6px 0; border:0; border-radius:0; background:transparent; text-align:left; }
 .recipes-library #meal-library .library-recipe b, .recipes-library #meal-library .library-section > .fe b { font-size:15px; font-weight:600; }
 .recipes-library #meal-library .library-recipe small, .recipes-library #meal-library .library-section > .fe small { font-size:13px; color:var(--tx2); }

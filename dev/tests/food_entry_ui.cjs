@@ -169,7 +169,7 @@ async function assertLoggedLineFits(locator){
     await until(p,()=>document.querySelector('#sc-msg')?.textContent==="We couldn't reach the food database. Try again.",'lookup error shown');assert.equal(await p.locator('#sc-msg').innerText(),"We couldn't reach the food database. Try again.");assert.equal(await p.locator('#sc-lookup').innerText(),'Try again');assert.equal(await p.locator('#sc-enter-nutrition').isVisible(),false,'network failure offers only the retry it describes');
     await p.keyboard.press('Escape');await p.locator('.scrim').waitFor({state:'detached'});
    }
-   else if(who==='empty'){assert.equal(await p.locator('[data-thread-quick]:visible').count(),4);assert.equal(await p.locator('#thread-empty p').count(),0,'empty food chat has no explainer row');}
+   else if(who==='empty'){assert.equal(await p.locator('[data-thread-quick]:visible').count(),3);assert.equal(await p.locator('#thread-empty p').count(),0,'empty food chat has no explainer row');}
    else{assert.equal(await p.locator('[data-thread-quick]:visible').count(),0,'shortcuts collapse after a message');if(who==='clarify'){assert.equal(await p.locator('[data-reply]').count(),2);assert(await p.locator('#thread-review').isHidden());}
     else{const count=who==='one'?1:who==='photo'?4:3;assert.equal(await rows.count(),count);assert.equal(await p.locator('.thread-total').count(),0,'only the sticky review total');assert(await p.locator('#thread-review').isVisible());
      const add=p.locator('#thread-review-add'),summary=p.locator('#thread-review-sum'),total=await p.locator('.thread-review-kcal').boundingBox(),addBox=await add.boundingBox(),summaryBox=await summary.boundingBox();

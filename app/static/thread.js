@@ -1,7 +1,7 @@
 // Permanent food conversation. Numbers and writes stay in authenticated server code;
 // the outbox keeps user intent durable before clearing the composer.
 'use strict';
-Object.assign(IC, {send:'<path d="M12 19V5M6 11l6-6 6 6"/>'});
+if (typeof IC !== 'undefined') Object.assign(IC, {send:'<path d="M12 19V5M6 11l6-6 6 6"/>'});
 // Keep a texting conversation at the latest message through keyboard/composer
 // resizes, unless the person deliberately scrolls back to read older messages.
 function foodChatViewport({list,composer,field,send,active,resizeField=()=>{}}) {
