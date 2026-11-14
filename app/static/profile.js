@@ -1114,7 +1114,7 @@ const MeCard=(()=>{
     const fitProfileName=()=>{
       const heading=$('.me-card-name h2',card);if(!heading)return;
       const full=heading.dataset.fullName||heading.textContent.trim();heading.dataset.fullName=full;heading.title=full;heading.setAttribute('aria-label',full);heading.textContent=full;
-      for(let size=17;size>=15;size-=.5){heading.style.fontSize=`${size}px`;if(heading.scrollWidth<=heading.clientWidth)break;}
+      heading.style.fontSize='17px';
       if(heading.scrollWidth>heading.clientWidth){const words=full.split(/\s+/);while(words.length>1&&heading.scrollWidth>heading.clientWidth){words.pop();heading.textContent=words.join(' ');}
         if(heading.scrollWidth>heading.clientWidth){let chars=Array.from(words[0]||full);while(chars.length>1&&heading.scrollWidth>heading.clientWidth){chars.pop();heading.textContent=chars.join(' ');}}
       }
