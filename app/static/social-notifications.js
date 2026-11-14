@@ -100,8 +100,10 @@ async function pushCard(box, r, message='') {
     if(meal&&placeholder)placeholder.replaceWith(meal);
     mealReminderCard(meal||placeholder);
   };
+  const hints={friends:'Requests and friendship updates.',cheers:'Reactions to your activities.',comments:'Replies to your activities.',dishes:'Meals shared with you.',activities:'When a watch or Health workout is ready.',milestones:'A new milestone, at most once a day.',challenge_joins:'When someone joins a challenge you host.',challenge_reminders:'A reminder while your challenge is active.',challenge_finished:'When a challenge finish picture is ready.'};
+  const alertTypes=(disabled=false)=>`<section class="card"><h2>Alert types</h2>${disabled?'<p class="small muted">Choose these in the Kinetta iPhone app.</p>':''}<div class="notification-choices" id="np-kinds">${Object.entries(PUSH_NAMES).map(([k,n])=>`<label class="switch-row"><span>${esc(k==='milestones'?'Milestones':n)}<small>${esc(hints[k])}</small></span><input type="checkbox" role="switch" name="${k}"${r.push?.[k]?' checked':''}${disabled?' disabled':''}></label>`).join('')}</div></section>`;
   if (!Native.on) {
-    render('<p class="small muted">Turn on phone alerts in the Kinetta iPhone app.</p>');return;
+    render('<p class="small muted">Phone alerts are managed in the Kinetta iPhone app.</p>',alertTypes(true));return;
   }
   if (!Native.pushSupported) {
     render('<p class="small muted">Update Kinetta in TestFlight to enable phone alerts.</p>');return;
@@ -116,8 +118,7 @@ async function pushCard(box, r, message='') {
     return;
   }
   if(!valid())return;
-  const hints={friends:'Requests and friendship updates.',cheers:'Reactions to your activities.',comments:'Replies to your activities.',dishes:'Meals shared with you.',activities:'When a watch or Health workout is ready.',milestones:'A new milestone, at most once a day.',challenge_joins:'When someone joins a challenge you host.',challenge_reminders:'A reminder while your challenge is active.',challenge_finished:'When a challenge finish picture is ready.'};
-  const kinds=status.enabled?`<section class="card"><h2>Alert types</h2><div class="notification-choices" id="np-kinds">${Object.entries(PUSH_NAMES).map(([k,n])=>`<label class="switch-row"><span>${esc(k==='milestones'?'Milestones':n)}<small>${esc(hints[k])}</small></span><input type="checkbox" role="switch" name="${k}"${r.push[k]?' checked':''}></label>`).join('')}</div></section>`:'';
+  const kinds=status.enabled?alertTypes():'';
   render(`${!r.push_ready?'<p class="small muted">Server notification setup is not complete; the bell still works.</p>':''}
     ${status.enabled?'<p class="small muted">Alerts are on for this iPhone.</p><div class="notification-phone-action"><button class="ghost sm" id="np-off">Turn off on this iPhone</button></div>'
       :status.denied?'<p class="small muted">Allow Kinetta notifications in iPhone Settings.</p><div class="notification-phone-action"><button type="button" class="primary sm" id="np-settings">Open iPhone Settings</button></div>'

@@ -96,6 +96,9 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     if(size.root===16){const lunch=await p.locator('.meal-lunch').boundingBox(),nav=await p.locator('nav.tabs').boundingBox();if(who==='typical')assert(lunch.y+lunch.height<nav.y-8,'Breakfast and Lunch clear the tab bar');}
     assert.notEqual(await p.locator('.meal-calories').first().evaluate(n=>getComputedStyle(n.querySelector('small')).display),'none','meal calorie pill keeps its unit visible');
    }
+   if(who==='empty'){
+    await p.evaluate(()=>go('/food/meals'));await ready();const emptyFood=p.locator('#tm-food-empty');await emptyFood.waitFor();assert.equal(await emptyFood.innerText(),'Create a food','empty saved-food state has a direct labeled action');assert((await emptyFood.boundingBox()).height>=44,'the action has a full-size tap target');assert.match(await p.locator('#library-foods').innerText(),/No saved foods yet/);if(out&&size.root===16){await p.evaluate(()=>scrollTo(0,0));await p.screenshot({path:`${out}/saved-foods-empty-390-${theme}.png`,fullPage:true,animations:'disabled'});}await emptyFood.click();await p.getByRole('dialog',{name:'New food'}).waitFor();await p.locator('#fe input[name="name"]').waitFor();await p.locator('.sheet [data-close]').click();await p.evaluate(()=>go('/food'));await home();
+   }
    if(who==='empty'&&size.width===390&&theme==='light'){
     await c.route('**/api/food/check-in',r=>r.fulfill({status:503,json:{detail:'Fictional unavailable check-in'}}));
     await c.route('**/api/food/weekly-review',r=>r.fulfill({status:503,json:{detail:'Fictional unavailable weekly review'}}));
