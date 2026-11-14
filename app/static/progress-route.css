@@ -90,6 +90,9 @@
 /* The two Progress focuses (#122 C); the Food & weight half shows only for food users (#164). */
 .progress-heading { gap: 8px; flex-wrap: wrap; }
 .progress-heading > .acts { margin-left: auto; align-items: center; }
+.progress-grid.explore-list .progress-tile { transition: transform var(--motion-press) ease-out, background-color var(--motion-settle) var(--motion-ease); }
+.progress-grid.explore-list .progress-tile:active { transform: scale(.985); background: color-mix(in srgb, var(--surface-raised) 62%, transparent); }
+@media (prefers-reduced-motion: reduce) { .progress-grid.explore-list .progress-tile:active { transform: none; } }
 .progress-focus { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; margin: 0 0 12px; }
 .progress-focus a { display: flex; align-items: center; justify-content: center; min-height: 40px; padding: 5px 12px; border-radius: 12px; font-weight: 600; color: var(--tx3); text-decoration: none; }
 .progress-focus a[aria-current] { background: var(--segon); color: var(--accent); font-weight: 700; }
