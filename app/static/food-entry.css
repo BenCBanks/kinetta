@@ -131,6 +131,9 @@
 .food-thread:not(.kit-chat) .thread-context:focus-visible { outline:2px solid var(--link);outline-offset:1px; }
 .food-thread:not(.kit-chat) .thread-heading { grid-template-columns:44px minmax(0,1fr) 44px; }
 .food-thread:not(.kit-chat) .thread-heading-dated-context { grid-template-columns:44px minmax(0,1fr) 44px; }
+.food-thread:not(.kit-chat) .thread-heading:not(.thread-heading-dated-context) { grid-template-columns:max-content minmax(0,1fr) 44px; }
+.food-thread:not(.kit-chat) .thread-heading > .back { width:max-content;min-width:44px;min-height:44px;padding:0; }
+.food-thread .thread-heading .back svg { flex:none;width:20px;height:20px; }
 .food-thread:not(.kit-chat) .thread-heading-dated-context > .back { width:44px;min-width:44px;min-height:44px; }
 .food-thread:not(.kit-chat) .thread-heading-dated-context .thread-back-label { position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0; }
 .food-thread:not(.kit-chat) .thread-heading > #thread-context { grid-column:2; }
