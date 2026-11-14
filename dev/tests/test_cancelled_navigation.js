@@ -3,7 +3,7 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const source=fs.readFileSync(process.env.ROUTER_SOURCE||'app/static/app.js','utf8'),marker="const a = e.target.closest('a[href^=\"/\"]');";
 const at=source.indexOf(marker),start=source.lastIndexOf("document.addEventListener('click'",at),end=source.indexOf("\ndocument.addEventListener('pointerdown'",at);
 assert(start>=0&&end>start);let handler;const navigated=[],scrolled=[];
-const context={document:{addEventListener:(event,fn)=>{assert.equal(event,'click');handler=fn;}},go:href=>navigated.push(href),location:{pathname:'/me',search:''},App:{scroll:{}},window:{scrollTo:options=>scrolled.push(options)}};
+const context={document:{addEventListener:(event,fn)=>{assert.equal(event,'click');handler=fn;}},go:href=>navigated.push(href),location:{pathname:'/me',search:''},App:{scroll:{}},prepareActivityMapTransition:()=>false,window:{scrollTo:options=>scrolled.push(options)}};
 vm.createContext(context);vm.runInContext(source.slice(start,end),context);
 let download=false;const anchor={dataset:{},target:'',hasAttribute:name=>name==='download'&&download,getAttribute:()=>'/track'};
 const event=cancelled=>({defaultPrevented:cancelled,target:{closest:()=>anchor},preventDefault(){this.defaultPrevented=true;}});
