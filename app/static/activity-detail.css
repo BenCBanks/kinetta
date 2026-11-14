@@ -140,11 +140,28 @@
 .activity-detail .dpane { scroll-margin-top:84px; }
 .activity-detail .dpane > .card { background:var(--surface-card); box-shadow:var(--elevation-rest); }
 :root[data-theme="dark"] .activity-detail .dpane > .card { background:var(--surface-raised); box-shadow:var(--elevation-rest); }
+.activity-detail .dpane h2 { font-size:17px; font-weight:700; }
+.activity-detail #activity-pane-overview .hero.more { grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:12px; padding-top:0; border-top:0; }
+.activity-detail #activity-pane-overview .hero.more .stat { min-width:0; padding:10px 8px; border-radius:12px; background:var(--card2); }
+.activity-detail #activity-pane-overview .hero.more .stat small { display:block; color:var(--tx2); font-size:.75rem; line-height:1.2; font-weight:500; }
+.activity-detail #activity-pane-overview .hero.more .stat b { display:inline-block; margin-top:4px; font-size:1.25rem; line-height:1.15; font-weight:700; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.activity-detail #activity-pane-overview .hero.more .stat i { color:var(--tx2); font-size:.75rem; }
+.activity-detail .insight { align-items:center; gap:10px; }
+.activity-detail .insight b { color:var(--tx); font-size:15px; font-weight:700; }
+.activity-detail .insight-icon { display:grid; place-items:center; width:28px; height:28px; border-radius:50%; flex:none; }
+.activity-detail .insight-icon svg { width:16px; height:16px; }
+.activity-detail .insight-icon.good { color:var(--color-achievement); background:color-mix(in srgb,var(--color-achievement) 16%,var(--card)); }
+.activity-detail .insight-icon:not(.good) { color:var(--color-workout-hard); background:color-mix(in srgb,var(--color-workout-hard) 16%,var(--card)); }
+.activity-detail #activity-pane-overview > a.card.tap { box-shadow:var(--elevation-raised); transition:transform var(--motion-press) ease-out,box-shadow var(--motion-settle) var(--motion-ease),background-color var(--motion-settle) var(--motion-ease); }
+.activity-detail #activity-pane-overview > a.card.tap .more { display:inline-flex; align-items:center; justify-content:center; flex:none; min-height:36px; padding:0 12px; border-radius:999px; background:var(--accent-gradient); color:#fff; font-size:13px; font-weight:600; white-space:nowrap; box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 22%,transparent); }
+.activity-detail #activity-pane-overview > a.card.tap:active { transform:scale(.985); box-shadow:var(--elevation-raised); }
 .activity-detail #activity-pane-splits .tbl tr.best td { background:color-mix(in srgb,var(--accent) 8%,var(--card)); }
 .activity-detail #activity-pane-splits .tbl td.barcell { width:30%; padding-inline:8px; }
 .activity-detail #activity-pane-splits .bar { height:9px; border-radius:999px; background:linear-gradient(90deg,var(--accent),color-mix(in srgb,var(--accent) 65%,var(--color-brand-gradient-end,var(--accent)))); }
 .activity-detail #activity-pane-splits .bar.slow { background:linear-gradient(90deg,var(--tx3),color-mix(in srgb,var(--tx3) 45%,var(--card))); opacity:.6; }
-.activity-detail #activity-pane-efforts .medal.m1 { background:linear-gradient(145deg,color-mix(in srgb,var(--gold) 24%,var(--card)),var(--card)); box-shadow:inset 0 1px 0 color-mix(in srgb,var(--gold) 45%,transparent); }
+.activity-detail #activity-pane-efforts .medal.m1 { border:1px solid color-mix(in srgb,var(--gold) 78%,#fff); background:linear-gradient(145deg,color-mix(in srgb,var(--gold) 30%,var(--card)),var(--card)); box-shadow:inset 0 1px 0 color-mix(in srgb,#fff 62%,transparent),0 0 0 1px color-mix(in srgb,var(--gold) 28%,transparent); }
+.activity-detail #activity-pane-efforts .effort-time { display:inline-block; min-width:52px; padding:4px 8px; border-radius:8px; font-size:18px; line-height:1.15; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.activity-detail #activity-pane-efforts .effort-bar { display:block; width:100%; height:6px; margin-top:3px; opacity:.34; }
 .activity-detail .dpane a:active,.activity-detail .dpane button:active { transform:scale(.985); }
 @media(prefers-reduced-motion:reduce) { .activity-detail .dpane a,.activity-detail .dpane button { transition:none; } }
 

@@ -678,7 +678,9 @@ function sportStats(a) {
   if (a.avg_gct) add('Ground contact', Math.round(a.avg_gct), 'ms');
   if (a.avg_vo) add('Vert. osc.', (a.avg_vo / 10).toFixed(1), 'cm');
   add('Elapsed time', a.elapsed_s != null ? activityElapsedText(a) : null);
-  add('Moving time', a.moving_s != null ? activityMovingText(a) : null);
+  // Moving time is already in the Activity header when it differs by a minute;
+  // keep a smaller difference here, but do not repeat an identical duration.
+  if (a.moving_s != null && (a.elapsed_s == null || (a.elapsed_s !== a.moving_s && Math.abs(a.elapsed_s - a.moving_s) < 60))) add('Moving time', activityMovingText(a));
   add('Calories', a.calories ? Math.round(a.calories) : null); add('Temp', a.avg_temp != null ? U.temp(a.avg_temp) : null);
   return s.join('');
 }
@@ -751,7 +753,7 @@ function drawDetail(el, a) {
     overview: `${a.power_curve && a.power_curve.length ? `<div class="card"><h2>Power curve</h2><table class="tbl">${a.power_curve.map(p => `<tr><td>${p.seconds < 60 ? p.seconds + ' s' : p.seconds / 60 + ' min'}</td><td class="r">${p.watts} W</td></tr>`).join('')}</table></div>` : ''}${a.has_intervals?'<section class="card" id="activity-interval-history"></section>':''}${liftCard(a)}${more ? `<div class="card"><h2>Details</h2><div class="hero more">${more}</div>
         ${a.gear_name ? `<p class="small muted">Gear: ${esc(a.gear_name)}</p>` : ''}</div>` : ''}
       ${a.private_note ? `<div class="card"><h2>Private note</h2><p class="small">${esc(a.private_note)}</p></div>` : ''}
-      ${ins.length ? `<div class="card"><h2>Insights</h2>${ins.map(([k, t, d]) => `<div class="insight"><span class="dot ${k}"></span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></div>`).join('')}</div>` : ''}
+      ${ins.length ? `<div class="card"><h2>Insights</h2>${ins.map(([k, t, d]) => { const icon=t.startsWith('New personal record')?'trophy':t==='Hard session'?'flame':''; return `<div class="insight"><span class="${icon?'insight-icon':'dot'} ${k}">${icon?svg(icon):''}</span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></div>`; }).join('')}</div>` : ''}
       ${a.route_id ? `<a class="card tap" href="/route/${a.route_id}" data-prefetch="/api/routes/${a.route_id}"><h2>${esc(a.route_name)}<span class="more">Compare ›</span></h2><p>Matched route · ${a.route_count} activities. See your trend on this route.</p></a>` : ''}
       ${a.line && appFeatureEnabled('progress_segments') ? '<div id="d-segments"></div>' : ''}`,
     splits: `${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}
@@ -840,8 +842,9 @@ function lapsTable(a) {
         <td class="r num">${spk ? (foot ? U.pace(spk) : U.speed(1000 / spk)) : '–'}</td>${hasHr ? `<td class="r num">${l.avg_hr ? Math.round(l.avg_hr) : '–'}</td>` : ''}</tr>`; }).join('')}</tbody></table>`;
 }
 function effortsTable(a) {
-  return `<table class="tbl"><tbody>${a.efforts.map((e) => `<tr><td>${e.rank_then <= 3 ? `<span class="medal m${e.rank_then}" title="${['', 'Personal record', '2nd best', '3rd best'][e.rank_then]} at the time">${e.rank_then === 1 ? 'PR' : e.rank_then}</span>` : ''}${esc(e.label)}</td>
-    <td class="r num">${dur(e.elapsed_s)}</td><td class="r small muted">${e.rank_now === 1 ? 'Current PR' : `#${e.rank_now} all-time`}</td></tr>`).join('')}</tbody></table>
+  const pr=Math.min(...a.efforts.filter(e=>e.rank_then===1&&Number.isFinite(e.elapsed_s)&&e.elapsed_s>0).map(e=>e.elapsed_s));
+  return `<table class="tbl"><tbody>${a.efforts.map((e,i) => { const ratio=Number.isFinite(pr)&&e.elapsed_s>0?Math.max(.12,Math.min(1,pr/e.elapsed_s)):.12,id=`activity-effort-${Number(e.id)||i}`; return `<tr class="activity-effort-row"><td>${e.rank_then <= 3 ? `<span class="medal m${e.rank_then}" title="${['', 'Personal record', '2nd best', '3rd best'][e.rank_then]} at the time">${e.rank_then === 1 ? 'PR' : e.rank_then}</span>` : ''}${esc(e.label)}</td>
+    <td class="r num"><span class="effort-time">${dur(e.elapsed_s)}</span><svg class="effort-bar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" x2="1"><stop offset="0" stop-color="var(--accent)"/><stop offset="1" stop-color="var(--color-brand-gradient-end,var(--accent))"/></linearGradient></defs><rect x="0" y="0" width="${(ratio*100).toFixed(1)}" height="6" rx="3" fill="url(#${id})"/></svg></td><td class="r small muted">${e.rank_now === 1 ? 'Current PR' : `#${e.rank_now} all-time`}</td></tr>`; }).join('')}</tbody></table>
     <p class="small muted">Medals show how it ranked when you ran it. <a href="/progress?view=records&sport=${esc(a.sport)}">All records ›</a></p>`;
 }
 function zonesHtml(z) {

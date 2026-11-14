@@ -237,9 +237,32 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
       const best= pane.locator('tbody tr.best .bar');assert.equal(await best.evaluate(n=>getComputedStyle(n).borderRadius),'999px','split bars use rounded ends');
       assert.match(await best.evaluate(n=>getComputedStyle(n).backgroundImage),/gradient/,'fastest split uses the accent gradient');
      }
-     if(key==='efforts')assert.match(await pane.innerText(),/Best efforts[\s\S]*5K[\s\S]*Current PR/,'Efforts keeps the fictional personal record and context');
+     if(key==='overview'){
+      const details=pane.locator('.hero.more'),stats=details.locator('.stat');assert.equal(await stats.count(),6,'Details keeps six non-duplicate stats in the named grid');
+      assert.deepEqual(await details.evaluate(n=>{const s=getComputedStyle(n);return{columns:s.gridTemplateColumns.split(' ').length,rule:s.borderTopWidth};}),{columns:3,rule:'0px'},'Details uses a clean 3-column tile grid without the old hairline');
+      assert.notEqual(await stats.first().evaluate(n=>getComputedStyle(n).backgroundColor),await details.evaluate(n=>getComputedStyle(n.closest('.card')).backgroundColor),'Details tiles use a distinct soft surface');
+      assert.equal(await stats.first().locator('small').evaluate(n=>getComputedStyle(n).fontSize),'12px','stat labels are 12px');
+      assert.equal(await stats.first().locator('small').evaluate(n=>getComputedStyle(n).fontWeight),'500','stat labels are medium');
+      assert.equal(await stats.first().locator('b').evaluate(n=>getComputedStyle(n).fontSize),'20px','stat values are 20px');
+      assert.equal(await stats.first().locator('b').evaluate(n=>getComputedStyle(n).fontWeight),'700','stat values are bold');
+      assert.match(await stats.first().locator('b').evaluate(n=>getComputedStyle(n).fontVariantNumeric),/tabular-nums/);
+      for(const title of ['Details','Insights'])assert.equal(await pane.getByRole('heading',{name:title,exact:true}).evaluate(n=>getComputedStyle(n).fontSize),'17px',`${title} heading is 17px`);
+      const record=pane.locator('.insight-icon.good'),hard=pane.locator('.insight-icon:not(.good)');assert(await record.locator('svg').count(),'new personal record uses a trophy icon');assert(await hard.locator('svg').count(),'hard session uses a flame icon');
+      for(const icon of [record,hard])assert.deepEqual(await icon.evaluate(n=>{const r=n.getBoundingClientRect();return[Math.round(r.width),Math.round(r.height)];}),[28,28],'insight icon uses a 28px tinted circle');
+      for(const title of ['New personal record','Hard session'])assert.equal(await pane.locator('.insight').filter({hasText:title}).locator('b').evaluate(n=>getComputedStyle(n).fontWeight),'700',`${title} title is strong`);
+      const route=pane.locator('a.card.tap[href^="/route/"]');assert.notEqual(await route.evaluate(n=>getComputedStyle(n).boxShadow),'none','matched route is raised');
+      const compare=route.locator('.more');assert.match(await compare.evaluate(n=>getComputedStyle(n).backgroundImage),/gradient/,'Compare uses the brand gradient');
+     }
+     if(key==='efforts'){
+      assert.match(await pane.innerText(),/Best efforts[\s\S]*5K[\s\S]*Current PR/,'Efforts keeps the fictional personal record and context');
+      assert.equal(await pane.getByRole('heading',{name:'Best efforts',exact:true}).evaluate(n=>getComputedStyle(n).fontSize),'17px','Best efforts heading is 17px');
+      const pr=pane.locator('.medal.m1'),time=pane.locator('.effort-time').first();assert.equal(await pr.innerText(),'PR');
+      assert.match(await pr.evaluate(n=>getComputedStyle(n).backgroundImage),/gradient/,'PR medal has a gradient finish');assert.notEqual(await pr.evaluate(n=>getComputedStyle(n).boxShadow),'none','PR medal has a rim highlight');
+      assert.equal(await time.evaluate(n=>getComputedStyle(n).fontSize),'18px','effort time is 18px');assert.equal(await time.evaluate(n=>getComputedStyle(n).fontWeight),'700','effort time is bold');
+      assert.match(await time.evaluate(n=>getComputedStyle(n).fontVariantNumeric),/tabular-nums/);const effortBar=pane.locator('.effort-bar').first();assert.equal(await effortBar.evaluate(n=>n.getAttribute('aria-hidden')),'true');assert.match(await effortBar.locator('linearGradient').getAttribute('id'),/^activity-effort-/,'each effort has its own comparison gradient');assert(Number(await effortBar.locator('rect').getAttribute('width'))>0,'each effort has a visible bar scaled against the PR');
+     }
      if(out){
-      await pane.scrollIntoViewIfNeeded();
+      await p.evaluate(()=>{const tabs=document.querySelector('.dtabs');window.scrollTo(0,Math.max(0,window.scrollY+tabs.getBoundingClientRect().top-90));});
       await p.waitForTimeout(150);fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`activity-tabs-${key}-390-${theme}.png`),animations:'disabled'});
      }
     }
