@@ -140,7 +140,7 @@
     "minimumHeight": 44,
     "maximumHeight": 160,
     "followup": "https://github.com/BenCBanks/kinetta/issues/746",
-    "reason": "Issue #746 specifies one independently named, keyboard-selectable button per period while the Totals plot fills the card. Full-width layout measures 28.5–34.5px columns at the audited 330–390px sizes; each remains a dense chart target at least 44px tall. Only this chart-column width is excepted; labels, keyboard access, contrast and clipping remain checked."
+    "reason": "Issue #746 specifies one independently named, keyboard-selectable button per period while the Totals plot fills the card. Full-width layout measures 28.5\u201334.5px columns at the audited 330\u2013390px sizes; each remains a dense chart target at least 44px tall. Only this chart-column width is excepted; labels, keyboard access, contrast and clipping remain checked."
   },
   {
     "id": "progress-totals-adjacent-period-columns",
@@ -181,7 +181,7 @@
     "minimumHeight": 44,
     "maximumHeight": 44,
     "followup": "https://github.com/BenCBanks/kinetta/issues/545",
-    "reason": "Owner-approved #545 puts 20px reaction marks 4px apart. Splitting at the midpoint gives each mark its own 24×44px hit area; the total keeps a separate default 44×44px target. Focused browser checks verify all shortcut boxes are disjoint and each mark and the total receives its own tap. This is the only target-width exception."
+    "reason": "Owner-approved #545 puts 20px reaction marks 4px apart. Splitting at the midpoint gives each mark its own 24\u00d744px hit area; the total keeps a separate default 44\u00d744px target. Focused browser checks verify all shortcut boxes are disjoint and each mark and the total receives its own tap. This is the only target-width exception."
   },
   {
     "id": "me-card-profile-link-over-controls",
@@ -254,5 +254,34 @@
     "minimum": 15,
     "followup": "https://github.com/BenCBanks/kinetta/issues/926",
     "reason": "Issue #926 sets activity detail chart headers at 15px; their labels remain visible and unclipped."
+  },
+  {
+    "id": "settings-inset-row-touching",
+    "selector": ".me-settings .inset-group .inset-row,.me-settings .inset-units .units-toggle button",
+    "metric": "gap",
+    "kind": "approved-list",
+    "maximum": 0,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1024",
+    "reason": "Issue #1024 specifies touching Settings rows inside one InsetGroup card, separated by inset hairlines. Only zero-gap pairs among these rows and the Units choices are allowed; any remaining positive gap below 8px, overlap, undersized target or clipped text still fails."
+  },
+  {
+    "id": "settings-inset-caption-type",
+    "selector": ".me-settings .inset-caption",
+    "metric": "font-min",
+    "kind": "approved-type",
+    "minimum": 13,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1024",
+    "reason": "Issue #1024 specifies 13px/500 muted captions above Settings groups. The exception is limited to those captions; every row label, value, body text and control retains its normal minimum size."
+  },
+  {
+    "id": "settings-units-switch-row-hit-gap",
+    "selector": ".me-settings .inset-units .units-toggle button",
+    "withSelector": ".me-settings .inset-group .inset-row.switch-row",
+    "within": ".me-settings .inset-group",
+    "metric": "gap",
+    "kind": "approved-list",
+    "maximum": 6,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1024",
+    "reason": "The 44px Units choices are centered in their 56px row, leaving a measured 6px hit-area gap before the adjacent setup switch. Only this pair is allowed up to 6px; row edges still touch and all overlaps, other gaps, targets and text remain checked."
   }
 ]
