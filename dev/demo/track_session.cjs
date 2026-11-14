@@ -12,9 +12,14 @@ module.exports=function trackSession(state='paused') {
     if(!previous){math.accept(s,{coords:{latitude:lat,longitude:lon,accuracy:5},timestamp:0},0);previous=point;continue;}
     const metres=math.metres(previous,point),n=Math.max(1,Math.ceil(metres/8));
     for(let i=1;i<=n;i++) {
-      seconds+=metres/n/(2.8+.45*Math.sin(s.points.length/18));
+      const sample=s.points.length;
+      const block=[0,.18,-.12,.08,-.05][Math.floor(sample/55)%5];
+      const pace=2.72+.24*Math.sin(sample/23)+.16*Math.sin(sample/11.7)+.09*Math.sin(sample/7.3)+block;
+      seconds+=metres/n/pace;
       math.accept(s,{coords:{latitude:previous.lat+(lat-previous.lat)*i/n,longitude:previous.lon+(lon-previous.lon)*i/n,accuracy:5},timestamp:seconds*1000},seconds*1000);
-      const fix=s.points.at(-1);fix.alt=100+10*Math.sin(s.points.length/35);fix.valt=5;
+      const fix=s.points.at(-1),hillBlock=[0,1.4,-.8,1.1,-.3,.6][Math.floor(sample/70)%6];
+      fix.alt=98+14*Math.sin(sample/110)+5*Math.sin(sample/41)+3*Math.sin(sample/19)+hillBlock;
+      fix.valt=5;
     }
     previous=point;
   }

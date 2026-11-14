@@ -116,7 +116,13 @@
 .track-tools summary { cursor: pointer; min-height: 48px; display: flex; align-items: center; color: var(--accent); font-weight: 600; }
 .track-tools .row-link { justify-content: space-between; width: 100%; }
 .track-tools .row-link > svg { width: 18px; }
-.track-live { padding-top: 0; }
+.track-live {
+  padding:16px 14px 18px;
+  background:var(--surface-card);
+  border:1px solid color-mix(in srgb,var(--line) 75%,transparent);
+  border-radius:20px;
+  box-shadow:var(--elevation-raised);
+}
 .track-live-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .track-live-top h2 { font: 700 28px/1.2 var(--font-display); margin: 0; }
 .track-live #track-status { text-align: left; min-height: 20px; }
@@ -187,7 +193,7 @@
 .track-live .track-live-metrics b { font-size: clamp(30px, 9vw, 40px); font-weight: 680; margin: 0; }
 .track-live .track-live-metrics small { margin: 0; }
 .track-live .track-splits { margin: 4px 0 14px; text-align: center; }
-.track-live .live-record-map { height: clamp(200px, 32dvh, 340px); }
+.track-live .live-record-map { height: clamp(200px, 32dvh, 340px); box-shadow:var(--elevation-raised); border-radius:20px; }
 .live-record-map .leaflet-control-zoom { display: none; }
 .track-map-wrap { position: relative; }
 .gps-chip, .map-chip { position: absolute; z-index: 500; min-height: 32px; padding: 6px 11px; border-radius: 999px; font-size: 13px; font-weight: 650;
@@ -200,6 +206,13 @@
 .track-live .track-controls .round-btn { width: 84px; height: 84px; }
 .track-live .track-controls .round-btn { transition: transform var(--motion-press) ease-out, box-shadow var(--motion-settle) var(--motion-ease), background var(--motion-settle) var(--motion-ease); }
 .track-live .track-controls .round-btn:active { transform:scale(.94); }
+.track-live .track-controls .round-btn.go {
+  background:var(--accent-gradient);
+  color:var(--onbtn);
+  box-shadow:var(--elevation-raised), 0 0 0 6px color-mix(in srgb,var(--accent) 12%,transparent), 0 12px 32px color-mix(in srgb,var(--accent) 32%,transparent);
+}
+.track-live .track-controls .round-btn.go:active { box-shadow:var(--elevation-rest), 0 0 0 4px color-mix(in srgb,var(--accent) 10%,transparent); }
+.track-live .track-controls .round-btn.stop { box-shadow:var(--elevation-raised); }
 .track-live.is-recording .track-controls .round-btn:not(.lap) { box-shadow:var(--elevation-raised); }
 .stats-expanded .track-hero b { font-size: clamp(72px, 24vw, 96px); }
 .stats-expanded .track-live-metrics { padding-block: 18px; }
