@@ -286,12 +286,12 @@
   },
   {
     "id": "home-feed-footer-social-pair-gap",
-    "selector": ".activity-home .activity-card .post-ft .reaction-more,.activity-home .activity-card .post-ft .reaction-count,.activity-home .activity-card .post-ft .activity-comments",
+    "selector": ".activity-home .activity-card .post-ft .reaction-more,.activity-home .activity-card .post-ft .reaction-count",
     "metric": "gap",
     "kind": "approved-list",
     "maximum": 4,
     "followup": "https://github.com/BenCBanks/kinetta/issues/1041",
-    "reason": "Issue #1041 places the summary 4px after React and Comments 4px after the summary in one 48px footer row. Only these Home feed social pairs use the tighter measured gap; other spacing and all hit targets remain audited."
+    "reason": "Issue #1041 keeps the summary 4px after React in one 48px footer row. The comment target retains the standard 8px gap from either preceding target; no tighter exception applies to it."
   },
   {
     "id": "home-feed-footer-count-type",
