@@ -162,7 +162,7 @@ const focusedOnly=unitsOnly||compositionOnly||profileClockOnly||shareLeafOnly||b
  await p.goto(base+'/me');try{await until(p,()=>App.pageReady,'1');}catch(error){console.error(`PROFILE_BOOT_DIAGNOSTIC ${JSON.stringify({theme,url:p.url(),readyState:await p.evaluate(()=>document.readyState),appReady:await p.evaluate(()=>typeof App!=='undefined'&&App.pageReady),errors,requestFailures,body:(await p.locator('body').innerText().catch(()=>'' )).slice(0,240)})}`);throw error;}await settled();
  if(unitsOnly){await unitsCheck();assert.deepEqual(errors,[],'unit selection, failure rollback and restore have no browser errors');console.log('Settings units: intercepted PUT, pressed rerender, failure rollback, and no persisted write PASS');await c.close();continue;}
  if(size.width===390&&theme==='light')await unitsCheck();
- if(size.locale){await p.goto(base+'/people/alex');await until(p,()=>App.pageReady,'French full profile');await settled();await numberChecks(p);assert.match(await p.locator('[data-card-stat=time] dt').innerText(),/Time\s*\(h\)/);assert.deepEqual(errors,[]);console.log('French full-profile grouping and labelled hours PASS');await c.close();continue;}
+ if(size.locale){await p.goto(base+'/people/alex');await until(p,()=>App.pageReady,'French full profile');await settled();await numberChecks(p);assert.equal(await p.locator('[data-card-stat=time] dt').innerText(),'Time');assert.deepEqual(errors,[]);console.log('French full-profile grouping and hours in value PASS');await c.close();continue;}
  await weeklyCardChecks(p,size);
  if(achievementCardOnly){
   const directory=process.env.KINETTA_ACHIEVEMENT_CARD_DIR;if(!directory)throw Error('KINETTA_ACHIEVEMENT_CARD_DIR is required');fs.mkdirSync(directory,{recursive:true});
