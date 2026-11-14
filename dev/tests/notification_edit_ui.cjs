@@ -53,7 +53,7 @@ const until=async(p,fn,label,arg)=>{for(let n=0;n<150;n++){if(await p.evaluate(f
    const f=await open(theme,{width:390,height:844,root:16},{friend:true});
    try{
     await f.page.goto(base+`/activity/${shared?'friends/':''}${id}?edit=1`);await until(f.page,()=>App.pageReady,'Friend/missing page ready');
-    if(shared)assert(await f.page.locator('.detail-owner').isVisible());else assert(f.responses.includes(404),'Own-only endpoint rejects another person’s ID');
+    if(shared)assert(await f.page.locator('.detail-athlete').isVisible(),'shared detail identifies its activity owner');else assert(f.responses.includes(404),'Own-only endpoint rejects another person’s ID');
     assert.equal(await f.page.locator('#e-form,[data-detail-edit]').count(),0);assert.deepEqual(f.errors,[]);count++;
    }finally{await f.context.close();}
   }
