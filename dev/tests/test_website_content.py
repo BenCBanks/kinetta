@@ -34,7 +34,8 @@ class CopyTests(unittest.TestCase):
   words=' '.join(entries[k] for k in ['about-story','about-feedback'])
   self.assertTrue(40<=len(words.split())<=90)
   self.assertNotRegex(words.lower(),r'\bads?\b|ad-free|privacy|sell|data')
-  self.assertNotIn('<ul',page)
+  self.assertEqual(page.count('class="site-capabilities"'),1)
+  self.assertEqual(page.count('class="site-capabilities"'),1)
  def test_about_and_privacy_are_linked_from_every_footer_and_guide_is_retired(self):
   import re
   for template in (content.ROOT/'site/templates').glob('*.html'):
