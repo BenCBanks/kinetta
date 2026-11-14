@@ -136,6 +136,18 @@
   box-shadow:var(--elevation-rest);
 }
 
+/* Deeper activity tabs keep their data grouped and give split pace a clear visual scale. */
+.activity-detail .dpane { scroll-margin-top:84px; }
+.activity-detail .dpane > .card { background:var(--surface-card); box-shadow:var(--elevation-rest); }
+:root[data-theme="dark"] .activity-detail .dpane > .card { background:var(--surface-raised); box-shadow:var(--elevation-rest); }
+.activity-detail #activity-pane-splits .tbl tr.best td { background:color-mix(in srgb,var(--accent) 8%,var(--card)); }
+.activity-detail #activity-pane-splits .tbl td.barcell { width:30%; padding-inline:8px; }
+.activity-detail #activity-pane-splits .bar { height:9px; border-radius:999px; background:linear-gradient(90deg,var(--accent),color-mix(in srgb,var(--accent) 65%,var(--color-brand-gradient-end,var(--accent)))); }
+.activity-detail #activity-pane-splits .bar.slow { background:linear-gradient(90deg,var(--tx3),color-mix(in srgb,var(--tx3) 45%,var(--card))); opacity:.6; }
+.activity-detail #activity-pane-efforts .medal.m1 { background:linear-gradient(145deg,color-mix(in srgb,var(--gold) 24%,var(--card)),var(--card)); box-shadow:inset 0 1px 0 color-mix(in srgb,var(--gold) 45%,transparent); }
+.activity-detail .dpane a:active,.activity-detail .dpane button:active { transform:scale(.985); }
+@media(prefers-reduced-motion:reduce) { .activity-detail .dpane a,.activity-detail .dpane button { transition:none; } }
+
 /* Keep media tools together below the floating navigation, with 44px targets and 8px gaps. */
 .detail-map-hero .map-full { top:calc(env(safe-area-inset-top) + 60px); right:8px; left:auto; bottom:auto; }
 .detail-map-hero .compact-media:has(.media-map) .media-controls > button { top:calc(env(safe-area-inset-top) + 60px); bottom:auto; left:auto; }
