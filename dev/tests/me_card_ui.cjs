@@ -150,7 +150,8 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   assert.equal(await previewAction.innerText(),'View as friend','friend preview link sits immediately beneath the weekly stats');
   assert.equal(await weekly.locator('.me-card-preview-row ~ .me-chart-scroll .me-card-bars').count(),1,'friend preview link stays above the chart and achievements');
   const profileLink=p.locator('.me-card-open-link'),linkBox=await profileLink.boundingBox(),cardBox=await p.locator('.me-card').boundingBox(),featuredBox=await p.locator('.me-featured-achievements').boundingBox();
-  assert.equal(await profileLink.getAttribute('aria-label'),'Open my profile','the profile link has the approved VoiceOver label');
+  assert.equal(await profileLink.getAttribute('aria-label'),null,'the profile link name comes from its visible identity');
+  assert.equal(await p.getByRole('link',{name:/Alex Rivera.*@alex/}).count(),1,'the profile link exposes its visible name and handle accessibly');
   assert.match(await profileLink.getAttribute('href'),/^\/people\/alex(?:\?|$)/,'the profile link opens the owner profile');
   assert(Math.abs(linkBox.x-cardBox.x)<1&&Math.abs(linkBox.y-cardBox.y)<1&&Math.abs(linkBox.width-cardBox.width)<1,'the profile link covers the card width from its top edge');
   assert(featuredBox.y-(linkBox.y+linkBox.height)>=7.98,`the profile link leaves 8px before the Featured entry and medals (${featuredBox.y-(linkBox.y+linkBox.height)}px)`);
