@@ -168,7 +168,7 @@ def _history_source(c, user_id, code, thresholds, now, zone):
         events = milestone_engine._personal_best_events(c, user_id, by_id)
         total, found = _crossings(thresholds, events, lambda _row: 1)
     elif tracks.fastest_effort_spec(code):
-        total, found, _best_seconds = milestone_engine._fastest_effort_facts(c, user_id, by_id, code)
+        total, found, _best_seconds, _season_best_seconds = milestone_engine._fastest_effort_facts(c, user_id, by_id, code)
     else:
         sport_by_code = {
             'sport:run': lambda row: row['sport'] == 'run',
@@ -442,10 +442,12 @@ def achievements(login: str | None = Query(None, min_length=1, max_length=60), u
         else:
             owner_id = user['id']
             shared_view = False
-            profile = c.execute('SELECT units FROM profile WHERE user_id=%s', (owner_id,)).fetchone() or {}
+            profile = c.execute('SELECT units,tz FROM profile WHERE user_id=%s', (owner_id,)).fetchone() or {}
         pending = bool((c.execute('''SELECT generation>processed OR next_check<=now() AS pending
                                      FROM milestone_state WHERE user_id=%s''', (owner_id,)).fetchone() or {}).get('pending', False))
         units = profile.get('units') or 'imperial'
+        account_zone=ZoneInfo(db.valid_tz(profile.get('tz')) or db.DEFAULT_TZ)
+        season_year=dt.datetime.now(account_zone).year
         states = c.execute('''SELECT code,title,day,occurred,details
                               FROM milestones WHERE user_id=%s AND kind='track_state' AND valid
                               ORDER BY code''', (owner_id,)).fetchall()
@@ -476,6 +478,8 @@ def achievements(login: str | None = Query(None, min_length=1, max_length=60), u
         details = dict(row.get('details') or {})
         code = details.get('track')
         if not code:
+            continue
+        if code in tracks.LEGACY_FASTEST_EFFORT_TRACKS:
             continue
         value = _raw_value(code, details)
         try:
@@ -512,6 +516,8 @@ def achievements(login: str | None = Query(None, min_length=1, max_length=60), u
         if tracks.fastest_effort_spec(code):
             current['earned_ranks'] = earned_ranks
             current['best_seconds'] = details.get('best_seconds') or {}
+            current['season_year'] = season_year
+            current['season_best_seconds'] = (details.get('season_best_seconds') or {}) if details.get('season_year')==season_year else {}
         if next_rule:
             next_item = tracks.display_tier(code, next_rule, units)
             current['next_threshold'] = next_rule.threshold
