@@ -883,7 +883,7 @@ function sheet(title, html, onMount, opts = {}) {
   // decides the finger is scrolling. Mouse: drag the grab bar / header.
   const sh = $('.sheet', s);   // the sheet itself is the scroll container
   sh.requestClose=()=>{close();return closing;};
-  let ty = null, dy = 0, dragging = false, fromTop = false, lastY = 0, lastAt = 0, velocity = 0;
+  let ty = null, dy = 0, dragging = false, fromTop = false, handleStart = false, lastY = 0, lastAt = 0, velocity = 0;
   let edgeStart=null,edgeDx=0,edgeDy=0,edgeBack=false;
   const interruptMotion = () => {
     // Freeze an entrance/snap animation at its current visual position before the
@@ -905,25 +905,26 @@ function sheet(title, html, onMount, opts = {}) {
     }
   };
   const rubberBand = value => value >= 0 ? value : value * .24;
-  const shouldDismiss = speed => dy > sh.getBoundingClientRect().height * .3 || speed > 500;
+  const shouldDismiss = speed => dy > sh.getBoundingClientRect().height * .3 || (dy > 0 && speed > 500);
   const settle = (shut, speed = 0) => { if (shut || shouldDismiss(speed)) { if(flow)SheetHistory.closeAll(flow);else close(); return; } sh.classList.add('settle'); sh.style.transform = ''; setTimeout(() => sh.classList.remove('settle'), 270); };
   sh.addEventListener('touchstart', (e) => {
     interruptMotion();
     const touch=e.touches[0];edgeStart=flow&&flowStep>0&&e.touches.length===1&&touch.clientX<=24?{x:touch.clientX,y:touch.clientY}:null;edgeDx=edgeDy=0;edgeBack=false;
     if (e.touches.length !== 1 || e.target.closest('input, select, textarea, [contenteditable="true"], .tblwrap, .hgrid, .chips, .social-sheet .comments, .fitness-inspect .chartbox')) { ty = null; return; }
     ty = lastY = touch.clientY; lastAt = performance.now(); velocity = 0; dy = 0; dragging = false;
-    fromTop = !!e.target.closest('.grab, header') || sh.scrollTop <= 0;
+    handleStart = !!e.target.closest('.grab, header');
+    fromTop = handleStart || sh.scrollTop <= 0;
   }, {passive: true});
   sh.addEventListener('touchmove', (e) => {
     if(edgeStart){const touch=e.touches[0];edgeDx=touch.clientX-edgeStart.x;edgeDy=touch.clientY-edgeStart.y;if(edgeDx>8&&edgeDx>Math.abs(edgeDy)){edgeBack=true;e.preventDefault();}if(edgeBack)return;}
     if (ty == null || !fromTop) return;
     const now=performance.now(),y=e.touches[0].clientY;dy = y - ty;
     const elapsed=Math.max(1,now-lastAt);velocity=(y-lastY)/elapsed*1000;lastY=y;lastAt=now;
-    if (!dragging && Math.abs(dy) > 8 && (e.target.closest('.grab, header') || sh.scrollTop <= 0)) { dragging = true; sh.classList.remove('settle'); }
+    if (!dragging && (dy > 8 || (handleStart && Math.abs(dy) > 8)) && (handleStart || sh.scrollTop <= 0)) { dragging = true; sh.classList.remove('settle'); }
     if (dragging) { e.preventDefault(); sh.style.transform = `translate3d(0,${rubberBand(dy)}px,0)`; }
   }, {passive: false});
-  sh.addEventListener('touchend', () => { if(edgeBack&&edgeDx>72&&edgeDx>Math.abs(edgeDy)*1.2)SheetHistory.back(flow);else if (dragging) settle(false,velocity); edgeStart=null;edgeBack=false;ty = null; dragging = false; });
-  sh.addEventListener('touchcancel', () => { if(edgeBack)sh.style.transform='';else if (dragging) settle(false);edgeStart=null;edgeBack=false;ty = null; dragging = false; });
+  sh.addEventListener('touchend', () => { if(edgeBack&&edgeDx>72&&edgeDx>Math.abs(edgeDy)*1.2)SheetHistory.back(flow);else if (dragging) settle(false,velocity); edgeStart=null;edgeBack=false;ty = null; dragging = false; handleStart = false; });
+  sh.addEventListener('touchcancel', () => { if(edgeBack)sh.style.transform='';else if (dragging) settle(false);edgeStart=null;edgeBack=false;ty = null; dragging = false; handleStart = false; });
   let my = null, mouseLastY = 0, mouseLastAt = 0, mouseVelocity = 0;
   sh.addEventListener('mousedown', (e) => { if (e.target.closest('.grab, header') && !e.target.closest('button')) { interruptMotion();my = mouseLastY = e.clientY;mouseLastAt = performance.now();mouseVelocity = 0; } });
   const onMove = (e) => { if (my != null) { const now=performance.now(),elapsed=Math.max(1,now-mouseLastAt),y=e.clientY;mouseVelocity=(y-mouseLastY)/elapsed*1000;mouseLastY=y;mouseLastAt=now;const distance=y-my;if(Math.abs(distance)>8)sh.style.transform = `translate3d(0,${rubberBand(distance)}px,0)`; } };
