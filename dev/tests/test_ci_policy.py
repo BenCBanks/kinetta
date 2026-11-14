@@ -243,7 +243,7 @@ feature_collection_ui.cjs groups_ui.cjs journeys_prepare.py journeys.cjs journey
         self.assertIn("hashFiles('dev/tests/browser/package-lock.json')",screenshots)
         self.assertNotIn('playwright install --with-deps chromium',tests)
         self.assertIn('playwright install --with-deps chromium',screenshots)
-        self.assertEqual(tests.count('dev/tests/with_playwright.sh'),5)
+        self.assertEqual(tests.count('dev/tests/with_playwright.sh'),6)
         self.assertIn('cache-from: type=gha,scope=kinetta-${{ inputs.scope }}',cache_action)
         self.assertIn('cache-to: type=gha,scope=kinetta-${{ inputs.scope }},mode=max,ignore-error=true',cache_action)
         self.assertIn('load: true',cache_action)
