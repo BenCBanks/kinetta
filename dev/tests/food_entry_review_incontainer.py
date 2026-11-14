@@ -7,7 +7,8 @@ from fastapi.testclient import TestClient
 from app import auth,db,food_thread as T
 from app.main import app
 
-FIXTURE_TODAY=dt.date.today()
+# A fixed fictional diary day keeps this API fixture independent of CI's calendar.
+FIXTURE_TODAY=dt.date(2026,11,9)
 
 class Review(unittest.TestCase):
  def setUp(self):
@@ -255,7 +256,8 @@ class Review(unittest.TestCase):
   parsed=food_thread_weight.parse(Conn(),self.ids[0],'Oatmeal with a coffee, weighed 152.4 this morning.',FIXTURE_TODAY)
   self.assertEqual(parsed['food'],'Oatmeal with a coffee');self.assertEqual(parsed['unit'],'kg')
   self.food('Fictional oat bar',180)
-  m,_=self.send('1 Fictional oat bar for breakfast, weighed 152.4 this morning.')
+  captured_at=dt.datetime.combine(FIXTURE_TODAY,dt.time(12),dt.timezone.utc)
+  m,_=self.send('1 Fictional oat bar for breakfast, weighed 152.4 this morning.',captured_at=captured_at)
   result=next(x['result'] for x in self.a.get('/api/food/thread/reviews/draft/'+self.draft).json()['messages'] if x.get('reply_to')==m['id'])
   self.assertEqual(result['weight']['unit'],'lb');self.assertEqual(len(result['parts']),1)
   review=self.prepare([m]);self.assertEqual(review['review']['weight']['display_unit'],'lb')
@@ -267,7 +269,7 @@ class Review(unittest.TestCase):
    rows=c.execute('SELECT day,kg,source FROM weights WHERE user_id=%s',(self.ids[0],)).fetchall()
   self.assertEqual(len(rows),1);self.assertAlmostEqual(rows[0]['kg'],review['review']['weight']['kg'],places=3);self.assertIsNone(rows[0]['source'])
   # A weight-only statement uses the same review and store without requiring a food row.
-  m2,_=self.send('Weighed 151.8 yesterday')
+  m2,_=self.send('Weighed 151.8 yesterday',captured_at=captured_at)
   review2=self.prepare([m2]);self.assertEqual(review2['review']['foods'],[])
   self.confirm(review2,log_today=False,log_weight=True,weight_kg=68.9)
   with db.connect() as c:self.assertEqual(c.execute('SELECT kg FROM weights WHERE user_id=%s AND day=%s',(self.ids[0],FIXTURE_TODAY-dt.timedelta(days=1))).fetchone()['kg'],68.9)
