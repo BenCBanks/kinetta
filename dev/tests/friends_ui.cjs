@@ -54,7 +54,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     }
     if(state==='typical'){
      if(out)await capture(p,`find-friends-suggested-${viewportWidth}-${theme}`);
-     await requestRow.click();const dialog=p.getByRole('dialog',{name:'Requests'});await dialog.waitFor();assert.equal(await dialog.locator('.fr-request').count(),1);assert.equal(await dialog.locator('[data-request-cancel]').count(),1);assert((await dialog.innerText()).includes('Waiting for you'));assert((await dialog.innerText()).includes('You sent'));
+     await requestRow.click();const dialog=p.getByRole('dialog',{name:'Requests'});await dialog.waitFor();assert.equal(await dialog.locator('.fr-request').count(),1);assert.equal(await dialog.locator('[data-request-cancel]').count(),1);assert((await dialog.innerText()).includes('Waiting for you'));assert((await dialog.innerText()).includes('You sent'));if(viewportWidth===330){const layout=await dialog.locator('.fr-request').evaluate(row=>({copyWidth:row.querySelector('.person-link .grow').getBoundingClientRect().width,actionHeights:[...row.querySelectorAll('.btnrow > button')].map(el=>el.getBoundingClientRect().height)}));assert(layout.copyWidth>=160,`incoming requester copy has room to stay readable at 330px: ${JSON.stringify(layout)}`);assert(layout.actionHeights.every(height=>height>=44),'request actions retain 44px targets at 330px');}
      if(out)await capture(p,`find-friends-requests-${viewportWidth}-${theme}`);await closeSheet(p);
     }
    }else assert.equal(await suggestions.count(),0,'no suggestions without a real connection');
