@@ -10,9 +10,9 @@ assert.equal(ctx.rate({...ride,elapsed_s:1800,speed_available:true}).label,'Spee
 const paused={sport:'run',distance_m:8046.72,moving_s:2400,elapsed_s:3000,speed_available:true,shares:{pace:true}};
 assert.equal(ctx.rate(paused).v,ctx.U.pace(3000/8046.72*1000),'5 mi at 50:00 uses elapsed pace, not 40:00 moving pace');
 assert(ctx.headline(paused).includes('3000s'));assert(ctx.sharedHeadline(paused).includes('3000s'),'feed and permitted friend summary use elapsed duration');
-assert.match(ctx.sportStats({...paused,elapsed_s:3000,moving_s:3000}),/Elapsed time/);assert.doesNotMatch(ctx.sportStats({...paused,elapsed_s:3000,moving_s:3000}),/Moving time/,'equal moving time is omitted as a duplicate of elapsed time');
+assert.match(ctx.sportStats({...paused,elapsed_s:3000,moving_s:3000}),/Elapsed time/);assert.match(ctx.sportStats({...paused,elapsed_s:3000,moving_s:3000}),/Moving time/,'equal durations remain separately labelled');
 assert.match(ctx.sportStats({...paused,elapsed_s:3000,moving_s:2985}),/Moving time/,'a difference under 30 seconds still shows moving time');
-const unknown={...paused,elapsed_s:null,moving_s:2400};assert.deepEqual(JSON.parse(JSON.stringify(ctx.rate(unknown))),{label:'Time',v:'–',u:''});assert(ctx.headline(unknown).includes('–'));assert.match(ctx.sportStats(unknown),/Moving time/);assert.doesNotMatch(ctx.sportStats(unknown),/Elapsed time/);
+const unknown={...paused,elapsed_s:null,moving_s:2400};assert.deepEqual(JSON.parse(JSON.stringify(ctx.rate(unknown))),{label:'Time',v:'–',u:''});assert(ctx.headline(unknown).includes('–'));assert.match(ctx.sportStats(unknown),/Moving time/);assert.match(ctx.sportStats(unknown),/Elapsed time/);assert.match(ctx.sportStats(unknown),/Unavailable/);
 for(const elapsed of [0,-1,Infinity,-Infinity,NaN]){
  const activity={...paused,elapsed_s:elapsed},rate=ctx.rate(activity);
  assert.deepEqual(JSON.parse(JSON.stringify(rate)),{label:'Time',v:'–',u:''},`elapsed ${String(elapsed)} remains unavailable`);
