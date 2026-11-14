@@ -348,17 +348,25 @@ function readOnce(path) {
   }
   return pendingReads.get(key);
 }
+function bootstrapMe() {
+  const boot = globalThis.KinettaBoot?.me;
+  // A cold logged-out page may have already completed its eager probe with 401;
+  // after login, retry against the newly established session instead of reusing
+  // that stale rejection. Other failures retain the boot probe's error state.
+  return boot ? boot.catch(error => error?.status === 401 ? api('/api/me') : Promise.reject(error)) : api('/api/me');
+}
 
 // ---------- API: fetch + per-session cache (stale-while-revalidate) ----------
 async function api(path, opts = {}) {
   const owner = readOwner();
+  const mePath=path==='/api/me',requestPath=mePath?'/api/me?refresh=1':path;
   let r,body=null;
   const headers = opts.body instanceof FormData ? {} : {'Content-Type': 'application/json'};
-  if (App.me && path !== '/api/me' && !path.startsWith('/api/login')) headers['X-Kinetta-Account'] = String(App.me.id);
+  if (App.me && !mePath && !path.startsWith('/api/login')) headers['X-Kinetta-Account'] = String(App.me.id);
   // in the iPhone app: the chosen server + the login token in a header (native.js); in a browser: this site + its cookie
   const timeout=!opts.signal&&(!opts.method||opts.method.toUpperCase()==='GET')?new AbortController():null;
   const timer=timeout?setTimeout(()=>timeout.abort(),20000):null;
-  try { r = await fetch(Native.base + path, {credentials: Native.on ? 'omit' : 'same-origin', ...opts, ...(path === '/api/me' ? {priority: 'high'} : {}), ...(timeout?{signal:timeout.signal}:{}), headers: {...headers, ...Native.headers(), ...(opts.headers || {})}});
+  try { r = await fetch(Native.base + requestPath, {credentials: Native.on ? 'omit' : 'same-origin', ...opts, ...(mePath ? {priority: 'high',cache:'no-store'} : {}), ...(timeout?{signal:timeout.signal}:{}), headers: {...headers, ...Native.headers(), ...(opts.headers || {})}});
     try{body=await r.json();}catch(e){if(timeout?.signal.aborted)throw e;}
   }
   catch (e) { throw Object.assign(new Error(timeout?.signal.aborted ? 'This is taking too long. Try refreshing again.' : "Can't reach Kinetta - check your connection."), timeout?.signal.aborted ? {status:504} : {offline:true}); }
@@ -429,6 +437,7 @@ async function load(path, render, {maxAge = 15000} = {}) {
 
 // A same-session /me refresh replaces profile data without cancelling its page reads.
 function refreshMe(me) {
+  App._meRefreshVersion=(App._meRefreshVersion||0)+1;
   const previous = App.me, same = previous && previous.id === me.id;
   if (same && readSessions.has(previous)) readSessions.set(me, readSessions.get(previous));
   if (!same) { Native.clearPictures?.();App.mediaMapBack?.(); App.closeActivityShare?.(); Native.stopActivityShare?.().catch(() => {}); App.cache.clear(); forgetKept(); }
@@ -2481,11 +2490,12 @@ async function start() {
   const saved = kept('/api/me');
   if (saved && !location.pathname.startsWith('/join/') && !pendingJoinPath()) {
     App.me = saved; enter();
-    api('/api/me').then(refreshMe).catch((x) => { if (x.status === 401) forgetKept(); else if (x.offline) netState(true); });
+    const owner=readOwner(),version=App._meRefreshVersion||0;
+    bootstrapMe().then(me=>{if(owner===readOwner()&&version===(App._meRefreshVersion||0))refreshMe(me);}).catch((x) => { if(owner!==readOwner()||version!==(App._meRefreshVersion||0))return;if (x.status === 401) forgetKept(); else if (x.offline) netState(true); });
     return;
   }
   try {
-    App.me = await api('/api/me'); keep('/api/me', App.me);
+    App.me = await bootstrapMe(); keep('/api/me', App.me);
     enter();
   } catch (x) {
     if (x.status === 401) { forgetKept(); showWelcome(); return; }
