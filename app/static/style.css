@@ -261,7 +261,7 @@ nav.tabs { position: fixed; z-index: 20; left: 12px; right: 12px; bottom: var(--
   display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 8px; height: var(--nav-height); padding: var(--nav-padding);
   border: 1px solid var(--line); border-color: color-mix(in srgb, var(--card) 80%, var(--line)); border-radius: calc(var(--nav-height) / 2);
   transition: height var(--motion-settle) var(--motion-ease), border-radius var(--motion-settle) var(--motion-ease), padding var(--motion-settle) var(--motion-ease); }
-nav.tabs.material { box-shadow: var(--elevation-sheet), inset 0 .5px 0 color-mix(in srgb, var(--tx) 8%, transparent); }
+nav.tabs.material { background: color-mix(in srgb, var(--card) 88%, transparent); box-shadow: var(--elevation-sheet), inset 0 .5px 0 color-mix(in srgb, var(--tx) 8%, transparent); }
 nav.tabs.compact { height: max(56px, calc(var(--nav-height) * .75)); padding-block: 6px; border-radius: 28px; }
 nav.tabs.compact :is(a,button) { gap: 0; }
 nav.tabs.compact :is(a,button) > span:not(.tab-n) { max-height: 0; opacity: 0; overflow: hidden; }
@@ -278,7 +278,7 @@ nav.tabs :is(a,button):active { transform: scale(.97); }
 @media (max-height: 700px) { :root { --nav-height: 64px; --nav-padding: 5px; --nav-bottom: max(8px, calc(env(safe-area-inset-bottom) - 8px)); } }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   .material { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; }
-  nav.tabs { border-color: var(--color-outline); }
+  nav.tabs.material { background: var(--card); border-color: var(--color-outline); }
   nav.tabs [aria-current="page"] { background: var(--accent2); color: var(--accent); box-shadow:none; }
 }
 /* UIKit preferences are read locally; remain solid before the native bridge answers. */
@@ -288,7 +288,7 @@ html.native-increase-contrast nav.tabs { border-color: var(--color-outline); }
 html.native-increase-contrast nav.tabs [aria-current="page"] { background: var(--accent2); color: var(--accent); box-shadow:none; }
 @media (forced-colors: active) {
   .material { background: Canvas; -webkit-backdrop-filter: none; backdrop-filter: none; }
-  nav.tabs { border-color: CanvasText; box-shadow: none; }
+  nav.tabs.material { background: Canvas; border-color: CanvasText; box-shadow: none; }
   nav.tabs :is(a,button)[aria-current="page"] { background:transparent;color:LinkText;box-shadow:none; }
 }
 @media (prefers-reduced-motion: reduce) { nav.tabs, nav.tabs :is(a,button), nav.tabs :is(a,button) > span { transition: none !important; } nav.tabs :is(a,button) { transform: none; } nav.tabs svg { animation: none !important; } }
