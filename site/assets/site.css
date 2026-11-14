@@ -719,6 +719,7 @@ header.top .signup { display:flex;align-items:center; }
 .friends-hero-copy { max-width: 560px; }
 .friends-hero-copy h2, .friends-story-steps > h2 { font-size: clamp(34px, 4.6vw, 58px); max-width: 15ch; }
 .friends-hero-copy .lede { margin-top: 18px; max-width: 34ch; color: var(--ink2); }
+.friends-runs-note { margin-top: 14px; color: var(--ink2); }
 .friends-note, .friends-demo-caption, .feature-demo-note, .feature-stage-label { color: var(--ink3); font-size: 13px; }
 .friends-note { margin-top: 24px; }
 .friends-hero-stage, .feature-showcase-stage { display: grid; justify-items: center; gap: 12px; }
@@ -862,6 +863,17 @@ header.top .signup { display:flex;align-items:center; }
 .privacy-screen-nav-capture { position: absolute; z-index: 3; right: 0; bottom: 0; left: 0; height: 16%; overflow: hidden; pointer-events: none; }
 .privacy-screen-nav-capture img { position: absolute; right: 0; bottom: 0; left: 0; display: block; width: 100%; height: auto; }
 /* Shared story treatment: the page stories use the same phone glow and capability rhythm as Features. */
+.feature-hero { position:relative; overflow:clip; padding:clamp(54px,8vw,104px) 0 clamp(56px,7vw,88px); background:radial-gradient(ellipse at 78% 42%,color-mix(in srgb,var(--brand) 13%,transparent),transparent 48%),radial-gradient(ellipse at 18% 18%,color-mix(in srgb,var(--brand) 8%,transparent),transparent 52%),var(--paper); }
+.feature-hero-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(360px,.72fr); gap:clamp(42px,8vw,120px); align-items:center; }
+.feature-hero-copy { min-width:0; }
+.feature-hero-copy h1 { max-width:12ch; margin:0; font-size:clamp(40px,5vw,66px); line-height:1.02; letter-spacing:-.035em; font-weight:700; }
+.feature-hero-copy .lede { max-width:42ch; margin-top:18px; color:var(--ink2); font-size:clamp(17px,1.7vw,20px); line-height:1.45; }
+.feature-hero-copy .site-capabilities { margin-top:28px; }
+.feature-hero-stage { min-width:0; }
+.feature-hero-stage .phone-frame { position:relative; z-index:1; width:min(380px,100%); box-shadow:0 32px 78px rgba(15,24,32,.24),0 8px 22px rgba(15,24,32,.16); }
+.feature-hero-stage .phone-frame picture { display:block; aspect-ratio:786 / 1420; overflow:hidden; }
+.feature-hero-stage .phone-frame picture img { display:block; width:100%; height:100%; object-fit:cover; object-position:top; }
+.feature-hero-stage .friends-screen { border-radius:13.8% / 7.6%; }
 .feature-style-pagehead .site-capabilities { margin-top:28px; }
 .site-capabilities { display:grid; gap:14px; max-width:480px; margin:0; padding:0; list-style:none; }
 .site-capabilities li { display:grid; grid-template-columns:28px minmax(0,1fr); gap:12px; align-items:start; }
@@ -872,9 +884,16 @@ header.top .signup { display:flex;align-items:center; }
 .feature-phone-stage { position:relative; display:grid; place-items:center; }
 .feature-phone-stage::before { position:absolute; inset:4% -14%; background:radial-gradient(ellipse at center,color-mix(in srgb,var(--brand) 24%,transparent),color-mix(in srgb,var(--brand) 9%,transparent) 44%,transparent 72%); content:''; pointer-events:none; }
 .feature-phone-stage > .phone-frame,.feature-phone-stage > .frame { position:relative; z-index:1; box-shadow:0 30px 70px rgba(15,24,32,.22),0 8px 20px rgba(15,24,32,.16); }
-.about-phone.feature-phone-stage { min-height:520px; }
+.about-phone.feature-phone-stage { min-height:520px; overflow:clip; }
 .about-phone.feature-phone-stage .frame { width:min(380px,100%); }
 @media (max-width:900px) { .feature-style-pagehead .site-capabilities { margin-top:22px; } .site-capabilities { gap:12px; } .feature-phone-stage::before { inset:4% -8%; } .about-phone.feature-phone-stage { min-height:0; } }
+@media (max-width:900px) {
+  .feature-hero { padding:56px 0 64px; }
+  .feature-hero-grid { grid-template-columns:1fr; gap:38px; }
+  .feature-hero-copy h1 { max-width:13ch; font-size:clamp(38px,10vw,52px); }
+  .feature-hero-stage { order:2; }
+  .feature-hero-stage .phone-frame { width:min(380px,78vw); }
+}
 @media (prefers-reduced-motion:reduce) { .feature-phone-stage::before { opacity:.9; } }
 
 .site-capability-mark { display:grid; place-items:center; width:24px; height:24px; color:var(--brand); font-size:20px; line-height:1; }
