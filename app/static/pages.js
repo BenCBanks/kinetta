@@ -213,12 +213,13 @@ function wireCardTaps(box) {
   box.addEventListener('pointerdown', (e) => {
     cardRelease();
     const c = e.target.closest && e.target.closest('.post-link') ? e.target.closest('article.post[data-href]') : card(e);   // the numbers are the card's own link
-    if (c && e.isPrimary) { cardPressed = c; c.classList.add('press'); }
+    if (c && e.isPrimary) { cardPressed = c; c.classList.add('press'); warmDestination(c.dataset.href); }
   }, {passive: true});
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => box.addEventListener(t, cardRelease, {passive: true}));
   box.addEventListener('click', (e) => {
     const c = card(e);
     if (!c || e.defaultPrevented || e.metaKey || e.ctrlKey || String(getSelection && getSelection())) return;
+    prepareActivityMapTransition(c,c.dataset.href);
     go(c.dataset.href);
   });
 }
@@ -691,6 +692,7 @@ route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
   // Shaped like the page that's coming (map, then the title card and numbers) so nothing appears to rearrange.
   el.innerHTML = `<div class="map-head"><div class="map lead sk" aria-hidden="true"></div><div class="top over">${backBtn('Activity')}</div></div>
     <div class="card d-ph" aria-hidden="true"><div class="sk line short"></div><div class="sk big"></div><div class="d-ph-stats"><span class="sk"></span><span class="sk"></span><span class="sk"></span></div></div>${skel(1)}`;
+  applyActivityMapTransition(el,id);
   wireBack(el, '/activity');
   SocialData.prefetch(id);
   const milestoneOwner=readOwner(),milestoneOffers=Milestones.read({activity_id:id}).catch(()=>({items:[]}));let milestoneDraw=0,openedEdit=false;
@@ -771,6 +773,7 @@ function drawDetail(el, a) {
   const recorded=[a.sport_label,a.device].filter(Boolean).map(esc).join(' · ');
   pane.overview=`${a.description?`<div class="card"><p class="desc">${esc(a.description)}</p></div>`:''}${recorded?`<p class="small muted">${recorded}</p>`:''}${pane.overview}<div class="card" id="d-photo-actions">${a.source==='healthkit'&&!a.line&&['run','ride','walk','hike'].includes(a.sport)?'<button class="linkbtn" type="button" id="d-add-map">Add the map</button>':''}<div class="detail-owner-tools"><div id="d-photos"></div><button type="button" class="linkbtn" id="d-comment-open">Comment</button></div></div>`;
   el.innerHTML=`${a.line?`<div class="detail-map-hero map-head">${activityMedia(a,{mapId:'d-map',detail:true,full:true,compact:true})}${bars.floating}</div>${bars.sticky}`:bars.floating}${ActivityDetail.title(a,hero)}${!a.line&&a.photos?.length?activityMedia(a,{mapId:'d-map',detail:true,compact:true}):''}${Object.keys(a.summary_overrides||{}).length?'<p class="small muted corrected-note">You edited these numbers. Records and splits are hidden until you restore the recorded values in Edit.</p>':''}${activityTabs(pane)}`;
+  applyActivityMapTransition(el,a.id);
   let drawCharts = null;
   wireActivityTabs(el, key => { if (key === 'charts' && drawCharts) { requestAnimationFrame(drawCharts); drawCharts = null; } });
   ActivityDetail.wire(el,a);

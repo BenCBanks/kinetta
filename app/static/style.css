@@ -1907,10 +1907,20 @@ nav.tabs { view-transition-name: tabs; }
 :root[data-nav="push"]::view-transition-new(root) { animation-name: vt-in-right; }
 :root[data-nav="back"]::view-transition-old(root) { animation-name: vt-out-right; }
 :root[data-nav="back"]::view-transition-new(root) { animation-name: vt-in-left; }
+/* For the shared activity map, let the map travel while the rest of each page clears quickly. */
+:root[data-nav="map-morph"]::view-transition-old(root) { animation: map-page-out 120ms ease-out both; }
+:root[data-nav="map-morph"]::view-transition-new(root) { animation: map-page-in 180ms ease-out 30ms both; }
+:root[data-nav="map-morph"]::view-transition-group(*) { animation-duration: 680ms; }
+:root[data-nav="map-morph"]::view-transition-old(*) { animation: map-shared-old-out 90ms linear both; }
+:root[data-nav="map-morph"]::view-transition-new(*) { animation: map-shared-new-in 140ms ease-out 20ms both; }
 @keyframes vt-in-right { from { transform: translateX(28px); opacity: 0; } }
 @keyframes vt-out-left { to { transform: translateX(-18px); opacity: 0; } }
 @keyframes vt-in-left { from { transform: translateX(-28px); opacity: 0; } }
 @keyframes vt-out-right { to { transform: translateX(18px); opacity: 0; } }
+@keyframes map-page-out { to { opacity: 0; } }
+@keyframes map-page-in { from { opacity: 0; } }
+@keyframes map-shared-old-out { to { opacity: 0; } }
+@keyframes map-shared-new-in { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .launch svg { animation: none; } ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
 
 /* Progress Totals bars (periodBars with inlineSelection): one muted fill for every sport, the accent for the selected

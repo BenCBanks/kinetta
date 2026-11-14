@@ -52,7 +52,7 @@ function swipeRows(el, onRemove) {
 // Shared by Food's recipe chooser while the larger Cook editor stays deferred.
 const listOf = (xs) => xs.slice(0, 3).join(', ') + (xs.length > 3 ? ` and ${xs.length - 3} more` : '');
 const col = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888';   // real colour for SVG attributes
-const App = {me: null, pageReady: false, cache: new Map(), pages: [], scroll: {}};
+const App = {me: null, pageReady: false, cache: new Map(), pages: [], scroll: {}, activityMapTransition: null};
 const appFeatureEnabled = (name) => App.me?.feature_flags?.[name] === true;
 const classicScriptPromises = new Map();
 const classicScriptsLoaded = new Set();
@@ -614,10 +614,79 @@ const prefetch = (path) => {
 function warmDestination(href){
   if(!App.me||!navigator.onLine)return;
   if(href==='/activity'){if(typeof warmFeed==='function')warmFeed();return;}
+  const activity=String(href||'').match(/^\/activity\/(?:friends\/)?(\d+)$/);
+  if(activity){
+    const shared=String(href).includes('/friends/');
+    prefetch(`${shared?'/api/shared/':'/api/activities/'}${activity[1]}`);
+    // A card tap can be faster than the Activity detail leaf. Warm it on pointer/focus
+    // so the shared map snapshot can land on the real destination shell.
+    const assets=[SOCIAL_ROUTE_ASSET,MEDIA_ROUTE_ASSET,ACTIVITY_DETAIL_ROUTE_ASSET];
+    if(!shared)assets.splice(1,0,SEGMENTS_ROUTE_ASSET,INTERVALS_ROUTE_ASSET);
+    assets.filter(asset=>!classicScriptsLoaded.has(asset)).forEach(asset=>loadClassicScript(asset).catch(()=>{}));
+    return;
+  }
   const paths=href==='/me'?['/api/stats','/api/activities?limit=1','/api/plans/current','/api/food/day']:
     href==='/food'?['/api/food/day?d='+isoDay(new Date())]:href==='/plan'?['/api/plans/current']:[];
   paths.forEach(prefetch);
 }
+
+function activityMapDestination(href){
+  const match=String(href||'').match(/^\/activity\/(?:friends\/)?(\d+)$/);
+  return match ? {id:String(match[1]), shared:String(href).includes('/friends/')} : null;
+}
+function clearActivityMapTransition(pending){
+  if(!pending)return;
+  App.lastActivityMapTransitionName=pending.name;
+  if(pending.map?.isConnected)pending.map.style.removeProperty('view-transition-name');
+  if(pending.destination?.isConnected)pending.destination.style.removeProperty('view-transition-name');
+  // A lazy detail render may replace the destination node between the update
+  // callback and `finished`; clear any surviving matching name in the live DOM.
+  clearActivityMapTransitionNames();
+  if(App.activityMapTransition===pending)App.activityMapTransition=null;
+}
+function clearActivityMapTransitionNames(){
+  for(const node of document.querySelectorAll('[style]'))if(/^map-\d+$/.test(node.style.viewTransitionName))node.style.removeProperty('view-transition-name');
+}
+// Set the shared name on exactly the card being opened. Other cards must remain unnamed:
+// duplicate view-transition names abort a shared-element transition.
+function prepareActivityMapTransition(source, href){
+  const destination=activityMapDestination(href);
+  if(!destination||!document.startViewTransition||matchMedia('(prefers-reduced-motion: reduce)').matches)return false;
+  const card=source?.closest?.('article.post[data-href]')||source;
+  const map=card?.matches?.('article.post')?card.querySelector('.activity-media .media-map .fmap'):null;
+  if(!map)return false;
+  clearActivityMapTransition(App.activityMapTransition);
+  const pending={id:destination.id,name:`map-${destination.id}`,map,direction:'forward'};
+  map.style.viewTransitionName=pending.name;
+  App.activityMapTransition=pending;
+  return true;
+}
+globalThis.prepareActivityMapTransition=prepareActivityMapTransition;
+function prepareActivityMapBackTransition(from){
+  const match=String(from||'').match(/^\/activity\/(?:friends\/)?(\d+)$/);
+  if(!match||location.pathname!=='/activity'||!document.startViewTransition||matchMedia('(prefers-reduced-motion: reduce)').matches)return false;
+  const map=$('#d-map')||$('#s-map');if(!map)return false;
+  clearActivityMapTransition(App.activityMapTransition);
+  const pending={id:String(match[1]),name:`map-${match[1]}`,map,direction:'back',href:String(from)};
+  map.style.viewTransitionName=pending.name;App.activityMapTransition=pending;return true;
+}
+function applyActivityMapTransition(el,id){
+  const pending=App.activityMapTransition;
+  let map=el?.querySelector?.('#d-map,#s-map,.map-head .map.lead');
+  if(pending?.direction==='back'&&location.pathname==='/activity'){
+    const card=[...(el?.querySelectorAll?.('article.post[data-href]')||[])].find(node=>node.dataset.href===pending.href);
+    map=card?.querySelector('.activity-media .media-map .fmap')||null;
+  }
+  if(!pending){if(map&&map.style.viewTransitionName===App.lastActivityMapTransitionName)map.style.removeProperty('view-transition-name');return;}
+  if(pending.id!==String(id))return;
+  if(map){
+    map.style.viewTransitionName=pending.name;pending.destination=map;
+    // Keep the name through the shared snapshot, then release it even if the
+    // detail API replaces the skeleton after `finished` has already settled.
+    setTimeout(()=>{if(map.style.viewTransitionName===pending.name)map.style.removeProperty('view-transition-name');},1200);
+  }
+}
+globalThis.applyActivityMapTransition=applyActivityMapTransition;
 // Once the app is open, fetch the other tabs' first screens quietly, so the first tap on Activity or Progress
 // doesn't wait for the server (2026-10-16: on a phone each request is a noticeable pause).
 function warmTabs() {
@@ -1025,12 +1094,17 @@ function go(path, {replace = false} = {}) {
 const TAB_HOMES = new Set(['/me', '/activity', '/track', '/progress', '/food']);
 function slide(kind, from) {
   const to = location.pathname, tabSwitch = TAB_HOMES.has(to) && TAB_HOMES.has(from);
-  if (!kind || tabSwitch || !document.startViewTransition || document.querySelector('.scrim') || matchMedia('(prefers-reduced-motion: reduce)').matches) return render();
-  document.documentElement.dataset.nav = kind;
+  const pending=App.activityMapTransition;
+  if (!kind || tabSwitch || !document.startViewTransition || document.querySelector('.scrim') || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const result=render();
+    if(result?.finally)result.finally(()=>clearActivityMapTransition(pending));else clearActivityMapTransition(pending);
+    return result;
+  }
+  document.documentElement.dataset.nav = pending ? 'map-morph' : kind;
   let done;
   const t = document.startViewTransition(() => { done = render(); });
   // Resizing for a keyboard can cancel the animation after navigation succeeded.
-  const clear = () => { delete document.documentElement.dataset.nav; };
+  const clear = () => { delete document.documentElement.dataset.nav; clearActivityMapTransition(pending); };
   t.finished.then(clear, clear);
   t.ready?.catch(() => {});
   return t.updateCallbackDone.then(() => done);
@@ -1165,9 +1239,13 @@ function render(options) {
     const bundleMatch=path.match(bundle.re)||[],bundleTab=typeof bundle.tab==='function'?bundle.tab(...bundleMatch.slice(1)):bundle.tab;
     const owner = readOwner(), generation = ++lazyRouteGeneration, nextPosition={key,owner,y:targetY};
     const el = lazyRouteShell(bundleTab);
+    const pendingDetail=App.activityMapTransition&&/^\/activity\/(?:friends\/)?\d+$/.test(path);
     el.innerHTML = bundleTab==='food'
       ? `<div class="lazy-route-loading food-route-loading"><p class="vh" role="status">Loading Nutrition…</p>${skelFood()}</div>`
-      : '<div class="boot lazy-route-loading" role="status"><p>Opening this page…</p></div>';
+      : pendingDetail
+        ? '<div class="map-head activity-map-transition-shell"><div class="map lead sk" aria-hidden="true"></div></div>'
+        : '<div class="boot lazy-route-loading" role="status"><p>Opening this page…</p></div>';
+    if (pendingDetail) applyActivityMapTransition(el,path.match(/(\d+)$/)?.[1]);
     if (!globalSyncDone) {
       if (typeof Track !== 'undefined') Track.sync();
       if (Native.syncPush) Native.syncPush();
@@ -1222,7 +1300,7 @@ function render(options) {
   return Promise.resolve(result).then(() => {if(current()&&typeof FeatureUsage!=='undefined')FeatureUsage.open(path);}).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
     requestAnimationFrame(() => { if(current()&&!touched)window.scrollTo(0,targetY);interactions.abort(); });
-    if (current()) { compactSubpageHeader(el);App.pageReady = true; scheduleSocialRouteWarmup(path);globalThis.CommunityTerms?.check(); if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path); loadPushInvitationForRoute(current); }
+    if (current()) { compactSubpageHeader(el);App.pageReady = true; if(!App.activityMapTransition)clearActivityMapTransitionNames(); scheduleSocialRouteWarmup(path);globalThis.CommunityTerms?.check(); if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path); loadPushInvitationForRoute(current); }
   });
 }
 function loadErrorCopy(e) {
@@ -1267,13 +1345,14 @@ document.addEventListener('click', (e) => {
   // The tab you're on (owner, 20 Oct 2026): its plain home page; already there, scroll to the top (like iPhone tab bars).
   if (a.dataset.tab && location.pathname === '/' + a.dataset.tab && !location.search) { window.scrollTo({top: 0, behavior: 'smooth'}); return; }
   if (a.dataset.tab) App.scroll[a.getAttribute('href')] = 0;
+  prepareActivityMapTransition(a,a.getAttribute('href'));
   go(a.getAttribute('href'));
 });
 document.addEventListener('pointerdown', (e) => {
   const a = e.target.closest('a'); if(a?.dataset.prefetch)prefetch(a.dataset.prefetch);else if(a)warmDestination(a.getAttribute('href'));
 }, {passive: true});
 document.addEventListener('focusin',e=>{const a=e.target.closest('a');if(a)warmDestination(a.getAttribute('href'));});
-window.addEventListener('popstate', (event) => { if (SheetHistory.pop(event)) return; if (App.mediaMapBack?.()) return; slide('back', App.lastPath || ''); });
+window.addEventListener('popstate', (event) => { if (SheetHistory.pop(event)) return; if (App.mediaMapBack?.()) return; const from=App.lastPath||'';prepareActivityMapBackTransition(from);slide('back',from); });
 document.addEventListener('visibilitychange', () => {
   if(document.hidden){App.hiddenAt=Date.now();return;}
   if(!App.me)return;Q.flush().catch(e=>toast(e.message));
