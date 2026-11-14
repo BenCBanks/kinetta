@@ -203,10 +203,10 @@ for device in preferred:
       assert detail['back']['y']>=metrics['safeTop'] and detail['back']['height']>=44,metrics
       assert all(r['width']>=44 and r['height']>=44 and r['y']>=metrics['safeTop'] for r in detail['actions']),metrics
       if stage=='activity-empty':assert detail['hero'] is None and detail['secondary']==0,metrics
-      elif stage=='activity-sticky':assert detail['hero']['bottom']<=0 and detail['bar']['y']==0,metrics
+      elif stage=='activity-sticky':assert detail['hero']['bottom']<=0 and abs(detail['bar']['y']-metrics['safeTop'])<=1,metrics
       else:
        assert abs(detail['hero']['y'])<=1 and abs(detail['hero']['width']-metrics['viewport']['width'])<=1,metrics
-       expected_hero=min(408,max(264,metrics['viewport']['height']*.46))
+       expected_hero=max(240,min(340,metrics['viewport']['height']*.38))
        assert abs(detail['hero']['height']-expected_hero)<=1,metrics
        if root==16:assert detail['tabs']['bottom']<nav['box']['y'],metrics
     if stage.startswith('track-'):

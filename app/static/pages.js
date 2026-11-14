@@ -725,7 +725,7 @@ const activitySamples = (a, series = ['speed','gap_speed','hr','alt','power','ca
 };
 function activityTabs(panes) {
   const names = DTABS.filter(([key]) => panes[key]?.trim());
-  return `<div class="seg wide dtabs" role="tablist" aria-label="Activity sections"${names.length < 2 ? ' hidden' : ''}>${names.map(([key,name]) => `<button type="button" role="tab" id="activity-tab-${key}" aria-controls="activity-pane-${key}" data-dt="${key}">${name}</button>`).join('')}</div>`
+  return `<div class="activity-tabs dtabs" role="tablist" aria-label="Activity sections"${names.length < 2 ? ' hidden' : ''}>${names.map(([key,name]) => `<button type="button" role="tab" id="activity-tab-${key}" aria-controls="activity-pane-${key}" data-dt="${key}">${name}</button>`).join('')}</div>`
     + names.map(([key]) => `<section class="dpane" id="activity-pane-${key}" data-pane="${key}" role="tabpanel" aria-labelledby="activity-tab-${key}" hidden>${panes[key]}</section>`).join('');
 }
 function wireActivityTabs(el, onShow = () => {}) {
