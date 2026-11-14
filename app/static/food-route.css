@@ -261,6 +261,7 @@ a.ntile { color: inherit; text-decoration: none; }
 :is(.balance,.nutrition-secondary) .brow.big { border-top: 0; font-size: 17px; font-weight: 750; padding: 2px 0 6px; }
 :is(.balance,.nutrition-secondary) .brow.big b { font: 600 24px var(--numf); letter-spacing: -.03em; } :is(.balance,.nutrition-secondary) .brow.big i { font-size: 13px; font-style: normal; color: var(--tx3); }
 :is(.balance,.nutrition-secondary) .more-link { display: inline-block; margin-top: 8px; }
+#fd-resting-source { display: inline-flex; align-items: center; min-height: 44px; }
 :is(.balance,.nutrition-secondary) details.bd { margin-top: 4px; } :is(.balance,.nutrition-secondary) details.bd > summary { font-size: max(15px,.9375rem); }
 .balance .addwk { display: inline-block; margin: 2px 0 6px; }
 
