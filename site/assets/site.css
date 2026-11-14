@@ -636,7 +636,7 @@ header.top .signup { display:flex;align-items:center; }
 .home-hero { padding:clamp(42px,7vw,94px) 0 80px; }
 .home-hero-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(360px,.9fr); gap:clamp(32px,7vw,100px); align-items:center; }
 .home-hero-copy { max-width:620px; }
-.home-hero-copy h1 { font-size:clamp(42px,6vw,78px); max-width:11ch; }
+.home-hero-copy h1 { font-size:clamp(42px,6vw,78px); max-width:12ch; letter-spacing:-.025em; }
 .home-hero-copy .lede { max-width:35ch; }
 .home-jumps { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:30px; }
 .home-jumps a { min-height:40px; display:inline-flex; align-items:center; padding:7px 13px; border:1px solid var(--line); border-radius:999px; color:var(--ink2); background:color-mix(in srgb, var(--paper) 72%, transparent); text-decoration:none; font-size:15px; transition:color .2s ease,background .2s ease,border-color .2s ease; }

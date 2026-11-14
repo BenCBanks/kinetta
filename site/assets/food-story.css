@@ -3,6 +3,7 @@
 .food-story .story-pin { position:sticky; top:110px; display:grid; justify-items:center; align-content:start; }
 .food-story .phone-frame { width:min(290px,100%); }
 .food-story .story-step { max-width:470px; }
+.food-story .story-step h3 { scroll-margin-top:48px; }
 .food-story .story-step p { max-width:40ch; }
 .food-story .story-step:last-child { min-height:78vh; padding-bottom:80px; }
 .food-story .step-phone { display:none; }
