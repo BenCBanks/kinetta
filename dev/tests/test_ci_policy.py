@@ -167,7 +167,10 @@ class CIPolicyTests(unittest.TestCase):
     def test_browser_shards_cover_every_existing_command_once(self):
         workflow=(ROOT/'.github/workflows/tests.yml').read_text()
         script=(ROOT/'dev/tests/run_browser_shard.sh').read_text()
-        self.assertIn('shard: [1, 2, 3, 4]',workflow)
+        matrix=re.search(r'shard: \[([^]]+)\]',workflow)
+        self.assertIsNotNone(matrix)
+        shards=[value.strip() for value in matrix.group(1).split(',')]
+        self.assertEqual(shards,[str(i) for i in range(1,len(shards)+1)])
         self.assertIn('run_browser_shard.sh',workflow)
         self.assertIn('needs: [backend, browser_shards, reviewer_integration]',workflow)
         self.assertIn('always()',workflow)
@@ -194,8 +197,8 @@ feature_collection_ui.cjs groups_ui.cjs journeys_prepare.py journeys.cjs journey
         owners={}
         for line in script.splitlines():
             stripped=line.strip()
-            if stripped in ('1)','2)','3)','4)'):
-                shard=stripped[0]
+            if re.fullmatch(r'[1-9]\d*\)',stripped):
+                shard=stripped[:-1]
             elif stripped == ';;':
                 shard=None
             for prefix in ('node dev/tests/','python3 dev/tests/'):
