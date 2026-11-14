@@ -5,14 +5,14 @@ const source=fs.readFileSync('app/static/app.js','utf8');
 function setup(reduced=false){
  const sheets=[],timers=new Map(),events=new Map(),documentEvents=new Map();let timerId=0,focuses=0,disposed=0;
  const classes=()=>{const values=new Set();return {add:x=>values.add(x),remove:x=>values.delete(x),contains:x=>values.has(x)};};
- const element=()=>({style:{setProperty(k,v){this[k]=v;}},classList:classes(),listeners:{},addEventListener(k,fn){this.listeners[k]=fn;},setAttribute(k,v){this[k]=v;},remove(){this.isConnected=false;},contains(){return false;}});
+ const element=()=>({style:{setProperty(k,v){this[k]=v;}},classList:classes(),listeners:{},addEventListener(k,fn){this.listeners[k]=fn;},setAttribute(k,v){this[k]=v;},remove(){this.isConnected=false;},contains(){return false;},getBoundingClientRect(){return {height:400};}});
  const notice=element();notice.classList.add('on');notice.undo=false;
  const previous={isConnected:true,focus(options){assert.equal(options.preventScroll,true);focuses++;}};
  const document={activeElement:previous,body:{children:sheets,classList:classes(),append:s=>{s.isConnected=true;sheets.push(s);}},
   createElement:()=>{const s=element();s.sh=element();s.body=element();s.classList.add('scrim');s.contains=el=>el.sheet===s;return s;},
   querySelector:()=>sheets.find(s=>s.isConnected),querySelectorAll:()=>sheets.filter(s=>s.isConnected),
   addEventListener:(k,f)=>documentEvents.set(k,f),removeEventListener:k=>documentEvents.delete(k)};
- const ctx={document,console,window:{},matchMedia:()=>({matches:reduced}),getComputedStyle:el=>({transform:'matrix(1, 0, 0, 1, 0, 19)',opacity:el.sh?'.7':'.8'}),esc:String,svg:()=>'',innerHeight:844,
+ const ctx={document,console,window:{},performance:{now:()=>0},matchMedia:()=>({matches:reduced}),getComputedStyle:el=>({transform:'matrix(1, 0, 0, 1, 0, 19)',opacity:el.sh?'.7':'.8'}),esc:String,svg:()=>'',innerHeight:844,
   addEventListener:(k,f)=>events.set(k,f),removeEventListener:k=>events.delete(k),requestAnimationFrame:f=>f(),
   setTimeout:f=>{timers.set(++timerId,f);return timerId;},clearTimeout:id=>timers.delete(id),
   $:(selector,parent)=>selector==='#toast'?notice:selector==='button'&&parent===notice?(notice.undo?{}:null):selector==='.sheet'?parent.sh:selector==='.sbody'?parent.body:null,
@@ -37,10 +37,10 @@ function setup(reduced=false){
  for(const f of t.timers.values())f();assert.equal(t.focuses,before,'old exit cannot steal replacement focus');assert(second.s.isConnected);assert(t.document.body.classList.contains('has-sheet'),'old cleanup cannot unlock a new sheet');
 }
 {
- const t=setup(true),{close,s}=t.open();close();assert(!s.isConnected,'reduced motion removes immediately');assert.equal(t.timers.size,0);assert.equal(t.disposed,1);assert.equal(t.focuses,1);
+ const t=setup(true),{close,s}=t.open();close();assert(s.isConnected&&s.inert,'reduced motion keeps the shell for its fade');assert.equal(t.timers.size,1);assert.equal(t.disposed,1);assert.equal(t.focuses,1);s.listeners.animationend({target:s.sh,animationName:'sheet-fade-out'});assert(!s.isConnected,'reduced motion removes after its fade');assert.equal(t.timers.size,0);
 }
 {const t=setup();t.notice.undo=true;t.open();assert(t.notice.classList.contains('on'),'opening a sheet preserves the offered Undo');}
-console.log('Sheet motion: interrupted start, inert exit, immediate focus/handler release, animation cleanup, rapid replacement/resource bounds and instant reduced-motion close PASS');
+console.log('Sheet motion: interrupted start, inert exit, immediate focus/handler release, animation cleanup, rapid replacement/resource bounds and reduced-motion fade close PASS');
 
 {
  const t=setup(),{s}=t.open(),chart={closest:selectors=>selectors.includes('.fitness-inspect .chartbox')?{}:null};
