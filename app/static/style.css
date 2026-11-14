@@ -247,11 +247,21 @@ details.fold-row[open] { padding-bottom: 12px; }
 /* Floating Frost: one stable five-tab capsule (owner-selected, 29 October 2026).
    --tab-h reserves its actual height and bottom gap in existing sticky controls and page padding.
    Long labels keep their intrinsic width; the other targets share the remaining room. */
+.material { background: var(--card);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  box-shadow: var(--elevation-sheet), inset 0 .5px 0 color-mix(in srgb, var(--tx) 8%, transparent); }
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .material { background: color-mix(in srgb, var(--card) 76%, transparent); -webkit-backdrop-filter: saturate(180%) blur(var(--material-blur)); backdrop-filter: saturate(180%) blur(var(--material-blur)); }
+}
+.scrim.material { background: rgba(0,0,0,.36); box-shadow: none; }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .material { background: var(--card); }
+}
 nav.tabs { position: fixed; z-index: 20; left: 12px; right: 12px; bottom: var(--nav-bottom); max-width: 520px; margin: 0 auto;
   display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 8px; height: var(--nav-height); padding: var(--nav-padding);
   border: 1px solid var(--line); border-color: color-mix(in srgb, var(--card) 80%, var(--line)); border-radius: calc(var(--nav-height) / 2);
-  background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none;
-  box-shadow: var(--elevation-raised); transition: height var(--motion-settle) var(--motion-ease), border-radius var(--motion-settle) var(--motion-ease), padding var(--motion-settle) var(--motion-ease); }
+  transition: height var(--motion-settle) var(--motion-ease), border-radius var(--motion-settle) var(--motion-ease), padding var(--motion-settle) var(--motion-ease); }
+nav.tabs.material { box-shadow: var(--elevation-sheet), inset 0 .5px 0 color-mix(in srgb, var(--tx) 8%, transparent); }
 nav.tabs.compact { height: max(56px, calc(var(--nav-height) * .75)); padding-block: 6px; border-radius: 28px; }
 nav.tabs.compact :is(a,button) { gap: 0; }
 nav.tabs.compact :is(a,button) > span:not(.tab-n) { max-height: 0; opacity: 0; overflow: hidden; }
@@ -259,29 +269,26 @@ nav.tabs :is(a,button) > span:not(.tab-n) { max-height: 1.3em; opacity: 1; overf
 nav.tabs :is(a,button) { position: relative; display: grid; justify-items: center; align-content: center; gap: 2px;
   width: 100%; min-width: 0; min-height: 44px; height: 100%; padding: 3px 1px; border-radius: 30px; white-space: nowrap;
   color: var(--tx2); font-size: 13px; font-weight: var(--weight-support); line-height: 1.15; letter-spacing: 0; transition: transform var(--motion-press) ease-out, color var(--motion-press) ease-out, background var(--motion-settle) var(--motion-ease), box-shadow var(--motion-settle) var(--motion-ease); }
-nav.tabs :is(a,button) svg { width: 23px; height: 23px; stroke-width: 1.9; }
+nav.tabs :is(a,button) svg { width: 23px; height: 23px; stroke-width: 1.9; transition: transform var(--dur-fast) var(--spring-snappy); }
 nav.tabs :is(a,button)[aria-current="page"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--card)); font-weight: var(--weight-title); box-shadow: none; }
 nav.tabs :is(a,button)[aria-current="page"] svg { stroke-width: 2.3; }
 nav.tabs :is(a,button):active { transform: scale(.97); }
-/* Blur is confined to this small surface; unsupported browsers keep the solid base. */
-@supports (background: color-mix(in srgb, white 88%, transparent)) and ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  nav.tabs { background: color-mix(in srgb, var(--card) 88%, transparent);
-    -webkit-backdrop-filter: blur(22px) saturate(1.3); backdrop-filter: blur(22px) saturate(1.3); }
-}
 @media (prefers-color-scheme: dark) { nav.tabs { box-shadow: var(--elevation-raised); } }
 @media (max-width: 350px) { :root { --nav-height: 68px; --nav-padding: 6px; } nav.tabs { left:8px; right:8px; } nav.tabs :is(a,button) { font-size: 13px; letter-spacing:-.025em; } }
 @media (max-height: 700px) { :root { --nav-height: 64px; --nav-padding: 5px; --nav-bottom: max(8px, calc(env(safe-area-inset-bottom) - 8px)); } }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  nav.tabs { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; border-color: var(--color-outline); }
+  .material { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  nav.tabs { border-color: var(--color-outline); }
   nav.tabs [aria-current="page"] { background: var(--accent2); color: var(--accent); box-shadow:none; }
 }
 /* UIKit preferences are read locally; remain solid before the native bridge answers. */
-html.native:not(.native-display-ready) nav.tabs, html.native-reduce-transparency nav.tabs, html.native-increase-contrast nav.tabs {
+html.native:not(.native-display-ready) .material, html.native-reduce-transparency .material, html.native-increase-contrast .material {
   background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; }
 html.native-increase-contrast nav.tabs { border-color: var(--color-outline); }
 html.native-increase-contrast nav.tabs [aria-current="page"] { background: var(--accent2); color: var(--accent); box-shadow:none; }
 @media (forced-colors: active) {
-  nav.tabs { background: Canvas; border-color: CanvasText; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+  .material { background: Canvas; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  nav.tabs { border-color: CanvasText; box-shadow: none; }
   nav.tabs :is(a,button)[aria-current="page"] { background:transparent;color:LinkText;box-shadow:none; }
 }
 @media (prefers-reduced-motion: reduce) { nav.tabs, nav.tabs :is(a,button), nav.tabs :is(a,button) > span { transition: none !important; } nav.tabs :is(a,button) { transform: none; } nav.tabs svg { animation: none !important; } }
@@ -2310,11 +2317,15 @@ body .activity-card .post-summary .stat small { color:var(--tx3); font-size:13px
 @media (hover: hover) and (pointer: fine) {
   .card.tap:hover { transform: translateY(-1px); background: var(--surface-raised); box-shadow: var(--elevation-raised); }
 }
-button:not(:disabled), a[role="button"], a.primary, a.ghost { transition: transform var(--motion-press) ease-out, opacity var(--motion-press) ease-out, color var(--motion-press) ease-out, background-color var(--motion-settle) var(--motion-ease), box-shadow var(--motion-settle) var(--motion-ease); }
+button:not(:disabled), a, [role="button"], summary, .card.tap, .row-link { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+button:not(:disabled), a, [role="button"], summary, .card.tap, .row-link { transition: transform var(--dur-spring) var(--spring-snappy), opacity var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out); }
 nav.tabs :is(a,button) { transition: transform var(--motion-press) ease-out, color var(--motion-press) ease-out, background var(--motion-settle) var(--motion-ease), box-shadow var(--motion-settle) var(--motion-ease); }
 .primary, .ghost { font-weight: var(--weight-title); }
 @media (hover: hover) and (pointer: fine) { .primary:not(:disabled):hover { filter: brightness(1.035); box-shadow: var(--elevation-raised); } .ghost:not(:disabled):hover { background: var(--surface-raised); box-shadow: var(--elevation-rest); } }
-button:not(:disabled):active, a[role="button"]:active, a.primary:active, a.ghost:active, .card.tap:active { transform: scale(.97); }
+button:not(:disabled):is(:active,[data-touch-pressed]):not([data-touch-cancelled]), a:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), [role="button"]:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), summary:is(:active,[data-touch-pressed]):not([data-touch-cancelled]) { transform: scale(.97); }
+.card.tap:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), .row-link:is(:active,[data-touch-pressed]):not([data-touch-cancelled]) { transform: scale(.985); background-color: color-mix(in srgb, currentColor 6%, var(--card)); }
+nav.tabs :is(a,button):is(:active,[data-touch-pressed]):not([data-touch-cancelled]) svg { transform: scale(.90); }
+button:not(:disabled):is(:active,[data-touch-pressed]):not([data-touch-cancelled]), a:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), [role="button"]:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), summary:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), .card.tap:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), .row-link:is(:active,[data-touch-pressed]):not([data-touch-cancelled]) { transition-duration: 90ms, 0ms, 0ms, 0ms; transition-timing-function: var(--ease-out); }
 .shell h1, h1 { font-weight: var(--weight-display); }
 h2, h3, .sec-head, .card > h2, .post-title, .sheet-head h2, .plan-hero h2, .sheet header h2 { font-weight: var(--weight-title); }
 .num, .stat b, .hero-num, .me-metric-value { font-variant-numeric: tabular-nums; font-weight: var(--weight-number); }
@@ -2322,6 +2333,9 @@ h2, h3, .sec-head, .card > h2, .post-title, .sheet-head h2, .plan-hero h2, .shee
 html body .me-card-bars .me-week.now > span:first-child { background: var(--accent-gradient); opacity: 1; }
 .svg-paint-defs { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) {
-  .primary, .ghost, .icon-btn, .chip, .back, nav.tabs :is(a,button), .card.tap, .row-link, button:not(:disabled), a[role="button"], a.primary, a.ghost { transition: none !important; }
-  button:not(:disabled):active, a[role="button"]:active, a.primary:active, a.ghost:active, .card.tap:active { transform: none !important; }
+  :root { --spring-smooth: var(--ease-in-out); --spring-snappy: var(--ease-in-out); --spring-bouncy: var(--ease-in-out); }
+  .primary, .ghost, .icon-btn, .chip, .back, nav.tabs :is(a,button), .card.tap, .row-link, button:not(:disabled), a, [role="button"], summary { transition: none !important; }
+  button:not(:disabled):is(:active,[data-touch-pressed]):not([data-touch-cancelled]), a:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), [role="button"]:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), summary:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), .card.tap:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), .row-link:is(:active,[data-touch-pressed]):not([data-touch-cancelled]) { transform: none !important; }
+  button:not(:disabled):is(:active,[data-touch-pressed]):not([data-touch-cancelled]), a:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), [role="button"]:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), summary:is(:active,[data-touch-pressed]):not([data-touch-cancelled]) { background-color: color-mix(in srgb, currentColor 6%, var(--card)); }
+  nav.tabs :is(a,button):is(:active,[data-touch-pressed]):not([data-touch-cancelled]) svg { transform: none; }
 }
