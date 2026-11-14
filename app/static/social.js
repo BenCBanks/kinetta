@@ -590,7 +590,7 @@ async function homeFeed(el) {
       for(const node of [...list.children])if(!retained.has(node))node.remove();
     }else list.innerHTML=items.length?items.map(a=>feedCard(a,{who:true,compact:true})).join(''):feedEmpty();
     const invite=list.querySelector?.('[data-invite-empty]');if(invite)invite.onclick=inviteFriends;
-    more.hidden=!pg.more;feedMaps(list);wireCheers(list);$$('[data-moment-reaction-group]',list).forEach(group=>wireReactionGroup(group));if(typeof cleanViews!=='undefined')cleanViews();
+    more.hidden=!pg.more;if(App.activityMapTransition?.direction==='back')applyActivityMapTransition(list,App.activityMapTransition.id);feedMaps(list);wireCheers(list);$$('[data-moment-reaction-group]',list).forEach(group=>wireReactionGroup(group));if(typeof cleanViews!=='undefined')cleanViews();
   };
   let hit=App.cache.get('feed:home');
   if(!hit){const k=kept('feed:home');if(k){hit={data:k,at:0};App.cache.set('feed:home',hit);}}

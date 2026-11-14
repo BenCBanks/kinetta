@@ -656,15 +656,27 @@ function prepareActivityMapTransition(source, href){
   const map=card?.matches?.('article.post')?card.querySelector('.activity-media .media-map .fmap'):null;
   if(!map)return false;
   clearActivityMapTransition(App.activityMapTransition);
-  const pending={id:destination.id,name:`map-${destination.id}`,map};
+  const pending={id:destination.id,name:`map-${destination.id}`,map,direction:'forward'};
   map.style.viewTransitionName=pending.name;
   App.activityMapTransition=pending;
   return true;
 }
 globalThis.prepareActivityMapTransition=prepareActivityMapTransition;
+function prepareActivityMapBackTransition(from){
+  const match=String(from||'').match(/^\/activity\/(?:friends\/)?(\d+)$/);
+  if(!match||location.pathname!=='/activity'||!document.startViewTransition||matchMedia('(prefers-reduced-motion: reduce)').matches)return false;
+  const map=$('#d-map')||$('#s-map');if(!map)return false;
+  clearActivityMapTransition(App.activityMapTransition);
+  const pending={id:String(match[1]),name:`map-${match[1]}`,map,direction:'back',href:String(from)};
+  map.style.viewTransitionName=pending.name;App.activityMapTransition=pending;return true;
+}
 function applyActivityMapTransition(el,id){
   const pending=App.activityMapTransition;
-  const map=el?.querySelector?.('#d-map,#s-map,.map-head .map.lead');
+  let map=el?.querySelector?.('#d-map,#s-map,.map-head .map.lead');
+  if(pending?.direction==='back'&&location.pathname==='/activity'){
+    const card=[...(el?.querySelectorAll?.('article.post[data-href]')||[])].find(node=>node.dataset.href===pending.href);
+    map=card?.querySelector('.activity-media .media-map .fmap')||null;
+  }
   if(!pending){if(map?.style.viewTransitionName===App.lastActivityMapTransitionName)map.style.removeProperty('view-transition-name');return;}
   if(pending.id!==String(id))return;
   if(map){
@@ -1088,7 +1100,7 @@ function slide(kind, from) {
     if(result?.finally)result.finally(()=>clearActivityMapTransition(pending));else clearActivityMapTransition(pending);
     return result;
   }
-  document.documentElement.dataset.nav = kind;
+  document.documentElement.dataset.nav = pending ? 'map-morph' : kind;
   let done;
   const t = document.startViewTransition(() => { done = render(); });
   // Resizing for a keyboard can cancel the animation after navigation succeeded.
@@ -1340,7 +1352,7 @@ document.addEventListener('pointerdown', (e) => {
   const a = e.target.closest('a'); if(a?.dataset.prefetch)prefetch(a.dataset.prefetch);else if(a)warmDestination(a.getAttribute('href'));
 }, {passive: true});
 document.addEventListener('focusin',e=>{const a=e.target.closest('a');if(a)warmDestination(a.getAttribute('href'));});
-window.addEventListener('popstate', (event) => { if (SheetHistory.pop(event)) return; if (App.mediaMapBack?.()) return; slide('back', App.lastPath || ''); });
+window.addEventListener('popstate', (event) => { if (SheetHistory.pop(event)) return; if (App.mediaMapBack?.()) return; const from=App.lastPath||'';prepareActivityMapBackTransition(from);slide('back',from); });
 document.addEventListener('visibilitychange', () => {
   if(document.hidden){App.hiddenAt=Date.now();return;}
   if(!App.me)return;Q.flush().catch(e=>toast(e.message));
