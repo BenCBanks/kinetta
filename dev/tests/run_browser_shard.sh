@@ -20,6 +20,7 @@ case "$1" in
     node dev/tests/profile_card_ui.cjs
     node dev/tests/nutrition_ui.cjs
     node dev/tests/nutrition_readout_ui.cjs
+    node dev/tests/sheet_motion_ui.cjs
     ;;
   2)
     node dev/tests/track_home_ui.cjs

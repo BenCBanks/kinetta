@@ -858,16 +858,18 @@ function sheet(title, html, onMount, opts = {}) {
     // closing halfway through entrance or a drag. A replacement sheet can take focus without a delayed restore.
     releaseModal(); s.inert = true; s.setAttribute('aria-hidden', 'true'); cleanViews(s);
     const remove = () => { s.remove(); cleanViews(); if (!document.querySelector('.scrim')) document.body.classList.remove('has-sheet'); };
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches || !s.isConnected) remove();
+    // Reduced-motion exits are synchronous: leaving an inert fade shell connected lets
+    // detached sheet callbacks repaint, and callers expect a closed modal to be gone.
+    if (!s.isConnected || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)) remove();
     else {
       const visual = getComputedStyle(sh);
       sh.style.setProperty('--sheet-from', visual.transform);
       sh.style.setProperty('--sheet-opacity', visual.opacity);
       s.style.setProperty('--scrim-from', getComputedStyle(s).opacity);
       s.classList.add('is-closing');
-      const done = e => { if (e.target === sh && e.animationName === 'sheet-out') { clearTimeout(timer); remove(); } };
+      const done = e => { if (e.target === sh && /^(sheet-out|sheet-fade-out)$/.test(e.animationName)) { clearTimeout(timer); remove(); } };
       s.addEventListener('animationend', done);
-      const timer = setTimeout(remove, 220); // background tabs and interrupted animations still clean up
+      const timer = setTimeout(remove, 270); // background tabs and interrupted animations still clean up
     }
     if (prev && prev.isConnected && prev.focus) prev.focus({preventScroll: true});
     SheetHistory.closed(flow,flowEntry);
@@ -892,28 +894,52 @@ function sheet(title, html, onMount, opts = {}) {
   // decides the finger is scrolling. Mouse: drag the grab bar / header.
   const sh = $('.sheet', s);   // the sheet itself is the scroll container
   sh.requestClose=()=>{close();return closing;};
-  let ty = null, dy = 0, dragging = false, fromTop = false;
+  let ty = null, dy = 0, dragging = false, fromTop = false, handleStart = false, lastY = 0, lastAt = 0, velocity = 0;
   let edgeStart=null,edgeDx=0,edgeDy=0,edgeBack=false;
-  const settle = (shut) => { if (shut) { if(flow)SheetHistory.closeAll(flow);else close(); return; } sh.classList.add('settle'); sh.style.transform = ''; setTimeout(() => sh.classList.remove('settle'), 200); };
+  const interruptMotion = () => {
+    // Freeze an entrance/snap animation at its current visual position before the
+    // finger takes over. This keeps the gesture continuous and makes replacement
+    // sheets interruptible instead of letting the old animation win a frame later.
+    const active = sh.getAnimations?.().find(a => /^(sheet-in|sheet-fade-in)$/.test(a.animationName || ''));
+    if (active) {
+      const style = getComputedStyle(sh);
+      const transform = style.transform;
+      const opacity = style.opacity;
+      active.cancel();
+      if (transform && transform !== 'none') sh.style.transform = transform;
+      if (opacity !== '') sh.style.opacity = opacity;
+    }
+    if (sh.classList.contains('settle')) {
+      const transform = getComputedStyle(sh).transform;
+      sh.classList.remove('settle');
+      if (transform && transform !== 'none') sh.style.transform = transform;
+    }
+  };
+  const rubberBand = value => value >= 0 ? value : value * .24;
+  const shouldDismiss = speed => dy > sh.getBoundingClientRect().height * .3 || (dy > 0 && speed > 500);
+  const settle = (shut, speed = 0) => { if (shut || shouldDismiss(speed)) { if(flow)SheetHistory.closeAll(flow);else close(); return; } sh.classList.add('settle'); sh.style.transform = ''; setTimeout(() => sh.classList.remove('settle'), 270); };
   sh.addEventListener('touchstart', (e) => {
+    interruptMotion();
     const touch=e.touches[0];edgeStart=flow&&flowStep>0&&e.touches.length===1&&touch.clientX<=24?{x:touch.clientX,y:touch.clientY}:null;edgeDx=edgeDy=0;edgeBack=false;
     if (e.touches.length !== 1 || e.target.closest('input, select, textarea, [contenteditable="true"], .tblwrap, .hgrid, .chips, .social-sheet .comments, .fitness-inspect .chartbox')) { ty = null; return; }
-    ty = touch.clientY; dy = 0; dragging = false;
-    fromTop = !!e.target.closest('.grab, header') || sh.scrollTop <= 0;
+    ty = lastY = touch.clientY; lastAt = performance.now(); velocity = 0; dy = 0; dragging = false;
+    handleStart = !!e.target.closest('.grab, header');
+    fromTop = handleStart || sh.scrollTop <= 0;
   }, {passive: true});
   sh.addEventListener('touchmove', (e) => {
     if(edgeStart){const touch=e.touches[0];edgeDx=touch.clientX-edgeStart.x;edgeDy=touch.clientY-edgeStart.y;if(edgeDx>8&&edgeDx>Math.abs(edgeDy)){edgeBack=true;e.preventDefault();}if(edgeBack)return;}
     if (ty == null || !fromTop) return;
-    dy = e.touches[0].clientY - ty;
-    if (!dragging && dy > 8 && (e.target.closest('.grab, header') || sh.scrollTop <= 0)) { dragging = true; sh.classList.remove('settle'); }
-    if (dragging) { e.preventDefault(); sh.style.transform = `translateY(${Math.max(0, dy)}px)`; }
+    const now=performance.now(),y=e.touches[0].clientY;dy = y - ty;
+    const elapsed=Math.max(1,now-lastAt);velocity=(y-lastY)/elapsed*1000;lastY=y;lastAt=now;
+    if (!dragging && (dy > 8 || (handleStart && Math.abs(dy) > 8)) && (handleStart || sh.scrollTop <= 0)) { dragging = true; sh.classList.remove('settle'); }
+    if (dragging) { e.preventDefault(); sh.style.transform = `translate3d(0,${rubberBand(dy)}px,0)`; }
   }, {passive: false});
-  sh.addEventListener('touchend', () => { if(edgeBack&&edgeDx>72&&edgeDx>Math.abs(edgeDy)*1.2)SheetHistory.back(flow);else if (dragging) settle(dy > 90); edgeStart=null;edgeBack=false;ty = null; dragging = false; });
-  sh.addEventListener('touchcancel', () => { if(edgeBack)sh.style.transform='';else if (dragging) settle(false);edgeStart=null;edgeBack=false;ty = null; dragging = false; });
-  let my = null;
-  sh.addEventListener('mousedown', (e) => { if (e.target.closest('.grab, header') && !e.target.closest('button')) my = e.clientY; });
-  const onMove = (e) => { if (my != null && e.clientY - my > 0) sh.style.transform = `translateY(${e.clientY - my}px)`; };
-  const onUp = (e) => { if (my != null) { settle(e.clientY - my > 90); my = null; } };
+  sh.addEventListener('touchend', () => { if(edgeBack&&edgeDx>72&&edgeDx>Math.abs(edgeDy)*1.2)SheetHistory.back(flow);else if (dragging) settle(false,velocity); edgeStart=null;edgeBack=false;ty = null; dragging = false; handleStart = false; });
+  sh.addEventListener('touchcancel', () => { if(edgeBack)sh.style.transform='';else if (dragging) settle(false);edgeStart=null;edgeBack=false;ty = null; dragging = false; handleStart = false; });
+  let my = null, mouseLastY = 0, mouseLastAt = 0, mouseVelocity = 0;
+  sh.addEventListener('mousedown', (e) => { if (e.target.closest('.grab, header') && !e.target.closest('button')) { interruptMotion();my = mouseLastY = e.clientY;mouseLastAt = performance.now();mouseVelocity = 0; } });
+  const onMove = (e) => { if (my != null) { const now=performance.now(),elapsed=Math.max(1,now-mouseLastAt),y=e.clientY;mouseVelocity=(y-mouseLastY)/elapsed*1000;mouseLastY=y;mouseLastAt=now;const distance=y-my;if(Math.abs(distance)>8)sh.style.transform = `translate3d(0,${rubberBand(distance)}px,0)`; } };
+  const onUp = (e) => { if (my != null) { dy=e.clientY-my;settle(false,mouseVelocity);my = null; } };
   addEventListener('mousemove', onMove); addEventListener('mouseup', onUp);
   // the keyboard (2026-10-13, Ben): iOS slides it over the page, so the sheet would sit under it. Lift the sheet by the
   // keyboard's height and keep it inside what is still visible, so a text box being typed in stays in view.

@@ -3,16 +3,16 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('app/static/app.js','utf8');
 function setup(reduced=false){
- const sheets=[],timers=new Map(),events=new Map(),documentEvents=new Map();let timerId=0,focuses=0,disposed=0;
+ const sheets=[],timers=new Map(),events=new Map(),documentEvents=new Map();let timerId=0,focuses=0,disposed=0,clock=0;
  const classes=()=>{const values=new Set();return {add:x=>values.add(x),remove:x=>values.delete(x),contains:x=>values.has(x)};};
- const element=()=>({style:{setProperty(k,v){this[k]=v;}},classList:classes(),listeners:{},addEventListener(k,fn){this.listeners[k]=fn;},setAttribute(k,v){this[k]=v;},remove(){this.isConnected=false;},contains(){return false;}});
+ const element=()=>({style:{setProperty(k,v){this[k]=v;}},classList:classes(),listeners:{},addEventListener(k,fn){this.listeners[k]=fn;},setAttribute(k,v){this[k]=v;},remove(){this.isConnected=false;},contains(){return false;},getBoundingClientRect(){return {height:400};}});
  const notice=element();notice.classList.add('on');notice.undo=false;
  const previous={isConnected:true,focus(options){assert.equal(options.preventScroll,true);focuses++;}};
  const document={activeElement:previous,body:{children:sheets,classList:classes(),append:s=>{s.isConnected=true;sheets.push(s);}},
   createElement:()=>{const s=element();s.sh=element();s.body=element();s.classList.add('scrim');s.contains=el=>el.sheet===s;return s;},
   querySelector:()=>sheets.find(s=>s.isConnected),querySelectorAll:()=>sheets.filter(s=>s.isConnected),
   addEventListener:(k,f)=>documentEvents.set(k,f),removeEventListener:k=>documentEvents.delete(k)};
- const ctx={document,console,window:{},matchMedia:()=>({matches:reduced}),getComputedStyle:el=>({transform:'matrix(1, 0, 0, 1, 0, 19)',opacity:el.sh?'.7':'.8'}),esc:String,svg:()=>'',innerHeight:844,
+ const ctx={document,console,window:{},performance:{now:()=>clock},matchMedia:()=>({matches:reduced}),getComputedStyle:el=>({transform:'matrix(1, 0, 0, 1, 0, 19)',opacity:el.sh?'.7':'.8'}),esc:String,svg:()=>'',innerHeight:844,
   addEventListener:(k,f)=>events.set(k,f),removeEventListener:k=>events.delete(k),requestAnimationFrame:f=>f(),
   setTimeout:f=>{timers.set(++timerId,f);return timerId;},clearTimeout:id=>timers.delete(id),
   $:(selector,parent)=>selector==='#toast'?notice:selector==='button'&&parent===notice?(notice.undo?{}:null):selector==='.sheet'?parent.sh:selector==='.sbody'?parent.body:null,
@@ -21,7 +21,7 @@ function setup(reduced=false){
  vm.runInContext(source.slice(source.indexOf('const viewResources ='),source.indexOf('async function mapInto'))+'\nglobalThis.resources=viewResources;',ctx);
  vm.runInContext(source.slice(source.indexOf('const ModalStack ='),source.indexOf('// ---------- router')),ctx);
  function open(){const close=ctx.sheet('Demo','<p>Fictional</p>');const s=sheets.at(-1),resource={sheet:s,get isConnected(){return s.isConnected;}};ctx.resources.set(resource,()=>disposed++);return {close,s};}
- return {ctx,open,sheets,timers,events,documentEvents,document,notice,get focuses(){return focuses;},get disposed(){return disposed;}};
+ return {ctx,open,sheets,timers,events,documentEvents,document,notice,advance(ms){clock+=ms;},get focuses(){return focuses;},get disposed(){return disposed;}};
 }
 {
  const t=setup(),{close,s}=t.open();let mapRemoved=0;
@@ -37,10 +37,10 @@ function setup(reduced=false){
  for(const f of t.timers.values())f();assert.equal(t.focuses,before,'old exit cannot steal replacement focus');assert(second.s.isConnected);assert(t.document.body.classList.contains('has-sheet'),'old cleanup cannot unlock a new sheet');
 }
 {
- const t=setup(true),{close,s}=t.open();close();assert(!s.isConnected,'reduced motion removes immediately');assert.equal(t.timers.size,0);assert.equal(t.disposed,1);assert.equal(t.focuses,1);
+ const t=setup(true),{close,s}=t.open();close();assert(!s.isConnected,'reduced motion removes the closed sheet synchronously');assert.equal(t.timers.size,0,'reduced motion does not leave a delayed shell cleanup');assert.equal(t.disposed,1);assert.equal(t.focuses,1);
 }
 {const t=setup();t.notice.undo=true;t.open();assert(t.notice.classList.contains('on'),'opening a sheet preserves the offered Undo');}
-console.log('Sheet motion: interrupted start, inert exit, immediate focus/handler release, animation cleanup, rapid replacement/resource bounds and instant reduced-motion close PASS');
+console.log('Sheet motion: interrupted start, inert exit, immediate focus/handler release, animation cleanup, rapid replacement/resource bounds and reduced-motion synchronous close PASS');
 
 {
  const t=setup(),{s}=t.open(),chart={closest:selectors=>selectors.includes('.fitness-inspect .chartbox')?{}:null};
@@ -49,4 +49,30 @@ console.log('Sheet motion: interrupted start, inert exit, immediate focus/handle
  const header={closest:selectors=>selectors==='.grab, header'?{}:null};
  s.sh.listeners.touchstart({touches:[{clientY:100}],target:header});s.sh.listeners.touchmove({touches:[{clientY:240}],target:header,preventDefault(){}});s.sh.listeners.touchend();assert(s.inert,'the header retains swipe-to-close');
  console.log('Fitness sheet: chart gestures stay with inspection; header still swipes closed PASS');
+}
+{
+ const t=setup(),{s}=t.open(),list={closest:()=>null};
+ s.sh.scrollTop=0;
+ s.sh.listeners.touchstart({touches:[{clientY:300}],target:list});
+ t.advance(16);
+ s.sh.listeners.touchmove({touches:[{clientY:180}],target:list,preventDefault(){throw Error('top-of-list upward swipe was hijacked')}});
+ s.sh.listeners.touchend();
+ assert(!s.inert&&s.isConnected,'an upward swipe in top-of-list content remains a scroll gesture');
+ assert.equal(s.sh.style.transform,undefined,'content swipe does not apply sheet rubber-band transform');
+ console.log('Sheet content: top-of-list upward swipe remains scrollable PASS');
+}
+{
+ const t=setup(),{s}=t.open(),header={closest:selectors=>selectors==='.grab, header'?{}:null};
+ s.sh.listeners.touchstart({touches:[{clientY:300}],target:header});
+ t.advance(10);
+ s.sh.listeners.touchmove({touches:[{clientY:180}],target:header,preventDefault(){}});
+ s.sh.listeners.touchend();
+ assert(!s.inert&&s.isConnected,'a fast upward header flick never dismisses');
+ const d=setup(),down=d.open(),downHeader={closest:selectors=>selectors==='.grab, header'?{}:null};
+ down.s.sh.listeners.touchstart({touches:[{clientY:180}],target:downHeader});
+ d.advance(10);
+ down.s.sh.listeners.touchmove({touches:[{clientY:300}],target:downHeader,preventDefault(){}});
+ down.s.sh.listeners.touchend();
+ assert(down.s.inert,'a fast downward header flick dismisses');
+ console.log('Sheet velocity: upward flick gated by dy > 0; downward flick dismisses PASS');
 }

@@ -442,11 +442,11 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .reminder-how summary {font-size:1rem;min-height:44px;display:flex;align-items:center;cursor:pointer}
 
 /* ---------- sheet (bottom dialog) ---------- */
-.scrim { position: fixed; inset: 0; z-index: 3000; background: rgba(0,0,0,.36); display: flex; align-items: flex-end; justify-content: center; animation: fade .18s ease-out; }
-@keyframes fade { from { opacity: 0; } }
+.scrim { position: fixed; inset: 0; z-index: 3000; background: rgba(0,0,0,.35); display: flex; align-items: flex-end; justify-content: center; animation: scrim-in var(--motion-settle) var(--spring-smooth); }
+@keyframes scrim-in { from { opacity: 0; } to { opacity: 1; } }
 .sheet { width: 100%; max-width: 640px; max-height: 92dvh; overflow: auto; overflow-x: hidden; background: var(--surface-sheet); box-shadow: var(--sheet-shadow); border-radius: 28px 28px 0 0;
-  padding: 8px 18px calc(env(safe-area-inset-bottom) + 20px); overscroll-behavior: contain; animation: rise var(--motion-settle) var(--motion-ease); }
-@keyframes rise { from { transform: translateY(40px); opacity: .6; } }
+  padding: 8px 18px calc(env(safe-area-inset-bottom) + 20px); overscroll-behavior: contain; animation: sheet-in var(--motion-settle) var(--spring-smooth); }
+@keyframes sheet-in { from { transform: translate3d(0,100%,0); opacity: .96; } to { transform: translate3d(0,0,0); opacity: 1; } }
 .sheet .grab { position: relative; width: 38px; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--tx3) 45%, transparent); margin: 4px auto 12px; }
 .sheet .grab::after { content: ''; position: absolute; left: -60px; right: -60px; top: -14px; bottom: -14px; }
 .sheet .grab, .sheet header { touch-action: none; }
@@ -455,11 +455,19 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .sheet:has([data-sheet-back]) > header { display: grid; grid-template-columns: 44px minmax(0,1fr) 44px; gap: 8px; }
 .sheet:has([data-sheet-back]) > header h2 { min-width: 0; text-align: center; }
 .sheet header .sheet-flow-back { width: 44px; height: 44px; background: transparent; box-shadow: none; }
-.sheet.settle { transition: transform .16s ease-out; }
-.scrim.is-closing { pointer-events:none; animation:fade-out .16s ease-in both; }
-.scrim.is-closing .sheet { animation:sheet-out .16s cubic-bezier(.4,0,1,1) both; }
-@keyframes fade-out { from { opacity:var(--scrim-from, 1); } to { opacity:0; } }
-@keyframes sheet-out { from { transform:var(--sheet-from, none); opacity:var(--sheet-opacity, 1); } to { transform:translateY(100%); opacity:0; } }
+.sheet.settle { transition: transform var(--motion-settle) var(--spring-snappy); }
+.scrim.is-closing { pointer-events:none; animation:scrim-out var(--motion-settle) ease-in both; }
+.scrim.is-closing .sheet { animation:sheet-out var(--motion-settle) ease-in both; }
+@keyframes scrim-out { from { opacity:var(--scrim-from, 1); } to { opacity:0; } }
+@keyframes sheet-out { from { transform:var(--sheet-from, none); opacity:var(--sheet-opacity, 1); } to { transform:translate3d(0,100%,0); opacity:0; } }
+@media (prefers-reduced-motion: reduce) {
+  .scrim { animation: sheet-fade-in var(--motion-settle) ease-out !important; }
+  .sheet { animation: sheet-fade-in var(--motion-settle) ease-out !important; }
+  .scrim.is-closing { animation: sheet-fade-out var(--motion-settle) ease-in !important; }
+  .scrim.is-closing .sheet { animation: sheet-fade-out var(--motion-settle) ease-in !important; }
+}
+@keyframes sheet-fade-in { from { opacity:0; } to { opacity:1; } }
+@keyframes sheet-fade-out { from { opacity:var(--sheet-opacity,1); } to { opacity:0; } }
 .sheet input, .sheet select, .sheet textarea { background: var(--card); }
 .pick-list .row-link { width: 100%; border-left: 0; border-right: 0; border-bottom: 0; background: none; text-align: left; font-size: .95rem; }
 .pick-list .tick { color: var(--accent); } .pick-list .tick svg, .pick-list .row-link svg { width: 20px; height: 20px; }
