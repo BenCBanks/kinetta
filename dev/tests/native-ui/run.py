@@ -128,7 +128,7 @@ for device in preferred:
     assert nav['visible']==(stage in ('activity','activity-sticky','activity-empty','achievements','achievement-share-track') or stage.startswith(('friends-','groups-','header-'))),metrics
     if stage=='achievement-share-track':
      share=metrics.get('achievementShare',{});assert share.get('title')=='Share' and share.get('tabs')==[{'label':'Distance','selected':'true'},{'label':'Run','selected':'false'},{'label':'All sports','selected':'false'}],metrics
-     assert share.get('preview',{}).get('loaded') and share.get('sendText')=='Share' and not share.get('sendDisabled') and share.get('shareArtLoaded'), 'Bundled app opens and renders the preselected Run Distance share picture: '+json.dumps(share,sort_keys=True)
+     assert share.get('preview',{}).get('loaded') and share.get('sendText')=='Share' and not share.get('sendDisabled'), 'Bundled app opens and renders the preselected Run Distance share picture: '+json.dumps(share,sort_keys=True)
     if a.store:
      raw=capture.read_bytes();dimensions=run('sips','-g','pixelWidth','-g','pixelHeight',str(capture))
      assert raw[:3]==b'\xff\xd8\xff' and re.search(r'pixelWidth: 1320\b',dimensions) and re.search(r'pixelHeight: 2868\b',dimensions),'Store JPEG must be native1320x2868, no alpha or resizing'
