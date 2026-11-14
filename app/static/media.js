@@ -91,7 +91,28 @@ function wireActivityMedia(root) {
     const track = $('.media-track', box), items = $$('.media-item', track);
     if (!box.classList.contains('detail-media')) {
       const map = $('.media-map', box);
-      if (map) map.onclick = event => {if(map.closest('.post-led')&&event.target.closest('.leaflet-control'))return;const href=`${box.dataset.mediaMine === 'true' ? '/activity/' : '/activity/friends/'}${box.dataset.media}`;prepareActivityMapTransition(map,href);go(href);};
+      if (map) map.onclick = event => {
+        if(map.closest('.post-led')&&event.target.closest('.leaflet-control'))return;
+        // The parent activity card also handles map-area taps. Let this route
+        // handler own navigation so one tap cannot push the detail twice.
+        event.stopPropagation();
+        const href=`${box.dataset.mediaMine === 'true' ? '/activity/' : '/activity/friends/'}${box.dataset.media}`;
+        const open=()=>{
+          // A feed-map open is a fresh detail visit, even when this activity was
+          // previously left at its charts or efforts section.
+          App.scroll[href]=0;
+          prepareActivityMapTransition(map,href);
+          go(href);
+        };
+        const activity=href.match(/^\/activity\/(friends\/)?\d+$/);
+        if(activity&&document.startViewTransition&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
+          // Keep the source map live until the lazy detail modules can render;
+          // otherwise the shared transition snapshots only the loading shell.
+          const scripts=[SOCIAL_ROUTE_ASSET,MEDIA_ROUTE_ASSET,ACTIVITY_DETAIL_ROUTE_ASSET];
+          if(!activity[1])scripts.splice(1,0,SEGMENTS_ROUTE_ASSET,INTERVALS_ROUTE_ASSET);
+          loadClassicScripts(scripts).then(open,open);
+        }else open();
+      };
     }
     const photos = JSON.parse(box.dataset.mediaPhotos), a = {id: +box.dataset.media, photos};
     let index = 0;

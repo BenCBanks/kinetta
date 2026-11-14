@@ -290,5 +290,6 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
    console.log('Activity Details, Splits and Efforts 390px light/dark: named panes, varied splits, gradients, no overflow PASS');
   }
   if(loadCases.length)console.log(`ActivityDetail lazy loading: ${loadCases.join(', ')} PASS`);
+  if(!medalKind&&!process.env.KINETTA_DETAIL_CASE)cp.execFileSync(process.execPath,[path.join(__dirname,'activity_map_transition_ui.cjs')],{env:process.env,stdio:'inherit'});
  }finally{for(const c of contexts)await c.close();for(const who of ['owner','friend']){const c=await b.newContext();try{const r=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_detail_'+who,password:pw}});if(r.ok())await c.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password:pw}});}finally{await c.close();}}await b.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
