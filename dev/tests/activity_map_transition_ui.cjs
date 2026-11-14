@@ -44,6 +44,7 @@ async function until(page,fn,label){for(let i=0;i<180;i++){if(await page.evaluat
   });
   assert.equal((await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_feed_typical',password:pw}})).status(),200);
   await page.goto(base+'/activity');try{await until(page,()=>App.pageReady&&!!document.querySelector('#ff-list .activity-card[data-href^="/activity/"]'),'Home feed ready');}catch(error){throw Error(`${error.message}; errors=${JSON.stringify(errors)}`);}
+  await page.evaluate(()=>{const shell=document.createElement('div');applyActivityMapTransition(shell,'999');});
   const card=page.locator('#ff-list .activity-card').filter({hasText:'Fictional short route'}).filter({has:page.locator('.fmap')}).first();await card.waitFor();
   const id=await card.getAttribute('data-href').then(href=>href.split('/').pop());
   assert.match(await card.getAttribute('data-href'),/^\/activity\/\d+$/,'the morph uses the owner activity detail');

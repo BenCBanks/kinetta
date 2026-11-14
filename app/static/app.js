@@ -677,7 +677,7 @@ function applyActivityMapTransition(el,id){
     const card=[...(el?.querySelectorAll?.('article.post[data-href]')||[])].find(node=>node.dataset.href===pending.href);
     map=card?.querySelector('.activity-media .media-map .fmap')||null;
   }
-  if(!pending){if(map?.style.viewTransitionName===App.lastActivityMapTransitionName)map.style.removeProperty('view-transition-name');return;}
+  if(!pending){if(map&&map.style.viewTransitionName===App.lastActivityMapTransitionName)map.style.removeProperty('view-transition-name');return;}
   if(pending.id!==String(id))return;
   if(map){
     map.style.viewTransitionName=pending.name;pending.destination=map;
