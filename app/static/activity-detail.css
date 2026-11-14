@@ -189,7 +189,7 @@
 .activity-detail .detail-sticky .icon-btn { width: 44px; min-width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: var(--tx); }
 .activity-detail { margin-inline: -6px; --detail-edge: 16px; }
 .activity-detail > .detail-map-hero { margin-bottom: 0; }
-.activity-detail .compact-detail-title { position: relative; z-index: 2; margin: 0 0 0; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface-card); box-shadow: var(--elevation-raised); }
+.activity-detail .compact-detail-title { position: relative; z-index: 2; margin: 0 0 0; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface-card); box-shadow: none; }
 .activity-detail > .detail-map-hero ~ .compact-detail-title { margin-top: -16px; padding: 16px; }
 .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-stat-stack { margin-top: 0; }
 .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-primary .stat b,
@@ -217,18 +217,18 @@
 .activity-detail .detail-stat-stack .stat b i { color: var(--tx3); font-size: 13px; font-weight: 400; }
 .activity-detail .detail-social { border-top: 1px solid var(--line); }
 .activity-detail .detail-milestone-row { display:none; }
-.activity-detail .detail-milestone-row:has(.milestone-banner) { display:flex; align-items:center; gap:8px; min-width:0; margin-top:12px; padding-top:8px; border-top:1px solid var(--line); }
+.activity-detail .detail-milestone-row:has(.milestone-banner) { position:relative; display:flex; align-items:center; gap:8px; min-width:0; margin-top:12px; padding-top:8px; border-top:1px solid var(--line); }
 .activity-detail .detail-milestone-icon { display:grid; place-items:center; width:20px; height:20px; flex:none; color:var(--color-action); }
 .activity-detail .detail-milestone-icon svg { width:20px; height:20px; }
-.activity-detail .detail-milestone-row #d-milestones { flex:1; min-width:0; }
-.activity-detail .detail-milestone-row .milestone-banner { display:flex; align-items:center; min-width:0; min-height:44px; margin:0; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; }
+.activity-detail .detail-milestone-row #d-milestones { position:static; flex:1; min-width:0; }
+.activity-detail .detail-milestone-row .milestone-banner { position:static; display:flex; align-items:center; min-width:0; min-height:44px; margin:0; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; }
 .activity-detail .detail-milestone-row .milestone-copy { display:flex; align-items:center; flex:1; min-width:0; color:var(--tx3); font-size:15px; }
 .activity-detail .detail-milestone-row .milestone-copy b { min-width:0; color:var(--tx); font-size:15px; font-weight:500; overflow-wrap:anywhere; }
 .activity-detail .detail-milestone-row .milestone-more { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
 .activity-detail .detail-milestone-row .milestone-actions { display:flex; flex:none; align-items:center; }
-.activity-detail .detail-milestone-row .milestone-share { position:relative; display:grid; place-items:center; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; border:0; border-radius:0; background:transparent; color:var(--tx3); }
+.activity-detail .detail-milestone-row .milestone-share { position:absolute; z-index:2; inset:-1px 0 0; display:block; box-sizing:border-box; width:auto; min-width:0; height:auto; min-height:0; padding:0; border:0; border-radius:0; background:transparent; color:var(--tx3); }
 .activity-detail .detail-milestone-row .milestone-share svg { display:none; }
-.activity-detail .detail-milestone-row .milestone-share::after { content:""; width:8px; height:8px; border-top:1.5px solid currentColor; border-right:1.5px solid currentColor; transform:rotate(45deg); }
+.activity-detail .detail-milestone-row .milestone-share::after { content:""; position:absolute; top:50%; left:calc((100% - 16px)/3 + 8px); display:block; width:8px; height:8px; border-top:1.5px solid currentColor; border-right:1.5px solid currentColor; transform:translateY(-50%) rotate(45deg); }
 .activity-detail .detail-milestone-row .milestone-dismiss { display:none; }
 .activity-detail .detail-milestone-row .milestone-error { flex-basis:100%; margin:0; }
 .activity-detail .activity-tabs { position: sticky; top: calc(env(safe-area-inset-top) + 52px); z-index: 70; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: 0; margin: 16px -16px 12px; border-bottom: 1px solid var(--line); background: var(--bg); }
