@@ -605,6 +605,7 @@ const invalidate = (prefix, {health=true,keepData=false}={}) => {
   if(prefix.startsWith('/api/food')&&typeof CustomEvent!=='undefined')document.dispatchEvent(new CustomEvent('food:changed'));
 };
 const prefetch = (path) => {
+  if(!navigator.onLine||navigator.connection?.saveData)return;
   const activity=path.match(/^\/api\/activities\/(\d+)$/);if(activity&&typeof SocialData!=='undefined')SocialData.prefetch(activity[1]);
   const owner = readOwner(), epoch = readEpoch(path);
   if (!screenHit(path)) readOnce(path).then((data) => {
@@ -1348,9 +1349,27 @@ document.addEventListener('click', (e) => {
   prepareActivityMapTransition(a,a.getAttribute('href'));
   go(a.getAttribute('href'));
 });
-document.addEventListener('pointerdown', (e) => {
-  const a = e.target.closest('a'); if(a?.dataset.prefetch)prefetch(a.dataset.prefetch);else if(a)warmDestination(a.getAttribute('href'));
-}, {passive: true});
+let lastPressPrefetch = null;
+function prefetchPressOnce(node,path) {
+  const now=performance.now();
+  if(!path||lastPressPrefetch?.node===node&&lastPressPrefetch.path===path&&now-lastPressPrefetch.at<500)return;
+  lastPressPrefetch={node,path,at:now};
+  prefetch(path);
+}
+function prefetchFromPress(e) {
+  const a=e.target.closest?.('a[href^="/"]');
+  if(a){
+    if(a.dataset.prefetch)prefetchPressOnce(a,a.dataset.prefetch);
+    else if(e.type==='pointerdown')warmDestination(a.getAttribute('href'));
+    return;
+  }
+  const card=e.target.closest?.('article.post[data-prefetch]');
+  if(!card||e.target.closest('button,input,select,textarea,label,.post-ft,.media-controls,.leaflet-control'))return;
+  prefetchPressOnce(card,card.dataset.prefetch);
+}
+// Pointer and touch cover iOS WebViews and browsers; duplicate synthetic events share the same read.
+document.addEventListener('pointerdown', prefetchFromPress, {passive: true});
+document.addEventListener('touchstart', prefetchFromPress, {passive: true});
 document.addEventListener('focusin',e=>{const a=e.target.closest('a');if(a)warmDestination(a.getAttribute('href'));});
 window.addEventListener('popstate', (event) => { if (SheetHistory.pop(event)) return; if (App.mediaMapBack?.()) return; const from=App.lastPath||'';prepareActivityMapBackTransition(from);slide('back',from); });
 document.addEventListener('visibilitychange', () => {
