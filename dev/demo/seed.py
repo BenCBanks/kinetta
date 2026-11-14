@@ -64,7 +64,7 @@ def main():
                 {'day': d, 'meal': 'dinner', 'name': 'Holiday dinner' if holiday else random.choice(['Baked salmon + potatoes', 'Pasta with turkey', 'Tofu stir-fry']), 'kcal': dinner, 'protein_g': 38, 'carbs_g': 70, 'fat_g': 20}]
         q('POST', '/api/food/entries', rows)
         if k % 3 == 0: q('PUT', '/api/food/weights', {'day': d, 'kg': round(64.8 - 0.035 * (28 - k) + random.uniform(-0.25, 0.25), 1)})
-    q('PUT', '/api/food/targets', {'kcal_target': 1800, 'protein_target': 110})
+    q('PUT', '/api/food/targets', {'kcal_target': 1800, 'protein_target': 110, 'carbs_target': 225, 'fat_target': 70})
     try: q('POST', '/api/plans', {'race': '10k', 'level': 'intermediate', 'weeks': 10, 'runs': 4, 'long_day': 6})
     except Exception as e: print('plan', e)
     print('seeded')
