@@ -280,7 +280,7 @@ function drawDay(el, D) {
     const ringValue=hasGoal?Math.min(Math.max(0,Math.round(eaten)),Math.round(goal)):Math.max(0,Math.round(eaten));
     const ringAria=hasGoal?`${r0(Math.max(0,eaten))} of ${r0(goal)} calories${ringState==='over'?', above goal':''}`:`${r0(Math.max(0,eaten))} calories logged; no goal set`;
     summaryRoot.innerHTML = `<div class="card tcard balance nutrition-day-summary"><div class="nutrition-summary-tools"><a class="nutrition-goals icon-btn" id="fd-goal" href="/food/setup" aria-label="Calorie and macro goals">${svg('gear')}</a></div><div class="nutrition-summary">
-      <a class="nutrition-summary-link" href="/food?view=overview" data-ring-state="${ringState}" aria-label="Nutrition overview and details">
+      <a class="nutrition-summary-link" href="/food?view=overview" data-ring-state="${ringState}"><span class="vh">Nutrition overview and details. </span>
         <div class="calorie-ring-wrap"><svg class="calorie-ring${pulseRing?' goal-reached-pulse':''}" viewBox="0 0 128 128" role="progressbar" aria-label="Calories eaten" aria-valuemin="0" aria-valuemax="${hasGoal?Math.round(goal):Math.max(1,Math.round(eaten))}" aria-valuenow="${ringValue}" aria-valuetext="${esc(ringAria)}" focusable="false">
           <defs><linearGradient id="calorie-ring-gradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#2868ed"/><stop offset="58%" stop-color="#2879d4"/><stop offset="100%" stop-color="#0b9290"/></linearGradient></defs>
           <circle class="calorie-ring-track" cx="64" cy="64" r="54"/><circle class="calorie-ring-arc" cx="64" cy="64" r="54" stroke-dasharray="${circumference}" stroke-dashoffset="${(circumference*(1-ringProgress)).toFixed(3)}"/>
