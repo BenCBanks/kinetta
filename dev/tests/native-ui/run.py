@@ -5,7 +5,8 @@ from urllib.parse import urlsplit
 import urllib.request
 from lifecycle import stop_for_fixture
 from header_geometry import check_headers
-p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--store',action='store_true');p.add_argument('--device',choices=['compact','pro','all'],default='all');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
+STORE_STAGES=('header-me','activity','header-track','header-food','food','header-progress','header-activity','achievements')
+p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--store',action='store_true');p.add_argument('--store-stage',action='append',choices=STORE_STAGES,help='Add a Store scene to the default set; repeat for extra screens.');p.add_argument('--device',choices=['compact','pro','all'],default='all');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
 def run(*args,check=True,timeout=180):
  try:result=subprocess.run(args,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=timeout)
  except subprocess.TimeoutExpired as error:
@@ -73,7 +74,9 @@ for device in preferred:
   installed=None;recovered=False
   for theme in (('light',) if a.store else ('light','dark')):
    sim('ui',udid,'appearance',theme)
-   stages=[('header-me',16),('activity',16),('header-track',16),('header-food',16),('food',16),('header-progress',16),('header-activity',16)] if a.store else [(name,16) for name in ['header-me','header-activity','header-track','header-progress','header-food']]+[('recipe',16),('review',16),('food',16),('recipe',24),('food',24),('track-live',16),('track-map',16),('track-review',16),('track-live',24),('track-review',24),('activity',16),('activity-sticky',16),('activity-empty',16),('activity-map',16),('activity',24),('friends-empty',16),('friends-typical',16),('friends-heavy',16),('friends-heavy',24),('groups-create',16)]
+   if a.store:
+    store_stages=list(dict.fromkeys([*STORE_STAGES,*(a.store_stage or [])]));stages=[(name,16) for name in store_stages]
+   else: stages=[(name,16) for name in ['header-me','header-activity','header-track','header-progress','header-food']]+[('recipe',16),('review',16),('food',16),('recipe',24),('food',24),('track-live',16),('track-map',16),('track-review',16),('track-live',24),('track-review',24),('activity',16),('activity-sticky',16),('activity-empty',16),('activity-map',16),('activity',24),('friends-empty',16),('friends-typical',16),('friends-heavy',16),('friends-heavy',24),('groups-create',16)]
    for stage,root in stages:
     diagnostics['phase']=f'{theme} {stage} root={root}';(a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
     print(f'Native UI: {device["name"]} {theme} {stage} root={root}',flush=True)
@@ -107,17 +110,26 @@ for device in preferred:
     assert metrics['mePreloadCount']==0,metrics
     nav=metrics['navigation']
     assert nav['ready'],'Actual UIKit display-preference bridge must respond: '+json.dumps(metrics.get('display',{}),sort_keys=True)
-    assert nav['visible']==(stage in ('activity','activity-sticky','activity-empty') or stage.startswith(('friends-','groups-','header-'))),metrics
+    assert nav['visible']==(stage in ('activity','activity-sticky','activity-empty','achievements') or stage.startswith(('friends-','groups-','header-'))),metrics
     if a.store:
      raw=capture.read_bytes();dimensions=run('sips','-g','pixelWidth','-g','pixelHeight',str(capture))
      assert raw[:3]==b'\xff\xd8\xff' and re.search(r'pixelWidth: 1320\b',dimensions) and re.search(r'pixelHeight: 2868\b',dimensions),'Store JPEG must be native1320x2868, no alpha or resizing'
      assert not metrics.get('blocked') and metrics.get('sceneReady'),metrics
      assert metrics.get('store') and metrics.get('bodyText') and not re.search(r'could not load|couldn.t load|Map unavailable|NaN|undefined',metrics['bodyText'],re.I),metrics
+     if stage in ('activity','header-activity'):
+      assert re.search(r'\d+(?:\.\d+)?\s*mi\b',metrics['bodyText']) and re.search(r'\d+:\d{2}\s*/mi\b',metrics['bodyText']), 'US App Store activity scenes must use miles and min/mi pace'
+      assert not re.search(r'\bkm\b|/km\b',metrics['bodyText']), 'US App Store activity scenes must not show metric distance or pace'
+     if stage.startswith('header-') or stage=='achievements':
+      top=metrics.get('topBand',{});assert top.get('glyph',{}).get('y',-1)>=metrics['safeTop']-1, f'{stage} top heading is fully visible: {top}'
+     if stage!='food' and metrics['navigation']['visible']:
+      assert all(item['label']['height']>=10 for item in metrics['navigation']['items']), f'{stage} Store nav must remain expanded: {metrics["navigation"]}'
      if stage=='header-me':
       me_text=metrics['bodyText']
-      assert re.search(r'\b8\.0\s+Distance\s+\(km\)',me_text), 'Me screenshot must show the matching fictional 8.0 km distance'
+      assert re.search(r'\b5\.0\s+Distance\s+\(mi\)',me_text), 'Me screenshot must show the matching fictional 5.0 mi distance'
+      assert not re.search(r'\bkm\b|/km\b',me_text), 'US App Store Me scene must not show metric distance or pace'
       assert re.search(r'\b2\s+Workouts\b',me_text) and re.search(r'\b48m\s+Time\b',me_text), 'Me screenshot must show its two fictional workouts and their 48 minutes'
-      assert re.search(r'Featured achievements[\s\S]{0,160}\b134\s+(?:wkt|workouts)\b',me_text), 'Me screenshot must show the earned featured workout and its lifetime value'
+      assert re.search(r'Featured achievements[\s\S]{0,220}\b134\s+(?:wkt|workouts)\b',me_text) and len(metrics.get('featuredAchievements',[]))==3, 'Me screenshot must show three earned featured achievements including lifetime workouts'
+      assert all(item['box'] and item['box']['y']>=metrics['safeTop'] and item['box']['bottom']<=metrics['navigation']['box']['y'] for item in metrics['featuredAchievements']), 'All three featured medals must be visible above the tab bar'
       assert not re.search(r'\b0\s+Workouts\b|\b0m\s+Time\b',me_text), 'Me screenshot must not show empty weekly count/time beside a nonzero distance'
      assert metrics['viewport']=={'width':440,'height':956,'offset':0},metrics
      metrics['sha256']=hashlib.sha256(raw).hexdigest();metrics['captureToolRevision']=run('git','rev-parse','HEAD');metrics['bundleAssetsVerifiedAgainst']=metrics['captureToolRevision']
@@ -134,7 +146,7 @@ for device in preferred:
       assert label['x']>=target['x']-1 and label['x']+label['width']<=target['x']+target['width']+1,metrics
       assert label['y']>=target['y'] and label['bottom']<=target['bottom'],metrics
     if not stage.startswith(('track-','activity','header-')):assert metrics['back'] and abs(metrics['back']['y']-metrics['safeTop'])<=4,metrics
-    if stage.startswith('header-'):
+    if stage.startswith('header-') or stage=='achievements':
      assert metrics['topBand']['page']==stage.removeprefix('header-') and metrics['topBand']['title']['height']>0,metrics
      if stage=='header-food':check_headers([*results,metrics][-5:])
     if stage=='header-activity' and metrics.get('activityMetadata'):
@@ -206,5 +218,6 @@ for device in preferred:
   if udid:sim('shutdown',udid,check=False,timeout=20);sim('delete',udid,check=False,timeout=20)
 import shutil
 shutil.rmtree(a.output/'KinettaLayout.app',ignore_errors=True)
-assert len(results)==(7 if a.store else 50*len(preferred)),'Every selected phone needs all fifty layout cases'
+expected_count=len(dict.fromkeys([*STORE_STAGES,*(a.store_stage or [])])) if a.store else 50*len(preferred)
+assert len(results)==expected_count,'Every selected phone needs all selected layout cases'
 print(f'PASS {len(results)} actual native WebView layout captures with fictional API stand-ins; physical device checks remain separate')
