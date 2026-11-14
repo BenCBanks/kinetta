@@ -4,22 +4,29 @@ const FriendsUI=(()=>{
  const identity=p=>`${avatar(p)}<span class="grow"><b>${esc(p.name)}</b><small class="muted">@${esc(p.login)}</small></span>`;
  const profile=(p,cls='')=>`<a class="person-link ${cls}" href="${profileHref(p)}" title="${esc(p.name)} · @${esc(p.login)}">${identity(p)}</a>`;
  const status=label=>`<span class="friend-status" role="status"><span aria-hidden="true">✓</span> ${label}</span>`;
- const shell=back=>`<div class="top">${backBtn(back)}<h1 id="fr-title">Find friends</h1></div>
+ const bindLargeTitle=el=>{
+  const bar=el.querySelector(':scope > .top.large-title'),heading=el.querySelector(':scope > .large-title-heading');if(!bar||!heading)return;
+  bar.dataset.titleCollapsed=String(!('IntersectionObserver' in window));if(!('IntersectionObserver' in window))return;
+  const observer=new IntersectionObserver(([entry])=>{bar.dataset.titleCollapsed=String(!entry.isIntersecting);},{rootMargin:'-56px 0px 0px 0px'});observer.observe(heading);viewResources.set(el,()=>observer.disconnect());
+ };
+ const shell=back=>`<div class="top large-title">${backBtn(back)}<h1 id="fr-title">Find friends</h1></div><div class="large-title-heading" aria-hidden="true">Find friends</div>
    <section id="fr-discover" class="friend-discovery" aria-label="Find people"><form class="searchbox people-search" id="fr-find" role="search"><span class="sb-ico">${svg('search')}</span><input type="search" name="q" placeholder="Name or @username" aria-label="Search name or @username" maxlength="60" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="search"><button type="button" class="icon-btn" id="fr-clear" aria-label="Clear search" hidden>${svg('close')}</button></form><p class="small muted" id="fr-status" role="status" aria-live="polite"></p></section>
    <div class="friends-groups-shortcut" id="fr-groups-shortcut"><a class="row-link friend-action" id="fr-groups-discover" href="/me/groups"><span class="ri">${svg('calendar')}</span><span class="grow"><b>Groups</b><small id="fr-groups-count" aria-live="polite">Your private groups</small></span></a><a class="linkbtn" id="fr-group-create" href="/me/groups?create=1" aria-label="Create a group">Create</a></div>
    <div id="fr-found"></div><div id="fr-list-error" role="status"></div>
    <button type="button" class="row-link friend-action" id="fr-invite"><span class="ri">${svg('share')}</span><span class="grow"><b>Invite friends</b><small>Share a link or QR code</small></span>${svg('chev')}</button>
    <div id="fr-requests"></div><section class="friend-more" hidden><div id="fr-suggest"></div></section>`;
- const requestSections=r=>`${r.incoming.length?`<section class="friend-requests"><h2 class="sec-head">Waiting for you <span class="count">${r.incoming.length}</span></h2>${r.incoming.map(p=>`<div class="person fr-request">${profile(p)}<span class="btnrow tight"><button type="button" class="primary sm" data-request-accept="${esc(p.login)}">Approve</button><button type="button" class="ghost sm" data-request-decline="${esc(p.login)}">Decline</button><button type="button" class="icon-btn" data-request-menu="${esc(p.login)}" aria-label="More about request from ${esc(p.name)}">${svg('more')}</button></span>${p.via_card?'<small class="muted card-origin">via your card</small>':''}</div>`).join('')}</section>`:''}
-   ${r.outgoing.length?`<section class="friend-requests"><h2 class="sec-head">You sent</h2><div class="friend-sent-list">${r.outgoing.map(p=>`<div class="person">${profile(p)}<button type="button" class="ghost sm" data-request-cancel="${esc(p.login)}">Cancel</button></div>`).join('')}</div></section>`:''}`;
- const requestRow=r=>{const total=r.incoming.length+r.outgoing.length;if(!total)return '';const summary=r.incoming.length?`${r.incoming.length} waiting${r.outgoing.length?` · ${r.outgoing.length} sent`:''}`:`${r.outgoing.length} sent`;return `<button type="button" class="row-link friend-request-summary" id="fr-requests-open" aria-label="Review friend requests"><span class="grow"><b>Friend requests</b><small>${summary}</small></span><span class="count">${total}</span>${svg('chev')}</button>`;};
+ const requestSections=r=>`${r.incoming.length?`<section class="friend-requests"><h2 class="sec-head">Waiting for you <span class="count">${r.incoming.length}</span></h2>${r.incoming.map(p=>`<div class="person person-row fr-request">${profile(p)}<span class="btnrow tight"><button type="button" class="primary sm" data-request-accept="${esc(p.login)}">Approve</button><button type="button" class="ghost sm" data-request-decline="${esc(p.login)}">Decline</button><button type="button" class="icon-btn" data-request-menu="${esc(p.login)}" aria-label="More about request from ${esc(p.name)}">${svg('more')}</button></span>${p.via_card?'<small class="muted card-origin">via your card</small>':''}</div>`).join('')}</section>`:''}
+   ${r.outgoing.length?`<section class="friend-requests"><h2 class="sec-head">You sent</h2><div class="friend-sent-list social-person-group">${r.outgoing.map(p=>`<div class="person person-row">${profile(p)}<button type="button" class="ghost sm" data-request-cancel="${esc(p.login)}">Cancel</button></div>`).join('')}</div></section>`:''}`;
+ const requestRow=r=>{const total=r.incoming.length+r.outgoing.length;if(!total)return '';const summary=r.incoming.length?`${r.incoming.length} waiting${r.outgoing.length?` · ${r.outgoing.length} sent`:''}`:`${r.outgoing.length} sent`;return `<button type="button" class="list-row friend-request-summary" id="fr-requests-open" aria-label="Review friend requests"><span class="grow"><b>Friend requests</b><small>${summary}</small></span><span class="count">${total}</span>${svg('chev')}</button>`;};
  async function mountList(el){
   el.classList.add('friends-page','friends-list-page');
-  el.innerHTML=`<div class="top">${backBtn('Me')}<h1 id="fr-title">Friends</h1><a class="icon-btn" id="fr-browse" href="/me/friends?find=1" aria-label="Find friends">${svg('user-plus')}</a></div>
-    <a class="row-link friend-action" id="fr-groups" href="/me/groups"><span class="ri">${svg('calendar')}</span><span class="grow"><b>Groups</b><small>Plan an event together</small></span>${svg('chev')}</a>
+  el.innerHTML=`<div class="top large-title">${backBtn('Me')}<h1 id="fr-title">Friends</h1><button type="button" class="linkbtn" id="fr-list-add">Add</button></div><div class="large-title-heading" aria-hidden="true">Friends</div>
+    <div class="social-list-group" id="fr-social-links"><a class="list-row" id="fr-groups" href="/me/groups"><span class="ri">${svg('calendar')}</span><span class="grow"><b>Groups</b></span>${svg('chev')}</a></div>
     <div id="fr-list-error" role="status"></div><div id="fr-requests"></div>
-    <section class="friend-own" aria-label="Your friends"><h2 class="sec-head" id="fr-own-heading">Your friends</h2><div id="fr-own-list">${skel(1)}</div></section>`;
+    <section class="friend-own" aria-label="Your friends"><h2 class="sec-head" id="fr-own-heading">Your friends</h2><div class="social-person-group" id="fr-own-list">${skel(1)}</div></section>`;
   wireBack(el,'/me');
+  bindLargeTitle(el);
+  $('#fr-list-add',el).onclick=inviteFriends;
   const owner=readOwner(),live=()=>owner===readOwner()&&el.isConnected;
   const list=$('#fr-own-list',el),heading=$('#fr-own-heading',el),requests=$('#fr-requests',el),error=$('#fr-list-error',el);
   let currentFriends=null,people=[],version=0;
@@ -29,8 +36,8 @@ const FriendsUI=(()=>{
     heading.innerHTML=`Your friends${r.friends.length?` <span class="count">${r.friends.length}</span>`:''}`;
     requests.innerHTML=requestRow(r);
     const requestButton=$('#fr-requests-open',requests);if(requestButton)requestButton.onclick=openRequests;
-    list.innerHTML=r.friends.length?r.friends.map(p=>`<div class="person fr-friend" data-friend-name="${esc((p.name+' '+p.login).toLocaleLowerCase())}">${profile(p,'fr-friend-link')}<button type="button" class="icon-btn" data-manage="${esc(p.login)}" aria-label="Manage friendship with ${esc(p.name)}">${svg('more')}</button></div>`).join(''):
-      '<div class="friend-empty"><p>No friends yet.</p><a class="row-link friend-action" id="fr-empty-browse" href="/me/friends?find=1"><span class="ri">'+svg('user-plus')+'</span><span class="grow"><b>Find friends</b><small>Search and suggestions</small></span>'+svg('chev')+'</a></div>';
+    list.innerHTML=r.friends.length?r.friends.map(p=>`<div class="person person-row fr-friend" data-friend-name="${esc((p.name+' '+p.login).toLocaleLowerCase())}">${profile(p,'fr-friend-link')}<button type="button" class="icon-btn" data-manage="${esc(p.login)}" aria-label="Manage friendship with ${esc(p.name)}">${svg('more')}</button></div>`).join(''):
+      '<div class="friend-empty"><p>No friends yet</p><a class="row-link friend-action" id="fr-empty-browse" href="/me/friends?find=1"><span class="ri">'+svg('user-plus')+'</span><span class="grow"><b>Invite a friend</b></span>'+svg('chev')+'</a></div>';
     $$('[data-manage]',list).forEach(button=>button.onclick=()=>{
       if(!live())return;const p=people.find(person=>person.login===button.dataset.manage);if(p)friendshipSheet(p,refresh);
     });
@@ -64,7 +71,7 @@ const FriendsUI=(()=>{
   const cached=screenHit('/api/friends')?.data||kept('/api/friends');if(cached)draw(cached);await loadFriends();
  }
  async function mountFind(el){
-  el.classList.add('friends-page');el.innerHTML=shell('Me');wireBack(el,'/me');
+  el.classList.add('friends-page');el.innerHTML=shell('Me');wireBack(el,'/me');bindLargeTitle(el);
   const pageOwner=readOwner(),live=()=>pageOwner===readOwner()&&el.isConnected;
   let currentFriends=null,friendLoadVersion=0,searchVersion=0,timer,last=null,people=[],known=[];
   const requests=$('#fr-requests',el),found=$('#fr-found',el),form=$('#fr-find',el),input=form.elements.q,clear=$('#fr-clear',el),statusText=$('#fr-status',el),suggest=$('#fr-suggest',el),error=$('#fr-list-error',el),groupCount=$('#fr-groups-count',el);
@@ -114,7 +121,7 @@ const FriendsUI=(()=>{
     invalidate('/api/feed/friends');invalidate('/api/people/');invalidate('/api/shared/');invalidate('/api/blocks');invalidateFeed();App.cache.delete('/api/friends');
     await loadFriends();await drawSuggest();if(input.value.trim()&&found.isConnected)await find(true);
   }
-  const person=(p,action)=>`<div class="person">${personLink(p)}<span class="btnrow tight">${action}</span></div>`;
+  const person=(p,action)=>`<div class="person person-row">${personLink(p)}<span class="btnrow tight">${action}</span></div>`;
   const btnFor=p=>p.status==='friends'?status('Friends'):p.status==='sent'||p.status==='incoming'?status('Requested'):`<button type="button" class="search-add" data-add="${esc(p.login)}" aria-label="Add ${esc(p.name)} as a friend">${svg('plus')}</button>`;
   const drawResults=(rows,pending=false)=>{
     rows=rows.filter(p=>p.login!==App.me.login);

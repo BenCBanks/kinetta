@@ -6,7 +6,7 @@ assert([330,390].includes(viewportWidth),'Friends UI width is 330px or 390px');
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
 (async()=>{
  const fixture=cp.execFileSync('python3',[path.join(__dirname,'friends_compact_fixture.py')],{env:process.env,encoding:'utf8'});console.log(fixture.trim());const browser=await chromium.launch(),contexts=[];
- async function open(state,theme,size={width:viewportWidth,height:844}){
+ async function open(state,theme,size={width:viewportWidth,height:844},initialPath='/me/friends?find=1'){
   const c=await browser.newContext({viewport:size,colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});contexts.push(c);
   assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_fc_'+state,password:pw}})).status(),200);
   await c.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize='16px'));
@@ -16,10 +16,10 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   p.on('request',r=>{const u=new URL(r.url());if(u.origin===base&&u.pathname==='/api/people/search')searches.push(u.searchParams.get('q')||'');});
   await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(q.method()==='GET'&&u.pathname==='/api/groups')return r.fulfill({json:[{id:'00000000-0000-4000-8000-000000000091',title:'Fictional walk group',event_date:'2026-12-01',time_zone:'UTC',member_count:2,closed:false},{id:'00000000-0000-4000-8000-000000000092',title:'Closed fictional group',event_date:'2026-12-02',time_zone:'UTC',member_count:2,closed:true}]});if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(u.pathname==='/api/friends'||u.pathname.startsWith('/api/friends/zz_test_fc_')||u.pathname.startsWith('/api/people/zz_test_fc_'))return r.continue();return r.fulfill({json:{}});}return r.continue();});
   const friends=p.waitForResponse(r=>new URL(r.url()).pathname==='/api/friends'&&r.request().method()==='GET');
-  const suggested=p.waitForResponse(r=>new URL(r.url()).pathname==='/api/people/suggested'&&r.request().method()==='GET');
-  await p.goto(base+'/me/friends?find=1');await Promise.all([friends,suggested]);
-  await until(p,()=>App.pageReady&&!!document.querySelector('.friends-page #fr-invite'),'Find friends ready');await p.evaluate(()=>document.fonts.ready.then(()=>true));
-  await until(p,()=>{const box=document.querySelector('#fr-suggest');return box&&((box.parentElement.hidden)||box.querySelector('.pym-row'));},'suggestions loaded');
+  const suggested=initialPath.includes('find=1')?p.waitForResponse(r=>new URL(r.url()).pathname==='/api/people/suggested'&&r.request().method()==='GET'):null;
+  await p.goto(base+initialPath);await friends;if(suggested)await suggested;
+  const readySelector=initialPath.includes('find=1')?'.friends-page #fr-invite':'#fr-own-list';await until(p,selector=>App.pageReady&&!!document.querySelector(selector),initialPath.includes('find=1')?'Find friends ready':'My friends ready',readySelector);await p.evaluate(()=>document.fonts.ready.then(()=>true));
+  if(suggested)await until(p,()=>{const box=document.querySelector('#fr-suggest');return box&&((box.parentElement.hidden)||box.querySelector('.pym-row'));},'suggestions loaded');
   return{c,p,errors,writes,searches,qrRequests};
  }
  async function close(c){await c.close();contexts.splice(contexts.indexOf(c),1);}
@@ -76,14 +76,17 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
   }
   if(!process.env.KINETTA_FRIEND_CASE||process.env.KINETTA_FRIEND_CASE==='list'){
    for(const state of ['empty','typical','heavy'])for(const theme of ['light','dark']){
-    const {c,p,errors,writes}=await open(state,theme);
+    const {c,p,errors,writes}=await open(state,theme,{width:viewportWidth,height:844},'/me/friends');
     await p.goto(base+'/me/friends');await until(p,()=>App.pageReady&&!!document.querySelector('#fr-own-list'),'My friends ready');
     assert.equal(await p.locator('#fr-title').innerText(),'Friends','Me → Friends opens the friends list');assert.equal(await p.locator('.top .back').getAttribute('aria-label'),'Back to Me');
     assert.equal(await p.locator('#fr-find').count(),0,'the friends list has no discovery search');assert.equal(await p.locator('.pym-tile').count(),0,'suggestions stay on Find friends');
     const friendRows=p.locator('#fr-own-list .fr-friend'),expectedFriends={empty:0,typical:1,heavy:40}[state],expectedRequests={empty:0,typical:2,heavy:5}[state];
     assert.equal(await friendRows.count(),expectedFriends,'Me → Friends shows existing friends');
-    const listSearch=p.locator('#fr-list-find'),searchInput=listSearch.locator('input');assert.equal(await listSearch.count(),1,'Me → Friends has one visible search row');assert.equal(await searchInput.getAttribute('placeholder'),'Find friends');assert.equal(await searchInput.getAttribute('aria-label'),'Search name or @username');assert.equal(await p.locator('#fr-browse').count(),0,'the redundant header icon is removed when the labelled search row is installed');const searchBox=await listSearch.boundingBox();assert(searchBox.width>=44&&searchBox.height>=44,'Find friends search is a 44px-or-larger target');
-    const inviteRow=p.locator('#fr-list-invite');assert.equal(await inviteRow.isVisible(),expectedFriends<=5,'Invite row is shown only when the saved friend list is small');if(expectedFriends<=5){assert.equal(await inviteRow.innerText(),'Invite friends\nShare a link or QR code');assert((await inviteRow.boundingBox()).height>=44,'Invite row is a 44px-or-larger target');}
+    const listSearch=p.locator('#fr-list-find'),searchInput=listSearch.locator('input');assert.equal(await listSearch.count(),1,'Me → Friends has one visible search row');assert.equal(await searchInput.getAttribute('placeholder'),'Name or @username');assert.equal(await searchInput.getAttribute('aria-label'),'Search name or @username');assert.equal(await p.locator('#fr-browse').count(),0,'the redundant header icon is removed');const searchBox=await listSearch.boundingBox();assert(searchBox.width>=44&&searchBox.height>=44,'Friends search is a 44px-or-larger target');
+    const add=p.locator('#fr-list-add');assert.equal(await add.innerText(),'Add','Friends uses one clear invite action in the title bar');const addBox=await add.boundingBox();assert(addBox.width>=44&&addBox.height>=44,'Add keeps a 44px target');assert.equal(await p.locator('#fr-list-invite').count(),0,'the title-bar action is not repeated below Requests');
+    assert.equal(await p.locator('.large-title-heading').innerText(),'Friends');assert.equal(await p.locator('.large-title-heading').evaluate(el=>getComputedStyle(el).fontSize),'28px','the page starts with a large title');
+    if(state==='heavy'&&theme==='light'){assert.equal(await p.locator('.top.large-title h1').evaluate(el=>getComputedStyle(el).opacity),'0','the compact title stays quiet while the large title is visible');await p.evaluate(()=>window.scrollTo(0,400));await p.waitForFunction(()=>getComputedStyle(document.querySelector('.top.large-title h1')).opacity==='1');await p.evaluate(()=>window.scrollTo(0,0));await p.waitForFunction(()=>getComputedStyle(document.querySelector('.top.large-title h1')).opacity==='0');}
+    const groups=p.locator('#fr-social-links');assert.equal(await groups.locator('#fr-groups').innerText(),'Groups','Groups is a one-line navigation row');const groupStyle=await groups.evaluate(el=>({bg:getComputedStyle(el).backgroundColor,radius:getComputedStyle(el).borderRadius,border:getComputedStyle(el).borderTopWidth}));assert.notEqual(groupStyle.bg,'rgba(0, 0, 0, 0)');assert.equal(groupStyle.radius,'18px');assert.equal(groupStyle.border,'1px');
     const manage=p.locator('#fr-own-list [data-manage]');assert.equal(await manage.count(),expectedFriends);assert(await manage.evaluateAll(nodes=>nodes.every(n=>{const r=n.getBoundingClientRect();return r.width>=44&&r.height>=44;})),'friend management remains reachable from each row');
     assert(await friendRows.evaluateAll(nodes=>nodes.every(row=>getComputedStyle(row.querySelector('.fr-friend-link'),'::after').content==='none'&&!!row.querySelector('[data-manage]'))),'friend rows keep one visible manage affordance without a duplicate chevron');
     if(expectedRequests){const row=p.locator('#fr-requests-open');assert.equal(await row.getAttribute('aria-label'),'Review friend requests');assert((await row.boundingBox()).height>=44,'Requests summary is a full-width action');const colors=await row.evaluate(el=>({row:getComputedStyle(el).color,text:getComputedStyle(document.body).color}));assert.notEqual(colors.row,colors.text,'Requests is visibly accented as a navigable action');}
@@ -93,7 +96,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     }else assert.equal(await friendRows.first().locator('.person-link').getAttribute('href'),'/people/zz_test_fc_peer00','a friend row opens that friend’s profile');
     assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'My friends has no horizontal overflow');
     if(out&&(state==='typical'||state==='empty'))await capture(p,`my-friends-${state}-${viewportWidth}-${theme}`);
-    if(state==='typical'&&theme==='light'){await inviteRow.click();await p.getByRole('dialog',{name:'Invite friends'}).waitFor();await closeSheet(p);}
+    if(state==='typical'&&theme==='light'){await add.click();await p.getByRole('dialog',{name:'Invite friends'}).waitFor();await closeSheet(p);}
     if(state==='typical'){
      await p.locator('#fr-requests-open').click();const dialog=p.getByRole('dialog',{name:'Requests'});await dialog.waitFor();assert.equal(await dialog.locator('.fr-request').count(),1);assert.equal(await dialog.locator('[data-request-cancel]').count(),1);await closeSheet(p);
     }

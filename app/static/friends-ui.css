@@ -1,6 +1,13 @@
 /* One compact Find friends screen; every entry point uses the same 44px actions. */
 .friends-page > .top { gap:8px; }
-.friends-page > .top h1 { flex:1;min-width:0;margin:0;font-size:var(--text-app-title); }
+.friends-page > .top h1 { flex:1;min-width:0;margin:0; }
+.friends-page #fr-list-add { min-width:44px;min-height:44px;padding:8px 0;color:var(--accent);font-size:15px;font-weight:600;white-space:nowrap; }
+.friends-page .social-list-group { margin:8px 0 16px; }
+.friends-page .social-list-group .list-row { color:var(--tx); }
+.friends-page .social-list-group .list-row > svg { width:18px;height:18px;flex:none;color:var(--tx3); }
+.friends-page .social-list-group .list-row .ri { width:28px;height:28px;flex:none;color:var(--tx2); }
+.friends-page .social-list-group .list-row .grow { flex:1;min-width:0; }
+.friends-page .social-list-group .list-row b { font-size:16px;font-weight:600; }
 .friends-page .friend-discovery { margin:12px 0 8px; }
 .friends-page .people-search { margin:0; }
 .friends-page .people-search input { width:100%;font-size:max(16px,1rem); }
@@ -19,17 +26,18 @@
 .friends-page .friend-action b { font-size:max(15px,.9375rem); }
 .friends-page .friend-action small { margin-top:2px;color:var(--tx2);font-size:max(13px,.8125rem); }
 .friends-page .friend-action > svg { width:16px;height:16px;flex:none;color:var(--tx2); }
-.friends-page .friend-request-summary { display:flex;align-items:center;gap:8px;width:100%;min-height:52px;margin:0 0 12px;padding:6px 14px;border:1px solid color-mix(in srgb,var(--line) 75%,transparent);border-radius:var(--r);background:var(--surface-card);box-shadow:var(--elevation-rest);color:var(--tx);font:inherit;font-size:max(15px,.9375rem);text-align:left; }
+.friends-page .friend-request-summary { display:flex;align-items:center;gap:8px;width:100%;min-height:56px;margin:0 0 12px;padding:6px 14px;border:1px solid var(--line);border-radius:18px;background:var(--card);box-shadow:none;color:var(--tx);font:inherit;font-size:15px;font-weight:600;text-align:left; }
 .friends-page .friend-request-summary > .grow { flex:1;min-width:0; }
 .friends-page .friend-request-summary > .grow b,.friends-page .friend-request-summary > .grow small { display:block; }
 .friends-page .friend-request-summary > .grow small { margin-top:2px;color:var(--tx2);font-size:max(13px,.8125rem); }
-.friends-page .friend-request-summary > .count { flex:none; }
+.friends-page .friend-request-summary > .count { display:grid;place-items:center;flex:none;min-width:24px;height:24px;padding:0 6px;border-radius:50%;background:var(--color-error);color:var(--color-on-error);font-size:12px;font-weight:700;line-height:1; }
 .friends-page .friend-request-summary svg { width:16px;height:16px;flex:none;color:var(--tx2); }
-.friends-page .sec-head { font-size:var(--text-app-section);margin:14px 0 8px; }
-.friends-page .person { gap:8px;padding:8px 0;min-height:56px; }
+.friends-page .sec-head { font-size:var(--text-app-section);margin:16px 0 8px; }
+.friends-page .person { gap:8px;padding:8px 12px;min-height:56px;border-top:0; }
+.friends-page .social-person-group > .person + .person { border-top:1px solid var(--line); }
 .friends-page #fr-found > .person { border:0;background:none;box-shadow:none; }
 .friends-page .person-link { gap:8px; }
-.friends-page .person-link .av { width:30px;height:30px;font-size:.8125rem;flex:none; }
+.friends-page .person-link .av { width:36px;height:36px;font-size:.8125rem;flex:none; }
 .friends-page .person-link .grow { min-width:0; }
 .friends-page .person-link b,.friends-page .person-link small { display:block;white-space:normal;overflow:visible;overflow-wrap:anywhere; }
 .friends-page .person-link b { font-size:.9375rem; }
@@ -44,11 +52,11 @@
 .friends-page .card-origin { flex-basis:100%;font-size:.8125rem;margin:0 0 3px 38px; }
 .friends-page .fr-friend > .icon-btn { flex:none; }
 .friends-page .fr-friend-link::after { content:'›';font-size:1.25rem;color:var(--tx2);margin-left:auto;padding-inline:4px; }
-.friends-page.friends-list-page .friend-list-search { min-height:48px;margin:8px 0 12px; }
-.friends-page.friends-list-page .friend-list-search input { width:100%;min-width:0;min-height:44px;font-size:max(16px,1rem); }
+.friends-page.friends-list-page .friend-list-search { min-height:44px;margin:4px 0 16px; }
+.friends-page.friends-list-page .friend-list-search input { width:100%;min-width:0;min-height:44px;padding-left:42px;border-radius:12px;border-color:var(--line);background:var(--card);box-shadow:none;font-size:max(16px,1rem); }
+.friends-page.friends-list-page .friend-list-search .sb-ico { left:14px; }
 .friends-page.friends-list-page .friend-request-summary { color:var(--accent); }
 .friends-page.friends-list-page .friend-request-summary svg { color:var(--accent); }
-.friends-page.friends-list-page .friend-list-invite { margin:0 0 12px; }
 .friends-page.friends-list-page .fr-friend-link::after { content:none; }
 .friends-page.friends-list-page #fr-empty-browse { display:none; }
 .friend-empty p { color:var(--tx2);font-size:.9375rem;margin:8px 0; }
@@ -71,7 +79,7 @@
 .friends-page .friend-status { display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:36px;padding:0 4px;color:var(--tx2);font-size:max(13px,.8125rem);white-space:nowrap; }
 .friends-page .friend-status > span { font-size:1rem; }
 .friends-page .pym-hide { width:44px;height:44px;min-width:44px;min-height:44px;flex:none; }
-.friends-page :is(.friend-action,.friend-request-summary,.pym-row):active { transform:scale(.985);opacity:1;background:var(--surface-raised);box-shadow:var(--elevation-raised); }
+.friends-page :is(.friend-action,.friend-request-summary,.pym-row,.social-list-group .list-row):active { transform:scale(.99);opacity:1;background:var(--surface-raised);box-shadow:var(--elevation-raised); }
 .friend-footer { display:grid;gap:8px;border-top:1px solid var(--line);margin:16px 0 0; }
 .friend-footer > #fr-sent:empty { display:none; }
 .friend-footer-row { display:flex;align-items:center;gap:8px;width:100%;min-height:48px;padding:6px 0;border:0;border-bottom:1px solid var(--line);background:none;color:var(--tx);font:inherit;font-size:max(15px,.9375rem);text-align:left; }
