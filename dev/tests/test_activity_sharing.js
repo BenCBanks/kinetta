@@ -2,6 +2,7 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync('app/static/pages.js','utf8'),socialSource=fs.readFileSync('app/static/social.js','utf8'),start=source.indexOf('function shareOut(a)'),end=source.indexOf('// cut `m` metres',start);
+const shareGlyph=source.match(/Object\.assign\(IC, \{share: '([^']+)'/);assert(shareGlyph,'one shared share glyph is defined in pages.js');assert.equal(shareGlyph[1],'<path d="M12 16V3M8 7l4-4 4 4"/><path d="M7 10H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1"/>','share uses the open rounded box and tall rising arrow');
 const activity={id:7,name:'Fictional paused run',sport:'run',line:'fictional-line',start_time:'2026-10-23T10:00:00Z',distance_m:8046.72,moving_s:2400,elapsed_s:3000,shares:{pace:true},avg_hr:152,calories:400,ascent_m:30};
 const sharing={details:{map:true,pace:true,heart_rate:false,elevation:false,calories:false},trim_m:400};
 function fixture(social=sharing,act=activity){

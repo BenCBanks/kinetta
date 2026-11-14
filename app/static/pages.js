@@ -948,7 +948,7 @@ function editActivity(a) {
 }
 
 // ---------- Share (2026-10-12): send a link to people on Kinetta, or a picture of the route and the key numbers ----------
-Object.assign(IC, {share: '<path d="M12 15V3M8 7l4-4 4 4"/><path d="M8 11H6v10h12V11h-2"/>', image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/>',
+Object.assign(IC, {share: '<path d="M12 16V3M8 7l4-4 4 4"/><path d="M7 10H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1"/>', image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'});
 // a gear for Settings (2026-10-24): the small icon beside the bell on Me
 Object.assign(IC, {settings: '<path d="M18.85 9.79 L21.42 10.17 L21.42 13.83 L18.85 14.21 L18.41 15.28 L19.96 17.37 L17.37 19.96 L15.28 18.41 L14.21 18.85 L13.83 21.42 L10.17 21.42 L9.79 18.85 L8.72 18.41 L6.63 19.96 L4.04 17.37 L5.59 15.28 L5.15 14.21 L2.58 13.83 L2.58 10.17 L5.15 9.79 L5.59 8.72 L4.04 6.63 L6.63 4.04 L8.72 5.59 L9.79 5.15 L10.17 2.58 L13.83 2.58 L14.21 5.15 L15.28 5.59 L17.37 4.04 L19.96 6.63 L18.41 8.72Z"/><circle cx="12" cy="12" r="3"/>'});
