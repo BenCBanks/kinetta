@@ -134,6 +134,11 @@
 .progress-home-totals .period-column:active .bar-seg { opacity:.72; }
 .progress-home-totals .period-column:focus-visible .period-hit { stroke:var(--accent); stroke-width:2; }
 .progress-home-totals .progress-total-readout { min-height:20px; }
+.progress-home-heading .acts > :not(.icon-btn) { display:none; }
+.progress-home #p-combined-week .combined-week > summary { padding:0 2px; color:var(--tx); }
+.progress-home .progress-pair .progress-summary { text-align:left; }
+.progress-home .progress-pair .progress-summary > span { display:block; text-align:left; }
+.progress-home .explore-list .progress-new { display:none; }
 .progress-pair { gap:10px; }
 .progress-summary { min-height:0; padding:12px; }
 .progress-summary h2 { margin:0 0 6px; font-size:var(--text-app-card-title); }
@@ -146,7 +151,7 @@
 .progress-home-heading.is-compact h1 { font-size:17px; line-height:1.2; font-weight:600; letter-spacing:-.01em; }
 .progress-home-heading .acts { flex-wrap:nowrap; gap:8px; }
 .progress-home #p-combined-week { margin-bottom:8px; }
-.progress-home #p-combined-week .combined-week { margin:0; padding:0 12px; border:1px solid var(--line); border-radius:14px; box-shadow:none; }
+.progress-home #p-combined-week .combined-week { display:block; margin:0; padding:0; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; box-shadow:none; }
 .progress-home #p-combined-week .combined-week > summary { min-height:52px; font-size:16px; font-weight:600; }
 .progress-home-totals .progress-totals-card { padding:16px; border:1px solid var(--line); border-radius:18px; background:var(--card); box-shadow:none; }
 .progress-home-totals .progress-totals-header { display:flex; align-items:center; gap:8px; width:100%; min-height:44px; }
