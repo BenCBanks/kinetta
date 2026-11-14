@@ -14,7 +14,7 @@
  #feed-top .top .acts { flex:none; }
 }
 .activity-home #ff-list > .post:first-child { margin-top:0; }
-.weekly-recap { display:flex; flex-direction:column; align-items:stretch; gap:8px; margin:0 0 12px; }
+.weekly-recap { display:flex; flex-direction:column; align-items:stretch; gap:8px; margin:0 0 12px; padding:18px 16px 16px; background:var(--surface-card); border:1px solid color-mix(in srgb,var(--line) 75%,transparent); box-shadow:var(--elevation-raised); }
 .weekly-recap-copy { width:100%; min-width:0; }
 .weekly-recap-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .weekly-recap-actions { display:flex; align-items:center; gap:8px; margin-left:auto; flex:none; }
@@ -25,6 +25,7 @@
 .weekly-recap-metrics { display:flex; flex-wrap:wrap; gap:8px 24px; margin-top:12px; }
 .weekly-recap-metrics > div { min-width:110px; }
 .weekly-recap-metrics b { display:block; font-size:1rem; line-height:1.25; }
+.weekly-recap-metrics .num { font-size:28px; font-weight:600; letter-spacing:-.02em; }
 .weekly-recap-metrics small { display:block; margin-top:2px; color:var(--tx2); font-size:13px; }
 .weekly-recap-best { flex:0 0 auto; max-width:100%; margin:0; font-size:14px; }
 .weekly-recap-medals { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin:0; }
@@ -40,7 +41,8 @@
 .weekly-recap-day-bar[data-level="3"] { height:22px; }
 .weekly-recap-day-bar[data-level="4"] { height:28px; }
 .weekly-recap-day-bar[data-level="5"] { height:36px; }
-.weekly-recap-day-bar.is-active { background:var(--accent-gradient); }
+.weekly-recap-day-bar.is-active { background:color-mix(in srgb,var(--accent) 28%,var(--line)); opacity:.72; }
+.weekly-recap-day-bar.is-current { background:var(--accent-gradient); opacity:1; }
 .weekly-recap-share-stage { display:grid; place-items:center; min-height:200px; margin:0 0 12px; }
 .weekly-recap-share-stage img { display:block; width:min(100%,360px); max-height:58vh; aspect-ratio:4/5; object-fit:contain; border-radius:12px; }
 .feed-social-strip { margin:0 0 16px; }
@@ -118,7 +120,7 @@
 
 /* Feed and profile activity cards: title first, one metadata row, then an edge-to-edge route. */
 .activity-home .activity-card {
-  background:var(--surface-card);
+  background:var(--surface-raised);
   border-color:color-mix(in srgb,var(--line) 75%,transparent);
   box-shadow:var(--elevation-rest);
   transition:transform var(--motion-press) var(--motion-ease),box-shadow var(--motion-settle) var(--motion-ease),background-color var(--motion-settle) var(--motion-ease);
@@ -145,7 +147,7 @@
 .activity-card.post .post-name:focus-visible,.activity-card.post .post-title-link:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
 .activity-card .activity-media { width:100%; margin:0; }
 .activity-card { --activity-map-stats-scrim:rgba(0,21,58,.48); }
-.activity-card .media-track { height:auto; border-radius:0; background:var(--surface-raised); }
+.activity-card .media-track { height:auto; border-radius:var(--radius-media); overflow:hidden; background:var(--surface-raised); }
 .activity-card .media-item { height:auto; aspect-ratio:4 / 3; }
 .activity-card .media-map > .fmap { width:100%; height:100%; min-height:0; }
 .activity-card .post-map-metrics { position:absolute; z-index:3; inset:auto 0 0; box-sizing:border-box; height:56px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:end; gap:6px; padding:0 12px 8px; color:#fff; background:linear-gradient(to bottom,transparent 0%,rgba(0,21,58,.16) 42%,var(--activity-map-stats-scrim) 100%); pointer-events:none; }
@@ -167,7 +169,7 @@
 .activity-card .post-ft:has(.emoji-reactions) .emoji-reactions .reaction-count { order:4; }
 .activity-home .activity-card .post-ft {
   border-top-color:color-mix(in srgb,var(--line) 80%,transparent);
-  background:var(--surface-card);
+  background:var(--surface-raised);
 }
 .activity-home .activity-card .post-ft :is(.reaction-more,.activity-comments,.activity-share,.reaction-count) {
   transition:transform var(--motion-press) var(--motion-ease),opacity var(--motion-press) var(--motion-ease),background-color var(--motion-settle) var(--motion-ease);
@@ -192,14 +194,15 @@
 .post-led .media-item { aspect-ratio:1; }
 .post-led .media-item.media-map { aspect-ratio:5 / 6; }
 .post-led .media-item.media-photo { min-height:0; align-self:flex-start; }
-.post-led .media-track { border-radius:0; }
-.activity-card.post-led .post-hd.post-profile { --activity-map-title-scrim:rgba(0,21,58,.62); position:absolute; z-index:4; inset:0 0 auto; padding:12px 14px 32px; color:#fff; background:linear-gradient(to bottom,var(--activity-map-title-scrim) 0%,var(--activity-map-title-scrim) 76%,rgba(0,21,58,0) 100%); text-shadow:0 1px 3px rgba(0,0,0,.72); pointer-events:none; }
+.post-led .media-track { border-radius:var(--radius-media); overflow:hidden; }
+.activity-card.post-led .post-hd.post-profile { --activity-map-title-scrim:rgba(0,21,58,.72); position:absolute; z-index:4; inset:0 0 auto; padding:12px 14px 48px; color:#fff; background:linear-gradient(to bottom,var(--activity-map-title-scrim) 0%,rgba(0,21,58,.68) 38%,rgba(0,21,58,.62) 68%,rgba(0,21,58,0) 100%); text-shadow:0 1px 3px rgba(0,0,0,.72); pointer-events:none; }
 .activity-card.post-led .post-hd a { pointer-events:auto; color:#fff; }
 .activity-card.post-led .post-hd small { color:#fff; }
 .activity-card.post-led .post-private { color:#fff; }
 .activity-card.post-led .post-av .av { transform:none; background:rgba(0,0,0,.25); color:#fff; }
 .activity-card.post-led .post-title-link { align-items:center; }
 .post-led .post-map-metrics { z-index:3; bottom:0; height:44px; padding:4px 12px 8px; background:linear-gradient(to bottom,transparent 0%,rgba(0,21,58,.16) 42%,var(--activity-map-stats-scrim) 100%); }
+.activity-card .post-map-metrics.material { -webkit-backdrop-filter:saturate(180%) blur(12px); backdrop-filter:saturate(180%) blur(12px); }
 .post-led .post-map-metric b,.post-led .post-photo-metrics .stat b { font-variant-numeric:tabular-nums; }
 .post-led .post-photo-metrics .stats3 { width:100%; grid-column:1/-1; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
 .post-led .post-photo-metrics .stat { min-width:0; }
@@ -227,3 +230,8 @@
 
 .post-led .fmap .leaflet-bottom.leaflet-left {left:64px;right:64px;bottom:112px}
 .post-led .map-unavailable {margin:0;max-width:100%}
+
+@media (prefers-color-scheme:dark) {
+  .activity-home .activity-card { box-shadow:0 4px 14px rgba(0,0,0,.28),var(--elevation-raised); }
+  .activity-home .weekly-recap { box-shadow:0 4px 16px rgba(0,0,0,.28),var(--elevation-raised); }
+}

@@ -112,7 +112,7 @@ function postCard(a, {compact = false, lock = false} = {}) {
   const foot = reactionButtons(a.id,a,false,compact)+`<button type="button" class="pf activity-comments" data-talk="${a.id}" aria-label="Comments, ${a.comments||0}">${svg('comment')}<span class="num"${a.comments?'':' hidden'}>${a.comments?reactionNumber(a.comments):''}</span></button>`+share;
   const media=activityMedia(a,{compact,mapLed:true});
   const header=`<div class="post-hd post-profile post-link">${head}</div>`;
-  const metrics=media?(a.line?postMapMetrics(a):`<div class="post-map-metrics post-photo-metrics"><div class="stats3">${theirs?sharedHeadline(a):headline(a)}</div></div>`):'';
+  const metrics=media?(a.line?postMapMetrics(a):`<div class="post-map-metrics post-photo-metrics material"><div class="stats3">${theirs?sharedHeadline(a):headline(a)}</div></div>`):'';
   const details=`${!theirs && a.lifts && a.lifts.names ? `<p class="post-lifts">${esc(a.lifts.names.slice(0, 4).join(' · '))}${a.lifts.names.length > 4 ? ` +${a.lifts.names.length - 4}` : ''}</p>` : ''}${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}`;
   const summary=media?details:`<div class="post-summary"><div class="stats3">${theirs ? sharedHeadline(a) : headline(a)}</div>${details}</div>`;
   return `<article class="card post activity-card${media?' post-led':''}" data-href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}" data-activity-month="${activityMonthKey(a.start_time)}">${media?`<div class="activity-picture">${media}${header}${metrics}</div>`:header}${summary?`<div class="post-extra">${summary}</div>`:''}<div class="post-ft">${foot}</div></article>`;
@@ -139,7 +139,7 @@ function postMapMetrics(a) {
     if(a.distance_m)rows.push(['Time',activityElapsedText(a),'']);
   }
   if(!rows.length)return '';
-  return `<div class="post-map-metrics" role="group" aria-label="Activity metrics">${rows.slice(0,3).map(([label,value,unit])=>`<div class="post-map-metric"><span class="vh">${esc(label)}</span><b>${esc(value)}${unit?`<i>${esc(unit)}</i>`:''}</b></div>`).join('')}</div>`;
+  return `<div class="post-map-metrics material" role="group" aria-label="Activity metrics">${rows.slice(0,3).map(([label,value,unit])=>`<div class="post-map-metric"><span class="vh">${esc(label)}</span><b>${esc(value)}${unit?`<i>${esc(unit)}</i>`:''}</b></div>`).join('')}</div>`;
 }
 // Measure overlays for both the fallback route and the loaded live map. Only card geometry changes trigger a refit.
 function activityCardInsets(el) {
