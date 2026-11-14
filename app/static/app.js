@@ -832,7 +832,7 @@ function sheet(title, html, onMount, opts = {}) {
   const prev = document.activeElement;
   const inherited=SheetHistory.top(),flow=opts.flow==='new'?SheetHistory.create():opts.flow==='auto'?(inherited||SheetHistory.create()):null;
   const flowStep=flow?SheetHistory.depth(flow)+1:-1;
-  const s = document.createElement('div'); s.className = 'scrim';
+  const s = document.createElement('div'); s.className = 'scrim material';
   const head = opts.save ? `<button type="button" class="sheet-text-btn" data-close>Cancel</button><h2>${esc(title)}</h2><button type="submit" class="sheet-text-btn save" form="${esc(opts.save)}">Save</button>`
     : `${flowStep>0?`<button type="button" class="icon-btn sheet-flow-back" data-sheet-back aria-label="Back">${svg('back')}</button>`:''}<h2>${esc(title)}</h2>${opts.noClose ? '' : `<button class="icon-btn" data-close aria-label="Close">${svg('close')}</button>`}`;
   s.innerHTML = `<div class="sheet${opts.save ? ' pinned' : ''}" role="${opts.role === 'alertdialog' ? 'alertdialog' : 'dialog'}" aria-modal="true" aria-label="${esc(title)}"${opts.describedBy ? ` aria-describedby="${esc(opts.describedBy)}"` : ''}><div class="grab"></div>
@@ -1060,7 +1060,7 @@ function replacePageAddress(el,href) {
 function lazyRouteShell(tab) {
   let el = $('#page', root), nav = $('nav.tabs', root);
   if (!el || !nav || nav.parentNode !== root || root.children.length !== 2) {
-    root.innerHTML = `<main class="shell" id="page"></main><nav class="tabs" aria-label="Main">${TABS.map(([t, n]) =>
+    root.innerHTML = `<main class="shell" id="page"></main><nav class="tabs material" aria-label="Main">${TABS.map(([t, n]) =>
       `<a href="/${t}" data-tab="${t}"${t === tab ? ' aria-current="page"' : ''}>${tabIcon(t)}<span>${n}</span></a>`).join('')}</nav>`;
     el = $('#page', root);
     nav = $('nav.tabs', root);
@@ -1167,7 +1167,7 @@ function render(options) {
   if (nav && nav.parentNode === root && root.children.length === 2 && $('#page', root)) {
     const main = document.createElement('main'); main.className = 'shell'; main.id = 'page'; $('#page', root).replaceWith(main);
     $$('a[data-tab]', nav).forEach((a) => (a.dataset.tab === activeTab ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
-  } else root.innerHTML = `${fresh}<nav class="tabs" aria-label="Main">${TABS.map(([t, n]) =>
+  } else root.innerHTML = `${fresh}<nav class="tabs material" aria-label="Main">${TABS.map(([t, n]) =>
     `<a href="/${t}" data-tab="${t}"${t === activeTab ? ' aria-current="page"' : ''}>${tabIcon(t)}<span>${n}</span></a>`).join('')}</nav>`;
   cleanViews();
   const el = $('#page');
@@ -2528,4 +2528,37 @@ function installKeyboardDismissal() {
   document.addEventListener('touchend', () => { gesture = null; }, {passive: true});
   document.addEventListener('touchcancel', () => { gesture = null; }, {passive: true});
 }
+function installPressFeedback() {
+  const selector = 'button:not(:disabled), a, [role="button"], summary, .card.tap, .row-link';
+  let press = null;
+  const clear = () => {
+    if (press?.target?.isConnected) {
+      press.target.removeAttribute('data-touch-pressed');
+      press.target.removeAttribute('data-touch-cancelled');
+    }
+    press = null;
+  };
+  document.addEventListener('touchstart', (e) => {
+    clear();
+    if (e.touches.length !== 1 || !(e.target instanceof Element)) return;
+    const target = e.target.closest(selector);
+    if (!target || target.matches(':disabled') || target.closest('[inert]')) return;
+    const touch = e.touches[0];
+    press = {target, x: touch.clientX, y: touch.clientY};
+    target.setAttribute('data-touch-pressed', '');
+  }, {passive: true});
+  document.addEventListener('touchmove', (e) => {
+    if (!press || press.cancelled) return;
+    if (e.touches.length !== 1) { press.cancelled = true; press.target.removeAttribute('data-touch-pressed'); press.target.setAttribute('data-touch-cancelled', ''); return; }
+    const touch = e.touches[0];
+    if (Math.hypot(touch.clientX - press.x, touch.clientY - press.y) > 10) {
+      press.cancelled = true;
+      press.target.removeAttribute('data-touch-pressed');
+      press.target.setAttribute('data-touch-cancelled', '');
+    }
+  }, {passive: true});
+  document.addEventListener('touchend', clear, {passive: true});
+  document.addEventListener('touchcancel', clear, {passive: true});
+}
+installPressFeedback();
 installKeyboardDismissal();
