@@ -33,7 +33,7 @@ async function capture(p,name){const dir=process.env.KINETTA_SCREENSHOT_DIR;if(!
   await active.locator('.sheet header [data-close]').click();await until(p,()=>!document.querySelector('.sheet'),'sheet closed');
  }
  try{
-  for(const state of ['empty','typical','heavy','saved','draft','weight'])for(const size of [{width:390,height:844,root:16}])for(const theme of ['light','dark']){
+  for(const state of ['empty','typical','heavy','saved','draft','weight'])for(const size of [{width:390,height:844,root:16},...(state==='heavy'?[{width:330,height:667,root:16}]:[])])for(const theme of ['light','dark']){
    const name=`${state}-${size.width}-${theme}`;if(!runCase(name))continue;
    const {c,p,errors,writes}=await open(state,theme,size);assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no horizontal overflow');assert.equal(await p.locator('.discovery-grid').count(),0);
    if(['empty','typical','heavy'].includes(state)){
@@ -45,6 +45,7 @@ async function capture(p,name){const dir=process.env.KINETTA_SCREENSHOT_DIR;if(!
      await p.locator('[data-log-dish]').first().click();await p.locator('#dl').waitFor({state:'visible'});assert(await p.locator('#dl').isVisible(),'compact log opens existing portion review');assert(!writes.some(x=>x.endsWith('/portion')),'opening a portion does not log it');await closeSheet(p);
     }
     if(state==='heavy'){
+     assert(await p.locator('#tm-filter').isVisible(),'Meals screenshot includes search');assert.equal(await p.locator('[data-library-jump]').count(),2,'Meals offers Recipes and Foods section tabs');assert(await p.locator('[data-dish]').count()>=1&&await p.locator('[data-i]').count()>=1,'Meals shows recipe and food rows');if(process.env.KINETTA_SCREENSHOT_DIR)await capture(p,`1040-meals-${size.width}-${theme}`);
      await p.locator('#tm-filter').fill('pantry food 15');assert.equal(await p.locator('[data-library-name]:visible').count(),1);assert.equal(await p.locator('#library-recipes .library-section:visible').count(),0);await p.locator('#tm-filter').fill('tomato soup');assert.equal(await p.locator('[data-library-name]:visible').count(),8);await p.locator('#tm-filter').fill('no fictional match');assert(await p.locator('#tm-no-match').isVisible());await p.locator('#tm-filter').fill('');assert.equal(await p.locator('[data-library-name]:visible').count(),55);
      await p.locator('[data-library-jump="foods"]').click();assert(await p.locator('#library-foods').evaluate(n=>n.getBoundingClientRect().y<innerHeight/2),'foods reachable directly');
     }
