@@ -155,7 +155,7 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
    }
    if(!friend)await until(p,()=>!!document.querySelector('#d-soc [data-ttalk]'),'owner reactions read');
    assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'no document overflow');assert.equal(await p.locator('.discovery-grid').count(),0);
-   const bar=p.locator(mapped?'.detail-floating':'.detail-bar.top');assert.equal(await bar.locator('.back').innerText(),'Activity');
+   const bar=p.locator(mapped?'.detail-floating':'.detail-bar.top'),back=bar.locator('[data-back]');assert.equal(await back.getAttribute('aria-label'),'Back to Activity','back button exposes its destination accessibly');assert.equal(await back.locator('.vh').innerText(),'Activity','back destination remains in the visually hidden label');const backLabelStyle=await back.locator('.vh').evaluate(n=>({width:n.getBoundingClientRect().width,height:n.getBoundingClientRect().height,clip:getComputedStyle(n).clipPath}));assert(backLabelStyle.width<=1&&backLabelStyle.height<=1&&backLabelStyle.clip==='inset(50%)','back label stays visually hidden beside the icon: '+JSON.stringify(backLabelStyle));
    for(const control of await bar.locator('button').all()){const r=await control.boundingBox();assert(r.height>=44&&r.width>=44,'44px navigation/action');}
    assert.equal(await p.locator('.detail-secondary .stat').count()<=3,true);
    if(kind==='run'&&size.root===16){

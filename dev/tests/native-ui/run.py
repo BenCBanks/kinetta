@@ -206,7 +206,7 @@ for device in preferred:
       elif stage=='activity-sticky':assert detail['hero']['bottom']<=0 and detail['bar']['y']==0,metrics
       else:
        assert abs(detail['hero']['y'])<=1 and abs(detail['hero']['width']-metrics['viewport']['width'])<=1,metrics
-       expected_hero=min(408,max(264,metrics['viewport']['height']*.46))
+       expected_hero=max(240,min(340,metrics['viewport']['height']*.38))
        assert abs(detail['hero']['height']-expected_hero)<=1,metrics
        if root==16:assert detail['tabs']['bottom']<nav['box']['y'],metrics
     if stage.startswith('track-'):
