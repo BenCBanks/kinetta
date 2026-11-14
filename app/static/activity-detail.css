@@ -75,6 +75,60 @@
 .activity-detail .activity-charts .chartbox { padding:4px 0 2px; }
 .activity-detail .activity-charts .chartbox .area { fill:url(#kinetta-accent-gradient); opacity:.22; }
 
+/* Activity detail finish: make the primary number read as the page's hero. */
+.activity-detail > .detail-map-hero ~ .compact-detail-title {
+  margin-top:-28px;
+  border-radius:20px 20px var(--r) var(--r);
+  box-shadow:var(--elevation-raised);
+  position:relative;
+  z-index:2;
+}
+.activity-detail .detail-stat-stack {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px 8px;
+  margin-top:14px;
+}
+.activity-detail .detail-stat-stack::before { display:none; }
+.activity-detail .detail-primary,
+.activity-detail .detail-moving,
+.activity-detail .detail-secondary { display:contents; }
+.activity-detail .detail-stat-empty { display:none; }
+.activity-detail .detail-primary .stat:first-child {
+  grid-column:1 / -1;
+  padding-bottom:12px;
+  border-bottom:1px solid var(--line);
+}
+.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-primary .stat:first-child b {
+  font-size:36px;
+  font-weight:700;
+  line-height:1.05;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:-.03em;
+}
+.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-primary .stat:not(:first-child) b,
+.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-moving .stat b,
+.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-secondary .stat b {
+  font-size:20px;
+  font-weight:600;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:-.01em;
+}
+.activity-detail .seg.dtabs button[aria-selected="true"] {
+  background:color-mix(in srgb,var(--accent) 14%,var(--card));
+  color:var(--accent);
+  border-radius:999px;
+  box-shadow:none;
+}
+.activity-detail .activity-chart-card {
+  background:var(--surface-card);
+  box-shadow:var(--elevation-rest);
+}
+:root[data-theme="dark"] .activity-detail .activity-chart-card {
+  background:var(--surface-raised);
+  box-shadow:var(--elevation-rest);
+}
+
 /* Keep media tools together below the floating navigation, with 44px targets and 8px gaps. */
 .detail-map-hero .map-full { top:calc(env(safe-area-inset-top) + 60px); right:8px; left:auto; bottom:auto; }
 .detail-map-hero .compact-media:has(.media-map) .media-controls > button { top:calc(env(safe-area-inset-top) + 60px); bottom:auto; left:auto; }
