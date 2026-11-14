@@ -194,16 +194,19 @@ async function foodDiscovery(el) {
     if(!valid())return;
     const f=facts.food,change=f?.weight_change_kg;
     const items=[
-      {id:'recipes',title:'Recipes & cooking',description:'Save your meals',icon:'pot',href:'/food/meals',teaser:f?.library_items>0?`${f.library_items} saved ${f.library_items===1?'item':'items'}`:null},
-      {id:'overview',title:'Insights',description:'See food trends',icon:'sparkle',href:'/food?view=overview',teaser:Number.isInteger(f?.protein_days)?`Protein goal ${f.protein_days}/7`:f?.logged_days>0?`${f.logged_days} logged days`:null},
-      {id:'weight',title:'Weight',description:'Log a weigh-in',icon:'scale',href:'/progress/weight?from=nutrition',teaser:change!=null?change===0?'Weight trend is steady':`${change<0?'−':'+'}${U.weight(Math.abs(change))} ${imp()?'lb':'kg'} trend`:f?.weight_kg!=null?`${U.weight(f.weight_kg)} ${imp()?'lb':'kg'} last logged`:null},
-      {id:'goals',title:'Calorie & macro goals',description:'Set your daily targets',icon:'target',href:'/food?goals=1'},
-      {id:'needs',title:'Calorie needs',description:'Your daily needs',icon:'target',href:'/food?view=needs'},
-      {id:'calendar',title:'Food calendar',description:'Review a logged day',icon:'calendar',href:'/food?view=calendar',teaser:f?.logged_days>0?`${f.logged_days} logged days`:null},
-      {id:'reminders',title:'Meal reminders',description:f?'Off · Set times':'Choose times',icon:'bell',href:'/me/notifications',teaser:f?.reminders_on?'On · Review times':null},
-      ...(Native.on?[{id:'health',title:'Health app sync',description:facts.health==='unavailable'?'Check Health':facts.health===undefined?'Set up Health':'Off · Set up',icon:'heart',href:'/track/health',teaser:facts.health&&facts.health!=='unavailable'?facts.health:null}]:[{id:'import',title:'Add past days',description:'Bring in weight and calories',icon:'upload',href:'/food/import'}])
+      {id:'recipes',title:'Recipes & cooking',description:'',icon:'pot',href:'/food/meals',teaser:f?.library_items>0?`${f.library_items} saved ${f.library_items===1?'item':'items'}`:null},
+      {id:'overview',title:'Insights',description:'',icon:'sparkle',href:'/food?view=overview',teaser:Number.isInteger(f?.protein_days)?`Protein goal ${f.protein_days}/7`:f?.logged_days>0?`${f.logged_days} logged days`:null},
+      {id:'weight',title:'Weight',description:'',icon:'scale',href:'/progress/weight?from=nutrition',teaser:change!=null?change===0?'Weight trend is steady':`${change<0?'−':'+'}${U.weight(Math.abs(change))} ${imp()?'lb':'kg'} trend`:f?.weight_kg!=null?`${U.weight(f.weight_kg)} ${imp()?'lb':'kg'} last logged`:null},
+      {id:'goals',title:'Calorie & macro goals',description:'',icon:'target',href:'/food?goals=1'},
+      {id:'needs',title:'Calorie needs',description:'',icon:'target',href:'/food?view=needs'},
+      {id:'calendar',title:'Food calendar',description:'',icon:'calendar',href:'/food?view=calendar',teaser:f?.logged_days>0?`${f.logged_days} logged days`:null},
+      {id:'reminders',title:'Meal reminders',description:'',icon:'bell',href:'/me/notifications',teaser:f?.reminders_on?'On · Review times':null},
+      ...(Native.on?[{id:'health',title:'Health app sync',description:'',icon:'heart',href:'/track/health',teaser:facts.health&&facts.health!=='unavailable'?facts.health:null}]:[{id:'import',title:'Add past days',description:'',icon:'upload',href:'/food/import'}])
     ];
+    // These are established destinations. Only render a second line for account-specific facts;
+    // generic unvisited links are not new features and should not get a blue dot.
     Discovery.render(grid,items,{space:'nutrition',ready,attribute:'data-nutrition-feature'});
+    grid.querySelectorAll('.progress-new').forEach(node=>node.remove());
   };
   Discovery.wire(grid,'nutrition',{attribute:'data-nutrition-feature'});draw();
   await Promise.allSettled([
@@ -223,8 +226,7 @@ route(/^\/food$/, 'food', async (el) => {
   const body = nHead(el, 'log', `<button class="icon-btn" id="fd-prev" aria-label="Previous day">${svg('back')}</button><label class="range-btn daypick">${svg('calendar')}<span>${esc(dayLabel(day))}</span><input type="date" id="fd-date" value="${esc(day)}" aria-label="Pick a day to log or edit"></label>
       <button class="icon-btn" id="fd-next" aria-label="Next day">${svg('chev')}</button>${day===today?'':'<button class="me-chip" id="fd-today">Today</button>'}`);
   const camera = Native.on || !!navigator.mediaDevices?.getUserMedia;
-  body.innerHTML = `<div class="quick nutrition-add"><button class="primary" id="fq-add">${svg('search')} Add food</button>${camera?`<button class="icon-btn" id="fq-photo" aria-label="Take a food photo">${svg('camera')}</button><button class="icon-btn" id="fq-scan" aria-label="Scan a food barcode">${svg('barcode')}</button>`:''}</div><div id="fd-sum">${skelFood()}</div><div id="fd-meals"></div><section id="fd-explore"></section><div id="fd-details"></div><div id="fd-milestones"></div>`;
-  Milestones.mount($('#fd-milestones',el),{params:{day}});
+  body.innerHTML = `<div class="quick nutrition-add"><button class="primary" id="fq-add">${svg('search')} Add food</button>${camera?`<button class="icon-btn" id="fq-photo" aria-label="Take a food photo">${svg('camera')}</button><button class="icon-btn" id="fq-scan" aria-label="Scan a food barcode">${svg('barcode')}</button>`:''}</div><div id="fd-sum">${skelFood()}</div><div id="fd-meals"></div><section id="fd-explore"></section><div id="fd-details"></div>`;
   $('#fd-prev', el).onclick = () => go(`/food?d=${addDays(day, -1)}`, {replace: true});
   $('#fd-next', el).onclick = () => go(`/food?d=${addDays(day, 1)}`, {replace: true});
   const bt = $('#fd-today', el); if (bt) bt.onclick = () => go('/food', {replace: true});
@@ -277,16 +279,14 @@ function drawDay(el, D) {
     const ringProgress=hasGoal?Math.min(1,Math.max(0,eaten/goal)):0,circumference=339.292;
     const ringValue=hasGoal?Math.min(Math.max(0,Math.round(eaten)),Math.round(goal)):Math.max(0,Math.round(eaten));
     const ringAria=hasGoal?`${r0(Math.max(0,eaten))} of ${r0(goal)} calories${ringState==='over'?', above goal':''}`:`${r0(Math.max(0,eaten))} calories logged; no goal set`;
-    summaryRoot.innerHTML = `<div class="card tcard balance nutrition-day-summary">
-      <a class="nutrition-summary-link" href="/food?view=overview" data-ring-state="${ringState}"><span class="vh">Nutrition overview and details. </span><div class="nutrition-summary">
+    summaryRoot.innerHTML = `<div class="card tcard balance nutrition-day-summary"><div class="nutrition-summary-tools"><a class="nutrition-goals icon-btn" id="fd-goal" href="/food/setup" aria-label="Calorie and macro goals">${svg('gear')}</a></div><div class="nutrition-summary">
+      <a class="nutrition-summary-link" href="/food?view=overview" data-ring-state="${ringState}"><span class="vh">Nutrition overview and details. </span>
         <div class="calorie-ring-wrap"><svg class="calorie-ring${pulseRing?' goal-reached-pulse':''}" viewBox="0 0 128 128" role="progressbar" aria-label="Calories eaten" aria-valuemin="0" aria-valuemax="${hasGoal?Math.round(goal):Math.max(1,Math.round(eaten))}" aria-valuenow="${ringValue}" aria-valuetext="${esc(ringAria)}" focusable="false">
           <defs><linearGradient id="calorie-ring-gradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#2868ed"/><stop offset="58%" stop-color="#2879d4"/><stop offset="100%" stop-color="#0b9290"/></linearGradient></defs>
           <circle class="calorie-ring-track" cx="64" cy="64" r="54"/><circle class="calorie-ring-arc" cx="64" cy="64" r="54" stroke-dasharray="${circumference}" stroke-dashoffset="${(circumference*(1-ringProgress)).toFixed(3)}"/>
-        </svg><div class="calorie-ring-label"><span class="nutrition-count" data-count-target="${Math.round(Math.max(0,eaten))}">0</span><small>${hasGoal?`of ${r0(goal)}`:'logged'}</small></div></div>
-        <div class="calorie-summary-copy"><small class="eyebrow">Calories</small></div>
+        </svg><div class="calorie-ring-label"><span class="nutrition-count hero-number" data-count-target="${Math.round(Math.max(0,eaten))}">0</span><small>${hasGoal?`of ${r0(goal)}`:'logged'}</small></div></div>
+        <div class="nutrition-macros"><div class="macro-bars">${MACROS.map(([k,name])=>{const target=t[k.replace('_g','_target')],hasTarget=target!=null&&Number.isFinite(Number(target))&&Number(target)>0,unknown=Number(D.unknown_nutrients?.[k]||0)>0,amount=Number(T[k])||0,state=unknown?'unknown':!hasTarget?'unset':amount>target?'over':'under',width=hasTarget&&!unknown?Math.min(1,amount/target):0,value=unknown?'Unknown':`${r0(amount)}${hasTarget?` / ${r0(target)}`:''}`;return `<div class="macro m-${k}" data-macro="${k}" data-target-state="${state}"><div class="macro-line"><b>${value}</b><span>${name} · g</span></div><div class="track" aria-hidden="true"><div class="bar macro-target-bar${state==='over'?' over':''}${state==='unknown'||state==='unset'?' unavailable':''}" data-w="${width.toFixed(3)}"></div></div></div>`}).join('')}</div></div></a>
       </div>
-      <div class="macro-bars">${MACROS.map(([k,name])=>{const target=t[k.replace('_g','_target')],hasTarget=target!=null&&Number.isFinite(Number(target))&&Number(target)>0,unknown=Number(D.unknown_nutrients?.[k]||0)>0,amount=Number(T[k])||0,state=unknown?'unknown':!hasTarget?'unset':amount>target?'over':'under',width=hasTarget&&!unknown?Math.min(1,amount/target):0;return `<div class="macro m-${k}" data-macro="${k}" data-target-state="${state}"><div class="macro-line"><b>${name}</b><span class="num">${macroTotal(D,k,target)}</span></div><div class="track" aria-hidden="true"><div class="bar macro-target-bar${state==='over'?' over':''}${state==='unknown'||state==='unset'?' unavailable':''}" data-w="${width.toFixed(3)}"></div></div></div>`}).join('')}</div></a>
-      <a class="nutrition-goals text-link" id="fd-goal" href="/food/setup" aria-label="Calorie and macro goals">Goals</a>
       <div class="nutrition-secondary">${D.entries.length?extraTotals(extraCoverage(D.entries,t)):''}
       ${!energyDetails && goalNote ? `<p class="small muted tc-note">${esc(goalNote)}</p>` : ''}
       ${!t.protein_target ? '<button class="linkbtn tc-settg" id="fd-targets">Set macro targets</button>' : ''}
@@ -312,27 +312,26 @@ function drawDay(el, D) {
   // No usual target yet: Set goals opens the full goal setup rather than a one-day override.
   const gb = $('#fd-goal', el); if (gb) gb.onclick = (event) => { event.preventDefault(); return G.default == null && goal == null ? go('/food/setup') : goalSheet(D); };
   const by = {breakfast: [], lunch: [], dinner: [], snacks: []}; for (const e of D.entries) by[e.meal].push(e);
-  $('#fd-meals', el).innerHTML = Object.keys(MEAL_NAMES).map((m) => {
+  $('#fd-meals', el).innerHTML = `<section class="card nutrition-meals-group">${Object.keys(MEAL_NAMES).map((m) => {
     const list = by[m], kc = list.reduce((s, e) => s + e.kcal, 0);
-    if (!list.length) return `<section class="card meal meal-empty meal-${m}"><h2><span>${MEAL_NAMES[m]}</span><span class="meal-actions"><button class="icon-btn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">${svg('plus')}</button></span></h2><div class="meal-empty-state"><span class="meal-empty-mark" aria-hidden="true">🍽️</span><span><b>Nothing logged yet</b></span></div>${sameYesterdayMealMarkup(D,m,today)}</section>`;
-    return `<section class="card meal meal-${m}"><h2><span>${MEAL_NAMES[m]}</span><span class="muted small num meal-total">${r0(kc)} kcal</span><span class="meal-actions"><button class="icon-btn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">${svg('plus')}</button><button class="icon-btn" data-more="${m}" aria-label="Edit ${MEAL_NAMES[m].toLowerCase()}">${svg('more')}</button></span></h2>
-      ${list.map((e) => { const fe = `<button class="fe${e.pending ? ' pending' : ' sw-row'}" data-id="${e.id}"><span class="vh">Edit </span><div class="meal-food"><span class="meal-food-icon" aria-hidden="true">${mealFoodEmoji(e,m)}</span><span class="meal-food-copy"><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></span></div>
-        <div class="r meal-calories"><b class="num">${r0(e.kcal)}</b> <small class="muted">kcal</small></div></button>`;
+    const heading=`<h2><span>${MEAL_NAMES[m]}</span>${list.length?`<span class="muted small num meal-total">${r0(kc)} kcal</span>`:''}<span class="meal-actions"><button class="icon-btn" data-add="${m}" aria-label="Meal actions for ${MEAL_NAMES[m].toLowerCase()}">${svg('plus')}</button></span></h2>`;
+    if (!list.length) return `<section class="meal meal-empty meal-${m}">${heading}<div class="meal-empty-state"><span><b>Nothing logged yet</b></span></div>${sameYesterdayMealMarkup(D,m,today)}</section>`;
+    return `<section class="meal meal-${m}">${heading}
+      ${list.map((e) => { const fe = `<button class="fe${e.pending ? ' pending' : ' sw-row'}" data-id="${e.id}"><span class="vh">Edit </span><div class="meal-food"><span class="meal-food-copy"><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></span></div>
+        <span class="nutrition-row-calories"><b class="num">${r0(e.kcal)}</b></span></button>`;
         // swipe left to remove (with Undo); Remove is also in the food's editor and the meal's Edit menu
         return e.pending ? fe : `<div class="swipe"><button type="button" class="sw-del" data-del="${e.id}" tabindex="-1">${svg('trash')}Remove</button>${fe}</div>`; }).join('')}
       </section>`;
-  }).join('') + (D.has_history ? `<div class="food-copy-action"><button type="button" class="ghost" id="fd-copy">${svg('clock')}Copy yesterday</button></div>` : '');
+  }).join('')}</section>`;
   $$('[data-usual-meal]',el).forEach(b=>b.onclick=()=>addSheet(D.day,b.dataset.usualMeal));
-  $$('[data-add]', el).forEach((b) => b.onclick = () => describeSheet(D.day, b.dataset.add));
+  $$('[data-add]', el).forEach((b) => b.onclick = () => mealActionsSheet(D, b.dataset.add));
   $$('[data-repeat-yesterday]',el).forEach(b=>b.onclick=()=>repeatYesterdayMeal(D,b));
-  $$('[data-more]', el).forEach((b) => b.onclick = () => mealMenu(D, b.dataset.more));
   $$('.meal', el).forEach((card) => swipeRows(card, (id) => removeFoodEntry(D.entries.find((e) => String(e.id) === id), {button: $(`.sw-del[data-del="${id}"]`, card)})));
   $$('[data-id]', el).forEach((b) => b.onclick = () => {
     const e = D.entries.find((x) => String(x.id) === b.dataset.id);
     if (e.pending) { toast('Saved on this phone - it sends when you are back online'); return; }
     entrySheet(e, D.day);
   });
-  const cp = $('#fd-copy', el); if (cp) cp.onclick = () => chooseYesterday(isoDay(new Date()));
   animateNutritionCount(el);
 }
 function animateNutritionCount(root) {
@@ -488,6 +487,22 @@ function foodUploadUndo(items,owner) {
 async function copyDay(from, to, meal) {
   try { const r = await api('/api/food/copy', json('POST', {from_day: from, to_day: to, meal: meal || null})); refresh(); toast(r.copied ? `Copied ${r.copied} item${r.copied > 1 ? 's' : ''}` : 'Nothing to copy'); }
   catch (x) { toast(x.message); }
+}
+// The meal plus opens the scoped action sheet; routine add, edit and copy actions stay together.
+function mealActionsSheet(D, meal) {
+  const count=D.entries.filter(e=>e.meal===meal).length;
+  const yesterday=isoDay(new Date());
+  sheet(MEAL_NAMES[meal], `<div class="nutrition-meal-actions">
+    <button type="button" class="nutrition-meal-action" data-meal-action="add"><span>Add food</span>${svg('chev')}</button>
+    ${count?`<button type="button" class="nutrition-meal-action" data-meal-action="edit"><span>Edit foods and meal</span>${svg('chev')}</button>`:''}
+    ${D.has_history?`<button type="button" class="nutrition-meal-action" data-meal-action="yesterday"><span>Same as yesterday</span>${svg('chev')}</button>`:''}
+    ${D.day!==yesterday&&count?`<button type="button" class="nutrition-meal-action" data-meal-action="today"><span>Copy meal to today</span>${svg('chev')}</button>`:''}
+  </div>`, (box, close) => {
+    $('[data-meal-action="add"]',box).onclick=()=>{close();describeSheet(D.day,meal);};
+    $('[data-meal-action="edit"]',box)?.addEventListener('click',()=>{close();mealMenu(D,meal);});
+    $('[data-meal-action="yesterday"]',box)?.addEventListener('click',()=>{close();yesterdayMeal(yesterday,meal);});
+    $('[data-meal-action="today"]',box)?.addEventListener('click',()=>{close();copyDay(D.day,yesterday,meal);});
+  });
 }
 // Meal actions are scoped to the selected meal and day (a past meal can be copied to today).
 function mealMenu(D, meal) {

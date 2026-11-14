@@ -17,13 +17,14 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
  const box={innerHTML:''};c.firstFood(box,'2026-10-18');
  assert.match(box.innerHTML,/href="\/food\/setup"/);assert.match(box.innerHTML,/optional/);
  assert.doesNotMatch(box.innerHTML,/Log something you ate|ff-log|ff-dish/,'the primary Add food entry is outside the summary');
- // Only with no history, no entries and no goal; copy shortcuts only with history.
+ // Only with no history, no entries and no goal; meal actions stay in the scoped plus sheet.
  assert.match(food,/const fresh = !D\.has_history && !D\.entries\.length && goal == null;/);
- assert.match(food,/D\.has_history \? `<div class="food-copy-action"/,'One quiet Copy yesterday button is available with food history');
+ assert.match(food,/D\.has_history\?`<button type="button" class="nutrition-meal-action" data-meal-action="yesterday"/,'Same as yesterday is available in a meal action sheet only with history');
+ assert.doesNotMatch(food,/class="food-copy-action"/,'the old duplicate Copy yesterday card is gone');
  assert.doesNotMatch(food,/data-usual-meal=/,'Usuals stays in Add food');
  assert.match(food,/sameYesterdayMealMarkup\(D,m,today\)/,'only an empty meal with yesterday data gets a repeat action');
  assert.doesNotMatch(food,/data-yesterday-meal=/,'the old copy action is not restored inside every meal');
- assert.equal((food.match(/id="fd-copy"/g)||[]).length,1,'Only one copy button is rendered');
+ assert.equal((food.match(/id="fd-copy"/g)||[]).length,0,'there is no global copy button outside the selected meal');
  assert.doesNotMatch(food,/Reminders · optional|edit or create/,'no run-on link line');
  assert.match(food,/\['reminders', 'Meal reminders'/,'reminders moved into More');
  console.log('Nutrition: optional goals, one entry action, history-bound copy shortcut and retained reminder destination PASS');

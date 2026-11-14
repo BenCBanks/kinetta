@@ -24,9 +24,9 @@ const ready=p=>until(p,()=>App.pageReady,'View did not settle');
    const open=async()=>{await p.locator('#fd-goal').click();await p.locator('.sheet[aria-label="Goals"]').waitFor();};
    await p.goto(base+'/food');await ready(p);await p.locator('#fd-goal').waitFor();
    assert.match(await p.locator('#fd-goal').getAttribute('aria-label'),/goals/i);
-   assert.equal((await p.locator('#fd-goal').innerText()).trim(),'Goals');
+   assert.equal(await p.locator('#fd-goal').getAttribute('aria-label'),'Calorie and macro goals');
    const type=await p.locator('#fd-goal').evaluate(n=>({font:parseFloat(getComputedStyle(n).fontSize),weight:getComputedStyle(n).fontWeight}));assert(type.font>=15&&(size.root>16||type.font<=16),'Goals label follows the body type scale');assert.equal(type.weight,'500','Goals uses medium weight');
-   const control=await p.locator('#fd-goal').boundingBox();assert(control.width>=44&&control.height>=44,'Goals link keeps a 44px target');const appearance=await p.locator('#fd-goal').evaluate(n=>({tag:n.tagName,href:n.getAttribute('href'),border:getComputedStyle(n).borderTopWidth,background:getComputedStyle(n).backgroundColor,icon:!!n.querySelector('svg')}));assert.equal(appearance.tag,'A','Goals remains a link');assert.equal(appearance.href,'/food/setup');assert.equal(appearance.border,'0px','Goals stays unboxed');assert.equal(appearance.background,'rgba(0, 0, 0, 0)');assert.equal(appearance.icon,false,'Goals stays plain text');
+   const control=await p.locator('#fd-goal').boundingBox();assert(control.width>=44&&control.height>=44,'Goals link keeps a 44px target');const appearance=await p.locator('#fd-goal').evaluate(n=>({tag:n.tagName,href:n.getAttribute('href'),border:getComputedStyle(n).borderTopWidth,background:getComputedStyle(n).backgroundColor,icon:!!n.querySelector('svg')}));assert.equal(appearance.tag,'A','Goals remains a link');assert.equal(appearance.href,'/food/setup');assert.equal(appearance.border,'0px','Goals stays unboxed');assert.equal(appearance.background,'rgba(0, 0, 0, 0)');assert.equal(appearance.icon,true,'Goals uses the specified gear glyph');
    await open();
    const sheet=p.locator('.sheet[aria-label="Goals"]');
    // The four everyday goals are visible together without opening anything, with full labels inside the sheet.
