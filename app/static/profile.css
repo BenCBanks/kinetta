@@ -796,17 +796,22 @@
 .me-card-body { padding-top:12px; }
 .me-card-avatar { margin-top:0; }
 .me-card-banner { min-height:52px; padding:4px 10px 0; }
-.me-card-banner .me-card-pill { min-height:40px; background:transparent; color:rgba(255,255,255,.88); font-size:.875rem; font-weight:550; }
+.me-card-banner .me-card-pill { min-height:44px; background:transparent; color:rgba(255,255,255,.88); font-size:.9375rem; font-weight:550; }
 .me-card-banner .me-card-pill svg { opacity:.82; }
 .me-card-banner .me-card-pill:active { background:rgba(255,255,255,.12); }
 .me-card-name { padding-top:2px; }
-.me-card-name h2 { font-size:1.0625rem; line-height:1.2; font-weight:550; letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:clip; }
-.me-showcase-streak { min-width:0; font-size:.8125rem; font-weight:400; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:clip; }
-.me-card-preview-row { margin:-8px 0 0; }
-.me-card-preview-action { min-height:44px; padding:0; font-size:.8125rem; font-weight:500; }
+.me-card-name h2 { font-size:1.0625rem; line-height:1.2; font-weight:550; letter-spacing:-.01em; white-space:nowrap; overflow:visible; text-overflow:clip; }
+.me-showcase-streak { min-width:0; font-size:.9375rem; font-weight:400; line-height:1.2; white-space:nowrap; }
+.me-card-preview-row { margin:0; }
+.me-card-preview-action { min-height:44px; padding:0; font-size:.9375rem; font-weight:500; }
 .me-featured-slot:not(:empty) { margin-block:-8px; }
+.me-featured-achievements .me-featured-title { font-size:.875rem; }
+.me-featured-achievements .me-featured-title a { font-size:.875rem; }
 .me-featured-achievements .profile-achievement-list { padding-top:8px; }
 .me-featured-achievements .profile-achievement-medallion { margin-top:4px; }
+.me-featured-achievements .me-featured-caption { font-size:13px; }
+.me-card .me-metric-value { font-size:clamp(20px,6.2cqw,21px); }
+.me-dashboard-divider span:last-child { font-size:.9375rem; }
 
 /* Settings chips follow their group accent, like the native Settings categories. */
 .me-settings .settings-group { --settings-accent:var(--accent); }

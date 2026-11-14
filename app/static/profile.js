@@ -1111,6 +1111,15 @@ const MeCard=(()=>{
     const owner=readOwner(),card=$('.me-card',root),box=$('.me-card-sections',card),live=()=>card.isConnected&&owner===readOwner();
     let data=given?viewerData(given,viewer):null,editing=false,editRevision=0,chartCleanup=()=>{};
     const chartPositions=new Map();
+    const fitProfileName=()=>{
+      const heading=$('.me-card-name h2',card);if(!heading)return;
+      const full=heading.dataset.fullName||heading.textContent.trim();heading.dataset.fullName=full;heading.title=full;heading.setAttribute('aria-label',full);heading.textContent=full;
+      for(let size=17;size>=15;size-=.5){heading.style.fontSize=`${size}px`;if(heading.scrollWidth<=heading.clientWidth)break;}
+      if(heading.scrollWidth>heading.clientWidth){const words=full.split(/\s+/);while(words.length>1&&heading.scrollWidth>heading.clientWidth){words.pop();heading.textContent=words.join(' ');}
+        if(heading.scrollWidth>heading.clientWidth){let chars=Array.from(words[0]||full);while(chars.length>1&&heading.scrollWidth>heading.clientWidth){chars.pop();heading.textContent=chars.join(' ');}}
+      }
+    };
+    const nameObserver=new ResizeObserver(()=>requestAnimationFrame(fitProfileName));nameObserver.observe(card);viewResources.set(card,()=>nameObserver.disconnect());
     function chartScroll(){
       chartCleanup();
       const summaries=$$('.me-sport-chips',box).map(rail=>{
@@ -1166,7 +1175,7 @@ const MeCard=(()=>{
       const cleanup=chartCleanup,dispose=()=>{cleanup();wrap.removeEventListener('pointerdown',onDown);wrap.removeEventListener('click',onClick);document.removeEventListener('pointermove',onMove,true);document.removeEventListener('pointerup',onUp,true);document.removeEventListener('pointercancel',onCancel,true);document.removeEventListener('click',outside,true);clearTimeout(ignoreTimer);};chartCleanup=dispose;viewResources.set(wrap,dispose);
     };
     const periods=()=>$$('[data-period]',box).forEach(b=>b.onclick=()=>{if(b.dataset.period===period)return;period=b.dataset.period;draw();$(`[data-period="${period}"]`,box)?.focus({preventScroll:true});});
-    const draw=()=>{if(!live()||editing||!data)return;chartCleanup();const view=profileView(data,{viewer,period:cardPeriod});box.setAttribute('aria-busy','false');box.innerHTML=view.html;bars();if(view.period==='week'){weeklyTaps();ProfileLayout.mountShowcase(root,data,{featured:true,shared:false});}else{weekTaps();periods();}};
+    const draw=()=>{if(!live()||editing||!data)return;chartCleanup();const view=profileView(data,{viewer,period:cardPeriod});box.setAttribute('aria-busy','false');box.innerHTML=view.html;requestAnimationFrame(fitProfileName);bars();if(view.period==='week'){weeklyTaps();ProfileLayout.mountShowcase(root,data,{featured:true,shared:false});}else{weekTaps();periods();}};
     const loadCard=async()=>{
       try{
         if(!ownerView)throw new TypeError('A shared profile view requires its filtered profile payload.');
