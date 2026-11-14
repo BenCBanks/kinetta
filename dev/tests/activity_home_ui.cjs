@@ -75,37 +75,37 @@ async function assertCardActions(card,{share,width,label}){
  const reactBox=await react.boundingBox(),commentBox=await comment.boundingBox(),footerBox=await footer.boundingBox(),hasSummary=await count.isVisible();
  assert.equal(await shareButton.count(),share?1:0,`${label}: Share matches ownership`);
  const padding=await footer.evaluate(n=>parseFloat(getComputedStyle(n).paddingRight)||0),contentRight=footerBox.x+footerBox.width-padding;
- assert(Math.abs(commentBox.x-reactBox.x-reactBox.width-8)<1,`${label}: Comments sits next to React`);
  let summaryBox=null;
- if(hasSummary){summaryBox=await count.boundingBox();assert(Math.abs(summaryBox.x+summaryBox.width-contentRight)<1,`${label}: reaction counts stay at the far right`);assert(summaryBox.x>=commentBox.x+commentBox.width,`${label}: reaction counts follow the left actions`);const emojis=count.locator('.reaction-summary-emoji');assert(await emojis.count()<=3,`${label}: summary caps at three emoji kinds`);const gaps=await emojis.evaluateAll(nodes=>nodes.slice(1).map((node,index)=>node.getBoundingClientRect().left-nodes[index].getBoundingClientRect().right));assert(gaps.every(gap=>gap>=7.5&&gap<=8.5),`${label}: per-emoji counts stay separated`);}
- if(share){const shareBox=await shareButton.boundingBox();assert(shareBox.x>=commentBox.x+commentBox.width+7.5,`${label}: Share stays after Comments`);if(summaryBox)assert(shareBox.x+shareBox.width<=summaryBox.x,`${label}: Share stays before the far-right reaction counts`);}
+ if(hasSummary){summaryBox=await count.boundingBox();assert(Math.abs(summaryBox.x-reactBox.x-reactBox.width-4)<1,`${label}: summary follows React`);assert(Math.abs(commentBox.x-summaryBox.x-summaryBox.width-4)<1,`${label}: Comments follows the summary`);assert(summaryBox.width>=44&&summaryBox.height===44,`${label}: reaction summary keeps a 44px-high target`);const emojis=count.locator('.reaction-summary-emoji');assert(await emojis.count()<=3,`${label}: summary caps at three emoji kinds`);assert.equal(await count.locator('.reaction-summary-total').count(),1,`${label}: one total follows the emoji summary`);}
+ else assert(Math.abs(commentBox.x-reactBox.x-reactBox.width-4)<1,`${label}: Comments follows React when the summary is empty`);
+ if(share){const shareBox=await shareButton.boundingBox();assert(Math.abs(shareBox.x+shareBox.width-contentRight)<1,`${label}: Share is at the far right`);assert(shareBox.x>=commentBox.x+commentBox.width,`${label}: Share follows Comments`);}
 }
 async function verifyReactionSummary(card,page,out,theme){
  const group=card.locator('[data-reaction-group]'),states=[
-  {count:0,reactions:{},kinds:[],order:[],mine:null,shown:[],values:[],extra:0},
-  {count:1,reactions:{clap:6},kinds:['clap'],order:['clap'],mine:null,shown:['clap'],values:['6'],extra:0},
-  {count:5,reactions:{clap:6,muscle:4,fire:2,mindblown:1,starstruck:1},kinds:['clap','muscle','fire','mindblown','starstruck'],order:['clap','muscle','fire','mindblown','starstruck'],mine:'mindblown',shown:['clap','muscle','fire'],values:['6','4','2'],extra:2},
+  {total:0,reactions:{},kinds:[],order:[],mine:null,shown:[],extra:0},
+  {total:6,reactions:{clap:6},kinds:['clap'],order:['clap'],mine:null,shown:['clap'],extra:0},
+  {total:14,reactions:{clap:6,muscle:4,fire:2,mindblown:1,starstruck:1},kinds:['clap','muscle','fire','mindblown','starstruck'],order:['clap','muscle','fire','mindblown','starstruck'],mine:'mindblown',shown:['clap','muscle','fire'],extra:1},
  ];
  for(const state of states){
   await group.evaluate((el,fixture)=>el._sync({my_reaction:fixture.mine,reactions:fixture.reactions,reaction_order:fixture.order}),state);
-  const expected=await page.evaluate(fixture=>fixture.shown.map((kind,index)=>({kind,emoji:App.me.reaction_choices.find(row=>row[0]===kind)?.[2],count:fixture.values[index]})),state);
-  const read=()=>group.locator('.reaction-summary-emoji').evaluateAll(nodes=>nodes.map(n=>({kind:n.dataset.summaryKind,emoji:n.querySelector('.reaction-emoji').textContent.trim(),count:n.querySelector('.reaction-summary-count').textContent.trim()})));
-  assert.deepEqual(await read(),expected,state.count+' reaction kinds show popularity order and individual counts');
+  const expected=await page.evaluate(fixture=>fixture.shown.map(kind=>({kind,emoji:App.me.reaction_choices.find(row=>row[0]===kind)?.[2]})),state);
+  const read=()=>group.locator('.reaction-summary-emoji').evaluateAll(nodes=>nodes.map(n=>({kind:n.dataset.summaryKind,emoji:n.querySelector('.reaction-emoji').textContent.trim()})));
+  assert.deepEqual(await read(),expected,state.total+' reactions show up to three other reaction kinds');
   const more=group.locator('.reaction-summary-more');assert.equal(await more.count(),state.extra?1:0,'additional kinds use a compact +N label');if(state.extra)assert.equal(await more.textContent(),'+'+state.extra);
-  assert.equal(await group.locator('.reaction-count .num').count(),0,'there is no combined total');
   const count=group.locator('.reaction-count'),react=group.locator('.reaction-more'),comment=card.locator('.activity-comments');
-  if(!state.count){assert(await count.isHidden(),'empty reactions hide the right-hand summary');}
+  if(!state.total){assert(await count.isHidden(),'empty reactions hide the summary');}
   else{
-   const countBox=await count.boundingBox(),reactBox=await react.boundingBox(),commentBox=await comment.boundingBox(),footer=card.locator('.post-ft'),footerRight=await footer.evaluate(n=>{const s=getComputedStyle(n);return n.getBoundingClientRect().right-(parseFloat(s.paddingRight)||0);});
-   const expectedLabel=await page.evaluate(fixture=>{const visible=fixture.shown.map((kind,index)=>{const row=App.me.reaction_choices.find(item=>item[0]===kind);return row[2]+fixture.values[index];}).join('')+(fixture.extra?'+'+fixture.extra:'');const names=fixture.kinds.map(kind=>{const row=App.me.reaction_choices.find(item=>item[0]===kind);return row[1]+' '+fixture.reactions[kind];}).join(', ');return'See who reacted: '+visible+' ('+names+')';},state);
-   assert.equal(await count.getAttribute('aria-label'),expectedLabel,'the people-sheet button names each reaction count');
-   assert(countBox.width>=44&&countBox.height===44,'all per-emoji counts share one 44px target');assert(Math.abs(countBox.x+countBox.width-footerRight)<1,'reaction target stays at the far right: '+JSON.stringify({countBox,footerRight,footer:await footer.boundingBox(),reactBox,commentBox}));assert(Math.abs(commentBox.x-reactBox.x-reactBox.width-8)<1,'Comments stays next to React');assert(Math.max(countBox.y,reactBox.y,commentBox.y)-Math.min(countBox.y,reactBox.y,commentBox.y)<=2.01,'left and right controls share one row');
-   assert.equal(await group.getAttribute('data-mine'),state.mine||'','the selected reaction stays independent of summary order');
-   const hits=await count.locator('.reaction-summary-emoji .reaction-emoji,.reaction-summary-count,.reaction-summary-more').evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return document.elementFromPoint((r.left+r.right)/2,(r.top+r.bottom)/2)?.closest('button')===node.closest('.reaction-count');}));assert(hits.every(Boolean),'each emoji and count activates the same people-sheet target');
-   const visual=await count.evaluate(n=>{const s=getComputedStyle(n);return{border:s.borderWidth,outline:s.outlineStyle,background:s.backgroundColor,shadow:s.boxShadow,overflow:n.scrollWidth>n.clientWidth};});assert.equal(visual.border,'0px');assert.equal(visual.outline,'none');assert.equal(visual.background,'rgba(0, 0, 0, 0)');assert.equal(visual.shadow,'none');assert.equal(visual.overflow,false,'all individual values remain visible');
+   const countBox=await count.boundingBox(),reactBox=await react.boundingBox(),commentBox=await comment.boundingBox(),footer=card.locator('.post-ft');
+   const expectedLabel=await page.evaluate(fixture=>'See who reacted: '+fixture.total+' reaction'+(fixture.total===1?'':'s')+' ('+fixture.kinds.map(kind=>{const row=App.me.reaction_choices.find(item=>item[0]===kind);return row[1]+' '+fixture.reactions[kind];}).join(', ')+')',state);
+   assert.equal(await count.getAttribute('aria-label'),expectedLabel,'the people-sheet button names the total and each reaction kind');
+   assert(countBox.width>=44&&countBox.height===44,'the summary keeps a 44px-high target');assert(Math.abs(countBox.x-reactBox.x-reactBox.width-4)<1,'summary follows React');assert(Math.abs(commentBox.x-countBox.x-countBox.width-4)<1,'Comments follows the summary');assert(Math.max(countBox.y,reactBox.y,commentBox.y)-Math.min(countBox.y,reactBox.y,commentBox.y)<=2.01,'all footer controls share one row');
+   assert.equal(await group.getAttribute('data-mine'),state.mine||'','selected reaction stays independent of summary order');
+   assert.equal(await count.locator('.reaction-summary-total').textContent(),String(state.total),'visible summary ends with the total count');
+   const hits=await count.locator('.reaction-summary-emoji .reaction-emoji,.reaction-summary-total,.reaction-summary-more').evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return document.elementFromPoint((r.left+r.right)/2,(r.top+r.bottom)/2)?.closest('button')===node.closest('.reaction-count');}));assert(hits.every(Boolean),'emoji and total activate the people sheet');
+   const visual=await count.evaluate(n=>{const s=getComputedStyle(n);return{border:s.borderWidth,outline:s.outlineStyle,background:s.backgroundColor,shadow:s.boxShadow,overflow:n.scrollWidth>n.clientWidth};});assert.equal(visual.border,'0px');assert.equal(visual.outline,'none');assert.equal(visual.background,'rgba(0, 0, 0, 0)');assert.equal(visual.shadow,'none');assert.equal(visual.overflow,false,'all emoji and total remain visible');
   }
-  if(out&&theme==='light'&&await page.evaluate(()=>innerWidth)===390&&(!process.env.KINETTA_REACTION_CAPTURE||process.env.KINETTA_REACTION_CAPTURE.split(',').includes(String(state.count)))){
-   fs.mkdirSync(out,{recursive:true});await card.evaluate(n=>n.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'}));await page.evaluate(()=>document.fonts.ready);const r=await card.boundingBox(),viewportWidth=await page.evaluate(()=>innerWidth);assert(r&&r.x>=0&&r.x+r.width<=viewportWidth,'reaction card stays within the 390px viewport');await page.screenshot({path:path.join(out,'reaction-row-'+state.count+'-390-light.png'),clip:{x:0,y:r.y,width:viewportWidth,height:r.height},animations:'disabled'});
+  if(out&&theme==='light'&&await page.evaluate(()=>innerWidth)===390&&(!process.env.KINETTA_REACTION_CAPTURE||process.env.KINETTA_REACTION_CAPTURE.split(',').includes(String(state.total)))){
+   fs.mkdirSync(out,{recursive:true});await card.evaluate(n=>n.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'}));await page.evaluate(()=>document.fonts.ready);const r=await card.boundingBox(),viewportWidth=await page.evaluate(()=>innerWidth);assert(r&&r.x>=0&&r.x+r.width<=viewportWidth,'reaction card stays within the 390px viewport');await page.screenshot({path:path.join(out,'reaction-row-'+state.total+'-390-light.png'),clip:{x:0,y:r.y,width:viewportWidth,height:r.height},animations:'disabled'});
   }
  }
 }
@@ -218,7 +218,7 @@ const engine=process.env.KINETTA_ACTIVITY_BROWSER==='webkit'?webkit:chromium,b=a
   }
   if(process.env.KINETTA_REACTION_SUMMARY_ONLY==='1'){
    if(who==='typical'&&size.width===390){const card=p.locator('#ff-list .post').first();await card.locator('[data-reaction-group]').waitFor();await verifyReactionSummary(card,p,out,theme);}
-   assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[],'reaction summary states make no product writes');console.log(`Reaction summary ${size.width}px ${theme}: empty, one, five kinds, per-emoji counts, +N and selected state PASS`);await closeRoutedActivityContext(c);continue;
+   assert.deepEqual(errors,[]);assert.deepEqual(writes.filter(w=>w!=='/api/challenges/signup/continue'),[],'reaction summary states make no product writes');console.log(`Reaction summary ${size.width}px ${theme}: empty, one, up to three kinds, total and selected state PASS`);await closeRoutedActivityContext(c);continue;
   }
   assert.equal(await p.locator('h1').innerText(),'Home');
   const lowFriends=!['heavy','established'].includes(who),findHeader=p.locator('#feed-top a[aria-label="Find friends"]');assert.equal(await findHeader.count(),1,'Find friends stays in the Home header for every account');assert.equal(await p.locator('#feed-tools .feed-find-friends').count(),0,'Find friends is no longer repeated in the feed tools');assert.equal(await p.locator('#feed-tools .feed-low, #feed-tools #feed-discovery, .feed-discovery').count(),0,'old discovery grid stays removed');

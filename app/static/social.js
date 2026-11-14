@@ -29,29 +29,38 @@ function orderedReactionKinds(state){
   const first=new Map(reactionOrder(state).map((kind,index)=>[kind,index]));
   return REACTIONS().filter(([kind])=>state.reactions[kind]>0).sort((a,b)=>(state.reactions[b[0]]-state.reactions[a[0]])||((first.get(a[0])??Infinity)-(first.get(b[0])??Infinity)));
 }
-function reactionSummary(state){
-  const used=orderedReactionKinds(state),shown=used.slice(0,3),extra=used.length-shown.length;
+function reactionSummary(state,feedFooter=false){
+  const all=orderedReactionKinds(state),total=all.reduce((sum,[kind])=>sum+(+state.reactions[kind]||0),0);
+  const visibleKinds=feedFooter&&state.my_reaction&&(state.reactions[state.my_reaction]||0)===1?all.filter(([kind])=>kind!==state.my_reaction):all;
+  const shown=visibleKinds.slice(0,3),extra=visibleKinds.length-shown.length;
+  if(feedFooter){
+    const html=shown.map(([kind])=>'<span class="reaction-summary-emoji" data-summary-kind="'+esc(kind)+'">'+reactionMark(kind)+'</span>').join('')+(extra?'<span class="reaction-summary-more">+'+extra+'</span>':'')+(total?'<span class="reaction-summary-total">'+reactionNumber(total)+'</span>':'');
+    const names=all.map(([kind,name])=>name+' '+reactionNumber(state.reactions[kind])).join(', ');
+    const label=total?'See who reacted: '+reactionNumber(total)+' reaction'+(total===1?'':'s')+(names?' ('+names+')':''):'See who reacted';
+    return{used:visibleKinds,html,label,total};
+  }
   const html=shown.map(([kind,label])=>'<span class="reaction-summary-emoji" data-summary-kind="'+esc(kind)+'">'+reactionMark(kind)+'<span class="reaction-summary-count">'+reactionNumber(state.reactions[kind])+'</span></span>').join('')+(extra?'<span class="reaction-summary-more">+'+extra+'</span>':'');
   const visible=shown.map(([kind,,emoji])=>emoji+reactionNumber(state.reactions[kind])).join('')+(extra?'+'+extra:'');
-  const names=used.map(([kind,name])=>name+' '+reactionNumber(state.reactions[kind])).join(', ');
-  const label=used.length?'See who reacted: '+visible+' ('+names+')':'See who reacted';
-  return{used,html,label};
+  const names=all.map(([kind,name])=>name+' '+reactionNumber(state.reactions[kind])).join(', ');
+  const label=all.length?'See who reacted: '+visible+' ('+names+')':'See who reacted';
+  return{used:all,html,label,total};
 }
 function reactionButtons(aid,s,detail=false,compact=false,moment=null,groupTarget=null){
-  const selected=reactionKind(s.my_reaction??(s.cheered?'clap':null)),counts=reactionCounts(s),summary=reactionSummary({...s,reactions:counts});
+  const feedFooter=!detail&&!compact&&!moment&&!groupTarget,selected=reactionKind(s.my_reaction??(s.cheered?'clap':null)),counts=reactionCounts(s),summary=reactionSummary({...s,my_reaction:selected,reactions:counts},feedFooter);
   const label=REACTIONS().find(([k])=>k===selected)?.[1]||'clapping hands',triggerLabel=selected?'Your reaction: '+label+'. Change reaction':'React',triggerContent=selected?reactionMark(selected):reactionAddIcon()+'<span>React</span>';
   const attrs=REACTIONS().map(([k])=>'data-count-'+k+'="'+(counts[k]||0)+'"').join(' ');
   const choices=REACTIONS().map(([kind,label])=>'<button type="button" role="menuitemradio" aria-label="React with '+esc(label)+'" aria-checked="'+(selected===kind)+'" data-react="'+kind+'" tabindex="-1">'+reactionMark(kind)+'</button>').join('');
   const target=groupTarget?'data-group-reaction-group data-group-id="'+esc(groupTarget.id)+'" '+(groupTarget.updateId?'data-group-update-id="'+esc(groupTarget.updateId)+'"':'data-group-week="1"'):moment?'data-moment-reaction-group data-moment-owner="'+esc(moment.owner)+'" data-moment-week="'+esc(moment.week)+'"':'data-reaction-group data-aid="'+aid+'"';
-  return '<div class="activity-reactions emoji-reactions'+(compact?' compact-reactions':'')+'" role="group" aria-label="Reactions" '+target+' data-mine="'+(selected||'')+'" data-reaction-order="'+reactionOrder(s).join(',')+'" '+attrs+'>'+
+  return '<div class="activity-reactions emoji-reactions'+(compact?' compact-reactions':'')+'" role="group" aria-label="Reactions" '+target+(feedFooter?' data-feed-footer="true"':'')+' data-mine="'+(selected||'')+'" data-reaction-order="'+reactionOrder(s).join(',')+'" '+attrs+'>'+
     '<div class="reaction-action"><button type="button" class="pf reaction-more" aria-label="'+esc(triggerLabel)+'" aria-haspopup="menu" aria-expanded="false">'+triggerContent+'</button></div>'+
-    '<button type="button" class="pf reaction-count" aria-label="'+esc(summary.label)+'" aria-haspopup="dialog"'+(summary.used.length?'':' hidden')+'><span class="reaction-summary" aria-hidden="true">'+summary.html+'</span></button>'+
+    '<button type="button" class="pf reaction-count" aria-label="'+esc(summary.label)+'" aria-haspopup="dialog"'+(summary.total?'':' hidden')+'><span class="reaction-summary" aria-hidden="true">'+summary.html+'</span></button>'+
     '<div class="reaction-picker" role="menu" aria-label="Choose a reaction" hidden><div class="reaction-options">'+choices+'</div></div></div>';
 }
 
 function wireReactionGroup(group,aid,changed){
   if(!group||group.dataset.bound)return;group.dataset.bound='1';
-  const momentOwner=group.dataset.momentOwner,momentWeek=group.dataset.momentWeek,isMoment=!!(momentOwner&&momentWeek),groupId=group.dataset.groupId,groupUpdateId=group.dataset.groupUpdateId,isGroup=!!groupId;
+  const momentOwner=group.dataset.momentOwner,momentWeek=group.dataset.momentWeek,isMoment=!!(momentOwner&&momentWeek),groupId=group.dataset.groupId,groupUpdateId=group.dataset.groupUpdateId,isGroup=!!groupId,feedFooter=!isMoment&&!isGroup&&!!group.closest('.activity-home .post-ft');
+  if(feedFooter)group.dataset.feedFooter='true';
   const showPeople=()=>{close();const removeMine=()=>choose(null);if(isMoment)achievementMomentCheers(momentOwner,momentWeek,removeMine);else if(isGroup)groupReactionCheers(groupId,groupUpdateId||null,removeMine);else activityCheers(aid,removeMine);};
   const owner=readOwner(),active=()=>group.isConnected&&readOwner()===owner;
   const more=$('.reaction-more',group),main=more,summary=$('.reaction-summary',group),count=$('.reaction-count',group),picker=$('.reaction-picker',group),options=$$('[data-react]',picker);
@@ -93,9 +102,9 @@ function wireReactionGroup(group,aid,changed){
     const triggerContent=selected?reactionMark(selected):`${reactionAddIcon()}<span>React</span>`;
     if(more._content!==triggerContent){more.innerHTML=triggerContent;more._content=triggerContent;}
     more.disabled=busy;group.setAttribute('aria-busy',String(busy));
-    const compact=reactionSummary(state);
+    const compact=reactionSummary(state,group.dataset.feedFooter==='true');
     if(summary._marks!==compact.html){summary.innerHTML=compact.html;summary._marks=compact.html;}
-    count.hidden=!compact.used.length;count.disabled=busy;count.setAttribute('aria-label',compact.label);
+    count.hidden=!compact.total;count.disabled=busy;count.setAttribute('aria-label',compact.label);
     for(const b of options){b.setAttribute('aria-checked',String(selected===b.dataset.react));b.disabled=busy;}
   };
   group._sync=fresh=>{if(!busy&&active()){state={my_reaction:reactionKind(fresh.my_reaction),reactions:reactionCounts(fresh),reaction_order:reactionOrder(fresh)};draw();}};

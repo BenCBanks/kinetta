@@ -283,5 +283,33 @@
     "maximum": 6,
     "followup": "https://github.com/BenCBanks/kinetta/issues/1024",
     "reason": "The 44px Units choices are centered in their 56px row, leaving a measured 6px hit-area gap before the adjacent setup switch. Only this pair is allowed up to 6px; row edges still touch and all overlaps, other gaps, targets and text remain checked."
+  },
+  {
+    "id": "home-feed-footer-social-pair-gap",
+    "selector": ".activity-home .activity-card .post-ft .reaction-more,.activity-home .activity-card .post-ft .reaction-count,.activity-home .activity-card .post-ft .activity-comments",
+    "metric": "gap",
+    "kind": "approved-list",
+    "maximum": 4,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1041",
+    "reason": "Issue #1041 places the summary 4px after React and Comments 4px after the summary in one 48px footer row. Only these Home feed social pairs use the tighter measured gap; other spacing and all hit targets remain audited."
+  },
+  {
+    "id": "home-feed-footer-count-type",
+    "selector": ".activity-home .activity-card .post-ft .reaction-summary-total,.activity-home .activity-card .post-ft .activity-comments .num",
+    "metric": "font-min",
+    "exact": 14,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1041",
+    "reason": "Issue #1041 specifies reaction totals and inline comment counts at 14px/500. This applies only to the two compact footer counts; all other text keeps the normal minimum."
+  },
+  {
+    "id": "home-feed-footer-map-credit-neighbor-gap",
+    "selector": ".activity-home .activity-card .post-ft .activity-comments,.activity-home .activity-card .post-ft .activity-share",
+    "withSelector": ".activity-home .activity-card .leaflet-control-attribution a",
+    "within": ".activity-home .activity-card",
+    "metric": "gap",
+    "kind": "approved-list",
+    "maximum": 7.91,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1041",
+    "reason": "The map attribution and the 48px Home footer occupy adjacent edges of the same activity card. Their measured subpixel 7.906px nearest-corner distance is a visual 8px gap; only these footer-to-credit pairs are excepted."
   }
 ]
