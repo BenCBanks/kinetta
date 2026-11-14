@@ -1785,9 +1785,9 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4
   const yLabels = Array.from({length: yTicks}, (_, i) => `${yfmt(i * step)}${i === yTicks - 1 && axisUnit ? ` ${axisUnit}` : ''}`);
   // Selectable Totals: bars and gridlines use the whole card width and each axis label sits just above its gridline at the
   // left (with a card-coloured halo). Other charts keep a left gutter sized to the widest label (7.2 px a character at 11 px).
-  const W = chartWidth(box), H = height, padL = inlineSelection ? 2 : Math.max(34, Math.ceil(Math.max(...yLabels.map(l => l.length)) * 7.2) + 4), padR = 8, padT = inlineSelection ? 16 : distance ? 18 : 8, padB = 18, n = cols.length;
+  const W = chartWidth(box), H = height, padL = inlineSelection ? 2 : Math.max(34, Math.ceil(Math.max(...yLabels.map(l => l.length)) * 7.2) + 4), padR = 8, padT = inlineSelection ? 28 : distance ? 18 : 8, padB = 18, n = cols.length;
   const Y = (v) => padT + (1 - v / top) * (H - padT - padB), bw = (W - padL - padR) / n, gap = Math.min(4, bw * .25);
-  let g = ''; const barRects = [];
+  let g = '';
   yLabels.forEach((label, i) => g += `<line class="gl" x1="${padL}" x2="${W - padR}" y1="${Y(i * step).toFixed(1)}" y2="${Y(i * step).toFixed(1)}"/>`);
   const axisLabels = () => yLabels.map((label, i) => {
     const y = Y(i * step);
@@ -1802,7 +1802,6 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4
     let bars = '', y = Y(0);
     if (distance) {
       const h = Y(0) - Y(total);
-      if (total) barRects.push({x, y: Y(total), width: w, height: h});
       bars = total ? `<path class="bar-seg distance-total${c.partial ? ' partial' : ''}" d="${distanceBarPath(x,Y(0),w,h)}"/>` : `<path class="distance-empty" d="M${x} ${Y(0)}h${w}"/>`;
     } else c.segs.forEach((sg, j) => {
       if (!sg.v) return;
@@ -1810,7 +1809,6 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4
       const hh = Math.max(1, h - (last ? 0 : 1.5));   // 1.5px surface gap between stacked segments
       // round-topped bars (2026-10-13): the top corners as round as the bar is wide, up to 8 px
       const r = Math.min(8, w / 2, hh - 1);
-      barRects.push({x, y: y - hh, width: w, height: hh});
       bars += last && hh > 4 ? `<path class="bar-seg k-${sg.k}${c.partial ? ' partial' : ''}" d="M${x.toFixed(1)},${(y).toFixed(1)}v${(-hh + r).toFixed(1)}a${r.toFixed(1)},${r.toFixed(1)} 0 0 1 ${r.toFixed(1)},${(-r).toFixed(1)}h${(w - 2 * r).toFixed(1)}a${r.toFixed(1)},${r.toFixed(1)} 0 0 1 ${r.toFixed(1)},${r.toFixed(1)}v${(hh - r).toFixed(1)}z"/>`
                              : `<rect class="bar-seg k-${sg.k}${c.partial ? ' partial' : ''}" x="${x.toFixed(1)}" y="${(y - hh).toFixed(1)}" width="${w.toFixed(1)}" height="${hh.toFixed(1)}"/>`;
       y -= h;
@@ -1824,27 +1822,21 @@ function periodBars(box, cols, {keys, fmt, yfmt = fmt, axisUnit = '', yTicks = 4
   });
   // X labels: spaced by their own length (short weekdays need ~32 px, "Nov 16" ~48 px), never on padded columns,
   // always on the last real period. fitTickLabels then measures the drawn text and drops any that still touch.
-  const tickText = c => c.tickLabel || c.tick || c.label, lastReal = cols.findLastIndex(c => !c.padded);
-  const tickCandidates = cols.map((c, i) => !c.padded && c.tick && i !== lastReal ? i : -1).filter(i => i >= 0).reverse();
-  const tickGap = Math.max(32, Math.max(0, ...cols.map(c => tickText(c).length)) * 6.2 + 10), visibleTicks = lastReal < 0 ? [] : [lastReal];
+  const tickText = c => c.tickLabel || c.tick || c.label, firstReal = cols.findIndex(c => !c.padded), lastReal = cols.findLastIndex(c => !c.padded);
+  const tickCandidates = cols.map((c, i) => !c.padded && c.tick && i !== firstReal && i !== lastReal ? i : -1).filter(i => i >= 0).reverse();
+  const tickGap = Math.max(32, Math.max(0, ...cols.map(c => tickText(c).length)) * 6.2 + 10), visibleTicks = firstReal < 0 ? [] : firstReal === lastReal ? [lastReal] : [firstReal, lastReal];
   for (const i of tickCandidates) if (visibleTicks.every(visible => Math.abs(visible - i) * bw >= tickGap)) visibleTicks.push(i);
-  visibleTicks.sort((a, b) => a - b).forEach(i => g += `<text class="yl period-tick" data-period-index="${i}" x="${(padL + (i + .5) * bw).toFixed(1)}" y="${H - 4}" text-anchor="middle">${esc(tickText(cols[i]))}</text>`);
+  visibleTicks.sort((a, b) => a - b).forEach(i => {
+    const edge = i === firstReal || i === lastReal, x = i === firstReal ? padL + 2 : i === lastReal ? W - padR - 2 : padL + (i + .5) * bw;
+    const anchor = i === firstReal ? 'start' : i === lastReal ? 'end' : 'middle';
+    g += `<text class="yl period-tick" data-period-index="${i}" x="${x.toFixed(1)}" y="${H - 4}" text-anchor="${anchor}"${edge ? ' data-period-edge="true"' : ''}>${esc(tickText(cols[i]))}</text>`;
+  });
   if (avg) {
     const avgY = Y(avg).toFixed(1);
     g += `<line class="avgline" x1="${padL}" x2="${W - padR}" y1="${avgY}" y2="${avgY}"/>`;
     if (avgLineLabel) {
-      // Inside the plot at the right end, just above the line; move up, then left, only to stay clear of a bar.
-      const labelWidth = Math.min(Math.max(24, avgLineLabel.length * 6.1), Math.max(24, W - padL - 4));
-      const labelYs = [...new Set([Math.max(padT + 11, Y(avg) - 3), Math.max(padT + 11, Y(avg) - 15), padT + 11])];
-      const labelXs = [...new Set([W - padR, ...barRects.map(r => r.x - 4).sort((a, b) => b - a)])]
-        .map(x => Math.min(W - padR, Math.max(padL + labelWidth, x)));
-      const overlaps = (x, y) => {
-        const left = x - labelWidth, right = x, topY = y - 11, bottomY = y + 2;
-        return barRects.some(r => right > r.x && left < r.x + r.width && bottomY > r.y && topY < r.y + r.height);
-      };
-      let labelX = W - padR, labelY = labelYs[0];
-      for (const y of labelYs) { const x = labelXs.find(candidate => !overlaps(candidate, y)); if (x != null) { labelX = x; labelY = y; break; } }
-      g += `<text class="avgline-label" x="${labelX.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="end">${esc(avgLineLabel)}</text>`;
+      // Keep the label right aligned in the reserved top gutter, clear of every bar and above the average line.
+      g += `<text class="avgline-label" x="${(W - padR).toFixed(1)}" y="${(padT - 6).toFixed(1)}" text-anchor="end">${esc(avgLineLabel)}</text>`;
     }
   }
   g += axisLabels();

@@ -1321,7 +1321,7 @@ async function progressHome(el, q) {
   wireProgressFocus(el); wireProgressPeriods(el);
   const heading=$('.progress-home-heading',el),compactHeading=()=>heading?.classList.toggle('is-compact',window.scrollY>28);
   window.addEventListener('scroll',compactHeading,{passive:true});compactHeading();viewResources.set(el,()=>window.removeEventListener('scroll',compactHeading));
-  $('#progress-share',el).onclick=()=>Recaps.open('this_month');
+  $('#progress-share',el).onclick=()=>Recaps.open('month');
   Discovery.wire($('#p-explore',el),'progress',{attribute:'data-progress-feature'});
   const totals=$('#p-home-totals',el), grid=$('#p-explore',el); progressTiles(grid);totals._showTable=showTableToggle&&showTable;
   progressFilters(el,totals,`<div class="progress-totals-header">${sportBtn(viewSport)}<div class="totals-view-toggle"><button type="button" data-progress-view="${showTable?'chart':'table'}" ${showTableToggle?'':'hidden'} aria-pressed="${showTable}" aria-label="${showTable?'Show chart':'Show table'}" aria-controls="m-chart m-table" title="${showTable?'Show chart':'Show table'}">${svg(showTable?'chart':'list')}</button></div></div>${progressMetrics(viewSport,metric)}`);
