@@ -787,8 +787,8 @@
 }
 
 /* #979 Sage follow-up: keep the light and dark Me surfaces equally legible. */
-.me-card-numbers > div,
-.me-card-weekly .me-card-bars { background:var(--card2); }
+.me-card-numbers > div { background:var(--card2); }
+.me-card-weekly .me-card-bars { background:transparent; }
 .me-featured-achievements .profile-achievement-list { padding-top:16px; }
 .me-featured-achievements .profile-achievement-medallion { margin-top:14px; }
 
