@@ -29,6 +29,11 @@ async function waitForRouteStyles(p){
    try{
     const opened=await fixturePage(browser,base,fixtures,sessions,scene,size,theme);c=opened.c;const {p,auth}=opened;
     await waitForRouteStyles(p);
+    if(scene.detailRedesign){
+     await p.locator('#d-map .leaflet-tile-loaded').first().waitFor({state:'attached'});
+     await p.evaluate(()=>document.fonts.ready);
+     assert(await p.locator('.activity-charts .readout').isHidden(),'Activity detail starts without the chart range row');
+    }
     // Reuse the guarded context's live collectors throughout traversal.
     const writes=opened.writes,pageErrors=opened.pageErrors;
     if(scene.todayPlan){
