@@ -60,7 +60,7 @@ async function fixturePage(browser,base,fixtures,sessions,scene,size,theme){
     if(scene.name==='Progress'){assert.deepEqual(await p.evaluate(()=>App.me?.feature_flags),{progress_calendar:false,progress_segments:false},'spacing/accessibility Progress fixture uses the default-off flags');assert.equal(await p.locator('[data-progress-feature="calendar"],[data-progress-feature="segments"]').count(),0,'audit Progress scene has no disabled Calendar or Segments links');}
     if(scene.modal){await modalState(p,scene.modal);await p.locator(scene.ready).first().waitFor({state:'attached'});}
     if(scene.notifications)await notificationState(p);
-    if(scene.recap){await p.locator('#recap-entry').click();await until(p,()=>{const button=document.querySelector('#recap-share');return button&&!button.disabled;},'Recap data ready');await p.locator('#recap-share').click();await until(p,()=>{const image=document.querySelector('[data-share-image="0"]');return image?.complete&&image.naturalWidth>0;},'Recap picture ready');}
+    if(scene.recap){await p.locator(scene.shareButton||'#recap-entry').click();await until(p,()=>{const button=document.querySelector('#recap-share');return button&&!button.disabled;},'Recap data ready');await p.locator('#recap-share').click();await until(p,()=>{const image=document.querySelector('[data-share-image="0"]');return image?.complete&&image.naturalWidth>0;},'Recap picture ready');}
     await p.evaluate(()=>document.fonts.ready);
     return {c,p,auth,writes,pageErrors};
    }catch(error){await c.close();throw error;}

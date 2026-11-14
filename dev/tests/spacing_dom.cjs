@@ -61,8 +61,11 @@ function collectSpacing({screen,rules=[]}){
   else if(el.matches('.me-card-avatar > span.av[aria-hidden=true],.person-link > span.av[aria-hidden=true],.pym-who > span.av[aria-hidden=true]'))role='glyph';
   else if(el.matches('.chartbox > svg > text.yl'))role='chart';
   else if(el.closest('nav.tabs'))role='secondary';
+  else if(el.matches('.progress-home-totals .range-text button,.progress-home-totals .progress-total-caption'))role='secondary';
+  else if(el.matches('.progress-home-totals #p-sport > span'))role='card';
+  else if(el.matches('.progress-home-heading.is-compact h1'))role='section';
   else if(el.matches('button,a.more,[role=button],[role=tab],[role=switch]'))role='body';
-  else if(el.matches('small,time,.small,.badge,.bell-dot,.achievement,.me-card-name > span,.me-card-label > span,.me-card-note > span,.me-divider > span,.me-sport-chip,.lift-prev > span,.gps-chip,.detail-date,.zone-name,.chartbox .lbl > span:last-child:not(:first-child),.chartbox .readout > span,.lift-row.lh > span,.lift-pr,.insights-chart-heading > span,.insights-chart-note,.insights-figure > span,.insights-coverage p,.insights-coverage p > b,.insights-coverage p > span,.zone > .num,.library-recipe > span.num,.macro-line > span.num')||el.closest('.readout,.chartbox .lbl > span:last-child:not(:first-child),small,.small,.meta,.card-meta,.stat i,.hero-number i,.hero-num i,.today-macro i,.day-balance-detail i'))role='secondary';
+  else if(el.matches('small,time,.small,.badge,.bell-dot,.achievement,.me-card-name > span,.me-card-label > span,.me-card-note > span,.me-divider > span,.me-sport-chip,.lift-prev > span,.gps-chip,.detail-date,.zone-name,.chartbox .lbl > span:last-child:not(:first-child),.chartbox .readout > span,.lift-row.lh > span,.lift-pr,.insights-chart-heading > span,.insights-chart-note,.insights-figure > span,.insights-coverage p,.insights-coverage p > b,.insights-coverage p > span,.zone > .num,.library-recipe > span.num,.macro-line > span.num,.stat-row-item > b.num > i')||el.closest('.readout,.chartbox .lbl > span:last-child:not(:first-child),small,.small,.meta,.card-meta,.stat i,.stat-row-item > b.num > i,.hero-number i,.hero-num i,.today-macro i,.day-balance-detail i'))role='secondary';
   else if(el.matches('.chartbox .lbl > span:first-child'))role='card';
   else if(el.matches('.count'))role='body';
   else if(el.closest('button,[role=button],[role=tab],[role=switch]'))role='body';
@@ -74,7 +77,7 @@ function collectSpacing({screen,rules=[]}){
   else if(el.matches('.me-form .status-word'))role='section';
   else if(el.closest('h3,h4'))role=el.closest('.card')?'card':'section';
   const numeric=/\d/.test(content)&&!/[a-z]{3}/i.test(content)&&!!el.closest('b,strong,.num,[data-hero],.hero-number,.hero-num,[data-type=hero]');
-  if(numeric&&!explicit&&role!=='secondary'&&el.matches('.stat > b,.hero-num,.insights-figure > b,.me-form-nums b,.me-insight-top > b,.today-macro > b,.pred > div > b'))role='stat';
+  if(numeric&&!explicit&&role!=='secondary'&&el.matches('.stat > b,.stat-row-item > b.num,.hero-num,.insights-figure > b,.me-form-nums b,.me-insight-top > b,.today-macro > b,.pred > div > b'))role='stat';
   const group=el.closest('.card,.me-card,.recap-sheet,.sheet,[data-stat-card]'),heroNode=el.closest('[data-hero],.hero-number,.hero-num,[data-type=hero]'),hero=numeric&&role!=='secondary'&&!!heroNode;
   let clipped=null;
   if((el.scrollWidth>el.clientWidth+1&&el.clientWidth>0)&&(/hidden|clip/.test(s.overflowX)||s.textOverflow==='ellipsis'||input))clipped='scrollWidth exceeds clientWidth';

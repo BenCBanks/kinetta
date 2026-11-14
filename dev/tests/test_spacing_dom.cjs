@@ -30,7 +30,12 @@ const {collectSpacing}=require('./spacing_dom.cjs'),{audit}=require('./spacing_g
   <div class="photo-case"><button class="photo" id="photo-two">Photo two</button><button class="corner" id="corner-two">Next</button></div>
   <div id="fake-scroll"><div class="me-chart-scroll has-before"><button class="me-week">Week</button></div></div>
   <div class="activity-card post"><small><a class="post-name" href="#">Fictional name</a></small></div>
-  <span id="nested-title" style="display:block;width:40px"><b style="white-space:nowrap">Overflowing title</b></span>`);
+  <span id="nested-title" style="display:block;width:40px"><b style="white-space:nowrap">Overflowing title</b></span>
+  <div class="progress-home-heading is-compact"><h1 id="compact-progress" style="font-size:17px">Progress</h1></div>
+  <div class="progress-home-totals"><button id="p-sport"><span id="sport-name" style="font-size:17px">Run</span></button>
+   <div class="stat-row-item"><b class="num" id="progress-number" style="font-size:22px">10<i style="font-size:13px"> mi</i></b></div>
+   <span id="progress-caption" class="progress-total-caption" style="font-size:13px">This week</span>
+   <div class="range-text"><button id="progress-range" style="font-size:13px">Week</button></div></div>`);
   const snapshot=(rules=[])=>page.evaluate(collectSpacing,{screen:'collector fixture',rules});
   let s=await snapshot();
   const pseudoTarget=s.targets.find(t=>t.key.includes('.post-name'));assert(pseudoTarget&&pseudoTarget.rect.width>=44&&pseudoTarget.rect.height>=44&&pseudoTarget.hit,'A profile link pseudo-element contributes its actual44px hit area');
@@ -41,6 +46,12 @@ const {collectSpacing}=require('./spacing_dom.cjs'),{audit}=require('./spacing_g
   assert.equal(s.texts.find(t=>t.key==='#number-action').role,'body','An explicit numeric action label is not a metric');
   assert.equal(s.texts.find(t=>t.key==='#chat-nav-title').role,'section','The shared chat navigation title uses the 17px nav scale');
   assert(!audit(s).violations.some(v=>v.metric==='font-min'&&v.element==='#chat-nav-title'),'A 17px chat navigation title meets the shared nav scale');
+  assert.equal(s.texts.find(t=>t.key==='#compact-progress').role,'section','The collapsed Progress title uses the compact section scale');
+  assert.equal(s.texts.find(t=>t.key==='#sport-name').role,'card','The Progress sport picker label uses its specified 17px type');
+  assert.equal(s.texts.find(t=>t.key==='#progress-number').role,'stat','Progress StatRow numbers use the stat scale');
+  assert.equal(s.texts.find(t=>t.key==='#progress-number > i').role,'secondary','Progress StatRow units use secondary type');
+  assert.equal(s.texts.find(t=>t.key==='#progress-caption').role,'secondary','The selected-range caption uses secondary type');
+  assert.equal(s.texts.find(t=>t.key==='#progress-range').role,'secondary','Progress RangeText uses secondary type');
   assert.equal(s.texts.find(t=>t.key==='#unit').role,'secondary','Units keep secondary type beside a hero');
   assert.equal(s.texts.find(t=>t.key==='#unit').hero,false,'The hero wrapper does not enlarge its unit');
   assert.equal(new Set(s.texts.filter(t=>t.hero).map(t=>t.heroKey)).size,1,'Split spans identify a single hero');
