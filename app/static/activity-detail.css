@@ -159,7 +159,7 @@
 .activity-detail #activity-pane-splits .tbl td.barcell { width:30%; padding-inline:8px; }
 .activity-detail #activity-pane-splits .bar { height:9px; border-radius:999px; background:linear-gradient(90deg,var(--accent),color-mix(in srgb,var(--accent) 65%,var(--color-brand-gradient-end,var(--accent)))); }
 .activity-detail #activity-pane-splits .bar.slow { background:linear-gradient(90deg,var(--tx3),color-mix(in srgb,var(--tx3) 45%,var(--card))); opacity:.6; }
-.activity-detail #activity-pane-efforts .medal.m1 { border:1px solid color-mix(in srgb,var(--gold) 78%,#fff); background:linear-gradient(145deg,color-mix(in srgb,var(--gold) 30%,var(--card)),var(--card)); box-shadow:inset 0 1px 0 color-mix(in srgb,#fff 62%,transparent),0 0 0 1px color-mix(in srgb,var(--gold) 28%,transparent); }
+.activity-detail #activity-pane-efforts .medal.m1 { position:relative; border:2px solid transparent; background:radial-gradient(circle at 28% 18%,color-mix(in srgb,#fff 58%,transparent) 0,transparent 43%),linear-gradient(var(--card),var(--card)) padding-box,linear-gradient(120deg,var(--color-action) 0%,var(--color-action) 25%,var(--color-ride) 72%,var(--color-action) 100%) border-box; box-shadow:inset 0 1px 0 rgba(255,255,255,.72),0 4px 9px -3px color-mix(in srgb,var(--gold) 52%,transparent); }
 .activity-detail #activity-pane-efforts .effort-time { display:inline-block; min-width:52px; padding:4px 8px; border-radius:8px; font-size:18px; line-height:1.15; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
 .activity-detail #activity-pane-efforts .effort-bar { display:block; width:100%; height:6px; margin-top:3px; opacity:.34; }
 .activity-detail .dpane a:active,.activity-detail .dpane button:active { transform:scale(.985); }
