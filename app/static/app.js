@@ -832,6 +832,19 @@ const sportMark = (s) => `<span class="sp ${esc(s)}" aria-hidden="true">${svg(s)
 
 // ---------- toast + sheet ----------
 let toastT;
+// Shared shell markup: actions are trusted app-owned HTML; all labels and copy are escaped here.
+function BackCircle(label='Back') {
+  return `<button type="button" class="back-circle" data-back aria-label="${esc('Back to '+label)}" title="${esc(label)}">${svg('back')}<span class="vh">${esc(label)}</span></button>`;
+}
+function TopBar({title='',actions='',back=null,root=false}={}) {
+  return `<header class="shell-topbar${root?' shell-topbar-root':''}">${back?BackCircle(back):''}${title?`<h1>${esc(title)}</h1>`:''}<div class="shell-topbar-actions">${actions}</div></header>`;
+}
+function StatePanel(title,message,{icon='info',actionLabel='',actionId=''}={}) {
+  return `<section class="state-panel" role="status"><span class="state-panel-icon" aria-hidden="true">${svg(icon)}</span><div class="state-panel-copy"><h2>${esc(title)}</h2><p>${esc(message)}</p>${actionLabel?`<button type="button" class="linkbtn"${actionId?` id="${esc(actionId)}"`:''}>${esc(actionLabel)}</button>`:''}</div></section>`;
+}
+function SheetChrome(title,head,html,opts={}) {
+  return `<div class="sheet${opts.save?' pinned':''}" role="${opts.role==='alertdialog'?'alertdialog':'dialog'}" aria-modal="true" aria-label="${esc(title)}"${opts.describedBy?` aria-describedby="${esc(opts.describedBy)}"`:''}><div class="grab"></div><header>${head}</header><div class="sbody">${html}</div></div>`;
+}
 // Focus a box only where there's a real keyboard: on phones a focused box pops up the on-screen keyboard and covers
 // the choices around it, so there the box waits for a tap.
 function softFocus(el) { if (el && !matchMedia('(pointer: coarse)').matches) el.focus(); }
@@ -927,8 +940,7 @@ function sheet(title, html, onMount, opts = {}) {
   const s = document.createElement('div'); s.className = 'scrim material';
   const head = opts.save ? `<button type="button" class="sheet-text-btn" data-close>Cancel</button><h2>${esc(title)}</h2><button type="submit" class="sheet-text-btn save" form="${esc(opts.save)}">Save</button>`
     : `${flowStep>0?`<button type="button" class="icon-btn sheet-flow-back" data-sheet-back aria-label="Back">${svg('back')}</button>`:''}<h2>${esc(title)}</h2>${opts.noClose ? '' : `<button class="icon-btn" data-close aria-label="Close">${svg('close')}</button>`}`;
-  s.innerHTML = `<div class="sheet${opts.save ? ' pinned' : ''}" role="${opts.role === 'alertdialog' ? 'alertdialog' : 'dialog'}" aria-modal="true" aria-label="${esc(title)}"${opts.describedBy ? ` aria-describedby="${esc(opts.describedBy)}"` : ''}><div class="grab"></div>
-    <header>${head}</header><div class="sbody">${html}</div></div>`;
+  s.innerHTML = SheetChrome(title,head,html,opts);
   let closing = false;
   let flowEntry=null;
   const close = (force=false,fromPop=false) => {
@@ -1328,7 +1340,7 @@ function showError(el, e, {retry} = {}) {
   if (e && e.status === 404 && !el.closest?.('.sheet')) {
     const href = el._backFallback || (location.pathname.startsWith('/people/') ? '/me/friends' : '/activity');
     const fallbackLabel = /^\/activity\/(?:friends\/)?\d+$/.test(location.pathname) ? 'Activity' : BackNavigation.label(href);
-    el.innerHTML = `<div class="top">${backBtn(fallbackLabel)}</div><div class="boot"><h1>Not available</h1><p>This item may have been removed or is not shared with you.</p></div>`;
+    el.innerHTML = `<div class="top">${BackCircle(fallbackLabel)}</div>${StatePanel('Not available','This item may have been removed or is not shared with you.')}`;
     wireBack(el,href,destination=>destination.history?destination.label:fallbackLabel); return;
   }
   const isPage = el === $('#page'), path = location.pathname.replace(/\/+$/, '') || '/activity';
@@ -1339,8 +1351,8 @@ function showError(el, e, {retry} = {}) {
     top = document.createElement('div'); top.className = 'top'; top.innerHTML = backBtn(destination.label);
     wireFallback = destination.path;
   }
-  const error = document.createElement('div'); error.className = 'boot load-error';
-  error.innerHTML = `<p role="alert">${esc(loadErrorCopy(e))}</p><button class="ghost" id="retry">Try again</button>`;
+  const error = document.createElement('div'); error.className = 'load-error';
+  error.innerHTML = StatePanel("Couldn't load",loadErrorCopy(e),{icon:'info',actionLabel:'Try again',actionId:'retry'});
   if (isPage) el.replaceChildren(...(top ? [top] : []), error);
   else el.innerHTML = error.outerHTML;
   if (wireFallback) wireBack(el, wireFallback);
@@ -1395,7 +1407,8 @@ document.addEventListener('visibilitychange', () => {
 // ---------- skeleton ----------
 // The launch mark from index.html, reused wherever the whole app restarts itself.
 const LAUNCH = `<div class="launch" role="status" aria-label="Loading Kinetta">${document.querySelector('.launch')?.innerHTML || ''}</div>`;
-const skel = (n = 3) => Array.from({length: n}, () => '<div class="card"><div class="sk big"></div><div class="sk line"></div><div class="sk line"></div></div>').join('');
+function Skeleton({count=3}={}) { return Array.from({length:count},()=>'<div class="card"><div class="sk big"></div><div class="sk line"></div><div class="sk line"></div></div>').join(''); }
+const skel = (n = 3) => Skeleton({count:n});
 // Keep fast local/cache reads free of a skeleton flash. Call the returned stop
 // function when the read settles; a still-empty target gets its real-layout
 // placeholder only after the 200 ms handoff recommended by Wren G3.
