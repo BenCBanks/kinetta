@@ -270,9 +270,21 @@ function drawDay(el, D) {
   const fresh = !D.has_history && !D.entries.length && goal == null;
   $('#fd-details',el).replaceChildren();
   if (fresh) firstFood($('#fd-sum', el), D.day);
-  else $('#fd-sum', el).innerHTML = `<div class="card tcard balance nutrition-day-summary">
-      <a class="nutrition-summary-link" href="/food?view=overview"><span class="vh">Nutrition overview and details. </span><div class="nutrition-summary"><div><small class="eyebrow">${left == null ? 'Calories logged' : left < 0 ? 'Above goal' : 'Calories remaining'}</small><div class="hero-num"><span class="nutrition-count" data-count-target="${Math.round(left == null ? eaten : Math.abs(left))}">0</span><i>kcal</i></div>${goal == null ? '' : `<p class="small muted">${r0(eaten)} logged of ${r0(goal)}</p>`}</div></div>
-      ${goal ? `<div class="track"><div class="bar${left < 0 ? ' over' : ''}" data-w="${Math.min(1,eaten/goal).toFixed(3)}"></div></div>` : ''}
+  else {
+    const hasGoal=Number.isFinite(Number(goal))&&Number(goal)>0,ringState=!hasGoal?'no-goal':eaten>goal?'over':eaten>=goal?'reached':'on-track';
+    const reached=hasGoal&&eaten>=goal,summaryRoot=$('#fd-sum',el),pulseRing=reached&&summaryRoot.dataset.calorieRingPulseDay!==D.day;
+    if(pulseRing)summaryRoot.dataset.calorieRingPulseDay=D.day;
+    const ringProgress=hasGoal?Math.min(1,Math.max(0,eaten/goal)):0,circumference=339.292;
+    const ringValue=hasGoal?Math.min(Math.max(0,Math.round(eaten)),Math.round(goal)):Math.max(0,Math.round(eaten));
+    const ringAria=hasGoal?`${r0(Math.max(0,eaten))} of ${r0(goal)} calories${ringState==='over'?', above goal':''}`:`${r0(Math.max(0,eaten))} calories logged; no goal set`;
+    summaryRoot.innerHTML = `<div class="card tcard balance nutrition-day-summary">
+      <a class="nutrition-summary-link" href="/food?view=overview" data-ring-state="${ringState}"><span class="vh">Nutrition overview and details. </span><div class="nutrition-summary">
+        <div class="calorie-ring-wrap"><svg class="calorie-ring${pulseRing?' goal-reached-pulse':''}" viewBox="0 0 128 128" role="progressbar" aria-label="Calories eaten" aria-valuemin="0" aria-valuemax="${hasGoal?Math.round(goal):Math.max(1,Math.round(eaten))}" aria-valuenow="${ringValue}" aria-valuetext="${esc(ringAria)}" focusable="false">
+          <defs><linearGradient id="calorie-ring-gradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#2868ed"/><stop offset="58%" stop-color="#2879d4"/><stop offset="100%" stop-color="#0b9290"/></linearGradient></defs>
+          <circle class="calorie-ring-track" cx="64" cy="64" r="54"/><circle class="calorie-ring-arc" cx="64" cy="64" r="54" stroke-dasharray="${circumference}" stroke-dashoffset="${(circumference*(1-ringProgress)).toFixed(3)}"/>
+        </svg><div class="calorie-ring-label"><span class="nutrition-count" data-count-target="${Math.round(Math.max(0,eaten))}">0</span><small>${hasGoal?`kcal · of ${r0(goal)}`:'kcal logged'}</small></div></div>
+        <div class="calorie-summary-copy"><small class="eyebrow">Calories</small><strong class="calorie-status">${!hasGoal?'Calories logged':ringState==='over'?"Above today’s goal":reached?'Goal reached':'Right on track'}</strong></div>
+      </div>
       <div class="macro-bars">${MACROS.map(([k,name])=>{const target=t[k.replace('_g','_target')],hasTarget=target!=null&&Number.isFinite(Number(target))&&Number(target)>0,unknown=Number(D.unknown_nutrients?.[k]||0)>0,amount=Number(T[k])||0,state=unknown?'unknown':!hasTarget?'unset':amount>target?'over':'under',width=hasTarget&&!unknown?Math.min(1,amount/target):0;return `<div class="macro m-${k}" data-macro="${k}" data-target-state="${state}"><div class="macro-line"><b>${name}</b><span class="num">${macroTotal(D,k,target)}</span></div><div class="track" aria-hidden="true"><div class="bar macro-target-bar${state==='over'?' over':''}${state==='unknown'||state==='unset'?' unavailable':''}" data-w="${width.toFixed(3)}"></div></div></div>`}).join('')}</div></a>
       <a class="nutrition-goals text-link" id="fd-goal" href="/food/setup" aria-label="Calorie and macro goals">Goals</a>
       <div class="nutrition-secondary">${D.entries.length?extraTotals(extraCoverage(D.entries,t)):''}
@@ -291,6 +303,7 @@ function drawDay(el, D) {
         ${row('Eaten' + sofar, pos(eaten))}
         ${!watchResting && G.deficit != null && (today || D.entries.length) ? `<p class="small muted">Eating exactly your goal would be a ${G.deficit >= 0 ? 'deficit' : 'surplus'} of ${r0(Math.abs(G.deficit))} kcal.${B.items.some((a) => a.estimated) ? ' * exercise estimated from distance/time and weight.' : ''}</p>` : ''}
         ${watchResting ? `<p class="small muted">Your food goal stays independent of calories burned.${today ? ' Resting calories build throughout the day; this is not a full-day projection.' : ''}${B.items.some(a=>a.estimated) ? ' * Activity calories are estimated when no recorded value is available.' : ''}</p>` : ''}<a class="small more-link" href="/food?view=energy">Running total ›</a>${restingSourceLink}</details>`}${energyDetails ? '' : restingSourceLink}</div></div>`;
+  }
   if (!watchResting && !B.bmr_exact) $('#fd-sum',el).insertAdjacentHTML('beforeend','<a class="small nutrition-body-prompt" href="/me?setup=body">Improve calorie estimates · add body details</a>');
   const secondary=$('.nutrition-secondary',el);
   if(secondary){secondary.classList.add('card');$('#fd-details',el).replaceChildren(secondary);}

@@ -8,6 +8,15 @@
     "reason": "This visible marker is a small decorative dot; its hidden New label remains available to screen readers. It is not displayed body copy."
   },
   {
+    "id": "nutrition-calorie-ring-center-number",
+    "selector": ".calorie-ring-label .nutrition-count",
+    "metric": "font-max",
+    "kind": "approved-type",
+    "exact": 28,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/971",
+    "reason": "Ben-approved #986 sets the 390px calorie-ring center number to 28px/700 tabular. At 330px it returns to the normal 16px maximum; clipping and all other type limits stay active."
+  },
+  {
     "id": "compact-axis-ticks",
     "selector": ":is(#d-charts,#m-chart,#nt-overview-chart,#p-vdot,#p-load) .chartbox > svg > text.yl",
     "metric": "font-min",

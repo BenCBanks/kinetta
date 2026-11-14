@@ -1,6 +1,5 @@
 """Real fictional accounts in a guarded local test project; no devices/providers."""
-import sys,os,subprocess,datetime as dt,uuid,json
-from pathlib import Path
+import sys,os,subprocess,datetime as dt,uuid
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse
 sys.path.insert(0,'dev/tests')
@@ -9,10 +8,11 @@ base=urlparse(os.environ.get('KINETTA_URL','http://localhost:8798'));project=os.
 assert base.hostname in ('localhost','127.0.0.1') and (project.startswith('kt-') or project=='kinettatest')
 port=subprocess.check_output(['docker','inspect','--format','{{(index (index .NetworkSettings.Ports "8000/tcp") 0).HostPort}}',project+'-app-1'],text=True).strip()
 assert base.port==int(port),'URL must reach this isolated project'
-fixture_data=json.loads((Path(__file__).resolve().parents[1] / 'screenshots' / 'fixture-time.json').read_text())
-fixture_now=dt.datetime.fromisoformat(fixture_data['instant'].replace('Z','+00:00'))
-zone=next(z for z in ('Pacific/Kiritimati','Etc/GMT+12','UTC') if fixture_now.astimezone(ZoneInfo(z)).weekday() in (1,3,5,6))
-today=fixture_now.astimezone(ZoneInfo(zone)).date();long_day=6 if today.weekday()==6 else 5
+# The browser clock is fixed for screenshots, but the API evaluates plan status against today's
+# date. Put the fictional runner's local day on one of the plan's Tue/Thu/Sat workout days.
+server_now=dt.datetime.now(dt.timezone.utc)
+zone=next(z for z in ('Pacific/Kiritimati','UTC','Etc/GMT+12') if server_now.astimezone(ZoneInfo(z)).weekday() in (1,3,5))
+today=server_now.astimezone(ZoneInfo(zone)).date();long_day=5
 for who in ('empty','runner','lifter'):
  c=person('zz_test_track_'+who);assert c.post('/api/account/delete',{'password':PW})[0]==200;c=person('zz_test_track_'+who,'River '+who.title())
  assert c.put('/api/profile',{'tz':zone,'ai_ok':False})[0]==200
