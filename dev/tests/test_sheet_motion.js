@@ -37,10 +37,10 @@ function setup(reduced=false){
  for(const f of t.timers.values())f();assert.equal(t.focuses,before,'old exit cannot steal replacement focus');assert(second.s.isConnected);assert(t.document.body.classList.contains('has-sheet'),'old cleanup cannot unlock a new sheet');
 }
 {
- const t=setup(true),{close,s}=t.open();close();assert(s.isConnected&&s.inert,'reduced motion keeps the shell for its fade');assert.equal(t.timers.size,1);assert.equal(t.disposed,1);assert.equal(t.focuses,1);s.listeners.animationend({target:s.sh,animationName:'sheet-fade-out'});assert(!s.isConnected,'reduced motion removes after its fade');assert.equal(t.timers.size,0);
+ const t=setup(true),{close,s}=t.open();close();assert(!s.isConnected,'reduced motion removes the closed sheet synchronously');assert.equal(t.timers.size,0,'reduced motion does not leave a delayed shell cleanup');assert.equal(t.disposed,1);assert.equal(t.focuses,1);
 }
 {const t=setup();t.notice.undo=true;t.open();assert(t.notice.classList.contains('on'),'opening a sheet preserves the offered Undo');}
-console.log('Sheet motion: interrupted start, inert exit, immediate focus/handler release, animation cleanup, rapid replacement/resource bounds and reduced-motion fade close PASS');
+console.log('Sheet motion: interrupted start, inert exit, immediate focus/handler release, animation cleanup, rapid replacement/resource bounds and reduced-motion synchronous close PASS');
 
 {
  const t=setup(),{s}=t.open(),chart={closest:selectors=>selectors.includes('.fitness-inspect .chartbox')?{}:null};

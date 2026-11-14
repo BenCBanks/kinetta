@@ -849,7 +849,9 @@ function sheet(title, html, onMount, opts = {}) {
     // closing halfway through entrance or a drag. A replacement sheet can take focus without a delayed restore.
     releaseModal(); s.inert = true; s.setAttribute('aria-hidden', 'true'); cleanViews(s);
     const remove = () => { s.remove(); cleanViews(); if (!document.querySelector('.scrim')) document.body.classList.remove('has-sheet'); };
-    if (!s.isConnected) remove();
+    // Reduced-motion exits are synchronous: leaving an inert fade shell connected lets
+    // detached sheet callbacks repaint, and callers expect a closed modal to be gone.
+    if (!s.isConnected || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)) remove();
     else {
       const visual = getComputedStyle(sh);
       sh.style.setProperty('--sheet-from', visual.transform);
