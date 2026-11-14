@@ -7,7 +7,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
 (async()=>{
  const fixture=cp.execFileSync('python3',[path.join(__dirname,'friends_compact_fixture.py')],{env:process.env,encoding:'utf8'});console.log(fixture.trim());const browser=await chromium.launch(),contexts=[];
  async function open(state,theme,size={width:viewportWidth,height:844}){
-  const c=await browser.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});contexts.push(c);
+  const c=await browser.newContext({viewport:size,colorScheme:theme,reducedMotion:'reduce',serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});contexts.push(c);
   assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_fc_'+state,password:pw}})).status(),200);
   await c.addInitScript(()=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize='16px'));
   const p=await c.newPage(),errors=[],writes=[],searches=[],qrRequests=[];

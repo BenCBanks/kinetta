@@ -5,6 +5,9 @@ walks around Freedom Park in Charlotte, NC, four weeks of food log, weigh-ins an
 testing. **Only ever load it into a throwaway install**, never one with real people on it: it creates the first
 (admin) account.
 
+Running weeks include easy and tempo sessions, a long-run build, recovery/rest weeks, one low-volume illness/travel week
+and a short taper. The fixture is deterministic so the charts show the same realistic variation in each capture.
+
 ```sh
 # 1. a fresh, throwaway Kinetta on port 8798
 KINETTA_PORT=8798 TZ=America/New_York docker compose -p kinettademo up -d --build
