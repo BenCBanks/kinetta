@@ -428,6 +428,15 @@ const FoodThread = (() => {
     add.setAttribute('aria-label',`${blocked?waiting||'Adding food':what}`+(state.open?`. ${state.open} unanswered food${state.open===1?' stays':'s stay'} in the chat.`:''));
     const send=$('#thread-send',ctx.el),field=$('#thread-text',ctx.el),hasText=!!String(field?.value||'').trim();
     send.classList.toggle('primary',hasText);send.classList.toggle('ghost',!hasText);send.disabled=!hasText||!!ctx.sendingText;send.setAttribute('aria-label','Send message');
+    syncSharedRecipes(ctx,state,field);
+  }
+  function syncSharedRecipes(ctx,state=held(ctx),field=$('#thread-text',ctx.el)){
+    const box=$('#thread-shared-recipes',ctx.el);if(!box)return;
+    const idle=!ctx.sendingText&&!ctx.preparingReview&&!ctx.reviewForm&&!ctx.context&&!pendingReview()&&!waitingJobs(ctx)&&!state.ready&&!state.open&&!String(field?.value||'').trim()&&!$('#thread-messages',ctx.el)?.querySelector('.thread-thinking');
+    if(!idle){if(ctx.sharedRecipesAllowed!==false){sharedRecipes(box,()=>({day:ctx.day||isoDay(new Date()),meal:ctx.meal||guessMeal()}),()=>refresh(ctx),()=>false);box.replaceChildren();ctx.sharedRecipesAllowed=false;}return;}
+    if(ctx.sharedRecipesAllowed===true)return;
+    ctx.sharedRecipesAllowed=true;
+    sharedRecipes(box,()=>({day:ctx.day||isoDay(new Date()),meal:ctx.meal||guessMeal()}),()=>refresh(ctx),()=>active(ctx)&&!ctx.sendingText&&!ctx.preparingReview&&!pendingReview()&&!waitingJobs(ctx)&&!held(ctx).ready&&!held(ctx).open&&!String($('#thread-text',ctx.el)?.value||'').trim());
   }
   async function review(ctx,{saveRecipe=ctx.saveRecipe,allowUnsent=false,quickConfirm=false}={}){
     if(!active(ctx)||ctx.preparingReview)return;
@@ -826,7 +835,7 @@ const FoodThread = (() => {
   }
   addEventListener('food:review-state',()=>{if(current&&active(current))primary(current);});
   addEventListener('online',()=>flush());
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&current&&active(current)){const ctx=current;refresh(ctx);sharedRecipes($('#thread-shared-recipes',ctx.el),()=>({day:ctx.day||isoDay(new Date()),meal:ctx.meal||guessMeal()}),()=>refresh(ctx),()=>active(ctx));flush(ctx);}});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&current&&active(current)){const ctx=current;refresh(ctx);syncSharedRecipes(ctx);flush(ctx);}});
   setInterval(()=>flush(),5000);
   function saveDraft(ctx,text){
     if(text)localStorage.setItem(draftKey(ctx.owner),JSON.stringify(text));else localStorage.removeItem(draftKey(ctx.owner));

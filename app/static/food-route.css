@@ -105,6 +105,23 @@
 /* Dated titles use the accessible chevron-only fallback for the Nutrition link. */
 .food-thread .thread-heading .back { padding-right:0;white-space:nowrap;overflow-wrap:normal; }
 
+/* Shared recipes sit above the empty composer only while that composer is idle. */
+.food-thread #thread-shared-recipes .shared-recipes { margin:.2rem 0 .35rem; }
+.food-thread #thread-shared-recipes .shared-recipes>header { display:flex;align-items:center;justify-content:space-between;gap:8px; }
+.food-thread #thread-shared-recipes .shared-recipes h3 { margin:0;font:500 .8125rem/1.4 var(--font);color:var(--tx2); }
+.food-thread #thread-shared-recipes .shared-recipes-all { min-width:44px;min-height:44px;padding:0 4px;border:0;background:transparent;color:var(--accent);font:600 .8125rem/1.2 var(--font); }
+.food-thread #thread-shared-recipes .shared-recipe-list { display:grid;gap:0;min-width:0;overflow:visible;padding:0; }
+.food-thread #thread-shared-recipes .shared-recipe-row { display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;width:100%;min-width:0;min-height:52px;padding:4px 0;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent; }
+.food-thread #thread-shared-recipes .shared-recipe-copy { display:block;min-width:0; }
+.food-thread #thread-shared-recipes .shared-recipe-copy b,.food-thread #thread-shared-recipes .shared-recipe-copy small { overflow:visible;text-overflow:clip;white-space:normal;overflow-wrap:anywhere; }
+.food-thread #thread-shared-recipes .shared-recipe-row b { font-size:.9375rem;font-weight:600; }
+.food-thread #thread-shared-recipes .shared-recipe-row small { font-size:.8125rem; }
+.food-thread #thread-shared-recipes .shared-recipe-kcal { text-align:right; }
+.food-thread #thread-shared-recipes .shared-recipe-kcal b { font-size:.9375rem;font-variant-numeric:tabular-nums; }
+.food-thread #thread-shared-recipes .shared-recipe-kcal small { font-size:.75rem; }
+.food-thread #thread-shared-recipes .shared-recipe-add { display:inline-flex;align-items:center;gap:4px;color:var(--accent);font-size:.8125rem;font-weight:600;white-space:nowrap; }
+.food-thread #thread-shared-recipes .shared-recipe-add svg { width:15px;height:15px;flex:none; }
+
 /* Unknown is a label, not a wide number; keep the portion and destination in the sheet. */
 #am { min-width:0; }
 #am .macpreview { grid-template-columns:repeat(4,minmax(0,1fr));min-width:0; }
