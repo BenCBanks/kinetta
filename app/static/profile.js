@@ -215,9 +215,8 @@ const ProfileLayout=(()=>{
   }
   function achievementThresholdText(track,tier){
     const raw=Number(tier?.canonical_value)||0,hint=Number(tier?.display_value),canonicalUnit=tier?.canonical_unit||'',code=track.code,imperial=App.me?.units!=='metric';
-    if(String(code).endsWith(':fastest')&&tier?.requirement)return String(tier.requirement).replace(/·\s*≤\s*0?(\d:\d{2}:\d{2})/,'· $1').replace(/·\s*≤\s*/,'· ');
     if(tier?.trigger==='first_activity')return 'First activity';
-    if(isFastestAchievement(code))return tier?.requirement||tier?.name||'Recorded effort';
+    if(isFastestAchievement(code))return fastestThresholdText(track,tier);
     if(achievementDistanceCode(code)){
       const km=canonicalUnit==='km'?raw:raw/1000;
       const metric=App.me?.units==='metric',value=metric?km:km*1000/1609.344;
@@ -242,8 +241,21 @@ const ProfileLayout=(()=>{
     const total=Math.max(0,Math.round(Number(seconds)||0)),hours=Math.floor(total/3600),minutes=Math.floor((total%3600)/60),rest=String(total%60).padStart(2,'0');
     return hours?`${hours}:${String(minutes).padStart(2,'0')}:${rest}`:`${minutes}:${rest}`;
   }
+  function fastestDistanceText(track,tier){
+    const code=track?.code;
+    if(code!=='sport:ride:fastest'&&code!=='sport:swim:fastest')return String(tier?.requirement||'').split(' · ')[0]||tier?.name||'this distance';
+    const meters=Number(tier?.distance_m);
+    if(!Number.isFinite(meters)||meters<=0)return String(tier?.requirement||'').split(' · ')[0]||tier?.name||'this distance';
+    if(code==='sport:swim:fastest')return App.me?.units==='metric'?`${achievementNumber(meters)} m`:`${Math.round(meters*1.093613298).toLocaleString()} yd`;
+    return App.me?.units==='metric'?`${achievementNumber(meters/1000)} km`:`${achievementNumber(meters/1609.344)} mi`;
+  }
+  function fastestThresholdText(track,tier){
+    const requirement=String(tier?.requirement||''),time=requirement.split(' · ').slice(1).join(' · ');
+    const distance=fastestDistanceText(track,tier);
+    return `${distance}${time?` · ${time}`:''}`;
+  }
   function fastestNextText(track,tier){
-    const requirement=String(tier?.requirement||'').replace(' · ≤ ',' under '),distance=String(tier?.requirement||'').split(' · ')[0]||tier?.name||'this distance',best=track?.best_seconds?.[String(tier.level)];
+    const requirement=fastestThresholdText(track,tier).replace(' · ≤ ',' under '),distance=fastestDistanceText(track,tier),best=track?.best_seconds?.[String(tier.level)];
     return `Next: ${requirement} · ${best!=null?`your best ${fastestElapsed(best)}`:`no ${distance} yet`}`;
   }
   function achievementRemainingText(track,tier){

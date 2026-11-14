@@ -2,7 +2,7 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const c={App:{me:{login:'zz_test_layout'}},profileHref:p=>'/people/'+p.login,structuredClone,esc:s=>String(s).replaceAll('<','&lt;').replaceAll('>','&gt;'),stat:(key,value)=>`[${key}:${value}]`,U:{dist:n=>n/1000,du:()=> 'km'},dur:n=>n+'s',fdate:s=>s,SPORT_NAMES:{run:'Run',ride:'Ride'},postCard:a=>`<article>${a.name}</article>`};
-const source=fs.readFileSync('app/static/profile.js','utf8'),testSource=source.replace('  return {defaults,normalize,', '  globalThis.achievementUnits={catalog:value=>achievementCatalog=value,tier:achievementTierAt,threshold:achievementThresholdText,remaining:achievementRemainingText};\n  return {defaults,normalize,');
+const source=fs.readFileSync('app/static/profile.js','utf8'),testSource=source.replace('  return {defaults,normalize,', '  globalThis.achievementUnits={catalog:value=>achievementCatalog=value,tier:achievementTierAt,threshold:achievementThresholdText,remaining:achievementRemainingText,fastestThreshold:fastestThresholdText,fastestNext:fastestNextText};\n  return {defaults,normalize,');
 assert.notEqual(testSource,source,'the profile presentation test hook is installed');
 vm.createContext(c);vm.runInContext(testSource+'\nglobalThis.layout=ProfileLayout;',c);
 const r={overview:{activities:5,distance_m:10000,time_s:3600,active_days:3},recent:{start:'2026-10-01',end:'2026-10-30',current:{activities:2,distance_m:5000,time_s:1800,active_days:2},previous:{activities:1}},sports:[{sport:'run',activities:3,distance_m:7000},{sport:'ride',activities:2,distance_m:3000}],items:[{name:'Shared fixture'}],weight_kg:'PRIVATE',food:'PRIVATE',kit:'PRIVATE'};
@@ -39,3 +39,14 @@ for(const units of ['metric','imperial']){
  }
 }
 console.log('Achievement milestone labels: metric races, mile-based tiers, stable names, remaining distances and repeats PASS');
+
+for(const units of ['metric','imperial']){
+ c.App.me.units=units;
+ const ride={code:'sport:ride:fastest',best_seconds:{'6':3000}},swim={code:'sport:swim:fastest',best_seconds:{'9':1400}};
+ const rideTier=c.achievementUnits.tier(ride.code,6),swimTier=c.achievementUnits.tier(swim.code,9);
+ const rideLabel=units==='metric'?'20 km · ≤ 48:00':'12.4 mi · ≤ 48:00',swimLabel=units==='metric'?'1,500 m · ≤ 24:00':'1,640 yd · ≤ 24:00';
+ assert.equal(c.achievementUnits.fastestThreshold(ride,rideTier),rideLabel,`${units}: Ride fastest uses the account distance unit`);
+ assert.equal(c.achievementUnits.fastestThreshold(swim,swimTier),swimLabel,`${units}: Swim fastest uses metres or yards for the account`);
+ assert.equal(c.achievementUnits.fastestNext(ride,rideTier),`Next: ${units==='metric'?'20 km':'12.4 mi'} under 48:00 · your best 50:00`,`${units}: Ride fastest next copy uses the converted distance`);
+}
+console.log('Fastest Ride/Swim labels: metric km/m and imperial mi/yd thresholds and next copy PASS');
