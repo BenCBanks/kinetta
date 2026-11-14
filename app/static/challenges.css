@@ -13,7 +13,7 @@
 .challenge-hero>.grow{flex:1 1 150px;min-width:0;overflow-wrap:anywhere;}
 .challenge-ring{width:104px;height:104px;flex:none;transform:rotate(-90deg);}
 .challenge-ring circle{fill:none;stroke:var(--line);stroke-width:9;}
-.challenge-ring .challenge-ring-value{stroke:var(--accent);stroke-linecap:round;}
+.challenge-ring .challenge-ring-value{stroke:var(--color-achievement);stroke-linecap:round;}
 .challenge-number{display:block;font-size:1.75rem;line-height:1.3;overflow-wrap:anywhere;}
 .challenge-number small{font-size:1rem;font-weight:500;color:var(--tx2);}
 .challenge-hero p{margin:8px 0 0;}
@@ -49,11 +49,17 @@
 .challenge-list-group + .challenge-list-group { margin-top:18px; }
 .challenge-list-row { min-height:56px; gap:12px; }
 .challenge-list-row .inset-label { font-size:1rem; font-weight:400; }
+.challenge-list-row .inset-label>span:first-child { font-size:16px; font-weight:600; }
 .challenge-list-row .inset-label small { font-size:.8125rem; }
-.challenge-list-ring { display:block; position:relative; flex:none; width:36px; height:36px; color:var(--accent); }
+.challenge-list-ring { display:block; position:relative; flex:none; width:36px; height:36px; color:var(--color-achievement); }
 .challenge-list-ring svg { display:block; width:36px; height:36px; transform:rotate(-90deg); }
 .challenge-list-ring circle { fill:none; stroke:var(--line); stroke-width:3; }
 .challenge-list-ring .challenge-list-ring-value { stroke:currentColor; stroke-width:3; stroke-linecap:round; }
+.challenge-finished-mark { display:grid; flex:none; place-items:center; width:28px; height:28px; color:var(--color-achievement); }
+.challenge-finished-mark svg { width:18px; height:18px; }
+.challenge-find-group { margin-top:18px; }
+.challenge-find-friends { min-height:48px; color:var(--tx); text-decoration:none; }
+.challenge-find-friends .inset-label { font-size:1rem; font-weight:500; }
 .challenge-empty { display:flex; flex-direction:column; align-items:flex-start; gap:12px; padding:12px 0 20px; }
 .challenge-empty p { margin:0; color:var(--tx2); font-size:.9375rem; }
 .challenge-empty-icon { display:grid; place-items:center; width:36px; height:36px; color:var(--tx3); }
