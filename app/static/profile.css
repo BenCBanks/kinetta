@@ -810,7 +810,7 @@
 .me-featured-achievements .profile-achievement-list { padding-top:8px; }
 .me-featured-achievements .profile-achievement-medallion { margin-top:4px; }
 .me-featured-achievements .me-featured-caption { font-size:13px; }
-.me-card .me-metric-value { font-size:clamp(20px,6.2cqw,21px); }
+.me-card .me-metric-value { font-size:clamp(16px,6.2cqw,21px); }
 .me-dashboard-divider span:last-child { font-size:.9375rem; }
 
 /* Settings chips follow their group accent, like the native Settings categories. */
