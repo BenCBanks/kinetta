@@ -14,12 +14,13 @@ async function run(){
  class FixtureDate extends Date{constructor(...args){super(...(args.length?args:[fixtureNow]));}static now(){return fixtureNow.getTime();}}
  const selectors=['#t-today','#t-required','#t-start','#t-setup','#t-recap','#t-checkin','#t-combined-week','#t-goals','#t-form','#t-insights'];
  const nodes=new Map(selectors.map(selector=>[selector,{innerHTML:'',hidden:false,dataset:{},isConnected:true}]));
- const pending=new Map(),el={innerHTML:'',isConnected:true};
+ const todaySkeleton={hidden:true,isConnected:true};nodes.set('[data-today-skeleton]',todaySkeleton);
+ const pending=new Map(),timers=[],el={innerHTML:'',isConnected:true};
  const read=path=>{const value=deferred();pending.set(path,value);return value.promise;};
  const ctx={
   console,Date:FixtureDate,Promise,Set,Intl,URLSearchParams,location:{search:''},
   document:{hidden:false,addEventListener(){},removeEventListener(){}},
-  window:{addEventListener(){},removeEventListener(){}},setTimeout:()=>1,clearTimeout(){},
+  window:{addEventListener(){},removeEventListener(){}},setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout(id){timers[id-1]=null;},
   $:selector=>nodes.get(selector)||null,$$:()=>[],
   App:{me:{id:1,name:'Fictional user',setup_hidden:true,kcal_target:null,friend_count:1}},
   MeCard:{header:()=>'<section class="me-card">Shared profile</section>',mount(){}},
@@ -33,7 +34,9 @@ async function run(){
  vm.createContext(ctx);vm.runInContext(code,ctx);
  const done=ctx.meOverview(el),today=nodes.get('#t-today');
  assert.match(today.innerHTML,/aria-busy="true"/,'Today exposes its loading state immediately');
- assert.equal((today.innerHTML.match(/me-today-skeleton/g)||[]).length,2,'Today reserves one skeleton per possible row');
+ assert.match(today.innerHTML,/data-today-skeleton hidden/,'Today keeps the delayed skeleton hidden before the 200 ms handoff');
+ assert.equal(todaySkeleton.hidden,true,'Today does not flash a skeleton during a fast read');
+ timers[0]();assert.equal(todaySkeleton.hidden,false,'Today reveals its shaped skeleton only after the delay');
  assert.equal(today.dataset.loading,'true','the loading token remains active while sources are pending');
  assert.deepEqual([...pending.keys()],['/api/activities?limit=1','/api/plans/current','/api/food/history?days=30',`/api/food/day?d=${fixtureDay}`]);
 

@@ -1285,6 +1285,18 @@ document.addEventListener('visibilitychange', () => {
 // The launch mark from index.html, reused wherever the whole app restarts itself.
 const LAUNCH = `<div class="launch" role="status" aria-label="Loading Kinetta">${document.querySelector('.launch')?.innerHTML || ''}</div>`;
 const skel = (n = 3) => Array.from({length: n}, () => '<div class="card"><div class="sk big"></div><div class="sk line"></div><div class="sk line"></div></div>').join('');
+// Keep fast local/cache reads free of a skeleton flash. Call the returned stop
+// function when the read settles; a still-empty target gets its real-layout
+// placeholder only after the 200 ms handoff recommended by Wren G3.
+const delayedSkeleton = (target, markup, delay = 200) => {
+  let stopped = false;
+  const timer = setTimeout(() => {
+    if (stopped || !target || target.isConnected === false || target.innerHTML.trim()) return;
+    target.innerHTML = markup;
+  }, delay);
+  return () => { stopped = true; clearTimeout(timer); };
+};
+const skelFoodChooser = (n = 3) => `<div class="food-sheet-skeleton" aria-hidden="true">${Array.from({length:n}, () => '<div class="food-sheet-skeleton-row"><span class="sk dot round"></span><span class="grow"><span class="sk line mid"></span><span class="sk line tiny"></span></span><span class="sk kcal"></span></div>').join('')}</div>`;
 // Placeholders shaped like what is about to appear (27 October 2026), so a slow load previews the real layout.
 const skelFeed = (n = 3) => Array.from({length: n}, () => '<div class="card sk-card" aria-hidden="true"><div class="sk-row"><span class="sk dot round"></span><span class="grow"><span class="sk line short"></span><span class="sk line tiny"></span></span></div><div class="sk line mid"></div><div class="d-ph-stats"><span class="sk"></span><span class="sk"></span><span class="sk"></span></div><div class="sk block map"></div></div>').join('');
 const skelChart = () => '<div class="card sk-card" aria-hidden="true"><div class="d-ph-stats"><span class="sk"></span><span class="sk"></span><span class="sk"></span></div><div class="sk-bars">' + '<span class="sk"></span>'.repeat(12) + '</div></div>';
