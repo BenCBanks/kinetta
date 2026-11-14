@@ -669,6 +669,9 @@ header.top .signup { display:flex;align-items:center; }
 .kit-line { color:var(--ink)!important; font-weight:600; }
 .kit-response { font-size:15px; }
 .text-button { border:0; background:none; padding:8px 0; color:var(--brand); font:600 15px var(--body); cursor:pointer; }
+.kit-phone-toggle { min-height:44px; margin-top:12px; padding:8px 12px; text-align:left; }
+.kit-phone-frame img { opacity:1; transition:opacity .22s ease; }
+.kit-phone-frame.is-swapping img { opacity:.25; }
 .achievement-mini { display:grid; gap:12px; margin-top:24px; max-width:360px; }
 .achievement-mini span { display:block; color:var(--ink2); font-size:14px; }
 .achievement-mini b { display:block; height:7px; margin-top:6px; border-radius:999px; background:var(--color-soft); overflow:hidden; }
@@ -708,6 +711,7 @@ header.top .signup { display:flex;align-items:center; }
 }
 @media (prefers-reduced-motion:reduce) {
  *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.001ms!important; transition-duration:.001ms!important; }
+ .kit-phone-frame img { transition:none; }
  .phone-parallax-a,.phone-parallax-b { transform:none; }
  .story-step { opacity:1; transform:none; }
 }
