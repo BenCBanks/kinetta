@@ -6,31 +6,31 @@ route(/^\/me\/settings$/, 'me', async (el) => {
   const row = (tag, attrs, ico, c, label, val = '') => `<${tag} class="row-link" ${attrs}><span class="ri ${c}">${svg(ico)}</span><span class="grow">${label}</span>${val ? `<span class="val">${val}</span>` : ''}${ch}</${tag}>`;
   el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Settings</h1><section class="me-settings">
     <h2 class="sec-head">Account</h2>
-    <div class="card list">${row('button', 'id="m-name"', 'user', 'c-grey', 'Name', esc(me.name))}
+    <div class="card list settings-group settings-group-account">${row('button', 'id="m-name"', 'user', 'c-grey', 'Name', esc(me.name))}
       ${row('button', 'id="m-login"', 'user', 'c-grey', 'Username', esc(me.login))}
       ${row('button', 'id="m-email"', 'mail', 'c-grey', 'Email', esc(me.email ? (me.email_confirmed ? me.email : me.email + ' · not confirmed') : pendingEmail() ? 'Check your inbox' : 'Add'))}
       ${row('button', 'id="m-pw"', 'key', 'c-grey', 'Password', 'Change')}
       ${row('a', 'href="/me/devices"', 'shield', 'c-grey', 'Signed-in devices')}</div>
     <h2 class="sec-head">Profile &amp; sharing</h2>
-    <div class="card list">${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile')}
+    <div class="card list settings-group settings-group-profile">${row('button', 'id="m-profile"', 'user', 'c-green', 'Edit profile')}
       ${row('a', 'href="/me/sharing"', 'lock', 'c-green', 'Sharing &amp; privacy')}</div>
     <h2 class="sec-head">Connections &amp; notifications</h2>
-    <div class="card list">${row('a', 'href="/track/connections"', 'watch', 'c-brand', 'Connections')}
+    <div class="card list settings-group settings-group-connections">${row('a', 'href="/track/connections"', 'watch', 'c-brand', 'Connections')}
       ${row('a', 'href="/me/notifications"', 'bell', 'c-orange', 'Notifications')}<label class="row-link switch-row"><span class="ri c-brand">${svg('help')}</span><span class="grow">Show setup tips<small class="muted">Optional connection and profile reminders</small></span><input type="checkbox" role="switch" id="m-setup-tips"${me.setup_hidden?'':' checked'}></label>${(me.setup_skipped||[]).length?'<button type="button" class="row-link" id="m-setup-unskip"><span class="ri c-brand">'+svg('check')+'</span><span class="grow">Bring back skipped setup steps</span></button>':''}</div>
     <h2 class="sec-head">Units</h2>
-    <div class="card list"><div class="row-link static"><span class="ri c-grey">${svg('ruler')}</span><span class="grow">Units</span><div class="me-period mileage-toggle units-toggle" role="group" aria-label="Units">
+    <div class="card list settings-group settings-group-units"><div class="row-link static"><span class="ri c-grey">${svg('ruler')}</span><span class="grow">Units</span><div class="me-period mileage-toggle units-toggle" role="group" aria-label="Units">
         <button data-u="imperial" aria-pressed="${me.units === 'imperial'}">mi · lb</button><button data-u="metric" aria-pressed="${me.units === 'metric'}">km · kg</button></div></div></div>
     <h2 class="sec-head">Body</h2>
-    <div class="card list">${row('button', 'id="m-body"', 'heart', 'c-red', 'Body & heart rate', esc([me.max_hr ? `Max HR ${me.max_hr}` : '', me.weight_kg ? `${Math.round(U.weight(me.weight_kg))} ${imp() ? 'lb' : 'kg'}` : ''].filter(Boolean).join(' · ') || 'Set up'))}</div>
-    <div class="card list" id="ai">${row('button','type="button" id="m-kit"','sparkle','c-green','Kit',me.ai_paused?'Paused':me.ai_ok?'On':'Off')}</div>
+    <div class="card list settings-group settings-group-body">${row('button', 'id="m-body"', 'heart', 'c-red', 'Body & heart rate', esc([me.max_hr ? `Max HR ${me.max_hr}` : '', me.weight_kg ? `${Math.round(U.weight(me.weight_kg))} ${imp() ? 'lb' : 'kg'}` : ''].filter(Boolean).join(' · ') || 'Set up'))}</div>
+    <div class="card list settings-group settings-group-kit" id="ai">${row('button','type="button" id="m-kit"','sparkle','c-green','Kit',me.ai_paused?'Paused':me.ai_ok?'On':'Off')}</div>
     <h2 class="sec-head">Help</h2>
-    <div class="card list">${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help &amp; contact')}</div>
+    <div class="card list settings-group settings-group-help">${row('a', `href="mailto:${SUPPORT_EMAIL}"`, 'mail', 'c-brand', 'Help &amp; contact')}</div>
     <h2 class="sec-head">Your data</h2>
-    <div class="card list">${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}
+    <div class="card list settings-group settings-group-data">${row('a', 'id="m-export" href="/api/account/export" download', 'download', 'c-blue', 'Download my data', 'Zip file')}
       ${row('a', 'href="https://kinetta.app/terms" target="_blank" rel="noopener"', 'shield', 'c-green', 'Terms of Use')}
       ${row('a', 'href="https://kinetta.app/privacy" target="_blank" rel="noopener"', 'shield', 'c-green', 'Privacy policy')}
       ${row('button', 'id="m-del"', 'trash', 'c-red', '<span class="danger">Delete my account</span>')}</div>
-    <div class="card list">${row('button', 'type="button" id="logout"', 'logout', 'c-red', '<span class="danger">Log out</span>')}</div>
+    <div class="card list settings-group settings-group-account settings-group-danger">${row('button', 'type="button" id="logout"', 'logout', 'c-red', '<span class="danger">Log out</span>')}</div>
     </section>`;
   wireBack(el, '/me');
   const unskip=$('#m-setup-unskip',el);if(unskip)unskip.onclick=async()=>{

@@ -669,3 +669,64 @@
 }
 .profile-achievement-sport-card.is-fastest .profile-achievement-sport-card-footer { justify-content:flex-end; }
 .profile-achievement-sport-card.is-fastest .profile-achievement-see-all { margin-left:auto; }
+
+/* #971 Me/Profile and Settings polish: clear hierarchy, grouped settings and quiet press feedback. */
+.me-top { margin-bottom:14px; }
+.me-top h1 { font-size:clamp(28px,7vw,32px); font-weight:700; letter-spacing:-.03em; }
+.me-profile-tools .icon-btn { width:44px; height:44px; padding:10px; border-radius:14px; color:var(--tx); background:var(--surface-raised); transition:transform var(--motion-press) ease-out, background-color var(--motion-settle) var(--motion-ease), box-shadow var(--motion-settle) var(--motion-ease); }
+.me-profile-tools .icon-btn:hover { background:var(--surface-card); box-shadow:var(--elevation-rest); }
+.me-profile-tools .icon-btn:active { transform:scale(.96); }
+.me-card-name-heading h2 { font-size:1.25rem; font-weight:700; letter-spacing:-.02em; }
+.me-card-name { padding-top:10px; }
+.me-card-meta > span { font-size:.875rem; }
+.me-card-numbers { gap:6px; }
+.me-card-numbers > div { gap:5px; padding:8px 4px; border-radius:12px; background:var(--surface-raised); }
+.me-card-numbers .me-metric-value { font-size:clamp(22px,8cqw,24px); font-weight:600; }
+.me-card-numbers dt { font-size:13px; font-weight:500; }
+.me-card-weekly .me-card-bars { box-sizing:border-box; max-width:320px; padding:8px 4px 4px; border-radius:14px; background:var(--surface-raised); }
+.me-card-weekly .me-week { border-radius:8px; transition:transform var(--motion-press) ease-out, background-color var(--motion-settle) var(--motion-ease); }
+.me-card-weekly .me-week:active { transform:scale(.97); background:color-mix(in srgb,var(--accent) 6%,transparent); }
+.me-featured-slot:not(:empty) { margin-block:-2px; }
+.me-featured-achievements .me-featured-title { min-height:44px; }
+.me-featured-achievements .profile-achievement-list { padding-top:8px; }
+.me-featured-achievements .profile-achievement-medallion { margin-top:12px; }
+.me-featured-item { transition:transform var(--motion-press) ease-out, opacity var(--motion-press) ease-out; }
+.me-featured-item:active { transform:scale(.97); }
+.me-card-preview-action, .me-card .me-friends-link { transition:transform var(--motion-press) ease-out, color var(--motion-press) ease-out; }
+.me-card-preview-action:active, .me-card .me-friends-link:active { transform:scale(.97); }
+
+/* Settings are grouped as inset sections; the icon tint carries the category. */
+.me-settings > .sec-head { margin:24px 6px 8px; font-size:17px; line-height:1.3; font-weight:700; letter-spacing:0; color:var(--tx); }
+.me-settings > .sec-head:first-child { margin-top:4px; }
+.me-settings > .card.list { margin:0 6px 0; padding:6px 12px; border-radius:16px; background:var(--surface-raised); border:1px solid color-mix(in srgb,var(--line) 75%,transparent); box-shadow:var(--elevation-rest); }
+.me-settings .row-link { min-height:52px; padding:8px 4px; border-radius:10px; transition:transform var(--motion-press) ease-out, opacity var(--motion-press) ease-out, background-color var(--motion-settle) var(--motion-ease); }
+.me-settings .row-link:active { opacity:1; transform:scale(.985); background:var(--surface-card); }
+.me-settings .ri { width:32px; height:32px; border-radius:10px; color:var(--c,var(--tx2)); background:color-mix(in srgb,var(--c,var(--tx3)) 14%,transparent); }
+.me-settings .ri svg { width:18px; height:18px; }
+.me-settings .list .row-link + .row-link::before { left:44px; right:0; }
+.me-settings .switch-row { min-height:56px; }
+@media (prefers-reduced-motion: reduce) {
+  .me-profile-tools .icon-btn, .me-card-weekly .me-week, .me-featured-item, .me-card-preview-action, .me-card .me-friends-link, .me-settings .row-link { transition:none !important; }
+  .me-profile-tools .icon-btn:active, .me-card-weekly .me-week:active, .me-featured-item:active, .me-card-preview-action:active, .me-card .me-friends-link:active, .me-settings .row-link:active { transform:none !important; }
+}
+
+/* #979 Sage follow-up: keep the light and dark Me surfaces equally legible. */
+.me-card-numbers > div,
+.me-card-weekly .me-card-bars { background:var(--card2); }
+.me-featured-achievements .profile-achievement-list { padding-top:16px; }
+.me-featured-achievements .profile-achievement-medallion { margin-top:14px; }
+
+/* Settings chips follow their group accent, like the native Settings categories. */
+.me-settings .settings-group { --settings-accent:var(--accent); }
+.me-settings .settings-group-account { --settings-accent:var(--color-brand); }
+.me-settings .settings-group-profile { --settings-accent:var(--color-success); }
+.me-settings .settings-group-connections { --settings-accent:var(--color-ride); }
+.me-settings .settings-group-units { --settings-accent:var(--color-ski); }
+.me-settings .settings-group-body { --settings-accent:var(--color-workout); }
+.me-settings .settings-group-kit { --settings-accent:var(--color-achievement); }
+.me-settings .settings-group-help { --settings-accent:var(--color-brand); }
+.me-settings .settings-group-data { --settings-accent:var(--color-swim); }
+.me-settings .settings-group-danger { --settings-accent:var(--color-error); }
+.me-settings .settings-group .ri { color:var(--settings-accent); background:color-mix(in srgb,var(--settings-accent) 15%,transparent); }
+.me-settings .settings-group-data .c-green { --settings-accent:var(--color-success); }
+.me-settings .settings-group-data .c-red { --settings-accent:var(--color-error); }
