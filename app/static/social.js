@@ -655,6 +655,7 @@ function feedTools(el,current){
 // ---------- someone else's activity (read-only); for your own: what others see ----------
 route(/^\/activity\/friends\/(\d+)$/, 'activity', async (el, id) => {
   el.innerHTML = `<div class="top">${backBtn('Home')}</div>${skel(1)}<div class="sk block"></div>`;
+  applyActivityMapTransition(el,id);
   wireBack(el, '/activity');
   await load(`/api/shared/${id}`, (a) => drawShared(el, a), {maxAge: 30000});
 });
@@ -678,6 +679,7 @@ function drawShared(el, a) {
   panes.overview=`${a.description?`<div class="card"><p class="desc">${esc(a.description)}</p></div>`:''}${a.device?`<p class="small muted">${esc(a.device)}</p>`:''}${panes.overview}`;
   el.innerHTML=`${a.line?`<div class="detail-map-hero map-head">${activityMedia(a,{mapId:'s-map',detail:true,full:true,compact:true})}${bars.floating}</div>${bars.sticky}`:bars.floating}${ActivityDetail.title(a,hero,{shared:true})}${mine?'<div class="callout">This is what others see of your activity.</div>':''}${!a.line?activityMedia(a,{mapId:'s-map',detail:true,compact:true}):''}
     ${a.ends_hidden?'<p class="small muted map-note">The start and end of the route are hidden.</p>':''}${activityTabs(panes)}${mine?'':`<p class="center"><button class="linkbtn muted" id="s-rb">Report or block ${esc(a.owner.name)}</button></p>`}`;
+  applyActivityMapTransition(el,a.id);
   let redrawCharts = null;
   wireActivityTabs(el, key => { if (key === 'charts') redrawCharts?.(); });
   ActivityDetail.wire(el,a,{mine:false,back:mine?`/activity/${a.id}`:'/activity',fallbackLabel:mine?'Your activity':'Activity'});

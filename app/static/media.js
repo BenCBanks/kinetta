@@ -91,7 +91,7 @@ function wireActivityMedia(root) {
     const track = $('.media-track', box), items = $$('.media-item', track);
     if (!box.classList.contains('detail-media')) {
       const map = $('.media-map', box);
-      if (map) map.onclick = event => {if(map.closest('.post-led')&&event.target.closest('.leaflet-control'))return;go(`${box.dataset.mediaMine === 'true' ? '/activity/' : '/activity/friends/'}${box.dataset.media}`);};
+      if (map) map.onclick = event => {if(map.closest('.post-led')&&event.target.closest('.leaflet-control'))return;const href=`${box.dataset.mediaMine === 'true' ? '/activity/' : '/activity/friends/'}${box.dataset.media}`;prepareActivityMapTransition(map,href);go(href);};
     }
     const photos = JSON.parse(box.dataset.mediaPhotos), a = {id: +box.dataset.media, photos};
     let index = 0;
