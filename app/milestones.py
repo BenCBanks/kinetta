@@ -411,8 +411,7 @@ def achievement_candidates(c,uid,now,zone):
             longest,crossing=_max_crossings(longest_code,subset,lambda r:_number(r,'distance_m'),zone)
             add(longest_code,longest,crossing,longest>0)
 
-    for sport in tracks.FASTEST_EFFORT_LEVELS:
-        code=f'sport:{sport}:fastest'
+    for code in tracks.fastest_effort_track_codes():
         fastest_count,fastest_crossing,fastest_best=_fastest_effort_facts(c,uid,by_id,code)
         fastest_tiers=[tracks.Tier(rank,float(rank),name,'benchmarks',False)
                        for rank,(name,_distance,_seconds) in enumerate(tracks.fastest_effort_spec(code),1)

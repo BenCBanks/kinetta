@@ -137,6 +137,13 @@ RUN_FASTEST_LEVELS = (
     ('Halfway banner', 21_097.5, 2 * 60 * 60 + 15 * 60),
     ('Half-marathon flight', 21_097.5, 1 * 60 * 60 + 45 * 60),
 )
+RUN_FASTEST_5K_LEVELS = (
+    ('Starter', 5_000.0, 40 * 60), ('Steady', 5_000.0, 35 * 60),
+    ('Brisk', 5_000.0, 30 * 60), ('Quick', 5_000.0, 27 * 60),
+    ('Swift', 5_000.0, 25 * 60), ('Fast', 5_000.0, 22 * 60 + 30),
+    ('Rapid', 5_000.0, 20 * 60), ('Blazing', 5_000.0, 18 * 60),
+    ('Elite', 5_000.0, 16 * 60),
+)
 RIDE_FASTEST_LEVELS = (
     ('Ten-K tempo', 10_000.0, 36 * 60), ('Ten-K push', 10_000.0, 30 * 60),
     ('Ten-K flight', 10_000.0, 24 * 60), ('Twenty-K tempo', 20_000.0, 72 * 60),
@@ -162,6 +169,10 @@ FASTEST_EFFORT_LEVELS = {
     'run': RUN_FASTEST_LEVELS, 'ride': RIDE_FASTEST_LEVELS,
     'walk-hike': WALK_HIKE_FASTEST_LEVELS, 'swim': SWIM_FASTEST_LEVELS,
 }
+FASTEST_EFFORT_TRACKS = {
+    **{f'sport:{sport}:fastest': levels for sport, levels in FASTEST_EFFORT_LEVELS.items()},
+    'sport:run:fastest:5k': RUN_FASTEST_5K_LEVELS,
+}
 SPORT_TRACK_LABELS = {
     'run': 'Run', 'ride': 'Ride', 'walk-hike': 'Walk & hike', 'swim': 'Swim',
 }
@@ -181,9 +192,14 @@ def sport_phase1_spec(code):
 
 def fastest_effort_spec(code):
     """Return exact recorded-effort criteria for a fastest ladder."""
-    if not isinstance(code, str) or not code.startswith('sport:') or not code.endswith(':fastest'):
+    if not isinstance(code, str):
         return None
-    return FASTEST_EFFORT_LEVELS.get(code.split(':')[1])
+    return FASTEST_EFFORT_TRACKS.get(code)
+
+
+def fastest_effort_track_codes():
+    """Return every stable fastest-effort track code in catalog order."""
+    return tuple(FASTEST_EFFORT_TRACKS)
 
 
 def fastest_effort_sport(code):
@@ -305,6 +321,7 @@ for _sport, _label in SPORT_TRACK_LABELS.items():
         'walk-hike': 'Longest walk or hike', 'swim': 'Longest swim',
     }[_sport]
 TRACK_LABELS['sport:run:fastest'] = 'Fastest run efforts'
+TRACK_LABELS['sport:run:fastest:5k'] = 'Fastest 5K'
 TRACK_LABELS['sport:ride:fastest'] = 'Fastest ride efforts'
 TRACK_LABELS['sport:walk-hike:fastest'] = 'Fastest walk & hike efforts'
 TRACK_LABELS['sport:swim:fastest'] = 'Fastest swim efforts'
@@ -328,6 +345,7 @@ for _sport in SPORT_TRACK_LABELS:
     TRACK_UNITS[f'sport:{_sport}:workouts'] = 'workouts'
     TRACK_UNITS[f'sport:{_sport}:longest'] = 'm'
 TRACK_UNITS['sport:run:fastest'] = 'benchmarks'
+TRACK_UNITS['sport:run:fastest:5k'] = 'benchmarks'
 TRACK_UNITS['sport:ride:fastest'] = 'benchmarks'
 TRACK_UNITS['sport:walk-hike:fastest'] = 'benchmarks'
 TRACK_UNITS['sport:swim:fastest'] = 'benchmarks'
