@@ -1,0 +1,217 @@
+/* Track route-only styles. Loaded with the /track leaf; shell and nav stay eager. */
+
+/* Track launch controls; recording and review keep their own layout. */
+.compact-ready.track-ready { gap:8px; }
+.compact-ready .track-quick { display:flex; flex-wrap:nowrap; gap:8px; overflow:hidden; scrollbar-width:none; padding:1px 0; }
+.compact-ready .track-quick button { display:flex; align-items:center; justify-content:center; flex:0 0 auto; min-height:44px; height:44px; padding:0 12px; gap:6px; border-radius:999px; font-size:max(15px,.875rem); white-space:nowrap; }
+.compact-ready .track-quick button svg { flex:none; width:16px; height:16px; }
+.compact-ready .track-gps-note { margin:0; font-size:.8125rem; }
+.compact-ready .track-ready-map { height:clamp(190px,28dvh,240px); }
+.compact-ready .track-ready-map-wrap.full .track-ready-map { height:100%; }
+.compact-ready .track-go,.gps-ready .compact-ready .track-go { margin:0; }
+.compact-ready .track-go { gap:8px; }
+.compact-ready .track-go > .round-btn { width:92px; height:92px; min-height:92px; font-size:1.25rem; }
+.compact-ready .track-go > .primary { min-height:48px; }
+.compact-ready .track-log-past { display:flex; align-items:center; justify-content:center; min-height:44px; padding:0 8px; color:var(--accent); font-size:max(15px,.9375rem); font-weight:600; text-decoration:none; }
+.compact-ready #track-ready-error:empty { display:none; }
+.compact-ready #track-guidance { font-size:.8125rem; }
+.track-recording-options { min-width:0; display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.track-recording-options:not(:has(#interval-open)):not(:has(#track-options:not([hidden]))) { display:none; }
+.track-recording-options > div { max-width:100%; }
+.track-recording-options .me-chip { display:flex; align-items:center; gap:4px; font-weight:500; min-height:44px; height:44px; max-width:100%; white-space:nowrap; text-align:left; padding:0 12px; font-size:max(15px,.9375rem); border:1px solid var(--line); border-radius:999px; background:var(--card); }
+.track-recording-options .me-chip svg { flex:none; width:16px; height:16px; }
+.track-plan { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:44px; }
+.track-plan[hidden] { display:none; }
+.track-plan > a:first-child { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 8px; min-width:0; color:var(--tx); text-decoration:none; font-size:.9375rem; }
+.track-plan small { color:var(--tx2); font-size:.8125rem; }
+.track-plan > .me-chip { flex:none; min-height:44px; }
+.compact-track-tools.track-tools { margin:8px 0; padding:0; border:0; }
+.compact-track-tools .sec-head { font-size:max(17px,1.125rem); margin:0 0 8px; }
+.compact-track-tools .track-tool-list { display:flex; flex-direction:column; gap:8px; margin:0; }
+.compact-track-tools .progress-tile {
+  display:grid; grid-template-columns:20px minmax(0,1fr); align-items:center; gap:0 8px;
+  min-height:56px; margin:0; padding:8px 0; border:0; border-radius:0; background:none; box-shadow:none;
+}
+.compact-track-tools .progress-tile + .progress-tile { border-top:1px solid var(--line); }
+.compact-track-tools .progress-tile-name { display:contents; }
+.compact-track-tools .progress-tile-name > svg { grid-column:1; grid-row:1 / span 2; width:20px; height:20px; color:var(--tx2); }
+.compact-track-tools .progress-tile-name > b { grid-column:2; grid-row:1; min-width:0; font-size:max(16px,1rem); line-height:1.3; white-space:normal; overflow-wrap:anywhere; }
+.compact-track-tools .progress-tile-name .progress-new { display:none; }
+.compact-track-tools .progress-tile > .small { grid-column:2; grid-row:2; min-width:0; margin:2px 0 0; display:block; font-size:max(13px,.8125rem); line-height:1.4; overflow:visible; }
+
+
+/* Keep More beside the fully visible sports, so it never paints over a label. */
+.compact-ready .track-sport-row { display:flex; align-items:center; gap:8px; min-width:0; }
+.compact-ready .track-quick { flex:1; min-width:0; }
+.compact-ready .track-quick button { min-width:44px; }
+.compact-ready #track-other { display:flex; align-items:center; gap:3px; flex:none; min-height:44px; height:44px; padding:0 12px; font-size:max(15px,.875rem); border:1px solid var(--line); background:var(--card); white-space:nowrap; }
+.compact-ready #track-other svg { width:14px; height:14px; }
+.compact-ready #track-other[aria-pressed="true"] { background:var(--accent2); color:var(--accent); border-color:var(--accent); }
+
+.track-recording-options > div { min-width:0; flex:1 1 8.25rem; }
+.track-recording-options #interval-open { width:100%; }
+.track-recording-options #track-options { flex:0 1 auto; }
+.track-recording-options #interval-open span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.track-recording-options #interval-open { max-width:100%; }
+
+/* Spacing follows the31October minimums; glyph/label gaps remain inside one control. */
+.track-plan > a:first-child { min-height:44px; }
+.track-sport-picker .pick-list { display:flex; flex-direction:column; gap:8px; }
+.track-sport-picker .row-link { min-height:56px; }
+.track-switch-target { display:flex; flex:none; align-items:center; justify-content:center; min-width:51px; min-height:44px; cursor:pointer; }
+.compact-ready .track-gps-note,.compact-ready #track-guidance,.track-plan small { font-size:max(13px,.8125rem); }
+
+.compact-ready .track-quick[hidden],.compact-ready .track-quick button[hidden] { display:none; }
+.compact-ready #track-other { max-width:100%; }
+.compact-ready #track-other span { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.compact-ready .track-quick button,.compact-ready #track-other { font-weight:500; }
+
+/* Owner type scale: default sizes stay calm; rem text still follows accessibility enlargement. */
+.compact-ready .track-go #track-start > span { font-size:max(15px,1rem); }
+
+.track-recording-settings > header h2 { font-size:1.25rem; }
+.track-recording-settings .track-pref-list { min-width:0; grid-template-columns:minmax(0,1fr); }
+.track-recording-settings .switch-row { min-width:0; gap:8px; }
+.track-recording-settings .switch-row > :first-child { min-width:0; flex:1; }
+.track-recording-settings .switch-row b { font-size:max(15px,.9375rem); }
+.track-recording-settings .switch-row small { font-size:max(13px,.85rem); }
+
+#track-gps-chip { font-size:max(13px,.8125rem); }
+.track-plan > .me-chip { font-size:max(15px,.9375rem); }
+
+/* A short ready map keeps both tools above the required source credits. */
+.compact-ready .track-ready-map-wrap:not(.full) .track-locate { top:12px; right:64px; }
+.compact-ready .track-ready-map-wrap:not(.full) .gps-chip { max-width:calc(100% - 128px); white-space:normal; }
+
+@media (min-width: 700px) { .track-clock { font-size: 68px; } .track-map { height: 320px; } }
+.track-question { font-family: var(--font-display); font-weight: 700; line-height: 1.2; }
+.track-session > h2 { font-family: var(--font-display); }
+#track-content .track-sports button { transition: background-color .15s, color .15s; }
+@media (prefers-reduced-motion: reduce) { #track-content .track-sports button { transition: none; } }
+.me-agenda > h2, .profile-mileage h2 { font-family: var(--font-display); font-size: var(--text-app-section); font-weight: 700; }
+.mileage-day small { font-size: 11px; }
+
+#track-setup > p { margin: 0; }
+
+.track-ready { gap: 12px; }
+.track-ready select { width: 100%; min-height: 50px; font-size: 17px; }
+.track-quick { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 3.2rem), 1fr)); gap: 6px; }
+.track-quick button { display: grid; justify-items: center; align-content: center; gap: 4px; min-height: 64px; padding: 8px 2px; border: 1px solid var(--line);
+  border-radius: 14px; background: var(--card); color: var(--tx); font: inherit; font-size: .8rem; font-weight: 600; min-width: 0; white-space: normal; text-align: center; line-height: 1.15; cursor: pointer; }   /* long names (Treadmill run) wrap instead of being clipped */
+.track-quick button svg { width: 22px; height: 22px; }
+.track-quick button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent2); color: var(--accent); }
+.track-quick button:active { transform: scale(.96); }
+.track-other > summary { display:flex; align-items:center; min-height:44px; gap:6px; color:var(--accent); font-size:.95rem; cursor:pointer; list-style:none; }
+.track-other > summary svg { width:16px; height:16px; }
+.track-other[open] > summary { margin-bottom:8px; }
+.track-other > label { padding-bottom:4px; }
+.track-ready-map-wrap { position: relative; z-index: 0; }
+.track-ready-map, .live-record-map { height: clamp(240px, 39dvh, 380px); border-radius: 16px; overflow: hidden; background: var(--card2); }
+.track-ready-map { height: clamp(160px, 23dvh, 240px); }
+.track-locate { position: absolute; right: 12px; bottom: 12px; z-index: 500; background: var(--card); min-height: 44px; padding: 10px 14px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.track-locate svg { width: 18px; }
+#track-setup > p:empty { display: none; }
+.track-tools { margin: 18px 0; }
+.track-tools summary { cursor: pointer; min-height: 48px; display: flex; align-items: center; color: var(--accent); font-weight: 600; }
+.track-tools .row-link { justify-content: space-between; width: 100%; }
+.track-tools .row-link > svg { width: 18px; }
+.track-live { padding-top: 0; }
+.track-live-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.track-live-top h2 { font: 700 28px/1.2 var(--font-display); margin: 0; }
+.track-live #track-status { text-align: left; min-height: 20px; }
+.gc-off { display:block; margin:20px 0 0; padding:8px 0; }
+.route-end { background: none; border: 0; }
+.route-end svg { display: block; width: 24px; height: 24px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
+.field-err, .login .field-err { color: var(--alert); font-size: .9rem; margin: -4px 0 6px; }
+.login [aria-invalid="true"] { border-color: var(--alert); }
+.login .small.ok { color: var(--good); }
+.get-app-steps { padding-left: 1.3em; display: grid; gap: 14px; margin: 18px 0 22px; line-height: 1.45; }
+.get-app .primary.wide { display: flex; justify-content: center; align-items: center; min-height: 48px; text-decoration: none; }
+.track-splits { margin: -12px 0 16px; text-align: left; min-height: 1.4em; }
+.track-options { display: grid; gap: 4px; margin: 4px 0 12px; }
+.track-live-metrics { display: flex; justify-content: space-between; gap: 8px; margin: 22px 0; text-align: left; }
+.track-live-metrics > div { flex: 1; min-width: 0; }
+.track-live-metrics small { display: block; font-size: 11px; color: var(--tx3); margin-bottom: 6px; }
+.track-live-metrics b { display: block; font-size: clamp(19px,5.5vw,26px); font-weight: 650; white-space: nowrap; }
+.track-live #track-time { margin: 0; letter-spacing: -.035em; line-height: 1.45; }
+.track-live .recording-actions { grid-template-columns: 1fr; }
+.track-live .track-actions { margin-top: 18px; }
+.track-live .track-map { margin: 0; }
+.stats-expanded .track-live-metrics { flex-direction: column; align-items: center; gap: 26px; text-align: center; padding-block: 24px; }
+.stats-expanded .track-live-metrics b { font-size: 48px; }
+.stats-expanded .track-live-metrics small { font-size: 14px; }
+/* Track redesign (Ben, 2026-10-26: "clunky, not slick"): the map leads, one big round Start, settings in a sheet,
+   a big clock while recording and round Pause / Resume / Finish controls. */
+#page .top #track-settings svg { width: 22px; height: 22px; }
+.track-ready-map { height: clamp(260px, 44dvh, 420px); border-radius: 20px; }
+.track-locate { right: 12px; top: 12px; bottom: auto; width: 44px; height: 44px; min-height: 44px; padding: 0; border-radius: 50%; display: grid; place-items: center;
+  background: var(--card); box-shadow: 0 2px 10px #0002; color: var(--accent); }
+.track-locate svg { width: 20px; height: 20px; }
+/* Map before Start: full screen like the recording map (Ben, 30 Oct 2026). Expand sits above Locate. */
+.track-ready-map-wrap .map-full { top:12px; right:12px; }
+.track-ready-map-wrap .track-locate { top:64px; }
+.track-ready-map-wrap.full { position:fixed; inset:0; z-index:2000; }
+.track-ready-map-wrap.full .track-ready-map { position:absolute; inset:0; height:100%; border-radius:0; }
+.track-ready-map-wrap.full .map-full { top:calc(env(safe-area-inset-top) + 12px); right:calc(env(safe-area-inset-right) + 12px); }
+.track-ready-map-wrap.full .track-locate { top:calc(env(safe-area-inset-top) + 64px); right:calc(env(safe-area-inset-right) + 12px); }
+.track-ready-map-wrap.full .gps-chip { top:calc(env(safe-area-inset-top) + 18px); left:calc(env(safe-area-inset-left) + 12px); }
+.track-ready-map-wrap.full #track-ready-map .leaflet-bottom.leaflet-right { bottom:env(safe-area-inset-bottom); }
+.track-go { display: grid; justify-items: center; gap: 6px; margin: 4px 0 2px; position: relative; z-index: 1; }
+.gps-ready .track-go { margin-top: -58px; }
+.track-go small { font-weight: 650; font-size: 15px; color: var(--tx2); }
+.round-btn { display: grid; place-items: center; width: 76px; height: 76px; min-height: 0; padding: 0; border-radius: 50%; border: 0; cursor: pointer;
+  background: var(--card); color: var(--tx); box-shadow: 0 6px 18px #0002, inset 0 0 0 1px var(--line); transition: transform .12s; }
+.round-btn:active { transform: scale(.94); }
+.round-btn svg { width: 30px; height: 30px; }
+.round-btn.start { width: 104px; height: 104px; background: var(--btn); color: var(--onbtn); box-shadow: 0 10px 28px color-mix(in srgb, var(--btn) 40%, transparent), 0 0 0 6px var(--bg); }
+.round-btn.start span { font: 750 21px/1 var(--font); letter-spacing: .01em; }
+.round-btn.go { background: var(--btn); color: var(--onbtn); box-shadow: 0 8px 22px color-mix(in srgb, var(--btn) 35%, transparent); }
+.round-btn.stop { background: var(--tx); color: var(--bg); }
+.round-btn:disabled { opacity: .6; }
+.track-prefs { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; margin: 2px 0 0; padding: 6px 10px;
+  border: 0; background: none; color: var(--tx2); font-size: 14px; font-weight: 550; }
+.track-prefs svg { width: 18px; height: 18px; flex: none; } .track-prefs svg:last-child { width: 14px; height: 14px; color: var(--tx3); }
+.track-ready #track-guidance { text-align: center; margin: 0; }
+.track-pref-list { display: grid; margin-bottom: 16px; }
+.track-live-top h2 { display: flex; align-items: center; gap: 10px; font-size: 24px; }
+.rec-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--alert); flex: none; }
+.is-recording .rec-dot { animation: rec-pulse 1.6s ease-in-out infinite; } .is-paused .rec-dot { background: var(--tx3); }
+@keyframes rec-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .is-recording .rec-dot { animation: none; } }
+.track-hero { display: grid; justify-items: center; margin: 14px 0 6px; }
+.track-hero b { font-size: clamp(56px, 18vw, 76px); font-weight: 700; letter-spacing: -.03em; line-height: 1.05; }
+.track-hero small, .track-live-metrics small { font-size: 13px; color: var(--tx3); font-weight: 600; }
+.track-live .track-live-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin: 12px 0 6px; text-align: center; }
+.track-live .track-live-metrics > div { display: grid; gap: 2px; } .track-live .track-live-metrics > div + div { border-left: 1px solid var(--line); }
+.track-live .track-live-metrics b { font-size: clamp(30px, 9vw, 40px); font-weight: 680; margin: 0; }
+.track-live .track-live-metrics small { margin: 0; }
+.track-live .track-splits { margin: 4px 0 14px; text-align: center; }
+.track-live .live-record-map { height: clamp(200px, 32dvh, 340px); }
+.live-record-map .leaflet-control-zoom { display: none; }
+.track-map-wrap { position: relative; }
+.gps-chip, .map-chip { position: absolute; z-index: 500; min-height: 32px; padding: 6px 11px; border-radius: 999px; font-size: 13px; font-weight: 650;
+  background: var(--card); color: var(--tx); box-shadow: 0 2px 10px #0002; }
+.gps-chip { left: 10px; top: 10px; pointer-events: none; }
+.map-chip { right: 10px; top: 10px; border: 0; display: inline-flex; align-items: center; gap: 5px; color: var(--accent); }
+.map-chip svg { width: 15px; height: 15px; }
+.track-controls { display: flex; justify-content: center; gap: 44px; margin: 20px 0 6px; }
+.round-ctl { display: grid; justify-items: center; gap: 6px; } .round-ctl small { font-size: 13px; font-weight: 650; color: var(--tx2); }
+.track-live .track-controls .round-btn { width: 84px; height: 84px; }
+.stats-expanded .track-hero b { font-size: clamp(72px, 24vw, 96px); }
+.stats-expanded .track-live-metrics { padding-block: 18px; }
+.stats-expanded .track-live .track-live-metrics b, .stats-expanded .track-live-metrics b { font-size: clamp(40px, 12vw, 52px); }
+.track-saved { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+.track-saved a { display: inline-flex; gap: 6px; align-items: center; }
+.track-saved svg { width: 16px; }
+nav.tabs :is(a,button).has-recording { position: relative; }
+nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); position: absolute; top: 5px; right: calc(50% - 18px); }
+/* Track: the other ways to add an activity are a visible list, not a closed fold. */
+.track-tools { margin: 24px 0 8px; }
+.track-tools .row-link { justify-content: flex-start; }
+.track-tools .row-link > svg:first-child { flex: none; width: 20px; height: 20px; color: var(--accent); }
+.track-tools .row-link > svg:last-child { flex: none; width: 16px; height: 16px; color: var(--tx3); }
+/* Run/walk presets belong beside Track setup; controls remain reachable on a phone. */
+.track-interval-summary{text-align:center;margin:0 0 6px}.interval-line{display:grid;grid-template-columns:8.6em minmax(0,1fr) 5.5em;gap:8px;align-items:center;margin:10px 0}.interval-line>span:first-child{font-weight:650}.interval-line input,.interval-line select{min-height:44px;width:100%;font-size:16px}.interval-line>.muted{padding-left:4px}#interval-editor .interval-extra{display:flex;align-items:center;gap:8px;min-height:44px;margin:0;font-weight:650;grid-column:1/2}.interval-extra input{width:22px;height:22px;flex:none}#interval-editor .interval-name{margin:16px 0 4px}#interval-editor .interval-name input{display:block;width:100%;margin-top:6px}.interval-selected b{display:block;font-size:17px;margin:2px 0}.interval-selected p{margin:2px 0 6px}.interval-library-list{margin:12px 0}.interval-library-list .row-link small{display:block}.interval-blocks fieldset{border:1px solid var(--line);border-radius:12px;margin:18px 0;padding:14px;min-width:0}.interval-blocks legend{padding:0 8px;font-weight:650}.interval-step{border-top:1px solid var(--line);padding:14px 0}.interval-field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.interval-field-grid label,.interval-time label{min-width:0}.interval-time{display:grid;grid-template-columns:1fr 1fr;gap:8px;grid-column:1/-1}.interval-row-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.interval-row-actions button{min-height:44px;flex:1;padding:10px}.interval-preview{padding-left:24px;max-height:340px;overflow:auto}.interval-preview li{padding:8px 0}.interval-preview small{display:block;color:var(--tx3)}.interval-totals{font-weight:650}.interval-library-list article{border-bottom:1px solid var(--line);padding:14px 0}.interval-selected{padding:14px;border:1px solid var(--line);border-radius:12px;margin:12px 0}.interval-current{display:flex;justify-content:space-between;gap:14px;align-items:center}.interval-current h3{margin:4px 0;font-size:28px;color:var(--tx)}.interval-current>b{font-size:22px;font-variant-numeric:tabular-nums}.interval-current small{color:var(--tx3)}.track-interval-live{padding:16px;margin:12px 0}.track-interval-live p{margin:10px 0}.interval-blocks input,.interval-blocks select,#interval-editor input,#interval-editor textarea{font-size:16px;max-width:100%}#interval-editor label{display:block;margin:10px 0}#interval-editor .check,#interval-library .check{display:flex;align-items:flex-start;gap:10px;margin:16px 0}#interval-editor .check input,#interval-library .check input{width:22px;height:22px;flex:none}.interval-selected h3{overflow-wrap:anywhere}@media(max-width:360px){.interval-field-grid{grid-template-columns:1fr}.interval-row-actions button{flex-basis:45%}.interval-current{align-items:flex-start}.interval-current>b{font-size:19px}}
+
+.interval-row-actions button{border:1px solid var(--line);border-radius:var(--r2);background:var(--card);color:var(--tx);font:inherit;font-size:14px}.interval-row-actions button:disabled{color:var(--tx3);opacity:.55}.interval-save-status{color:var(--good)}.interval-history-table{overflow:auto;max-width:100%;margin:14px 0}.interval-history-table table{min-width:0;table-layout:fixed;width:100%;border-collapse:collapse;font-size:14px}.interval-history-table th,.interval-history-table td{overflow-wrap:anywhere;text-align:left;vertical-align:top;padding:12px 8px;border-bottom:1px solid var(--line)}.interval-history-table th{color:var(--tx2)}
+

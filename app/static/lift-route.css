@@ -1,0 +1,165 @@
+/* Lifting route-only styles. Loaded with direct lifting leaves; shell and nav stay eager. */
+
+/* Compact gym controls keep the existing numbers and saving/rest behavior. */
+.compact-lift .lift-top { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:8px; }
+.lift-top .acts { max-width:140px; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.lift-header-clock { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:center; gap:2px 8px; min-width:0; }
+.lift-header-clock > span:first-child b { font-size:1rem; }
+.lift-header-clock #lf-restbox { color:var(--accent); font-size:max(13px,.8125rem); white-space:nowrap; }
+.lift-header-clock #lf-rest { font-size:.875rem; }
+.lift-top .lift-save:not([data-state=error]) { flex:none; width:7px; height:7px; min-width:0; overflow:hidden; font-size:0; border-radius:50%; background:var(--prog); }
+.lift-top .lift-save[data-state=saving] { background:var(--warn); }
+.lift-top .lift-save:empty { display:none; }
+.lift-top .lift-save[data-state=error] { color:var(--warn); font-size:max(13px,.8125rem); white-space:normal; max-width:7rem; }
+.compact-lift .lift-ex { padding:16px; margin-bottom:12px; }
+.compact-lift .lift-hd { gap:8px; margin:0; }
+.lift-title-line { display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-width:0; flex:1; }
+.compact-lift .lift-name { min-height:44px;min-width:44px; font-size:max(16px,1rem); }
+.compact-lift .lift-note { margin:0; padding:0; min-height:44px; border:0; background:none; color:var(--tx2); font-size:max(15px,.9375rem); text-align:left; overflow-wrap:anywhere; }
+.compact-lift .lift-note::before { content:'· '; }
+.compact-lift .lift-sets { gap:8px; margin-top:8px; }
+.compact-lift .lift-row { padding:0; margin:0; gap:8px; }
+.compact-lift .lift-in { min-height:44px; font-size:max(16px,1rem); padding-inline:2px; }
+.compact-lift .lift-row > .lift-in[data-k="kg"],.compact-lift .lift-row > .lh-kg,.compact-lift .lift-row > .lift-in[data-k="secs"],.compact-lift .lift-row > .lh-secs { flex-basis:max(70px,3.65rem); }
+.compact-lift .lift-row > .lift-in[data-k="reps"],.compact-lift .lift-row > .lh-reps { flex-basis:max(56px,2.65rem); }
+.compact-lift .lift-prev { font-size:max(13px,.8125rem); }
+.compact-lift .lift-row > .lift-prev,.compact-lift .lift-row > .lh-prev { flex-basis:64px; }
+.compact-lift .lift-n { display:inline-flex; align-items:center; justify-content:center; gap:2px; padding:0; outline:1px solid var(--line); }
+.compact-lift .lift-n > svg { width:10px; height:10px; flex:none; }
+.compact-lift .lift-n:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.lift-set-actions,.lift-set-actions .pick-list { display:grid; gap:8px; }
+.compact-lift .lift-tick { width:44px; min-width:44px; height:44px; min-height:44px; border-radius:10px; }
+.compact-lift .lift-tick svg { width:18px; height:18px; }
+.compact-lift .lift-row > .lift-pr { margin:4px 0; font-size:max(13px,.8125rem); min-height:18px; }
+.compact-lift .lift-addset { display:inline-flex; align-items:center; justify-content:center; gap:4px; min-height:44px; margin:8px 0 0; padding:0 4px; font-size:max(15px,.9375rem); }
+.compact-lift .lift-addset svg { width:16px; height:16px; }
+.compact-lift-exercise .lx-head { padding:12px 14px; }
+.lx-title { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; }
+.compact-lift-exercise .lx-title .eyebrow { margin:0; font-size:.75rem; }
+.compact-lift-exercise .lx-title h1 { margin:0; font-size:1.25rem; }
+.compact-lift-exercise .lx-meta { display:inline; margin:4px 0 0; font-size:.8125rem; }
+.compact-lift-exercise .lx-note { width:auto; max-width:100%; display:inline-flex; align-items:center; min-height:44px; margin:0; padding:0; background:none; font-size:.8125rem; }
+.compact-lift-exercise .lx-note:not(.empty-note)::before { content:'· '; white-space:pre; }
+@media(max-width:370px) {
+ .compact-lift .lift-top { grid-template-columns:minmax(0,1fr) auto; }
+ .lift-header-clock { grid-row:2; grid-column:1/-1; justify-content:flex-start; }
+ .compact-lift .lift-top > .acts { grid-column:2; grid-row:1; }
+}
+@media(min-width:700px) { .compact-lift .lift-row > .lift-pr { flex:0 1 auto; padding-left:4px; } }
+
+.compact-lift .lift-row.lh span { font-size:max(13px,.8125rem); }
+.compact-lift .lift-n { font-size:max(15px,.9375rem); }
+
+.sl-routines .sl-routine { display:flex; align-items:center; gap:8px; border-top:1px solid var(--line); }
+.sl-routines .sl-routine:first-child { border-top:0; }
+.sl-routines .sl-repeat { flex:1; min-width:0; border-top:0; padding:8px 0; }
+.sl-routines .sl-history { flex:none; min-width:44px; min-height:44px; padding:8px; border:0; background:none; color:var(--accent); font-weight:700; white-space:nowrap; }
+.sl-routines .sl-history:active { opacity:.6; }
+.compact-lift-history .lift-history { padding:14px; }
+.compact-lift-history .lift-history h1 { margin:0; font-size:1.2rem; overflow-wrap:anywhere; }
+.compact-lift-history .lift-history > p { margin:3px 0 0; font-size:.875rem; }
+.lift-history-list { list-style:none; margin:10px 0 0; padding:0; }
+.lift-history-session { padding:12px 0; border-top:1px solid var(--line); }
+.lift-history-session:first-child { border-top:0; padding-top:2px; }
+.lift-history-date { margin:0 0 4px; color:var(--tx3); font-size:.9375rem; font-weight:500; }
+.lift-history-exercise { margin-top:8px; padding:0; border:0; }
+.lift-history-name { display:flex; align-items:center; min-height:44px; color:var(--accent); font-weight:600; text-decoration:none; }
+.lift-history-name .chev { flex:none; }
+.lift-history-sets { margin:0; font-size:1.0625rem; font-weight:600; font-variant-numeric:tabular-nums; }
+.lift-history-best { display:block; margin-top:3px; color:var(--tx3); font-size:.875rem; font-weight:500; }
+
+/* At enlarged text sizes, keep complete numeric values and the tick together.
+   The set control and previous result use the line above instead of squeezing fields. */
+.compact-lift .lift-sets { container-type:inline-size; }
+@container (max-width:13.5rem) {
+ .compact-lift .lift-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,.8fr) 44px; }
+ .compact-lift .lift-row > .lift-n,.compact-lift .lift-row > .lh-n { grid-column:1; grid-row:1; width:44px; }
+ .compact-lift .lift-row > .lift-prev { grid-column:1 / -1; grid-row:1; margin-left:52px; min-width:0; flex-wrap:wrap; }
+ .compact-lift .lift-row > .lift-prev > span:last-child { white-space:nowrap; }
+ .compact-lift .lift-row > .lh-n { width:auto; }
+ .compact-lift .lift-row > .lh-prev { display:none; }
+ .compact-lift .lift-row > .lift-in[data-k="kg"],.compact-lift .lift-row > .lh-kg { grid-column:1; grid-row:2; }
+ .compact-lift .lift-row > .lift-in[data-k="reps"],.compact-lift .lift-row > .lh-reps { grid-column:2; grid-row:2; }
+ .compact-lift .lift-row:not(:has([data-k="kg"],.lh-kg)) > :is(.lift-in,.lh-reps,.lh-secs) { grid-column:1 / 3; grid-row:2; }
+ .compact-lift .lift-row > .lift-tick,.compact-lift .lift-row > .lh-tick { grid-column:3; grid-row:2; }
+ .compact-lift .lift-row > .lift-pr { grid-column:1 / -1; grid-row:3; }
+}
+
+/* ---------- Lifting (2026-10-13, lift.js) ---------- */
+.lift-clock { display: flex; flex-wrap: wrap; gap: 8px 22px; padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--tx3); text-transform: none; letter-spacing: 0; }
+.lift-clock b { font: 600 20px/1.15 var(--numf); letter-spacing: -.02em; color: var(--tx); text-transform: none; margin-left: 6px; }
+.lift-save { min-width: 0; white-space: nowrap; }
+.lift-ex { padding-bottom: 12px; }
+.lift-hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -4px 0 2px; }
+.lift-name { min-width: 0; overflow-wrap: anywhere; font-size: 18px; font-weight: 750; color: var(--tx); letter-spacing: -.015em; min-height: 40px; display: flex; align-items: center; }
+.lift-hd .icon-btn { background: var(--card2); box-shadow: none; flex: none; }
+.lift-note { margin: 0 0 8px; padding: 6px 10px; border-radius: 10px; background: var(--card2); color: var(--tx2); }
+/* one row per set (2026-10-13): set number | the previous session's set | boxes | tick; a done set's row turns green */
+.lift-sets { display: grid; gap: 6px; margin-top: 6px; }
+.lift-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px; margin: 0 -4px; border-radius: 14px; transition: background-color .15s; }
+.lift-row > * { flex: 1 1 0; min-width: 0; }
+.lift-row > .lift-n, .lift-row > .lh-n { flex: 0 0 44px; } .lift-row > .lift-tick, .lift-row > .lh-tick { flex: 0 0 44px; }
+.lift-row > .lift-prev, .lift-row > .lh-prev { flex: 1 0 44px; }
+.lift-row > .lift-in[data-k="kg"], .lift-row > .lh-kg { flex: 1 0 78px; }
+.lift-row > .lift-in[data-k="reps"], .lift-row > .lh-reps { flex: 1 0 64px; }
+.lift-row > .lift-in[data-k="secs"], .lift-row > .lh-secs { flex: 1 0 78px; }
+.lift-row.done { background: color-mix(in srgb, var(--prog) 13%, transparent); }
+.lift-row.lh { padding-top: 0; padding-bottom: 0; }
+.lift-row.lh span { font-size: 13px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--tx3); text-align: center; white-space: normal; overflow-wrap: anywhere; line-height: 1.25; }
+.lift-row.lh .lh-n { text-align: left; }
+.lift-prev { min-height: 44px; height: auto; border: 0; border-radius: 12px; background: none; color: var(--tx3); font-size: 13.5px; font-weight: 600; white-space: normal; overflow-wrap: anywhere; line-height: 1.25; padding: 4px 0; letter-spacing: -.01em; }
+.lift-prev-label { display: none; }
+@media (max-width: 370px) {
+  .lift-sets.c5.has-prev .lh-prev { display: none; }
+  .lift-sets.c5.has-prev .lift-prev { order: 2; flex: 1 0 100%; display: flex; align-items: center; gap: 8px; text-align: left; }
+  .lift-sets.c5.has-prev .lift-prev-label { display: inline; }
+  .lift-sets.c5.has-prev .lift-pr { order: 3; }
+}
+button.lift-prev:active { background: var(--card2); }
+.lift-prev.none { display: grid; place-items: center; }
+.lift-hint { margin: 8px 0 0; }
+.lift-n { height: 44px; border: 0; border-radius: 12px; background: var(--card2); font: 700 15px var(--numf); color: var(--tx2); }
+.lift-n.wu { color: var(--warn); }
+.lift-in { text-align: center; font: 600 18px var(--numf); min-height: 44px; padding: 6px 4px; background: var(--card2); border-color: transparent; }
+.lift-in::placeholder { color: var(--tx3); opacity: 1; font-weight: 500; }
+.lift-tick { height: 44px; border: 2px solid var(--line); border-radius: 12px; background: transparent; color: transparent; display: grid; place-items: center;
+  transition: background-color .15s, border-color .15s, transform .1s; }
+.lift-tick svg { width: 22px; height: 22px; stroke-width: 3; }
+.lift-tick[aria-pressed="true"] { background: var(--prog); border-color: var(--prog); color: var(--ontx); }
+.lift-tick:active { transform: scale(.92); }
+.lift-row > .lift-pr { flex: 1 0 100%; padding-left: 44px; }
+.lift-pr { display: inline-flex; align-items: center; gap: 5px; margin: -2px 0 2px; font-size: 12.5px; font-weight: 700;
+  color: color-mix(in srgb, var(--gold) 55%, var(--tx)); }
+.lift-pr svg { width: 14px; height: 14px; }
+.lift-addset { margin-top: 10px; min-height: 40px; }
+.lift-add { min-height: 48px; margin-top: 4px; }
+.lift-foot { margin: 12px 0 0; }
+.lift-now { display: flex; align-items: center; gap: 12px; } .lift-now .grow { flex: 1; display: grid; }
+.post-lifts { margin: 10px 0 0; font-size: 13.5px; color: var(--tx2); white-space: normal; overflow-wrap: anywhere; }
+.lift-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.lift-card-head h2 { margin: 0; }
+.ls-row .grow small { font-size: 14px; } .ls-row .grow small.num { color: var(--tx); }
+.lv-best { display: grid; text-align: right; flex: none; } .lv-best b { font: 700 17px var(--numf); }
+.lv-names { white-space: normal; overflow-wrap: anywhere; }
+.lx-head h1 { font-size: 26px; letter-spacing: -.02em; margin: 2px 0 4px; }
+.lx-note { display: block; width: 100%; text-align: left; margin-top: 12px; padding: 10px 12px; border: 0; border-radius: 12px; background: var(--card2); color: var(--tx2); font-size: 14px; }
+.lx-note.empty-note { color: var(--accent); font-weight: 600; }
+.lx-rec b { font: 700 19px/1.2 var(--numf); white-space: nowrap; } .lx-rec b i { font: 500 12px var(--font); font-style: normal; color: var(--tx3); margin-left: 3px; }
+.dotline { fill: none; stroke: var(--workout); stroke-width: 2; opacity: .55; }
+.sl-hint { margin: -2px 0 6px; }
+.xp-new .grow span { color: var(--accent); font-weight: 650; }
+.xp-plus { width: 20px; height: 20px; color: var(--tx3); flex: none; }
+#xp-q { margin-bottom: 4px; }
+.pick-list .row-link.danger { color: var(--alert); }
+
+
+/* Lifting summary after Finish (28 October 2026): the run summary's title and stat card, then records and exercises. */
+.lift-review .track-review-when svg { width: 18px; height: 18px; color: var(--accent); }
+.lift-review-records h3, .lift-review-ex h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }
+.lift-review-records h3 svg { width: 20px; height: 20px; color: var(--accent); }
+.lift-review-records > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); }
+.lift-review-records span { min-width: 0; font-weight: 650; } .lift-review-records span small { display: block; color: var(--tx2); font-size: .8125rem; font-weight: 600; }
+.lift-review-records b { min-width: 0; white-space: normal; overflow-wrap: anywhere; text-align: right; }
+.lift-review-ex > div { display: grid; gap: 2px; padding: 9px 0; border-top: 1px solid var(--line); }
+.lift-review-ex > div small { font-size: .875rem; overflow-wrap: anywhere; }
+#lf-discard, #lf-sum-del { display: block; margin: 14px auto 0; }

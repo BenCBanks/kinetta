@@ -4,7 +4,7 @@ const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 const trackFixture=require('../demo/track_session.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798';
 const selectedCase=process.env.KINETTA_LAZY_CASE||'';
-if(selectedCase&&!['settings','recaps','fitness','notifications','records','food'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
+if(selectedCase&&!['settings','recaps','fitness','notifications','records','food','route-css'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
 const password='green teapot on the hill';
 const user='zz_test_explore_new';
 const meReady='.me-card-sections[aria-busy="false"]';
@@ -201,6 +201,29 @@ async function notificationLeafCase(browser){
     assert.deepEqual(direct.errors,[]);assert.deepEqual(direct.routes.writes,[]);
   }finally{await direct.context.close();}
   console.log('Notifications lazy leaf: eager unread badge, /notifications and /me/notifications demand load PASS');
+}
+async function routeCssCase(browser){
+  const cases=[
+    ['/progress','/static/progress-route.css','.progress-summary'],
+    ['/track','/static/track-route.css','#track-content'],
+    ['/food','/static/food-route.css','.nutrition-home'],
+    ['/lift/history/workout/1','/static/lift-route.css','.compact-lift-history'],
+  ];
+  for(const scheme of ['light','dark'])for(const [path,style,probe] of cases){
+    const context=await browser.newContext({viewport:{width:390,height:844},colorScheme:scheme,serviceWorkers:'block',isMobile:true,hasTouch:true,reducedMotion:'reduce'});
+    const response=await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});assert.equal(response.status(),200,'fictional demo account logs in');
+    const page=await context.newPage();let releaseHeld;const held=new Promise(resolve=>{releaseHeld=resolve;});let styleRequests=0,styleHeld=false,errors=[];page.on('pageerror',error=>errors.push(error.message));
+    await page.route('**/*',async route=>{const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();if(url.pathname===style){styleRequests++;if(!styleHeld){styleHeld=true;await held;}}if(!['GET','HEAD'].includes(request.method()))return route.abort();return route.continue();});
+    try{
+      await page.goto(base+path,{waitUntil:'domcontentloaded'});await page.locator('.lazy-route-loading').waitFor();
+      assert.equal(styleRequests,1,`${path} requests its route stylesheet once (${scheme})`);
+      assert.equal(await page.locator(probe).count(),0,`${path} does not paint route content before CSS (${scheme})`);
+      releaseHeld();await until(page,()=>App.pageReady&&!!document.querySelector('#page'),`${path} after route CSS (${scheme})`);
+      assert.equal(await page.locator(`[data-route-style*="${style}"]`).count(),1,`${path} keeps one loaded route stylesheet (${scheme})`);
+      assert.deepEqual(errors,[],`${path} ${scheme} has no page errors`);
+    }finally{releaseHeld();await context.close();}
+  }
+  console.log('Route CSS leaves: Progress, Track, Food and Lift wait for styles before paint at 390px light/dark PASS');
 }
 async function socialFixture(browser,{failFirst=false,failFriendsFirst=false,idleGate=false}={}){
  const context=await fixtureContext(browser);await login(context);
@@ -801,6 +824,7 @@ async function foodWarmupCase(browser){
   if(selectedCase==='settings'){await settingsRouteCase(browser);console.log('Settings lazy route: cold Me, direct/deep links, retry and stale path/owner PASS');return;}
   if(selectedCase==='notifications'){await notificationLeafCase(browser);return;}
   if(selectedCase==='food'){await foodWarmupCase(browser);return;}
+  if(selectedCase==='route-css'){await routeCssCase(browser);return;}
   if(selectedCase==='recaps'){await require('./recap_lazy_ui.cjs')(browser,base);return;}
   if(selectedCase==='fitness'){await fitnessRouteCase(browser);return;}
   if(selectedCase==='records'){await recordsRouteCase(browser);return;}

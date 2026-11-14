@@ -158,6 +158,50 @@ details.fold-row[open] { padding-bottom: 12px; }
 .filters .chips { margin: 0; padding: 0; }
 .sportpick { flex-wrap: wrap; margin-bottom: 4px; }
 
+/* Shared progress/profile primitives stay in the eager shell: Me, Settings and Nutrition use them too. */
+.progress-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-bottom:16px; }
+.progress-grid .progress-tile { margin:0; padding:12px; min-height:154px; color:var(--tx); display:flex; flex-direction:column; gap:10px; }
+.progress-tile-name { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.progress-tile-name svg { width:20px; height:20px; flex:none; }
+.progress-tile-name b { flex-basis:100%; font-size:.875rem; line-height:1.3; }
+.progress-tile .small { font-size:.8125rem; line-height:1.4; overflow-wrap:anywhere; }
+.progress-new { display:inline-flex; align-items:center; gap:4px; font-size:.625rem; color:var(--tx3); }
+.progress-new.seen { visibility:hidden; }
+.progress-new::before { content:''; width:5px; height:5px; border-radius:50%; background:var(--accent); }
+.progress-tile .progress-new { width:5px; flex:none; height:5px; font-size:0; gap:0; }
+.progress-metric-controls { flex:1 0 100%; width:100%; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0; margin-top:2px; border-top:1px solid var(--line); }
+.progress-metric-controls[data-count="2"] { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.progress-metric-controls button { position:relative; min-width:44px; min-height:44px; padding:0 6px; border:0; border-radius:0; background:transparent; color:var(--tx2); font-size:15px; font-weight:550; white-space:normal; }
+.progress-metric-controls button[aria-pressed="true"] { color:var(--tx); font-weight:700; }
+.progress-metric-controls button[aria-pressed="true"]::after { content:""; position:absolute; bottom:0; left:8px; right:8px; height:2px; background:var(--accent); }
+.progress-grid.explore-list { display:flex; flex-direction:column; gap:8px; margin:0 0 16px; }
+.progress-grid.explore-list .progress-tile { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; column-gap:12px; row-gap:2px; margin:0; padding:10px 0; min-height:56px; background:none; border:0; border-bottom:1px solid var(--line); border-radius:0; box-shadow:none; color:var(--tx); }
+.progress-grid.explore-list .progress-tile::after { content:"›" / ""; grid-column:2; grid-row:1 / span 2; color:var(--tx3); font-size:22px; line-height:1; }
+.progress-grid.explore-list .progress-tile-name { grid-column:1; display:flex; flex-wrap:nowrap; align-items:center; gap:10px; min-width:0; }
+.progress-grid.explore-list .progress-tile-name svg { display:block; width:20px; height:20px; flex:none; margin:0; color:var(--tx2); }
+.progress-grid.explore-list .progress-tile-name b { display:block; flex:0 1 auto; min-width:0; font-size:max(15px,.9375rem); font-weight:600; line-height:1.3; overflow-wrap:anywhere; }
+.progress-grid.explore-list .progress-tile-name .progress-new { margin:0; }
+.progress-grid.explore-list .progress-tile .small { grid-column:1; padding-left:30px; font-size:.8125rem; line-height:1.4; overflow-wrap:anywhere; display:block; -webkit-line-clamp:unset; overflow:visible; }
+
+/* Track/profile mileage charts and Settings units are shared by eager and route leaves. */
+.seven-bars { gap:4px; align-items:stretch; }
+.seven-bars .mileage-column { height:128px; max-width:32px; }
+.seven-bars .mileage-day small { font-size:.625rem; line-height:1.5; max-width:100%; overflow-wrap:anywhere; }
+.seven-bars .mileage-day { padding:4px 0; border:0; border-radius:4px; background:transparent; color:var(--tx3); }
+.seven-bars .mileage-day.is-inspected { background:transparent; box-shadow:none; }
+.seven-bars .mileage-day.is-inspected small { color:var(--tx3); font-weight:600; text-decoration:underline; text-underline-offset:3px; }
+.seven-bars .mileage-day.is-highlighted .mileage-value { fill:var(--tx); font-weight:600; visibility:visible; }
+.seven-bars .current-day small { color:var(--tx3); font-weight:600; }
+.mileage-range { text-align:right; margin:8px 0 0; }
+.mileage-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+.mileage-heading h2 { margin:0; font-family:var(--font-display); font-size:var(--text-app-card-title); font-weight:700; letter-spacing:-.015em; }
+.mileage-toggle { display:inline-flex; align-items:center; gap:2px; }
+.mileage-toggle button { min-height:44px; min-width:44px; padding:0 6px; border:0; background:transparent; color:var(--tx2); font-size:.6875rem; }
+.mileage-toggle button[aria-pressed="true"] { color:var(--accent); font-weight:700; text-decoration:underline; text-underline-offset:4px; }
+.mileage-toggle button:disabled { opacity:.5; cursor:default; }
+.units-toggle { gap:12px; } .units-toggle button { padding:0 2px; font-size:max(15px,.9375rem); }
+.seven-bars .future-day i { background:var(--line); }
+
 /* ---------- login ---------- */
 .login { min-height: 100dvh; display: grid; place-items: center; padding: 24px 20px; }
 .login form, .login .form { width: 100%; max-width: 360px; display: grid; gap: 14px; }
@@ -494,6 +538,7 @@ button.pf:active, a.pf:active { background: var(--card2); }
 .map-full svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .map.full, .map.big.full, .map.lead.full { position: fixed; inset: 0; height: auto; margin: 0; border-radius: 0; z-index: 2000; }
 .map.full .map-full { top: calc(12px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); }
+.top .primary.sm { min-height: 44px; padding: 0 16px; border-radius: 999px; font-size: 15px; }
 .map-note { margin: -4px 4px 12px; }
 /* activity page: the map fills the top of the screen (under the status bar); back/share/edit float over it */
 .map-head { position: relative; margin: calc(0px - env(safe-area-inset-top) - var(--shell-top-gap)) -16px 12px; }
@@ -562,6 +607,7 @@ body.map-open nav.tabs { display: none; }      /* full-screen map: X, Esc or Bac
 .chartbox .lbl b { color: var(--tx); font-weight: 700; }
 .chartbox svg { display: block; width: 100%; height: auto; touch-action: pan-y; }
 .chartbox .area { opacity: .16; } .chartbox .ln { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.route-fastest-key { color:var(--gold); }
 .chartbox .gl { stroke: var(--line); stroke-width: 1; } .chartbox .yl { font-size: 10px; fill: var(--tx3); }
 .chartbox .xh { stroke: var(--tx2); stroke-width: 1; }
 .chartbox .bar-r { fill: var(--tx3); opacity: .35; } .chartbox .bar-r.cur { fill: var(--prog); opacity: 1; }
@@ -671,23 +717,6 @@ tr.muted td { color: var(--tx3); }
 .prediction-method summary::after { content:'›'; font-size:1.25em; transform:rotate(90deg); transition:transform .15s; }
 .prediction-method[open] summary::after { transform:rotate(-90deg); }
 .prediction-method p { margin:8px 0 12px; line-height:1.6; }
-.fitness-running-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
-.fitness-running-heading h2 { margin:0; }
-.fitness-running-heading .rng { margin:0; }
-.fitness-running-heading .range-btn { font-size:max(15px,.9375rem); }
-.fitness-predictions .pred { gap:8px 12px; }
-.fitness-predictions .pred > .prediction-cell { display:grid; align-content:start; gap:2px; min-width:0; padding:8px 0; border-top:1px solid var(--line); border-radius:0; background:transparent; }
-.fitness-predictions .pred b { font-size:max(20px,1.5rem); font-weight:600; }
-.fitness-predictions .pred small { font-size:max(13px,.8125rem); line-height:1.35; }
-.fitness-predictions .pbest { margin-top:4px; font-size:max(12px,.75rem); font-weight:500; color:var(--tx2); }
-.fitness-predictions p.prediction-note { margin:8px 0 4px; }
-.fitness-predictions .prediction-method summary { font-size:max(15px,.9375rem); }
-.prediction-sources { margin-top:12px; }
-.prediction-sources > p { margin:0 0 4px; }
-.prediction-sources ul { list-style:none; margin:0; padding:0; }
-.prediction-source { display:grid; grid-template-columns:minmax(80px,auto) 1fr; gap:8px; padding:6px 0; border-top:1px solid var(--line); font-size:max(13px,.8125rem); line-height:1.4; overflow-wrap:anywhere; }
-.prediction-source span:first-child { color:var(--tx2); font-weight:500; }
-@media(max-width:360px){.fitness-predictions .pred{grid-template-columns:1fr}}
 
 
 
@@ -697,32 +726,6 @@ tr.muted td { color: var(--tx3); }
   background: transparent; box-shadow: none; color: var(--tx); font-weight: 600; font-size: 14px; white-space: nowrap; }
 .range-btn svg { width: 16px; height: 16px; flex: none; color: var(--tx2); } .range-btn span { overflow: hidden; text-overflow: ellipsis; }
 
-/* Calendar (2026-10-11): workouts + food, day by day */
-.cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-.cal-nav h2 { font-size: 19px; font-weight: 700; letter-spacing: -.02em; } .cal-nav .icon-btn { background: var(--card2); box-shadow: none; }
-.cal-nav .icon-btn:disabled { opacity: .35; }
-.cal2 .stats3 { margin-bottom: 16px; }
-.cal2 .stat b i { display: block; margin: 3px 0 0; white-space: normal; line-height: 1.35; }
-.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)) 40px; gap: 4px; align-items: stretch; }
-.cd-h { font-size: 11px; font-weight: 700; color: var(--tx3); text-align: center; padding-bottom: 2px; }
-.cd { --c: var(--tx3); position: relative; display: grid; grid-template-rows: auto 1fr auto; justify-items: center; min-height: 52px; padding: 4px 2px 5px;
-  border: 0; border-radius: 10px; background: var(--card2); color: var(--tx2); font: inherit; min-width: 0; }
-.cd.out { background: transparent; opacity: .45; }
-.cd.has { background: color-mix(in srgb, var(--c) 15%, var(--card)); }
-.cd.s-run { --c: var(--run); } .cd.s-ride { --c: var(--ride); } .cd.s-walk { --c: var(--walk); } .cd.s-hike { --c: var(--hike); } .cd.s-swim { --c: var(--swim); }
-.cd.s-row { --c: var(--row); } .cd.s-ski { --c: var(--ski); } .cd.s-workout { --c: var(--workout); }
-.cd.today { box-shadow: inset 0 0 0 2px var(--accent); }
-.cd:active { transform: scale(.94); }
-.cd-n { font-size: 11px; font-weight: 650; line-height: 1; }
-.cd-i { display: flex; align-items: center; color: var(--c); } .cd-i svg { width: 17px; height: 17px; } .cd-i i { font-style: normal; font-size: 10px; font-weight: 800; }
-.cd-f { display: block; width: 70%; height: 4px; border-radius: 2px; }
-.cd-f.on { background: var(--prog); } .cd-f.over { background: var(--warn); } .cd-f.under { background: var(--s1); }
-.cd-f.partial { background: var(--tx3); opacity: .45; } .cd-f.today, .cd-f.logged { background: var(--tx3); }
-.cd-w { display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--tx2); }
-.cal-legend { margin-top: 14px; font-size: 12px; } .cal-legend .cd-f { width: 16px; }
-.lg-i { display: inline-flex; color: var(--run); } .lg-i svg { width: 15px; height: 15px; }
-.cal-help { margin: 0 4px 12px; }
-.cal-food .kv:first-child { border-top: 0; } .cal-food .kv b { display: inline-flex; align-items: center; gap: 6px; } .cal-food .cd-f { width: 16px; display: inline-block; }
 
 /* ---------- uploads ---------- */
 .upload { display: grid; gap: 10px; }
@@ -734,130 +737,6 @@ tr.muted td { color: var(--tx3); }
 #hi-pick { display: inline-flex; align-items: center; gap: 8px; } #hi-pick svg { width: 18px; height: 18px; }
 #hi-prev .tbl { font-size: 13px; }
 
-/* ---------- Nutrition ---------- */
-
-.nrange { margin-bottom: 4px; }
-
-.daypick { position: relative; cursor: pointer; font-size:max(15px,.9375rem); } .daypick svg { width: 16px; height: 16px; color: var(--tx2); }
-.daypick input { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; }
-.backtoday { margin: -6px 0 10px; }
-/* Nutrition (2026-10-12 redesign): the row of small buttons (View, the day, ‹ ›) and the one summary card */
-.nbar { align-items: center; } .nbar .daypick span { overflow: hidden; text-overflow: ellipsis; }
-.nbar-arrows { display: flex; gap: 6px; margin-left: auto; flex: none; }
-.icon-btn.sm { width: 44px; height: 44px; }
-.tcard .tc-note { margin: 8px 0 0; }
-.tc-macros { display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
-.tcard .tc-macros .mrow b { font: 600 13px/1.2 var(--numf); letter-spacing: 0; } .tc-macros .mrow b i { font-style: normal; color: var(--tx3); font-weight: 500; }
-.tc-macros .linkbtn { justify-self: start; min-height: 32px; padding: 0; }
-.tc-bal { margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--line); }
-:is(.balance,.nutrition-secondary) details.tc-bal { margin-top: 12px; }
-:is(.balance,.nutrition-secondary) details.tc-bal > summary { display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer; font-size: max(15px,.9375rem); font-weight: 700; min-height: 44px; color: var(--tx); }
-.tc-bal > summary::-webkit-details-marker { display: none; }
-.tc-bal > summary > span:first-child { flex: 1; min-width: 0; } :is(.tcard,.nutrition-secondary) .tc-bal > summary small { display: inline; font-weight: 500; font-size: 13px; text-transform: none; letter-spacing: 0; }
-:is(.tcard,.nutrition-secondary) .tc-bal > summary b { font: 600 22px var(--numf); letter-spacing: -.02em; } .tc-bal > summary b i { font-size: 13px; font-style: normal; color: var(--tx3); font-weight: 500; }
-.tc-bal > summary .chev svg { width: 16px; height: 16px; color: var(--tx3); transition: transform .15s; } .tc-bal[open] > summary .chev svg { transform: rotate(90deg); }
-:is(.tcard,.nutrition-secondary) .tc-bal .brow b { font: 600 15px var(--numf); letter-spacing: 0; }
-a.ntile { color: inherit; text-decoration: none; }
-.quick { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-bottom: 12px; }
-.quick .ghost { min-height: 44px; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); padding: 8px 16px; }
-.quick .primary { min-height: 44px; font-size: 15px; border-radius: 999px; } .quick .primary svg { width: 18px; height: 18px; }
-.ring { position: relative; width: 96px; height: 96px; } .ring svg { width: 96px; height: 96px; }
-.ring .rb { fill: none; stroke: var(--card2); stroke-width: 10; } .ring .rf { fill: none; stroke: var(--prog); stroke-width: 10; stroke-linecap: round; }
-.ring > div { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; text-align: center; }   /* "LEFT" under the number, centred */
-.ring b { font: 600 20px/1.05 var(--numf); letter-spacing: -.02em; } .ring small { color: var(--tx3); font-size: 13px; font-weight: 500; text-transform: none; letter-spacing: 0; }
-
-.mrow i { font-style: normal; color: var(--tx3); font-weight: 500; font-size: 12px; }
-.mrow { display: grid; grid-template-columns: 56px minmax(12px, 1fr) auto; gap: 8px; align-items: center; font-size: 13px; }
-.mrow b { text-align: right; } .mrow .track { height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--tx3) 14%, transparent); overflow: hidden; } .mrow .bar { height: 10px; border-radius: 999px; }
-.mrow.mealrow { grid-template-columns: 84px minmax(12px, 1fr) 44px; font-size: 14px; margin: 6px 0; }
-.mrow.topf { grid-template-columns: minmax(0, 1.4fr) minmax(12px, 1fr) auto; font-size: 14px; margin: 8px 0; }
-.topf > span { white-space: normal; overflow-wrap: anywhere; } .topf b i { font-style: normal; color: var(--tx3); font-size: 12px; font-weight: 500; }
-@media(max-width:600px){.mrow.topf{grid-template-columns:minmax(12px,1fr) auto;gap:4px 12px;margin:12px 0}.topf>span{grid-column:1/-1}}
-.bar.m-protein_g, .sw.m-protein_g, .split i.m-protein_g { background: var(--s1); }
-.bar.m-carbs_g, .sw.m-carbs_g, .split i.m-carbs_g { background: var(--s4); }
-.bar.m-fat_g, .sw.m-fat_g, .split i.m-fat_g { background: var(--s2); }
-.bar.meal-bar { background: var(--prog); }
-.split { display: flex; height: 18px; border-radius: 999px; overflow: hidden; gap: 2px; margin: 4px 0 8px; background: var(--card); }
-.split i { display: block; height: 100%; width: calc(var(--w, 0) * 100%); }
-.tcard .tc3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-items: center; }
-.tcard .tc3 > * { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.tcard small { display: inline-flex; align-items: center; gap: 4px; }
-.tcard b { font: 600 24px/1.05 var(--numf); letter-spacing: -.03em; }
-.tcard .over b, .tcard .over small { color: var(--alert); }
-.tcard.balance { background: color-mix(in srgb, var(--prog) 9%, var(--card)); }
-.tc-settg { display: block; margin: 8px auto 0; min-height: 36px; }
-.gbar { height: 10px; border-radius: 999px; background: var(--card2); overflow: hidden; margin: 14px 0 8px; }
-.gbar .gfill { height: 100%; width: calc(var(--w, 0) * 100%); background: var(--prog); border-radius: 999px; }
-.gbar.over .gfill { background: var(--alert); }
-:is(.balance,.nutrition-secondary) .brow { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
-.balance h2 + .brow { border-top: 0; }
-:is(.balance,.nutrition-secondary) .brow > span { display: flex; flex-direction: column; min-width: 0; } :is(.balance,.nutrition-secondary) .brow small { font-size: 12px; }
-:is(.balance,.nutrition-secondary) .brow a { color: inherit; display: inline-flex; align-items: center; gap: 6px; }
-:is(.balance,.nutrition-secondary) .exi { display: inline-flex; width: auto; height: auto; background: none; border-radius: 0; color: var(--c); } :is(.balance,.nutrition-secondary) .exi svg { width: 16px; height: 16px; }
-:is(.balance,.nutrition-secondary) .brow.sum { border-top: 2px solid var(--tx3); font-weight: 700; }
-:is(.balance,.nutrition-secondary) .brow.big { border-top: 0; font-size: 17px; font-weight: 750; padding: 2px 0 6px; }
-:is(.balance,.nutrition-secondary) .brow.big b { font: 600 24px var(--numf); letter-spacing: -.03em; } :is(.balance,.nutrition-secondary) .brow.big i { font-size: 13px; font-style: normal; color: var(--tx3); }
-:is(.balance,.nutrition-secondary) .more-link { display: inline-block; margin-top: 8px; }
-:is(.balance,.nutrition-secondary) details.bd { margin-top: 4px; } :is(.balance,.nutrition-secondary) details.bd > summary { font-size: max(15px,.9375rem); }
-.balance .addwk { display: inline-block; margin: 2px 0 6px; }
-
-.meal { padding-top: 12px; padding-bottom: 6px; }
-.meal h2 span { font-weight: 600; color: var(--tx3); font-size: 15px; }
-/* each meal's colour dot */
-.meal > h2::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 50%; margin-right: 2px; background: var(--tx3); }
-.meal > h2 { justify-content: flex-start; } .meal > h2 > :last-child { margin-left: auto; }
-.meal-breakfast { --mc: var(--s4); } .meal-lunch { --mc: var(--s2); } .meal-dinner { --mc: var(--s1); } .meal-snacks { --mc: var(--s5); }
-.nutrition-home .meal.meal-empty > h2 { margin-bottom: 0; }
-.fe { display: flex; width: 100%; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 0; min-height: 52px; border: 0; border-top: 1px solid var(--line);
-  background: none; text-align: left; border-radius: 0; color: inherit; }
-.fe:first-of-type { border-top: 0; } .fe:active { opacity: .6; }
-.fe > div:first-child { min-width: 0; flex: 1; }
-.fe b { font-weight: 600; display: block; overflow-wrap: anywhere; }
-.fe small { display: block; font-size: 12px; white-space: normal; overflow-wrap: anywhere; color: var(--tx3); }
-.fe .r { text-align: right; flex: none; } .fe .r b { font-family: var(--numf); } .fe .r small { display: block; }
-.fe.pending { opacity: .6; }
-.mealact { display: flex; justify-content: space-between; margin-top: 0; } .mealact .linkbtn { min-height: 44px; }
-.same { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 12px; margin-top: 6px; padding: 10px 14px; min-height: 52px;
-  border: 1.5px dashed var(--line); border-radius: var(--r2); background: transparent; text-align: left; }
-.same > span:first-child { min-width: 0; display: grid; gap: 1px; } .same b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.same small { display: flex; align-items: center; gap: 2px; justify-content: flex-end; } .same svg { width: 14px; height: 14px; }
-.same .r { text-align: right; flex: none; } .same:active { background: var(--card2); }
-.usual { display: flex; align-items: center; gap: 4px; border-top: 1px solid var(--line); }
-.usual:first-child { border-top: 0; } .usual .fe { border-top: 0; flex: 1; min-width: 0; }
-.qadd { flex: none; color: var(--prog); background: var(--prog2); box-shadow: none; }
-.wform { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: stretch; } .wform > * { min-height: 44px; }
-.wcard .wfield { position: relative; display: block; } .wcard .wfield input { width: 100%; padding-right: 44px; font-size: 18px; }
-.wcard .wfield span { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--tx3); font-weight: 600; pointer-events: none; }
-.wdone { display: flex; align-items: center; gap: 6px; color: var(--good); margin: 0 0 10px; } .wdone svg { width: 18px; height: 18px; } .wdone b { color: var(--tx); }
-.wfoot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
-.wfoot .daypick { display: inline-flex; align-items: center; gap: 6px; padding: 0; }
-.weight-heading { display:flex; flex-wrap:wrap; gap:8px; }
-.weight-heading > .back { flex:0 0 auto; }
-.weight-heading-main { display:flex; align-items:center; gap:8px; width:max-content; flex:1 0 auto; min-width:0; }
-.weight-heading-main > h1 { flex:0 0 auto; font-size:var(--text-app-title); }
-.weight-heading-main > .acts { flex:0 0 auto; gap:8px; margin-left:auto; }
-.weight-page .card { padding:16px; }
-.weight-page .chartbox .yl { font-size:13px; }
-.body-weight { min-width:0; display:grid; align-content:start; }
-.body-weight-input { display:flex; align-items:stretch; gap:8px; }
-.body-weight-input input { min-width:0; flex:1; }
-.body-weight-input .linkbtn { min-width:44px; min-height:44px; }
-.weight-page .card h2 { font-size:max(16px,1.0625rem); }
-.weight-page .weight-history-row > span:first-child { flex-basis:6rem; }
-.weight-page .weight-source { font-size:max(13px,.8125rem); }
-
-.mac4 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .mac4 label:first-child { grid-column: 1 / -1; }
-.mac4 input { padding: 8px 12px; }
-
-.results { margin-top: 8px; }
-.macpreview { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; background: var(--card); border-radius: var(--r2); padding: 14px 6px; }
-.macpreview b { display: block; font: 750 21px var(--numf); } .macpreview small { color: var(--tx3); font-size: 12px; }
-.ways { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 6px; }
-.way { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 16px 14px; min-height: 100px; border: 0; border-radius: var(--r2); background: var(--card);
-  box-shadow: var(--shadow); color: var(--tx); text-align: left; transition: transform .1s; }
-.way svg { width: 26px; height: 26px; color: var(--accent); } .way b { font-size: 15px; } .way small { color: var(--tx3); font-size: 12px; }
-.way:active { transform: scale(.97); }
-#ts-f { margin-top: 14px; }
 /* Home Screen app (2026-10-12): the page runs under the iPhone's status bar (black-translucent), so the map reaches the
    top; a soft shade keeps the white clock and battery readable on light pages */
 @media (display-mode: standalone) {
@@ -871,43 +750,6 @@ a.ntile { color: inherit; text-decoration: none; }
 .ways.three .way { align-items: center; justify-content: center; min-height: 0; padding: 12px 6px; gap: 6px; } .ways.three .way svg { width: 24px; height: 24px; }
 .where { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: -4px 0 14px; font-size: 15px; }
 @media (max-width: 370px) { .where > .muted { display: none; } }
-.pill-sel { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 999px; background: var(--card2);
-  box-shadow: var(--shadow); font-weight: 500; color: var(--tx); }
-.pill-sel select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; min-height: 34px; padding: 0 18px 0 0; font-weight: 500; width: auto; box-shadow: none; }
-.pill-sel > svg { width: 14px; height: 14px; color: var(--tx3); transform: rotate(90deg); position: absolute; right: 12px; pointer-events: none; }
-.pill-sel.daypick > svg { position: static; transform: none; color: var(--accent); }
-
-.ntiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
-.ntile { background: var(--card); border-radius: var(--r); padding: 14px; display: flex; flex-direction: column; gap: 2px; min-width: 0; box-shadow: var(--shadow); }
-.ntile small { color: var(--tx3); font-size: 13px; font-weight: 500; text-transform: none; letter-spacing: 0; }
-.ntile b { font: 600 24px var(--numf); letter-spacing: -.02em; } .ntile b i { font: 500 12px var(--font); font-style: normal; color: var(--tx3); margin-left: 3px; }
-.ntile span { font-size: 12px; color: var(--tx2); }
-.tdee-opts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0 6px; }
-.tdee-opts button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 60px; padding: 10px 12px; text-align: left; }
-.tdee-opts small { color: var(--tx3); font-weight: 600; } .tdee-opts b { font: 750 19px var(--numf); }
-.needs-eq { display: flex; align-items: center; gap: 6px; margin: 6px 0 8px; }
-.needs-eq > div { flex: 1; background: var(--card2); border-radius: 12px; padding: 8px; display: flex; flex-direction: column; min-width: 0; }
-.needs-eq > div.hi { background: var(--prog2); } .needs-eq small { font-size: 11px; color: var(--tx3); font-weight: 600; } .needs-eq b { font: 750 clamp(16px, 5vw, 20px) var(--numf); letter-spacing: -.02em; }
-.needs-eq > span { color: var(--tx3); font-weight: 700; }
-
-.scan { position: relative; border-radius: var(--r); overflow: hidden; background: #000; aspect-ratio: 4 / 3; }
-.scan video { width: 100%; height: 100%; object-fit: cover; }
-.scanbox { position: absolute; inset: 30% 12%; border: 3px solid rgba(255,255,255,.85); border-radius: 14px; }
-
-#ph-prev { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; } #ph-prev[hidden] { display: none; }
-#ph-items .actions { align-items: center; justify-content: space-between; }
-/* day-by-day history grid */
-.gridbar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 8px 0; }
-.gridbar label { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--tx2); }
-.gridbar input[type=date] { min-height: 40px; } .gridbar .gtog input { flex: none; width: 20px; height: 20px; min-height: 0; padding: 0; }   /* not .tog: that is the on/off switch */
-.hgrid { overflow-x: auto; margin: 0 -4px; }
-.hrow { display: grid; grid-template-columns: 44px repeat(4, minmax(58px, 1fr)); gap: 4px; align-items: center; padding: 2px 4px; min-width: 300px; }
-.hgrid.macros .hrow { grid-template-columns: 44px repeat(7, minmax(58px, 1fr)); min-width: 520px; }
-.hrow.hhead span { font-size: 11px; font-weight: 700; color: var(--tx3); text-align: right; } .hrow.hhead span:first-child { text-align: left; }
-.hrow .hday { font-size: 13px; font-weight: 700; line-height: 1.1; display: flex; flex-direction: column; } .hrow .hday small { font-size: 11px; color: var(--tx3); font-weight: 600; }
-.hrow input { min-height: 40px; padding: 4px 6px; text-align: right; font-size: 16px; width: 100%; min-width: 0; border-radius: 10px; }
-.hrow input:disabled { background: var(--card2); color: var(--tx3); }
-#hg .actions { flex-wrap: wrap; } #hg #hg-save { flex: 1 0 100%; min-height: 44px; }
 
 /* ---------- training plans ---------- */
 .lvl { display: block; width: 100%; text-align: left; padding: 14px 16px; margin-top: 10px; border: 0; border-radius: var(--r2); background: var(--card);
@@ -1004,78 +846,6 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .note-k[data-kind="report"] { color: var(--alert); }
 .checks.one { grid-template-columns: 1fr; }
 
-/* ---------- AI coach on food (2026-10-11) ---------- */
-.coach-card h2 svg, .coach-card .linkbtn svg, .coach-card .primary svg { width: 18px; height: 18px; }
-.ai-head { font-size: 17px; font-weight: 650; color: var(--tx); line-height: 1.4; letter-spacing: -.01em; }
-.card .ai-head { color: var(--tx); }
-.ai-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.ai-list li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 10px; align-items: start; color: var(--tx); line-height: 1.45; }
-.ai-list li svg { width: 18px; height: 18px; margin-top: 2px; color: var(--prog); }
-.ai-list li b { font-weight: 650; }
-.coach-card .callout { margin: 14px 0 0; }
-.coach-card > .linkbtn { padding: 0; margin-top: 6px; }
-.coach-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.coach-heading > div { min-width: 0; }
-.coach-heading h2 { font-size: 18px; font-weight: 700; letter-spacing: -.015em; }
-.coach-heading .linkbtn { flex: none; min-width: 52px; min-height: 44px; }
-.coach-body { margin-top: 8px; }
-.coach-body p + p { margin-top: 12px; }
-.coach-body > .linkbtn { padding: 0; margin-top: 6px; }
-.coach-body .review-line { margin: 0; }
-
-/* ---------- cooking mode (cook.js) ---------- */
-
-.shell h1.dish-name { margin: 2px 2px 14px; font-size: 24px; letter-spacing: -.025em; overflow-wrap: anywhere; }
-.dish-name ~ .sec-head { font-size: 17px; margin-top: 20px; }
-.cook-steps { list-style: none; margin: 0 0 12px; padding: 6px 16px; }
-.cook-steps li { display: flex; gap: 12px; align-items: flex-start; padding: 9px 0; color: var(--tx3); }
-.cook-steps li + li { border-top: 1px solid var(--line); }
-.cook-steps li > div { display: grid; gap: 1px; min-width: 0; }
-.cook-steps b { font-size: 15px; font-weight: 650; } .cook-steps small { font-size: 13px; line-height: 1.35; }
-.cook-steps .stepn { background: var(--card2); color: var(--tx3); margin-top: 1px; } .cook-steps .stepn svg { width: 15px; height: 15px; stroke-width: 2.6; }
-.cook-steps li.now { color: var(--tx2); } .cook-steps li.now b { color: var(--tx); }
-.cook-steps li.now .stepn { background: var(--btn); color: var(--onbtn); }
-.cook-steps li.done .stepn { background: var(--prog2); color: var(--prog); } .cook-steps li.done b { color: var(--tx2); }
-
-.nut { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 14px 0; margin-bottom: 8px; border-bottom: 1px solid var(--line); text-align: center; }
-.nut b { display: block; font: 700 18px var(--numf); }
-.nut small { display: block; color: var(--tx3); font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; }
-
-.match { margin: 12px 0 4px; padding: 12px; border-radius: var(--r2); background: var(--card2); }
-.match .mres .fe:first-of-type, .match .ghead + .fe { border-top: 0; }
-.match .ghead { margin-top: 10px; } .match .qadd { width: 36px; height: 36px; }
-.gfield { position: relative; display: block; } .gfield input { padding-right: 40px; font-size: 18px; }
-.gfield > span { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--tx3); font-weight: 600; pointer-events: none; }
-.ing-list { margin-top: 6px; }
-
-.portion-out:empty { display: none; } .portion-out .nut { padding: 6px 0; margin: 0; border-bottom: 0; }
-.portion-out .warn-text { display: block; font-size: 14px; text-align: center; }
-
-/* 2026-10-12: tighter cooking screen. One big button (Log my portion); everything else is a row or a small pill */
-.card.tap.share-row { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 12px; padding: 12px 14px 12px 16px; border: 0; text-align: left; font: inherit; }
-.share-row .grow { flex: 1; min-width: 0; display: grid; gap: 1px; } .share-row b { font-size: 15px; font-weight: 650; } .share-row small { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.share-row > svg { width: 18px; height: 18px; color: var(--tx3); flex: none; }
-.share-row .ri { background: var(--accent2); color: var(--accent); }
-.share-row .avs { display: flex; padding-right: 10px; } .share-row .avs .av { width: 30px; height: 30px; font-size: 12px; margin-right: -10px; box-shadow: 0 0 0 2px var(--card); }
-.cc-ask { display: flex; align-items: center; gap: 12px; } .cc-ask .grow { flex: 1; min-width: 0; display: grid; gap: 1px; }
-.cc-ask b { font-size: 15px; font-weight: 650; } .cc-ask small { font-size: 13px; }
-.ghost.tint { background: var(--accent2); color: var(--accent); } .ghost.sm svg { width: 16px; height: 16px; }
-.dish-name ~ .card:not(.cook-steps) { padding: 14px 16px; }
-.match .gfield input { min-height: 40px; padding-block: 6px; font-size: 16px; }
-/* 2026-10-12, round three: the name edited in place, a one-line weight, one serving vs a portion, the log sheet stepper */
-.dish-name-in { display: block; width: 100%; margin: 2px 0 14px; padding: 6px 10px; min-height: 48px; border-radius: 12px; border: 1px solid transparent;
-  background: transparent; font: 800 26px/1.15 var(--font); letter-spacing: -.03em; color: var(--tx); resize: none; overflow: hidden; }
-.dish-name-in::placeholder { color: var(--tx3); font-weight: 700; }
-.dish-name-in:hover { border-color: var(--line); } .dish-name-in:focus { background: var(--card); }
-.dish-name-in ~ .sec-head { font-size: 17px; margin-top: 20px; } .dish-name-in ~ .card:not(.cook-steps) { padding: 14px 16px; }
-
-.wt-reset { display: block; margin: 6px 0 0 auto; min-height: 32px; padding: 0; font-size: 14px; }
-.stepper { display: flex; align-items: center; justify-content: center; gap: 22px; padding: 6px 0; }
-.stepper span { min-width: 92px; text-align: center; } .stepper b { display: block; font: 800 40px/1 var(--numf); }
-.stepper small { display: block; color: var(--tx3); font-size: 13px; font-weight: 600; margin-top: 4px; }
-.sheet .stepper .icon-btn { width: 48px; height: 48px; } .sheet .stepper .icon-btn svg { width: 22px; height: 22px; }
-
-#dl .actions > #dl-edit { flex: 0 0 auto; padding: 0 16px; } #dl-edit svg { width: 16px; height: 16px; margin-right: 6px; }
 
 /* ---------- admin: invites + beta ---------- */
 .beta-req .row { align-items: flex-start; padding: 12px 0; }
@@ -1113,115 +883,6 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .seg.dtabs button { flex: 1 0 auto; min-width: 44px; min-height: 36px; padding: 5px 4px; font-size: max(15px,.9375rem); white-space: nowrap; letter-spacing: -.1px; }
 .dpane > .card:last-child { margin-bottom: 12px; }
 
-/* ---------- cooking: type what went in, like a chat (2026-10-12) ---------- */
-.cchat { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
-.cchat:empty { display: none; }
-.cmsg { margin: 0; max-width: 86%; padding: 9px 13px; border-radius: 18px; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
-.cmsg.me { align-self: flex-end; background: var(--btn); color: var(--onbtn); border-bottom-right-radius: 6px; }
-.cmsg.ai { align-self: flex-start; background: var(--card2); color: var(--tx); border-bottom-left-radius: 6px; }
-.cmsg.ai .linkbtn { display: block; margin-top: 4px; padding: 0; min-height: 0; font-size: 13.5px; }
-.cmsg .dots { display: inline-flex; gap: 4px; padding: 4px 0; }
-.cmsg .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--tx3); animation: cdot 1s infinite ease-in-out; }
-.cmsg .dots i:nth-child(2) { animation-delay: .15s; } .cmsg .dots i:nth-child(3) { animation-delay: .3s; }
-@keyframes cdot { 0%, 80%, 100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
-@media (prefers-reduced-motion: reduce) { .cmsg .dots i { animation: none; } }
-
-/* cooking, round two (2026-10-12): the meal it's for, a portion as a share, save-as-recipe switch, Finish, saved recipes */
-
-.share-line { display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--tx2); flex-wrap: wrap; }
-.share-line input { width: 54px; min-height: 40px; padding: 6px 8px; text-align: center; font-size: 16px; }
-.portion-out .small { display: block; text-align: center; margin-top: 6px; }
-.tog { flex: none; width: 46px; height: 28px; border-radius: 999px; background: var(--card2); box-shadow: inset 0 0 0 1px var(--line); position: relative; transition: background .2s; }
-.tog::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform .2s; }
-[aria-checked="true"] > .tog { background: var(--accent); box-shadow: none; } [aria-checked="true"] > .tog::after { transform: translateX(18px); }
-.finish { margin: 18px 0 8px; text-align: center; } .finish .ghost.wide, .finish .primary.wide { width: 100%; min-height: 46px; } .finish p { margin-top: 8px; }
-.finish .ghost svg, .finish .primary svg { width: 18px; height: 18px; margin-right: 6px; vertical-align: -3px; }
-#fn .check { align-items: flex-start; } #fn .check > span { display: grid; gap: 2px; } #fn .check small { font-weight: 500; font-size: 13px; }
-#fn .check input { margin-top: 2px; } #fn p.small svg { width: 16px; height: 16px; vertical-align: -3px; color: var(--prog); }
-#fn .checks { display: grid; grid-template-columns: 1fr; gap: 4px; margin-bottom: 8px; }
-/* 2026-10-12: Create a dish in Add food; swipe an ingredient left to remove it; Need help? on a dish */
-.way.wide { grid-column: 1 / -1; min-height: 0; display: grid; grid-template-columns: auto 1fr; column-gap: 12px; align-items: center; }
-.way.wide svg { grid-row: span 2; } .way.wide b, .way.wide small { text-align: left; }
-.swipe { position: relative; overflow: hidden; } .swipe + .swipe { border-top: 1px solid var(--line); }
-.swipe .fe { border-top: 0; touch-action: pan-y; } .swipe .fe .r { transition: opacity .2s ease; }
-.swipe.open .fe > div:first-child { padding-right: 48px; }   /* a long name wraps clear of the Remove button */
-.sw-del { position: absolute; z-index: 2; top: 4px; right: 0; bottom: 4px; width: 0; overflow: hidden; white-space: nowrap; display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 2px; padding: 0; border: 0; border-radius: 10px; background: var(--alert); color: var(--color-on-error); font-weight: 650; font-size: 13px; transition: width .2s ease; }
-.sw-del svg { width: 18px; height: 18px; }
-
-.sheet .cook-steps { margin: 0; }
-/* 2026-10-12, round 2: pencil to rename a dish; Add food's day as a short label; four Add food tabs */
-.dish-name { display: flex; align-items: center; gap: 8px; }
-
-.sheet .seg.wide:has(> :nth-child(4):last-child) { display: flex; } .sheet .seg.wide:has(> :nth-child(4):last-child) button { flex: 1 1 auto; white-space: nowrap; }
-/* 2026-10-12: add an ingredient from a photo of its nutrition label */
-
-#lb .share-line .linkbtn { padding: 0; min-height: 36px; }
-
-/* ---------- dish page, round four (2026-10-12): laid out like a chat ---------- */
-.top .primary.sm { min-height: 44px; padding: 0 16px; border-radius: 999px; font-size: 15px; }
-.shell .dish-name-in { font-size: 22px; min-height: 40px; margin: 0 0 4px; padding: 4px 8px; }
-.dish-sum { margin: 0 10px 14px; font-size: 14px; color: var(--tx2); line-height: 1.5; } .dish-sum b { color: var(--tx); font-weight: 750; }
-.ing-card { padding: 4px 14px !important; }
-.ig { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: baseline; gap: 10px; width: 100%; padding: 11px 0; border: 0; background: none;
-  color: var(--tx); font: inherit; text-align: left; touch-action: pan-y; }
-.ig-n { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ig-g { color: var(--tx3); font-size: 13px; white-space: nowrap; } .ig b { font-size: 15px; min-width: 36px; text-align: right; transition: opacity .2s ease; }
-.swipe.open .ig { padding-right: 100px; }
-.measure { padding: 6px 14px !important; } .m-row { display: flex; align-items: center; gap: 12px; min-height: 48px; }
-.m-row + .m-row { border-top: 1px solid var(--line); } .m-lab { flex: 1; font-weight: 650; font-size: 15px; }
-.measure .m-seg { margin: 8px 0 4px; } .measure .m-seg button { min-height: 34px; font-size: 14px; white-space: nowrap; }
-.measure .m-seg + .m-row { border-top: 0; }
-.m-row .gfield { width: 120px; flex: none; } .m-row .gfield input { min-height: 38px; padding: 6px 32px 6px 12px; text-align: right; font: 700 16px var(--numf);
-  background: var(--card2); border-color: transparent; } .m-row .gfield > span { right: 12px; }
-
-.measure .wt-reset { margin: 0 0 8px auto; }
-.dish-name-in ~ .cchat { margin-top: 6px; }
-.recipe-choice-list { display:grid; gap:8px; }
-.recipe-choice-row { display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; min-height:44px; padding:0; border:0; background:none; color:var(--tx); text-align:left; font-size:16px; }
-.recipe-choice-row svg { width:16px; height:16px; flex:none; color:var(--tx3); }
-.recipe-choice-row:active,.ig-recipe-open:active,.ig-recipe-amount:active { opacity:.7; }
-.recipe-amount { display:grid; gap:8px; font-size:16px; }
-.recipe-amount-name { margin:0; font-size:16px; font-weight:650; overflow-wrap:anywhere; }
-.recipe-amount-quick { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
-.recipe-amount-quick button { min-width:0; min-height:44px; padding:4px; border:0; border-radius:8px; background:none; color:var(--tx); font-size:16px; font-weight:650; }
-.recipe-amount-quick button:disabled { opacity:.45; }
-#recipe-amount-form { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:center; }
-#recipe-amount-form > label { grid-column:1; align-self:center; color:var(--tx); font-size:16px; }
-#recipe-amount-form .gfield { width:116px; }
-#recipe-amount-form .gfield input { min-height:44px; padding:6px 30px 6px 10px; text-align:right; font:700 16px var(--numf); }
-#recipe-amount-form .gfield > span { right:10px; }
-#recipe-amount-question,#recipe-amount-error,#recipe-amount-form .actions { grid-column:1/-1; margin:0; }
-.recipe-source-readonly { display:grid; gap:8px; }
-.recipe-source-readonly > p { margin:0; }
-.recipe-source-readonly .ing-card { margin:0; }
-.recipe-source-readonly .ingredient-heading { display:grid; grid-template-columns:minmax(0,1fr) minmax(36px,auto); align-items:baseline; gap:10px; }
-.recipe-source-readonly .ingredient-heading > :last-child { text-align:right; }
-.recipe-source-readonly .ig { grid-template-columns:minmax(0,1fr) minmax(36px,auto); }
-.ig-recipe-open { display:flex; align-items:center; gap:8px; min-width:0; min-height:44px; padding:0; border:0; background:none; color:var(--tx); text-align:left; }
-.ig-recipe-open svg { width:16px; height:16px; flex:none; color:var(--tx2); }
-.ig-recipe-open .ig-n { min-width:0; }
-.ig-recipe-amount { min-height:44px; padding:0 4px; border:0; background:none; color:var(--tx3); font-size:13px; white-space:nowrap; }
-.composer { position: sticky; bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + 10px); z-index: 6; display: flex; align-items: center; gap: 8px;
-  margin: 8px -4px 0; padding: 6px; border-radius: 999px; background: var(--card); box-shadow: var(--lift); }
-.composer input { flex: 1; min-width: 0; min-height: 40px; border: 0; background: transparent; padding: 0 6px; box-shadow: none !important; }
-.composer .icon-btn { width: 40px; height: 40px; flex: none; background: var(--card2); box-shadow: none; }
-.composer .send { background: var(--btn); color: var(--onbtn); } .composer .send svg { stroke-width: 2.4; }
-.plus-menu .ghost { display: flex; align-items: center; justify-content: flex-start; gap: 12px; min-height: 50px; padding: 0 16px; text-align: left; }
-.plus-menu svg { width: 20px; height: 20px; color: var(--accent); }
-.mealact .linkbtn svg { width: 15px; height: 15px; margin-right: 4px; vertical-align: -2px; }
-.mm-list { margin-bottom: 12px; } .mm-list .fe:first-child { border-top: 0; } .mm-list .r small svg { width: 12px; height: 12px; vertical-align: -1px; }
-
-/* how much of a food (2026-10-12): servings with - and +, units as small buttons */
-.am-sub { margin: -8px 0 4px; color: var(--tx2); font-size: 15px; }
-.am-amt { display: flex; align-items: center; justify-content: center; gap: 18px; padding: 4px 0; }
-.am-amt label { display: grid; justify-items: center; gap: 2px; }
-.am-amt input { width: 110px; text-align: center; font: 800 32px/1.1 var(--numf); min-height: 52px; padding: 4px 8px; background: var(--card); }
-.am-amt small { color: var(--tx3); font-size: 13px; font-weight: 650; }
-.sheet .am-amt .icon-btn { width: 46px; height: 46px; } .sheet .am-amt .icon-btn svg { width: 20px; height: 20px; }
-.sheet .seg.wide.am-units { display: grid; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); } .am-units button { min-height: 34px; width: 100%; }
-.m-note { margin: 10px 2px 6px; }
-.ghead-act { display: flex; align-items: center; justify-content: space-between; } .ghead-act .linkbtn { min-height: 32px; padding: 0; font-size: 13px; text-transform: none; letter-spacing: 0; }
 
 /* ---------- photos (2026-10-12): activity photos, who sent cheers ---------- */
 .ph-strip { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 14px -16px 0; padding: 0 16px; }
@@ -1259,78 +920,6 @@ body.ph-open { overflow: hidden; }
 .comment .c-acts .linkbtn { min-height: 32px; padding: 0; font-size: 13px; }
 .comment .c-hd b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; } .comment .c-hd small { white-space: nowrap; }
 :is(.tcard,.nutrition-secondary) .tc-bal .brow small { display: block; text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 500; }
-/* Described food: conversation rows shared by full-page logging and previews. */
-.ways.three .way b { text-align: center; line-height: 1.15; }
-.ql-img { display: block; max-width: 180px; max-height: 180px; border-radius: 12px; margin: -3px -7px; }
-.cmsg.ai i { font-style: normal; color: var(--tx2); }
-
-/* ---------- Lifting (2026-10-13, lift.js) ---------- */
-.lift-clock { display: flex; flex-wrap: wrap; gap: 8px 22px; padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--tx3); text-transform: none; letter-spacing: 0; }
-.lift-clock b { font: 600 20px/1.15 var(--numf); letter-spacing: -.02em; color: var(--tx); text-transform: none; margin-left: 6px; }
-.lift-save { min-width: 0; white-space: nowrap; }
-.lift-ex { padding-bottom: 12px; }
-.lift-hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -4px 0 2px; }
-.lift-name { min-width: 0; overflow-wrap: anywhere; font-size: 18px; font-weight: 750; color: var(--tx); letter-spacing: -.015em; min-height: 40px; display: flex; align-items: center; }
-.lift-hd .icon-btn { background: var(--card2); box-shadow: none; flex: none; }
-.lift-note { margin: 0 0 8px; padding: 6px 10px; border-radius: 10px; background: var(--card2); color: var(--tx2); }
-/* one row per set (2026-10-13): set number | the previous session's set | boxes | tick; a done set's row turns green */
-.lift-sets { display: grid; gap: 6px; margin-top: 6px; }
-.lift-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px; margin: 0 -4px; border-radius: 14px; transition: background-color .15s; }
-.lift-row > * { flex: 1 1 0; min-width: 0; }
-.lift-row > .lift-n, .lift-row > .lh-n { flex: 0 0 44px; } .lift-row > .lift-tick, .lift-row > .lh-tick { flex: 0 0 44px; }
-.lift-row > .lift-prev, .lift-row > .lh-prev { flex: 1 0 44px; }
-.lift-row > .lift-in[data-k="kg"], .lift-row > .lh-kg { flex: 1 0 78px; }
-.lift-row > .lift-in[data-k="reps"], .lift-row > .lh-reps { flex: 1 0 64px; }
-.lift-row > .lift-in[data-k="secs"], .lift-row > .lh-secs { flex: 1 0 78px; }
-.lift-row.done { background: color-mix(in srgb, var(--prog) 13%, transparent); }
-.lift-row.lh { padding-top: 0; padding-bottom: 0; }
-.lift-row.lh span { font-size: 13px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--tx3); text-align: center; white-space: normal; overflow-wrap: anywhere; line-height: 1.25; }
-.lift-row.lh .lh-n { text-align: left; }
-.lift-prev { min-height: 44px; height: auto; border: 0; border-radius: 12px; background: none; color: var(--tx3); font-size: 13.5px; font-weight: 600; white-space: normal; overflow-wrap: anywhere; line-height: 1.25; padding: 4px 0; letter-spacing: -.01em; }
-.lift-prev-label { display: none; }
-@media (max-width: 370px) {
-  .lift-sets.c5.has-prev .lh-prev { display: none; }
-  .lift-sets.c5.has-prev .lift-prev { order: 2; flex: 1 0 100%; display: flex; align-items: center; gap: 8px; text-align: left; }
-  .lift-sets.c5.has-prev .lift-prev-label { display: inline; }
-  .lift-sets.c5.has-prev .lift-pr { order: 3; }
-}
-button.lift-prev:active { background: var(--card2); }
-.lift-prev.none { display: grid; place-items: center; }
-.lift-hint { margin: 8px 0 0; }
-.lift-n { height: 44px; border: 0; border-radius: 12px; background: var(--card2); font: 700 15px var(--numf); color: var(--tx2); }
-.lift-n.wu { color: var(--warn); }
-.lift-in { text-align: center; font: 600 18px var(--numf); min-height: 44px; padding: 6px 4px; background: var(--card2); border-color: transparent; }
-.lift-in::placeholder { color: var(--tx3); opacity: 1; font-weight: 500; }
-.lift-tick { height: 44px; border: 2px solid var(--line); border-radius: 12px; background: transparent; color: transparent; display: grid; place-items: center;
-  transition: background-color .15s, border-color .15s, transform .1s; }
-.lift-tick svg { width: 22px; height: 22px; stroke-width: 3; }
-.lift-tick[aria-pressed="true"] { background: var(--prog); border-color: var(--prog); color: var(--ontx); }
-.lift-tick:active { transform: scale(.92); }
-.lift-row > .lift-pr { flex: 1 0 100%; padding-left: 44px; }
-.lift-pr { display: inline-flex; align-items: center; gap: 5px; margin: -2px 0 2px; font-size: 12.5px; font-weight: 700;
-  color: color-mix(in srgb, var(--gold) 55%, var(--tx)); }
-.lift-pr svg { width: 14px; height: 14px; }
-.lift-addset { margin-top: 10px; min-height: 40px; }
-.lift-add { min-height: 48px; margin-top: 4px; }
-.lift-foot { margin: 12px 0 0; }
-.lift-now { display: flex; align-items: center; gap: 12px; } .lift-now .grow { flex: 1; display: grid; }
-.post-lifts { margin: 10px 0 0; font-size: 13.5px; color: var(--tx2); white-space: normal; overflow-wrap: anywhere; }
-.lift-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
-.lift-card-head h2 { margin: 0; }
-.ls-row .grow small { font-size: 14px; } .ls-row .grow small.num { color: var(--tx); }
-.lv-best { display: grid; text-align: right; flex: none; } .lv-best b { font: 700 17px var(--numf); }
-.lv-names { white-space: normal; overflow-wrap: anywhere; }
-.lx-head h1 { font-size: 26px; letter-spacing: -.02em; margin: 2px 0 4px; }
-.lx-note { display: block; width: 100%; text-align: left; margin-top: 12px; padding: 10px 12px; border: 0; border-radius: 12px; background: var(--card2); color: var(--tx2); font-size: 14px; }
-.lx-note.empty-note { color: var(--accent); font-weight: 600; }
-.lx-rec b { font: 700 19px/1.2 var(--numf); white-space: nowrap; } .lx-rec b i { font: 500 12px var(--font); font-style: normal; color: var(--tx3); margin-left: 3px; }
-.dotline { fill: none; stroke: var(--workout); stroke-width: 2; opacity: .55; }
-.sl-hint { margin: -2px 0 6px; }
-.xp-new .grow span { color: var(--accent); font-weight: 650; }
-.xp-plus { width: 20px; height: 20px; color: var(--tx3); flex: none; }
-#xp-q { margin-bottom: 4px; }
-.pick-list .row-link.danger { color: var(--alert); }
-
 
 /* People and social controls: directory identity links never contain activity links. */
 .person-link, .post-person { display: flex; align-items: center; gap: 10px; color: inherit; min-width: 0; flex: 1; min-height: 44px; }
@@ -1501,56 +1090,6 @@ html.keyboard-open nav.tabs { display: none; }
 .view-nav a[aria-current="page"] { color: var(--accent); border-color: var(--accent); }
 .view-nav .range-btn { flex: none; margin-left: auto; background: transparent; padding-inline: 8px; min-height: var(--target-min); }
 .pbar:empty { display: none; }
-/* Progress home (30 October): filters stay with their card, discovery stays visible. */
-.progress-heading .progress-back { flex:none; margin-right:0; }
-.progress-heading h1 { min-width:0; }
-.progress-filters { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
-.progress-filters .range-btn { min-height:44px; padding:6px 8px; font-size:max(15px,.9375rem); }
-.progress-filters .rng { margin:0; }
-.progress-filters .me-period { margin:0 0 0 auto; }
-.progress-filters .me-period button { min-width:44px; min-height:44px; padding:0 5px; font-size:max(15px,.9375rem); }
-.progress-totals-title { margin:0; display:flex; align-items:center; min-height:44px; font-size:var(--text-app-card-title); font-weight:700; color:var(--tx); }
-.progress-totals-title svg { width:16px; height:16px; }
-.progress-pair { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
-.progress-pair .card { margin-bottom:0; }
-.progress-summary { display:block; min-height:148px; color:var(--tx); }
-.progress-summary h2 { justify-content:flex-start; display:flex; align-items:center; gap:6px;flex-wrap:wrap; }
-.progress-summary h2 svg { width:18px; height:18px; flex:none; }
-.progress-summary small { display:block; margin-top:4px; }
-.progress-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-bottom:16px; }
-.progress-grid .progress-tile { margin:0; padding:12px; min-height:154px; color:var(--tx); display:flex; flex-direction:column; gap:10px; }
-.progress-tile-name { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
-.progress-tile-name svg { width:20px; height:20px; flex:none; }
-.progress-tile-name b { flex-basis:100%; font-size:.875rem; line-height:1.3; }
-.progress-tile .small { font-size:.8125rem; line-height:1.4; overflow-wrap:anywhere; }
-.progress-new { display:inline-flex; align-items:center; gap:4px; font-size:.625rem; color:var(--tx3); }
-.progress-new.seen { visibility:hidden; }
-.progress-new::before { content:''; width:5px; height:5px; border-radius:50%; background:var(--accent); }
-
-.progress-home-totals #m-table { margin-top:8px; max-width:100%; overflow-x:auto; }
-.progress-home-totals .totals-display { display:block; min-width:0; }
-.progress-totals-header { display:flex; align-items:center; gap:6px; width:100%; min-width:0; }
-.progress-totals-header .progress-totals-title { flex:none; }
-.progress-totals-header > .range-btn { flex:none; min-width:0; }
-.totals-view-toggle { display:flex; align-items:center; gap:8px; flex:none; margin-left:auto; }
-.totals-view-toggle button { min-width:44px; min-height:44px; padding:0 4px; border:0; border-radius:0; background:transparent; box-shadow:none; color:var(--tx2); font-size:max(15px,.9375rem); font-weight:550; white-space:nowrap; }
-.totals-view-toggle button[aria-pressed="true"] { color:var(--tx); font-weight:700; text-decoration:underline; text-decoration-color:var(--tx3); text-underline-offset:4px; }
-.progress-food-summary { display:block; color:var(--tx); }
-.progress-food-options .view-nav { margin:0; }
-.progress-food-options .pbar { margin:0; padding:8px 0 0; }
-.progress-map-card .map { margin-top:8px; }
-@media(max-width:370px) { .progress-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-/* Explore your progress / Explore your food (#764): plain rows with an icon, the name, one line of detail, a trailing
-   chevron and a hairline; no tile boxes. Track tools and the Activity discovery keep their tiles for now. */
-.progress-grid.explore-list { display:flex; flex-direction:column; gap:8px; margin:0 0 16px; }   /* 8px between rows, like the insights links */
-.progress-grid.explore-list .progress-tile { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; column-gap:12px; row-gap:2px; margin:0; padding:10px 0; min-height:56px;
-  background:none; border:0; border-bottom:1px solid var(--line); border-radius:0; box-shadow:none; color:var(--tx); }
-.progress-grid.explore-list .progress-tile::after { content:"›" / ""; grid-column:2; grid-row:1 / span 2; color:var(--tx3); font-size:22px; line-height:1; }
-.progress-grid.explore-list .progress-tile-name { grid-column:1; display:flex; flex-wrap:nowrap; align-items:center; gap:10px; min-width:0; }
-.progress-grid.explore-list .progress-tile-name svg { display:block; width:20px; height:20px; flex:none; margin:0; color:var(--tx2); }
-.progress-grid.explore-list .progress-tile-name b { display:block; flex:0 1 auto; min-width:0; font-size:max(15px,.9375rem); font-weight:600; line-height:1.3; overflow-wrap:anywhere; }
-.progress-grid.explore-list .progress-tile-name .progress-new { margin:0; }
-.progress-grid.explore-list .progress-tile .small { grid-column:1; padding-left:30px; font-size:.8125rem; line-height:1.4; overflow-wrap:anywhere; display:block; -webkit-line-clamp:unset; overflow:visible; }
 
 .tab-n, .bell-dot { background: var(--btn); color: var(--onbtn); }
 
@@ -1567,36 +1106,6 @@ html.keyboard-open nav.tabs { display: none; }
 /* A personal greeting and one-tap Kit review keep Today concise. */
 #t-review { flex-shrink: 0; }
 
-/* Issue 93: quieter daily balance, explicit library edits, full-page food entry. */
-.food-library-link { text-align: center; margin: 4px 0 16px; }
-.food-library-link a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 8px; font-weight: 600; }
-.food-library-link a svg { width: 18px; height: 18px; flex: none; }
-.food-library-link a svg:last-child { width: 14px; height: 14px; }
-:is(.tcard,.nutrition-secondary) .tc-bal:not([open]) > summary .day-balance-detail { display: none; }
-.meal-library-row > .ghost { flex: none; min-height: 44px; }
-
-
-/* Food actions and logged-item controls: centered targets, clear boundaries. */
-.food-ways { margin: 16px 0; }
-.food-ways .way { align-items: center; justify-content: center; text-align: center;
-  min-height: 112px; gap: 10px; border: 1px solid var(--accent); background: var(--card2); box-shadow: none; }
-.food-ways .way b { width: 100%; min-height: 2.6em; display: flex; align-items: center; justify-content: center; line-height: 1.3; white-space: normal; }
-.food-ways .way svg { flex: none; }
-.logged-food { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
-.logged-food:last-child { border-bottom: 0; }
-.logged-food > .fe { flex: 1; min-width: 0; border: 0; padding-right: 0; }
-.logged-food .fe > div:first-child { min-width: 0; }
-.logged-food .fe b { display: block; white-space: normal; overflow-wrap: anywhere; }
-.logged-food .remove-food { flex: none; display: flex; align-items: center; gap: 3px; min-height: 44px; font-size: 12px; }
-.remove-food svg { width: 15px; height: 15px; }
-.entry-context b, .entry-context small { display: block; overflow-wrap: anywhere; }
-.entry-more { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
-.entry-more .linkbtn { display: flex; align-items: center; gap: 4px; min-height: 44px; }
-.entry-more svg { width: 16px; height: 16px; }
-.mm-name { margin: 0; }
-.entry-move { margin: 8px 0; }
-.entry-move summary { min-height: 44px; padding: 10px 0; cursor: pointer; color: var(--tx2); }
-
 /* Contextual Kit: the visible mark stays small, the touch target stays comfortable. */
 /* Kit's button: the sparkle plus the word "Kit" in a pill, so it doesn't read as a stray star (2026-10-16, Ben) */
 .kit-help { flex: 0 0 auto; width: auto; min-width: 44px; min-height: 44px; padding: 0 14px 0 11px; gap: 5px; display: inline-flex; align-items: center;
@@ -1610,20 +1119,6 @@ html.keyboard-open nav.tabs { display: none; }
 .kit-help::after { content: 'Kit'; }
 .kit-help svg { width: 18px; height: 18px; color: var(--accent); }
 
-/* Food photos: describe before analysis; keep estimates readable at phone width. */
-.photo-description { display:block; margin:16px 0; font-weight:600; }
-.photo-description textarea { display:block; width:100%; margin-top:8px; font-size:max(16px,1rem); }
-.photo-itemize { font-size:1rem; }
-.photo-itemize small { display:block; margin-top:4px; font-weight:400; }
-.photo-breakdown { margin:16px 0; }
-.photo-breakdown > div { display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:8px 0; }
-.photo-breakdown dt { min-width:0; overflow-wrap:anywhere; }
-.photo-breakdown dt small { display:block; color:var(--tx3); }
-.photo-breakdown dd { flex:none; margin:0; }
-.photo-breakdown-total { border-top:1px solid var(--line); font-weight:700; }
-#nt-coach { display: flex; justify-content: flex-end; margin-top: 12px; }
-
-.photo-selection{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin-bottom:18px}.photo-selection img{width:100%;height:110px;object-fit:cover}.photo-selection button{min-height:44px;width:100%}
 /* Keep actions out of the loading layout until the conditional cards above them have their first result. */
 [data-home-food-loading] #t-food-lead, [data-home-food-loading] #t-week { display:none; }
 [data-home-loading] :is(#t-plan,#t-week,#t-content), [data-home-loading] > :is(.me-tools,.me-settings,#me-challenges,#me-milestones,#t-setup) { display:none; }
@@ -1698,147 +1193,6 @@ html.keyboard-open nav.tabs { display: none; }
 .mileage-day small { font-size: 10px; text-align: center; line-height: 1.35; }
 .mileage-column { height:128px; width:100%; max-width:32px; display:block; overflow:visible; }
 
-@media (min-width: 700px) { .track-clock { font-size: 68px; } .track-map { height: 320px; } }
-.track-question { font-family: var(--font-display); font-weight: 700; line-height: 1.2; }
-.track-session > h2 { font-family: var(--font-display); }
-#track-content .track-sports button { transition: background-color .15s, color .15s; }
-@media (prefers-reduced-motion: reduce) { #track-content .track-sports button { transition: none; } }
-.me-agenda > h2, .profile-mileage h2 { font-family: var(--font-display); font-size: var(--text-app-section); font-weight: 700; }
-.mileage-day small { font-size: 11px; }
-
-#track-setup > p { margin: 0; }
-
-/* Track v2: map-first, all live controls in the Track destination; seven Sunday-aligned profile bars. */
-.seven-bars { gap:4px; align-items:stretch; }
-.seven-bars .mileage-column { height:128px; max-width:32px; }
-.seven-bars .mileage-day small { font-size: .625rem; line-height: 1.5; max-width: 100%; overflow-wrap: anywhere; }
-.seven-bars .mileage-day { padding: 4px 0; border: 0; border-radius: 4px; background: transparent; color: var(--tx3); }
-.seven-bars .mileage-day.is-inspected { background: transparent; box-shadow: none; }
-.seven-bars .mileage-day.is-inspected small { color:var(--tx3); font-weight:600; text-decoration:underline; text-underline-offset:3px; }
-.seven-bars .mileage-day.is-highlighted .mileage-value { fill:var(--tx); font-weight:600; visibility:visible; }
-.seven-bars .current-day small { color: var(--tx3); font-weight: 600; }
-.mileage-range { text-align: right; margin: 8px 0 0; }
-.mileage-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-.mileage-heading h2 { margin: 0; font-family: var(--font-display); font-size: var(--text-app-card-title); font-weight: 700; letter-spacing: -.015em; }
-.mileage-toggle { display: inline-flex; align-items: center; gap: 2px; }
-.mileage-toggle button { min-height: 44px; min-width: 44px; padding: 0 6px; border: 0; background: transparent; color: var(--tx2); font-size: .6875rem; }
-.mileage-toggle button[aria-pressed="true"] { color: var(--accent); font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
-.mileage-toggle button:disabled { opacity: .5; cursor: default; }
-.units-toggle { gap: 12px; } .units-toggle button { padding: 0 2px; font-size: max(15px,.9375rem); }
-.seven-bars .future-day i { background: var(--line); }
-
-.track-ready { gap: 12px; }
-.track-ready select { width: 100%; min-height: 50px; font-size: 17px; }
-.track-quick { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 3.2rem), 1fr)); gap: 6px; }
-.track-quick button { display: grid; justify-items: center; align-content: center; gap: 4px; min-height: 64px; padding: 8px 2px; border: 1px solid var(--line);
-  border-radius: 14px; background: var(--card); color: var(--tx); font: inherit; font-size: .8rem; font-weight: 600; min-width: 0; white-space: normal; text-align: center; line-height: 1.15; cursor: pointer; }   /* long names (Treadmill run) wrap instead of being clipped */
-.track-quick button svg { width: 22px; height: 22px; }
-.track-quick button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent2); color: var(--accent); }
-.track-quick button:active { transform: scale(.96); }
-.track-other > summary { display:flex; align-items:center; min-height:44px; gap:6px; color:var(--accent); font-size:.95rem; cursor:pointer; list-style:none; }
-.track-other > summary svg { width:16px; height:16px; }
-.track-other[open] > summary { margin-bottom:8px; }
-.track-other > label { padding-bottom:4px; }
-.track-ready-map-wrap { position: relative; z-index: 0; }
-.track-ready-map, .live-record-map { height: clamp(240px, 39dvh, 380px); border-radius: 16px; overflow: hidden; background: var(--card2); }
-.track-ready-map { height: clamp(160px, 23dvh, 240px); }
-.track-locate { position: absolute; right: 12px; bottom: 12px; z-index: 500; background: var(--card); min-height: 44px; padding: 10px 14px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
-.track-locate svg { width: 18px; }
-#track-setup > p:empty { display: none; }
-.track-tools { margin: 18px 0; }
-.track-tools summary { cursor: pointer; min-height: 48px; display: flex; align-items: center; color: var(--accent); font-weight: 600; }
-.track-tools .row-link { justify-content: space-between; width: 100%; }
-.track-tools .row-link > svg { width: 18px; }
-.track-live { padding-top: 0; }
-.track-live-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.track-live-top h2 { font: 700 28px/1.2 var(--font-display); margin: 0; }
-.track-live #track-status { text-align: left; min-height: 20px; }
-.gc-off { display:block; margin:20px 0 0; padding:8px 0; }
-.route-end { background: none; border: 0; }
-.route-end svg { display: block; width: 24px; height: 24px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
-.field-err, .login .field-err { color: var(--alert); font-size: .9rem; margin: -4px 0 6px; }
-.login [aria-invalid="true"] { border-color: var(--alert); }
-.login .small.ok { color: var(--good); }
-.get-app-steps { padding-left: 1.3em; display: grid; gap: 14px; margin: 18px 0 22px; line-height: 1.45; }
-.get-app .primary.wide { display: flex; justify-content: center; align-items: center; min-height: 48px; text-decoration: none; }
-.track-splits { margin: -12px 0 16px; text-align: left; min-height: 1.4em; }
-.track-options { display: grid; gap: 4px; margin: 4px 0 12px; }
-.track-live-metrics { display: flex; justify-content: space-between; gap: 8px; margin: 22px 0; text-align: left; }
-.track-live-metrics > div { flex: 1; min-width: 0; }
-.track-live-metrics small { display: block; font-size: 11px; color: var(--tx3); margin-bottom: 6px; }
-.track-live-metrics b { display: block; font-size: clamp(19px,5.5vw,26px); font-weight: 650; white-space: nowrap; }
-.track-live #track-time { margin: 0; letter-spacing: -.035em; line-height: 1.45; }
-.track-live .recording-actions { grid-template-columns: 1fr; }
-.track-live .track-actions { margin-top: 18px; }
-.track-live .track-map { margin: 0; }
-.stats-expanded .track-live-metrics { flex-direction: column; align-items: center; gap: 26px; text-align: center; padding-block: 24px; }
-.stats-expanded .track-live-metrics b { font-size: 48px; }
-.stats-expanded .track-live-metrics small { font-size: 14px; }
-/* Track redesign (Ben, 2026-10-26: "clunky, not slick"): the map leads, one big round Start, settings in a sheet,
-   a big clock while recording and round Pause / Resume / Finish controls. */
-#page .top #track-settings svg { width: 22px; height: 22px; }
-.track-ready-map { height: clamp(260px, 44dvh, 420px); border-radius: 20px; }
-.track-locate { right: 12px; top: 12px; bottom: auto; width: 44px; height: 44px; min-height: 44px; padding: 0; border-radius: 50%; display: grid; place-items: center;
-  background: var(--card); box-shadow: 0 2px 10px #0002; color: var(--accent); }
-.track-locate svg { width: 20px; height: 20px; }
-/* Map before Start: full screen like the recording map (Ben, 30 Oct 2026). Expand sits above Locate. */
-.track-ready-map-wrap .map-full { top:12px; right:12px; }
-.track-ready-map-wrap .track-locate { top:64px; }
-.track-ready-map-wrap.full { position:fixed; inset:0; z-index:2000; }
-.track-ready-map-wrap.full .track-ready-map { position:absolute; inset:0; height:100%; border-radius:0; }
-.track-ready-map-wrap.full .map-full { top:calc(env(safe-area-inset-top) + 12px); right:calc(env(safe-area-inset-right) + 12px); }
-.track-ready-map-wrap.full .track-locate { top:calc(env(safe-area-inset-top) + 64px); right:calc(env(safe-area-inset-right) + 12px); }
-.track-ready-map-wrap.full .gps-chip { top:calc(env(safe-area-inset-top) + 18px); left:calc(env(safe-area-inset-left) + 12px); }
-.track-ready-map-wrap.full #track-ready-map .leaflet-bottom.leaflet-right { bottom:env(safe-area-inset-bottom); }
-.track-go { display: grid; justify-items: center; gap: 6px; margin: 4px 0 2px; position: relative; z-index: 1; }
-.gps-ready .track-go { margin-top: -58px; }
-.track-go small { font-weight: 650; font-size: 15px; color: var(--tx2); }
-.round-btn { display: grid; place-items: center; width: 76px; height: 76px; min-height: 0; padding: 0; border-radius: 50%; border: 0; cursor: pointer;
-  background: var(--card); color: var(--tx); box-shadow: 0 6px 18px #0002, inset 0 0 0 1px var(--line); transition: transform .12s; }
-.round-btn:active { transform: scale(.94); }
-.round-btn svg { width: 30px; height: 30px; }
-.round-btn.start { width: 104px; height: 104px; background: var(--btn); color: var(--onbtn); box-shadow: 0 10px 28px color-mix(in srgb, var(--btn) 40%, transparent), 0 0 0 6px var(--bg); }
-.round-btn.start span { font: 750 21px/1 var(--font); letter-spacing: .01em; }
-.round-btn.go { background: var(--btn); color: var(--onbtn); box-shadow: 0 8px 22px color-mix(in srgb, var(--btn) 35%, transparent); }
-.round-btn.stop { background: var(--tx); color: var(--bg); }
-.round-btn:disabled { opacity: .6; }
-.track-prefs { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; margin: 2px 0 0; padding: 6px 10px;
-  border: 0; background: none; color: var(--tx2); font-size: 14px; font-weight: 550; }
-.track-prefs svg { width: 18px; height: 18px; flex: none; } .track-prefs svg:last-child { width: 14px; height: 14px; color: var(--tx3); }
-.track-ready #track-guidance { text-align: center; margin: 0; }
-.track-pref-list { display: grid; margin-bottom: 16px; }
-.track-live-top h2 { display: flex; align-items: center; gap: 10px; font-size: 24px; }
-.rec-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--alert); flex: none; }
-.is-recording .rec-dot { animation: rec-pulse 1.6s ease-in-out infinite; } .is-paused .rec-dot { background: var(--tx3); }
-@keyframes rec-pulse { 50% { opacity: .35; } }
-@media (prefers-reduced-motion: reduce) { .is-recording .rec-dot { animation: none; } }
-.track-hero { display: grid; justify-items: center; margin: 14px 0 6px; }
-.track-hero b { font-size: clamp(56px, 18vw, 76px); font-weight: 700; letter-spacing: -.03em; line-height: 1.05; }
-.track-hero small, .track-live-metrics small { font-size: 13px; color: var(--tx3); font-weight: 600; }
-.track-live .track-live-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin: 12px 0 6px; text-align: center; }
-.track-live .track-live-metrics > div { display: grid; gap: 2px; } .track-live .track-live-metrics > div + div { border-left: 1px solid var(--line); }
-.track-live .track-live-metrics b { font-size: clamp(30px, 9vw, 40px); font-weight: 680; margin: 0; }
-.track-live .track-live-metrics small { margin: 0; }
-.track-live .track-splits { margin: 4px 0 14px; text-align: center; }
-.track-live .live-record-map { height: clamp(200px, 32dvh, 340px); }
-.live-record-map .leaflet-control-zoom { display: none; }
-.track-map-wrap { position: relative; }
-.gps-chip, .map-chip { position: absolute; z-index: 500; min-height: 32px; padding: 6px 11px; border-radius: 999px; font-size: 13px; font-weight: 650;
-  background: var(--card); color: var(--tx); box-shadow: 0 2px 10px #0002; }
-.gps-chip { left: 10px; top: 10px; pointer-events: none; }
-.map-chip { right: 10px; top: 10px; border: 0; display: inline-flex; align-items: center; gap: 5px; color: var(--accent); }
-.map-chip svg { width: 15px; height: 15px; }
-.track-controls { display: flex; justify-content: center; gap: 44px; margin: 20px 0 6px; }
-.round-ctl { display: grid; justify-items: center; gap: 6px; } .round-ctl small { font-size: 13px; font-weight: 650; color: var(--tx2); }
-.track-live .track-controls .round-btn { width: 84px; height: 84px; }
-.stats-expanded .track-hero b { font-size: clamp(72px, 24vw, 96px); }
-.stats-expanded .track-live-metrics { padding-block: 18px; }
-.stats-expanded .track-live .track-live-metrics b, .stats-expanded .track-live-metrics b { font-size: clamp(40px, 12vw, 52px); }
-.track-saved { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
-.track-saved a { display: inline-flex; gap: 6px; align-items: center; }
-.track-saved svg { width: 16px; }
-nav.tabs :is(a,button).has-recording { position: relative; }
-nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); position: absolute; top: 5px; right: calc(50% - 18px); }
 
 /* ---------- Quicker feel (2026-10-16, Ben: snappier, slicker, taps land where expected) ---------- */
 /* Feed cards: only the photo and the name open the profile; anywhere else on the card opens the activity. */
@@ -1866,14 +1220,6 @@ nav.tabs :is(a,button)[aria-current="page"] svg { animation: tab-pick .28s cubic
 @keyframes page-push { from { opacity: .35; } to { opacity: 1; } }
 /* Activity page: the full date wraps instead of ending in "…". */
 .d-title .ph-txt small { white-space: normal; }
-/* Progress: the table is a slim fold, not an empty-looking card. */
-.table-fold { margin: 12px 0; } .table-fold > summary .grow { flex: 1; } .table-fold > summary { min-height: 52px; }
-.table-fold .tbl-wrap { overflow-x: auto; margin-top: 4px; }
-/* Track: the other ways to add an activity are a visible list, not a closed fold. */
-.track-tools { margin: 24px 0 8px; }
-.track-tools .row-link { justify-content: flex-start; }
-.track-tools .row-link > svg:first-child { flex: none; width: 20px; height: 20px; color: var(--accent); }
-.track-tools .row-link > svg:last-child { flex: none; width: 16px; height: 16px; color: var(--tx3); }
 #t-week { margin-top: 8px; }
 .card.me-form { display: grid; gap: 10px; padding: 14px 16px; color: var(--tx); }
 .me-form-top { display: flex; align-items: center; gap: 12px; }
@@ -1930,18 +1276,6 @@ html.keyboard-open .goal-setup .goal-actions { position:static; }
 .goal-setup .small,.goal-choice small { font-size:.875em; }
 .goal-setup .goal-options legend { margin-bottom:8px; }
 
-/* The two Progress focuses (#122 C); the Food & weight half shows only for food users (#164). */
-.progress-heading { gap: 8px; flex-wrap: wrap; }
-.progress-heading > .acts { margin-left: auto; align-items: center; }
-.progress-focus { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; margin: 0 0 12px; }
-.progress-focus a { display: flex; align-items: center; justify-content: center; min-height: 40px; padding: 5px 12px; border-radius: 12px; font-weight: 600; color: var(--tx3); text-decoration: none; }
-.progress-focus a[aria-current] { background: var(--segon); color: var(--accent); font-weight: 700; }
-.record-effort .record-rank { flex: none; width: 2em; color: var(--tx3); } .record-effort-main { flex: 1; min-width: 0; }
-.pym-slim { padding-top: 12px; padding-bottom: 12px; }
-.food-calendar { display:grid; grid-template-columns:repeat(auto-fit,minmax(4.5rem,1fr)); gap:8px; }
-.food-calendar a { display:grid; text-align:center; min-height:72px; padding:8px 4px; border-radius:12px; color:var(--tx2); background:var(--card2); }
-.food-calendar a.logged { color:var(--accent); background:var(--accent2); }
-.food-calendar small { font-size:.7rem; }
 
 .connections-shortcuts > a > svg { width:24px; height:24px; flex:none; }
 
@@ -1959,121 +1293,7 @@ html.keyboard-open .goal-setup .goal-actions { position:static; }
 #pending-items button, .netbar .linkbtn { font-size: 1em; }
 #pending-items .actions { flex-wrap: wrap; }
 
-/* ---------- Permanent food conversation (#122 D) ---------- */
-.empty-meal-ways {display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem}
-.empty-meal-ways button {font-size:1rem;min-height:44px;flex:1 1 9rem;white-space:normal}
 
-.food-thread { font-size: 1rem; height: calc(100dvh - var(--tab-h) - env(safe-area-inset-bottom)); min-height: 0; display: flex; flex-direction: column; padding-bottom: 8px; }
-/* Food chat, simplified (2026-10-18, owner: "busy and messy"): a small header, bubbles, one composer bar. */
-.thread-heading { flex-shrink: 0; display: grid; grid-template-columns: minmax(44px,1fr) minmax(0,1fr) minmax(44px,1fr); align-items: center; gap: 8px; min-height: 44px; padding-bottom: 0; border-bottom: 1px solid var(--line); }
-.thread-heading .back { justify-self: start; }
-.thread-heading #thread-settings { justify-self: end; }
-.food-thread h1, .food-thread.has-messages > h1 { margin: 0; font: 650 var(--text-app-title)/1.3 var(--font); }
-.food-thread .thread-heading h1 { min-width:0; max-width:100%; margin:0; overflow:hidden; color:var(--tx); font:600 var(--text-nav-title)/1.2 var(--font); letter-spacing:0; text-align:center; text-overflow:ellipsis; white-space:nowrap; }
-.food-thread .thread-heading > h1 { grid-column:2; }
-.food-thread .thread-heading .thread-title { grid-column:2; display:flex; align-items:center; justify-content:center; gap:4px; min-width:0; overflow:hidden; }
-.food-thread .thread-heading .thread-title > h1 { flex:0 1 auto; }
-.food-thread .thread-heading .kit-chat-actions { grid-column:3; justify-self:end; }
-.food-thread .thread-heading > .back, .food-thread .thread-heading > .icon-btn { align-self:start; }
-.thread-intro { margin: 8px 0 0; color: var(--tx2); font-size: .85rem; text-align: center; }
-#thread-messages { overflow-anchor: none; position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; align-content: start; gap: 14px; padding: 12px 0 8px; }
-#thread-messages article { min-width: 0; overflow-wrap: anywhere; }
-.thread-user { margin: 0 0 8px auto; width: fit-content; max-width: 80%; padding: 10px 14px; border-radius: 20px 20px 6px 20px; color: var(--tx);
-  background: color-mix(in srgb, var(--tx) 13%, var(--card)); }   /* --card2 nearly matched the light page (owner, 23 Oct 2026) */
-.thread-photos { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
-.thread-photos img { display:block; width:min(240px, 100%); height:auto; max-height:220px; object-fit:contain; border-radius:10px; }
-.thread-breakdown-title { margin:4px 0 8px; font-weight:650; }
-.thread-user p { margin: 0; white-space: pre-wrap; }
-.thread-card { max-width: 92%; padding: 12px 14px; border-radius: 20px 20px 20px 6px; background: var(--card); border: 1px solid var(--line); }
-.thread-card p { margin: 6px 0; }
-.thread-food { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 8px 0; border: 0; border-top: 1px solid var(--line); background: none; color: var(--tx); font: inherit; text-align: left; border-radius: 0; }
-.thread-food:first-of-type, .thread-destination + .thread-food, .thread-updated + .thread-food { border-top: 0; }
-button.thread-food { cursor: pointer; }
-.thread-food .tf-main { flex: 1 1 10rem; min-width: 0; display: grid; gap: 2px; }
-.thread-food small { font-size: .8rem; color: var(--tx2); }
-.thread-food .tf-kcal { flex: none; margin-left:auto; font-weight: 650; }
-.thread-food .tf-kcal small { font-weight: 400; }
-.thread-total { display: flex; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 8px; font-size: .9rem; }
-.thread-more { margin-left: auto; color: var(--tx2); }
-/* A reply with nothing to do but ⋯ keeps it beside the text instead of on its own row. */
-.thread-card { position: relative; }
-.thread-card:has(.thread-actions > .thread-more:only-child) { padding-right: 52px; }
-/* Ingredient rows use the full card width; their menu sits below the total. */
-.thread-card:has(.thread-breakdown-title):has(.thread-actions > .thread-more:only-child) { padding-right:14px; padding-bottom:44px; }
-.thread-actions:has(> .thread-more:only-child) { position: absolute; right: 4px; bottom: 4px; margin: 0; }
-.thread-more svg { width: 20px; height: 20px; }
-.thread-feedback { color: var(--tx2); font-size: .9rem; }
-.thread-error { color: var(--alert); }
-.thread-actions, .thread-choices, .thread-shortcuts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.thread-actions { margin-top: 4px; }
-.thread-choices { margin-block: 12px; }
-.thread-pending { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px 12px; font-size: .8rem; color: var(--tx2); }
-.thread-pending p { margin: 0; }
-.food-thread .thread-destination { min-height: 32px; padding: 0; color: var(--tx2); font-size: .8rem; text-align: left; justify-content: flex-start; }
-.thread-destination svg { width: 12px; height: 12px; }
-#thread-empty { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 0; }
-#thread-empty h2 { font-size: var(--text-app-section); margin: 0 0 12px; }
-#thread-empty p { max-width: 36ch; color: var(--tx2); }
-.thread-composer { flex-shrink: 0; position: relative; padding: 8px 0 0; background: var(--bg); z-index: 3; }
-.thread-menu { margin-bottom: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 20px; background: var(--card); }
-.thread-tools { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-.food-thread .thread-tools button { display: grid; justify-items: center; gap: 4px; min-height: 64px; padding: 8px 2px; border: 0; border-radius: 14px; background: none; color: var(--tx); font-size: .78rem; font-weight: 600; overflow-wrap: anywhere; }
-.thread-tools button svg { width: 26px; height: 26px; color: var(--accent); }   /* plain icons, no circle behind them (owner 2026-10-18) */
-#thread-usual-suggestion button { margin-bottom: 8px; }
-.thread-compose-row { display: flex; align-items: flex-end; gap: 8px; padding: 4px; border: 1px solid var(--line); border-radius: 26px; background: var(--card); }
-.thread-reuse { display:flex; flex-wrap:wrap; gap:8px; padding:0 0 8px; }
-.thread-reuse[hidden] { display:none; }
-.thread-reuse button { display:flex; align-items:center; gap:4px; flex:0 1 auto; max-width:100%; min-width:44px; min-height:44px; padding:4px 0; border:0; background:none; color:var(--tx); font-size:max(15px,.9375rem); font-weight:500; line-height:1.3; text-align:left; }
-.thread-reuse .reuse-add-icon { display:inline-flex; flex:none; width:14px; height:14px; color:var(--tx2); }
-.thread-reuse .reuse-add-icon svg { display:block; width:14px; height:14px; }
-.thread-reuse .reuse-name { min-width:0; }
-.thread-reuse .reuse-kcal { color:var(--tx2); white-space:nowrap; }
-.thread-compose-row textarea { flex: 1; width: 0; min-width: 0; min-height: 44px; max-height: 160px; padding: 9px 4px; border: 0; background: none; resize: none; font-size: max(16px, 1rem); line-height: 1.4; }
-.thread-compose-row textarea:focus { outline: none; box-shadow: none; }
-/* Chat mode (owner, 2026-10-18): no tab bar while chatting, like a messaging app; ‹ Nutrition goes back. */
-html:has(.food-thread) { --tab-h: 0px; }
-html:has(.food-thread) nav.tabs { display: none; }
-.thread-compose-row:focus-within { border-color: var(--accent); }
-.food-thread .thread-plus, .food-thread .thread-send { flex: none; width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0; border-radius: 50%; display: grid; place-items: center; }
-.thread-plus { background: var(--card2); color: var(--tx); transition: transform .15s ease; }
-.thread-plus.open svg { transform: rotate(45deg); }
-.thread-send svg, .thread-plus svg { width: 20px; height: 20px; }
-#thread-status { margin: 4px 0 0; min-height: 1.2em; font-size: .8rem; color: var(--tx2); text-align: center; }
-#thread-status:empty { min-height: 0; }
-.food-thread button { min-height: 44px; min-width: 44px; font-size: 1rem; white-space: normal; }
-/* With the keyboard up the home-indicator inset is under the keyboard: no extra gap above it (owner, 20 Oct 2026). */
-html.keyboard-open #thread-status:empty { display: none; }
-/* iPhone app: pages get room under the keyboard so a focused field can scroll above it (chat pages are fixed). */
-html.keyboard-open body { padding-bottom: var(--kb, 0px); }
-html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
-/* Calmer chat text (2026-10-18, owner: "too big and overwhelming"): smaller card text, chip-sized choices, quiet links. */
-.thread-card, .thread-user { font-size: .95rem; }
-.food-thread .thread-choices { gap: 6px; margin-block: 8px; }
-.food-thread .thread-choices button.ghost { min-height: 36px; padding: 6px 12px; font-size: .85rem; font-weight: 500; border-radius: 999px; text-align: left; }
-.food-thread .thread-card .linkbtn { min-height: 36px; font-size: .85rem; }
-.food-thread .thread-card .barcode-choices { display: grid; gap: 2px; }
-.food-thread .thread-card .barcode-choice-row { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; min-width: 0; }
-.food-thread .thread-card .barcode-choice-row .linkbtn { flex: 1 1 0; min-width: 0; min-height: 44px; padding-inline: 2px; line-height: 1.15; text-align: left; }
-.food-thread .thread-card .barcode-choice-row .thread-remove-unlogged { flex: 0 0 44px; width: 44px; min-width: 44px; height: 44px; min-height: 44px; margin: 0; }
-.food-thread .thread-card .barcode-choice-row .thread-more { flex: 0 0 44px; margin-left: auto; background: none; box-shadow: none; }
-.food-thread .thread-card .thread-destination { font-size: .75rem; }
-
-@media (max-height: 650px) { .food-thread > .thread-intro { display: none; } }
-
-
-.thread-day { font: 650 .9rem/1.4 var(--font); margin: 12px 0; text-align: center; color: var(--tx2); }
-
-.thread-updated { font-size: .85rem; color: var(--tx2); }
-#thread-usual-suggestion:empty { display: none; }
-#thread-usual-suggestion { width: 100%; }
-#thread-usual-suggestion button { width: 100%; }
-/* Primary action can move between Send and a held food card without a pale colour flash. */
-.food-thread button { transition: transform .1s ease, opacity .15s; }
-
-/* Optional, food-scoped Kit interpretation follows the deterministic answer. */
-.thread-kit{border-top:1px solid var(--line);margin-top:1rem;padding-top:.75rem;}
-.thread-kit h3{font-size:1rem;}
-.thread-kit dd{margin-inline-start:.5rem;overflow-wrap:anywhere;}
 
 /* Connections and original-map upload: scalable text, restrained shared rows. */
 .connections-page,.activity-import,.activity-map-help{font-size:1rem;}
@@ -2105,57 +1325,6 @@ html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 .checkin-card .linkbtn,.checkin-card .primary,.checkin-history summary{font-size:1em;min-height:44px;white-space:normal;}
 .checkin-history summary{display:flex;align-items:center;cursor:pointer;color:var(--accent);}
 
-/* Recipe import: readable review with one primary action; no fixed-height text. */
-.recipe-import { max-width:42rem; margin-inline:auto; display:grid; gap:var(--s3, 12px); padding-bottom:1rem; }
-.recipe-import .card { margin:0; }
-.recipe-import .form { margin:0; }
-.recipe-import input,.recipe-import textarea,.recipe-import select { max-width:100%; min-width:0; font-size:max(16px,1rem); }
-.recipe-import textarea { resize:vertical; line-height:1.5; }
-.recipe-import button,.recipe-import summary,.recipe-import .linkbtn,.recipe-source summary { min-height:44px; }
-.recipe-import summary,.recipe-source summary { display:flex; align-items:center; cursor:pointer; }
-.recipe-import .small,.recipe-source .small { font-size:.9rem; line-height:1.5; }
-.recipe-import h2 { font-size:1.2rem; line-height:1.35; overflow-wrap:anywhere; }
-.recipe-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,10rem),1fr)); gap:12px; }
-.recipe-nutrients { margin:0; }
-.recipe-nutrients>div { display:flex; flex-wrap:wrap; justify-content:space-between; gap:4px 16px; padding:12px 0; border-bottom:1px solid var(--line); }
-.recipe-nutrients dt { flex:1 1 6rem; }
-.recipe-nutrients dd { margin:0; text-align:right; flex:1 1 9rem; }
-.recipe-nutrients dd small { display:block; font-size:.85rem; color:var(--tx2); }
-.recipe-pending { display:grid; gap:8px; padding-block:12px; border-top:1px solid var(--line); overflow-wrap:anywhere; }
-.recipe-import .callout,.recipe-matches p,.recipe-source p { overflow-wrap:anywhere; }
-.recipe-import .row { width:100%; text-align:left; }
-.recipe-import .row small { display:block; }
-.recipe-source { margin-bottom:1rem; }
-.imported-recipe .top { flex-wrap:wrap; }
-.imported-recipe .top .acts { margin-left:auto; max-width:100%; flex-wrap:wrap; }
-.imported-recipe .top button { min-height:44px; }
-.imported-recipe .dish-name-in { font-size:1.35rem; line-height:1.3; }
-.imported-recipe .dish-sum,.imported-recipe .m-note,.imported-recipe .ig-n { font-size:1rem; }
-.imported-recipe .ig-g,.imported-recipe .ig b { font-size:.9rem; }
-.imported-recipe .ig-n { white-space:normal; overflow-wrap:anywhere; }
-.imported-recipe .measure button { font-size:1rem; min-height:44px; white-space:normal; }
-.recipe-import label,.recipe-import button,.recipe-import summary { font-size:.95rem; line-height:1.4; }
-.recipe-import .primary,.recipe-import .ghost { padding-block:12px; }
-.recipe-source summary,.recipe-source .linkbtn { font-size:.9rem; }
-.imported-recipe .top .primary.sm { font-size:1rem; }
-.recipe-import summary,.recipe-source summary { display:list-item; padding-block:10px; }
-.recipe-library-actions .linkbtn { min-height:44px; justify-content:center; }
-
-/* Optional nutrient detail stays behind one familiar disclosure. */
-.extra-nutrients {margin-top:1rem;border-top:1px solid var(--line);padding-top:.65rem;}
-.extra-nutrients > summary {min-height:44px;display:list-item;cursor:pointer;font-weight:600;line-height:1.5;padding:.35rem 0;}
-.extra-nutrients dl {margin:.4rem 0;}
-.extra-nutrients dl > div {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.5rem;padding:.65rem 0;border-bottom:1px solid var(--line);}
-.extra-nutrients dt {overflow-wrap:anywhere;}
-.extra-nutrients dd {margin:0;text-align:right;overflow-wrap:anywhere;}
-.extra-nutrients dd small {display:block;font-size:.85rem;color:var(--tx2);line-height:1.5;}
-.extra-fields {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,11rem),1fr));gap:.8rem;}
-.extra-fields label {min-width:0;line-height:1.5;font-size:1rem;}
-.extra-fields input {width:100%;min-height:44px;font-size:max(16px,1rem);}
-.macpreview > .extra-nutrients {grid-column:1 / -1;text-align:left;}
-.macpreview .extra-nutrients b {font:600 1rem var(--numf);}
-.tcard .extra-nutrients b {font:600 1rem/1.5 var(--numf);letter-spacing:0;}
-.tcard .extra-nutrients dd small {display:block;font-size:.85rem;font-weight:400;text-transform:none;letter-spacing:0;color:var(--tx2);}
 /* Goals sheet (30 Oct 2026): daily calories and macros as an even 2x2 grid; one-day calories folded below. */
 .goal-h {margin:0 0 8px;font-size:1rem;font-weight:650;}
 .goal-now {margin:0 0 14px;padding:10px 12px;border-radius:var(--r2);background:var(--accent2);line-height:1.5;}
@@ -2902,11 +2071,6 @@ nav.tabs { view-transition-name: tabs; }
 .segment-assistance .check-row input { flex:0 0 22px; width:22px; height:22px; min-height:0; padding:0; margin-top:2px; }
 #private-recheck-ok { min-height:0; padding:0; }
 #d-segments .row-link>svg { flex:none; width:22px; height:22px; }
-/* Run/walk presets belong beside Track setup; controls remain reachable on a phone. */
-.track-interval-summary{text-align:center;margin:0 0 6px}.interval-line{display:grid;grid-template-columns:8.6em minmax(0,1fr) 5.5em;gap:8px;align-items:center;margin:10px 0}.interval-line>span:first-child{font-weight:650}.interval-line input,.interval-line select{min-height:44px;width:100%;font-size:16px}.interval-line>.muted{padding-left:4px}#interval-editor .interval-extra{display:flex;align-items:center;gap:8px;min-height:44px;margin:0;font-weight:650;grid-column:1/2}.interval-extra input{width:22px;height:22px;flex:none}#interval-editor .interval-name{margin:16px 0 4px}#interval-editor .interval-name input{display:block;width:100%;margin-top:6px}.interval-selected b{display:block;font-size:17px;margin:2px 0}.interval-selected p{margin:2px 0 6px}.interval-library-list{margin:12px 0}.interval-library-list .row-link small{display:block}.interval-blocks fieldset{border:1px solid var(--line);border-radius:12px;margin:18px 0;padding:14px;min-width:0}.interval-blocks legend{padding:0 8px;font-weight:650}.interval-step{border-top:1px solid var(--line);padding:14px 0}.interval-field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.interval-field-grid label,.interval-time label{min-width:0}.interval-time{display:grid;grid-template-columns:1fr 1fr;gap:8px;grid-column:1/-1}.interval-row-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.interval-row-actions button{min-height:44px;flex:1;padding:10px}.interval-preview{padding-left:24px;max-height:340px;overflow:auto}.interval-preview li{padding:8px 0}.interval-preview small{display:block;color:var(--tx3)}.interval-totals{font-weight:650}.interval-library-list article{border-bottom:1px solid var(--line);padding:14px 0}.interval-selected{padding:14px;border:1px solid var(--line);border-radius:12px;margin:12px 0}.interval-current{display:flex;justify-content:space-between;gap:14px;align-items:center}.interval-current h3{margin:4px 0;font-size:28px;color:var(--tx)}.interval-current>b{font-size:22px;font-variant-numeric:tabular-nums}.interval-current small{color:var(--tx3)}.track-interval-live{padding:16px;margin:12px 0}.track-interval-live p{margin:10px 0}.interval-blocks input,.interval-blocks select,#interval-editor input,#interval-editor textarea{font-size:16px;max-width:100%}#interval-editor label{display:block;margin:10px 0}#interval-editor .check,#interval-library .check{display:flex;align-items:flex-start;gap:10px;margin:16px 0}#interval-editor .check input,#interval-library .check input{width:22px;height:22px;flex:none}.interval-selected h3{overflow-wrap:anywhere}@media(max-width:360px){.interval-field-grid{grid-template-columns:1fr}.interval-row-actions button{flex-basis:45%}.interval-current{align-items:flex-start}.interval-current>b{font-size:19px}}
-
-.interval-row-actions button{border:1px solid var(--line);border-radius:var(--r2);background:var(--card);color:var(--tx);font:inherit;font-size:14px}.interval-row-actions button:disabled{color:var(--tx3);opacity:.55}.interval-save-status{color:var(--good)}.interval-history-table{overflow:auto;max-width:100%;margin:14px 0}.interval-history-table table{min-width:0;table-layout:fixed;width:100%;border-collapse:collapse;font-size:14px}.interval-history-table th,.interval-history-table td{overflow-wrap:anywhere;text-align:left;vertical-align:top;padding:12px 8px;border-bottom:1px solid var(--line)}.interval-history-table th{color:var(--tx2)}
-
 /* Post-recording summary (27 October 2026) */
 .track-session.track-review { padding-top: 0; text-align: left; }
 .track-review .track-review-when { display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; color: var(--tx2); font-size: .9375rem; font-weight: 600; }
@@ -3036,15 +2200,6 @@ html:has(#track-content > .track-live, #track-content > .track-review) nav.tabs 
 .track-live .track-map-wrap:not(.full) .map-unavailable button{width:44px;font-size:12px;padding:4px}
 .track-live .track-map-wrap:not(.full):has(.map-unavailable:not([hidden])) #track-follow{top:0;width:44px;height:44px;padding:0;justify-content:center}
 .track-live .track-map-wrap:not(.full):has(.map-unavailable:not([hidden]))>.map-full{top:0}
-/* Lifting summary after Finish (28 October 2026): the run summary's title and stat card, then records and exercises. */
-.lift-review .track-review-when svg { width: 18px; height: 18px; color: var(--accent); }
-.lift-review-records h3, .lift-review-ex h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }
-.lift-review-records h3 svg { width: 20px; height: 20px; color: var(--accent); }
-.lift-review-records > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); }
-.lift-review-records span { min-width: 0; font-weight: 650; } .lift-review-records span small { display: block; color: var(--tx2); font-size: .8125rem; font-weight: 600; }
-.lift-review-records b { min-width: 0; white-space: normal; overflow-wrap: anywhere; text-align: right; }
-.lift-review-ex > div { display: grid; gap: 2px; padding: 9px 0; border-top: 1px solid var(--line); }
-.lift-review-ex > div small { font-size: .875rem; overflow-wrap: anywhere; }
 /* Discard right away (28 October 2026): while paused it is a smaller round control beside Resume and Finish, in the
    same row, so it adds no height; a lifting session has Discard session under its sets and Delete this session on its
    summary. */
@@ -3052,7 +2207,6 @@ html:has(#track-content > .track-live, #track-content > .track-review) nav.tabs 
 .track-live .track-controls .round-btn.discard { width: 60px; height: 60px; background: var(--card2); color: var(--alert); }
 .round-btn.discard svg { width: 24px; height: 24px; }
 @media (max-width: 360px) { .track-controls:has(.round-ctl-discard) { gap: 18px; } }
-#lf-discard, #lf-sum-del { display: block; margin: 14px auto 0; }
 
 /* Intentional recipe creation uses the ingredient editor, with optional logging only after saving. */
 .recipe-page > .recipe-save {flex:none;margin:8px 0 0;min-height:44px;}
@@ -3121,24 +2275,6 @@ html.keyboard-open .thread-quick-actions {display:none;}
 #interval-editor .interval-name input { flex:1; min-width:0; width:0; margin:0; }
 .track-voice-copy + #track-voice { align-self:start; margin-top:2px; }
 
-/* Compact Progress home, refined after owner/PR review. Detail charts retain their full layout. */
-.progress-home-totals .card { padding:12px; }
-.progress-home-totals .progress-filters { gap:8px; margin-bottom:6px; }
-.progress-home-totals .progress-pace-window { margin:4px 0 0; }
-.progress-home-totals .progress-total-readout { position:static; z-index:auto; display:grid; gap:2px; min-width:0; padding:3px 0 0; margin:4px 0 0; border-radius:0; background:transparent; -webkit-backdrop-filter:none; backdrop-filter:none; font-size:.8125rem; white-space:normal; overflow:visible; }
-.progress-home-totals .progress-total-readout span { display:block; min-width:0; max-width:100%; overflow:visible; color:var(--tx2); overflow-wrap:anywhere; text-overflow:clip; white-space:normal; }
-.progress-home-totals .progress-total-readout b { color:var(--tx); font-weight:650; }
-.progress-metric-controls { flex:1 0 100%; width:100%; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0; margin-top:2px; border-top:1px solid var(--line); }
-.progress-metric-controls[data-count="2"] { grid-template-columns:repeat(2,minmax(0,1fr)); }
-.progress-metric-controls button { position:relative; min-width:44px; min-height:44px; padding:0 6px; border:0; border-radius:0; background:transparent; color:var(--tx2); font-size:15px; font-weight:550; white-space:normal; }
-.progress-metric-controls button[aria-pressed="true"] { color:var(--tx); font-weight:700; }
-.progress-metric-controls button[aria-pressed="true"]::after { content:""; position:absolute; bottom:0; left:8px; right:8px; height:2px; background:var(--accent); }
-.progress-home-totals #m-chart .dotline { stroke:var(--accent); stroke-width:3; }
-.progress-home-totals #m-chart .dotp { fill:var(--accent); }
-.progress-home-totals #m-chart .yl { font-size:11px; }
-.fitness-current { margin-bottom:12px; }
-.fitness-current .me-form-top { min-height:38px; }
-.fitness-current .me-form-nums { padding-top:10px; border-top:1px solid var(--line); }
 .me-insights [data-insight-rows] { display:grid; gap:8px; }
 .me-insights .me-insight-row { display:flex; flex-direction:row; align-items:center; justify-content:space-between; gap:10px; min-height:56px; padding:10px 0; text-decoration:none; }
 .me-insights .me-insight-row:first-child { border-top:0; }
@@ -3148,76 +2284,6 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .me-insights .me-insight-value { flex:none; max-width:42%; color:var(--tx); font-size:16px; line-height:1.25; text-align:right; white-space:normal; overflow-wrap:anywhere; }
 .me-insights .me-insight-row > svg { width:16px; height:16px; flex:none; color:var(--tx3); }
 .me-insights .me-insights-empty { margin:8px 0 0; }
-.progress-home-totals .progress-totals-title { font-size:1rem; }
-.progress-home-totals .progress-totals-title svg { width:12px; height:12px; }
-.progress-home-totals .progress-filters .range-btn { padding:4px 6px; gap:3px; }
-.progress-home-totals .progress-filters .range-btn svg { width:14px; height:14px; }
-.progress-home-totals .me-period button { padding-inline:0; font-size:max(15px,.9375rem); }
-.progress-home-totals .empty { text-align:left; }
-.progress-home-totals .empty p { margin:0; }
-.progress-home-totals #m-chart { margin-top:0; }
-.progress-pair { gap:10px; }
-.progress-summary { min-height:0; padding:12px; }
-.progress-summary h2 { margin:0 0 6px; font-size:var(--text-app-card-title); }
-.progress-summary > span { font-size:.8125rem; line-height:1.4; }
-.progress-summary > span b { font-size:.875rem; }
-.progress-summary small { font-size:.8125rem; }
-.progress-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
-.progress-grid .progress-tile { min-height:86px; gap:8px; }
-.progress-tile-name { flex-wrap:nowrap; }
-.progress-tile-name svg { width:18px; height:18px; }
-.progress-tile-name b { flex:1; flex-basis:auto; min-width:0; font-size:.9375rem; }
-.progress-tile .small { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-.progress-tile .progress-new { width:5px; flex:none; height:5px; font-size:0; gap:0; }
-.progress-grid .progress-tile:last-child { grid-column:1/-1; }
-.progress-food-summary h2 { display:flex; align-items:center; gap:6px; }
-.progress-food-summary h2 svg { width:16px; height:16px; }
-.progress-tile-name b { flex:0 1 auto; }
-
-.progress-segment-controls {padding:12px 16px;}
-.progress-segment-controls .searchbox {margin:0 0 8px;}
-.progress-segment-controls .segment-filters {gap:8px;flex-wrap:nowrap;overflow-x:auto;}
-.progress-segment-controls .me-period {margin:0;flex-wrap:nowrap;gap:8px;}
-.progress-segment-controls [data-f] {min-width:44px;min-height:44px;padding:0 4px;white-space:nowrap;}
-.progress-segment-controls .segment-filters [data-f] { position:relative; min-height:44px; padding:0 4px; border:0; border-radius:0; background:transparent; box-shadow:none; color:var(--tx2); font-weight:500; }
-.progress-segment-controls .segment-filters [data-f][aria-pressed="true"] { background:transparent; color:var(--tx); font-weight:700; box-shadow:none; text-decoration:none; }
-.progress-segment-controls .segment-filters [data-f][aria-pressed="true"]::after { content:""; position:absolute; right:4px; bottom:0; left:4px; height:2px; background:var(--accent); }
-.progress-segment-controls #sg-sport {flex:none;background:none;padding-inline:4px;font-size:max(15px,.9375rem);}
-.progress-segment-controls #sg-sport>svg:first-child {display:none;}
-#sg-list .segment-empty {display:grid;justify-items:center;gap:8px;}
-#sg-list .segment-empty b {margin:0;font-size:16px;}
-#sg-list .segment-empty .small {max-width:30ch;margin:0;}
-#sg-list .segment-empty > p.small:first-of-type {margin-bottom:4px;}
-#sg-list .segment-empty .primary {width:min(100%,280px);margin:0;}
-
-/* Keep the explanatory action clear of the consent switch below it. */
-#ai > .seg { margin-top:8px; }
-
-.progress-tile-name b { overflow-wrap:anywhere; }
-
-/* Compact metric labels leave the three overview values on the same baseline. */
-.progress-home-totals .stats3 .stat small { text-transform:none;letter-spacing:0; }
-
-/* Shared rows align all summary values when an enlarged label needs two lines. */
-.progress-home-totals .stats3 { grid-template-columns:repeat(3,minmax(0,1fr));row-gap:0;align-items:start; }
-.progress-home-totals .stats3 > .stat { display:contents; }
-.progress-home-totals .stats3 > .stat > small { grid-row:1; }
-.progress-home-totals .stats3 > .stat > b { grid-row:2; white-space:nowrap; }
-/* Progress: existing values with explicit keys and compact history/segment controls (#492). */
-.sw.k-brand { background:var(--accent); }
-.route-fastest-key { color:var(--gold); }
-.record-history-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
-.record-history-heading h2 { margin:0; }
-.record-history-heading .me-period { gap:8px; }
-.progress-segment-controls .mileage-toggle { min-width:0; max-width:100%; gap:8px; }
-.progress-segment-controls [data-f] { min-width:44px; min-height:44px; }
-
-.seg-rules { margin:12px 0; }
-.seg-rules > summary { min-height:44px; display:flex; align-items:center; font-weight:500; cursor:pointer; }
-.seg-me { margin:12px 0; }
-.seg-best-label { color:var(--accent); font-weight:500; }
-.seg-rules > summary svg { flex:none; width:16px; height:16px; margin-left:auto; }
-.seg-rules[open] > summary svg { transform:rotate(90deg); }
 
 /* Keep Challenges available below the Home header at every width. */
 .activity-home #feed-top .top,.activity-home #feed-top .acts {flex-wrap:nowrap;}
