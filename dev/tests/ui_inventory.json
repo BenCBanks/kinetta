@@ -195,7 +195,7 @@
     },
     {
       "id": "pages-3",
-      "source": "app/static/pages.js",
+      "source": "app/static/activity-detail-route.js",
       "pattern": "/^\\/activity\\/(\\d+)$/",
       "paths": [
         "/activity/{activity}",
@@ -207,7 +207,7 @@
     },
     {
       "id": "pages-4",
-      "source": "app/static/pages.js",
+      "source": "app/static/progress-home-route.js",
       "pattern": "/^\\/route\\/(\\d+)$/",
       "paths": [
         "/route/{matched_route}"
@@ -215,7 +215,7 @@
     },
     {
       "id": "pages-5",
-      "source": "app/static/pages.js",
+      "source": "app/static/progress-home-route.js",
       "pattern": "/^\\/progress$/",
       "paths": [
         "/progress",

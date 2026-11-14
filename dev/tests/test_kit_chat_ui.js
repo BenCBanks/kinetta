@@ -37,7 +37,7 @@ async function testEntryVisibility(){
  entryHarness.App.me={id:11};entryHarness.kitChatOn=()=>false;link=null;entryHarness.location.pathname='/track';await entryHarness.entry(page,'/track');assert.equal(link.href,'/food?add=1','using an activity tab makes the entry relevant');
  entryHarness.App.me={id:12};entryHarness.activityRows=[];entryHarness.location.pathname='/me';link=null;await entryHarness.entry(page,'/me');assert.equal(link,null,'an unrelated user remains without a tab-root icon');
  for(const path of ['/me/settings','/me/sharing','/me/devices','/track/import','/food/import','/track/connections','/me/explore','/me/people','/me/speed']){link=null;const before=made;await entryHarness.entry(page,path);assert.equal(made,before,path+' has no general chat entrance');}
- for(const [file,needle] of [['app/static/pages.js',"kitChatOn() ? go(KitChat.href('activity'"],['app/static/thread.js',"!kitChatOn()||!(r.offer_kit"]])assert(fs.readFileSync(file,'utf8').includes(needle),file+' gates its Kit chat entry');
+ for(const [file,needle] of [['app/static/activity-detail-route.js',"kitChatOn() ? go(KitChat.href('activity'"],['app/static/thread.js',"!kitChatOn()||!(r.offer_kit"]])assert(fs.readFileSync(file,'utf8').includes(needle),file+' gates its Kit chat entry');
 }
 async function testFoodThreadBridge(){
  let host,submitted='',pageCalls=0,prepareFails=true,heldPrepare=null,owner='fixture';const events=[],field={value:'',style:{},dispatchEvent(){}},notice={textContent:''};

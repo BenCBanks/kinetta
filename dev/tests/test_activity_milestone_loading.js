@@ -2,7 +2,7 @@
 'use strict';
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 (async()=>{
- const source=fs.readFileSync('app/static/pages.js','utf8'),start=source.indexOf('  const milestoneOwner=readOwner()'),end=source.indexOf('\n});',start);
+ const source=fs.readFileSync('app/static/activity-detail-route.js','utf8'),start=source.indexOf('  const milestoneOwner=readOwner()'),end=source.indexOf('\n});',start);
  let finish,owner='fictional-first',drawn=0,painted=0;
  const c={URLSearchParams,location:{pathname:'/activity/42',search:'',hash:''},readOwner:()=>owner,Milestones:{read:()=>new Promise(resolve=>finish=resolve),paint:()=>painted++,celebrate:()=>{}},load:async(path,draw)=>draw({owner:true}),drawDetail:()=>drawn++,$:()=>({})};
  vm.createContext(c);vm.runInContext('this.detail=async(el,id)=>{'+source.slice(start,end)+'};',c);

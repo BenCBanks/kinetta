@@ -1,7 +1,7 @@
 'use strict';
 // The actual own-detail route block, including delayed/cached redraws and ownership.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const source=fs.readFileSync('app/static/pages.js','utf8'),start=source.indexOf('  const milestoneOwner=readOwner()'),end=source.indexOf('\n});',start);
+const source=fs.readFileSync('app/static/activity-detail-route.js','utf8'),start=source.indexOf('  const milestoneOwner=readOwner()'),end=source.indexOf('\n});',start);
 function fixture({mine=true,search='?edit=1&tab=overview',delay=false}={}){
  let owner='fictional-owner',open=0,draw=0,pending;
  const events=[],location={pathname:'/activity/42',search,hash:'#details'},el={isConnected:true};

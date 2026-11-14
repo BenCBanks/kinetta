@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-const source = fs.readFileSync('app/static/pages.js', 'utf8');
+const source = fs.readFileSync('app/static/progress-home-route.js', 'utf8');
 const start = source.indexOf('function matchedRouteTrendHeadline');
 const end = source.indexOf("route(/^\\/route", start);
 assert(start >= 0 && end > start, 'matched-route headline helper is present');

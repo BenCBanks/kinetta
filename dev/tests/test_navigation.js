@@ -63,6 +63,15 @@ const app=fs.readFileSync('app/static/app.js','utf8');
  assert(setupRoute.indexOf('FOOD_ROUTE_ASSET')<setupRoute.indexOf("'/static/onboarding.js?v=__ASSET_HASH__'"),'Food globals load before onboarding');
  assert(setupIndex<genericFoodIndex,'Food setup precedes the generic Food matcher');
  assert(!fs.readFileSync('app/static/index.html','utf8').includes('/static/onboarding.js'),'onboarding is absent from eager script tags');
+ const pages=fs.readFileSync('app/static/pages.js','utf8');
+ assert(app.includes("const ACTIVITY_PAGE_ROUTE_ASSET = '/static/activity-detail-route.js?v=__ASSET_HASH__';"),'Activity detail leaf has a stamped lazy asset URL');
+ assert(app.includes("const PROGRESS_HOME_ROUTE_ASSET = '/static/progress-home-route.js?v=__ASSET_HASH__';"),'Progress home leaf has a stamped lazy asset URL');
+ assert(lazyRoutes.includes("tab: 'progress', scripts: [SOCIAL_ROUTE_ASSET, PROGRESS_HOME_ROUTE_ASSET]"),'Progress home is deferred behind its route leaf');
+ assert(lazyRoutes.includes("tab: 'progress', scripts: [PROGRESS_HOME_ROUTE_ASSET]"),'Matched route detail is deferred behind the Progress home leaf');
+ assert(lazyRoutes.includes('ACTIVITY_PAGE_ROUTE_ASSET'),'Activity detail routes load their route leaf');
+ assert(!pages.includes("route(/^\/activity\/(\\d+)$/"),'Activity detail route registration moved out of eager pages.js');
+ assert(!pages.includes("route(/^\/route\/(\\d+)$/"),'Matched route detail registration moved out of eager pages.js');
+ assert(!pages.includes("route(/^\/progress$/"),'Progress home route registration moved out of eager pages.js');
  console.log('navigation legacy URL contract: '+old.length+' previous destinations remain registered PASS');
 }
 // Progress now opens on cards, with a real back link and account-scoped discovery history.
