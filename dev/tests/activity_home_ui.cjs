@@ -76,8 +76,8 @@ async function assertCardActions(card,{share,width,label}){
  assert.equal(await shareButton.count(),share?1:0,`${label}: Share matches ownership`);
  const padding=await footer.evaluate(n=>parseFloat(getComputedStyle(n).paddingRight)||0),contentRight=footerBox.x+footerBox.width-padding;
  let summaryBox=null;
- if(hasSummary){summaryBox=await count.boundingBox();assert(Math.abs(summaryBox.x-reactBox.x-reactBox.width-4)<1,`${label}: summary follows React`);assert(Math.abs(commentBox.x-summaryBox.x-summaryBox.width-4)<1,`${label}: Comments follows the summary`);assert(summaryBox.width>=44&&summaryBox.height===44,`${label}: reaction summary keeps a 44px-high target`);const emojis=count.locator('.reaction-summary-emoji');assert(await emojis.count()<=3,`${label}: summary caps at three emoji kinds`);assert.equal(await count.locator('.reaction-summary-total').count(),1,`${label}: one total follows the emoji summary`);}
- else assert(Math.abs(commentBox.x-reactBox.x-reactBox.width-4)<1,`${label}: Comments follows React when the summary is empty`);
+ if(hasSummary){summaryBox=await count.boundingBox();assert(Math.abs(summaryBox.x-reactBox.x-reactBox.width-4)<1,`${label}: summary follows React`);assert(commentBox.x-summaryBox.x-summaryBox.width>=7.99,`${label}: at least 8px separates summary and Comments`);assert(summaryBox.width>=44&&summaryBox.height===44,`${label}: reaction summary keeps a 44px-high target`);const emojis=count.locator('.reaction-summary-emoji');assert(await emojis.count()<=3,`${label}: summary caps at three emoji kinds`);assert.equal(await count.locator('.reaction-summary-total').count(),1,`${label}: one total follows the emoji summary`);}
+ else assert(commentBox.x-reactBox.x-reactBox.width>=7.99,`${label}: Comments has an 8px gap after React when the summary is empty`);
  if(share){const shareBox=await shareButton.boundingBox();assert(Math.abs(shareBox.x+shareBox.width-contentRight)<1,`${label}: Share is at the far right`);assert(shareBox.x>=commentBox.x+commentBox.width,`${label}: Share follows Comments`);}
 }
 async function verifyReactionSummary(card,page,out,theme){
@@ -96,9 +96,9 @@ async function verifyReactionSummary(card,page,out,theme){
   if(!state.total){assert(await count.isHidden(),'empty reactions hide the summary');}
   else{
    const countBox=await count.boundingBox(),reactBox=await react.boundingBox(),commentBox=await comment.boundingBox(),footer=card.locator('.post-ft');
-   const expectedLabel=await page.evaluate(fixture=>'See who reacted: '+fixture.total+' reaction'+(fixture.total===1?'':'s')+' ('+fixture.kinds.map(kind=>{const row=App.me.reaction_choices.find(item=>item[0]===kind);return row[1]+' '+fixture.reactions[kind];}).join(', ')+')',state);
-   assert.equal(await count.getAttribute('aria-label'),expectedLabel,'the people-sheet button names the total and each reaction kind');
-   assert(countBox.width>=44&&countBox.height===44,'the summary keeps a 44px-high target');assert(Math.abs(countBox.x-reactBox.x-reactBox.width-4)<1,'summary follows React');assert(Math.abs(commentBox.x-countBox.x-countBox.width-4)<1,'Comments follows the summary');assert(Math.max(countBox.y,reactBox.y,commentBox.y)-Math.min(countBox.y,reactBox.y,commentBox.y)<=2.01,'all footer controls share one row');
+   const expectedLabel=`${state.total} reaction${state.total===1?'':'s'}, see who reacted`;
+   assert.equal(await count.getAttribute('aria-label'),expectedLabel,'the people-sheet button names the inclusive reaction total and action');
+   assert(countBox.width>=44&&countBox.height===44,'the summary keeps a 44px-high target');assert(Math.abs(countBox.x-reactBox.x-reactBox.width-4)<1,'summary follows React');assert(commentBox.x-countBox.x-countBox.width>=7.99,'at least 8px separates summary and Comments');assert(Math.max(countBox.y,reactBox.y,commentBox.y)-Math.min(countBox.y,reactBox.y,commentBox.y)<=2.01,'all footer controls share one row');
    assert.equal(await group.getAttribute('data-mine'),state.mine||'','selected reaction stays independent of summary order');
    assert.equal(await count.locator('.reaction-summary-total').textContent(),String(state.total),'visible summary ends with the total count');
    const hits=await count.locator('.reaction-summary-emoji .reaction-emoji,.reaction-summary-total,.reaction-summary-more').evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return document.elementFromPoint((r.left+r.right)/2,(r.top+r.bottom)/2)?.closest('button')===node.closest('.reaction-count');}));assert(hits.every(Boolean),'emoji and total activate the people sheet');
