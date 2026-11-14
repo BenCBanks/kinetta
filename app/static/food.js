@@ -324,6 +324,8 @@ function animateNutritionCount(root) {
   const count = $('.nutrition-count', root), target = Number(count?.dataset.countTarget);
   if (!count || !Number.isFinite(target)) return;
   const paint = value => { count.firstChild.nodeValue = r0(Math.round(value)); };
+  if (root.dataset.nutritionCountSeen === '1') { paint(target); return; }
+  root.dataset.nutritionCountSeen = '1';
   if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) { paint(target); return; }
   const start = performance.now(), duration = 420;
   const tick = now => {
