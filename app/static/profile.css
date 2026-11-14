@@ -634,7 +634,7 @@
 .profile-achievement-sport-chip svg { width:18px; height:18px; flex:none; }
 .profile-achievement-sport-chip b { color:var(--tx); font-size:.75rem; font-weight:700; }
 .profile-achievement-sport-chip.is-selected { border-color:var(--accent); background:var(--accent2); color:var(--tx); box-shadow:inset 0 0 0 1px var(--accent); }
-.profile-achievement-sport-chip:focus-visible,.profile-achievement-sport-share:focus-visible,.profile-achievement-see-all:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.profile-achievement-sport-chip:focus-visible,.profile-achievement-sport-share:focus-visible,.profile-achievement-track-share:focus-visible,.profile-achievement-see-all:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 .profile-achievement-sport-header { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:96px; padding:16px; border-radius:18px; background:var(--card); box-shadow:var(--elevation-raised); }
 .profile-achievement-sport-heading { display:flex; flex:1; align-items:center; gap:12px; min-width:0; }
 .profile-achievement-sport-heading > div { flex:1; min-width:0; }
@@ -647,7 +647,9 @@
 .profile-achievement-sport-share { flex:none; min-width:44px; min-height:44px; }
 .profile-achievement-sport-cards { display:grid; gap:24px; }
 .profile-achievement-sport-card { min-width:0; padding:16px; border:0; border-radius:16px; background:var(--card); box-shadow:var(--elevation-raised); }
-.profile-achievement-sport-card .profile-achievement-track-head { display:flex; align-items:flex-start; gap:10px; min-height:0; padding:0; color:var(--tx); text-decoration:none; }
+.profile-achievement-sport-card .profile-achievement-track-head { display:flex; align-items:center; gap:8px; width:100%; min-height:44px; padding:0; }
+.profile-achievement-track-link { display:flex; flex:1; align-items:center; min-width:0; min-height:44px; color:var(--tx); text-decoration:none; }
+.profile-achievement-track-share { flex:0 0 44px; width:44px; min-width:44px; height:44px; padding:10px; }
 .profile-achievement-track-heading { display:flex; align-items:flex-start; gap:8px; min-width:0; }
 .profile-achievement-track-heading svg { flex:none; width:20px; height:20px; color:var(--accent); }
 .profile-achievement-track-heading-copy { display:flex; flex-direction:column; gap:3px; min-width:0; }
