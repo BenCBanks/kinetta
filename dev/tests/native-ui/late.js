@@ -109,9 +109,16 @@
     };
   }
   async function capture(){
+    const initialReady=()=>cfg.startupTiming
+      ?App.pageReady&&!!document.querySelector('#page .me-card-sections[aria-busy="false"]')
+      :cfg.groups?(App.pageReady&&document.querySelector('#group-new')):cfg.headerPage?(App.pageReady&&document.querySelector('#page h1')):cfg.friends?(App.pageReady&&document.querySelector('#fr-own-list')):cfg.activity?(App.pageReady&&document.querySelector('.compact-detail-title')):cfg.recording?document.querySelector(cfg.stage==='track-review'?'#track-photos-add:not(:disabled)':'#track-lap'):cfg.stage==='food'?document.querySelector('#thread-text'):document.querySelector('#dk-name');
     for(let n=0;n<150;n++){
-      if(cfg.groups?(App.pageReady&&document.querySelector('#group-new')):cfg.headerPage?(App.pageReady&&document.querySelector('#page h1')):cfg.friends?(App.pageReady&&document.querySelector('#fr-own-list')):cfg.activity?(App.pageReady&&document.querySelector('.compact-detail-title')):cfg.recording?document.querySelector(cfg.stage==='track-review'?'#track-photos-add:not(:disabled)':'#track-lap'):cfg.stage==='food'?document.querySelector('#thread-text'):document.querySelector('#dk-name'))break;
+      if(initialReady())break;
       await new Promise(ok=>setTimeout(ok,100));
+    }
+    if(cfg.startupTiming){
+      if(!initialReady())throw Error('Fictional Me screen did not reach first useful render');
+      await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);cfg.startupTiming.firstUsefulRenderPerfMs=performance.now();
     }
     if(cfg.activity){let socialReady=false;for(let n=0;n<150;n++){const box=document.querySelector('#d-soc'),requested=cfg.requests.includes('/api/activities/1/social'),hasContent=cfg.activity.social.cheers.length||cfg.activity.social.comments.length;socialReady=!!box&&requested&&(hasContent?!box.hidden:box.hidden);if(socialReady)break;await new Promise(ok=>setTimeout(ok,100));}if(!socialReady)throw Error('Owner activity empty-social state did not finish loading');}
     if(cfg.groups){document.querySelector('#group-new')?.click();let ready=false;for(let n=0;n<150;n++){ready=!!document.querySelector('#group-create-form');if(ready)break;await new Promise(ok=>setTimeout(ok,100));}if(!ready)throw Error('Groups create form did not open');}

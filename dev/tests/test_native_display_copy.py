@@ -50,6 +50,14 @@ vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);
                 self.assertEqual((destination/'public/index.html').read_text().count('native-ui-late.js'),1)
                 after={str(p.relative_to(source)):hashlib.sha256(p.read_bytes()).hexdigest() for p in source.rglob('*') if p.is_file()}
                 self.assertEqual(before,after)
+            subprocess.run(['python3',str(PREPARE),str(source),str(destination),'--stage','header-me','--root','16','--run','c'*32,'--update','--startup-timing'],check=True,cwd=ROOT)
+            early=(destination/'public/static/native-ui-early.js').read_text()
+            self.assertIn('"startupTiming": {}',early)
+            self.assertIn('webViewReadyPerfMs=performance.now()',early)
+            late=(destination/'public/static/native-ui-late.js').read_text()
+            self.assertIn('firstUsefulRenderPerfMs=performance.now()',late)
+            after={str(p.relative_to(source)):hashlib.sha256(p.read_bytes()).hexdigest() for p in source.rglob('*') if p.is_file()}
+            self.assertEqual(before,after,'Startup timings are injected into the disposable copy only')
 
 
 if __name__=='__main__':unittest.main()

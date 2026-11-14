@@ -57,3 +57,12 @@ display bridge and WebView geometry remain real. With Groups added, each phone n
 area, title positions to agree within 2pt, and visible header controls to retain 44px targets below the status
 area. It also rejects unexpected WebView/content insets. Browser fixture checks are separate from actual
 Simulator evidence; the earlier extra 10pt shell gap fails this check on both phones and in both themes.
+
+The CI native-ui run also measures one cold fictional Me launch per phone. Its diagnostic timeline starts immediately
+before `simctl launch`, then records first fixture JavaScript execution (WebView JS ready), `DOMContentLoaded`
+(index and parser-blocking assets loaded), the fixture `/api/me` response, and the first rendered Me frame after the
+weekly sections leave their loading state. Phase values are printed as `IOS_COLD_START` log lines, written into the
+header-Me JSON artifact, and appended to the GitHub Actions job summary. The `/api/me` and other API responses are
+local fictional stand-ins, so these measurements show native/WebView/index/render overhead with a near-zero API
+response; they are not production network or physical-iPhone timings. Instrumentation runs only in the disposable
+Debug Simulator copy and does not alter app startup behavior.
