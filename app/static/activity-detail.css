@@ -26,7 +26,7 @@
 .compact-detail-title .detail-kit:active { transform:scale(.96); color:var(--color-brand); }
 .compact-detail-title .detail-date { margin:0; color:var(--tx2); font-size:.875rem; font-weight:400; }
 .detail-stat-stack { display:grid; gap:16px; margin-top:12px; }
-.detail-owner { display:inline-flex; align-items:center; min-height:44px; font-size:.875rem; margin-top:-8px; }
+.detail-owner { display:inline-flex; align-items:center; justify-content:center; min-height:44px; max-width:40%; margin-left:auto; font-size:.875rem; text-align:right; }
 .detail-primary,.detail-moving,.detail-secondary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px 8px; }
 .detail-primary .stat b,.detail-moving .stat b,.detail-secondary .stat b { display:block; font-size:1.25rem; font-weight:700; line-height:1.15; white-space:normal; overflow-wrap:anywhere; }
 .detail-primary .stat small,.detail-moving .stat small,.detail-secondary .stat small { font-size:.8125rem; line-height:1.15; font-weight:500; letter-spacing:0; text-transform:none; color:var(--tx2); }
@@ -50,10 +50,10 @@
 .shell.activity-detail > .seg.wide.dtabs { margin:0 0 2px; }
 /* Keep the 46dvh map and its first-screen tabs together when optional medal rows load. */
 @media(max-width:700px) {
- .activity-detail > .detail-map-hero ~ .compact-detail-title { padding:8px 14px 16px; }
+ .activity-detail > .detail-map-hero ~ .compact-detail-title { padding:8px 14px 12px; }
  .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-title-row h1 { line-height:1.1; }
  .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-date-row { margin:2px 0 0; }
- .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-stat-stack { margin-top:12px; }
+ .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-stat-stack { margin-top:8px; }
  .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-primary .stat b,.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-moving .stat b,.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-secondary .stat b { font-size:1.25rem; line-height:1.05; white-space:normal; overflow-wrap:anywhere; }
  .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-primary .stat small,.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-moving .stat small,.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-secondary .stat small { line-height:1.1; }
  /* Matched routes and records remain in Overview/Efforts; drop their duplicate header shortcuts on phones. */
@@ -77,7 +77,7 @@
 
 /* Activity detail finish: make the primary number read as the page's hero. */
 .activity-detail > .detail-map-hero ~ .compact-detail-title {
-  margin-top:-28px;
+  margin-top:-40px;
   border-radius:20px 20px var(--r) var(--r);
   box-shadow:var(--elevation-raised);
   position:relative;
@@ -86,19 +86,26 @@
 .activity-detail .detail-stat-stack {
   display:grid;
   grid-template-columns:repeat(3,minmax(0,1fr));
-  gap:12px 8px;
+  gap:8px;
   margin-top:14px;
 }
 .activity-detail .detail-stat-stack::before { display:none; }
 .activity-detail .detail-primary,
 .activity-detail .detail-moving,
-.activity-detail .detail-secondary { display:contents; }
+.activity-detail .detail-secondary {
+  display:grid;
+  grid-column:1 / -1;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+}
 .activity-detail .detail-stat-empty { display:none; }
 .activity-detail .detail-primary .stat:first-child {
   grid-column:1 / -1;
   padding-bottom:12px;
   border-bottom:1px solid var(--line);
 }
+.activity-detail .detail-primary,
+.activity-detail .detail-moving { grid-column:1 / -1; }
 .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-primary .stat:first-child b {
   font-size:36px;
   font-weight:700;
@@ -137,6 +144,7 @@
 .detail-map-hero .compact-media:has(.media-map) .media-dots { top:calc(env(safe-area-inset-top) + 22px); }
 /* Reserve the tools' three targets, their gaps and the notice's left margin. */
 .detail-map-hero .leaflet-bottom.leaflet-left { width:calc(100% - 174px); }
+.detail-map-hero .leaflet-bottom.leaflet-right { bottom:36px; }
 .detail-map-hero .map-unavailable { box-sizing:border-box; max-width:min(150px,100%); }
 @media(min-width:1000px) { .activity-detail { --detail-edge:32px; } }
 
