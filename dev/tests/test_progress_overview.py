@@ -54,10 +54,12 @@ try:
     today = dt.date.fromisoformat(before['today'])   # just after midnight in UTC+14, so today's runs stay within the 1-hour future allowance at any UTC hour
     aid = runner.post('/api/activities/manual', {'sport': 'run', 'start': f'{today}T00:00:00+14:00', 'duration_s': 1500, 'distance_m': 5000, 'name': 'Fictional private run'})[1]['id']
     assert runner.put(f'/api/activities/{aid}/sharing', {'visibility': 'me'})[0] == 200
-    second = runner.post('/api/activities/manual', {'sport': 'run', 'start': f'{today}T00:30:00+14:00', 'duration_s': 1500, 'distance_m': 5000, 'name': 'Fictional second run'})[1]['id']
-    for offset in range(1, 7):
+    second = runner.post('/api/activities/manual', {'sport': 'run', 'start': f'{today}T00:30:00+14:00', 'duration_s': 1860, 'distance_m': 6200, 'name': 'Fictional second run'})[1]['id']
+    training_distances = [4500, 7100, 5300, 8600, 4800, 6400]
+    for offset, distance in enumerate(training_distances, 1):
         day = today - dt.timedelta(days=offset * 5)
-        assert runner.post('/api/activities/manual', {'sport': 'run', 'start': f'{day}T01:00:00+14:00', 'duration_s': 1800, 'distance_m': 5000, 'name': 'Fictional training run'})[0] == 200
+        duration = int(distance / 2.8)
+        assert runner.post('/api/activities/manual', {'sport': 'run', 'start': f'{day}T01:00:00+14:00', 'duration_s': duration, 'distance_m': distance, 'name': 'Fictional training run'})[0] == 200
     uid = ids[1]
     sql(f"""WITH r AS (INSERT INTO routes(user_id,sport,name) VALUES({uid},'run','Fictional loop') RETURNING id)
         UPDATE activities SET route_id=(SELECT id FROM r),geom=ST_GeomFromText('LINESTRING(-77.04 38.90,-77.03 38.91)',4326)

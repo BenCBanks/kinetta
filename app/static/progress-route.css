@@ -108,6 +108,9 @@
 .progress-home-totals .progress-total-readout b { color:var(--tx); font-weight:650; }
 .progress-home-totals #m-chart .dotline { stroke:var(--accent); stroke-width:3; }
 .progress-home-totals #m-chart .dotp { fill:var(--accent); }
+.progress-home-totals #m-chart .dotp { stroke:var(--surface-card); stroke-width:2; }
+.progress-home-totals #m-chart .dotp.cur { fill:var(--color-action); stroke:var(--color-action); stroke-width:3; }
+.progress-home-totals #m-chart .dotp.best { fill:var(--color-success); }
 .progress-home-totals #m-chart .yl { font-size:11px; }
 .fitness-current { margin-bottom:12px; }
 .fitness-current .me-form-top { min-height:38px; }
@@ -120,6 +123,12 @@
 .progress-home-totals .empty { text-align:left; }
 .progress-home-totals .empty p { margin:0; }
 .progress-home-totals #m-chart { margin-top:0; }
+.progress-home-totals .period-column .bar-seg { fill:color-mix(in srgb,var(--color-distance-muted) 45%,var(--color-brand) 55%); transition:fill var(--motion-settle) var(--motion-ease), opacity var(--motion-press) ease-out; }
+.progress-home-totals .period-column:not(.distance-column).is-selected .bar-seg,
+.progress-home-totals .period-column:not(.distance-column):has(.bar-seg.partial) .bar-seg { fill:url(#kinetta-accent-gradient); opacity:1; }
+.progress-home-totals .period-column:active .bar-seg { opacity:.72; }
+.progress-home-totals .period-column:focus-visible .period-hit { stroke:var(--accent); stroke-width:2; }
+.progress-home-totals .progress-total-readout { min-height:20px; }
 .progress-pair { gap:10px; }
 .progress-summary { min-height:0; padding:12px; }
 .progress-summary h2 { margin:0 0 6px; font-size:var(--text-app-card-title); }

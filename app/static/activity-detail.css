@@ -22,6 +22,8 @@
 .detail-date-row .detail-kit { display:flex; align-items:center; gap:4px; }
 .compact-detail-title .detail-kit { min-width:44px; min-height:44px; padding:0 4px; margin:0; border:0; border-radius:0; background:none; color:var(--accent); font-size:max(15px,.9375rem); font-weight:600; line-height:1.2; }
 .detail-kit svg { width:18px; height:18px; color:var(--accent); }
+.compact-detail-title .detail-kit { transition: color var(--motion-press) ease-out, transform var(--motion-press) ease-out; }
+.compact-detail-title .detail-kit:active { transform:scale(.96); color:var(--color-brand); }
 .compact-detail-title .detail-date { margin:0; color:var(--tx2); font-size:.875rem; font-weight:400; }
 .detail-stat-stack { display:grid; gap:16px; margin-top:12px; }
 .detail-owner { display:inline-flex; align-items:center; min-height:44px; font-size:.875rem; margin-top:-8px; }
@@ -29,10 +31,15 @@
 .detail-primary .stat b,.detail-moving .stat b,.detail-secondary .stat b { display:block; font-size:1.25rem; font-weight:600; line-height:1.15; white-space:normal; overflow-wrap:anywhere; }
 .detail-primary .stat small,.detail-moving .stat small,.detail-secondary .stat small { font-size:.8125rem; line-height:1.15; font-weight:500; letter-spacing:0; text-transform:none; color:var(--tx2); }
 .detail-primary .stat i,.detail-moving .stat i,.detail-secondary .stat i { font-size:.8125rem; margin-left:3px; font-style:normal; font-weight:400; color:var(--tx2); }
+.detail-stat-stack { position:relative; }
+.detail-stat-stack::before { content:''; position:absolute; inset:0 -8px auto; height:1px; background:linear-gradient(90deg,transparent,var(--line) 12%,var(--line) 88%,transparent); }
+.detail-primary .stat b,.detail-moving .stat b,.detail-secondary .stat b { letter-spacing:-.02em; }
 .detail-stat-empty { min-width:0; }
 .detail-highlights { display:flex; flex-wrap:wrap; gap:8px 10px; margin-top:8px; }
 .detail-highlight { display:inline-flex; align-items:center; gap:4px; min-height:44px; min-width:0; padding:0; border:0; background:none; color:var(--accent); font-size:.8125rem; text-align:left; overflow-wrap:anywhere; }
 .detail-highlight svg { flex:none; width:16px; height:16px; }
+.detail-highlight { transition: color var(--motion-press) ease-out, transform var(--motion-press) ease-out; }
+.detail-highlight:active { transform:scale(.97); }
 .detail-social { display:flex; align-items:center; gap:8px; margin-top:0; }
 .detail-social[hidden] { display:none; }
 .compact-detail-title .milestone-banner { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; margin:8px 0 0; padding:0; border:0; }
@@ -64,6 +71,9 @@
 .activity-detail .seg.dtabs button { font-size:.9375rem; font-weight:400; }
 .activity-detail .seg.dtabs button[aria-selected="true"] { font-weight:600; }
 .activity-detail .activity-charts .lbl > span:first-child,.activity-detail .dpane h2 { font-size:.9375rem; font-weight:600; }
+.activity-detail .activity-chart-card { background:var(--surface-card); box-shadow:var(--elevation-rest); }
+.activity-detail .activity-charts .chartbox { padding:4px 0 2px; }
+.activity-detail .activity-charts .chartbox .area { fill:url(#kinetta-accent-gradient); opacity:.22; }
 
 /* Keep media tools together below the floating navigation, with 44px targets and 8px gaps. */
 .detail-map-hero .map-full { top:calc(env(safe-area-inset-top) + 60px); right:8px; left:auto; bottom:auto; }

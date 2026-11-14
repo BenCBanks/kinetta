@@ -107,6 +107,7 @@
 .track-other > label { padding-bottom:4px; }
 .track-ready-map-wrap { position: relative; z-index: 0; }
 .track-ready-map, .live-record-map { height: clamp(240px, 39dvh, 380px); border-radius: 16px; overflow: hidden; background: var(--card2); }
+.track-ready-map, .live-record-map { box-shadow: var(--elevation-rest); }
 .track-ready-map { height: clamp(160px, 23dvh, 240px); }
 .track-locate { position: absolute; right: 12px; bottom: 12px; z-index: 500; background: var(--card); min-height: 44px; padding: 10px 14px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
 .track-locate svg { width: 18px; }
@@ -197,12 +198,19 @@
 .track-controls { display: flex; justify-content: center; gap: 44px; margin: 20px 0 6px; }
 .round-ctl { display: grid; justify-items: center; gap: 6px; } .round-ctl small { font-size: 13px; font-weight: 650; color: var(--tx2); }
 .track-live .track-controls .round-btn { width: 84px; height: 84px; }
+.track-live .track-controls .round-btn { transition: transform var(--motion-press) ease-out, box-shadow var(--motion-settle) var(--motion-ease), background var(--motion-settle) var(--motion-ease); }
+.track-live .track-controls .round-btn:active { transform:scale(.94); }
+.track-live.is-recording .track-controls .round-btn:not(.lap) { box-shadow:var(--elevation-raised); }
 .stats-expanded .track-hero b { font-size: clamp(72px, 24vw, 96px); }
 .stats-expanded .track-live-metrics { padding-block: 18px; }
 .stats-expanded .track-live .track-live-metrics b, .stats-expanded .track-live-metrics b { font-size: clamp(40px, 12vw, 52px); }
 .track-saved { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
 .track-saved a { display: inline-flex; gap: 6px; align-items: center; }
 .track-saved svg { width: 16px; }
+.track-review .track-review-chart-card { background:var(--surface-card); box-shadow:var(--elevation-rest); }
+.track-review .track-review-splits div { transition:background-color var(--motion-press) ease-out; }
+.track-review .track-review-splits div:active { background:var(--surface-raised); }
+.track-review .track-check-saved:active { transform:scale(.97); }
 nav.tabs :is(a,button).has-recording { position: relative; }
 nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); position: absolute; top: 5px; right: calc(50% - 18px); }
 /* Track: the other ways to add an activity are a visible list, not a closed fold. */
