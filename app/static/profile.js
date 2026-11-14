@@ -4,7 +4,6 @@ const FEATURED_ACHIEVEMENT_LIMIT=4;
 const ProfileLayout=(()=>{
   const sections={recent:'Recent progress',mileage:'Distance chart',totals:'All-time totals',sports:'Sports',activities:'Activities'};
   const stats={activities:'Activities',distance:'Distance',time:'Time',active_days:'Active days'};
-  const watchedOpenProfileCards=new WeakSet();
   const pendingAchievementViews=new WeakMap();
   const pendingAchievementDelays=[2000,4000,8000,15000];
   const sports=['run','ride','walk','hike','swim','workout','row','ski','other'];
@@ -616,13 +615,14 @@ const ProfileLayout=(()=>{
   function sharedAchievementRow(track,login='',{featured=false,ownerFeatured=false}={}){
     const label=track.code==='sport:lift'?'Lift sessions':track.label||track.code,level=achievementLevel(track),tier=achievementCurrentTier(track),href=login?`/people/${encodeURIComponent(login)}?view=achievements&track=${encodeURIComponent(track.code)}`:achievementHref(track);
     const secondary=featured?' data-type="secondary"':'';
-    const description=ownerFeatured?'':`<span class="profile-achievement-next"${secondary}>${esc(`Level ${level}${tier?` · ${tier.name}`:''}`)}</span>`;
-    return `<a class="profile-achievement${featured?' me-featured-item':''}" role="listitem" href="${esc(href)}" aria-label="${esc(`${label}, Level ${level}${tier?`, ${tier.name}`:''}, ${achievementValue(track)}`)}" data-achievement-code="${esc(track.code)}"${featured?` data-showcase-code="${esc(track.code)}"`:''}>${achievementMedallion(track,{featured})}<span class="profile-achievement-name"${secondary}>${esc(label)}</span>${description}</a>`;
+    const repeat=Number(tier?.multiple)>1?` · ×${Number(tier.multiple)}`:'';
+    const description=featured?`<span class="me-featured-caption"${secondary}>Lv ${level}${repeat}</span>`:`<span class="profile-achievement-next"${secondary}>${esc(`Level ${level}${tier?` · ${tier.name}`:''}`)}</span>`;
+    return `<a class="profile-achievement${featured?' me-featured-item':''}" role="listitem" href="${esc(href)}" aria-label="${esc(`${label}, Level ${level}${repeat?`, ${repeat.slice(3)}`:''}${tier?`, ${tier.name}`:''}, ${achievementValue(track)}`)}" data-achievement-code="${esc(track.code)}"${featured?` data-showcase-code="${esc(track.code)}"`:''}>${achievementMedallion(track,{featured,showLevel:!featured,showMultiple:!featured})}<span class="profile-achievement-name"${secondary}>${esc(label)}</span>${description}</a>`;
   }
-  function achievementMedallion(track,{featured=false,showMultiple=true}={}){
+  function achievementMedallion(track,{featured=false,showLevel=true,showMultiple=true}={}){
     const started=achievementTrackStarted(track),level=achievementLevel(track),value=started?achievementMedalValue(track,{small:featured}):'',tier=achievementCurrentTier(track)||achievementTierAt(track.code,1);
     const tone=level>=6?'deep':String(level),secondary=featured?' data-type="secondary"':'';
-    return `<span class="profile-achievement-medallion" data-level="${level}" data-level-tone="${tone}" aria-hidden="true">${achievementAsset(tier)||achievementGlyph(track)}${started?`<span class="profile-achievement-value"${secondary}>${esc(value)}</span><span class="profile-achievement-level"${secondary}>Lv ${level}</span>${showMultiple&&Number(tier?.multiple)>1?`<span class="profile-achievement-multiple"${secondary}>×${Number(tier.multiple)}</span>`:''}`:''}</span>`;
+    return `<span class="profile-achievement-medallion" data-level="${level}" data-level-tone="${tone}" aria-hidden="true">${achievementAsset(tier)||achievementGlyph(track)}${started?`<span class="profile-achievement-value"${secondary}>${esc(value)}</span>${showLevel?`<span class="profile-achievement-level"${secondary}>Lv ${level}</span>`:''}${showMultiple&&Number(tier?.multiple)>1?`<span class="profile-achievement-multiple"${secondary}>×${Number(tier.multiple)}</span>`:''}`:''}</span>`;
   }
   function achievementNextMedallion(track,tier){
     if(!tier)return '';
@@ -668,8 +668,12 @@ const ProfileLayout=(()=>{
     return `<span class="me-showcase-row" role="img" aria-label="${esc(label)}">${items.map(item=>`<span class="me-showcase-medal" data-showcase-code="${esc(item.code)}" aria-hidden="true">${item.icon}</span>`).join('')}${hasStreak?`<span class="me-showcase-streak" aria-hidden="true">${svg('flame')}<span>${streak}-day streak</span></span>`:''}</span>`;
   }
   function showcaseStreakMarkup(data){
-    const streak=Number(data?.day_streak);if(!Number.isInteger(streak)||streak<2)return '';
-    return `<span class="me-showcase-row" role="img" aria-label="${streak}-day activity streak"><span class="me-showcase-streak" aria-hidden="true">${svg('flame')}<span>${streak}-day streak</span></span></span>`;
+    const day=Number(data?.day_streak),week=Number(data?.week_streak),parts=[];
+    if(Number.isInteger(day)&&day>=2)parts.push(`${day}-day`);
+    if(Number.isInteger(week)&&week>=2)parts.push(`${week}-week streak`);
+    if(!parts.length)return '';
+    const text=parts.join(' · '),label=parts.length===2?`${parts[0]} and ${parts[1].replace(' streak','')} activity streak`:`${parts[0]} activity streak`;
+    return `<span class="me-showcase-row" role="img" aria-label="${esc(label)}"><span class="me-showcase-streak" aria-hidden="true">${svg('flame')}<span>${esc(text)}</span></span></span>`;
   }
   function featuredShowcaseMarkup(showcase,achievementData,{sharedLogin='',ownerFeatured=false}={}){
     const pinned=new Set((Array.isArray(showcase?.pinned)?showcase.pinned:[]).map(String)),tracks=new Map((Array.isArray(achievementData?.tracks)?achievementData.tracks:[]).map(track=>[String(track?.code||''),track]));
@@ -723,20 +727,6 @@ const ProfileLayout=(()=>{
     };
     pendingAchievementViews.set(root,stop);document.addEventListener('visibilitychange',visibility);window.addEventListener('online',resume);window.addEventListener('offline',pause);
     addAchievementCleanup(root,stop);schedule();
-  }
-  function syncMeCardOpenLink(card){
-    const link=card?.querySelector('.me-card-open-link');if(!link)return;
-    const featured=card.querySelector('.me-featured-achievements');
-    if(!featured){link.style.height='100%';return;}
-    const cardTop=card.getBoundingClientRect().top,featuredTop=featured.getBoundingClientRect().top;
-    link.style.height=`${Math.max(0,featuredTop-cardTop-8)}px`;
-  }
-  function watchMeCardOpenLink(root,card,featureSlot){
-    if(!card?.querySelector('.me-card-open-link')||!featureSlot||watchedOpenProfileCards.has(card))return;
-    watchedOpenProfileCards.add(card);
-    const sync=()=>syncMeCardOpenLink(card),resize=new ResizeObserver(sync),mutations=new MutationObserver(sync);
-    resize.observe(card);resize.observe(featureSlot);mutations.observe(card,{childList:true,subtree:true});sync();
-    addAchievementCleanup(root,()=>{resize.disconnect();mutations.disconnect();watchedOpenProfileCards.delete(card);});
   }
   function fitAchievementValues(root){
     if(!root?.querySelectorAll)return;
@@ -799,9 +789,9 @@ const ProfileLayout=(()=>{
       if(sharedProfile&&!login)return;
       const owner=readOwner(),path=location.pathname+location.search;if(featureSlot)featureSlot.dataset.loading='true';
       const paint=(data,achievements)=>{
-        if(streakSlot){streakSlot.innerHTML=showcaseStreakMarkup(data);streakSlot.dataset.loaded='true';}
+        if(streakSlot){streakSlot.innerHTML=showcaseStreakMarkup({...data,week_streak:r?.week_streak});streakSlot.dataset.loaded='true';}
         if(!sharedProfile)achievementLevelUpHaptic(achievementLevelUps(achievements));
-        if(featureSlot){const sharedData=sharedProfile?{tracks:sharedAchievementTracks(achievements)}:achievements;featureSlot.innerHTML=featuredShowcaseMarkup(data,sharedData,sharedProfile?{sharedLogin:login}:{ownerFeatured:true});featureSlot.dataset.loading='';featureSlot.dataset.loaded='true';watchMeCardOpenLink(root,featureSlot.closest('.me-card'),featureSlot);}
+        if(featureSlot){const sharedData=sharedProfile?{tracks:sharedAchievementTracks(achievements)}:achievements;featureSlot.innerHTML=featuredShowcaseMarkup(data,sharedData,sharedProfile?{sharedLogin:login}:{ownerFeatured:true});featureSlot.dataset.loading='';featureSlot.dataset.loaded='true';}
       };
       try{
         const query=sharedProfile?`?login=${encodeURIComponent(login)}`:'', [data,_catalog,achievements]=await Promise.all([api('/api/achievements/showcase'+query),loadAchievementCatalog(),api('/api/achievements'+query)]);
@@ -925,21 +915,19 @@ const MeCard=(()=>{
   const short=d=>fdate(d+'T12:00',{month:'short',day:'numeric'});
   // The card itself, shared by Me and every profile page (Ben, 30 Oct 2026: the full profile is this card at full size,
   // then the shared activities). Friends shares the handle row without changing its audience or destination.
-  function card(p,{viewer='friend',pills='',friends='',link=false,milestones=false,showBio=true,featured:featuredOption}={}){
+  function profileCard({person,data=null,viewer='friend',period='all-time',pills='',friends='',link=false,milestones=false,showBio=true,featured:featuredOption}={}){
+    const p=person||{};
     if(!['owner','friend','preview'].includes(viewer))throw new TypeError(`Unknown profile viewer: ${viewer}`);
+    if(!['week','all-time'].includes(period))throw new TypeError(`Unknown profile card period: ${period}`);
     const mine=viewer==='owner',featured=featuredOption===undefined?viewer!=='owner':featuredOption;
     const bio=showBio?(p.bio||'').trim():'',photo=avatar(p,'lg'),name=esc(p.name||p.login),handle=`<span data-type="secondary">@${esc(p.login)}</span>`;
-    const showcase=mine?'<span class="me-showcase-streak-slot" data-me-showcase-streak></span>':'';
     const preview=mine&&location.pathname==='/me'?`<div class="me-card-preview-row"><button type="button" class="me-card-preview-action" data-card-preview>${svg('people')}View as friend</button></div>`:'';
-    const initials=((p.name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase()||'?');
-    const identity=link
-      ? `<span class="me-card-profile-link"><span class="me-card-avatar">${photo}</span><span class="me-card-name"><span class="me-card-name-heading"><h2>${name}</h2><span class="me-profile-chevron" aria-hidden="true">${svg('chev')}</span></span>${showcase}<span class="me-card-meta">${handle}</span></span></span>${friends}`
-      : `<span class="me-card-avatar">${photo}</span><div class="me-card-name"><h2>${name}</h2>${showcase}<div class="me-card-meta">${handle}${friends}</div></div>`;
-    const openProfile=link?`<a class="me-card-open-link" href="${profileHref(p)}" aria-label="Open my profile"></a>`:'';
-    return `<section class="me-card${link?' me-card-open':''}" aria-label="${mine?'Your profile card':esc(p.name||p.login)+'’s profile card'}">${openProfile}<div class="me-card-banner">${pills}</div>
-      <div class="me-card-body"><div class="me-card-id${link?' me-card-id-link':''}">${identity}</div>${preview}
+    const identity=link?`<a class="me-card-profile-link" href="${profileHref(p)}" aria-label="Open my profile"><span class="me-card-avatar">${photo}</span><span class="me-card-name"><h2>${name}</h2><span class="me-card-meta">${handle}</span><span class="me-showcase-streak-slot" data-me-showcase-streak></span></span></a>`:`<span class="me-card-profile-link"><span class="me-card-avatar">${photo}</span><span class="me-card-name"><h2>${name}</h2><span class="me-card-meta">${handle}</span><span class="me-showcase-streak-slot" data-me-showcase-streak></span></span></span>`;
+    const content=data?profileView(data,{viewer,period}).html:skel(1);
+    return `<section class="me-card me-card-${period}" data-profile-card-period="${period}" aria-label="${mine?'Your profile card':esc(p.name||p.login)+'’s profile card'}"><div class="me-card-banner">${pills}</div>
+      <div class="me-card-body"><div class="me-card-id me-card-id-link">${identity}${friends}</div>${preview}
         ${bio?bio.length>140?`<details class="me-about"><summary>About me</summary><p>${esc(bio)}</p></details>`:`<p class="me-profile-bio">${esc(bio)}</p>`:''}
-        <div class="me-card-sections" aria-busy="true">${skel(1)}</div>${featured?'<div class="me-featured-slot" data-me-featured></div>':''}
+        <div class="me-card-sections" aria-busy="${data?'false':'true'}">${content}</div>${featured?'<div class="me-featured-slot" data-me-featured></div>':''}
         ${milestones?'<div data-me-milestones hidden></div>':''}</div></section>`;
   }
   const paintBars=box=>$$('.me-card-bars span[data-h]',box).forEach(bar=>bar.style.height=(bar.dataset.h==='0'?'0':Math.max(4,bar.dataset.h*5))+'px');
@@ -1004,8 +992,8 @@ const MeCard=(()=>{
         await loadClassicScript(MEDIA_ROUTE_ASSET);
         if(!live(host))return;
         const view=viewerData(profile,'preview'),friends=Number.isInteger(profile.friend_count)?`<span class="me-friends-link">${svg('people')}<span>${friendCountText(profile.friend_count)}</span></span>`:'';
-        host.innerHTML=card(profile.person,{viewer:'preview',friends,showBio:true});
-        mount(host,{data:view,viewer:'preview',mode:'profile'});ProfileLayout.mount(host,view,{shared:true});host.setAttribute('aria-busy','false');
+        host.innerHTML=profileCard({person:profile.person,data:view,viewer:'preview',period:'all-time',friends,showBio:true});
+        mount(host,{data:view,viewer:'preview',period:'all-time'});ProfileLayout.mount(host,view,{shared:true});host.setAttribute('aria-busy','false');
       }catch(error){
         if(!live(host))return;
         host.innerHTML=`<p class="small err" role="alert">${esc(error?.message||'Your shared profile could not load.')}</p><button type="button" class="linkbtn" data-profile-preview-retry>Try again</button>`;
@@ -1021,7 +1009,8 @@ const MeCard=(()=>{
   }
   function header(me){
     return `<header class="me-top"><h1>Hi, ${esc(firstName(me))}</h1><div class="me-profile-tools"><a class="icon-btn" href="/me/settings" aria-label="Settings">${svg('settings')}</a></div></header>
-    ${card(me,{viewer:'owner',link:true,pills:ownPills(),friends:ownFriends(me.friend_count),milestones:true,showBio:false})}`;
+    ${profileCard({person:me,viewer:'owner',period:'week',link:true,pills:ownPills(),friends:ownFriends(me.friend_count),milestones:true,showBio:false})}
+    <div class="me-dashboard-divider" data-me-dashboard-divider><span>Your dashboard</span><span>Only you</span></div><p class="me-card-close-to me-dashboard-close-to" data-me-close-to hidden></p>`;
   }
   // One distance chart, on the card, with a tiny Days / Weeks switch (Ben, 30 Oct 2026: no second chart below it).
   // Every bar is a button: tapping shows that period's range and distance; tap again restores the current period.
@@ -1038,7 +1027,7 @@ const MeCard=(()=>{
   }
   function weekMetrics(row){
     const distance=Number(row.distance_m)||0,workouts=Number(row.activities)||0,time=Number(row.time_s)||0;
-    return {distance:distance>0?U.dist(distance,1):'0',activities:workouts.toLocaleString(),time:time>0?U.time(time):'0m'};
+    return {distance:`${distance>0?U.dist(distance,1):'0'} ${U.du()}`,activities:workouts.toLocaleString(),time:time>0?U.time(time):'0m'};
   }
   function weeklyCard(r){
     if(!r.overview?.activities&&!r.shared_count)return `<div class="me-card-empty"><p>${r.mine===false?'No workouts to show yet.':'Your totals appear here once you have workouts.'}</p>${r.mine===false?"":'<a class="ghost wide" href="/me/goals?new=1">Set a goal</a>'}</div><div class="me-featured-slot" data-me-featured></div>`;
@@ -1049,28 +1038,25 @@ const MeCard=(()=>{
       for(const day=new Date(start);day<=end;day.setDate(day.getDate()+1))if(day.getDate()===1)return day.toLocaleDateString([],{month:'short'});
       return '';
     };
-    const day=d=>fdate(d+'T12:00',{month:'short',day:'numeric'}),streak=Number(r.week_streak);
-    const closeTo=typeof r.close_to==='string'&&r.close_to.trim()?`<p class="me-card-close-to small muted" data-close-to><span class="me-owner-only" data-type="secondary">Only you</span><span>${esc(r.close_to)}</span></p>`:'';
+    const day=d=>fdate(d+'T12:00',{month:'short',day:'numeric'});
     const chart=weeks.length?`<div class="me-chart-scroll"><div class="me-card-bars" role="group" aria-label="Weekly distance, last 12 weeks">${weeks.map((w,i)=>{
       const zero=!(Number(w.distance_m)>0),h=zero?0:Math.max(1,Math.round(Number(w.distance_m)/Math.max(1,...weeks.map(row=>Number(row.distance_m)||0))*10)),label=w.today?'This week':`Week of ${day(w.d)}`,axisMonth=month(w,i),value=weekMetrics(w),aria=`${label}${axisMonth?`, ${axisMonth}`:''}: ${value.distance} ${U.du()}, ${value.activities} ${value.activities==='1'?'workout':'workouts'}, ${value.time}`;
       return `<button type="button" class="me-week${w.today?' now':''}${zero?' zero':''}" aria-pressed="false" data-range="${esc(w.d)}" data-distance="${esc(w.distance_m||0)}" data-activities="${esc(w.activities||0)}" data-time="${esc(w.time_s||0)}" data-current="${w.today?'true':'false'}" aria-label="${esc(aria)}"><span data-h="${h}"></span><span class="me-week-month" data-type="chart" aria-hidden="true">${esc(axisMonth)}</span></button>`;
     }).join('')}</div></div>`:'';
-    const streakSlot=Number.isInteger(streak)&&streak>=2?`<span class="me-week-streak" data-week-streak="${streak}" role="img" aria-label="${streak}-week activity streak. Only you can see this.">${svg('flame')}<span aria-hidden="true">${streak}-week streak</span><span class="me-owner-only" data-type="secondary">Only you</span></span>`:'';
-    return `<div class="me-card-sec me-card-weekly"><div class="me-card-head"><div class="me-card-label" data-week-label aria-live="polite"><span>This week</span></div>${streakSlot}</div>
-      <dl class="me-card-numbers me-numbers-3"><div data-week-stat="distance"><dd><b class="me-metric-value" data-type="stat" data-week-value="distance">${esc(values.distance)}</b></dd><dt data-type="secondary">Distance <small>(${esc(U.du())})</small></dt></div><div data-week-stat="activities"><dd><b class="me-metric-value" data-type="stat" data-week-value="activities">${esc(values.activities)}</b></dd><dt data-type="secondary">Workouts</dt></div><div data-week-stat="time"><dd><b class="me-metric-value" data-type="stat" data-week-value="time">${esc(values.time)}</b></dd><dt data-type="secondary">Time</dt></div></dl>
-      ${chart}${closeTo}</div><div class="me-featured-slot" data-me-featured></div>`;
+    return `<div class="me-card-sec me-card-weekly"><div class="me-card-head"><div class="me-card-label" data-week-label aria-live="polite"><span>This week</span></div></div>
+      <dl class="me-card-numbers me-numbers-3"><div data-week-stat="distance"><dd><b class="me-metric-value" data-type="stat" data-week-value="distance">${esc(values.distance)}</b></dd><dt data-type="secondary">Distance</dt></div><div data-week-stat="activities"><dd><b class="me-metric-value" data-type="stat" data-week-value="activities">${esc(values.activities)}</b></dd><dt data-type="secondary">Workouts</dt></div><div data-week-stat="time"><dd><b class="me-metric-value" data-type="stat" data-week-value="time">${esc(values.time)}</b></dd><dt data-type="secondary">Time</dt></div></dl>
+      ${chart}</div><div class="me-featured-slot" data-me-featured></div>`;
   }
   function sections(r,layout,full){
     if(!r.overview?.activities&&!r.shared_count)return `<div class="me-card-empty"><p>${r.mine===false?'No workouts to show yet.':'Your totals appear here once you have workouts.'}</p>${r.mine===false||full?'':'<a class="ghost wide" href="/me/goals?new=1">Set a goal</a>'}</div>`;
     const figures=key=>{
       const recent=key==='recent',row=(recent?r.recent?.current:r.overview)||{},name=recent?'Last 30 days':'All time',range=recent&&r.recent?.start?`${name}, ${short(r.recent.start)} – ${short(r.recent.end)}`:name;
       return `<div class="me-card-sec me-card-figures" role="group" data-card-period="${key}" aria-label="${esc(range)} workout totals"><p class="me-card-period" data-type="secondary" title="${esc(range)}">${name}</p><dl class="me-card-numbers me-numbers-${layout.stats.length}">${layout.stats.map(stat=>{
-        const n=row[{activities:'activities',distance:'distance_m',time:'time_s',active_days:'active_days'}[stat]],unit=stat==='distance'?U.du():stat==='time'?'h':'',precise=stat==='time'&&n!=null?dur(n,true):null;let value=n==null?'—':stat==='distance'?ProfileLayout.distance(n):Number(n).toLocaleString();
-        if(precise){const h=n/3600;value=h>0&&h<.005?'<0.01':(h>=100?Math.floor(h):h).toLocaleString(undefined,{maximumFractionDigits:h>=100?0:h>=1?1:2});}
-        return `<div data-card-stat="${stat}"><dt data-type="secondary"><span>${ProfileLayout.labels.stats[stat]}</span>${unit?` <small>(${esc(unit)})</small>`:''}</dt><dd${precise?` title="${esc(precise)}"`:''}><b class="me-metric-value" data-type="stat"${precise?' aria-hidden="true"':''}>${esc(value)}</b>${precise?`<span class="vh">${esc(precise)}</span>`:''}</dd></div>`;
+        const n=row[{activities:'activities',distance:'distance_m',time:'time_s',active_days:'active_days'}[stat]],precise=stat==='time'&&n!=null?dur(n,true):null;let value=n==null?'—':stat==='distance'?`${ProfileLayout.distance(n)} ${U.du()}`:stat==='time'?precise:Number(n).toLocaleString();
+        return `<div data-card-stat="${stat}"><dt data-type="secondary"><span>${ProfileLayout.labels.stats[stat]}</span></dt><dd${precise?` title="${esc(precise)}"`:''}><b class="me-metric-value" data-type="stat">${esc(value)}</b></dd></div>`;
       }).join('')}</dl></div>`;
     };
-    return ProfileLayout.singlePeriod(layout).sections.map(key=>{
+    return ProfileLayout.singlePeriod(layout).sections.map(key=>key==='recent'?'totals':key).filter((key,index,all)=>all.indexOf(key)===index).map(key=>{
       if(key==='recent'||key==='totals')return figures(key);
       if(key==='mileage')return distance(r);
       if(key==='sports'){
@@ -1082,7 +1068,7 @@ const MeCard=(()=>{
   }
   function viewerData(data,viewer){
     if(viewer==='owner')return data;
-    const{week_streak,close_to,...payload}=data;
+    const{day_streak,week_streak,close_to,...payload}=data;
     return {...payload,mine:false};
   }
   async function prepareShareClone(clone,profile,{photo=false,shareAchievements=false}={}){
@@ -1093,21 +1079,22 @@ const MeCard=(()=>{
     const avatarNode=clone.querySelector('.me-card-avatar');if(avatarNode){avatarNode.innerHTML=avatar({...person,photo:photo?person.photo:null},'lg');const image=avatarNode.querySelector('img');if(image&&photo){const resolved=await ShareArt.photo(image.dataset.asrc||image.getAttribute('src')||'');if(resolved){image.src=resolved.src;image.removeAttribute('data-asrc');image.loading='eager';}else image.remove();}}
     const friendCount=clone.querySelector('[data-friend-count]');if(friendCount)friendCount.textContent=Number.isInteger(member.friend_count)?friendCountText(member.friend_count):'Friends';
     if(featureSlot){featureSlot.replaceChildren();featureSlot.removeAttribute('data-loaded');featureSlot.removeAttribute('data-loading');}
-    const ownerOnly=['.me-week-streak','.me-card-close-to','[data-friend-waiting]','[data-me-milestones]','[data-card-edit]','[data-card-share]','[data-card-preview]','.me-card-preview-row','.me-card-open-link','.me-showcase-streak-slot'];
+    const ownerOnly=['.me-week-streak','.me-card-close-to','[data-friend-waiting]','[data-me-milestones]','[data-card-edit]','[data-card-share]','[data-card-preview]','.me-card-preview-row','.me-showcase-streak-slot'];
     clone.querySelectorAll(ownerOnly.join(',')).forEach(node=>node.remove());
     if(shareAchievements){await ProfileLayout.mountShowcase(clone,member,{shared:true,featured:true});if(featureSlot?.dataset.loaded==='true')clone.querySelectorAll('.profile-achievement-next').forEach(node=>node.remove());else if(featureSlot){featureSlot.replaceChildren();featureSlot.removeAttribute('data-loaded');featureSlot.removeAttribute('data-loading');}}
     else clone.querySelectorAll('.me-featured-slot,[data-me-featured],.me-featured-achievements,.profile-achievements').forEach(node=>node.remove());
     const privateSelectors=[...ownerOnly,'.profile-achievement-next',...(!shareAchievements?['.me-featured-slot','[data-me-featured]','.me-featured-achievements','.profile-achievements','.profile-achievement-medallion']:[])];
     return{memberPreview:profile.preview==='member',photoIncluded:photo===true&&!!person.photo,shareAchievements:shareAchievements===true,sharedFeaturedLoaded:shareAchievements&&featureSlot?.dataset.loaded==='true',measuredWidth:clone.getBoundingClientRect().width,privateMarkersAbsent:privateSelectors.every(selector=>!clone.querySelector(selector)),aggregateSectionsPreserved:aggregateSnapshot()===originalAggregates};
   }
-  function profileView(data,{viewer,mode='profile'}={}){
+  function profileView(data,{viewer,period,mode}={}){
     if(!['owner','friend','preview'].includes(viewer))throw new TypeError(`Unknown profile viewer: ${viewer}`);
-    if(!['landing','profile'].includes(mode))throw new TypeError(`Unknown profile mode: ${mode}`);
+    period=period||(mode==='landing'?'week':'all-time');
+    if(!['week','all-time'].includes(period))throw new TypeError(`Unknown profile card period: ${period}`);
     const owner=viewer==='owner';
-    if(mode==='landing'&&!owner)throw new TypeError('Only the owner can render the Me landing view.');
+    if(period==='week'&&!owner)throw new TypeError('Only the owner can render the Me weekly card.');
     const shared=viewerData(data,viewer);
     const layout=ProfileLayout.normalize(owner?App.me?.profile_layout||shared.layout:shared.layout);
-    return {html:mode==='landing'?weeklyCard(shared):sections(shared,layout,true),owner,landing:mode==='landing'};
+    return {html:period==='week'?weeklyCard(shared):sections(shared,layout,true),owner,period};
   }
   function fitSports(rail){
     const chips=$$('.me-sport-chip',rail),more=$('.me-sport-more',rail);let count=Math.min(3,chips.length);chips.forEach((n,i)=>n.hidden=i>=count);more.hidden=count===chips.length;if(!more.hidden)more.textContent='+'+(chips.length-count);
@@ -1117,9 +1104,10 @@ const MeCard=(()=>{
     if(count<chips.length){const n=chips.length-count,names=chips.slice(count).map(x=>x.textContent.trim()).join(', ');more.title=names;more.innerHTML=`<span aria-hidden="true">+${n}</span><span class="vh">${n} more ${n===1?'sport':'sports'}: ${esc(names)}</span>`;}
   }
   // Profile data is composed once for the explicit viewer; shared views cannot read owner-only weekly stats.
-  function mount(root,{reload,data:given=null,viewer='owner',mode='landing',onSaved,onEditEnd,editOnLoad=false}={}){
+  function mount(root,{reload,data:given=null,viewer='owner',period:cardPeriod,mode,onSaved,onEditEnd,editOnLoad=false}={}){
     if(!['owner','friend','preview'].includes(viewer))throw new TypeError(`Unknown profile viewer: ${viewer}`);
-    if(!['landing','profile'].includes(mode))throw new TypeError(`Unknown profile mode: ${mode}`);
+    cardPeriod=cardPeriod||(mode==='landing'?'week':'all-time');
+    if(!['week','all-time'].includes(cardPeriod))throw new TypeError(`Unknown profile card period: ${cardPeriod}`);
     const ownerView=viewer==='owner';
     const owner=readOwner(),card=$('.me-card',root),box=$('.me-card-sections',card),live=()=>card.isConnected&&owner===readOwner();
     let data=given?viewerData(given,viewer):null,editing=false,editRevision=0,chartCleanup=()=>{};
@@ -1179,15 +1167,16 @@ const MeCard=(()=>{
       const cleanup=chartCleanup,dispose=()=>{cleanup();wrap.removeEventListener('pointerdown',onDown);wrap.removeEventListener('click',onClick);document.removeEventListener('pointermove',onMove,true);document.removeEventListener('pointerup',onUp,true);document.removeEventListener('pointercancel',onCancel,true);document.removeEventListener('click',outside,true);clearTimeout(ignoreTimer);};chartCleanup=dispose;viewResources.set(wrap,dispose);
     };
     const periods=()=>$$('[data-period]',box).forEach(b=>b.onclick=()=>{if(b.dataset.period===period)return;period=b.dataset.period;draw();$(`[data-period="${period}"]`,box)?.focus({preventScroll:true});});
-    const draw=()=>{if(!live()||editing||!data)return;chartCleanup();const view=profileView(data,{viewer,mode});box.setAttribute('aria-busy','false');box.innerHTML=view.html;bars();if(view.landing){weeklyTaps();ProfileLayout.mountShowcase(root,data,{featured:true,shared:false});}else{weekTaps();periods();}};
+    const draw=()=>{if(!live()||editing||!data)return;chartCleanup();const view=profileView(data,{viewer,period:cardPeriod});box.setAttribute('aria-busy','false');box.innerHTML=view.html;bars();if(view.period==='week'){weeklyTaps();ProfileLayout.mountShowcase(root,data,{featured:true,shared:false});}else{weekTaps();periods();}};
     const loadCard=async()=>{
       try{
         if(!ownerView)throw new TypeError('A shared profile view requires its filtered profile payload.');
         const profileRead=api('/api/people/'+encodeURIComponent(App.me.login)+'/profile?as_friend=true&preview=friend&limit=1');
-        const statsRead=mode==='landing'?load('/api/stats',()=>{}).catch(()=>null):Promise.resolve(null);
+        const statsRead=cardPeriod==='week'?load('/api/stats',()=>{}).catch(()=>null):Promise.resolve(null);
         const [profile,stats]=await Promise.all([profileRead,statsRead]);
         if(!live())return;
-        data=viewerData(stats?{...profile,week_streak:stats.week_streak,close_to:stats.close_to}:profile,viewer);draw();
+        data=viewerData(stats?{...profile,day_streak:stats.day_streak,week_streak:stats.week_streak,close_to:stats.close_to}:profile,viewer);draw();
+        const closeTo=root.querySelector('[data-me-close-to]');if(closeTo){closeTo.textContent=cardPeriod==='week'&&typeof data.close_to==='string'?data.close_to:'';closeTo.hidden=!closeTo.textContent;}
         if(editOnLoad&&live()){editOnLoad=false;edit({focusName:true,fromSettings:true});}
       }
       catch(x){if(!live()||editing)return;box.setAttribute('aria-busy','false');box.innerHTML=`<p class="small muted">Your card’s numbers couldn’t load.</p><button type="button" class="ghost wide" data-card-retry>Try again</button>`;$('[data-card-retry]',box).onclick=()=>{box.innerHTML=skel(1);loadCard();};}
@@ -1307,5 +1296,6 @@ const MeCard=(()=>{
     if(data)draw();else loadCard();
     return {edit};
   }
-  return {header,card,ownPills,ownFriends,mount,profileView,firstName,openEditor:()=>go('/me?edit=profile')};
+  const card=(person,opts={})=>profileCard({person,...opts});
+  return {header,card,profileCard,ownPills,ownFriends,mount,profileView,firstName,openEditor:()=>go('/me?edit=profile')};
 })();
