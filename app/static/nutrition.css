@@ -77,8 +77,9 @@
 .nutrition-home .meal-empty .meal-yesterday-repeat { margin:0 0 8px 44px; }
 .nutrition-home #fd-explore { margin-top:16px; }
 .nutrition-home #fd-explore .sec-head { margin-bottom:8px; }
-.nutrition-home .progress-grid.explore-list { gap:8px; margin:0 0 16px; padding:4px 12px; background:var(--card); border:1px solid color-mix(in srgb,var(--line) 72%,transparent); border-radius:var(--r); box-shadow:var(--elevation-rest); overflow:hidden; }
-.nutrition-home .progress-grid.explore-list .progress-tile { padding:11px 0; min-height:58px; }
+.nutrition-home .progress-grid.explore-list { gap:0; margin:0 0 16px; padding:4px 12px; background:var(--card); border:1px solid color-mix(in srgb,var(--line) 72%,transparent); border-radius:var(--r); box-shadow:var(--elevation-rest); overflow:hidden; }
+.nutrition-home .progress-grid.explore-list .progress-tile { padding:7px 0; min-height:44px; }
+.nutrition-home .progress-grid.explore-list .progress-tile .small:empty { display:none; }
 .nutrition-home .progress-grid.explore-list .progress-tile:last-child { border-bottom:0; }
 .nutrition-home .progress-grid.explore-list .progress-tile-name > svg { width:30px; height:30px; padding:6px; border-radius:9px; color:var(--tx2); background:transparent; }
 .nutrition-home .progress-grid.explore-list .progress-tile .small { padding-left:40px; }
@@ -162,13 +163,13 @@
 .nutrition-home .nutrition-goals { position:absolute; z-index:1; right:0; top:0; display:inline-flex; align-items:center; justify-content:center; width:44px; min-width:44px; height:44px; min-height:44px; margin:0; padding:0; border:0; border-radius:50%; background:transparent; color:var(--accent); }
 .nutrition-home .nutrition-goals > svg { width:20px; height:20px; }
 #fd-sum .nutrition-day-summary { background:var(--card); }
-#fd-sum .nutrition-summary-link .macro-bars { display:grid; grid-template-columns:minmax(0,1fr); gap:4px; margin:0; padding:0; }
+#fd-sum .nutrition-summary-link .macro-bars { display:grid; grid-template-columns:minmax(0,1fr); gap:5px; margin:0; padding:0; }
 #fd-sum .nutrition-summary-link .macro { display:grid; grid-template-columns:minmax(0,1fr); gap:0; min-width:0; }
-#fd-sum .nutrition-summary-link .macro-line { display:flex; flex-direction:column; align-items:flex-start; gap:0; font-size:13px; line-height:1.12; }
-#fd-sum .nutrition-summary-link .macro-line b { display:block; order:0; overflow:hidden; max-width:100%; color:var(--tx); font-size:15px; line-height:1.1; font-weight:600; text-overflow:ellipsis; white-space:nowrap; }
+#fd-sum .nutrition-summary-link .macro-line { display:flex; flex-direction:row; align-items:baseline; justify-content:space-between; gap:6px; font-size:13px; line-height:1.15; }
+#fd-sum .nutrition-summary-link .macro-line b { display:block; order:1; overflow:hidden; max-width:100%; color:var(--tx); font-size:15px; line-height:1.1; font-weight:600; text-overflow:ellipsis; white-space:nowrap; }
 #fd-sum .nutrition-summary-link .macro-line b::before { content:none; display:none; }
-#fd-sum .nutrition-summary-link .macro-line span { display:block; order:1; margin:0; color:var(--tx2); font-size:13px; line-height:1.1; font-weight:500; }
-.nutrition-summary-link .macro .track { height:4px; margin-top:4px; background:var(--line); }
+#fd-sum .nutrition-summary-link .macro-line span { display:block; order:0; margin:0; color:var(--tx2); font-size:13px; line-height:1.1; font-weight:500; }
+.nutrition-summary-link .macro .track { height:3px; margin-top:4px; background:var(--line); }
 .nutrition-summary-link .macro .track .macro-target-bar { box-shadow:none; }
 .nutrition-home .nutrition-meals-group { overflow:hidden; margin:12px 0 0; padding:0 16px; border:1px solid var(--line); border-radius:18px; background:var(--card); }
 .nutrition-home .meal { overflow:visible; margin:0; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; transition:none; }
@@ -184,9 +185,8 @@
 .nutrition-home .meal-food-copy { display:grid; gap:2px; min-width:0; }
 .nutrition-home .meal .fe b { overflow-wrap:anywhere; font-size:15px; line-height:1.2; font-weight:500; }
 .nutrition-home .meal .fe small { font-size:13px; line-height:1.2; }
-.nutrition-row-calories { display:inline-flex; align-items:baseline; gap:4px; white-space:nowrap; }
+.nutrition-row-calories { display:inline-flex; align-items:baseline; justify-self:end; white-space:nowrap; }
 .nutrition-row-calories b { font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; }
-.nutrition-row-calories small { color:var(--tx2); font-size:13px; }
 .nutrition-home .meal-empty-state { display:none; }
 .nutrition-home .meal-empty .meal-yesterday-repeat { display:flex; align-items:center; min-height:44px; margin:0; padding:0; border-top:1px solid var(--line); color:var(--accent); font-size:15px; }
 .nutrition-meal-actions { display:grid; }

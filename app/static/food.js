@@ -194,16 +194,19 @@ async function foodDiscovery(el) {
     if(!valid())return;
     const f=facts.food,change=f?.weight_change_kg;
     const items=[
-      {id:'recipes',title:'Recipes & cooking',description:'Save your meals',icon:'pot',href:'/food/meals',teaser:f?.library_items>0?`${f.library_items} saved ${f.library_items===1?'item':'items'}`:null},
-      {id:'overview',title:'Insights',description:'See food trends',icon:'sparkle',href:'/food?view=overview',teaser:Number.isInteger(f?.protein_days)?`Protein goal ${f.protein_days}/7`:f?.logged_days>0?`${f.logged_days} logged days`:null},
-      {id:'weight',title:'Weight',description:'Log a weigh-in',icon:'scale',href:'/progress/weight?from=nutrition',teaser:change!=null?change===0?'Weight trend is steady':`${change<0?'−':'+'}${U.weight(Math.abs(change))} ${imp()?'lb':'kg'} trend`:f?.weight_kg!=null?`${U.weight(f.weight_kg)} ${imp()?'lb':'kg'} last logged`:null},
-      {id:'goals',title:'Calorie & macro goals',description:'Set your daily targets',icon:'target',href:'/food?goals=1'},
-      {id:'needs',title:'Calorie needs',description:'Your daily needs',icon:'target',href:'/food?view=needs'},
-      {id:'calendar',title:'Food calendar',description:'Review a logged day',icon:'calendar',href:'/food?view=calendar',teaser:f?.logged_days>0?`${f.logged_days} logged days`:null},
-      {id:'reminders',title:'Meal reminders',description:f?'Off · Set times':'Choose times',icon:'bell',href:'/me/notifications',teaser:f?.reminders_on?'On · Review times':null},
-      ...(Native.on?[{id:'health',title:'Health app sync',description:facts.health==='unavailable'?'Check Health':facts.health===undefined?'Set up Health':'Off · Set up',icon:'heart',href:'/track/health',teaser:facts.health&&facts.health!=='unavailable'?facts.health:null}]:[{id:'import',title:'Add past days',description:'Bring in weight and calories',icon:'upload',href:'/food/import'}])
+      {id:'recipes',title:'Recipes & cooking',description:'',icon:'pot',href:'/food/meals',teaser:f?.library_items>0?`${f.library_items} saved ${f.library_items===1?'item':'items'}`:null},
+      {id:'overview',title:'Insights',description:'',icon:'sparkle',href:'/food?view=overview',teaser:Number.isInteger(f?.protein_days)?`Protein goal ${f.protein_days}/7`:f?.logged_days>0?`${f.logged_days} logged days`:null},
+      {id:'weight',title:'Weight',description:'',icon:'scale',href:'/progress/weight?from=nutrition',teaser:change!=null?change===0?'Weight trend is steady':`${change<0?'−':'+'}${U.weight(Math.abs(change))} ${imp()?'lb':'kg'} trend`:f?.weight_kg!=null?`${U.weight(f.weight_kg)} ${imp()?'lb':'kg'} last logged`:null},
+      {id:'goals',title:'Calorie & macro goals',description:'',icon:'target',href:'/food?goals=1'},
+      {id:'needs',title:'Calorie needs',description:'',icon:'target',href:'/food?view=needs'},
+      {id:'calendar',title:'Food calendar',description:'',icon:'calendar',href:'/food?view=calendar',teaser:f?.logged_days>0?`${f.logged_days} logged days`:null},
+      {id:'reminders',title:'Meal reminders',description:'',icon:'bell',href:'/me/notifications',teaser:f?.reminders_on?'On · Review times':null},
+      ...(Native.on?[{id:'health',title:'Health app sync',description:'',icon:'heart',href:'/track/health',teaser:facts.health&&facts.health!=='unavailable'?facts.health:null}]:[{id:'import',title:'Add past days',description:'',icon:'upload',href:'/food/import'}])
     ];
+    // These are established destinations. Only render a second line for account-specific facts;
+    // generic unvisited links are not new features and should not get a blue dot.
     Discovery.render(grid,items,{space:'nutrition',ready,attribute:'data-nutrition-feature'});
+    grid.querySelectorAll('.progress-new').forEach(node=>node.remove());
   };
   Discovery.wire(grid,'nutrition',{attribute:'data-nutrition-feature'});draw();
   await Promise.allSettled([
@@ -223,8 +226,7 @@ route(/^\/food$/, 'food', async (el) => {
   const body = nHead(el, 'log', `<button class="icon-btn" id="fd-prev" aria-label="Previous day">${svg('back')}</button><label class="range-btn daypick">${svg('calendar')}<span>${esc(dayLabel(day))}</span><input type="date" id="fd-date" value="${esc(day)}" aria-label="Pick a day to log or edit"></label>
       <button class="icon-btn" id="fd-next" aria-label="Next day">${svg('chev')}</button>${day===today?'':'<button class="me-chip" id="fd-today">Today</button>'}`);
   const camera = Native.on || !!navigator.mediaDevices?.getUserMedia;
-  body.innerHTML = `<div class="quick nutrition-add"><button class="primary" id="fq-add">${svg('search')} Add food</button>${camera?`<button class="icon-btn" id="fq-photo" aria-label="Take a food photo">${svg('camera')}</button><button class="icon-btn" id="fq-scan" aria-label="Scan a food barcode">${svg('barcode')}</button>`:''}</div><div id="fd-sum">${skelFood()}</div><div id="fd-meals"></div><section id="fd-explore"></section><div id="fd-details"></div><div id="fd-milestones"></div>`;
-  Milestones.mount($('#fd-milestones',el),{params:{day}});
+  body.innerHTML = `<div class="quick nutrition-add"><button class="primary" id="fq-add">${svg('search')} Add food</button>${camera?`<button class="icon-btn" id="fq-photo" aria-label="Take a food photo">${svg('camera')}</button><button class="icon-btn" id="fq-scan" aria-label="Scan a food barcode">${svg('barcode')}</button>`:''}</div><div id="fd-sum">${skelFood()}</div><div id="fd-meals"></div><section id="fd-explore"></section><div id="fd-details"></div>`;
   $('#fd-prev', el).onclick = () => go(`/food?d=${addDays(day, -1)}`, {replace: true});
   $('#fd-next', el).onclick = () => go(`/food?d=${addDays(day, 1)}`, {replace: true});
   const bt = $('#fd-today', el); if (bt) bt.onclick = () => go('/food', {replace: true});
@@ -317,7 +319,7 @@ function drawDay(el, D) {
     if (!list.length) return `<section class="meal meal-empty meal-${m}">${heading}<div class="meal-empty-state"><span><b>Nothing logged yet</b></span></div>${sameYesterdayMealMarkup(D,m,today)}</section>`;
     return `<section class="meal meal-${m}">${heading}
       ${list.map((e) => { const fe = `<button class="fe${e.pending ? ' pending' : ' sw-row'}" data-id="${e.id}"><span class="vh">Edit </span><div class="meal-food"><span class="meal-food-copy"><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></span></div>
-        <span class="nutrition-row-calories"><b class="num">${r0(e.kcal)}</b><small>kcal</small></span></button>`;
+        <span class="nutrition-row-calories"><b class="num">${r0(e.kcal)}</b></span></button>`;
         // swipe left to remove (with Undo); Remove is also in the food's editor and the meal's Edit menu
         return e.pending ? fe : `<div class="swipe"><button type="button" class="sw-del" data-del="${e.id}" tabindex="-1">${svg('trash')}Remove</button>${fe}</div>`; }).join('')}
       </section>`;
