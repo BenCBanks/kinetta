@@ -101,7 +101,8 @@
 .food-calendar small { font-size:.7rem; }
 /* Compact Progress home, refined after owner/PR review. Detail charts retain their full layout. */
 .progress-home-totals .card { padding:12px; }
-.progress-home-totals .progress-filters { gap:8px; margin-bottom:6px; }
+.progress-home-totals .progress-filters { gap:8px; margin-bottom:6px; width:100%; min-width:0; box-sizing:border-box; }
+.progress-home-totals .progress-totals-header,.progress-home-totals .me-period,.progress-home-totals .progress-metric-controls { min-width:0; max-width:100%; box-sizing:border-box; }
 .progress-home-totals .progress-pace-window { margin:4px 0 0; }
 .progress-home-totals .progress-total-readout { position:static; z-index:auto; display:grid; gap:2px; min-width:0; padding:3px 0 0; margin:4px 0 0; border-radius:0; background:transparent; -webkit-backdrop-filter:none; backdrop-filter:none; font-size:.8125rem; white-space:normal; overflow:visible; }
 .progress-home-totals .progress-total-readout span { display:block; min-width:0; max-width:100%; overflow:visible; color:var(--tx2); overflow-wrap:anywhere; text-overflow:clip; white-space:normal; }
@@ -123,9 +124,10 @@
 .progress-home-totals .empty { text-align:left; }
 .progress-home-totals .empty p { margin:0; }
 .progress-home-totals #m-chart { margin-top:0; }
-.progress-home-totals .period-column .bar-seg { fill:color-mix(in srgb,var(--color-distance-muted) 45%,var(--color-brand) 55%); transition:fill var(--motion-settle) var(--motion-ease), opacity var(--motion-press) ease-out; }
+.progress-home-totals .period-column .bar-seg { fill:color-mix(in srgb,var(--color-distance-muted) 45%,var(--color-brand) 55%); transition:opacity var(--motion-press) ease-out; }
 .progress-home-totals .period-column:not(.distance-column).is-selected .bar-seg,
 .progress-home-totals .period-column:not(.distance-column):has(.bar-seg.partial) .bar-seg { fill:url(#kinetta-accent-gradient); opacity:1; }
+.progress-home-totals .period-column.distance-column.is-selected .distance-total { fill:var(--accent); }
 .progress-home-totals .period-column:active .bar-seg { opacity:.72; }
 .progress-home-totals .period-column:focus-visible .period-hit { stroke:var(--accent); stroke-width:2; }
 .progress-home-totals .progress-total-readout { min-height:20px; }
