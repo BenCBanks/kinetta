@@ -2207,7 +2207,7 @@ html:has(#track-content > .track-live, #track-content > .track-review) nav.tabs 
   .track-live.is-recording .track-controls .round-btn{width:60px;height:60px}
   .track-live .track-map-wrap #track-gps-live{top:auto;bottom:10px}
   .track-live .track-map-wrap #track-follow{left:auto;right:64px;top:10px;bottom:auto}
-  @container track-live (max-width:16.5rem){
+  @container track-live (max-width:17rem){
     .track-live-metrics{grid-template-columns:1fr;margin-block:2px;gap:4px;padding-block:0}
     .track-live-metrics>div{display:flex;align-items:baseline;justify-content:center;gap:12px;border-left:0}
     .track-live-metrics>div:last-child{padding-top:0}
