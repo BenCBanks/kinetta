@@ -16,9 +16,13 @@
     let visible=0,painted=false;
     for(const c of scope.querySelectorAll('canvas.leaflet-tile')){try{
       const b=c.getBoundingClientRect(),m=c.closest('.leaflet-container').getBoundingClientRect(),x=Math.max(0,b.x,m.x),y=Math.max(0,b.y,m.y),right=Math.min(innerWidth,b.right,m.right),bottom=Math.min(innerHeight,b.bottom,m.bottom);
-      if(right<=x||bottom<=y)continue;visible++;
-      if(!c.classList.contains('leaflet-tile-loaded'))return false;
-      let opacity=1;for(let e=c;e;e=e.parentElement){const css=getComputedStyle(e);opacity*=Number(css.opacity);if(opacity<.99||css.visibility==='hidden'||css.display==='none')return false;}
+      if(right<=x||bottom<=y)continue;
+      let opacity=1,hidden=false;for(let e=c;e;e=e.parentElement){const css=getComputedStyle(e);opacity*=Number(css.opacity);if(css.visibility==='hidden'||css.display==='none'){hidden=true;break;}}
+      // Leaflet keeps old tile canvases around during replacement. A zero-opacity tile
+      // does not contribute to the screenshot and must not block the painted-map check.
+      if(hidden||opacity<=.01)continue;
+      visible++;
+      if(opacity<.99||!c.classList.contains('leaflet-tile-loaded'))return false;
       const sx=Math.floor((x-b.x)/b.width*c.width),sy=Math.floor((y-b.y)/b.height*c.height),w=Math.max(1,Math.floor((right-x)/b.width*c.width)),h=Math.max(1,Math.floor((bottom-y)/b.height*c.height));
       const d=c.getContext('2d').getImageData(sx,sy,w,h).data;let different=0;for(let i=0;i<d.length;i+=64)if(d[i+3]&&(d[i]!==d[0]||d[i+1]!==d[1]||d[i+2]!==d[2]))different++;if(different>16)painted=true;
     }catch(_){return false;}}
@@ -29,10 +33,11 @@
         'header-me':()=>document.querySelector('.me-card-sections[aria-busy="false"]')&&document.querySelectorAll('.me-week').length===7&&document.querySelector('.me-featured-achievements .profile-achievement[data-achievement-code]:nth-child(3)'),
         activity:()=>document.querySelector('[data-dt="charts"][aria-selected="true"]')&&paintedMap()&&!document.querySelector('.map-unavailable:not([hidden])'),
         'header-track':()=>document.querySelector('#track-start')?.getAttribute('aria-label')==='Start run'&&!document.querySelector('#track-lap')&&paintedMap()&&!document.querySelector('.map-unavailable:not([hidden])'),
-        'header-food':()=>document.querySelectorAll('#fd-meals [data-id]').length===2&&document.querySelector('#fd-sum').textContent.includes('915')&&document.querySelector('#fd-copy'),
+        'header-food':()=>document.querySelectorAll('#fd-meals [data-id]').length===2&&document.querySelector('#fd-sum').textContent.includes('915')&&document.querySelector('.calorie-ring[role="progressbar"][aria-valuenow="915"]')&&document.querySelector('#fd-copy'),
         food:()=>document.querySelector('.thread-card [data-action="undo"]')&&document.querySelector('#thread-text'),
         'header-progress':()=>document.querySelector('#m-chart svg')&&document.querySelector('[data-progress-fitness]').textContent.includes('Training steadily'),
         'header-activity':()=>{const post=document.querySelector('#ff-list .post[data-href="/activity/friends/2"]');return post?.querySelector('.post-name')?.textContent==='Jordan Example'&&paintedMap(post)&&!post.querySelector('.map-unavailable:not([hidden])');},
+        'friends-typical':()=>document.querySelector('#fr-own-list')&&document.querySelectorAll('.fr-friend').length===3,
         achievements:()=>document.querySelector('#profile-achievement-page[aria-busy="false"] h1')?.textContent==='Achievements'&&document.querySelectorAll('#profile-achievement-page .profile-achievement-track .profile-achievement-ladder').length>=3,
       };
       return !!checks[cfg.stage]?.();
