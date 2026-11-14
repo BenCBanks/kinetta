@@ -118,7 +118,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6]
     env:
       COMPOSE_FILE: ${{ github.workspace }}/docker-compose.yml:${{ github.workspace }}/dev/tests/journeys-compose.yml
       KINETTA_URL: http://localhost:8798

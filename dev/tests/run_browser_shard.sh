@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -ne 1 ]]; then
-  echo "Usage: run_browser_shard.sh 1|2|3|4" >&2
+  echo "Usage: run_browser_shard.sh 1|2|3|4|5|6" >&2
   exit 2
 fi
 
@@ -18,9 +18,6 @@ case "$1" in
     node dev/tests/fitness_ui.cjs
     node dev/tests/heatmap_ui.cjs
     node dev/tests/profile_card_ui.cjs
-    node dev/tests/nutrition_ui.cjs
-    node dev/tests/nutrition_readout_ui.cjs
-    node dev/tests/sheet_motion_ui.cjs
     ;;
   2)
     node dev/tests/track_home_ui.cjs
@@ -36,13 +33,6 @@ case "$1" in
     python3 dev/tests/food_memory_fixture.py
     node dev/tests/food_memory_ui.cjs
     node dev/tests/plan_ui.cjs
-    node dev/tests/activity_detail_ui.cjs
-    node dev/tests/media_routes_ui.cjs
-    node dev/tests/notification_edit_ui.cjs
-    node dev/tests/lift_compact_ui.cjs
-    node dev/tests/lift_ui.cjs
-    node dev/tests/lift_lazy_route_ui.cjs
-    node dev/tests/recipes_compact_ui.cjs
     ;;
   3)
     node dev/tests/friends_ui.cjs
@@ -54,6 +44,10 @@ case "$1" in
     python3 dev/tests/insights_fixture.py
     node dev/tests/insights_ui.cjs
     node dev/tests/goals_ui.cjs
+    node dev/tests/lift_compact_ui.cjs
+    node dev/tests/lift_ui.cjs
+    node dev/tests/lift_lazy_route_ui.cjs
+    node dev/tests/recipes_compact_ui.cjs
     ;;
   4)
     python3 dev/tests/weight_progress_fixture.py
@@ -71,10 +65,20 @@ case "$1" in
     node dev/tests/welcome_polish_ui.cjs
     node dev/tests/community_ui.cjs
     KINETTA_GROUPS_UPDATES_ONLY=1 node dev/tests/groups_ui.cjs
+    ;;
+  5)
+    node dev/tests/nutrition_ui.cjs
+    node dev/tests/nutrition_readout_ui.cjs
+    node dev/tests/sheet_motion_ui.cjs
     python3 dev/tests/admin_features_fixture.py
     node dev/tests/admin_features_ui.cjs
     python3 dev/tests/feature_collection_fixture.py
     node dev/tests/feature_collection_ui.cjs
+    ;;
+  6)
+    node dev/tests/activity_detail_ui.cjs
+    node dev/tests/media_routes_ui.cjs
+    node dev/tests/notification_edit_ui.cjs
     export KINETTA_JOURNEY_DEADLINE_MS=$(( $(date +%s%3N) + 300000 ))
     timeout --kill-after=5s 300s bash -e -c '
       python3 dev/tests/journeys_prepare.py
