@@ -161,6 +161,14 @@ const NLOG = [['log', 'Food log', 'What you ate, day by day', 'food', 'c-green']
 const NMORE = [['reminders', 'Meal reminders', 'Optional nudges at your usual meal times', 'bell', 'c-orange'],
   ...(!Native.on ? [['import', 'Add past days', 'Weight and calories from another app', 'upload', 'c-grey']] : [])];
 const NRANGED = ['overview', 'energy', 'macros'];
+const mealFoodEmoji = (entry, meal) => {
+  const name = String(entry?.name || '').toLowerCase();
+  if (/oat|yogurt|berry|cereal|toast/.test(name)) return '🥣';
+  if (/salad|bowl|rice|sandwich|soup/.test(name)) return '🥗';
+  if (/salmon|chicken|pasta|potato|dinner/.test(name)) return '🍽️';
+  if (/apple|fruit|snack|bar|nut/.test(name)) return '🍎';
+  return ({breakfast:'🥣', lunch:'🥗', dinner:'🍽️', snacks:'🍎'})[meal] || '🍽️';
+};
 function nHead(el, view, filters) {
   const v = [...NLOG, ...NPROG].find(m => m[0] === view), inProgress = location.pathname === '/progress';
   const q = new URLSearchParams(location.search), fromProgress = q.get('from') === 'progress';
@@ -261,7 +269,7 @@ function drawDay(el, D) {
   $('#fd-details',el).replaceChildren();
   if (fresh) firstFood($('#fd-sum', el), D.day);
   else $('#fd-sum', el).innerHTML = `<div class="card tcard balance nutrition-day-summary">
-      <a class="nutrition-summary-link" href="/food?view=overview"><span class="vh">Nutrition overview and details. </span><div class="nutrition-summary"><div><small class="eyebrow">${left == null ? 'Calories logged' : left < 0 ? 'Above goal' : 'Calories remaining'}</small><div class="hero-num">${r0(left == null ? eaten : Math.abs(left))}<i>kcal</i></div>${goal == null ? '' : `<p class="small muted">${r0(eaten)} logged of ${r0(goal)}</p>`}</div></div>
+      <a class="nutrition-summary-link" href="/food?view=overview"><span class="vh">Nutrition overview and details. </span><div class="nutrition-summary"><div><small class="eyebrow">${left == null ? 'Calories logged' : left < 0 ? 'Above goal' : 'Calories remaining'}</small><div class="hero-num"><span class="nutrition-count" data-count-target="${Math.round(left == null ? eaten : Math.abs(left))}">0</span><i>kcal</i></div>${goal == null ? '' : `<p class="small muted">${r0(eaten)} logged of ${r0(goal)}</p>`}</div></div>
       ${goal ? `<div class="track"><div class="bar${left < 0 ? ' over' : ''}" data-w="${Math.min(1,eaten/goal).toFixed(3)}"></div></div>` : ''}
       <div class="macro-bars">${MACROS.map(([k,name])=>{const target=t[k.replace('_g','_target')],hasTarget=target!=null&&Number.isFinite(Number(target))&&Number(target)>0,unknown=Number(D.unknown_nutrients?.[k]||0)>0,amount=Number(T[k])||0,state=unknown?'unknown':!hasTarget?'unset':amount>target?'over':'under',width=hasTarget&&!unknown?Math.min(1,amount/target):0;return `<div class="macro m-${k}" data-macro="${k}" data-target-state="${state}"><div class="macro-line"><b>${name}</b><span class="num">${macroTotal(D,k,target)}</span></div><div class="track" aria-hidden="true"><div class="bar macro-target-bar${state==='over'?' over':''}${state==='unknown'||state==='unset'?' unavailable':''}" data-w="${width.toFixed(3)}"></div></div></div>`}).join('')}</div></a>
       <a class="nutrition-goals text-link" id="fd-goal" href="/food/setup" aria-label="Calorie and macro goals">Goals</a>
@@ -291,9 +299,9 @@ function drawDay(el, D) {
   const by = {breakfast: [], lunch: [], dinner: [], snacks: []}; for (const e of D.entries) by[e.meal].push(e);
   $('#fd-meals', el).innerHTML = Object.keys(MEAL_NAMES).map((m) => {
     const list = by[m], kc = list.reduce((s, e) => s + e.kcal, 0);
-    if (!list.length) return `<section class="card meal meal-empty meal-${m}"><h2><span>${MEAL_NAMES[m]}</span><span class="meal-actions"><button class="icon-btn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">${svg('plus')}</button></span></h2>${sameYesterdayMealMarkup(D,m,today)}</section>`;
-    return `<section class="card meal meal-${m}"><h2><span>${MEAL_NAMES[m]}</span><span class="muted small num">${r0(kc)} kcal</span><span class="meal-actions"><button class="icon-btn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">${svg('plus')}</button><button class="icon-btn" data-more="${m}" aria-label="Edit ${MEAL_NAMES[m].toLowerCase()}">${svg('more')}</button></span></h2>
-      ${list.map((e) => { const fe = `<button class="fe${e.pending ? ' pending' : ' sw-row'}" data-id="${e.id}"><span class="vh">Edit </span><div><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></div>
+    if (!list.length) return `<section class="card meal meal-empty meal-${m}"><h2><span>${MEAL_NAMES[m]}</span><span class="meal-actions"><button class="icon-btn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">${svg('plus')}</button></span></h2><div class="meal-empty-state"><span class="meal-empty-mark" aria-hidden="true">🍽️</span><span><b>Nothing logged yet</b></span></div>${sameYesterdayMealMarkup(D,m,today)}</section>`;
+    return `<section class="card meal meal-${m}"><h2><span>${MEAL_NAMES[m]}</span><span class="muted small num meal-total">${r0(kc)} kcal</span><span class="meal-actions"><button class="icon-btn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">${svg('plus')}</button><button class="icon-btn" data-more="${m}" aria-label="Edit ${MEAL_NAMES[m].toLowerCase()}">${svg('more')}</button></span></h2>
+      ${list.map((e) => { const fe = `<button class="fe${e.pending ? ' pending' : ' sw-row'}" data-id="${e.id}"><span class="vh">Edit </span><div class="meal-food"><span class="meal-food-icon" aria-hidden="true">${mealFoodEmoji(e,m)}</span><span class="meal-food-copy"><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></span></div>
         <div class="r meal-calories"><b class="num">${r0(e.kcal)}</b> <small class="muted">kcal</small></div></button>`;
         // swipe left to remove (with Undo); Remove is also in the food's editor and the meal's Edit menu
         return e.pending ? fe : `<div class="swipe"><button type="button" class="sw-del" data-del="${e.id}" tabindex="-1">${svg('trash')}Remove</button>${fe}</div>`; }).join('')}
@@ -310,6 +318,22 @@ function drawDay(el, D) {
     entrySheet(e, D.day);
   });
   const cp = $('#fd-copy', el); if (cp) cp.onclick = () => chooseYesterday(isoDay(new Date()));
+  animateNutritionCount(el);
+}
+function animateNutritionCount(root) {
+  const count = $('.nutrition-count', root), target = Number(count?.dataset.countTarget);
+  if (!count || !Number.isFinite(target)) return;
+  const paint = value => { count.firstChild.nodeValue = r0(Math.round(value)); };
+  if (root.dataset.nutritionCountSeen === '1') { paint(target); return; }
+  root.dataset.nutritionCountSeen = '1';
+  if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) { paint(target); return; }
+  const start = performance.now(), duration = 420;
+  const tick = now => {
+    const progress = Math.min(1, (now - start) / duration), eased = 1 - Math.pow(1 - progress, 3);
+    paint(target * eased);
+    if (progress < 1 && count.isConnected) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
 }
 function sameYesterdayMealMarkup(D,meal,today) {
   const previous=D.last_meals?.[meal],items=previous?.items;

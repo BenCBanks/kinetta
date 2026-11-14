@@ -355,6 +355,8 @@
 @media (prefers-color-scheme:light) { :root:not([data-theme="dark"]) .me-featured-achievements .profile-achievement[data-achievement-code="sport:walk-hike"] .profile-achievement-medallion[data-level-tone="deep"] .profile-achievement-value[data-type="secondary"] { color:var(--tx); text-shadow:none; } }
 :root[data-theme="light"] .me-featured-achievements .profile-achievement[data-achievement-code="sport:run"] .profile-achievement-medallion[data-level-tone="deep"] .profile-achievement-value[data-type="secondary"] { color:var(--tx); text-shadow:none; }
 @media (prefers-color-scheme:light) { :root:not([data-theme="dark"]) .me-featured-achievements .profile-achievement[data-achievement-code="sport:run"] .profile-achievement-medallion[data-level-tone="deep"] .profile-achievement-value[data-type="secondary"] { color:var(--tx); text-shadow:none; } }
+:root[data-theme="light"] .me-featured-achievements .profile-achievement-medallion .profile-achievement-value[data-type="secondary"] { color:var(--tx); text-shadow:none; }
+@media (prefers-color-scheme:light) { :root:not([data-theme="dark"]) .me-featured-achievements .profile-achievement-medallion .profile-achievement-value[data-type="secondary"] { color:var(--tx); text-shadow:none; } }
 .me-featured-achievements .profile-achievement-medallion:not([data-level-tone="deep"]) .profile-achievement-value[data-type="secondary"] { color:var(--tx); text-shadow:none; }
 /* These light-theme medal tints need dark value text for readable contrast. */
 :root[data-theme="light"] .me-featured-achievements a[data-achievement-code="climbing"] .profile-achievement-medallion[data-level="7"] .profile-achievement-value[data-type="secondary"],
