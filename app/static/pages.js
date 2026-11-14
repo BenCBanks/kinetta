@@ -545,9 +545,11 @@ async function meOverview(el) {
     }
     return '<div class="me-today-row" data-today-food><span class="me-today-icon me-today-food-icon">'+svg('food')+'</span><a class="me-today-copy'+(data.entries.length?'':' me-today-empty')+'" href="'+href+'">'+content+'</a><button type="button" class="me-today-add" data-today-add aria-label="Add food">'+svg('plus')+'</button></div>';
   };
-  let todaySequence=0,midnightTimer=null;
+  let todaySequence=0,midnightTimer=null,todaySkeletonTimer=null;
   const skeletonRow='<div class="me-today-row me-today-skeleton" aria-hidden="true"><span class="me-today-icon"></span><span class="me-today-copy"><i></i><i></i></span></div>';
-  todayRoot.innerHTML='<section class="me-today" aria-label="Today" aria-busy="true"><div class="me-today-head"><h2>Today</h2><span class="me-today-date">'+esc(shortDate())+'</span></div>'+skeletonRow+skeletonRow+'</section>';
+  const stopTodaySkeleton=()=>{if(todaySkeletonTimer!==null){clearTimeout(todaySkeletonTimer);todaySkeletonTimer=null;}};
+  todayRoot.innerHTML='<section class="me-today" aria-label="Today" aria-busy="true"><div class="me-today-head"><h2>Today</h2><span class="me-today-date">'+esc(shortDate())+'</span></div><div data-today-skeleton hidden>'+skeletonRow+skeletonRow+'</div></section>';
+  todaySkeletonTimer=setTimeout(()=>{todaySkeletonTimer=null;const pending=$('[data-today-skeleton]',todayRoot);if(pending)pending.hidden=false;},200);
   const refreshToday=async()=>{
     if(!el.isConnected||owner!==readOwner())return;
     const token=++todaySequence,day=dayNow();todayRoot.dataset.loadToken=String(token);todayRoot.dataset.loading='true';
@@ -584,6 +586,7 @@ async function meOverview(el) {
     if(activityUser)rows.push(activityMarkup({error:activityError,rows:todayRows,plan:plan?.plan?plan:null,day}));
     if(todayFoodUser)rows.push(foodError?'<div class="me-today-row" data-today-food><span class="me-today-icon me-today-food-icon">'+svg('food')+'</span><button type="button" class="me-today-error" data-today-retry>Couldn\'t load · Try again</button></div>':foodMarkup(foodData,day));
     const updated=hasError&&App.me.meTodayUpdatedAt?' · updated '+new Date(App.me.meTodayUpdatedAt).toLocaleTimeString([], {timeZone:zone,hour:'numeric',minute:'2-digit'}):'';
+    stopTodaySkeleton();
     todayRoot.innerHTML=rows.length?'<section class="me-today" aria-labelledby="t-today-title"><div class="me-today-head"><h2 id="t-today-title">Today</h2><span class="me-today-date">'+esc(shortDate())+(updated?'<small>'+esc(updated)+'</small>':'')+'</span></div>'+rows.join('')+'</section>':'';
     todayRoot.dataset.loadedDay=day;todayRoot.dataset.loadedToken=String(token);delete todayRoot.dataset.loading;
     $$('.me-today-error',todayRoot).forEach(button=>button.onclick=()=>refreshToday());
@@ -595,7 +598,7 @@ async function meOverview(el) {
   const onFoodChanged=()=>refreshToday(),onVisible=()=>{if(!document.hidden)refreshToday();};
   const scheduleMidnight=()=>{clearTimeout(midnightTimer);const now=new Date(),next=new Date(now);next.setHours(24,0,0,250);midnightTimer=setTimeout(()=>{refreshToday();scheduleMidnight();},Math.max(1000,next-now));};
   document.addEventListener('food:changed',onFoodChanged);document.addEventListener('visibilitychange',onVisible);window.addEventListener('pageshow',onVisible);
-  scheduleMidnight();viewResources.set(todayRoot,()=>{clearTimeout(midnightTimer);document.removeEventListener('food:changed',onFoodChanged);document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('pageshow',onVisible);});
+  scheduleMidnight();viewResources.set(todayRoot,()=>{stopTodaySkeleton();clearTimeout(midnightTimer);document.removeEventListener('food:changed',onFoodChanged);document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('pageshow',onVisible);});
   await Promise.allSettled([
     refreshToday(),
     load('/api/stats',s=>{if(el.isConnected)meInsights($('#t-insights',el),s);}).catch(()=>{}),

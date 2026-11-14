@@ -82,10 +82,12 @@ function chooseYesterday(day) {
 }
 function yesterdayMeal(day, meal) {
   const owner = readOwner(), from = addDays(day, -1);
-  sheet("Copy yesterday's food", skel(1), (b, close) => {
+  sheet("Copy yesterday's food", '', (b, close) => {
+    const stopSkeleton = delayedSkeleton(b, skelFoodChooser(2));
     const live = () => b.isConnected && readOwner() === owner;
     api(`/api/food/day?d=${from}`).then(D => {
       if (!live()) return;
+      stopSkeleton();
       const rows = D.entries.filter(e => (!meal || e.meal === meal) && !e.pending),label=meal?MEAL_NAMES[meal].toLowerCase():'all meals';
       b.innerHTML = rows.length ? `<p>Add ${esc(label)} from ${esc(dayLabel(from))} to ${esc(dayLabel(day))}?</p><ul>${rows.map(e => `<li>${!meal?esc(MEAL_NAMES[e.meal])+': ':''}${esc(e.name)} · ${esc(fmtAmount(e))}</li>`).join('')}</ul><button class="primary wide" id="ym-save">Add to today</button><p class="small danger" id="ym-error" role="alert"></p>` : `<p>${meal?'No foods were logged for this meal yesterday.':'No food was logged yesterday.'}</p><button class="primary wide" id="ym-usual">Choose from your usuals</button>`;
       if (!rows.length) { $('#ym-usual', b).onclick = () => { if (!live()) return; close(); addSheet(day, meal); }; return; }
@@ -105,7 +107,7 @@ function yesterdayMeal(day, meal) {
         catch(x) { if (live()) $('#ym-error', b).textContent = x.message + ' Your meal is ready to retry.'; }
         finally { busy = false; if (live() && !done) { button.disabled = false; button.textContent = 'Add to today'; } }
       };
-    }).catch(x => { if (live()) { b.innerHTML = '<p>The previous day could not load.</p><button class="primary wide" id="ym-retry">Try again</button>'; $('#ym-retry',b).onclick = () => { if (!live()) return; close(); yesterdayMeal(day,meal); }; } });
+    }).catch(x => { stopSkeleton(); if (live()) { b.innerHTML = '<p>The previous day could not load.</p><button class="primary wide" id="ym-retry">Try again</button>'; $('#ym-retry',b).onclick = () => { if (!live()) return; close(); yesterdayMeal(day,meal); }; } });
   });
 }
 
@@ -714,16 +716,19 @@ async function sharedRecipes(box,where,after=()=>{},isActive=()=>true){
     $$('[data-shared-recipe]',box).forEach(button=>button.onclick=()=>{if(!valid())return;dishLogSheet(dishes[+button.dataset.sharedRecipe],where(),edit=>{if(!edit&&valid()){after();if(valid())sharedRecipes(box,where,after,isActive);}});});
     if(typeof document!=='undefined'&&document.documentElement.classList.contains('keyboard-open')){const form=box.closest('.thread-composer'),field=form?.querySelector('textarea');if(field&&document.activeElement===field)requestAnimationFrame(()=>{if(valid())field.parentElement.scrollIntoView({block:'nearest'});});}
   };
-  if(cached)draw(cached);const loading=setTimeout(()=>{if(valid()&&!box.innerHTML&&!cached)box.innerHTML=skel(1);},300);
+  const stopSkeleton = cached ? ()=>{} : delayedSkeleton(box, skelFoodChooser(2));
+  if(cached)draw(cached);
   try{const dishes=await api(path);if(!valid())return;App.cache.set(path,{data:dishes,owner,at:Date.now()});draw(dishes);}
   catch(e){if(!valid())return;if(cached){draw(cached);box.querySelector('h3')?.insertAdjacentHTML('beforeend',' <small class="shared-saved">Saved</small>');return;}box.innerHTML='<p class="small muted">Shared recipes could not load. <button type="button" class="linkbtn" data-shared-retry>Retry</button></p>';box.querySelector('[data-shared-retry]').onclick=()=>sharedRecipes(box,where,after,isActive);}
-  finally{clearTimeout(loading);}
+  finally{stopSkeleton();}
 }
 
 async function tUsuals(body, where, close, addUsual=null) {
-  body.innerHTML = skel(1);
+  body.innerHTML = '';
+  const stopSkeleton = delayedSkeleton(body, skelFoodChooser());
   try {
     const [usual,dishes,meals] = await Promise.all([api('/api/food/usual'),api('/api/dishes'),api('/api/food/meals')]);
+    stopSkeleton();
     const foods = usual.map(recentToFood);
     const recent=recentSavedItems(dishes,meals);
     const collecting=typeof FoodThread!=='undefined'&&FoodThread.collecting();
@@ -741,17 +746,19 @@ async function tUsuals(body, where, close, addUsual=null) {
       try { const result=await addEntries([entry],{thread:location.pathname==='/food/describe'}); close.closeAll(true);toast(result.held?'Usual amount added for review':result.queued?'Saved on this phone · waiting to send':`Added ${l.name} to ${MEAL_NAMES[w.meal].toLowerCase()}`,result.undo); }
       catch (e) { toast(e.message); x.disabled = false; }
     });
-  } catch (x) { body.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
+  } catch (x) { stopSkeleton(); body.innerHTML = `<p class="err">${esc(x.message)}</p>`; }
 }
 // Saved Dishes (2026-10-12; was two tabs, Mine and Meals): your dishes, dishes friends shared, saved meals and your own
 // foods in one list. My Recipes opens editing; Add food opens portion review (dishLogSheet in cook.js).
 async function tSaved(body, where, close, {manage=false}={}) {
   const owner=readOwner(),valid=()=>body.isConnected&&owner===readOwner();
   if(manage)$('#tm-new',body.closest('#page')).disabled=true;
-  body.innerHTML = skel(1);
+  body.innerHTML = '';
+  const stopSkeleton = delayedSkeleton(body, skelFoodChooser());
   try {
     const [dishes, meals, foods] = await Promise.all([api('/api/dishes'), api('/api/food/meals'), api('/api/food/foods')]);
-    if(!valid())return;
+    if(!valid()){stopSkeleton();return;}
+    stopSkeleton();
     if(manage){drawRecipeLibrary(body,dishes,meals,foods,where,close,()=>{if(valid())return tSaved(body,where,close,{manage});});return;}
     const mine = dishes.filter((d) => d.mine !== false), theirs = dishes.filter((d) => d.mine === false);
     const row = (kind, i, name, sub, kcal) => `<button class="fe" data-${kind}="${i}"><div><b>${esc(name)}</b><small class="muted">${esc(sub)}</small></div>
@@ -776,7 +783,7 @@ async function tSaved(body, where, close, {manage=false}={}) {
     const addFood=index=>amountSheet(foods[index],where(),close,()=>foodEditor(foods[index],again));
     $$('[data-i]',body).forEach(x=>x.onclick=()=>addFood(+x.dataset.i));
     $$('[data-choose-food]',body).forEach(x=>x.onclick=()=>addFood(+x.dataset.chooseFood));
-  } catch (x) { if(valid()){body.innerHTML = `<p class="err">${esc(x.message)}</p><button type="button" class="ghost wide" id="tm-retry">Try again</button>`;$('#tm-retry',body).onclick=()=>tSaved(body,where,close,{manage});} }
+  } catch (x) { stopSkeleton(); if(valid()){body.innerHTML = `<p class="err">${esc(x.message)}</p><button type="button" class="ghost wide" id="tm-retry">Try again</button>`;$('#tm-retry',body).onclick=()=>tSaved(body,where,close,{manage});} }
 }
 // The managed library stays separate from Add food's existing portion picker.
 function drawRecipeLibrary(body,dishes,meals,foods,where,close,again){

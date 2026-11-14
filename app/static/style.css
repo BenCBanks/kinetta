@@ -409,6 +409,12 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
   animation: sk 1.2s linear infinite; border-radius: 10px; }
 @keyframes sk { to { background-position: -200% 0; } }
 .sk.line { height: 14px; margin: 10px 0; } .sk.big { height: 30px; width: 50%; } .sk.block { height: 180px; border-radius: var(--r); margin-bottom: 12px; }
+.food-sheet-skeleton { display: grid; gap: 10px; padding: 2px 0 8px; }
+.food-sheet-skeleton-row { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 0; }
+.food-sheet-skeleton-row .sk.dot { flex: none; width: 40px; height: 40px; }
+.food-sheet-skeleton-row .sk.line { margin: 4px 0; }
+.food-sheet-skeleton-row .sk.kcal { flex: none; width: 48px; height: 14px; }
+@media (prefers-reduced-motion: reduce) { .sk { animation: none !important; } }
 /* little notices (2026-10-13, Ben: "poorly formatted, black isn't good"): the full width of the screen (a left: 50% box
    could only use half, so short messages wrapped), the card colour with an accent edge, and Undo as a real button */
 .toast { position: fixed; left: 16px; right: 16px; bottom: calc(env(safe-area-inset-bottom) + var(--tab-h) + 12px); width: fit-content; max-width: 480px; margin: 0 auto;
