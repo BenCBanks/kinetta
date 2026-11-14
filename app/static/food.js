@@ -269,7 +269,7 @@ function drawDay(el, D) {
   $('#fd-details',el).replaceChildren();
   if (fresh) firstFood($('#fd-sum', el), D.day);
   else $('#fd-sum', el).innerHTML = `<div class="card tcard balance nutrition-day-summary">
-      <a class="nutrition-summary-link" href="/food?view=overview"><span class="vh">Nutrition overview and details. </span><div class="nutrition-summary"><div><small class="eyebrow">${left == null ? 'Calories logged' : left < 0 ? 'Above goal' : 'Calories remaining'}</small><div class="hero-num">${r0(left == null ? eaten : Math.abs(left))}<i>kcal</i></div>${goal == null ? '' : `<p class="small muted">${r0(eaten)} logged of ${r0(goal)}</p>`}</div></div>
+      <a class="nutrition-summary-link" href="/food?view=overview"><span class="vh">Nutrition overview and details. </span><div class="nutrition-summary"><div><small class="eyebrow">${left == null ? 'Calories logged' : left < 0 ? 'Above goal' : 'Calories remaining'}</small><div class="hero-num"><span class="nutrition-count" data-count-target="${Math.round(left == null ? eaten : Math.abs(left))}">0</span><i>kcal</i></div>${goal == null ? '' : `<p class="small muted">${r0(eaten)} logged of ${r0(goal)}</p>`}</div></div>
       ${goal ? `<div class="track"><div class="bar${left < 0 ? ' over' : ''}" data-w="${Math.min(1,eaten/goal).toFixed(3)}"></div></div>` : ''}
       <div class="macro-bars">${MACROS.map(([k,name])=>{const target=t[k.replace('_g','_target')],hasTarget=target!=null&&Number.isFinite(Number(target))&&Number(target)>0,unknown=Number(D.unknown_nutrients?.[k]||0)>0,amount=Number(T[k])||0,state=unknown?'unknown':!hasTarget?'unset':amount>target?'over':'under',width=hasTarget&&!unknown?Math.min(1,amount/target):0;return `<div class="macro m-${k}" data-macro="${k}" data-target-state="${state}"><div class="macro-line"><b>${name}</b><span class="num">${macroTotal(D,k,target)}</span></div><div class="track" aria-hidden="true"><div class="bar macro-target-bar${state==='over'?' over':''}${state==='unknown'||state==='unset'?' unavailable':''}" data-w="${width.toFixed(3)}"></div></div></div>`}).join('')}</div></a>
       <a class="nutrition-goals text-link" id="fd-goal" href="/food/setup" aria-label="Calorie and macro goals">Goals</a>
@@ -318,6 +318,20 @@ function drawDay(el, D) {
     entrySheet(e, D.day);
   });
   const cp = $('#fd-copy', el); if (cp) cp.onclick = () => chooseYesterday(isoDay(new Date()));
+  animateNutritionCount(el);
+}
+function animateNutritionCount(root) {
+  const count = $('.nutrition-count', root), target = Number(count?.dataset.countTarget);
+  if (!count || !Number.isFinite(target)) return;
+  const paint = value => { count.firstChild.nodeValue = r0(Math.round(value)); };
+  if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) { paint(target); return; }
+  const start = performance.now(), duration = 420;
+  const tick = now => {
+    const progress = Math.min(1, (now - start) / duration), eased = 1 - Math.pow(1 - progress, 3);
+    paint(target * eased);
+    if (progress < 1 && count.isConnected) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
 }
 function sameYesterdayMealMarkup(D,meal,today) {
   const previous=D.last_meals?.[meal],items=previous?.items;

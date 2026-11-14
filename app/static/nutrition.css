@@ -17,13 +17,13 @@
 .nutrition-summary-link .nutrition-summary { padding-right:72px; margin-bottom:6px; }
 .nutrition-summary-link .hero-num { font-size:40px; line-height:1; font-weight:600; letter-spacing:-.04em; }
 .nutrition-summary-link .hero-num i { font-size:.875rem; }
-.nutrition-summary-link > .track,.nutrition-summary-link .macro .track { width:100%; max-width:none; background:var(--card2); height:12px; border-radius:999px; overflow:hidden; }
-.nutrition-summary-link .track .bar { height:12px; border-radius:999px; background:var(--accent-gradient); }
+.nutrition-summary-link > .track,.nutrition-summary-link .macro .track { width:100%; max-width:none; background:color-mix(in srgb,var(--card2) 88%,var(--line)); height:12px; border-radius:999px; overflow:hidden; }
+.nutrition-summary-link .track .bar { height:12px; border-radius:999px; background:linear-gradient(100deg,#2f73f0 0%,#1f55d0 58%,#0b8798 100%); box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 2px 8px color-mix(in srgb,#1f55d0 24%,transparent); }
 .nutrition-summary-link .macro-bars { margin-top:10px; gap:7px; }
 .nutrition-summary-link .macro-line { font-size:.8125rem; }
 .nutrition-summary-link .macro-line b::before { display:none; }
-.nutrition-summary-link .macro .track { height:6px; margin-top:5px; background:var(--card2); }
-.nutrition-summary-link .macro .track .macro-target-bar { height:100%; border-radius:999px; background:var(--macro-color,var(--prog)); transition:width var(--motion-settle) var(--motion-ease); }
+.nutrition-summary-link .macro .track { height:6px; margin-top:5px; background:color-mix(in srgb,var(--card2) 88%,var(--line)); }
+.nutrition-summary-link .macro .track .macro-target-bar { height:100%; border-radius:999px; background:linear-gradient(100deg,color-mix(in srgb,var(--macro-color,var(--prog)) 62%,white),var(--macro-color,var(--prog)) 68%,color-mix(in srgb,var(--macro-color,var(--prog)) 82%,black)); box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 1px 5px color-mix(in srgb,var(--macro-color,var(--prog)) 28%,transparent); transition:width var(--motion-settle) var(--motion-ease); }
 .nutrition-summary-link .macro.m-protein { --macro-color:var(--run); }
 .nutrition-summary-link .macro.m-carbs { --macro-color:var(--ride); }
 .nutrition-summary-link .macro.m-fat { --macro-color:var(--hike); }
@@ -34,7 +34,7 @@
 .nutrition-summary-link .macro { min-width:0; }
 .nutrition-summary-link .macro-line span { color:var(--tx2); }
 .nutrition-summary-link > .track { box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--line) 45%,transparent); }
-.nutrition-summary-link > .track .bar { background:var(--accent-gradient); transition:width var(--motion-settle) var(--motion-ease); }
+.nutrition-summary-link > .track .bar { background:linear-gradient(100deg,#2f73f0 0%,#1f55d0 58%,#0b8798 100%); transition:width var(--motion-settle) var(--motion-ease); }
 .nutrition-summary-link > .track .bar.over { background:var(--alert); }
 .nutrition-home .nutrition-goals { position:absolute; right:12px; top:6px; display:inline-flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; font-size:max(15px,.9375rem); font-weight:500; }
 .nutrition-other-macros { display:flex; align-items:center; flex-wrap:wrap; gap:0 4px; margin-top:8px; font-size:.8125rem; }
@@ -106,6 +106,10 @@
 }
 
 .nutrition-home .nutrition-goals > svg { flex:none; width:18px; height:18px; color:var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .nutrition-summary-link .track .bar,.nutrition-summary-link .macro .track .macro-target-bar { transition:none; }
+}
 
 .nutrition-home .meal .fe.sw-row + .fe.sw-row { margin-top:8px; }
 
