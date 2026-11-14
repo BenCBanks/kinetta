@@ -7,7 +7,7 @@ function harness({native=false,api:apiImpl}={}){
  const body={isConnected:true},images=[],choices=[],actions=[],active={};let scrollHandler=null;
  const row={children:choices,clientWidth:286,centerIndex:0,getBoundingClientRect:()=>({left:0,width:286}),addEventListener:(name,handler)=>{if(name==='scroll')scrollHandler=handler;}};
  const controls={_html:'',inputs:[],renders:0};Object.defineProperty(controls,'innerHTML',{get(){return this._html;},set(value){this._html=value;this.renders++;this.inputs=[...value.matchAll(/<input type="checkbox" data-share-control="([^"]+)"( checked)?/g)].map(match=>({dataset:{shareControl:match[1]},checked:!!match[2],disabled:false}));}});
- const note={textContent:''},description={textContent:''},status={textContent:''},send={disabled:true},save={disabled:true,hidden:false};
+ const note={textContent:''},description={textContent:''},status={textContent:''},send={disabled:true},sendLabel={textContent:'Share'},linkButton={hidden:true,textContent:'',onclick:null},save={disabled:true,hidden:false};
  const document={activeElement:null,body:{append(){}},createElement(tag){if(tag==='a')return{href:'',download:'',click(){anchorClicks++;},remove(){}};throw Error('Unexpected element '+tag);}};
  const urlApi={createObjectURL(blob){const url='blob:share-'+(++objectId);objects.set(url,blob);return url;},revokeObjectURL(url){revoked.push(url);objects.delete(url);}};
  const cardData={enabled:true,url:'https://example.test/card/fictional',preview:{username:'zz_test_owner_a',sports:[],stats:[],achievements:[]}};
@@ -23,13 +23,13 @@ function harness({native=false,api:apiImpl}={}){
    },
    $:(selector)=>{
      if(selector==='.share-picture-row')return row;if(selector==='[data-share-controls]')return controls;if(selector==='[data-share-note]')return note;
-     if(selector==='[data-share-description]')return description;if(selector==='.share-picture-status')return status;if(selector==='[data-share-send]')return send;if(selector==='[data-share-save]')return save;
+     if(selector==='[data-share-description]')return description;if(selector==='.share-picture-status')return status;if(selector==='[data-share-send]')return send;if(selector==='[data-share-send-label]')return sendLabel;if(selector==='[data-share-link]')return linkButton;if(selector==='[data-share-save]')return save;
      let match=selector.match(/^\[data-share-choice="(\d+)"\]$/);if(match)return choices[Number(match[1])];
      match=selector.match(/^\[data-share-image="(\d+)"\]$/);if(match)return images[Number(match[1])];return null;
    },
    $$:(selector)=>selector==='[data-share-choice]'?choices:selector==='[data-share-control]'?controls.inputs:selector==='[data-share-action]'?actions:[],
    esc:String,svg:()=>'',toast:message=>toasts.push(message),route:()=>{},col:()=> '#ffffff',getComputedStyle:()=>({getPropertyValue:()=> 'system-ui'}),
-   setOwner:value=>{owner=value;},getObjects:()=>objects,getTimers:()=>timers,getState:()=>({html,anchorClicks,scrollHandler,revoked,toasts,apiCalls,body,choices,images,actions,controls,note,description,status,send,save,document})};
+   setOwner:value=>{owner=value;},getObjects:()=>objects,getTimers:()=>timers,getState:()=>({html,anchorClicks,scrollHandler,revoked,toasts,apiCalls,body,choices,images,actions,controls,note,description,status,send,sendLabel,linkButton,save,document})};
  vm.createContext(context);
  vm.runInContext(fs.readFileSync('app/static/share-art.js','utf8')+'\n'+fs.readFileSync('app/static/recaps.js','utf8')+'\n'+fs.readFileSync('app/static/cards.js','utf8')+'\nthis.shareSheetTest=ShareSheet;this.shareArtTest=ShareArt;this.kinettaCardTest=KinettaCard;',context);
  context.openShare=value=>{options=value;context.shareSheetTest.open(value);};
@@ -52,6 +52,12 @@ function harness({native=false,api:apiImpl}={}){
  c=harness();let successful=0;const cardItems=await c.kinettaCardTest.shareItems('/people/zz_test_owner_a');assert.equal(cardItems.length,1);assert.equal(cardItems[0].beforeShare,undefined,'card validation is not deferred until the user taps Share');c.openShare({items:[{...cardItems[0],afterShare:async()=>successful++}]});state=c.getState();for(let i=0;i<8&&state.send.disabled;i++)await tick();assert(!state.send.disabled,'the card picture check finishes before the Share action is available');c.navigator.canShare=()=>true;let sharePayload=null;c.navigator.share=payload=>{sharePayload=payload;return Promise.resolve();};const sending=state.send.onclick();assert(sharePayload,'browser share starts immediately inside the tap handler');assert.equal(c.getState().apiCalls.filter(path=>path==='/api/card').length,2,'card freshness is checked while building the item');await sending;assert.equal(successful,1);
  c.navigator.share=()=>Promise.reject(Object.assign(Error('Cancelled'),{name:'AbortError'}));const priorStatus=state.status.textContent;await state.send.onclick();assert.equal(successful,1,'cancel does not mark the picture shared');assert.equal(state.status.textContent,priorStatus,'cancel stays quiet');assert.deepEqual(state.toasts,[]);
  console.log('Share sheet: card check precedes the tap; browser share is immediate and cancellation stays quiet PASS');
+
+ c=harness();let delivered=null,sharedLink=null;c.shareArtTest.deliver=async(...args)=>{delivered=args;return true;};c.navigator.share=async options=>{sharedLink=options;};c.openShare({items:[{label:'Me card',shareLabel:'Share image',linkLabel:'Share link',build:async()=>({blob:new Blob(['fictional PNG']),link:'https://example.test/people/fictional'})}]});await tick();state=c.getState();assert.equal(state.sendLabel.textContent,'Share image');assert.equal(state.linkButton.textContent,'Share link');assert.equal(state.linkButton.hidden,false);await state.send.onclick();assert(delivered);assert.equal(delivered[3],null,'image sharing never attaches the profile URL');await state.linkButton.onclick();assert.deepEqual(JSON.parse(JSON.stringify(sharedLink)),{url:'https://example.test/people/fictional'});
+ console.log('Share sheet: profile image and link are separate actions; image delivery omits the URL PASS');
+
+ c=harness({native:true});c.openShare({items:[{label:'Achievements',build:async()=>new Blob(['fictional PNG'])}]});await tick();await tick();state=c.getState();assert.match(state.images[0].src,/^data:image\/png;base64,/,'native preview uses a data URL instead of a WKWebView blob URL: '+state.status.textContent);
+ console.log('Share sheet: native picture preview uses an inline PNG source PASS');
 
  c=harness({native:true});let saved=0;c.openShare({items:[{label:'Milestone',build:async()=>new Blob(['milestone']),afterSave:async()=>saved++}]});await tick();state=c.getState();assert(state.save.hidden,'native app hides the browser-only Save control');await state.save.onclick();assert.equal(saved,0,'a failed native save cannot mark the milestone shared');assert.match(state.status.textContent,/Use Share instead/);
  let oldShare=0;c.openShare({items:[{label:'Milestone',build:async()=>new Blob(['milestone']),afterShare:async()=>oldShare++}]});await tick();state=c.getState();await state.send.onclick();assert.equal(oldShare,0,'an unsupported native bridge cannot record a handoff');assert.equal(state.anchorClicks,0,'an iPhone download link is never treated as a share');assert.match(state.status.textContent,/cannot share pictures/);
