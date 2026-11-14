@@ -915,19 +915,18 @@ const MeCard=(()=>{
   const short=d=>fdate(d+'T12:00',{month:'short',day:'numeric'});
   // The card itself, shared by Me and every profile page (Ben, 30 Oct 2026: the full profile is this card at full size,
   // then the shared activities). Friends shares the handle row without changing its audience or destination.
-  function profileCard({person,data=null,viewer='friend',period='all-time',pills='',friends='',link=false,milestones=false,showBio=true,featured:featuredOption}={}){
+  function profileCard({person,data=null,viewer='friend',period='all-time',pills='',friends='',link=false,milestones=false,showBio=true,featured:featuredOption,preview=false}={}){
     const p=person||{};
     if(!['owner','friend','preview'].includes(viewer))throw new TypeError(`Unknown profile viewer: ${viewer}`);
     if(!['week','all-time'].includes(period))throw new TypeError(`Unknown profile card period: ${period}`);
     const mine=viewer==='owner',featured=featuredOption===undefined?viewer!=='owner':featuredOption;
     const bio=showBio?(p.bio||'').trim():'',photo=avatar(p,'lg'),name=esc(p.name||p.login),handle=`<span data-type="secondary">@${esc(p.login)}</span>`;
-    const preview=mine&&location.pathname==='/me'?`<div class="me-card-preview-row"><button type="button" class="me-card-preview-action" data-card-preview>View as friend</button></div>`:'';
     const identity=link?`<a class="me-card-profile-link" href="${profileHref(p)}" aria-label="Open my profile"><span class="me-card-avatar">${photo}</span><span class="me-card-name"><h2>${name}</h2><span class="me-card-meta">${handle}</span><span class="me-showcase-streak-slot" data-me-showcase-streak></span></span></a>`:`<span class="me-card-profile-link"><span class="me-card-avatar">${photo}</span><span class="me-card-name"><h2>${name}</h2><span class="me-card-meta">${handle}</span><span class="me-showcase-streak-slot" data-me-showcase-streak></span></span></span>`;
-    const content=data?profileView(data,{viewer,period}).html:skel(1);
+    const content=data?profileView(data,{viewer,period,preview}).html:skel(1);
     return `<section class="me-card me-card-${period}" data-profile-card-period="${period}" aria-label="${mine?'Your profile card':esc(p.name||p.login)+'’s profile card'}"><div class="me-card-banner">${pills}</div>
       <div class="me-card-body"><div class="me-card-id me-card-id-link">${identity}${friends}</div>
         ${bio?bio.length>140?`<details class="me-about"><summary>About me</summary><p>${esc(bio)}</p></details>`:`<p class="me-profile-bio">${esc(bio)}</p>`:''}
-        <div class="me-card-sections" aria-busy="${data?'false':'true'}">${content}</div>${preview}${featured?'<div class="me-featured-slot" data-me-featured></div>':''}
+        <div class="me-card-sections" aria-busy="${data?'false':'true'}">${content}</div>${featured?'<div class="me-featured-slot" data-me-featured></div>':''}
         ${milestones?'<div data-me-milestones hidden></div>':''}</div></section>`;
   }
   const paintBars=box=>$$('.me-card-bars span[data-h]',box).forEach(bar=>bar.style.height=(bar.dataset.h==='0'?'0':Math.max(4,bar.dataset.h*5))+'px');
@@ -1028,7 +1027,7 @@ const MeCard=(()=>{
     const distance=Number(row.distance_m)||0,workouts=Number(row.activities)||0,time=Number(row.time_s)||0;
     return {distance:`${distance>0?U.dist(distance,1):'0'} ${U.du()}`,activities:workouts.toLocaleString(),time:time>0?U.time(time):'0m'};
   }
-  function weeklyCard(r){
+  function weeklyCard(r,preview=false){
     if(!r.overview?.activities&&!r.shared_count)return `<div class="me-card-empty"><p>${r.mine===false?'No workouts to show yet.':'Your totals appear here once you have workouts.'}</p>${r.mine===false?"":'<a class="ghost wide" href="/me/goals?new=1">Set a goal</a>'}</div><div class="me-featured-slot" data-me-featured></div>`;
     const weeks=(r.mileage?.weeks||[]).slice(-12),current=weeks.find(w=>w.today)||weeks.at(-1)||{distance_m:0,activities:0,time_s:0},values=weekMetrics(current);
     const month=(week,index)=>{
@@ -1044,6 +1043,7 @@ const MeCard=(()=>{
     }).join('')}</div></div>`:'';
     return `<div class="me-card-sec me-card-weekly"><div class="me-card-head"><div class="me-card-label" data-week-label aria-live="polite"><span>This week</span></div></div>
       <dl class="me-card-numbers me-numbers-3"><div data-week-stat="distance"><dd><b class="me-metric-value" data-type="stat" data-week-value="distance">${esc(values.distance)}</b></dd><dt data-type="secondary">Distance</dt></div><div data-week-stat="activities"><dd><b class="me-metric-value" data-type="stat" data-week-value="activities">${esc(values.activities)}</b></dd><dt data-type="secondary">Workouts</dt></div><div data-week-stat="time"><dd><b class="me-metric-value" data-type="stat" data-week-value="time">${esc(values.time)}</b></dd><dt data-type="secondary">Time</dt></div></dl>
+      ${preview?'<div class="me-card-preview-row"><button type="button" class="me-card-preview-action" data-card-preview>View as friend</button></div>':''}
       ${chart}</div><div class="me-featured-slot" data-me-featured></div>`;
   }
   function sections(r,layout,full){
@@ -1085,7 +1085,7 @@ const MeCard=(()=>{
     const privateSelectors=[...ownerOnly,'.profile-achievement-next',...(!shareAchievements?['.me-featured-slot','[data-me-featured]','.me-featured-achievements','.profile-achievements','.profile-achievement-medallion']:[])];
     return{memberPreview:profile.preview==='member',photoIncluded:photo===true&&!!person.photo,shareAchievements:shareAchievements===true,sharedFeaturedLoaded:shareAchievements&&featureSlot?.dataset.loaded==='true',measuredWidth:clone.getBoundingClientRect().width,privateMarkersAbsent:privateSelectors.every(selector=>!clone.querySelector(selector)),aggregateSectionsPreserved:aggregateSnapshot()===originalAggregates};
   }
-  function profileView(data,{viewer,period,mode}={}){
+  function profileView(data,{viewer,period,mode,preview=false}={}){
     if(!['owner','friend','preview'].includes(viewer))throw new TypeError(`Unknown profile viewer: ${viewer}`);
     period=period||(mode==='landing'?'week':'all-time');
     if(!['week','all-time'].includes(period))throw new TypeError(`Unknown profile card period: ${period}`);
@@ -1093,7 +1093,7 @@ const MeCard=(()=>{
     if(period==='week'&&!owner)throw new TypeError('Only the owner can render the Me weekly card.');
     const shared=viewerData(data,viewer);
     const layout=ProfileLayout.normalize(owner?App.me?.profile_layout||shared.layout:shared.layout);
-    return {html:period==='week'?weeklyCard(shared):sections(shared,layout,true),owner,period};
+    return {html:period==='week'?weeklyCard(shared,preview):sections(shared,layout,true),owner,period};
   }
   function fitSports(rail){
     const chips=$$('.me-sport-chip',rail),more=$('.me-sport-more',rail);let count=Math.min(3,chips.length);chips.forEach((n,i)=>n.hidden=i>=count);more.hidden=count===chips.length;if(!more.hidden)more.textContent='+'+(chips.length-count);
@@ -1103,7 +1103,7 @@ const MeCard=(()=>{
     if(count<chips.length){const n=chips.length-count,names=chips.slice(count).map(x=>x.textContent.trim()).join(', ');more.title=names;more.innerHTML=`<span aria-hidden="true">+${n}</span><span class="vh">${n} more ${n===1?'sport':'sports'}: ${esc(names)}</span>`;}
   }
   // Profile data is composed once for the explicit viewer; shared views cannot read owner-only weekly stats.
-  function mount(root,{reload,data:given=null,viewer='owner',period:cardPeriod,mode,onSaved,onEditEnd,editOnLoad=false}={}){
+  function mount(root,{reload,data:given=null,viewer='owner',period:cardPeriod,mode,onSaved,onEditEnd,editOnLoad=false,preview=false}={}){
     if(!['owner','friend','preview'].includes(viewer))throw new TypeError(`Unknown profile viewer: ${viewer}`);
     cardPeriod=cardPeriod||(mode==='landing'?'week':'all-time');
     if(!['week','all-time'].includes(cardPeriod))throw new TypeError(`Unknown profile card period: ${cardPeriod}`);
@@ -1175,7 +1175,7 @@ const MeCard=(()=>{
       const cleanup=chartCleanup,dispose=()=>{cleanup();wrap.removeEventListener('pointerdown',onDown);wrap.removeEventListener('click',onClick);document.removeEventListener('pointermove',onMove,true);document.removeEventListener('pointerup',onUp,true);document.removeEventListener('pointercancel',onCancel,true);document.removeEventListener('click',outside,true);clearTimeout(ignoreTimer);};chartCleanup=dispose;viewResources.set(wrap,dispose);
     };
     const periods=()=>$$('[data-period]',box).forEach(b=>b.onclick=()=>{if(b.dataset.period===period)return;period=b.dataset.period;draw();$(`[data-period="${period}"]`,box)?.focus({preventScroll:true});});
-    const draw=()=>{if(!live()||editing||!data)return;chartCleanup();const view=profileView(data,{viewer,period:cardPeriod});box.setAttribute('aria-busy','false');box.innerHTML=view.html;requestAnimationFrame(fitProfileName);bars();if(view.period==='week'){weeklyTaps();ProfileLayout.mountShowcase(root,data,{featured:true,shared:false});}else{weekTaps();periods();}};
+    const draw=()=>{if(!live()||editing||!data)return;chartCleanup();const view=profileView(data,{viewer,period:cardPeriod,preview});box.setAttribute('aria-busy','false');box.innerHTML=view.html;requestAnimationFrame(fitProfileName);bars();if(view.period==='week'){weeklyTaps();ProfileLayout.mountShowcase(root,data,{featured:true,shared:false});}else{weekTaps();periods();}};
     const loadCard=async()=>{
       try{
         if(!ownerView)throw new TypeError('A shared profile view requires its filtered profile payload.');
@@ -1300,7 +1300,7 @@ const MeCard=(()=>{
     if(!ownerView){draw();return {};}
     $('[data-card-edit]',card).onclick=edit;
     $('[data-card-share]',card).onclick=shareSheet;
-    $('[data-card-preview]',card)?.addEventListener('click',viewAsFriend);
+    card.addEventListener('click',event=>{if(event.target.closest('[data-card-preview]'))viewAsFriend();});
     if(data)draw();else loadCard();
     return {edit};
   }

@@ -146,6 +146,9 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();
   const weekly=p.locator('.me-card-weekly'),label=p.locator('[data-week-label]'),chart=p.locator('.me-card-bars'),weeks=p.locator('.me-week');
   await p.locator('.me-featured-slot[data-loaded="true"]').waitFor();await p.locator('.me-featured-achievements').waitFor();
+  const previewAction=weekly.locator('.me-card-numbers + .me-card-preview-row [data-card-preview]');
+  assert.equal(await previewAction.innerText(),'View as friend','friend preview link sits immediately beneath the weekly stats');
+  assert.equal(await weekly.locator('.me-card-preview-row ~ .me-chart-scroll .me-card-bars').count(),1,'friend preview link stays above the chart and achievements');
   const profileLink=p.locator('.me-card-open-link'),linkBox=await profileLink.boundingBox(),cardBox=await p.locator('.me-card').boundingBox(),featuredBox=await p.locator('.me-featured-achievements').boundingBox();
   assert.equal(await profileLink.getAttribute('aria-label'),'Open my profile','the profile link has the approved VoiceOver label');
   assert.match(await profileLink.getAttribute('href'),/^\/people\/alex(?:\?|$)/,'the profile link opens the owner profile');
