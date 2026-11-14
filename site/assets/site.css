@@ -692,10 +692,10 @@ header.top .signup { display:flex;align-items:center; }
  .home-hero { padding-top:32px; }
  .home-hero-grid,.progress-demo .wrap,.home-insights .wrap { grid-template-columns:1fr; }
  .progress-demo-mount { min-height:240px; }
- .hero-phones { min-height:620px; }
- .phone-frame--hero { width:min(275px,70vw); }
- .phone-parallax-a { display:none; }
- .phone-parallax-b { transform:none; }
+ .hero-phones { min-height:0; display:flex; justify-content:center; padding-top:32px; }
+ .phone-frame--hero { position:relative; width:min(273px,70vw); margin-inline:auto; transform:none; }
+ .phone-parallax-a { display:block; }
+ .phone-parallax-b { display:none; }
  .home-story { padding:70px 20px 40px; }
  .home-story-grid { display:block; margin-inline:0; padding-inline:0; overflow:visible; grid-auto-flow:initial; }
  .story-pin,.story-steps { display:block; }
