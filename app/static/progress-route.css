@@ -138,6 +138,34 @@
 .progress-summary { min-height:0; padding:12px; }
 .progress-summary h2 { margin:0 0 6px; font-size:var(--text-app-card-title); }
 .progress-summary > span { font-size:.8125rem; line-height:1.4; }
+
+/* Progress home Totals redesign PR1 (#1021). */
+.progress-home-heading { position:sticky; top:env(safe-area-inset-top); z-index:60; min-height:64px; margin:0 -16px 12px; padding:8px 16px; background:var(--bg); border-bottom:1px solid transparent; transition:min-height var(--motion-settle) var(--motion-ease),padding var(--motion-settle) var(--motion-ease),background-color var(--motion-settle) var(--motion-ease),border-color var(--motion-settle) var(--motion-ease); }
+.progress-home-heading h1 { margin:0; font-size:32px; font-weight:700; line-height:1.15; letter-spacing:-.03em; transition:font-size var(--motion-settle) var(--motion-ease),line-height var(--motion-settle) var(--motion-ease); }
+.progress-home-heading.is-compact { min-height:44px; padding-block:0; background:var(--card); border-bottom-color:var(--line); }
+.progress-home-heading.is-compact h1 { font-size:17px; line-height:1.2; font-weight:600; letter-spacing:-.01em; }
+.progress-home-heading .acts { flex-wrap:nowrap; gap:8px; }
+.progress-home #p-combined-week { margin-bottom:8px; }
+.progress-home #p-combined-week .combined-week { margin:0; padding:0 12px; border:1px solid var(--line); border-radius:14px; box-shadow:none; }
+.progress-home #p-combined-week .combined-week > summary { min-height:52px; font-size:16px; font-weight:600; }
+.progress-home-totals .progress-totals-card { padding:16px; border:1px solid var(--line); border-radius:18px; background:var(--card); box-shadow:none; }
+.progress-home-totals .progress-totals-header { display:flex; align-items:center; gap:8px; width:100%; min-height:44px; }
+.progress-home-totals .progress-totals-header > .range-btn { min-height:44px; font-size:17px; font-weight:600; }
+.progress-home-totals .totals-view-toggle { display:flex; align-items:center; margin-left:auto; }
+.progress-home-totals .totals-view-toggle button { display:grid; place-items:center; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; border:0; border-radius:50%; background:transparent; color:var(--tx2); }
+.progress-home-totals .totals-view-toggle button svg { width:20px; height:20px; }
+.progress-home-totals .totals-view-toggle button:active { transform:scale(.9); }
+.progress-home-totals .underline-tabs { margin:0 0 14px; }
+.progress-home-totals .progress-total-stats { margin:0 0 10px; }
+.progress-home-totals .totals-display { min-width:0; }
+.progress-home-totals #m-chart { min-width:0; margin:0; }
+.progress-home-totals .progress-total-footer { display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0; margin-top:4px; border-top:1px solid var(--line); }
+.progress-home-totals .progress-total-caption { min-width:0; color:var(--tx2); font-size:13px; font-weight:500; line-height:1.3; overflow-wrap:anywhere; }
+.progress-home-totals .range-text { flex:none; gap:0; }
+.progress-home-totals .range-text button { padding-inline:4px; }
+.progress-home-totals .period-column.distance-column .distance-total { fill:var(--color-distance-muted); }
+.progress-home-totals .period-column.distance-column .distance-total.partial { fill:url(#kinetta-accent-gradient); opacity:1; }
+@media (prefers-reduced-motion:reduce) { .progress-home-heading,.progress-home-heading h1 { transition:none; } }
 .progress-summary > span b { font-size:.875rem; }
 .progress-summary small { font-size:.8125rem; }
 .progress-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
