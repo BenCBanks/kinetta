@@ -2392,3 +2392,29 @@ html body .me-card-bars .me-week.now > span:first-child { background: var(--acce
   button:not(:disabled):is(:active,[data-touch-pressed]):not([data-touch-cancelled]), a:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), [role="button"]:is(:active,[data-touch-pressed]):not([data-touch-cancelled]), summary:is(:active,[data-touch-pressed]):not([data-touch-cancelled]) { background-color: color-mix(in srgb, currentColor 6%, var(--card)); }
   nav.tabs :is(a,button):is(:active,[data-touch-pressed]):not([data-touch-cancelled]) svg { transform: none; }
 }
+.scrim:has(.achievement-share-sheet) .sheet { width:100%; max-width:640px; max-height:92dvh; padding:8px 22px calc(env(safe-area-inset-bottom) + 16px); overflow:auto; }
+.scrim:has(.achievement-share-sheet) .sheet > header { min-height:44px; margin-bottom:8px; }
+.scrim:has(.achievement-share-sheet) .sheet > header h2 { font-size:17px; font-weight:600; letter-spacing:0; }
+.achievement-share-sheet { display:grid; gap:12px; min-width:0; }
+.achievement-share-preview { display:flex; position:relative; align-items:center; justify-content:center; width:100%; height:min(52dvh,420px); min-height:210px; overflow:hidden; }
+.achievement-share-preview img { display:block; width:auto; max-width:100%; height:auto; max-height:100%; aspect-ratio:auto; border:1px solid var(--line); border-radius:12px; box-shadow:none; object-fit:contain; }
+.achievement-share-preview-skeleton { width:min(100%,calc(min(52dvh,420px) * .8)); height:min(52dvh,420px); aspect-ratio:4 / 5; border:1px solid var(--line); border-radius:12px; background:linear-gradient(100deg,var(--card) 30%,color-mix(in srgb,var(--card) 76%,var(--tx3)) 48%,var(--card) 66%); background-size:220% 100%; animation:achievement-share-loading 1.25s linear infinite; }
+@keyframes achievement-share-loading { to { background-position-x:-220%; } }
+.achievement-share-preview.is-switching img { opacity:.5; }
+.achievement-share-preview.is-loading:not(:has(img))::after { content:""; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
+.achievement-share-tabs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); width:100%; min-height:44px; }
+.achievement-share-tabs[hidden] { display:none; }
+.achievement-share-tabs[data-tab-count="2"] { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.achievement-share-tabs [role="tab"] { position:relative; display:flex; align-items:center; justify-content:center; min-width:0; min-height:44px; padding:4px 3px; border:0; border-radius:0; background:transparent; color:var(--tx3); font-size:13px; font-weight:500; line-height:1.15; text-align:center; white-space:normal; }
+.achievement-share-tabs [role="tab"][aria-selected="true"] { color:var(--tx); font-weight:600; }
+.achievement-share-tabs [role="tab"][aria-selected="true"]::after { position:absolute; right:10px; bottom:0; left:10px; height:2px; border-radius:2px; background:var(--accent); content:""; }
+.achievement-share-state { min-width:0; color:var(--tx2); font-size:14px; text-align:center; }
+.achievement-share-state:empty { display:none; }
+.achievement-share-state-panel { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; width:100%; height:100%; min-height:210px; padding:20px; border:1px solid var(--line); border-radius:12px; background:var(--card); color:var(--tx2); text-align:center; }
+.achievement-share-state .linkbtn { min-height:44px; }
+.achievement-share-sheet > [data-achievement-share-send] { min-height:50px; margin-top:2px; }
+.achievement-share-sheet > [data-achievement-share-send]:disabled { opacity:.4; }
+.achievement-share-preview[aria-busy="true"] img { opacity:.5; }
+#d-milestones .milestone-more { font-size:15px; }
+@media (prefers-reduced-motion:reduce) { .achievement-share-preview-skeleton { animation:none; } }
+@media (max-width:350px) { .scrim:has(.achievement-share-sheet) .sheet { padding-right:16px; padding-left:16px; } }

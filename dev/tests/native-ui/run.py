@@ -8,6 +8,10 @@ from header_geometry import check_headers
 # 6.9-inch App Store story order: Home feed, Activity, Track, Nutrition day,
 # Kit food chat, Progress, Me (including featured badges), then Friends.
 STORE_STAGES=('header-activity','activity','header-track','header-food','food','header-progress','header-me','friends-typical')
+LAYOUT_STAGES=(('header-me',16),('header-activity',16),('header-track',16),('header-progress',16),('header-food',16),('achievement-share-track',16),('recipe',16),('review',16),('food',16),('recipe',24),('food',24),('track-live',16),('track-map',16),('track-review',16),('track-live',24),('track-review',24),('activity',16),('activity-sticky',16),('activity-empty',16),('activity-map',16),('activity',24),('friends-empty',16),('friends-typical',16),('friends-heavy',16),('friends-heavy',24),('groups-create',16))
+def layout_stages(theme):
+ # The bundled achievement share flow is covered once in light; both themes remain covered in browser UI.
+ return [case for case in LAYOUT_STAGES if case[0]!='achievement-share-track' or theme=='light']
 from startup_timing import phase_durations,summary_markdown
 p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--store',action='store_true');p.add_argument('--store-stage',action='append',choices=STORE_STAGES,help='Add a Store scene to the default set; repeat for extra screens.');p.add_argument('--device',choices=['compact','pro','all'],default='all');p.add_argument('--startup-timing',action='store_true');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
 assert not (a.store and a.startup_timing),'Cold-start timing uses the fictional Me fixture, not Store captures'
@@ -80,7 +84,7 @@ for device in preferred:
    sim('ui',udid,'appearance',theme)
    if a.store:
     store_stages=list(dict.fromkeys([*STORE_STAGES,*(a.store_stage or [])]));stages=[(name,16) for name in store_stages]
-   else: stages=[(name,16) for name in ['header-me','header-activity','header-track','header-progress','header-food']]+[('recipe',16),('review',16),('food',16),('recipe',24),('food',24),('track-live',16),('track-map',16),('track-review',16),('track-live',24),('track-review',24),('activity',16),('activity-sticky',16),('activity-empty',16),('activity-map',16),('activity',24),('friends-empty',16),('friends-typical',16),('friends-heavy',16),('friends-heavy',24),('groups-create',16)]
+   else: stages=layout_stages(theme)
    for stage,root in stages:
     diagnostics['phase']=f'{theme} {stage} root={root}';(a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
     measure_startup=a.startup_timing and theme=='light' and stage=='header-me'
@@ -125,7 +129,10 @@ for device in preferred:
     assert metrics['mePreloadCount']==0,metrics
     nav=metrics['navigation']
     assert nav['ready'],'Actual UIKit display-preference bridge must respond: '+json.dumps(metrics.get('display',{}),sort_keys=True)
-    assert nav['visible']==(stage in ('activity','activity-sticky','activity-empty','achievements') or stage.startswith(('friends-','groups-','header-'))),metrics
+    assert nav['visible']==(stage in ('activity','activity-sticky','activity-empty','achievements','achievement-share-track') or stage.startswith(('friends-','groups-','header-'))),metrics
+    if stage=='achievement-share-track':
+     share=metrics.get('achievementShare',{});assert share.get('title')=='Share' and share.get('tabs')==[{'label':'Distance','selected':'true'},{'label':'Run','selected':'false'},{'label':'All sports','selected':'false'}],metrics
+     assert share.get('preview',{}).get('loaded') and share.get('preview',{}).get('width',0)>0 and share.get('preview',{}).get('height',0)>0 and share.get('sendText')=='Share' and not share.get('sendDisabled'), 'Bundled app opens and renders the preselected Run Distance share picture: '+json.dumps(share,sort_keys=True)
     if a.store:
      raw=capture.read_bytes();dimensions=run('sips','-g','pixelWidth','-g','pixelHeight',str(capture))
      assert raw[:3]==b'\xff\xd8\xff' and re.search(r'pixelWidth: 1320\b',dimensions) and re.search(r'pixelHeight: 2868\b',dimensions),'Store JPEG must be native1320x2868, no alpha or resizing'
@@ -234,7 +241,7 @@ for device in preferred:
   if udid:sim('shutdown',udid,check=False,timeout=20);sim('delete',udid,check=False,timeout=20)
 import shutil
 shutil.rmtree(a.output/'KinettaLayout.app',ignore_errors=True)
-expected_count=len(dict.fromkeys([*STORE_STAGES,*(a.store_stage or [])])) if a.store else 50*len(preferred)
+expected_count=len(dict.fromkeys([*STORE_STAGES,*(a.store_stage or [])])) if a.store else sum(len(layout_stages(theme)) for theme in ('light','dark'))*len(preferred)
 assert len(results)==expected_count,'Every selected phone needs all selected layout cases'
 if a.startup_timing:
  assert len(startup_rows)==len(preferred),'Each selected phone needs one cold-start sample'

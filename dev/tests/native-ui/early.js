@@ -36,7 +36,7 @@
   }
   localStorage.clear();document.documentElement.style.fontSize=cfg.root+'px';
   cfg.mePreloadCount=Array.from(document.querySelectorAll?.('link[rel="preload"][as="fetch"]')||[]).filter(link=>new URL(link.href,location.href).pathname==='/api/me').length;
-  history.replaceState(null,'',cfg.stage==='achievements'?'/me/achievements':cfg.headerPage?'/'+cfg.headerPage:cfg.groups?'/me/groups':cfg.friends?'/me/friends':cfg.stage.startsWith('activity')?'/activity/1':cfg.stage.startsWith('track-')?'/track':cfg.stage==='food'?'/food/describe':'/food/cook/1');
+  history.replaceState(null,'',cfg.stage==='achievements'?'/me/achievements':cfg.stage==='achievement-share-track'?'/me/achievements#run':cfg.headerPage?'/'+cfg.headerPage:cfg.groups?'/me/groups':cfg.friends?'/me/friends':cfg.stage.startsWith('activity')?'/activity/1':cfg.stage.startsWith('track-')?'/track':cfg.stage==='food'?'/food/describe':'/food/cook/1');
   if(cfg.recording){const s={...cfg.recording,native:true,lapSupport:true,activeSeconds:cfg.recording.activeMs/1000,elapsedSeconds:(cfg.recording.finishedAt-cfg.recording.start)/1000,_snapshotClock:performance.now()};localStorage.setItem('kinetta.track:'+JSON.stringify(['https://example.test',1]),JSON.stringify(s));}
   const nutrients={kcal:450,protein_g:30,carbs_g:40,fat_g:19,fiber_g:null,sodium_mg:null,sugar_g:null,saturated_fat_g:null};
   cfg.dish={id:1,name:'Fictional recipe',named:true,mine:true,items:[],known:nutrients,totals:nutrients,recipe_source:{},serving:'one',servings:1,serving_count:1,weight_g:null,items_g:null,weighed:false,shared_with:[],owner:{login:'zz_test_native',name:'Demo'}};
@@ -62,6 +62,7 @@
       else if(cfg.headerPage&&p==='/api/challenges')data=[];
       else if(cfg.headerPage&&p==='/api/plans/current')data={plan:null};
       else if(cfg.headerPage&&p==='/api/feed/friends')data=[];
+      else if(cfg.achievementShare&&p==='/api/achievements')data=cfg.achievementShare;
       else if(cfg.headerPage&&p==='/api/progress/overview')data={today:'2026-11-01',food:{},plan:null,years:0};
       else if(cfg.headerPage&&p.endsWith('/profile'))data={mine:true,overview:{activities:0},shared_count:0,items:[],sports:[]};
       else if(cfg.activity&&p==='/api/activities/1')data=cfg.activity;
