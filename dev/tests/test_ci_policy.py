@@ -50,11 +50,22 @@ class CIPolicyTests(unittest.TestCase):
     def test_ready_native_paths_and_draft_skip(self):
         for path in ('mobile/ios/App/App.swift','app/static/style.css','dev/tests/native-ui/run.py','app/asset_build.py','.github/workflows/ios.yml','dev/ci/policy.py','dev/demo/friends.cjs','dev/demo/activity_detail.cjs','dev/demo/track_session.cjs','dev/tests/fixtures/interval_presets.json'):
             self.assertTrue(policy.native_needed('pull_request',{'pull_request':{'draft':False}},[path]))
+        self.assertTrue(policy.native_needed('pull_request',{'pull_request':{'draft':True}},['app/static/style.css']))
+        for path in ('mobile/ios/App/App.swift','dev/tests/native-ui/run.py','app/asset_build.py','.github/workflows/ios.yml','dev/ci/policy.py','dev/demo/friends.cjs','dev/demo/activity_detail.cjs','dev/demo/track_session.cjs','dev/tests/fixtures/interval_presets.json'):
             self.assertFalse(policy.native_needed('pull_request',{'pull_request':{'draft':True}},[path]))
         for paths in (['app/api_food.py'],['docs/ios.md'],['site/assets/site.css'],['dev/tests/test_social.py'],[]):
             self.assertFalse(policy.native_needed('pull_request',{'pull_request':{'draft':False}},paths))
         for event in ('schedule','workflow_dispatch','push'):self.assertTrue(policy.native_needed(event,{},[]))
         self.assertTrue(policy.native_needed('pull_request',{'pull_request':{'draft':False}},['docs/demo.md']*400+['app/static/app.js']))
+
+    def test_draft_changed_screen_checks_are_scoped_to_app_static(self):
+        workflow=(ROOT/'.github/workflows/tests.yml').read_text()
+        quick=workflow.split('\n  quick:\n',1)[1].split('\n  backend:\n',1)[0]
+        self.assertIn('fetch-depth: 0',quick)
+        self.assertIn("if: github.event_name == 'pull_request' && github.event.pull_request.draft",quick)
+        self.assertIn('dev/tests/changed.sh',quick)
+        self.assertIn('git diff --quiet "$CHANGED_BASE...HEAD" -- app/static',quick)
+        self.assertIn('No changed app screens; Draft browser checks skipped.',quick)
 
     def test_real_git_diff_includes_renamed_fixture(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -90,7 +101,8 @@ class CIPolicyTests(unittest.TestCase):
                         exec(compile(script,'store-preview-step','exec'),{})
                 finally:sys.path[:]=old_path
                 self.assertEqual(output.getvalue().splitlines(),['enabled='+str(enabled).lower(),'preview='+str(preview).lower()])
-        self.assertIn("github.event.pull_request.draft && '[\"pro\"]'",ios)
+        self.assertIn("github.event.pull_request.draft && '[\"compact\"]'",ios)
+        self.assertIn('--draft-smoke',ios)
         self.assertIn("if: matrix.device == 'pro' && needs.changes.outputs.store == 'true'",ios)
 
     def test_store_selector_handles_non_pr_events_with_real_policy(self):

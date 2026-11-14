@@ -11,7 +11,9 @@ def native_path(path):
 
 def native_needed(event_name,event,paths):
     if event_name=='pull_request':
-        return not event['pull_request']['draft'] and any(native_path(p) for p in paths)
+        if event['pull_request']['draft']:
+            return any(p.startswith('app/static/') for p in paths)
+        return any(native_path(p) for p in paths)
     return True
 
 

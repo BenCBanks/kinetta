@@ -26,11 +26,13 @@ jobs:
   quick:
     if: github.event_name == 'pull_request' && github.event.pull_request.draft == true
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     env:
       KINETTA_VERSION: ci
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -52,19 +54,34 @@ jobs:
           python3 dev/screenshots/stage.py /tmp/gpx
       - name: Syntax, unit and quick API checks
         run: dev/tests/run.sh --quick
+      - name: Install locked browser test package
+        run: npm ci --prefix dev/tests/browser
       - name: Check aggregate Features portal with fictional history (writes blocked)
         env:
           KINETTA_URL: http://localhost:8798
           KINETTA_PROJECT: kinettatest
           FEATURE_UI_SESSION: /tmp/kinetta-features-session.json
         run: |
-          npm ci --prefix dev/tests/browser
           dev/tests/with_playwright.sh bash -euo pipefail -c '
             python3 dev/tests/admin_features_fixture.py
             NODE_PATH=dev/tests/browser/node_modules node dev/tests/admin_features_ui.cjs
             python3 dev/tests/feature_collection_fixture.py
             NODE_PATH=dev/tests/browser/node_modules node dev/tests/feature_collection_ui.cjs
           '
+      - name: Run browser checks for changed app screens
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft
+        env:
+          CHANGED_BASE: ${{ github.event.pull_request.base.sha }}
+          KINETTA_URL: http://localhost:8798
+          KINETTA_PROJECT: kinettatest
+          KINETTA_SPACING_REPORT: /tmp/draft-changed-spacing.json
+          KINETTA_SPACING_SHOTS: ''
+        run: |
+          if git diff --quiet "$CHANGED_BASE...HEAD" -- app/static; then
+            echo 'No changed app screens; Draft browser checks skipped.'
+            exit 0
+          fi
+          dev/tests/with_playwright.sh bash dev/tests/changed.sh
       - name: Server log (if something failed)
         if: failure()
         run: docker compose -p kinettatest logs app | tail -100

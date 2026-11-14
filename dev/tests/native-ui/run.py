@@ -9,8 +9,9 @@ from header_geometry import check_headers
 # Kit food chat, Progress, Me (including featured badges), then Friends.
 STORE_STAGES=('header-activity','activity','header-track','header-food','food','header-progress','header-me','friends-typical')
 from startup_timing import phase_durations,summary_markdown
-p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--store',action='store_true');p.add_argument('--store-stage',action='append',choices=STORE_STAGES,help='Add a Store scene to the default set; repeat for extra screens.');p.add_argument('--device',choices=['compact','pro','all'],default='all');p.add_argument('--startup-timing',action='store_true');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
+p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--store',action='store_true');p.add_argument('--store-stage',action='append',choices=STORE_STAGES,help='Add a Store scene to the default set; repeat for extra screens.');p.add_argument('--device',choices=['compact','pro','all'],default='all');p.add_argument('--startup-timing',action='store_true');p.add_argument('--draft-smoke',action='store_true',help='Run one light header-track fixture on Compact only.');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
 assert not (a.store and a.startup_timing),'Cold-start timing uses the fictional Me fixture, not Store captures'
+assert not (a.draft_smoke and (a.store or a.startup_timing or a.device!='compact')),'Draft smoke is Compact-only and excludes Store/startup measurements'
 def run(*args,check=True,timeout=180):
  try:result=subprocess.run(args,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=timeout)
  except subprocess.TimeoutExpired as error:
@@ -76,10 +77,11 @@ for device in preferred:
   # A fresh hosted runner must initialize the iOS runtime; this can exceed three minutes.
   sim('boot',udid);sim('bootstatus',udid,'-b',timeout=480);sim('status_bar',udid,'override','--time','9:41','--dataNetwork','wifi','--wifiMode','active','--wifiBars','3','--batteryState','charged','--batteryLevel','100')
   installed=None;recovered=False
-  for theme in (('light',) if a.store else ('light','dark')):
+  for theme in (('light',) if a.store or a.draft_smoke else ('light','dark')):
    sim('ui',udid,'appearance',theme)
    if a.store:
     store_stages=list(dict.fromkeys([*STORE_STAGES,*(a.store_stage or [])]));stages=[(name,16) for name in store_stages]
+   elif a.draft_smoke:stages=[('header-track',16)]
    else: stages=[(name,16) for name in ['header-me','header-activity','header-track','header-progress','header-food']]+[('recipe',16),('review',16),('food',16),('recipe',24),('food',24),('track-live',16),('track-map',16),('track-review',16),('track-live',24),('track-review',24),('activity',16),('activity-sticky',16),('activity-empty',16),('activity-map',16),('activity',24),('friends-empty',16),('friends-typical',16),('friends-heavy',16),('friends-heavy',24),('groups-create',16)]
    for stage,root in stages:
     diagnostics['phase']=f'{theme} {stage} root={root}';(a.output/'startup.json').write_text(json.dumps(diagnostics,indent=2))
@@ -234,7 +236,7 @@ for device in preferred:
   if udid:sim('shutdown',udid,check=False,timeout=20);sim('delete',udid,check=False,timeout=20)
 import shutil
 shutil.rmtree(a.output/'KinettaLayout.app',ignore_errors=True)
-expected_count=len(dict.fromkeys([*STORE_STAGES,*(a.store_stage or [])])) if a.store else 50*len(preferred)
+expected_count=len(dict.fromkeys([*STORE_STAGES,*(a.store_stage or [])])) if a.store else 1 if a.draft_smoke else 50*len(preferred)
 assert len(results)==expected_count,'Every selected phone needs all selected layout cases'
 if a.startup_timing:
  assert len(startup_rows)==len(preferred),'Each selected phone needs one cold-start sample'
