@@ -2,6 +2,7 @@
 const fs = require('fs'), vm = require('vm'), assert = require('assert');
 const lift = fs.readFileSync('app/static/lift.js', 'utf8');
 const routes = fs.readFileSync('app/static/lift-routes.js', 'utf8');
+const trackRoute = fs.readFileSync('app/static/track-route.js', 'utf8');
 const app = fs.readFileSync('app/static/app.js', 'utf8');
 const index = fs.readFileSync('app/static/index.html', 'utf8');
 const code = lift.slice(lift.indexOf('const wUnit'), lift.indexOf('const KINDS')) + routes.slice(routes.indexOf('function liftTotals'), routes.indexOf('// The session is already saved'));
@@ -38,7 +39,7 @@ const track = fs.readFileSync('app/static/track.js', 'utf8');
 // Discard under its controls, on screen.
 assert(/id="lf-discard">Discard session/.test(routes) && /id="lf-sum-del">Delete this session/.test(routes), 'lifting: discard and delete');
 assert(/function discardLift[\s\S]*queueLift\(key,[\s\S]*method: 'DELETE'[\s\S]*store\.del\(key\)/.test(routes), 'deletes the activity and its account-scoped phone copy after queued writes');
-assert(/\$\{paused \? `<span class="round-ctl round-ctl-discard"><button class="round-btn discard" id="track-discard" aria-label="Discard recording">/.test(track), 'paused: Discard in the controls row');
-assert(/\$\{paused \? '' : `<button class="linkbtn danger track-discard" id="track-discard"/.test(track), 'one Discard at a time');
+assert(/\$\{paused \? `<span class="round-ctl round-ctl-discard"><button class="round-btn discard" id="track-discard" aria-label="Discard recording">/.test(trackRoute), 'paused: Discard in the controls row');
+assert(/\$\{paused \? '' : `<button class="linkbtn danger track-discard" id="track-discard"/.test(trackRoute), 'one Discard at a time');
 console.log('PASS discard a lifting session or a paused recording right away');
 

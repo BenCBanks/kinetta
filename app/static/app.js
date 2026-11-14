@@ -62,6 +62,7 @@ const PLAN_ROUTE_ASSET = '/static/plan.js?v=__ASSET_HASH__';
 const SETTINGS_ROUTE_ASSET = '/static/settings-route.js?v=__ASSET_HASH__';
 const QR_CODE_ASSET = '/static/vendor/qrcode.js?v=__ASSET_HASH__';
 const INTERVALS_ROUTE_ASSET = '/static/intervals.js?v=__ASSET_HASH__';
+const TRACK_ROUTE_ASSET = '/static/track-route.js?v=__ASSET_HASH__';
 const FRIENDS_UI_ASSET = '/static/friends-ui.js?v=__ASSET_HASH__';
 const USERNAME_AVAILABILITY_ASSET = '/static/username-availability.js?v=__ASSET_HASH__';
 const PUSH_INVITATION_ROUTE_ASSET = '/static/push-invitation.js?v=__ASSET_HASH__';
@@ -80,7 +81,7 @@ const lazyRouteBundles = [
   {re: /^\/me\/explore$/, tab: 'track', scripts: [SOCIAL_ROUTE_ASSET, '/static/explore.js?v=__ASSET_HASH__']},
   {re: /^\/progress$/, tab: 'progress', scripts: [SOCIAL_ROUTE_ASSET], styles: [PROGRESS_ROUTE_STYLE]},
   {re: /^\/plan$/, tab: 'progress', scripts: [INTERVALS_ROUTE_ASSET, PLAN_ROUTE_ASSET]},
-  {re: /^\/track$/, tab: 'track', scripts: [INTERVALS_ROUTE_ASSET, MEDIA_ROUTE_ASSET], styles: [TRACK_ROUTE_STYLE]},
+  {re: /^\/track$/, tab: 'track', scripts: [INTERVALS_ROUTE_ASSET, MEDIA_ROUTE_ASSET, TRACK_ROUTE_ASSET], styles: [TRACK_ROUTE_STYLE]},
   {re: /^\/me\/settings$/, tab: 'me', scripts: [INTERVALS_ROUTE_ASSET, SETTINGS_ROUTE_ASSET]},
   {re: /^\/(?:me\/challenges(?:\/[A-Za-z0-9_-]{1,60})?|challenge\/[A-Za-z0-9_-]{1,60})$/, tab: 'activity', scripts: [CHALLENGES_ROUTE_ASSET]},
   {re: /^\/routes(?:\/.*)?$/, tab: 'track', scripts: [PLANNER_ROUTE_ASSET]},
