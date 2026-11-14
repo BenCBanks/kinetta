@@ -178,6 +178,26 @@
 .progress-home-totals .stats3 > .stat { display:contents; }
 .progress-home-totals .stats3 > .stat > small { grid-row:1; }
 .progress-home-totals .stats3 > .stat > b { grid-row:2; white-space:nowrap; }
+
+/* Trend details keep every yearly value in view on a phone instead of hiding the table's right columns. */
+.trend-year-cards { display:none; }
+.trend-year-row { padding:12px 0; border-top:1px solid var(--line); }
+.trend-year-row:first-child { border-top:0; }
+.trend-year-row h3 { margin:0 0 10px; font-size:15px; font-weight:600; }
+.trend-year-row h3 small { margin-left:5px; color:var(--tx2); font-size:13px; font-weight:400; }
+.trend-year-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px 16px; }
+.trend-year-metric { display:grid; gap:3px; min-width:0; }
+.trend-year-metric small { color:var(--tx2); font-size:13px; line-height:1.25; }
+.trend-year-metric b { font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; }
+.trend-year-row.current { position:relative; margin:0 -8px; padding:12px 8px; border-radius:12px; background:linear-gradient(110deg,color-mix(in srgb,var(--accent) 10%,var(--card)),var(--card)); }
+.trend-year-row.current::before { content:""; position:absolute; inset:12px auto 12px 0; width:3px; border-radius:99px; background:linear-gradient(180deg,var(--accent),var(--color-brand-gradient-end,var(--accent))); }
+@media(max-width:520px) {
+  .trend-year-table { display:none; }
+  .trend-year-cards { display:grid; }
+}
+.progress-detail-links .row-link { transition:transform var(--motion-press) ease-out,background-color var(--motion-press) ease-out; }
+.progress-detail-links .row-link:active { transform:scale(.985); opacity:1; background:var(--card2); }
+@media(prefers-reduced-motion:reduce) { .progress-detail-links .row-link { transition:none; } }
 /* Progress: existing values with explicit keys and compact history/segment controls (#492). */
 .sw.k-brand { background:var(--accent); }
 .record-history-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }

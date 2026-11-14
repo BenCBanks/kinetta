@@ -76,9 +76,23 @@ async function pTrends(body, q) {
       {k: 'perwk', t: `${noun[0].toUpperCase() + noun.slice(1)} per week`, fmt: (v) => v.toFixed(1), color: 's4'},
       ...(sport === 'run' ? [{k: 'cad', t: 'Average cadence', fmt: (v) => `${Math.round(v)} spm`, w: 'n', color: 's5'}] : []),
     ];
-    box.innerHTML = `<div class="card"><h2>By year</h2><div class="tblwrap"><table class="tbl yrs"><thead><tr><th>Year</th><th class="r">${U.du()}/wk</th><th class="r">${noun[0].toUpperCase() + noun.slice(1)}/wk</th><th class="r">${foot ? 'Pace ' + U.pu() : 'Speed ' + U.su()}</th><th class="r">HR bpm</th><th class="r">Avg ${U.du()}</th><th class="r">Longest ${U.du()}</th></tr></thead><tbody>
+    const yearValue = (y, key) => ({
+      distance: y.wk == null ? '–' : `${y.wk.toFixed(1)} ${U.du()}`,
+      frequency: y.perwk == null ? '–' : y.perwk.toFixed(1),
+      pace: foot ? pace(y.pace) : spd(y.speed),
+      heart: y.hr ? `${Math.round(y.hr)} bpm` : '–',
+      average: y.avgd == null ? '–' : `${y.avgd.toFixed(1)} ${U.du()}`,
+      longest: y.longest ? `${toU(y.longest).toFixed(1)} ${U.du()}` : '–',
+    })[key];
+    const yearMetrics = y => [
+      ['Distance / week', 'distance'], [`${noun[0].toUpperCase() + noun.slice(1)} / week`, 'frequency'],
+      [foot ? `Pace ${U.pu()}` : `Speed ${U.su()}`, 'pace'], ['Heart rate', 'heart'],
+      [`Average ${U.du()}`, 'average'], [`Longest ${U.du()}`, 'longest'],
+    ].map(([label,key]) => `<div class="trend-year-metric"><small>${esc(label)}</small><b class="num">${esc(yearValue(y,key))}</b></div>`).join('');
+    box.innerHTML = `<div class="card trend-years"><h2>By year</h2><div class="tblwrap trend-year-table"><table class="tbl yrs"><thead><tr><th>Year</th><th class="r">${U.du()}/wk</th><th class="r">${noun[0].toUpperCase() + noun.slice(1)}/wk</th><th class="r">${foot ? 'Pace ' + U.pu() : 'Speed ' + U.su()}</th><th class="r">HR bpm</th><th class="r">Avg ${U.du()}</th><th class="r">Longest ${U.du()}</th></tr></thead><tbody>
         ${yrows.map((y) => `<tr${+y.y === today.getFullYear() ? ' class="cur"' : ''}><td>${y.y}${+y.y === today.getFullYear() ? '<small class="muted"> so far</small>' : ''}</td><td class="r num"><b>${y.wk == null ? '–' : y.wk.toFixed(1)}</b></td><td class="r num">${y.perwk == null ? '–' : y.perwk.toFixed(1)}</td>
           <td class="r num">${foot ? pace(y.pace) : spd(y.speed)}</td><td class="r num">${y.hr ? Math.round(y.hr) : '–'}</td><td class="r num">${y.avgd == null ? '–' : y.avgd.toFixed(1)}</td><td class="r num">${y.longest ? toU(y.longest).toFixed(1) : '–'}</td></tr>`).join('')}</tbody></table></div>
+      <div class="trend-year-cards">${yrows.map(y => `<section class="trend-year-row${+y.y === today.getFullYear() ? ' current' : ''}"><h3>${y.y}${+y.y === today.getFullYear() ? '<small> so far</small>' : ''}</h3><div class="trend-year-metrics">${yearMetrics(y)}</div></section>`).join('')}</div>
         <p class="small muted">${foot ? 'Pace = total elapsed time ÷ total distance' : 'Speed = total distance ÷ total elapsed time'}. Heart rate and cadence are weighted by moving time, from activities that recorded them.</p></div>
       ${metrics.map((m) => `<div class="card"><h2>${esc(m.t)}</h2>
         ${cy && cy[m.k] != null ? `<p class="small"><b class="num">${esc(m.fmt(cy[m.k]))}</b> in ${cy.y}${+cy.y === today.getFullYear() ? ' so far' : ''}${ly && ly[m.k] != null ? ` · ${esc(m.fmt(ly[m.k]))} in ${ly.y} ${cmp(m)}` : ''}</p>` : ''}
@@ -135,7 +149,7 @@ function calDay(x, M) {
 }
 async function pRoutes(body) {
   await load('/api/routes', (rows) => {
-    body.innerHTML = rows.length ? `<div class="card">${rows.map((r) => `<a class="row-link" href="/route/${r.id}" data-prefetch="/api/routes/${r.id}">
+    body.innerHTML = rows.length ? `<div class="card progress-detail-links">${rows.map((r) => `<a class="row-link" href="/route/${r.id}" data-prefetch="/api/routes/${r.id}">
       <div class="hd act">${r.g ? miniRoute(polyFromGeo(r.g), r.sport === 'foot' ? 'walk' : r.sport) : ''}</div>
       <div class="grow"><b>${esc(r.name)}</b><br><small class="muted">${r.count} times · best ${dur(r.best_s)} · last ${esc(fdate(r.last, {month: 'short', day: 'numeric'}))}</small></div><span class="chev">${svg('chev')}</span></a>`).join('')}</div>
       <p class="small muted">Routes are matched automatically when you repeat the same start, finish, direction and distance.</p>`

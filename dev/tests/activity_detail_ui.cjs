@@ -24,6 +24,7 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
   assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_detail_'+(friend?'friend':'owner'),password:pw}})).status(),200);
   if(reaction)assert.equal((await c.request.post(base+`/api/activities/${id}/reaction`,{headers:{Origin:base,'Content-Type':'application/json'},data:{kind:'clap'}})).status(),200,'fictional detail reaction fixture');
   await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
+  if(out)await c.addInitScript(()=>{window.__KINETTA_SCREENSHOT_MODE__=true;});
   const p=await c.newPage(),errors=[],writes=[],detailAssets=[],routeScriptOrder=[];let detailAttempts=0;await p.clock.setFixedTime(fixtureInstant);p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
   p.on('request',q=>{const path=new URL(q.url()).pathname;if(path==='/static/activity-detail.js')detailAssets.push(q.url());if(['/static/social.js','/static/segments.js','/static/activity-detail.js'].includes(path))routeScriptOrder.push(path);});
   await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(u.pathname==='/static/activity-detail.js'&&loadOptions.failDetailFirst&&detailAttempts++===0)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(u.pathname===`/api/activities/${id}/comments`)return r.continue();return r.fulfill({json:{}});}if(medalKind&&u.pathname===`/api/activities/${id}`){return r.fetch().then(async response=>{const activity=await response.json(),ride=medalKind==='ride';activity.created=fixtureInstant.toISOString();activity.sport=ride?'ride':'run';activity.distance_m=ride?20000:5000;return r.fulfill({response,json:activity});});}if(medalKind&&u.pathname==='/api/sharing')return r.fulfill({json:{share_achievements:true}});if(medalKind&&u.pathname==='/api/achievements'){const ride=medalKind==='ride';return r.fulfill({json:{pending:false,tracks:[{code:ride?'sport:ride':'sport:run',value:ride?157233:9000,tiers:[]}]}});}if(u.pathname==='/api/map-config')return r.fulfill({json:{kind:'raster',url:base+'/__detail_tiles/light/{z}/{x}/{y}.svg',dark_url:base+'/__detail_tiles/dark/{z}/{x}/{y}.svg',max_zoom:17,attribution:'Fictional mapping and terrain tiles'}});if(u.pathname.startsWith('/__detail_tiles/'))return r.fulfill({contentType:'image/svg+xml',body:`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="${u.pathname.includes('/dark/')?'#20262B':'#EDF0F3'}"/></svg>`});return r.continue();});
@@ -222,6 +223,53 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
    const {c,p,errors}=await open('run','light',{width:390,height:844,root:16},true);await until(p,()=>!!document.querySelector('.leaflet-container'),'mouse map');assert.equal(await p.locator('#d-map .leaflet-control-zoom').count(),0,'photo rail starts still');await p.locator('#d-map .map-full').click();assert(await p.locator('.map.full .leaflet-control-zoom').isVisible(),'expanded photo map supports mouse zoom');await p.locator('.map.full .leaflet-control-zoom-in').click();await p.keyboard.press('Escape');await until(p,()=>!document.querySelector('.map.full'),'mouse map closed');assert.equal(await p.locator('#d-map .leaflet-control-zoom').count(),0,'inline rail restored');assert.deepEqual(errors,[]);await c.close();contexts.splice(contexts.indexOf(c),1);
    const item=await open('empty','light',{width:390,height:844,root:16},false,true);await item.p.waitForSelector('.c-form');assert.equal(await item.p.locator('#d-soc').isVisible(),false,'an empty private activity hides its social footer');await item.p.keyboard.press('Escape');await item.p.locator('#d-comment-open').click();await item.p.waitForSelector('.c-form');await item.p.locator('.c-form textarea').fill('Fictional private workout note');await item.p.locator('.c-send').click();await until(item.p,()=>document.querySelector('.social-read-status')?.textContent==='Comment posted.','own comment saved');await item.p.keyboard.press('Escape');assert(await item.p.locator('#d-soc').isVisible(),'the owner footer appears when the activity has a comment');assert(await item.p.locator('#d-soc .reaction-more').isVisible());assert.match(await item.p.locator('#d-soc [data-ttalk]').getAttribute('aria-label'),/1/);assert.deepEqual(item.errors,[]);await item.c.close();contexts.splice(contexts.indexOf(item.c),1);
    console.log('Activity detail actions: mouse zoom/keyboard restoration, empty-owner comment deep link and live social update PASS');
+  }
+  if(detailCases.includes('tabs-polish')){
+   for(const theme of ['light','dark']){
+    const {c,p,errors,writes}=await open('run',theme,{width:390,height:844,root:16},false);
+    for(const [key,label] of [['overview','Details'],['splits','Splits'],['efforts','Efforts']]){
+     const tab=p.getByRole('tab',{name:label,exact:true});await tab.click();
+     const pane=p.locator(`#activity-pane-${key}`);await pane.waitFor({state:'visible'});
+     assert.equal(await tab.getAttribute('aria-selected'),'true',`${label} exposes the selected tab state`);
+     assert.equal(await pane.evaluate(n=>n.scrollWidth<=n.clientWidth+1),true,`${label} content fits the 390px viewport`);
+     if(key==='splits'){
+      assert(await pane.locator('tbody tr').count()>=4,'fictional split table has varied rows');
+      const best= pane.locator('tbody tr.best .bar');assert.equal(await best.evaluate(n=>getComputedStyle(n).borderRadius),'999px','split bars use rounded ends');
+      assert.match(await best.evaluate(n=>getComputedStyle(n).backgroundImage),/gradient/,'fastest split uses the accent gradient');
+     }
+     if(key==='overview'){
+      const details=pane.locator('.hero.more'),stats=details.locator('.stat');assert.equal(await stats.count(),6,'Details keeps six non-duplicate stats in the named grid');
+      assert.deepEqual(await details.evaluate(n=>{const s=getComputedStyle(n);return{columns:s.gridTemplateColumns.split(' ').length,rule:s.borderTopWidth};}),{columns:3,rule:'0px'},'Details uses a clean 3-column tile grid without the old hairline');
+      assert.notEqual(await stats.first().evaluate(n=>getComputedStyle(n).backgroundColor),await details.evaluate(n=>getComputedStyle(n.closest('.card')).backgroundColor),'Details tiles use a distinct soft surface');
+      assert.equal(await stats.first().locator('small').evaluate(n=>getComputedStyle(n).fontSize),'12px','stat labels are 12px');
+      assert.equal(await stats.first().locator('small').evaluate(n=>getComputedStyle(n).fontWeight),'500','stat labels are medium');
+      assert.equal(await stats.first().locator('b').evaluate(n=>getComputedStyle(n).fontSize),'20px','stat values are 20px');
+      assert.equal(await stats.first().locator('b').evaluate(n=>getComputedStyle(n).fontWeight),'700','stat values are bold');
+      assert.match(await stats.first().locator('b').evaluate(n=>getComputedStyle(n).fontVariantNumeric),/tabular-nums/);
+      for(const title of ['Details','Insights'])assert.equal(await pane.getByRole('heading',{name:title,exact:true}).evaluate(n=>getComputedStyle(n).fontSize),'17px',`${title} heading is 17px`);
+      const record=pane.locator('.insight-icon.good'),hard=pane.locator('.insight-icon:not(.good)');assert(await record.locator('svg').count(),'new personal record uses a trophy icon');assert(await hard.locator('svg').count(),'hard session uses a flame icon');
+      for(const icon of [record,hard])assert.deepEqual(await icon.evaluate(n=>{const r=n.getBoundingClientRect();return[Math.round(r.width),Math.round(r.height)];}),[28,28],'insight icon uses a 28px tinted circle');
+      for(const title of ['New personal record','Hard session'])assert.equal(await pane.locator('.insight').filter({hasText:title}).locator('b').evaluate(n=>getComputedStyle(n).fontWeight),'700',`${title} title is strong`);
+      const route=pane.locator('a.card.tap[href^="/route/"]');assert.notEqual(await route.evaluate(n=>getComputedStyle(n).boxShadow),'none','matched route is raised');
+      const compare=route.locator('.more');assert.match(await compare.evaluate(n=>getComputedStyle(n).backgroundImage),/gradient/,'Compare uses the brand gradient');
+     }
+     if(key==='efforts'){
+      assert.match(await pane.innerText(),/Best efforts[\s\S]*5K[\s\S]*Current PR/,'Efforts keeps the fictional personal record and context');
+      assert.equal(await pane.getByRole('heading',{name:'Best efforts',exact:true}).evaluate(n=>getComputedStyle(n).fontSize),'17px','Best efforts heading is 17px');
+      const pr=pane.locator('.medal.m1'),time=pane.locator('.effort-time').first();assert.equal(await pr.innerText(),'PR');
+      assert.equal(await pr.evaluate(n=>getComputedStyle(n).borderWidth),'2px','PR medal has a visible gradient rim');assert.match(await pr.evaluate(n=>getComputedStyle(n).backgroundImage),/gradient/,'PR medal has the #981 gradient finish');assert.match(await pr.evaluate(n=>getComputedStyle(n).boxShadow),/inset/,'PR medal has a specular rim highlight');
+      assert.equal(await time.evaluate(n=>getComputedStyle(n).fontSize),'18px','effort time is 18px');assert.equal(await time.evaluate(n=>getComputedStyle(n).fontWeight),'700','effort time is bold');
+      assert.match(await time.evaluate(n=>getComputedStyle(n).fontVariantNumeric),/tabular-nums/);const effortBar=pane.locator('.effort-bar').first();assert.equal(await effortBar.evaluate(n=>n.getAttribute('aria-hidden')),'true');assert.match(await effortBar.locator('linearGradient').getAttribute('id'),/^activity-effort-/,'each effort has its own comparison gradient');assert(Number(await effortBar.locator('rect').getAttribute('width'))>0,'each effort has a visible bar scaled against the PR');
+     }
+     if(out){
+      await p.evaluate(()=>{const tabs=document.querySelector('.dtabs');window.scrollTo(0,Math.max(0,window.scrollY+tabs.getBoundingClientRect().top-90));});
+      await p.waitForTimeout(150);fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`activity-tabs-${key}-390-${theme}.png`),animations:'disabled'});
+     }
+    }
+    assert.deepEqual(errors,[]);assert(!writes.some(x=>!['/api/challenges/signup/continue','/api/milestones/celebrate'].includes(x)),'tab review performs no unrelated writes');
+    await c.close();contexts.splice(contexts.indexOf(c),1);
+   }
+   console.log('Activity Details, Splits and Efforts 390px light/dark: named panes, varied splits, gradients, no overflow PASS');
   }
   if(loadCases.length)console.log(`ActivityDetail lazy loading: ${loadCases.join(', ')} PASS`);
  }finally{for(const c of contexts)await c.close();for(const who of ['owner','friend']){const c=await b.newContext();try{const r=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_detail_'+who,password:pw}});if(r.ok())await c.request.post(base+'/api/account/delete',{headers:{Origin:base},data:{password:pw}});}finally{await c.close();}}await b.close();}

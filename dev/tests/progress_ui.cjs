@@ -46,6 +46,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
    if(process.env.KINETTA_PROGRESS_CASE&&process.env.KINETTA_PROGRESS_CASE!==`${who}-${size.width}-${theme}`)continue;
    const c=await b.newContext({storageState:state,viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'America/New_York'}),p=await c.newPage(),errors=[],writes=[];let notificationCount=0;
    await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
+   if(out)await c.addInitScript(()=>{window.__KINETTA_SCREENSHOT_MODE__=true;});
    p.on('pageerror',e=>errors.push(e.message));
    await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(u.pathname==='/api/notifications/count')return r.fulfill({json:{unread:notificationCount,friend_requests:0,friend_count:0}});if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);return r.fulfill({json:{}});}return r.continue();});
    const ready=()=>until(p,()=>typeof App!=='undefined'&&App.pageReady&&App.page?.key===location.pathname+location.search,'ready');
@@ -175,7 +176,22 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     if(['/progress?view=fitness','/progress?section=food','/progress/heatmap'].includes(url))await p.goto(base+url);else await p.evaluate(url=>go(url),url);await ready();const weight=new URL(p.url()).pathname==='/progress/weight';assert.equal(await p.locator('.progress-heading .bell').count(),0,url+' detail header has no Notifications bell');assert.equal(await p.locator(weight?'.weight-heading [data-back]':'.progress-back[href^="/progress"]').count(),1,url+' home navigation');assert.equal(await p.locator('.progress-focus').count(),0);await fits(url);
     if(url==='/progress/segments'){assert.equal(await p.locator('#sg-sport').evaluate(n=>!!n.closest('.card')),true,'segment sport is inside its first card');await p.locator('#sg-sport').click();await p.locator('[data-pk=run]').click();await ready();assert.match(new URL(p.url()).search,/sport=run/);}
     if(url.includes('view=fitness')){await until(p,()=>!!document.querySelector('#fi-range .range-btn'),'years filter rendered beside Running fitness');assert.equal(await p.locator('#fi-range button').count(),1,'years filter stays with Running fitness after first-card refresh');if(who==='runner'){assert.equal(await p.locator('#fi-summary .fitness-current').count(),1,'Fitness & freshness now leads Progress → Fitness');assert((await p.locator('#fi-summary .fitness-current').boundingBox()).y<(await p.locator('#fi-pred').boundingBox()).y,'moved summary appears before predictions');}}
-    if(url.includes('/trends'))assert.equal(await p.locator('#p-rng button').count(),1,'years filter remains on the separate Trends view');
+    if(url.includes('/trends')){
+     assert.equal(await p.locator('#p-rng button').count(),1,'years filter remains on the separate Trends view');
+     if(size.width<=520&&who==='runner'){
+      assert.equal(await p.locator('.trend-year-cards').isVisible(),true,'phone Trends shows named year metrics instead of a clipped wide table');
+      assert.equal(await p.locator('.trend-year-table').isVisible(),false,'phone Trends does not leave a hidden horizontal table as the only view');
+      assert(await p.locator('.trend-year-metric').count()>=6,'every yearly metric remains named and visible');
+      assert.equal(await p.locator('.trend-years').evaluate(n=>n.scrollWidth<=n.clientWidth+1),true,'year summary fits the phone width');
+     }else if(who!=='runner'){
+      assert.equal(await p.locator('.trend-years').count(),0,'empty Trends keeps its existing empty state without fabricated year metrics');
+      assert.equal(await p.locator('.card.empty b').count(),1,'empty Trends names the missing activity history');
+     }
+    }
+    if(out&&size.width===390&&['/progress/trends','/progress/routes'].includes(url.split('?')[0])){
+     fs.mkdirSync(out,{recursive:true});const name=url.split('?')[0].slice(1).replaceAll('/','-');
+     await p.screenshot({path:`${out}/${name}-${theme}.png`,fullPage:true,animations:'disabled'});
+    }
     await p.locator(weight?'.weight-heading [data-back]':'.progress-back').click();await p.waitForURL(url=>url.pathname==='/progress');await p.waitForSelector('.progress-home');await ready();assert.equal(await p.locator('.progress-home').count(),1);
    }
    await home();await p.evaluate(()=>document.addEventListener('click',e=>{if(e.target.closest('[data-progress-feature="lifting"]'))globalThis.progressLeaveScroll=scrollY;},{capture:true}));await p.locator('[data-progress-feature="lifting"]').click();await p.waitForURL('**/progress?view=lifting');await ready();const y=await p.evaluate(()=>globalThis.progressLeaveScroll);await p.locator('.progress-back').click();await p.waitForURL(base+'/progress');await p.waitForSelector('.progress-home');await ready();await until(p,target=>Math.abs(scrollY-Math.min(target,document.documentElement.scrollHeight-innerHeight))<8,'home preserves available scroll',y);
