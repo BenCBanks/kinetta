@@ -2,30 +2,6 @@
 'use strict';
 globalThis.KinettaBoot=(()=>{
   let failed=false;
-  // Browser sessions can begin identity discovery while the parser is still
-  // downloading the eager app bundle. Native sessions must wait for native.js
-  // to load its server and token first, so they keep the normal app path.
-  let mePromise=null;
-  if(typeof window!=='undefined'&&!window.Capacitor){
-    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);
-    mePromise=fetch('/api/me',{credentials:'same-origin',headers:{Accept:'application/json'},signal:controller.signal})
-      .then(async response=>{
-        let body=null;try{body=await response.json();}catch(_){/* handled as an HTTP error below */}
-        if(!response.ok){
-          const detail=body&&body.detail;
-          const error=new Error(typeof detail==='string'?detail:`Error ${response.status}`);error.status=response.status;error.payload=body;throw error;
-        }
-        return body;
-      })
-      .catch(error=>{
-        if(error?.status)return Promise.reject(error);
-        return Promise.reject(Object.assign(new Error(error?.name==='AbortError'?'This is taking too long. Try refreshing again.':"Can't reach Kinetta - check your connection."),{offline:true,status:error?.name==='AbortError'?504:undefined}));
-      })
-      .finally(()=>clearTimeout(timer));
-    // The app consumes this promise once the eager bundle is ready; observe an
-    // early logged-out rejection so it cannot surface as an unhandled page error.
-    mePromise.catch(()=>{});
-  }
   const launching=()=>document.querySelector('#app .launch');
   // Start the signed-in web bootstrap while the eager bundle downloads. Capacitor's WebView
   // uses native auth headers and omit-credentials fetches, so a shell preload would be a
@@ -63,5 +39,5 @@ globalThis.KinettaBoot=(()=>{
     const asset=event.target;
     if((asset?.tagName==='SCRIPT'||(asset?.tagName==='LINK'&&asset.rel==='stylesheet'))&&requiredAsset(asset)){failed=true;showFailure();}
   },true);
-  return {get failed(){return failed;},showFailure,get me(){return mePromise;}};
+  return {get failed(){return failed;},showFailure};
 })();

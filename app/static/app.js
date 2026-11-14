@@ -313,13 +313,6 @@ function readOnce(path) {
   }
   return pendingReads.get(key);
 }
-function bootstrapMe() {
-  const boot = globalThis.KinettaBoot?.me;
-  // A cold logged-out page may have already completed its eager probe with 401;
-  // after login, retry against the newly established session instead of reusing
-  // that stale rejection. Other failures retain the boot probe's error state.
-  return boot ? boot.catch(error => error?.status === 401 ? api('/api/me') : Promise.reject(error)) : api('/api/me');
-}
 
 // ---------- API: fetch + per-session cache (stale-while-revalidate) ----------
 async function api(path, opts = {}) {
@@ -2453,11 +2446,11 @@ async function start() {
   const saved = kept('/api/me');
   if (saved && !location.pathname.startsWith('/join/') && !pendingJoinPath()) {
     App.me = saved; enter();
-    bootstrapMe().then(refreshMe).catch((x) => { if (x.status === 401) forgetKept(); else if (x.offline) netState(true); });
+    api('/api/me').then(refreshMe).catch((x) => { if (x.status === 401) forgetKept(); else if (x.offline) netState(true); });
     return;
   }
   try {
-    App.me = await bootstrapMe(); keep('/api/me', App.me);
+    App.me = await api('/api/me'); keep('/api/me', App.me);
     enter();
   } catch (x) {
     if (x.status === 401) { forgetKept(); showWelcome(); return; }
