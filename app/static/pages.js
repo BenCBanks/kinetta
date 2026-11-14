@@ -1336,16 +1336,22 @@ async function progressHome(el, q) {
   q.set('sport',viewSport);q.set('period',period);if(q.has('metric'))q.set('metric',metric);
   if ($('#p-combined-week',el)) combinedWeek($('#p-combined-week',el));
   const owner=readOwner(), valid=()=>el.isConnected&&owner===readOwner();
+  let fitnessValue=null,recordValue=null;
+  const refreshProgressTiles=(overview,ready)=>{
+    progressTiles(grid,overview,{ready});
+    if(fitnessValue)$('[data-progress-fitness]',el).textContent=fitnessValue;
+    if(recordValue)$('[data-progress-record]',el).textContent=recordValue;
+  };
   await Promise.allSettled([
     pMileage(totals,q,{home:true}).catch(()=>{if(valid())totals.innerHTML='<div class="card empty">Distance by week, month and year →</div>';}),
     load('/api/progress/overview',o=>{
-      if(!valid())return; progressTiles(grid,o,{ready:true});
-      const r=o.record;if(r){const row=$('[data-progress-record]',el);row.textContent=`${r.label} · ${dur(r.elapsed_s)}`;}
-    }).catch(()=>{if(valid())progressTiles(grid,null,{ready:true});}),
+      if(!valid())return;recordValue=o.record?`${o.record.label} · ${dur(o.record.elapsed_s)}`:null;refreshProgressTiles(o,true);
+    }).catch(()=>{if(valid())refreshProgressTiles(null,true);}),
     load('/api/fitness?days=60',f=>{
       if(!valid())return;const last=f.days.at(-1),p=f.predictions[0];
-      if(p)$('[data-progress-fitness]',el).textContent=`${p.label} · ${dur(p.seconds)}`;
-      else if(last&&f.days.some(d=>d.fitness>0))$('[data-progress-fitness]',el).textContent=`Fitness ${Math.round(last.fitness)} · Form ${Math.round(last.form)}`;
+      if(p)fitnessValue=`${p.label} · ${dur(p.seconds)}`;
+      else if(last&&f.days.some(d=>d.fitness>0))fitnessValue=`Fitness ${Math.round(last.fitness)} · Form ${Math.round(last.form)}`;
+      if(fitnessValue)$('[data-progress-fitness]',el).textContent=fitnessValue;
     }).catch(()=>{})
   ]);
 }
