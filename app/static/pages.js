@@ -681,9 +681,10 @@ function sportStats(a) {
   if (a.avg_stride) add('Stride', (a.avg_stride / 1000).toFixed(2), 'm');
   if (a.avg_gct) add('Ground contact', Math.round(a.avg_gct), 'ms');
   if (a.avg_vo) add('Vert. osc.', (a.avg_vo / 10).toFixed(1), 'cm');
-  add('Elapsed time', a.elapsed_s != null ? activityElapsedText(a) : null);
-  // Keep distinct moving time available in Details as well as the Activity header.
-  if (a.moving_s != null && (a.elapsed_s == null || a.elapsed_s !== a.moving_s)) add('Moving time', activityMovingText(a));
+  const elapsed=Number(a.elapsed_s), elapsedKnown=Number.isFinite(elapsed)&&elapsed>0;
+  add('Elapsed time', elapsedKnown ? U.time(elapsed) : 'Unavailable');
+  // Durations remain separately labelled even when equal or only seconds apart.
+  add('Moving time', a.moving_s != null ? activityMovingText(a) : null);
   add('Calories', a.calories ? Math.round(a.calories) : null); add('Temp', a.avg_temp != null ? U.temp(a.avg_temp) : null);
   return s.join('');
 }
