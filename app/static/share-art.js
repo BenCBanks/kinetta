@@ -72,6 +72,7 @@ const ShareArt=(()=>{
     const creditLines=credit?lines(g,credit,936,22):[];const top=1260-creditLines.length*27;
     let mapCredit='';
     if(hasMap){
+      await loadMaps();
       const config=await MapTiles.config().catch(()=>null),credit=config?MapTiles.credit(config):'',attribution=credit?lines(g,credit,912,20):[];
       const box={x:M,y:y+22,w:936,h:top-y-48,pad:64,top:0,under:attribution.length*25+12};
       if(box.h<180)throw Error('The picture could not fit clearly. Try again without photo and username.');

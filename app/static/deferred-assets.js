@@ -13,9 +13,14 @@
       const copy=node.cloneNode(true);copy.dataset.deferredStylesheet='true';
       copy.addEventListener('load',()=>copy.dataset.deferredLoad='loaded',{once:true});
       copy.addEventListener('error',()=>copy.dataset.deferredLoad='error',{once:true});
-      document.head.append(copy);
+      // Route styles are loaded before the route leaf renders. Keep the
+      // shared styles ahead of them so a late shared sheet cannot undo the
+      // route's full-bleed and map layout rules.
+      const routeStyle=document.head.querySelector('link[data-route-style]');
+      document.head.insertBefore(copy,routeStyle||null);
     }
     for(const node of document.querySelector('#after-first-useful-scripts').content.children){
+      if(node.getAttribute('src')?.includes('/maps.js') && (globalThis.MapTiles || document.querySelector('script[src*="/maps.js"]')))continue;
       const copy=document.createElement('script');copy.src=node.getAttribute('src');copy.async=false;
       if(copy.src.includes('/feature-usage.js'))copy.addEventListener('load',()=>{
         if(typeof FeatureUsage!=='undefined'&&typeof App!=='undefined'&&App.me)FeatureUsage.open(location.pathname+location.search);

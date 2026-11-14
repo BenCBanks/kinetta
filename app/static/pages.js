@@ -691,6 +691,7 @@ function mercator(la, lo) {     // 0..1 across the world map
   return [(lo + 180) / 360, 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)];
 }
 async function mapPlace(g, pts, box) {      // draws the tiles; returns lat/lon -> canvas x/y. box.top/under: kept clear of the route
+  await loadMaps();
   const m = pts.map(([la, lo]) => mercator(la, lo));
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const [x, y] of m) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
