@@ -20,8 +20,6 @@ case "$1" in
     node dev/tests/profile_card_ui.cjs
     ;;
   2)
-    node dev/tests/track_home_ui.cjs
-    node dev/tests/track_review_recovery_ui.cjs
     node dev/tests/top_chips_ui.cjs
     node dev/tests/track_ready_map_ui.cjs
     node dev/tests/activity_home_ui.cjs
@@ -44,10 +42,6 @@ case "$1" in
     python3 dev/tests/insights_fixture.py
     node dev/tests/insights_ui.cjs
     node dev/tests/goals_ui.cjs
-    node dev/tests/lift_compact_ui.cjs
-    node dev/tests/lift_ui.cjs
-    node dev/tests/lift_lazy_route_ui.cjs
-    node dev/tests/recipes_compact_ui.cjs
     ;;
   4)
     python3 dev/tests/weight_progress_fixture.py
@@ -74,8 +68,14 @@ case "$1" in
     node dev/tests/admin_features_ui.cjs
     python3 dev/tests/feature_collection_fixture.py
     node dev/tests/feature_collection_ui.cjs
+    node dev/tests/lift_compact_ui.cjs
+    node dev/tests/lift_ui.cjs
+    node dev/tests/lift_lazy_route_ui.cjs
+    node dev/tests/recipes_compact_ui.cjs
     ;;
   6)
+    node dev/tests/track_home_ui.cjs
+    node dev/tests/track_review_recovery_ui.cjs
     node dev/tests/activity_detail_ui.cjs
     node dev/tests/media_routes_ui.cjs
     node dev/tests/notification_edit_ui.cjs
