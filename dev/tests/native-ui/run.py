@@ -5,7 +5,9 @@ from urllib.parse import urlsplit
 import urllib.request
 from lifecycle import stop_for_fixture
 from header_geometry import check_headers
-STORE_STAGES=('header-me','activity','header-track','header-food','food','header-progress','header-activity','achievements')
+# 6.9-inch App Store story order: Home feed, Activity, Track, Nutrition day,
+# Kit food chat, Progress, Me (including featured badges), then Friends.
+STORE_STAGES=('header-activity','activity','header-track','header-food','food','header-progress','header-me','friends-typical')
 from startup_timing import phase_durations,summary_markdown
 p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--store',action='store_true');p.add_argument('--store-stage',action='append',choices=STORE_STAGES,help='Add a Store scene to the default set; repeat for extra screens.');p.add_argument('--device',choices=['compact','pro','all'],default='all');p.add_argument('--startup-timing',action='store_true');a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
 assert not (a.store and a.startup_timing),'Cold-start timing uses the fictional Me fixture, not Store captures'

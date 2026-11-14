@@ -6,6 +6,7 @@ module.exports=()=>{
  const today='2026-11-02',date=(days)=>new Date(Date.UTC(2026,10,2-days)).toISOString().slice(0,10);
  const activity=require('../../demo/activity_detail.cjs')(),friends=require('../../demo/friends.cjs')('typical');
  friends.friends=Array.from({length:3},(_,i)=>({...friends.friends[0],login:['jordan','casey','taylor'][i],name:['Jordan Example','Casey Example','Taylor Example'][i]}));
+assert.equal(friends.friends.length,3,'the App Store story includes a populated fictional Friends screen');
  activity.name='Morning park run';activity.start_time='2026-11-02T08:30:00Z';
  assert.equal(activity.start_time.slice(0,10),today,'the App Store Home scene includes a workout today');
  const friendActivity={...activity,id:2,name:'Park loop with friends',start_time:'2026-11-01T08:00:00Z',owner:friends.friends[0],visibility:'friends',sport_label:null,speed_available:true,shares:{pace:true,map:true},cheers:0,comments:0,reactions:{cheer:0,strong:0,applause:0},my_reaction:null,cheered:false};
