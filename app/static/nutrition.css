@@ -14,28 +14,35 @@
 .nutrition-start svg { flex:none; width:18px; height:18px; }
 .nutrition-day-summary { position:relative; padding:0; }
 .nutrition-summary-link { display:block; padding:12px; border-radius:inherit; color:inherit; text-decoration:none; }
-.nutrition-summary-link .nutrition-summary { padding-right:72px; margin-bottom:6px; }
-.nutrition-summary-link .hero-num { font-size:36px; line-height:1; font-weight:700; letter-spacing:-.04em; font-variant-numeric:tabular-nums; }
-.nutrition-summary-link .hero-num i { font-size:.875rem; }
-.nutrition-summary-link > .track,.nutrition-summary-link .macro .track { width:100%; max-width:none; background:color-mix(in srgb,var(--card2) 88%,var(--line)); height:10px; border-radius:999px; overflow:hidden; }
-.nutrition-summary-link .track .bar { height:10px; border-radius:999px; background:linear-gradient(100deg,#2f73f0 0%,#1f55d0 58%,#0b8798 100%); box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 2px 8px color-mix(in srgb,#1f55d0 24%,transparent); }
-.nutrition-summary-link .macro-bars { margin-top:10px; gap:7px; }
+.nutrition-summary-link .nutrition-summary { gap:16px; min-height:128px; padding:4px 8px 10px; margin:0 0 6px; border-bottom:1px solid color-mix(in srgb,var(--line) 72%,transparent); }
+.calorie-ring-wrap { position:relative; display:grid; place-items:center; width:128px; height:128px; flex:none; }
+.calorie-ring { display:block; width:100%; height:100%; overflow:visible; filter:drop-shadow(0 2px 5px color-mix(in srgb,#2868ed 18%,transparent)); }
+.calorie-ring-track,.calorie-ring-arc { fill:none; stroke-width:9; }
+.calorie-ring-track { stroke:color-mix(in srgb,var(--card2) 72%,var(--line)); }
+.calorie-ring-arc { stroke:url(#calorie-ring-gradient); stroke-linecap:round; transform:rotate(-90deg); transform-origin:64px 64px; transition:stroke-dashoffset 450ms var(--motion-ease); }
+.calorie-ring-label { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; pointer-events:none; }
+.calorie-ring-label .nutrition-count { color:var(--tx); font-size:28px; line-height:1; font-weight:700; letter-spacing:-.035em; font-variant-numeric:tabular-nums; }
+.calorie-ring-label small { margin-top:5px; color:var(--tx2); font-size:13px; line-height:1.15; font-variant-numeric:tabular-nums; }
+.calorie-summary-copy { display:grid; gap:5px; min-width:0; }
+.calorie-summary-copy .eyebrow { color:var(--tx2); }
+.calorie-summary-copy .calorie-status { font-size:1rem; line-height:1.2; font-weight:650; }
+.calorie-ring.goal-reached-pulse { animation:calorie-ring-glow 600ms ease-out 1; }
+@keyframes calorie-ring-glow { 0% { filter:drop-shadow(0 0 0 color-mix(in srgb,#22c5b6 0%,transparent)); } 42% { filter:drop-shadow(0 0 13px color-mix(in srgb,#22c5b6 58%,transparent)) drop-shadow(0 0 7px color-mix(in srgb,#2868ed 50%,transparent)); } 100% { filter:drop-shadow(0 2px 5px color-mix(in srgb,#2868ed 18%,transparent)); } }
+.nutrition-summary-link .macro .track { width:100%; max-width:none; background:color-mix(in srgb,var(--card2) 88%,var(--line)); height:6px; border-radius:999px; overflow:hidden; }
+.nutrition-summary-link .macro-bars { margin-top:6px; gap:7px; }
 .nutrition-summary-link .macro-line { font-size:.8125rem; font-variant-numeric:tabular-nums; }
 .nutrition-summary-link .macro-line b::before { display:none; }
-.nutrition-summary-link .macro .track { height:6px; margin-top:5px; background:color-mix(in srgb,var(--card2) 88%,var(--line)); }
+.nutrition-summary-link .macro .track { margin-top:5px; }
 .nutrition-summary-link .macro .track .macro-target-bar { height:100%; border-radius:999px; background:linear-gradient(100deg,color-mix(in srgb,var(--macro-color,var(--prog)) 62%,white),var(--macro-color,var(--prog)) 68%,color-mix(in srgb,var(--macro-color,var(--prog)) 82%,black)); box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 1px 5px color-mix(in srgb,var(--macro-color,var(--prog)) 28%,transparent); transition:width var(--motion-settle) var(--motion-ease); }
 .nutrition-summary-link .macro.m-protein { --macro-color:var(--run); }
 .nutrition-summary-link .macro.m-carbs { --macro-color:var(--ride); }
 .nutrition-summary-link .macro.m-fat { --macro-color:var(--hike); }
 .nutrition-summary-link .macro .track .macro-target-bar.over { background:color-mix(in srgb,var(--macro-color) 62%,var(--alert)); }
 .nutrition-summary-link .macro .track .macro-target-bar.unavailable { background:transparent; }
-.nutrition-summary-link .nutrition-summary { display:flex; align-items:center; min-height:58px; }
-.nutrition-summary-link .macro-bars { padding-top:2px; }
+.nutrition-summary-link .nutrition-summary { display:flex; align-items:center; }
+.nutrition-summary-link .macro-bars { padding:0 8px 2px; }
 .nutrition-summary-link .macro { min-width:0; }
 .nutrition-summary-link .macro-line span { color:var(--tx2); }
-.nutrition-summary-link > .track { box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--line) 45%,transparent); }
-#fd-sum .nutrition-summary-link .nutrition-summary + .track > .bar { background:linear-gradient(100deg,#2f73f0 0%,#1f55d0 58%,#0b8798 100%); transition:width var(--motion-settle) var(--motion-ease); }
-.nutrition-summary-link > .track .bar.over { background:var(--alert); }
 .nutrition-home .nutrition-goals { position:absolute; right:12px; top:6px; display:inline-flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; font-size:max(15px,.9375rem); font-weight:500; }
 .nutrition-other-macros { display:flex; align-items:center; flex-wrap:wrap; gap:0 4px; margin-top:8px; font-size:.8125rem; }
 .nutrition-other-macros svg { width:14px; height:14px; margin-left:auto; }
@@ -107,8 +114,15 @@
 
 .nutrition-home .nutrition-goals > svg { flex:none; width:18px; height:18px; color:var(--accent); }
 
+@media (max-width:360px) {
+  .nutrition-summary-link .nutrition-summary { gap:12px; min-height:100px; padding:4px 8px 6px; }
+  .calorie-ring-wrap { width:96px; height:96px; }
+  .calorie-ring-label .nutrition-count { font-size:16px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .nutrition-summary-link .track .bar,.nutrition-summary-link .macro .track .macro-target-bar { transition:none; }
+  .calorie-ring-arc,.nutrition-summary-link .macro .track .macro-target-bar { transition:none; }
+  .calorie-ring.goal-reached-pulse { animation:none; }
 }
 
 .nutrition-home .meal .fe.sw-row + .fe.sw-row { margin-top:8px; }
