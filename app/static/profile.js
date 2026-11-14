@@ -669,10 +669,10 @@ const ProfileLayout=(()=>{
   }
   function showcaseStreakMarkup(data){
     const day=Number(data?.day_streak),week=Number(data?.week_streak),parts=[];
-    if(Number.isInteger(day)&&day>=2)parts.push(`${day}-day`);
-    if(Number.isInteger(week)&&week>=2)parts.push(`${week}-week streak`);
+    if(Number.isInteger(day)&&day>=2)parts.push(`${day}d`);
+    if(Number.isInteger(week)&&week>=2)parts.push(`${week}w`);
     if(!parts.length)return '';
-    const text=parts.join(' · '),label=parts.length===2?`${parts[0]} and ${parts[1].replace(' streak','')} activity streak`:`${parts[0]} activity streak`;
+    const text=`${parts.join(' · ')} streak`,label=parts.length===2?`${day}-day and ${week}-week activity streak`:`${day>=2?`${day}-day`:`${week}-week`} activity streak`;
     return `<span class="me-showcase-row" role="img" aria-label="${esc(label)}"><span class="me-showcase-streak" aria-hidden="true">${svg('flame')}<span>${esc(text)}</span></span></span>`;
   }
   function featuredShowcaseMarkup(showcase,achievementData,{sharedLogin='',ownerFeatured=false}={}){
@@ -921,13 +921,13 @@ const MeCard=(()=>{
     if(!['week','all-time'].includes(period))throw new TypeError(`Unknown profile card period: ${period}`);
     const mine=viewer==='owner',featured=featuredOption===undefined?viewer!=='owner':featuredOption;
     const bio=showBio?(p.bio||'').trim():'',photo=avatar(p,'lg'),name=esc(p.name||p.login),handle=`<span data-type="secondary">@${esc(p.login)}</span>`;
-    const preview=mine&&location.pathname==='/me'?`<div class="me-card-preview-row"><button type="button" class="me-card-preview-action" data-card-preview>${svg('people')}View as friend</button></div>`:'';
+    const preview=mine&&location.pathname==='/me'?`<div class="me-card-preview-row"><button type="button" class="me-card-preview-action" data-card-preview>View as friend</button></div>`:'';
     const identity=link?`<a class="me-card-profile-link" href="${profileHref(p)}" aria-label="Open my profile"><span class="me-card-avatar">${photo}</span><span class="me-card-name"><h2>${name}</h2><span class="me-card-meta">${handle}</span><span class="me-showcase-streak-slot" data-me-showcase-streak></span></span></a>`:`<span class="me-card-profile-link"><span class="me-card-avatar">${photo}</span><span class="me-card-name"><h2>${name}</h2><span class="me-card-meta">${handle}</span><span class="me-showcase-streak-slot" data-me-showcase-streak></span></span></span>`;
     const content=data?profileView(data,{viewer,period}).html:skel(1);
     return `<section class="me-card me-card-${period}" data-profile-card-period="${period}" aria-label="${mine?'Your profile card':esc(p.name||p.login)+'’s profile card'}"><div class="me-card-banner">${pills}</div>
-      <div class="me-card-body"><div class="me-card-id me-card-id-link">${identity}${friends}</div>${preview}
+      <div class="me-card-body"><div class="me-card-id me-card-id-link">${identity}${friends}</div>
         ${bio?bio.length>140?`<details class="me-about"><summary>About me</summary><p>${esc(bio)}</p></details>`:`<p class="me-profile-bio">${esc(bio)}</p>`:''}
-        <div class="me-card-sections" aria-busy="${data?'false':'true'}">${content}</div>${featured?'<div class="me-featured-slot" data-me-featured></div>':''}
+        <div class="me-card-sections" aria-busy="${data?'false':'true'}">${content}</div>${preview}${featured?'<div class="me-featured-slot" data-me-featured></div>':''}
         ${milestones?'<div data-me-milestones hidden></div>':''}</div></section>`;
   }
   const paintBars=box=>$$('.me-card-bars span[data-h]',box).forEach(bar=>bar.style.height=(bar.dataset.h==='0'?'0':Math.max(4,bar.dataset.h*5))+'px');
@@ -1004,8 +1004,7 @@ const MeCard=(()=>{
   }
   const ownPills=()=>`<button type="button" class="me-card-pill" data-card-edit>${svg('edit')}Edit</button><button type="button" class="me-card-pill" data-card-share aria-label="Share your profile">${svg('share')}</button>`;
   function ownFriends(count){
-    const pending=Number.isInteger(App.me.friend_requests)?App.me.friend_requests:0;
-    return `<a class="me-friends-link" href="/me/friends"><span class="me-friends-count"><span data-friend-count>${Number.isInteger(count)?friendCountText(count):'Friends'}</span>${svg('chev')}</span><span class="badge alert" data-friend-waiting${pending?'':' hidden'}>${pending} waiting</span></a>`;
+    return `<a class="me-friends-link" href="/me/friends"><span class="me-friends-count"><span data-friend-count>${Number.isInteger(count)?friendCountText(count):'Friends'}</span>${svg('chev')}</span></a>`;
   }
   function header(me){
     return `<header class="me-top"><h1>Hi, ${esc(firstName(me))}</h1><div class="me-profile-tools"><a class="icon-btn" href="/me/settings" aria-label="Settings">${svg('settings')}</a></div></header>
