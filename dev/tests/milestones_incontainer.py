@@ -136,9 +136,6 @@ class Milestones(unittest.TestCase):
   self.process();self.assertFalse(any(x['kind']=='activity_weeks' for x in self.items()))
  def test_achievement_tracks_backfill_once_owner_and_keep_best_state(self):
   activity_ids=[self.activity(days=30,distance=5_000_000) for _ in range(10)]
-  with db.connect() as c:
-   for aid,seconds in ((activity_ids[0],1_800),(activity_ids[1],1_541)):
-    c.execute("INSERT INTO best_efforts(user_id,activity_id,sport,distance_m,label,elapsed_s,start_time) SELECT user_id,id,sport,5000,'5K',%s,start_time FROM activities WHERE id=%s AND user_id=%s",(seconds,aid,self.ids[0]))
   self.process()
   response=self.clients[0].get('/api/achievements');self.assertEqual(response.status_code,200,response.text)
   self.assertFalse(response.json()['pending'])
@@ -151,9 +148,6 @@ class Milestones(unittest.TestCase):
   self.assertEqual(next(tier['rank'] for tier in states['workouts']['history'] if tier['threshold']==10),1)
   self.assertEqual(states['active_time']['value_s'],36_000)
   self.assertEqual(states['active_time']['next']['threshold'],24*3600)
-  five_k=states['sport:run:fastest:5k']
-  self.assertEqual(five_k['earned_ranks'],[1,2,3,4],'existing exact 5K efforts backfill each slower nested band')
-  self.assertEqual(five_k['best_seconds'],{str(rank):1541.0 for rank in range(1,10)})
   self.assertNotIn('personal_bests',states,'No personal-best event means that track has not started')
   with db.connect() as c:
    tiers=c.execute('''SELECT id,code,activity_id,silent FROM milestones
@@ -176,6 +170,16 @@ class Milestones(unittest.TestCase):
   self.assertEqual(workout['value'],10,'A later edit or deletion must not reduce lifetime progress')
   self.assertEqual(workout['level'],1)
   self.assertIn('trackt:workouts:10.0',[tier['code'] for tier in workout['history']])
+ def test_fastest_5k_backfills_from_existing_exact_efforts(self):
+  activity_ids=[self.activity(days=30,distance=5_000_000) for _ in range(2)]
+  with db.connect() as c:
+   for aid,seconds in ((activity_ids[0],1_541),(activity_ids[1],1_800)):
+    c.execute("INSERT INTO best_efforts(user_id,activity_id,sport,distance_m,label,elapsed_s,start_time) SELECT user_id,id,sport,5000,'5K',%s,start_time FROM activities WHERE id=%s AND user_id=%s",(seconds,aid,self.ids[0]))
+  self.process()
+  response=self.clients[0].get('/api/achievements');self.assertEqual(response.status_code,200,response.text)
+  fastest=next(row for row in response.json()['tracks'] if row['code']=='sport:run:fastest:5k')
+  self.assertEqual(fastest['earned_ranks'],[1,2,3,4],'an exact 25:41 5K backfills each slower nested band')
+  self.assertEqual(fastest['best_seconds'],{str(rank):1_541.0 for rank in range(1,10)},'a slower existing effort does not replace the lifetime best')
 
  def test_historical_run_imports_aggregate_across_sources(self):
   self.assertEqual(self.clients[0].put('/api/notifications/settings',json={'milestones':True}).status_code,200)
