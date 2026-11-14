@@ -79,7 +79,7 @@ async function runTheme(browser,theme){
  };
  const enter=async mode=>{
   scenario=mode;await page.goto(base+'/me/friends?find=1');await page.locator('#contacts-entry').waitFor();
-  assert.equal(await page.locator('#contacts-entry').innerText(),'Find friends with contacts','Friends links into the single Find friends feature');
+  assert.equal((await page.locator('#contacts-entry').innerText()).replace(/\s+/g,' '),'Find from contacts See who you know','Friends links into the single Find friends feature with a concrete subtitle');
   await page.evaluate(mode=>window.__contactsScenario=mode,mode);
   await page.locator('#contacts-entry').click();await page.locator('#contacts-continue').waitFor();
  };

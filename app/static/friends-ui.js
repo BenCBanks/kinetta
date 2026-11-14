@@ -1,4 +1,4 @@
-// Find friends presentation. Requests stay available in a compact sheet; search and sharing live in social.js.
+// Find friends presentation. Search and sharing live in social.js.
 'use strict';
 const FriendsUI=(()=>{
  const identity=p=>`${avatar(p)}<span class="grow"><b>${esc(p.name)}</b><small class="muted">@${esc(p.login)}</small></span>`;
@@ -11,17 +11,27 @@ const FriendsUI=(()=>{
  };
  const shell=back=>`<div class="top large-title">${backBtn(back)}<h1 id="fr-title">Find friends</h1></div><div class="large-title-heading" data-type="title" aria-hidden="true">Find friends</div>
    <section id="fr-discover" class="friend-discovery" aria-label="Find people"><form class="searchbox people-search" id="fr-find" role="search"><span class="sb-ico">${svg('search')}</span><input type="search" name="q" placeholder="Name or @username" aria-label="Search name or @username" maxlength="60" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="search"><button type="button" class="icon-btn" id="fr-clear" aria-label="Clear search" hidden>${svg('close')}</button></form><p class="small muted" id="fr-status" role="status" aria-live="polite"></p></section>
-   <div class="friends-groups-shortcut" id="fr-groups-shortcut"><a class="row-link friend-action" id="fr-groups-discover" href="/me/groups"><span class="ri">${svg('people')}</span><span class="grow"><b>Groups</b><small id="fr-groups-count" aria-live="polite">Your private groups</small></span></a><a class="linkbtn" id="fr-group-create" href="/me/groups?create=1" aria-label="Create a group">Create</a></div>
+   <div class="social-list-group friends-groups-shortcut" id="fr-groups-shortcut"><a class="list-row friend-action" id="fr-groups-discover" href="/me/groups"><span class="ri">${svg('people')}</span><span class="grow"><b>Groups</b><small id="fr-groups-count" aria-live="polite">Private groups and events</small></span></a><a class="linkbtn" id="fr-group-create" href="/me/groups?create=1" aria-label="Create a group">Create</a></div>
    <div id="fr-found"></div><div id="fr-list-error" role="status"></div>
-   <button type="button" class="row-link friend-action" id="fr-invite"><span class="ri">${svg('share')}</span><span class="grow"><b>Invite friends</b><small>Share a link or QR code</small></span>${svg('chev')}</button>
+   <div class="social-list-group friend-invite-group"><button type="button" class="list-row friend-action" id="fr-invite"><span class="ri">${svg('share')}</span><span class="grow"><b>Invite friends</b><small>Share a link or QR code</small></span>${svg('chev')}</button></div>
    <div id="fr-requests"></div><section class="friend-more" hidden><div id="fr-suggest"></div></section>`;
- const requestSections=r=>`${r.incoming.length?`<section class="friend-requests"><h2 class="sec-head">Waiting for you <span class="count">${r.incoming.length}</span></h2>${r.incoming.map(p=>`<div class="person person-row fr-request">${profile(p)}<span class="btnrow tight"><button type="button" class="primary sm" data-request-accept="${esc(p.login)}">Approve</button><button type="button" class="ghost sm" data-request-decline="${esc(p.login)}">Decline</button><button type="button" class="icon-btn" data-request-menu="${esc(p.login)}" aria-label="More about request from ${esc(p.name)}">${svg('more')}</button></span>${p.via_card?'<small class="muted card-origin">via your card</small>':''}</div>`).join('')}</section>`:''}
-   ${r.outgoing.length?`<section class="friend-requests"><h2 class="sec-head">You sent</h2><div class="friend-sent-list social-person-group">${r.outgoing.map(p=>`<div class="person person-row">${profile(p)}<button type="button" class="ghost sm" data-request-cancel="${esc(p.login)}">Cancel</button></div>`).join('')}</div></section>`:''}`;
- const requestRow=r=>{const total=r.incoming.length+r.outgoing.length;if(!total)return '';const summary=r.incoming.length?`${r.incoming.length} waiting${r.outgoing.length?` · ${r.outgoing.length} sent`:''}`:`${r.outgoing.length} sent`;return `<button type="button" class="list-row friend-request-summary" id="fr-requests-open" aria-label="Review friend requests"><span class="grow"><b>Friend requests</b><small>${summary}</small></span>${r.incoming.length?`<span class="count">${r.incoming.length}</span>`:''}${svg('chev')}</button>`;};
+ const requestSections=r=>`${r.incoming.length?`<section class="friend-request-section"><h3>Waiting for you</h3><div class="friend-inline-request-list">${r.incoming.map(p=>`<div class="person person-row fr-request">${profile(p)}<span class="friend-inline-actions"><button type="button" class="friend-inline-accept" data-request-accept="${esc(p.login)}">Accept</button><button type="button" class="friend-inline-muted" data-request-decline="${esc(p.login)}">Decline</button></span>${p.via_card?'<small class="muted card-origin">via your card</small>':''}</div>`).join('')}</div></section>`:''}
+   ${r.outgoing.length?`<section class="friend-request-section"><h3>Sent</h3><div class="friend-inline-request-list">${r.outgoing.map(p=>`<div class="person person-row fr-request">${profile(p)}<button type="button" class="friend-inline-muted" data-request-cancel="${esc(p.login)}">Cancel</button></div>`).join('')}</div></section>`:''}`;
+ const requestRow=(r,expanded=false)=>{const total=r.incoming.length+r.outgoing.length;if(!total)return '';return `<div class="social-list-group friend-request-group"><button type="button" class="list-row friend-request-summary" id="fr-requests-open" aria-label="Review friend requests" aria-expanded="${expanded}" aria-controls="fr-requests-content"><span class="ri">${svg('people')}</span><span class="grow"><b>Friend requests</b></span>${r.incoming.length?`<span class="count">${r.incoming.length}</span>`:''}${svg('chev')}</button><div class="friend-inline-requests" id="fr-requests-content"${expanded?'':' hidden'}>${requestSections(r)}</div></div>`;};
+ const drawRequests=(container,r,live,refresh)=>{
+  const expanded=$('#fr-requests-open',container)?.getAttribute('aria-expanded')==='true';
+  container.innerHTML=requestRow(r,expanded);const toggle=$('#fr-requests-open',container),content=$('#fr-requests-content',container);if(!toggle||!content)return;
+  toggle.onclick=()=>{const open=toggle.getAttribute('aria-expanded')!=='true';toggle.setAttribute('aria-expanded',String(open));content.hidden=!open;};
+  $$('[data-request-accept],[data-request-decline],[data-request-cancel]',content).forEach(button=>button.onclick=async()=>{
+   if(!live()||!content.isConnected||button.disabled)return;button.disabled=true;
+   try{const login=encodeURIComponent(button.dataset.requestAccept||button.dataset.requestDecline||button.dataset.requestCancel);if(button.hasAttribute('data-request-accept'))await api(`/api/friends/${login}/accept`,json('POST',{}));else if(button.hasAttribute('data-request-decline'))await api(`/api/friends/${login}/decline`,json('POST',{}));else await api(`/api/friends/${login}`,{method:'DELETE'});if(live())await refresh();}
+   catch(x){if(live()&&content.isConnected){toast(x.message);button.disabled=false;}}
+  });
+ };
  async function mountList(el){
   el.classList.add('friends-page','friends-list-page');
   el.innerHTML=`<div class="top large-title">${backBtn('Me')}<h1 id="fr-title">Friends</h1><button type="button" class="linkbtn" id="fr-list-add">Add</button></div><div class="large-title-heading" data-type="title" aria-hidden="true">Friends</div>
-    <div class="social-list-group" id="fr-social-links"><a class="list-row" id="fr-groups" href="/me/groups"><span class="ri">${svg('people')}</span><span class="grow"><b>Groups</b></span>${svg('chev')}</a></div>
+    <div class="social-list-group" id="fr-social-links"><a class="list-row" id="fr-groups" href="/me/groups"><span class="ri">${svg('people')}</span><span class="grow"><b>Groups</b><small>Private groups and events</small></span>${svg('chev')}</a></div>
     <div id="fr-list-error" role="status"></div><div id="fr-requests"></div>
     <section class="friend-own" aria-label="Your friends"><h2 class="sec-head" id="fr-own-heading">Your friends</h2><div class="social-person-group" id="fr-own-list">${skel(1)}</div></section>`;
   wireBack(el,'/me');
@@ -34,8 +44,7 @@ const FriendsUI=(()=>{
     r={...r,friends:[...r.friends].sort((a,b)=>a.name.localeCompare(b.name,undefined,{sensitivity:'base'})||a.login.localeCompare(b.login))};
     currentFriends=r;people=r.incoming.concat(r.friends,r.outgoing);App.me.friend_count=r.friends.length;Social.set(r.incoming.length);
     heading.innerHTML=`Your friends${r.friends.length?` <span class="count">${r.friends.length}</span>`:''}`;
-    requests.innerHTML=requestRow(r);
-    const requestButton=$('#fr-requests-open',requests);if(requestButton)requestButton.onclick=openRequests;
+    drawRequests(requests,r,live,refresh);
     list.innerHTML=r.friends.length?r.friends.map(p=>`<div class="person person-row fr-friend" data-friend-name="${esc((p.name+' '+p.login).toLocaleLowerCase())}">${profile(p,'fr-friend-link')}<button type="button" class="icon-btn" data-manage="${esc(p.login)}" aria-label="Manage friendship with ${esc(p.name)}">${svg('more')}</button></div>`).join(''):
       '<div class="friend-empty"><p>No friends yet</p><a class="row-link friend-action" id="fr-empty-browse" href="/me/friends?find=1"><span class="ri">'+svg('user-plus')+'</span><span class="grow"><b>Invite a friend</b></span>'+svg('chev')+'</a></div>';
     $$('[data-manage]',list).forEach(button=>button.onclick=()=>{
@@ -57,17 +66,6 @@ const FriendsUI=(()=>{
       catch(x){if(live()&&body.isConnected){toast(x.message);button.disabled=false;}}
     });
   }
-  function openRequests(){
-    if(!currentFriends||!live())return;
-    sheet('Requests',requestSections(currentFriends),(body,close)=>{
-      $$('[data-request-menu]',body).forEach(button=>button.onclick=()=>{
-        if(!live()||!body.isConnected)return;const p=people.find(person=>person.login===button.dataset.requestMenu);if(!p)return;close();friendChangeSheet(p,true,refresh);
-      });
-      action(body,close,'[data-request-accept]',b=>api(`/api/friends/${encodeURIComponent(b.dataset.requestAccept)}/accept`,json('POST',{})));
-      action(body,close,'[data-request-decline]',b=>api(`/api/friends/${encodeURIComponent(b.dataset.requestDecline)}/decline`,json('POST',{})));
-      action(body,close,'[data-request-cancel]',b=>api('/api/friends/'+encodeURIComponent(b.dataset.requestCancel),{method:'DELETE'}));
-    });
-  }
   const cached=screenHit('/api/friends')?.data||kept('/api/friends');if(cached)draw(cached);await loadFriends();
  }
  async function mountFind(el){
@@ -83,30 +81,6 @@ const FriendsUI=(()=>{
     catch{if(live())groupCount.textContent='Your private groups';}
   }
   loadGroupCount();
-  function drawRequestRow(r){
-    requests.innerHTML=requestRow(r);
-    const button=$('#fr-requests-open',requests);if(button)button.onclick=openRequests;
-  }
-  function requestAction(body,close,selector,run){
-    $$(selector,body).forEach(button=>button.onclick=async()=>{
-      if(!live()||!body.isConnected||button.disabled)return;button.disabled=true;
-      try{await run(button);if(!live())return;close();await refresh();}
-      catch(x){if(live()&&body.isConnected){toast(x.message);button.disabled=false;}}
-    });
-  }
-  function openRequests(){
-    if(!currentFriends||!live())return;
-    sheet('Requests',requestSections(currentFriends),(body,close)=>{
-      const requestLive=()=>live()&&body.isConnected;
-      $$('[data-request-menu]',body).forEach(button=>button.onclick=()=>{
-        if(!requestLive())return;const p=people.find(person=>person.login===button.dataset.requestMenu);if(!p)return;
-        close();friendChangeSheet(p,true,refresh);
-      });
-      requestAction(body,close,'[data-request-accept]',b=>api(`/api/friends/${encodeURIComponent(b.dataset.requestAccept)}/accept`,json('POST',{})));
-      requestAction(body,close,'[data-request-decline]',b=>api(`/api/friends/${encodeURIComponent(b.dataset.requestDecline)}/decline`,json('POST',{})));
-      requestAction(body,close,'[data-request-cancel]',b=>api('/api/friends/'+encodeURIComponent(b.dataset.requestCancel),{method:'DELETE'}));
-    });
-  }
   function drawListError(x){
     if(!live())return;error.innerHTML=`<p class="small muted">${currentFriends?'Requests may be out of date. ':''}${esc(x.message)}</p><button type="button" class="ghost" id="fr-list-retry">Retry</button>`;
     $('#fr-list-retry',error).onclick=loadFriends;
@@ -157,11 +131,15 @@ const FriendsUI=(()=>{
   const draw=r=>{
     currentFriends=r;App.me.friend_count=r.friends.length;Social.set(r.incoming.length);
     known=r.incoming.map(p=>({...p,status:'incoming'})).concat(r.friends.map(p=>({...p,status:'friends'})),r.outgoing.map(p=>({...p,status:'sent'})));
-    people=[...new Map(people.concat(known).map(p=>[p.login,p])).values()];drawRequestRow(r);
+    people=[...new Map(people.concat(known).map(p=>[p.login,p])).values()];drawRequests(requests,r,live,refresh);
   };
   async function drawSuggest(){
     const rows=(await suggestedPeople()).slice(0,5);if(!live()||!suggest.isConnected)return;
-    suggest.parentElement.hidden=!rows.length;if(rows.length)peopleRow(suggest,rows,{title:'Suggested',invite:false,dismiss:false,compactAdd:true,onChange:loadFriends});else suggest.innerHTML='';
+    suggest.parentElement.hidden=!rows.length;if(!rows.length){suggest.innerHTML='';return;}
+    peopleRow(suggest,rows,{title:'Suggested',invite:false,dismiss:false,compactAdd:true,onChange:loadFriends});
+    const card=$('.pym',suggest),title=$('.pym-head h2',card),list=$('.pym-list',card);title.className='friend-suggest-title';list.classList.add('social-person-group','friend-suggestion-group');
+    $$('.pym-row',list).forEach(row=>row.classList.add('person-row'));
+    suggest.replaceChildren(title,list);
   }
   const cached=screenHit('/api/friends')?.data||kept('/api/friends');if(cached)draw(cached);
   const searching=find();if(initial.has('find')||initial.has('q'))input.focus();

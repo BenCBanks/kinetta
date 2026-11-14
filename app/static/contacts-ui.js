@@ -12,7 +12,7 @@ const ContactsUI = (() => {
     at: Date.now(), rows: rows.map(row => ({contactId: String(row.contactId), login: row.login})),
   });
   const icon = name => svg(name);
-  const rowLink = `<a class="list-row contacts-entry" href="/me/friends/contacts"><span class="ri">${icon('people')}</span><span class="grow"><b>Find friends with contacts</b></span>${icon('chev')}</a>`;
+  const rowLink = `<a class="list-row contacts-entry" href="/me/friends/contacts"><span class="ri">${icon('people')}</span><span class="grow"><b>Find from contacts</b><small>See who you know</small></span>${icon('chev')}</a>`;
   const welcomeLink = () => available() ? '<a class="ghost wide contacts-welcome-link" href="/me/friends/contacts?return=welcome">Find friends with contacts</a>' : '';
 
   function addEntry(el) {
