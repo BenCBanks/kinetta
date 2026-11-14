@@ -117,8 +117,10 @@
 /* Keep media tools together below the floating navigation, with 44px targets and 8px gaps. */
 .detail-map-hero .map-full { top:calc(env(safe-area-inset-top) + 60px); right:8px; left:auto; bottom:auto; }
 .detail-map-hero .compact-media:has(.media-map) .media-controls > button { top:calc(env(safe-area-inset-top) + 60px); bottom:auto; left:auto; }
-.detail-map-hero .compact-media [data-media-step="-1"] { right:112px; }
-.detail-map-hero .compact-media [data-media-step="1"] { right:60px; }
+.detail-map-hero .compact-media [data-media-step="-1"] { right:136px; }
+.detail-map-hero .compact-media [data-media-step="1"] { right:60px; width:68px; min-width:68px; min-height:44px; height:44px; padding:0 6px; display:flex; align-items:center; justify-content:center; gap:3px; border-radius:999px; background:color-mix(in srgb,var(--card) 85%,transparent); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); box-shadow:var(--lift); }
+.detail-map-hero .compact-media [data-media-step="1"]::before { content:"Next"; font-size:12px; font-weight:600; }
+.activity-detail .detail-map-hero .detail-floating .acts > .icon-btn { box-sizing:border-box; width:44px; min-width:44px; height:44px; min-height:44px; border-radius:50%; background:color-mix(in srgb,var(--card) 85%,transparent); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); box-shadow:var(--lift); }
 .detail-map-hero .compact-media:has(.media-map) .media-dots { top:calc(env(safe-area-inset-top) + 22px); }
 /* Reserve the tools' three targets, their gaps and the notice's left margin. */
 .detail-map-hero .leaflet-bottom.leaflet-left { width:calc(100% - 174px); }
@@ -217,3 +219,4 @@
   .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-moving .stat b,
   .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-secondary .stat b { font-size: 20px; line-height: 1.2; }
 }
+.activity-detail .compact-detail-title .milestone-actions > .milestone-dismiss { display:none; }
