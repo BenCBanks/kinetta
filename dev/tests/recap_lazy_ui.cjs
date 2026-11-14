@@ -46,13 +46,13 @@ module.exports=async function recapLeafChecks(browser,base){
  }finally{concurrent.release();await concurrent.context.close();}
  const retry=await fixture(browser,base,{failFirst:true});
  try{
-  await retry.ready('/progress');await retry.page.locator('#recap-entry').click();await retry.page.locator('#toast').filter({hasText:'Tap Share to try again'}).waitFor();assert.equal(await retry.page.locator('.recap-sheet').count(),0);
-  await retry.page.locator('#recap-entry').click();await retry.sheetReady();assert.equal(retry.assets.length,2,'next Share retries failed script');assert.equal(retry.reads.length,1);assert.deepEqual(retry.errors,[]);assert.deepEqual(retry.writes,[]);
+  await retry.ready('/progress');await retry.page.locator('#progress-share').click();await retry.page.locator('#toast').filter({hasText:'Tap Share to try again'}).waitFor();assert.equal(await retry.page.locator('.recap-sheet').count(),0);
+  await retry.page.locator('#progress-share').click();await retry.sheetReady();assert.equal(retry.assets.length,2,'next Share retries failed script');assert.equal(retry.reads.length,1);assert.deepEqual(retry.errors,[]);assert.deepEqual(retry.writes,[]);
  }finally{await retry.context.close();}
  for(const kind of ['owner','timezone','path']){
   const stale=await fixture(browser,base,{hold:true});
   try{
-   await stale.ready('/progress');await stale.page.locator('#recap-entry').click();await stale.held;
+   await stale.ready('/progress');await stale.page.locator('#progress-share').click();await stale.held;
    await stale.page.evaluate(kind=>{if(kind==='owner')App.me={...App.me,id:987654};else if(kind==='timezone')App.me.tz='Pacific/Kiritimati';else go('/me');},kind);
    stale.release();await stale.page.waitForFunction(()=>typeof RecapEditor==='object');await stale.page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));assert.equal(await stale.page.locator('.recap-sheet').count(),0,`${kind} change suppresses a late sheet`);assert.equal(stale.reads.length,0,`${kind} change suppresses old-intent recap reads`);assert.deepEqual(stale.errors,[]);assert.deepEqual(stale.writes,[]);
   }finally{stale.release();await stale.context.close();}
