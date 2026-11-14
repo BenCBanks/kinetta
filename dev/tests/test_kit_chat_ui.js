@@ -1,6 +1,7 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');const source=fs.readFileSync('app/static/kit.js','utf8');
-const c={route(){},KitChat:{loaded:false},URLSearchParams,App:{me:{id:7}},Native:{base:'https://fictional.invalid'},location:{origin:'https://fictional.invalid'},localStorage:{removeItem(){}},Map,Set};vm.createContext(c);vm.runInContext(source+'\nglobalThis.Kit=KitChat;',c);
+const c={route(){},KitChat:{loaded:false},IC:{},URLSearchParams,App:{me:{id:7}},Native:{base:'https://fictional.invalid'},location:{origin:'https://fictional.invalid'},localStorage:{removeItem(){}},Map,Set};vm.createContext(c);vm.runInContext(source+'\nglobalThis.Kit=KitChat;',c);
+assert.equal(c.IC.send,'<path d="M12 19V5M6 11l6-6 6 6"/>','Kit Send uses an up arrow, not the fallback clock');assert(c.IC.chat.includes('M4 5.5'),'Kit diet suggestion uses a chat icon');assert(source.includes("nutrition:['food','pot','chat']"),'Talk about my diet has the chat icon');
 assert.equal(c.Kit.href('nutrition'),'/me/kit?from=nutrition');assert.equal(c.Kit.href('activity',42),'/me/kit?from=activity&activity=42');assert.equal(c.Kit.href('javascript:bad'),'/me/kit?from=me');
 for(const group of Object.values(c.Kit.starters))assert.equal(group.length,3);
 for(const [,path] of Object.values(c.Kit.actions))assert(path.startsWith('/')&&!path.startsWith('//'));

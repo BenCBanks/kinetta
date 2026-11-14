@@ -1,5 +1,9 @@
 // One private conversation across the app. Numbers and proposed writes remain server-validated.
 'use strict';
+Object.assign(IC, {
+  send: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+  chat: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-5 4v-4.5A2.5 2.5 0 0 1 4 12z"/><path d="M8 9h.01M12 9h.01M16 9h.01"/>',
+});
 Object.assign(KitChat, (() => {
   const screens={me:['Me','/me'],nutrition:['Nutrition','/food'],activity:['Home','/activity'],progress:['Progress','/progress'],plan:['Plan','/plan'],strength:['Track','/track'],track:['Track','/track']};
   const actions={food:['Add food','/food?add=1'],nutrition:['Nutrition','/food'],record:['Record a workout','/track'],activities:['Your activities','/me/activities'],plan:['Training plan','/plan'],progress:['Progress','/progress'],strength:['Record strength','/track'],recipes:['Recipes & foods','/food/meals'],goals:['Goals & profile','/me'],connections:['Connections','/me/connections']};
@@ -17,13 +21,13 @@ Object.assign(KitChat, (() => {
   }
   const starters={
     me:[['Review my progress','What stands out in my recent training and nutrition, and what should I focus on next?'],['Plan my next step','Given my goals and recent activity, what would be a useful next step?'],['Help me use Kinetta','What can I do in Kinetta to track my fitness and nutrition?']],
-    nutrition:[['Look at my food today','Review my logged food today. What is known, what is missing, and what could I focus on?'],['What could I eat next?','Using my saved foods and remaining targets today, suggest a meal I can review before logging.'],['Talk about my diet','Help me think through a sustainable diet for my goals. Ask me what you need to know.']],
+    nutrition:[['Look at my food today','Review my logged food today. What is known, what is missing, and what could I focus on?'],['What could I eat next?','Using my saved foods and remaining targets today, suggest a meal I can review before logging. Ask me what you need to know.'],['Talk about my diet','Help me think through a sustainable diet for my goals. Ask me what you need to know.']],
     activity:[['Review this workout','Review the activity in the current screen context against my own recent workouts. What should I take from it?'],['Review my training','Review my recent workouts across all sports. What stands out, and what is missing?'],['Help with recovery','What should I consider for recovery given my recent training?']],
     progress:[['Am I improving?','Review my progress across my recorded workouts, strength and nutrition. Be clear about what the data can show.'],['Look at my consistency','How consistent have my recorded workouts and food logs been recently?'],['Choose a focus','Given my goals and recent records, what should I focus on next?']],
     plan:[['Review my upcoming week','Review my upcoming training using my current plan, recent load and permitted plan options.'],['Help me adjust my plan','Do any permitted plan adjustments fit my recent training? Show a proposal for review if useful.'],['Explain my training','Explain the purpose of my upcoming workouts and how they relate to my goal.']],
     strength:[['Review my strength work','Review my recorded completed strength sets. What progress can I verify?'],['Plan my next step','What should I consider for my next strength session given my records and goals?'],['Help me record sets','How do I record strength exercises and sets in Kinetta?']],
     track:[['Choose a workout','Given my current plan and recent training, what should I consider doing next?'],['Help me record','How do I record a workout or strength session in Kinetta?'],['Talk about exercise','Help me choose exercise that fits my goals. Ask me what you need to know.']]};
-  const starterIcons={me:['trophy','calendar','help'],nutrition:['food','pot','help'],activity:['run','calendar','heart'],progress:['trophy','calendar','sparkle'],plan:['calendar','edit','help'],strength:['workout','calendar','edit'],track:['run','edit','heart']};
+  const starterIcons={me:['trophy','calendar','help'],nutrition:['food','pot','chat'],activity:['run','calendar','heart'],progress:['trophy','calendar','sparkle'],plan:['calendar','edit','help'],strength:['workout','calendar','edit'],track:['run','edit','heart']};
   let current,entryDraft;
   const tabEntryUsers=new Set(),activityEntryUsers=new Map(),activityEntryRequests=new Map();
   const owner=()=>App.me&&JSON.stringify([Native.base||location.origin,App.me.id]);
