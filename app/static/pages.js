@@ -678,9 +678,8 @@ function sportStats(a) {
   if (a.avg_gct) add('Ground contact', Math.round(a.avg_gct), 'ms');
   if (a.avg_vo) add('Vert. osc.', (a.avg_vo / 10).toFixed(1), 'cm');
   add('Elapsed time', a.elapsed_s != null ? activityElapsedText(a) : null);
-  // Moving time is already in the Activity header when it differs by a minute;
-  // keep a smaller difference here, but do not repeat an identical duration.
-  if (a.moving_s != null && (a.elapsed_s == null || (a.elapsed_s !== a.moving_s && Math.abs(a.elapsed_s - a.moving_s) < 60))) add('Moving time', activityMovingText(a));
+  // Keep distinct moving time available in Details as well as the Activity header.
+  if (a.moving_s != null && (a.elapsed_s == null || a.elapsed_s !== a.moving_s)) add('Moving time', activityMovingText(a));
   add('Calories', a.calories ? Math.round(a.calories) : null); add('Temp', a.avg_temp != null ? U.temp(a.avg_temp) : null);
   return s.join('');
 }

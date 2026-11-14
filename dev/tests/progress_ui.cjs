@@ -178,11 +178,14 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
     if(url.includes('view=fitness')){await until(p,()=>!!document.querySelector('#fi-range .range-btn'),'years filter rendered beside Running fitness');assert.equal(await p.locator('#fi-range button').count(),1,'years filter stays with Running fitness after first-card refresh');if(who==='runner'){assert.equal(await p.locator('#fi-summary .fitness-current').count(),1,'Fitness & freshness now leads Progress → Fitness');assert((await p.locator('#fi-summary .fitness-current').boundingBox()).y<(await p.locator('#fi-pred').boundingBox()).y,'moved summary appears before predictions');}}
     if(url.includes('/trends')){
      assert.equal(await p.locator('#p-rng button').count(),1,'years filter remains on the separate Trends view');
-     if(size.width<=520){
+     if(size.width<=520&&who==='runner'){
       assert.equal(await p.locator('.trend-year-cards').isVisible(),true,'phone Trends shows named year metrics instead of a clipped wide table');
       assert.equal(await p.locator('.trend-year-table').isVisible(),false,'phone Trends does not leave a hidden horizontal table as the only view');
       assert(await p.locator('.trend-year-metric').count()>=6,'every yearly metric remains named and visible');
       assert.equal(await p.locator('.trend-years').evaluate(n=>n.scrollWidth<=n.clientWidth+1),true,'year summary fits the phone width');
+     }else if(who!=='runner'){
+      assert.equal(await p.locator('.trend-years').count(),0,'empty Trends keeps its existing empty state without fabricated year metrics');
+      assert.equal(await p.locator('.card.empty b').count(),1,'empty Trends names the missing activity history');
      }
     }
     if(out&&size.width===390&&['/progress/trends','/progress/routes'].includes(url.split('?')[0])){
