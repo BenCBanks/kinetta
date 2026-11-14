@@ -277,16 +277,15 @@ function drawDay(el, D) {
     const ringProgress=hasGoal?Math.min(1,Math.max(0,eaten/goal)):0,circumference=339.292;
     const ringValue=hasGoal?Math.min(Math.max(0,Math.round(eaten)),Math.round(goal)):Math.max(0,Math.round(eaten));
     const ringAria=hasGoal?`${r0(Math.max(0,eaten))} of ${r0(goal)} calories${ringState==='over'?', above goal':''}`:`${r0(Math.max(0,eaten))} calories logged; no goal set`;
-    summaryRoot.innerHTML = `<div class="card tcard balance nutrition-day-summary">
-      <a class="nutrition-summary-link" href="/food?view=overview" data-ring-state="${ringState}"><span class="vh">Nutrition overview and details. </span><div class="nutrition-summary">
+    summaryRoot.innerHTML = `<div class="card tcard balance nutrition-day-summary"><div class="nutrition-summary">
+      <a class="nutrition-summary-link" href="/food?view=overview" data-ring-state="${ringState}" aria-label="Nutrition overview and details">
         <div class="calorie-ring-wrap"><svg class="calorie-ring${pulseRing?' goal-reached-pulse':''}" viewBox="0 0 128 128" role="progressbar" aria-label="Calories eaten" aria-valuemin="0" aria-valuemax="${hasGoal?Math.round(goal):Math.max(1,Math.round(eaten))}" aria-valuenow="${ringValue}" aria-valuetext="${esc(ringAria)}" focusable="false">
           <defs><linearGradient id="calorie-ring-gradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#2868ed"/><stop offset="58%" stop-color="#2879d4"/><stop offset="100%" stop-color="#0b9290"/></linearGradient></defs>
           <circle class="calorie-ring-track" cx="64" cy="64" r="54"/><circle class="calorie-ring-arc" cx="64" cy="64" r="54" stroke-dasharray="${circumference}" stroke-dashoffset="${(circumference*(1-ringProgress)).toFixed(3)}"/>
         </svg><div class="calorie-ring-label"><span class="nutrition-count" data-count-target="${Math.round(Math.max(0,eaten))}">0</span><small>${hasGoal?`of ${r0(goal)}`:'logged'}</small></div></div>
-        <div class="calorie-summary-copy"><small class="eyebrow">Calories</small></div>
+        <div class="nutrition-macros"><div class="macro-bars">${MACROS.map(([k,name])=>{const target=t[k.replace('_g','_target')],hasTarget=target!=null&&Number.isFinite(Number(target))&&Number(target)>0,unknown=Number(D.unknown_nutrients?.[k]||0)>0,amount=Number(T[k])||0,state=unknown?'unknown':!hasTarget?'unset':amount>target?'over':'under',width=hasTarget&&!unknown?Math.min(1,amount/target):0,value=unknown?'Unknown':`${r0(amount)}${hasTarget?` / ${r0(target)}`:''} g`;return `<div class="macro m-${k}" data-macro="${k}" data-target-state="${state}"><div class="macro-line"><b>${value}</b><span>${name}</span></div><div class="track" aria-hidden="true"><div class="bar macro-target-bar${state==='over'?' over':''}${state==='unknown'||state==='unset'?' unavailable':''}" data-w="${width.toFixed(3)}"></div></div></div>`}).join('')}</div></div></a>
+      <a class="nutrition-goals icon-btn" id="fd-goal" href="/food/setup" aria-label="Calorie and macro goals">${svg('gear')}</a>
       </div>
-      <div class="macro-bars">${MACROS.map(([k,name])=>{const target=t[k.replace('_g','_target')],hasTarget=target!=null&&Number.isFinite(Number(target))&&Number(target)>0,unknown=Number(D.unknown_nutrients?.[k]||0)>0,amount=Number(T[k])||0,state=unknown?'unknown':!hasTarget?'unset':amount>target?'over':'under',width=hasTarget&&!unknown?Math.min(1,amount/target):0;return `<div class="macro m-${k}" data-macro="${k}" data-target-state="${state}"><div class="macro-line"><b>${name}</b><span class="num">${macroTotal(D,k,target)}</span></div><div class="track" aria-hidden="true"><div class="bar macro-target-bar${state==='over'?' over':''}${state==='unknown'||state==='unset'?' unavailable':''}" data-w="${width.toFixed(3)}"></div></div></div>`}).join('')}</div></a>
-      <a class="nutrition-goals text-link" id="fd-goal" href="/food/setup" aria-label="Calorie and macro goals">Goals</a>
       <div class="nutrition-secondary">${D.entries.length?extraTotals(extraCoverage(D.entries,t)):''}
       ${!energyDetails && goalNote ? `<p class="small muted tc-note">${esc(goalNote)}</p>` : ''}
       ${!t.protein_target ? '<button class="linkbtn tc-settg" id="fd-targets">Set macro targets</button>' : ''}
@@ -312,27 +311,26 @@ function drawDay(el, D) {
   // No usual target yet: Set goals opens the full goal setup rather than a one-day override.
   const gb = $('#fd-goal', el); if (gb) gb.onclick = (event) => { event.preventDefault(); return G.default == null && goal == null ? go('/food/setup') : goalSheet(D); };
   const by = {breakfast: [], lunch: [], dinner: [], snacks: []}; for (const e of D.entries) by[e.meal].push(e);
-  $('#fd-meals', el).innerHTML = Object.keys(MEAL_NAMES).map((m) => {
+  $('#fd-meals', el).innerHTML = `<section class="card nutrition-meals-group">${Object.keys(MEAL_NAMES).map((m) => {
     const list = by[m], kc = list.reduce((s, e) => s + e.kcal, 0);
-    if (!list.length) return `<section class="card meal meal-empty meal-${m}"><h2><span>${MEAL_NAMES[m]}</span><span class="meal-actions"><button class="icon-btn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">${svg('plus')}</button></span></h2><div class="meal-empty-state"><span class="meal-empty-mark" aria-hidden="true">🍽️</span><span><b>Nothing logged yet</b></span></div>${sameYesterdayMealMarkup(D,m,today)}</section>`;
-    return `<section class="card meal meal-${m}"><h2><span>${MEAL_NAMES[m]}</span><span class="muted small num meal-total">${r0(kc)} kcal</span><span class="meal-actions"><button class="icon-btn" data-add="${m}" aria-label="Add food to ${MEAL_NAMES[m].toLowerCase()}">${svg('plus')}</button><button class="icon-btn" data-more="${m}" aria-label="Edit ${MEAL_NAMES[m].toLowerCase()}">${svg('more')}</button></span></h2>
-      ${list.map((e) => { const fe = `<button class="fe${e.pending ? ' pending' : ' sw-row'}" data-id="${e.id}"><span class="vh">Edit </span><div class="meal-food"><span class="meal-food-icon" aria-hidden="true">${mealFoodEmoji(e,m)}</span><span class="meal-food-copy"><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></span></div>
-        <div class="r meal-calories"><b class="num">${r0(e.kcal)}</b> <small class="muted">kcal</small></div></button>`;
+    const heading=`<h2><span>${MEAL_NAMES[m]}</span>${list.length?`<span class="muted small num meal-total">${r0(kc)} kcal</span>`:''}<span class="meal-actions"><button class="icon-btn" data-add="${m}" aria-label="Meal actions for ${MEAL_NAMES[m].toLowerCase()}">${svg('plus')}</button></span></h2>`;
+    if (!list.length) return `<section class="meal meal-empty meal-${m}">${heading}<div class="meal-empty-state"><span><b>Nothing logged yet</b></span></div>${sameYesterdayMealMarkup(D,m,today)}</section>`;
+    return `<section class="meal meal-${m}">${heading}
+      ${list.map((e) => { const fe = `<button class="fe${e.pending ? ' pending' : ' sw-row'}" data-id="${e.id}"><span class="vh">Edit </span><div class="meal-food"><span class="meal-food-copy"><b>${esc(e.name)}</b><small class="muted">${e.pending ? 'Waiting to send · ' : ''}${esc(fmtAmount(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</small></span></div>
+        <span class="nutrition-row-calories"><b class="num">${r0(e.kcal)}</b><small>kcal</small></span></button>`;
         // swipe left to remove (with Undo); Remove is also in the food's editor and the meal's Edit menu
         return e.pending ? fe : `<div class="swipe"><button type="button" class="sw-del" data-del="${e.id}" tabindex="-1">${svg('trash')}Remove</button>${fe}</div>`; }).join('')}
       </section>`;
-  }).join('') + (D.has_history ? `<div class="food-copy-action"><button type="button" class="ghost" id="fd-copy">${svg('clock')}Copy yesterday</button></div>` : '');
+  }).join('')}</section>`;
   $$('[data-usual-meal]',el).forEach(b=>b.onclick=()=>addSheet(D.day,b.dataset.usualMeal));
-  $$('[data-add]', el).forEach((b) => b.onclick = () => describeSheet(D.day, b.dataset.add));
+  $$('[data-add]', el).forEach((b) => b.onclick = () => mealActionsSheet(D, b.dataset.add));
   $$('[data-repeat-yesterday]',el).forEach(b=>b.onclick=()=>repeatYesterdayMeal(D,b));
-  $$('[data-more]', el).forEach((b) => b.onclick = () => mealMenu(D, b.dataset.more));
   $$('.meal', el).forEach((card) => swipeRows(card, (id) => removeFoodEntry(D.entries.find((e) => String(e.id) === id), {button: $(`.sw-del[data-del="${id}"]`, card)})));
   $$('[data-id]', el).forEach((b) => b.onclick = () => {
     const e = D.entries.find((x) => String(x.id) === b.dataset.id);
     if (e.pending) { toast('Saved on this phone - it sends when you are back online'); return; }
     entrySheet(e, D.day);
   });
-  const cp = $('#fd-copy', el); if (cp) cp.onclick = () => chooseYesterday(isoDay(new Date()));
   animateNutritionCount(el);
 }
 function animateNutritionCount(root) {
@@ -488,6 +486,22 @@ function foodUploadUndo(items,owner) {
 async function copyDay(from, to, meal) {
   try { const r = await api('/api/food/copy', json('POST', {from_day: from, to_day: to, meal: meal || null})); refresh(); toast(r.copied ? `Copied ${r.copied} item${r.copied > 1 ? 's' : ''}` : 'Nothing to copy'); }
   catch (x) { toast(x.message); }
+}
+// The meal plus opens the scoped action sheet; routine add, edit and copy actions stay together.
+function mealActionsSheet(D, meal) {
+  const count=D.entries.filter(e=>e.meal===meal).length;
+  const yesterday=isoDay(new Date());
+  sheet(MEAL_NAMES[meal], `<div class="nutrition-meal-actions">
+    <button type="button" class="nutrition-meal-action" data-meal-action="add"><span>Add food</span>${svg('chev')}</button>
+    ${count?`<button type="button" class="nutrition-meal-action" data-meal-action="edit"><span>Edit foods and meal</span>${svg('chev')}</button>`:''}
+    ${D.has_history?`<button type="button" class="nutrition-meal-action" data-meal-action="yesterday"><span>Same as yesterday</span>${svg('chev')}</button>`:''}
+    ${D.day!==yesterday&&count?`<button type="button" class="nutrition-meal-action" data-meal-action="today"><span>Copy meal to today</span>${svg('chev')}</button>`:''}
+  </div>`, (box, close) => {
+    $('[data-meal-action="add"]',box).onclick=()=>{close();describeSheet(D.day,meal);};
+    $('[data-meal-action="edit"]',box)?.addEventListener('click',()=>{close();mealMenu(D,meal);});
+    $('[data-meal-action="yesterday"]',box)?.addEventListener('click',()=>{close();yesterdayMeal(yesterday,meal);});
+    $('[data-meal-action="today"]',box)?.addEventListener('click',()=>{close();copyDay(D.day,yesterday,meal);});
+  });
 }
 // Meal actions are scoped to the selected meal and day (a past meal can be copied to today).
 function mealMenu(D, meal) {
