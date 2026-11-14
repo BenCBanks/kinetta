@@ -8,6 +8,15 @@
     "reason": "This visible marker is a small decorative dot; its hidden New label remains available to screen readers. It is not displayed body copy."
   },
   {
+    "id": "progress-inset-list-row-divider",
+    "selector": ".progress-home #p-explore > .progress-tile",
+    "metric": "gap",
+    "kind": "grouped-list",
+    "exact": 0,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1021",
+    "reason": "Issue #1021 groups Progress destinations in one inset surface; adjacent 56px rows share 1px dividers instead of card gaps. Each row remains a full-height labeled link."
+  },
+  {
     "id": "nutrition-calorie-ring-center-number",
     "selector": ".calorie-ring-label .nutrition-count",
     "metric": "font-max",
