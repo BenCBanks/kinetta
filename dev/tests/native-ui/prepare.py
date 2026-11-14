@@ -2,7 +2,7 @@
 import argparse,json,math,shutil,subprocess,uuid
 from datetime import datetime
 from pathlib import Path
-p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('destination',type=Path);p.add_argument('--stage',choices=['recipe','review','food','track-live','track-review','track-map','activity','activity-sticky','activity-empty','activity-map','friends-empty','friends-typical','friends-heavy','groups-create','header-me','header-activity','header-track','header-progress','header-food','achievements'],required=True);p.add_argument('--store',action='store_true');p.add_argument('--map-config',type=Path);p.add_argument('--root',type=int,default=16);p.add_argument('--run',required=True);p.add_argument('--update',action='store_true');p.add_argument('--startup-timing',action='store_true');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('source',type=Path);p.add_argument('destination',type=Path);p.add_argument('--stage',choices=['recipe','review','food','track-live','track-review','track-map','activity','activity-sticky','activity-empty','activity-map','friends-empty','friends-typical','friends-heavy','groups-create','header-me','header-activity','header-track','header-progress','header-food','achievements','achievement-share-track'],required=True);p.add_argument('--store',action='store_true');p.add_argument('--map-config',type=Path);p.add_argument('--root',type=int,default=16);p.add_argument('--run',required=True);p.add_argument('--update',action='store_true');p.add_argument('--startup-timing',action='store_true');a=p.parse_args()
 assert a.source.suffix=='.app' and a.source.is_dir()
 assert a.destination.suffix=='.app' and a.destination.resolve()!=a.source.resolve()
 if a.update:
@@ -36,6 +36,17 @@ if a.store:
  config['store']['mapUrl']=config['store']['responses']['/api/map-config']['url']
 if a.stage.startswith('header-'):config['headerPage']=a.stage.removeprefix('header-')
 if a.stage=='achievements':config['headerPage']='achievements'
+if a.stage=='achievement-share-track':
+ config['headerPage']='achievements'
+ static=public/'static';share_art=static/'share-art.js'
+ assert share_art.is_file() and 'share-art.js' in (static/'app.js').read_text(), 'Bundled app must include the lazy ShareArt leaf'
+ catalog=json.loads((static/'profile.achievement-levels.json').read_text())
+ tracks=[]
+ for code,label,unit,display in [('sport:run','Run','km',5),('sport:run:workouts','Run workouts','workouts',12)]:
+  definition=catalog['tracks'][code];level=definition['levels'][0]
+  raw=float(level['canonical_value'])*(1000 if level['canonical_unit']=='km' else 3600 if level['canonical_unit']=='hours' else 1)
+  tracks.append({'code':code,'label':label,'level':1,'value':raw,'display_value':display,'display_unit':unit,'tiers':[{'rank':1,'label':level['name'],'title':level['name'],'threshold':raw,'unit':level['canonical_unit'],'day':'2026-11-01'}]})
+ config['achievementShare']={'pending':False,'tracks':tracks}
 if a.stage.startswith('groups-'):config['groups']=True
 if a.stage.startswith('friends-'):
  config['friends']=json.loads(subprocess.check_output(['node','-e','process.stdout.write(JSON.stringify(require(process.argv[1])(process.argv[2])))',str(fixture.parents[1]/'demo/friends.cjs'),a.stage.removeprefix('friends-')],text=True))
