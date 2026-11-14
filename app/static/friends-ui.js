@@ -12,6 +12,7 @@ const FriendsUI=(()=>{
    <div id="fr-requests"></div><section class="friend-more" hidden><div id="fr-suggest"></div></section>`;
  const requestSections=r=>`${r.incoming.length?`<section class="friend-requests"><h2 class="sec-head">Waiting for you <span class="count">${r.incoming.length}</span></h2>${r.incoming.map(p=>`<div class="person fr-request">${profile(p)}<span class="btnrow tight"><button type="button" class="primary sm" data-request-accept="${esc(p.login)}">Approve</button><button type="button" class="ghost sm" data-request-decline="${esc(p.login)}">Decline</button><button type="button" class="icon-btn" data-request-menu="${esc(p.login)}" aria-label="More about request from ${esc(p.name)}">${svg('more')}</button></span>${p.via_card?'<small class="muted card-origin">via your card</small>':''}</div>`).join('')}</section>`:''}
    ${r.outgoing.length?`<section class="friend-requests"><h2 class="sec-head">You sent</h2><div class="friend-sent-list">${r.outgoing.map(p=>`<div class="person">${profile(p)}<button type="button" class="ghost sm" data-request-cancel="${esc(p.login)}">Cancel</button></div>`).join('')}</div></section>`:''}`;
+ const requestRow=r=>{const total=r.incoming.length+r.outgoing.length;if(!total)return '';const summary=r.incoming.length?`${r.incoming.length} waiting${r.outgoing.length?` · ${r.outgoing.length} sent`:''}`:`${r.outgoing.length} sent`;return `<button type="button" class="row-link friend-request-summary" id="fr-requests-open" aria-label="Review friend requests"><span class="grow"><b>Friend requests</b><small>${summary}</small></span><span class="count">${total}</span>${svg('chev')}</button>`;};
  async function mountList(el){
   el.classList.add('friends-page','friends-list-page');
   el.innerHTML=`<div class="top">${backBtn('Me')}<h1 id="fr-title">Friends</h1><a class="icon-btn" id="fr-browse" href="/me/friends?find=1" aria-label="Find friends">${svg('user-plus')}</a></div>
@@ -26,7 +27,7 @@ const FriendsUI=(()=>{
     r={...r,friends:[...r.friends].sort((a,b)=>a.name.localeCompare(b.name,undefined,{sensitivity:'base'})||a.login.localeCompare(b.login))};
     currentFriends=r;people=r.incoming.concat(r.friends,r.outgoing);App.me.friend_count=r.friends.length;Social.set(r.incoming.length);
     heading.innerHTML=`Your friends${r.friends.length?` <span class="count">${r.friends.length}</span>`:''}`;
-    requests.innerHTML=r.incoming.length+r.outgoing.length?`<button type="button" class="row-link friend-request-summary" id="fr-requests-open"><span>Requests (${r.incoming.length+r.outgoing.length})</span>${svg('chev')}</button>`:'';
+    requests.innerHTML=requestRow(r);
     const requestButton=$('#fr-requests-open',requests);if(requestButton)requestButton.onclick=openRequests;
     list.innerHTML=r.friends.length?r.friends.map(p=>`<div class="person fr-friend" data-friend-name="${esc((p.name+' '+p.login).toLocaleLowerCase())}">${profile(p,'fr-friend-link')}<button type="button" class="icon-btn" data-manage="${esc(p.login)}" aria-label="Manage friendship with ${esc(p.name)}">${svg('more')}</button></div>`).join(''):
       '<div class="friend-empty"><p>No friends yet.</p><a class="row-link friend-action" id="fr-empty-browse" href="/me/friends?find=1"><span class="ri">'+svg('user-plus')+'</span><span class="grow"><b>Find friends</b><small>Search and suggestions</small></span>'+svg('chev')+'</a></div>';
@@ -76,8 +77,7 @@ const FriendsUI=(()=>{
   }
   loadGroupCount();
   function drawRequestRow(r){
-    const count=r.incoming.length+r.outgoing.length;
-    requests.innerHTML=count?`<button type="button" class="row-link friend-request-summary" id="fr-requests-open"><span>Requests (${count})</span>${svg('chev')}</button>`:'';
+    requests.innerHTML=requestRow(r);
     const button=$('#fr-requests-open',requests);if(button)button.onclick=openRequests;
   }
   function requestAction(body,close,selector,run){

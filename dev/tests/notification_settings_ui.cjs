@@ -37,6 +37,9 @@ for(const state of selectedStates)for(const size of [{width:390,height:844,root:
  });
  await p.goto(base+'/me/notifications');await until(p,()=>App.pageReady&&!!document.querySelector('[data-meal-reminders]'));
  if(state!=='empty')push=await installPhoneFixture(p);
+ if(state==='empty'&&size.root===16){
+  const types=p.locator('#np-kinds input[role="switch"]');await types.first().waitFor();assert.equal(await types.count(),9,'web users can see every available alert type');assert(await types.evaluateAll(ns=>ns.every(n=>n.disabled)),'web alert preferences are read-only');assert(await p.locator('#nt-push').innerText().then(text=>text.includes('managed in the Kinetta iPhone app')),'the setting explains where alert types can be changed');assert.equal(writes.length,0,'read-only web notification settings make no writes');if(out){await p.evaluate(()=>scrollTo(0,0));await shot(p,`web-alert-types-390-${theme}`);}
+ }
  if(state==='typical'&&size.root===16){
   await p.evaluate(async()=>{fixturePhone={enabled:false,denied:true};await pushCard(document.querySelector('#nt-push'),fixturePush);});
   await p.locator('#np-settings').waitFor({state:'visible'});await p.evaluate(()=>document.querySelector('#np-settings')?.click());await until(p,()=>fixturePhoneCommands.includes('settings'));
