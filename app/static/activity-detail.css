@@ -11,7 +11,7 @@
 .detail-sticky { position:fixed; z-index:1100; top:0; left:0; right:0; max-width:800px; margin:0 auto; padding:calc(env(safe-area-inset-top) + 8px) 12px 8px; background:var(--bg); border-bottom:1px solid var(--line); }
 .detail-sticky[hidden] { display:none; }
 .detail-bar-title { white-space:normal; overflow-wrap:anywhere; min-width:0; font-size:.9375rem; }
-.compact-detail-title { padding:12px 14px 16px; margin-bottom:0; }
+.compact-detail-title { padding:12px 14px 16px; margin-bottom:0; background:var(--surface-card); border-radius:var(--r); box-shadow:var(--elevation-raised); position:relative; z-index:1; }
 .detail-title-row { display:flex; align-items:center; gap:8px; }
 .detail-title-row h1 { flex:1; min-width:0; font-size:1.5rem; font-weight:700; line-height:1.2; margin:0; overflow-wrap:anywhere; }
 .detail-title-row .detail-kit { flex:none; }
@@ -22,17 +22,24 @@
 .detail-date-row .detail-kit { display:flex; align-items:center; gap:4px; }
 .compact-detail-title .detail-kit { min-width:44px; min-height:44px; padding:0 4px; margin:0; border:0; border-radius:0; background:none; color:var(--accent); font-size:max(15px,.9375rem); font-weight:600; line-height:1.2; }
 .detail-kit svg { width:18px; height:18px; color:var(--accent); }
+.compact-detail-title .detail-kit { transition: color var(--motion-press) ease-out, transform var(--motion-press) ease-out; }
+.compact-detail-title .detail-kit:active { transform:scale(.96); color:var(--color-brand); }
 .compact-detail-title .detail-date { margin:0; color:var(--tx2); font-size:.875rem; font-weight:400; }
 .detail-stat-stack { display:grid; gap:16px; margin-top:12px; }
-.detail-owner { display:inline-flex; align-items:center; min-height:44px; font-size:.875rem; margin-top:-8px; }
+.detail-owner { display:inline-flex; align-items:center; justify-content:center; min-height:44px; max-width:40%; margin-left:auto; font-size:.875rem; text-align:right; }
 .detail-primary,.detail-moving,.detail-secondary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px 8px; }
-.detail-primary .stat b,.detail-moving .stat b,.detail-secondary .stat b { display:block; font-size:1.25rem; font-weight:600; line-height:1.15; white-space:normal; overflow-wrap:anywhere; }
+.detail-primary .stat b,.detail-moving .stat b,.detail-secondary .stat b { display:block; font-size:1.25rem; font-weight:700; line-height:1.15; white-space:normal; overflow-wrap:anywhere; }
 .detail-primary .stat small,.detail-moving .stat small,.detail-secondary .stat small { font-size:.8125rem; line-height:1.15; font-weight:500; letter-spacing:0; text-transform:none; color:var(--tx2); }
 .detail-primary .stat i,.detail-moving .stat i,.detail-secondary .stat i { font-size:.8125rem; margin-left:3px; font-style:normal; font-weight:400; color:var(--tx2); }
+.detail-stat-stack { position:relative; }
+.detail-stat-stack::before { content:''; position:absolute; inset:0 -8px auto; height:1px; background:linear-gradient(90deg,transparent,var(--line) 12%,var(--line) 88%,transparent); }
+.detail-primary .stat b,.detail-moving .stat b,.detail-secondary .stat b { letter-spacing:-.02em; }
 .detail-stat-empty { min-width:0; }
 .detail-highlights { display:flex; flex-wrap:wrap; gap:8px 10px; margin-top:8px; }
 .detail-highlight { display:inline-flex; align-items:center; gap:4px; min-height:44px; min-width:0; padding:0; border:0; background:none; color:var(--accent); font-size:.8125rem; text-align:left; overflow-wrap:anywhere; }
 .detail-highlight svg { flex:none; width:16px; height:16px; }
+.detail-highlight { transition: color var(--motion-press) ease-out, transform var(--motion-press) ease-out; }
+.detail-highlight:active { transform:scale(.97); }
 .detail-social { display:flex; align-items:center; gap:8px; margin-top:0; }
 .detail-social[hidden] { display:none; }
 .compact-detail-title .milestone-banner { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; margin:8px 0 0; padding:0; border:0; }
@@ -43,10 +50,10 @@
 .shell.activity-detail > .seg.wide.dtabs { margin:0 0 2px; }
 /* Keep the 46dvh map and its first-screen tabs together when optional medal rows load. */
 @media(max-width:700px) {
- .activity-detail > .detail-map-hero ~ .compact-detail-title { padding:8px 14px 16px; }
+ .activity-detail > .detail-map-hero ~ .compact-detail-title { padding:8px 14px 12px; }
  .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-title-row h1 { line-height:1.1; }
  .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-date-row { margin:2px 0 0; }
- .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-stat-stack { margin-top:12px; }
+ .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-stat-stack { margin-top:8px; }
  .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-primary .stat b,.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-moving .stat b,.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-secondary .stat b { font-size:1.25rem; line-height:1.05; white-space:normal; overflow-wrap:anywhere; }
  .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-primary .stat small,.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-moving .stat small,.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-secondary .stat small { line-height:1.1; }
  /* Matched routes and records remain in Overview/Efforts; drop their duplicate header shortcuts on phones. */
@@ -64,6 +71,70 @@
 .activity-detail .seg.dtabs button { font-size:.9375rem; font-weight:400; }
 .activity-detail .seg.dtabs button[aria-selected="true"] { font-weight:600; }
 .activity-detail .activity-charts .lbl > span:first-child,.activity-detail .dpane h2 { font-size:.9375rem; font-weight:600; }
+.activity-detail .activity-chart-card { background:var(--surface-card); box-shadow:var(--elevation-rest); }
+.activity-detail .activity-charts .chartbox { padding:4px 0 2px; }
+.activity-detail .activity-charts .chartbox .area { fill:url(#kinetta-accent-gradient); opacity:.22; }
+
+/* Activity detail finish: make the primary number read as the page's hero. */
+.activity-detail > .detail-map-hero ~ .compact-detail-title {
+  margin-top:-40px;
+  border-radius:20px 20px var(--r) var(--r);
+  box-shadow:var(--elevation-raised);
+  position:relative;
+  z-index:2;
+}
+.activity-detail .detail-stat-stack {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+  margin-top:14px;
+}
+.activity-detail .detail-stat-stack::before { display:none; }
+.activity-detail .detail-primary,
+.activity-detail .detail-moving,
+.activity-detail .detail-secondary {
+  display:grid;
+  grid-column:1 / -1;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+}
+.activity-detail .detail-stat-empty { display:none; }
+.activity-detail .detail-primary .stat:first-child {
+  grid-column:1 / -1;
+  padding-bottom:12px;
+  border-bottom:1px solid var(--line);
+}
+.activity-detail .detail-primary,
+.activity-detail .detail-moving { grid-column:1 / -1; }
+.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-primary .stat:first-child b {
+  font-size:36px;
+  font-weight:700;
+  line-height:1.05;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:-.03em;
+}
+.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-primary .stat:not(:first-child) b,
+.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-moving .stat b,
+.activity-detail > .detail-map-hero ~ .compact-detail-title .detail-secondary .stat b {
+  font-size:20px;
+  font-weight:600;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:-.01em;
+}
+.activity-detail .seg.dtabs button[aria-selected="true"] {
+  background:color-mix(in srgb,var(--accent) 14%,var(--card));
+  color:var(--accent);
+  border-radius:999px;
+  box-shadow:none;
+}
+.activity-detail .activity-chart-card {
+  background:var(--surface-card);
+  box-shadow:var(--elevation-rest);
+}
+:root[data-theme="dark"] .activity-detail .activity-chart-card {
+  background:var(--surface-raised);
+  box-shadow:var(--elevation-rest);
+}
 
 /* Keep media tools together below the floating navigation, with 44px targets and 8px gaps. */
 .detail-map-hero .map-full { top:calc(env(safe-area-inset-top) + 60px); right:8px; left:auto; bottom:auto; }
@@ -73,6 +144,7 @@
 .detail-map-hero .compact-media:has(.media-map) .media-dots { top:calc(env(safe-area-inset-top) + 22px); }
 /* Reserve the tools' three targets, their gaps and the notice's left margin. */
 .detail-map-hero .leaflet-bottom.leaflet-left { width:calc(100% - 174px); }
+.detail-map-hero .leaflet-bottom.leaflet-right { bottom:36px; }
 .detail-map-hero .map-unavailable { box-sizing:border-box; max-width:min(150px,100%); }
 @media(min-width:1000px) { .activity-detail { --detail-edge:32px; } }
 
