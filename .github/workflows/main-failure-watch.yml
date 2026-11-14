@@ -1,0 +1,26 @@
+name: Main CI failure watcher
+on:
+  schedule:
+    - cron: "15 * * * *"
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+  issues: write
+concurrency:
+  group: main-ci-failure-watch
+  cancel-in-progress: false
+jobs:
+  report:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Upsert the single main CI failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 dev/ci/main_failure_watch.py
