@@ -85,7 +85,7 @@ async function runTheme(browser,theme){
  };
 
  await enter('explain');
- assert.equal(await page.locator('.large-title-heading').innerText(),'Find friends','the contact flow uses the shared large page title');assert.equal(await page.locator('.contacts-intro h2').count(),0,'the explainer does not repeat the large title');
+ assert.equal(await page.locator('.large-title-heading').innerText(),'Find friends','the contact flow uses the shared large page title');assert.equal(await page.locator('.large-title-heading').getAttribute('data-type'),'title','the shared title exposes its type to the layout audit');assert.equal(await page.locator('.contacts-intro h2').count(),0,'the explainer does not repeat the large title');
  assert.equal(await page.locator('#contacts-continue').innerText(),'Continue');assert.equal(await page.locator('#contacts-not-now').innerText(),'Not now');
  assert.equal(await page.locator('.contacts-intro p').first().innerText(),'See which of your contacts use Kinetta. We compare salted email and phone hashes; names and contact details stay on your iPhone.');
  assert.equal(await page.evaluate(()=>window.__contactsPluginCalls),0,'opening the screen does not request Contacts access');

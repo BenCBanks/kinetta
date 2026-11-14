@@ -29,8 +29,9 @@
 .friends-page .friend-request-summary { display:flex;align-items:center;gap:8px;width:100%;min-height:56px;margin:0 0 12px;padding:6px 14px;border:1px solid var(--line);border-radius:18px;background:var(--card);box-shadow:none;color:var(--tx);font:inherit;font-size:15px;font-weight:600;text-align:left; }
 .friends-page .friend-request-summary > .grow { flex:1;min-width:0; }
 .friends-page .friend-request-summary > .grow b,.friends-page .friend-request-summary > .grow small { display:block; }
-.friends-page .friend-request-summary > .grow small { margin-top:2px;color:var(--tx2);font-size:max(13px,.8125rem); }
-.friends-page .friend-request-summary > .count { display:grid;place-items:center;flex:none;min-width:24px;height:24px;padding:0 6px;border-radius:50%;background:var(--color-error);color:var(--color-on-error);font-size:12px;font-weight:700;line-height:1; }
+.friends-page .friend-request-summary > .grow b { color:var(--tx);font-size:max(15px,.9375rem);font-weight:600;line-height:1.25; }
+.friends-page .friend-request-summary > .grow small { margin-top:4px;color:var(--tx2);font-size:max(13px,.8125rem);line-height:1.25; }
+.friends-page .friend-request-summary > .count { display:grid;place-items:center;flex:none;min-width:24px;height:24px;padding:0 6px;border-radius:50%;background:var(--color-error);color:var(--color-on-error);font-size:15px;font-weight:700;line-height:1; }
 .friends-page .friend-request-summary svg { width:16px;height:16px;flex:none;color:var(--tx2); }
 .friends-page .sec-head { font-size:var(--text-app-section);margin:16px 0 8px; }
 .friends-page .person { gap:8px;padding:8px 12px;min-height:56px;border-top:0; }

@@ -75,7 +75,7 @@ const ContactsUI = (() => {
     const frame = (body, actions = '') => {
       if (!live()) return;
       titleObserver?.disconnect(); titleObserver = null;
-      el.innerHTML = `<div class="top large-title">${backBtn(backLabel)}<h1>Find friends</h1></div><div class="large-title-heading" aria-hidden="true">Find friends</div><main class="contacts-content">${body}${actions}</main>`;
+      el.innerHTML = `<div class="top large-title">${backBtn(backLabel)}<h1>Find friends</h1></div><div class="large-title-heading" data-type="title" aria-hidden="true">Find friends</div><main class="contacts-content">${body}${actions}</main>`;
       wireBack(el, returnTo);
       if ('IntersectionObserver' in window) {
         const top = el.querySelector(':scope > .top.large-title'), heading = el.querySelector(':scope > .large-title-heading');
