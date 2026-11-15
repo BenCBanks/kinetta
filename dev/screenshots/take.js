@@ -10,6 +10,8 @@ const SCREENSHOT_CLOCK = require('./fixture-time.json');
 const SHOTS = require('./scenes.json');
 // ONLY=lift,liftex takes just those (new shots, without retaking every other picture)
 const ONLY = process.env.ONLY ? process.env.ONLY.split(',') : null;
+const MAP_SHOTS = new Set(['home-feed','activity-detail','feed','activity','activity-splits','route']);
+const NEEDS_MAP = !ONLY || ONLY.some(name => MAP_SHOTS.has(name));
 const W = 393, H = 852, TOP = 59, BOTTOM = 34;
 async function enableKitForDemo(page) {
   // Kit requires the person's explicit opt-in; this is only the fictional screenshot account.
@@ -161,19 +163,21 @@ async function closeCaptureContext(context) {
     const ctx = await browser.newContext({viewport: {width: W, height: H}, deviceScaleFactor: 2, colorScheme: scheme,
       timezoneId: SCREENSHOT_CLOCK.timezone});
     let foodChatCtx = null, foodChatPage = null, foodRepeatCtx = null, foodRepeatPage = null;
-    const basemap = await (await ctx.request.get(B+'/api/map-config')).json();
-    if(!['pmtiles','vector'].includes(basemap.kind))throw Error('Capture needs an operator-controlled vector basemap');
-    // The public archive admits the published app origin. Adapt only CORS for this local demo;
-    // the range bytes and map renderer stay unchanged, and no production setting is edited.
-    const archiveOrigin = new URL(basemap.url).origin;
-    const publishedOrigin = process.env.KINETTA_SCREENSHOT_MAP_ORIGIN || 'https://login.kinetta.app';
-    await ctx.route(archiveOrigin+'/**',async route=>{
-      const request=route.request();
-      if(!['GET','HEAD'].includes(request.method())||basemap.kind==='pmtiles'&&request.method()==='GET'&&!request.headers().range)return route.abort();
-      const response=await route.fetch({headers:{...request.headers(),origin:publishedOrigin,referer:publishedOrigin+'/'}});
-      if(!response.ok())throw Error('Approved capture map source returned HTTP '+response.status());
-      await route.fulfill({response,headers:{...response.headers(),'access-control-allow-origin':new URL(B).origin,'access-control-expose-headers':'content-range,content-length,etag'}});
-    });
+    if(NEEDS_MAP){
+      const basemap = await (await ctx.request.get(B+'/api/map-config')).json();
+      if(!['pmtiles','vector'].includes(basemap.kind))throw Error('Capture needs an operator-controlled vector basemap');
+      // The public archive admits the published app origin. Adapt only CORS for this local demo;
+      // the range bytes and map renderer stay unchanged, and no production setting is edited.
+      const archiveOrigin = new URL(basemap.url).origin;
+      const publishedOrigin = process.env.KINETTA_SCREENSHOT_MAP_ORIGIN || 'https://login.kinetta.app';
+      await ctx.route(archiveOrigin+'/**',async route=>{
+        const request=route.request();
+        if(!['GET','HEAD'].includes(request.method())||basemap.kind==='pmtiles'&&request.method()==='GET'&&!request.headers().range)return route.abort();
+        const response=await route.fetch({headers:{...request.headers(),origin:publishedOrigin,referer:publishedOrigin+'/'} });
+        if(!response.ok())throw Error('Approved capture map source returned HTTP '+response.status());
+        await route.fulfill({response,headers:{...response.headers(),'access-control-allow-origin':new URL(B).origin,'access-control-expose-headers':'content-range,content-length,etag'}});
+      });
+    }
     const page = await ctx.newPage();
     await page.addInitScript(() => { window.__KINETTA_SCREENSHOT_MODE__ = true; });
     await page.clock.setFixedTime(new Date(SCREENSHOT_CLOCK.instant));
@@ -210,6 +214,26 @@ async function closeCaptureContext(context) {
     });
     for (const [name, path, opt = {}] of SHOTS) {
       if (ONLY && !ONLY.includes(name)) continue;
+      const kitInsightRoute = /\/api\/coach\/conversation(?:\/.*)?(?:\?.*)?$/;
+      const kitInsightFixture = name === 'kit-insight-progress';
+      if (kitInsightFixture) await page.route(kitInsightRoute, async route => {
+        const request = route.request(), url = new URL(request.url());
+        if (request.method() === 'POST' && url.pathname === '/api/coach/conversation/visits') {
+          const visit_id = request.postDataJSON().visit_id;
+          return route.fulfill({json: {generation: '00000000-0000-4000-8000-000000001049', visit_id, ready: true}});
+        }
+        if (request.method() === 'GET' && url.pathname === '/api/coach/conversation') {
+          const visit_id = url.searchParams.get('visit_id');
+          return route.fulfill({json: {generation: '00000000-0000-4000-8000-000000001049', visit_id, before: null, ready: true,
+            messages: [{id: 1, client_id: '1049-progress-insight', generation: '00000000-0000-4000-8000-000000001049', visit_id,
+              question: 'Am I improving?', context: {screen: 'progress'}, state: 'answered', error: null,
+              answer: {interpretation: 'Your latest run total is below your recent average; this chart also shows stronger weeks. One week alone cannot establish a lasting trend.',
+                facts: [{label: 'This week · Run', value: '10.8 mi'}, {label: 'Weekly average · Run', value: '20.6 mi'}, {label: 'Best week · Run', value: '27.9 mi'}],
+                limitations: ['Only recorded workouts are included.'], actions: []}, created: '2026-11-13T14:00:00Z'}]}});
+        }
+        if (request.method() === 'POST' && url.pathname.endsWith('/end')) return route.fulfill({json: {ok: true}});
+        return route.fulfill({status: 404, json: {detail: 'Unneeded screenshot fixture request.'}});
+      });
       if (opt.foodChat === 'ready') {
         const demo = await openFoodDemo(`zz_test_658_chat_${scheme}`, scheme);
         foodChatCtx = demo.context;
@@ -298,8 +322,22 @@ async function closeCaptureContext(context) {
         await foodRepeatPage.screenshot({path: `${OUT}/${scheme}-${name}.png`});
         continue;
       }
+      if (kitInsightFixture) await page.evaluate(() => {
+        App.me.ai_ok = true; App.me.ai_paused = false; App.me.kit_chat = true; App.me.coach = true;
+        App.me.ai_access ||= {}; App.me.ai_access.coach = {available: true, entitled: true};
+      });
       await page.evaluate((p) => { document.querySelectorAll('.scrim').forEach((x) => x.remove()); document.body.classList.remove('has-sheet'); window.scrollTo(0, 0); go(p); }, ids[path] || path);   // no sheet left open from the shot before
       await page.waitForTimeout(1500);
+      if (name === 'nutrition-filled') {
+        await page.locator('.calorie-ring[aria-valuetext="1,650 of 1,800 calories"]').waitFor({state: 'visible', timeout: 12000});
+        await page.getByText('Oats and berries', {exact: true}).waitFor({state: 'visible'});
+        await page.getByText('Chicken grain bowl', {exact: true}).waitFor({state: 'visible'});
+        await page.getByText('Vegetables and rice', {exact: true}).waitFor({state: 'visible'});
+      }
+      if (kitInsightFixture) {
+        await page.locator('#kit-messages .kit-answer').filter({hasText: 'Your latest run total'}).waitFor({state: 'visible'});
+        if ((await page.locator('#kit-status').innerText()).trim()) throw Error('Kit insight screenshot should not show a stale-chat warning.');
+      }
       if(name==='activity'||name==='activity-detail'){
         const title=page.locator('.d-title h1');await title.waitFor({state:'visible'});
         const actual=(await title.innerText()).trim();
@@ -451,6 +489,7 @@ async function closeCaptureContext(context) {
       if(opt.tab){const heading=page.locator(`#activity-pane-${opt.tab} h2`).first();await heading.waitFor({state:'visible'});await heading.evaluate(el=>window.scrollBy(0,el.getBoundingClientRect().top-390));}
       await page.evaluate(chrome, scheme === 'dark'); await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
       await page.screenshot({path: `${OUT}/${scheme}-${name}.png`});
+      if (kitInsightFixture) await page.unroute(kitInsightRoute);
       if (opt.lift) await page.evaluate(() => fetch('/api/activities/' + window.__liftId, {method: 'DELETE', headers: {'Content-Type': 'application/json'}}));
       // Remove only what this fictional review story added (entries, saved foods, messages) so the next pass and
       // the other screenshots start from the same demo data.

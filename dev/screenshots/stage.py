@@ -80,11 +80,15 @@ for login in ('casey','taylor'):
     friend=person(login,PW);friend('POST','/api/friends',{'login':'alex'});alex('POST','/api/friends/'+login+'/accept')
 assert alex('GET','/api/me')['friend_count']>=3
 alex('PUT', '/api/sharing', {'default': 'friends'})
-# Three meals on the captured day: the two seeded meals plus a small, explicit
-# dinner keep the diary ring partly filled rather than empty or complete.
-alex('POST', '/api/food/entries', [{'day': str(screenshot_today), 'meal': 'dinner',
-    'name': 'Apple and almond butter', 'amount': 1, 'unit': 'serving', 'kcal': 250,
-    'protein_g': 6, 'carbs_g': 28, 'fat_g': 14, 'fiber_g': 5}])
+# A complete, fictional day on the captured date. The local screenshot clock
+# can differ from ambient time, so seed every row directly on screenshot_today.
+alex('POST', '/api/food/entries', [
+    {'day': str(screenshot_today), 'meal': 'breakfast', 'name': 'Oats and berries', 'amount': 1, 'unit': 'bowl', 'kcal': 500,
+     'protein_g': 22, 'carbs_g': 70, 'fat_g': 14, 'fiber_g': 11},
+    {'day': str(screenshot_today), 'meal': 'lunch', 'name': 'Chicken grain bowl', 'amount': 1, 'unit': 'bowl', 'kcal': 750,
+     'protein_g': 42, 'carbs_g': 82, 'fat_g': 23, 'fiber_g': 8},
+    {'day': str(screenshot_today), 'meal': 'dinner', 'name': 'Vegetables and rice', 'amount': 1, 'unit': 'plate', 'kcal': 400,
+     'protein_g': 14, 'carbs_g': 55, 'fat_g': 10, 'fiber_g': 10}])
 last = [p for p in sorted(glob.glob(G + '/*running.gpx'))][-1]; raw = open(last, 'rb').read()
 t0 = dt.datetime.fromisoformat(re.search(rb'<time>([^<]+)</time>', raw).group(1).decode().replace('Z', '+00:00'))
 # Scheduled captures near midnight still need a workout on the displayed demo day.
