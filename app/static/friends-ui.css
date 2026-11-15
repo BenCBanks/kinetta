@@ -209,7 +209,7 @@
 .group-member {display:flex;align-items:center;gap:10px;min-height:56px;padding:8px 0;border-top:1px solid var(--line);}
 .group-member:first-child {border-top:0;}
 .group-member-rank {flex:none;width:22px;color:var(--tx3);font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;}
-.group-member-avatar {display:grid;place-items:center;flex:none;width:32px!important;height:32px!important;border-radius:50%;background:var(--card2);color:var(--tx2);font-size:14px;font-weight:600;}
+.group-member-avatar {display:grid;place-items:center;flex:none;width:32px!important;height:32px!important;border-radius:50%;background:var(--card2);color:var(--tx2);font-size:15px;font-weight:600;}
 .group-member-name {display:grid;gap:2px;flex:1;min-width:0;}
 .group-member-name b {min-width:0;color:var(--tx);overflow-wrap:anywhere;font-size:15px;font-weight:500;}
 .group-member.is-viewer .group-member-name b {color:var(--accent);font-weight:600;}
