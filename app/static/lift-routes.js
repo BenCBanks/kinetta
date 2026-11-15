@@ -97,7 +97,7 @@ function liftLogger(el, aid, data) {
   const owned = () => owner === readOwner(), live = () => owned() && !disposed && el.isConnected;
   el.classList.add('compact-lift');
   el.innerHTML = `<div class="top lift-top"><button type="button" class="back lift-back" data-back aria-label="Back to Lift">${svg('back')}<span></span></button>${S.open?'<div class="lift-header-clock" aria-label="Session and rest time"><b class="num" id="lf-time">0:00</b><span id="lf-restbox" hidden>Rest <b class="num" id="lf-rest">0:00</b></span></div>':'<span class="lift-header-clock" aria-hidden="true"></span>'}<div class="acts"><span class="lift-save small muted" id="lf-save" role="status" aria-live="polite"></span>
-      ${S.open ? `<button class="linkbtn lift-finish" id="lf-finish">Finish</button><button type="button" class="icon-btn lift-discard" id="lf-discard" aria-label="More session actions">${svg('more')}</button>` : '<button class="linkbtn lift-finish" id="lf-done">Done</button>'}</div></div>
+      ${S.open ? `<button class="linkbtn lift-finish" id="lf-finish">Finish</button><button type="button" class="icon-btn lift-discard" id="lf-discard" aria-label="More session actions">${svg('more')}</button>` : ''}</div></div>
     <div id="lf-list"></div>
     <button class="primary wide lift-add" id="lf-add">${svg('plus')}Add exercise</button>`;
   wireBack(el, `/activity/${aid}`, () => S.open ? 'Lift' : 'Progress');
@@ -185,7 +185,7 @@ function liftLogger(el, aid, data) {
     wire();
   }
   // the columns: set number, the previous session's set (its date on top), the boxes, and the tick in a live session
-  const cols = (e) => ['n', ...(e.last ? ['prev'] : []), ...(e.kind === 'time' ? ['secs'] : hasWeight(e) ? ['kg', 'reps'] : ['reps']), ...(S.open ? ['tick'] : [])];
+  const cols = (e) => ['n', ...(S.open && e.last ? ['prev'] : []), ...(e.kind === 'time' ? ['secs'] : hasWeight(e) ? ['kg', 'reps'] : ['reps']), ...(S.open ? ['tick'] : [])];
   const T = ' × ';   // normal spaces allow a previous set to wrap without losing a number
   const prevText = (e, p) => (!p ? '' : e.kind === 'time' ? `${p.secs || 0} s` : p.kg && e.kind === 'body' ? `+${toW(p.kg)}${T}${p.reps || 0}` : p.kg ? `${toW(p.kg)}${T}${p.reps || 0}` : `${p.reps || 0}`);
   function exCard(e, i) {
@@ -206,7 +206,7 @@ function liftLogger(el, aid, data) {
     const pr = (s.pr || []).map((k) => PR_NAMES[k]).join(', ');
     const heavy = (s.pr || []).includes('heaviest'), number = s.warmup ? 'W' : j + 1 - e.sets.slice(0, j).filter((x) => x.warmup).length;
     const trophy = '<span class="lift-heaviest" role="img" aria-label="Heaviest"><span aria-hidden="true">' + svg('trophy') + '</span></span>';
-    const display = (k) => `<span class="lift-read-value" data-k="${k}">${esc(k === 'kg' ? (toW(s.kg) ? `${toW(s.kg)} ${wUnit()}` : '–') : k === 'secs' ? (s.secs == null ? '–' : `${s.secs} s`) : (s.reps == null ? '–' : String(s.reps)))}</span>`;
+    const display = (k) => `<span class="lift-read-value" data-k="${k}">${esc(k === 'kg' ? (toW(s.kg) ? `${toW(s.kg)}${S.open ? ` ${wUnit()}` : ''}` : '–') : k === 'secs' ? (s.secs == null ? '–' : `${s.secs} s`) : (s.reps == null ? '–' : String(s.reps)))}</span>`;
     const cell = {
       n: S.open ? `<button type="button" class="lift-n${s.warmup ? ' wu' : ''}" data-set="${j}" aria-label="Set ${j + 1}, ${s.warmup ? 'warm-up' : 'working set'}. Actions" aria-haspopup="dialog"><span>${number}</span>${svg('down')}</button>` : `<span class="lift-n readonly">${number}</span>`,
       prev: p ? (S.open ? `<button type="button" class="lift-prev num" data-prev="${j}" aria-label="Use ${esc(prevText(e, p))} from ${esc(shortDay(e.last.start_time))}"><span class="lift-prev-label">Last</span><span>${esc(prevText(e, p).replace(/ × /g,'×'))}</span></button>` : `<span class="lift-prev num"><span class="lift-prev-label">Last</span><span>${esc(prevText(e, p).replace(/ × /g,'×'))}</span></span>`) : '<span class="lift-prev none">–</span>',
@@ -341,7 +341,7 @@ function liftLogger(el, aid, data) {
   });
   $('#lf-add', el).onclick = addExercise;
   const fin = $('#lf-finish', el) || $('#lf-done', el);
-  fin.onclick = async () => {
+  if (fin) fin.onclick = async () => {
     if (finishing || !live()) return;
     const open = S.ex.reduce((n, e) => n + e.sets.filter((s) => !s.done).length, 0);
     const finish = async () => {
