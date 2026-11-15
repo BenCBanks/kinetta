@@ -411,6 +411,8 @@ footer a { display: inline-flex; min-height: 44px; align-items: center; box-sizi
 /* Keep keyboard focus and in-page headings visible below the sticky navigation. */
 html { scroll-padding-top: 130px; }
 @media (min-width: 961px) { html { scroll-padding-top: 85px; } }
+/* Keep the Food hero's eyebrow above the sticky header when its heading is an anchor target. */
+#food-hero-title { scroll-margin-top: 40px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
 
 .skip-link { position: fixed; top: 12px; left: 12px; z-index: 110; padding: 12px 18px; background: var(--paper); color: var(--ink); transform: translateY(-160%); }

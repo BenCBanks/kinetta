@@ -63,6 +63,10 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
     if(name==='food'){
      assert.equal(await p.locator('.food-story .story-steps > h2').count(),0,'Food has one page heading, not a second stacked story heading');
      assert.equal(await p.locator('[data-food-screen="day"]').count(),1,'The whole-day step uses the Nutrition day screen');
+     await p.goto(base+'/food.html#food-hero-title');await p.evaluate(()=>document.fonts.ready);
+     const headingOffset=await p.evaluate(()=>{const h=document.querySelector('#food-hero-title'),e=h?.previousElementSibling,n=document.querySelector('header.top');return{eyebrowTop:e?.getBoundingClientRect().top,navBottom:n?.getBoundingClientRect().bottom,scrollMargin:getComputedStyle(h).scrollMarginTop};});
+     assert(headingOffset.eyebrowTop>=headingOffset.navBottom,`Food hero eyebrow clears sticky nav at ${width}px (${headingOffset.eyebrowTop}px vs ${headingOffset.navBottom}px)`);
+     assert.equal(headingOffset.scrollMargin,'40px','Food hero heading adds enough scroll margin to keep its eyebrow visible');
      if(width>900){
       await p.emulateMedia({reducedMotion:'no-preference'});
       const pin=p.locator('[data-food-pinned-image]');
