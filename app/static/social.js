@@ -318,9 +318,10 @@ function activityGroupStripHtml(data){
   const group=data.next,combined=group.total!==undefined,value=Number(combined?group.total:group.your_total)||0,target=Number(group.goal_target)||0;
   const progress=Math.min(target||1,Math.max(0,value)),ongoing=group.event_state==='ongoing'||group.event_date==null, weeks=group.weeks_to_event||0;
   const timing=ongoing?'All time':group.days_to_event===0?'Event today':`${weeks} ${weeks===1?'week':'wk'} to go`;
+  const sharing=Number(group.sharing_member_count)||0;
   const more=data.more_count?`<a class="feed-groups-more" href="/me/groups" aria-label="See ${data.more_count} more ${data.more_count===1?'group':'groups'}">+${data.more_count}</a>`:'';
   return `<section class="feed-social-strip feed-groups-strip" aria-label="${ongoing?'Group goal':'Next group event'}"><div class="feed-groups-row">
-    <a class="row-link feed-groups-link" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('people')}</span><span class="grow feed-groups-copy"><b>${esc(group.title)} · ${esc(timing)}</b><small>${combined?'Together':'You'}: ${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}</small><progress class="feed-group-progress" max="${target||1}" value="${progress}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}"></progress></span><span class="chev">${svg('chev')}</span></a>
+    <a class="row-link feed-groups-link" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('people')}</span><span class="grow feed-groups-copy"><b>${esc(group.title)} · ${esc(timing)}</b><small>${combined?`${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))} · from ${sharing} of ${group.member_count}`:`You: ${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}`}</small><progress class="feed-group-progress" max="${target||1}" value="${progress}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}"></progress></span><span class="chev">${svg('chev')}</span></a>
     ${more}</div></section>`;
 }
 function activityGroupStripLongPress(box,mute){
@@ -1344,18 +1345,20 @@ function groupUpdateReport(group,update,reload){
 }
 function groupGoal(group){
   const combined=group.total!==undefined,value=Number(combined?group.total:group.your_total)||0,target=Number(group.goal_target)||0;
+  const sharing=Number(group.sharing_member_count)||0,source=`from ${sharing} of ${group.member_count}`;
   const progressMax=target||1,progressValue=Math.min(progressMax,Math.max(0,value));
-  const week=group.this_week_total!==undefined?`This week · +${groupNumber(group.this_week_total)} ${group.goal_unit} from ${group.this_week_contributors} of ${group.member_count} people`:`This week · You: ${groupAmount(group.your_this_week_total,group.goal_unit)}`;
+  const week=group.this_week_total!==undefined?`This week · +${groupNumber(group.this_week_total)} ${group.goal_unit} · ${source} sharing`:`This week · You: ${groupAmount(group.your_this_week_total,group.goal_unit)}`;
   const weekHtml=group.this_week_total!==undefined||group.your_this_week_total!==undefined?`<small class="group-week">${esc(week)}</small>`:'';
   const weeklyCheer=group.event_state!=='complete'&&!group.closed?`<div class="group-week-cheer">${reactionButtons(null,group.weekly_reaction||{},false,true,null,{id:group.id})}</div>`:'';
-  return `<section class="group-goal card" aria-label="Shared goal"><small>${esc(GROUP_GOALS[group.goal_type]||'Shared goal')}</small>${group.event_state==='ongoing'?'<small class="group-goal-period">All time</small>':''}<strong>${combined?'Together':'You'}: ${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}</strong><progress class="group-progress" max="${progressMax}" value="${progressValue}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}"></progress>${weekHtml}${combined?'<small class="group-total-note">Your activity counts toward group totals.</small>':''}${weeklyCheer}${combined?'':'<small class="group-goal-hint">Group totals appear with 3 members</small>'}</section>`;
+  const total=combined?`${groupAmount(value,group.goal_unit)} of ${groupAmount(target,group.goal_unit)} · ${source}`:`You: ${groupAmount(value,group.goal_unit)} of ${groupAmount(target,group.goal_unit)}`;
+  return `<section class="group-goal card" aria-label="Shared goal"><small>${esc(GROUP_GOALS[group.goal_type]||'Shared goal')}</small>${group.event_state==='ongoing'?'<small class="group-goal-period">All time</small>':''}<strong>${esc(total)}</strong><progress class="group-progress" max="${progressMax}" value="${progressValue}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}"></progress>${weekHtml}${weeklyCheer}${combined?'':'<small class="group-goal-hint">Group totals appear with 3 members</small>'}</section>`;
 }
 function groupPage(el,group){
   group={...group,event_state:group.event_state||(group.event_date==null?'ongoing':(group.days_to_event||0)===0?'today':'upcoming'),updates:group.updates||[],weekly_reaction:group.weekly_reaction||{my_reaction:null,reactions:{}}};
   let expanded=false;
   const reload=async()=>{invalidate('/api/groups/'+encodeURIComponent(group.id));try{const fresh=await api('/api/groups/'+encodeURIComponent(group.id));if(el.isConnected)groupPage(el,fresh);}catch(error){if(el.isConnected)toast(error.message);}};
   const draw=()=>{const weeks=group.weeks_to_event??Math.ceil(group.days_to_event/7),timing=group.event_state==='today'?"Today’s the day":group.event_state==='complete'?'Event complete':`${weeks} ${weeks===1?'week':'weeks'} to go`;
-    const total=group.total!==undefined?`Together: ${groupAmount(group.total,group.goal_unit)}`:`You: ${groupAmount(group.your_total,group.goal_unit)}`;
+    const total=group.total!==undefined?`${groupAmount(group.total,group.goal_unit)} · from ${Number(group.sharing_member_count)||0} of ${group.member_count}`:`You: ${groupAmount(group.your_total,group.goal_unit)}`;
     const summary=group.event_state==='ongoing'?`${GROUP_GOALS[group.goal_type]||'Shared goal'} · ${total}`:`${groupDate(group.event_date,group.time_zone)} · ${timing}`;
     el.innerHTML=`<div class="top group-top">${backBtn('Groups')}<span></span><button type="button" class="icon-btn" id="group-options" aria-label="Group options">${svg('more')}</button></div>
     <header class="group-title"><p class="eyebrow">Private group</p><h1>${esc(group.title)}</h1><p>${esc(summary)}</p>${group.note?`<p class="group-note">${esc(group.note)}</p>`:''}</header>
