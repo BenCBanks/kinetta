@@ -31,6 +31,8 @@ jobs:
       KINETTA_VERSION: ci
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -52,6 +54,10 @@ jobs:
           python3 dev/screenshots/stage.py /tmp/gpx
       - name: Syntax, unit and quick API checks
         run: dev/tests/run.sh --quick
+      - name: Run browser and layout checks for changed screens
+        env:
+          CHANGED_BASE: origin/${{ github.base_ref }}
+        run: dev/tests/changed.sh
       - name: Check aggregate Features portal with fictional history (writes blocked)
         env:
           KINETTA_URL: http://localhost:8798
@@ -72,7 +78,6 @@ jobs:
         if: always()
         run: docker compose -p kinettatest down -v
   backend:
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -248,15 +253,18 @@ jobs:
           SPACING_RESULT: ${{ needs.spacing.result }}
         run: |
           if [ "$IS_DRAFT" = "true" ]; then
-            test "$QUICK_RESULT" = success
+            for result in "$QUICK_RESULT" "$CHANGED_SCREEN_MAP_RESULT" "$BACKEND_RESULT" "$SPACING_RESULT"; do
+              test "$result" = success
+            done
+            for result in "$BROWSER_SHARDS_RESULT" "$REVIEWER_INTEGRATION_RESULT"; do
+              case "$result" in success|skipped) ;; *) exit 1 ;; esac
+            done
             exit 0
           fi
-          # A skipped dependency is non-failing when its own workflow condition does not apply.
-          for result in "$QUICK_RESULT" "$CHANGED_SCREEN_MAP_RESULT" "$BACKEND_RESULT" "$BROWSER_SHARDS_RESULT" "$REVIEWER_INTEGRATION_RESULT" "$SPACING_RESULT"; do
-            case "$result" in
-              success|skipped) ;;
-              *) exit 1 ;;
-            esac
+          # Quick is intentionally skipped outside Draft PRs; all Ready checks are required.
+          case "$QUICK_RESULT" in success|skipped) ;; *) exit 1 ;; esac
+          for result in "$CHANGED_SCREEN_MAP_RESULT" "$BACKEND_RESULT" "$BROWSER_SHARDS_RESULT" "$REVIEWER_INTEGRATION_RESULT" "$SPACING_RESULT"; do
+            test "$result" = success
           done
 
   spacing:
