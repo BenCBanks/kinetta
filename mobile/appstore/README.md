@@ -9,7 +9,8 @@ Nothing here uploads, signs or submits an app. `listing-en-US.json` holds plain-
 | `promotional_text` | Version → Promotional text,170 |
 | `description` | Description,4000 |
 | `keywords` | Keywords,100 including commas |
-| `support_url`, `marketing_url` | Support and Marketing URLs; Guide includes contact details |
+| `support_url` | Support URL; the About page provides the contact email |
+| `marketing_url` | Marketing URL |
 | `privacy_url` | App Privacy → Privacy policy URL |
 | `eula_url` | Terms reference for the owner's custom License Agreement entry; review actual agreement text |
 | `whats_new` | What's new,4000; replace release placeholders |
@@ -19,9 +20,11 @@ Run `python3 mobile/scripts/test_listing.py`. Review `privacy-audit.md`, `age-ra
 
 ## Native screenshot artifacts
 
-The eight scenes are the Activity feed, activity map/charts, Track ready, Nutrition day, Add food chat, Progress, Me and Achievements. The capture mode uses an unsigned Simulator bundle, actual UIKit safe areas and fictional API responses. Track’s location is a supplied point from the published fictional park route; no GPS permission or real position is read. Only the public basemap contract and its map-file ranges are requested without account credentials. It produces eight light-mode JPEGs at 1320 × 2868 with no alpha, plus source revision, image hashes and readiness metrics. Never resize browser/website captures into App Store screenshots or commit image artifacts. Review raw native captures before choosing an optional Sky Blue caption treatment. Inspect the native CI artifact and attach reviewed examples to the PR before marking preparation complete.
+The current native runner defines this eight-shot, light-mode story in `dev/tests/native-ui/run.py` (`STORE_STAGES`): Home feed (`header-activity`), Activity detail (`activity`), Track ready (`header-track`), Nutrition day (`header-food`), Add food chat (`food`), Progress (`header-progress`), Me with three earned featured medals (`header-me`), and Friends feed (`friends-typical`). The Nutrition fixture shows 915 of 1,800 kcal across two fictional meals; Me's medals meet their catalog thresholds. These are the current App Store capture plan, not newly generated shots in this docs change.
 
-The Activity map/charts scene is recaptured from the merged activity-detail header (#928), including its current title, Kit action and stat layout. The artifact must be generated from the PR’s current bundle; do not reuse the earlier screenshot set.
+Capture from the exact source revision intended for review using the unsigned Simulator bundle, actual UIKit safe areas and fictional API responses. Screenshot mode hides map labels; Track uses a supplied point from the fictional park route, with no GPS permission or real position read. The runner verifies the public basemap contract without account credentials and emits eight native light-mode JPEGs at 1320 × 2868, plus source revision, image hashes and readiness metrics. Never resize browser/website captures into App Store screenshots or commit image artifacts. Inspect the raw native artifact against the current app before choosing an optional Sky Blue caption treatment.
+
+The Activity map/charts scene uses the `activity` stage, separate from the Home feed’s `header-activity` stage. Generate both from the same current app bundle; do not reuse an older artifact when either layout has changed.
 
 ## 6.9-inch screenshot upload checklist
 
@@ -38,7 +41,7 @@ Upload the images to the iOS version’s **6.9-inch Display** screenshot slot in
 | 5 | Add food chat | `iPhone-16-Pro-Max-light-food-16.jpg` |
 | 6 | Progress | `iPhone-16-Pro-Max-light-header-progress-16.jpg` |
 | 7 | Me | `iPhone-16-Pro-Max-light-header-me-16.jpg` |
-| 8 | Achievements | `iPhone-16-Pro-Max-light-achievements-16.jpg` |
+| 8 | Friends feed | `iPhone-16-Pro-Max-light-friends-typical-16.jpg` |
 
 The device prefix is the Simulator model reported by the runner; if Apple’s runner uses a different exact 6.9-inch model, keep the same `light-<stage>-16.jpg` suffixes and use that prefix. Do not upload browser crops, dark-mode images, metric JSON, `public-map.json`, or screenshots from an older workflow run. Review each thumbnail after upload for a complete safe-area header, full bottom navigation and no clipped row.
 
