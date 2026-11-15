@@ -52,9 +52,10 @@
 .profile-achievement-list.is-grid .profile-achievement-name { max-width:100%; font-size:.75rem; overflow-wrap:anywhere; word-break:normal; }
 .profile-achievement-list.is-grid .profile-achievement-next { display:block; width:100%; min-height:2.5em; max-width:100%; overflow:visible; font-size:.6875rem; line-height:1.25; text-overflow:clip; white-space:normal; overflow-wrap:anywhere; word-break:normal; }
 .profile-achievement-overview-progress { display:block; width:100%; max-width:84px; height:3px; overflow:hidden; border-radius:2px; background:color-mix(in srgb,var(--tx2) 38%,var(--bg)); }
-.profile-achievement-overview-progress>span { display:block; width:0; height:100%; border-radius:inherit; background:var(--accent); }
+.profile-achievement-overview-progress>svg,.profile-achievement-ladder-progress>svg,.profile-achievement-level-progressbar>svg,.profile-achievement-sport-progress>svg { display:block; width:100%; height:100%; }
+.profile-achievement-overview-progress>svg rect,.profile-achievement-ladder-progress>svg rect,.profile-achievement-level-progressbar>svg rect,.profile-achievement-sport-progress>svg rect { fill:var(--color-achievement); }
 .profile-achievement.is-future .profile-achievement-medallion,.profile-achievement-history-head.is-future .profile-achievement-medallion { --achievement-color:color-mix(in srgb,var(--tx) 40%,var(--bg)); filter:grayscale(1); opacity:.72; box-shadow:0 1px 2px rgba(12,20,24,.1); }
-.profile-achievement.is-unstarted .profile-achievement-overview-progress>span { background:var(--tx2); }
+.profile-achievement.is-unstarted .profile-achievement-overview-progress>svg rect { fill:var(--tx2); }
 .profile-achievement.is-future .profile-achievement-name,.profile-achievement.is-future .profile-achievement-next { color:var(--tx2); }
 .profile-achievement-group + .profile-achievement-group { margin-top:6px; }
 .profile-achievement-group-title { margin:10px 0 4px; }
@@ -76,7 +77,6 @@
 .profile-achievement-ladder-threshold { color:var(--tx2); font-weight:500; }
 .profile-achievement-ladder-badge.is-upcoming .profile-achievement-ladder-name,.profile-achievement-ladder-badge.is-upcoming .profile-achievement-ladder-threshold { color:var(--tx2); }
 .profile-achievement-ladder-progress { display:block; width:100%; max-width:100%; min-width:0; height:3px; margin:1px 0; overflow:hidden; border-radius:2px; background:color-mix(in srgb,var(--tx2) 38%,var(--bg)); }
-.profile-achievement-ladder-progress>span { display:block; width:0; height:100%; border-radius:inherit; background:var(--accent); }
 .achievement-share-card { box-sizing:border-box; width:952px; margin:0; padding:0 64px 24px; overflow:hidden; border-radius:28px; background:color-mix(in srgb,var(--bg) 86%,#fff); color:var(--tx); font-family:var(--font-ui); box-shadow:0 18px 44px rgba(12,20,24,.22); }
 .achievement-share-head { margin-inline:-64px; padding:28px 64px 24px; border-radius:28px 28px 0 0; background:linear-gradient(135deg,var(--color-action),var(--color-brand) 60%,var(--color-ride)); color:#fff; }
 .achievement-share-brand { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:48px; }
@@ -245,7 +245,6 @@
 .profile-achievement-level-meta time { white-space:nowrap; }
 .profile-achievement-level-progress { display:flex; width:100%; flex-direction:column; align-items:flex-end; gap:3px; margin-top:3px; }
 .profile-achievement-level-progressbar { display:block; width:100%; max-width:100%; min-width:0; height:3px; overflow:hidden; border-radius:2px; background:color-mix(in srgb,var(--tx2) 38%,var(--bg)); }
-.profile-achievement-level-progressbar>span { display:block; width:0; height:100%; border-radius:inherit; background:var(--accent); }
 .profile-achievement-level-progress small { max-width:100%; color:var(--tx2); font-size:.75rem; line-height:1.15; white-space:nowrap; }
 .profile-achievement-more { display:block; width:100%; min-height:44px; padding:8px 0; border:0; background:transparent; color:var(--accent); font:inherit; font-size:.875rem; font-weight:600; text-align:left; cursor:pointer; }
 .profile-achievement-more:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
@@ -362,10 +361,12 @@
 :root[data-theme="light"] .me-featured-achievements a[data-achievement-code="climbing"] .profile-achievement-medallion[data-level="7"] .profile-achievement-value[data-type="secondary"],
 :root[data-theme="light"] .me-featured-achievements a[data-achievement-code="climbing"] .profile-achievement-medallion[data-level="8"] .profile-achievement-value[data-type="secondary"],
 :root[data-theme="light"] .me-featured-achievements a[data-achievement-code="personal_bests"] .profile-achievement-medallion[data-level="6"] .profile-achievement-value[data-type="secondary"] { color:#000; text-shadow:none; }
+:root[data-theme="light"] .me-featured-achievements a[data-achievement-code="climbing"] .profile-achievement-medallion[data-level="8"] .profile-achievement-value[data-type="secondary"] { color:#000; text-shadow:none; }
 @media (prefers-color-scheme:light) {
   :root:not([data-theme="dark"]) .me-featured-achievements a[data-achievement-code="climbing"] .profile-achievement-medallion[data-level="7"] .profile-achievement-value[data-type="secondary"],
   :root:not([data-theme="dark"]) .me-featured-achievements a[data-achievement-code="climbing"] .profile-achievement-medallion[data-level="8"] .profile-achievement-value[data-type="secondary"],
   :root:not([data-theme="dark"]) .me-featured-achievements a[data-achievement-code="personal_bests"] .profile-achievement-medallion[data-level="6"] .profile-achievement-value[data-type="secondary"] { color:#000; text-shadow:none; }
+  :root:not([data-theme="dark"]) .me-featured-achievements a[data-achievement-code="climbing"] .profile-achievement-medallion[data-level="8"] .profile-achievement-value[data-type="secondary"] { color:#000; text-shadow:none; }
 }
 :root[data-theme="light"] .me-featured-achievements a[data-achievement-code="personal_bests"] .profile-achievement-medallion[data-level="7"] .profile-achievement-value[data-type="secondary"] { color:#fff; text-shadow:none; }
 @media (prefers-color-scheme:light) {
@@ -649,7 +650,6 @@
 .profile-achievement-sport-heading h2 { margin:0; font-size:1.5rem; line-height:1.1; }
 .profile-achievement-sport-heading p { margin:4px 0 8px; color:var(--tx); font-size:1.25rem; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.05; }
 .profile-achievement-sport-progress { display:block; width:100%; height:8px; overflow:hidden; border-radius:999px; background:color-mix(in srgb,var(--tx2) 24%,var(--bg)); }
-.profile-achievement-sport-progress i { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--color-action) 0%,var(--color-brand) 52%,var(--color-ride) 100%); }
 .profile-achievement-sport-share { flex:none; min-width:44px; min-height:44px; }
 .profile-achievement-sport-cards { display:grid; gap:24px; }
 .profile-achievement-sport-card { min-width:0; padding:16px; border:0; border-radius:16px; background:var(--card); box-shadow:var(--elevation-raised); }
@@ -676,11 +676,50 @@
 .profile-achievement-sport-card .profile-achievement-repeat-caption { margin:0; font-size:.75rem; }
 @media (max-width:360px) { .profile-achievement-sport-card { padding:14px; } .profile-achievement-ladder-scroll .profile-achievement-ladder-badge { flex-basis:82px; } .profile-achievement-ladder-scroll .profile-achievement-ladder-progress { width:82px; } }
 @media (prefers-reduced-motion:reduce) { .profile-achievement-ladder-scroll { scroll-behavior:auto; } }
+
+/* #1024: one grouped sport surface; tracks are divided with inset hairlines. */
+.profile-achievement-sport-overview { display:block; overflow-x:clip; overflow-y:visible; border:1px solid var(--line); border-radius:18px; background:var(--surface-card); }
+.has-back > .top:has(+ #profile-achievement-page) { min-height:44px; padding-bottom:0; background:var(--bg); }
+.profile-achievement-sport-switcher { top:calc(44px + env(safe-area-inset-top,0px)); z-index:1009; margin:calc(-44px - env(safe-area-inset-top,0px)) 0 0; padding:0 16px; gap:20px; background:var(--bg); backdrop-filter:none; }
+.profile-achievement-sport-chip { position:relative; min-height:44px; padding:0 2px; border:0; border-radius:0; background:transparent; color:var(--tx2); font-weight:500; }
+.profile-achievement-sport-chip svg { color:var(--tx2); }
+.profile-achievement-sport-chip b { color:var(--tx3); font-size:.8125rem; font-weight:500; }
+.profile-achievement-sport-chip.is-selected { border:0; background:transparent; color:var(--tx); box-shadow:none; }
+.profile-achievement-sport-chip.is-selected svg,.profile-achievement-sport-chip.is-selected b { color:var(--tx); }
+.profile-achievement-sport-chip.is-selected::after { position:absolute; right:0; bottom:0; left:0; height:2px; border-radius:2px; background:var(--accent); content:""; }
+.profile-achievement-sport-header { min-height:76px; padding:12px 16px; border-radius:0; background:transparent; box-shadow:none; }
+.profile-achievement-sport-heading svg { padding:0; border-radius:0; background:none; color:var(--tx2); filter:none; }
+.profile-achievement-sport-overview[data-selected-sport="run"] .profile-achievement-sport-heading>svg { color:var(--run); }
+.profile-achievement-sport-overview[data-selected-sport="ride"] .profile-achievement-sport-heading>svg { color:var(--ride); }
+.profile-achievement-sport-overview[data-selected-sport="walk-hike"] .profile-achievement-sport-heading>svg { color:var(--walk); }
+.profile-achievement-sport-overview[data-selected-sport="swim"] .profile-achievement-sport-heading>svg { color:var(--swim); }
+.profile-achievement-sport-overview[data-selected-sport="strength"] .profile-achievement-sport-heading>svg { color:var(--workout); }
+.profile-achievement-sport-progress { height:4px; }
+.profile-achievement-sport-cards { display:grid; gap:0; }
+.profile-achievement-sport-card { min-width:0; padding:10px 16px 12px; border:0; border-top:1px solid var(--line); border-radius:0; background:transparent; box-shadow:none; }
+.profile-achievement-sport-card .profile-achievement-track-head { min-height:44px; }
+.profile-achievement-track-link { display:flex; flex:1; align-items:center; justify-content:space-between; gap:8px; min-width:0; min-height:44px; color:var(--tx); text-decoration:none; }
+.profile-achievement-track-heading { align-items:center; gap:10px; }
+.profile-achievement-track-heading svg { width:22px; height:22px; color:var(--tx3); }
+.profile-achievement-sport-card .profile-achievement-track-title { font-size:1rem; font-weight:600; }
+.profile-achievement-sport-card .profile-achievement-track-summary { font-size:.8125rem; font-weight:500; }
+.profile-achievement-track-open { display:grid; flex:none; place-items:center; width:18px; height:22px; color:var(--tx3); }
+.profile-achievement-track-open svg { width:18px; height:18px; }
+.profile-achievement-sport-card .profile-achievement-track-share { flex:none; width:44px; height:44px; color:var(--color-text-muted); }
+.profile-achievement-ladder-scroll { gap:8px; padding:4px 2px 6px; -webkit-mask-image:none; mask-image:none; }
+.profile-achievement-ladder-scroll .profile-achievement-ladder-badge { flex:0 0 auto; width:max-content; min-width:64px; max-width:none; }
+.profile-achievement-ladder-scroll .profile-achievement-medallion { flex-basis:44px; width:44px; min-width:44px; max-width:44px; height:44px; }
+.profile-achievement-ladder-scroll .profile-achievement-icon { width:26px; height:26px; }
+.profile-achievement-ladder-scroll .profile-achievement-ladder-name { width:max-content; min-width:64px; max-width:none; font-size:.75rem; white-space:nowrap; }
+.profile-achievement-ladder-scroll .profile-achievement-ladder-threshold { display:none; }
+.profile-achievement-ladder-scroll .profile-achievement-ladder-progress { width:52px; max-width:52px; height:3px; margin:1px 0; }
+.profile-achievement-track-share:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+@media (max-width:360px) { .profile-achievement-sport-switcher { gap:14px; } .profile-achievement-sport-card { padding-inline:12px; } }
 /* Earned medals get a specular finish; next goals get a gradient rim; locked badges stay flat. */
 .profile-achievement-ladder-badge.is-earned .profile-achievement-medallion { background:radial-gradient(circle at 28% 18%,color-mix(in srgb,#fff 58%,transparent) 0,transparent 43%),var(--achievement-color); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--achievement-palette-base) 32%,#fff),inset 0 1px 0 rgba(255,255,255,.72),0 4px 9px -3px color-mix(in srgb,var(--achievement-palette-base) 52%,transparent); }
 .profile-achievement-ladder-badge.is-earned .profile-achievement-medallion::before { position:absolute; inset:0; border-radius:inherit; background:linear-gradient(150deg,rgba(255,255,255,.48) 0%,rgba(255,255,255,.12) 24%,transparent 48%); content:""; pointer-events:none; }
 .profile-achievement-ladder-badge.is-earned .profile-achievement-medallion > * { position:relative; z-index:1; }
-.profile-achievement-ladder-badge.is-next .profile-achievement-medallion { border:3px solid transparent; background:linear-gradient(var(--achievement-color),var(--achievement-color)) padding-box,linear-gradient(120deg,var(--color-action) 0%,var(--color-action) 25%,var(--color-ride) 72%,var(--color-action) 100%) border-box; box-shadow:0 2px 7px -2px color-mix(in srgb,var(--color-brand) 36%,transparent); }
+.profile-achievement-ladder-badge.is-next .profile-achievement-medallion { border:3px solid transparent; background:linear-gradient(var(--achievement-color),var(--achievement-color)) padding-box,linear-gradient(120deg,color-mix(in srgb,var(--color-achievement) 62%,var(--card)),var(--color-achievement),color-mix(in srgb,var(--color-achievement) 70%,var(--tx2))) border-box; box-shadow:0 2px 7px -2px color-mix(in srgb,var(--color-achievement) 36%,transparent); }
 .profile-achievement-ladder-badge.is-upcoming .profile-achievement-medallion { --achievement-color:color-mix(in srgb,var(--tx) 18%,var(--card)); border:0; filter:grayscale(1); opacity:.52; box-shadow:none; }
 :root[data-theme="dark"] .profile-achievement-ladder-badge.is-upcoming .profile-achievement-medallion { --achievement-color:color-mix(in srgb,var(--tx) 22%,var(--card)); border:0; filter:grayscale(1); opacity:.55; box-shadow:none; }
 /* Fastest ladders show three complete benchmarks centred on the next goal. */
