@@ -1545,6 +1545,8 @@ html.keyboard-open .food-thread:has(.shared-recipe-row) .thread-composer {flex-s
 .reaction-action {display:contents;}
 .activity-reactions .pf,.activity-comments,.post-hd .activity-share {background:none;border-color:transparent;box-shadow:none;min-height:44px;}
 .post-ft:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;gap:0;padding:3px 16px;min-height:44px;}
+/* Give narrow feed-map attribution a full 8px clearance from the 44px comment target. */
+.activity-card:has(.fmap) > .post-ft {padding-top:4px;}
 .detail-social:has(.emoji-reactions) {display:flex;flex-wrap:nowrap;align-items:center;justify-content:flex-start;gap:0;padding:0;margin-top:0;min-height:44px;width:100%;min-width:0;box-sizing:border-box;}
 .emoji-reactions .reaction-more {order:1;flex:none;min-width:44px;min-height:44px;justify-content:flex-start;gap:6px;padding:0;margin-right:8px;font-size:15px;font-weight:500;color:var(--tx2);}
 .emoji-reactions .reaction-more>svg {flex:none;width:20px;height:20px;}
