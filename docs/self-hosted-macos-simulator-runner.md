@@ -8,7 +8,7 @@ First compare its full cost with GitHub-hosted macOS minutes, including hardware
 
 ## Safe setup
 
-1. Create a dedicated runner group restricted to the Kinetta repository. Do not make it available to every repository in an organization.
+1. For a personal repository, attach the runner at repository scope. In an organization, create a dedicated runner group restricted to Kinetta; do not make it available to every repository.
 2. Use a disposable macOS host or an ephemeral runner that is rebuilt after each job. Give it a unique label such as `kinetta-simulator`; install only the supported Xcode and simulator runtimes.
 3. Give the runner a read-only repository token, no Apple signing keys, no production credentials and no access to other jobs' workspaces or caches. Keep simulator artifacts fictional and short-lived.
 4. Route only trusted, same-repository Ready pull requests to this runner. Keep fork pull requests on GitHub-hosted runners (or skip their simulator job). Require both `head.repo.full_name == github.repository` and `pull_request.draft == false` before scheduling any self-hosted job.
