@@ -279,6 +279,8 @@
 .activity-detail .detail-map-hero .map:not(.full) .map-full { right:12px; }
 .activity-detail .detail-map-hero .compact-media [data-media-step="-1"] { left:12px; }
 .activity-detail .detail-map-hero .compact-media [data-media-step="1"] { right:12px; }
+.activity-detail .detail-map-hero .compact-media:has(.media-map) [data-media-step="-1"] { left:12px; right:auto; }
+.activity-detail .detail-map-hero .compact-media:has(.media-map) [data-media-step="1"] { left:auto; right:12px; }
 .activity-detail .activity-chart-card { padding:16px; }
 @media (min-width:361px) and (max-width:700px) {
   .activity-detail .activity-chart-card { margin-inline:-6px; }
