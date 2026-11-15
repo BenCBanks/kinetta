@@ -218,7 +218,27 @@ def _personal_best_events(c, uid, rows_by_id):
     return events
 
 
-def _fastest_effort_facts(c, uid, rows_by_id, code='sport:run:fastest'):
+def _legacy_run_fastest_bests(c, uid):
+    """Map saved mixed-Run lifetime bests onto their exact distance standards."""
+    saved = c.execute('''SELECT details FROM milestones
+                         WHERE user_id=%s AND kind='track_state' AND valid
+                           AND details->>'track'='sport:run:fastest'
+                         ORDER BY occurred DESC LIMIT 1''', (uid,)).fetchone()
+    details = (saved or {}).get('details') or {}
+    seconds_by_distance = {}
+    for rank, (_name, distance, _limit) in enumerate(tracks.RUN_FASTEST_LEVELS, 1):
+        try:
+            seconds = float((details.get('best_seconds') or {}).get(str(rank)))
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(seconds) and seconds > 0:
+            prior = seconds_by_distance.get(distance)
+            seconds_by_distance[distance] = min(prior, seconds) if prior is not None else seconds
+    return seconds_by_distance
+
+
+def _fastest_effort_facts(c, uid, rows_by_id, code='sport:run:fastest', now=None, zone=None,
+                          legacy_run_bests=None):
     """Return fastest-ladder count and source activity for each level.
 
     Only persisted best-effort rows with their recorded distance and elapsed
@@ -227,9 +247,10 @@ def _fastest_effort_facts(c, uid, rows_by_id, code='sport:run:fastest'):
     criteria = tracks.fastest_effort_spec(code) or ()
     sport = tracks.fastest_effort_sport(code)
     if not criteria:
-        return 0, {}
+        return 0, {}, {}, {}
     sports = ['walk', 'hike'] if sport == 'walk-hike' else [sport]
-    best = {}
+    best = {};season_best={}
+    season_year=now.astimezone(zone).year if now is not None and zone is not None else None
     for row in c.execute('''SELECT activity_id,sport,distance_m,elapsed_s
                             FROM best_efforts
                             WHERE user_id=%s AND sport = ANY(%s)
@@ -248,15 +269,30 @@ def _fastest_effort_facts(c, uid, rows_by_id, code='sport:run:fastest'):
         prior = best.get(criterion[1])
         if prior is None or elapsed < prior[0]:
             best[criterion[1]] = (elapsed, activity)
+        started=activity.get('start_time')
+        if season_year is not None and started is not None and started.astimezone(zone).year==season_year:
+            prior_season=season_best.get(criterion[1])
+            if prior_season is None or elapsed<prior_season:
+                season_best[criterion[1]]=elapsed
+    if sport == 'run':
+        for distance, seconds in (legacy_run_bests or {}).items():
+            prior = best.get(distance)
+            if prior is None or seconds < prior[0]:
+                # The legacy state kept the exact best time but not its source
+                # activity id. The tier remains durable and owner-scoped.
+                best[distance] = (seconds, None)
     found = {}
-    best_seconds = {}
+    best_seconds = {};season_best_seconds={}
     for rank, (_name, distance, max_seconds) in enumerate(criteria, 1):
         candidate = best.get(distance)
+        season_candidate=season_best.get(distance)
         if candidate:
             best_seconds[rank] = candidate[0]
         if candidate and candidate[0] <= max_seconds:
             found[float(rank)] = candidate[1]
-    return len(found), found, best_seconds
+        if season_candidate is not None:
+            season_best_seconds[rank]=season_candidate
+    return len(found), found, best_seconds, season_best_seconds
 
 
 def _tier_item(code,tier,row,zone,now,*,occurred=None,day=None):
@@ -324,6 +360,13 @@ def _preserve_track_progress(c,uid,states):
                           if str(rank).isdigit() and isinstance(seconds,(int,float)) and math.isfinite(float(seconds))}
             details['best_seconds']={rank:min(seconds,current_best[rank]) if rank in current_best else seconds
                                      for rank,seconds in {**old_best,**current_best}.items()}
+            if old_details.get('season_year')==details.get('season_year'):
+                old_season={str(rank):float(seconds) for rank,seconds in (old_details.get('season_best_seconds') or {}).items()
+                            if str(rank).isdigit() and isinstance(seconds,(int,float)) and math.isfinite(float(seconds))}
+                current_season={str(rank):float(seconds) for rank,seconds in (details.get('season_best_seconds') or {}).items()
+                                if str(rank).isdigit() and isinstance(seconds,(int,float)) and math.isfinite(float(seconds))}
+                details['season_best_seconds']={rank:min(seconds,current_season[rank]) if rank in current_season else seconds
+                                                for rank,seconds in {**old_season,**current_season}.items()}
             if old_ranks - current_ranks:
                 state['day']=old['day'];state['occurred']=old['occurred']
             continue
@@ -411,16 +454,19 @@ def achievement_candidates(c,uid,now,zone):
             longest,crossing=_max_crossings(longest_code,subset,lambda r:_number(r,'distance_m'),zone)
             add(longest_code,longest,crossing,longest>0)
 
-    for sport in tracks.FASTEST_EFFORT_LEVELS:
-        code=f'sport:{sport}:fastest'
-        fastest_count,fastest_crossing,fastest_best=_fastest_effort_facts(c,uid,by_id,code)
+    legacy_run_bests=_legacy_run_fastest_bests(c,uid)
+    for code in tracks.fastest_effort_track_codes():
+        fastest_count,fastest_crossing,fastest_best,fastest_season=_fastest_effort_facts(
+            c,uid,by_id,code,now,zone,legacy_run_bests)
         fastest_tiers=[tracks.Tier(rank,float(rank),name,'benchmarks',False)
                        for rank,(name,_distance,_seconds) in enumerate(tracks.fastest_effort_spec(code),1)
                        if float(rank) in fastest_crossing]
         add(code,fastest_count,fastest_crossing,bool(fastest_best),
             reached=fastest_tiers,
             state_extra={'earned_ranks':[tier.rank for tier in fastest_tiers],
-                         'best_seconds':{str(rank):seconds for rank,seconds in fastest_best.items()}})
+                         'best_seconds':{str(rank):seconds for rank,seconds in fastest_best.items()},
+                         'season_best_seconds':{str(rank):seconds for rank,seconds in fastest_season.items()},
+                         'season_year':now.astimezone(zone).year})
 
     events=_personal_best_events(c,uid,by_id)
     if events:

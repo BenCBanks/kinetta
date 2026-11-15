@@ -8,7 +8,7 @@ for(const [code,track] of Object.entries(catalog.tracks)){
  for(const row of track.levels){const file=path.join(__dirname,'../../app/static',row.icon.replace(/^\/static\//,'').split('?')[0]);assert(fs.existsSync(file),`${code}/${row.name} has a local Fluent Flat SVG`);}
 }
 assert.deepEqual(catalog.tracks.workouts.levels.slice(0,2).map(row=>[row.name,row.asset_name]),[['Seed','Chestnut'],['Sprout','Seedling']],'Workouts uses the canonical starter badges and artwork');
-assert.equal(catalog.version,7,'the fixture follows the canonical catalogue version');
+assert.equal(catalog.version,9,'the fixture follows the canonical catalogue version');
 assert.deepEqual(catalog.tracks.active_time.levels.slice(-2).map(row=>row.name),['A working year','Mastery (10,000 hours)']);
 assert.doesNotMatch(JSON.stringify(catalog),/A year of days|Century club|blue whales ×/i);
 assert.deepEqual(catalog.tracks.lifted.levels.slice(2,4).map(row=>row.name),['A school bus','A loaded semi truck']);

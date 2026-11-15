@@ -170,6 +170,62 @@ class Milestones(unittest.TestCase):
   self.assertEqual(workout['value'],10,'A later edit or deletion must not reduce lifetime progress')
   self.assertEqual(workout['level'],1)
   self.assertIn('trackt:workouts:10.0',[tier['code'] for tier in workout['history']])
+ def test_fastest_5k_backfills_from_existing_exact_efforts(self):
+  activity_ids=[self.activity(days=30,distance=5_000_000) for _ in range(2)]
+  with db.connect() as c:
+   for aid,seconds in ((activity_ids[0],1_541),(activity_ids[1],1_800)):
+    c.execute("INSERT INTO best_efforts(user_id,activity_id,sport,distance_m,label,elapsed_s,start_time) SELECT user_id,id,sport,5000,'5K',%s,start_time FROM activities WHERE id=%s AND user_id=%s",(seconds,aid,self.ids[0]))
+  self.process()
+  response=self.clients[0].get('/api/achievements');self.assertEqual(response.status_code,200,response.text)
+  fastest=next(row for row in response.json()['tracks'] if row['code']=='sport:run:fastest:5k')
+  self.assertEqual(fastest['earned_ranks'],[1,2,3,4],'an exact 25:41 5K backfills each slower nested band')
+  self.assertEqual(fastest['best_seconds'],{str(rank):1_541.0 for rank in range(1,10)},'a slower existing effort does not replace the lifetime best')
+
+ def test_five_run_distance_tracks_backfill_and_keep_lifetime_bests(self):
+  cases=(('1mi',1609.344,435),('5k',5000,1500),('10k',10000,3000),
+         ('half',21097.5,6300),('marathon',42195,12600))
+  activities={}
+  for slug,distance,seconds in cases:
+   aid=self.activity(days=30,distance=distance,uid=self.ids[0]);activities[slug]=aid
+   with db.connect() as c:
+    c.execute("INSERT INTO best_efforts(user_id,activity_id,sport,distance_m,label,elapsed_s,start_time) SELECT user_id,id,sport,%s,%s,%s,start_time FROM activities WHERE id=%s AND user_id=%s",
+              (distance,slug,seconds,aid,self.ids[0]))
+  self.process()
+  response=self.clients[0].get('/api/achievements');self.assertEqual(response.status_code,200,response.text)
+  tracks={row['code']:row for row in response.json()['tracks']}
+  self.assertEqual(set(code for code in tracks if code.startswith('sport:run:fastest:')),
+                   {f'sport:run:fastest:{slug}' for slug,_distance,_seconds in cases})
+  self.assertNotIn('sport:run:fastest',tracks,'the old mixed-distance ladder is retired from summaries')
+  self.assertFalse(any('age' in code for code in tracks),'age-graded efforts stay out of the catalogue')
+  for slug,_distance,seconds in cases:
+   item=tracks[f'sport:run:fastest:{slug}']
+   self.assertEqual(item['earned_ranks'],[1,2,3,4,5])
+   self.assertEqual(item['best_seconds'],{str(rank):float(seconds) for rank in range(1,10)})
+   self.assertEqual(item['season_year'],self.now.astimezone(M.ZoneInfo('America/New_York')).year)
+   self.assertEqual(item['season_best_seconds'],{str(rank):float(seconds) for rank in range(1,10)})
+  with db.connect() as c:c.execute('DELETE FROM activities WHERE user_id=%s AND id=%s',(self.ids[0],activities['1mi']))
+  self.process()
+  retained={row['code']:row for row in self.clients[0].get('/api/achievements').json()['tracks']}
+  self.assertEqual(retained['sport:run:fastest:1mi']['earned_ranks'],[1,2,3,4,5],
+                   'a stored lifetime best remains earned after its source activity is removed')
+
+ def test_legacy_mixed_run_bests_migrate_after_source_activity_is_gone(self):
+  self.activity(days=30,distance=10000)
+  details={'track':'sport:run:fastest','value':8,'earned_ranks':[1,2,3,4,5,6,7,8],
+           'best_seconds':{'1':540,'2':420,'3':1800,'4':1440,'5':3600,'6':2940,'7':8100,'8':6000}}
+  with db.connect() as c:
+   c.execute('''INSERT INTO milestones(user_id,code,kind,title,rank,day,occurred,details)
+                VALUES(%s,'track-state:sport:run:fastest','track_state','Fastest run efforts',0,%s,%s,%s)''',
+             (self.ids[0],self.now.date(),self.now,psycopg.types.json.Jsonb(details)))
+  self.process()
+  response=self.clients[0].get('/api/achievements');self.assertEqual(response.status_code,200,response.text)
+  current={row['code']:row for row in response.json()['tracks']}
+  self.assertNotIn('sport:run:fastest',current)
+  for slug,seconds in (('1mi',420),('5k',1440),('10k',2940),('half',6000)):
+   item=current[f'sport:run:fastest:{slug}']
+   self.assertEqual(item['earned_ranks'],[1,2,3,4,5],slug+' keeps saved lifetime levels')
+   self.assertEqual(item['best_seconds'],{str(rank):float(seconds) for rank in range(1,10)},
+                    slug+' recovers its saved lifetime best')
 
  def test_historical_run_imports_aggregate_across_sources(self):
   self.assertEqual(self.clients[0].put('/api/notifications/settings',json={'milestones':True}).status_code,200)
@@ -476,8 +532,12 @@ class Milestones(unittest.TestCase):
                    'achievement history stays private while sharing is off')
   self.assertEqual(owner.put('/api/sharing',json={'share_achievements':True}).status_code,200)
   with db.connect() as c:c.execute("UPDATE profile SET units='imperial' WHERE user_id=%s",(owner_id,))
+  run_10k=None
   for sport,distance in (('run',16093.44),('walk',16093.44),('swim',8046.72)):
-   self.activity(sport=sport,distance=distance,uid=owner_id)
+   aid=self.activity(sport=sport,distance=distance,uid=owner_id)
+   if sport=='run':run_10k=aid
+  with db.connect() as c:
+   c.execute("INSERT INTO best_efforts(user_id,activity_id,sport,distance_m,label,elapsed_s,start_time) SELECT user_id,id,sport,10000,'10K',3000,start_time FROM activities WHERE id=%s AND user_id=%s",(run_10k,owner_id))
   for _ in range(7):self.activity(distance=0,uid=owner_id)
   self.process(uid=owner_id)
   response=viewer.get(achievements,params=params);self.assertEqual(response.status_code,200,response.text)
@@ -487,6 +547,9 @@ class Milestones(unittest.TestCase):
    self.assertNotIn(key,workouts,'a shared track does not expose progress toward future levels')
   self.assertNotIn('best_seconds',workouts,'a shared fastest track keeps best times out of the profile payload')
   by_code={track['code']:track for track in shared['tracks']}
+  shared_fastest=by_code['sport:run:fastest:10k']
+  for key in ('best_seconds','season_best_seconds','season_year'):
+   self.assertNotIn(key,shared_fastest,'a shared fastest track does not expose private best-time details')
   for code,value in (('sport:run',10),('sport:walk-hike',10),('sport:swim',5)):
    track=by_code[code]
    self.assertGreater(track['level'],1,f'{code} keeps the server-computed lifetime level')
