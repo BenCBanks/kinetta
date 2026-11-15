@@ -110,7 +110,6 @@ const ShareArt=(()=>{
     const box={x:64,y:64,w:552,h:682},scale=Math.min(box.w/Math.max(spanX,1e-9),box.h/Math.max(spanY,1e-9)),cx=(minX+maxX)/2,cy=(minY+maxY)/2;
     const project=([x,y])=>[box.x+box.w/2+(x-cx)*scale,box.y+box.h/2+(y-cy)*scale];
     g.save();g.beginPath();points.forEach((point,index)=>{const [x,y]=project(point);index?g.lineTo(x,y):g.moveTo(x,y);});g.strokeStyle=color;g.lineWidth=12;g.lineCap='round';g.lineJoin='round';g.stroke();g.restore();
-    if(ink==='blue'){g.shadowColor='rgba(0,0,0,.42)';g.shadowBlur=6;g.shadowOffsetY=1;}
     const metrics=[...(pace?[['Pace',pace]]:[]),...(totalTime?[['Total time',totalTime]]:[])],metricX=690,metricWidth=326;
     metrics.forEach(([label,value],index)=>{const y=270+index*190;text(g,value,metricX,y,72,{color,weight:700,max:metricWidth});text(g,label,metricX,y+54,42,{color,weight:500,max:metricWidth});});
     drawMark(g,878,752,38,color);text(g,'Kinetta',925,765,36,{color,weight:700,max:135});
@@ -120,7 +119,6 @@ const ShareArt=(()=>{
     const pictureOwner=readOwner();await document.fonts.ready;const W=1080,H=620,canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const g=canvas.getContext('2d'),color=ink==='blue'?(getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#1F55D0'):ink==='light'?'#FFFFFF':'#151719';
     const metrics=[...(pace?[['Pace',pace]]:[]),...(totalTime?[['Total time',totalTime]]:[]),...(distance?[['Distance',distance]]:[])];
     if(!metrics.length)throw Error('There are no shared stats to show.');
-    if(ink==='blue'){g.shadowColor='rgba(0,0,0,.42)';g.shadowBlur=6;g.shadowOffsetY=1;}
     metrics.forEach(([label,value],i)=>{const y=108+i*150;text(g,value,72,y,72,{color,weight:700,max:760});text(g,label,72,y+54,42,{color,weight:500,max:760});});
     drawMark(g,878,562,38,color);text(g,'Kinetta',925,575,36,{color,weight:700,max:135});
     if(pictureOwner!==readOwner())throw Error('The account changed.');const pictureBlob=await blob(canvas);return{blob:pictureBlob,alt:[...metrics.map(([label,value])=>`${label} ${value}`),'Kinetta'].join('. '),width:W,height:H};
