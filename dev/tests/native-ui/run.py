@@ -98,6 +98,7 @@ for device in preferred:
      sim('install',udid,str(copy));installed=Path(sim('get_app_container',udid,'com.kinetta.app','app'))
     container=Path(sim('get_app_container',udid,'com.kinetta.app','data'))
     process_launch_epoch_ms=time.time_ns()/1_000_000 if measure_startup else None
+    process_launch_monotonic_ns=time.monotonic_ns() if measure_startup else None
     sim('launch',udid,'com.kinetta.app')
     metrics=None
     for _ in range(250):
@@ -105,7 +106,7 @@ for device in preferred:
       candidate=json.loads((container/'tmp/kinetta-ui-metrics.json').read_text())
       if candidate.get('run')==token:metrics=candidate;break
      except (OSError,ValueError):pass
-     time.sleep(.2)
+     time.sleep(.01 if measure_startup else .2)
     filename=device['name'].replace(' ','-').replace('(','').replace(')','')+'-'+theme+'-'+stage+'-'+str(root)
     if not metrics:
      sim('io',udid,'screenshot','--type=png',str(a.output/(filename+'-missing-metrics.png')),check=False,timeout=20)
@@ -115,7 +116,9 @@ for device in preferred:
      timing=metrics.get('startupTiming')
      assert timing,'Cold-start fixture did not return phase timestamps'
      timing['processLaunchEpochMs']=process_launch_epoch_ms
-     timing['phasesMs']=phase_durations(timing,process_launch_epoch_ms)
+     runner_elapsed_ms=(time.monotonic_ns()-process_launch_monotonic_ns)/1_000_000
+     timing['runnerElapsedToMetricsMs']=runner_elapsed_ms
+     timing['phasesMs']=phase_durations(timing,process_launch_epoch_ms,runner_elapsed_ms)
      startup_rows.append({'device':device['name'],'phases':timing['phasesMs']})
      phases=timing['phasesMs']
      print('IOS_COLD_START '+device['name']+' '+ ' '.join(f'{key}={value:.1f}ms' for key,value in phases.items()),flush=True)

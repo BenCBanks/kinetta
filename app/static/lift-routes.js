@@ -96,13 +96,11 @@ function liftLogger(el, aid, data) {
   let saveT = null, disposed = false, stopped = false, finishing = false, clock = null, setRecovery = null;
   const owned = () => owner === readOwner(), live = () => owned() && !disposed && el.isConnected;
   el.classList.add('compact-lift');
-  el.innerHTML = `<div class="top lift-top">${backBtn('Track')}${S.open?'<div class="lift-header-clock" aria-label="Session and rest time"><span><span class="vh">Session </span><b class="num" id="lf-time">0:00</b></span><span id="lf-restbox" hidden>Rest <b class="num" id="lf-rest">0:00</b></span></div>':''}<div class="acts"><span class="lift-save small muted" id="lf-save" role="status" aria-live="polite"></span>
-      ${S.open ? '<button class="primary sm" id="lf-finish">Finish</button>' : '<button class="primary sm" id="lf-done">Done</button>'}</div></div>
+  el.innerHTML = `<div class="top lift-top"><button type="button" class="back lift-back" data-back aria-label="Back to Lift">${svg('back')}<span></span></button>${S.open?'<div class="lift-header-clock" aria-label="Session and rest time"><b class="num" id="lf-time">0:00</b><span id="lf-restbox" hidden>Rest <b class="num" id="lf-rest">0:00</b></span></div>':'<span class="lift-header-clock" aria-hidden="true"></span>'}<div class="acts"><span class="lift-save small muted" id="lf-save" role="status" aria-live="polite"></span>
+      ${S.open ? `<button class="linkbtn lift-finish" id="lf-finish">Finish</button><button type="button" class="icon-btn lift-discard" id="lf-discard" aria-label="More session actions">${svg('more')}</button>` : '<button class="linkbtn lift-finish" id="lf-done">Done</button>'}</div></div>
     <div id="lf-list"></div>
-    <button class="primary wide lift-add" id="lf-add">${svg('plus')}Add exercise</button>
-    <p class="small muted center lift-foot">${S.open ? "Tick each set when you've done it. Only ticked sets are saved." : 'Every set with numbers in it is saved.'}</p>
-    ${S.open ? '<button type="button" class="linkbtn danger track-discard" id="lf-discard">Discard session</button>' : ''}`;
-  wireBack(el, `/activity/${aid}`);
+    <button class="primary wide lift-add" id="lf-add">${svg('plus')}Add exercise</button>`;
+  wireBack(el, `/activity/${aid}`, () => S.open ? 'Lift' : 'Progress');
   const list = $('#lf-list', el);
 
   // the session's time, and Rest: time since the last ticked set (shown once a set is ticked; nothing to set up)
@@ -181,7 +179,9 @@ function liftLogger(el, aid, data) {
 
   function draw() {
     if (!live()) return;
-    list.innerHTML = S.ex.length ? S.ex.map(exCard).join('') : `<div class="card empty"><b>No exercises yet</b>Add one. Your numbers from the previous session show beside each set.</div>`;
+    list.innerHTML = S.ex.length ? S.ex.map(exCard).join('') : S.open ? `<div class="lift-empty"><button type="button" class="primary wide lift-add" id="lf-empty-add">${svg('plus')}Add exercise</button></div>` : '<p class="lift-history-empty">No exercises recorded</p>';
+    $('#lf-add', el).hidden = !S.open || !S.ex.length;
+    const emptyAdd = $('#lf-empty-add', list); if (emptyAdd) emptyAdd.onclick = addExercise;
     wire();
   }
   // the columns: set number, the previous session's set (its date on top), the boxes, and the tick in a live session
@@ -190,12 +190,12 @@ function liftLogger(el, aid, data) {
   const prevText = (e, p) => (!p ? '' : e.kind === 'time' ? `${p.secs || 0} s` : p.kg && e.kind === 'body' ? `+${toW(p.kg)}${T}${p.reps || 0}` : p.kg ? `${toW(p.kg)}${T}${p.reps || 0}` : `${p.reps || 0}`);
   function exCard(e, i) {
     const c = cols(e), name = {n: 'Set', prev: e.last ? 'Last' : '', kg: e.kind === 'body' ? `+${wUnit()}` : wUnit(), reps: 'Reps', secs: 'Seconds', tick: ''};
-    return `<section class="card lift-ex" data-i="${i}"><div class="lift-hd"><div class="lift-title-line"><a class="lift-name" href="/lift/ex/${e.exercise_id}">${esc(e.name)}</a>${e.note?`<button type="button" class="lift-note" data-exnote aria-label="Edit note for ${esc(e.name)}">${esc(e.note)}</button>`:''}</div>
-        <button class="icon-btn" data-exmenu aria-label="More for ${esc(e.name)}">${svg('more')}</button></div>
+    return `<section class="card lift-ex" data-i="${i}"><div class="lift-hd"><div class="lift-title-line"><a class="lift-name" href="/lift/ex/${e.exercise_id}">${esc(e.name)}</a>${e.note?(S.open?`<button type="button" class="lift-note" data-exnote aria-label="Edit note for ${esc(e.name)}">${esc(e.note)}</button>`:`<span class="lift-note">${esc(e.note)}</span>`):''}</div>
+        ${S.open ? `<button type="button" class="icon-btn" data-exmenu aria-label="More for ${esc(e.name)}">${svg('more')}</button>` : ''}</div>
       <div class="lift-sets c${c.length}${e.last ? ' has-prev' : ''}" role="group" aria-label="${esc(e.name)} sets">
         <div class="lift-row lh">${c.map((k) => `<span class="lh-${k}">${esc(name[k])}</span>`).join('')}</div>
         ${e.sets.map((s, j) => setRow(e, s, j)).join('')}</div>
-      <button class="linkbtn lift-addset" data-addset>${svg('plus')}Add set</button></section>`;
+      ${S.open ? `<button class="linkbtn lift-addset" data-addset>${svg('plus')}Add set</button>` : ''}</section>`;
   }
   function setRow(e, s, j) {
     const p = e.last && e.last.sets[j];                                 // the previous session's set at this place
@@ -203,15 +203,19 @@ function liftLogger(el, aid, data) {
     const ph = (k) => { const src = p || above; return src && src[k] != null ? (k === 'kg' ? toW(src[k]) : String(src[k])) : ''; };
     const v = (k) => (s[k] == null ? '' : k === 'kg' ? toW(s[k]) : s[k]);
     const box = (k, mode, label) => `<input class="lift-in" data-j="${j}" data-k="${k}" inputmode="${mode}" enterkeyhint="next" autocomplete="off" value="${esc(v(k))}" placeholder="${esc(ph(k))}" aria-label="Set ${j + 1} ${label}">`;
+    const pr = (s.pr || []).map((k) => PR_NAMES[k]).join(', ');
+    const heavy = (s.pr || []).includes('heaviest'), number = s.warmup ? 'W' : j + 1 - e.sets.slice(0, j).filter((x) => x.warmup).length;
+    const trophy = '<span class="lift-heaviest" role="img" aria-label="Heaviest"><span aria-hidden="true">' + svg('trophy') + '</span></span>';
+    const display = (k) => `<span class="lift-read-value" data-k="${k}">${esc(k === 'kg' ? (toW(s.kg) ? `${toW(s.kg)} ${wUnit()}` : '–') : k === 'secs' ? (s.secs == null ? '–' : `${s.secs} s`) : (s.reps == null ? '–' : String(s.reps)))}</span>`;
     const cell = {
-      n: `<button type="button" class="lift-n${s.warmup ? ' wu' : ''}" data-set="${j}" aria-label="Set ${j + 1}, ${s.warmup ? 'warm-up' : 'working set'}. Actions" aria-haspopup="dialog"><span>${s.warmup ? 'W' : j + 1 - e.sets.slice(0, j).filter((x) => x.warmup).length}</span>${svg('down')}</button>`,
-      prev: p ? `<button type="button" class="lift-prev num" data-prev="${j}" aria-label="Use ${esc(prevText(e, p))} from ${esc(shortDay(e.last.start_time))}"><span class="lift-prev-label">Last · ${esc(shortDay(e.last.start_time))}:</span><span>${esc(prevText(e, p).replace(/ × /g,'×'))}</span></button>` : '<span class="lift-prev none">–</span>',
-      kg: box('kg', 'decimal', e.kind === 'body' ? `added ${wUnit()}` : wUnit()), reps: box('reps', 'numeric', 'reps'), secs: box('secs', 'numeric', 'seconds'),
+      n: S.open ? `<button type="button" class="lift-n${s.warmup ? ' wu' : ''}" data-set="${j}" aria-label="Set ${j + 1}, ${s.warmup ? 'warm-up' : 'working set'}. Actions" aria-haspopup="dialog"><span>${number}</span>${svg('down')}</button>` : `<span class="lift-n readonly">${number}</span>`,
+      prev: p ? (S.open ? `<button type="button" class="lift-prev num" data-prev="${j}" aria-label="Use ${esc(prevText(e, p))} from ${esc(shortDay(e.last.start_time))}"><span class="lift-prev-label">Last</span><span>${esc(prevText(e, p).replace(/ × /g,'×'))}</span></button>` : `<span class="lift-prev num"><span class="lift-prev-label">Last</span><span>${esc(prevText(e, p).replace(/ × /g,'×'))}</span></span>`) : '<span class="lift-prev none">–</span>',
+      kg: (S.open ? box('kg', 'decimal', e.kind === 'body' ? `added ${wUnit()}` : wUnit()) : display('kg')) + (heavy ? trophy : ''),
+      reps: S.open ? box('reps', 'numeric', 'reps') : display('reps'), secs: S.open ? box('secs', 'numeric', 'seconds') : display('secs'),
       tick: `<button type="button" class="lift-tick" data-tick="${j}" aria-pressed="${!!s.done}" aria-label="Set ${j + 1} done">${svg('check')}</button>`,
     };
-    const pr = (s.pr || []).map((k) => PR_NAMES[k]).join(', ');
     return `<div class="lift-row${s.done && S.open ? ' done' : ''}" data-row="${j}">${cols(e).map((k) => cell[k]).join('')}
-      ${pr ? `<span class="lift-pr" role="img" aria-label="New record: ${esc(pr)}">${svg('trophy')} ${esc(pr)}</span>` : ''}</div>`;
+      ${pr && pr !== 'Heaviest' ? `<span class="lift-pr" role="img" aria-label="New record: ${esc(pr)}">${svg('trophy')} ${esc(pr)}</span>` : ''}</div>`;
   }
   // records, after a save, without redrawing the boxes being typed in
   function marks() {
@@ -253,13 +257,13 @@ function liftLogger(el, aid, data) {
         for (const inp of $$(`.lift-in[data-j="${j}"]`, card)) { const k = inp.dataset.k; inp.value = p[k] == null ? '' : k === 'kg' ? toW(p[k]) : p[k]; e.sets[j][k] = p[k]; }
         later();
       });
-      $('[data-addset]', card).onclick = () => {
+      const addSet=$('[data-addset]',card);if(addSet)addSet.onclick = () => {
         e.sets.push({reps: null, kg: null, secs: null, warmup: false, done: false});   // blank; the grey numbers show what to type
         draw(); later();
         const row = $$(`.lift-ex[data-i="${i}"] .lift-in[data-j="${e.sets.length - 1}"]`, list)[0]; if (row) row.focus({preventScroll: true});
       };
       $$('[data-set]', card).forEach((b) => b.onclick = () => setMenu(e, +b.dataset.set));
-      $('[data-exmenu]', card).onclick = () => exMenu(i);
+      const menu=$('[data-exmenu]',card);if(menu)menu.onclick = () => exMenu(i);
       const note=$('[data-exnote]',card);if(note)note.onclick=()=>{if(live()&&!finishing)noteSheet(e,()=>draw());};
     });
   }
@@ -321,7 +325,7 @@ function liftLogger(el, aid, data) {
       draw(); save();
     });
   }
-  $('#lf-add', el).onclick = () => exercisePicker(S.ex.map((e) => e.exercise_id), async (ex) => {
+  const addExercise = () => exercisePicker(S.ex.map((e) => e.exercise_id), async (ex) => {
     // a new exercise gets as many blank sets as the previous session had, its numbers in grey
     if (!live() || finishing) return;
     let last = null, before = 0;
@@ -335,6 +339,7 @@ function liftLogger(el, aid, data) {
     draw(); save();
     const card = $$('.lift-ex', list).at(-1); if (card) card.scrollIntoView({behavior: 'smooth', block: 'center'});
   });
+  $('#lf-add', el).onclick = addExercise;
   const fin = $('#lf-finish', el) || $('#lf-done', el);
   fin.onclick = async () => {
     if (finishing || !live()) return;
