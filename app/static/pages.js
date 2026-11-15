@@ -1916,6 +1916,45 @@ route(/^\/track$/, 'track', async (el) => {
       if(allButtons.length<3)allButtons.forEach(button=>button.classList.remove('track-home-hidden'));
     }
     const start=$('#track-start',content);if(start){start.classList.remove('round-btn','start');start.classList.add('primary','wide','track-start-button');}
+    const plan=$('#track-plan',content),planLink=plan?.querySelector('a:first-child'),planLoad=plan?.querySelector('[data-plan-use]');
+    if(plan&&!plan.hidden&&planLink){
+      planLink.classList.add('track-plan-main');
+      const caption=planLink.querySelector('small'),title=planLink.querySelector('b');
+      if(caption&&caption.textContent!=="Today's plan")caption.textContent="Today's plan";
+      if(title)title.classList.add('track-plan-title');
+      if(planLoad){
+        planLoad.classList.add('track-plan-load');
+        if(plan.dataset.loaded==='true'){
+          if(!planLoad.disabled&&planLoad.textContent.trim()!=='Loading…'){
+            planLoad.setAttribute('aria-label','Plan loaded');
+            if(planLoad.dataset.trackPlanLoaded!=='true'){planLoad.innerHTML=`${svg('check')}<span>Loaded</span>`;planLoad.dataset.trackPlanLoaded='true';}
+          }
+        }else if(planLoad.dataset.trackPlanWatch!=='true'){
+          planLoad.setAttribute('aria-label',"Load today's plan");
+          if(planLoad.textContent.trim()==='Use')planLoad.textContent='Load';
+          planLoad.dataset.trackPlanWatch='true';
+          planLoad.addEventListener('click',()=>{
+            const settle=()=>{
+              if(!planLoad.isConnected)return;
+              if(planLoad.disabled||planLoad.textContent.trim()==='Loading…'){setTimeout(settle,40);return;}
+              if(!$('#track-ready-error',content)?.textContent.trim()&&globalThis.Intervals?.selected()){
+                plan.dataset.loaded='true';decorate();
+              }
+            };
+            setTimeout(settle,40);
+          });
+        }else{planLoad.setAttribute('aria-label',"Load today's plan");if(planLoad.textContent.trim()==='Use')planLoad.textContent='Load';}
+      }
+    }
+    if(start){
+      const label=start.getAttribute('aria-label')||'';
+      if(plan?.dataset.loaded==='true'&&/^Start (run|walk)$/i.test(label)){
+        const visible=label.replace(/^Start /i,'Start ');
+        const text=start.querySelector('span');if(text&&text.textContent!==visible)text.textContent=visible;
+      }else{
+        const text=start.querySelector('span');if(text&&/^Start (run|walk)$/i.test(text.textContent))text.textContent='Start';
+      }
+    }
     $('#track-content .track-gps-note')?.remove();$('#track-tools-h',content)?.remove();
     const interval=$('#interval-open',content);
     if(interval&&interval.dataset.trackHomeControl!=='1'){interval.innerHTML=`${svg('clock')}<span>Intervals</span>${svg('chev')}`;interval.dataset.trackHomeControl='1';}
@@ -1927,6 +1966,8 @@ route(/^\/track$/, 'track', async (el) => {
       connection.className='track-connection-row';connection.setAttribute('aria-label','Connections');
       if(connection.dataset.trackHomeDecorated!=='1'){connection.innerHTML=`<span>${svg('watch')}<b>Connections</b></span>${svg('chev')}`;connection.dataset.trackHomeDecorated='1';}
     }
+    const mapWrap=$('#track-ready-map-wrap',content),mapError=$('#track-ready-error',content);
+    mapWrap?.classList.toggle('track-map-failed',/^Map unavailable\b/.test(mapError?.textContent.trim()||''));
   };
   const remember=event=>{
     const button=event.target.closest('[data-quick]');if(!button||!content.contains(button))return;
