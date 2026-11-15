@@ -1,21 +1,23 @@
 // Real GPS/review controls with fictional demo fixes and intercepted save replies. No device actions or API writes.
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs');
-const fixture=require('../demo/track_session.cjs'),base=process.env.KINETTA_URL || 'http://localhost:8798',out=process.env.KINETTA_EVIDENCE;
+const fixture=require('../demo/track_session.cjs'),base=process.env.KINETTA_URL || 'http://localhost:8798',out=process.env.KINETTA_EVIDENCE,only=process.env.KINETTA_TRACKING_CASE||'';
 async function until(page,fn,label){for(let i=0;i<150;i++){if(await page.evaluate(fn))return;await page.waitForTimeout(100);}throw Error(label);}
 async function recordingControls(p,ids){
  assert(await p.locator('nav.tabs').isHidden(),'recording hides the tab bar');
- const fit=await p.evaluate(ids=>{const probe=document.createElement('div');probe.style.paddingBottom='env(safe-area-inset-bottom,0px)';document.body.append(probe);const bottom=innerHeight-parseFloat(getComputedStyle(probe).paddingBottom);probe.remove();const controls=document.querySelector('.track-controls').getBoundingClientRect();return{bottom,overflow:document.documentElement.scrollWidth>innerWidth+1,controls:controls.toJSON(),buttons:ids.map(id=>{const b=document.getElementById(id),r=b?.getBoundingClientRect();return{id,rect:r?.toJSON(),hit:r?document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('button')?.id:null};})};},ids);
- assert(!fit.overflow,'recording fits the phone width');
+ const fit=await p.evaluate(ids=>{const probe=document.createElement('div');probe.style.paddingBottom='env(safe-area-inset-bottom,0px)';document.body.append(probe);const bottom=innerHeight-parseFloat(getComputedStyle(probe).paddingBottom);probe.remove();const controls=document.querySelector('.track-controls').getBoundingClientRect();return{bottom,widthOverflow:document.documentElement.scrollWidth>innerWidth+1,heightOverflow:document.documentElement.scrollHeight>innerHeight+1,scrollHeight:document.documentElement.scrollHeight,innerHeight,track:document.querySelector('.track-live-main')?.getBoundingClientRect().toJSON(),controls:controls.toJSON(),buttons:ids.map(id=>{const b=document.getElementById(id),r=b?.getBoundingClientRect();return{id,rect:r?.toJSON(),hit:r?document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('button')?.id:null};})};},ids);
+ assert(!fit.widthOverflow,'recording fits the phone width');
+ assert(!fit.heightOverflow,'recording page does not scroll: '+JSON.stringify(fit));
  assert(fit.controls.top>=0&&fit.controls.bottom<=fit.bottom+1,'controls and captions fit the safe viewport: '+JSON.stringify(fit));
  for(const b of fit.buttons){assert(b.rect?.width>=44&&b.rect.height>=44,'recording targets remain at least 44px');assert.equal(b.hit,b.id,'recording button centre hits its own target: '+JSON.stringify(fit));}
 }
-// The compact tracking body is intentionally scrollable; interval controls stay pinned and viewport-checked above.
-// Assert its map/stats can be reached inside that body instead of requiring all content to fit without scrolling.
-async function liveContentReachable(page,selector,label){
- const state=await page.evaluate(selector=>{const body=document.querySelector('.track-live-body'),target=document.querySelector(selector);if(!body||!target)return{missing:true};body.scrollTop=body.scrollHeight;const b=body.getBoundingClientRect(),r=target.getBoundingClientRect();return{maxScroll:body.scrollHeight-body.clientHeight,visible:r.width>0&&r.height>0&&r.top>=b.top-1&&r.bottom<=b.bottom+1};},selector);
- assert(!state.missing&&state.visible,label+' stays reachable in the compact scrolling content area: '+JSON.stringify(state));
- await page.locator('.track-live-body').evaluate(n=>n.scrollTop=0);
+async function liveLayout(page,{map=true}={}){
+ const state=await page.evaluate(map=>{const rect=s=>document.querySelector(s)?.getBoundingClientRect(),h=rect('.track-live-top'),m=rect('.track-live-metrics[aria-label="Current workout"]'),g=rect('#track-map-wrap'),c=rect('.track-controls'),tab=document.querySelector('.track-live-tabs [aria-pressed="true"]'),tabStyle=tab&&getComputedStyle(tab);return{heightOverflow:document.documentElement.scrollHeight>innerHeight+1,widthOverflow:document.documentElement.scrollWidth>innerWidth+1,header:h?.height,metrics:m?.height,map:g?.height,mapVisible:!!g,controls:c?.toJSON(),tabShadow:tabStyle?.boxShadow,tabUnderline:tabStyle?.borderBottomWidth};},map);
+ assert(!state.heightOverflow&&!state.widthOverflow,'the whole recorder stays in the viewport: '+JSON.stringify(state));
+ assert(state.header>=44,'recorder title row is at least 44px');
+ assert.equal(state.tabShadow,'none','selected Map/Stats tab is an underline, not a box');assert.equal(state.tabUnderline,'2px','selected Map/Stats tab has its 2px underline');
+ if(map){assert(state.metrics>=64&&state.map>80&&state.mapVisible,'Map view keeps its one-row metrics and flexible map: '+JSON.stringify(state));}
+ else assert(await page.locator('.track-live-stats').isVisible(),'Stats remains reachable without a scrolling page');
 }
 async function reviewFailures(page,setMode,setCapabilities,saves) {
  const photo=path.resolve(__dirname,'../demo/photos/curry-rice-bowl.jpg');
@@ -46,15 +48,15 @@ async function intervalControls(browser,storageState,uid){
   await c.addInitScript(({recording,uid,base,root})=>{const key='kinetta.track:'+JSON.stringify([base,uid]);if(!localStorage.getItem(key))localStorage.setItem(key,JSON.stringify(recording));Object.defineProperty(navigator,'geolocation',{value:{watchPosition:()=>1,clearWatch:()=>{}}});document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px');},{recording,uid,base,root:size.root});
   await c.route('**/*',r=>{const req=r.request(),u=new URL(req.url());if(u.origin!==base)return r.abort();if(u.pathname==='/api/challenges/signup/continue')return r.fulfill({json:{}});if(!['GET','HEAD'].includes(req.method())){writes.push(u.pathname);return r.abort();}return r.continue();});
   await p.goto(base+'/track');await p.locator('#track-pause').click();await p.locator('#track-lap').waitFor();await recordingControls(p,['track-lap','track-pause','track-finish']);
-  if(size.root===16)await liveContentReachable(p,'#track-map-wrap','interval map');
+  await liveLayout(p);
   const actions=await p.locator('[data-interval-control]').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{width:r.width,height:r.height,hit:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('button')===n};}));assert.equal(actions.length,2);assert(actions.every(r=>r.width>=44&&r.height>=44&&r.hit),'interval controls remain full targets');
-  await p.locator('[data-display=stats]').click();await recordingControls(p,['track-lap','track-pause','track-finish']);if(size.root===16)await liveContentReachable(p,'.track-live-metrics','interval Stats');
+  await p.locator('[data-display=stats]').click();await recordingControls(p,['track-lap','track-pause','track-finish']);await liveLayout(p,{map:false});
   await p.locator('#track-finish').click();await p.locator('#track-save').waitFor();assert(await p.locator('nav.tabs').isHidden(),'direct Finish keeps unsaved review focused');await p.locator('#track-continue').click();await p.locator('#track-lap').waitFor();await recordingControls(p,['track-lap','track-pause','track-finish']);
-  await p.locator('#track-pause').click();await recordingControls(p,['track-discard','track-pause','track-finish']);assert(!(await p.locator('.track-live > p').innerText()).includes('background'));
+  await p.locator('#track-pause').click();await recordingControls(p,['track-discard','track-pause','track-finish']);assert.equal(await p.locator('.track-live .track-time-label,.track-live-stats .track-hero small').innerText(),'Paused');await liveLayout(p,{map:false});
   await p.evaluate(async()=>{const key='kinetta.track:'+JSON.stringify([location.origin,App.me.id]),r=JSON.parse(localStorage.getItem(key));await Track.forgetDraft();r.state='review';r.intervals.status='ended';localStorage.setItem(key,JSON.stringify(r));});await p.reload();await p.locator('#track-save').waitFor();await p.locator('.track-review-details summary').click();assert((await p.locator('#interval-live').innerText()).includes('Recording finished.'));assert(await p.locator('nav.tabs').isHidden());
   await p.locator('#track-continue').click();await p.locator('#track-lap').waitFor();await recordingControls(p,['track-lap','track-pause','track-finish']);
   await p.evaluate(()=>go('/progress'));await p.waitForURL('**/progress');assert(await p.locator('nav.tabs').isVisible(),'leaving Track restores navigation');await p.evaluate(()=>go('/track'));await p.locator('#track-pause').waitFor();assert(await p.locator('nav.tabs').isHidden());
-  await p.locator('#track-discard').click();await p.locator('#tr-discard').click();await p.locator('#track-start').waitFor();assert(await p.locator('nav.tabs').isVisible(),'Discard restores navigation');assert.equal(await p.evaluate(()=>Track.active),false);assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);await c.close();console.log(`Interval controls/review/navigation: ${size.width}/${size.root} ${theme} PASS`);
+  await p.locator('#track-pause').click();await recordingControls(p,['track-discard','track-pause','track-finish']);const discard=p.locator('#track-discard');await discard.click();await p.locator('#tr-discard').click();await p.locator('#track-start').waitFor();assert(await p.locator('nav.tabs').isVisible(),'Discard restores navigation');assert.equal(await p.evaluate(()=>Track.active),false);assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);await c.close();console.log(`Interval controls/review/navigation: ${size.width}/${size.root} ${theme} PASS`);
  }
 }
 (async()=>{
@@ -62,42 +64,31 @@ async function intervalControls(browser,storageState,uid){
  try {
   const auth=await b.newContext();assert.equal((await auth.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}})).status(),200);
   const me=await(await auth.request.get(base+'/api/me')).json(),state=await auth.storageState();await auth.close();
-  for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16},{width:1280,height:900,root:16}])for(const theme of ['light','dark']) {
+ for(const size of [{width:390,height:844,root:16},{width:330,height:667,root:16},{width:1280,height:900,root:16}])for(const theme of ['light','dark']) {
+   if(only==='intervals')continue;
+   if(only&&only!==`${size.width}-${theme}`)continue;
    const c=await b.newContext({storageState:state,viewport:{width:size.width,height:size.height},colorScheme:theme,serviceWorkers:'block'}),p=await c.newPage(),errors=[],writes=[],saves=[];
    p.on('pageerror',e=>errors.push(e.message));
    await c.addInitScript(({recording,uid,base,root})=>{
+    window.__KINETTA_SCREENSHOT_MODE__=true;
     const key='kinetta.track:'+JSON.stringify([base,uid]);if(!localStorage.getItem(key))localStorage.setItem(key,JSON.stringify(recording));
     Object.defineProperty(navigator,'geolocation',{value:{watchPosition:()=>1,clearWatch:()=>{}}});
     document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px');
    },{recording:fixture(),uid:me.id,base,root:size.root});
    let saveMode='offline',capabilities='current';
-   await c.route('**/*',r=>{const req=r.request(),url=new URL(req.url());if(url.origin!==base)return r.abort();if(url.pathname==='/api/challenges/signup/continue')return r.fulfill({json:{}});if(url.pathname==='/api/milestones/celebrate'&&req.method()==='POST')return r.fulfill({json:{items:[],pending:false}});if(url.pathname==='/api/track/capabilities' && capabilities==='old')return r.fulfill({status:404,json:{detail:'Not Found'}});if(!['GET','HEAD'].includes(req.method())){if(url.pathname==='/api/activities/track'){saves.push(req.postDataJSON());return saveMode==='offline'?r.abort('internetdisconnected'):saveMode==='validation'?r.fulfill({status:422,json:{detail:'Check this recording.'}}):r.fulfill({json:{id:999942,duplicate:false}});}writes.push(url.pathname);return r.abort();}return r.continue();});
+   await c.route('**/*',r=>{const req=r.request(),url=new URL(req.url());if(url.origin!==base)return r.abort();if(url.pathname==='/api/map-config')return r.fulfill({json:{kind:'raster',url:base+'/__track_tiles/light/{z}/{x}/{y}.svg',dark_url:base+'/__track_tiles/dark/{z}/{x}/{y}.svg',max_zoom:18,attribution:'Fictional demo map'}});if(url.pathname.startsWith('/__track_tiles/'))return r.fulfill({contentType:'image/svg+xml',body:`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="${url.pathname.includes('/dark/')?'#20262b':'#edf1ec'}"/><path d="M0 52H256M0 174H256M56 0V256M178 0V256" stroke="${url.pathname.includes('/dark/')?'#39434a':'#fff'}" stroke-width="8"/></svg>`});if(url.pathname==='/api/challenges/signup/continue')return r.fulfill({json:{}});if(url.pathname==='/api/milestones/celebrate'&&req.method()==='POST')return r.fulfill({json:{items:[],pending:false}});if(url.pathname==='/api/track/capabilities' && capabilities==='old')return r.fulfill({status:404,json:{detail:'Not Found'}});if(!['GET','HEAD'].includes(req.method())){if(url.pathname==='/api/activities/track'){saves.push(req.postDataJSON());return saveMode==='offline'?r.abort('internetdisconnected'):saveMode==='validation'?r.fulfill({status:422,json:{detail:'Check this recording.'}}):r.fulfill({json:{id:999942,duplicate:false}});}writes.push(url.pathname);return r.abort();}return r.continue();});
    const snap=async name=>{if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`${size.width}x${size.height}-${size.root}-${theme}-${name}.png`)});}};
-   await p.goto(base+'/track');await p.locator('#track-pause').waitFor();await p.locator('#track-pause').click();await p.locator('#track-lap').waitFor();
-   await until(p,()=>!!document.querySelector('#track-map .leaflet-pane'),'live map');
-   assert((await p.locator('.track-live-metrics').innerText()).includes('Avg pace'));assert.notEqual(await p.locator('#track-lap-pace').innerText(),'—','new journal knows its current mile pace');
-   await recordingControls(p,['track-lap','track-pause','track-finish']);
-   await p.locator('[data-display=stats]').click();await recordingControls(p,['track-lap','track-pause','track-finish']);await p.locator('[data-display=map]').click();
-   {
-    await until(p,()=>!!document.querySelector('#track-map .map-unavailable:not([hidden])'),'blocked basemap feedback');
-    const feedback=await p.evaluate(()=>{const box=document.querySelector('#track-map').getBoundingClientRect(),note=document.querySelector('#track-map .map-unavailable').getBoundingClientRect(),gps=document.querySelector('#track-gps-live').getBoundingClientRect();const others=[...document.querySelectorAll('#track-map-wrap #track-follow,#track-map-wrap .map-full,#track-map .leaflet-control-attribution')].map(n=>n.getBoundingClientRect());return {box:box.toJSON(),note:note.toJSON(),gps:gps.toJSON(),inside:note.top>=box.top && note.bottom<=box.bottom && note.left>=box.left && note.right<=box.right,overlap:[gps,...others].some(r=>r.width>0&&r.height>0&&Math.min(note.right,r.right)>Math.max(note.left,r.left)&&Math.min(note.bottom,r.bottom)>Math.max(note.top,r.top))};});
-    assert(feedback.inside && !feedback.overlap,'offline map feedback fits without covering GPS '+JSON.stringify(feedback));
-   }
+   await p.goto(base+'/track');await p.locator('#track-pause').waitFor();await until(p,()=>!!document.querySelector('#track-map .leaflet-tile-loaded'),'fictional live map tiles');
+   await recordingControls(p,['track-discard','track-pause','track-finish']);await liveLayout(p);assert.equal(await p.locator('.track-time-label').innerText(),'Paused');await snap('00-paused');
+   await p.locator('#track-pause').click();await p.locator('#track-lap').waitFor();
+   assert((await p.locator('.track-live-metrics').innerText()).includes('Avg pace'));assert((await p.locator('.track-live-metrics').innerText()).includes('Distance'));
+   await recordingControls(p,['track-lap','track-pause','track-finish']);await liveLayout(p);assert.equal(await p.locator('#track-map-wrap .map-full').count(),0,'live map has no fullscreen button');assert.equal(await p.locator('#track-gps-live').isVisible(),false,'GPS accuracy stays off the map');
+   await p.locator('[data-display=stats]').click();assert.notEqual(await p.locator('#track-lap-pace').innerText(),'—','new journal knows its current mile pace');await recordingControls(p,['track-lap','track-pause','track-finish']);await liveLayout(p,{map:false});await p.locator('[data-display=map]').click();
+   const follow=p.locator('#track-follow'),followBox=await follow.boundingBox(),followLabel=await follow.getAttribute('aria-label');assert(followBox.width===44&&followBox.height===44,'route-follow control has a 44px target');await follow.click();assert.notEqual(await follow.getAttribute('aria-label'),followLabel,'route-follow control reports its changed map mode');
    await snap('01-live');
-   await p.locator('#track-map-wrap .map-full').click();assert(await p.locator('#track-map-wrap.full').isVisible());
-   assert(await p.locator('#track-map-wrap.full [data-track-lap]').isVisible());assert(await p.locator('nav.tabs').isHidden());
-   const full=await p.locator('.track-full-controls button').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{width:r.width,height:r.height,left:r.left,right:r.right,bottom:r.bottom,hit:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('button')===n};}));assert.equal(full.length,4);assert(full.every(r=>r.width>=44&&r.height>=44&&r.left>=0&&r.right<=size.width&&r.bottom<=size.height&&r.hit),'expanded-map controls fit and hit their own targets: '+JSON.stringify(full));assert(full.every((r,i)=>!i||r.left-full[i-1].right>=7.98),'expanded-map controls retain at least 8px gaps');
-   await p.locator('#track-map-wrap.full [data-track-lap]').click();assert(await p.locator('#track-map-wrap.full').isVisible(),'Lap leaves the expanded map open');
-   const first=await p.evaluate(()=>JSON.parse(localStorage.getItem('kinetta.track:'+JSON.stringify([location.origin,App.me.id]))));
-   assert.equal(first.laps.length,1);assert.equal(first.laps[0].distance,first.distance,'first manual lap starts at activity start');assert(first.laps[0].distance>1609.344);
-   await snap('02-map-manual');await p.keyboard.press('Escape');assert.equal(await p.locator('#track-map-wrap.full').count(),0);assert.equal(await p.locator(':focus').getAttribute('aria-label'),'Full-screen map');
-   await p.locator('#track-map-wrap .map-full').click();await p.goBack();await until(p,()=>!document.querySelector('#track-map-wrap.full'),'map Back');assert.equal(new URL(p.url()).pathname,'/track');
-   if(size.width===390 && theme==='light'){
-    const map=await p.locator('#track-map').boundingBox(),x=map.x+map.width*.75,y=map.y+map.height*.5;
-    await p.mouse.click(x,y);assert.equal(await p.locator('#track-map-wrap.full').count(),1,'a deliberate map tap expands it');await p.keyboard.press('Tab');assert(await p.locator(':focus').evaluate(n=>!!n.closest('#track-map-wrap')),'keyboard focus stays in the map');await p.keyboard.press('Escape');
-    await p.mouse.move(x,y);await p.mouse.down();await p.mouse.move(x-32,y-16,{steps:5});await p.mouse.up();assert.equal(await p.locator('#track-map-wrap.full').count(),0,'panning does not become an expand tap');
-   }
-   await p.locator('#track-pause').click();await recordingControls(p,['track-discard','track-pause','track-finish']);assert((await p.locator('.track-live > p').innerText()).includes('Recording paused.'));await p.locator('#track-finish').click();await until(p,()=>!!document.querySelector('#track-photos-add:not(:disabled)'),'review/photo storage');
+   await p.locator('[data-display=stats]').click();await recordingControls(p,['track-lap','track-pause','track-finish']);await liveLayout(p,{map:false});await p.locator('[data-display=map]').click();await recordingControls(p,['track-lap','track-pause','track-finish']);
+   await p.locator('#track-lap').click();const first=await p.evaluate(()=>JSON.parse(localStorage.getItem('kinetta.track:'+JSON.stringify([location.origin,App.me.id]))));assert.equal(first.laps.length,1);assert.equal(first.laps[0].distance,first.distance,'first manual lap starts at activity start');assert(first.laps[0].distance>1609.344);
+   await snap('02-map-manual');await p.locator('#track-pause').click();await recordingControls(p,['track-discard','track-pause','track-finish']);await liveLayout(p);assert.equal(await p.locator('.track-time-label').innerText(),'Paused');await snap('03-paused');await p.locator('#track-finish').click();await until(p,()=>!!document.querySelector('#track-photos-add:not(:disabled)'),'review/photo storage');
    assert.equal(await p.locator('.top h1').innerText(),'Review activity');assert(await p.locator('#track-review-charts .chartbox').count()>=1);
    await p.locator('input[name=activity_name]').fill('Fictional weekend run');const mapBeforePhoto=await p.locator('#track-map').elementHandle();
    await p.locator('#track-photos-file').setInputFiles(path.resolve(__dirname,'../demo/photos/curry-rice-bowl.jpg'));await until(p,()=>document.querySelectorAll('.track-photo-list figure').length===1 && !document.querySelector('#track-save').disabled,'local photo review');
@@ -122,6 +113,6 @@ async function intervalControls(browser,storageState,uid){
    const isolation=await p.evaluate(async image=>{const scope='kinetta.track:'+JSON.stringify([location.origin,App.me.id]);await TrackReviewStore.photos(scope,'owned-local-check',[image]);await TrackReviewStore.photos('fictional-other-server-account','other-local-check',[image]);await Track.forgetDraft();const own=await TrackReviewStore.read(scope,'owned-local-check'),other=await TrackReviewStore.read('fictional-other-server-account','other-local-check');await TrackReviewStore.erase('fictional-other-server-account');return [own.photos.length,other.photos.length];},saves[0].photos[0]);assert.deepEqual(isolation,[0,1],'local account erasure cannot touch a different account/server');
    assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);await c.close();console.log(`GPS lap/map/photo/chart/save/recovery: ${size.width}x${size.height}px/${size.root}px ${theme} PASS`);
   }
-  await intervalControls(b,state,me.id);
+  if(!only||only==='intervals')await intervalControls(b,state,me.id);
  }finally{await b.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
