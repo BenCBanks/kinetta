@@ -10,8 +10,8 @@ function journeys(fixtures){
  const settings=[['/me/devices','Signed-in devices','#dv-list .device-row'],['/me/sharing','Sharing & privacy','#sh-find'],['/track/connections','Connections','#page a'],['/me/notifications','Notifications','#nt-push']];
  const sheets=[['#m-name','Your name','#ac'],['#m-login','Username','#ac'],['#m-email','Email','.sheet[aria-label="Email"]'],['#m-pw','Change password','#pw'],['#m-body','Body, heart rate & time zone','#m-form'],['#m-kit','Kit','#kit-settings-panel'],['#m-del','Delete my account','#del']];
  const cases=[
-  // Tap the blank banner; the centered week label sits above the full-card link.
-  {id:'me-profile',start:'/me',taps:['.me-card-open-link'],tapPositions:[{x:48,y:18}],end:ownList},
+  // Open the full profile from the visible avatar/name identity link.
+  {id:'me-profile',start:'/me',taps:['a.me-card-profile-link'],end:ownList},
   {id:'me-friends',start:'/me',taps:['.me-friends-link[href]'],end:destination('/me/friends','Friends','.friends-page')},
   {id:'me-progress',start:'/me',taps:['.me-insights .me-insight-row[href="/progress"]'],end:destination('/progress','Progress','#p-explore')},
   {id:'activity-detail-back',start:'/activity',startReady:'#feed-tools[aria-busy=false]',action:'feedBack',end:destination('/activity','Home','#feed-tools')},

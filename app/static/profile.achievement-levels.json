@@ -565,9 +565,9 @@
           "canonical_unit": "m",
           "display": "ft",
           "display_value": 35000,
-          "emoji": "✈️",
-          "asset_name": "Airplane",
-          "icon": "/static/profile.fluent-emoji/flat/airplane_flat.svg?v=__ASSET_HASH__"
+          "emoji": "⛰️",
+          "asset_name": "Mountain",
+          "icon": "/static/profile.fluent-emoji/flat/mountain_flat.svg?v=__ASSET_HASH__"
         },
         {
           "name": "Edge of the sky",

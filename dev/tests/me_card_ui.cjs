@@ -146,27 +146,22 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();
   const weekly=p.locator('.me-card-weekly'),label=p.locator('[data-week-label]'),chart=p.locator('.me-card-bars'),weeks=p.locator('.me-week');
   await p.locator('.me-featured-slot[data-loaded="true"]').waitFor();await p.locator('.me-featured-achievements').waitFor();
-  const profileLink=p.locator('.me-card-open-link'),linkBox=await profileLink.boundingBox(),cardBox=await p.locator('.me-card').boundingBox(),featuredBox=await p.locator('.me-featured-achievements').boundingBox();
-  assert.equal(await profileLink.getAttribute('aria-label'),'Open my profile','the profile link has the approved VoiceOver label');
+  const previewAction=weekly.locator('.me-card-numbers + .me-card-preview-row [data-card-preview]');
+  assert.equal(await previewAction.innerText(),'View as friend','friend preview link sits immediately beneath the weekly stats');
+  assert.equal(await weekly.locator('.me-card-preview-row ~ .me-chart-scroll .me-card-bars').count(),1,'friend preview link stays above the chart and achievements');
+  const profileLink=p.locator('a.me-card-profile-link'),identityBox=await profileLink.boundingBox();
+  assert.equal(await profileLink.getAttribute('aria-label'),null,'the profile link name comes from its visible identity');
+  assert.equal(await p.getByRole('link',{name:/Alex Rivera.*@alex/}).count(),1,'the profile link exposes its visible name and handle accessibly');
   assert.match(await profileLink.getAttribute('href'),/^\/people\/alex(?:\?|$)/,'the profile link opens the owner profile');
-  assert(Math.abs(linkBox.x-cardBox.x)<1&&Math.abs(linkBox.y-cardBox.y)<1&&Math.abs(linkBox.width-cardBox.width)<1,'the profile link covers the card width from its top edge');
-  assert(featuredBox.y-(linkBox.y+linkBox.height)>=7.98,`the profile link leaves 8px before the Featured entry and medals (${featuredBox.y-(linkBox.y+linkBox.height)}px)`);
-  const identity=p.locator('.me-card-profile-link');
+  assert(identityBox.width>200&&identityBox.height>=44,'the avatar and name share a comfortable profile link target');
+  const identity=profileLink;
   assert.equal(await identity.locator('.me-card-avatar').count(),1);assert.equal(await identity.locator('h2').innerText(),'Alex Rivera');
   assert.equal(await identity.locator('.me-card-meta').innerText(),'@alex');
-  const chevron=p.locator('.me-profile-chevron'),arrow=await chevron.locator('svg').boundingBox(),heading=await p.locator('.me-card-name-heading').boundingBox(),title=await identity.locator('h2').boundingBox();
-  assert.equal(await chevron.count(),1,'one decorative chevron sits beside the owner name');
-  const chevronStyle=await chevron.evaluate(n=>({color:getComputedStyle(n).color,background:getComputedStyle(n).backgroundColor,border:getComputedStyle(n).borderWidth,pointer:getComputedStyle(n).pointerEvents}));
-  assert(Math.abs(arrow.width-20)<.1&&Math.abs(arrow.height-20)<.1,'the profile chevron is about 20px');
-  assert(arrow.x+arrow.width<=heading.x+heading.width+.5&&arrow.x+arrow.width>=heading.x+heading.width-22,'the chevron is at the right end of the name row '+JSON.stringify({arrow,heading,title}));
-  assert(Math.abs(arrow.y+arrow.height/2-(title.y+title.height/2))<2,'the chevron is level with Alex Rivera');
-  assert(chevronStyle.color!=='rgb(255, 255, 255)'&&chevronStyle.background==='rgba(0, 0, 0, 0)'&&chevronStyle.border==='0px'&&chevronStyle.pointer==='none','the chevron is mid-grey, unboxed and decorative '+JSON.stringify(chevronStyle));
-  const arrowHit=await p.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('.me-card-open-link'),{x:arrow.x+arrow.width/2,y:arrow.y+arrow.height/2});
-  assert(arrowHit,'tapping the decorative chevron reaches the whole-card profile link');
+  assert.equal(await p.locator('.me-card-open-link,.me-profile-chevron').count(),0,'the card has one visible identity link without an overlay or chevron');
   assert.equal(await p.locator('.me-card-id > .me-friends-link').count(),1,'friend navigation remains a separate link');
   assert.equal(await profileLink.locator('.me-friends-link').count(),0,'friend navigation is not nested inside the profile link');
   for(const [selector,label] of [['.me-card-banner [data-card-edit]','Edit'],['.me-card-banner [data-card-share]','Share'],['.me-card [data-card-preview]','View as friend'],['.me-card-id > .me-friends-link .me-friends-count','friends'],['.me-card-id > .me-friends-link .badge.alert','waiting chip'],['.me-card .me-milestone-all','Recent milestones']]){
-   const target=p.locator(selector).first();if(await target.count()&&await target.isVisible()){const box=await target.boundingBox(),cardLinkAtCenter=await p.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('.me-card-open-link'),{x:box.x+box.width/2,y:box.y+box.height/2});assert(!cardLinkAtCenter,`${label} remains its own tap target above the profile link`);}
+   const target=p.locator(selector).first();if(await target.count()&&await target.isVisible()){const box=await target.boundingBox(),profileHit=await p.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('a.me-card-profile-link'),{x:box.x+box.width/2,y:box.y+box.height/2});assert(!profileHit,`${label} remains a separate tap target outside the profile identity link`);}
   }
   assert.equal(await p.locator('.me-divider').count(),0,'no hairline divider separates the Me card and Today');
   await weeks.first().waitFor();assert.equal(await weeks.count(),12,'Me has one 12-week chart');
