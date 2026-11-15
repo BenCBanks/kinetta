@@ -20,3 +20,17 @@
 
 /* Keep the complete title readable on a narrow screen when text is enlarged. */
 @media (max-width:370px) { .notification-settings > h1 { font-size:max(28px,1.5rem); overflow-wrap:normal; } }
+
+/* Notification Center uses date groups, not read-state groups. */
+.notes-group + .notes-group { margin-top:18px; }
+.notes-h { margin:18px 4px 8px;color:var(--tx3);font:500 13px/1.25 var(--font-ui);letter-spacing:0;text-transform:none; }
+.notifications-caught-up { margin:24px 4px;color:var(--tx2);font-size:15px; }
+.notification-alerts > h2 { margin-bottom:14px; }
+.notification-alerts #np-kinds > h3 { margin:12px 4px 4px;color:var(--tx3);font:500 13px/1.25 var(--font-ui); }
+.notification-alerts #np-kinds > h3:first-child { margin-top:0; }
+.notification-alerts #np-kinds .notification-choices { gap:0; }
+.notification-alerts #np-kinds .switch-row + .switch-row { border-top:1px solid var(--line); }
+.notification-alerts #np-kinds .switch-row { padding:8px 0; }
+.notification-settings .personal-notice-time { display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;margin:0;padding:6px 0;border-top:1px solid var(--line); }
+.notification-settings .personal-notice-time select { width:auto;min-width:104px;max-width:48%;min-height:44px;text-align:right; }
+.notification-settings .settings-footnote { margin:8px 0 0;color:var(--tx3);font-size:13px;line-height:1.4; }
