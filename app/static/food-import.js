@@ -1,6 +1,7 @@
 // ---------- Add past days (2026-10-09): paste / CSV / one day -> preview -> save ----------
 route(/^\/food\/import$/, 'food', async (el) => {
   if(Native.on)return go('/food',{replace:true});
+  el.classList.add('food-import');
   const lb = imp(), wu = lb ? 'lb' : 'kg', today = isoDay(new Date());
   const wshow = (kg) => (kg == null ? '–' : (lb ? kg * 2.20462 : kg).toFixed(1));
   el.innerHTML = `<div class="top">${backBtn('Nutrition')}</div><h1>Add past days</h1>
