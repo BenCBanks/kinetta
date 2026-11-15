@@ -24,6 +24,16 @@ async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))
    const exercises=[{exercise_id:999902,name:'Fictional bench press',kind:'weight',sets:[{kg:null,reps:null,done:false}],last:{activity_id:999900,start_time:past,sets:[{kg:60,reps:8}]}},
      {exercise_id:999903,name:'Fictional push-up',kind:'body',sets:[{reps:null,done:false}],last:{activity_id:999900,start_time:past,sets:[{reps:12}]}},
      {exercise_id:999904,name:'Fictional hold',kind:'time',sets:[{secs:null,done:false}],last:{activity_id:999900,start_time:past,sets:[{secs:45}]}}];
+   const workoutHistory={name:'Fictional Full Body',sessions:[
+    {activity_id:999908,start_time:fixtureStamp(0),exercises:[{exercise_id:999902,name:'Fictional bench press',kind:'weight',sets:[{n:1,kg:60,reps:8},{n:2,kg:55,reps:10}]},{exercise_id:999903,name:'Fictional push-up',kind:'body',sets:[{n:1,reps:12}]}]},
+    {activity_id:999907,start_time:fixtureStamp(7),exercises:[{exercise_id:999902,name:'Fictional bench press',kind:'weight',sets:[{n:1,kg:55,reps:9}]}]},
+   ]};
+   await c.route('**/api/lifts/sessions/999908/history',r=>r.fulfill({json:workoutHistory}));
+   await p.goto(base+'/lift/history/workout/999908');await until(p,()=>App.pageReady&&!!document.querySelector('.compact-lift-history .lift-history-list'));
+   assert.equal((await p.locator('.lift-history-date').count()),2,'workout history shows the saved session and one previous session');
+   assert.equal((await p.locator('.lift-history-name').count()),3,'workout history links each exercise to its history');
+   assert.equal((await p.locator('.lift-history input,.lift-history button[data-set],.lift-history .lift-tick,.lift-history .lift-addset').count()),0,'saved workout history has no editing controls');
+   assert.equal((await p.locator('.compact-lift-history [data-back]').innerText()).trim(),'Track','saved workout history has a labelled back');
    let release,first=true;const writes=[];
    await c.route('**/api/activities/999901/lifts',async r=>{
     assert.equal(r.request().method(),'PUT');const body=r.request().postDataJSON();writes.push(body);
