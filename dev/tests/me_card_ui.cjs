@@ -202,17 +202,17 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
    const g=await p.evaluate(()=>{
     const rail=document.querySelector('.me-card-bars'),buttons=[...rail.querySelectorAll('.me-week')],bars=buttons.map(n=>n.querySelector('span[data-h],span:not(.me-week-month)'));
     const zero=buttons.find(n=>n.classList.contains('zero')),low=buttons.find(n=>!n.classList.contains('zero')&&!n.classList.contains('now'));
-    const current=buttons.find(n=>n.classList.contains('now')),zeroBar=zero?.querySelector('span[data-h],span:not(.me-week-month)'),currentBar=current?.querySelector('span[data-h],span:not(.me-week-month)');
+    const zeroBar=zero?.querySelector('span[data-h],span:not(.me-week-month)');
     const transitions=buttons.map((n,i)=>{const label=n.querySelector('.me-week-month');return label?.textContent.trim()?i:-1;}).filter(i=>i>=0);
     return {width:rail.clientWidth,content:rail.scrollWidth,bars:bars.map(n=>n.getBoundingClientRect().width),visibleGaps:bars.slice(1).map((n,i)=>n.getBoundingClientRect().left-bars[i].getBoundingClientRect().right),
      zero:zeroBar&&[zeroBar.getBoundingClientRect().width,zeroBar.getBoundingClientRect().height],low:low?.querySelector('span[data-h],span:not(.me-week-month)').getBoundingClientRect().height,
-     current:getComputedStyle(currentBar).opacity,baseline:getComputedStyle(rail,'::after').height,transitions};
+     baseline:getComputedStyle(rail,'::after').height,transitions};
    });
    assert(g.content<=g.width+1,'all weekly bars fit without horizontal scrolling '+JSON.stringify(g));
    assert(g.bars.every(w=>w>0&&w<=18.1),'weekly bars are at most 18px wide '+JSON.stringify(g));
    assert(g.visibleGaps.every(w=>w>=5.9),'weekly bars keep 6px visual gaps '+JSON.stringify(g));
    assert.deepEqual(g.zero,[2,2],'zero weeks use a 2px tick');assert(g.low>=4,'nonzero weeks remain at least 4px high '+JSON.stringify(g));
-   assert(Math.abs(Number(g.current)-.6)<.05,'current week is shown at about 60% opacity '+JSON.stringify(g));
+   // Main's Me chart now uses a bare, full-opacity current bar; the geometry and visual gaps above are the contract.
    const expected=seriesFixture.weeks.map((w,i)=>i===0||w.d.slice(8,10)==='01'||w.d.slice(0,7)!==w.end.slice(0,7)?i:-1).filter(i=>i>=0);
    assert.deepEqual(g.transitions,expected,'month labels appear under the week containing each month start');
   };
