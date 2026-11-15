@@ -661,7 +661,7 @@ function insights(a) {
   if (a.route_count > 1) out.push(['', `You've done this route ${a.route_count} times`, 'See how you compare over time below.']);
   return out;
 }
-function sportStats(a) {
+function sportStats(a, asRows = false) {
   const s = [];
   const add = (l, v, u = '') => { if (v != null && v !== '–') s.push([l, String(v), u]); };
   if (a.sport === 'swim') {
@@ -686,7 +686,7 @@ function sportStats(a) {
   // Durations remain separately labelled even when equal or only seconds apart.
   add('Moving time', a.moving_s != null ? activityMovingText(a) : null);
   add('Calories', a.calories ? Math.round(a.calories) : null); add('Temp', a.avg_temp != null ? U.temp(a.avg_temp) : null);
-  return s;
+  return asRows ? s : s.map(([label,value,unit]) => stat(label,value,unit)).join('');
 }
 
 route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
@@ -753,7 +753,7 @@ function drawDetail(el, a) {
   const hero = a.lifts && !a.distance_m ? headline(a) : (a.distance_m ? stat('Distance', U.dist(a.distance_m), U.du()) : '') + stat('Elapsed time', activityElapsedText(a)) + (a.distance_m && r.label!=='Time' ? stat(r.label, r.v, r.u) : '');
   const ins = insights(a);
   const splits = imp() ? a.splits_mi : a.splits_km;
-  const more = sportStats(a);
+  const more = sportStats(a,true);
   const detailRows = rows => rows.map(([label,value,unit='']) => `<div class="detail-kv"><span>${esc(label)}</span><b>${esc(value)}${unit?` <i>${esc(unit)}</i>`:''}</b></div>`).join('');
   const workoutRows = [
     ['Sport', a.sport_label || SPORT_NAMES[a.sport] || a.sport],

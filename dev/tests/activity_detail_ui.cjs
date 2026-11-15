@@ -134,7 +134,7 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
     assert.equal(await primary.nth(1).locator('b').innerText(),'–','elapsed stays unavailable instead of falling back to moving time');
     await p.getByRole('tab',{name:'Details',exact:true}).click();
     const details=p.locator('#activity-pane-overview');await details.waitFor({state:'visible'});
-    const rows=await details.locator('.stat').evaluateAll(nodes=>nodes.map(n=>({label:n.querySelector('small').textContent,value:n.querySelector('b').textContent})));
+    const rows=await details.locator('.detail-kv').evaluateAll(nodes=>nodes.map(n=>({label:n.querySelector('span').textContent,value:n.querySelector('b').textContent.trim()})));
     assert.deepEqual(rows.filter(row=>row.label==='Moving time'),[{label:'Moving time',value:'40m'}],'known moving time remains available in Details');
     assert.deepEqual(rows.filter(row=>row.label==='Elapsed time'),[{label:'Elapsed time',value:'Unavailable'}],'Details labels unavailable elapsed duration');
     assert(!rows.some(row=>row.label==='Pace'),'Details does not fabricate whole-activity pace');
@@ -146,7 +146,7 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
    }
    if(['equal-times','close-times','friend-close','zero-moving'].includes(kind)){
     await p.getByRole('tab',{name:'Details',exact:true}).click();const details=p.locator('#activity-pane-overview');await details.waitFor({state:'visible'});
-    const rows=await details.locator('.stat').evaluateAll(nodes=>nodes.map(n=>({label:n.querySelector('small').textContent,value:n.querySelector('b').textContent})));
+    const rows=await details.locator(kind==='friend-close'?'.stat':'.detail-kv').evaluateAll(nodes=>nodes.map(n=>n.matches('.stat')?({label:n.querySelector('small').textContent,value:n.querySelector('b').textContent}):({label:n.querySelector('span').textContent,value:n.querySelector('b').textContent.trim()})));
     const expected=kind==='zero-moving'?[{label:'Elapsed time',value:'40m'},{label:'Moving time',value:'0m'}]:[{label:'Elapsed time',value:'40m'},{label:'Moving time',value:'40m'}];
     assert.deepEqual(rows.filter(row=>row.label==='Elapsed time'||row.label==='Moving time'),expected,`${kind} details keep both duration labels`);
     assert.doesNotMatch(await details.innerText(),/NaN|Infinity/);assert.deepEqual(errors,[]);
