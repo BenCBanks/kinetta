@@ -1353,10 +1353,10 @@ function groupGoal(group){
   const title=GROUP_GOALS[group.goal_type]||'Shared goal',targetText=`of ${groupAmount(target,group.goal_unit)}`,sourceText=combined?` · ${source} sharing`:'';
   return `<section class="group-goal card" aria-label="Shared goal"><progress class="group-progress" max="${progressMax}" value="${progressValue}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} ${esc(targetText)}"></progress><strong class="group-goal-value">${esc(groupAmount(value,group.goal_unit))}</strong><small class="group-goal-label">${combined?'Together':'Your total'} · ${esc(title)} · ${esc(targetText)}${sourceText}</small>${group.event_state==='ongoing'?'<small class="group-goal-period">All time</small>':''}${weekHtml}${weeklyCheer}${combined?'':'<small class="group-goal-hint">Group totals appear with 3 members</small>'}</section>`;
 }
-function groupPage(el,group){
+function groupPage(el,group,selectedTab='members',keepExpanded=false){
   group={...group,event_state:group.event_state||(group.event_date==null?'ongoing':(group.days_to_event||0)===0?'today':'upcoming'),updates:group.updates||[],weekly_reaction:group.weekly_reaction||{my_reaction:null,reactions:{}}};
-  let expanded=false,activeTab='members';
-  const reload=async()=>{invalidate('/api/groups/'+encodeURIComponent(group.id));try{const fresh=await api('/api/groups/'+encodeURIComponent(group.id));if(el.isConnected)groupPage(el,fresh);}catch(error){if(el.isConnected)toast(error.message);}};
+  let expanded=keepExpanded,activeTab=selectedTab;
+  const reload=async()=>{invalidate('/api/groups/'+encodeURIComponent(group.id));try{const fresh=await api('/api/groups/'+encodeURIComponent(group.id));if(el.isConnected)groupPage(el,fresh,activeTab,expanded);}catch(error){if(el.isConnected)toast(error.message);}};
   const draw=()=>{const weeks=group.weeks_to_event??Math.ceil(group.days_to_event/7),timing=group.event_state==='today'?"Today’s the day":group.event_state==='complete'?'Event complete':`${weeks} ${weeks===1?'week':'weeks'} to go`;
     const total=group.total!==undefined?`${groupAmount(group.total,group.goal_unit)} · from ${Number(group.sharing_member_count)||0} of ${group.member_count}`:`You: ${groupAmount(group.your_total,group.goal_unit)}`;
     const summary=group.event_state==='ongoing'?`${GROUP_GOALS[group.goal_type]||'Shared goal'} · ${total}`:`${groupDate(group.event_date,group.time_zone)} · ${timing}`;
