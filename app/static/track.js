@@ -121,7 +121,7 @@ const Track = (() => {
     session = {...incoming, points,_snapshotClock:typeof performance!=='undefined'?performance.now():0,routePlan:Object.prototype.hasOwnProperty.call(incoming,'routePlan')?incoming.routePlan:pinned}; if (typeof name==='string') session.name = name;if(visibility)session.visibility=visibility;
     session.lapSupport=result.lapSupport===1;
     if(pendingLap && !session.laps?.some(l=>l.id===pendingLap))session.pendingLap=pendingLap;
-    message = result.message || ''; persist(); update(); refreshMap();
+    message = result.message || '';session.locationDenied=/location permission denied|location permission stopped|location services are off/i.test(message);session.gpsUnavailable=/gps stopped|gps temporarily unavailable|gps unavailable/i.test(message);persist();update();refreshMap();
   }
   async function pullNative() {
     if (nativeTask || controlling || saving || !TrackNative.supported || !App.me) return nativeTask;
@@ -146,7 +146,7 @@ const Track = (() => {
     if (!session || session.state === 'review' || saving) return;
     if (document.hidden) return;
     if (session.native) { await nativeControl('resume'); return; }
-    session.state = 'recording'; session.activeAt = Date.now(); session.lastMove = session.activeAt; message = session.gps ? 'Waiting for a clear GPS signal…' : 'Timer running';
+    session.state = 'recording'; session.activeAt = Date.now(); session.lastMove = session.activeAt;session.locationDenied=false;session.gpsUnavailable=false;session.gpsFix=null; message = session.gps ? 'Waiting for a clear GPS signal…' : 'Timer running';
     if (!persist()) return;
     if (session.gps) {
       if (!navigator.geolocation || !window.isSecureContext) { message = 'GPS needs a secure connection and location support. You can use the timer instead.'; pause(); draw(); return; }
@@ -154,11 +154,21 @@ const Track = (() => {
       watch = navigator.geolocation.watchPosition((p) => {
         if (session !== activeSession || readOwner() !== activeOwner || session.state !== 'recording' || document.hidden) return;
         if (session.points.length >= 72000) { pause(); message = 'GPS point limit reached. Finish and save this session.'; draw(); return; }
+        session.gpsFix={accuracy:p.coords.accuracy,at:p.timestamp};session.gpsUnavailable=false;
         const before = (session.splits || []).length;
-        if (TrackMath.accept(session, p, Date.now())) { if ((session.splits || []).length > before) announce(session); message = `GPS connected · ±${Math.round(p.coords.accuracy)} m`; session.checkpoint = Date.now(); persist(false); update(); refreshMap(); }
+        const previousMile=session.mileLap;
+        if (TrackMath.accept(session, p, Date.now())) {
+          if ((session.splits || []).length > before) announce(session);
+          if(session.mileLap&&session.mileLap.distance!==(previousMile?.distance||0)){
+            const index=Math.round(session.mileLap.distance/TrackMath.MILE),duration=session.mileLap.seconds-(previousMile?.seconds||0);
+            if(duration>0)flashLap(`Mile ${index} · ${rateText(session,TrackMath.MILE/duration)}`);
+          }
+          message = `GPS connected · ±${Math.round(p.coords.accuracy)} m`; session.checkpoint = Date.now(); persist(false); update(); refreshMap();
+        }
         else if (p.coords.accuracy > 100) { message = 'Weak GPS signal · waiting for better accuracy'; update(); }
       }, (e) => {
         if (session !== activeSession || readOwner() !== activeOwner || session.state !== 'recording') return;
+        session.locationDenied=e.code===1;session.gpsUnavailable=e.code!==1;
         message = e.code === 1 ? 'Location permission denied. Allow it in device settings, or use the timer.' : 'GPS unavailable. Move into the open and retry, or use the timer.';
         pause(); draw();
       }, {enableHighAccuracy: true, maximumAge: 0, timeout: 15000});
@@ -203,9 +213,20 @@ const Track = (() => {
     $$('[data-track-lap]').forEach(b=>{b.disabled=controlling||saving||session.state!=='recording'||session.native&&!session.lapSupport;b.setAttribute('aria-label',session.pendingLap?'Retry marking lap':'Mark lap');const label=$('small',b.parentElement);if(label)label.textContent=session.pendingLap?'Retry lap':'Lap';});
     $$('[data-track-pause]').forEach(b=>b.disabled=controlling||saving);
     for(const id of ['track-pause','track-finish']){const b=$('#'+id);if(b)b.disabled=controlling||saving;}
-    // plain Recording / Paused is what the dot shows; screen readers still hear it, sighted people see only news
-    const status = $('#track-status'); if (status) { status.textContent = idle ? 'Auto-paused · starts again when you move' : message || (session.state === 'recording' ? 'Recording' : 'Paused'); status.classList.toggle('vh', !idle && (!message || /^(Recording|Paused)$/.test(message))); }
+    const fix=session.gpsFix || (session.state!=='recording'&&session.points?.length ? {accuracy:session.points.at(-1).accuracy,at:session.start+session.points.at(-1).t*1000} : null);
+    const denied=!!session.locationDenied || /Location permission denied/i.test(message);
+    const gpsState=!session.gps?'':denied?'denied':!fix?(session.gpsUnavailable?'lost':'finding'):
+      session.state==='recording'&&now-fix.at>15000?'lost':fix.accuracy>20?'weak':'good';
+    const indicator=$('.track-gps-indicator');
+    if(indicator){indicator.dataset.state=gpsState;const label=$('.track-gps-label',indicator);if(label)label.textContent=({good:'',weak:'Weak GPS',lost:'No GPS',finding:'Finding GPS',denied:'No GPS'})[gpsState]||'';indicator.setAttribute('aria-label',({good:'GPS signal good',weak:'Weak GPS signal',lost:'No GPS signal',finding:'Finding GPS',denied:'Location is off'})[gpsState]||'');}
+    const accuracy=$('#track-gps-accuracy'),fixText=fix&&fix.accuracy>0?`GPS ±${Math.max(1,Math.round(imp()?fix.accuracy*3.28084:fix.accuracy))} ${imp()?'ft':'m'}`:'';
+    if(accuracy){accuracy.textContent=fixText;accuracy.hidden=!fixText;}
+    const title=$('.track-live-title-label'),flash=session.lapFlash;
+    if(title){const active=!!flash&&now<flash.until;title.textContent=active?flash.text:session.label;title.classList.toggle('is-lap-flash',active);}
+    // Plain Recording / Paused is what the dot shows; screen readers still hear it, sighted people see only news.
+    const status = $('#track-status'); if (status) { status.textContent = idle ? 'Auto-paused · starts again when you move' : denied ? 'Location is off. The timer and controls still work.' : message || (session.state === 'recording' ? 'Recording' : 'Paused'); status.classList.toggle('vh', !idle && !denied && (!message || /^(Recording|Paused)$/.test(message))); }
   }
+  function flashLap(text){if(!session)return;session.lapFlash={text,until:Date.now()+5000};update();}
   async function markLap() {
     if(!session?.gps || session.state!=='recording' || controlling || saving)return;
     const id=session.id,expected=readOwner(),previous=(session.laps || []).length;
@@ -221,7 +242,7 @@ const Track = (() => {
     }
     if(session?.id!==id || readOwner()!==expected)return;
     const lap=session.laps?.[previous],before=session.laps?.[previous-1];
-    if(lap)toast(`Lap ${previous+1} · ${U.dist(lap.distance-(before?.distance || 0),2)} ${U.du()} · ${clock(lap.seconds-(before?.seconds || 0))}`);
+    if(lap){const distance=lap.distance-(before?.distance||0),duration=lap.seconds-(before?.seconds||0);flashLap(`Lap ${previous+1} · ${duration>0&&distance>10?rateText(session,distance/duration):clock(duration)}`);}
   }
   const OUTDOOR = [['run','Run'],['run','Trail run','Trail Running'],['ride','Ride'],['ride','Mountain bike','Mountain Biking'],['walk','Walk'],['hike','Hike'],['swim','Open-water swim','Open Water'],['row','Row on water'],['ski','Ski'],['other','Other outdoor activity']];
   const TRACK_QUICK = [0, 2, 4, 5, OUTDOOR.length];
