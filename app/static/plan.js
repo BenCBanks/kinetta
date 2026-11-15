@@ -34,9 +34,9 @@ function compactWorkoutPace(w,paces,plan){
 }
 function compactWorkoutRow(w,U,paces,plan){
   const day=pday(w.day,{weekday:'short',day:'numeric'}),tone=workoutTone(w.type);
-  if(w.type==='rest')return `<div class="pw compact-workout plan-rest" data-workout-kind="rest"><span class="pw-date">${esc(day)}</span><span class="pw-mark" aria-hidden="true"></span><span>Rest</span></div>`;
+  if(w.type==='rest')return `<div class="pw compact-workout plan-rest" data-workout-kind="rest"><time class="pw-date">${esc(day)}</time><span class="plan-day-sport" aria-hidden="true"></span><span class="pw-main"><b>Rest</b></span></div>`;
   const pace=compactWorkoutPace(w,paces,plan),done=w.status==='done',result=done?(w.activity_id&&!w.by_hand&&w.actual!=null?`${w.actual} ${U}`:'Done'):w.short?`${w.actual} / ${w.dist} ${U}`:w.status==='missed'?'Missed':w.status==='today'?'Today':'';
-  return `<button type="button" class="pw compact-workout ${esc(w.status||'')}" data-workout-kind="${tone}" data-wday="${esc(w.day)}"><span class="pw-date">${esc(day)}</span><span class="pw-mark" aria-hidden="true"></span><span class="pw-main"><b>${esc(w.title)}</b>${pace||result?`<small class="pw-meta">${pace?`<span>${esc(pace)}</span>`:''}${result?`<span class="pw-result${done?' plan-completion':''}">${done?svg('check'):''}${esc(result)}</span>`:''}</small>`:''}</span><span class="chev">${svg('chev')}</span></button>`;
+  return `<button type="button" class="pw compact-workout ${esc(w.status||'')}" data-workout-kind="${tone}" data-wday="${esc(w.day)}"><time class="pw-date">${esc(day)}</time><span class="plan-day-sport">${done?`<span class="plan-day-check" aria-label="Done">${svg('check')}</span>`:sportMark('run')}</span><span class="pw-main"><b>${esc(w.title)}</b>${pace||result?`<small class="pw-meta">${pace?`<span>${esc(pace)}</span>`:''}${result?`<span class="pw-result${done?' plan-completion':''}">${esc(result)}</span>`:''}</small>`:''}</span><span class="chev">${svg('chev')}</span></button>`;
 }
 function planWeekRows(week,U,{compact=false,paces={},plan={}}={}) {
   const byDay=new Map(week.workouts.map(w=>[w.day,w]));
@@ -119,7 +119,7 @@ route(/^\/plan$/, 'progress', async (el) => {
   if (typeof progressVisit === 'function') progressVisit('plan');
   const q = new URLSearchParams(location.search);
   el.classList.add('plan-page');
-  el.innerHTML = `<div class="top plan-top">${backBtn('Progress')}<h1>Training plan</h1><button type="button" class="icon-btn" id="pl-actions" aria-label="Plan options" aria-haspopup="dialog" hidden>${svg('more')}</button></div><div id="pl">${skel(2)}</div>`;
+  el.innerHTML = `<header class="top shell-topbar plan-top">${BackCircle('Progress')}<h1>Training plan</h1><div class="acts shell-topbar-actions"><button type="button" class="icon-btn" id="pl-actions" aria-label="Plan options" aria-haspopup="dialog" hidden>${svg('more')}</button></div></header><div id="pl">${skel(2)}</div>`;
   wireBack(el, '/progress');
   await planInto($('#pl', el), q.get('new'));
 });
@@ -138,15 +138,13 @@ function planOverview(box, d) {
   const started = d.today >= p.start_day, w = d.today_workout, n = d.next_workout;
   const detail = (k, v) => `<div class="kv"><span>${esc(k)}</span><b>${esc(v)}</b></div>`;
   const next=w&&w.status!=='done'?w:n,done=cur.workouts.filter(x=>x.status==='done').length,planned=Number(cur.planned)>0;
-  const progress=planned?`${cur.done} / ${cur.planned} ${U}`:`${done} / ${cur.workouts.length} workouts`,fraction=planned?Number(cur.done)/Number(cur.planned):done/Math.max(1,cur.workouts.length);
   const openKey=readOwner()+':'+p.id+':'+cur.n;if(!planWeekOpen.has(openKey))planWeekOpen.set(openKey,new Set([cur.n]));const expanded=planWeekOpen.get(openKey);
   box.classList.add('plan-overview');
   box.innerHTML=`<section class="card compact-plan-summary"><div class="plan-summary-title"><h2>${esc(p.race_name)}</h2><span>${esc(p.level_name)} · ${p.weeks} weeks</span></div>
-    <p class="plan-summary-facts"><span>${esc(pday(p.race_day))}</span><span>${d.days_to_race>=0?`${d.days_to_race} day${d.days_to_race===1?'':'s'} to go`:'Finished'}</span>${d.predicted_s?`<span>Endurance estimate ${esc(fmtT(d.predicted_s))}</span>`:''}${p.goal_s?`<span>Goal ${esc(fmtT(p.goal_s))}</span>`:''}</p>
-    ${started?`<div class="plan-week-progress"><span>${d.this_week?`Week ${d.this_week} · ${esc(cur.phase)}`:'Plan finished'}</span><b class="num">${esc(progress)}</b></div><progress max="1" value="${Math.max(0,Math.min(1,fraction))}" aria-label="This week's completed ${planned?'distance':'workouts'}"></progress>`:`<p class="plan-start-date">Starts ${esc(pday(p.start_day))}</p>`}</section>
-    ${next?`<section class="card plan-next"><div class="plan-next-grid"><button type="button" class="plan-next-workout" data-wday="${esc(next.day)}"><small>${next.day===d.today?'Today':'Next · '+esc(pday(next.day))}${next.minutes?` · about ${esc(next.minutes)} min`:''}</small><b>${esc(next.title)}</b>${compactWorkoutPace(next,pc,p)?`<span class="small muted">${esc(compactWorkoutPace(next,pc,p))}</span>`:''}</button><button type="button" class="primary plan-next-start" data-plan-start>Start</button></div><p class="small danger" data-plan-error role="alert"></p></section>`:''}
-    <section class="card plan-weeks"><div class="plan-weeks-title"><h2>Weeks</h2><details class="plan-key"><summary>Key</summary><div class="plan-legend"><span data-workout-kind="easy">Easy</span><span data-workout-kind="hard">Workout / intervals</span><span data-workout-kind="long">Long run</span><span data-workout-kind="rest">Rest</span></div></details></div>
-    ${[cur,...d.weeks.filter(wk=>wk.n!==cur.n)].map((wk,index)=>`${index===1?'<h3 class="plan-other-title">Other weeks</h3>':''}<details class="pweek${wk.n===cur.n?' current':''}" data-week="${wk.n}"${expanded.has(wk.n)?' open':''}><summary><span class="plan-week-name"><b>Week ${wk.n}</b> · ${esc(wk.phase)}</span><span class="small num">${wk.planned?(started&&wk.n<=cur.n?`${wk.done} / `:'')+wk.planned+' '+esc(U):wk.workouts.length+' workouts'}</span></summary>${planWeekRows(wk,U,{compact:true,paces:pc,plan:p})}</details>`).join('')}</section>
+    <div class="plan-summary-stats">${[[pday(p.race_day),'Race day'],[d.days_to_race>=0?`${d.days_to_race} day${d.days_to_race===1?'':'s'}`:'Finished','Days to go'],[d.predicted_s?fmtT(d.predicted_s):'–','Estimate']].map(([value,label])=>`<div class="plan-summary-stat"><b>${esc(value)}</b><small>${esc(label)}</small></div>`).join('')}</div>
+    ${next?`<div class="plan-next"><h3>Next workout</h3><div class="plan-next-grid"><button type="button" class="plan-next-workout" data-wday="${esc(next.day)}"><small>${next.day===d.today?'Today':pday(next.day)}${next.minutes?` · about ${esc(next.minutes)} min`:''}</small><b>${esc(next.title)}</b></button><button type="button" class="primary plan-next-start" data-plan-start>Start</button></div><p class="small danger" data-plan-error role="alert"></p></div>`:''}</section>
+    <section class="plan-weeks"><div class="plan-weeks-title"><h2>Weeks</h2><span>${cur.planned?`${cur.planned} ${esc(U)} this week`:''}</span></div>
+    ${[cur,...d.weeks.filter(wk=>wk.n!==cur.n)].map(wk=>`<details class="pweek${wk.n===cur.n?' current':''}" data-week="${wk.n}"${expanded.has(wk.n)?' open':''}><summary><span class="plan-week-name"><b>Week ${wk.n}</b><span>${esc(wk.phase)}</span></span><span class="small num">${wk.planned?(started&&wk.n<=cur.n?`${wk.done} / `:'')+wk.planned+' '+esc(U):wk.workouts.length+' workouts'}</span></summary>${planWeekRows(wk,U,{compact:true,paces:pc,plan:p})}</details>`).join('')}</section>
     <details class="card plan-extra" id="pl-more"><summary>Plan details & paces</summary>
     <div class="plan-detail-section"><h2>Progress so far</h2>
       <div class="stats3">${stat('Workouts', `${pr.workouts_done || 0}/${pr.workouts_due || 0}`)}${stat('Distance', `${pr.done_so_far || 0}`, `/${pr.planned_so_far || 0} ${U}`)}${stat('Weeks done', `${pr.weeks_done || 0}/${p.weeks}`)}</div>
