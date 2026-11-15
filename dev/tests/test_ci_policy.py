@@ -158,6 +158,21 @@ class CIPolicyTests(unittest.TestCase):
                       ((enabled=='true' and store=='success') or (enabled=='false' and store=='skipped')))
             self.assertEqual(actual,expected,(values,cancelled))
 
+    def test_simulator_runs_retry_once_and_only_pr_failures_are_quarantined(self):
+        ios=(ROOT/'.github/workflows/ios.yml').read_text()
+        native=ios.split('\n  native-ui:\n',1)[1].split('\n  store-ui:\n',1)[0]
+        store=ios.split('\n  store-ui:\n',1)[1].split('\n  testflight:\n',1)[0]
+        for job in (native,store):
+            self.assertIn("continue-on-error: ${{ github.event_name == 'pull_request' }}",job)
+            self.assertIn('continue-on-error: true',job)
+            self.assertEqual(job.count('Retry '),1)
+            self.assertIn('outcome == \'failure\'',job)
+            self.assertEqual(job.count('run.py'),2)
+        self.assertIn('Owner: Basil; expires 2026-11-22.',native)
+        testflight=ios.split('\n  testflight:\n',1)[1].split('\n    runs-on:',1)[0]
+        self.assertIn('needs.native-ui.result == \'success\'',testflight)
+        self.assertIn('needs.store-ui.result == \'success\'',testflight)
+
     def test_tester_delivery_survives_the_skipped_store_job(self):
         # A bare output check carries an implicit success(), which a skipped upstream Store job turns false:
         # builds 2723 and 2752 uploaded but never reached testers. The beta job must state its own status check.
