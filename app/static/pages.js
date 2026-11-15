@@ -663,7 +663,7 @@ function insights(a) {
 }
 function sportStats(a) {
   const s = [];
-  const add = (l, v, u) => { if (v != null && v !== '–') s.push(stat(l, v, u)); };
+  const add = (l, v, u = '') => { if (v != null && v !== '–') s.push([l, String(v), u]); };
   if (a.sport === 'swim') {
     const r=rate(a); add('Pace', r.label==='Pace'?r.v:null, U.swu());
     add('Lengths', a.lengths); add('SWOLF', a.swolf ? Math.round(a.swolf) : null); add('Strokes', a.strokes ? Math.round(a.strokes) : null);
@@ -686,7 +686,7 @@ function sportStats(a) {
   // Durations remain separately labelled even when equal or only seconds apart.
   add('Moving time', a.moving_s != null ? activityMovingText(a) : null);
   add('Calories', a.calories ? Math.round(a.calories) : null); add('Temp', a.avg_temp != null ? U.temp(a.avg_temp) : null);
-  return s.join('');
+  return s;
 }
 
 route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
@@ -754,25 +754,42 @@ function drawDetail(el, a) {
   const ins = insights(a);
   const splits = imp() ? a.splits_mi : a.splits_km;
   const more = sportStats(a);
+  const detailRows = rows => rows.map(([label,value,unit='']) => `<div class="detail-kv"><span>${esc(label)}</span><b>${esc(value)}${unit?` <i>${esc(unit)}</i>`:''}</b></div>`).join('');
+  const workoutRows = [
+    ['Sport', a.sport_label || SPORT_NAMES[a.sport] || a.sport],
+    ...(a.device ? [['Device', a.device]] : []),
+    ...(a.gear_name ? [['Gear', a.gear_name]] : []),
+    ...more,
+  ];
+  const detailGroup = (name,content) => content ? `<section class="detail-group"><h3>${esc(name)}</h3>${content}</section>` : '';
   const pane = {
-    overview: `${a.power_curve && a.power_curve.length ? `<div class="card"><h2>Power curve</h2><table class="tbl">${a.power_curve.map(p => `<tr><td>${p.seconds < 60 ? p.seconds + ' s' : p.seconds / 60 + ' min'}</td><td class="r">${p.watts} W</td></tr>`).join('')}</table></div>` : ''}${a.has_intervals?'<section class="card" id="activity-interval-history"></section>':''}${liftCard(a)}${more ? `<div class="card"><h2>Details</h2><div class="hero more">${more}</div>
-        ${a.gear_name ? `<p class="small muted">Gear: ${esc(a.gear_name)}</p>` : ''}</div>` : ''}
-      ${a.private_note ? `<div class="card"><h2>Private note</h2><p class="small">${esc(a.private_note)}</p></div>` : ''}
-      ${ins.length ? `<div class="card"><h2>Insights</h2>${ins.map(([k, t, d]) => { const icon=t.startsWith('New personal record')?'trophy':t==='Hard session'?'flame':''; return `<div class="insight"><span class="${icon?'insight-icon':'dot'} ${k}">${icon?svg(icon):''}</span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></div>`; }).join('')}</div>` : ''}
-      ${a.route_id ? `<a class="card tap" href="/route/${a.route_id}" data-prefetch="/api/routes/${a.route_id}"><h2>${esc(a.route_name)}<span class="more">Compare ›</span></h2><p>Matched route · ${a.route_count} activities. See your trend on this route.</p></a>` : ''}
-      ${a.line && appFeatureEnabled('progress_segments') ? '<div id="d-segments"></div>' : ''}`,
-    splits: `${splits && splits.length > 1 ? `<div class="card"><h2>Splits</h2>${splitsTable(a, splits)}</div>` : ''}
-      ${a.laps && a.laps.length > 1 ? `<div class="card"><h2>Laps</h2>${lapsTable(a)}</div>` : ''}`,
+    overview: `<div class="card activity-detail-list">
+      ${a.description ? `<p class="detail-description">${esc(a.description)}</p>` : ''}
+      ${detailGroup('Workout',`<div class="detail-kv-list">${detailRows(workoutRows)}</div>`)}
+      ${a.has_intervals ? detailGroup('Intervals','<div id="activity-interval-history"></div>') : ''}
+      ${a.lifts ? detailGroup('Lifting',liftCard(a)) : ''}
+      ${a.power_curve && a.power_curve.length ? detailGroup('Power curve',`<table class="tbl detail-power-table"><tbody>${a.power_curve.map(p => `<tr><td>${p.seconds < 60 ? p.seconds + ' s' : p.seconds / 60 + ' min'}</td><td class="r">${p.watts} W</td></tr>`).join('')}</tbody></table>`) : ''}
+      ${ins.length ? detailGroup('Insights',ins.map(([k,t,d])=>{const icon=t.startsWith('New personal record')?'trophy':t==='Hard session'?'flame':'';return `<div class="insight detail-insight"><span class="${icon?'insight-icon':'dot'} ${k}">${icon?svg(icon):''}</span><div><b>${esc(t)}</b><span>${esc(d)}</span></div></div>`;}).join('')) : ''}
+      ${a.route_id ? `<a class="detail-link-row" href="/route/${a.route_id}" data-prefetch="/api/routes/${a.route_id}"><span>${esc(a.route_name)}<small>Matched route · ${a.route_count} activities</small></span><b class="detail-link-end"><span class="detail-compare">Compare</span>${svg('chev')}</b></a>` : ''}
+      ${a.line && appFeatureEnabled('progress_segments') ? '<div id="d-segments"></div>' : ''}
+      ${a.private_note ? detailGroup('Private note',`<p class="detail-note">${esc(a.private_note)}</p>`) : ''}
+      ${a.source==='healthkit'&&!a.line&&['run','ride','walk','hike'].includes(a.sport)?'<button class="detail-text-action" type="button" id="d-add-map">Add the map</button>':''}
+      <div class="detail-action-row"><div id="d-photos"></div><button type="button" class="detail-text-action" id="d-comment-open">Comment</button></div>
+    </div>`,
+    splits: `${splits && splits.length > 1 || a.laps && a.laps.length > 1 ? `<div class="card activity-detail-list">
+      ${splits && splits.length > 1 ? splitsTable(a,splits) : ''}
+      ${a.laps && a.laps.length > 1 ? `<section class="detail-group"><h3>Laps</h3>${lapsTable(a)}</section>` : ''}
+    </div>` : ''}`,
     charts: `${activitySamples(a) ? '<div class="card activity-chart-card"><div id="d-charts" class="activity-charts"></div></div>' : ''}
       ${a.zones ? `<div class="card"><h2>Heart-rate zones</h2>${zonesHtml(a.zones)}</div>` : ''}
 `,
-    efforts: `${a.efforts && a.efforts.length ? `<div class="card"><h2>Best efforts</h2>${effortsTable(a)}</div>` : ''}
-      ${a.similar && a.similar.length ? `<div class="card"><h2>Similar efforts</h2>${similarHtml(a)}</div>` : ''}`,
+    efforts: `${a.efforts && a.efforts.length || a.similar && a.similar.length ? `<div class="card activity-detail-list">
+      ${a.efforts && a.efforts.length ? `<section class="detail-group"><h3>Best efforts</h3>${effortsTable(a)}</section>` : ''}
+      ${a.similar && a.similar.length ? `<section class="detail-group"><h3>Similar efforts</h3>${similarHtml(a)}</section>` : ''}
+    </div>` : ''}`,
   };
   if (!pane.overview.trim()) pane.overview = '<div class="card empty">No additional details were recorded.</div>';
-  const bars=ActivityDetail.header(a);el.classList.add('activity-detail');
-  const recorded=[a.sport_label,a.device].filter(Boolean).map(esc).join(' · ');
-  pane.overview=`${a.description?`<div class="card"><p class="desc">${esc(a.description)}</p></div>`:''}${recorded?`<p class="small muted">${recorded}</p>`:''}${pane.overview}<div class="card" id="d-photo-actions">${a.source==='healthkit'&&!a.line&&['run','ride','walk','hike'].includes(a.sport)?'<button class="linkbtn" type="button" id="d-add-map">Add the map</button>':''}<div class="detail-owner-tools"><div id="d-photos"></div><button type="button" class="linkbtn" id="d-comment-open">Comment</button></div></div>`;
+  const bars=ActivityDetail.header(a);el.classList.add('activity-detail');el.dataset.sport=a.sport;
   el.innerHTML=`${a.line?`<div class="detail-map-hero map-head">${activityMedia(a,{mapId:'d-map',detail:true,full:true,compact:true})}${bars.floating}</div>${bars.sticky}`:bars.floating}${ActivityDetail.title(a,hero)}${!a.line&&a.photos?.length?activityMedia(a,{mapId:'d-map',detail:true,compact:true}):''}${Object.keys(a.summary_overrides||{}).length?'<p class="small muted corrected-note">You edited these numbers. Records and splits are hidden until you restore the recorded values in Edit.</p>':''}${activityTabs(pane)}`;
   applyActivityMapTransition(el,a.id);
   let drawCharts = null;
@@ -830,14 +847,16 @@ function drawDetail(el, a) {
 }
 function splitsTable(a, splits) {
   const foot = FOOT.includes(a.sport);
-  const paces = splits.map((s) => s.pace_s_per_km).filter(Boolean), fastest = Math.min(...paces), slowest = Math.max(...paces);
+  const paces = splits.map((s) => Number(s.pace_s_per_km)).filter((n) => Number.isFinite(n) && n > 0), fastest = paces.length ? Math.min(...paces) : null, slowest = paces.length ? Math.max(...paces) : null;
   const hasEl = splits.some((s) => s.elev_m != null), hasHr = splits.some((s) => s.avg_hr);
-  return `<table class="tbl"><thead><tr><th>${U.du()}</th><th>${foot ? 'Pace ' + U.pu() : 'Speed ' + U.su()}</th><th></th>${foot && splits.some((s) => s.gap_s_per_km) ? `<th class="r">GAP ${U.pu()}</th>` : ''}${hasEl ? `<th class="r">Elev ${U.eu()}</th>` : ''}${hasHr ? '<th class="r">HR bpm</th>' : ''}</tr></thead><tbody>
+  return `<table class="tbl"><thead><tr><th>#</th><th>${foot ? 'Pace ' + U.pu() : 'Speed ' + U.su()}</th><th></th>${foot && splits.some((s) => s.gap_s_per_km) ? `<th class="r">GAP ${U.pu()}</th>` : ''}${hasEl ? `<th class="r">Elev ${U.eu()}</th>` : ''}${hasHr ? '<th class="r">HR bpm</th>' : ''}</tr></thead><tbody>
     ${splits.map((s) => {
       const full = Math.abs(s.distance_m - (imp() ? MI : 1000)) < 5;
-      const w = s.pace_s_per_km ? (fastest / s.pace_s_per_km) : 0;
-      return `<tr class="${s.pace_s_per_km === fastest ? 'best' : ''}"><td>${full ? s.n : U.dist(s.distance_m)}</td>
-        <td class="num">${foot ? U.pace(s.pace_s_per_km) : U.speed(1000 / s.pace_s_per_km)}</td><td class="barcell"><div class="bar${s.pace_s_per_km === slowest ? ' slow' : ''}" data-w="${(0.25 + 0.75 * ((w - fastest / slowest) / (1 - fastest / slowest || 1))).toFixed(3)}"></div></td>
+      const pace = Number(s.pace_s_per_km), validPace = Number.isFinite(pace) && pace > 0;
+      const best = validPace && pace === fastest, slow = validPace && pace === slowest;
+      const barWidth = validPace ? slowest === fastest ? 1 : .25 + .75 * (1 - (pace - fastest) / (slowest - fastest)) : 0;
+      return `<tr class="${best ? 'best' : ''}"><td>${full ? s.n : U.dist(s.distance_m)}</td>
+        <td class="num">${validPace ? foot ? U.pace(pace) : U.speed(1000 / pace) : '–'}</td><td class="barcell"><div class="bar${slow ? ' slow' : ''}" data-w="${barWidth.toFixed(3)}"></div></td>
         ${foot && splits.some((x) => x.gap_s_per_km) ? `<td class="r num">${U.pace(s.gap_s_per_km)}</td>` : ''}
         ${hasEl ? `<td class="r num">${s.elev_m != null ? (s.elev_m > 0 ? '+' : '') + U.elev(s.elev_m) : '–'}</td>` : ''}${hasHr ? `<td class="r num">${s.avg_hr || '–'}</td>` : ''}</tr>`;
     }).join('')}</tbody></table>`;
@@ -851,9 +870,9 @@ function lapsTable(a) {
 }
 function effortsTable(a) {
   const pr=Math.min(...a.efforts.filter(e=>e.rank_then===1&&Number.isFinite(e.elapsed_s)&&e.elapsed_s>0).map(e=>e.elapsed_s));
-  return `<table class="tbl"><tbody>${a.efforts.map((e,i) => { const ratio=Number.isFinite(pr)&&e.elapsed_s>0?Math.max(.12,Math.min(1,pr/e.elapsed_s)):.12,id=`activity-effort-${Number(e.id)||i}`; return `<tr class="activity-effort-row"><td>${e.rank_then <= 3 ? `<span class="medal m${e.rank_then}" title="${['', 'Personal record', '2nd best', '3rd best'][e.rank_then]} at the time">${e.rank_then === 1 ? 'PR' : e.rank_then}</span>` : ''}${esc(e.label)}</td>
-    <td class="r num"><span class="effort-time">${dur(e.elapsed_s)}</span><svg class="effort-bar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" x2="1"><stop offset="0" stop-color="var(--accent)"/><stop offset="1" stop-color="var(--color-brand-gradient-end,var(--accent))"/></linearGradient></defs><rect x="0" y="0" width="${(ratio*100).toFixed(1)}" height="6" rx="3" fill="url(#${id})"/></svg></td><td class="r small muted">${e.rank_now === 1 ? 'Current PR' : `#${e.rank_now} all-time`}</td></tr>`; }).join('')}</tbody></table>
-    <p class="small muted">Medals show how it ranked when you ran it. <a href="/progress?view=records&sport=${esc(a.sport)}">All records ›</a></p>`;
+  return `<div class="detail-efforts-list">${a.efforts.map((e,i) => { const ratio=Number.isFinite(pr)&&e.elapsed_s>0?Math.max(.12,Math.min(1,pr/e.elapsed_s)):.12,id=`activity-effort-${Number(e.id)||i}`; return `<div class="detail-effort-row"><div class="detail-effort-name">${e.rank_then===1?`<span class="effort-record" role="img" aria-label="Personal record">${svg('trophy')}</span>`:''}<span>${esc(e.label)}</span></div>
+    <div class="detail-effort-result"><span class="effort-time">${dur(e.elapsed_s)}</span><small>${e.rank_now === 1 ? 'Current PR' : `#${e.rank_now} all-time`}</small><svg class="effort-bar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" x2="1"><stop offset="0" stop-color="var(--accent)"/><stop offset="1" stop-color="var(--color-brand-gradient-end,var(--accent))"/></linearGradient></defs><rect x="0" y="0" width="${(ratio*100).toFixed(1)}" height="6" rx="3" fill="url(#${id})"/></svg></div></div>`; }).join('')}</div>
+    <a class="detail-text-action" href="/progress?view=records&sport=${esc(a.sport)}">All records ›</a>`;
 }
 function zonesHtml(z) {
   const tot = z.reduce((a, b) => a + b, 0) || 1;
