@@ -773,3 +773,12 @@ html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 .macpreview .extra-nutrients b {font:600 1rem var(--numf);}
 .tcard .extra-nutrients b {font:600 1rem/1.5 var(--numf);letter-spacing:0;}
 .tcard .extra-nutrients dd small {display:block;font-size:.85rem;font-weight:400;text-transform:none;letter-spacing:0;color:var(--tx2);}
+
+/* Food chat suggestions align to the viewport edge like the plain Kit rows. */
+.food-thread .thread-quick-actions.chat-suggestions {margin:0 calc(0px - var(--space-5)) 8px;}
+.food-thread .thread-quick-actions.chat-suggestions > button {gap:16px;min-height:44px;padding:0 16px;border:0;font-size:15px;font-weight:500;color:var(--tx);text-align:left;}
+.food-thread .thread-quick-actions.chat-suggestions > button::after {left:52px;}
+.food-thread .thread-quick-actions.chat-suggestions > button svg {width:20px;height:20px;}
+html.keyboard-open .food-thread .thread-quick-actions.chat-suggestions {display:grid;}
+@media(max-width:360px){.food-thread .thread-quick-actions.chat-suggestions {margin-inline:-16px;}}
+@media(min-width:1000px){.food-thread .thread-quick-actions.chat-suggestions {margin-inline:-32px;}}
