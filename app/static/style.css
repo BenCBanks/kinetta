@@ -1259,6 +1259,14 @@ html.keyboard-open nav.tabs { display: none; }
 .gear-list .gear-item .inset-value small { display:block; margin-top:2px; color:var(--tx3); font-size:12px; font-weight:400; }
 .gear-list .gear-item .gear-due { color:var(--alert); }
 .settings-empty { margin:0 0 12px; color:var(--tx3); font-size:15px; }
+.devices-settings .device-row { min-height:56px; }
+.devices-settings .device-row .inset-label > span { overflow-wrap:anywhere; }
+.devices-settings .device-action { flex:none; min-width:56px; min-height:44px; padding:0; border:0; border-radius:0; background:transparent; color:var(--accent); font:500 max(15px,.9375rem)/1.2 var(--font); }
+.devices-settings .device-action:disabled { opacity:.55; }
+.devices-settings .device-bulk-action { display:flex; min-height:48px; padding:0 16px; text-align:left; font:400 max(16px,1rem)/1.25 var(--font); }
+.devices-settings .device-empty { margin:0; padding:16px; color:var(--tx3); font-size:15px; }
+.devices-settings .device-error { margin:0; padding:12px 16px; color:var(--alert); font-size:13px; }
+.devices-settings #dv-retry { margin:0 16px 12px; }
 .first-step {display:grid;gap:12px;text-align:center;}
 .first-step p {margin:0;font-size:max(15px,.9375rem);}
 .first-step-icon {display:flex;justify-content:center;}

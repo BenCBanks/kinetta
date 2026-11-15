@@ -2206,27 +2206,34 @@ function activityKit(activity) {
 // others from here; this device signs out with Log out.
 route(/^\/me\/devices$/, 'me', async (el) => {
   const owner = readOwner();
-  el.innerHTML = `<div class="top">${backBtn('Settings')}</div><h1>Signed-in devices</h1><p class="muted">Where you’re logged in to Kinetta. Sign out anything you don’t recognise, then change your password.</p><div id="dv-list">${skel(2)}</div>`;
-  wireBack(el, '/me/settings');
+  el.classList.add('devices-settings');
+  el.innerHTML = `<div class="top">${backBtn('Back')}</div><h1>Signed-in devices</h1><section class="inset-section"><h2 class="inset-caption">Devices</h2><div class="inset-group" id="dv-list">${skel(2)}</div><p class="inset-footer">Sign out a device you don’t recognise, then change your password.</p></section>`;
+  wireBack(el, '/me/settings', ()=>'Back');
   const day = (t) => fdate(t, {month: 'short', day: 'numeric', year: 'numeric'});
   const draw = async () => {
-    const rows = await api('/api/account/devices');
+    let rows;
+    try { rows = await api('/api/account/devices'); }
+    catch (error) {
+      if (!el.isConnected || owner !== readOwner()) return;
+      $('#dv-list', el).innerHTML = `<p class="device-error" role="alert">Devices could not load. Reconnect needed.</p><button type="button" class="linkbtn" id="dv-retry">Try again</button>`;
+      $('#dv-retry',el).onclick=()=>draw();
+      return;
+    }
     if (!el.isConnected || owner !== readOwner()) return;
     const others = rows.filter((d) => !d.this);
-    $('#dv-list', el).innerHTML = `<div class="card list">${rows.map((d) => `<div class="row-link static device-row"><span class="ri c-grey">${svg('shield')}</span><span class="grow">${esc(d.device)}<small class="muted">${d.this ? 'This device · ' : ''}Last used ${esc(day(d.last_used))} · signed in ${esc(day(d.signed_in))}</small></span>${d.this ? '' : `<button class="linkbtn" data-dv="${esc(d.id)}" aria-label="Sign out ${esc(d.device)}">Sign out</button>`}</div>`).join('')}</div>
-      ${others.length ? `<button class="ghost wide" id="dv-all">Sign out all other devices</button>` : '<p class="small muted">Only this device is signed in.</p>'}`;
+    const previousBulk=$('#dv-all',el);if(previousBulk)previousBulk.remove();
+    $('#dv-list', el).innerHTML = rows.length ? `${rows.map((d) => `<div class="inset-row has-detail device-row"><span class="inset-icon" aria-hidden="true">${svg('shield')}</span><span class="inset-label has-detail"><span>${esc(d.device)}</span><small>${d.this ? 'This device · ' : ''}Last used ${esc(day(d.last_used))} · signed in ${esc(day(d.signed_in))}</small></span>${d.this ? '<span class="inset-value">This device</span>' : `<button type="button" class="device-action" data-dv="${esc(d.id)}" aria-label="Sign out ${esc(d.device)}">Sign out</button>`}</div>`).join('')}`
+      : `<p class="device-empty">No signed-in devices are listed.</p><button type="button" class="primary wide" id="dv-retry">Refresh</button>`;
     $$('[data-dv]', el).forEach((b) => b.onclick = async () => {
-      b.disabled = true;
-      try { await api('/api/account/devices/signout', json('POST', {id: b.dataset.dv})); toast('Signed out'); await draw(); }
-      catch (x) { toast(x.message); b.disabled = false; }
+      if(owner!==readOwner()||b.disabled)return;b.disabled = true;
+      try { await api('/api/account/devices/signout', json('POST', {id: b.dataset.dv})); if(owner!==readOwner())return;toast('Signed out'); await draw(); }
+      catch (x) { if(owner===readOwner()){toast(x.message);b.disabled = false;} }
     });
-    const all = $('#dv-all', el);
-    if (all) all.onclick = async () => {
-      if (!await confirmSheet(`Sign out ${others.length} other device${others.length > 1 ? 's' : ''}?`, {body: 'They’ll need your password to log in again.', action: 'Sign out'})) return;
-      all.disabled = true;
-      try { await api('/api/account/devices/signout-others', json('POST', {})); toast('Other devices signed out'); await draw(); }
-      catch (x) { toast(x.message); all.disabled = false; }
-    };
+    if(others.length>1){const bulk=document.createElement('button');bulk.type='button';bulk.id='dv-all';bulk.className='inset-row is-alert device-bulk-action';bulk.textContent='Sign out all other devices';$('#dv-list',el).append(bulk);bulk.onclick=async()=>{
+      if(owner!==readOwner()||!await confirmSheet(`Sign out ${others.length} other device${others.length>1?'s':''}?`,{body:'They’ll need your password to log in again.',action:'Sign out'})||owner!==readOwner())return;
+      bulk.disabled=true;try{await api('/api/account/devices/signout-others',json('POST',{}));if(owner!==readOwner())return;toast('Other devices signed out');await draw();}catch(error){if(owner===readOwner()){toast(error.message);bulk.disabled=false;}}
+    };}
+    const retry=$('#dv-retry',el);if(retry)retry.onclick=()=>draw();
   };
   await draw();
 });
