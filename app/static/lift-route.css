@@ -51,8 +51,8 @@
 .compact-lift .lift-n { font-size:max(15px,.9375rem); }
 
 /* #1022 Lift: plain cells, one centered clock, and no filled completed row. */
-.compact-lift .lift-top { display:grid; grid-template-columns:44px minmax(0,1fr) auto; align-items:center; gap:8px; min-height:44px; }
-.compact-lift .lift-back { display:grid; place-items:center; width:44px; height:44px; min-width:44px; padding:0; }
+.compact-lift .lift-top { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:8px; min-height:44px; }
+.compact-lift .lift-back { display:inline-flex; align-items:center; justify-content:flex-start; gap:4px; width:auto; min-width:44px; min-height:44px; padding:0 4px; border:0; border-radius:0; background:transparent; box-shadow:none; color:var(--accent); font-size:15px; font-weight:500; white-space:nowrap; }
 .compact-lift .lift-back svg { width:20px; height:20px; }
 .compact-lift .lift-header-clock { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0; min-width:0; text-align:center; }
 .compact-lift .lift-header-clock #lf-time { font-size:17px; line-height:22px; font-weight:600; font-variant-numeric:tabular-nums; }
@@ -101,9 +101,10 @@
 .compact-lift .lift-add[hidden] { display:none; }
 .compact-lift .lift-empty { padding:12px 0; }
 .compact-lift .lift-empty .primary { min-height:52px; }
+.compact-lift .lift-add { background:var(--btn); box-shadow:none; }
 .compact-lift .lift-history-empty { color:var(--tx3); font-size:15px; }
 @media(max-width:370px) {
-  .compact-lift .lift-top { grid-template-columns:44px minmax(0,1fr) auto; }
+  .compact-lift .lift-top { grid-template-columns:auto minmax(0,1fr) auto; }
   .compact-lift .lift-header-clock { grid-row:auto; grid-column:auto; justify-content:center; }
   .compact-lift .lift-top > .acts { grid-column:auto; grid-row:auto; }
   .compact-lift .lift-row { gap:4px; }

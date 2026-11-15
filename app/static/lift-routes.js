@@ -96,11 +96,11 @@ function liftLogger(el, aid, data) {
   let saveT = null, disposed = false, stopped = false, finishing = false, clock = null, setRecovery = null;
   const owned = () => owner === readOwner(), live = () => owned() && !disposed && el.isConnected;
   el.classList.add('compact-lift');
-  el.innerHTML = `<div class="top lift-top"><button type="button" class="back back-circle lift-back" data-back aria-label="Back to Track">${svg('back')}</button>${S.open?'<div class="lift-header-clock" aria-label="Session and rest time"><b class="num" id="lf-time">0:00</b><span id="lf-restbox" hidden>Rest <b class="num" id="lf-rest">0:00</b></span></div>':'<span class="lift-header-clock" aria-hidden="true"></span>'}<div class="acts"><span class="lift-save small muted" id="lf-save" role="status" aria-live="polite"></span>
+  el.innerHTML = `<div class="top lift-top"><button type="button" class="back lift-back" data-back aria-label="Back to Lift">${svg('back')}<span></span></button>${S.open?'<div class="lift-header-clock" aria-label="Session and rest time"><b class="num" id="lf-time">0:00</b><span id="lf-restbox" hidden>Rest <b class="num" id="lf-rest">0:00</b></span></div>':'<span class="lift-header-clock" aria-hidden="true"></span>'}<div class="acts"><span class="lift-save small muted" id="lf-save" role="status" aria-live="polite"></span>
       ${S.open ? `<button class="linkbtn lift-finish" id="lf-finish">Finish</button><button type="button" class="icon-btn lift-discard" id="lf-discard" aria-label="More session actions">${svg('more')}</button>` : '<button class="linkbtn lift-finish" id="lf-done">Done</button>'}</div></div>
     <div id="lf-list"></div>
     <button class="primary wide lift-add" id="lf-add">${svg('plus')}Add exercise</button>`;
-  wireBack(el, `/activity/${aid}`);
+  wireBack(el, `/activity/${aid}`, () => S.open ? 'Lift' : 'Progress');
   const list = $('#lf-list', el);
 
   // the session's time, and Rest: time since the last ticked set (shown once a set is ticked; nothing to set up)
@@ -179,7 +179,7 @@ function liftLogger(el, aid, data) {
 
   function draw() {
     if (!live()) return;
-    list.innerHTML = S.ex.length ? S.ex.map(exCard).join('') : S.open ? `<div class="lift-empty"><button type="button" class="primary wide" id="lf-empty-add">${svg('plus')}Add exercise</button></div>` : '<p class="lift-history-empty">No exercises recorded</p>';
+    list.innerHTML = S.ex.length ? S.ex.map(exCard).join('') : S.open ? `<div class="lift-empty"><button type="button" class="primary wide lift-add" id="lf-empty-add">${svg('plus')}Add exercise</button></div>` : '<p class="lift-history-empty">No exercises recorded</p>';
     $('#lf-add', el).hidden = !S.open || !S.ex.length;
     const emptyAdd = $('#lf-empty-add', list); if (emptyAdd) emptyAdd.onclick = addExercise;
     wire();
