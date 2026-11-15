@@ -626,8 +626,7 @@ new MutationObserver(() => { for (const b of $$('[data-w]')) { b.style.setProper
 // the bell (2026-10-12: on Today, Activity, Progress and Nutrition), with the unread count; it opens the list only
 const bellBtn = () => { const n = (App.me && App.me.notifications) || 0;
   return `<a class="icon-btn bell" href="/notifications" aria-label="Notifications${n ? `, ${n} new` : ''}">${svg('bell')}<span class="bell-dot${n > 9 ? ' many' : ''}"${n ? '' : ' hidden'}>${n > 9 ? '9+' : n || ''}</span></a>`; };
-const actTop = (search, friends) => TopBar({title:'Home',root:true,actions:`${search ? `<a class="icon-btn" href="/me/activities?search=1" aria-label="Search">${svg('search')}</a>` : ''}
-    ${friends ? `<a class="icon-btn" href="/me/friends?find=1" aria-label="Find friends">${svg('people')}</a>` : ''}${bellBtn()}`});
+const actTop = () => TopBar({title:'Home',root:true,actions:`${bellBtn()}<a class="icon-btn" href="/track" aria-label="Record or import a workout">${svg('plus')}</a>`});
 route(/^\/activity$/, 'activity', async el=>{
   const q=new URLSearchParams(location.search);
   if(q.get('view')==='mine'){q.delete('view');return go('/me/activities'+(q.toString()?'?'+q:''),{replace:true});}

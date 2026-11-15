@@ -232,12 +232,15 @@ details.fold-row[open] { padding-bottom: 12px; }
 .shell-topbar > h1 { min-width:0;margin:0;font:600 var(--text-nav-title)/1.2 var(--font);letter-spacing:-.02em;text-align:center;overflow-wrap:anywhere; }
 .shell-topbar-actions { display:flex;justify-content:flex-end;gap:8px;min-width:44px; }
 .shell-topbar-actions > :is(button,a) { flex:none;width:44px;height:44px; }
-.shell-topbar-root { position:sticky;top:calc(env(safe-area-inset-top) + var(--shell-top-gap));z-index:1010;grid-template-columns:minmax(0,1fr) auto;min-height:52px;margin-inline:-16px;padding-inline:16px;background:var(--bg);transition:min-height .18s ease,background-color .18s ease; }
+.shell-topbar-root { position:relative;grid-template-columns:minmax(0,1fr) auto;min-height:52px;margin-inline:0;padding-inline:0;background:transparent;transition:min-height .18s ease,background-color .18s ease; }
 .shell-topbar-root > h1 { grid-column:1;text-align:left;font-size:30px;font-weight:700;letter-spacing:-.035em;transition:font-size .18s ease; }
 .shell-topbar-root .shell-topbar-actions { grid-column:2; }
-.shell-topbar-root.is-compact { grid-template-columns:minmax(0,1fr) auto;min-height:44px;margin-bottom:8px;border-bottom:1px solid var(--line); }
+.shell-topbar-root.is-compact { grid-template-columns:minmax(0,1fr) auto;min-height:44px;margin-bottom:8px;border-bottom:0; }
 .shell-topbar-root.is-compact > h1 { grid-column:1/-1;grid-row:1;text-align:center;font-size:16px;font-weight:600;letter-spacing:-.01em; }
 .shell-topbar-root.is-compact .shell-topbar-actions { grid-column:2;grid-row:1;z-index:1; }
+#page > #feed-top .shell-topbar-root.is-compact > h1 { font-size:16px;white-space:normal; }
+#page > #feed-top:has(.shell-topbar-root) { position:sticky;top:calc(env(safe-area-inset-top) + var(--shell-top-gap));z-index:1010;margin-inline:-16px;padding-inline:16px;background:var(--bg); }
+#page > #feed-top:has(.shell-topbar-root.is-compact) { border-bottom:1px solid var(--line); }
 .shell h1 { min-width:0; max-width:100%; overflow-wrap:anywhere; font-size: 30px; font-weight: 700; letter-spacing: -.035em; line-height: 1.1; }
 .shell > h1 { margin: 0 2px 14px; }
 .shell > p { margin: 0 2px 14px; color: var(--tx2); }
