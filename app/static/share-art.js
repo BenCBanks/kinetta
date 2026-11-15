@@ -103,24 +103,24 @@ const ShareArt=(()=>{
   async function routeSilhouette({routePoints=[],pace='',totalTime='',ink='blue'}={}){
     const pictureOwner=readOwner();if(routePoints.length<2)throw Error('There isn’t enough route left to share.');
     await document.fonts.ready;const W=1080,H=810,canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const g=canvas.getContext('2d');
-    const color=ink==='blue'?(getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#1F55D0'):ink==='light'?'#FFFFFF':'#151719',mean=routePoints.reduce((sum,p)=>sum+Number(p[0]),0)/routePoints.length,cos=Math.max(.05,Math.cos(mean*Math.PI/180));
+    const color=ink==='blue'?'#1F55D0':ink==='light'?'#FFFFFF':'#151719',mean=routePoints.reduce((sum,p)=>sum+Number(p[0]),0)/routePoints.length,cos=Math.max(.05,Math.cos(mean*Math.PI/180));
     const points=routePoints.map(([lat,lon])=>[Number(lon)*cos,-Number(lat)]);if(points.some(p=>!p.every(Number.isFinite)))throw Error('This route could not be drawn.');
     const bounds=points.reduce((b,p)=>({minX:Math.min(b.minX,p[0]),maxX:Math.max(b.maxX,p[0]),minY:Math.min(b.minY,p[1]),maxY:Math.max(b.maxY,p[1])}),{minX:Infinity,maxX:-Infinity,minY:Infinity,maxY:-Infinity}),{minX,maxX,minY,maxY}=bounds,spanX=maxX-minX,spanY=maxY-minY;
     if(spanX<1e-9&&spanY<1e-9)throw Error('There isn’t enough route left to share.');
     const box={x:64,y:64,w:552,h:682},scale=Math.min(box.w/Math.max(spanX,1e-9),box.h/Math.max(spanY,1e-9)),cx=(minX+maxX)/2,cy=(minY+maxY)/2;
     const project=([x,y])=>[box.x+box.w/2+(x-cx)*scale,box.y+box.h/2+(y-cy)*scale];
     g.save();g.beginPath();points.forEach((point,index)=>{const [x,y]=project(point);index?g.lineTo(x,y):g.moveTo(x,y);});g.strokeStyle=color;g.lineWidth=12;g.lineCap='round';g.lineJoin='round';g.stroke();g.restore();
-    const metrics=[...(pace?[['Pace',pace]]:[]),...(totalTime?[['Total time',totalTime]]:[])],metricX=690,metricWidth=326;
-    metrics.forEach(([label,value],index)=>{const y=270+index*190;text(g,value,metricX,y,72,{color,weight:700,max:metricWidth});text(g,label,metricX,y+54,42,{color,weight:500,max:metricWidth});});
-    drawMark(g,878,752,38,color);text(g,'Kinetta',925,765,36,{color,weight:700,max:135});
+    const metrics=[...(pace?[['Pace',pace]]:[]),...(totalTime?[['Total time',totalTime]]:[])],metricX=656,metricWidth=360;
+    metrics.forEach(([label,value],index)=>{const y=270+index*190;text(g,value,metricX,y,72,{color,weight:700,max:metricWidth});text(g,label,metricX,y+56,48,{color,weight:500,max:metricWidth});});
+    drawMark(g,874,752,42,color);text(g,'Kinetta',921,765,42,{color,weight:700,max:170});
     if(pictureOwner!==readOwner())throw Error('The account changed.');const pictureBlob=await blob(canvas);return{blob:pictureBlob,alt:['Route',pace?'Pace '+pace:'',totalTime?'Total time '+totalTime:'','Kinetta'].filter(Boolean).join('. '),width:W,height:H};
   }
   async function statsPicture({distance='',pace='',totalTime='',ink='blue'}={}){
-    const pictureOwner=readOwner();await document.fonts.ready;const W=1080,H=620,canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const g=canvas.getContext('2d'),color=ink==='blue'?(getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#1F55D0'):ink==='light'?'#FFFFFF':'#151719';
+    const pictureOwner=readOwner();await document.fonts.ready;const W=1080,H=700,canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const g=canvas.getContext('2d'),color=ink==='blue'?'#1F55D0':ink==='light'?'#FFFFFF':'#151719';
     const metrics=[...(pace?[['Pace',pace]]:[]),...(totalTime?[['Total time',totalTime]]:[]),...(distance?[['Distance',distance]]:[])];
     if(!metrics.length)throw Error('There are no shared stats to show.');
-    metrics.forEach(([label,value],i)=>{const y=108+i*150;text(g,value,72,y,72,{color,weight:700,max:760});text(g,label,72,y+54,42,{color,weight:500,max:760});});
-    drawMark(g,878,562,38,color);text(g,'Kinetta',925,575,36,{color,weight:700,max:135});
+    metrics.forEach(([label,value],i)=>{const y=150+i*170;text(g,value,72,y,108,{color,weight:700,max:520});text(g,label,640,y,48,{color,weight:500,max:360});});
+    drawMark(g,874,650,42,color);text(g,'Kinetta',921,663,42,{color,weight:700,max:170});
     if(pictureOwner!==readOwner())throw Error('The account changed.');const pictureBlob=await blob(canvas);return{blob:pictureBlob,alt:[...metrics.map(([label,value])=>`${label} ${value}`),'Kinetta'].join('. '),width:W,height:H};
   }
   const dataUrl=blob=>new Promise((yes,no)=>{const reader=new FileReader();reader.onload=()=>yes(reader.result);reader.onerror=()=>no(Error('Couldn’t read this picture'));reader.readAsDataURL(blob);});
