@@ -116,6 +116,8 @@ class CIPolicyTests(unittest.TestCase):
             self.assertIn('ready_for_review',text);self.assertIn('synchronize',text);self.assertIn('converted_to_draft',text)
             self.assertIn('github.event.pull_request.draft == false',text)
         tests=(ROOT/'.github/workflows/tests.yml').read_text()
+        self.assertIn('group: tests-${{ github.ref }}',tests)
+        self.assertIn('cancel-in-progress: true',tests)
         self.assertIn('github.event.pull_request.draft == true',tests);self.assertIn('dev/tests/run.sh --quick',tests)
         self.assertNotIn('paths:',tests) # required full-suite workflow must run for every ready PR
         gate=tests.split('\n  tests:\n',1)[1].split('\n  spacing:\n',1)[0]
@@ -125,6 +127,11 @@ class CIPolicyTests(unittest.TestCase):
         self.assertIn('test "$QUICK_RESULT" = success',gate)
         self.assertIn('success|skipped)',gate)
         ios=(ROOT/'.github/workflows/ios.yml').read_text()
+        self.assertIn('group: ios-${{ github.ref }}-${{ (github.event_name == \'schedule\' || github.event_name == \'workflow_dispatch\') && \'release\' || \'check\' }}',ios)
+        self.assertIn('cancel-in-progress: ${{ github.event_name != \'schedule\' && github.event_name != \'workflow_dispatch\' }}',ios)
+        for name,next_name in (('build','native-ui'),('native-ui','store-ui'),('store-ui','testflight')):
+            job=ios.split(f'\n  {name}:\n',1)[1].split(f'\n  {next_name}:\n',1)[0]
+            self.assertIn('github.event.pull_request.draft == false',job)
         self.assertIn("native: ${{ steps.paths.outputs.native == 'true' || steps.store.outputs.preview == 'true' }}",ios)
         self.assertIn('python3 dev/ci/policy.py',ios)
         self.assertEqual(ios.count('npm run sync'),2) # unsigned and signed builds share stamping
