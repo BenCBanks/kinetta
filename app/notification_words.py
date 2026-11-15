@@ -91,8 +91,11 @@ def highlight(row,facts):
 def activity(row,facts=None):
     name=clean(row.get('activity') or 'Your workout',90)
     metres=distance(row.get('distance_m'),row.get('units'))
-    seconds=duration(row.get('moving_s')) or duration(row.get('elapsed_s'))
-    summary=(metres+' in '+seconds) if metres and seconds else metres or seconds
+    elapsed=duration(row.get('elapsed_s'))
+    moving=duration(row.get('moving_s'))
+    summary=(metres+' in '+elapsed) if metres and elapsed else metres or elapsed
+    if not elapsed and moving:
+        summary=(metres+' · ' if metres else '')+moving+' moving'
     body=name+(' · '+summary if summary else '')
     extra=highlight(row,facts)
     return title(row),body+('\n'+extra if extra else '')

@@ -16,7 +16,8 @@ def run():
     assert 'lift' in words.activity({**ROW,'sport':'workout','has_lifts':True})[0].lower()
     assert 'lift' not in words.activity({**ROW,'sport':'workout','sport_label':'Yoga'})[0].lower()
     assert words.activity(ROW)==words.activity(ROW)
-    title,body=words.activity(ROW);assert 'Alex' in title and body=='Morning Run · 5.01 mi in 41 min' and '\n' not in body
+    title,body=words.activity(ROW);assert 'Alex' in title and body=='Morning Run · 5.01 mi in 42 min' and '\n' not in body
+    assert words.activity({**ROW,'elapsed_s':None})[1]=='Morning Run · 5.01 mi · 41 min moving','known moving time is labelled when elapsed time is unavailable'
     assert '8.06 km' in words.activity({**ROW,'units':'metric'})[1]
     best={'label':'5K','distance_m':5000,'seconds':1450,'previous':1500}
     assert words.highlight(ROW,facts(bests=[best]))=='New 5K best: 24:10'

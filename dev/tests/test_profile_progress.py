@@ -38,9 +38,11 @@ try:
         a = req(owner, 'POST', '/api/activities/manual', {'sport': 'walk', 'start': f'{day}T00:00:00+00:00', 'duration_s': 600, 'distance_m': distance, 'name': 'Progress fixture'})
         ids.append(a['id'])
         req(owner, 'PUT', f"/api/activities/{a['id']}/sharing", {'visibility': visibility})
+    # The first fictional workout includes a pause: aggregate duration must use elapsed time.
+    req(owner, 'PATCH', f'/api/activities/{ids[0]}', {'elapsed_s': 3000, 'moving_s': 2400})
     recent = profile(viewer, '?limit=1')['recent']
     assert (dt.date.fromisoformat(recent['end']) - dt.date.fromisoformat(recent['start'])).days == 29
-    assert recent['current'] == {'activities': 4, 'distance_m': 15000, 'time_s': 2400, 'active_days': 2}, 'totals include private and friends-only workouts'
+    assert recent['current'] == {'activities': 4, 'distance_m': 15000, 'time_s': 4800, 'active_days': 2}, 'owner and friend totals use elapsed time for paused workouts'
     assert recent['previous'] == {'activities': 2, 'distance_m': 9000, 'time_s': 1200, 'active_days': 2}
     paged = profile(viewer, '?limit=50')['recent']
     assert paged['current'] == recent['current'] and paged['previous'] == recent['previous'], 'pagination must not change progress totals'
