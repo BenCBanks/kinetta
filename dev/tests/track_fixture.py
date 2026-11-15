@@ -1,19 +1,16 @@
 """Real fictional accounts in a guarded local test project; no devices/providers."""
 import sys,os,subprocess,datetime as dt,uuid
-from zoneinfo import ZoneInfo
 from urllib.parse import urlparse
 sys.path.insert(0,'dev/tests')
 from kc import person,PW
+from track_fixture_clock import select_plan_day
 base=urlparse(os.environ.get('KINETTA_URL','http://localhost:8798'));project=os.environ.get('KINETTA_PROJECT','kinettatest')
 assert base.hostname in ('localhost','127.0.0.1') and (project.startswith('kt-') or project=='kinettatest')
 port=subprocess.check_output(['docker','inspect','--format','{{(index (index .NetworkSettings.Ports "8000/tcp") 0).HostPort}}',project+'-app-1'],text=True).strip()
 assert base.port==int(port),'URL must reach this isolated project'
-# The browser clock is fixed for screenshots, but the API evaluates plan status against today's
-# date. Put the fictional runner's local day on a first-timer workout day; on Sunday
-# the plan uses its Sunday long-run option rather than its usual Saturday long run.
-server_now=dt.datetime.now(dt.timezone.utc)
-zone=next(z for z in ('Pacific/Kiritimati','UTC','Etc/GMT+12') if server_now.astimezone(ZoneInfo(z)).weekday() in (1,3,5,6))
-today=server_now.astimezone(ZoneInfo(zone)).date();long_day=6 if today.weekday()==6 else 5
+# The API evaluates plan status against the live server date. Keep the fictional runner's
+# Today plan valid across every weekday and UTC date boundary, including Sunday.
+zone,today,long_day=select_plan_day(dt.datetime.now(dt.timezone.utc))
 for who in ('empty','runner','lifter'):
  c=person('zz_test_track_'+who);assert c.post('/api/account/delete',{'password':PW})[0]==200;c=person('zz_test_track_'+who,'River '+who.title())
  assert c.put('/api/profile',{'tz':zone,'ai_ok':False})[0]==200
