@@ -94,24 +94,27 @@
 .activity-detail .detail-description { margin:0; color:var(--tx); font-size:15px; line-height:1.45; white-space:pre-wrap; overflow-wrap:anywhere; }
 .activity-detail .detail-recorded { margin:0 0 14px; color:var(--tx3); font-size:13px; line-height:1.35; }
 .activity-detail .detail-group + .detail-group { margin-top:14px; padding-top:14px; border-top:1px solid var(--line); }
-.activity-detail .detail-group > h3 { margin:0 0 4px; color:var(--tx3); font-size:13px; line-height:1.3; font-weight:500; }
+.activity-detail .detail-group > h3 { margin:0 0 4px; color:var(--tx); font-size:17px; line-height:1.3; font-weight:700; }
 .activity-detail #activity-pane-efforts .detail-group > h3 { color:var(--tx); font-size:17px; font-weight:700; }
 .activity-detail .detail-kv-list { display:grid; }
 .activity-detail .detail-kv { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:44px; padding:8px 0; border-bottom:1px solid var(--line); }
 .activity-detail .detail-kv:last-child { border-bottom:0; }
 .activity-detail .detail-kv > span { min-width:0; color:var(--tx2); font-size:15px; line-height:1.35; }
 .activity-detail .detail-kv > b { max-width:65%; color:var(--tx); font-size:15px; line-height:1.35; font-weight:500; text-align:right; overflow-wrap:anywhere; }
-.activity-detail .detail-kv > b i { color:var(--tx3); font-size:13px; font-style:normal; font-weight:400; }
+.activity-detail .detail-kv > b i { color:var(--tx3); font-size:15px; font-style:normal; font-weight:400; }
 .activity-detail .detail-note { margin:0; color:var(--tx); font-size:15px; line-height:1.45; white-space:pre-wrap; overflow-wrap:anywhere; }
 .activity-detail .detail-link-row { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:56px; margin-top:10px; padding:6px 0; border-top:1px solid var(--line); color:var(--tx); text-decoration:none; }
 .activity-detail .detail-link-row > span { display:grid; gap:2px; min-width:0; font-size:15px; font-weight:500; }
 .activity-detail .detail-link-row small { color:var(--tx3); font-size:13px; font-weight:400; }
 .activity-detail .detail-link-end { display:flex; align-items:center; gap:8px; flex:none; color:var(--tx3); }
 .activity-detail .detail-link-end svg { width:16px; height:16px; }
-.activity-detail .detail-compare { color:var(--accent); font-size:14px; font-weight:600; }
+.activity-detail .detail-compare { color:var(--accent); font-size:15px; font-weight:600; }
 .activity-detail .detail-text-action { display:flex; align-items:center; width:100%; min-height:44px; padding:0; border:0; background:transparent; color:var(--accent); font:500 15px/1.35 var(--font); text-align:left; text-decoration:none; cursor:pointer; }
-.activity-detail .detail-action-row { display:flex; align-items:center; min-height:44px; gap:16px; border-top:1px solid var(--line); }
-.activity-detail .detail-action-row #d-photos { min-width:0; flex:1; }
+.activity-detail .detail-action-row { display:flex; align-items:center; min-height:44px; gap:16px; margin-top:8px; border-top:1px solid var(--line); }
+.activity-detail .detail-action-row #d-photos { min-width:44px; flex:1; }
+.activity-detail .detail-action-row .detail-text-action { width:auto; min-width:44px; flex:none; padding:0 8px; }
+.activity-detail .detail-action-row #d-photos .ph-strip.empty { width:100%; margin:0; padding:0; }
+.activity-detail .detail-action-row #d-photos .ph-strip.empty .ph-add { box-sizing:border-box; min-width:44px; font-size:15px; }
 .activity-detail .detail-insight { min-height:56px; padding:8px 0; border-bottom:1px solid var(--line); }
 .activity-detail .detail-insight:last-child { border-bottom:0; }
 .activity-detail .insight { align-items:center; gap:10px; }
@@ -120,6 +123,7 @@
 .activity-detail .insight-icon svg { width:16px; height:16px; }
 .activity-detail .insight-icon.good { color:var(--color-achievement); background:color-mix(in srgb,var(--color-achievement) 16%,var(--card)); }
 .activity-detail .insight-icon:not(.good) { color:var(--color-workout-hard); background:color-mix(in srgb,var(--color-workout-hard) 16%,var(--card)); }
+.activity-detail .detail-insight > div > span { font-size:15px; }
 .activity-detail .detail-power-table { width:100%; }
 .activity-detail .detail-power-table td { height:40px; border-bottom:1px solid var(--line); }
 .activity-detail .detail-power-table tr:last-child td { border-bottom:0; }
@@ -127,8 +131,9 @@
 .activity-detail .detail-group #activity-interval-history,
 .activity-detail .detail-group #d-segments { margin:0; }
 .activity-detail #activity-pane-splits .tbl { width:100%; table-layout:auto; }
-.activity-detail #activity-pane-splits .tbl th { padding:6px 4px; color:var(--tx3); font-size:11px; font-weight:500; white-space:nowrap; }
-.activity-detail #activity-pane-splits .tbl td { height:40px; padding:5px 4px; border-bottom:1px solid var(--line); font-size:13px; }
+.activity-detail #activity-pane-splits .tbl th { padding:6px 4px; color:var(--tx3); font-size:15px; font-weight:500; white-space:nowrap; }
+.activity-detail #activity-pane-splits .tbl th:first-child { font-size:12px; }
+.activity-detail #activity-pane-splits .tbl td { height:40px; padding:5px 4px; border-bottom:1px solid var(--line); font-size:15px; }
 .activity-detail #activity-pane-splits .tbl tr:last-child td { border-bottom:0; }
 .activity-detail #activity-pane-splits .tbl td.barcell { width:24%; padding-inline:6px; }
 .activity-detail #activity-pane-splits .bar { height:6px; border-radius:3px; background:var(--color-distance-muted); }
@@ -218,10 +223,15 @@
 .activity-detail .detail-map-privacy [role="tooltip"] { position: absolute; left: 0; bottom: 52px; width: max-content; max-width: min(260px, calc(100vw - 40px)); padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--tx); font-size: 14px; line-height: 1.3; box-shadow: var(--elevation-rest); }
 .activity-detail .detail-map-privacy [hidden] { display: none; }
 .activity-detail .map-note { display: none; }
-.activity-detail .detail-sticky { position: sticky; top: env(safe-area-inset-top); z-index: 80; margin: 0 -16px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--card); color: var(--tx); }
-.activity-detail .detail-sticky .detail-bar-title { min-width: 0; max-width: 100%; overflow: hidden; flex: 1; font-size: 16px; font-weight: 600; line-height: 1.1; text-align: center; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
+.activity-detail .detail-sticky { position: sticky; top: 0; z-index: 80; box-sizing: border-box; height: 44px; min-height: 44px; margin: 0 calc(-1 * var(--detail-edge)); padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--card); color: var(--tx); }
+.activity-detail .detail-sticky .detail-bar-title { position:absolute; left:64px; right:120px; min-width:0; max-width:calc(100% - 184px); overflow-wrap:anywhere; flex:none; font-size:15px; font-weight:600; line-height:1.1; text-align:center; white-space:normal; }
 .activity-detail .detail-sticky .acts { margin-left: 0; }
-.activity-detail .detail-sticky .icon-btn { width: 44px; min-width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: var(--tx); }
+.activity-detail .detail-sticky .detail-back-circle,
+.activity-detail .detail-sticky .acts .icon-btn { position:relative; z-index:1; box-sizing:border-box; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; border:0; border-radius:50%; background:transparent; color:var(--tx); }
+.activity-detail .detail-sticky .detail-back-circle::before,
+.activity-detail .detail-sticky .acts .icon-btn::before { content:""; position:absolute; inset:4px; border:1px solid var(--line); border-radius:50%; background:color-mix(in srgb,var(--card) 88%,transparent); pointer-events:none; }
+.activity-detail .detail-sticky .detail-back-circle svg,
+.activity-detail .detail-sticky .acts .icon-btn svg { position:relative; z-index:1; }
 .activity-detail { --detail-edge:16px; }
 .activity-detail > .detail-map-hero { margin-bottom: 0; }
 .activity-detail .compact-detail-title { position: relative; z-index: 2; margin: 0 0 0; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface-card); box-shadow: none; }
@@ -293,6 +303,7 @@
 @media (max-width: 360px) {
   .activity-detail .compact-detail-title { padding: 16px; }
   .activity-detail > .detail-map-hero { margin-left:-16px; margin-right:-16px; }
+  .activity-detail .detail-sticky .detail-bar-title { display:none; }
 }
 @media (max-width: 700px) {
   .activity-detail { --detail-edge:16px; }
@@ -327,6 +338,7 @@
 }
 .activity-detail .compact-detail-title:has(.detail-milestone-row .milestone-banner) { padding-bottom:0; }
 .activity-detail .compact-detail-title:has(.detail-milestone-row .milestone-banner) .detail-stat-stack { padding-bottom:0; }
+.activity-detail .compact-detail-title:not(:has(.detail-milestone-row .milestone-banner)) .detail-stat-stack { padding-bottom:0; }
 .activity-detail .detail-milestone-row:has(.milestone-banner) {
   position:relative; height:44px; margin-top:17px; padding-top:0; border:0; box-sizing:content-box;
 }
@@ -338,3 +350,12 @@
 .activity-detail .detail-milestone-row .milestone-share::after {
   right:0; left:auto; border-top-width:2px; border-right-width:2px;
 }
+.activity-detail .activity-tabs .tab-label { position:relative; display:inline-block; line-height:44px; }
+.activity-detail .activity-tabs button[aria-selected="true"] .tab-label::after { position:absolute; right:0; bottom:0; left:0; height:2px; background:var(--accent); content:""; }
+.activity-detail .activity-tabs button[aria-selected="true"]::after { display:none; }
+.activity-detail .dpane > .activity-detail-list { padding-bottom:calc(var(--nav-height) + var(--nav-bottom) + 16px); }
+.activity-detail #activity-pane-splits .tbl .bar.strong { background:var(--accent); opacity:.82; }
+.activity-detail #activity-pane-splits .tbl tr.best .bar.strong { background:var(--accent); opacity:1; }
+.activity-detail #activity-pane-efforts .detail-effort-result { display:flex; align-items:center; justify-content:flex-end; gap:8px; }
+.activity-detail #activity-pane-efforts .detail-effort-result small { color:var(--tx3); font-size:13px; font-weight:400; }
+.activity-detail #activity-pane-efforts .effort-bar { display:none; }
