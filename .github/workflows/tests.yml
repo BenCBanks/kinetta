@@ -231,20 +231,31 @@ jobs:
           if [ -d "$state_dir" ]; then rm -rf -- "$state_dir" || status=$?; fi
           exit "$status"
 
-  tests:
-    if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
-    needs: [backend, browser_shards, reviewer_integration]
+  required_gate:
+    name: Required gate
+    if: ${{ always() }}
+    needs: [quick, changed-screen-map, backend, browser_shards, reviewer_integration, spacing]
     runs-on: ubuntu-latest
     steps:
-      - name: Require backend, browser shards and reviewer integration to pass
+      - name: Require the appropriate CI checks to pass
         env:
+          IS_DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
+          QUICK_RESULT: ${{ needs.quick.result }}
+          CHANGED_SCREEN_MAP_RESULT: ${{ needs.changed-screen-map.result }}
           BACKEND_RESULT: ${{ needs.backend.result }}
           BROWSER_SHARDS_RESULT: ${{ needs.browser_shards.result }}
           REVIEWER_INTEGRATION_RESULT: ${{ needs.reviewer_integration.result }}
+          SPACING_RESULT: ${{ needs.spacing.result }}
         run: |
+          if [ "$IS_DRAFT" = "true" ]; then
+            test "$QUICK_RESULT" = success
+            exit 0
+          fi
+          test "$CHANGED_SCREEN_MAP_RESULT" = success
           test "$BACKEND_RESULT" = success
           test "$BROWSER_SHARDS_RESULT" = success
           test "$REVIEWER_INTEGRATION_RESULT" = success
+          test "$SPACING_RESULT" = success
 
   spacing:
     runs-on: ubuntu-latest
