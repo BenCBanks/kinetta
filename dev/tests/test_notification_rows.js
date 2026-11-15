@@ -26,4 +26,11 @@ const year=c.noteRow({kind:'monthly_summary',period_type:'year',period:'2024',re
 assert(year.includes('data-summary-type="year" data-summary-period="2024"'),'year summaries expose their period link');
 c.openSummary('year','2024');assert.equal(JSON.stringify(opened.pop()),'[{"period":"year","offset":2}]','year links open their exact year');
 assert.equal(c.noteAgo(ago(0)),'Just now');assert.equal(c.noteAgo(ago(180)),'3 hr ago');
+const dayGroups=c.notificationDayGroups([
+ {created:'2026-11-09T22:00:00Z',read:true},
+ {created:'2026-11-09T04:00:00Z',read:false}
+]);
+assert.equal(dayGroups.today.length,1,'Today uses the account timezone and groups by date, regardless of read state');
+assert.equal(dayGroups.earlier.length,1,'earlier notifications use their account-local date');
+assert(src.includes("You're all caught up"),'the empty notification state is a calm one-line message');
 console.log('Notification rows: both routes, comments, new dot, month/year summary links, 24-month fallback and short times PASS');

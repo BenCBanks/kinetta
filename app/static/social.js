@@ -1453,68 +1453,50 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
   wireBack(el, '/me/settings');
   const sharingOwner=readOwner(),[s,contacts] = await Promise.all([api('/api/sharing'),api('/api/contacts/settings')]), box = $('#sh-body', el);
   if(!el.isConnected)return;
+  const check=(on)=>on?svg('check'):'';
   box.innerHTML = `<p class="small muted" id="sharing-default-disclosure">New accounts share activities and achievements with everyone signed in. You can change this here any time.</p>
-    <div class="card"><h2>Who sees new activities</h2>${visSeg(s.default)}
-      <p class="small muted">Applies to new activities. Older activities keep their audience; you can change it for each workout.</p></div>
-    <div class="card"><h2>What others see</h2><form class="sharing-switches" id="sh-d">${Object.entries(DETAIL_NAMES).map(([key,name])=>`<label class="switch-row"><span>${esc(name)}</span><input type="checkbox" role="switch" name="${key}"${s.details[key]?' checked':''}></label>`).join('')}</form>
-      <p class="small muted">Distance, time and type are always shown to that audience. Splits and laps need pace. Private notes and Kit notes are never shared.</p></div>
-    <div class="card" id="sh-achievements-card"><label class="switch-row"><span>Share achievements</span><input type="checkbox" role="switch" id="sh-achievements" aria-describedby="sh-achievements-help"${s.share_achievements?' checked':''}></label>
-      <p class="small muted" id="sh-achievements-help">When sharing is on, everyone signed in can see your achievements and the ones you feature.</p></div>
-    <div class="card"><h2>Friend search</h2><label class="check"><input type="checkbox" id="sh-find"${s.findable ? ' checked' : ''}> Let people find me by name</label>
-      <p class="small muted">Off: you don't show up when people on this Kinetta search for friends. Friends you already have, and anyone who types your exact username, can still find you.</p></div>
-    <div class="card" id="sh-contact-discovery"><h2>How people can find you</h2>
-      <div class="sharing-switches"><label class="switch-row"><span>Let people who have my email find me</span><input type="checkbox" role="switch" id="sh-find-email"${contacts.find_by_email?' checked':''}></label>
-        <label class="switch-row"><span>Let people who have my phone number find me</span><input type="checkbox" role="switch" id="sh-find-phone"${contacts.find_by_phone?' checked':''}></label></div>
-      <p class="small muted">People with your email or phone in their contacts can find your Kinetta account. Your phone is never shown on your profile.</p>
-      <p class="small muted">${contacts.email_ready?'Your confirmed email is ready for matching.':'Confirm an email in Settings → Account to be found by email.'}</p>
-      <form id="sh-contact-phone"><label class="form">Phone number<input type="tel" name="phone_e164" autocomplete="tel" inputmode="tel" maxlength="40" placeholder="+1 555 010 1234" value="${esc(contacts.phone_e164||'')}"></label>
-        <p class="small muted">Optional. Not verified. Enter the country code; this number is used only to help people find you.</p>
-        <button type="submit" class="ghost" id="sh-phone-save" disabled>Save phone number</button><p class="small muted" id="sh-contact-status" role="status" aria-live="polite"></p></form></div>
-    <div class="card"><h2>Hide the start and end of your route</h2>
-      <div class="seg wide trim4" role="group" aria-label="Hide the start and end">${s.trims.map((m) => `<button type="button" data-trim="${m}" aria-pressed="${m === s.trim_m}">${esc(trimName(m))}</button>`).join('')}</div>
-      <p class="small muted">Shared maps leave out this much at the start and at the end, so others can't see where you live. A route too short for that is shared without a map.</p></div>
+    <h2 class="settings-caption">Who sees new activities</h2><div class="social-settings-group sharing-audience" role="radiogroup" aria-label="Who sees new activities">${Object.entries({me:'Only me',friends:'Friends',everyone:'Everyone'}).map(([key,label])=>`<button type="button" class="sharing-choice" role="radio" tabindex="${key===s.default?0:-1}" aria-checked="${key===s.default}" data-vis="${key}"><span>${label}</span>${check(key===s.default)}</button>`).join('')}</div>
+    <p class="settings-footnote">Applies to new workouts. Older activities keep their audience; change them from the workout.</p>
+    <h2 class="settings-caption">What others see</h2><div class="social-settings-group sharing-switches"><form id="sh-d">${Object.entries(DETAIL_NAMES).map(([key,name])=>`<label class="switch-row"><span>${esc(name)}</span><input type="checkbox" role="switch" name="${key}"${s.details[key]?' checked':''}></label>`).join('')}</form><div id="sh-achievements-card"><label class="switch-row"><span>Share achievements</span><input type="checkbox" role="switch" id="sh-achievements" aria-describedby="sh-achievements-help"${s.share_achievements?' checked':''}></label></div></div>
+    <p class="settings-footnote" id="sh-achievements-help">Distance, time and type are always shown. Splits need pace. Private notes stay private; featured achievements follow this setting.</p>
+    <h2 class="settings-caption">Who can find you</h2><div class="social-settings-group sharing-switches" id="sh-contact-discovery">
+      <label class="switch-row"><span>Find me by name</span><input type="checkbox" role="switch" id="sh-find"${s.findable ? ' checked' : ''}></label>
+      <label class="switch-row"><span>Find me by email</span><input type="checkbox" role="switch" id="sh-find-email"${contacts.find_by_email?' checked':''}></label>
+      <label class="switch-row"><span>Find me by phone number</span><input type="checkbox" role="switch" id="sh-find-phone"${contacts.find_by_phone?' checked':''}></label>
+      <p class="settings-footnote">Friends and people who enter your exact username can still find you. Email and phone are never shown on your profile.</p>
+      <form class="sharing-phone" id="sh-contact-phone"><label class="form">Phone number<input type="tel" name="phone_e164" autocomplete="tel" inputmode="tel" maxlength="40" placeholder="+1 555 010 1234" value="${esc(contacts.phone_e164||'')}"></label>
+        <p class="small muted">Optional and not verified. Include the country code.</p><button type="submit" class="linkbtn" id="sh-phone-save" disabled>Save phone number</button><p class="small muted" id="sh-contact-status" role="status" aria-live="polite"></p></form>
+    </div>
+    <h2 class="settings-caption">Privacy</h2><div class="social-settings-group"><button type="button" class="row-link sharing-nav" id="sh-trim-open"><span class="grow"><b>Hide route ends</b><small>Start and end · ${esc(trimName(s.trim_m))}</small></span>${svg('chev')}</button></div>
     ${appFeatureEnabled('progress_segments') ? '<div id="sh-segments"></div>' : ''}
-    <div class="card list" id="sh-blocked"><h2>Blocked people</h2><p class="small muted">Loading…</p></div>`;
+    <div class="social-settings-group sharing-blocked-group"><a class="row-link sharing-nav" href="/me/sharing/blocked"><span class="grow"><b>Blocked people</b></span>${svg('chev')}</a></div>`;
   ContactsUI.addPrivacyRemoval(box);
   if (appFeatureEnabled('progress_segments') && typeof Segments !== 'undefined' && $('#sh-segments', box)) Segments.settingsRow($('#sh-segments', box));
-  const drawBlocked = (rows) => {
-    const b = $('#sh-blocked', box); if (!b) return;
-    b.innerHTML = `<h2>Blocked people</h2>${rows.length ? rows.map((p) => `<div class="person">${avatar(p)}<span class="grow"><b>${esc(p.name)}</b><small class="muted">@${esc(p.login)}</small></span>
-      <button class="ghost sm" data-unblk="${esc(p.login)}">Unblock</button></div>`).join('') : '<p class="small muted">No one. To block someone, open one of their activities or comments and choose Report or block.</p>'}`;
-    $$('[data-unblk]', b).forEach((x) => x.onclick = async () => {
-      x.disabled = true;
-      try { await api(`/api/people/${encodeURIComponent(x.dataset.unblk)}/block`, {method: 'DELETE'}); invalidate('/api/'); drawBlocked(await api('/api/blocks')); toast('Unblocked'); }
-      catch (e) { toast(e.message); x.disabled = false; }
-    });
-  };
-  load('/api/blocks', drawBlocked, {maxAge: 0}).catch(() => {});
+  $('#sh-trim-open',box).onclick=()=>go('/me/sharing/routes');
   const save = async (body, msg) => {
     if(sharingOwner!==readOwner()||!box.isConnected)return;
-    const controls=$$('button[data-vis],button[data-trim],#sh-d input,#sh-find,#sh-achievements',box);controls.forEach(b=>b.disabled=true);
+    const controls=$$('button[data-vis],#sh-d input,#sh-find,#sh-achievements,#sh-find-email,#sh-find-phone',box);controls.forEach(b=>b.disabled=true);
     try {
       await api('/api/sharing',json('PUT',body));if(sharingOwner!==readOwner())return;
       if(body.default){s.default=body.default;App.me.share_default=body.default;keep('/api/me',App.me);}
-      if(body.trim_m!==undefined)s.trim_m=body.trim_m;
       if(body.details)s.details=body.details;
       if(body.share_achievements!==undefined)s.share_achievements=body.share_achievements;
       invalidate('/api/');if(box.isConnected)toast(msg);
     }catch(x){
-      if(sharingOwner===readOwner()&&box.isConnected){
-        $$('[data-vis]',box).forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.vis===s.default)));
-        $$('[data-trim]',box).forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.trim===s.trim_m)));
-        $$('input',f).forEach(b=>b.checked=!!s.details[b.name]);$('#sh-achievements',box).checked=!!s.share_achievements;toast(x.message);
-      }
+      if(sharingOwner===readOwner()&&box.isConnected){$$('[data-vis]',box).forEach(b=>{b.setAttribute('aria-checked',String(b.dataset.vis===s.default));b.tabIndex=b.dataset.vis===s.default?0:-1;b.innerHTML=`<span>${esc(VIS_SHORT[b.dataset.vis])}</span>${b.dataset.vis===s.default?svg('check'):''}`;});
+        $$('input[name]',box).forEach(b=>{if(Object.hasOwn(s.details,b.name))b.checked=!!s.details[b.name];});$('#sh-achievements',box).checked=!!s.share_achievements;$('#sh-find',box).checked=!!s.findable;toast(x.message);}
     }finally{if(sharingOwner===readOwner()&&box.isConnected)controls.forEach(b=>b.disabled=false);}
   };
-  wireSeg(box, 'vis', (v) => save({default: v}, `New activities: ${VIS[v].toLowerCase()}`));
-  wireSeg(box, 'trim', (m) => save({trim_m: +m}, m === '0' ? 'Maps show the whole route' : `Maps hide the first and last ${trimName(+m)}`));
+  const audience=$$('[data-vis]',box);
+  audience.forEach(b=>{b.onclick=async()=>{if(sharingOwner!==readOwner()||b.disabled)return;const v=b.dataset.vis;audience.forEach(o=>{o.setAttribute('aria-checked',String(o===b));o.tabIndex=o===b?0:-1;o.innerHTML=`<span>${esc(VIS_SHORT[o.dataset.vis])}</span>${o===b?svg('check'):''}`;});await save({default:v},`New activities: ${VIS[v].toLowerCase()}`);};b.onkeydown=e=>{if(!['ArrowDown','ArrowUp','Home','End'].includes(e.key))return;e.preventDefault();const current=audience.indexOf(b),next=e.key==='Home'?0:e.key==='End'?audience.length-1:(current+(e.key==='ArrowDown'?1:-1)+audience.length)%audience.length;audience[next].focus();audience[next].click();};});
   const f = $('#sh-d', box); f.onchange = () => save({details: readChecks(f)}, 'Saved');
   $('#sh-achievements',box).onchange=e=>save({share_achievements:e.target.checked},'Saved');
   $('#sh-find', box).onchange = async (e) => {
     if(sharingOwner!==readOwner()||!box.isConnected)return;
-    const on = e.target.checked;
-    try { await api('/api/sharing', json('PUT', {findable: on})); toast(on ? 'People can find you by name' : "You're hidden from friend search"); }
+    const on = e.target.checked,input=e.target;input.disabled=true;
+    try { await api('/api/sharing', json('PUT', {findable: on}));if(sharingOwner!==readOwner()||!box.isConnected)return;s.findable=on;toast(on ? 'People can find you by name' : "You're hidden from friend search"); }
     catch (x) { e.target.checked = !on; toast(x.message); }
+    finally{if(sharingOwner===readOwner()&&box.isConnected)input.disabled=false;}
   };
   for(const [field,id] of [['find_by_email','sh-find-email'],['find_by_phone','sh-find-phone']]){
     const input=$('#'+id,box);
@@ -1543,4 +1525,22 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
     }catch(x){if(sharingOwner===readOwner()&&box.isConnected)phoneStatus.textContent=x.message;}
     finally{if(sharingOwner===readOwner()&&box.isConnected)updatePhoneButton();}
   };
+});
+
+route(/^\/me\/sharing\/routes$/, 'me', async (el) => {
+  const owner=readOwner();el.classList.add('sharing-settings','sharing-subpage');
+  el.innerHTML=`<div class="top">${backBtn('Sharing & privacy')}</div><h1>Hide route ends</h1><p class="settings-lead">Shared maps leave out this distance at the start and end. Short routes may not show a map.</p><div class="settings-caption">Distance to hide</div><div class="social-settings-group sharing-trims" id="sh-trim-options">${skel(2)}</div>`;
+  wireBack(el,'/me/sharing');
+  const s=await api('/api/sharing'),box=$('#sh-trim-options',el);if(!el.isConnected||owner!==readOwner())return;
+  box.innerHTML=s.trims.map(m=>`<button type="button" class="sharing-choice" role="radio" tabindex="${m===s.trim_m?0:-1}" aria-checked="${m===s.trim_m}" data-trim="${m}"><span>${esc(trimName(m))}</span>${m===s.trim_m?svg('check'):''}</button>`).join('')+'<p class="settings-footnote">A route too short for this distance is shared without a map.</p>';
+  const trimChoices=$$('[data-trim]',box);
+  trimChoices.forEach(b=>{b.onclick=async()=>{if(owner!==readOwner()||b.disabled)return;const previous=s.trim_m,next=Number(b.dataset.trim);trimChoices.forEach(o=>{o.disabled=true;o.tabIndex=o===b?0:-1;o.setAttribute('aria-checked',String(o===b));o.innerHTML=`<span>${esc(trimName(Number(o.dataset.trim)))}</span>${o===b?svg('check'):''}`;});try{await api('/api/sharing',json('PUT',{trim_m:next}));if(owner!==readOwner()||!el.isConnected)return;s.trim_m=next;invalidate('/api/');toast(next===0?'Maps show the whole route':`Maps hide the first and last ${trimName(next)}`);go('/me/sharing');}catch(error){trimChoices.forEach(o=>{o.disabled=false;o.tabIndex=Number(o.dataset.trim)===previous?0:-1;o.setAttribute('aria-checked',String(Number(o.dataset.trim)===previous));o.innerHTML=`<span>${esc(trimName(Number(o.dataset.trim)))}</span>${Number(o.dataset.trim)===previous?svg('check'):''}`;});toast(error.message);}};b.onkeydown=e=>{if(!['ArrowDown','ArrowUp','Home','End'].includes(e.key))return;e.preventDefault();const current=trimChoices.indexOf(b),next=e.key==='Home'?0:e.key==='End'?trimChoices.length-1:(current+(e.key==='ArrowDown'?1:-1)+trimChoices.length)%trimChoices.length;trimChoices[next].focus();trimChoices[next].click();};});
+});
+
+route(/^\/me\/sharing\/blocked$/, 'me', async (el) => {
+  const owner=readOwner();el.classList.add('sharing-settings','sharing-subpage');
+  el.innerHTML=`<div class="top">${backBtn('Sharing & privacy')}</div><h1>Blocked people</h1><div class="settings-caption">People you’ve blocked</div><div class="social-settings-group" id="sh-blocked-list">${skel(2)}</div>`;
+  wireBack(el,'/me/sharing');const box=$('#sh-blocked-list',el);
+  const render=rows=>{if(!box.isConnected||owner!==readOwner())return;box.innerHTML=rows.length?rows.map(p=>`<div class="sharing-person">${avatar(p)}<span class="grow"><b>${esc(p.name)}</b><small>@${esc(p.login)}</small></span><button type="button" class="linkbtn" data-unblk="${esc(p.login)}">Unblock</button></div>`).join(''):'<p class="settings-empty">No blocked people</p>';$$('[data-unblk]',box).forEach(button=>button.onclick=async()=>{if(owner!==readOwner()||button.disabled)return;button.disabled=true;try{await api(`/api/people/${encodeURIComponent(button.dataset.unblk)}/block`,{method:'DELETE'});if(owner!==readOwner())return;invalidate('/api/');render(await api('/api/blocks'));toast('Unblocked');}catch(error){if(owner===readOwner()){toast(error.message);button.disabled=false;}}});};
+  try{render(await api('/api/blocks'));}catch(error){if(owner===readOwner()&&box.isConnected)box.innerHTML=`<p class="settings-empty">Blocked people couldn't load.</p><button type="button" class="linkbtn" id="sh-blocked-retry">Retry</button>`;const retry=$('#sh-blocked-retry',box);if(retry)retry.onclick=async()=>{retry.disabled=true;try{render(await api('/api/blocks'));}catch(x){toast(x.message);retry.disabled=false;}};}
 });

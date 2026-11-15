@@ -123,6 +123,44 @@
 .sharing-settings #sh-contact-discovery .sharing-switches .switch-row > input { flex:none; }
 .sharing-settings #sh-contact-phone > label.form { font-size:max(15px,.9375rem); }
 
+/* Sharing and privacy follows the inset Settings list used by Friends. */
+.sharing-settings > h1 { margin-bottom:18px; }
+.sharing-settings .settings-lead { margin:0 4px 18px;color:var(--tx2);font-size:15px;line-height:1.45; }
+.sharing-settings #sharing-default-disclosure { margin:0 0 18px; }
+.sharing-settings .settings-caption { margin:18px 4px 8px;color:var(--tx3);font-size:13px;font-weight:500;line-height:1.25;letter-spacing:0;text-transform:none; }
+.sharing-settings .social-settings-group { overflow:hidden;border:1px solid var(--line);border-radius:18px;background:var(--card); }
+.sharing-settings .settings-footnote { margin:8px 4px 0;color:var(--tx3);font-size:13px;line-height:1.4; }
+.sharing-settings .sharing-choice,.sharing-settings .switch-row,.sharing-settings .sharing-nav { display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-width:0;min-height:56px;margin:0;padding:8px 14px;border:0;border-radius:0;background:transparent;color:var(--tx);font:500 15px/1.35 var(--font-ui);text-align:left; }
+.sharing-settings .sharing-choice + .sharing-choice,.sharing-settings .switch-row + .switch-row,.sharing-settings .sharing-nav + .sharing-nav { border-top:1px solid var(--line); }
+.sharing-settings .sharing-choice svg { width:18px;height:18px;flex:none;color:var(--accent); }
+.sharing-settings .sharing-choice[aria-checked="false"] svg { display:none; }
+.sharing-settings .sharing-choice:active,.sharing-settings .sharing-nav:active { background:var(--card2); }
+.sharing-settings .sharing-switches form { margin:0; }
+.sharing-settings #sh-achievements-card { border-top:1px solid var(--line); }
+.sharing-settings #sh-contact-discovery .settings-footnote { margin:0;padding:10px 14px 0; }
+.sharing-settings #sh-contact-discovery .sharing-phone { margin:10px 0 0;padding:12px 14px 14px;border-top:1px solid var(--line); }
+.sharing-settings #sh-contact-discovery .sharing-phone .small { margin:6px 0; }
+.sharing-settings .sharing-switches .switch-row { font-weight:400; }
+.sharing-settings .sharing-switches .switch-row > span,.sharing-settings .sharing-nav .grow { flex:1;min-width:0; }
+.sharing-settings .sharing-nav .grow b,.sharing-settings .sharing-nav .grow small { display:block; }
+.sharing-settings .sharing-nav .grow b { font-size:15px;font-weight:500; }
+.sharing-settings .sharing-nav .grow small { margin-top:2px;color:var(--tx3);font-size:13px;font-weight:400; }
+.sharing-settings .sharing-nav > svg { width:18px;height:18px;flex:none;color:var(--tx3); }
+.sharing-settings .sharing-phone { margin:10px 4px 0; }
+.sharing-settings .sharing-phone .form { display:grid;gap:6px; }
+.sharing-settings .sharing-phone input { width:100%;min-height:44px; }
+.sharing-settings .sharing-phone .linkbtn { min-height:44px;padding:8px 0; }
+.sharing-settings .settings-empty { margin:0;padding:18px 14px;color:var(--tx3);font-size:15px; }
+.sharing-settings .sharing-person { display:flex;align-items:center;gap:12px;min-height:64px;padding:8px 14px; }
+.sharing-settings .sharing-person + .sharing-person { border-top:1px solid var(--line); }
+.sharing-settings .sharing-person .av { flex:none; }
+.sharing-settings .sharing-person .grow { flex:1;min-width:0; }
+.sharing-settings .sharing-person .grow b,.sharing-settings .sharing-person .grow small { display:block;overflow-wrap:anywhere; }
+.sharing-settings .sharing-person .grow small { margin-top:2px;color:var(--tx3);font-size:13px; }
+.sharing-settings .sharing-person .linkbtn { min-height:44px; }
+.sharing-settings .sharing-trims .settings-footnote { padding:0 14px 12px; }
+@media(prefers-reduced-motion:reduce){.sharing-settings .sharing-choice,.sharing-settings .sharing-nav{transition:none!important;}}
+
 /* Private event Groups */
 .groups-page,.group-page,.group-invite-page {padding-bottom:calc(env(safe-area-inset-bottom) + var(--tab-h) + 28px);}
 .groups-page .top h1,.group-page .top h1 {min-width:0;overflow-wrap:anywhere;}

@@ -4,7 +4,7 @@ const {setProgressFlags}=require('./progress_flags_fixture.cjs');
 const trackFixture=require('../demo/track_session.cjs');
 const base=process.env.KINETTA_URL||'http://localhost:8798';
 const selectedCase=process.env.KINETTA_LAZY_CASE||'';
-if(selectedCase&&!['settings','recaps','fitness','notifications','records','food','route-css','track'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
+if(selectedCase&&!['settings','recaps','fitness','notifications','records','food','route-css','track','sharing'].includes(selectedCase))throw new Error(`Unknown lazy-route case: ${selectedCase}`);
 const password='green teapot on the hill';
 const user='zz_test_explore_new';
 const meReady='.me-card-sections[aria-busy="false"]';
@@ -243,6 +243,24 @@ async function socialFixture(browser,{failFirst=false,failFriendsFirst=false,idl
   return route.continue();
  });
  return {context,page,assets,friendsAssets,routeAssets,errors,writes};
+}
+async function sharingRouteCase(browser){
+ const cases=[
+  {path:'/me/sharing/routes',selector:'#sh-trim-options',heading:'Hide route ends'},
+  {path:'/me/sharing/blocked',selector:'#sh-blocked-list',heading:'Blocked people'},
+ ];
+ for(const routeCase of cases){
+  const context=await fixtureContext(browser),signed=await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});assert.equal(signed.status(),200,'fictional demo account alex logs in');
+  const page=await context.newPage(),assets=[],errors=[],writes=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.route('**/*',async route=>{const request=route.request(),url=new URL(request.url());if(url.origin!==base)return route.abort();if(url.pathname==='/static/social.js')assets.push(url.pathname);if(request.method()==='POST'&&url.pathname==='/api/challenges/signup/continue')return route.fulfill({status:204});if(!['GET','HEAD'].includes(request.method())){writes.push(`${request.method()} ${url.pathname}`);return route.abort();}return route.continue();});
+  try{
+   await page.goto(base+routeCase.path,{waitUntil:'domcontentloaded'});await ready(page,routeCase.selector,`direct ${routeCase.path} route`);
+   assert.equal(await page.locator('#page h1').innerText(),routeCase.heading,`${routeCase.path} renders its own screen`);
+   assert.deepEqual(assets,['/static/social.js'],`${routeCase.path} loads Social before its route handler exactly once`);
+   assert.deepEqual(errors,[],`${routeCase.path} has no page errors`);assert.deepEqual(writes,[],`${routeCase.path} makes no unexpected writes`);
+  }finally{await context.close();}
+ }
+ console.log('Sharing direct routes: route trimming and blocked people load their Social leaf without writes or errors PASS');
 }
 async function friendsLeafChecks(browser){
  const me=await socialFixture(browser,{idleGate:true});
@@ -861,6 +879,7 @@ async function foodWarmupCase(browser){
   if(contactsCallersOnly){await contactsCases(browser,{includeColdMe:false});return;}
   if(selectedCase==='settings'){await settingsRouteCase(browser);console.log('Settings lazy route: cold Me, direct/deep links, retry and stale path/owner PASS');return;}
   if(selectedCase==='notifications'){await notificationLeafCase(browser);return;}
+  if(selectedCase==='sharing'){await sharingRouteCase(browser);return;}
   if(selectedCase==='food'){await foodWarmupCase(browser);return;}
   if(selectedCase==='route-css'){await routeCssCase(browser);return;}
   if(selectedCase==='recaps'){await require('./recap_lazy_ui.cjs')(browser,base);return;}
@@ -884,7 +903,7 @@ async function foodWarmupCase(browser){
     const mapped=await socialMe.page.evaluate(()=>[
       '/activity','/activity/123','/activity/friends/123','/people/zz_test_friend','/add/fictional-token','/me/explore','/food/cook/42','/progress',
       '/me/friends','/me/friends/contacts','/me/groups','/groups/12345678-1234-1234-1234-123456789012',
-      '/group-invite/fictional-token','/me/sharing','/notifications','/me/notifications',
+      '/group-invite/fictional-token','/me/sharing','/me/sharing/routes','/me/sharing/blocked','/notifications','/me/notifications',
     ].map(path=>{const bundle=lazyRouteBundles.find(item=>item.re.test(path));return [path,!!bundle&&bundle.scripts.includes(SOCIAL_ROUTE_ASSET)];}));
     assert(mapped.every(([,included])=>included),`routes that render Social-owned icons or controls load social.js first: ${JSON.stringify(mapped)}`);
     const detailDependencies=await socialMe.page.evaluate(()=>[

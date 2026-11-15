@@ -23,12 +23,14 @@ async function ready(page){for(let i=0;i<120;i++){if(await page.evaluate(()=>App
   const auth=await browser.newContext();assert.equal((await auth.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}})).status(),200);const state=await auth.storageState();await auth.close();
   const context=await browser.newContext({storageState:state,viewport:{width:390,height:844},colorScheme:theme,timezoneId:zone,serviceWorkers:'block',reducedMotion:'reduce'}),page=await context.newPage(),errors=[],writes=[],puts=[];
   let push=Object.fromEntries(['friends','cheers','comments','dishes','activities','milestones','challenge_joins','challenge_reminders','challenge_finished','monthly_summary'].map(k=>[k,k==='monthly_summary']));
-   const summary={id:54701,kind:'monthly_summary',period_type:'month',period,text:titleFor(period),detail:'112 mi · 18 workouts',link:`/notifications?summary=${period}`,created:fixtureNow.toISOString(),read:false,who:{login:'',name:'Kinetta',photo:null}};
+   const summary={id:54701,kind:'monthly_summary',period_type:'month',period,text:titleFor(period),detail:'112 mi · 18 workouts',link:`/notifications?summary=${period}`,created:fixtureNow.toISOString(),read:false,who:{login:'',name:'Kinetta',photo:null}},earlier={id:54702,kind:'cheer',text:'Jordan Sample cheered your Morning Run',link:'/activity/100',created:new Date(fixtureNow.getTime()-86400000).toISOString(),read:true,who:{login:'jordan-sample',name:'Jordan Sample',photo:null}};
+   let notificationItems=[summary,earlier];
   page.on('pageerror',error=>errors.push(error.message));
   await context.route('**/api/**',async route=>{
    const request=route.request(),url=new URL(request.url()),pathname=url.pathname;
    if(pathname==='/api/challenges/signup/continue'&&request.method()==='POST')return route.fulfill({json:{}});
-  if(pathname==='/api/notifications'&&request.method()==='GET')return route.fulfill({json:{items:[summary],unread:summary.read?0:1,push:{...push},push_ready:true}});
+   if(pathname==='/api/me'&&request.method()==='GET'){const response=await route.fetch(),data=await response.json();return route.fulfill({response,json:{...data,tz:zone}});}
+  if(pathname==='/api/notifications'&&request.method()==='GET')return route.fulfill({json:{items:notificationItems,unread:notificationItems.filter(item=>!item.read).length,push:{...push},push_ready:true}});
    if(pathname==='/api/notifications/read'&&request.method()==='POST'){writes.push('read');return route.fulfill({json:{unread:0}});}
    if(pathname==='/api/notifications/settings'&&request.method()==='PUT'){
     const data=request.postDataJSON();puts.push(data);push={...push,...data};return route.fulfill({json:{push:{...push}}});
@@ -42,8 +44,10 @@ async function ready(page){for(let i=0;i<120;i++){if(await page.evaluate(()=>App
   });
    await page.clock.setFixedTime(fixtureNow);await page.goto(base+'/notifications');await ready(page);await page.locator('[data-summary-period]').waitFor();
   await page.evaluate(()=>{App.me.tz='America/New_York';});
-  assert.equal(await page.locator('.note-t').innerText(),titleFor(period));assert.equal(await page.locator('.note-q').innerText(),'112 mi · 18 workouts');
-  await shot(page,`monthly-summary-bell-390-${theme}`);
+  assert.equal(await page.locator('[data-summary-period] .note-t').innerText(),titleFor(period));assert.equal(await page.locator('[data-summary-period] .note-q').innerText(),'112 mi · 18 workouts');
+  assert.deepEqual(await page.locator('.notes-h').allTextContents(),['Today','Earlier'],'Notification Center groups by local date, regardless of read state');
+  await shot(page,`notification-center-390-${theme}`);
+  await page.setViewportSize({width:330,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'notification groups fit at 330px');await shot(page,`notification-center-330-${theme}`);await page.setViewportSize({width:390,height:844});
   await page.locator('[data-summary-period]').click();await page.locator('.recap-sheet').waitFor();
   await page.locator('.recap-sheet #recap-status[data-ready="true"]').waitFor({state:'attached'});assert.equal(await page.locator('#recap-status').innerText(),'','recap data loaded without an error');
   const label=await page.locator('#recap-period-label').innerText();assert(label.includes(new Date(period+'-01T12:00:00Z').toLocaleDateString('en-US',{timeZone:'UTC',month:'long'})),'Bell item opens the same month');
@@ -54,6 +58,7 @@ async function ready(page){for(let i=0;i<120;i++){if(await page.evaluate(()=>App
   assert.equal(new URL(page.url()).pathname,'/progress','summaries older than 24 months open Progress → Share');
   assert(!/2020/.test(await page.locator('#recap-period-label').innerText()),'old summaries do not open a capped, incorrect month');
   await shot(page,`monthly-summary-old-period-fallback-390-${theme}`);
+  notificationItems=[];await page.goto(base+'/notifications');await ready(page);assert.equal(await page.locator('.notifications-caught-up').innerText(),"You're all caught up");await shot(page,`notification-empty-390-${theme}`);await page.setViewportSize({width:330,height:844});await shot(page,`notification-empty-330-${theme}`);
   await context.close();
   const settingsAuth=await browser.newContext();assert.equal((await settingsAuth.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}})).status(),200);const settingsState=await settingsAuth.storageState();await settingsAuth.close();
   const settingsContext=await browser.newContext({storageState:settingsState,viewport:{width:390,height:844},colorScheme:theme,timezoneId:zone,serviceWorkers:'block',reducedMotion:'reduce'}),settingsPage=await settingsContext.newPage(),settingsErrors=[],settingsWrites=[],settingsPuts=[];
@@ -65,7 +70,7 @@ async function ready(page){for(let i=0;i<120;i++){if(await page.evaluate(()=>App
    if(pathname==='/api/notifications/settings'&&request.method()==='PUT'){
     const data=request.postDataJSON();settingsPuts.push(data);settingsPush={...settingsPush,...data};return route.fulfill({json:{push:{...settingsPush}}});
    }
-   if(pathname==='/api/notifications/personal')return route.fulfill({json:{plan:false,weekly:false,plan_time:'08:00',tz:zone,push_ready:true,device_ready:true}});
+   if(pathname==='/api/notifications/personal')return route.fulfill({json:{plan:true,weekly:false,plan_time:'08:00',tz:zone,push_ready:true,device_ready:true}});
    if(pathname==='/api/food/reminders')return route.fulfill({json:{enabled:false,tz:zone,push_ready:true,device_ready:true,times:[]}});
    if(!['GET','HEAD','OPTIONS'].includes(request.method())){settingsWrites.push(`${request.method()} ${pathname}`);return route.fulfill({status:204,body:''});}
    return route.continue();
@@ -77,6 +82,7 @@ async function ready(page){for(let i=0;i<120;i++){if(await page.evaluate(()=>App
    await pushCard(document.querySelector('#nt-push'),fixturePush);
   });
   const toggle=settingsPage.locator('[data-monthly-summary]');await toggle.waitFor();assert(await toggle.isChecked(),'Monthly summary defaults on beside Weekly summary');
+  const reminderTime=settingsPage.locator('[data-personal="plan_time"]');await reminderTime.waitFor();assert((await reminderTime.evaluate(el=>el.getBoundingClientRect().height))>=44,'Reminder time control keeps a 44px target');
   await settingsPage.locator('.personal-notifications').evaluate(n=>n.scrollIntoView({block:'center',behavior:'instant'}));await shot(settingsPage,`monthly-summary-switch-390-${theme}`);
   await toggle.uncheck();await settingsPage.waitForFunction(()=>{const input=document.querySelector('[data-monthly-summary]');return !!input&&!input.disabled;});assert.equal(settingsPuts.at(-1).monthly_summary,false);
   await toggle.check();await settingsPage.waitForFunction(()=>{const input=document.querySelector('[data-monthly-summary]');return !!input&&!input.disabled;});assert.equal(settingsPuts.at(-1).monthly_summary,true);

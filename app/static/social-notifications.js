@@ -41,15 +41,23 @@ function noteAgo(iso) {
   if (min < 12 * 60) return `${Math.round(min / 60)} hr ago`;
   return when(iso);
 }
+function notificationDayKey(value) {
+  const date=value instanceof Date?value:new Date(value), zone=App.me?.tz||Intl.DateTimeFormat().resolvedOptions().timeZone;
+  try{return date.toLocaleDateString('en-CA',{timeZone:zone});}catch{return date.toLocaleDateString('en-CA');}
+}
+function notificationDayGroups(items) {
+  const today=notificationDayKey(new Date());
+  return {today:items.filter(item=>notificationDayKey(item.created)===today),earlier:items.filter(item=>notificationDayKey(item.created)!==today)};
+}
 route(/^\/notifications$/, null, async (el) => {
   el.innerHTML = `<div class="top">${backBtn('Me')}</div><h1>Notifications</h1><div id="nt-list">${skel(2)}</div>`;
   wireBack(el, '/today');
   await load('/api/notifications', (r) => {
     const list = $('#nt-list', el); if (!list) return;
-    const fresh = r.items.filter((n) => !n.read), seen = r.items.filter((n) => n.read);
     const group = (title, items) => items.length ? `<section class="notes-group">${title ? `<h2 class="notes-h">${title}</h2>` : ''}<div class="card list notes">${items.map(noteRow).join('')}</div></section>` : '';
-    list.innerHTML = r.items.length ? group(fresh.length ? 'New' : '', fresh) + group(fresh.length && seen.length ? 'Earlier' : '', seen)
-      : `<div class="card empty"><b>Nothing yet</b>New workouts, friend requests, ${esc(CHEER.many)}, comments and shared meals show up here.</div>`;
+    const days=notificationDayGroups(r.items);
+    list.innerHTML = r.items.length ? group('Today',days.today) + group('Earlier',days.earlier)
+      : `<p class="notifications-caught-up">You're all caught up</p>`;
     $$('[data-summary-period]',list).forEach(link=>link.addEventListener('click',event=>{
       event.preventDefault();event.stopPropagation();openSummary(link.dataset.summaryType,link.dataset.summaryPeriod);
     }));
@@ -101,7 +109,10 @@ async function pushCard(box, r, message='') {
     mealReminderCard(meal||placeholder);
   };
   const hints={friends:'Requests and friendship updates.',cheers:'Reactions to your activities.',comments:'Replies to your activities.',dishes:'Meals shared with you.',activities:'When a watch or Health workout is ready.',milestones:'A new milestone, at most once a day.',challenge_joins:'When someone joins a challenge you host.',challenge_reminders:'A reminder while your challenge is active.',challenge_finished:'When a challenge finish picture is ready.'};
-  const alertTypes=(disabled=false)=>`<section class="card"><h2>Alert types</h2>${disabled?'<p class="small muted">Choose these in the Kinetta iPhone app.</p>':''}<div class="notification-choices" id="np-kinds">${Object.entries(PUSH_NAMES).map(([k,n])=>`<label class="switch-row"><span>${esc(k==='milestones'?'Milestones':n)}<small>${esc(hints[k])}</small></span><input type="checkbox" role="switch" name="${k}"${r.push?.[k]?' checked':''}${disabled?' disabled':''}></label>`).join('')}</div></section>`;
+  const alertTypes=(disabled=false)=>{
+    const rows=keys=>keys.map(k=>`<label class="switch-row"><span>${esc(k==='milestones'?'Milestones':PUSH_NAMES[k])}<small>${esc(hints[k])}</small></span><input type="checkbox" role="switch" name="${k}"${r.push?.[k]?' checked':''}${disabled?' disabled':''}></label>`).join('');
+    return `<section class="card notification-alerts"><h2>Alerts</h2>${disabled?'<p class="small muted">Choose these in the Kinetta iPhone app.</p>':''}<div id="np-kinds"><h3>Social</h3><div class="notification-choices">${rows(['friends','cheers','comments','dishes'])}</div><h3>Reminders</h3><div class="notification-choices">${rows(['activities','milestones','challenge_joins','challenge_reminders','challenge_finished'])}</div></div></section>`;
+  };
   if (!Native.on) {
     render('<p class="small muted">Phone alerts are managed in the Kinetta iPhone app.</p>',alertTypes(true));return;
   }
@@ -172,7 +183,7 @@ async function personalNotificationCard(box,message='',pushPreferences=null){
       <div class="personal-notice-choice"><label class="switch-row"><span>Monthly summary<small>On the first of the month at 9 am.</small></span><input type="checkbox" role="switch" data-monthly-summary${monthlySummary?' checked':''}${unavailable&&!monthlySummary?' disabled':''}></label></div>
       <div class="personal-notice-choice"><label class="switch-row"><span>Streak reminder<small>Friday at 6 pm · only if you have not logged a workout this week.</small></span><input type="checkbox" role="switch" data-personal="streak"${state.streak?' checked':''}></label></div></div>
       ${unavailable?`<p class="small muted">${!state.push_ready?'Server notification setup is not complete.':Native.on?'Turn on iPhone notifications above.':'Turn on notifications in the Kinetta iPhone app first.'}</p>`:''}
-      ${state.plan||state.weekly||state.streak?'<details class="reminder-how"><summary>Delivery details</summary><p>New choices start at the next scheduled time. A weekly summary needs a workout or food logged in the last seven completed days. A streak reminder counts completed workouts in your local week; food never counts. iOS may delay or suppress alerts. Delivered alerts cannot be recalled.</p></details>':''}
+      ${state.plan||state.weekly||state.streak?'<p class="settings-footnote">Weekly summaries need a recent activity or food log. iPhone alerts may be delayed.</p>':''}
       <p class="small${error?' err':''}" role="status" data-personal-status>${esc(error)}</p></section>`;
     $$('[data-personal]',box).forEach(input=>input.onchange=async()=>{
       if(!valid()||input.disabled)return;
@@ -243,7 +254,7 @@ async function mealReminderCard(box,message=''){
       ${unavailable?`<p class="small muted">${!state.push_ready?'Server notification setup is not complete.':Native.on?'Turn on iPhone notifications above.':'Turn on notifications in the Kinetta iPhone app first.'}</p>`:''}
       ${state.enabled?`<div class="meal-reminder-details">${learned.length?`<dl>${learned.map(row=>`<div><dt>${esc(MEAL_NAMES[row.meal])}</dt><dd>Around ${esc(timeLabel(row.time))}</dd></div>`).join('')}</dl>`:''}
       ${state.times.some(row=>!row.ready)?'<p class="small muted">Learning your usual times.</p>':''}
-      <p class="small muted">7 am–9 pm · A meal already logged stays quiet.</p><details class="reminder-how"><summary>How times work</summary><p>Uses your first same-day log for each meal across the last 28 completed days, rounded to about 15 minutes. Needs 3 daytime logging days. Past-day uploads do not set a time; no default time is invented. Delivered alerts cannot be recalled.</p></details></div>`:''}
+      <p class="small muted">7 am–9 pm · A meal already logged stays quiet.</p><p class="settings-footnote">Based on first meal logs over 28 days; needs 3 daytime logging days.</p></div>`:''}
       <p class="small muted" role="status" data-meal-status></p><p class="err" role="alert">${esc(error)}</p></section>`;
     const toggle=$('[data-meal-reminders]',box);toggle.onchange=async()=>{
       if(!valid()||toggle.disabled)return;
