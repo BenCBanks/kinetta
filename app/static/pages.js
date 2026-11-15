@@ -2029,6 +2029,7 @@ route(/^\/me\/gear$/, 'me', async (el) => {
   });
   $('#g-add', el).onclick = () => edit(null);
   await load('/api/gear', (gear) => {
+    $('#g-add', el).hidden = !gear.length;
     $('#g-list', el).innerHTML = gear.length ? `<section class="inset-section"><h2 class="inset-caption">Your gear</h2><div class="inset-group gear-list">${gear.map((g) => {
       const due = g.alert_distance_m && g.total_m >= g.alert_distance_m;
       const status = [g.is_default ? 'Default' : '', g.retired ? 'Retired' : '', `${g.uses} activities${g.last_used ? ' · last ' + fdate(g.last_used, {month: 'short', day: 'numeric'}) : ''}`].filter(Boolean).join(' · ');
@@ -2070,8 +2071,10 @@ route(/^\/me\/goals$/, 'me', async (el) => {
     if(replacePageAddress(el,location.pathname+(goalQuery.size?'?'+goalQuery:'')+location.hash))$('#o-add',el).click();
   }
   await load('/api/goals', (g) => {
-    $('#o-list', el).innerHTML = g.length ? `<section class="inset-section"><h2 class="inset-caption">Your goals</h2><div class="inset-group goals-list">${g.map((x) => `<button type="button" class="goal inset-goal-row" data-goal-id="${x.id}" aria-label="${esc((x.sport ? SPORT_NAMES[x.sport] : 'All sports') + ' goal')}">${goalRow(x).replace(/^<div class="goal[^>]*>/, '').replace(/<\/div>$/, '')}</button>`).join('')}</div></section>` : `<section class="inset-section"><p class="settings-empty">Choose a target for your workouts.</p><button type="button" class="primary wide" id="o-first">Add a goal</button></section>`;
+    $('#o-add', el).hidden = !g.length;
+    $('#o-list', el).innerHTML = g.length ? `<section class="inset-section"><h2 class="inset-caption">Your goals</h2><div class="inset-group goals-list">${g.map((x) => `<button type="button" class="goal inset-goal-row" data-goal-id="${x.id}" aria-label="${esc((x.sport ? SPORT_NAMES[x.sport] : 'All sports') + ' goal')}">${goalRow(x).replace(/^<div class="goal[^>]*>/, '').replace(/<\/div>$/, '')}</button>`).join('')}</div></section>` : `<section class="inset-section"><p class="settings-empty">Choose a target for your workouts.</p><button type="button" class="primary wide" id="o-first">Add a goal</button><div class="first-step-presets"><button type="button" class="linkbtn" data-goal-preset="run">Run 10 ${U.du()}/week</button><button type="button" class="linkbtn" data-goal-preset="calories">Burn 500 kcal/day</button></div></section>`;
     const first=$('#o-first',el);if(first)first.onclick=()=>editGoal();
+    $$('[data-goal-preset]',el).forEach(button=>button.onclick=()=>editGoal(button.dataset.goalPreset==='run'?{sport:'run',period:'week',metric:'distance',target:10}:{sport:'',period:'day',metric:'calories',target:500}));
     $$('[data-goal-id]',el).forEach(button=>button.onclick=()=>{const goal=g.find(x=>x.id===+button.dataset.goalId);if(goal)inspectGoal(goal);});
   });
 });
