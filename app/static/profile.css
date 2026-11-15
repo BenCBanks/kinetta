@@ -672,7 +672,7 @@
 /* #1024: one grouped sport surface; tracks are divided with inset hairlines. */
 .profile-achievement-sport-overview { display:block; overflow-x:clip; overflow-y:visible; border:1px solid var(--line); border-radius:18px; background:var(--surface-card); }
 .has-back > .top:has(+ #profile-achievement-page) { min-height:44px; padding-bottom:0; background:var(--bg); }
-.profile-achievement-sport-switcher { top:calc(44px + env(safe-area-inset-top,0px)); z-index:1009; margin:calc(-44px - env(safe-area-inset-top,0px)) 0 calc(56px + env(safe-area-inset-top,0px)); padding:0 16px; gap:20px; background:var(--bg); backdrop-filter:none; }
+.profile-achievement-sport-switcher { top:calc(44px + env(safe-area-inset-top,0px)); z-index:1009; margin:calc(-44px - env(safe-area-inset-top,0px)) 0 0; padding:0 16px; gap:20px; background:var(--bg); backdrop-filter:none; }
 .profile-achievement-sport-chip { position:relative; min-height:44px; padding:0 2px; border:0; border-radius:0; background:transparent; color:var(--tx2); font-weight:500; }
 .profile-achievement-sport-chip svg { color:var(--tx2); }
 .profile-achievement-sport-chip b { color:var(--tx3); font-size:.8125rem; font-weight:500; }
@@ -697,7 +697,7 @@
 .profile-achievement-sport-card .profile-achievement-track-summary { font-size:.8125rem; font-weight:500; }
 .profile-achievement-track-open { display:grid; flex:none; place-items:center; width:18px; height:22px; color:var(--tx3); }
 .profile-achievement-track-open svg { width:18px; height:18px; }
-.profile-achievement-sport-card .profile-achievement-track-share { flex:none; width:44px; height:44px; color:var(--accent); }
+.profile-achievement-sport-card .profile-achievement-track-share { flex:none; width:44px; height:44px; color:var(--color-text-muted); }
 .profile-achievement-ladder-scroll { gap:8px; padding:4px 2px 6px; -webkit-mask-image:none; mask-image:none; }
 .profile-achievement-ladder-scroll .profile-achievement-ladder-badge { flex:0 0 auto; width:max-content; min-width:64px; max-width:none; }
 .profile-achievement-ladder-scroll .profile-achievement-medallion { flex-basis:44px; width:44px; min-width:44px; max-width:44px; height:44px; }
