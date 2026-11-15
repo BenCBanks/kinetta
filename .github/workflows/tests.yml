@@ -232,19 +232,32 @@ jobs:
           exit "$status"
 
   tests:
-    if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
-    needs: [backend, browser_shards, reviewer_integration]
+    name: tests
+    if: ${{ always() }}
+    needs: [quick, changed-screen-map, backend, browser_shards, reviewer_integration, spacing]
     runs-on: ubuntu-latest
     steps:
-      - name: Require backend, browser shards and reviewer integration to pass
+      - name: Require the appropriate CI checks to pass
         env:
+          IS_DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
+          QUICK_RESULT: ${{ needs.quick.result }}
+          CHANGED_SCREEN_MAP_RESULT: ${{ needs.changed-screen-map.result }}
           BACKEND_RESULT: ${{ needs.backend.result }}
           BROWSER_SHARDS_RESULT: ${{ needs.browser_shards.result }}
           REVIEWER_INTEGRATION_RESULT: ${{ needs.reviewer_integration.result }}
+          SPACING_RESULT: ${{ needs.spacing.result }}
         run: |
-          test "$BACKEND_RESULT" = success
-          test "$BROWSER_SHARDS_RESULT" = success
-          test "$REVIEWER_INTEGRATION_RESULT" = success
+          if [ "$IS_DRAFT" = "true" ]; then
+            test "$QUICK_RESULT" = success
+            exit 0
+          fi
+          # A skipped dependency is non-failing when its own workflow condition does not apply.
+          for result in "$QUICK_RESULT" "$CHANGED_SCREEN_MAP_RESULT" "$BACKEND_RESULT" "$BROWSER_SHARDS_RESULT" "$REVIEWER_INTEGRATION_RESULT" "$SPACING_RESULT"; do
+            case "$result" in
+              success|skipped) ;;
+              *) exit 1 ;;
+            esac
+          done
 
   spacing:
     runs-on: ubuntu-latest

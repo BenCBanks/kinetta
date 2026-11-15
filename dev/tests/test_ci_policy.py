@@ -118,6 +118,12 @@ class CIPolicyTests(unittest.TestCase):
         tests=(ROOT/'.github/workflows/tests.yml').read_text()
         self.assertIn('github.event.pull_request.draft == true',tests);self.assertIn('dev/tests/run.sh --quick',tests)
         self.assertNotIn('paths:',tests) # required full-suite workflow must run for every ready PR
+        gate=tests.split('\n  tests:\n',1)[1].split('\n  spacing:\n',1)[0]
+        self.assertIn('name: tests',gate)
+        self.assertIn('if: ${{ always() }}',gate)
+        self.assertIn('needs: [quick, changed-screen-map, backend, browser_shards, reviewer_integration, spacing]',gate)
+        self.assertIn('test "$QUICK_RESULT" = success',gate)
+        self.assertIn('success|skipped)',gate)
         ios=(ROOT/'.github/workflows/ios.yml').read_text()
         self.assertIn("native: ${{ steps.paths.outputs.native == 'true' || steps.store.outputs.preview == 'true' }}",ios)
         self.assertIn('python3 dev/ci/policy.py',ios)
@@ -172,7 +178,7 @@ class CIPolicyTests(unittest.TestCase):
         shards=[value.strip() for value in matrix.group(1).split(',')]
         self.assertEqual(shards,[str(i) for i in range(1,len(shards)+1)])
         self.assertIn('run_browser_shard.sh',workflow)
-        self.assertIn('needs: [backend, browser_shards, reviewer_integration]',workflow)
+        self.assertIn('needs: [quick, changed-screen-map, backend, browser_shards, reviewer_integration, spacing]',workflow)
         self.assertIn('always()',workflow)
         self.assertIn('run: dev/tests/run.sh',workflow)
         self.assertIn('KINETTA_PROJECT: kt-ci-shard-${{ matrix.shard }}',workflow)
