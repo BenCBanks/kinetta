@@ -345,7 +345,8 @@ nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 
 .track-review-top button:first-child { justify-self:start; }
 .track-review-top button:last-child { justify-self:end; color:var(--alert); }
 .track-review-top button svg { width:17px; height:17px; }
-.track-review-scroll { box-sizing:border-box; display:block; flex:1 1 auto; min-height:0; overflow:auto; overscroll-behavior:contain; padding:12px 16px 18px; margin:0; }
+.track-review-scroll { box-sizing:border-box; display:block; flex:1 1 auto; min-height:0; overflow:auto; overscroll-behavior:contain; padding:8px 16px 18px; margin:0; }
+.track-session.track-review > .track-review-scroll { margin-top:0; }
 .track-review-primary { display:grid; gap:12px; padding:16px; border:1px solid var(--line); border-radius:18px; background:var(--surface-card); box-shadow:none; }
 .track-review-primary > * { min-width:0; }
 .track-review-when { margin:0; color:var(--tx3); font-size:14px; }
@@ -360,7 +361,8 @@ nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 
 .track-review .track-review-map-wrap { box-sizing:border-box; width:100%; min-width:0; height:180px; min-height:180px; margin:0; overflow:hidden; border-radius:16px; box-shadow:none; }
 .track-review .track-review-map-wrap .track-map { box-sizing:border-box; width:100%; min-width:0; height:100%; }
 .track-review .track-review-map-wrap .leaflet-control-zoom { display:none; }
-.track-review .leaflet-control-attribution { max-width:calc(100% - 8px); white-space:normal; font-size:9px; line-height:1.1; padding:0 4px; }
+.track-review .leaflet-bottom.leaflet-right { display:flex; justify-content:flex-end; width:100%; max-width:100%; }
+.track-review .leaflet-control-attribution { width:max-content; max-width:100%; white-space:nowrap; font-size:9px; line-height:1.1; padding:0 4px; }
 .track-review-photo-add { display:flex; align-items:center; gap:10px; width:100%; min-height:44px; padding:0 2px; border:0; border-top:1px solid var(--line); border-radius:0; background:transparent; color:var(--accent); font:inherit; text-align:left; }
 .track-review-photo-add svg { flex:none; width:18px; height:18px; }
 .track-photo-list { display:flex; flex-wrap:wrap; gap:8px; overflow:visible; margin:0; padding:0; }
@@ -383,7 +385,7 @@ nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 
 .keyboard-open .track-review-dock { display:block; }
 .track-review-dock #track-save-error:empty { display:none; }
 .track-review-dock #track-save-error { margin:0 0 8px; font-size:13px; }
-.track-review-dock #track-save { min-height:50px; margin:0; border-radius:12px; }
+.track-review-dock #track-save { min-height:50px; margin:0; border-radius:12px; background:var(--btn); box-shadow:none; }
 .track-review-dock #track-save:disabled { opacity:.4; }
 .track-review :is(button,a,select) { transition:transform var(--motion-press) ease-out, background-color var(--motion-press) ease-out; }
 .track-review :is(button,a):active { transform:scale(.98); }
