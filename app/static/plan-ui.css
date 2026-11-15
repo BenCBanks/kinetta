@@ -28,7 +28,7 @@
 .plan-weeks-title > span { color:var(--tx2);font-size:13px;text-align:right; }
 .plan-overview .pweek { margin:0;padding:0 16px;border-bottom:1px solid var(--line); }
 .plan-overview .pweek:last-child { border-bottom:0; }
-.plan-overview .pweek > summary { display:flex;align-items:center;gap:8px;min-height:56px;font-size:14px;list-style:none; }
+.plan-overview .pweek > summary { display:flex;align-items:center;gap:8px;min-height:56px;font-size:15px;list-style:none; }
 .plan-overview .pweek > summary::-webkit-details-marker { display:none; }
 .plan-overview .pweek > summary::after { content:"";width:8px;height:8px;flex:none;border-right:1.5px solid var(--tx3);border-bottom:1.5px solid var(--tx3);transform:rotate(45deg) translateY(-2px);transition:transform .15s; }
 .plan-overview .pweek[open] > summary::after { transform:rotate(225deg) translate(-1px,-1px); }
