@@ -8,7 +8,7 @@ const scenes=fixtures=>[
  {name:'Sharing & privacy',login:'alex',route:'/me/sharing',ready:'#sh-find'},
  {name:'Activity',login:'zz_test_feed_typical',route:'/activity',ready:'#feed-tools[aria-busy="false"]',dismissWeeklyRecap:true},
  {name:'Home',login:'zz_test_feed_typical',route:'/',ready:'#feed-tools[aria-busy="false"]',dismissWeeklyRecap:true},
- {name:'Activity detail',login:'zz_test_detail_owner',route:'/activity/'+fixtures.detail.run,ready:'.compact-detail-title'},
+ {name:'Activity detail',login:'zz_test_detail_owner',route:'/activity/'+fixtures.detail.run,ready:'.compact-detail-title',detailRedesign:true},
  {name:'Track ready',login:'zz_test_track_runner',route:'/track',ready:'#track-explore[aria-busy="false"]',native:true},
  {name:'Lifting with sets',login:'zz_test_lift_compact',route:'/track/lift/'+fixtures.lift.live,ready:'.lift-ex [data-row]',lift:fixtures.lift.live},
  {name:'Lifting blank sets',login:'zz_test_lift_compact_fresh',route:'/track/lift/'+fixtures.lift.fresh_live,ready:'.lift-ex [data-row]',lift:fixtures.lift.fresh_live},

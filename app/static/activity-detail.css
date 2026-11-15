@@ -32,7 +32,7 @@
 .detail-primary .stat small,.detail-moving .stat small,.detail-secondary .stat small { font-size:.8125rem; line-height:1.15; font-weight:500; letter-spacing:0; text-transform:none; color:var(--tx2); }
 .detail-primary .stat i,.detail-moving .stat i,.detail-secondary .stat i { font-size:.8125rem; margin-left:3px; font-style:normal; font-weight:400; color:var(--tx2); }
 .detail-stat-stack { position:relative; }
-.detail-stat-stack::before { content:''; position:absolute; inset:0 -8px auto; height:1px; background:linear-gradient(90deg,transparent,var(--line) 12%,var(--line) 88%,transparent); }
+.activity-detail .detail-stat-stack::before { display:none; }
 .detail-primary .stat b,.detail-moving .stat b,.detail-secondary .stat b { letter-spacing:-.02em; }
 .detail-stat-empty { min-width:0; }
 .detail-highlights { display:flex; flex-wrap:wrap; gap:8px 10px; margin-top:8px; }
@@ -114,17 +114,34 @@
 .activity-detail .dpane a:active,.activity-detail .dpane button:active { transform:scale(.985); }
 @media(prefers-reduced-motion:reduce) { .activity-detail .dpane a,.activity-detail .dpane button { transition:none; } }
 
-/* Keep media tools together below the floating navigation, with 44px targets and 8px gaps. */
-.detail-map-hero .map-full { top:calc(env(safe-area-inset-top) + 60px); right:8px; left:auto; bottom:auto; }
-.detail-map-hero .compact-media:has(.media-map) .media-controls > button { top:calc(env(safe-area-inset-top) + 60px); bottom:auto; left:auto; }
-.detail-map-hero .compact-media [data-media-step="-1"] { right:136px; }
-.detail-map-hero .compact-media [data-media-step="1"] { right:60px; width:68px; min-width:68px; min-height:44px; height:44px; padding:0 6px; display:flex; align-items:center; justify-content:center; gap:3px; border-radius:999px; background:color-mix(in srgb,var(--card) 85%,transparent); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); box-shadow:var(--lift); }
-.detail-map-hero .compact-media [data-media-step="1"]::before { content:"Next"; font-size:12px; font-weight:600; }
-.activity-detail .detail-map-hero .detail-floating .acts > .icon-btn { box-sizing:border-box; width:44px; min-width:44px; height:44px; min-height:44px; border-radius:50%; background:color-mix(in srgb,var(--card) 85%,transparent); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); box-shadow:var(--lift); }
-.detail-map-hero .compact-media:has(.media-map) .media-dots { top:calc(env(safe-area-inset-top) + 22px); }
-/* Reserve the tools' three targets, their gaps and the notice's left margin. */
-.detail-map-hero .leaflet-bottom.leaflet-left { width:calc(100% - 174px); }
-.detail-map-hero .leaflet-bottom.leaflet-right { bottom:36px; }
+/* The map is the backdrop; the pager keeps swipe and small, labelled-by-ARIA arrow targets. */
+.detail-map-hero .map:not(.full) .map-full { top:auto; right:16px; bottom:52px; left:auto; }
+.detail-map-hero .compact-media:has(.media-map) .media-controls > button { top:50%; bottom:auto; left:auto; transform:translateY(-50%); }
+.detail-map-hero .compact-media [data-media-step="-1"] { left:12px; }
+.detail-map-hero .compact-media [data-media-step="1"] { right:12px; }
+.detail-map-hero .compact-media:has(.media-map) .media-dots { top:auto; bottom:53px; left:50%; transform:translateX(-50%); }
+.detail-map-hero .leaflet-bottom.leaflet-left { width:auto; bottom:24px; left:8px; }
+.detail-map-hero .leaflet-bottom.leaflet-right { right:auto; bottom:24px; left:8px; }
+.detail-map-hero .leaflet-control-attribution { box-sizing:border-box; max-width:calc(100vw - 64px); padding:2px 6px; border:0; border-radius:4px; background:color-mix(in srgb,var(--card) 70%,transparent); color:var(--tx3); font-size:11px; font-weight:400; line-height:1.2; white-space:nowrap; }
+.detail-map-hero .leaflet-control-attribution a { color:inherit; font-size:inherit; }
+.detail-map-hero .detail-floating { left:16px; right:16px; }
+.detail-map-hero .map-full,
+.detail-map-hero .detail-floating .back,
+.detail-map-hero .detail-floating .acts > .icon-btn,
+.detail-map-hero .compact-media .media-controls > button,
+.detail-map-hero .detail-map-privacy { position:absolute; box-sizing:border-box; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; border:0; border-radius:50%; background:transparent; box-shadow:none; -webkit-backdrop-filter:none; backdrop-filter:none; }
+.detail-map-hero .map-full::before,
+.detail-map-hero .detail-floating .back::before,
+.detail-map-hero .detail-floating .acts > .icon-btn::before,
+.detail-map-hero .compact-media .media-controls > button::before,
+.detail-map-hero .detail-map-privacy::before { content:""; position:absolute; inset:4px; border:1px solid var(--line); border-radius:50%; background:color-mix(in srgb,var(--card) 88%,transparent); pointer-events:none; }
+.detail-map-hero .map-full svg,
+.detail-map-hero .detail-floating .back svg,
+.detail-map-hero .detail-floating .acts > .icon-btn svg,
+.detail-map-hero .compact-media .media-controls > button svg,
+.detail-map-hero .detail-map-privacy svg { position:relative; z-index:1; }
+.detail-map-hero .map-full { color:var(--tx); }
+.detail-map-hero .detail-map-privacy { top:calc(env(safe-area-inset-top) + 8px); bottom:auto; left:68px; }
 .detail-map-hero .map-unavailable { box-sizing:border-box; max-width:min(150px,100%); }
 @media(min-width:1000px) { .activity-detail { --detail-edge:32px; } }
 
@@ -157,66 +174,132 @@
 .activity-detail .detail-bar .acts { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .activity-detail .detail-back-circle,
 .activity-detail .detail-bar .acts .icon-btn,
-.activity-detail .detail-map-privacy { width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; border: 1px solid var(--divider); border-radius: 50%; display: grid; place-items: center; color: var(--text); background: color-mix(in srgb, var(--surface) 88%, transparent); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.activity-detail .detail-map-privacy { width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; border: 1px solid var(--line); border-radius: 50%; display: grid; place-items: center; color: var(--tx); background: color-mix(in srgb, var(--card) 88%, transparent); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
 .activity-detail .detail-back-circle svg,
 .activity-detail .detail-bar .acts .icon-btn svg,
 .activity-detail .detail-map-privacy svg { width: 19px; height: 19px; }
-.activity-detail .detail-map-privacy { position: absolute; z-index: 1002; left: 16px; bottom: 20px; }
-.activity-detail .detail-map-privacy[aria-expanded="true"] { background: var(--surface); }
-.activity-detail .detail-map-privacy [role="tooltip"] { position: absolute; left: 0; bottom: 52px; width: max-content; max-width: min(260px, calc(100vw - 40px)); padding: 10px 12px; border: 1px solid var(--divider); border-radius: 12px; background: var(--surface); color: var(--text); font-size: 14px; line-height: 1.3; box-shadow: var(--elevation-rest); }
+.activity-detail .detail-map-privacy { position: absolute; z-index: 1002; left: 68px; top: calc(env(safe-area-inset-top) + 8px); bottom: auto; }
+.activity-detail .detail-map-privacy[aria-expanded="true"] { background: var(--card); }
+.activity-detail .detail-map-privacy [role="tooltip"] { position: absolute; left: 0; bottom: 52px; width: max-content; max-width: min(260px, calc(100vw - 40px)); padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--tx); font-size: 14px; line-height: 1.3; box-shadow: var(--elevation-rest); }
 .activity-detail .detail-map-privacy [hidden] { display: none; }
 .activity-detail .map-note { display: none; }
-.activity-detail .detail-sticky { position: sticky; top: env(safe-area-inset-top); z-index: 80; margin: 0 -16px; padding: 0 16px; border-bottom: 1px solid var(--divider); background: var(--surface); color: var(--text); }
+.activity-detail .detail-sticky { position: sticky; top: env(safe-area-inset-top); z-index: 80; margin: 0 -16px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--card); color: var(--tx); }
 .activity-detail .detail-sticky .detail-bar-title { min-width: 0; max-width: 100%; overflow: hidden; flex: 1; font-size: 16px; font-weight: 600; line-height: 1.1; text-align: center; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
 .activity-detail .detail-sticky .acts { margin-left: 0; }
-.activity-detail .detail-sticky .icon-btn { width: 44px; min-width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: var(--text); }
-.activity-detail .compact-detail-title { position: relative; z-index: 2; margin: -16px 0 4px; padding: 16px; border: 1px solid var(--divider); border-radius: 18px; background: var(--surface); box-shadow: none; }
-.activity-detail > .detail-map-hero ~ .compact-detail-title { margin-top: -16px; padding: 16px; box-shadow: none; }
+.activity-detail .detail-sticky .icon-btn { width: 44px; min-width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: var(--tx); }
+.activity-detail { --detail-edge:16px; }
+.activity-detail > .detail-map-hero { margin-bottom: 0; }
+.activity-detail .compact-detail-title { position: relative; z-index: 2; margin: 0 0 0; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface-card); box-shadow: none; }
+.activity-detail > .detail-map-hero ~ .compact-detail-title { margin-top: -16px; padding: 16px; }
 .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-stat-stack { margin-top: 0; }
 .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-primary .stat b,
 .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-moving .stat b,
 .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-secondary .stat b { font-size: 20px; font-weight: 600; line-height: 1.2; }
-.activity-detail .detail-athlete { display: flex; align-items: center; gap: 8px; min-height: 44px; margin: -4px 0 4px; color: var(--text); text-decoration: none; font-size: 15px; font-weight: 600; }
+.activity-detail .detail-athlete { display: flex; align-items: center; gap: 8px; min-height: 44px; margin: -4px 0 4px; color: var(--tx); text-decoration: none; font-size: 15px; font-weight: 600; }
 .activity-detail .detail-athlete-avatar { width: 28px; height: 28px; flex: none; }
 .activity-detail .detail-title-row { display: flex; align-items: center; gap: 8px; }
 .activity-detail .compact-detail-title h1 { min-width: 0; flex: 1; margin: 0; font-size: 24px; line-height: 1.2; }
-.activity-detail .detail-kit { display: inline-flex; align-items: center; justify-content: center; gap: 5px; flex: none; min-width: 44px; min-height: 44px; padding: 0 4px; border: 0; border-radius: 0; background: none; color: var(--brand); font-size: 15px; font-weight: 600; }
+.activity-detail .detail-kit { display: inline-flex; align-items: center; justify-content: center; gap: 5px; flex: none; min-width: 44px; min-height: 44px; padding: 0 4px; border: 0; border-radius: 0; background: none; color: var(--accent); font-size: 15px; font-weight: 600; }
 .activity-detail .detail-kit svg { width: 17px; height: 17px; }
-.activity-detail .detail-date-row { display: flex; align-items: center; gap: 8px; min-height: 28px; margin-top: 4px; }
+.activity-detail .detail-date-row { display: flex; align-items: center; gap: 8px; min-height: 20px; margin-top: 4px; }
 .activity-detail .detail-date-row .sp { width: 20px; height: 20px; flex: none; }
-.activity-detail .detail-date-row .detail-date { min-width: 0; margin: 0; color: var(--text-muted); font-size: 14px; font-weight: 400; line-height: 1.35; white-space: normal; }
-.activity-detail .detail-stat-stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 12px 0 16px; }
+.activity-detail .detail-date-row .detail-date { min-width: 0; margin: 0; color: var(--tx3); font-size: 14px; font-weight: 400; line-height: 1.35; white-space: normal; }
+.activity-detail .detail-stat-stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 0; padding: 16px 0; }
 .activity-detail .detail-primary,
 .activity-detail .detail-moving,
 .activity-detail .detail-secondary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 8px; min-width: 0; margin: 0; }
 .activity-detail .detail-moving { align-items: start; }
 .activity-detail .detail-stat-empty { display: block; }
 .activity-detail .detail-stat-stack .stat { display: flex; flex-direction: column-reverse; align-items: flex-start; min-width: 0; gap: 2px; }
-.activity-detail .detail-stat-stack .stat small { color: var(--text-muted); font-size: 13px; font-weight: 500; line-height: 1.2; }
-.activity-detail .detail-stat-stack .stat b { max-width: 100%; margin: 0; color: var(--text); font-size: 20px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; white-space: normal; }
-.activity-detail .detail-stat-stack .stat b i { color: var(--text-muted); font-size: 13px; font-weight: 400; }
-.activity-detail .detail-social { border-top: 1px solid var(--divider); }
-.activity-detail .compact-detail-title .milestone-banner { display:flex; flex-wrap:nowrap; align-items:center; justify-content:space-between; gap:8px; margin:4px 0 0; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; }
-.activity-detail .compact-detail-title .milestone-copy { display:flex; flex:1; align-items:center; gap:8px; min-width:0; color:var(--text-muted); font-size:15px; }
-.activity-detail .compact-detail-title .milestone-copy b { display:inline; color:var(--text-muted); font-size:15px; font-weight:500; }
-.activity-detail .compact-detail-title .milestone-more { min-height:44px; padding:0; font-size:13px; }
-.activity-detail .compact-detail-title .milestone-actions { display:flex; flex:none; align-items:center; gap:8px; }
-.activity-detail .compact-detail-title .milestone-actions button { display:grid; place-items:center; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; border:0; border-radius:50%; background:transparent; color:var(--text-muted); }
-.activity-detail .compact-detail-title .milestone-error { flex-basis:100%; margin:0; }
-.activity-detail .activity-tabs { position: sticky; top: calc(env(safe-area-inset-top) + 52px); z-index: 70; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: 8px; margin: 0 -16px 12px; border-bottom: 1px solid var(--divider); background: var(--canvas); }
+.activity-detail .detail-stat-stack .stat small { color: var(--tx3); font-size: 13px; font-weight: 500; line-height: 1.2; }
+.activity-detail .detail-stat-stack .stat b { max-width: 100%; margin: 0; color: var(--tx); font-size: 20px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; white-space: normal; }
+.activity-detail .detail-stat-stack .stat b { font-variant-numeric: tabular-nums; }
+.activity-detail .detail-stat-stack .stat b i { color: var(--tx3); font-size: 13px; font-weight: 400; }
+.activity-detail .detail-social { border-top: 1px solid var(--line); }
+.activity-detail .detail-milestone-row { display:none; }
+.activity-detail .detail-milestone-row:has(.milestone-banner) { position:relative; display:flex; align-items:center; gap:8px; min-width:0; margin-top:12px; padding-top:8px; border-top:1px solid var(--line); }
+.activity-detail .detail-milestone-icon { display:grid; place-items:center; width:20px; height:20px; flex:none; color:var(--color-action); }
+.activity-detail .detail-milestone-icon svg { width:20px; height:20px; }
+.activity-detail .detail-milestone-row #d-milestones { position:static; flex:1; min-width:0; }
+.activity-detail .detail-milestone-row .milestone-banner { position:static; display:flex; align-items:center; min-width:0; min-height:44px; margin:0; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; }
+.activity-detail .detail-milestone-row .milestone-copy { display:flex; align-items:center; flex:1; min-width:0; color:var(--tx3); font-size:15px; }
+.activity-detail .detail-milestone-row .milestone-copy b { min-width:0; color:var(--tx); font-size:15px; font-weight:500; overflow-wrap:anywhere; }
+.activity-detail .detail-milestone-row .milestone-more { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+.activity-detail .detail-milestone-row .milestone-actions { display:flex; flex:none; align-items:center; }
+.activity-detail .detail-milestone-row .milestone-share { position:absolute; z-index:2; inset:-1px 0 0; display:block; box-sizing:border-box; width:auto; min-width:0; height:auto; min-height:0; padding:0; border:0; border-radius:0; background:transparent; color:var(--tx3); }
+.activity-detail .detail-milestone-row .milestone-share svg { display:none; }
+.activity-detail .detail-milestone-row .milestone-share::after { content:""; position:absolute; top:50%; left:calc((100% - 16px)/3 + 8px); display:block; width:8px; height:8px; border-top:1.5px solid currentColor; border-right:1.5px solid currentColor; transform:translateY(-50%) rotate(45deg); }
+.activity-detail .detail-milestone-row .milestone-dismiss { display:none; }
+.activity-detail .detail-milestone-row .milestone-error { flex-basis:100%; margin:0; }
+.activity-detail .activity-tabs { position: sticky; top: calc(env(safe-area-inset-top) + 52px); z-index: 70; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: 0; margin: 16px -16px 12px; border-bottom: 1px solid var(--line); background: var(--bg); }
 .activity-detail .activity-tabs[hidden] { display: none; }
-.activity-detail .activity-tabs button { position: relative; min-width: 0; min-height: 44px; padding: 0 3px; border: 0; border-radius: 0; background: none; color: var(--text-muted); font-size: 15px; font-weight: 400; white-space: nowrap; }
-.activity-detail .activity-tabs button[aria-selected="true"] { color: var(--text); font-weight: 600; }
-.activity-detail .activity-tabs button[aria-selected="true"]::after { position: absolute; right: 12px; bottom: -1px; left: 12px; height: 2px; background: var(--brand); content: ""; }
+.activity-detail .activity-tabs button { position: relative; min-width: 0; min-height: 44px; padding: 0 3px; border: 0; border-radius: 0; background: none; color: var(--tx3); font-size: 15px; font-weight: 400; text-align:center; white-space: nowrap; }
+.activity-detail .activity-tabs button[aria-selected="true"] { color: var(--tx); font-weight: 600; }
+.activity-detail .activity-tabs button[aria-selected="true"] { text-decoration-line:underline; text-decoration-color:var(--accent); text-decoration-thickness:2px; text-underline-offset:10px; }
+.activity-detail .activity-tabs button[aria-selected="true"]::after { display:none; }
+.activity-detail .activity-charts .readout { display:none; }
+.activity-detail .activity-charts:has(.xh[visibility="visible"]) .readout { display:flex; }
 .activity-detail .dpane > .card:last-child { margin-bottom: 12px; }
+/* PR 1b: keep the toolbar in one flex row; 44px hit areas contain 36px visible circles. */
+.activity-detail .detail-map-hero .detail-floating { left:16px; right:16px; display:flex; justify-content:space-between; }
+.activity-detail .detail-map-hero .detail-floating .detail-back-circle,
+.activity-detail .detail-map-hero .detail-floating .acts > .icon-btn { position:relative; box-sizing:border-box; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; border:0; border-radius:50%; background:transparent; box-shadow:none; -webkit-backdrop-filter:none; backdrop-filter:none; }
+.activity-detail .detail-map-hero .detail-floating .acts { gap:8px; margin-left:auto; }
+.activity-detail .detail-map-hero .detail-floating .detail-back-circle::before,
+.activity-detail .detail-map-hero .detail-floating .acts > .icon-btn::before { content:""; position:absolute; inset:4px; border:1px solid var(--line); border-radius:50%; background:color-mix(in srgb,var(--card) 88%,transparent); pointer-events:none; }
+.activity-detail .detail-map-hero .detail-floating .detail-back-circle svg,
+.activity-detail .detail-map-hero .detail-floating .acts > .icon-btn svg { position:relative; z-index:1; }
+.activity-detail .detail-map-hero .detail-map-privacy { position:absolute; left:68px; top:calc(env(safe-area-inset-top) + 8px); bottom:auto; }
+.activity-detail .detail-map-hero .compact-media .media-controls > button { position:absolute; box-sizing:border-box; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; border:0; border-radius:50%; background:transparent; box-shadow:none; transform:translateY(-50%); }
+.activity-detail .detail-map-hero .compact-media .media-controls > button::before { content:""; position:absolute; inset:4px; border:1px solid var(--line); border-radius:50%; background:color-mix(in srgb,var(--card) 88%,transparent); pointer-events:none; }
+.activity-detail .detail-map-hero .compact-media .media-controls > button svg { position:relative; z-index:1; }
+.activity-detail .detail-map-hero .leaflet-bottom.leaflet-right { right:auto; left:8px; bottom:24px; max-width:calc(100vw - 16px); }
+.activity-detail .detail-map-hero .leaflet-control-attribution { left:auto; right:auto; bottom:auto; max-width:calc(100vw - 64px); margin:0!important; padding:2px 6px!important; border:0; border-radius:4px; background:color-mix(in srgb,var(--card) 70%,transparent)!important; color:var(--tx3)!important; font-size:11px!important; font-weight:400; line-height:1.2!important; white-space:nowrap!important; }
 @media (max-width: 360px) {
-  .activity-detail .compact-detail-title { padding: 14px; }
+  .activity-detail .compact-detail-title { padding: 16px; }
+  .activity-detail > .detail-map-hero { margin-left:-16px; margin-right:-16px; }
 }
 @media (max-width: 700px) {
+  .activity-detail { --detail-edge:16px; }
   .activity-detail > .detail-map-hero ~ .compact-detail-title { padding: 16px; }
   .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-stat-stack { margin-top: 0; }
   .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-primary .stat b,
   .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-moving .stat b,
   .activity-detail > .detail-map-hero ~ .compact-detail-title .detail-secondary .stat b { font-size: 20px; line-height: 1.2; }
 }
-.activity-detail .compact-detail-title .milestone-actions > .milestone-dismiss { display:none; }
+
+@media (min-width:361px) and (max-width:700px) {
+  .activity-detail { --detail-edge:var(--space-5); }
+  .activity-detail > .compact-detail-title { margin-left:-6px; margin-right:-6px; }
+}
+
+/* Fable review: align map controls, finish the milestone row, and line up chart content. */
+.activity-detail .detail-map-hero .detail-floating { left:12px; right:12px; align-items:center; }
+.activity-detail .detail-map-hero .detail-floating .acts { gap:8px; }
+.activity-detail .detail-map-hero .map:not(.full) .map-full { right:12px; }
+.activity-detail .detail-map-hero .compact-media [data-media-step="-1"] { left:12px; }
+.activity-detail .detail-map-hero .compact-media [data-media-step="1"] { right:12px; }
+.activity-detail .detail-map-hero .compact-media:has(.media-map) [data-media-step="-1"] { left:12px; right:auto; }
+.activity-detail .detail-map-hero .compact-media:has(.media-map) [data-media-step="1"] { left:auto; right:12px; }
+.activity-detail .activity-chart-card { padding:16px; }
+@media (min-width:361px) and (max-width:700px) {
+  .activity-detail .activity-chart-card { margin-inline:-6px; }
+}
+.activity-detail .activity-tabs button[aria-selected="true"] { text-decoration:none; }
+.activity-detail .activity-tabs button[aria-selected="true"]::after {
+  display:block; position:absolute; right:0; bottom:-1px; left:0; height:2px;
+  background:var(--accent); content:"";
+}
+.activity-detail .compact-detail-title:has(.detail-milestone-row .milestone-banner) { padding-bottom:0; }
+.activity-detail .compact-detail-title:has(.detail-milestone-row .milestone-banner) .detail-stat-stack { padding-bottom:0; }
+.activity-detail .detail-milestone-row:has(.milestone-banner) {
+  position:relative; height:44px; margin-top:17px; padding-top:0; border:0; box-sizing:content-box;
+}
+.activity-detail .detail-milestone-row:has(.milestone-banner)::before { position:absolute; top:-1px; right:0; left:0; border-top:1px solid var(--line); content:""; }
+.activity-detail .detail-milestone-icon { color:var(--color-achievement); }
+.activity-detail .detail-milestone-row .milestone-banner { height:44px; min-height:44px; box-sizing:border-box; }
+.activity-detail .detail-milestone-row .milestone-actions { position:static; }
+.activity-detail .detail-milestone-row .milestone-share { inset:0; }
+.activity-detail .detail-milestone-row .milestone-share::after {
+  right:0; left:auto; border-top-width:2px; border-right-width:2px;
+}

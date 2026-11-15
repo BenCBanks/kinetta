@@ -240,6 +240,24 @@
     "reason": "Issue #786 fits all four track names across one phone row and Ben approved 11px labels. Names stay complete without ellipsis; every other text minimum remains audited."
   },
   {
+    "id": "activity-detail-map-credit-type",
+    "selector": ".activity-detail .leaflet-control-attribution,.activity-detail .leaflet-control-attribution a",
+    "metric": "font-min",
+    "kind": "approved-type",
+    "minimum": 11,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1019",
+    "reason": "Issue #1019 specifies one muted 11px map-credit line inside the detail map; all other activity-detail text remains under the normal readability checks."
+  },
+  {
+    "id": "activity-detail-tab-column-touching",
+    "selector": ".activity-detail .activity-tabs button",
+    "metric": "gap",
+    "kind": "approved-list",
+    "maximum": 0,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1019",
+    "reason": "Issue #1019 specifies four equal-width, full-row tabs; adjacent 44px tab hit targets touch by design, while labels remain centered in their own columns."
+  },
+  {
     "id": "activity-detail-title-size",
     "selector": ".compact-detail-title .detail-title-row h1",
     "metric": "font-min",
