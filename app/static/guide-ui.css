@@ -1,8 +1,11 @@
-/* Compact, borderless hints on Explore Kinetta. */
+/* Explore Kinetta uses the shared grouped-list surface. */
 .guide-page .top { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
 .guide-page > h1 { margin:0 0 16px; font-size:var(--text-app-title); }
 .guide-hints { margin:0; }
-.guide-hint { padding:14px 0; }
-.guide-hint + .guide-hint { border-top:1px solid var(--line); }
-.guide-hint h2 { margin:0 0 4px; font-size:max(16px,1rem); line-height:1.25; font-weight:600; }
-.guide-hint p { margin:0; color:var(--tx2); font-size:max(15px,.9375rem); line-height:1.4; }
+.guide-hint { min-height:56px; gap:12px; padding:6px 14px; }
+.guide-hints > .guide-hint + .guide-hint { position:relative; border-top:0; }
+.guide-hints > .guide-hint + .guide-hint::before { content:""; position:absolute; top:0; left:14px; right:14px; border-top:1px solid var(--line); }
+.guide-hint-copy { display:grid; flex:1; min-width:0; gap:2px; }
+.guide-hint h2 { margin:0; font-size:16px; line-height:1.25; font-weight:600; }
+.guide-hint p { margin:0; color:var(--tx3); font-size:14px; line-height:1.3; }
+.guide-hint .chev { flex:none; }
