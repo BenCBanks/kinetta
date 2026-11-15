@@ -81,11 +81,15 @@
 .activity-detail .activity-charts .lbl > span:first-child { color:var(--color-text); font-size:15px; font-weight:600; }
 .activity-detail .activity-charts .lbl > span:last-child { margin-left:auto; color:var(--color-text-muted); font-size:13px; font-weight:400; text-align:right; white-space:nowrap; }
 .activity-detail .activity-charts .lbl > span:last-child b { color:inherit; font-weight:600; }
-.activity-detail .activity-charts .chartbox svg { height:120px; }
-.activity-detail .activity-charts .yl { font-size:14px; }
+.activity-detail .activity-charts .chartbox svg { display:block; width:100%; height:120px; overflow:visible; }
+.activity-detail .activity-charts .yl { font-size:11px; fill:var(--color-text-muted); }
+.activity-detail .activity-charts .activity-chart-y-label { paint-order:stroke; stroke:var(--surface-card); stroke-width:4px; stroke-linejoin:round; }
+.activity-detail .activity-charts .activity-chart-x-label { display:none; }
+.activity-detail .activity-charts .activity-chart-last .activity-chart-x-label { display:block; }
 .activity-detail .activity-charts .gl { stroke:var(--color-divider); }
-.activity-detail .activity-charts .chartbox:not(:last-child) .activity-chart-x-label { display:none; }
-.activity-detail .activity-charts .activity-chart-elevation .sample-area { opacity:.5; }
+.activity-detail .activity-charts .sample-area { opacity:.12; }
+.activity-detail .activity-charts .chartbox .sample-area { opacity:.12; }
+.activity-detail .activity-chart-card { padding-bottom:calc(16px + var(--nav-height) + var(--nav-bottom)); }
 
 /* Activity detail PR 1 (#1019) supersedes the #984 hero-stat treatment with the owner grid rule. */
 .activity-detail .activity-chart-card {
@@ -96,6 +100,7 @@
   background:var(--surface-raised);
   box-shadow:var(--elevation-rest);
 }
+:root[data-theme="dark"] .activity-detail .activity-chart-y-label { stroke:var(--surface-raised); }
 
 /* PR2: one calm surface per pane, with hairline rows instead of nested cards. */
 .activity-detail .dpane { scroll-margin-top:84px; }
@@ -236,7 +241,7 @@
 .activity-detail .detail-map-privacy [hidden] { display: none; }
 .activity-detail .map-note { display: none; }
 .activity-detail .detail-sticky { position: sticky; top: env(safe-area-inset-top); z-index: 80; box-sizing: border-box; height: 44px; min-height: 44px; margin: 0 calc(-1 * var(--detail-edge)); padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--card); color: var(--tx); }
-.activity-detail .detail-sticky .detail-bar-title { position:absolute; left:64px; right:120px; min-width:0; max-width:calc(100% - 184px); overflow-wrap:anywhere; flex:none; font-size:15px; font-weight:600; line-height:1.1; text-align:center; white-space:normal; }
+.activity-detail .detail-sticky .detail-bar-title { position:absolute; left:64px; right:120px; min-width:0; max-width:calc(100% - 184px); overflow:visible; overflow-wrap:normal; flex:none; font-size:16px; font-weight:600; line-height:1.1; letter-spacing:-.04em; text-align:center; white-space:nowrap; text-overflow:clip; }
 .activity-detail .detail-sticky .acts { margin-left: 0; }
 .activity-detail .detail-sticky .detail-back-circle,
 .activity-detail .detail-sticky .acts .icon-btn { position:relative; z-index:1; box-sizing:border-box; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; border:0; border-radius:50%; background:transparent; color:var(--tx); }
@@ -339,7 +344,7 @@
 .activity-detail .detail-map-hero .compact-media [data-media-step="1"] { right:12px; }
 .activity-detail .detail-map-hero .compact-media:has(.media-map) [data-media-step="-1"] { left:12px; right:auto; }
 .activity-detail .detail-map-hero .compact-media:has(.media-map) [data-media-step="1"] { left:auto; right:12px; }
-.activity-detail .activity-chart-card { padding:16px; }
+.activity-detail .activity-chart-card { padding:16px 16px calc(16px + var(--nav-height) + var(--nav-bottom)); }
 @media (min-width:361px) and (max-width:700px) {
   .activity-detail .activity-chart-card { margin-inline:-6px; }
 }
