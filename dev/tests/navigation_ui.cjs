@@ -34,10 +34,10 @@ async function pressVisualEvidence(p,out,size,theme){
  await p.evaluate(()=>document.querySelector('#press-evidence')?.remove());await p.emulateMedia({reducedMotion:'reduce'});
 }
 async function homeHeaderAndGroups(p,base,size,snap){
- const actions=await p.locator('#feed-top .acts').evaluate(el=>[...el.children].map(a=>({label:a.getAttribute('aria-label'),href:a.getAttribute('href'),box:a.getBoundingClientRect().toJSON()})));
- assert.deepEqual(actions.slice(0,2).map(a=>a.label),['Search','Find friends'],'Home exposes Search and Find friends');assert.match(actions[2].label,/^Notifications/,'Home exposes Notifications');
- assert.deepEqual(actions.map(a=>a.href),['/me/activities?search=1','/me/friends?find=1','/notifications']);assert(actions.every(a=>a.box.width>=44&&a.box.height>=44),'Home header targets are at least 44px');
- await p.locator('#feed-top a[aria-label="Search"]').click();await p.waitForURL(base+'/people/alex');await ready(p);await p.locator('#person-search-form:not([hidden]) input').waitFor();assert.equal(new URL(p.url()).searchParams.has('search'),false,'search stays open after its one-time URL flag is removed');
+ const actions=await p.locator('#feed-top .shell-topbar-root .shell-topbar-actions').evaluate(el=>[...el.children].map(a=>({label:a.getAttribute('aria-label'),href:a.getAttribute('href'),box:a.getBoundingClientRect().toJSON()})));
+ assert.match(actions[0].label,/^Notifications(?:, \d+ new)?$/,'Home exposes Notifications with the live unread count');assert.equal(actions[1].label,'Record or import a workout','Home exposes the recorder action');
+ assert.deepEqual(actions.map(a=>a.href),['/notifications','/track']);assert(actions.every(a=>a.box.width>=44&&a.box.height>=44),'Home header targets are at least 44px');
+ await p.goto(base+'/people/alex');await ready(p);await p.locator('#person-search-form:not([hidden]) input').waitFor();assert.equal(new URL(p.url()).searchParams.has('search'),false,'people search stays open after its one-time URL flag is removed');
  await p.goBack();await p.waitForURL(base+'/activity');await ready(p);
  await p.locator('.home-view-switch a[href="/activity?view=groups"]').click();await p.waitForURL(base+'/activity?view=groups');await ready(p);await p.locator('#home-group-list .group-list-row').first().waitFor();
  assert.equal(await p.locator('.home-view-switch a[aria-current="page"]').textContent(),'Groups');assert.equal(await p.locator('nav.tabs a[aria-current="page"]').getAttribute('data-tab'),'activity','Groups remains part of Home');
