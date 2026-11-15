@@ -6,9 +6,9 @@ const person={login:'zz_test_<script>',name:'Fictional <img onerror="x">'},r={fr
 const shell=c.ui.shell('Home');assert(shell.includes('Search name or @username'));assert(shell.includes('id="fr-invite"'));assert(shell.includes('fr-requests'));assert(shell.includes('fr-suggest'));
 for(const retired of ['Your profile','Your friends will appear here','New activities:','/me/sharing','fr-own-list','fr-lists','data-invite-empty'])assert(!shell.includes(retired),`Find friends omits ${retired}`);
 const requests=c.ui.requests(r);assert(!requests.includes('<img onerror='));assert(requests.includes('&lt;img'));assert(requests.includes('/people/zz_test_%3Cscript%3E'));
-assert(requests.includes('data-request-menu'));assert(requests.includes('data-request-accept'));assert(requests.includes('data-request-decline'));assert(requests.includes('data-request-cancel'));
-assert(!requests.includes('data-blk='),'Block starts inside the request menu');assert(requests.includes('via your card'));assert.equal(c.ui.requests({incoming:[],outgoing:[]}).trim(),'');
-console.log('Find friends presentation: discovery-only shell, escaped request names, compact request actions and no profile/settings content PASS');
+assert(!requests.includes('data-request-menu'),'requests no longer contain a sheet menu');assert(requests.includes('friend-inline-actions'));assert(requests.includes('data-request-accept'));assert(requests.includes('data-request-decline'));assert(requests.includes('data-request-cancel'));
+assert(!requests.includes('role="dialog"'),'request rows are rendered inline');assert(!requests.includes('data-blk='),'Block is not part of inline request actions');assert(requests.includes('via your card'));assert.equal(c.ui.requests({incoming:[],outgoing:[]}).trim(),'');
+console.log('Find friends presentation: discovery-only shell, escaped request names, accessible inline request actions and no profile/settings content PASS');
 
 assert(!shell.includes('href="/me/challenges"'),'Challenge navigation belongs to Home; Invite remains on Find friends');
 const challengeRoutes=[];c.route=(pattern,tab)=>challengeRoutes.push({pattern,tab});
