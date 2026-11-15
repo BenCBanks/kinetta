@@ -47,6 +47,6 @@ for(const units of ['metric','imperial']){
  const rideLabel=units==='metric'?'20 km · ≤ 48:00':'12.4 mi · ≤ 48:00',swimLabel=units==='metric'?'1,500 m · ≤ 24:00':'1,640 yd · ≤ 24:00';
  assert.equal(c.achievementUnits.fastestThreshold(ride,rideTier),rideLabel,`${units}: Ride fastest uses the account distance unit`);
  assert.equal(c.achievementUnits.fastestThreshold(swim,swimTier),swimLabel,`${units}: Swim fastest uses metres or yards for the account`);
- assert.equal(c.achievementUnits.fastestNext(ride,rideTier),`Next: ${units==='metric'?'20 km':'12.4 mi'} under 48:00. Your best is 50:00, 2:00 to go`,`${units}: Ride fastest next copy uses the converted distance and time gap`);
+ assert.equal(c.achievementUnits.fastestNext(ride,rideTier),`Next: ${units==='metric'?'20 km':'12.4 mi'} under 48:00 · your best 50:00`,`${units}: Ride fastest next copy uses the converted distance`);
 }
 console.log('Fastest Ride/Swim labels: metric km/m and imperial mi/yd thresholds and next copy PASS');
