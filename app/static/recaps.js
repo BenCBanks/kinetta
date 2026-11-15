@@ -85,7 +85,7 @@ const Recaps=(()=>{
     if(owner!==readOwner()||zone!==App.me?.tz)throw Error('Your account or time zone changed. Refresh and try again.');
     return view.draw(data,options);
   }
-  function entry(el){const acts=$('.progress-heading .acts',el);if(!acts||$('#recap-entry',el))return;const b=document.createElement('button');b.id='recap-entry';b.type='button';b.className='linkbtn';b.textContent='Share';b.setAttribute('aria-label','Share a progress picture');b.onclick=()=>open();acts.prepend(b);}
+  function entry(el){if($('#progress-share',el))return;const acts=$('.progress-heading .acts',el);if(!acts||$('#recap-entry',el))return;const b=document.createElement('button');b.id='recap-entry';b.type='button';b.className='linkbtn';b.textContent='Share';b.setAttribute('aria-label','Share a progress picture');b.onclick=()=>open();acts.prepend(b);}
   async function offer(box){
     if(!box)return;
     try{if(+today().slice(-2)>7)return;const owner=readOwner(),start=startFor('month',today(),1),key='fit.recap.offer:'+scope()+':'+start;

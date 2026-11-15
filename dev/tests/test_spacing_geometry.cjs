@@ -72,6 +72,12 @@ assert(combineMeasurements([exposedColumns,changedColumns({rect:{...columnB.rect
 assert(audit(scene([columnA,{...columnB,rect:{...columnB.rect,x:45}}]),[chartRule]).violations.some(v=>v.metric==='overlap'),'Chart exception cannot allow overlapping targets');
 assert(audit(scene([{...columnA,rect:{...columnA.rect,width:43}},columnB]),[chartRule]).violations.some(v=>v.metric==='target'),'Chart exception cannot shrink a target');
 assert(audit(scene([columnA,{...columnB,rect:{...columnB.rect,x:48}}]),[chartRule]).violations.some(v=>v.metric==='gap'),'Only zero-gap chart adjacency is approved');
+const roundedChartRule={...chartRule,id:'rounded-chart-columns',selector:'.rounded-column',withSelector:'.rounded-column',maximum:.35};
+const roundedA=target('rounded-a',0,0,44,60,{hit:true,exceptions:[roundedChartRule.id],pairedExceptions:{[roundedChartRule.id]:['rounded-b']}}),roundedB=target('rounded-b',44.3,0,44,60,{hit:true,exceptions:[roundedChartRule.id],pairedExceptions:{[roundedChartRule.id]:['rounded-a']}});
+const exposedRounded=audit(scene([roundedA,roundedB]),[roundedChartRule]),coveredRounded=audit(scene([{...roundedA,hit:false},{...roundedB,hit:false}]),[roundedChartRule]);
+assert.equal(combineMeasurements([exposedRounded,coveredRounded],[roundedChartRule]).violations.length,0,'An exposed subpixel chart seam remains proven when temporary sticky chrome covers its bars');
+assert(combineMeasurements([coveredRounded],[roundedChartRule]).violations.some(v=>v.metric==='gap'),'A rounded chart seam still needs an exposed proof');
+assert(audit(scene([roundedA,{...roundedB,rect:{...roundedB.rect,x:44.4}}]),[roundedChartRule]).violations.some(v=>v.metric==='gap'),'Subpixel chart allowance stays within its measured bound');
 assert(audit(scene([target('other-a',0,0),target('other-b',44,0)]),[chartRule]).violations.some(v=>v.metric==='gap'),'Other adjacent controls still need 8px separation');
 const reactionRules=require('./spacing_exceptions.json').filter(r=>r.id.startsWith('reaction-summary-'));
 assert.equal(reactionRules.length,1,'Reaction shortcuts have only the documented target-width exception');

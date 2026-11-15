@@ -29,7 +29,7 @@ function recapFacts(matrix,params){
   await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
   await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.pathname==='/api/recaps'&&q.method()==='GET')return r.fulfill({json:recapFacts(snapshots.matrix[state],u.searchParams)});return u.origin!==base?r.abort():!['GET','HEAD'].includes(q.method())?r.fulfill({json:{}}):r.continue();});
   const p=await c.newPage(),errors=[];await p.clock.setFixedTime(new Date(snapshots.now));p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
-  await p.goto(base+'/progress');await until(p,()=>typeof App!=='undefined'&&App.pageReady,'Progress');assert.equal(await p.title(),'Kinetta');await p.evaluate(()=>store.set('fit.recap.format:'+JSON.stringify([serverKey(),App.me.id]),'story'));await p.locator('#recap-entry').click();await pictureReady(p);return{c,p,errors};
+  await p.goto(base+'/progress');await until(p,()=>typeof App!=='undefined'&&App.pageReady,'Progress');assert.equal(await p.title(),'Kinetta');await p.evaluate(()=>store.set('fit.recap.format:'+JSON.stringify([serverKey(),App.me.id]),'story'));assert.equal(await p.locator('#recap-entry').count(),0,'Progress uses its single visible recap control');await p.locator('#progress-share').click();await pictureReady(p);return{c,p,errors};
  }
  try{
   const shareLeafOnly=process.env.KINETTA_RECAP_SHARE_LEAF_ONLY==='1';
@@ -69,7 +69,7 @@ function recapFacts(matrix,params){
     if(out&&state==='typical'&&size.root===15)await p.screenshot({path:`${out}/share-390-${theme}.png`});
     await p.locator('.sheet [data-close]').click();await until(p,()=>!document.querySelector('.sheet'),'dismiss shared recap');
    }else{await p.locator('.recap-sheet [data-close]').click();await until(p,()=>!document.querySelector('.sheet'),'dismiss empty recap chooser');await p.evaluate(()=>loadShareArt());}
-   await p.locator('#recap-entry').click();await pictureReady(p);assert.equal(await p.locator('[data-recap-format]').count(),0,'one format after reopening');
+   await p.locator('#progress-share').click();await pictureReady(p);assert.equal(await p.locator('[data-recap-format]').count(),0,'one format after reopening');
    assert.deepEqual(errors,[]);await c.close();contexts.splice(contexts.indexOf(c),1);console.log(`Recaps ${state} ${size.width}/${size.root} ${theme}: controls/privacy/export/preview/prefs PASS`);
   }
   {
@@ -91,7 +91,7 @@ function recapFacts(matrix,params){
     if(url.pathname==='/api/me'){const response=await route.fetch();const me=await response.json();return route.fulfill({response,json:{...me,tz:boundary.tz}});}return route.continue();});
    const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));await page.clock.setFixedTime(new Date(boundary.now));await page.goto(base+'/progress');await until(page,()=>typeof App!=='undefined'&&App.pageReady,'fixed boundary Progress');
    assert.equal(await page.evaluate(()=>Recaps.today()),boundary.facts.this_month.today,boundary.name+' profile-local day');
-   await page.locator('#recap-entry').click();await pictureReady(page);
+   await page.locator('#progress-share').click();await pictureReady(page);
    if(boundary.name==='month-boundary'){
     assert.equal(await page.locator('#recap-period-label').innerText(),'October 2026','first-week Month defaults to October');
     await page.locator('[data-recap-next]').click();await pictureReady(page);assert.equal(await page.locator('#recap-period-label').innerText(),'This month');
@@ -133,11 +133,11 @@ function recapFacts(matrix,params){
   assert.equal(await p.locator('[data-recap-period=week]').getAttribute('aria-pressed'),'true','late period cannot replace newer choice');assert.match(await p.evaluate(async d=>(await Recaps.draw(d,{totals:true,calendar:true,highlights:true,streak:true,food:false,identity:false})).alt,snapshots.matrix.heavy.this_week),/^Week of/);
   await p.evaluate(()=>{window.recapShareCalls=0;ShareArt.deliver=async()=>{window.recapShareCalls++;return false;};});await p.locator('#recap-share').click();await sharedPictureReady(p);assert.equal(await p.locator('[data-share-choice]').count(),1);await p.locator('[data-share-send]').click();await until(p,()=>window.recapShareCalls===1,'recap share path');assert(await p.locator('[data-share-send]').isEnabled(),'cancel leaves the shared sheet open');await p.locator('.sheet [data-close]').click();await until(p,()=>!document.querySelector('.sheet'),'dismiss recap share');
   // A cached period remains labelled when offline. A failed shared-sheet redraw can be retried.
-  await p.locator('#recap-entry').click();await pictureReady(p);
+  await p.locator('#progress-share').click();await pictureReady(p);
   await p.locator('[data-recap-period=month]').click();await pictureReady(p);
   await c.route('**/api/recaps?*',r=>r.abort());await p.locator('[data-recap-period=week]').click();await pictureReady(p);assert.match(await p.locator('#recap-status').innerText(),/last data loaded/);await c.unroute('**/api/recaps?*');
   await p.evaluate(()=>{const original=ShareArt.blob;ShareArt.blob=async canvas=>{ShareArt.blob=original;throw Error('Fictional draw failure');};});const foodBefore=await p.locator('[data-recap-option=food]').getAttribute('aria-pressed');await p.locator('[data-recap-option=food]').click();await pictureReady(p);await p.locator('#recap-share').click();await until(p,()=>document.querySelector('.share-picture-status')?.textContent.includes('Fictional draw failure'),'share draw failure');assert(await p.locator('[data-share-send]').isDisabled());assert(await p.locator('[data-share-image]').isHidden());await p.locator('[data-share-choice]').click();await sharedPictureReady(p);assert(await p.locator('[data-share-send]').isEnabled(),'retry builds the picture again');assert.equal(await p.evaluate(()=>store.get('fit.recap.options:'+JSON.stringify([serverKey(),App.me.id])).food),foodBefore!=='true','retry retains the chosen option');await p.locator('.sheet [data-close]').click();await until(p,()=>!document.querySelector('.sheet'),'close after draw retry');
-  await p.locator('#recap-entry').click();await pictureReady(p);
+  await p.locator('#progress-share').click();await pictureReady(p);
   for(const key of await p.locator('[data-recap-option][aria-pressed=true]').evaluateAll(ns=>ns.map(n=>n.dataset.recapOption))){await p.locator(`[data-recap-option=${key}]`).click();await pictureReady(p);}assert(await p.locator('#recap-share').isDisabled(),'no sections cannot share');
   await p.locator('.recap-sheet [data-close]').click();await until(p,()=>!document.querySelector('.sheet'),'close recap chooser');
   await p.evaluate(()=>{store.set('fit.recap.options:'+JSON.stringify([serverKey(),App.me.id]),{totals:true,calendar:true,highlights:true,streak:true,food:false,identity:false});window.recapShareCalls=0;window.recapShared=[];ShareArt.deliver=async()=>{window.recapShareCalls++;return false;};Recaps.open('week',data=>window.recapShared.push(data));});await pictureReady(p);await p.locator('#recap-share').click();await sharedPictureReady(p);await p.locator('[data-share-send]').click();await until(p,()=>window.recapShareCalls===1,'cancelled recap share call');assert.equal(await p.evaluate(()=>window.recapShared.length),0,'cancel does not mark recap shared');await p.evaluate(()=>{ShareArt.deliver=async()=>true;});await p.locator('[data-share-send]').click();await until(p,()=>window.recapShared.length===1,'successful recap share callback');assert.equal(await p.evaluate(()=>window.recapShared[0].period),'week');await p.locator('.sheet [data-close]').click();

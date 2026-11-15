@@ -306,7 +306,7 @@ function combinedWeekHtml(w) {
   if(w.seconds>0)stats.push(stat('Time',U.time(w.seconds)));
   const food=w.days_logged?`${w.days_logged} of 7 days with food logged.`:'Your food consistency will appear as you log meals.';
   const protein=w.days_logged&&w.protein_target?`${w.protein_days_reached?`${w.protein_days_reached} ${w.protein_days_reached===1?'day':'days'} reached`:'No logged days reached'} your current ${r0(w.protein_target)} g protein target.${w.protein_days_unknown?` ${w.protein_days_unknown} logged ${w.protein_days_unknown===1?'day has':'days have'} unknown protein.`:''}`:'';
-  return `<details class="card combined-week chev-row"><summary>Your week in review</summary><p class="small muted">${esc(dayLabel(w.start))} – ${esc(dayLabel(w.end))} · last 7 completed days</p>${stats.length?`<div class="stats3">${stats.join('')}</div>`:'<p>No workouts recorded in this week. Distance and time appear with your workouts.</p>'}<p>${food}</p>${protein?`<p>${protein}</p>`:''}<a class="linkbtn" href="${w.days_logged?'/food?view=overview':'/food/describe'}">${w.days_logged?'Food review':'Log food'}</a>${w.workouts?` <a class="linkbtn" href="${profileHref(App.me)}">Your workouts</a>`:''}</details>`;
+  return `<details class="combined-week chev-row"><summary>Your week in review</summary><p class="small muted">${esc(dayLabel(w.start))} – ${esc(dayLabel(w.end))} · last 7 completed days</p>${stats.length?`<div class="stats3">${stats.join('')}</div>`:'<p>No workouts recorded in this week. Distance and time appear with your workouts.</p>'}<p>${food}</p>${protein?`<p>${protein}</p>`:''}<a class="linkbtn" href="${w.days_logged?'/food?view=overview':'/food/describe'}">${w.days_logged?'Food review':'Log food'}</a>${w.workouts?` <a class="linkbtn" href="${profileHref(App.me)}">Your workouts</a>`:''}</details>`;
 }
 function combinedWeek(box) {
   if(!box)return;const owner=readOwner();
@@ -1233,7 +1233,7 @@ function progressMetrics(sport, metric) {
   const choices = [['distance', 'Distance'], ['time', 'Moving time']];
   if (sport === 'ride') choices.push(['speed', 'Speed']);
   else if (sport === 'run' || sport === 'walk') choices.push(['pace', 'Pace']);
-  return `<div class="me-period progress-metric-controls" data-count="${choices.length}" role="group" aria-label="Totals metric">${choices.map(([key, label]) => `<button type="button" data-progress-metric="${key}" aria-pressed="${metric === key}">${label}</button>`).join('')}</div>`;
+  return ProgressUI.underlineTabs(choices,metric,{label:'Totals metric',attribute:'progress-metric'});
 }
 function setProgressView(body, showTable) {
   const chart = $('#m-chart', body), table = $('#m-table', body);
@@ -1243,7 +1243,8 @@ function setProgressView(body, showTable) {
   table.hidden = !showTable; chart.hidden = showTable;
   // A chart drawn while hidden (Table restored on load) could not measure its labels; fit them now it is visible.
   const svgChart = $('svg', chart); if (!showTable && svgChart) fitTickLabels(svgChart, svgChart.viewBox.baseVal.width);
-  $$('[data-progress-view]', body).forEach(button => button.setAttribute('aria-pressed', String((button.dataset.progressView === 'table') === showTable)));
+  const toggle=$('.totals-view-toggle button',body);
+  if(toggle){toggle.dataset.progressView=showTable?'chart':'table';toggle.setAttribute('aria-pressed',String(showTable));toggle.setAttribute('aria-label',showTable?'Show chart':'Show table');toggle.title=showTable?'Show chart':'Show table';toggle.innerHTML=svg(showTable?'chart':'list');}
   return true;
 }
 function wireProgressPeriods(el) {
@@ -1311,16 +1312,19 @@ async function progressHome(el, q) {
   const viewSport=forView(sport,'totals'),metric=progressMetricForSport(viewSport,q.get('metric')||'distance');
   let showTable=false;try{showTable=localStorage.getItem('fit.ptable')==='true';}catch(e){/* no storage */}
   const showTableToggle=metric==='distance'||metric==='time';
-  el.innerHTML = `<div class="top progress-heading"><h1>Progress</h1><div class="acts">${bellBtn()}</div></div>
+  el.innerHTML = `<div class="top progress-heading progress-home-heading"><h1>Progress</h1><div class="acts"><button type="button" class="icon-btn" id="progress-share" aria-label="Share a progress picture">${svg('share')}</button>${bellBtn()}</div></div>
     <div class="progress-home"><div id="p-combined-week"></div><div id="p-home-totals" class="progress-home-totals">${skelChart()}</div>
     <div class="progress-pair"><a class="card progress-summary" href="/progress?view=fitness"><h2>${svg('flame')}Fitness</h2><span data-progress-fitness class="small muted">Form and race estimates →</span></a>
     <a class="card progress-summary" href="/progress?view=records"><h2>${svg('trophy')}Records</h2><span data-progress-record class="small muted">Your fastest times, after a timed run</span></a></div>
     <h2 class="sec-head">Explore your progress</h2><div class="progress-grid explore-list" id="p-explore"></div>
     ${foodUser()?'<a class="card progress-food-summary" href="/food?view=overview&from=progress"><h2>Food &amp; weight '+svg('chev')+'</h2><span class="small muted" data-progress-food>See your protein goals and weight trend →</span></a>':''}</div>`;
   wireProgressFocus(el); wireProgressPeriods(el);
+  const heading=$('.progress-home-heading',el),compactHeading=()=>heading?.classList.toggle('is-compact',window.scrollY>28);
+  window.addEventListener('scroll',compactHeading,{passive:true});compactHeading();viewResources.set(el,()=>window.removeEventListener('scroll',compactHeading));
+  $('#progress-share',el).onclick=()=>Recaps.open('month');
   Discovery.wire($('#p-explore',el),'progress',{attribute:'data-progress-feature'});
   const totals=$('#p-home-totals',el), grid=$('#p-explore',el); progressTiles(grid);totals._showTable=showTableToggle&&showTable;
-  progressFilters(el,totals,`<div class="progress-totals-header"><h2 class="progress-totals-title">Totals</h2>${sportBtn(viewSport)}</div>${progressPeriods(period)}${progressMetrics(viewSport,metric)}`);
+  progressFilters(el,totals,`<div class="progress-totals-header">${sportBtn(viewSport)}<div class="totals-view-toggle"><button type="button" data-progress-view="${showTable?'chart':'table'}" ${showTableToggle?'':'hidden'} aria-pressed="${showTable}" aria-label="${showTable?'Show chart':'Show table'}" aria-controls="m-chart m-table" title="${showTable?'Show chart':'Show table'}">${svg(showTable?'chart':'list')}</button></div></div>${progressMetrics(viewSport,metric)}`);
   wireSport(el,viewSport);
   q.set('sport',viewSport);q.set('period',period);if(q.has('metric'))q.set('metric',metric);
   if ($('#p-combined-week',el)) combinedWeek($('#p-combined-week',el));
@@ -1335,8 +1339,8 @@ async function progressHome(el, q) {
     }).catch(()=>{if(valid())progressTiles(grid,null,{ready:true});}),
     load('/api/fitness?days=60',f=>{
       if(!valid())return;const last=f.days.at(-1),p=f.predictions[0];
-      if(last&&f.days.some(d=>d.fitness>0))$('[data-progress-fitness]',el).innerHTML=`<b>${last.form>5?'Fresh':last.form< -15?'Tired':'Training steadily'}</b>${p?`<small>${esc(p.label)} estimate ${esc(dur(p.seconds))}</small>`:''}`;
-      else if(p)$('[data-progress-fitness]',el).innerHTML=`<b>${esc(p.label)} · ${esc(dur(p.seconds))}</b><small>Race estimate</small>`;
+      if(p)$('[data-progress-fitness]',el).innerHTML=`<b>${esc(p.label)} · ${esc(dur(p.seconds))}</b><small>Race estimate</small>`;
+      else if(last&&f.days.some(d=>d.fitness>0))$('[data-progress-fitness]',el).innerHTML=`<b>Fitness ${Math.round(last.fitness)}</b><small>Form ${Math.round(last.form)}</small>`;
     }).catch(()=>{})
   ]);
 }
@@ -1481,7 +1485,7 @@ async function pMileage(body, q, {home=false}={}) {
   const sport = q.get('sport') || 'run', period = q.get('period') || 'week';
   const metric = progressMetricForSport(sport, q.get('metric') || 'distance'), paceMetric = metric === 'pace' || metric === 'speed';
   const R = {from: null, to: null}, scoped = false;   // Totals: the period sets how far back (date ranges live on Year over year)
-  let restoreTableFocus=body.contains(document.activeElement)&&document.activeElement?.matches('[data-progress-view="table"]');
+  let restoreTableFocus=body.contains(document.activeElement)&&document.activeElement?.matches('.totals-view-toggle button');
   body._hideProgressFilters=false;
   body.innerHTML = `<div id="m-body">${skelChart()}</div>`;   // Weeks / Months / Years: the button in the row at the top
   await load(`/api/progress/volume?period=${period}`, (r) => {
@@ -1532,7 +1536,7 @@ async function pMileage(body, q, {home=false}={}) {
     const fmt = metric === 'distance' ? (v) => `${v >= 100 ? Math.round(v) : v.toFixed(1)} ${U.du()}` : metric === 'time' ? U.time : metric === 'speed' ? (v) => `${U.speed(v)} ${U.su()}` : (v) => `${U.pace(v)} ${U.pu()}`;
     const cur = all[all.length - 1], last = all[all.length - 2];
     const defaultPeriodLabel = 'This ' + word;
-    const focusTable=restoreTableFocus||(body.contains(document.activeElement)&&document.activeElement?.matches('[data-progress-view="table"]'));restoreTableFocus=false;
+    const focusTable=restoreTableFocus||(body.contains(document.activeElement)&&document.activeElement?.matches('.totals-view-toggle button'));restoreTableFocus=false;
     const displayValue = value => metric === 'distance' ? value.toFixed(1) : metric === 'time' ? (value ? U.time(value) : '–') : value ? (metric === 'speed' ? U.speed(value) : U.pace(value)) : '–';
     const statUnit = metric === 'distance' ? U.du() : metric === 'pace' ? U.pu() : metric === 'speed' ? U.su() : '';
     let avgValue = avg, bestValue = bestEntry?.value ?? null;
@@ -1548,19 +1552,19 @@ async function pMileage(body, q, {home=false}={}) {
     const bestLabel = paceMetric ? `Fastest ${word}` : `Best ${word}`;
     const table = metric === 'distance' || metric === 'time';
     const chartLabel = `${metric === 'speed' ? 'Average speed' : metric === 'pace' ? 'Average pace' : metric === 'time' ? 'Moving time' : 'Distance'} by ${period}`;
-    box.innerHTML = `<div class="card"><div class="stats3 progress-total-stats">
-        ${stat(defaultPeriodLabel, displayValue(metricValue(cur)), statUnit)}
-        ${home&&avgValue==null?'':stat(averageLabel, avgValue == null ? '–' : displayValue(avgValue), statUnit).replace('class="stat"','class="stat progress-average"')}
-        ${stat(bestLabel + (scoped ? ' (range)' : ''), bestValue == null ? '–' : displayValue(bestValue), statUnit)}</div>
-        ${paceMetric ? `<p class="small muted progress-pace-window">${period === 'week' ? 'Weekly averages · last 12 weeks' : period === 'month' ? 'Monthly averages · last 12 months' : 'Yearly averages'}</p>` : home?'':`<p class="small muted">${last ? `Last ${word}: ${esc(fmt(metricValue(last)))} · ` : ''}best ${esc(label(bestEntry?.d || cur).replace('Week of ', 'week of '))}</p>`}
+    const totalStats=home?ProgressUI.statRow([
+      {label:defaultPeriodLabel,value:displayValue(metricValue(cur)),unit:statUnit},
+      {label:averageLabel,value:avgValue==null?'–':displayValue(avgValue),unit:statUnit},
+      {label:bestLabel,value:bestValue==null?'–':displayValue(bestValue),unit:statUnit}
+    ]).replace('class="stat-row"','class="stat-row progress-total-stats"'):`<div class="stats3 progress-total-stats">${stat(defaultPeriodLabel,displayValue(metricValue(cur)),statUnit)}${avgValue==null?'':stat(averageLabel,displayValue(avgValue),statUnit).replace('class="stat"','class="stat progress-average"')}${stat(bestLabel+(scoped?' (range)':''),bestValue==null?'–':displayValue(bestValue),statUnit)}</div>`;
+    const footer=home?`<div class="progress-total-footer"><span class="progress-total-caption">${esc(`${label(cur)} · ${fmt(metricValue(cur))}`)}</span>${ProgressUI.rangeText(PPERIODS,period,{label:'Totals range',attribute:'progress-period'})}</div>`:'';
+    box.innerHTML = `<div class="card progress-totals-card">${totalStats}
+        ${paceMetric ? home?'':`<p class="small muted progress-pace-window">${period === 'week' ? 'Weekly averages · last 12 weeks' : period === 'month' ? 'Monthly averages · last 12 months' : 'Yearly averages'}</p>` : home?'':`<p class="small muted">${last ? `Last ${word}: ${esc(fmt(metricValue(last)))} · ` : ''}best ${esc(label(bestEntry?.d || cur).replace('Week of ', 'week of '))}</p>`}
         <div class="totals-display"><div id="m-chart"${body._showTable?' hidden':''}></div>${table?`<div id="m-table" class="tbl-wrap"${body._showTable?'':' hidden'}><table class="tbl"><thead><tr><th>${period === 'week' ? 'Week of' : period === 'month' ? 'Month' : 'Year'}</th><th class="r">Distance ${U.du()}</th><th class="r">Moving time h/m/s</th><th class="r">Workouts</th><th class="r">Climb ${U.eu()}</th></tr></thead><tbody>
         ${[...show].reverse().map((d) => `<tr><td>${esc(progressTableLabel(d, period))}</td>
-          <td class="r num">${toU(val(d)).toFixed(1)}</td><td class="r num">${val(d, 't') ? U.time(val(d, 't')) : '–'}</td><td class="r num">${val(d, 'n')}</td><td class="r num">${val(d, 'a') ? U.elev(val(d, 'a')) : '–'}</td></tr>`).join('')}</tbody></table></div>`:''}</div></div>`;
+          <td class="r num">${toU(val(d)).toFixed(1)}</td><td class="r num">${val(d, 't') ? U.time(val(d, 't')) : '–'}</td><td class="r num">${val(d, 'n')}</td><td class="r num">${val(d, 'a') ? U.elev(val(d, 'a')) : '–'}</td></tr>`).join('')}</tbody></table></div>`:''}</div>${footer}</div>`;
     requestAnimationFrame(() => {
-      const header = $('.progress-totals-header', body);
-      if (home && table && header && !$('.totals-view-toggle', header)) {
-        header.insertAdjacentHTML('beforeend', `<div class="totals-view-toggle" role="group" aria-label="Totals view"><button type="button" data-progress-view="chart" aria-pressed="${!body._showTable}" aria-controls="m-chart m-table">Chart</button><button type="button" data-progress-view="table" aria-pressed="${body._showTable === true}" aria-controls="m-chart m-table">Table</button></div>`);
-      }
+      const toggle=$('.totals-view-toggle button',body);if(toggle)toggle.hidden=!table;
       if (paceMetric) {
         const points = chartPeriods.map(d => { const value = metricValue(d); return value > 0 ? {x: new Date(d).getTime() / 864e5, y: value, value, periodLabel: period === 'week' ? `Week of ${d.getDate()} ${d.toLocaleDateString([], {month: 'short'})}` : label(d), current: period === 'week' && ymd(d) === ymd(cur)} : null; }).filter(Boolean);
         const chart = $('#m-chart', box);
@@ -1630,9 +1634,9 @@ async function pMileage(body, q, {home=false}={}) {
           }
         }
       } else {
-        periodBars($('#m-chart', box), cols, {keys, fmt, yfmt: metric === 'time' ? progressAxisTime : v => String(+v.toFixed(2)), step: metric === 'time' ? progressTimeStep : undefined, axisUnit:metric==='distance'?U.du():'', yTicks:3, avg, avgLabel: period === 'year' ? 'Yearly average' + (scoped ? ` (${rangeName})` : '') : `Average ${period} (${scoped ? rangeName : 'last 12 months'})`, avgLineLabel: avg>0?`avg ${fmt(avg)}`:'', ariaLabel:`${chartLabel}. Select a bar for its period total.`, readoutHint:`Tap a bar for that ${word}’s total`, height:home?165:190, distance:sport==='all'&&metric==='distance', inlineSelection:true});
+        periodBars($('#m-chart', box), cols, {keys, fmt, yfmt: metric === 'time' ? progressAxisTime : v => String(+v.toFixed(2)), step: metric === 'time' ? progressTimeStep : undefined, axisUnit:metric==='distance'?U.du():'', yTicks:2, avg, avgLabel: period === 'year' ? 'Yearly average' + (scoped ? ` (${rangeName})` : '') : `Average ${period} (${scoped ? rangeName : 'last 12 months'})`, avgLineLabel: avg>0?`avg ${fmt(avg)}`:'', ariaLabel:`${chartLabel}. Select a bar for its period total.`, readoutHint:'', height:home?160:190, distance:sport==='all'&&metric==='distance', inlineSelection:true});
       }
-      if(focusTable&&body.isConnected&&document.activeElement===document.body)$('[data-progress-view="table"]',body)?.focus({preventScroll:true});
+      if(focusTable&&body.isConnected&&document.activeElement===document.body)$('.totals-view-toggle button',body)?.focus({preventScroll:true});
     });
   });
 }
