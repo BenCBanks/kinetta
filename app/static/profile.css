@@ -850,27 +850,35 @@
 .me-milestone-latest,.me-milestone-all { min-height:44px; }
 .me-card .me-milestone-latest>svg { color:var(--color-achievement); }
 
-/* #1024 owner-approved badge state colours: neutral discs, gold only marks progress. */
-:root { --achievement-state-gold:#8A5F10; --achievement-disc-earned:#EDF0F3; --achievement-disc-locked:#fff; --achievement-disc-divider:#E3E7EB; }
-:root[data-theme="dark"] { --achievement-state-gold:#F2C14E; --achievement-disc-earned:#20262B; --achievement-disc-locked:#171B1F; --achievement-disc-divider:#2A3137; }
+/* #1053: badge discs use brand blue only for the next state. */
+:root { --achievement-state-brand:#1F55D0; --achievement-disc-earned:#EDF0F3; --achievement-disc-locked:#fff; --achievement-disc-divider:#E3E7EB; }
+:root[data-theme="dark"] { --achievement-state-brand:#82AAF6; --achievement-disc-earned:#20262B; --achievement-disc-locked:#171B1F; --achievement-disc-divider:#2A3137; }
 @media (prefers-color-scheme:dark) {
-  :root:not([data-theme="light"]) { --achievement-state-gold:#F2C14E; --achievement-disc-earned:#20262B; --achievement-disc-locked:#171B1F; --achievement-disc-divider:#2A3137; }
+  :root:not([data-theme="light"]) { --achievement-state-brand:#82AAF6; --achievement-disc-earned:#20262B; --achievement-disc-locked:#171B1F; --achievement-disc-divider:#2A3137; }
 }
 #profile-achievement-page .profile-achievement-medallion,
+.me-featured-achievements .profile-achievement-medallion[data-level-tone],
+.profile-achievement-list.is-overview .profile-achievement-medallion[data-level-tone],
 .achievement-share-card .achievement-share-badge .profile-achievement-medallion {
   --achievement-color:var(--achievement-disc-earned);
-  border:1px solid var(--achievement-disc-divider);
+  border:0;
   background:var(--achievement-disc-earned);
   box-shadow:none;
   filter:none;
   opacity:1;
 }
 #profile-achievement-page .profile-achievement-medallion::before,
+.me-featured-achievements .profile-achievement-medallion[data-level-tone]::before,
+.profile-achievement-list.is-overview .profile-achievement-medallion[data-level-tone]::before,
 .achievement-share-card .achievement-share-badge .profile-achievement-medallion::before { content:none; }
 #profile-achievement-page .profile-achievement-medallion .profile-achievement-icon,
+.me-featured-achievements .profile-achievement-medallion[data-level-tone] .profile-achievement-icon,
+.profile-achievement-list.is-overview .profile-achievement-medallion[data-level-tone] .profile-achievement-icon,
 .achievement-share-card .achievement-share-badge .profile-achievement-medallion .profile-achievement-icon { filter:none; opacity:1; }
 #profile-achievement-page .profile-achievement-ladder-badge.is-upcoming .profile-achievement-medallion,
 #profile-achievement-page .profile-achievement-history-head.is-future .profile-achievement-medallion,
+.me-featured-achievements .profile-achievement-next-medallion,
+.profile-achievement-list.is-overview .profile-achievement-next-medallion,
 .achievement-share-card .achievement-share-badge.is-locked .profile-achievement-medallion {
   --achievement-color:var(--achievement-disc-locked);
   border:1px solid var(--achievement-disc-divider);
@@ -885,19 +893,24 @@
 #profile-achievement-page .profile-achievement-ladder-badge.is-upcoming .profile-achievement-ladder-threshold,
 .achievement-share-card .achievement-share-badge.is-locked b { color:var(--color-text-muted,#646D77); }
 #profile-achievement-page .profile-achievement-ladder-badge.is-next .profile-achievement-medallion,
+.me-featured-achievements .profile-achievement-next-medallion,
+.profile-achievement-list.is-overview .profile-achievement-next-medallion,
 .achievement-share-card .achievement-share-badge.is-next .profile-achievement-medallion {
-  border:1px solid var(--achievement-disc-divider);
+  border:0;
   background:var(--achievement-disc-earned);
   box-shadow:none;
   filter:none;
   opacity:1;
 }
 #profile-achievement-page .profile-achievement-ladder-badge.is-next .profile-achievement-medallion::after,
-.achievement-share-card .achievement-share-badge.is-next .profile-achievement-medallion::after { content:none; }
-#profile-achievement-page .profile-achievement-ladder-badge.is-next .profile-achievement-medallion::after {
+.me-featured-achievements .profile-achievement-next-medallion::after,
+.profile-achievement-list.is-overview .profile-achievement-next-medallion::after { content:none; }
+#profile-achievement-page .profile-achievement-ladder-badge.is-next .profile-achievement-medallion::after,
+.me-featured-achievements .profile-achievement-next-medallion::after,
+.profile-achievement-list.is-overview .profile-achievement-next-medallion::after {
   position:absolute;
   inset:-4px;
-  border:2px solid var(--achievement-state-gold);
+  border:2px solid var(--achievement-state-brand);
   border-radius:inherit;
   content:"";
   pointer-events:none;
@@ -905,15 +918,18 @@
 #profile-achievement-page .profile-achievement-ladder-badge.is-next .profile-achievement-ladder-progress,
 .achievement-share-card .achievement-share-badge.is-next .achievement-share-progress { background:var(--achievement-disc-divider); }
 #profile-achievement-page .profile-achievement-ladder-badge.is-next .profile-achievement-ladder-progress svg rect,
-.achievement-share-card .achievement-share-badge.is-next .achievement-share-progress rect:last-child { fill:var(--achievement-state-gold); }
+.achievement-share-card .achievement-share-badge.is-next .achievement-share-progress rect:last-child { fill:var(--achievement-state-brand); }
+.me-featured-achievements .profile-achievement-overview-progress>svg rect,
+.profile-achievement-list.is-overview .profile-achievement-overview-progress>svg rect,
+#profile-achievement-page .profile-achievement-sport-progress>svg rect { fill:var(--achievement-state-brand); }
 #profile-achievement-page .profile-achievement-ladder-badge.is-complete .profile-achievement-medallion,
 .achievement-share-card .achievement-share-badge.is-complete .profile-achievement-medallion {
-  border:2px solid var(--achievement-state-gold);
+  border:0;
   background:var(--achievement-disc-earned);
   box-shadow:none;
 }
-#profile-achievement-page .profile-achievement-history-head.is-complete .profile-achievement-medallion { border:3px solid var(--achievement-state-gold); }
-.achievement-share-ring { position:absolute; inset:-4px; border:2px solid var(--achievement-state-gold); border-radius:inherit; pointer-events:none; }
+#profile-achievement-page .profile-achievement-history-head.is-complete .profile-achievement-medallion { border:0; }
+.achievement-share-ring { position:absolute; inset:-4px; border:2px solid var(--achievement-state-brand); border-radius:inherit; pointer-events:none; }
 #profile-achievement-page .profile-achievement-history-head .profile-achievement-medallion { flex:0 0 96px; width:96px; height:96px; }
 #profile-achievement-page .profile-achievement-ladder-progress { background:var(--achievement-disc-divider); }
 
