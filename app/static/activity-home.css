@@ -158,6 +158,55 @@
 .activity-card .post-summary .stat small { font-size:.75rem; }
 .activity-card .post-extra > .post-lifts,.activity-card .post-extra > .badges { margin:0; padding:0 14px 8px; }
 .activity-card .post-summary .post-lifts,.activity-card .post-summary .badges { margin:6px 0 0; padding:0; }
+/* Feed cards keep identity and stats on the card surface; the map/photo rail stays quiet. */
+.activity-home .activity-card { overflow:hidden; border-radius:18px; box-shadow:none; }
+.activity-home .activity-card .feed-card-header { position:relative; inset:auto; display:block; padding:14px 16px 12px; color:var(--tx); background:var(--card); text-shadow:none; pointer-events:auto; }
+.activity-home .activity-card .post-identity { display:flex; align-items:flex-start; gap:12px; min-width:0; }
+.activity-home .activity-card .post-av { display:grid; place-items:center; width:44px; min-width:44px; height:44px; min-height:44px; margin:0; }
+.activity-home .activity-card .post-av .av { width:36px; height:36px; transform:none; background:var(--card2); color:var(--tx); }
+.activity-home .activity-card .post-identity-copy { min-width:0; }
+.activity-home .activity-card .post-name { display:flex; align-items:center; width:max-content; max-width:100%; min-width:44px; min-height:44px; color:var(--tx); font-size:15px; font-weight:600; line-height:18px; }
+.activity-home .activity-card .post-name::before { content:none; }
+.activity-home .activity-card .post-meta { display:flex; align-items:center; flex-wrap:wrap; gap:8px; min-width:0; margin-top:2px; color:var(--tx2); font-size:13px; font-weight:400; line-height:18px; }
+.activity-home .activity-card .post-meta-date { white-space:nowrap; }
+.activity-home .activity-card .post-meta-icon { display:inline-flex; flex:none; align-items:center; justify-content:center; width:16px; height:18px; color:var(--tx2); }
+.activity-home .activity-card .post-meta-icon svg { width:14px; height:14px; }
+.activity-home .activity-card .post-title-link { display:block; min-height:0; margin-top:10px; color:var(--tx); }
+.activity-home .activity-card .post-title { color:inherit; font-size:17px; font-weight:600; line-height:22px; }
+.activity-home .activity-card.post-led .activity-picture,.activity-home .activity-card.post-led .activity-media { position:relative; margin:0; }
+.activity-home .activity-card.post-led .media-track { border-radius:0; }
+.activity-home .activity-card.post-led .media-item,.activity-home .activity-card.post-led .media-item.media-map { aspect-ratio:16 / 10; }
+.activity-home .activity-card.post-led .media-item.media-photo { min-height:0; }
+.activity-home .activity-card .post-summary { padding:12px 16px; }
+.activity-home .activity-card .feed-stat-row { grid-template-columns:repeat(3,minmax(0,1fr)); gap:0; }
+.activity-home .activity-card .feed-stat-row .stat { display:flex; flex-direction:column; align-items:flex-start; min-width:0; padding:0 8px; border-right:1px solid var(--line); }
+.activity-home .activity-card .feed-stat-row .stat:first-child { padding-left:0; }
+.activity-home .activity-card .feed-stat-row .stat:last-child { padding-right:0; border-right:0; }
+.activity-home .activity-card .feed-stat-row .stat small { order:2; margin-top:4px; color:var(--tx2); font-size:13px; font-weight:500; line-height:18px; white-space:normal; }
+.activity-home .activity-card .feed-stat-row .stat b { order:1; min-width:0; color:var(--tx); font-size:20px; font-weight:600; line-height:24px; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.activity-home .activity-card .feed-stat-row .stat i { margin-left:3px; color:var(--tx2); font-size:13px; font-weight:500; font-style:normal; }
+.activity-home .activity-card .post-extra { margin:0; }
+.activity-home .activity-card.post-led .post-map-metrics { display:none; }
+.activity-home .activity-card.post-led .fmap .leaflet-control-attribution { color:var(--tx2)!important; background:var(--card)!important; text-shadow:none; opacity:1; }
+.activity-home .activity-card.post-led .compact-media .media-dots { top:auto; bottom:12px; }
+.activity-home .activity-card.post-led .compact-media:has(.media-map) .media-dots { top:auto; bottom:12px; }
+.activity-home .activity-card.post-led .fmap[data-sport="run"] .mini path.run { stroke:var(--run); }
+.activity-home .activity-card.post-led .fmap[data-sport="ride"] .mini path.ride { stroke:var(--ride); }
+.activity-home .activity-card.post-led .fmap[data-sport="walk"] .mini path.walk { stroke:var(--walk); }
+.activity-home .activity-card.post-led .fmap[data-sport="hike"] .mini path.hike { stroke:var(--hike); }
+.activity-home .activity-card.post-led .fmap[data-sport="swim"] .mini path.swim { stroke:var(--swim); }
+.activity-home .activity-card.post-led .fmap[data-sport="row"] .mini path.row { stroke:var(--row); }
+.activity-home .activity-card.post-led .fmap[data-sport="ski"] .mini path.ski { stroke:var(--ski); }
+.activity-home .activity-card.post-led .fmap[data-sport="workout"] .mini path.workout { stroke:var(--workout); }
+.activity-home .activity-card.post-led .route-end { display:grid; place-items:center; }
+.activity-home .activity-card.post-led .route-end svg { width:12px; height:12px; filter:none; }
+.activity-home .feed-list .sk-card { display:flex; flex-direction:column; gap:0; overflow:hidden; padding:0; border-radius:18px; }
+.activity-home .feed-list .sk-card .sk-row { order:1; margin:14px 16px 10px; }
+.activity-home .feed-list .sk-card > .sk.line.mid { order:2; margin:0 16px 10px; }
+.activity-home .feed-list .sk-card .sk.block.map { order:3; width:100%; height:auto; aspect-ratio:16 / 10; margin:0; border-radius:0; }
+.activity-home .feed-list .sk-card .d-ph-stats { order:4; margin:0; padding:12px 16px; gap:0; }
+.activity-home .feed-list .sk-card .d-ph-stats .sk { height:42px; border-radius:0; border-right:1px solid var(--line); }
+.activity-home .feed-list .sk-card .d-ph-stats .sk:last-child { border-right:0; }
 /* Home feed footer follows the one-row social action spec; other activity lists keep shared defaults. */
 .activity-home .activity-card .post-ft .activity-share { order:4; display:flex; align-items:center; justify-content:center; flex:none; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; margin:0 0 0 auto; background:none; border-color:transparent; box-shadow:none; }
 .activity-home .activity-card .post-ft:has(.activity-share) .emoji-reactions .reaction-count { margin-left:4px; }
@@ -191,42 +240,23 @@
 .activity-card .compact-media:has(.media-map) .media-controls > button[data-media-step="1"] { top:36px; }
 
 /* The old 330px grid split the avatar and subtitle across rows; keep the redesigned header intact. */
-.activity-home .activity-card .post-hd.post-profile { display:flex; grid-template-columns:none; }
-.activity-home .activity-card .post-hd > .ph-txt { display:block; }
-.activity-home .activity-card .post-hd > .ph-txt > small { grid-column:auto; grid-row:auto; white-space:normal; }
+.activity-home .activity-card .post-hd.post-profile.feed-card-header { display:block; grid-template-columns:none; }
 
 /* Identity and permitted numbers stay anchored while the taller map rail moves beneath them. Photos remain square. */
 .activity-picture { position:relative; isolation:isolate; }
 .post-led .activity-media { position:relative; margin:0; }
-.post-led .media-item { aspect-ratio:1; }
-.post-led .media-item.media-map { aspect-ratio:5 / 6; }
 .post-led .media-item.media-photo { min-height:0; align-self:flex-start; }
 .post-led .media-track { border-radius:var(--radius-media); overflow:hidden; }
-.activity-card.post-led .post-hd.post-profile { --activity-map-title-scrim:rgba(0,21,58,.72); position:absolute; z-index:4; inset:0 0 auto; padding:12px 14px 48px; color:#fff; background:linear-gradient(to bottom,var(--activity-map-title-scrim) 0%,rgba(0,21,58,.68) 38%,rgba(0,21,58,.62) 68%,rgba(0,21,58,0) 100%); text-shadow:0 1px 3px rgba(0,0,0,.72); pointer-events:none; }
-.activity-card.post-led .post-hd a { pointer-events:auto; color:#fff; }
-.activity-card.post-led .post-hd small { color:#fff; }
-.activity-card.post-led .post-private { color:#fff; }
-.activity-card.post-led .post-av .av { transform:none; background:rgba(0,0,0,.25); color:#fff; }
-.activity-card.post-led .post-title-link { align-items:center; }
-.post-led .post-map-metrics { z-index:3; bottom:0; height:44px; padding:4px 12px 8px; background:linear-gradient(to bottom,transparent 0%,rgba(0,21,58,.16) 42%,var(--activity-map-stats-scrim) 100%); }
-.activity-card .post-map-metrics.material { -webkit-backdrop-filter:saturate(180%) blur(12px); backdrop-filter:saturate(180%) blur(12px); }
-.post-led .post-map-metric b,.post-led .post-photo-metrics .stat b { font-variant-numeric:tabular-nums; }
-.post-led .post-photo-metrics .stats3 { width:100%; grid-column:1/-1; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
-.post-led .post-photo-metrics .stat { min-width:0; }
-.post-led .post-photo-metrics .stat small { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
-.post-led .post-photo-metrics .stat b { font-size:20px; color:#fff; line-height:1.1; }
-.post-led .post-photo-metrics .stat i { margin-left:3px; font-size:13px; font-weight:400; }
 .post-led .fmap .leaflet-bottom.leaflet-right { inset:auto 0 0 auto; width:100%; max-width:100%; min-height:20px; display:flex; align-items:center; justify-content:flex-end; padding:0 6px; box-sizing:border-box; background:transparent; }
 .post-led .fmap .leaflet-control-attribution { font-size:9px!important; opacity:1; text-shadow:none; }
 .post-led .fmap { pointer-events:auto; }
 .post-led .fmap .mini { top:var(--route-top,140px); bottom:var(--route-bottom,104px); }
 .post-led .fmap .mini svg { width:100%; height:100%; }
 .post-led .compact-media:has(.media-map) .media-controls > button,.post-led .compact-media .media-controls > button { top:50%; bottom:auto; transform:translateY(-50%); }
-.post-led .compact-media .media-dots { top:auto; bottom:88px; }
-.post-led .compact-media:has(.media-map) .media-dots { top:auto; bottom:88px; }
+.post-led .compact-media .media-dots { top:auto; bottom:12px; }
+.post-led .compact-media:has(.media-map) .media-dots { top:auto; bottom:12px; }
 
 .activity-card.post-led .activity-media { margin:0; }
-.activity-card.post-led .post-title { color:#fff; }
 .activity-card.post-led .compact-media:has(.media-map) .media-controls > button[data-media-step] { top:50%; bottom:auto; }
 
 .post-led .media-item { min-height:var(--picture-min-height,0px); }

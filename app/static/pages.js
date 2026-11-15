@@ -103,19 +103,18 @@ function postCard(a, {compact = false, lock = false} = {}) {
   if (a.commute) badges.push('<span class="badge">Commute</span>');
   // The activity title leads the header; the avatar and metadata link to the person's profile.
   const person = theirs ? a.owner : App.me, pref = profileHref(person), pname = theirs ? esc(a.owner.name) : 'You';
-  const vis = a.visibility || 'me',audience=theirs?'':(compact||lock)&&vis==='me'?` · <span class="post-private" role="img" aria-label="Only you can see this" title="Only you can see this">${svg('lock')}</span>`:` · ${esc(VIS_SHORT[vis])}`;
+  const vis = a.visibility || 'me';
   const title = `<a class="post-link post-title-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}"><h3 class="post-title">${esc(a.name)}</h3></a>`;
-  const profileName = `<span class="post-meta-person"><a class="post-name" href="${pref}">${pname}</a></span>`;
-  const meta = `${profileName}<span class="post-meta-rest"><span class="post-meta-date">${esc(when(a.start_time))}</span><span class="post-meta-kind">${esc(kind)}${audience}</span></span>`;
-  const head = `<a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><span class="ph-txt">${title}<small>${meta}</small></span>`;
+  const audienceIcon=theirs?'':`<span class="post-meta-icon${vis==='me'?' post-private':''}" role="img" aria-label="${esc(VIS_SHORT[vis])}" title="${esc(VIS_SHORT[vis])}">${svg(vis==='me'?'lock':vis==='friends'?'people':'globe')}</span>`;
+  const meta = `<span class="post-meta-date">${esc(when(a.start_time).replace(' at ', ' '))}</span><span class="post-meta-icon post-meta-kind" role="img" aria-label="${esc(kind)}" title="${esc(kind)}">${svg(a.sport in IC?a.sport:'activity')}</span>${audienceIcon}`;
+  const head = `<div class="post-identity"><a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><div class="post-identity-copy"><a class="post-name" href="${pref}">${pname}</a><div class="post-meta">${meta}</div></div></div>${title}`;
   const share=theirs?'':`<button type="button" class="pf activity-share" data-share-picture="${a.id}" aria-label="Share a picture of this activity">${svg('share')}</button>`;
   const foot = reactionButtons(a.id,a,false,compact)+`<button type="button" class="pf activity-comments" data-talk="${a.id}" aria-label="Comments, ${a.comments||0}">${svg('comment')}<span class="num"${a.comments?'':' hidden'}>${a.comments?reactionNumber(a.comments):''}</span></button>`+share;
   const media=activityMedia(a,{compact,mapLed:true});
-  const header=`<div class="post-hd post-profile post-link">${head}</div>`;
-  const metrics=media?(a.line?postMapMetrics(a):`<div class="post-map-metrics post-photo-metrics material"><div class="stats3">${theirs?sharedHeadline(a):headline(a)}</div></div>`):'';
+  const header=`<header class="post-hd post-profile feed-card-header">${head}</header>`;
   const details=`${!theirs && a.lifts && a.lifts.names ? `<p class="post-lifts">${esc(a.lifts.names.slice(0, 4).join(' · '))}${a.lifts.names.length > 4 ? ` +${a.lifts.names.length - 4}` : ''}</p>` : ''}${badges.length ? `<div class="badges">${badges.join('')}</div>` : ''}`;
-  const summary=media?details:`<div class="post-summary"><div class="stats3">${theirs ? sharedHeadline(a) : headline(a)}</div>${details}</div>`;
-  return `<article class="card post activity-card${media?' post-led':''}" data-href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}" data-activity-month="${activityMonthKey(a.start_time)}">${media?`<div class="activity-picture">${media}${header}${metrics}</div>`:header}${summary?`<div class="post-extra">${summary}</div>`:''}<div class="post-ft">${foot}</div></article>`;
+  const summary=`<div class="post-summary"><div class="stats3 feed-stat-row">${theirs ? sharedHeadline(a) : headline(a)}</div>${details}</div>`;
+  return `<article class="card post activity-card${media?' post-led':''}" data-href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}" data-activity-month="${activityMonthKey(a.start_time)}">${header}${media?`<div class="activity-picture">${media}</div>`:''}<div class="post-extra">${summary}</div><div class="post-ft">${foot}</div></article>`;
 }
 function sharedHeadline(a) {   // what a friend shares: no pace when they keep pace to themselves
   const st = [];
@@ -145,9 +144,9 @@ function postMapMetrics(a) {
 function activityCardInsets(el) {
   const picture=el.closest('.activity-picture');
   if(!picture)return null;
-  const frame=picture.getBoundingClientRect(),header=$('.post-hd',picture).getBoundingClientRect();
-  const lower=$$('.post-map-metrics,.leaflet-control-attribution,.media-dots,.map-unavailable:not([hidden])',picture).filter(n=>n.getClientRects().length).map(n=>frame.bottom-n.getBoundingClientRect().top+16);
-  const insets={top:Math.ceil(header.bottom-frame.top)+16,bottom:Math.ceil(Math.max(36,...lower)),side:$('.media-controls',picture)?64:24};
+  const frame=picture.getBoundingClientRect();
+  const lower=$$('.leaflet-control-attribution,.media-dots,.map-unavailable:not([hidden])',picture).filter(n=>n.getClientRects().length).map(n=>frame.bottom-n.getBoundingClientRect().top+8);
+  const insets={top:12,bottom:Math.ceil(Math.max(24,...lower)),side:$('.media-controls',picture)?64:24};
   return Object.values(insets).every(Number.isFinite)?insets:null;
 }
 function fitActivityCardMap(el,view) {
@@ -177,7 +176,7 @@ function measureActivityPictures(box){
       el.style.setProperty('--route-top',inset.top+'px');el.style.setProperty('--route-bottom',inset.bottom+'px');el.style.setProperty('--route-side',inset.side+'px');el._activityMapFit?.();
     };
     const observer=new ResizeObserver(measure),picture=el.closest('.activity-picture');
-    for(const node of [el,$('.post-hd',picture),$('.post-map-metrics',picture)])if(node)observer.observe(node);
+    for(const node of [el,$('.post-meta',el.closest('.activity-card')),$('.media-controls',picture)])if(node)observer.observe(node);
     const changes=new MutationObserver(measure);changes.observe(picture,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden']});
     headerObservers.set(el,{disconnect(){observer.disconnect();changes.disconnect();}});measure();document.fonts.ready.then(measure);
   });
