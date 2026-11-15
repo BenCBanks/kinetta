@@ -717,11 +717,64 @@ route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
 // comments are small icons by the title (comments open in a sheet; ?tab=comments opens it), sharing is in Edit, and
 // the share button sends a link or a picture (2026-10-12).
 const DTABS = [['charts', 'Charts'], ['splits', 'Splits'], ['efforts', 'Efforts'], ['overview', 'Details']];
-// Shared activities draw only pace/speed, heart rate and elevation, so they check just those series.
-const activitySamples = (a, series = ['speed','gap_speed','hr','alt','power','cad']) => {
+// Shared activity charts omit owner-only power/cadence even if a fixture or cache contains them.
+const activitySamples = (a) => {
   const c = a.chart;
+  const series = ['speed','hr','alt', ...(!a.owner ? ['power','cad'] : [])];
   return !!(c && (c.t?.length >= 2 || c.d?.length >= 2) && series.some(k => c[k]?.filter(v => v != null && Number.isFinite(v)).length >= 2));
 };
+function smoothActivityPace(speed,coords,byDist) {
+  const half=(byDist?80.4672:30)/2;
+  return speed.map((value,index)=>{
+    if(!(value>0.5))return null;
+    let sum=0,count=0;
+    for(let j=index;j>=0&&coords[index]-coords[j]<=half;j--)if(speed[j]>0.5){sum+=1000/speed[j];count++;}
+    for(let j=index+1;j<speed.length&&coords[j]-coords[index]<=half;j++)if(speed[j]>0.5){sum+=1000/speed[j];count++;}
+    return count?sum/count:null;
+  });
+}
+function activityChartStack(box,x,rows,{xfmt,xtickfmt=xfmt,onIndex}={}) {
+  const width=Math.max(280,box.clientWidth||340),height=120,top=13,bottom=height-20,n=x.length;
+  if(n<2){box.innerHTML='<p class="muted">No samples recorded.</p>';return;}
+  const px=i=>i/(n-1)*width,rangeText=`${xfmt(x[0])} – ${xfmt(x[n-1])}`;
+  const readout=document.createElement('div');readout.className='readout num';
+  readout.innerHTML=`<span>${esc(rangeText)}</span><button type="button" class="linkbtn small" aria-label="Reset chart inspection">Reset</button>`;
+  box.replaceChildren(readout);const resetButton=$('button',readout),charts=[];resetButton.style.visibility='hidden';
+  rows.forEach((r,index)=>{
+    const vals=r.vals.map(v=>v==null||!isFinite(v)?null:v),valid=vals.filter(v=>v!=null);if(valid.length<2)return;
+    let low=Math.min(...valid),high=Math.max(...valid);if(r.clip){const sorted=[...valid].sort((a,b)=>a-b);low=sorted[Math.floor(sorted.length*.02)];high=sorted[Math.ceil(sorted.length*.98)-1];}
+    const pad=Math.max((high-low)*.08,r.name==='Cadence'?5:1e-9);low-=pad;high+=pad;
+    const y=v=>top+(r.invert?(Math.min(high,Math.max(low,v))-low)/(high-low):1-(Math.min(high,Math.max(low,v))-low)/(high-low))*(bottom-top);
+    const areaParts=[],lineParts=[];let segment=[];
+    const flush=()=>{if(!segment.length)return;const line=segment.map(([i,v],j)=>`${j?'L':'M'}${px(i).toFixed(1)},${y(v).toFixed(1)}`).join('');lineParts.push(line);areaParts.push(`${line}L${px(segment.at(-1)[0]).toFixed(1)},${bottom}L${px(segment[0][0]).toFixed(1)},${bottom}Z`);segment=[];};
+    vals.forEach((v,i)=>{if(v==null)flush();else segment.push([i,v]);});flush();
+    const avg=r.avg!=null?r.avg:valid.reduce((sum,v)=>sum+v,0)/valid.length;
+    const initial=r.summaryLabel==='Gain'?`Gain <b>${esc(r.fmt(avg))}</b> ${esc(r.unit||'')}`:`Avg <b>${esc(r.fmt(avg))}</b> ${esc(r.unit||'')}`;
+    const chart=document.createElement('div');chart.className='chartbox';chart.dataset.chartIndex=String(index);
+    if(index>0)chart.classList.add('activity-chart-separated');
+    chart.innerHTML=`<div class="lbl"><span>${esc(r.name)}</span><span data-chart-value>${initial}</span></div><svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" tabindex="0" aria-label="${esc(r.name)} chart in ${esc(r.unit||'recorded units')}; use arrow keys to inspect">
+      <line class="gl" x1="0" x2="${width}" y1="${top}" y2="${top}"/><line class="gl" x1="0" x2="${width}" y1="${(top+bottom)/2}" y2="${(top+bottom)/2}"/><line class="gl" x1="0" x2="${width}" y1="${bottom}" y2="${bottom}"/>
+      <text class="yl activity-chart-y-label" x="4" y="${top+4}">${esc(r.fmt(r.invert?low+pad:high-pad))} ${esc(r.unit||'')}</text><text class="yl activity-chart-y-label" x="4" y="${bottom+4}">${esc(r.fmt(r.invert?high-pad:low+pad))} ${esc(r.unit||'')}</text>
+      <path class="sample-area area" d="${areaParts.join('')}" fill="${esc(r.color)}"/><path class="ln" d="${lineParts.join('')}" stroke="${esc(r.color)}"/>
+      <text class="yl activity-chart-x-label" x="0" y="${height-2}" text-anchor="start">${esc(xtickfmt(x[0],0,false))}</text><text class="yl activity-chart-x-label" x="${width/2}" y="${height-2}" text-anchor="middle">${esc(xtickfmt(x[Math.floor((n-1)/2)],1,false))}</text><text class="yl activity-chart-x-label" x="${width}" y="${height-2}" text-anchor="end">${esc(xtickfmt(x[n-1],2,true))}</text>
+      <line class="xh" x1="0" x2="0" y1="${top}" y2="${bottom}" visibility="hidden"/><circle class="chart-dot" r="4" fill="${esc(r.color)}" stroke="var(--card)" stroke-width="2" visibility="hidden"/></svg>`;
+    box.append(chart);charts.push({chart,svg:$('svg',chart),value:$('[data-chart-value]',chart),r,vals,y,initial});
+  });
+  const select=i=>{
+    const xpx=px(i);resetButton.style.visibility='';readout.querySelector('span').textContent=xfmt(x[i]);
+    for(const s of charts){s.svg.dataset.selectedIndex=String(i);const cross=$('.xh',s.svg),dot=$('.chart-dot',s.svg),value=s.vals[i];cross.setAttribute('x1',xpx);cross.setAttribute('x2',xpx);cross.setAttribute('visibility','visible');dot.setAttribute('visibility',value==null?'hidden':'visible');if(value!=null){dot.setAttribute('cx',xpx);dot.setAttribute('cy',s.y(value));}s.value.innerHTML=`<b>${value==null?'–':esc(s.r.fmt(value))}</b> ${esc(s.r.unit||'')}`;}
+    onIndex?.(i);
+  };
+  const reset=()=>{readout.querySelector('span').textContent=rangeText;resetButton.style.visibility='hidden';for(const s of charts){s.value.innerHTML=s.initial;$('.xh',s.svg).setAttribute('visibility','hidden');$('.chart-dot',s.svg).setAttribute('visibility','hidden');}};
+  resetButton.onclick=reset;
+  for(const s of charts){
+    const move=e=>{const rect=s.svg.getBoundingClientRect(),t=x[0]+Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width))*(x[n-1]-x[0]);let lo=0,hi=n-1;while(lo<hi){const mid=(lo+hi)>>1;if(x[mid]<t)lo=mid+1;else hi=mid;}select(Math.max(0,Math.min(n-1,lo)));};
+    s.svg.addEventListener('pointerdown',move);s.svg.addEventListener('pointermove',e=>{if(e.buttons||e.pointerType==='touch')move(e);});
+    s.svg.addEventListener('keydown',e=>{const current=Number(s.svg.dataset.selectedIndex),i=e.key==='ArrowRight'?Math.min(n-1,(Number.isFinite(current)?current:-1)+1):e.key==='ArrowLeft'?Math.max(0,(Number.isFinite(current)?current:n)-1):e.key==='Home'?0:e.key==='End'?n-1:null;if(e.key==='Escape'){e.preventDefault();reset();}else if(i!=null){e.preventDefault();s.svg.dataset.selectedIndex=String(i);select(i);}});
+  }
+  resetButton.addEventListener('click',()=>requestAnimationFrame(()=>charts.forEach(s=>s.svg.removeAttribute('data-selected-index'))));
+  if(charts.length)charts.at(-1).chart.classList.add('activity-chart-last');
+}
 function activityTabs(panes) {
   const names = DTABS.filter(([key]) => panes[key]?.trim());
   return `<div class="activity-tabs dtabs" role="tablist" aria-label="Activity sections"${names.length < 2 ? ' hidden' : ''}>${names.map(([key,name]) => `<button type="button" role="tab" id="activity-tab-${key}" aria-controls="activity-pane-${key}" data-dt="${key}"><span class="tab-label">${name}</span></button>`).join('')}</div>`
@@ -793,6 +846,11 @@ function drawDetail(el, a) {
   let drawCharts = null;
   wireActivityTabs(el, key => { if (key === 'charts' && drawCharts) { requestAnimationFrame(drawCharts); drawCharts = null; } });
   ActivityDetail.wire(el,a);
+  const stickyTitle=$('.detail-sticky .detail-bar-title',el);
+  if(stickyTitle){
+    const fitTitle=()=>{if(!stickyTitle.clientWidth)return;for(let size=(innerWidth<=360?17:16);size>=11;size-=.5){stickyTitle.style.fontSize=`${size}px`;if(stickyTitle.scrollWidth<=stickyTitle.clientWidth+1)break;}};
+    fitTitle();const titleObserver=new ResizeObserver(fitTitle);titleObserver.observe(stickyTitle.parentElement);viewResources.set(stickyTitle,()=>titleObserver.disconnect());
+  }
   const segBox = appFeatureEnabled('progress_segments') ? $('#d-segments', el) : null; if (segBox) lazy(segBox, () => Segments.activityCard(segBox, a.id));   // segment times, routes and segments from this activity (#278)
   const addMap=$('#d-add-map',el);if(addMap&&Native.on)addMap.remove();if(addMap&&!Native.on)addMap.onclick=()=>sheet('Add the original map',`<p>Some apps send a workout summary to the Health app without its GPS route. Your workout summary is already here.</p><p>For a Garmin recording:</p><ol><li>Open the matching activity on the Garmin Connect website.</li><li>Choose the settings gear, then <b>Export Original</b>.</li><li>Upload the downloaded ZIP or FIT file here.</li></ol><p class="small muted">Kinetta matches the sport, start time and distance. A matching file adds the map to this workout without making a second activity. Your edited title and numbers stay.</p><a class="primary wide" href="/track/import?map_for=${a.id}">Upload the original file</a>`,(body,close)=>{body.classList.add('activity-map-help');body.querySelector('a').onclick=()=>close();});
   if(a.has_intervals)globalThis.Intervals?.history($('#activity-interval-history',el),a.id);
@@ -819,23 +877,26 @@ function drawDetail(el, a) {
   if (activitySamples(a)) {
     const c = a.chart, x = c.d && (c.d[c.d.length - 1] > 100 || !c.t) ? c.d : c.t, byDist = x === c.d;
     const rows = [];
-    const sp = c.speed && FOOT.includes(a.sport) && a.sport !== 'swim';
-    if (c.speed) rows.push(sp ? {name: 'Pace', short: 'Pace', vals: c.speed.map((v) => (v > 0.5 ? 1000 / v : null)), fmt: (v) => U.pace(v), unit: U.pu(), color: col('--s5'), invert: true, clip: true}
-                              : {name: 'Speed', vals: c.speed, fmt: (v) => U.speed(v), unit: U.su(), color: col('--s5'), clip: true});
-    if (c.gap_speed && sp) rows.push({name: 'Grade-adjusted pace', short: 'GAP', vals: c.gap_speed.map((v) => (v > 0.5 ? 1000 / v : null)), fmt: (v) => U.pace(v), unit: U.pu(), color: col('--s2'), invert: true, clip: true, avg: a.gap_s_per_km});
+    const sp = c.speed && FOOT.includes(a.sport) && a.sport !== 'swim', sportColor = col(`--${a.sport}`);
+    if (c.speed) rows.push(sp ? {name: 'Pace', short: 'Pace', vals: smoothActivityPace(c.speed,x,byDist), fmt: (v) => U.pace(v), unit: U.pu(), color: sportColor, invert: true, clip: true}
+                              : {name: 'Speed', vals: c.speed, fmt: (v) => U.speed(v), unit: U.su(), color: sportColor, clip: true});
     if (c.hr) rows.push({name: 'Heart rate', short: 'HR', vals: c.hr, fmt: (v) => Math.round(v), unit: 'bpm', color: col('--s1'), avg: a.avg_hr});
-    if (c.alt) rows.push({name: 'Elevation', short: 'Elev', vals: c.alt, fmt: (v) => U.elev(v), unit: U.eu(), color: col('--hike')});
-    if (c.power) rows.push({name: 'Power', vals: c.power, fmt: (v) => Math.round(v), unit: 'W', color: col('--s4'), clip: true, avg: a.avg_power});
-    if (c.cad) rows.push({name: 'Cadence', short: 'Cad', vals: c.cad, fmt: (v) => Math.round(v), unit: a.sport === 'ride' ? 'rpm' : 'spm', color: col('--s3'), clip: true, avg: a.avg_cad});
+    if (c.alt) rows.push({name: 'Elevation', short: 'Elev', vals: c.alt, fmt: (v) => U.elev(v), unit: U.eu(), color: col('--other'), avg:a.ascent_m, summaryLabel:'Gain'});
+    if (!a.owner && c.power) rows.push({name: 'Power', vals: c.power, fmt: (v) => Math.round(v), unit: 'W', color: col('--s4'), clip: true, avg: a.avg_power});
+    if (!a.owner && c.cad) { const cadence=c.cad.filter(Number.isFinite),spread=cadence.length?Math.max(...cadence)-Math.min(...cadence):0;if(spread>0.1)rows.push({name: 'Cadence', short: 'Cad', vals: c.cad, fmt: (v) => Math.round(v), unit: a.sport === 'ride' ? 'rpm' : 'spm', color: col('--s3'), clip: true, avg: a.avg_cad}); }
     const box = $('#d-charts', el);
-    const draw = () => { if (!box.isConnected) return; chartStack(box, x, rows, {
+    const draw = () => { if (!box.isConnected) return; activityChartStack(box, x, rows, {
       xfmt: (v) => (byDist ? `${U.dist(v)} ${U.du()}` : dur(v)),
+      xtickfmt: (v,index,last) => byDist ? `${U.dist(v)}${last?' '+U.du():''}` : dur(v),
       onIndex: (i) => {   // move a dot along the map with the crosshair
         if (!mapObj || !mapBox?.isConnected || !pts || !pts.length || !c.d) return;
         const frac = (c.d[i] - c.d[0]) / (c.d[c.d.length - 1] - c.d[0] || 1), p = pts[Math.min(pts.length - 1, Math.round(frac * (pts.length - 1)))];
-        if (!marker) marker = mapObj.L.circleMarker(p, {radius: 7, color: '#fff', weight: 2, fillColor: col('--s5'), fillOpacity: 1}).addTo(mapObj.map);
+        if (!marker) marker = mapObj.L.circleMarker(p, {radius: 7, color: '#fff', weight: 2, fillColor: sportColor, fillOpacity: 1}).addTo(mapObj.map);
         else marker.setLatLng(p);
-      }}); };
+      }});
+      const elevation=Array.from(box.querySelectorAll('.chartbox')).find(chart=>chart.querySelector('.lbl > span:first-child')?.textContent==='Elevation');
+      if(elevation){const value=elevation.querySelector('[data-chart-value]'),reset=$('.readout button',box),gain=`Gain <b>${esc(U.elev(a.ascent_m||0))}</b> ${esc(U.eu())}`;value.innerHTML=gain;reset.addEventListener('click',()=>requestAnimationFrame(()=>{if(value.isConnected)value.innerHTML=gain;}));}
+    };
     let w = 0;
     drawCharts = () => { w = box.clientWidth; draw(); };
     if (!$('[data-pane="charts"]', el).hidden) { requestAnimationFrame(drawCharts); drawCharts = null; }
