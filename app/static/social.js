@@ -320,7 +320,7 @@ function activityGroupStripHtml(data){
   const timing=ongoing?'All time':group.days_to_event===0?'Event today':`${weeks} ${weeks===1?'week':'wk'} to go`;
   const more=data.more_count?`<a class="feed-groups-more" href="/me/groups" aria-label="See ${data.more_count} more ${data.more_count===1?'group':'groups'}">+${data.more_count}</a>`:'';
   return `<section class="feed-social-strip feed-groups-strip" aria-label="${ongoing?'Group goal':'Next group event'}"><div class="feed-groups-row">
-    <a class="row-link feed-groups-link" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('calendar')}</span><span class="grow feed-groups-copy"><b>${esc(group.title)} · ${esc(timing)}</b><small>${combined?'Together':'You'}: ${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}</small><progress class="feed-group-progress" max="${target||1}" value="${progress}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}"></progress></span><span class="chev">${svg('chev')}</span></a>
+    <a class="row-link feed-groups-link" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('people')}</span><span class="grow feed-groups-copy"><b>${esc(group.title)} · ${esc(timing)}</b><small>${combined?'Together':'You'}: ${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}</small><progress class="feed-group-progress" max="${target||1}" value="${progress}" aria-label="${combined?'Group progress':'Your progress'}" aria-valuetext="${esc(groupAmount(value,group.goal_unit))} of ${esc(groupAmount(target,group.goal_unit))}"></progress></span><span class="chev">${svg('chev')}</span></a>
     ${more}</div></section>`;
 }
 function activityGroupStripLongPress(box,mute){
@@ -560,6 +560,9 @@ function wireHomeChallengeLink(el){
   const link=el?.querySelector?.('[data-home-challenges]');
   link?.addEventListener('click',event=>{if(event.defaultPrevented||event.metaKey||event.ctrlKey||event.button>0)return;if(typeof Discovery!=='undefined')Discovery.visit('activity','challenges');});
 }
+function groupListMarkup(groups){
+  return groups.length?`<div class="card list group-list-card">${groups.map(group=>`<a class="row-link group-list-row" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('people')}</span><span class="grow"><b>${esc(group.title)}</b><small>${group.event_date?`${esc(groupDate(group.event_date,group.time_zone))} · `:'All time · '}${group.member_count} ${group.member_count===1?'member':'members'}</small></span>${svg('chev')}</a>`).join('')}</div>`:`<div class="group-empty"><p>Groups are private places to work toward a shared goal.</p><button type="button" class="primary" id="group-empty-create">Create a group</button></div>`;
+}
 async function homeGroups(el) {
   const owner=readOwner(),live=()=>el.isConnected&&owner===readOwner();
   el.innerHTML=`<div id="feed-top">${actTop(true,true)}</div>${homeViewSwitch('groups')}<section class="home-groups"><div class="home-groups-heading"><h2>Groups</h2><button type="button" class="linkbtn" id="home-group-new">Create</button></div><div id="home-group-list"><div class="card empty">Loading your groups…</div></div></section>`;
@@ -569,7 +572,7 @@ async function homeGroups(el) {
   try{
     const groups=await api('/api/groups');if(!live())return;
     const host=$('#home-group-list',el);
-    host.innerHTML=groups.length?`<div class="card list">${groups.map(group=>`<a class="row-link group-list-row" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('calendar')}</span><span class="grow"><b>${esc(group.title)}</b><small>${group.event_date?`${esc(groupDate(group.event_date,group.time_zone))} · `:'All time · '}${group.member_count} ${group.member_count===1?'member':'members'}</small></span>${svg('chev')}</a>`).join('')}</div>`:`<div class="group-empty"><p>Groups are private places to work toward a shared goal.</p><button type="button" class="primary" id="group-empty-create">Create a group</button></div>`;
+    host.innerHTML=groupListMarkup(groups);
     $('#group-empty-create',host)?.addEventListener('click',create);
   }catch(error){if(live()){$('#home-group-list',el).innerHTML=`<div class="card empty">${esc(loadErrorCopy(error))}<button type="button" class="ghost" id="group-retry">Retry</button></div>`;$('#group-retry',el)?.addEventListener('click',()=>go('/activity?view=groups',{replace:true}));}}
 }
@@ -1272,7 +1275,7 @@ route(/^\/me\/groups$/, 'me', async el=>{
   const live=()=>el.isConnected,create=()=>groupCreateSheet(group=>{go('/groups/'+encodeURIComponent(group.id),{replace:true});groupInviteSheet(group.invite_url);});
   $('#group-new',el).onclick=create;
   if(createRequested){const address=new URL(location.href);address.searchParams.delete('create');replacePageAddress(el,address.pathname+address.search+address.hash);create();}
-  try{const groups=await api('/api/groups');if(!live())return;$('#group-list',el).innerHTML=groups.length?`<div class="card list">${groups.map(group=>`<a class="row-link group-list-row" href="/groups/${encodeURIComponent(group.id)}"><span class="ri">${svg('calendar')}</span><span class="grow"><b>${esc(group.title)}</b><small>${group.event_date?`${esc(groupDate(group.event_date,group.time_zone))} · `:'All time · '}${group.member_count} ${group.member_count===1?'member':'members'}</small></span>${svg('chev')}</a>`).join('')}</div>`:`<div class="group-empty"><p>Groups are private places to work toward a shared goal.</p><button type="button" class="primary" id="group-empty-create">Create a group</button></div>`;
+  try{const groups=await api('/api/groups');if(!live())return;$('#group-list',el).innerHTML=groupListMarkup(groups);
     $('#group-empty-create',el)?.addEventListener('click',create);
   }catch(error){if(live())$('#group-list',el).innerHTML=`<div class="card empty">${esc(error.message)}<button type="button" class="ghost" id="group-retry">Retry</button></div>`;$('#group-retry',el)?.addEventListener('click',()=>go('/me/groups',{replace:true}));}
 });
