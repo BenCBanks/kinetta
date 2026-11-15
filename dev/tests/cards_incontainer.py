@@ -15,7 +15,7 @@ class Cards(unittest.TestCase):
   with db.connect() as c:
    for _ in range(3):
     uid=c.execute('INSERT INTO users(login,name,pw_hash) VALUES(%s,%s,%s) RETURNING id',('zz_test_card_'+uuid.uuid4().hex[:10],'SECRET REAL NAME NEVER PUBLIC',self.pw)).fetchone()['id'];self.ids.append(uid);c.execute("INSERT INTO profile(user_id,tz,units) VALUES(%s,'America/New_York','imperial')",(uid,));t=auth.new_session(c,uid,'fictional test');client=TestClient(app);client.headers.update({'Origin':'http://testserver','Content-Type':'application/json'});client.cookies.set(auth.COOKIE,t);self.clients.append(client)
-   c.execute("INSERT INTO activities(user_id,sport,name,start_time,source,visibility,distance_m,moving_s,elapsed_s,avg_hr,calories,private_note) VALUES(%s,'run','SECRET ACTIVITY TITLE',now(),'manual','me',10000,3600,3600,155,900,'SECRET NOTE')",(self.ids[0],))
+   c.execute("INSERT INTO activities(user_id,sport,name,start_time,source,visibility,distance_m,moving_s,elapsed_s,avg_hr,calories,private_note) VALUES(%s,'run','SECRET ACTIVITY TITLE',now(),'manual','me',10000,2400,3000,155,900,'SECRET NOTE')",(self.ids[0],))
   self.guest=TestClient(app);self.settings=self.clients[0].get('/api/card').json();self.code=self.settings['url'].rsplit('/',1)[-1]
  def tearDown(self):
   from app.api_account import erase,erase_files
@@ -61,8 +61,8 @@ class Cards(unittest.TestCase):
   revoked=self.guest.get('/api/cards/'+self.code).json();self.assertNotIn('achievements',revoked)
   off_image=self.guest.get('/card/'+self.code+'/image.png').content;self.assertNotEqual(on_image,off_image,'turning sharing off immediately removes featured items from the PNG')
  def test_week_and_all_time_choices_are_persisted_in_owner_and_public_preview(self):
-  weekly=self.enable()['preview'];self.assertEqual(weekly['period'],'this_week');self.assertEqual(weekly['weekly']['activities'],1)
-  all_time=self.enable(period='all_time')['preview'];self.assertEqual(all_time['period'],'all_time');self.assertEqual(all_time['all_time']['activities'],1);self.assertAlmostEqual(all_time['all_time']['distance_m'],10000)
+  weekly=self.enable()['preview'];self.assertEqual(weekly['period'],'this_week');self.assertEqual(weekly['weekly']['activities'],1);self.assertEqual(weekly['weekly']['time_s'],3000,'share-card weekly total uses elapsed time for a paused workout')
+  all_time=self.enable(period='all_time')['preview'];self.assertEqual(all_time['period'],'all_time');self.assertEqual(all_time['all_time']['activities'],1);self.assertAlmostEqual(all_time['all_time']['distance_m'],10000);self.assertEqual(all_time['all_time']['time_s'],3000,'share-card all-time total uses elapsed time')
   public=self.guest.get('/api/cards/'+self.code).json();self.assertEqual(public['period'],'all_time');self.assertEqual(public['all_time']['activities'],1)
   self.assertEqual(self.clients[1].get('/api/card').json()['period'],'this_week');self.assertEqual(self.clients[1].get('/api/card').json()['preview']['weekly']['activities'],0)
   self.assertEqual(self.guest.get('/card/'+self.code+'/photo').status_code,404)

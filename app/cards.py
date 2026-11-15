@@ -124,7 +124,7 @@ def payload(c,row,request=None):
         out['garmin_sources']=current['garmin_sources']
         rows=c.execute('''SELECT date_trunc('week',start_time AT TIME ZONE %s)::date AS week,
                             count(*) AS activities,coalesce(sum(distance_m),0) AS distance_m,
-                            coalesce(sum(coalesce(moving_s,elapsed_s)),0) AS time_s
+                            coalesce(sum(elapsed_s),0) AS time_s
                           FROM activities WHERE user_id=%s AND NOT lift_open
                             AND start_time >= (%s::timestamp AT TIME ZONE %s)
                             AND start_time < (%s::timestamp AT TIME ZONE %s)
@@ -137,7 +137,7 @@ def payload(c,row,request=None):
         out['weekly']={'distance_m':float(this_week.get('distance_m') or 0),'activities':int(this_week.get('activities') or 0),'time_s':int(this_week.get('time_s') or 0),'streak_weeks':current['streak_weeks'],'weeks':weeks,'unit':'mi' if imperial else 'km'}
     elif chosen=='all_time':
         totals=c.execute('''SELECT count(*) AS activities,coalesce(sum(distance_m),0) AS distance_m,
-                              coalesce(sum(coalesce(moving_s,elapsed_s)),0) AS time_s
+                              coalesce(sum(elapsed_s),0) AS time_s
                             FROM activities WHERE user_id=%s AND NOT lift_open''',(uid,)).fetchone()
         out['all_time']={'activities':totals['activities'],'distance_m':float(totals['distance_m'] or 0),'time_s':int(totals['time_s'] or 0),'unit':'mi' if imperial else 'km'}
         source_rows=c.execute('SELECT DISTINCT source,device FROM activities WHERE user_id=%s AND NOT lift_open',(uid,)).fetchall()

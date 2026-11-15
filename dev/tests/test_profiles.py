@@ -32,6 +32,8 @@ try:
         activity = request(owner, 'POST', '/api/activities/manual', {'sport': 'run', 'start': (start + dt.timedelta(hours=i)).isoformat(), 'duration_s': 600, 'distance_m': 1000, 'name': f'Profile fixture {i}', 'avg_hr': 145})
         ids.append(activity['id'])
         request(owner, 'PUT', f"/api/activities/{activity['id']}/sharing", {'visibility': visibility})
+    # A fictional paused workout distinguishes elapsed profile totals from active time.
+    request(owner, 'PATCH', f'/api/activities/{ids[0]}', {'elapsed_s': 3000, 'moving_s': 2400})
     window = request(owner, 'GET', '/api/activities?limit=100&' + urlencode({'after': (start + dt.timedelta(hours=2)).isoformat()}))
     check([row['id'] for row in window] == [ids[3], ids[2]], 'activity feed after a timestamp contains only the current window, newest first')
     request(owner, 'PUT', '/api/profile', {'weight_kg': 70, 'max_hr': 190})
@@ -61,9 +63,9 @@ try:
     fixture_week_start = start.astimezone(chart_zone).date()
     fixture_week_start -= dt.timedelta(days=(fixture_week_start.weekday() + 1) % 7)
     fixture_week = next(week for week in profile['mileage']['weeks'] if week['d'] == fixture_week_start.isoformat())
-    check(fixture_week['activities'] == 4 and fixture_week['time_s'] == 2400, 'weekly headline totals include all of the owner’s completed workouts')
-    check(profile['sports'] == [{'sport': 'run', 'activities': 4, 'distance_m': 4000, 'time_s': 2400}], 'sport summaries count every finished workout')
-    check(profile['overview'] == {'activities': 4, 'distance_m': 4000, 'time_s': 2400, 'active_days': len({(start+dt.timedelta(hours=i)).astimezone(ZoneInfo(request(viewer,'GET','/api/me')['tz'])).date() for i in range(4)})}, 'overview totals include private and friends-only workouts')
+    check(fixture_week['activities'] == 4 and fixture_week['time_s'] == 4800, 'weekly headline totals use elapsed duration for a paused workout')
+    check(profile['sports'] == [{'sport': 'run', 'activities': 4, 'distance_m': 4000, 'time_s': 4800}], 'sport summaries use elapsed duration and retain private workouts')
+    check(profile['overview'] == {'activities': 4, 'distance_m': 4000, 'time_s': 4800, 'active_days': len({(start+dt.timedelta(hours=i)).astimezone(ZoneInfo(request(viewer,'GET','/api/me')['tz'])).date() for i in range(4)})}, 'overview totals use elapsed duration and retain private workouts')
     check(profile['shared_count'] == 2 and {a['id'] for a in request(viewer, 'GET', '/api/people/zz_test_profile_owner/profile')['items']} == set(ids[2:]), 'activity list and its count still show only shared workouts')
     check(profile['items'][0]['id'] == ids[-1] and profile['next'], 'newest shared activity and cursor')
     next_page = request(viewer, 'GET', '/api/people/zz_test_profile_owner/profile?limit=1&' + urlencode(profile['next']))
@@ -98,7 +100,7 @@ try:
     request(viewer, 'DELETE', f'/api/gear/{gear}', expected=404)
     request(owner, 'DELETE', f'/api/gear/{gear}')
     kept = request(owner, 'GET', f'/api/activities/{ids[0]}')
-    check(kept['gear_id'] is None and kept['distance_m'] == 1000 and kept['moving_s'] == 600, 'gear deletion preserves activity and clears link')
+    check(kept['gear_id'] is None and kept['distance_m'] == 1000 and kept['moving_s'] == 2400 and kept['elapsed_s'] == 3000, 'gear deletion preserves both durations and clears link')
 finally:
     for client in (owner, viewer):
         client.post('/api/account/delete', {'password': PW})

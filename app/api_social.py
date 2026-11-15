@@ -265,10 +265,10 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
         params['chart_zone']=zone
         overview = c.execute(f"""SELECT count(*) AS activities, coalesce(sum(a.distance_m), 0) AS distance_m,
                                   count(DISTINCT (a.start_time AT TIME ZONE %(chart_zone)s)::date) AS active_days,
-                                  coalesce(sum(coalesce(a.moving_s, a.elapsed_s)), 0) AS time_s
+                                  coalesce(sum(a.elapsed_s), 0) AS time_s
                                   FROM activities a WHERE {totals}""", params).fetchone()
         sports = c.execute(f"""SELECT a.sport, count(*) AS activities, coalesce(sum(a.distance_m),0) AS distance_m,
-                                coalesce(sum(coalesce(a.moving_s,a.elapsed_s)),0) AS time_s
+                                coalesce(sum(a.elapsed_s),0) AS time_s
                                 FROM activities a WHERE {totals} GROUP BY a.sport ORDER BY count(*) DESC, a.sport""", params).fetchall()
         # Dates follow the viewer's settings; pagination never changes the totals.
         today = dt.datetime.now(ZoneInfo(zone)).date()
@@ -279,7 +279,7 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
         periods = c.execute(f"""SELECT
                     CASE WHEN a.start_time AT TIME ZONE %(chart_zone)s >= %(recent_start)s THEN 'current' ELSE 'previous' END AS period,
                     count(*) AS activities, coalesce(sum(a.distance_m), 0) AS distance_m,
-                    coalesce(sum(coalesce(a.moving_s, a.elapsed_s)), 0) AS time_s,
+                    coalesce(sum(a.elapsed_s), 0) AS time_s,
                     count(DISTINCT (a.start_time AT TIME ZONE %(chart_zone)s)::date) AS active_days
                     FROM activities a WHERE {totals}
                     AND a.start_time AT TIME ZONE %(chart_zone)s >= %(previous_start)s
@@ -299,7 +299,7 @@ def public_profile(login: str, before: dt.datetime | None = None, before_id: int
         weekly = weekly_distances(today, by_day, {d: row['by_sport'] for d, row in day_totals.items()}, weeks=12)
         week_stats = c.execute(f"""SELECT (local_start::date - EXTRACT(DOW FROM local_start)::int) AS d,
                     count(*) AS activities, coalesce(sum(a.distance_m),0) AS distance_m,
-                    coalesce(sum(coalesce(a.moving_s,a.elapsed_s)),0) AS time_s
+                    coalesce(sum(a.elapsed_s),0) AS time_s
                     FROM (SELECT a.*, a.start_time AT TIME ZONE %(chart_zone)s AS local_start
                           FROM activities a WHERE {totals}
                             AND a.start_time AT TIME ZONE %(chart_zone)s >= %(chart_start)s
