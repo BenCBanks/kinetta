@@ -245,6 +245,39 @@ async function closeCaptureContext(context) {
         await foodChatPage.screenshot({path: `${OUT}/${scheme}-${name}.png`});
         continue;
       }
+      if (opt.foodChat === 'weight-ready') {
+        const demo = await openFoodDemo(`zz_test_1049_food_${scheme}`, scheme);
+        foodChatCtx = demo.context;
+        foodChatPage = demo.page;
+        await foodChatPage.goto(B + '/food/describe?meal=breakfast');
+        await foodChatPage.locator('#thread-text').waitFor();
+        await foodChatPage.evaluate(async () => {
+          const data = await fetch('/api/food/thread?limit=100').then(r => r.json());
+          const message = [...(data.messages || [])].reverse().find(m => m.kind === 'user' && m.body === '2 eggs and toast, weighed 165 this morning');
+          const draftId = message?.result?.draft_id;
+          const key = Object.keys(localStorage).find(name => name.startsWith('fit.food.review.draft:'));
+          if (!draftId || !key) throw Error('Could not find the staged fictional food-and-weight review.');
+          localStorage.setItem(key, JSON.stringify({id: draftId, meal: 'breakfast', day: message.local_day, explicitDay: true, active: true}));
+        });
+        await foodChatPage.goto(B + '/food/describe?meal=breakfast');
+        const message = foodChatPage.locator('#thread-messages article').filter({hasText: '2 eggs and toast, weighed 165 this morning'});
+        await message.waitFor({timeout: 15000});
+        const add = foodChatPage.locator('#thread-review-add');
+        await add.waitFor({state: 'visible'});
+        await add.click();
+        const weightRow = foodChatPage.locator('#review-body-weight .review-food-row');
+        await weightRow.waitFor({state: 'visible'});
+        const review = foodChatPage.locator('#food-final-review');
+        for (const food of ['Eggs', 'Whole-wheat toast']) await review.getByText(food, {exact: true}).waitFor({state: 'visible'});
+        if (!(await weightRow.innerText()).includes('165.0') || !(await weightRow.innerText()).includes('lb') ||
+            (await foodChatPage.locator('#review-confirm').innerText()).trim() !== 'Add food and weight') {
+          throw Error('Food-and-weight review must show its 165 lb entry and Add food and weight action.');
+        }
+        await foodChatPage.evaluate(chrome, scheme === 'dark');
+        await foodChatPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        await foodChatPage.screenshot({path: `${OUT}/${scheme}-${name}.png`});
+        continue;
+      }
       if (opt.foodChat === 'same-yesterday') {
         const demo = await openFoodDemo(`zz_test_658_food_${scheme}`, scheme);
         foodRepeatCtx = demo.context;
@@ -267,7 +300,7 @@ async function closeCaptureContext(context) {
       }
       await page.evaluate((p) => { document.querySelectorAll('.scrim').forEach((x) => x.remove()); document.body.classList.remove('has-sheet'); window.scrollTo(0, 0); go(p); }, ids[path] || path);   // no sheet left open from the shot before
       await page.waitForTimeout(1500);
-      if(name==='activity'){
+      if(name==='activity'||name==='activity-detail'){
         const title=page.locator('.d-title h1');await title.waitFor({state:'visible'});
         const actual=(await title.innerText()).trim();
         if(actual!==ids.RUN_NAME)throw Error(`Activity detail keeps its recorded name "${ids.RUN_NAME}" (default names such as "Morning Run" are preserved), got "${actual}"`);

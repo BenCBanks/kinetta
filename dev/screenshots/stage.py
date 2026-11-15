@@ -80,6 +80,11 @@ for login in ('casey','taylor'):
     friend=person(login,PW);friend('POST','/api/friends',{'login':'alex'});alex('POST','/api/friends/'+login+'/accept')
 assert alex('GET','/api/me')['friend_count']>=3
 alex('PUT', '/api/sharing', {'default': 'friends'})
+# Three meals on the captured day: the two seeded meals plus a small, explicit
+# dinner keep the diary ring partly filled rather than empty or complete.
+alex('POST', '/api/food/entries', [{'day': str(screenshot_today), 'meal': 'dinner',
+    'name': 'Apple and almond butter', 'amount': 1, 'unit': 'serving', 'kcal': 250,
+    'protein_g': 6, 'carbs_g': 28, 'fat_g': 14, 'fiber_g': 5}])
 last = [p for p in sorted(glob.glob(G + '/*running.gpx'))][-1]; raw = open(last, 'rb').read()
 t0 = dt.datetime.fromisoformat(re.search(rb'<time>([^<]+)</time>', raw).group(1).decode().replace('Z', '+00:00'))
 # Scheduled captures near midnight still need a workout on the displayed demo day.
@@ -170,6 +175,16 @@ for theme in ('light', 'dark'):
         existing = person(chat_login, chat_body['password'])
         existing('POST', '/api/account/delete', {'password': chat_body['password']})
         alex('POST', '/api/admin/people', chat_body)
+    weight_login = f'zz_test_1049_food_{theme}'
+    weight_body = {'login': weight_login, 'name': f'Fictional food and weight {theme}', 'password': 'green teapot on the hill'}
+    try:
+        alex('POST', '/api/admin/people', weight_body)
+    except urllib.error.HTTPError as error:
+        if error.code != 409: raise
+        existing = person(weight_login, weight_body['password'])
+        existing('POST', '/api/account/delete', {'password': weight_body['password']})
+        alex('POST', '/api/admin/people', weight_body)
+    person(weight_login, weight_body['password'])('PUT', '/api/profile', {'tz': 'America/New_York', 'units': 'imperial', 'ai_ok': False, 'ai_adult': False})
 
 # A prepared three-food review keeps the browser screenshot deterministic. The
 # helper writes only to the disposable screenshot app and uses fictional values.
@@ -186,6 +201,12 @@ if copied_fixture:
     subprocess.run(['docker', 'cp', str(source), f'{apps[0]}:{fixture}'], check=True)
 try:
     subprocess.run(['docker', 'exec', apps[0], 'python', fixture, now.isoformat()], check=True)
+    weight_fixture = f'/tmp/kinetta-food-weight-fixture-{os.getpid()}.py'
+    subprocess.run(['docker', 'cp', str(Path(__file__).with_name('food_weight_chat_fixture.py')), f'{apps[0]}:{weight_fixture}'], check=True)
+    try:
+        subprocess.run(['docker', 'exec', apps[0], 'python', weight_fixture, now.isoformat()], check=True)
+    finally:
+        subprocess.run(['docker', 'exec', apps[0], 'rm', '-f', weight_fixture], check=False)
 finally:
     if copied_fixture:
         subprocess.run(['docker', 'exec', apps[0], 'rm', '-f', fixture], check=False)

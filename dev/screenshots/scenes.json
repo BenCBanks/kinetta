@@ -1,5 +1,38 @@
 [
   [
+    "home-feed",
+    "/activity",
+    {
+      "home": true
+    }
+  ],
+  [
+    "kit-food-chat",
+    "/food",
+    {
+      "foodChat": "weight-ready"
+    }
+  ],
+  [
+    "nutrition-filled",
+    "/food"
+  ],
+  [
+    "activity-detail",
+    "RUN",
+    {
+      "summary": true
+    }
+  ],
+  [
+    "kit-insight-progress",
+    "/me/kit?from=progress"
+  ],
+  [
+    "achievements",
+    "/me/achievements"
+  ],
+  [
     "today",
     "/me"
   ],
