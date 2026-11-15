@@ -61,6 +61,23 @@
       };
     });
   }
+  function discardReview() {
+    const id=session?.id,account=readOwner(),live=()=>session?.id===id&&account===readOwner();if(!id)return;
+    const distance=session.gps?`${U.dist(session.distance,2)} ${U.du()}`:'Indoor workout';
+    const elapsed=session.native&&Number.isFinite(session.elapsedSeconds)?session.elapsedSeconds:((session.finishedAt||Date.now())-session.start)/1000;
+    sheet('Discard this run?', `<p>${esc(distance)} · ${clock(elapsed)} will be deleted.</p><button class="primary danger-btn wide" id="tr-discard">Discard run</button><button class="ghost wide" id="tr-keep">Keep</button>`, (b, close) => {
+      $('#tr-keep',b).onclick=close;
+      $('#tr-discard',b).onclick=async()=>{
+        if(!live()||saving||photoBusy||reviewDraft?.request)return;
+        const btn=$('#tr-discard',b),scope=key;btn.disabled=true;controlling=true;
+        try {
+          if(session.native){nativeRevision++;if(nativeTask)await nativeTask.catch(()=>{});await TrackNative.call('clear',{id,discardIntervals:!!session.intervals});}
+          if(!live())return;await TrackReviewStore.remove(scope,id);
+          if(!live())return;stopGPS();store.del(scope);session=null;reviewDraft=null;message='';saveError='';close();draw();sync();
+        }catch(e){if(live()){toast(e.message);btn.disabled=false;}}finally{controlling=false;}
+      };
+    }, {noClose:true,role:'alertdialog'});
+  }
   // The pre-save review leads with title, headline figures and media/charts; details and splits stay available below.
   function climb(points) {
     // ups of more than 3 m from the last low point, within one section; few or poor altitudes give no figure at all
@@ -107,8 +124,9 @@
   }
   function reviewPhotoHTML() {
     const d=reviewDraft,locked=saving || photoBusy || !d?.loaded || !!d.request;
-    return `<div class="track-review-photos" aria-label="Activity photos">${d?.photos?.length ? `<div class="track-photo-list">${d.photos.map((image,i)=>`<figure><img src="${esc(image)}" alt="Selected activity photo ${i+1}"><button type="button" class="icon-btn" data-track-photo-remove="${i}" aria-label="Remove photo ${i+1}"${locked?' disabled':''}>${svg('close')}</button></figure>`).join('')}</div>`:''}
-      ${!d?.request && (d?.photos?.length || 0)<10 ? `<button type="button" class="ghost wide" id="track-photos-add"${locked?' disabled':''}>${svg('camera')}${photoBusy?'Preparing photos…':d?.loaded?'Add photos':'Opening photo storage…'}</button><input type="file" id="track-photos-file" accept="image/*" multiple hidden>`:''}
+    return `<div class="track-review-photos" aria-label="Activity photos">${d?.photos?.length ? `<div class="track-photo-list">${d.photos.map((image,i)=>`<figure><img src="${esc(image)}" alt="Selected activity photo ${i+1}"><button type="button" class="icon-btn" data-track-photo-remove="${i}" aria-label="Remove photo ${i+1}"${locked?' disabled':''}>${svg('close')}</button></figure>`).join('')}${!d?.request&&d.photos.length<10?`<button type="button" class="track-photo-add-tile" id="track-photos-add" aria-label="Add photos"${locked?' disabled':''}>${svg('plus')}</button>`:''}</div>`:''}
+      ${!d?.photos?.length && !d?.request ? `<button type="button" class="track-review-photo-add" id="track-photos-add"${locked?' disabled':''}>${svg('camera')}<span>${photoBusy?'Preparing photos…':d?.loaded?'Add photos':'Opening photo storage…'}</span></button>`:''}
+      ${!d?.request && (d?.photos?.length || 0)<10 ? `<input type="file" id="track-photos-file" accept="image/*" multiple hidden>`:''}
       ${d?.error?`<p class="small danger" role="alert">${esc(d.error)}</p><button type="button" class="ghost wide" id="track-review-retry">Retry photo storage</button>`:''}</div>`;
   }
   function wireReviewPhotos(live) {
@@ -146,7 +164,12 @@
       avg:session.distance>10?speed?session.distance/TrackMath.seconds(session)*3600/(imp()?1609.344:1000):TrackMath.seconds(session)/session.distance*(imp()?1609.344:1000):null,
       invert:!speed,fmt:v=>speed?v.toFixed(1):dur(v)});
     if(data.alt.filter(v=>v!=null).length>1)rows.push({name:'Elevation',unit:U.eu(),color:col('--s3'),vals:data.alt.map(v=>v==null?null:imp()?v*3.28084:v),fmt:v=>Math.round(v).toLocaleString()});
-    if(rows.length)chartStack(box,data.t,rows,{xfmt:clock});else box.innerHTML='<p class="small muted">Not enough GPS samples for a chart.</p>';
+    if(rows.length){
+      chartStack(box,data.t,rows,{xfmt:clock});
+      const reveal=()=>box.classList.add('is-inspecting');
+      box.querySelectorAll('.chartbox svg').forEach(svg=>{svg.addEventListener('pointerdown',reveal,{once:true});svg.addEventListener('keydown',reveal,{once:true});});
+      box.querySelector('.readout button')?.addEventListener('click',()=>box.classList.remove('is-inspecting'));
+    }else box.innerHTML='<p class="small muted">Not enough GPS samples for a chart.</p>';
   }
   function reviewHTML() {
     const active=TrackMath.seconds(session),elapsed=session.native && Number.isFinite(session.elapsedSeconds)?session.elapsedSeconds:((session.finishedAt || Date.now())-session.start)/1000;
@@ -159,20 +182,20 @@
     const laps=(session.laps || []).map((l,i)=>({distance_m:l.distance-(session.laps[i-1]?.distance || 0),moving_s:l.seconds-(session.laps[i-1]?.seconds || 0)}));
     const last=session.laps?.at(-1);if(last && active-last.seconds>=1)laps.push({distance_m:Math.max(0,session.distance-last.distance),moving_s:active-last.seconds});
     const when=`${start.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})}, ${start.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}`,frozen=!!reviewDraft?.request,locked=saving || photoBusy || !reviewDraft?.loaded;
-    return `<section class="track-session track-review"><p class="track-review-when">${esc(session.label)} · ${esc(when)}</p><form class="form" id="track-save-form">
-      <div class="card track-review-primary"><label class="track-title">Title<input name="activity_name" value="${esc(session.name ?? session.label)}" maxlength="200" autocomplete="off" enterkeyhint="done" required${saving?' disabled':''}></label>
+    return `<section class="track-session track-review"><header class="track-review-top"><button type="button" id="track-review-back" aria-label="Back to recording">${svg('back')}<span>Recording</span></button><h2>Review</h2><button type="button" id="track-review-discard"${locked?' disabled':''}>Discard</button></header>
+      <form class="form track-review-scroll" id="track-save-form">
+      <div class="card track-review-primary"><p class="track-review-when">${esc(session.label)} · ${esc(when)}</p><label class="track-title"><span class="vh">Activity title</span><input name="activity_name" aria-label="Activity title" value="${esc(session.name ?? session.label)}" maxlength="200" autocomplete="off" enterkeyhint="done" required${saving?' disabled':''}></label>
       <div class="track-review-stats track-review-headlines">${headline}</div>
       ${session.gps && session.points.length>1?'<div class="map track-review-map-wrap" id="track-map-wrap"><div class="track-map" id="track-map"></div><button type="button" class="map-full" aria-label="Full-screen map">'+svg('expand')+'</button></div>':''}
-      ${reviewPhotoHTML()}</div>
+      ${reviewPhotoHTML()}<div class="track-review-sharing"><label>Who can see this activity<select name="visibility"${saving ? ' disabled' : ''}>${!session.visibility && !App.me.share_default ? '<option value="">Use my saved sharing setting</option>' : ''}${Object.entries({me: 'Only me', friends: 'Approved friends', everyone: 'Everyone on Kinetta'}).map(([value, label]) => `<option value="${value}"${value === (reviewDraft?.request?.visibility || reviewDraft?.request?.expected_sharing_default || session.visibility || App.me.share_default) ? ' selected' : ''}>${label}</option>`).join('')}</select></label>
+      ${session.gps?`<p class="small muted">Shared maps hide the start and end.${session.points.some(p=>p.segment!==session.points[0]?.segment)?' Shared previews show the longest recorded section.':''}</p>`:''}</div></div>
       ${session.gps?'<section class="card track-review-chart-card"><h2>Charts</h2><div class="activity-charts" id="track-review-charts"></div></section>':''}
       <details class="card track-review-details"${reviewDraft?.detailsOpen?' open':''}><summary>Details &amp; splits${svg('down')}</summary><div class="track-review-stats">${more}</div>
       ${session.intervals?'<section id="interval-live" class="track-interval-live" aria-label="Intervals"></section>':''}
       ${rows.length?`<div class="track-review-splits"><h3>Splits</h3>${rows.map(([label,time])=>`<div><span>${esc(label)}</span><b class="num">${clock(time)}</b></div>`).join('')}</div>`:''}
       ${laps.length?`<h3>Manual laps</h3><div class="tblwrap">${lapsTable({sport:session.sport,laps})}</div>`:''}</details>
-      <div class="card track-review-sharing"><label>Who can see this activity<select name="visibility"${saving ? ' disabled' : ''}>${!session.visibility && !App.me.share_default ? '<option value="">Use my saved sharing setting</option>' : ''}${Object.entries({me: 'Only me', friends: 'Approved friends', everyone: 'Everyone on Kinetta'}).map(([value, label]) => `<option value="${value}"${value === (reviewDraft?.request?.visibility || reviewDraft?.request?.expected_sharing_default || session.visibility || App.me.share_default) ? ' selected' : ''}>${label}</option>`).join('')}</select></label>
-      ${session.gps?`<p class="small muted">Shared maps hide the start and end.${session.points.some(p=>p.segment!==session.points[0]?.segment)?' Shared previews show the longest recorded section.':''}</p>`:''}</div></form>
-      ${frozen?`<a class="ghost wide track-check-saved" href="${profileHref(App.me)}">View my activities</a>`:`<button class="ghost wide" id="track-continue"${locked?' disabled':''}>Continue recording</button><button class="linkbtn danger track-discard" id="track-discard"${locked?' disabled':''}>Discard recording</button>`}
-      <div class="track-review-dock"><p class="small danger" id="track-save-error" role="alert">${esc(saveError || (!saving && frozen?'Save not confirmed. Draft kept.':''))}</p><button type="submit" form="track-save-form" class="primary wide" id="track-save"${locked?' disabled':''}>${saving?'Saving…':frozen?'Retry save':'Save activity'}</button></div></section>`;
+      </form>
+      <div class="track-review-dock"><p class="small danger" id="track-save-error" role="alert">${esc(saveError || (!saving && frozen?'Save not confirmed. Draft kept.':''))}</p><button type="submit" form="track-save-form" class="primary wide" id="track-save"${locked?' disabled':''}>${saving?'Saving…':frozen?'Retry save':'Save'}</button></div></section>`;
   }
   function liveMapHTML(paused) {
     return `<div class="map track-map-wrap" id="track-map-wrap"><div class="track-map live-record-map" id="track-map"></div><span class="gps-chip" id="track-gps-live" hidden></span>
@@ -195,8 +218,7 @@
     const heldOverlay=heldMap?mapOverlay:null;
     mapOverlay?.close();mapOverlay=null;reviewResize?.disconnect();reviewResize=null;cancelAnimationFrame(reviewResizeFrame);reviewResizeFrame=0;cancelAnimationFrame(mapControlsFrame);mapControlsFrame=0;
     if(review)loadReview();
-    const top = el.parentElement?.querySelector(':scope > .top'); if (top) top.hidden = !review;   // the session header names it
-    if(top && review){$('h1',top).textContent='Review activity';const acts=$('.acts',top);if(acts)acts.hidden=true;}
+    const top = el.parentElement?.querySelector(':scope > .top'); if (top) top.hidden = true;
     if (review && !heldMap) { follow = false; fitWhole = true; }   // entering review fits the recording once
     el.innerHTML = review ? reviewHTML() : `<section class="track-session track-live ${display === 'stats' ? 'stats-expanded' : ''} ${paused ? 'is-paused' : 'is-recording'}"><div class="track-live-main">
       <header class="track-live-top"><h2><span class="rec-dot" aria-hidden="true"></span>${esc(session.label)}</h2>${session.gps ? `<div class="seg track-live-tabs" role="group" aria-label="Recording display"><button data-display="map" aria-pressed="${display === 'map'}">Map</button><button data-display="stats" aria-pressed="${display === 'stats'}">Stats</button></div>` : ''}</header>
@@ -223,7 +245,9 @@
       const timer = $('#track-timer'); if (timer) timer.onclick = async () => { session.gps = false; await resume(); reflectLiveState(el); };
     } else {
       const form = $('#track-save-form'); form.elements.namedItem('activity_name').oninput = () => { session.name = form.elements.namedItem('activity_name').value; form.elements.namedItem('activity_name').setCustomValidity(''); persist(); };
-      const continuing=$('#track-continue');if(continuing)continuing.onclick=()=>{if(!live()||saving||photoBusy||reviewDraft?.request)return;session.state='paused';resume();};
+      $('#track-review-back').onclick=()=>{if(!live()||saving)return;session.state='paused';session.finishedAt=null;message='';persist();draw();sync();};
+      $('#track-review-discard').onclick=()=>{if(live()&&!saving&&!photoBusy&&!reviewDraft?.request)discardReview();};
+      form.elements.namedItem('activity_name').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();e.currentTarget.blur();}};
       wireReviewPhotos(live);if(!heldChart)reviewCharts();
       const chart=$('#track-review-charts'),dock=$('.track-review-dock'),section=$('.track-review');let width=chart?.clientWidth;
       const observer=new ResizeObserver(()=>{if(!live()||reviewResizeFrame)return;reviewResizeFrame=requestAnimationFrame(()=>{reviewResizeFrame=0;if(!live())return;if(chart?.isConnected&&Math.abs(chart.clientWidth-width)>1){width=chart.clientWidth;reviewCharts();}if(section?.isConnected && dock?.isConnected){const height=Math.ceil(dock.getBoundingClientRect().height)+'px';section.style.setProperty('--track-dock-height',height);document.documentElement.style.setProperty('--track-review-dock-height',height);}});});
