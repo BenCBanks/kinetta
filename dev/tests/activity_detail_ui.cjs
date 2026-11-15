@@ -1,6 +1,7 @@
 // Real owner/friend APIs and fictional demo geometry. No provider, device or sharing effects.
 'use strict';
-const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),path=require('node:path');
+const {chromium}=require('playwright'),{AxeBuilder}=require('@axe-core/playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),path=require('node:path');
+const spacingRules=require('./spacing_exceptions.json'),{audit}=require('./spacing_geometry.cjs'),{collectSpacing}=require('./spacing_dom.cjs');
 const fixtureInstant=new Date(require('../screenshots/fixture-time.json').instant);
 const base=process.env.KINETTA_URL||'http://localhost:8798',pw='green teapot on the hill',out=process.env.KINETTA_EVIDENCE,fs=require('node:fs'),medalKind=process.env.KINETTA_MEDAL_CASE||'',medalTheme=process.env.KINETTA_MEDAL_THEME||'light',medalWidth=Number(process.env.KINETTA_MEDAL_WIDTH)||390,detailWidth=Number(process.env.KINETTA_DETAIL_WIDTH)||390,detailCases=(process.env.KINETTA_DETAIL_CASE||'').split(',').filter(Boolean),loadCases=(process.env.KINETTA_DETAIL_LOAD_CASE??'cold-me,retry,repeat,track-done,track-failure,track-unmount,track-owner,track-owner-original').split(',').filter(Boolean);
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
@@ -29,19 +30,28 @@ const timingCases={
  const output=cp.execFileSync('python3',[path.join(__dirname,'activity_detail_fixture.py')],{env:process.env,encoding:'utf8'});console.log(output.trim());const ids=JSON.parse(output.trim().split('\n').at(-1));
  const b=await chromium.launch(),contexts=[];
 async function open(kind,theme,size,mouse=false,comments=false,reaction=false,loadOptions={}){
-  const friend=kind==='friend'||kind==='friend-close',timingOverride=Object.hasOwn(timingCases,kind),missingElapsed=kind.startsWith('missing-elapsed'),id=ids[friend||timingOverride?'run':kind],c=await b.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:!mouse,hasTouch:!mouse,timezoneId:'UTC'});contexts.push(c);
+  const friend=kind==='friend'||kind==='friend-close',timingOverride=Object.hasOwn(timingCases,kind),reviewOverride=['long-splits','no-hr-no-map'].includes(kind),missingElapsed=kind.startsWith('missing-elapsed'),id=ids[friend||timingOverride||reviewOverride?'run':kind],c=await b.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:!mouse,hasTouch:!mouse,timezoneId:'UTC'});contexts.push(c);
   assert.equal((await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_detail_'+(friend?'friend':'owner'),password:pw}})).status(),200);
   if(reaction)assert.equal((await c.request.post(base+`/api/activities/${id}/reaction`,{headers:{Origin:base,'Content-Type':'application/json'},data:{kind:'clap'}})).status(),200,'fictional detail reaction fixture');
   await c.addInitScript(root=>document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px'),size.root);
   if(out)await c.addInitScript(()=>{window.__KINETTA_SCREENSHOT_MODE__=true;});
   const p=await c.newPage(),errors=[],writes=[],detailAssets=[],routeScriptOrder=[];let detailAttempts=0;await p.clock.setFixedTime(fixtureInstant);p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))errors.push(m.text());});
   p.on('request',q=>{const path=new URL(q.url()).pathname;if(path==='/static/activity-detail.js')detailAssets.push(q.url());if(['/static/social.js','/static/segments.js','/static/activity-detail.js'].includes(path))routeScriptOrder.push(path);});
-  await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(u.pathname==='/static/activity-detail.js'&&loadOptions.failDetailFirst&&detailAttempts++===0)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(u.pathname===`/api/activities/${id}/comments`)return r.continue();return r.fulfill({json:{}});}if(medalKind&&u.pathname===`/api/activities/${id}`){return r.fetch().then(async response=>{const activity=await response.json(),ride=medalKind==='ride';activity.created=fixtureInstant.toISOString();activity.sport=ride?'ride':'run';activity.distance_m=ride?20000:5000;return r.fulfill({response,json:activity});});}if(medalKind&&u.pathname==='/api/sharing')return r.fulfill({json:{share_achievements:true}});if(medalKind&&u.pathname==='/api/achievements'){const ride=medalKind==='ride';return r.fulfill({json:{pending:false,tracks:[{code:ride?'sport:ride':'sport:run',value:ride?157233:9000,tiers:[]}]}});}if(u.pathname==='/api/map-config')return r.fulfill({json:{kind:'raster',url:base+'/__detail_tiles/light/{z}/{x}/{y}.svg',dark_url:base+'/__detail_tiles/dark/{z}/{x}/{y}.svg',max_zoom:17,attribution:'Fictional'}});if(u.pathname.startsWith('/__detail_tiles/'))return r.fulfill({contentType:'image/svg+xml',body:`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="${u.pathname.includes('/dark/')?'#20262B':'#EDF0F3'}"/></svg>`});return r.continue();});
+  await c.route('**/*',r=>{const q=r.request(),u=new URL(q.url());if(u.origin!==base)return r.abort();if(reviewOverride&&u.pathname==='/api/milestones')return r.fulfill({json:{pending:false,items:[]}});if(u.pathname==='/static/activity-detail.js'&&loadOptions.failDetailFirst&&detailAttempts++===0)return r.abort();if(!['GET','HEAD'].includes(q.method())){writes.push(u.pathname);if(u.pathname===`/api/activities/${id}/comments`)return r.continue();return r.fulfill({json:{}});}if(medalKind&&u.pathname===`/api/activities/${id}`){return r.fetch().then(async response=>{const activity=await response.json(),ride=medalKind==='ride';activity.created=fixtureInstant.toISOString();activity.sport=ride?'ride':'run';activity.distance_m=ride?20000:5000;return r.fulfill({response,json:activity});});}if(medalKind&&u.pathname==='/api/sharing')return r.fulfill({json:{share_achievements:true}});if(medalKind&&u.pathname==='/api/achievements'){const ride=medalKind==='ride';return r.fulfill({json:{pending:false,tracks:[{code:ride?'sport:ride':'sport:run',value:ride?157233:9000,tiers:[]}]}});}if(u.pathname==='/api/map-config')return r.fulfill({json:{kind:'raster',url:base+'/__detail_tiles/light/{z}/{x}/{y}.svg',dark_url:base+'/__detail_tiles/dark/{z}/{x}/{y}.svg',max_zoom:17,attribution:'Fictional'}});if(u.pathname.startsWith('/__detail_tiles/'))return r.fulfill({contentType:'image/svg+xml',body:`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="${u.pathname.includes('/dark/')?'#20262B':'#EDF0F3'}"/></svg>`});return r.continue();});
   if(timingOverride)await c.route(`**/api/${friend?'shared':'activities'}/${id}`,async r=>{
    if(r.request().method()!=='GET')return r.fallback();
    const response=await r.fetch(),activity=await response.json();
    // Keep the fictional activity's identity, access and geometry; change only the summary inputs.
    return r.fulfill({response,json:{...activity,distance_m:8046.72,...timingCases[kind]}});
+  });
+  if(reviewOverride)await c.route(`**/api/activities/${id}`,async r=>{
+   if(r.request().method()!=='GET')return r.fallback();
+   const response=await r.fetch(),activity=await response.json();
+   const splits=Array.from({length:12},(_,i)=>({n:i+1,distance_m:1609.344,pace_s_per_km:300+i*6,avg_hr:null,elev_m:null}));
+   splits.push({n:13,distance_m:320,pace_s_per_km:120,avg_hr:null,elev_m:null});
+   const effort={id:7001,label:'5K',elapsed_s:1500,rank_then:1,rank_now:1};
+   if(kind==='long-splits')return r.fulfill({response,json:{...activity,route_count:1,efforts:[effort],zones:[80,100,120,1000,700],splits_mi:splits,splits_km:splits.map(s=>({...s,distance_m:s.distance_m/1.609344}))}});
+   return r.fulfill({response,json:{...activity,route_count:1,efforts:[effort],photos:[],line:null,track_lines:[],geom:null,avg_hr:null,max_hr:null,chart:{...activity.chart,hr:null}}});
   });
   await p.goto(base+(friend?'/activity/friends/':'/activity/')+id+(comments?'?tab=comments':''));if(!loadOptions.noWait)await until(p,()=>App.pageReady&&!!document.querySelector('.compact-detail-title'),'detail ready');return{c,p,id,errors,writes,friend,detailAssets,routeScriptOrder};
  }
@@ -119,7 +129,7 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
     assert.deepEqual(await p.locator('.detail-moving .stat b').allTextContents(),['40m','8:00/mi'],'moving stats use the moving duration for pace');
     const card=await p.evaluate(async id=>{const a=await api(`/api/activities/${id}`),host=document.createElement('div');host.innerHTML=postCard(a,{compact:true});document.body.append(host);const result={distance:a.distance_m,elapsed:a.elapsed_s,moving:a.moving_s,labels:[...host.querySelectorAll('.feed-stat-row .stat small')].map(n=>n.textContent),values:[...host.querySelectorAll('.feed-stat-row .stat b')].map(n=>n.textContent)};host.remove();return result;},ids.paused);
     assert.equal(card.distance,8046.72,'feed preserves recorded five-mile distance');assert.equal(card.elapsed,3000);assert.equal(card.moving,2400);assert(card.labels.includes('Pace')&&card.labels.includes('Time'),'feed shows pace and whole-activity time');assert(card.values.includes('50m'),'feed duration is the 50-minute elapsed time');
-    await p.getByRole('tab',{name:'Details',exact:true}).click();const details=p.locator('#activity-pane-overview');await details.waitFor({state:'visible'});const detail=await details.innerText();assert.match(detail,/Elapsed time[\s\S]*?50m/i);assert.match(detail,/Moving time[\s\S]*?40m/i,'detail exposes both durations even with a ten-minute difference');
+    await p.getByRole('tab',{name:'Details',exact:true}).click();const details=p.locator('#activity-pane-overview');await details.waitFor({state:'visible'});const detail=await details.innerText();assert.doesNotMatch(detail,/Elapsed time/i,'summary owns elapsed time instead of repeating it in Details');assert.match(detail,/Moving time[\s\S]*?40m/i,'Details keeps moving time as an additional workout value');
     if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`activity-elapsed-paused-detail-390-${theme}.png`),fullPage:true,animations:'disabled'});}
     await until(p,()=>!!document.querySelector('#d-send'),'paused-run header Share action');await p.locator('#d-send').click();await p.locator('.share-sheet').waitFor();await p.waitForFunction(()=>{const image=document.querySelector('[data-share-image="0"]');return image&&!image.hidden&&image.complete&&image.naturalWidth>0;});
     assert.equal(await p.locator('.share-picture-label').first().innerText(),'Activity card');assert.equal(await p.locator('[data-share-save]').isEnabled(),true,'elapsed-first activity card is ready to save/share');
@@ -134,9 +144,9 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
     assert.equal(await primary.nth(1).locator('b').innerText(),'–','elapsed stays unavailable instead of falling back to moving time');
     await p.getByRole('tab',{name:'Details',exact:true}).click();
     const details=p.locator('#activity-pane-overview');await details.waitFor({state:'visible'});
-    const rows=await details.locator('.stat').evaluateAll(nodes=>nodes.map(n=>({label:n.querySelector('small').textContent,value:n.querySelector('b').textContent})));
+    const rows=await details.locator('.detail-kv').evaluateAll(nodes=>nodes.map(n=>({label:n.querySelector('span').textContent,value:n.querySelector('b').textContent.trim()})));
     assert.deepEqual(rows.filter(row=>row.label==='Moving time'),[{label:'Moving time',value:'40m'}],'known moving time remains available in Details');
-    assert.deepEqual(rows.filter(row=>row.label==='Elapsed time'),[{label:'Elapsed time',value:'Unavailable'}],'Details labels unavailable elapsed duration');
+    assert.equal(rows.filter(row=>row.label==='Elapsed time').length,0,'Details does not repeat unavailable elapsed duration from the summary');
     assert(!rows.some(row=>row.label==='Pace'),'Details does not fabricate whole-activity pace');
     assert.doesNotMatch(await p.locator('.detail-primary').innerText()+await details.innerText(),/NaN|Infinity/);
     assert(!(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'missing-elapsed detail fits phone width');
@@ -146,9 +156,9 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
    }
    if(['equal-times','close-times','friend-close','zero-moving'].includes(kind)){
     await p.getByRole('tab',{name:'Details',exact:true}).click();const details=p.locator('#activity-pane-overview');await details.waitFor({state:'visible'});
-    const rows=await details.locator('.stat').evaluateAll(nodes=>nodes.map(n=>({label:n.querySelector('small').textContent,value:n.querySelector('b').textContent})));
-    const expected=kind==='zero-moving'?[{label:'Elapsed time',value:'40m'},{label:'Moving time',value:'0m'}]:[{label:'Elapsed time',value:'40m'},{label:'Moving time',value:'40m'}];
-    assert.deepEqual(rows.filter(row=>row.label==='Elapsed time'||row.label==='Moving time'),expected,`${kind} details keep both duration labels`);
+    const rows=await details.locator(kind==='friend-close'?'.stat':'.detail-kv').evaluateAll(nodes=>nodes.map(n=>n.matches('.stat')?({label:n.querySelector('small').textContent,value:n.querySelector('b').textContent}):({label:n.querySelector('span').textContent,value:n.querySelector('b').textContent.trim()})));
+    const expected=kind==='friend-close'?[{label:'Elapsed time',value:'40m'},{label:'Moving time',value:'40m'}]:[{label:'Moving time',value:kind==='zero-moving'?'0m':'40m'}];
+    assert.deepEqual(rows.filter(row=>row.label==='Elapsed time'||row.label==='Moving time'),expected,`${kind} keeps the allowed elapsed/moving values for its owner or friend view`);
     assert.doesNotMatch(await details.innerText(),/NaN|Infinity/);assert.deepEqual(errors,[]);
     if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`activity-${name}.png`),fullPage:true,animations:'disabled'});}
     console.log(`Activity detail ${name}: elapsed and moving duration labels PASS`);await c.close();contexts.splice(contexts.indexOf(c),1);continue;
@@ -193,7 +203,7 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
      await p.locator('.detail-map-hero [data-media-step="-1"]').click();await until(p,()=>document.querySelector('.detail-map-hero [data-media-position]')?.textContent.startsWith('Map')&&document.querySelector('.detail-media .media-track').scrollLeft<1,'Previous returns to map');
     }
     if(size.root===16){const tabs=await p.locator('.dtabs').boundingBox(),nav=await p.locator('nav.tabs').boundingBox();assert(tabs.y+tabs.height<nav.y,'analysis tabs in first screen');}
-    await p.locator('.detail-primary').scrollIntoViewIfNeeded();await p.evaluate(()=>document.querySelector('.dtabs').scrollIntoView({block:'start',behavior:'instant'}));await until(p,()=>!document.querySelector('.detail-sticky').hidden&&Math.abs(document.querySelector('.detail-sticky').getBoundingClientRect().y)<1,'compact sticky header at the top');const stickyBox=await p.locator('.detail-sticky').evaluate(n=>({y:n.getBoundingClientRect().y,top:getComputedStyle(n).top,position:getComputedStyle(n).position,scrollY:scrollY,parent:n.parentElement.getBoundingClientRect().toJSON()}));assert.equal(stickyBox.y,0,'sticky toolbar stays at top: '+JSON.stringify(stickyBox));await p.evaluate(()=>scrollTo({top:0,behavior:'instant'}));await until(p,()=>document.querySelector('.detail-sticky').hidden,'floating header restored');
+    await p.locator('.detail-primary').scrollIntoViewIfNeeded();await p.evaluate(()=>document.querySelector('.dtabs').scrollIntoView({block:'start',behavior:'instant'}));await until(p,()=>!document.querySelector('.detail-sticky').hidden&&Math.abs(document.querySelector('.detail-sticky').getBoundingClientRect().y)<1,'compact sticky header at the top');const stickyBox=await p.locator('.detail-sticky').evaluate(n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,top:getComputedStyle(n).top,position:getComputedStyle(n).position,scrollY:scrollY,parent:n.parentElement.getBoundingClientRect().toJSON()};});assert.equal(stickyBox.y,0,'sticky toolbar stays at top: '+JSON.stringify(stickyBox));assert.equal(stickyBox.height,44,'sticky header is a 44px full-bleed bar');assert(Math.abs(stickyBox.x)<1&&Math.abs(stickyBox.width-size.width)<1,'sticky header spans the viewport: '+JSON.stringify(stickyBox));for(const selector of (friend?['.detail-back-circle']:['.detail-back-circle','.acts [data-detail-share]','.acts [data-detail-edit]'])){const g=await p.locator('.detail-sticky '+selector).evaluate(n=>{const r=n.getBoundingClientRect(),q=getComputedStyle(n,'::before'),b=parseFloat(q.borderTopWidth);return{w:r.width,h:r.height,circleW:parseFloat(q.width)+b*2,circleH:parseFloat(q.height)+b*2};});assert.deepEqual(g,{w:44,h:44,circleW:36,circleH:36},`sticky ${selector} is a 36px circle in a 44px target`);}if(!friend){const titleGeometry=await p.locator('.detail-sticky .detail-bar-title').evaluate(n=>{const r=n.getBoundingClientRect(),back=n.parentElement.querySelector('.detail-back-circle').getBoundingClientRect(),share=n.parentElement.querySelector('[data-detail-share]').getBoundingClientRect();return{visible:r.width>0&&r.height>0,width:n.clientWidth,scroll:n.scrollWidth,height:n.clientHeight,scrollHeight:n.scrollHeight,separated:r.left>=back.right&&r.right<=share.left};});if(titleGeometry.visible)assert(titleGeometry.scroll<=titleGeometry.width+1&&titleGeometry.scrollHeight<=titleGeometry.height+1&&titleGeometry.separated,'sticky title fits between the action circles without clipping or overlap');}await p.evaluate(()=>scrollTo({top:0,behavior:'instant'}));await until(p,()=>document.querySelector('.detail-sticky').hidden,'floating header restored');
     await map.locator('.map-full').click();await until(p,()=>!!document.querySelector('.map.full'),'full map');assert.equal(await p.locator('.map.full .leaflet-control-zoom').count(),0);assert(await p.locator('nav.tabs').evaluate(n=>n.closest('#app').inert));await p.keyboard.press('Escape');await until(p,()=>!document.querySelector('.map.full'),'map close');
     if(kind==='run'&&size.width===330&&theme==='dark'){
      await c.route('**/api/map-config',r=>r.fulfill({json:{kind:'off'}}));await p.reload();await until(p,()=>!!document.querySelector('#d-map .map-unavailable:not([hidden])'),'offline detail map');
@@ -257,50 +267,74 @@ async function open(kind,theme,size,mouse=false,comments=false,reaction=false,lo
   }
   if(detailCases.includes('tabs-polish')){
    for(const theme of ['light','dark']){
-    const {c,p,errors,writes}=await open('run',theme,{width:390,height:844,root:16},false);
+    const {c,p,errors,writes}=await open('run',theme,{width:detailWidth,height:844,root:16},false);
     for(const [key,label] of [['overview','Details'],['splits','Splits'],['efforts','Efforts']]){
      const tab=p.getByRole('tab',{name:label,exact:true});await tab.click();
      const pane=p.locator(`#activity-pane-${key}`);await pane.waitFor({state:'visible'});
      assert.equal(await tab.getAttribute('aria-selected'),'true',`${label} exposes the selected tab state`);
-     assert.equal(await pane.evaluate(n=>n.scrollWidth<=n.clientWidth+1),true,`${label} content fits the 390px viewport`);
+     assert.equal(await pane.evaluate(n=>n.scrollWidth<=n.clientWidth+1),true,`${label} content fits the ${detailWidth}px viewport`);
+     const underline=await tab.locator('.tab-label').evaluate(n=>{const r=n.getBoundingClientRect(),u=getComputedStyle(n,'::after');return{label:r.width,line:parseFloat(u.width),height:parseFloat(u.height)};});assert(Math.abs(underline.label-underline.line)<1&&underline.height===2,`${label} underline matches its label width: ${JSON.stringify(underline)}`);
      if(key==='splits'){
       assert(await pane.locator('tbody tr').count()>=4,'fictional split table has varied rows');
-      const best= pane.locator('tbody tr.best .bar');assert.equal(await best.evaluate(n=>getComputedStyle(n).borderRadius),'999px','split bars use rounded ends');
-      assert.match(await best.evaluate(n=>getComputedStyle(n).backgroundImage),/gradient/,'fastest split uses the accent gradient');
+      const best= pane.locator('tbody tr.best .bar');assert.equal(await best.evaluate(n=>getComputedStyle(n).borderRadius),'3px','split bars use compact rounded ends');
+      assert.equal(await best.evaluate(n=>getComputedStyle(n).height),'6px','split bars stay faint and compact');
+      assert.notEqual(await best.evaluate(n=>getComputedStyle(n).backgroundColor),await pane.locator('tbody tr:not(.best) .bar').first().evaluate(n=>getComputedStyle(n).backgroundColor),'fastest split uses the sport accent');
+      assert.equal(await pane.locator('th').first().innerText(),'#','splits lead with a simple row number');
      }
      if(key==='overview'){
-      const details=pane.locator('.hero.more'),stats=details.locator('.stat');assert.equal(await stats.count(),6,'Details keeps six non-duplicate stats in the named grid');
-      assert.deepEqual(await details.evaluate(n=>{const s=getComputedStyle(n);return{columns:s.gridTemplateColumns.split(' ').length,rule:s.borderTopWidth};}),{columns:3,rule:'0px'},'Details uses a clean 3-column tile grid without the old hairline');
-      assert.notEqual(await stats.first().evaluate(n=>getComputedStyle(n).backgroundColor),await details.evaluate(n=>getComputedStyle(n.closest('.card')).backgroundColor),'Details tiles use a distinct soft surface');
-      assert.equal(await stats.first().locator('small').evaluate(n=>getComputedStyle(n).fontSize),'12px','stat labels are 12px');
-      assert.equal(await stats.first().locator('small').evaluate(n=>getComputedStyle(n).fontWeight),'500','stat labels are medium');
-      assert.equal(await stats.first().locator('b').evaluate(n=>getComputedStyle(n).fontSize),'20px','stat values are 20px');
-      assert.equal(await stats.first().locator('b').evaluate(n=>getComputedStyle(n).fontWeight),'700','stat values are bold');
-      assert.match(await stats.first().locator('b').evaluate(n=>getComputedStyle(n).fontVariantNumeric),/tabular-nums/);
-      for(const title of ['Details','Insights'])assert.equal(await pane.getByRole('heading',{name:title,exact:true}).evaluate(n=>getComputedStyle(n).fontSize),'17px',`${title} heading is 17px`);
+      const details=pane.locator('.activity-detail-list'),rows=details.locator('.detail-kv');assert(await rows.count()>=3,'Details keeps only additional workout values in a key/value list');
+      assert.equal(await details.locator('.card').count(),0,'Details uses one surface without nested cards');
+      assert.equal(await pane.getByRole('heading',{name:'Details',exact:true}).count(),0,'Details does not repeat the tab title');
+      assert.equal(await pane.getByRole('heading',{name:'Workout',exact:true}).count(),0,'Details does not repeat a Workout label');
+      const rowLabels=await rows.locator('> span').allTextContents();assert(rowLabels.every(label=>['Device','Gear','Max speed','Max HR','Moving time'].includes(label)),`Details drops summary duplicates: ${rowLabels.join(', ')}`);
+      const row=rows.first();assert(Number((await row.evaluate(n=>getComputedStyle(n).minHeight.replace('px',''))))>=44,'key/value rows meet the 44px touch height');
+      assert.equal(await row.locator('b').evaluate(n=>getComputedStyle(n).textAlign),'right','key/value values align to the right');
+      assert.equal(await details.locator('.detail-group > h3').first().evaluate(n=>getComputedStyle(n).fontSize),'17px','section headings use the activity detail hierarchy');
+      for(const title of ['Insights'])assert.equal(await pane.getByRole('heading',{name:title,exact:true}).evaluate(n=>getComputedStyle(n).fontSize),'17px',`${title} is a visible section heading`);
       const record=pane.locator('.insight-icon.good'),hard=pane.locator('.insight-icon:not(.good)');assert(await record.locator('svg').count(),'new personal record uses a trophy icon');assert(await hard.locator('svg').count(),'hard session uses a flame icon');
       for(const icon of [record,hard])assert.deepEqual(await icon.evaluate(n=>{const r=n.getBoundingClientRect();return[Math.round(r.width),Math.round(r.height)];}),[28,28],'insight icon uses a 28px tinted circle');
       for(const title of ['New personal record','Hard session'])assert.equal(await pane.locator('.insight').filter({hasText:title}).locator('b').evaluate(n=>getComputedStyle(n).fontWeight),'700',`${title} title is strong`);
-      const route=pane.locator('a.card.tap[href^="/route/"]');assert.notEqual(await route.evaluate(n=>getComputedStyle(n).boxShadow),'none','matched route is raised');
-      const compare=route.locator('.more');assert.match(await compare.evaluate(n=>getComputedStyle(n).backgroundImage),/gradient/,'Compare uses the brand gradient');
+      if(await pane.locator('.insight').filter({hasText:'Hard session'}).count())assert.match(await pane.locator('.insight').filter({hasText:'Hard session'}).innerText(),/% of the time in zones 4–5/,'hard-session copy reports the share in zones 4–5');
+      const route=pane.locator('a.detail-link-row[href^="/route/"]');assert.equal(await route.count(),1,'matched route stays a single hairline row');
+      assert.equal(await route.evaluate(n=>getComputedStyle(n).boxShadow),'none','matched route is not a nested card');
+      assert.equal(await route.locator('.detail-compare').innerText(),'Compare','matched route has a clear Compare action');
+      const last=rows.last();await last.scrollIntoViewIfNeeded();const clearance=await p.evaluate(()=>{const row=document.querySelector('#activity-pane-overview .detail-kv-list .detail-kv:last-child'),nav=document.querySelector('nav.tabs'),style=getComputedStyle(document.querySelector('#activity-pane-overview .activity-detail-list')),rowBox=row.getBoundingClientRect(),navBox=nav.getBoundingClientRect(),navHeight=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-height')),required=navHeight+16,delta=Math.max(0,rowBox.bottom-(navBox.top-16)),scroll=document.scrollingElement;return{padding:parseFloat(style.paddingBottom),required,canScroll:scroll.scrollTop+delta<=scroll.scrollHeight-scroll.clientHeight+1,delta};});assert(clearance.padding>=clearance.required&&clearance.canScroll,`Details bottom padding lets the last row clear the floating navigation by 16px: ${JSON.stringify(clearance)}`);
      }
      if(key==='efforts'){
-      assert.match(await pane.innerText(),/Best efforts[\s\S]*5K[\s\S]*Current PR/,'Efforts keeps the fictional personal record and context');
+      assert.match(await pane.innerText(),/Best efforts[\s\S]*5K[\s\S]*25:00[\s\S]*PR/,'Efforts keeps a concise personal record row');
       assert.equal(await pane.getByRole('heading',{name:'Best efforts',exact:true}).evaluate(n=>getComputedStyle(n).fontSize),'17px','Best efforts heading is 17px');
-      const pr=pane.locator('.medal.m1'),time=pane.locator('.effort-time').first();assert.equal(await pr.innerText(),'PR');
-      assert.equal(await pr.evaluate(n=>getComputedStyle(n).borderWidth),'2px','PR medal has a visible gradient rim');assert.match(await pr.evaluate(n=>getComputedStyle(n).backgroundImage),/gradient/,'PR medal has the #981 gradient finish');assert.match(await pr.evaluate(n=>getComputedStyle(n).boxShadow),/inset/,'PR medal has a specular rim highlight');
+      const pr=pane.locator('.effort-record'),time=pane.locator('.effort-time').first();assert.equal(await pr.count(),1,'the personal record is marked once');assert(await pr.locator('svg').count(),'PR uses an achievement trophy, not a pill');
+      assert.equal(await pane.locator('.medal').count(),0,'efforts avoid badge pills');
       assert.equal(await time.evaluate(n=>getComputedStyle(n).fontSize),'18px','effort time is 18px');assert.equal(await time.evaluate(n=>getComputedStyle(n).fontWeight),'700','effort time is bold');
-      assert.match(await time.evaluate(n=>getComputedStyle(n).fontVariantNumeric),/tabular-nums/);const effortBar=pane.locator('.effort-bar').first();assert.equal(await effortBar.evaluate(n=>n.getAttribute('aria-hidden')),'true');assert.match(await effortBar.locator('linearGradient').getAttribute('id'),/^activity-effort-/,'each effort has its own comparison gradient');assert(Number(await effortBar.locator('rect').getAttribute('width'))>0,'each effort has a visible bar scaled against the PR');
+      assert.match(await time.evaluate(n=>getComputedStyle(n).fontVariantNumeric),/tabular-nums/);assert.equal(await pane.locator('.effort-bar').count(),0,'effort comparison bars are removed');assert.equal(await pane.getByText('Current PR',{exact:true}).count(),0,'the oversized Current PR label is removed');assert.equal(await pane.locator('.effort-time + small').first().innerText(),'PR','the personal record is labeled simply PR');
      }
      if(out){
       await p.evaluate(()=>{const tabs=document.querySelector('.dtabs');window.scrollTo(0,Math.max(0,window.scrollY+tabs.getBoundingClientRect().top-90));});
-      await p.waitForTimeout(150);fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`activity-tabs-${key}-390-${theme}.png`),animations:'disabled'});
+      await p.waitForTimeout(150);fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`activity-tabs-${key}-${detailWidth}-${theme}.png`),animations:'disabled'});
      }
     }
     assert.deepEqual(errors,[]);assert(!writes.some(x=>!['/api/challenges/signup/continue','/api/milestones/celebrate'].includes(x)),'tab review performs no unrelated writes');
     await c.close();contexts.splice(contexts.indexOf(c),1);
    }
-   console.log('Activity Details, Splits and Efforts 390px light/dark: named panes, varied splits, gradients, no overflow PASS');
+   for(const theme of ['light','dark'])for(const kind of ['long-splits','no-hr-no-map']){
+    const {c,p,errors,writes}=await open(kind,theme,{width:detailWidth,height:844,root:16},false),details=p.locator('#activity-pane-overview');
+    await p.getByRole('tab',{name:'Details',exact:true}).click();await details.waitFor({state:'visible'});
+    if(kind==='long-splits'){
+     const route=details.locator('.detail-link-row small');assert.equal(await route.innerText(),'Matched route · 1 activity','single route count is grammatically singular');
+     const hard=details.locator('.insight').filter({hasText:'Hard session'});assert.match(await hard.innerText(),/% of the time in zones 4–5/,'hard-session copy describes the high-zone share');
+     await p.getByRole('tab',{name:'Splits',exact:true}).click();const pane=p.locator('#activity-pane-splits'),rows=pane.locator('tbody tr');assert.equal(await rows.count(),13,'long split fixture reaches the lower navigation edge');
+     assert.equal(await rows.nth(12).locator('.bar').evaluate(n=>n.closest('tr').classList.contains('best')),false,'a short final partial split is never marked fastest');
+     const bar=rows.first().locator('.bar'),colors=await bar.evaluate(n=>{const sample=document.createElement('span');sample.style.backgroundColor='var(--accent)';document.body.append(sample);const brand=getComputedStyle(sample).backgroundColor;sample.remove();return{fill:getComputedStyle(n).backgroundColor,brand,strong:n.classList.contains('strong')};});assert(colors.strong&&colors.fill===colors.brand,'prominent split bars use the brand accent');
+    }else{
+     assert.equal(await p.locator('.detail-map-hero').count(),0,'mapless activity has no empty map area');assert.equal(await details.locator('.detail-kv').filter({hasText:'Avg HR'}).count(),0,'no-heart-rate activity does not invent a value');assert.equal(await p.locator('.detail-milestone-row .milestone-banner').count(),0,'both themes use the explicit no-milestone state');assert.equal(await p.locator('.detail-stat-stack').evaluate(n=>getComputedStyle(n).paddingBottom),'0px','an empty milestone does not leave a blank gap');
+    }
+    await p.evaluate(()=>window.scrollTo(0,document.scrollingElement.scrollHeight));await p.waitForTimeout(40);
+    const axe=await new AxeBuilder({page:p}).analyze(),serious=axe.violations.filter(v=>['serious','critical'].includes(v.impact));assert.deepEqual(serious.map(v=>({id:v.id,targets:v.nodes.map(n=>n.target)})),[],`${kind} ${theme} has no serious/critical accessibility findings`);
+    const spacingSnapshot=await p.evaluate(collectSpacing,{screen:`Activity detail ${kind}`,rules:spacingRules}),spacing=audit(spacingSnapshot,spacingRules);assert.deepEqual(spacing.violations,[],`${kind} ${theme} spacing audit: ${JSON.stringify(spacing.violations)}`);assert.deepEqual(errors,[]);assert(!writes.some(x=>!['/api/challenges/signup/continue','/api/milestones/celebrate'].includes(x)),'edge-state audit remains read-only');
+    if(out){fs.mkdirSync(out,{recursive:true});await p.screenshot({path:path.join(out,`activity-${kind}-${detailWidth}-${theme}.png`),fullPage:true,animations:'disabled'});}
+    console.log(`Activity detail ${kind} ${theme}: edge layout and serious/critical accessibility PASS`);await c.close();contexts.splice(contexts.indexOf(c),1);
+   }
+   console.log(`Activity Details, Splits and Efforts ${detailWidth}px light/dark: named panes, varied splits, no overflow PASS`);
   }
   if(loadCases.length)console.log(`ActivityDetail lazy loading: ${loadCases.join(', ')} PASS`);
   if(!medalKind&&!process.env.KINETTA_DETAIL_CASE)cp.execFileSync(process.execPath,[path.join(__dirname,'activity_map_transition_ui.cjs')],{env:process.env,stdio:'inherit'});
