@@ -817,19 +817,23 @@ async function tSaved(body, where, close, {manage=false}={}) {
 // The managed library stays separate from Add food's existing portion picker.
 function drawRecipeLibrary(body,dishes,meals,foods,where,close,again){
   const preview=items=>items.slice(0,3).map(x=>x.name).join(', ')+(items.length>3?` +${items.length-3}`:'');
-  const dishRow=(d,i)=>{const per=d.serving==='one'||(d.mine===false&&!d.weight_g),value=(per?d.per_serving:d.totals)?.kcal,label=d.named?d.name:'Untitled recipe';
-    return `<div class="library-row" data-library-name="${esc(label.toLowerCase())}"><button type="button" class="library-recipe" data-dish="${i}" title="${esc(label)}"><b>${esc(label)}</b><small>${esc(d.mine===false?`From ${d.owner.name.split(' ')[0]}`:d.items.length?preview(d.items):'Entered nutrition')}</small><span class="num">${value==null?'Calories unknown':recipeCalories(value)+' kcal'}${value==null?'':per?' / serving':' total'}</span></button><button type="button" class="${d.totals.kcal==null&&d.mine!==false?'ghost sm library-add-nutrition':'icon-btn'}" data-log-dish="${i}" aria-label="${d.totals.kcal==null&&d.mine!==false?'Add nutrition for':'Log a portion of'} ${esc(label)}">${d.totals.kcal==null&&d.mine!==false?'Add nutrition':svg('plus')}</button></div>`;};
-  const mine=dishes.filter(d=>d.mine!==false),theirs=dishes.filter(d=>d.mine===false),many=dishes.length+meals.length+foods.length>10;
-  const recent=recentSavedItems(dishes,meals);
+  const dishRow=(d,i)=>{const per=d.serving==='one'||(d.mine===false&&!d.weight_g),value=(per?d.per_serving:d.totals)?.kcal,label=d.named?d.name:'Untitled recipe',calories=value==null?'Calories unknown':`${recipeCalories(value)} kcal${per?' / serving':' total'}`,parts=[calories,d.mine===false?`From ${d.owner.name.split(' ')[0]}`:d.items.length?`${d.items.length} ingredient${d.items.length===1?'':'s'}`:'Entered nutrition'];
+    return `<div class="library-row" data-library-name="${esc(label.toLowerCase())}"><button type="button" class="library-recipe" data-dish="${i}" title="${esc(label)}"><b>${esc(label)}</b><small>${esc(parts.join(' · '))}</small></button><button type="button" class="${d.totals.kcal==null&&d.mine!==false?'ghost sm library-add-nutrition':'icon-btn'}" data-log-dish="${i}" aria-label="${d.totals.kcal==null&&d.mine!==false?'Add nutrition for':'Log a portion of'} ${esc(label)}">${d.totals.kcal==null&&d.mine!==false?'Add nutrition':svg('plus')}</button></div>`;};
+  const mine=dishes.filter(d=>d.mine!==false),theirs=dishes.filter(d=>d.mine===false),recent=recentSavedItems(dishes,meals);
   body.innerHTML=`
-    ${recentSavedMarkup(recent,{library:true})}
-    ${many?`<label class="library-search"><span class="library-search-label">Search recipes and foods</span><input id="tm-filter" type="search" placeholder="Search recipes and foods" autocomplete="off"></label>${foods.length&&(dishes.length||meals.length)?`<div class="library-jumps"><button type="button" class="linkbtn" data-library-jump="recipes">Recipes ${dishes.length}</button><button type="button" class="linkbtn" data-library-jump="foods">Foods ${foods.length}</button></div>`:''}`:''}
+    <label class="library-search"><span class="library-search-label">Search recipes and foods</span><input id="tm-filter" type="search" placeholder="Search recipes and foods" autocomplete="off"></label>
+    <nav class="library-tabs" role="tablist" aria-label="Recipe library">
+      ${[['recent','Recent'],['recipes','Recipes'],['foods','Foods'],['usuals','Usuals']].map(([key,label],i)=>`<button type="button" role="tab" data-library-tab="${key}" aria-selected="${i===0}" tabindex="${i===0?0:-1}">${label}</button>`).join('')}
+    </nav>
+    <div class="library-panel" role="tabpanel" data-library-panel="recent">${recentSavedMarkup(recent,{library:true})||'<p class="library-empty small muted">Nothing recent yet.</p>'}</div>
+    <div class="library-panel" role="tabpanel" data-library-panel="recipes" hidden>
     <div id="library-recipes">
     ${mine.length?`<section class="library-section"><h2 data-type="secondary">Your recipes</h2>${mine.map(d=>dishRow(d,dishes.indexOf(d))).join('')}</section>`:''}
     ${theirs.length?`<section class="library-section"><h2 data-type="secondary">Shared with you</h2>${theirs.map(d=>dishRow(d,dishes.indexOf(d))).join('')}</section>`:''}
-    ${meals.length?`<section class="library-section"><h2 data-type="secondary">Saved combinations</h2>${meals.map((m,i)=>`<button type="button" class="fe" data-meal="${i}" data-library-name="${esc(m.name.toLowerCase())}"><div><b>${esc(m.name)}</b><small>${esc(preview(m.items))}</small></div><span class="num">${m.totals.kcal==null?'Calories unknown':r0(m.totals.kcal)+' kcal'}</span></button>`).join('')}</section>`:''}</div>
-    <section class="library-section" id="library-foods"><h2 data-type="secondary">My foods</h2>${foods.map((f,i)=>`<div class="meal-library-row" data-library-name="${esc(f.name.toLowerCase())}">${foodRow(f,i)}<button type="button" class="icon-btn" data-edit-food="${i}" aria-label="Edit ${esc(f.name)}">${svg('edit')}</button></div>`).join('')}${!foods.length?'<div class="library-empty"><p class="small muted">No saved foods yet.</p><button type="button" class="ghost wide" id="tm-food-empty">Create a food</button></div>':''}</section>
-    ${!dishes.length&&!meals.length?'<p class="small muted">No recipes yet. Choose New to create one.</p>':''}<p id="tm-no-match" class="small muted" hidden>No matching recipes or foods.</p><button type="button" class="linkbtn library-log" id="tm-describe">Log food</button>`;
+    ${!mine.length&&!theirs.length?'<p class="library-empty small muted">No recipes yet.</p>':''}</div></div>
+    <div class="library-panel" role="tabpanel" data-library-panel="foods" hidden><section class="library-section" id="library-foods"><h2 data-type="secondary">My foods</h2>${foods.map((f,i)=>`<div class="meal-library-row" data-library-name="${esc(f.name.toLowerCase())}">${foodRow(f,i)}<button type="button" class="icon-btn" data-edit-food="${i}" aria-label="Edit ${esc(f.name)}">${svg('edit')}</button></div>`).join('')}${!foods.length?'<div class="library-empty"><p class="small muted">No saved foods yet.</p><button type="button" class="ghost wide" id="tm-food-empty">Create a food</button></div>':''}</section></div>
+    <div class="library-panel" role="tabpanel" data-library-panel="usuals" hidden><section class="library-section" id="library-usuals"><h2 data-type="secondary">Saved combinations</h2>${meals.map((m,i)=>`<button type="button" class="fe" data-meal="${i}" data-library-name="${esc(m.name.toLowerCase())}"><div><b>${esc(m.name)}</b><small>${esc(preview(m.items))}</small></div><span class="num">${m.totals.kcal==null?'Calories unknown':r0(m.totals.kcal)+' kcal'}</span></button>`).join('')}${!meals.length?'<p class="library-empty small muted">No saved combinations yet.</p>':''}</section></div>
+    <p id="tm-no-match" class="small muted" hidden>No matching recipes or foods.</p><button type="button" class="linkbtn library-log" id="tm-describe">Log food</button>`;
   $('#tm-describe',body).onclick=()=>{const w=where();close.closeAll(true);describeSheet(w.day,w.meal);};
   const emptyFood=$('#tm-food-empty',body);if(emptyFood)emptyFood.onclick=()=>foodEditor(null,again);
   $('#tm-new',body.closest('#page')).disabled=false;
@@ -842,8 +846,18 @@ function drawRecipeLibrary(body,dishes,meals,foods,where,close,again){
   $$('[data-i]',body).forEach(b=>b.onclick=()=>amountSheet(foods[+b.dataset.i],where(),close,()=>foodEditor(foods[+b.dataset.i],again)));
   $$('[data-meal]',body).forEach(b=>b.onclick=()=>savedSheet(meals[+b.dataset.meal],where(),again));
   wireRecentSaved(body,recent,where);
-  $$('[data-library-jump]',body).forEach(b=>b.onclick=()=>$('#library-'+b.dataset.libraryJump,body).scrollIntoView({block:'start'}));
-  const search=$('#tm-filter',body);if(search)search.oninput=()=>{const q=search.value.trim().toLowerCase();let count=0;$$('[data-library-name]',body).forEach(n=>{n.hidden=!n.dataset.libraryName.includes(q);if(!n.hidden)count++;});$$('.library-section',body).forEach(n=>n.hidden=![...n.querySelectorAll('[data-library-name]')].some(r=>!r.hidden));$('#tm-no-match',body).hidden=count>0;};
+  let activeTab='recent';
+  const applyLibraryFilter=()=>{
+    const q=$('#tm-filter',body).value.trim().toLowerCase(),panel=$(`[data-library-panel="${activeTab}"]`,body);let count=0;
+    $$('[data-library-panel]',body).forEach(n=>n.hidden=n!==panel);
+    $$('[data-library-name]',panel).forEach(n=>{n.hidden=!n.dataset.libraryName.includes(q);if(!n.hidden)count++;});
+    $$('.library-section',panel).forEach(n=>{const rows=[...n.querySelectorAll('[data-library-name]')];if(rows.length)n.hidden=!rows.some(r=>!r.hidden);});
+    const recentRows=$$('[data-recent-row]',panel);if(recentRows.length){for(const row of recentRows){const name=$('.recent-main b',row)?.textContent.toLowerCase()||'';row.hidden=!!q&&!name.includes(q);if(!row.hidden)count++;}}
+    $('#tm-no-match',body).hidden=!q||count>0;
+  };
+  $$('[data-library-tab]',body).forEach(button=>button.onclick=()=>{activeTab=button.dataset.libraryTab;$$('[data-library-tab]',body).forEach(tab=>{const selected=tab===button;tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;});applyLibraryFilter();});
+  const search=$('#tm-filter',body);search.oninput=applyLibraryFilter;
+  applyLibraryFilter();
 }
 route(/^\/food\/meals$/, 'food', async (el) => {
   Discovery.visit('nutrition','recipes');
