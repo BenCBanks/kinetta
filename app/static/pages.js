@@ -105,8 +105,8 @@ function postCard(a, {compact = false, lock = false} = {}) {
   const person = theirs ? a.owner : App.me, pref = profileHref(person), pname = theirs ? esc(a.owner.name) : 'You';
   const vis = a.visibility || 'me';
   const title = `<a class="post-link post-title-link" href="${href}" data-prefetch="${theirs ? '/api/shared/' : '/api/activities/'}${a.id}"><h3 class="post-title">${esc(a.name)}</h3></a>`;
-  const audienceIcon=theirs?'':`<span class="post-meta-icon" role="img" aria-label="${esc(VIS_SHORT[vis])}" title="${esc(VIS_SHORT[vis])}">${svg(vis==='me'?'lock':vis==='friends'?'people':'globe')}</span>`;
-  const meta = `<span class="post-meta-date">${esc(when(a.start_time).replace(' at ', ' '))}</span><span class="post-meta-icon" role="img" aria-label="${esc(kind)}" title="${esc(kind)}">${svg(a.sport in IC?a.sport:'activity')}</span>${audienceIcon}`;
+  const audienceIcon=theirs?'':`<span class="post-meta-icon${vis==='me'?' post-private':''}" role="img" aria-label="${esc(VIS_SHORT[vis])}" title="${esc(VIS_SHORT[vis])}">${svg(vis==='me'?'lock':vis==='friends'?'people':'globe')}</span>`;
+  const meta = `<span class="post-meta-date">${esc(when(a.start_time).replace(' at ', ' '))}</span><span class="post-meta-icon post-meta-kind" role="img" aria-label="${esc(kind)}" title="${esc(kind)}">${svg(a.sport in IC?a.sport:'activity')}</span>${audienceIcon}`;
   const head = `<div class="post-identity"><a class="post-av" href="${pref}" aria-label="${theirs ? `${pname}’s profile` : 'Your profile'}">${avatar(person)}</a><div class="post-identity-copy"><a class="post-name" href="${pref}">${pname}</a><div class="post-meta">${meta}</div></div></div>${title}`;
   const share=theirs?'':`<button type="button" class="pf activity-share" data-share-picture="${a.id}" aria-label="Share a picture of this activity">${svg('share')}</button>`;
   const foot = reactionButtons(a.id,a,false,compact)+`<button type="button" class="pf activity-comments" data-talk="${a.id}" aria-label="Comments, ${a.comments||0}">${svg('comment')}<span class="num"${a.comments?'':' hidden'}>${a.comments?reactionNumber(a.comments):''}</span></button>`+share;
