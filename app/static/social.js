@@ -19,7 +19,9 @@ const reactionKind=k=>({cheer:'clap',strong:'muscle',applause:'fire',laugh:'clap
 const reactionMark=kind=>'<span class="reaction-emoji" data-type="glyph" aria-hidden="true">'+esc(REACTIONS().find(([k])=>k===reactionKind(kind))?.[2]||'👏')+'</span>';
 const reactionAddIcon=()=>'<svg class="reaction-add-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="13" r="7.5"/><path d="M6.5 14.5c.7 1 1.6 1.5 2.5 1.5s1.8-.5 2.5-1.5"/><path d="M6.5 10h.01 M11.5 10h.01"/><path d="M18.5 3.5v6 M15.5 6.5h6"/></svg>';
 const reactionCompact=new Intl.NumberFormat('en',{notation:'compact',maximumSignificantDigits:2});
-const reactionNumber=n=>n>=1000?reactionCompact.format(n):String(n);
+const reactionNumber=n=>n>=1000?reactionCompact.format(n).replace('K','k'):String(n);
+const commentActionLabel=count=>count?`${reactionNumber(count)} ${count===1?'comment':'comments'}`:'Comment';
+const commentCountFromButton=button=>{const node=button?.querySelector('.num');if(!node||node.hidden)return 0;const match=node.textContent.trim().match(/([\d,.]+)\s*([km])?/i);return match?Math.round(parseFloat(match[1].replace(/,/g,''))*({k:1000,m:1000000}[(match[2]||'').toLowerCase()]||1)):0;};
 const reactionCounts=s=>{const counts={};for(const[k,n]of Object.entries(s.reactions||{clap:Array.isArray(s.cheers)?s.cheers.length:s.cheers||0})){const kind=reactionKind(k);counts[kind]=(counts[kind]||0)+(+n||0);}return counts;};
 function reactionOrder(s){
   const source=Array.isArray(s?.reaction_order)?s.reaction_order:Array.isArray(s?.cheers)?s.cheers.map(person=>person.kind||'clap'):[];
@@ -29,29 +31,41 @@ function orderedReactionKinds(state){
   const first=new Map(reactionOrder(state).map((kind,index)=>[kind,index]));
   return REACTIONS().filter(([kind])=>state.reactions[kind]>0).sort((a,b)=>(state.reactions[b[0]]-state.reactions[a[0]])||((first.get(a[0])??Infinity)-(first.get(b[0])??Infinity)));
 }
-function reactionSummary(state){
-  const used=orderedReactionKinds(state),shown=used.slice(0,3),extra=used.length-shown.length;
+function reactionSummary(state,feedFooter=false){
+  const all=orderedReactionKinds(state),total=all.reduce((sum,[kind])=>sum+(+state.reactions[kind]||0),0);
+  const visibleKinds=feedFooter&&state.my_reaction&&(state.reactions[state.my_reaction]||0)===1?all.filter(([kind])=>kind!==state.my_reaction):all;
+  const shown=visibleKinds.slice(0,3),extra=visibleKinds.length-shown.length;
+  if(feedFooter){
+    const html=shown.map(([kind])=>'<span class="reaction-summary-emoji" data-summary-kind="'+esc(kind)+'">'+reactionMark(kind)+'</span>').join('')+(extra?'<span class="reaction-summary-more">+'+extra+'</span>':'')+(total?'<span class="reaction-summary-total">'+reactionNumber(total)+'</span>':'');
+    const names=all.map(([kind,name])=>name+' '+reactionNumber(state.reactions[kind])).join(', ');
+    const label=total?reactionNumber(total)+' reaction'+(total===1?'':'s')+', see who reacted':'See who reacted';
+    return{used:visibleKinds,html,label,total};
+  }
   const html=shown.map(([kind,label])=>'<span class="reaction-summary-emoji" data-summary-kind="'+esc(kind)+'">'+reactionMark(kind)+'<span class="reaction-summary-count">'+reactionNumber(state.reactions[kind])+'</span></span>').join('')+(extra?'<span class="reaction-summary-more">+'+extra+'</span>':'');
   const visible=shown.map(([kind,,emoji])=>emoji+reactionNumber(state.reactions[kind])).join('')+(extra?'+'+extra:'');
-  const names=used.map(([kind,name])=>name+' '+reactionNumber(state.reactions[kind])).join(', ');
-  const label=used.length?'See who reacted: '+visible+' ('+names+')':'See who reacted';
-  return{used,html,label};
+  const names=all.map(([kind,name])=>name+' '+reactionNumber(state.reactions[kind])).join(', ');
+  const label=all.length?'See who reacted: '+visible+' ('+names+')':'See who reacted';
+  return{used:all,html,label,total};
 }
 function reactionButtons(aid,s,detail=false,compact=false,moment=null,groupTarget=null){
-  const selected=reactionKind(s.my_reaction??(s.cheered?'clap':null)),counts=reactionCounts(s),summary=reactionSummary({...s,reactions:counts});
-  const label=REACTIONS().find(([k])=>k===selected)?.[1]||'clapping hands',triggerLabel=selected?'Your reaction: '+label+'. Change reaction':'React',triggerContent=selected?reactionMark(selected):reactionAddIcon()+'<span>React</span>';
+  const feedFooter=!detail&&!compact&&!moment&&!groupTarget,selected=reactionKind(s.my_reaction??(s.cheered?'clap':null)),counts=reactionCounts(s),summary=reactionSummary({...s,my_reaction:selected,reactions:counts},feedFooter);
+  const choice=REACTIONS().find(([k])=>k===selected),emoji=choice?.[2]||'👏',triggerLabel=selected?`Remove your ${emoji} reaction`:'React',triggerContent=selected?reactionMark(selected):reactionAddIcon()+'<span>React</span>';
   const attrs=REACTIONS().map(([k])=>'data-count-'+k+'="'+(counts[k]||0)+'"').join(' ');
   const choices=REACTIONS().map(([kind,label])=>'<button type="button" role="menuitemradio" aria-label="React with '+esc(label)+'" aria-checked="'+(selected===kind)+'" data-react="'+kind+'" tabindex="-1">'+reactionMark(kind)+'</button>').join('');
   const target=groupTarget?'data-group-reaction-group data-group-id="'+esc(groupTarget.id)+'" '+(groupTarget.updateId?'data-group-update-id="'+esc(groupTarget.updateId)+'"':'data-group-week="1"'):moment?'data-moment-reaction-group data-moment-owner="'+esc(moment.owner)+'" data-moment-week="'+esc(moment.week)+'"':'data-reaction-group data-aid="'+aid+'"';
-  return '<div class="activity-reactions emoji-reactions'+(compact?' compact-reactions':'')+'" role="group" aria-label="Reactions" '+target+' data-mine="'+(selected||'')+'" data-reaction-order="'+reactionOrder(s).join(',')+'" '+attrs+'>'+
-    '<div class="reaction-action"><button type="button" class="pf reaction-more" aria-label="'+esc(triggerLabel)+'" aria-haspopup="menu" aria-expanded="false">'+triggerContent+'</button></div>'+
-    '<button type="button" class="pf reaction-count" aria-label="'+esc(summary.label)+'" aria-haspopup="dialog"'+(summary.used.length?'':' hidden')+'><span class="reaction-summary" aria-hidden="true">'+summary.html+'</span></button>'+
+  return '<div class="activity-reactions emoji-reactions'+(compact?' compact-reactions':'')+'" role="group" aria-label="Reactions" '+target+(feedFooter?' data-feed-footer="true"':'')+' data-mine="'+(selected||'')+'" data-reaction-order="'+reactionOrder(s).join(',')+'" '+attrs+'>'+
+    '<div class="reaction-action"><button type="button" class="pf reaction-more" aria-label="'+esc(triggerLabel)+'" aria-pressed="'+!!selected+'" aria-haspopup="menu" aria-expanded="false">'+triggerContent+'</button></div>'+
+    '<button type="button" class="pf reaction-count" aria-label="'+esc(summary.label)+'" aria-haspopup="dialog"'+(summary.total?'':' hidden')+'><span class="reaction-summary" aria-hidden="true">'+summary.html+'</span></button>'+
     '<div class="reaction-picker" role="menu" aria-label="Choose a reaction" hidden><div class="reaction-options">'+choices+'</div></div></div>';
 }
 
 function wireReactionGroup(group,aid,changed){
   if(!group||group.dataset.bound)return;group.dataset.bound='1';
-  const momentOwner=group.dataset.momentOwner,momentWeek=group.dataset.momentWeek,isMoment=!!(momentOwner&&momentWeek),groupId=group.dataset.groupId,groupUpdateId=group.dataset.groupUpdateId,isGroup=!!groupId;
+  const momentOwner=group.dataset.momentOwner,momentWeek=group.dataset.momentWeek,isMoment=!!(momentOwner&&momentWeek),groupId=group.dataset.groupId,groupUpdateId=group.dataset.groupUpdateId,isGroup=!!groupId,feedFooter=!isMoment&&!isGroup&&!!group.closest('.activity-home .post-ft');
+  if(feedFooter)group.dataset.feedFooter='true';
+  const footer=feedFooter?group.closest('.post-ft'):null,commentButton=footer?.querySelector('.activity-comments'),shareButton=footer?.querySelector('.activity-share');
+  if(commentButton)commentButton.setAttribute('aria-label',commentActionLabel(commentCountFromButton(commentButton)));
+  if(shareButton)shareButton.setAttribute('aria-label','Share activity');
   const showPeople=()=>{close();const removeMine=()=>choose(null);if(isMoment)achievementMomentCheers(momentOwner,momentWeek,removeMine);else if(isGroup)groupReactionCheers(groupId,groupUpdateId||null,removeMine);else activityCheers(aid,removeMine);};
   const owner=readOwner(),active=()=>group.isConnected&&readOwner()===owner;
   const more=$('.reaction-more',group),main=more,summary=$('.reaction-summary',group),count=$('.reaction-count',group),picker=$('.reaction-picker',group),options=$$('[data-react]',picker);
@@ -73,7 +87,7 @@ function wireReactionGroup(group,aid,changed){
     listen(true);
     const footer=group.closest('.post-ft,.detail-social')||group.parentElement;
     const link=group.closest('.post')?.querySelector('.post-link'),content=link||footer.parentElement?.querySelector('.detail-primary')||footer;
-    const box=content.getBoundingClientRect(),style=link&&getComputedStyle(link),leftInset=style?parseFloat(style.paddingLeft)||0:0,rightInset=style?parseFloat(style.paddingRight)||0:0;
+    const box=(feedFooter?footer:content).getBoundingClientRect(),style=feedFooter?getComputedStyle(footer):link&&getComputedStyle(link),leftInset=style?parseFloat(style.paddingLeft)||0:0,rightInset=style?parseFloat(style.paddingRight)||0:0;
     const bounds={left:box.left+leftInset,right:box.right-rightInset,width:box.width-leftInset-rightInset},r=main.getBoundingClientRect(),vv=window.visualViewport;
     const width=Math.min(bounds.width,innerWidth-16),font=parseFloat(getComputedStyle(document.documentElement).fontSize);
     picker.style.width=width+'px';picker.style.setProperty('--reaction-columns',width>=426&&font<=16?'8':'4');
@@ -86,26 +100,27 @@ function wireReactionGroup(group,aid,changed){
   };
   const draw=()=>{
     if(!active())return;
-    const selected=state.my_reaction,label=REACTIONS().find(([k])=>k===selected)?.[1]||'clapping hands';
+    const selected=state.my_reaction,choice=REACTIONS().find(([k])=>k===selected),emoji=choice?.[2]||'👏';
     group.dataset.mine=selected||'';group.dataset.reactionOrder=reactionOrder(state).join(',');more.dataset.kind=selected||'';
-    const triggerLabel=selected?`Your reaction: ${label}. Change reaction`:'React';
+    const triggerLabel=selected?`Remove your ${emoji} reaction`:'React';
     more.setAttribute('aria-label',triggerLabel);
+    more.setAttribute('aria-pressed',String(!!selected));
     const triggerContent=selected?reactionMark(selected):`${reactionAddIcon()}<span>React</span>`;
     if(more._content!==triggerContent){more.innerHTML=triggerContent;more._content=triggerContent;}
     more.disabled=busy;group.setAttribute('aria-busy',String(busy));
-    const compact=reactionSummary(state);
+    const compact=reactionSummary(state,group.dataset.feedFooter==='true');
     if(summary._marks!==compact.html){summary.innerHTML=compact.html;summary._marks=compact.html;}
-    count.hidden=!compact.used.length;count.disabled=busy;count.setAttribute('aria-label',compact.label);
+    count.hidden=!compact.total;count.disabled=busy;count.setAttribute('aria-label',compact.label);
     for(const b of options){b.setAttribute('aria-checked',String(selected===b.dataset.react));b.disabled=busy;}
   };
-  group._sync=fresh=>{if(!busy&&active()){state={my_reaction:reactionKind(fresh.my_reaction),reactions:reactionCounts(fresh),reaction_order:reactionOrder(fresh)};draw();}};
+  group._sync=fresh=>{if(!busy&&active()){state={my_reaction:reactionKind(fresh.my_reaction),reactions:reactionCounts(fresh),reaction_order:reactionOrder(fresh)};if(commentButton)commentButton.setAttribute('aria-label',commentActionLabel(commentCountFromButton(commentButton)));draw();}};
   const stopWatching=(isMoment||isGroup)?null:SocialData.watch(aid,fresh=>{if(!active())return false;if(fresh)group._sync(fresh);});
   const choose=async(next)=>{
     const focused=document.activeElement,restoreFocus=group.contains(focused)||picker.contains(focused),host=group.parentElement;
     close();if(busy||!active()||state.my_reaction===next)return;
     busy=true;const was=state,counts={...state.reactions};
     const order=reactionOrder(state);if(state.my_reaction){counts[state.my_reaction]=Math.max(0,(counts[state.my_reaction]||0)-1);if(!counts[state.my_reaction])order.splice(order.indexOf(state.my_reaction),1);}if(next){if(!counts[next])order.push(next);counts[next]=(counts[next]||0)+1;}
-    state={my_reaction:next,reactions:counts,reaction_order:order};draw();if(next&&typeof Haptics!=='undefined')Haptics.react();
+    state={my_reaction:next,reactions:counts,reaction_order:order};draw();if(typeof Haptics!=='undefined')Haptics.react();if(!next){main.classList.add('is-removing');setTimeout(()=>main.classList.remove('is-removing'),140);}
     try{
       const path=isMoment?`/api/achievement-moments/${encodeURIComponent(momentOwner)}/${momentWeek}/reaction`:isGroup?(groupUpdateId?`/api/groups/${encodeURIComponent(groupId)}/updates/${encodeURIComponent(groupUpdateId)}/reaction`:`/api/groups/${encodeURIComponent(groupId)}/weekly-reaction`):`/api/activities/${aid}/reaction`;
       let fresh=await api(path,next?json('POST',{kind:next}):{method:'DELETE'});if(readOwner()!==owner)return;
@@ -718,8 +733,8 @@ function sharedCharts(box, a) {
 
 // The cheer and comment icons by an activity's title (2026-10-12, Ben: a little icon near the title, comments pop up
 // from below). Both activity pages use them; the counts follow what happens in the comments sheet.
-const detailShareButton=()=>`<button type="button" class="pf activity-share" data-detail-share aria-label="Share a picture of this activity">${svg('share')}</button>`;
-const talkIcons=(s,aid,onShare)=>reactionButtons(aid,s,true)+`<button type="button" class="pf activity-comments" data-ttalk aria-label="Comments, ${s.comments.length}">${svg('comment')}<span class="num"${s.comments.length?'':' hidden'}>${s.comments.length?reactionNumber(s.comments.length):''}</span></button>`+(onShare?detailShareButton():'');
+const detailShareButton=()=>`<button type="button" class="pf activity-share" data-detail-share aria-label="Share activity">${svg('share')}</button>`;
+const talkIcons=(s,aid,onShare)=>reactionButtons(aid,s,true)+`<button type="button" class="pf activity-comments" data-ttalk aria-label="${commentActionLabel(s.comments.length)}">${svg('comment')}<span class="num"${s.comments.length?'':' hidden'}>${s.comments.length?reactionNumber(s.comments.length):''}</span></button>`+(onShare?detailShareButton():'');
 function wireTalk(box,aid,s,open,{hideEmpty=false,onShare=null}={}){
   if(!box)return;const owner=readOwner(),cached=SocialData.peek(aid);if(cached)s=cached;else SocialData.remember(aid,s);
   box.innerHTML=talkIcons(s,aid,onShare);
@@ -731,7 +746,7 @@ function wireTalk(box,aid,s,open,{hideEmpty=false,onShare=null}={}){
   if(action)action.style.display='contents';
   const visibility=()=>{if(hideEmpty)box.hidden=!(s.cheers.length||s.comments.length);};visibility();cleanViews();
   const group=$('[data-reaction-group]',box),talk=$('[data-ttalk]',box);
-  const update=fresh=>{if(!box.isConnected||owner!==readOwner())return;s=fresh;visibility();group?._sync?.(s);const count=$('.num',talk);count.hidden=!s.comments.length;count.textContent=s.comments.length?reactionNumber(s.comments.length):'';talk.setAttribute('aria-label',`Comments, ${s.comments.length}`);};
+  const update=fresh=>{if(!box.isConnected||owner!==readOwner())return;s=fresh;visibility();group?._sync?.(s);const count=$('.num',talk);count.hidden=!s.comments.length;count.textContent=s.comments.length?reactionNumber(s.comments.length):'';talk.setAttribute('aria-label',commentActionLabel(s.comments.length));};
   wireReactionGroup(group,aid,update);SocialData.warm(talk,aid);
   const share=$('[data-detail-share]',box);if(share)share.onclick=()=>{if(owner===readOwner())onShare?.();};
   viewResources.set(talk,SocialData.watch(aid,fresh=>{if(!box.isConnected||owner!==readOwner())return false;if(fresh)update(fresh);else box.replaceChildren();}));
