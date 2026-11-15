@@ -12,18 +12,20 @@ const ContactsUI = (() => {
     at: Date.now(), rows: rows.map(row => ({contactId: String(row.contactId), login: row.login})),
   });
   const icon = name => svg(name);
-  const rowLink = `<a class="row-link contacts-entry" href="/me/friends/contacts"><span class="ri">${icon('people')}</span><span class="grow"><b>Find friends with contacts</b></span>${icon('chev')}</a>`;
+  const rowLink = `<a class="list-row contacts-entry" href="/me/friends/contacts"><span class="ri">${icon('people')}</span><span class="grow"><b>Find from contacts</b><small>See who you know</small></span>${icon('chev')}</a>`;
   const welcomeLink = () => available() ? '<a class="ghost wide contacts-welcome-link" href="/me/friends/contacts?return=welcome">Find friends with contacts</a>' : '';
 
   function addEntry(el) {
     if (!available() || !el?.isConnected || $('#contacts-entry', el)) return;
-    const search = $('#fr-discover', el);
-    if (!search) return;
+    const search = $('#fr-discover', el), groupedLinks = $('#fr-social-links', el);
+    if (!search && !groupedLinks) return;
     const link = document.createElement('div');
     link.innerHTML = rowLink;
     const anchor = link.firstElementChild;
     anchor.id = 'contacts-entry';
-    search.insertAdjacentElement('afterend', anchor);
+    if (groupedLinks) anchor.querySelector('b').textContent = 'Find from contacts';
+    if (search) search.insertAdjacentElement('afterend', anchor);
+    else groupedLinks.append(anchor);
   }
 
   function addPrivacyRemoval(box) {
@@ -52,11 +54,12 @@ const ContactsUI = (() => {
       }
       if (Array.isArray(batch.contacts)) batch.contacts.length = 0;
     };
-    let disposed = false;
+    let disposed = false, titleObserver = null;
     const live = () => !disposed && el.isConnected && owner === readOwner();
     viewResources.set(el, () => {
       if (disposed) return;
       disposed = true;
+      titleObserver?.disconnect(); titleObserver = null;
       discardBatch(transient.batch);
       transient.batch = null;
       transient.hashMap?.clear(); transient.hashMap = null;
@@ -71,11 +74,18 @@ const ContactsUI = (() => {
     const backLabel = returnTo.startsWith('/welcome') ? 'Welcome' : 'Friends';
     const frame = (body, actions = '') => {
       if (!live()) return;
-      el.innerHTML = `<div class="top">${backBtn(backLabel)}<h1>Find friends</h1></div><main class="contacts-content">${body}${actions}</main>`;
+      titleObserver?.disconnect(); titleObserver = null;
+      el.innerHTML = `<div class="top large-title">${backBtn(backLabel)}<h1>Find friends</h1></div><div class="large-title-heading" data-type="title" aria-hidden="true">Find friends</div><main class="contacts-content">${body}${actions}</main>`;
       wireBack(el, returnTo);
+      if ('IntersectionObserver' in window) {
+        const top = el.querySelector(':scope > .top.large-title'), heading = el.querySelector(':scope > .large-title-heading');
+        top.dataset.titleCollapsed = 'false';
+        titleObserver = new IntersectionObserver(([entry]) => { top.dataset.titleCollapsed = String(!entry.isIntersecting); }, {rootMargin:'-56px 0px 0px 0px'});
+        titleObserver.observe(heading);
+      }
     };
     const intro = message => {
-      frame(`<section class="contacts-intro"><h2>Find friends</h2>
+      frame(`<section class="contacts-intro">
         <p>See which of your contacts use Kinetta. We compare salted email and phone hashes; names and contact details stay on your iPhone.</p>
         <p class="contacts-private">We don’t keep your contacts.</p>${message ? `<p class="contacts-status" role="alert">${esc(message)}</p>` : ''}</section>`,
         `<div class="contacts-actions"><button type="button" class="primary wide" id="contacts-continue"${available() ? '' : ' disabled'}>Continue</button>
@@ -201,16 +211,16 @@ const ContactsUI = (() => {
         const action = relation === 'friends' ? '<span class="contacts-friend-status">Friends</span>'
           : relation === 'sent' ? '<span class="contacts-friend-status">Requested</span>'
           : `<button type="button" class="contacts-add" data-login="${esc(row.login)}" data-name="${esc(name)}" aria-label="Add ${esc(name)} as a friend">${icon('plus')}</button>`;
-        return `<div class="contacts-person"><span class="contacts-avatar" aria-hidden="true">${esc(name.trim().slice(0, 1).toUpperCase() || '?')}</span>
+        return `<div class="contacts-person person-row"><span class="contacts-avatar" aria-hidden="true">${esc(name.trim().slice(0, 1).toUpperCase() || '?')}</span>
           <span class="contacts-person-copy"><b>${esc(name)}</b><small>@${esc(row.login)}</small></span>${action}</div>`;
       }).join('');
       const body = current.length
-        ? `<h2 class="contacts-section-title">On Kinetta</h2>${cached ? '<p class="contacts-note" role="status">Showing your saved matches.</p>' : ''}<div class="contacts-list contacts-matched-list" role="list">${resultRows}</div>`
+        ? `<h2 class="contacts-section-title">On Kinetta</h2>${cached ? '<p class="contacts-note" role="status">Showing your saved matches.</p>' : ''}<div class="contacts-list contacts-matched-list social-person-group" role="list">${resultRows}</div>`
         : rateLimited
           ? `<section class="contacts-empty"><h2>No saved matches</h2><p>There are no previous results saved on this iPhone.</p></section>`
         : `<section class="contacts-empty"><h2>No friends found yet</h2><p>None of these contacts matched an account that can be found by email or phone.</p><a class="linkbtn" href="/me/friends?find=1">Search by name or username</a></section>`;
       const invitations = inviteContacts.length
-        ? `<details class="contacts-invites"><summary>Not on Kinetta <span>${inviteContacts.length}</span></summary><div class="contacts-list" role="list">${inviteContacts.map(contact => `<div class="contacts-person"><span class="contacts-avatar" aria-hidden="true">${esc((contact.name || 'Contact').trim().slice(0,1).toUpperCase() || '?')}</span><span class="contacts-person-copy"><b>${esc(contact.name || 'Contact')}</b></span><button type="button" class="contacts-invite linkbtn" data-invite-contact="${esc(contact.id)}" data-invite-name="${esc(contact.name || 'Contact')}">Invite</button></div>`).join('')}</div></details>`
+        ? `<details class="contacts-invites"><summary>Not on Kinetta <span>${inviteContacts.length}</span></summary><div class="contacts-list social-person-group" role="list">${inviteContacts.map(contact => `<div class="contacts-person person-row"><span class="contacts-avatar" aria-hidden="true">${esc((contact.name || 'Contact').trim().slice(0,1).toUpperCase() || '?')}</span><span class="contacts-person-copy"><b>${esc(contact.name || 'Contact')}</b></span><button type="button" class="contacts-invite linkbtn" data-invite-contact="${esc(contact.id)}" data-invite-name="${esc(contact.name || 'Contact')}">Invite</button></div>`).join('')}</div></details>`
         : '';
       frame(body + invitations, `<div class="contacts-actions"><p class="contacts-next-check" role="status">You can check again tomorrow</p><button type="button" class="linkbtn wide" id="contacts-done">Done</button></div>`);
       $('#contacts-done', el).onclick = () => go('/me/friends?find=1');

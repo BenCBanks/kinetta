@@ -68,23 +68,24 @@ async function runTheme(browser,theme){
   const title=page.locator('.contacts-page > .top h1');
   assert.equal(await title.innerText(),'Find friends',`${name} uses the Find friends title`);
   assert.equal(await title.evaluate(node=>node.scrollWidth<=node.clientWidth+1),true,`${name} title fits without clipping at 390px`);
+  if(out){fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,`${name}-390-${theme}.png`),animations:'disabled'});}
   await page.setViewportSize({width:330,height:667});
   await page.evaluate(()=>document.fonts.ready.then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))));
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,`${name} has no horizontal overflow at 330px`);
   assert.equal(await title.evaluate(node=>node.scrollWidth<=node.clientWidth+1),true,`${name} title fits without clipping at 330px`);
+  if(out){await page.screenshot({path:path.join(out,`${name}-330-${theme}.png`),animations:'disabled'});}
   await page.setViewportSize({width:390,height:844});
   await page.evaluate(()=>document.fonts.ready.then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))));
-  if(out){fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,`${name}-390-${theme}.png`),animations:'disabled'});}
  };
  const enter=async mode=>{
   scenario=mode;await page.goto(base+'/me/friends?find=1');await page.locator('#contacts-entry').waitFor();
-  assert.equal(await page.locator('#contacts-entry').innerText(),'Find friends with contacts','Friends links into the single Find friends feature');
+  assert.equal((await page.locator('#contacts-entry').innerText()).replace(/\s+/g,' '),'Find from contacts See who you know','Friends links into the single Find friends feature with a concrete subtitle');
   await page.evaluate(mode=>window.__contactsScenario=mode,mode);
   await page.locator('#contacts-entry').click();await page.locator('#contacts-continue').waitFor();
  };
 
  await enter('explain');
- assert.equal(await page.locator('.contacts-intro h2').innerText(),'Find friends','the explainer and screen share the feature name');
+ assert.equal(await page.locator('.large-title-heading').innerText(),'Find friends','the contact flow uses the shared large page title');assert.equal(await page.locator('.large-title-heading').getAttribute('data-type'),'title','the shared title exposes its type to the layout audit');assert.equal(await page.locator('.contacts-intro h2').count(),0,'the explainer does not repeat the large title');
  assert.equal(await page.locator('#contacts-continue').innerText(),'Continue');assert.equal(await page.locator('#contacts-not-now').innerText(),'Not now');
  assert.equal(await page.locator('.contacts-intro p').first().innerText(),'See which of your contacts use Kinetta. We compare salted email and phone hashes; names and contact details stay on your iPhone.');
  assert.equal(await page.evaluate(()=>window.__contactsPluginCalls),0,'opening the screen does not request Contacts access');

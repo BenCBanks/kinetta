@@ -111,6 +111,15 @@
     "reason": "The detail Back and action toolbar deliberately floats over its own tappable hero photo. Only that image/tool pairing is excepted, with both hit areas exposed; toolbar-to-arrow collisions still fail."
   },
   {
+    "id": "friends-suggested-heading-type",
+    "selector": ".friends-page .friend-suggest-title",
+    "metric": "font-min",
+    "kind": "approved-type",
+    "exact": 13,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1025",
+    "reason": "Sage's #1037 review specifies the Suggested heading at 13px/500 muted. Only this section heading gets the compact size; clipping and all other text limits stay active."
+  },
+  {
     "id": "suggestion-dismiss-corner",
     "selector": ".friends-page .pym-x",
     "withSelector": ".friends-page .pym-who",

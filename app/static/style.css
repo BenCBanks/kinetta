@@ -322,6 +322,23 @@ button.row-link { width: 100%; border-left: 0; border-right: 0; border-bottom: 0
 .row-link .grow { flex: 1; min-width: 0; display: grid; gap: 1px; } .row-link .grow small { font-size: 13px; }
 .row-link .val { display: block; flex: 0 1 auto; color: var(--tx3); min-width: 0; white-space: normal; overflow-wrap: anywhere; font-size: 15px; }
 .row-link .val .badge { vertical-align: middle; }
+
+/* Social grouped-list primitives (Fable, 14 Nov 2026). Components opt in by class so existing routes keep their layout. */
+.large-title > h1 { min-width:0;max-width:100%;margin:0;font:700 28px/1.15 var(--display);letter-spacing:-.03em;overflow-wrap:anywhere; }
+.large-title[data-title-collapsed="false"] > h1 { opacity:0; }
+.large-title > h1 { transition:opacity 140ms ease-out; }
+.large-title-heading { margin:0 0 16px 2px;color:var(--tx);font:700 28px/1.15 var(--display);letter-spacing:-.03em;overflow-wrap:anywhere; }
+.social-list-group { overflow:hidden;border:1px solid var(--line);border-radius:18px;background:var(--card); }
+.list-row { display:flex;align-items:center;gap:12px;min-width:0;min-height:56px;padding:6px 14px;color:inherit;text-align:left;text-decoration:none; }
+.social-list-group > .list-row + .list-row { border-top:1px solid var(--line); }
+.person-row { display:flex;align-items:center;gap:10px;min-width:0;min-height:56px;padding:6px 12px; }
+.social-person-group { overflow:hidden;border:1px solid var(--line);border-radius:18px;background:var(--card); }
+.social-person-group > .person-row + .person-row { border-top:1px solid var(--line); }
+.person-row > .grow,.person-row-copy { flex:1;min-width:0; }
+.person-row b,.person-row small { display:block;min-width:0;overflow-wrap:anywhere; }
+.person-row b { font-size:16px;font-weight:600;line-height:1.25; }
+.person-row small { margin-top:2px;color:var(--tx3);font-size:13px;line-height:1.25; }
+@media (prefers-reduced-motion:reduce) { .large-title > h1 { transition:none; } }
 /* a row with a value: the label keeps its one line and the value shortens with "…" (2026-10-13: "Body & heart rate" wrapped) */
 .row-link:has(> .val) > .grow { min-width: max-content; }
 .row-link.static:active { opacity: 1; }
