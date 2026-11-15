@@ -2411,8 +2411,8 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .recipes-library #meal-library .library-recipe > span.num, .recipes-library #meal-library .library-section > .fe > span.num { font-size:13px; color:var(--tx2); white-space:nowrap; }
 .recipes-library #meal-library .library-row > button.icon-btn, .recipes-library #meal-library .meal-library-row > .icon-btn { width:44px; height:44px; min-width:44px; color:var(--accent); }
 .recipes-library #meal-library .library-search { display:block; margin:8px 0 12px; }
-.recipes-library #meal-library .library-search input { width:100%; min-height:40px; border:1px solid var(--line); border-radius:12px; background:var(--bg); }
-.recipes-library .library-tabs { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0; margin:0 0 8px; border-bottom:1px solid var(--line); }
+.recipes-library #meal-library .library-search input { width:100%; min-height:44px; border:1px solid var(--line); border-radius:12px; background:var(--bg); }
+.recipes-library .library-tabs { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin:0 0 8px; border-bottom:1px solid var(--line); }
 .recipes-library .library-tabs [role=tab] { min-width:0; min-height:44px; padding:0 3px; border:0; border-bottom:2px solid transparent; border-radius:0; background:transparent; color:var(--tx2); box-shadow:none; font-size:15px; font-weight:500; white-space:nowrap; }
 .recipes-library .library-tabs [role=tab][aria-selected=true] { border-bottom-color:var(--accent); color:var(--accent); font-weight:600; }
 .recipes-library .library-panel[hidden] { display:none; }
