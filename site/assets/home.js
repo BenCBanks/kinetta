@@ -8,7 +8,7 @@
     activity: ['assets/shots/light-activity.webp','assets/shots/dark-activity.webp','Activity detail'],
     food: ['assets/shots/light-talk.webp','assets/shots/dark-talk.webp','Kit food chat'],
     progress: ['assets/shots/light-progress.webp','assets/shots/dark-progress.webp','Progress'],
-    achievements: ['assets/shots/light-profile.webp','assets/shots/dark-profile.webp','Achievements']
+    achievements: ['assets/shots/light-achievements.webp','assets/shots/dark-achievements.webp','Achievements']
   };
   const pinned = document.querySelector('[data-story-screen]'), pinnedDark = document.querySelector('[data-story-dark]');
   const showScreen = key => { const item=screenMap[key]; if (!item || !pinned) return; const dark=matchMedia('(prefers-color-scheme: dark)').matches; pinned.src=dark?item[1]:item[0]; if(pinnedDark) pinnedDark.srcset=item[1]; pinned.alt=`Fictional Kinetta ${item[2]} screen.`; document.body.dataset.story=key; };
