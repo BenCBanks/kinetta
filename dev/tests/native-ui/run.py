@@ -187,8 +187,9 @@ for device in preferred:
      expected_friends=40 if stage=='friends-heavy' else 1 if stage=='friends-typical' else 0
      expected_requests=5 if stage=='friends-heavy' else 3 if stage=='friends-typical' else 0
      assert friends['counts']==[expected_friends,1 if expected_requests else 0,0],metrics
-     expected_label=({'friends-typical':'Friend requests1 waiting · 2 sent1','friends-heavy':'Friend requests3 waiting · 2 sent3'}.get(stage,''))
-     assert friends['requestLabel']==expected_label,metrics
+     expected_label='Friend requests' if expected_requests else ''
+     expected_badge='3' if stage=='friends-heavy' else '1' if stage=='friends-typical' else ''
+     assert friends['requestLabel']==expected_label and friends['requestCount']==expected_badge,metrics
      assert friends['findAction'] and friends['findAction']['width']>=44 and friends['findAction']['height']>=44 and not friends['fullChallenges'],metrics
      if friends['requestRow']:assert friends['requestRow']['height']>=44,metrics
      assert all(r['width']>=44 and r['height']>=44 for r in friends['controls']),metrics
