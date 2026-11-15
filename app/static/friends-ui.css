@@ -179,7 +179,8 @@
 .group-title h1,.group-invite-card h1 {font-size:28px;line-height:1.18;letter-spacing:-.025em;overflow-wrap:anywhere;margin:0 0 8px;}
 .group-title>p:not(.eyebrow) {margin:0;color:var(--tx2);line-height:1.45;}
 .group-title .group-note {margin-top:10px!important;color:var(--tx)!important;}
-.group-page > :is(.group-goal,.group-event-day,.group-recap,.group-roster,.group-updates) { box-shadow:var(--elevation-raised); }
+.group-page > :is(.group-goal,.group-event-day,.group-recap,.group-updates) { box-shadow:var(--elevation-raised); }
+.group-page > .group-roster { box-shadow:none; }
 .group-goal {display:grid;gap:7px;}
 .group-goal>small {color:var(--tx3);font-size:13px;}
 .group-goal>.group-goal-period {color:var(--tx2);font-weight:650;}
@@ -251,7 +252,7 @@
 .group-update-empty {margin:0;padding:10px 0;color:var(--tx3);}
 .group-update-form {display:grid;gap:8px;padding-top:12px;border-top:1px solid var(--line);}
 .group-update-form textarea {display:block;width:100%;min-height:72px;font-size:16px;line-height:1.4;resize:vertical;}
-.group-update-form button {justify-self:start;min-height:44px;padding:8px 14px;}
+.group-update-form button {justify-self:start;min-height:44px;padding:8px 14px;box-shadow:none;}
 .group-update-status {margin:0;min-height:0;overflow-wrap:anywhere;}
 .group-update-status:empty {display:none;}
 .group-cheer-people {display:grid;gap:4px;}

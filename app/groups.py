@@ -233,7 +233,7 @@ def _contributions(c, group, members, now=None):
     rows = c.execute(f'''SELECT m.user_id,coalesce({measures[group['goal_type']]},0) AS raw
       FROM group_members m LEFT JOIN activities a ON a.user_id=m.user_id
         AND a.start_time>=greatest(m.joined_at,coalesce(%s::timestamptz,m.joined_at))
-        AND a.start_time<least(%s::timestamptz,%s) AND NOT a.lift_open
+        AND a.start_time<least(%s::timestamptz,%s) AND a.visibility<>'me' AND NOT a.lift_open
       WHERE m.group_id=%s AND m.status='active' AND m.user_id=ANY(%s)
       GROUP BY m.user_id''', (group_start, end, now, group['id'], visible_ids)).fetchall()
     divisor = (1609.344 if group['goal_unit'] == 'mi' else 1000) if group['goal_type'] == 'distance' else (
@@ -261,7 +261,7 @@ def _weekly_contributions(c, group, members, now):
     rows = c.execute(f'''SELECT m.user_id,coalesce({measures[group['goal_type']]},0) AS raw
       FROM group_members m LEFT JOIN activities a ON a.user_id=m.user_id
         AND a.start_time>=greatest(m.joined_at,coalesce(%s::timestamptz,m.joined_at),%s::timestamptz)
-        AND a.start_time<%s::timestamptz AND NOT a.lift_open
+        AND a.start_time<%s::timestamptz AND a.visibility<>'me' AND NOT a.lift_open
       WHERE m.group_id=%s AND m.status='active' AND m.user_id=ANY(%s)
       GROUP BY m.user_id''', (group_start, start, end, group['id'], visible_ids)).fetchall()
     divisor = (1609.344 if group['goal_unit'] == 'mi' else 1000) if group['goal_type'] == 'distance' else (
@@ -278,26 +278,31 @@ def _answer(c, group, uid):
                            WHERE m.group_id=%s AND m.status='active' AND NOT u.needs_email_confirm
                              AND u.suspended_at IS NULL ORDER BY m.joined_at,m.user_id''', (group['id'],)).fetchall()
     visible = [member for member in members if not _blocked(c, uid, member['user_id'])]
+    visible.sort(key=lambda member: (member['user_id'] != uid, member['username'].casefold(), member['user_id']))
+    sharing = [member for member in visible if member['share_total']]
     now = _now()
-    contributions = _contributions(c, group, visible, now)
-    local_day, weekly = _weekly_contributions(c, group, visible, now)
+    contributions = _contributions(c, group, sharing, now)
+    local_day, weekly = _weekly_contributions(c, group, sharing, now)
     total = round(sum(contributions.values()), 3)
     member_count = len(visible)
+    sharing_member_count = len(sharing)
     zone = _zone(group['time_zone'])
     today = now.astimezone(zone).date()
     event_date = group['event_date']
     days_to_event = max(0, (event_date - today).days) if event_date else None
     week_total = round(sum(weekly.values()), 3)
-    week_contributors = sum(value > 0 for value in weekly.values())
     me = next(member for member in members if member['user_id'] == uid)
+    own_total = contributions.get(uid, 0) if member_count >= 3 and me['share_total'] else _contributions(c, group, [me], now).get(uid, 0)
+    own_week = weekly.get(uid, 0) if member_count >= 3 and me['share_total'] else _weekly_contributions(c, group, [me], now)[1].get(uid, 0)
     return {
         'id': str(group['id']), 'title': group['title'],
         'event_date': event_date.isoformat() if event_date else None,
         'time_zone': group['time_zone'], 'note': group['note'], 'goal_type': group['goal_type'],
         'goal_target': group['goal_target'], 'goal_unit': group['goal_unit'],
-        **({'total': total} if member_count >= 3 else {'your_total': contributions.get(uid, 0)}),
-        **({'this_week_total': week_total, 'this_week_contributors': week_contributors}
-           if member_count >= 3 else {'your_this_week_total': weekly.get(uid, 0)}),
+        **({'total': total, 'sharing_member_count': sharing_member_count}
+           if member_count >= 3 else {'your_total': own_total}),
+        **({'this_week_total': week_total}
+           if member_count >= 3 else {'your_this_week_total': own_week}),
         'week_start': (local_day - dt.timedelta(days=local_day.weekday())).isoformat(),
         'days_to_event': days_to_event,
         'weeks_to_event': (days_to_event + 6) // 7 if days_to_event is not None else None,
@@ -369,11 +374,13 @@ def _group_recap(c, group, uid, answer, now):
     today = now.astimezone(_zone(group['time_zone'])).date()
     if today <= group['event_date']:
         return None
-    members = c.execute('''SELECT m.user_id,m.joined_at,m.recap_consent,u.login::text AS username
+    members = c.execute('''SELECT m.user_id,m.joined_at,m.recap_consent,u.login::text AS username,
+                                  coalesce(p.share_achievements,false) AS share_total
         FROM group_members m JOIN users u ON u.id=m.user_id
+        LEFT JOIN profile p ON p.user_id=u.id
         WHERE m.group_id=%s AND m.status='active' AND NOT u.needs_email_confirm AND u.suspended_at IS NULL''',
                         (group['id'],)).fetchall()
-    visible = [member for member in members if not _blocked(c, uid, member['user_id'])]
+    visible = [member for member in members if member['share_total'] and not _blocked(c, uid, member['user_id'])]
     contributions = _contributions(c, group, visible, now)
     participants = [member['username'] for member in visible
                     if member['recap_consent'] and contributions.get(member['user_id'], 0) > 0]
@@ -504,7 +511,7 @@ def group_activity_strip(user=Depends(current_user)):
             return {'muted': muted, 'has_upcoming': bool(upcoming)}
         answer = _answer(c, upcoming[0], user['id'])
         keys = ('id', 'title', 'event_date', 'time_zone', 'goal_type', 'goal_target', 'goal_unit', 'event_state',
-                'member_count', 'days_to_event', 'weeks_to_event', 'total', 'your_total')
+                'member_count', 'sharing_member_count', 'days_to_event', 'weeks_to_event', 'total', 'your_total')
         return {'muted': False, 'has_upcoming': True, 'more_count': len(upcoming) - 1,
                 'next': {key: answer[key] for key in keys if key in answer}}
 

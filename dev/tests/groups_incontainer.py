@@ -63,11 +63,11 @@ class Groups(unittest.TestCase):
     def accept(self, token, who=1):
         return self.clients[who].post(f'/api/group-invites/{token}/accept', json={})
 
-    def activity(self, who, at, *, distance=1000, ascent=20, seconds=1200, name='PRIVATE WORKOUT'):
+    def activity(self, who, at, *, distance=1000, ascent=20, seconds=1200, name='PRIVATE WORKOUT', visibility='friends'):
         with db.connect() as c:
             return c.execute('''INSERT INTO activities(user_id,sport,name,private_note,start_time,distance_m,ascent_m,
-                moving_s,elapsed_s,source,visibility) VALUES(%s,'hike',%s,'PRIVATE NOTE',%s,%s,%s,%s,%s,'manual','me')
-                RETURNING id''', (self.ids[who], name, at, distance, ascent, seconds, seconds)).fetchone()['id']
+                moving_s,elapsed_s,source,visibility) VALUES(%s,'hike',%s,'PRIVATE NOTE',%s,%s,%s,%s,%s,'manual',%s)
+                RETURNING id''', (self.ids[who], name, at, distance, ascent, seconds, seconds, visibility)).fetchone()['id']
 
     def test_preview_acceptance_hash_rotation_expiry_and_generic_errors(self):
         group, original = self.make()
@@ -236,6 +236,7 @@ class Groups(unittest.TestCase):
         group, token = self.make(goal_target=1000)
         with db.connect() as c:
             c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s', (joined_at, group['id']))
+            c.execute('UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)', (self.ids,))
         self.activity(0, fixed_now - dt.timedelta(hours=3), distance=12000, name='PRIVATE A')
 
         one = group_view()
@@ -270,7 +271,8 @@ class Groups(unittest.TestCase):
         self.assertEqual(three['total'], 20)
         self.assertNotIn('your_total', three)
         self.assertEqual(three['this_week_total'], 20)
-        self.assertEqual(three['this_week_contributors'], 3)
+        self.assertEqual(three['sharing_member_count'], 3)
+        self.assertNotIn('this_week_contributors', three, 'weekly response never exposes who was active')
         self.assertNotIn('your_this_week_total', three)
         self.assertEqual(three['members'][1]['value'], 3, 'shared member amounts appear once three members are visible')
 
@@ -283,7 +285,7 @@ class Groups(unittest.TestCase):
         self.assertEqual(all_four['member_count'], 4)
         self.assertEqual(all_four['total'], 27)
         self.assertEqual(all_four['this_week_total'], 27)
-        self.assertEqual(all_four['this_week_contributors'], 4)
+        self.assertEqual(all_four['sharing_member_count'], 4)
 
         with db.connect() as c:
             c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)', (self.ids[0], self.ids[3]))
@@ -292,11 +294,54 @@ class Groups(unittest.TestCase):
         self.assertEqual(blocked_view['member_count'], 3)
         self.assertEqual(blocked_view['total'], 20)
         self.assertEqual(blocked_view['this_week_total'], 20)
-        self.assertEqual(blocked_view['this_week_contributors'], 3)
+        self.assertEqual(blocked_view['sharing_member_count'], 3)
         self.assertEqual(unblocked_view['member_count'], 4)
         self.assertEqual(unblocked_view['total'], 27)
         self.assertEqual(unblocked_view['this_week_total'], 27)
-        self.assertEqual(unblocked_view['this_week_contributors'], 4)
+        self.assertEqual(unblocked_view['sharing_member_count'], 4)
+
+    def test_nonsharing_and_only_me_activity_never_change_visible_group_numbers(self):
+        zone = ZoneInfo('America/New_York')
+        local_today = self.now.astimezone(zone).date()
+        week_start = local_today - dt.timedelta(days=local_today.weekday())
+        fixed_now = dt.datetime.combine(week_start + dt.timedelta(days=4), dt.time(12), zone).astimezone(dt.timezone.utc)
+        group, token = self.make(goal_unit='km')
+        for who in (1, 2, 3):
+            self.assertEqual(self.accept(token, who=who).status_code, 200)
+        joined_at = fixed_now - dt.timedelta(days=3)
+        with db.connect() as c:
+            c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s', (joined_at, group['id']))
+            c.execute('UPDATE profile SET share_achievements=(user_id<>%s) WHERE user_id=ANY(%s)',
+                      (self.ids[3], self.ids))
+        self.activity(0, fixed_now - dt.timedelta(hours=3), distance=12000, name='SHARED A')
+        self.activity(1, fixed_now - dt.timedelta(hours=2), distance=3000, name='SHARED B')
+        private_id = self.activity(2, fixed_now - dt.timedelta(hours=1), distance=900000,
+                                   name='ONLY ME', visibility='me')
+        hidden_id = self.activity(3, fixed_now - dt.timedelta(minutes=30), distance=500000,
+                                  name='NONSHARING ACTIVITY')
+        logins = [client.get('/api/me').json()['login'] for client in self.clients]
+
+        def visible_numbers():
+            with patch('app.groups._now', return_value=fixed_now):
+                result = self.clients[0].get('/api/groups/' + group['id']).json()
+            self.assertNotIn('this_week_contributors', result)
+            return {
+                'total': result['total'],
+                'this_week_total': result['this_week_total'],
+                'sharing_member_count': result['sharing_member_count'],
+                'member_count': result['member_count'],
+                'member_values': {member['username']: member.get('value') for member in result['members']},
+            }
+
+        before = visible_numbers()
+        self.assertEqual(before, {'total': 15, 'this_week_total': 15, 'sharing_member_count': 3,
+                                  'member_count': 4, 'member_values': {logins[0]: 12, logins[1]: 3,
+                                                                      logins[2]: 0, logins[3]: None}})
+        with db.connect() as c:
+            c.execute('UPDATE activities SET distance_m=1700000 WHERE id=%s', (private_id,))
+            c.execute('UPDATE activities SET distance_m=1900000 WHERE id=%s', (hidden_id,))
+        after = visible_numbers()
+        self.assertEqual(after, before, 'private or nonsharing activity changes no returned total or count')
 
     def test_ongoing_group_date_can_be_added_and_cleared(self):
         zone = ZoneInfo('America/New_York')
