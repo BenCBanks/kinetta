@@ -138,14 +138,16 @@ try:
  assert own['breakfast']['day']==yesterday_day.isoformat() and {row['name'] for row in own['breakfast']['items']}=={'Fictional oats','Fictional coffee'}
  assert 'breakfast' not in foreign,'yesterday meals are returned only from the caller’s own diary'
  copied_message=repeat_message(reuse_uids[-2],'same breakfast as yesterday',meal='dinner')
+ copy_started_at=dt.datetime.now(dt.timezone.utc)
  copied=food_thread.process_message(copied_message['id'],food_thread.AnswerIn(),{'id':reuse_uids[-2]})
+ copy_finished_at=dt.datetime.now(dt.timezone.utc)
  copied_receipt=copied['messages'][-1]
  assert copied_receipt['result']['kind']=='log' and copied_receipt['result']['meal']=='breakfast'
  assert sorted(row['name'] for row in copied_receipt['entries'])==['Fictional coffee','Fictional oats']
  assert copied_receipt['result']['reuse_label']=="Yesterday's breakfast"
  with db.connect() as c:
   copied_rows=c.execute('SELECT meal,created FROM food_entries WHERE user_id=%s AND day=%s',(reuse_uids[-2],repeat_day)).fetchall()
- assert all(row['meal']=='breakfast' and (dt.datetime.now(dt.timezone.utc)-row['created']).total_seconds()<10 for row in copied_rows),'copies use the requested meal and current logged time'
+ assert all(row['meal']=='breakfast' and copy_started_at<=row['created']<=copy_finished_at for row in copied_rows),'copies use the requested meal and current logged time'
  assert food_thread.process_message(copied_message['id'],food_thread.AnswerIn(),{'id':reuse_uids[-2]})['messages'][-1]['id']==copied_receipt['id']
  assert logged_count(reuse_uids[-2])==4,'replayed yesterday copy is exactly once'
  absent_message=repeat_message(other_uid,'same breakfast as yesterday')
