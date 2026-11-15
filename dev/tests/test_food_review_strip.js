@@ -138,7 +138,7 @@ Object.assign(c,{status:(_ctx,message)=>reviewStatuses.push(message),saveDraft:(
 let reviewStatuses=[],reviewOpens=0,reviewActive=true;
 c.active=()=>reviewActive;
 c.FoodReview={busy:()=>false,open:async()=>{reviewOpens++;}};
-const reviewCtx=()=>({draftId:'review-draft',meal:'lunch',day:'2026-11-11',session:'review-session',jobs:[],reviewForm:{note:'keep this'},visibleClients:new Set(['review-client']),messages:[
+const reviewCtx=()=>({el:{classList:{toggle(){}}},draftId:'review-draft',meal:'lunch',day:'2026-11-11',session:'review-session',jobs:[],reviewForm:{note:'keep this'},visibleClients:new Set(['review-client']),messages:[
  {id:51,kind:'user',client_id:'review-client',result:{review_only:true,draft_id:'review-draft'}},
  {id:52,kind:'reply',reply_to:51,result:{kind:'preview',parts:[{index:0,status:'ready',entries:[{name:'Fictional meal',kcal:200}]}]}}
 ]});
