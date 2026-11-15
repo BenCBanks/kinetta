@@ -1114,8 +1114,7 @@ const MeCard=(()=>{
     const fitProfileName=()=>{
       const heading=$('.me-card-name h2',card);if(!heading)return;
       const full=heading.dataset.fullName||heading.textContent.trim();heading.dataset.fullName=full;heading.title=full;heading.setAttribute('aria-label',full);heading.textContent=full;
-      heading.style.fontSize='20px';heading.style.fontWeight='700';
-      for(let size=20;size>16&&heading.scrollWidth>heading.clientWidth;size--){heading.style.fontSize=(size-1)+'px';}
+      heading.style.fontSize='17px';heading.style.fontWeight='500';
     };
     const nameObserver=new ResizeObserver(()=>requestAnimationFrame(fitProfileName));nameObserver.observe(card);viewResources.set(card,()=>nameObserver.disconnect());
     function chartScroll(){
