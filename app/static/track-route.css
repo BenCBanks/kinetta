@@ -315,6 +315,8 @@ nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 
 .track-live-main > .track-controls .round-btn.discard { width:56px; height:56px; background:transparent; box-shadow:none; }
 .track-live-main > .track-controls .round-btn.lap,
 .track-live-main > .track-controls .round-btn.stop { color:var(--tx); border:1px solid var(--line); }
+#track-content .track-live-main > .track-controls .round-btn.lap,
+#track-content .track-live-main > .track-controls .round-btn.stop { box-shadow:none; }
 .track-live-main > .track-controls .round-btn.discard { color:var(--alert); border:1px solid color-mix(in srgb,var(--alert) 55%,var(--line)); }
 .track-live-main > .track-controls .round-btn.go { background:var(--btn); color:var(--onbtn); }
 .track-live-main > .track-controls small { min-height:16px; color:var(--tx2); font-size:12px; line-height:16px; font-weight:500; }
