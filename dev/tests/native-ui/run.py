@@ -227,8 +227,10 @@ for device in preferred:
       limit=metrics['viewport']['height']-metrics['safeBottom']
       assert track['controls'] and track['controls']['bottom']<=limit,metrics
       assert all(bottom<=limit for bottom in track['captions']),metrics
-      assert track['expanded']==(stage=='track-map'),metrics
+      assert track['display']==('stats' if stage=='track-live' else 'map'),metrics
+      assert not track['expanded'],metrics
       if stage=='track-live':assert track['average'] and track['lap'] and track['lap']!='—',metrics
+      if stage=='track-map':assert track['map'] and track['map']['height']>0,metrics
     if stage=='recipe':
      assert metrics['name'] and metrics['content']['y']>=metrics['header']['bottom']-1,metrics
      assert metrics['name']['y']<=metrics['header']['bottom']+30,metrics
