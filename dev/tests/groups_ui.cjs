@@ -2,7 +2,7 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',shots=process.env.KINETTA_SHOTS;
-const GROUP_UPDATE_CLOCK=require('../screenshots/fixture-time.json'),GROUP_UPDATE_NOW=new Date(GROUP_UPDATE_CLOCK.instant),GROUP_UPDATES_ONLY=process.env.KINETTA_GROUPS_UPDATES_ONLY==='1';
+const GROUP_UPDATE_CLOCK=require('../screenshots/fixture-time.json'),GROUP_UPDATE_NOW=new Date(GROUP_UPDATE_CLOCK.instant),GROUP_UPDATES_ONLY=process.env.KINETTA_GROUPS_UPDATES_ONLY==='1',GROUP_LIST_ONLY=process.env.KINETTA_GROUPS_LIST_ONLY==='1';
 const newUpdateText='Alex has the trail notes.';
 const token='0123456789abcdef0123456789abcdef',idEmpty='00000000-0000-4000-8000-000000000001',idTwo='00000000-0000-4000-8000-000000000002',idThree='00000000-0000-4000-8000-000000000004',idFull='00000000-0000-4000-8000-000000000050',idLongGoal='00000000-0000-4000-8000-000000000003',idLongOwnGoal='00000000-0000-4000-8000-000000000005',idSix='00000000-0000-4000-8000-000000000006',idTen='00000000-0000-4000-8000-000000000010';
 const idUpdates='00000000-0000-4000-8000-000000000011',idEventDay='00000000-0000-4000-8000-000000000012',idRecap='00000000-0000-4000-8000-000000000013',idOngoing='00000000-0000-4000-8000-000000000014';
@@ -54,7 +54,7 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
  async function open(theme,width=390,stripState='none',groupListState='none'){
   const context=await browser.newContext({viewport:{width,height:844},colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:GROUP_UPDATE_CLOCK.timezone});contexts.push(context);
   const login=await context.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'alex',password:'blue kettle morning run'}});assert.equal(login.status(),200,'isolated demo account login');
-  const postedGroups=[],postedUpdates=[],groupPreferences=[],stripPosts=[],groupDateChanges=[],groupList=groupListState==='ongoing'?[ongoingGroup]:[],updateCheers=[{login:'fictional_member',name:'Fictional member',photo:false,kind:'clap'}];let updateReactionPeopleReads=0,stripData={...stripFixtures[stripState]},updatesState={...updatesGroup,updates:updatesGroup.updates.map(row=>({...row}))},ongoingState={...ongoingGroup,updates:ongoingGroup.updates.map(row=>({...row}))};
+  const postedGroups=[],postedUpdates=[],groupPreferences=[],stripPosts=[],groupDateChanges=[],groupList=groupListState==='list'?[{...ongoingGroup,title:'Fictional trail club'}, {...ongoingGroup,id:'00000000-0000-4000-8000-000000000015',title:'Morning miles group',event_date:'2026-11-21',event_state:'upcoming'}, {...ongoingGroup,id:'00000000-0000-4000-8000-000000000016',title:'Weekend movement'}]:groupListState==='ongoing'?[ongoingGroup]:[],updateCheers=[{login:'fictional_member',name:'Fictional member',photo:false,kind:'clap'}];let updateReactionPeopleReads=0,stripData={...stripFixtures[stripState]},updatesState={...updatesGroup,updates:updatesGroup.updates.map(row=>({...row}))},ongoingState={...ongoingGroup,updates:ongoingGroup.updates.map(row=>({...row}))};
   await context.route('**/api/**',async route=>{
    const req=route.request(),url=new URL(req.url()),method=req.method(),p=url.pathname;
    if(['/api/people/fictional_friend/photo','/api/people/fictional_member/photo','/api/people/alex/photo'].includes(p))return route.fulfill({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#4778b8"/><circle cx="32" cy="25" r="12" fill="#f2cfaa"/><path d="M8 64c2-17 11-25 24-25s22 8 24 25" fill="#243d5e"/></svg>'});
@@ -98,6 +98,17 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
   return{context,page,errors,postedGroups,postedUpdates,groupPreferences,stripPosts,stripState:()=>stripData,updatesState:()=>updatesState,updateReactionPeopleReads:()=>updateReactionPeopleReads,groupDateChanges,ongoingState:()=>ongoingState};
  }
  try{
+  if(GROUP_LIST_ONLY){
+   for(const theme of ['light','dark'])for(const width of [390,330]){
+    const {context,page,errors}=await open(theme,width,'none','list');await page.goto(base+'/me/groups');await page.locator('.group-list-card .group-list-row').nth(2).waitFor();
+    assert.equal(await page.locator('.group-list-card .group-list-row').count(),3,`three fictional groups render at ${width}px (${theme})`);
+    assert.equal(await page.locator('#group-new').innerText(),'Create','Create stays in the page header');assert(await page.locator('#group-new').evaluate(el=>{const r=el.getBoundingClientRect();return r.width>=44&&r.height>=44;}),'Create remains a 44px target');
+    const layout=await page.locator('.group-list-card').evaluate(card=>({rows:[...card.querySelectorAll('.group-list-row')].map(row=>{const r=row.getBoundingClientRect(),icon=row.querySelector('.ri'),i=icon?.getBoundingClientRect(),s=getComputedStyle(row),copy=row.querySelector('.grow').getBoundingClientRect();return{height:r.height,top:r.top,bottom:r.bottom,padding:s.padding,copyHeight:copy.height,icon:icon?.innerHTML,iconBox:i?{width:i.width,height:i.height}:null,background:s.backgroundColor,transform:s.transform};}),shadow:getComputedStyle(card).boxShadow,cardBackground:getComputedStyle(card).backgroundColor,dividers:[...card.querySelectorAll('.group-list-row + .group-list-row')].map(row=>getComputedStyle(row,'::before').borderTopWidth)}));
+    assert(layout.rows.every(row=>row.height>=56&&row.height<=58),`group rows use 56px rhythm at ${width}px (${theme}): ${JSON.stringify(layout)}`);const groupGlyphs=await page.locator('.group-list-row .ri svg').evaluateAll(nodes=>nodes.map(icon=>icon.querySelectorAll('circle').length>=2&&!icon.querySelector('rect')));assert(groupGlyphs.every(Boolean),`each row uses a people glyph (${theme})`);assert(layout.dividers.every(border=>border==='1px'),'the grouped surface uses one-pixel inset dividers');assert.equal(layout.shadow,'none','the Groups list has no raised-card shadow');
+    assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),`Groups list fits ${width}px (${theme})`);await capture(page,`groups-list-${width}-${theme}`,null,{fullPage:false});assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
+   }
+   console.log('Groups list 390/330 light/dark PASS');return;
+  }
   if(GROUP_UPDATES_ONLY){
    const {context,page,errors,postedUpdates,updatesState}=await open('light');await page.clock.setFixedTime(GROUP_UPDATE_NOW);await page.goto(base+groupUrl(idUpdates));await page.locator('.group-updates').waitFor();
    await page.locator('#group-update-text').fill(newUpdateText);await page.locator('.group-update-form button[type=submit]').click();await page.locator('[data-group-update="7003"]').waitFor();
