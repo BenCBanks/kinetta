@@ -24,6 +24,11 @@ const RecipeImport=(()=>{
     const file=document.createElement('input');file.type='file';file.accept='image/*';file.multiple=true;
     file.onchange=async()=>{if(!active(c))return;await reviewFoodPhotos([...file.files],async images=>{if(!active(c))return;c.mode='photo';c.url='';c.id=newId();c.editor=null;c.photos=images;remember(c);await read(c);},{recipe:true,active:()=>active(c)});};file.click();
   }
+  async function enterByHand(c){if(!active(c)||c.entering)return;c.entering=true;const id=c.id;
+    if(id){try{await api('/api/recipe-links/'+id,json('DELETE',{}));}catch(e){if(e.status!==404&&e.status!==410){c.entering=false;if(active(c))retry(c,`Couldn't clear this import draft. ${e.message}`);return;}}if(!valid(c,id))return;}
+    c.id=null;c.editor=null;c.review=null;c.photos=null;store.del(key(c.owner));const button=$('#recipe-enter-manual',c.el);if(button)button.disabled=true;await newDish(null);c.entering=false;if(active(c)&&button)button.disabled=false;
+  }
+  function wireEnterByHand(c){const button=$('#recipe-enter-manual',c.el);if(button)button.onclick=()=>enterByHand(c);}
   function waiting(c,message='Reading this recipe…'){
     shell(c,'Recipe from a link',`<div role="status" aria-live="polite">${skel(2)}<p>${esc(message)}</p></div><button class="ghost wide" id="recipe-cancel">Cancel read</button>`);
     const cancel=$('#recipe-cancel',c.el);if(cancel)cancel.onclick=()=>discard(c);
@@ -33,8 +38,8 @@ const RecipeImport=(()=>{
     catch(e){if(active(c))toast('Could not discard yet. '+e.message);}
   }
   async function read(c){const id=c.id;waiting(c);try{const data=c.mode==='photo'?(c.photos?await api('/api/recipe-links/photo',json('POST',{client_id:id,images:c.photos})):await api('/api/recipe-links/'+id)):await api('/api/recipe-links/read',json('POST',{client_id:id,url:c.url}));if(valid(c,id)){c.photos=null;receive(c,data);}}catch(e){if(valid(c,id))retry(c,e.message);}}
-  function retry(c,message){shell(c,'Recipe from a link',`<p class="callout" role="status">${esc(message)}</p><div class="btncol"><button class="primary wide" id="recipe-retry">Retry read</button><button class="ghost wide" id="recipe-new">Edit link</button><button class="ghost wide" id="recipe-shot">Use a recipe screenshot</button></div>`);
-    $('#recipe-retry',c.el).onclick=()=>read(c);$('#recipe-new',c.el).onclick=()=>start(c);$('#recipe-shot',c.el).onclick=()=>screenshot(c);
+  function retry(c,message){shell(c,'Recipe from a link',`<p class="callout" role="status">${esc(message)}</p><div class="btncol"><button class="primary wide" id="recipe-retry">Retry read</button><button class="linkbtn wide" id="recipe-enter-manual">Enter by hand</button><button class="ghost wide" id="recipe-new">Edit link</button><button class="ghost wide" id="recipe-shot">Use a recipe screenshot</button></div>`);
+    $('#recipe-retry',c.el).onclick=()=>read(c);$('#recipe-new',c.el).onclick=()=>start(c);$('#recipe-shot',c.el).onclick=()=>screenshot(c);wireEnterByHand(c);
   }
   function receive(c,data){if(!active(c))return;
     c.data=data;
@@ -43,8 +48,8 @@ const RecipeImport=(()=>{
     if(data.state!=='ready'){
       // A new attempt is created only by the next explicit Retry tap.
       c.id=null;remember(c);
-      shell(c,'Recipe from a link',`<p class="callout" role="status">${esc(data.message||'This draft is no longer available.')}</p><button class="primary wide" id="recipe-read-again">${c.mode==='photo'?'Choose screenshot again':'Read link again'}</button><button class="ghost wide" id="recipe-fallback">Use a recipe screenshot</button><button class="linkbtn" id="recipe-change">Edit link</button>`);
-      $('#recipe-read-again',c.el).onclick=()=>{if(c.mode==='photo'){screenshot(c);return;}c.id=newId();remember(c);read(c);};$('#recipe-fallback',c.el).onclick=()=>screenshot(c);$('#recipe-change',c.el).onclick=()=>start(c);return;
+      shell(c,'Recipe from a link',`<p class="callout" role="status">${esc(data.message||'This draft is no longer available.')}</p><button class="primary wide" id="recipe-read-again">${c.mode==='photo'?'Choose screenshot again':'Read link again'}</button><button class="linkbtn wide" id="recipe-enter-manual">Enter by hand</button><button class="ghost wide" id="recipe-fallback">Use a recipe screenshot</button><button class="linkbtn" id="recipe-change">Edit link</button>`);
+      $('#recipe-read-again',c.el).onclick=()=>{if(c.mode==='photo'){screenshot(c);return;}c.id=newId();remember(c);read(c);};$('#recipe-fallback',c.el).onclick=()=>screenshot(c);$('#recipe-change',c.el).onclick=()=>start(c);wireEnterByHand(c);return;
     }
     if(c.editor&&data.candidates[c.editor.candidate]){editor(c);return;}
     if(data.candidates.length===1){choose(c,0);return;}
