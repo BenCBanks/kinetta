@@ -1299,6 +1299,16 @@ function progressFilters(el, body, html, {selector='.card'}={}) {
   const observer = new MutationObserver(mount); observer.observe(body, {childList:true,subtree:true});
   viewResources.set(body, () => observer.disconnect()); mount();
 }
+function progressMileageError(body, q) {
+  body.innerHTML = '<div class="card empty mileage-error" role="alert"><p class="small muted">Distance totals couldn’t load.</p><button type="button" class="linkbtn" data-mileage-retry>Retry</button></div>';
+  const retry = $('[data-mileage-retry]', body);
+  retry.onclick = async () => {
+    if (retry.disabled) return;
+    retry.disabled = true; retry.textContent = 'Loading…';
+    try { await pMileage(body, q, {home:true}); }
+    catch { if (body.isConnected) progressMileageError(body, q); }
+  };
+}
 function progressPeriods(period) {
   return '<div class="me-period mileage-toggle" role="group" aria-label="Totals period">'+PPERIODS.map(([k,n])=>`<button type="button" data-progress-period="${k}" aria-pressed="${period===k}">${n}</button>`).join('')+'</div>';
 }
@@ -1420,7 +1430,7 @@ async function progressHome(el, q) {
     if(recordValue)$('[data-progress-record]',el).textContent=recordValue;
   };
   await Promise.allSettled([
-    pMileage(totals,q,{home:true}).catch(()=>{if(valid())totals.innerHTML='<div class="card empty">Distance by week, month and year →</div>';}),
+    pMileage(totals,q,{home:true}).catch(()=>{if(valid())progressMileageError(totals,q);}),
     load('/api/progress/overview',o=>{
       if(!valid())return;recordValue=o.record?`${o.record.label} · ${dur(o.record.elapsed_s)}`:null;refreshProgressTiles(o,true);
     }).catch(()=>{if(valid())refreshProgressTiles(null,true);}),
