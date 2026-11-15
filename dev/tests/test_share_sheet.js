@@ -4,9 +4,10 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 const tick=()=>new Promise(setImmediate);
 function harness({native=false,api:apiImpl}={}){
  let owner='zz_test_owner_a',options,html,objectId=0,anchorClicks=0;const timers=new Map(),objects=new Map(),revoked=[],toasts=[],apiCalls=[];
- const body={isConnected:true},images=[],choices=[],actions=[],active={};let scrollHandler=null;
+ const body={isConnected:true},images=[],choices=[],tabs=[],actions=[];let scrollHandler=null;
  const row={children:choices,clientWidth:286,centerIndex:0,getBoundingClientRect:()=>({left:0,width:286}),addEventListener:(name,handler)=>{if(name==='scroll')scrollHandler=handler;}};
- const controls={_html:'',inputs:[],renders:0};Object.defineProperty(controls,'innerHTML',{get(){return this._html;},set(value){this._html=value;this.renders++;this.inputs=[...value.matchAll(/<input type="checkbox" data-share-control="([^"]+)"( checked)?/g)].map(match=>({dataset:{shareControl:match[1]},checked:!!match[2],disabled:false}));}});
+ const controls={_html:'',inputs:[],inkButtons:[],renders:0};Object.defineProperty(controls,'innerHTML',{get(){return this._html;},set(value){this._html=value;this.renders++;this.inputs=[...value.matchAll(/<input type="checkbox" data-share-control="([^"]+)"( checked)?/g)].map(match=>({dataset:{shareControl:match[1]},checked:!!match[2],disabled:false}));this.inkButtons=[...value.matchAll(/<button type="button" data-share-ink="([^"]+)" aria-pressed="([^"]+)">/g)].map(match=>({dataset:{shareInk:match[1]},attrs:{'aria-pressed':match[2]},setAttribute(name,value){this.attrs[name]=value;}}));}});
+ const previewImage={src:'',alt:'',hidden:true,removeAttribute(name){if(name==='src')this.src='';}},previewFrame={dataset:{ink:'blue'},style:{setProperty(){},removeProperty(){}}};
  const note={textContent:''},description={textContent:''},status={textContent:''},send={disabled:true},sendLabel={textContent:'Share'},linkButton={hidden:true,textContent:'',onclick:null},save={disabled:true,hidden:false};
  const document={activeElement:null,body:{append(){}},createElement(tag){if(tag==='a')return{href:'',download:'',click(){anchorClicks++;},remove(){}};throw Error('Unexpected element '+tag);}};
  const urlApi={createObjectURL(blob){const url='blob:share-'+(++objectId);objects.set(url,blob);return url;},revokeObjectURL(url){revoked.push(url);objects.delete(url);}};
@@ -16,20 +17,22 @@ function harness({native=false,api:apiImpl}={}){
    api:async path=>{apiCalls.push(path);return apiImpl?apiImpl(path,cardData):cardData;},fetch:async()=>({ok:true,blob:async()=>new Blob(['fictional card'])}),navigator:{},
    document,setTimeout:(fn,ms)=>{const id=timers.size+1;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),
    sheet:(title,markup,mount)=>{
-     html=markup;choices.length=0;images.length=0;actions.length=0;
+     html=markup;choices.length=0;tabs.length=0;images.length=0;actions.length=0;
      for(const match of markup.matchAll(/data-share-choice="(\d+)"/g)){const index=Number(match[1]),choice={dataset:{shareChoice:String(index),busy:'true'},attrs:{},tabIndex:-1,setAttribute(name,value){this.attrs[name]=value;},scrollIntoView(){row.centerIndex=index;},focus(){document.activeElement=this;},getBoundingClientRect(){return{left:(index-row.centerIndex)*300,width:250};}};choices.push(choice);images.push({src:'',alt:'',hidden:true,removeAttribute(name){if(name==='src')this.src='';}});}
+     for(const match of markup.matchAll(/data-share-tab="(\d+)"/g)){const index=Number(match[1]),tab={dataset:{shareTab:String(index)},attrs:{},tabIndex:-1,setAttribute(name,value){this.attrs[name]=value;},focus(){document.activeElement=this;}};tabs.push(tab);}
      for(const match of markup.matchAll(/data-share-action="(\d+)"/g))actions.push({dataset:{shareAction:match[1]},disabled:false});
      save.hidden=/data-share-save[^>]*hidden/.test(markup);body.isConnected=true;mount(body,()=>{body.isConnected=false;});
    },
    $:(selector)=>{
-     if(selector==='.share-picture-row')return row;if(selector==='[data-share-controls]')return controls;if(selector==='[data-share-note]')return note;
+     if(selector==='.share-picture-row')return row;if(selector==='[data-share-controls]')return controls;if(selector==='[data-share-note]')return note;if(selector==='[data-share-preview-frame]')return previewFrame;if(selector==='[data-share-preview-image]')return previewImage;
      if(selector==='[data-share-description]')return description;if(selector==='.share-picture-status')return status;if(selector==='[data-share-send]')return send;if(selector==='[data-share-send-label]')return sendLabel;if(selector==='[data-share-link]')return linkButton;if(selector==='[data-share-save]')return save;
      let match=selector.match(/^\[data-share-choice="(\d+)"\]$/);if(match)return choices[Number(match[1])];
+     match=selector.match(/^\[data-share-tab="(\d+)"\]$/);if(match)return tabs[Number(match[1])];
      match=selector.match(/^\[data-share-image="(\d+)"\]$/);if(match)return images[Number(match[1])];return null;
    },
-   $$:(selector)=>selector==='[data-share-choice]'?choices:selector==='[data-share-control]'?controls.inputs:selector==='[data-share-action]'?actions:[],
+   $$:(selector)=>selector==='[data-share-choice]'?choices:selector==='[data-share-tab]'?tabs:selector==='[data-share-control]'?controls.inputs:selector==='[data-share-ink]'?controls.inkButtons:selector==='[data-share-action]'?actions:[],
    esc:String,svg:()=>'',toast:message=>toasts.push(message),route:()=>{},col:()=> '#ffffff',getComputedStyle:()=>({getPropertyValue:()=> 'system-ui'}),
-   setOwner:value=>{owner=value;},getObjects:()=>objects,getTimers:()=>timers,getState:()=>({html,anchorClicks,scrollHandler,revoked,toasts,apiCalls,body,choices,images,actions,controls,note,description,status,send,sendLabel,linkButton,save,document})};
+   setOwner:value=>{owner=value;},getObjects:()=>objects,getTimers:()=>timers,getState:()=>({html,anchorClicks,scrollHandler,revoked,toasts,apiCalls,body,choices,tabs,images,previewImage,previewFrame,actions,controls,note,description,status,send,sendLabel,linkButton,save,document})};
  vm.createContext(context);
  vm.runInContext(fs.readFileSync('app/static/share-art.js','utf8')+'\n'+fs.readFileSync('app/static/recaps.js','utf8')+'\n'+fs.readFileSync('app/static/cards.js','utf8')+'\nthis.shareSheetTest=ShareSheet;this.shareArtTest=ShareArt;this.kinettaCardTest=KinettaCard;',context);
  context.openShare=value=>{options=value;context.shareSheetTest.open(value);};
@@ -45,6 +48,17 @@ function harness({native=false,api:apiImpl}={}){
 
  c=harness();c.openShare({items:[{label:'One',build:async()=>new Blob(['one'])},{label:'Two',build:async()=>new Blob(['two'])}]});await tick();state=c.getState();const renders=state.controls.renders;let prevented=false;state.choices[0].onkeydown({key:'ArrowRight',preventDefault(){prevented=true;}});await tick();assert(prevented);assert.equal(state.choices[1].attrs['aria-checked'],'true');assert.equal(state.choices[1].tabIndex,0);assert.equal(state.document.activeElement,state.choices[1]);const afterArrow=state.controls.renders;state.scrollHandler();const scrollTimer=[...c.getTimers().values()].find(timer=>timer.ms===120);assert(scrollTimer,'scroll settle timer uses the current 120ms delay');scrollTimer.fn();assert.equal(state.controls.renders,afterArrow,'settling a scroll on the selected picture does not redraw its controls');assert(afterArrow>renders);
  console.log('Share sheet: arrow-key radio movement and stable scroll selection PASS');
+
+ c=harness();const tabBuilds=[];c.openShare({mode:'tabs',title:'Share activity',items:[
+   {label:'Card',controls:[{key:'hideEnds',label:'Hide where it starts and ends',checked:true}],build:async state=>{tabBuilds.push(['Card',state.hideEnds]);return new Blob(['card']);}},
+   {label:'Route',controls:[{key:'hideEnds',label:'Hide where it starts and ends',checked:true}],initial:{ink:'blue'},inkChoices:['blue','dark','light'],build:async state=>{tabBuilds.push(['Route',state.hideEnds,state.ink]);return new Blob(['route']);}},
+   {label:'Stats',initial:{ink:'blue'},inkChoices:['blue','dark','light'],build:async state=>{tabBuilds.push(['Stats',state.hideEnds,state.ink]);return new Blob(['stats']);}}
+ ]});await tick();state=c.getState();assert.match(state.html,/role="tablist" aria-label="Activity picture style"/);assert.doesNotMatch(state.html,/role="radiogroup"/);assert.deepEqual(state.tabs.map(tab=>tab.attrs['aria-selected']),['true','false','false']);
+ state.controls.inputs[0].checked=false;state.controls.inputs[0].onchange();await tick();state.tabs[1].onclick();await tick();assert.deepEqual(tabBuilds.at(-1),['Route',false,'blue'],'Blue is selected by default and hide-ends carries between tabs');
+ assert.match(state.controls._html,/Blue/);assert.match(state.controls._html,/Dark/);assert.match(state.controls._html,/Light/);
+ const dark=state.controls.inkButtons.find(button=>button.dataset.shareInk==='dark');dark.onclick();await tick();assert.equal(state.previewFrame.dataset.ink,'dark');assert.deepEqual(tabBuilds.at(-1),['Route',false,'dark'],'ink choice redraws only with the same route privacy setting');
+ state.tabs[2].onclick();await tick();assert.deepEqual(state.tabs.map(tab=>tab.attrs['aria-selected']),['false','false','true']);assert.deepEqual(tabBuilds.at(-1),['Stats',false,'dark'],'the chosen ink persists across tabs without resetting route privacy');assert.match(state.previewImage.src,/^blob:/);
+ console.log('Share activity tabs: preview-first Card/Route/Stats, shared endpoint privacy, ink redraw and selected state PASS');
 
  let marked=0,release;const gate=new Promise(resolve=>release=resolve);c=harness();c.openShare({items:[{label:'Milestone',build:async()=>new Blob(['milestone'])}],actions:[{label:'Dismiss milestone',run:async()=>{marked++;await gate;}}]});await tick();state=c.getState();const action=state.actions[0],firstDismiss=action.onclick();assert.equal(marked,1);assert.equal(action.disabled,true);await action.onclick();assert.equal(marked,1,'a second tap cannot repeat the pending mark');release();await firstDismiss;assert.equal(action.disabled,false);
  console.log('Share sheet: Dismiss milestone has a double-tap busy guard PASS');

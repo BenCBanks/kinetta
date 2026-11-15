@@ -14,6 +14,9 @@ people={}
 for name in ('owner','friend'):
  c=person('zz_test_detail_'+name);ok(c.post('/api/account/delete',{'password':PW}));c=person('zz_test_detail_'+name,'River '+name.title());ok(c.put('/api/profile',{'tz':'UTC','ai_ok':False}));people[name]=c
 owner,friend=people.values();uid=ok(owner.get('/api/me'))['id'];alex=login(*ALEX)
+# Detail-share browser fixtures must surface their new First 10K milestone.
+# Admin-created test accounts start as backfills, so make this fictional owner fresh before adding activities.
+r=subprocess.run(['docker','exec','-i',project+'-db-1','psql','-U','postgres','-d','fit','-v','ON_ERROR_STOP=1','-q'],input=f'UPDATE milestone_state SET fresh=TRUE WHERE user_id={uid};',text=True,capture_output=True);assert r.returncode==0,r.stderr
 source={}
 for kind in ('run','ride'):
  rows=ok(alex.get('/api/activities?sport='+kind+'&limit=100'));source[kind]=next(a for a in rows if a['line'] and (kind!='run' or a['distance_m']>=5000))
