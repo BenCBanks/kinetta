@@ -190,7 +190,7 @@ function liftLogger(el, aid, data) {
   const prevText = (e, p) => (!p ? '' : e.kind === 'time' ? `${p.secs || 0} s` : p.kg && e.kind === 'body' ? `+${toW(p.kg)}${T}${p.reps || 0}` : p.kg ? `${toW(p.kg)}${T}${p.reps || 0}` : `${p.reps || 0}`);
   function exCard(e, i) {
     const c = cols(e), name = {n: 'Set', prev: e.last ? 'Last' : '', kg: e.kind === 'body' ? `+${wUnit()}` : wUnit(), reps: 'Reps', secs: 'Seconds', tick: ''};
-    return `<section class="card lift-ex" data-i="${i}"><div class="lift-hd"><div class="lift-title-line"><a class="lift-name" href="/lift/ex/${e.exercise_id}">${esc(e.name)}</a>${e.note?`<button type="button" class="lift-note" data-exnote aria-label="Edit note for ${esc(e.name)}">${esc(e.note)}</button>`:''}</div>
+    return `<section class="card lift-ex" data-i="${i}"><div class="lift-hd"><div class="lift-title-line"><a class="lift-name" href="/lift/ex/${e.exercise_id}">${esc(e.name)}</a>${e.note?(S.open?`<button type="button" class="lift-note" data-exnote aria-label="Edit note for ${esc(e.name)}">${esc(e.note)}</button>`:`<span class="lift-note">${esc(e.note)}</span>`):''}</div>
         ${S.open ? `<button type="button" class="icon-btn" data-exmenu aria-label="More for ${esc(e.name)}">${svg('more')}</button>` : ''}</div>
       <div class="lift-sets c${c.length}${e.last ? ' has-prev' : ''}" role="group" aria-label="${esc(e.name)} sets">
         <div class="lift-row lh">${c.map((k) => `<span class="lh-${k}">${esc(name[k])}</span>`).join('')}</div>
@@ -257,13 +257,13 @@ function liftLogger(el, aid, data) {
         for (const inp of $$(`.lift-in[data-j="${j}"]`, card)) { const k = inp.dataset.k; inp.value = p[k] == null ? '' : k === 'kg' ? toW(p[k]) : p[k]; e.sets[j][k] = p[k]; }
         later();
       });
-      $('[data-addset]', card).onclick = () => {
+      const addSet=$('[data-addset]',card);if(addSet)addSet.onclick = () => {
         e.sets.push({reps: null, kg: null, secs: null, warmup: false, done: false});   // blank; the grey numbers show what to type
         draw(); later();
         const row = $$(`.lift-ex[data-i="${i}"] .lift-in[data-j="${e.sets.length - 1}"]`, list)[0]; if (row) row.focus({preventScroll: true});
       };
       $$('[data-set]', card).forEach((b) => b.onclick = () => setMenu(e, +b.dataset.set));
-      $('[data-exmenu]', card).onclick = () => exMenu(i);
+      const menu=$('[data-exmenu]',card);if(menu)menu.onclick = () => exMenu(i);
       const note=$('[data-exnote]',card);if(note)note.onclick=()=>{if(live()&&!finishing)noteSheet(e,()=>draw());};
     });
   }
