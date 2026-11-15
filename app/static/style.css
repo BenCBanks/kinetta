@@ -1827,7 +1827,7 @@ button.thread-food:active { opacity: .7; }
 .kit-chat #kit-messages {overflow-anchor:none;position:relative;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;align-content:start;gap:14px;padding:12px 0 8px;}
 .kit-chat #kit-messages:empty {flex:0;padding:0;}
 .kit-compose-row {grid-template-columns:minmax(0,1fr) 44px;}
-#kit-text {font-size:16px;resize:none;max-height:140px;min-height:44px;}
+#kit-text {font-size:max(16px,1rem);resize:none;max-height:140px;min-height:44px;}
 #kit-status {font-size:.8rem;color:var(--tx2);margin:4px 0 0;min-height:1.3em;}
 .kit-chat #kit-food-slot:empty {display:none;}
 .kit-chat .kit-food-inline.shell {position:relative;inset:auto;width:100%;height:auto;min-height:0;max-height:none;overflow:visible;display:block;flex:none;margin:0;padding:0;background:transparent;}
@@ -2330,6 +2330,80 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .food-copy-action{display:flex;justify-content:center;margin:16px 0;}
 .food-copy-action .ghost{min-height:44px;max-width:100%;white-space:normal;background:none;border:0;box-shadow:none;color:var(--accent);font-weight:600;}
 .food-copy-action svg{width:18px;height:18px;flex:none;color:var(--accent);}
+
+/* Fable food flows: quiet, shared chat chrome and compact library rows. */
+.food-thread #thread-empty { display:grid; place-items:center; padding:0 16px 8px; }
+.food-thread .thread-quick-actions { display:grid; grid-template-columns:minmax(0,1fr); gap:8px 0; margin:0 0 3px; }
+.food-thread .thread-quick-actions > button { display:flex; align-items:center; justify-content:flex-start; gap:12px; width:100%; min-height:44px; padding:0 8px; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; color:var(--tx); font-size:15px; line-height:1.3; text-align:left; }
+.food-thread .thread-quick-actions > button:last-child { border-bottom:0; }
+.food-thread .thread-quick-actions > button svg { width:20px; height:20px; flex:none; color:var(--tx2); }
+.food-thread .thread-review-strip { min-height:52px; margin:0; padding:4px 0; border:0; border-top:1px solid var(--line); border-radius:0; background:var(--bg); }
+.food-thread .thread-review-strip #thread-review-sum { min-height:44px; padding:0 8px 0 0; border:0; background:transparent; color:var(--tx); font-size:15px; font-weight:500; }
+.food-thread .thread-review-strip #thread-review-add { min-height:44px; min-width:100px; padding:0 14px; border:0; border-radius:999px; background:var(--accent-gradient); color:var(--onbtn); font-size:16px; font-weight:var(--weight-title); white-space:nowrap; }
+.food-thread .thread-review-kcal { color:var(--tx2); font-size:13px; }
+.food-thread .thread-compose-row { border-top:1px solid var(--line); }
+.kit-chat .thread-heading { grid-template-columns:44px minmax(0,1fr) 88px; min-height:44px; align-items:center; gap:8px; border:0; }
+.kit-chat .thread-heading > .back { display:grid; place-items:center; width:44px; height:44px; min-width:44px; padding:0; border-radius:50%; }
+.kit-chat .thread-heading > .back svg { width:20px; height:20px; }
+.kit-chat .thread-heading > h1 { margin:0; font-size:16px; font-weight:600; line-height:1.25; text-align:center; }
+.kit-chat .kit-chat-actions { gap:0; }
+.kit-chat .kit-chat-actions .icon-btn { width:44px; height:44px; }
+.kit-chat #kit-intro { margin-top:12px; }
+.kit-chat #kit-intro .kit-starters { display:grid; grid-template-columns:minmax(0,1fr); gap:0; margin:8px 0 0; }
+.kit-chat #kit-intro .kit-starters > button { display:flex; align-items:center; justify-content:flex-start; gap:12px; width:100%; min-height:44px; padding:0 8px; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; color:var(--tx); font-size:15px; line-height:1.35; text-align:left; }
+.kit-chat #kit-intro .kit-starters > button:last-child { border-bottom:0; }
+.kit-chat #kit-intro .kit-starters > button svg { width:20px; height:20px; flex:none; color:var(--tx2); }
+.kit-chat #kit-intro .kit-starters > button::before { content:none; }
+.kit-chat .thread-user p { border-radius:18px 18px 5px 18px; }
+.kit-chat .thread-card { border:1px solid var(--line); border-radius:5px 18px 18px 18px; box-shadow:none; }
+.recipes-library .library-heading { display:grid; grid-template-columns:44px minmax(0,1fr) auto; align-items:center; gap:8px; }
+.recipes-library .library-heading > h1 { margin:0; font-size:17px; font-weight:600; }
+.recipes-library .library-heading > #tm-new { min-height:44px; padding:0 4px; border:0; background:transparent; box-shadow:none; color:var(--accent); font-size:15px; font-weight:600; }
+.recipes-library #meal-library .library-section { margin:16px 0 0; }
+.recipes-library #meal-library .library-section > h2 { margin:0; padding:8px 0; color:var(--tx2); font-size:13px; font-weight:500; line-height:1.35; }
+.recipes-library #meal-library .library-row, .recipes-library #meal-library .library-section > .fe, .recipes-library #meal-library .meal-library-row { min-height:56px; margin:0 0 8px; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; box-shadow:none; }
+.recipes-library #meal-library .library-recipe, .recipes-library #meal-library .library-section > .fe { min-height:56px; padding:6px 0; border:0; border-radius:0; background:transparent; text-align:left; }
+
+/* Chat starters sit at the page bottom, directly above the composer. */
+.chat-suggestions {display:grid;grid-template-columns:minmax(0,1fr);gap:0;max-height:180px;margin:0 calc(0px - var(--space-5)) 8px;padding:0;overflow:hidden;opacity:1;transition:opacity .15s ease,max-height .15s ease,margin-bottom .15s ease;}
+.chat-suggestions[hidden] {display:none;}
+.chat-suggestions > button {position:relative;display:flex;align-items:center;justify-content:flex-start;gap:16px;width:100%;min-width:0;min-height:44px;padding:0 16px;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--tx);font-size:15px;font-weight:500;line-height:1.35;text-align:left;white-space:normal;}
+.chat-suggestions > button::before {content:none!important;}
+.chat-suggestions > button::after {position:absolute;right:0;bottom:0;left:52px;height:1px;background:var(--line);content:'';}
+.chat-suggestions > button:last-child::after {content:none;}
+.chat-suggestions > button svg {flex:none;width:20px;height:20px;color:var(--tx2);}
+.chat-suggestions > button span {min-width:0;overflow-wrap:anywhere;}
+.food-thread.has-draft .chat-suggestions,.kit-chat.has-draft .chat-suggestions {max-height:0;margin-bottom:0;opacity:0;pointer-events:none;}
+.food-thread.has-review .thread-quick-actions {display:none;}
+.chat-suggestions.keyboard-hidden {max-height:0;margin-bottom:0;visibility:hidden;opacity:0;pointer-events:none;}
+.chat-suggestions:focus-within {overflow:visible;}
+.kit-chat #kit-intro {margin:0;padding:0;overflow:visible;animation:none;}
+.kit-chat #kit-intro[hidden] {display:none;}
+.kit-chat #kit-intro #kit-load-retry {margin:8px 0;}
+.kit-chat #kit-starters {flex:none;}
+.kit-chat #kit-composer {padding-top:0;margin-top:auto;}
+.kit-chat #kit-fine {margin-top:0;}
+@media(prefers-reduced-motion:reduce){.chat-suggestions{transition:none;}}
+@media(max-width:360px){.chat-suggestions{margin-inline:-16px;}}
+@media(min-width:1000px){.chat-suggestions{margin-inline:-32px;}}
+.recipes-library #meal-library .library-recipe b, .recipes-library #meal-library .library-section > .fe b { font-size:15px; font-weight:600; }
+.recipes-library #meal-library .library-recipe small, .recipes-library #meal-library .library-section > .fe small { font-size:13px; color:var(--tx2); }
+.recipes-library #meal-library .library-recipe > span.num, .recipes-library #meal-library .library-section > .fe > span.num { font-size:13px; color:var(--tx2); white-space:nowrap; }
+.recipes-library #meal-library .library-row > button.icon-btn, .recipes-library #meal-library .meal-library-row > .icon-btn { width:44px; height:44px; min-width:44px; color:var(--accent); }
+.recipes-library #meal-library .library-search { display:block; margin:8px 0 12px; }
+.recipes-library #meal-library .library-search input { width:100%; min-height:40px; border:1px solid var(--line); border-radius:12px; background:var(--bg); }
+.recipe-page .recipe-content > .card { border:0; border-radius:0; background:transparent; box-shadow:none; }
+.recipe-page .recipe-content .ing-card { margin:8px 0 0; padding:0; }
+.recipe-page .ingredient-heading { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px; font-weight:500; }
+.recipe-page .ing-list .ig, .recipe-page .ing-list .swipe > .ig, .recipe-page .ing-list .swipe > .sw-row { min-height:44px; padding:8px 0; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; box-shadow:none; }
+.recipe-page .recipe-nutrition { display:flex; flex-wrap:wrap; gap:8px 16px; padding:10px 0; border-bottom:1px solid var(--line); }
+.recipe-page .recipe-nutrition > div { display:flex; flex-direction:column; gap:2px; }
+.recipe-page .recipe-nutrition b { font-size:15px; font-weight:600; }
+.recipe-page .recipe-nutrition small { color:var(--tx2); font-size:13px; }
+.recipe-page > .finish { position:sticky; bottom:0; z-index:2; padding-top:8px; background:var(--bg); }
+.recipe-page > .finish > .primary { min-height:48px; }
+.recipe-import .card, .food-import .card { border:0; border-radius:0; background:transparent; box-shadow:none; }
+.recipe-import .recipe-matches, .food-import .recipe-matches { padding:0; }
 
 /* Loading recovery stays available even if a later script cannot download. */
 .launch-note{margin:0;color:var(--tx3);font-size:.875rem;text-align:center;}

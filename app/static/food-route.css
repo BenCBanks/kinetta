@@ -52,7 +52,7 @@
 .food-thread .thread-remove-failed button {flex:none;min-height:44px;margin-left:2px;padding:0 4px;color:var(--accent);text-decoration:underline;}
 
 /* Add logs ready chat foods directly; Edit keeps the established detailed review. */
-.food-thread .thread-review-strip {display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:44px;margin:0;padding:0 4px;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--tx);font:inherit;cursor:default;}
+.food-thread .thread-review-strip {display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:44px;margin:0;padding:0 4px;border:0;border-top:1px solid var(--line);border-radius:0;background:transparent;box-shadow:none;color:var(--tx);font:inherit;cursor:default;}
 .food-thread .thread-review-strip[hidden] {display:none;}
 .food-thread .thread-review-strip > button {display:flex;align-items:center;flex:none;min-width:44px;height:44px;min-height:44px;margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;white-space:nowrap;}
 .food-thread .thread-review-sum {flex:1!important;justify-content:flex-start;gap:4px;min-width:0;overflow:hidden;color:var(--tx2);font:500 .8125rem/1.2 var(--font);text-align:left;font-variant-numeric:tabular-nums;}
@@ -74,7 +74,7 @@
 .compact-food .compact-food-title .tf-inspect { display:flex;align-items:center;width:100%;min-width:0;min-height:22px;height:auto;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:left; }
 .compact-food .compact-food-title .tf-inspect strong { font-size:.875rem;line-height:1.15;overflow-wrap:anywhere; }
 .compact-food .compact-food-meta { grid-area:quantity;display:flex;align-items:center;gap:5px;min-width:0;min-height:22px;overflow:hidden; }
-.compact-food .thread-amount { flex:none;min-width:0;min-height:22px;height:auto;padding:0 2px;border:0;background:transparent;color:var(--tx2);font-size:.75rem;line-height:1.2;text-align:left;white-space:nowrap; }
+.compact-food .thread-amount { flex:none;min-width:0;min-height:22px;height:auto;padding:0;border:0;background:transparent;color:var(--tx2);font-size:.75rem;line-height:1.2;text-align:left;white-space:nowrap; }
 .compact-food .tf-kcal { grid-area:kcal;align-self:center;margin:0;padding:0;font-size:.875rem;white-space:nowrap; }
 .compact-food .tf-kcal small { font-size:.75rem; }
 .compact-food .thread-food-controls,.compact-food .thread-stepper { display:contents; }
@@ -669,6 +669,7 @@ button.thread-food { cursor: pointer; }
 .thread-tools button svg { width: 26px; height: 26px; color: var(--accent); }   /* plain icons, no circle behind them (owner 2026-10-18) */
 #thread-usual-suggestion button { margin-bottom: 8px; }
 .thread-compose-row { display: flex; align-items: flex-end; gap: 8px; padding: 4px; border: 1px solid var(--line); border-radius: 26px; background: var(--card); }
+.food-thread .thread-plus { border:0; background:transparent; box-shadow:none; }
 .thread-reuse { display:flex; flex-wrap:wrap; gap:8px; padding:0 0 8px; }
 .thread-reuse[hidden] { display:none; }
 .thread-reuse button { display:flex; align-items:center; gap:4px; flex:0 1 auto; max-width:100%; min-width:44px; min-height:44px; padding:4px 0; border:0; background:none; color:var(--tx); font-size:max(15px,.9375rem); font-weight:500; line-height:1.3; text-align:left; }
@@ -772,3 +773,12 @@ html.keyboard-open .food-thread { font-size: 1rem; padding-bottom: 4px; }
 .macpreview .extra-nutrients b {font:600 1rem var(--numf);}
 .tcard .extra-nutrients b {font:600 1rem/1.5 var(--numf);letter-spacing:0;}
 .tcard .extra-nutrients dd small {display:block;font-size:.85rem;font-weight:400;text-transform:none;letter-spacing:0;color:var(--tx2);}
+
+/* Food chat suggestions align to the viewport edge like the plain Kit rows. */
+.food-thread .thread-quick-actions.chat-suggestions {margin:0 calc(0px - var(--space-5)) 8px;}
+.food-thread .thread-quick-actions.chat-suggestions > button {gap:16px;min-height:44px;padding:0 16px;border:0;font-size:15px;font-weight:500;color:var(--tx);text-align:left;}
+.food-thread .thread-quick-actions.chat-suggestions > button::after {left:52px;}
+.food-thread .thread-quick-actions.chat-suggestions > button svg {width:20px;height:20px;}
+html.keyboard-open .food-thread .thread-quick-actions.chat-suggestions {display:grid;}
+@media(max-width:360px){.food-thread .thread-quick-actions.chat-suggestions {margin-inline:-16px;}}
+@media(min-width:1000px){.food-thread .thread-quick-actions.chat-suggestions {margin-inline:-32px;}}

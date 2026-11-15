@@ -1,6 +1,11 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');const source=fs.readFileSync('app/static/kit.js','utf8');
-const c={route(){},KitChat:{loaded:false},URLSearchParams,App:{me:{id:7}},Native:{base:'https://fictional.invalid'},location:{origin:'https://fictional.invalid'},localStorage:{removeItem(){}},Map,Set};vm.createContext(c);vm.runInContext(source+'\nglobalThis.Kit=KitChat;',c);
+const c={route(){},KitChat:{loaded:false},IC:{},URLSearchParams,App:{me:{id:7}},Native:{base:'https://fictional.invalid'},location:{origin:'https://fictional.invalid'},localStorage:{removeItem(){}},Map,Set};vm.createContext(c);vm.runInContext(source+'\nglobalThis.Kit=KitChat;',c);
+assert.equal(c.IC.send,'<path d="M12 19V5M6 11l6-6 6 6"/>','Kit Send uses an up arrow, not the fallback clock');assert(c.IC.chat.includes('M4 5.5'),'Kit diet suggestion uses a chat icon');assert(source.includes("nutrition:['food','pot','chat']"),'Talk about my diet has the chat icon');
+assert.deepEqual(JSON.parse(JSON.stringify(c.Kit.starters.nutrition.map(([label])=>label))),['Look at my food today','What could I eat next?','Talk about my diet'],'Kit suggestions keep the approved order and copy');
+assert(source.indexOf('id="kit-starters"')<source.indexOf('class="thread-compose-row kit-compose-row"'),'Kit suggestions are directly above the composer');
+assert(source.includes("$('#kit-starters',c.el).hidden=!!has"),'Kit suggestions disappear after the first message');
+assert(source.includes("el.classList.toggle('has-draft',drafted)")&&source.includes("$('#kit-starters',el).inert=drafted"),'Kit suggestions fade and stop taking taps while a draft is non-empty');
 assert.equal(c.Kit.href('nutrition'),'/me/kit?from=nutrition');assert.equal(c.Kit.href('activity',42),'/me/kit?from=activity&activity=42');assert.equal(c.Kit.href('javascript:bad'),'/me/kit?from=me');
 for(const group of Object.values(c.Kit.starters))assert.equal(group.length,3);
 for(const [,path] of Object.values(c.Kit.actions))assert(path.startsWith('/')&&!path.startsWith('//'));
@@ -88,6 +93,11 @@ async function testFoodThreadBridge(){
 
 // #578 keeps the shared pushed-page title compact and the Kit reminder only in an empty chat.
 const css=fs.readFileSync('app/static/style.css','utf8');
+assert(css.includes('.chat-suggestions > button {position:relative;display:flex;align-items:center;justify-content:flex-start;gap:16px;width:100%;min-width:0;min-height:44px;padding:0 16px;'),'suggestions are plain full-width 44px rows with 16px gutters');
+assert(css.includes('left:52px;height:1px;background:var(--line);content:\'\';'),'suggestion hairlines begin after the 20px icon and 16px gap');
+assert(css.includes('.chat-suggestions > button svg {flex:none;width:20px;height:20px;color:var(--tx2);}'),'suggestion icons use a clear 20px glyph');
+assert(css.includes('.kit-chat #kit-starters {flex:none;}')&&css.includes('.kit-chat #kit-composer {padding-top:0;margin-top:auto;}'),'Kit suggestions sit at the page bottom above its composer');
+assert(css.includes('#kit-text {font-size:max(16px,1rem);'),'Kit composer follows large text settings while keeping a 16px minimum');
 assert.match(css,/--text-nav-title\s*:\s*17px/);
 assert(css.includes('.shell .top.subpage-header > h1')&&css.includes('text-overflow:ellipsis'),'shared pushed-page titles truncate in their centered row');
 assert(css.includes('.subpage-header > .icon-btn:not(.progress-back)'),'Progress Back stays in the leading nav slot instead of the actions slot');
@@ -99,10 +109,10 @@ assert(source.includes('id="kit-fine"')&&source.includes('${esc(shortProvider())
 assert(source.includes('id="kit-about-open">About Kit</button>')&&source.includes('New chat each visit.')&&source.includes('providerName()'),'About Kit keeps visit and provider details in the menu flow');
 assert(source.includes("$('#kit-about-open',body).onclick=()=>{close();sheet('About Kit',"),'About Kit row opens the provider and visit details sheet');
 const drawSource=source.slice(source.indexOf('  function draw(c){'),source.indexOf('  async function refresh(c,before=null){')).replace('  function draw(c){','  globalThis.draw = function draw(c){');
-const drawNodes={'#kit-messages':{innerHTML:''},'#kit-intro':{hidden:true},'#kit-fine':{hidden:true},'#kit-older':{hidden:false}};
+const drawNodes={'#kit-messages':{innerHTML:''},'#kit-starters':{hidden:true},'#kit-intro':{hidden:true},'#kit-fine':{hidden:true},'#kit-older':{hidden:false}};
 const drawHarness={active:()=>true,$:s=>drawNodes[s],$$:()=>[],esc:String,controls(){},kitChatOn:()=>true};
 vm.createContext(drawHarness);vm.runInContext(drawSource,drawHarness);
-drawHarness.draw({el:{},messages:[],job:null,before:null});assert.equal(drawNodes['#kit-fine'].hidden,false,'empty chats show the reminder');
-drawHarness.draw({el:{},messages:[{client_id:'fictional',question:'A fictional question',state:'running'}],job:null,before:null});assert.equal(drawNodes['#kit-fine'].hidden,true,'messages hide the reminder');
-drawHarness.draw({el:{},messages:[],job:{client_id:'fictional',question:'A fictional question'},before:null});assert.equal(drawNodes['#kit-fine'].hidden,true,'a queued first message hides the reminder');
+drawHarness.draw({el:{},messages:[],job:null,before:null});assert.equal(drawNodes['#kit-starters'].hidden,false,'empty chats show suggestions');assert.equal(drawNodes['#kit-fine'].hidden,false,'empty chats show the reminder');
+drawHarness.draw({el:{},messages:[{client_id:'fictional',question:'A fictional question',state:'running'}],job:null,before:null});assert.equal(drawNodes['#kit-starters'].hidden,true,'the first Kit message removes the suggestions');assert.equal(drawNodes['#kit-fine'].hidden,true,'messages hide the reminder');
+drawHarness.draw({el:{},messages:[],job:{client_id:'fictional',question:'A fictional question'},before:null});assert.equal(drawNodes['#kit-starters'].hidden,true,'a queued first message removes the suggestions');assert.equal(drawNodes['#kit-fine'].hidden,true,'a queued first message hides the reminder');
 console.log('Kit #578 title token, About Kit copy and empty-only reminder checks PASS');

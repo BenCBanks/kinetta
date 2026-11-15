@@ -14,7 +14,7 @@ const user=(id,draft='d1')=>({id,kind:'user',client_id:'c'+id,result:{review_onl
 const reply=(to,parts)=>({id:to+100,kind:'reply',reply_to:to,result:{kind:'preview',parts}});
 const ready=(...kcal)=>({index:0,status:'ready',entries:kcal.map(k=>({kcal:k}))});
 const question={index:0,status:'description',description:{food:'coffee',portion_only:true},question:'Coffee — about how much?',replies:['1','Large','Not sure']};
-const ctx={draftId:'d1',jobs:[],visibleClients:new Set(['c1','c2','c3']),messages:[user(1),reply(1,[ready(200,100)]),user(2),reply(2,[question]),user(3),reply(3,[ready(105)])]};
+const ctx={el:{classList:{toggle(){}}},draftId:'d1',jobs:[],visibleClients:new Set(['c1','c2','c3']),messages:[user(1),reply(1,[ready(200,100)]),user(2),reply(2,[question]),user(3),reply(3,[ready(105)])]};
 const state=c.held(ctx);
 assert.deepEqual([...state.ids],[1,3],'only finished cards are sent to review');
 assert.equal(JSON.stringify(state.selections),JSON.stringify([{message:1,parts:[0]},{message:3,parts:[0]}]),'an open draft uses explicit ready-part selections for every included message');
@@ -138,7 +138,7 @@ Object.assign(c,{status:(_ctx,message)=>reviewStatuses.push(message),saveDraft:(
 let reviewStatuses=[],reviewOpens=0,reviewActive=true;
 c.active=()=>reviewActive;
 c.FoodReview={busy:()=>false,open:async()=>{reviewOpens++;}};
-const reviewCtx=()=>({draftId:'review-draft',meal:'lunch',day:'2026-11-11',session:'review-session',jobs:[],reviewForm:{note:'keep this'},visibleClients:new Set(['review-client']),messages:[
+const reviewCtx=()=>({el:{classList:{toggle(){}}},draftId:'review-draft',meal:'lunch',day:'2026-11-11',session:'review-session',jobs:[],reviewForm:{note:'keep this'},visibleClients:new Set(['review-client']),messages:[
  {id:51,kind:'user',client_id:'review-client',result:{review_only:true,draft_id:'review-draft'}},
  {id:52,kind:'reply',reply_to:51,result:{kind:'preview',parts:[{index:0,status:'ready',entries:[{name:'Fictional meal',kcal:200}]}]}}
 ]});

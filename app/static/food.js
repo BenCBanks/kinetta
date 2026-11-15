@@ -414,7 +414,7 @@ function recentSavedMarkup(recent, {library=false}={}) {
       </button><button type="button" class="icon-btn recent-add choose-food-add" data-recent-add data-recent-index="${i}" data-recent-kind="${x.kind}" data-recent-id="${x.id}" aria-label="Add ${esc(x.name)} with last portion ${esc(portion)}">${svg('plus')}</button>
     </div>`;
   }).join('');
-  return library?`<section class="library-section recent-saved" data-recent-saved><h2>Recent</h2>${rows}</section>`:`<section class="recent-saved" data-recent-saved><h3 class="ghead">Recent</h3><div class="results">${rows}</div></section>`;
+  return library?`<section class="library-section recent-saved" data-recent-saved><h2 data-type="secondary">Recent</h2>${rows}</section>`:`<section class="recent-saved" data-recent-saved><h3 class="ghead">Recent</h3><div class="results">${rows}</div></section>`;
 }
 async function logRecentMeal(meal, w) {
   const factor=Number(meal.last_used_factor)||1;
@@ -825,10 +825,10 @@ function drawRecipeLibrary(body,dishes,meals,foods,where,close,again){
     ${recentSavedMarkup(recent,{library:true})}
     ${many?`<label class="library-search"><span class="library-search-label">Search recipes and foods</span><input id="tm-filter" type="search" placeholder="Search recipes and foods" autocomplete="off"></label>${foods.length&&(dishes.length||meals.length)?`<div class="library-jumps"><button type="button" class="linkbtn" data-library-jump="recipes">Recipes ${dishes.length}</button><button type="button" class="linkbtn" data-library-jump="foods">Foods ${foods.length}</button></div>`:''}`:''}
     <div id="library-recipes">
-    ${mine.length?`<section class="library-section"><h2>Your recipes</h2>${mine.map(d=>dishRow(d,dishes.indexOf(d))).join('')}</section>`:''}
-    ${theirs.length?`<section class="library-section"><h2>Shared with you</h2>${theirs.map(d=>dishRow(d,dishes.indexOf(d))).join('')}</section>`:''}
-    ${meals.length?`<section class="library-section"><h2>Saved combinations</h2>${meals.map((m,i)=>`<button type="button" class="fe" data-meal="${i}" data-library-name="${esc(m.name.toLowerCase())}"><div><b>${esc(m.name)}</b><small>${esc(preview(m.items))}</small></div><span class="num">${m.totals.kcal==null?'Calories unknown':r0(m.totals.kcal)+' kcal'}</span></button>`).join('')}</section>`:''}</div>
-    <section class="library-section" id="library-foods"><h2>My foods</h2>${foods.map((f,i)=>`<div class="meal-library-row" data-library-name="${esc(f.name.toLowerCase())}">${foodRow(f,i)}<button type="button" class="icon-btn" data-edit-food="${i}" aria-label="Edit ${esc(f.name)}">${svg('edit')}</button></div>`).join('')}${!foods.length?'<div class="library-empty"><p class="small muted">No saved foods yet.</p><button type="button" class="ghost wide" id="tm-food-empty">Create a food</button></div>':''}</section>
+    ${mine.length?`<section class="library-section"><h2 data-type="secondary">Your recipes</h2>${mine.map(d=>dishRow(d,dishes.indexOf(d))).join('')}</section>`:''}
+    ${theirs.length?`<section class="library-section"><h2 data-type="secondary">Shared with you</h2>${theirs.map(d=>dishRow(d,dishes.indexOf(d))).join('')}</section>`:''}
+    ${meals.length?`<section class="library-section"><h2 data-type="secondary">Saved combinations</h2>${meals.map((m,i)=>`<button type="button" class="fe" data-meal="${i}" data-library-name="${esc(m.name.toLowerCase())}"><div><b>${esc(m.name)}</b><small>${esc(preview(m.items))}</small></div><span class="num">${m.totals.kcal==null?'Calories unknown':r0(m.totals.kcal)+' kcal'}</span></button>`).join('')}</section>`:''}</div>
+    <section class="library-section" id="library-foods"><h2 data-type="secondary">My foods</h2>${foods.map((f,i)=>`<div class="meal-library-row" data-library-name="${esc(f.name.toLowerCase())}">${foodRow(f,i)}<button type="button" class="icon-btn" data-edit-food="${i}" aria-label="Edit ${esc(f.name)}">${svg('edit')}</button></div>`).join('')}${!foods.length?'<div class="library-empty"><p class="small muted">No saved foods yet.</p><button type="button" class="ghost wide" id="tm-food-empty">Create a food</button></div>':''}</section>
     ${!dishes.length&&!meals.length?'<p class="small muted">No recipes yet. Choose New to create one.</p>':''}<p id="tm-no-match" class="small muted" hidden>No matching recipes or foods.</p><button type="button" class="linkbtn library-log" id="tm-describe">Log food</button>`;
   $('#tm-describe',body).onclick=()=>{const w=where();close.closeAll(true);describeSheet(w.day,w.meal);};
   const emptyFood=$('#tm-food-empty',body);if(emptyFood)emptyFood.onclick=()=>foodEditor(null,again);

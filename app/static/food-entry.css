@@ -50,7 +50,7 @@
 .food-thread .thread-remove-failed button {flex:none;min-height:44px;margin-left:2px;padding:0 4px;color:var(--accent);text-decoration:underline;}
 
 /* Add logs ready chat foods directly; Edit keeps the established detailed review. */
-.food-thread .thread-review-strip {display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:44px;margin:0;padding:0 4px;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--tx);font:inherit;cursor:default;}
+.food-thread .thread-review-strip {display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:44px;margin:0;padding:0 4px;border:0;border-top:1px solid var(--line);border-radius:0;background:transparent;box-shadow:none;color:var(--tx);font:inherit;cursor:default;}
 .food-thread .thread-review-strip[hidden] {display:none;}
 .food-thread .thread-review-strip > button {display:flex;align-items:center;flex:none;min-width:44px;height:44px;min-height:44px;margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;white-space:nowrap;}
 .food-thread .thread-review-sum {flex:1!important;justify-content:flex-start;gap:4px;min-width:0;overflow:hidden;color:var(--tx2);font:500 .8125rem/1.2 var(--font);text-align:left;font-variant-numeric:tabular-nums;}
@@ -62,6 +62,7 @@
 .food-thread .thread-review-strip:focus-within {outline:none;}
 .food-thread .thread-review-strip > button:focus-visible {outline:2px solid var(--link);outline-offset:1px;}
 .food-thread #thread-send:disabled {border-color:transparent;background:transparent;box-shadow:none;color:var(--tx3);opacity:.7;}
+.food-thread .thread-plus {border:0;background:transparent;box-shadow:none;}
 #thread-messages article.thread-removing {overflow:hidden;max-height:900px;opacity:1;transition:max-height 150ms ease,opacity 150ms ease,margin 150ms ease;}
 #thread-messages article.thread-removing.is-collapsing {max-height:0;opacity:0;margin-block:0;}
 @media(prefers-reduced-motion:reduce) {#thread-messages article.thread-removing {transition:none;}}
@@ -72,7 +73,7 @@
 .compact-food .compact-food-title .tf-inspect { display:flex;align-items:center;width:100%;min-width:0;min-height:22px;height:auto;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:left; }
 .compact-food .compact-food-title .tf-inspect strong { font-size:.875rem;line-height:1.15;overflow-wrap:anywhere; }
 .compact-food .compact-food-meta { grid-area:quantity;display:flex;align-items:center;gap:5px;min-width:0;min-height:22px;overflow:hidden; }
-.compact-food .thread-amount { flex:none;min-width:0;min-height:22px;height:auto;padding:0 2px;border:0;background:transparent;color:var(--tx2);font-size:.75rem;line-height:1.2;text-align:left;white-space:nowrap; }
+.compact-food .thread-amount { flex:none;min-width:0;min-height:22px;height:auto;padding:0;border:0;background:transparent;color:var(--tx2);font-size:.75rem;line-height:1.2;text-align:left;white-space:nowrap; }
 .compact-food .tf-kcal { grid-area:kcal;align-self:center;margin:0;padding:0;font-size:.875rem;white-space:nowrap; }
 .compact-food .tf-kcal small { font-size:.75rem; }
 .compact-food .thread-food-controls,.compact-food .thread-stepper { display:contents; }
