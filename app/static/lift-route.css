@@ -62,7 +62,7 @@
 .compact-lift .lift-top .lift-finish { min-width:44px; min-height:44px; padding:0 6px; font-size:15px; font-weight:600; white-space:nowrap; }
 .compact-lift .lift-top .lift-discard { width:44px; height:44px; min-width:44px; padding:0; border:0; border-radius:50%; background:transparent; color:var(--tx2); box-shadow:none; }
 .compact-lift .lift-top .lift-save[data-state=error] { max-width:72px; font-size:12px; }
-.compact-lift .lift-ex { padding:12px 14px; margin-bottom:12px; }
+.compact-lift .lift-ex { padding:16px; margin-bottom:12px; }
 .compact-lift .lift-hd { align-items:flex-start; gap:8px; margin:0; }
 .compact-lift .lift-title-line { display:flex; flex:1; flex-direction:column; align-items:stretch; gap:8px; min-width:0; }
 .compact-lift .lift-name { display:flex; align-items:center; min-height:44px; font-size:17px; line-height:22px; font-weight:600; letter-spacing:0; }
@@ -70,7 +70,7 @@
 .compact-lift .lift-note::before { content:none; }
 .compact-lift .lift-hd > .icon-btn { flex:none; width:44px; height:44px; min-width:44px; padding:0; border:0; border-radius:50%; background:transparent; color:var(--tx2); box-shadow:none; }
 .compact-lift .lift-hd > .icon-btn svg { width:20px; height:20px; }
-.compact-lift .lift-sets { gap:0; margin:8px -12px 0; }
+.compact-lift .lift-sets { gap:8px 0; margin:8px -12px 0; }
 .compact-lift .lift-row { display:flex; flex-wrap:nowrap; align-items:center; gap:8px; height:48px; min-height:48px; box-sizing:border-box; margin:0; padding:0; border-top:1px solid var(--line); border-radius:0; background:transparent; transition:none; }
 .compact-lift .lift-row.lh { min-height:28px; border-top:0; }
 .compact-lift .lift-row.lh span { color:var(--tx3); font-size:13px; line-height:16px; font-weight:500; text-align:center; }
@@ -86,7 +86,7 @@
 .compact-lift .lift-in:focus { border-bottom-color:var(--accent); outline:0; box-shadow:none; }
 .compact-lift .lift-in::placeholder { color:var(--tx3); opacity:1; font-weight:500; }
 .compact-lift .lift-read-value { display:block; flex:1 1 48px; min-width:0; color:var(--tx); font:600 20px/1.2 var(--numf); font-variant-numeric:tabular-nums; text-align:center; overflow-wrap:anywhere; }
-.compact-lift .lift-tick { position:relative; display:grid; place-items:center; flex:0 0 44px; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; border:0; border-radius:50%; background:transparent; color:transparent; }
+.compact-lift .lift-tick { position:relative; display:grid; place-items:center; flex:0 0 44px; width:44px; min-width:44px; height:48px; min-height:48px; padding:0; border:0; border-radius:50%; background:transparent; color:transparent; }
 .compact-lift .lift-tick::before { content:""; position:absolute; width:28px; height:28px; border:1px solid var(--tx3); border-radius:50%; background:transparent; }
 .compact-lift .lift-tick svg { position:relative; width:15px; height:15px; opacity:0; stroke-width:3; }
 .compact-lift .lift-tick[aria-pressed="true"]::before { border-color:var(--prog); background:var(--prog); }
