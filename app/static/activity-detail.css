@@ -272,3 +272,32 @@
   .activity-detail { --detail-edge:var(--space-5); }
   .activity-detail > .compact-detail-title { margin-left:-6px; margin-right:-6px; }
 }
+
+/* Fable review: align map controls, finish the milestone row, and line up chart content. */
+.activity-detail .detail-map-hero .detail-floating { left:12px; right:12px; align-items:center; }
+.activity-detail .detail-map-hero .detail-floating .acts { gap:8px; }
+.activity-detail .detail-map-hero .map:not(.full) .map-full { right:12px; }
+.activity-detail .detail-map-hero .compact-media [data-media-step="-1"] { left:12px; }
+.activity-detail .detail-map-hero .compact-media [data-media-step="1"] { right:12px; }
+.activity-detail .activity-chart-card { padding:16px; }
+@media (min-width:361px) and (max-width:700px) {
+  .activity-detail .activity-chart-card { margin-inline:-6px; }
+}
+.activity-detail .activity-tabs button[aria-selected="true"] { text-decoration:none; }
+.activity-detail .activity-tabs button[aria-selected="true"]::after {
+  display:block; position:absolute; right:0; bottom:-1px; left:0; height:2px;
+  background:var(--accent); content:"";
+}
+.activity-detail .compact-detail-title:has(.detail-milestone-row .milestone-banner) { padding-bottom:0; }
+.activity-detail .compact-detail-title:has(.detail-milestone-row .milestone-banner) .detail-stat-stack { padding-bottom:0; }
+.activity-detail .detail-milestone-row:has(.milestone-banner) {
+  position:relative; height:44px; margin-top:17px; padding-top:0; border:0; box-sizing:content-box;
+}
+.activity-detail .detail-milestone-row:has(.milestone-banner)::before { position:absolute; top:-1px; right:0; left:0; border-top:1px solid var(--line); content:""; }
+.activity-detail .detail-milestone-icon { color:var(--color-achievement); }
+.activity-detail .detail-milestone-row .milestone-banner { height:44px; min-height:44px; box-sizing:border-box; }
+.activity-detail .detail-milestone-row .milestone-actions { position:static; }
+.activity-detail .detail-milestone-row .milestone-share { inset:0; }
+.activity-detail .detail-milestone-row .milestone-share::after {
+  right:0; left:auto; border-top-width:2px; border-right-width:2px;
+}

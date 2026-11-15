@@ -794,6 +794,8 @@ function drawDetail(el, a) {
     try {
       const m = await mapInto(mapBox, a.track_lines?.length ? a.track_lines : [a.line], {sport: a.sport, still: !!a.photos?.length && !mapBox.classList.contains('full')});
       mapObj = m; pts = decode(a.line);
+      const routeBounds=m?.group?.getBounds();
+      if(routeBounds?.isValid())m.map.fitBounds(routeBounds,{paddingTopLeft:[16,64],paddingBottomRight:[16,72],maxZoom:17,animate:false});
       if (m && a.photos?.length && !mapBox.classList.contains('full')) { m.map.dragging.disable(); m.map.touchZoom.disable(); }
     }
     catch (e) { console.error('map', e); if (mapBox.isConnected) mapBox.insertAdjacentHTML('beforeend', '<p class="empty">Map unavailable right now</p>'); }
