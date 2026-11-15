@@ -4,14 +4,20 @@
   const nav = document.querySelector('[data-site-nav]');
   addEventListener('scroll', () => nav?.classList.toggle('is-compact', scrollY > 48), {passive:true});
   const screenMap = {
-    feed: ['assets/shots/light-feed.webp','assets/shots/dark-feed.webp','Home feed'],
-    activity: ['assets/shots/light-activity.webp','assets/shots/dark-activity.webp','Activity detail'],
-    food: ['assets/shots/light-talk.webp','assets/shots/dark-talk.webp','Kit food chat'],
-    progress: ['assets/shots/light-progress.webp','assets/shots/dark-progress.webp','Progress'],
-    achievements: ['assets/shots/light-achievements.webp','assets/shots/dark-achievements.webp','Achievements']
+    feed: ['feed','Home feed'],
+    activity: ['activity','Activity detail'],
+    food: ['talk','Kit food and weigh-in review'],
+    progress: ['progress','Progress'],
+    achievements: ['achievements','Achievements']
   };
   const pinned = document.querySelector('[data-story-screen]'), pinnedDark = document.querySelector('[data-story-dark]');
-  const showScreen = key => { const item=screenMap[key]; if (!item || !pinned) return; const dark=matchMedia('(prefers-color-scheme: dark)').matches; pinned.src=dark?item[1]:item[0]; if(pinnedDark) pinnedDark.srcset=item[1]; pinned.alt=`Fictional Kinetta ${item[2]} screen.`; document.body.dataset.story=key; };
+  const showScreen = key => {
+    const item=screenMap[key]; if (!item || !pinned) return;
+    const dark=matchMedia('(prefers-color-scheme: dark)').matches,base=`assets/shots/${dark?'dark':'light'}-${item[0]}`;
+    pinned.src=`${base}.webp`;pinned.srcset=`${base}-1x.webp 1x, ${base}.webp 2x`;
+    if(pinnedDark)pinnedDark.srcset=`assets/shots/dark-${item[0]}-1x.webp 1x, assets/shots/dark-${item[0]}.webp 2x`;
+    pinned.alt=`Fictional Kinetta ${item[1]} screen.`;document.body.dataset.story=key;
+  };
   const steps=[...document.querySelectorAll('.story-step')];
   const jumpLinks=[...document.querySelectorAll('.home-jumps a')];
   const setJump=(key)=>{ const target=key==='progress'?'#progress-demo':`#story-${key}`; jumpLinks.forEach(link=>link.setAttribute('aria-current',link.getAttribute('href')===target?'true':'false')); };

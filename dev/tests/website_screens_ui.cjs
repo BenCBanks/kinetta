@@ -29,36 +29,30 @@ const dprs=(process.env.KINETTA_WEBSITE_DPRS||'1,2').split(',').map(Number);
     const p=await c.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));await p.goto(base+'/'+name+'.html');await p.evaluate(()=>document.fonts.ready);
     await p.evaluate(()=>document.querySelectorAll('img').forEach(i=>i.loading='eager'));await until(p,()=>[...document.images].every(i=>i.complete&&i.naturalWidth));
     assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,name+' scrolls sideways');
-    assert.deepEqual(await p.locator('nav[aria-label="Primary"] a').allInnerTexts(),name==='index'?['Features','Sign in']:['Home','Features','iPhone beta']);
+    assert.deepEqual(await p.locator('nav[aria-label="Primary"] a').allInnerTexts(),['Home','Features','iPhone beta']);
     // Every tour picture is a complete, themed crop shown at no more than its natural width.
     const pics=await p.locator('main img[src*="assets/tour/"]').evaluateAll(xs=>xs.map(i=>({src:i.currentSrc,w:i.getBoundingClientRect().width,natural:i.naturalWidth/2,alt:i.alt})));
     assert(pics.every(i=>i.alt.length>20&&i.w<=i.natural*2/1.7+1&&i.src.includes(theme==='dark'?'-dark.':'-light.')),name+' tour picture theme, alt or upscaling');
     if(name==='index'){
-     // PR1 has one action, one upright phone and an explicit stand-in label.
+     // Home keeps one complete app screen in the hero and makes its story and chart interactive.
      assert.equal(await p.locator('.home-hero .phone-frame').count(),1);
-     assert.equal(await p.locator('.home-hero .btn').count(),1);
-     assert.equal(await p.locator('.home-hero .home-beta-link').count(),1);
-     assert.equal(await p.locator('.home-jumps').count(),0);
-     assert.equal(await p.locator('.home-insights,[data-count]').count(),0,'Home removes the empty zero-count band');
-     assert.equal(await p.locator('.standin-caption').innerText(),'Stand-in scene · composed from separate app screens');
-     assert.match(await p.locator('.home-hero h1').innerText(),/What you eat\. How you train\. One picture\./);
-     assert.equal(await p.locator('[data-progress-demo-mount],.home-story').count(),0,'Home removes the standalone demo and loose story card');
-     assert.equal(await p.locator('.home-proof-card').count(),2,'Home pairs Nutrition and Activity as app proof');
-     assert.equal(await p.locator('#home-food h3').innerText(),'Log a meal in a sentence.');
-     assert.equal(await p.locator('#home-activity h3').innerText(),'Every run, with its map and splits.');
-     assert.equal(await p.locator('.home-kit-chat .phone-frame').count(),1,'Food chat is shown inside its own phone');
-     assert.match(await p.locator('.home-kit-chat img').getAttribute('alt'),/fictional.*review/i);
-     assert.deepEqual(await p.locator('.home-kit-prompts li').allTextContents(),['Am I improving?','Look at my consistency','Choose a focus']);
-     assert.equal(await p.locator('.home-kit-insights .phone-frame').count(),1,'Kit insight example is shown in its phone');
-     assert.match(await p.locator('.home-kit-insights img').getAttribute('alt'),/fictional.*Kit.*progress/i);
-     assert.equal(await p.locator('.progress-demo').count(),0,'Home no longer loads the standalone Progress demo');
-     const heroImage=await p.locator('.home-hero img').evaluate(i=>({src:i.currentSrc,alt:i.alt}));
-     assert(heroImage.src.includes(theme==='dark'?'home-day-standin-dark.svg':'home-day-standin-light.svg'),`Home hero uses the ${theme} stand-in (${heroImage.src})`);
-     assert.match(heroImage.alt,/stand-in composition/i);
+     assert.equal(await p.locator('.home-hero .btn').count(),2);
+     assert.equal(await p.locator('.home-hero .tour-access a').count(),2);
+     assert.deepEqual(await p.locator('.home-jumps a').allInnerTexts(),['Feed','Activity','Food','Progress','Achievements']);
+     assert.equal(await p.locator('.home-story [data-screen]').count(),5);
+     assert.match(await p.locator('.home-hero h1').innerText(),/Track workouts\. Log food\. See progress\./);
+     assert.equal(await p.locator('.progress-demo-mount .pchart').count(),1,'Home mounts the interactive Progress demo');
+     assert.match(fs.readFileSync(path.join(root,'index.html'),'utf8'),/data-story-screen[^>]*loading="lazy"/,'Pinned story image stays lazy-loaded');
+     assert.equal(await p.locator('[data-kit-replay]').count(),1,'Kit chat can be replayed');
+     assert.equal(await p.locator('[data-achievements] [data-achievement-bar]').count(),2);
+     const heroImage=await p.locator('.home-hero img').evaluate(i=>({src:i.currentSrc,alt:i.alt,srcset:i.getAttribute('srcset')}));
+     assert(heroImage.src.includes(`${theme}-feed`),`Home hero uses the ${theme} feed (${heroImage.src})`);
+     assert.match(heroImage.alt,/fictional Kinetta Home feed/i);
+     assert.match(heroImage.srcset,/feed-1x\.webp(?:\?[^ ]*)? 1x,.*feed\.webp(?:\?[^ ]*)? 2x/);
      const header=await p.locator('[data-site-nav]').boundingBox();assert(header&&Math.abs(header.height-56)<=1,'Home keeps a one-row 56px header');
      const phone=await p.locator('.home-hero .phone-frame').boundingBox();assert(phone&&phone.width<=320&&phone.x>=0&&phone.x+phone.width<=width,'Home hero phone stays fully in view');
-     const targets=await p.locator('.home-page header nav a,.home-hero .btn,.home-hero .home-beta-link').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{w:r.width,h:r.height};}));
-     assert(targets.every(r=>r.w>=44&&r.h>=44),'Home header and hero actions keep 44px hit areas');
+     const targets=await p.locator('.home-page header nav a,.home-hero .btn,.home-hero .tour-access a').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{w:r.width,h:r.height};}));
+     assert(targets.every(r=>r.w>=44&&r.h>=44),`Home header and hero actions keep 44px hit areas: ${JSON.stringify(targets)}`);
     }
     if(name==='food'){
      assert.equal(await p.locator('.food-story .story-steps > h2').count(),0,'Food has one page heading, not a second stacked story heading');
