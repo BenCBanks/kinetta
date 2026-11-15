@@ -85,7 +85,7 @@
 .compact-ready .track-ready-map-wrap:not(.full) .gps-chip { max-width:calc(100% - 128px); white-space:normal; }
 
 /* Track home follows the workout-picker hierarchy; recording/review styles stay above this route-only block. */
-#page.track-home-page > .top h1 { font-size:32px; line-height:1.12; font-weight:700; letter-spacing:-.03em; }
+#page.track-home-page > .top h1 { transform:translateY(2px); font-size:32px; line-height:1.12; font-weight:700; letter-spacing:-.03em; }
 #track-content .track-gps-note,#track-content #track-guidance,#track-content #track-tools-h { display:none; }
 #track-content .track-tools { margin:0; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; }
 #track-content .track-ready { gap:12px; }

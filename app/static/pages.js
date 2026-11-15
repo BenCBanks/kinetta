@@ -1920,7 +1920,7 @@ route(/^\/track$/, 'track', async (el) => {
     const interval=$('#interval-open',content);
     if(interval&&interval.dataset.trackHomeControl!=='1'){interval.innerHTML=`${svg('clock')}<span>Intervals</span>${svg('chev')}`;interval.dataset.trackHomeControl='1';}
     const audio=$('#track-options',content);
-    if(audio&&(audio.dataset.trackHomeControl!=='1'||audio.querySelector('span')?.textContent!=='Audio & auto-pause')){audio.innerHTML=`${svg('sound')}<span>Audio &amp; auto-pause</span>${svg('chev')}`;audio.dataset.trackHomeControl='1';}
+    if(audio){if(audio.dataset.trackHomeControl!=='1'||audio.querySelector('span')?.textContent!=='Audio & auto-pause'){audio.innerHTML=`${svg('sound')}<span>Audio &amp; auto-pause</span>${svg('chev')}`;audio.dataset.trackHomeControl='1';}const current=audio.getAttribute('aria-label')||'',prefix='Audio & auto-pause',details=current.startsWith(prefix)?current.slice(prefix.length).replace(/^\.\s*/,''):current.split('. ').slice(1).join('. '),label=`${prefix}${details?`. ${details}`:''}`;if(current!==label)audio.setAttribute('aria-label',label);}
     const explore=$('#track-explore',content),connection=explore?.querySelector('a[data-track-feature="connections"]');
     if(connection){
       explore.classList.add('track-connections');
@@ -1937,7 +1937,7 @@ route(/^\/track$/, 'track', async (el) => {
     const item=event.target.closest('.track-sport-picker [data-pk]');if(!item)return;
     const index=+item.dataset.pk,key=recentKey();if(key&&Number.isInteger(index))store.set(key,[index,...readRecent().filter(value=>value!==index)].slice(0,3));
   };
-  const observer=new MutationObserver(()=>{observer.disconnect();try{decorate();}finally{observer.observe(content,{childList:true,subtree:true});}});observer.observe(content,{childList:true,subtree:true});
+  const observer=new MutationObserver(()=>{observer.disconnect();try{decorate();}finally{observer.observe(content,{childList:true,subtree:true,attributes:true,attributeFilter:['aria-label']});}});observer.observe(content,{childList:true,subtree:true,attributes:true,attributeFilter:['aria-label']});
   el.addEventListener('click',remember,true);document.addEventListener('click',rememberMore,true);
   viewResources.set(el,()=>{observer.disconnect();el.removeEventListener('click',remember,true);document.removeEventListener('click',rememberMore,true);});
   Track.draw();decorate();
