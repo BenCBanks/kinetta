@@ -1168,7 +1168,7 @@ route(/^\/route\/(\d+)$/, 'progress', async (el, id) => {
 
 // ---------- Progress: home of cards, with each view’s filters inside its first card ----------
 const PSPORTS = [['run', 'Runs'], ['ride', 'Rides'], ['walk', 'Walks'], ['hike', 'Hikes'], ['all', 'All sports']];
-const PVIEWS = [['fitness', 'Fitness', 'Race predictions, fitness and form', 'flame', 'c-orange'], ['records', 'Records', 'Your fastest times at each distance', 'trophy', 'c-purple'],
+const PVIEWS = [['fitness', 'Fitness', 'Run fitness', 'flame', 'c-orange'], ['records', 'Records', 'Personal bests', 'trophy', 'c-purple'],
   ['lifting', 'Lifting', 'Every exercise, your bests and its history', 'workout', 'c-brand']];
 const PMORE = [['trends', 'Year over year', 'Pace, heart rate and distance, year by year', 'progress', 'c-blue'],
   ['calendar', 'Calendar', 'Training and eating, day by day', 'calendar', 'c-orange'], ['routes', 'Matched routes', 'Compare the loops you have recorded more than once', 'activity', 'c-green'], ['segments', 'Segments', 'Your fixed courses, personal times and leaderboards', 'route', 'c-green'],
@@ -1279,34 +1279,42 @@ function pHead(el, view, filters) {
   progressFilters(el, $('#p-body',el), filters, {selector:view === 'heatmap' ? '.heatmap-tools' : '.card'});
 }
 const PEXPLORE = [
-  ['weight','Weight','Log your first weigh-in →','scale'],
-  ['heatmap','Heatmap','See where you train →','globe'],
-  ['plan','Training plan','Build a 5K plan →','target'],
-  ['calendar','Calendar','See each training day →','calendar'],
-  ['segments','Segments','Compare course times →','route'],
-  ['routes','Matched routes','Compare repeated loops →','activity'],
-  ['trends','Year over year','Compare your years →','progress'],
-  ['lifting','Lifting','See your sets and bests →','workout']
+  ['weight','Weight','Weight history','scale','c-blue'],
+  ['heatmap','Heatmap','Activity map','globe','c-brand'],
+  ['plan','Training plan','Build a plan','target','c-purple'],
+  ['calendar','Calendar','Training days','calendar','c-orange'],
+  ['segments','Segments','Best efforts','route','c-green'],
+  ['routes','Matched routes','Repeated routes','activity','c-green'],
+  ['trends','Year over year','Compare years','progress','c-blue'],
+  ['lifting','Lifting','Strength history','workout','c-brand']
 ];
 function progressTeasers(o) {
-  const date = new Date(o.today+'T12:00'), month = date.toLocaleDateString([],{month:'long'});
   const plan = o.plan, next = plan?.next, when = next?.day === o.today ? 'Today' : next?.day === addDays(o.today,1) ? 'Tomorrow' : next ? fdate(next.day+'T12:00',{weekday:'short'}) : '';
   const weight=o.food?.weight_kg,change=o.food?.weight_change_kg,unit=imp()?'lb':'kg';
   return {
-    weight:weight!=null?`${U.weight(weight)} ${unit} latest${change==null?'':change===0?' · trend steady':` · ${change<0?'−':'+'}${U.weight(Math.abs(change))} ${unit} trend`}`:null,
-    heatmap:o.mapped ? `${o.mapped.toLocaleString()} ${o.mapped===1?'activity':'activities'} mapped` : null,
-    plan:plan ? next ? `${when}: ${next.title || 'Planned run'}` : plan.week ? `Week ${plan.week} of ${plan.weeks}` : 'Your training plan is ready' : null,
-    calendar:o.active_days ? `${o.active_days} active ${o.active_days===1?'day':'days'} in ${month}` : null,
-    segments:o.segments ? `${o.segments} segment ${o.segments===1?'best':'bests'}` : null,
-    routes:o.routes ? `${o.routes} ${o.routes===1?'loop':'loops'} you have repeated` : null,
-    trends:o.years>1 ? `${o.years} years of training` : null,
-    lifting:o.lifting ? o.lifting.kg>0 ? `${o.lifting.name} ${U.weight(o.lifting.kg)} ${imp()?'lb':'kg'} best` : `${o.lifting.name} history` : null
+    weight:weight!=null?`${U.weight(weight)} ${unit}${change==null?'':change===0?' · steady':` · ${change<0?'−':'+'}${U.weight(Math.abs(change))} ${unit}`}`:null,
+    heatmap:o.mapped ? `${o.mapped.toLocaleString()} mapped` : null,
+    plan:plan ? next ? `${when} planned` : plan.week ? `Week ${plan.week} of ${plan.weeks}` : 'Plan ready' : null,
+    calendar:o.active_days ? `${o.active_days} ${o.active_days===1?'day':'days'}` : null,
+    segments:o.segments ? `${o.segments} ${o.segments===1?'best':'bests'}` : null,
+    routes:o.routes ? `${o.routes} ${o.routes===1?'repeat':'repeats'}` : null,
+    trends:o.years>1 ? `${o.years} years` : null,
+    lifting:o.lifting ? o.lifting.kg>0 ? `${U.weight(o.lifting.kg)} ${imp()?'lb':'kg'} best` : 'History' : null
   };
 }
 function progressTiles(box, overview=null, {ready=false}={}) {
   const teasers=overview?progressTeasers(overview):{};
-  const items=PEXPLORE.filter(progressItemEnabled).map(([id,title,description,icon])=>({id,title,description,icon,teaser:teasers[id],href:id==='plan'?'/plan':id==='lifting'?'/progress?view=lifting':'/progress/'+id}));
-  Discovery.render(box,items,{space:'progress',ready,attribute:'data-progress-feature'});
+  const items=[
+    ...PVIEWS.filter(([id])=>id!=='lifting').map(([id,title,description,icon,color])=>({id,title,description,icon,color,href:`/progress?view=${id}`})),
+    ...PEXPLORE.filter(progressItemEnabled).map(([id,title,description,icon,color])=>({id,title,description,icon,color,href:id==='plan'?'/plan':id==='lifting'?'/progress?view=lifting':'/progress/'+id}))
+  ];
+  if(foodUser())items.push({id:'food',title:'Food & weight',description:'Food and nutrition',icon:'food',color:'c-green',href:'/food?view=overview&from=progress',teaser:overview?.food?.protein_days==null?null:`${overview.food.protein_days}/7 protein days`});
+  box.setAttribute('aria-busy',String(!ready));
+  box.innerHTML=items.map(({id,title,description,icon,color,href,teaser})=>{
+    const value=teasers[id]||teaser||description;
+    const isNew=ready&&!teasers[id]&&!teaser&&!Discovery.hasVisited('progress',id);
+    return `<a class="card progress-tile" href="${esc(href)}" data-progress-feature="${esc(id)}"><span class="progress-tile-name"><span class="progress-row-icon ${color}">${svg(icon)}</span><b>${esc(title)}</b><span class="progress-new${isNew?'':' seen'}"${isNew?' aria-label="New feature"':' aria-hidden="true"'}>New</span></span><span class="small muted"${id==='fitness'?' data-progress-fitness':''}${id==='records'?' data-progress-record':''}${id==='food'?' data-progress-food':''}>${esc(value)}</span></a>`;
+  }).join('');
 }
 async function progressHome(el, q) {
   App.progressHome={owner:readOwner(),href:location.pathname+location.search};
@@ -1316,10 +1324,7 @@ async function progressHome(el, q) {
   const showTableToggle=metric==='distance'||metric==='time';
   el.innerHTML = `<div class="top progress-heading progress-home-heading"><h1>Progress</h1><div class="acts"><button type="button" class="icon-btn" id="progress-share" aria-label="Share a progress picture">${svg('share')}</button>${bellBtn()}</div></div>
     <div class="progress-home"><div id="p-combined-week"></div><div id="p-home-totals" class="progress-home-totals">${skelChart()}</div>
-    <div class="progress-pair"><a class="card progress-summary" href="/progress?view=fitness"><h2>${svg('flame')}Fitness</h2><span data-progress-fitness class="small muted">Form and race estimates →</span></a>
-    <a class="card progress-summary" href="/progress?view=records"><h2>${svg('trophy')}Records</h2><span data-progress-record class="small muted">Your fastest times, after a timed run</span></a></div>
-    <h2 class="sec-head">Explore your progress</h2><div class="progress-grid explore-list" id="p-explore"></div>
-    ${foodUser()?'<a class="card progress-food-summary" href="/food?view=overview&from=progress"><h2>Food &amp; weight '+svg('chev')+'</h2><span class="small muted" data-progress-food>See your protein goals and weight trend →</span></a>':''}</div>`;
+    <h2 class="sec-head">Explore your progress</h2><div class="progress-grid explore-list progress-inset-list" id="p-explore"></div></div>`;
   wireProgressFocus(el); wireProgressPeriods(el);
   const heading=$('.progress-home-heading',el),compactHeading=()=>heading?.classList.toggle('is-compact',window.scrollY>28);
   window.addEventListener('scroll',compactHeading,{passive:true});compactHeading();viewResources.set(el,()=>window.removeEventListener('scroll',compactHeading));
@@ -1331,18 +1336,22 @@ async function progressHome(el, q) {
   q.set('sport',viewSport);q.set('period',period);if(q.has('metric'))q.set('metric',metric);
   if ($('#p-combined-week',el)) combinedWeek($('#p-combined-week',el));
   const owner=readOwner(), valid=()=>el.isConnected&&owner===readOwner();
+  let fitnessValue=null,recordValue=null;
+  const refreshProgressTiles=(overview,ready)=>{
+    progressTiles(grid,overview,{ready});
+    if(fitnessValue)$('[data-progress-fitness]',el).textContent=fitnessValue;
+    if(recordValue)$('[data-progress-record]',el).textContent=recordValue;
+  };
   await Promise.allSettled([
     pMileage(totals,q,{home:true}).catch(()=>{if(valid())totals.innerHTML='<div class="card empty">Distance by week, month and year →</div>';}),
     load('/api/progress/overview',o=>{
-      if(!valid())return; progressTiles(grid,o,{ready:true});
-      const r=o.record;if(r)$('[data-progress-record]',el).innerHTML=`<b>${esc(r.label)} · ${esc(dur(r.elapsed_s))}</b><small>${esc(fdate(r.start_time,{month:'short',day:'numeric',year:'numeric'}))}</small>`;
-      const food=$('[data-progress-food]',el);if(food){const f=o.food,delta=f.weight_change_kg;
-        food.textContent=(f.protein_days===null?'Set a protein goal to track your week':`Protein goal ${f.protein_days} of 7 days`)+(delta===null?'':` · weight ${delta>0?'+':delta<0?'−':''}${U.weight(Math.abs(delta))} ${imp()?'lb':'kg'}`);}
-    }).catch(()=>{if(valid())progressTiles(grid,null,{ready:true});}),
+      if(!valid())return;recordValue=o.record?`${o.record.label} · ${dur(o.record.elapsed_s)}`:null;refreshProgressTiles(o,true);
+    }).catch(()=>{if(valid())refreshProgressTiles(null,true);}),
     load('/api/fitness?days=60',f=>{
       if(!valid())return;const last=f.days.at(-1),p=f.predictions[0];
-      if(p)$('[data-progress-fitness]',el).innerHTML=`<b>${esc(p.label)} · ${esc(dur(p.seconds))}</b><small>Race estimate</small>`;
-      else if(last&&f.days.some(d=>d.fitness>0))$('[data-progress-fitness]',el).innerHTML=`<b>Fitness ${Math.round(last.fitness)}</b><small>Form ${Math.round(last.form)}</small>`;
+      if(p)fitnessValue=`${p.label} · ${dur(p.seconds)}`;
+      else if(last&&f.days.some(d=>d.fitness>0))fitnessValue=`Fitness ${Math.round(last.fitness)} · Form ${Math.round(last.form)}`;
+      if(fitnessValue)$('[data-progress-fitness]',el).textContent=fitnessValue;
     }).catch(()=>{})
   ]);
 }
