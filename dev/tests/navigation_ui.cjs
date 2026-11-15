@@ -37,7 +37,7 @@ async function homeHeaderAndGroups(p,base,size,snap){
  const actions=await p.locator('#feed-top .shell-topbar-root .shell-topbar-actions').evaluate(el=>[...el.children].map(a=>({label:a.getAttribute('aria-label'),href:a.getAttribute('href'),box:a.getBoundingClientRect().toJSON()})));
  assert.match(actions[0].label,/^Notifications(?:, \d+ new)?$/,'Home exposes Notifications with the live unread count');assert.equal(actions[1].label,'Record or import a workout','Home exposes the recorder action');
  assert.deepEqual(actions.map(a=>a.href),['/notifications','/track']);assert(actions.every(a=>a.box.width>=44&&a.box.height>=44),'Home header targets are at least 44px');
- await p.goto(base+'/people/alex');await ready(p);await p.locator('#person-search-form:not([hidden]) input').waitFor();assert.equal(new URL(p.url()).searchParams.has('search'),false,'people search stays open after its one-time URL flag is removed');
+ await p.goto(base+'/people/alex?search=1');await ready(p);await p.locator('#person-search-form:not([hidden]) input').waitFor();assert.equal(new URL(p.url()).searchParams.has('search'),false,'people search stays open after its one-time URL flag is removed');
  await p.goBack();await p.waitForURL(base+'/activity');await ready(p);
  await p.locator('.home-view-switch a[href="/activity?view=groups"]').click();await p.waitForURL(base+'/activity?view=groups');await ready(p);await p.locator('#home-group-list .group-list-row').first().waitFor();
  assert.equal(await p.locator('.home-view-switch a[aria-current="page"]').textContent(),'Groups');assert.equal(await p.locator('nav.tabs a[aria-current="page"]').getAttribute('data-tab'),'activity','Groups remains part of Home');
