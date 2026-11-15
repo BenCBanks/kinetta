@@ -321,9 +321,11 @@ nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 
 }
 .track-live-main > .track-map-wrap #track-gps-live { display:none !important; }
 .track-live-main > .track-map-wrap .track-timer-link {
-  position:absolute; z-index:600; top:12px; left:12px; min-height:44px; padding:0 10px; border:0;
+  position:absolute; z-index:600; top:12px; left:12px; min-width:44px; min-height:44px; padding:0 10px; border:0;
   background:transparent; color:var(--accent); font-size:13px; font-weight:600;
 }
+.track-live-main > .track-controls .round-btn.go { border:1px solid var(--line); box-shadow:none; }
+.track-live-main > .track-controls .round-btn.go:active { box-shadow:none; }
 .track-live-main > .track-controls {
   box-sizing:border-box; flex:none; display:flex; align-items:center; justify-content:center; gap:clamp(24px,8vw,32px);
   min-height:100px; margin:0; padding:8px 16px; border-top:1px solid var(--line); background:var(--surface,var(--card));
