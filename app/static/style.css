@@ -228,12 +228,29 @@ details.fold-row[open] { padding-bottom: 12px; }
 .top .acts { display: flex; flex-wrap: wrap; max-width: 100%; margin-left: auto; gap: 8px; }
 .top .sub { color: var(--tx3); font-size: 13px; margin-top: 2px; }
 .top .eyebrow { margin-bottom: 2px; }
+.shell-topbar { display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:8px;min-height:44px;margin:0 0 12px; }
+.shell-topbar > h1 { min-width:0;margin:0;font:600 var(--text-nav-title)/1.2 var(--font);letter-spacing:-.02em;text-align:center;overflow-wrap:anywhere; }
+.shell-topbar-actions { display:flex;justify-content:flex-end;gap:8px;min-width:44px; }
+.shell-topbar-actions > :is(button,a) { flex:none;width:44px;height:44px; }
+.shell-topbar-root { grid-template-columns:minmax(0,1fr) auto;min-height:52px; }
+.shell-topbar-root > h1 { grid-column:1;text-align:left;font-size:30px;font-weight:700;letter-spacing:-.035em; }
+.shell-topbar-root .shell-topbar-actions { grid-column:2; }
 .shell h1 { min-width:0; max-width:100%; overflow-wrap:anywhere; font-size: 30px; font-weight: 700; letter-spacing: -.035em; line-height: 1.1; }
 .shell > h1 { margin: 0 2px 14px; }
 .shell > p { margin: 0 2px 14px; color: var(--tx2); }
 .back { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; padding: 0 14px 0 6px; border: 0; border-radius: 999px; background: var(--card);
   box-shadow: var(--shadow); color: var(--tx); font-weight: 600; font-size: 15px; }
 .back svg { width: 20px; height: 20px; } .back:active { transform: scale(.96); }
+.back-circle { display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--tx); }
+.back-circle svg { width:20px;height:20px; }
+.back-circle:active { transform:scale(.96); }
+.state-panel { display:flex;align-items:flex-start;gap:12px;margin:8px 2px 16px;padding:12px 0;color:var(--tx); }
+.state-panel-icon { flex:none;width:28px;height:28px;display:grid;place-items:center;color:var(--tx2); }
+.state-panel-icon svg { width:24px;height:24px; }
+.state-panel-copy { min-width:0; }
+.state-panel h2 { margin:0;font-size:17px;font-weight:600;line-height:1.3; }
+.state-panel p { margin:3px 0 0;color:var(--tx2);font-size:15px;line-height:1.45; }
+.state-panel .linkbtn { min-height:44px;margin:4px 0 0;padding:0;font-weight:600; }
 .sec-head, .shell .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: var(--text-app-section); font-weight: 700;
   letter-spacing: -.02em; margin: 22px 2px 10px; }
 .sec-head a { font-size: 14px; font-weight: 600; letter-spacing: 0; }
@@ -434,7 +451,7 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 /* little notices (2026-10-13, Ben: "poorly formatted, black isn't good"): the full width of the screen (a left: 50% box
    could only use half, so short messages wrapped), the card colour with an accent edge, and Undo as a real button */
 .toast { position: fixed; left: 16px; right: 16px; bottom: calc(env(safe-area-inset-bottom) + var(--tab-h) + 12px); width: fit-content; max-width: 480px; margin: 0 auto;
-  transform: translateY(16px) scale(.98); opacity: 0; z-index: 50; padding: 10px 10px 10px 16px; min-height: 48px; border-radius: 14px;
+  transform: translateY(16px) scale(.98); opacity: 0; z-index: 50; padding: 8px 10px 8px 12px; min-height: 44px; border:1px solid var(--line); border-radius: 14px;
   background: var(--toast-bg); color: var(--toast-tx); font-size: 15px; font-weight: 550; line-height: 1.35;
   display: flex; gap: 10px; align-items: center; box-shadow: 0 8px 24px rgba(10,20,16,.22);
   transition: opacity .18s, transform .28s cubic-bezier(.2, .9, .25, 1.15); pointer-events: none; }
@@ -466,17 +483,20 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 /* ---------- sheet (bottom dialog) ---------- */
 .scrim { position: fixed; inset: 0; z-index: 3000; background: rgba(0,0,0,.35); display: flex; align-items: flex-end; justify-content: center; animation: scrim-in var(--motion-settle) var(--spring-smooth); }
 @keyframes scrim-in { from { opacity: 0; } to { opacity: 1; } }
-.sheet { width: 100%; max-width: 640px; max-height: 92dvh; overflow: auto; overflow-x: hidden; background: var(--surface-sheet); box-shadow: var(--sheet-shadow); border-radius: 28px 28px 0 0;
+.sheet { width: 100%; max-width: 640px; max-height: 92dvh; overflow: auto; overflow-x: hidden; background: var(--surface-sheet); box-shadow: var(--sheet-shadow); border-radius: 18px 18px 0 0;
   padding: 8px 18px calc(env(safe-area-inset-bottom) + 20px); overscroll-behavior: contain; animation: sheet-in var(--motion-settle) var(--spring-smooth); }
 @keyframes sheet-in { from { transform: translate3d(0,100%,0); opacity: .96; } to { transform: translate3d(0,0,0); opacity: 1; } }
-.sheet .grab { position: relative; width: 38px; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--tx3) 45%, transparent); margin: 4px auto 12px; }
+.sheet .grab { position: relative; width: 36px; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--tx3) 45%, transparent); margin: 4px auto 12px; }
 .sheet .grab::after { content: ''; position: absolute; left: -60px; right: -60px; top: -14px; bottom: -14px; }
 .sheet .grab, .sheet header { touch-action: none; }
-.sheet header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
-.sheet header h2 { font-size: var(--text-app-section); font-weight: 700; letter-spacing: -.025em; }
+.sheet header { display: grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;justify-content:initial;gap:8px;margin-bottom:14px; }
+.sheet header h2 { grid-column:2;grid-row:1;min-width:0;font-size:17px;font-weight:600;letter-spacing:-.01em;text-align:center; }
+.sheet header > .icon-btn:not(.sheet-flow-back) { grid-column:3;grid-row:1;justify-self:end;width:44px;height:44px;background:transparent;box-shadow:none; }
+.sheet header > .sheet-text-btn:first-child { grid-column:1;grid-row:1; }
+.sheet header > .sheet-text-btn:last-child { grid-column:3;grid-row:1;justify-self:end; }
 .sheet:has([data-sheet-back]) > header { display: grid; grid-template-columns: 44px minmax(0,1fr) 44px; gap: 8px; }
 .sheet:has([data-sheet-back]) > header h2 { min-width: 0; text-align: center; }
-.sheet header .sheet-flow-back { width: 44px; height: 44px; background: transparent; box-shadow: none; }
+.sheet header .sheet-flow-back { grid-column:1;grid-row:1;justify-self:start;width:44px;height:44px;background:transparent;box-shadow:none; }
 .sheet.settle { transition: transform var(--motion-settle) var(--spring-snappy); }
 .scrim.is-closing { pointer-events:none; animation:scrim-out var(--motion-settle) ease-in both; }
 .scrim.is-closing .sheet { animation:sheet-out var(--motion-settle) ease-in both; }

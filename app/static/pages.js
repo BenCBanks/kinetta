@@ -230,7 +230,7 @@ function wireBack(el, fallback, labelForDestination) {
   const owner=readOwner(),destination=BackNavigation.destination(history.state,location.pathname+location.search,fallback,owner,{historyLength:history.length});
   const label=typeof labelForDestination==='function'?labelForDestination(destination):destination.label;
   $$('[data-back]',el).forEach(button=>{
-    button.innerHTML=`${svg('back')}<span>${esc(label)}</span>`;button.setAttribute('aria-label','Back to '+label);
+    button.innerHTML=`${svg('back')}<span${button.classList.contains('back-circle')?' class="vh"':''}>${esc(label)}</span>`;button.setAttribute('aria-label','Back to '+label);
     button.onclick=()=>{if(!el.isConnected||owner!==readOwner())return;destination.history?history.back():go(destination.path,{replace:true});};
   });
 }

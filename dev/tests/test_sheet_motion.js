@@ -19,6 +19,7 @@ function setup(reduced=false){
   $$:()=>sheets.filter(s=>s.isConnected&&s.classList.contains('is-closing'))};
  vm.createContext(ctx);
  vm.runInContext(source.slice(source.indexOf('const viewResources ='),source.indexOf('async function mapInto'))+'\nglobalThis.resources=viewResources;',ctx);
+ const chromeStart=source.indexOf("function SheetChrome("),chromeEnd=source.indexOf("function softFocus(",chromeStart);assert(chromeStart>=0&&chromeEnd>chromeStart);vm.runInContext(source.slice(chromeStart,chromeEnd),ctx);
  vm.runInContext(source.slice(source.indexOf('const ModalStack ='),source.indexOf('// ---------- router')),ctx);
  function open(){const close=ctx.sheet('Demo','<p>Fictional</p>');const s=sheets.at(-1),resource={sheet:s,get isConnected(){return s.isConnected;}};ctx.resources.set(resource,()=>disposed++);return {close,s};}
  return {ctx,open,sheets,timers,events,documentEvents,document,notice,advance(ms){clock+=ms;},get focuses(){return focuses;},get disposed(){return disposed;}};
