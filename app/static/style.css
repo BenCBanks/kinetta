@@ -232,9 +232,12 @@ details.fold-row[open] { padding-bottom: 12px; }
 .shell-topbar > h1 { min-width:0;margin:0;font:600 var(--text-nav-title)/1.2 var(--font);letter-spacing:-.02em;text-align:center;overflow-wrap:anywhere; }
 .shell-topbar-actions { display:flex;justify-content:flex-end;gap:8px;min-width:44px; }
 .shell-topbar-actions > :is(button,a) { flex:none;width:44px;height:44px; }
-.shell-topbar-root { grid-template-columns:minmax(0,1fr) auto;min-height:52px; }
-.shell-topbar-root > h1 { grid-column:1;text-align:left;font-size:30px;font-weight:700;letter-spacing:-.035em; }
+.shell-topbar-root { position:sticky;top:calc(env(safe-area-inset-top) + var(--shell-top-gap));z-index:1010;grid-template-columns:minmax(0,1fr) auto;min-height:52px;margin-inline:-16px;padding-inline:16px;background:var(--bg);transition:min-height .18s ease,background-color .18s ease; }
+.shell-topbar-root > h1 { grid-column:1;text-align:left;font-size:30px;font-weight:700;letter-spacing:-.035em;transition:font-size .18s ease; }
 .shell-topbar-root .shell-topbar-actions { grid-column:2; }
+.shell-topbar-root.is-compact { grid-template-columns:minmax(0,1fr) auto;min-height:44px;margin-bottom:8px;border-bottom:1px solid var(--line); }
+.shell-topbar-root.is-compact > h1 { grid-column:1/-1;grid-row:1;text-align:center;font-size:16px;font-weight:600;letter-spacing:-.01em; }
+.shell-topbar-root.is-compact .shell-topbar-actions { grid-column:2;grid-row:1;z-index:1; }
 .shell h1 { min-width:0; max-width:100%; overflow-wrap:anywhere; font-size: 30px; font-weight: 700; letter-spacing: -.035em; line-height: 1.1; }
 .shell > h1 { margin: 0 2px 14px; }
 .shell > p { margin: 0 2px 14px; color: var(--tx2); }
@@ -285,13 +288,13 @@ nav.tabs.compact :is(a,button) > span:not(.tab-n) { max-height: 0; opacity: 0; o
 nav.tabs :is(a,button) > span:not(.tab-n) { max-height: 1.3em; opacity: 1; overflow: hidden; transition: max-height .2s ease, opacity .16s ease; }
 nav.tabs :is(a,button) { position: relative; display: grid; justify-items: center; align-content: center; gap: 2px;
   width: 100%; min-width: 0; min-height: 44px; height: 100%; padding: 3px 1px; border-radius: 30px; white-space: nowrap;
-  color: var(--tx2); font-size: 13px; font-weight: var(--weight-support); line-height: 1.15; letter-spacing: 0; transition: transform var(--motion-press) ease-out, color var(--motion-press) ease-out, background var(--motion-settle) var(--motion-ease), box-shadow var(--motion-settle) var(--motion-ease); }
+  color: var(--tx3); font-size: 11px; font-weight: 500; line-height: 1.15; letter-spacing: 0; transition: transform var(--motion-press) ease-out, color var(--motion-press) ease-out, background var(--motion-settle) var(--motion-ease), box-shadow var(--motion-settle) var(--motion-ease); }
 nav.tabs :is(a,button) svg { width: 23px; height: 23px; stroke-width: 1.9; transition: transform var(--dur-fast) var(--spring-snappy); }
-nav.tabs :is(a,button)[aria-current="page"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--card)); font-weight: var(--weight-title); box-shadow: none; }
+nav.tabs :is(a,button)[aria-current="page"] { color: var(--accent); background: transparent; font-weight: 600; box-shadow: none; }
 nav.tabs :is(a,button)[aria-current="page"] svg { stroke-width: 2.3; }
 nav.tabs :is(a,button):active { transform: scale(.97); }
 @media (prefers-color-scheme: dark) { nav.tabs { box-shadow: var(--elevation-raised); } }
-@media (max-width: 350px) { :root { --nav-height: 68px; --nav-padding: 6px; } nav.tabs { left:8px; right:8px; } nav.tabs :is(a,button) { font-size: 13px; letter-spacing:-.025em; } }
+@media (max-width: 350px) { :root { --nav-height: 68px; --nav-padding: 6px; } nav.tabs { left:8px; right:8px; } nav.tabs :is(a,button) { font-size: 11px; letter-spacing:-.02em; } }
 @media (max-height: 700px) { :root { --nav-height: 64px; --nav-padding: 5px; --nav-bottom: max(8px, calc(env(safe-area-inset-bottom) - 8px)); } }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   .material { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; }
@@ -451,16 +454,16 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 /* little notices (2026-10-13, Ben: "poorly formatted, black isn't good"): the full width of the screen (a left: 50% box
    could only use half, so short messages wrapped), the card colour with an accent edge, and Undo as a real button */
 .toast { position: fixed; left: 16px; right: 16px; bottom: calc(env(safe-area-inset-bottom) + var(--tab-h) + 12px); width: fit-content; max-width: 480px; margin: 0 auto;
-  transform: translateY(16px) scale(.98); opacity: 0; z-index: 50; padding: 8px 10px 8px 12px; min-height: 44px; border:1px solid var(--line); border-radius: 14px;
-  background: var(--toast-bg); color: var(--toast-tx); font-size: 15px; font-weight: 550; line-height: 1.35;
+  transform: translateY(16px) scale(.98); opacity: 0; z-index: 50; padding: 0 10px 0 12px; min-height: 44px; border:1px solid var(--line); border-radius: 14px;
+  background: var(--card); color: var(--tx); font-size: 15px; font-weight: 550; line-height: 1.35;
   display: flex; gap: 10px; align-items: center; box-shadow: 0 8px 24px rgba(10,20,16,.22);
   transition: opacity .18s, transform .28s cubic-bezier(.2, .9, .25, 1.15); pointer-events: none; }
 .toast span { flex: 1; min-width: 0; padding: 4px 6px 4px 0; }
-.toast small { display: block; margin-top: 1px; color: var(--toast-tx2); font-size: 13px; font-weight: 500; }
+.toast small { display: block; margin-top: 1px; color: var(--tx2); font-size: 13px; font-weight: 500; }
 .toast.on { opacity: 1; transform: none; pointer-events: auto; }
-.toast button { flex: none; border: 0; background: none; color: var(--toast-act); font-weight: 750; font-size: 15px; padding: 8px 10px; min-height: 40px; border-radius: 10px; }
+.toast button { flex: none; border: 0; background: none; color: var(--accent); font-weight: 600; font-size: 15px; padding: 8px 10px; min-height: 44px; border-radius: 10px; }
 .toast button:active { background: rgba(255,255,255,.1); }
-@media (prefers-reduced-motion: reduce) { .toast { transform: none; transition: opacity .15s; } }
+@media (prefers-reduced-motion: reduce) { .toast { transform: none; transition: opacity .15s; } .shell-topbar-root,.shell-topbar-root > h1 { transition: none; } }
 .netbar { position: fixed; left: 50%; transform: translateX(-50%); top: max(8px, env(safe-area-inset-top)); z-index: 60; max-width: calc(100% - 24px);
   padding: 6px 14px; border-radius: 999px; background: var(--ink); color: var(--onink); font-size: 12px; font-weight: 600; box-shadow: var(--lift); }
 

@@ -837,10 +837,13 @@ function BackCircle(label='Back') {
   return `<button type="button" class="back-circle" data-back aria-label="${esc('Back to '+label)}" title="${esc(label)}">${svg('back')}<span class="vh">${esc(label)}</span></button>`;
 }
 function TopBar({title='',actions='',back=null,root=false}={}) {
-  return `<header class="shell-topbar${root?' shell-topbar-root':''}">${back?BackCircle(back):''}${title?`<h1>${esc(title)}</h1>`:''}<div class="shell-topbar-actions">${actions}</div></header>`;
+  return `<header class="shell-topbar top${root?' shell-topbar-root':''}">${back?BackCircle(back):''}${title?`<h1>${esc(title)}</h1>`:''}<div class="shell-topbar-actions acts">${actions}</div></header>`;
 }
 function StatePanel(title,message,{icon='info',actionLabel='',actionId=''}={}) {
   return `<section class="state-panel" role="status"><span class="state-panel-icon" aria-hidden="true">${svg(icon)}</span><div class="state-panel-copy"><h2>${esc(title)}</h2><p>${esc(message)}</p>${actionLabel?`<button type="button" class="linkbtn"${actionId?` id="${esc(actionId)}"`:''}>${esc(actionLabel)}</button>`:''}</div></section>`;
+}
+function Toast(message,queued=false,undo=false) {
+  return `<span>${esc(message)}${queued?'<small>Saved on this phone · sends when you’re back online</small>':''}</span>${undo?'<button type="button">Undo</button>':''}`;
 }
 function SheetChrome(title,head,html,opts={}) {
   return `<div class="sheet${opts.save?' pinned':''}" role="${opts.role==='alertdialog'?'alertdialog':'dialog'}" aria-modal="true" aria-label="${esc(title)}"${opts.describedBy?` aria-describedby="${esc(opts.describedBy)}"`:''}><div class="grab"></div><header>${head}</header><div class="sbody">${html}</div></div>`;
@@ -854,7 +857,7 @@ function toast(msg, undo) {
     t.onclick = (e) => { if (!e.target.closest('button')) t.classList.remove('on'); };   // a tap puts it away
   }
   const queued = Date.now() - (App.queuedAt || 0) < 2000 && !undo && !/saved on this phone|waiting to send/i.test(msg);
-  t.innerHTML = `<span>${esc(msg)}${queued ? '<small>Saved on this phone · sends when you’re back online</small>' : ''}</span>${undo ? '<button type="button">Undo</button>' : ''}`;
+  t.innerHTML = Toast(msg,queued,!!undo);
   if (undo) $('button', t).onclick = () => { t.classList.remove('on'); undo(); };
   t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), undo ? 6000 : 3200);
 }
@@ -1250,6 +1253,14 @@ function compactSubpageHeader(el){
   }
   if(['/me/settings','/me/notifications','/me/sharing'].includes(location.pathname)&&top.nextElementSibling?.matches('p.muted'))top.nextElementSibling.remove();
 }
+function compactRootHeader(el){
+  const top=el.querySelector(':scope > #feed-top .shell-topbar-root');
+  if(!top||rootHeaderCleanups.has(el))return;
+  const expandedTop=top.getBoundingClientRect().top+window.scrollY;
+  const update=()=>{if(top.isConnected)top.classList.toggle('is-compact',window.scrollY>expandedTop+24);};
+  window.addEventListener('scroll',update,{passive:true});update();
+  rootHeaderCleanups.set(el,()=>window.removeEventListener('scroll',update));
+}
 function render(options) {
   if (!App.me) return;
   expandBottomNav();
@@ -1320,13 +1331,13 @@ function render(options) {
   if (!globalSyncDone && typeof Social !== 'undefined') Social.refresh();   // friend requests waiting: a number on the Me tab
   let touched=false;const interactions=new AbortController();
   for(const event of ['touchstart','wheel','pointerdown','keydown'])window.addEventListener(event,()=>{touched=true;},{passive:true,signal:interactions.signal});
-  const result=page.fn(el,...m.slice(1));compactSubpageHeader(el);
+  const result=page.fn(el,...m.slice(1));compactSubpageHeader(el);compactRootHeader(el);
   if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path);
   requestAnimationFrame(()=>{if(current()&&!touched)window.scrollTo(0,targetY);});
   return Promise.resolve(result).then(() => {if(current()&&typeof FeatureUsage!=='undefined')FeatureUsage.open(path);}).catch((e) => showError(el, e)).finally(() => {
     if (el.isConnected && typeof Track !== 'undefined') Track.sync();
     requestAnimationFrame(() => { if(current()&&!touched)window.scrollTo(0,targetY);interactions.abort(); });
-    if (current()) { compactSubpageHeader(el);App.pageReady = true; if(!App.activityMapTransition)clearActivityMapTransitionNames(); scheduleSocialRouteWarmup(path);globalThis.CommunityTerms?.check(); if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path); loadPushInvitationForRoute(current); }
+    if (current()) { compactSubpageHeader(el);compactRootHeader(el);App.pageReady = true; if(!App.activityMapTransition)clearActivityMapTransitionNames(); scheduleSocialRouteWarmup(path);globalThis.CommunityTerms?.check(); if(path!=='/activity'&&path!=='/me'&&typeof KitChat!=='undefined')KitChat.entry(el,path); loadPushInvitationForRoute(current); }
   });
 }
 function loadErrorCopy(e) {
@@ -1453,9 +1464,10 @@ function miniRoute(line, sport) {
 
 // ---------- maps (Leaflet, loaded only when a map is on screen) ----------
 let leafletP;
-const viewResources = new Map(),headerObservers=new Map();
+const viewResources = new Map(),headerObservers=new Map(),rootHeaderCleanups=new Map();
 function cleanViews(closing) {
   for(const [el,observer] of headerObservers)if(!el.isConnected||closing?.contains(el)){observer.disconnect();headerObservers.delete(el);}
+  for(const [el,clean] of rootHeaderCleanups)if(!el.isConnected||closing?.contains(el)){clean();rootHeaderCleanups.delete(el);}
   for (const [el, clean] of viewResources) if (!el.isConnected || (closing?.contains(el) && !clean.keepVisual)) { clean(); viewResources.delete(el); }
 }
 function loadLeaflet() {   // (not "leaflet": leaflet.js overwrites window.leaflet)

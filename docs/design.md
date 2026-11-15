@@ -120,9 +120,10 @@ activity detail. Input text is at least 16px to avoid iPhone zoom. Account for b
 - **Five stable tabs:** Today, Activity, Progress, Nutrition, Me remain available on every screen. Feature-panel visibility
   must not hide a tab. Hide the entire bottom bar while the software keyboard is open, on every route and in sheets;
   restore it after dismissal, including swipe-down dismissal. Native keyboard events take precedence over viewport guesses.
-  A focused field with a physical keyboard must not hide navigation. Use a full-width bottom bar, regular icons, readable
-  labels and safe-area padding. Show the selected tab in a capsule tinted with 12–15% accent, with accent-coloured icon
-  and label; size the capsule to fit the longest label.
+  A focused field with a physical keyboard must not hide navigation. Keep the bottom navigation as one floating, translucent
+  capsule with blur where supported, safe-area padding, and its existing compact-on-scroll behavior. Labels are 11px/500
+  muted; the selected tab uses an accent icon and 600 label with no tinted fill. Keep all five 44px targets and fit the
+  longest label without clipping; increased-contrast or reduced-transparency settings use the solid surface fallback.
 - **Activities:** use Friends feed and My activities. Friends feed contains your activities and approved friends’ shared
   activities, newest first. My activities contains your own history with search and filters. Keep the short scope line,
   privacy labels, comments, a compact reaction action and tappable reaction counts. Preserve a thin, full-width horizontal
