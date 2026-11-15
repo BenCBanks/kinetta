@@ -4,7 +4,7 @@ const {journeys}=require('./journey_scenes.cjs');
 const base='http://localhost:8899',registry=[{source:'^/progress$'},{source:'^/food(?:/trends)?$'},{source:'^/people/[^/]+$'},{source:'^/me$'},{source:'^/me/(?:kit|activities|settings)$'},{source:'^/activity$'},{source:'^/track$'},{source:'^/segments/review$'},{source:'^/track/lift/\\d+$'},{source:'^/food/cook/\\d+$'}];
 const check=(href,label='Feature',extra={})=>intention({href,label,source:'Me',...extra},base,registry,'zz_test_owner');
 const recipeJourney=journeys({journey:{login:'zz_test_journeys',activity:17,dish:42,notifications:[]}}).find(item=>item.id==='recipe-edit');
-assert.equal(recipeJourney.taps[0],'#library-recipes [data-dish]');assert.equal(recipeJourney.end.url,'/food/cook/42');
+assert.deepEqual(recipeJourney.taps,['[data-library-tab="recipes"]','#library-recipes [data-dish]']);assert.equal(recipeJourney.end.url,'/food/cook/42');
 assert.equal(recipeJourney.end.titleSelector,'#dk-name');assert.equal(recipeJourney.back.url,'/food/meals');
 const activityKitJourney=journeys({journey:{login:'zz_test_journeys',activity:17,dish:42,notifications:[]}}).find(item=>item.id==='kit-activity-detail');
 assert.equal(activityKitJourney.end.url,'/me/kit?from=activity&activity=17');assert.equal(activityKitJourney.back.url,'/activity');
