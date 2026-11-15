@@ -114,7 +114,7 @@ const lazyRouteBundles = [
   {re: /^\/progress\/weight$/, tab: 'progress', scripts: [FOOD_ROUTE_ASSET], styles: [FOOD_ROUTE_STYLE]},
   {re: /^\/progress\/(?:routes|trends|calendar|heatmap)$/, tab: 'progress', scripts: [PROGRESS_ROUTE_ASSET], styles: [PROGRESS_ROUTE_STYLE]},
   {re: /^\/(?:progress\/segments|segments(?:\/(?:review|new|\d+))?)$/, tab: 'progress', scripts: [PLANNER_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET], styles: [PROGRESS_ROUTE_STYLE]},
-  {re: /^\/me\/sharing$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET, CONTACTS_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET]},
+  {re: /^\/me\/sharing(?:\/(?:routes|blocked))?$/, tab: 'me', scripts: [SOCIAL_ROUTE_ASSET, CONTACTS_ROUTE_ASSET, SEGMENTS_ROUTE_ASSET]},
   {re: /^\/me\/kit$/, tab: 'me', scripts: [FOOD_ROUTE_ASSET, KIT_ROUTE_ASSET], styles: [FOOD_ROUTE_STYLE]},
   {re: /^\/(?:lift\/\d+|track\/lift\/\d+|lift\/history\/workout\/\d+)$/, tab: 'track', scripts: ['/static/lift-routes.js?v=__ASSET_HASH__']},
   {re: /^\/(?:lift\/ex\/\d+|lift\/history\/exercise\/\d+)$/, tab: 'progress', scripts: ['/static/lift-routes.js?v=__ASSET_HASH__']},
