@@ -1241,6 +1241,24 @@ html.keyboard-open nav.tabs { display: none; }
 .settings-logout #logout { color:var(--tx); }
 .settings-logout .inset-icon { display:none; }
 .inset-footer { margin:6px 16px 0; color:var(--tx3); font-size:max(13px,.8125rem); }
+.goals-settings .top .goals-add,.gear-settings .top .gear-add { width:44px;height:44px; flex:none; border:0; border-radius:50%; background:var(--accent); color:#fff; }
+.goals-settings .top .goals-add svg,.gear-settings .top .gear-add svg { width:22px;height:22px; }
+.goals-list { overflow:hidden; }
+.goals-list .inset-goal-row { position:relative; width:100%; gap:8px; padding:14px 16px; border:0; border-radius:0; appearance:none; background:transparent; color:var(--tx); text-align:left; font:inherit; cursor:pointer; }
+.goals-list .inset-goal-row + .inset-goal-row::before { content:""; position:absolute; top:0; left:16px; right:16px; border-top:1px solid var(--line); }
+.goals-list .goal .top2 { align-items:baseline; flex-wrap:wrap; }
+.goals-list .goal .top2 b { font-weight:500; }
+.goals-list .goal .top2 .num { color:var(--tx3); font-size:14px; font-variant-numeric:tabular-nums; }
+.goals-list .goal .track { width:100%;height:6px;border-radius:3px; }
+.goals-list .goal .track .bar { height:6px;border-radius:3px; }
+.goals-list .inset-goal-row > .goal-detail-value { display:flex; align-items:baseline; gap:6px; }
+.goal-detail-value b { font-size:24px; font-weight:650; font-variant-numeric:tabular-nums; }
+.goal-detail-value span { color:var(--tx3); font-size:14px; }
+.gear-list .gear-item { min-height:64px; }
+.gear-list .gear-item .inset-value { max-width:34%; font-variant-numeric:tabular-nums; }
+.gear-list .gear-item .inset-value small { display:block; margin-top:2px; color:var(--tx3); font-size:12px; font-weight:400; }
+.gear-list .gear-item .gear-due { color:var(--alert); }
+.settings-empty { margin:0 0 12px; color:var(--tx3); font-size:15px; }
 .first-step {display:grid;gap:12px;text-align:center;}
 .first-step p {margin:0;font-size:max(15px,.9375rem);}
 .first-step-icon {display:flex;justify-content:center;}
