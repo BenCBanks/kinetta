@@ -1917,6 +1917,10 @@ route(/^\/track$/, 'track', async (el) => {
     }
     const start=$('#track-start',content);if(start){start.classList.remove('round-btn','start');start.classList.add('primary','wide','track-start-button');}
     $('#track-content .track-gps-note')?.remove();$('#track-tools-h',content)?.remove();
+    const interval=$('#interval-open',content);
+    if(interval&&interval.dataset.trackHomeControl!=='1'){interval.innerHTML=`${svg('clock')}<span>Intervals</span>${svg('chev')}`;interval.dataset.trackHomeControl='1';}
+    const audio=$('#track-options',content);
+    if(audio&&(audio.dataset.trackHomeControl!=='1'||audio.querySelector('span')?.textContent!=='Audio & auto-pause')){audio.innerHTML=`${svg('sound')}<span>Audio &amp; auto-pause</span>${svg('chev')}`;audio.dataset.trackHomeControl='1';}
     const explore=$('#track-explore',content),connection=explore?.querySelector('a[data-track-feature="connections"]');
     if(connection){
       explore.classList.add('track-connections');

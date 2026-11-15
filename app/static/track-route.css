@@ -85,13 +85,13 @@
 .compact-ready .track-ready-map-wrap:not(.full) .gps-chip { max-width:calc(100% - 128px); white-space:normal; }
 
 /* Track home follows the workout-picker hierarchy; recording/review styles stay above this route-only block. */
-#page.track-home-page > .top h1 { font-size:34px; line-height:1.12; font-weight:700; letter-spacing:-.03em; }
+#page.track-home-page > .top h1 { font-size:32px; line-height:1.12; font-weight:700; letter-spacing:-.03em; }
 #track-content .track-gps-note,#track-content #track-guidance,#track-content #track-tools-h { display:none; }
 #track-content .track-tools { margin:0; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; }
 #track-content .track-ready { gap:12px; }
-#track-content .track-sport-row { display:flex; align-items:flex-start; gap:4px; min-width:0; }
-#track-content .track-quick { display:flex; flex:1; min-width:0; align-items:flex-start; justify-content:space-around; gap:4px; overflow:visible; padding:0; }
-#track-content .track-quick button { position:relative; display:flex; flex:1 1 0; flex-direction:column; align-items:center; justify-content:flex-start; gap:5px; min-width:0; min-height:78px; height:auto; padding:0 2px 8px; border:0; border-bottom:2px solid transparent; border-radius:0; background:transparent; color:var(--tx2); font-size:13px; font-weight:500; line-height:1.2; white-space:normal; }
+#track-content .track-sport-row { display:flex; align-items:flex-start; gap:8px; min-width:0; }
+#track-content .track-quick { display:flex; flex:1; min-width:0; align-items:flex-start; justify-content:space-between; gap:8px; overflow:visible; padding:0; }
+#track-content .track-quick button { position:relative; display:flex; flex:1 1 0; flex-direction:column; align-items:center; justify-content:flex-start; gap:5px; min-width:0; min-height:78px; height:auto; padding:0 2px 8px; border:0; border-bottom:2px solid transparent; border-radius:0; background:transparent; color:var(--tx2); font-size:15px; font-weight:500; line-height:1.2; white-space:normal; }
 #track-content .track-quick button[data-sport] .track-sport-icon { display:grid; place-items:center; flex:none; width:44px; height:44px; border-radius:50%; background:color-mix(in srgb,var(--sport-color,var(--other)) 14%,var(--card)); color:var(--sport-color,var(--other)); }
 #track-content .track-quick button[data-sport="run"] { --sport-color:var(--run); }
 #track-content .track-quick button[data-sport="ride"] { --sport-color:var(--ride); }
@@ -105,11 +105,31 @@
 #track-content .track-sport-label { display:block; max-width:100%; overflow-wrap:anywhere; }
 #track-content .track-quick button.track-home-hidden { display:none !important; }
 #track-content .track-quick button[aria-pressed="true"] { border-bottom-color:var(--color-brand); background:transparent; color:var(--tx); font-weight:600; }
-#track-content #track-other { display:flex; flex:none; flex-direction:column; align-items:center; justify-content:flex-start; gap:4px; min-width:48px; min-height:78px; height:auto; padding:0 2px 8px; border:0; border-bottom:2px solid transparent; border-radius:0; background:transparent; color:var(--tx2); font-size:13px; font-weight:500; }
+#track-content #track-other { display:flex; flex:none; flex-direction:column; align-items:center; justify-content:flex-start; gap:4px; min-width:48px; min-height:78px; height:auto; padding:0 2px 8px; border:0; border-bottom:2px solid transparent; border-radius:0; background:transparent; color:var(--tx2); font-size:15px; font-weight:500; }
 #track-content #track-other svg { width:16px; height:16px; }
 #track-content #track-other[aria-pressed="true"] { border-bottom-color:var(--color-brand); background:transparent; color:var(--tx); }
-#track-content .track-go { display:flex; flex-direction:column; align-items:stretch; gap:4px; margin:0; }
+#track-content .track-go { display:flex; flex-direction:column; align-items:stretch; gap:8px; margin:0; }
 #track-content .track-start-button { width:100%; min-height:52px; height:52px; margin:0; font-size:17px; font-weight:600; }
+#track-content .track-start-button { background:var(--btn); background-image:none; box-shadow:none; }
+#track-content .track-ready-map { box-sizing:border-box; border:1px solid var(--line); box-shadow:none; }
+#page.track-home-page > .top #track-settings { box-sizing:border-box; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; border:1px solid var(--line); border-radius:12px; box-shadow:none; }
+#page.track-home-page > .top .kit-help { display:none; }
+#track-content .track-recording-options { display:grid; grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); align-items:center; gap:0 12px; width:100%; }
+#track-content .track-recording-options > div { min-width:0; width:auto; }
+#track-content .track-recording-options > div:empty { display:none; }
+#track-content .track-recording-options #interval-open,
+#track-content .track-recording-options #track-options { display:flex; align-items:center; justify-content:flex-start; gap:8px; box-sizing:border-box; width:100%; min-width:0; min-height:44px; height:44px; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; color:var(--tx); font-size:15px; font-weight:500; text-align:left; white-space:normal; }
+#track-content .track-recording-options #interval-open svg,
+#track-content .track-recording-options #track-options svg { flex:none; width:18px; height:18px; color:var(--tx2); }
+#track-content .track-recording-options #interval-open svg:last-child,
+#track-content .track-recording-options #track-options svg:last-child { width:14px; height:14px; margin-left:auto; color:var(--tx3); }
+#track-content .track-recording-options #interval-open span,
+#track-content .track-recording-options #track-options span { min-width:0; overflow:visible; text-overflow:clip; white-space:normal; }
+#track-content .track-ready-map-wrap:not(.full) :is(.map-full,.track-locate) { box-sizing:border-box; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; border:1px solid var(--line); border-radius:50%; background:var(--card); box-shadow:none; }
+#track-content .track-ready-map-wrap:not(.full) .map-full { color:var(--tx); }
+#track-content .track-ready-map-wrap:not(.full) .track-locate { color:var(--accent); }
+body:has(#page.track-home-page) nav.tabs { box-shadow:none; }
+#track-content .track-recording-options #interval-open span { overflow:visible; text-overflow:clip; white-space:normal; }
 #track-content .track-connections { margin:4px 0 12px; }
 #track-content .track-connection-row { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:56px; padding:0 14px; border:1px solid var(--line); border-radius:14px; background:var(--surface-card); color:var(--tx); text-decoration:none; }
 #track-content .track-connection-row > span { display:flex; align-items:center; gap:12px; min-width:0; }
@@ -118,7 +138,12 @@
 #track-content .track-connection-row > svg { flex:none; width:18px; height:18px; color:var(--tx3); }
 #track-content .track-connection-row:active { transform:scale(.99); }
 @media (prefers-reduced-motion:reduce) { #track-content .track-connection-row:active { transform:none; } }
-@media (max-width:350px) { #track-content .track-ready-map { height:136px; } }
+@media (max-width:350px) {
+  #page.track-home-page { padding-bottom:calc(env(safe-area-inset-bottom) + var(--tab-h) + 16px) !important; }
+  #track-content .track-ready-map { height:184px; }
+  #track-content .track-recording-options { grid-template-columns:1fr; row-gap:8px; }
+  #track-content .track-recording-options #track-options { margin-top:8px; }
+}
 
 @media (min-width: 700px) { .track-clock { font-size: 68px; } .track-map { height: 320px; } }
 .track-question { font-family: var(--font-display); font-weight: 700; line-height: 1.2; }
