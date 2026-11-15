@@ -6,6 +6,7 @@ const selectedCases=new Set((process.env.KINETTA_RECIPE_CASE||'').split(',').map
 const runCase=name=>selectedCases.size===0||selectedCases.has(name);
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label+' '+JSON.stringify(await p.evaluate(()=>({url:location.href,title:document.title,app:typeof App!=='undefined',ready:typeof App!=='undefined'?App.pageReady:null,body:document.body.innerText.slice(0,300)}))));}
 async function capture(p,name){const dir=process.env.KINETTA_SCREENSHOT_DIR;if(!dir)return;await p.waitForTimeout(320);fs.mkdirSync(dir,{recursive:true});await p.screenshot({path:path.join(dir,name+'.png')});console.log('Screenshot '+path.join(dir,name+'.png'));}
+async function assertImportFits(p,label){assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,`${label} has no horizontal overflow`);const clipped=await p.locator('.recipe-import-page h1,.recipe-import-page p,.recipe-import-page label,.recipe-import-page button,.recipe-import-page dt,.recipe-import-page dd,.recipe-import-page summary,.recipe-import-page b,.recipe-import-page small').evaluateAll(xs=>xs.filter(n=>{const s=getComputedStyle(n);return n.scrollWidth>n.clientWidth+1&&!/auto|scroll/.test(s.overflowX);}).map(n=>(n.textContent||n.getAttribute('aria-label')||n.tagName).trim().slice(0,80)));assert.deepEqual(clipped,[],`${label} text is not clipped: ${JSON.stringify(clipped)}`);}
 (async()=>{
  const output=cp.execFileSync('python3',[path.join(__dirname,'recipes_compact_fixture.py')],{env:process.env,encoding:'utf8'});console.log(output.trim());const ids=JSON.parse(output.trim().split('\n').at(-1)),browser=await chromium.launch(),contexts=[];
  async function open(state,theme,size,native=false,sourceKey='saved'){
@@ -139,6 +140,40 @@ async function capture(p,name){const dir=process.env.KINETTA_SCREENSHOT_DIR;if(!
    await p.locator('#dk-servings').fill('6');const measure=p.waitForResponse(r=>r.url()===base+'/api/dishes/'+actionId&&r.request().method()==='PATCH'&&r.status()===200);await p.locator('.recipe-nutrition').click();assert.equal((await(await measure).json()).serving_count,6,'yield saved by existing API');await until(p,()=>document.querySelector('#dk-servings')?.value==='6','yield redraw');
    await p.locator('#dk-done').click();await p.locator('#recipe-finish').waitFor();assert.equal(await p.locator('[name=log_today]').isChecked(),false);await p.locator('[name=log_today]').check();await p.locator('#recipe-finish-save').click();await p.locator('#dl').waitFor();assert.equal(await p.locator('#dl [name=meal]').inputValue(),'');assert.equal(await p.locator('#dl-n').inputValue(),'');assert(!writes.some(x=>x.endsWith('/portion')),'Done and optional log still require portion and meal confirmation');await closeSheet(p);
    await p.locator('#dk-more').click();await p.locator('#dm-del').click();await p.locator('#recipe-delete-cancel').click();assert(await p.locator('#dk-name').isVisible());assert.deepEqual(errors,[]);await c.close();contexts.splice(contexts.indexOf(c),1);console.log('Recipe actions: rename/save failure/retry, yield autosave, explicit optional meal/portion review and delete cancel PASS');
+  }
+  if(runCase('import-flow'))for(const theme of ['light','dark'])for(const size of [{width:390,height:844,root:16},{width:330,height:740,root:16}]){
+   const {c,p,errors,writes}=await open('draft',theme,size);await p.goto(base+'/food/recipe-link');await until(p,()=>typeof App!=='undefined'&&App.pageReady&&!!document.querySelector('#recipe-url-form'),'recipe import URL screen');
+   const width=await p.evaluate(()=>innerWidth);await assertImportFits(p,`import URL ${width}/${theme}`);
+   assert.equal(await p.locator('.recipe-import .card').count(),0,'import entry has no nested card surfaces');
+   const targets=await p.locator('#recipe-url-form input,#recipe-url-form button,#recipe-screenshot,#recipe-type').evaluateAll(xs=>xs.map(n=>{const r=n.getBoundingClientRect();return{h:r.height,w:r.width,text:n.textContent||n.getAttribute('aria-label')}}));assert(targets.every(t=>t.h>=44&&t.w>=44),`import entry actions meet 44px targets: ${JSON.stringify(targets)}`);
+   if(width===390)await capture(p,`1023-import-start-390-${theme}`);
+   const calls=[];let markReadStarted,releaseRead;const readStarted=new Promise(resolve=>{markReadStarted=resolve;}),readGate=new Promise(resolve=>{releaseRead=resolve;});
+   await p.route('**/api/recipe-links/**',async r=>{const u=new URL(r.request().url()),method=r.request().method();calls.push(method+' '+u.pathname);
+    if(u.pathname==='/api/recipe-links/read'){markReadStarted();await readGate;return r.fulfill({json:{state:'ready',candidates:[{name:'Fictional chickpea and greens soup',yield_text:['4 servings'],servings:4,ingredients:['250 g fictional chickpeas','80 g fictional spinach'],source_url:'https://recipes.example/fictional-soup',nutrition:{calories:285,protein:14,carbs:45,fat:6,fiber:10,sodium:null,sugar:null,saturated_fat:null},needs_servings_review:false,matches:[]}]}});}
+    if(u.pathname.endsWith('/review'))return r.fulfill({json:{name:'Fictional chickpea and greens soup',servings:4,per_serving:{kcal:285,protein_g:14,carbs_g:45,fat_g:6,fiber_g:10,sodium_mg:null,sugar_g:null,saturated_fat_g:null},totals:{kcal:285},sources:{kcal:'site',protein_g:'site',carbs_g:'site',fat_g:'site',fiber_g:'site'},source_url:'https://recipes.example/fictional-soup',matching:[{text:'Fictional chickpeas',status:'ready',source:'site',entries:[{name:'Fictional chickpeas',amount:250,unit:'g'}]},{text:'Fictional spinach',status:'ready',source:'site',entries:[{name:'Fictional spinach',amount:80,unit:'g'}]}],pending:[],site_recipe_changed:false,baseline:{},input:{}}});
+    if(method==='GET'&&u.pathname.startsWith('/api/recipe-links/'))return r.fulfill({status:503,json:{detail:'Could not reopen this recipe. Try again or enter it by hand.'}});
+    return r.fulfill({status:500,json:{detail:'Unexpected fictional recipe request'}});
+   });
+   await p.locator('#recipe-url-form input').fill('https://recipes.example/fictional-soup');await p.locator('#recipe-url-form button[type=submit]').click();await readStarted;await p.locator('.recipe-import-status').waitFor();
+   assert.match(await p.locator('.recipe-import-status').innerText(),/Reading this recipe/);assert.equal(await p.locator('.recipe-import-skeleton span').count(),3,'parsing shows compact ingredient skeleton rows');await assertImportFits(p,`import progress ${width}/${theme}`);
+   const statusBox=await p.locator('.recipe-import-status').boundingBox(),cancelBox=await p.locator('#recipe-cancel').boundingBox();assert(statusBox.height>=44&&cancelBox.height>=44&&cancelBox.width>=44,'parse status and cancel are touch-sized');
+   if(width===390&&theme==='dark')await capture(p,'1023-import-reading-390-dark');releaseRead();await p.locator('#recipe-editor').waitFor();
+   assert.equal(await p.locator('.recipe-import-editor').count(),1);assert.equal(await p.locator('.recipe-import .card').count(),0,'review edit stays in one flat screen');await assertImportFits(p,`import editor ${width}/${theme}`);
+   if(width===390||width===330&&theme==='light')await capture(p,`1023-import-editor-${width}-${theme}`);
+   await p.locator('#recipe-editor').evaluate(form=>form.requestSubmit());await p.locator('.recipe-import-summary').waitFor();
+   assert.equal(await p.locator('.recipe-import-summary h2').innerText(),'Fictional chickpea and greens soup');assert.equal(await p.locator('.recipe-import-match').count(),2);assert.equal(await p.locator('.recipe-import .card').count(),0,'nutrition preview has no nested card surfaces');
+   assert.equal(await p.locator('#recipe-save').innerText(),'Save recipe');assert.equal(await p.locator('#recipe-edit').innerText(),'Edit draft');assert.equal(await p.locator('#recipe-discard').innerText(),'Discard draft');
+   assert(await p.evaluate(()=>{const b=document.querySelector('#recipe-save').getBoundingClientRect();return b.height>=44&&b.width>=44;}),'primary save action remains a large target');
+   await assertImportFits(p,`import preview ${width}/${theme}`);
+   if(width===390||width===330&&theme==='light')await capture(p,`1023-import-preview-${width}-${theme}`);
+   assert.deepEqual(calls.map(x=>x.split(' ')[0]),['POST','POST'],'only fictional read and review requests were intercepted');
+   await p.goto(base+'/food/recipe-link?url='+encodeURIComponent('https://recipes.example/fictional-soup'));await until(p,()=>!!document.querySelector('.recipe-import-error'),'saved import draft error recovery');
+   assert(await p.locator('#recipe-new').isVisible());assert.equal(await p.locator('.recipe-import-error').innerText(),'Could not reopen this recipe. Try again or enter it by hand.');assert.equal(await p.locator('#recipe-new').innerText(),'Enter by hand');
+   await assertImportFits(p,`import error ${width}/${theme}`);
+   const recovery=await p.locator('#recipe-new').boundingBox();assert(recovery.height>=44&&recovery.width>=44,'manual-entry recovery is touch-sized');
+   if(width===390&&theme==='light')await capture(p,'1023-import-error-390-light');
+   assert.deepEqual(writes.filter(x=>x!=='/api/challenges/signup/continue'),[],'import preview does not save a recipe or log food');assert.deepEqual(errors,[]);
+   await c.close();contexts.splice(contexts.indexOf(c),1);console.log(`Recipe import ${width}/${theme}: flat URL/editor/nutrition screens and fictional request boundary PASS`);
   }
  }finally{for(const c of contexts)await c.close().catch(()=>{});await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
