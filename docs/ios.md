@@ -9,6 +9,11 @@ check that signing and upload actually ran, then verify the processed build in A
 real-device acceptance remain separate readiness gates. Once the Apple setup below is complete, app changes on `main`
 can be signed and uploaded automatically.
 
+To pause the daily scheduled TestFlight upload, set the repository variable
+`PAUSE_SCHEDULED_RELEASE` to `1` with `gh variable set PAUSE_SCHEDULED_RELEASE --body 1`.
+Manual **Run workflow** releases and pull request checks remain available while paused.
+Resume scheduled releases by deleting the variable with `gh variable delete PAUSE_SCHEDULED_RELEASE`.
+
 ## What the app does today
 
 - **Sign up or log in.** The app uses `https://login.kinetta.app`. Create an account and Forgot password work inside the app. The hosted service has open sign-up with a 100-account cap; when full, the app offers the waitlist. Other installations choose their own sign-up mode and cap. People who sign up themselves confirm their email before appearing to others or using social actions; people joining by an invite link are not held back.
