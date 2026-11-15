@@ -1881,13 +1881,16 @@ route(/^\/track\/import$/, 'track', async (el) => {
   const owner=readOwner(),account=App.me?.id,valid=()=>el.isConnected&&owner===readOwner();
   const mapFor=new URLSearchParams(location.search).get('map_for'),mapId=/^[1-9]\d*$/.test(mapFor||'')?mapFor:null;
   if (Native.on) return go('/track/connections', {replace:true});
-  el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Upload activities</h1><p class="muted">FIT, GPX or TCX files (also .gz), or your whole Strava export .zip. Duplicates are skipped automatically.</p>
-    ${mapId?`<p class="small">Choose the original ZIP or FIT for your <a href="/activity/${esc(mapId)}">existing workout</a>. Matching recordings add missing details; other files are imported as separate activities.</p>`:''}
-    <div class="card upload"><label class="drop" id="u-drop" for="u-file"><b>Choose files</b><br><span class="small">or drop them here</span></label>
+  el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Upload activities</h1>
+    ${mapId?`<p class="muted">Choose the original ZIP or FIT for your <a href="/activity/${esc(mapId)}">existing workout</a>. Matching recordings add missing details; other files are imported as separate activities.</p>`:''}
+    <section class="inset-section"><h2 class="inset-caption">Files</h2><div class="inset-group activity-upload">
+      <label class="inset-row has-detail import-pick" id="u-drop" for="u-file"><span class="inset-icon" aria-hidden="true">${svg('upload')}</span><span class="inset-label has-detail"><span>Choose files</span><small>FIT, GPX, TCX, ZIP or .gz · drop files here</small></span><span class="inset-value">Browse</span></label>
       <input id="u-file" type="file" multiple accept=".fit,.gpx,.tcx,.gz,.zip" hidden>
-      <div id="u-prog" hidden><div class="prog"><div class="bar" id="u-bar"></div></div><p class="small muted" id="u-text"></p></div></div>
-    <details class="card"><summary>Get your Strava history</summary><p class="small">Strava → Settings → My Account → <b>Download or Delete Your Account</b> → Request your archive. Strava emails a .zip; upload it here as is. For a large archive, ask the person running your Kinetta for help importing it.</p></details>
-    <div class="card"><h2>Recent imports</h2><div id="u-jobs">${skel(1)}</div></div>`;
+      <div id="u-prog" class="activity-upload-progress" hidden><div class="prog"><div class="bar" id="u-bar"></div></div><p class="small muted" id="u-text"></p></div></div>
+      <p class="inset-footer">Duplicates are skipped automatically.</p>
+    </section>
+    <details class="inset-disclosure"><summary>Get your Strava history</summary><p class="small">Strava → Settings → My Account → <b>Download or Delete Your Account</b> → Request your archive. Strava emails a .zip; upload it here as is. For a large archive, ask the person running your Kinetta for help importing it.</p></details>
+    <section class="inset-section"><h2 class="inset-caption">Recent imports</h2><div class="inset-group" id="u-jobs">${skel(1)}</div></section>`;
   wireBack(el, '/track');
   const input = $('#u-file', el), drop = $('#u-drop', el);
   const send = (files) => {
@@ -1938,13 +1941,12 @@ function garminNote(g){
 }
 function garminCard(box,C,valid){
   const g=C.garmin_connect;if(!box)return;
-  if(!(C.garmin_connect_available||g)){box.innerHTML='<p class="small muted">Garmin Connect: not available yet.</p>';return;}
-  box.innerHTML=`<div class="card"><h2>Garmin Connect</h2>
-    <p>${g?`<b>Connected.</b> ${garminNote(g)}`:'New Garmin activities arrive after your watch syncs, with maps and heart rate.'} For older history, ${Native.on?'import past workouts from the Health app':'use the Health app or import a Strava export in your browser'}.</p>
-    ${g?`<label class="check"><input type="checkbox" id="gc-ai"${App.me.garmin_ai_ok?' checked':''}> Let Kit read my Garmin activities</label>
-    <p class="small muted">Off unless you say yes. Sends the activities Kit needs to ${esc(App.me.ai_provider||'the AI service')}. Garmin data is never used to train AI.</p>
-    <button type="button" class="linkbtn danger gc-off" id="gc-off">Disconnect Garmin</button>`
-    :'<button type="button" class="primary wide" id="gc-on">Connect Garmin</button>'}</div>`;
+  if(!(C.garmin_connect_available||g)){box.innerHTML='<section class="inset-section"><h2 class="inset-caption">Garmin Connect</h2><div class="inset-group"><p class="inset-empty">Not available yet.</p></div></section>';return;}
+  box.innerHTML=`<section class="inset-section"><h2 class="inset-caption">Garmin Connect</h2><div class="inset-group">
+    <div class="inset-row has-detail"><span class="inset-icon" aria-hidden="true">${svg('run')}</span><span class="inset-label has-detail"><span>${g?'<b>Connected.</b> '+garminNote(g):'New Garmin activities arrive after your watch syncs.'}</span><small>${g?'For older history, '+(Native.on?'import past workouts from the Health app':'use the Health app or import a Strava export in your browser')+'.':'New workouts arrive with maps and heart rate.'}</small></span>${g?'':'<button type="button" class="connection-action" id="gc-on">Connect</button>'}</div>
+    ${g?`<label class="inset-row switch-row connection-kit"><span class="inset-icon" aria-hidden="true">${svg('sparkle')}</span><span class="inset-label">Let Kit read my Garmin activities</span><input type="checkbox" id="gc-ai"${App.me.garmin_ai_ok?' checked':''}></label>
+    <p class="inset-footer">Off unless you say yes. Sends the activities Kit needs to ${esc(App.me.ai_provider||'the AI service')}. Garmin data is never used to train AI.</p>
+    <button type="button" class="inset-row is-alert connection-disconnect" id="gc-off">Disconnect Garmin</button>`:''}</div></section>`;
   const on=$('#gc-on',box);if(on)on.onclick=async()=>{
     try{const r=await api('/api/connections/garmin-connect/start',json('POST',{native:Native.signInSheet}));if(!valid())return;
       if(Native.signInSheet){
@@ -1964,18 +1966,14 @@ route(/^\/me\/connections$/, 'track', async () => go('/track/connections',{repla
 route(/^\/track\/connections$/, 'track', async (el) => {
   el.classList.add('connections-page');
   const owner=readOwner(),valid=()=>el.isConnected&&readOwner()===owner;
-  el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Connections</h1><p class="muted">Connect Garmin or the Health app to bring in workouts automatically. A watch is optional.</p>
+  el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Connections</h1><p class="muted">Bring in workouts automatically. A watch is optional.</p>
     <div id="c-gc"></div>
-    <div class="card" id="c-health"><h2>Health app</h2>${skel(1)}</div>
-    ${Native.on ? '<button type="button" class="row-link" data-import-history><span class="ri c-brand">'+svg('upload')+'</span><span class="grow">Import activity history<small class="muted">Open your browser to upload files or a Strava export.</small></span><span class="chev">'+svg('chev')+'</span></button>' : '<a class="card tap row-link" href="/track/import"><div class="grow"><h2>Import activity history</h2><p>Original activity files or a Strava export, in your browser.</p></div><span class="chev">'+svg('chev')+'</span></a>'}
-    <details class="card" id="c-other"><summary>Other connections</summary><div id="c-body">${skel(2)}</div></details>`;
+    <section class="inset-section"><h2 class="inset-caption">Health app</h2><div class="inset-group" id="c-health">${skel(1)}</div></section>
+    <section class="inset-section"><h2 class="inset-caption">Activity history</h2><div class="inset-group">${Native.on ? '<button type="button" class="inset-row has-detail" data-import-history><span class="inset-icon" aria-hidden="true">'+svg('upload')+'</span><span class="inset-label has-detail"><span>Import activity history</span><small>Open your browser to upload files or a Strava export.</small></span><span class="inset-value">Open</span></button>' : '<a class="inset-row has-detail" href="/track/import"><span class="inset-icon" aria-hidden="true">'+svg('upload')+'</span><span class="inset-label has-detail"><span>Import activity history</span><small>Original activity files or a Strava export, in your browser.</small></span><span class="inset-value">Open</span></a>'}</div></section>
+    <details class="inset-disclosure" id="c-other"><summary>Other connections</summary><div id="c-body" class="inset-group">${skel(2)}</div></details>`;
   wireBack(el, '/track');
   const importHistory=$('[data-import-history]',el);if(importHistory)importHistory.onclick=()=>sheet('Import history',`<p>Open Kinetta in your browser to import original activity files or a Strava export.</p><a class="primary wide" href="${esc((Native.base||location.origin)+'/track/import')}" target="_blank" rel="noopener">Open in browser</a>`);
-  const healthCard=(isOn,st,error='')=>{if(!valid())return;$('#c-health',el).innerHTML=`<h2>Health app</h2>
-    <p>${Native.on?isOn?'Sync enabled. Health shares only the categories you allow.':'Optional · share nutrition, read weight or import workouts.':'Available in the Kinetta iPhone app.'}</p>
-    ${st?.at?`<p class="small muted">Last ${st.error?'attempt':'sync'} ${esc(when(st.at))}.</p>`:''}${error?`<p class="err">${esc(error)}</p>`:''}
-    <a class="${Native.on?'primary':'ghost'} wide" href="/track/health">${Native.on?isOn?'Manage Health permissions':'Connect to the Health app':'About the Health app'}</a>
-    <details><summary>Using a Garmin?</summary><p class="small">Enable Health sharing in Garmin Connect, then sync your watch there. Workouts can take a while to arrive. Garmin does not send GPS routes to Health. Connect Garmin directly for maps on new workouts.</p></details>`;};
+  const healthCard=(isOn,st,error='')=>{if(!valid())return;$('#c-health',el).innerHTML=`<div class="inset-row has-detail"><span class="inset-icon" aria-hidden="true">${svg('heart')}</span><span class="inset-label has-detail"><span>${isOn?'Sync enabled':'Optional connection'}</span><small>${Native.on?'Share nutrition, read weight or import workouts. Health shares only categories you allow.':'Available in the Kinetta iPhone app.'}${st?.at?` Last ${st.error?'attempt':'sync'} ${esc(when(st.at))}.`:''}</small></span><a class="connection-action" href="/track/health">${Native.on?isOn?'Manage':'Connect':'About'}</a></div>${error?`<p class="inset-error" role="alert">${esc(error)}</p>`:''}<details class="inset-nested-disclosure"><summary>Using a Garmin?</summary><p class="small">Enable Health sharing in Garmin Connect, then sync your watch there. Workouts can take a while to arrive. Garmin does not send GPS routes to Health. Connect Garmin directly for maps on new workouts.</p></details>`;};
   if(Native.on)Native.healthCall(Promise.all([Native.anyHealthOn?Native.anyHealthOn():Native.healthOn(),Native.healthStatus()]),'Health status could not be checked.',5000).then(([on,st])=>healthCard(on,st)).catch(()=>healthCard(false,null,'Health status could not be checked. Open the Health app to review setup.'));
   else healthCard(false,null);
   let C;
@@ -1983,9 +1981,9 @@ route(/^\/track\/connections$/, 'track', async (el) => {
   if(!valid())return;
   garminCard($('#c-gc',el),C,valid);
   const st = (k) => C[k] ? `<p class="small"><b>Connected.</b> ${esc(C[k].status || '')}${C[k].last_sync ? ' · ' + esc(when(C[k].last_sync)) : ''}</p>` : '<p class="small muted">Not connected.</p>';
-  $('#c-body', el).innerHTML = `<div class="card"><h2>Health Auto Export</h2>
-      <p class="small">In the iPhone app <b>Health Auto Export</b> (Premium), add an automation: <b>REST API</b>, format <b>JSON</b>, data <b>Workouts</b> (and optionally <b>Body Mass</b>), with the address and header below.</p>${st('apple')}
-      <div id="c-apple-out"></div><div class="actions">${C.apple ? '<button class="ghost danger" data-off="apple">Disconnect</button><span class="spacer"></span>' : ''}<button class="ghost" id="c-apple">${C.apple ? 'Make a new secret' : 'Create connection link'}</button></div></div>`;
+  $('#c-body', el).innerHTML = `<div class="connection-item"><div class="inset-row has-detail"><span class="inset-icon" aria-hidden="true">${svg('upload')}</span><span class="inset-label has-detail"><span>Health Auto Export</span><small>${C.apple ? 'Connected. '+esc(C.apple.status||'') : 'Optional · import workouts from the iPhone app.'}</small></span></div>
+      <details class="inset-nested-disclosure"><summary>Set up Health Auto Export</summary><p class="small">In the iPhone app <b>Health Auto Export</b> (Premium), add an automation: <b>REST API</b>, format <b>JSON</b>, data <b>Workouts</b> (and optionally <b>Body Mass</b>), with the address and header below.</p></details>
+      <div id="c-apple-out"></div><div class="connection-actions">${C.apple ? '<button class="inset-row is-alert" data-off="apple">Disconnect</button>' : ''}<button class="inset-row" id="c-apple">${C.apple ? 'Make a new secret' : 'Create connection link'}</button></div></div>`;
   $('#c-apple', el).onclick = async () => {
     if(!valid())return;
     if (C.apple && (!await confirmSheet('Make a new secret?', {body: 'The old secret stops working.', action: 'Make new secret'}) || !valid())) return;
