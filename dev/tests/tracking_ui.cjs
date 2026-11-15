@@ -119,6 +119,7 @@ async function intervalControls(browser,storageState,uid){
    await p.reload();await until(p,()=>document.querySelectorAll('.track-photo-list figure').length===1 && !document.querySelector('#track-save').disabled,'retained photo draft');
    assert.equal(await p.locator('input[name=activity_name]').inputValue(),'Fictional weekend run');
    await p.locator('#track-save').click();await until(p,()=>document.querySelector('#track-save')?.textContent==='Retry save' && !document.querySelector('#track-save').disabled,'uncertain save');
+   assert.equal(await p.locator('.track-check-saved').count(),1,'uncertain save offers View my activities');const checkLink=await p.locator('.track-check-saved').boundingBox();assert(checkLink.width>=44&&checkLink.height>=44,'View my activities keeps a 44px target');
    assert.equal(saves.length,1);assert.equal(saves[0].photos.length,1);assert.equal(saves[0].laps.length,1);assert.equal(saves[0].review_version,1);
    assert(await p.locator('input[name=activity_name]').isDisabled());assert.equal(await p.locator('#track-continue').count(),0);assert.equal(await p.locator('#track-save-error').innerText(),'Save not confirmed. Draft kept.');
    await snap('05-retry');await p.reload();await until(p,()=>document.querySelector('#track-save')?.textContent==='Retry save' && !document.querySelector('#track-save').disabled,'confirmed request recovery');

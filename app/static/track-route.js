@@ -195,7 +195,7 @@
       ${rows.length?`<div class="track-review-splits"><h3>Splits</h3>${rows.map(([label,time])=>`<div><span>${esc(label)}</span><b class="num">${clock(time)}</b></div>`).join('')}</div>`:''}
       ${laps.length?`<h3>Manual laps</h3><div class="tblwrap">${lapsTable({sport:session.sport,laps})}</div>`:''}</details>
       </form>
-      <div class="track-review-dock"><p class="small danger" id="track-save-error" role="alert">${esc(saveError || (!saving && frozen?'Save not confirmed. Draft kept.':''))}</p><button type="submit" form="track-save-form" class="primary wide" id="track-save"${locked?' disabled':''}>${saving?'Saving…':frozen?'Retry save':'Save'}</button></div></section>`;
+      <div class="track-review-dock"><p class="small danger" id="track-save-error" role="alert">${esc(saveError || (!saving && frozen?'Save not confirmed. Draft kept.':''))}</p><button type="submit" form="track-save-form" class="primary wide" id="track-save"${locked?' disabled':''}>${saving?'Saving…':frozen?'Retry save':'Save'}</button>${frozen&&!saving&&!photoBusy?`<a class="ghost wide track-check-saved" href="${profileHref(App.me)}">View my activities</a>`:''}</div></section>`;
   }
   function liveMapHTML(paused) {
     return `<div class="map track-map-wrap" id="track-map-wrap"><div class="track-map live-record-map" id="track-map"></div><span class="gps-chip" id="track-gps-live" hidden></span>

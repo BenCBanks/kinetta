@@ -40,6 +40,6 @@ const track = fs.readFileSync('app/static/track.js', 'utf8');
 assert(/id="lf-discard">Discard session/.test(routes) && /id="lf-sum-del">Delete this session/.test(routes), 'lifting: discard and delete');
 assert(/function discardLift[\s\S]*queueLift\(key,[\s\S]*method: 'DELETE'[\s\S]*store\.del\(key\)/.test(routes), 'deletes the activity and its account-scoped phone copy after queued writes');
 assert(/\$\{paused \? `<span class="round-ctl round-ctl-discard"><button class="round-btn discard" id="track-discard" aria-label="Discard recording">/.test(trackRoute), 'paused: Discard in the controls row');
-assert.equal((trackRoute.match(/class="linkbtn danger track-discard"/g)||[]).length, 1, 'the separate Discard action appears only on Review, not beside paused controls');
+assert(/<header class="track-review-top">[\s\S]*?<button type="button" id="track-review-discard"/.test(trackRoute) && !/class="linkbtn danger track-discard"/.test(trackRoute), 'Review uses its pinned Discard action without a duplicate body link');
 console.log('PASS discard a lifting session or a paused recording right away');
 

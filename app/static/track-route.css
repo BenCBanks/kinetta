@@ -224,6 +224,7 @@
 .track-review .track-review-chart-card { background:var(--surface-card); box-shadow:var(--elevation-rest); }
 .track-review .track-review-splits div { transition:background-color var(--motion-press) ease-out; }
 .track-review .track-review-splits div:active { background:var(--surface-raised); }
+.track-review .track-check-saved { display:flex; align-items:center; justify-content:center; min-height:44px; margin-top:8px; color:var(--tx2); text-decoration:none; }
 .track-review .track-check-saved:active { transform:scale(.97); }
 nav.tabs :is(a,button).has-recording { position: relative; }
 nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); position: absolute; top: 5px; right: calc(50% - 18px); }
