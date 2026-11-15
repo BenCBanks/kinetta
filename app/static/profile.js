@@ -668,11 +668,9 @@ const ProfileLayout=(()=>{
     return `<span class="me-showcase-row" role="img" aria-label="${esc(label)}">${items.map(item=>`<span class="me-showcase-medal" data-showcase-code="${esc(item.code)}" aria-hidden="true">${item.icon}</span>`).join('')}${hasStreak?`<span class="me-showcase-streak" aria-hidden="true">${svg('flame')}<span>${streak}-day streak</span></span>`:''}</span>`;
   }
   function showcaseStreakMarkup(data){
-    const day=Number(data?.day_streak),week=Number(data?.week_streak),parts=[];
-    if(Number.isInteger(day)&&day>=2)parts.push(`${day}d`);
-    if(Number.isInteger(week)&&week>=2)parts.push(`${week}w`);
-    if(!parts.length)return '';
-    const text=`${parts.join(' · ')} streak`,label=parts.length===2?`${day}-day and ${week}-week activity streak`:`${day>=2?`${day}-day`:`${week}-week`} activity streak`;
+    const day=Number(data?.day_streak),week=Number(data?.week_streak),part=Number.isInteger(week)&&week>=2?`${week}-week`:Number.isInteger(day)&&day>=2?`${day}-day`:'';
+    if(!part)return '';
+    const text=`${part} streak`,label=`${part} activity streak`;
     return `<span class="me-showcase-row" role="img" aria-label="${esc(label)}"><span class="me-showcase-streak" aria-hidden="true">${svg('flame')}<span>${esc(text)}</span></span></span>`;
   }
   function featuredShowcaseMarkup(showcase,achievementData,{sharedLogin='',ownerFeatured=false}={}){
@@ -925,11 +923,12 @@ const MeCard=(()=>{
     const content=data?profileView(data,{viewer,period,preview}).html:skel(1);
     return `<section class="me-card me-card-${period}" data-profile-card-period="${period}" aria-label="${mine?'Your profile card':esc(p.name||p.login)+'’s profile card'}"><div class="me-card-banner">${pills}</div>
       <div class="me-card-body"><div class="me-card-id me-card-id-link">${identity}${friends}</div>
+        ${preview&&period==='week'?'<div class="me-card-preview-row"><button type="button" class="me-card-preview-action" data-card-preview>View as friend</button></div>':''}
         ${bio?bio.length>140?`<details class="me-about"><summary>About me</summary><p>${esc(bio)}</p></details>`:`<p class="me-profile-bio">${esc(bio)}</p>`:''}
         <div class="me-card-sections" aria-busy="${data?'false':'true'}">${content}</div>${featured?'<div class="me-featured-slot" data-me-featured></div>':''}
         ${milestones?'<div data-me-milestones hidden></div>':''}</div></section>`;
   }
-  const paintBars=box=>$$('.me-card-bars span[data-h]',box).forEach(bar=>bar.style.height=(bar.dataset.h==='0'?'0':Math.max(4,bar.dataset.h*5))+'px');
+  const paintBars=box=>$$('.me-card-bars span[data-h]',box).forEach(bar=>bar.style.height=(bar.dataset.h==='0'?'0':Math.max(4,bar.dataset.h*(bar.closest('.me-card-weekly')?6.4:5)))+'px');
   let openingShare=false,openingPreview=false;
   async function shareSheet(event){
     if(openingShare)return;openingShare=true;const owner=readOwner(),path=location.pathname+location.search,trigger=event.currentTarget,card=trigger.closest('.me-card'),live=()=>trigger.isConnected&&card?.isConnected&&owner===readOwner()&&path===location.pathname+location.search,login=App.me.login;
@@ -1007,7 +1006,7 @@ const MeCard=(()=>{
   }
   function header(me){
     return `<header class="me-top"><h1>Hi, ${esc(firstName(me))}</h1><div class="me-profile-tools"><a class="icon-btn" href="/me/settings" aria-label="Settings">${svg('settings')}</a></div></header>
-    ${profileCard({person:me,viewer:'owner',period:'week',link:true,pills:ownPills(),friends:ownFriends(me.friend_count),milestones:true,showBio:false})}
+    ${profileCard({person:me,viewer:'owner',period:'week',link:true,pills:ownPills(),friends:ownFriends(me.friend_count),milestones:true,showBio:false,preview:true})}
     <div class="me-dashboard-divider" data-me-dashboard-divider><span>Your dashboard</span><span>Only you</span></div><p class="me-card-close-to me-dashboard-close-to" data-me-close-to hidden></p>`;
   }
   // One distance chart, on the card, with a tiny Days / Weeks switch (Ben, 30 Oct 2026: no second chart below it).
@@ -1031,19 +1030,20 @@ const MeCard=(()=>{
     if(!r.overview?.activities&&!r.shared_count)return `<div class="me-card-empty"><p>${r.mine===false?'No workouts to show yet.':'Your totals appear here once you have workouts.'}</p>${r.mine===false?"":'<a class="ghost wide" href="/me/goals?new=1">Set a goal</a>'}</div><div class="me-featured-slot" data-me-featured></div>`;
     const weeks=(r.mileage?.weeks||[]).slice(-12),current=weeks.find(w=>w.today)||weeks.at(-1)||{distance_m:0,activities:0,time_s:0},values=weekMetrics(current);
     const month=(week,index)=>{
-      const start=new Date(week.d+'T12:00'),end=new Date((week.end||week.d)+'T12:00');
+      const start=new Date(week.d+'T12:00');
       if(index===0)return start.toLocaleDateString([],{month:'short'});
-      for(const day=new Date(start);day<=end;day.setDate(day.getDate()+1))if(day.getDate()===1)return day.toLocaleDateString([],{month:'short'});
-      return '';
+      const previous=new Date(weeks[index-1].d+'T12:00');
+      return start.getMonth()!==previous.getMonth()?start.toLocaleDateString([],{month:'short'}):'';
     };
     const day=d=>fdate(d+'T12:00',{month:'short',day:'numeric'});
+    const monthLabels=weeks.map((week,index)=>month(week,index)),monthIndexes=monthLabels.map((label,index)=>label?index:-1).filter(index=>index>=0);
+    for(let index=0;index<monthIndexes.length-1;index++)if(monthIndexes[index+1]-monthIndexes[index]<2)monthLabels[monthIndexes[index]]= '';
     const chart=weeks.length?`<div class="me-chart-scroll"><div class="me-card-bars" role="group" aria-label="Weekly distance, last 12 weeks">${weeks.map((w,i)=>{
-      const zero=!(Number(w.distance_m)>0),h=zero?0:Math.max(1,Math.round(Number(w.distance_m)/Math.max(1,...weeks.map(row=>Number(row.distance_m)||0))*10)),label=w.today?'This week':`Week of ${day(w.d)}`,axisMonth=month(w,i),value=weekMetrics(w),aria=`${label}${axisMonth?`, ${axisMonth}`:''}: ${value.distance} ${U.du()}, ${value.activities} ${value.activities==='1'?'workout':'workouts'}, ${value.time}`;
+      const zero=!(Number(w.distance_m)>0),h=zero?0:Math.max(1,Math.round(Number(w.distance_m)/Math.max(1,...weeks.map(row=>Number(row.distance_m)||0))*10)),label=w.today?'This week':`Week of ${day(w.d)}`,axisMonth=monthLabels[i],value=weekMetrics(w),aria=`${label}${axisMonth?`, ${axisMonth}`:''}: ${value.distance} ${U.du()}, ${value.activities} ${value.activities==='1'?'workout':'workouts'}, ${value.time}`;
       return `<button type="button" class="me-week${w.today?' now':''}${zero?' zero':''}" aria-pressed="false" data-range="${esc(w.d)}" data-distance="${esc(w.distance_m||0)}" data-activities="${esc(w.activities||0)}" data-time="${esc(w.time_s||0)}" data-current="${w.today?'true':'false'}" aria-label="${esc(aria)}"><span data-h="${h}"></span><span class="me-week-month" data-type="chart" aria-hidden="true">${esc(axisMonth)}</span></button>`;
     }).join('')}</div></div>`:'';
     return `<div class="me-card-sec me-card-weekly"><div class="me-card-head"><div class="me-card-label" data-week-label aria-live="polite"><span>This week</span></div></div>
       <dl class="me-card-numbers me-numbers-3"><div data-week-stat="distance"><dd><b class="me-metric-value" data-type="stat" data-week-value="distance">${esc(values.distance)}</b></dd><dt data-type="secondary">Distance</dt></div><div data-week-stat="activities"><dd><b class="me-metric-value" data-type="stat" data-week-value="activities">${esc(values.activities)}</b></dd><dt data-type="secondary">Workouts</dt></div><div data-week-stat="time"><dd><b class="me-metric-value" data-type="stat" data-week-value="time">${esc(values.time)}</b></dd><dt data-type="secondary">Time</dt></div></dl>
-      ${preview?'<div class="me-card-preview-row"><button type="button" class="me-card-preview-action" data-card-preview>View as friend</button></div>':''}
       ${chart}</div><div class="me-featured-slot" data-me-featured></div>`;
   }
   function sections(r,layout,full){
@@ -1114,10 +1114,8 @@ const MeCard=(()=>{
     const fitProfileName=()=>{
       const heading=$('.me-card-name h2',card);if(!heading)return;
       const full=heading.dataset.fullName||heading.textContent.trim();heading.dataset.fullName=full;heading.title=full;heading.setAttribute('aria-label',full);heading.textContent=full;
-      heading.style.fontSize='17px';
-      if(heading.scrollWidth>heading.clientWidth){const words=full.split(/\s+/);while(words.length>1&&heading.scrollWidth>heading.clientWidth){words.pop();heading.textContent=words.join(' ');}
-        if(heading.scrollWidth>heading.clientWidth){let chars=Array.from(words[0]||full);while(chars.length>1&&heading.scrollWidth>heading.clientWidth){chars.pop();heading.textContent=chars.join(' ');}}
-      }
+      heading.style.fontSize='20px';heading.style.fontWeight='700';
+      for(let size=20;size>16&&heading.scrollWidth>heading.clientWidth;size--){heading.style.fontSize=(size-1)+'px';}
     };
     const nameObserver=new ResizeObserver(()=>requestAnimationFrame(fitProfileName));nameObserver.observe(card);viewResources.set(card,()=>nameObserver.disconnect());
     function chartScroll(){
@@ -1162,11 +1160,11 @@ const MeCard=(()=>{
       const values=row=>weekMetrics(row);
       const put=row=>{const next=row?values(row):initial;for(const key of ['distance','activities','time'])$(`[data-week-value="${key}"]`,box).textContent=next[key];};
       const show=(button,haptic=true)=>{const prior=selected();if(prior===button)return false;$$('.me-week',wrap).forEach(n=>n.setAttribute('aria-pressed','false'));if(button)button.setAttribute('aria-pressed','true');
-        head.textContent=button&&button.dataset.current!=='true'?`${short(button.dataset.range)} week`:'This week';label.classList.toggle('picked',!!button);put(button?{distance_m:Number(button.dataset.distance),activities:Number(button.dataset.activities),time_s:Number(button.dataset.time)}:null);if(button&&haptic)Native.haptic('light');return true;};
+        head.textContent=button&&button.dataset.current!=='true'?`${short(button.dataset.range)} week`:'This week';label.classList.toggle('picked',!!button);wrap.classList.toggle('has-selection',!!button);put(button?{distance_m:Number(button.dataset.distance),activities:Number(button.dataset.activities),time_s:Number(button.dataset.time)}:null);if(button&&haptic)Native.haptic('light');return true;};
       const barAt=e=>{const shift=pointer.start.getBoundingClientRect().top-pointer.startTop;return document.elementFromPoint(e.clientX,e.clientY+shift)?.closest('.me-week');};
-      const onDown=e=>{if(e.button!==0||e.isPrimary===false)return;const button=e.target.closest('.me-week');if(!button)return;pointer={id:e.pointerId,start:button,startTop:button.getBoundingClientRect().top,moved:false};show(button);document.addEventListener('pointermove',onMove,true);document.addEventListener('pointerup',onUp,true);document.addEventListener('pointercancel',onCancel,true);};
+      const onDown=e=>{if(e.button!==0||e.isPrimary===false)return;const button=e.target.closest('.me-week');if(!button)return;pointer={id:e.pointerId,start:button,startTop:button.getBoundingClientRect().top,moved:false,wasSelected:selected()===button};if(!pointer.wasSelected)show(button);document.addEventListener('pointermove',onMove,true);document.addEventListener('pointerup',onUp,true);document.addEventListener('pointercancel',onCancel,true);};
       const onMove=e=>{if(!pointer||e.pointerId!==pointer.id)return;const button=barAt(e);if(button&&button!==pointer.start)pointer.moved=true;if(button)show(button);};
-      const finish=(e,cancelled=false)=>{if(!pointer||e.pointerId!==pointer.id)return;pointer=null;ignorePointerClick=!cancelled;clearTimeout(ignoreTimer);if(ignorePointerClick)ignoreTimer=setTimeout(()=>{ignorePointerClick=false;},0);document.removeEventListener('pointermove',onMove,true);document.removeEventListener('pointerup',onUp,true);document.removeEventListener('pointercancel',onCancel,true);};
+      const finish=(e,cancelled=false)=>{if(!pointer||e.pointerId!==pointer.id)return;const gesture=pointer,end=barAt(e);if(!cancelled&&!gesture.moved&&gesture.wasSelected&&end===gesture.start)show(null);pointer=null;ignorePointerClick=!cancelled;clearTimeout(ignoreTimer);if(ignorePointerClick)ignoreTimer=setTimeout(()=>{ignorePointerClick=false;},0);document.removeEventListener('pointermove',onMove,true);document.removeEventListener('pointerup',onUp,true);document.removeEventListener('pointercancel',onCancel,true);};
       const onUp=e=>finish(e),onCancel=e=>finish(e,true);
       const outside=e=>{if(selected()&&!wrap.contains(e.target))show(null,false);};
       const onClick=e=>{if(ignorePointerClick){ignorePointerClick=false;clearTimeout(ignoreTimer);return;}const button=e.target.closest('.me-week');if(button)show(selected()===button?null:button);};
