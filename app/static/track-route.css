@@ -255,6 +255,8 @@ nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 
   overflow-wrap:anywhere;
 }
 .track-live-top .rec-dot { width:10px; height:10px; flex:none; }
+.track-live.is-paused .track-live-top .rec-dot { background:transparent; border:2px solid var(--tx3); box-sizing:border-box; }
+.track-live #track-status { position:absolute; width:1px; height:1px; min-height:0; margin:0; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
 .track-live-tabs {
   display:flex; align-self:stretch; align-items:stretch; flex:none; gap:12px; padding:0;
   border:0; border-radius:0; background:transparent;
