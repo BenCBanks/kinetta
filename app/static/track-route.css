@@ -224,6 +224,7 @@
 .track-review .track-review-chart-card { background:var(--surface-card); box-shadow:var(--elevation-rest); }
 .track-review .track-review-splits div { transition:background-color var(--motion-press) ease-out; }
 .track-review .track-review-splits div:active { background:var(--surface-raised); }
+.track-review .track-check-saved { display:flex; align-items:center; justify-content:center; min-height:44px; margin-top:8px; color:var(--tx2); text-decoration:none; }
 .track-review .track-check-saved:active { transform:scale(.97); }
 nav.tabs :is(a,button).has-recording { position: relative; }
 nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); position: absolute; top: 5px; right: calc(50% - 18px); }
@@ -327,4 +328,73 @@ nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 
 @media(max-width:360px) {
   .track-live-metrics[aria-label="Current workout"] b { font-size:24px; }
   .track-live-main > .track-controls { gap:24px; padding-inline:12px; }
+}
+
+/* #1072 PR2: Review owns the viewport so its back and save actions never scroll away. */
+#page:has(#track-content > .track-review) { padding:0; }
+.track-session.track-review {
+  box-sizing:border-box; display:flex; flex-direction:column; width:100vw; height:100dvh; min-height:0;
+  margin:0 0 0 calc(50% - 50vw); padding:env(safe-area-inset-top,0px) 0 0;
+  border:0; border-radius:0; background:var(--bg); box-shadow:none; text-align:left; overflow:hidden;
+}
+.track-review-top {
+  box-sizing:border-box; display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:center;
+  flex:none; height:44px; padding:0 12px; border-bottom:1px solid var(--line); background:var(--surface);
+}
+.track-review-top h2 { margin:0; color:var(--tx); font-size:17px; font-weight:600; line-height:1; }
+.track-review-top button { display:inline-flex; align-items:center; justify-content:center; gap:3px; min-width:44px; min-height:44px; padding:0 4px; border:0; background:transparent; color:var(--accent); font:inherit; font-size:15px; font-weight:500; white-space:nowrap; }
+.track-review-top button:first-child { justify-self:start; }
+.track-review-top button:last-child { justify-self:end; color:var(--alert); }
+.track-review-top button svg { width:17px; height:17px; }
+.track-review-scroll { box-sizing:border-box; display:block; flex:1 1 auto; min-height:0; overflow:auto; overscroll-behavior:contain; padding:8px 16px 18px; margin:0; }
+.track-session.track-review > .track-review-scroll { margin-top:0; }
+.track-review-primary { display:grid; gap:12px; padding:16px; border:1px solid var(--line); border-radius:18px; background:var(--surface-card); box-shadow:none; }
+.track-review-primary > * { min-width:0; }
+.track-review-when { margin:0; color:var(--tx3); font-size:14px; }
+.track-review .track-title input { box-sizing:border-box; width:100%; height:48px; margin:0; padding:0 12px; border:1px solid var(--line); border-radius:12px; color:var(--tx); background:var(--surface); font-size:16px; }
+.track-review-stats.track-review-headlines { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0; margin:0; text-align:left; }
+.track-review-headlines > div { display:grid; min-width:0; gap:3px; padding:0 8px; }
+.track-review-headlines > div:first-child { padding-left:0; }
+.track-review-headlines > div + div { border-left:1px solid var(--line); }
+.track-review-headlines b { overflow-wrap:anywhere; color:var(--tx); font-size:20px; font-weight:600; font-variant-numeric:tabular-nums; line-height:1.15; }
+.track-review-headlines b i { margin-left:3px; color:var(--tx3); font-size:13px; font-style:normal; font-weight:500; }
+.track-review-headlines small { color:var(--tx3); font-size:13px; font-weight:500; }
+.track-review .track-review-map-wrap { box-sizing:border-box; width:100%; min-width:0; height:180px; min-height:180px; margin:0; overflow:hidden; border-radius:16px; box-shadow:none; }
+.track-review .track-review-map-wrap .track-map { box-sizing:border-box; width:100%; min-width:0; height:100%; }
+.track-review .track-review-map-wrap .leaflet-control-zoom { display:none; }
+.track-review .leaflet-bottom.leaflet-right { display:flex; justify-content:flex-end; width:100%; max-width:100%; }
+.track-review .leaflet-control-attribution { width:max-content; max-width:100%; white-space:nowrap; font-size:9px; line-height:1.1; padding:0 4px; }
+.track-review-photo-add { display:flex; align-items:center; gap:10px; width:100%; min-height:44px; padding:0 2px; border:0; border-top:1px solid var(--line); border-radius:0; background:transparent; color:var(--accent); font:inherit; text-align:left; }
+.track-review-photo-add svg { flex:none; width:18px; height:18px; }
+.track-photo-list { display:flex; flex-wrap:wrap; gap:8px; overflow:visible; margin:0; padding:0; }
+.track-photo-list figure { position:relative; flex:none; width:72px; height:72px; margin:0; }
+.track-photo-list figure img { width:100%; height:100%; object-fit:cover; border-radius:10px; }
+.track-photo-list figure .icon-btn { position:absolute; top:0; right:0; width:44px; height:44px; min-width:44px; min-height:44px; border-radius:50%; color:var(--tx); background:color-mix(in srgb,var(--surface) 88%,transparent); }
+.track-photo-add-tile { display:grid; place-items:center; flex:none; width:72px; height:72px; border:1px dashed var(--line); border-radius:10px; color:var(--accent); background:transparent; }
+.track-photo-list > .track-photo-add-tile { position:static; }
+.track-photo-add-tile svg { width:20px; height:20px; }
+.track-review-sharing { border-top:1px solid var(--line); padding-top:8px; }
+.track-review-sharing label { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:44px; color:var(--tx2); font-size:13px; white-space:nowrap; }
+.track-review-sharing select { flex:none; width:auto; max-width:55%; min-height:44px; padding:0 18px 0 4px; border:0; color:var(--tx); background:transparent; text-align:right; font:inherit; font-size:13px; }
+.track-review-sharing p { margin:4px 0 0; }
+.track-review-chart-card,.track-review-details { margin-top:12px; }
+.track-review .track-review-chart-card { padding:16px; border:1px solid var(--line); border-radius:18px; background:var(--surface-card); box-shadow:none; }
+.track-review .track-review-chart-card h2 { margin:0 0 8px; font-size:17px; font-weight:600; }
+.track-review #track-review-charts .readout > span { visibility:hidden; }
+.track-review #track-review-charts.is-inspecting .readout > span { visibility:visible; }
+.track-review-dock { position:static; box-sizing:border-box; flex:none; inset:auto; left:auto; right:auto; bottom:auto; max-width:none; margin:0; z-index:auto; padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px)); border-top:1px solid var(--line); background:var(--surface); }
+.keyboard-open .track-review-dock { display:block; }
+.track-review-dock #track-save-error:empty { display:none; }
+.track-review-dock #track-save-error { margin:0 0 8px; font-size:13px; }
+.track-review-dock #track-save { min-height:50px; margin:0; border-radius:12px; background:var(--btn); box-shadow:none; }
+.track-review-dock #track-save:disabled { opacity:.4; }
+.track-review :is(button,a,select) { transition:transform var(--motion-press) ease-out, background-color var(--motion-press) ease-out; }
+.track-review :is(button,a):active { transform:scale(.98); }
+@media(max-width:360px) {
+  .track-review-scroll { padding-inline:12px; }
+  .track-review-primary { padding:14px; gap:10px; }
+  .track-review-headlines > div { padding-inline:5px; }
+  .track-review-headlines b { font-size:18px; }
+  .track-review .track-review-map-wrap { height:150px; min-height:150px; }
+  .track-review-top { padding-inline:8px; }
 }
