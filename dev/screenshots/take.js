@@ -314,39 +314,52 @@ async function closeCaptureContext(context) {
       await page.evaluate(() => document.fonts.ready);
       // Locator/evaluate polling works under the app’s strict script policy.
       for(let n=0;n<40;n++){if(await page.evaluate(()=>!document.querySelector('.leaflet-tile-container')||document.querySelector('.leaflet-tile-loaded')))break;await page.waitForTimeout(100);}
-      if(name==='feed'){
+      if(name==='feed'||name==='home-feed'){
         await page.locator('#feed-tools[aria-busy=false]').waitFor({state:'attached'});
         if(await page.locator('#feed-discovery').count())throw Error('Mature feed must not show discovery cards');
         const group=page.locator(`#ff-list .post[data-href="/activity/${ids.FEED_ACTIVITY}"] .post-ft [data-reaction-group][data-aid="${ids.FEED_ACTIVITY}"]`);
         await group.waitFor({state:'visible'});
         for(const kind of ['clap','starstruck','mindblown'])if(await group.getAttribute(`data-count-${kind}`)!=='1')throw Error(`Demo feed must have one ${kind} reaction on the same card`);
         const react=group.locator('.reaction-more'),summaryButton=group.locator('.reaction-count'),summary=summaryButton.locator('.reaction-summary');
-        const emojiNodes=summary.locator('.reaction-summary-emoji .reaction-emoji'),counts=summary.locator('.reaction-summary-count');
+        const emojiNodes=summary.locator('.reaction-summary-emoji .reaction-emoji');
         await react.waitFor({state:'visible'});await emojiNodes.first().waitFor({state:'visible'});
         const kinds=(await group.getAttribute('data-reaction-order')||'').split(',').filter(Boolean);
-        const shown=await emojiNodes.allTextContents(),values=await counts.allTextContents();
-        const reactLabel=await react.getAttribute('aria-label'),reactText=(await react.innerText()).trim();
-        if(reactLabel!=='React'||reactText!=='React'||!await summaryButton.isVisible()||kinds.length!==3||!['clap','starstruck','mindblown'].every(kind=>kinds.includes(kind))||shown.length!==3||!['👏','🤩','🤯'].every(value=>shown.includes(value))||values.length!==3||values.some(value=>value.trim()!=='1')||await summaryButton.locator('.num').count())throw Error('Demo feed must show React and each of three native emoji with its own count');
-        // A map card can put its controls below the fixed tab bar at the top of the feed.
-        // Scroll just enough to capture the action row clear of that bar.
-        await group.evaluate(el=>{
-          const footer=el.closest('.post-ft'),tabs=document.querySelector('nav.tabs');
+        const shown=await emojiNodes.allTextContents(),totals=summary.locator('.reaction-summary-total');
+        const reactLabel=await react.getAttribute('aria-label'),reactIcon=react.locator('.reaction-add-icon');
+        const summaryTotal=await totals.allTextContents(),legacyCount=await summaryButton.locator('.num').count(),summaryVisible=await summaryButton.isVisible();
+        if(reactLabel!=='React'||!await reactIcon.isVisible()||!summaryVisible||kinds.length!==3||!['clap','starstruck','mindblown'].every(kind=>kinds.includes(kind))||shown.length!==3||!['👏','🤩','🤯'].every(value=>shown.includes(value))||summaryTotal.length!==1||summaryTotal[0].trim()!=='3'||legacyCount)throw Error('Demo feed reaction footer mismatch: '+JSON.stringify({reactLabel,reactIconVisible:await reactIcon.isVisible(),summaryVisible,kinds,shown,summaryTotal,legacyCount}));
+        // The Home scene has a large Today card before the feed. Align the featured
+        // post below the fixed header so the complete post and its footer fit together.
+        // The standalone feed scene keeps the prior footer clearance for taller layouts.
+        await group.evaluate((el, homeFeed)=>{
+          const tabs=document.querySelector('nav.tabs');
+          if(!tabs)return;
+          if(homeFeed){
+            const top=el.closest('.post')?.getBoundingClientRect().top;
+            if(Number.isFinite(top))window.scrollBy(0,top-66);
+            return;
+          }
+          const footer=el.closest('.post-ft');
           const controls=[footer?.querySelector('.reaction-more'),footer?.querySelector('.activity-comments'),el.querySelector('.reaction-count')].filter(Boolean);
-          if(!tabs||!controls.length)return;
+          if(!controls.length)return;
           const rowBottom=Math.max(...controls.map(node=>node.getBoundingClientRect().bottom));
           const safeBottom=tabs.getBoundingClientRect().top-8;
           if(rowBottom>safeBottom)window.scrollBy(0,rowBottom-safeBottom);
-        });
-        if(!await group.evaluate(el=>{
+        },name==='home-feed');
+        const geometry=await group.evaluate(el=>{
           const footer=el.closest('.post-ft');
-          const action=footer?.querySelector('.reaction-more'),comments=footer?.querySelector('.activity-comments'),button=el.querySelector('.reaction-count');
-          if(!footer||!action||!comments||!button)return false;
+          const action=footer?.querySelector('.reaction-more'),comments=footer?.querySelector('.activity-comments'),button=el.querySelector('.reaction-count'),share=footer?.querySelector('[data-share-picture]');
+          if(!footer||!action||!comments||!button)return{valid:false,missing:true};
           const style=getComputedStyle(footer),contentRight=footer.getBoundingClientRect().right-(parseFloat(style.paddingRight)||0);
-          const rects=[action,comments,button].map(node=>node.getBoundingClientRect()),actionRect=rects[0],commentRect=rects[1],buttonRect=rects[2];
+          const actionRect=action.getBoundingClientRect(),commentRect=comments.getBoundingClientRect(),buttonRect=button.getBoundingClientRect(),shareRect=share?.getBoundingClientRect();
           const limit=document.querySelector('nav.tabs').getBoundingClientRect().top;
-          return rects.every(r=>r.width>0&&r.height>0&&r.left>=0&&r.right<=innerWidth&&r.top>=59&&r.bottom<=limit)
-            &&Math.abs(commentRect.left-actionRect.right-8)<1&&Math.abs(buttonRect.right-contentRight)<1&&buttonRect.left>=commentRect.right;
-        }))throw Error('Demo feed actions must stay left of the per-emoji counts in the captured viewport');
+          const visible=r=>r.width>0&&r.height>=44&&r.left>=0&&r.right<=innerWidth&&r.top>=59&&r.bottom<=limit;
+          const hasSummary=!button.hidden,valid=visible(actionRect)&&visible(commentRect)&&(!hasSummary||visible(buttonRect))
+            &&(!hasSummary||Math.abs(buttonRect.left-actionRect.right-4)<1&&commentRect.left-buttonRect.right>=7.99)
+            &&(!share||visible(shareRect)&&Math.abs(shareRect.right-contentRight)<1&&shareRect.left>=commentRect.right);
+          return{valid,action:{x:actionRect.x,right:actionRect.right,top:actionRect.top,bottom:actionRect.bottom},comment:{x:commentRect.x,right:commentRect.right,top:commentRect.top,bottom:commentRect.bottom},summary:{x:buttonRect.x,right:buttonRect.right,top:buttonRect.top,bottom:buttonRect.bottom},share:shareRect&&{x:shareRect.x,right:shareRect.right,top:shareRect.top,bottom:shareRect.bottom},contentRight,limit,innerWidth,scrollY,scrollHeight:document.documentElement.scrollHeight};
+        });
+        if(!geometry.valid)throw Error('Demo feed React/summary/comments/share targets do not match the shipped footer layout: '+JSON.stringify(geometry));
       }
       if(name==='insights'){await page.getByRole('heading',{name:'Insights',exact:true}).waitFor();await page.locator('#nt-overview-chart').waitFor();}
       if (opt.logDish) {      // Add food > My Recipes > the recipe: the log sheet, with a portion typed in
