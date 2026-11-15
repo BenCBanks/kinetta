@@ -52,7 +52,17 @@ async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))
     await r.fulfill({json:{open:!body.finish,start_time:start,exercises:body.exercises.map(e=>({...exercises.find(x=>x.exercise_id===e.exercise_id),...e,sets:e.sets.map(s=>({...s,pr:[]}))}))}});
    });
    await c.route('**/api/activities/999901',r=>r.fulfill({json:{id:999901,name:'Fictional lifting session',sport:'workout',sport_label:'Strength',elapsed_s:1234,moving_s:1234,start_time:start,visibility:'me',calories:120}}));
+<<<<<<< HEAD
    await p.evaluate(({start,exercises})=>{App.me.units='imperial';liftLogger(document.querySelector('#page'),999901,{open:true,start_time:start,exercises});},{start,exercises});
+=======
+   await p.evaluate(({start,exercises})=>{App.me.units='imperial';liftLogger(document.querySelector('#page'),999901,{open:true,start_time:start,lastTick:new Date(start).getTime()-62000,exercises});},{start,exercises});
+   assert(await p.locator('#lf-restbox').isVisible(),'rest appears beneath the running clock');assert(await p.locator('#lf-finish').isVisible());
+   assert.equal(await p.locator('.lift-row[data-row]').first().evaluate(n=>Math.round(n.getBoundingClientRect().height)),48,'set rows stay 48px');
+   assert.equal(await p.locator('.lift-tick').first().evaluate(n=>Math.round(n.getBoundingClientRect().width)),44,'check target remains 44px');
+   assert.equal(await p.locator('.lift-tick').first().evaluate(n=>Math.round(parseFloat(getComputedStyle(n,'::before').width))),28,'check mark is a 28px circle inside its target');
+   await shot('live');
+   if(process.env.KINETTA_LIFT_CAPTURE_ONLY==='1'){await c.close();continue;}
+>>>>>>> fc7eb67c (test(lift): measure inner check circle)
    const clipped=await p.locator('.lift-in').evaluateAll(es=>es.flatMap(e=>{const s=getComputedStyle(e),g=document.createElement('canvas').getContext('2d');g.font=s.font;const max=e.dataset.k==='kg'?'2204.6':e.dataset.k==='secs'?'86400':'1000',space=e.clientWidth-parseFloat(s.paddingLeft)-parseFloat(s.paddingRight),needed=g.measureText(max).width;return needed>space+1?[{field:e.dataset.k,space,needed}]:[];}));
    assert.deepEqual(clipped,[],'Supported numeric values must fit without hiding decimals');
    await p.locator('.lift-ex').first().locator('[data-tick="0"]').click();await until(p,()=>document.querySelector('#lf-save')?.textContent==='Saving…');
