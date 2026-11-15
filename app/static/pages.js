@@ -2000,7 +2000,8 @@ route(/^\/track\/connections$/, 'track', async (el) => {
 });
 
 route(/^\/me\/gear$/, 'me', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Me')}<button class="ghost" id="g-add">Add</button></div><h1>Shoes & bikes</h1><div id="g-list">${skel(2)}</div>`;
+  el.classList.add('gear-settings');
+  el.innerHTML = `<div class="top">${backBtn('Me')}<button class="icon-btn gear-add" id="g-add" type="button" aria-label="Add gear">${svg('plus')}</button></div><h1>Shoes & bikes</h1><div id="g-list">${skel(2)}</div>`;
   wireBack(el, '/me');
   const remove = async (g, button, close) => {
     if (!await confirmSheet(`Delete ${g.name}?`, {body: 'Your activities stay; only their link to this gear is removed.', action: 'Delete'})) return;
@@ -2016,7 +2017,7 @@ route(/^\/me\/gear$/, 'me', async (el) => {
       <label>Already used (${U.du()})<input name="start" inputmode="decimal" value="${g && g.start_distance_m ? U.dist(g.start_distance_m, 0) : ''}"></label></div>
       <label class="check"><input type="checkbox" name="is_default"${g && g.is_default ? ' checked' : ''}> Use for new activities of this type</label>
       <label class="check"><input type="checkbox" name="retired"${g && g.retired ? ' checked' : ''}> Retired</label>
-      <div class="actions">${g ? '<button type="button" class="ghost danger" id="g-del">Delete</button><span class="spacer"></span>' : ''}<button type="button" class="ghost" data-close>Cancel</button><button class="primary">Save</button></div></form>`, (b, close) => {
+      ${g ? '<button type="button" class="linkbtn danger" id="g-del">Delete gear</button>' : ''}<div class="actions"><button type="button" class="ghost" data-close>Cancel</button><button class="primary wide">Save</button></div></form>`, (b, close) => {
     const f = $('form', b), toM = (v) => (v.trim() ? Number(v) * (imp() ? MI : 1000) : null);
     f.onsubmit = async (e) => {
       e.preventDefault();
@@ -2028,21 +2029,19 @@ route(/^\/me\/gear$/, 'me', async (el) => {
   });
   $('#g-add', el).onclick = () => edit(null);
   await load('/api/gear', (gear) => {
-    $('#g-add',el).hidden=!gear.length;
-    $('#g-list', el).innerHTML = gear.length ? `<div class="card">${gear.map((g) => {
+    $('#g-list', el).innerHTML = gear.length ? `<section class="inset-section"><h2 class="inset-caption">Your gear</h2><div class="inset-group gear-list">${gear.map((g) => {
       const due = g.alert_distance_m && g.total_m >= g.alert_distance_m;
-      return `<div class="gear-row"><button class="row-link" data-id="${g.id}" aria-label="Edit ${esc(g.name)}"><div><b>${esc(g.name)}</b>${g.is_default ? ' <span class="badge">Default</span>' : ''}${g.retired ? ' <span class="badge">Retired</span>' : ''}<br>
-        <small class="muted">${g.uses} activities${g.last_used ? ' · last ' + esc(fdate(g.last_used, {month: 'short', day: 'numeric'})) : ''}</small></div>
-        <div class="r"><b class="num">${U.dist(g.total_m, 0)} ${U.du()}</b>${due ? '<br><small class="danger">Time to replace</small>' : g.alert_distance_m ? `<br><small class="muted">of ${U.dist(g.alert_distance_m, 0)}</small>` : ''}</div></button><button type="button" class="icon-btn danger" data-gear-delete="${g.id}" aria-label="Delete ${esc(g.name)}">${svg('trash')}</button></div>`; }).join('')}</div>`
-      : firstStep('shoe','Track the mileage on your shoes and bikes.','g-first','Add shoes or a bike');
+      const status = [g.is_default ? 'Default' : '', g.retired ? 'Retired' : '', `${g.uses} activities${g.last_used ? ' · last ' + fdate(g.last_used, {month: 'short', day: 'numeric'}) : ''}`].filter(Boolean).join(' · ');
+      return `<button type="button" class="inset-row has-detail gear-item" data-id="${g.id}" aria-label="Edit ${esc(g.name)}"><span class="inset-icon" aria-hidden="true">${svg(g.kind === 'bike' ? 'ride' : 'shoe')}</span><span class="inset-label has-detail"><span>${esc(g.name)}</span><small>${esc(status)}</small></span><span class="inset-value">${U.dist(g.total_m, 0)} ${U.du()}${due ? '<small class="gear-due">Replace soon</small>' : ''}</span><span class="chev">${svg('chev')}</span></button>`; }).join('')}</div></section>`
+      : `<section class="inset-section"><p class="settings-empty">Track mileage on your shoes and bikes.</p><button type="button" class="primary wide" id="g-first">Add gear</button></section>`;
     const first=$('#g-first',el);if(first)first.onclick=()=>edit(null);
     $$('[data-id]', el).forEach((b) => b.onclick = () => edit(gear.find((g) => g.id === +b.dataset.id)));
-    $$('[data-gear-delete]', el).forEach((b) => b.onclick = () => remove(gear.find((g) => g.id === +b.dataset.gearDelete), b));
   });
 });
 
 route(/^\/me\/goals$/, 'me', async (el) => {
-  el.innerHTML = `<div class="top">${backBtn('Me')}<button class="ghost sm" id="o-add">${svg('plus')}Add goal</button></div><h1>Goals</h1><div id="o-list">${skel(1)}</div>`;
+  el.classList.add('goals-settings');
+  el.innerHTML = `<div class="top">${backBtn('Me')}<button class="icon-btn goals-add" id="o-add" type="button" aria-label="Add goal">${svg('plus')}</button></div><h1>Goals</h1><div id="o-list">${skel(1)}</div>`;
   wireBack(el, '/me');
   const editGoal = (preset={}) => sheet('New goal', `<form class="form">
     <div class="two"><label>Sport<select name="sport"><option value="">All sports</option>${['run', 'ride', 'walk', 'hike', 'swim'].map((s) => `<option value="${s}">${SPORT_NAMES[s]}</option>`).join('')}</select></label>
@@ -2058,6 +2057,12 @@ route(/^\/me\/goals$/, 'me', async (el) => {
       try { await api('/api/goals', json('POST', {sport: f.sport.value || null, period: f.period.value, metric: f.metric.value, target})); invalidate('/api/goals'); close(); render(); } catch (x) { toast(x.message); }
     };
   });
+  const inspectGoal = goal => sheet('Goal', `<p class="small muted">${esc(goal.sport ? SPORT_NAMES[goal.sport] : 'All sports')} · ${goal.period === 'day' ? 'daily' : goal.period} target</p><div class="goal-detail-value"><b>${esc(goalFmt(goal.metric, goal.value))}</b><span>of ${esc(goalFmt(goal.metric, goal.target))}</span></div><button type="button" class="linkbtn danger" id="goal-remove">Remove goal</button>`, (box, close) => {
+    $('#goal-remove',box).onclick=async()=>{
+      if(!await confirmSheet('Remove this goal?',{body:'Your goal history stays in your activities.',action:'Remove goal'}))return;
+      try{await api(`/api/goals/${goal.id}`,{method:'DELETE'});invalidate('/api/goals');close();render();toast('Goal removed',async()=>{await api('/api/goals',json('POST',{sport:goal.sport,period:goal.period,metric:goal.metric,target:goal.target}));invalidate('/api/goals');render();});}catch(error){if(box.isConnected)toast(error.message);}
+    };
+  });
   $('#o-add',el).onclick=()=>editGoal();
   const goalQuery=new URLSearchParams(location.search);
   if(goalQuery.get('new')==='1'){
@@ -2065,16 +2070,9 @@ route(/^\/me\/goals$/, 'me', async (el) => {
     if(replacePageAddress(el,location.pathname+(goalQuery.size?'?'+goalQuery:'')+location.hash))$('#o-add',el).click();
   }
   await load('/api/goals', (g) => {
-    $('#o-add',el).hidden=!g.length;
-    $('#o-list', el).innerHTML = g.length ? `<div class="card">${g.map((x) => `${goalRow(x)}<button class="ghost danger small" data-del="${x.id}">Remove</button>`).join('')}</div>` : firstStep('trophy','Choose a target for your workouts.','o-first','Add a goal',`<div class="first-step-presets"><button type="button" class="linkbtn" data-goal-preset="run">Run 10 ${U.du()}/week</button><button type="button" class="linkbtn" data-goal-preset="calories">Burn 500 kcal/day</button></div>`);
+    $('#o-list', el).innerHTML = g.length ? `<section class="inset-section"><h2 class="inset-caption">Your goals</h2><div class="inset-group goals-list">${g.map((x) => `<button type="button" class="goal inset-goal-row" data-goal-id="${x.id}" aria-label="${esc((x.sport ? SPORT_NAMES[x.sport] : 'All sports') + ' goal')}">${goalRow(x).replace(/^<div class="goal[^>]*>/, '').replace(/<\/div>$/, '')}</button>`).join('')}</div></section>` : `<section class="inset-section"><p class="settings-empty">Choose a target for your workouts.</p><button type="button" class="primary wide" id="o-first">Add a goal</button></section>`;
     const first=$('#o-first',el);if(first)first.onclick=()=>editGoal();
-    $$('[data-goal-preset]',el).forEach(b=>b.onclick=()=>editGoal(b.dataset.goalPreset==='run'?{sport:'run',period:'week',metric:'distance',target:10}:{sport:'',period:'day',metric:'calories',target:500}));
-    $$('[data-del]', el).forEach((b) => b.onclick = async () => {
-      const row = g.find((x) => x.id === +b.dataset.del);
-      try { await api(`/api/goals/${row.id}`, {method: 'DELETE'}); invalidate('/api/goals'); render();
-        toast('Goal removed', async () => { await api('/api/goals', json('POST', {sport: row.sport, period: row.period, metric: row.metric, target: row.target})); invalidate('/api/goals'); render(); });
-      } catch (x) { toast(x.message); }
-    });
+    $$('[data-goal-id]',el).forEach(button=>button.onclick=()=>{const goal=g.find(x=>x.id===+button.dataset.goalId);if(goal)inspectGoal(goal);});
   });
 });
 
