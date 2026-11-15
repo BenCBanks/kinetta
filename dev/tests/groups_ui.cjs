@@ -2,14 +2,15 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const base=process.env.KINETTA_URL||'http://localhost:8798',shots=process.env.KINETTA_SHOTS;
-const GROUP_UPDATE_CLOCK=require('../screenshots/fixture-time.json'),GROUP_UPDATE_NOW=new Date(GROUP_UPDATE_CLOCK.instant),GROUP_UPDATES_ONLY=process.env.KINETTA_GROUPS_UPDATES_ONLY==='1',GROUP_LIST_ONLY=process.env.KINETTA_GROUPS_LIST_ONLY==='1';
+const GROUP_UPDATE_CLOCK=require('../screenshots/fixture-time.json'),GROUP_UPDATE_NOW=new Date(GROUP_UPDATE_CLOCK.instant),GROUP_UPDATES_ONLY=process.env.KINETTA_GROUPS_UPDATES_ONLY==='1',GROUP_LIST_ONLY=process.env.KINETTA_GROUPS_LIST_ONLY==='1',GROUP_DETAIL_ONLY=process.env.KINETTA_GROUPS_DETAIL_ONLY==='1';
 const newUpdateText='Alex has the trail notes.';
 const token='0123456789abcdef0123456789abcdef',idEmpty='00000000-0000-4000-8000-000000000001',idTwo='00000000-0000-4000-8000-000000000002',idThree='00000000-0000-4000-8000-000000000004',idFull='00000000-0000-4000-8000-000000000050',idLongGoal='00000000-0000-4000-8000-000000000003',idLongOwnGoal='00000000-0000-4000-8000-000000000005',idSix='00000000-0000-4000-8000-000000000006',idTen='00000000-0000-4000-8000-000000000010';
-const idUpdates='00000000-0000-4000-8000-000000000011',idEventDay='00000000-0000-4000-8000-000000000012',idRecap='00000000-0000-4000-8000-000000000013',idOngoing='00000000-0000-4000-8000-000000000014';
+const idUpdates='00000000-0000-4000-8000-000000000011',idEventDay='00000000-0000-4000-8000-000000000012',idRecap='00000000-0000-4000-8000-000000000013',idOngoing='00000000-0000-4000-8000-000000000014',idDetail='00000000-0000-4000-8000-000000000017';
 const empty={id:idEmpty,title:'Dolomites hike',event_date:'2026-11-14',time_zone:'America/New_York',note:'Fictional event weekend',goal_type:'distance',goal_target:600,goal_unit:'mi',your_total:12,your_this_week_total:12,days_to_event:7,weeks_to_event:1,event_state:'upcoming',weekly_reaction:{my_reaction:null,reactions:{}},updates:[],recap_consent:false,notifications_muted:false,members:[{username:'alex',organizer:true,sharing_total_only:true}],member_count:1,is_organizer:true,joining_closed:false,closed:false};
 const two={...empty,id:idTwo,members:[...empty.members,{username:'fictional_friend',organizer:false,sharing_total_only:true}],member_count:2};
-const three={...empty,id:idThree,total:214,this_week_total:38,sharing_member_count:3,members:[{username:'alex',organizer:true,value:12},{username:'fictional_friend',organizer:false,value:38},{username:'fictional_member',organizer:false,value:164}],member_count:3};delete three.your_total;delete three.your_this_week_total;
-const full={...three,id:idFull,members:Array.from({length:50},(_,i)=>({username:`fictional_member_${String(i+1).padStart(2,'0')}`,organizer:i===0,...(i<4?{}:{sharing_total_only:true})})),member_count:50,sharing_member_count:4};
+const three={...empty,id:idThree,total:214,this_week_total:38,this_week_contributors:3,sharing_member_count:3,members:[{username:'alex',organizer:true,value:12},{username:'fictional_friend',organizer:false,value:38},{username:'fictional_member',organizer:false,value:164}],member_count:3};delete three.your_total;delete three.your_this_week_total;
+const detailGroup={...three,id:idDetail,members:[{username:'alex',organizer:true,sharing_total_only:true},...three.members.slice(1)]};
+const full={...three,id:idFull,members:Array.from({length:50},(_,i)=>({username:`fictional_member_${String(i+1).padStart(2,'0')}`,organizer:i===0,sharing_total_only:true})),member_count:50,sharing_member_count:4};
 const longGoal={...three,id:idLongGoal,goal_type:'sessions',goal_target:600,goal_unit:'sessions'};
 const longOwnGoal={...empty,id:idLongOwnGoal,goal_type:'sessions',goal_target:600,goal_unit:'sessions',your_total:214};
 const six={...three,id:idSix,members:Array.from({length:6},(_,i)=>({username:i?'fictional_member_'+i:'alex',organizer:i===0,...(i<4?{}:{sharing_total_only:true})})),member_count:6,sharing_member_count:4};
@@ -67,6 +68,7 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    if(p===`/api/groups/${idEmpty}`&&method==='GET')return route.fulfill({json:empty});
    if(p===`/api/groups/${idTwo}`&&method==='GET')return route.fulfill({json:two});
    if(p===`/api/groups/${idThree}`&&method==='GET')return route.fulfill({json:three});
+   if(p===`/api/groups/${idDetail}`&&method==='GET')return route.fulfill({json:detailGroup});
    if(p===`/api/groups/${idFull}`&&method==='GET')return route.fulfill({json:full});
    if(p===`/api/groups/${idLongGoal}`&&method==='GET')return route.fulfill({json:longGoal});
    if(p===`/api/groups/${idLongOwnGoal}`&&method==='GET')return route.fulfill({json:longOwnGoal});
@@ -109,8 +111,20 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    }
    console.log('Groups list 390/330 light/dark PASS');return;
   }
+  if(GROUP_DETAIL_ONLY){
+   for(const theme of ['light','dark'])for(const width of [390,330]){
+    let {context,page,errors}=await open(theme,width);await page.goto(base+groupUrl(idDetail));await page.locator('#group-panel-members:visible').waitFor();
+    assert.equal(await page.locator('.group-title .eyebrow').count(),0,'the group page drops the private-group eyebrow');assert.equal(await page.locator('.group-title-name svg').count(),1,'the lock sits beside the group title');
+    assert.equal(await page.locator('.group-goal-value').innerText(),'214 mi');assert.equal(await page.locator('.group-goal-label').innerText(),'Together · Distance · of 600 mi');assert.equal(await page.locator('.group-progress').evaluate(el=>getComputedStyle(el).height),'6px');
+    assert.equal((await page.locator('[role=tab][aria-selected=true]').innerText()).replace(/\s+/g,' ').trim(),'Members 3');assert(await page.locator('[role=tab]').evaluateAll(nodes=>nodes.every(node=>node.getBoundingClientRect().height>=44)),'both tabs keep 44px touch targets');assert.equal(await page.locator('[role=tabpanel]:visible').count(),1);assert.equal(await page.locator('.group-member').count(),3);assert.equal(await page.locator('.group-member-total-only').count(),1);assert.equal(await page.locator('.group-member-total-only').innerText(),'Total only');assert.equal(await page.locator('.group-member-value').count(),2);assert.notEqual(await page.locator('.group-member.is-viewer .group-member-name b').evaluate(el=>getComputedStyle(el).color),await page.locator('.group-member:not(.is-viewer) .group-member-name b').first().evaluate(el=>getComputedStyle(el).color),'the viewer name uses the brand color');
+    assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),`Members fits ${width}px (${theme})`);await capture(page,`group-detail-members-${width}-${theme}`,null,{fullPage:false});
+    await page.locator('[data-group-tab=updates]').click();assert.equal(await page.locator('[data-group-tab=updates]').getAttribute('aria-selected'),'true');assert.equal(await page.locator('#group-panel-updates').isVisible(),true);assert.equal(await page.locator('#group-panel-members').isVisible(),false);assert.equal(await page.locator('.group-update-empty').innerText(),'No updates yet.');assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),`empty Updates fits ${width}px (${theme})`);await capture(page,`group-detail-updates-empty-${width}-${theme}`,'.group-content-tabs',{hideChrome:true});assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
+    ({context,page,errors}=await open(theme,width));await page.goto(base+groupUrl(idUpdates));await page.locator('[data-group-tab=updates]').click();await page.locator('[data-group-update="7001"]').waitFor();assert.equal(await page.locator('[data-group-update]').count(),2);assert.equal(await page.locator('#group-panel-members').isVisible(),false);assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),`populated Updates fits ${width}px (${theme})`);await capture(page,`group-detail-updates-${width}-${theme}`,'.group-content-tabs',{hideChrome:true});assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
+   }
+   console.log('Groups detail tabs, privacy, goal and 390/330 light/dark captures PASS');return;
+  }
   if(GROUP_UPDATES_ONLY){
-   const {context,page,errors,postedUpdates,updatesState}=await open('light');await page.clock.setFixedTime(GROUP_UPDATE_NOW);await page.goto(base+groupUrl(idUpdates));await page.locator('.group-updates').waitFor();
+   const {context,page,errors,postedUpdates,updatesState}=await open('light');await page.clock.setFixedTime(GROUP_UPDATE_NOW);await page.goto(base+groupUrl(idUpdates));await page.locator('[data-group-tab=updates]').click();await page.locator('.group-updates').waitFor();
    await page.locator('#group-update-text').fill(newUpdateText);await page.locator('.group-update-form button[type=submit]').click();await page.locator('[data-group-update="7003"]').waitFor();
    assert.equal(postedUpdates[0].text,newUpdateText);assert.equal(updatesState().updates[0].created,GROUP_UPDATE_NOW.toISOString(),'the new update returns the shared fixture instant');assert.equal(await page.locator('[data-group-update="7003"] p').innerText(),newUpdateText);
    const expectedTime=new Intl.DateTimeFormat('en-US',{hour:'numeric',minute:'2-digit',timeZone:GROUP_UPDATE_CLOCK.timezone}).format(GROUP_UPDATE_NOW);
@@ -193,39 +207,38 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
     await page.locator('#group-options').click();assert.equal(await page.locator('[data-gact="recap-consent"]').count(),1,'adding a date enables recap consent');await page.locator('[data-close]').last().click();
     await page.locator('#group-options').click();await page.locator('[data-gact="event-date"]').click();await editDate.waitFor();await clearEditDate.click();assert.equal(await editDate.inputValue(),'');
     const clearDate=page.waitForResponse(r=>r.url().endsWith('/api/groups/'+idOngoing+'/event-date')&&r.request().method()==='PATCH');await page.locator('#group-event-date-form button[type=submit]').click();assert.equal((await clearDate).status(),200);
-    await page.locator('.group-goal-period').waitFor();assert.equal(await page.locator('.group-title>p:nth-of-type(2)').innerText(),'Distance · You: 12 mi');assert.equal(await page.locator('[data-group-update="7010"]').count(),1);
+    await page.locator('.group-goal-period').waitFor();assert.equal(await page.locator('.group-title-summary').innerText(),'Distance · You: 12 mi');assert.equal(await page.locator('[data-group-update="7010"]').count(),1);
     assert.equal(ongoingState().updates[0].reactions.clap,1,'changing the date preserves existing update reactions');assert.equal(await page.locator('.group-recap').count(),0);
     assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors}=await open(theme));await page.goto(base+`/group-invite/${token}`);await page.locator('#group-accept').waitFor();
    assert.match(await page.locator('.group-invite-card').innerText(),/You’re invited to a private group/);assert(!/Dolomites|fictional_member/.test(await page.locator('.group-invite-card').innerText()));
    await capture(page,`groups-invite-accept-390-${theme}`);await page.locator('#group-accept').click();await page.waitForURL('**'+groupUrl(idEmpty));
-   assert.equal(await page.locator('.group-title h1').innerText(),'Dolomites hike');assert.equal(await page.locator('.group-goal>strong').innerText(),'You: 12 mi of 600 mi');assert.equal(await page.locator('.group-week').innerText(),'This week · You: 12 mi');assert.equal(await page.locator('.group-goal-hint').innerText(),'Group totals appear with 3 members');assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
+   assert.equal(await page.locator('.group-title h1').innerText(),'Dolomites hike');assert.equal(await page.locator('.group-goal-value').innerText(),'12 mi');assert.equal(await page.locator('.group-week').innerText(),'This week · You: 12 mi');assert.equal(await page.locator('.group-goal-hint').innerText(),'Group totals appear with 3 members');assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors}=await open(theme));await page.goto(base+groupUrl(idEmpty));await page.locator('.group-roster').waitFor();
-   assert.equal(await page.locator('.group-member').count(),1);assert.equal(await page.locator('.group-goal>strong').innerText(),'You: 12 mi of 600 mi');assert.equal(await page.locator('.group-week').innerText(),'This week · You: 12 mi');assert.equal(await page.locator('.group-member-private-note').innerText(),'Some members keep their amount private');assert.equal(await page.locator('.group-total-note').count(),0);assert.equal(await page.locator('.group-member').filter({hasText:'Sharing total only'}).count(),0);
+   assert.equal(await page.locator('.group-member').count(),1);assert.equal(await page.locator('.group-goal-value').innerText(),'12 mi');assert.equal(await page.locator('.group-goal-label').innerText(),'Your total · Distance · of 600 mi');assert.equal(await page.locator('.group-week').innerText(),'This week · You: 12 mi');assert.equal(await page.locator('.group-member-total-only').innerText(),'Total only');assert.equal(await page.locator('.group-total-note').count(),0);
    const oneBar=await page.locator('.group-progress').evaluate(el=>el.value/el.max*100);assert(Math.abs(oneBar-2)<1,`one-member bar uses only own progress (${theme})`);
    assert.equal(await page.locator('.group-privacy').count(),0,'the shell does not repeat the privacy sentence');assert(!/Only members can see this group/.test(await page.locator('.group-page').innerText()));
    assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'group shell fits the phone');
    await capture(page,`groups-shell-one-member-390-${theme}`);assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors}=await open(theme));await page.goto(base+groupUrl(idTwo));await page.locator('.group-roster').waitFor();
-   assert.equal(await page.locator('.group-member').count(),2);assert.equal(await page.locator('.group-goal>strong').innerText(),'You: 12 mi of 600 mi');assert.equal(await page.locator('.group-week').innerText(),'This week · You: 12 mi');assert.equal(await page.locator('.group-goal-hint').innerText(),'Group totals appear with 3 members');assert.equal(await page.locator('.group-total-note').count(),0);assert.equal(await page.locator('.group-member-private-note').innerText(),'Some members keep their amount private');
+   assert.equal(await page.locator('.group-member').count(),2);assert.equal(await page.locator('.group-goal-value').innerText(),'12 mi');assert.equal(await page.locator('.group-week').innerText(),'This week · You: 12 mi');assert.equal(await page.locator('.group-goal-hint').innerText(),'Group totals appear with 3 members');assert.equal(await page.locator('.group-total-note').count(),0);assert.equal(await page.locator('.group-member-total-only').count(),2);
    const twoBar=await page.locator('.group-progress').evaluate(el=>el.value/el.max*100);assert(Math.abs(twoBar-2)<1,`two-member bar uses only own progress (${theme})`);
    await capture(page,`groups-shell-two-members-390-${theme}`);assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors,stripPosts,stripState}=await open(theme,390,'one'));await page.goto(base+groupUrl(idThree));await page.locator('.group-roster').waitFor();
-   assert.equal(await page.locator('.group-member').count(),3);assert.equal(await page.locator('.group-goal>strong').innerText(),'214 mi of 600 mi · from 3 of 3');assert.equal(await page.locator('.group-week').innerText(),'This week · +38 mi · from 3 of 3 sharing');assert.equal(await page.locator('.group-goal-hint').count(),0);
+   assert.equal(await page.locator('.group-member').count(),3);assert.equal(await page.locator('.group-goal-value').innerText(),'214 mi');assert.equal(await page.locator('.group-goal-label').innerText(),'Together · Distance · of 600 mi · from 3 of 3 sharing');assert.equal(await page.locator('.group-week').innerText(),'This week · +38 mi · from 3 of 3 sharing');assert.equal(await page.locator('.group-goal-hint').count(),0);
    const threeFill=await page.locator('.group-progress').evaluate(el=>el.value/el.max*100);assert(Math.abs(threeFill-214/600*100)<1,`three-member bar uses the combined total (${theme})`);
-   assert.equal(await page.locator('.group-member-private-note').count(),0,'fully shared members need no privacy note');assert.equal(await page.locator('.group-member-value').count(),3,'shared amounts appear on member rows');assert.equal(await page.locator('.group-member').filter({hasText:'Sharing total only'}).count(),0,'rows do not repeat sharing labels');
+   assert.equal(await page.locator('.group-member-private-note').count(),0,'fully shared members need no privacy note');assert.equal(await page.locator('.group-member-value').count(),3,'shared amounts appear on member rows');assert.equal(await page.locator('.group-member-total-only').count(),0,'fully shared rows do not repeat privacy labels');
    assert.equal(await page.locator('.group-total-note').count(),0,'no explainer row is shown on Members');assert.equal(await page.locator('.group-member-rank').count(),0,'Members rows do not show ranks');
-   assert.equal(await page.locator('.group-roster').evaluate(n=>getComputedStyle(n).boxShadow),'none','Members surface has no shadow');assert.equal(await page.locator('.group-update-form button').evaluate(n=>getComputedStyle(n).boxShadow),'none','Post button has no shadow');
    await capture(page,`groups-shell-three-members-390-${theme}`);
    await page.locator('#group-options').click();const muteOption=page.locator('[data-gact="mute-strip"]');assert.equal(await muteOption.innerText(),'Mute Activity strip');await capture(page,`groups-options-mute-390-${theme}`,'.scrim');
    const muteResponse=page.waitForResponse(r=>r.url().endsWith('/api/groups/activity-strip')&&r.request().method()==='POST');await muteOption.click();assert.equal((await (await muteResponse).json()).muted,true,'group overflow mutes the Activity strip');assert.equal(stripPosts.at(-1).muted,true);assert.equal(stripState().muted,true);
    await page.goto(base+'/activity');await waitActivity(page);assert.equal(await page.locator('.feed-groups-muted').count(),1,'the overflow action hides the Activity strip');assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
-   ({context,page,errors,postedUpdates,groupPreferences,updatesState,updateReactionPeopleReads}=await open(theme));await page.clock.setFixedTime(GROUP_UPDATE_NOW);await page.goto(base+groupUrl(idUpdates));await page.locator('.group-updates').waitFor();
+   ({context,page,errors,postedUpdates,groupPreferences,updatesState,updateReactionPeopleReads}=await open(theme));await page.clock.setFixedTime(GROUP_UPDATE_NOW);await page.goto(base+groupUrl(idUpdates));await page.locator('[data-group-tab=updates]').click();await page.locator('.group-updates').waitFor();
    assert.deepEqual(await page.locator('[data-group-update]').evaluateAll(nodes=>nodes.map(node=>node.dataset.groupUpdate)),['7001','7002'],'updates are newest first');
    assert.match(await page.locator('[data-group-update="7001"] p').innerText(),/Marathon/);
    assert.equal(await page.locator('[data-group-update="7001"] .group-update-badge').count(),0,'free text that mentions Marathon never creates achievement badge art');
@@ -254,12 +267,12 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
    assert.equal(await page.locator('.group-week').innerText(),'This week · +38 mi · from 4 of 6 sharing');await capture(page,`groups-weekly-six-members-390-${theme}`);assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors}=await open(theme));await page.goto(base+groupUrl(idTen));await page.locator('.group-roster').waitFor();
-   assert.equal(await page.locator('.group-member').count(),10);assert.equal(await page.locator('.group-week').innerText(),'This week · +38 mi · from 4 of 10 sharing');assert.equal(await page.locator('.group-member-private-note').count(),1);await capture(page,`groups-roster-ten-390-${theme}`);assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
+   assert.equal(await page.locator('.group-member').count(),10);assert.equal(await page.locator('.group-week').innerText(),'This week · +38 mi · from 4 of 10 sharing');assert.equal(await page.locator('.group-member-total-only').count(),10);await capture(page,`groups-roster-ten-390-${theme}`);assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
 
    ({context,page,errors}=await open(theme));await page.goto(base+groupUrl(idFull));await page.locator('[data-group-more]').waitFor();
    assert.equal(await page.locator('.group-member').count(),10);assert.equal(await page.locator('[data-group-more]').innerText(),'+ 40 more');
    await page.locator('[data-group-more]').click();assert.equal(await page.locator('.group-member').count(),50);assert.equal(await page.locator('[data-group-more]').count(),0);
-   assert.equal(await page.locator('.group-member').filter({hasText:'Sharing total only'}).count(),0,'private amounts are not repeated on roster rows');assert.equal(await page.locator('.group-member-private-note').count(),1,'one quiet note explains private amounts');
+   assert.equal(await page.locator('.group-member-total-only').count(),50,'every hidden amount is labelled without disclosure');
    assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'full roster fits the phone');
    await page.evaluate(()=>window.scrollTo(0,0));await capture(page,`groups-roster-full-390-${theme}`,'.group-roster',{hideChrome:true});assert.deepEqual(errors,[]);await context.close();contexts.splice(contexts.indexOf(context),1);
    console.log(`Groups ${theme}: create, generic invite/accept, empty and full roster states pass`);
@@ -272,14 +285,14 @@ async function capture(page,name,selector,{hideChrome=false,fullPage=true}={}){
   }
   const {context,page}=await open('light',330);await page.goto(base+groupUrl(idFull));await page.locator('[data-group-more]').click();assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)),'full roster has no horizontal overflow at 330px');await context.close();contexts.splice(contexts.indexOf(context),1);
   for(const theme of ['light','dark']){
-   const {context,page}=await open(theme,330);await page.goto(base+groupUrl(idLongGoal));const goal=page.locator('.group-goal>strong');
-   assert.equal(await goal.innerText(),'214 sessions of 600 sessions · from 3 of 3');
+   const {context,page}=await open(theme,330);await page.goto(base+groupUrl(idLongGoal));const goal=page.locator('.group-goal-label');
+   assert.equal(await page.locator('.group-goal-value').innerText(),'214 sessions');assert.equal(await goal.innerText(),'Together · Sessions · of 600 sessions · from 3 of 3 sharing');
    const layout=await goal.evaluate(el=>{const style=getComputedStyle(el),rect=el.getBoundingClientRect();return{height:rect.height,lineHeight:parseFloat(style.lineHeight),width:el.clientWidth,scrollWidth:el.scrollWidth,scrollHeight:el.scrollHeight,textOverflow:style.textOverflow,whiteSpace:style.whiteSpace};});
    assert(layout.height>=layout.lineHeight*1.8,`long-unit goal wraps at 330px (${theme})`);assert(layout.scrollWidth<=layout.width+1,`long-unit goal is not clipped horizontally (${theme})`);assert(layout.scrollHeight<=Math.ceil(layout.height)+1,`long-unit goal is not clipped vertically (${theme})`);assert.notEqual(layout.textOverflow,'ellipsis');assert.equal(layout.whiteSpace,'normal');
    await capture(page,`groups-goal-long-units-330-${theme}`,'.group-goal');await context.close();contexts.splice(contexts.indexOf(context),1);
 
-   const {context:ownContext,page:ownPage}=await open(theme,330);await ownPage.goto(base+groupUrl(idLongOwnGoal));const ownGoal=ownPage.locator('.group-goal>strong');
-   assert.equal(await ownGoal.innerText(),'You: 214 sessions of 600 sessions');
+   const {context:ownContext,page:ownPage}=await open(theme,330);await ownPage.goto(base+groupUrl(idLongOwnGoal));const ownGoal=ownPage.locator('.group-goal-label');
+   assert.equal(await ownPage.locator('.group-goal-value').innerText(),'214 sessions');assert.equal(await ownGoal.innerText(),'Your total · Sessions · of 600 sessions');
    const ownLayout=await ownGoal.evaluate(el=>{const style=getComputedStyle(el),rect=el.getBoundingClientRect();return{height:rect.height,lineHeight:parseFloat(style.lineHeight),width:el.clientWidth,scrollWidth:el.scrollWidth,scrollHeight:el.scrollHeight,textOverflow:style.textOverflow,whiteSpace:style.whiteSpace};});
    assert(ownLayout.height>=ownLayout.lineHeight*1.8,`own-only long-unit goal wraps at 330px (${theme}): ${JSON.stringify(ownLayout)}`);assert(ownLayout.scrollWidth<=ownLayout.width+1,`own-only long-unit goal is not clipped horizontally (${theme})`);assert(ownLayout.scrollHeight<=Math.ceil(ownLayout.height)+1,`own-only long-unit goal is not clipped vertically (${theme})`);assert.notEqual(ownLayout.textOverflow,'ellipsis');assert.equal(ownLayout.whiteSpace,'normal');
    await capture(ownPage,`groups-goal-own-long-units-330-${theme}`,'.group-goal');await ownContext.close();contexts.splice(contexts.indexOf(ownContext),1);
