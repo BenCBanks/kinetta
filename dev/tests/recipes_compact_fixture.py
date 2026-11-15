@@ -16,6 +16,7 @@ for state in ('empty','typical','heavy','recipe'):
  n=0 if state=='empty' else 25 if state=='heavy' else 6 if state=='recipe' else 3 if state=='typical' else 1
  for i in range(n-1,-1,-1):
   name,yield_n,items=recipes[i%3];name=name if i<3 else f'{name} {i+1:02}'
+  if state=='heavy' and i==0:name='Long-name fictional recipe for screenshot overflow check'
   d=ok(c.post('/api/dishes',{'name':name}));did=d['id']
   for label,g,k,p,carb,f in items:d=ok(c.post(f'/api/dishes/{did}/items',{'name':label,'grams':g,'source':'quick','per100':{'kcal':k,'protein_g':p,'carbs_g':carb,'fat_g':f,'fiber_g':0}}))
   mode='portion' if i%3==2 or (state=='recipe' and i==0) else 'one';d=ok(c.patch(f'/api/dishes/{did}',{'yield_servings':yield_n,'serving':mode,**({'cooked_g':1500} if mode=='portion' else {})}));assert d['serving_count']==yield_n
