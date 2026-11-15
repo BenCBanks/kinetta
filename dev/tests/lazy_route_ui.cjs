@@ -340,7 +340,7 @@ async function contactsCases(browser,{includeColdMe=true}={}){
         await contactsLink.waitFor({state:'visible'});
         assert.match(await contactsLink.innerText(),/Find friends with contacts/);
       }
-      if(routeCase.path.startsWith('/me/friends?'))assert.match(await fixture.page.locator('#contacts-entry').innerText(),/Find friends with contacts/);
+      if(routeCase.path.startsWith('/me/friends?'))assert.match(await fixture.page.locator('#contacts-entry').innerText(),/Find from contacts\s+See who you know/);
       if(routeCase.path==='/me/friends/contacts')assert(await fixture.page.locator('.contacts-intro').innerText().then(text=>text.includes('See which of your contacts use Kinetta')));
       if(routeCase.path==='/me/sharing')assert.match(await fixture.page.locator('#contacts-cache-remove').innerText(),/Remove my contacts/);
       assert.deepEqual(fixture.errors,[],`${routeCase.path} mounts without browser errors`);

@@ -12,7 +12,7 @@ const source=fs.readFileSync('app/static/social.js','utf8'),tick=()=>new Promise
  vm.runInContext(fs.readFileSync('app/static/friends-ui.js','utf8')+'\nglobalThis.FriendsUITest=FriendsUI;',c);
  const shell=c.FriendsUITest.shell('Me');assert(shell.includes('Search name or @username'));assert(shell.includes('Invite friends'));assert(shell.includes('fr-requests'));assert(shell.includes('fr-suggest'));
  for(const retired of ['Your profile','Your friends will appear here','New activities:','/me/sharing','fr-own-list','fr-lists'])assert(!shell.includes(retired),`Find friends omits ${retired}`);
- const requestMarkup=c.FriendsUITest.requests({incoming:[{name:'Casey Fixture',login:'casey'}],outgoing:[{name:'Riley Fixture',login:'riley'}]});assert(requestMarkup.includes('Waiting for you'));assert(requestMarkup.includes('You sent'));assert(!requestMarkup.includes('Your friends will appear here'));
+ const requestMarkup=c.FriendsUITest.requests({incoming:[{name:'Casey Fixture',login:'casey'}],outgoing:[{name:'Riley Fixture',login:'riley'}]});assert(requestMarkup.includes('Waiting for you'));assert(requestMarkup.includes('Sent'));assert(!requestMarkup.includes('Your friends will appear here'));
  // The separate profile editor is gone; Settings uses the current inline card editor.
  const profile=fs.readFileSync('app/static/profile.js','utf8'),settings=fs.readFileSync('app/static/settings-route.js','utf8');
  assert(!source.includes('function editProfile(')&&!source.includes('Draft preview')&&!source.includes('pf-editor'));
