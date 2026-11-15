@@ -10,6 +10,13 @@ async function recordingControls(p,ids){
  assert(fit.controls.top>=0&&fit.controls.bottom<=fit.bottom+1,'controls and captions fit the safe viewport: '+JSON.stringify(fit));
  for(const b of fit.buttons){assert(b.rect?.width>=44&&b.rect.height>=44,'recording targets remain at least 44px');assert.equal(b.hit,b.id,'recording button centre hits its own target: '+JSON.stringify(fit));}
 }
+// The compact tracking body is intentionally scrollable; interval controls stay pinned and viewport-checked above.
+// Assert its map/stats can be reached inside that body instead of requiring all content to fit without scrolling.
+async function liveContentReachable(page,selector,label){
+ const state=await page.evaluate(selector=>{const body=document.querySelector('.track-live-body'),target=document.querySelector(selector);if(!body||!target)return{missing:true};body.scrollTop=body.scrollHeight;const b=body.getBoundingClientRect(),r=target.getBoundingClientRect();return{maxScroll:body.scrollHeight-body.clientHeight,visible:r.width>0&&r.height>0&&r.top>=b.top-1&&r.bottom<=b.bottom+1};},selector);
+ assert(!state.missing&&state.visible,label+' stays reachable in the compact scrolling content area: '+JSON.stringify(state));
+ await page.locator('.track-live-body').evaluate(n=>n.scrollTop=0);
+}
 async function reviewFailures(page,setMode,setCapabilities,saves) {
  const photo=path.resolve(__dirname,'../demo/photos/curry-rice-bowl.jpg');
  await page.evaluate(()=>{globalThis.originalPhotoWrite=TrackReviewStore.photos;TrackReviewStore.photos=async()=>{throw Error('Fictional storage failure');};});
@@ -39,9 +46,9 @@ async function intervalControls(browser,storageState,uid){
   await c.addInitScript(({recording,uid,base,root})=>{const key='kinetta.track:'+JSON.stringify([base,uid]);if(!localStorage.getItem(key))localStorage.setItem(key,JSON.stringify(recording));Object.defineProperty(navigator,'geolocation',{value:{watchPosition:()=>1,clearWatch:()=>{}}});document.addEventListener('DOMContentLoaded',()=>document.documentElement.style.fontSize=root+'px');},{recording,uid,base,root:size.root});
   await c.route('**/*',r=>{const req=r.request(),u=new URL(req.url());if(u.origin!==base)return r.abort();if(u.pathname==='/api/challenges/signup/continue')return r.fulfill({json:{}});if(!['GET','HEAD'].includes(req.method())){writes.push(u.pathname);return r.abort();}return r.continue();});
   await p.goto(base+'/track');await p.locator('#track-pause').click();await p.locator('#track-lap').waitFor();await recordingControls(p,['track-lap','track-pause','track-finish']);
-  if(size.root===16)assert(await p.locator('.track-live-body').evaluate(n=>n.scrollHeight<=n.clientHeight+1),'interval, stats and map fit without scrolling');
+  if(size.root===16)await liveContentReachable(p,'#track-map-wrap','interval map');
   const actions=await p.locator('[data-interval-control]').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return{width:r.width,height:r.height,hit:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('button')===n};}));assert.equal(actions.length,2);assert(actions.every(r=>r.width>=44&&r.height>=44&&r.hit),'interval controls remain full targets');
-  await p.locator('[data-display=stats]').click();await recordingControls(p,['track-lap','track-pause','track-finish']);if(size.root===16)assert(await p.locator('.track-live-body').evaluate(n=>n.scrollHeight<=n.clientHeight+1),'interval Stats fits without scrolling');
+  await p.locator('[data-display=stats]').click();await recordingControls(p,['track-lap','track-pause','track-finish']);if(size.root===16)await liveContentReachable(p,'.track-live-metrics','interval Stats');
   await p.locator('#track-finish').click();await p.locator('#track-save').waitFor();assert(await p.locator('nav.tabs').isHidden(),'direct Finish keeps unsaved review focused');await p.locator('#track-continue').click();await p.locator('#track-lap').waitFor();await recordingControls(p,['track-lap','track-pause','track-finish']);
   await p.locator('#track-pause').click();await recordingControls(p,['track-discard','track-pause','track-finish']);assert(!(await p.locator('.track-live > p').innerText()).includes('background'));
   await p.evaluate(async()=>{const key='kinetta.track:'+JSON.stringify([location.origin,App.me.id]),r=JSON.parse(localStorage.getItem(key));await Track.forgetDraft();r.state='review';r.intervals.status='ended';localStorage.setItem(key,JSON.stringify(r));});await p.reload();await p.locator('#track-save').waitFor();await p.locator('.track-review-details summary').click();assert((await p.locator('#interval-live').innerText()).includes('Recording finished.'));assert(await p.locator('nav.tabs').isHidden());

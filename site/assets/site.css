@@ -897,3 +897,58 @@ header.top .signup { display:flex;align-items:center; }
 @media (prefers-reduced-motion:reduce) { .feature-phone-stage::before { opacity:.9; } }
 
 .site-capability-mark { display:grid; place-items:center; width:24px; height:24px; color:var(--brand); font-size:20px; line-height:1; }
+
+/* #1049 PR1: one quiet header row, one clear action and one upright home phone. */
+.home-page { --home-section-space:64px; }
+@media (min-width:768px) { .home-page { --home-section-space:80px; } }
+@media (min-width:1100px) { .home-page { --home-section-space:112px; } }
+.home-page header.top { background:color-mix(in srgb,var(--bg) 94%,transparent); }
+.home-page header.top .wrap { display:flex; height:56px; min-height:56px; align-items:center; justify-content:space-between; gap:18px; padding-block:0; }
+.home-page header.top .logo { min-height:44px; }
+.home-page header.top .logo img { width:116px; }
+.home-page nav.tabs { flex:none; justify-content:flex-end; gap:8px; overflow:visible; }
+.home-page nav.tabs a { min-height:44px; padding:8px 10px; color:var(--ink2); font-size:15px; }
+.home-page nav.tabs a:hover { color:var(--ink); }
+.home-page [data-site-nav].is-compact .wrap { height:56px; padding-block:0; }
+.home-page [data-site-nav].is-compact .logo img { width:116px; }
+.home-page .home-hero { overflow:clip; padding-block:clamp(40px,6vw,88px) var(--home-section-space); background:radial-gradient(ellipse at 78% 38%,color-mix(in srgb,var(--brand) 9%,transparent),transparent 48%),var(--bg); }
+.home-page .home-hero-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(280px,.78fr); gap:clamp(32px,7vw,96px); align-items:center; }
+.home-page .home-hero-copy { max-width:610px; }
+.home-page .home-hero-copy .eyebrow { display:block; margin:0 0 18px; color:var(--brand); font-size:13px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; }
+.home-page .home-hero-copy h1 { max-width:11ch; font-size:clamp(46px,6.1vw,78px); line-height:1.02; letter-spacing:-.02em; text-wrap:balance; }
+.home-page .home-hero-copy .lede { max-width:35ch; margin-top:20px; color:var(--ink2); font-size:clamp(18px,1.8vw,21px); line-height:1.45; }
+.home-page .home-hero-copy > .btn { margin-top:26px; }
+.home-page .home-beta-link { display:flex; width:max-content; min-height:44px; align-items:center; gap:7px; margin-top:10px; color:var(--ink2); font-size:14px; text-decoration:none; }
+.home-page .home-beta-link:hover { color:var(--brand); }
+.home-page .home-hero-art { display:grid; justify-items:center; gap:10px; }
+.home-page .phone-frame--hero { position:relative; width:min(320px,100%); transform:none; }
+.home-page .phone-frame--hero picture,.home-page .phone-frame--hero img { display:block; width:100%; }
+.home-page .standin-caption { color:var(--ink3); font-size:12px; line-height:1.3; text-align:center; }
+.home-page .home-story,.home-page .progress-demo,.home-page .home-insights { scroll-margin-top:72px; padding-block:var(--home-section-space); }
+.home-page .story-step { min-height:auto; padding-block:var(--home-section-space); opacity:1; transform:none; animation:none; }
+@media (max-width:900px) {
+ .home-page .home-hero { padding-block:34px var(--home-section-space); }
+ .home-page .home-hero-grid { grid-template-columns:1fr; gap:30px; }
+ .home-page .home-hero-copy { max-width:620px; }
+ .home-page .home-hero-copy h1 { max-width:13ch; font-size:clamp(42px,8.4vw,62px); }
+ .home-page .home-hero-art { order:2; }
+ .home-page .phone-frame--hero { width:min(300px,78vw); }
+}
+@media (min-width:700px) and (max-width:900px) {
+ .home-page .home-hero-grid { grid-template-columns:minmax(0,1fr) minmax(240px,.68fr); gap:28px; }
+ .home-page .home-hero-art { order:initial; justify-self:end; }
+ .home-page .phone-frame--hero { width:min(260px,100%); }
+ .home-page .home-hero-copy h1 { font-size:clamp(42px,6vw,52px); }
+}
+@media (max-width:560px) {
+ .home-page header.top .wrap { padding-inline:16px; }
+ .home-page header.top .logo img { width:104px; }
+ .home-page nav.tabs { gap:0; }
+ .home-page nav.tabs a { padding-inline:9px; font-size:14px; }
+ .home-page .home-hero { padding-top:30px; }
+ .home-page .home-hero-grid { gap:24px; }
+ .home-page .home-hero-copy h1 { font-size:clamp(40px,11.2vw,48px); }
+ .home-page .home-hero-copy .lede { margin-top:15px; font-size:17px; }
+ .home-page .home-hero-copy > .btn { margin-top:19px; }
+ .home-page .phone-frame--hero { width:min(280px,76vw); }
+}
