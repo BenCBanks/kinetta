@@ -255,6 +255,25 @@ nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 
   display:flex; align-items:center; gap:8px; min-width:0; font:700 20px/1.2 var(--font-display);
   overflow-wrap:anywhere;
 }
+.track-live-title-label { min-width:0; }
+.track-live-title-label.is-lap-flash { font-size:17px; font-weight:600; font-variant-numeric:tabular-nums; }
+.track-gps-indicator { display:inline-flex; flex:none; align-items:center; gap:4px; color:var(--tx2); font:500 13px/1.2 var(--font-ui); }
+.track-gps-glyph { position:relative; display:inline-grid; place-items:center; flex:none; width:18px; height:18px; }
+.track-gps-indicator[data-state="good"] .track-gps-glyph::before { content:""; width:11px; height:11px; border:1.5px solid currentColor; border-radius:50%; background:radial-gradient(circle,var(--tx2) 0 1.5px,transparent 2px); }
+.track-gps-indicator[data-state="weak"] { color:var(--warning,var(--tx2)); }
+.track-gps-indicator[data-state="weak"] .track-gps-glyph::before { content:"!"; display:grid; place-items:center; width:14px; height:14px; border:1.5px solid currentColor; border-radius:50%; font:700 10px/1 var(--font-ui); }
+.track-gps-indicator[data-state="lost"],.track-gps-indicator[data-state="denied"] { color:var(--alert); }
+.track-gps-indicator[data-state="lost"] .track-gps-glyph::before,.track-gps-indicator[data-state="denied"] .track-gps-glyph::before { content:"×"; display:grid; place-items:center; width:14px; height:14px; border:1.5px solid currentColor; border-radius:50%; font:600 13px/1 var(--font-ui); }
+.track-gps-indicator[data-state="finding"] .track-gps-glyph::before { content:""; width:12px; height:12px; border:1.5px solid currentColor; border-right-color:transparent; border-radius:50%; animation:track-gps-spin 1s linear infinite; }
+@keyframes track-gps-spin { to { transform:rotate(360deg); } }
+@media(prefers-reduced-motion:reduce) { .track-gps-indicator[data-state="finding"] .track-gps-glyph::before { animation:none; } }
+.track-live-title-label.is-lap-flash + .track-gps-indicator { display:none; }
+.track-location-off { position:relative; flex:1 1 0; min-height:80px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; border-bottom:1px solid var(--line); background:var(--surface-2,var(--card2)); text-align:center; }
+.track-location-off-icon { display:grid; place-items:center; width:40px; height:40px; border:1px solid color-mix(in srgb,var(--alert) 40%,var(--line)); border-radius:50%; color:var(--alert); font-size:20px; font-weight:700; }
+.track-location-off > b { font-size:16px; font-weight:650; }
+.track-location-off .track-open-settings { min-height:44px; padding:0 18px; border:0; border-radius:12px; color:var(--onbtn); background:var(--btn); font:600 15px/1 var(--font-ui); }
+.track-location-off small { color:var(--tx2); font-size:13px; }
+.track-gps-accuracy { margin:8px 0 0; text-align:center; font-size:13px; }
 .track-live-top .rec-dot { width:10px; height:10px; flex:none; }
 .track-live.is-paused .track-live-top .rec-dot { background:transparent; border:2px solid var(--tx3); box-sizing:border-box; }
 .track-live #track-status { position:absolute; width:1px; height:1px; min-height:0; margin:0; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
@@ -302,9 +321,11 @@ nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 
 }
 .track-live-main > .track-map-wrap #track-gps-live { display:none !important; }
 .track-live-main > .track-map-wrap .track-timer-link {
-  position:absolute; z-index:600; top:12px; left:12px; min-height:44px; padding:0 10px; border:0;
+  position:absolute; z-index:600; top:12px; left:12px; min-width:44px; min-height:44px; padding:0 10px; border:0;
   background:transparent; color:var(--accent); font-size:13px; font-weight:600;
 }
+.track-live-main > .track-controls .round-btn.go { border:1px solid var(--line); box-shadow:none; }
+.track-live-main > .track-controls .round-btn.go:active { box-shadow:none; }
 .track-live-main > .track-controls {
   box-sizing:border-box; flex:none; display:flex; align-items:center; justify-content:center; gap:clamp(24px,8vw,32px);
   min-height:100px; margin:0; padding:8px 16px; border-top:1px solid var(--line); background:var(--surface,var(--card));
@@ -326,6 +347,9 @@ nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 
 .track-live-stats .track-hero { margin:8px 0; }
 .track-live-stats .track-hero b { font-size:56px; }
 @media(max-width:360px) {
+  .track-live-top h2 { gap:6px; font-size:17px; }
+  .track-gps-indicator { gap:3px; font-size:12px; }
+  .track-gps-glyph { width:16px; height:16px; }
   .track-live-metrics[aria-label="Current workout"] b { font-size:24px; }
   .track-live-main > .track-controls { gap:24px; padding-inline:12px; }
 }
