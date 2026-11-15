@@ -100,28 +100,29 @@ const ShareArt=(()=>{
   }
   // Activity exports with alpha contain only the selected, already-trimmed route or the explicitly shared stats.
   // Fit from the visible points so removing start/end segments also removes them from the export bounds.
-  async function routeSilhouette({routePoints=[],pace='',totalTime='',ink='dark'}={}){
+  async function routeSilhouette({routePoints=[],pace='',totalTime='',ink='blue'}={}){
     const pictureOwner=readOwner();if(routePoints.length<2)throw Error('There isn’t enough route left to share.');
-    await document.fonts.ready;const W=1080,H=1350,canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const g=canvas.getContext('2d');
-    const color=ink==='light'?'#FFFFFF':'#151719',mean=routePoints.reduce((sum,p)=>sum+Number(p[0]),0)/routePoints.length,cos=Math.max(.05,Math.cos(mean*Math.PI/180));
+    await document.fonts.ready;const W=1080,H=810,canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const g=canvas.getContext('2d');
+    const color=ink==='blue'?(getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#1F55D0'):ink==='light'?'#FFFFFF':'#151719',mean=routePoints.reduce((sum,p)=>sum+Number(p[0]),0)/routePoints.length,cos=Math.max(.05,Math.cos(mean*Math.PI/180));
     const points=routePoints.map(([lat,lon])=>[Number(lon)*cos,-Number(lat)]);if(points.some(p=>!p.every(Number.isFinite)))throw Error('This route could not be drawn.');
     const bounds=points.reduce((b,p)=>({minX:Math.min(b.minX,p[0]),maxX:Math.max(b.maxX,p[0]),minY:Math.min(b.minY,p[1]),maxY:Math.max(b.maxY,p[1])}),{minX:Infinity,maxX:-Infinity,minY:Infinity,maxY:-Infinity}),{minX,maxX,minY,maxY}=bounds,spanX=maxX-minX,spanY=maxY-minY;
     if(spanX<1e-9&&spanY<1e-9)throw Error('There isn’t enough route left to share.');
-    const box={x:96,y:76,w:888,h:660},scale=Math.min(box.w/Math.max(spanX,1e-9),box.h/Math.max(spanY,1e-9)),cx=(minX+maxX)/2,cy=(minY+maxY)/2;
+    const box={x:64,y:64,w:552,h:682},scale=Math.min(box.w/Math.max(spanX,1e-9),box.h/Math.max(spanY,1e-9)),cx=(minX+maxX)/2,cy=(minY+maxY)/2;
     const project=([x,y])=>[box.x+box.w/2+(x-cx)*scale,box.y+box.h/2+(y-cy)*scale];
     g.save();g.beginPath();points.forEach((point,index)=>{const [x,y]=project(point);index?g.lineTo(x,y):g.moveTo(x,y);});g.strokeStyle=color;g.lineWidth=12;g.lineCap='round';g.lineJoin='round';g.stroke();g.restore();
-    drawMark(g,492,886,64,color);text(g,'Kinetta',546,899,46,{color,weight:700,max:360});
-    const metrics=[...(pace?[['Pace',pace]]:[]),...(totalTime?[['Total time',totalTime]]:[])];
-    if(metrics.length===2){text(g,metrics[0][1],324,1105,72,{color,weight:700,max:420,align:'center'});text(g,metrics[0][0],324,1162,36,{color,weight:500,max:420,align:'center'});text(g,metrics[1][1],756,1105,72,{color,weight:700,max:420,align:'center'});text(g,metrics[1][0],756,1162,36,{color,weight:500,max:420,align:'center'});}
-    else if(metrics.length===1){text(g,metrics[0][1],540,1105,72,{color,weight:700,max:820,align:'center'});text(g,metrics[0][0],540,1162,36,{color,weight:500,max:820,align:'center'});}
+    if(ink==='blue'){g.shadowColor='rgba(0,0,0,.42)';g.shadowBlur=6;g.shadowOffsetY=1;}
+    const metrics=[...(pace?[['Pace',pace]]:[]),...(totalTime?[['Total time',totalTime]]:[])],metricX=690,metricWidth=326;
+    metrics.forEach(([label,value],index)=>{const y=270+index*190;text(g,value,metricX,y,72,{color,weight:700,max:metricWidth});text(g,label,metricX,y+54,42,{color,weight:500,max:metricWidth});});
+    drawMark(g,878,752,38,color);text(g,'Kinetta',925,765,36,{color,weight:700,max:135});
     if(pictureOwner!==readOwner())throw Error('The account changed.');const pictureBlob=await blob(canvas);return{blob:pictureBlob,alt:['Route',pace?'Pace '+pace:'',totalTime?'Total time '+totalTime:'','Kinetta'].filter(Boolean).join('. '),width:W,height:H};
   }
-  async function statsPicture({distance='',pace='',totalTime='',ink='dark'}={}){
-    const pictureOwner=readOwner();await document.fonts.ready;const W=1080,H=620,canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const g=canvas.getContext('2d'),color=ink==='light'?'#FFFFFF':'#151719';
+  async function statsPicture({distance='',pace='',totalTime='',ink='blue'}={}){
+    const pictureOwner=readOwner();await document.fonts.ready;const W=1080,H=620,canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const g=canvas.getContext('2d'),color=ink==='blue'?(getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#1F55D0'):ink==='light'?'#FFFFFF':'#151719';
     const metrics=[...(pace?[['Pace',pace]]:[]),...(totalTime?[['Total time',totalTime]]:[]),...(distance?[['Distance',distance]]:[])];
     if(!metrics.length)throw Error('There are no shared stats to show.');
-    drawMark(g,492,102,64,color);text(g,'Kinetta',546,115,46,{color,weight:700,max:360});
-    const cell=936/metrics.length;metrics.forEach(([label,value],i)=>{const x=72+cell*(i+.5);text(g,value,x,366,72,{color,weight:700,max:cell-24,align:'center'});text(g,label,x,425,36,{color,weight:500,max:cell-24,align:'center'});});
+    if(ink==='blue'){g.shadowColor='rgba(0,0,0,.42)';g.shadowBlur=6;g.shadowOffsetY=1;}
+    metrics.forEach(([label,value],i)=>{const y=108+i*150;text(g,value,72,y,72,{color,weight:700,max:760});text(g,label,72,y+54,42,{color,weight:500,max:760});});
+    drawMark(g,878,562,38,color);text(g,'Kinetta',925,575,36,{color,weight:700,max:135});
     if(pictureOwner!==readOwner())throw Error('The account changed.');const pictureBlob=await blob(canvas);return{blob:pictureBlob,alt:[...metrics.map(([label,value])=>`${label} ${value}`),'Kinetta'].join('. '),width:W,height:H};
   }
   const dataUrl=blob=>new Promise((yes,no)=>{const reader=new FileReader();reader.onload=()=>yes(reader.result);reader.onerror=()=>no(Error('Couldn’t read this picture'));reader.readAsDataURL(blob);});
@@ -234,7 +235,7 @@ const ShareSheet=(()=>{
       const closeSelf=()=>close();App.closeActivityShare=closeSelf;
       const buttons=()=>{const current=cache.get(selected),item=items[selected],disabled=busy||!current?.blob;send.disabled=disabled;sendLabel.textContent=item?.shareLabel||'Share';linkButton.hidden=!(current?.link&&item?.linkLabel);linkButton.textContent=item?.linkLabel||'';saveButton.disabled=disabled;$$('[data-share-action]',body).forEach(button=>button.disabled=busy);};
       const renderControls=index=>{
-        const item=items[index];controls.innerHTML=(item.controls||[]).map(control=>`<label class="check"><input type="checkbox" data-share-control="${esc(control.key)}"${values[index][control.key]?' checked':''}>${esc(control.label)}</label>`).join('')+(item.inkChoices?`<div class="share-picture-ink" role="group" aria-label="Text colour">${item.inkChoices.map(ink=>`<button type="button" data-share-ink="${ink}" aria-pressed="${values[index].ink===ink}">${ink==='dark'?'Dark ink':'Light ink'}</button>`).join('')}</div>`:'');
+        const item=items[index],inkLabels={blue:'Blue',dark:'Dark',light:'Light'};controls.innerHTML=(item.controls||[]).map(control=>`<label class="check"><input type="checkbox" data-share-control="${esc(control.key)}"${values[index][control.key]?' checked':''}>${esc(control.label)}</label>`).join('')+(item.inkChoices?`<div class="share-picture-ink" role="group" aria-label="Ink colour">${item.inkChoices.map(ink=>`<button type="button" data-share-ink="${ink}" aria-pressed="${values[index].ink===ink}">${inkLabels[ink]||ink}</button>`).join('')}</div>`:'');
         $$('[data-share-control]',controls).forEach(input=>input.onchange=()=>{values[index][input.dataset.shareControl]=input.checked;load(index,true);});
         $$('[data-share-ink]',controls).forEach(button=>button.onclick=()=>{values[index].ink=button.dataset.shareInk;$$('[data-share-ink]',controls).forEach(option=>option.setAttribute('aria-pressed',String(option===button)));const frame=$('[data-share-preview-frame]',body);if(frame)frame.dataset.ink=values[index].ink;load(index,true);});
       };

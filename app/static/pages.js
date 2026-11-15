@@ -1050,8 +1050,8 @@ function sharePicture(id, known, origin=null) {
       const trimValue=state=>state.hideEnds?savedTrim:0;
       const items=[{label:'Card',filename:'kinetta-activity.png',controls,build:state=>routePicture(safe,hasLine?trimValue(state):0,details)}];
       const rateInfo=rate(activity),pace=details.pace&&rateInfo.label!=='Time'?`${rateInfo.v} ${rateInfo.u}`:'';
-      if(hasLine)items.push({label:'Route',filename:'kinetta-route.png',controls,initial:{ink:'dark'},inkChoices:['dark','light'],build:state=>ShareArt.routeSilhouette({routePoints:trimRoute(decode(line),trimValue(state)),pace,totalTime:activityElapsedText(activity),ink:state.ink})});
-      items.push({label:'Stats',filename:'kinetta-stats.png',initial:{ink:'dark'},inkChoices:['dark','light'],build:state=>ShareArt.statsPicture({distance:activity.distance_m?`${U.dist(activity.distance_m)} ${U.du()}`:'',pace,totalTime:activityElapsedText(activity),ink:state.ink})});
+      if(hasLine)items.push({label:'Route',filename:'kinetta-route.png',controls,initial:{ink:'blue'},inkChoices:['blue','dark','light'],build:state=>ShareArt.routeSilhouette({routePoints:trimRoute(decode(line),trimValue(state)),pace,totalTime:activityElapsedText(activity),ink:state.ink})});
+      items.push({label:'Stats',filename:'kinetta-stats.png',initial:{ink:'blue'},inkChoices:['blue','dark','light'],build:state=>ShareArt.statsPicture({distance:activity.distance_m?`${U.dist(activity.distance_m)} ${U.du()}`:'',pace,totalTime:activityElapsedText(activity),ink:state.ink})});
       await loadShareArt();if(!live())return;ShareSheet.open({items,title:'Share activity',mode:'tabs'});
    }catch(error){if(live())toast(error.message||'Couldn’t load this activity. Tap Share to try again.');}
    finally{activityShareOpening.delete(context);}
