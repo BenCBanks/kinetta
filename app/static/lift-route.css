@@ -103,6 +103,9 @@
 .compact-lift .lift-empty .primary { min-height:52px; }
 .compact-lift .lift-history-empty { color:var(--tx3); font-size:15px; }
 @media(max-width:370px) {
+  .compact-lift .lift-top { grid-template-columns:44px minmax(0,1fr) auto; }
+  .compact-lift .lift-header-clock { grid-row:auto; grid-column:auto; justify-content:center; }
+  .compact-lift .lift-top > .acts { grid-column:auto; grid-row:auto; }
   .compact-lift .lift-row { gap:4px; }
   .compact-lift .lift-sets.c5.has-prev .lh-prev { display:flex; }
   .compact-lift .lift-sets.c5.has-prev .lift-prev { order:initial; flex:0 0 48px; display:flex; align-items:center; justify-content:center; text-align:center; }

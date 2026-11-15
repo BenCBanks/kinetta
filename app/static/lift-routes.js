@@ -96,7 +96,7 @@ function liftLogger(el, aid, data) {
   let saveT = null, disposed = false, stopped = false, finishing = false, clock = null, setRecovery = null;
   const owned = () => owner === readOwner(), live = () => owned() && !disposed && el.isConnected;
   el.classList.add('compact-lift');
-  el.innerHTML = `<div class="top lift-top"><button type="button" class="back lift-back" data-back aria-label="Back to Track">${svg('back')}</button>${S.open?'<div class="lift-header-clock" aria-label="Session and rest time"><b class="num" id="lf-time">0:00</b><span id="lf-restbox" hidden>Rest <b class="num" id="lf-rest">0:00</b></span></div>':'<span class="lift-header-clock" aria-hidden="true"></span>'}<div class="acts"><span class="lift-save small muted" id="lf-save" role="status" aria-live="polite"></span>
+  el.innerHTML = `<div class="top lift-top"><button type="button" class="back back-circle lift-back" data-back aria-label="Back to Track">${svg('back')}</button>${S.open?'<div class="lift-header-clock" aria-label="Session and rest time"><b class="num" id="lf-time">0:00</b><span id="lf-restbox" hidden>Rest <b class="num" id="lf-rest">0:00</b></span></div>':'<span class="lift-header-clock" aria-hidden="true"></span>'}<div class="acts"><span class="lift-save small muted" id="lf-save" role="status" aria-live="polite"></span>
       ${S.open ? `<button class="linkbtn lift-finish" id="lf-finish">Finish</button><button type="button" class="icon-btn lift-discard" id="lf-discard" aria-label="More session actions">${svg('more')}</button>` : '<button class="linkbtn lift-finish" id="lf-done">Done</button>'}</div></div>
     <div id="lf-list"></div>
     <button class="primary wide lift-add" id="lf-add">${svg('plus')}Add exercise</button>`;
@@ -191,11 +191,11 @@ function liftLogger(el, aid, data) {
   function exCard(e, i) {
     const c = cols(e), name = {n: 'Set', prev: e.last ? 'Last' : '', kg: e.kind === 'body' ? `+${wUnit()}` : wUnit(), reps: 'Reps', secs: 'Seconds', tick: ''};
     return `<section class="card lift-ex" data-i="${i}"><div class="lift-hd"><div class="lift-title-line"><a class="lift-name" href="/lift/ex/${e.exercise_id}">${esc(e.name)}</a>${e.note?`<button type="button" class="lift-note" data-exnote aria-label="Edit note for ${esc(e.name)}">${esc(e.note)}</button>`:''}</div>
-        <button type="button" class="icon-btn" data-exmenu aria-label="More for ${esc(e.name)}">${svg('more')}</button></div>
+        ${S.open ? `<button type="button" class="icon-btn" data-exmenu aria-label="More for ${esc(e.name)}">${svg('more')}</button>` : ''}</div>
       <div class="lift-sets c${c.length}${e.last ? ' has-prev' : ''}" role="group" aria-label="${esc(e.name)} sets">
         <div class="lift-row lh">${c.map((k) => `<span class="lh-${k}">${esc(name[k])}</span>`).join('')}</div>
         ${e.sets.map((s, j) => setRow(e, s, j)).join('')}</div>
-      <button class="linkbtn lift-addset" data-addset>${svg('plus')}Add set</button></section>`;
+      ${S.open ? `<button class="linkbtn lift-addset" data-addset>${svg('plus')}Add set</button>` : ''}</section>`;
   }
   function setRow(e, s, j) {
     const p = e.last && e.last.sets[j];                                 // the previous session's set at this place
