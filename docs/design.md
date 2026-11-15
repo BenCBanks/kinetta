@@ -251,10 +251,10 @@ Kinetta links. They are usable destinations, not fake empty totals. The setup ch
 not enabled their account-scoped Health connection, even if activities were imported another way. Keep private body
 settings guidance until missing weight, height, sex or birth year is supplied; these details remain optional and editable.
 
-Explore Kinetta is a short list of at most five hints for features that are easy to miss. Each hint names the exact
-current control, uses one brief sentence, and stays useful without a step-by-step tour or a searchable catalog. When
-a PR changes a screen named by a hint, update that hint in the same PR. The public website Guide is retired; `/guide`
-redirects to Features.
+Explore Kinetta is a short grouped list of at most five tappable feature rows. Each row names the exact current control,
+uses one brief muted sentence, and has a trailing chevron. Keep it useful without a step-by-step tour or a searchable
+catalog. When a PR changes a screen named by a hint, update that hint in the same PR. The public website Guide is
+retired; `/guide` redirects to Features.
 
 Use **My Recipes** for reusable recipes, **My foods** for individual saved foods, and **Saved combinations** in user-facing app/site copy. My Recipes means log, edit or create;
 provide explicit edit controls and retain unfinished named meals. Keep existing API/storage identifiers for compatibility.
