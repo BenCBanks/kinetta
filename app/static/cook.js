@@ -50,7 +50,7 @@ function drawDish(el, d) {
     $('.recipe-content',el).scrollTop=scroll;if($('#dk-t',el))$('#dk-t',el).value=draft;
     if (keep) { const n = $('#' + keep[0], el); if (n) { n.value = keep[1]; n.focus(); } }
   };
-  const ing = (it) => `<span class="ig-info"><span class="ig-n">${esc(it.name)}</span><span class="ig-g num"> · ${it.amount && !/\d\s*g$/.test(it.amount) ? `${esc(it.amount)} · ` : ''}${gfmt(it.grams)}</span></span><b class="num r">${r0(it.kcal)}</b>`;
+  const ing = (it) => `<span class="ig-n">${esc(it.name)}</span><span class="ig-g num">${gfmt(it.grams)}</span>`;
   const shared = mine ? d.shared_with || [] : [];
   const bySv = d.serving === 'one';
   const source=d.recipe_source||{}, imported=!!source.import_id, display=imported&&bySv?d.per_serving:t;
@@ -62,11 +62,11 @@ function drawDish(el, d) {
       : `<div class="eyebrow">From ${esc(d.owner.name)}</div><h1 class="dish-name">${esc(d.name)}</h1>`}
     ${sums}
     ${imported?recipeSourceCard(d):''}
-    ${d.items.length ? `<div class="card ing-card"><div class="ingredient-heading small muted">Ingredients<span>kcal</span></div><div class="ing-list">${d.items.map((it) => {
+    ${d.items.length ? `<div class="card ing-card"><div class="ingredient-heading small muted"><span>Ingredients</span><span>Amount</span></div><div class="ing-list">${d.items.map((it) => {
       const recipeId=it.source==='recipe'&&Number(it.ref?.recipe_id)>0?Number(it.ref.recipe_id):null;
       const recipeName=recipeId?`<button type="button" class="ig-recipe-open" data-recipe-open="${recipeId}" aria-label="Open source recipe ${esc(it.name)}">${svg('recipe')}<span class="ig-n">${esc(it.name)}</span></button>`:null;
-      if(recipeName&&mine)return `<div class="swipe"><button type="button" class="sw-del" data-del="${esc(it.id)}" tabindex="-1">${svg('trash')}Remove</button><div class="ig sw-row"><button type="button" class="ig-recipe-open" data-recipe-open="${recipeId}" aria-label="Open source recipe ${esc(it.name)}">${svg('recipe')}<span class="ig-n">${esc(it.name)}</span></button><button type="button" class="ig-recipe-amount num" data-it="${esc(it.id)}" aria-label="Edit ${esc(it.name)} amount, ${gfmt(it.grams)}">${gfmt(it.grams)}</button><b class="num r">${r0(it.kcal)}</b></div></div>`;
-      if(recipeName)return `<div class="ig">${recipeName}<span class="ig-g num">${gfmt(it.grams)}</span><b class="num r">${r0(it.kcal)}</b></div>`;
+      if(recipeName&&mine)return `<div class="swipe"><button type="button" class="sw-del" data-del="${esc(it.id)}" tabindex="-1">${svg('trash')}Remove</button><div class="ig sw-row"><button type="button" class="ig-recipe-open" data-recipe-open="${recipeId}" aria-label="Open source recipe ${esc(it.name)}">${svg('recipe')}<span class="ig-n">${esc(it.name)}</span></button><button type="button" class="ig-recipe-amount num" data-it="${esc(it.id)}" aria-label="Edit ${esc(it.name)} amount, ${gfmt(it.grams)}">${gfmt(it.grams)}</button></div></div>`;
+      if(recipeName)return `<div class="ig">${recipeName}<span class="ig-g num">${gfmt(it.grams)}</span></div>`;
       return mine?`<div class="swipe"><button type="button" class="sw-del" data-del="${esc(it.id)}" tabindex="-1">${svg('trash')}Remove</button><button class="ig sw-row" data-it="${esc(it.id)}">${ing(it)}</button></div>`:`<div class="ig">${ing(it)}</div>`;
     }).join('')}</div></div>` : ''}
     ${mine && has ? `<div class="card serve measure"><div class="seg wide m-seg" role="group" aria-label="How it's measured">
@@ -270,7 +270,7 @@ function recipeSourceHtml(d) {
   const t=d.totals||{},measuredWeight=d.weighed?d.cooked_g:null;
   return `<div class="recipe-source-readonly"><p class="recipe-source-meta small muted">${measuredWeight?`Whole recipe · ${gfmt(measuredWeight)}`:'Whole recipe · Weight not measured'}</p>
     <div class="recipe-nutrition num" aria-label="Nutrition in the whole recipe"><div><b class="${t.kcal==null?'nutrient-unknown':''}">${recipeCalories(t.kcal)}</b><small>kcal total</small></div>${MACROS.map(([k,nm])=>`<div><b class="${t[k]==null?'nutrient-unknown':''}">${t[k]==null?'Unknown':r0(t[k])+' g'}</b><small>${nm}</small></div>`).join('')}</div>
-    ${d.items?.length?`<div class="card ing-card"><div class="ingredient-heading small muted"><span>Ingredients</span><span>kcal</span></div><div class="ing-list">${d.items.map(it=>`<div class="ig"><span class="ig-info"><span class="ig-n">${esc(it.name)}</span><span class="ig-g num"> · ${gfmt(it.grams)}</span></span><b class="num r">${it.kcal==null?'Unknown':r0(it.kcal)}</b></div>`).join('')}</div></div>`:''}</div>`;
+    ${d.items?.length?`<div class="card ing-card"><div class="ingredient-heading small muted"><span>Ingredients</span><span>Amount</span></div><div class="ing-list">${d.items.map(it=>`<div class="ig"><span class="ig-n">${esc(it.name)}</span><span class="ig-g num">${gfmt(it.grams)}</span></div>`).join('')}</div></div>`:''}</div>`;
 }
 
 function openRecipeSource(id,name,owner=readOwner()) {
