@@ -215,6 +215,9 @@ feature_collection_ui.cjs groups_ui.cjs journeys_prepare.py journeys.cjs journey
                     owners.setdefault(name,set()).add(shard)
         self.assertEqual(len(owners),len(Counter(expected)))
         self.assertTrue(all(len(shards)==1 for shards in owners.values()),owners)
+        self.assertEqual(owners['progress_ui.cjs'],{'4'},'move the measured long Progress UI group off shard 1')
+        for name in ('weight_progress_fixture.py','weight_progress_ui.cjs','weight_progress_actions.cjs','weight_progress_journeys.cjs','weight_undo_ui.cjs','inline_reactions_fixture.py','inline_reactions_ui.cjs','inline_reactions_actions.cjs'):
+            self.assertEqual(owners[name],{'1'},f'{name} balances shard 1 and keeps its fixture with its tests')
 
     def test_exact_workflow_duplicates_are_removed_and_ci_caches_are_pinned(self):
         run=(ROOT/'dev/tests/run.sh').read_text()
