@@ -1108,13 +1108,14 @@ async function routePicture(a, trim, details={}) {
   const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d'), ui = getComputedStyle(document.body).fontFamily, serif = '"Source Serif 4", Georgia, serif';
   try { await Promise.all([document.fonts.load(`600 64px ${serif}`), document.fonts.load(`800 80px ${ui}`)]); } catch (x) { /* system fonts are fine */ }
-  const hue = PIC.route, M = 48, PAD = 44, SAFE_TOP = 40, SAFE_BOTTOM = M;
+  const hue = PIC.route, M = 48, PAD = 56, SAFE_TOP = 40, SAFE_BOTTOM = M;
   // The approved Card includes only activity type, elapsed time, permitted pace and distance.
   const r = rate(a), cells = [];
   cells.push(['Elapsed time', activityElapsedText(a), '']);
   if (details.pace!==false&&a.distance_m && r.label!=='Time') cells.push([r.label, r.v, r.u]);
   if (a.distance_m) cells.push(['Distance', U.dist(a.distance_m), U.du()]);
-  const CH = PAD + 40 + 30 + 26 + 50 + 90 + PAD, CY = H - SAFE_BOTTOM - CH, CX = M, CW = W - 2 * M;
+  // The 56px bottom inset matches the wordmark's top inset after the larger stat row is drawn.
+  const CH = 2 * PAD + 215, CY = H - SAFE_BOTTOM - CH, CX = M, CW = W - 2 * M;
   g.fillStyle = PIC.bg; g.fillRect(0, 0, W, H);
   const pts = a.line ? trimRoute(decode(a.line), trim) : [];
   let tiles = 0;
@@ -1150,7 +1151,7 @@ async function routePicture(a, trim, details={}) {
   const behind = document.createElement('canvas'); behind.width = W; behind.height = H; behind.getContext('2d').drawImage(c, 0, 0);
   g.save(); card(); g.clip(); g.filter = 'blur(18px) saturate(1.2)'; g.drawImage(behind, 0, 0); g.filter = 'none';
   g.fillStyle = tiles ? 'rgba(255,255,255,.58)' : 'rgba(255,255,255,.8)'; g.fillRect(CX, CY, CW, CH); g.restore();
-  card(); g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,.75)'; g.stroke();
+  card(); g.lineWidth = 2; g.strokeStyle = 'rgba(21,25,29,.18)'; g.stroke();
   g.textAlign = 'left'; g.textBaseline = 'alphabetic';
   let y = CY + PAD + 40;
   // the brand, top right of the card
@@ -1160,14 +1161,14 @@ async function routePicture(a, trim, details={}) {
   const kind = (SPORT_NAMES[a.sport] || 'Activity').toUpperCase();
   g.font = `700 24px ${ui}`; g.fillStyle = hue; g.fillText(kind, CX + PAD, y);
   y += 30; g.strokeStyle = PIC.line; g.lineWidth = 2; g.beginPath(); g.moveTo(CX + PAD, y); g.lineTo(CX + CW - PAD, y); g.stroke();
-  y += 50; const cw = (CW - 2 * PAD) / cells.length;
+  y += 50; const innerW = CW - 2 * PAD, cws = cells.length === 3 ? [innerW * .4, innerW * .35, innerW * .25] : cells.map(() => innerW / cells.length);
   cells.forEach(([lab, v, u], i) => {
-    const x = CX + PAD + i * cw;
-    g.font = `600 22px ${ui}`; g.fillStyle = PIC.muted; g.fillText(lab.toUpperCase(), x, y);
-    let size = cells.length === 3 ? 64 : 76; g.font = `800 ${size}px ${ui}`;
+    const x = CX + PAD + cws.slice(0, i).reduce((sum, width) => sum + width, 0), cw = cws[i];
+    g.font = `600 48px ${ui}`; g.fillStyle = PIC.muted; g.fillText(lab, x, y);
+    let size = cells.length === 3 ? 72 : 80; g.font = `800 ${size}px ${ui}`;
     const fit = cw - 20 - (u ? 56 : 0); while (size > 40 && g.measureText(v).width > fit) { size -= 4; g.font = `800 ${size}px ${ui}`; }
     g.fillStyle = PIC.text; g.fillText(v, x, y + 14 + size);
-    if (u) { const vw = g.measureText(v).width; g.font = `600 24px ${ui}`; g.fillStyle = PIC.soft; g.fillText(u.trim(), x + vw + 8, y + 14 + size); }
+    if (u) { const vw = g.measureText(v).width; g.font = `600 42px ${ui}`; g.fillStyle = PIC.soft; g.fillText(u.trim(), x + vw + 8, y + 14 + size); }
   });
   return new Promise((res) => c.toBlob(b=>{if(b&&typeof FeatureUsage!=='undefined')void FeatureUsage.event('share_picture',pictureOwner);res(b);}, 'image/png'));
 }
