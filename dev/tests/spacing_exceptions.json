@@ -454,6 +454,24 @@
     "kind": "approved-type",
     "minimum": 13,
     "followup": "https://github.com/BenCBanks/kinetta/issues/1025",
-    "reason": "Issue #1025 keeps reminder explanations as muted 13px footnotes. Only those explanations get compact type; reminder labels and controls remain under normal limits."
+    "reason": "Issue #1025 keeps reminder explanations as muted 13px footnotes. Only those explanations get the compact type; reminder labels and controls remain under normal limits."
+  },
+  {
+    "id": "1020-floating-tab-label-type",
+    "selector": "nav.tabs.material > a > span",
+    "metric": "font-min",
+    "kind": "approved-type",
+    "exact": 11,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1020",
+    "reason": "PR #1060 specifies 11px/500 muted labels in the floating five-tab capsule; all labels remain fully visible and every tab target remains at least 44px."
+  },
+  {
+    "id": "1020-home-collapsed-title-type",
+    "selector": ".shell-topbar-root.is-compact > h1",
+    "metric": "font-min",
+    "kind": "approved-type",
+    "exact": 16,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1020",
+    "reason": "PR #1060 keeps the pinned Home title at 16px/600 after scroll while the expanded greeting remains 30px/700; text is fitted and not ellipsized."
   }
 ]
