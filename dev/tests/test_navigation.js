@@ -39,7 +39,7 @@ const app=fs.readFileSync('app/static/app.js','utf8');
  const track=fs.readFileSync('app/static/track.js','utf8'),trackRoute=fs.readFileSync('app/static/track-route.js','utf8'),trackSource=track+'\n'+trackRoute,me=fs.readFileSync('app/static/pages.js','utf8'),explore=fs.readFileSync('app/static/explore.js','utf8');
  assert.match(track,/nav\.tabs \[data-tab="track"\]/);assert.match(trackSource,/title:'Connections and import'.*href:'\/track\/connections'/);assert(!trackSource.includes("title:'Explore Kinetta'"),'Explore is removed from Track tools');
  assert(me.includes('href="/me/explore"'),'Explore remains reachable from Me');assert(explore.includes("route(/^\\/me\\/explore$/, 'track'"),'the legacy Explore URL selects Track');
- assert.match(explore,/class="back-circle"[^>]*aria-label="Back"/);assert.match(explore,/wireBack\(el, '\/track'\)/);
+ assert.match(explore,/backBtn\('Track'\)/);assert.match(explore,/wireBack\(el, '\/track'\)/);
  console.log('navigation tabs: Home, Progress, Track, Nutrition, Me; Explore reachable from Me; no Log sheet PASS');
 }
 // Fixed legacy URL contract, checked against the app's registered route patterns.

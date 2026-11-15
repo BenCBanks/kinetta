@@ -8,7 +8,7 @@ const FEATURE_HINTS = [
 
 route(/^\/me\/explore$/, 'track', (el) => {
   el.classList.add('guide-page');
-  el.innerHTML = `<div class="top"><button class="back-circle" type="button" data-back aria-label="Back">${svg('back')}</button></div><h1>Explore Kinetta</h1>
+  el.innerHTML = `<div class="top">${backBtn('Track')}</div><h1>Explore Kinetta</h1>
     <nav class="guide-hints social-list-group" aria-label="Explore features">${FEATURE_HINTS.map(([label, text, href]) =>
       `<a class="guide-hint list-row" href="${href}"><span class="guide-hint-copy"><h2>${esc(label)}</h2><p>${esc(text)}</p></span><span class="chev" aria-hidden="true">${svg('chev')}</span></a>`
     ).join('')}</nav>`;
