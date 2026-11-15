@@ -58,20 +58,20 @@
 .compact-lift .lift-header-clock #lf-time { font-size:17px; line-height:22px; font-weight:600; font-variant-numeric:tabular-nums; }
 .compact-lift .lift-header-clock #lf-restbox:not([hidden]) { display:block; color:var(--accent); font-size:13px; line-height:17px; white-space:nowrap; }
 .compact-lift .lift-header-clock #lf-rest { font-size:13px; font-weight:600; }
-.compact-lift .lift-top > .acts { display:flex; align-items:center; flex-wrap:nowrap; justify-content:flex-end; gap:2px; max-width:none; min-width:0; }
+.compact-lift .lift-top > .acts { display:flex; align-items:center; flex-wrap:nowrap; justify-content:flex-end; gap:8px; max-width:none; min-width:0; }
 .compact-lift .lift-top .lift-finish { min-width:44px; min-height:44px; padding:0 6px; font-size:15px; font-weight:600; white-space:nowrap; }
 .compact-lift .lift-top .lift-discard { width:44px; height:44px; min-width:44px; padding:0; border:0; border-radius:50%; background:transparent; color:var(--tx2); box-shadow:none; }
 .compact-lift .lift-top .lift-save[data-state=error] { max-width:72px; font-size:12px; }
 .compact-lift .lift-ex { padding:12px 14px; margin-bottom:12px; }
 .compact-lift .lift-hd { align-items:flex-start; gap:8px; margin:0; }
-.compact-lift .lift-title-line { display:flex; flex:1; flex-direction:column; align-items:stretch; gap:0; min-width:0; }
+.compact-lift .lift-title-line { display:flex; flex:1; flex-direction:column; align-items:stretch; gap:8px; min-width:0; }
 .compact-lift .lift-name { display:flex; align-items:center; min-height:44px; font-size:17px; line-height:22px; font-weight:600; letter-spacing:0; }
 .compact-lift .lift-note { display:block; width:100%; min-height:44px; margin:0; padding:0; border:0; border-radius:0; background:transparent; color:var(--tx2); font-size:13px; line-height:17px; font-weight:400; text-align:left; overflow-wrap:anywhere; }
 .compact-lift .lift-note::before { content:none; }
 .compact-lift .lift-hd > .icon-btn { flex:none; width:44px; height:44px; min-width:44px; padding:0; border:0; border-radius:50%; background:transparent; color:var(--tx2); box-shadow:none; }
 .compact-lift .lift-hd > .icon-btn svg { width:20px; height:20px; }
-.compact-lift .lift-sets { gap:0; margin-top:8px; }
-.compact-lift .lift-row { display:flex; flex-wrap:nowrap; align-items:center; gap:4px; height:48px; min-height:48px; box-sizing:border-box; margin:0; padding:0; border-top:1px solid var(--line); border-radius:0; background:transparent; transition:none; }
+.compact-lift .lift-sets { gap:0; margin:8px -12px 0; }
+.compact-lift .lift-row { display:flex; flex-wrap:nowrap; align-items:center; gap:8px; height:48px; min-height:48px; box-sizing:border-box; margin:0; padding:0; border-top:1px solid var(--line); border-radius:0; background:transparent; transition:none; }
 .compact-lift .lift-row.lh { min-height:28px; border-top:0; }
 .compact-lift .lift-row.lh span { color:var(--tx3); font-size:13px; line-height:16px; font-weight:500; text-align:center; }
 .compact-lift .lift-row.lh .lh-n { text-align:left; }
@@ -96,7 +96,7 @@
 .compact-lift .lift-row > .lift-pr { flex:1 1 auto; margin:0; padding:0; font-size:13px; }
 .compact-lift .lift-row > .lift-heaviest { display:inline-flex; flex:0 0 18px; align-items:center; justify-content:center; width:18px; height:20px; color:var(--gold); }
 .compact-lift .lift-heaviest svg { width:16px; height:16px; }
-.compact-lift .lift-addset { min-height:44px; margin:0; padding:0 4px; font-size:15px; font-weight:600; }
+.compact-lift .lift-addset { min-height:44px; margin:9px 0 0; padding:0 4px; font-size:15px; font-weight:600; }
 .compact-lift .lift-addset svg { width:16px; height:16px; }
 .compact-lift .lift-add[hidden] { display:none; }
 .compact-lift .lift-empty { padding:12px 0; }
@@ -107,7 +107,7 @@
   .compact-lift .lift-top { grid-template-columns:auto minmax(0,1fr) auto; }
   .compact-lift .lift-header-clock { grid-row:auto; grid-column:auto; justify-content:center; }
   .compact-lift .lift-top > .acts { grid-column:auto; grid-row:auto; }
-  .compact-lift .lift-row { gap:4px; }
+  .compact-lift .lift-row { gap:8px; }
   .compact-lift .lift-sets.c5.has-prev .lh-prev { display:flex; }
   .compact-lift .lift-sets.c5.has-prev .lift-prev { order:initial; flex:0 0 48px; display:flex; align-items:center; justify-content:center; text-align:center; }
   .compact-lift .lift-sets.c5.has-prev .lift-prev-label { display:none; }
