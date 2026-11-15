@@ -42,10 +42,13 @@ async function runTheme(browser,theme){
   await page.locator('a[href="/me/sharing"]').click();
   await page.locator('#sh-contact-discovery').waitFor();
   const disclosure=page.locator('#sharing-default-disclosure');
-  assert.equal(await disclosure.innerText(),'New accounts start by sharing with everyone signed in. You can change this at any time.','Sharing & privacy has a short, accurate default note');
+  assert.equal(await disclosure.innerText(),'New accounts share activities and achievements with everyone signed in. You can change this here any time.','Sharing & privacy preserves the accurate default note');
   assert.equal(await page.locator('[data-vis][role=radio]').count(),3,'audience is a three-row radio list');
   assert.equal(await page.locator('[data-vis="everyone"]').getAttribute('aria-checked'),'true','default audience shows the selected check');
   if(out){fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,'sharing-main-390-'+theme+'.png'),animations:'disabled'});}
+  await page.setViewportSize({width:330,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'no page overflow at 330px');
+  if(out)await page.screenshot({path:path.join(out,'sharing-main-330-'+theme+'.png'),animations:'disabled'});
+  await page.setViewportSize({width:390,height:844});
   const friendsPick=page.waitForResponse(r=>r.url()===base+'/api/sharing'&&r.request().method()==='PUT');
   await page.locator('[data-vis="friends"]').click();assert.deepEqual((await friendsPick).request().postDataJSON(),{default:'friends'});
   assert.equal(await page.locator('[data-vis="friends"]').getAttribute('aria-checked'),'true','audience row updates selection');
@@ -60,7 +63,6 @@ async function runTheme(browser,theme){
   if(out){fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,`sharing-achievements-off-390-${theme}.png`),animations:'disabled',style:'#toast{display:none!important}'});}
   await page.setViewportSize({width:330,height:844});
   await page.evaluate(()=>window.scrollTo(0,0));
-  if(out)await page.screenshot({path:path.join(out,`sharing-main-330-${theme}.png`),animations:'disabled',style:'#toast{display:none!important}'});
   const narrowGeometry=await achievementsCard.locator('.switch-row').evaluate(row=>{const text=row.querySelector('span'),control=row.querySelector('input'),box=control.getBoundingClientRect(),r=row.getBoundingClientRect();return{height:r.height,textFits:text.scrollWidth<=text.clientWidth+1,controlInside:box.left>=r.left-1&&box.right<=r.right+1};});
   assert(narrowGeometry.height>=44&&narrowGeometry.textFits&&narrowGeometry.controlInside,`330px achievement switch fits: ${JSON.stringify(narrowGeometry)}`);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'no page overflow at 330px');
@@ -74,7 +76,7 @@ async function runTheme(browser,theme){
   assert.equal(await achievementsSwitch.isChecked(),true,'turning the setting on updates the switch');
   await page.reload();await page.locator('#sh-contact-discovery').waitFor();
   assert.equal(await page.locator('#sharing-default-disclosure').count(),1,'the default note stays visible on repeat visits');
-  assert.equal(await page.locator('#sharing-default-disclosure').innerText(),'New accounts start by sharing with everyone signed in. You can change this at any time.');
+  assert.equal(await page.locator('#sharing-default-disclosure').innerText(),'New accounts share activities and achievements with everyone signed in. You can change this here any time.');
   assert.equal(await achievementsSwitch.isChecked(),true,'the settings switch reads the shared API value after reload');
   await frameAchievements();
   if(out){fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,`sharing-achievements-on-390-${theme}.png`),animations:'disabled'});}
