@@ -2449,6 +2449,63 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .recipe-import .card, .food-import .card { border:0; border-radius:0; background:transparent; box-shadow:none; }
 .recipe-import .recipe-matches, .food-import .recipe-matches { padding:0; }
 
+/* Recipe-link import follows the same compact ingredient-list pattern as Cook. */
+.shell.recipe-import-page { padding-bottom:calc(var(--tab-h) + env(safe-area-inset-bottom) + 16px); }
+.shell.recipe-import-page > .top { margin-bottom:8px; }
+.shell.recipe-import-page > h1 { margin:0 0 10px; font-size:24px; line-height:1.2; }
+.recipe-import-page .recipe-import { display:grid; gap:12px; min-width:0; }
+.recipe-import-page .recipe-import > .small { margin:0; }
+.recipe-import-page .recipe-import-form { display:grid; gap:12px; margin:0; }
+.recipe-import-page .recipe-import-form > label,
+.recipe-import-page .recipe-import-editor > label { display:grid; gap:5px; margin:0; padding:8px 0; border-bottom:1px solid var(--line); font-size:15px; font-weight:500; }
+.recipe-import-page .recipe-import :is(input,textarea,select) { width:100%; min-width:0; min-height:44px; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; padding:8px 0; font-size:max(16px,1rem); }
+.recipe-import-page .recipe-import textarea { min-height:104px; resize:vertical; }
+.recipe-import-page .recipe-import-form > .primary,
+.recipe-import-page .recipe-import-submit { min-height:48px; }
+.recipe-import-page .recipe-import-actions { display:grid; gap:0; margin:4px 0 0; border-block:1px solid var(--line); }
+.recipe-import-page .recipe-import-actions > :is(.linkbtn,.ghost) { display:flex; align-items:center; justify-content:flex-start; width:100%; min-width:0; min-height:44px; padding:0 8px; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; box-shadow:none; text-align:left; }
+.recipe-import-page .recipe-import-actions > :last-child { border-bottom:0; }
+.recipe-import-page .recipe-import-actions-bottom { position:sticky; bottom:calc(var(--tab-h) + env(safe-area-inset-bottom) + 8px); z-index:3; padding:8px 0; background:var(--bg); }
+.recipe-import-page .recipe-import-actions-bottom > .primary { min-height:48px; justify-content:center; text-align:center; }
+.recipe-import-page .recipe-import-actions-bottom > .linkbtn { justify-content:center; }
+.recipe-import-page .recipe-import-status { display:grid; grid-template-columns:18px minmax(0,1fr) auto; align-items:center; gap:10px; min-height:48px; border-block:1px solid var(--line); color:var(--tx2); font-size:15px; }
+.recipe-import-page .recipe-import-status > .linkbtn { min-height:44px; padding:0 4px; }
+.recipe-import-spinner { width:16px; height:16px; border:2px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:recipe-import-spin .8s linear infinite; }
+@keyframes recipe-import-spin { to { transform:rotate(360deg); } }
+.recipe-import-page .recipe-import-skeleton { display:grid; gap:0; }
+.recipe-import-page .recipe-import-skeleton > span { height:44px; border-bottom:1px solid var(--line); background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--card2) 75%,transparent),transparent); background-size:200% 100%; animation:recipe-import-shine 1.2s ease-in-out infinite; }
+@keyframes recipe-import-shine { to { background-position:-200% 0; } }
+.recipe-import-page .recipe-import-error { margin:0; padding:8px 0; border-bottom:1px solid var(--line); color:var(--tx2); overflow-wrap:anywhere; }
+.recipe-import-page .recipe-import-candidates { display:grid; }
+.recipe-import-page .recipe-import-candidates > .row-link { min-height:56px; padding:8px 0; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; box-shadow:none; }
+.recipe-import-page .recipe-import-candidates > .row-link b { font-size:15px; font-weight:600; }
+.recipe-import-page .recipe-import-candidates > .row-link small { display:block; font-size:13px; color:var(--tx2); }
+.recipe-import-page .recipe-import-editor { display:grid; gap:8px; margin:0; }
+.recipe-import-page .recipe-import-editor > details { padding:8px 0; border-bottom:1px solid var(--line); }
+.recipe-import-page .recipe-import-editor > details > summary { min-height:44px; display:flex; align-items:center; font-weight:600; }
+.recipe-import-page .recipe-import-summary { min-width:0; }
+.recipe-import-page .recipe-import-summary h2 { font-size:18px; font-weight:650; overflow-wrap:anywhere; }
+.recipe-import-page .recipe-import-summary > .small { margin:4px 0 0; }
+.recipe-import-page .recipe-import-summary .recipe-nutrients { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 16px; margin:8px 0 0; }
+.recipe-import-page .recipe-import-summary .recipe-nutrients > div { display:flex; align-items:baseline; justify-content:space-between; gap:8px; min-width:0; min-height:40px; padding:6px 0; border-bottom:1px solid var(--line); }
+.recipe-import-page .recipe-import-summary .recipe-nutrients dt { min-width:0; color:var(--tx2); font-size:13px; }
+.recipe-import-page .recipe-import-summary .recipe-nutrients dd { min-width:0; margin:0; text-align:right; }
+.recipe-import-page .recipe-import-summary .recipe-nutrients dd b { font-size:15px; font-weight:600; }
+.recipe-import-page .recipe-import-summary .recipe-nutrients dd small { display:block; color:var(--tx2); font-size:12px; }
+.recipe-import-page .recipe-import-source { display:flex; align-items:center; min-height:44px; padding:0; }
+.recipe-import-page .recipe-import-matches { min-width:0; border-bottom:1px solid var(--line); }
+.recipe-import-page .recipe-import-matches > summary { display:flex; align-items:center; min-height:44px; font-size:15px; font-weight:600; }
+.recipe-import-page .recipe-import-match,.recipe-import-page .recipe-import-pending { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:4px 12px; min-width:0; min-height:44px; padding:6px 0; border-top:1px solid var(--line); }
+.recipe-import-page .recipe-import-match > span:first-child { display:grid; min-width:0; }
+.recipe-import-page .recipe-import-match b { font-size:15px; font-weight:500; overflow-wrap:anywhere; }
+.recipe-import-page .recipe-import-match small { color:var(--tx2); font-size:13px; }
+.recipe-import-page .recipe-import-match-amount { color:var(--tx2); font-size:13px; text-align:right; }
+.recipe-import-page .recipe-import-pending > span { min-width:0; overflow-wrap:anywhere; }
+.recipe-import-page .recipe-import-pending > .linkbtn { min-height:44px; padding-inline:4px; }
+.recipe-import-page .recipe-import :is(.small,.muted) { overflow-wrap:anywhere; }
+@media(prefers-reduced-motion:reduce){.recipe-import-spinner,.recipe-import-skeleton>span{animation:none;}}
+@media(max-width:360px){.recipe-import-page .recipe-import-summary .recipe-nutrients{grid-template-columns:minmax(0,1fr);}}
+
 /* Loading recovery stays available even if a later script cannot download. */
 .launch-note{margin:0;color:var(--tx3);font-size:.875rem;text-align:center;}
 .launch-retry{display:block;min-height:44px;padding:12px;color:var(--accent);visibility:hidden;animation:launch-retry 0s 8s forwards;}
