@@ -474,12 +474,12 @@ pre.eg { background: var(--card2); border-radius: 12px; padding: 10px 12px; font
 .sheet .grab, .sheet header { touch-action: none; }
 .sheet header { display: grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;justify-content:initial;gap:8px;margin-bottom:14px; }
 .sheet header h2 { grid-column:2;grid-row:1;min-width:0;font-size:17px;font-weight:600;letter-spacing:-.01em;text-align:center; }
-.sheet header > .icon-btn { grid-column:3;grid-row:1;justify-self:end;width:44px;height:44px;background:transparent;box-shadow:none; }
+.sheet header > .icon-btn:not(.sheet-flow-back) { grid-column:3;grid-row:1;justify-self:end;width:44px;height:44px;background:transparent;box-shadow:none; }
 .sheet header > .sheet-text-btn:first-child { grid-column:1;grid-row:1; }
 .sheet header > .sheet-text-btn:last-child { grid-column:3;grid-row:1;justify-self:end; }
 .sheet:has([data-sheet-back]) > header { display: grid; grid-template-columns: 44px minmax(0,1fr) 44px; gap: 8px; }
 .sheet:has([data-sheet-back]) > header h2 { min-width: 0; text-align: center; }
-.sheet header .sheet-flow-back { width: 44px; height: 44px; background: transparent; box-shadow: none; }
+.sheet header .sheet-flow-back { grid-column:1;grid-row:1;justify-self:start;width:44px;height:44px;background:transparent;box-shadow:none; }
 .sheet.settle { transition: transform var(--motion-settle) var(--spring-snappy); }
 .scrim.is-closing { pointer-events:none; animation:scrim-out var(--motion-settle) ease-in both; }
 .scrim.is-closing .sheet { animation:sheet-out var(--motion-settle) ease-in both; }
