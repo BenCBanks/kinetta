@@ -69,6 +69,7 @@
 /* Owner type scale: default sizes stay calm; rem text still follows accessibility enlargement. */
 .compact-ready .track-go #track-start > span { font-size:max(15px,1rem); }
 
+
 .track-recording-settings > header h2 { font-size:1.25rem; }
 .track-recording-settings .track-pref-list { min-width:0; grid-template-columns:minmax(0,1fr); }
 .track-recording-settings .switch-row { min-width:0; gap:8px; }
@@ -236,3 +237,94 @@ nav.tabs :is(a,button).has-recording::before { content: ''; width: 6px; height: 
 
 .interval-row-actions button{border:1px solid var(--line);border-radius:var(--r2);background:var(--card);color:var(--tx);font:inherit;font-size:14px}.interval-row-actions button:disabled{color:var(--tx3);opacity:.55}.interval-save-status{color:var(--good)}.interval-history-table{overflow:auto;max-width:100%;margin:14px 0}.interval-history-table table{min-width:0;table-layout:fixed;width:100%;border-collapse:collapse;font-size:14px}.interval-history-table th,.interval-history-table td{overflow-wrap:anywhere;text-align:left;vertical-align:top;padding:12px 8px;border-bottom:1px solid var(--line)}.interval-history-table th{color:var(--tx2)}
 
+/* #1072 PR1: live recording is a fixed, full-viewport column; only the map yields space. */
+#page:has(#track-content > .track-live) { padding:0; }
+.track-session.track-live {
+  box-sizing:border-box; width:100vw; margin:0 0 0 calc(50% - 50vw); padding:0;
+  border:0; border-radius:0; background:transparent; box-shadow:none; text-align:left;
+}
+.track-live-main {
+  box-sizing:border-box; display:flex; flex-direction:column; width:100%; height:100dvh;
+  min-height:0; padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px);
+}
+.track-live-top {
+  box-sizing:border-box; flex:none; min-height:44px; padding:0 16px; gap:8px;
+}
+.track-live-top h2 {
+  display:flex; align-items:center; gap:8px; min-width:0; font:700 20px/1.2 var(--font-display);
+  overflow-wrap:anywhere;
+}
+.track-live-top .rec-dot { width:10px; height:10px; flex:none; }
+.track-live.is-paused .track-live-top .rec-dot { background:transparent; border:2px solid var(--tx3); box-sizing:border-box; }
+.track-live #track-status { position:absolute; width:1px; height:1px; min-height:0; margin:0; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+.track-live-tabs {
+  display:flex; align-self:stretch; align-items:stretch; flex:none; gap:12px; padding:0;
+  border:0; border-radius:0; background:transparent;
+}
+.track-live-tabs button {
+  min-width:36px; min-height:44px; padding:0 3px; border:0; border-bottom:2px solid transparent;
+  border-radius:0; background:transparent; color:var(--tx2); font-size:15px; font-weight:400;
+}
+.track-live-tabs button[aria-pressed="true"] { color:var(--tx); border-bottom-color:var(--accent); background:transparent; box-shadow:none; font-weight:600; }
+.track-live-metrics[aria-label="Current workout"] {
+  box-sizing:border-box; display:grid; flex:none; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:center;
+  min-height:64px; margin:0; padding:4px 8px; border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+  text-align:center;
+}
+.track-live-metrics[aria-label="Current workout"] > div {
+  display:flex; min-width:0; min-height:48px; flex-direction:column; align-items:center; justify-content:center; gap:1px;
+}
+.track-live-metrics[aria-label="Current workout"] > div + div { border-left:1px solid var(--line); }
+.track-live-metrics[aria-label="Current workout"] b {
+  display:flex; align-items:baseline; justify-content:center; gap:3px; min-width:0; white-space:nowrap;
+  font-size:28px; line-height:1.1; font-weight:600; font-variant-numeric:tabular-nums;
+}
+.track-live-metrics[aria-label="Current workout"] b i { color:var(--tx2); font-size:13px; line-height:1; font-style:normal; font-weight:500; }
+.track-live-metrics[aria-label="Current workout"] small { margin:0; padding:0; color:var(--tx2); font-size:13px; line-height:1.2; font-weight:500; }
+.track-live.is-paused .track-live-metrics[aria-label="Current workout"] > div:first-child b { color:var(--tx2); }
+.track-live-main > .track-map-wrap {
+  position:relative; flex:1 1 0; min-height:80px; max-height:none; margin:0; overflow:hidden; border-radius:0;
+  border-bottom:1px solid var(--line); background:var(--surface-2,var(--card2)); box-shadow:none;
+}
+.track-live-main > .track-map-wrap .live-record-map { position:absolute; inset:0; width:100%; height:100%; margin:0; border-radius:0; box-shadow:none; }
+.track-live-main > .track-map-wrap .leaflet-control-attribution { max-width:calc(100vw - 24px); font-size:11px; line-height:1.2; }
+.track-live-main > .track-map-wrap .track-follow-control {
+  position:absolute; z-index:600; top:12px; right:12px; display:grid; place-items:center; width:44px; height:44px; min-width:44px; min-height:44px;
+  padding:0; border:0; border-radius:50%; background:transparent; color:var(--tx); cursor:pointer;
+}
+.track-live-main > .track-map-wrap .track-follow-control::before {
+  content:""; position:absolute; inset:4px; border-radius:50%; background:var(--surface-card,var(--card)); box-shadow:var(--elev-1,0 1px 3px #0002);
+}
+.track-live-main > .track-map-wrap .track-follow-control svg { position:relative; z-index:1; width:18px; height:18px; }
+.track-live-main > .track-map-wrap .track-follow-control span {
+  position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap;
+}
+.track-live-main > .track-map-wrap #track-gps-live { display:none !important; }
+.track-live-main > .track-map-wrap .track-timer-link {
+  position:absolute; z-index:600; top:12px; left:12px; min-height:44px; padding:0 10px; border:0;
+  background:transparent; color:var(--accent); font-size:13px; font-weight:600;
+}
+.track-live-main > .track-controls {
+  box-sizing:border-box; flex:none; display:flex; align-items:center; justify-content:center; gap:clamp(24px,8vw,32px);
+  min-height:100px; margin:0; padding:8px 16px; border-top:1px solid var(--line); background:var(--surface,var(--card));
+}
+.track-live-main > .track-controls .round-ctl { display:flex; flex:none; flex-direction:column; align-items:center; gap:4px; }
+.track-live-main > .track-controls .round-btn { box-sizing:border-box; width:64px; height:64px; min-width:44px; min-height:44px; }
+.track-live-main > .track-controls .round-btn.lap,
+.track-live-main > .track-controls .round-btn.stop,
+.track-live-main > .track-controls .round-btn.discard { width:56px; height:56px; background:transparent; box-shadow:none; }
+.track-live-main > .track-controls .round-btn.lap,
+.track-live-main > .track-controls .round-btn.stop { color:var(--tx); border:1px solid var(--line); }
+#track-content .track-live-main > .track-controls .round-btn.lap,
+#track-content .track-live-main > .track-controls .round-btn.stop { box-shadow:none; }
+.track-live-main > .track-controls .round-btn.discard { color:var(--alert); border:1px solid color-mix(in srgb,var(--alert) 55%,var(--line)); }
+.track-live-main > .track-controls .round-btn.go { background:var(--btn); color:var(--onbtn); }
+.track-live-main > .track-controls small { min-height:16px; color:var(--tx2); font-size:12px; line-height:16px; font-weight:500; }
+.track-live-main > .track-controls .round-btn:active { transform:scale(.96); }
+.track-live-stats { box-sizing:border-box; flex:1; min-height:0; overflow:hidden; padding:8px 16px; }
+.track-live-stats .track-hero { margin:8px 0; }
+.track-live-stats .track-hero b { font-size:56px; }
+@media(max-width:360px) {
+  .track-live-metrics[aria-label="Current workout"] b { font-size:24px; }
+  .track-live-main > .track-controls { gap:24px; padding-inline:12px; }
+}

@@ -121,7 +121,7 @@ async function mediaBeforeRender(page,requests,label,renderPaths,errors,networkI
   }
   {
    const c=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'block'});await login(c,'zz_test_detail_owner');
-   const p=await c.newPage(),requests=[],errors=[],networkIssues=[],recording=require('../demo/track_session.cjs')('paused');await guard(p,requests,errors,networkIssues);
+   const p=await c.newPage(),requests=[],errors=[],networkIssues=[],recording=require('../demo/track_session.cjs')('review');await guard(p,requests,errors,networkIssues);
    await c.addInitScript(({uid,origin,recording})=>localStorage.setItem('kinetta.track:'+JSON.stringify([origin,uid]),JSON.stringify(recording)),{uid:me.id,origin:base,recording});
    console.log('Media route case start: restored Track review map');await p.goto(base+'/track');await ready(p,'#track-map-wrap','restored Track review map',{errors,networkIssues});
    const mediaIndex=requests.findIndex(x=>x==='/static/media.js');assert(mediaIndex>=0,'Track loads media for a restored GPS review map');

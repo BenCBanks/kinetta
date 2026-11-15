@@ -121,6 +121,15 @@
       if(initialReady())break;
       await new Promise(ok=>setTimeout(ok,100));
     }
+    if(cfg.stage==='track-live'){
+      const stats=document.querySelector('[data-display="stats"]');
+      if(!stats)throw Error('Live recorder Stats tab is missing');
+      stats.click();
+      let lapPace='';
+      for(let n=0;n<100;n++){lapPace=document.querySelector('#track-lap-pace')?.textContent.trim()||'';if(lapPace&&lapPace!=='—')break;await new Promise(ok=>setTimeout(ok,100));}
+      if(!lapPace||lapPace==='—')throw Error('Live recorder Stats tab did not render lap pace');
+      cfg.trackLapPace=lapPace;
+    }
     if(cfg.startupTiming){
       if(!initialReady())throw Error('Fictional Me screen did not reach first useful render');
       await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);cfg.startupTiming.firstUsefulRenderPerfMs=performance.now();
@@ -129,7 +138,6 @@
     if(cfg.groups){document.querySelector('#group-new')?.click();let ready=false;for(let n=0;n<150;n++){ready=!!document.querySelector('#group-create-form');if(ready)break;await new Promise(ok=>setTimeout(ok,100));}if(!ready)throw Error('Groups create form did not open');}
     if(cfg.store&&cfg.activity)document.querySelector('[data-dt=charts]')?.click();
     if(cfg.stage==='review')finishDish(cfg.dish);
-    if(cfg.stage==='track-map')document.querySelector('#track-map-wrap .map-full')?.click();
     if(cfg.stage==='achievement-share-track'){
       let runTab=null;for(let n=0;n<100;n++){runTab=document.querySelector('#profile-achievement-page[aria-busy="false"] [data-achievement-sport="run"]');if(runTab)break;await new Promise(ok=>setTimeout(ok,100));}if(!runTab)throw Error('Run achievement tab is missing');runTab.click();
       for(let n=0;n<100&&!document.querySelector('.profile-achievement-sport-card[data-achievement-code="sport:run"] [data-achievement-track-share]');n++)await new Promise(ok=>setTimeout(ok,100));
@@ -178,7 +186,7 @@
     }
     if(cfg.friends){result.friends={title:document.querySelector('#fr-title')?.textContent,backLabel:document.querySelector('.top .back')?.getAttribute('aria-label'),findAction:rect('#fr-list-find'),requestRow:rect('#fr-requests-open'),requestLabel:document.querySelector('#fr-requests-open .grow b')?.textContent.trim()||'',requestCount:document.querySelector('#fr-requests-open .count')?.textContent.trim()||'',counts:[document.querySelectorAll('.fr-friend').length,document.querySelectorAll('#fr-requests-open').length,document.querySelectorAll('.pym-tile').length],firstFriend:rect('.fr-friend'),empty:rect('.friend-empty'),emptyAction:rect('#fr-empty-browse'),controls:[...document.querySelectorAll('#fr-list-find,#fr-requests-open,[data-manage]')].map(n=>{const r=n.getBoundingClientRect();return{width:r.width,height:r.height};}),fullChallenges:!!document.querySelector('#friends-challenges')};}
     if(cfg.activity){const bar=cfg.stage==='activity-sticky'?'.detail-sticky':cfg.stage==='activity-empty'?'.detail-bar.top':'.detail-floating';result.activity={scrollY,documentHeight:document.documentElement.scrollHeight,hero:rect('.detail-map-hero'),bar:rect(bar),back:rect(bar+' .back'),actions:[...document.querySelectorAll(bar+' .icon-btn')].map(n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom};}),title:rect('.d-title'),tabs:rect('.dtabs'),expanded:!!document.querySelector('.map.full'),close:rect('.map.full .map-full'),secondary:document.querySelectorAll('.detail-secondary .stat').length,social:{hidden:document.querySelector('#d-soc').hidden,react:rect('#d-soc .reaction-more'),comments:rect('#d-soc [data-ttalk]')}};}
-    if(cfg.recording){result.tracking={controls:rect(cfg.stage==='track-map'?'.track-full-controls':'.track-controls'),captions:[...document.querySelectorAll('.track-live-main .track-controls .round-ctl small')].map(e=>e.getBoundingClientRect().bottom),save:rect('#track-save'),tabs:rect('nav.tabs'),map:rect('#track-map-wrap'),average:document.querySelector('#track-pace')?.textContent,lap:document.querySelector('#track-lap-pace')?.textContent,photos:rect('#track-photos-add'),title:rect('input[name=activity_name]'),chart:rect('#track-review-charts'),expanded:!!document.querySelector('#track-map-wrap.full')};}
+    if(cfg.recording){result.tracking={controls:rect('.track-controls'),captions:[...document.querySelectorAll('.track-live-main .track-controls .round-ctl small')].map(e=>e.getBoundingClientRect().bottom),save:rect('#track-save'),tabs:rect('nav.tabs'),map:rect('#track-map-wrap'),display:document.querySelector('[data-display="stats"]')?.getAttribute('aria-pressed')==='true'?'stats':'map',average:document.querySelector('#track-pace')?.textContent,lap:cfg.stage==='track-live'?cfg.trackLapPace:document.querySelector('#track-lap-pace')?.textContent,photos:rect('#track-photos-add'),title:rect('input[name=activity_name]'),chart:rect('#track-review-charts'),expanded:!!document.querySelector('#track-map-wrap.full')};}
     if(cfg.store){
       result.sceneReady=storeReady();
       if(!result.sceneReady)result.storeDiagnostics=storeActivityDiagnostics();
