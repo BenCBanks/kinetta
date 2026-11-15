@@ -359,7 +359,7 @@ final class NativeTrackRecorder: NSObject, CLLocationManagerDelegate {
     }
 }
 
-// Spoken split times (#234 item 4), even with the phone locked in a pocket: music dips while it speaks, then comes back.
+// Spoken split times (#234 item 4), even with the phone locked in a pocket: other audio pauses while it speaks, then resumes.
 final class NativeTrackVoice: NSObject, AVSpeechSynthesizerDelegate {
     static let shared=NativeTrackVoice()
     private let synth=AVSpeechSynthesizer()
@@ -373,7 +373,7 @@ final class NativeTrackVoice: NSObject, AVSpeechSynthesizerDelegate {
     @discardableResult func say(_ text: String,completion: @escaping () -> Void) -> Bool {
         cancel()
         let audio=AVAudioSession.sharedInstance()
-        do { try audio.setCategory(.playback,mode:.voicePrompt,options:[.duckOthers,.interruptSpokenAudioAndMixWithOthers]);try audio.setActive(true) }
+        do { try audio.setCategory(.playback,mode:.voicePrompt);try audio.setActive(true) }
         catch { return false }
         let utterance=AVSpeechUtterance(string:text);callbacks[ObjectIdentifier(utterance)]=completion;synth.speak(utterance);return true
     }
