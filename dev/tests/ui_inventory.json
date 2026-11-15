@@ -449,6 +449,22 @@
       ]
     },
     {
+      "id": "social-sharing-blocked",
+      "source": "app/static/social.js",
+      "pattern": "/^\\/me\\/sharing\\/blocked$/",
+      "paths": [
+        "/me/sharing/blocked"
+      ]
+    },
+    {
+      "id": "social-sharing-routes",
+      "source": "app/static/social.js",
+      "pattern": "/^\\/me\\/sharing\\/routes$/",
+      "paths": [
+        "/me/sharing/routes"
+      ]
+    },
+    {
       "id": "social-contacts",
       "source": "app/static/social.js",
       "pattern": "/^\\/me\\/friends\\/contacts$/",

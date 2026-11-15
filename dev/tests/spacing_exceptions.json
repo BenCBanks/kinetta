@@ -392,5 +392,68 @@
     "maximum": 7.91,
     "followup": "https://github.com/BenCBanks/kinetta/issues/1041",
     "reason": "The map attribution and the 48px Home footer occupy adjacent edges of the same activity card. Their measured subpixel 7.906px nearest-corner distance is a visual 8px gap; only these footer-to-credit pairs are excepted."
+  },
+  {
+    "id": "sharing-audience-touching-rows",
+    "selector": "#sh-body .sharing-audience > .sharing-choice",
+    "metric": "gap",
+    "kind": "approved-list",
+    "maximum": 0,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1025",
+    "reason": "Issue #1025 presents the three audience radio choices as one grouped inset surface with inset hairline dividers. Only adjacent choices in this radio group may touch; all other gaps, targets and text remain audited."
+  },
+  {
+    "id": "sharing-detail-touching-rows",
+    "selector": "#sh-d > .switch-row",
+    "metric": "gap",
+    "kind": "approved-list",
+    "maximum": 0,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1025",
+    "reason": "Issue #1025 presents activity detail switches as one grouped inset surface with inset hairline dividers. Only adjacent switches in this form may touch; all other gaps, targets and text remain audited."
+  },
+  {
+    "id": "sharing-caption-type",
+    "selector": ".sharing-settings #sh-body > .settings-caption",
+    "metric": "font-min",
+    "kind": "approved-type",
+    "minimum": 13,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1025",
+    "reason": "Issue #1025 uses muted 13px group captions on Sharing & privacy. The exception is limited to these headings; row labels, values and body copy keep the normal minimum."
+  },
+  {
+    "id": "sharing-footnote-type",
+    "selector": ".sharing-settings #sh-body > .settings-footnote,.sharing-settings #sh-contact-discovery > .settings-footnote",
+    "metric": "font-min",
+    "kind": "approved-type",
+    "minimum": 13,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1025",
+    "reason": "Issue #1025 uses 13px muted explanatory footnotes on Sharing & privacy. Only these explanatory paragraphs get the compact type; controls and other copy remain under normal limits."
+  },
+  {
+    "id": "notification-alert-touching-rows",
+    "selector": "#np-kinds .notification-choices > .switch-row",
+    "metric": "gap",
+    "kind": "approved-list",
+    "maximum": 0,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1025",
+    "reason": "Issue #1025 groups Social and Reminder switches in one inset surface per group, divided by inset hairlines. Only adjacent switches inside these two groups may touch; other gaps, targets and text remain audited."
+  },
+  {
+    "id": "notification-group-caption-type",
+    "selector": "#np-kinds > h3",
+    "metric": "font-min",
+    "kind": "approved-type",
+    "minimum": 13,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1025",
+    "reason": "Issue #1025 specifies muted 13px captions for Social and Reminders groups. Only these two headings get compact type; alert labels and descriptions keep the normal minimum."
+  },
+  {
+    "id": "notification-footnote-type",
+    "selector": ".notification-settings .settings-footnote",
+    "metric": "font-min",
+    "kind": "approved-type",
+    "minimum": 13,
+    "followup": "https://github.com/BenCBanks/kinetta/issues/1025",
+    "reason": "Issue #1025 keeps reminder explanations as muted 13px footnotes. Only those explanations get compact type; reminder labels and controls remain under normal limits."
   }
 ]

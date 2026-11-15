@@ -1469,7 +1469,7 @@ route(/^\/me\/sharing$/, 'me', async (el) => {
     </div>
     <h2 class="settings-caption">Privacy</h2><div class="social-settings-group"><button type="button" class="row-link sharing-nav" id="sh-trim-open"><span class="grow"><b>Hide route ends</b><small>Start and end · ${esc(trimName(s.trim_m))}</small></span>${svg('chev')}</button></div>
     ${appFeatureEnabled('progress_segments') ? '<div id="sh-segments"></div>' : ''}
-    <div class="social-settings-group"><a class="row-link sharing-nav" href="/me/sharing/blocked"><span class="grow"><b>Blocked people</b></span>${svg('chev')}</a></div>`;
+    <div class="social-settings-group sharing-blocked-group"><a class="row-link sharing-nav" href="/me/sharing/blocked"><span class="grow"><b>Blocked people</b></span>${svg('chev')}</a></div>`;
   ContactsUI.addPrivacyRemoval(box);
   if (appFeatureEnabled('progress_segments') && typeof Segments !== 'undefined' && $('#sh-segments', box)) Segments.settingsRow($('#sh-segments', box));
   $('#sh-trim-open',box).onclick=()=>go('/me/sharing/routes');
