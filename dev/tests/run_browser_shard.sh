@@ -14,10 +14,17 @@ case "$1" in
     python3 dev/tests/explore_fixture.py
     node dev/tests/lazy_route_ui.cjs
     node dev/tests/explore_hints_ui.cjs
-    node dev/tests/progress_ui.cjs
     node dev/tests/fitness_ui.cjs
     node dev/tests/heatmap_ui.cjs
     node dev/tests/profile_card_ui.cjs
+    python3 dev/tests/weight_progress_fixture.py
+    PHASE=after node dev/tests/weight_progress_ui.cjs
+    node dev/tests/weight_progress_actions.cjs
+    node dev/tests/weight_progress_journeys.cjs
+    node dev/tests/weight_undo_ui.cjs
+    python3 dev/tests/inline_reactions_fixture.py
+    PHASE=after node dev/tests/inline_reactions_ui.cjs
+    node dev/tests/inline_reactions_actions.cjs
     ;;
   2)
     node dev/tests/top_chips_ui.cjs
@@ -44,14 +51,6 @@ case "$1" in
     node dev/tests/goals_ui.cjs
     ;;
   4)
-    python3 dev/tests/weight_progress_fixture.py
-    PHASE=after node dev/tests/weight_progress_ui.cjs
-    node dev/tests/weight_progress_actions.cjs
-    node dev/tests/weight_progress_journeys.cjs
-    node dev/tests/weight_undo_ui.cjs
-    python3 dev/tests/inline_reactions_fixture.py
-    PHASE=after node dev/tests/inline_reactions_ui.cjs
-    node dev/tests/inline_reactions_actions.cjs
     node dev/tests/shell_ui.cjs
     node dev/tests/password_visibility_ui.cjs
     python3 dev/tests/signup_uniqueness_fixture.py
@@ -59,6 +58,7 @@ case "$1" in
     node dev/tests/welcome_polish_ui.cjs
     node dev/tests/community_ui.cjs
     KINETTA_GROUPS_UPDATES_ONLY=1 node dev/tests/groups_ui.cjs
+    node dev/tests/progress_ui.cjs
     ;;
   5)
     node dev/tests/nutrition_ui.cjs
