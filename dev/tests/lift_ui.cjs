@@ -35,7 +35,7 @@ async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))
    assert.equal((await p.locator('.lift-history-name').count()),3,'workout history links each exercise to its history');
    assert.equal((await p.locator('.lift-history input,.lift-history button[data-set],.lift-history .lift-tick,.lift-history .lift-addset').count()),0,'saved workout history has no editing controls');
    assert.equal((await p.locator('.compact-lift-history [data-back]').innerText()).trim(),'Track','saved workout history has a labelled back');
-   const shot=async state=>{if(shots&&size.width<=390){const fs=require('node:fs'),path=require('node:path');fs.mkdirSync(shots,{recursive:true});await p.screenshot({path:path.join(shots,`lift-${state}-${size.width}-${theme}.png`),animations:'disabled'});}};
+   const shot=async state=>{if(shots&&size.width<=390){const fs=require('node:fs'),path=require('node:path');fs.mkdirSync(shots,{recursive:true});await p.evaluate(()=>document.fonts.ready);await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));await p.screenshot({path:path.join(shots,`lift-${state}-${size.width}-${theme}.png`),animations:'disabled'});}};
    await p.evaluate(start=>liftLogger(document.querySelector('#page'),999906,{open:true,start_time:start,exercises:[]}),start);
    assert(await p.locator('#lf-empty-add').isVisible());assert(await p.locator('#lf-add').isHidden());
    assert.equal((await p.locator('.lift-back').innerText()).trim(),'Lift','active logger has a visible labelled back');
