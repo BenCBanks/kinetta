@@ -6,8 +6,8 @@ const MapTiles=(()=>{
   // Public captures use the same approved basemap, but omit geographic labels so
   // a city, park or street name cannot identify a real place in store imagery.
   // This flag is set only by dev/screenshots/take.js and is never enabled by the app.
-  const style=(P,isDark)=>{const p=palettes[isDark?'dark':'light'],rules=P.labelRules(p,'en');
-    const labelRules=globalThis.__KINETTA_SCREENSHOT_MODE__===true
+  const style=(P,isDark,hideLabels=false)=>{const p=palettes[isDark?'dark':'light'],rules=P.labelRules(p,'en');
+    const labelRules=hideLabels||globalThis.__KINETTA_SCREENSHOT_MODE__===true
       ? rules.map(rule=>({...rule,visible:false}))
       : rules;
     return {paintRules:P.paintRules(p),labelRules,backgroundColor:p.background};};
@@ -99,17 +99,18 @@ const MapTiles=(()=>{
     map.once('unload',()=>{closed=true;version++;media.removeEventListener('change',theme);observer.disconnect();window.removeEventListener('online',theme);});
     draw();
   }
-  async function paint(g,pts,box,geometry){
+  async function paint(g,pts,box,geometry,{hideLabels=false}={}){
     let c;try{c=await config();}catch(_){return 0;}
     if(c.kind==='off')return 0;
     const {z,k,n,cx,cy,mx,my,tx0,tx1,ty0,ty1,zf}=geometry;
     try{
       if(c.kind==='raster'){
+        if(hideLabels)return 0;
         const jobs=[];for(let x=tx0;x<=tx1;x++)for(let y=ty0;y<=ty1;y++)jobs.push(raster(c,z,((x%2**z)+2**z)%2**z,y).then(im=>[im,x,y],()=>null));
         const got=(await Promise.all(jobs)).filter(Boolean);g.save();g.beginPath();g.rect(box.x,box.y,box.w,box.h);g.clip();for(const [im,x,y] of got)g.drawImage(im,(x*256-cx)*k+mx,(y*256-cy)*k+my,256*k+.5,256*k+.5);g.restore();return got.length;
       }
       const P=await vector(),canvas=document.createElement('canvas');canvas.width=box.w;canvas.height=box.h;let errors=0,count=0;
-      const staticMap=protect(new P.Static({url:c.url,...style(P,false)}),()=>errors++,()=>count++);
+      const staticMap=protect(new P.Static({url:c.url,...style(P,false,hideLabels)}),()=>errors++,()=>count++);
       const x=cx+(box.x+box.w/2-mx)/k,y=cy+(box.y+box.h/2-my)/k;
       await staticMap.drawContext(canvas.getContext('2d'),box.w,box.h,{x:x/n*360-180,y:Math.atan(Math.sinh(Math.PI*(1-2*y/n)))*180/Math.PI},zf);
       if(errors||!count)return 0;g.drawImage(canvas,box.x,box.y);return 1;
