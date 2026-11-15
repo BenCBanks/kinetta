@@ -57,7 +57,6 @@ while True:
   milestones=ok(owner.get(f'/api/milestones?activity_id={ids["run"]}'))
   assert any(item.get('title')=='First 10K' for item in milestones.get('items',[])), 'fictional run fixture exposes its First 10K milestone'
   break
-  break
  if time.monotonic()>=deadline:raise TimeoutError('milestone worker did not finish the fictional activity fixture')
  time.sleep(.1)
 earned=subprocess.run(['docker','exec','-i',project+'-db-1','psql','-U','postgres','-d','fit','-v','ON_ERROR_STOP=1','-At'],input=f"SELECT EXISTS(SELECT 1 FROM milestones WHERE user_id={uid} AND activity_id={ids['run']} AND title='First 10K' AND valid);\n",text=True,capture_output=True);assert earned.returncode==0,earned.stderr;assert earned.stdout.strip()=='t','pinned fictional 10K fixture persists its earned milestone'
