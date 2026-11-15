@@ -75,6 +75,18 @@
 .activity-detail .activity-charts .chartbox { padding:4px 0 2px; }
 .activity-detail .activity-charts .chartbox .area { fill:url(#kinetta-accent-gradient); opacity:.22; }
 
+/* PR3 charts share one inspection line and keep the axis labels quiet and aligned. */
+.activity-detail .activity-charts .chartbox + .chartbox { margin-top:12px; padding-top:10px; border-top:1px solid var(--color-divider); }
+.activity-detail .activity-charts .lbl { gap:8px; align-items:baseline; flex-wrap:nowrap; margin:0 0 6px; }
+.activity-detail .activity-charts .lbl > span:first-child { color:var(--color-text); font-size:15px; font-weight:600; }
+.activity-detail .activity-charts .lbl > span:last-child { margin-left:auto; color:var(--color-text-muted); font-size:13px; font-weight:400; text-align:right; white-space:nowrap; }
+.activity-detail .activity-charts .lbl > span:last-child b { color:inherit; font-weight:600; }
+.activity-detail .activity-charts .chartbox svg { height:120px; }
+.activity-detail .activity-charts .yl { font-size:14px; }
+.activity-detail .activity-charts .gl { stroke:var(--color-divider); }
+.activity-detail .activity-charts .chartbox:not(:last-child) .activity-chart-x-label { display:none; }
+.activity-detail .activity-charts .activity-chart-elevation .sample-area { opacity:.5; }
+
 /* Activity detail PR 1 (#1019) supersedes the #984 hero-stat treatment with the owner grid rule. */
 .activity-detail .activity-chart-card {
   background:var(--surface-card);

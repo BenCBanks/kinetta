@@ -717,9 +717,10 @@ route(/^\/activity\/(\d+)$/, 'activity', async (el, id) => {
 // comments are small icons by the title (comments open in a sheet; ?tab=comments opens it), sharing is in Edit, and
 // the share button sends a link or a picture (2026-10-12).
 const DTABS = [['charts', 'Charts'], ['splits', 'Splits'], ['efforts', 'Efforts'], ['overview', 'Details']];
-// Shared activities draw only pace/speed, heart rate and elevation, so they check just those series.
-const activitySamples = (a, series = ['speed','gap_speed','hr','alt','power','cad']) => {
+// Shared activity charts omit owner-only power/cadence even if a fixture or cache contains them.
+const activitySamples = (a) => {
   const c = a.chart;
+  const series = ['speed','hr','alt', ...(!a.owner ? ['power','cad'] : [])];
   return !!(c && (c.t?.length >= 2 || c.d?.length >= 2) && series.some(k => c[k]?.filter(v => v != null && Number.isFinite(v)).length >= 2));
 };
 function activityTabs(panes) {
@@ -819,23 +820,27 @@ function drawDetail(el, a) {
   if (activitySamples(a)) {
     const c = a.chart, x = c.d && (c.d[c.d.length - 1] > 100 || !c.t) ? c.d : c.t, byDist = x === c.d;
     const rows = [];
-    const sp = c.speed && FOOT.includes(a.sport) && a.sport !== 'swim';
-    if (c.speed) rows.push(sp ? {name: 'Pace', short: 'Pace', vals: c.speed.map((v) => (v > 0.5 ? 1000 / v : null)), fmt: (v) => U.pace(v), unit: U.pu(), color: col('--s5'), invert: true, clip: true}
-                              : {name: 'Speed', vals: c.speed, fmt: (v) => U.speed(v), unit: U.su(), color: col('--s5'), clip: true});
-    if (c.gap_speed && sp) rows.push({name: 'Grade-adjusted pace', short: 'GAP', vals: c.gap_speed.map((v) => (v > 0.5 ? 1000 / v : null)), fmt: (v) => U.pace(v), unit: U.pu(), color: col('--s2'), invert: true, clip: true, avg: a.gap_s_per_km});
+    const sp = c.speed && FOOT.includes(a.sport) && a.sport !== 'swim', sportColor = col(`--${a.sport}`);
+    if (c.speed) rows.push(sp ? {name: 'Pace', short: 'Pace', vals: c.speed.map((v) => (v > 0.5 ? 1000 / v : null)), fmt: (v) => U.pace(v), unit: U.pu(), color: sportColor, invert: true, clip: true}
+                              : {name: 'Speed', vals: c.speed, fmt: (v) => U.speed(v), unit: U.su(), color: sportColor, clip: true});
     if (c.hr) rows.push({name: 'Heart rate', short: 'HR', vals: c.hr, fmt: (v) => Math.round(v), unit: 'bpm', color: col('--s1'), avg: a.avg_hr});
-    if (c.alt) rows.push({name: 'Elevation', short: 'Elev', vals: c.alt, fmt: (v) => U.elev(v), unit: U.eu(), color: col('--hike')});
-    if (c.power) rows.push({name: 'Power', vals: c.power, fmt: (v) => Math.round(v), unit: 'W', color: col('--s4'), clip: true, avg: a.avg_power});
-    if (c.cad) rows.push({name: 'Cadence', short: 'Cad', vals: c.cad, fmt: (v) => Math.round(v), unit: a.sport === 'ride' ? 'rpm' : 'spm', color: col('--s3'), clip: true, avg: a.avg_cad});
+    if (c.alt) rows.push({name: 'Elevation', short: 'Elev', vals: c.alt, fmt: (v) => U.elev(v), unit: U.eu(), color: col('--other')});
+    if (!a.owner && c.power) rows.push({name: 'Power', vals: c.power, fmt: (v) => Math.round(v), unit: 'W', color: col('--s4'), clip: true, avg: a.avg_power});
+    if (!a.owner && c.cad) rows.push({name: 'Cadence', short: 'Cad', vals: c.cad, fmt: (v) => Math.round(v), unit: a.sport === 'ride' ? 'rpm' : 'spm', color: col('--s3'), clip: true, avg: a.avg_cad});
     const box = $('#d-charts', el);
     const draw = () => { if (!box.isConnected) return; chartStack(box, x, rows, {
       xfmt: (v) => (byDist ? `${U.dist(v)} ${U.du()}` : dur(v)),
       onIndex: (i) => {   // move a dot along the map with the crosshair
         if (!mapObj || !mapBox?.isConnected || !pts || !pts.length || !c.d) return;
         const frac = (c.d[i] - c.d[0]) / (c.d[c.d.length - 1] - c.d[0] || 1), p = pts[Math.min(pts.length - 1, Math.round(frac * (pts.length - 1)))];
-        if (!marker) marker = mapObj.L.circleMarker(p, {radius: 7, color: '#fff', weight: 2, fillColor: col('--s5'), fillOpacity: 1}).addTo(mapObj.map);
+        if (!marker) marker = mapObj.L.circleMarker(p, {radius: 7, color: '#fff', weight: 2, fillColor: sportColor, fillOpacity: 1}).addTo(mapObj.map);
         else marker.setLatLng(p);
-      }}); };
+      }});
+      $$('.chartbox', box).forEach(chart => {
+        if (chart.querySelector('.lbl > span:first-child')?.textContent === 'Elevation') chart.classList.add('activity-chart-elevation');
+        chart.querySelectorAll('text.yl').forEach(label => { if (Number(label.getAttribute('y')) > 120) label.classList.add('activity-chart-x-label'); });
+      });
+    };
     let w = 0;
     drawCharts = () => { w = box.clientWidth; draw(); };
     if (!$('[data-pane="charts"]', el).hidden) { requestAnimationFrame(drawCharts); drawCharts = null; }
