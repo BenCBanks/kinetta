@@ -274,7 +274,10 @@ class Groups(unittest.TestCase):
         self.assertEqual(three['sharing_member_count'], 3)
         self.assertNotIn('this_week_contributors', three, 'weekly response never exposes who was active')
         self.assertNotIn('your_this_week_total', three)
-        self.assertEqual(three['members'][1]['value'], 3, 'shared member amounts appear once three members are visible')
+        member_logins = [self.clients[i].get('/api/me').json()['login'] for i in range(3)]
+        self.assertEqual({member['username']: member['value'] for member in three['members']},
+                         dict(zip(member_logins, (12, 3, 5))),
+                         'shared member amounts appear once three members are visible')
 
         token = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={}).json()['invite_url'].rsplit('/', 1)[1]
         self.assertEqual(self.accept(token, who=3).status_code, 200)
@@ -728,7 +731,7 @@ class Groups(unittest.TestCase):
         self.assertNotIn('total', two['recap'])
         self.assertTrue(all('value' not in member for member in two['members']),
                         'shared member rows still withhold amounts below three visible members')
-        self.assertEqual(two['recap']['participants'], [self.clients[i].get('/api/me').json()['login'] for i in (0, 1)])
+        self.assertCountEqual(two['recap']['participants'], [self.clients[i].get('/api/me').json()['login'] for i in (0, 1)])
 
         self.assertEqual(self.accept(token, who=2).status_code, 200)
         with db.connect() as c:
@@ -739,8 +742,13 @@ class Groups(unittest.TestCase):
         self.assertEqual(three['member_count'], 3)
         self.assertEqual(three['total'], 6)
         self.assertEqual(three['recap']['total'], 6)
-        self.assertEqual([member['value'] for member in three['members']], [1, 2, 3])
-        self.assertEqual(three['recap']['participants'], [self.clients[i].get('/api/me').json()['login'] for i in (0, 1)],
+        member_logins = [self.clients[i].get('/api/me').json()['login'] for i in range(3)]
+        self.assertEqual(three['members'][0]['username'], member_logins[0], 'the viewer is first in Members')
+        self.assertEqual([member['username'] for member in three['members'][1:]],
+                         sorted(member_logins[1:], key=str.casefold), 'other Members are sorted by username')
+        self.assertEqual({member['username']: member['value'] for member in three['members']},
+                         dict(zip(member_logins, (1, 2, 3))))
+        self.assertCountEqual(three['recap']['participants'], [self.clients[i].get('/api/me').json()['login'] for i in (0, 1)],
                          'the recap names only members who opted in')
 
         with db.connect() as c:
