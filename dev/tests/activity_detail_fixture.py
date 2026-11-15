@@ -1,5 +1,5 @@
 """Before evidence: only fictional seeded/zz_test records on a guarded throwaway project."""
-import os,sys,datetime as dt,subprocess,json,base64
+import os,sys,datetime as dt,subprocess,json,base64,time
 from pathlib import Path
 from urllib.parse import urlparse
 sys.path.insert(0,'dev/tests')
@@ -38,6 +38,17 @@ for i,(kind,sport,label) in enumerate([('run','run',None),('paused','run',None),
   ex=ok(owner.post('/api/lifts/exercises',{'name':'Fictional squat'}))['id'];ok(owner.put(f'/api/activities/{aid}/lifts',{'exercises':[{'exercise_id':ex,'sets':[{'reps':8,'kg':40,'warmup':True},{'reps':5,'kg':70},{'reps':5,'kg':70}]}]}))
 r=subprocess.run(['docker','exec','-i',project+'-db-1','psql','-U','postgres','-d','fit','-v','ON_ERROR_STOP=1','-q'],input='\n'.join(sql),text=True,capture_output=True);assert r.returncode==0,r.stderr
 ok(friend.post('/api/friends',{'login':'zz_test_detail_owner'}));ok(owner.post('/api/friends/zz_test_detail_friend/accept'))
+# The detail page reads pending milestones for only 2.5 seconds. Wait for this
+# fixture's expected offer before opening the page so a busy CI worker cannot
+# turn the test's real First 10K row into an intentional empty state.
+deadline=time.monotonic()+20
+while True:
+ milestones=ok(owner.get(f'/api/milestones?activity_id={ids["run"]}'))
+ if not milestones.get('pending'):
+  assert any(item.get('title')=='First 10K' for item in milestones.get('items',[])), 'fictional run fixture must earn its First 10K milestone'
+  break
+ if time.monotonic()>=deadline:raise TimeoutError('milestone worker did not finish the fictional activity fixture')
+ time.sleep(.1)
 if os.environ.get('KINETTA_DETAIL_IDS'):Path(os.environ['KINETTA_DETAIL_IDS']).write_text(json.dumps(ids))
 print('Fictional run/HR/route, treadmill, ride, lifting, sparse and friend-view fixture ready')
 print(json.dumps(ids))
