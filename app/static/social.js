@@ -1023,7 +1023,10 @@ route(/^\/people\/([^/]+)$/, profileTab, async (el, login) => {
       const key=base(),sequence=++request;stopMore();revalidating=true;rows=[];more.hidden=true;more.disabled=true;more.textContent='Show more';list.setAttribute('aria-busy','true');list.innerHTML=skelFeed(2);cleanViews();
       try{const data=await load(key,records=>{
         if(!current()||sequence!==request)return;rows=records;sports=[...new Set([...sports,...rows.map(a=>a.sport)])];
-        list.innerHTML=rows.length?rows.map(a=>postCard(a,{lock:true})).join(''):`<div class="card empty"><b>${term||sport?'Nothing matches':'No activities yet'}</b>${term||sport?'Try another filter.':`Workouts from your watch arrive here on their own.${startCta()}`}</div>`;
+        if(rows.length)list.innerHTML=rows.map(a=>postCard(a,{lock:true})).join('');
+        else if(term||sport)list.innerHTML='<div class="card empty"><b>Nothing matches</b><p>Try another filter.</p><button type="button" class="linkbtn" data-clear-owner-filters>Clear filters</button></div>';
+        else list.innerHTML='<div class="card empty"><b>No activities yet</b><p>Workouts from your watch arrive here on their own.</p><a class="linkbtn" href="/track">Record or import a workout</a></div>';
+        const clearFilters=$('[data-clear-owner-filters]',list);if(clearFilters)clearFilters.onclick=()=>{if(!current())return;form.elements.q.value='';term='';sport='';address();label();loadRows();};
         more.hidden=rows.length<25||rows.length%25!==0;list.setAttribute('aria-busy','false');feedMaps(list);wireCheers(list);arm();
       });if(data===null&&current()&&sequence===request)throw Error('Your activities changed. Try loading again.');}
       catch(x){if(current()&&sequence===request){rows=[];more.hidden=true;stopMore();showError(list,x);const retry=$('button',list);if(retry)retry.onclick=loadRows;}}
