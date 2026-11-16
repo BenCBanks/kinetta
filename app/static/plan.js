@@ -121,11 +121,11 @@ route(/^\/plan$/, 'progress', async (el) => {
   el.classList.add('plan-page');
   el.innerHTML = `<header class="top shell-topbar plan-top">${BackCircle('Progress')}<h1>Training plan</h1><div class="acts shell-topbar-actions"><button type="button" class="icon-btn" id="pl-actions" aria-label="Plan options" aria-haspopup="dialog" hidden>${svg('more')}</button></div></header><div id="pl">${skel(2)}</div>`;
   wireBack(el, '/progress');
-  await planInto($('#pl', el), q.get('new'));
+  await planInto($('#pl', el), q.get('new'), q.get('race_day'));
 });
-async function planInto(box, fresh) {
+async function planInto(box, fresh, requestedRaceDay = '') {
   const d = await api('/api/plans/current');
-  if (!d.plan || fresh) return planSetup(box, d.plan);
+  if (!d.plan || fresh) return planSetup(box, d.plan, requestedRaceDay);
   planOverview(box, d);
 }
 
@@ -200,10 +200,12 @@ function planChart(box, d) {
 }
 
 // ---------- choosing a plan ----------
-async function planSetup(box, existing) {
+async function planSetup(box, existing, requestedRaceDay = '') {
   const o = await api('/api/plans/options');
-  const S = existing ? {race: existing.race, level: existing.level, weeks: existing.weeks, runs: existing.runs, long_day: existing.long_day, race_day: existing.race_day, goal_s: existing.goal_s}
-    : {race: 'half', level: o.suggest_level === 'first' ? 'beginner' : o.suggest_level, weeks: null, runs: null, long_day: 6, race_day: '', goal_s: null};
+  const day = typeof requestedRaceDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(requestedRaceDay) ? new Date(`${requestedRaceDay}T00:00:00Z`) : null;
+  const suggestedRaceDay = day && !Number.isNaN(day.valueOf()) && day.toISOString().slice(0, 10) === requestedRaceDay && requestedRaceDay > o.today ? requestedRaceDay : '';
+  const S = existing ? {race: existing.race, level: existing.level, weeks: existing.weeks, runs: existing.runs, long_day: existing.long_day, race_day: suggestedRaceDay || existing.race_day, goal_s: existing.goal_s}
+    : {race: 'half', level: o.suggest_level === 'first' ? 'beginner' : o.suggest_level, weeks: null, runs: null, long_day: 6, race_day: suggestedRaceDay, goal_s: null};
   const UN = o.unit;   // 'mi' or 'km' for this plan's words (U is the app's unit helper)
   const race = () => o.races.find((r) => r.key === S.race);
   const level = () => race().levels.find((l) => l.key === S.level) || race().levels[0];
