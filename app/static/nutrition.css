@@ -48,7 +48,7 @@
 .nutrition-other-macros svg { width:14px; height:14px; margin-left:auto; }
 .nutrition-home .nutrition-goals { font-size:max(15px,.9375rem); display:inline-flex; align-items:center; justify-content:center; gap:6px; height:44px; font-weight:500; border:0; position:absolute; right:8px; top:8px; background:none; color:var(--accent); border-radius:999px; min-height:44px; padding-inline:10px; }
 .nutrition-home .nutrition-goals { text-decoration:none; }
-.nutrition-body-prompt { display:block; margin:6px 0 10px; font-size:.8125rem; }
+.nutrition-body-prompt { display:flex; width:fit-content; min-height:44px; align-items:center; margin:2px 0 8px; font-size:.9375rem; text-decoration:underline; text-underline-offset:3px; }
 .nutrition-home .meal { padding:6px 12px; margin-bottom:10px; }
 .nutrition-home .meal { overflow:hidden; transition:box-shadow var(--motion-settle) var(--motion-ease), transform var(--motion-press) ease-out; }
 .nutrition-home .meal > h2 { display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-height:44px; margin:0 -4px 4px; padding:0 4px 4px; border-bottom:1px solid color-mix(in srgb,var(--line) 58%,transparent); font-size:1rem; }

@@ -28,6 +28,7 @@ async function runTheme(browser,theme){
       }
     }
     if(url.pathname==='/api/blocks'&&request.method()==='GET')return route.fulfill({json:blocked});
+    if(url.pathname==='/api/account/devices'&&request.method()==='GET')return route.fulfill({json:[]});
     if(url.pathname==='/api/people/zz_test_blocked/block'&&request.method()==='DELETE'){blocked=[];return route.fulfill({json:{ok:true}});}
     if(!['GET','HEAD','POST'].includes(request.method())&&url.pathname!=='/api/login')return route.fulfill({status:200,json:{ok:true}});
     return route.continue();
@@ -37,6 +38,10 @@ async function runTheme(browser,theme){
   const page=await context.newPage(),errors=[];
   const clearToast=async()=>page.evaluate(async()=>{const until=Date.now()+4000;while(document.querySelector('#toast.on')&&Date.now()<until)await new Promise(resolve=>setTimeout(resolve,50));});
   page.on('pageerror',e=>errors.push(e.message));
+  await page.goto(base+'/me/devices');await page.locator('.device-empty').waitFor();
+  assert.match(await page.locator('.device-empty').innerText(),/Sign in on another phone or browser/,'the empty device state gives the right next step');
+  assert.equal(await page.locator('#dv-retry').count(),0,'an empty device list does not offer a meaningless refresh');
+  if(out){fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,`devices-empty-390-${theme}.png`),animations:'disabled'});}
   await page.goto(base+'/me/settings');
   await page.locator('a[href="/me/sharing"]').waitFor();
   await page.locator('a[href="/me/sharing"]').click();

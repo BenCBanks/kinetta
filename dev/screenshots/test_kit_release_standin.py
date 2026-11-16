@@ -94,7 +94,8 @@ class KitScreenshotStandinTests(unittest.TestCase):
         self.assertIn("await entry.count() !== 1", dietcoach)
         self.assertIn("location.pathname === '/me/kit'", dietcoach)
         self.assertIn("#kit-composer", dietcoach)
-        self.assertIn("What can I help with?", dietcoach)
+        self.assertIn("getByRole('heading',{name:'Ask Kit',exact:true})", dietcoach)
+        self.assertIn("#kit-starters > button", dietcoach)
         self.assertNotIn("kit-send", dietcoach)
         self.assertNotIn("/api/coach/conversation/messages", dietcoach)
 

@@ -51,10 +51,23 @@ async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))
    assert.equal(await p.locator('#lf-empty-add').evaluate(e=>getComputedStyle(e).backgroundImage),'none','Add exercise has a flat fill, not a gradient');
    assert.equal(await p.locator('#lf-empty-add').evaluate(e=>getComputedStyle(e).boxShadow),'none','Add exercise has no gradient elevation shadow');
    await shot('empty');
+   await p.evaluate(()=>{App.me.units='imperial';});
    const historyExercises=exercises.map(e=>({...e,sets:e.kind==='weight'?[{kg:60,reps:8,done:true}]:e.kind==='time'?[{secs:45,done:true}]:[{reps:12,done:true}]}));
    await p.evaluate(({start,exercises})=>liftLogger(document.querySelector('#page'),999907,{open:false,start_time:start,exercises}),{start,exercises:historyExercises});
    assert.equal(await p.locator('.lift-in').count(),0,'history has read-only values');assert.equal(await p.locator('.lift-tick,[data-set]').count(),0,'history has no checkboxes or set menus');assert(await p.locator('#lf-add').isHidden());
    assert.equal((await p.locator('.lift-back').innerText()).trim(),'Progress','history has a visible labelled back');
+   assert.equal(await p.locator('#lf-done').count(),0,'finished logger does not repeat the Done action');
+   assert.equal(await p.locator('.lift-row.lh .lh-prev').count(),0,'finished logger omits the Last column');
+   assert.equal(await p.locator('.lift-read-value[data-k="kg"]').first().innerText(),'132.3','finished logger shows the weight unit once in the column label');
+   assert.equal(await p.locator('.lift-row.lh').first().evaluate(e=>Math.round(e.getBoundingClientRect().height)),28,'column labels share one compact baseline');
+   assert.equal(await p.locator('.lift-n').first().evaluate(e=>Math.round(e.getBoundingClientRect().height)),44,'set picker keeps a 44px target');
+   const setEdges=await p.locator('.lift-row.lh').first().evaluate(e=>{const h=e.querySelector('.lh-n'),v=e.parentElement.querySelector('.lift-n.readonly'),edge=n=>{const r=document.createRange();r.selectNodeContents(n);return r.getBoundingClientRect().left;};return [edge(h),edge(v)];});
+   assert(Math.abs(setEdges[0]-setEdges[1])<=1,`finished Set values align with the Set header (${setEdges.join(' vs ')})`);
+   assert.equal(await p.locator('.lift-ex').first().evaluate(e=>getComputedStyle(e).paddingLeft),await p.locator('.lift-ex').first().evaluate(e=>getComputedStyle(e).paddingRight),'exercise card has equal horizontal insets');
+   assert.equal(await p.locator('.lift-read-value[data-k="kg"]').first().evaluate(e=>getComputedStyle(e).color),await p.locator('.lift-n').first().evaluate(e=>getComputedStyle(e).color),'typed values use primary text');
+   assert.equal(await p.locator('.lift-read-value[data-k="kg"]').first().evaluate(e=>getComputedStyle(e).fontWeight),'600','read-only values stay prominent');
+   assert(await p.locator('.lift-row.lh').evaluateAll(es=>es.every(e=>e.scrollWidth<=e.clientWidth)),'headers fit in the available card width');
+   assert(await p.locator('.lift-name').first().evaluate(e=>e.scrollWidth<=e.clientWidth),'long exercise names wrap instead of clipping');
    await shot('history');
    let release,first=true;const writes=[];
    await c.route('**/api/activities/999901/lifts',async r=>{
@@ -67,8 +80,11 @@ async function until(page,fn){for(let i=0;i<150;i++){if(await page.evaluate(fn))
    assert(await p.locator('#lf-restbox').isVisible(),'rest appears beneath the running clock');assert(await p.locator('#lf-finish').isVisible());
    assert.equal(await p.locator('.lift-row[data-row]').first().evaluate(n=>Math.round(n.getBoundingClientRect().height)),48,'set rows stay 48px');
    assert.equal(await p.locator('.lift-tick').first().evaluate(n=>Math.round(n.getBoundingClientRect().width)),44,'check target remains 44px');
+   assert(await p.locator('.lift-tick').first().evaluate(n=>Math.round(n.getBoundingClientRect().height)>=44),'check target remains at least 44px tall');
    assert.equal(await p.locator('.lift-tick').first().evaluate(n=>Math.round(parseFloat(getComputedStyle(n,'::before').width))),28,'check mark is a 28px circle inside its target');
-   await shot('live');
+   await p.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));await shot('live');
+   const clearance=await p.evaluate(()=>{const add=document.querySelector('.compact-lift #lf-add'),nav=document.querySelector('nav.tabs');const a=add.getBoundingClientRect(),n=nav.getBoundingClientRect();return {gap:Math.round(n.top-a.bottom),visible:a.bottom<=n.top-15};});
+   assert(clearance.visible,`last Lift action clears floating tab bar by 16px (gap ${clearance.gap}px)`);
    if(process.env.KINETTA_LIFT_CAPTURE_ONLY==='1'){await c.close();continue;}
    const clipped=await p.locator('.lift-in').evaluateAll(es=>es.flatMap(e=>{const s=getComputedStyle(e),g=document.createElement('canvas').getContext('2d');g.font=s.font;const max=e.dataset.k==='kg'?'2204.6':e.dataset.k==='secs'?'86400':'1000',space=e.clientWidth-parseFloat(s.paddingLeft)-parseFloat(s.paddingRight),needed=g.measureText(max).width;return needed>space+1?[{field:e.dataset.k,space,needed}]:[];}));
    assert.deepEqual(clipped,[],'Supported numeric values must fit without hiding decimals');

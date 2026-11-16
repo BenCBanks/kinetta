@@ -873,18 +873,6 @@ details.pweek[open] > summary::after { transform: rotate(90deg); }
 .startbar { position: fixed; z-index: 5; left: 16px; right: 16px; max-width: 728px; margin: 0 auto; bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + 12px); }
 .shell:has(.startbar) { padding-bottom: calc(env(safe-area-inset-bottom) + var(--tab-h) + 96px); }
 .startbar .primary { width: 100%; min-height: 46px; font-size: 15px; border-radius: 999px; box-shadow: var(--lift); }
-/* plan setup (2026-10-12): the race date as a normal-sized field on iPhone, the goal as h / min / s boxes */
-.datefield { -webkit-appearance: none; appearance: none; display: block; width: 100%; min-width: 0; max-width: 100%; min-height: 48px; text-align: left; line-height: 1.3; }
-@media (max-width: 480px) { .form .entry-when { grid-template-columns: minmax(0, 1fr); } }
-.datefield::-webkit-date-and-time-value { text-align: left; min-height: 1.3em; }
-.ps-note { margin: -4px 0 4px; } .ps-note .linkbtn { min-height: 0; padding: 0; margin-left: 4px; }
-.goaltime { border: 0; padding: 0; margin: 4px 0 0; min-width: 0; }
-.goaltime legend { font-weight: 600; font-size: 14px; color: var(--tx2); padding: 0; margin-bottom: 6px; }
-.hms { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.hms label { display: grid; gap: 4px; justify-items: center; margin: 0; }
-.hms input { width: 100%; min-height: 52px; padding: 8px; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; }
-.hms span { color: var(--tx3); font-size: 13px; font-weight: 600; }
-#ps-pace { margin: 8px 0 0; }
 .plan-hero .ph-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .plan-hero h2 { font-size: var(--text-app-section); font-weight: 700; letter-spacing: -.03em; margin: 2px 0; }
 .ph-ring .ring b { font-size: 18px; }
@@ -1284,18 +1272,6 @@ html.keyboard-open nav.tabs { display: none; }
 .sharing-settings .vis3 button[aria-pressed=true] {color:var(--accent);background:transparent;}
 .sharing-settings .vis3 button[aria-pressed=true]::before {border-color:var(--accent);}
 .sharing-settings .sharing-blocked-group { margin-top:8px; }
-.track-question { margin: 24px 0; font-size: 28px; }
-.track-sports { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 16px 0 26px; }
-.track-sports button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 92px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); font: 500 15px system-ui; }
-.track-sports button svg { width: 26px; height: 26px; }
-.track-sports button[aria-pressed="true"] { color: var(--onbtn); background: var(--btn); border-color: var(--btn); }
-.track-gps { display: flex !important; align-items: center; gap: 12px; min-height: 48px; font-size: 16px; }
-.track-gps input { width: 22px; height: 22px; margin: 0; accent-color: var(--accent); }
-#track-setup { border-bottom: 1px solid var(--line); padding-bottom: 24px; }
-.track-indoor .row-link, #track-lift { border-bottom: 1px solid var(--line); width: 100%; color: var(--ink); }
-.track-indoor .row-link > svg, #track-lift > svg { width: 18px; flex-shrink: 0; }
-.track-indoor .ri, #track-lift .ri { background: transparent; color: var(--ink); }
-.track-indoor summary { font-weight: 500; color: var(--accent); }
 .track-session { padding-top: 26px; text-align: center; }
 .track-session > h2 { font-size: 30px; margin: 0 0 12px; }
 .track-clock { font-size: clamp(40px, 12vw, 68px); line-height: 1.2; letter-spacing: -.04em; margin: 28px 0 4px; font-weight: 600; }
@@ -2027,15 +2003,6 @@ button.thread-food:active { opacity: .7; }
 .plan-legend span { display:inline-flex; align-items:center; gap:5px; }
 .plan-legend span::before { content:''; width:8px; height:8px; border-radius:2px; background:var(--workout-color); }
 
-/* Social reads update inside one steady sheet; the composer is mounted before the request. */
-.social-sheet { display:flex; flex-direction:column; }
-.social-sheet .comments { height:clamp(160px,34dvh,300px); overflow-y:auto; overscroll-behavior:contain; }
-.social-sheet .social-reactions { height:44px; display:flex; align-items:center; flex:none; }
-.social-sheet .c-form { margin-top:auto; padding-top:12px; }
-.social-sheet .social-read-status:empty { display:none; }
-.social-people { min-height:180px; }
-.social-read-status { overflow-wrap:anywhere; }
-
 .activity-reactions[aria-busy="true"] .reaction-more { opacity:1; }
 
 #pi-go svg { width: 18px; height: 18px; margin-right: 6px; vertical-align: -3px; }
@@ -2492,20 +2459,6 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .me-insights .me-insight-value { flex:none; max-width:42%; color:var(--tx); font-size:16px; line-height:1.25; text-align:right; white-space:normal; overflow-wrap:anywhere; }
 .me-insights .me-insight-row > svg { width:16px; height:16px; flex:none; color:var(--tx3); }
 .me-insights .me-insights-empty { margin:8px 0 0; }
-
-/* Keep Challenges available below the Home header at every width. */
-.activity-home #feed-top .top,.activity-home #feed-top .acts {flex-wrap:nowrap;}
-.activity-home #feed-tools .feed-find-friends {min-height:56px;margin-bottom:8px;gap:8px;border-top:0;}
-.activity-home #feed-tools .feed-find-friends .ri {display:grid;place-items:center;width:24px;height:24px;flex:none;color:var(--accent);}
-.activity-home #feed-tools .feed-find-friends .ri svg {width:22px;height:22px;}
-@media(max-width:360px) {
- .activity-home .post-hd.post-profile {display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:8px;}
- .activity-home .post-hd>.post-av {grid-column:1;grid-row:1;}
- .activity-home .post-hd>.ph-txt {display:contents;}
- .activity-home .post-hd>.activity-share {grid-column:3;grid-row:1;}
- .activity-home .post-hd>.ph-txt>small {grid-column:1/-1;grid-row:2;white-space:normal;}
- .activity-home .post-route {display:none;}
-}
 
 /* Owner type standard (13 November 2026): preserve the shared hierarchy in later screen CSS. */
 body .activity-card .post-summary .stat small { color:var(--tx3); font-size:13px; font-weight:500; text-transform:none; letter-spacing:0; }
