@@ -71,6 +71,7 @@ class Groups(unittest.TestCase):
 
     def test_preview_acceptance_hash_rotation_expiry_and_generic_errors(self):
         group, original = self.make()
+        self.assertEqual(group['sharing_level'], 'just_in', 'a new group organizer starts with the private choice')
         self.assertEqual(len(original), 32)
         self.assertTrue(all(ch in '0123456789abcdef' for ch in original))
         with db.connect() as c:
@@ -85,6 +86,7 @@ class Groups(unittest.TestCase):
         accepted = self.accept(original)
         self.assertEqual(accepted.status_code, 200, accepted.text)
         self.assertEqual(accepted.json()['member_count'], 2)
+        self.assertEqual(accepted.json()['sharing_level'], 'just_in', 'a new member starts with the private choice')
         self.assertNotIn('activity_id', accepted.text)
         replacement = self.clients[0].post('/api/groups/' + group['id'] + '/invites', json={}).json()['invite_url'].rsplit('/', 1)[1]
         stale = self.accept(original, who=2)
@@ -185,6 +187,66 @@ class Groups(unittest.TestCase):
         self.assertEqual(refused.status_code, 404)
         self.assertEqual(refused.json(), unknown.json())
 
+    def test_group_sharing_migration_defaults_existing_and_new_memberships_to_private(self):
+        migration = next(stmt for stmt in db.MIGRATIONS if 'ADD COLUMN sharing_level' in stmt)
+        with db.connect() as c:
+            c.execute('SET LOCAL search_path TO pg_temp, public')
+            c.execute('CREATE TEMP TABLE group_members(group_id integer,user_id integer) ON COMMIT DROP')
+            c.execute('INSERT INTO group_members VALUES(1,10)')
+            c.execute(migration)
+            self.assertEqual(c.execute('SELECT sharing_level FROM group_members WHERE group_id=1').fetchone()['sharing_level'],
+                             'just_in', 'the migration gives existing membership the private choice')
+            c.execute('INSERT INTO group_members(group_id,user_id) VALUES(2,11)')
+            self.assertEqual(c.execute('SELECT sharing_level FROM group_members WHERE group_id=2').fetchone()['sharing_level'],
+                             'just_in', 'new memberships default to the private choice')
+            default = c.execute("SELECT column_default FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='group_members' AND column_name='sharing_level'").fetchone()
+            self.assertIn('just_in', default['column_default'])
+
+    def test_group_and_account_sharing_must_both_allow_totals_and_blocks_still_apply(self):
+        group, token = self.make()
+        for who in (1, 2, 3):
+            self.assertEqual(self.accept(token, who=who).status_code, 200)
+        joined_at = self.now - dt.timedelta(days=2)
+        with db.connect() as c:
+            c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s', (joined_at, group['id']))
+            c.execute('UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)', (self.ids,))
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s AND user_id=ANY(%s)",
+                      (group['id'], [self.ids[0], self.ids[2], self.ids[3]]))
+            c.execute('INSERT INTO blocks(user_id,blocked) VALUES(%s,%s)', (self.ids[0], self.ids[3]))
+        self.activity(0, self.now - dt.timedelta(hours=3), distance=10000, name='SHARED MEMBER A')
+        hidden_b = self.activity(1, self.now - dt.timedelta(hours=2), distance=20000, name='GROUP PRIVATE MEMBER B')
+        self.activity(2, self.now - dt.timedelta(hours=1), distance=30000, name='SHARED MEMBER C')
+        self.activity(3, self.now - dt.timedelta(minutes=30), distance=900000, name='BLOCKED MEMBER D')
+
+        def group_view():
+            return self.clients[0].get('/api/groups/' + group['id']).json()
+
+        initial = group_view()
+        self.assertEqual(initial['sharing_level'], 'total_shared')
+        self.assertEqual(initial['member_count'], 3, 'blocked membership is absent from the viewer’s response')
+        self.assertEqual(initial['total'], 40)
+        self.assertEqual(initial['sharing_member_count'], 2)
+        self.assertNotIn(self.clients[3].get('/api/me').json()['login'],
+                         [member['username'] for member in initial['members']])
+        self.assertTrue(next(m for m in initial['members'] if m['username']==self.clients[1].get('/api/me').json()['login'])
+                        ['sharing_total_only'], 'a group-default member has no visible contribution')
+
+        with db.connect() as c:
+            c.execute('UPDATE activities SET distance_m=1200000 WHERE id=%s', (hidden_b,))
+        self.assertEqual(group_view()['total'], initial['total'], 'a member who chose just-in cannot change totals')
+
+        changed = self.clients[1].post(f"/api/groups/{group['id']}/sharing", json={'level':'total_shared'})
+        self.assertEqual(changed.status_code, 200, changed.text)
+        self.assertEqual(changed.json(), {'level':'total_shared'})
+        self.assertEqual(group_view()['total'], 1240, 'an explicit group choice enables sharing when account sharing is on')
+
+        with db.connect() as c:
+            c.execute('UPDATE profile SET share_achievements=false WHERE user_id=%s', (self.ids[2],))
+        stricter = group_view()
+        self.assertEqual(stricter['total'], 1210, 'the account-wide off switch wins over group-level sharing')
+        self.assertEqual(stricter['sharing_member_count'], 2)
+        self.assertEqual(self.clients[1].post(f"/api/groups/{group['id']}/sharing", json={'level':'everyone'}).status_code, 422)
+
     def test_aggregate_is_members_own_rows_and_updates_on_delete_and_leave(self):
         group, _ = self.make()
         self.assertEqual(self.accept(group['invite_url'].rsplit('/', 1)[1]).status_code, 200)
@@ -206,7 +268,13 @@ class Groups(unittest.TestCase):
             c.execute('UPDATE profile SET share_achievements=true WHERE user_id=%s', (self.ids[1],))
         shared = self.clients[0].get('/api/groups/' + group['id']).json()
         self.assertNotIn('value', shared['members'][1], 'a consented row amount stays hidden below the privacy floor')
-        self.assertNotIn('sharing_total_only', shared['members'][1], 'the floor is not presented as a member privacy choice')
+        self.assertTrue(shared['members'][1]['sharing_total_only'],
+                        'account-wide sharing alone does not override the private group choice')
+        self.assertEqual(self.clients[1].post(f"/api/groups/{group['id']}/sharing",
+                                              json={'level':'total_shared'}).status_code, 200)
+        shared = self.clients[0].get('/api/groups/' + group['id']).json()
+        self.assertNotIn('sharing_total_only', shared['members'][1],
+                         'both account-wide and group-specific choices are required to share')
         self.assertNotIn('value', shared['members'][0])
         self.assertNotIn('total', shared)
         self.assertEqual(self.clients[2].get('/api/groups/' + group['id']).status_code, 404)
@@ -237,6 +305,7 @@ class Groups(unittest.TestCase):
         with db.connect() as c:
             c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s', (joined_at, group['id']))
             c.execute('UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)', (self.ids,))
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s", (group['id'],))
         self.activity(0, fixed_now - dt.timedelta(hours=3), distance=12000, name='PRIVATE A')
 
         one = group_view()
@@ -250,6 +319,8 @@ class Groups(unittest.TestCase):
         with db.connect() as c:
             c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s', (joined_at, group['id']))
             c.execute('UPDATE profile SET share_achievements=true WHERE user_id=%s', (self.ids[1],))
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s AND user_id=%s",
+                      (group['id'], self.ids[1]))
         self.activity(1, fixed_now - dt.timedelta(hours=2), distance=3000, name='PRIVATE B')
         two = group_view()
         self.assertEqual(two['member_count'], 2)
@@ -264,6 +335,8 @@ class Groups(unittest.TestCase):
         self.assertEqual(self.accept(token, who=2).status_code, 200)
         with db.connect() as c:
             c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s', (joined_at, group['id']))
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s AND user_id=%s",
+                      (group['id'], self.ids[2]))
         self.activity(2, fixed_now - dt.timedelta(hours=1), distance=5000, name='PRIVATE C')
         three = group_view()
         self.assertEqual(three['member_count'], 3)
@@ -283,6 +356,7 @@ class Groups(unittest.TestCase):
         self.assertEqual(self.accept(token, who=3).status_code, 200)
         with db.connect() as c:
             c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s', (joined_at, group['id']))
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s", (group['id'],))
         self.activity(3, fixed_now - dt.timedelta(minutes=30), distance=7000, name='PRIVATE D')
         all_four = group_view(who=1)
         self.assertEqual(all_four['member_count'], 4)
@@ -314,8 +388,9 @@ class Groups(unittest.TestCase):
         joined_at = fixed_now - dt.timedelta(days=3)
         with db.connect() as c:
             c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s', (joined_at, group['id']))
-            c.execute('UPDATE profile SET share_achievements=(user_id<>%s) WHERE user_id=ANY(%s)',
-                      (self.ids[3], self.ids))
+            c.execute('UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)', (self.ids,))
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s AND user_id<>%s",
+                      (group['id'], self.ids[3]))
         self.activity(0, fixed_now - dt.timedelta(hours=3), distance=12000, name='SHARED A')
         self.activity(1, fixed_now - dt.timedelta(hours=2), distance=3000, name='SHARED B')
         private_id = self.activity(2, fixed_now - dt.timedelta(hours=1), distance=900000,
@@ -716,6 +791,8 @@ class Groups(unittest.TestCase):
             c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s',
                       (event_start - dt.timedelta(days=1), group['id']))
             c.execute('UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)', (self.ids[:3],))
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s AND user_id=ANY(%s)",
+                      (group['id'], self.ids[:3]))
         self.activity(0, event_start + dt.timedelta(hours=1), distance=1000)
         self.activity(1, event_start + dt.timedelta(hours=2), distance=2000)
         self.assertEqual(self.clients[0].post(f"/api/groups/{group['id']}/recap-consent", json={'consent': True}).json(),
@@ -737,6 +814,8 @@ class Groups(unittest.TestCase):
         with db.connect() as c:
             c.execute('UPDATE group_members SET joined_at=%s WHERE group_id=%s AND user_id=%s',
                       (event_start - dt.timedelta(days=1), group['id'], self.ids[2]))
+            c.execute("UPDATE group_members SET sharing_level='total_shared' WHERE group_id=%s AND user_id=%s",
+                      (group['id'], self.ids[2]))
         self.activity(2, event_start + dt.timedelta(hours=3), distance=3000)
         three = self.clients[0].get(f"/api/groups/{group['id']}").json()
         self.assertEqual(three['member_count'], 3)

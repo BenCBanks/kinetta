@@ -105,6 +105,11 @@ class GroupNotificationPreference(BaseModel):
     muted: bool
 
 
+class GroupSharingPreference(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    level: str = Field(pattern='^(total_shared|just_in)$')
+
+
 def _now():
     return dt.datetime.now(UTC)
 
@@ -270,13 +275,16 @@ def _weekly_contributions(c, group, members, now):
 
 
 def _answer(c, group, uid):
-    members = c.execute('''SELECT m.user_id,m.joined_at,m.recap_consent,m.notifications_muted,
+    members = c.execute('''SELECT m.user_id,m.joined_at,m.recap_consent,m.notifications_muted,m.sharing_level,
                                   u.login::text AS username,u.photo_v AS photo,
-                                  coalesce(p.share_achievements,false) AS share_total
+                                  coalesce(p.share_achievements,false) AS account_share_total
                            FROM group_members m JOIN users u ON u.id=m.user_id
                            LEFT JOIN profile p ON p.user_id=u.id
                            WHERE m.group_id=%s AND m.status='active' AND NOT u.needs_email_confirm
                              AND u.suspended_at IS NULL ORDER BY m.joined_at,m.user_id''', (group['id'],)).fetchall()
+    for member in members:
+        member['share_total'] = (member['sharing_level'] == 'total_shared'
+                                 and member['account_share_total'])
     visible = [member for member in members if not _blocked(c, uid, member['user_id'])]
     visible.sort(key=lambda member: (member['user_id'] != uid, member['username'].casefold(), member['user_id']))
     sharing = [member for member in visible if member['share_total']]
@@ -308,6 +316,7 @@ def _answer(c, group, uid):
         'weeks_to_event': (days_to_event + 6) // 7 if days_to_event is not None else None,
         'event_state': ('ongoing' if event_date is None else
                         'upcoming' if today < event_date else 'today' if today == event_date else 'complete'),
+        'sharing_level': me['sharing_level'],
         'members': [{'username': m['username'], 'photo': m['photo'] or False,
                      'organizer': m['user_id'] == group['organizer_id'],
                      **({'value': contributions.get(m['user_id'], 0)} if member_count >= 3 and m['share_total']
@@ -374,12 +383,16 @@ def _group_recap(c, group, uid, answer, now):
     today = now.astimezone(_zone(group['time_zone'])).date()
     if today <= group['event_date']:
         return None
-    members = c.execute('''SELECT m.user_id,m.joined_at,m.recap_consent,u.login::text AS username,
-                                  coalesce(p.share_achievements,false) AS share_total
+    members = c.execute('''SELECT m.user_id,m.joined_at,m.recap_consent,m.sharing_level,
+                                  u.login::text AS username,
+                                  coalesce(p.share_achievements,false) AS account_share_total
         FROM group_members m JOIN users u ON u.id=m.user_id
         LEFT JOIN profile p ON p.user_id=u.id
         WHERE m.group_id=%s AND m.status='active' AND NOT u.needs_email_confirm AND u.suspended_at IS NULL''',
                         (group['id'],)).fetchall()
+    for member in members:
+        member['share_total'] = (member['sharing_level'] == 'total_shared'
+                                 and member['account_share_total'])
     visible = [member for member in members if member['share_total'] and not _blocked(c, uid, member['user_id'])]
     contributions = _contributions(c, group, visible, now)
     participants = [member['username'] for member in visible
@@ -686,6 +699,15 @@ def set_group_notification_mute(group_id: str, body: GroupNotificationPreference
             c.execute("DELETE FROM notifications WHERE user_id=%s AND group_id=%s AND kind IN ('group_update','group_cheer')",
                       (user['id'], group['id']))
     return {'muted': body.muted}
+
+
+@router.post('/api/groups/{group_id}/sharing')
+def set_group_sharing_level(group_id: str, body: GroupSharingPreference, user=Depends(current_user)):
+    with db.connect() as c:
+        group = _group(c, group_id, user['id'])
+        c.execute('UPDATE group_members SET sharing_level=%s WHERE group_id=%s AND user_id=%s AND status=\'active\'',
+                  (body.level, group['id'], user['id']))
+    return {'level': body.level}
 
 
 @router.get('/api/group-invites/{token}')
