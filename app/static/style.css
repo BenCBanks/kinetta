@@ -2499,6 +2499,15 @@ html.keyboard-open .thread-quick-actions {display:none;}
 .activity-edit-visibility .sh-more .checks { display:grid; gap:4px; padding:4px 0 12px; }
 .activity-edit-visibility .sh-more .check { min-height:44px; font-size:15px; }
 .activity-edit-visibility [data-close] { display:flex; align-items:center; min-height:44px; color:var(--accent); font-size:15px; }
+.activity-edit-photos { min-width:0; }
+.activity-edit-photo-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:32px; color:var(--tx); font-size:16px; font-weight:400; }
+.activity-edit-photo-count { color:var(--tx2); font-size:14px; font-variant-numeric:tabular-nums; }
+.activity-edit-photos .ph-strip { gap:8px; margin:0; padding:0 0 2px; }
+.activity-edit-photos .ph-th { width:72px; height:72px; border-radius:10px; }
+.activity-edit-photos .ph-add { box-sizing:border-box; width:72px; height:72px; min-width:48px; min-height:48px; border-radius:10px; font-size:14px; }
+.activity-edit-photos .ph-add svg { width:18px; height:18px; }
+.activity-edit-photos .ph-strip.empty .ph-add { display:flex; align-items:center; justify-content:flex-start; place-content:initial; width:100%; height:48px; padding:0; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; color:var(--tx); font:400 16px/1.3 var(--font); text-align:left; }
+.activity-edit-photos .ph-strip.empty .ph-add svg { display:none; }
 
 /* Compact builder and interval Voice cues switches (Sage UI gate, 3 November). */
 .interval-extras { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; align-items:start; }

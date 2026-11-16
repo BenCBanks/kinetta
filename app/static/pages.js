@@ -970,13 +970,14 @@ function editActivity(a) {
     if (!dirty) return true;
     const editor = $('#e-form')?.closest('.sheet'), after = editor?._afterDiscard;
     if (editor) editor._afterDiscard = null;
-    if (!asking) { asking = true; confirmSheet('Discard your changes?', {body: 'Your edits to this activity won’t be saved.', action: 'Discard', cancel: 'Keep editing'}).then((ok) => { asking = false; if (ok && closeEdit) { closeEdit(); if (after) after(); } }); }
+    if (!asking) { asking = true; confirmSheet('Discard your changes?', {body: 'Your edits to this activity won’t be saved.', action: 'Discard', cancel: 'Keep editing'}).then((ok) => { asking = false; if (ok && closeEdit) { delete a._photoDraft; closeEdit(); if (after) after(); } }); }
     return false;
   };
   sheet('Edit activity', `<form class="form activity-edit-form" id="e-form">
     <div id="e-primary" class="activity-edit-primary">
       <label>Title<input name="name" value="${esc(a.name)}" maxlength="200" enterkeyhint="done"></label>
       <label>Sport<span class="selbox"><select name="kind">${kindOpts}</select>${svg('chev')}</span></label>
+      <section class="activity-edit-photos" aria-label="Activity photos"><div class="activity-edit-photo-heading"><span>Photos</span><span id="e-photo-count" class="activity-edit-photo-count"></span></div><div id="e-photos"></div></section>
       <div id="e-description" class="activity-edit-section">${optionalText('description', 'Description', 'Add description', a.description)}</div>
       <button type="button" class="activity-edit-row" id="e-visibility-open"><span>Visibility</span><span class="activity-edit-row-value" id="e-visibility-value">Loading…</span>${svg('chev')}</button>
       <details id="e-more" class="activity-edit-more"><summary><span>More details</span><span class="chev">${svg('chev')}</span></summary>
@@ -1000,8 +1001,11 @@ function editActivity(a) {
     // Any edit (typing, a choice, a sharing button) means closing asks first; opening the fold-outs doesn't count.
     const touched = () => { dirty = true; };
     f.addEventListener('input', touched); f.addEventListener('change', touched);
+    f.addEventListener('activity-photo-draft-change',touched);
     f.addEventListener('click', (e) => { if (e.target.closest('.seg button, #sh-usual')) touched(); });
     wireOptionalText(f);
+    const photoBox=$('#e-photos',body),photoCount=$('#e-photo-count',body);
+    const drawPhotos=()=>{photoCount.textContent=`${a._photoDraft?.photos.length??a.photos?.length??0} of ${PHOTO_MAX}`;photoStrip(photoBox,a,true,{afterChange:drawPhotos,defer:true});};drawPhotos();
     let saveShare = null;   // sharing (2026-10-12): moved here from the activity page
     (a._social ? Promise.resolve(a._social) : api(`/api/activities/${a.id}/social`))
       .then((s) => { if (f.isConnected) {
@@ -1031,6 +1035,7 @@ function editActivity(a) {
       try {
         await api(`/api/activities/${a.id}`, json('PATCH', body2));
         if (saveShare) await saveShare();
+        await saveActivityPhotoDraft(a);
         invalidate('/api/'); close(); toast('Saved'); render();
       } catch (x) { toast(x.message); btn.disabled = false; btn.textContent = 'Save'; }
     };
