@@ -88,6 +88,7 @@ const lazyRouteBundles = [
   {re: /^\/welcome$/, tab: 'me', scripts: [CONTACTS_ROUTE_ASSET, '/static/welcome.js?v=__ASSET_HASH__']},
   {re: /^\/me\/explore$/, tab: 'track', scripts: [SOCIAL_ROUTE_ASSET, '/static/explore.js?v=__ASSET_HASH__']},
   {re: /^\/progress$/, tab: 'progress', scripts: [SOCIAL_ROUTE_ASSET], styles: [PROGRESS_ROUTE_STYLE]},
+  {re: /^\/route\/\d+$/, tab: 'progress', scripts: [MEDIA_ROUTE_ASSET], styles: [PROGRESS_ROUTE_STYLE]},
   {re: /^\/plan$/, tab: 'progress', scripts: [INTERVALS_ROUTE_ASSET, PLAN_ROUTE_ASSET]},
   {re: /^\/track$/, tab: 'track', scripts: [INTERVALS_ROUTE_ASSET, MEDIA_ROUTE_ASSET, TRACK_ROUTE_ASSET], styles: [TRACK_ROUTE_STYLE]},
   {re: /^\/me\/settings$/, tab: 'me', scripts: [INTERVALS_ROUTE_ASSET, SETTINGS_ROUTE_ASSET]},
