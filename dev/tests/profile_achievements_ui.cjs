@@ -380,8 +380,12 @@ module.exports=async({browser,storageState,base,shots})=>{
      await page.locator('#profile-achievement-page [data-achievement-sport="run"]').click();
      await page.locator('#profile-achievement-page [data-achievement-sport="run"][aria-selected="true"]').waitFor();
      assert.equal(await page.locator('[data-achievement-sport-overview]').getAttribute('data-selected-sport'),'run',`${entry} can switch to Run from the visible sport tabs`);
+     const rightEdgeTab=await page.locator('.profile-achievement-sport-switcher').evaluate(strip=>{const selected=strip.querySelector('[aria-selected="true"]'),s=strip.getBoundingClientRect(),r=selected.getBoundingClientRect();return{left:r.left-s.left,right:s.right-r.right,center:(r.left+r.width/2)-(s.left+s.width/2),scrollLeft:strip.scrollLeft};});
+     assert(rightEdgeTab.left>=-1&&rightEdgeTab.right>=-1&&Math.abs(rightEdgeTab.center)<=8&&rightEdgeTab.scrollLeft>0,`${entry} scrolls a right-side selection fully into view after tapping it: ${JSON.stringify(rightEdgeTab)}`);
      await page.locator('#profile-achievement-page [data-achievement-sport="strength"]').click();
      await page.locator('#profile-achievement-page [data-achievement-sport="strength"][aria-selected="true"]').waitFor();
+     const finalTab=await page.locator('.profile-achievement-sport-switcher').evaluate(strip=>{const selected=strip.querySelector('[aria-selected="true"]'),s=strip.getBoundingClientRect(),r=selected.getBoundingClientRect();return{left:r.left-s.left,right:s.right-r.right,center:(r.left+r.width/2)-(s.left+s.width/2),scrollLeft:strip.scrollLeft};});
+     assert(finalTab.left>=-1&&finalTab.right>=-1&&Math.abs(finalTab.center)<=8,`${entry} keeps the last sport fully visible after tapping it: ${JSON.stringify(finalTab)}`);
     };
     await page.goto(base+'/me/achievements#strength');await checkEntry('direct');await page.locator('[data-achievement-sport="strength"]').click();await page.locator('[data-achievement-sport-overview][data-selected-sport="strength"]').waitFor();
     await page.goto(base+'/me');await until(page,()=>App.pageReady,'Me profile before Achievements entry');await page.locator('.me-featured-title a').waitFor({state:'visible'});await page.locator('.me-featured-title a').click();await page.waitForURL('**/me/achievements');await checkEntry('profile');
