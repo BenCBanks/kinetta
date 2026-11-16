@@ -1,5 +1,37 @@
 /* Progress route-only styles. Loaded with Progress leaves; shell and nav stay eager. */
 
+/* Matched route detail follows the same quiet header, map and inset-list pattern as Progress. */
+.route-detail-top { display:flex; align-items:center; justify-content:space-between; min-height:44px; margin-bottom:12px; }
+.route-detail-top .icon-btn,.route-detail-top .back-circle { flex:none; width:44px; height:44px; border:1px solid var(--line); border-radius:50%; background:var(--card); }
+.route-detail-heading { margin:0 0 14px; }
+.route-detail-heading h1 { margin:0; font-size:28px; line-height:1.15; font-weight:700; letter-spacing:-.025em; overflow-wrap:anywhere; }
+.route-detail-heading p { margin:5px 0 0; color:var(--tx3); font-size:14px; line-height:1.35; }
+.route-detail-map { position:relative; width:100%; height:220px; min-height:220px; margin:0 0 16px; overflow:hidden; border-radius:16px; }
+.route-detail-map .map-full { top:12px; right:12px; }
+.route-detail-stats { margin:0 0 20px; }
+.route-detail-hairline { height:1px; background:var(--line); }
+.route-detail-stats .hero { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; padding:12px 0; }
+.route-detail-stats .stat { min-width:0; }
+.route-detail-chart,.route-detail-efforts { min-width:0; margin:0 0 20px; }
+.route-detail-chart { padding:16px; border:1px solid var(--line); border-radius:18px; background:var(--card); box-shadow:none; }
+.route-detail-chart h2,.route-detail-efforts h2 { margin:0 0 8px; font-size:17px; line-height:1.25; font-weight:600; }
+.route-detail-trend { margin:0 0 10px; color:var(--tx2); font-size:15px; line-height:1.4; }
+.route-detail-chart #r-chart { min-height:150px; }
+.route-detail-legend { display:flex; justify-content:space-between; gap:8px; margin-top:8px; color:var(--tx3); font-size:12px; }
+.route-detail-legend > span { display:flex; align-items:center; gap:6px; }
+.route-detail-legend .route-fastest-key { font-size:13px; }
+.route-detail-efforts .inset-group { margin:0; }
+.route-effort-row { min-height:56px; gap:8px; }
+.route-effort-row .inset-label { min-width:0; }
+.route-effort-row .inset-label > span,.route-effort-row .inset-label small { overflow-wrap:anywhere; }
+.route-effort-result { display:flex; align-items:center; gap:8px; flex:none; text-align:right; }
+.route-effort-result > span:nth-child(2) { display:grid; gap:2px; }
+.route-effort-result b { font-size:14px; font-weight:600; }
+.route-effort-result small { color:var(--tx3); font-size:12px; }
+.route-effort-best { display:grid; place-items:center; flex:none; width:24px; height:24px; color:var(--gold); }
+.route-effort-best svg { width:16px; height:16px; }
+@media(max-width:360px) { .route-detail-stats .hero { gap:4px; } .route-effort-row { padding-inline:12px; } .route-effort-result { gap:5px; } }
+
 /* Fitness, Records and Lifting share one compact sub-page bar and sibling navigation. */
 .progress-subpage-heading {
   display:grid;
