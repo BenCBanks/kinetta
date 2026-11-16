@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 from kc import person
+from zoneinfo import ZoneInfo
 
 ok = fail = 0
 def check(name, cond, extra=''):
@@ -12,10 +13,20 @@ def check(name, cond, extra=''):
     if cond: ok += 1
     else: fail += 1; print('FAIL', name, extra)
 
+def midpoint_zone(instant):
+    # Keep a real current-day API test away from local midnight, whichever hour CI starts.
+    offset = min(range(-12, 13), key=lambda hours: abs(((instant.hour + hours) % 24) - 12))
+    name = 'Etc/GMT' if offset == 0 else f"Etc/GMT{'-' if offset > 0 else '+'}{abs(offset)}"
+    return name, ZoneInfo(name)
+
+
+fixture_now = dt.datetime.now(dt.timezone.utc)
+zone_name, account_zone = midpoint_zone(fixture_now)
 p = person('zz_test_plans')
 p.put('/api/me', {'units': 'imperial'})
+p.put('/api/profile', {'tz': zone_name})
 p.delete('/api/plans/current')
-# a 10-week 10K plan that started this Monday (a race day 9 weeks and 6 days on)
+# One captured local date drives the plan and its current-day workout for the full script.
 today = dt.date.fromisoformat(p.get('/api/plans/options')[1]['today'])
 monday = today - dt.timedelta(days=today.weekday())
 s, r = p.post('/api/plans', {'race': '10k', 'level': 'beginner', 'weeks': 10, 'runs': 3, 'long_day': 6,
@@ -27,9 +38,9 @@ days = {w['day'] for w in week}
 check('plan starts this Monday', D['plan']['start_day'] == monday.isoformat(), D['plan'])
 check('no run yet today', D['today_run'] is None)
 
-# a run today: shows on the Today card; ticks off today's workout when it's long enough. Dated at midnight so the test also
-# passes in the early hours (a run at 7 AM would still be in the future then, and the server refuses those).
-s, r = p.post('/api/activities/manual', {'sport': 'run', 'name': 'zz plan run', 'start': f'{today}T00:00', 'duration_s': 3300,
+# A local-midnight timestamp is safely in the past because the account fixture clock starts near noon.
+today_start = dt.datetime.combine(today, dt.time(), account_zone).isoformat()
+s, r = p.post('/api/activities/manual', {'sport': 'run', 'name': 'zz plan run', 'start': today_start, 'duration_s': 3300,
                                          'distance_m': 6.1 * 1609.344, 'calories': 650})
 check('run added', s == 200, r)
 D = p.get('/api/plans/current')[1]
@@ -45,7 +56,7 @@ subprocess.run(['docker', 'compose', '-p', os.environ.get('KINETTA_PROJECT', 'ki
                 "WHERE active AND user_id = (SELECT id FROM users WHERE login = 'zz_test_plans')\")"], check=True)
 def week1(): return {w['day']: w for w in p.get('/api/plans/current')[1]['weeks'][0]['workouts']}
 W1 = week1(); d1, d2 = sorted(W1)[:2]
-run = lambda day, mi: p.post('/api/activities/manual', {'sport': 'run', 'name': 'zz plan run', 'start': f'{day}T07:00',
+run = lambda day, mi: p.post('/api/activities/manual', {'sport': 'run', 'name': 'zz plan run', 'start': dt.datetime.combine(dt.date.fromisoformat(day), dt.time(7), account_zone).isoformat(),
                                                          'duration_s': 3000, 'distance_m': mi * 1609.344, 'calories': 500})[0]
 rest1 = next(d for d in (dt.date.fromisoformat(d1) + dt.timedelta(days=k) for k in range(1, 7)) if d.isoformat() not in W1)
 check('runs added', [run(d1, W1[d1]['dist'] * 0.99), run(d2, W1[d2]['dist'] * 0.5), run(rest1, 20)] == [200] * 3)
