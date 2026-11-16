@@ -1,7 +1,7 @@
 // The real launch page and fictional API data; an idle native stand-in records calls without GPS/Health effects.
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),cp=require('node:child_process'),fs=require('node:fs'),path=require('node:path');
-const fixtureInstant=new Date(require('../screenshots/fixture-time.json').instant),base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS,pw='green teapot on the hill',medalCase=process.env.KINETTA_MEDAL_CASE||'',medalTheme=process.env.KINETTA_MEDAL_THEME||'light',medalShare=process.env.KINETTA_MEDAL_SHARE||'on',medalWidth=Number(process.env.KINETTA_MEDAL_WIDTH)||390,trackWidth=Number(process.env.KINETTA_TRACK_WIDTH)||0,trackCases=new Set((process.env.KINETTA_TRACK_CASE||'').split(',').filter(Boolean)),gpsStateCase=process.env.KINETTA_GPS_STATE_CASE==='1';
+const fixtureInstant=new Date(require('../screenshots/fixture-time.json').instant),base=process.env.KINETTA_URL||'http://localhost:8798',out=process.env.KINETTA_SHOTS,pw='green teapot on the hill',medalCase=process.env.KINETTA_MEDAL_CASE||'',medalTheme=process.env.KINETTA_MEDAL_THEME||'light',medalShare=process.env.KINETTA_MEDAL_SHARE||'on',medalWidth=Number(process.env.KINETTA_MEDAL_WIDTH)||390,trackWidth=Number(process.env.KINETTA_TRACK_WIDTH)||0,trackCases=new Set((process.env.KINETTA_TRACK_CASE||'').split(',').filter(Boolean));
 async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(fn,arg))return;await p.waitForTimeout(100);}throw Error(label);}
 (async()=>{
  cp.execFileSync('python3',[path.join(__dirname,'track_fixture.py')],{env:process.env,stdio:'inherit'});
@@ -11,7 +11,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
  try{for(const who of ['empty','runner','lifter'])for(const native of [true,false])for(const size of sizes)for(const theme of ['light','dark']){
   if(trackCases.size&&!trackCases.has(`${who}-${native?'native':'browser'}-${size.width}-${theme}`))continue;
   if(medalCase&&(who!=='empty'||native||theme!==medalTheme||size.width!==medalWidth))continue;
-  if(gpsStateCase&&(who!=='empty'||!native))continue;
+  const gpsStateCase=who==='empty'&&native;
   const c=await b.newContext({viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:'UTC'});cleanup.push(c);
   const signed=await c.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_track_'+who,password:pw,app:native}});assert.equal(signed.status(),200);
   const token=(await signed.json()).token,auth=native?{Authorization:'Bearer '+token}:{},get=url=>c.request.get(base+url,{headers:auth}),me=await(await get('/api/me')).json(),rows=await(await get('/api/interval-presets')).json(),saved=rows.find(r=>r.definition.name==='Fictional 3 / 1');
