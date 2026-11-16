@@ -11,7 +11,7 @@ async function until(p,fn,label,arg){for(let i=0;i<150;i++){if(await p.evaluate(
  try{
  for(const who of ['empty','typical','heavy']){
   const auth=await b.newContext();assert.equal((await auth.request.post(base+'/api/login',{headers:{Origin:base},data:{login:'zz_test_nutrition_'+who,password:'green teapot on the hill'}})).status(),200);cleanup.push(auth);const storage=await auth.storageState();
-  let savedMealAdded=false;const sizes=who==='empty'?[{width:390,height:844,root:16}]:[{width:390,height:844,root:16},{width:330,height:844,root:16}];
+  let savedMealAdded=false;const sizes=[{width:390,height:844,root:16},{width:330,height:844,root:16}];
   for(const size of sizes)for(const theme of ['light','dark']){
    if(process.env.KINETTA_NUTRITION_CASE&&process.env.KINETTA_NUTRITION_CASE!==`${who}-${size.width}-${theme}`)continue;
    const c=await b.newContext({storageState:storage,viewport:size,colorScheme:theme,serviceWorkers:'block',isMobile:true,hasTouch:true,timezoneId:fixture.timezone}),p=await c.newPage(),errors=[],consoleErrors=[],writes=[],failed=[];await p.clock.setFixedTime(FIXTURE_NOW);p.nutritionDiagnostics={errors,consoleErrors,failed};p.on('requestfailed',r=>failed.push({url:r.url(),error:r.failure()?.errorText}));
