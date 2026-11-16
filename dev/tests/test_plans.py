@@ -56,7 +56,7 @@ subprocess.run(['docker', 'compose', '-p', os.environ.get('KINETTA_PROJECT', 'ki
                 "WHERE active AND user_id = (SELECT id FROM users WHERE login = 'zz_test_plans')\")"], check=True)
 def week1(): return {w['day']: w for w in p.get('/api/plans/current')[1]['weeks'][0]['workouts']}
 W1 = week1(); d1, d2 = sorted(W1)[:2]
-run = lambda day, mi: p.post('/api/activities/manual', {'sport': 'run', 'name': 'zz plan run', 'start': dt.datetime.combine(dt.date.fromisoformat(day), dt.time(7), account_zone).isoformat(),
+run = lambda day, mi: p.post('/api/activities/manual', {'sport': 'run', 'name': 'zz plan run', 'start': dt.datetime.combine(dt.date.fromisoformat(day) if isinstance(day, str) else day, dt.time(7), account_zone).isoformat(),
                                                          'duration_s': 3000, 'distance_m': mi * 1609.344, 'calories': 500})[0]
 rest1 = next(d for d in (dt.date.fromisoformat(d1) + dt.timedelta(days=k) for k in range(1, 7)) if d.isoformat() not in W1)
 check('runs added', [run(d1, W1[d1]['dist'] * 0.99), run(d2, W1[d2]['dist'] * 0.5), run(rest1, 20)] == [200] * 3)
