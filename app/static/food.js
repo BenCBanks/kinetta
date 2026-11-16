@@ -163,14 +163,6 @@ const NLOG = [['log', 'Food log', 'What you ate, day by day', 'food', 'c-green']
 const NMORE = [['reminders', 'Meal reminders', 'Optional nudges at your usual meal times', 'bell', 'c-orange'],
   ...(!Native.on ? [['import', 'Add past days', 'Weight and calories from another app', 'upload', 'c-grey']] : [])];
 const NRANGED = ['overview', 'energy', 'macros'];
-const mealFoodEmoji = (entry, meal) => {
-  const name = String(entry?.name || '').toLowerCase();
-  if (/oat|yogurt|berry|cereal|toast/.test(name)) return '🥣';
-  if (/salad|bowl|rice|sandwich|soup/.test(name)) return '🥗';
-  if (/salmon|chicken|pasta|potato|dinner/.test(name)) return '🍽️';
-  if (/apple|fruit|snack|bar|nut/.test(name)) return '🍎';
-  return ({breakfast:'🥣', lunch:'🥗', dinner:'🍽️', snacks:'🍎'})[meal] || '🍽️';
-};
 function nHead(el, view, filters) {
   const v = [...NLOG, ...NPROG].find(m => m[0] === view), inProgress = location.pathname === '/progress';
   const q = new URLSearchParams(location.search), fromProgress = q.get('from') === 'progress';
