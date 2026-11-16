@@ -116,9 +116,24 @@ class CIPolicyTests(unittest.TestCase):
             self.assertIn('ready_for_review',text);self.assertIn('synchronize',text);self.assertIn('converted_to_draft',text)
             self.assertIn('github.event.pull_request.draft == false',text)
         tests=(ROOT/'.github/workflows/tests.yml').read_text()
+        self.assertIn('group: tests-${{ github.ref }}',tests)
+        self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}",tests)
         self.assertIn('github.event.pull_request.draft == true',tests);self.assertIn('dev/tests/run.sh --quick',tests)
         self.assertNotIn('paths:',tests) # required full-suite workflow must run for every ready PR
+        gate=tests.split('\n  tests:\n',1)[1].split('\n  spacing:\n',1)[0]
+        self.assertIn('name: tests',gate)
+        self.assertIn('if: ${{ always() }}',gate)
+        self.assertIn('needs: [quick, changed-screen-map, backend, browser_shards, reviewer_integration, spacing]',gate)
+        self.assertIn('for result in "$QUICK_RESULT" "$CHANGED_SCREEN_MAP_RESULT" "$BACKEND_RESULT" "$SPACING_RESULT"; do',gate)
+        self.assertIn('test "$result" = success',gate)
+        self.assertIn('case "$QUICK_RESULT" in success|skipped)',gate)
+        self.assertIn('case "$result" in success|skipped)',gate)
         ios=(ROOT/'.github/workflows/ios.yml').read_text()
+        self.assertIn('group: ios-${{ github.ref }}-${{ (github.event_name == \'schedule\' || github.event_name == \'workflow_dispatch\') && \'release\' || \'check\' }}',ios)
+        self.assertIn('cancel-in-progress: ${{ github.event_name != \'schedule\' && github.event_name != \'workflow_dispatch\' }}',ios)
+        for name,next_name in (('build','native-ui'),('native-ui','store-ui'),('store-ui','testflight')):
+            job=ios.split(f'\n  {name}:\n',1)[1].split(f'\n  {next_name}:\n',1)[0]
+            self.assertIn('github.event.pull_request.draft == false',job)
         self.assertIn("native: ${{ steps.paths.outputs.native == 'true' || steps.store.outputs.preview == 'true' }}",ios)
         self.assertIn('python3 dev/ci/policy.py',ios)
         self.assertEqual(ios.count('npm run sync'),2) # unsigned and signed builds share stamping
@@ -152,6 +167,21 @@ class CIPolicyTests(unittest.TestCase):
                       ((enabled=='true' and store=='success') or (enabled=='false' and store=='skipped')))
             self.assertEqual(actual,expected,(values,cancelled))
 
+    def test_simulator_runs_retry_once_and_only_pr_failures_are_quarantined(self):
+        ios=(ROOT/'.github/workflows/ios.yml').read_text()
+        native=ios.split('\n  native-ui:\n',1)[1].split('\n  store-ui:\n',1)[0]
+        store=ios.split('\n  store-ui:\n',1)[1].split('\n  testflight:\n',1)[0]
+        for job in (native,store):
+            self.assertIn("continue-on-error: ${{ github.event_name == 'pull_request' }}",job)
+            self.assertIn('continue-on-error: true',job)
+            self.assertEqual(job.count('Retry '),1)
+            self.assertIn('outcome == \'failure\'',job)
+            self.assertEqual(job.count('run.py'),2)
+        self.assertIn('Owner: Basil; expires 2026-11-22.',native)
+        testflight=ios.split('\n  testflight:\n',1)[1].split('\n    runs-on:',1)[0]
+        self.assertIn('needs.native-ui.result == \'success\'',testflight)
+        self.assertIn('needs.store-ui.result == \'success\'',testflight)
+
     def test_tester_delivery_survives_the_skipped_store_job(self):
         # A bare output check carries an implicit success(), which a skipped upstream Store job turns false:
         # builds 2723 and 2752 uploaded but never reached testers. The beta job must state its own status check.
@@ -172,7 +202,7 @@ class CIPolicyTests(unittest.TestCase):
         shards=[value.strip() for value in matrix.group(1).split(',')]
         self.assertEqual(shards,[str(i) for i in range(1,len(shards)+1)])
         self.assertIn('run_browser_shard.sh',workflow)
-        self.assertIn('needs: [backend, browser_shards, reviewer_integration]',workflow)
+        self.assertIn('needs: [quick, changed-screen-map, backend, browser_shards, reviewer_integration, spacing]',workflow)
         self.assertIn('always()',workflow)
         self.assertIn('run: dev/tests/run.sh',workflow)
         self.assertIn('KINETTA_PROJECT: kt-ci-shard-${{ matrix.shard }}',workflow)
@@ -207,6 +237,9 @@ feature_collection_ui.cjs groups_ui.cjs journeys_prepare.py journeys.cjs journey
                     owners.setdefault(name,set()).add(shard)
         self.assertEqual(len(owners),len(Counter(expected)))
         self.assertTrue(all(len(shards)==1 for shards in owners.values()),owners)
+        self.assertEqual(owners['progress_ui.cjs'],{'4'},'move the measured long Progress UI group off shard 1')
+        for name in ('weight_progress_fixture.py','weight_progress_ui.cjs','weight_progress_actions.cjs','weight_progress_journeys.cjs','weight_undo_ui.cjs','inline_reactions_fixture.py','inline_reactions_ui.cjs','inline_reactions_actions.cjs'):
+            self.assertEqual(owners[name],{'1'},f'{name} balances shard 1 and keeps its fixture with its tests')
 
     def test_exact_workflow_duplicates_are_removed_and_ci_caches_are_pinned(self):
         run=(ROOT/'dev/tests/run.sh').read_text()

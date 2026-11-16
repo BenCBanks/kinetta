@@ -513,6 +513,14 @@
       ]
     },
     {
+      "id": "pages-track-home",
+      "source": "app/static/pages.js",
+      "pattern": "/^\\/track$/",
+      "paths": [
+        "/track"
+      ]
+    },
+    {
       "id": "welcome-1",
       "source": "app/static/welcome.js",
       "pattern": "/^\\/welcome$/",

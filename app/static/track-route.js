@@ -15,7 +15,20 @@
   let follow = true;     // the live map follows you; "Whole route" shows everything so far
   let fitWhole=false;
   function lines() { const by = new Map(); for (const p of session.points) { if (!by.has(p.segment)) by.set(p.segment, []); by.get(p.segment).push([p.lat, p.lon]); } return [...by.values()].filter((a) => a.length > 1); }
+  function drawRouteLines(view, routeLines=lines()) {
+    const failed=$('.map-unavailable',view.el)?.hidden===false, color=view.routeColor?.() || col('--route');
+    view.group.clearLayers();
+    const renderer=failed?view.L.canvas({padding:.5}):null;
+    for(const pts of routeLines)view.L.polyline(pts,{color,weight:4,opacity:.95,...(renderer?{renderer}:{})}).addTo(view.group);
+    view.canvasRouteFallback=failed;
+  }
+  function watchTileFailures(view) {
+    const note=$('.map-unavailable',view.el);if(!note||view.trackTileObserver)return;
+    const observer=new MutationObserver(()=>drawRouteLines(view));observer.observe(note,{attributes:true,attributeFilter:['hidden']});
+    view.trackTileObserver=observer;view.map.once('unload',()=>observer.disconnect());
+  }
   function refreshMap() {
+    if(session?.locationDenied)return;
     if (mapTimer) return;
     mapTimer = setTimeout(async () => {
       const el=$('#track-map'),recording=session?.id,expected=owner;
@@ -28,8 +41,7 @@
           if (view && el.isConnected) { mapView = {...view, el, here: null}; mapView.map.on('dragstart', () => { follow = false;fitWhole=false; followButton(); });el.addEventListener('wheel',()=>{follow=false;fitWhole=false;followButton();},{passive:true});el.addEventListener('touchstart',e=>{if(e.touches.length>1){follow=false;fitWhole=false;followButton();}},{passive:true}); }
         }
         if (!mapView || !el.isConnected) return;
-        const {map, L, group} = mapView; group.clearLayers();
-        for (const pts of ln) L.polyline(pts, {color: col('--route'), weight: 4}).addTo(group);
+        const {map, L} = mapView;watchTileFailures(mapView);drawRouteLines(mapView,ln);
         const last = session.points.at(-1);
         if (last) mapView.here = hereMarker(mapView, mapView.here, last.lat, last.lon, last.accuracy);
         if (follow && last) map.setView([last.lat, last.lon], Math.max(map.getZoom() || 0, 16), {animate: false});
@@ -198,6 +210,7 @@
       <div class="track-review-dock"><p class="small danger" id="track-save-error" role="alert">${esc(saveError || (!saving && frozen?'Save not confirmed. Draft kept.':''))}</p><button type="submit" form="track-save-form" class="primary wide" id="track-save"${locked?' disabled':''}>${saving?'Saving…':frozen?'Retry save':'Save'}</button>${frozen&&!saving&&!photoBusy?`<a class="ghost wide track-check-saved" href="${profileHref(App.me)}">View my activities</a>`:''}</div></section>`;
   }
   function liveMapHTML(paused) {
+    if(session.locationDenied)return `<div class="track-location-off" role="group" aria-label="Location is off"><div class="track-location-off-icon" aria-hidden="true">!</div><b>Location is off</b><button type="button" class="track-open-settings" id="track-open-settings">Open Settings</button><small>Your timer and controls still work.</small></div>`;
     return `<div class="map track-map-wrap" id="track-map-wrap"><div class="track-map live-record-map" id="track-map"></div><span class="gps-chip" id="track-gps-live" hidden></span>
       <button type="button" class="track-follow-control" id="track-follow" aria-label="Follow me" title="Follow me">${svg('track')}<span>Follow me</span></button>
       ${paused && !session.native ? '<button type="button" class="track-timer-link" id="track-timer">Continue without GPS</button>' : ''}</div>`;
@@ -221,10 +234,10 @@
     const top = el.parentElement?.querySelector(':scope > .top'); if (top) top.hidden = true;
     if (review && !heldMap) { follow = false; fitWhole = true; }   // entering review fits the recording once
     el.innerHTML = review ? reviewHTML() : `<section class="track-session track-live ${display === 'stats' ? 'stats-expanded' : ''} ${paused ? 'is-paused' : 'is-recording'}"><div class="track-live-main">
-      <header class="track-live-top"><h2><span class="rec-dot" aria-hidden="true"></span>${esc(session.label)}</h2>${session.gps ? `<div class="seg track-live-tabs" role="group" aria-label="Recording display"><button data-display="map" aria-pressed="${display === 'map'}">Map</button><button data-display="stats" aria-pressed="${display === 'stats'}">Stats</button></div>` : ''}</header>
+      <header class="track-live-top"><h2><span class="rec-dot" aria-hidden="true"></span><span class="track-live-title-label">${esc(session.label)}</span>${session.gps?'<span class="track-gps-indicator" data-state="finding" aria-label="Finding GPS"><span class="track-gps-glyph" aria-hidden="true"></span><span class="track-gps-label">Finding GPS</span></span>':''}</h2>${session.gps ? `<div class="seg track-live-tabs" role="group" aria-label="Recording display"><button data-display="map" aria-pressed="${display === 'map'}">Map</button><button data-display="stats" aria-pressed="${display === 'stats'}">Stats</button></div>` : ''}</header>
       <p id="track-status" class="vh" role="status"></p>
       ${session.intervals?'<section id="interval-live" class="card track-interval-live" aria-label="Current interval"></section>':''}
-      ${session.gps && display === 'map' ? `<div class="track-live-metrics" role="group" aria-label="Current workout"><div><b class="num"><span id="track-time"></span></b><small class="track-time-label">${paused?'Paused':'Time'}</small></div><div><b class="num"><span id="track-distance"></span><i>${U.du()}</i></b><small>Distance</small></div><div><b class="num"><span id="track-pace"></span><i>${speedSport(session)?U.su():'/'+U.du()}</i></b><small>${speedSport(session)?'Avg speed':'Avg pace'}</small></div></div>${liveMapHTML(paused)}` : `<div class="track-live-body track-live-stats"><div class="track-hero"><b class="num" id="track-time"></b><small>${paused?'Paused':'Time'}</small></div>${session.gps ? `<div class="track-live-metrics"><div><b class="num" id="track-distance"></b><small>Distance · ${U.du()}</small></div><div><b class="num" id="track-pace"></b><small>${speedSport(session)?'Avg speed':'Avg pace'} · ${speedSport(session)?U.su():'/'+U.du()}</small></div><div><b class="num" id="track-lap-pace"></b><small>${speedSport(session)?'Lap speed':'Lap pace'} · ${speedSport(session)?U.su():'/'+U.du()}</small></div></div><p class="small muted track-splits" id="track-splits"></p>` : '<p class="small muted">Indoor recording</p>'}</div>`}
+      ${session.gps && display === 'map' ? `<div class="track-live-metrics" role="group" aria-label="Current workout"><div><b class="num"><span id="track-time"></span></b><small class="track-time-label">${paused?'Paused':'Time'}</small></div><div><b class="num"><span id="track-distance"></span><i>${U.du()}</i></b><small>Distance</small></div><div><b class="num"><span id="track-pace"></span><i>${speedSport(session)?U.su():'/'+U.du()}</i></b><small>${speedSport(session)?'Avg speed':'Avg pace'}</small></div></div>${liveMapHTML(paused)}` : `<div class="track-live-body track-live-stats"><div class="track-hero"><b class="num" id="track-time"></b><small>${paused?'Paused':'Time'}</small></div>${session.gps ? `<div class="track-live-metrics"><div><b class="num" id="track-distance"></b><small>Distance · ${U.du()}</small></div><div><b class="num" id="track-pace"></b><small>${speedSport(session)?'Avg speed':'Avg pace'} · ${speedSport(session)?U.su():'/'+U.du()}</small></div><div><b class="num" id="track-lap-pace"></b><small>${speedSport(session)?'Lap speed':'Lap pace'} · ${speedSport(session)?U.su():'/'+U.du()}</small></div></div><p class="small muted track-splits" id="track-splits"></p><p class="small muted track-gps-accuracy" id="track-gps-accuracy" hidden></p>` : '<p class="small muted">Indoor recording</p>'}</div>`}
       <div class="track-controls" role="group" aria-label="Recording controls">${paused ? `<span class="round-ctl round-ctl-discard"><button class="round-btn discard" id="track-discard" aria-label="Discard recording">${svg('trash')}</button><small>Discard</small></span><span class="round-ctl"><button class="round-btn go" id="track-pause" aria-label="Resume">${svg('play')}</button><small>Resume</small></span><span class="round-ctl"><button class="round-btn stop" id="track-finish" aria-label="Finish">${svg('stop')}</button><small>Finish</small></span>` : `${session.gps?`<span class="round-ctl"><button class="round-btn lap" id="track-lap" data-track-lap aria-label="Mark lap">${svg('flag')}</button><small>Lap</small></span>`:''}<span class="round-ctl"><button class="round-btn" id="track-pause" aria-label="Pause">${svg('pause')}</button><small>Pause</small></span><span class="round-ctl"><button class="round-btn stop" id="track-finish" aria-label="Finish">${svg('stop')}</button><small>Finish</small></span>`}</div>
       </div></section>`;
     if(heldMap)$('#track-map-wrap',el)?.replaceWith(heldMap);
@@ -240,6 +253,7 @@
     const fb = $('#track-follow', el); if (fb) fb.onclick = () => { follow = !follow;fitWhole=!follow; refreshMap(); followButton(); };
     update(); if (session.gps) refreshMap();
     if (!review) {
+      const settings=$('#track-open-settings');if(settings)settings.onclick=async()=>{try{const open=window.Capacitor?.Plugins?.KinettaContacts?.openSettings;if(typeof open==='function')await open();else toast('Open your device settings and allow location for Kinetta.');}catch(_){toast('Settings could not be opened.');}};
       $('#track-pause').onclick = async () => { if(!live())return;if (session.state === 'recording') { await pause(); draw(); } else { await resume(); reflectLiveState(el); } };
       const finish = $('#track-finish'); if (finish) finish.onclick = async () => { if(!live())return;if (session.native) { await nativeControl('finish'); return; } await pause(); if (TrackMath.seconds(session) < 1) { message = 'Record at least one second before finishing.'; update(); return; } session.state = 'review'; message = 'Ready to save'; session.finishedAt = Date.now(); persist(); draw(); };
       const timer = $('#track-timer'); if (timer) timer.onclick = async () => { session.gps = false; await resume(); reflectLiveState(el); };
