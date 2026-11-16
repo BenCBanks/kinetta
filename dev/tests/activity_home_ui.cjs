@@ -196,10 +196,6 @@ const engine=process.env.KINETTA_ACTIVITY_BROWSER==='webkit'?webkit:chromium,b=a
    if(who==='typical'&&(size.width===390||size.width===330))await verifyActivityMonthJump(p,out,theme,size.width);
    assert.deepEqual(errors,[]);assert(!writes.some(w=>w!=='/api/challenges/signup/continue'),'month navigation does not write records');console.log(`Activity month jump ${size.width}px ${theme}: time-zone label, paging, filters and screenshots PASS`);await closeRoutedActivityContext(c);continue;
   }
-  if(who==='heavy'&&size.width===390&&theme==='light'){
-   const start=activityFixtureNow.toISOString().slice(0,10),end=new Date(activityFixtureNow.valueOf()+6*86400000).toISOString().slice(0,10);
-   await c.route('**/api/challenges',async r=>{const response=await r.fetch(),rows=await response.json();for(const row of rows){row.start=start;row.end=end;row.joining_closed=false;if(row.self){row.self.days_left=6;row.self.finished=false;}}return r.fulfill({response,json:rows});},{times:1});
-  }
     if(weeklyRecapTest)await p.clock.setFixedTime(weeklyRecapNow);
     if(weeklyRecapTest){await p.goto(base+'/');await p.evaluate(()=>{window.__weeklyRecapTestLocale=Intl.DateTimeFormat().resolvedOptions().locale;for(const key of Object.keys(localStorage))if(key.includes('weekly-recap'))localStorage.removeItem(key);});}
   const recapReads=weeklyRecapTest?[p.waitForResponse(r=>new URL(r.url()).pathname==='/api/recaps'),p.waitForResponse(r=>new URL(r.url()).pathname==='/api/progress/volume'),p.waitForResponse(r=>new URL(r.url()).pathname==='/api/achievements')]:[];
@@ -230,7 +226,15 @@ const engine=process.env.KINETTA_ACTIVITY_BROWSER==='webkit'?webkit:chromium,b=a
   assert.equal(await p.locator('[data-feed-tool=requests],[data-feed-tool=invite]').count(),0,'Invite and requests stay on Friends');
   const challengeShortcut=p.locator('.home-view-switch [data-home-challenges]');assert.equal(await challengeShortcut.count(),1,'Home keeps Challenges in the Feed/Groups switch');assert(await challengeShortcut.isVisible(),`Challenges switch link is visible at ${size.width}px`);assert.equal(await challengeShortcut.getAttribute('href'),'/me/challenges');assert.equal(await p.locator('#feed-tools .feed-challenges-shortcut').count(),0,'the bare Challenges row is removed from above the feed');const challengeBox=await challengeShortcut.boundingBox();assert(challengeBox.width>=44&&challengeBox.height>=44,'Challenges switch link is a 44px target');
   if(who==='established'){assert.equal(await p.locator('#feed-tools .feed-find-friends').count(),0,'established accounts have no duplicate discovery row');const view=await p.locator('.home-view-switch').boundingBox(),first=await p.locator('#ff-list .post').first().boundingBox();assert(view.y+view.height<=first.y,`first card follows the Home switch without a standalone Challenges row: ${JSON.stringify({view,first})}`);}
-  if(who==='heavy'){assert.match(await p.locator('.challenge-summary[data-feed-tool=challenges]').innerText(),/days? left|Ends today|Goal reached/);assert.match(await p.locator('.challenge-summary[data-feed-tool=challenges]').innerText(),/\d+ \/ 4 days/);assert((await p.locator('.challenge-summary[data-feed-tool=challenges]').boundingBox()).height>=56);}
+  if(who==='heavy'){
+   const summary=p.locator('.challenge-summary[data-feed-tool=challenges]'),validTiming=/days? left|Ends today|Goal reached|Starts [A-Z][a-z]{2} \d{1,2}/;
+   for(const instant of ['2026-11-15T23:59:00Z','2026-11-16T00:01:00Z']){
+    await p.clock.setFixedTime(new Date(instant));await p.reload();await ready();
+    assert.match(await summary.innerText(),validTiming,`challenge timing remains a valid state at ${instant}`);
+   }
+   await p.clock.setFixedTime(activityFixtureNow);await p.reload();await ready();
+   assert.match(await summary.innerText(),validTiming,'challenge summary permits a future challenge start');assert.match(await summary.innerText(),/\d+ \/ 4 days/);assert((await summary.boundingBox()).height>=56);
+  }
   const headerGaps=await p.locator('#feed-top .acts').evaluate(e=>{const a=[...e.children].map(n=>n.getBoundingClientRect()).filter(r=>r.width&&r.height).sort((a,b)=>a.left-b.left);return a.slice(1).map((r,i)=>r.left-a[i].right);});assert(headerGaps.every(g=>g>=8),'Header actions retain8px gaps, including enlarged330px');
   const ids=await p.locator('#ff-list .post').evaluateAll(nodes=>nodes.map(n=>Number(n.dataset.href.split('/').at(-1))));assert(privateIds.every(id=>ids.includes(id)),'own private workouts remain in Activity');for(const id of privateIds){const card=p.locator(`#ff-list .post[data-href="/activity/${id}"]`);assert.equal(await card.locator('.post-meta-icon[aria-label="Only me"] svg').count(),1,'own private audience uses the accessible lock glyph');}assert.equal(await p.locator('.post[data-href^="/activity/friends/"] .post-meta-icon[aria-label="Only me"]').count(),0,'friend cards never expose the owner audience');assert(!/Fictional private noodles|121\.7|999/.test(await p.locator('#page').innerText()),'no food/body values');assert.equal(await p.locator('[href="/people/zz_test_feed_blocked"]').count(),0);
    if(original[0]){const expected=await p.evaluate(start=>when(start).replace(' at ',' '),original[0].start_time),actual=await p.locator(`#ff-list .post[data-href="/activity/${original[0].id}"] .post-hd .post-meta-date`).innerText();assert(actual.includes(expected),`activity metadata follows account-local relative time: expected ${expected}; got ${actual}`);}
