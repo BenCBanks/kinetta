@@ -250,7 +250,9 @@ function liftLogger(el, aid, data) {
           if (e.kind === 'time' ? !s.secs : !s.reps) { toast(e.kind === 'time' ? 'Type the seconds first' : 'Type the reps first'); $(`.lift-in[data-j="${j}"][data-k="${e.kind === 'time' ? 'secs' : 'reps'}"]`, card).focus(); return; }
           S.lastTick = Date.now();
         }
-        s.done = on; b.setAttribute('aria-pressed', String(on)); b.closest('.lift-row').classList.toggle('done', on); save();
+        s.done = on; b.setAttribute('aria-pressed', String(on)); b.closest('.lift-row').classList.toggle('done', on);
+        if (on) Native.haptic?.('light');
+        save();
       });
       $$('[data-prev]', card).forEach((b) => b.onclick = () => {   // the previous session's set, copied into the boxes
         const j = +b.dataset.prev, p = e.last?.sets[j]; if (!p) return;
