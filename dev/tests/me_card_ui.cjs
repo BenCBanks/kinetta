@@ -146,9 +146,10 @@ const clearProfileCache=p=>p.evaluate(()=>{for(const k of Object.keys(localStora
   await p.goto(base+'/me');await waitApp(p);await p.locator('.me-card-weekly').waitFor();
   const weekly=p.locator('.me-card-weekly'),label=p.locator('[data-week-label]'),chart=p.locator('.me-card-bars'),weeks=p.locator('.me-week');
   await p.locator('.me-featured-slot[data-loaded="true"]').waitFor();await p.locator('.me-featured-achievements').waitFor();
-  const previewAction=weekly.locator('.me-card-numbers + .me-card-preview-row [data-card-preview]');
-  assert.equal(await previewAction.innerText(),'View as friend','friend preview link sits immediately beneath the weekly stats');
-  assert.equal(await weekly.locator('.me-card-preview-row ~ .me-chart-scroll .me-card-bars').count(),1,'friend preview link stays above the chart and achievements');
+  const previewRow=p.locator('.me-card .me-card-preview-row'),previewAction=previewRow.locator('[data-card-preview]');
+  assert.equal(await previewAction.innerText(),'View as friend','friend preview action remains available before weekly stats');
+  const previewPlacement=await previewRow.evaluate(node=>({afterIdentity:node.previousElementSibling?.classList.contains('me-card-id'),beforeSections:node.nextElementSibling?.classList.contains('me-card-sections'),outsideWeekly:!node.closest('.me-card-weekly'),weeklyChart:!!node.nextElementSibling?.querySelector('.me-card-weekly .me-chart-scroll .me-card-bars')}));
+  assert.deepEqual(previewPlacement,{afterIdentity:true,beforeSections:true,outsideWeekly:true,weeklyChart:true},'friend preview follows identity/streak and precedes weekly stats, chart and achievements');
   const profileLink=p.locator('a.me-card-profile-link'),identityBox=await profileLink.boundingBox();
   assert.equal(await profileLink.getAttribute('aria-label'),null,'the profile link name comes from its visible identity');
   assert.equal(await p.getByRole('link',{name:/Alex Rivera.*@alex/}).count(),1,'the profile link exposes its visible name and handle accessibly');
