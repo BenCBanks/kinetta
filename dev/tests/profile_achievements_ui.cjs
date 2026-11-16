@@ -349,12 +349,13 @@ module.exports=async({browser,storageState,base,shots})=>{
   if(tabsOnly){
    await page.goto(base+'/me');await until(page,()=>App.pageReady,'Me before achievement tab tests');await setUnits('imperial');
    for(const width of [390,330]){
-    await page.setViewportSize({width,height:844});
+    await page.setViewportSize({width,height:844});await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
     const checkEntry=async(entry)=>{
      await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
      await page.locator('#profile-achievement-page [data-achievement-sport="strength"][aria-selected="true"]').waitFor({state:'visible'});
+     await until(page,()=>{const pageRoot=document.querySelector('#profile-achievement-page'),tabs=pageRoot?.querySelector('.profile-achievement-sport-switcher'),title=pageRoot?.querySelector(':scope > h1'),selected=tabs?.querySelector('[aria-selected="true"]'),a=title?.getBoundingClientRect(),b=tabs?.getBoundingClientRect(),c=selected?.getBoundingClientRect();return !!a&&!!b&&!!c&&a.height>0&&b.width>0&&b.height>=44&&c.width>0&&getComputedStyle(tabs).position==='sticky';},`${entry} stable responsive layout at ${width}px`);
      await until(page,()=>{const box=document.querySelector('#profile-achievement-page'),tabs=box?.querySelector('.profile-achievement-sport-switcher'),rect=tabs?.getBoundingClientRect();return !!tabs&&rect.width>0&&rect.height>=44&&getComputedStyle(tabs).position==='sticky';},`${entry} achievement layout at ${width}px`);
-     if(shots)await screenshot(page,shots,`achievement-tabs-${entry}-${width}-${theme}-probe`);
+
      const geometry=await page.locator('#profile-achievement-page').evaluate(box=>{
       const title=box.querySelector(':scope > h1'),overview=box.querySelector('[data-achievement-sport-overview]'),tabs=box.querySelector('.profile-achievement-sport-switcher'),selected=tabs?.querySelector('[aria-selected="true"]'),heading=box.querySelector('.profile-achievement-sport-heading h2'),firstTrack=box.querySelector('.profile-achievement-sport-card .profile-achievement-track-head'),tabRect=selected?.getBoundingClientRect(),tabsRect=tabs?.getBoundingClientRect(),titleRect=title?.getBoundingClientRect(),firstRect=firstTrack?.getBoundingClientRect(),top=box.previousElementSibling?.getBoundingClientRect(),style=tabs&&getComputedStyle(tabs);
       return{title:title?.textContent.trim(),tabs:tabs?[...tabs.querySelectorAll('[data-achievement-sport]')].map(node=>node.querySelector('span')?.textContent.trim()):[],selected:selected?.querySelector('span')?.textContent.trim(),heading:heading?.textContent.trim(),tabPosition:style?.position,tabTop:tabsRect?.top,tabBottom:tabsRect?.bottom,titleBottom:titleRect?.bottom,topHeaderBottom:top?.bottom,selectedBounds:tabRect&&tabsRect?{left:tabRect.left-tabsRect.left,right:tabsRect.right-tabRect.right,centerOffset:(tabRect.left+tabRect.width/2)-(tabsRect.left+tabsRect.width/2)}:null,scroll:{left:tabs?.scrollLeft,max:tabs?tabs.scrollWidth-tabs.clientWidth:0},mask:style?.maskImage,firstTrackTop:firstRect?.top,pageWidth:document.documentElement.scrollWidth,innerWidth};
@@ -387,7 +388,7 @@ module.exports=async({browser,storageState,base,shots})=>{
      const finalTab=await page.locator('.profile-achievement-sport-switcher').evaluate(strip=>{const selected=strip.querySelector('[aria-selected="true"]'),s=strip.getBoundingClientRect(),r=selected.getBoundingClientRect();return{left:r.left-s.left,right:s.right-r.right,center:(r.left+r.width/2)-(s.left+s.width/2),scrollLeft:strip.scrollLeft};});
      assert(finalTab.left>=-1&&finalTab.right>=-1&&Math.abs(finalTab.center)<=8,`${entry} keeps the last sport fully visible after tapping it: ${JSON.stringify(finalTab)}`);
     };
-    await page.goto(base+'/me/achievements#strength');await checkEntry('direct');await page.locator('[data-achievement-sport="strength"]').click();await page.locator('[data-achievement-sport-overview][data-selected-sport="strength"]').waitFor();
+    await page.goto(base+'/me/achievements#strength');await until(page,()=>App.pageReady,'direct Achievements route ready');await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));await checkEntry('direct');await page.locator('[data-achievement-sport="strength"]').click();await page.locator('[data-achievement-sport-overview][data-selected-sport="strength"]').waitFor();
     await page.goto(base+'/me');await until(page,()=>App.pageReady,'Me profile before Achievements entry');await page.locator('.me-featured-title a').waitFor({state:'visible'});await page.locator('.me-featured-title a').click();await page.waitForURL('**/me/achievements');await checkEntry('profile');
     await page.goto(base+'/people/alex?view=achievements');await page.waitForURL('**/me/achievements');await checkEntry('profile-alias');
    }
