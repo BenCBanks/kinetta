@@ -791,18 +791,6 @@
   .me-profile-tools .icon-btn:active, .me-card-weekly .me-week:active, .me-featured-item:active, .me-card-preview-action:active, .me-card .me-friends-link:active, .me-settings .row-link:active { transform:none !important; }
 }
 
-/* #1025 public profile relationships: one clear action and a separate 44px report control. */
-.profile-relationship-actions { display:flex; align-items:center; gap:8px; }
-.profile-relationship-primary,.profile-relationship-quiet { display:inline-flex; align-items:center; justify-content:center; flex:none; min-width:44px; min-height:44px; padding:0 8px; border:0; background:transparent; color:#fff; font:600 15px/1.2 var(--font-ui); white-space:nowrap; cursor:pointer; transition:transform var(--motion-press) ease-out,opacity var(--motion-settle) var(--motion-ease); }
-.profile-relationship-primary { padding:0; }
-.profile-relationship-label { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:36px; padding:0 14px; border-radius:18px; background:var(--color-action); color:var(--color-on-action); }
-.profile-relationship-primary svg,.profile-relationship-quiet svg { width:16px; height:16px; flex:none; }
-.profile-relationship-quiet:active { opacity:.76; }
-.profile-relationship-primary:active { transform:scale(.97); }
-.profile-report-control { flex:none; background:rgba(255,255,255,.14); color:#fff; box-shadow:none; }
-.profile-report-control:active { background:rgba(255,255,255,.24); }
-@media (prefers-reduced-motion:reduce) { .profile-relationship-primary,.profile-relationship-quiet { transition:none !important; } .profile-relationship-primary:active,.profile-relationship-quiet:active,.profile-report-control:active { transform:none !important; } }
-
 /* #979 Sage follow-up: keep the light and dark Me surfaces equally legible. */
 .me-card-numbers > div { background:var(--card2); }
 .me-card-weekly .me-card-bars { background:transparent; }
@@ -816,6 +804,12 @@
 .me-card-banner .me-card-pill { min-height:44px; background:transparent; color:rgba(255,255,255,.88); font-size:.9375rem; font-weight:550; }
 .me-card-banner .me-card-pill svg { opacity:.82; }
 .me-card-banner .me-card-pill:active { background:rgba(255,255,255,.12); }
+/* #1025 public profile relationships: clear primary action, plain relationship text, separate report control. */
+.me-card-banner [data-person-action="add"],.me-card-banner [data-person-action="accept"] { min-width:44px; min-height:44px; padding:4px 12px; border-radius:22px; background:linear-gradient(var(--color-action),var(--color-action)) center/100% 36px no-repeat; color:var(--color-on-action); font-size:15px; font-weight:600; }
+.me-card-banner [data-person-action="add"] svg,.me-card-banner [data-person-action="accept"] svg { width:16px; height:16px; }
+.me-card-banner [data-person-manage],.me-card-banner [data-person-action="cancel"] { padding-inline:8px; background:transparent; color:rgba(255,255,255,.9); font-weight:600; }
+.me-card-banner [data-person-report] { box-sizing:border-box; width:44px; height:44px; min-width:44px; min-height:44px; padding:0; border-radius:50%; background:rgba(255,255,255,.14); box-shadow:none; }
+.me-card-banner [data-person-report]:active { background:rgba(255,255,255,.24); }
 .me-card-name { padding-top:2px; }
 .me-card-name h2 { font-size:1.0625rem; line-height:1.2; font-weight:500; letter-spacing:-.01em; white-space:nowrap; overflow:visible; text-overflow:clip; }
 .me-showcase-streak { min-width:0; font-size:.9375rem; font-weight:400; line-height:1.2; white-space:nowrap; }
