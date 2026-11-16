@@ -316,8 +316,8 @@ function combinedWeekHtml(w) {
   return `<details class="combined-week card"><summary><span class="combined-week-heading"><strong>Your week in review</strong><small>${esc(period)}</small></span><span class="combined-week-toggle"><span class="combined-week-show">Show</span><span class="combined-week-hide">Hide</span>${svg('down')}</span></summary><div class="combined-week-content">${stats}<div class="combined-week-facts"><p class="combined-week-fact">${svg('food')}<span><b>${Number(w.days_logged)||0} of 7 days</b> with food logged</span></p><p class="combined-week-fact">${svg('activity')}<span>${proteinFact}</span></p></div><div class="combined-week-links"><a class="row-link" href="${w.days_logged?'/food?view=overview&from=progress':'/food/describe'}"><span>Food review</span>${svg('chev')}</a><a class="row-link" href="${profileHref(App.me)}"><span>Your workouts</span>${svg('chev')}</a></div></div></details>`;
 }
 function combinedWeek(box) {
-  if(!box)return;const owner=readOwner();
-  load('/api/activity-food',data=>{
+  if(!box)return Promise.resolve();const owner=readOwner();
+  return load('/api/activity-food',data=>{
     if(!box.isConnected||owner!==readOwner())return;const w=data.week;
     box.innerHTML=combinedWeekHtml(w);
     if(new URLSearchParams(location.search).get('review')==='week')$('details',box).open=true;
