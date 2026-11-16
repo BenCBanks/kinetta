@@ -1004,7 +1004,7 @@ class Groups(unittest.TestCase):
         for who in (1, 2):
             self.assertEqual(self.accept(token, who=who).status_code, 200)
         with db.connect() as c:
-            c.execute("UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)", (self.ids[:3],))
+            c.execute("UPDATE profile SET share_achievements=true WHERE user_id=ANY(%s)", (self.ids[:2],))
             c.execute("UPDATE group_members SET sharing_level='total_shared',joined_at=%s WHERE group_id=%s",
                       (dt.datetime(2026,10,1,tzinfo=dt.timezone.utc),group['id']))
             c.execute('UPDATE group_members SET monday_recap_enabled=true WHERE group_id=%s AND user_id=ANY(%s)',
@@ -1023,8 +1023,12 @@ class Groups(unittest.TestCase):
                          'the default-off and muted members receive no recap alert')
         with patch.object(groups, '_now', return_value=now):
             recap = self.clients[0].get('/api/groups/'+group['id']).json()['monday_recap']
-            self.assertEqual(recap, {'week_start':'2026-11-09','total':6.0},
-                             'the recap uses only the viewer-safe shared aggregate')
+            self.assertEqual(recap, {'week_start':'2026-11-09','total':3.0},
+                             'a member with account-wide sharing off is excluded from the recap aggregate')
+            with db.connect() as c:
+                c.execute('UPDATE activities SET distance_m=90000 WHERE user_id=%s', (self.ids[2],))
+            self.assertEqual(self.clients[0].get('/api/groups/'+group['id']).json()['monday_recap'], recap,
+                             'changing a non-sharing member activity cannot change a visible recap number')
             self.assertEqual(self.clients[1].get('/api/groups/'+group['id']).json()['monday_recap'],recap,
                              'muting alerts does not change the group data already visible under sharing rules')
         alert = self.clients[0].get('/api/notifications').json()['items']
