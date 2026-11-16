@@ -485,7 +485,8 @@ async function closeCaptureContext(context) {
         await entry.click();
         await page.waitForFunction(() => location.pathname === '/me/kit' && new URLSearchParams(location.search).get('from') === 'nutrition');
         await page.locator('#kit-composer').waitFor({state:'visible'});
-        await page.locator('#kit-intro h2').filter({hasText:'What can I help with?'}).waitFor({state:'visible'});
+        await page.getByRole('heading',{name:'Ask Kit',exact:true}).waitFor({state:'visible'});
+        await page.locator('#kit-starters > button').first().waitFor({state:'visible'});
       }
       if (name === 'recipecoach') await page.locator('#dk-kit').click();
       if (opt.sel) await page.evaluate((q) => { const e = document.querySelector(q); if (e) window.scrollTo(0, e.getBoundingClientRect().top + scrollY - 70); }, opt.sel);
