@@ -1417,7 +1417,7 @@ document.addEventListener('visibilitychange', () => {
 
 // ---------- skeleton ----------
 // The launch mark from index.html, reused wherever the whole app restarts itself.
-const LAUNCH = `<div class="launch" role="status" aria-label="Loading Kinetta">${document.querySelector('.launch')?.innerHTML || ''}</div>`;
+const LAUNCH = `<div class="${document.querySelector('.launch')?.classList.contains('route-launch')?'launch route-launch':'launch'}" role="status" aria-label="Loading Kinetta">${document.querySelector('.launch')?.innerHTML || ''}</div>`;
 function Skeleton({count=3}={}) { return Array.from({length:count},()=>'<div class="card"><div class="sk big"></div><div class="sk line"></div><div class="sk line"></div></div>').join(''); }
 const skel = (n = 3) => Skeleton({count:n});
 // Keep fast local/cache reads free of a skeleton flash. Call the returned stop
