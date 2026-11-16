@@ -19,6 +19,7 @@ assert.equal(catalog.tail.first_multiple,2);
 
 const makeTrack=(code,label,level,value,displayValue,displayUnit,tiers,next)=>({code,label,level,value,display_value:displayValue,display_unit:displayUnit,tiers,next});
 const tier=(rank,label,threshold,day,activity_id)=>({rank,label,title:label,threshold,unit:'count',day,activity_id});
+const runDistanceFastest=(slug,label,ranks,bestSeconds,seasonSeconds)=>{const code=`sport:run:fastest:${slug}`,levels=catalog.tracks[code].levels,earned=ranks.map(rank=>tier(rank,levels[rank-1].name,rank,'2026-11-09',2400+rank));return{...makeTrack(code,label,Math.max(0,...ranks),ranks.length,ranks.length,'benchmarks',earned,null),earned_ranks:ranks,best_seconds:bestSeconds==null?{}:Object.fromEntries(levels.map((_,i)=>[i+1,bestSeconds])),season_best_seconds:seasonSeconds==null?{}:Object.fromEntries(levels.map((_,i)=>[i+1,seasonSeconds]))};};
 const catalogValue=level=>{
  const value=Number(level.canonical_value)||0;
  return level.canonical_unit==='km'?value*1000:level.canonical_unit==='hours'?value*3600:value;
@@ -66,6 +67,11 @@ const achievementFixture={pending:false,tracks:[
   {label:'50-mile ultra',threshold:80467.2,display_threshold:50,display_unit:'mi'}),
  {...makeTrack('sport:run:fastest','Fastest run efforts',4,4,4,'benchmarks',[tier(4,'Five-K club',4,'2026-11-03',2309)],
   {label:'Ten-K standard',threshold:5,display_threshold:5,display_unit:'benchmarks'}),earned_ranks:[1,2,3,4],best_seconds:{1:570,2:570,3:1700,4:1700,5:3734}},
+ runDistanceFastest('1mi','Fastest mile',[1,2,3],539,541),
+ runDistanceFastest('5k','Fastest 5K',[1,2,3,4],1610,1640),
+ runDistanceFastest('10k','Fastest 10K',[1,2],4170,4200),
+ runDistanceFastest('half','Fastest half marathon',[],null,null),
+ runDistanceFastest('marathon','Fastest marathon',[1],19800,20200),
  {...makeTrack('sport:ride:fastest','Fastest ride efforts',5,5,5,'benchmarks',[tier(5,'Twenty-K push',5,'2026-11-03',2310)],
   {label:'Twenty-K flight',threshold:6,display_threshold:6,display_unit:'benchmarks'}),earned_ranks:[1,2,3,4,5],best_seconds:{1:1800,2:1700,3:1500,4:3600,5:3300,6:3000}},
  {...makeTrack('sport:walk-hike:fastest','Fastest walk & hike efforts',5,5,5,'benchmarks',[tier(5,'Five-K brisk',5,'2026-11-03',2311)],
@@ -388,8 +394,18 @@ module.exports=async({browser,storageState,base,shots})=>{
    const runSummary=await index.locator('.profile-achievement-sport-heading p').innerText(),runChipCount=await index.locator('[data-achievement-sport="run"] b').innerText();
    assert.match(runSummary,/^\d+ earned$/,'an open-ended Run count is shown without a finite total');assert.equal(Number(runSummary.match(/^\d+/)[0]),Number(runChipCount),'Run chip and header counts agree');assert.equal(await index.locator('.profile-achievement-sport-progress').count(),0,'open-ended Run hides the finite-total bar');
    assert.deepEqual(await index.locator('[data-achievement-sport]').evaluateAll(nodes=>nodes.map(node=>node.querySelector('span')?.textContent.trim())),['Overall','Run','Ride','Walk & hike','Swim','Strength'],'the sticky sport switcher has the six requested choices');
-   assert.equal(await index.locator('.profile-achievement-sport-card').count(),4,'only the selected sport tracks are rendered');
-   assert.deepEqual(await index.locator('.profile-achievement-sport-card .profile-achievement-track-title').allTextContents(),['Distance','Workouts','Longest','Fastest'],'Run cards are titled by what they measure');
+   assert.equal(await index.locator('.profile-achievement-sport-card').count(),3,'the Run sport keeps its three regular cards and one compact fastest group');
+   assert.deepEqual(await index.locator('.profile-achievement-sport-card .profile-achievement-track-title').allTextContents(),['Distance','Workouts','Longest'],'Run cards are titled by what they measure');
+   const fastestRows=index.locator('.profile-achievement-fastest-row');assert.deepEqual(await fastestRows.locator('.profile-achievement-fastest-link>span').allTextContents(),['Fastest mile','Fastest 5K','Fastest 10K','Fastest half marathon','Fastest marathon'],'Run fastest group has one row for each recorded distance');
+   const fiveKRow=index.locator('.profile-achievement-fastest-row[data-achievement-code="sport:run:fastest:5k"]'),halfRow=index.locator('.profile-achievement-fastest-row[data-achievement-code="sport:run:fastest:half"]');
+   assert.match(await fiveKRow.innerText(),/Level 4 of 9 · Quick/,'the 5K row shows its own current level');
+   assert.match(await halfRow.innerText(),/No recorded effort yet/,'an unrecorded distance remains explicit');
+   assert.equal(await halfRow.locator('[data-achievement-track-share]').count(),0,'an unearned distance has no share action');
+   assert.equal(await fiveKRow.locator('[data-achievement-track-share]').evaluate(node=>{const rect=node.getBoundingClientRect();return rect.width>=44&&rect.height>=44;}),true,'each earned distance share target remains at least 44px');
+   assert.equal(await index.locator('[data-achievement-code="sport:run:fastest"]').count(),0,'the old mixed-distance Run ladder is no longer shown');
+   await fiveKRow.locator('.profile-achievement-fastest-link').click();await waitForHistoryTrack(page,'sport:run:fastest:5k','Run 5K fastest detail');
+   const fastestStats=page.locator('.profile-achievement-fastest-stats');assert.deepEqual(await fastestStats.locator('dt').allTextContents(),['Personal best','Season best'],'fastest detail separates lifetime and season records');assert.deepEqual(await fastestStats.locator('dd').allTextContents(),['26:50','27:20'],'fastest detail shows recorded times, not a benchmark count');assert.match(await page.locator('.profile-achievement-next-tier').innerText(),/^Next: 5K under /,'fastest detail names the next time standard');
+   await page.goto(base+'/me/achievements#run');await page.locator('#profile-achievement-page[aria-busy="false"]').waitFor();
    assert.equal(await index.locator('.profile-achievement-ladder-threshold').count(),0,'overview badges show their names without repeating thresholds');
    assert.equal(await index.locator('.profile-achievement-repeat-caption').count(),0,'open-ended sport cards omit the repeat explainer');
    const visibleBadgeIcons=await index.locator('.profile-achievement-medallion img[data-achievement-icon]').evaluateAll(nodes=>nodes.map(node=>node.getAttribute('src')));assert.equal(new Set(visibleBadgeIcons).size,visibleBadgeIcons.length,'visible badge art is unique across the selected sport tracks');
@@ -401,8 +417,8 @@ module.exports=async({browser,storageState,base,shots})=>{
    const runGlyph=await index.locator('.profile-achievement-sport-heading>svg').evaluate(node=>{const swatch=document.createElement('i');swatch.style.color='var(--run)';document.body.append(swatch);const expected=getComputedStyle(swatch).color,style=getComputedStyle(node);swatch.remove();return{actual:style.color,expected,background:style.backgroundImage,filter:style.filter};});assert.equal(runGlyph.actual,runGlyph.expected,'the sport header glyph uses the Run token');assert.equal(runGlyph.background,'none','the sport glyph has no coloured plate');assert.equal(runGlyph.filter,'none','the sport glyph has no glow');
    const nextRim=await index.locator('.profile-achievement-ladder-badge.is-next .profile-achievement-medallion').first().evaluate(node=>{const swatch=document.createElement('i');swatch.style.color='var(--achievement-state-brand)';document.body.append(swatch);const expected=getComputedStyle(swatch).color;swatch.remove();const ring=getComputedStyle(node,'::after');return{background:getComputedStyle(node).backgroundImage,ring:ring.borderTopColor,width:ring.borderTopWidth,inset:ring.inset,expected};});assert.equal(nextRim.background,'none','the next badge uses a flat neutral disc');assert.equal(nextRim.ring,nextRim.expected,'the next ring uses brand blue');assert.equal(nextRim.width,'2px');assert.equal(nextRim.inset,'-4px');
    assert.equal(await index.locator('[data-achievement-sport=\"overall\"] [data-achievement-icon=\"trophy\"]').count(),1,'Overall uses a real trophy icon');
-   const fastest=index.locator('.profile-achievement-sport-card.is-fastest');
-   assert.equal(await fastest.count(),1,'Fastest card is marked for its scroll treatment');
+   const fastest=index.locator('.profile-achievement-fastest-group');
+   assert.equal(await fastest.count(),1,'Run fastest distances use one compact grouped section');
    assert.equal(await index.locator('.profile-achievement-see-all,[data-achievement-see-all]').count(),0,'track cards have no redundant See all action');
    assert.equal(await index.locator('.profile-achievement-sport-card-footer').count(),0,'track cards have no See all footer or extra divider');
    assert.equal(await index.locator('.profile-achievement-sport-card .profile-achievement-track-title').evaluateAll(nodes=>nodes.some(node=>/run|ride|swim|walk/i.test(node.textContent))),false,'track titles do not repeat the sport name');
