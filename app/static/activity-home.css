@@ -181,7 +181,7 @@
 .activity-home .activity-card .post-av .av { width:36px; height:36px; transform:none; background:var(--card2); color:var(--tx); }
 .activity-home .activity-card .post-identity-copy { position:relative; min-width:0; }
 .activity-home .activity-card .post-name { position:relative; display:flex; align-items:flex-start; width:max-content; max-width:100%; min-width:44px; min-height:22px; color:var(--tx); font-size:15px; font-weight:600; line-height:22px; }
-.activity-home .activity-card .post-name::before { content:""; position:absolute; z-index:-1; inset:-2px auto auto 0; width:100%; height:44px; }
+.activity-home .activity-card .post-name::before { content:""; position:absolute; z-index:2; inset:-2px auto auto 0; width:100%; height:44px; }
 .activity-home .activity-card .post-meta { position:relative; z-index:1; display:flex; align-items:center; flex-wrap:wrap; gap:8px; min-width:0; margin-top:0; color:var(--tx2); font-size:13px; font-weight:400; line-height:18px; }
 .activity-home .activity-card .post-meta-date { white-space:nowrap; }
 .activity-home .activity-card .post-meta-icon { display:inline-flex; flex:none; align-items:center; justify-content:center; width:16px; height:18px; color:var(--tx2); }
